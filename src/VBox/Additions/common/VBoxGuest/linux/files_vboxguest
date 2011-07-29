@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: files_vboxguest $
+# $Id: files_vboxguest 37964 2011-07-14 13:20:55Z vboxsync $
 ## @file
 # Shared file between Makefile.kmk and export_modules
 #
@@ -52,6 +52,7 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/include/iprt/time.h=>include/iprt/time.h \
     ${PATH_ROOT}/include/iprt/types.h=>include/iprt/types.h \
     ${PATH_ROOT}/include/iprt/uni.h=>include/iprt/uni.h \
+    ${PATH_ROOT}/include/iprt/x86.h=>include/iprt/x86.h \
     ${PATH_ROOT}/include/VBox/cdefs.h=>include/VBox/cdefs.h \
     ${PATH_ROOT}/include/VBox/err.h=>include/VBox/err.h \
     ${PATH_ROOT}/include/VBox/log.h=>include/VBox/log.h \
@@ -81,6 +82,8 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuestLib/VBGLInternal.h=>VBGLInternal.h \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuestLib/VBoxGuestLog.h=>VBoxGuestLog.h \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuestLib/VMMDev.cpp=>VMMDev.c \
+    ${PATH_ROOT}/src/VBox/Installer/linux/Makefile.include.header=>Makefile.include.header \
+    ${PATH_ROOT}/src/VBox/Installer/linux/Makefile.include.footer=>Makefile.include.footer \
     ${PATH_ROOT}/src/VBox/Runtime/include/internal/assert.h=>include/internal/assert.h \
     ${PATH_ROOT}/src/VBox/Runtime/include/internal/initterm.h=>include/internal/initterm.h \
     ${PATH_ROOT}/src/VBox/Runtime/include/internal/iprt.h=>include/internal/iprt.h \
@@ -90,6 +93,8 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/src/VBox/Runtime/include/internal/string.h=>include/internal/string.h \
     ${PATH_ROOT}/src/VBox/Runtime/include/internal/thread.h=>include/internal/thread.h \
     ${PATH_ROOT}/src/VBox/Runtime/include/internal/time.h=>include/internal/time.h \
+    ${PATH_ROOT}/src/VBox/Runtime/include/internal/sched.h=>include/internal/sched.h \
+    ${PATH_ROOT}/src/VBox/Runtime/include/internal/process.h=>include/internal/process.h \
     ${PATH_ROOT}/src/VBox/Runtime/common/alloc/alloc.cpp=>common/alloc/alloc.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/alloc/heapsimple.cpp=>common/alloc/heapsimple.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/err/RTErrConvertFromErrno.cpp=>common/err/RTErrConvertFromErrno.c \
@@ -114,6 +119,7 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/src/VBox/Runtime/common/misc/RTAssertMsg2Weak.cpp=>common/misc/RTAssertMsg2Weak.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/misc/RTAssertMsg2WeakV.cpp=>common/misc/RTAssertMsg2WeakV.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/misc/assert.cpp=>common/misc/assert.c \
+    ${PATH_ROOT}/src/VBox/Runtime/common/misc/thread.cpp=>common/misc/thread.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/RTStrCopy.cpp=>common/string/RTStrCopy.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/RTStrCopyP.cpp=>common/string/RTStrCopyP.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/strformat.cpp=>common/string/strformat.c \
@@ -121,6 +127,13 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/strformattype.cpp=>common/string/strformattype.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/strprintf.cpp=>common/string/strprintf.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/string/strtonum.cpp=>common/string/strtonum.c \
+    ${PATH_ROOT}/src/VBox/Runtime/common/table/avlpv.cpp=>common/table/avlpv.c \
+    ${PATH_ROOT}/src/VBox/Runtime/common/table/avl_Base.cpp.h=>common/table/avl_Base.cpp.h \
+    ${PATH_ROOT}/src/VBox/Runtime/common/table/avl_Get.cpp.h=>common/table/avl_Get.cpp.h \
+    ${PATH_ROOT}/src/VBox/Runtime/common/table/avl_GetBestFit.cpp.h=>common/table/avl_GetBestFit.cpp.h \
+    ${PATH_ROOT}/src/VBox/Runtime/common/table/avl_RemoveBestFit.cpp.h=>common/table/avl_RemoveBestFit.cpp.h \
+    ${PATH_ROOT}/src/VBox/Runtime/common/table/avl_DoWithAll.cpp.h=>common/table/avl_DoWithAll.cpp.h \
+    ${PATH_ROOT}/src/VBox/Runtime/common/table/avl_Destroy.cpp.h=>common/table/avl_Destroy.cpp.h \
     ${PATH_ROOT}/src/VBox/Runtime/common/time/time.cpp=>common/time/time.c \
     ${PATH_ROOT}/src/VBox/Runtime/generic/RTAssertShouldPanic-generic.cpp=>generic/RTAssertShouldPanic-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/generic/RTLogWriteStdErr-stub-generic.cpp=>generic/RTLogWriteStdErr-stub-generic.c \
@@ -129,6 +142,7 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/src/VBox/Runtime/generic/RTSemEventWaitNoResume-2-ex-generic.cpp=>generic/RTSemEventWaitNoResume-2-ex-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/generic/RTSemEventMultiWait-2-ex-generic.cpp=>generic/RTSemEventMultiWait-2-ex-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/generic/RTSemEventMultiWaitNoResume-2-ex-generic.cpp=>generic/RTSemEventMultiWaitNoResume-2-ex-generic.c \
+    ${PATH_ROOT}/src/VBox/Runtime/generic/errvars-generic.cpp=>generic/errvars-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/alloc-r0drv.cpp=>r0drv/alloc-r0drv.c \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/alloc-r0drv.h=>r0drv/alloc-r0drv.h \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/initterm-r0drv.cpp=>r0drv/initterm-r0drv.c \
@@ -152,6 +166,7 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/linux/string.h=>r0drv/linux/string.h \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/linux/the-linux-kernel.h=>r0drv/linux/the-linux-kernel.h \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/linux/thread-r0drv-linux.c=>r0drv/linux/thread-r0drv-linux.c \
+    ${PATH_ROOT}/src/VBox/Runtime/r0drv/linux/thread2-r0drv-linux.c=>r0drv/linux/thread2-r0drv-linux.c \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/linux/time-r0drv-linux.c=>r0drv/linux/time-r0drv-linux.c \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/linux/waitqueue-r0drv-linux.h=>r0drv/linux/waitqueue-r0drv-linux.h \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/linux/RTLogWriteDebugger-r0drv-linux.c=>r0drv/linux/RTLogWriteDebugger-r0drv-linux.c \

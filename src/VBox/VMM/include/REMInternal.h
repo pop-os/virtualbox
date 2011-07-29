@@ -1,4 +1,4 @@
-/* $Id: REMInternal.h $ */
+/* $Id: REMInternal.h 37702 2011-06-30 10:09:59Z vboxsync $ */
 /** @file
  * REM - Internal header file.
  */
@@ -237,7 +237,6 @@ void    remR3CSAMCheckEIP(CPUState *env, RTGCPTR GCPtrCode);
 bool    remR3GetOpcode(CPUState *env, RTGCPTR GCPtrInstr, uint8_t *pu8Byte);
 bool    remR3DisasInstr(CPUState *env, int f32BitCode, char *pszPrefix);
 void    remR3FlushPage(CPUState *env, RTGCPTR GCPtr);
-void    remR3SetPage(CPUState *env, CPUTLBEntry *pRead,  CPUTLBEntry *pWrite, int prot, int is_user);
 void    remR3FlushTLB(CPUState *env, bool fGlobal);
 void    remR3ProtectCode(CPUState *env, RTGCPTR GCPtr);
 void    remR3ChangeCpuMode(CPUState *env);
@@ -245,7 +244,6 @@ void    remR3DmaRun(CPUState *env);
 void    remR3TimersRun(CPUState *env);
 int     remR3NotifyTrap(CPUState *env, uint32_t uTrap, uint32_t uErrorCode, RTGCPTR pvNextEIP);
 void    remR3TrapStat(CPUState *env, uint32_t uTrap);
-void    remR3CpuId(CPUState *env, unsigned uOperator, void *pvEAX, void *pvEBX, void *pvECX, void *pvEDX);
 void    remR3RecordCall(CPUState *env);
 #endif /* REM_INCLUDE_CPU_H */
 void    remR3TrapClear(PVM pVM);

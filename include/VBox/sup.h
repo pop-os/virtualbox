@@ -269,7 +269,7 @@ typedef enum SUPGIPMODE
 #if defined(IN_SUP_R0) || defined(IN_SUP_R3) || defined(IN_SUP_RC)
 extern DECLEXPORT(PSUPGLOBALINFOPAGE)   g_pSUPGlobalInfoPage;
 
-#elif !defined(IN_RING0) || defined(RT_OS_WINDOWS)
+#elif !defined(IN_RING0) || defined(RT_OS_WINDOWS) || defined(RT_OS_SOLARIS)
 extern DECLIMPORT(PSUPGLOBALINFOPAGE)   g_pSUPGlobalInfoPage;
 
 #else /* IN_RING0 && !RT_OS_WINDOWS */
@@ -1171,6 +1171,8 @@ typedef enum SUPDRVOBJTYPE
     SUPDRVOBJTYPE_SEM_EVENT,
     /** Multiple release event semaphore. */
     SUPDRVOBJTYPE_SEM_EVENT_MULTI,
+    /** Raw PCI device. */
+    SUPDRVOBJTYPE_RAW_PCI_DEVICE,
     /** The first invalid object type in this end. */
     SUPDRVOBJTYPE_END,
     /** The usual 32-bit type size hack. */

@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /*
@@ -27,33 +26,37 @@
  * of the LGPL is applied is otherwise unspecified.
  */
 
+#include "qemu-timer.h"
+
 #define DATA_SIZE (1 << SHIFT)
 
 #if DATA_SIZE == 8
 #define SUFFIX q
 #define USUFFIX q
 #define DATA_TYPE uint64_t
-#define DATA_TYPE_PROMOTED uint64_t
+#ifdef VBOX
+# define DATA_TYPE_PROMOTED uint64_t
+#endif
 #elif DATA_SIZE == 4
 #define SUFFIX l
 #define USUFFIX l
 #define DATA_TYPE uint32_t
 #ifdef VBOX
-#define DATA_TYPE_PROMOTED RTCCUINTREG
+# define DATA_TYPE_PROMOTED RTCCUINTREG
 #endif
 #elif DATA_SIZE == 2
 #define SUFFIX w
 #define USUFFIX uw
 #define DATA_TYPE uint16_t
 #ifdef VBOX
-#define DATA_TYPE_PROMOTED RTCCUINTREG
+# define DATA_TYPE_PROMOTED RTCCUINTREG
 #endif
 #elif DATA_SIZE == 1
 #define SUFFIX b
 #define USUFFIX ub
 #define DATA_TYPE uint8_t
 #ifdef VBOX
-#define DATA_TYPE_PROMOTED RTCCUINTREG
+# define DATA_TYPE_PROMOTED RTCCUINTREG
 #endif
 #else
 #error unsupported data size
@@ -70,15 +73,9 @@
 static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                         int mmu_idx,
                                                         void *retaddr);
-#ifndef VBOX
 static inline DATA_TYPE glue(io_read, SUFFIX)(target_phys_addr_t physaddr,
                                               target_ulong addr,
                                               void *retaddr)
-#else
-DECLINLINE(DATA_TYPE) glue(io_read, SUFFIX)(target_phys_addr_t physaddr,
-                                            target_ulong addr,
-                                            void *retaddr)
-#endif
 {
     DATA_TYPE res;
     int index;
@@ -90,6 +87,7 @@ DECLINLINE(DATA_TYPE) glue(io_read, SUFFIX)(target_phys_addr_t physaddr,
         cpu_io_recompile(env, retaddr);
     }
 
+    env->mem_io_vaddr = addr;
 #if SHIFT <= 2
     res = io_mem_read[index][SHIFT](io_mem_opaque[index], physaddr);
 #else
@@ -101,9 +99,6 @@ DECLINLINE(DATA_TYPE) glue(io_read, SUFFIX)(target_phys_addr_t physaddr,
     res |= (uint64_t)io_mem_read[index][2](io_mem_opaque[index], physaddr + 4) << 32;
 #endif
 #endif /* SHIFT > 2 */
-#ifdef USE_KQEMU
-    env->last_io_time = cpu_get_time_fast();
-#endif
     return res;
 }
 
@@ -123,7 +118,8 @@ glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
     DATA_TYPE res;
     int index;
     target_ulong tlb_addr;
-    target_phys_addr_t addend;
+    target_phys_addr_t ioaddr;
+    unsigned long addend;
     void *retaddr;
 
     /* test if there is match for unaligned or IO access */
@@ -137,8 +133,8 @@ glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             if ((addr & (DATA_SIZE - 1)) != 0)
                 goto do_unaligned_access;
             retaddr = GETPC();
-            addend = env->iotlb[mmu_idx][index];
-            res = glue(io_read, SUFFIX)(addend, addr, retaddr);
+            ioaddr = env->iotlb[mmu_idx][index];
+            res = glue(io_read, SUFFIX)(ioaddr, addr, retaddr);
         } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
             /* slow unaligned access (it spans two pages or IO) */
         do_unaligned_access:
@@ -179,7 +175,8 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 {
     DATA_TYPE res, res1, res2;
     int index, shift;
-    target_phys_addr_t addend;
+    target_phys_addr_t ioaddr;
+    unsigned long addend;
     target_ulong tlb_addr, addr1, addr2;
 
     index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
@@ -190,9 +187,8 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* IO access */
             if ((addr & (DATA_SIZE - 1)) != 0)
                 goto do_unaligned_access;
-            retaddr = GETPC();
-            addend = env->iotlb[mmu_idx][index];
-            res = glue(io_read, SUFFIX)(addend, addr, retaddr);
+            ioaddr = env->iotlb[mmu_idx][index];
+            res = glue(io_read, SUFFIX)(ioaddr, addr, retaddr);
         } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
         do_unaligned_access:
             /* slow unaligned access (it spans two pages) */
@@ -229,17 +225,10 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                    int mmu_idx,
                                                    void *retaddr);
 
-#ifndef VBOX
 static inline void glue(io_write, SUFFIX)(target_phys_addr_t physaddr,
                                           DATA_TYPE val,
                                           target_ulong addr,
                                           void *retaddr)
-#else
-DECLINLINE(void) glue(io_write, SUFFIX)(target_phys_addr_t physaddr,
-                                        DATA_TYPE val,
-                                        target_ulong addr,
-                                        void *retaddr)
-#endif
 {
     int index;
     index = (physaddr >> IO_MEM_SHIFT) & (IO_MEM_NB_ENTRIES - 1);
@@ -262,16 +251,14 @@ DECLINLINE(void) glue(io_write, SUFFIX)(target_phys_addr_t physaddr,
     io_mem_write[index][2](io_mem_opaque[index], physaddr + 4, val >> 32);
 #endif
 #endif /* SHIFT > 2 */
-#ifdef USE_KQEMU
-    env->last_io_time = cpu_get_time_fast();
-#endif
 }
 
 void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                  DATA_TYPE val,
                                                  int mmu_idx)
 {
-    target_phys_addr_t addend;
+    target_phys_addr_t ioaddr;
+    unsigned long addend;
     target_ulong tlb_addr;
     void *retaddr;
     int index;
@@ -285,8 +272,8 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             if ((addr & (DATA_SIZE - 1)) != 0)
                 goto do_unaligned_access;
             retaddr = GETPC();
-            addend = env->iotlb[mmu_idx][index];
-            glue(io_write, SUFFIX)(addend, val, addr, retaddr);
+            ioaddr = env->iotlb[mmu_idx][index];
+            glue(io_write, SUFFIX)(ioaddr, val, addr, retaddr);
         } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
         do_unaligned_access:
             retaddr = GETPC();
@@ -324,7 +311,8 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                    int mmu_idx,
                                                    void *retaddr)
 {
-    target_phys_addr_t addend;
+    target_phys_addr_t ioaddr;
+    unsigned long addend;
     target_ulong tlb_addr;
     int index, i;
 
@@ -336,8 +324,8 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* IO access */
             if ((addr & (DATA_SIZE - 1)) != 0)
                 goto do_unaligned_access;
-            addend = env->iotlb[mmu_idx][index];
-            glue(io_write, SUFFIX)(addend, val, addr, retaddr);
+            ioaddr = env->iotlb[mmu_idx][index];
+            glue(io_write, SUFFIX)(ioaddr, val, addr, retaddr);
         } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
         do_unaligned_access:
             /* XXX: not efficient, but simple */
@@ -367,7 +355,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #endif /* !defined(SOFTMMU_CODE_ACCESS) */
 
 #ifdef VBOX
-#undef DATA_TYPE_PROMOTED
+# undef DATA_TYPE_PROMOTED
 #endif
 #undef READ_ACCESS_TYPE
 #undef SHIFT

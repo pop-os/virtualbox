@@ -22,6 +22,7 @@
 
 #include <iprt/assert.h>
 #include <iprt/critsect.h>
+#include <iprt/env.h>
 #include <iprt/mem.h>
 #include <iprt/semaphore.h>
 
@@ -97,7 +98,7 @@ void vboxClipboardDestroy (void)
  * @note  on the host, we assume that some other application already owns
  *        the clipboard and leave ownership to X11.
  */
-int vboxClipboardConnect (VBOXCLIPBOARDCLIENTDATA *pClient)
+int vboxClipboardConnect (VBOXCLIPBOARDCLIENTDATA *pClient, bool fHeadless)
 {
     int rc = VINF_SUCCESS;
     CLIPBACKEND *pBackend = NULL;
@@ -110,7 +111,7 @@ int vboxClipboardConnect (VBOXCLIPBOARDCLIENTDATA *pClient)
     else
     {
         RTCritSectInit(&pCtx->clipboardMutex);
-        pBackend = ClipConstructX11(pCtx);
+        pBackend = ClipConstructX11(pCtx, fHeadless);
         if (pBackend == NULL)
             rc = VERR_NO_MEMORY;
         else
@@ -469,7 +470,7 @@ void vboxSvcClipboardCompleteReadData(VBOXCLIPBOARDCLIENTDATA *pClient, int rc, 
     pBackend->completeRead.cbActual = cbActual;
 }
 
-CLIPBACKEND *ClipConstructX11(VBOXCLIPBOARDCONTEXT *pFrontend)
+CLIPBACKEND *ClipConstructX11(VBOXCLIPBOARDCONTEXT *pFrontend, bool)
 {
     return (CLIPBACKEND *)RTMemAllocZ(sizeof(CLIPBACKEND));
 }
@@ -510,7 +511,7 @@ int main()
     int rc = RTR3Init();
     RTPrintf(TEST_NAME ": TESTING\n");
     AssertRCReturn(rc, 1);
-    rc = vboxClipboardConnect(&client);
+    rc = vboxClipboardConnect(&client, false);
     CLIPBACKEND *pBackend = client.pCtx->pBackend;
     AssertRCReturn(rc, 1);
     vboxClipboardFormatAnnounce(&client,

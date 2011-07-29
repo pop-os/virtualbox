@@ -1,4 +1,4 @@
-/* $Id: VBoxBalloonCtrl.cpp $ */
+/* $Id: VBoxBalloonCtrl.cpp 37103 2011-05-16 12:59:24Z vboxsync $ */
 /** @file
  * VBoxBalloonCtrl - VirtualBox Ballooning Control Service.
  */
@@ -186,6 +186,15 @@ class VirtualBoxEventListener
         }
 
         virtual ~VirtualBoxEventListener()
+        {
+        }
+
+        HRESULT init()
+        {
+            return S_OK;
+        }
+
+        void uninit()
         {
         }
 
@@ -472,10 +481,7 @@ static int machineAdd(const Bstr &strUuid)
         com::SafeIfaceArray<IUnknown> metricObjects(1);
         com::SafeIfaceArray<IPerformanceMetric> metricAffected;
 
-        /* NOTE: the base metric for Guest/RAM/Usage is RAM/Usage up to
-         * VirtualBox 4.0. Somewhat inconsistent, but changing may be
-         * considered an API change since it can break existing API clients. */
-        Bstr strMetricNames(L"RAM/Usage");
+        Bstr strMetricNames(L"Guest/RAM/Usage");
         strMetricNames.cloneTo(&metricNames[0]);
 
         m.machine.queryInterfaceTo(&metricObjects[0]);
@@ -998,12 +1004,16 @@ static RTEXITCODE balloonCtrlMain(HandlerArg *a)
         CHECK_ERROR_BREAK(g_pVirtualBox, COMGETTER(EventSource)(g_pEventSource.asOutParam()));
         CHECK_ERROR_BREAK(g_pVirtualBoxClient, COMGETTER(EventSource)(g_pEventSourceClient.asOutParam()));
 
+        ComObjPtr<VirtualBoxEventListenerImpl> vboxListenerImpl;
+        vboxListenerImpl.createObject();
+        vboxListenerImpl->init(new VirtualBoxEventListener());
+
         com::SafeArray <VBoxEventType_T> eventTypes;
         eventTypes.push_back(VBoxEventType_OnMachineRegistered);
         eventTypes.push_back(VBoxEventType_OnMachineStateChanged);
         eventTypes.push_back(VBoxEventType_OnVBoxSVCAvailabilityChanged); /* Processed by g_pEventSourceClient. */
 
-        g_pVBoxEventListener = new VirtualBoxEventListenerImpl();
+        g_pVBoxEventListener = vboxListenerImpl;
         CHECK_ERROR_BREAK(g_pEventSource, RegisterListener(g_pVBoxEventListener, ComSafeArrayAsInParam(eventTypes), true /* Active listener */));
         CHECK_ERROR_BREAK(g_pEventSourceClient, RegisterListener(g_pVBoxEventListener, ComSafeArrayAsInParam(eventTypes), true /* Active listener */));
 

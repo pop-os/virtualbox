@@ -1,4 +1,4 @@
-/* $Id: StorageControllerImpl.h $ */
+/* $Id: StorageControllerImpl.h 35638 2011-01-19 19:10:49Z vboxsync $ */
 
 /** @file
  *
@@ -35,9 +35,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(StorageController)
-        COM_INTERFACE_ENTRY  (ISupportErrorInfo)
-        COM_INTERFACE_ENTRY  (IStorageController)
-        COM_INTERFACE_ENTRY2 (IDispatch, IStorageController)
+        VBOX_DEFAULT_INTERFACE_ENTRIES (IStorageController)
     END_COM_MAP()
 
     StorageController() { };

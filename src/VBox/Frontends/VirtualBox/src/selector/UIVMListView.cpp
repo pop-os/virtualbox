@@ -1,4 +1,4 @@
-/* $Id: UIVMListView.cpp $ */
+/* $Id: UIVMListView.cpp 37423 2011-06-12 18:37:56Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -598,7 +598,7 @@ QPixmap UIVMListView::dragPixmap(const QModelIndex &index) const
     p.setPen(Qt::white);
     p.setFont(font());
     p.drawText(QRect(margin, margin + osTypeSize.height() + space,  s.width() - 2 * margin, nameSize.height()), Qt::AlignCenter, name);
-	/* Transparent icons are not supported on all platforms. */
+    /* Transparent icons are not supported on all platforms. */
 #if defined(Q_WS_MAC) || defined(Q_WS_WIN)
     p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
     p.fillRect(image.rect(), QColor(0, 0, 0, 177));

@@ -1,4 +1,4 @@
-/* $Id: USBProxyDevice.h $ */
+/* $Id: USBProxyDevice.h 37596 2011-06-22 19:30:06Z vboxsync $ */
 /** @file
  * USBPROXY - USB proxy header
  */
@@ -206,7 +206,7 @@ typedef struct USBPROXYDEV
         /** Pointer to some backend data.
          * The Linux and Darwin backends are making use of this. */
         void *pv;
-        RTFILE File;
+        RTFILE hFile;
         int fd;
         struct vrdp_priv
         {

@@ -1,4 +1,4 @@
-/* $Id: ParallelPortImpl.cpp $ */
+/* $Id: ParallelPortImpl.cpp 35638 2011-01-19 19:10:49Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -54,12 +54,13 @@ struct ParallelPort::Data
 
 HRESULT ParallelPort::FinalConstruct()
 {
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void ParallelPort::FinalRelease()
 {
     uninit();
+    BaseFinalRelease();
 }
 
 // public initializer/uninitializer for internal purposes only

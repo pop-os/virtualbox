@@ -1,4 +1,4 @@
-/* $Id: alloc-r0drv-nt.cpp $ */
+/* $Id: alloc-r0drv-nt.cpp 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation, Ring-0 Driver, NT.
  */
@@ -40,7 +40,7 @@
 /**
  * OS specific allocation function.
  */
-int rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr)
+DECLHIDDEN(int) rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr)
 {
     if (fFlags & RTMEMHDR_FLAG_ANY_CTX)
         return VERR_NOT_SUPPORTED;
@@ -61,7 +61,7 @@ int rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr)
 /**
  * OS specific free function.
  */
-void rtR0MemFree(PRTMEMHDR pHdr)
+DECLHIDDEN(void) rtR0MemFree(PRTMEMHDR pHdr)
 {
     pHdr->u32Magic += 1;
     ExFreePool(pHdr);

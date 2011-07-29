@@ -1,4 +1,4 @@
-/* $Id: s3.h $ */
+/* $Id: s3.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Simple Storage Service (S3) Communication API.
  */

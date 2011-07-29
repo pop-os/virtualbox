@@ -106,7 +106,7 @@ typedef FNPDMASYNCCOMPLETEINT *PFNPDMASYNCCOMPLETEINT;
 
 
 /**
- * Creates a async completion template for a device instance.
+ * Creates an async completion template for a device instance.
  *
  * The template is used when creating new completion tasks.
  *
@@ -120,7 +120,7 @@ typedef FNPDMASYNCCOMPLETEINT *PFNPDMASYNCCOMPLETEINT;
 VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateDevice(PVM pVM, PPDMDEVINS pDevIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate, PFNPDMASYNCCOMPLETEDEV pfnCompleted, const char *pszDesc);
 
 /**
- * Creates a async completion template for a driver instance.
+ * Creates an async completion template for a driver instance.
  *
  * The template is used when creating new completion tasks.
  *
@@ -135,7 +135,7 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateDevice(PVM pVM, PPDMDEVINS pDev
 VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateDriver(PVM pVM, PPDMDRVINS pDrvIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate, PFNPDMASYNCCOMPLETEDRV pfnCompleted, void *pvTemplateUser, const char *pszDesc);
 
 /**
- * Creates a async completion template for a USB device instance.
+ * Creates an async completion template for a USB device instance.
  *
  * The template is used when creating new completion tasks.
  *
@@ -149,7 +149,7 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateDriver(PVM pVM, PPDMDRVINS pDrv
 VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateUsb(PVM pVM, PPDMUSBINS pUsbIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate, PFNPDMASYNCCOMPLETEUSB pfnCompleted, const char *pszDesc);
 
 /**
- * Creates a async completion template for internally by the VMM.
+ * Creates an async completion template for internally by the VMM.
  *
  * The template is used when creating new completion tasks.
  *
@@ -211,7 +211,7 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroyUsb(PVM pVM, PPDMUSBINS pUsbIn
 
 
 /**
- * Opens a file as a async completion endpoint.
+ * Opens a file as an async completion endpoint.
  *
  * @returns VBox status code.
  * @param   ppEndpoint      Where to store the opaque endpoint handle on success.
@@ -227,13 +227,15 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpCreateForFile(PPPDMASYNCCOMPLETIONENDPOINT 
 /** @defgroup grp_pdmacep_file_flags Flags for PDMR3AsyncCompletionEpCreateForFile
  * @{ */
 /** Open the file in read-only mode. */
-#define PDMACEP_FILE_FLAGS_READ_ONLY    RT_BIT_32(0)
+#define PDMACEP_FILE_FLAGS_READ_ONLY             RT_BIT_32(0)
 /** Whether the file should not be write protected.
  * The default is to protect the file against writes by other processes
  * when opened in read/write mode to prevent data corruption by
  * concurrent access which can occur if the local writeback cache is enabled.
  */
-#define PDMACEP_FILE_FLAGS_DONT_LOCK    RT_BIT_32(2)
+#define PDMACEP_FILE_FLAGS_DONT_LOCK             RT_BIT_32(2)
+/** Open the endpoint with the host cache enabled. */
+#define PDMACEP_FILE_FLAGS_HOST_CACHE_ENABLED    RT_BIT_32(3)
 /** @} */
 
 /**
@@ -336,7 +338,7 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpSetBwMgr(PPDMASYNCCOMPLETIONENDPOINT pEndpo
                                               const char *pcszBwMgr);
 
 /**
- * Cancels a async completion task.
+ * Cancels an async completion task.
  *
  * If you want to use this method, you have to take great create to make sure
  * you will never attempt cancel a task which has been completed. Since there is

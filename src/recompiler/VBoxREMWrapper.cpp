@@ -1,4 +1,4 @@
-/* $Id: VBoxREMWrapper.cpp $ */
+/* $Id: VBoxREMWrapper.cpp 37693 2011-06-29 16:41:39Z vboxsync $ */
 /** @file
  *
  * VBoxREM Win64 DLL Wrapper.
@@ -2003,6 +2003,7 @@ static int remLoadLinuxObj(void)
         g_pvREM2 = RTMemExecAlloc(g_cbREM2);
         if (g_pvREM2)
         {
+            RTPathChangeToUnixSlashes(szPath, true);
 #  ifdef DEBUG /* How to load the VBoxREM2.rel symbols into the GNU debugger. */
             RTPrintf("VBoxREMWrapper: (gdb) add-symbol-file %s 0x%p\n", szPath, g_pvREM2);
 #  endif

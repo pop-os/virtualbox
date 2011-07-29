@@ -1,4 +1,4 @@
-/* $Id: Bmp.h $ */
+/* $Id: Bmp.h 29125 2010-05-06 09:43:05Z vboxsync $ */
 /** @file
  * Bmp.h - This file defines BMP file header data structures.
  */

@@ -1,4 +1,4 @@
-/* $Id: UIMachineWindowNormal.cpp $ */
+/* $Id: UIMachineWindowNormal.cpp 37712 2011-06-30 14:11:14Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -155,6 +155,11 @@ void UIMachineWindowNormal::sltNetworkAdapterChange()
 void UIMachineWindowNormal::sltSharedFolderChange()
 {
     updateAppearanceOf(UIVisualElement_SharedFolderStuff);
+}
+
+void UIMachineWindowNormal::sltCPUExecutionCapChange()
+{
+    updateAppearanceOf(UIVisualElement_VirtualizationStuff);
 }
 
 void UIMachineWindowNormal::sltTryClose()
@@ -371,12 +376,16 @@ void UIMachineWindowNormal::prepareConsoleConnections()
     /* Shared folder change updater: */
     connect(machineLogic()->uisession(), SIGNAL(sigSharedFolderChange()),
             this, SLOT(sltSharedFolderChange()));
+
+    /* CPU execution cap change updater: */
+    connect(machineLogic()->uisession(), SIGNAL(sigCPUExecutionCapChange()),
+            this, SLOT(sltCPUExecutionCapChange()));
+
 }
 
 void UIMachineWindowNormal::prepareMenu()
 {
-    /* No view menu in normal mode */
-    setMenuBar(uisession()->newMenuBar(UIMainMenuType(UIMainMenuType_All ^ UIMainMenuType_View)));
+    setMenuBar(uisession()->newMenuBar());
 }
 
 void UIMachineWindowNormal::prepareStatusBar()

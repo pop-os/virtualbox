@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /*
@@ -30,23 +29,24 @@
 #ifndef CPU_DEFS_H
 #define CPU_DEFS_H
 
+#ifndef NEED_CPU_H
+#error cpu.h included from common code
+#endif
+
 #include "config.h"
 #include <setjmp.h>
-#ifndef VBOX
 #include <inttypes.h>
-#endif
+#ifndef VBOX
+#include <signal.h>
+#else  /* VBOX */
+# define sig_atomic_t int32_t
+#endif /* VBOX */
 #include "osdep.h"
+#include "qemu-queue.h"
+#include "targphys.h"
 
 #ifndef TARGET_LONG_BITS
 #error TARGET_LONG_BITS must be defined before including this header
-#endif
-
-#ifndef TARGET_PHYS_ADDR_BITS
-#if TARGET_LONG_BITS >= HOST_LONG_BITS
-#define TARGET_PHYS_ADDR_BITS TARGET_LONG_BITS
-#else
-#define TARGET_PHYS_ADDR_BITS HOST_LONG_BITS
-#endif
 #endif
 
 #define TARGET_LONG_SIZE (TARGET_LONG_BITS / 8)
@@ -68,36 +68,18 @@ typedef uint64_t target_ulong;
 #error TARGET_LONG_SIZE undefined
 #endif
 
-/* target_phys_addr_t is the type of a physical address (its size can
-   be different from 'target_ulong'). We have sizeof(target_phys_addr)
-   = max(sizeof(unsigned long),
-   sizeof(size_of_target_physical_address)) because we must pass a
-   host pointer to memory operations in some cases */
-
-#if TARGET_PHYS_ADDR_BITS == 32
-typedef uint32_t target_phys_addr_t;
-#define TARGET_FMT_plx "%08x"
-#elif TARGET_PHYS_ADDR_BITS == 64
-typedef uint64_t target_phys_addr_t;
-#define TARGET_FMT_plx "%016" PRIx64
-#else
-#error TARGET_PHYS_ADDR_BITS undefined
-#endif
-
 #define HOST_LONG_SIZE (HOST_LONG_BITS / 8)
 
-#define EXCP_INTERRUPT  0x10000 /* async interruption */
+#define EXCP_INTERRUPT 	0x10000 /* async interruption */
 #define EXCP_HLT        0x10001 /* hlt instruction reached */
 #define EXCP_DEBUG      0x10002 /* cpu stopped after a breakpoint or singlestep */
 #define EXCP_HALTED     0x10003 /* cpu is halted (waiting for external event) */
-#if defined(VBOX)
-#define EXCP_EXECUTE_RAW    0x11024 /* execute raw mode. */
-#define EXCP_EXECUTE_HWACC  0x11025 /* execute hardware accelerated raw mode. */
-#define EXCP_SINGLE_INSTR   0x11026 /* executed single instruction. */
-#define EXCP_RC             0x11027 /* a EM rc was raised (VMR3Reset/Suspend/PowerOff). */
+#ifdef VBOX
+# define EXCP_EXECUTE_RAW   0x11024 /**< execute raw mode. */
+# define EXCP_EXECUTE_HWACC 0x11025 /**< execute hardware accelerated raw mode. */
+# define EXCP_SINGLE_INSTR  0x11026 /**< executed single instruction. */
+# define EXCP_RC            0x11027 /**< a EM rc was raised (VMR3Reset/Suspend/PowerOff). */
 #endif /* VBOX */
-#define MAX_BREAKPOINTS 32
-#define MAX_WATCHPOINTS 32
 
 #define TB_JMP_CACHE_BITS 12
 #define TB_JMP_CACHE_SIZE (1 << TB_JMP_CACHE_BITS)
@@ -110,10 +92,11 @@ typedef uint64_t target_phys_addr_t;
 #define TB_JMP_ADDR_MASK (TB_JMP_PAGE_SIZE - 1)
 #define TB_JMP_PAGE_MASK (TB_JMP_CACHE_SIZE - TB_JMP_PAGE_SIZE)
 
+#if !defined(CONFIG_USER_ONLY)
 #define CPU_TLB_BITS 8
 #define CPU_TLB_SIZE (1 << CPU_TLB_BITS)
 
-#if TARGET_PHYS_ADDR_BITS == 32 && TARGET_LONG_BITS == 32
+#if HOST_LONG_BITS == 32 && TARGET_LONG_BITS == 32
 #define CPU_TLB_ENTRY_BITS 4
 #else
 #define CPU_TLB_ENTRY_BITS 5
@@ -129,22 +112,33 @@ typedef struct CPUTLBEntry {
     target_ulong addr_read;
     target_ulong addr_write;
     target_ulong addr_code;
-      /* Addend to virtual address to get physical address.  IO accesses
+    /* Addend to virtual address to get host address.  IO accesses
        use the corresponding iotlb value.  */
-#if TARGET_PHYS_ADDR_BITS == 64
-    /* on i386 Linux make sure it is aligned */
-    target_phys_addr_t addend __attribute__((aligned(8)));
-#else
-    target_phys_addr_t addend;
-#endif
+    unsigned long addend;
     /* padding to get a power of two size */
     uint8_t dummy[(1 << CPU_TLB_ENTRY_BITS) -
                   (sizeof(target_ulong) * 3 +
-                   ((-sizeof(target_ulong) * 3) & (sizeof(target_phys_addr_t) - 1)) +
-                   sizeof(target_phys_addr_t))];
+                   ((-sizeof(target_ulong) * 3) & (sizeof(unsigned long) - 1)) +
+                   sizeof(unsigned long))];
 } CPUTLBEntry;
 
-#ifdef WORDS_BIGENDIAN
+extern int CPUTLBEntry_wrong_size[sizeof(CPUTLBEntry) == (1 << CPU_TLB_ENTRY_BITS) ? 1 : -1];
+
+#define CPU_COMMON_TLB \
+    /* The meaning of the MMU modes is defined in the target code. */   \
+    CPUTLBEntry tlb_table[NB_MMU_MODES][CPU_TLB_SIZE];                  \
+    target_phys_addr_t iotlb[NB_MMU_MODES][CPU_TLB_SIZE];               \
+    target_ulong tlb_flush_addr;                                        \
+    target_ulong tlb_flush_mask;
+
+#else
+
+#define CPU_COMMON_TLB
+
+#endif
+
+
+#ifdef HOST_WORDS_BIGENDIAN
 typedef struct icount_decr_u16 {
     uint16_t high;
     uint16_t low;
@@ -156,9 +150,24 @@ typedef struct icount_decr_u16 {
 } icount_decr_u16;
 #endif
 
+struct kvm_run;
+struct KVMState;
+struct qemu_work_item;
+
+typedef struct CPUBreakpoint {
+    target_ulong pc;
+    int flags; /* BP_* */
+    QTAILQ_ENTRY(CPUBreakpoint) entry;
+} CPUBreakpoint;
+
+typedef struct CPUWatchpoint {
+    target_ulong vaddr;
+    target_ulong len_mask;
+    int flags; /* BP_* */
+    QTAILQ_ENTRY(CPUWatchpoint) entry;
+} CPUWatchpoint;
 
 #define CPU_TEMP_BUF_NLONGS 128
-
 #define CPU_COMMON                                                      \
     struct TranslationBlock *current_tb; /* currently executing TB  */  \
     /* soft mmu support */                                              \
@@ -171,11 +180,8 @@ typedef struct icount_decr_u16 {
                                      memory was accessed */             \
     uint32_t halted; /* Nonzero if the CPU is in suspend state */       \
     uint32_t interrupt_request;                                         \
-    /* The meaning of the MMU modes is defined in the target code. */   \
-    CPUTLBEntry tlb_table[NB_MMU_MODES][CPU_TLB_SIZE];                  \
-    target_phys_addr_t iotlb[NB_MMU_MODES][CPU_TLB_SIZE];               \
-    /** addends for HVA -> GPA translations */                          \
-    VBOX_ONLY(target_phys_addr_t   phys_addends[NB_MMU_MODES][CPU_TLB_SIZE]); \
+    volatile sig_atomic_t exit_request;                                 \
+    CPU_COMMON_TLB                                                      \
     struct TranslationBlock *tb_jmp_cache[TB_JMP_CACHE_SIZE];           \
     /* buffer for temporaries in the code generator */                  \
     long temp_buf[CPU_TEMP_BUF_NLONGS];                                 \
@@ -192,29 +198,38 @@ typedef struct icount_decr_u16 {
                                                                         \
     /* from this point: preserved by CPU reset */                       \
     /* ice debug support */                                             \
-    target_ulong breakpoints[MAX_BREAKPOINTS];                          \
-    int nb_breakpoints;                                                 \
+    QTAILQ_HEAD(breakpoints_head, CPUBreakpoint) breakpoints;            \
     int singlestep_enabled;                                             \
                                                                         \
-    struct {                                                            \
-        target_ulong vaddr;                                             \
-        int type; /* PAGE_READ/PAGE_WRITE */                            \
-    } watchpoint[MAX_WATCHPOINTS];                                      \
-    int nb_watchpoints;                                                 \
-    int watchpoint_hit;                                                 \
+    QTAILQ_HEAD(watchpoints_head, CPUWatchpoint) watchpoints;            \
+    CPUWatchpoint *watchpoint_hit;                                      \
+                                                                        \
+    struct GDBRegisterState *gdb_regs;                                  \
                                                                         \
     /* Core interrupt code */                                           \
     jmp_buf jmp_env;                                                    \
     int exception_index;                                                \
                                                                         \
-    int user_mode_only;                                                 \
-                                                                        \
-    void *next_cpu; /* next CPU sharing TB cache */                     \
+    CPUState *next_cpu; /* next CPU sharing TB cache */                 \
     int cpu_index; /* CPU index (informative) */                        \
+    uint32_t host_tid; /* host thread ID */                             \
+    int numa_node; /* NUMA node this cpu is belonging to  */            \
+    int nr_cores;  /* number of cores within this CPU package */        \
+    int nr_threads;/* number of threads within this CPU */              \
     int running; /* Nonzero if cpu is currently running(usermode).  */  \
     /* user data */                                                     \
     void *opaque;                                                       \
                                                                         \
-    const char *cpu_model_str;
+    uint32_t created;                                                   \
+    uint32_t stop;   /* Stop request */                                 \
+    uint32_t stopped; /* Artificially stopped */                        \
+    struct QemuThread *thread;                                          \
+    struct QemuCond *halt_cond;                                         \
+    struct qemu_work_item *queued_work_first, *queued_work_last;        \
+    const char *cpu_model_str;                                          \
+    struct KVMState *kvm_state;                                         \
+    struct kvm_run *kvm_run;                                            \
+    int kvm_fd;                                                         \
+    int kvm_vcpu_dirty;
 
 #endif

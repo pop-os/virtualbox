@@ -1,4 +1,4 @@
-/* $Id: VirtualBox.rc $ */
+/* $Id: VirtualBox.rc 34384 2010-11-25 16:23:57Z vboxsync $ */
 /** @file
  * Windows resource file for VirtualBox.exe.
  */

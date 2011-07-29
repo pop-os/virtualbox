@@ -1,4 +1,4 @@
-/* $Id: memset_alias.c $ */
+/* $Id: memset_alias.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - No-CRT memset() alias for gcc.
  */

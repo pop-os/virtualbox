@@ -1,4 +1,4 @@
-/* $Id: ConsoleVRDPServer.h $ */
+/* $Id: ConsoleVRDPServer.h 37282 2011-06-01 02:56:05Z vboxsync $ */
 /** @file
  * VBox Console VRDE Server Helper class and implementation of IVRDEServerInfo
  */
@@ -22,6 +22,8 @@
 #include "HGCM.h"
 
 #include <VBox/VBoxAuth.h>
+
+#include <VBox/RemoteDesktop/VRDEImage.h>
 
 #include <VBox/HostServices/VBoxClipboardExt.h>
 
@@ -133,6 +135,10 @@ public:
                             uint32_t cBits);
 
     void SendAudioInputEnd(void *pvUserCtx);
+#ifdef VBOX_WITH_USB_VIDEO
+    int GetVideoFrameDimensions(uint16_t *pu16Heigh, uint16_t *pu16Width);
+    int SendVideoSreamOn(bool fFetch);
+#endif
 
 private:
     /* Note: This is not a ComObjPtr here, because the ConsoleVRDPServer object
@@ -150,9 +156,9 @@ private:
 
     static PFNVRDECREATESERVER mpfnVRDECreateServer;
 
-    static VRDEENTRYPOINTS_3 mEntryPoints;
-    static VRDEENTRYPOINTS_3 *mpEntryPoints;
-    static VRDECALLBACKS_3 mCallbacks;
+    static VRDEENTRYPOINTS_4 mEntryPoints;
+    static VRDEENTRYPOINTS_4 *mpEntryPoints;
+    static VRDECALLBACKS_4 mCallbacks;
 
     static DECLCALLBACK(int)  VRDPCallbackQueryProperty     (void *pvCallback, uint32_t index, void *pvBuffer, uint32_t cbBuffer, uint32_t *pcbOut);
     static DECLCALLBACK(int)  VRDPCallbackClientLogon       (void *pvCallback, uint32_t u32ClientId, const char *pszUser, const char *pszPassword, const char *pszDomain);
@@ -174,7 +180,7 @@ private:
 
     IFramebuffer *maFramebuffers[SchemaDefs::MaxGuestMonitors];
 
-    IEventListener *mConsoleListener;
+    ComPtr<IEventListener> mConsoleListener;
 
     VRDPInputSynch m_InputSynch;
 
@@ -223,6 +229,35 @@ private:
     PAUTHENTRY3 mpfnAuthEntry3;
 
     uint32_t volatile mu32AudioInputClientId;
+
+    static DECLCALLBACK(void) H3DORBegin(const void *pvContext, void **ppvInstance,
+                                         const char *pszFormat);
+    static DECLCALLBACK(void) H3DORGeometry(void *pvInstance,
+                                            int32_t x, int32_t y, uint32_t w, uint32_t h);
+    static DECLCALLBACK(void) H3DORVisibleRegion(void *pvInstance,
+                                                 uint32_t cRects, RTRECT *paRects);
+    static DECLCALLBACK(void) H3DORFrame(void *pvInstance,
+                                         void *pvData, uint32_t cbData);
+    static DECLCALLBACK(void) H3DOREnd(void *pvInstance);
+    static DECLCALLBACK(int)  H3DORContextProperty(const void *pvContext, uint32_t index,
+                                                   void *pvBuffer, uint32_t cbBuffer, uint32_t *pcbOut);
+
+    void remote3DRedirect(void);
+
+    /*
+     * VRDE server optional interfaces.
+     */
+
+    /* Image update interface. */
+    bool m_fInterfaceImage;
+    VRDEIMAGECALLBACKS m_interfaceCallbacksImage;
+    VRDEIMAGEINTERFACE m_interfaceImage;
+    static DECLCALLBACK(int) VRDEImageCbNotify (void *pvContext,
+                                                void *pvUser,
+                                                HVRDEIMAGE hVideo,
+                                                uint32_t u32Id,
+                                                void *pvData,
+                                                uint32_t cbData);
 };
 
 
@@ -241,9 +276,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(VRDEServerInfo)
-        COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(IVRDEServerInfo)
-        COM_INTERFACE_ENTRY(IDispatch)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IVRDEServerInfo)
     END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR (VRDEServerInfo)

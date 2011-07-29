@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 38004 2011-07-18 10:17:18Z vboxsync $
 ## @file
 # Sub-Makefile for the support library and the drivers/modules/kexts it uses.
 #
@@ -219,7 +219,7 @@ VBoxDrv-inf_SOURCES += \
 	$(PATH_TARGET)/VBoxDrvCat.dir/VBoxDrv.sys \
 	$(PATH_TARGET)/VBoxDrvCat.dir/VBoxDrv.cat
 
-$(PATH_TARGET)/VBoxDrvCat.dir/VBoxDrv.sys: $$(TARGET_VBoxDrv) | $$(dir $$@)
+$(PATH_TARGET)/VBoxDrvCat.dir/VBoxDrv.sys: $$(VBoxDrv_1_TARGET) | $$(dir $$@)
 	$(INSTALL) -m 644 $< $(@D)
 
 $(PATH_TARGET)/VBoxDrvCat.dir/VBoxDrv.cat: \
@@ -267,7 +267,7 @@ vboxdrv-mod_SOURCES += \
 vboxdrv-mod_CLEAN   = \
 	$(vboxdrv-mod_0_OUTDIR)/Makefile
 
-vboxdrv-sh_INST     = bin/src/vboxdrv
+vboxdrv-sh_INST     = bin/src/vboxdrv/
 vboxdrv-sh_MODE     = a+rx,u+w
 vboxdrv-sh_SOURCES  = $(subst ",,$(FILES_VBOXDRV_BIN)) #"
 vboxdrv-sh_SOURCES += \
@@ -377,7 +377,7 @@ VBoxDrv_SOURCES       = \
 	os2/SUPDrvA-os2.asm \
 	os2/SUPDrv-os2.def
 VBoxDrv_LIBS          = \
-	$(TARGET_VBoxDrvLib) \
+	$(VBoxDrvLib_1_TARGET) \
 	$(PATH_LIB)/RuntimeR0Drv$(VBOX_SUFF_LIB) \
 	$(VBOX_GCC_LIBGCC) \
 	end
@@ -441,11 +441,13 @@ ifeq ($(KBUILD_TARGET),solaris)
 # vboxdrv.o - The Solaris Kernel Module.
 #
 vboxdrv_TEMPLATE      = VBOXR0DRV
-vboxdrv_DEFS          = IN_RT_R0 IN_SUP_R0 SUPDRV_WITH_RELEASE_LOGGER
+vboxdrv_DEFS          = IN_RT_R0 IN_SUP_R0 SUPDRV_WITH_RELEASE_LOGGER VBOX_SVN_REV=$(VBOX_SVN_REV)
 ifdef VBOX_WITH_NETFLT
  vboxdrv_DEFS        += VBOX_WITH_NETFLT
 endif
-vboxdrv_DEFS         += VBOX_SVN_REV=$(VBOX_SVN_REV)
+ifdef VBOX_WITH_NATIVE_SOLARIS_LOADING
+ vboxdrv_DEFS        += VBOX_WITH_NATIVE_SOLARIS_LOADING
+endif
 vboxdrv_DEPS         += $(VBOX_SVN_REV_KMK)
 vboxdrv_INCS         := $(PATH_SUB_CURRENT)
 vboxdrv_LIBS          = $(PATH_LIB)/RuntimeR0Drv$(VBOX_SUFF_LIB)
@@ -453,6 +455,7 @@ vboxdrv_SOURCES       = \
 	$(KBUILD_TARGET)/SUPDrv-$(KBUILD_TARGET).c \
 	SUPDrv.c \
 	SUPDrvSem.c
+vboxdrv_LDFLAGS     += -N misc/ctf
 
 endif # solaris
 

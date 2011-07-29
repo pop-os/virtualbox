@@ -1,4 +1,4 @@
-/* $Id: CSAM.cpp $ */
+/* $Id: CSAM.cpp 36969 2011-05-05 08:59:43Z vboxsync $ */
 /** @file
  * CSAM - Guest OS Code Scanning and Analysis Manager
  */
@@ -84,15 +84,15 @@ static bool fInCSAMCodePageInvalidate = false;
 *   Global Variables                                                           *
 *******************************************************************************/
 #ifdef VBOX_WITH_DEBUGGER
-static DECLCALLBACK(int) csamr3CmdOn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) csamr3CmdOff(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
+static DECLCALLBACK(int) csamr3CmdOn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) csamr3CmdOff(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
 
 /** Command descriptors. */
 static const DBGCCMD    g_aCmds[] =
 {
-    /* pszCmd,      cArgsMin, cArgsMax, paArgDesc,          cArgDescs,                  pResultDesc,        fFlags,     pfnHandler          pszSyntax,          ....pszDescription */
-    { "csamon",     0,        0,        NULL,               0,                          NULL,               0,          csamr3CmdOn,        "",                     "Enable CSAM code scanning." },
-    { "csamoff",    0,        0,        NULL,               0,                          NULL,               0,          csamr3CmdOff,       "",                     "Disable CSAM code scanning." },
+    /* pszCmd,      cArgsMin, cArgsMax, paArgDesc,  cArgDescs,  fFlags, pfnHandler     pszSyntax, ....pszDescription */
+    { "csamon",     0,        0,        NULL,       0,          0,      csamr3CmdOn,   "",        "Enable CSAM code scanning."  },
+    { "csamoff",    0,        0,        NULL,       0,          0,      csamr3CmdOff,  "",        "Disable CSAM code scanning." },
 };
 #endif
 
@@ -2662,6 +2662,7 @@ VMMR3DECL(int) CSAMR3IsEnabled(PVM pVM)
 }
 
 #ifdef VBOX_WITH_DEBUGGER
+
 /**
  * The '.csamoff' command.
  *
@@ -2672,16 +2673,14 @@ VMMR3DECL(int) CSAMR3IsEnabled(PVM pVM)
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) csamr3CmdOff(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) csamr3CmdOff(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
-    /*
-     * Validate input.
-     */
-    if (!pVM)
-        return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: The command requires VM to be selected.\n");
+    DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
 
-    CSAMDisableScanning(pVM);
-    return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "CSAM Scanning disabled\n");
+    int rc = CSAMDisableScanning(pVM);
+    if (RT_FAILURE(rc))
+        return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "CSAMDisableScanning");
+    return DBGCCmdHlpPrintf(pCmdHlp, "CSAM Scanning disabled\n");
 }
 
 /**
@@ -2694,15 +2693,14 @@ static DECLCALLBACK(int) csamr3CmdOff(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM p
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) csamr3CmdOn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) csamr3CmdOn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
-    /*
-     * Validate input.
-     */
-    if (!pVM)
-        return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: The command requires VM to be selected.\n");
+    DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
 
-    CSAMEnableScanning(pVM);
-    return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "CSAM Scanning enabled\n");
+    int rc = CSAMEnableScanning(pVM);
+    if (RT_FAILURE(rc))
+        return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "CSAMEnableScanning");
+    return DBGCCmdHlpPrintf(pCmdHlp, "CSAM Scanning enabled\n");
 }
-#endif
+
+#endif /* VBOX_WITH_DEBUGGER */

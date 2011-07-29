@@ -1,4 +1,4 @@
-/* $Id: VMMDevInterface.cpp $ */
+/* $Id: VMMDevInterface.cpp 36590 2011-04-06 15:35:26Z vboxsync $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Implementation of VMMDev: driver interface to VMM device
@@ -47,9 +47,6 @@
 # define VBOXSHAREDFOLDERS_DLL "VBoxSharedFolders"
 #endif
 
-#ifdef RT_OS_L4
-#include <l4/util/util.h> /* for l4_sleep */
-#endif
 /**
  * VMMDev driver instance data.
  */

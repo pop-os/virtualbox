@@ -1,4 +1,4 @@
-/* $Id: process-win.cpp $ */
+/* $Id: process-win.cpp 37448 2011-06-14 16:06:06Z vboxsync $ */
 /** @file
  * IPRT - Process, Windows.
  */
@@ -29,6 +29,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_PROCESS
+#include <iprt/asm.h> /* hack */
 
 #include <Userenv.h>
 #include <Windows.h>

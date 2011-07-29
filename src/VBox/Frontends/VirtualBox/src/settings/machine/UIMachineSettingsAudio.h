@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,13 +23,30 @@
 #include "UIMachineSettingsAudio.gen.h"
 #include "COMDefs.h"
 
-/* Machine settings / Audio page / Cache: */
-struct UISettingsCacheMachineAudio
+/* Machine settings / Audio page / Data: */
+struct UIDataSettingsMachineAudio
 {
+    /* Default constructor: */
+    UIDataSettingsMachineAudio()
+        : m_fAudioEnabled(false)
+        , m_audioDriverType(KAudioDriverType_Null)
+        , m_audioControllerType(KAudioControllerType_AC97) {}
+    /* Functions: */
+    bool equal(const UIDataSettingsMachineAudio &other) const
+    {
+        return (m_fAudioEnabled == other.m_fAudioEnabled) &&
+               (m_audioDriverType == other.m_audioDriverType) &&
+               (m_audioControllerType == other.m_audioControllerType);
+    }
+    /* Operators: */
+    bool operator==(const UIDataSettingsMachineAudio &other) const { return equal(other); }
+    bool operator!=(const UIDataSettingsMachineAudio &other) const { return !equal(other); }
+    /* Variables: */
     bool m_fAudioEnabled;
     KAudioDriverType m_audioDriverType;
     KAudioControllerType m_audioControllerType;
 };
+typedef UISettingsCache<UIDataSettingsMachineAudio> UICacheSettingsMachineAudio;
 
 /* Machine settings / Audio page: */
 class UIMachineSettingsAudio : public UISettingsPageMachine,
@@ -57,6 +74,9 @@ protected:
      * this task COULD be performed in other than GUI thread: */
     void saveFromCacheTo(QVariant &data);
 
+    /* Page changed: */
+    bool changed() const { return m_cache.wasChanged(); }
+
     void setOrderAfter (QWidget *aWidget);
 
     void retranslateUi();
@@ -65,8 +85,10 @@ private:
 
     void prepareComboboxes();
 
+    void polishPage();
+
     /* Cache: */
-    UISettingsCacheMachineAudio m_cache;
+    UICacheSettingsMachineAudio m_cache;
 };
 
 #endif // __UIMachineSettingsAudio_h__

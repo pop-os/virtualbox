@@ -16,39 +16,6 @@
 
 //#define SIGTEST
 
-void cpu_outb(CPUState *env, int addr, int val)
-{
-    fprintf(stderr, "outb: port=0x%04x, data=%02x\n", addr, val);
-}
-
-void cpu_outw(CPUState *env, int addr, int val)
-{
-    fprintf(stderr, "outw: port=0x%04x, data=%04x\n", addr, val);
-}
-
-void cpu_outl(CPUState *env, int addr, int val)
-{
-    fprintf(stderr, "outl: port=0x%04x, data=%08x\n", addr, val);
-}
-
-int cpu_inb(CPUState *env, int addr)
-{
-    fprintf(stderr, "inb: port=0x%04x\n", addr);
-    return 0;
-}
-
-int cpu_inw(CPUState *env, int addr)
-{
-    fprintf(stderr, "inw: port=0x%04x\n", addr);
-    return 0;
-}
-
-int cpu_inl(CPUState *env, int addr)
-{
-    fprintf(stderr, "inl: port=0x%04x\n", addr);
-    return 0;
-}
-
 int cpu_get_pic_interrupt(CPUState *env)
 {
     return -1;
@@ -59,7 +26,7 @@ uint64_t cpu_get_tsc(CPUState *env)
     return 0;
 }
 
-static void set_gate(void *ptr, unsigned int type, unsigned int dpl, 
+static void set_gate(void *ptr, unsigned int type, unsigned int dpl,
                      unsigned long addr, unsigned int sel)
 {
     unsigned int e1, e2;
@@ -122,7 +89,7 @@ int errno;
 
 #define COM_BASE_ADDR    0x10100
 
-void usage(void)
+static void usage(void)
 {
     printf("qruncom version 0.1 (c) 2003 Fabrice Bellard\n"
            "usage: qruncom file.com\n"
@@ -141,7 +108,7 @@ static inline void pushw(CPUState *env, int val)
     *(uint16_t *)seg_to_linear(env->segs[R_SS].selector, env->regs[R_ESP]) = val;
 }
 
-static void host_segv_handler(int host_signum, siginfo_t *info, 
+static void host_segv_handler(int host_signum, siginfo_t *info,
                               void *puc)
 {
     if (cpu_signal_handler(host_signum, info, puc)) {
@@ -160,9 +127,9 @@ int main(int argc, char **argv)
     if (argc != 2)
         usage();
     filename = argv[1];
-    
-    vm86_mem = mmap((void *)0x00000000, 0x110000, 
-                    PROT_WRITE | PROT_READ | PROT_EXEC, 
+
+    vm86_mem = mmap((void *)0x00000000, 0x110000,
+                    PROT_WRITE | PROT_READ | PROT_EXEC,
                     MAP_FIXED | MAP_ANON | MAP_PRIVATE, -1, 0);
     if (vm86_mem == MAP_FAILED) {
         perror("mmap");
@@ -185,7 +152,7 @@ int main(int argc, char **argv)
     /* install exception handler for CPU emulator */
     {
         struct sigaction act;
-        
+
         sigfillset(&act.sa_mask);
         act.sa_flags = SA_SIGINFO;
         //        act.sa_flags |= SA_ONSTACK;
@@ -193,21 +160,11 @@ int main(int argc, char **argv)
         act.sa_sigaction = host_segv_handler;
         sigaction(SIGSEGV, &act, NULL);
         sigaction(SIGBUS, &act, NULL);
-#if defined (TARGET_I386) && defined(USE_CODE_COPY)
-        sigaction(SIGFPE, &act, NULL);
-#endif
     }
 
     //    cpu_set_log(CPU_LOG_TB_IN_ASM | CPU_LOG_TB_OUT_ASM | CPU_LOG_EXEC);
 
-    env = cpu_init();
-
-    /* disable code copy to simplify debugging */
-    code_copy_enabled = 0;
-
-    /* set user mode state (XXX: should be done automatically by
-       cpu_init ?) */
-    env->user_mode_only = 1;
+    env = cpu_init("qemu32");
 
     cpu_x86_set_cpl(env, 3);
 
@@ -218,23 +175,23 @@ int main(int argc, char **argv)
     /* flags setup : we activate the IRQs by default as in user
        mode. We also activate the VM86 flag to run DOS code */
     env->eflags |= IF_MASK | VM_MASK;
-    
+
     /* init basic registers */
     env->eip = 0x100;
     env->regs[R_ESP] = 0xfffe;
     seg = (COM_BASE_ADDR - 0x100) >> 4;
 
-    cpu_x86_load_seg_cache(env, R_CS, seg, 
+    cpu_x86_load_seg_cache(env, R_CS, seg,
                            (seg << 4), 0xffff, 0);
-    cpu_x86_load_seg_cache(env, R_SS, seg, 
+    cpu_x86_load_seg_cache(env, R_SS, seg,
                            (seg << 4), 0xffff, 0);
-    cpu_x86_load_seg_cache(env, R_DS, seg, 
+    cpu_x86_load_seg_cache(env, R_DS, seg,
                            (seg << 4), 0xffff, 0);
-    cpu_x86_load_seg_cache(env, R_ES, seg, 
+    cpu_x86_load_seg_cache(env, R_ES, seg,
                            (seg << 4), 0xffff, 0);
-    cpu_x86_load_seg_cache(env, R_FS, seg, 
+    cpu_x86_load_seg_cache(env, R_FS, seg,
                            (seg << 4), 0xffff, 0);
-    cpu_x86_load_seg_cache(env, R_GS, seg, 
+    cpu_x86_load_seg_cache(env, R_GS, seg,
                            (seg << 4), 0xffff, 0);
 
     /* exception support */
@@ -260,7 +217,7 @@ int main(int argc, char **argv)
     set_idt(17, 0);
     set_idt(18, 0);
     set_idt(19, 0);
-        
+
     /* put return code */
     *seg_to_linear(env->segs[R_CS].selector, 0) = 0xb4; /* mov ah, $0 */
     *seg_to_linear(env->segs[R_CS].selector, 1) = 0x00;
@@ -274,8 +231,8 @@ int main(int argc, char **argv)
     env->regs[R_EBP] = 0x0900;
     env->regs[R_EDI] = 0xfffe;
 
-    /* inform the emulator of the mapped memory */
-    page_set_flags(0x00000000, 0x110000, 
+    /* inform the emulator of the mmaped memory */
+    page_set_flags(0x00000000, 0x110000,
                    PAGE_WRITE | PAGE_READ | PAGE_EXEC | PAGE_VALID);
 
     for(;;) {

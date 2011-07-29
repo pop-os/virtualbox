@@ -1,4 +1,4 @@
-/* $Id: UIDesktopServices_x11.cpp $ */
+/* $Id: UIDesktopServices_x11.cpp 34886 2010-12-09 14:06:02Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

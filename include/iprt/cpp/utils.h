@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,62 +26,77 @@
 #ifndef ___iprt_cpputils_h
 #define ___iprt_cpputils_h
 
-/** @defgroup grp_rt_cpputils   C++ Utilities
- * @ingroup grp_rt
+/** @defgroup grp_rt_cpp        IPRT C++ APIs */
+
+/** @defgroup grp_rt_cpp_util   C++ Utilities
+ * @ingroup grp_rt_cpp
  * @{
  */
+
+#define DPTR(CLASS) CLASS##Private *d = static_cast<CLASS##Private *>(d_ptr)
+#define QPTR(CLASS) CLASS *q = static_cast<CLASS *>(q_ptr)
+
+/**
+ * A simple class used to prevent copying and assignment.
+ *
+ * Inherit from this class in order to prevent automatic generation
+ * of the copy constructor and assignment operator in your class.
+ *
+ * @addtogroup grp_rt_cpp_util
+ */
+class RTCNonCopyable
+{
+protected:
+    RTCNonCopyable() {}
+    ~RTCNonCopyable() {}
+private:
+    RTCNonCopyable(RTCNonCopyable const &);
+    RTCNonCopyable const &operator=(RTCNonCopyable const &);
+};
+
 
 /**
  * Shortcut to |const_cast<C &>()| that automatically derives the correct
  * type (class) for the const_cast template's argument from its own argument.
+ *
  * Can be used to temporarily cancel the |const| modifier on the left-hand side
  * of assignment expressions, like this:
  * @code
- *      const Class that;
+ *      const Class That;
  *      ...
- *      unconst (that) = some_value;
+ *      unconst(That) = SomeValue;
  * @endcode
+ *
+ * @todo What to do about the prefix here?
  */
 template <class C>
-inline C& unconst(const C &that) { return const_cast<C&>(that); }
+inline C &unconst(const C &that)
+{
+    return const_cast<C &>(that);
+}
 
 
 /**
  * Shortcut to |const_cast<C *>()| that automatically derives the correct
  * type (class) for the const_cast template's argument from its own argument.
+ *
  * Can be used to temporarily cancel the |const| modifier on the left-hand side
  * of assignment expressions, like this:
  * @code
- *      const Class *that;
+ *      const Class *pThat;
  *      ...
- *      unconst (that) = some_value;
+ *      unconst(pThat) = SomeValue;
  * @endcode
+ *
+ * @todo What to do about the prefix here?
  */
 template <class C>
-inline C* unconst(const C *that) { return const_cast<C*>(that); }
-
-
-namespace iprt
+inline C *unconst(const C *that)
 {
-
-/**
- * A simple class used to prevent copying and assignment.  Inherit from this
- * class in order to prevent automatic generation of the copy constructor
- * and assignment operator in your class.
- */
-class non_copyable
-{
-protected:
-    non_copyable() {}
-    ~non_copyable() {}
-private:
-    non_copyable(non_copyable const&);
-    non_copyable const &operator=(non_copyable const&);
-};
-
-} // namespace iprt
+    return const_cast<C *>(that);
+}
 
 /** @} */
 
-#endif // ___iprt_cpputils_h
+#endif
 

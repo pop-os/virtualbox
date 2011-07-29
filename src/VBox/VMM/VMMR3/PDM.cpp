@@ -1,4 +1,4 @@
-/* $Id: PDM.cpp $ */
+/* $Id: PDM.cpp 37466 2011-06-15 12:44:16Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device Manager.
  */
@@ -352,18 +352,28 @@ VMMR3DECL(int) PDMR3Init(PVM pVM)
     AssertRelease(!(RT_OFFSETOF(VM, pdm.s) & 31));
     AssertRelease(sizeof(pVM->pdm.s) <= sizeof(pVM->pdm.padding));
     AssertCompileMemberAlignment(PDM, CritSect, sizeof(uintptr_t));
+
     /*
      * Init the structure.
      */
-    pVM->pdm.s.offVM = RT_OFFSETOF(VM, pdm.s);
     pVM->pdm.s.GCPhysVMMDevHeap = NIL_RTGCPHYS;
 
     /*
-     * Initialize sub components.
+     * Initialize critical sections first.
      */
     int rc = pdmR3CritSectInitStats(pVM);
     if (RT_SUCCESS(rc))
         rc = PDMR3CritSectInit(pVM, &pVM->pdm.s.CritSect, RT_SRC_POS, "PDM");
+    if (RT_SUCCESS(rc))
+    {
+        rc = PDMR3CritSectInit(pVM, &pVM->pdm.s.NopCritSect, RT_SRC_POS, "NOP");
+        if (RT_SUCCESS(rc))
+            pVM->pdm.s.NopCritSect.s.Core.fFlags |= RTCRITSECT_FLAGS_NOP;
+    }
+
+    /*
+     * Initialize sub components.
+     */
     if (RT_SUCCESS(rc))
         rc = pdmR3LdrInitU(pVM->pUVM);
 #ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
@@ -494,8 +504,8 @@ VMMR3DECL(void) PDMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
         {
             pDevIns->pHlpRC             = pDevHlpRC;
             pDevIns->pvInstanceDataRC   = MMHyperR3ToRC(pVM, pDevIns->pvInstanceDataR3);
-            if (pDevIns->pCritSectR3)
-                pDevIns->pCritSectRC    = MMHyperR3ToRC(pVM, pDevIns->pCritSectR3);
+            if (pDevIns->pCritSectRoR3)
+                pDevIns->pCritSectRoRC  = MMHyperR3ToRC(pVM, pDevIns->pCritSectRoR3);
             pDevIns->Internal.s.pVMRC   = pVM->pVMRC;
             if (pDevIns->Internal.s.pPciBusR3)
                 pDevIns->Internal.s.pPciBusRC    = MMHyperR3ToRC(pVM, pDevIns->Internal.s.pPciBusR3);
@@ -586,7 +596,7 @@ static void pdmR3TermLuns(PVM pVM, PPDMLUN pLun, const char *pszDevice, unsigned
 VMMR3DECL(int) PDMR3Term(PVM pVM)
 {
     LogFlow(("PDMR3Term:\n"));
-    AssertMsg(pVM->pdm.s.offVM, ("bad init order!\n"));
+    AssertMsg(PDMCritSectIsInitialized(&pVM->pdm.s.CritSect), ("bad init order!\n"));
 
     /*
      * Iterate the device instances and attach drivers, doing
@@ -2086,6 +2096,7 @@ VMMR3DECL(int) PDMR3QueryLun(PVM pVM, const char *pszDevice, unsigned iInstance,
 {
     LogFlow(("PDMR3QueryLun: pszDevice=%p:{%s} iInstance=%u iLun=%u ppBase=%p\n",
              pszDevice, pszDevice, iInstance, iLun, ppBase));
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
     /*
      * Find the LUN.

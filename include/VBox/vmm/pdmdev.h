@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1073,35 +1073,38 @@ typedef struct PDMAPICREG
     DECLR3CALLBACKMEMBER(uint8_t, pfnGetTPRR3,(PPDMDEVINS pDevIns, VMCPUID idCpu));
 
     /**
-     * Write MSR in APIC range.
+     * Write to a MSR in APIC range.
      *
      * @returns VBox status code.
      * @param   pDevIns         Device instance of the APIC.
      * @param   idCpu           Target CPU.
-     * @param   u32Reg          MSR to write.
-     * @param   u64Value        Value to write.
+     * @param   u32Reg          The MSR begin written to.
+     * @param   u64Value        The value to write.
+     *
+     * @remarks Unlike the other callbacks, the PDM lock is not taken before
+     *          calling this method.
      */
     DECLR3CALLBACKMEMBER(int, pfnWriteMSRR3, (PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Reg, uint64_t u64Value));
 
     /**
-     * Read MSR in APIC range.
+     * Read from a MSR in APIC range.
      *
      * @returns VBox status code.
      * @param   pDevIns         Device instance of the APIC.
      * @param   idCpu           Target CPU.
      * @param   u32Reg          MSR to read.
-     * @param   pu64Value       Value read.
+     * @param   pu64Value       Where to return the read value.
      */
     DECLR3CALLBACKMEMBER(int, pfnReadMSRR3, (PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Reg, uint64_t *pu64Value));
 
     /**
      * Private interface between the IOAPIC and APIC.
      *
-     * This is a low-level, APIC/IOAPIC implementation specific interface
-     * which is registered with PDM only because it makes life so much
-     * simpler right now (GC bits). This is a bad bad hack! The correct
-     * way of doing this would involve some way of querying GC interfaces
-     * and relocating them. Perhaps doing some kind of device init in GC...
+     * This is a low-level, APIC/IOAPIC implementation specific interface which
+     * is registered with PDM only because it makes life so much simpler right
+     * now (GC bits).  This is a bad bad hack!  The correct way of doing this
+     * would involve some way of querying GC interfaces and relocating them.
+     * Perhaps doing some kind of device init in GC...
      *
      * @returns status code.
      * @param   pDevIns         Device instance of the APIC.
@@ -1821,6 +1824,100 @@ typedef R3PTRTYPE(const PDMHPETHLPR3 *) PCPDMHPETHLPR3;
 /** Current PDMHPETHLPR3 version number. */
 #define PDM_HPETHLPR3_VERSION                   PDM_VERSION_MAKE(0xffec, 2, 0)
 
+
+/**
+ * Raw PCI device registration structure.
+ */
+typedef struct PDMPCIRAWREG
+{
+    /** Struct version+magic number (PDM_PCIRAWREG_VERSION). */
+    uint32_t                u32Version;
+    /** Just a safety precaution. */
+    uint32_t                u32TheEnd;
+} PDMPCIRAWREG;
+/** Pointer to a raw PCI registration structure. */
+typedef PDMPCIRAWREG *PPDMPCIRAWREG;
+
+/** Current PDMPCIRAWREG version number. */
+#define PDM_PCIRAWREG_VERSION                   PDM_VERSION_MAKE(0xffe1, 1, 0)
+
+/**
+ * Raw PCI device raw-mode context helpers.
+ */
+typedef struct PDMPCIRAWHLPRC
+{
+    /** Structure version and magic number (PDM_PCIRAWHLPRC_VERSION). */
+    uint32_t u32Version;
+    /** Just a safety precaution. */
+    uint32_t u32TheEnd;
+} PDMPCIRAWHLPRC;
+/** Pointer to a raw PCI deviec raw-mode context helper structure. */
+typedef RCPTRTYPE(PDMPCIRAWHLPRC *) PPDMPCIRAWHLPRC;
+/** Pointer to a const raw PCI deviec raw-mode context helper structure. */
+typedef RCPTRTYPE(const PDMPCIRAWHLPRC *) PCPDMPCIRAWHLPRC;
+
+/** Current PDMPCIRAWHLPRC version number. */
+#define PDM_PCIRAWHLPRC_VERSION                 PDM_VERSION_MAKE(0xffe0, 1, 0)
+
+/**
+ * Raw PCI device ring-0 context helpers.
+ */
+typedef struct PDMPCIRAWHLPR0
+{
+    /** Structure version and magic number (PDM_PCIRAWHLPR0_VERSION). */
+    uint32_t u32Version;
+    /** Just a safety precaution. */
+    uint32_t u32TheEnd;
+} PDMPCIRAWHLPR0;
+/** Pointer to a raw PCI deviec ring-0 context helper structure. */
+typedef R0PTRTYPE(PDMPCIRAWHLPR0 *) PPDMPCIRAWHLPR0;
+/** Pointer to a const raw PCI deviec ring-0 context helper structure. */
+typedef R0PTRTYPE(const PDMPCIRAWHLPR0 *) PCPDMPCIRAWHLPR0;
+
+/** Current PDMPCIRAWHLPR0 version number. */
+#define PDM_PCIRAWHLPR0_VERSION                 PDM_VERSION_MAKE(0xffdf, 1, 0)
+
+
+/**
+ * Raw PCI device ring-3 context helpers.
+ */
+typedef struct PDMPCIRAWHLPR3
+{
+    /** Undefined structure version and magic number. */
+    uint32_t u32Version;
+
+    /**
+     * Gets the address of the RC raw PCI device helpers.
+     *
+     * This should be called at both construction and relocation time to obtain
+     * the correct address of the RC helpers.
+     *
+     * @returns RC pointer to the raw PCI device helpers.
+     * @param   pDevIns         Device instance of the raw PCI device.
+     */
+    DECLR3CALLBACKMEMBER(PCPDMPCIRAWHLPRC, pfnGetRCHelpers,(PPDMDEVINS pDevIns));
+
+    /**
+     * Gets the address of the R0 raw PCI device helpers.
+     *
+     * This should be called at both construction and relocation time to obtain
+     * the correct address of the R0 helpers.
+     *
+     * @returns R0 pointer to the raw PCI device helpers.
+     * @param   pDevIns         Device instance of the raw PCI device.
+     */
+    DECLR3CALLBACKMEMBER(PCPDMPCIRAWHLPR0, pfnGetR0Helpers,(PPDMDEVINS pDevIns));
+
+    /** Just a safety precaution. */
+    uint32_t                u32TheEnd;
+} PDMPCIRAWHLPR3;
+/** Pointer to raw PCI R3 helpers. */
+typedef R3PTRTYPE(PDMPCIRAWHLPR3 *) PPDMPCIRAWHLPR3;
+/** Pointer to const raw PCI R3 helpers. */
+typedef R3PTRTYPE(const PDMPCIRAWHLPR3 *) PCPDMPCIRAWHLPR3;
+
+/** Current PDMPCIRAWHLPR3 version number. */
+#define PDM_PCIRAWHLPR3_VERSION                   PDM_VERSION_MAKE(0xffde, 1, 0)
 
 
 #ifdef IN_RING3
@@ -2613,6 +2710,17 @@ typedef struct PDMDEVHLPR3
     DECLR3CALLBACKMEMBER(int, pfnDBGFInfoRegister,(PPDMDEVINS pDevIns, const char *pszName, const char *pszDesc, PFNDBGFHANDLERDEV pfnHandler));
 
     /**
+     * Gets the trace buffer handle.
+     *
+     * This is used by the macros found in VBox/vmm/dbgftrace.h and is not
+     * really inteded for direct usage, thus no inline wrapper function.
+     *
+     * @returns Trace buffer handle or NIL_RTTRACEBUF.
+     * @param   pDevIns             The device instance.
+     */
+    DECLR3CALLBACKMEMBER(RTTRACEBUF, pfnDBGFTraceBuf,(PPDMDEVINS pDevIns));
+
+    /**
      * Registers a statistics sample if statistics are enabled.
      *
      * @param   pDevIns             Device instance of the DMA.
@@ -2813,6 +2921,42 @@ typedef struct PDMDEVHLPR3
                                                const char *pszNameFmt, va_list va));
 
     /**
+     * Gets the NOP critical section.
+     *
+     * @returns The ring-3 address of the NOP critical section.
+     * @param   pDevIns             The device instance.
+     */
+    DECLR3CALLBACKMEMBER(PPDMCRITSECT, pfnCritSectGetNop,(PPDMDEVINS pDevIns));
+
+    /**
+     * Gets the NOP critical section.
+     *
+     * @returns The ring-0 address of the NOP critical section.
+     * @param   pDevIns             The device instance.
+     */
+    DECLR3CALLBACKMEMBER(R0PTRTYPE(PPDMCRITSECT), pfnCritSectGetNopR0,(PPDMDEVINS pDevIns));
+
+    /**
+     * Gets the NOP critical section.
+     *
+     * @returns The raw-mode context address of the NOP critical section.
+     * @param   pDevIns             The device instance.
+     */
+    DECLR3CALLBACKMEMBER(RCPTRTYPE(PPDMCRITSECT), pfnCritSectGetNopRC,(PPDMDEVINS pDevIns));
+
+    /**
+     * Changes the device level critical section from the automatically created
+     * default to one desired by the device constructor.
+     *
+     * @returns VBox status code.
+     * @param   pDevIns             The device instance.
+     * @param   pCritSect           The critical section to use.  NULL is not
+     *                              valid, instead use the NOP critical
+     *                              section.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSetDeviceCritSect,(PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect));
+
+    /**
      * Creates a PDM thread.
      *
      * This differs from the RTThreadCreate() API in that PDM takes care of suspending,
@@ -2920,6 +3064,17 @@ typedef struct PDMDEVHLPR3
      *                              helpers.
      */
     DECLR3CALLBACKMEMBER(int, pfnHPETRegister,(PPDMDEVINS pDevIns, PPDMHPETREG pHpetReg, PCPDMHPETHLPR3 *ppHpetHlpR3));
+
+    /**
+     * Register a raw PCI device.
+     *
+     * @returns VBox status code.
+     * @param   pDevIns             The device instance.
+     * @param   pHpetReg            Pointer to a raw PCI registration structure.
+     * @param   ppPciRawHlpR3       Where to store the pointer to the raw PCI
+     *                              device helpers.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnPciRawRegister,(PPDMDEVINS pDevIns, PPDMPCIRAWREG pPciRawReg, PCPDMPCIRAWHLPR3 *ppPciRawHlpR3));
 
     /**
      * Register the DMA device.
@@ -3281,7 +3436,7 @@ typedef R3PTRTYPE(struct PDMDEVHLPR3 *) PPDMDEVHLPR3;
 typedef R3PTRTYPE(const struct PDMDEVHLPR3 *) PCPDMDEVHLPR3;
 
 /** Current PDMDEVHLPR3 version number. */
-#define PDM_DEVHLPR3_VERSION                    PDM_VERSION_MAKE(0xffe7, 3, 0)
+#define PDM_DEVHLPR3_VERSION                    PDM_VERSION_MAKE(0xffe7, 7, 0)
 
 
 /**
@@ -3452,6 +3607,17 @@ typedef struct PDMDEVHLPRC
      */
     DECLRCCALLBACKMEMBER(uint64_t, pfnTMTimeVirtGetNano,(PPDMDEVINS pDevIns));
 
+    /**
+     * Gets the trace buffer handle.
+     *
+     * This is used by the macros found in VBox/vmm/dbgftrace.h and is not
+     * really inteded for direct usage, thus no inline wrapper function.
+     *
+     * @returns Trace buffer handle or NIL_RTTRACEBUF.
+     * @param   pDevIns             The device instance.
+     */
+    DECLRCCALLBACKMEMBER(RTTRACEBUF, pfnDBGFTraceBuf,(PPDMDEVINS pDevIns));
+
     /** Just a safety precaution. */
     uint32_t                        u32TheEnd;
 } PDMDEVHLPRC;
@@ -3461,7 +3627,7 @@ typedef RCPTRTYPE(struct PDMDEVHLPRC *) PPDMDEVHLPRC;
 typedef RCPTRTYPE(const struct PDMDEVHLPRC *) PCPDMDEVHLPRC;
 
 /** Current PDMDEVHLP version number. */
-#define PDM_DEVHLPRC_VERSION                    PDM_VERSION_MAKE(0xffe6, 1, 0)
+#define PDM_DEVHLPRC_VERSION                    PDM_VERSION_MAKE(0xffe6, 2, 0)
 
 
 /**
@@ -3640,6 +3806,17 @@ typedef struct PDMDEVHLPR0
      */
     DECLR0CALLBACKMEMBER(uint64_t, pfnTMTimeVirtGetNano,(PPDMDEVINS pDevIns));
 
+    /**
+     * Gets the trace buffer handle.
+     *
+     * This is used by the macros found in VBox/vmm/dbgftrace.h and is not
+     * really inteded for direct usage, thus no inline wrapper function.
+     *
+     * @returns Trace buffer handle or NIL_RTTRACEBUF.
+     * @param   pDevIns             The device instance.
+     */
+    DECLR0CALLBACKMEMBER(RTTRACEBUF, pfnDBGFTraceBuf,(PPDMDEVINS pDevIns));
+
     /** Just a safety precaution. */
     uint32_t                        u32TheEnd;
 } PDMDEVHLPR0;
@@ -3649,7 +3826,7 @@ typedef R0PTRTYPE(struct PDMDEVHLPR0 *) PPDMDEVHLPR0;
 typedef R0PTRTYPE(const struct PDMDEVHLPR0 *) PCPDMDEVHLPR0;
 
 /** Current PDMDEVHLP version number. */
-#define PDM_DEVHLPR0_VERSION                    PDM_VERSION_MAKE(0xffe5, 1, 0)
+#define PDM_DEVHLPR0_VERSION                    PDM_VERSION_MAKE(0xffe5, 2, 0)
 
 
 
@@ -3667,10 +3844,8 @@ typedef struct PDMDEVINS
     PCPDMDEVHLPRC               pHlpRC;
     /** Pointer to device instance data. */
     RTRCPTR                     pvInstanceDataRC;
-    /** The critical section for the device, see pCritSectR3.
-     * This is automatically resolved by PDM when pCritSectR3 is set by the
-     * constructor. */
-    RCPTRTYPE(PPDMCRITSECT)     pCritSectRC;
+    /** The critical section for the device, see pCritSectXR3. */
+    RCPTRTYPE(PPDMCRITSECT)     pCritSectRoRC;
     /** Alignment padding.  */
     RTRCPTR                     pAlignmentRC;
 
@@ -3678,25 +3853,24 @@ typedef struct PDMDEVINS
     PCPDMDEVHLPR0               pHlpR0;
     /** Pointer to device instance data (R0). */
     RTR0PTR                     pvInstanceDataR0;
-    /** The critical section for the device, see pCritSectR3.
-    * This is automatically resolved by PDM when pCritSectR3 is set by the
-    * constructor. */
-    R0PTRTYPE(PPDMCRITSECT)     pCritSectR0;
+    /** The critical section for the device, see pCritSectXR3. */
+    R0PTRTYPE(PPDMCRITSECT)     pCritSectRoR0;
 
     /** Pointer the HC PDM Device API. */
     PCPDMDEVHLPR3               pHlpR3;
     /** Pointer to device instance data. */
     RTR3PTR                     pvInstanceDataR3;
-    /** The critical section for the device. (Optional)
+    /** The critical section for the device.
      *
-     * The device constructor initializes this if it has a critical section for
-     * the device and desires it to be taken automatically by MMIO, I/O port
-     * and timer callbacks to the device.  The advantages using this locking
-     * approach is both less code and avoiding the global IOM lock.
+     * TM and IOM will enter this critical section before calling into the
+     * device code.  SSM will currently not, but this will be changed later on.
      *
-     * @remarks Will not yet be taken by SSM.
+     * The device gets a critical section automatically assigned to it before
+     * the constructor is called.  If the constructor wishes to use a different
+     * critical section, it calls PDMDevHlpSetDeviceCritSect() to change it
+     * very early on.
      */
-    R3PTRTYPE(PPDMCRITSECT)     pCritSectR3;
+    R3PTRTYPE(PPDMCRITSECT)     pCritSectRoR3;
 
     /** Pointer to device registration structure.  */
     R3PTRTYPE(PCPDMDEVREG)      pReg;
@@ -3746,10 +3920,10 @@ typedef struct PDMDEVINS
         PPDMDEVINS pDevInsTypeCheck = (pDevIns); NOREF(pDevInsTypeCheck); \
         AssertLogRelMsgReturn(PDM_VERSION_ARE_COMPATIBLE((pDevIns)->u32Version, PDM_DEVINS_VERSION), \
                               ("DevIns=%#x  mine=%#x\n", (pDevIns)->u32Version, PDM_DEVINS_VERSION), \
-                              VERR_VERSION_MISMATCH); \
+                              VERR_PDM_DEVINS_VERSION_MISMATCH); \
         AssertLogRelMsgReturn(PDM_VERSION_ARE_COMPATIBLE((pDevIns)->pHlpR3->u32Version, PDM_DEVHLPR3_VERSION), \
                               ("DevHlp=%#x  mine=%#x\n", (pDevIns)->pHlpR3->u32Version, PDM_DEVHLPR3_VERSION), \
-                              VERR_VERSION_MISMATCH); \
+                              VERR_PDM_DEVHLPR3_VERSION_MISMATCH); \
     } while (0)
 
 /**
@@ -3764,9 +3938,10 @@ typedef struct PDMDEVINS
     do \
     { \
         PPDMDEVINS pDevInsTypeCheck = (pDevIns); NOREF(pDevInsTypeCheck); \
-        if (RT_UNLIKELY(   !PDM_VERSION_ARE_COMPATIBLE((pDevIns)->u32Version, PDM_DEVINS_VERSION) \
-                        || !PDM_VERSION_ARE_COMPATIBLE((pDevIns)->pHlpR3->u32Version, PDM_DEVHLPR3_VERSION) )) \
-            return VERR_VERSION_MISMATCH; \
+        if (RT_UNLIKELY(!PDM_VERSION_ARE_COMPATIBLE((pDevIns)->u32Version, PDM_DEVINS_VERSION) )) \
+            return VERR_PDM_DEVINS_VERSION_MISMATCH; \
+        if (RT_UNLIKELY(!PDM_VERSION_ARE_COMPATIBLE((pDevIns)->pHlpR3->u32Version, PDM_DEVHLPR3_VERSION) )) \
+            return VERR_PDM_DEVHLPR3_VERSION_MISMATCH; \
     } while (0)
 
 /**
@@ -3782,7 +3957,7 @@ typedef struct PDMDEVINS
  *                              RTStrSimplePatternMultiMatch for details on the
  *                              pattern syntax.
  * @param   pszValidNodes       Patterns describing the valid node (key) names.
- *                              Pass empty string if no valid nodess.
+ *                              Pass empty string if no valid nodes.
  */
 #define PDMDEV_VALIDATE_CONFIG_RETURN(pDevIns, pszValidValues, pszValidNodes) \
     do \
@@ -4374,6 +4549,38 @@ DECLINLINE(int) PDMDevHlpCritSectInit(PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect
 }
 
 /**
+ * @copydoc PDMDEVHLPR3::pfnCritSectGetNop
+ */
+DECLINLINE(PPDMCRITSECT) PDMDevHlpCritSectGetNop(PPDMDEVINS pDevIns)
+{
+    return pDevIns->pHlpR3->pfnCritSectGetNop(pDevIns);
+}
+
+/**
+ * @copydoc PDMDEVHLPR3::pfnCritSectGetNopR0
+ */
+DECLINLINE(R0PTRTYPE(PPDMCRITSECT)) PDMDevHlpCritSectGetNopR0(PPDMDEVINS pDevIns)
+{
+    return pDevIns->pHlpR3->pfnCritSectGetNopR0(pDevIns);
+}
+
+/**
+ * @copydoc PDMDEVHLPR3::pfnCritSectGetNopRC
+ */
+DECLINLINE(RCPTRTYPE(PPDMCRITSECT)) PDMDevHlpCritSectGetNopRC(PPDMDEVINS pDevIns)
+{
+    return pDevIns->pHlpR3->pfnCritSectGetNopRC(pDevIns);
+}
+
+/**
+ * @copydoc PDMDEVHLPR3::pfnSetDeviceCritSect
+ */
+DECLINLINE(int) PDMDevHlpSetDeviceCritSect(PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect)
+{
+    return pDevIns->pHlpR3->pfnSetDeviceCritSect(pDevIns, pCritSect);
+}
+
+/**
  * @copydoc PDMDEVHLPR3::pfnThreadCreate
  */
 DECLINLINE(int) PDMDevHlpThreadCreate(PPDMDEVINS pDevIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADDEV pfnThread,
@@ -4452,6 +4659,14 @@ DECLINLINE(int) PDMDevHlpIOAPICRegister(PPDMDEVINS pDevIns, PPDMIOAPICREG pIoApi
 DECLINLINE(int) PDMDevHlpHPETRegister(PPDMDEVINS pDevIns, PPDMHPETREG pHpetReg, PCPDMHPETHLPR3 *ppHpetHlpR3)
 {
     return pDevIns->pHlpR3->pfnHPETRegister(pDevIns, pHpetReg, ppHpetHlpR3);
+}
+
+/**
+ * @copydoc PDMDEVHLPR3::pfnPciRawRegister
+ */
+DECLINLINE(int) PDMDevHlpPciRawRegister(PPDMDEVINS pDevIns, PPDMPCIRAWREG pPciRawReg, PCPDMPCIRAWHLPR3 *ppPciRawHlpR3)
+{
+    return pDevIns->pHlpR3->pfnPciRawRegister(pDevIns, pPciRawReg, ppPciRawHlpR3);
 }
 
 /**

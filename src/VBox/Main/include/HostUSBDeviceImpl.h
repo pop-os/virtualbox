@@ -1,4 +1,4 @@
-/* $Id: HostUSBDeviceImpl.h $ */
+/* $Id: HostUSBDeviceImpl.h 35638 2011-01-19 19:10:49Z vboxsync $ */
 /** @file
  * VirtualBox IHostUSBDevice COM interface implementation.
  */
@@ -180,10 +180,8 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(HostUSBDevice)
-        COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(IHostUSBDevice)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IHostUSBDevice)
         COM_INTERFACE_ENTRY(IUSBDevice)
-        COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR (HostUSBDevice)

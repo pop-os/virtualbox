@@ -1,4 +1,4 @@
-; $Id: tstAsmLock-1.asm $
+; $Id: tstAsmLock-1.asm 60692 2010-04-27 08:22:32Z umoeller $
 ;; @file
 ; Disassembly testcase - Valid fnstsw* instructitons.
 ;

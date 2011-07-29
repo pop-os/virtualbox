@@ -1,10 +1,10 @@
-/* $Id: semfastmutex-r0drv-linux.c $ */
+/* $Id: semfastmutex-r0drv-linux.c 36979 2011-05-06 11:55:42Z vboxsync $ */
 /** @file
  * IPRT - Fast Mutex Semaphores, Ring-0 Driver, Linux.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,7 +35,7 @@
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/err.h>
-#ifdef IPRT_DEBUG_SEMS
+#if defined(RT_STRICT) || defined(IPRT_DEBUG_SEMS)
 # include <iprt/thread.h>
 #endif
 
@@ -54,7 +54,7 @@ typedef struct RTSEMFASTMUTEXINTERNAL
     uint32_t            u32Magic;
     /** the linux semaphore. */
     struct semaphore    Semaphore;
-#ifdef IPRT_DEBUG_SEMS
+#if defined(RT_STRICT) || defined(IPRT_DEBUG_SEMS)
     /** For check. */
     RTNATIVETHREAD volatile Owner;
 #endif
@@ -76,7 +76,7 @@ RTDECL(int)  RTSemFastMutexCreate(PRTSEMFASTMUTEX phFastMtx)
      */
     pThis->u32Magic = RTSEMFASTMUTEX_MAGIC;
     sema_init(&pThis->Semaphore, 1);
-#ifdef IPRT_DEBUG_SEMS
+#if defined(RT_STRICT) || defined(IPRT_DEBUG_SEMS)
     pThis->Owner = NIL_RTNATIVETHREAD;
 #endif
 
@@ -115,7 +115,7 @@ RTDECL(int)  RTSemFastMutexRequest(RTSEMFASTMUTEX hFastMtx)
 
     IPRT_DEBUG_SEMS_STATE(pThis, 'd');
     down(&pThis->Semaphore);
-#ifdef IPRT_DEBUG_SEMS
+#if defined(RT_STRICT) || defined(IPRT_DEBUG_SEMS)
     IPRT_DEBUG_SEMS_STATE(pThis, 'o');
     AssertRelease(pThis->Owner == NIL_RTNATIVETHREAD);
     ASMAtomicUoWriteSize(&pThis->Owner, RTThreadNativeSelf());
@@ -134,7 +134,7 @@ RTDECL(int)  RTSemFastMutexRelease(RTSEMFASTMUTEX hFastMtx)
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertMsgReturn(pThis->u32Magic == RTSEMFASTMUTEX_MAGIC, ("u32Magic=%RX32 pThis=%p\n", pThis->u32Magic, pThis), VERR_INVALID_HANDLE);
 
-#ifdef IPRT_DEBUG_SEMS
+#if defined(RT_STRICT) || defined(IPRT_DEBUG_SEMS)
     AssertRelease(pThis->Owner == RTThreadNativeSelf());
     ASMAtomicUoWriteSize(&pThis->Owner, NIL_RTNATIVETHREAD);
 #endif

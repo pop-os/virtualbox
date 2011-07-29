@@ -353,6 +353,20 @@ AssertCompileSize(VBoxGuestWriteCoreDump, 4);
 
 #endif /* VBOX_WITH_HGCM */
 
+#ifdef RT_OS_WINDOWS
+# ifdef IN_RING0
+
+typedef DECLCALLBACK(void) FNVBOXMOUSENOTIFYCB(void *pvContext);
+typedef FNVBOXMOUSENOTIFYCB *PFNVBOXMOUSENOTIFYCB;
+typedef struct VBoxGuestMouseSetNotifyCallback
+{
+    PFNVBOXMOUSENOTIFYCB pfnNotify;
+    void *pvNotify;
+} VBoxGuestMouseSetNotifyCallback;
+
+#  define VBOXGUEST_IOCTL_INTERNAL_SET_MOUSE_NOTIFY_CALLBACK   VBOXGUEST_IOCTL_CODE_(31, sizeof(VBoxGuestMouseSetNotifyCallback))
+# endif
+#endif
 
 #ifdef RT_OS_OS2
 

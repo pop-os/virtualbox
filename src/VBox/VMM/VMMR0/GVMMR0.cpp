@@ -1,4 +1,4 @@
-/* $Id: GVMMR0.cpp $ */
+/* $Id: GVMMR0.cpp 37465 2011-06-15 10:07:58Z vboxsync $ */
 /** @file
  * GVMM - Global VM Manager.
  */
@@ -99,6 +99,9 @@ typedef struct GVMHANDLE
     uint16_t volatile   iNext;
     /** Our own index / handle value. */
     uint16_t            iSelf;
+    /** The process ID of the handle owner.
+     * This is used for access checks. */
+    RTPROCESS           ProcId;
     /** The pointer to the ring-0 only (aka global) VM structure. */
     PGVM                pGVM;
     /** The ring-0 mapping of the shared VM instance data. */
@@ -111,16 +114,13 @@ typedef struct GVMHANDLE
      * This is used for ownership checks as well as looking up a VM handle by thread
      * at times like assertions. */
     RTNATIVETHREAD      hEMT0;
-    /** The process ID of the handle owner.
-     * This is used for access checks. */
-    RTPROCESS           ProcId;
 } GVMHANDLE;
 /** Pointer to a global VM handle. */
 typedef GVMHANDLE *PGVMHANDLE;
 
 /** Number of GVM handles (including the NIL handle). */
 #if HC_ARCH_BITS == 64
-# define GVMM_MAX_HANDLES   1024
+# define GVMM_MAX_HANDLES   8192
 #else
 # define GVMM_MAX_HANDLES   128
 #endif
@@ -833,6 +833,9 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PVM *ppV
                             pVM->cCpus            = cCpus;
                             pVM->uCpuExecutionCap = 100; /* default is no cap. */
                             pVM->offVMCPU         = RT_UOFFSETOF(VM, aCpus);
+                            AssertCompileMemberAlignment(VM, cpum, 64);
+                            AssertCompileMemberAlignment(VM, tm, 64);
+                            AssertCompileMemberAlignment(VM, aCpus, PAGE_SIZE);
 
                             rc = RTR0MemObjAllocPage(&pGVM->gvmm.s.VMPagesMemObj, cPages * sizeof(SUPPAGE), false /* fExecutable */);
                             if (RT_SUCCESS(rc))
@@ -1293,7 +1296,7 @@ static DECLCALLBACK(void) gvmmR0HandleObjDestructor(void *pvObj, void *pvGVMM, v
     ASMAtomicWriteNullPtr(&pHandle->pVM);
     ASMAtomicWriteNullPtr(&pHandle->pvObj);
     ASMAtomicWriteNullPtr(&pHandle->pSession);
-    ASMAtomicWriteSize(&pHandle->hEMT0,     NIL_RTNATIVETHREAD);
+    ASMAtomicWriteHandle(&pHandle->hEMT0,        NIL_RTNATIVETHREAD);
     ASMAtomicWriteSize(&pHandle->ProcId,         NIL_RTPROCESS);
 
     gvmmR0UsedUnlock(pGVMM);

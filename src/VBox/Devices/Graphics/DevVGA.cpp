@@ -1,4 +1,4 @@
-/* $Id: DevVGA.cpp $ */
+/* $Id: DevVGA.cpp 37770 2011-07-04 17:43:06Z vboxsync $ */
 /** @file
  * DevVGA - VBox VGA/VESA device.
  */
@@ -293,39 +293,6 @@ static const uint8_t g_abLogoF12BootText[] =
 
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
-RT_C_DECLS_BEGIN
-
-PDMBOTHCBDECL(int) vgaIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
-PDMBOTHCBDECL(int) vgaIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
-PDMBOTHCBDECL(int) vgaIOPortWriteVBEIndex(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
-PDMBOTHCBDECL(int) vgaIOPortWriteVBEData(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
-PDMBOTHCBDECL(int) vgaIOPortReadVBEIndex(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
-PDMBOTHCBDECL(int) vgaIOPortReadVBEData(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
-PDMBOTHCBDECL(int) vgaMMIOFill(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, uint32_t u32Item, unsigned cbItem, unsigned cItems);
-PDMBOTHCBDECL(int) vgaMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-PDMBOTHCBDECL(int) vgaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-PDMBOTHCBDECL(int) vgaIOPortReadBIOS(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
-PDMBOTHCBDECL(int) vgaIOPortWriteBIOS(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
-#ifdef IN_RC
-PDMBOTHCBDECL(int) vgaGCLFBAccessHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
-#endif
-#ifdef IN_RING0
-PDMBOTHCBDECL(int) vgaR0LFBAccessHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
-#endif
-#ifdef IN_RING3
-# ifdef VBE_NEW_DYN_LIST
-PDMBOTHCBDECL(int) vbeIOPortReadVBEExtra(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
-PDMBOTHCBDECL(int) vbeIOPortWriteVBEExtra(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
-# endif
-PDMBOTHCBDECL(int) vbeIOPortReadCMDLogo(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
-PDMBOTHCBDECL(int) vbeIOPortWriteCMDLogo(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
-#endif /* IN_RING3 */
-
-
-RT_C_DECLS_END
 
 
 /**
@@ -746,6 +713,7 @@ static void vga_ioport_write(void *opaque, uint32_t addr, uint32_t val)
         s->msr = val & ~0x10;
         if (s->fRealRetrace)
             vga_update_retrace_state(s);
+        s->st00 = (s->st00 & ~0x10) | (0x90 >> ((val >> 2) & 0x3));
         break;
     case 0x3c4:
         s->sr_index = val & 7;
@@ -930,6 +898,44 @@ static uint32_t calc_line_width(uint16_t bpp, uint32_t pitch)
         width = pitch / ((bpp + 7) >> 3);
 
     return width;
+}
+
+static void recaltulate_data(VGAState *s, bool fVirtHeightOnly)
+{
+    uint16_t cBPP        = s->vbe_regs[VBE_DISPI_INDEX_BPP];
+    uint16_t cVirtWidth  = s->vbe_regs[VBE_DISPI_INDEX_VIRT_WIDTH];
+    uint16_t cX          = s->vbe_regs[VBE_DISPI_INDEX_XRES];
+    if (!cBPP || !cX)
+        return;  /* Not enough data has been set yet. */
+    uint32_t cbLinePitch = calc_line_pitch(cBPP, cVirtWidth);
+    if (!cbLinePitch)
+        cbLinePitch      = calc_line_pitch(cBPP, cX);
+    Assert(cbLinePitch != 0);
+    uint32_t cVirtHeight = s->vram_size / cbLinePitch;
+    if (!fVirtHeightOnly)
+    {
+        uint16_t offX        = s->vbe_regs[VBE_DISPI_INDEX_X_OFFSET];
+        uint16_t offY        = s->vbe_regs[VBE_DISPI_INDEX_Y_OFFSET];
+        uint32_t offStart    = cbLinePitch * offY;
+        if (cBPP == 4)
+            offStart += offX >> 1;
+        else
+            offStart += offX * ((cBPP + 7) >> 3);
+        offStart >>= 2;
+        s->vbe_line_offset = RT_MIN(cbLinePitch, s->vram_size);
+        s->vbe_start_addr  = RT_MIN(offStart, s->vram_size);
+    }
+
+    /* The VBE_DISPI_INDEX_VIRT_HEIGHT is used to prevent setting resolution bigger than VRAM permits
+     * it is used instead of VBE_DISPI_INDEX_YRES *only* in case
+     * s->vbe_regs[VBE_DISPI_INDEX_VIRT_HEIGHT] < s->vbe_regs[VBE_DISPI_INDEX_YRES]
+     * We can not simply do s->vbe_regs[VBE_DISPI_INDEX_VIRT_HEIGHT] = cVirtHeight since
+     * the cVirtHeight we calculated can exceed the 16bit value range
+     * instead we'll check if it's bigger than s->vbe_regs[VBE_DISPI_INDEX_YRES], and if yes,
+     * assign the s->vbe_regs[VBE_DISPI_INDEX_VIRT_HEIGHT] with a dummy UINT16_MAX value
+     * that is always bigger than s->vbe_regs[VBE_DISPI_INDEX_YRES]
+     * to just ensure the s->vbe_regs[VBE_DISPI_INDEX_YRES] is always used */
+    s->vbe_regs[VBE_DISPI_INDEX_VIRT_HEIGHT] = (cVirtHeight >= (uint32_t)s->vbe_regs[VBE_DISPI_INDEX_YRES]) ? UINT16_MAX : (uint16_t)cVirtHeight;
 }
 
 static void vbe_ioport_write_index(void *opaque, uint32_t addr, uint32_t val)
@@ -1146,27 +1152,7 @@ static int vbe_ioport_write_data(void *opaque, uint32_t addr, uint32_t val)
         }
         if (fRecalculate)
         {
-            uint16_t cBPP        = s->vbe_regs[VBE_DISPI_INDEX_BPP];
-            uint16_t cVirtWidth  = s->vbe_regs[VBE_DISPI_INDEX_VIRT_WIDTH];
-            uint16_t cX          = s->vbe_regs[VBE_DISPI_INDEX_XRES];
-            uint16_t offX        = s->vbe_regs[VBE_DISPI_INDEX_X_OFFSET];
-            uint16_t offY        = s->vbe_regs[VBE_DISPI_INDEX_Y_OFFSET];
-            if (!cBPP || !cX)
-                return VINF_SUCCESS;  /* Not enough data has been set yet. */
-            uint32_t cbLinePitch = calc_line_pitch(cBPP, cVirtWidth);
-            if (!cbLinePitch)
-                cbLinePitch      = calc_line_pitch(cBPP, cX);
-            Assert(cbLinePitch != 0);
-            uint16_t cVirtHeight = s->vram_size / cbLinePitch;
-            uint32_t offStart    = cbLinePitch * offY;
-            if (cBPP == 4)
-                offStart += offX >> 1;
-            else
-                offStart += offX * ((cBPP + 7) >> 3);
-            offStart >>= 2;
-            s->vbe_line_offset = RT_MIN(cbLinePitch, s->vram_size);
-            s->vbe_start_addr  = RT_MIN(offStart, s->vram_size);
-            s->vbe_regs[VBE_DISPI_INDEX_VIRT_HEIGHT] = cVirtHeight;
+            recaltulate_data(s, false);
         }
     }
     return VINF_SUCCESS;
@@ -1982,7 +1968,8 @@ static void vga_get_resolution(VGAState *s, int *pwidth, int *pheight)
 #ifdef CONFIG_BOCHS_VBE
     if (s->vbe_regs[VBE_DISPI_INDEX_ENABLE] & VBE_DISPI_ENABLED) {
         width = s->vbe_regs[VBE_DISPI_INDEX_XRES];
-        height = s->vbe_regs[VBE_DISPI_INDEX_YRES];
+        height = RT_MIN(s->vbe_regs[VBE_DISPI_INDEX_YRES],
+                        s->vbe_regs[VBE_DISPI_INDEX_VIRT_HEIGHT]);
     } else
 #endif
     {
@@ -2460,6 +2447,8 @@ static int vga_load(QEMUFile *f, void *opaque, int version_id)
     qemu_get_be16s(f, &s->vbe_index);
     for(i = 0; i < VBE_DISPI_INDEX_NB_SAVED; i++)
         qemu_get_be16s(f, &s->vbe_regs[i]);
+    if (version_id <= VGA_SAVEDSTATE_VERSION_INV_VHEIGHT)
+        recaltulate_data(s, false); /* <- re-calculate the s->vbe_regs[VBE_DISPI_INDEX_VIRT_HEIGHT] since it might be invalid */
     qemu_get_be32s(f, &s->vbe_start_addr);
     qemu_get_be32s(f, &s->vbe_line_offset);
     if (version_id < 2)
@@ -3266,7 +3255,7 @@ PDMBOTHCBDECL(int) vgaMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhys
  * @param   pv          Pointer to data.
  * @param   cb          Bytes to write.
  */
-PDMBOTHCBDECL(int) vgaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+PDMBOTHCBDECL(int) vgaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
     PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
     uint8_t  *pu8 = (uint8_t *)pv;
@@ -6027,7 +6016,7 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
         return rc;
 
     /* Initialize the PDM lock. */
-    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->lock, RT_SRC_POS, "VGA");
+    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->lock, RT_SRC_POS, "VGA#u", iInstance);
     if (RT_FAILURE(rc))
     {
         Log(("%s: Failed to create critical section.\n", __FUNCTION__));
@@ -6038,7 +6027,7 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
      * Create the refresh timer.
      */
     rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_REAL, vgaTimerRefresh,
-                                pThis, TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo This needs to be fixed! We cannot take the I/O lock at this point! */
+                                pThis, TMTIMER_FLAGS_NO_CRIT_SECT,
                                 "VGA Refresh Timer", &pThis->RefreshTimer);
     if (RT_FAILURE(rc))
         return rc;

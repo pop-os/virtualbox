@@ -36,7 +36,7 @@ these four paragraphs for those parts of this code that are retained.
 #include <VBox/types.h>
 #endif
 
-#if defined(HOST_SOLARIS) && defined(NEEDS_LIBSUNMATH)
+#if defined(CONFIG_SOLARIS) && defined(CONFIG_NEEDS_LIBSUNMATH)
 #include <sunmath.h>
 #endif
 
@@ -94,7 +94,7 @@ typedef int64_t sbits64;
 #define FLOAT128
 #else
 /* native float support */
-#if (defined(__i386__) || defined(__x86_64__)) && (!defined(_BSD) || defined(VBOX))
+#if (defined(__i386__) || defined(__x86_64__)) && (!defined(CONFIG_BSD) || defined(VBOX)) /** @todo VBOX: not correct on windows */
 #define FLOATX80
 #endif
 #endif /* !CONFIG_SOFTFLOAT */
@@ -154,7 +154,7 @@ typedef struct {
 #endif
 #ifdef FLOAT128
 typedef struct {
-#ifdef WORDS_BIGENDIAN
+#ifdef HOST_WORDS_BIGENDIAN
     uint64_t high, low;
 #else
     uint64_t low, high;
@@ -251,6 +251,12 @@ float128 int64_to_float128( int64_t STATUS_PARAM );
 #endif
 
 /*----------------------------------------------------------------------------
+| Software half-precision conversion routines.
+*----------------------------------------------------------------------------*/
+bits16 float32_to_float16( float32, flag STATUS_PARAM );
+float32 float16_to_float32( bits16, flag STATUS_PARAM );
+
+/*----------------------------------------------------------------------------
 | Software IEC/IEEE single-precision conversion routines.
 *----------------------------------------------------------------------------*/
 int float32_to_int32( float32 STATUS_PARAM );
@@ -277,6 +283,7 @@ float32 float32_mul( float32, float32 STATUS_PARAM );
 float32 float32_div( float32, float32 STATUS_PARAM );
 float32 float32_rem( float32, float32 STATUS_PARAM );
 float32 float32_sqrt( float32 STATUS_PARAM );
+float32 float32_exp2( float32 STATUS_PARAM );
 float32 float32_log2( float32 STATUS_PARAM );
 int float32_eq( float32, float32 STATUS_PARAM );
 int float32_le( float32, float32 STATUS_PARAM );
@@ -317,6 +324,7 @@ INLINE int float32_is_zero(float32 a)
 
 #define float32_zero make_float32(0)
 #define float32_one make_float32(0x3f800000)
+#define float32_ln2 make_float32(0x3f317218)
 
 /*----------------------------------------------------------------------------
 | Software IEC/IEEE double-precision conversion routines.
@@ -388,6 +396,7 @@ INLINE int float64_is_zero(float64 a)
 
 #define float64_zero make_float64(0)
 #define float64_one make_float64(0x3ff0000000000000LL)
+#define float64_ln2 make_float64(0x3fe62e42fefa39efLL)
 
 #ifdef FLOATX80
 

@@ -1,4 +1,4 @@
-/* $Id: KeyboardImpl.h $ */
+/* $Id: KeyboardImpl.h 35638 2011-01-19 19:10:49Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -57,9 +57,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(Keyboard)
-        COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(IKeyboard)
-        COM_INTERFACE_ENTRY(IDispatch)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IKeyboard)
     END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR(Keyboard)

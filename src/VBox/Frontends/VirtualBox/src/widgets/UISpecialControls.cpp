@@ -1,4 +1,4 @@
-/* $Id: UISpecialControls.cpp $ */
+/* $Id: UISpecialControls.cpp 30694 2010-07-07 09:24:18Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

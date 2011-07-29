@@ -1,4 +1,4 @@
-/* $Id: RTHandleGetStandard-win.cpp $ */
+/* $Id: RTHandleGetStandard-win.cpp 36123 2011-03-01 15:38:35Z vboxsync $ */
 /** @file
  * IPRT - RTHandleGetStandard, Windows.
  */
@@ -63,7 +63,7 @@ RTDECL(int) RTHandleGetStandard(RTHANDLESTD enmStdHandle, PRTHANDLE ph)
      * best map on to?
      */
     HANDLE hNative = GetStdHandle(dwStdHandle);
-    if (hNative)
+    if (hNative == INVALID_HANDLE_VALUE)
         return RTErrConvertFromWin32(GetLastError());
 
     DWORD dwInfo;

@@ -1,10 +1,10 @@
-/* $Id: VBoxManageHelp.cpp $ */
+/* $Id: VBoxManageHelp.cpp 38055 2011-07-19 08:55:42Z vboxsync $ */
 /** @file
  * VBoxManage - help and other message output.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -150,6 +150,11 @@ void printUsage(USAGECATEGORY u64Cmd, PRTSTREAM pStrm)
                      "                            [--pagefusion on|off]\n"
                      "                            [--vram <vramsize in MB>]\n"
                      "                            [--acpi on|off]\n"
+#ifdef VBOX_WITH_PCI_PASSTHROUGH
+                     "                            [--pciattach 03:04.0]\n"
+                     "                            [--pciattach 03:04.0@02:01.0]\n"
+                     "                            [--pcidetach 03:04.0]\n"
+#endif
                      "                            [--ioapic on|off]\n"
                      "                            [--pae on|off]\n"
                      "                            [--hpet on|off]\n"
@@ -188,10 +193,8 @@ void printUsage(USAGECATEGORY u64Cmd, PRTSTREAM pStrm)
 #if defined(VBOX_WITH_NETFLT)
                      "|hostonly"
 #endif
-#ifdef VBOX_WITH_VDE
                      "|\n"
-                     "                                        vde"
-#endif
+                     "                                        generic"
                      "]\n"
                      "                            [--nictype<1-N> Am79C970A|Am79C973"
 #ifdef VBOX_WITH_E1000
@@ -204,17 +207,18 @@ void printUsage(USAGECATEGORY u64Cmd, PRTSTREAM pStrm)
                      "                            [--cableconnected<1-N> on|off]\n"
                      "                            [--nictrace<1-N> on|off]\n"
                      "                            [--nictracefile<1-N> <filename>]\n"
+                     "                            [--nicproperty<1-N> name=[value]]\n"
                      "                            [--nicspeed<1-N> <kbps>]\n"
                      "                            [--nicbootprio<1-N> <priority>]\n"
+                     "                            [--nicpromisc<1-N> deny|allow-vms|allow-all]\n"
+                     "                            [--nicbandwidthgroup<1-N> none|<name>]\n"
                      "                            [--bridgeadapter<1-N> none|<devicename>]\n"
 #if defined(VBOX_WITH_NETFLT)
                      "                            [--hostonlyadapter<1-N> none|<devicename>]\n"
 #endif
                      "                            [--intnet<1-N> <network name>]\n"
                      "                            [--natnet<1-N> <network>|default]\n"
-#ifdef VBOX_WITH_VDE
-                     "                            [--vdenet<1-N> <network>|default]\n"
-#endif
+                     "                            [--nicgenericdrv<1-N> <driver>\n"
                      "                            [--natsettings<1-N> [<mtu>],[<socksnd>],\n"
                      "                                                [<sockrcv>],[<tcpsnd>],\n"
                      "                                                [<tcprcv>]]\n"
@@ -224,6 +228,7 @@ void printUsage(USAGECATEGORY u64Cmd, PRTSTREAM pStrm)
                      "                            [--nattftpprefix<1-N> <prefix>]\n"
                      "                            [--nattftpfile<1-N> <file>]\n"
                      "                            [--nattftpserver<1-N> <ip>]\n"
+                     "                            [--natbindip<1-N> <ip>\n"
                      "                            [--natdnspassdomain<1-N> on|off]\n"
                      "                            [--natdnsproxy<1-N> on|off]\n"
                      "                            [--natdnshostresolver<1-N> on|off]\n"
@@ -325,9 +330,25 @@ void printUsage(USAGECATEGORY u64Cmd, PRTSTREAM pStrm)
                      "\n");
     }
 
+    if (u64Cmd & USAGE_CLONEVM)
+        RTStrmPrintf(pStrm,
+                     "VBoxManage clonevm          <uuid>|<name>\n"
+                     "                            [--snapshot <uuid>|<name>]\n"
+                     "                            [--mode machine|all]\n"
+                     "                            [--options link|keepallmacs|keepnatmacs|\n"
+                     "                                       keepdisknames]\n"
+                     "                            [--name <name>]\n"
+                     "                            [--basefolder <basefolder>]\n"
+                     "                            [--uuid <uuid>]\n"
+                     "                            [--register]\n"
+                     "\n");
+
     if (u64Cmd & USAGE_IMPORTAPPLIANCE)
         RTStrmPrintf(pStrm,
-                     "VBoxManage import           <ovf/ova> [--dry-run|-n] [more options]\n"
+                     "VBoxManage import           <ovf/ova>\n"
+                     "                            [--dry-run|-n]\n"
+                     "                            [--options keepallmacs|keepnatmacs]\n"
+                     "                            [more options]\n"
                      "                            (run with -n to have options displayed\n"
                      "                             for a particular OVF)\n\n");
 
@@ -368,14 +389,16 @@ void printUsage(USAGECATEGORY u64Cmd, PRTSTREAM pStrm)
                      "                            keyboardputscancode <hex> [<hex> ...]|\n"
                      "                            setlinkstate<1-N> on|off |\n"
 #if defined(VBOX_WITH_NETFLT)
-                     "                            nic<1-N> null|nat|bridged|intnet|hostonly\n"
+                     "                            nic<1-N> null|nat|bridged|intnet|hostonly|generic"
+                     "\n"
                      "                                     [<devicename>] |\n"
-#else /* !RT_OS_LINUX && !RT_OS_DARWIN */
-                     "                            nic<1-N> null|nat|bridged|intnet\n"
+#else /* !VBOX_WITH_NETFLT */
+                     "                            nic<1-N> null|nat|bridged|intnet|generic\n"
                      "                                     [<devicename>] |\n"
-#endif /* !RT_OS_LINUX && !RT_OS_DARWIN  */
+#endif /* !VBOX_WITH_NETFLT */
                      "                            nictrace<1-N> on|off\n"
                      "                            nictracefile<1-N> <filename>\n"
+                     "                            nicproperty<1-N> name=[value]\n"
                      "                            natpf<1-N> [<rulename>],tcp|udp,[<hostip>],\n"
                      "                                          <hostport>,[<guestip>],<guestport>\n"
                      "                            natpf<1-N> delete <rulename>\n"
@@ -435,20 +458,24 @@ void printUsage(USAGECATEGORY u64Cmd, PRTSTREAM pStrm)
         RTStrmPrintf(pStrm,
                      "VBoxManage storageattach    <uuid|vmname>\n"
                      "                            --storagectl <name>\n"
-                     "                            --port <number>\n"
-                     "                            --device <number>\n"
+                     "                            [--port <number>]\n"
+                     "                            [--device <number>]\n"
                      "                            [--type dvddrive|hdd|fdd]\n"
                      "                            [--medium none|emptydrive|\n"
                      "                                      <uuid>|<filename>|host:<drive>|iscsi]\n"
                      "                            [--mtype normal|writethrough|immutable|shareable|\n"
                      "                                     readonly|multiattach]\n"
                      "                            [--comment <text>]\n"
+                     "                            [--setuuid <uuid>]\n"
+                     "                            [--setparentuuid <uuid>]\n"
                      "                            [--passthrough on|off]\n"
+                     "                            [--tempeject on|off]\n"
+                     "                            [--nonrotational on|off]\n"
                      "                            [--bandwidthgroup <name>]\n"
                      "                            [--forceunmount]\n"
                      "                            [--server <name>|<ip>]\n"
                      "                            [--target <target>]\n"
-                     "                            [--port <port>]\n"
+                     "                            [--tport <port>]\n"
                      "                            [--lun <lun>]\n"
                      "                            [--encodedlun <lun>]\n"
                      "                            [--username <username>]\n"
@@ -504,7 +531,7 @@ void printUsage(USAGECATEGORY u64Cmd, PRTSTREAM pStrm)
 
     if (u64Cmd & USAGE_CLONEHD)
         RTStrmPrintf(pStrm,
-                     "VBoxManage clonehd          <uuid>|<filename> <outputfile>\n"
+                     "VBoxManage clonehd          <uuid>|<filename> <uuid>|<outputfile>\n"
                      "                            [--format VDI|VMDK|VHD|RAW|<other>]\n"
                      "                            [--variant Standard,Fixed,Split2G,Stream,ESX]\n"
                      "                            [--existing]\n"
@@ -683,7 +710,7 @@ void printUsage(USAGECATEGORY u64Cmd, PRTSTREAM pStrm)
     if (u64Cmd & USAGE_EXTPACK)
     {
         RTStrmPrintf(pStrm,
-                     "VBoxManage extpack          install <tarball> |\n"
+                     "VBoxManage extpack          install [--replace] <tarball> |\n"
                      "                            uninstall [--force] <name> |\n"
                      "                            cleanup\n"
                      "\n");

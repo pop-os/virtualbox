@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 37434 2011-06-14 13:14:57Z vboxsync $
 ## @file
 # Sub-Makefile for the Shared Clipboard Host Service.
 #
@@ -17,6 +17,9 @@
 
 SUB_DEPTH = ../../../..
 include $(KBUILD_PATH)/subheader.kmk
+
+# Include sub-makefile(s).
+include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
 
 #
 # The shared folder service DLL.

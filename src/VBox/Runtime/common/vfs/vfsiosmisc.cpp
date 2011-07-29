@@ -1,4 +1,4 @@
-/* $Id: vfsiosmisc.cpp $ */
+/* $Id: vfsiosmisc.cpp 34967 2010-12-10 17:52:01Z vboxsync $ */
 /** @file
  * IPRT - Virtual File System, Misc I/O Stream Operations.
  */

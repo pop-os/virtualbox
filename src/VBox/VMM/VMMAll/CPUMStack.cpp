@@ -1,4 +1,4 @@
-/* $Id: CPUMStack.cpp $ */
+/* $Id: CPUMStack.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * CPUM - CPU Monitor(/Manager) - Stack manipulation.
  */

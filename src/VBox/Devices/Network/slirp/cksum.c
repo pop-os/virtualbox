@@ -1,4 +1,4 @@
-/* $Id: cksum.c $ */
+/* $Id: cksum.c 34103 2010-11-16 11:18:55Z vboxsync $ */
 /** @file
  * NAT - IP checksum generation.
  */

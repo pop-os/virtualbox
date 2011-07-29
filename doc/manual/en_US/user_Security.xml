@@ -2,7 +2,7 @@
 <!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.4//EN"
 "http://www.oasis-open.org/docbook/xml/4.4/docbookx.dtd">
 <chapter id="Security">
-  <title>Security considerations</title>
+  <title>Security guide</title>
 
   <sect1>
     <title>Potentially insecure operations</title>
@@ -29,6 +29,13 @@
           calls are transferred via SOAP XML) are not encrypted, but use plain
           HTTP. This is a potential security risk! For details about the web
           service, please see <xref linkend="VirtualBoxAPI" />.</para>
+        </listitem>
+        
+        <listitem>
+          <para>All traffic sent over an UDP Tunnel network attachment is not
+          encrypted. You can either encrypt it on the host network level (with
+          IPsec), or use encrypted protocols in the guest network (such as
+          SSH). The security properties are similar to bridged Ethernet.</para>
         </listitem>
       </itemizedlist></para>
   </sect1>
@@ -85,7 +92,10 @@
         <listitem>
           <para>When using the VirtualBox extension pack provided by Oracle
           for VRDP remote desktop support, RDP data can optionally be
-          encrypted. See <xref linkend="vrde-crypt" /> for details.</para>
+          encrypted. See <xref linkend="vrde-crypt" /> for details. Only
+          the Enhanced RDP Security method (RDP5.2) with TLS protocol
+          provides a secure connection. Standard RDP Security (RDP4 and
+          RDP5.1) is vulnerable to a man-in-the-middle attack.</para>
         </listitem>
       </itemizedlist></para>
   </sect1>

@@ -19,6 +19,7 @@
 #define __VBOXCLIPBOARD__H
 
 #define LOG_GROUP LOG_GROUP_SHARED_CLIPBOARD
+#include <VBox/hgcmsvc.h>
 #include <VBox/log.h>
 
 struct _VBOXCLIPBOARDCONTEXT;
@@ -72,6 +73,7 @@ void vboxSvcClipboardReportMsg (VBOXCLIPBOARDCLIENTDATA *pClient, uint32_t u32Ms
 
 void vboxSvcClipboardCompleteReadData(VBOXCLIPBOARDCLIENTDATA *pClient, int rc, uint32_t cbActual);
 
+bool vboxSvcClipboardGetHeadless(void);
 
 /*
  * Platform dependent functions.
@@ -79,7 +81,7 @@ void vboxSvcClipboardCompleteReadData(VBOXCLIPBOARDCLIENTDATA *pClient, int rc, 
 int vboxClipboardInit (void);
 void vboxClipboardDestroy (void);
 
-int vboxClipboardConnect (VBOXCLIPBOARDCLIENTDATA *pClient);
+int vboxClipboardConnect (VBOXCLIPBOARDCLIENTDATA *pClient, bool fHeadless);
 void vboxClipboardDisconnect (VBOXCLIPBOARDCLIENTDATA *pClient);
 
 void vboxClipboardFormatAnnounce (VBOXCLIPBOARDCLIENTDATA *pClient, uint32_t u32Formats);
@@ -89,5 +91,10 @@ int vboxClipboardReadData (VBOXCLIPBOARDCLIENTDATA *pClient, uint32_t u32Format,
 void vboxClipboardWriteData (VBOXCLIPBOARDCLIENTDATA *pClient, void *pv, uint32_t cb, uint32_t u32Format);
 
 int vboxClipboardSync (VBOXCLIPBOARDCLIENTDATA *pClient);
+
+/* Host unit testing interface */
+#ifdef UNIT_TEST
+uint32_t TestClipSvcGetMode(void);
+#endif
 
 #endif /* __VBOXCLIPBOARD__H */

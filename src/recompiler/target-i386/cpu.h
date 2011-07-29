@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /*
@@ -52,11 +51,13 @@
 #define ELF_MACHINE	EM_386
 #endif
 
+#define CPUState struct CPUX86State
+
 #include "cpu-defs.h"
 
 #include "softfloat.h"
 
-#if defined(VBOX)
+#ifdef VBOX
 # include <iprt/critsect.h>
 # include <iprt/thread.h>
 # include <iprt/assert.h>
@@ -99,8 +100,10 @@
 #define DESC_AVL_MASK   (1 << 20)
 #define DESC_P_MASK     (1 << 15)
 #define DESC_DPL_SHIFT  13
+#define DESC_DPL_MASK   (3 << DESC_DPL_SHIFT)
 #define DESC_S_MASK     (1 << 12)
 #define DESC_TYPE_SHIFT 8
+#define DESC_TYPE_MASK  (15 << DESC_TYPE_SHIFT)
 #define DESC_A_MASK     (1 << 8)
 
 #define DESC_CS_MASK    (1 << 11) /* 1=code segment 0=data segment */
@@ -113,8 +116,8 @@
 #define DESC_TSS_BUSY_MASK (1 << 9)
 
 /* eflags masks */
-#define CC_C	0x0001
-#define CC_P	0x0004
+#define CC_C   	0x0001
+#define CC_P 	0x0004
 #define CC_A	0x0010
 #define CC_Z	0x0040
 #define CC_S    0x0080
@@ -124,11 +127,11 @@
 #define IOPL_SHIFT 12
 #define VM_SHIFT   17
 
-#define TF_MASK                 0x00000100
-#define IF_MASK                 0x00000200
-#define DF_MASK                 0x00000400
+#define TF_MASK 		0x00000100
+#define IF_MASK 		0x00000200
+#define DF_MASK 		0x00000400
 #define IOPL_MASK		0x00003000
-#define NT_MASK	                0x00004000
+#define NT_MASK	         	0x00004000
 #define RF_MASK			0x00010000
 #define VM_MASK			0x00020000
 #define AC_MASK			0x00040000
@@ -137,9 +140,9 @@
 #define ID_MASK                 0x00200000
 
 /* hidden flags - used internally by qemu to represent additional cpu
-   states. Only the CPL, INHIBIT_IRQ, SMM and SVMI are not redundant. We avoid
-   using the IOPL_MASK, TF_MASK and VM_MASK bit position to ease oring
-   with eflags. */
+   states. Only the CPL, INHIBIT_IRQ, SMM and SVMI are not
+   redundant. We avoid using the IOPL_MASK, TF_MASK and VM_MASK bit
+   position to ease oring with eflags. */
 /* current cpl */
 #define HF_CPL_SHIFT         0
 /* true if soft mmu is being used */
@@ -160,12 +163,12 @@
 #define HF_IOPL_SHIFT       12 /* must be same as eflags */
 #define HF_LMA_SHIFT        14 /* only used on x86_64: long mode active */
 #define HF_CS64_SHIFT       15 /* only used on x86_64: 64 bit code segment  */
-#define HF_OSFXSR_SHIFT     16 /* CR4.OSFXSR */
+#define HF_RF_SHIFT         16 /* must be same as eflags */
 #define HF_VM_SHIFT         17 /* must be same as eflags */
-#define HF_HALTED_SHIFT     18 /* CPU halted */
 #define HF_SMM_SHIFT        19 /* CPU in SMM mode */
 #define HF_SVME_SHIFT       20 /* SVME enabled (copy of EFER.SVME) */
 #define HF_SVMI_SHIFT       21 /* SVM intercepts are active */
+#define HF_OSFXSR_SHIFT     22 /* CR4.OSFXSR */
 
 #define HF_CPL_MASK          (3 << HF_CPL_SHIFT)
 #define HF_SOFTMMU_MASK      (1 << HF_SOFTMMU_SHIFT)
@@ -178,13 +181,15 @@
 #define HF_MP_MASK           (1 << HF_MP_SHIFT)
 #define HF_EM_MASK           (1 << HF_EM_SHIFT)
 #define HF_TS_MASK           (1 << HF_TS_SHIFT)
+#define HF_IOPL_MASK         (3 << HF_IOPL_SHIFT)
 #define HF_LMA_MASK          (1 << HF_LMA_SHIFT)
 #define HF_CS64_MASK         (1 << HF_CS64_SHIFT)
-#define HF_OSFXSR_MASK       (1 << HF_OSFXSR_SHIFT)
-#define HF_HALTED_MASK       (1 << HF_HALTED_SHIFT)
+#define HF_RF_MASK           (1 << HF_RF_SHIFT)
+#define HF_VM_MASK           (1 << HF_VM_SHIFT)
 #define HF_SMM_MASK          (1 << HF_SMM_SHIFT)
 #define HF_SVME_MASK         (1 << HF_SVME_SHIFT)
 #define HF_SVMI_MASK         (1 << HF_SVMI_SHIFT)
+#define HF_OSFXSR_MASK       (1 << HF_OSFXSR_SHIFT)
 
 /* hflags2 */
 
@@ -197,6 +202,9 @@
 #define HF2_HIF_MASK          (1 << HF2_HIF_SHIFT)
 #define HF2_NMI_MASK          (1 << HF2_NMI_SHIFT)
 #define HF2_VINTR_MASK        (1 << HF2_VINTR_SHIFT)
+
+#define CR0_PE_SHIFT 0
+#define CR0_MP_SHIFT 1
 
 #define CR0_PE_MASK  (1 << 0)
 #define CR0_MP_MASK  (1 << 1)
@@ -214,10 +222,22 @@
 #define CR4_DE_MASK   (1 << 3)
 #define CR4_PSE_MASK  (1 << 4)
 #define CR4_PAE_MASK  (1 << 5)
+#define CR4_MCE_MASK  (1 << 6)
 #define CR4_PGE_MASK  (1 << 7)
 #define CR4_PCE_MASK  (1 << 8)
-#define CR4_OSFXSR_MASK (1 << 9)
+#define CR4_OSFXSR_SHIFT 9
+#define CR4_OSFXSR_MASK (1 << CR4_OSFXSR_SHIFT)
 #define CR4_OSXMMEXCPT_MASK  (1 << 10)
+
+#define DR6_BD          (1 << 13)
+#define DR6_BS          (1 << 14)
+#define DR6_BT          (1 << 15)
+#define DR6_FIXED_1     0xffff0ff0
+
+#define DR7_GD          (1 << 13)
+#define DR7_TYPE_SHIFT  16
+#define DR7_LEN_SHIFT   18
+#define DR7_FIXED_1     0x00000400
 
 #define PG_PRESENT_BIT	0
 #define PG_RW_BIT	1
@@ -249,16 +269,27 @@
 #define PG_ERROR_RSVD_MASK 0x08
 #define PG_ERROR_I_D_MASK  0x10
 
+#define MCG_CTL_P	(1UL<<8)   /* MCG_CAP register available */
+
+#define MCE_CAP_DEF	MCG_CTL_P
+#define MCE_BANKS_DEF	10
+
+#define MCG_STATUS_MCIP	(1ULL<<2)   /* machine check in progress */
+
+#define MCI_STATUS_VAL	(1ULL<<63)  /* valid error */
+#define MCI_STATUS_OVER	(1ULL<<62)  /* previous errors lost */
+#define MCI_STATUS_UC	(1ULL<<61)  /* uncorrected error */
+
+#define MSR_IA32_TSC                    0x10
 #define MSR_IA32_APICBASE               0x1b
 #define MSR_IA32_APICBASE_BSP           (1<<8)
 #define MSR_IA32_APICBASE_ENABLE        (1<<11)
 #define MSR_IA32_APICBASE_BASE          (0xfffff<<12)
 
-#ifndef MSR_IA32_SYSENTER_CS /* VBox x86.h kludge */
-#define MSR_IA32_SYSENTER_CS            0x174
-#define MSR_IA32_SYSENTER_ESP           0x175
-#define MSR_IA32_SYSENTER_EIP           0x176
-#endif
+#define MSR_MTRRcap			0xfe
+#define MSR_MTRRcap_VCNT		8
+#define MSR_MTRRcap_FIXRANGE_SUPPORT	(1 << 8)
+#define MSR_MTRRcap_WC_SUPPORTED	(1 << 10)
 
 #define MSR_IA32_SYSENTER_CS            0x174
 #define MSR_IA32_SYSENTER_ESP           0x175
@@ -270,7 +301,29 @@
 
 #define MSR_IA32_PERF_STATUS            0x198
 
+#define MSR_MTRRphysBase(reg)		(0x200 + 2 * (reg))
+#define MSR_MTRRphysMask(reg)		(0x200 + 2 * (reg) + 1)
+
+#define MSR_MTRRfix64K_00000		0x250
+#define MSR_MTRRfix16K_80000		0x258
+#define MSR_MTRRfix16K_A0000		0x259
+#define MSR_MTRRfix4K_C0000		0x268
+#define MSR_MTRRfix4K_C8000		0x269
+#define MSR_MTRRfix4K_D0000		0x26a
+#define MSR_MTRRfix4K_D8000		0x26b
+#define MSR_MTRRfix4K_E0000		0x26c
+#define MSR_MTRRfix4K_E8000		0x26d
+#define MSR_MTRRfix4K_F0000		0x26e
+#define MSR_MTRRfix4K_F8000		0x26f
+
 #define MSR_PAT                         0x277
+
+#define MSR_MTRRdefType			0x2ff
+
+#define MSR_MC0_CTL			0x400
+#define MSR_MC0_STATUS			0x401
+#define MSR_MC0_ADDR			0x402
+#define MSR_MC0_MISC			0x403
 
 #define MSR_EFER                        0xc0000080
 
@@ -282,8 +335,8 @@
 #define MSR_EFER_FFXSR (1 << 14)
 
 #ifdef VBOX
-#define MSR_APIC_RANGE_START            0x800
-#define MSR_APIC_RANGE_END              0x900
+# define MSR_APIC_RANGE_START           0x800
+# define MSR_APIC_RANGE_END             0x900
 #endif
 
 #define MSR_STAR                        0xc0000081
@@ -293,6 +346,7 @@
 #define MSR_FSBASE                      0xc0000100
 #define MSR_GSBASE                      0xc0000101
 #define MSR_KERNELGSBASE                0xc0000102
+#define MSR_TSC_AUX                     0xc0000103
 
 #define MSR_VM_HSAVE_PA                 0xc0010117
 
@@ -314,6 +368,7 @@
 #define CPUID_CMOV (1 << 15)
 #define CPUID_PAT  (1 << 16)
 #define CPUID_PSE36   (1 << 17)
+#define CPUID_PN   (1 << 18)
 #define CPUID_CLFLUSH (1 << 19)
 #define CPUID_DTS (1 << 21)
 #define CPUID_ACPI (1 << 22)
@@ -321,11 +376,11 @@
 #define CPUID_FXSR (1 << 24)
 #define CPUID_SSE  (1 << 25)
 #define CPUID_SSE2 (1 << 26)
-#define CPUID_SS   (1 << 27)
-#define CPUID_HT   (1 << 28)
-#define CPUID_TM   (1 << 29)
+#define CPUID_SS (1 << 27)
+#define CPUID_HT (1 << 28)
+#define CPUID_TM (1 << 29)
 #define CPUID_IA64 (1 << 30)
-#define CPUID_PBE  (1 << 31)
+#define CPUID_PBE (1 << 31)
 
 #define CPUID_EXT_SSE3     (1 << 0)
 #define CPUID_EXT_DTES64   (1 << 2)
@@ -348,6 +403,7 @@
 #define CPUID_EXT_POPCNT   (1 << 23)
 #define CPUID_EXT_XSAVE    (1 << 26)
 #define CPUID_EXT_OSXSAVE  (1 << 27)
+#define CPUID_EXT_HYPERVISOR  (1 << 31)
 
 #define CPUID_EXT2_SYSCALL (1 << 11)
 #define CPUID_EXT2_MP      (1 << 19)
@@ -385,7 +441,7 @@
 #define CPUID_MWAIT_EMX     (1 << 0) /* enumeration supported */
 
 #define EXCP00_DIVZ	0
-#define EXCP01_SSTP	1
+#define EXCP01_DB	1
 #define EXCP02_NMI	2
 #define EXCP03_INT3	3
 #define EXCP04_INTO	4
@@ -408,7 +464,7 @@
 
 enum {
     CC_OP_DYNAMIC, /* must use dynamic code to get cc_op */
-    CC_OP_EFLAGS,  /* all cc are explicitely computed, CC_SRC = flags */
+    CC_OP_EFLAGS,  /* all cc are explicitly computed, CC_SRC = flags */
 
     CC_OP_MULB, /* modify all flags, C, O = (CC_SRC != 0) */
     CC_OP_MULW,
@@ -460,7 +516,7 @@ enum {
     CC_OP_SARL,
     CC_OP_SARQ,
 
-    CC_OP_NB
+    CC_OP_NB,
 };
 
 #ifdef FLOATX80
@@ -501,7 +557,7 @@ typedef union {
     uint64_t q;
 } MMXReg;
 
-#ifdef WORDS_BIGENDIAN
+#ifdef HOST_WORDS_BIGENDIAN
 #define XMM_B(n) _b[15 - (n)]
 #define XMM_W(n) _w[7 - (n)]
 #define XMM_L(n) _l[3 - (n)]
@@ -528,16 +584,33 @@ typedef union {
 #endif
 #define MMX_Q(n) q
 
-#ifdef TARGET_X86_64
-#define CPU_NB_REGS 16
+typedef union {
+#ifdef USE_X86LDOUBLE
+    CPU86_LDouble d __attribute__((aligned(16)));
 #else
-#define CPU_NB_REGS 8
+    CPU86_LDouble d;
+#endif
+    MMXReg mmx;
+} FPReg;
+
+typedef struct {
+    uint64_t base;
+    uint64_t mask;
+} MTRRVar;
+
+#define CPU_NB_REGS64 16
+#define CPU_NB_REGS32 8
+
+#ifdef TARGET_X86_64
+#define CPU_NB_REGS CPU_NB_REGS64
+#else
+#define CPU_NB_REGS CPU_NB_REGS32
 #endif
 
 #define NB_MMU_MODES 2
 
 typedef struct CPUX86State {
-  /* standard registers */
+    /* standard registers */
     target_ulong regs[CPU_NB_REGS];
     target_ulong eip;
     target_ulong eflags; /* eflags register. During CPU emulation, CC
@@ -549,8 +622,8 @@ typedef struct CPUX86State {
     target_ulong cc_dst;
     uint32_t cc_op;
     int32_t df; /* D flag : 1 if D = 0, -1 if D = 1 */
-    uint32_t hflags;  /* TB flags, see HF_xxx constants. These flags
-                         are known at translation time. */
+    uint32_t hflags; /* TB flags, see HF_xxx constants. These flags
+                        are known at translation time. */
     uint32_t hflags2; /* various other flags, see HF2_xxx constants. */
 
     /* segments */
@@ -561,25 +634,14 @@ typedef struct CPUX86State {
     SegmentCache idt; /* only base and limit are used */
 
     target_ulong cr[5]; /* NOTE: cr1 is unused */
-    uint64_t a20_mask;
+    int32_t a20_mask;
 
     /* FPU state */
     unsigned int fpstt; /* top of stack index */
-    unsigned int fpus;
-    unsigned int fpuc;
+    uint16_t fpus;
+    uint16_t fpuc;
     uint8_t fptags[8];   /* 0 = valid, 1 = empty */
-    union {
-#ifdef USE_X86LDOUBLE
-#ifndef VBOX
-        CPU86_LDouble d __attribute__((aligned(16)));
-#else
-	ALIGNED_MEMBER(CPU86_LDouble, d, 16);
-#endif
-#else
-        CPU86_LDouble d;
-#endif
-        MMXReg mmx;
-    } fpregs[8];
+    FPReg fpregs[8];
 
     /* emulator internal variables */
     float_status fp_status;
@@ -604,8 +666,8 @@ typedef struct CPUX86State {
 #ifdef VBOX
     uint32_t alignment0;
 #endif
-    uint64_t sysenter_esp;
-    uint64_t sysenter_eip;
+    target_ulong sysenter_esp;
+    target_ulong sysenter_eip;
     uint64_t efer;
     uint64_t star;
 
@@ -626,6 +688,10 @@ typedef struct CPUX86State {
     target_ulong fmask;
     target_ulong kernelgsbase;
 #endif
+    uint64_t system_time_msr;
+    uint64_t wall_clock_msr;
+
+    uint64_t tsc;
 
     uint64_t pat;
 
@@ -634,6 +700,10 @@ typedef struct CPUX86State {
     int exception_is_int;
     target_ulong exception_next_eip;
     target_ulong dr[8]; /* debug registers */
+    union {
+        CPUBreakpoint *cpu_breakpoint[4];
+        CPUWatchpoint *cpu_watchpoint[4];
+    }; /* break/watchpoints for dr[0..3] */
     uint32_t smbase;
     int old_exception;  /* exception in flight */
 
@@ -669,20 +739,63 @@ typedef struct CPUX86State {
     uint32_t cpuid_ext2_features;
     uint32_t cpuid_ext3_features;
     uint32_t cpuid_apic_id;
-
 #ifndef VBOX
-#ifdef USE_KQEMU
-    int kqemu_enabled;
-    int last_io_time;
-#endif
+    int cpuid_vendor_override;
+
+    /* MTRRs */
+    uint64_t mtrr_fixed[11];
+    uint64_t mtrr_deftype;
+    MTRRVar mtrr_var[8];
+
+    /* For KVM */
+    uint32_t mp_state;
+    int32_t exception_injected;
+    int32_t interrupt_injected;
+    uint8_t soft_interrupt;
+    uint8_t nmi_injected;
+    uint8_t nmi_pending;
+    uint8_t has_error_code;
+    uint32_t sipi_vector;
+
+    uint32_t cpuid_kvm_features;
+
     /* in order to simplify APIC support, we leave this pointer to the
        user */
-    struct APICState *apic_state;
-#else
-    uint32_t alignment2[3];
+    struct DeviceState *apic_state;
+
+    uint64 mcg_cap;
+    uint64 mcg_status;
+    uint64 mcg_ctl;
+    uint64 mce_banks[MCE_BANKS_DEF*4];
+
+    uint64_t tsc_aux;
+
+    /* vmstate */
+    uint16_t fpus_vmstate;
+    uint16_t fptag_vmstate;
+    uint16_t fpregs_format_vmstate;
+
+    uint64_t xstate_bv;
+    XMMReg ymmh_regs[CPU_NB_REGS];
+
+    uint64_t xcr0;
+#else  /* VBOX */
+
+    /** Alignment padding. */
+# if HC_ARCH_BITS == 64 \
+  || (   HC_ARCH_BITS == 32 \
+      && !defined(RT_OS_WINDOWS) \
+      && (   (!defined(VBOX_ENABLE_VBOXREM64) && !defined(RT_OS_SOLARIS)) \
+          || (defined(VBOX_ENABLE_VBOXREM64) && defined(RT_OS_SOLARIS)) ) )
+    uint32_t alignment2[1];
+# endif
+
     /** Profiling tb_flush. */
     STAMPROFILE StatTbFlush;
-#endif
+
+    /** Addends for HVA -> GPA translations. */
+    target_phys_addr_t phys_addends[NB_MMU_MODES][CPU_TLB_SIZE];
+#endif /* VBOX */
 } CPUX86State;
 
 #ifdef VBOX
@@ -697,14 +810,14 @@ typedef struct SegmentCache_Ver16 {
     uint32_t newselector;
 } SegmentCache_Ver16;
 
-#define CPU_NB_REGS_VER16 8
+# define CPU_NB_REGS_VER16 8
 
 /* Version 1.6 structure; just for loading the old saved state */
 typedef struct CPUX86State_Ver16 {
-#if TARGET_LONG_BITS > HOST_LONG_BITS
+# if TARGET_LONG_BITS > HOST_LONG_BITS
     /* temporaries if we cannot store them in host registers */
     uint32_t t0, t1, t2;
-#endif
+# endif
 
     /* standard registers */
     uint32_t regs[CPU_NB_REGS_VER16];
@@ -736,27 +849,23 @@ typedef struct CPUX86State_Ver16 {
     unsigned int fpuc;
     uint8_t fptags[8];   /* 0 = valid, 1 = empty */
     union {
-#ifdef USE_X86LDOUBLE
-#ifndef VBOX
+# ifdef USE_X86LDOUBLE
         CPU86_LDouble d __attribute__((aligned(16)));
-#else
-	ALIGNED_MEMBER(CPU86_LDouble, d, 16);
-#endif
-#else
+# else
         CPU86_LDouble d;
-#endif
+# endif
         MMXReg mmx;
     } fpregs[8];
 
     /* emulator internal variables */
     float_status fp_status;
-#ifdef VBOX
+# ifdef VBOX
     uint32_t alignment3[3]; /* force the long double to start a 16 byte line. */
-#endif
+# endif
     CPU86_LDouble ft0;
-#if defined(VBOX) && defined(RT_ARCH_X86) && !defined(RT_OS_DARWIN)
+# if defined(VBOX) && defined(RT_ARCH_X86) && !defined(RT_OS_DARWIN)
     uint32_t alignment4; /* long double is 12 byte, pad it to 16. */
-#endif
+# endif
     union {
 	float f;
         double d;
@@ -774,20 +883,20 @@ typedef struct CPUX86State_Ver16 {
     uint32_t sysenter_cs;
     uint32_t sysenter_esp;
     uint32_t sysenter_eip;
-#ifdef VBOX
+# ifdef VBOX
     uint32_t alignment0;
-#endif
+# endif
     uint64_t efer;
     uint64_t star;
 
     uint64_t pat;
 
     /* temporary data for USE_CODE_COPY mode */
-#ifdef USE_CODE_COPY
+# ifdef USE_CODE_COPY
     uint32_t tmp0;
     uint32_t saved_esp;
     int native_fp_regs; /* if true, the FPU state is in the native CPU regs */
-#endif
+# endif
 
     /* exception/interrupt handling */
     jmp_buf jmp_env;
@@ -795,10 +904,10 @@ typedef struct CPUX86State_Ver16 {
 
 /** CPUX86State state flags
  * @{ */
-#define CPU_RAW_RING0            0x0002 /* Set after first time RawR0 is executed, never cleared. */
-#define CPU_EMULATE_SINGLE_INSTR 0x0040 /* Execute a single instruction in emulation mode */
-#define CPU_EMULATE_SINGLE_STEP  0x0080 /* go into single step mode */
-#define CPU_RAW_HWACC            0x0100 /* Set after first time HWACC is executed, never cleared. */
+# define CPU_RAW_RING0            0x0002 /* Set after first time RawR0 is executed, never cleared. */
+# define CPU_EMULATE_SINGLE_INSTR 0x0040 /* Execute a single instruction in emulation mode */
+# define CPU_EMULATE_SINGLE_STEP  0x0080 /* go into single step mode */
+# define CPU_RAW_HWACC            0x0100 /* Set after first time HWACC is executed, never cleared. */
 /** @} */
 #endif /* !VBOX */
 
@@ -809,28 +918,21 @@ CPUX86State *cpu_x86_init(const char *cpu_model);
 #endif /* !VBOX */
 int cpu_x86_exec(CPUX86State *s);
 void cpu_x86_close(CPUX86State *s);
-void x86_cpu_list (FILE *f, int (*cpu_fprintf)(FILE *f, const char *fmt,
-                                                 ...));
+void x86_cpu_list (FILE *f, int (*cpu_fprintf)(FILE *f, const char *fmt, ...),
+                   const char *optarg);
+void x86_cpudef_setup(void);
+
 int cpu_get_pic_interrupt(CPUX86State *s);
 /* MSDOS compatibility mode FPU exception support */
 void cpu_set_ferr(CPUX86State *s);
 
 /* this function must always be used to load data in the segment
    cache: it synchronizes the hflags with the segment cache values */
-#ifndef VBOX
 static inline void cpu_x86_load_seg_cache(CPUX86State *env,
                                           int seg_reg, unsigned int selector,
                                           target_ulong base,
                                           unsigned int limit,
                                           unsigned int flags)
-#else
-DECLINLINE(void)  cpu_x86_load_seg_cache(CPUX86State *env,
-                                          int seg_reg, unsigned int selector,
-                                          target_ulong base,
-                                          unsigned int limit,
-                                          unsigned int flags)
-
-#endif
 {
     SegmentCache *sc;
     unsigned int new_hflags;
@@ -886,12 +988,23 @@ DECLINLINE(void)  cpu_x86_load_seg_cache(CPUX86State *env,
     }
 }
 
+static inline void cpu_x86_load_seg_cache_sipi(CPUX86State *env,
+                                               int sipi_vector)
+{
+    env->eip = 0;
+    cpu_x86_load_seg_cache(env, R_CS, sipi_vector << 8,
+                           sipi_vector << 12,
+                           env->segs[R_CS].limit,
+                           env->segs[R_CS].flags);
+    env->halted = 0;
+}
+
+int cpu_x86_get_descr_debug(CPUX86State *env, unsigned int selector,
+                            target_ulong *base, unsigned int *limit,
+                            unsigned int *flags);
+
 /* wrapper, just in case memory mappings must be changed */
-#ifndef VBOX
 static inline void cpu_x86_set_cpl(CPUX86State *s, int cpl)
-#else
-DECLINLINE(void) cpu_x86_set_cpl(CPUX86State *s, int cpl)
-#endif
 {
 #if HF_CPL_MASK == 3
     s->hflags = (s->hflags & ~HF_CPL_MASK) | cpl;
@@ -900,54 +1013,73 @@ DECLINLINE(void) cpu_x86_set_cpl(CPUX86State *s, int cpl)
 #endif
 }
 
+/* op_helper.c */
 /* used for debug or cpu save/restore */
 void cpu_get_fp80(uint64_t *pmant, uint16_t *pexp, CPU86_LDouble f);
 CPU86_LDouble cpu_set_fp80(uint64_t mant, uint16_t upper);
 
+/* cpu-exec.c */
 /* the following helpers are only usable in user mode simulation as
    they can trigger unexpected exceptions */
 void cpu_x86_load_seg(CPUX86State *s, int seg_reg, int selector);
-void cpu_x86_fsave(CPUX86State *s, uint8_t *ptr, int data32);
-void cpu_x86_frstor(CPUX86State *s, uint8_t *ptr, int data32);
+void cpu_x86_fsave(CPUX86State *s, target_ulong ptr, int data32);
+void cpu_x86_frstor(CPUX86State *s, target_ulong ptr, int data32);
 
 /* you can call this signal handler from your SIGBUS and SIGSEGV
    signal handlers to inform the virtual CPU of exceptions. non zero
    is returned if the signal was handled by the virtual CPU.  */
 int cpu_x86_signal_handler(int host_signum, void *pinfo,
                            void *puc);
+
+/* cpuid.c */
+void cpu_x86_cpuid(CPUX86State *env, uint32_t index, uint32_t count,
+                   uint32_t *eax, uint32_t *ebx,
+                   uint32_t *ecx, uint32_t *edx);
+int cpu_x86_register (CPUX86State *env, const char *cpu_model);
+void cpu_clear_apic_feature(CPUX86State *env);
+
+/* helper.c */
+int cpu_x86_handle_mmu_fault(CPUX86State *env, target_ulong addr,
+                             int is_write, int mmu_idx, int is_softmmu);
+#define cpu_handle_mmu_fault cpu_x86_handle_mmu_fault
 void cpu_x86_set_a20(CPUX86State *env, int a20_state);
 
-uint64_t cpu_get_tsc(CPUX86State *env);
+static inline int hw_breakpoint_enabled(unsigned long dr7, int index)
+{
+    return (dr7 >> (index * 2)) & 3;
+}
 
-void cpu_set_apic_base(CPUX86State *env, uint64_t val);
-uint64_t cpu_get_apic_base(CPUX86State *env);
-void cpu_set_apic_tpr(CPUX86State *env, uint8_t val);
-#ifndef NO_CPU_IO_DEFS
-uint8_t cpu_get_apic_tpr(CPUX86State *env);
-#endif
-#ifdef VBOX
-int cpu_rdmsr(CPUX86State *env, uint32_t idMsr, uint64_t *puValue);
-int cpu_wrmsr(CPUX86State *env, uint32_t idMsr, uint64_t uValue);
-#endif
-void cpu_smm_update(CPUX86State *env);
+static inline int hw_breakpoint_type(unsigned long dr7, int index)
+{
+    return (dr7 >> (DR7_TYPE_SHIFT + (index * 4))) & 3;
+}
+
+static inline int hw_breakpoint_len(unsigned long dr7, int index)
+{
+    int len = ((dr7 >> (DR7_LEN_SHIFT + (index * 4))) & 3);
+    return (len == 2) ? 8 : len + 1;
+}
+
+void hw_breakpoint_insert(CPUX86State *env, int index);
+void hw_breakpoint_remove(CPUX86State *env, int index);
+int check_hw_breakpoints(CPUX86State *env, int force_dr6_update);
 
 /* will be suppressed */
 void cpu_x86_update_cr0(CPUX86State *env, uint32_t new_cr0);
+void cpu_x86_update_cr3(CPUX86State *env, target_ulong new_cr3);
+void cpu_x86_update_cr4(CPUX86State *env, uint32_t new_cr4);
+
+/* hw/pc.c */
+void cpu_smm_update(CPUX86State *env);
+uint64_t cpu_get_tsc(CPUX86State *env);
 
 /* used to debug */
 #define X86_DUMP_FPU  0x0001 /* dump FPU state too */
 #define X86_DUMP_CCOP 0x0002 /* dump qemu flag cache */
 
-#ifdef USE_KQEMU
-static inline int cpu_get_time_fast(void)
-{
-    int low, high;
-    asm volatile("rdtsc" : "=a" (low), "=d" (high));
-    return low;
-}
-#endif
-
 #ifdef VBOX
+int  cpu_rdmsr(CPUX86State *env, uint32_t idMsr, uint64_t *puValue);
+int  cpu_wrmsr(CPUX86State *env, uint32_t idMsr, uint64_t uValue);
 void cpu_trap_raw(CPUX86State *env1);
 
 /* in helper.c */
@@ -963,41 +1095,46 @@ int get_ss_esp_from_tss_raw(CPUX86State *env1, uint32_t *ss_ptr, uint32_t *esp_p
 
 void restore_raw_fp_state(CPUX86State *env, uint8_t *ptr);
 void save_raw_fp_state(CPUX86State *env, uint8_t *ptr);
-
-#endif
+#endif /* VBOX */
 
 #define TARGET_PAGE_BITS 12
 
-#define CPUState CPUX86State
+#ifdef TARGET_X86_64
+#define TARGET_PHYS_ADDR_SPACE_BITS 52
+/* ??? This is really 48 bits, sign-extended, but the only thing
+   accessible to userland with bit 48 set is the VSYSCALL, and that
+   is handled via other mechanisms.  */
+#define TARGET_VIRT_ADDR_SPACE_BITS 47
+#else
+#define TARGET_PHYS_ADDR_SPACE_BITS 36
+#define TARGET_VIRT_ADDR_SPACE_BITS 32
+#endif
+
 #define cpu_init cpu_x86_init
 #define cpu_exec cpu_x86_exec
 #define cpu_gen_code cpu_x86_gen_code
 #define cpu_signal_handler cpu_x86_signal_handler
-#define cpu_list x86_cpu_list
+#define cpu_list_id x86_cpu_list
+#define cpudef_setup	x86_cpudef_setup
 
-#define CPU_SAVE_VERSION 7
+#define CPU_SAVE_VERSION 12
 
 /* MMU modes definitions */
 #define MMU_MODE0_SUFFIX _kernel
 #define MMU_MODE1_SUFFIX _user
 #define MMU_USER_IDX 1
-#ifndef VBOX
 static inline int cpu_mmu_index (CPUState *env)
-#else
-DECLINLINE(int) cpu_mmu_index (CPUState *env)
-#endif
 {
     return (env->hflags & HF_CPL_MASK) == 3 ? 1 : 0;
 }
 
+/* translate.c */
 void optimize_flags_init(void);
 
 typedef struct CCTable {
     int (*compute_all)(void); /* return all the flags */
     int (*compute_c)(void);  /* return the C flag */
 } CCTable;
-
-extern CCTable cc_table[];
 
 #if defined(CONFIG_USER_ONLY)
 static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
@@ -1008,10 +1145,32 @@ static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
 }
 #endif
 
-#define CPU_PC_FROM_TB(env, tb) env->eip = tb->pc - tb->cs_base
-
 #include "cpu-all.h"
-
 #include "svm.h"
 
+#ifndef VBOX
+#if !defined(CONFIG_USER_ONLY)
+#include "hw/apic.h"
+#endif
+#else  /* VBOX */
+extern void     cpu_set_apic_tpr(CPUX86State *env, uint8_t val);
+extern uint8_t  cpu_get_apic_tpr(CPUX86State *env);
+extern uint64_t cpu_get_apic_base(CPUX86State *env);
+#endif /* VBOX */
+
+static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
+                                        target_ulong *cs_base, int *flags)
+{
+    *cs_base = env->segs[R_CS].base;
+    *pc = *cs_base + env->eip;
+    *flags = env->hflags |
+        (env->eflags & (IOPL_MASK | TF_MASK | RF_MASK | VM_MASK));
+}
+
+#ifndef VBOX
+void apic_init_reset(CPUState *env);
+void apic_sipi(CPUState *env);
+void do_cpu_init(CPUState *env);
+void do_cpu_sipi(CPUState *env);
+#endif /* !VBOX */
 #endif /* CPU_I386_H */

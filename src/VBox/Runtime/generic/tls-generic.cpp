@@ -1,4 +1,4 @@
-/* $Id: tls-generic.cpp $ */
+/* $Id: tls-generic.cpp 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - Thread Local Storage (TSL), Generic Implementation.
  */
@@ -140,7 +140,7 @@ RTR3DECL(int) RTTlsSet(RTTLS iTls, void *pvValue)
  *
  * @param   pThread     The current thread.
  */
-void rtThreadTlsDestruction(PRTTHREADINT pThread)
+DECLHIDDEN(void) rtThreadTlsDestruction(PRTTHREADINT pThread)
 {
     for (RTTLS iTls = 0; iTls < RTTHREAD_TLS_ENTRIES; iTls++)
     {

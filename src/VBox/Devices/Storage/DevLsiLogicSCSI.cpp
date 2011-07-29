@@ -1,4 +1,4 @@
-/* $Id: DevLsiLogicSCSI.cpp $ */
+/* $Id: DevLsiLogicSCSI.cpp 37636 2011-06-24 14:59:59Z vboxsync $ */
 /** @file
  * VBox storage devices: LsiLogic LSI53c1030 SCSI controller.
  */
@@ -370,18 +370,6 @@ typedef struct LSILOGICTASKSTATE
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
 
 RT_C_DECLS_BEGIN
-PDMBOTHCBDECL(int) lsilogicIOPortWrite (PPDMDEVINS pDevIns, void *pvUser,
-                                        RTIOPORT Port, uint32_t u32, unsigned cb);
-PDMBOTHCBDECL(int) lsilogicIOPortRead (PPDMDEVINS pDevIns, void *pvUser,
-                                       RTIOPORT Port, uint32_t *pu32, unsigned cb);
-PDMBOTHCBDECL(int) lsilogicMMIOWrite(PPDMDEVINS pDevIns, void *pvUser,
-                                     RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-PDMBOTHCBDECL(int) lsilogicMMIORead(PPDMDEVINS pDevIns, void *pvUser,
-                                    RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-PDMBOTHCBDECL(int) lsilogicDiagnosticWrite(PPDMDEVINS pDevIns, void *pvUser,
-                                           RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-PDMBOTHCBDECL(int) lsilogicDiagnosticRead(PPDMDEVINS pDevIns, void *pvUser,
-                                          RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
 #ifdef IN_RING3
 static void lsilogicInitializeConfigurationPages(PLSILOGICSCSI pLsiLogic);
 static void lsilogicConfigurationPagesFree(PLSILOGICSCSI pThis);
@@ -963,7 +951,7 @@ static int lsilogicProcessMessageRequest(PLSILOGICSCSI pLsiLogic, PMptMessageHdr
  * @param   pv       Pointer to the value to write
  * @param   cb       Number of bytes to write.
  */
-static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t uOffset, void *pv, unsigned cb)
+static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t uOffset, void const *pv, unsigned cb)
 {
     uint32_t u32 = *(uint32_t *)pv;
 
@@ -1337,7 +1325,7 @@ PDMBOTHCBDECL(int) lsilogicIOPortRead (PPDMDEVINS pDevIns, void *pvUser,
 }
 
 PDMBOTHCBDECL(int) lsilogicMMIOWrite(PPDMDEVINS pDevIns, void *pvUser,
-                                     RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+                                     RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
     PLSILOGICSCSI  pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     uint32_t   uOffset = GCPhysAddr - pThis->GCPhysMMIOBase;
@@ -1355,7 +1343,7 @@ PDMBOTHCBDECL(int) lsilogicMMIORead(PPDMDEVINS pDevIns, void *pvUser,
 }
 
 PDMBOTHCBDECL(int) lsilogicDiagnosticWrite(PPDMDEVINS pDevIns, void *pvUser,
-                                           RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+                                           RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
     PLSILOGICSCSI  pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
 
@@ -4955,7 +4943,7 @@ static DECLCALLBACK(int) lsilogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     int rc = VINF_SUCCESS;
     char *pszCtrlType = NULL;
-    char  szDevTag[20], szTaggedText[64];
+    char  szDevTag[20];
     bool fBootable = true;
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
@@ -5010,7 +4998,7 @@ static DECLCALLBACK(int) lsilogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
     rc = lsilogicGetCtrlTypeFromString(pThis, pszCtrlType);
     MMR3HeapFree(pszCtrlType);
 
-    RTStrPrintf(szDevTag, sizeof(szDevTag), "LSILOGIC%s-%d",
+    RTStrPrintf(szDevTag, sizeof(szDevTag), "LSILOGIC%s-%u",
                 pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI ? "SPI" : "SAS",
                 iInstance);
 
@@ -5117,6 +5105,7 @@ static DECLCALLBACK(int) lsilogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
         return rc;
 
     /* Initialize task queue. (Need two items to handle SMP guest concurrency.) */
+    char szTaggedText[64];
     RTStrPrintf(szTaggedText, sizeof(szTaggedText), "%s-Task", szDevTag);
     rc = PDMDevHlpQueueCreate(pDevIns, sizeof(PDMQUEUEITEMCORE), 2, 0,
                               lsilogicNotifyQueueConsumer, true,
@@ -5143,16 +5132,12 @@ static DECLCALLBACK(int) lsilogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
     /*
      * Create critical sections protecting the reply post and free queues.
      */
-    RTStrPrintf(szTaggedText, sizeof(szTaggedText), "%sRFQ", szDevTag);
-    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->ReplyFreeQueueCritSect, RT_SRC_POS,
-                               szTaggedText);
+    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->ReplyFreeQueueCritSect, RT_SRC_POS, "%sRFQ", szDevTag);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("LsiLogic: cannot create critical section for reply free queue"));
 
-    RTStrPrintf(szTaggedText, sizeof(szTaggedText), "%sRPQ", szDevTag);
-    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->ReplyPostQueueCritSect, RT_SRC_POS,
-                               szTaggedText);
+    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->ReplyPostQueueCritSect, RT_SRC_POS, "%sRPQ", szDevTag);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("LsiLogic: cannot create critical section for reply post queue"));

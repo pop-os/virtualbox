@@ -1,4 +1,4 @@
-/* $Id: VBoxRes.rc $ */
+/* $Id: VBoxRes.rc 34454 2010-11-29 11:27:20Z vboxsync $ */
 /** @file
  * VBoxRes - Resource file for VirtualBox binaries.
  */

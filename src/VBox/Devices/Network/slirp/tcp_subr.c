@@ -1,4 +1,4 @@
-/* $Id: tcp_subr.c $ */
+/* $Id: tcp_subr.c 37936 2011-07-14 03:54:41Z vboxsync $ */
 /** @file
  * NAT - TCP support.
  */
@@ -128,8 +128,8 @@ tcp_respond(PNATState pData, struct tcpcb *tp, struct tcpiphdr *ti, struct mbuf 
     register int tlen;
     int win = 0;
 
-    LogFlow(("tcp_respond: tp = %lx, ti = %lx, m = %lx, ack = %u, seq = %u, flags = %x\n",
-              (long)tp, (long)ti, (long)m, ack, seq, flags));
+    LogFlowFunc(("ENTER: tp = %R[tcpcb793], ti = %lx, m = %lx, ack = %u, seq = %u, flags = %x\n",
+                 tp, (long)ti, (long)m, ack, seq, flags));
 
     if (tp)
         win = sbspace(&tp->t_socket->so_rcv);
@@ -224,7 +224,7 @@ tcp_newtcpcb(PNATState pData, struct socket *so)
 
     tp->snd_cwnd = TCP_MAXWIN << TCP_MAX_WINSHIFT;
     tp->snd_ssthresh = TCP_MAXWIN << TCP_MAX_WINSHIFT;
-    tp->t_state = TCPS_CLOSED;
+    TCP_STATE_SWITCH_TO(tp, TCPS_CLOSED);
 
     so->so_tcpcb = tp;
 
@@ -243,11 +243,11 @@ struct tcpcb *tcp_drop(PNATState pData, struct tcpcb *tp, int err)
         int errno;
 {
 */
-    LogFlow(("tcp_drop: tp = %lx, errno = %d\n", (long)tp, errno));
+    LogFlowFunc(("ENTER: tp = %R[tcpcb793], errno = %d\n", tp, errno));
 
     if (TCPS_HAVERCVDSYN(tp->t_state))
     {
-        tp->t_state = TCPS_CLOSED;
+        TCP_STATE_SWITCH_TO(tp, TCPS_CLOSED);
         (void) tcp_output(pData, tp);
         tcpstat.tcps_drops++;
     }
@@ -275,7 +275,7 @@ tcp_close(PNATState pData, register struct tcpcb *tp)
     struct socket *so_next, *so_prev;
 
     struct tseg_qent *te = NULL;
-    LogFlow(("tcp_close: tp = %lx\n", (long)tp));
+    LogFlowFunc(("ENTER: tp = %R[tcpcb793]\n", tp));
     so_next = so_prev = NULL;
     /*XXX: freeing the reassembly queue */
     while (!LIST_EMPTY(&tp->t_segq))
@@ -352,24 +352,24 @@ tcp_quench(i, int errno)
 void
 tcp_sockclosed(PNATState pData, struct tcpcb *tp)
 {
-    LogFlow(("tcp_sockclosed: tp = %lx\n", (long)tp));
+    LogFlowFunc(("ENTER: tp = %R[tcpcb793]\n", tp));
 
     switch (tp->t_state)
     {
         case TCPS_CLOSED:
         case TCPS_LISTEN:
         case TCPS_SYN_SENT:
-            tp->t_state = TCPS_CLOSED;
+            TCP_STATE_SWITCH_TO(tp, TCPS_CLOSED);
             tp = tcp_close(pData, tp);
             break;
 
         case TCPS_SYN_RECEIVED:
         case TCPS_ESTABLISHED:
-            tp->t_state = TCPS_FIN_WAIT_1;
+            TCP_STATE_SWITCH_TO(tp, TCPS_FIN_WAIT_1);
             break;
 
         case TCPS_CLOSE_WAIT:
-            tp->t_state = TCPS_LAST_ACK;
+            TCP_STATE_SWITCH_TO(tp, TCPS_LAST_ACK);
             break;
     }
 /*  soisfdisconnecting(tp->t_socket); */
@@ -402,7 +402,7 @@ int tcp_fconnect(PNATState pData, struct socket *so)
 {
     int ret = 0;
 
-    LogFlow(("tcp_fconnect: so = %lx\n", (long)so));
+    LogFlowFunc(("ENTER: so = %R[natsock]\n", so));
 
     if ((ret = so->s = socket(AF_INET, SOCK_STREAM, 0)) >= 0)
     {
@@ -471,7 +471,7 @@ tcp_connect(PNATState pData, struct socket *inso)
     socklen_t optlen;
     static int cVerbose = 1;
 
-    LogFlow(("tcp_connect: inso = %lx\n", (long)inso));
+    LogFlowFunc(("ENTER: inso = %R[natsock]\n", inso));
 
     /*
      * If it's an SS_ACCEPTONCE socket, no need to socreate()
@@ -583,7 +583,7 @@ tcp_connect(PNATState pData, struct socket *inso)
 /*  soisconnecting(so); */ /* NOFDREF used instead */
     tcpstat.tcps_connattempt++;
 
-    tp->t_state = TCPS_SYN_SENT;
+    TCP_STATE_SWITCH_TO(tp, TCPS_SYN_SENT);
     tp->t_timer[TCPT_KEEP] = TCPTV_KEEP_INIT;
     tp->iss = tcp_iss;
     tcp_iss += TCP_ISSINCR/2;

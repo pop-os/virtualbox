@@ -1,4 +1,4 @@
-/* $Id: VMMR0.cpp $ */
+/* $Id: VMMR0.cpp 37584 2011-06-22 09:54:26Z vboxsync $ */
 /** @file
  * VMM - Host Context Ring 0.
  */
@@ -29,6 +29,9 @@
 #include <VBox/vmm/tm.h>
 #include "VMMInternal.h"
 #include <VBox/vmm/vm.h>
+#ifdef VBOX_WITH_PCI_PASSTHROUGH
+# include <VBox/vmm/pdmpci.h>
+#endif
 
 #include <VBox/vmm/gvmm.h>
 #include <VBox/vmm/gmm.h>
@@ -84,6 +87,12 @@ PFNRT g_VMMGCDeps[] =
     NULL
 };
 
+#ifdef RT_OS_SOLARIS
+/* Dependency information for the native solaris loader. */
+extern "C" { char _depends_on[] = "vboxdrv"; }
+#endif
+
+
 
 #if defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64)
 /* Increase the size of the image to work around the refusal of Win64 to
@@ -126,16 +135,25 @@ VMMR0DECL(int) ModuleInit(void)
                         rc = IntNetR0Init();
                         if (RT_SUCCESS(rc))
                         {
-                            rc = CPUMR0ModuleInit();
+#ifdef VBOX_WITH_PCI_PASSTHROUGH
+                            rc = PciRawR0Init();
+#endif
                             if (RT_SUCCESS(rc))
                             {
-                                LogFlow(("ModuleInit: returns success.\n"));
-                                return VINF_SUCCESS;
-                            }
+                                rc = CPUMR0ModuleInit();
+                                if (RT_SUCCESS(rc))
+                                {
+                                    LogFlow(("ModuleInit: returns success.\n"));
+                                    return VINF_SUCCESS;
+                                }
 
-                            /*
-                             * Bail out.
-                             */
+                                /*
+                                 * Bail out.
+                                 */
+#ifdef VBOX_WITH_PCI_PASSTHROUGH
+                                PciRawR0Term();
+#endif
+                            }
                             IntNetR0Term();
                         }
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
@@ -175,10 +193,13 @@ VMMR0DECL(void) ModuleTerm(void)
     IntNetR0Term();
 
     /*
-     * PGM (Darwin) and HWACCM global cleanup.
+     * PGM (Darwin), HWACCM and PciRaw global cleanup.
      */
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
     PGMR0DynMapTerm();
+#endif
+#ifdef VBOX_WITH_PCI_PASSTHROUGH
+    PciRawR0Term();
 #endif
     PGMDeregisterStringFormatTypes();
     HWACCMR0Term();
@@ -211,7 +232,7 @@ static int vmmR0InitVM(PVM pVM, uint32_t uSvnRev)
     {
         LogRel(("VMMR0InitVM: Revision mismatch, r3=%d r0=%d\n", uSvnRev, VMMGetSvnRev()));
         SUPR0Printf("VMMR0InitVM: Revision mismatch, r3=%d r0=%d\n", uSvnRev, VMMGetSvnRev());
-        return VERR_VERSION_MISMATCH;
+        return VERR_VMM_R0_VERSION_MISMATCH;
     }
     if (    !VALID_PTR(pVM)
         ||  pVM->pVMR0 != pVM)
@@ -291,15 +312,26 @@ static int vmmR0InitVM(PVM pVM, uint32_t uSvnRev)
 #endif
                 if (RT_SUCCESS(rc))
                 {
-                    GVMMR0DoneInitVM(pVM);
-                    return rc;
+#ifdef VBOX_WITH_PCI_PASSTHROUGH
+                    rc = PciRawR0InitVM(pVM);
+#endif
+                    if (RT_SUCCESS(rc))
+                    {
+                        GVMMR0DoneInitVM(pVM);
+                        return rc;
+                    }
                 }
 
                 /* bail out */
             }
+#ifdef VBOX_WITH_PCI_PASSTHROUGH
+            PciRawR0TermVM(pVM);
+#endif
             HWACCMR0TermVM(pVM);
         }
     }
+
+
     RTLogSetDefaultInstanceThread(NULL, (uintptr_t)pVM->pSession);
     return rc;
 }
@@ -320,6 +352,10 @@ static int vmmR0InitVM(PVM pVM, uint32_t uSvnRev)
  */
 VMMR0DECL(int) VMMR0TermVM(PVM pVM, PGVM pGVM)
 {
+#ifdef VBOX_WITH_PCI_PASSTHROUGH
+    PciRawR0TermVM(pVM);
+#endif
+
     /*
      * Tell GVMM what we're up to and check that we only do this once.
      */
@@ -446,26 +482,19 @@ static void vmmR0RecordRC(PVM pVM, PVMCPU pVCpu, int rc)
         case VINF_EM_RAW_TO_R3:
             if (VM_FF_ISPENDING(pVM, VM_FF_TM_VIRTUAL_SYNC))
                 STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3TMVirt);
-            else
-            if (VM_FF_ISPENDING(pVM, VM_FF_PGM_NEED_HANDY_PAGES))
+            else if (VM_FF_ISPENDING(pVM, VM_FF_PGM_NEED_HANDY_PAGES))
                 STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3HandyPages);
-            else
-            if (VM_FF_ISPENDING(pVM, VM_FF_PDM_QUEUES))
+            else if (VM_FF_ISPENDING(pVM, VM_FF_PDM_QUEUES))
                 STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3PDMQueues);
-            else
-            if (VM_FF_ISPENDING(pVM, VM_FF_EMT_RENDEZVOUS))
+            else if (VM_FF_ISPENDING(pVM, VM_FF_EMT_RENDEZVOUS))
                 STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3Rendezvous);
-            else
-            if (VM_FF_ISPENDING(pVM, VM_FF_PDM_DMA))
+            else if (VM_FF_ISPENDING(pVM, VM_FF_PDM_DMA))
                 STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3DMA);
-            else
-            if (VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_TIMER))
+            else if (VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_TIMER))
                 STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3Timer);
-            else
-            if (VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_PDM_CRITSECT))
+            else if (VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_PDM_CRITSECT))
                 STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3CritSect);
-            else
-            if (VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_TO_R3))
+            else if (VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_TO_R3))
                 STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3);
             else
                 STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3Unknown);
@@ -480,6 +509,9 @@ static void vmmR0RecordRC(PVM pVM, PVMCPU pVCpu, int rc)
         case VINF_VMM_CALL_HOST:
             switch (pVCpu->vmm.s.enmCallRing3Operation)
             {
+                case VMMCALLRING3_PDM_CRIT_SECT_ENTER:
+                    STAM_COUNTER_INC(&pVM->vmm.s.StatRZCallPDMCritSectEnter);
+                    break;
                 case VMMCALLRING3_PDM_LOCK:
                     STAM_COUNTER_INC(&pVM->vmm.s.StatRZCallPDMLock);
                     break;
@@ -884,12 +916,7 @@ static int vmmR0EntryExWorker(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperatio
          * Setup the hardware accelerated session.
          */
         case VMMR0_DO_HWACC_SETUP_VM:
-        {
-            RTCCUINTREG fFlags = ASMIntDisableFlags();
-            int rc = HWACCMR0SetupVM(pVM);
-            ASMSetFlags(fFlags);
-            return rc;
-        }
+            return HWACCMR0SetupVM(pVM);
 
         /*
          * Switch to RC to execute Hypervisor function.
@@ -943,6 +970,11 @@ static int vmmR0EntryExWorker(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperatio
             if (idCpu == NIL_VMCPUID)
                 return VERR_INVALID_CPU_ID;
             return PGMR0PhysAllocateLargeHandyPage(pVM, &pVM->aCpus[idCpu]);
+
+        case VMMR0_DO_PGM_PHYS_SETUP_IOMMU:
+            if (idCpu != 0)
+                return VERR_INVALID_CPU_ID;
+            return PGMR0PhysSetupIommu(pVM);
 
         /*
          * GMM wrappers.
@@ -1156,6 +1188,15 @@ static int vmmR0EntryExWorker(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperatio
                 return VERR_INVALID_PARAMETER;
             return IntNetR0IfAbortWaitReq(pSession, (PINTNETIFABORTWAITREQ)pReqHdr);
 
+#ifdef VBOX_WITH_PCI_PASSTHROUGH
+        /*
+         * Requests to host PCI driver service.
+         */
+        case VMMR0_DO_PCIRAW_REQ:
+            if (u64Arg || !pReqHdr || !vmmR0IsValidSession(pVM, ((PPCIRAWSENDREQ)pReqHdr)->pSession, pSession) || idCpu != NIL_VMCPUID)
+                return VERR_INVALID_PARAMETER;
+            return PciRawR0ProcessReq(pSession, pVM, (PPCIRAWSENDREQ)pReqHdr);
+#endif
         /*
          * For profiling.
          */

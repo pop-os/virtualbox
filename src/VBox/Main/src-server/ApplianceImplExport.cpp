@@ -1,4 +1,4 @@
-/* $Id: ApplianceImplExport.cpp $ */
+/* $Id: ApplianceImplExport.cpp 36523 2011-04-04 12:40:10Z vboxsync $ */
 /** @file
  *
  * IAppliance and IVirtualSystem COM class implementations.
@@ -1879,7 +1879,7 @@ HRESULT Appliance::writeFSImpl(TaskOVF *pTask, AutoWriteLockBase& writeLock, PVD
                                strMfFilePath.c_str(), vrc);
         }
     }
-    catch (iprt::Error &x)  // includes all XML exceptions
+    catch (RTCError &x)  // includes all XML exceptions
     {
         rc = setError(VBOX_E_FILE_ERROR,
                       x.what());

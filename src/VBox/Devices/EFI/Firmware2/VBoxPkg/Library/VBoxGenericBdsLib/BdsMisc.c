@@ -1,4 +1,4 @@
-/* $Id: BdsMisc.c $ */
+/* $Id: BdsMisc.c 33676 2010-11-02 09:48:24Z vboxsync $ */
 /** @file
  * BdsMisc.c - Misc BDS library function.
  */

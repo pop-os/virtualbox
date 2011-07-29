@@ -69,7 +69,7 @@
   <xsl:value-of select="concat('        COM_INTERFACE_ENTRY(', $name, ')&#10;')" />
   <xsl:choose>
     <xsl:when test="$extends='$unknown'">
-      <xsl:value-of select="   '        COM_INTERFACE_ENTRY(IDispatch)&#10;'" />
+      <!-- Reached base -->
     </xsl:when>
     <xsl:when test="//interface[@name=$extends]">
       <xsl:call-template name="genComEntry">
@@ -293,7 +293,7 @@
            </xsl:call-template>
          </xsl:variable>
          <xsl:value-of select="       '#ifdef RT_OS_WINDOWS&#10;'"/>
-         <xsl:value-of select="       '              SAFEARRAY **    aPtr = va_arg(args, SAFEARRAY **);&#10;'"/>
+         <xsl:value-of select="       '              SAFEARRAY *    aPtr = va_arg(args, SAFEARRAY *);&#10;'"/>
          <xsl:value-of select="concat('              com::SafeArray&lt;', $elemtype,'&gt;   aArr(aPtr);&#10;')"/>
          <xsl:value-of select="       '#else&#10;'"/>
          <xsl:value-of select="       '              PRUint32 aArrSize = va_arg(args, PRUint32);&#10;'"/>
@@ -470,6 +470,8 @@
   <xsl:value-of select="concat('    DECLARE_NOT_AGGREGATABLE(', $implName, ')&#10;')" />
   <xsl:value-of select="       '    DECLARE_PROTECT_FINAL_CONSTRUCT()&#10;'" />
   <xsl:value-of select="concat('    BEGIN_COM_MAP(', $implName, ')&#10;')" />
+  <xsl:value-of select="concat('        VBOX_DEFAULT_INTERFACE_ENTRIES(', @name, ')&#10;')" />
+
   <xsl:call-template name="genComEntry">
     <xsl:with-param name="name" select="@name" />
   </xsl:call-template>
@@ -479,11 +481,13 @@
   <xsl:text><![CDATA[
     HRESULT FinalConstruct()
     {
+        BaseFinalConstruct();
         return mEvent.createObject();
     }
     void FinalRelease()
     {
         mEvent->FinalRelease();
+        BaseFinalRelease();
     }
     STDMETHOD(COMGETTER(Type)) (VBoxEventType_T *aType)
     {

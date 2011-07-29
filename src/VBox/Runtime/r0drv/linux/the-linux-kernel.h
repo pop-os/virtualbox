@@ -1,4 +1,4 @@
-/* $Id: the-linux-kernel.h $ */
+/* $Id: the-linux-kernel.h 36233 2011-03-09 17:05:12Z vboxsync $ */
 /** @file
  * IPRT - Include all necessary headers for the Linux kernel.
  */
@@ -117,6 +117,10 @@
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/div64.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
+# include <linux/kthread.h>
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
 # ifndef page_to_pfn
@@ -363,6 +367,4 @@ DECLINLINE(unsigned long) msecs_to_jiffies(unsigned int cMillies)
 # define IPRT_LINUX_HAS_HRTIMER
 #endif
 
-
 #endif
-

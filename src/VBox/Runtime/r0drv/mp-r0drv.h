@@ -1,4 +1,4 @@
-/* $Id: mp-r0drv.h $ */
+/* $Id: mp-r0drv.h 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Ring-0 Driver, Internal Header.
  */
@@ -58,13 +58,13 @@ typedef struct RTMPARGS
 typedef RTMPARGS *PRTMPARGS;
 
 /* Called from initterm-r0drv.cpp: */
-int rtR0MpNotificationInit(void);
-void rtR0MpNotificationTerm(void);
+DECLHIDDEN(int)  rtR0MpNotificationInit(void);
+DECLHIDDEN(void) rtR0MpNotificationTerm(void);
 
 /* The following is only relevant when using mpnotifcation-r0drv.cpp: */
-int rtR0MpNotificationNativeInit(void);
-void rtR0MpNotificationNativeTerm(void);
-void rtMpNotificationDoCallbacks(RTMPEVENT enmEvent, RTCPUID idCpu);
+DECLHIDDEN(int)  rtR0MpNotificationNativeInit(void);
+DECLHIDDEN(void) rtR0MpNotificationNativeTerm(void);
+DECLHIDDEN(void) rtMpNotificationDoCallbacks(RTMPEVENT enmEvent, RTCPUID idCpu);
 
 RT_C_DECLS_END
 

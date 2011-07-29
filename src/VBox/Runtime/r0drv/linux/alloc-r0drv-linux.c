@@ -1,4 +1,4 @@
-/* $Id: alloc-r0drv-linux.c $ */
+/* $Id: alloc-r0drv-linux.c 36962 2011-05-04 17:43:50Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation, Ring-0 Driver, Linux.
  */
@@ -76,7 +76,7 @@ static size_t g_cPages;
  * API for cleaning up the heap spinlock on IPRT termination.
  * This is as RTMemExecDonate specific to AMD64 Linux/GNU.
  */
-void rtR0MemExecCleanup(void)
+DECLHIDDEN(void) rtR0MemExecCleanup(void)
 {
 # ifdef RTMEMALLOC_EXEC_HEAP_VM_AREA
     unsigned i;
@@ -203,7 +203,7 @@ RT_EXPORT_SYMBOL(RTR0MemExecInit);
 /**
  * OS specific allocation function.
  */
-int rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr)
+DECLHIDDEN(int) rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr)
 {
     PRTMEMHDR pHdr;
 
@@ -239,11 +239,25 @@ int rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr)
     }
     else
     {
-        if (cb <= PAGE_SIZE || (fFlags & RTMEMHDR_FLAG_ANY_CTX))
+        if (
+#if 1 /* vmalloc has serious performance issues, avoid it. */
+               cb <= PAGE_SIZE*16 - sizeof(*pHdr)
+#else
+               cb <= PAGE_SIZE
+#endif
+            || (fFlags & RTMEMHDR_FLAG_ANY_CTX)
+           )
         {
             fFlags |= RTMEMHDR_FLAG_KMALLOC;
             pHdr = kmalloc(cb + sizeof(*pHdr),
                            (fFlags & RTMEMHDR_FLAG_ANY_CTX_ALLOC) ? GFP_ATOMIC : GFP_KERNEL);
+            if (RT_UNLIKELY(   !pHdr
+                            && cb > PAGE_SIZE
+                            && !(fFlags & RTMEMHDR_FLAG_ANY_CTX) ))
+            {
+                fFlags &= ~RTMEMHDR_FLAG_KMALLOC;
+                pHdr = vmalloc(cb + sizeof(*pHdr));
+            }
         }
         else
             pHdr = vmalloc(cb + sizeof(*pHdr));
@@ -267,7 +281,7 @@ int rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr)
 /**
  * OS specific free function.
  */
-void rtR0MemFree(PRTMEMHDR pHdr)
+DECLHIDDEN(void) rtR0MemFree(PRTMEMHDR pHdr)
 {
     pHdr->u32Magic += 1;
     if (pHdr->fFlags & RTMEMHDR_FLAG_KMALLOC)

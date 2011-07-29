@@ -1,10 +1,10 @@
-/* $Id: thread2-r0drv-linux.c $ */
+/* $Id: thread2-r0drv-linux.c 36947 2011-05-03 19:49:12Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 2), Ring-0 Driver, Linux.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,10 +37,111 @@
 #include "internal/thread.h"
 
 
-/** @todo Later.
 RTDECL(RTTHREAD) RTThreadSelf(void)
 {
     return rtThreadGetByNative((RTNATIVETHREAD)current);
 }
-*/
+
+
+DECLHIDDEN(int) rtThreadNativeInit(void)
+{
+    return VINF_SUCCESS;
+}
+
+
+DECLHIDDEN(int) rtThreadNativeSetPriority(PRTTHREADINT pThread, RTTHREADTYPE enmType)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,11)
+    /* See comment near MAX_RT_PRIO in linux/sched.h for details on
+       sched_priority. */
+    int                 iSchedClass = SCHED_NORMAL;
+    struct sched_param  Param       = { .sched_priority = MAX_PRIO - 1 };
+    switch (enmType)
+    {
+        case RTTHREADTYPE_INFREQUENT_POLLER:
+            Param.sched_priority = MAX_RT_PRIO + 5;
+            break;
+
+        case RTTHREADTYPE_EMULATION:
+            Param.sched_priority = MAX_RT_PRIO + 4;
+            break;
+
+        case RTTHREADTYPE_DEFAULT:
+            Param.sched_priority = MAX_RT_PRIO + 3;
+            break;
+
+        case RTTHREADTYPE_MSG_PUMP:
+            Param.sched_priority = MAX_RT_PRIO + 2;
+            break;
+
+        case RTTHREADTYPE_IO:
+            iSchedClass = SCHED_FIFO;
+            Param.sched_priority = MAX_RT_PRIO - 1;
+            break;
+
+        case RTTHREADTYPE_TIMER:
+            iSchedClass = SCHED_FIFO;
+            Param.sched_priority = 1; /* not 0 just in case */
+            break;
+
+        default:
+            AssertMsgFailed(("enmType=%d\n", enmType));
+            return VERR_INVALID_PARAMETER;
+    }
+
+    sched_setscheduler(current, iSchedClass, &Param);
+#endif
+
+    return VINF_SUCCESS;
+}
+
+
+DECLHIDDEN(int) rtThreadNativeAdopt(PRTTHREADINT pThread)
+{
+    return VERR_NOT_IMPLEMENTED;
+}
+
+
+DECLHIDDEN(void) rtThreadNativeDestroy(PRTTHREADINT pThread)
+{
+    NOREF(pThread);
+}
+
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 4)
+/**
+ * Native kernel thread wrapper function.
+ *
+ * This will forward to rtThreadMain and do termination upon return.
+ *
+ * @param pvArg         Pointer to the argument package.
+ */
+static int rtThreadNativeMain(void *pvArg)
+{
+    PRTTHREADINT pThread = (PRTTHREADINT)pvArg;
+
+    rtThreadMain(pThread, (RTNATIVETHREAD)current, &pThread->szName[0]);
+    return 0;
+}
+#endif
+
+
+DECLHIDDEN(int) rtThreadNativeCreate(PRTTHREADINT pThreadInt, PRTNATIVETHREAD pNativeThread)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 4)
+    struct task_struct *NativeThread;
+
+    RT_ASSERT_PREEMPTIBLE();
+
+    NativeThread = kthread_run(rtThreadNativeMain, pThreadInt, "iprt-%s", pThreadInt->szName);
+
+    if (IS_ERR(NativeThread))
+        return VERR_GENERAL_FAILURE;
+
+    *pNativeThread = (RTNATIVETHREAD)NativeThread;
+    return VINF_SUCCESS;
+#else
+    return VERR_NOT_IMPLEMENTED;
+#endif
+}
 

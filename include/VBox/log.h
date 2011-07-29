@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -61,8 +61,6 @@ typedef enum LOGGROUP
     LOG_GROUP_DEFAULT = RTLOGGROUP_FIRST_USER,
     /** CFGM group. */
     LOG_GROUP_CFGM,
-    /** Core Dumper group. **/
-    LOG_GROUP_CORE_DUMPER,
     /** CPUM group. */
     LOG_GROUP_CPUM,
     /** CSAM group. */
@@ -119,6 +117,8 @@ typedef enum LOGGROUP
     LOG_GROUP_DEV_PC_BIOS,
     /** PCI Device group. */
     LOG_GROUP_DEV_PCI,
+    /** PCI Raw Device group. */
+    LOG_GROUP_DEV_PCI_RAW,
     /** PCNet Device group. */
     LOG_GROUP_DEV_PCNET,
     /** PIC Device group. */
@@ -157,6 +157,8 @@ typedef enum LOGGROUP
     LOG_GROUP_DRV_CHAR,
     /** Disk integrity driver group. */
     LOG_GROUP_DRV_DISK_INTEGRITY,
+    /** Video Display driver group. */
+    LOG_GROUP_DRV_DISPLAY,
     /** Floppy media driver group. */
     LOG_GROUP_DRV_FLOPPY,
     /** Host Base block driver group. */
@@ -177,6 +179,10 @@ typedef enum LOGGROUP
     LOG_GROUP_DRV_KBD_QUEUE,
     /** lwIP IP stack driver group. */
     LOG_GROUP_DRV_LWIP,
+    /** Video Miniport driver group. */
+    LOG_GROUP_DRV_MINIPORT,
+    /** Mouse driver group. */
+    LOG_GROUP_DRV_MOUSE,
     /** Mouse Queue driver group. */
     LOG_GROUP_DRV_MOUSE_QUEUE,
     /** Named Pipe stream driver group. */
@@ -193,6 +199,8 @@ typedef enum LOGGROUP
     LOG_GROUP_DRV_TRANSPORT_ASYNC,
     /** TUN network transport driver group */
     LOG_GROUP_DRV_TUN,
+    /** UDP tunnet network transport driver group. */
+    LOG_GROUP_DRV_UDPTUNNEL,
     /** USB Proxy driver group. */
     LOG_GROUP_DRV_USBPROXY,
     /** VBoxHDD media driver group. */
@@ -217,6 +225,8 @@ typedef enum LOGGROUP
     LOG_GROUP_HGCM,
     /** HWACCM group. */
     LOG_GROUP_HWACCM,
+    /** IEM group. */
+    LOG_GROUP_IEM,
     /** IOM group. */
     LOG_GROUP_IOM,
     /** XPCOM IPC group. */
@@ -311,6 +321,8 @@ typedef enum LOGGROUP
     LOG_GROUP_TM,
     /** TRPM group. */
     LOG_GROUP_TRPM,
+    /** USB cardreader group. */
+    LOG_GROUP_USB_CARDREADER,
     /** USB driver group. */
     LOG_GROUP_USB_DRV,
     /** USBFilter group. */
@@ -319,6 +331,8 @@ typedef enum LOGGROUP
     LOG_GROUP_USB_KBD,
     /** MSD USB device group. */
     LOG_GROUP_USB_MSD,
+    /** USB webcam. */
+    LOG_GROUP_USB_WEBCAM,
     /** Generic virtual disk layer. */
     LOG_GROUP_VD,
     /** iSCSI virtual disk backend. */
@@ -365,7 +379,6 @@ typedef enum LOGGROUP
     RT_LOGGROUP_NAMES, \
     "DEFAULT",      \
     "CFGM",         \
-    "CORE_DUMPER",  \
     "CPUM",         \
     "CSAM",         \
     "DBGC",         \
@@ -394,6 +407,7 @@ typedef enum LOGGROUP
     "DEV_PC_ARCH",  \
     "DEV_PC_BIOS",  \
     "DEV_PCI",      \
+    "DEV_PCI_RAW",  \
     "DEV_PCNET",    \
     "DEV_PIC",      \
     "DEV_PIT",      \
@@ -413,6 +427,7 @@ typedef enum LOGGROUP
     "DRV_BLOCK",    \
     "DRV_CHAR",     \
     "DRV_DISK_INTEGRITY", \
+    "DRV_DISPLAY",  \
     "DRV_FLOPPY",   \
     "DRV_HOST_BASE", \
     "DRV_HOST_DVD", \
@@ -423,6 +438,8 @@ typedef enum LOGGROUP
     "DRV_ISO",      \
     "DRV_KBD_QUEUE", \
     "DRV_LWIP",     \
+    "DRV_MINIPORT", \
+    "DRV_MOUSE", \
     "DRV_MOUSE_QUEUE", \
     "DRV_NAMEDPIPE", \
     "DRV_NAT",      \
@@ -431,6 +448,7 @@ typedef enum LOGGROUP
     "DRV_SCSIHOST", \
     "DRV_TRANSPORT_ASYNC", \
     "DRV_TUN",      \
+    "DRV_UDPTUNNEL", \
     "DRV_USBPROXY", \
     "DRV_VBOXHDD",  \
     "DRV_VD",       \
@@ -443,6 +461,7 @@ typedef enum LOGGROUP
     "GVMM",         \
     "HGCM",         \
     "HWACCM",       \
+    "IEM",          \
     "IOM",          \
     "IPC",          \
     "MAIN",         \
@@ -490,10 +509,12 @@ typedef enum LOGGROUP
     "SUP_DRV",      \
     "TM",           \
     "TRPM",         \
+    "USB_CARDREADER",\
     "USB_DRV",      \
     "USB_FILTER",   \
     "USB_KBD",      \
     "USB_MSD",      \
+    "USB_WEBCAM",   \
     "VD",           \
     "VD_ISCSI",     \
     "VD_PARALLELS", \

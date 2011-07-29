@@ -1,4 +1,4 @@
-/* $Id: USBProxyServiceDarwin.cpp $ */
+/* $Id: USBProxyServiceDarwin.cpp 37599 2011-06-22 21:06:38Z vboxsync $ */
 /** @file
  * VirtualBox USB Proxy Service (in VBoxSVC), Darwin Specialization.
  */
@@ -52,12 +52,6 @@ USBProxyServiceDarwin::USBProxyServiceDarwin (Host *aHost)
  */
 HRESULT USBProxyServiceDarwin::init(void)
 {
-    /*
-     * Call the superclass method first.
-     */
-    HRESULT hrc = USBProxyService::init();
-    AssertComRCReturn(hrc, hrc);
-
 #ifdef VBOX_WITH_NEW_USB_CODE_ON_DARWIN
     /*
      * Initialize the USB library.

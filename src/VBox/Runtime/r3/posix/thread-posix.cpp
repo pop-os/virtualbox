@@ -1,10 +1,10 @@
-/* $Id: thread-posix.cpp $ */
+/* $Id: thread-posix.cpp 37733 2011-07-01 15:41:37Z vboxsync $ */
 /** @file
  * IPRT - Threads, POSIX.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,9 +52,6 @@
 #include <iprt/log.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-# include <iprt/asm-amd64-x86.h>
-#endif
 #include <iprt/err.h>
 #include <iprt/string.h>
 #include "internal/thread.h"
@@ -89,7 +86,7 @@ static void rtThreadKeyDestruct(void *pvValue);
 static void rtThreadPosixPokeSignal(int iSignal);
 
 
-int rtThreadNativeInit(void)
+DECLHIDDEN(int) rtThreadNativeInit(void)
 {
     /*
      * Allocate the TLS (key in posix terms) where we store the pointer to
@@ -188,7 +185,7 @@ static void rtThreadPosixPokeSignal(int iSignal)
  *
  * @param   pThread     Pointer to the thread structure.
  */
-int rtThreadNativeAdopt(PRTTHREADINT pThread)
+DECLHIDDEN(int) rtThreadNativeAdopt(PRTTHREADINT pThread)
 {
     /*
      * Block SIGALRM - required for timer-posix.cpp.
@@ -211,7 +208,7 @@ int rtThreadNativeAdopt(PRTTHREADINT pThread)
 }
 
 
-void rtThreadNativeDestroy(PRTTHREADINT pThread)
+DECLHIDDEN(void) rtThreadNativeDestroy(PRTTHREADINT pThread)
 {
     if (pThread == (PRTTHREADINT)pthread_getspecific(g_SelfKey))
         pthread_setspecific(g_SelfKey, NULL);
@@ -263,7 +260,7 @@ static void *rtThreadNativeMain(void *pvArgs)
 }
 
 
-int rtThreadNativeCreate(PRTTHREADINT pThread, PRTNATIVETHREAD pNativeThread)
+DECLHIDDEN(int) rtThreadNativeCreate(PRTTHREADINT pThread, PRTNATIVETHREAD pNativeThread)
 {
     /*
      * Set the default stack size.
@@ -314,89 +311,6 @@ RTDECL(RTTHREAD) RTThreadSelf(void)
 }
 
 
-RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void)
-{
-    return (RTNATIVETHREAD)pthread_self();
-}
-
-
-RTDECL(int) RTThreadSleep(RTMSINTERVAL cMillies)
-{
-    LogFlow(("RTThreadSleep: cMillies=%d\n", cMillies));
-    if (!cMillies)
-    {
-        /* pthread_yield() isn't part of SuS, thus this fun. */
-#ifdef RT_OS_DARWIN
-        pthread_yield_np();
-#elif defined(RT_OS_FREEBSD) /* void pthread_yield */
-        pthread_yield();
-#elif defined(RT_OS_SOLARIS)
-        sched_yield();
-#else
-        if (!pthread_yield())
-#endif
-        {
-            LogFlow(("RTThreadSleep: returning %Rrc (cMillies=%d)\n", VINF_SUCCESS, cMillies));
-            return VINF_SUCCESS;
-        }
-    }
-    else
-    {
-        struct timespec ts;
-        struct timespec tsrem = {0,0};
-
-        ts.tv_nsec = (cMillies % 1000) * 1000000;
-        ts.tv_sec  = cMillies / 1000;
-        if (!nanosleep(&ts, &tsrem))
-        {
-            LogFlow(("RTThreadSleep: returning %Rrc (cMillies=%d)\n", VINF_SUCCESS, cMillies));
-            return VINF_SUCCESS;
-        }
-    }
-
-    int rc = RTErrConvertFromErrno(errno);
-    LogFlow(("RTThreadSleep: returning %Rrc (cMillies=%d)\n", rc, cMillies));
-    return rc;
-}
-
-
-RTDECL(bool) RTThreadYield(void)
-{
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-    uint64_t u64TS = ASMReadTSC();
-#endif
-#ifdef RT_OS_DARWIN
-    pthread_yield_np();
-#elif defined(RT_OS_SOLARIS)
-    sched_yield();
-#else
-    pthread_yield();
-#endif
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-    u64TS = ASMReadTSC() - u64TS;
-    bool fRc = u64TS > 1500;
-    LogFlow(("RTThreadYield: returning %d (%llu ticks)\n", fRc, u64TS));
-#else
-    bool fRc = true; /* PORTME: Add heuristics for determining whether the cpus was yielded. */
-#endif
-    return fRc;
-}
-
-
-RTR3DECL(uint64_t) RTThreadGetAffinity(void)
-{
-    return 1;
-}
-
-
-RTR3DECL(int) RTThreadSetAffinity(uint64_t u64Mask)
-{
-    if (u64Mask != 1)
-        return VERR_INVALID_PARAMETER;
-    return VINF_SUCCESS;
-}
-
-
 #ifdef RTTHREAD_POSIX_WITH_POKE
 RTDECL(int) RTThreadPoke(RTTHREAD hThread)
 {
@@ -432,6 +346,7 @@ RTR3DECL(int) RTThreadGetExecutionTimeMilli(uint64_t *pKernelTime, uint64_t *pUs
     return VINF_SUCCESS;
 
 #elif defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD)
+    /* on Linux, getrusage(RUSAGE_THREAD, ...) is available since 2.6.26 */
     struct timespec ts;
     int rc = clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
     if (rc)

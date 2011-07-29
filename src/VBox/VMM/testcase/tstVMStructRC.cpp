@@ -1,4 +1,4 @@
-/* $Id: tstVMStructRC.cpp $ */
+/* $Id: tstVMStructRC.cpp 37955 2011-07-14 12:23:02Z vboxsync $ */
 /** @file
  * tstVMMStructRC - Generate structure member and size checks from the
  *                  RC perspective.
@@ -76,10 +76,11 @@ AssertCompileSize(RTHCPHYS, 8);
 #include "STAMInternal.h"
 #include "CSAMInternal.h"
 #include "EMInternal.h"
+#include "IEMInternal.h"
 #include "REMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/param.h>
-#include <VBox/x86.h>
+#include <iprt/x86.h>
 #include <iprt/assert.h>
 
 /* we don't use iprt here because we're pretending to be in GC! */
@@ -150,6 +151,24 @@ int main()
     GEN_CHECK_OFF(EMCPU, pStatsRC);
     GEN_CHECK_OFF(EMCPU, pCliStatTree);
 
+    GEN_CHECK_SIZE(IEMCPU);
+    GEN_CHECK_OFF(IEMCPU, pCtxR0);
+    GEN_CHECK_OFF(IEMCPU, pCtxR3);
+    GEN_CHECK_OFF(IEMCPU, pCtxRC);
+    GEN_CHECK_OFF(IEMCPU, offVM);
+    GEN_CHECK_OFF(IEMCPU, offVMCpu);
+    GEN_CHECK_OFF(IEMCPU, enmCpuMode);
+    GEN_CHECK_OFF(IEMCPU, fPrefixes);
+    GEN_CHECK_OFF(IEMCPU, abOpcode);
+    GEN_CHECK_OFF(IEMCPU, cActiveMappings);
+    GEN_CHECK_OFF(IEMCPU, iNextMapping);
+    GEN_CHECK_OFF(IEMCPU, aMemMappings);
+    GEN_CHECK_OFF(IEMCPU, aMemMappings[1]);
+    GEN_CHECK_OFF(IEMCPU, aBounceBuffers);
+    GEN_CHECK_OFF(IEMCPU, aBounceBuffers[1]);
+    GEN_CHECK_OFF(IEMCPU, aMemBbMappings);
+    GEN_CHECK_OFF(IEMCPU, aMemBbMappings[1]);
+
     GEN_CHECK_SIZE(IOM);
     GEN_CHECK_OFF(IOM, pTreesRC);
     GEN_CHECK_OFF(IOM, pTreesR3);
@@ -214,7 +233,7 @@ int main()
     GEN_CHECK_OFF(IOMTREES, IOPortTreeRC);
     GEN_CHECK_OFF(IOMTREES, MMIOTree);
     GEN_CHECK_OFF(IOMTREES, IOPortStatTree);
-    GEN_CHECK_OFF(IOMTREES, MMIOStatTree);
+    GEN_CHECK_OFF(IOMTREES, MmioStatTree);
 
     GEN_CHECK_SIZE(MM);
     GEN_CHECK_OFF(MM, offVM);
@@ -270,7 +289,8 @@ int main()
     GEN_CHECK_OFF(MMLOOKUPHYPER, pszDesc);
 
     GEN_CHECK_SIZE(PDM);
-    GEN_CHECK_OFF(PDM, offVM);
+    GEN_CHECK_OFF(PDM, CritSect);
+    GEN_CHECK_OFF(PDM, NopCritSect);
     GEN_CHECK_OFF(PDM, pDevs);
     GEN_CHECK_OFF(PDM, pDevInstances);
     GEN_CHECK_OFF(PDM, pUsbDevs);
@@ -344,7 +364,6 @@ int main()
     GEN_CHECK_OFF(PDMCPU, apQueuedCritSectsLeaves);
     GEN_CHECK_OFF(PDM, pQueueFlushR0);
     GEN_CHECK_OFF(PDM, pQueueFlushRC);
-    GEN_CHECK_OFF(PDM, CritSect);
     GEN_CHECK_OFF(PDM, StatQueuedCritSectLeaves);
 
     GEN_CHECK_SIZE(PDMDEVINSINT);
@@ -544,9 +563,9 @@ int main()
     GEN_CHECK_OFF(PGM, paDynPageMapPaePTEsGC);
     GEN_CHECK_OFF(PGM, enmHostMode);
     GEN_CHECK_OFF(PGM, GCPhys4MBPSEMask);
-    GEN_CHECK_OFF(PGM, pRamRangesR3);
-    GEN_CHECK_OFF(PGM, pRamRangesR0);
-    GEN_CHECK_OFF(PGM, pRamRangesRC);
+    GEN_CHECK_OFF(PGM, pRamRangesXR3);
+    GEN_CHECK_OFF(PGM, pRamRangesXR0);
+    GEN_CHECK_OFF(PGM, pRamRangesXRC);
     GEN_CHECK_OFF(PGM, pRomRangesR3);
     GEN_CHECK_OFF(PGM, pRomRangesR0);
     GEN_CHECK_OFF(PGM, pRomRangesRC);
@@ -671,10 +690,9 @@ int main()
     GEN_CHECK_OFF(PGMVIRTHANDLER, cPages);
     GEN_CHECK_OFF(PGMVIRTHANDLER, aPhysToVirt);
     GEN_CHECK_SIZE(PGMPAGE);
-    GEN_CHECK_OFF(PGMPAGE, HCPhysAndPageID);
-    GEN_CHECK_OFF(PGMPAGE, cReadLocksY);
-    GEN_CHECK_OFF(PGMPAGE, cWriteLocksY);
-    GEN_CHECK_OFF(PGMPAGE, u16TrackingY);
+    GEN_CHECK_OFF(PGMPAGE, s.cReadLocksY);
+    GEN_CHECK_OFF(PGMPAGE, s.cWriteLocksY);
+    GEN_CHECK_OFF(PGMPAGE, s.u16TrackingY);
     GEN_CHECK_SIZE(PGMRAMRANGE);
     GEN_CHECK_OFF(PGMRAMRANGE, pNextR3);
     GEN_CHECK_OFF(PGMRAMRANGE, pNextR0);

@@ -1,4 +1,4 @@
-/* $Id: TMInternal.h $ */
+/* $Id: TMInternal.h 37527 2011-06-17 10:18:02Z vboxsync $ */
 /** @file
  * TM - Internal header file.
  */
@@ -399,7 +399,9 @@ typedef struct TM
     RCPTRTYPE(PFNTIMENANOTSINTERNAL) pfnVirtualGetRawRC;
     /** Alignment. */
     RTRCPTR                     AlignmentRCPtr;
-    /** The guest virtual timer synchronous time when fVirtualSyncTicking is cleared. */
+    /** The guest virtual timer synchronous time when fVirtualSyncTicking is cleared.
+     * When fVirtualSyncTicking is set it holds the last time returned to
+     * the guest (while the lock was held). */
     uint64_t volatile           u64VirtualSync;
     /** The offset of the timer synchronous virtual clock (TMCLOCK_VIRTUAL_SYNC) relative
      * to the virtual clock (TMCLOCK_VIRTUAL).
@@ -504,7 +506,8 @@ typedef struct TM
 
     /** Lock serializing access to the timer lists. */
     PDMCRITSECT                 TimerCritSect;
-    /** Lock serializing access to the VirtualSync clock. */
+    /** Lock serializing access to the VirtualSync clock and the associated
+     * timer queue. */
     PDMCRITSECT                 VirtualSyncLock;
 
     /** CPU load state for all the virtual CPUs (tmR3CpuLoadTimer). */
@@ -528,6 +531,7 @@ typedef struct TM
     STAMCOUNTER                 StatVirtualGet;
     STAMCOUNTER                 StatVirtualGetSetFF;
     STAMCOUNTER                 StatVirtualSyncGet;
+    STAMCOUNTER                 StatVirtualSyncGetAdjLast;
     STAMCOUNTER                 StatVirtualSyncGetELoop;
     STAMCOUNTER                 StatVirtualSyncGetExpired;
     STAMCOUNTER                 StatVirtualSyncGetLockless;
@@ -535,7 +539,7 @@ typedef struct TM
     STAMCOUNTER                 StatVirtualSyncGetSetFF;
     STAMCOUNTER                 StatVirtualPause;
     STAMCOUNTER                 StatVirtualResume;
-    /* @} */
+    /** @} */
     /** TMTimerPoll
      * @{ */
     STAMCOUNTER                 StatPoll;
@@ -547,7 +551,7 @@ typedef struct TM
     STAMCOUNTER                 StatPollVirtual;
     STAMCOUNTER                 StatPollVirtualSync;
     /** @} */
-    /** TMTimerSet
+    /** TMTimerSet sans virtual sync timers.
      * @{ */
     STAMCOUNTER                 StatTimerSet;
     STAMCOUNTER                 StatTimerSetOpt;
@@ -561,14 +565,22 @@ typedef struct TM
     STAMCOUNTER                 StatTimerSetStPendSched;
     STAMCOUNTER                 StatTimerSetStPendResched;
     STAMCOUNTER                 StatTimerSetStOther;
+    /** @}  */
+    /** TMTimerSet on virtual sync timers.
+     * @{ */
+    STAMCOUNTER                 StatTimerSetVs;
+    STAMPROFILE                 StatTimerSetVsRZ;
+    STAMPROFILE                 StatTimerSetVsR3;
+    STAMCOUNTER                 StatTimerSetVsStStopped;
+    STAMCOUNTER                 StatTimerSetVsStExpDeliver;
+    STAMCOUNTER                 StatTimerSetVsStActive;
     /** @} */
-    /** TMTimerSetRelative
+    /** TMTimerSetRelative sans virtual sync timers
      * @{ */
     STAMCOUNTER                 StatTimerSetRelative;
     STAMPROFILE                 StatTimerSetRelativeRZ;
     STAMPROFILE                 StatTimerSetRelativeR3;
     STAMCOUNTER                 StatTimerSetRelativeOpt;
-    STAMCOUNTER                 StatTimerSetRelativeRacyVirtSync;
     STAMCOUNTER                 StatTimerSetRelativeStStopped;
     STAMCOUNTER                 StatTimerSetRelativeStExpDeliver;
     STAMCOUNTER                 StatTimerSetRelativeStActive;
@@ -578,10 +590,24 @@ typedef struct TM
     STAMCOUNTER                 StatTimerSetRelativeStPendResched;
     STAMCOUNTER                 StatTimerSetRelativeStOther;
     /** @} */
-    /** TMTimerStop
+    /** TMTimerSetRelative on virtual sync timers.
+     * @{ */
+    STAMCOUNTER                 StatTimerSetRelativeVs;
+    STAMPROFILE                 StatTimerSetRelativeVsRZ;
+    STAMPROFILE                 StatTimerSetRelativeVsR3;
+    STAMCOUNTER                 StatTimerSetRelativeVsStStopped;
+    STAMCOUNTER                 StatTimerSetRelativeVsStExpDeliver;
+    STAMCOUNTER                 StatTimerSetRelativeVsStActive;
+    /** @} */
+    /** TMTimerStop sans virtual sync.
      * @{ */
     STAMPROFILE                 StatTimerStopRZ;
     STAMPROFILE                 StatTimerStopR3;
+    /** @} */
+    /** TMTimerStop on virtual sync timers.
+     * @{ */
+    STAMPROFILE                 StatTimerStopVsRZ;
+    STAMPROFILE                 StatTimerStopVsR3;
     /** @} */
     /** VirtualSync - Running and Catching Up
      * @{ */
@@ -695,25 +721,6 @@ typedef struct TMCPU
 /** Pointer to TM VMCPU instance data. */
 typedef TMCPU *PTMCPU;
 
-#if 0 /* enable this to rule out locking bugs on single cpu guests. */
-# define tmTimerLock(pVM)                VINF_SUCCESS
-# define tmTimerTryLock(pVM)             VINF_SUCCESS
-# define tmTimerUnlock(pVM)              ((void)0)
-# define tmVirtualSyncLock(pVM)     VINF_SUCCESS
-# define tmVirtualSyncTryLock(pVM)  VINF_SUCCESS
-# define tmVirtualSyncUnlock(pVM)   ((void)0)
-# define TM_ASSERT_LOCK(pVM)        VM_ASSERT_EMT(pVM)
-#else
-int                     tmTimerLock(PVM pVM);
-int                     tmTimerTryLock(PVM pVM);
-void                    tmTimerUnlock(PVM pVM);
-/** Checks that the caller owns the timer lock.  */
-#define TM_ASSERT_LOCK(pVM) Assert(PDMCritSectIsOwner(&pVM->tm.s.TimerCritSect))
-int                     tmVirtualSyncLock(PVM pVM);
-int                     tmVirtualSyncTryLock(PVM pVM);
-void                    tmVirtualSyncUnlock(PVM pVM);
-#endif
-
 const char             *tmTimerState(TMTIMERSTATE enmState);
 void                    tmTimerQueueSchedule(PVM pVM, PTMTIMERQUEUE pQueue);
 #ifdef VBOX_STRICT
@@ -727,6 +734,38 @@ int                     tmVirtualPauseLocked(PVM pVM);
 int                     tmVirtualResumeLocked(PVM pVM);
 DECLEXPORT(void)        tmVirtualNanoTSBad(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS, uint64_t u64DeltaPrev, uint64_t u64PrevNanoTS);
 DECLEXPORT(uint64_t)    tmVirtualNanoTSRediscover(PRTTIMENANOTSDATA pData);
+
+
+/**
+ * Try take the timer lock, wait in ring-3 return VERR_SEM_BUSY in R0/RC.
+ *
+ * @retval  VINF_SUCCESS on success (always in ring-3).
+ * @retval  VERR_SEM_BUSY in RC and R0 if the semaphore is busy.
+ *
+ * @param   a_pVM       The VM handle.
+ *
+ * @remarks The virtual sync timer queue requires the virtual sync lock.
+ */
+#define TM_LOCK_TIMERS(a_pVM)       PDMCritSectEnter(&(a_pVM)->tm.s.TimerCritSect, VERR_SEM_BUSY)
+
+/**
+ * Try take the timer lock, no waiting.
+ *
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_SEM_BUSY if busy.
+ *
+ * @param   a_pVM       The VM handle.
+ *
+ * @remarks The virtual sync timer queue requires the virtual sync lock.
+ */
+#define TM_TRY_LOCK_TIMERS(a_pVM)   PDMCritSectTryEnter(&(a_pVM)->tm.s.TimerCritSect)
+
+/** Lock the timers (sans the virtual sync queue). */
+#define TM_UNLOCK_TIMERS(a_pVM)     do { PDMCritSectLeave(&(a_pVM)->tm.s.TimerCritSect); } while (0)
+
+/** Checks that the caller owns the timer lock.  */
+#define TM_ASSERT_TIMER_LOCK_OWNERSHIP(a_pVM) \
+    Assert(PDMCritSectIsOwner(&(a_pVM)->tm.s.TimerCritSect))
 
 
 /** @} */

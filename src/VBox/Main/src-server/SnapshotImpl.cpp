@@ -1,4 +1,4 @@
-/* $Id: SnapshotImpl.cpp $ */
+/* $Id: SnapshotImpl.cpp 37985 2011-07-15 15:04:39Z vboxsync $ */
 
 /** @file
  *
@@ -44,30 +44,6 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Globals
-//
-////////////////////////////////////////////////////////////////////////////////
-
-/**
- *  Progress callback handler for lengthy operations
- *  (corresponds to the FNRTPROGRESS typedef).
- *
- *  @param uPercentage  Completion percentage (0-100).
- *  @param pvUser       Pointer to the Progress instance.
- */
-static DECLCALLBACK(int) progressCallback(unsigned uPercentage, void *pvUser)
-{
-    IProgress *progress = static_cast<IProgress*>(pvUser);
-
-    /* update the progress object */
-    if (progress)
-        progress->SetCurrentOperationProgress(uPercentage);
-
-    return VINF_SUCCESS;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//
 // Snapshot private data definition
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,13 +84,14 @@ struct Snapshot::Data
 HRESULT Snapshot::FinalConstruct()
 {
     LogFlowThisFunc(("\n"));
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void Snapshot::FinalRelease()
 {
     LogFlowThisFunc(("\n"));
     uninit();
+    BaseFinalRelease();
 }
 
 /**
@@ -348,6 +325,12 @@ STDMETHODIMP Snapshot::COMSETTER(Name)(IN_BSTR aName)
     HRESULT rc = S_OK;
     CheckComArgStrNotEmptyOrNull(aName);
 
+    // prohibit setting a UUID only as the machine name, or else it can
+    // never be found by findMachine()
+    Guid test(aName);
+    if (test.isNotEmpty())
+        return setError(E_INVALIDARG,  tr("A machine cannot have a UUID as its name"));
+
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
@@ -420,7 +403,7 @@ STDMETHODIMP Snapshot::COMGETTER(Online)(BOOL *aOnline)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aOnline = !stateFilePath().isEmpty();
+    *aOnline = getStateFilePath().isNotEmpty();
     return S_OK;
 }
 
@@ -466,6 +449,15 @@ STDMETHODIMP Snapshot::COMGETTER(Children)(ComSafeArrayOut(ISnapshot *, aChildre
     return S_OK;
 }
 
+STDMETHODIMP Snapshot::GetChildrenCount(ULONG* count)
+{
+    CheckComArgOutPointerValid(count);
+
+    *count = getChildrenCount();
+
+    return S_OK;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Snapshot public internal methods
@@ -496,21 +488,9 @@ const ComObjPtr<Snapshot> Snapshot::getFirstChild() const
  *  @note
  *      Must be called from under the object's lock!
  */
-const Utf8Str& Snapshot::stateFilePath() const
+const Utf8Str& Snapshot::getStateFilePath() const
 {
-    return m->pMachine->mSSData->mStateFilePath;
-}
-
-/**
- *  @note
- *      Must be called from under the object's write lock!
- */
-HRESULT Snapshot::deleteStateFile()
-{
-    int vrc = RTFileDelete(m->pMachine->mSSData->mStateFilePath.c_str());
-    if (RT_SUCCESS(vrc))
-        m->pMachine->mSSData->mStateFilePath.setNull();
-    return RT_SUCCESS(vrc) ? S_OK : E_FAIL;
+    return m->pMachine->mSSData->strStateFilePath;
 }
 
 /**
@@ -680,7 +660,7 @@ void Snapshot::updateSavedStatePathsImpl(const Utf8Str &strOldPath,
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    const Utf8Str &path = m->pMachine->mSSData->mStateFilePath;
+    const Utf8Str &path = m->pMachine->mSSData->strStateFilePath;
     LogFlowThisFunc(("Snap[%s].statePath={%s}\n", m->strName.c_str(), path.c_str()));
 
     /* state file may be NULL (for offline snapshots) */
@@ -688,9 +668,9 @@ void Snapshot::updateSavedStatePathsImpl(const Utf8Str &strOldPath,
          && RTPathStartsWith(path.c_str(), strOldPath.c_str())
        )
     {
-        m->pMachine->mSSData->mStateFilePath = Utf8StrFmt("%s%s",
-                                                          strNewPath.c_str(),
-                                                          path.c_str() + strOldPath.length());
+        m->pMachine->mSSData->strStateFilePath = Utf8StrFmt("%s%s",
+                                                            strNewPath.c_str(),
+                                                            path.c_str() + strOldPath.length());
         LogFlowThisFunc(("-> updated: {%s}\n", path.c_str()));
     }
 
@@ -702,6 +682,44 @@ void Snapshot::updateSavedStatePathsImpl(const Utf8Str &strOldPath,
         pChild->updateSavedStatePathsImpl(strOldPath, strNewPath);
     }
 }
+
+/**
+ * Returns true if this snapshot or one of its children uses the given file,
+ * whose path must be fully qualified, as its saved state. When invoked on a
+ * machine's first snapshot, this can be used to check if a saved state file
+ * is shared with any snapshots.
+ *
+ * Caller must hold the machine lock, which protects the snapshots tree.
+ *
+ * @param strPath
+ * @param pSnapshotToIgnore If != NULL, this snapshot is ignored during the checks.
+ * @return
+ */
+bool Snapshot::sharesSavedStateFile(const Utf8Str &strPath,
+                                    Snapshot *pSnapshotToIgnore)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    const Utf8Str &path = m->pMachine->mSSData->strStateFilePath;
+
+    if (!pSnapshotToIgnore || pSnapshotToIgnore != this)
+        if (path.isNotEmpty())
+            if (path == strPath)
+                return true;        // no need to recurse then
+
+    // but otherwise we must check children
+    for (SnapshotsList::const_iterator it = m->llChildren.begin();
+         it != m->llChildren.end();
+         ++it)
+    {
+        Snapshot *pChild = *it;
+        if (!pSnapshotToIgnore || pSnapshotToIgnore != pChild)
+            if (pChild->sharesSavedStateFile(strPath, pSnapshotToIgnore))
+                return true;
+    }
+
+    return false;
+}
+
 
 /**
  *  Checks if the specified path change affects the saved state file path of
@@ -749,9 +767,9 @@ HRESULT Snapshot::saveSnapshotImpl(settings::Snapshot &data, bool aAttrsOnly)
     if (aAttrsOnly)
         return S_OK;
 
-    /* stateFile (optional) */
-    if (!stateFilePath().isEmpty())
-        m->pMachine->copyPathRelativeToMachine(stateFilePath(), data.strStateFile);
+    // state file (only if this snapshot is online)
+    if (getStateFilePath().isNotEmpty())
+        m->pMachine->copyPathRelativeToMachine(getStateFilePath(), data.strStateFile);
     else
         data.strStateFile.setNull();
 
@@ -862,9 +880,24 @@ HRESULT Snapshot::uninitRecursively(AutoWriteLock &writeLock,
     if (FAILED(rc))
         return rc;
 
-    // now report the saved state file
-    if (!m->pMachine->mSSData->mStateFilePath.isEmpty())
-        llFilenames.push_back(m->pMachine->mSSData->mStateFilePath);
+    // report the saved state file if it's not on the list yet
+    if (!m->pMachine->mSSData->strStateFilePath.isEmpty())
+    {
+        bool fFound = false;
+        for (std::list<Utf8Str>::const_iterator it = llFilenames.begin();
+             it != llFilenames.end();
+             ++it)
+        {
+            const Utf8Str &str = *it;
+            if (str == m->pMachine->mSSData->strStateFilePath)
+            {
+                fFound = true;
+                break;
+            }
+        }
+        if (!fFound)
+            llFilenames.push_back(m->pMachine->mSSData->strStateFilePath);
+    }
 
     this->beginSnapshotDelete();
     this->uninit();
@@ -888,7 +921,7 @@ HRESULT SnapshotMachine::FinalConstruct()
 {
     LogFlowThisFunc(("\n"));
 
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void SnapshotMachine::FinalRelease()
@@ -896,6 +929,8 @@ void SnapshotMachine::FinalRelease()
     LogFlowThisFunc(("\n"));
 
     uninit();
+
+    BaseFinalRelease();
 }
 
 /**
@@ -942,7 +977,7 @@ HRESULT SnapshotMachine::init(SessionMachine *aSessionMachine,
 
     /* SSData is always unique for SnapshotMachine */
     mSSData.allocate();
-    mSSData->mStateFilePath = aStateFilePath;
+    mSSData->strStateFilePath = aStateFilePath;
 
     HRESULT rc = S_OK;
 
@@ -1080,7 +1115,7 @@ HRESULT SnapshotMachine::init(Machine *aMachine,
 
     /* SSData is always unique for SnapshotMachine */
     mSSData.allocate();
-    mSSData->mStateFilePath = aStateFilePath;
+    mSSData->strStateFilePath = aStateFilePath;
 
     /* create all other child objects that will be immutable private copies */
 
@@ -1252,18 +1287,14 @@ struct SessionMachine::RestoreSnapshotTask
 {
     RestoreSnapshotTask(SessionMachine *m,
                         Progress *p,
-                        Snapshot *s,
-                        ULONG ulStateFileSizeMB)
-        : SnapshotTask(m, p, s),
-          m_ulStateFileSizeMB(ulStateFileSizeMB)
+                        Snapshot *s)
+        : SnapshotTask(m, p, s)
     {}
 
     void handler()
     {
         pMachine->restoreSnapshotHandler(*this);
     }
-
-    ULONG       m_ulStateFileSizeMB;
 };
 
 /** Delete snapshot task */
@@ -1389,16 +1420,16 @@ STDMETHODIMP SessionMachine::BeginTakingSnapshot(IConsole *aInitiator,
 
     Utf8Str strStateFilePath;
     /* stateFilePath is null when the machine is not online nor saved */
-    if (    fTakingSnapshotOnline
-         || mData->mMachineState == MachineState_Saved)
+    if (fTakingSnapshotOnline)
+        // creating a new online snapshot: then we need a fresh saved state file
+        composeSavedStateFilename(strStateFilePath);
+    else if (mData->mMachineState == MachineState_Saved)
+        // taking an online snapshot from machine in "saved" state: then use existing state file
+        strStateFilePath = mSSData->strStateFilePath;
+
+    if (strStateFilePath.isNotEmpty())
     {
-        Utf8Str strFullSnapshotFolder;
-        calculateFullPath(mUserData->s.strSnapshotFolder, strFullSnapshotFolder);
-        strStateFilePath = Utf8StrFmt("%s%c{%RTuuid}.sav",
-                                      strFullSnapshotFolder.c_str(),
-                                      RTPATH_DELIMITER,
-                                      snapshotId.raw());
-        /* ensure the directory for the saved state file exists */
+        // ensure the directory for the saved state file exists
         HRESULT rc = VirtualBox::ensureFilePathExists(strStateFilePath);
         if (FAILED(rc)) return rc;
     }
@@ -1453,38 +1484,6 @@ STDMETHODIMP SessionMachine::BeginTakingSnapshot(IConsole *aInitiator,
                                  &llRegistriesThatNeedSaving);
         if (FAILED(rc))
             throw rc;
-
-        if (mConsoleTaskData.mLastState == MachineState_Saved)
-        {
-            Utf8Str stateFrom = mSSData->mStateFilePath;
-            Utf8Str stateTo = mConsoleTaskData.mSnapshot->stateFilePath();
-
-            LogFlowThisFunc(("Copying the execution state from '%s' to '%s'...\n",
-                             stateFrom.c_str(), stateTo.c_str()));
-
-            aConsoleProgress->SetNextOperation(Bstr(tr("Copying the execution state")).raw(),
-                                               1);        // weight
-
-            /* Leave the lock before a lengthy operation (machine is protected
-             * by "Saving" machine state now) */
-            alock.release();
-
-            /* copy the state file */
-            int vrc = RTFileCopyEx(stateFrom.c_str(),
-                                   stateTo.c_str(),
-                                   0,
-                                   progressCallback,
-                                   aConsoleProgress);
-            alock.acquire();
-
-            if (RT_FAILURE(vrc))
-                /** @todo r=bird: Delete stateTo when appropriate. */
-                throw setError(E_FAIL,
-                               tr("Could not copy the state file '%s' to '%s' (%Rrc)"),
-                               stateFrom.c_str(),
-                               stateTo.c_str(),
-                               vrc);
-        }
 
         // if we got this far without an error, then save the media registries
         // that got modified for the diff images
@@ -1586,8 +1585,6 @@ STDMETHODIMP SessionMachine::EndTakingSnapshot(BOOL aSuccess)
             flSaveSettings |= SaveS_ResetCurStateModified;
 
         rc = saveSettings(NULL, flSaveSettings);
-                // no need to change for whether VirtualBox.xml needs saving since
-                // we'll save the global settings below anyway
     }
 
     if (aSuccess && SUCCEEDED(rc))
@@ -1608,9 +1605,12 @@ STDMETHODIMP SessionMachine::EndTakingSnapshot(BOOL aSuccess)
         mData->mFirstSnapshot = pOldFirstSnap;      // might have been changed above
         mData->mCurrentSnapshot = pOldCurrentSnap;      // might have been changed above
 
-        /* delete the saved state file (it might have been already created) */
-        if (mConsoleTaskData.mSnapshot->stateFilePath().length())
-            RTFileDelete(mConsoleTaskData.mSnapshot->stateFilePath().c_str());
+        // delete the saved state file (it might have been already created)
+        if (fOnline)
+            // no need to test for whether the saved state file is shared: an online
+            // snapshot means that a new saved state file was created, which we must
+            // clean up now
+            RTFileDelete(mConsoleTaskData.mSnapshot->getStateFilePath().c_str());
 
         mConsoleTaskData.mSnapshot->uninit();
     }
@@ -1618,12 +1618,6 @@ STDMETHODIMP SessionMachine::EndTakingSnapshot(BOOL aSuccess)
     /* clear out the snapshot data */
     mConsoleTaskData.mLastState = MachineState_Null;
     mConsoleTaskData.mSnapshot.setNull();
-
-    // save VirtualBox.xml (media registry most probably changed with diff image);
-    // for that we should hold only the VirtualBox lock
-    machineLock.release();
-    AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
-    mParent->saveSettings();
 
     return rc;
 }
@@ -1698,26 +1692,6 @@ STDMETHODIMP SessionMachine::RestoreSnapshot(IConsole *aInitiator,
         }
     }
 
-    ULONG ulStateFileSizeMB = 0;
-    if (pSnapshot->stateFilePath().length())
-    {
-        ++ulOpCount;      // one for the saved state
-
-        uint64_t ullSize;
-        int irc = RTFileQuerySize(pSnapshot->stateFilePath().c_str(), &ullSize);
-        if (!RT_SUCCESS(irc))
-            // if we can't access the file here, then we'll be doomed later also, so fail right away
-            setError(E_FAIL, tr("Cannot access state file '%s', runtime error, %Rra"), pSnapshot->stateFilePath().c_str(), irc);
-        if (ullSize == 0) // avoid division by zero
-            ullSize = _1M;
-
-        ulStateFileSizeMB = (ULONG)(ullSize / _1M);
-        LogFlowThisFunc(("op %d: saved state file '%s' has %RI64 bytes (%d MB)\n",
-                         ulOpCount, pSnapshot->stateFilePath().c_str(), ullSize, ulStateFileSizeMB));
-
-        ulTotalWeight += ulStateFileSizeMB;
-    }
-
     ComObjPtr<Progress> pProgress;
     pProgress.createObject();
     pProgress->init(mParent, aInitiator,
@@ -1732,8 +1706,7 @@ STDMETHODIMP SessionMachine::RestoreSnapshot(IConsole *aInitiator,
      * start working until we release alock) */
     RestoreSnapshotTask *task = new RestoreSnapshotTask(this,
                                                         pProgress,
-                                                        pSnapshot,
-                                                        ulStateFileSizeMB);
+                                                        pSnapshot);
     int vrc = RTThreadCreate(NULL,
                              taskHandler,
                              (void*)task,
@@ -1812,10 +1785,16 @@ void SessionMachine::restoreSnapshotHandler(RestoreSnapshotTask &aTask)
          * operation */
         if (aTask.machineStateBackup == MachineState_Saved)
         {
-            Assert(!mSSData->mStateFilePath.isEmpty());
-            RTFileDelete(mSSData->mStateFilePath.c_str());
-            mSSData->mStateFilePath.setNull();
+            Assert(!mSSData->strStateFilePath.isEmpty());
+
+            // release the saved state file AFTER unsetting the member variable
+            // so that releaseSavedStateFile() won't think it's still in use
+            Utf8Str strStateFile(mSSData->strStateFilePath);
+            mSSData->strStateFilePath.setNull();
+            releaseSavedStateFile(strStateFile, NULL /* pSnapshotToIgnore */ );
+
             aTask.modifyBackedUpState(MachineState_PoweredOff);
+
             rc = saveStateSettings(SaveSTS_StateFilePath);
             if (FAILED(rc))
                 throw rc;
@@ -1862,49 +1841,13 @@ void SessionMachine::restoreSnapshotHandler(RestoreSnapshotTask &aTask)
              * deleted by #rollback() at the end. */
 
             /* should not have a saved state file associated at this point */
-            Assert(mSSData->mStateFilePath.isEmpty());
+            Assert(mSSData->strStateFilePath.isEmpty());
 
-            if (!aTask.pSnapshot->stateFilePath().isEmpty())
-            {
-                Utf8Str snapStateFilePath = aTask.pSnapshot->stateFilePath();
+            const Utf8Str &strSnapshotStateFile = aTask.pSnapshot->getStateFilePath();
 
-                Utf8Str strFullSnapshotFolder;
-                calculateFullPath(mUserData->s.strSnapshotFolder, strFullSnapshotFolder);
-                Utf8Str stateFilePath = Utf8StrFmt("%s%c{%RTuuid}.sav",
-                                                   strFullSnapshotFolder.c_str(),
-                                                   RTPATH_DELIMITER,
-                                                   mData->mUuid.raw());
-
-                LogFlowThisFunc(("Copying saved state file from '%s' to '%s'...\n",
-                                  snapStateFilePath.c_str(), stateFilePath.c_str()));
-
-                aTask.pProgress->SetNextOperation(Bstr(tr("Restoring the execution state")).raw(),
-                                                  aTask.m_ulStateFileSizeMB);        // weight
-
-                /* leave the lock before the potentially lengthy operation */
-                snapshotLock.release();
-                alock.leave();
-
-                /* copy the state file */
-                RTFileDelete(stateFilePath.c_str());
-                int vrc = RTFileCopyEx(snapStateFilePath.c_str(),
-                                       stateFilePath.c_str(),
-                                       0,
-                                       progressCallback,
-                                       static_cast<IProgress*>(aTask.pProgress));
-
-                alock.enter();
-                snapshotLock.acquire();
-
-                if (RT_SUCCESS(vrc))
-                    mSSData->mStateFilePath = stateFilePath;
-                else
-                    throw setError(E_FAIL,
-                                   tr("Could not copy the state file '%s' to '%s' (%Rrc)"),
-                                   snapStateFilePath.c_str(),
-                                   stateFilePath.c_str(),
-                                   vrc);
-            }
+            if (strSnapshotStateFile.isNotEmpty())
+                // online snapshot: then share the state file
+                mSSData->strStateFilePath = strSnapshotStateFile;
 
             LogFlowThisFunc(("Setting new current snapshot {%RTuuid}\n", aTask.pSnapshot->getId().raw()));
             /* make the snapshot we restored from the current snapshot */
@@ -1940,7 +1883,7 @@ void SessionMachine::restoreSnapshotHandler(RestoreSnapshotTask &aTask)
 
         /* we have already deleted the current state, so set the execution
          * state accordingly no matter of the delete snapshot result */
-        if (!mSSData->mStateFilePath.isEmpty())
+        if (mSSData->strStateFilePath.isNotEmpty())
             setMachineState(MachineState_Saved);
         else
             setMachineState(MachineState_PoweredOff);
@@ -1992,7 +1935,7 @@ void SessionMachine::restoreSnapshotHandler(RestoreSnapshotTask &aTask)
             throw rc;
         // unconditionally add the parent registry. We do similar in SessionMachine::EndTakingSnapshot
         // (mParent->saveSettings())
-        mParent->addGuidToListUniquely(llRegistriesThatNeedSaving, mParent->getGlobalRegistryId());
+        VirtualBox::addGuidToListUniquely(llRegistriesThatNeedSaving, mParent->getGlobalRegistryId());
 
         // let go of the locks while we're deleting image files below
         alock.leave();
@@ -2070,15 +2013,22 @@ void SessionMachine::restoreSnapshotHandler(RestoreSnapshotTask &aTask)
  * @note Locks mParent + this + children objects for writing!
  */
 STDMETHODIMP SessionMachine::DeleteSnapshot(IConsole *aInitiator,
-                                            IN_BSTR aId,
+                                            IN_BSTR aStartId,
+                                            IN_BSTR aEndId,
+                                            BOOL fDeleteAllChildren,
                                             MachineState_T *aMachineState,
                                             IProgress **aProgress)
 {
     LogFlowThisFuncEnter();
 
-    Guid id(aId);
-    AssertReturn(aInitiator && !id.isEmpty(), E_INVALIDARG);
+    Guid startId(aStartId);
+    Guid endId(aEndId);
+    AssertReturn(aInitiator && !startId.isEmpty() && !endId.isEmpty(), E_INVALIDARG);
     AssertReturn(aMachineState && aProgress, E_POINTER);
+
+    /** @todo implement the "and all children" and "range" variants */
+    if (fDeleteAllChildren || startId != endId)
+        ReturnComNotImplemented();
 
     AutoCaller autoCaller(this);
     AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
@@ -2098,7 +2048,7 @@ STDMETHODIMP SessionMachine::DeleteSnapshot(IConsole *aInitiator,
                         Global::stringifyMachineState(mData->mMachineState));
 
     ComObjPtr<Snapshot> pSnapshot;
-    HRESULT rc = findSnapshotById(id, pSnapshot, true /* aSetError */);
+    HRESULT rc = findSnapshotById(startId, pSnapshot, true /* aSetError */);
     if (FAILED(rc)) return rc;
 
     AutoWriteLock snapshotLock(pSnapshot COMMA_LOCKVAL_SRC_POS);
@@ -2135,7 +2085,7 @@ STDMETHODIMP SessionMachine::DeleteSnapshot(IConsole *aInitiator,
     ULONG ulOpCount = 1;            // one for preparations
     ULONG ulTotalWeight = 1;        // one for preparations
 
-    if (pSnapshot->stateFilePath().length())
+    if (pSnapshot->getStateFilePath().length())
     {
         ++ulOpCount;
         ++ulTotalWeight;            // assume 1 MB for deleting the state file
@@ -2420,12 +2370,6 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
                 }
                 else
                     fOnlineMergePossible = false;
-/// @todo remove this once the fix for windows/64bit API crashes for
-// SafeIfaceArray has been backported
-#if defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64)
-                if (fOnlineMergePossible)
-                    throw setError(E_NOTIMPL, tr("Live snapshot deletion on Windows/x64 is disabled to prevent a crash (will be fixed in the next release)"));
-#endif
             }
             rc = prepareDeleteSnapshotMedium(pHD, machineId, snapshotId,
                                              fOnlineMergePossible,
@@ -2526,15 +2470,16 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
             // tree is protected by the machine lock as well
             AutoWriteLock machineLock(this COMMA_LOCKVAL_SRC_POS);
 
-            Utf8Str stateFilePath = aTask.pSnapshot->stateFilePath();
+            Utf8Str stateFilePath = aTask.pSnapshot->getStateFilePath();
             if (!stateFilePath.isEmpty())
             {
                 aTask.pProgress->SetNextOperation(Bstr(tr("Deleting the execution state")).raw(),
                                                   1);        // weight
 
-                aTask.pSnapshot->deleteStateFile();
-                // machine needs saving now
-                mParent->addGuidToListUniquely(llRegistriesThatNeedSaving, getId());
+                releaseSavedStateFile(stateFilePath, aTask.pSnapshot /* pSnapshotToIgnore */);
+
+                // machine will need saving now
+                VirtualBox::addGuidToListUniquely(llRegistriesThatNeedSaving, getId());
             }
         }
 
@@ -2709,7 +2654,7 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
                 it->mpSource->uninit();
 
             // One attachment is merged, must save the settings
-            mParent->addGuidToListUniquely(llRegistriesThatNeedSaving, getId());
+            VirtualBox::addGuidToListUniquely(llRegistriesThatNeedSaving, getId());
 
             // prevent calling cancelDeleteSnapshotMedium() for this attachment
             it = toDelete.erase(it);
@@ -2728,7 +2673,7 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
             aTask.pSnapshot->beginSnapshotDelete();
             aTask.pSnapshot->uninit();
 
-            mParent->addGuidToListUniquely(llRegistriesThatNeedSaving, getId());
+            VirtualBox::addGuidToListUniquely(llRegistriesThatNeedSaving, getId());
         }
     }
     catch (HRESULT aRC) { rc = aRC; }

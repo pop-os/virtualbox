@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,6 +39,8 @@ struct BackupableMediumAttachmentData
           lDevice(0),
           type(DeviceType_Null),
           fPassthrough(false),
+          fTempEject(false),
+          fNonRotational(false),
           fImplicit(false)
     { }
 
@@ -55,18 +57,23 @@ struct BackupableMediumAttachmentData
     const LONG          lDevice;
     const DeviceType_T  type;
     bool                fPassthrough;
+    bool                fTempEject;
+    bool                fNonRotational;
     bool                fImplicit;
 };
 
 struct MediumAttachment::Data
 {
     Data()
-        : pMachine(NULL)
+        : pMachine(NULL),
+          fIsEjected(false)
     { }
 
     /** Reference to Machine object, for checking mutable state. */
     Machine * const pMachine;
     /* later: const ComObjPtr<MediumAttachment> mPeer; */
+
+    bool                fIsEjected;
 
     Backupable<BackupableMediumAttachmentData> bd;
 };
@@ -77,13 +84,14 @@ struct MediumAttachment::Data
 HRESULT MediumAttachment::FinalConstruct()
 {
     LogFlowThisFunc(("\n"));
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void MediumAttachment::FinalRelease()
 {
     LogFlowThisFuncEnter();
     uninit();
+    BaseFinalRelease();
     LogFlowThisFuncLeave();
 }
 
@@ -107,11 +115,14 @@ HRESULT MediumAttachment::init(Machine *aParent,
                                LONG aPort,
                                LONG aDevice,
                                DeviceType_T aType,
+                               bool aImplicit,
                                bool aPassthrough,
+                               bool aTempEject,
+                               bool aNonRotational,
                                const Utf8Str &strBandwidthGroup)
 {
     LogFlowThisFuncEnter();
-    LogFlowThisFunc(("aParent=%p aMedium=%p aControllerName=%ls aPort=%d aDevice=%d aType=%d aPassthrough=%d\n", aParent, aMedium, aControllerName.raw(), aPort, aDevice, aType, aPassthrough));
+    LogFlowThisFunc(("aParent=%p aMedium=%p aControllerName=%ls aPort=%d aDevice=%d aType=%d aImplicit=%d aPassthrough=%d aTempEject=%d aNonRotational=%d strBandwithGroup=%s\n", aParent, aMedium, aControllerName.raw(), aPort, aDevice, aType, aImplicit, aPassthrough, aTempEject, aNonRotational, strBandwidthGroup.c_str()));
 
     if (aType == DeviceType_HardDisk)
         AssertReturn(aMedium, E_INVALIDARG);
@@ -133,9 +144,9 @@ HRESULT MediumAttachment::init(Machine *aParent,
     unconst(m->bd->type)    = aType;
 
     m->bd->fPassthrough = aPassthrough;
-    /* Newly created attachments never have an implicitly created medium
-     * associated with them. Implicit diff image creation happens later. */
-    m->bd->fImplicit = false;
+    m->bd->fTempEject = aTempEject;
+    m->bd->fNonRotational = aNonRotational;
+    m->bd->fImplicit = aImplicit;
 
     /* Confirm a successful initialization when it's the case */
     autoInitSpan.setSucceeded();
@@ -277,6 +288,57 @@ STDMETHODIMP MediumAttachment::COMGETTER(Passthrough)(BOOL *aPassthrough)
     return S_OK;
 }
 
+STDMETHODIMP MediumAttachment::COMGETTER(TemporaryEject)(BOOL *aTemporaryEject)
+{
+    LogFlowThisFuncEnter();
+
+    CheckComArgOutPointerValid(aTemporaryEject);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aTemporaryEject = m->bd->fTempEject;
+
+    LogFlowThisFuncLeave();
+    return S_OK;
+}
+
+STDMETHODIMP MediumAttachment::COMGETTER(IsEjected)(BOOL *aEjected)
+{
+    LogFlowThisFuncEnter();
+
+    CheckComArgOutPointerValid(aEjected);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aEjected = m->fIsEjected;
+
+    LogFlowThisFuncLeave();
+    return S_OK;
+}
+
+STDMETHODIMP MediumAttachment::COMGETTER(NonRotational)(BOOL *aNonRotational)
+{
+    LogFlowThisFuncEnter();
+
+    CheckComArgOutPointerValid(aNonRotational);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aNonRotational = m->bd->fNonRotational;
+
+    LogFlowThisFuncLeave();
+    return S_OK;
+}
+
 STDMETHODIMP MediumAttachment::COMGETTER(BandwidthGroup) (IBandwidthGroup **aBwGroup)
 {
     LogFlowThisFuncEnter();
@@ -381,6 +443,18 @@ bool MediumAttachment::getPassthrough() const
     return m->bd->fPassthrough;
 }
 
+bool MediumAttachment::getTempEject() const
+{
+    AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
+    return m->bd->fTempEject;
+}
+
+bool MediumAttachment::getNonRotational() const
+{
+    AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
+    return m->bd->fNonRotational;
+}
+
 const Utf8Str& MediumAttachment::getBandwidthGroup() const
 {
     return m->bd->strBandwidthGroup;
@@ -404,6 +478,7 @@ void MediumAttachment::updateMedium(const ComObjPtr<Medium> &aMedium)
     m->bd.backup();
     m->bd->pMedium = aMedium;
     m->bd->fImplicit = false;
+    m->fIsEjected = false;
 }
 
 /** Must be called from under this object's write lock. */
@@ -413,6 +488,32 @@ void MediumAttachment::updatePassthrough(bool aPassthrough)
 
     m->bd.backup();
     m->bd->fPassthrough = aPassthrough;
+}
+
+/** Must be called from under this object's write lock. */
+void MediumAttachment::updateTempEject(bool aTempEject)
+{
+    Assert(isWriteLockOnCurrentThread());
+
+    m->bd.backup();
+    m->bd->fTempEject = aTempEject;
+}
+
+/** Must be called from under this object's write lock. */
+void MediumAttachment::updateEjected()
+{
+    Assert(isWriteLockOnCurrentThread());
+
+    m->fIsEjected = true;
+}
+
+/** Must be called from under this object's write lock. */
+void MediumAttachment::updateNonRotational(bool aNonRotational)
+{
+    Assert(isWriteLockOnCurrentThread());
+
+    m->bd.backup();
+    m->bd->fNonRotational = aNonRotational;
 }
 
 void MediumAttachment::updateBandwidthGroup(const Utf8Str &aBandwidthGroup)

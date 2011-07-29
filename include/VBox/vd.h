@@ -166,8 +166,8 @@ typedef struct VBOXHDDRAW
  * used for querying information, and nothing else. */
 #define VD_OPEN_FLAGS_INFO          RT_BIT(3)
 /** Open image for asynchronous access. Only available if VD_CAP_ASYNC_IO is
- * set. Check with VDIsAsynchonousIoSupported whether asynchronous I/O is
- * really supported for this file.  */
+ * set. VDOpen fails with VERR_NOT_SUPPORTED if this operation is not supported for
+ * this kind of image. */
 #define VD_OPEN_FLAGS_ASYNC_IO      RT_BIT(4)
 /** Allow sharing of the image for writable images. May be ignored if the
  * format backend doesn't support this type of concurrent access. */
@@ -671,7 +671,7 @@ typedef struct VDINTERFACEIO
     DECLR3CALLBACKMEMBER(int, pfnFlushSync, (void *pvUser, void *pStorage));
 
     /**
-     * Initiate a asynchronous read request.
+     * Initiate an asynchronous read request.
      *
      * @return  VBox status code.
      * @param   pvUser         The opaque user data passed on container creation.
@@ -689,7 +689,7 @@ typedef struct VDINTERFACEIO
                                              void **ppTask));
 
     /**
-     * Initiate a asynchronous write request.
+     * Initiate an asynchronous write request.
      *
      * @return  VBox status code.
      * @param   pvUser         The opaque user data passed on conatiner creation.
@@ -707,7 +707,7 @@ typedef struct VDINTERFACEIO
                                               void **ppTask));
 
     /**
-     * Initiates a async flush request.
+     * Initiates an async flush request.
      *
      * @return  VBox status code.
      * @param   pvUser          The opaque data passed on container creation.
@@ -1771,7 +1771,7 @@ typedef struct VDINTERFACEIOINT
     DECLR3CALLBACKMEMBER(int, pfnFlushSync, (void *pvUser, PVDIOSTORAGE pStorage));
 
     /**
-     * Initiate a asynchronous read request for user data.
+     * Initiate an asynchronous read request for user data.
      *
      * @return  VBox status code.
      * @param   pvUser         The opaque user data passed on container creation.
@@ -1785,7 +1785,7 @@ typedef struct VDINTERFACEIOINT
                                                  size_t cbRead));
 
     /**
-     * Initiate a asynchronous write request for user data.
+     * Initiate an asynchronous write request for user data.
      *
      * @return  VBox status code.
      * @param   pvUser         The opaque user data passed on container creation.
@@ -1854,7 +1854,7 @@ typedef struct VDINTERFACEIOINT
     DECLR3CALLBACKMEMBER(void, pfnMetaXferRelease, (void *pvUser, PVDMETAXFER pMetaXfer));
 
     /**
-     * Initiates a async flush request.
+     * Initiates an async flush request.
      *
      * @return  VBox status code.
      * @param   pvUser         The opaque data passed on container creation.
@@ -2609,19 +2609,7 @@ VBOXDDU_DECL(void) VDDumpImages(PVBOXHDD pDisk);
 
 
 /**
- * Query if asynchronous operations are supported for this disk.
- *
- * @return  VBox status code.
- * @return  VERR_VD_IMAGE_NOT_FOUND if image with specified number was not opened.
- * @param   pDisk           Pointer to the HDD container.
- * @param   nImage          Image number, counts from 0. 0 is always base image of container.
- * @param   pfAIOSupported  Where to store if async IO is supported.
- */
-VBOXDDU_DECL(int) VDImageIsAsyncIOSupported(PVBOXHDD pDisk, unsigned nImage, bool *pfAIOSupported);
-
-
-/**
- * Start a asynchronous read request.
+ * Start an asynchronous read request.
  *
  * @return  VBox status code.
  * @param   pDisk           Pointer to the HDD container.
@@ -2638,7 +2626,7 @@ VBOXDDU_DECL(int) VDAsyncRead(PVBOXHDD pDisk, uint64_t uOffset, size_t cbRead,
 
 
 /**
- * Start a asynchronous write request.
+ * Start an asynchronous write request.
  *
  * @return  VBox status code.
  * @param   pDisk           Pointer to the HDD container.
@@ -2655,7 +2643,7 @@ VBOXDDU_DECL(int) VDAsyncWrite(PVBOXHDD pDisk, uint64_t uOffset, size_t cbWrite,
 
 
 /**
- * Start a asynchronous flush request.
+ * Start an asynchronous flush request.
  *
  * @return  VBox status code.
  * @param   pDisk           Pointer to the HDD container.

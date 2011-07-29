@@ -13,6 +13,8 @@
     <file alias="vm_pause_disabled_32px.png">images/vm_pause_disabled_32px.png</file>
     <file alias="vm_settings_32px.png">images/vm_settings_32px.png</file>
     <file alias="vm_settings_disabled_32px.png">images/vm_settings_disabled_32px.png</file>
+    <file alias="vm_clone_16px.png">images/vm_clone_16px.png</file>
+    <file alias="vm_clone_disabled_16px.png">images/vm_clone_disabled_16px.png</file>
     <file alias="vm_show_logs_32px.png">images/vm_show_logs_32px.png</file>
     <file alias="vm_show_logs_disabled_32px.png">images/vm_show_logs_disabled_32px.png</file>
     <file alias="vm_start_32px.png">images/vm_start_32px.png</file>
@@ -34,12 +36,14 @@
     <file alias="online_snapshot_16px.png">images/online_snapshot_16px.png</file>
     <file alias="machine_16px.png">images/machine_16px.png</file>
     <file alias="machine_32px.png">images/machine_32px.png</file>
+    <file alias="machine_disabled_16px.png">images/machine_disabled_16px.png</file>
     <file alias="machine_disabled_32px.png">images/machine_disabled_32px.png</file>
     <file alias="help_16px.png">images/help_16px.png</file>
     <file alias="help_button_normal_mac_22px.png">images/help_button_normal_mac_22px.png</file>
     <file alias="help_button_pressed_mac_22px.png">images/help_button_pressed_mac_22px.png</file>
     <file alias="site_16px.png">images/site_16px.png</file>
     <file alias="site_32px.png">images/site_32px.png</file>
+    <file alias="site_disabled_16px.png">images/site_disabled_16px.png</file>
     <file alias="site_disabled_32px.png">images/site_disabled_32px.png</file>
     <file alias="register_16px.png">images/register_16px.png</file>
     <file alias="register_32px.png">images/register_32px.png</file>

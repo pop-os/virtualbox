@@ -1,4 +1,4 @@
-/* $Id: UIMainEventListener.cpp $ */
+/* $Id: UIMainEventListener.cpp 37712 2011-06-30 14:11:14Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -24,8 +24,7 @@
 //#include <iprt/thread.h>
 //#include <iprt/stream.h>
 
-UIMainEventListener::UIMainEventListener(QObject * /* pParent */)
-//  : QObject(pParent) /* Todo: Not sure if pParent should delete this. Especially on Win there is ref counting implemented. */
+UIMainEventListener::UIMainEventListener()
   : QObject()
 {
     /* For queued events we have to extra register our enums/interface classes
@@ -41,6 +40,14 @@ UIMainEventListener::UIMainEventListener(QObject * /* pParent */)
     qRegisterMetaType<CVirtualBoxErrorInfo>("CVirtualBoxErrorInfo");
 }
 
+HRESULT UIMainEventListener::init(QObject * /* pParent */)
+{
+    return S_OK;
+}
+
+void    UIMainEventListener::uninit()
+{
+}
 
 /**
  * @todo: instead of double wrapping of events into signals maybe it
@@ -49,7 +56,7 @@ UIMainEventListener::UIMainEventListener(QObject * /* pParent */)
 STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T /* type */, IEvent *pEvent)
 {
     CEvent event(pEvent);
-//    RTPrintf("Event received: %d (%RTthrd)\n", event.GetType(), RTThreadSelf());
+    // printf("Event received: %d\n", event.GetType());
     switch(event.GetType())
     {
         /*
@@ -163,9 +170,13 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T /* type */, IEvent
         }
         /* Not used *
         case KVBoxEventType_OnCPUChange:
-        case KVBoxEventType_OnVRDEServerChange:
-        case KVBoxEventType_OnVRDEServerInfoChange:
          */
+        case KVBoxEventType_OnVRDEServerChanged:
+        case KVBoxEventType_OnVRDEServerInfoChanged:
+        {
+            emit sigVRDEChange();
+            break;
+        }
         case KVBoxEventType_OnUSBControllerChanged:
         {
             emit sigUSBControllerChange();
@@ -179,7 +190,6 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T /* type */, IEvent
         }
         case KVBoxEventType_OnSharedFolderChanged:
         {
-            CSharedFolderChangedEvent es(pEvent);
             emit sigSharedFolderChange();
             break;
         }
@@ -207,6 +217,11 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T /* type */, IEvent
             LONG64 winId;
             emit sigShowWindow(winId);
             es.SetWinId(winId);
+            break;
+        }
+        case KVBoxEventType_OnCPUExecutionCapChanged:
+        {
+            emit sigCPUExecutionCapChange();
             break;
         }
         default: break;

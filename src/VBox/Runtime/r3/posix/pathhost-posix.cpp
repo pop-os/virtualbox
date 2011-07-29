@@ -1,4 +1,4 @@
-/* $Id: pathhost-posix.cpp $ */
+/* $Id: pathhost-posix.cpp 37563 2011-06-20 19:47:47Z vboxsync $ */
 /** @file
  * IPRT - Path Conversions, POSIX.
  */
@@ -31,6 +31,7 @@
 #define LOG_GROUP RTLOGGROUP_PATH
 #include "internal/iprt.h"
 #include "internal/path.h"
+#include "internal/string.h"
 #include "internal/thread.h"
 
 #include <iprt/env.h>

@@ -1,4 +1,4 @@
-/* $Id: vfsmemory.cpp $ */
+/* $Id: vfsmemory.cpp 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - Virtual File System, Memory Backed VFS.
  */
@@ -694,7 +694,7 @@ static DECLCALLBACK(int) rtVfsMemFile_QuerySize(void *pvThis, uint64_t *pcbFile)
 /**
  * Standard file operations.
  */
-DECLHIDDEN(const RTVFSFILEOPS) g_rtVfsStdFileOps =
+DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtVfsStdFileOps =
 {
     { /* Stream */
         { /* Obj */

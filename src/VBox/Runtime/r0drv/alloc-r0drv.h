@@ -1,4 +1,4 @@
-/* $Id: alloc-r0drv.h $ */
+/* $Id: alloc-r0drv.h 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation, Ring-0 Driver.
  */
@@ -86,13 +86,13 @@ typedef struct RTMEMHDR
  *                      the backend might be using.
  * @param   ppHdr       Where to return the memory header on success.
  */
-int         rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr);
+DECLHIDDEN(int)     rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr);
 
 /**
  * Free memory allocated by rtR0MemAllocEx.
  * @param   pHdr        The memory block to free.  (Never NULL.)
  */
-void        rtR0MemFree(PRTMEMHDR pHdr);
+DECLHIDDEN(void)    rtR0MemFree(PRTMEMHDR pHdr);
 
 RT_C_DECLS_END
 #endif

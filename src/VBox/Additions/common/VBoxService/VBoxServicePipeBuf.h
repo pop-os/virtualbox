@@ -1,4 +1,4 @@
-/* $Id: VBoxServicePipeBuf.h $ */
+/* $Id: VBoxServicePipeBuf.h 36744 2011-04-20 10:05:09Z vboxsync $ */
 /** @file
  * VBoxServicePipeBuf - Pipe buffering.
  */

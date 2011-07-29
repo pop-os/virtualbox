@@ -1,4 +1,4 @@
-/* $Id: PDMCritSect.cpp $ */
+/* $Id: PDMCritSect.cpp 37466 2011-06-15 12:44:16Z vboxsync $ */
 /** @file
  * PDM - Critical Sections, Ring-3.
  */
@@ -122,7 +122,8 @@ VMMDECL(int) PDMR3CritSectTerm(PVM pVM)
  *                          statistics and lock validation.
  * @param   va              Arguments for the format string.
  */
-static int pdmR3CritSectInitOne(PVM pVM, PPDMCRITSECTINT pCritSect, void *pvKey, RT_SRC_POS_DECL, const char *pszNameFmt, va_list va)
+static int pdmR3CritSectInitOne(PVM pVM, PPDMCRITSECTINT pCritSect, void *pvKey, RT_SRC_POS_DECL,
+                                const char *pszNameFmt, va_list va)
 {
     VM_ASSERT_EMT(pVM);
 
@@ -163,6 +164,8 @@ static int pdmR3CritSectInitOne(PVM pVM, PPDMCRITSECTINT pCritSect, void *pvKey,
                 pCritSect->pVMR0                     = pVM->pVMR0;
                 pCritSect->pVMRC                     = pVM->pVMRC;
                 pCritSect->pvKey                     = pvKey;
+                pCritSect->fAutomaticDefaultCritsect = false;
+                pCritSect->fUsedByTimerOrSimilar     = false;
                 pCritSect->EventToSignal             = NIL_RTSEMEVENT;
                 pCritSect->pNext                     = pVM->pUVM->pdm.s.pCritSects;
                 pCritSect->pszName                   = pszName;
@@ -234,6 +237,27 @@ int pdmR3CritSectInitDevice(PVM pVM, PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect,
                             const char *pszNameFmt, va_list va)
 {
     return pdmR3CritSectInitOne(pVM, &pCritSect->s, pDevIns, RT_SRC_POS_ARGS, pszNameFmt, va);
+}
+
+
+/**
+ * Initializes the automatic default PDM critical section for a device.
+ *
+ * @returns VBox status code.
+ * @param   pVM             The VM handle.
+ * @param   pDevIns         Device instance.
+ * @param   pCritSect       Pointer to the critical section.
+ */
+int pdmR3CritSectInitDeviceAuto(PVM pVM, PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect, RT_SRC_POS_DECL,
+                                const char *pszNameFmt, ...)
+{
+    va_list va;
+    va_start(va, pszNameFmt);
+    int rc = pdmR3CritSectInitOne(pVM, &pCritSect->s, pDevIns, RT_SRC_POS_ARGS, pszNameFmt, va);
+    if (RT_SUCCESS(rc))
+        pCritSect->s.fAutomaticDefaultCritsect = true;
+    va_end(va);
+    return rc;
 }
 
 
@@ -458,6 +482,7 @@ VMMR3DECL(bool) PDMR3CritSectYield(PPDMCRITSECT pCritSect)
     AssertPtrReturn(pCritSect, false);
     AssertReturn(pCritSect->s.Core.u32Magic == RTCRITSECT_MAGIC, false);
     Assert(pCritSect->s.Core.NativeThreadOwner == RTThreadNativeSelf());
+    Assert(!(pCritSect->s.Core.fFlags & RTCRITSECT_FLAGS_NOP));
 
     /* No recursion allowed here. */
     int32_t const cNestings = pCritSect->s.Core.cNestings;
@@ -515,6 +540,8 @@ VMMR3DECL(bool) PDMR3CritSectYield(PPDMCRITSECT pCritSect)
  */
 VMMR3DECL(int) PDMR3CritSectScheduleExitEvent(PPDMCRITSECT pCritSect, RTSEMEVENT EventToSignal)
 {
+    AssertPtr(pCritSect);
+    Assert(!(pCritSect->s.Core.fFlags & RTCRITSECT_FLAGS_NOP));
     Assert(EventToSignal != NIL_RTSEMEVENT);
     if (RT_UNLIKELY(!RTCritSectIsOwner(&pCritSect->s.Core)))
         return VERR_NOT_OWNER;
@@ -617,9 +644,12 @@ VMMR3DECL(uint32_t) PDMR3CritSectCountOwned(PVM pVM, char *pszNames, size_t cbNa
 /**
  * Leave all critical sections the calling thread owns.
  *
+ * This is only used when entering guru meditation in order to prevent other
+ * EMTs and I/O threads from deadlocking.
+ *
  * @param   pVM         The VM handle.
  */
-void PDMR3CritSectLeaveAll(PVM pVM)
+VMMR3DECL(void) PDMR3CritSectLeaveAll(PVM pVM)
 {
     RTNATIVETHREAD const hNativeSelf = RTThreadNativeSelf();
     PUVM                 pUVM        = pVM->pUVM;
@@ -634,5 +664,47 @@ void PDMR3CritSectLeaveAll(PVM pVM)
             PDMCritSectLeave((PPDMCRITSECT)pCur);
     }
     RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
+}
+
+
+/**
+ * Gets the address of the NOP critical section.
+ *
+ * The NOP critical section will not perform any thread serialization but let
+ * all enter immediately and concurrently.
+ *
+ * @returns The address of the NOP critical section.
+ * @param   pVM                 The VM handle.
+ */
+VMMR3DECL(PPDMCRITSECT)             PDMR3CritSectGetNop(PVM pVM)
+{
+    VM_ASSERT_VALID_EXT_RETURN(pVM, NULL);
+    return &pVM->pdm.s.NopCritSect;
+}
+
+
+/**
+ * Gets the ring-0 address of the NOP critical section.
+ *
+ * @returns The ring-0 address of the NOP critical section.
+ * @param   pVM                 The VM handle.
+ */
+VMMR3DECL(R0PTRTYPE(PPDMCRITSECT))  PDMR3CritSectGetNopR0(PVM pVM)
+{
+    VM_ASSERT_VALID_EXT_RETURN(pVM, NIL_RTR0PTR);
+    return MMHyperR3ToR0(pVM, &pVM->pdm.s.NopCritSect);
+}
+
+
+/**
+ * Gets the raw-mode context address of the NOP critical section.
+ *
+ * @returns The raw-mode context address of the NOP critical section.
+ * @param   pVM                 The VM handle.
+ */
+VMMR3DECL(RCPTRTYPE(PPDMCRITSECT))  PDMR3CritSectGetNopRC(PVM pVM)
+{
+    VM_ASSERT_VALID_EXT_RETURN(pVM, NIL_RTRCPTR);
+    return MMHyperR3ToRC(pVM, &pVM->pdm.s.NopCritSect);
 }
 

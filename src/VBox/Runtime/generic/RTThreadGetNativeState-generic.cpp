@@ -1,4 +1,4 @@
-/* $Id: RTThreadGetNativeState-generic.cpp $ */
+/* $Id: RTThreadGetNativeState-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - RTThreadGetNativeState, generic stub implementation.
  */

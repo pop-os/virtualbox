@@ -1,4 +1,4 @@
-/* $Id: SUPDrv-win.cpp $ */
+/* $Id: SUPDrv-win.cpp 37249 2011-05-30 10:03:45Z vboxsync $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Windows NT specifics.
  */
@@ -765,9 +765,9 @@ static int supdrvNtCompare(PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits, u
     return iDiff;
 }
 
-int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits)
+int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits, PSUPLDRLOAD pReq)
 {
-    NOREF(pDevExt); NOREF(pImage); NOREF(pbImageBits);
+    NOREF(pDevExt); NOREF(pReq);
     if (pImage->pvNtSectionObj)
     {
         /*

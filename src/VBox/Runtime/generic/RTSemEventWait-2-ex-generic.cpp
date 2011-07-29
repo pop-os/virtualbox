@@ -1,4 +1,4 @@
-/* $Id: RTSemEventWait-2-ex-generic.cpp $ */
+/* $Id: RTSemEventWait-2-ex-generic.cpp 36190 2011-03-07 16:28:50Z vboxsync $ */
 /** @file
  * IPRT - RTSemEventWait, implementation based on RTSemEventWaitEx.
  */

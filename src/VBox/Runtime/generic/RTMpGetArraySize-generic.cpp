@@ -1,4 +1,4 @@
-/* $Id: RTMpGetArraySize-generic.cpp $ */
+/* $Id: RTMpGetArraySize-generic.cpp 36254 2011-03-10 17:22:08Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Generic RTMpGetArraySize.
  */

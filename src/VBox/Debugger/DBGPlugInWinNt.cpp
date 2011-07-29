@@ -1,4 +1,4 @@
-/* $Id: DBGPlugInWinNt.cpp $ */
+/* $Id: DBGPlugInWinNt.cpp 37809 2011-07-07 08:15:02Z vboxsync $ */
 /** @file
  * DBGPlugInWindows - Debugger and Guest OS Digger Plugin For Windows NT.
  */
@@ -305,7 +305,7 @@ static void dbgDiggerWinNtProcessImage(PDBGDIGGERWINNT pThis, PVM pVM, const cha
 
     /* Dig out the NT/PE headers. */
     IMAGE_DOS_HEADER const *pMzHdr = (IMAGE_DOS_HEADER const *)pbBuf;
-    typedef union NTHDRS
+    typedef union NTHDRSU
     {
         IMAGE_NT_HEADERS64  vX_32;
         IMAGE_NT_HEADERS64  vX_64;

@@ -1,4 +1,4 @@
-/* $Id: initterm-r0drv-solaris.c $ */
+/* $Id: initterm-r0drv-solaris.c 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - Initialization & Termination, R0 Driver, Solaris.
  */
@@ -53,7 +53,7 @@ PFNSOL_untimeout_generic    g_pfnrtR0Sol_untimeout_generic = NULL;
 PFNSOL_cyclic_reprogram     g_pfnrtR0Sol_cyclic_reprogram  = NULL;
 
 
-int rtR0InitNative(void)
+DECLHIDDEN(int) rtR0InitNative(void)
 {
     /*
      * Initialize vbi (keeping it separate for now)
@@ -102,7 +102,7 @@ int rtR0InitNative(void)
 }
 
 
-void rtR0TermNative(void)
+DECLHIDDEN(void) rtR0TermNative(void)
 {
 }
 

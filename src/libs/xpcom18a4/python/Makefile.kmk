@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 37113 2011-05-16 16:20:00Z vboxsync $
 ## @file
 # Sub-Makefile for Python bindings
 #
@@ -113,7 +113,8 @@ VBoxPython2_5_INCS       = $(VBOX_PYTHON25_INC)
 VBoxPython2_5_LIBS       = $(VBOX_PYTHON25_LIB)
 endif
 
-if defined(VBOX_PYTHON26_INC)
+if defined(VBOX_PYTHON26_INC) \
+  && ("$(KBUILD_TARGET)" != "darwin" || "$(VBOX_DEF_MACOSX_VERSION_MIN)" <= "10.6")
 #
 # Python 2.6 version
 #

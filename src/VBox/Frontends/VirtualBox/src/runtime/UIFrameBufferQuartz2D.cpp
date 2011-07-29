@@ -1,4 +1,4 @@
-/* $Id: UIFrameBufferQuartz2D.cpp $ */
+/* $Id: UIFrameBufferQuartz2D.cpp 37063 2011-05-13 10:21:28Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

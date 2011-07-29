@@ -17,7 +17,7 @@
  */
 
 /*
- * Copyright (C) 2007-2010 Oracle Corporation
+ * Copyright (C) 2007-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -160,6 +160,10 @@ public:
 
 protected:
     ConfigFileBase(const com::Utf8Str *pstrFilename);
+    /* Note: this copy constructor doesn't create a full copy of other, cause
+     * the file based stuff (xml doc) could not be copied. */
+    ConfigFileBase(const ConfigFileBase &other);
+
     ~ConfigFileBase();
 
     void parseUUID(com::Guid &guid,
@@ -194,10 +198,6 @@ protected:
 
     struct Data;
     Data *m;
-
-private:
-    // prohibit copying (Data contains pointers to XML which cannot be copied)
-    ConfigFileBase(const ConfigFileBase&);
 
     friend class ConfigFileError;
 };
@@ -436,33 +436,34 @@ struct NetworkAdapter
           fEnabled(false),
           fCableConnected(false),
           ulLineSpeed(0),
+          enmPromiscModePolicy(NetworkAdapterPromiscModePolicy_Deny),
           fTraceEnabled(false),
           mode(NetworkAttachmentType_Null),
-          ulBootPriority(0),
-          fHasDisabledNAT(false),
-          ulBandwidthLimit(0)
+          ulBootPriority(0)
     {}
 
     bool operator==(const NetworkAdapter &n) const;
 
     uint32_t                ulSlot;
 
-    NetworkAdapterType_T    type;
-    bool                    fEnabled;
-    com::Utf8Str            strMACAddress;
-    bool                    fCableConnected;
-    uint32_t                ulLineSpeed;
-    bool                    fTraceEnabled;
-    com::Utf8Str            strTraceFile;
+    NetworkAdapterType_T                type;
+    bool                                fEnabled;
+    com::Utf8Str                        strMACAddress;
+    bool                                fCableConnected;
+    uint32_t                            ulLineSpeed;
+    NetworkAdapterPromiscModePolicy_T   enmPromiscModePolicy;
+    bool                                fTraceEnabled;
+    com::Utf8Str                        strTraceFile;
 
-    NetworkAttachmentType_T mode;
-    NAT                     nat;
-    com::Utf8Str            strName;            // NAT has own attribute
-                                                // with bridged: host interface or empty;
-                                                // otherwise: network name (required)
-    uint32_t                ulBootPriority;
-    bool                    fHasDisabledNAT;
-    uint32_t                ulBandwidthLimit;
+    NetworkAttachmentType_T             mode;
+    NAT                                 nat;
+    com::Utf8Str                        strBridgedName;
+    com::Utf8Str                        strHostOnlyName;
+    com::Utf8Str                        strInternalNetworkName;
+    com::Utf8Str                        strGenericDriver;
+    StringsMap                          genericProperties;
+    uint32_t                            ulBootPriority;
+    com::Utf8Str                        strBandwidthGroup; // requires settings version 1.13 (VirtualBox 4.2)
 };
 typedef std::list<NetworkAdapter> NetworkAdaptersList;
 
@@ -692,6 +693,32 @@ struct IoSettings
 };
 
 /**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
+struct HostPciDeviceAttachment
+{
+    HostPciDeviceAttachment()
+        : uHostAddress(0),
+          uGuestAddress(0)
+    {}
+
+    bool operator==(const HostPciDeviceAttachment &a) const
+    {
+        return (   (uHostAddress   == a.uHostAddress)
+                && (uGuestAddress  == a.uGuestAddress)
+                && (strDeviceName  == a.strDeviceName)
+               );
+    }
+
+    com::Utf8Str    strDeviceName;
+    uint32_t        uHostAddress;
+    uint32_t        uGuestAddress;
+};
+typedef std::list<HostPciDeviceAttachment> HostPciDeviceAttachmentList;
+
+/**
  * Representation of Machine hardware; this is used in the MachineConfigFile.hardwareMachine
  * field.
  *
@@ -760,6 +787,7 @@ struct Hardware
     com::Utf8Str        strNotificationPatterns;
 
     IoSettings          ioSettings;             // requires settings version 1.10 (VirtualBox 3.2)
+    HostPciDeviceAttachmentList pciAttachments; // requires settings version 1.12 (VirtualBox 4.1)
 };
 
 /**
@@ -777,6 +805,8 @@ struct AttachedDevice
     AttachedDevice()
         : deviceType(DeviceType_Null),
           fPassThrough(false),
+          fTempEject(false),
+          fNonRotational(false),
           lPort(0),
           lDevice(0)
     {}
@@ -787,6 +817,13 @@ struct AttachedDevice
 
     // DVDs can be in pass-through mode:
     bool                fPassThrough;
+
+    // Whether guest-triggered eject of DVDs will keep the medium in the
+    // VM config or not:
+    bool                fTempEject;
+
+    // Whether the medium is non-rotational:
+    bool                fNonRotational;
 
     int32_t             lPort;
     int32_t             lDevice;
@@ -1006,7 +1043,7 @@ private:
     void readMachine(const xml::ElementNode &elmMachine);
 
     void buildHardwareXML(xml::ElementNode &elmParent, const Hardware &hw, const Storage &strg);
-    void buildNetworkXML(NetworkAttachmentType_T mode, xml::ElementNode &elmParent, const NetworkAdapter &nic);
+    void buildNetworkXML(NetworkAttachmentType_T mode, xml::ElementNode &elmParent, bool fEnabled, const NetworkAdapter &nic);
     void buildStorageControllersXML(xml::ElementNode &elmParent,
                                     const Storage &st,
                                     bool fSkipRemovableMedia,

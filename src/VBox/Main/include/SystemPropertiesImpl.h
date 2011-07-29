@@ -1,4 +1,4 @@
-/* $Id: SystemPropertiesImpl.h $ */
+/* $Id: SystemPropertiesImpl.h 35761 2011-01-28 13:19:26Z vboxsync $ */
 
 /** @file
  *
@@ -45,9 +45,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(SystemProperties)
-        COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(ISystemProperties)
-        COM_INTERFACE_ENTRY2(IDispatch, ISystemProperties)
+        VBOX_DEFAULT_INTERFACE_ENTRIES (ISystemProperties)
     END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR(SystemProperties)
@@ -68,7 +66,6 @@ public:
     STDMETHOD(COMGETTER(MaxGuestCPUCount))(ULONG *maxCPUCount);
     STDMETHOD(COMGETTER(MaxGuestMonitors))(ULONG *maxMonitors);
     STDMETHOD(COMGETTER(InfoVDSize))(LONG64 *infoVDSize);
-    STDMETHOD(COMGETTER(NetworkAdapterCount))(ULONG *count);
     STDMETHOD(COMGETTER(SerialPortCount))(ULONG *count);
     STDMETHOD(COMGETTER(ParallelPortCount))(ULONG *count);
     STDMETHOD(COMGETTER(MaxBootPosition))(ULONG *aMaxBootPosition);
@@ -95,6 +92,8 @@ public:
     STDMETHOD(COMSETTER(LogHistoryCount))(ULONG count);
     STDMETHOD(COMGETTER(DefaultAudioDriver))(AudioDriverType_T *aAudioDriver);
 
+    STDMETHOD(GetMaxNetworkAdapters)(ChipsetType_T aChipset, ULONG *aMaxInstances);
+    STDMETHOD(GetMaxNetworkAdaptersOfType)(ChipsetType_T aChipset, NetworkAttachmentType_T aType, ULONG *aMaxInstances);
     STDMETHOD(GetMaxDevicesPerPortForStorageBus)(StorageBus_T aBus, ULONG *aMaxDevicesPerPort);
     STDMETHOD(GetMinPortCountForStorageBus)(StorageBus_T aBus, ULONG *aMinPortCount);
     STDMETHOD(GetMaxPortCountForStorageBus)(StorageBus_T aBus, ULONG *aMaxPortCount);

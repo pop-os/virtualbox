@@ -1,4 +1,4 @@
-/* $Id: debug.c $ */
+/* $Id: debug.c 37938 2011-07-14 04:28:46Z vboxsync $ */
 /** @file
  * NAT - debug helpers.
  */
@@ -34,8 +34,25 @@
 void dump_packet(void *, int);
 #endif
 
-#define IP4_ADDR_PRINTF_DECOMP(ip) ((ip) >> 24), ((ip) >> 16) & 0xff, ((ip) >> 8) & 0xff, (ip) & 0xff
-#define IP4_ADDR_PRINTF_FORMAT "%u.%u.%u.%u"
+#ifndef STRINGIFY
+# define STRINGIFY(x) #x
+#endif
+
+static char *g_apszTcpStates[TCP_NSTATES] =
+{
+    STRINGIFY(TCPS_CLOSED),
+    STRINGIFY(TCPS_LISTEN),
+    STRINGIFY(TCPS_SYN_SENT),
+    STRINGIFY(TCPS_SYN_RECEIVED),
+    STRINGIFY(TCPS_ESTABLISHED),
+    STRINGIFY(TCPS_CLOSE_WAIT),
+    STRINGIFY(TCPS_FIN_WAIT_1),
+    STRINGIFY(TCPS_CLOSING),
+    STRINGIFY(TCPS_LAST_ACK),
+    STRINGIFY(TCPS_FIN_WAIT_2),
+    STRINGIFY(TCPS_TIME_WAIT)
+};
+
 /*
  * Dump a packet in the same format as tcpdump -x
  */
@@ -227,39 +244,6 @@ sockstats(PNATState pData)
 #endif
 
 static DECLCALLBACK(size_t)
-print_ipv4_address(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
-                   const char *pszType, void const *pvValue,
-                   int cchWidth, int cchPrecision, unsigned fFlags,
-                   void *pvUser)
-{
-    uint32_t ip;
-
-    AssertReturn(strcmp(pszType, "IP4") == 0, 0);
-
-    ip = RT_N2H_U32(*(uint32_t*)pvValue);
-    return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, IP4_ADDR_PRINTF_FORMAT,
-           IP4_ADDR_PRINTF_DECOMP(ip));
-}
-
-static DECLCALLBACK(size_t)
-print_ether_address(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
-                   const char *pszType, void const *pvValue,
-                   int cchWidth, int cchPrecision, unsigned fFlags,
-                   void *pvUser)
-{
-    char *ether = (char *)pvValue;
-
-    AssertReturn(strcmp(pszType, "ether") == 0, 0);
-    if (ether)
-        return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
-            "[ether %hhx:%hhx:%hhx:%hhx:%hhx:%hhx]",
-            ether[0], ether[1], ether[2],
-            ether[3], ether[4], ether[5]);
-    else
-        return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "[ether null]");
-}
-
-static DECLCALLBACK(size_t)
 print_socket(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
              const char *pszType, void const *pvValue,
              int cchWidth, int cchPrecision, unsigned fFlags,
@@ -288,13 +272,17 @@ print_socket(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
     }
 
     in_addr = (struct sockaddr_in *)&addr;
-    ip = RT_N2H_U32(so->so_faddr.s_addr);
     return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "socket %d:(proto:%u) "
-            "state=%04x ip=" IP4_ADDR_PRINTF_FORMAT ":%d "
-            "name=" IP4_ADDR_PRINTF_FORMAT ":%d",
-            so->s, so->so_type, so->so_state, IP4_ADDR_PRINTF_DECOMP(ip),
+            "state=%04x "
+            "f_(addr:port)=%RTnaipv4:%d "
+            "l_(addr:port)=%RTnaipv4:%d "
+            "name=%RTnaipv4:%d",
+            so->s, so->so_type, so->so_state,
+            so->so_faddr.s_addr,
             RT_N2H_U16(so->so_fport),
-            IP4_ADDR_PRINTF_DECOMP(RT_N2H_U32(in_addr->sin_addr.s_addr)),
+            so->so_laddr.s_addr,
+            RT_N2H_U16(so->so_lport),
+            in_addr->sin_addr.s_addr,
             RT_N2H_U16(in_addr->sin_port));
 }
 
@@ -309,10 +297,17 @@ printTcpcbRfc793(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
 {
     size_t cb = 0;
     const struct tcpcb *tp = (const struct tcpcb *)pvValue;
-    AssertReturn(RTStrCmp(pszType, "tcpcb793") == 0 && tp, 0);
-    cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "TCB793[ SND(UNA: %x, NXT: %x, UP: %x, WND: %x, WL1:%x, WL2:%x, ISS:%x), ",
-                      tp->snd_una, tp->snd_nxt, tp->snd_up, tp->snd_wnd, tp->snd_wl1, tp->snd_wl2, tp->iss);
-    cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "RCV(WND: %x, NXT: %x, UP: %x, IRS:%x)]", tp->rcv_wnd, tp->rcv_nxt, tp->rcv_up, tp->irs);
+    AssertReturn(RTStrCmp(pszType, "tcpcb793") == 0, 0);
+    if (tp)
+    {
+        cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "TCB793[ state:%R[tcpstate] SND(UNA: %x, NXT: %x, UP: %x, WND: %x, WL1:%x, WL2:%x, ISS:%x), ",
+                          tp->t_state, tp->snd_una, tp->snd_nxt, tp->snd_up, tp->snd_wnd, tp->snd_wl1, tp->snd_wl2, tp->iss);
+        cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "RCV(WND: %x, NXT: %x, UP: %x, IRS:%x)]", tp->rcv_wnd, tp->rcv_nxt, tp->rcv_up, tp->irs);
+    }
+    else
+    {
+        cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "TCB793[ NULL ]");
+    }
     return cb;
 }
 /*
@@ -329,6 +324,40 @@ printTcpSegmentRfc793(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
     AssertReturn(RTStrCmp(pszType, "tcpseg793") == 0 && ti, 0);
     cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "SEG[ACK: %x, SEQ: %x, LEN: %x, WND: %x, UP: %x]",
                       ti->ti_ack, ti->ti_seq, ti->ti_len, ti->ti_win, ti->ti_urp);
+    return cb;
+}
+
+/*
+ * Prints TCP state
+ */
+static DECLCALLBACK(size_t)
+printTcpState(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
+                 const char *pszType, void const *pvValue,
+                 int cchWidth, int cchPrecision, unsigned fFlags,
+                 void *pvUser)
+{
+    size_t cb = 0;
+    const int idxTcpState = (int)(uintptr_t)pvValue;
+    char *pszTcpStateName = (idxTcpState >= 0 && idxTcpState < TCP_NSTATES) ? g_apszTcpStates[idxTcpState] : "TCPS_INVALIDE_STATE";
+    AssertReturn(RTStrCmp(pszType, "tcpstate") == 0, 0);
+    cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "%s", pszTcpStateName);
+    return cb;
+}
+
+/*
+ * Prints sbuf state
+ */
+static DECLCALLBACK(size_t)
+printSbuf(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
+                 const char *pszType, void const *pvValue,
+                 int cchWidth, int cchPrecision, unsigned fFlags,
+                 void *pvUser)
+{
+    size_t cb = 0;
+    const struct sbuf *sb = (struct sbuf *)pvValue;
+    AssertReturn(RTStrCmp(pszType, "sbuf") == 0, 0);
+    cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "[sbuf:%p cc:%d, datalen:%d, wprt:%p, rptr:%p data:%p]",
+                      sb, sb->sb_cc, sb->sb_datalen, sb->sb_wptr, sb->sb_rptr, sb->sb_data);
     return cb;
 }
 
@@ -389,22 +418,19 @@ debug_init()
 
     if (!g_fFormatRegistered)
     {
-        /*
-         * XXX(r - frank): Move this to IPRT using RTNETADDRIPV4.
-         * Use the specifier %RNAipv4.
-         */
-        rc = RTStrFormatTypeRegister("IP4", print_ipv4_address, NULL);
-        AssertRC(rc);
-        rc = RTStrFormatTypeRegister("ether", print_ether_address, NULL);
-        AssertRC(rc);
+
         rc = RTStrFormatTypeRegister("natsock", print_socket, NULL);
         AssertRC(rc);
         rc = RTStrFormatTypeRegister("natwinnetevents",
-            print_networkevents, NULL);
+                                     print_networkevents, NULL);
         AssertRC(rc);
         rc = RTStrFormatTypeRegister("tcpcb793", printTcpcbRfc793, NULL);
         AssertRC(rc);
         rc = RTStrFormatTypeRegister("tcpseg793", printTcpSegmentRfc793, NULL);
+        AssertRC(rc);
+        rc = RTStrFormatTypeRegister("tcpstate", printTcpState, NULL);
+        AssertRC(rc);
+        rc = RTStrFormatTypeRegister("sbuf", printSbuf, NULL);
         AssertRC(rc);
         g_fFormatRegistered = 1;
     }

@@ -1,4 +1,4 @@
-/* $Id: manifest2.cpp $ */
+/* $Id: manifest2.cpp 34941 2010-12-10 10:58:06Z vboxsync $ */
 /** @file
  * IPRT - Manifest, the core.
  */

@@ -1,4 +1,4 @@
-/* $Id: RTFileQueryFsSizes-posix.cpp $ */
+/* $Id: RTFileQueryFsSizes-posix.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
 /** @file
  * IPRT - File I/O, RTFileFsQuerySizes, POSIX.
  */
@@ -47,7 +47,7 @@ RTR3DECL(int) RTFileQueryFsSizes(RTFILE hFile, PRTFOFF pcbTotal, RTFOFF *pcbFree
 {
     struct statvfs StatVFS;
     RT_ZERO(StatVFS);
-    if (fstatvfs(hFile, &StatVFS))
+    if (fstatvfs(RTFileToNative(hFile), &StatVFS))
         return RTErrConvertFromErrno(errno);
 
     /*

@@ -1,4 +1,4 @@
-/* $Id: mpnotification-r0drv-linux.c $ */
+/* $Id: mpnotification-r0drv-linux.c 37672 2011-06-28 19:48:17Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor Event Notifications, Ring-0 Driver, Linux.
  */
@@ -34,6 +34,7 @@
 #include <iprt/mp.h>
 #include <iprt/err.h>
 #include <iprt/cpuset.h>
+#include <iprt/thread.h>
 #include "r0drv/mp-r0drv.h"
 
 
@@ -67,16 +68,63 @@ static RTCPUSET g_MpPendingOfflineSet;
 
 
 /**
+ * Notification wrapper that updates CPU states and invokes our notification
+ * callbacks.
+ *
+ * @param idCpu             The CPU Id.
+ * @param pvUser1           Pointer to the notifier_block (unused).
+ * @param pvUser2           The notification event.
+ * @remarks This can be invoked in interrupt context.
+ */
+static void rtMpNotificationLinuxOnCurrentCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+{
+    unsigned long ulNativeEvent = *(unsigned long *)pvUser2;
+    NOREF(pvUser1);
+
+    AssertRelease(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
+    AssertRelease(idCpu == RTMpCpuId());   /* ASSUMES iCpu == RTCPUID */
+
+    switch (ulNativeEvent)
+    {
+# ifdef CPU_DOWN_FAILED
+        case CPU_DOWN_FAILED:
+#  if defined(CPU_TASKS_FROZEN) && defined(CPU_DOWN_FAILED_FROZEN)
+        case CPU_DOWN_FAILED_FROZEN:
+#  endif
+# endif
+        case CPU_ONLINE:
+# if defined(CPU_TASKS_FROZEN) && defined(CPU_ONLINE_FROZEN)
+        case CPU_ONLINE_FROZEN:
+# endif
+            rtMpNotificationDoCallbacks(RTMPEVENT_ONLINE, idCpu);
+            break;
+
+# ifdef CPU_DOWN_PREPARE
+        case CPU_DOWN_PREPARE:
+#  if defined(CPU_TASKS_FROZEN) && defined(CPU_DOWN_PREPARE_FROZEN)
+        case CPU_DOWN_PREPARE_FROZEN:
+#  endif
+            rtMpNotificationDoCallbacks(RTMPEVENT_OFFLINE, idCpu);
+            break;
+# endif
+    }
+}
+
+
+/**
  * The native callback.
  *
- * @returns 0.
+ * @returns NOTIFY_DONE.
  * @param   pNotifierBlock  Pointer to g_NotifierBlock.
  * @param   ulNativeEvent   The native event.
  * @param   pvCpu           The cpu id cast into a pointer value.
+ * @remarks This can fire with preemption enabled and on any CPU.
  */
 static int rtMpNotificationLinuxCallback(struct notifier_block *pNotifierBlock, unsigned long ulNativeEvent, void *pvCpu)
 {
-    RTCPUID idCpu = (uintptr_t)pvCpu;
+    int rc;
+    bool fProcessEvent = false;
+    RTCPUID idCpu      = (uintptr_t)pvCpu;
     NOREF(pNotifierBlock);
 
     /*
@@ -85,8 +133,6 @@ static int rtMpNotificationLinuxCallback(struct notifier_block *pNotifierBlock, 
      * use them. Thus we have to test for both CPU_TASKS_FROZEN and
      * the individual event variants.
      */
-
-    /* ASSUMES iCpu == RTCPUID */
     switch (ulNativeEvent)
     {
         /*
@@ -99,7 +145,7 @@ static int rtMpNotificationLinuxCallback(struct notifier_block *pNotifierBlock, 
         case CPU_DOWN_FAILED_FROZEN:
 #  endif
             if (!RTCpuSetIsMember(&g_MpPendingOfflineSet, idCpu))
-                return 0;
+                break;      /* fProcessEvents = false */
         /* fall thru */
 # endif
         case CPU_ONLINE:
@@ -109,7 +155,7 @@ static int rtMpNotificationLinuxCallback(struct notifier_block *pNotifierBlock, 
 # ifdef CPU_DOWN_FAILED
             RTCpuSetDel(&g_MpPendingOfflineSet, idCpu);
 # endif
-            rtMpNotificationDoCallbacks(RTMPEVENT_ONLINE, idCpu);
+            fProcessEvent = true;
             break;
 
         /*
@@ -122,24 +168,33 @@ static int rtMpNotificationLinuxCallback(struct notifier_block *pNotifierBlock, 
 #  if defined(CPU_TASKS_FROZEN) && defined(CPU_DOWN_PREPARE_FROZEN)
         case CPU_DOWN_PREPARE_FROZEN:
 #  endif
+            fProcessEvent = true;
 # else
         case CPU_DEAD:
 #  if defined(CPU_TASKS_FROZEN) && defined(CPU_DEAD_FROZEN)
         case CPU_DEAD_FROZEN:
 #  endif
+            /* Don't process CPU_DEAD notifications. */
 # endif
-            rtMpNotificationDoCallbacks(RTMPEVENT_OFFLINE, idCpu);
 # ifdef CPU_DOWN_FAILED
             RTCpuSetAdd(&g_MpPendingOfflineSet, idCpu);
 # endif
             break;
     }
 
+    if (!fProcessEvent)
+        return NOTIFY_DONE;
+
+    /*
+     * Reschedule the callbacks to fire on the specific CPU with preemption disabled.
+     */
+    rc = RTMpOnSpecific(idCpu, rtMpNotificationLinuxOnCurrentCpu, pNotifierBlock, &ulNativeEvent);
+    Assert(RT_SUCCESS(rc)); NOREF(rc);
     return NOTIFY_DONE;
 }
 
 
-int rtR0MpNotificationNativeInit(void)
+DECLHIDDEN(int) rtR0MpNotificationNativeInit(void)
 {
     int rc;
 
@@ -153,19 +208,19 @@ int rtR0MpNotificationNativeInit(void)
 }
 
 
-void rtR0MpNotificationNativeTerm(void)
+DECLHIDDEN(void) rtR0MpNotificationNativeTerm(void)
 {
     unregister_cpu_notifier(&g_NotifierBlock);
 }
 
 #else   /* Not supported / Not needed */
 
-int rtR0MpNotificationNativeInit(void)
+DECLHIDDEN(int) rtR0MpNotificationNativeInit(void)
 {
     return VINF_SUCCESS;
 }
 
-void rtR0MpNotificationNativeTerm(void)
+DECLHIDDEN(void) rtR0MpNotificationNativeTerm(void)
 {
 }
 

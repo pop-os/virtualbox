@@ -1,4 +1,4 @@
-/* $Id: DrvChar.cpp $ */
+/* $Id: DrvChar.cpp 37114 2011-05-16 16:34:49Z vboxsync $ */
 /** @file
  * Driver that adapts PDMISTREAM into PDMICHARCONNECTOR / PDMICHARPORT.
  *
@@ -173,7 +173,10 @@ static DECLCALLBACK(int) drvCharSendLoop(RTTHREAD ThreadSelf, void *pvUser)
         {
             /* Normal case, just means that the stream didn't accept a new
              * character before the timeout elapsed. Just retry. */
-            rc = VINF_SUCCESS;
+
+            /* do not change the rc status here, otherwise the (rc == VERR_TIMEOUT) branch
+             * in the wait above will never get executed */
+            /* rc = VINF_SUCCESS; */
         }
         else
         {
@@ -301,8 +304,6 @@ static DECLCALLBACK(void) drvCharDestruct(PPDMDRVINS pDrvIns)
     if (pThis->SendSem != NIL_RTSEMEVENT)
     {
         RTSemEventSignal(pThis->SendSem);
-        RTSemEventDestroy(pThis->SendSem);
-        pThis->SendSem = NIL_RTSEMEVENT;
     }
 
     /*
@@ -325,6 +326,12 @@ static DECLCALLBACK(void) drvCharDestruct(PPDMDRVINS pDrvIns)
             pThis->SendThread = NIL_RTTHREAD;
         else
             LogRel(("Char%d: send thread did not terminate (%Rrc)\n", pDrvIns->iInstance, rc));
+    }
+
+    if (pThis->SendSem != NIL_RTSEMEVENT)
+    {
+        RTSemEventDestroy(pThis->SendSem);
+        pThis->SendSem = NIL_RTSEMEVENT;
     }
 }
 

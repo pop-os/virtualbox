@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,6 +25,7 @@
 #include "UIExportApplianceWzd.h"
 #include "UIIconPool.h"
 #include "UIImportApplianceWzd.h"
+#include "UICloneVMWizard.h"
 #include "UINewVMWzd.h"
 #include "UIVMDesktop.h"
 #include "UIVMListView.h"
@@ -140,6 +141,9 @@ VBoxSelectorWnd(VBoxSelectorWnd **aSelf, QWidget* aParent,
         QSize(32, 32), QSize(16, 16),
         ":/vm_settings_32px.png", ":/settings_16px.png",
         ":/vm_settings_disabled_32px.png", ":/settings_dis_16px.png"));
+    mVmCloneAction = new QAction(this);
+    mVmCloneAction->setIcon(UIIconPool::iconSet(
+        ":/vm_clone_16px.png", ":/vm_clone_disabled_16px.png"));
     mVmDeleteAction = new QAction(this);
     mVmDeleteAction->setIcon(UIIconPool::iconSetFull(
         QSize(32, 32), QSize(16, 16),
@@ -287,6 +291,7 @@ VBoxSelectorWnd(VBoxSelectorWnd **aSelf, QWidget* aParent,
     mVMMenu->addAction(mVmNewAction);
     mVMMenu->addAction(mVmAddAction);
     mVMMenu->addAction(mVmConfigAction);
+    mVMMenu->addAction(mVmCloneAction);
     mVMMenu->addAction(mVmDeleteAction);
     mVMMenu->addSeparator();
     mVMMenu->addAction(mVmStartAction);
@@ -305,6 +310,7 @@ VBoxSelectorWnd(VBoxSelectorWnd **aSelf, QWidget* aParent,
 
     mVMCtxtMenu = new QMenu(this);
     mVMCtxtMenu->addAction(mVmConfigAction);
+    mVMCtxtMenu->addAction(mVmCloneAction);
     mVMCtxtMenu->addAction(mVmDeleteAction);
     mVMCtxtMenu->addSeparator();
     mVMCtxtMenu->addAction(mVmStartAction);
@@ -434,6 +440,7 @@ VBoxSelectorWnd(VBoxSelectorWnd **aSelf, QWidget* aParent,
     connect(mVmAddAction, SIGNAL(triggered()), this, SLOT(vmAdd()));
 
     connect(mVmConfigAction, SIGNAL(triggered()), this, SLOT(vmSettings()));
+    connect(mVmCloneAction, SIGNAL(triggered()), this, SLOT(vmClone()));
     connect(mVmDeleteAction, SIGNAL(triggered()), this, SLOT(vmDelete()));
     connect(mVmStartAction, SIGNAL(triggered()), this, SLOT(vmStart()));
     connect(mVmDiscardAction, SIGNAL(triggered()), this, SLOT(vmDiscard()));
@@ -591,16 +598,18 @@ void VBoxSelectorWnd::fileExportAppliance()
 
 void VBoxSelectorWnd::fileSettings()
 {
-    VBoxGlobalSettings settings = vboxGlobal().settings();
-    CSystemProperties props = vboxGlobal().virtualBox().GetSystemProperties();
+    /* Check that we do NOT handling that already: */
+    if (mFileSettingsAction->data().toBool())
+        return;
+    /* Remember that we handling that already: */
+    mFileSettingsAction->setData(true);
 
-    UISettingsDialog *dlg = new UIGLSettingsDlg(this);
-    dlg->getFrom();
+    /* Create and execute global settings dialog: */
+    UISettingsDialogGlobal dlg(this);
+    dlg.execute();
 
-    if (dlg->exec() == QDialog::Accepted)
-        dlg->putBackTo();
-
-    delete dlg;
+    /* Remember that we do NOT handling that already: */
+    mFileSettingsAction->setData(false);
 }
 
 void VBoxSelectorWnd::fileExit()
@@ -696,22 +705,30 @@ void VBoxSelectorWnd::vmAdd(const QString &strFile /* = "" */)
 /**
  *  Opens the VM settings dialog.
  */
-void VBoxSelectorWnd::vmSettings(const QString &aCategory /* = QString::null */,
-                                 const QString &aControl /* = QString::null */,
-                                 const QString &aUuid /* = QString::null */)
+void VBoxSelectorWnd::vmSettings(const QString &strCategoryRef /* = QString::null */,
+                                 const QString &strControlRef /* = QString::null */,
+                                 const QString &strMachineId /* = QString::null */)
 {
-    if (!aCategory.isEmpty() && aCategory [0] != '#')
+    /* Check that we do NOT handling that already: */
+    if (mVmConfigAction->data().toBool())
+        return;
+    /* Remember that we handling that already: */
+    mVmConfigAction->setData(true);
+
+    /* Process href from VM details / description: */
+    if (!strCategoryRef.isEmpty() && strCategoryRef[0] != '#')
     {
-        /* Assume it's a href from the Details HTML */
-        vboxGlobal().openURL(aCategory);
+        vboxGlobal().openURL(strCategoryRef);
         return;
     }
-    QString strCategory = aCategory;
-    QString strControl = aControl;
-    /* Maybe the control is coded into the URL by %% */
-    if (aControl == QString::null)
+
+    /* Get category and control: */
+    QString strCategory = strCategoryRef;
+    QString strControl = strControlRef;
+    /* Check if control is coded into the URL by %%: */
+    if (strControl.isEmpty())
     {
-        QStringList parts = aCategory.split("%%");
+        QStringList parts = strCategory.split("%%");
         if (parts.size() == 2)
         {
             strCategory = parts.at(0);
@@ -719,44 +736,31 @@ void VBoxSelectorWnd::vmSettings(const QString &aCategory /* = QString::null */,
         }
     }
 
-    UIVMItem *item = aUuid.isNull() ? mVMListView->selectedItem() :
-                       mVMModel->itemById(aUuid);
+    /* Don't show the inaccessible warning if the user tries to open VM settings: */
+    mDoneInaccessibleWarningOnce = true;
+
+    /* Get corresponding VM item: */
+    UIVMItem *pItem = strMachineId.isNull() ? mVMListView->selectedItem() : mVMModel->itemById(strMachineId);
+    AssertMsgReturnVoid(pItem, ("Item must be always selected here!\n"));
+
+    /* Create and execute corresponding VM settings dialog: */
+    UISettingsDialogMachine dlg(this, pItem->id(), strCategory, strControl);
+    dlg.execute();
+
+    /* Remember that we do NOT handling that already: */
+    mVmConfigAction->setData(false);
+}
+
+void VBoxSelectorWnd::vmClone(const QString &aUuid /* = QString::null */)
+{
+    UIVMItem *item = aUuid.isNull() ? mVMListView->selectedItem() : mVMModel->itemById(aUuid);
 
     AssertMsgReturnVoid(item, ("Item must be always selected here"));
 
-    // open a direct session to modify VM settings
-    QString id = item->id();
-    CSession session = vboxGlobal().openSession(id);
-    if (session.isNull())
-        return;
+    CMachine machine = item->machine();
 
-    CMachine m = session.GetMachine();
-    AssertMsgReturn(!m.isNull(), ("Machine must not be null"), (void) 0);
-
-    /* Don't show the inaccessible warning if the user open the vm settings. */
-    mDoneInaccessibleWarningOnce = true;
-
-    UISettingsDialog *dlg = new UIVMSettingsDlg(this, m, strCategory, strControl);
-    dlg->getFrom();
-
-    if (dlg->exec() == QDialog::Accepted)
-    {
-        QString oldName = m.GetName();
-        dlg->putBackTo();
-
-        m.SaveSettings();
-        if (!m.isOk())
-            vboxProblem().cannotSaveMachineSettings(m);
-
-        /* To check use the result in future
-         * vboxProblem().cannotApplyMachineSettings(m, res); */
-    }
-
-    delete dlg;
-
-    mVMListView->setFocus();
-
-    session.UnlockMachine();
+    UICloneVMWizard wzd(this, machine, false);
+    wzd.exec();
 }
 
 void VBoxSelectorWnd::vmDelete(const QString &aUuid /* = QString::null */)
@@ -769,10 +773,6 @@ void VBoxSelectorWnd::vmDelete(const QString &aUuid /* = QString::null */)
     int rc = vboxProblem().confirmMachineDeletion(machine);
     if (rc != QIMessageBox::Cancel)
     {
-#if defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64)
-        /* XXX currently disabled due to a bug in ComSafeArrayIn on 64-bit Windows hosts! */
-        vboxProblem().showWin64Warning();
-#else
         if (rc == QIMessageBox::Yes)
         {
             /* Unregister and cleanup machine's data & hard-disks: */
@@ -792,7 +792,6 @@ void VBoxSelectorWnd::vmDelete(const QString &aUuid /* = QString::null */)
                 vboxProblem().cannotDeleteMachine(machine);
         }
         else
-#endif
         {
             /* Just unregister machine: */
             machine.Unregister(KCleanupMode_DetachAllReturnNone);
@@ -1238,13 +1237,18 @@ void VBoxSelectorWnd::retranslateUi()
     mVmConfigAction->setToolTip(mVmConfigAction->text().remove('&').remove('.') +
         (mVmConfigAction->shortcut().toString().isEmpty() ? "" : QString(" (%1)").arg(mVmConfigAction->shortcut().toString())));
 
+    mVmCloneAction->setText(tr("Cl&one..."));
+    mVmCloneAction->setShortcut(gSS->keySequence(UISelectorShortcuts::CloneVMShortcut));
+    mVmCloneAction->setStatusTip(tr("Clone the selected virtual machine"));
+
     mVmDeleteAction->setText(tr("&Remove"));
     mVmDeleteAction->setShortcut(gSS->keySequence(UISelectorShortcuts::RemoveVMShortcut));
     mVmDeleteAction->setStatusTip(tr("Remove the selected virtual machine"));
 
     /* Note: mVmStartAction text is set up in vmListViewCurrentChanged() */
 
-    mVmDiscardAction->setText(tr("D&iscard"));
+    mVmDiscardAction->setIconText(tr("Discard"));
+    mVmDiscardAction->setText(tr("D&iscard Saved State"));
     mVmDiscardAction->setShortcut(gSS->keySequence(UISelectorShortcuts::DiscardVMShortcut));
     mVmDiscardAction->setStatusTip(
         tr("Discard the saved state of the selected virtual machine"));
@@ -1332,7 +1336,7 @@ void VBoxSelectorWnd::vmListViewCurrentChanged(bool aRefreshDetails,
 
         KMachineState state = item->machineState();
         bool running = item->sessionState() != KSessionState_Unlocked;
-        bool modifyEnabled = !running && state != KMachineState_Saved;
+        bool modifyEnabled = state != KMachineState_Stuck && state != KMachineState_Saved /* for now! */;
 
         if (   aRefreshDetails
             || aRefreshDescription)
@@ -1344,6 +1348,7 @@ void VBoxSelectorWnd::vmListViewCurrentChanged(bool aRefreshDetails,
 
         /* enable/disable modify actions */
         mVmConfigAction->setEnabled(modifyEnabled);
+        mVmCloneAction->setEnabled(!running);
         mVmDeleteAction->setEnabled(!running);
         mVmDiscardAction->setEnabled(state == KMachineState_Saved && !running);
         mVmPauseAction->setEnabled(   state == KMachineState_Running
@@ -1474,6 +1479,7 @@ void VBoxSelectorWnd::vmListViewCurrentChanged(bool aRefreshDetails,
 
         /* disable modify actions */
         mVmConfigAction->setEnabled(false);
+        mVmCloneAction->setEnabled(false);
         mVmDeleteAction->setEnabled(item != NULL);
         mVmDiscardAction->setEnabled(false);
         mVmPauseAction->setEnabled(false);

@@ -1,10 +1,10 @@
-/* $Id: DBGCCmdWorkers.cpp $ */
+/* $Id: DBGCCmdWorkers.cpp 35673 2011-01-24 10:15:44Z vboxsync $ */
 /** @file
  * DBGC - Debugger Console, Command Worker Routines.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,218 +21,16 @@
 #define LOG_GROUP LOG_GROUP_DBGC
 #include <VBox/dbg.h>
 #include <VBox/vmm/dbgf.h>
-#include <VBox/vmm/vm.h>
-#include <VBox/vmm/vmm.h>
-#include <VBox/vmm/mm.h>
-#include <VBox/vmm/pgm.h>
-#include <VBox/vmm/selm.h>
-#include <VBox/dis.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 
 #include <iprt/alloc.h>
-#include <iprt/alloca.h>
 #include <iprt/string.h>
 #include <iprt/assert.h>
-#include <iprt/ctype.h>
 
 #include "DBGCInternal.h"
 
-
-
-//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
-//
-//
-//      V a r i a b l e   M a n i p u l a t i o n
-//
-//
-//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
-
-
-
-/** @todo move me!*/
-void dbgcVarInit(PDBGCVAR pVar)
-{
-    if (pVar)
-    {
-        memset(pVar, 0, sizeof(*pVar));
-        AssertCompile(DBGCVAR_TYPE_UNKNOWN == 0);
-        AssertCompile(DBGCVAR_RANGE_NONE == 0);
-    }
-}
-
-
-/** @todo move me!*/
-void dbgcVarSetGCFlat(PDBGCVAR pVar, RTGCPTR GCFlat)
-{
-    if (pVar)
-    {
-        pVar->enmType  = DBGCVAR_TYPE_GC_FLAT;
-        memset(&pVar->u, 0, sizeof(pVar->u));
-        pVar->u.GCFlat = GCFlat;
-        pVar->enmRangeType = DBGCVAR_RANGE_NONE;
-        pVar->u64Range  = 0;
-    }
-}
-
-
-/** @todo move me!*/
-void dbgcVarSetGCFlatByteRange(PDBGCVAR pVar, RTGCPTR GCFlat, uint64_t cb)
-{
-    if (pVar)
-    {
-        pVar->enmType  = DBGCVAR_TYPE_GC_FLAT;
-        memset(&pVar->u, 0, sizeof(pVar->u));
-        pVar->u.GCFlat = GCFlat;
-        pVar->enmRangeType = DBGCVAR_RANGE_BYTES;
-        pVar->u64Range  = cb;
-    }
-}
-
-
-/** @todo move me!*/
-void dbgcVarSetU64(PDBGCVAR pVar, uint64_t u64)
-{
-    if (pVar)
-    {
-        pVar->enmType  = DBGCVAR_TYPE_NUMBER;
-        memset(&pVar->u, 0, sizeof(pVar->u));
-        pVar->u.u64Number = u64;
-        pVar->enmRangeType = DBGCVAR_RANGE_NONE;
-        pVar->u64Range  = 0;
-    }
-}
-
-
-/** @todo move me!*/
-void dbgcVarSetVar(PDBGCVAR pVar, PCDBGCVAR pVar2)
-{
-    if (pVar)
-    {
-        if (pVar2)
-            *pVar = *pVar2;
-        else
-        {
-            pVar->enmType = DBGCVAR_TYPE_UNKNOWN;
-            memset(&pVar->u, 0, sizeof(pVar->u));
-            pVar->enmRangeType = DBGCVAR_RANGE_NONE;
-            pVar->u64Range  = 0;
-        }
-    }
-}
-
-/** @todo move me!*/
-void dbgcVarSetDbgfAddr(PDBGCVAR pVar, PCDBGFADDRESS pAddress)
-{
-    if (pVar)
-    {
-        memset(&pVar->u, 0, sizeof(pVar->u));
-
-        Assert(!pAddress || DBGFADDRESS_IS_VALID(pAddress));
-        if (pAddress && DBGFADDRESS_IS_VALID(pAddress))
-        {
-            switch (pAddress->fFlags & DBGFADDRESS_FLAGS_TYPE_MASK)
-            {
-                case DBGFADDRESS_FLAGS_FAR16:
-                case DBGFADDRESS_FLAGS_FAR32:
-                case DBGFADDRESS_FLAGS_FAR64:
-                    pVar->enmType = DBGCVAR_TYPE_GC_FAR;
-                    pVar->u.GCFar.off = pAddress->off;
-                    pVar->u.GCFar.sel = pAddress->Sel;
-                    break;
-
-                case DBGFADDRESS_FLAGS_FLAT:
-                    pVar->enmType = DBGCVAR_TYPE_GC_FLAT;
-                    pVar->u.GCFlat = pAddress->FlatPtr;
-                    break;
-
-                case DBGFADDRESS_FLAGS_PHYS:
-                    pVar->enmType = DBGCVAR_TYPE_GC_PHYS;
-                    pVar->u.GCPhys = pAddress->FlatPtr;
-                    break;
-
-                default:
-                    AssertFailed();
-                    pVar->enmType = DBGCVAR_TYPE_UNKNOWN;
-                    break;
-            }
-        }
-        else
-            pVar->enmType = DBGCVAR_TYPE_UNKNOWN;
-        pVar->enmRangeType = DBGCVAR_RANGE_NONE;
-        pVar->u64Range = 0;
-    }
-}
-
-
-/** @todo move me!*/
-void dbgcVarSetByteRange(PDBGCVAR pVar, uint64_t cb)
-{
-    if (pVar)
-    {
-        pVar->enmRangeType = DBGCVAR_RANGE_BYTES;
-        pVar->u64Range  = cb;
-    }
-}
-
-
-/** @todo move me!*/
-void dbgcVarSetNoRange(PDBGCVAR pVar)
-{
-    if (pVar)
-    {
-        pVar->enmRangeType = DBGCVAR_RANGE_NONE;
-        pVar->u64Range  = 0;
-    }
-}
-
-
-/**
- * Converts a DBGC variable to a DBGF address.
- *
- * @returns VBox status code.
- * @param   pDbgc       The DBGC instance.
- * @param   pVar        The variable.
- * @param   pAddress    Where to store the address.
- */
-int dbgcVarToDbgfAddr(PDBGC pDbgc, PCDBGCVAR pVar, PDBGFADDRESS pAddress)
-{
-    AssertReturn(pVar, VERR_INVALID_PARAMETER);
-    switch (pVar->enmType)
-    {
-        case DBGCVAR_TYPE_GC_FLAT:
-            DBGFR3AddrFromFlat(pDbgc->pVM, pAddress, pVar->u.GCFlat);
-            return VINF_SUCCESS;
-
-        case DBGCVAR_TYPE_NUMBER:
-            DBGFR3AddrFromFlat(pDbgc->pVM, pAddress, (RTGCUINTPTR)pVar->u.u64Number);
-            return VINF_SUCCESS;
-
-        case DBGCVAR_TYPE_GC_FAR:
-            return DBGFR3AddrFromSelOff(pDbgc->pVM, pDbgc->idCpu, pAddress, pVar->u.GCFar.sel, pVar->u.GCFar.off);
-
-        case DBGCVAR_TYPE_GC_PHYS:
-            DBGFR3AddrFromPhys(pDbgc->pVM, pAddress, pVar->u.GCPhys);
-            return VINF_SUCCESS;
-
-        case DBGCVAR_TYPE_STRING:
-        case DBGCVAR_TYPE_SYMBOL:
-        {
-            DBGCVAR Var;
-            int rc = DBGCCmdHlpEval(&pDbgc->CmdHlp, &Var, "%%(%DV)", pVar);
-            if (RT_FAILURE(rc))
-                return rc;
-            return dbgcVarToDbgfAddr(pDbgc, &Var, pAddress);
-        }
-
-        case DBGCVAR_TYPE_HC_FLAT:
-        case DBGCVAR_TYPE_HC_FAR:
-        case DBGCVAR_TYPE_HC_PHYS:
-        default:
-            return VERR_PARSE_CONVERSION_FAILED;
-    }
-}
 
 
 
@@ -383,7 +181,7 @@ PDBGCBP dbgcBpGet(PDBGC pDbgc, RTUINT iBp)
  * @returns VINF_DBGC_BP_NO_COMMAND if there is no command associated with the breakpoint.
  * @returns VERR_DBGC_BP_NOT_FOUND if the breakpoint wasn't found.
  * @returns VERR_BUFFER_OVERFLOW if the is not enough space in the scratch buffer for the command.
- * @returns VBox status code from dbgcProcessCommand() other wise.
+ * @returns VBox status code from dbgcEvalCommand() otherwise.
  * @param   pDbgc       The DBGC instance.
  * @param   iBp         The breakpoint to execute.
  */
@@ -419,7 +217,7 @@ int dbgcBpExec(PDBGC pDbgc, RTUINT iBp)
 
     /* Execute the command. */
     pDbgc->pszScratch = pDbgc->pszScratch + pBp->cchCmd + 1;
-    int rc = dbgcProcessCommand(pDbgc, pszScratch, pBp->cchCmd, false /* fNoExecute */);
+    int rc = dbgcEvalCommand(pDbgc, pszScratch, pBp->cchCmd, false /* fNoExecute */);
 
     /* Restore the scratch state. */
     pDbgc->iArg         = iArg;

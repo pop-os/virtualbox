@@ -1,9 +1,9 @@
 /** @file
- * IPRT - Mini C++ string class.
+ * IPRT - C++ string class.
  */
 
 /*
- * Copyright (C) 2007-2009 Oracle Corporation
+ * Copyright (C) 2007-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,47 +23,53 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_ministring_h
-#define ___VBox_ministring_h
+#ifndef ___iprt_cpp_ministring_h
+#define ___iprt_cpp_ministring_h
 
 #include <iprt/mem.h>
 #include <iprt/string.h>
 #include <iprt/stdarg.h>
+#include <iprt/cpp/list.h>
 
 #include <new>
 
-namespace iprt
-{
 
-/**
- * @brief Mini C++ string class.
+/** @defgroup grp_rt_cpp_string     C++ String support
+ * @ingroup grp_rt_cpp
+ * @{
+ */
+
+/** @brief  C++ string class.
  *
- * "MiniString" is a small C++ string class that does not depend on anything
- * else except IPRT memory management functions.  Semantics are like in
- * std::string, except it can do a lot less.
+ * This is a C++ string class that does not depend on anything else except IPRT
+ * memory management functions.  Semantics are like in std::string, except it
+ * can do a lot less.
  *
- * Note that MiniString does not differentiate between NULL strings and
- * empty strings. In other words, MiniString("") and MiniString(NULL)
- * behave the same. In both cases, MiniString allocates no memory, reports
+ * Note that RTCString does not differentiate between NULL strings
+ * and empty strings.  In other words, RTCString("") and RTCString(NULL)
+ * behave the same.  In both cases, RTCString allocates no memory, reports
  * a zero length and zero allocated bytes for both, and returns an empty
  * C string from c_str().
+ *
+ * @note    RTCString ASSUMES that all strings it deals with are valid UTF-8.
+ *          The caller is responsible for not breaking this assumption.
  */
 #ifdef VBOX
  /** @remarks Much of the code in here used to be in com::Utf8Str so that
-  *          com::Utf8Str can now derive from MiniString and only contain code
+  *          com::Utf8Str can now derive from RTCString and only contain code
   *          that is COM-specific, such as com::Bstr conversions.  Compared to
-  *          the old Utf8Str though, MiniString always knows the length of its
+  *          the old Utf8Str though, RTCString always knows the length of its
   *          member string and the size of the buffer so it can use memcpy()
   *          instead of strdup().
   */
 #endif
-class RT_DECL_CLASS MiniString
+class RT_DECL_CLASS RTCString
 {
 public:
     /**
      * Creates an empty string that has no memory allocated.
      */
-    MiniString()
+    RTCString()
         : m_psz(NULL),
           m_cch(0),
           m_cbAllocated(0)
@@ -71,7 +77,7 @@ public:
     }
 
     /**
-     * Creates a copy of another MiniString.
+     * Creates a copy of another RTCString.
      *
      * This allocates s.length() + 1 bytes for the new instance, unless s is empty.
      *
@@ -79,7 +85,7 @@ public:
      *
      * @throws  std::bad_alloc
      */
-    MiniString(const MiniString &a_rSrc)
+    RTCString(const RTCString &a_rSrc)
     {
         copyFromN(a_rSrc.m_psz, a_rSrc.m_cch);
     }
@@ -93,20 +99,20 @@ public:
      *
      * @throws  std::bad_alloc
      */
-    MiniString(const char *pcsz)
+    RTCString(const char *pcsz)
     {
         copyFromN(pcsz, pcsz ? strlen(pcsz) : 0);
     }
 
     /**
-     * Create a partial copy of another MiniString.
+     * Create a partial copy of another RTCString.
      *
      * @param   a_rSrc          The source string.
      * @param   a_offSrc        The byte offset into the source string.
      * @param   a_cchSrc        The max number of chars (encoded UTF-8 bytes)
      *                          to copy from the source string.
      */
-    MiniString(const MiniString &a_rSrc, size_t a_offSrc, size_t a_cchSrc = npos)
+    RTCString(const RTCString &a_rSrc, size_t a_offSrc, size_t a_cchSrc = npos)
     {
         if (a_offSrc < a_rSrc.m_cch)
             copyFromN(&a_rSrc.m_psz[a_offSrc], RT_MIN(a_cchSrc, a_rSrc.m_cch - a_offSrc));
@@ -127,7 +133,7 @@ public:
      *                          be '0' as the compiler could easily mistake
      *                          that for the va_list constructor.
      */
-    MiniString(const char *a_pszSrc, size_t a_cchSrc)
+    RTCString(const char *a_pszSrc, size_t a_cchSrc)
     {
         size_t cchMax = a_pszSrc ? RTStrNLen(a_pszSrc, a_cchSrc) : 0;
         copyFromN(a_pszSrc, RT_MIN(a_cchSrc, cchMax));
@@ -140,7 +146,7 @@ public:
      * @param   a_cTimes        The number of times the character is repeated.
      * @param   a_ch            The character to fill the string with.
      */
-    MiniString(size_t a_cTimes, char a_ch)
+    RTCString(size_t a_cTimes, char a_ch)
         : m_psz(NULL),
           m_cch(0),
           m_cbAllocated(0)
@@ -165,7 +171,7 @@ public:
      * @sa      printfV
      * @remarks Not part of std::string.
      */
-    MiniString(const char *a_pszFormat, va_list a_va)
+    RTCString(const char *a_pszFormat, va_list a_va)
         : m_psz(NULL),
           m_cch(0),
           m_cbAllocated(0)
@@ -176,7 +182,7 @@ public:
     /**
      * Destructor.
      */
-    virtual ~MiniString()
+    virtual ~RTCString()
     {
         cleanup();
     }
@@ -197,14 +203,15 @@ public:
     }
 
     /**
-     * String length in UTF-8 codepoints.
+     * String length in unicode codepoints.
      *
-     * As opposed to length(), which returns the length in bytes, this counts the number
-     * of UTF-8 codepoints. This is *not* cached so calling this is expensive.
+     * As opposed to length(), which returns the length in bytes, this counts
+     * the number of unicode codepoints.  This is *not* cached so calling this
+     * is expensive.
      *
      * @returns Number of codepoints in the member string.
      */
-    size_t utf8length() const
+    size_t uniLength() const
     {
         return m_psz ? RTStrUniLen(m_psz) : 0;
     }
@@ -270,7 +277,7 @@ public:
      *
      * @returns Reference to the object.
      */
-    MiniString &operator=(const char *pcsz)
+    RTCString &operator=(const char *pcsz)
     {
         if (m_psz != pcsz)
         {
@@ -290,7 +297,7 @@ public:
      *
      * @returns Reference to the object.
      */
-    MiniString &operator=(const MiniString &s)
+    RTCString &operator=(const RTCString &s)
     {
         if (this != &s)
         {
@@ -312,7 +319,7 @@ public:
      *
      * @returns Reference to the object.
      */
-    MiniString &printf(const char *pszFormat, ...);
+    RTCString &printf(const char *pszFormat, ...);
 
     /**
      * Assigns the output of the string format operation (RTStrPrintfV).
@@ -326,7 +333,7 @@ public:
      *
      * @returns Reference to the object.
      */
-    MiniString &printfV(const char *pszFormat, va_list va);
+    RTCString &printfV(const char *pszFormat, va_list va);
 
     /**
      * Appends the string "that" to "this".
@@ -337,7 +344,7 @@ public:
      *
      * @returns Reference to the object.
      */
-    MiniString &append(const MiniString &that);
+    RTCString &append(const RTCString &that);
 
     /**
      * Appends the string "that" to "this".
@@ -348,7 +355,7 @@ public:
      *
      * @returns Reference to the object.
      */
-    MiniString &append(const char *pszThat);
+    RTCString &append(const char *pszThat);
 
     /**
      * Appends the given character to "this".
@@ -359,7 +366,7 @@ public:
      *
      * @returns Reference to the object.
      */
-    MiniString &append(char ch);
+    RTCString &append(char ch);
 
     /**
      * Appends the given unicode code point to "this".
@@ -370,16 +377,16 @@ public:
      *
      * @returns Reference to the object.
      */
-    MiniString &appendCodePoint(RTUNICP uc);
+    RTCString &appendCodePoint(RTUNICP uc);
 
     /**
-     * Shortcut to append(), MiniString variant.
+     * Shortcut to append(), RTCString variant.
      *
      * @param that              The string to append.
      *
      * @returns Reference to the object.
      */
-    MiniString &operator+=(const MiniString &that)
+    RTCString &operator+=(const RTCString &that)
     {
         return append(that);
     }
@@ -391,7 +398,7 @@ public:
      *
      * @returns                 Reference to the object.
      */
-    MiniString &operator+=(const char *pszThat)
+    RTCString &operator+=(const char *pszThat)
     {
         return append(pszThat);
     }
@@ -403,7 +410,7 @@ public:
      *
      * @returns                 Reference to the object.
      */
-    MiniString &operator+=(char c)
+    RTCString &operator+=(char c)
     {
         return append(c);
     }
@@ -413,7 +420,7 @@ public:
      *
      * @returns Reference to the object.
      */
-    MiniString &toUpper()
+    RTCString &toUpper()
     {
         if (length())
         {
@@ -432,7 +439,7 @@ public:
      *
      * @returns Reference to the object.
      */
-    MiniString &toLower()
+    RTCString &toLower()
     {
         if (length())
         {
@@ -484,7 +491,7 @@ public:
      *      -# Be sure not to modify data beyond the allocated memory! Call
      *         capacity() to find out how large that buffer is.
      *      -# After any operation that modifies the length of the string,
-     *         you _must_ call MiniString::jolt(), or subsequent copy operations
+     *         you _must_ call RTCString::jolt(), or subsequent copy operations
      *         may go nowhere.  Better not use mutableRaw() at all.
      */
     char *mutableRaw()
@@ -572,14 +579,14 @@ public:
     }
 
     /**
-     * Compares the member string to another MiniString.
+     * Compares the member string to another RTCString.
      *
      * @param   pcszThat    The string to compare with.
      * @param   cs          Whether comparison should be case-sensitive.
      * @returns 0 if equal, negative if this is smaller than @a pcsz, positive
      *          if larger.
      */
-    int compare(const MiniString &that, CaseSensitivity cs = CaseSensitive) const
+    int compare(const RTCString &that, CaseSensitivity cs = CaseSensitive) const
     {
         if (cs == CaseSensitive)
             return ::RTStrCmp(m_psz, that.m_psz);
@@ -592,7 +599,7 @@ public:
      * @returns true if equal, false if not.
      * @param   that    The string to compare with.
      */
-    bool equals(const MiniString &that) const
+    bool equals(const RTCString &that) const
     {
         return that.length() == length()
             && memcmp(that.m_psz, m_psz, length()) == 0;
@@ -619,7 +626,7 @@ public:
      * @returns true if equal, false if not.
      * @param   that    The string to compare with.
      */
-    bool equalsIgnoreCase(const MiniString &that) const
+    bool equalsIgnoreCase(const RTCString &that) const
     {
         /* Unfolded upper and lower case characters may require different
            amount of encoding space, so the length optimization doesn't work. */
@@ -643,10 +650,10 @@ public:
 
     /** @name Comparison operators.
      * @{  */
-    bool operator==(const MiniString &that) const { return equals(that); }
-    bool operator!=(const MiniString &that) const { return !equals(that); }
-    bool operator<( const MiniString &that) const { return compare(that) < 0; }
-    bool operator>( const MiniString &that) const { return compare(that) > 0; }
+    bool operator==(const RTCString &that) const { return equals(that); }
+    bool operator!=(const RTCString &that) const { return !equals(that); }
+    bool operator<( const RTCString &that) const { return compare(that) < 0; }
+    bool operator>( const RTCString &that) const { return compare(that) > 0; }
 
     bool operator==(const char *pszThat) const    { return equals(pszThat); }
     bool operator!=(const char *pszThat) const    { return !equals(pszThat); }
@@ -699,9 +706,9 @@ public:
      *                          The copying will stop if the null terminator is encountered before
      *                          n bytes have been copied.
      */
-    iprt::MiniString substr(size_t pos = 0, size_t n = npos) const
+    RTCString substr(size_t pos = 0, size_t n = npos) const
     {
-        return MiniString(*this, pos, n);
+        return RTCString(*this, pos, n);
     }
 
     /**
@@ -715,7 +722,7 @@ public:
      *                          terminator is encountered before n codepoints have
      *                          been copied.
      */
-    iprt::MiniString substrCP(size_t pos = 0, size_t n = npos) const;
+    RTCString substrCP(size_t pos = 0, size_t n = npos) const;
 
     /**
      * Returns true if "this" ends with "that".
@@ -724,7 +731,7 @@ public:
      * @param   cs      Case sensitivity selector.
      * @returns true if match, false if mismatch.
      */
-    bool endsWith(const iprt::MiniString &that, CaseSensitivity cs = CaseSensitive) const;
+    bool endsWith(const RTCString &that, CaseSensitivity cs = CaseSensitive) const;
 
     /**
      * Returns true if "this" begins with "that".
@@ -732,7 +739,7 @@ public:
      * @param   cs      Case sensitivity selector.
      * @returns true if match, false if mismatch.
      */
-    bool startsWith(const iprt::MiniString &that, CaseSensitivity cs = CaseSensitive) const;
+    bool startsWith(const RTCString &that, CaseSensitivity cs = CaseSensitive) const;
 
     /**
      * Returns true if "this" contains "that" (strstr).
@@ -741,7 +748,7 @@ public:
      * @param   cs      Case sensitivity selector.
      * @returns true if match, false if mismatch.
      */
-    bool contains(const iprt::MiniString &that, CaseSensitivity cs = CaseSensitive) const;
+    bool contains(const RTCString &that, CaseSensitivity cs = CaseSensitive) const;
 
     /**
      * Attempts to convert the member string into a 32-bit integer.
@@ -803,6 +810,33 @@ public:
      */
     int toInt(uint32_t &i) const;
 
+    /** Splitting behavior regarding empty sections in the string. */
+    enum SplitMode
+    {
+        KeepEmptyParts,  /**< Empty parts are added as empty strings to the result list. */
+        RemoveEmptyParts /**< Empty parts are skipped. */
+    };
+
+    /**
+     * Splits a string separated by strSep into its parts.
+     *
+     * @param   a_rstrSep   The separator to search for.
+     * @param   a_enmMode   How should empty parts be handled.
+     * @returns separated strings as string list.
+     */
+    RTCList<RTCString, RTCString *> split(const RTCString &a_rstrSep,
+                                          SplitMode a_enmMode = RemoveEmptyParts);
+
+    /**
+     * Joins a list of strings together using the provided separator.
+     *
+     * @param   a_rList     The list to join.
+     * @param   a_rstrSep   The separator used for joining.
+     * @returns joined string.
+     */
+    static RTCString join(const RTCList<RTCString, RTCString *> &a_rList,
+                          const RTCString &a_rstrSep = "");
+
 protected:
 
     /**
@@ -837,7 +871,7 @@ protected:
      *
      * @param   pcszSrc         The source string.
      * @param   cchSrc          The number of chars (bytes) to copy from the
-     *                          source strings.
+     *                          source strings.  RTSTR_MAX is NOT accepted.
      *
      * @throws  std::bad_alloc  On allocation failure.  The object is left
      *                          describing a NULL string.
@@ -878,7 +912,47 @@ protected:
     size_t  m_cbAllocated;              /**< Size of buffer that m_psz points to; at least m_cbLength + 1. */
 };
 
-} // namespace iprt
+/** @} */
+
+
+/** @addtogroup grp_rt_cpp_string
+ * @{
+ */
+
+/**
+ * Concatenate two strings.
+ *
+ * @param   a_rstr1     String one.
+ * @param   a_rstr2     String two.
+ * @returns the concatenate string.
+ *
+ * @relates RTCString
+ */
+RTDECL(const RTCString) operator+(const RTCString &a_rstr1, const RTCString &a_rstr2);
+
+/**
+ * Concatenate two strings.
+ *
+ * @param   a_rstr1     String one.
+ * @param   a_psz2      String two.
+ * @returns the concatenate string.
+ *
+ * @relates RTCString
+ */
+RTDECL(const RTCString) operator+(const RTCString &a_rstr1, const char *a_psz2);
+
+/**
+ * Concatenate two strings.
+ *
+ * @param   a_psz1      String one.
+ * @param   a_rstr2     String two.
+ * @returns the concatenate string.
+ *
+ * @relates RTCString
+ */
+RTDECL(const RTCString) operator+(const char *a_psz1, const RTCString &a_rstr2);
+
+/** @} */
 
 #endif
 

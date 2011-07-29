@@ -1,4 +1,4 @@
-/* $Id: Console.c $ */
+/* $Id: Console.c 29070 2010-05-05 12:32:52Z vboxsync $ */
 /** @file
  * Console.c - VirtualBox Console control emulation
  */

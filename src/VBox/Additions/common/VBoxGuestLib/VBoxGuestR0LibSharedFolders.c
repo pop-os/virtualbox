@@ -1,4 +1,4 @@
-/* $Revision: 67658 $ */
+/* $Revision: 37672 $ */
 /** @file
  * VBoxGuestR0LibSharedFolders - Ring 0 Shared Folders calls.
  */
@@ -111,6 +111,7 @@ DECLVBGL(void) vboxDisconnect (PVBSFCLIENT pClient)
     data.u32ClientID = pClient->ulClientID;
 
     rc = VbglHGCMDisconnect (pClient->handle, &data);
+    NOREF(rc);
 /*    Log(("VBOXSF: VBoxSF::vboxDisconnect: "
          "VbglHGCMDisconnect rc = %#x, result = %#x\n", rc, data.result));
 */

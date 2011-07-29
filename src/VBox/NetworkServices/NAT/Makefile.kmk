@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 36217 2011-03-09 03:22:09Z vboxsync $
 ## @file
 #
 
@@ -52,7 +52,6 @@ $(foreach file,$(addprefix ../../Devices/, $(VBOX_SLIRP_ALIAS_SOURCES)),$(eval $
 VBoxNetNAT_SOURCES += ../NetLib/VBoxNetBaseService.cpp
 
 VBoxNetNAT_LIBS = \
-	$(PATH_LIB)/Drivers$(VBOX_SUFF_LIB) \
 	$(LIB_RUNTIME)
 VBoxNetNAT_LDFLAGS.win = /SUBSYSTEM:windows
 

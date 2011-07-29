@@ -156,8 +156,6 @@ typedef FNIOMIOPORTOUTSTRING *PFNIOMIOPORTOUTSTRING;
  * @param   GCPhysAddr  Physical address (in GC) where the read starts.
  * @param   pv          Where to store the result.
  * @param   cb          Number of bytes read.
- *
- * @remark wonder if we could merge the IOMMMIO* and IOMPORT* callbacks...
  */
 typedef DECLCALLBACK(int) FNIOMMMIOREAD(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
 /** Pointer to a FNIOMMMIOREAD(). */
@@ -173,10 +171,8 @@ typedef FNIOMMMIOREAD *PFNIOMMMIOREAD;
  * @param   GCPhysAddr  Physical address (in GC) where the read starts.
  * @param   pv          Where to fetch the result.
  * @param   cb          Number of bytes to write.
- *
- * @remark wonder if we could merge the IOMMMIO* and IOMPORT* callbacks...
  */
-typedef DECLCALLBACK(int) FNIOMMMIOWRITE(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
+typedef DECLCALLBACK(int) FNIOMMMIOWRITE(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb);
 /** Pointer to a FNIOMMMIOWRITE(). */
 typedef FNIOMMMIOWRITE *PFNIOMMMIOWRITE;
 
@@ -249,21 +245,19 @@ VMMR3DECL(int)  IOMR3IOPortRegisterR0(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT Port
                                       const char *pszDesc);
 VMMR3DECL(int)  IOMR3IOPortDeregister(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT PortStart, RTUINT cPorts);
 
-VMMR3DECL(int)  IOMR3MMIORegisterR3(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTUINT cbRange, RTHCPTR pvUser,
-                                    R3PTRTYPE(PFNIOMMMIOWRITE) pfnWriteCallback,
-                                    R3PTRTYPE(PFNIOMMMIOREAD)  pfnReadCallback,
-                                    R3PTRTYPE(PFNIOMMMIOFILL)  pfnFillCallback, const char *pszDesc);
-VMMR3DECL(int)  IOMR3MMIORegisterR0(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTUINT cbRange, RTR0PTR pvUser,
-                                    R0PTRTYPE(PFNIOMMMIOWRITE) pfnWriteCallback,
-                                    R0PTRTYPE(PFNIOMMMIOREAD)  pfnReadCallback,
-                                    R0PTRTYPE(PFNIOMMMIOFILL)  pfnFillCallback);
-VMMR3DECL(int)  IOMR3MMIORegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTUINT cbRange, RTGCPTR pvUser,
-                                    RCPTRTYPE(PFNIOMMMIOWRITE) pfnWriteCallback,
-                                    RCPTRTYPE(PFNIOMMMIOREAD)  pfnReadCallback,
-                                    RCPTRTYPE(PFNIOMMMIOFILL)  pfnFillCallback);
-VMMR3DECL(int)  IOMR3MMIODeregister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTUINT cbRange);
-
-VMMR3DECL(PPDMCRITSECT) IOMR3GetCritSect(PVM pVM);
+VMMR3_INT_DECL(int)  IOMR3MmioRegisterR3(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTUINT cbRange, RTHCPTR pvUser,
+                                         R3PTRTYPE(PFNIOMMMIOWRITE) pfnWriteCallback,
+                                         R3PTRTYPE(PFNIOMMMIOREAD)  pfnReadCallback,
+                                         R3PTRTYPE(PFNIOMMMIOFILL)  pfnFillCallback, const char *pszDesc);
+VMMR3_INT_DECL(int)  IOMR3MmioRegisterR0(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTUINT cbRange, RTR0PTR pvUser,
+                                         R0PTRTYPE(PFNIOMMMIOWRITE) pfnWriteCallback,
+                                         R0PTRTYPE(PFNIOMMMIOREAD)  pfnReadCallback,
+                                         R0PTRTYPE(PFNIOMMMIOFILL)  pfnFillCallback);
+VMMR3_INT_DECL(int)  IOMR3MmioRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTUINT cbRange, RTGCPTR pvUser,
+                                         RCPTRTYPE(PFNIOMMMIOWRITE) pfnWriteCallback,
+                                         RCPTRTYPE(PFNIOMMMIOREAD)  pfnReadCallback,
+                                         RCPTRTYPE(PFNIOMMMIOFILL)  pfnFillCallback);
+VMMR3_INT_DECL(int)  IOMR3MmioDeregister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTUINT cbRange);
 
 /** @} */
 #endif /* IN_RING3 */

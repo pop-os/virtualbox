@@ -1,4 +1,4 @@
-/* $Id: PerformanceImpl.cpp $ */
+/* $Id: PerformanceImpl.cpp 37423 2011-06-12 18:37:56Z vboxsync $ */
 
 /** @file
  *
@@ -15,6 +15,20 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * Rules of engagement:
+ * 1) All performance objects must be destroyed by PerformanceCollector only!
+ * 2) All public methods of PerformanceCollector must be protected with
+ *    read or write lock.
+ * 3) samplerCallback only uses the write lock during the third phase
+ *    which pulls data into SubMetric objects. This is where object destruction
+ *    and all list modifications are done. The pre-collection phases are
+ *    run without any locks which is only possible because:
+ * 4) Public methods of PerformanceCollector as well as pre-collection methods
+      cannot modify lists or destroy objects, and:
+ * 5) Pre-collection methods cannot modify metric data.
  */
 
 #include "PerformanceImpl.h"
@@ -132,12 +146,13 @@ HRESULT PerformanceCollector::FinalConstruct()
 {
     LogFlowThisFunc(("\n"));
 
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void PerformanceCollector::FinalRelease()
 {
     LogFlowThisFunc(("\n"));
+    BaseFinalRelease();
 }
 
 // public initializer/uninitializer for internal purposes only
@@ -157,6 +172,7 @@ HRESULT PerformanceCollector::init()
     HRESULT rc = S_OK;
 
     m.hal = pm::createHAL();
+    m.gm = new pm::CollectorGuestManager;
 
     /* Let the sampler know it gets a valid collector.  */
     mMagic = MAGIC;
@@ -197,6 +213,24 @@ void PerformanceCollector::uninit()
 
     mMagic = 0;
 
+    /* Destroy unregistered metrics */
+    BaseMetricList::iterator it;
+    for (it = m.baseMetrics.begin(); it != m.baseMetrics.end();)
+        if ((*it)->isUnregistered())
+        {
+            delete *it;
+            it = m.baseMetrics.erase(it);
+        }
+        else
+            ++it;
+    Assert(m.baseMetrics.size() == 0);
+    /*
+     * Now when we have destroyed all base metrics that could
+     * try to pull data from unregistered CollectorGuest objects
+     * it is safe to destroy them as well.
+     */
+    m.gm->destroyUnregistered();
+
     /* Destroy resource usage sampler */
     int vrc = RTTimerLRDestroy (m.sampler);
     AssertMsgRC (vrc, ("Failed to destroy resource usage "
@@ -206,6 +240,8 @@ void PerformanceCollector::uninit()
     //delete m.factory;
     //m.factory = NULL;
 
+    delete m.gm;
+    m.gm = NULL;
     delete m.hal;
     m.hal = NULL;
 
@@ -472,6 +508,7 @@ STDMETHODIMP PerformanceCollector::QueryMetricsData(ComSafeArrayIn (IN_BSTR, met
         LogFlow (("PerformanceCollector::QueryMetricsData() querying metric %s "
                   "returned %d values.\n", (*it)->getName(), length));
         memcpy(retData.raw() + flatIndex, values, length * sizeof(*values));
+        RTMemFree(values);
         Bstr tmp((*it)->getName());
         tmp.detachTo(&retNames[i]);
         (*it)->getObject().queryInterfaceTo(&retObjects[i]);
@@ -529,17 +566,16 @@ void PerformanceCollector::unregisterBaseMetricsFor(const ComPtr<IUnknown> &aObj
     if (!SUCCEEDED(autoCaller.rc())) return;
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    LogAleksey(("{%p} " LOG_FN_FMT ": before remove_if: m.baseMetrics.size()=%d\n", this, __PRETTY_FUNCTION__, m.baseMetrics.size()));
+    int n = 0;
     BaseMetricList::iterator it;
-    for (it = m.baseMetrics.begin(); it != m.baseMetrics.end();)
+    for (it = m.baseMetrics.begin(); it != m.baseMetrics.end(); ++it)
         if ((*it)->associatedWith(aObject))
         {
-            delete *it;
-            it = m.baseMetrics.erase(it);
+            (*it)->unregister();
+            ++n;
         }
-        else
-            ++it;
-    LogAleksey(("{%p} " LOG_FN_FMT ": after remove_if: m.baseMetrics.size()=%d\n", this, __PRETTY_FUNCTION__, m.baseMetrics.size()));
+    LogAleksey(("{%p} " LOG_FN_FMT ": obj=%p, marked %d metrics\n",
+                this, __PRETTY_FUNCTION__, (void *)aObject, n));
     //LogFlowThisFuncLeave();
 }
 
@@ -561,6 +597,24 @@ void PerformanceCollector::unregisterMetricsFor(const ComPtr<IUnknown> &aObject)
         else
             ++it;
     //LogFlowThisFuncLeave();
+}
+
+void PerformanceCollector::registerGuest(pm::CollectorGuest* pGuest)
+{
+    AutoCaller autoCaller(this);
+    if (!SUCCEEDED(autoCaller.rc())) return;
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    m.gm->registerGuest(pGuest);
+}
+
+void PerformanceCollector::unregisterGuest(pm::CollectorGuest* pGuest)
+{
+    AutoCaller autoCaller(this);
+    if (!SUCCEEDED(autoCaller.rc())) return;
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    m.gm->unregisterGuest(pGuest);
 }
 
 void PerformanceCollector::suspendSampling()
@@ -598,10 +652,26 @@ void PerformanceCollector::staticSamplerCallback(RTTIMERLR hTimerLR, void *pvUse
     NOREF (hTimerLR);
 }
 
+/*
+ * Metrics collection is a three stage process:
+ * 1) Pre-collection (hinting)
+ *    At this stage we compose the list of all metrics to be collected
+ *    If any metrics cannot be collected separately or if it is more
+ *    efficient to collect several metric at once, these metrics should
+ *    use hints to mark that they will need to be collected.
+ * 2) Pre-collection (bulk)
+ *    Using hints set at stage 1 platform-specific HAL
+ *    instance collects all marked host-related metrics.
+ *    Hinted guest-related metrics then get collected by CollectorGuestManager.
+ * 3) Collection
+ *    Metrics that are collected individually get collected and stored. Values
+ *    saved in HAL and CollectorGuestManager are extracted and stored to
+ *    individual metrics.
+ */
 void PerformanceCollector::samplerCallback(uint64_t iTick)
 {
     Log4(("{%p} " LOG_FN_FMT ": ENTER\n", this, __PRETTY_FUNCTION__));
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    /* No locking until stage 3!*/
 
     pm::CollectorHints hints;
     uint64_t timestamp = RTTimeMilliTS();
@@ -616,10 +686,41 @@ void PerformanceCollector::samplerCallback(uint64_t iTick)
         }
 
     if (toBeCollected.size() == 0)
+    {
+        Log4(("{%p} " LOG_FN_FMT ": LEAVE (nothing to collect)\n", this, __PRETTY_FUNCTION__));
         return;
+    }
 
     /* Let know the platform specific code what is being collected */
     m.hal->preCollect(hints, iTick);
+    /* Collect the data in bulk from all hinted guests */
+    m.gm->preCollect(hints, iTick);
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    /*
+     * Before we can collect data we need to go through both lists
+     * again to see if any base metrics are marked as unregistered.
+     * Those should be destroyed now.
+     */
+    LogAleksey(("{%p} " LOG_FN_FMT ": before remove_if: toBeCollected.size()=%d\n", this, __PRETTY_FUNCTION__, toBeCollected.size()));
+    toBeCollected.remove_if(std::mem_fun(&pm::BaseMetric::isUnregistered));
+    LogAleksey(("{%p} " LOG_FN_FMT ": after remove_if: toBeCollected.size()=%d\n", this, __PRETTY_FUNCTION__, toBeCollected.size()));
+    LogAleksey(("{%p} " LOG_FN_FMT ": before remove_if: m.baseMetrics.size()=%d\n", this, __PRETTY_FUNCTION__, m.baseMetrics.size()));
+    for (it = m.baseMetrics.begin(); it != m.baseMetrics.end();)
+        if ((*it)->isUnregistered())
+        {
+            delete *it;
+            it = m.baseMetrics.erase(it);
+        }
+        else
+            ++it;
+    LogAleksey(("{%p} " LOG_FN_FMT ": after remove_if: m.baseMetrics.size()=%d\n", this, __PRETTY_FUNCTION__, m.baseMetrics.size()));
+    /*
+     * Now when we have destroyed all base metrics that could
+     * try to pull data from unregistered CollectorGuest objects
+     * it is safe to destroy them as well.
+     */
+    m.gm->destroyUnregistered();
 
     /* Finally, collect the data */
     std::for_each (toBeCollected.begin(), toBeCollected.end(),
@@ -646,7 +747,7 @@ HRESULT PerformanceMetric::FinalConstruct()
 {
     LogFlowThisFunc(("\n"));
 
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void PerformanceMetric::FinalRelease()
@@ -654,6 +755,8 @@ void PerformanceMetric::FinalRelease()
     LogFlowThisFunc(("\n"));
 
     uninit ();
+
+    BaseFinalRelease();
 }
 
 // public initializer/uninitializer for internal purposes only

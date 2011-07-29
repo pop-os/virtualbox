@@ -1,10 +1,10 @@
-/* $Id: PDMDevHlp.cpp $ */
+/* $Id: PDMDevHlp.cpp 37466 2011-06-15 12:44:16Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, Device Helpers.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -268,7 +268,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_MMIORegister(PPDMDEVINS pDevIns, RTGCPHYS G
              pDevIns->pReg->szName, pDevIns->iInstance, GCPhysStart, cbRange, pvUser, pfnWrite, pfnRead, pfnFill, pszDesc, pszDesc));
 
 /** @todo IOMR3MMIORegisterR3 mangles the description, move it here. */
-    int rc = IOMR3MMIORegisterR3(pDevIns->Internal.s.pVMR3, pDevIns, GCPhysStart, cbRange, pvUser, pfnWrite, pfnRead, pfnFill, pszDesc);
+    int rc = IOMR3MmioRegisterR3(pDevIns->Internal.s.pVMR3, pDevIns, GCPhysStart, cbRange, pvUser, pfnWrite, pfnRead, pfnFill, pszDesc);
 
     LogFlow(("pdmR3DevHlp_MMIORegister: caller='%s'/%d: returns %Rrc\n", pDevIns->pReg->szName, pDevIns->iInstance, rc));
     return rc;
@@ -310,7 +310,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_MMIORegisterRC(PPDMDEVINS pDevIns, RTGCPHYS
             rc3 = pdmR3DevGetSymbolRCLazy(pDevIns, pszFill, &RCPtrFill);
 
         if (RT_SUCCESS(rc) && RT_SUCCESS(rc2) && RT_SUCCESS(rc3))
-            rc = IOMR3MMIORegisterRC(pDevIns->Internal.s.pVMR3, pDevIns, GCPhysStart, cbRange, pvUser, RCPtrWrite, RCPtrRead, RCPtrFill);
+            rc = IOMR3MmioRegisterRC(pDevIns->Internal.s.pVMR3, pDevIns, GCPhysStart, cbRange, pvUser, RCPtrWrite, RCPtrRead, RCPtrFill);
         else
         {
             AssertMsgRC(rc,  ("Failed to resolve %s.%s (pszWrite)\n", pDevIns->pReg->szRCMod, pszWrite));
@@ -364,7 +364,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_MMIORegisterR0(PPDMDEVINS pDevIns, RTGCPHYS
         if (pszFill)
             rc3 = pdmR3DevGetSymbolR0Lazy(pDevIns, pszFill, &pfnR0PtrFill);
         if (RT_SUCCESS(rc) && RT_SUCCESS(rc2) && RT_SUCCESS(rc3))
-            rc = IOMR3MMIORegisterR0(pDevIns->Internal.s.pVMR3, pDevIns, GCPhysStart, cbRange, pvUser, pfnR0PtrWrite, pfnR0PtrRead, pfnR0PtrFill);
+            rc = IOMR3MmioRegisterR0(pDevIns->Internal.s.pVMR3, pDevIns, GCPhysStart, cbRange, pvUser, pfnR0PtrWrite, pfnR0PtrRead, pfnR0PtrFill);
         else
         {
             AssertMsgRC(rc,  ("Failed to resolve %s.%s (pszWrite)\n", pDevIns->pReg->szR0Mod, pszWrite));
@@ -395,7 +395,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_MMIODeregister(PPDMDEVINS pDevIns, RTGCPHYS
     LogFlow(("pdmR3DevHlp_MMIODeregister: caller='%s'/%d: GCPhysStart=%RGp cbRange=%#x\n",
              pDevIns->pReg->szName, pDevIns->iInstance, GCPhysStart, cbRange));
 
-    int rc = IOMR3MMIODeregister(pDevIns->Internal.s.pVMR3, pDevIns, GCPhysStart, cbRange);
+    int rc = IOMR3MmioDeregister(pDevIns->Internal.s.pVMR3, pDevIns, GCPhysStart, cbRange);
 
     LogFlow(("pdmR3DevHlp_MMIODeregister: caller='%s'/%d: returns %Rrc\n", pDevIns->pReg->szName, pDevIns->iInstance, rc));
     return rc;
@@ -1000,6 +1000,16 @@ static DECLCALLBACK(int) pdmR3DevHlp_DBGFInfoRegister(PPDMDEVINS pDevIns, const 
 }
 
 
+/** @interface_method_impl{PDMDEVHLPR3,pfnDBGFTraceBuf} */
+static DECLCALLBACK(RTTRACEBUF) pdmR3DevHlp_DBGFTraceBuf(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    RTTRACEBUF hTraceBuf = pDevIns->Internal.s.pVMR3->hTraceBufR3;
+    LogFlow(("pdmR3DevHlp_DBGFTraceBuf: caller='%s'/%d: returns %p\n", pDevIns->pReg->szName, pDevIns->iInstance, hTraceBuf));
+    return hTraceBuf;
+}
+
+
 /** @interface_method_impl{PDMDEVHLPR3,pfnSTAMRegister} */
 static DECLCALLBACK(void) pdmR3DevHlp_STAMRegister(PPDMDEVINS pDevIns, void *pvSample, STAMTYPE enmType, const char *pszName, STAMUNIT enmUnit, const char *pszDesc)
 {
@@ -1205,7 +1215,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_PCIIORegionRegister(PPDMDEVINS pDevIns, int
         LogFlow(("pdmR3DevHlp_PCIIORegionRegister: caller='%s'/%d: returns %Rrc (iRegion)\n", pDevIns->pReg->szName, pDevIns->iInstance, VERR_INVALID_PARAMETER));
         return VERR_INVALID_PARAMETER;
     }
-    switch (enmType)
+    switch ((int)enmType)
     {
         case PCI_ADDRESS_SPACE_IO:
             /*
@@ -1218,6 +1228,8 @@ static DECLCALLBACK(int) pdmR3DevHlp_PCIIORegionRegister(PPDMDEVINS pDevIns, int
 
         case PCI_ADDRESS_SPACE_MEM:
         case PCI_ADDRESS_SPACE_MEM_PREFETCH:
+        case PCI_ADDRESS_SPACE_MEM | PCI_ADDRESS_SPACE_BAR64:
+        case PCI_ADDRESS_SPACE_MEM_PREFETCH | PCI_ADDRESS_SPACE_BAR64:
             /*
              * Sanity check: don't allow to register more than 512MB of the PCI MMIO space for
              * now. If this limit is increased beyond 2GB, adapt the aligned check below as well!
@@ -1249,7 +1261,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_PCIIORegionRegister(PPDMDEVINS pDevIns, int
         /*
          * We're currently restricted to page aligned MMIO regions.
          */
-        if (    (enmType == PCI_ADDRESS_SPACE_MEM || enmType == PCI_ADDRESS_SPACE_MEM_PREFETCH)
+        if (    ((enmType & ~(PCI_ADDRESS_SPACE_BAR64 | PCI_ADDRESS_SPACE_MEM_PREFETCH)) == PCI_ADDRESS_SPACE_MEM)
             &&  cbRegion != RT_ALIGN_32(cbRegion, PAGE_SIZE))
         {
             Log(("pdmR3DevHlp_PCIIORegionRegister: caller='%s'/%d: aligning cbRegion %#x -> %#x\n",
@@ -1528,6 +1540,99 @@ static DECLCALLBACK(int) pdmR3DevHlp_CritSectInit(PPDMDEVINS pDevIns, PPDMCRITSE
 
     LogFlow(("pdmR3DevHlp_CritSectInit: caller='%s'/%d: returns %Rrc\n", pDevIns->pReg->szName, pDevIns->iInstance, rc));
     return rc;
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR3,pfnCritSectGetNop} */
+static DECLCALLBACK(PPDMCRITSECT) pdmR3DevHlp_CritSectGetNop(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
+
+    PPDMCRITSECT pCritSect = PDMR3CritSectGetNop(pVM);
+    LogFlow(("pdmR3DevHlp_CritSectGetNop: caller='%s'/%d: return %p\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, pCritSect));
+    return pCritSect;
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR3,pfnCritSectGetNopR0} */
+static DECLCALLBACK(R0PTRTYPE(PPDMCRITSECT)) pdmR3DevHlp_CritSectGetNopR0(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
+
+    R0PTRTYPE(PPDMCRITSECT) pCritSect = PDMR3CritSectGetNopR0(pVM);
+    LogFlow(("pdmR3DevHlp_CritSectGetNopR0: caller='%s'/%d: return %RHv\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, pCritSect));
+    return pCritSect;
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR3,pfnCritSectGetNopRC} */
+static DECLCALLBACK(RCPTRTYPE(PPDMCRITSECT)) pdmR3DevHlp_CritSectGetNopRC(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
+
+    RCPTRTYPE(PPDMCRITSECT) pCritSect = PDMR3CritSectGetNopRC(pVM);
+    LogFlow(("pdmR3DevHlp_CritSectGetNopRC: caller='%s'/%d: return %RRv\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, pCritSect));
+    return pCritSect;
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR3,pfnSetDeviceCritSect} */
+static DECLCALLBACK(int) pdmR3DevHlp_SetDeviceCritSect(PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect)
+{
+    /*
+     * Validate input.
+     *
+     * Note! We only allow the automatically created default critical section
+     *       to be replaced by this API.
+     */
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    AssertPtrReturn(pCritSect, VERR_INVALID_POINTER);
+    LogFlow(("pdmR3DevHlp_SetDeviceCritSect: caller='%s'/%d: pCritSect=%p (%s)\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, pCritSect, pCritSect->s.pszName));
+    AssertReturn(PDMCritSectIsInitialized(pCritSect), VERR_INVALID_PARAMETER);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    AssertReturn(pCritSect->s.pVMR3 == pVM, VERR_INVALID_PARAMETER);
+
+    VM_ASSERT_EMT(pVM);
+    VM_ASSERT_STATE_RETURN(pVM, VMSTATE_CREATING, VERR_WRONG_ORDER);
+
+    AssertReturn(pDevIns->pCritSectRoR3, VERR_INTERNAL_ERROR_4);
+    AssertReturn(pDevIns->pCritSectRoR3->s.fAutomaticDefaultCritsect, VERR_WRONG_ORDER);
+    AssertReturn(!pDevIns->pCritSectRoR3->s.fUsedByTimerOrSimilar, VERR_WRONG_ORDER);
+    AssertReturn(pDevIns->pCritSectRoR3 != pCritSect, VERR_INVALID_PARAMETER);
+
+    /*
+     * Replace the critical section and destroy the automatic default section.
+     */
+    PPDMCRITSECT pOldCritSect = pDevIns->pCritSectRoR3;
+    pDevIns->pCritSectRoR3 = pCritSect;
+    if (pDevIns->pReg->fFlags & PDM_DEVREG_FLAGS_R0)
+        pDevIns->pCritSectRoR0 = MMHyperCCToR0(pVM, pDevIns->pCritSectRoR3);
+    else
+        Assert(pDevIns->pCritSectRoR0 == NIL_RTRCPTR);
+
+    if (pDevIns->pReg->fFlags & PDM_DEVREG_FLAGS_RC)
+        pDevIns->pCritSectRoRC = MMHyperCCToRC(pVM, pDevIns->pCritSectRoR3);
+    else
+        Assert(pDevIns->pCritSectRoRC == NIL_RTRCPTR);
+
+    PDMR3CritSectDelete(pOldCritSect);
+    if (pDevIns->pReg->fFlags & (PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0))
+        MMHyperFree(pVM, pOldCritSect);
+    else
+        MMR3HeapFree(pOldCritSect);
+
+    LogFlow(("pdmR3DevHlp_SetDeviceCritSect: caller='%s'/%d: returns %Rrc\n", pDevIns->pReg->szName, pDevIns->iInstance, VINF_SUCCESS));
+    return VINF_SUCCESS;
 }
 
 
@@ -2812,6 +2917,37 @@ static DECLCALLBACK(int) pdmR3DevHlp_HPETRegister(PPDMDEVINS pDevIns, PPDMHPETRE
 }
 
 
+/** @interface_method_impl{PDMDEVHLPR3,pfnPciRawRegister} */
+static DECLCALLBACK(int) pdmR3DevHlp_PciRawRegister(PPDMDEVINS pDevIns, PPDMPCIRAWREG pPciRawReg, PCPDMPCIRAWHLPR3 *ppPciRawHlpR3)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
+    LogFlow(("pdmR3DevHlp_PciRawRegister: caller='%s'/%d:\n"));
+
+    /*
+     * Validate input.
+     */
+    if (pPciRawReg->u32Version != PDM_PCIRAWREG_VERSION)
+    {
+        AssertMsgFailed(("u32Version=%#x expected %#x\n", pPciRawReg->u32Version, PDM_PCIRAWREG_VERSION));
+        LogFlow(("pdmR3DevHlp_PciRawRegister: caller='%s'/%d: returns %Rrc (version)\n", pDevIns->pReg->szName, pDevIns->iInstance, VERR_INVALID_PARAMETER));
+        return VERR_INVALID_PARAMETER;
+    }
+
+    if (!ppPciRawHlpR3)
+    {
+        Assert(ppPciRawHlpR3);
+        LogFlow(("pdmR3DevHlp_PciRawRegister: caller='%s'/%d: returns %Rrc (ppApicHlpR3)\n", pDevIns->pReg->szName, pDevIns->iInstance, VERR_INVALID_PARAMETER));
+        return VERR_INVALID_PARAMETER;
+    }
+
+    /* set the helper pointer and return. */
+    *ppPciRawHlpR3 = &g_pdmR3DevPciRawHlp;
+    LogFlow(("pdmR3DevHlp_PciRawRegister: caller='%s'/%d: returns %Rrc\n", pDevIns->pReg->szName, pDevIns->iInstance, VINF_SUCCESS));
+    return VINF_SUCCESS;
+}
+
+
 /** @interface_method_impl{PDMDEVHLPR3,pfnDMACRegister} */
 static DECLCALLBACK(int) pdmR3DevHlp_DMACRegister(PPDMDEVINS pDevIns, PPDMDMACREG pDmacReg, PCPDMDMACHLP *ppDmacHlp)
 {
@@ -3159,6 +3295,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTrusted =
     pdmR3DevHlp_VMSetRuntimeErrorV,
     pdmR3DevHlp_DBGFStopV,
     pdmR3DevHlp_DBGFInfoRegister,
+    pdmR3DevHlp_DBGFTraceBuf,
     pdmR3DevHlp_STAMRegister,
     pdmR3DevHlp_STAMRegisterF,
     pdmR3DevHlp_STAMRegisterV,
@@ -3173,6 +3310,10 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTrusted =
     pdmR3DevHlp_DriverAttach,
     pdmR3DevHlp_QueueCreate,
     pdmR3DevHlp_CritSectInit,
+    pdmR3DevHlp_CritSectGetNop,
+    pdmR3DevHlp_CritSectGetNopR0,
+    pdmR3DevHlp_CritSectGetNopRC,
+    pdmR3DevHlp_SetDeviceCritSect,
     pdmR3DevHlp_ThreadCreate,
     pdmR3DevHlp_SetAsyncNotification,
     pdmR3DevHlp_AsyncNotificationCompleted,
@@ -3182,6 +3323,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTrusted =
     pdmR3DevHlp_APICRegister,
     pdmR3DevHlp_IOAPICRegister,
     pdmR3DevHlp_HPETRegister,
+    pdmR3DevHlp_PciRawRegister,
     pdmR3DevHlp_DMACRegister,
     pdmR3DevHlp_DMARegister,
     pdmR3DevHlp_DMAReadMemory,
@@ -3369,6 +3511,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpUnTrusted =
     pdmR3DevHlp_VMSetRuntimeErrorV,
     pdmR3DevHlp_DBGFStopV,
     pdmR3DevHlp_DBGFInfoRegister,
+    pdmR3DevHlp_DBGFTraceBuf,
     pdmR3DevHlp_STAMRegister,
     pdmR3DevHlp_STAMRegisterF,
     pdmR3DevHlp_STAMRegisterV,
@@ -3383,6 +3526,10 @@ const PDMDEVHLPR3 g_pdmR3DevHlpUnTrusted =
     pdmR3DevHlp_DriverAttach,
     pdmR3DevHlp_QueueCreate,
     pdmR3DevHlp_CritSectInit,
+    pdmR3DevHlp_CritSectGetNop,
+    pdmR3DevHlp_CritSectGetNopR0,
+    pdmR3DevHlp_CritSectGetNopRC,
+    pdmR3DevHlp_SetDeviceCritSect,
     pdmR3DevHlp_ThreadCreate,
     pdmR3DevHlp_SetAsyncNotification,
     pdmR3DevHlp_AsyncNotificationCompleted,
@@ -3392,6 +3539,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpUnTrusted =
     pdmR3DevHlp_APICRegister,
     pdmR3DevHlp_IOAPICRegister,
     pdmR3DevHlp_HPETRegister,
+    pdmR3DevHlp_PciRawRegister,
     pdmR3DevHlp_DMACRegister,
     pdmR3DevHlp_DMARegister,
     pdmR3DevHlp_DMAReadMemory,

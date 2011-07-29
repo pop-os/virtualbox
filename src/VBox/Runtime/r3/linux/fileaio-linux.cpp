@@ -1,4 +1,4 @@
-/* $Id: fileaio-linux.cpp $ */
+/* $Id: fileaio-linux.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
 /** @file
  * IPRT - File async I/O, native implementation for the Linux host platform.
  */
@@ -104,7 +104,7 @@ typedef struct LNXKAIOIOCB
     /** Request priority. */
     int16_t   i16Priority;
     /** The file descriptor. */
-    uint32_t  File;
+    uint32_t  uFileDesc;
     /** The userspace pointer to the buffer containing/receiving the data. */
     void     *pvBuf;
 #ifdef RT_ARCH_X86
@@ -378,7 +378,7 @@ DECLINLINE(int) rtFileAioReqPrepareTransfer(RTFILEAIOREQ hReq, RTFILE hFile,
      * Setup the control block and clear the finished flag.
      */
     pReqInt->AioCB.u16IoOpCode = uTransferDirection;
-    pReqInt->AioCB.File        = (uint32_t)hFile;
+    pReqInt->AioCB.uFileDesc   = RTFileToNative(hFile);
     pReqInt->AioCB.off         = off;
     pReqInt->AioCB.cbTransfer  = cbTransfer;
     pReqInt->AioCB.pvBuf       = pvBuf;

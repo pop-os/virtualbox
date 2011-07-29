@@ -1,4 +1,4 @@
-/* $Id: RTAssertShouldPanic-vbox.cpp $ */
+/* $Id: RTAssertShouldPanic-vbox.cpp 37233 2011-05-27 13:31:57Z vboxsync $ */
 /** @file
  * IPRT - Assertions, generic RTAssertShouldPanic.
  */
@@ -30,6 +30,7 @@
 *******************************************************************************/
 #include <iprt/assert.h>
 #include <iprt/env.h>
+#include <iprt/err.h>
 #include <iprt/string.h>
 
 /** @def VBOX_RTASSERT_WITH_GDB
@@ -51,14 +52,11 @@
 #endif
 
 
-RTDECL(bool) RTAssertShouldPanic(void)
+/**
+ * Worker that we can wrap with error variable saving and restoring.
+ */
+static bool rtAssertShouldPanicWorker(void)
 {
-    /*
-     * Check if panicing is excluded by the the RTAssert settings first.
-     */
-    if (!RTAssertMayPanic())
-        return false;
-
     /*
      * Check for the VBOX_ASSERT variable.
      */
@@ -140,5 +138,26 @@ RTDECL(bool) RTAssertShouldPanic(void)
 
     /* '*' - don't hit the breakpoint. */
     return false;
+}
+
+
+RTDECL(bool) RTAssertShouldPanic(void)
+{
+    /*
+     * Check if panicing is excluded by the the RTAssert settings first.
+     */
+    if (!RTAssertMayPanic())
+        return false;
+
+    /*
+     * Preserve error state variables.
+     */
+    RTERRVARS SavedErrVars;
+    RTErrVarsSave(&SavedErrVars);
+
+    bool fRc = rtAssertShouldPanicWorker();
+
+    RTErrVarsRestore(&SavedErrVars);
+    return fRc;
 }
 

@@ -1,4 +1,4 @@
-/* $Id: mpnotification-r0drv-solaris.c $ */
+/* $Id: mpnotification-r0drv-solaris.c 37274 2011-05-31 11:47:51Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor Event Notifications, Ring-0 Driver, Solaris.
  */
@@ -33,6 +33,8 @@
 #include <iprt/err.h>
 #include <iprt/mp.h>
 #include <iprt/cpuset.h>
+#include <iprt/string.h>
+#include <iprt/thread.h>
 #include "r0drv/mp-r0drv.h"
 
 
@@ -48,28 +50,56 @@ static vbi_cpu_watch_t *g_hVbiCpuWatch = NULL;
 RTCPUSET g_rtMpSolarisCpuSet;
 
 
-static void rtMpNotificationSolarisCallback(void *pvUser, int iCpu, int online)
+static void rtMpNotificationSolarisOnCurrentCpu(void *pvArgs, void *uIgnored1, void *uIgnored2)
 {
-    NOREF(pvUser);
+    NOREF(uIgnored1);
+    NOREF(uIgnored2);
 
-    /* ASSUMES iCpu == RTCPUID */
+    PRTMPARGS pArgs = (PRTMPARGS)(pvArgs);
+    AssertRelease(pArgs && pArgs->idCpu == RTMpCpuId());
+    Assert(pArgs->pvUser2);
+    Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
+
+    int online = *(int *)pArgs->pvUser2;
     if (online)
     {
-        RTCpuSetAdd(&g_rtMpSolarisCpuSet, iCpu);
-        rtMpNotificationDoCallbacks(RTMPEVENT_ONLINE, iCpu);
+        RTCpuSetAdd(&g_rtMpSolarisCpuSet, pArgs->idCpu);
+        rtMpNotificationDoCallbacks(RTMPEVENT_ONLINE, pArgs->idCpu);
     }
     else
     {
-        RTCpuSetDel(&g_rtMpSolarisCpuSet, iCpu);
-        rtMpNotificationDoCallbacks(RTMPEVENT_OFFLINE, iCpu);
+        RTCpuSetDel(&g_rtMpSolarisCpuSet, pArgs->idCpu);
+        rtMpNotificationDoCallbacks(RTMPEVENT_OFFLINE, pArgs->idCpu);
     }
 }
 
 
-int rtR0MpNotificationNativeInit(void)
+static void rtMpNotificationSolarisCallback(void *pvUser, int iCpu, int online)
 {
-    if (vbi_revision_level < 2)
-        return VERR_NOT_SUPPORTED;
+    vbi_preempt_disable();
+
+    RTMPARGS Args;
+    RT_ZERO(Args);
+    Args.pvUser1 = pvUser;
+    Args.pvUser2 = &online;
+    Args.idCpu   = iCpu;
+
+    /*
+     * If we're not on the target CPU, schedule (synchronous) the event notification callback
+     * to run on the target CPU i.e. the one pertaining to the MP event.
+     */
+    bool fRunningOnTargetCpu = iCpu == RTMpCpuId();      /* ASSUMES iCpu == RTCPUID */
+    if (fRunningOnTargetCpu)
+        rtMpNotificationSolarisOnCurrentCpu(&Args, NULL /* pvIgnored1 */, NULL /* pvIgnored2 */);
+    else
+        vbi_execute_on_one(rtMpNotificationSolarisOnCurrentCpu, &Args, iCpu);
+
+    vbi_preempt_enable();
+}
+
+
+DECLHIDDEN(int) rtR0MpNotificationNativeInit(void)
+{
     if (g_hVbiCpuWatch != NULL)
         return VERR_WRONG_ORDER;
 
@@ -84,9 +114,9 @@ int rtR0MpNotificationNativeInit(void)
 }
 
 
-void rtR0MpNotificationNativeTerm(void)
+DECLHIDDEN(void) rtR0MpNotificationNativeTerm(void)
 {
-    if (vbi_revision_level >= 2 && g_hVbiCpuWatch != NULL)
+    if (g_hVbiCpuWatch != NULL)
         vbi_ignore_cpus(g_hVbiCpuWatch);
     g_hVbiCpuWatch = NULL;
 }

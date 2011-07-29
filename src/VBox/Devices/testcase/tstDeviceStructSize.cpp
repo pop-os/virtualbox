@@ -1,4 +1,4 @@
-/* $Id: tstDeviceStructSize.cpp $ */
+/* $Id: tstDeviceStructSize.cpp 37955 2011-07-14 12:23:02Z vboxsync $ */
 /** @file
  * tstDeviceStructSize - testcase for check structure sizes/alignment
  *                       and to verify that HC and RC uses the same
@@ -21,13 +21,15 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <VBox/types.h>
-#include <VBox/x86.h>
+#include <iprt/x86.h>
 
 
 #define VBOX_WITH_HGCM                  /* grumble */
 #define VBOX_DEVICE_STRUCT_TESTCASE
 #undef LOG_GROUP
 #include "../Bus/DevPCI.cpp"
+#undef LOG_GROUP
+#include "../Bus/DevPciIch9.cpp"
 #undef LOG_GROUP
 #include "../Graphics/DevVGA.cpp"
 #undef LOG_GROUP
@@ -53,6 +55,8 @@
 #undef LOG_GROUP
 #include "../PC/DevAPIC.cpp"
 #undef LOG_GROUP
+#include "../PC/DevIoApic.cpp"
+#undef LOG_GROUP
 #include "../PC/DevHPET.cpp"
 #undef LOG_GROUP
 #include "../PC/DevLPC.cpp"
@@ -63,7 +67,7 @@
 #ifdef VBOX_WITH_USB
 # undef LOG_GROUP
 # include "../USB/DevOHCI.cpp"
-# ifdef VBOX_WITH_EHCI
+# ifdef VBOX_WITH_EHCI_IMPL
 #  include "../USB/DevEHCI.cpp"
 # endif
 #endif
@@ -84,6 +88,11 @@
 #ifdef VBOX_WITH_LSILOGIC
 # undef LOG_GROUP
 # include "../Storage/DevLsiLogicSCSI.cpp"
+#endif
+
+#ifdef VBOX_WITH_PCI_PASSTHROUGH_IMPL
+# undef LOG_GROUP
+# include "../Bus/DevPciRaw.cpp"
 #endif
 
 #include <stdio.h>
@@ -275,7 +284,7 @@ int main()
 #endif
     //CHECK_MEMBER_ALIGNMENT(E1KSTATE, csTx, 8);
 #ifdef VBOX_WITH_USB
-# ifdef VBOX_WITH_EHCI
+# ifdef VBOX_WITH_EHCI_IMPL
     CHECK_MEMBER_ALIGNMENT(EHCI, RootHub, 8);
 #  ifdef VBOX_WITH_STATISTICS
     CHECK_MEMBER_ALIGNMENT(EHCI, StatCanceledIsocUrbs, 8);
@@ -316,6 +325,9 @@ int main()
     CHECK_MEMBER_ALIGNMENT(VPCISTATE, led, 4);
     CHECK_MEMBER_ALIGNMENT(VPCISTATE, Queues, 8);
 #endif
+#ifdef VBOX_WITH_PCI_PASSTHROUGH_IMPL
+    CHECK_MEMBER_ALIGNMENT(PCIRAWSENDREQ, u.aGetRegionInfo.u64RegionSize, 8);
+#endif
 
 #ifdef VBOX_WITH_RAW_MODE
     /*
@@ -334,4 +346,3 @@ int main()
         printf("tstDeviceStructSize: SUCCESS\n");
     return rc;
 }
-

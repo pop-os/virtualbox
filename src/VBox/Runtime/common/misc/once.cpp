@@ -1,4 +1,4 @@
-/* $Id: once.cpp $ */
+/* $Id: once.cpp 37316 2011-06-03 12:49:02Z vboxsync $ */
 /** @file
  * IPRT - Execute Once.
  */
@@ -156,7 +156,7 @@ static int rtOnceOtherThread(PRTONCE pOnce, PRTSEMEVENTMULTI phEvtM)
 }
 
 
-RTDECL(int) RTOnce(PRTONCE pOnce, PFNRTONCE pfnOnce, void *pvUser1, void *pvUser2)
+RTDECL(int) RTOnceSlow(PRTONCE pOnce, PFNRTONCE pfnOnce, void *pvUser1, void *pvUser2)
 {
     /*
      * Validate input (strict builds only).
@@ -243,7 +243,7 @@ RTDECL(int) RTOnce(PRTONCE pOnce, PFNRTONCE pfnOnce, void *pvUser1, void *pvUser
 
     return rcOnce;
 }
-RT_EXPORT_SYMBOL(RTOnce);
+RT_EXPORT_SYMBOL(RTOnceSlow);
 
 
 RTDECL(void) RTOnceReset(PRTONCE pOnce)

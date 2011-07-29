@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,18 +19,23 @@
 #ifndef __UISettingsDialog_h__
 #define __UISettingsDialog_h__
 
-/* Local includes */
+/* VBox includes: */
 #include "QIMainDialog.h"
 #include "QIWithRetranslateUI.h"
 #include "UISettingsDialog.gen.h"
+#include "UISettingsDefs.h"
 
-/* Forward declarations */
+/* Forward declarations: */
 class QIWidgetValidator;
+class QProgressBar;
 class QStackedWidget;
 class QTimer;
 class VBoxWarningPane;
 class VBoxSettingsSelector;
 class UISettingsPage;
+
+/* Using declarations: */
+using namespace UISettingsDefs;
 
 /* Base dialog class for both Global & VM settings which encapsulates most of their similar functionalities */
 class UISettingsDialog : public QIWithRetranslateUI<QIMainDialog>, public Ui::UISettingsDialog
@@ -40,12 +45,11 @@ class UISettingsDialog : public QIWithRetranslateUI<QIMainDialog>, public Ui::UI
 public:
 
     /* Settings Dialog Constructor/Destructor: */
-    UISettingsDialog(QWidget *pParent = 0);
+    UISettingsDialog(QWidget *pParent);
    ~UISettingsDialog();
 
-    /* Save/Load interface: */
-    virtual void getFrom() = 0;
-    virtual void putBackTo() = 0;
+    /* Execute API: */
+    void execute();
 
 protected slots:
 
@@ -55,14 +59,27 @@ protected slots:
     /* Category-change slot: */
     virtual void sltCategoryChanged(int cId);
 
-    /* Mark dialog as processed: */
-    virtual void sltMarkProcessed();
+    /* Mark dialog as loaded: */
+    virtual void sltMarkLoaded();
+    /* Mark dialog as saved: */
+    virtual void sltMarkSaved();
+
+    /* Handlers for process bar: */
+    void sltHandleProcessStarted();
+    void sltHandlePageProcessed();
 
 protected:
+
+    /* Save/load API: */
+    virtual void loadData();
+    virtual void saveData();
 
     /* UI translator: */
     virtual void retranslateUi();
 
+    /* Dialog type: */
+    SettingsDialogType dialogType() { return m_dialogType; }
+    void setDialogType(SettingsDialogType settingsDialogType);
     /* Dialog title: */
     virtual QString title() const = 0;
     /* Dialog title extension: */
@@ -78,8 +95,8 @@ protected:
                  int cId, const QString &strLink,
                  UISettingsPage* pSettingsPage = 0, int iParentId = -1);
 
-    /* Correlation handler: */
-    virtual bool recorrelate(QWidget *pPage, QString &strWarning);
+    /* Settings page correlator: */
+    virtual void recorrelate(UISettingsPage *pSettingsPage) { Q_UNUSED(pSettingsPage); }
 
     /* Protected variables: */
     VBoxSettingsSelector *m_pSelector;
@@ -106,10 +123,20 @@ private:
     void assignValidator(UISettingsPage *pPage);
 
     /* Global Flags: */
+    SettingsDialogType m_dialogType;
     bool m_fPolished;
 
+    /* Loading/saving stuff: */
+    bool m_fLoaded;
+    bool m_fSaved;
+
+    /* Status bar widget: */
+    QStackedWidget *m_pStatusBar;
+
+    /* Process bar widget: */
+    QProgressBar *m_pProcessBar;
+
     /* Error & Warning stuff: */
-    bool m_fProcessed;
     bool m_fValid;
     bool m_fSilent;
     QString m_strErrorHint;

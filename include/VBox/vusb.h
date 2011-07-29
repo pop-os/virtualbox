@@ -121,6 +121,25 @@ typedef VUSBDESCDEVICE *PVUSBDESCDEVICE;
 /** Pointer to a const USB device descriptor. */
 typedef const VUSBDESCDEVICE *PCVUSBDESCDEVICE;
 
+/**
+ * USB device qualifier (from spec 9.6.2)
+ */
+struct VUSBDEVICEQUALIFIER
+{
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint16_t bcdUsb;
+    uint8_t bDeviceClass;
+    uint8_t bDeviceSubClass;
+    uint8_t bDeviceProtocol;
+    uint8_t bMaxPacketSize0;
+    uint8_t bNumConfigurations;
+    uint8_t bReserved;
+};
+
+typedef struct VUSBDEVICEQUALIFIER VUSBDEVICEQUALIFIER;
+typedef VUSBDEVICEQUALIFIER *PVUSBDEVICEQUALIFIER;
+
 
 /**
  * USB configuration descriptor (from spec).

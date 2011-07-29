@@ -20,6 +20,7 @@
 # define __Additions_linux_seamless_x11_h
 
 #include <VBox/log.h>
+#include <iprt/avl.h>
 
 #include "seamless-guest.h"
 
@@ -27,147 +28,18 @@
 #include <X11/Xutil.h>
 #include <X11/extensions/shape.h>
 
-#include <map>
-#include <vector>
-
 #define WM_TYPE_PROP "_NET_WM_WINDOW_TYPE"
 #define WM_TYPE_DESKTOP_PROP "_NET_WM_WINDOW_TYPE_DESKTOP"
 
 /* This is defined wrong in my X11 header files! */
 #define VBoxShapeNotify 64
 
-/**
- * Wrapper class around the VBoxGuestX11Pointer to provide reference semantics.
- * See auto_ptr in the C++ <memory> header.
- */
-template <class T>
-struct VBoxGuestX11PointerRef
-{
-    T *mValue;
-
-    VBoxGuestX11PointerRef(T* pValue) { mValue = pValue; }
-};
-
-/** An auto pointer for pointers which have to be XFree'd. */
-template <class T>
-class VBoxGuestX11Pointer
-{
-private:
-    T *mValue;
-public:
-    VBoxGuestX11Pointer(T *pValue = 0) { mValue = pValue; }
-    ~VBoxGuestX11Pointer() { if (0 != mValue) XFree(mValue); }
-
-    /** release method to get the pointer's value and "reset" the pointer. */
-    T *release(void) { T *pTmp = mValue; mValue = 0; return pTmp; }
-
-    /** reset the pointer value to zero or to another pointer. */
-    void reset(T* pValue = 0) { if (pValue != mValue) { XFree(mValue); mValue = pValue; } }
-
-    /** Copy constructor */
-    VBoxGuestX11Pointer(VBoxGuestX11Pointer &orig) { mValue = orig.release(); }
-
-    /** Copy from equivalent class */
-    template <class T1>
-    VBoxGuestX11Pointer(VBoxGuestX11Pointer<T1> &orig) { mValue = orig.release(); }
-
-    /** Assignment operator. */
-    VBoxGuestX11Pointer& operator=(VBoxGuestX11Pointer &orig)
-    {
-        reset(orig.release());
-        return *this;
-    }
-
-    /** Assignment from equivalent class. */
-    template <class T1>
-    VBoxGuestX11Pointer& operator=(VBoxGuestX11Pointer<T1> &orig)
-    {
-        reset(orig.release);
-        return *this;
-    }
-
-    /** Assignment from a pointer. */
-    VBoxGuestX11Pointer& operator=(T *pValue)
-    {
-        if (0 != mValue)
-        {
-            XFree(mValue);
-        }
-        mValue = pValue;
-        return *this;
-    }
-
-    /** Dereference with * operator. */
-    T &operator*() { return *mValue; }
-
-    /** Dereference with -> operator. */
-    T *operator->() { return mValue; }
-
-    /** Accessing the value inside. */
-    T *get(void) { return mValue; }
-
-    /** Convert a reference structure into an X11 pointer. */
-    VBoxGuestX11Pointer(VBoxGuestX11PointerRef<T> ref) { mValue = ref.mValue; }
-
-    /** Assign from a reference structure into an X11 pointer. */
-    VBoxGuestX11Pointer& operator=(VBoxGuestX11PointerRef<T> ref)
-    {
-        if (ref.mValue != mValue)
-        {
-            XFree(mValue);
-            mValue = ref.mValue;
-        }
-        return *this;
-    }
-
-    /** Typecast an X11 pointer to a reference structure. */
-    template <class T1>
-    operator VBoxGuestX11PointerRef<T1>() { return VBoxGuestX11PointerRef<T1>(release()); }
-
-    /** Typecast an X11 pointer to an X11 pointer around a different type. */
-    template <class T1>
-    operator VBoxGuestX11Pointer<T1>() { return VBoxGuestX11Pointer<T1>(release()); }
-};
-
-/**
- * Wrapper class around an X11 display pointer which takes care of closing the display
- * when it is destroyed at the latest.
- */
-class VBoxGuestX11Display
-{
-private:
-    Display *mDisplay;
-public:
-    VBoxGuestX11Display(void) { mDisplay = NULL; }
-    bool init(char *name = NULL)
-    {
-        LogRelFlowFunc(("\n"));
-        mDisplay = XOpenDisplay(name);
-        LogRelFlowFunc(("returning\n"));
-        return (mDisplay != NULL);
-    }
-    operator Display *() { return mDisplay; }
-    Display *get(void) { return mDisplay; }
-    bool isValid(void) { return (mDisplay != NULL); }
-    int close(void)
-    {
-        LogRelFlowFunc(("\n"));
-        int rc = XCloseDisplay(mDisplay);
-        mDisplay = NULL;
-        LogRelFlowFunc(("returning\n"));
-        return rc;
-    }
-    ~VBoxGuestX11Display()
-    {
-        if (mDisplay != NULL)
-            close();
-    }
-};
-
 /** Structure containing information about a guest window's position and visible area.
     Used inside of VBoxGuestWindowList. */
 struct VBoxGuestWinInfo {
 public:
+    /** Header structure for insertion into an AVL tree */
+    AVLU32NODECORE Core;
     /** Is the window currently mapped? */
     bool mhasShape;
     /** Co-ordinates in the guest screen. */
@@ -176,15 +48,21 @@ public:
     int mWidth, mHeight;
     /** Number of rectangles used to represent the visible area. */
     int mcRects;
-    /** Rectangles representing the visible area.  These must be allocated by XMalloc
-        and will be freed automatically if non-null when the class is destroyed. */
-    VBoxGuestX11Pointer<XRectangle> mapRects;
+    /** Rectangles representing the visible area.  These must be allocated
+     * by XMalloc and will be freed automatically if non-null when the class
+     * is destroyed. */
+    XRectangle *mpRects;
     /** Constructor. */
     VBoxGuestWinInfo(bool hasShape, int x, int y, int w, int h, int cRects,
-                     VBoxGuestX11Pointer<XRectangle> rects)
-            : mapRects(rects)
+                     XRectangle *pRects)
+            : mhasShape(hasShape), mX(x), mY(y), mWidth(w), mHeight(h),
+              mcRects(cRects), mpRects(pRects) {}
+
+    /** Destructor */
+    ~VBoxGuestWinInfo()
     {
-        mhasShape = hasShape, mX = x; mY = y; mWidth = w; mHeight = h; mcRects = cRects;
+        if (mpRects)
+            XFree(mpRects);
     }
 
 private:
@@ -193,11 +71,22 @@ private:
     VBoxGuestWinInfo& operator=(const VBoxGuestWinInfo&);
 };
 
+/** Callback type used for "DoWithAll" calls */
+typedef DECLCALLBACK(int) VBOXGUESTWINCALLBACK(VBoxGuestWinInfo *, void *);
+/** Pointer to VBOXGUESTWINCALLBACK */
+typedef VBOXGUESTWINCALLBACK *PVBOXGUESTWINCALLBACK;
+
+DECLCALLBACK(int) inline VBoxGuestWinCleanup(VBoxGuestWinInfo *pInfo, void *)
+{
+    delete pInfo;
+    return VINF_SUCCESS;
+}
+
 /**
- * This class is just a wrapper around a map of structures containing information about
- * the windows on the guest system.  It has a function for adding a structure (see addWindow),
- * for removing it by window handle (see removeWindow) and an iterator for
- * going through the list.
+ * This class is just a wrapper around a map of structures containing
+ * information about the windows on the guest system.  It has a function for
+ * adding a structure (see addWindow) and one for removing it by window
+ * handle (see removeWindow).
  */
 class VBoxGuestWindowList
 {
@@ -207,56 +96,52 @@ private:
     VBoxGuestWindowList& operator=(const VBoxGuestWindowList&);
 
     // Private class members
-    std::map<Window, VBoxGuestWinInfo *> mWindows;
+    AVLU32TREE mWindows;
 
 public:
-    // Just proxy iterators to map::iterator
-    typedef std::map<Window, VBoxGuestWinInfo *>::const_iterator const_iterator;
-    typedef std::map<Window, VBoxGuestWinInfo *>::iterator iterator;
-
     // Constructor
-    VBoxGuestWindowList(void) {}
+    VBoxGuestWindowList(void) : mWindows(NULL) {}
     // Destructor
     ~VBoxGuestWindowList()
     {
-        /* We use post-increment in the operation to prevent the iterator from being invalidated. */
-        try
-        {
-            for (iterator it = begin(); it != end(); removeWindow(it++))
-                ;
-        }
-        catch(...) {}
+        /** @todo having this inside the container class hard codes that the
+         *        elements have to be allocated with the "new" operator, and
+         *        I don't see a need to require this. */
+        doWithAll(VBoxGuestWinCleanup, NULL);
     }
 
     // Standard operations
-    const_iterator begin() const { return mWindows.begin(); }
-    iterator begin() { return mWindows.begin(); }
-    const_iterator end() const { return mWindows.end(); }
-    iterator end() { return mWindows.end(); }
-    const_iterator find(Window win) const { return mWindows.find(win); }
-    iterator find(Window win) { return mWindows.find(win); }
+    VBoxGuestWinInfo *find(Window hWin)
+    {
+        return (VBoxGuestWinInfo *)RTAvlU32Get(&mWindows, hWin);
+    }
 
-    void addWindow(Window hWin, bool isMapped, int x, int y, int w, int h, int cRects,
-                   VBoxGuestX11Pointer<XRectangle> rects)
+    void detachAll(PVBOXGUESTWINCALLBACK pCallback, void *pvParam)
+    {
+        RTAvlU32Destroy(&mWindows, (PAVLU32CALLBACK)pCallback, pvParam);
+    }
+
+    int doWithAll(PVBOXGUESTWINCALLBACK pCallback, void *pvParam)
+    {
+        return RTAvlU32DoWithAll(&mWindows, 1, (PAVLU32CALLBACK)pCallback,
+                                 pvParam);
+    }
+
+    bool addWindow(Window hWin, bool isMapped, int x, int y, int w, int h, int cRects,
+                   XRectangle *pRects)
     {
         LogRelFlowFunc(("\n"));
         VBoxGuestWinInfo *pInfo = new VBoxGuestWinInfo(isMapped, x, y, w, h, cRects,
-                                                       rects);
-        mWindows.insert(std::pair<Window, VBoxGuestWinInfo *>(hWin, pInfo));
+                                                       pRects);
+        pInfo->Core.Key = hWin;
         LogRelFlowFunc(("returning\n"));
+        return RTAvlU32Insert(&mWindows, &pInfo->Core);
     }
 
-    void removeWindow(iterator it)
+    VBoxGuestWinInfo *removeWindow(Window hWin)
     {
         LogRelFlowFunc(("called\n"));
-        delete it->second;
-        mWindows.erase(it);
-    }
-
-    void removeWindow(Window hWin)
-    {
-        LogRelFlowFunc(("called\n"));
-        removeWindow(find(hWin));
+        return (VBoxGuestWinInfo *)RTAvlU32Remove(&mWindows, hWin);
     }
 };
 
@@ -273,12 +158,12 @@ private:
     /** Pointer to the observer class. */
     VBoxGuestSeamlessObserver *mObserver;
     /** Our connection to the X11 display we are running on. */
-    VBoxGuestX11Display mDisplay;
+    Display *mDisplay;
     /** Class to keep track of visible guest windows. */
     VBoxGuestWindowList mGuestWindows;
-    /** Keeps track of the total number of rectangles needed for the visible area of all
-        guest windows on the last call to getRects.  Used for pre-allocating space in
-        the vector of rectangles passed to the host. */
+    /** The current set of seamless rectangles. */
+    RTRECT *mpRects;
+    /** The current number of seamless rectangles. */
     int mcRects;
     /** Do we support the X shaped window extension? */
     bool mSupportsShape;
@@ -306,6 +191,7 @@ private:
     void addClientWindow(Window hWin);
     void freeWindowTree(void);
     void updateHostSeamlessInfo(void);
+    int updateRects(void);
 
 public:
     /**
@@ -337,7 +223,9 @@ public:
     /** Stop reporting seamless events. */
     void stop(void);
     /** Get the current list of visible rectangles. */
-    std::auto_ptr<std::vector<RTRECT> > getRects(void);
+    RTRECT *getRects(void);
+    /** Get the number of visible rectangles in the current list */
+    size_t getRectCount(void);
 
     /** Process next event in the guest event queue - called by the event thread. */
     void nextEvent(void);
@@ -352,17 +240,14 @@ public:
     void doShapeEvent(Window hWin);
 
     VBoxGuestSeamlessX11(void)
-    {
-        mObserver = 0; mcRects = 0; mEnabled = false; mSupportsShape = false;
-    }
+        : mObserver(0), mDisplay(NULL), mpRects(NULL), mcRects(0),
+          mSupportsShape(false), mEnabled(false), mChanged(false) {}
 
     ~VBoxGuestSeamlessX11()
     {
-        try
-        {
-            uninit();
-        }
-        catch(...) {}
+        uninit();
+        if (mDisplay)
+            XCloseDisplay(mDisplay);
     }
 };
 

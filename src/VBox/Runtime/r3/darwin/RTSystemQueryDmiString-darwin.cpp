@@ -1,4 +1,4 @@
-/* $Id: RTSystemQueryDmiString-darwin.cpp $ */
+/* $Id: RTSystemQueryDmiString-darwin.cpp 29560 2010-05-17 15:08:09Z vboxsync $ */
 /** @file
  * IPRT - RTSystemQueryDmiString, darwin ring-3.
  */

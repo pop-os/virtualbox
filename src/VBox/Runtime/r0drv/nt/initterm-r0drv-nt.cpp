@@ -1,4 +1,4 @@
-/* $Id: initterm-r0drv-nt.cpp $ */
+/* $Id: initterm-r0drv-nt.cpp 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - Initialization & Termination, R0 Driver, NT.
  */
@@ -71,7 +71,7 @@ uint32_t                    g_offrtNtPbDpcQueueDepth;
 
 
 
-int rtR0InitNative(void)
+DECLHIDDEN(int) rtR0InitNative(void)
 {
     /*
      * Init the Nt cpu set.
@@ -263,7 +263,7 @@ int rtR0InitNative(void)
 }
 
 
-void rtR0TermNative(void)
+DECLHIDDEN(void) rtR0TermNative(void)
 {
 }
 

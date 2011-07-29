@@ -1,4 +1,4 @@
-/* $Id: server_muralfbo.c $ */
+/* $Id: server_muralfbo.c 37613 2011-06-23 12:42:08Z vboxsync $ */
 
 /** @file
  * VBox crOpenGL: Window to FBO redirect support.
@@ -45,12 +45,62 @@ static GLboolean crServerMuralCoverScreen(CRMuralInfo *mural, int sId)
            && mural->gY+(int)mural->height > cr_server.screen[sId].y+(int)cr_server.screen[sId].h;
 }
 
+/* Called when a new CRMuralInfo is created
+ * or when OutputRedirect status is changed.
+ */
+void crServerSetupOutputRedirect(CRMuralInfo *mural)
+{
+    /* Unset the previous redirect. */
+    if (mural->pvOutputRedirectInstance)
+    {
+        cr_server.outputRedirect.CROREnd(mural->pvOutputRedirectInstance);
+        mural->pvOutputRedirectInstance = NULL;
+    }
+
+    /* Setup a new redirect. */
+    if (cr_server.bUseOutputRedirect)
+    {
+        /* Query supported formats. */
+        uint32_t cbFormats = 4096;
+        char *pachFormats = (char *)crAlloc(cbFormats);
+
+        if (pachFormats)
+        {
+            int rc = cr_server.outputRedirect.CRORContextProperty(cr_server.outputRedirect.pvContext,
+                                                                  0 /* H3DOR_PROP_FORMATS */, // @todo from a header
+                                                                  pachFormats, cbFormats, &cbFormats);
+            if (RT_SUCCESS(rc))
+            {
+                if (RTStrStr(pachFormats, "H3DOR_FMT_RGBA_TOPDOWN"))
+                {
+                    cr_server.outputRedirect.CRORBegin(cr_server.outputRedirect.pvContext,
+                                                       &mural->pvOutputRedirectInstance,
+                                                       "H3DOR_FMT_RGBA_TOPDOWN"); // @todo from a header
+                }
+            }
+
+            crFree(pachFormats);
+        }
+
+        /* If this is not NULL then there was a supported format. */
+        if (mural->pvOutputRedirectInstance)
+        {
+            cr_server.outputRedirect.CRORGeometry(mural->pvOutputRedirectInstance,
+                                                  mural->hX, mural->hY,
+                                                  mural->width, mural->height);
+            // @todo the code assumes that RTRECT == four of GLInts
+            cr_server.outputRedirect.CRORVisibleRegion(mural->pvOutputRedirectInstance,
+                                                       mural->cVisibleRects, (RTRECT *)mural->pVisibleRects);
+        }
+    }
+}
+
 void crServerCheckMuralGeometry(CRMuralInfo *mural)
 {
     int tlS, brS, trS, blS;
     int overlappingScreenCount, primaryS, i;
 
-    if (cr_server.screenCount<2)
+    if (cr_server.screenCount<2 && !cr_server.bForceOffscreenRendering)
     {
         CRASSERT(cr_server.screenCount>0);
 
@@ -104,7 +154,7 @@ void crServerCheckMuralGeometry(CRMuralInfo *mural)
     mural->hX = mural->gX-cr_server.screen[primaryS].x;
     mural->hY = mural->gY-cr_server.screen[primaryS].y;
 
-    if (overlappingScreenCount<2)
+    if (overlappingScreenCount<2 && !cr_server.bForceOffscreenRendering)
     {
         if (mural->bUseFBO)
         {
@@ -136,6 +186,13 @@ void crServerCheckMuralGeometry(CRMuralInfo *mural)
             cr_server.head_spu->dispatch_table.WindowPosition(mural->spuWindow, mural->hX, mural->hY);
         }
     }
+
+    if (mural->pvOutputRedirectInstance)
+    {
+        cr_server.outputRedirect.CRORGeometry(mural->pvOutputRedirectInstance,
+                                              mural->hX, mural->hY,
+                                              mural->width, mural->height);
+    }
 }
 
 GLboolean crServerSupportRedirMuralFBO(void)
@@ -166,18 +223,34 @@ void crServerRedirMuralFBO(CRMuralInfo *mural, GLboolean redir)
 
         if (!crStateGetCurrent()->framebufferobject.drawFB)
         {
-            cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_FRAMEBUFFER_EXT, mural->idFBO);
+            cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, mural->idFBO);
         }
+        if (!crStateGetCurrent()->framebufferobject.readFB)
+        {
+            cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_READ_FRAMEBUFFER, mural->idFBO);
+        }
+
+        crStateGetCurrent()->buffer.width = 0;
+        crStateGetCurrent()->buffer.height = 0;
     }
     else
     {
         cr_server.head_spu->dispatch_table.WindowShow(mural->spuWindow, mural->bVisible);
 
-        if (mural->bUseFBO && crServerSupportRedirMuralFBO()
-            && !crStateGetCurrent()->framebufferobject.drawFB)
+        if (mural->bUseFBO && crServerSupportRedirMuralFBO())
         {
-            cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+            if (!crStateGetCurrent()->framebufferobject.drawFB)
+            {
+                cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, 0);
+            }
+            if (!crStateGetCurrent()->framebufferobject.readFB)
+            {
+                cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_READ_FRAMEBUFFER, 0);
+            }
         }
+
+        crStateGetCurrent()->buffer.width = mural->width;
+        crStateGetCurrent()->buffer.height = mural->height;
     }
 
     mural->bUseFBO = redir;
@@ -188,37 +261,42 @@ void crServerCreateMuralFBO(CRMuralInfo *mural)
     CRContext *ctx = crStateGetCurrent();
     GLuint uid;
     GLenum status;
+    SPUDispatchTable *gl = &cr_server.head_spu->dispatch_table;
 
     CRASSERT(mural->idFBO==0);
 
     /*Color texture*/
-    cr_server.head_spu->dispatch_table.GenTextures(1, &mural->idColorTex);
-    cr_server.head_spu->dispatch_table.BindTexture(GL_TEXTURE_2D, mural->idColorTex);
-    cr_server.head_spu->dispatch_table.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    cr_server.head_spu->dispatch_table.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    cr_server.head_spu->dispatch_table.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    cr_server.head_spu->dispatch_table.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-    cr_server.head_spu->dispatch_table.TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, mural->width, mural->height,
-                                                  0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
+    gl->GenTextures(1, &mural->idColorTex);
+    gl->BindTexture(GL_TEXTURE_2D, mural->idColorTex);
+    gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    if (crStateIsBufferBound(GL_PIXEL_UNPACK_BUFFER_ARB))
+    {
+        gl->BindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+    }
+    gl->TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, mural->width, mural->height,
+                   0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
 
     /*Depth&Stencil*/
-    cr_server.head_spu->dispatch_table.GenRenderbuffersEXT(1, &mural->idDepthStencilRB);
-    cr_server.head_spu->dispatch_table.BindRenderbufferEXT(GL_RENDERBUFFER_EXT, mural->idDepthStencilRB);
-    cr_server.head_spu->dispatch_table.RenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH24_STENCIL8_EXT,
-                                                              mural->width, mural->height);
+    gl->GenRenderbuffersEXT(1, &mural->idDepthStencilRB);
+    gl->BindRenderbufferEXT(GL_RENDERBUFFER_EXT, mural->idDepthStencilRB);
+    gl->RenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH24_STENCIL8_EXT,
+                               mural->width, mural->height);
 
     /*FBO*/
-    cr_server.head_spu->dispatch_table.GenFramebuffersEXT(1, &mural->idFBO);
-    cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_FRAMEBUFFER_EXT, mural->idFBO);
+    gl->GenFramebuffersEXT(1, &mural->idFBO);
+    gl->BindFramebufferEXT(GL_FRAMEBUFFER_EXT, mural->idFBO);
 
-    cr_server.head_spu->dispatch_table.FramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
-                                                               GL_TEXTURE_2D, mural->idColorTex, 0);
-    cr_server.head_spu->dispatch_table.FramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT,
-                                                                  GL_RENDERBUFFER_EXT, mural->idDepthStencilRB);
-    cr_server.head_spu->dispatch_table.FramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT,
-                                                                  GL_RENDERBUFFER_EXT, mural->idDepthStencilRB);
+    gl->FramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
+                                GL_TEXTURE_2D, mural->idColorTex, 0);
+    gl->FramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT,
+                                   GL_RENDERBUFFER_EXT, mural->idDepthStencilRB);
+    gl->FramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT,
+                                   GL_RENDERBUFFER_EXT, mural->idDepthStencilRB);
 
-    status = cr_server.head_spu->dispatch_table.CheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
+    status = gl->CheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
     if (status!=GL_FRAMEBUFFER_COMPLETE_EXT)
     {
         crWarning("FBO status(0x%x) isn't complete", status);
@@ -227,15 +305,37 @@ void crServerCreateMuralFBO(CRMuralInfo *mural)
     mural->fboWidth = mural->width;
     mural->fboHeight = mural->height;
 
+    /*PBO*/
+    if (cr_server.bUsePBOForReadback)
+    {
+        gl->GenBuffersARB(1, &mural->idPBO);
+        gl->BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, mural->idPBO);
+        gl->BufferDataARB(GL_PIXEL_PACK_BUFFER_ARB, mural->width*mural->height*4, 0, GL_STREAM_READ_ARB);
+        gl->BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, ctx->bufferobject.packBuffer->hwid);
+
+        if (!mural->idPBO)
+        {
+            crWarning("PBO create failed");
+        }
+    }
+
     /*Restore gl state*/
     uid = ctx->texture.unit[ctx->texture.curTextureUnit].currentTexture2D->hwid;
-    cr_server.head_spu->dispatch_table.BindTexture(GL_TEXTURE_2D, uid);
+    gl->BindTexture(GL_TEXTURE_2D, uid);
 
     uid = ctx->framebufferobject.renderbuffer ? ctx->framebufferobject.renderbuffer->hwid:0;
-    cr_server.head_spu->dispatch_table.BindRenderbufferEXT(GL_RENDERBUFFER_EXT, uid);
+    gl->BindRenderbufferEXT(GL_RENDERBUFFER_EXT, uid);
 
     uid = ctx->framebufferobject.drawFB ? ctx->framebufferobject.drawFB->hwid:0;
-    cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_FRAMEBUFFER_EXT, uid);
+    gl->BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, uid);
+
+    uid = ctx->framebufferobject.readFB ? ctx->framebufferobject.readFB->hwid:0;
+    gl->BindFramebufferEXT(GL_READ_FRAMEBUFFER, uid);
+
+    if (crStateIsBufferBound(GL_PIXEL_UNPACK_BUFFER_ARB))
+    {
+        gl->BindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, ctx->bufferobject.unpackBuffer->hwid);
+    }
 }
 
 void crServerDeleteMuralFBO(CRMuralInfo *mural)
@@ -251,6 +351,13 @@ void crServerDeleteMuralFBO(CRMuralInfo *mural)
         mural->idFBO = 0;
         mural->idColorTex = 0;
         mural->idDepthStencilRB = 0;
+    }
+
+    if (mural->idPBO!=0)
+    {
+        CRASSERT(cr_server.bUsePBOForReadback);
+        cr_server.head_spu->dispatch_table.DeleteBuffersARB(1, &mural->idPBO);
+        mural->idPBO = 0;
     }
 }
 
@@ -307,10 +414,11 @@ static void crServerTransformRect(CRrecti *pDst, CRrecti *pSrc, int dx, int dy)
 
 void crServerPresentFBO(CRMuralInfo *mural)
 {
-    char *pixels, *tmppixels;
+    char *pixels=NULL, *tmppixels;
     GLuint uid;
     int i, j;
     CRrecti rect, rectwr, sectr;
+    GLboolean bUsePBO;
     CRContext *ctx = crStateGetCurrent();
 
     CRASSERT(cr_server.pfnPresentFBO);
@@ -320,37 +428,81 @@ void crServerPresentFBO(CRMuralInfo *mural)
         return;
     }
 
-    pixels = crAlloc(4*mural->fboWidth*mural->fboHeight);
-    if (!pixels)
+    if (!mural->width || !mural->height)
     {
-        crWarning("Out of memory in crServerPresentFBO");
         return;
     }
 
+    if (cr_server.bUsePBOForReadback && !mural->idPBO)
+    {
+        crWarning("Mural doesn't have PBO even though bUsePBOForReadback is set!");
+    }
+
+    bUsePBO = cr_server.bUsePBOForReadback && mural->idPBO;
+
     cr_server.head_spu->dispatch_table.BindTexture(GL_TEXTURE_2D, mural->idColorTex);
+
+    if (bUsePBO)
+    {
+        CRASSERT(mural->idPBO);
+        cr_server.head_spu->dispatch_table.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, mural->idPBO);
+    }
+    else
+    {
+        if (crStateIsBufferBound(GL_PIXEL_PACK_BUFFER_ARB))
+        {
+            cr_server.head_spu->dispatch_table.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, 0);
+        }
+
+        pixels = crAlloc(4*mural->fboWidth*mural->fboHeight);
+        if (!pixels)
+        {
+            crWarning("Out of memory in crServerPresentFBO");
+            return;
+        }
+    }
+
+    /*read the texture, note pixels are NULL for PBO case as it's offset in the buffer*/    
     cr_server.head_spu->dispatch_table.GetTexImage(GL_TEXTURE_2D, 0, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
+
+    /*restore gl state*/
     uid = ctx->texture.unit[ctx->texture.curTextureUnit].currentTexture2D->hwid;
     cr_server.head_spu->dispatch_table.BindTexture(GL_TEXTURE_2D, uid);
+
+    if (bUsePBO)
+    {
+        pixels = cr_server.head_spu->dispatch_table.MapBufferARB(GL_PIXEL_PACK_BUFFER_ARB, GL_READ_ONLY);
+        if (!pixels)
+        {
+            crWarning("Failed to MapBuffer in crServerPresentFBO");
+            return;
+        }
+    }
 
     for (i=0; i<cr_server.screenCount; ++i)
     {
         if (crServerIntersectScreen(mural, i, &rect))
         {
-            tmppixels = crAlloc(4*(rect.x2-rect.x1)*(rect.y2-rect.y1));
-            if (!tmppixels)
-            {
-                crWarning("Out of memory in crServerPresentFBO");
-                crFree(pixels);
-                return;
-            }
-
             /* rect in window relative coords */
             crServerTransformRect(&rectwr, &rect, -mural->gX, -mural->gY);
 
             if (!mural->pVisibleRects)
             {
-                crServerCopySubImage(tmppixels, pixels, &rectwr, mural->fboWidth, mural->fboHeight);
-                cr_server.pfnPresentFBO(tmppixels, i, rect.x1-cr_server.screen[i].x, rect.y1-cr_server.screen[i].y, rect.x2-rect.x1, rect.y2-rect.y1);
+                /*we don't get any rects info for guest compiz windows, so we treat windows as visible unless explicitly received 0 visible rects*/
+                if (!mural->bReceivedRects)
+                {
+                    tmppixels = crAlloc(4*(rect.x2-rect.x1)*(rect.y2-rect.y1));
+                    if (!tmppixels)
+                    {
+                        crWarning("Out of memory in crServerPresentFBO");
+                        crFree(pixels);
+                        return;
+                    }
+
+                    crServerCopySubImage(tmppixels, pixels, &rectwr, mural->fboWidth, mural->fboHeight);
+                    /*Note: pfnPresentFBO would free tmppixels*/
+                    cr_server.pfnPresentFBO(tmppixels, i, rect.x1-cr_server.screen[i].x, rect.y1-cr_server.screen[i].y, rect.x2-rect.x1, rect.y2-rect.y1);
+                }
             }
             else
             {
@@ -358,7 +510,16 @@ void crServerPresentFBO(CRMuralInfo *mural)
                 {
                     if (crServerIntersectRect(&rectwr, (CRrecti*) &mural->pVisibleRects[4*j], &sectr))
                     {
+                        tmppixels = crAlloc(4*(sectr.x2-sectr.x1)*(sectr.y2-sectr.y1));
+                        if (!tmppixels)
+                        {
+                            crWarning("Out of memory in crServerPresentFBO");
+                            crFree(pixels);
+                            return;
+                        }
+
                         crServerCopySubImage(tmppixels, pixels, &sectr, mural->fboWidth, mural->fboHeight);
+                        /*Note: pfnPresentFBO would free tmppixels*/
                         cr_server.pfnPresentFBO(tmppixels, i,
                                                 sectr.x1+mural->gX-cr_server.screen[i].x,
                                                 sectr.y1+mural->gY-cr_server.screen[i].y,
@@ -366,11 +527,30 @@ void crServerPresentFBO(CRMuralInfo *mural)
                     }
                 }
             }
-
-            crFree(tmppixels);
         }
     }
-    crFree(pixels);
+
+    if (mural->pvOutputRedirectInstance)
+    {
+        /* @todo find out why presentfbo is not called but crorframe is called. */
+        cr_server.outputRedirect.CRORFrame(mural->pvOutputRedirectInstance,
+                                           pixels,
+                                           4 * mural->fboWidth * mural->fboHeight);
+    }
+
+    if (bUsePBO)
+    {
+        cr_server.head_spu->dispatch_table.UnmapBufferARB(GL_PIXEL_PACK_BUFFER_ARB);
+        cr_server.head_spu->dispatch_table.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, ctx->bufferobject.packBuffer->hwid);
+    }
+    else
+    {
+        crFree(pixels);
+        if (crStateIsBufferBound(GL_PIXEL_PACK_BUFFER_ARB))
+        {
+            cr_server.head_spu->dispatch_table.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, ctx->bufferobject.packBuffer->hwid);
+        }
+    }
 }
 
 GLboolean crServerIsRedirectedToFBO()

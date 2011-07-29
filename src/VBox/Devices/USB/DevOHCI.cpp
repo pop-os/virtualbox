@@ -1,4 +1,4 @@
-/* $Id: DevOHCI.cpp $ */
+/* $Id: DevOHCI.cpp 37668 2011-06-28 16:02:10Z vboxsync $ */
 /** @file
  * DevOHCI - Open Host Controller Interface for USB.
  */
@@ -765,8 +765,6 @@ static int                  ohci_in_done_queue_find(POHCI pOhci, uint32_t GCPhys
 # endif
 static DECLCALLBACK(void)   ohciR3LoadReattachDevices(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser);
 #endif /* IN_RING3 */
-PDMBOTHCBDECL(int)          ohciWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-PDMBOTHCBDECL(int)          ohciRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
 RT_C_DECLS_END
 
 
@@ -872,6 +870,8 @@ static DECLCALLBACK(unsigned) ohciRhGetAvailablePorts(PVUSBIROOTHUBPORT pInterfa
     unsigned cPorts = 0;
 
     memset(pAvailable, 0, sizeof(*pAvailable));
+
+    PDMCritSectEnter(pOhci->pDevInsR3->pCritSectRoR3, VERR_IGNORED);
     for (iPort = 0; iPort < RT_ELEMENTS(pOhci->RootHub.aPorts); iPort++)
     {
         if (!pOhci->RootHub.aPorts[iPort].pDev)
@@ -880,6 +880,7 @@ static DECLCALLBACK(unsigned) ohciRhGetAvailablePorts(PVUSBIROOTHUBPORT pInterfa
             ASMBitSet(pAvailable, iPort + 1);
         }
     }
+    PDMCritSectLeave(pOhci->pDevInsR3->pCritSectRoR3);
 
     return cPorts;
 }
@@ -908,6 +909,7 @@ static DECLCALLBACK(int) ohciRhAttach(PVUSBIROOTHUBPORT pInterface, PVUSBIDEVICE
 {
     POHCI pOhci = VUSBIROOTHUBPORT_2_OHCI(pInterface);
     LogFlow(("ohciRhAttach: pDev=%p uPort=%u\n", pDev, uPort));
+    PDMCritSectEnter(pOhci->pDevInsR3->pCritSectRoR3, VERR_IGNORED);
 
     /*
      * Validate and adjust input.
@@ -926,6 +928,7 @@ static DECLCALLBACK(int) ohciRhAttach(PVUSBIROOTHUBPORT pInterface, PVUSBIDEVICE
     ohci_remote_wakeup(pOhci);
     ohciSetInterrupt(pOhci, OHCI_INTR_ROOT_HUB_STATUS_CHANGE);
 
+    PDMCritSectLeave(pOhci->pDevInsR3->pCritSectRoR3);
     return VINF_SUCCESS;
 }
 
@@ -941,6 +944,7 @@ static DECLCALLBACK(void) ohciRhDetach(PVUSBIROOTHUBPORT pInterface, PVUSBIDEVIC
 {
     POHCI pOhci = VUSBIROOTHUBPORT_2_OHCI(pInterface);
     LogFlow(("ohciRhDetach: pDev=%p uPort=%u\n", pDev, uPort));
+    PDMCritSectEnter(pOhci->pDevInsR3->pCritSectRoR3, VERR_IGNORED);
 
     /*
      * Validate and adjust input.
@@ -960,6 +964,8 @@ static DECLCALLBACK(void) ohciRhDetach(PVUSBIROOTHUBPORT pInterface, PVUSBIDEVIC
 
     ohci_remote_wakeup(pOhci);
     ohciSetInterrupt(pOhci, OHCI_INTR_ROOT_HUB_STATUS_CHANGE);
+
+    PDMCritSectLeave(pOhci->pDevInsR3->pCritSectRoR3);
 }
 
 
@@ -997,6 +1003,7 @@ static DECLCALLBACK(void) ohciRhResetDoneOneDev(PVUSBIDEVICE pDev, int rc, void 
 static DECLCALLBACK(int) ohciRhReset(PVUSBIROOTHUBPORT pInterface, bool fResetOnLinux)
 {
     POHCI pOhci = VUSBIROOTHUBPORT_2_OHCI(pInterface);
+    PDMCritSectEnter(pOhci->pDevInsR3->pCritSectRoR3, VERR_IGNORED);
 
     pOhci->RootHub.status = 0;
     pOhci->RootHub.desc_a = OHCI_RHA_NPS | OHCI_NDP;
@@ -1029,6 +1036,7 @@ static DECLCALLBACK(int) ohciRhReset(PVUSBIROOTHUBPORT pInterface, bool fResetOn
             pOhci->RootHub.aPorts[iPort].fReg = 0;
     }
 
+    PDMCritSectLeave(pOhci->pDevInsR3->pCritSectRoR3);
     return VINF_SUCCESS;
 }
 
@@ -1692,7 +1700,19 @@ static int ohci_in_done_queue_find(POHCI pOhci, uint32_t GCPhysTD)
 static bool ohci_in_done_queue_check(POHCI pOhci, uint32_t GCPhysTD)
 {
     int i = ohci_in_done_queue_find(pOhci, GCPhysTD);
+#if 0
+    /* This condition has been observed with the USB tablet emulation or with
+     * a real USB mouse and an SMP XP guest.  I am also not sure if this is
+     * really a problem for us.  The assertion checks that the guest doesn't
+     * re-submit a TD which is still in the done queue.  It seems to me that
+     * this should only be a problem if we either keep track of TDs in the done
+     * queue somewhere else as well (in which case we should also free those
+     * references in time, and I can't see any code doing that) or if we
+     * manipulate TDs in the done queue in some way that might fail if they are
+     * re-submitted (can't see anything like that either).
+     */
     AssertMsg(i < 0, ("TD %#010x (i=%d)\n", GCPhysTD, i));
+#endif
     return i < 0;
 }
 
@@ -2401,6 +2421,7 @@ static DECLCALLBACK(void) ohciRhXferCompletion(PVUSBIROOTHUBPORT pInterface, PVU
     POHCI pOhci = VUSBIROOTHUBPORT_2_OHCI(pInterface);
     LogFlow(("%s: ohciRhXferCompletion: EdAddr=%#010RX32 cTds=%d TdAddr0=%#010RX32\n",
              pUrb->pszDesc, pUrb->Hci.EdAddr, pUrb->Hci.cTds, pUrb->Hci.paTds[0].TdAddr));
+    Assert(PDMCritSectIsOwner(pOhci->pDevInsR3->pCritSectRoR3));
 
     pOhci->fIdle = false;   /* Mark as active */
 
@@ -2475,6 +2496,7 @@ static DECLCALLBACK(void) ohciRhXferCompletion(PVUSBIROOTHUBPORT pInterface, PVU
 static DECLCALLBACK(bool) ohciRhXferError(PVUSBIROOTHUBPORT pInterface, PVUSBURB pUrb)
 {
     POHCI pOhci = VUSBIROOTHUBPORT_2_OHCI(pInterface);
+    Assert(PDMCritSectIsOwner(pOhci->pDevInsR3->pCritSectRoR3));
 
     /*
      * Isochronous URBs can't be retried.
@@ -4812,7 +4834,7 @@ PDMBOTHCBDECL(int) ohciRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAdd
  * @param   pv          Pointer to the data being written.
  * @param   cb          The size of the data being written.
  */
-PDMBOTHCBDECL(int) ohciWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+PDMBOTHCBDECL(int) ohciWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
     POHCI pOhci = PDMINS_2_DATA(pDevIns, POHCI);
 

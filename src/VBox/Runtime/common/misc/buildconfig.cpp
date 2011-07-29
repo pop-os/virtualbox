@@ -1,4 +1,4 @@
-/* $Id: buildconfig.cpp $ */
+/* $Id: buildconfig.cpp 33680 2010-11-02 11:08:08Z vboxsync $ */
 /** @file
  * IPRT - Build Configuration Information.
  */

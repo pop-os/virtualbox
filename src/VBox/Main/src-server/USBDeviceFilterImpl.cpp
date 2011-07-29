@@ -1,4 +1,4 @@
-/* $Id: USBDeviceFilterImpl.cpp $ */
+/* $Id: USBDeviceFilterImpl.cpp 35638 2011-01-19 19:10:49Z vboxsync $ */
 /** @file
  * Implementation of VirtualBox COM components: USBDeviceFilter and HostUSBDeviceFilter
  */
@@ -186,12 +186,13 @@ USBDeviceFilter::~USBDeviceFilter()
 
 HRESULT USBDeviceFilter::FinalConstruct()
 {
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void USBDeviceFilter::FinalRelease()
 {
     uninit();
+    BaseFinalRelease();
 }
 
 // public initializer/uninitializer for internal purposes only

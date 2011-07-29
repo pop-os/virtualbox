@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- $Id: xpcidl.xsl $ -->
+<!-- $Id: xpcidl.xsl 32404 2010-09-10 13:17:42Z vboxsync $ -->
 
 <!--
  *  A template to generate a XPCOM IDL compatible interface definition file

@@ -1,4 +1,4 @@
-/* $Id: UIMachineSettingsSystem.cpp $ */
+/* $Id: UIMachineSettingsSystem.cpp 37753 2011-07-04 10:09:18Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,8 @@
 UIMachineSettingsSystem::UIMachineSettingsSystem()
     : mValidator(0)
     , mMinGuestCPU(0), mMaxGuestCPU(0)
+    , mMinGuestCPUExecCap(0), mMedGuestCPUExecCap(0), mMaxGuestCPUExecCap(0)
+    , m_fOHCIEnabled(false)
 {
     /* Apply UI decorations */
     Ui::UIMachineSettingsSystem::setupUi (this);
@@ -39,6 +41,9 @@ UIMachineSettingsSystem::UIMachineSettingsSystem()
     uint hostCPUs = vboxGlobal().virtualBox().GetHost().GetProcessorCount();
     mMinGuestCPU = properties.GetMinGuestCPUCount();
     mMaxGuestCPU = RT_MIN (2 * hostCPUs, properties.GetMaxGuestCPUCount());
+    mMinGuestCPUExecCap = 1;
+    mMedGuestCPUExecCap = 40;
+    mMaxGuestCPUExecCap = 100;
 
     /* Populate possible boot items list.
      * Currently, it seems, we are supporting only 4 possible boot device types:
@@ -82,6 +87,7 @@ UIMachineSettingsSystem::UIMachineSettingsSystem()
     /* Setup validators */
     mLeMemory->setValidator (new QIntValidator (mSlMemory->minRAM(), mSlMemory->maxRAM(), this));
     mLeCPU->setValidator (new QIntValidator (mMinGuestCPU, mMaxGuestCPU, this));
+    mLeCPUExecCap->setValidator(new QIntValidator(mMinGuestCPUExecCap, mMaxGuestCPUExecCap, this));
 
     /* Setup connections */
     connect (mSlMemory, SIGNAL (valueChanged (int)),
@@ -100,6 +106,9 @@ UIMachineSettingsSystem::UIMachineSettingsSystem()
              this, SLOT (valueChangedCPU (int)));
     connect (mLeCPU, SIGNAL (textChanged (const QString&)),
              this, SLOT (textChangedCPU (const QString&)));
+
+    connect(mSlCPUExecCap, SIGNAL(valueChanged(int)), this, SLOT(sltValueChangedCPUExecCap(int)));
+    connect(mLeCPUExecCap, SIGNAL(textChanged(const QString&)), this, SLOT(sltTextChangedCPUExecCap(const QString&)));
 
     /* Setup iconsets */
     mTbBootItemUp->setIcon(UIIconPool::iconSet(":/list_moveup_16px.png",
@@ -128,9 +137,24 @@ UIMachineSettingsSystem::UIMachineSettingsSystem()
     mSlCPU->setOptimalHint (1, hostCPUs);
     mSlCPU->setWarningHint (hostCPUs, mMaxGuestCPU);
     /* Limit min/max. size of QLineEdit */
-    mLeCPU->setFixedWidthByText (QString().fill ('8', 3));
+    mLeCPU->setFixedWidthByText(QString().fill('8', 4));
     /* Ensure mLeMemory value and validation is updated */
     valueChangedCPU (mSlCPU->value());
+
+    /* Setup cpu cap slider: */
+    mSlCPUExecCap->setPageStep(10);
+    mSlCPUExecCap->setSingleStep(1);
+    mSlCPUExecCap->setTickInterval(10);
+    /* Setup the scale so that ticks are at page step boundaries: */
+    mSlCPUExecCap->setMinimum(mMinGuestCPUExecCap);
+    mSlCPUExecCap->setMaximum(mMaxGuestCPUExecCap);
+    mSlCPUExecCap->setWarningHint(mMinGuestCPUExecCap, mMedGuestCPUExecCap);
+    mSlCPUExecCap->setOptimalHint(mMedGuestCPUExecCap, mMaxGuestCPUExecCap);
+    /* Limit min/max. size of QLineEdit: */
+    mLeCPUExecCap->setFixedWidthByText(QString().fill('8', 4));
+    /* Ensure mLeMemory value and validation is updated: */
+    sltValueChangedCPUExecCap(mSlCPUExecCap->value());
+
     /* Populate chipset combo: */
     mCbChipset->insertItem(0, vboxGlobal().toString(KChipsetType_PIIX3), QVariant(KChipsetType_PIIX3));
     mCbChipset->insertItem(1, vboxGlobal().toString(KChipsetType_ICH9), QVariant(KChipsetType_ICH9));
@@ -147,11 +171,6 @@ bool UIMachineSettingsSystem::isHWVirtExEnabled() const
     return mCbVirt->isChecked();
 }
 
-int UIMachineSettingsSystem::cpuCount() const
-{
-    return mSlCPU->value();
-}
-
 bool UIMachineSettingsSystem::isHIDEnabled() const
 {
     return mCbUseAbsHID->isChecked();
@@ -162,6 +181,11 @@ KChipsetType UIMachineSettingsSystem::chipsetType() const
     return (KChipsetType)mCbChipset->itemData(mCbChipset->currentIndex()).toInt();
 }
 
+void UIMachineSettingsSystem::setOHCIEnabled(bool fEnabled)
+{
+    m_fOHCIEnabled = fEnabled;
+}
+
 /* Load data to cashe from corresponding external object(s),
  * this task COULD be performed in other than GUI thread: */
 void UIMachineSettingsSystem::loadToCacheFrom(QVariant &data)
@@ -169,7 +193,12 @@ void UIMachineSettingsSystem::loadToCacheFrom(QVariant &data)
     /* Fetch data to machine: */
     UISettingsPageMachine::fetchData(data);
 
-    /* Fill internal variables with corresponding values: */
+    /* Clear cache initially: */
+    m_cache.clear();
+
+    /* Prepare system data: */
+    UIDataSettingsMachineSystem systemData;
+
     /* Load boot-items of current VM: */
     QList<KDeviceType> usedBootItems;
     for (int i = 1; i <= m_possibleBootItems.size(); ++i)
@@ -181,7 +210,7 @@ void UIMachineSettingsSystem::loadToCacheFrom(QVariant &data)
             UIBootItemData data;
             data.m_type = type;
             data.m_fEnabled = true;
-            m_cache.m_bootItems << data;
+            systemData.m_bootItems << data;
         }
     }
     /* Load other unique boot-items: */
@@ -193,21 +222,26 @@ void UIMachineSettingsSystem::loadToCacheFrom(QVariant &data)
             UIBootItemData data;
             data.m_type = type;
             data.m_fEnabled = false;
-            m_cache.m_bootItems << data;
+            systemData.m_bootItems << data;
         }
     }
-    m_cache.m_fPFHwVirtExSupported = vboxGlobal().virtualBox().GetHost().GetProcessorFeature(KProcessorFeature_HWVirtEx);
-    m_cache.m_fPFPAESupported = vboxGlobal().virtualBox().GetHost().GetProcessorFeature(KProcessorFeature_PAE);
-    m_cache.m_fIoApicEnabled = m_machine.GetBIOSSettings().GetIOAPICEnabled();
-    m_cache.m_fEFIEnabled = m_machine.GetFirmwareType() >= KFirmwareType_EFI && m_machine.GetFirmwareType() <= KFirmwareType_EFIDUAL;
-    m_cache.m_fUTCEnabled = m_machine.GetRTCUseUTC();
-    m_cache.m_fUseAbsHID = m_machine.GetPointingHidType() == KPointingHidType_USBTablet;
-    m_cache.m_fPAEEnabled = m_machine.GetCPUProperty(KCPUPropertyType_PAE);
-    m_cache.m_fHwVirtExEnabled = m_machine.GetHWVirtExProperty(KHWVirtExPropertyType_Enabled);
-    m_cache.m_fNestedPagingEnabled = m_machine.GetHWVirtExProperty(KHWVirtExPropertyType_NestedPaging);
-    m_cache.m_iRAMSize = m_machine.GetMemorySize();
-    m_cache.m_cCPUCount = m_cache.m_fPFHwVirtExSupported ? m_machine.GetCPUCount() : 1;
-    m_cache.m_chipsetType = m_machine.GetChipsetType();
+    /* Gather other system data: */
+    systemData.m_fPFHwVirtExSupported = vboxGlobal().virtualBox().GetHost().GetProcessorFeature(KProcessorFeature_HWVirtEx);
+    systemData.m_fPFPAESupported = vboxGlobal().virtualBox().GetHost().GetProcessorFeature(KProcessorFeature_PAE);
+    systemData.m_fIoApicEnabled = m_machine.GetBIOSSettings().GetIOAPICEnabled();
+    systemData.m_fEFIEnabled = m_machine.GetFirmwareType() >= KFirmwareType_EFI && m_machine.GetFirmwareType() <= KFirmwareType_EFIDUAL;
+    systemData.m_fUTCEnabled = m_machine.GetRTCUseUTC();
+    systemData.m_fUseAbsHID = m_machine.GetPointingHidType() == KPointingHidType_USBTablet;
+    systemData.m_fPAEEnabled = m_machine.GetCPUProperty(KCPUPropertyType_PAE);
+    systemData.m_fHwVirtExEnabled = m_machine.GetHWVirtExProperty(KHWVirtExPropertyType_Enabled);
+    systemData.m_fNestedPagingEnabled = m_machine.GetHWVirtExProperty(KHWVirtExPropertyType_NestedPaging);
+    systemData.m_iRAMSize = m_machine.GetMemorySize();
+    systemData.m_cCPUCount = systemData.m_fPFHwVirtExSupported ? m_machine.GetCPUCount() : 1;
+    systemData.m_cCPUExecCap = m_machine.GetCPUExecutionCap();
+    systemData.m_chipsetType = m_machine.GetChipsetType();
+
+    /* Cache system data: */
+    m_cache.cacheInitialData(systemData);
 
     /* Upload machine to data: */
     UISettingsPageMachine::uploadData(data);
@@ -217,65 +251,74 @@ void UIMachineSettingsSystem::loadToCacheFrom(QVariant &data)
  * this task SHOULD be performed in GUI thread only: */
 void UIMachineSettingsSystem::getFromCache()
 {
-    /* Remove any old data in the boot view. */
+    /* Get system data from cache: */
+    const UIDataSettingsMachineSystem &systemData = m_cache.base();
+
+    /* Remove any old data in the boot view: */
     QAbstractItemView *iv = qobject_cast <QAbstractItemView*> (mTwBootOrder);
     iv->model()->removeRows(0, iv->model()->rowCount());
     /* Apply internal variables data to QWidget(s): */
-    for (int i = 0; i < m_cache.m_bootItems.size(); ++i)
+    for (int i = 0; i < systemData.m_bootItems.size(); ++i)
     {
-        UIBootItemData data = m_cache.m_bootItems[i];
+        UIBootItemData data = systemData.m_bootItems[i];
         QListWidgetItem *pItem = new UIBootTableItem(data.m_type);
         pItem->setCheckState(data.m_fEnabled ? Qt::Checked : Qt::Unchecked);
         mTwBootOrder->addItem(pItem);
     }
-    mCbApic->setChecked(m_cache.m_fIoApicEnabled);
-    mCbEFI->setChecked(m_cache.m_fEFIEnabled);
-    mCbTCUseUTC->setChecked(m_cache.m_fUTCEnabled);
-    mCbUseAbsHID->setChecked(m_cache.m_fUseAbsHID);
-    mSlCPU->setEnabled(m_cache.m_fPFHwVirtExSupported);
-    mLeCPU->setEnabled(m_cache.m_fPFHwVirtExSupported);
-    mCbPae->setEnabled(m_cache.m_fPFPAESupported);
-    mCbPae->setChecked(m_cache.m_fPAEEnabled);
-    mCbVirt->setEnabled(m_cache.m_fPFHwVirtExSupported);
-    mCbVirt->setChecked(m_cache.m_fHwVirtExEnabled);
-    mCbNestedPaging->setEnabled(m_cache.m_fPFHwVirtExSupported && m_cache.m_fHwVirtExEnabled);
-    mCbNestedPaging->setChecked(m_cache.m_fNestedPagingEnabled);
-    mSlMemory->setValue(m_cache.m_iRAMSize);
-    mSlCPU->setValue(m_cache.m_cCPUCount);
-    int iChipsetPositionPos = mCbChipset->findData(m_cache.m_chipsetType);
+    /* Load other system data to page: */
+    mCbApic->setChecked(systemData.m_fIoApicEnabled);
+    mCbEFI->setChecked(systemData.m_fEFIEnabled);
+    mCbTCUseUTC->setChecked(systemData.m_fUTCEnabled);
+    mCbUseAbsHID->setChecked(systemData.m_fUseAbsHID);
+    mCbPae->setChecked(systemData.m_fPAEEnabled);
+    mCbVirt->setChecked(systemData.m_fHwVirtExEnabled);
+    mCbNestedPaging->setChecked(systemData.m_fNestedPagingEnabled);
+    mSlMemory->setValue(systemData.m_iRAMSize);
+    mSlCPU->setValue(systemData.m_cCPUCount);
+    mSlCPUExecCap->setValue(systemData.m_cCPUExecCap);
+    int iChipsetPositionPos = mCbChipset->findData(systemData.m_chipsetType);
     mCbChipset->setCurrentIndex(iChipsetPositionPos == -1 ? 0 : iChipsetPositionPos);
-    if (!m_cache.m_fPFHwVirtExSupported)
-        mTwSystem->removeTab(2);
+
+    /* Polish page finally: */
+    polishPage();
 
     /* Revalidate if possible: */
-    if (mValidator) mValidator->revalidate();
+    if (mValidator)
+        mValidator->revalidate();
 }
 
 /* Save data from corresponding widgets to cache,
  * this task SHOULD be performed in GUI thread only: */
 void UIMachineSettingsSystem::putToCache()
 {
-    /* Gather internal variables data from QWidget(s): */
-    m_cache.m_bootItems.clear();
+    /* Prepare system data: */
+    UIDataSettingsMachineSystem systemData = m_cache.base();
+
+    /* Gather system data: */
+    systemData.m_bootItems.clear();
     for (int i = 0; i < mTwBootOrder->count(); ++i)
     {
         QListWidgetItem *pItem = mTwBootOrder->item(i);
         UIBootItemData data;
         data.m_type = static_cast<UIBootTableItem*>(pItem)->type();
         data.m_fEnabled = pItem->checkState() == Qt::Checked;
-        m_cache.m_bootItems << data;
+        systemData.m_bootItems << data;
     }
-    m_cache.m_fIoApicEnabled = mCbApic->isChecked() || mSlCPU->value() > 1 ||
-                               (KChipsetType)mCbChipset->itemData(mCbChipset->currentIndex()).toInt() == KChipsetType_ICH9;
-    m_cache.m_fEFIEnabled = mCbEFI->isChecked();
-    m_cache.m_fUTCEnabled = mCbTCUseUTC->isChecked();
-    m_cache.m_fUseAbsHID = mCbUseAbsHID->isChecked();
-    m_cache.m_fPAEEnabled = mCbPae->isChecked();
-    m_cache.m_fHwVirtExEnabled = mCbVirt->checkState() == Qt::Checked || mSlCPU->value() > 1;
-    m_cache.m_fNestedPagingEnabled = mCbNestedPaging->isChecked();
-    m_cache.m_iRAMSize = mSlMemory->value();
-    m_cache.m_cCPUCount = mSlCPU->value();
-    m_cache.m_chipsetType = (KChipsetType)mCbChipset->itemData(mCbChipset->currentIndex()).toInt();
+    systemData.m_fIoApicEnabled = mCbApic->isChecked() || mSlCPU->value() > 1 ||
+                                  (KChipsetType)mCbChipset->itemData(mCbChipset->currentIndex()).toInt() == KChipsetType_ICH9;
+    systemData.m_fEFIEnabled = mCbEFI->isChecked();
+    systemData.m_fUTCEnabled = mCbTCUseUTC->isChecked();
+    systemData.m_fUseAbsHID = mCbUseAbsHID->isChecked();
+    systemData.m_fPAEEnabled = mCbPae->isChecked();
+    systemData.m_fHwVirtExEnabled = mCbVirt->checkState() == Qt::Checked || mSlCPU->value() > 1;
+    systemData.m_fNestedPagingEnabled = mCbNestedPaging->isChecked();
+    systemData.m_iRAMSize = mSlMemory->value();
+    systemData.m_cCPUCount = mSlCPU->value();
+    systemData.m_cCPUExecCap = mSlCPUExecCap->value();
+    systemData.m_chipsetType = (KChipsetType)mCbChipset->itemData(mCbChipset->currentIndex()).toInt();
+
+    /* Cache system data: */
+    m_cache.cacheCurrentData(systemData);
 }
 
 /* Save data from cache to corresponding external object(s),
@@ -285,30 +328,48 @@ void UIMachineSettingsSystem::saveFromCacheTo(QVariant &data)
     /* Fetch data to machine: */
     UISettingsPageMachine::fetchData(data);
 
-    /* Gather corresponding values from internal variables: */
-    int iBootIndex = 0;
-    /* Save boot-items of current VM: */
-    for (int i = 0; i < m_cache.m_bootItems.size(); ++i)
+    /* Check if system data was changed: */
+    if (m_cache.wasChanged())
     {
-        if (m_cache.m_bootItems[i].m_fEnabled)
-            m_machine.SetBootOrder(++iBootIndex, m_cache.m_bootItems[i].m_type);
+        /* Get system data from cache: */
+        const UIDataSettingsMachineSystem &systemData = m_cache.data();
+
+        /* Store system data: */
+        if (isMachineOffline())
+        {
+            /* Motherboard tab: */
+            m_machine.SetMemorySize(systemData.m_iRAMSize);
+            int iBootIndex = 0;
+            /* Save boot-items of current VM: */
+            for (int i = 0; i < systemData.m_bootItems.size(); ++i)
+            {
+                if (systemData.m_bootItems[i].m_fEnabled)
+                    m_machine.SetBootOrder(++iBootIndex, systemData.m_bootItems[i].m_type);
+            }
+            /* Save other unique boot-items: */
+            for (int i = 0; i < systemData.m_bootItems.size(); ++i)
+            {
+                if (!systemData.m_bootItems[i].m_fEnabled)
+                    m_machine.SetBootOrder(++iBootIndex, KDeviceType_Null);
+            }
+            m_machine.SetChipsetType(systemData.m_chipsetType);
+            m_machine.GetBIOSSettings().SetIOAPICEnabled(systemData.m_fIoApicEnabled);
+            m_machine.SetFirmwareType(systemData.m_fEFIEnabled ? KFirmwareType_EFI : KFirmwareType_BIOS);
+            m_machine.SetRTCUseUTC(systemData.m_fUTCEnabled);
+            m_machine.SetPointingHidType(systemData.m_fUseAbsHID ? KPointingHidType_USBTablet : KPointingHidType_PS2Mouse);
+            /* Processor tab: */
+            m_machine.SetCPUCount(systemData.m_cCPUCount);
+            m_machine.SetCPUProperty(KCPUPropertyType_PAE, systemData.m_fPAEEnabled);
+            /* Acceleration tab: */
+            m_machine.SetHWVirtExProperty(KHWVirtExPropertyType_Enabled, systemData.m_fHwVirtExEnabled);
+            m_machine.SetHWVirtExProperty(KHWVirtExPropertyType_NestedPaging, systemData.m_fNestedPagingEnabled);
+        }
+        if (isMachineInValidMode())
+        {
+            /* Processor tab: */
+            m_machine.SetCPUExecutionCap(systemData.m_cCPUExecCap);
+        }
     }
-    /* Save other unique boot-items: */
-    for (int i = 0; i < m_cache.m_bootItems.size(); ++i)
-    {
-        if (!m_cache.m_bootItems[i].m_fEnabled)
-            m_machine.SetBootOrder(++iBootIndex, KDeviceType_Null);
-    }
-    m_machine.GetBIOSSettings().SetIOAPICEnabled(m_cache.m_fIoApicEnabled);
-    m_machine.SetFirmwareType(m_cache.m_fEFIEnabled ? KFirmwareType_EFI : KFirmwareType_BIOS);
-    m_machine.SetRTCUseUTC(m_cache.m_fUTCEnabled);
-    m_machine.SetPointingHidType(m_cache.m_fUseAbsHID ? KPointingHidType_USBTablet : KPointingHidType_PS2Mouse);
-    m_machine.SetCPUProperty(KCPUPropertyType_PAE, m_cache.m_fPAEEnabled);
-    m_machine.SetHWVirtExProperty(KHWVirtExPropertyType_Enabled, m_cache.m_fHwVirtExEnabled);
-    m_machine.SetHWVirtExProperty(KHWVirtExPropertyType_NestedPaging, m_cache.m_fNestedPagingEnabled);
-    m_machine.SetMemorySize(m_cache.m_iRAMSize);
-    m_machine.SetCPUCount(m_cache.m_cCPUCount);
-    m_machine.SetChipsetType(m_cache.m_chipsetType);
 
     /* Upload machine to data: */
     UISettingsPageMachine::uploadData(data);
@@ -391,12 +452,31 @@ bool UIMachineSettingsSystem::revalidate (QString &aWarning, QString & /* aTitle
         return true;
     }
 
+    /* CPU execution cap is low: */
+    if (mSlCPUExecCap->value() < (int)mMedGuestCPUExecCap)
+    {
+        aWarning = tr("you have set the processor execution cap to a low value. "
+                      "This can make the machine feel slow to respond.");
+        return true;
+    }
+
     /* Chipset type & IO-APIC test */
     if ((KChipsetType)mCbChipset->itemData(mCbChipset->currentIndex()).toInt() == KChipsetType_ICH9 && !mCbApic->isChecked())
     {
         aWarning = tr (
             "you have assigned ICH9 chipset type to this VM. "
             "It will not work properly unless the IO-APIC feature is also enabled. "
+            "This will be done automatically when you accept the VM Settings "
+            "by pressing the OK button.");
+        return true;
+    }
+
+    /* HID dependency from OHCI feature: */
+    if (mCbUseAbsHID->isChecked() && !m_fOHCIEnabled)
+    {
+        aWarning = tr (
+            "you have enabled a USB HID (Human Interface Device). "
+            "This will not work unless USB emulation is also enabled. "
             "This will be done automatically when you accept the VM Settings "
             "by pressing the OK button.");
         return true;
@@ -422,7 +502,9 @@ void UIMachineSettingsSystem::setOrderAfter (QWidget *aWidget)
     /* Processor tab-order */
     setTabOrder (mCbUseAbsHID, mSlCPU);
     setTabOrder (mSlCPU, mLeCPU);
-    setTabOrder (mLeCPU, mCbPae);
+    setTabOrder(mLeCPU, mSlCPUExecCap);
+    setTabOrder(mSlCPUExecCap, mLeCPUExecCap);
+    setTabOrder(mLeCPUExecCap, mCbPae);
 
     /* Acceleration tab-order */
     setTabOrder (mCbPae, mCbVirt);
@@ -446,6 +528,10 @@ void UIMachineSettingsSystem::retranslateUi()
     /* Retranslate the cpu slider legend */
     mLbCPUMin->setText (tr ("<qt>%1&nbsp;CPU</qt>", "%1 is 1 for now").arg (mMinGuestCPU));
     mLbCPUMax->setText (tr ("<qt>%1&nbsp;CPUs</qt>", "%1 is host cpu count * 2 for now").arg (mMaxGuestCPU));
+
+    /* Retranslate the cpu cap slider legend: */
+    mLbCPUExecCapMin->setText(tr("<qt>%1%</qt>", "Min CPU execution cap in %").arg(mMinGuestCPUExecCap));
+    mLbCPUExecCapMax->setText(tr("<qt>%1%</qt>", "Max CPU execution cap in %").arg(mMaxGuestCPUExecCap));
 }
 
 void UIMachineSettingsSystem::valueChangedRAM (int aVal)
@@ -491,6 +577,16 @@ void UIMachineSettingsSystem::textChangedCPU (const QString &aText)
     mSlCPU->setValue (aText.toInt());
 }
 
+void UIMachineSettingsSystem::sltValueChangedCPUExecCap(int iValue)
+{
+    mLeCPUExecCap->setText(QString().setNum(iValue));
+}
+
+void UIMachineSettingsSystem::sltTextChangedCPUExecCap(const QString &strText)
+{
+    mSlCPUExecCap->setValue(strText.toInt());
+}
+
 bool UIMachineSettingsSystem::eventFilter (QObject *aObject, QEvent *aEvent)
 {
     if (!aObject->isWidgetType())
@@ -529,5 +625,48 @@ bool UIMachineSettingsSystem::eventFilter (QObject *aObject, QEvent *aEvent)
     }
 
     return QWidget::eventFilter (aObject, aEvent);
+}
+
+void UIMachineSettingsSystem::polishPage()
+{
+    /* Get system data from cache: */
+    const UIDataSettingsMachineSystem &systemData = m_cache.base();
+
+    /* Motherboard tab: */
+    mLbMemory->setEnabled(isMachineOffline());
+    mLbMemoryMin->setEnabled(isMachineOffline());
+    mLbMemoryMax->setEnabled(isMachineOffline());
+    mLbMemoryUnit->setEnabled(isMachineOffline());
+    mSlMemory->setEnabled(isMachineOffline());
+    mLeMemory->setEnabled(isMachineOffline());
+    mLbBootOrder->setEnabled(isMachineOffline());
+    mTwBootOrder->setEnabled(isMachineOffline());
+    mTbBootItemUp->setEnabled(isMachineOffline() && mTwBootOrder->hasFocus() && mTwBootOrder->currentRow() > 0);
+    mTbBootItemDown->setEnabled(isMachineOffline() && mTwBootOrder->hasFocus() && (mTwBootOrder->currentRow() < mTwBootOrder->count() - 1));
+    mLbChipset->setEnabled(isMachineOffline());
+    mCbChipset->setEnabled(isMachineOffline());
+    mLbMotherboardExtended->setEnabled(isMachineOffline());
+    mCbApic->setEnabled(isMachineOffline());
+    mCbEFI->setEnabled(isMachineOffline());
+    mCbTCUseUTC->setEnabled(isMachineOffline());
+    mCbUseAbsHID->setEnabled(isMachineOffline());
+    /* Processor tab: */
+    mLbCPU->setEnabled(isMachineOffline());
+    mLbCPUMin->setEnabled(isMachineOffline());
+    mLbCPUMax->setEnabled(isMachineOffline());
+    mSlCPU->setEnabled(isMachineOffline() && systemData.m_fPFHwVirtExSupported);
+    mLeCPU->setEnabled(isMachineOffline() && systemData.m_fPFHwVirtExSupported);
+    mLbCPUExecCap->setEnabled(isMachineInValidMode());
+    mLbCPUExecCapMin->setEnabled(isMachineInValidMode());
+    mLbCPUExecCapMax->setEnabled(isMachineInValidMode());
+    mSlCPUExecCap->setEnabled(isMachineInValidMode());
+    mLeCPUExecCap->setEnabled(isMachineInValidMode());
+    mLbProcessorExtended->setEnabled(isMachineOffline());
+    mCbPae->setEnabled(isMachineOffline() && systemData.m_fPFPAESupported);
+    /* Acceleration tab: */
+    mTwSystem->setTabEnabled(2, systemData.m_fPFHwVirtExSupported);
+    mLbVirt->setEnabled(isMachineOffline());
+    mCbVirt->setEnabled(isMachineOffline());
+    mCbNestedPaging->setEnabled(isMachineOffline() && mCbVirt->isChecked());
 }
 

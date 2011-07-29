@@ -1,4 +1,4 @@
-; $Id: TRPMR0A.asm $
+; $Id: TRPMR0A.asm 37955 2011-07-14 12:23:02Z vboxsync $
 ;; @file
 ; TRPM - Host Context Ring-0
 ;
@@ -19,7 +19,7 @@
 ;* Header Files                                                                *
 ;*******************************************************************************
 %include "VBox/asmdefs.mac"
-%include "VBox/x86.mac"
+%include "iprt/x86.mac"
 
 
 BEGINCODE

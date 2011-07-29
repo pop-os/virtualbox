@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /*
@@ -290,7 +289,7 @@ target_ulong glue(helper_rcl, SUFFIX)(target_ulong t0, target_ulong t1)
     count = rclb_table[count];
 #endif
     if (count) {
-        eflags = cc_table[CC_OP].compute_all();
+        eflags = helper_cc_compute_all(CC_OP);
         t0 &= DATA_MASK;
         src = t0;
         res = (t0 << count) | ((target_ulong)(eflags & CC_C) << (count - 1));
@@ -319,7 +318,7 @@ target_ulong glue(helper_rcr, SUFFIX)(target_ulong t0, target_ulong t1)
     count = rclb_table[count];
 #endif
     if (count) {
-        eflags = cc_table[CC_OP].compute_all();
+        eflags = helper_cc_compute_all(CC_OP);
         t0 &= DATA_MASK;
         src = t0;
         res = (t0 >> count) | ((target_ulong)(eflags & CC_C) << (DATA_BITS - count));

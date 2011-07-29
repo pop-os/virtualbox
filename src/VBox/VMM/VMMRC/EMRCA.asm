@@ -1,4 +1,4 @@
-; $Id: EMRCA.asm $
+; $Id: EMRCA.asm 37955 2011-07-14 12:23:02Z vboxsync $
 ;; @file
 ; EM Assembly Routines.
 ;
@@ -20,7 +20,7 @@
 ;*******************************************************************************
 %include "VBox/asmdefs.mac"
 %include "VBox/err.mac"
-%include "VBox/x86.mac"
+%include "iprt/x86.mac"
 
 BEGINCODE
 

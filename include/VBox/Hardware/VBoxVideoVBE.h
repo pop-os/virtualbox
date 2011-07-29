@@ -41,6 +41,9 @@
 #define VBE_DISPI_IOPORT_INDEX          0x01CE
 #define VBE_DISPI_IOPORT_DATA           0x01CF
 
+#define VBE_DISPI_IOPORT_DAC_WRITE_INDEX  0x03C8
+#define VBE_DISPI_IOPORT_DAC_DATA         0x03C9
+
 #define VBE_DISPI_INDEX_ID              0x0
 #define VBE_DISPI_INDEX_XRES            0x1
 #define VBE_DISPI_INDEX_YRES            0x2
@@ -70,6 +73,8 @@
 #define VBE_DISPI_ENABLED               0x01
 #define VBE_DISPI_GETCAPS               0x02
 #define VBE_DISPI_8BIT_DAC              0x20
+/** @note this definition is a BOCHS legacy, used only in the video BIOS
+ *        code and ignored by the emulated hardware. */
 #define VBE_DISPI_LFB_ENABLED           0x40
 #define VBE_DISPI_NOCLEARMEM            0x80
 

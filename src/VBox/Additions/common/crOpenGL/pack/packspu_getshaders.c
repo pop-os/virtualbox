@@ -1,4 +1,4 @@
-/* $Id: packspu_getshaders.c $ */
+/* $Id: packspu_getshaders.c 37157 2011-05-19 14:53:33Z vboxsync $ */
 
 /** @file
  * VBox OpenGL GLSL related functions
@@ -207,5 +207,11 @@ void PACKSPU_APIENTRY packspu_GetShaderSource(GLuint shader, GLsizei bufSize, GL
 
     if (length) *length=*pLocal;
     crMemcpy(source, &pLocal[1], (bufSize >= pLocal[0]) ? pLocal[0] : bufSize);
+
+    if (bufSize > pLocal[0])
+    {
+        source[pLocal[0]] = 0;
+    }
+
     crFree(pLocal);
 }

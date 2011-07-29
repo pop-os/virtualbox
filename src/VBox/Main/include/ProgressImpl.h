@@ -1,4 +1,4 @@
-/* $Id: ProgressImpl.h $ */
+/* $Id: ProgressImpl.h 37069 2011-05-13 12:41:38Z vboxsync $ */
 /** @file
  *
  * VirtualBox COM class implementation
@@ -142,9 +142,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP (Progress)
-        COM_INTERFACE_ENTRY  (ISupportErrorInfo)
-        COM_INTERFACE_ENTRY  (IProgress)
-        COM_INTERFACE_ENTRY2 (IDispatch, IProgress)
+        VBOX_DEFAULT_INTERFACE_ENTRIES (IProgress)
     END_COM_MAP()
 
     HRESULT FinalConstruct();
@@ -243,6 +241,7 @@ public:
     // IProgress methods
     STDMETHOD(WaitForCompletion)(LONG aTimeout);
     STDMETHOD(WaitForOperationCompletion)(ULONG aOperation, LONG aTimeout);
+    STDMETHOD(WaitForAsyncProgressCompletion)(IProgress *pProgressAsync);
     STDMETHOD(Cancel)();
 
     STDMETHOD(SetCurrentOperationProgress)(ULONG aPercent);

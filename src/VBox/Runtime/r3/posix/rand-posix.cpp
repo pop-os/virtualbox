@@ -1,4 +1,4 @@
-/* $Id: rand-posix.cpp $ */
+/* $Id: rand-posix.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
 /** @file
  * IPRT - Random Numbers and Byte Streams, POSIX.
  */
@@ -78,7 +78,7 @@ static DECLCALLBACK(int) rtRandAdvPosixDestroy(PRTRANDINT pThis)
 {
     pThis->u32Magic = ~RTRANDINT_MAGIC;
     int fd = pThis->u.File.hFile;
-    pThis->u.File.hFile = NIL_RTFILE;
+    pThis->u.File.hFile = -1;
     RTMemFree(pThis);
     close(fd);
     return VINF_SUCCESS;

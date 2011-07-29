@@ -1,4 +1,4 @@
-/* $Id: bioslogo.h $ */
+/* $Id: bioslogo.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * BiosLogo - The Private BIOS Logo Interface. (DEV)
  */

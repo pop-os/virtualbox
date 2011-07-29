@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR3LibGuestProp.cpp $ */
+/* $Id: VBoxGuestR3LibGuestProp.cpp 36638 2011-04-11 09:51:59Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, guest properties.
  */
@@ -30,7 +30,7 @@
 *******************************************************************************/
 #include <iprt/string.h>
 #ifndef VBOX_VBGLR3_XFREE86
-# include <iprt/mem.h>
+# include <iprt/cpp/mem.h>
 #endif
 #include <iprt/assert.h>
 #include <iprt/stdarg.h>
@@ -57,7 +57,8 @@ extern "C" void* xf86memset(const void*,int,xf86size_t);
 
 DECLINLINE(char const *) RTStrEnd(char const *pszString, size_t cchMax)
 {
-    /* Avoid potential issues with memchr seen in glibc. */
+    /* Avoid potential issues with memchr seen in glibc.
+     * See sysdeps/x86_64/memchr.S in glibc versions older than 2.11 */
     while (cchMax > RTSTR_MEMCHR_MAX)
     {
         char const *pszRet = (char const *)memchr(pszString, '\0', RTSTR_MEMCHR_MAX);
@@ -71,7 +72,8 @@ DECLINLINE(char const *) RTStrEnd(char const *pszString, size_t cchMax)
 
 DECLINLINE(char *) RTStrEnd(char *pszString, size_t cchMax)
 {
-    /* Avoid potential issues with memchr seen in glibc. */
+    /* Avoid potential issues with memchr seen in glibc.
+     * See sysdeps/x86_64/memchr.S in glibc versions older than 2.11 */
     while (cchMax > RTSTR_MEMCHR_MAX)
     {
         char *pszRet = (char *)memchr(pszString, '\0', RTSTR_MEMCHR_MAX);
@@ -606,7 +608,7 @@ VBGLR3DECL(int) VbglR3GuestPropEnum(uint32_t u32ClientId,
                                     char const **ppszFlags)
 {
     /* Create the handle. */
-    RTMemAutoPtr<VBGLR3GUESTPROPENUM, VbglR3GuestPropEnumFree> Handle;
+    RTCMemAutoPtr<VBGLR3GUESTPROPENUM, VbglR3GuestPropEnumFree> Handle;
     Handle = (PVBGLR3GUESTPROPENUM)RTMemAllocZ(sizeof(VBGLR3GUESTPROPENUM));
     if (!Handle)
         return VERR_NO_MEMORY;
@@ -617,7 +619,7 @@ VBGLR3DECL(int) VbglR3GuestPropEnum(uint32_t u32ClientId,
         cchPatterns += strlen(papszPatterns[i]) + 1;
 
     /* Pack the pattern array */
-    RTMemAutoPtr<char> Patterns;
+    RTCMemAutoPtr<char> Patterns;
     Patterns = (char *)RTMemAlloc(cchPatterns);
     size_t off = 0;
     for (uint32_t i = 0; i < cPatterns; ++i)
@@ -631,7 +633,7 @@ VBGLR3DECL(int) VbglR3GuestPropEnum(uint32_t u32ClientId,
     /* Randomly chosen initial size for the buffer to hold the enumeration
      * information. */
     uint32_t cchBuf = 4096;
-    RTMemAutoPtr<char> Buf;
+    RTCMemAutoPtr<char> Buf;
 
     /* In reading the guest property data we are racing against the host
      * adding more of it, so loop a few times and retry on overflow. */

@@ -1,4 +1,4 @@
-/* $Revision: 69603 $ */
+/* $Revision: 37249 $ */
 /** @file
  * VirtualBox Support Driver - Internal header.
  */
@@ -298,6 +298,12 @@ typedef struct SUPDRVLDRIMAGE
     /** Lock object. */
     RTR0MEMOBJ                      hMemLock;
 #endif
+#if defined(RT_OS_SOLARIS) && defined(VBOX_WITH_NATIVE_SOLARIS_LOADING)
+    /** The Solaris module ID. */
+    int                             idSolMod;
+    /** Pointer to the module control structure. */
+    struct modctl                  *pSolModCtl;
+#endif
     /** Whether it's loaded by the native loader or not. */
     bool                            fNative;
     /** Image name. */
@@ -570,11 +576,13 @@ int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAG
  *
  * @returns IPRT status code.
  * @param   pDevExt             The device globals.
- * @param   pImage              The image data (up to date except for some
- *                              entry point pointers).
+ * @param   pImage              The image data (up to date). Adjust entrypoints
+ *                              and exports if necessary.
  * @param   pbImageBits         The image bits as loaded by ring-3.
+ * @param   pReq                Pointer to the request packet so that the VMMR0
+ *                              entry points can be adjusted.
  */
-int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits);
+int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits, PSUPLDRLOAD pReq);
 
 
 /**

@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-linux.c $ */
+/* $Id: VBoxNetFlt-linux.c 38063 2011-07-19 09:58:08Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Linux Specific Code.
  */
@@ -50,8 +50,9 @@
 #define VBOXNETFLT_OS_SPECFIC 1
 #include "../VBoxNetFltInternal.h"
 
+#define VBOXNETFLT_WITH_FILTER_HOST2GUEST_SKBS_EXPERIMENT
 #ifdef CONFIG_NET_SCHED
-# define VBOXNETFLT_WITH_QDISC /* Comment this out to disable qdisc support */
+/*# define VBOXNETFLT_WITH_QDISC  Comment this out to disable qdisc support */
 # ifdef VBOXNETFLT_WITH_QDISC
 # include <net/pkt_sched.h>
 # endif /* VBOXNETFLT_WITH_QDISC */
@@ -93,7 +94,8 @@
 # endif
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 13)
+#ifdef VBOXNETFLT_WITH_QDISC
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 13)
 static inline int qdisc_drop(struct sk_buff *skb, struct Qdisc *sch)
 {
     kfree_skb(skb);
@@ -101,7 +103,8 @@ static inline int qdisc_drop(struct sk_buff *skb, struct Qdisc *sch)
 
     return NET_XMIT_DROP;
 }
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 13) */
+# endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 13) */
+#endif /* VBOXNETFLT_WITH_QDISC */
 
 #ifndef NET_IP_ALIGN
 # define NET_IP_ALIGN 2
@@ -902,7 +905,10 @@ static int vboxNetFltLinuxStartXmitFilter(struct sk_buff *pSkb, struct net_devic
      */
     if (   !VALID_PTR(pOverride)
         || pOverride->u32Magic != VBOXNETDEVICEOPSOVERRIDE_MAGIC
-        || !VALID_PTR(pOverride->pOrgOps))
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+        || !VALID_PTR(pOverride->pOrgOps)
+# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) */
+        )
     {
         printk("vboxNetFltLinuxStartXmitFilter: bad override %p\n", pOverride);
         dev_kfree_skb(pSkb);
@@ -952,6 +958,9 @@ static void vboxNetFltLinuxHookDev(PVBOXNETFLTINS pThis, struct net_device *pDev
     PVBOXNETDEVICEOPSOVERRIDE   pOverride;
     RTSPINLOCKTMP               Tmp = RTSPINLOCKTMP_INITIALIZER;
 
+    /* Cancel override if ethtool_ops is missing (host-only case, #5712) */
+    if (!VALID_PTR(pDev->OVR_OPS))
+        return;
     pOverride = RTMemAlloc(sizeof(*pOverride));
     if (!pOverride)
         return;
@@ -1001,7 +1010,7 @@ static void vboxNetFltLinuxUnhookDev(PVBOXNETFLTINS pThis, struct net_device *pD
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
             ASMAtomicWritePtr((void * volatile *)&pDev->hard_start_xmit, pOverride->pfnStartXmit);
 # endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29) */
-            ASMAtomicWritePtr((void * volatile *)&pDev->OVR_OPS, pOverride->pOrgOps);
+            ASMAtomicWritePtr((void const * volatile *)&pDev->OVR_OPS, pOverride->pOrgOps);
             ASMAtomicWriteU32(&pOverride->u32Magic, 0);
         }
         else

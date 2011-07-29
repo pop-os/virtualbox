@@ -1,4 +1,4 @@
-; $Id: VMMR0JmpA-amd64.asm $
+; $Id: VMMR0JmpA-amd64.asm 37227 2011-05-26 18:35:59Z vboxsync $
 ;; @file
 ; VMM - R0 SetJmp / LongJmp routines for AMD64.
 ;
@@ -30,9 +30,6 @@
 %define RESUME_MAGIC    07eadf00dh
 %define STACK_PADDING   0eeeeeeeeeeeeeeeeh
 
-
-; For vmmR0LoggerWrapper. (The other architecture(s) use(s) C99 variadic macros.)
-extern NAME(RTLogLogger)
 
 
 BEGINCODE

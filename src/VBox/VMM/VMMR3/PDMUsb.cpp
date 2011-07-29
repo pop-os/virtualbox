@@ -1,4 +1,4 @@
-/* $Id: PDMUsb.cpp $ */
+/* $Id: PDMUsb.cpp 37879 2011-07-12 04:35:53Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, USB part.
  */
@@ -636,7 +636,11 @@ static int pdmR3UsbCreateDevice(PVM pVM, PPDMUSBHUB pHub, PPDMUSB pUsbDev, int i
                 pUsbIns->pReg->szName, pUsbIns->iInstance, pHub, rc));
     }
     else
+    {
         AssertMsgFailed(("Failed to construct '%s'/%d! %Rra\n", pUsbIns->pReg->szName, pUsbIns->iInstance, rc));
+        if (rc == VERR_VERSION_MISMATCH)
+            rc = VERR_PDM_DRIVER_VERSION_MISMATCH;
+    }
     if (fAtRuntime)
         pdmR3UsbDestroyDevice(pVM, pUsbIns);
     /* else: destructors are invoked later. */
@@ -1361,6 +1365,22 @@ static DECLCALLBACK(VMSTATE) pdmR3UsbHlp_VMState(PPDMUSBINS pUsbIns)
     return enmVMState;
 }
 
+/** @interface_method_impl{PDMUSBHLP,pfnThreadCreate} */
+static DECLCALLBACK(int) pdmR3UsbHlp_ThreadCreate(PPDMUSBINS pUsbIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADUSB pfnThread,
+                                                  PFNPDMTHREADWAKEUPUSB pfnWakeup, size_t cbStack, RTTHREADTYPE enmType, const char *pszName)
+{
+    PDMUSB_ASSERT_USBINS(pUsbIns);
+    VM_ASSERT_EMT(pUsbIns->Internal.s.pVM);
+    LogFlow(("pdmR3UsbHlp_ThreadCreate: caller='%s'/%d: ppThread=%p pvUser=%p pfnThread=%p pfnWakeup=%p cbStack=%#zx enmType=%d pszName=%p:{%s}\n",
+             pUsbIns->pReg->szName, pUsbIns->iInstance, ppThread, pvUser, pfnThread, pfnWakeup, cbStack, enmType, pszName, pszName));
+
+    int rc = pdmR3ThreadCreateUsb(pUsbIns->Internal.s.pVM, pUsbIns, ppThread, pvUser, pfnThread, pfnWakeup, cbStack, enmType, pszName);
+
+    LogFlow(("pdmR3UsbHlp_ThreadCreate: caller='%s'/%d: returns %Rrc *ppThread=%RTthrd\n", pUsbIns->pReg->szName, pUsbIns->iInstance,
+             rc, *ppThread));
+    return rc;
+}
+
 
 /** @interface_method_impl{PDMUSBHLP,pfnSetAsyncNotification} */
 static DECLCALLBACK(int) pdmR3UsbHlp_SetAsyncNotification(PPDMUSBINS pUsbIns, PFNPDMUSBASYNCNOTIFY pfnAsyncNotify)
@@ -1434,6 +1454,7 @@ const PDMUSBHLP g_pdmR3UsbHlp =
     pdmR3UsbHlp_VMSetErrorV,
     pdmR3UsbHlp_VMSetRuntimeErrorV,
     pdmR3UsbHlp_VMState,
+    pdmR3UsbHlp_ThreadCreate,
     pdmR3UsbHlp_SetAsyncNotification,
     pdmR3UsbHlp_AsyncNotificationCompleted,
     PDM_USBHLP_VERSION

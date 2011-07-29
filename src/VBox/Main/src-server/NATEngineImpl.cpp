@@ -1,4 +1,4 @@
-/* $Id: NATEngineImpl.cpp $ */
+/* $Id: NATEngineImpl.cpp 35638 2011-01-19 19:10:49Z vboxsync $ */
 /** @file
  * Implementation of INATEngine in VBoxSVC.
  */
@@ -100,13 +100,14 @@ HRESULT NATEngine::initCopy (Machine *aParent, INetworkAdapter *aAdapter, NATEng
     unconst(mAdapter) = aAdapter;
     unconst(mParent) = aParent;
     autoInitSpan.setSucceeded();
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 
 void NATEngine::FinalRelease()
 {
     uninit();
+    BaseFinalRelease();
 }
 
 void NATEngine::uninit()

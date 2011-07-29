@@ -1,4 +1,4 @@
-/* $Id: memuserkernel-r0drv-nt.cpp $ */
+/* $Id: memuserkernel-r0drv-nt.cpp 29705 2010-05-20 15:58:39Z vboxsync $ */
 /** @file
  * IPRT - User & Kernel Memory, Ring-0 Driver, NT.
  */

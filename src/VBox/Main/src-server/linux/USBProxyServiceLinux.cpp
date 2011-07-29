@@ -1,4 +1,4 @@
-/* $Id: USBProxyServiceLinux.cpp $ */
+/* $Id: USBProxyServiceLinux.cpp 37618 2011-06-23 17:16:39Z vboxsync $ */
 /** @file
  * VirtualBox USB Proxy Service, Linux Specialization.
  */
@@ -38,6 +38,7 @@
 #include <iprt/mem.h>
 #include <iprt/param.h>
 #include <iprt/path.h>
+#include <iprt/pipe.h>
 #include <iprt/stream.h>
 #include <iprt/linux/sysfs.h>
 
@@ -59,41 +60,12 @@
  * Initialize data members.
  */
 USBProxyServiceLinux::USBProxyServiceLinux(Host *aHost)
-    : USBProxyService(aHost), mFile(NIL_RTFILE), mWakeupPipeR(NIL_RTFILE),
-      mWakeupPipeW(NIL_RTFILE), mUsingUsbfsDevices(true /* see init */),
+    : USBProxyService(aHost), mhFile(NIL_RTFILE), mhWakeupPipeR(NIL_RTPIPE),
+      mhWakeupPipeW(NIL_RTPIPE), mUsingUsbfsDevices(true /* see init */),
       mUdevPolls(0), mpWaiter(NULL)
-#ifdef UNIT_TEST
-      , mpcszTestUsbfsRoot(NULL), mfTestUsbfsAccessible(false),
-      mpcszTestDevicesRoot(NULL), mfTestDevicesAccessible(false),
-      mrcTestMethodInitResult(VINF_SUCCESS), mpcszTestEnvUsb(NULL),
-      mpcszTestEnvUsbRoot(NULL)
-#endif
 {
     LogFlowThisFunc(("aHost=%p\n", aHost));
 }
-
-#ifdef UNIT_TEST
-/* For testing we redefine anything that accesses the outside world to
- * return test values. */
-# define RTEnvGet(a) \
-    (  !RTStrCmp(a, "VBOX_USB") ? mpcszTestEnvUsb \
-     : !RTStrCmp(a, "VBOX_USB_ROOT") ? mpcszTestEnvUsbRoot \
-     : NULL)
-# define USBProxyLinuxCheckDeviceRoot(pcszPath, fUseNodes) \
-    (   ((fUseNodes) && mfTestDevicesAccessible \
-                     && !RTStrCmp(pcszPath, mpcszTestDevicesRoot)) \
-     || (!(fUseNodes) && mfTestUsbfsAccessible \
-                      && !RTStrCmp(pcszPath, mpcszTestUsbfsRoot)))
-# define RTDirExists(pcszDir) \
-    (   (pcszDir) \
-     && (   !RTStrCmp(pcszDir, mpcszTestDevicesRoot) \
-         || !RTStrCmp(pcszDir, mpcszTestUsbfsRoot)))
-# define RTFileExists(pcszFile) \
-    (   (pcszFile) \
-     && mpcszTestUsbfsRoot \
-     && !RTStrNCmp(pcszFile, mpcszTestUsbfsRoot, strlen(mpcszTestUsbfsRoot)) \
-     && !RTStrCmp(pcszFile + strlen(mpcszTestUsbfsRoot), "/devices"))
-#endif
 
 /**
  * Initializes the object (called right after construction).
@@ -102,95 +74,20 @@ USBProxyServiceLinux::USBProxyServiceLinux(Host *aHost)
  */
 HRESULT USBProxyServiceLinux::init(void)
 {
-    /*
-     * Call the superclass method first.
-     */
-    HRESULT hrc = USBProxyService::init();
-    AssertComRCReturn(hrc, hrc);
-
-    /*
-     * We have two methods available for getting host USB device data - using
-     * USBFS and using sysfs.  The default choice is sysfs; if that is not
-     * available we fall back to USBFS.
-     * In the event of both failing, an appropriate error will be returned.
-     * The user may also specify a method and root using the VBOX_USB and
-     * VBOX_USB_ROOT environment variables.  In this case we don't check
-     * the root they provide for validity.
-     */
-    bool fUsbfsChosen = false, fSysfsChosen = false;
-    const char *pcszUsbFromEnv = RTEnvGet("VBOX_USB");
-    const char *pcszUsbRoot = NULL;
-    if (pcszUsbFromEnv)
+    const char *pcszDevicesRoot;
+    int rc = USBProxyLinuxChooseMethod(&mUsingUsbfsDevices, &pcszDevicesRoot);
+    if (RT_SUCCESS(rc))
     {
-        bool fValidVBoxUSB = true;
-
-        pcszUsbRoot = RTEnvGet("VBOX_USB_ROOT");
-        if (!RTStrICmp(pcszUsbFromEnv, "USBFS"))
-        {
-            LogRel(("Default USB access method set to \"usbfs\" from environment\n"));
-            fUsbfsChosen = true;
-        }
-        else if (!RTStrICmp(pcszUsbFromEnv, "SYSFS"))
-        {
-            LogRel(("Default USB method set to \"sysfs\" from environment\n"));
-            fSysfsChosen = true;
-        }
-        else
-        {
-            LogRel(("Invalid VBOX_USB environment variable setting \"%s\"\n",
-                    pcszUsbFromEnv));
-            fValidVBoxUSB = false;
-            pcszUsbFromEnv = NULL;
-        }
-        if (!fValidVBoxUSB && pcszUsbRoot)
-            pcszUsbRoot = NULL;
-    }
-    if (!pcszUsbRoot)
-    {
-        if (   !fUsbfsChosen
-            && USBProxyLinuxCheckDeviceRoot("/dev/vboxusb", true))
-        {
-            fSysfsChosen = true;
-            pcszUsbRoot = "/dev/vboxusb";
-        }
-        else if (   !fSysfsChosen
-                 && USBProxyLinuxCheckDeviceRoot("/proc/bus/usb", false))
-        {
-            fUsbfsChosen = true;
-            pcszUsbRoot = "/proc/bus/usb";
-        }
-    }
-    else if (!USBProxyLinuxCheckDeviceRoot(pcszUsbRoot, fSysfsChosen))
-        pcszUsbRoot = NULL;
-    if (pcszUsbRoot)
-    {
-        mUsingUsbfsDevices = fUsbfsChosen;
-        mDevicesRoot = pcszUsbRoot;
-#ifndef UNIT_TEST /* Hack for now */
-        int rc = mUsingUsbfsDevices ? initUsbfs() : initSysfs();
-#else
-        int rc = mrcTestMethodInitResult;
-#endif
+        mDevicesRoot = pcszDevicesRoot;
+        rc = mUsingUsbfsDevices ? initUsbfs() : initSysfs();
         /* For the day when we have VBoxSVC release logging... */
         LogRel((RT_SUCCESS(rc) ? "Successfully initialised host USB using %s\n"
                                : "Failed to initialise host USB using %s\n",
                 mUsingUsbfsDevices ? "USBFS" : "sysfs"));
-        mLastError = rc;
     }
-    else
-        mLastError =   pcszUsbFromEnv ? VERR_NOT_FOUND
-                     : RTDirExists("/dev/vboxusb") ? VERR_VUSB_USB_DEVICE_PERMISSION
-                     : RTFileExists("/proc/bus/usb/devices") ? VERR_VUSB_USBFS_PERMISSION
-                     : VERR_NOT_FOUND;
+    mLastError = rc;
     return S_OK;
 }
-
-#ifdef UNIT_TEST
-# undef RTEnvGet
-# undef USBProxyLinuxCheckDeviceRoot
-# undef RTDirExists
-# undef RTFileExists
-#endif
 
 /**
  * Initialization routine for the usbfs based operation.
@@ -208,48 +105,30 @@ int USBProxyServiceLinux::initUsbfs(void)
     char *pszDevices = RTPathJoinA(mDevicesRoot.c_str(), "devices");
     if (pszDevices)
     {
-        rc = RTFileOpen(&mFile, pszDevices, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
+        rc = RTFileOpen(&mhFile, pszDevices, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
         if (RT_SUCCESS(rc))
         {
-            int pipes[2];
-            if (!pipe(pipes))
+            rc = RTPipeCreate(&mhWakeupPipeR, &mhWakeupPipeW, 0 /*fFlags*/);
+            if (RT_SUCCESS(rc))
             {
-                /* Set close on exec (race here!) */
-                if (   fcntl(pipes[0], F_SETFD, FD_CLOEXEC) >= 0
-                    && fcntl(pipes[1], F_SETFD, FD_CLOEXEC) >= 0)
+                /*
+                 * Start the poller thread.
+                 */
+                rc = start();
+                if (RT_SUCCESS(rc))
                 {
-                    mWakeupPipeR = pipes[0];
-                    mWakeupPipeW = pipes[1];
-                    /*
-                     * Start the poller thread.
-                     */
-                    rc = start();
-                    if (RT_SUCCESS(rc))
-                    {
-                        RTStrFree(pszDevices);
-                        LogFlowThisFunc(("returns successfully - mWakeupPipeR/W=%d/%d\n",
-                                         mWakeupPipeR, mWakeupPipeW));
-                        return VINF_SUCCESS;
-                    }
+                    RTStrFree(pszDevices);
+                    LogFlowThisFunc(("returns successfully\n"));
+                    return VINF_SUCCESS;
+                }
 
-                    RTFileClose(mWakeupPipeR);
-                    RTFileClose(mWakeupPipeW);
-                    mWakeupPipeW = mWakeupPipeR = NIL_RTFILE;
-                }
-                else
-                {
-                    rc = RTErrConvertFromErrno(errno);
-                    Log(("USBProxyServiceLinux::USBProxyServiceLinux: fcntl failed, errno=%d\n", errno));
-                    close(pipes[0]);
-                    close(pipes[1]);
-                }
+                RTPipeClose(mhWakeupPipeR);
+                RTPipeClose(mhWakeupPipeW);
+                mhWakeupPipeW = mhWakeupPipeR = NIL_RTPIPE;
             }
             else
-            {
-                rc = RTErrConvertFromErrno(errno);
-                Log(("USBProxyServiceLinux::USBProxyServiceLinux: pipe failed, errno=%d\n", errno));
-            }
-            RTFileClose(mFile);
+                Log(("USBProxyServiceLinux::USBProxyServiceLinux: RTFilePipe failed with rc=%Rrc\n", rc));
+            RTFileClose(mhFile);
         }
 
         RTStrFree(pszDevices);
@@ -331,17 +210,12 @@ void USBProxyServiceLinux::doUsbfsCleanupAsNeeded()
     /*
      * Free resources.
      */
-    if (mFile != NIL_RTFILE)
-    {
-        RTFileClose(mFile);
-        mFile = NIL_RTFILE;
-    }
+    RTFileClose(mhFile);
+    mhFile = NIL_RTFILE;
 
-    if (mWakeupPipeR != NIL_RTFILE)
-        RTFileClose(mWakeupPipeR);
-    if (mWakeupPipeW != NIL_RTFILE)
-        RTFileClose(mWakeupPipeW);
-    mWakeupPipeW = mWakeupPipeR = NIL_RTFILE;
+    RTPipeClose(mhWakeupPipeR);
+    RTPipeClose(mhWakeupPipeW);
+    mhWakeupPipeW = mhWakeupPipeR = NIL_RTPIPE;
 }
 
 
@@ -433,9 +307,9 @@ int USBProxyServiceLinux::waitUsbfs(RTMSINTERVAL aMillies)
     }
 
     memset(&PollFds, 0, sizeof(PollFds));
-    PollFds[0].fd        = mFile;
+    PollFds[0].fd        = RTFileToNative(mhFile);
     PollFds[0].events    = POLLIN;
-    PollFds[1].fd        = mWakeupPipeR;
+    PollFds[1].fd        = RTPipeToNative(mhWakeupPipeR);
     PollFds[1].events    = POLLIN | POLLERR | POLLHUP;
 
     int rc = poll(&PollFds[0], 2, aMillies);
@@ -447,7 +321,7 @@ int USBProxyServiceLinux::waitUsbfs(RTMSINTERVAL aMillies)
         if (PollFds[1].revents & POLLIN)
         {
             char szBuf[WAKE_UP_STRING_LEN];
-            rc = RTFileRead(mWakeupPipeR, szBuf, sizeof(szBuf), NULL);
+            rc = RTPipeReadBlocking(mhWakeupPipeR, szBuf, sizeof(szBuf), NULL);
             AssertRC(rc);
         }
         return VINF_SUCCESS;
@@ -483,9 +357,9 @@ int USBProxyServiceLinux::interruptWait(void)
         return VINF_SUCCESS;
     }
 #endif /* VBOX_USB_WITH_SYSFS */
-    int rc = RTFileWrite(mWakeupPipeW, WAKE_UP_STRING, WAKE_UP_STRING_LEN, NULL);
+    int rc = RTPipeWriteBlocking(mhWakeupPipeW, WAKE_UP_STRING, WAKE_UP_STRING_LEN, NULL);
     if (RT_SUCCESS(rc))
-        RTFileFlush(mWakeupPipeW);
+        RTPipeFlush(mhWakeupPipeW);
     LogFlowFunc(("returning %Rrc\n", rc));
     return rc;
 }

@@ -1,4 +1,4 @@
-; $Id: CPUMR0UnusedA.asm $
+; $Id: CPUMR0UnusedA.asm 37955 2011-07-14 12:23:02Z vboxsync $
 ;; @file
 ; CPUM - Guest Context Assembly Routines.
 ;
@@ -23,7 +23,7 @@
 %include "VBox/err.mac"
 %include "VBox/vmm/stam.mac"
 %include "CPUMInternal.mac"
-%include "VBox/x86.mac"
+%include "iprt/x86.mac"
 %include "VBox/vmm/cpum.mac"
 
 %ifdef IN_RING3

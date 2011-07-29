@@ -1,4 +1,4 @@
-/* $Id: xml.cpp $ */
+/* $Id: xml.cpp 37493 2011-06-16 13:18:11Z vboxsync $ */
 /** @file
  * IPRT - XML Manipulation API.
  */
@@ -90,7 +90,7 @@ public:
 
         /** Used to provide some thread safety missing in libxml2 (see e.g.
          *  XmlTreeBackend::read()) */
-        RTLockMtx lock;
+        RTCLockMtx lock;
     }
     sxml;  /* XXX naming this xml will break with gcc-3.3 */
 }
@@ -108,7 +108,7 @@ namespace xml
 ////////////////////////////////////////////////////////////////////////////////
 
 LogicError::LogicError(RT_SRC_POS_DECL)
-    : Error(NULL)
+    : RTCError(NULL)
 {
     char *msg = NULL;
     RTStrAPrintf(&msg, "In '%s', '%s' at #%d",
@@ -174,7 +174,7 @@ struct File::Data
         : handle(NIL_RTFILE), opened(false)
     { }
 
-    iprt::MiniString strFileName;
+    RTCString strFileName;
     RTFILE handle;
     bool opened : 1;
     bool flushOnClose : 1;
@@ -386,7 +386,7 @@ int MemoryBuf::read (char *aBuf, int aLen)
 struct GlobalLock::Data
 {
     PFNEXTERNALENTITYLOADER pOldLoader;
-    RTLock lock;
+    RTCLock lock;
 
     Data()
         : pOldLoader(NULL),
@@ -824,7 +824,7 @@ bool ElementNode::getAttributeValue(const char *pcszMatch, const char *&ppcsz) c
  * @param str out: attribute value; overwritten only if attribute was found
  * @return TRUE if attribute was found and str was thus updated.
  */
-bool ElementNode::getAttributeValue(const char *pcszMatch, iprt::MiniString &str) const
+bool ElementNode::getAttributeValue(const char *pcszMatch, RTCString &str) const
 {
     const Node* pAttr;
     if ((pAttr = findAttribute(pcszMatch)))
@@ -843,7 +843,7 @@ bool ElementNode::getAttributeValue(const char *pcszMatch, iprt::MiniString &str
  * @param str
  * @return
  */
-bool ElementNode::getAttributeValuePath(const char *pcszMatch, iprt::MiniString &str) const
+bool ElementNode::getAttributeValuePath(const char *pcszMatch, RTCString &str) const
 {
     if (getAttributeValue(pcszMatch, str))
     {
@@ -1077,9 +1077,9 @@ AttributeNode* ElementNode::setAttribute(const char *pcszName, const char *pcszV
  * @param strValue
  * @return
  */
-AttributeNode* ElementNode::setAttributePath(const char *pcszName, const iprt::MiniString &strValue)
+AttributeNode* ElementNode::setAttributePath(const char *pcszName, const RTCString &strValue)
 {
-    iprt::MiniString strTemp(strValue);
+    RTCString strTemp(strValue);
     strTemp.findReplace('\\', '/');
     return setAttribute(pcszName, strTemp.c_str());
 }
@@ -1333,6 +1333,11 @@ struct Document::Data
             delete pRootElement;
             pRootElement = NULL;
         }
+        if (pComment)
+        {
+            delete pComment;
+            pComment = NULL;
+        }
     }
 
     void copyFrom(const Document::Data *p)
@@ -1481,7 +1486,7 @@ XmlMemParser::~XmlMemParser()
  * @param doc out: document to be reset and filled with data according to file contents.
  */
 void XmlMemParser::read(const void* pvBuf, size_t cbSize,
-                        const iprt::MiniString &strFilename,
+                        const RTCString &strFilename,
                         Document &doc)
 {
     GlobalLock lock;
@@ -1539,7 +1544,7 @@ void XmlMemWriter::write(const Document &doc, void **ppvBuf, size_t *pcbSize)
 
 struct XmlFileParser::Data
 {
-    iprt::MiniString strXmlFilename;
+    RTCString strXmlFilename;
 
     Data()
     {
@@ -1565,14 +1570,14 @@ XmlFileParser::~XmlFileParser()
 struct IOContext
 {
     File file;
-    iprt::MiniString error;
+    RTCString error;
 
     IOContext(const char *pcszFilename, File::Mode mode, bool fFlush = false)
         : file(mode, pcszFilename, fFlush)
     {
     }
 
-    void setError(const iprt::Error &x)
+    void setError(const RTCError &x)
     {
         error = x.what();
     }
@@ -1608,7 +1613,7 @@ struct WriteContext : IOContext
  * @param strFilename in: name fo file to parse.
  * @param doc out: document to be reset and filled with data according to file contents.
  */
-void XmlFileParser::read(const iprt::MiniString &strFilename,
+void XmlFileParser::read(const RTCString &strFilename,
                          Document &doc)
 {
     GlobalLock lock;
@@ -1644,7 +1649,7 @@ int XmlFileParser::ReadCallback(void *aCtxt, char *aBuf, int aLen)
         return pContext->file.read(aBuf, aLen);
     }
     catch (const xml::EIPRTFailure &err) { pContext->setError(err); }
-    catch (const iprt::Error &err) { pContext->setError(err); }
+    catch (const RTCError &err) { pContext->setError(err); }
     catch (const std::exception &err) { pContext->setError(err); }
     catch (...) { pContext->setError(xml::LogicError(RT_SRC_POS)); }
 
@@ -1769,7 +1774,7 @@ int XmlFileWriter::WriteCallback(void *aCtxt, const char *aBuf, int aLen)
         return pContext->file.write(aBuf, aLen);
     }
     catch (const xml::EIPRTFailure &err) { pContext->setError(err); }
-    catch (const iprt::Error &err) { pContext->setError(err); }
+    catch (const RTCError &err) { pContext->setError(err); }
     catch (const std::exception &err) { pContext->setError(err); }
     catch (...) { pContext->setError(xml::LogicError(RT_SRC_POS)); }
 

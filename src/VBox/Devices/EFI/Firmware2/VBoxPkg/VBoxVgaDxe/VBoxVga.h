@@ -1,4 +1,4 @@
-/* $Id: VBoxVga.h $ */
+/* $Id: VBoxVga.h 33086 2010-10-13 07:27:19Z vboxsync $ */
 /** @file
  * VBoxVga.h
  */

@@ -1,4 +1,4 @@
-/* $Id: HGSMIBase.cpp $ */
+/* $Id: HGSMIBase.cpp 35398 2011-01-04 09:39:07Z vboxsync $ */
 /** @file
  * VirtualBox Video driver, common code - HGSMI initialisation and helper
  * functions.

@@ -1,4 +1,4 @@
-/* $Id: crc64.cpp $ */
+/* $Id: crc64.cpp 31847 2010-08-21 20:33:07Z vboxsync $ */
 /** @file
  * IPRT - CRC64.
  *

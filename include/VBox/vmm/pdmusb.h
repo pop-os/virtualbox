@@ -629,6 +629,26 @@ typedef struct PDMUSBHLP
     DECLR3CALLBACKMEMBER(VMSTATE, pfnVMState, (PPDMUSBINS pUsbIns));
 
     /**
+     * Creates a PDM thread.
+     *
+     * This differs from the RTThreadCreate() API in that PDM takes care of suspending,
+     * resuming, and destroying the thread as the VM state changes.
+     *
+     * @returns VBox status code.
+     * @param   pDevIns             The device instance.
+     * @param   ppThread            Where to store the thread 'handle'.
+     * @param   pvUser              The user argument to the thread function.
+     * @param   pfnThread           The thread function.
+     * @param   pfnWakeup           The wakup callback. This is called on the EMT
+     *                              thread when a state change is pending.
+     * @param   cbStack             See RTThreadCreate.
+     * @param   enmType             See RTThreadCreate.
+     * @param   pszName             See RTThreadCreate.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnThreadCreate,(PPDMUSBINS pUsbIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADUSB pfnThread,
+                                               PFNPDMTHREADWAKEUPUSB pfnWakeup, size_t cbStack, RTTHREADTYPE enmType, const char *pszName));
+
+    /**
      * Set up asynchronous handling of a suspend, reset or power off notification.
      *
      * This shall only be called when getting the notification.  It must be called
@@ -661,7 +681,7 @@ typedef PDMUSBHLP *PPDMUSBHLP;
 typedef const PDMUSBHLP *PCPDMUSBHLP;
 
 /** Current USBHLP version number. */
-#define PDM_USBHLP_VERSION                      PDM_VERSION_MAKE(0xeefe, 1, 0)
+#define PDM_USBHLP_VERSION                      PDM_VERSION_MAKE(0xeefe, 2, 0)
 
 #endif /* IN_RING3 */
 
@@ -732,10 +752,10 @@ typedef struct PDMUSBINS
         PPDMUSBINS pUsbInsTypeCheck = (pUsbIns); NOREF(pUsbInsTypeCheck); \
         AssertLogRelMsgReturn(PDM_VERSION_ARE_COMPATIBLE((pUsbIns)->u32Version, PDM_USBINS_VERSION), \
                               ("DevIns=%#x  mine=%#x\n", (pUsbIns)->u32Version, PDM_USBINS_VERSION), \
-                              VERR_VERSION_MISMATCH); \
+                              VERR_PDM_USBINS_VERSION_MISMATCH); \
         AssertLogRelMsgReturn(PDM_VERSION_ARE_COMPATIBLE((pUsbIns)->pHlpR3->u32Version, PDM_USBHLP_VERSION), \
                               ("DevHlp=%#x  mine=%#x\n", (pUsbIns)->pHlpR3->u32Version, PDM_USBHLP_VERSION), \
-                              VERR_VERSION_MISMATCH); \
+                              VERR_PDM_USBHLPR3_VERSION_MISMATCH); \
     } while (0)
 
 /**
@@ -750,9 +770,10 @@ typedef struct PDMUSBINS
     do \
     { \
         PPDMUSBINS pUsbInsTypeCheck = (pUsbIns); NOREF(pUsbInsTypeCheck); \
-        if (RT_UNLIKELY(   !PDM_VERSION_ARE_COMPATIBLE((pUsbIns)->u32Version, PDM_USBINS_VERSION) \
-                        || !PDM_VERSION_ARE_COMPATIBLE((pUsbIns)->pHlpR3->u32Version, PDM_USBHLPR3_VERSION) )) \
-            return VERR_VERSION_MISMATCH; \
+        if (RT_UNLIKELY(!PDM_VERSION_ARE_COMPATIBLE((pUsbIns)->u32Version, PDM_USBINS_VERSION) )) \
+            return VERR_PDM_USBINS_VERSION_MISMATCH; \
+        if (RT_UNLIKELY(!PDM_VERSION_ARE_COMPATIBLE((pUsbIns)->pHlpR3->u32Version, PDM_USBHLPR3_VERSION) )) \
+            return VERR_PDM_USBHLPR3_VERSION_MISMATCH; \
     } while (0)
 
 
@@ -840,6 +861,16 @@ DECLINLINE(VMSTATE) PDMUsbHlpVMState(PPDMUSBINS pUsbIns)
 }
 
 /**
+ * @copydoc PDMUSBHLP::pfnThreadCreate
+ */
+DECLINLINE(int) PDMUsbHlpThreadCreate(PPDMUSBINS pUsbIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADUSB pfnThread,
+                                         PFNPDMTHREADWAKEUPUSB pfnWakeup, size_t cbStack, RTTHREADTYPE enmType, const char *pszName)
+{
+    return pUsbIns->pHlpR3->pfnThreadCreate(pUsbIns, ppThread, pvUser, pfnThread, pfnWakeup, cbStack, enmType, pszName);
+}
+
+
+/**
  * @copydoc PDMUSBHLP::pfnSetAsyncNotification
  */
 DECLINLINE(int) PDMUsbHlpSetAsyncNotification(PPDMUSBINS pUsbIns, PFNPDMUSBASYNCNOTIFY pfnAsyncNotify)
@@ -910,6 +941,7 @@ DECLINLINE(int) PDMUsbHlpTMTimerCreate(PPDMUSBINS pUsbIns, TMCLOCK enmClock, PFN
 {
     return pUsbIns->pHlpR3->pfnTMTimerCreate(pUsbIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, ppTimer);
 }
+
 #endif /* IN_RING3 */
 
 

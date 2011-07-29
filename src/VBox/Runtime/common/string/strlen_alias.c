@@ -1,4 +1,4 @@
-/* $Id: strlen_alias.c $ */
+/* $Id: strlen_alias.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - No-CRT strlen() alias for gcc.
  */

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1071,7 +1071,7 @@ typedef const RTHCPTR      *PCRTHCPTR;
 
 
 /** HC ring-3 pointer. */
-#ifdef  IN_RING3
+#ifdef IN_RING3
 typedef void *              RTR3PTR;
 #else
 typedef RTR3UINTPTR         RTR3PTR;
@@ -1083,7 +1083,11 @@ typedef const RTR3PTR      *PCRTR3PTR;
 /** @def NIL_RTR3PTR
  * NIL HC ring-3 pointer.
  */
-#define NIL_RTR3PTR         ((RTR3PTR)0)
+#ifndef IN_RING3
+# define NIL_RTR3PTR        ((RTR3PTR)0)
+#else
+# define NIL_RTR3PTR        (NULL)
+#endif
 /** Max RTR3PTR value. */
 #define RTR3PTR_MAX         ((RTR3PTR)RTR3UINTPTR_MAX)
 
@@ -1100,7 +1104,11 @@ typedef const RTR0PTR      *PCRTR0PTR;
 /** @def NIL_RTR0PTR
  * NIL HC ring-0 pointer.
  */
-#define NIL_RTR0PTR         ((RTR0PTR)0)
+#ifndef IN_RING0
+# define NIL_RTR0PTR        ((RTR0PTR)0)
+#else
+# define NIL_RTR0PTR        (NULL)
+#endif
 /** Max RTR3PTR value. */
 #define RTR0PTR_MAX         ((RTR0PTR)RTR0UINTPTR_MAX)
 
@@ -1370,7 +1378,11 @@ typedef const RTRCPTR  *PCRTRCPTR;
 /** @def NIL_RTGCPTR
  * NIL RC pointer.
  */
-#define NIL_RTRCPTR    ((RTRCPTR)0)
+#ifndef IN_RC
+# define NIL_RTRCPTR   ((RTRCPTR)0)
+#else
+# define NIL_RTRCPTR   (NULL)
+#endif
 /** @def RTRCPTR_MAX
  * The maximum value a RTRCPTR can have. Mostly used as INVALID value.
  */
@@ -1464,22 +1476,22 @@ typedef RTCONDVAR                                  *PRTCONDVAR;
 #define NIL_RTCONDVAR                               0
 
 /** File handle. */
-typedef RTUINT                                      RTFILE;
+typedef R3R0PTRTYPE(struct RTFILEINT *)             RTFILE;
 /** Pointer to file handle. */
 typedef RTFILE                                     *PRTFILE;
 /** Nil file handle. */
-#define NIL_RTFILE                                  (~(RTFILE)0)
+#define NIL_RTFILE                                  ((RTFILE)~(RTHCINTPTR)0)
 
 /** Async I/O request handle. */
 typedef R3PTRTYPE(struct RTFILEAIOREQINTERNAL *)    RTFILEAIOREQ;
-/** Pointer to a async I/O request handle. */
+/** Pointer to an async I/O request handle. */
 typedef RTFILEAIOREQ                               *PRTFILEAIOREQ;
 /** Nil request handle. */
 #define NIL_RTFILEAIOREQ                            0
 
 /** Async I/O completion context handle. */
 typedef R3PTRTYPE(struct RTFILEAIOCTXINTERNAL *)    RTFILEAIOCTX;
-/** Pointer to a async I/O completion context handle. */
+/** Pointer to an async I/O completion context handle. */
 typedef RTFILEAIOCTX                               *PRTFILEAIOCTX;
 /** Nil context handle. */
 #define NIL_RTFILEAIOCTX                            0
@@ -1619,6 +1631,13 @@ typedef PRTTCPSERVER                               *PPRTTCPSERVER;
 /** Nil RTTCPSERVER handle. */
 #define NIL_RTTCPSERVER                            ((PRTTCPSERVER)0)
 
+/** Pointer to a RTUDPSERVER handle. */
+typedef struct RTUDPSERVER                         *PRTUDPSERVER;
+/** Pointer to a RTUDPSERVER handle. */
+typedef PRTUDPSERVER                               *PPRTUDPSERVER;
+/** Nil RTUDPSERVER handle. */
+#define NIL_RTUDPSERVER                            ((PRTUDPSERVER)0)
+
 /** Thread handle.*/
 typedef R3R0PTRTYPE(struct RTTHREADINT *)           RTTHREAD;
 /** Pointer to thread handle. */
@@ -1635,6 +1654,18 @@ typedef RTTLS const                                *PCRTTLS;
 /** NIL TLS index value. */
 #define NIL_RTTLS                                   ((RTTLS)-1)
 
+/** Trace buffer handle.
+ * @remarks This is not a R3/R0 type like most other handles!
+ */
+typedef struct RTTRACEBUFINT                        *RTTRACEBUF;
+/** Poiner to a trace buffer handle. */
+typedef RTTRACEBUF                                  *PRTTRACEBUF;
+/** Nil trace buffer handle. */
+#define NIL_RTTRACEBUF                              ((RTTRACEBUF)0)
+/** The handle of the default trace buffer.
+ * This can be used with any of the RTTraceBufAdd APIs. */
+#define RTTRACEBUF_DEFAULT                          ((RTTRACEBUF)-2)
+
 /** Handle to a simple heap. */
 typedef R3R0PTRTYPE(struct RTHEAPSIMPLEINTERNAL *)  RTHEAPSIMPLE;
 /** Pointer to a handle to a simple heap. */
@@ -1642,9 +1673,9 @@ typedef RTHEAPSIMPLE                               *PRTHEAPSIMPLE;
 /** NIL simple heap handle. */
 #define NIL_RTHEAPSIMPLE                            ((RTHEAPSIMPLE)0)
 
-/** Handle to a offset based heap. */
+/** Handle to an offset based heap. */
 typedef R3R0PTRTYPE(struct RTHEAPOFFSETINTERNAL *)  RTHEAPOFFSET;
-/** Pointer to a handle to a offset based heap. */
+/** Pointer to a handle to an offset based heap. */
 typedef RTHEAPOFFSET                               *PRTHEAPOFFSET;
 /** NIL offset based heap handle. */
 #define NIL_RTHEAPOFFSET                            ((RTHEAPOFFSET)0)

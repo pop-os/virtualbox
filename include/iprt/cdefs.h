@@ -90,6 +90,7 @@
 # define RT_LITTLE_ENDIAN
 # define RT_COMPILER_GROKS_64BIT_BITFIELDS
 # define RT_COMPILER_WITH_80BIT_LONG_DOUBLE
+# define RT_NO_VISIBILITY_HIDDEN
 #endif /* DOXYGEN_RUNNING */
 
 /** @def RT_ARCH_X86
@@ -595,6 +596,14 @@
 # define RT_THROW(type)
 #endif
 
+/** @def RT_GCC_SUPPORTS_VISIBILITY_HIDDEN
+ * Indicates that the "hidden" visibility attribute can be used (GCC) */
+#if defined(__GNUC__)
+# if __GNUC__ >= 4 && !defined(RT_OS_OS2) && !defined(RT_OS_WINDOWS)
+#  define RT_GCC_SUPPORTS_VISIBILITY_HIDDEN
+# endif
+#endif
+
 /** @def RTCALL
  * The standard calling convention for the Runtime interfaces.
  */
@@ -635,10 +644,22 @@
  * How to declare a non-exported function or variable.
  * @param   type    The return type of the function or the data type of the variable.
  */
-#if defined(RT_OS_OS2) || defined(RT_OS_WINDOWS) || !defined(RT_USE_VISIBILITY_HIDDEN) || defined(DOXYGEN_RUNNING)
+#if !defined(RT_GCC_SUPPORTS_VISIBILITY_HIDDEN) || defined(RT_NO_VISIBILITY_HIDDEN)
 # define DECLHIDDEN(type)       type
 #else
 # define DECLHIDDEN(type)       __attribute__((visibility("hidden"))) type
+#endif
+
+/** @def DECL_HIDDEN_CONST
+ * Workaround for g++ warnings when applying the hidden attribute to a const
+ * definition.  Use DECLHIDDEN for the declaration.
+ * @param   a_Type      The return type of the function or the data type of
+ *                      the variable.
+ */
+#if defined(__cplusplus) && defined(__GNUC__)
+# define DECL_HIDDEN_CONST(a_Type)   a_Type
+#else
+# define DECL_HIDDEN_CONST(a_Type)   DECLHIDDEN(a_Type)
 #endif
 
 /** @def DECL_INVALID
@@ -779,7 +800,7 @@
  * @remarks Use sparsely and with care. Don't use this macro on C++ methods.
  */
 #ifdef __GNUC__
-# define DECL_FORCE_INLINE(type)    __attribute__((always_inline)) DECLINLINE(type)
+# define DECL_FORCE_INLINE(type)    __attribute__((__always_inline__)) DECLINLINE(type)
 #elif defined(_MSC_VER)
 # define DECL_FORCE_INLINE(type)    __forceinline type
 #else
@@ -796,7 +817,7 @@
 #ifdef __GNUC__
 # define DECL_NO_INLINE(scope,type) __attribute__((noinline)) scope type
 #elif defined(_MSC_VER)
-# define DECL_NO_INLINE(scope,type) __declspec(noline) scope type
+# define DECL_NO_INLINE(scope,type) __declspec(noinline) scope type
 #else
 # define DECL_NO_INLINE(scope,type) scope type
 #endif
@@ -999,6 +1020,38 @@
  * Returns the expanded argument as a string.
  * @param   str     Argument to expand and stringy. */
 #define RT_XSTR(str)            RT_STR(str)
+
+/** @def RT_CONCAT
+ * Concatenate the expanded arguments without any extra spaces in between.
+ *
+ * @param   a       The first part.
+ * @param   b       The second part.
+ */
+#define RT_CONCAT(a,b)              RT_CONCAT_HLP(a,b)
+/** RT_CONCAT helper, don't use.  */
+#define RT_CONCAT_HLP(a,b)          a##b
+
+/** @def RT_CONCAT
+ * Concatenate the expanded arguments without any extra spaces in between.
+ *
+ * @param   a       The 1st part.
+ * @param   b       The 2nd part.
+ * @param   c       The 3rd part.
+ */
+#define RT_CONCAT3(a,b,c)           RT_CONCAT3_HLP(a,b,c)
+/** RT_CONCAT3 helper, don't use.  */
+#define RT_CONCAT3_HLP(a,b,c)       a##b##c
+
+/** @def RT_CONCAT
+ * Concatenate the expanded arguments without any extra spaces in between.
+ *
+ * @param   a       The 1st part.
+ * @param   b       The 2nd part.
+ * @param   c       The 3rd part.
+ */
+#define RT_CONCAT4(a,b,c,d)         RT_CONCAT4_HLP(a,b,c,d)
+/** RT_CONCAT4 helper, don't use.  */
+#define RT_CONCAT4_HLP(a,b,c,d)     a##b##c##d
 
 
 /** @def RT_BIT
@@ -1252,61 +1305,103 @@
  */
 #define RT_BOOL(Value)                          ( !!(Value) )
 
-/** @def RT_LODWORD
- * Gets the low dword (=uint32_t) of something. */
-#define RT_LODWORD(a)                           ( (uint32_t)(a) )
+/** @def RT_LO_U8
+ * Gets the low uint8_t of a uint16_t or something equivalent. */
+#ifdef __GNUC__
+# define RT_LO_U8(a)    __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint16_t)); (uint8_t)(a); })
+#else
+# define RT_LO_U8(a)                            ( (uint8_t)(a) )
+#endif
+/** @def RT_HI_U16
+ * Gets the high uint16_t of a uint32_t or something equivalent). */
+#ifdef __GNUC__
+# define RT_HI_U8(a)    __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint16_t)); (uint8_t)((a) >> 8); })
+#else
+# define RT_HI_U8(a)                            ( (uint8_t)((a) >> 8) )
+#endif
 
-/** @def RT_HIDWORD
- * Gets the high dword (=uint32_t) of a 64-bit of something. */
-#define RT_HIDWORD(a)                           ( (uint32_t)((a) >> 32) )
+/** @def RT_LO_U16
+ * Gets the low uint16_t of a uint32_t or something equivalent. */
+#ifdef __GNUC__
+# define RT_LO_U16(a)   __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint64_t)); (uint32_t)(a); })
+#else
+# define RT_LO_U16(a)                           ( (uint32_t)(a) )
+#endif
+/** @def RT_HI_U16
+ * Gets the high uint16_t of a uint32_t or something equivalent). */
+#ifdef __GNUC__
+# define RT_HI_U16(a)   __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint32_t)); (uint16_t)((a) >> 16); })
+#else
+# define RT_HI_U16(a)                           ( (uint16_t)((a) >> 16) )
+#endif
 
-/** @def RT_LOWORD
- * Gets the low word (=uint16_t) of something. */
-#define RT_LOWORD(a)                            ( (a) & 0xffff )
-
-/** @def RT_HIWORD
- * Gets the high word (=uint16_t) of a 32-bit something. */
-#define RT_HIWORD(a)                            ( (a) >> 16 )
-
-/** @def RT_LOBYTE
- * Gets the low byte of something. */
-#define RT_LOBYTE(a)                            ( (a) & 0xff )
-
-/** @def RT_HIBYTE
- * Gets the low byte of a 16-bit something. */
-#define RT_HIBYTE(a)                            ( (a) >> 8 )
+/** @def RT_LO_U32
+ * Gets the low uint32_t of a uint64_t or something equivalent. */
+#ifdef __GNUC__
+# define RT_LO_U32(a)   __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint64_t)); (uint32_t)(a); })
+#else
+# define RT_LO_U32(a)                           ( (uint32_t)(a) )
+#endif
+/** @def RT_HI_U32
+ * Gets the high uint32_t of a uint64_t or something equivalent). */
+#ifdef __GNUC__
+# define RT_HI_U32(a)   __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint64_t)); (uint32_t)((a) >> 32); })
+#else
+# define RT_HI_U32(a)                           ( (uint32_t)((a) >> 32) )
+#endif
 
 /** @def RT_BYTE1
  * Gets the first byte of something. */
-#define RT_BYTE1(a)                             ( (a) & 0xff )
-
+#define RT_BYTE1(a)                             ( (a)         & 0xff )
 /** @def RT_BYTE2
  * Gets the second byte of something. */
-#define RT_BYTE2(a)                             ( ((a) >> 8) & 0xff )
-
+#define RT_BYTE2(a)                             ( ((a) >>  8) & 0xff )
 /** @def RT_BYTE3
  * Gets the second byte of something. */
 #define RT_BYTE3(a)                             ( ((a) >> 16) & 0xff )
-
 /** @def RT_BYTE4
  * Gets the fourth byte of something. */
 #define RT_BYTE4(a)                             ( ((a) >> 24) & 0xff )
-
 /** @def RT_BYTE5
  * Gets the fifth byte of something. */
-#define RT_BYTE5(a)                             (((a) >> 32) & 0xff)
-
+#define RT_BYTE5(a)                             ( ((a) >> 32) & 0xff )
 /** @def RT_BYTE6
  * Gets the sixth byte of something. */
-#define RT_BYTE6(a)                             (((a) >> 40) & 0xff)
-
+#define RT_BYTE6(a)                             ( ((a) >> 40) & 0xff )
 /** @def RT_BYTE7
  * Gets the seventh byte of something. */
-#define RT_BYTE7(a)                             (((a) >> 48) & 0xff)
-
+#define RT_BYTE7(a)                             ( ((a) >> 48) & 0xff )
 /** @def RT_BYTE8
  * Gets the eight byte of something. */
-#define RT_BYTE8(a)                             (((a) >> 56) & 0xff)
+#define RT_BYTE8(a)                             ( ((a) >> 56) & 0xff )
+
+
+/** @def RT_LODWORD
+ * Gets the low dword (=uint32_t) of something.
+ * @deprecated  Use RT_LO_U32. */
+#define RT_LODWORD(a)                           ( (uint32_t)(a) )
+/** @def RT_HIDWORD
+ * Gets the high dword (=uint32_t) of a 64-bit of something.
+ * @deprecated  Use RT_HI_U32. */
+#define RT_HIDWORD(a)                           ( (uint32_t)((a) >> 32) )
+
+/** @def RT_LOWORD
+ * Gets the low word (=uint16_t) of something.
+ * @deprecated  Use RT_LO_U16. */
+#define RT_LOWORD(a)                            ( (a) & 0xffff )
+/** @def RT_HIWORD
+ * Gets the high word (=uint16_t) of a 32-bit something.
+ * @deprecated  Use RT_HI_U16. */
+#define RT_HIWORD(a)                            ( (a) >> 16 )
+
+/** @def RT_LOBYTE
+ * Gets the low byte of something.
+ * @deprecated  Use RT_LO_U8. */
+#define RT_LOBYTE(a)                            ( (a) & 0xff )
+/** @def RT_HIBYTE
+ * Gets the low byte of a 16-bit something.
+ * @deprecated  Use RT_HI_U8. */
+#define RT_HIBYTE(a)                            ( (a) >> 8 )
 
 
 /** @def RT_MAKE_U64

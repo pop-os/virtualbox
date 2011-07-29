@@ -1,4 +1,4 @@
-/* $Id: RTHandleGetStandard-posix.cpp $ */
+/* $Id: RTHandleGetStandard-posix.cpp 33973 2010-11-11 11:10:10Z vboxsync $ */
 /** @file
  * IPRT - RTHandleGetStandard, POSIX.
  */

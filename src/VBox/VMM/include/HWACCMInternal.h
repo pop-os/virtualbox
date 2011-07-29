@@ -1,10 +1,10 @@
-/* $Id: HWACCMInternal.h $ */
+/* $Id: HWACCMInternal.h 37386 2011-06-08 15:15:11Z vboxsync $ */
 /** @file
- * HWACCM - Internal header file.
+ * HM - Internal header file.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -139,32 +139,35 @@ RT_C_DECLS_BEGIN
 /** Total guest mapped memory needed. */
 #define HWACCM_VTX_TOTAL_DEVHEAP_MEM        (HWACCM_EPT_IDENTITY_PG_TABLE_SIZE + HWACCM_VTX_TSS_SIZE)
 
-/* Enable for TPR guest patching. */
+/** Enable for TPR guest patching. */
 #define VBOX_HWACCM_WITH_GUEST_PATCHING
 
 /** HWACCM SSM version
  */
 #ifdef VBOX_HWACCM_WITH_GUEST_PATCHING
-#define HWACCM_SSM_VERSION                  5
-#define HWACCM_SSM_VERSION_NO_PATCHING      4
+# define HWACCM_SSM_VERSION                 5
+# define HWACCM_SSM_VERSION_NO_PATCHING     4
 #else
-#define HWACCM_SSM_VERSION                  4
-#define HWACCM_SSM_VERSION_NO_PATCHING      4
+# define HWACCM_SSM_VERSION                 4
+# define HWACCM_SSM_VERSION_NO_PATCHING     4
 #endif
 #define HWACCM_SSM_VERSION_2_0_X            3
 
-/* Per-cpu information. (host) */
-typedef struct
+/**
+ * Global per-cpu information. (host)
+ */
+typedef struct HMGLOBLCPUINFO
 {
+    /** The CPU ID. */
     RTCPUID             idCpu;
-
-    RTR0MEMOBJ          pMemObj;
-    /* Current ASID (AMD-V)/VPID (Intel) */
+    /** The memory object   */
+    RTR0MEMOBJ          hMemObj;
+    /** Current ASID (AMD-V) / VPID (Intel). */
     uint32_t            uCurrentASID;
-    /* TLB flush count */
+    /** TLB flush count. */
     uint32_t            cTLBFlushes;
 
-    /* Set the first time a cpu is used to make sure we start with a clean TLB. */
+    /** Set the first time a cpu is used to make sure we start with a clean TLB. */
     bool                fFlushTLB;
 
     /** Configured for VT-x or AMD-V. */
@@ -175,8 +178,9 @@ typedef struct
 
     /** In use by our code. (for power suspend) */
     volatile bool       fInUse;
-} HWACCM_CPUINFO;
-typedef HWACCM_CPUINFO *PHWACCM_CPUINFO;
+} HMGLOBLCPUINFO;
+/** Pointer to the per-cpu global information. */
+typedef HMGLOBLCPUINFO *PHMGLOBLCPUINFO;
 
 typedef enum
 {
@@ -280,7 +284,7 @@ typedef struct HWACCM
     uint64_t                    u64RegisterMask;
 
     /** Maximum ASID allowed. */
-    RTUINT                      uMaxASID;
+    uint32_t                    uMaxASID;
 
     /** The maximum number of resumes loops allowed in ring-0 (safety precaution).
      * This number is set much higher when RTThreadPreemptIsPending is reliable. */
@@ -512,14 +516,14 @@ typedef struct VMCSCACHE
 #ifdef DEBUG
     struct
     {
-        RTHCPHYS    pPageCpuPhys;
-        RTHCPHYS    pVMCSPhys;
+        RTHCPHYS    HCPhysCpuPage;
+        RTHCPHYS    HCPhysVMCS;
         RTGCPTR     pCache;
         RTGCPTR     pCtx;
     } TestIn;
     struct
     {
-        RTHCPHYS    pVMCSPhys;
+        RTHCPHYS    HCPhysVMCS;
         RTGCPTR     pCache;
         RTGCPTR     pCtx;
         uint64_t    eflags;
@@ -565,33 +569,34 @@ typedef struct HWACCMCPU
     bool                        fActive;
 
     /** Set when the TLB has been checked until we return from the world switch. */
-    volatile uint8_t            fCheckedTLBFlush;
+    volatile bool               fCheckedTLBFlush;
     uint8_t                     bAlignment[3];
 
+    /** World switch exit counter. */
+    volatile uint32_t           cWorldSwitchExits;
+
     /** HWACCM_CHANGED_* flags. */
-    RTUINT                      fContextUseFlags;
+    uint32_t                    fContextUseFlags;
 
     /** Id of the last cpu we were executing code on (NIL_RTCPUID for the first time) */
     RTCPUID                     idLastCpu;
 
     /** TLB flush count */
-    RTUINT                      cTLBFlushes;
+    uint32_t                    cTLBFlushes;
 
     /** Current ASID in use by the VM */
-    RTUINT                      uCurrentASID;
+    uint32_t                    uCurrentASID;
 
-    /** World switch exit counter. */
-    volatile uint32_t           cWorldSwitchExit;
     uint32_t                    u32Alignment;
 
     struct
     {
         /** Physical address of the VM control structure (VMCS). */
-        RTHCPHYS                    pVMCSPhys;
+        RTHCPHYS                    HCPhysVMCS;
         /** R0 memory object for the VM control structure (VMCS). */
-        RTR0MEMOBJ                  pMemObjVMCS;
+        RTR0MEMOBJ                  hMemObjVMCS;
         /** Virtual address of the VM control structure (VMCS). */
-        R0PTRTYPE(void *)           pVMCS;
+        R0PTRTYPE(void *)           pvVMCS;
 
         /** Ring 0 handlers for VT-x. */
         PFNHWACCMVMXSTARTVM         pfnStartVM;
@@ -607,11 +612,11 @@ typedef struct HWACCMCPU
         uint64_t                    proc_ctls2;
 
         /** Physical address of the virtual APIC page for TPR caching. */
-        RTHCPHYS                    pVAPICPhys;
+        RTHCPHYS                    HCPhysVAPIC;
         /** R0 memory object for the virtual APIC page for TPR caching. */
-        RTR0MEMOBJ                  pMemObjVAPIC;
+        RTR0MEMOBJ                  hMemObjVAPIC;
         /** Virtual address of the virtual APIC page for TPR caching. */
-        R0PTRTYPE(uint8_t *)        pVAPIC;
+        R0PTRTYPE(uint8_t *)        pbVAPIC;
 
         /** Current CR0 mask. */
         uint64_t                    cr0_mask;
@@ -771,7 +776,7 @@ typedef struct HWACCMCPU
         uint8_t             abDisStatePadding[DISCPUSTATE_PADDING_SIZE];
     };
 
-    RTUINT                  padding2[1];
+    uint32_t                padding2[1];
 
     STAMPROFILEADV          StatEntry;
     STAMPROFILEADV          StatExit1;
@@ -882,8 +887,8 @@ typedef HWACCMCPU *PHWACCMCPU;
 
 #ifdef IN_RING0
 
-VMMR0DECL(PHWACCM_CPUINFO) HWACCMR0GetCurrentCpu();
-VMMR0DECL(PHWACCM_CPUINFO) HWACCMR0GetCurrentCpuEx(RTCPUID idCpu);
+VMMR0DECL(PHMGLOBLCPUINFO) HWACCMR0GetCurrentCpu(void);
+VMMR0DECL(PHMGLOBLCPUINFO) HWACCMR0GetCurrentCpuEx(RTCPUID idCpu);
 
 
 #ifdef VBOX_STRICT
@@ -893,18 +898,6 @@ VMMR0DECL(void) HWACCMR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char 
 # define HWACCMDumpRegs(a, b ,c)            do { } while (0)
 # define HWACCMR0DumpDescriptor(a, b, c)    do { } while (0)
 #endif
-
-/* Dummy callback handlers. */
-VMMR0DECL(int) HWACCMR0DummyEnter(PVM pVM, PVMCPU pVCpu, PHWACCM_CPUINFO pCpu);
-VMMR0DECL(int) HWACCMR0DummyLeave(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
-VMMR0DECL(int) HWACCMR0DummyEnableCpu(PHWACCM_CPUINFO pCpu, PVM pVM, void *pvPageCpu, RTHCPHYS pPageCpuPhys);
-VMMR0DECL(int) HWACCMR0DummyDisableCpu(PHWACCM_CPUINFO pCpu, void *pvPageCpu, RTHCPHYS pPageCpuPhys);
-VMMR0DECL(int) HWACCMR0DummyInitVM(PVM pVM);
-VMMR0DECL(int) HWACCMR0DummyTermVM(PVM pVM);
-VMMR0DECL(int) HWACCMR0DummySetupVM(PVM pVM);
-VMMR0DECL(int) HWACCMR0DummyRunGuestCode(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
-VMMR0DECL(int) HWACCMR0DummySaveHostState(PVM pVM, PVMCPU pVCpu);
-VMMR0DECL(int) HWACCMR0DummyLoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
 
 # ifdef VBOX_WITH_KERNEL_USING_XMM
 DECLASM(int)   hwaccmR0VMXStartVMWrapXMM(RTHCUINT fResume, PCPUMCTX pCtx, PVMCSCACHE pCache, PVM pVM, PVMCPU pVCpu, PFNHWACCMVMXSTARTVM pfnStartVM);

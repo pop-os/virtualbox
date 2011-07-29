@@ -1,4 +1,4 @@
-/* $Id: VSCSISgBuf.cpp $ */
+/* $Id: VSCSISgBuf.cpp 35062 2010-12-14 11:05:57Z vboxsync $ */
 /** @file
  * Virtual SCSI driver: S/G list handling
  */

@@ -1,4 +1,4 @@
-/* $Id: slirp.c $ */
+/* $Id: slirp.c 38044 2011-07-19 04:52:49Z vboxsync $ */
 /** @file
  * NAT - slirp glue.
  */
@@ -182,6 +182,8 @@
 # define xfds_win_bit     FD_OOB_BIT
 # define closefds_win     FD_CLOSE
 # define closefds_win_bit FD_CLOSE_BIT
+# define connectfds_win     FD_CONNECT
+# define connectfds_win_bit FD_CONNECT_BIT
 
 # define closefds_win FD_CLOSE
 # define closefds_win_bit FD_CLOSE_BIT
@@ -199,6 +201,12 @@
 
 #define TCP_ENGAGE_EVENT2(so, fdset1, fdset2) \
     DO_ENGAGE_EVENT2((so), fdset1, fdset2, tcp)
+
+#ifdef RT_OS_WINDOWS
+# define WIN_TCP_ENGAGE_EVENT2(so, fdset, fdset2) TCP_ENGAGE_EVENT2(so, fdset1, fdset2)
+#else
+# define WIN_TCP_ENGAGE_EVENT2(so, fdset, fdset2) do{}while(0)
+#endif
 
 #define UDP_ENGAGE_EVENT(so, fdset) \
     DO_ENGAGE_EVENT1((so), fdset, udp)
@@ -334,7 +342,7 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
                 return VERR_NO_MEMORY;
             }
 
-            Log(("NAT: adding %R[IP4] to DNS server list\n", &InAddr));
+            Log(("NAT: adding %RTnaipv4 to DNS server list\n", InAddr));
             if ((InAddr.s_addr & RT_H2N_U32_C(IN_CLASSA_NET)) == RT_N2H_U32_C(INADDR_LOOPBACK & IN_CLASSA_NET))
                 pDns->de_addr.s_addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_ALIAS);
             else
@@ -579,7 +587,7 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
 {
     int fNATfailed = 0;
     int rc;
-    PNATState pData = RTMemAllocZ(sizeof(NATState));
+    PNATState pData = RTMemAllocZ(RT_ALIGN_Z(sizeof(NATState), sizeof(uint64_t)));
     *ppData = pData;
     if (!pData)
         return VERR_NO_MEMORY;
@@ -932,7 +940,15 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
         {
             Log2(("connecting %R[natsock] engaged\n",so));
             STAM_COUNTER_INC(&pData->StatTCPHot);
+#ifndef NAT_CONNECT_EXPERIMENT
             TCP_ENGAGE_EVENT1(so, writefds);
+#else
+# ifdef RT_OS_WINDOWS
+            WIN_TCP_ENGAGE_EVENT2(so, writefds, connectfds);
+# else
+            TCP_ENGAGE_EVENT1(so, writefds);
+# endif
+#endif
         }
 
         /*
@@ -990,10 +1006,6 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
 #endif
                 UDP_DETACH(pData, so, so_next);
                 CONTINUE_NO_UNLOCK(udp);
-            }
-            else
-            {
-                do_slowtimo = 1; /* Let socket expire */
             }
         }
 
@@ -1151,6 +1163,14 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
              */
             &&  !CHECK_FD_SET(so, NetworkEvents, closefds)
 #endif
+#ifdef NAT_CONNECT_EXPERIMENT
+# ifdef RT_OS_WINDOWS
+            /**
+             * In some cases FD_CONNECT comes with FD_OOB, that confuse tcp processing.
+             */
+            && !WIN_CHECK_FD_SET(so, NetworkEvents, connectfds)
+# endif
+#endif
         )
         {
             sorecvoob(pData, so);
@@ -1162,6 +1182,9 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
         else if (   CHECK_FD_SET(so, NetworkEvents, readfds)
                  || WIN_CHECK_FD_SET(so, NetworkEvents, acceptds))
         {
+#ifdef DEBUG_vvl
+            Assert(((so->so_state & SS_ISFCONNECTING) == 0));
+#endif
             /*
              * Check for incoming connections
              */
@@ -1213,7 +1236,11 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
         /*
          * Check sockets for writing
          */
-        if (CHECK_FD_SET(so, NetworkEvents, writefds))
+        if (    CHECK_FD_SET(so, NetworkEvents, writefds)
+#if defined(NAT_CONNECT_EXPERIMENT)
+            ||  WIN_CHECK_FD_SET(so, NetworkEvents, connectfds)
+#endif
+            )
         {
             /*
              * Check for non-blocking, still-connecting sockets
@@ -1473,7 +1500,7 @@ static void arp_input(PNATState pData, struct mbuf *m)
                 static bool fGratuitousArpReported;
                 if (!fGratuitousArpReported)
                 {
-                    LogRel(("NAT: Gratuitous ARP [IP:%R[IP4], ether:%R[ether]]\n",
+                    LogRel(("NAT: Gratuitous ARP [IP:%RTnaipv4, ether:%RTmac]\n",
                             ah->ar_sip, ah->ar_sha));
                     fGratuitousArpReported = true;
                 }
@@ -1689,8 +1716,8 @@ static void activate_port_forwarding(PNATState pData, const uint8_t *h_source)
             rule->guest_addr.s_addr = guest_addr;
 #endif
 
-        LogRel(("NAT: set redirect %s host port %d => guest port %d @ %R[IP4]\n",
-               rule->proto == IPPROTO_UDP ? "UDP" : "TCP", rule->host_port, rule->guest_port, &guest_addr));
+        LogRel(("NAT: set redirect %s host port %d => guest port %d @ %RTnaipv4\n",
+               rule->proto == IPPROTO_UDP ? "UDP" : "TCP", rule->host_port, rule->guest_port, guest_addr));
 
         if (rule->proto == IPPROTO_UDP)
             so = udp_listen(pData, rule->bind_ip.s_addr, RT_H2N_U16(rule->host_port), guest_addr,
@@ -1766,9 +1793,7 @@ int slirp_add_redirect(PNATState pData, int is_udp, struct in_addr host_addr, in
             && rule->host_port == host_port
             && rule->bind_ip.s_addr == host_addr.s_addr
             && rule->guest_port == guest_port
-#ifndef VBOX_WITH_NAT_SERVICE
             && rule->guest_addr.s_addr == guest_addr.s_addr
-#endif
             )
                 return 0; /* rule has been already registered */
     }
@@ -1780,9 +1805,7 @@ int slirp_add_redirect(PNATState pData, int is_udp, struct in_addr host_addr, in
     rule->proto = (is_udp ? IPPROTO_UDP : IPPROTO_TCP);
     rule->host_port = host_port;
     rule->guest_port = guest_port;
-#ifndef VBOX_WITH_NAT_SERVICE
     rule->guest_addr.s_addr = guest_addr.s_addr;
-#endif
     rule->bind_ip.s_addr = host_addr.s_addr;
     memcpy(rule->mac_address, ethaddr, ETH_ALEN);
     /* @todo add mac address */
@@ -1804,13 +1827,11 @@ int slirp_remove_redirect(PNATState pData, int is_udp, struct in_addr host_addr,
             && rule->host_port == host_port
             && rule->guest_port == guest_port
             && rule->bind_ip.s_addr == host_addr.s_addr
-#ifndef VBOX_WITH_NAT_SERVICE
             && rule->guest_addr.s_addr == guest_addr.s_addr
-#endif
             && rule->activated)
         {
-            LogRel(("NAT: remove redirect %s host port %d => guest port %d @ %R[IP4]\n",
-                   rule->proto == IPPROTO_UDP ? "UDP" : "TCP", rule->host_port, rule->guest_port, &guest_addr));
+            LogRel(("NAT: remove redirect %s host port %d => guest port %d @ %RTnaipv4\n",
+                   rule->proto == IPPROTO_UDP ? "UDP" : "TCP", rule->host_port, rule->guest_port, guest_addr));
 
             LibAliasUninit(rule->so->so_la);
             if (is_udp)
@@ -2104,8 +2125,8 @@ int slirp_arp_cache_update_or_add(PNATState pData, uint32_t dst, const uint8_t *
         static bool fBroadcastEtherAddReported;
         if (!fBroadcastEtherAddReported)
         {
-            LogRel(("NAT: Attempt to add pair [%R[ether]:%R[IP4]] in ARP cache was ignored\n",
-                    mac, &dst));
+            LogRel(("NAT: Attempt to add pair [%RTmac:%RTnaipv4] in ARP cache was ignored\n",
+                    mac, dst));
             fBroadcastEtherAddReported = true;
         }
         return 1;
@@ -2154,15 +2175,15 @@ void slirp_info(PNATState pData, PCDBGFINFOHLP pHlp, const char *pszArgs)
     pHlp->pfnPrintf(pHlp, "NAT ARP cache:\n");
     LIST_FOREACH(ac, &pData->arp_cache, list)
     {
-        pHlp->pfnPrintf(pHlp, " %R[IP4] %R[ether]\n", &ac->ip, &ac->ether);
+        pHlp->pfnPrintf(pHlp, " %RTnaipv4 %RTmac\n", ac->ip, &ac->ether);
     }
 
     pHlp->pfnPrintf(pHlp, "NAT rules:\n");
     LIST_FOREACH(rule, &pData->port_forward_rule_head, list)
     {
-        pHlp->pfnPrintf(pHlp, " %s %d => %R[IP4]:%d %c\n",
+        pHlp->pfnPrintf(pHlp, " %s %d => %RTnaipv4:%d %c\n",
                         rule->proto == IPPROTO_UDP ? "UDP" : "TCP",
-                        rule->host_port, &rule->guest_addr.s_addr, rule->guest_port,
+                        rule->host_port, rule->guest_addr.s_addr, rule->guest_port,
                         rule->activated ? ' ' : '*');
     }
 }

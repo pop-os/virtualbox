@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -241,9 +241,9 @@ typedef struct
     /** Mouse feature mask. See VMMDEV_MOUSE_*. */
     uint32_t mouseFeatures;
     /** Mouse x position. */
-    uint32_t pointerXPos;
+    int32_t pointerXPos;
     /** Mouse y position. */
-    uint32_t pointerYPos;
+    int32_t pointerYPos;
 } VMMDevReqMouseStatus;
 AssertCompileSize(VMMDevReqMouseStatus, 24+12);
 
@@ -668,34 +668,60 @@ AssertCompileSize(VMMDevReportGuestInfo2, 24+144);
 
 
 /**
- * Guest status facility.
+ * The guest facility.
+ * This needs to be kept in sync with AdditionsFacilityType of the Main API!
  */
 typedef enum
 {
-    VBoxGuestStatusFacility_Unknown         = 0,
-    VBoxGuestStatusFacility_VBoxGuestDriver = 20,
-    VBoxGuestStatusFacility_VBoxService     = 100,
-    VBoxGuestStatusFacility_VBoxTray        = 101,
-    VBoxGuestStatusFacility_All             = 999,
-    VBoxGuestStatusFacility_SizeHack        = 0x7fffffff
-} VBoxGuestStatusFacility;
-AssertCompileSize(VBoxGuestStatusFacility, 4);
+    VBoxGuestFacilityType_Unknown         = 0,
+    VBoxGuestFacilityType_VBoxGuestDriver = 20,
+    VBoxGuestFacilityType_VBoxService     = 100,
+    VBoxGuestFacilityType_VBoxTrayClient  = 101, /* VBoxTray (Windows), VBoxClient (Linux, Unix). */
+    VBoxGuestFacilityType_Seamless        = 1000,
+    VBoxGuestFacilityType_Graphics        = 1100,
+    VBoxGuestFacilityType_All             = 0x7ffffffe,
+    VBoxGuestFacilityType_SizeHack        = 0x7fffffff
+} VBoxGuestFacilityType;
+AssertCompileSize(VBoxGuestFacilityType, 4);
+
 
 /**
  * The current guest status of a facility.
+ * This needs to be kept in sync with AdditionsFacilityStatus of the Main API!
  */
 typedef enum
 {
-    VBoxGuestStatusCurrent_Disabled    = 0,
-    VBoxGuestStatusCurrent_Inactive    = 1,
-    VBoxGuestStatusCurrent_PreInit     = 20,
-    VBoxGuestStatusCurrent_Init        = 30,
-    VBoxGuestStatusCurrent_Active      = 50,
-    VBoxGuestStatusCurrent_Terminating = 100,
-    VBoxGuestStatusCurrent_Terminated  = 101,
-    VBoxGuestStatusCurrent_SizeHack    = 0x7fffffff
-} VBoxGuestStatusCurrent;
-AssertCompileSize(VBoxGuestStatusCurrent, 4);
+    VBoxGuestFacilityStatus_Inactive    = 0,
+    VBoxGuestFacilityStatus_Paused      = 1,
+    VBoxGuestFacilityStatus_PreInit     = 20,
+    VBoxGuestFacilityStatus_Init        = 30,
+    VBoxGuestFacilityStatus_Active      = 50,
+    VBoxGuestFacilityStatus_Terminating = 100,
+    VBoxGuestFacilityStatus_Terminated  = 101,
+    VBoxGuestFacilityStatus_Failed  =     800,
+    VBoxGuestFacilityStatus_Unknown     = 999,
+    VBoxGuestFacilityStatus_SizeHack    = 0x7fffffff
+} VBoxGuestFacilityStatus;
+AssertCompileSize(VBoxGuestFacilityStatus, 4);
+
+
+/**
+ * The facility class.
+ * This needs to be kept in sync with AdditionsFacilityClass of the Main API!
+ */
+typedef enum
+{
+    VBoxGuestFacilityClass_None       = 0,
+    VBoxGuestFacilityClass_Driver     = 10,
+    VBoxGuestFacilityClass_Service    = 30,
+    VBoxGuestFacilityClass_Program    = 50,
+    VBoxGuestFacilityClass_Feature    = 100,
+    VBoxGuestFacilityClass_ThirdParty = 999,
+    VBoxGuestFacilityClass_All        = 0x7ffffffe,
+    VBoxGuestFacilityClass_SizeHack   = 0x7fffffff
+} VBoxGuestFacilityClass;
+AssertCompileSize(VBoxGuestFacilityClass, 4);
+
 
 /**
  * Guest status structure.
@@ -705,9 +731,9 @@ AssertCompileSize(VBoxGuestStatusCurrent, 4);
 typedef struct VBoxGuestStatus
 {
     /** Facility the status is indicated for. */
-    VBoxGuestStatusFacility facility;
+    VBoxGuestFacilityType facility;
     /** Current guest status. */
-    VBoxGuestStatusCurrent status;
+    VBoxGuestFacilityStatus status;
     /** Flags, not used at the moment. */
     uint32_t flags;
 } VBoxGuestStatus;
@@ -1798,7 +1824,9 @@ DECLINLINE(size_t) vmmdevGetRequestSize(VMMDevRequestType requestType)
         case VMMDevReq_VideoAccelFlush:
             return sizeof(VMMDevVideoAccelFlush);
         case VMMDevReq_VideoSetVisibleRegion:
-            return sizeof(VMMDevVideoSetVisibleRegion);
+            /* The original protocol didn't consider a guest with NO visible
+             * windows */
+            return sizeof(VMMDevVideoSetVisibleRegion) - sizeof(RTRECT);
         case VMMDevReq_GetSeamlessChangeRequest:
             return sizeof(VMMDevSeamlessChangeRequest);
         case VMMDevReq_QueryCredentials:

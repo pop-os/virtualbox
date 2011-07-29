@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxClientImpl.cpp $ */
+/* $Id: VirtualBoxClientImpl.cpp 35638 2011-01-19 19:10:49Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -41,12 +41,15 @@ uint32_t VirtualBoxClient::g_cInstances = 0;
 
 HRESULT VirtualBoxClient::FinalConstruct()
 {
-    return init();
+    HRESULT rc = init();
+    BaseFinalConstruct();
+    return rc;
 }
 
 void VirtualBoxClient::FinalRelease()
 {
     uninit();
+    BaseFinalRelease();
 }
 
 // public initializer/uninitializer for internal purposes only

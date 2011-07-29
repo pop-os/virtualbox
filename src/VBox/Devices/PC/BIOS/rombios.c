@@ -1,5 +1,5 @@
 /////////////////////////////////////////////////////////////////////////
-// $Id: rombios.c $
+// $Id: rombios.c,v 1.176 2006/12/30 17:13:17 vruppert Exp $
 /////////////////////////////////////////////////////////////////////////
 //
 //  Copyright (C) 2002  MandrakeSoft S.A.
@@ -805,6 +805,11 @@ typedef struct {
     scsi_t scsi;
 # endif
 
+#ifdef VBOX_WITH_BIOS_AHCI
+    // AHCI driver data segment;
+    Bit16u SegAhci;
+#endif
+
     unsigned char uForceBootDrive;
     unsigned char uForceBootDevice;
 #endif /* VBOX */
@@ -927,7 +932,13 @@ static Bit8u          inb_cmos();
 static void           outb();
 static void           outb_cmos();
 static Bit16u         inw();
+#ifdef VBOX_WITH_BIOS_AHCI
+static Bit32u         inl();
+#endif
 static void           outw();
+#ifdef VBOX_WITH_BIOS_AHCI
+static void           outl();
+#endif
 static void           init_rtc();
 static bx_bool        rtc_updating();
 
@@ -1264,6 +1275,29 @@ ASM_END
 }
 #endif
 
+#ifdef VBOX_WITH_BIOS_AHCI
+  Bit32u
+inl(port)
+  Bit16u port;
+{
+ASM_START
+  push bp
+  mov  bp, sp
+
+    push bx
+    mov  dx, 4[bp]
+    in   eax, dx
+    mov bx, ax   ; Save lower 16 bits
+    shr eax, #16
+    mov dx, ax
+    mov ax, bx
+    pop bx
+
+  pop  bp
+ASM_END
+}
+#endif
+
   void
 outb(port, val)
   Bit16u port;
@@ -1302,6 +1336,29 @@ ASM_START
     out  dx, ax
     pop  dx
     pop  ax
+
+  pop  bp
+ASM_END
+}
+#endif
+
+#ifdef VBOX_WITH_BIOS_AHCI
+  void
+outl(port, val)
+  Bit16u port;
+  Bit32u  val;
+{
+ASM_START
+  push bp
+  mov  bp, sp
+
+    push eax
+    push dx
+    mov  dx, _outl.port + 2[bp]
+    mov  eax, _outl.val + 2[bp]
+    out  dx, eax
+    pop  dx
+    pop  eax
 
   pop  bp
 ASM_END
@@ -1783,12 +1840,12 @@ keyboard_init()
     while ( (inb(0x64) & 0x02) && (--max>0)) outb(0x80, 0x00);
 
     /* flush incoming keys */
-    max=0x2000;
+    max=4;
     while (--max > 0) {
         outb(0x80, 0x00);
         if (inb(0x64) & 0x01) {
             inb(0x60);
-            max = 0x2000;
+            max = 4;
             }
         }
 
@@ -2507,6 +2564,7 @@ void ata_detect( )
           case 3:
               chsgeo_base = 0x70;
               break;
+#ifndef VBOX_WITH_BIOS_AHCI
           case 4:
               chsgeo_base = 0x40;
               break;
@@ -2519,6 +2577,7 @@ void ata_detect( )
           case 7:
               chsgeo_base = 0x58;
               break;
+#endif
           default:
               chsgeo_base = 0;
       }
@@ -2572,7 +2631,7 @@ void ata_detect( )
           sum = 0;
           for (i = 0; i < 0xf; i++)
               sum += read_byte(ebda_seg, fdpt + i);
-          sum = 1 - sum;
+          sum = -sum;
           write_byte(ebda_seg, fdpt + 0x0f, sum);
       }
 #else /* !VBOX */
@@ -2672,6 +2731,9 @@ void ata_detect( )
       cdcount++;
       }
 
+#ifdef VBOX
+      // we don't want any noisy output for now
+#else /* !VBOX */
       {
       Bit32u sizeinmb;
       Bit16u ataversion;
@@ -2705,9 +2767,6 @@ void ata_detect( )
           break;
         }
 
-#ifdef VBOX
-      // we don't want any noisy output for now
-#else /* !VBOX */
       switch (type) {
         case ATA_TYPE_ATA:
           printf("ata%d %s: ",channel,slave?" slave":"master");
@@ -2726,8 +2785,8 @@ void ata_detect( )
           printf("ata%d %s: Unknown device\n",channel,slave?" slave":"master");
           break;
         }
-#endif /* !VBOX */
       }
+#endif /* !VBOX */
     }
 
   // Store the devices counts
@@ -3817,6 +3876,10 @@ cdrom_boot()
 #  include "scsi.c"
 #endif
 
+#ifdef VBOX_WITH_BIOS_AHCI
+#  include "ahci.c"
+#endif
+
   void
 int14_function(regs, ds, iret_addr)
   pusha_regs_t regs; // regs pushed from PUSHA instruction
@@ -4788,7 +4851,10 @@ ASM_END
                         /* Mark the BIOS as reserved. VBox doesn't currently
                          * use the 0xe0000-0xeffff area. It does use the
                          * 0xd0000-0xdffff area for the BIOS logo, but it's
-                         * not worth marking it as reserved. Note that various
+                         * not worth marking it as reserved. (this is not
+                         * true anymore because the VGA adapter handles the logo stuff)
+                         * The whole 0xe0000-0xfffff can be used for the BIOS.
+                         * Note that various
                          * Windows versions don't accept (read: in debug builds
                          * they trigger the "Too many similar traps" assertion)
                          * a single reserved range from 0xd0000 to 0xffffff.
@@ -5885,7 +5951,7 @@ int13_harddisk(EHBX, EHAX, DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLA
 
         checksum=0;
         for (i=0; i<15; i++) checksum+=read_byte(ebda_seg, (&EbdaData->ata.dpte) + i);
-        checksum = ~checksum;
+        checksum = -checksum;
         write_byte(ebda_seg, &EbdaData->ata.dpte.checksum, checksum);
         }
 
@@ -5933,7 +5999,7 @@ int13_harddisk(EHBX, EHAX, DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLA
 
         checksum=0;
         for (i=30; i<64; i++) checksum+=read_byte(DS, SI + i);
-        checksum = ~checksum;
+        checksum = -checksum;
         write_byte(DS, SI+(Bit16u)&Int13DPT->checksum, checksum);
         }
 
@@ -6233,7 +6299,7 @@ int13_cdrom_rme_end:
 
         checksum=0;
         for (i=0; i<15; i++) checksum+=read_byte(ebda_seg, (&EbdaData->ata.dpte) + i);
-        checksum = ~checksum;
+        checksum = -checksum;
         write_byte(ebda_seg, &EbdaData->ata.dpte.checksum, checksum);
         }
 
@@ -6281,7 +6347,7 @@ int13_cdrom_rme_end:
 
         checksum=0;
         for (i=30; i<64; i++) checksum+=read_byte(DS, SI + i);
-        checksum = ~checksum;
+        checksum = -checksum;
         write_byte(DS, SI+(Bit16u)&Int13DPT->checksum, checksum);
         }
 
@@ -9405,8 +9471,10 @@ hard_drive_post:
   mov  0x048c, al /* hard disk status register */
   mov  0x048d, al /* hard disk error register */
   mov  0x048e, al /* hard disk task complete flag */
+#ifndef VBOX /* Why is this hardcoded to 1? */
   mov  al, #0x01
   mov  0x0475, al /* hard disk number attached */
+#endif
   mov  al, #0xc0
   mov  0x0476, al /* hard disk control byte */
   SET_INT_VECTOR(0x13, #0xF000, #int13_handler)
@@ -11670,6 +11738,14 @@ post_default_ints:
   ;; Hard Drive setup
   ;;
   call hard_drive_post
+
+#ifdef VBOX_WITH_BIOS_AHCI
+  ;;
+  ;; AHCI driver setup
+  ;;
+  call _ahci_init
+  ;;
+#endif
 
 #if BX_ELTORITO_BOOT
   ;;

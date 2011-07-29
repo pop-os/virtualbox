@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR3LibRuntimeXF86.cpp $ */
+/* $Id: VBoxGuestR3LibRuntimeXF86.cpp 31159 2010-07-28 03:28:00Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions,
  *                  implements the minimum of runtime functions needed for

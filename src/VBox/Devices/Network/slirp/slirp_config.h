@@ -1,4 +1,4 @@
-/* $Id: slirp_config.h $ */
+/* $Id: slirp_config.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * NAT - compile-time configuration.
  */

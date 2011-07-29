@@ -1,4 +1,4 @@
-/* $Id: tstRunTestcases.cpp $ */
+/* $Id: tstRunTestcases.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * tstRunTestcases - Driver program for running VBox testcase (tst* testcase/tst*).
  */

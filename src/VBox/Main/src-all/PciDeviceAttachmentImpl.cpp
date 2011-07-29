@@ -1,4 +1,4 @@
-/* $Id: PciDeviceAttachmentImpl.cpp $ */
+/* $Id: PciDeviceAttachmentImpl.cpp 36107 2011-02-28 18:24:32Z vboxsync $ */
 
 /** @file
  *
@@ -24,23 +24,20 @@
 
 struct PciDeviceAttachment::Data
 {
-    Data(Machine      *aParent,
-         const Bstr   &aDevName,
+    Data(const Bstr    &aDevName,
          LONG          aHostAddress,
          LONG          aGuestAddress,
          BOOL          afPhysical)
-        : pMachine(aParent),
-          HostAddress(aHostAddress), GuestAddress(aGuestAddress),
+        : HostAddress(aHostAddress), GuestAddress(aGuestAddress),
           fPhysical(afPhysical)
     {
         DevName = aDevName;
     }
 
-    Machine * const pMachine;
-    Bstr            DevName;
-    LONG            HostAddress;
-    LONG            GuestAddress;
-    BOOL            fPhysical;
+    Bstr             DevName;
+    LONG             HostAddress;
+    LONG             GuestAddress;
+    BOOL             fPhysical;
 };
 
 // constructor / destructor
@@ -49,26 +46,46 @@ struct PciDeviceAttachment::Data
 HRESULT PciDeviceAttachment::FinalConstruct()
 {
     LogFlowThisFunc(("\n"));
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void PciDeviceAttachment::FinalRelease()
 {
     LogFlowThisFunc(("\n"));
     uninit();
+    BaseFinalRelease();
 }
 
 // public initializer/uninitializer for internal purposes only
 /////////////////////////////////////////////////////////////////////////////
-HRESULT PciDeviceAttachment::init(Machine      *aParent,
+HRESULT PciDeviceAttachment::init(IMachine      *aParent,
                                   const Bstr   &aDevName,
                                   LONG          aHostAddress,
                                   LONG          aGuestAddress,
                                   BOOL          fPhysical)
 {
-    m = new Data(aParent, aDevName, aHostAddress, aGuestAddress, fPhysical);
+    (void)aParent;
+    m = new Data(aDevName, aHostAddress, aGuestAddress, fPhysical);
 
     return m != NULL ? S_OK : E_FAIL;
+}
+
+HRESULT PciDeviceAttachment::loadSettings(IMachine *aParent,
+                                          const settings::HostPciDeviceAttachment &hpda)
+{
+    Bstr bname(hpda.strDeviceName);
+    return init(aParent, bname,  hpda.uHostAddress, hpda.uGuestAddress, TRUE);
+}
+
+
+HRESULT PciDeviceAttachment::saveSettings(settings::HostPciDeviceAttachment &data)
+{
+    Assert(m);
+    data.uHostAddress = m->HostAddress;
+    data.uGuestAddress = m->GuestAddress;
+    data.strDeviceName = m->DevName;
+
+    return S_OK;
 }
 
 /**

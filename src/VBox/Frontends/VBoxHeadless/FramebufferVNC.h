@@ -1,4 +1,4 @@
-/* $Id: FramebufferVNC.h $ */
+/* $Id: FramebufferVNC.h 31698 2010-08-16 15:00:05Z vboxsync $ */
 /** @file
  * VBox Remote Desktop Protocol - VNC server interface.
  */

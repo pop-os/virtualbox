@@ -1,4 +1,4 @@
-/* $Id: vfsmisc.cpp $ */
+/* $Id: vfsmisc.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
 /** @file
  * IPRT - Virtual File System, Misc functions with heavy dependencies.
  */
@@ -38,7 +38,7 @@
 
 
 
-RTDECL(int)         RTVfsIoStrmFromStdHandle(RTHANDLESTD enmStdHandle, uint32_t fOpen, bool fLeaveOpen,
+RTDECL(int)         RTVfsIoStrmFromStdHandle(RTHANDLESTD enmStdHandle, uint64_t fOpen, bool fLeaveOpen,
                                              PRTVFSIOSTREAM phVfsIos)
 {
     /*

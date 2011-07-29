@@ -1,4 +1,4 @@
-/* $Id: CPUMInternal.h $ */
+/* $Id: CPUMInternal.h 37955 2011-07-14 12:23:02Z vboxsync $ */
 /** @file
  * CPUM - Internal header file.
  */
@@ -20,7 +20,7 @@
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
-#include <VBox/x86.h>
+#include <iprt/x86.h>
 
 
 

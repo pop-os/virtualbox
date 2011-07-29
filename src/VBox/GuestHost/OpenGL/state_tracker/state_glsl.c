@@ -1,4 +1,4 @@
-/* $Id: state_glsl.c $ */
+/* $Id: state_glsl.c 37773 2011-07-04 18:07:09Z vboxsync $ */
 
 /** @file
  * VBox OpenGL: GLSL state tracking
@@ -641,6 +641,8 @@ DECLEXPORT(GLint) STATE_APIENTRY crStateGetUniformSize(GLenum type)
         case GL_SAMPLER_CUBE:
         case GL_SAMPLER_1D_SHADOW:
         case GL_SAMPLER_2D_SHADOW:
+        case GL_SAMPLER_2D_RECT_ARB:
+        case GL_SAMPLER_2D_RECT_SHADOW_ARB:
             size = 1;
             break;
 #ifdef CR_OPENGL_VERSION_2_1
@@ -687,7 +689,9 @@ DECLEXPORT(GLboolean) STATE_APIENTRY crStateIsIntUniform(GLenum type)
         || GL_SAMPLER_3D==type
         || GL_SAMPLER_CUBE==type
         || GL_SAMPLER_1D_SHADOW==type
-        || GL_SAMPLER_2D_SHADOW==type)
+        || GL_SAMPLER_2D_SHADOW==type
+        || GL_SAMPLER_2D_RECT_ARB==type
+        || GL_SAMPLER_2D_RECT_SHADOW_ARB==type)
     {
         return GL_TRUE;
     }
@@ -1102,6 +1106,8 @@ static void crStateGLSLCreateProgramCB(unsigned long key, void *data1, void *dat
             case GL_SAMPLER_CUBE:
             case GL_SAMPLER_1D_SHADOW:
             case GL_SAMPLER_2D_SHADOW:
+            case GL_SAMPLER_2D_RECT_ARB:
+            case GL_SAMPLER_2D_RECT_SHADOW_ARB:
                 diff_api.Uniform1iv(location, 1, pIdata);
                 break;
 #ifdef CR_OPENGL_VERSION_2_1

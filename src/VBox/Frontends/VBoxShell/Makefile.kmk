@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 38003 2011-07-18 10:17:01Z vboxsync $
 ## @file
 # Sub-Makefile for the shell frontend.
 #
@@ -19,7 +19,7 @@ SUB_DEPTH = ../../../..
 include $(KBUILD_PATH)/subheader.kmk
 
 INSTALLS += VBoxShell
-VBoxShell_INST = $(INST_SDK)/bindings
+VBoxShell_INST = $(INST_SDK)/bindings/
 VBoxShell_SOURCES = \
 	vboxshell.py=>glue/python/sample/vboxshell.py \
         vboxinfo.vbs=>mscom/vbs/sample/vboxinfo.vbs   \

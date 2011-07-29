@@ -1,10 +1,10 @@
-/* $Id: PDMRCDevice.cpp $ */
+/* $Id: PDMRCDevice.cpp 37410 2011-06-10 15:11:40Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, RC Device parts.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,6 +46,7 @@ extern DECLEXPORT(const PDMIOAPICHLPRC) g_pdmRCIoApicHlp;
 extern DECLEXPORT(const PDMPCIHLPRC)    g_pdmRCPciHlp;
 extern DECLEXPORT(const PDMHPETHLPRC)   g_pdmRCHpetHlp;
 extern DECLEXPORT(const PDMDRVHLPRC)    g_pdmRCDrvHlp;
+/** @todo missing PDMPCIRAWHLPRC  */
 RT_C_DECLS_END
 
 
@@ -262,6 +263,16 @@ static DECLCALLBACK(uint64_t) pdmRCDevHlp_TMTimeVirtGetNano(PPDMDEVINS pDevIns)
 }
 
 
+/** @interface_method_impl{PDMDEVHLPRC,pfnDBGFTraceBuf} */
+static DECLCALLBACK(RTTRACEBUF) pdmRCDevHlp_DBGFTraceBuf(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    RTTRACEBUF hTraceBuf = pDevIns->Internal.s.pVMRC->hTraceBufRC;
+    LogFlow(("pdmRCDevHlp_DBGFTraceBuf: caller='%p'/%d: returns %p\n", pDevIns, pDevIns->iInstance, hTraceBuf));
+    return hTraceBuf;
+}
+
+
 /**
  * The Raw-Mode Context Device Helper Callbacks.
  */
@@ -284,6 +295,7 @@ extern DECLEXPORT(const PDMDEVHLPRC) g_pdmRCDevHlp =
     pdmRCDevHlp_TMTimeVirtGet,
     pdmRCDevHlp_TMTimeVirtGetFreq,
     pdmRCDevHlp_TMTimeVirtGetNano,
+    pdmRCDevHlp_DBGFTraceBuf,
     PDM_DEVHLPRC_VERSION
 };
 

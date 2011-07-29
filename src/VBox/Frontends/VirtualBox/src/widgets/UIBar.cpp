@@ -1,4 +1,4 @@
-/* $Id: UIBar.cpp $ */
+/* $Id: UIBar.cpp 35424 2011-01-07 13:05:41Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

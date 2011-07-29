@@ -54,8 +54,8 @@ typedef enum PCICONFIGCOMMAND
  * PCI Address space specification.
  * This is used when registering a I/O region.
  */
-/** Note: There are all sorts of dirty dependencies on the values in the
- *  pci device. Be careful when changing this.
+/**
+ * Defined by the PCI specification.
  */
 typedef enum PCIADDRESSSPACE
 {
@@ -87,7 +87,6 @@ typedef enum PCIADDRESSSPACE
  *
  * @param   enmType         One of the PCI_ADDRESS_SPACE_* values.
  *
- * @remarks The address is *NOT* relative to pci_mem_base.
  */
 typedef DECLCALLBACK(int) FNPCIIOREGIONMAP(PPCIDEVICE pPciDev, /*unsigned*/ int iRegion, RTGCPHYS GCPhysAddress, uint32_t cb, PCIADDRESSSPACE enmType);
 /** Pointer to a FNPCIIOREGIONMAP() function. */
@@ -522,7 +521,7 @@ typedef struct PCIDevice
 #ifdef PCIDEVICEINT_DECLARED
         PCIDEVICEINT        s;
 #endif
-        char                padding[288];
+        char                padding[328];
     } Int;
 
     /** Read only data.
@@ -919,127 +918,180 @@ DECLINLINE(uint8_t) PCIDevGetInterruptPin(PPCIDEVICE pPciDev)
 }
 
 #ifdef PCIDEVICEINT_DECLARED
-DECLINLINE(void) PCISetRequestedDevfunc(PPCIDEVICE pDev)
+DECLINLINE(void) pciDevSetRequestedDevfunc(PPCIDEVICE pDev)
 {
-    pDev->Int.s.uFlags |= PCIDEV_FLAG_REQUESTED_DEVFUNC;
+    pDev->Int.s.fFlags |= PCIDEV_FLAG_REQUESTED_DEVFUNC;
 }
 
-DECLINLINE(void) PCIClearRequestedDevfunc(PPCIDEVICE pDev)
+DECLINLINE(void) pciDevClearRequestedDevfunc(PPCIDEVICE pDev)
 {
-    pDev->Int.s.uFlags &= ~PCIDEV_FLAG_REQUESTED_DEVFUNC;
+    pDev->Int.s.fFlags &= ~PCIDEV_FLAG_REQUESTED_DEVFUNC;
 }
 
-DECLINLINE(bool) PCIIsRequestedDevfunc(PPCIDEVICE pDev)
+DECLINLINE(bool) pciDevIsRequestedDevfunc(PPCIDEVICE pDev)
 {
-    return (pDev->Int.s.uFlags & PCIDEV_FLAG_REQUESTED_DEVFUNC) != 0;
+    return (pDev->Int.s.fFlags & PCIDEV_FLAG_REQUESTED_DEVFUNC) != 0;
 }
 
-DECLINLINE(void) PCISetPci2PciBridge(PPCIDEVICE pDev)
+DECLINLINE(void) pciDevSetPci2PciBridge(PPCIDEVICE pDev)
 {
-    pDev->Int.s.uFlags |= PCIDEV_FLAG_PCI_TO_PCI_BRIDGE;
+    pDev->Int.s.fFlags |= PCIDEV_FLAG_PCI_TO_PCI_BRIDGE;
 }
 
-DECLINLINE(bool) PCIIsPci2PciBridge(PPCIDEVICE pDev)
+DECLINLINE(bool) pciDevIsPci2PciBridge(PPCIDEVICE pDev)
 {
-    return (pDev->Int.s.uFlags & PCIDEV_FLAG_PCI_TO_PCI_BRIDGE) != 0;
+    return (pDev->Int.s.fFlags & PCIDEV_FLAG_PCI_TO_PCI_BRIDGE) != 0;
 }
 
-DECLINLINE(void) PCISetPciExpress(PPCIDEVICE pDev)
+DECLINLINE(void) pciDevSetPciExpress(PPCIDEVICE pDev)
 {
-    pDev->Int.s.uFlags |= PCIDEV_FLAG_PCI_EXPRESS_DEVICE;
+    pDev->Int.s.fFlags |= PCIDEV_FLAG_PCI_EXPRESS_DEVICE;
 }
 
-DECLINLINE(bool) PCIIsPciExpress(PPCIDEVICE pDev)
+DECLINLINE(bool) pciDevIsPciExpress(PPCIDEVICE pDev)
 {
-    return (pDev->Int.s.uFlags & PCIDEV_FLAG_PCI_EXPRESS_DEVICE) != 0;
+    return (pDev->Int.s.fFlags & PCIDEV_FLAG_PCI_EXPRESS_DEVICE) != 0;
 }
 
-DECLINLINE(void) PCISetMsiCapable(PPCIDEVICE pDev)
+DECLINLINE(void) pciDevSetMsiCapable(PPCIDEVICE pDev)
 {
-    pDev->Int.s.uFlags |= PCIDEV_FLAG_MSI_CAPABLE;
+    pDev->Int.s.fFlags |= PCIDEV_FLAG_MSI_CAPABLE;
 }
 
-DECLINLINE(void) PCIClearMsiCapable(PPCIDEVICE pDev)
+DECLINLINE(void) pciDevClearMsiCapable(PPCIDEVICE pDev)
 {
-    pDev->Int.s.uFlags &= ~PCIDEV_FLAG_MSI_CAPABLE;
+    pDev->Int.s.fFlags &= ~PCIDEV_FLAG_MSI_CAPABLE;
 }
 
-DECLINLINE(bool) PCIIsMsiCapable(PPCIDEVICE pDev)
+DECLINLINE(bool) pciDevIsMsiCapable(PPCIDEVICE pDev)
 {
-    return (pDev->Int.s.uFlags & PCIDEV_FLAG_MSI_CAPABLE) != 0;
+    return (pDev->Int.s.fFlags & PCIDEV_FLAG_MSI_CAPABLE) != 0;
 }
 
-DECLINLINE(void) PCISetMsixCapable(PPCIDEVICE pDev)
+DECLINLINE(void) pciDevSetMsi64Capable(PPCIDEVICE pDev)
 {
-    pDev->Int.s.uFlags |= PCIDEV_FLAG_MSIX_CAPABLE;
+    pDev->Int.s.fFlags |= PCIDEV_FLAG_MSI64_CAPABLE;
 }
 
-DECLINLINE(void) PCIClearMsixCapable(PPCIDEVICE pDev)
+DECLINLINE(void) pciDevClearMsi64Capable(PPCIDEVICE pDev)
 {
-    pDev->Int.s.uFlags &= ~PCIDEV_FLAG_MSIX_CAPABLE;
+    pDev->Int.s.fFlags &= ~PCIDEV_FLAG_MSI64_CAPABLE;
 }
 
-DECLINLINE(bool) PCIIsMsixCapable(PPCIDEVICE pDev)
+DECLINLINE(bool) pciDevIsMsi64Capable(PPCIDEVICE pDev)
 {
-    return (pDev->Int.s.uFlags & PCIDEV_FLAG_MSIX_CAPABLE) != 0;
+    return (pDev->Int.s.fFlags & PCIDEV_FLAG_MSI64_CAPABLE) != 0;
 }
-#endif
 
-#ifdef __cplusplus
+DECLINLINE(void) pciDevSetMsixCapable(PPCIDEVICE pDev)
+{
+    pDev->Int.s.fFlags |= PCIDEV_FLAG_MSIX_CAPABLE;
+}
+
+DECLINLINE(void) pciDevClearMsixCapable(PPCIDEVICE pDev)
+{
+    pDev->Int.s.fFlags &= ~PCIDEV_FLAG_MSIX_CAPABLE;
+}
+
+DECLINLINE(bool) pciDevIsMsixCapable(PPCIDEVICE pDev)
+{
+    return (pDev->Int.s.fFlags & PCIDEV_FLAG_MSIX_CAPABLE) != 0;
+}
+
+DECLINLINE(void) pciDevSetPassthrough(PPCIDEVICE pDev)
+{
+    pDev->Int.s.fFlags |= PCIDEV_FLAG_PASSTHROUGH;
+}
+
+DECLINLINE(void) pciDevClearPassthrough(PPCIDEVICE pDev)
+{
+    pDev->Int.s.fFlags &= ~PCIDEV_FLAG_PASSTHROUGH;
+}
+
+DECLINLINE(bool) pciDevIsPassthrough(PPCIDEVICE pDev)
+{
+    return (pDev->Int.s.fFlags & PCIDEV_FLAG_PASSTHROUGH) != 0;
+}
+
+#endif /* PCIDEVICEINT_DECLARED */
+
+#if defined(__cplusplus) && defined(IN_RING3)
+/* For RTStrPrintf(). */
+#include <iprt/string.h>
+
+/**
+ * Class representing PCI address. PCI device consist of
+ * bus, device and function numbers. Generally device PCI
+ * address could be changed during runtime, but only by
+ * an OS PCI driver.
+ *
+ * @remarks C++ classes (structs included) are not generally accepted in
+ *          VMM devices or drivers.  An exception may be granted for this class
+ *          if it's contained to ring-3 and that this is a one time exception
+ *          which sets no precedent.
+ */
 struct PciBusAddress
 {
-    int  iBus;
-    int  iDevice;
-    int  iFn;
+    /** @todo: think if we'll need domain, which is higher
+     *  word of the address. */
+    int  miBus;
+    int  miDevice;
+    int  miFn;
 
     PciBusAddress()
     {
         clear();
     }
 
-    PciBusAddress(int bus, int device, int fn)
+    PciBusAddress(int iBus, int iDevice, int iFn)
     {
-        init(bus, device, fn);
+        init(iBus, iDevice, iFn);
+    }
+
+    PciBusAddress(int32_t iAddr)
+    {
+        clear();
+        fromLong(iAddr);
     }
 
     PciBusAddress& clear()
     {
-        iBus = iDevice = iFn = -1;
+        miBus = miDevice = miFn = -1;
         return *this;
     }
 
-    void init(int bus, int device, int fn)
+    void init(int iBus, int iDevice, int iFn)
     {
-        iBus = bus;
-        iDevice = device;
-        iFn = fn;
+        miBus    = iBus;
+        miDevice = iDevice;
+        miFn     = iFn;
     }
 
     void init(const PciBusAddress &a)
     {
-        iBus = a.iBus;
-        iDevice = a.iDevice;
-        iFn = a.iFn;
+        miBus    = a.miBus;
+        miDevice = a.miDevice;
+        miFn     = a.miFn;
     }
 
     bool operator<(const PciBusAddress &a) const
     {
-        if (iBus < a.iBus)
+        if (miBus < a.miBus)
             return true;
 
-        if (iBus > a.iBus)
+        if (miBus > a.miBus)
             return false;
 
-        if (iDevice < a.iDevice)
+        if (miDevice < a.miDevice)
             return true;
 
-        if (iDevice > a.iDevice)
+        if (miDevice > a.miDevice)
             return false;
 
-        if (iFn < a.iFn)
+        if (miFn < a.miFn)
             return true;
 
-        if (iFn > a.iFn)
+        if (miFn > a.miFn)
             return false;
 
         return false;
@@ -1047,35 +1099,54 @@ struct PciBusAddress
 
     bool operator==(const PciBusAddress &a) const
     {
-        return     (iBus == a.iBus)
-                && (iDevice == a.iDevice)
-                && (iFn == a.iFn);
+        return     (miBus    == a.miBus)
+                && (miDevice == a.miDevice)
+                && (miFn     == a.miFn);
     }
 
     bool operator!=(const PciBusAddress &a) const
     {
-        return     (iBus != a.iBus)
-                || (iDevice != a.iDevice)
-                || (iFn  != a.iFn);
+        return     (miBus    != a.miBus)
+                || (miDevice != a.miDevice)
+                || (miFn     != a.miFn);
     }
 
     bool valid() const
     {
-        return (iBus != -1) && (iDevice != -1) && (iFn != -1);
+        return (miBus    != -1)
+            && (miDevice != -1)
+            && (miFn     != -1);
     }
 
     int32_t asLong() const
     {
         Assert(valid());
-        return (iBus << 8) | (iDevice << 3) | iFn;
+        return (miBus << 8) | (miDevice << 3) | miFn;
     }
 
-    void fromLong(int32_t value)
+    PciBusAddress& fromLong(int32_t value)
     {
-        iBus = (value >> 8) & 0xff;
-        iDevice = (value & 0xff) >> 3;
-        iFn = (value & 7);
+        miBus = (value >> 8) & 0xff;
+        miDevice = (value & 0xff) >> 3;
+        miFn = (value & 7);
+        return *this;
     }
+
+    /** Create string representation of this PCI address. */
+    bool format(char* szBuf, int32_t cBufSize)
+    {
+        if (cBufSize < (/* bus */ 2 + /* : */ 1 + /* device */ 2 + /* . */ 1 + /* function*/ 1 + /* \0 */1))
+            return false;
+
+        if (valid())
+            RTStrPrintf(szBuf, cBufSize, "%02x:%02x.%01x", miBus, miDevice, miFn);
+        else
+            RTStrPrintf(szBuf, cBufSize, "%s", "<bad>");
+
+        return true;
+    }
+
+    static const size_t cMaxAddrSize = 10;
 };
 #endif /* __cplusplus */
 

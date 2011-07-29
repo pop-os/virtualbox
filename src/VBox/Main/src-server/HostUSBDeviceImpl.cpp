@@ -1,4 +1,4 @@
-/* $Id: HostUSBDeviceImpl.cpp $ */
+/* $Id: HostUSBDeviceImpl.cpp 35812 2011-02-01 13:46:37Z vboxsync $ */
 /** @file
  * VirtualBox IHostUSBDevice COM interface implementation.
  */
@@ -39,12 +39,13 @@ HRESULT HostUSBDevice::FinalConstruct()
     mUSBProxyService = NULL;
     mUsb = NULL;
 
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void HostUSBDevice::FinalRelease()
 {
     uninit();
+    BaseFinalRelease();
 }
 
 // public initializer/uninitializer for internal purposes only

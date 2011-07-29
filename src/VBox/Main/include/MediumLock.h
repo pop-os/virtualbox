@@ -1,4 +1,4 @@
-/* $Id: MediumLock.h $ */
+/* $Id: MediumLock.h 36580 2011-04-06 13:52:10Z vboxsync $ */
 
 /** @file
  *

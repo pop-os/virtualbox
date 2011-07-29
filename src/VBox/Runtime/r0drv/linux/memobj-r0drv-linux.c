@@ -1,4 +1,4 @@
-/* $Revision: 69499 $ */
+/* $Revision: 36555 $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, Linux.
  */
@@ -97,7 +97,7 @@ static void rtR0MemObjLinuxFreePages(PRTR0MEMOBJLNX pMemLnx);
  * @returns The corresponding Linux task.
  * @param   R0Process   IPRT ring-0 process handle.
  */
-struct task_struct *rtR0ProcessToLinuxTask(RTR0PROCESS R0Process)
+static struct task_struct *rtR0ProcessToLinuxTask(RTR0PROCESS R0Process)
 {
     /** @todo fix rtR0ProcessToLinuxTask!! */
     return R0Process == RTR0ProcHandleSelf() ? current : NULL;
@@ -442,7 +442,7 @@ static void rtR0MemObjLinuxVUnmap(PRTR0MEMOBJLNX pMemLnx)
 }
 
 
-int rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
+DECLHIDDEN(int) rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
 {
     PRTR0MEMOBJLNX pMemLnx = (PRTR0MEMOBJLNX)pMem;
 
@@ -534,7 +534,7 @@ int rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
 }
 
 
-int rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
+DECLHIDDEN(int) rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
 {
     PRTR0MEMOBJLNX pMemLnx;
     int rc;
@@ -561,7 +561,7 @@ int rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecu
 }
 
 
-int rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
+DECLHIDDEN(int) rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
 {
     PRTR0MEMOBJLNX pMemLnx;
     int rc;
@@ -598,7 +598,7 @@ int rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecut
 }
 
 
-int rtR0MemObjNativeAllocCont(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
+DECLHIDDEN(int) rtR0MemObjNativeAllocCont(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
 {
     PRTR0MEMOBJLNX pMemLnx;
     int rc;
@@ -743,19 +743,19 @@ static int rtR0MemObjLinuxAllocPhysSub(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJTYP
 }
 
 
-int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment)
+DECLHIDDEN(int) rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment)
 {
     return rtR0MemObjLinuxAllocPhysSub(ppMem, RTR0MEMOBJTYPE_PHYS, cb, uAlignment, PhysHighest);
 }
 
 
-int rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest)
+DECLHIDDEN(int) rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest)
 {
     return rtR0MemObjLinuxAllocPhysSub(ppMem, RTR0MEMOBJTYPE_PHYS_NC, cb, PAGE_SIZE, PhysHighest);
 }
 
 
-int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy)
+DECLHIDDEN(int) rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy)
 {
     /*
      * All we need to do here is to validate that we can use
@@ -778,7 +778,7 @@ int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t 
 }
 
 
-int rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t cb, uint32_t fAccess, RTR0PROCESS R0Process)
+DECLHIDDEN(int) rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t cb, uint32_t fAccess, RTR0PROCESS R0Process)
 {
     const int cPages = cb >> PAGE_SHIFT;
     struct task_struct *pTask = rtR0ProcessToLinuxTask(R0Process);
@@ -875,7 +875,7 @@ int rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t c
 }
 
 
-int rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uint32_t fAccess)
+DECLHIDDEN(int) rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uint32_t fAccess)
 {
     void           *pvLast = (uint8_t *)pv + cb - 1;
     size_t const    cPages = cb >> PAGE_SHIFT;
@@ -890,11 +890,25 @@ int rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, 
      * Classify the memory and check that we can deal with it.
      */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
-    fLinearMapping = virt_addr_valid(pvLast)          && virt_addr_valid(pv);
+    fLinearMapping = virt_addr_valid(pvLast) && virt_addr_valid(pv);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 0)
     fLinearMapping = VALID_PAGE(virt_to_page(pvLast)) && VALID_PAGE(virt_to_page(pv));
 #else
 # error "not supported"
+#endif
+    /*
+     * kmap()'ed memory. Only relevant for 32-bit Linux kernels with HIGHMEM
+     * enabled. Unfortunately there is no easy way to retrieve the page object
+     * for such temporarily mapped memory, virt_to_page() does not work here.
+     * There is even no function to check if a virtual address is inside the
+     * kmap() area or not :-( kmap_atomic_to_page() looks promising but the test
+     * 'if (vaddr < FIXADDR_START)' if wrong -- the kmap() area is located
+     * below the fixmap area. vmalloc_to_page() would work but is only allowed
+     * for vmalloc'ed memory.
+     */
+#ifdef CONFIG_HIGHMEM
+    if (pv < PKMAP_BASE + LAST_PKMAP*PAGE_SIZE && pvLast >= PKMAP_BASE)
+        return VERR_INVALID_PARAMETER;
 #endif
     if (!fLinearMapping)
     {
@@ -961,7 +975,7 @@ int rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, 
 }
 
 
-int rtR0MemObjNativeReserveKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pvFixed, size_t cb, size_t uAlignment)
+DECLHIDDEN(int) rtR0MemObjNativeReserveKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pvFixed, size_t cb, size_t uAlignment)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 22)
     const size_t cPages = cb >> PAGE_SHIFT;
@@ -1076,7 +1090,7 @@ static void *rtR0MemObjLinuxDoMmap(RTR3PTR R3PtrFixed, size_t cb, size_t uAlignm
 }
 
 
-int rtR0MemObjNativeReserveUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3PtrFixed, size_t cb, size_t uAlignment, RTR0PROCESS R0Process)
+DECLHIDDEN(int) rtR0MemObjNativeReserveUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3PtrFixed, size_t cb, size_t uAlignment, RTR0PROCESS R0Process)
 {
     PRTR0MEMOBJLNX      pMemLnx;
     void               *pv;
@@ -1114,8 +1128,9 @@ int rtR0MemObjNativeReserveUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3PtrFixed, 
 }
 
 
-int rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, void *pvFixed, size_t uAlignment,
-                              unsigned fProt, size_t offSub, size_t cbSub)
+DECLHIDDEN(int) rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap,
+                                          void *pvFixed, size_t uAlignment,
+                                          unsigned fProt, size_t offSub, size_t cbSub)
 {
     int rc = VERR_NO_MEMORY;
     PRTR0MEMOBJLNX pMemLnxToMap = (PRTR0MEMOBJLNX)pMemToMap;
@@ -1249,7 +1264,8 @@ static int rtR0MemObjLinuxFixPte(struct mm_struct *mm, unsigned long ulAddr, RTH
 #endif /* VBOX_USE_PAE_HACK */
 
 
-int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RTR3PTR R3PtrFixed, size_t uAlignment, unsigned fProt, RTR0PROCESS R0Process)
+DECLHIDDEN(int) rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RTR3PTR R3PtrFixed,
+                                        size_t uAlignment, unsigned fProt, RTR0PROCESS R0Process)
 {
     struct task_struct *pTask        = rtR0ProcessToLinuxTask(R0Process);
     PRTR0MEMOBJLNX      pMemLnxToMap = (PRTR0MEMOBJLNX)pMemToMap;
@@ -1413,7 +1429,7 @@ int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RT
 }
 
 
-int rtR0MemObjNativeProtect(PRTR0MEMOBJINTERNAL pMem, size_t offSub, size_t cbSub, uint32_t fProt)
+DECLHIDDEN(int) rtR0MemObjNativeProtect(PRTR0MEMOBJINTERNAL pMem, size_t offSub, size_t cbSub, uint32_t fProt)
 {
     NOREF(pMem);
     NOREF(offSub);
@@ -1423,7 +1439,7 @@ int rtR0MemObjNativeProtect(PRTR0MEMOBJINTERNAL pMem, size_t offSub, size_t cbSu
 }
 
 
-RTHCPHYS rtR0MemObjNativeGetPagePhysAddr(PRTR0MEMOBJINTERNAL pMem, size_t iPage)
+DECLHIDDEN(RTHCPHYS) rtR0MemObjNativeGetPagePhysAddr(PRTR0MEMOBJINTERNAL pMem, size_t iPage)
 {
     PRTR0MEMOBJLNX  pMemLnx = (PRTR0MEMOBJLNX)pMem;
 

@@ -1,4 +1,4 @@
-/* $Id: USBGetDevices.h $ */
+/* $Id: USBGetDevices.h 37624 2011-06-24 08:57:35Z vboxsync $ */
 /** @file
  * VirtualBox Linux host USB device enumeration.
  */
@@ -74,38 +74,23 @@ static inline void deviceListFree(PUSBDEVICE *ppHead)
 
 RT_C_DECLS_BEGIN
 
-/**
- * Check whether a USB device tree root is usable
- * @param pcszRoot        the path to the root of the device tree
- * @param fIsDeviceNodes  whether this is a device node (or usbfs) tree
- * @note  returns a pointer into a static array so it will stay valid
- */
 extern bool USBProxyLinuxCheckDeviceRoot(const char *pcszRoot,
                                          bool fIsDeviceNodes);
 
 #ifdef UNIT_TEST
-/**
- * Specify the list of devices that will appear to be available through
- * usbfs during unit testing (of USBProxyLinuxGetDevices)
- * @param  pacszDeviceAddresses  NULL terminated array of usbfs device addresses
- */
+void TestUSBSetupInit(const char *pcszUsbfsRoot, bool fUsbfsAccessible,
+                      const char *pcszDevicesRoot, bool fDevicesAccessible,
+                      int rcMethodInitResult);
+void TestUSBSetEnv(const char *pcszEnvUsb, const char *pcszEnvUsbRoot);
+#endif
+
+extern int USBProxyLinuxChooseMethod(bool *pfUsingUsbfsDevices,
+                                     const char **ppcszDevicesRoot);
+#ifdef UNIT_TEST
 extern void TestUSBSetAvailableUsbfsDevices(const char **pacszDeviceAddresses);
-/**
- * Specify the list of files that access will report as accessible (at present
- * we only do accessible or not accessible) during unit testing (of
- * USBProxyLinuxGetDevices)
- * @param  pacszAccessibleFiles  NULL terminated array of file paths to be
- *                               reported accessible
- */
 extern void TestUSBSetAccessibleFiles(const char **pacszAccessibleFiles);
 #endif
 
-/**
- * Get the list of USB devices supported by the system.  Should be freed using
- * @a deviceFree or something equivalent.
- * @param pcszDevicesRoot  the path to the root of the device tree
- * @param fUseSysfs        whether to use sysfs (or usbfs) for enumeration
- */
 extern PUSBDEVICE USBProxyLinuxGetDevices(const char *pcszDevicesRoot,
                                           bool fUseSysfs);
 

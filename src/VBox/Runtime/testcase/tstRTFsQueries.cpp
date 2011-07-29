@@ -1,4 +1,4 @@
-/* $Id: tstRTFsQueries.cpp $ */
+/* $Id: tstRTFsQueries.cpp 30365 2010-06-22 12:08:20Z vboxsync $ */
 /** @file
  * IPRT Testcase - RTFs Queries..
  */

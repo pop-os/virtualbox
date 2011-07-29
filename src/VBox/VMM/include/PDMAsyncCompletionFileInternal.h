@@ -1,4 +1,4 @@
-/* $Id: PDMAsyncCompletionFileInternal.h $ */
+/* $Id: PDMAsyncCompletionFileInternal.h 37596 2011-06-22 19:30:06Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  */
@@ -42,6 +42,11 @@
  *  We could use the RT heap for this probably or extend MMR3Heap (uses RTMemAlloc
  *  instead of managing larger blocks) to have this global for the whole VM.
  */
+
+/** Enable for delay injection from the debugger. */
+#if 0
+# define PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
+#endif
 
 RT_C_DECLS_BEGIN
 
@@ -321,7 +326,7 @@ typedef struct PDMASYNCCOMPLETIONENDPOINTFILE
     /** Flags for opening the file. */
     unsigned                               fFlags;
     /** File handle. */
-    RTFILE                                 File;
+    RTFILE                                 hFile;
     /**
      * Real size of the file. Only updated if
      * data is appended.
@@ -364,6 +369,14 @@ typedef struct PDMASYNCCOMPLETIONENDPOINTFILE
     volatile int                           rcReqRead;
     /** Status code to inject for the next complete write. */
     volatile int                           rcReqWrite;
+#endif
+#ifdef PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
+    /** Request delay. */
+    volatile uint32_t                      msDelay;
+    /** The current task which gets delayed. */
+    PPDMASYNCCOMPLETIONTASKFILE            pReqDelayed;
+    /** Timestamp when the delay expires. */
+    uint64_t                               tsDelayEnd;
 #endif
     /** Flag whether a blocking event is pending and needs
      * processing by the I/O manager. */

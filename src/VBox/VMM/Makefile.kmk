@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 37581 2011-06-21 19:18:46Z vboxsync $
 ## @file
 # Top-level makefile for the VMM.
 #
@@ -41,7 +41,15 @@ endif
 ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
  VMM_COMMON_DEFS += VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
 endif
+ifdef VBOX_WITH_PCI_PASSTHROUGH
+ VMM_COMMON_DEFS += VBOX_WITH_PCI_PASSTHROUGH
+endif
 # VMM_COMMON_DEFS += VBOX_WITH_NS_ACCOUNTING_STATS
+
+# Special IEM debug mode which compares the result with REM.
+ifdef IEM_VERIFICATION_MODE
+ VMM_COMMON_DEFS += IEM_VERIFICATION_MODE
+endif
 
 
 #
@@ -92,10 +100,12 @@ VMMR3_SOURCES   = \
 	VMMR3/DBGFReg.cpp \
 	VMMR3/DBGFStack.cpp \
 	VMMR3/DBGFSym.cpp \
+	VMMR3/DBGFR3Trace.cpp \
 	VMMR3/EM.cpp \
 	VMMR3/EMRaw.cpp \
 	VMMR3/EMHwaccm.cpp \
 	VMMR3/FTM.cpp \
+	VMMR3/IEMR3.cpp \
 	VMMR3/IOM.cpp \
 	VMMR3/GMM.cpp \
 	VMMR3/MM.cpp \
@@ -162,6 +172,9 @@ VMMR3_SOURCES   = \
 	VMMAll/EMAll.cpp \
 	VMMAll/EMAllA.asm \
 	VMMAll/FTMAll.cpp \
+	VMMAll/IEMAll.cpp \
+	VMMAll/IEMAllAImpl.asm \
+	VMMAll/IEMAllAImplC.cpp \
 	VMMAll/TMAll.cpp \
 	VMMAll/TMAllCpu.cpp \
 	VMMAll/TMAllReal.cpp \
@@ -436,6 +449,9 @@ ifndef VBOX_ONLY_EXTPACKS
  ifdef VBOX_WITH_VMMR0_DISABLE_PREEMPTION
   VMMR0_DEFS    += VBOX_WITH_VMMR0_DISABLE_PREEMPTION
  endif
+ ifdef VBOX_WITH_PCI_PASSTHROUGH
+  VMMR0_DEFS    += IN_PCIRAW_R0
+ endif
  VMMR0_DEFS.darwin = VMM_R0_SWITCH_STACK
  VMMR0_DEFS.darwin.x86 = \
  	VBOX_WITH_2X_4GB_ADDR_SPACE   VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0 \
@@ -545,6 +561,18 @@ VMMAll/VMMAll.cpp_DEFS = VBOX_SVN_REV=$(VBOX_SVN_REV)
 VMMR3/PGMPool.cpp_CXXFLAGS = $(if-expr $(KBUILD_TARGET) == "win",,$(VBOX_GCC_Wno-array_bounds))
 VMMAll/PGMAllPool.cpp_CXXFLAGS = $(if-expr $(KBUILD_TARGET) == "win",,$(VBOX_GCC_Wno-array_bounds))
 
+#
+# Always optimize the interpreter.
+#
+if1of ($(KBUILD_TARGET), win)
+#VMMAll/IEMAll.cpp_CXXFLAGS = TODO
+#else if1of ($(KBUILD_TARGET_ARCH), amd64)
+# VMMAll/IEMAll.cpp_CXXFLAGS = -O2 -fomit-frame-pointer
+else
+ VMMAll/IEMAll.cpp_CXXFLAGS = -O2 #-fomit-frame-pointer - latter causes trouble on mac.
+endif
+
+
 include	$(KBUILD_PATH)/subfooter.kmk
 
 
@@ -562,4 +590,10 @@ PGMRCBth.obj 	PGMRCGst.obj 	PGMRCShw.obj: 	PGMRC.o
 PGMPhysRWTmpl.o PGMPhysRWTmpl.obj: 		PGMPhys.o
 
 PGMInline.o 	PGMInline.obj: 			PGMDbg.o
+
+# Alias the IEM templates to the object in which they are instantiated.
+IEMInternal.o \
+IEMAllInstructions.cpp.o  IEMAllInstructions.cpp.obj \
+IEMAllCImpl.cpp.o         IEMAllCImpl.cpp.obj \
+IEMAllCImplStrInstr.cpp.o IEMAllCImplStrInstr.cpp.obj: IEMAll.o
 

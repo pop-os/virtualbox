@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: runasroot.sh $
+# $Id: runasroot.sh 36785 2011-04-21 08:07:14Z vboxsync $
 ## @file
 # VirtualBox privileged execution helper script for Linux and Solaris
 #

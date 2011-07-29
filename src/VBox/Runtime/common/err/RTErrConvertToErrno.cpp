@@ -1,4 +1,4 @@
-/* $Id: RTErrConvertToErrno.cpp $ */
+/* $Id: RTErrConvertToErrno.cpp 36284 2011-03-15 13:06:05Z vboxsync $ */
 /** @file
  * IPRT - Convert iprt status codes to errno.
  */
@@ -176,6 +176,7 @@ RTDECL(int) RTErrConvertToErrno(int iErr)
         case VERR_FILE_LOCK_FAILED:                 return ENOLCK;
 #endif
 #ifdef ENOSYS
+        case VERR_NOT_IMPLEMENTED:
         case VERR_NOT_SUPPORTED:                    return ENOSYS;
 #endif
 #ifdef ENOTEMPTY

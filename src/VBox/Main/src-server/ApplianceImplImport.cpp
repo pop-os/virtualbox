@@ -1,4 +1,4 @@
-/* $Id: ApplianceImplImport.cpp $ */
+/* $Id: ApplianceImplImport.cpp 37862 2011-07-11 10:09:29Z vboxsync $ */
 /** @file
  *
  * IAppliance and IVirtualSystem COM class implementations.
@@ -36,6 +36,7 @@
 #include "MediumImpl.h"
 #include "MediumFormatImpl.h"
 #include "SystemPropertiesImpl.h"
+#include "HostImpl.h"
 
 #include "AutoCaller.h"
 #include "Logging.h"
@@ -404,7 +405,7 @@ STDMETHODIMP Appliance::Interpret()
                          && (strNetwork.compare("Bridged", Utf8Str::CaseInsensitive))
                          && (strNetwork.compare("Internal", Utf8Str::CaseInsensitive))
                          && (strNetwork.compare("HostOnly", Utf8Str::CaseInsensitive))
-                         && (strNetwork.compare("VDE", Utf8Str::CaseInsensitive))
+                         && (strNetwork.compare("Generic", Utf8Str::CaseInsensitive))
                        )
                         strNetwork = "Bridged";     // VMware assumes this is the default apparently
 
@@ -664,12 +665,17 @@ STDMETHODIMP Appliance::Interpret()
  * @param aProgress
  * @return
  */
-STDMETHODIMP Appliance::ImportMachines(IProgress **aProgress)
+STDMETHODIMP Appliance::ImportMachines(ComSafeArrayIn(ImportOptions_T, options), IProgress **aProgress)
 {
     CheckComArgOutPointerValid(aProgress);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    if (options != NULL)
+        m->optList = com::SafeArray<ImportOptions_T>(ComSafeArrayInArg(options)).toList();
+
+    AssertReturn(!(m->optList.contains(ImportOptions_KeepAllMACs) && m->optList.contains(ImportOptions_KeepNATMACs)), E_INVALIDARG);
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -931,7 +937,7 @@ HRESULT Appliance::readFSImpl(TaskOVF *pTask, PVDINTERFACEIO pCallbacks, PSHA1ST
         /* Read & parse the XML structure of the OVF file */
         m->pReader = new ovf::OVFReader(pvTmpBuf, cbSize, pTask->locInfo.strPath);
     }
-    catch (iprt::Error &x)      // includes all XML exceptions
+    catch (RTCError &x)      // includes all XML exceptions
     {
         rc = setError(VBOX_E_FILE_ERROR,
                       x.what());
@@ -2044,7 +2050,7 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
             if (pvsys->strExtraConfigCurrent.endsWith("type=Bridged", Utf8Str::CaseInsensitive))
             {
                 /* Attach to the right interface */
-                rc = pNetworkAdapter->AttachToBridgedInterface();
+                rc = pNetworkAdapter->COMSETTER(AttachmentType)(NetworkAttachmentType_Bridged);
                 if (FAILED(rc)) throw rc;
                 ComPtr<IHost> host;
                 rc = mVirtualBox->COMGETTER(Host)(host.asOutParam());
@@ -2067,7 +2073,7 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
                         rc = nwInterfaces[j]->COMGETTER(Name)(name.asOutParam());
                         if (FAILED(rc)) throw rc;
                         /* Set the interface name to attach to */
-                        pNetworkAdapter->COMSETTER(HostInterface)(name.raw());
+                        pNetworkAdapter->COMSETTER(BridgedInterface)(name.raw());
                         if (FAILED(rc)) throw rc;
                         break;
                     }
@@ -2077,7 +2083,7 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
             else if (pvsys->strExtraConfigCurrent.endsWith("type=HostOnly", Utf8Str::CaseInsensitive))
             {
                 /* Attach to the right interface */
-                rc = pNetworkAdapter->AttachToHostOnlyInterface();
+                rc = pNetworkAdapter->COMSETTER(AttachmentType)(NetworkAttachmentType_HostOnly);
                 if (FAILED(rc)) throw rc;
                 ComPtr<IHost> host;
                 rc = mVirtualBox->COMGETTER(Host)(host.asOutParam());
@@ -2100,7 +2106,7 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
                         rc = nwInterfaces[j]->COMGETTER(Name)(name.asOutParam());
                         if (FAILED(rc)) throw rc;
                         /* Set the interface name to attach to */
-                        pNetworkAdapter->COMSETTER(HostInterface)(name.raw());
+                        pNetworkAdapter->COMSETTER(HostOnlyInterface)(name.raw());
                         if (FAILED(rc)) throw rc;
                         break;
                     }
@@ -2110,14 +2116,14 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
             else if (pvsys->strExtraConfigCurrent.endsWith("type=Internal", Utf8Str::CaseInsensitive))
             {
                 /* Attach to the right interface */
-                rc = pNetworkAdapter->AttachToInternalNetwork();
+                rc = pNetworkAdapter->COMSETTER(AttachmentType)(NetworkAttachmentType_Internal);
                 if (FAILED(rc)) throw rc;
             }
-            /* Next test for VDE interfaces */
-            else if (pvsys->strExtraConfigCurrent.endsWith("type=VDE", Utf8Str::CaseInsensitive))
+            /* Next test for Generic interfaces */
+            else if (pvsys->strExtraConfigCurrent.endsWith("type=Generic", Utf8Str::CaseInsensitive))
             {
                 /* Attach to the right interface */
-                rc = pNetworkAdapter->AttachToVDE();
+                rc = pNetworkAdapter->COMSETTER(AttachmentType)(NetworkAttachmentType_Generic);
                 if (FAILED(rc)) throw rc;
             }
         }
@@ -2526,14 +2532,21 @@ void Appliance::importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescThi
     settings::NetworkAdaptersList &llNetworkAdapters = config.hardwareMachine.llNetworkAdapters;
     /* First disable all network cards, they will be enabled below again. */
     settings::NetworkAdaptersList::iterator it1;
+    bool fKeepAllMACs = m->optList.contains(ImportOptions_KeepAllMACs);
+    bool fKeepNATMACs = m->optList.contains(ImportOptions_KeepNATMACs);
     for (it1 = llNetworkAdapters.begin(); it1 != llNetworkAdapters.end(); ++it1)
+    {
         it1->fEnabled = false;
+        if (!(   fKeepAllMACs
+              || (fKeepNATMACs && it1->mode == NetworkAttachmentType_NAT)))
+            Host::generateMACAddress(it1->strMACAddress);
+    }
     /* Now iterate over all network entries. */
     std::list<VirtualSystemDescriptionEntry*> avsdeNWs = vsdescThis->findByType(VirtualSystemDescriptionType_NetworkAdapter);
     if (avsdeNWs.size() > 0)
     {
         /* Iterate through all network adapter entries and search for the
-         * corrosponding one in the machine config. If one is found, configure
+         * corresponding one in the machine config. If one is found, configure
          * it based on the user settings. */
         list<VirtualSystemDescriptionEntry*>::const_iterator itNW;
         for (itNW = avsdeNWs.begin();

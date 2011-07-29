@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: autorun.sh $
+# $Id: autorun.sh 36759 2011-04-20 16:40:13Z vboxsync $
 #
 # VirtualBox Guest Additions installation script for *nix guests
 #

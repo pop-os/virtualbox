@@ -1,4 +1,4 @@
-/* $Id: VBoxVgaUgaDraw.c $ */
+/* $Id: VBoxVgaUgaDraw.c 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBoxVgaUgaDraw.c
  */

@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /*
@@ -39,40 +38,29 @@
 
 #include "cpu-defs.h"
 
-#ifndef VBOX
-/* at least 4 register variables are defined */
 register struct CPUX86State *env asm(AREG0);
-#else
-REGISTER_BOUND_GLOBAL(struct CPUX86State*, env, AREG0);
-#endif /* VBOX */
 
+#include "qemu-common.h"
 #include "qemu-log.h"
 
-#ifndef reg_EAX
+#undef EAX
 #define EAX (env->regs[R_EAX])
-#endif
-#ifndef reg_ECX
+#undef ECX
 #define ECX (env->regs[R_ECX])
-#endif
-#ifndef reg_EDX
+#undef EDX
 #define EDX (env->regs[R_EDX])
-#endif
-#ifndef reg_EBX
+#undef EBX
 #define EBX (env->regs[R_EBX])
-#endif
-#ifndef reg_ESP
+#undef ESP
 #define ESP (env->regs[R_ESP])
-#endif
-#ifndef reg_EBP
+#undef EBP
 #define EBP (env->regs[R_EBP])
-#endif
-#ifndef reg_ESI
+#undef ESI
 #define ESI (env->regs[R_ESI])
-#endif
-#ifndef reg_EDI
+#undef EDI
 #define EDI (env->regs[R_EDI])
-#endif
-#define EIP  (env->eip)
+#undef EIP
+#define EIP (env->eip)
 #define DF  (env->df)
 
 #define CC_SRC (env->cc_src)
@@ -88,38 +76,18 @@ REGISTER_BOUND_GLOBAL(struct CPUX86State*, env, AREG0);
 #include "cpu.h"
 #include "exec-all.h"
 
-void cpu_x86_update_cr3(CPUX86State *env, target_ulong new_cr3);
-void cpu_x86_update_cr4(CPUX86State *env, uint32_t new_cr4);
-int cpu_x86_handle_mmu_fault(CPUX86State *env, target_ulong addr,
-                             int is_write, int mmu_idx, int is_softmmu);
-void __hidden cpu_lock(void);
-void __hidden cpu_unlock(void);
+/* op_helper.c */
 void do_interrupt(int intno, int is_int, int error_code,
                   target_ulong next_eip, int is_hw);
 void do_interrupt_user(int intno, int is_int, int error_code,
                        target_ulong next_eip);
-void raise_interrupt(int intno, int is_int, int error_code,
-                     int next_eip_addend);
-void raise_exception_err(int exception_index, int error_code);
-void raise_exception(int exception_index);
+void QEMU_NORETURN raise_exception_err(int exception_index, int error_code);
+void QEMU_NORETURN raise_exception(int exception_index);
+void QEMU_NORETURN raise_exception_env(int exception_index, CPUState *nenv);
 void do_smm_enter(void);
-void __hidden cpu_loop_exit(void);
-
-void OPPROTO op_movl_eflags_T0(void);
-void OPPROTO op_movl_T0_eflags(void);
-#ifdef VBOX
-void OPPROTO op_movl_T0_eflags_vme(void);
-void OPPROTO op_movw_eflags_T0_vme(void);
-void OPPROTO op_cli_vme(void);
-void OPPROTO op_sti_vme(void);
-#endif
 
 /* n must be a constant to be efficient */
-#ifndef VBOX
 static inline target_long lshift(target_long x, int n)
-#else
-DECLINLINE(target_long) lshift(target_long x, int n)
-#endif
 {
     if (n >= 0)
         return x << n;
@@ -129,81 +97,14 @@ DECLINLINE(target_long) lshift(target_long x, int n)
 
 #include "helper.h"
 
-#ifndef VBOX
 static inline void svm_check_intercept(uint32_t type)
-#else
-DECLINLINE(void) svm_check_intercept(uint32_t type)
-#endif
 {
     helper_svm_check_intercept_param(type, 0);
 }
 
-void check_iob_T0(void);
-void check_iow_T0(void);
-void check_iol_T0(void);
-void check_iob_DX(void);
-void check_iow_DX(void);
-void check_iol_DX(void);
-
 #if !defined(CONFIG_USER_ONLY)
 
 #include "softmmu_exec.h"
-
-#ifndef VBOX
-static inline double ldfq(target_ulong ptr)
-#else
-DECLINLINE(double) ldfq(target_ulong ptr)
-#endif
-{
-    union {
-        double d;
-        uint64_t i;
-    } u;
-    u.i = ldq(ptr);
-    return u.d;
-}
-
-#ifndef VBOX
-static inline void stfq(target_ulong ptr, double v)
-#else
-DECLINLINE(void) stfq(target_ulong ptr, double v)
-#endif
-{
-    union {
-        double d;
-        uint64_t i;
-    } u;
-    u.d = v;
-    stq(ptr, u.i);
-}
-
-#ifndef VBOX
-static inline float ldfl(target_ulong ptr)
-#else
-DECLINLINE(float) ldfl(target_ulong ptr)
-#endif
-{
-    union {
-        float f;
-        uint32_t i;
-    } u;
-    u.i = ldl(ptr);
-    return u.f;
-}
-
-#ifndef VBOX
-static inline void stfl(target_ulong ptr, float v)
-#else
-DECLINLINE(void) stfl(target_ulong ptr, float v)
-#endif
-{
-    union {
-        float f;
-        uint32_t i;
-    } u;
-    u.f = v;
-    stl(ptr, u.i);
-}
 
 #endif /* !defined(CONFIG_USER_ONLY) */
 
@@ -224,30 +125,6 @@ DECLINLINE(void) stfl(target_ulong ptr, float v)
 #define floatx_round_to_int floatx80_round_to_int
 #define floatx_compare floatx80_compare
 #define floatx_compare_quiet floatx80_compare_quiet
-#ifdef VBOX
-#undef sin
-#undef cos
-#undef sqrt
-#undef pow
-#undef log
-#undef tan
-#undef atan2
-#undef floor
-#undef ceil
-#undef ldexp
-#endif /* !VBOX */
-#if !defined(VBOX) || !defined(_MSC_VER)
-#define sin sinl
-#define cos cosl
-#define sqrt sqrtl
-#define pow powl
-#define log logl
-#define tan tanl
-#define atan2 atan2l
-#define floor floorl
-#define ceil ceill
-#define ldexp ldexpl
-#endif
 #else
 #define floatx_to_int32 float64_to_int32
 #define floatx_to_int64 float64_to_int64
@@ -267,32 +144,35 @@ DECLINLINE(void) stfl(target_ulong ptr, float v)
 #endif
 
 #ifdef VBOX
-#ifndef _MSC_VER
-extern CPU86_LDouble sin(CPU86_LDouble x);
-extern CPU86_LDouble cos(CPU86_LDouble x);
-extern CPU86_LDouble sqrt(CPU86_LDouble x);
-extern CPU86_LDouble pow(CPU86_LDouble, CPU86_LDouble);
-extern CPU86_LDouble log(CPU86_LDouble x);
-extern CPU86_LDouble tan(CPU86_LDouble x);
-extern CPU86_LDouble atan2(CPU86_LDouble, CPU86_LDouble);
-extern CPU86_LDouble floor(CPU86_LDouble x);
-extern CPU86_LDouble ceil(CPU86_LDouble x);
-#endif /* !_MSC_VER */
-#endif /* VBOX */
+# ifdef IPRT_NO_CRT
+#  undef  sin  
+#  undef  cos  
+#  undef  sqrt 
+#  undef  pow  
+#  undef  log  
+#  undef  tan  
+#  undef  atan2
+#  undef  floor
+#  undef  ceil 
+#  undef  ldexp
+#  define sin   sinl  
+#  define cos   cosl  
+#  define sqrt  sqrtl 
+#  define pow   powl  
+#  define log   logl  
+#  define tan   tanl  
+#  define atan2 atan2l
+#  define floor floorl
+#  define ceil  ceill 
+#  define ldexp ldexpl
+# endif
+#endif
 
 #define RC_MASK         0xc00
-#ifndef RC_NEAR
 #define RC_NEAR		0x000
-#endif
-#ifndef RC_DOWN
 #define RC_DOWN		0x400
-#endif
-#ifndef RC_UP
 #define RC_UP		0x800
-#endif
-#ifndef RC_CHOP
 #define RC_CHOP		0xc00
-#endif
 
 #define MAXTAN 9223372036854775808.0
 
@@ -320,7 +200,7 @@ typedef union {
 /* NOTE: arm is horrible as double 32 bit words are stored in big endian ! */
 typedef union {
     double d;
-#if !defined(WORDS_BIGENDIAN) && !defined(__arm__)
+#if !defined(HOST_WORDS_BIGENDIAN) && !defined(__arm__)
     struct {
         uint32_t lower;
         int32_t upper;
@@ -349,23 +229,15 @@ typedef union {
 #define BIASEXPONENT(fp) fp.l.upper = (fp.l.upper & ~(0x7ff << 20)) | (EXPBIAS << 20)
 #endif
 
-#ifndef VBOX
 static inline void fpush(void)
-#else
-DECLINLINE(void) fpush(void)
-#endif
 {
     env->fpstt = (env->fpstt - 1) & 7;
     env->fptags[env->fpstt] = 0; /* validate stack entry */
 }
 
-#ifndef VBOX
 static inline void fpop(void)
-#else
-DECLINLINE(void) fpop(void)
-#endif
 {
-    env->fptags[env->fpstt] = 1; /* invalidate stack entry */
+    env->fptags[env->fpstt] = 1; /* invvalidate stack entry */
     env->fpstt = (env->fpstt + 1) & 7;
 }
 
@@ -406,29 +278,9 @@ static inline void helper_fstt(CPU86_LDouble f, target_ulong ptr)
 }
 #else
 
-/* XXX: same endianness assumed */
-
-#ifdef CONFIG_USER_ONLY
-
-static inline CPU86_LDouble helper_fldt(target_ulong ptr)
-{
-    return *(CPU86_LDouble *)ptr;
-}
-
-static inline void helper_fstt(CPU86_LDouble f, target_ulong ptr)
-{
-    *(CPU86_LDouble *)ptr = f;
-}
-
-#else
-
 /* we use memory access macros */
 
-#ifndef VBOX
 static inline CPU86_LDouble helper_fldt(target_ulong ptr)
-#else
-DECLINLINE(CPU86_LDouble) helper_fldt(target_ulong ptr)
-#endif
 {
     CPU86_LDoubleU temp;
 
@@ -437,11 +289,7 @@ DECLINLINE(CPU86_LDouble) helper_fldt(target_ulong ptr)
     return temp.d;
 }
 
-#ifndef VBOX
 static inline void helper_fstt(CPU86_LDouble f, target_ulong ptr)
-#else
-DECLINLINE(void) helper_fstt(CPU86_LDouble f, target_ulong ptr)
-#endif
 {
     CPU86_LDoubleU temp;
 
@@ -449,8 +297,6 @@ DECLINLINE(void) helper_fstt(CPU86_LDouble f, target_ulong ptr)
     stq(ptr, temp.l.lower);
     stw(ptr + 8, temp.l.upper);
 }
-
-#endif /* !CONFIG_USER_ONLY */
 
 #endif /* USE_X86LDOUBLE */
 
@@ -466,114 +312,39 @@ DECLINLINE(void) helper_fstt(CPU86_LDouble f, target_ulong ptr)
 
 #define FPUC_EM 0x3f
 
-extern const CPU86_LDouble f15rk[7];
-
-void fpu_raise_exception(void);
-void restore_native_fp_state(CPUState *env);
-void save_native_fp_state(CPUState *env);
-
-extern const uint8_t parity_table[256];
-extern const uint8_t rclw_table[32];
-extern const uint8_t rclb_table[32];
-
-#ifndef VBOX
 static inline uint32_t compute_eflags(void)
-#else
-DECLINLINE(uint32_t) compute_eflags(void)
-#endif
 {
-    return env->eflags | cc_table[CC_OP].compute_all() | (DF & DF_MASK);
+    return env->eflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
 }
 
 /* NOTE: CC_OP must be modified manually to CC_OP_EFLAGS */
-#ifndef VBOX
 static inline void load_eflags(int eflags, int update_mask)
-#else
-DECLINLINE(void) load_eflags(int eflags, int update_mask)
-#endif
 {
     CC_SRC = eflags & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
     DF = 1 - (2 * ((eflags >> 10) & 1));
     env->eflags = (env->eflags & ~update_mask) |
-        (eflags & update_mask);
+        (eflags & update_mask) | 0x2;
 }
 
-#ifndef VBOX
-static inline void env_to_regs(void)
-#else
-DECLINLINE(void) env_to_regs(void)
-#endif
+static inline int cpu_has_work(CPUState *env)
 {
-#ifdef reg_EAX
-    EAX = env->regs[R_EAX];
-#endif
-#ifdef reg_ECX
-    ECX = env->regs[R_ECX];
-#endif
-#ifdef reg_EDX
-    EDX = env->regs[R_EDX];
-#endif
-#ifdef reg_EBX
-    EBX = env->regs[R_EBX];
-#endif
-#ifdef reg_ESP
-    ESP = env->regs[R_ESP];
-#endif
-#ifdef reg_EBP
-    EBP = env->regs[R_EBP];
-#endif
-#ifdef reg_ESI
-    ESI = env->regs[R_ESI];
-#endif
-#ifdef reg_EDI
-    EDI = env->regs[R_EDI];
-#endif
+    int work;
+
+    work = (env->interrupt_request & CPU_INTERRUPT_HARD) &&
+           (env->eflags & IF_MASK);
+    work |= env->interrupt_request & CPU_INTERRUPT_NMI;
+    work |= env->interrupt_request & CPU_INTERRUPT_INIT;
+    work |= env->interrupt_request & CPU_INTERRUPT_SIPI;
+
+    return work;
 }
 
-#ifndef VBOX
-static inline void regs_to_env(void)
-#else
-DECLINLINE(void) regs_to_env(void)
-#endif
-{
-#ifdef reg_EAX
-    env->regs[R_EAX] = EAX;
-#endif
-#ifdef reg_ECX
-    env->regs[R_ECX] = ECX;
-#endif
-#ifdef reg_EDX
-    env->regs[R_EDX] = EDX;
-#endif
-#ifdef reg_EBX
-    env->regs[R_EBX] = EBX;
-#endif
-#ifdef reg_ESP
-    env->regs[R_ESP] = ESP;
-#endif
-#ifdef reg_EBP
-    env->regs[R_EBP] = EBP;
-#endif
-#ifdef reg_ESI
-    env->regs[R_ESI] = ESI;
-#endif
-#ifdef reg_EDI
-    env->regs[R_EDI] = EDI;
-#endif
-}
-
-#ifndef VBOX
 static inline int cpu_halted(CPUState *env) {
-#else
-DECLINLINE(int) cpu_halted(CPUState *env) {
-#endif
     /* handle exit of HALTED state */
     if (!env->halted)
         return 0;
     /* disable halt condition */
-    if (((env->interrupt_request & CPU_INTERRUPT_HARD) &&
-         (env->eflags & IF_MASK)) ||
-        (env->interrupt_request & CPU_INTERRUPT_NMI)) {
+    if (cpu_has_work(env)) {
         env->halted = 0;
         return 0;
     }
@@ -582,11 +353,7 @@ DECLINLINE(int) cpu_halted(CPUState *env) {
 
 /* load efer and update the corresponding hflags. XXX: do consistency
    checks with cpuid bits ? */
-#ifndef VBOX
 static inline void cpu_load_efer(CPUState *env, uint64_t val)
-#else
-DECLINLINE(void) cpu_load_efer(CPUState *env, uint64_t val)
-#endif
 {
     env->efer = val;
     env->hflags &= ~(HF_LMA_MASK | HF_SVME_MASK);
@@ -595,3 +362,9 @@ DECLINLINE(void) cpu_load_efer(CPUState *env, uint64_t val)
     if (env->efer & MSR_EFER_SVME)
         env->hflags |= HF_SVME_MASK;
 }
+
+static inline void cpu_pc_from_tb(CPUState *env, TranslationBlock *tb)
+{
+    env->eip = tb->pc - tb->cs_base;
+}
+

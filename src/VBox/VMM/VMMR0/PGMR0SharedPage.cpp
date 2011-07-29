@@ -1,4 +1,4 @@
-/* $Id: PGMR0SharedPage.cpp $ */
+/* $Id: PGMR0SharedPage.cpp 37354 2011-06-07 15:05:32Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor, Page Sharing, Ring-0.
  */
@@ -52,7 +52,7 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVM pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHA
 
     Log(("PGMR0SharedModuleCheck: check %s %s base=%RGv size=%x\n", pModule->szName, pModule->szVersion, pModule->Core.Key, pModule->cbModule));
 
-    Assert(PGMIsLockOwner(pVM));    /* This cannot fail as we grab the lock in pgmR3SharedModuleRegRendezvous before calling into ring-0. */
+    PGM_LOCK_ASSERT_OWNER(pVM);     /* This cannot fail as we grab the lock in pgmR3SharedModuleRegRendezvous before calling into ring-0. */
 
     /* Check every region of the shared module. */
     for (unsigned idxRegion = 0; idxRegion < cRegions; idxRegion++)
@@ -60,9 +60,9 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVM pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHA
         Assert((pRegions[idxRegion].cbRegion & 0xfff) == 0);
         Assert((pRegions[idxRegion].GCRegionAddr & 0xfff) == 0);
 
-        RTGCPTR  GCRegion  = pRegions[idxRegion].GCRegionAddr;
+        RTGCPTR  GCRegion = pRegions[idxRegion].GCRegionAddr;
         unsigned cbRegion = pRegions[idxRegion].cbRegion & ~0xfff;
-        unsigned idxPage = 0;
+        unsigned idxPage  = 0;
 
         while (cbRegion)
         {
@@ -74,7 +74,7 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVM pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHA
             if (    rc == VINF_SUCCESS
                 &&  !(fFlags & X86_PTE_RW)) /* important as we make assumptions about this below! */
             {
-                PPGMPAGE pPage = pgmPhysGetPage(&pVM->pgm.s, GCPhys);
+                PPGMPAGE pPage = pgmPhysGetPage(pVM, GCPhys);
                 Assert(!pPage || !PGM_PAGE_IS_BALLOONED(pPage));
                 if (    pPage
                     &&  PGM_PAGE_GET_STATE(pPage) == PGM_PAGE_STATE_ALLOCATED)
@@ -103,18 +103,18 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVM pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHA
                                     fFlushTLBs |= fFlush;
 
                                 /* Update the physical address and page id now. */
-                                PGM_PAGE_SET_HCPHYS(pPage, PageDesc.HCPhys);
-                                PGM_PAGE_SET_PAGEID(pPage, PageDesc.uHCPhysPageId);
+                                PGM_PAGE_SET_HCPHYS(pVM, pPage, PageDesc.HCPhys);
+                                PGM_PAGE_SET_PAGEID(pVM, pPage, PageDesc.uHCPhysPageId);
 
                                 /* Invalidate page map TLB entry for this page too. */
-                                PGMPhysInvalidatePageMapTLBEntry(pVM, PageDesc.GCPhys);
+                                pgmPhysInvalidatePageMapTLBEntry(pVM, PageDesc.GCPhys);
                                 pVM->pgm.s.cReusedSharedPages++;
                             }
                             /* else nothing changed (== this page is now a shared page), so no need to flush anything. */
 
                             pVM->pgm.s.cSharedPages++;
                             pVM->pgm.s.cPrivatePages--;
-                            PGM_PAGE_SET_STATE(pPage, PGM_PAGE_STATE_SHARED);
+                            PGM_PAGE_SET_STATE(pVM, pPage, PGM_PAGE_STATE_SHARED);
                         }
                     }
                     else
@@ -142,5 +142,5 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVM pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHA
 
     return rc;
 }
-#endif
+#endif /* VBOX_WITH_PAGE_SHARING */
 

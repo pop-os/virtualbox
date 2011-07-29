@@ -1,28 +1,19 @@
+#include "qemu-timer.h"
+
 /* Helpers for instruction counting code generation.  */
 
 static TCGArg *icount_arg;
 static int icount_label;
 
-#ifndef VBOX
 static inline void gen_icount_start(void)
-#else /* VBOX */
-DECLINLINE(void) gen_icount_start(void)
-#endif /* VBOX */
 {
-    TCGv count;
+    TCGv_i32 count;
 
     if (!use_icount)
         return;
 
     icount_label = gen_new_label();
-    /* FIXME: This generates lousy code.  We can't use tcg_new_temp because
-       count needs to live over the conditional branch.  To workaround this
-       we allow the target to supply a convenient register temporary.  */
-#ifndef ICOUNT_TEMP
-    count = tcg_temp_local_new(TCG_TYPE_I32);
-#else
-    count = ICOUNT_TEMP;
-#endif
+    count = tcg_temp_local_new_i32();
     tcg_gen_ld_i32(count, cpu_env, offsetof(CPUState, icount_decr.u32));
     /* This is a horrid hack to allow fixing up the value later.  */
     icount_arg = gen_opparam_ptr + 1;
@@ -30,9 +21,7 @@ DECLINLINE(void) gen_icount_start(void)
 
     tcg_gen_brcondi_i32(TCG_COND_LT, count, 0, icount_label);
     tcg_gen_st16_i32(count, cpu_env, offsetof(CPUState, icount_decr.u16.low));
-#ifndef ICOUNT_TEMP
-    tcg_temp_free(count);
-#endif
+    tcg_temp_free_i32(count);
 }
 
 static void gen_icount_end(TranslationBlock *tb, int num_insns)
@@ -44,25 +33,16 @@ static void gen_icount_end(TranslationBlock *tb, int num_insns)
     }
 }
 
-#ifndef VBOX
-inline static void gen_io_start(void)
-#else
-DECLINLINE(void) gen_io_start(void)
-#endif
+static inline void gen_io_start(void)
 {
-    TCGv tmp = tcg_const_i32(1);
+    TCGv_i32 tmp = tcg_const_i32(1);
     tcg_gen_st_i32(tmp, cpu_env, offsetof(CPUState, can_do_io));
-    tcg_temp_free(tmp);
+    tcg_temp_free_i32(tmp);
 }
 
-#ifndef VBOX
 static inline void gen_io_end(void)
-#else /* VBOX */
-DECLINLINE(void) gen_io_end(void)
-#endif /* VBOX */
 {
-    TCGv tmp = tcg_const_i32(0);
+    TCGv_i32 tmp = tcg_const_i32(0);
     tcg_gen_st_i32(tmp, cpu_env, offsetof(CPUState, can_do_io));
-    tcg_temp_free(tmp);
+    tcg_temp_free_i32(tmp);
 }
-

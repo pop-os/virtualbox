@@ -1,10 +1,10 @@
-/* $Id: PGM.cpp $ */
+/* $Id: PGM.cpp 37803 2011-07-06 14:45:27Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor. (Mixing stuff here, not good?)
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -623,14 +623,14 @@ static PGMMODE            pgmR3CalcShadowMode(PVM pVM, PGMMODE enmGuestMode, SUP
 
 #ifdef VBOX_WITH_DEBUGGER
 /** @todo Convert the first two commands to 'info' items. */
-static DECLCALLBACK(int)  pgmR3CmdRam(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int)  pgmR3CmdError(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int)  pgmR3CmdSync(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int)  pgmR3CmdSyncAlways(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
+static DECLCALLBACK(int)  pgmR3CmdRam(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int)  pgmR3CmdError(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int)  pgmR3CmdSync(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int)  pgmR3CmdSyncAlways(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
 # ifdef VBOX_STRICT
-static DECLCALLBACK(int)  pgmR3CmdAssertCR3(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
+static DECLCALLBACK(int)  pgmR3CmdAssertCR3(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
 # endif
-static DECLCALLBACK(int)  pgmR3CmdPhysToFile(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
+static DECLCALLBACK(int)  pgmR3CmdPhysToFile(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
 #endif
 
 
@@ -664,20 +664,20 @@ static const DBGCVARDESC g_aPgmCountPhysWritesArgs[] =
 /** Command descriptors. */
 static const DBGCCMD    g_aCmds[] =
 {
-    /* pszCmd,  cArgsMin, cArgsMax, paArgDesc,                cArgDescs,    pResultDesc,        fFlags,     pfnHandler          pszSyntax,          ....pszDescription */
-    { "pgmram",        0, 0,        NULL,                     0,            NULL,               0,          pgmR3CmdRam,        "",                     "Display the ram ranges." },
-    { "pgmsync",       0, 0,        NULL,                     0,            NULL,               0,          pgmR3CmdSync,       "",                     "Sync the CR3 page." },
-    { "pgmerror",      0, 1,        &g_aPgmErrorArgs[0],      1,            NULL,               0,          pgmR3CmdError,      "",                     "Enables inject runtime of errors into parts of PGM." },
-    { "pgmerroroff",   0, 1,        &g_aPgmErrorArgs[0],      1,            NULL,               0,          pgmR3CmdError,      "",                     "Disables inject runtime errors into parts of PGM." },
+    /* pszCmd,  cArgsMin, cArgsMax, paArgDesc,                cArgDescs, fFlags, pfnHandler          pszSyntax,          ....pszDescription */
+    { "pgmram",        0, 0,        NULL,                     0,         0,      pgmR3CmdRam,        "",                     "Display the ram ranges." },
+    { "pgmsync",       0, 0,        NULL,                     0,         0,      pgmR3CmdSync,       "",                     "Sync the CR3 page." },
+    { "pgmerror",      0, 1,        &g_aPgmErrorArgs[0],      1,         0,      pgmR3CmdError,      "",                     "Enables inject runtime of errors into parts of PGM." },
+    { "pgmerroroff",   0, 1,        &g_aPgmErrorArgs[0],      1,         0,      pgmR3CmdError,      "",                     "Disables inject runtime errors into parts of PGM." },
 # ifdef VBOX_STRICT
-    { "pgmassertcr3",  0, 0,        NULL,                     0,            NULL,               0,          pgmR3CmdAssertCR3,  "",                     "Check the shadow CR3 mapping." },
+    { "pgmassertcr3",  0, 0,        NULL,                     0,         0,      pgmR3CmdAssertCR3,  "",                     "Check the shadow CR3 mapping." },
 #  if HC_ARCH_BITS == 64
-    { "pgmcheckduppages", 0, 0,     NULL,                     0,            NULL,               0,          pgmR3CmdCheckDuplicatePages,  "",           "Check for duplicate pages in all running VMs." },
-    { "pgmsharedmodules", 0, 0,     NULL,                     0,            NULL,               0,          pgmR3CmdShowSharedModules,  "",             "Print shared modules info." },
+    { "pgmcheckduppages", 0, 0,     NULL,                     0,         0,      pgmR3CmdCheckDuplicatePages,  "",           "Check for duplicate pages in all running VMs." },
+    { "pgmsharedmodules", 0, 0,     NULL,                     0,         0,      pgmR3CmdShowSharedModules,  "",             "Print shared modules info." },
 #  endif
 # endif
-    { "pgmsyncalways", 0, 0,        NULL,                     0,            NULL,               0,          pgmR3CmdSyncAlways, "",                     "Toggle permanent CR3 syncing." },
-    { "pgmphystofile", 1, 2,        &g_aPgmPhysToFileArgs[0], 2,            NULL,               0,          pgmR3CmdPhysToFile, "",                     "Save the physical memory to file." },
+    { "pgmsyncalways", 0, 0,        NULL,                     0,         0,      pgmR3CmdSyncAlways, "",                     "Toggle permanent CR3 syncing." },
+    { "pgmphystofile", 1, 2,        &g_aPgmPhysToFileArgs[0], 2,         0,      pgmR3CmdPhysToFile, "",                     "Save the physical memory to file." },
 };
 #endif
 
@@ -1196,6 +1196,20 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
     pVM->pgm.s.offVM       = RT_OFFSETOF(VM, pgm.s);
     pVM->pgm.s.offVCpuPGM  = RT_OFFSETOF(VMCPU, pgm.s);
 
+    for (unsigned i = 0; i < RT_ELEMENTS(pVM->pgm.s.aHandyPages); i++)
+    {
+        pVM->pgm.s.aHandyPages[i].HCPhysGCPhys  = NIL_RTHCPHYS;
+        pVM->pgm.s.aHandyPages[i].idPage        = NIL_GMM_PAGEID;
+        pVM->pgm.s.aHandyPages[i].idSharedPage  = NIL_GMM_PAGEID;
+    }
+
+    for (unsigned i = 0; i < RT_ELEMENTS(pVM->pgm.s.aLargeHandyPage); i++)
+    {
+        pVM->pgm.s.aLargeHandyPage[i].HCPhysGCPhys  = NIL_RTHCPHYS;
+        pVM->pgm.s.aLargeHandyPage[i].idPage        = NIL_GMM_PAGEID;
+        pVM->pgm.s.aLargeHandyPage[i].idSharedPage  = NIL_GMM_PAGEID;
+    }
+
     /* Init the per-CPU part. */
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
@@ -1276,6 +1290,13 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
         return rc;
     }
 
+    /*
+     * Check for PCI pass-through.
+     */
+    rc = CFGMR3QueryBoolDef(pCfgPGM, "PciPassThrough", &pVM->pgm.s.fPciPassthrough, false);
+    AssertMsgRCReturn(rc, ("Configuration error: Failed to query integer \"PciPassThrough\", rc=%Rrc.\n", rc), rc);
+    AssertLogRelReturn(!pVM->pgm.s.fPciPassthrough || pVM->pgm.s.fRamPreAlloc, VERR_INVALID_PARAMETER);
+
 #ifdef VBOX_WITH_STATISTICS
     /*
      * Allocate memory for the statistics before someone tries to use them.
@@ -1319,7 +1340,7 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
     AssertRCReturn(rc, rc);
 
     PGMR3PhysChunkInvalidateTLB(pVM);
-    PGMPhysInvalidatePageMapTLB(pVM);
+    pgmPhysInvalidatePageMapTLB(pVM);
 
     /*
      * For the time being we sport a full set of handy pages in addition to the base
@@ -1688,6 +1709,11 @@ static int pgmR3InitStats(PVM pVM)
     PGM_REG_COUNTER(&pStats->StatPageMapTlbFlushes,             "/PGM/R3/Page/MapTlbFlushes",         "TLB flushes (all contexts).");
     PGM_REG_COUNTER(&pStats->StatPageMapTlbFlushEntry,          "/PGM/R3/Page/MapTlbFlushEntry",      "TLB entry flushes (all contexts).");
 
+    PGM_REG_COUNTER(&pStats->StatRZRamRangeTlbHits,             "/PGM/RZ/RamRange/TlbHits",           "TLB hits.");
+    PGM_REG_COUNTER(&pStats->StatRZRamRangeTlbMisses,           "/PGM/RZ/RamRange/TlbMisses",         "TLB misses.");
+    PGM_REG_COUNTER(&pStats->StatR3RamRangeTlbHits,             "/PGM/R3/RamRange/TlbHits",           "TLB hits.");
+    PGM_REG_COUNTER(&pStats->StatR3RamRangeTlbMisses,           "/PGM/R3/RamRange/TlbMisses",         "TLB misses.");
+
     PGM_REG_PROFILE(&pStats->StatRZSyncCR3HandlerVirtualUpdate, "/PGM/RZ/SyncCR3/Handlers/VirtualUpdate", "Profiling of the virtual handler updates.");
     PGM_REG_PROFILE(&pStats->StatRZSyncCR3HandlerVirtualReset,  "/PGM/RZ/SyncCR3/Handlers/VirtualReset",  "Profiling of the virtual handler resets.");
     PGM_REG_PROFILE(&pStats->StatR3SyncCR3HandlerVirtualUpdate, "/PGM/R3/SyncCR3/Handlers/VirtualUpdate", "Profiling of the virtual handler updates.");
@@ -2039,8 +2065,6 @@ VMMR3DECL(int) PGMR3InitFinalize(PVM pVM)
     pVM->pgm.s.paDynPageMap32BitPTEsGC = pMapping->aPTs[iPT].pPTRC      + iPG * sizeof(pMapping->aPTs[0].pPTR3->a[0]);
     pVM->pgm.s.paDynPageMapPaePTEsGC   = pMapping->aPTs[iPT].paPaePTsRC + iPG * sizeof(pMapping->aPTs[0].paPaePTsR3->a[0]);
 
-    LogFlowFunc(("paDynPageMap32BitPTEsGC=%#p paDynPageMapPaePTEsGC=%#p\n", pVM->pgm.s.paDynPageMap32BitPTEsGC, pVM->pgm.s.paDynPageMapPaePTEsGC));
-
     /* init cache area */
     RTHCPHYS HCPhysDummy = MMR3PageDummyHCPhys(pVM);
     for (uint32_t offDynMap = 0; offDynMap < MM_HYPER_DYNAMIC_SIZE; offDynMap += PAGE_SIZE)
@@ -2136,6 +2160,49 @@ VMMR3DECL(int) PGMR3InitFinalize(PVM pVM)
 
 
 /**
+ * Init phase completed callback.
+ *
+ * @returns VBox status code.
+ * @param   pVM                 The VM handle.
+ * @param   enmWhat             What has been completed.
+ * @thread  EMT(0)
+ */
+VMMR3_INT_DECL(int) PGMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
+{
+    switch (enmWhat)
+    {
+        case VMINITCOMPLETED_HWACCM:
+#ifdef VBOX_WITH_PCI_PASSTHROUGH
+            if (pVM->pgm.s.fPciPassthrough)
+            {
+                AssertLogRelReturn(pVM->pgm.s.fRamPreAlloc, VERR_PCI_PASSTHROUGH_NO_RAM_PREALLOC);
+                AssertLogRelReturn(HWACCMIsEnabled(pVM), VERR_PCI_PASSTHROUGH_NO_HWACCM);
+                AssertLogRelReturn(HWACCMIsNestedPagingActive(pVM), VERR_PCI_PASSTHROUGH_NO_NESTED_PAGING);
+
+                /*
+                 * Report assignments to the IOMMU (hope that's good enough for now).
+                 */
+                if (pVM->pgm.s.fPciPassthrough)
+                {
+                    int rc = VMMR3CallR0(pVM, VMMR0_DO_PGM_PHYS_SETUP_IOMMU, 0, NULL);
+                    AssertRCReturn(rc, rc);
+                }
+            }
+#else
+            AssertLogRelReturn(!pVM->pgm.s.fPciPassthrough, VERR_INTERNAL_ERROR_5);
+#endif
+            break;
+
+        default:
+            /* shut up gcc */
+            break;
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/**
  * Applies relocations to data and code managed by this component.
  *
  * This function will be called at init and whenever the VMM need to relocate it
@@ -2175,13 +2242,17 @@ VMMR3DECL(void) PGMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     /*
      * Ram ranges.
      */
-    if (pVM->pgm.s.pRamRangesR3)
+    if (pVM->pgm.s.pRamRangesXR3)
     {
         /* Update the pSelfRC pointers and relink them. */
-        for (PPGMRAMRANGE pCur = pVM->pgm.s.pRamRangesR3; pCur; pCur = pCur->pNextR3)
+        for (PPGMRAMRANGE pCur = pVM->pgm.s.pRamRangesXR3; pCur; pCur = pCur->pNextR3)
             if (!(pCur->fFlags & PGM_RAM_RANGE_FLAGS_FLOATING))
                 pCur->pSelfRC = MMHyperCCToRC(pVM, pCur);
         pgmR3PhysRelinkRamRanges(pVM);
+
+        /* Flush the RC TLB. */
+        for (unsigned i = 0; i < PGM_RAMRANGE_TLB_ENTRIES; i++)
+            pVM->pgm.s.apRamRangesTlbRC[i] = NIL_RTRCPTR;
     }
 
     /*
@@ -2558,7 +2629,7 @@ static DECLCALLBACK(void) pgmR3PhysInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char 
                     sizeof(RTGCPHYS) * 4 + 1, "GC Phys Range                    ",
                     sizeof(RTHCPTR) * 2,      "pvHC            ");
 
-    for (PPGMRAMRANGE pCur = pVM->pgm.s.pRamRangesR3; pCur; pCur = pCur->pNextR3)
+    for (PPGMRAMRANGE pCur = pVM->pgm.s.pRamRangesXR3; pCur; pCur = pCur->pNextR3)
         pHlp->pfnPrintf(pHlp,
                         "%RGp-%RGp %RHv %s\n",
                         pCur->GCPhys,
@@ -2607,7 +2678,7 @@ static DECLCALLBACK(void) pgmR3InfoCr3(PVM pVM, PCDBGFINFOHLP pHlp, const char *
                 pHlp->pfnPrintf(pHlp,
                                 "%04X - %RGp P=%d U=%d RW=%d G=%d - BIG\n",
                                 iPD,
-                                pgmGstGet4MBPhysPage(&pVM->pgm.s, PdeSrc),
+                                pgmGstGet4MBPhysPage(pVM, PdeSrc),
                                 PdeSrc.b.u1Present, PdeSrc.b.u1User, PdeSrc.b.u1Write, PdeSrc.b.u1Global && fPGE);
             else
                 pHlp->pfnPrintf(pHlp,
@@ -3207,7 +3278,8 @@ VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
      * Calc the shadow mode and switcher.
      */
     VMMSWITCHER enmSwitcher;
-    PGMMODE     enmShadowMode = pgmR3CalcShadowMode(pVM, enmGuestMode, pVM->pgm.s.enmHostMode, pVCpu->pgm.s.enmShadowMode, &enmSwitcher);
+    PGMMODE     enmShadowMode;
+    enmShadowMode = pgmR3CalcShadowMode(pVM, enmGuestMode, pVM->pgm.s.enmHostMode, pVCpu->pgm.s.enmShadowMode, &enmSwitcher);
 
 #ifdef VBOX_WITH_RAW_MODE
     if (enmSwitcher != VMMSWITCHER_INVALID)
@@ -3533,14 +3605,14 @@ int pgmR3ReEnterShadowModeAfterPoolFlush(PVM pVM, PVMCPU pVCpu)
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) pgmR3CmdRam(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) pgmR3CmdRam(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Validate input.
      */
     if (!pVM)
         return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: The command requires a VM to be selected.\n");
-    if (!pVM->pgm.s.pRamRangesRC)
+    if (!pVM->pgm.s.pRamRangesXR3)
         return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Sorry, no Ram is registered.\n");
 
     /*
@@ -3548,7 +3620,7 @@ static DECLCALLBACK(int) pgmR3CmdRam(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pV
      */
     int rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "From     - To (incl) pvHC\n");
     PPGMRAMRANGE pRam;
-    for (pRam = pVM->pgm.s.pRamRangesR3; pRam; pRam = pRam->pNextR3)
+    for (pRam = pVM->pgm.s.pRamRangesXR3; pRam; pRam = pRam->pNextR3)
     {
         rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL,
             "%RGp - %RGp  %p\n",
@@ -3571,7 +3643,7 @@ static DECLCALLBACK(int) pgmR3CmdRam(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pV
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int)  pgmR3CmdError(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int)  pgmR3CmdError(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Validate input.
@@ -3617,7 +3689,7 @@ static DECLCALLBACK(int)  pgmR3CmdError(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) pgmR3CmdSync(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) pgmR3CmdSync(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /** @todo SMP support */
 
@@ -3653,7 +3725,7 @@ static DECLCALLBACK(int) pgmR3CmdSync(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM p
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) pgmR3CmdAssertCR3(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) pgmR3CmdAssertCR3(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /** @todo SMP support!! */
 
@@ -3686,7 +3758,7 @@ static DECLCALLBACK(int) pgmR3CmdAssertCR3(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) pgmR3CmdSyncAlways(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) pgmR3CmdSyncAlways(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /** @todo SMP support!! */
     PVMCPU pVCpu = &pVM->aCpus[0];
@@ -3724,7 +3796,7 @@ static DECLCALLBACK(int) pgmR3CmdSyncAlways(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp,
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) pgmR3CmdPhysToFile(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) pgmR3CmdPhysToFile(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Validate input.
@@ -3764,9 +3836,9 @@ static DECLCALLBACK(int) pgmR3CmdPhysToFile(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp,
     RT_ZERO(abZeroPg);
 
     pgmLock(pVM);
-    for (PPGMRAMRANGE pRam = pVM->pgm.s.pRamRangesR3;
-          pRam && pRam->GCPhys < GCPhysEnd && RT_SUCCESS(rc);
-          pRam = pRam->pNextR3)
+    for (PPGMRAMRANGE pRam = pVM->pgm.s.pRamRangesXR3;
+         pRam && pRam->GCPhys < GCPhysEnd && RT_SUCCESS(rc);
+         pRam = pRam->pNextR3)
     {
         /* fill the gap */
         if (pRam->GCPhys > GCPhys && fIncZeroPgs)

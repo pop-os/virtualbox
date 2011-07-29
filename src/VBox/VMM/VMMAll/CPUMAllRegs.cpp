@@ -1,4 +1,4 @@
-/* $Id: CPUMAllRegs.cpp $ */
+/* $Id: CPUMAllRegs.cpp 37136 2011-05-18 14:45:47Z vboxsync $ */
 /** @file
  * CPUM - CPU Monitor(/Manager) - Getters and Setters.
  */
@@ -474,26 +474,24 @@ VMMDECL(PCPUMCTX) CPUMQueryGuestCtxPtr(PVMCPU pVCpu)
     return &pVCpu->cpum.s.Guest;
 }
 
-VMMDECL(int) CPUMSetGuestGDTR(PVMCPU pVCpu, uint32_t addr, uint16_t limit)
+VMMDECL(int) CPUMSetGuestGDTR(PVMCPU pVCpu, uint64_t GCPtrBase, uint16_t cbLimit)
 {
-    pVCpu->cpum.s.Guest.gdtr.cbGdt = limit;
-    pVCpu->cpum.s.Guest.gdtr.pGdt  = addr;
+    pVCpu->cpum.s.Guest.gdtr.cbGdt = cbLimit;
+    pVCpu->cpum.s.Guest.gdtr.pGdt  = GCPtrBase;
     pVCpu->cpum.s.fChanged |= CPUM_CHANGED_GDTR;
     return VINF_SUCCESS;
 }
 
-VMMDECL(int) CPUMSetGuestIDTR(PVMCPU pVCpu, uint32_t addr, uint16_t limit)
+VMMDECL(int) CPUMSetGuestIDTR(PVMCPU pVCpu, uint64_t GCPtrBase, uint16_t cbLimit)
 {
-    pVCpu->cpum.s.Guest.idtr.cbIdt = limit;
-    pVCpu->cpum.s.Guest.idtr.pIdt  = addr;
+    pVCpu->cpum.s.Guest.idtr.cbIdt = cbLimit;
+    pVCpu->cpum.s.Guest.idtr.pIdt  = GCPtrBase;
     pVCpu->cpum.s.fChanged |= CPUM_CHANGED_IDTR;
     return VINF_SUCCESS;
 }
 
 VMMDECL(int) CPUMSetGuestTR(PVMCPU pVCpu, uint16_t tr)
 {
-    AssertMsgFailed(("Need to load the hidden bits too!\n"));
-
     pVCpu->cpum.s.Guest.tr  = tr;
     pVCpu->cpum.s.fChanged |= CPUM_CHANGED_TR;
     return VINF_SUCCESS;
@@ -865,7 +863,13 @@ VMMDECL(int) CPUMQueryGuestMsr(PVMCPU pVCpu, uint32_t idMsr, uint64_t *puValue)
             /* Needs to be tested more before enabling. */
             *puValue = pVCpu->cpum.s.GuestMsr.msr.miscEnable;
 #else
-            *puValue = 0;
+            /* Currenty we don't allow guests to modify enable MSRs. */
+            *puValue = MSR_IA32_MISC_ENABLE_FAST_STRINGS  /* by default */;
+
+            if ((pVCpu->CTX_SUFF(pVM)->cpum.s.aGuestCpuIdStd[1].ecx & X86_CPUID_FEATURE_ECX_MONITOR) != 0)
+
+                *puValue |= MSR_IA32_MISC_ENABLE_MONITOR /* if mwait/monitor available */;
+            /** @todo: add more cpuid-controlled features this way. */
 #endif
             break;
 
@@ -1641,6 +1645,15 @@ VMMDECL(void) CPUMSetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
             break;
         }
 
+       /*
+        * Set the Hypervisor Present bit in the standard feature mask.
+        */
+        case CPUMCPUIDFEATURE_HVP:
+            if (pVM->cpum.s.aGuestCpuIdStd[0].eax >= 1)
+                pVM->cpum.s.aGuestCpuIdStd[1].ecx |= X86_CPUID_FEATURE_ECX_HVP;
+            LogRel(("CPUMSetGuestCpuIdFeature: Enabled Hypervisor Present bit\n"));
+            break;
+
         default:
             AssertMsgFailed(("enmFeature=%d\n", enmFeature));
             break;
@@ -1765,6 +1778,11 @@ VMMDECL(void) CPUMClearGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
                 pVM->cpum.s.aGuestCpuIdExt[1].ecx &= ~X86_CPUID_AMD_FEATURE_ECX_LAHF_SAHF;
             break;
         }
+
+        case CPUMCPUIDFEATURE_HVP:
+            if (pVM->cpum.s.aGuestCpuIdExt[0].eax >= 1)
+                pVM->cpum.s.aGuestCpuIdExt[1].ecx &= ~X86_CPUID_FEATURE_ECX_HVP;
+            break;
 
         default:
             AssertMsgFailed(("enmFeature=%d\n", enmFeature));
@@ -2048,6 +2066,19 @@ VMMDECL(bool) CPUMIsGuestR0WriteProtEnabled(PVMCPU pVCpu)
 VMMDECL(bool) CPUMIsGuestInRealMode(PVMCPU pVCpu)
 {
     return !(pVCpu->cpum.s.Guest.cr0 & X86_CR0_PE);
+}
+
+
+/**
+ * Tests if the guest is running in real or virtual 8086 mode.
+ *
+ * @returns @c true if it is, @c false if not.
+ * @param   pVCpu       The virtual CPU handle.
+ */
+VMMDECL(bool) CPUMIsGuestInRealOrV86Mode(PVMCPU pVCpu)
+{
+    return !(pVCpu->cpum.s.Guest.cr0 & X86_CR0_PE)
+        || pVCpu->cpum.s.Guest.eflags.Bits.u1VM; /** @todo verify that this cannot be set in long mode. */
 }
 
 

@@ -1,10 +1,10 @@
-/* $Id: DBGCCommands.cpp $ */
+/* $Id: DBGCCommands.cpp 35696 2011-01-24 18:03:33Z vboxsync $ */
 /** @file
  * DBGC - Debugger Console, Native Commands.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,11 +22,6 @@
 #include <VBox/dbg.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/vm.h>
-#include <VBox/vmm/vmm.h>
-#include <VBox/vmm/mm.h>
-#include <VBox/vmm/pgm.h>
-#include <VBox/vmm/selm.h>
-#include <VBox/dis.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
@@ -51,31 +46,31 @@
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-static DECLCALLBACK(int) dbgcCmdHelp(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdQuit(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdStop(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdDetect(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdCpu(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdInfo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdLog(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdLogDest(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdLogFlags(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdFormat(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdLoadImage(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdLoadMap(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdLoadSeg(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdLoadSyms(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdSet(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdUnset(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdLoadVars(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdShowVars(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdLoadPlugIn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdUnloadPlugIn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdShowPlugIns(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdHarakiri(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdEcho(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdRunScript(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdWriteCore(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
+static DECLCALLBACK(int) dbgcCmdHelp(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdQuit(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdStop(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdDetect(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdCpu(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdInfo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdLog(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdLogDest(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdLogFlags(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdFormat(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdLoadImage(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdLoadMap(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdLoadSeg(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdLoadSyms(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdSet(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdUnset(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdLoadVars(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdShowVars(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdLoadPlugIn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdUnloadPlugIn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdShowPlugIns(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdHarakiri(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdEcho(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdRunScript(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdWriteCore(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
 
 
 /*******************************************************************************
@@ -226,42 +221,42 @@ static const DBGCVARDESC    g_aArgWriteCore[] =
 /** Command descriptors for the basic commands. */
 const DBGCCMD    g_aCmds[] =
 {
-    /* pszCmd,      cArgsMin, cArgsMax, paArgDescs,          cArgDescs,                  pResultDesc,fFlags,pfnHandler        pszSyntax,          ....pszDescription */
-    { "bye",        0,        0,        NULL,                0,                          NULL,       0,     dbgcCmdQuit,      "",                     "Exits the debugger." },
-    { "cpu",        0,        1,        &g_aArgCpu[0],       RT_ELEMENTS(g_aArgCpu),     NULL,       0,     dbgcCmdCpu,       "[idCpu]",              "If no argument, display the current CPU, else change to the specified CPU." },
-    { "echo",       1,        ~0,       &g_aArgMultiStr[0],  RT_ELEMENTS(g_aArgMultiStr),NULL,       0,     dbgcCmdEcho,      "<str1> [str2..[strN]]", "Displays the strings separated by one blank space and the last one followed by a newline." },
-    { "exit",       0,        0,        NULL,                0,                          NULL,       0,     dbgcCmdQuit,      "",                     "Exits the debugger." },
-    { "format",     1,        1,        &g_aArgAny[0],       RT_ELEMENTS(g_aArgAny),     NULL,       0,     dbgcCmdFormat,    "",                     "Evaluates an expression and formats it." },
-    { "detect",     0,        0,        NULL,                0,                          NULL,       0,     dbgcCmdDetect,    "",                     "Detects or re-detects the guest os and starts the OS specific digger." },
-    { "harakiri",   0,        0,        NULL,                0,                          NULL,       0,     dbgcCmdHarakiri,  "",                     "Kills debugger process." },
-    { "help",       0,        ~0,       &g_aArgHelp[0],      RT_ELEMENTS(g_aArgHelp),    NULL,       0,     dbgcCmdHelp,      "[cmd/op [..]]",        "Display help. For help about info items try 'info help'." },
-    { "info",       1,        2,        &g_aArgInfo[0],      RT_ELEMENTS(g_aArgInfo),    NULL,       0,     dbgcCmdInfo,      "<info> [args]",        "Display info register in the DBGF. For a list of info items try 'info help'." },
-    { "loadimage",  2,        3,        &g_aArgLoadImage[0], RT_ELEMENTS(g_aArgLoadImage),NULL,      0,     dbgcCmdLoadImage, "<filename> <address> [name]",
-                                                                                                                                                     "Loads the symbols of an executable image at the specified address. "
-                                                                                                                                                     /*"Optionally giving the module a name other than the file name stem."*/ }, /** @todo implement line breaks */
-    { "loadmap",    2,        5,        &g_aArgLoadMap[0],   RT_ELEMENTS(g_aArgLoadMap), NULL,       0,     dbgcCmdLoadMap,   "<filename> <address> [name] [subtrahend] [seg]",
-                                                                                                                                                     "Loads the symbols from a map file, usually at a specified address. "
-                                                                                                                                                     /*"Optionally giving the module a name other than the file name stem "
-                                                                                                                                                     "and a subtrahend to subtract from the addresses."*/ },
-    { "loadplugin", 1,        1,        &g_aArgPlugIn[0],    RT_ELEMENTS(g_aArgPlugIn),  NULL,       0,     dbgcCmdLoadPlugIn,"<plugin1> [plugin2..N]", "Loads one or more plugins" },
-    { "loadseg",    3,        4,        &g_aArgLoadSeg[0],   RT_ELEMENTS(g_aArgLoadSeg), NULL,       0,     dbgcCmdLoadSeg,   "<filename> <address> <seg> [name]",
-                                                                                                                                                     "Loads the symbols of a segment in the executable image at the specified address. "
-                                                                                                                                                     /*"Optionally giving the module a name other than the file name stem."*/ },
-    { "loadsyms",   1,        5,        &g_aArgLoadSyms[0],  RT_ELEMENTS(g_aArgLoadSyms),NULL,       0,     dbgcCmdLoadSyms,  "<filename> [delta] [module] [module address]", "Loads symbols from a text file. Optionally giving a delta and a module." },
-    { "loadvars",   1,        1,        &g_aArgFilename[0],  RT_ELEMENTS(g_aArgFilename),NULL,       0,     dbgcCmdLoadVars,  "<filename>",           "Load variables from file. One per line, same as the args to the set command." },
-    { "log",        1,        1,        &g_aArgLog[0],       RT_ELEMENTS(g_aArgLog),     NULL,       0,     dbgcCmdLog,       "<group string>",       "Modifies the logging group settings (VBOX_LOG)" },
-    { "logdest",    1,        1,        &g_aArgLogDest[0],   RT_ELEMENTS(g_aArgLogDest), NULL,       0,     dbgcCmdLogDest,   "<dest string>",        "Modifies the logging destination (VBOX_LOG_DEST)." },
-    { "logflags",   1,        1,        &g_aArgLogFlags[0],  RT_ELEMENTS(g_aArgLogFlags),NULL,       0,     dbgcCmdLogFlags,  "<flags string>",       "Modifies the logging flags (VBOX_LOG_FLAGS)." },
-    { "quit",       0,        0,        NULL,                0,                          NULL,       0,     dbgcCmdQuit,      "",                     "Exits the debugger." },
-    { "runscript",  1,        1,        &g_aArgFilename[0],  RT_ELEMENTS(g_aArgFilename),NULL,       0,     dbgcCmdRunScript, "<filename>",           "Runs the command listed in the script. Lines starting with '#' "
-                                                                                                                                                      "(after removing blanks) are comment. blank lines are ignored. Stops on failure." },
-    { "set",        2,        2,        &g_aArgSet[0],       RT_ELEMENTS(g_aArgSet),     NULL,       0,     dbgcCmdSet,       "<var> <value>",        "Sets a global variable." },
-    { "showplugins",0,        0,        NULL,                0,                          NULL,       0,    dbgcCmdShowPlugIns,"",                     "List loaded plugins." },
-    { "showvars",   0,        0,        NULL,                0,                          NULL,       0,     dbgcCmdShowVars,  "",                     "List all the defined variables." },
-    { "stop",       0,        0,        NULL,                0,                          NULL,       0,     dbgcCmdStop,      "",                     "Stop execution." },
-    { "unloadplugin", 1,     ~0,        &g_aArgPlugIn[0],    RT_ELEMENTS(g_aArgPlugIn),  NULL,       0,  dbgcCmdUnloadPlugIn, "<plugin1> [plugin2..N]", "Unloads one or more plugins." },
-    { "unset",      1,       ~0,        &g_aArgMultiStr[0],  RT_ELEMENTS(g_aArgMultiStr),NULL,       0,     dbgcCmdUnset,     "<var1> [var1..[varN]]",  "Unsets (delete) one or more global variables." },
-    { "writecore",  1,        1,        &g_aArgWriteCore[0], RT_ELEMENTS(g_aArgWriteCore), NULL,     0,   dbgcCmdWriteCore,   "<filename>",           "Write core to file." },
+    /* pszCmd,      cArgsMin, cArgsMax, paArgDescs,          cArgDescs,               fFlags, pfnHandler        pszSyntax,          ....pszDescription */
+    { "bye",        0,        0,        NULL,                0,                            0, dbgcCmdQuit,      "",                     "Exits the debugger." },
+    { "cpu",        0,        1,        &g_aArgCpu[0],       RT_ELEMENTS(g_aArgCpu),       0, dbgcCmdCpu,       "[idCpu]",              "If no argument, display the current CPU, else change to the specified CPU." },
+    { "echo",       1,        ~0,       &g_aArgMultiStr[0],  RT_ELEMENTS(g_aArgMultiStr),  0, dbgcCmdEcho,      "<str1> [str2..[strN]]", "Displays the strings separated by one blank space and the last one followed by a newline." },
+    { "exit",       0,        0,        NULL,                0,                            0, dbgcCmdQuit,      "",                     "Exits the debugger." },
+    { "format",     1,        1,        &g_aArgAny[0],       RT_ELEMENTS(g_aArgAny),       0, dbgcCmdFormat,    "",                     "Evaluates an expression and formats it." },
+    { "detect",     0,        0,        NULL,                0,                            0, dbgcCmdDetect,    "",                     "Detects or re-detects the guest os and starts the OS specific digger." },
+    { "harakiri",   0,        0,        NULL,                0,                            0, dbgcCmdHarakiri,  "",                     "Kills debugger process." },
+    { "help",       0,        ~0,       &g_aArgHelp[0],      RT_ELEMENTS(g_aArgHelp),      0, dbgcCmdHelp,      "[cmd/op [..]]",        "Display help. For help about info items try 'info help'." },
+    { "info",       1,        2,        &g_aArgInfo[0],      RT_ELEMENTS(g_aArgInfo),      0, dbgcCmdInfo,      "<info> [args]",        "Display info register in the DBGF. For a list of info items try 'info help'." },
+    { "loadimage",  2,        3,        &g_aArgLoadImage[0], RT_ELEMENTS(g_aArgLoadImage), 0, dbgcCmdLoadImage, "<filename> <address> [name]",
+                                                                                                                                                 "Loads the symbols of an executable image at the specified address. "
+                                                                                                                                                 /*"Optionally giving the module a name other than the file name stem."*/ }, /** @todo implement line breaks */
+    { "loadmap",    2,        5,        &g_aArgLoadMap[0],   RT_ELEMENTS(g_aArgLoadMap),   0, dbgcCmdLoadMap,   "<filename> <address> [name] [subtrahend] [seg]",
+                                                                                                                                       "Loads the symbols from a map file, usually at a specified address. "
+                                                                                                                                       /*"Optionally giving the module a name other than the file name stem "
+                                                                                                                                       "and a subtrahend to subtract from the addresses."*/ },
+    { "loadplugin", 1,        1,        &g_aArgPlugIn[0],    RT_ELEMENTS(g_aArgPlugIn),    0, dbgcCmdLoadPlugIn,"<plugin1> [plugin2..N]", "Loads one or more plugins" },
+    { "loadseg",    3,        4,        &g_aArgLoadSeg[0],   RT_ELEMENTS(g_aArgLoadSeg),   0, dbgcCmdLoadSeg,   "<filename> <address> <seg> [name]",
+                                                                                                                                       "Loads the symbols of a segment in the executable image at the specified address. "
+                                                                                                                                       /*"Optionally giving the module a name other than the file name stem."*/ },
+    { "loadsyms",   1,        5,        &g_aArgLoadSyms[0],  RT_ELEMENTS(g_aArgLoadSyms),  0, dbgcCmdLoadSyms,  "<filename> [delta] [module] [module address]", "Loads symbols from a text file. Optionally giving a delta and a module." },
+    { "loadvars",   1,        1,        &g_aArgFilename[0],  RT_ELEMENTS(g_aArgFilename),  0, dbgcCmdLoadVars,  "<filename>",           "Load variables from file. One per line, same as the args to the set command." },
+    { "log",        1,        1,        &g_aArgLog[0],       RT_ELEMENTS(g_aArgLog),       0, dbgcCmdLog,       "<group string>",       "Modifies the logging group settings (VBOX_LOG)" },
+    { "logdest",    1,        1,        &g_aArgLogDest[0],   RT_ELEMENTS(g_aArgLogDest),   0, dbgcCmdLogDest,   "<dest string>",        "Modifies the logging destination (VBOX_LOG_DEST)." },
+    { "logflags",   1,        1,        &g_aArgLogFlags[0],  RT_ELEMENTS(g_aArgLogFlags),  0, dbgcCmdLogFlags,  "<flags string>",       "Modifies the logging flags (VBOX_LOG_FLAGS)." },
+    { "quit",       0,        0,        NULL,                0,                            0, dbgcCmdQuit,      "",                     "Exits the debugger." },
+    { "runscript",  1,        1,        &g_aArgFilename[0],  RT_ELEMENTS(g_aArgFilename),  0, dbgcCmdRunScript, "<filename>",           "Runs the command listed in the script. Lines starting with '#' "
+                                                                                                                                        "(after removing blanks) are comment. blank lines are ignored. Stops on failure." },
+    { "set",        2,        2,        &g_aArgSet[0],       RT_ELEMENTS(g_aArgSet),       0, dbgcCmdSet,       "<var> <value>",        "Sets a global variable." },
+    { "showplugins",0,        0,        NULL,                0,                            0, dbgcCmdShowPlugIns,"",                     "List loaded plugins." },
+    { "showvars",   0,        0,        NULL,                0,                            0, dbgcCmdShowVars,  "",                     "List all the defined variables." },
+    { "stop",       0,        0,        NULL,                0,                            0, dbgcCmdStop,      "",                     "Stop execution." },
+    { "unloadplugin", 1,     ~0,        &g_aArgPlugIn[0],    RT_ELEMENTS(g_aArgPlugIn),    0, dbgcCmdUnloadPlugIn, "<plugin1> [plugin2..N]", "Unloads one or more plugins." },
+    { "unset",      1,       ~0,        &g_aArgMultiStr[0],  RT_ELEMENTS(g_aArgMultiStr),  0, dbgcCmdUnset,     "<var1> [var1..[varN]]",  "Unsets (delete) one or more global variables." },
+    { "writecore",  1,        1,        &g_aArgWriteCore[0], RT_ELEMENTS(g_aArgWriteCore), 0, dbgcCmdWriteCore,   "<filename>",           "Write core to file." },
 };
 
 /** The number of native commands. */
@@ -487,7 +482,7 @@ static int dbgcPrintHelp(PDBGCCMDHLP pCmdHlp, PCDBGCCMD pCmd, bool fExternal)
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdHelp(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdHelp(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC       pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
     int         rc = VINF_SUCCESS;
@@ -627,7 +622,6 @@ static DECLCALLBACK(int) dbgcCmdHelp(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pV
 
     NOREF(pCmd);
     NOREF(pVM);
-    NOREF(pResult);
     return rc;
 }
 
@@ -642,14 +636,13 @@ static DECLCALLBACK(int) dbgcCmdHelp(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pV
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdQuit(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdQuit(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Quitting console...\n");
     NOREF(pCmd);
     NOREF(pVM);
     NOREF(paArgs);
     NOREF(cArgs);
-    NOREF(pResult);
     return VERR_DBGC_QUIT;
 }
 
@@ -664,7 +657,7 @@ static DECLCALLBACK(int) dbgcCmdQuit(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pV
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdStop(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdStop(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Check if the VM is halted or not before trying to halt it.
@@ -681,7 +674,7 @@ static DECLCALLBACK(int) dbgcCmdStop(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pV
             rc = pCmdHlp->pfnVBoxError(pCmdHlp, rc, "Executing DBGFR3Halt().");
     }
 
-    NOREF(pCmd); NOREF(paArgs); NOREF(cArgs); NOREF(pResult);
+    NOREF(pCmd); NOREF(paArgs); NOREF(cArgs);
     return rc;
 }
 
@@ -696,7 +689,7 @@ static DECLCALLBACK(int) dbgcCmdStop(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pV
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdEcho(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdEcho(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Loop thru the arguments and print them with one space between.
@@ -711,7 +704,7 @@ static DECLCALLBACK(int) dbgcCmdEcho(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pV
         if (RT_FAILURE(rc))
             return rc;
     }
-    NOREF(pCmd); NOREF(pResult); NOREF(pVM);
+    NOREF(pCmd); NOREF(pVM);
     return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "\n");
 }
 
@@ -726,12 +719,15 @@ static DECLCALLBACK(int) dbgcCmdEcho(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pV
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdRunScript(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdRunScript(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /* check that the parser did what it's supposed to do. */
     if (    cArgs != 1
         ||  paArgs[0].enmType != DBGCVAR_TYPE_STRING)
         return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "parser error\n");
+
+    /** @todo Load the script here, but someone else should do the actual
+     *        evaluation and execution of it.  */
 
     /*
      * Try open the script.
@@ -796,7 +792,7 @@ static DECLCALLBACK(int) dbgcCmdRunScript(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
 
     fclose(pFile);
 
-    NOREF(pCmd); NOREF(pResult); NOREF(pVM);
+    NOREF(pCmd); NOREF(pVM);
     return rc;
 }
 
@@ -811,7 +807,7 @@ static DECLCALLBACK(int) dbgcCmdRunScript(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdDetect(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdDetect(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /* check that the parser did what it's supposed to do. */
     if (cArgs != 0)
@@ -834,7 +830,7 @@ static DECLCALLBACK(int) dbgcCmdDetect(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM 
     }
     else
         rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Unable to figure out which guest OS it is, sorry.\n");
-    NOREF(pCmd); NOREF(pResult); NOREF(paArgs);
+    NOREF(pCmd); NOREF(paArgs);
     return rc;
 }
 
@@ -849,7 +845,7 @@ static DECLCALLBACK(int) dbgcCmdDetect(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM 
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdCpu(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdCpu(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC       pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
@@ -866,6 +862,7 @@ static DECLCALLBACK(int) dbgcCmdCpu(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM
         rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Current CPU ID: %u\n", pDbgc->idCpu);
     else
     {
+/** @todo add a DBGF getter for this. */
         if (paArgs[0].u.u64Number >= pVM->cCpus)
             rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: idCpu %u is out of range! Highest ID is %u.\n",
                                     paArgs[0].u.u64Number, pVM->cCpus);
@@ -890,7 +887,7 @@ static DECLCALLBACK(int) dbgcCmdCpu(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdInfo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdInfo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC       pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
@@ -908,13 +905,14 @@ static DECLCALLBACK(int) dbgcCmdInfo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pV
     /*
      * Dump it.
      */
+    /** @todo DBGFR3Info should do this, not we. */
     int rc = VMR3ReqCallWait(pVM, pDbgc->idCpu, (PFNRT)DBGFR3Info, 4,
                              pVM, paArgs[0].u.pszString, cArgs == 2 ? paArgs[1].u.pszString : NULL,
                              DBGCCmdHlpGetDbgfOutputHlp(pCmdHlp));
     if (RT_FAILURE(rc))
         return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "DBGFR3Info()\n");
 
-    NOREF(pCmd); NOREF(pResult);
+    NOREF(pCmd);
     return 0;
 }
 
@@ -929,12 +927,12 @@ static DECLCALLBACK(int) dbgcCmdInfo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pV
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdLog(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdLog(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     int rc = DBGFR3LogModifyGroups(pVM, paArgs[0].u.pszString);
     if (RT_SUCCESS(rc))
         return VINF_SUCCESS;
-    NOREF(pCmd); NOREF(cArgs); NOREF(pResult);
+    NOREF(pCmd); NOREF(cArgs);
     return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "DBGFR3LogModifyGroups(%p,'%s')\n", pVM, paArgs[0].u.pszString);
 }
 
@@ -949,12 +947,12 @@ static DECLCALLBACK(int) dbgcCmdLog(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdLogDest(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdLogDest(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     int rc = DBGFR3LogModifyDestinations(pVM, paArgs[0].u.pszString);
     if (RT_SUCCESS(rc))
         return VINF_SUCCESS;
-    NOREF(pCmd); NOREF(cArgs); NOREF(pResult);
+    NOREF(pCmd); NOREF(cArgs);
     return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "DBGFR3LogModifyDestinations(%p,'%s')\n", pVM, paArgs[0].u.pszString);
 }
 
@@ -969,12 +967,12 @@ static DECLCALLBACK(int) dbgcCmdLogDest(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdLogFlags(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdLogFlags(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     int rc = DBGFR3LogModifyFlags(pVM, paArgs[0].u.pszString);
     if (RT_SUCCESS(rc))
         return VINF_SUCCESS;
-    NOREF(pCmd); NOREF(cArgs); NOREF(pResult);
+    NOREF(pCmd); NOREF(cArgs);
     return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "DBGFR3LogModifyFlags(%p,'%s')\n", pVM, paArgs[0].u.pszString);
 }
 
@@ -989,7 +987,7 @@ static DECLCALLBACK(int) dbgcCmdLogFlags(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdFormat(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdFormat(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     LogFlow(("dbgcCmdFormat\n"));
     static const char *apszRangeDesc[] =
@@ -1056,20 +1054,6 @@ static DECLCALLBACK(int) dbgcCmdFormat(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM 
                         "Host flat address: %%%08x\n",
                         paArgs[iArg].u.pvHCFlat);
                 break;
-            case DBGCVAR_TYPE_HC_FAR:
-                if (paArgs[iArg].enmRangeType != DBGCVAR_RANGE_NONE)
-                    rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL,
-                        "Host far address: %04x:%08x range %lld %s\n",
-                        paArgs[iArg].u.HCFar.sel,
-                        paArgs[iArg].u.HCFar.off,
-                        paArgs[iArg].u64Range,
-                        apszRangeDesc[paArgs[iArg].enmRangeType]);
-                else
-                    rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL,
-                        "Host far address: %04x:%08x\n",
-                        paArgs[iArg].u.HCFar.sel,
-                        paArgs[iArg].u.HCFar.off);
-                break;
             case DBGCVAR_TYPE_HC_PHYS:
                 if (paArgs[iArg].enmRangeType != DBGCVAR_RANGE_NONE)
                     rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL,
@@ -1115,7 +1099,7 @@ static DECLCALLBACK(int) dbgcCmdFormat(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM 
         }
     } /* arg loop */
 
-    NOREF(pCmd); NOREF(pVM); NOREF(pResult);
+    NOREF(pCmd); NOREF(pVM);
     return 0;
 }
 
@@ -1130,7 +1114,7 @@ static DECLCALLBACK(int) dbgcCmdFormat(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM 
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdLoadImage(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdLoadImage(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Validate the parsing and make sense of the input.
@@ -1165,7 +1149,7 @@ static DECLCALLBACK(int) dbgcCmdLoadImage(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
         return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "DBGFR3ModuleLoadImage(,,'%s','%s',%Dv,)\n",
                                      pszFilename, pszModName, &paArgs[1]);
 
-    NOREF(pCmd); NOREF(pResult);
+    NOREF(pCmd);
     return VINF_SUCCESS;
 }
 
@@ -1180,7 +1164,7 @@ static DECLCALLBACK(int) dbgcCmdLoadImage(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdLoadMap(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdLoadMap(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Validate the parsing and make sense of the input.
@@ -1232,7 +1216,7 @@ static DECLCALLBACK(int) dbgcCmdLoadMap(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM
         return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "DBGFR3AsLoadMap(,,'%s','%s',%Dv,)\n",
                                      pszFilename, pszModName, &paArgs[1]);
 
-    NOREF(pCmd); NOREF(pResult);
+    NOREF(pCmd);
     return VINF_SUCCESS;
 }
 
@@ -1247,7 +1231,7 @@ static DECLCALLBACK(int) dbgcCmdLoadMap(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdLoadSeg(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdLoadSeg(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Validate the parsing and make sense of the input.
@@ -1288,7 +1272,7 @@ static DECLCALLBACK(int) dbgcCmdLoadSeg(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM
         return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "DBGFR3ModuleLoadImage(,,'%s','%s',%Dv,)\n",
                                      pszFilename, pszModName, &paArgs[1]);
 
-    NOREF(pCmd); NOREF(pResult);
+    NOREF(pCmd);
     return VINF_SUCCESS;
 }
 
@@ -1303,7 +1287,7 @@ static DECLCALLBACK(int) dbgcCmdLoadSeg(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdLoadSyms(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdLoadSyms(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Validate the parsing and make sense of the input.
@@ -1376,7 +1360,7 @@ static DECLCALLBACK(int) dbgcCmdLoadSyms(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
         return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "DBGInfoSymbolLoad(, '%s', %RGv, '%s', %RGv, 0)\n",
                                      paArgs[0].u.pszString, Delta, pszModule, ModuleAddress);
 
-    NOREF(pCmd); NOREF(pResult);
+    NOREF(pCmd);
     return VINF_SUCCESS;
 }
 
@@ -1391,7 +1375,7 @@ static DECLCALLBACK(int) dbgcCmdLoadSyms(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdSet(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdSet(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC   pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
@@ -1470,7 +1454,7 @@ static DECLCALLBACK(int) dbgcCmdSet(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM
     }
     pDbgc->papVars[pDbgc->cVars++] = pVar;
 
-    NOREF(pCmd); NOREF(pVM); NOREF(cArgs); NOREF(pResult);
+    NOREF(pCmd); NOREF(pVM); NOREF(cArgs);
     return 0;
 }
 
@@ -1485,7 +1469,7 @@ static DECLCALLBACK(int) dbgcCmdSet(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdUnset(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdUnset(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC   pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
@@ -1528,7 +1512,7 @@ static DECLCALLBACK(int) dbgcCmdUnset(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM p
         } /* lookup */
     } /* arg loop */
 
-    NOREF(pCmd); NOREF(pVM); NOREF(pResult);
+    NOREF(pCmd); NOREF(pVM);
     return 0;
 }
 
@@ -1543,7 +1527,7 @@ static DECLCALLBACK(int) dbgcCmdUnset(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM p
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdLoadVars(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdLoadVars(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Don't trust the parser.
@@ -1585,7 +1569,7 @@ static DECLCALLBACK(int) dbgcCmdLoadVars(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
     else
         return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Failed to open file '%s'.\n", paArgs[0].u.pszString);
 
-    NOREF(pCmd); NOREF(pVM); NOREF(pResult);
+    NOREF(pCmd); NOREF(pVM);
     return 0;
 }
 
@@ -1600,7 +1584,7 @@ static DECLCALLBACK(int) dbgcCmdLoadVars(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdShowVars(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdShowVars(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
@@ -1608,12 +1592,12 @@ static DECLCALLBACK(int) dbgcCmdShowVars(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
     {
         int rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "%-20s ", &pDbgc->papVars[iVar]->szName);
         if (!rc)
-            rc = dbgcCmdFormat(pCmd, pCmdHlp, pVM, &pDbgc->papVars[iVar]->Var, 1, NULL);
+            rc = dbgcCmdFormat(pCmd, pCmdHlp, pVM, &pDbgc->papVars[iVar]->Var, 1);
         if (rc)
             return rc;
     }
 
-    NOREF(paArgs); NOREF(cArgs); NOREF(pResult);
+    NOREF(paArgs); NOREF(cArgs);
     return 0;
 }
 
@@ -1925,7 +1909,7 @@ void dbgcPlugInAutoLoad(PDBGC pDbgc)
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdLoadPlugIn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdLoadPlugIn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
@@ -1992,7 +1976,7 @@ void dbgcPlugInUnloadAll(PDBGC pDbgc)
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdUnloadPlugIn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdUnloadPlugIn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
@@ -2044,7 +2028,7 @@ static DECLCALLBACK(int) dbgcCmdUnloadPlugIn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdShowPlugIns(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdShowPlugIns(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC       pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
     PDBGCPLUGIN pPlugIn = pDbgc->pPlugInHead;
@@ -2074,12 +2058,12 @@ static DECLCALLBACK(int) dbgcCmdShowPlugIns(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp,
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdHarakiri(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdHarakiri(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     Log(("dbgcCmdHarakiri\n"));
     for (;;)
         exit(126);
-    NOREF(pCmd); NOREF(pCmdHlp); NOREF(pVM); NOREF(paArgs); NOREF(cArgs); NOREF(pResult);
+    NOREF(pCmd); NOREF(pCmdHlp); NOREF(pVM); NOREF(paArgs); NOREF(cArgs);
 }
 
 
@@ -2093,7 +2077,7 @@ static DECLCALLBACK(int) dbgcCmdHarakiri(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdWriteCore(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdWriteCore(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     Log(("dbgcCmdWriteCore\n"));
 

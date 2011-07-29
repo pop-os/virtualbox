@@ -85,6 +85,9 @@ crServerDispatchWindowCreateEx(const char *dpyName, GLint visBits, GLint preload
 
         mural->cVisibleRects = 0;
         mural->pVisibleRects = NULL;
+        mural->bReceivedRects = GL_FALSE;
+
+        mural->pvOutputRedirectInstance = NULL;
 
         /* generate ID for this new window/mural (special-case for file conns) */
         if (cr_server.curClient && cr_server.curClient->conn->type == CR_FILE)
@@ -97,6 +100,11 @@ crServerDispatchWindowCreateEx(const char *dpyName, GLint visBits, GLint preload
         pCreateInfo->pszDpyName = dpyName ? crStrdup(dpyName) : NULL;
         pCreateInfo->visualBits = visBits;
         crHashtableAdd(cr_server.pWindowCreateInfoTable, windowID, pCreateInfo);
+
+        crServerSetupOutputRedirect(mural);
+
+        crStateGetCurrent()->buffer.width = mural->width;
+        crStateGetCurrent()->buffer.height = mural->height;
     }
 
     crDebug("CRServer: client %p created new window %d (SPU window %d)",
@@ -144,6 +152,12 @@ crServerDispatchWindowDestroy( GLint window )
     if (!mural) {
          crWarning("CRServer: invalid window %d passed to WindowDestroy()", window);
          return;
+    }
+
+    if (mural->pvOutputRedirectInstance)
+    {
+        cr_server.outputRedirect.CROREnd(mural->pvOutputRedirectInstance);
+        mural->pvOutputRedirectInstance = NULL;
     }
 
     if (cr_server.currentWindow == window)
@@ -240,6 +254,9 @@ crServerDispatchWindowSize( GLint window, GLint width, GLint height )
     mural->width = width;
     mural->height = height;
 
+    crStateGetCurrent()->buffer.width = mural->width;
+    crStateGetCurrent()->buffer.height = mural->height;
+
     crServerCheckMuralGeometry(mural);
 
     cr_server.head_spu->dispatch_table.WindowSize(mural->spuWindow, width, height);
@@ -281,6 +298,7 @@ crServerDispatchWindowVisibleRegion( GLint window, GLint cRects, GLint *pRects )
     }
 
     mural->cVisibleRects = cRects;
+    mural->bReceivedRects = GL_TRUE;
     if (cRects)
     {
         mural->pVisibleRects = (GLint*) crAlloc(4*sizeof(GLint)*cRects);
@@ -292,6 +310,13 @@ crServerDispatchWindowVisibleRegion( GLint window, GLint cRects, GLint *pRects )
     }
 
     cr_server.head_spu->dispatch_table.WindowVisibleRegion(mural->spuWindow, cRects, pRects);
+
+    if (mural->pvOutputRedirectInstance)
+    {
+        /* @todo the code assumes that RTRECT == four GLInts. */
+        cr_server.outputRedirect.CRORVisibleRegion(mural->pvOutputRedirectInstance,
+                                                   cRects, (RTRECT *)pRects);
+    }
 }
 
 

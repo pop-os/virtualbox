@@ -1,4 +1,4 @@
-/* $Id: assert-r0drv-solaris.c $ */
+/* $Id: assert-r0drv-solaris.c 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - Assertion Workers, Ring-0 Drivers, Solaris.
  */
@@ -40,7 +40,7 @@
 #include "internal/assert.h"
 
 
-void rtR0AssertNativeMsg1(const char *pszExpr, unsigned uLine, const char *pszFile, const char *pszFunction)
+DECLHIDDEN(void) rtR0AssertNativeMsg1(const char *pszExpr, unsigned uLine, const char *pszFile, const char *pszFunction)
 {
     uprintf("\r\n!!Assertion Failed!!\r\n"
             "Expression: %s\r\n"
@@ -49,7 +49,7 @@ void rtR0AssertNativeMsg1(const char *pszExpr, unsigned uLine, const char *pszFi
 }
 
 
-void rtR0AssertNativeMsg2V(bool fInitial, const char *pszFormat, va_list va)
+DECLHIDDEN(void) rtR0AssertNativeMsg2V(bool fInitial, const char *pszFormat, va_list va)
 {
     char szMsg[256];
 

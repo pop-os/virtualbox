@@ -1,4 +1,4 @@
-/* $Id: tstCollector.cpp $ */
+/* $Id: tstCollector.cpp 35368 2010-12-30 13:38:23Z vboxsync $ */
 
 /** @file
  *

@@ -1,10 +1,10 @@
-/* $Id: PDMDevMiscHlp.cpp $ */
+/* $Id: PDMDevMiscHlp.cpp 36820 2011-04-22 19:40:29Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, Misc. Device Helpers.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,7 +55,7 @@ static DECLCALLBACK(void) pdmR3PicHlp_SetInterruptFF(PPDMDEVINS pDevIns)
 
     PVMCPU pVCpu = &pVM->aCpus[0];  /* for PIC we always deliver to CPU 0, MP use APIC */
 
-    LogFlow(("pdmR3PicHlp_SetInterruptFF: caller='%s'/%d: VM_FF_INTERRUPT_PIC %d -> 1\n",
+    LogFlow(("pdmR3PicHlp_SetInterruptFF: caller='%s'/%d: VMCPU_FF_INTERRUPT_PIC %d -> 1\n",
              pDevIns->pReg->szName, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC)));
 
     VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC);
@@ -81,7 +81,7 @@ static DECLCALLBACK(void) pdmR3PicHlp_ClearInterruptFF(PPDMDEVINS pDevIns)
         return;
     }
 
-    LogFlow(("pdmR3PicHlp_ClearInterruptFF: caller='%s'/%d: VM_FF_INTERRUPT_PIC %d -> 0\n",
+    LogFlow(("pdmR3PicHlp_ClearInterruptFF: caller='%s'/%d: VMCPU_FF_INTERRUPT_PIC %d -> 0\n",
              pDevIns->pReg->szName, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC)));
 
     VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_PIC);
@@ -168,7 +168,7 @@ static DECLCALLBACK(void) pdmR3ApicHlp_SetInterruptFF(PPDMDEVINS pDevIns, PDMAPI
 
     AssertReturnVoid(idCpu < pVM->cCpus);
 
-    LogFlow(("pdmR3ApicHlp_SetInterruptFF: caller='%s'/%d: VM_FF_INTERRUPT(%d) %d -> 1\n",
+    LogFlow(("pdmR3ApicHlp_SetInterruptFF: caller='%s'/%d: VMCPU_FF_INTERRUPT_APIC(%d) %d -> 1\n",
              pDevIns->pReg->szName, pDevIns->iInstance, idCpu, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC)));
 
     switch (enmType)
@@ -203,7 +203,7 @@ static DECLCALLBACK(void) pdmR3ApicHlp_ClearInterruptFF(PPDMDEVINS pDevIns, PDMA
 
     AssertReturnVoid(idCpu < pVM->cCpus);
 
-    LogFlow(("pdmR3ApicHlp_ClearInterruptFF: caller='%s'/%d: VM_FF_INTERRUPT(%d) %d -> 0\n",
+    LogFlow(("pdmR3ApicHlp_ClearInterruptFF: caller='%s'/%d: VMCPU_FF_INTERRUPT_APIC(%d) %d -> 0\n",
              pDevIns->pReg->szName, pDevIns->iInstance, idCpu, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC)));
 
     /* Note: NMI/SMI can't be cleared. */
@@ -650,6 +650,53 @@ const PDMHPETHLPR3 g_pdmR3DevHpetHlp =
 
 /** @} */
 
+
+/** @name Ring-3 Raw PCI Device Helpers
+ * {@
+ */
+
+/** @interface_method_impl{PDMPCIRAWHLPR3,pfnGetRCHelpers} */
+static DECLCALLBACK(PCPDMPCIRAWHLPRC) pdmR3PciRawHlp_GetRCHelpers(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
+    RTRCPTR pRCHelpers = NIL_RTRCPTR;
+    int rc = PDMR3LdrGetSymbolRC(pDevIns->Internal.s.pVMR3, NULL, "g_pdmRCPciRawHlp", &pRCHelpers);
+    AssertReleaseRC(rc);
+    AssertRelease(pRCHelpers);
+    LogFlow(("pdmR3PciRawHlp_GetGCHelpers: caller='%s'/%d: returns %RRv\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, pRCHelpers));
+    return pRCHelpers;
+}
+
+
+/** @interface_method_impl{PDMPCIRAWHLPR3,pfnGetR0Helpers} */
+static DECLCALLBACK(PCPDMPCIRAWHLPR0) pdmR3PciRawHlp_GetR0Helpers(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
+    PCPDMHPETHLPR0 pR0Helpers = NIL_RTR0PTR;
+    int rc = PDMR3LdrGetSymbolR0(pDevIns->Internal.s.pVMR3, NULL, "g_pdmR0PciRawHlp", &pR0Helpers);
+    AssertReleaseRC(rc);
+    AssertRelease(pR0Helpers);
+    LogFlow(("pdmR3PciRawHlp_GetR0Helpers: caller='%s'/%d: returns %RHv\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, pR0Helpers));
+    return pR0Helpers;
+}
+
+
+/**
+ * Raw PCI Device Helpers.
+ */
+const PDMPCIRAWHLPR3 g_pdmR3DevPciRawHlp =
+{
+    PDM_PCIRAWHLPR3_VERSION,
+    pdmR3PciRawHlp_GetRCHelpers,
+    pdmR3PciRawHlp_GetR0Helpers,
+    PDM_PCIRAWHLPR3_VERSION, /* the end */
+};
+
+/** @} */
 
 
 /* none yet */

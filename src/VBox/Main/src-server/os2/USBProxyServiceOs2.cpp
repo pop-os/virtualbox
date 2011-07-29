@@ -1,4 +1,4 @@
-/* $Id: USBProxyServiceOs2.cpp $ */
+/* $Id: USBProxyServiceOs2.cpp 31892 2010-08-24 08:00:51Z vboxsync $ */
 /** @file
  * VirtualBox USB Proxy Service, OS/2 Specialization.
  */

@@ -1,4 +1,4 @@
-/* $Id: VMMSwitcher.cpp $ */
+/* $Id: VMMSwitcher.cpp 36415 2011-03-24 18:20:04Z vboxsync $ */
 /** @file
  * VMM - The Virtual Machine Monitor, World Switcher(s).
  */
@@ -930,7 +930,7 @@ DECLCALLBACK(void) vmmR3SwitcherAMD64ToPAE_Relocate(PVM pVM, PVMMSWITCHERDEF pSw
 
 
 /**
- * Selects the switcher to be used for switching to GC.
+ * Selects the switcher to be used for switching to raw-mode context.
  *
  * @returns VBox status code.
  * @param   pVM             VM handle.

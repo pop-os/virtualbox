@@ -1,4 +1,4 @@
-/* $Id: UISettingsDialog.cpp $ */
+/* $Id: UISettingsDialog.cpp 37615 2011-06-23 14:37:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,6 +18,7 @@
  */
 
 /* Global includes */
+#include <QProgressBar>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QTimer>
@@ -41,16 +42,22 @@
 #endif /* Q_WS_MAC */
 
 /* Settings Dialog Constructor: */
-UISettingsDialog::UISettingsDialog(QWidget *pParent /* = 0 */)
+UISettingsDialog::UISettingsDialog(QWidget *pParent)
     /* Parent class: */
     : QIWithRetranslateUI<QIMainDialog>(pParent)
     /* Protected variables: */
     , m_pSelector(0)
     , m_pStack(0)
     /* Common variables: */
+    , m_dialogType(SettingsDialogType_Wrong)
     , m_fPolished(false)
-    /* Loading stuff: */
-    , m_fProcessed(false)
+    /* Loading/saving stuff: */
+    , m_fLoaded(false)
+    , m_fSaved(false)
+    /* Status bar stuff: */
+    , m_pStatusBar(new QStackedWidget(this))
+    /* Process bar stuff: */
+    , m_pProcessBar(new QProgressBar(this))
     /* Error/Warning stuff: */
     , m_fValid(true)
     , m_fSilent(true)
@@ -102,8 +109,15 @@ UISettingsDialog::UISettingsDialog(QWidget *pParent /* = 0 */)
     pStackLayout->setContentsMargins(0, 0, 0, 0);
     pStackLayout->addWidget(m_pStack);
 
+    /* Status bar: */
+    m_pStatusBar->addWidget(new QWidget);
+    m_pButtonBox->addExtraWidget(m_pStatusBar);
+
+    /* Setup process bar stuff: */
+    m_pStatusBar->addWidget(m_pProcessBar);
+
     /* Setup error & warning stuff: */
-    m_pButtonBox->addExtraWidget(m_pWarningPane);
+    m_pStatusBar->addWidget(m_pWarningPane);
     m_errorIcon = UIIconPool::defaultIcon(UIIconPool::MessageBoxCriticalIcon, this).pixmap(16, 16);
     m_warningIcon = UIIconPool::defaultIcon(UIIconPool::MessageBoxWarningIcon, this).pixmap(16, 16);
 
@@ -136,6 +150,19 @@ UISettingsDialog::~UISettingsDialog()
     delete m_pSelector;
 }
 
+void UISettingsDialog::execute()
+{
+    /* Load data: */
+    loadData();
+
+    /* Execute dialog and wait for completion: */
+    if (exec() != QDialog::Accepted)
+        return;
+
+    /* Save data: */
+    saveData();
+}
+
 void UISettingsDialog::sltRevalidate(QIWidgetValidator *pValidator)
 {
     /* Get related settings page: */
@@ -146,12 +173,11 @@ void UISettingsDialog::sltRevalidate(QIWidgetValidator *pValidator)
     QString strWarning;
     QString strTitle = m_pSelector->itemTextByPage(pSettingsPage);
 
+    /* Recorrelate page with others before revalidation: */
+    recorrelate(pSettingsPage);
+
     /* Revalidate the page: */
     bool fValid = pSettingsPage->revalidate(strWarning, strTitle);
-
-    /* If revalidation is fully passed - recorrelate the pages: */
-    if (fValid && strWarning.isEmpty())
-        fValid = recorrelate(pSettingsPage, strWarning);
 
     /* Compose a message: */
     strWarning = strWarning.isEmpty() ? QString() :
@@ -190,9 +216,42 @@ void UISettingsDialog::sltCategoryChanged(int cId)
 #endif /* VBOX_GUI_WITH_TOOLBAR_SETTINGS */
 }
 
-void UISettingsDialog::sltMarkProcessed()
+void UISettingsDialog::sltMarkLoaded()
 {
-    m_fProcessed = true;
+    m_fLoaded = true;
+}
+
+void UISettingsDialog::sltMarkSaved()
+{
+    m_fSaved = true;
+}
+
+void UISettingsDialog::sltHandleProcessStarted()
+{
+    m_pProcessBar->setValue(0);
+    m_pStatusBar->setCurrentWidget(m_pProcessBar);
+}
+
+void UISettingsDialog::sltHandlePageProcessed()
+{
+    m_pProcessBar->setValue(m_pProcessBar->value() + 1);
+    if (m_pProcessBar->value() == m_pProcessBar->maximum())
+    {
+        if (!m_fValid || !m_fSilent)
+            m_pStatusBar->setCurrentWidget(m_pWarningPane);
+        else
+            m_pStatusBar->setCurrentIndex(0);
+    }
+}
+
+void UISettingsDialog::loadData()
+{
+    m_fLoaded = false;
+}
+
+void UISettingsDialog::saveData()
+{
+    m_fSaved = false;
 }
 
 void UISettingsDialog::retranslateUi()
@@ -230,6 +289,16 @@ void UISettingsDialog::retranslateUi()
     }
 }
 
+void UISettingsDialog::setDialogType(SettingsDialogType settingsDialogType)
+{
+    m_dialogType = settingsDialogType;
+    for (int iWidgetNumber = 0; iWidgetNumber < m_pStack->count(); ++iWidgetNumber)
+    {
+        UISettingsPage *pPage = static_cast<UISettingsPage*>(m_pStack->widget(iWidgetNumber));
+        pPage->setDialogType(dialogType());
+    }
+}
+
 QString UISettingsDialog::titleExtension() const
 {
 #ifdef VBOX_GUI_WITH_TOOLBAR_SETTINGS
@@ -248,7 +317,7 @@ void UISettingsDialog::setError(const QString &strError)
      * otherwise it can change its size to undefined: */
     if (m_fPolished)
     {
-        if (!m_strErrorString.isEmpty())
+        if (!m_strErrorString.isEmpty() && m_pStatusBar->currentWidget() == m_pWarningPane)
             m_pLbWhatsThis->setText(m_strErrorString);
         else
             sltUpdateWhatsThis(true /* got focus? */);
@@ -264,7 +333,7 @@ void UISettingsDialog::setWarning(const QString &strWarning)
      * otherwise it can change its size to undefined: */
     if (m_fPolished)
     {
-        if (!m_strWarningString.isEmpty())
+        if (!m_strWarningString.isEmpty() && m_pStatusBar->currentWidget() == m_pWarningPane)
             m_pLbWhatsThis->setText(m_strWarningString);
         else
             sltUpdateWhatsThis(true /* got focus? */);
@@ -298,14 +367,12 @@ void UISettingsDialog::addItem(const QString &strBigIcon,
 #else /* Q_WS_MAC */
         m_pages[cId] = m_pStack->addWidget(pPage);
 #endif /* !Q_WS_MAC */
+        /* Update process bar: */
+        m_pProcessBar->setMinimum(0);
+        m_pProcessBar->setMaximum(m_pStack->count());
     }
     if (pSettingsPage)
         assignValidator(pSettingsPage);
-}
-
-bool UISettingsDialog::recorrelate(QWidget * /* pPage */, QString & /* strWarning */)
-{
-    return true;
 }
 
 void UISettingsDialog::sltHandleValidityChanged(const QIWidgetValidator * /* pValidator */)
@@ -337,13 +404,16 @@ void UISettingsDialog::sltHandleValidityChanged(const QIWidgetValidator * /* pVa
             setError(strError);
 
         m_fValid = fNewValid;
+        m_pButtonBox->button(QDialogButtonBox::Ok)->setEnabled(m_fValid);
         m_pWarningPane->setWarningPixmap(m_errorIcon);
         m_pWarningPane->setWarningText(m_strErrorHint);
 #ifdef Q_WS_MAC
         m_pWarningPane->setToolTip(m_strErrorString);
 #endif /* Q_WS_MAC */
-        m_pWarningPane->setVisible(!m_fValid);
-        m_pButtonBox->button(QDialogButtonBox::Ok)->setEnabled(m_fValid);
+        if (m_fValid && m_pStatusBar->currentWidget() == m_pWarningPane)
+            m_pStatusBar->setCurrentIndex(0);
+        else if (!m_fValid && m_pStatusBar->currentIndex() == 0)
+            m_pStatusBar->setCurrentWidget(m_pWarningPane);
 
         if (!m_fValid)
             return;
@@ -378,7 +448,10 @@ void UISettingsDialog::sltHandleValidityChanged(const QIWidgetValidator * /* pVa
 #ifdef Q_WS_MAC
         m_pWarningPane->setToolTip(m_strWarningString);
 #endif /* Q_WS_MAC */
-        m_pWarningPane->setVisible(!m_fSilent);
+        if (m_fSilent && m_pStatusBar->currentWidget() == m_pWarningPane)
+            m_pStatusBar->setCurrentIndex(0);
+        else if (!m_fSilent && m_pStatusBar->currentIndex() == 0)
+            m_pStatusBar->setCurrentWidget(m_pWarningPane);
     }
 }
 
@@ -411,10 +484,13 @@ void UISettingsDialog::sltUpdateWhatsThis(bool fGotFocus /* = false */)
     }
 
 #ifndef Q_WS_MAC
-    if (strWhatsThisText.isEmpty() && !m_strErrorString.isEmpty())
-        strWhatsThisText = m_strErrorString;
-    else if (strWhatsThisText.isEmpty() && !m_strWarningString.isEmpty())
-        strWhatsThisText = m_strWarningString;
+    if (m_pStatusBar->currentWidget() == m_pWarningPane)
+    {
+        if (strWhatsThisText.isEmpty() && !m_strErrorString.isEmpty())
+            strWhatsThisText = m_strErrorString;
+        else if (strWhatsThisText.isEmpty() && !m_strWarningString.isEmpty())
+            strWhatsThisText = m_strWarningString;
+    }
     if (strWhatsThisText.isEmpty())
         strWhatsThisText = whatsThis();
     m_pLbWhatsThis->setText(strWhatsThisText);
@@ -426,7 +502,7 @@ void UISettingsDialog::sltUpdateWhatsThis(bool fGotFocus /* = false */)
 
 void UISettingsDialog::reject()
 {
-    if (m_fProcessed)
+    if (m_fLoaded)
         QIMainDialog::reject();
 }
 
@@ -529,7 +605,7 @@ void UISettingsDialog::showEvent(QShowEvent *pEvent)
 
 void UISettingsDialog::closeEvent(QCloseEvent *pEvent)
 {
-    if (m_fProcessed)
+    if (m_fLoaded)
         QIMainDialog::closeEvent(pEvent);
     else
         pEvent->ignore();

@@ -1,4 +1,4 @@
-/* $Id: pulse_stubs.c $ */
+/* $Id: pulse_stubs.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Stubs for libpulse.
  */

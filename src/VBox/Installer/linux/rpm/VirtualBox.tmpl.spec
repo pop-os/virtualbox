@@ -27,7 +27,7 @@ License:   GPLv2
 Group:     Applications/System
 Vendor:    Oracle Corporation
 BuildRoot: %BUILDROOT%
-Requires:  %LIBASOUND%
+Requires:  %INITSCRIPTS% %LIBASOUND%
 
 %if %{?rpm_suse:1}%{!?rpm_suse:0}
 %debug_package
@@ -129,6 +129,10 @@ for d in /lib/modules/*; do
       --use-module-symvers /tmp/vboxdrv-Module.symvers \
       KBUILD_VERBOSE= KERN_DIR=$d/build MODULE_DIR=$RPM_BUILD_ROOT/$d/misc -j4 \
       %INSTMOD%
+    ./src/vboxhost/vboxpci/build_in_tmp \
+      --use-module-symvers /tmp/vboxdrv-Module.symvers \
+      KBUILD_VERBOSE= KERN_DIR=$d/build MODULE_DIR=$RPM_BUILD_ROOT/$d/misc -j4 \
+      %INSTMOD%
   fi
 done
 mv kchmviewer $RPM_BUILD_ROOT/usr/lib/virtualbox
@@ -209,10 +213,13 @@ if [ "$INSTALL_NO_VBOXDRV" != "1" ]; then
   find /lib/modules -name "vboxdrv\.*" 2>/dev/null|xargs rm -f 2> /dev/null || true
   find /lib/modules -name "vboxnetflt\.*" 2>/dev/null|xargs rm -f 2> /dev/null || true
   find /lib/modules -name "vboxnetadp\.*" 2>/dev/null|xargs rm -f 2> /dev/null || true
+  find /lib/modules -name "vboxpci\.*" 2>/dev/null|xargs rm -f 2> /dev/null || true
 fi
 
 
 %post
+#include installer-utils.sh
+
 LOG="/var/log/vbox-install.log"
 
 # defaults
@@ -230,41 +237,9 @@ fi
 rm -f /etc/vbox/module_not_compiled
 
 # install udev rule (disable with INSTALL_NO_UDEV=1 in /etc/default/virtualbox)
-if [ -d /etc/udev/rules.d -a "$INSTALL_NO_UDEV" != "1" ]; then
-  udev_call=""
-  udev_app=`which udevadm 2> /dev/null`
-  if [ $? -eq 0 ]; then
-    udev_call="${udev_app} version 2> /dev/null"
-  else
-    udev_app=`which udevinfo 2> /dev/null`
-    if [ $? -eq 0 ]; then
-      udev_call="${udev_app} -V 2> /dev/null"
-    fi
-  fi
-  udev_fix="="
-  if [ "${udev_call}" != "" ]; then
-    udev_out=`${udev_call}`
-    udev_ver=`expr "$udev_out" : '[^0-9]*\([0-9]*\)'`
-    if [ "$udev_ver" = "" -o "$udev_ver" -lt 55 ]; then
-      udev_fix=""
-    fi
-  fi
-  usb_createnode="/usr/share/virtualbox/VBoxCreateUSBNode.sh"
-  echo "KERNEL=${udev_fix}\"vboxdrv\", NAME=\"vboxdrv\", OWNER=\"root\", GROUP=\"root\", MODE=\"0600\"" \
-    > /etc/udev/rules.d/10-vboxdrv.rules
-  echo "SUBSYSTEM=${udev_fix}\"usb_device\", ACTION=${udev_fix}\"add\", RUN+=\"${usb_createnode} \$major \$minor \$attr{bDeviceClass}\"" \
-    >> /etc/udev/rules.d/10-vboxdrv.rules
-  echo "SUBSYSTEM=${udev_fix}\"usb\", ACTION=${udev_fix}\"add\", ENV{DEVTYPE}==\"usb_device\", RUN+=\"${usb_createnode} \$major \$minor \$attr{bDeviceClass}\"" \
-    >> /etc/udev/rules.d/10-vboxdrv.rules
-  echo "SUBSYSTEM=${udev_fix}\"usb_device\", ACTION=${udev_fix}\"remove\", RUN+=\"${usb_createnode} --remove \$major \$minor\"" \
-    >> /etc/udev/rules.d/10-vboxdrv.rules
-  echo "SUBSYSTEM=${udev_fix}\"usb\", ACTION=${udev_fix}\"remove\", ENV{DEVTYPE}==\"usb_device\", RUN+=\"${usb_createnode} --remove \$major \$minor\"" \
-    >> /etc/udev/rules.d/10-vboxdrv.rules
-fi
-# Remove old udev description file
-if [ -f /etc/udev/rules.d/60-vboxdrv.rules ]; then
-  rm -f /etc/udev/rules.d/60-vboxdrv.rules 2> /dev/null
-fi
+install_udev root 0600 /usr/share/virtualbox vboxusers "$INSTALL_NO_UDEV" \
+             > /etc/udev/rules.d/10-vboxdrv.rules
+
 # Build our device tree
 for i in /sys/bus/usb/devices/*; do
   if test -r "$i/dev"; then
@@ -339,6 +314,7 @@ if [ "$INSTALL_NO_VBOXDRV" = "1" ]; then
   rm -f /lib/modules/*/misc/vboxdrv.ko
   rm -f /lib/modules/*/misc/vboxnetflt.ko
   rm -f /lib/modules/*/misc/vboxnetadp.ko
+  rm -f /lib/modules/*/misc/vboxpci.ko
 fi
 if [ $BUILD_MODULES -eq 1 ]; then
   /etc/init.d/vboxdrv setup || true

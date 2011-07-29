@@ -1,4 +1,4 @@
-/* $Id: SessionImpl.cpp $ */
+/* $Id: SessionImpl.cpp 37423 2011-06-12 18:37:56Z vboxsync $ */
 /** @file
  * VBox Client Session COM Class implementation in VBoxC.
  */
@@ -56,7 +56,11 @@ HRESULT Session::FinalConstruct()
 {
     LogFlowThisFunc(("\n"));
 
-    return init();
+    HRESULT rc = init();
+
+    BaseFinalConstruct();
+
+    return rc;
 }
 
 void Session::FinalRelease()
@@ -64,6 +68,8 @@ void Session::FinalRelease()
     LogFlowThisFunc(("\n"));
 
     uninit();
+
+    BaseFinalRelease();
 }
 
 // public initializer/uninitializer for internal purposes only
@@ -181,9 +187,9 @@ STDMETHODIMP Session::COMGETTER(Machine)(IMachine **aMachine)
 
     HRESULT rc;
     if (mConsole)
-        rc = mConsole->machine().queryInterfaceTo(aMachine);
+       rc = mConsole->machine().queryInterfaceTo(aMachine);
     else
-        rc = mRemoteMachine.queryInterfaceTo(aMachine);
+       rc = mRemoteMachine.queryInterfaceTo(aMachine);
     if (FAILED(rc))
     {
         /** @todo VBox 3.3: replace E_FAIL with rc here. */
@@ -214,6 +220,7 @@ STDMETHODIMP Session::COMGETTER(Console)(IConsole **aConsole)
         rc = mConsole.queryInterfaceTo(aConsole);
     else
         rc = mRemoteConsole.queryInterfaceTo(aConsole);
+
     if (FAILED(rc))
     {
         /** @todo VBox 3.3: replace E_FAIL with rc here. */
@@ -717,6 +724,20 @@ STDMETHODIMP Session::OnBandwidthGroupChange(IBandwidthGroup *aBandwidthGroup)
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
 
     return mConsole->onBandwidthGroupChange(aBandwidthGroup);
+}
+
+STDMETHODIMP Session::OnStorageDeviceChange(IMediumAttachment *aMediumAttachment, BOOL aRemove)
+{
+    LogFlowThisFunc(("\n"));
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
+    AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+
+    return mConsole->onStorageDeviceChange(aMediumAttachment, aRemove);
 }
 
 STDMETHODIMP Session::AccessGuestProperty(IN_BSTR aName, IN_BSTR aValue, IN_BSTR aFlags,

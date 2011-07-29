@@ -1,4 +1,4 @@
-/* $Id: dnsproxy.c $ */
+/* $Id: dnsproxy.c 37746 2011-07-04 06:07:37Z vboxsync $ */
 /*
  * Copyright (c) 2003,2004,2005 Armin Wolfermann
  *
@@ -357,7 +357,7 @@ dnsproxy_query(PNATState pData, struct socket *so, struct mbuf *m, int iphlen)
         addr.sin_port = htons(53);
         so->so_expire = curtime + recursive_timeout * 1000; /* let's slirp to care about expiration */
         /* send it to our authoritative server */
-        Log2(("NAT: request will be sent to %R[IP4] on %R[natsock]\n", &addr.sin_addr, so));
+        Log2(("NAT: request will be sent to %RTnaipv4 on %R[natsock]\n", addr.sin_addr, so));
         if ((byte = sendto(so->s, buf, (unsigned int)byte, 0,
                     (struct sockaddr *)&addr,
                     sizeof(struct sockaddr_in))) == -1) {
@@ -366,7 +366,7 @@ dnsproxy_query(PNATState pData, struct socket *so, struct mbuf *m, int iphlen)
             return;
         }
         so->so_state = SS_ISFCONNECTED; /* now it's selected */
-        Log2(("NAT: request was sent to %R[IP4] on %R[natsock]\n", &addr.sin_addr, so));
+        Log2(("NAT: request was sent to %RTnaipv4 on %R[natsock]\n", addr.sin_addr, so));
 #endif
         ++authoritative_queries;
 #ifndef VBOX

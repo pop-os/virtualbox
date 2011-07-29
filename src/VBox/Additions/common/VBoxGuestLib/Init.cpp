@@ -1,4 +1,4 @@
-/* $Revision: 67748 $ */
+/* $Revision: 34066 $ */
 /** @file
  * VBoxGuestLibR0 - Library initialization.
  */

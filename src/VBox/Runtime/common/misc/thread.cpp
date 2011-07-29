@@ -1,4 +1,4 @@
-/* $Id: thread.cpp $ */
+/* $Id: thread.cpp 36951 2011-05-04 07:07:34Z vboxsync $ */
 /** @file
  * IPRT - Threads, common routines.
  */
@@ -83,13 +83,17 @@ static RTSEMRW          g_ThreadRWSem = NIL_RTSEMRW;
 /** The spinlocks protecting the tree. */
 static RTSPINLOCK       g_ThreadSpinlock = NIL_RTSPINLOCK;
 #endif
+/** Indicates whether we've been initialized or not. */
+static bool             g_frtThreadInitialized;
 
 
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
 static void rtThreadDestroy(PRTTHREADINT pThread);
+#ifdef IN_RING3
 static int rtThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, uint32_t fIntFlags, const char *pszName);
+#endif
 static void rtThreadRemoveLocked(PRTTHREADINT pThread);
 static PRTTHREADINT rtThreadAlloc(RTTHREADTYPE enmType, unsigned fFlags, uint32_t fIntFlags, const char *pszName);
 
@@ -126,7 +130,7 @@ static PRTTHREADINT rtThreadAlloc(RTTHREADTYPE enmType, unsigned fFlags, uint32_
  *
  * @returns iprt status code.
  */
-int rtThreadInit(void)
+DECLHIDDEN(int) rtThreadInit(void)
 {
 #ifdef IN_RING3
     int rc = VINF_ALREADY_INITIALIZED;
@@ -145,7 +149,10 @@ int rtThreadInit(void)
             if (RT_SUCCESS(rc))
                 rc = rtSchedNativeCalcDefaultPriority(RTTHREADTYPE_DEFAULT);
             if (RT_SUCCESS(rc))
+            {
+                g_frtThreadInitialized = true;
                 return VINF_SUCCESS;
+            }
 
             /* failed, clear out */
             RTSemRWDestroy(g_ThreadRWSem);
@@ -154,17 +161,20 @@ int rtThreadInit(void)
     }
 
 #elif defined(IN_RING0)
-
+    int rc;
     /*
      * Create the spinlock and to native init.
      */
     Assert(g_ThreadSpinlock == NIL_RTSPINLOCK);
-    int rc = RTSpinlockCreate(&g_ThreadSpinlock);
+    rc = RTSpinlockCreate(&g_ThreadSpinlock);
     if (RT_SUCCESS(rc))
     {
         rc = rtThreadNativeInit();
         if (RT_SUCCESS(rc))
+        {
+            g_frtThreadInitialized = true;
             return VINF_SUCCESS;
+        }
 
         /* failed, clear out */
         RTSpinlockDestroy(g_ThreadSpinlock);
@@ -180,7 +190,7 @@ int rtThreadInit(void)
 /**
  * Terminates the thread database.
  */
-void rtThreadTerm(void)
+DECLHIDDEN(void) rtThreadTerm(void)
 {
 #ifdef IN_RING3
     /* we don't cleanup here yet */
@@ -228,8 +238,6 @@ DECLINLINE(void) rtThreadUnLockRD(void)
     AssertReleaseRC(rc);
 }
 
-#endif /* IN_RING3 */
-
 
 /**
  * Adopts the calling thread.
@@ -237,6 +245,8 @@ DECLINLINE(void) rtThreadUnLockRD(void)
  */
 static int rtThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, uint32_t fIntFlags, const char *pszName)
 {
+    int rc;
+    PRTTHREADINT pThread;
     Assert(!(fFlags & RTTHREADFLAGS_WAITABLE));
     fFlags &= ~RTTHREADFLAGS_WAITABLE;
 
@@ -245,8 +255,8 @@ static int rtThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, uint32_t fIntFla
      * (It is vital that rtThreadNativeAdopt updates the TLS before
      * we try inserting the thread because of locking.)
      */
-    int rc = VERR_NO_MEMORY;
-    PRTTHREADINT pThread = rtThreadAlloc(enmType, fFlags, RTTHREADINT_FLAGS_ALIEN | fIntFlags, pszName);
+    rc = VERR_NO_MEMORY;
+    pThread = rtThreadAlloc(enmType, fFlags, RTTHREADINT_FLAGS_ALIEN | fIntFlags, pszName);
     if (pThread)
     {
         RTNATIVETHREAD NativeThread = RTThreadNativeSelf();
@@ -261,7 +271,6 @@ static int rtThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, uint32_t fIntFla
     return rc;
 }
 
-
 /**
  * Adopts a non-IPRT thread.
  *
@@ -273,12 +282,15 @@ static int rtThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, uint32_t fIntFla
  */
 RTDECL(int) RTThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, const char *pszName, PRTTHREAD pThread)
 {
+    int      rc;
+    RTTHREAD Thread;
+
     AssertReturn(!(fFlags & RTTHREADFLAGS_WAITABLE), VERR_INVALID_PARAMETER);
     AssertReturn(!pszName || VALID_PTR(pszName), VERR_INVALID_POINTER);
     AssertReturn(!pThread || VALID_PTR(pThread), VERR_INVALID_POINTER);
 
-    int      rc = VINF_SUCCESS;
-    RTTHREAD Thread = RTThreadSelf();
+    rc = VINF_SUCCESS;
+    Thread = RTThreadSelf();
     if (Thread == NIL_RTTHREAD)
     {
         /* generate a name if none was given. */
@@ -323,6 +335,7 @@ RTDECL(RTTHREAD) RTThreadSelfAutoAdopt(void)
 }
 RT_EXPORT_SYMBOL(RTThreadSelfAutoAdopt);
 
+#endif /* IN_RING3 */
 
 /**
  * Allocates a per thread data structure and initializes the basic fields.
@@ -340,9 +353,12 @@ PRTTHREADINT rtThreadAlloc(RTTHREADTYPE enmType, unsigned fFlags, uint32_t fIntF
     PRTTHREADINT pThread = (PRTTHREADINT)RTMemAllocZ(sizeof(RTTHREADINT));
     if (pThread)
     {
+        size_t cchName;
+        int rc;
+
         pThread->Core.Key   = (void*)NIL_RTTHREAD;
         pThread->u32Magic   = RTTHREADINT_MAGIC;
-        size_t cchName = strlen(pszName);
+        cchName = strlen(pszName);
         if (cchName >= RTTHREAD_NAME_LEN)
             cchName = RTTHREAD_NAME_LEN - 1;
         memcpy(pThread->szName, pszName, cchName);
@@ -360,7 +376,7 @@ PRTTHREADINT rtThreadAlloc(RTTHREADTYPE enmType, unsigned fFlags, uint32_t fIntF
 #ifdef RT_WITH_ICONV_CACHE
         rtStrIconvCacheInit(pThread);
 #endif
-        int rc = RTSemEventMultiCreate(&pThread->EventUser);
+        rc = RTSemEventMultiCreate(&pThread->EventUser);
         if (RT_SUCCESS(rc))
         {
             rc = RTSemEventMultiCreate(&pThread->EventTerminated);
@@ -383,55 +399,58 @@ PRTTHREADINT rtThreadAlloc(RTTHREADTYPE enmType, unsigned fFlags, uint32_t fIntF
  * @param   pThread         Pointer to thread structure allocated by rtThreadAlloc().
  * @param   NativeThread    The native thread id.
  */
-void rtThreadInsert(PRTTHREADINT pThread, RTNATIVETHREAD NativeThread)
+DECLHIDDEN(void) rtThreadInsert(PRTTHREADINT pThread, RTNATIVETHREAD NativeThread)
 {
     Assert(pThread);
     Assert(pThread->u32Magic == RTTHREADINT_MAGIC);
 
-    RT_THREAD_LOCK_TMP(Tmp);
-    RT_THREAD_LOCK_RW(Tmp);
-
-    /*
-     * Do not insert a terminated thread.
-     *
-     * This may happen if the thread finishes before the RTThreadCreate call
-     * gets this far. Since the OS may quickly reuse the native thread ID
-     * it should not be reinserted at this point.
-     */
-    if (rtThreadGetState(pThread) != RTTHREADSTATE_TERMINATED)
     {
+        RT_THREAD_LOCK_TMP(Tmp);
+        RT_THREAD_LOCK_RW(Tmp);
+
         /*
-         * Before inserting we must check if there is a thread with this id
-         * in the tree already. We're racing parent and child on insert here
-         * so that the handle is valid in both ends when they return / start.
+         * Do not insert a terminated thread.
          *
-         * If it's not ourself we find, it's a dead alien thread and we will
-         * unlink it from the tree. Alien threads will be released at this point.
+         * This may happen if the thread finishes before the RTThreadCreate call
+         * gets this far. Since the OS may quickly reuse the native thread ID
+         * it should not be reinserted at this point.
          */
-        PRTTHREADINT pThreadOther = (PRTTHREADINT)RTAvlPVGet(&g_ThreadTree, (void *)NativeThread);
-        if (pThreadOther != pThread)
+        if (rtThreadGetState(pThread) != RTTHREADSTATE_TERMINATED)
         {
-            /* remove dead alien if any */
-            if (pThreadOther)
+            /*
+             * Before inserting we must check if there is a thread with this id
+             * in the tree already. We're racing parent and child on insert here
+             * so that the handle is valid in both ends when they return / start.
+             *
+             * If it's not ourself we find, it's a dead alien thread and we will
+             * unlink it from the tree. Alien threads will be released at this point.
+             */
+            PRTTHREADINT pThreadOther = (PRTTHREADINT)RTAvlPVGet(&g_ThreadTree, (void *)NativeThread);
+            if (pThreadOther != pThread)
             {
-                AssertMsg(pThreadOther->fIntFlags & RTTHREADINT_FLAGS_ALIEN, ("%p:%s; %p:%s\n", pThread, pThread->szName, pThreadOther, pThreadOther->szName));
-                ASMAtomicBitClear(&pThread->fIntFlags, RTTHREADINT_FLAG_IN_TREE_BIT);
-                rtThreadRemoveLocked(pThreadOther);
-                if (pThreadOther->fIntFlags & RTTHREADINT_FLAGS_ALIEN)
+                bool fRc;
+                /* remove dead alien if any */
+                if (pThreadOther)
+                {
+                    AssertMsg(pThreadOther->fIntFlags & RTTHREADINT_FLAGS_ALIEN, ("%p:%s; %p:%s\n", pThread, pThread->szName, pThreadOther, pThreadOther->szName));
+                    ASMAtomicBitClear(&pThread->fIntFlags, RTTHREADINT_FLAG_IN_TREE_BIT);
+                    rtThreadRemoveLocked(pThreadOther);
+                    if (pThreadOther->fIntFlags & RTTHREADINT_FLAGS_ALIEN)
                     rtThreadRelease(pThreadOther);
+                }
+
+                /* insert the thread */
+                ASMAtomicWritePtr(&pThread->Core.Key, (void *)NativeThread);
+                fRc = RTAvlPVInsert(&g_ThreadTree, &pThread->Core);
+                ASMAtomicOrU32(&pThread->fIntFlags, RTTHREADINT_FLAG_IN_TREE);
+
+                AssertReleaseMsg(fRc, ("Lock problem? %p (%RTnthrd) %s\n", pThread, NativeThread, pThread->szName));
+                NOREF(fRc);
             }
-
-            /* insert the thread */
-            ASMAtomicWritePtr(&pThread->Core.Key, (void *)NativeThread);
-            bool fRc = RTAvlPVInsert(&g_ThreadTree, &pThread->Core);
-            ASMAtomicOrU32(&pThread->fIntFlags, RTTHREADINT_FLAG_IN_TREE);
-
-            AssertReleaseMsg(fRc, ("Lock problem? %p (%RTnthrd) %s\n", pThread, NativeThread, pThread->szName));
-            NOREF(fRc);
         }
-    }
 
-    RT_THREAD_UNLOCK_RW(Tmp);
+        RT_THREAD_UNLOCK_RW(Tmp);
+    }
 }
 
 
@@ -486,14 +505,15 @@ DECLINLINE(bool) rtThreadIsAlive(PRTTHREADINT pThread)
  * @returns NULL if not a thread IPRT knows.
  * @param   NativeThread    The native thread id.
  */
-PRTTHREADINT rtThreadGetByNative(RTNATIVETHREAD NativeThread)
+DECLHIDDEN(PRTTHREADINT) rtThreadGetByNative(RTNATIVETHREAD NativeThread)
 {
+    PRTTHREADINT pThread;
     /*
      * Simple tree lookup.
      */
     RT_THREAD_LOCK_TMP(Tmp);
     RT_THREAD_LOCK_RD(Tmp);
-    PRTTHREADINT pThread = (PRTTHREADINT)RTAvlPVGet(&g_ThreadTree, (void *)NativeThread);
+    pThread = (PRTTHREADINT)RTAvlPVGet(&g_ThreadTree, (void *)NativeThread);
     RT_THREAD_UNLOCK_RD(Tmp);
     return pThread;
 }
@@ -507,7 +527,7 @@ PRTTHREADINT rtThreadGetByNative(RTNATIVETHREAD NativeThread)
  * @returns NULL if Thread was not found.
  * @param   Thread      Thread id which structure is to be returned.
  */
-PRTTHREADINT rtThreadGet(RTTHREAD Thread)
+DECLHIDDEN(PRTTHREADINT) rtThreadGet(RTTHREAD Thread)
 {
     if (    Thread != NIL_RTTHREAD
         &&  VALID_PTR(Thread))
@@ -531,10 +551,11 @@ PRTTHREADINT rtThreadGet(RTTHREAD Thread)
  * @returns New reference count.
  * @param   pThread     The thread structure to release.
  */
-uint32_t rtThreadRelease(PRTTHREADINT pThread)
+DECLHIDDEN(uint32_t) rtThreadRelease(PRTTHREADINT pThread)
 {
-    Assert(pThread);
     uint32_t cRefs;
+
+    Assert(pThread);
     if (pThread->cRefs >= 1)
     {
         cRefs = ASMAtomicDecU32(&pThread->cRefs);
@@ -557,6 +578,7 @@ uint32_t rtThreadRelease(PRTTHREADINT pThread)
  */
 static void rtThreadDestroy(PRTTHREADINT pThread)
 {
+    RTSEMEVENTMULTI hEvt1, hEvt2;
     /*
      * Remove it from the tree and mark it as dead.
      *
@@ -587,9 +609,9 @@ static void rtThreadDestroy(PRTTHREADINT pThread)
     ASMAtomicXchgU32(&pThread->u32Magic, RTTHREADINT_MAGIC_DEAD);
     ASMAtomicWritePtr(&pThread->Core.Key, (void *)NIL_RTTHREAD);
     pThread->enmType         = RTTHREADTYPE_INVALID;
-    RTSEMEVENTMULTI hEvt1    = pThread->EventUser;
+    hEvt1    = pThread->EventUser;
     pThread->EventUser       = NIL_RTSEMEVENTMULTI;
-    RTSEMEVENTMULTI hEvt2    = pThread->EventTerminated;
+    hEvt2    = pThread->EventTerminated;
     pThread->EventTerminated = NIL_RTSEMEVENTMULTI;
 
 #ifdef IN_RING3
@@ -615,7 +637,7 @@ static void rtThreadDestroy(PRTTHREADINT pThread)
  * @param   pThread     The thread structure.
  * @param   rc          The thread result code.
  */
-void rtThreadTerminate(PRTTHREADINT pThread, int rc)
+DECLHIDDEN(void) rtThreadTerminate(PRTTHREADINT pThread, int rc)
 {
     Assert(pThread->cRefs >= 1);
 
@@ -654,8 +676,9 @@ void rtThreadTerminate(PRTTHREADINT pThread, int rc)
  * @param   NativeThread    The native thread id.
  * @param   pszThreadName   The name of the thread (purely a dummy for backtrace).
  */
-int rtThreadMain(PRTTHREADINT pThread, RTNATIVETHREAD NativeThread, const char *pszThreadName)
+DECLHIDDEN(int) rtThreadMain(PRTTHREADINT pThread, RTNATIVETHREAD NativeThread, const char *pszThreadName)
 {
+    int rc;
     NOREF(pszThreadName);
     rtThreadInsert(pThread, NativeThread);
     Log(("rtThreadMain: Starting: pThread=%p NativeThread=%RTnthrd Name=%s pfnThread=%p pvUser=%p\n",
@@ -664,7 +687,7 @@ int rtThreadMain(PRTTHREADINT pThread, RTNATIVETHREAD NativeThread, const char *
     /*
      * Change the priority.
      */
-    int rc = rtThreadNativeSetPriority(pThread, pThread->enmType);
+    rc = rtThreadNativeSetPriority(pThread, pThread->enmType);
 #ifdef IN_RING3
     AssertMsgRC(rc, ("Failed to set priority of thread %p (%RTnthrd / %s) to enmType=%d enmPriority=%d rc=%Rrc\n",
                      pThread, NativeThread, pThread->szName, pThread->enmType, g_enmProcessPriority, rc));
@@ -713,6 +736,9 @@ int rtThreadMain(PRTTHREADINT pThread, RTNATIVETHREAD NativeThread, const char *
 RTDECL(int) RTThreadCreate(PRTTHREAD pThread, PFNRTTHREAD pfnThread, void *pvUser, size_t cbStack,
                            RTTHREADTYPE enmType, unsigned fFlags, const char *pszName)
 {
+    int             rc;
+    PRTTHREADINT    pThreadInt;
+
     LogFlow(("RTThreadCreate: pThread=%p pfnThread=%p pvUser=%p cbStack=%#x enmType=%d fFlags=%#x pszName=%p:{%s}\n",
              pThread, pfnThread, pvUser, cbStack, enmType, fFlags, pszName, pszName));
 
@@ -743,15 +769,15 @@ RTDECL(int) RTThreadCreate(PRTTHREAD pThread, PFNRTTHREAD pfnThread, void *pvUse
     /*
      * Allocate thread argument.
      */
-    int             rc;
-    PRTTHREADINT    pThreadInt = rtThreadAlloc(enmType, fFlags, 0, pszName);
+    pThreadInt = rtThreadAlloc(enmType, fFlags, 0, pszName);
     if (pThreadInt)
     {
+        RTNATIVETHREAD NativeThread;
+
         pThreadInt->pfnThread = pfnThread;
         pThreadInt->pvUser    = pvUser;
         pThreadInt->cbStack   = cbStack;
 
-        RTNATIVETHREAD NativeThread;
         rc = rtThreadNativeCreate(pThreadInt, &NativeThread);
         if (RT_SUCCESS(rc))
         {
@@ -819,8 +845,9 @@ RTDECL(int) RTThreadCreateF(PRTTHREAD pThread, PFNRTTHREAD pfnThread, void *pvUs
                             RTTHREADTYPE enmType, uint32_t fFlags, const char *pszNameFmt, ...)
 {
     va_list va;
+    int rc;
     va_start(va, pszNameFmt);
-    int rc = RTThreadCreateV(pThread, pfnThread, pvUser, cbStack, enmType, fFlags, pszNameFmt, va);
+    rc = RTThreadCreateV(pThread, pfnThread, pvUser, cbStack, enmType, fFlags, pszNameFmt, va);
     va_end(va);
     return rc;
 }
@@ -897,9 +924,10 @@ RT_EXPORT_SYMBOL(RTThreadSelfName);
  */
 RTDECL(const char *) RTThreadGetName(RTTHREAD Thread)
 {
+    PRTTHREADINT pThread;
     if (Thread == NIL_RTTHREAD)
         return NULL;
-    PRTTHREADINT pThread = rtThreadGet(Thread);
+    pThread = rtThreadGet(Thread);
     if (pThread)
     {
         const char *szName = pThread->szName;
@@ -923,13 +951,14 @@ RTDECL(int) RTThreadSetName(RTTHREAD Thread, const char *pszName)
     /*
      * Validate input.
      */
+    PRTTHREADINT pThread;
     size_t cchName = strlen(pszName);
     if (cchName >= RTTHREAD_NAME_LEN)
     {
         AssertMsgFailed(("pszName=%s is too long, max is %d\n", pszName, RTTHREAD_NAME_LEN - 1));
         return VERR_INVALID_PARAMETER;
     }
-    PRTTHREADINT pThread = rtThreadGet(Thread);
+    pThread = rtThreadGet(Thread);
     if (!pThread)
         return VERR_INVALID_HANDLE;
 
@@ -968,6 +997,47 @@ RTDECL(bool) RTThreadIsMain(RTTHREAD hThread)
     return false;
 }
 RT_EXPORT_SYMBOL(RTThreadIsMain);
+
+
+RTDECL(bool) RTThreadIsSelfAlive(void)
+{
+    if (g_frtThreadInitialized)
+    {
+        RTTHREAD hSelf = RTThreadSelf();
+        if (hSelf != NIL_RTTHREAD)
+        {
+            /*
+             * Inspect the thread state.  ASSUMES thread state order.
+             */
+            RTTHREADSTATE enmState = rtThreadGetState(hSelf);
+            if (   enmState >= RTTHREADSTATE_RUNNING
+                && enmState <= RTTHREADSTATE_END)
+                return true;
+        }
+    }
+    return false;
+}
+RT_EXPORT_SYMBOL(RTThreadIsSelfAlive);
+
+
+RTDECL(bool) RTThreadIsSelfKnown(void)
+{
+    if (g_frtThreadInitialized)
+    {
+        RTTHREAD hSelf = RTThreadSelf();
+        if (hSelf != NIL_RTTHREAD)
+            return true;
+    }
+    return false;
+}
+RT_EXPORT_SYMBOL(RTThreadIsSelfKnown);
+
+
+RTDECL(bool) RTThreadIsInitialized(void)
+{
+    return g_frtThreadInitialized;
+}
+RT_EXPORT_SYMBOL(RTThreadIsInitialized);
 
 
 /**
@@ -1270,7 +1340,7 @@ static DECLCALLBACK(int) rtThreadSetPriorityOne(PAVLPVNODECORE pNode, void *pvUs
  * @returns iprt status code.
  * @param   enmPriority     The new priority.
  */
-int rtThreadDoSetProcPriority(RTPROCPRIORITY enmPriority)
+DECLHIDDEN(int) rtThreadDoSetProcPriority(RTPROCPRIORITY enmPriority)
 {
     LogFlow(("rtThreadDoSetProcPriority: enmPriority=%d\n", enmPriority));
 
@@ -1452,7 +1522,7 @@ static DECLCALLBACK(int) rtThreadClearTlsEntryCallback(PAVLPVNODECORE pNode, voi
  *
  * @param   iTls        The TLS entry. (valid)
  */
-void rtThreadClearTlsEntry(RTTLS iTls)
+DECLHIDDEN(void) rtThreadClearTlsEntry(RTTLS iTls)
 {
     RT_THREAD_LOCK_TMP(Tmp);
     RT_THREAD_LOCK_RD(Tmp);
@@ -1461,4 +1531,3 @@ void rtThreadClearTlsEntry(RTTLS iTls)
 }
 
 #endif /* IPRT_WITH_GENERIC_TLS */
-

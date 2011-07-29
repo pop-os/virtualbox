@@ -1,4 +1,4 @@
-; $Id: memmove.asm $
+; $Id: memmove.asm 33540 2010-10-28 09:27:05Z vboxsync $
 ;; @file
 ; IPRT - No-CRT memmove - AMD64 & X86.
 ;

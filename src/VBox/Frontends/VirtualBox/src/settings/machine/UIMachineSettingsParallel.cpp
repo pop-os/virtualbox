@@ -1,4 +1,4 @@
-/* $Id: UIMachineSettingsParallel.cpp $ */
+/* $Id: UIMachineSettingsParallel.cpp 37126 2011-05-17 13:56:50Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,8 +25,9 @@
 #include <QDir>
 
 /* UIMachineSettingsParallel stuff */
-UIMachineSettingsParallel::UIMachineSettingsParallel()
+UIMachineSettingsParallel::UIMachineSettingsParallel(UIMachineSettingsParallelPage *pParent)
     : QIWithRetranslateUI<QWidget> (0)
+    , m_pParent(pParent)
     , mValidator(0)
     , m_iSlot(-1)
 {
@@ -57,29 +58,54 @@ UIMachineSettingsParallel::UIMachineSettingsParallel()
     retranslateUi();
 }
 
-void UIMachineSettingsParallel::fetchPortData(const UIParallelPortData &data)
+void UIMachineSettingsParallel::polishTab()
 {
-    /* Load port slot number: */
-    m_iSlot = data.m_iSlot;
+    /* Polish port page: */
+    ulong uIRQ, uIOBase;
+    bool fStd = vboxGlobal().toCOMPortNumbers(mCbNumber->currentText(), uIRQ, uIOBase);
+    mGbParallel->setEnabled(m_pParent->isMachineOffline());
+    mLbNumber->setEnabled(m_pParent->isMachineOffline());
+    mCbNumber->setEnabled(m_pParent->isMachineOffline());
+    mLbIRQ->setEnabled(m_pParent->isMachineOffline());
+    mLeIRQ->setEnabled(!fStd && m_pParent->isMachineOffline());
+    mLbIOPort->setEnabled(m_pParent->isMachineOffline());
+    mLeIOPort->setEnabled(!fStd && m_pParent->isMachineOffline());
+    mLbPath->setEnabled(m_pParent->isMachineOffline());
+    mLePath->setEnabled(m_pParent->isMachineOffline());
+}
 
-    /* Fetch port data: */
-    mGbParallel->setChecked(data.m_fPortEnabled);
-    mCbNumber->setCurrentIndex(mCbNumber->findText(vboxGlobal().toCOMPortName(data.m_uIRQ, data.m_uIOBase)));
-    mLeIRQ->setText(QString::number(data.m_uIRQ));
-    mLeIOPort->setText("0x" + QString::number(data.m_uIOBase, 16).toUpper());
-    mLePath->setText(data.m_strPath);
+void UIMachineSettingsParallel::fetchPortData(const UICacheSettingsMachineParallelPort &portCache)
+{
+    /* Get port data: */
+    const UIDataSettingsMachineParallelPort &portData = portCache.base();
+
+    /* Load port number: */
+    m_iSlot = portData.m_iSlot;
+
+    /* Load port data: */
+    mGbParallel->setChecked(portData.m_fPortEnabled);
+    mCbNumber->setCurrentIndex(mCbNumber->findText(vboxGlobal().toCOMPortName(portData.m_uIRQ, portData.m_uIOBase)));
+    mLeIRQ->setText(QString::number(portData.m_uIRQ));
+    mLeIOPort->setText("0x" + QString::number(portData.m_uIOBase, 16).toUpper());
+    mLePath->setText(portData.m_strPath);
 
     /* Ensure everything is up-to-date */
     mGbParallelToggled(mGbParallel->isChecked());
 }
 
-void UIMachineSettingsParallel::uploadPortData(UIParallelPortData &data)
+void UIMachineSettingsParallel::uploadPortData(UICacheSettingsMachineParallelPort &portCache)
 {
-    /* Upload port data: */
-    data.m_fPortEnabled = mGbParallel->isChecked();
-    data.m_uIRQ = mLeIRQ->text().toULong(NULL, 0);
-    data.m_uIOBase = mLeIOPort->text().toULong(NULL, 0);
-    data.m_strPath = QDir::toNativeSeparators(mLePath->text());
+    /* Prepare port data: */
+    UIDataSettingsMachineParallelPort portData = portCache.base();
+
+    /* Save port data: */
+    portData.m_fPortEnabled = mGbParallel->isChecked();
+    portData.m_uIRQ = mLeIRQ->text().toULong(NULL, 0);
+    portData.m_uIOBase = mLeIOPort->text().toULong(NULL, 0);
+    portData.m_strPath = QDir::toNativeSeparators(mLePath->text());
+
+    /* Cache port data: */
+    portCache.cacheCurrentData(portData);
 }
 
 void UIMachineSettingsParallel::setValidator (QIWidgetValidator *aVal)
@@ -157,6 +183,16 @@ UIMachineSettingsParallelPage::UIMachineSettingsParallelPage()
     QVBoxLayout *layout = new QVBoxLayout (this);
     layout->setContentsMargins (0, 5, 0, 5);
     layout->addWidget (mTabWidget);
+
+    /* How many ports to display: */
+    ulong uCount = vboxGlobal().virtualBox().GetSystemProperties().GetParallelPortCount();
+    /* Add corresponding tab pages to parent tab widget: */
+    for (ulong uPort = 0; uPort < uCount; ++uPort)
+    {
+        /* Creating port page: */
+        UIMachineSettingsParallel *pPage = new UIMachineSettingsParallel(this);
+        mTabWidget->addTab(pPage, pPage->pageTitle());
+    }
 }
 
 /* Load data to cashe from corresponding external object(s),
@@ -166,25 +202,29 @@ void UIMachineSettingsParallelPage::loadToCacheFrom(QVariant &data)
     /* Fetch data to machine: */
     UISettingsPageMachine::fetchData(data);
 
-    /* Load port data: */
-    ulong uCount = vboxGlobal().virtualBox().GetSystemProperties().GetParallelPortCount();
-    for (ulong uSlot = 0; uSlot < uCount; ++uSlot)
+    /* Clear cache initially: */
+    m_cache.clear();
+
+    /* For each parallel port: */
+    for (int iSlot = 0; iSlot < mTabWidget->count(); ++iSlot)
     {
-        /* Get port: */
-        const CParallelPort &port = m_machine.GetParallelPort(uSlot);
+        /* Prepare port data: */
+        UIDataSettingsMachineParallelPort portData;
 
-        /* Prepare port's data container: */
-        UIParallelPortData data;
+        /* Check if port is valid: */
+        const CParallelPort &port = m_machine.GetParallelPort(iSlot);
+        if (!port.isNull())
+        {
+            /* Gather options: */
+            portData.m_iSlot = iSlot;
+            portData.m_fPortEnabled = port.GetEnabled();
+            portData.m_uIRQ = port.GetIRQ();
+            portData.m_uIOBase = port.GetIOBase();
+            portData.m_strPath = port.GetPath();
+        }
 
-        /* Load options: */
-        data.m_iSlot = uSlot;
-        data.m_fPortEnabled = port.GetEnabled();
-        data.m_uIRQ = port.GetIRQ();
-        data.m_uIOBase = port.GetIOBase();
-        data.m_strPath = port.GetPath();
-
-        /* Append adapter's data container: */
-        m_cache.m_items << data;
+        /* Cache port data: */
+        m_cache.child(iSlot).cacheInitialData(portData);
     }
 
     /* Upload machine to data: */
@@ -195,21 +235,19 @@ void UIMachineSettingsParallelPage::loadToCacheFrom(QVariant &data)
  * this task SHOULD be performed in GUI thread only: */
 void UIMachineSettingsParallelPage::getFromCache()
 {
-    Assert(m_pFirstWidget);
-    setTabOrder(m_pFirstWidget, mTabWidget->focusProxy());
+    /* Setup tab order: */
+    Assert(firstWidget());
+    setTabOrder(firstWidget(), mTabWidget->focusProxy());
     QWidget *pLastFocusWidget = mTabWidget->focusProxy();
 
-    /* Apply internal variables data to QWidget(s): */
-    for (int iSlot = 0; iSlot < m_cache.m_items.size(); ++iSlot)
+    /* For each parallel port: */
+    for (int iPort = 0; iPort < mTabWidget->count(); ++iPort)
     {
-        /* Creating port's page: */
-        UIMachineSettingsParallel *pPage = new UIMachineSettingsParallel;
+        /* Get port page: */
+        UIMachineSettingsParallel *pPage = qobject_cast<UIMachineSettingsParallel*>(mTabWidget->widget(iPort));
 
-        /* Loading port's data into page: */
-        pPage->fetchPortData(m_cache.m_items[iSlot]);
-
-        /* Attach port's page to Tab Widget: */
-        mTabWidget->addTab(pPage, pPage->pageTitle());
+        /* Load port data to page: */
+        pPage->fetchPortData(m_cache.child(iPort));
 
         /* Setup page validation: */
         pPage->setValidator(mValidator);
@@ -221,22 +259,26 @@ void UIMachineSettingsParallelPage::getFromCache()
     /* Applying language settings: */
     retranslateUi();
 
+    /* Polish page finally: */
+    polishPage();
+
     /* Revalidate if possible: */
-    if (mValidator) mValidator->revalidate();
+    if (mValidator)
+        mValidator->revalidate();
 }
 
 /* Save data from corresponding widgets to cache,
  * this task SHOULD be performed in GUI thread only: */
 void UIMachineSettingsParallelPage::putToCache()
 {
-    /* Gather internal variables data from QWidget(s): */
-    for (int iSlot = 0; iSlot < m_cache.m_items.size(); ++iSlot)
+    /* For each parallel port: */
+    for (int iPort = 0; iPort < mTabWidget->count(); ++iPort)
     {
-        /* Getting adapter's page: */
-        UIMachineSettingsParallel *pPage = qobject_cast<UIMachineSettingsParallel*>(mTabWidget->widget(iSlot));
+        /* Getting port page: */
+        UIMachineSettingsParallel *pPage = qobject_cast<UIMachineSettingsParallel*>(mTabWidget->widget(iPort));
 
-        /* Loading Adapter's data from page: */
-        pPage->uploadPortData(m_cache.m_items[iSlot]);
+        /* Gather & cache port data: */
+        pPage->uploadPortData(m_cache.child(iPort));
     }
 }
 
@@ -247,20 +289,34 @@ void UIMachineSettingsParallelPage::saveFromCacheTo(QVariant &data)
     /* Fetch data to machine: */
     UISettingsPageMachine::fetchData(data);
 
-    /* Gather corresponding values from internal variables: */
-    for (int iSlot = 0; iSlot < m_cache.m_items.size(); ++iSlot)
+    /* Check if ports data was changed: */
+    if (m_cache.wasChanged())
     {
-        /* Get adapter: */
-        CParallelPort port = m_machine.GetParallelPort(iSlot);
+        /* For each parallel port: */
+        for (int iPort = 0; iPort < mTabWidget->count(); ++iPort)
+        {
+            /* Check if port data was changed: */
+            const UICacheSettingsMachineParallelPort &portCache = m_cache.child(iPort);
+            if (portCache.wasChanged())
+            {
+                /* Check if port still valid: */
+                CParallelPort port = m_machine.GetParallelPort(iPort);
+                if (!port.isNull())
+                {
+                    /* Get port data from cache: */
+                    const UIDataSettingsMachineParallelPort &portData = portCache.data();
 
-        /* Get cached data for this slot: */
-        const UIParallelPortData &data = m_cache.m_items[iSlot];
-
-        /* Save options: */
-        port.SetIRQ(data.m_uIRQ);
-        port.SetIOBase(data.m_uIOBase);
-        port.SetPath(data.m_strPath);
-        port.SetEnabled(data.m_fPortEnabled);
+                    /* Store adapter data: */
+                    if (isMachineOffline())
+                    {
+                        port.SetIRQ(portData.m_uIRQ);
+                        port.SetIOBase(portData.m_uIOBase);
+                        port.SetPath(portData.m_strPath);
+                        port.SetEnabled(portData.m_fPortEnabled);
+                    }
+                }
+            }
+        }
     }
 
     /* Upload machine to data: */
@@ -328,6 +384,19 @@ void UIMachineSettingsParallelPage::retranslateUi()
         UIMachineSettingsParallel *page =
             static_cast<UIMachineSettingsParallel*> (mTabWidget->widget (i));
         mTabWidget->setTabText (i, page->pageTitle());
+    }
+}
+
+void UIMachineSettingsParallelPage::polishPage()
+{
+    /* Get the count of parallel port tabs: */
+    for (int iPort = 0; iPort < mTabWidget->count(); ++iPort)
+    {
+        mTabWidget->setTabEnabled(iPort,
+                                  isMachineOffline() ||
+                                  (isMachineInValidMode() && m_cache.child(iPort).base().m_fPortEnabled));
+        UIMachineSettingsParallel *pTab = qobject_cast<UIMachineSettingsParallel*>(mTabWidget->widget(iPort));
+        pTab->polishTab();
     }
 }
 

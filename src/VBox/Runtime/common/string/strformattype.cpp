@@ -1,4 +1,4 @@
-/* $Id: strformattype.cpp $ */
+/* $Id: strformattype.cpp 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - IPRT String Formatter Extensions, Dynamic Types.
  */
@@ -415,7 +415,8 @@ RT_EXPORT_SYMBOL(RTStrFormatTypeSetUser);
  * @param   fFlags          Flags (RTSTR_NTFS_*).
  * @param   chArgSize       The argument size specifier, 'l' or 'L'.
  */
-size_t rtstrFormatType(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, const char **ppszFormat, va_list *pArgs, int cchWidth, int cchPrecision, unsigned fFlags, char chArgSize)
+DECLHIDDEN(size_t) rtstrFormatType(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, const char **ppszFormat,
+                                   va_list *pArgs, int cchWidth, int cchPrecision, unsigned fFlags, char chArgSize)
 {
     size_t      cch;
     int32_t     i;

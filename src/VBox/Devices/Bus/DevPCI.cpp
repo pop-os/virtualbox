@@ -1,4 +1,4 @@
-/* $Id: DevPCI.cpp $ */
+/* $Id: DevPCI.cpp 36079 2011-02-24 17:10:31Z vboxsync $ */
 /** @file
  * DevPCI - PCI BUS Device.
  */
@@ -772,7 +772,7 @@ DECLINLINE(PPCIDEVICE) pciFindBridge(PPCIBUS pBus, uint8_t iBus)
          * If the target bus is in the range we pass the request on to the bridge.
          */
         PPCIDEVICE pBridgeTemp = pBus->papBridgesR3[iBridge];
-        AssertMsg(pBridgeTemp && PCIIsPci2PciBridge(pBridgeTemp),
+        AssertMsg(pBridgeTemp && pciDevIsPci2PciBridge(pBridgeTemp),
                   ("Device is not a PCI bridge but on the list of PCI bridges\n"));
 
         if (   iBus >= pBridgeTemp->config[VBOX_PCI_SECONDARY_BUS]
@@ -1720,7 +1720,7 @@ static int pciRegisterInternal(PPCIBUS pBus, int iDev, PPCIDEVICE pPciDev, const
                 return VERR_PDM_TOO_PCI_MANY_DEVICES;
             }
         }
-        PCIClearRequestedDevfunc(pPciDev);
+        pciDevClearRequestedDevfunc(pPciDev);
     }
     else
     {
@@ -1741,14 +1741,14 @@ static int pciRegisterInternal(PPCIBUS pBus, int iDev, PPCIDEVICE pPciDev, const
             int iDevRel;
             AssertReleaseMsg(!(iDev % 8), ("PCI Configuration Conflict! iDev=%d pszName=%s clashes with %s\n",
                                            iDev, pszName, pBus->devices[iDev]->name));
-            if (    PCIIsRequestedDevfunc(pBus->devices[iDev])
-                ||  (pBus->devices[iDev + 1] && PCIIsRequestedDevfunc(pBus->devices[iDev + 1]))
-                ||  (pBus->devices[iDev + 2] && PCIIsRequestedDevfunc(pBus->devices[iDev + 2]))
-                ||  (pBus->devices[iDev + 3] && PCIIsRequestedDevfunc(pBus->devices[iDev + 3]))
-                ||  (pBus->devices[iDev + 4] && PCIIsRequestedDevfunc(pBus->devices[iDev + 4]))
-                ||  (pBus->devices[iDev + 5] && PCIIsRequestedDevfunc(pBus->devices[iDev + 5]))
-                ||  (pBus->devices[iDev + 6] && PCIIsRequestedDevfunc(pBus->devices[iDev + 6]))
-                ||  (pBus->devices[iDev + 7] && PCIIsRequestedDevfunc(pBus->devices[iDev + 7])))
+            if (    pciDevIsRequestedDevfunc(pBus->devices[iDev])
+                ||  (pBus->devices[iDev + 1] && pciDevIsRequestedDevfunc(pBus->devices[iDev + 1]))
+                ||  (pBus->devices[iDev + 2] && pciDevIsRequestedDevfunc(pBus->devices[iDev + 2]))
+                ||  (pBus->devices[iDev + 3] && pciDevIsRequestedDevfunc(pBus->devices[iDev + 3]))
+                ||  (pBus->devices[iDev + 4] && pciDevIsRequestedDevfunc(pBus->devices[iDev + 4]))
+                ||  (pBus->devices[iDev + 5] && pciDevIsRequestedDevfunc(pBus->devices[iDev + 5]))
+                ||  (pBus->devices[iDev + 6] && pciDevIsRequestedDevfunc(pBus->devices[iDev + 6]))
+                ||  (pBus->devices[iDev + 7] && pciDevIsRequestedDevfunc(pBus->devices[iDev + 7])))
             {
                 AssertReleaseMsgFailed(("Configuration error:'%s' and '%s' are both configured as device %d\n",
                                         pszName, pBus->devices[iDev]->name, iDev));
@@ -1785,7 +1785,7 @@ static int pciRegisterInternal(PPCIBUS pBus, int iDev, PPCIDEVICE pPciDev, const
                 return VERR_PDM_TOO_PCI_MANY_DEVICES;
             }
         } /* if conflict */
-        PCISetRequestedDevfunc(pPciDev);
+        pciDevSetRequestedDevfunc(pPciDev);
     }
 
     Assert(!pBus->devices[iDev]);
@@ -1797,7 +1797,7 @@ static int pciRegisterInternal(PPCIBUS pBus, int iDev, PPCIDEVICE pPciDev, const
     pPciDev->Int.s.pfnConfigRead    = pci_default_read_config;
     pPciDev->Int.s.pfnConfigWrite   = pci_default_write_config;
     pBus->devices[iDev]             = pPciDev;
-    if (PCIIsPci2PciBridge(pPciDev))
+    if (pciDevIsPci2PciBridge(pPciDev))
     {
         AssertMsg(pBus->cBridges < RT_ELEMENTS(pBus->devices), ("Number of bridges exceeds the number of possible devices on the bus\n"));
         AssertMsg(pPciDev->Int.s.pfnBridgeConfigRead && pPciDev->Int.s.pfnBridgeConfigWrite,
@@ -2023,8 +2023,8 @@ static DECLCALLBACK(void) pciReset(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(int)   pciConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
-    int rc;
     Assert(iInstance == 0);
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
      * Validate and read configuration.
@@ -2034,7 +2034,7 @@ static DECLCALLBACK(int)   pciConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
 
     /* query whether we got an IOAPIC */
     bool fUseIoApic;
-    rc = CFGMR3QueryBoolDef(pCfg, "IOAPIC", &fUseIoApic, false);
+    int rc = CFGMR3QueryBoolDef(pCfg, "IOAPIC", &fUseIoApic, false);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query boolean value \"IOAPIC\""));
@@ -2110,7 +2110,7 @@ static DECLCALLBACK(int)   pciConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
     PCIDevSetHeaderType(&pBus->PciDev,   0x00);
 
     pBus->PciDev.pDevIns              = pDevIns;
-    PCISetRequestedDevfunc(&pBus->PciDev);
+    pciDevSetRequestedDevfunc(&pBus->PciDev);
     pciRegisterInternal(pBus, 0, &pBus->PciDev, "i440FX");
 
     /* PIIX3 */
@@ -2121,7 +2121,7 @@ static DECLCALLBACK(int)   pciConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
     PCIDevSetHeaderType(&pGlobals->PIIX3State.dev,   0x80); /* PCI_multifunction, generic */
 
     pGlobals->PIIX3State.dev.pDevIns      = pDevIns;
-    PCISetRequestedDevfunc(&pGlobals->PIIX3State.dev);
+    pciDevSetRequestedDevfunc(&pGlobals->PIIX3State.dev);
     pciRegisterInternal(pBus, 8, &pGlobals->PIIX3State.dev, "PIIX3");
     piix3_reset(&pGlobals->PIIX3State);
 
@@ -2416,7 +2416,7 @@ static DECLCALLBACK(void) pcibridgeRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDe
  */
 static DECLCALLBACK(int)   pcibridgeConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
-    int rc;
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
      * Validate and read configuration.
@@ -2426,7 +2426,7 @@ static DECLCALLBACK(int)   pcibridgeConstruct(PPDMDEVINS pDevIns, int iInstance,
 
     /* check if RC code is enabled. */
     bool fGCEnabled;
-    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
+    int rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query boolean value \"GCEnabled\""));
@@ -2495,7 +2495,7 @@ static DECLCALLBACK(int)   pcibridgeConstruct(PPDMDEVINS pDevIns, int iInstance,
     pBus->PciDev.pDevIns                    = pDevIns;
 
     /* Bridge-specific data */
-    PCISetPci2PciBridge(&pBus->PciDev);
+    pciDevSetPci2PciBridge(&pBus->PciDev);
     pBus->PciDev.Int.s.pfnBridgeConfigRead  = pcibridgeConfigRead;
     pBus->PciDev.Int.s.pfnBridgeConfigWrite = pcibridgeConfigWrite;
 

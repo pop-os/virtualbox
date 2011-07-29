@@ -1,4 +1,4 @@
-/* $Id: tstRTR0Common.h $ */
+/* $Id: tstRTR0Common.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT R0 Testcase - Common header.
  */

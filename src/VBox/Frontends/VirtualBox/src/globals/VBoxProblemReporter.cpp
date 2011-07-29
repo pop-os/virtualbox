@@ -1,4 +1,4 @@
-/* $Id: VBoxProblemReporter.cpp $ */
+/* $Id: VBoxProblemReporter.cpp 37916 2011-07-13 12:46:11Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -253,6 +253,107 @@ int VBoxProblemReporter::message (QWidget *aParent, Type aType, const QString &a
  *  text (QString::null is assumed).
  */
 
+int VBoxProblemReporter::messageWithOption(QWidget *pParent,
+                                           Type type,
+                                           const QString &strMessage,
+                                           const QString &strOptionText,
+                                           bool fDefaultOptionValue /* = true */,
+                                           const QString &strDetails /* = QString::null */,
+                                           int iButton1 /* = 0 */,
+                                           int iButton2 /* = 0 */,
+                                           int iButton3 /* = 0 */,
+                                           const QString &strButtonName1 /* = QString::null */,
+                                           const QString &strButtonName2 /* = QString::null */,
+                                           const QString &strButtonName3 /* = QString::null */) const
+{
+    /* If no buttons are set, using single 'OK' button: */
+    if (iButton1 == 0 && iButton2 == 0 && iButton3 == 0)
+        iButton1 = QIMessageBox::Ok | QIMessageBox::Default;
+
+    /* Assign corresponding title and icon: */
+    QString strTitle;
+    QIMessageBox::Icon icon;
+    switch (type)
+    {
+        default:
+        case Info:
+            strTitle = tr("VirtualBox - Information", "msg box title");
+            icon = QIMessageBox::Information;
+            break;
+        case Question:
+            strTitle = tr("VirtualBox - Question", "msg box title");
+            icon = QIMessageBox::Question;
+            break;
+        case Warning:
+            strTitle = tr("VirtualBox - Warning", "msg box title");
+            icon = QIMessageBox::Warning;
+            break;
+        case Error:
+            strTitle = tr("VirtualBox - Error", "msg box title");
+            icon = QIMessageBox::Critical;
+            break;
+        case Critical:
+            strTitle = tr("VirtualBox - Critical Error", "msg box title");
+            icon = QIMessageBox::Critical;
+            break;
+        case GuruMeditation:
+            strTitle = "VirtualBox - Guru Meditation"; /* don't translate this */
+            icon = QIMessageBox::GuruMeditation;
+            break;
+    }
+
+    /* Create message-box: */
+    if (QPointer<QIMessageBox> pBox = new QIMessageBox(strTitle, strMessage, icon,
+                                                       iButton1, iButton2, iButton3, pParent))
+    {
+        /* Append the list of all warnings with current: */
+        m_warnings << pBox;
+
+        /* Setup message-box connections: */
+        connect(this, SIGNAL(sigToCloseAllWarnings()), pBox, SLOT(deleteLater()));
+
+        /* Assign other text values: */
+        if (!strOptionText.isNull())
+        {
+            pBox->setFlagText(strOptionText);
+            pBox->setFlagChecked(fDefaultOptionValue);
+        }
+        if (!strButtonName1.isNull())
+            pBox->setButtonText(0, strButtonName1);
+        if (!strButtonName2.isNull())
+            pBox->setButtonText(1, strButtonName2);
+        if (!strButtonName3.isNull())
+            pBox->setButtonText(2, strButtonName3);
+        if (!strDetails.isEmpty())
+            pBox->setDetailsText(strDetails);
+
+        /* Show the message box: */
+        int iResultCode = pBox->exec();
+
+        /* Its possible what message-box will be deleted during some event-processing procedure,
+         * in that case pBox will be null right after pBox->exec() returns from it's event-pool,
+         * so we have to check this too: */
+        if (pBox)
+        {
+            /* Cleanup the list of all warnings from current: */
+            if (m_warnings.contains(pBox))
+                m_warnings.removeAll(pBox);
+
+            /* Check if option was chosen: */
+            if (pBox->isFlagChecked())
+                iResultCode |= QIMessageBox::OptionChosen;
+
+            /* Destroy message-box: */
+            if (pBox)
+                delete pBox;
+
+            /* Return final result: */
+            return iResultCode;
+        }
+    }
+    return 0;
+}
+
 /**
  *  Shows a modal progress dialog using a CProgress object passed as an
  *  argument to track the progress.
@@ -388,14 +489,6 @@ void VBoxProblemReporter::checkForMountedWrongUSB() const
                      "checkForMountedWrongUSB");
     }
 #endif
-}
-
-void VBoxProblemReporter::showWin64Warning()
-{
-    message
-        (0, Warning,
-         tr ("Deletion of all files belonging to the VM is currently disabled on "
-             "Windows/x64 to prevent a crash. That will be fixed in the next release."));
 }
 
 void VBoxProblemReporter::showBETAWarning()
@@ -571,6 +664,17 @@ void VBoxProblemReporter::cannotOpenMachine(QWidget *pParent, const QString &str
             formatErrorInfo(vbox));
 }
 
+void VBoxProblemReporter::cannotRegisterMachine(const CVirtualBox &vbox,
+                                                const CMachine &machine,
+                                                QWidget *pParent)
+{
+    message(pParent ? pParent : mainWindowShown(),
+            Error,
+            tr("Failed to register the virtual machine <b>%1</b>.")
+            .arg(machine.GetName()),
+            formatErrorInfo(vbox));
+}
+
 void VBoxProblemReporter::cannotReregisterMachine(QWidget *pParent, const QString &strMachinePath, const QString &strMachineName)
 {
     message(pParent ? pParent : mainWindowShown(),
@@ -624,6 +728,31 @@ void VBoxProblemReporter::cannotLoadMachineSettings (const CMachine &machine,
                  "<b>%1</b> from <b><nobr>%2</nobr></b>.")
                 .arg (machine.GetName(), machine.GetSettingsFilePath()),
              formatErrorInfo (res));
+}
+
+bool VBoxProblemReporter::confirmedSettingsReloading(QWidget *pParent)
+{
+    int rc = message(pParent, Question,
+                     tr("<p>The machine settings were changed while you were editing them. "
+                        "You currently have unsaved setting changes.</p>"
+                        "<p>Would you like to reload the changed settings or to keep your own changes?</p>"), 0,
+                     QIMessageBox::Yes, QIMessageBox::No | QIMessageBox::Default | QIMessageBox::Escape, 0,
+                     tr("Reload settings"), tr("Keep changes"), 0);
+    return rc == QIMessageBox::Yes;
+}
+
+void VBoxProblemReporter::warnAboutStateChange(QWidget *pParent)
+{
+    if (isAlreadyShown("warnAboutStateChange"))
+        return;
+    setShownStatus("warnAboutStateChange");
+
+    message(pParent ? pParent : mainWindowShown(), Warning,
+            tr("The state of the virtual machine you currently edit has changed. "
+               "Only settings which are editable at runtime are saved when you press OK. "
+               "All changes to other settings will be lost."));
+
+    clearShownStatus("warnAboutStateChange");
 }
 
 void VBoxProblemReporter::cannotStartMachine (const CConsole &console)
@@ -709,6 +838,33 @@ void VBoxProblemReporter::cannotSaveMachineState (const CProgress &progress)
         tr ("Failed to save the state of the virtual machine <b>%1</b>.")
             .arg (console.GetMachine().GetName()),
         formatErrorInfo (progress.GetErrorInfo())
+    );
+}
+
+void VBoxProblemReporter::cannotCreateClone(const CMachine &machine,
+                                            QWidget *pParent /* = 0 */)
+{
+    message(
+        pParent ? pParent : mainWindowShown(),
+        Error,
+        tr ("Failed to clone the virtual machine <b>%1</b>.")
+            .arg(machine.GetName()),
+        formatErrorInfo(machine)
+    );
+}
+
+void VBoxProblemReporter::cannotCreateClone(const CMachine &machine,
+                                            const CProgress &progress,
+                                            QWidget *pParent /* = 0 */)
+{
+    AssertWrapperOk(progress);
+
+    message(
+        pParent ? pParent : mainWindowShown(),
+        Error,
+        tr ("Failed to clone the virtual machine <b>%1</b>.")
+            .arg(machine.GetName()),
+        formatErrorInfo(progress.GetErrorInfo())
     );
 }
 
@@ -839,15 +995,24 @@ bool VBoxProblemReporter::warnAboutVirtNotEnabledGuestRequired(bool fHWVirtExSup
             tr ("Close VM"), tr ("Continue"));
 }
 
-bool VBoxProblemReporter::askAboutSnapshotRestoring (const QString &aSnapshotName)
+int VBoxProblemReporter::askAboutSnapshotRestoring(const QString &strSnapshotName, bool fAlsoCreateNewSnapshot)
 {
-    return messageOkCancel (mainWindowShown(), Question,
-        tr ("<p>Are you sure you want to restore snapshot <b>%1</b>? "
-            "This will cause you to lose your current machine state, which cannot be recovered.</p>")
-            .arg (aSnapshotName),
-        /* Do NOT allow this message to be disabled! */
-        NULL /* aAutoConfirmId */,
-        tr ("Restore"), tr ("Cancel"));
+    return fAlsoCreateNewSnapshot ?
+           messageWithOption(mainWindowShown(), Question,
+                             tr("<p>You are about to restore snapshot <b>%1</b>.</p>"
+                                "<p>You can create a snapshot of the current state of the virtual machine first by checking the box below; "
+                                "if you do not do this the current state will be permanently lost. Do you wish to proceed?</p>")
+                                .arg(strSnapshotName),
+                             tr("Create a snapshot of the current machine state"),
+                             true /* choose option by default */,
+                             QString::null /* details */,
+                             QIMessageBox::Ok, QIMessageBox::Cancel, 0 /* 3rd button */,
+                             tr("Restore"), tr("Cancel"), QString::null /* 3rd button text */) :
+           message(mainWindowShown(), Question,
+                   tr("<p>Are you sure you want to restore snapshot <b>%1</b>?</p>").arg(strSnapshotName),
+                   0 /* auto-confirmation token */,
+                   QIMessageBox::Ok, QIMessageBox::Cancel, 0 /* 3rd button */,
+                   tr("Restore"), tr("Cancel"), QString::null /* 3rd button text */);
 }
 
 bool VBoxProblemReporter::askAboutSnapshotDeleting (const QString &aSnapshotName)
@@ -1084,6 +1249,14 @@ bool VBoxProblemReporter::confirmDiscardSavedState (const CMachine &machine)
             .arg (machine.GetName()),
         0 /* aAutoConfirmId */,
         tr ("Discard", "saved state"));
+}
+
+void VBoxProblemReporter::cannotChangeMediumType(QWidget *pParent, const CMedium &medium, KMediumType oldMediumType, KMediumType newMediumType)
+{
+    message(pParent ? pParent : mainWindowShown(), Error,
+            tr("<p>Error changing medium type from <b>%1</b> to <b>%2</b>.</p>")
+                .arg(vboxGlobal().toString(oldMediumType)).arg(vboxGlobal().toString(newMediumType)),
+            formatErrorInfo(medium));
 }
 
 bool VBoxProblemReporter::confirmReleaseMedium (QWidget *aParent,
@@ -2548,6 +2721,21 @@ void VBoxProblemReporter::remindAboutWrongColorDepth(ulong uRealBPP, ulong uWant
     emit sigRemindAboutWrongColorDepth(uRealBPP, uWantedBPP);
 }
 
+void VBoxProblemReporter::showGenericError(COMBaseWithEI *object, QWidget *pParent /* = 0 */)
+{
+    if (   !object
+        || object->lastRC() == S_OK)
+        return;
+
+    message(pParent ? pParent : mainWindowShown(),
+            Error,
+            tr("Sorry, some generic error happens."),
+            formatErrorInfo(*object));
+}
+
+// Public slots
+/////////////////////////////////////////////////////////////////////////////
+
 void VBoxProblemReporter::remindAboutUnsupportedUSB2(const QString &strExtPackName, QWidget *pParent)
 {
     emit sigRemindAboutUnsupportedUSB2(strExtPackName, pParent);
@@ -2793,7 +2981,7 @@ void VBoxProblemReporter::sltRemindAboutUnsupportedUSB2(const QString &strExtPac
 
     message(pParent ? pParent : mainMachineWindowShown(), Warning,
             tr("<p>USB 2.0 is currently enabled for this virtual machine. "
-               "However this requires the <b><nobr>%1</nobr></b> to be installed.</p>"
+               "However, this requires the <b><nobr>%1</nobr></b> to be installed.</p>"
                "<p>Please install the Extension Pack from the VirtualBox download site. "
                "After this you will be able to re-enable USB 2.0. "
                "It will be disabled in the meantime unless you cancel the current settings changes.</p>")

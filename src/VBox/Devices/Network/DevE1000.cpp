@@ -1,4 +1,4 @@
-/* $Id: DevE1000.cpp $ */
+/* $Id: DevE1000.cpp 37644 2011-06-27 11:09:36Z vboxsync $ */
 /** @file
  * DevE1000 - Intel 82540EM Ethernet Controller Emulation.
  *
@@ -1124,13 +1124,6 @@ typedef struct E1kState_st E1KSTATE;
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
 
 /* Forward declarations ******************************************************/
-RT_C_DECLS_BEGIN
-PDMBOTHCBDECL(int) e1kMMIORead (PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-PDMBOTHCBDECL(int) e1kMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-PDMBOTHCBDECL(int) e1kIOPortIn (PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t *pu32, unsigned cb);
-PDMBOTHCBDECL(int) e1kIOPortOut(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb);
-RT_C_DECLS_END
-
 static int e1kXmitPending(E1KSTATE *pState, bool fOnWorkerThread);
 
 static int e1kRegReadUnimplemented (E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t *pu32Value);
@@ -1414,6 +1407,7 @@ DECLINLINE(void) e1kCancelTimer(E1KSTATE *pState, PTMTIMER pTimer)
 }
 
 #ifdef E1K_GLOBAL_MUTEX
+
 DECLINLINE(int) e1kCsEnter(E1KSTATE *pState, int iBusyRc)
 {
     return VINF_SUCCESS;
@@ -1423,11 +1417,11 @@ DECLINLINE(void) e1kCsLeave(E1KSTATE *pState)
 {
 }
 
-#define e1kCsRxEnter(ps, rc) VINF_SUCCESS
-#define e1kCsRxLeave(ps) do { } while (0)
+# define e1kCsRxEnter(ps, rc) VINF_SUCCESS
+# define e1kCsRxLeave(ps) do { } while (0)
 
-#define e1kCsTxEnter(ps, rc) VINF_SUCCESS
-#define e1kCsTxLeave(ps) do { } while (0)
+# define e1kCsTxEnter(ps, rc) VINF_SUCCESS
+# define e1kCsTxLeave(ps) do { } while (0)
 
 
 DECLINLINE(int) e1kMutexAcquire(E1KSTATE *pState, int iBusyRc, RT_SRC_POS_DECL)
@@ -1455,18 +1449,18 @@ DECLINLINE(void) e1kMutexRelease(E1KSTATE *pState)
 }
 
 #else /* !E1K_GLOBAL_MUTEX */
-#define e1kCsEnter(ps, rc) PDMCritSectEnter(&ps->cs, rc)
-#define e1kCsLeave(ps) PDMCritSectLeave(&ps->cs)
+# define e1kCsEnter(ps, rc) PDMCritSectEnter(&ps->cs, rc)
+# define e1kCsLeave(ps) PDMCritSectLeave(&ps->cs)
 
-#define e1kCsRxEnter(ps, rc) PDMCritSectEnter(&ps->csRx, rc)
-#define e1kCsRxLeave(ps) PDMCritSectLeave(&ps->csRx)
+# define e1kCsRxEnter(ps, rc) PDMCritSectEnter(&ps->csRx, rc)
+# define e1kCsRxLeave(ps) PDMCritSectLeave(&ps->csRx)
 
-#define e1kCsTxEnter(ps, rc) VINF_SUCCESS
-#define e1kCsTxLeave(ps) do { } while (0)
-//#define e1kCsTxEnter(ps, rc) PDMCritSectEnter(&ps->csTx, rc)
-//#define e1kCsTxLeave(ps) PDMCritSectLeave(&ps->csTx)
+# define e1kCsTxEnter(ps, rc) VINF_SUCCESS
+# define e1kCsTxLeave(ps) do { } while (0)
+//# define e1kCsTxEnter(ps, rc) PDMCritSectEnter(&ps->csTx, rc)
+//# define e1kCsTxLeave(ps) PDMCritSectLeave(&ps->csTx)
 
-#if 0
+# if 0
 DECLINLINE(int) e1kCsEnter(E1KSTATE *pState, PPDMCRITSECT pCs, int iBusyRc, RT_SRC_POS_DECL)
 {
     int rc = PDMCritSectEnter(pCs, iBusyRc);
@@ -1490,7 +1484,7 @@ DECLINLINE(void) e1kCsLeave(E1KSTATE *pState, PPDMCRITSECT pCs)
     //E1kLog2(("%s <== Leaving critical section\n", INSTANCE(pState)));
     PDMCritSectLeave(&pState->cs);
 }
-#endif
+# endif
 DECLINLINE(int) e1kMutexAcquire(E1KSTATE *pState, int iBusyRc, RT_SRC_POS_DECL)
 {
     return VINF_SUCCESS;
@@ -1499,9 +1493,10 @@ DECLINLINE(int) e1kMutexAcquire(E1KSTATE *pState, int iBusyRc, RT_SRC_POS_DECL)
 DECLINLINE(void) e1kMutexRelease(E1KSTATE *pState)
 {
 }
-#endif /* !E1K_GLOBAL_MUTEX */
 
+#endif /* !E1K_GLOBAL_MUTEX */
 #ifdef IN_RING3
+
 /**
  * Wakeup the RX thread.
  */
@@ -1522,7 +1517,7 @@ static void e1kWakeupReceive(PPDMDEVINS pDevIns)
  *
  * @param   pState      The device state structure.
  */
-PDMBOTHCBDECL(void) e1kHardReset(E1KSTATE *pState)
+static void e1kHardReset(E1KSTATE *pState)
 {
     E1kLog(("%s Hard reset triggered\n", INSTANCE(pState)));
     memset(pState->auRegs,        0, sizeof(pState->auRegs));
@@ -1543,7 +1538,8 @@ PDMBOTHCBDECL(void) e1kHardReset(E1KSTATE *pState)
     if (pState->pDrvR3)
         pState->pDrvR3->pfnSetPromiscuousMode(pState->pDrvR3, false);
 }
-#endif
+
+#endif /* IN_RING3 */
 
 /**
  * Compute Internet checksum.
@@ -1733,7 +1729,7 @@ static void e1kPrintTDesc(E1KSTATE* pState, E1KTXDESC* pDesc, const char* cszDir
  *
  * @param   pState      The device state structure.
  */
-PDMBOTHCBDECL(int) e1kRaiseInterrupt(E1KSTATE *pState, int rcBusy, uint32_t u32IntCause = 0)
+static int e1kRaiseInterrupt(E1KSTATE *pState, int rcBusy, uint32_t u32IntCause = 0)
 {
     int rc = e1kCsEnter(pState, rcBusy);
     if (RT_UNLIKELY(rc != VINF_SUCCESS))
@@ -2851,6 +2847,14 @@ static DECLCALLBACK(void) e1kLateIntTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, v
 static DECLCALLBACK(void) e1kLinkUpTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
     E1KSTATE *pState = (E1KSTATE *)pvUser;
+
+    /*
+     * This can happen if we set the link status to down when the Link up timer was
+     * already armed (shortly after e1kLoadDone() or when the cable was disconnected
+     * and connect+disconnect the cable very quick.
+     */
+    if (!pState->fCableConnected)
+        return;
 
     if (RT_LIKELY(e1kMutexAcquire(pState, VERR_SEM_BUSY, RT_SRC_POS) == VINF_SUCCESS))
     {
@@ -4269,7 +4273,8 @@ static int e1kRegRead(E1KSTATE *pState, uint32_t uOffset, void *pv, uint32_t cb)
             //pState->fDelayInts = false;
             //pState->iStatIntLost += pState->iStatIntLostOne;
             //pState->iStatIntLostOne = 0;
-            rc = s_e1kRegMap[index].pfnRead(pState, uOffset & 0xFFFFFFFC, index, &u32) & mask;
+            rc = s_e1kRegMap[index].pfnRead(pState, uOffset & 0xFFFFFFFC, index, &u32);
+            u32 &= mask;
             //e1kCsLeave(pState);
             e1kMutexRelease(pState);
             E1kLog2(("%s At %08X read  %s          from %s (%s)\n",
@@ -4306,7 +4311,7 @@ static int e1kRegRead(E1KSTATE *pState, uint32_t uOffset, void *pv, uint32_t cb)
  * @param   cb          Number of bytes to write.
  * @thread  EMT
  */
-static int e1kRegWrite(E1KSTATE *pState, uint32_t uOffset, void *pv, unsigned cb)
+static int e1kRegWrite(E1KSTATE *pState, uint32_t uOffset, void const *pv, unsigned cb)
 {
     int         rc     = VINF_SUCCESS;
     int         index  = e1kRegLookup(pState, uOffset);
@@ -4409,7 +4414,7 @@ PDMBOTHCBDECL(int) e1kMMIORead(PPDMDEVINS pDevIns, void *pvUser,
  * @thread  EMT
  */
 PDMBOTHCBDECL(int) e1kMMIOWrite(PPDMDEVINS pDevIns, void *pvUser,
-                                RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+                                RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
     NOREF(pvUser);
     E1KSTATE  *pState = PDMINS_2_DATA(pDevIns, E1KSTATE *);
@@ -4443,7 +4448,7 @@ PDMBOTHCBDECL(int) e1kMMIOWrite(PPDMDEVINS pDevIns, void *pvUser,
  * @thread  EMT
  */
 PDMBOTHCBDECL(int) e1kIOPortIn(PPDMDEVINS pDevIns, void *pvUser,
-              RTIOPORT port, uint32_t *pu32, unsigned cb)
+                               RTIOPORT port, uint32_t *pu32, unsigned cb)
 {
     E1KSTATE   *pState = PDMINS_2_DATA(pDevIns, E1KSTATE *);
     int         rc     = VINF_SUCCESS;
@@ -4494,7 +4499,7 @@ PDMBOTHCBDECL(int) e1kIOPortIn(PPDMDEVINS pDevIns, void *pvUser,
  * @thread  EMT
  */
 PDMBOTHCBDECL(int) e1kIOPortOut(PPDMDEVINS pDevIns, void *pvUser,
-              RTIOPORT port, uint32_t u32, unsigned cb)
+                                RTIOPORT port, uint32_t u32, unsigned cb)
 {
     E1KSTATE   *pState = PDMINS_2_DATA(pDevIns, E1KSTATE *);
     int         rc     = VINF_SUCCESS;
@@ -5829,7 +5834,7 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
 #ifdef E1K_USE_TX_TIMERS
     /* Create Transmit Interrupt Delay Timer */
     rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kTxIntDelayTimer, pState,
-                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
+                                TMTIMER_FLAGS_NO_CRIT_SECT,
                                 "E1000 Transmit Interrupt Delay Timer", &pState->pTIDTimerR3);
     if (RT_FAILURE(rc))
         return rc;
@@ -5839,7 +5844,7 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
 # ifndef E1K_NO_TAD
     /* Create Transmit Absolute Delay Timer */
     rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kTxAbsDelayTimer, pState,
-                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
+                                TMTIMER_FLAGS_NO_CRIT_SECT,
                                 "E1000 Transmit Absolute Delay Timer", &pState->pTADTimerR3);
     if (RT_FAILURE(rc))
         return rc;
@@ -5851,7 +5856,7 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
 #ifdef E1K_USE_RX_TIMERS
     /* Create Receive Interrupt Delay Timer */
     rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kRxIntDelayTimer, pState,
-                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
+                                TMTIMER_FLAGS_NO_CRIT_SECT,
                                 "E1000 Receive Interrupt Delay Timer", &pState->pRIDTimerR3);
     if (RT_FAILURE(rc))
         return rc;
@@ -5860,7 +5865,7 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
 
     /* Create Receive Absolute Delay Timer */
     rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kRxAbsDelayTimer, pState,
-                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
+                                TMTIMER_FLAGS_NO_CRIT_SECT,
                                 "E1000 Receive Absolute Delay Timer", &pState->pRADTimerR3);
     if (RT_FAILURE(rc))
         return rc;
@@ -5870,7 +5875,7 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
 
     /* Create Late Interrupt Timer */
     rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kLateIntTimer, pState,
-                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
+                                TMTIMER_FLAGS_NO_CRIT_SECT,
                                 "E1000 Late Interrupt Timer", &pState->pIntTimerR3);
     if (RT_FAILURE(rc))
         return rc;
@@ -5879,7 +5884,7 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
 
     /* Create Link Up Timer */
     rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kLinkUpTimer, pState,
-                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
+                                TMTIMER_FLAGS_NO_CRIT_SECT,
                                 "E1000 Link Up Timer", &pState->pLUTimerR3);
     if (RT_FAILURE(rc))
         return rc;

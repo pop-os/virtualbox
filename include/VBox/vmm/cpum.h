@@ -26,8 +26,8 @@
 #ifndef ___VBox_vmm_cpum_h
 #define ___VBox_vmm_cpum_h
 
-#include <iprt/types.h>
-#include <VBox/x86.h>
+#include <iprt/x86.h>
+#include <VBox/types.h>
 #include <VBox/vmm/cpumctx.h>
 
 RT_C_DECLS_BEGIN
@@ -62,6 +62,8 @@ typedef enum CPUMCPUIDFEATURE
     CPUMCPUIDFEATURE_X2APIC,
     /** The RDTSCP feature bit. (Ext) */
     CPUMCPUIDFEATURE_RDTSCP,
+    /** The Hypervisor Present bit. (Std) */
+    CPUMCPUIDFEATURE_HVP,
     /** 32bit hackishness. */
     CPUMCPUIDFEATURE_32BIT_HACK = 0x7fffffff
 } CPUMCPUIDFEATURE;
@@ -131,8 +133,8 @@ VMMDECL(CPUMCPUVENDOR)  CPUMGetHostCpuVendor(PVM pVM);
 
 /** @name Guest Register Setters.
  * @{ */
-VMMDECL(int)        CPUMSetGuestGDTR(PVMCPU pVCpu, uint32_t addr, uint16_t limit);
-VMMDECL(int)        CPUMSetGuestIDTR(PVMCPU pVCpu, uint32_t addr, uint16_t limit);
+VMMDECL(int)        CPUMSetGuestGDTR(PVMCPU pVCpu, uint64_t GCPtrBase, uint16_t cbLimit);
+VMMDECL(int)        CPUMSetGuestIDTR(PVMCPU pVCpu, uint64_t GCPtrBase, uint16_t cbLimit);
 VMMDECL(int)        CPUMSetGuestTR(PVMCPU pVCpu, uint16_t tr);
 VMMDECL(int)        CPUMSetGuestLDTR(PVMCPU pVCpu, uint16_t ldtr);
 VMMDECL(int)        CPUMSetGuestCR0(PVMCPU pVCpu, uint64_t cr0);
@@ -180,6 +182,7 @@ VMMDECL(bool)       CPUMIsGuestPageSizeExtEnabled(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestPagingEnabled(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestR0WriteProtEnabled(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestInRealMode(PVMCPU pVCpu);
+VMMDECL(bool)       CPUMIsGuestInRealOrV86Mode(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestInProtectedMode(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestInPagedProtectedMode(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestInLongMode(PVMCPU pVCpu);
@@ -196,6 +199,18 @@ VMMDECL(bool)       CPUMIsGuestInPAEMode(PVMCPU pVCpu);
 DECLINLINE(bool)    CPUMIsGuestInRealModeEx(PCPUMCTX pCtx)
 {
     return !(pCtx->cr0 & X86_CR0_PE);
+}
+
+/**
+ * Tests if the guest is running in real or virtual 8086 mode.
+ *
+ * @returns @c true if it is, @c false if not.
+ * @param   pCtx    Current CPU context
+ */
+DECLINLINE(bool) CPUMIsGuestInRealOrV86ModeEx(PCPUMCTX pCtx)
+{
+    return !(pCtx->cr0 & X86_CR0_PE)
+        || pCtx->eflags.Bits.u1VM; /** @todo verify that this cannot be set in long mode. */
 }
 
 /**

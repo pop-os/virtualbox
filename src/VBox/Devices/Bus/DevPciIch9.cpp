@@ -1,10 +1,10 @@
-/* $Id: DevPciIch9.cpp $ */
+/* $Id: DevPciIch9.cpp 37636 2011-06-24 14:59:59Z vboxsync $ */
 /** @file
- * DevPCI - ICH9 southbridge PCI bus emulation Device.
+ * DevPCI - ICH9 southbridge PCI bus emulation device.
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,11 +16,12 @@
  */
 
 /*******************************************************************************
- *   Header Files                                                              *
- *******************************************************************************/
+*   Header Files                                                               *
+*******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_PCI
 /* Hack to get PCIDEVICEINT declare at the right point - include "PCIInternal.h". */
 #define PCI_INCLUDE_PRIVATE
+#define PCIBus ICH9PCIBus
 #include <VBox/pci.h>
 #include <VBox/msi.h>
 #include <VBox/vmm/pdmdev.h>
@@ -35,10 +36,14 @@
 
 #include "MsiCommon.h"
 
+
+/*******************************************************************************
+*   Structures and Typedefs                                                    *
+*******************************************************************************/
 /**
  * PCI Bus instance.
  */
-typedef struct PCIBus
+typedef struct ICH9PCIBus
 {
     /** Bus number. */
     int32_t             iBus;
@@ -68,7 +73,7 @@ typedef struct PCIBus
     /** The PCI device for the PCI bridge. */
     PCIDEVICE           aPciDev;
 
-} PCIBUS, *PPCIBUS;
+} ICH9PCIBUS, *PICH9PCIBUS;
 
 
 /** @def PCI_APIC_IRQ_PINS
@@ -92,9 +97,8 @@ typedef struct
     uint32_t            Alignment0;
 #endif
 
-    /** PCI bus which is attached to the host-to-PCI bridge. */
-    PCIBUS              aPciBus;
-
+     /** Config register. */
+    uint32_t            uConfigReg;
 
     /** I/O APIC irq levels */
     volatile uint32_t   uaPciApicIrqLevels[PCI_APIC_IRQ_PINS];
@@ -112,21 +116,23 @@ typedef struct
     /* Length of PCI config space MMIO region */
     uint64_t            u64PciConfigMMioLength;
 
+    /** PCI bus which is attached to the host-to-PCI bridge. */
+    ICH9PCIBUS          aPciBus;
+} ICH9PCIGLOBALS, *PICH9PCIGLOBALS;
 
-    /** Config register. */
-    uint32_t            uConfigReg;
-} PCIGLOBALS, *PPCIGLOBALS;
 
-
-typedef struct {
+typedef struct
+{
     uint8_t  iBus;
     uint8_t  iDeviceFunc;
     uint16_t iRegister;
 } PciAddress;
 
+#ifndef VBOX_DEVICE_STRUCT_TESTCASE
+
 /*******************************************************************************
- *   Defined Constants And Macros                                              *
- *******************************************************************************/
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
 
 /** @def VBOX_ICH9PCI_SAVED_STATE_VERSION
  * Saved state version of the ICH9 PCI bus device.
@@ -137,14 +143,12 @@ typedef struct {
 
 /** Converts a bus instance pointer to a device instance pointer. */
 #define PCIBUS_2_DEVINS(pPciBus)        ((pPciBus)->CTX_SUFF(pDevIns))
-/** Converts a device instance pointer to a PCIGLOBALS pointer. */
-#define DEVINS_2_PCIGLOBALS(pDevIns)    ((PPCIGLOBALS)(PDMINS_2_DATA(pDevIns, PPCIGLOBALS)))
+/** Converts a device instance pointer to a ICH9PCIGLOBALS pointer. */
+#define DEVINS_2_PCIGLOBALS(pDevIns)    ((PICH9PCIGLOBALS)(PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS)))
 /** Converts a device instance pointer to a PCIBUS pointer. */
-#define DEVINS_2_PCIBUS(pDevIns)        ((PPCIBUS)(&PDMINS_2_DATA(pDevIns, PPCIGLOBALS)->aPciBus))
-/** Converts a pointer to a PCI root bus instance to a PCIGLOBALS pointer.
- */
-#define PCIROOTBUS_2_PCIGLOBALS(pPciBus)    ( (PPCIGLOBALS)((uintptr_t)(pPciBus) - RT_OFFSETOF(PCIGLOBALS, aPciBus)) )
-
+#define DEVINS_2_PCIBUS(pDevIns)        ((PICH9PCIBUS)(&PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS)->aPciBus))
+/** Converts a pointer to a PCI root bus instance to a PCIGLOBALS pointer. */
+#define PCIROOTBUS_2_PCIGLOBALS(pPciBus)    ( (PICH9PCIGLOBALS)((uintptr_t)(pPciBus) - RT_OFFSETOF(ICH9PCIGLOBALS, aPciBus)) )
 
 /** @def PCI_LOCK
  * Acquires the PDM lock. This is a NOP if locking is disabled. */
@@ -159,42 +163,27 @@ typedef struct {
 #define PCI_UNLOCK(pDevIns) \
     DEVINS_2_PCIBUS(pDevIns)->CTX_SUFF(pPciHlp)->pfnUnlock(pDevIns)
 
-#ifndef VBOX_DEVICE_STRUCT_TESTCASE
-
-RT_C_DECLS_BEGIN
-
-PDMBOTHCBDECL(void) ich9pciSetIrq(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iIrq, int iLevel);
-PDMBOTHCBDECL(void) ich9pcibridgeSetIrq(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iIrq, int iLevel);
-PDMBOTHCBDECL(int)  ich9pciIOPortAddressWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
-PDMBOTHCBDECL(int)  ich9pciIOPortAddressRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
-PDMBOTHCBDECL(int)  ich9pciIOPortDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
-PDMBOTHCBDECL(int)  ich9pciIOPortDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
-PDMBOTHCBDECL(int)  ich9pciMcfgMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-PDMBOTHCBDECL(int)  ich9pciMcfgMMIORead (PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-
-RT_C_DECLS_END
-
 /* Prototypes */
-static void ich9pciSetIrqInternal(PPCIGLOBALS pGlobals, uint8_t uDevFn, PPCIDEVICE pPciDev, int iIrq, int iLevel);
+static void ich9pciSetIrqInternal(PICH9PCIGLOBALS pGlobals, uint8_t uDevFn, PPCIDEVICE pPciDev, int iIrq, int iLevel);
 #ifdef IN_RING3
 static void ich9pcibridgeReset(PPDMDEVINS pDevIns);
-static int ich9pciRegisterInternal(PPCIBUS pBus, int iDev, PPCIDEVICE pPciDev, const char *pszName);
+static int ich9pciRegisterInternal(PICH9PCIBUS pBus, int iDev, PPCIDEVICE pPciDev, const char *pszName);
 static void ich9pciUpdateMappings(PCIDevice *pDev);
 static DECLCALLBACK(uint32_t) ich9pciConfigReadDev(PCIDevice *aDev, uint32_t u32Address, unsigned len);
-DECLINLINE(PPCIDEVICE) ich9pciFindBridge(PPCIBUS pBus, uint8_t iBus);
-static void ich9pciBiosInitDevice(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn, uint8_t cBridgeDepth, uint8_t *paBridgePositions);
+DECLINLINE(PPCIDEVICE) ich9pciFindBridge(PICH9PCIBUS pBus, uint8_t iBus);
+static void ich9pciBiosInitDevice(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn);
 #endif
 
 // See 7.2.2. PCI Express Enhanced Configuration Mechanism for details of address
 // mapping, we take n=6 approach
-DECLINLINE(void) ich9pciPhysToPciAddr(PPCIGLOBALS pGlobals, RTGCPHYS GCPhysAddr, PciAddress* pPciAddr)
+DECLINLINE(void) ich9pciPhysToPciAddr(PICH9PCIGLOBALS pGlobals, RTGCPHYS GCPhysAddr, PciAddress* pPciAddr)
 {
     pPciAddr->iBus          = (GCPhysAddr >> 20) & ((1<<6)       - 1);
     pPciAddr->iDeviceFunc   = (GCPhysAddr >> 12) & ((1<<(5+3))   - 1); // 5 bits - device, 3 bits - function
     pPciAddr->iRegister     = (GCPhysAddr >>  0) & ((1<<(6+4+2)) - 1); // 6 bits - register, 4 bits - extended register, 2 bits -Byte Enable
 }
 
-DECLINLINE(void) ich9pciStateToPciAddr(PPCIGLOBALS pGlobals, RTGCPHYS addr, PciAddress* pPciAddr)
+DECLINLINE(void) ich9pciStateToPciAddr(PICH9PCIGLOBALS pGlobals, RTGCPHYS addr, PciAddress* pPciAddr)
 {
     pPciAddr->iBus         = (pGlobals->uConfigReg >> 16) & 0xff;
     pPciAddr->iDeviceFunc  = (pGlobals->uConfigReg >> 8) & 0xff;
@@ -203,7 +192,7 @@ DECLINLINE(void) ich9pciStateToPciAddr(PPCIGLOBALS pGlobals, RTGCPHYS addr, PciA
 
 PDMBOTHCBDECL(void) ich9pciSetIrq(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iIrq, int iLevel)
 {
-    ich9pciSetIrqInternal(PDMINS_2_DATA(pDevIns, PPCIGLOBALS), pPciDev->devfn, pPciDev, iIrq, iLevel);
+    ich9pciSetIrqInternal(PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS), pPciDev->devfn, pPciDev, iIrq, iLevel);
 }
 
 PDMBOTHCBDECL(void) ich9pcibridgeSetIrq(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iIrq, int iLevel)
@@ -215,10 +204,10 @@ PDMBOTHCBDECL(void) ich9pcibridgeSetIrq(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, 
      * We change iIrq here according to the spec and call the SetIrq function
      * of our parent passing the device which asserted the interrupt instead of the device of the bridge.
      */
-    PPCIBUS    pBus          = PDMINS_2_DATA(pDevIns, PPCIBUS);
-    PPCIDEVICE pPciDevBus    = pPciDev;
-    int        iIrqPinBridge = iIrq;
-    uint8_t    uDevFnBridge  = 0;
+    PICH9PCIBUS    pBus          = PDMINS_2_DATA(pDevIns, PICH9PCIBUS);
+    PPCIDEVICE     pPciDevBus    = pPciDev;
+    int            iIrqPinBridge = iIrq;
+    uint8_t        uDevFnBridge  = 0;
 
     /* Walk the chain until we reach the host bus. */
     do
@@ -248,11 +237,11 @@ PDMBOTHCBDECL(void) ich9pcibridgeSetIrq(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, 
  */
 PDMBOTHCBDECL(int)  ich9pciIOPortAddressWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
-    Log(("ich9pciIOPortAddressWrite: Port=%#x u32=%#x cb=%d\n", Port, u32, cb));
+    LogFlow(("ich9pciIOPortAddressWrite: Port=%#x u32=%#x cb=%d\n", Port, u32, cb));
     NOREF(pvUser);
     if (cb == 4)
     {
-        PPCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PPCIGLOBALS);
+        PICH9PCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
 
         PCI_LOCK(pDevIns, VINF_IOM_HC_IOPORT_WRITE);
         pThis->uConfigReg = u32 & ~3; /* Bits 0-1 are reserved and we silently clear them */
@@ -278,11 +267,11 @@ PDMBOTHCBDECL(int)  ich9pciIOPortAddressRead(PPDMDEVINS pDevIns, void *pvUser, R
     NOREF(pvUser);
     if (cb == 4)
     {
-        PPCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PPCIGLOBALS);
+        PICH9PCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
         PCI_LOCK(pDevIns, VINF_IOM_HC_IOPORT_READ);
         *pu32 = pThis->uConfigReg;
         PCI_UNLOCK(pDevIns);
-        Log(("pciIOPortAddressRead: Port=%#x cb=%d -> %#x\n", Port, cb, *pu32));
+        LogFlow(("ich9pciIOPortAddressRead: Port=%#x cb=%d -> %#x\n", Port, cb, *pu32));
         return VINF_SUCCESS;
     }
 
@@ -291,16 +280,10 @@ PDMBOTHCBDECL(int)  ich9pciIOPortAddressRead(PPDMDEVINS pDevIns, void *pvUser, R
     return VERR_IOM_IOPORT_UNUSED;
 }
 
-static int ich9pciDataWriteAddr(PPCIGLOBALS pGlobals, PciAddress* pAddr,
+static int ich9pciDataWriteAddr(PICH9PCIGLOBALS pGlobals, PciAddress* pAddr,
                                 uint32_t val, int cb, int rcReschedule)
 {
     int rc = VINF_SUCCESS;
-
-    if (pAddr->iRegister > 0xff)
-    {
-        LogRel(("PCI: attempt to write extended register: %x (%d) <- val\n", pAddr->iRegister, cb, val));
-        goto out;
-    }
 
     if (pAddr->iBus != 0)
     {
@@ -329,7 +312,6 @@ static int ich9pciDataWriteAddr(PPCIGLOBALS pGlobals, PciAddress* pAddr,
         {
 #ifdef IN_RING3
             R3PTRTYPE(PCIDevice *) aDev = pGlobals->aPciBus.apDevices[pAddr->iDeviceFunc];
-            Log(("ich9pciConfigWrite: %s: addr=%02x val=%08x len=%d\n", aDev->name, pAddr->iRegister, val, cb));
             aDev->Int.s.pfnConfigWrite(aDev, pAddr->iRegister, val, cb);
 #else
             rc = rcReschedule;
@@ -346,7 +328,7 @@ static int ich9pciDataWriteAddr(PPCIGLOBALS pGlobals, PciAddress* pAddr,
     return rc;
 }
 
-static int ich9pciDataWrite(PPCIGLOBALS pGlobals, uint32_t addr, uint32_t val, int len)
+static int ich9pciDataWrite(PICH9PCIGLOBALS pGlobals, uint32_t addr, uint32_t val, int len)
 {
     PciAddress aPciAddr;
 
@@ -383,13 +365,13 @@ static void ich9pciNoMem(void* ptr, int cb)
  */
 PDMBOTHCBDECL(int)  ich9pciIOPortDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
-    Log(("pciIOPortDataWrite: Port=%#x u32=%#x cb=%d\n", Port, u32, cb));
+    LogFlow(("ich9pciIOPortDataWrite: Port=%#x u32=%#x cb=%d\n", Port, u32, cb));
     NOREF(pvUser);
     int rc = VINF_SUCCESS;
     if (!(Port % cb))
     {
         PCI_LOCK(pDevIns, VINF_IOM_HC_IOPORT_WRITE);
-        rc = ich9pciDataWrite(PDMINS_2_DATA(pDevIns, PPCIGLOBALS), Port, u32, cb);
+        rc = ich9pciDataWrite(PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS), Port, u32, cb);
         PCI_UNLOCK(pDevIns);
     }
     else
@@ -397,18 +379,10 @@ PDMBOTHCBDECL(int)  ich9pciIOPortDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTI
     return rc;
 }
 
-static int ich9pciDataReadAddr(PPCIGLOBALS pGlobals, PciAddress* pPciAddr, int cb,
+static int ich9pciDataReadAddr(PICH9PCIGLOBALS pGlobals, PciAddress* pPciAddr, int cb,
                                uint32_t *pu32, int rcReschedule)
 {
     int rc = VINF_SUCCESS;
-
-    if (pPciAddr->iRegister > 0xff)
-    {
-        LogRel(("PCI: attempt to read extended register: %x\n", pPciAddr->iRegister));
-        ich9pciNoMem(pu32, cb);
-        goto out;
-    }
-
 
     if (pPciAddr->iBus != 0)
     {
@@ -437,7 +411,6 @@ static int ich9pciDataReadAddr(PPCIGLOBALS pGlobals, PciAddress* pPciAddr, int c
 #ifdef IN_RING3
             R3PTRTYPE(PCIDevice *) aDev = pGlobals->aPciBus.apDevices[pPciAddr->iDeviceFunc];
             *pu32 = aDev->Int.s.pfnConfigRead(aDev, pPciAddr->iRegister, cb);
-            Log(("ich9pciDataReadAddr: %s: addr=%02x val=%08x len=%d\n", aDev->name, pPciAddr->iRegister, *pu32, cb));
 #else
             rc = rcReschedule;
             goto out;
@@ -448,14 +421,14 @@ static int ich9pciDataReadAddr(PPCIGLOBALS pGlobals, PciAddress* pPciAddr, int c
     }
 
   out:
-    Log2(("ich9pciDataReadAddr: %02x:%02x:%02x reg %x(%d) gave %x %Rrc\n",
+    Log3(("ich9pciDataReadAddr: %02x:%02x:%02x reg %x(%d) gave %x %Rrc\n",
           pPciAddr->iBus, pPciAddr->iDeviceFunc >> 3, pPciAddr->iDeviceFunc & 0x7, pPciAddr->iRegister,
           cb, *pu32, rc));
 
     return rc;
 }
 
-static int ich9pciDataRead(PPCIGLOBALS pGlobals, uint32_t addr, int cb, uint32_t *pu32)
+static int ich9pciDataRead(PICH9PCIGLOBALS pGlobals, uint32_t addr, int cb, uint32_t *pu32)
 {
     PciAddress aPciAddr;
 
@@ -492,9 +465,9 @@ PDMBOTHCBDECL(int)  ich9pciIOPortDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIO
     if (!(Port % cb))
     {
         PCI_LOCK(pDevIns, VINF_IOM_HC_IOPORT_READ);
-        int rc = ich9pciDataRead(PDMINS_2_DATA(pDevIns, PPCIGLOBALS), Port, cb, pu32);
+        int rc = ich9pciDataRead(PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS), Port, cb, pu32);
         PCI_UNLOCK(pDevIns);
-        Log(("pciIOPortDataRead: Port=%#x cb=%#x -> %#x (%Rrc)\n", Port, cb, *pu32, rc));
+        LogFlow(("ich9pciIOPortDataRead: Port=%#x cb=%#x -> %#x (%Rrc)\n", Port, cb, *pu32, rc));
         return rc;
     }
     AssertMsgFailed(("Unaligned read from port %#x cb=%d\n", Port, cb));
@@ -520,18 +493,18 @@ DECLINLINE(int) ich9pciSlotGetPirq(uint8_t uBus, uint8_t uDevFn, int iIrqNum)
 static const uint8_t aPciIrqs[4] = { 11, 10, 9, 5 };
 
 /* Add one more level up request on APIC input line */
-DECLINLINE(void) ich9pciApicLevelUp(PPCIGLOBALS pGlobals, int irq_num)
+DECLINLINE(void) ich9pciApicLevelUp(PICH9PCIGLOBALS pGlobals, int irq_num)
 {
     ASMAtomicIncU32(&pGlobals->uaPciApicIrqLevels[irq_num]);
 }
 
 /* Remove one level up request on APIC input line */
-DECLINLINE(void) ich9pciApicLevelDown(PPCIGLOBALS pGlobals, int irq_num)
+DECLINLINE(void) ich9pciApicLevelDown(PICH9PCIGLOBALS pGlobals, int irq_num)
 {
     ASMAtomicDecU32(&pGlobals->uaPciApicIrqLevels[irq_num]);
 }
 
-static void ich9pciApicSetIrq(PPCIBUS pBus, uint8_t uDevFn, PCIDevice *pPciDev, int irq_num1, int iLevel, int iForcedIrq)
+static void ich9pciApicSetIrq(PICH9PCIBUS pBus, uint8_t uDevFn, PCIDevice *pPciDev, int irq_num1, int iLevel, int iForcedIrq)
 {
     /* This is only allowed to be called with a pointer to the root bus. */
     AssertMsg(pBus->iBus == 0, ("iBus=%u\n", pBus->iBus));
@@ -539,7 +512,7 @@ static void ich9pciApicSetIrq(PPCIBUS pBus, uint8_t uDevFn, PCIDevice *pPciDev, 
     if (iForcedIrq == -1)
     {
         int apic_irq, apic_level;
-        PPCIGLOBALS pGlobals = PCIROOTBUS_2_PCIGLOBALS(pBus);
+        PICH9PCIGLOBALS pGlobals = PCIROOTBUS_2_PCIGLOBALS(pBus);
         int irq_num = ich9pciSlot2ApicIrq(uDevFn >> 3, irq_num1);
 
         if ((iLevel & PDM_IRQ_LEVEL_HIGH) == PDM_IRQ_LEVEL_HIGH)
@@ -555,7 +528,7 @@ static void ich9pciApicSetIrq(PPCIBUS pBus, uint8_t uDevFn, PCIDevice *pPciDev, 
 
         if ((iLevel & PDM_IRQ_LEVEL_FLIP_FLOP) == PDM_IRQ_LEVEL_FLIP_FLOP)
         {
-            /**
+            /*
              *  we raised it few lines above, as PDM_IRQ_LEVEL_FLIP_FLOP has
              * PDM_IRQ_LEVEL_HIGH bit set
              */
@@ -573,7 +546,7 @@ static void ich9pciApicSetIrq(PPCIBUS pBus, uint8_t uDevFn, PCIDevice *pPciDev, 
     }
 }
 
-static void ich9pciSetIrqInternal(PPCIGLOBALS pGlobals, uint8_t uDevFn, PPCIDEVICE pPciDev, int iIrq, int iLevel)
+static void ich9pciSetIrqInternal(PICH9PCIGLOBALS pGlobals, uint8_t uDevFn, PPCIDEVICE pPciDev, int iIrq, int iLevel)
 {
 
     if (PCIDevIsIntxDisabled(pPciDev))
@@ -592,7 +565,7 @@ static void ich9pciSetIrqInternal(PPCIGLOBALS pGlobals, uint8_t uDevFn, PPCIDEVI
         return;
     }
 
-    PPCIBUS     pBus =     &pGlobals->aPciBus;
+    PICH9PCIBUS     pBus      =     &pGlobals->aPciBus;
     const bool  fIsAcpiDevice = PCIDevGetDeviceId(pPciDev) == 0x7113;
 
     /* Check if the state changed. */
@@ -615,9 +588,9 @@ static void ich9pciSetIrqInternal(PPCIGLOBALS pGlobals, uint8_t uDevFn, PPCIDEVI
     }
 }
 
-PDMBOTHCBDECL(int)  ich9pciMcfgMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+PDMBOTHCBDECL(int)  ich9pciMcfgMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
-    PPCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PPCIGLOBALS);
+    PICH9PCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
     PciAddress aDest;
     uint32_t u32 = 0;
 
@@ -650,7 +623,7 @@ PDMBOTHCBDECL(int)  ich9pciMcfgMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCP
 
 PDMBOTHCBDECL(int)  ich9pciMcfgMMIORead (PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
 {
-    PPCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PPCIGLOBALS);
+    PICH9PCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
     PciAddress  aDest;
     uint32_t    rv;
 
@@ -687,7 +660,7 @@ PDMBOTHCBDECL(int)  ich9pciMcfgMMIORead (PPDMDEVINS pDevIns, void *pvUser, RTGCP
 
 #ifdef IN_RING3
 
-DECLINLINE(PPCIDEVICE) ich9pciFindBridge(PPCIBUS pBus, uint8_t iBus)
+DECLINLINE(PPCIDEVICE) ich9pciFindBridge(PICH9PCIBUS pBus, uint8_t iBus)
 {
     /* Search for a fitting bridge. */
     for (uint32_t iBridge = 0; iBridge < pBus->cBridges; iBridge++)
@@ -696,17 +669,38 @@ DECLINLINE(PPCIDEVICE) ich9pciFindBridge(PPCIBUS pBus, uint8_t iBus)
          * Examine secondary and subordinate bus number.
          * If the target bus is in the range we pass the request on to the bridge.
          */
-        PPCIDEVICE pBridgeTemp = pBus->papBridgesR3[iBridge];
-        AssertMsg(pBridgeTemp && PCIIsPci2PciBridge(pBridgeTemp),
+        PPCIDEVICE pBridge = pBus->papBridgesR3[iBridge];
+        AssertMsg(pBridge && pciDevIsPci2PciBridge(pBridge),
                   ("Device is not a PCI bridge but on the list of PCI bridges\n"));
-
-        if (   iBus >= PCIDevGetByte(pBridgeTemp, VBOX_PCI_SECONDARY_BUS)
-            && iBus <= PCIDevGetByte(pBridgeTemp, VBOX_PCI_SUBORDINATE_BUS))
-            return pBridgeTemp;
+        uint32_t uSecondary   = PCIDevGetByte(pBridge, VBOX_PCI_SECONDARY_BUS);
+        uint32_t uSubordinate = PCIDevGetByte(pBridge, VBOX_PCI_SUBORDINATE_BUS);
+        Log3(("ich9pciFindBridge on bus %p, bridge %d: %d in %d..%d\n", pBus, iBridge, iBus, uSecondary, uSubordinate));
+        if (iBus >= uSecondary && iBus <= uSubordinate)
+            return pBridge;
     }
 
     /* Nothing found. */
     return NULL;
+}
+
+static uint32_t ich9pciGetCfg(PCIDevice* aDev, int32_t iRegister, int cb)
+{
+    return aDev->Int.s.pfnConfigRead(aDev, iRegister, cb);
+}
+
+static uint8_t ich9pciGetByte(PCIDevice* aDev, int32_t iRegister)
+{
+    return (uint8_t)ich9pciGetCfg(aDev, iRegister, 1);
+}
+
+static uint16_t ich9pciGetWord(PCIDevice* aDev, int32_t iRegister)
+{
+    return (uint16_t)ich9pciGetCfg(aDev, iRegister, 2);
+}
+
+static uint32_t ich9pciGetDWord(PCIDevice* aDev, int32_t iRegister)
+{
+    return (uint32_t)ich9pciGetCfg(aDev, iRegister, 4);
 }
 
 DECLINLINE(uint32_t) ich9pciGetRegionReg(int iRegion)
@@ -721,7 +715,7 @@ static int  ich9pciUnmapRegion(PPCIDEVICE pDev, int iRegion)
 {
     PCIIORegion* pRegion = &pDev->Int.s.aIORegions[iRegion];
     int rc = VINF_SUCCESS;
-    PPCIBUS pBus = pDev->Int.s.CTX_SUFF(pBus);
+    PICH9PCIBUS pBus = pDev->Int.s.CTX_SUFF(pBus);
 
     Assert (pRegion->size != 0);
 
@@ -755,21 +749,21 @@ static int  ich9pciUnmapRegion(PPCIDEVICE pDev, int iRegion)
 
 static void ich9pciUpdateMappings(PCIDevice* pDev)
 {
-    PPCIBUS pBus = pDev->Int.s.CTX_SUFF(pBus);
-    uint32_t uLast, uNew;
+    PICH9PCIBUS pBus = pDev->Int.s.CTX_SUFF(pBus);
+    uint64_t uLast, uNew;
 
-    int iCmd = PCIDevGetCommand(pDev);
+    int iCmd = ich9pciGetWord(pDev, VBOX_PCI_COMMAND);
     for (int iRegion = 0; iRegion < PCI_NUM_REGIONS; iRegion++)
     {
         PCIIORegion* pRegion = &pDev->Int.s.aIORegions[iRegion];
-        uint32_t uConfigReg = ich9pciGetRegionReg(iRegion);
-        int32_t  iRegionSize =  pRegion->size;
+        uint32_t uConfigReg  = ich9pciGetRegionReg(iRegion);
+        int64_t  iRegionSize =  pRegion->size;
         int rc;
 
         if (iRegionSize == 0)
             continue;
 
-        AssertMsg((pRegion->type & PCI_ADDRESS_SPACE_BAR64) == 0, ("64-bit BARs not yet implemented\n"));
+        bool f64Bit = (pRegion->type & PCI_ADDRESS_SPACE_BAR64) != 0;
 
         if (pRegion->type & PCI_ADDRESS_SPACE_IO)
         {
@@ -777,7 +771,7 @@ static void ich9pciUpdateMappings(PCIDevice* pDev)
             if (iCmd & PCI_COMMAND_IOACCESS)
             {
                 /* IO access allowed */
-                uNew = ich9pciConfigReadDev(pDev, uConfigReg, 4);
+                uNew = ich9pciGetDWord(pDev, uConfigReg);
                 uNew &= ~(iRegionSize - 1);
                 uLast = uNew + iRegionSize - 1;
                 /* only 64K ioports on PC */
@@ -791,7 +785,19 @@ static void ich9pciUpdateMappings(PCIDevice* pDev)
             /* MMIO region */
             if (iCmd & PCI_COMMAND_MEMACCESS)
             {
-                uNew = ich9pciConfigReadDev(pDev, uConfigReg, 4);
+                uNew = ich9pciGetDWord(pDev, uConfigReg);
+
+                if (f64Bit)
+                {
+                    uNew |= ((uint64_t)ich9pciGetDWord(pDev, uConfigReg+4)) << 32;
+                    if (uNew > UINT64_C(0x0000010000000000))
+                    {
+                        /* Workaround for REM being unhapping with mapping very lange 64-bit addresses */
+                        Log(("Ignoring too 64-bit BAR: %llx\n", uNew));
+                        uNew = INVALID_PCI_ADDRESS;
+                    }
+                }
+
                 /* the ROM slot has a specific enable bit */
                 if (iRegion == PCI_ROM_SLOT && !(uNew & 1))
                     uNew = INVALID_PCI_ADDRESS;
@@ -818,6 +824,7 @@ static void ich9pciUpdateMappings(PCIDevice* pDev)
             pRegion->addr = uNew;
             if (pRegion->addr != INVALID_PCI_ADDRESS)
             {
+
                 /* finally, map the region */
                 rc = pRegion->map_func(pDev, iRegion,
                                        pRegion->addr, pRegion->size,
@@ -830,7 +837,7 @@ static void ich9pciUpdateMappings(PCIDevice* pDev)
 
 static DECLCALLBACK(int) ich9pciRegister(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, const char *pszName, int iDev)
 {
-    PPCIBUS     pBus = DEVINS_2_PCIBUS(pDevIns);
+    PICH9PCIBUS     pBus = DEVINS_2_PCIBUS(pDevIns);
 
     /*
      * Check input.
@@ -856,21 +863,21 @@ static DECLCALLBACK(int) ich9pciRegisterMsi(PPDMDEVINS pDevIns, PPCIDEVICE pPciD
     int rc;
 
     rc = MsiInit(pPciDev, pMsiReg);
-    if (rc != VINF_SUCCESS)
+    if (RT_FAILURE(rc))
         return rc;
 
     rc = MsixInit(pPciDev->Int.s.CTX_SUFF(pBus)->CTX_SUFF(pPciHlp), pPciDev, pMsiReg);
-    if (rc != VINF_SUCCESS)
+    if (RT_FAILURE(rc))
         return rc;
 
-    return rc;
+    return VINF_SUCCESS;
 }
 
 
 static DECLCALLBACK(int) ich9pcibridgeRegister(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, const char *pszName, int iDev)
 {
 
-    PPCIBUS pBus = PDMINS_2_DATA(pDevIns, PPCIBUS);
+    PICH9PCIBUS pBus = PDMINS_2_DATA(pDevIns, PICH9PCIBUS);
 
     /*
      * Check input.
@@ -894,9 +901,12 @@ static DECLCALLBACK(int) ich9pciIORegionRegister(PPDMDEVINS pDevIns, PPCIDEVICE 
     /*
      * Validate.
      */
-    AssertMsgReturn(   enmType == PCI_ADDRESS_SPACE_MEM
-                    || enmType == PCI_ADDRESS_SPACE_IO
-                    || enmType == PCI_ADDRESS_SPACE_MEM_PREFETCH,
+    AssertMsgReturn(   enmType == (PCI_ADDRESS_SPACE_MEM | PCI_ADDRESS_SPACE_BAR32)
+                    || enmType == (PCI_ADDRESS_SPACE_MEM_PREFETCH | PCI_ADDRESS_SPACE_BAR32)
+                    || enmType == (PCI_ADDRESS_SPACE_MEM | PCI_ADDRESS_SPACE_BAR64)
+                    || enmType == (PCI_ADDRESS_SPACE_MEM_PREFETCH | PCI_ADDRESS_SPACE_BAR64)
+                    || enmType ==  PCI_ADDRESS_SPACE_IO
+                    ,
                     ("Invalid enmType=%#x? Or was this a bitmask after all...\n", enmType),
                     VERR_INVALID_PARAMETER);
     AssertMsgReturn((unsigned)iRegion < PCI_NUM_REGIONS,
@@ -908,6 +918,12 @@ static DECLCALLBACK(int) ich9pciIORegionRegister(PPDMDEVINS pDevIns, PPCIDEVICE 
                     ("Invalid cbRegion=%#x iLastSet=%#x (not a power of 2 or 0)\n", cbRegion, iLastSet),
                     VERR_INVALID_PARAMETER);
 
+    Log(("ich9pciIORegionRegister: %s region %d size %d type %x\n",
+         pPciDev->name, iRegion, cbRegion, enmType));
+
+    /* Make sure that we haven't marked this region as continuation of 64-bit region. */
+    Assert(pPciDev->Int.s.aIORegions[iRegion].type != 0xff);
+
     /*
      * Register the I/O region.
      */
@@ -917,11 +933,18 @@ static DECLCALLBACK(int) ich9pciIORegionRegister(PPDMDEVINS pDevIns, PPCIDEVICE 
     pRegion->type        = enmType;
     pRegion->map_func    = pfnCallback;
 
-    /* Set type in the config space. */
-    uint32_t u32Address = ich9pciGetRegionReg(iRegion);
-    uint32_t u32Value   =   (enmType == PCI_ADDRESS_SPACE_MEM_PREFETCH ? (1 << 3) : 0)
-                          | (enmType == PCI_ADDRESS_SPACE_IO ? 1 : 0);
-    PCIDevSetDWord(pPciDev, u32Address, u32Value);
+    if ((enmType & PCI_ADDRESS_SPACE_BAR64) != 0)
+    {
+        AssertMsgReturn(iRegion  < 4,
+                        ("Region %d cannot be 64-bit\n", iRegion),
+                        VERR_INVALID_PARAMETER);
+        /* Mark next region as continuation of this one. */
+        pPciDev->Int.s.aIORegions[iRegion+1].type = 0xff;
+    }
+
+    /* Set type in the PCI config space. */
+    uint32_t u32Value   = ((uint32_t)enmType) & (PCI_ADDRESS_SPACE_IO | PCI_ADDRESS_SPACE_BAR64 | PCI_ADDRESS_SPACE_MEM_PREFETCH);
+    PCIDevSetDWord(pPciDev, ich9pciGetRegionReg(iRegion), u32Value);
 
     return VINF_SUCCESS;
 }
@@ -948,10 +971,11 @@ static DECLCALLBACK(void) ich9pciSetConfigCallbacks(PPDMDEVINS pDevIns, PPCIDEVI
  */
 static DECLCALLBACK(int) ich9pciGenericSaveExec(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, PSSMHANDLE pSSM)
 {
+    Assert(!pciDevIsPassthrough(pPciDev));
     return SSMR3PutMem(pSSM, &pPciDev->config[0], sizeof(pPciDev->config));
 }
 
-static int ich9pciR3CommonSaveExec(PPCIBUS pBus, PSSMHANDLE pSSM)
+static int ich9pciR3CommonSaveExec(PICH9PCIBUS pBus, PSSMHANDLE pSSM)
 {
     /*
      * Iterate thru all the devices.
@@ -967,7 +991,7 @@ static int ich9pciR3CommonSaveExec(PPCIBUS pBus, PSSMHANDLE pSSM)
             SSMR3PutMem(pSSM, pDev->config, sizeof(pDev->config));
 
             /* Device flags */
-            int rc = SSMR3PutU32(pSSM, pDev->Int.s.uFlags);
+            int rc = SSMR3PutU32(pSSM, pDev->Int.s.fFlags);
             if (RT_FAILURE(rc))
                 return rc;
 
@@ -1006,7 +1030,7 @@ static int ich9pciR3CommonSaveExec(PPCIBUS pBus, PSSMHANDLE pSSM)
 
 static DECLCALLBACK(int) ich9pciR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
-    PPCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PPCIGLOBALS);
+    PICH9PCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
 
     /*
      * Bus state data.
@@ -1027,14 +1051,14 @@ static DECLCALLBACK(int) ich9pciR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 
 static DECLCALLBACK(int) ich9pcibridgeR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
-    PPCIBUS pThis = PDMINS_2_DATA(pDevIns, PPCIBUS);
+    PICH9PCIBUS pThis = PDMINS_2_DATA(pDevIns, PICH9PCIBUS);
     return ich9pciR3CommonSaveExec(pThis, pSSM);
 }
 
 
 static void ich9pcibridgeConfigWrite(PPDMDEVINSR3 pDevIns, uint8_t iBus, uint8_t iDevice, uint32_t u32Address, uint32_t u32Value, unsigned cb)
 {
-    PPCIBUS pBus = PDMINS_2_DATA(pDevIns, PPCIBUS);
+    PICH9PCIBUS pBus = PDMINS_2_DATA(pDevIns, PICH9PCIBUS);
 
     LogFlowFunc((": pDevIns=%p iBus=%d iDevice=%d u32Address=%u u32Value=%u cb=%d\n", pDevIns, iBus, iDevice, u32Address, u32Value, cb));
 
@@ -1062,7 +1086,7 @@ static void ich9pcibridgeConfigWrite(PPDMDEVINSR3 pDevIns, uint8_t iBus, uint8_t
 
 static uint32_t ich9pcibridgeConfigRead(PPDMDEVINSR3 pDevIns, uint8_t iBus, uint8_t iDevice, uint32_t u32Address, unsigned cb)
 {
-    PPCIBUS pBus = PDMINS_2_DATA(pDevIns, PPCIBUS);
+    PICH9PCIBUS pBus = PDMINS_2_DATA(pDevIns, PICH9PCIBUS);
     uint32_t u32Value;
 
     LogFlowFunc((": pDevIns=%p iBus=%d iDevice=%d u32Address=%u cb=%d\n", pDevIns, iBus, iDevice, u32Address, cb));
@@ -1200,7 +1224,9 @@ static void pciR3CommonRestoreConfig(PPCIDEVICE pDev, uint8_t const *pbSrcConfig
      * Loop thru the fields covering the 64 bytes of standard registers.
      */
     uint8_t const fBridge = fIsBridge ? 2 : 1;
+    Assert(!pciDevIsPassthrough(pDev));
     uint8_t *pbDstConfig = &pDev->config[0];
+
     for (uint32_t i = 0; i < RT_ELEMENTS(s_aFields); i++)
         if (s_aFields[i].fBridge & fBridge)
         {
@@ -1270,7 +1296,7 @@ static void pciR3CommonRestoreConfig(PPCIDEVICE pDev, uint8_t const *pbSrcConfig
  * @param   uVersion            The data version.
  * @param   uPass               The pass.
  */
-static DECLCALLBACK(int) ich9pciR3CommonLoadExec(PPCIBUS pBus, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
+static DECLCALLBACK(int) ich9pciR3CommonLoadExec(PICH9PCIBUS pBus, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
     uint32_t    u32;
     uint32_t    i;
@@ -1335,7 +1361,7 @@ static DECLCALLBACK(int) ich9pciR3CommonLoadExec(PPCIBUS pBus, PSSMHANDLE pSSM, 
         }
 
         /* get the data */
-        DevTmp.Int.s.uFlags = 0;
+        DevTmp.Int.s.fFlags = 0;
         DevTmp.Int.s.u8MsiCapOffset = 0;
         DevTmp.Int.s.u8MsiCapSize = 0;
         DevTmp.Int.s.u8MsixCapOffset = 0;
@@ -1343,7 +1369,7 @@ static DECLCALLBACK(int) ich9pciR3CommonLoadExec(PPCIBUS pBus, PSSMHANDLE pSSM, 
         DevTmp.Int.s.uIrqPinState = ~0; /* Invalid value in case we have an older saved state to force a state change in pciSetIrq. */
         SSMR3GetMem(pSSM, DevTmp.config, sizeof(DevTmp.config));
 
-        rc = SSMR3GetU32(pSSM, &DevTmp.Int.s.uFlags);
+        rc = SSMR3GetU32(pSSM, &DevTmp.Int.s.fFlags);
         if (RT_FAILURE(rc))
             goto out;
 
@@ -1394,6 +1420,7 @@ static DECLCALLBACK(int) ich9pciR3CommonLoadExec(PPCIBUS pBus, PSSMHANDLE pSSM, 
                                      i, pDev->name, PCIDevGetVendorId(&DevTmp), PCIDevGetVendorId(pDev));
 
         /* commit the loaded device config. */
+        Assert(!pciDevIsPassthrough(pDev));
         pciR3CommonRestoreConfig(pDev, &DevTmp.config[0], false ); /** @todo fix bridge fun! */
 
         pDev->Int.s.uIrqPinState = DevTmp.Int.s.uIrqPinState;
@@ -1425,15 +1452,16 @@ static DECLCALLBACK(int) ich9pciR3CommonLoadExec(PPCIBUS pBus, PSSMHANDLE pSSM, 
  */
 static DECLCALLBACK(int) ich9pciGenericLoadExec(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, PSSMHANDLE pSSM)
 {
+    Assert(!pciDevIsPassthrough(pPciDev));
     return SSMR3GetMem(pSSM, &pPciDev->config[0], sizeof(pPciDev->config));
 }
 
 static DECLCALLBACK(int) ich9pciR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
-    PPCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PPCIGLOBALS);
-    PPCIBUS     pBus  = &pThis->aPciBus;
-    uint32_t    u32;
-    int         rc;
+    PICH9PCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
+    PICH9PCIBUS     pBus  = &pThis->aPciBus;
+    uint32_t        u32;
+    int             rc;
 
     /* We ignore this version as there's no saved state with it anyway */
     if (uVersion == VBOX_ICH9PCI_SAVED_STATE_VERSION_NOMSI)
@@ -1464,13 +1492,13 @@ static DECLCALLBACK(int) ich9pciR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, 
 
 static DECLCALLBACK(int) ich9pcibridgeR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
-    PPCIBUS pThis = PDMINS_2_DATA(pDevIns, PPCIBUS);
+    PICH9PCIBUS pThis = PDMINS_2_DATA(pDevIns, PICH9PCIBUS);
     if (uVersion > VBOX_ICH9PCI_SAVED_STATE_VERSION_MSI)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     return ich9pciR3CommonLoadExec(pThis, pSSM, uVersion, uPass);
 }
 
-static uint32_t ich9pciConfigRead(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn, uint32_t addr, uint32_t len)
+static uint32_t ich9pciConfigRead(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn, uint32_t addr, uint32_t len)
 {
     /* Will only work in LSB case */
     uint32_t   u32Val;
@@ -1486,7 +1514,7 @@ static uint32_t ich9pciConfigRead(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uD
     return u32Val;
 }
 
-static void ich9pciConfigWrite(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn, uint32_t addr, uint32_t val, uint32_t len)
+static void ich9pciConfigWrite(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn, uint32_t addr, uint32_t val, uint32_t len)
 {
     PciAddress aPciAddr;
 
@@ -1499,7 +1527,7 @@ static void ich9pciConfigWrite(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevF
     AssertRC(rc);
 }
 
-static void ich9pciSetRegionAddress(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn, int iRegion, uint32_t addr)
+static void ich9pciSetRegionAddress(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn, int iRegion, uint64_t addr)
 {
     uint32_t uReg = ich9pciGetRegionReg(iRegion);
 
@@ -1508,6 +1536,9 @@ static void ich9pciSetRegionAddress(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t 
     /* Read command register. */
     uint16_t uCmd = ich9pciConfigRead(pGlobals, uBus, uDevFn, VBOX_PCI_COMMAND, 2);
 
+    Log(("Set region address: %02x:%02x.%d region %d address=%lld\n",
+         uBus, uDevFn>>3, uDevFn&7, addr));
+
     if ( iRegion == PCI_ROM_SLOT )
         uCmd |= PCI_COMMAND_MEMACCESS;
     else if ((uResourceType & PCI_ADDRESS_SPACE_IO) == PCI_ADDRESS_SPACE_IO)
@@ -1515,22 +1546,21 @@ static void ich9pciSetRegionAddress(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t 
     else /* The region is MMIO. */
         uCmd |= PCI_COMMAND_MEMACCESS; /* Enable MMIO access. */
 
+    bool f64Bit = (uResourceType & PCI_ADDRESS_SPACE_BAR64) != 0;
+
     /* Write address of the device. */
-    ich9pciConfigWrite(pGlobals, uBus, uDevFn, uReg, addr, 4);
+    ich9pciConfigWrite(pGlobals, uBus, uDevFn, uReg, (uint32_t)addr, 4);
+    if (f64Bit)
+        ich9pciConfigWrite(pGlobals, uBus, uDevFn, uReg + 4, (uint32_t)(addr >> 32), 4);
 
     /* enable memory mappings */
     ich9pciConfigWrite(pGlobals, uBus, uDevFn, VBOX_PCI_COMMAND, uCmd, 2);
 }
 
 
-static void ich9pciBiosInitBridge(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn, uint8_t cBridgeDepth, uint8_t *paBridgePositions)
+static void ich9pciBiosInitBridge(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn)
 {
-    ich9pciConfigWrite(pGlobals, uBus, uDevFn, VBOX_PCI_SECONDARY_BUS, pGlobals->uBus, 1);
-    /* Temporary until we know how many other bridges are behind this one. */
-    ich9pciConfigWrite(pGlobals, uBus, uDevFn, VBOX_PCI_SUBORDINATE_BUS, 0xff, 1);
-
-    /* Add position of this bridge into the array. */
-    paBridgePositions[cBridgeDepth+1] = (uDevFn >> 3);
+    Log(("BIOS init bridge: %02x::%02x.%d\n", uBus, uDevFn >> 3, uDevFn & 7));
 
     /*
      * The I/O range for the bridge must be aligned to a 4KB boundary.
@@ -1555,13 +1585,11 @@ static void ich9pciBiosInitBridge(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uD
     /* Save values to compare later to. */
     uint32_t u32IoAddressBase = pGlobals->uPciBiosIo;
     uint32_t u32MMIOAddressBase = pGlobals->uPciBiosMmio;
+    uint8_t uBridgeBus = ich9pciConfigRead(pGlobals, uBus, uDevFn, VBOX_PCI_SECONDARY_BUS, 1);
 
     /* Init devices behind the bridge and possibly other bridges as well. */
     for (int iDev = 0; iDev <= 255; iDev++)
-        ich9pciBiosInitDevice(pGlobals, uBus + 1, iDev, cBridgeDepth + 1, paBridgePositions);
-
-    /* The number of bridges behind the this one is now available. */
-    ich9pciConfigWrite(pGlobals, uBus, uDevFn, VBOX_PCI_SUBORDINATE_BUS, pGlobals->uBus, 1);
+        ich9pciBiosInitDevice(pGlobals, uBridgeBus, iDev);
 
     /*
      * Set I/O limit register. If there is no device with I/O space behind the bridge
@@ -1596,9 +1624,8 @@ static void ich9pciBiosInitBridge(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uD
     ich9pciConfigWrite(pGlobals, uBus, uDevFn, VBOX_PCI_PREF_LIMIT_UPPER32, 0x00, 4);
 }
 
-static void ich9pciBiosInitDevice(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn, uint8_t cBridgeDepth, uint8_t *paBridgePositions)
+static void ich9pciBiosInitDevice(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn)
 {
-    uint32_t *paddr;
     uint16_t uDevClass, uVendor, uDevice;
     uint8_t uCmd;
 
@@ -1609,6 +1636,8 @@ static void ich9pciBiosInitDevice(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uD
     /* If device is present */
     if (uVendor == 0xffff)
         return;
+
+    Log(("BIOS init device: %02x:%02x.%d\n", uBus, uDevFn >> 3, uDevFn & 7));
 
     switch (uDevClass)
     {
@@ -1637,11 +1666,8 @@ static void ich9pciBiosInitDevice(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uD
             break;
        case 0x0604:
             /* PCI-to-PCI bridge. */
-            ich9pciConfigWrite(pGlobals, uBus, uDevFn, VBOX_PCI_PRIMARY_BUS, uBus, 1);
-
             AssertMsg(pGlobals->uBus < 255, ("Too many bridges on the bus\n"));
-            pGlobals->uBus++;
-            ich9pciBiosInitBridge(pGlobals, uBus, uDevFn, cBridgeDepth, paBridgePositions);
+            ich9pciBiosInitBridge(pGlobals, uBus, uDevFn);
             break;
         default:
         default_map:
@@ -1657,34 +1683,61 @@ static void ich9pciBiosInitDevice(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uD
                 /* Calculate size - we write all 1s into the BAR, and then evaluate which bits
                    are cleared. . */
                 uint8_t u8ResourceType = ich9pciConfigRead(pGlobals, uBus, uDevFn, u32Address, 1);
-                ich9pciConfigWrite(pGlobals, uBus, uDevFn, u32Address, UINT32_C(0xffffffff), 4);
-                uint32_t u32Size = ich9pciConfigRead(pGlobals, uBus, uDevFn, u32Address, 4);
-                /* Clear resource information depending on resource type. */
-                if ((u8ResourceType & PCI_COMMAND_IOACCESS) == PCI_COMMAND_IOACCESS) /* I/O */
-                    u32Size &= ~(0x01);
-                else                        /* MMIO */
-                    u32Size &= ~(0x0f);
 
+                bool f64bit = (u8ResourceType & PCI_ADDRESS_SPACE_BAR64) != 0;
                 bool fIsPio = ((u8ResourceType & PCI_COMMAND_IOACCESS) == PCI_COMMAND_IOACCESS);
-                /*
-                 * Invert all bits and add 1 to get size of the region.
-                 * (From PCI implementation note)
-                 */
-                if (fIsPio && (u32Size & UINT32_C(0xffff0000)) == 0)
-                    u32Size = (~(u32Size | UINT32_C(0xffff0000))) + 1;
-                else
-                    u32Size = (~u32Size) + 1;
+                uint64_t cbRegSize64 = 0;
 
-                Log(("%s: Size of region %u for device %d on bus %d is %u\n", __FUNCTION__, iRegion, uDevFn, uBus, u32Size));
-
-                if (u32Size)
+                if (f64bit)
                 {
-                    paddr = fIsPio ? &pGlobals->uPciBiosIo : &pGlobals->uPciBiosMmio;
-                    *paddr = (*paddr + u32Size - 1) & ~(u32Size - 1);
+                    ich9pciConfigWrite(pGlobals, uBus, uDevFn, u32Address,   UINT32_C(0xffffffff), 4);
+                    ich9pciConfigWrite(pGlobals, uBus, uDevFn, u32Address+4, UINT32_C(0xffffffff), 4);
+                    cbRegSize64  =            ich9pciConfigRead(pGlobals, uBus, uDevFn, u32Address,   4);
+                    cbRegSize64 |= ((uint64_t)ich9pciConfigRead(pGlobals, uBus, uDevFn, u32Address+4, 4) << 32);
+                    cbRegSize64 &= ~UINT64_C(0x0f);
+                    cbRegSize64 = (~cbRegSize64) + 1;
+
+                    /* No 64-bit PIO regions possible. */
+                    Assert((u8ResourceType & PCI_COMMAND_IOACCESS) == 0);
+                }
+                else
+                {
+                    uint32_t cbRegSize32;
+                    ich9pciConfigWrite(pGlobals, uBus, uDevFn, u32Address, UINT32_C(0xffffffff), 4);
+                    cbRegSize32 = ich9pciConfigRead(pGlobals, uBus, uDevFn, u32Address, 4);
+
+                    /* Clear resource information depending on resource type. */
+                    if (fIsPio) /* PIO */
+                        cbRegSize32 &= ~UINT32_C(0x01);
+                    else        /* MMIO */
+                        cbRegSize32 &= ~UINT32_C(0x0f);
+
+                    /*
+                     * Invert all bits and add 1 to get size of the region.
+                     * (From PCI implementation note)
+                     */
+                    if (fIsPio && (cbRegSize32 & UINT32_C(0xffff0000)) == 0)
+                        cbRegSize32 = (~(cbRegSize32 | UINT32_C(0xffff0000))) + 1;
+                    else
+                        cbRegSize32 = (~cbRegSize32) + 1;
+
+                    cbRegSize64 = cbRegSize32;
+                }
+                Assert(cbRegSize64 == (uint32_t)cbRegSize64);
+                Log2(("%s: Size of region %u for device %d on bus %d is %lld\n", __FUNCTION__, iRegion, uDevFn, uBus, cbRegSize64));
+
+                if (cbRegSize64)
+                {
+                    uint32_t  cbRegSize32 = (uint32_t)cbRegSize64;
+                    uint32_t* paddr = fIsPio ? &pGlobals->uPciBiosIo : &pGlobals->uPciBiosMmio;
+                    *paddr = (*paddr + cbRegSize32 - 1) & ~(cbRegSize32 - 1);
                     Log(("%s: Start address of %s region %u is %#x\n", __FUNCTION__, (fIsPio ? "I/O" : "MMIO"), iRegion, *paddr));
                     ich9pciSetRegionAddress(pGlobals, uBus, uDevFn, iRegion, *paddr);
-                    *paddr += u32Size;
-                    Log(("%s: New address is %#x\n", __FUNCTION__, *paddr));
+                    *paddr += cbRegSize32;
+                    Log2(("%s: New address is %#x\n", __FUNCTION__, *paddr));
+
+                    if (f64bit)
+                        iRegion++; /* skip next region */
                 }
             }
             break;
@@ -1695,28 +1748,82 @@ static void ich9pciBiosInitDevice(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uD
     uint32_t iPin = ich9pciConfigRead(pGlobals, uBus, uDevFn, VBOX_PCI_INTERRUPT_PIN, 1);
     if (iPin != 0)
     {
-        uint8_t uBridgeDevFn = uDevFn;
         iPin--;
 
-        /* We need to go up to the host bus to see which irq this device will assert there. */
-        while (cBridgeDepth != 0)
+        if (uBus != 0)
         {
-            /* Get the pin the device would assert on the bridge. */
-            iPin = ((uBridgeDevFn >> 3) + iPin) & 3;
-            uBridgeDevFn = paBridgePositions[cBridgeDepth];
-            cBridgeDepth--;
+            /* Find bus this device attached to. */
+            PICH9PCIBUS pBus = &pGlobals->aPciBus;
+            while (1)
+            {
+                PPCIDEVICE pBridge = ich9pciFindBridge(pBus, uBus);
+                if (!pBridge)
+                {
+                    Assert(false);
+                    break;
+                }
+                if (uBus == PCIDevGetByte(pBridge, VBOX_PCI_SECONDARY_BUS))
+                {
+                    /* OK, found bus this device attached to. */
+                    break;
+                }
+                pBus = PDMINS_2_DATA(pBridge->pDevIns, PICH9PCIBUS);
+            }
+
+            /* We need to go up to the host bus to see which irq pin this
+             * device will use there. See logic in ich9pcibridgeSetIrq().
+             */
+            while (pBus->iBus != 0)
+            {
+                /* Get the pin the device would assert on the bridge. */
+                iPin = ((pBus->aPciDev.devfn >> 3) + iPin) & 3;
+                pBus = pBus->aPciDev.Int.s.pBusR3;
+            };
         }
 
         int iIrq = aPciIrqs[ich9pciSlotGetPirq(uBus, uDevFn, iPin)];
+        Log(("Using pin %d and IRQ %d for device %02x:%02x.%d\n",
+             iPin, iIrq, uBus, uDevFn>>3, uDevFn&7));
         ich9pciConfigWrite(pGlobals, uBus, uDevFn, VBOX_PCI_INTERRUPT_LINE, iIrq, 1);
     }
 }
+
+/* Initializes bridges registers used for routing. */
+static void ich9pciInitBridgeTopology(PICH9PCIGLOBALS pGlobals, PICH9PCIBUS pBus)
+{
+    PPCIDEVICE pBridgeDev = &pBus->aPciDev;
+
+    /* Set only if we are not on the root bus, it has no primary bus attached. */
+    if (pGlobals->uBus != 0)
+    {
+        PCIDevSetByte(pBridgeDev, VBOX_PCI_PRIMARY_BUS, pGlobals->uBus);
+        PCIDevSetByte(pBridgeDev, VBOX_PCI_SECONDARY_BUS, pGlobals->uBus);
+    }
+
+    pGlobals->uBus++;
+    for (uint32_t iBridge = 0; iBridge < pBus->cBridges; iBridge++)
+    {
+        PPCIDEVICE pBridge = pBus->papBridgesR3[iBridge];
+        AssertMsg(pBridge && pciDevIsPci2PciBridge(pBridge),
+                  ("Device is not a PCI bridge but on the list of PCI bridges\n"));
+        PICH9PCIBUS pChildBus = PDMINS_2_DATA(pBridge->pDevIns, PICH9PCIBUS);
+        ich9pciInitBridgeTopology(pGlobals, pChildBus);
+    }
+    PCIDevSetByte(pBridgeDev, VBOX_PCI_SUBORDINATE_BUS, pGlobals->uBus);
+    Log2(("ich9pciInitBridgeTopology: for bus %p: primary=%d secondary=%d subordinate=%d\n",
+          pBus,
+          PCIDevGetByte(pBridgeDev, VBOX_PCI_PRIMARY_BUS),
+          PCIDevGetByte(pBridgeDev, VBOX_PCI_SECONDARY_BUS),
+          PCIDevGetByte(pBridgeDev, VBOX_PCI_SUBORDINATE_BUS)
+          ));
+}
+
 
 static DECLCALLBACK(int) ich9pciFakePCIBIOS(PPDMDEVINS pDevIns)
 {
     unsigned    i;
     uint8_t     elcr[2] = {0, 0};
-    PPCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PPCIGLOBALS);
+    PICH9PCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
     PVM         pVM = PDMDevHlpGetVM(pDevIns);
     Assert(pVM);
 
@@ -1728,16 +1835,17 @@ static DECLCALLBACK(int) ich9pciFakePCIBIOS(PPDMDEVINS pDevIns)
     pGlobals->uBus = 0;
 
     /*
+     * Assign bridge topology, for further routing to work.
+     */
+    PICH9PCIBUS pBus = &pGlobals->aPciBus;
+    ich9pciInitBridgeTopology(pGlobals, pBus);
+
+    /*
      * Init the devices.
      */
     for (i = 0; i < 256; i++)
     {
-        uint8_t aBridgePositions[256];
-
-        memset(aBridgePositions, 0, sizeof(aBridgePositions));
-        Log2(("PCI: Initializing device %d (%#x)\n",
-              i, 0x80000000 | (i << 8)));
-        ich9pciBiosInitDevice(pGlobals, 0, i, 0, aBridgePositions);
+        ich9pciBiosInitDevice(pGlobals, 0, i);
     }
 
     return VINF_SUCCESS;
@@ -1747,10 +1855,14 @@ static DECLCALLBACK(uint32_t) ich9pciConfigReadDev(PCIDevice *aDev, uint32_t u32
 {
     if ((u32Address + len) > 256 && (u32Address + len) < 4096)
     {
-        AssertMsgReturn(false, ("Read from extended registers falled back to generic code\n"), 0);
+        LogRel(("Read from extended register %d fallen back to generic code\n",
+                u32Address));
+        return 0;
     }
 
-    if (   PCIIsMsiCapable(aDev)
+    AssertMsgReturn(u32Address + len <= 256, ("Read after the end of PCI config space\n"),
+                    0);
+    if (   pciDevIsMsiCapable(aDev)
         && (u32Address >= aDev->Int.s.u8MsiCapOffset)
         && (u32Address <  aDev->Int.s.u8MsiCapOffset + aDev->Int.s.u8MsiCapSize)
        )
@@ -1758,7 +1870,7 @@ static DECLCALLBACK(uint32_t) ich9pciConfigReadDev(PCIDevice *aDev, uint32_t u32
         return MsiPciConfigRead(aDev->Int.s.CTX_SUFF(pBus)->CTX_SUFF(pDevIns), aDev, u32Address, len);
     }
 
-    if (   PCIIsMsixCapable(aDev)
+    if (   pciDevIsMsixCapable(aDev)
         && (u32Address >= aDev->Int.s.u8MsixCapOffset)
         && (u32Address <  aDev->Int.s.u8MsixCapOffset + aDev->Int.s.u8MsixCapSize)
        )
@@ -1785,11 +1897,20 @@ static DECLCALLBACK(uint32_t) ich9pciConfigReadDev(PCIDevice *aDev, uint32_t u32
 DECLINLINE(void) ich9pciWriteBarByte(PCIDevice *aDev, int iRegion, int iOffset, uint8_t u8Val)
 {
     PCIIORegion * pRegion = &aDev->Int.s.aIORegions[iRegion];
-
-    int iRegionSize = pRegion->size;
+    int64_t iRegionSize = pRegion->size;
 
     Log3(("ich9pciWriteBarByte: region=%d off=%d val=%x size=%d\n",
          iRegion, iOffset, u8Val, iRegionSize));
+
+    if (iOffset > 3)
+        Assert((aDev->Int.s.aIORegions[iRegion].type & PCI_ADDRESS_SPACE_BAR64) != 0);
+
+    /* Check if we're writing to upper part of 64-bit BAR. */
+    if (aDev->Int.s.aIORegions[iRegion].type == 0xff)
+    {
+        ich9pciWriteBarByte(aDev, iRegion-1, iOffset+4, u8Val);
+        return;
+    }
 
     /* Region doesn't exist */
     if (iRegionSize == 0)
@@ -1798,7 +1919,7 @@ DECLINLINE(void) ich9pciWriteBarByte(PCIDevice *aDev, int iRegion, int iOffset, 
     uint32_t uAddr = ich9pciGetRegionReg(iRegion) + iOffset;
     /* Region size must be power of two */
     Assert((iRegionSize & (iRegionSize - 1)) == 0);
-    uint8_t uMask = (((uint32_t)iRegionSize - 1) >> (iOffset*8) ) & 0xff;
+    uint8_t uMask = ((iRegionSize - 1) >> (iOffset*8) ) & 0xff;
 
     if (iOffset == 0)
     {
@@ -1815,6 +1936,7 @@ DECLINLINE(void) ich9pciWriteBarByte(PCIDevice *aDev, int iRegion, int iOffset, 
 
     PCIDevSetByte(aDev, uAddr, u8Val);
 }
+
 /**
  * See paragraph 7.5 of PCI Express specification (p. 349) for definition of
  * registers and their writability policy.
@@ -1826,12 +1948,14 @@ static DECLCALLBACK(void) ich9pciConfigWriteDev(PCIDevice *aDev, uint32_t u32Add
 
     if ((u32Address + len) > 256 && (u32Address + len) < 4096)
     {
-        AssertMsgReturnVoid(false, ("Write to extended registers falled back to generic code\n"));
+        LogRel(("Write to extended register %d fallen back to generic code\n",
+                u32Address));
+        return;
     }
 
     AssertMsgReturnVoid(u32Address + len <= 256, ("Write after end of PCI config space\n"));
 
-    if (   PCIIsMsiCapable(aDev)
+    if (   pciDevIsMsiCapable(aDev)
         && (u32Address >= aDev->Int.s.u8MsiCapOffset)
         && (u32Address <  aDev->Int.s.u8MsiCapOffset + aDev->Int.s.u8MsiCapSize)
        )
@@ -1842,7 +1966,7 @@ static DECLCALLBACK(void) ich9pciConfigWriteDev(PCIDevice *aDev, uint32_t u32Add
         return;
     }
 
-    if (   PCIIsMsixCapable(aDev)
+    if (   pciDevIsMsixCapable(aDev)
         && (u32Address >= aDev->Int.s.u8MsixCapOffset)
         && (u32Address <  aDev->Int.s.u8MsixCapOffset + aDev->Int.s.u8MsixCapSize)
        )
@@ -1854,13 +1978,16 @@ static DECLCALLBACK(void) ich9pciConfigWriteDev(PCIDevice *aDev, uint32_t u32Add
     }
 
     uint32_t addr = u32Address;
-    bool fUpdateMappings = false;
-    bool fP2PBridge = false;
+    bool     fUpdateMappings = false;
+    bool     fP2PBridge = false;
+    bool     fPassthrough = pciDevIsPassthrough(aDev);
+    uint8_t  u8HeaderType = ich9pciGetByte(aDev, VBOX_PCI_HEADER_TYPE);
+
     for (uint32_t i = 0; i < len; i++)
     {
         bool fWritable = false;
         bool fRom = false;
-        switch (PCIDevGetHeaderType(aDev))
+        switch (u8HeaderType)
         {
             case 0x00: /* normal device */
             case 0x80: /* multi-function device */
@@ -1919,14 +2046,12 @@ static DECLCALLBACK(void) ich9pciConfigWriteDev(PCIDevice *aDev, uint32_t u32Add
         {
             case VBOX_PCI_COMMAND: /* Command register, bits 0-7. */
                 fUpdateMappings = true;
-                PCIDevSetByte(aDev, addr, u8Val);
-                break;
+                goto default_case;
             case VBOX_PCI_COMMAND+1: /* Command register, bits 8-15. */
                 /* don't change reserved bits (11-15) */
                 u8Val &= UINT32_C(~0xf8);
                 fUpdateMappings = true;
-                PCIDevSetByte(aDev, addr, u8Val);
-                break;
+                goto default_case;
             case VBOX_PCI_STATUS:  /* Status register, bits 0-7. */
                 /* don't change read-only bits => actually all lower bits are read-only */
                 u8Val &= UINT32_C(~0xff);
@@ -1974,36 +2099,11 @@ static DECLCALLBACK(void) ich9pciConfigWriteDev(PCIDevice *aDev, uint32_t u32Add
         ich9pciUpdateMappings(aDev);
 }
 
-/* Slot/functions assignment per table at p. 12 of ICH9 family spec update */
-static const struct {
-    const char* pszName;
-    int32_t     iSlot;
-    int32_t     iFunction;
-} PciSlotAssignments[] = {
-    /* The only override that have to be here, as host controller is added in the way invisible to bus slot assignment management,
-       maybe to be changed in the future. */
-    {
-        "i82801",   30, 0 /* Host Controller */
-    },
-};
-
-static bool assignPosition(PPCIBUS pBus, PPCIDEVICE pPciDev, const char *pszName, int iDevFn, PciAddress* aPosition)
+static bool assignPosition(PICH9PCIBUS pBus, PPCIDEVICE pPciDev, const char *pszName, int iDevFn, PciAddress* aPosition)
 {
     aPosition->iBus = 0;
     aPosition->iDeviceFunc = iDevFn;
     aPosition->iRegister = 0; /* N/A */
-
-    /* Hardcoded slots/functions, per chipset spec */
-    for (size_t i = 0; i < RT_ELEMENTS(PciSlotAssignments); i++)
-    {
-        if (!strcmp(pszName, PciSlotAssignments[i].pszName))
-        {
-            PCISetRequestedDevfunc(pPciDev);
-            aPosition->iDeviceFunc =
-                    (PciSlotAssignments[i].iSlot << 3) + PciSlotAssignments[i].iFunction;
-            return true;
-        }
-    }
 
     /* Explicit slot request */
     if (iDevFn >=0 && iDevFn < (int)RT_ELEMENTS(pBus->apDevices))
@@ -2023,7 +2123,7 @@ static bool assignPosition(PPCIBUS pBus, PPCIDEVICE pPciDev, const char *pszName
                 &&  !pBus->apDevices[iPos + 6]
                 &&  !pBus->apDevices[iPos + 7])
         {
-            PCIClearRequestedDevfunc(pPciDev);
+            pciDevClearRequestedDevfunc(pPciDev);
             aPosition->iDeviceFunc = iPos;
             return true;
         }
@@ -2032,22 +2132,22 @@ static bool assignPosition(PPCIBUS pBus, PPCIDEVICE pPciDev, const char *pszName
     return false;
 }
 
-static bool hasHardAssignedDevsInSlot(PPCIBUS pBus, int iSlot)
+static bool hasHardAssignedDevsInSlot(PICH9PCIBUS pBus, int iSlot)
 {
     PCIDevice** aSlot = &pBus->apDevices[iSlot << 3];
 
-    return     (aSlot[0] && PCIIsRequestedDevfunc(aSlot[0]))
-            || (aSlot[1] && PCIIsRequestedDevfunc(aSlot[1]))
-            || (aSlot[2] && PCIIsRequestedDevfunc(aSlot[2]))
-            || (aSlot[3] && PCIIsRequestedDevfunc(aSlot[3]))
-            || (aSlot[4] && PCIIsRequestedDevfunc(aSlot[4]))
-            || (aSlot[5] && PCIIsRequestedDevfunc(aSlot[5]))
-            || (aSlot[6] && PCIIsRequestedDevfunc(aSlot[6]))
-            || (aSlot[7] && PCIIsRequestedDevfunc(aSlot[7]))
+    return     (aSlot[0] && pciDevIsRequestedDevfunc(aSlot[0]))
+            || (aSlot[1] && pciDevIsRequestedDevfunc(aSlot[1]))
+            || (aSlot[2] && pciDevIsRequestedDevfunc(aSlot[2]))
+            || (aSlot[3] && pciDevIsRequestedDevfunc(aSlot[3]))
+            || (aSlot[4] && pciDevIsRequestedDevfunc(aSlot[4]))
+            || (aSlot[5] && pciDevIsRequestedDevfunc(aSlot[5]))
+            || (aSlot[6] && pciDevIsRequestedDevfunc(aSlot[6]))
+            || (aSlot[7] && pciDevIsRequestedDevfunc(aSlot[7]))
            ;
 }
 
-static int ich9pciRegisterInternal(PPCIBUS pBus, int iDev, PPCIDEVICE pPciDev, const char *pszName)
+static int ich9pciRegisterInternal(PICH9PCIBUS pBus, int iDev, PPCIDEVICE pPciDev, const char *pszName)
 {
     PciAddress aPosition = {0, 0, 0};
 
@@ -2070,9 +2170,9 @@ static int ich9pciRegisterInternal(PPCIBUS pBus, int iDev, PPCIDEVICE pPciDev, c
      * Check if we can really take this slot, possibly by relocating
      * its current habitant, if it wasn't hard assigned too.
      */
-    if (PCIIsRequestedDevfunc(pPciDev) &&
+    if (pciDevIsRequestedDevfunc(pPciDev) &&
         pBus->apDevices[iDev]          &&
-        PCIIsRequestedDevfunc(pBus->apDevices[iDev]))
+        pciDevIsRequestedDevfunc(pBus->apDevices[iDev]))
     {
         AssertReleaseMsgFailed(("Configuration error:'%s' and '%s' are both configured as device %d\n",
                                  pszName, pBus->apDevices[iDev]->name, iDev));
@@ -2115,17 +2215,18 @@ static int ich9pciRegisterInternal(PPCIBUS pBus, int iDev, PPCIDEVICE pPciDev, c
     pPciDev->Int.s.pfnConfigRead    = ich9pciConfigReadDev;
     pPciDev->Int.s.pfnConfigWrite   = ich9pciConfigWriteDev;
     pBus->apDevices[iDev]           = pPciDev;
-    if (PCIIsPci2PciBridge(pPciDev))
+    if (pciDevIsPci2PciBridge(pPciDev))
     {
         AssertMsg(pBus->cBridges < RT_ELEMENTS(pBus->apDevices), ("Number of bridges exceeds the number of possible devices on the bus\n"));
         AssertMsg(pPciDev->Int.s.pfnBridgeConfigRead && pPciDev->Int.s.pfnBridgeConfigWrite,
                   ("device is a bridge but does not implement read/write functions\n"));
+        Log2(("Setting bridge %d on bus %p\n", pBus->cBridges, pBus));
         pBus->papBridgesR3[pBus->cBridges] = pPciDev;
         pBus->cBridges++;
     }
 
-    Log(("PCI: Registered device %d function %d (%#x) '%s'.\n",
-         iDev >> 3, iDev & 7, 0x80000000 | (iDev << 8), pszName));
+    Log(("PCI: Registered device %d function %d on bus %d (%#x) '%s'.\n",
+         iDev >> 3, iDev & 7, pBus->iBus, 0x80000000 | (iDev << 8), pszName));
 
     return VINF_SUCCESS;
 }
@@ -2138,7 +2239,7 @@ static void printIndent(PCDBGFINFOHLP pHlp, int iIndent)
     }
 }
 
-static void ich9pciBusInfo(PPCIBUS pBus, PCDBGFINFOHLP pHlp, int iIndent, bool fRegisters)
+static void ich9pciBusInfo(PICH9PCIBUS pBus, PCDBGFINFOHLP pHlp, int iIndent, bool fRegisters)
 {
     for (uint32_t iDev = 0; iDev < RT_ELEMENTS(pBus->apDevices); iDev++)
     {
@@ -2146,19 +2247,25 @@ static void ich9pciBusInfo(PPCIBUS pBus, PCDBGFINFOHLP pHlp, int iIndent, bool f
         if (pPciDev != NULL)
         {
             printIndent(pHlp, iIndent);
-            pHlp->pfnPrintf(pHlp, "%02x:%02x:%02x %s: %04x-%04x%s%s",
+
+            /*
+             * For passthrough devices MSI/MSI-X mostly reflects the way interrupts delivered to the guest,
+             * as host driver handles real devices interrupts.
+             */
+            pHlp->pfnPrintf(pHlp, "%02x:%02x:%02x %s%s: %04x-%04x%s%s",
                             pBus->iBus, (iDev >> 3) & 0xff, iDev & 0x7,
                             pPciDev->name,
-                            PCIDevGetVendorId(pPciDev), PCIDevGetDeviceId(pPciDev),
-                            PCIIsMsiCapable(pPciDev)  ? " MSI" : "",
-                            PCIIsMsixCapable(pPciDev) ? " MSI-X" : ""
+                            pciDevIsPassthrough(pPciDev) ? " (PASSTHROUGH)" : "",
+                            ich9pciGetWord(pPciDev, VBOX_PCI_VENDOR_ID), ich9pciGetWord(pPciDev, VBOX_PCI_DEVICE_ID),
+                            pciDevIsMsiCapable(pPciDev)  ? " MSI" : "",
+                            pciDevIsMsixCapable(pPciDev) ? " MSI-X" : ""
                             );
-            if (PCIDevGetInterruptPin(pPciDev) != 0)
-                pHlp->pfnPrintf(pHlp, " IRQ%d", PCIDevGetInterruptLine(pPciDev));
+            if (ich9pciGetByte(pPciDev, VBOX_PCI_INTERRUPT_PIN) != 0)
+                pHlp->pfnPrintf(pHlp, " IRQ%d", ich9pciGetByte(pPciDev, VBOX_PCI_INTERRUPT_LINE));
 
             pHlp->pfnPrintf(pHlp, "\n");
 
-            int iCmd = PCIDevGetCommand(pPciDev);
+            int iCmd = ich9pciGetWord(pPciDev, VBOX_PCI_COMMAND);
             if ((iCmd & (VBOX_PCI_COMMAND_IO | VBOX_PCI_COMMAND_MEMORY)) != 0)
             {
                 for (int iRegion = 0; iRegion < PCI_NUM_REGIONS; iRegion++)
@@ -2169,23 +2276,30 @@ static void ich9pciBusInfo(PPCIBUS pBus, PCDBGFINFOHLP pHlp, int iIndent, bool f
                     if (iRegionSize == 0)
                         continue;
 
-                    uint32_t u32Addr = ich9pciConfigReadDev(pPciDev, ich9pciGetRegionReg(iRegion), 4);
-                    const char * szDesc;
+                    uint32_t u32Addr = ich9pciGetDWord(pPciDev, ich9pciGetRegionReg(iRegion));
+                    const char * pszDesc;
+                    char szDescBuf[128];
 
+                    bool f64Bit = (pRegion->type & PCI_ADDRESS_SPACE_BAR64);
                     if (pRegion->type & PCI_ADDRESS_SPACE_IO)
                     {
-                        szDesc = "IO";
+                        pszDesc = "IO";
                         u32Addr &= ~0x3;
                     }
                     else
                     {
-                        szDesc = "MMIO";
+                        RTStrPrintf(szDescBuf, sizeof(szDescBuf), "MMIO%s%s",
+                                    f64Bit ? "64" : "32",
+                                    (pRegion->type & PCI_ADDRESS_SPACE_MEM_PREFETCH) ? " PREFETCH" : "");
+                        pszDesc = szDescBuf;
                         u32Addr &= ~0xf;
                     }
 
                     printIndent(pHlp, iIndent + 2);
                     pHlp->pfnPrintf(pHlp, "  %s region #%d: %x..%x\n",
-                                    szDesc, iRegion, u32Addr, u32Addr+iRegionSize);
+                                    pszDesc, iRegion, u32Addr, u32Addr+iRegionSize);
+                    if (f64Bit)
+                        iRegion++;
                 }
             }
 
@@ -2201,7 +2315,7 @@ static void ich9pciBusInfo(PPCIBUS pBus, PCDBGFINFOHLP pHlp, int iIndent, bool f
 
                     while (iPerLine-- > 0)
                     {
-                        pHlp->pfnPrintf(pHlp, "%02x ", pPciDev->config[iReg++]);
+                        pHlp->pfnPrintf(pHlp, "%02x ", ich9pciGetByte(pPciDev, iReg++));
                     }
                     pHlp->pfnPrintf(pHlp, "\n");
                 }
@@ -2215,7 +2329,7 @@ static void ich9pciBusInfo(PPCIBUS pBus, PCDBGFINFOHLP pHlp, int iIndent, bool f
         pHlp->pfnPrintf(pHlp, "Registered %d bridges, subordinate buses info follows\n", pBus->cBridges);
         for (uint32_t iBridge = 0; iBridge < pBus->cBridges; iBridge++)
         {
-            PPCIBUS pBusSub = PDMINS_2_DATA(pBus->papBridgesR3[iBridge]->pDevIns, PPCIBUS);
+            PICH9PCIBUS pBusSub = PDMINS_2_DATA(pBus->papBridgesR3[iBridge]->pDevIns, PICH9PCIBUS);
             ich9pciBusInfo(pBusSub, pHlp, iIndent + 1, fRegisters);
         }
     }
@@ -2230,7 +2344,7 @@ static void ich9pciBusInfo(PPCIBUS pBus, PCDBGFINFOHLP pHlp, int iIndent, bool f
  */
 static DECLCALLBACK(void) ich9pciInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
-    PPCIBUS pBus = DEVINS_2_PCIBUS(pDevIns);
+    PICH9PCIBUS pBus = DEVINS_2_PCIBUS(pDevIns);
 
     if (pszArgs == NULL || !strcmp(pszArgs, "basic"))
     {
@@ -2251,8 +2365,8 @@ static DECLCALLBACK(int) ich9pciConstruct(PPDMDEVINS pDevIns,
                                           int        iInstance,
                                           PCFGMNODE  pCfg)
 {
-    int rc;
     Assert(iInstance == 0);
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
      * Validate and read configuration.
@@ -2268,7 +2382,7 @@ static DECLCALLBACK(int) ich9pciConstruct(PPDMDEVINS pDevIns,
 
     /* query whether we got an IOAPIC */
     bool fUseIoApic;
-    rc = CFGMR3QueryBoolDef(pCfg, "IOAPIC", &fUseIoApic, false);
+    int rc = CFGMR3QueryBoolDef(pCfg, "IOAPIC", &fUseIoApic, false);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query boolean value \"IOAPIC\""));
@@ -2279,7 +2393,6 @@ static DECLCALLBACK(int) ich9pciConstruct(PPDMDEVINS pDevIns,
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query boolean value \"GCEnabled\""));
-
     /* check if R0 code is enabled. */
     bool fR0Enabled;
     rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &fR0Enabled, true);
@@ -2292,8 +2405,8 @@ static DECLCALLBACK(int) ich9pciConstruct(PPDMDEVINS pDevIns,
     /*
      * Init data.
      */
-    PPCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PPCIGLOBALS);
-    PPCIBUS     pBus     = &pGlobals->aPciBus;
+    PICH9PCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
+    PICH9PCIBUS     pBus     = &pGlobals->aPciBus;
     /* Zero out everything */
     memset(pGlobals, 0, sizeof(*pGlobals));
     /* And fill values */
@@ -2348,35 +2461,26 @@ static DECLCALLBACK(int) ich9pciConstruct(PPDMDEVINS pDevIns,
     /*
      * Fill in PCI configs and add them to the bus.
      */
-
-    /**
-     * We emulate 82801IB ICH9 IO chip used in Q35,
-     * see http://ark.intel.com/Product.aspx?id=31892
-     *
-     * Stepping   S-Spec   Top Marking
-     *
-     *   A2        SLA9M    NH82801IB
+    /** @todo: Disabled for now because this causes error messages with Linux guests.
+     *         The guest loads the x38_edac device which tries to map a memory region
+     *         using an address given at place 0x48 - 0x4f in the PCi config space.
+     *         This fails. because we don't register such a region.
      */
+#if 0
     /* Host bridge device */
-    /* @todo: move to separate driver? */
     PCIDevSetVendorId(  &pBus->aPciDev, 0x8086); /* Intel */
-    PCIDevSetDeviceId(  &pBus->aPciDev, 0x244e); /* Desktop */
-    PCIDevSetRevisionId(&pBus->aPciDev,   0x92); /* rev. A2 */
+    PCIDevSetDeviceId(  &pBus->aPciDev, 0x29e0); /* Desktop */
+    PCIDevSetRevisionId(&pBus->aPciDev,   0x01); /* rev. 01 */
     PCIDevSetClassBase( &pBus->aPciDev,   0x06); /* bridge */
-    PCIDevSetClassSub(  &pBus->aPciDev,   0x04); /* Host/PCI bridge */
-    PCIDevSetClassProg( &pBus->aPciDev,   0x01); /* Supports subtractive decoding. */
-    PCIDevSetHeaderType(&pBus->aPciDev,   0x01); /* bridge */
+    PCIDevSetClassSub(  &pBus->aPciDev,   0x00); /* Host/PCI bridge */
+    PCIDevSetClassProg( &pBus->aPciDev,   0x00); /* Host/PCI bridge */
+    PCIDevSetHeaderType(&pBus->aPciDev,   0x00); /* bridge */
     PCIDevSetWord(&pBus->aPciDev,  VBOX_PCI_SEC_STATUS, 0x0280);  /* secondary status */
-    PCIDevSetDWord(&pBus->aPciDev, 0x4c, 0x00001200); /* Bridge policy configuration */
-    PCIDevSetStatus    (&pBus->aPciDev, VBOX_PCI_STATUS_CAP_LIST);
-    PCIDevSetCapabilityList(&pBus->aPciDev, 0x50);
-    /* capability */
-    PCIDevSetWord(&pBus->aPciDev,  0x50, VBOX_PCI_CAP_ID_SSVID);
-    PCIDevSetDWord(&pBus->aPciDev, 0x54, 0x00000000); /* Subsystem vendor ids */
 
     pBus->aPciDev.pDevIns               = pDevIns;
     /* We register Host<->PCI controller on the bus */
-    ich9pciRegisterInternal(pBus, -1, &pBus->aPciDev, "i82801");
+    ich9pciRegisterInternal(pBus, 0, &pBus->aPciDev, "dram");
+#endif
 
     /*
      * Register I/O ports and save state.
@@ -2468,7 +2572,6 @@ static DECLCALLBACK(int) ich9pciConstruct(PPDMDEVINS pDevIns,
 
 
     /** @todo: other chipset devices shall be registered too */
-    /** @todo: what to with bridges? */
 
     PDMDevHlpDBGFInfoRegister(pDevIns, "pci", "Display PCI bus status. (no arguments)", ich9pciInfo);
 
@@ -2477,7 +2580,7 @@ static DECLCALLBACK(int) ich9pciConstruct(PPDMDEVINS pDevIns,
 
 static void ich9pciResetDevice(PPCIDEVICE pDev)
 {
-    PPCIBUS pBus = pDev->Int.s.CTX_SUFF(pBus);
+    PICH9PCIBUS pBus = pDev->Int.s.CTX_SUFF(pBus);
     int rc;
 
     /* Clear regions */
@@ -2490,18 +2593,26 @@ static void ich9pciResetDevice(PPCIDEVICE pDev)
         ich9pciUnmapRegion(pDev, iRegion);
     }
 
-    PCIDevSetCommand(pDev,
-                     PCIDevGetCommand(pDev)
-                     &
-                     ~(VBOX_PCI_COMMAND_IO |
-                       VBOX_PCI_COMMAND_MEMORY |
-                       VBOX_PCI_COMMAND_MASTER));
-
-    /* Bridge device reset handlers processed later */
-    if (!PCIIsPci2PciBridge(pDev))
+    if (pciDevIsPassthrough(pDev))
     {
-        PCIDevSetByte(pDev, VBOX_PCI_CACHE_LINE_SIZE, 0x0);
-        PCIDevSetInterruptLine(pDev, 0x0);
+        // no reset handler - we can do what we need in PDM reset handler
+        // @todo: is it correct?
+    }
+    else
+    {
+        PCIDevSetCommand(pDev,
+                         PCIDevGetCommand(pDev)
+                         &
+                         ~(VBOX_PCI_COMMAND_IO |
+                           VBOX_PCI_COMMAND_MEMORY |
+                           VBOX_PCI_COMMAND_MASTER));
+
+        /* Bridge device reset handlers processed later */
+        if (!pciDevIsPci2PciBridge(pDev))
+        {
+            PCIDevSetByte(pDev, VBOX_PCI_CACHE_LINE_SIZE, 0x0);
+            PCIDevSetInterruptLine(pDev, 0x0);
+        }
     }
 }
 
@@ -2511,8 +2622,8 @@ static void ich9pciResetDevice(PPCIDEVICE pDev)
  */
 static DECLCALLBACK(void) ich9pciReset(PPDMDEVINS pDevIns)
 {
-    PPCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PPCIGLOBALS);
-    PPCIBUS     pBus     = &pGlobals->aPciBus;
+    PICH9PCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
+    PICH9PCIBUS     pBus     = &pGlobals->aPciBus;
 
     /* PCI-specific reset for each device. */
     for (uint32_t i = 0; i < RT_ELEMENTS(pBus->apDevices); i++)
@@ -2545,8 +2656,8 @@ static void ich9pciRelocateDevice(PPCIDEVICE pDev, RTGCINTPTR offDelta)
  */
 static DECLCALLBACK(void) ich9pciRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
-    PPCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PPCIGLOBALS);
-    PPCIBUS     pBus     = &pGlobals->aPciBus;
+    PICH9PCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
+    PICH9PCIBUS     pBus     = &pGlobals->aPciBus;
     pGlobals->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
 
     pBus->pPciHlpRC = pBus->pPciHlpR3->pfnGetRCHelpers(pDevIns);
@@ -2565,7 +2676,7 @@ static DECLCALLBACK(int)   ich9pcibridgeConstruct(PPDMDEVINS pDevIns,
                                                   int        iInstance,
                                                   PCFGMNODE  pCfg)
 {
-    int rc;
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
      * Validate and read configuration.
@@ -2575,7 +2686,7 @@ static DECLCALLBACK(int)   ich9pcibridgeConstruct(PPDMDEVINS pDevIns,
 
     /* check if RC code is enabled. */
     bool fGCEnabled;
-    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
+    int rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query boolean value \"GCEnabled\""));
@@ -2591,7 +2702,7 @@ static DECLCALLBACK(int)   ich9pcibridgeConstruct(PPDMDEVINS pDevIns,
     /*
      * Init data and register the PCI bus.
      */
-    PPCIBUS pBus = PDMINS_2_DATA(pDevIns, PPCIBUS);
+    PICH9PCIBUS pBus = PDMINS_2_DATA(pDevIns, PICH9PCIBUS);
     pBus->pDevInsR3 = pDevIns;
     pBus->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
     pBus->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
@@ -2644,7 +2755,7 @@ static DECLCALLBACK(int)   ich9pcibridgeConstruct(PPDMDEVINS pDevIns,
     pBus->aPciDev.pDevIns                    = pDevIns;
 
     /* Bridge-specific data */
-    PCISetPci2PciBridge(&pBus->aPciDev);
+    pciDevSetPci2PciBridge(&pBus->aPciDev);
     pBus->aPciDev.Int.s.pfnBridgeConfigRead  = ich9pcibridgeConfigRead;
     pBus->aPciDev.Int.s.pfnBridgeConfigWrite = ich9pcibridgeConfigWrite;
 
@@ -2687,7 +2798,7 @@ static DECLCALLBACK(int)   ich9pcibridgeConstruct(PPDMDEVINS pDevIns,
  */
 static void ich9pcibridgeReset(PPDMDEVINS pDevIns)
 {
-    PPCIBUS pBus = PDMINS_2_DATA(pDevIns, PPCIBUS);
+    PICH9PCIBUS pBus = PDMINS_2_DATA(pDevIns, PICH9PCIBUS);
 
     /* Reset config space to default values. */
     PCIDevSetByte(&pBus->aPciDev, VBOX_PCI_PRIMARY_BUS, 0);
@@ -2708,7 +2819,7 @@ static void ich9pcibridgeReset(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(void) ich9pcibridgeRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
-    PPCIBUS pBus = PDMINS_2_DATA(pDevIns, PPCIBUS);
+    PICH9PCIBUS pBus = PDMINS_2_DATA(pDevIns, PICH9PCIBUS);
     pBus->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
 
     /* Relocate RC pointers for the attached pci devices. */
@@ -2738,7 +2849,7 @@ const PDMDEVREG g_DevicePciIch9 =
     /* cMaxInstances */
     1,
     /* cbInstance */
-    sizeof(PCIGLOBALS),
+    sizeof(ICH9PCIGLOBALS),
     /* pfnConstruct */
     ich9pciConstruct,
     /* pfnDestruct */
@@ -2794,7 +2905,7 @@ const PDMDEVREG g_DevicePciIch9Bridge =
     /* cMaxInstances */
     ~0,
     /* cbInstance */
-    sizeof(PCIBUS),
+    sizeof(ICH9PCIBUS),
     /* pfnConstruct */
     ich9pcibridgeConstruct,
     /* pfnDestruct */

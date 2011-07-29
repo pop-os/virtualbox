@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 37549 2011-06-20 08:44:19Z vboxsync $
 ## @file
 # Install misc stuff and create dist packages for Mac OS X.
 #
@@ -660,6 +660,10 @@ VBOX_DI_VBAPP_MISC_FILES = \
 	Resources/virtualbox-vbox-extpack.icns \
 	Resources/virtualbox-ovf.icns \
 	Resources/virtualbox-ova.icns \
+	Resources/virtualbox-vdi.icns \
+	Resources/virtualbox-vmdk.icns \
+	Resources/virtualbox-vhd.icns \
+	Resources/virtualbox-hdd.icns \
 	MacOS/components/VBoxXPCOMBase.xpt \
 	MacOS/components/VirtualBox_XPCOM.xpt
 ifdef VBOX_WITH_DOCS_PACKING

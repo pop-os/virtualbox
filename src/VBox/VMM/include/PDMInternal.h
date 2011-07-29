@@ -1,10 +1,10 @@
-/* $Id: PDMInternal.h $ */
+/* $Id: PDMInternal.h 37836 2011-07-08 10:26:19Z vboxsync $ */
 /** @file
  * PDM - Internal header file.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,7 +49,7 @@ RT_C_DECLS_BEGIN
 
 /** @def PDMCRITSECT_STRICT
  * Enables/disables PDM critsect strictness like deadlock detection. */
-#if (defined(RT_LOCK_STRICT) && defined(IN_RING3)) || defined(DOXYGEN_RUNNING)
+#if (defined(RT_LOCK_STRICT) && defined(IN_RING3) && !defined(IEM_VERIFICATION_MODE)) || defined(DOXYGEN_RUNNING)
 # define PDMCRITSECT_STRICT
 #endif
 
@@ -267,8 +267,14 @@ typedef struct PDMCRITSECTINT
     PVMR0                           pVMR0;
     /** Pointer to the VM - GCPtr. */
     PVMRC                           pVMRC;
+    /** Set if this critical section is the automatically created default
+     * section of a device.. */
+    bool                            fAutomaticDefaultCritsect;
+    /** Set if the critical section is used by a timer or similar.
+     * See PDMR3DevGetCritSect.  */
+    bool                            fUsedByTimerOrSimilar;
     /** Alignment padding. */
-    uint32_t                        padding;
+    bool                            afPadding[2];
     /** Event semaphore that is scheduled to be signaled upon leaving the
      * critical section. This is Ring-3 only of course. */
     RTSEMEVENT                      EventToSignal;
@@ -939,13 +945,6 @@ typedef struct PDMCPU
     R3PTRTYPE(PPDMCRITSECT)         apQueuedCritSectsLeaves[8];
 } PDMCPU;
 
-/**
- * Converts a PDM pointer into a VM pointer.
- * @returns Pointer to the VM structure the PDM is part of.
- * @param   pPDM   Pointer to PDM instance data.
- */
-#define PDM2VM(pPDM)  ( (PVM)((char*)pPDM - pPDM->offVM) )
-
 
 /**
  * PDM VM Instance data.
@@ -953,10 +952,15 @@ typedef struct PDMCPU
  */
 typedef struct PDM
 {
-    /** Offset to the VM structure.
-     * See PDM2VM(). */
-    RTUINT                          offVM;
-    RTUINT                          uPadding0; /**< Alignment padding.*/
+    /** The PDM lock.
+     * This is used to protect everything that deals with interrupts, i.e.
+     * the PIC, APIC, IOAPIC and PCI devices plus some PDM functions. */
+    PDMCRITSECT                     CritSect;
+    /** The NOP critical section.
+     * This is a dummy critical section that will not do any thread
+     * serialization but instead let all threads enter immediately and
+     * concurrently. */
+    PDMCRITSECT                     NopCritSect;
 
     /** List of registered devices. (FIFO) */
     R3PTRTYPE(PPDMDEV)              pDevs;
@@ -1012,11 +1016,6 @@ typedef struct PDM
     /** The current mapping. NIL_RTGCPHYS if not mapped or registered. */
     RTGCPHYS                        GCPhysVMMDevHeap;
     /** @} */
-
-    /** The PDM lock.
-     * This is used to protect everything that deals with interrupts, i.e.
-     * the PIC, APIC, IOAPIC and PCI devices plus some PDM functions. */
-    PDMCRITSECT                     CritSect;
 
     /** Number of times a critical section leave request needed to be queued for ring-3 execution. */
     STAMCOUNTER                     StatQueuedCritSectLeaves;
@@ -1084,6 +1083,7 @@ extern const PDMPCIHLPR3    g_pdmR3DevPciHlp;
 extern const PDMDMACHLP     g_pdmR3DevDmacHlp;
 extern const PDMRTCHLP      g_pdmR3DevRtcHlp;
 extern const PDMHPETHLPR3   g_pdmR3DevHpetHlp;
+extern const PDMPCIRAWHLPR3 g_pdmR3DevPciRawHlp;
 #endif
 
 
@@ -1126,6 +1126,8 @@ extern const PDMHPETHLPR3   g_pdmR3DevHpetHlp;
 int         pdmR3CritSectInitStats(PVM pVM);
 void        pdmR3CritSectRelocate(PVM pVM);
 int         pdmR3CritSectInitDevice(PVM pVM, PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect, RT_SRC_POS_DECL, const char *pszNameFmt, va_list va);
+int         pdmR3CritSectInitDeviceAuto(PVM pVM, PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect, RT_SRC_POS_DECL,
+                                        const char *pszNameFmt, ...);
 int         pdmR3CritSectDeleteDevice(PVM pVM, PPDMDEVINS pDevIns);
 int         pdmR3CritSectInitDriver(PVM pVM, PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, RT_SRC_POS_DECL, const char *pszNameFmt, ...);
 int         pdmR3CritSectDeleteDriver(PVM pVM, PPDMDRVINS pDrvIns);
@@ -1158,7 +1160,7 @@ void        pdmR3QueueRelocate(PVM pVM, RTGCINTPTR offDelta);
 
 int         pdmR3ThreadCreateDevice(PVM pVM, PPDMDEVINS pDevIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADDEV pfnThread,
                                     PFNPDMTHREADWAKEUPDEV pfnWakeup, size_t cbStack, RTTHREADTYPE enmType, const char *pszName);
-int         pdmR3ThreadCreateUsb(PVM pVM, PPDMDRVINS pUsbIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADUSB pfnThread,
+int         pdmR3ThreadCreateUsb(PVM pVM, PPDMUSBINS pUsbIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADUSB pfnThread,
                                  PFNPDMTHREADWAKEUPUSB pfnWakeup, size_t cbStack, RTTHREADTYPE enmType, const char *pszName);
 int         pdmR3ThreadCreateDriver(PVM pVM, PPDMDRVINS pDrvIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADDRV pfnThread,
                                     PFNPDMTHREADWAKEUPDRV pfnWakeup, size_t cbStack, RTTHREADTYPE enmType, const char *pszName);

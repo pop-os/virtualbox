@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.cpp $ */
+/* $Id: DisplayImpl.cpp 37220 2011-05-26 10:18:39Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -123,7 +123,7 @@ HRESULT Display::FinalConstruct()
     mu32UpdateVBVAFlags = 0;
 #endif
 
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void Display::FinalRelease()
@@ -135,6 +135,7 @@ void Display::FinalRelease()
         RTCritSectDelete (&mVBVALock);
         memset (&mVBVALock, 0, sizeof (mVBVALock));
     }
+    BaseFinalRelease();
 }
 
 // public initializer/uninitializer for internal purposes only
@@ -1048,7 +1049,8 @@ static bool displayIntersectRect(RTRECT *prectResult,
 
 int Display::handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect)
 {
-    RTRECT *pVisibleRegion = (RTRECT *)RTMemTmpAlloc(cRect * sizeof (RTRECT));
+    RTRECT *pVisibleRegion = (RTRECT *)RTMemTmpAlloc(  RT_MAX(cRect, 1)
+                                                     * sizeof (RTRECT));
     if (!pVisibleRegion)
     {
         return VERR_NO_TMP_MEMORY;
@@ -1103,10 +1105,7 @@ int Display::handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect)
                 }
             }
 
-            if (cRectVisibleRegion > 0)
-            {
-                pFBInfo->pFramebuffer->SetVisibleRegion((BYTE *)pVisibleRegion, cRectVisibleRegion);
-            }
+            pFBInfo->pFramebuffer->SetVisibleRegion((BYTE *)pVisibleRegion, cRectVisibleRegion);
         }
     }
 

@@ -26,8 +26,8 @@
     <file alias="os_netware.png">images/os_netware.png</file>
     <file alias="os_openbsd.png">images/os_openbsd.png</file>
     <file alias="os_openbsd_64.png">images/os_openbsd_64.png</file>
-    <file alias="os_opensolaris.png">images/os_opensolaris.png</file>
-    <file alias="os_opensolaris_64.png">images/os_opensolaris_64.png</file>
+    <file alias="os_oraclesolaris.png">images/os_oraclesolaris.png</file>
+    <file alias="os_oraclesolaris_64.png">images/os_oraclesolaris_64.png</file>
     <file alias="os_opensuse.png">images/os_opensuse.png</file>
     <file alias="os_opensuse_64.png">images/os_opensuse_64.png</file>
     <file alias="os_os2_other.png">images/os_os2_other.png</file>
@@ -160,6 +160,7 @@
     <file alias="progress_snapshot_create_90px.png">images/progress_snapshot_create_90px.png</file>
     <file alias="progress_snapshot_restore_90px.png">images/progress_snapshot_restore_90px.png</file>
     <file alias="progress_snapshot_discard_90px.png">images/progress_snapshot_discard_90px.png</file>
+    <file alias="progress_clone_90px.png">images/progress_clone_90px.png</file>
     <file alias="status_check_16px.png">images/status_check_16px.png</file>
     <file alias="status_check_32px.png">images/status_check_32px.png</file>
     <file alias="status_error_16px.png">images/status_error_16px.png</file>
@@ -176,5 +177,9 @@
     <file alias="extension_pack_uninstall_disabled_16px.png">images/extension_pack_uninstall_disabled_16px.png</file>
     <file alias="extension_pack_uninstall_32px.png">images/extension_pack_uninstall_32px.png</file>
     <file alias="extension_pack_uninstall_disabled_32px.png">images/extension_pack_uninstall_disabled_32px.png</file>
+    <file alias="proxy_16px.png">images/proxy_16px.png</file>
+    <file alias="proxy_disabled_16px.png">images/proxy_disabled_16px.png</file>
+    <file alias="proxy_32px.png">images/proxy_32px.png</file>
+    <file alias="proxy_disabled_32px.png">images/proxy_disabled_32px.png</file>
  </qresource>
  </RCC>

@@ -1,9 +1,9 @@
 /** @file
- * IPRT - RTLock Classes for Scope-based Locking.
+ * IPRT - Classes for Scope-based Locking.
  */
 
 /*
- * Copyright (C) 2007 Oracle Corporation
+ * Copyright (C) 2007-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,126 +33,128 @@
 
 RT_C_DECLS_BEGIN
 
-/** @defgroup grp_rt_lock       RTLock - Scope-based Locking (C++).
- * @ingroup grp_rt
+/** @defgroup grp_rt_cpp_lock       C++ Scope-based Locking
+ * @ingroup grp_rt_cpp
  * @{
  */
 
-class RTLock;
+class RTCLock;
 
 /**
  * The mutex lock.
  *
- * This is used as a object data member if the intention is to lock
+ * This is used as an object data member if the intention is to lock
  * a single object. This can also be used statically, initialized in
  * a global variable, for class wide purposes.
  *
- * This is best used together with RTLock.
+ * This is best used together with RTCLock.
  */
-class RTLockMtx
+class RTCLockMtx
 {
-    friend class RTLock;
+friend class RTCLock;
 
-    private:
-        RTCRITSECT      mMtx;
+private:
+    RTCRITSECT      mMtx;
 
-    public:
-        RTLockMtx()
-        {
+public:
+    RTCLockMtx()
+    {
 #ifdef RT_LOCK_STRICT_ORDER
-            RTCritSectInitEx(&mMtx, 0 /*fFlags*/,
-                             RTLockValidatorClassCreateUnique(RT_SRC_POS, NULL),
-                             RTLOCKVAL_SUB_CLASS_NONE, NULL);
+        RTCritSectInitEx(&mMtx, 0 /*fFlags*/,
+                         RTLockValidatorClassCreateUnique(RT_SRC_POS, NULL),
+                         RTLOCKVAL_SUB_CLASS_NONE, NULL);
 #else
-            RTCritSectInit(&mMtx);
+        RTCritSectInit(&mMtx);
 #endif
-        }
+    }
 
-        /** Use to when creating locks that belongs in the same "class".  */
-        RTLockMtx(RT_SRC_POS_DECL, uint32_t uSubClass = RTLOCKVAL_SUB_CLASS_NONE)
-        {
+    /** Use to when creating locks that belongs in the same "class".  */
+    RTCLockMtx(RT_SRC_POS_DECL, uint32_t uSubClass = RTLOCKVAL_SUB_CLASS_NONE)
+    {
 #ifdef RT_LOCK_STRICT_ORDER
-            RTCritSectInitEx(&mMtx, 0 /*fFlags*/,
-                             RTLockValidatorClassForSrcPos(RT_SRC_POS_ARGS, NULL),
-                             uSubClass, NULL);
+        RTCritSectInitEx(&mMtx, 0 /*fFlags*/,
+                         RTLockValidatorClassForSrcPos(RT_SRC_POS_ARGS, NULL),
+                         uSubClass, NULL);
 #else
-            NOREF(uSubClass);
-            RTCritSectInit(&mMtx);
-            RT_SRC_POS_NOREF();
+        NOREF(uSubClass);
+        RTCritSectInit(&mMtx);
+        RT_SRC_POS_NOREF();
 #endif
-        }
+    }
 
-        ~RTLockMtx()
-        {
-            RTCritSectDelete(&mMtx);
-        }
+    ~RTCLockMtx()
+    {
+        RTCritSectDelete(&mMtx);
+    }
 
-    // lock() and unlock() are private so that only
-    // friend RTLock can access them
-    private:
-        inline void lock()
-        {
-            RTCritSectEnter(&mMtx);
-        }
+    /* lock() and unlock() are private so that only friend RTCLock can access
+       them. */
+private:
+    inline void lock()
+    {
+        RTCritSectEnter(&mMtx);
+    }
 
-        inline void unlock()
-        {
-            RTCritSectLeave(&mMtx);
-        }
+    inline void unlock()
+    {
+        RTCritSectLeave(&mMtx);
+    }
 };
 
 
 /**
  * The stack object for automatic locking and unlocking.
  *
- * This is a helper class for automatic locks, to simplify
- * requesting a RTLockMtx and to not forget releasing it.
- * To request a RTLockMtx, simply create an instance of RTLock
- * on the stack and pass the mutex to it:
+ * This is a helper class for automatic locks, to simplify requesting a
+ * RTCLockMtx and to not forget releasing it.  To request a RTCLockMtx, simply
+ * create an instance of RTCLock on the stack and pass the mutex to it:
  *
  * @code
-    extern RTLockMtx gMtx;     // wherever this is
+    extern RTCLockMtx gMtx;     // wherever this is
     ...
     if (...)
     {
-        RTLock lock(gMtx);
+        RTCLock lock(gMtx);
         ... // do stuff
         // when lock goes out of scope, destructor releases the mutex
     }
    @endcode
  *
- * You can also explicitly release the mutex by calling RTLock::release().
+ * You can also explicitly release the mutex by calling RTCLock::release().
  * This might be helpful if the lock doesn't go out of scope early enough
  * for your mutex to be released.
  */
-class RTLock
+class RTCLock
 {
-    private:
-        RTLockMtx  &mMtx;
-        bool        mfLocked;
+private:
+    /** Reference to the lock we're holding. */
+    RTCLockMtx &m_rMtx;
+    /** Whether we're currently holding the lock of if it was already
+     *  explictily released by the release() method. */
+    bool        m_fLocked;
 
-    public:
-        RTLock(RTLockMtx &aMtx)
-            : mMtx(aMtx)
-        {
-            mMtx.lock();
-            mfLocked = true;
-        }
+public:
+    RTCLock(RTCLockMtx &a_rMtx)
+        : m_rMtx(a_rMtx)
+    {
+        m_rMtx.lock();
+        m_fLocked = true;
+    }
 
-        ~RTLock()
-        {
-            if (mfLocked)
-                mMtx.unlock();
-        }
+    ~RTCLock()
+    {
+        if (m_fLocked)
+            m_rMtx.unlock();
+    }
 
-        inline void release()
+    inline void release()
+    {
+        if (m_fLocked)
         {
-            if (mfLocked)
-            {
-                mMtx.unlock();
-                mfLocked = false;
-            }
+            m_rMtx.unlock();
+            m_fLocked = false;
         }
+    }
 };
 
 

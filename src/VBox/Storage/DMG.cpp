@@ -1,4 +1,4 @@
-/* $Id: DMG.cpp $ */
+/* $Id: DMG.cpp 36633 2011-04-08 21:43:41Z vboxsync $ */
 /** @file
  * VBoxDMG - Interpreter for Apple Disk Images (DMG).
  */
@@ -1693,7 +1693,8 @@ static int dmgOpen(const char *pszFilename, unsigned uOpenFlags,
      * simple backend and can expect the caller to be the only user and already
      * have validate what it passes thru to us.
      */
-    if (!(uOpenFlags & VD_OPEN_FLAGS_READONLY))
+    if (   !(uOpenFlags & VD_OPEN_FLAGS_READONLY)
+        || (uOpenFlags & VD_OPEN_FLAGS_ASYNC_IO))
     {
         rc = VERR_NOT_SUPPORTED;
         goto out;
@@ -2423,8 +2424,6 @@ VBOXHDDBACKEND g_DmgBackend =
     /* pfnGetParentFilename */
     NULL,
     /* pfnSetParentFilename */
-    NULL,
-    /* pfnIsAsyncIOSupported */
     NULL,
     /* pfnAsyncRead */
     NULL,

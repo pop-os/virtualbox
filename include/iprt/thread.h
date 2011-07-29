@@ -70,6 +70,8 @@ typedef enum RTTHREADSTATE
     RTTHREADSTATE_SLEEP,
     /** Waiting on a spin mutex. */
     RTTHREADSTATE_SPIN_MUTEX,
+    /** End of the thread states. */
+    RTTHREADSTATE_END,
 
     /** The usual 32-bit size hack. */
     RTTHREADSTATE_32BIT_HACK = 0x7fffffff
@@ -164,19 +166,21 @@ typedef enum RTTHREADTYPE
 #ifndef IN_RC
 
 /**
+ * Checks if the IPRT thread component has been initialized.
+ *
+ * This is used to avoid calling into RTThread before the runtime has been
+ * initialized.
+ *
+ * @returns @c true if it's initialized, @c false if not.
+ */
+RTDECL(bool) RTThreadIsInitialized(void);
+
+/**
  * Get the thread handle of the current thread.
  *
  * @returns Thread handle.
  */
 RTDECL(RTTHREAD) RTThreadSelf(void);
-
-/**
- * Get the thread handle of the current thread, automatically adopting alien
- * threads.
- *
- * @returns Thread handle.
- */
-RTDECL(RTTHREAD) RTThreadSelfAutoAdopt(void);
 
 /**
  * Get the native thread handle of the current thread.
@@ -387,6 +391,27 @@ RTDECL(int) RTThreadSetName(RTTHREAD Thread, const char *pszName);
 RTDECL(bool) RTThreadIsMain(RTTHREAD hThread);
 
 /**
+ * Checks if the calling thread is known to IPRT.
+ *
+ * @returns @c true if it is, @c false if it isn't.
+ */
+RTDECL(bool) RTThreadIsSelfKnown(void);
+
+/**
+ * Checks if the calling thread is know to IPRT and is alive.
+ *
+ * @returns @c true if it is, @c false if it isn't.
+ */
+RTDECL(bool) RTThreadIsSelfAlive(void);
+
+/**
+ * Checks if the calling thread is known to IPRT.
+ *
+ * @returns @c true if it is, @c false if it isn't.
+ */
+RTDECL(bool) RTThreadIsOperational(void);
+
+/**
  * Signal the user event.
  *
  * @returns     iprt status code.
@@ -551,19 +576,39 @@ RTDECL(bool) RTThreadIsInInterrupt(RTTHREAD hThread);
 RTDECL(int) RTThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, const char *pszName, PRTTHREAD pThread);
 
 /**
+ * Get the thread handle of the current thread, automatically adopting alien
+ * threads.
+ *
+ * @returns Thread handle.
+ */
+RTDECL(RTTHREAD) RTThreadSelfAutoAdopt(void);
+
+/**
  * Gets the affinity mask of the current thread.
  *
- * @returns The affinity mask (bit 0 = logical cpu 0).
+ * @returns IPRT status code.
+ * @param   pCpuSet         Where to return the CPU affienty set of the calling
+ *                          thread.
  */
-RTR3DECL(uint64_t) RTThreadGetAffinity(void);
+RTR3DECL(int) RTThreadGetAffinity(PRTCPUSET pCpuSet);
 
 /**
  * Sets the affinity mask of the current thread.
  *
  * @returns iprt status code.
- * @param   u64Mask         Affinity mask (bit 0 = logical cpu 0).
+ * @param   pCpuSet         The set of CPUs this thread can run on.  NULL means
+ *                          all CPUs.
  */
-RTR3DECL(int) RTThreadSetAffinity(uint64_t u64Mask);
+RTR3DECL(int) RTThreadSetAffinity(PCRTCPUSET pCpuSet);
+
+/**
+ * Binds the thread to one specific CPU.
+ *
+ * @returns iprt status code.
+ * @param   idCpu           The ID of the CPU to bind this thread to.  Use
+ *                          NIL_RTCPUID to unbind it.
+ */
+RTR3DECL(int) RTThreadSetAffinityToCpu(RTCPUID idCpu);
 
 /**
  * Unblocks a thread.

@@ -1,4 +1,4 @@
-/* $Revision: 60692 $ */
+/* $Revision: 36318 $ */
 /** @file
  * VBoxGuestLibR0 - Internal header.
  */
@@ -35,11 +35,11 @@
 
 
 #ifdef RT_OS_WINDOWS /** @todo dprintf() -> Log() */
-#if (defined(DEBUG) && !defined(NO_LOGGING)) || defined(LOG_ENABLED)
-# define dprintf(a) RTLogBackdoorPrintf a
-#else
-# define dprintf(a) do {} while (0)
-#endif
+# if (defined(DEBUG) && !defined(NO_LOGGING)) || defined(LOG_ENABLED)
+#  define dprintf(a) RTLogBackdoorPrintf a
+# else
+#  define dprintf(a) do {} while (0)
+# endif
 #else
 # define dprintf(a) Log(a)
 #endif

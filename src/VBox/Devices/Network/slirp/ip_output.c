@@ -1,4 +1,4 @@
-/* $Id: ip_output.c $ */
+/* $Id: ip_output.c 37936 2011-07-14 03:54:41Z vboxsync $ */
 /** @file
  * NAT - IP output.
  */
@@ -72,23 +72,32 @@ static const uint8_t broadcast_ethaddr[6] =
 static int rt_lookup_in_cache(PNATState pData, uint32_t dst, uint8_t *ether)
 {
     int rc;
+    LogFlowFunc(("ENTER: dst:%RTnaipv4, ether:%p\n", dst, ether));
     if (dst == INADDR_BROADCAST)
     {
         memcpy(ether, broadcast_ethaddr, ETH_ALEN);
+        LogFlowFunc(("LEAVE: VINF_SUCCESS\n"));
         return VINF_SUCCESS;
     }
 
     rc = slirp_arp_lookup_ether_by_ip(pData, dst, ether);
     if (RT_SUCCESS(rc))
+    {
+        LogFlowFunc(("LEAVE: %Rrc\n", rc));
         return rc;
+    }
 
     rc = bootp_cache_lookup_ether_by_ip(pData, dst, ether);
     if (RT_SUCCESS(rc))
+    {
+        LogFlowFunc(("LEAVE: %Rrc\n", rc));
         return rc;
+    }
     /*
      * no chance to send this packet, sorry, we will request ether address via ARP
      */
     slirp_arp_who_has(pData, dst);
+    LogFlowFunc(("LEAVE: VERR_NOT_FOUND\n"));
     return VERR_NOT_FOUND;
 }
 
@@ -119,7 +128,7 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
 
     STAM_PROFILE_START(&pData->StatIP_output, a);
 
-    LogFlow(("ip_output: so = %lx, m0 = %lx\n", (long)so, (long)m0));
+    LogFlowFunc(("ip_output: so = %R[natsock], m0 = %lx\n", so, (long)m0));
 
     M_ASSERTPKTHDR(m);
     Assert(m->m_pkthdr.header);
@@ -280,27 +289,34 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
         ip->ip_sum = cksum(m, mhlen);
 
 send_or_free:
+        {
+            /* @todo: We can't alias all fragments because the way libalias processing
+             * the fragments brake the sequence. libalias put alias_address to the source
+             * address of IP header of fragment, while IP header of the first packet is
+             * is unmodified. That confuses guest's TCP/IP stack and guest drop the sequence.
+             * Here we're letting libalias to process the first packet and send the rest as is,
+             * it's exactly the way in of packet are processing in proxyonly way.
+             * Here we need investigate what should be done to avoid such behavior and find right
+             * solution.
+             */
+            struct m_tag *t;
+            int rcLa;
+            if ((t = m_tag_find(m, PACKET_TAG_ALIAS, NULL)) != 0)
+                rcLa = LibAliasOut((struct libalias *)&t[1], mtod(m, char *), m->m_len);
+            else
+                rcLa = LibAliasOut(pData->proxy_alias, mtod(m, char *), m->m_len);
+
+            if (rcLa == PKT_ALIAS_IGNORED)
+            {
+                Log(("NAT: packet was droppped\n"));
+                goto exit_drop_package;
+            }
+            Log2(("NAT: LibAlias return %d\n", rcLa));
+        }
         for (m = m0; m; m = m0)
         {
             m0 = m->m_nextpkt;
             m->m_nextpkt = 0;
-            {
-                /* We're aliasing all fragments */
-                struct m_tag *t;
-                int rcLa;
-
-                if ((t = m_tag_find(m, PACKET_TAG_ALIAS, NULL)) != 0)
-                    rcLa = LibAliasOut((struct libalias *)&t[1], mtod(m, char *), m->m_len);
-                else
-                    rcLa = LibAliasOut(pData->proxy_alias, mtod(m, char *), m->m_len);
-
-                if (rcLa == PKT_ALIAS_IGNORED)
-                {
-                    Log(("NAT: packet was droppped\n"));
-                    goto exit_drop_package;
-                }
-                Log2(("NAT: LibAlias return %d\n", rcLa));
-            }
             if (error == 0)
             {
                 m->m_data -= ETH_HLEN;
@@ -321,10 +337,12 @@ send_or_free:
 
 done:
     STAM_PROFILE_STOP(&pData->StatIP_output, a);
+    LogFlowFunc(("LEAVE: %d\n", error));
     return error;
 
 exit_drop_package:
     m_freem(pData, m0);
     STAM_PROFILE_STOP(&pData->StatIP_output, a);
+    LogFlowFunc(("LEAVE: %d\n", error));
     return error;
 }

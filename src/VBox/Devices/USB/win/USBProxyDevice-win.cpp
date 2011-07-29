@@ -1,4 +1,4 @@
-/* $Id: USBProxyDevice-win.cpp $ */
+/* $Id: USBProxyDevice-win.cpp 37346 2011-06-07 13:06:29Z vboxsync $ */
 /** @file
  * USBPROXY - USB proxy, Win32 backend
  *
@@ -35,9 +35,9 @@
 #include <iprt/err.h>
 #include <iprt/string.h>
 #include <iprt/thread.h>
+#include <iprt/asm.h>
 #include "../USBProxyDevice.h"
 #include <VBox/usblib.h>
-//#include "USBLibInternal.h"
 
 
 /*******************************************************************************
@@ -310,7 +310,7 @@ static int usbProxyWinSetConfig(PUSBPROXYDEV pProxyDev, int cfg)
         pProxyDev->fDetached = true;
     }
     else
-        AssertMsgFailed(("lasterr=%d\n", GetLastError()));
+        AssertMsgFailed(("lasterr=%u\n", GetLastError()));
 
     return 0;
 }
@@ -427,7 +427,7 @@ static int usbProxyWinAbortEndPt(PUSBPROXYDEV pProxyDev, unsigned int ep)
         pProxyDev->fDetached = true;
     }
     else
-        AssertMsgFailed(("lasterr=%d\n", GetLastError()));
+        AssertMsgFailed(("lasterr=%d\n", rc));
     return RTErrConvertFromWin32(rc);
 }
 
@@ -439,23 +439,6 @@ static int usbProxyWinUrbQueue(PVUSBURB pUrb)
     PUSBPROXYDEV    pProxyDev = PDMINS_2_DATA(pUrb->pUsbIns, PUSBPROXYDEV);
     PPRIV_USBW32    pPriv = (PPRIV_USBW32)pProxyDev->Backend.pv;
     Assert(pPriv);
-
-    /*
-     * Ensure we've got sufficient space in the arrays.
-     */
-    if (pPriv->cQueuedUrbs + 1 > pPriv->cAllocatedUrbs)
-    {
-        unsigned cNewMax = pPriv->cAllocatedUrbs + 32;
-        void *pv = RTMemRealloc(pPriv->paHandles, sizeof(pPriv->paHandles[0]) * cNewMax);
-        if (!pv)
-            return false;
-        pPriv->paHandles = (PHANDLE)pv;
-        pv = RTMemRealloc(pPriv->paQueuedUrbs, sizeof(pPriv->paQueuedUrbs[0]) * cNewMax);
-        if (!pv)
-            return false;
-        pPriv->paQueuedUrbs = (PQUEUED_URB *)pv;
-        pPriv->cAllocatedUrbs = cNewMax;
-    }
 
     /*
      * Allocate and initialize a URB queue structure.
@@ -521,14 +504,50 @@ static int usbProxyWinUrbQueue(PVUSBURB pUrb)
             RTThreadSleep(1);
 
         RTCritSectEnter(&pPriv->CritSect);
-        pUrb->Dev.pvPrivate = pQUrbWin;
-        pPriv->aPendingUrbs[pPriv->cPendingUrbs] = pQUrbWin;
-        pPriv->cPendingUrbs++;
+        do
+        {
+            /* Ensure we've got sufficient space in the arrays.
+             * Do it inside the lock to ensure we do not concur
+             * with the usbProxyWinAsyncIoThread */
+            if (pPriv->cQueuedUrbs + 1 > pPriv->cAllocatedUrbs)
+            {
+                unsigned cNewMax = pPriv->cAllocatedUrbs + 32;
+                void *pv = RTMemRealloc(pPriv->paHandles, sizeof(pPriv->paHandles[0]) * cNewMax);
+                if (!pv)
+                {
+                    AssertMsgFailed(("RTMemRealloc failed for paHandles[%d]", cNewMax));
+                    break;
+                }
+                pPriv->paHandles = (PHANDLE)pv;
+
+                pv = RTMemRealloc(pPriv->paQueuedUrbs, sizeof(pPriv->paQueuedUrbs[0]) * cNewMax);
+                if (!pv)
+                {
+                    AssertMsgFailed(("RTMemRealloc failed for paQueuedUrbs[%d]", cNewMax));
+                    break;
+                }
+                pPriv->paQueuedUrbs = (PQUEUED_URB *)pv;
+                pPriv->cAllocatedUrbs = cNewMax;
+            }
+
+            pUrb->Dev.pvPrivate = pQUrbWin;
+            pPriv->aPendingUrbs[pPriv->cPendingUrbs] = pQUrbWin;
+            pPriv->cPendingUrbs++;
+            RTCritSectLeave(&pPriv->CritSect);
+            SetEvent(pPriv->hEventAsyncIo);
+            return true;
+        } while (0);
+
         RTCritSectLeave(&pPriv->CritSect);
-        SetEvent(pPriv->hEventAsyncIo);
-        return true;
     }
-    Assert(pPriv->cPendingUrbs < RT_ELEMENTS(pPriv->aPendingUrbs));
+#ifdef DEBUG_misha
+    else
+    {
+        AssertMsgFailed(("FAILED!!, hEvent(0x%p), cPendingUrbs(%d)\n", pQUrbWin->overlapped.hEvent, pPriv->cPendingUrbs));
+    }
+#endif
+
+    Assert(pQUrbWin->overlapped.hEvent == INVALID_HANDLE_VALUE);
     RTMemFree(pQUrbWin);
     return false;
 }
@@ -594,9 +613,16 @@ static PVUSBURB usbProxyWinUrbReap(PUSBPROXYDEV pProxyDev, RTMSINTERVAL cMillies
 
     /*
      * Wait/poll.
+     *
+     * ASSUMPTIONS:
+     *   1. The usbProxyWinUrbReap can not be run concurrently with each other
+     *      so racing the cQueuedUrbs access/modification can not occur.
+     *   2. The usbProxyWinUrbReap can not be run concurrently with
+     *      usbProxyWinUrbQueue so they can not race the pPriv->paHandles
+     *      access/realloc.
      */
+    unsigned cQueuedUrbs = ASMAtomicReadU32((volatile uint32_t *)&pPriv->cQueuedUrbs);
     PVUSBURB pUrb = NULL;
-    unsigned cQueuedUrbs = pPriv->cQueuedUrbs;
     DWORD rc = WaitForMultipleObjects(cQueuedUrbs, pPriv->paHandles, FALSE, cMillies);
     if (rc >= WAIT_OBJECT_0 && rc < WAIT_OBJECT_0 + cQueuedUrbs)
     {
@@ -694,9 +720,12 @@ static DECLCALLBACK(int) usbProxyWinAsyncIoThread(RTTHREAD ThreadSelf, void *lpP
                         || GetLastError() == ERROR_IO_PENDING)
                     {
                         /* insert into the queue */
-                        unsigned j = pPriv->cQueuedUrbs++;
+                        unsigned j = pPriv->cQueuedUrbs;
                         pPriv->paQueuedUrbs[j] = pQUrbWin;
-                        pPriv->paHandles[j]    = pQUrbWin->overlapped.hEvent;
+                        pPriv->paHandles[j] = pQUrbWin->overlapped.hEvent;
+                        /* do an atomic increment to allow usbProxyWinUrbReap thread get it outside a lock,
+                         * being sure that pPriv->paHandles contains cQueuedUrbs valid handles */
+                        ASMAtomicIncU32((uint32_t volatile *)&pPriv->cQueuedUrbs);
                     }
                     else
                     {
@@ -770,7 +799,7 @@ static void usbProxyWinUrbCancel(PVUSBURB pUrb)
         pProxyDev->fDetached = true;
     }
     else
-        AssertMsgFailed(("lasterr=%d\n", GetLastError()));
+        AssertMsgFailed(("lasterr=%d\n", rc));
 }
 
 

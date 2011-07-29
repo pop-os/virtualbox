@@ -1,4 +1,4 @@
-/* $Id: avl_Range.cpp.h $ */
+/* $Id: avl_Range.cpp.h 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * kAVLRange  - Range routines for AVL trees.
  */
@@ -35,7 +35,7 @@
  * @param     ppTree  Pointer to Pointer to the tree root node.
  * @param     Key     The Key to find matching range for.
  */
-RTDECL(PKAVLNODECORE) KAVL_FN(RangeGet)(PPKAVLNODECORE ppTree, register KAVLKEY Key)
+KAVL_DECL(PKAVLNODECORE) KAVL_FN(RangeGet)(PPKAVLNODECORE ppTree, register KAVLKEY Key)
 {
     register PKAVLNODECORE  pNode = KAVL_GET_POINTER_NULL(ppTree);
     if (pNode)

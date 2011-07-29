@@ -1,4 +1,4 @@
-/* $Id: RTStrCatP.cpp $ */
+/* $Id: RTStrCatP.cpp 36407 2011-03-24 16:14:57Z vboxsync $ */
 /** @file
  * IPRT - RTStrCat.
  */

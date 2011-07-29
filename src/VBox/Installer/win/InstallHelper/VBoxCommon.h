@@ -1,4 +1,4 @@
-/* $Id: VBoxCommon.h $ */
+/* $Id: VBoxCommon.h 32112 2010-08-31 08:44:09Z vboxsync $ */
 /** @file
  * VBoxCommon - Misc helper routines for install helper.
  */

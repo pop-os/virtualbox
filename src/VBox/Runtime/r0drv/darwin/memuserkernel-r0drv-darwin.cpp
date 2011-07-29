@@ -1,4 +1,4 @@
-/* $Id: memuserkernel-r0drv-darwin.cpp $ */
+/* $Id: memuserkernel-r0drv-darwin.cpp 36540 2011-04-04 15:58:26Z vboxsync $ */
 /** @file
  * IPRT - User & Kernel Memory, Ring-0 Driver, Darwin.
  */
@@ -31,6 +31,7 @@
 #include "the-darwin-kernel.h"
 #include "internal/iprt.h"
 #include <iprt/mem.h>
+#include <iprt/assert.h>
 
 #if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
 # include <iprt/asm-amd64-x86.h>

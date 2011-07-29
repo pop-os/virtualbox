@@ -1,10 +1,10 @@
-/* $Id: DBGCGdbRemoteStub.cpp $ */
+/* $Id: DBGCGdbRemoteStub.cpp 35628 2011-01-19 14:58:26Z vboxsync $ */
 /** @file
  * DBGC - Debugger Console, GDB Remote Stub.
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;

@@ -263,7 +263,8 @@ struct RTLOGGERRC
     /** Current scratch buffer position. */
     uint32_t                offScratch;
     /** This is set if a prefix is pending. */
-    uint32_t                fPendingPrefix;
+    bool                    fPendingPrefix;
+    bool                    afAlignment[3];
     /** Pointer to the logger function.
      * This is actually pointer to a wrapper which will push a pointer to the
      * instance pointer onto the stack before jumping to the real logger function.
@@ -290,8 +291,8 @@ struct RTLOGGERRC
 
 #ifndef IN_RC
 
-/** Pointer to file logging bits for the logger. */
-typedef struct RTLOGGERFILE *PRTLOGGERFILE;
+/** Pointer to internal logger bits. */
+typedef struct RTLOGGERINTERNAL *PRTLOGGERINTERNAL;
 
 /**
  * Logger instance structure.
@@ -300,42 +301,26 @@ struct RTLOGGER
 {
     /** Pointer to temporary scratch buffer.
      * This is used to format the log messages. */
-    char                    achScratch[32768];
+    char                    achScratch[49152];
     /** Current scratch buffer position. */
     uint32_t                offScratch;
-    /** This is set if a prefix is pending. */
-    uint32_t                fPendingPrefix;
-    /** Pointer to the logger function.
-     * This is actually pointer to a wrapper which will push a pointer to the
-     * instance pointer onto the stack before jumping to the real logger function.
-     * A very unfortunate hack to work around the missing variadic macro support in C++.
-     * (The memory is (not R0) allocated using RTMemExecAlloc().) */
-    PFNRTLOGGER             pfnLogger;
-    /** Pointer to the flush function. */
-    PFNRTLOGFLUSH           pfnFlush;
-    /** Custom prefix callback. */
-    PFNRTLOGPREFIX          pfnPrefix;
-    /** Prefix callback argument. */
-    void                   *pvPrefixUserArg;
-    /** Spinning mutex semaphore. */
-    RTSEMSPINMUTEX          hSpinMtx;
     /** Magic number. */
     uint32_t                u32Magic;
     /** Logger instance flags - RTLOGFLAGS. */
     uint32_t                fFlags;
     /** Destination flags - RTLOGDEST. */
     uint32_t                fDestFlags;
-    /** Currently unused field. */
-    uint32_t                uUnused;
-    /** Pointer to the file related logging information.
+    /** Pointer to the internal bits of the logger.
      * (The memory is allocated in the same block as RTLOGGER.) */
-    PRTLOGGERFILE           pFile;
-    /** Pointer to the group name array.
-     * (The data is readonly and provided by the user.) */
-    const char * const     *papszGroups;
-    /** The max number of groups that there is room for in afGroups and papszGroups.
-     * Used by RTLogCopyGroupAndFlags(). */
-    uint32_t                cMaxGroups;
+    PRTLOGGERINTERNAL       pInt;
+    /** Pointer to the logger function (used in non-C99 mode only).
+     *
+     * This is actually pointer to a wrapper which will push a pointer to the
+     * instance pointer onto the stack before jumping to the real logger function.
+     * A very unfortunate hack to work around the missing variadic macro
+     * support in older C++/C standards.  (The memory is allocated using
+     * RTMemExecAlloc(), except for agnostic R0 code.) */
+    PFNRTLOGGER             pfnLogger;
     /** Number of groups in the afGroups and papszGroups members. */
     uint32_t                cGroups;
     /** Group flags array - RTLOGGRPFLAGS.
@@ -345,7 +330,7 @@ struct RTLOGGER
 };
 
 /** RTLOGGER::u32Magic value. (Avram Noam Chomsky) */
-#define RTLOGGER_MAGIC      0x19281207
+# define RTLOGGER_MAGIC     UINT32_C(0x19281207)
 
 #endif /* !IN_RC */
 
@@ -371,6 +356,8 @@ typedef enum RTLOGFLAGS
     RTLOGFLAGS_WRITE_THROUGH        = 0x00000100,
     /** Flush the file to disk when flushing the buffer. */
     RTLOGFLAGS_FLUSH                = 0x00000200,
+    /** Restrict the number of log entries per group. */
+    RTLOGFLAGS_RESTRICT_GROUPS      = 0x00000400,
     /** New lines should be prefixed with the write and read lock counts. */
     RTLOGFLAGS_PREFIX_LOCK_COUNTS   = 0x00008000,
     /** New lines should be prefixed with the CPU id (ApicID on intel/amd). */
@@ -426,31 +413,31 @@ typedef enum RTLOGGRPFLAGS
     RTLOGGRPFLAGS_LEVEL_6      = 0x00000040,
     /** Flow logging. */
     RTLOGGRPFLAGS_FLOW         = 0x00000080,
+    /** Restrict the number of log entries. */
+    RTLOGGRPFLAGS_RESTRICT     = 0x00000100,
 
     /** Lelik logging. */
-    RTLOGGRPFLAGS_LELIK        = 0x00000100,
+    RTLOGGRPFLAGS_LELIK        = 0x00010000,
     /** Michael logging. */
-    RTLOGGRPFLAGS_MICHAEL      = 0x00000200,
-    /** dmik logging. */
-    RTLOGGRPFLAGS_DMIK         = 0x00000400,
+    RTLOGGRPFLAGS_MICHAEL      = 0x00020000,
     /** sunlover logging. */
-    RTLOGGRPFLAGS_SUNLOVER     = 0x00000800,
+    RTLOGGRPFLAGS_SUNLOVER     = 0x00040000,
     /** Achim logging. */
-    RTLOGGRPFLAGS_ACHIM        = 0x00001000,
+    RTLOGGRPFLAGS_ACHIM        = 0x00080000,
     /** Sander logging. */
-    RTLOGGRPFLAGS_SANDER       = 0x00002000,
+    RTLOGGRPFLAGS_SANDER       = 0x00100000,
     /** Klaus logging. */
-    RTLOGGRPFLAGS_KLAUS        = 0x00004000,
+    RTLOGGRPFLAGS_KLAUS        = 0x00200000,
     /** Frank logging. */
-    RTLOGGRPFLAGS_FRANK        = 0x00008000,
+    RTLOGGRPFLAGS_FRANK        = 0x00400000,
     /** bird logging. */
-    RTLOGGRPFLAGS_BIRD         = 0x00010000,
+    RTLOGGRPFLAGS_BIRD         = 0x00800000,
     /** aleksey logging. */
-    RTLOGGRPFLAGS_ALEKSEY      = 0x00020000,
+    RTLOGGRPFLAGS_ALEKSEY      = 0x01000000,
     /** dj logging. */
-    RTLOGGRPFLAGS_DJ           = 0x00040000,
+    RTLOGGRPFLAGS_DJ           = 0x02000000,
     /** NoName logging. */
-    RTLOGGRPFLAGS_NONAME       = 0x00080000
+    RTLOGGRPFLAGS_NONAME       = 0x04000000
 } RTLOGGRPFLAGS;
 
 /**
@@ -531,39 +518,41 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup, c
  */
 #ifdef LOG_ENABLED
 # if defined(LOG_USE_C99)
-#  define _LogRemoveParentheseis(...)                   __VA_ARGS__
-#  define _LogIt(pvInst, fFlags, iGroup, ...)           RTLogLoggerEx((PRTLOGGER)pvInst, fFlags, iGroup, __VA_ARGS__)
-#  define LogIt(pvInst, fFlags, iGroup, fmtargs)        _LogIt(pvInst, fFlags, iGroup, _LogRemoveParentheseis fmtargs)
-#  define _LogItAlways(pvInst, fFlags, iGroup, ...)     RTLogLoggerEx((PRTLOGGER)pvInst, fFlags, ~0U, __VA_ARGS__)
-#  define LogItAlways(pvInst, fFlags, iGroup, fmtargs)  _LogItAlways(pvInst, fFlags, iGroup, _LogRemoveParentheseis fmtargs)
+#  define _LogRemoveParentheseis(...)                           __VA_ARGS__
+#  define _LogIt(a_pvInst, a_fFlags, a_iGroup, ...)             RTLogLoggerEx((PRTLOGGER)a_pvInst, a_fFlags, a_iGroup, __VA_ARGS__)
+#  define LogIt(a_pvInst, a_fFlags, a_iGroup, fmtargs)          _LogIt(a_pvInst, a_fFlags, a_iGroup, _LogRemoveParentheseis fmtargs)
+#  define _LogItAlways(a_pvInst, a_fFlags, a_iGroup, ...)       RTLogLoggerEx((PRTLOGGER)a_pvInst, a_fFlags, ~0U, __VA_ARGS__)
+#  define LogItAlways(a_pvInst, a_fFlags, a_iGroup, fmtargs)    _LogItAlways(a_pvInst, a_fFlags, a_iGroup, _LogRemoveParentheseis fmtargs)
         /** @todo invent a flag or something for skipping the group check so we can pass iGroup. LogItAlways. */
 # else
-#  define LogIt(pvInst, fFlags, iGroup, fmtargs) \
+#  define LogIt(a_pvInst, a_fFlags, a_iGroup, fmtargs) \
     do \
     { \
-        register PRTLOGGER LogIt_pLogger = (PRTLOGGER)(pvInst) ? (PRTLOGGER)(pvInst) : RTLogDefaultInstance(); \
-        if (LogIt_pLogger) \
+        register PRTLOGGER LogIt_pLogger = (PRTLOGGER)(a_pvInst) ? (PRTLOGGER)(a_pvInst) : RTLogDefaultInstance(); \
+        if (    LogIt_pLogger \
+            && !(LogIt_pLogger->fFlags & RTLOGFLAGS_DISABLED)) \
         { \
-            register unsigned LogIt_fFlags = LogIt_pLogger->afGroups[(unsigned)(iGroup) < LogIt_pLogger->cGroups ? (unsigned)(iGroup) : 0]; \
-            if ((LogIt_fFlags & ((fFlags) | RTLOGGRPFLAGS_ENABLED)) == ((fFlags) | RTLOGGRPFLAGS_ENABLED)) \
+            register unsigned LogIt_fFlags = LogIt_pLogger->afGroups[(unsigned)(a_iGroup) < LogIt_pLogger->cGroups ? (unsigned)(a_iGroup) : 0]; \
+            if ((LogIt_fFlags & ((a_fFlags) | RTLOGGRPFLAGS_ENABLED)) == ((a_fFlags) | RTLOGGRPFLAGS_ENABLED)) \
                 LogIt_pLogger->pfnLogger fmtargs; \
         } \
     } while (0)
-#  define LogItAlways(pvInst, fFlags, iGroup, fmtargs) \
+#  define LogItAlways(a_pvInst, a_fFlags, a_iGroup, fmtargs) \
     do \
     { \
-        register PRTLOGGER LogIt_pLogger = (PRTLOGGER)(pvInst) ? (PRTLOGGER)(pvInst) : RTLogDefaultInstance(); \
-        if (LogIt_pLogger) \
+        register PRTLOGGER LogIt_pLogger = (PRTLOGGER)(a_pvInst) ? (PRTLOGGER)(a_pvInst) : RTLogDefaultInstance(); \
+        if (   LogIt_pLogger \
+            && !(LogIt_pLogger->fFlags & RTLOGFLAGS_DISABLED)) \
             LogIt_pLogger->pfnLogger fmtargs; \
     } while (0)
 # endif
 #else
-# define LogIt(pvInst, fFlags, iGroup, fmtargs)         do { } while (0)
-# define LogItAlways(pvInst, fFlags, iGroup, fmtargs)   do { } while (0)
+# define LogIt(a_pvInst, a_fFlags, a_iGroup, fmtargs)       do { } while (0)
+# define LogItAlways(a_pvInst, a_fFlags, a_iGroup, fmtargs) do { } while (0)
 # if defined(LOG_USE_C99)
-#  define _LogRemoveParentheseis(...)                   __VA_ARGS__
-#  define _LogIt(pvInst, fFlags, iGroup, ...)           do { } while (0)
-#  define _LogItAlways(pvInst, fFlags, iGroup, ...)     do { } while (0)
+#  define _LogRemoveParentheseis(...)                       __VA_ARGS__
+#  define _LogIt(a_pvInst, a_fFlags, a_iGroup, ...)         do { } while (0)
+#  define _LogItAlways(a_pvInst, a_fFlags, a_iGroup, ...)   do { } while (0)
 # endif
 #endif
 
@@ -618,11 +607,6 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup, c
  * michael logging.
  */
 #define LogMichael(a)   LogIt(LOG_INSTANCE, RTLOGGRPFLAGS_MICHAEL,  LOG_GROUP, a)
-
-/** @def LogDmik
- * dmik logging.
- */
-#define LogDmik(a)      LogIt(LOG_INSTANCE, RTLOGGRPFLAGS_DMIK,     LOG_GROUP, a)
 
 /** @def LogSunlover
  * sunlover logging.
@@ -825,10 +809,10 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup, c
  * Checks whether the specified logging group is enabled or not.
  */
 #ifdef LOG_ENABLED
-# define LogIsItEnabled(pvInst, fFlags, iGroup) \
-    LogIsItEnabledInternal((pvInst), (unsigned)(iGroup), (unsigned)(fFlags))
+# define LogIsItEnabled(a_pvInst, a_fFlags, a_iGroup) \
+    LogIsItEnabledInternal((a_pvInst), (unsigned)(a_iGroup), (unsigned)(a_fFlags))
 #else
-# define LogIsItEnabled(pvInst, fFlags, iGroup) (false)
+# define LogIsItEnabled(a_pvInst, a_fFlags, a_iGroup) (false)
 #endif
 
 /** @def LogIsEnabled
@@ -939,35 +923,37 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup, c
  */
 #ifdef RTLOG_REL_ENABLED
 # if defined(LOG_USE_C99)
-#  define _LogRelRemoveParentheseis(...)                __VA_ARGS__
-#  define _LogRelIt(pvInst, fFlags, iGroup, ...) \
+#  define _LogRelRemoveParentheseis(...)                    __VA_ARGS__
+#  define _LogRelIt(a_pvInst, a_fFlags, a_iGroup, ...) \
     do \
     { \
-        PRTLOGGER LogRelIt_pLogger = (PRTLOGGER)(pvInst) ? (PRTLOGGER)(pvInst) : RTLogRelDefaultInstance(); \
-        if (LogRelIt_pLogger) \
-            RTLogLoggerEx(LogRelIt_pLogger, fFlags, iGroup, __VA_ARGS__); \
-        _LogIt(LOG_INSTANCE, fFlags, iGroup, __VA_ARGS__); \
+        PRTLOGGER LogRelIt_pLogger = (PRTLOGGER)(a_pvInst) ? (PRTLOGGER)(a_pvInst) : RTLogRelDefaultInstance(); \
+        if (   LogRelIt_pLogger \
+            && !(LogRelIt_pLogger->fFlags & RTLOGFLAGS_DISABLED)) \
+            RTLogLoggerEx(LogRelIt_pLogger, a_fFlags, a_iGroup, __VA_ARGS__); \
+        _LogIt(LOG_INSTANCE, a_fFlags, a_iGroup, __VA_ARGS__); \
     } while (0)
-#  define LogRelIt(pvInst, fFlags, iGroup, fmtargs)     _LogRelIt(pvInst, fFlags, iGroup, _LogRelRemoveParentheseis fmtargs)
+#  define LogRelIt(a_pvInst, a_fFlags, a_iGroup, fmtargs)   _LogRelIt(a_pvInst, a_fFlags, a_iGroup, _LogRelRemoveParentheseis fmtargs)
 # else
-#  define LogRelIt(pvInst, fFlags, iGroup, fmtargs) \
+#  define LogRelIt(a_pvInst, a_fFlags, a_iGroup, fmtargs) \
    do \
    { \
-       PRTLOGGER LogRelIt_pLogger = (PRTLOGGER)(pvInst) ? (PRTLOGGER)(pvInst) : RTLogRelDefaultInstance(); \
-       if (LogRelIt_pLogger) \
+       PRTLOGGER LogRelIt_pLogger = (PRTLOGGER)(a_pvInst) ? (PRTLOGGER)(a_pvInst) : RTLogRelDefaultInstance(); \
+       if (   LogRelIt_pLogger \
+           && !(LogRelIt_pLogger->fFlags & RTLOGFLAGS_DISABLED)) \
        { \
-           unsigned LogIt_fFlags = LogRelIt_pLogger->afGroups[(unsigned)(iGroup) < LogRelIt_pLogger->cGroups ? (unsigned)(iGroup) : 0]; \
-           if ((LogIt_fFlags & ((fFlags) | RTLOGGRPFLAGS_ENABLED)) == ((fFlags) | RTLOGGRPFLAGS_ENABLED)) \
+           unsigned LogIt_fFlags = LogRelIt_pLogger->afGroups[(unsigned)(a_iGroup) < LogRelIt_pLogger->cGroups ? (unsigned)(a_iGroup) : 0]; \
+           if ((LogIt_fFlags & ((a_fFlags) | RTLOGGRPFLAGS_ENABLED)) == ((a_fFlags) | RTLOGGRPFLAGS_ENABLED)) \
                LogRelIt_pLogger->pfnLogger fmtargs; \
        } \
-       LogIt(LOG_INSTANCE, fFlags, iGroup, fmtargs); \
+       LogIt(LOG_INSTANCE, a_fFlags, a_iGroup, fmtargs); \
   } while (0)
 # endif
 #else   /* !RTLOG_REL_ENABLED */
-# define LogRelIt(pvInst, fFlags, iGroup, fmtargs)      do { } while (0)
+# define LogRelIt(a_pvInst, a_fFlags, a_iGroup, fmtargs)    do { } while (0)
 # if defined(LOG_USE_C99)
-#  define _LogRelRemoveParentheseis(...)                __VA_ARGS__
-#  define _LogRelIt(pvInst, fFlags, iGroup, ...)        do { } while (0)
+#  define _LogRelRemoveParentheseis(...)                    __VA_ARGS__
+#  define _LogRelIt(a_pvInst, a_fFlags, a_iGroup, ...)      do { } while (0)
 # endif
 #endif  /* !RTLOG_REL_ENABLED */
 
@@ -1059,11 +1045,6 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup, c
  */
 #define LogRelMichael(a)   LogRelIt(LOG_REL_INSTANCE, RTLOGGRPFLAGS_MICHAEL,  LOG_GROUP, a)
 
-/** @def LogRelDmik
- * dmik logging.
- */
-#define LogRelDmik(a)      LogRelIt(LOG_REL_INSTANCE, RTLOGGRPFLAGS_DMIK,     LOG_GROUP, a)
-
 /** @def LogRelSunlover
  * sunlover logging.
  */
@@ -1103,8 +1084,8 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup, c
 /** @def LogRelIsItEnabled
  * Checks whether the specified logging group is enabled or not.
  */
-#define LogRelIsItEnabled(pvInst, fFlags, iGroup) \
-    LogRelIsItEnabledInternal((pvInst), (unsigned)(iGroup), (unsigned)(fFlags))
+#define LogRelIsItEnabled(a_pvInst, a_fFlags, a_iGroup) \
+    LogRelIsItEnabledInternal((a_pvInst), (unsigned)(a_iGroup), (unsigned)(a_fFlags))
 
 /** @def LogRelIsEnabled
  * Checks whether level 1 logging is enabled.
@@ -1166,7 +1147,8 @@ RTDECL(PRTLOGGER) RTLogRelDefaultInstance(void);
 DECLINLINE(bool) LogRelIsItEnabledInternal(void *pvInst, unsigned iGroup, unsigned fFlags)
 {
     register PRTLOGGER pLogger = (PRTLOGGER)pvInst ? (PRTLOGGER)pvInst : RTLogRelDefaultInstance();
-    if (pLogger)
+    if (   pLogger
+        && !(pLogger->fFlags & RTLOGFLAGS_DISABLED))
     {
         register unsigned fGrpFlags = pLogger->afGroups[(unsigned)iGroup < pLogger->cGroups ? (unsigned)iGroup : 0];
         if ((fGrpFlags & (fFlags | RTLOGGRPFLAGS_ENABLED)) == (fFlags | RTLOGGRPFLAGS_ENABLED))
@@ -1340,7 +1322,7 @@ RTDECL(bool) RTLogRelSetBuffering(bool fBuffered);
 # define LogRel(a)      LogRelBackdoor(a)
 # if defined(LOG_USE_C99)
 #  undef _LogIt
-#  define _LogIt(pvInst, fFlags, iGroup, ...)  LogBackdoor((__VA_ARGS__))
+#  define _LogIt(a_pvInst, a_fFlags, a_iGroup, ...)  LogBackdoor((__VA_ARGS__))
 # endif
 #endif
 
@@ -1396,7 +1378,8 @@ RTDECL(int) RTLogSetDefaultInstanceThread(PRTLOGGER pLogger, uintptr_t uKey);
 DECLINLINE(bool) LogIsItEnabledInternal(void *pvInst, unsigned iGroup, unsigned fFlags)
 {
     register PRTLOGGER pLogger = (PRTLOGGER)pvInst ? (PRTLOGGER)pvInst : RTLogDefaultInstance();
-    if (pLogger)
+    if (   pLogger
+        && !(pLogger->fFlags & RTLOGFLAGS_DISABLED))
     {
         register unsigned fGrpFlags = pLogger->afGroups[(unsigned)iGroup < pLogger->cGroups ? (unsigned)iGroup : 0];
         if ((fGrpFlags & (fFlags | RTLOGGRPFLAGS_ENABLED)) == (fFlags | RTLOGGRPFLAGS_ENABLED))
@@ -1525,12 +1508,24 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
  *
  * @param   pLogger             Where to create the logger instance.
  * @param   cbLogger            The amount of memory available for the logger instance.
- * @param   pfnLogger           Pointer to logger wrapper function for the clone.
- * @param   pfnFlush            Pointer to flush function for the clone.
- * @param   fFlags              Logger instance flags for the clone, a combination of the RTLOGFLAGS_* values.
+ * @param   pLoggerR0Ptr        The ring-0 address corresponding to @a pLogger.
+ * @param   pfnLoggerR0Ptr      Pointer to logger wrapper function.
+ * @param   pfnFlushR0Ptr       Pointer to flush function.
+ * @param   fFlags              Logger instance flags, a combination of the RTLOGFLAGS_* values.
  * @param   fDestFlags          The destination flags.
  */
-RTDECL(int) RTLogCreateForR0(PRTLOGGER pLogger, size_t cbLogger, PFNRTLOGGER pfnLogger, PFNRTLOGFLUSH pfnFlush, uint32_t fFlags, uint32_t fDestFlags);
+RTDECL(int) RTLogCreateForR0(PRTLOGGER pLogger, size_t cbLogger,
+                             RTR0PTR pLoggerR0Ptr, RTR0PTR pfnLoggerR0Ptr, RTR0PTR pfnFlushR0Ptr,
+                             uint32_t fFlags, uint32_t fDestFlags);
+
+/**
+ * Calculates the minimum size of a ring-0 logger instance.
+ *
+ * @returns The minimum size.
+ * @param   cGroups             The number of groups.
+ * @param   fFlags              Relevant flags.
+ */
+RTDECL(size_t) RTLogCalcSizeForR0(uint32_t cGroups, uint32_t fFlags);
 
 /**
  * Destroys a logger instance.
@@ -1581,6 +1576,16 @@ RTDECL(void) RTLogFlushRC(PRTLOGGER pLogger, PRTLOGGERRC pLoggerRC);
 RTDECL(void) RTLogFlushToLogger(PRTLOGGER pSrcLogger, PRTLOGGER pDstLogger);
 
 /**
+ * Flushes a R0 logger instance to a R3 logger.
+ *
+ * @returns iprt status code.
+ * @param   pLogger      The R3 logger instance to flush pLoggerR0 to. If NULL
+ *                       the default logger is used.
+ * @param   pLoggerR0    The R0 logger instance to flush.
+ */
+RTDECL(void) RTLogFlushR0(PRTLOGGER pLogger, PRTLOGGER pLoggerR0);
+
+/**
  * Sets the custom prefix callback.
  *
  * @returns IPRT status code.
@@ -1591,15 +1596,30 @@ RTDECL(void) RTLogFlushToLogger(PRTLOGGER pSrcLogger, PRTLOGGER pDstLogger);
 RTDECL(int) RTLogSetCustomPrefixCallback(PRTLOGGER pLogger, PFNRTLOGPREFIX pfnCallback, void *pvUser);
 
 /**
+ * Same as RTLogSetCustomPrefixCallback for loggers created by
+ * RTLogCreateForR0.
+ *
+ * @returns IPRT status code.
+ * @param   pLogger             The logger instance.
+ * @param   pLoggerR0Ptr        The ring-0 address corresponding to @a pLogger.
+ * @param   pfnCallbackR0Ptr    The callback.
+ * @param   pvUserR0Ptr         The user argument for the callback.
+ *  */
+RTDECL(int) RTLogSetCustomPrefixCallbackForR0(PRTLOGGER pLogger, RTR0PTR pLoggerR0Ptr,
+                                              RTR0PTR pfnCallbackR0Ptr, RTR0PTR pvUserR0Ptr);
+
+/**
  * Copies the group settings and flags from logger instance to another.
  *
  * @returns IPRT status code.
  * @param   pDstLogger      The destination logger instance.
+ * @param   pDstLoggerR0Ptr The ring-0 address corresponding to @a pDstLogger.
  * @param   pSrcLogger      The source logger instance. If NULL the default one is used.
  * @param   fFlagsOr        OR mask for the flags.
  * @param   fFlagsAnd       AND mask for the flags.
  */
-RTDECL(int) RTLogCopyGroupsAndFlags(PRTLOGGER pDstLogger, PCRTLOGGER pSrcLogger, unsigned fFlagsOr, unsigned fFlagsAnd);
+RTDECL(int) RTLogCopyGroupsAndFlagsForR0(PRTLOGGER pDstLogger, RTR0PTR pDstLoggerR0Ptr,
+                                         PCRTLOGGER pSrcLogger, uint32_t fFlagsOr, uint32_t fFlagsAnd);
 
 /**
  * Get the current log group settings as a string.
@@ -1646,6 +1666,20 @@ RTDECL(int) RTLogFlags(PRTLOGGER pLogger, const char *pszVar);
  * @param   fBuffered       The new state.
  */
 RTDECL(bool) RTLogSetBuffering(PRTLOGGER pLogger, bool fBuffered);
+
+/**
+ * Sets the max number of entries per group.
+ *
+ * @returns Old restriction.
+ *
+ * @param   pLogger             The logger instance (NULL is an alias for the
+ *                              default logger).
+ * @param   cMaxEntriesPerGroup The max number of entries per group.
+ *
+ * @remarks Lowering the limit of an active logger may quietly mute groups.
+ *          Raising it may reactive already muted groups.
+ */
+RTDECL(uint32_t) RTLogSetGroupLimit(PRTLOGGER pLogger, uint32_t cMaxEntriesPerGroup);
 
 #ifndef IN_RC
 /**

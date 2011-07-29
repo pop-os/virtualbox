@@ -1,4 +1,4 @@
-/* $Id: RTPathJoinEx.cpp $ */
+/* $Id: RTPathJoinEx.cpp 34214 2010-11-19 17:18:15Z vboxsync $ */
 /** @file
  * IPRT - RTPathJoinEx.
  */

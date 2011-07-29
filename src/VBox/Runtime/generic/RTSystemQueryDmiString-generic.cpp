@@ -1,4 +1,4 @@
-/* $Id: RTSystemQueryDmiString-generic.cpp $ */
+/* $Id: RTSystemQueryDmiString-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - RTSystemQueryDmiString, generic stub.
  */

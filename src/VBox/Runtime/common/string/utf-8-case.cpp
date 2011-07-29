@@ -1,4 +1,4 @@
-/* $Id: utf-8-case.cpp $ */
+/* $Id: utf-8-case.cpp 33562 2010-10-28 14:38:50Z vboxsync $ */
 /** @file
  * IPRT - UTF-8 Case Sensitivity and Folding.
  */
