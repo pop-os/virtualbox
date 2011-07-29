@@ -1,6 +1,8 @@
 virtualbox (4.1.0-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release.
+  * Use VBOX_BUILD_PUBLISHER instead of VBOX_VERSION_STRING to set the
+    version suffix.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 29 Jul 2011 18:04:05 +0200
 
