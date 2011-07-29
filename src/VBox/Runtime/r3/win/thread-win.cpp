@@ -1,4 +1,4 @@
-/* $Id: thread-win.cpp $ */
+/* $Id: thread-win.cpp 37733 2011-07-01 15:41:37Z vboxsync $ */
 /** @file
  * IPRT - Threads, Windows.
  */
@@ -35,11 +35,14 @@
 #include <process.h>
 
 #include <iprt/thread.h>
-#include <iprt/log.h>
-#include <iprt/assert.h>
-#include <iprt/alloc.h>
+#include "internal/iprt.h"
+
 #include <iprt/asm-amd64-x86.h>
+#include <iprt/assert.h>
+#include <iprt/cpuset.h>
 #include <iprt/err.h>
+#include <iprt/log.h>
+#include <iprt/mem.h>
 #include "internal/thread.h"
 
 
@@ -56,7 +59,7 @@ static DWORD g_dwSelfTLS = TLS_OUT_OF_INDEXES;
 static unsigned __stdcall rtThreadNativeMain(void *pvArgs);
 
 
-int rtThreadNativeInit(void)
+DECLHIDDEN(int) rtThreadNativeInit(void)
 {
     g_dwSelfTLS = TlsAlloc();
     if (g_dwSelfTLS == TLS_OUT_OF_INDEXES)
@@ -65,7 +68,7 @@ int rtThreadNativeInit(void)
 }
 
 
-void rtThreadNativeDetach(void)
+DECLHIDDEN(void) rtThreadNativeDetach(void)
 {
     /*
      * Deal with alien threads.
@@ -80,7 +83,7 @@ void rtThreadNativeDetach(void)
 }
 
 
-void rtThreadNativeDestroy(PRTTHREADINT pThread)
+DECLHIDDEN(void) rtThreadNativeDestroy(PRTTHREADINT pThread)
 {
     if (pThread == (PRTTHREADINT)TlsGetValue(g_dwSelfTLS))
         TlsSetValue(g_dwSelfTLS, NULL);
@@ -93,7 +96,7 @@ void rtThreadNativeDestroy(PRTTHREADINT pThread)
 }
 
 
-int rtThreadNativeAdopt(PRTTHREADINT pThread)
+DECLHIDDEN(int) rtThreadNativeAdopt(PRTTHREADINT pThread)
 {
     if (!TlsSetValue(g_dwSelfTLS, pThread))
         return VERR_FAILED_TO_SET_SELF_TLS;
@@ -102,9 +105,9 @@ int rtThreadNativeAdopt(PRTTHREADINT pThread)
 
 
 /**
- * Bitch about dangling COM and OLE references, dispose of them 
- * afterwards so we don't end up deadlocked somewhere below 
- * OLE32!DllMain. 
+ * Bitch about dangling COM and OLE references, dispose of them
+ * afterwards so we don't end up deadlocked somewhere below
+ * OLE32!DllMain.
  */
 static void rtThreadNativeUninitComAndOle(void)
 {
@@ -142,14 +145,14 @@ static void rtThreadNativeUninitComAndOle(void)
             cComInits = pOleTlsData->cComInits;
             cOleInits = pOleTlsData->cOleInits;
         }
-    } 
+    }
     __except(EXCEPTION_EXECUTE_HANDLER)
     {
         AssertFailedReturnVoid();
     }
-    
+
     /*
-     * Assert sanity. If any of these breaks, the structure layout above is 
+     * Assert sanity. If any of these breaks, the structure layout above is
      * probably not correct any longer.
      */
     AssertMsgReturnVoid(cComInits < 1000, ("%u (%#x)\n", cComInits, cComInits));
@@ -161,7 +164,7 @@ static void rtThreadNativeUninitComAndOle(void)
      */
     if (cComInits)
     {
-        AssertMsgFailed(("cComInits=%u (%#x) cOleInits=%u (%#x) - dangling COM/OLE inits!\n", 
+        AssertMsgFailed(("cComInits=%u (%#x) cOleInits=%u (%#x) - dangling COM/OLE inits!\n",
                          cComInits, cComInits, cOleInits, cOleInits));
 
         HMODULE hOle32 = GetModuleHandle("OLE32");
@@ -208,7 +211,7 @@ static unsigned __stdcall rtThreadNativeMain(void *pvArgs)
 }
 
 
-int rtThreadNativeCreate(PRTTHREADINT pThread, PRTNATIVETHREAD pNativeThread)
+DECLHIDDEN(int) rtThreadNativeCreate(PRTTHREADINT pThread, PRTNATIVETHREAD pNativeThread)
 {
     AssertReturn(pThread->cbStack < ~(unsigned)0, VERR_INVALID_PARAMETER);
 
@@ -236,32 +239,6 @@ RTDECL(RTTHREAD) RTThreadSelf(void)
 }
 
 
-RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void)
-{
-    return (RTNATIVETHREAD)GetCurrentThreadId();
-}
-
-
-RTR3DECL(int)   RTThreadSleep(RTMSINTERVAL cMillies)
-{
-    LogFlow(("RTThreadSleep: cMillies=%d\n", cMillies));
-    Sleep(cMillies);
-    LogFlow(("RTThreadSleep: returning %Rrc (cMillies=%d)\n", VINF_SUCCESS, cMillies));
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(bool) RTThreadYield(void)
-{
-    uint64_t u64TS = ASMReadTSC();
-    Sleep(0);
-    u64TS = ASMReadTSC() - u64TS;
-    bool fRc = u64TS > 1500;
-    LogFlow(("RTThreadYield: returning %d (%llu ticks)\n", fRc, u64TS));
-    return fRc;
-}
-
-
 #if 0 /* noone is using this ... */
 /**
  * Returns the processor number the current thread was running on during this call
@@ -286,10 +263,10 @@ static int rtThreadGetCurrentProcessorNumber(void)
 #endif
 
 
-RTR3DECL(int) RTThreadSetAffinity(uint64_t u64Mask)
+RTR3DECL(int) RTThreadSetAffinity(PCRTCPUSET pCpuSet)
 {
-    Assert((DWORD_PTR)u64Mask == u64Mask || u64Mask == ~(uint64_t)0);
-    DWORD_PTR dwRet = SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)u64Mask);
+    DWORD_PTR fNewMask = pCpuSet ? RTCpuSetToU64(pCpuSet) : ~(DWORD_PTR)0;
+    DWORD_PTR dwRet = SetThreadAffinityMask(GetCurrentThread(), fNewMask);
     if (dwRet)
         return VINF_SUCCESS;
 
@@ -299,7 +276,7 @@ RTR3DECL(int) RTThreadSetAffinity(uint64_t u64Mask)
 }
 
 
-RTR3DECL(uint64_t) RTThreadGetAffinity(void)
+RTR3DECL(int) RTThreadGetAffinity(PRTCPUSET pCpuSet)
 {
     /*
      * Haven't found no query api, but the set api returns the old mask, so let's use that.
@@ -314,7 +291,9 @@ RTR3DECL(uint64_t) RTThreadGetAffinity(void)
         {
             DWORD_PTR dwSet = SetThreadAffinityMask(hThread, dwRet);
             Assert(dwSet == dwProcAff); NOREF(dwRet);
-            return dwRet;
+
+            RTCpuSetFromU64(pCpuSet, (uint64_t)dwSet);
+            return VINF_SUCCESS;
         }
     }
 

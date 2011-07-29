@@ -1,4 +1,4 @@
-/* $Id: UIExportApplianceWzd.cpp $ */
+/* $Id: UIExportApplianceWzd.cpp 37849 2011-07-08 15:15:45Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -93,6 +93,7 @@ void UIExportApplianceWzd::retranslateUi()
 
     /* Extra buttons */
     setButtonText(QWizard::CustomButton1, tr("Restore Defaults"));
+    setButtonText(QWizard::FinishButton, tr("Export"));
 }
 
 void UIExportApplianceWzd::sltCurrentIdChanged(int iId)

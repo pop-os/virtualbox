@@ -1,10 +1,10 @@
-/* $Id: NetworkAdapterImpl.cpp $ */
+/* $Id: NetworkAdapterImpl.cpp 37927 2011-07-13 15:48:41Z vboxsync $ */
 /** @file
  * Implementation of INetworkAdaptor in VBoxSVC.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,6 +21,7 @@
 #include "Logging.h"
 #include "MachineImpl.h"
 #include "GuestOSTypeImpl.h"
+#include "HostImpl.h"
 
 #include <iprt/string.h>
 #include <iprt/cpp/utils.h>
@@ -45,12 +46,13 @@ NetworkAdapter::~NetworkAdapter()
 HRESULT NetworkAdapter::FinalConstruct()
 {
 
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void NetworkAdapter::FinalRelease()
 {
     uninit();
+    BaseFinalRelease();
 }
 
 // public initializer/uninitializer for internal purposes only
@@ -83,9 +85,6 @@ HRESULT NetworkAdapter::init(Machine *aParent, ULONG aSlot)
 
     /* initialize data */
     mData->mSlot = aSlot;
-
-    /* Default limit is not capped/unlimited. */
-    mData->mBandwidthLimit = 0;
 
     /* default to Am79C973 */
     mData->mAdapterType = NetworkAdapterType_Am79C973;
@@ -338,47 +337,23 @@ STDMETHODIMP NetworkAdapter::COMGETTER(MACAddress)(BSTR *aMACAddress)
     return S_OK;
 }
 
-STDMETHODIMP NetworkAdapter::COMSETTER(MACAddress)(IN_BSTR aMACAddress)
+HRESULT NetworkAdapter::updateMacAddress(Utf8Str aMACAddress)
 {
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /* the machine needs to be mutable */
-    AutoMutableStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
-
     HRESULT rc = S_OK;
-    bool emitChangeEvent = false;
 
     /*
      * Are we supposed to generate a MAC?
      */
-    if (!aMACAddress || !*aMACAddress)
-    {
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-        mData.backup();
-
+    if (aMACAddress.isEmpty())
         generateMACAddress();
-        emitChangeEvent = true;
-
-        m_fModified = true;
-        // leave the lock before informing callbacks
-        alock.release();
-
-        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);       // mParent is const, no need to lock
-        mParent->setModified(Machine::IsModified_NetworkAdapters);
-        mlock.release();
-    }
     else
     {
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
         if (mData->mMACAddress != aMACAddress)
         {
             /*
              * Verify given MAC address
              */
-            Utf8Str macAddressUtf = aMACAddress;
-            char *macAddressStr = macAddressUtf.mutableRaw();
+            char *macAddressStr = aMACAddress.mutableRaw();
             int i = 0;
             while ((i < 13) && macAddressStr && *macAddressStr && (rc == S_OK))
             {
@@ -406,28 +381,37 @@ STDMETHODIMP NetworkAdapter::COMSETTER(MACAddress)(IN_BSTR aMACAddress)
                 rc = setError(E_INVALIDARG, tr("Invalid MAC address format"));
 
             if (SUCCEEDED(rc))
-            {
-                mData.backup();
-
-                mData->mMACAddress = macAddressUtf;
-
-                emitChangeEvent = true;
-
-                m_fModified = true;
-                // leave the lock before informing callbacks
-                alock.release();
-
-                AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);       // mParent is const, no need to lock
-                mParent->setModified(Machine::IsModified_NetworkAdapters);
-                mlock.release();
-            }
+                mData->mMACAddress = aMACAddress;
         }
     }
 
-    // we have left the lock in any case at this point
+    return rc;
+}
 
-    if (emitChangeEvent)
+STDMETHODIMP NetworkAdapter::COMSETTER(MACAddress)(IN_BSTR aMACAddress)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /* the machine needs to be mutable */
+    AutoMutableStateDependency adep(mParent);
+    if (FAILED(adep.rc())) return adep.rc();
+
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    mData.backup();
+
+    HRESULT rc = updateMacAddress(aMACAddress);
+    if (SUCCEEDED(rc))
     {
+        m_fModified = true;
+        // leave the lock before informing callbacks
+        alock.release();
+
+        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);       // mParent is const, no need to lock
+        mParent->setModified(Machine::IsModified_NetworkAdapters);
+        mlock.release();
+
         /* Changing the MAC via the Main API during runtime is not allowed,
          * therefore no immediate change in CFGM logic => changeAdapter=FALSE. */
         mParent->onNetworkAdapterChange(this, FALSE);
@@ -451,25 +435,65 @@ STDMETHODIMP NetworkAdapter::COMGETTER(AttachmentType)(
     return S_OK;
 }
 
-STDMETHODIMP NetworkAdapter::COMGETTER(HostInterface)(BSTR *aHostInterface)
+STDMETHODIMP NetworkAdapter::COMSETTER(AttachmentType)(
+    NetworkAttachmentType_T aAttachmentType)
 {
-    CheckComArgOutPointerValid(aHostInterface);
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /* the machine needs to be mutable */
+    AutoMutableStateDependency adep(mParent);
+    if (FAILED(adep.rc())) return adep.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mData->mAttachmentType != aAttachmentType)
+    {
+        mData.backup();
+
+        /* there must an internal network name */
+        if (mData->mInternalNetwork.isEmpty())
+        {
+            Log(("Internal network name not defined, setting to default \"intnet\"\n"));
+            mData->mInternalNetwork = "intnet";
+        }
+
+        mData->mAttachmentType = aAttachmentType;
+
+        m_fModified = true;
+        // leave the lock before informing callbacks
+        alock.release();
+
+        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);       // mParent is const, no need to lock
+        mParent->setModified(Machine::IsModified_NetworkAdapters);
+        mlock.release();
+
+        /* Adapt the CFGM logic and notify the guest => changeAdapter=TRUE. */
+        mParent->onNetworkAdapterChange(this, TRUE);
+    }
+
+    return S_OK;
+}
+
+STDMETHODIMP NetworkAdapter::COMGETTER(BridgedInterface)(BSTR *aBridgedInterface)
+{
+    CheckComArgOutPointerValid(aBridgedInterface);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mData->mHostInterface.cloneTo(aHostInterface);
+    mData->mBridgedInterface.cloneTo(aBridgedInterface);
 
     return S_OK;
 }
 
-STDMETHODIMP NetworkAdapter::COMSETTER(HostInterface)(IN_BSTR aHostInterface)
+STDMETHODIMP NetworkAdapter::COMSETTER(BridgedInterface)(IN_BSTR aBridgedInterface)
 {
     Bstr bstrEmpty("");
-    if (!aHostInterface)
-        aHostInterface = bstrEmpty.raw();
+    if (!aBridgedInterface)
+        aBridgedInterface = bstrEmpty.raw();
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -480,10 +504,61 @@ STDMETHODIMP NetworkAdapter::COMSETTER(HostInterface)(IN_BSTR aHostInterface)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->mHostInterface != aHostInterface)
+    if (mData->mBridgedInterface != aBridgedInterface)
     {
         mData.backup();
-        mData->mHostInterface = aHostInterface;
+        mData->mBridgedInterface = aBridgedInterface;
+
+        m_fModified = true;
+        // leave the lock before informing callbacks
+        alock.release();
+
+        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);       // mParent is const, no need to lock
+        mParent->setModified(Machine::IsModified_NetworkAdapters);
+        mlock.release();
+
+        /* When changing the host adapter, adapt the CFGM logic to make this
+         * change immediately effect and to notify the guest that the network
+         * might have changed, therefore changeAdapter=TRUE. */
+        mParent->onNetworkAdapterChange(this, TRUE);
+    }
+
+    return S_OK;
+}
+
+STDMETHODIMP NetworkAdapter::COMGETTER(HostOnlyInterface)(BSTR *aHostOnlyInterface)
+{
+    CheckComArgOutPointerValid(aHostOnlyInterface);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    mData->mHostOnlyInterface.cloneTo(aHostOnlyInterface);
+
+    return S_OK;
+}
+
+STDMETHODIMP NetworkAdapter::COMSETTER(HostOnlyInterface)(IN_BSTR aHostOnlyInterface)
+{
+    Bstr bstrEmpty("");
+    if (!aHostOnlyInterface)
+        aHostOnlyInterface = bstrEmpty.raw();
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /* the machine needs to be mutable */
+    AutoMutableStateDependency adep(mParent);
+    if (FAILED(adep.rc())) return adep.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mData->mHostOnlyInterface != aHostOnlyInterface)
+    {
+        mData.backup();
+        mData->mHostOnlyInterface = aHostOnlyInterface;
 
         m_fModified = true;
         // leave the lock before informing callbacks
@@ -608,57 +683,47 @@ STDMETHODIMP NetworkAdapter::COMSETTER(NATNetwork) (IN_BSTR aNATNetwork)
     return S_OK;
 }
 
-STDMETHODIMP NetworkAdapter::COMGETTER(VDENetwork) (BSTR *aVDENetwork)
+STDMETHODIMP NetworkAdapter::COMGETTER(GenericDriver)(BSTR *aGenericDriver)
 {
-#if defined(VBOX_WITH_VDE)
-    CheckComArgOutPointerValid(aVDENetwork);
+    CheckComArgOutPointerValid(aGenericDriver);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mData->mVDENetwork.cloneTo(aVDENetwork);
+    mData->mGenericDriver.cloneTo(aGenericDriver);
 
     return S_OK;
-#else
-    NOREF(aVDENetwork);
-    return E_NOTIMPL;
-#endif
 }
 
-STDMETHODIMP NetworkAdapter::COMSETTER(VDENetwork) (IN_BSTR aVDENetwork)
+STDMETHODIMP NetworkAdapter::COMSETTER(GenericDriver)(IN_BSTR aGenericDriver)
 {
-#if defined(VBOX_WITH_VDE)
     Bstr bstrEmpty("");
-    if (!aVDENetwork)
-        aVDENetwork = bstrEmpty.raw();
+    if (!aGenericDriver)
+        aGenericDriver = bstrEmpty.raw();
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* the machine needs to be mutable */
-    AutoMutableStateDependency adep (mParent);
+    AutoMutableStateDependency adep(mParent);
     if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->mVDENetwork != aVDENetwork)
+    if (mData->mGenericDriver != aGenericDriver)
     {
         mData.backup();
-        mData->mVDENetwork = aVDENetwork;
+        mData->mGenericDriver = aGenericDriver;
 
         /* leave the lock before informing callbacks */
         alock.release();
 
-        mParent->onNetworkAdapterChange (this, FALSE);
+        mParent->onNetworkAdapterChange(this, FALSE);
     }
 
     return S_OK;
-#else
-    NOREF(aVDENetwork);
-    return E_NOTIMPL;
-#endif
 }
 
 STDMETHODIMP NetworkAdapter::COMGETTER(CableConnected) (BOOL *aConnected)
@@ -751,45 +816,52 @@ STDMETHODIMP NetworkAdapter::COMSETTER(LineSpeed) (ULONG aSpeed)
     return S_OK;
 }
 
-STDMETHODIMP NetworkAdapter::COMGETTER(BandwidthLimit) (ULONG *aLimit)
+
+STDMETHODIMP NetworkAdapter::COMGETTER(PromiscModePolicy)(NetworkAdapterPromiscModePolicy_T *aPromiscModePolicy)
 {
-    CheckComArgOutPointerValid(aLimit);
+    CheckComArgOutPointerValid(aPromiscModePolicy);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    *aLimit = mData->mBandwidthLimit;
-    return S_OK;
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        *aPromiscModePolicy = mData->mPromiscModePolicy;
+    }
+    return hrc;
 }
 
-STDMETHODIMP NetworkAdapter::COMSETTER(BandwidthLimit) (ULONG aLimit)
+STDMETHODIMP NetworkAdapter::COMSETTER(PromiscModePolicy)(NetworkAdapterPromiscModePolicy_T aPromiscModePolicy)
 {
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /* the machine doesn't need to be mutable */
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (aLimit != mData->mBandwidthLimit)
+    switch (aPromiscModePolicy)
     {
-        mData.backup();
-        mData->mBandwidthLimit = aLimit;
-
-        m_fModified = true;
-        // leave the lock before informing callbacks
-        alock.release();
-
-        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);       // mParent is const, no need to lock
-        mParent->setModified(Machine::IsModified_NetworkAdapters);
-        mlock.release();
-
-        /* No change in CFGM logic => changeAdapter=FALSE. */
-        mParent->onNetworkAdapterChange(this, FALSE);
+        case NetworkAdapterPromiscModePolicy_Deny:
+        case NetworkAdapterPromiscModePolicy_AllowNetwork:
+        case NetworkAdapterPromiscModePolicy_AllowAll:
+            break;
+        default:
+            return setError(E_INVALIDARG, tr("Invalid promiscuous mode policy (%d)"), aPromiscModePolicy);
     }
-    return S_OK;
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+
+    if (SUCCEEDED(hrc))
+    {
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        if (aPromiscModePolicy != mData->mPromiscModePolicy)
+        {
+            mData.backup();
+            mData->mPromiscModePolicy = aPromiscModePolicy;
+            m_fModified = true;
+
+            alock.release();
+            mParent->setModifiedLock(Machine::IsModified_NetworkAdapters);
+            mParent->onNetworkAdapterChange(this, TRUE);
+        }
+    }
+
+    return hrc;
 }
 
 STDMETHODIMP NetworkAdapter::COMGETTER(TraceEnabled) (BOOL *aEnabled)
@@ -943,280 +1015,116 @@ STDMETHODIMP NetworkAdapter::COMSETTER(BootPriority) (ULONG aBootPriority)
 // INetworkAdapter methods
 ////////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP NetworkAdapter::AttachToNAT()
+STDMETHODIMP NetworkAdapter::GetProperty(IN_BSTR aKey, BSTR *aValue)
 {
+    CheckComArgOutPointerValid(aValue);
+
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    /* the machine needs to be mutable */
-    AutoMutableStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    Bstr key = aKey;
+    Bstr value;
 
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->mAttachmentType != NetworkAttachmentType_NAT)
+    Utf8Str strKey(key);
+    settings::StringsMap::const_iterator it = mData->mGenericProperties.find(strKey);
+    if (it != mData->mGenericProperties.end())
     {
-        mData.backup();
-
-        // Commented this for now as it resets the parameter mData->mNATNetwork
-        // which is essential while changing the Attachment dynamically.
-        //detach();
-
-        mData->mAttachmentType = NetworkAttachmentType_NAT;
-
-        m_fModified = true;
-        // leave the lock before informing callbacks
-        alock.release();
-
-        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);       // mParent is const, no need to lock
-        mParent->setModified(Machine::IsModified_NetworkAdapters);
-        mlock.release();
-
-        /* Adapt the CFGM logic and notify the guest => changeAdapter=TRUE. */
-        HRESULT rc = mParent->onNetworkAdapterChange(this, TRUE);
-        if (FAILED(rc))
-        {
-            /* If changing the attachment failed then we can't assume
-             * that the previous attachment will attach correctly
-             * and thus return error along with detaching all
-             * attachments.
-             */
-            Detach();
-            return rc;
-        }
+        value = it->second; // source is a Utf8Str
+        value.cloneTo(aValue);
     }
 
     return S_OK;
 }
 
-STDMETHODIMP NetworkAdapter::AttachToBridgedInterface()
+STDMETHODIMP NetworkAdapter::SetProperty(IN_BSTR aKey, IN_BSTR aValue)
 {
+    LogFlowThisFunc(("\n"));
+
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    /* the machine needs to be mutable */
+    /* The machine needs to be mutable. */
     AutoMutableStateDependency adep(mParent);
     if (FAILED(adep.rc())) return adep.rc();
 
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    /* don't do anything if we're already host interface attached */
-    if (mData->mAttachmentType != NetworkAttachmentType_Bridged)
-    {
-        mData.backup();
-
-        /* first detach the current attachment */
-        // Commented this for now as it reset the parameter mData->mHostInterface
-        // which is essential while changing the Attachment dynamically.
-        //detach();
-
-        mData->mAttachmentType = NetworkAttachmentType_Bridged;
-
-        m_fModified = true;
-        // leave the lock before informing callbacks
-        alock.release();
-
-        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);       // mParent is const, no need to lock
-        mParent->setModified(Machine::IsModified_NetworkAdapters);
-        mlock.release();
-
-        /* Adapt the CFGM logic and notify the guest => changeAdapter=TRUE. */
-        HRESULT rc = mParent->onNetworkAdapterChange(this, TRUE);
-        if (FAILED(rc))
-        {
-            /* If changing the attachment failed then we can't assume that the
-             * previous attachment will attach correctly and thus return error
-             * along with detaching all attachments.
-             */
-            Detach();
-            return rc;
-        }
-    }
-
-    return S_OK;
-}
-
-STDMETHODIMP NetworkAdapter::AttachToInternalNetwork()
-{
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /* the machine needs to be mutable */
-    AutoMutableStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    Bstr key = aKey;
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    /* don't do anything if we're already internal network attached */
-    if (mData->mAttachmentType != NetworkAttachmentType_Internal)
+    bool fGenericChange = (mData->mAttachmentType == NetworkAttachmentType_Generic);
+
+    /* Generic properties processing.
+     * Look up the old value first; if nothing's changed then do nothing.
+     */
+    Utf8Str strValue(aValue);
+    Utf8Str strKey(aKey);
+    Utf8Str strOldValue;
+
+    settings::StringsMap::const_iterator it = mData->mGenericProperties.find(strKey);
+    if (it != mData->mGenericProperties.end())
+        strOldValue = it->second;
+
+    if (strOldValue != strValue)
     {
-        mData.backup();
-
-        /* first detach the current attachment */
-        // Commented this for now as it reset the parameter mData->mInternalNetwork
-        // which is essential while changing the Attachment dynamically.
-        //detach();
-
-        /* there must an internal network name */
-        if (mData->mInternalNetwork.isEmpty())
-        {
-            LogRel (("Internal network name not defined, "
-                     "setting to default \"intnet\"\n"));
-            mData->mInternalNetwork = "intnet";
-        }
-
-        mData->mAttachmentType = NetworkAttachmentType_Internal;
-
-        m_fModified = true;
-        // leave the lock before informing callbacks
-        alock.release();
-
-        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);       // mParent is const, no need to lock
-        mParent->setModified(Machine::IsModified_NetworkAdapters);
-        mlock.release();
-
-        /* Adapt the CFGM logic and notify the guest => changeAdapter=TRUE. */
-        HRESULT rc = mParent->onNetworkAdapterChange(this, TRUE);
-        if (FAILED(rc))
-        {
-            /* If changing the attachment failed then we can't assume
-             * that the previous attachment will attach correctly
-             * and thus return error along with detaching all
-             * attachments.
-             */
-            Detach();
-            return rc;
-        }
-    }
-
-    return S_OK;
-}
-
-STDMETHODIMP NetworkAdapter::AttachToHostOnlyInterface()
-{
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /* the machine needs to be mutable */
-    AutoMutableStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    /* don't do anything if we're already host interface attached */
-    if (mData->mAttachmentType != NetworkAttachmentType_HostOnly)
-    {
-        mData.backup();
-
-        /* first detach the current attachment */
-        // Commented this for now as it reset the parameter mData->mHostInterface
-        // which is essential while changing the Attachment dynamically.
-        //detach();
-
-        mData->mAttachmentType = NetworkAttachmentType_HostOnly;
-
-        m_fModified = true;
-        // leave the lock before informing callbacks
-        alock.release();
-
-        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);       // mParent is const, no need to lock
-        mParent->setModified(Machine::IsModified_NetworkAdapters);
-        mlock.release();
-
-        /* Adapt the CFGM logic and notify the guest => changeAdpater=TRUE. */
-        HRESULT rc = mParent->onNetworkAdapterChange(this, TRUE);
-        if (FAILED(rc))
-        {
-            /* If changing the attachment failed then we can't assume
-             * that the previous attachment will attach correctly
-             * and thus return error along with detaching all
-             * attachments.
-             */
-            Detach();
-            return rc;
-        }
-    }
-
-    return S_OK;
-}
-
-STDMETHODIMP NetworkAdapter::AttachToVDE()
-{
-#if defined(VBOX_WITH_VDE)
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /* the machine needs to be mutable */
-    AutoMutableStateDependency adep (mParent);
-    if (FAILED(adep.rc())) return adep.rc();
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    /* don't do anything if we're already host interface attached */
-    if (mData->mAttachmentType != NetworkAttachmentType_VDE)
-    {
-        mData.backup();
-
-        /* first detach the current attachment */
-        // Commented this for now as it reset the parameter mData->mHostInterface
-        // which is essential while changing the Attachment dynamically.
-        //detach();
-
-        mData->mAttachmentType = NetworkAttachmentType_VDE;
+        if (strValue.isEmpty())
+            mData->mGenericProperties.erase(strKey);
+        else
+            mData->mGenericProperties[strKey] = strValue;
 
         /* leave the lock before informing callbacks */
         alock.release();
 
-        HRESULT rc = mParent->onNetworkAdapterChange (this, TRUE);
-        if (FAILED (rc))
-        {
-            /* If changing the attachment failed then we can't assume
-             * that the previous attachment will attach correctly
-             * and thus return error along with detaching all
-             * attachments.
-             */
-            Detach();
-            return rc;
-        }
-    }
-
-    return S_OK;
-#else /* !VBOX_WITH_VDE */
-    return E_NOTIMPL;
-#endif
-}
-
-STDMETHODIMP NetworkAdapter::Detach()
-{
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /* the machine needs to be mutable */
-    AutoMutableStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (mData->mAttachmentType != NetworkAttachmentType_Null)
-    {
-        mData.backup();
-
-        detach();
-
-        m_fModified = true;
-        // leave the lock before informing callbacks
-        alock.release();
-
-        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);       // mParent is const, no need to lock
+        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);
         mParent->setModified(Machine::IsModified_NetworkAdapters);
         mlock.release();
 
-        /* adapt the CFGM logic and notify the guest => changeAdapter=TRUE. */
-        mParent->onNetworkAdapterChange(this, TRUE);
+        /* Avoid deadlock when the event triggers a call to a method of this
+         * interface. */
+        adep.release();
+
+        mParent->onNetworkAdapterChange(this, fGenericChange);
     }
 
     return S_OK;
 }
+
+STDMETHODIMP NetworkAdapter::GetProperties(IN_BSTR aNames,
+                                           ComSafeArrayOut(BSTR, aReturnNames),
+                                           ComSafeArrayOut(BSTR, aReturnValues))
+{
+    CheckComArgOutSafeArrayPointerValid(aReturnNames);
+    CheckComArgOutSafeArrayPointerValid(aReturnValues);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    /// @todo make use of aNames according to the documentation
+    NOREF(aNames);
+
+    com::SafeArray<BSTR> names(mData->mGenericProperties.size());
+    com::SafeArray<BSTR> values(mData->mGenericProperties.size());
+    size_t i = 0;
+
+    for (settings::StringsMap::const_iterator it = mData->mGenericProperties.begin();
+         it != mData->mGenericProperties.end();
+         ++it)
+    {
+        it->first.cloneTo(&names[i]);
+        it->second.cloneTo(&values[i]);
+        ++i;
+    }
+
+    names.detachTo(ComSafeArrayOutArg(aReturnNames));
+    values.detachTo(ComSafeArrayOutArg(aReturnValues));
+
+    return S_OK;
+}
+
+
 
 // public methods only for internal purposes
 ////////////////////////////////////////////////////////////////////////////////
@@ -1229,10 +1137,13 @@ STDMETHODIMP NetworkAdapter::Detach()
  *
  *  @note Locks this object for writing.
  */
-HRESULT NetworkAdapter::loadSettings(const settings::NetworkAdapter &data)
+HRESULT NetworkAdapter::loadSettings(BandwidthControl *bwctl,
+                                     const settings::NetworkAdapter &data)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* Note: we assume that the default values for attributes of optional
      * nodes are assigned in the Data::Data() constructor and don't do it
@@ -1250,67 +1161,40 @@ HRESULT NetworkAdapter::loadSettings(const settings::NetworkAdapter &data)
     mData->mAdapterType = data.type;
     mData->mEnabled = data.fEnabled;
     /* MAC address (can be null) */
-    rc = COMSETTER(MACAddress)(Bstr(data.strMACAddress).raw());
+    rc = updateMacAddress(data.strMACAddress);
     if (FAILED(rc)) return rc;
     /* cable (required) */
     mData->mCableConnected = data.fCableConnected;
     /* line speed (defaults to 100 Mbps) */
     mData->mLineSpeed = data.ulLineSpeed;
+    mData->mPromiscModePolicy = data.enmPromiscModePolicy;
     /* tracing (defaults to false) */
     mData->mTraceEnabled = data.fTraceEnabled;
     mData->mTraceFile = data.strTraceFile;
     /* boot priority (defaults to 0, i.e. lowest) */
     mData->mBootPriority = data.ulBootPriority;
-    /* Bandwidth limit in Mbps. */
-    mData->mBandwidthLimit = data.ulBandwidthLimit;
-
-    switch (data.mode)
+    /* bandwidth group */
+    if (data.strBandwidthGroup.isEmpty())
+        updateBandwidthGroup(NULL);
+    else
     {
-        case NetworkAttachmentType_NAT:
-            mNATEngine->loadSettings(data.nat);
-            rc = AttachToNAT();
-            if (FAILED(rc)) return rc;
-        break;
-
-        case NetworkAttachmentType_Bridged:
-            rc = COMSETTER(HostInterface)(Bstr(data.strName).raw());
-            if (FAILED(rc)) return rc;
-            rc = AttachToBridgedInterface();
-            if (FAILED(rc)) return rc;
-        break;
-
-        case NetworkAttachmentType_Internal:
-            mData->mInternalNetwork = data.strName;
-            Assert(!mData->mInternalNetwork.isEmpty());
-
-            rc = AttachToInternalNetwork();
-            if (FAILED(rc)) return rc;
-        break;
-
-        case NetworkAttachmentType_HostOnly:
-#if defined(VBOX_WITH_NETFLT)
-            rc = COMSETTER(HostInterface)(Bstr(data.strName).raw());
-            if (FAILED(rc)) return rc;
-#endif
-            rc = AttachToHostOnlyInterface();
-            if (FAILED(rc)) return rc;
-        break;
-
-#if defined(VBOX_WITH_VDE)
-        case NetworkAttachmentType_VDE:
-            mData->mVDENetwork = data.strName;
-            rc = AttachToVDE();
-            if (FAILED(rc)) return rc;
-        break;
-#endif
-
-        case NetworkAttachmentType_Null:
-            rc = Detach();
-            if (FAILED(rc)) return rc;
-        break;
+        ComObjPtr<BandwidthGroup> group;
+        rc = bwctl->getBandwidthGroupByName(data.strBandwidthGroup, group, true);
+        if (FAILED(rc)) return rc;
     }
-    if (data.fHasDisabledNAT)
-        mNATEngine->loadSettings(data.nat);
+
+    mNATEngine->loadSettings(data.nat);
+    mData->mBridgedInterface = data.strBridgedName;
+    mData->mInternalNetwork = data.strInternalNetworkName;
+    mData->mHostOnlyInterface = data.strHostOnlyName;
+    mData->mGenericDriver = data.strGenericDriver;
+    mData->mGenericProperties = data.genericProperties;
+
+    // leave the lock before setting attachment type
+    alock.release();
+
+    rc = COMSETTER(AttachmentType)(data.mode);
+    if (FAILED(rc)) return rc;
 
     // after loading settings, we are no longer different from the XML on disk
     m_fModified = false;
@@ -1338,6 +1222,7 @@ HRESULT NetworkAdapter::saveSettings(settings::NetworkAdapter &data)
     data.strMACAddress = mData->mMACAddress;
     data.fCableConnected = !!mData->mCableConnected;
 
+    data.enmPromiscModePolicy = mData->mPromiscModePolicy;
     data.ulLineSpeed = mData->mLineSpeed;
 
     data.fTraceEnabled = !!mData->mTraceEnabled;
@@ -1346,47 +1231,26 @@ HRESULT NetworkAdapter::saveSettings(settings::NetworkAdapter &data)
 
     data.ulBootPriority = mData->mBootPriority;
 
-    data.ulBandwidthLimit = mData->mBandwidthLimit;
+    if (mData->mBandwidthGroup.isNull())
+        data.strBandwidthGroup = "";
+    else
+        data.strBandwidthGroup = mData->mBandwidthGroup->getName();
 
     data.type = mData->mAdapterType;
 
-    switch (data.mode = mData->mAttachmentType)
-    {
-        case NetworkAttachmentType_Null:
-            data.strName.setNull();
-        break;
+    data.mode = mData->mAttachmentType;
 
-        case NetworkAttachmentType_NAT:
-            data.fHasDisabledNAT = 0;
-            mNATEngine->commit();
-            mNATEngine->saveSettings(data.nat);
-        break;
+    mNATEngine->commit();
+    mNATEngine->saveSettings(data.nat);
 
-        case NetworkAttachmentType_Bridged:
-            data.strName = mData->mHostInterface;
-        break;
+    data.strBridgedName = mData->mBridgedInterface;
 
-        case NetworkAttachmentType_Internal:
-            data.strName = mData->mInternalNetwork;
-        break;
+    data.strHostOnlyName = mData->mHostOnlyInterface;
 
-        case NetworkAttachmentType_HostOnly:
-            data.strName = mData->mHostInterface;
-        break;
+    data.strInternalNetworkName = mData->mInternalNetwork;
 
-#if defined(VBOX_WITH_VDE)
-        case NetworkAttachmentType_VDE:
-            data.strName = mData->mVDENetwork;
-        break;
-#endif
-    }
-
-    if (data.mode != NetworkAttachmentType_NAT)
-    {
-        data.fHasDisabledNAT = 1; /* ??? */
-        mNATEngine->commit();
-        mNATEngine->saveSettings(data.nat);
-    }
+    data.strGenericDriver = mData->mGenericDriver;
+    data.genericProperties = mData->mGenericProperties;
 
     // after saving settings, we are no longer different from the XML on disk
     m_fModified = false;
@@ -1512,50 +1376,6 @@ void NetworkAdapter::applyDefaults (GuestOSType *aOsType)
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
- *  Worker routine for detach handling. No locking, no notifications.
-
- *  @note Must be called from under the object's write lock.
- */
-void NetworkAdapter::detach()
-{
-    AssertReturnVoid (isWriteLockOnCurrentThread());
-
-    switch (mData->mAttachmentType)
-    {
-        case NetworkAttachmentType_Null:
-        {
-            /* nothing to do here */
-            break;
-        }
-        case NetworkAttachmentType_NAT:
-        {
-            break;
-        }
-        case NetworkAttachmentType_Bridged:
-        {
-            /* reset handle and device name */
-            mData->mHostInterface = "";
-            break;
-        }
-        case NetworkAttachmentType_Internal:
-        {
-            mData->mInternalNetwork.setNull();
-            break;
-        }
-        case NetworkAttachmentType_HostOnly:
-        {
-#if defined(VBOX_WITH_NETFLT)
-            /* reset handle and device name */
-            mData->mHostInterface = "";
-#endif
-            break;
-        }
-    }
-
-    mData->mAttachmentType = NetworkAttachmentType_Null;
-}
-
-/**
  *  Generates a new unique MAC address based on our vendor ID and
  *  parts of a GUID.
  *
@@ -1564,17 +1384,81 @@ void NetworkAdapter::detach()
  */
 void NetworkAdapter::generateMACAddress()
 {
-    /*
-     * Our strategy is as follows: the first three bytes are our fixed
-     * vendor ID (080027). The remaining 3 bytes will be taken from the
-     * start of a GUID. This is a fairly safe algorithm.
-     */
-    char strMAC[13];
-    Guid guid;
-    guid.create();
-    RTStrPrintf (strMAC, sizeof(strMAC), "080027%02X%02X%02X",
-                 guid.raw()->au8[0], guid.raw()->au8[1], guid.raw()->au8[2]);
-    LogFlowThisFunc(("generated MAC: '%s'\n", strMAC));
-    mData->mMACAddress = strMAC;
+    Utf8Str mac;
+    Host::generateMACAddress(mac);
+    LogFlowThisFunc(("generated MAC: '%s'\n", mac.c_str()));
+    mData->mMACAddress = mac;
+}
+
+STDMETHODIMP NetworkAdapter::COMGETTER(BandwidthGroup) (IBandwidthGroup **aBwGroup)
+{
+    LogFlowThisFuncEnter();
+    CheckComArgOutPointerValid(aBwGroup);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    mData->mBandwidthGroup.queryInterfaceTo(aBwGroup);
+
+    LogFlowThisFuncLeave();
+    return S_OK;
+}
+
+STDMETHODIMP NetworkAdapter::COMSETTER(BandwidthGroup) (IBandwidthGroup *aBwGroup)
+{
+    LogFlowThisFuncEnter();
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /* the machine needs to be mutable */
+    AutoMutableStateDependency adep(mParent);
+    if (FAILED(adep.rc())) return adep.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mData->mBandwidthGroup != aBwGroup)
+    {
+        mData.backup();
+
+        updateBandwidthGroup(static_cast<BandwidthGroup*>(aBwGroup));
+
+        m_fModified = true;
+        // leave the lock before informing callbacks
+        alock.release();
+
+        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);
+        mParent->setModified(Machine::IsModified_NetworkAdapters);
+        mlock.release();
+
+        /* TODO: changeAdapter=???. */
+        mParent->onNetworkAdapterChange(this, FALSE);
+    }
+
+    LogFlowThisFuncLeave();
+    return S_OK;
+}
+
+void NetworkAdapter::updateBandwidthGroup(BandwidthGroup *aBwGroup)
+{
+    LogFlowThisFuncEnter();
+    Assert(isWriteLockOnCurrentThread());
+
+    mData.backup();
+    if (!mData->mBandwidthGroup.isNull())
+    {
+        mData->mBandwidthGroup->release();
+        mData->mBandwidthGroup.setNull();
+    }
+
+    if (aBwGroup)
+    {
+        mData->mBandwidthGroup = aBwGroup;
+        mData->mBandwidthGroup->reference();
+    }
+
+    LogFlowThisFuncLeave();
 }
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

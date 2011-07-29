@@ -1,4 +1,4 @@
-/* $Id: SnapshotImpl.h $ */
+/* $Id: SnapshotImpl.h 37449 2011-06-14 16:34:16Z vboxsync $ */
 
 /** @file
  *
@@ -43,9 +43,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(Snapshot)
-        COM_INTERFACE_ENTRY  (ISupportErrorInfo)
-        COM_INTERFACE_ENTRY  (ISnapshot)
-        COM_INTERFACE_ENTRY2 (IDispatch, ISnapshot)
+        VBOX_DEFAULT_INTERFACE_ENTRIES  (ISnapshot)
     END_COM_MAP()
 
     Snapshot()
@@ -84,6 +82,7 @@ public:
     STDMETHOD(COMGETTER(Children)) (ComSafeArrayOut (ISnapshot *, aChildren));
 
     // ISnapshot methods
+    STDMETHOD(GetChildrenCount)(ULONG* count);
 
     // public methods only for internal purposes
 
@@ -99,8 +98,7 @@ public:
     const ComObjPtr<Snapshot>& getParent() const;
     const ComObjPtr<Snapshot> getFirstChild() const;
 
-    const Utf8Str& stateFilePath() const;
-    HRESULT deleteStateFile();
+    const Utf8Str& getStateFilePath() const;
 
     ULONG getChildrenCount();
     ULONG getAllChildrenCount();
@@ -119,6 +117,9 @@ public:
                                const Utf8Str &strNewPath);
     void updateSavedStatePathsImpl(const Utf8Str &strOldPath,
                                    const Utf8Str &strNewPath);
+
+    bool sharesSavedStateFile(const Utf8Str &strPath,
+                              Snapshot *pSnapshotToIgnore);
 
     HRESULT saveSnapshot(settings::Snapshot &data, bool aAttrsOnly);
     HRESULT saveSnapshotImpl(settings::Snapshot &data, bool aAttrsOnly);

@@ -1,10 +1,10 @@
-/* $Id: PDMR0Device.cpp $ */
+/* $Id: PDMR0Device.cpp 37410 2011-06-10 15:11:40Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, R0 Device parts.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,6 +47,7 @@ extern DECLEXPORT(const PDMAPICHLPR0)   g_pdmR0ApicHlp;
 extern DECLEXPORT(const PDMIOAPICHLPR0) g_pdmR0IoApicHlp;
 extern DECLEXPORT(const PDMPCIHLPR0)    g_pdmR0PciHlp;
 extern DECLEXPORT(const PDMHPETHLPR0)   g_pdmR0HpetHlp;
+extern DECLEXPORT(const PDMPCIRAWHLPR0) g_pdmR0PciRawHlp;
 extern DECLEXPORT(const PDMDRVHLPR0)    g_pdmR0DrvHlp;
 RT_C_DECLS_END
 
@@ -278,6 +279,16 @@ static DECLCALLBACK(uint64_t) pdmR0DevHlp_TMTimeVirtGetNano(PPDMDEVINS pDevIns)
 }
 
 
+/** @interface_method_impl{PDMDEVHLPR0,pfnDBGFTraceBuf} */
+static DECLCALLBACK(RTTRACEBUF) pdmR0DevHlp_DBGFTraceBuf(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    RTTRACEBUF hTraceBuf = pDevIns->Internal.s.pVMR0->hTraceBufR0;
+    LogFlow(("pdmR3DevHlp_DBGFTraceBuf: caller='%p'/%d: returns %p\n", pDevIns, pDevIns->iInstance, hTraceBuf));
+    return hTraceBuf;
+}
+
+
 /**
  * The Ring-0 Device Helper Callbacks.
  */
@@ -301,6 +312,7 @@ extern DECLEXPORT(const PDMDEVHLPR0) g_pdmR0DevHlp =
     pdmR0DevHlp_TMTimeVirtGet,
     pdmR0DevHlp_TMTimeVirtGetFreq,
     pdmR0DevHlp_TMTimeVirtGetNano,
+    pdmR0DevHlp_DBGFTraceBuf,
     PDM_DEVHLPR0_VERSION
 };
 
@@ -667,6 +679,7 @@ extern DECLEXPORT(const PDMPCIHLPR0) g_pdmR0PciHlp =
 /** @name HPET Ring-0 Helpers
  * @{
  */
+/* none */
 
 /**
  * The Ring-0 HPET Helper Callbacks.
@@ -680,6 +693,21 @@ extern DECLEXPORT(const PDMHPETHLPR0) g_pdmR0HpetHlp =
 /** @} */
 
 
+/** @name Raw PCI Ring-0 Helpers
+ * @{
+ */
+/* none */
+
+/**
+ * The Ring-0 PCI raw Helper Callbacks.
+ */
+extern DECLEXPORT(const PDMPCIRAWHLPR0) g_pdmR0PciRawHlp =
+{
+    PDM_PCIRAWHLPR0_VERSION,
+    PDM_PCIRAWHLPR0_VERSION, /* the end */
+};
+
+/** @} */
 
 
 /** @name Ring-0 Context Driver Helpers
@@ -899,4 +927,3 @@ static void pdmR0IoApicSendMsi(PVM pVM, RTGCPHYS GCAddr, uint32_t uValue)
         pdmUnlock(pVM);
     }
 }
-

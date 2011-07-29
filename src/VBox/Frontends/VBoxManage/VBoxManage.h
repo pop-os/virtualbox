@@ -1,10 +1,10 @@
-/* $Id: VBoxManage.h $ */
+/* $Id: VBoxManage.h 37525 2011-06-17 10:09:21Z vboxsync $ */
 /** @file
  * VBoxManage - VirtualBox command-line interface, internal header file.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,10 +44,11 @@
 #define USAGE_UNREGISTERVM          RT_BIT_64(3)
 #define USAGE_CREATEVM              RT_BIT_64(4)
 #define USAGE_MODIFYVM              RT_BIT_64(5)
-#define USAGE_STARTVM               RT_BIT_64(6)
-#define USAGE_CONTROLVM             RT_BIT_64(7)
-#define USAGE_DISCARDSTATE          RT_BIT_64(8)
-#define USAGE_SNAPSHOT              RT_BIT_64(9)
+#define USAGE_CLONEVM               RT_BIT_64(6)
+#define USAGE_STARTVM               RT_BIT_64(7)
+#define USAGE_CONTROLVM             RT_BIT_64(8)
+#define USAGE_DISCARDSTATE          RT_BIT_64(9)
+#define USAGE_SNAPSHOT              RT_BIT_64(10)
 #define USAGE_CLOSEMEDIUM           RT_BIT_64(11)
 #define USAGE_SHOWHDINFO            RT_BIT_64(12)
 #define USAGE_CREATEHD              RT_BIT_64(13)
@@ -97,6 +98,7 @@
 #define USAGE_PASSWORDHASH          RT_BIT_64(54)
 #define USAGE_EXTPACK               RT_BIT_64(55)
 #define USAGE_BANDWIDTHCONTROL      RT_BIT_64(56)
+#define USAGE_GUESTSTATS            RT_BIT_64(57)
 #define USAGE_ALL                   (~(uint64_t)0)
 /** @} */
 
@@ -162,6 +164,9 @@ int handleInternalCommands(HandlerArg *a);
 
 /* VBoxManageControlVM.cpp */
 int handleControlVM(HandlerArg *a);
+#ifndef VBOX_ONLY_DOCS
+unsigned int getMaxNics(IVirtualBox* vbox, IMachine* mach);
+#endif
 
 /* VBoxManageModifyVM.cpp */
 int handleModifyVM(HandlerArg *a);
@@ -193,7 +198,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
                    ComPtr<IMachine> machine,
                    VMINFO_DETAILS details = VMINFO_NONE,
                    ComPtr <IConsole> console = ComPtr<IConsole>());
-const char *stateToName(MachineState_T machineState, bool fShort);
+const char *machineStateToName(MachineState_T machineState, bool fShort);
 
 /* VBoxManageList.cpp */
 int handleList(HandlerArg *a);
@@ -205,6 +210,7 @@ int handleMetrics(HandlerArg *a);
 int handleRegisterVM(HandlerArg *a);
 int handleUnregisterVM(HandlerArg *a);
 int handleCreateVM(HandlerArg *a);
+int handleCloneVM(HandlerArg *a);
 int handleStartVM(HandlerArg *a);
 int handleDiscardState(HandlerArg *a);
 int handleAdoptState(HandlerArg *a);
@@ -220,7 +226,7 @@ HRESULT findMedium(HandlerArg *a, const char *pszFilenameOrUuid,
                    ComPtr<IMedium> &pMedium);
 HRESULT findOrOpenMedium(HandlerArg *a, const char *pszFilenameOrUuid,
                          DeviceType_T enmDevType, ComPtr<IMedium> &pMedium,
-                         bool *pfWasUnknown);
+                         bool fForceNewUuidOnOpen, bool *pfWasUnknown);
 int handleCreateHardDisk(HandlerArg *a);
 int handleModifyHardDisk(HandlerArg *a);
 int handleCloneHardDisk(HandlerArg *a);
@@ -255,4 +261,3 @@ int handleBandwidthControl(HandlerArg *a);
 #endif /* !VBOX_ONLY_DOCS */
 
 #endif /* !___H_VBOXMANAGE */
-

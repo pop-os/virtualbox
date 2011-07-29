@@ -1,4 +1,4 @@
-/* $Id: UICocoaApplication.mm $ */
+/* $Id: UICocoaApplication.mm 30154 2010-06-10 16:28:15Z vboxsync $ */
 /** @file
  * UICocoaApplication - C++ interface to NSApplication for handling -sendEvent.
  */

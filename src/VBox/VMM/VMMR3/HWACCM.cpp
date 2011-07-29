@@ -1,4 +1,4 @@
-/* $Id: HWACCM.cpp $ */
+/* $Id: HWACCM.cpp 37323 2011-06-03 16:20:06Z vboxsync $ */
 /** @file
  * HWACCM - Intel/AMD VM Hardware Support Manager
  */
@@ -271,6 +271,7 @@ static const char * const g_apszAmdVExitReasons[MAX_EXITREASON_STAT] =
 static DECLCALLBACK(int) hwaccmR3Save(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int) hwaccmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
 static int hwaccmR3InitCPU(PVM pVM);
+static int hwaccmR3InitFinalizeR0(PVM pVM);
 static int hwaccmR3TermCPU(PVM pVM);
 
 
@@ -639,10 +640,12 @@ VMMR3_INT_DECL(int) HWACCMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
 {
     switch (enmWhat)
     {
-    case VMINITCOMPLETED_RING3:
-        return hwaccmR3InitCPU(pVM);
-    default:
-        return VINF_SUCCESS;
+        case VMINITCOMPLETED_RING3:
+            return hwaccmR3InitCPU(pVM);
+        case VMINITCOMPLETED_RING0:
+            return hwaccmR3InitFinalizeR0(pVM);
+        default:
+            return VINF_SUCCESS;
     }
 }
 
@@ -685,7 +688,7 @@ static void hwaccmR3DisableRawMode(PVM pVM)
  * @returns VBox status code.
  * @param   pVM         The VM handle.
  */
-VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
+static int hwaccmR3InitFinalizeR0(PVM pVM)
 {
     int rc;
 
@@ -1091,7 +1094,7 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
             for (VMCPUID i = 0; i < pVM->cCpus; i++)
             {
                 LogRel(("HWACCM: VCPU%d: MSR bitmap physaddr      = %RHp\n", i, pVM->aCpus[i].hwaccm.s.vmx.pMSRBitmapPhys));
-                LogRel(("HWACCM: VCPU%d: VMCS physaddr            = %RHp\n", i, pVM->aCpus[i].hwaccm.s.vmx.pVMCSPhys));
+                LogRel(("HWACCM: VCPU%d: VMCS physaddr            = %RHp\n", i, pVM->aCpus[i].hwaccm.s.vmx.HCPhysVMCS));
             }
 
 #ifdef HWACCM_VTX_WITH_EPT
@@ -1305,19 +1308,33 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
             LogRel(("HWACCM: AMD-V revision                    = %X\n", pVM->hwaccm.s.svm.u32Rev));
             LogRel(("HWACCM: AMD-V max ASID                    = %d\n", pVM->hwaccm.s.uMaxASID));
             LogRel(("HWACCM: AMD-V features                    = %X\n", pVM->hwaccm.s.svm.u32Features));
-
-            if (pVM->hwaccm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_NESTED_PAGING)
-                LogRel(("HWACCM:    AMD_CPUID_SVM_FEATURE_EDX_NESTED_PAGING\n"));
-            if (pVM->hwaccm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_LBR_VIRT)
-                LogRel(("HWACCM:    AMD_CPUID_SVM_FEATURE_EDX_LBR_VIRT\n"));
-            if (pVM->hwaccm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_SVM_LOCK)
-                LogRel(("HWACCM:    AMD_CPUID_SVM_FEATURE_EDX_SVM_LOCK\n"));
-            if (pVM->hwaccm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_NRIP_SAVE)
-                LogRel(("HWACCM:    AMD_CPUID_SVM_FEATURE_EDX_NRIP_SAVE\n"));
-            if (pVM->hwaccm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_SSE_3_5_DISABLE)
-                LogRel(("HWACCM:    AMD_CPUID_SVM_FEATURE_EDX_SSE_3_5_DISABLE\n"));
-            if (pVM->hwaccm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER)
-                LogRel(("HWACCM:    AMD_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER\n"));
+            static const struct { uint32_t fFlag; const char *pszName; } s_aSvmFeatures[] =
+            {
+#define FLAG_NAME(a_Define) { a_Define, #a_Define }
+                FLAG_NAME(AMD_CPUID_SVM_FEATURE_EDX_NESTED_PAGING),
+                FLAG_NAME(AMD_CPUID_SVM_FEATURE_EDX_LBR_VIRT),
+                FLAG_NAME(AMD_CPUID_SVM_FEATURE_EDX_SVM_LOCK),
+                FLAG_NAME(AMD_CPUID_SVM_FEATURE_EDX_NRIP_SAVE),
+                FLAG_NAME(AMD_CPUID_SVM_FEATURE_EDX_TSC_RATE_MSR),
+                FLAG_NAME(AMD_CPUID_SVM_FEATURE_EDX_VMCB_CLEAN),
+                FLAG_NAME(AMD_CPUID_SVM_FEATURE_EDX_FLUSH_BY_ASID),
+                FLAG_NAME(AMD_CPUID_SVM_FEATURE_EDX_DECODE_ASSIST),
+                FLAG_NAME(AMD_CPUID_SVM_FEATURE_EDX_SSE_3_5_DISABLE),
+                FLAG_NAME(AMD_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER),
+                FLAG_NAME(AMD_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER),
+#undef FLAG_NAME
+            };
+            uint32_t fSvmFeatures = pVM->hwaccm.s.svm.u32Features;
+            for (unsigned i = 0; i < RT_ELEMENTS(s_aSvmFeatures); i++)
+                if (fSvmFeatures & s_aSvmFeatures[i].fFlag)
+                {
+                    LogRel(("HWACCM:    %s\n", s_aSvmFeatures[i].pszName));
+                    fSvmFeatures &= ~s_aSvmFeatures[i].fFlag;
+                }
+            if (fSvmFeatures)
+                for (unsigned iBit = 0; iBit < 32; iBit++)
+                    if (RT_BIT_32(iBit) & fSvmFeatures)
+                        LogRel(("HWACCM:    Reserved bit %u\n", iBit));
 
             /* Only try once. */
             pVM->hwaccm.s.fInitialized = true;
@@ -2575,7 +2592,7 @@ VMMR3DECL(void) HWACCMR3CheckError(PVM pVM, int iStatusCode)
             break;
 
         case VERR_VMX_INVALID_VMCS_PTR:
-            LogRel(("VERR_VMX_INVALID_VMCS_PTR: CPU%d Current pointer %RGp vs %RGp\n", i, pVM->aCpus[i].hwaccm.s.vmx.lasterror.u64VMCSPhys, pVM->aCpus[i].hwaccm.s.vmx.pVMCSPhys));
+            LogRel(("VERR_VMX_INVALID_VMCS_PTR: CPU%d Current pointer %RGp vs %RGp\n", i, pVM->aCpus[i].hwaccm.s.vmx.lasterror.u64VMCSPhys, pVM->aCpus[i].hwaccm.s.vmx.HCPhysVMCS));
             LogRel(("VERR_VMX_INVALID_VMCS_PTR: CPU%d Current VMCS version %x\n", i, pVM->aCpus[i].hwaccm.s.vmx.lasterror.ulVMCSRevision));
             LogRel(("VERR_VMX_INVALID_VMCS_PTR: CPU%d Entered Cpu %d\n", i, pVM->aCpus[i].hwaccm.s.vmx.lasterror.idEnteredCpu));
             LogRel(("VERR_VMX_INVALID_VMCS_PTR: CPU%d Current Cpu %d\n", i, pVM->aCpus[i].hwaccm.s.vmx.lasterror.idCurrentCpu));

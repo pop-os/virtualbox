@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceInternal.h $ */
+/* $Id: VBoxServiceInternal.h 37375 2011-06-08 10:51:26Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Services.
  */
@@ -26,6 +26,8 @@
 
 #include <iprt/list.h>
 #include <iprt/critsect.h>
+
+#include <VBox/VBoxGuestLib.h>
 
 /**
  * A service descriptor.
@@ -91,7 +93,8 @@ typedef VBOXSERVICE *PVBOXSERVICE;
 /** Pointer to a const VBOXSERVICE. */
 typedef VBOXSERVICE const *PCVBOXSERVICE;
 
-/** The service name (needed for mutex creation on Windows). */
+/** The service name.
+ * @note Used on windows to name the service as well as the global mutex. */
 #define VBOXSERVICE_NAME            "VBoxService"
 
 #ifdef RT_OS_WINDOWS
@@ -276,6 +279,7 @@ extern int          VBoxServiceArgUInt32(int argc, char **argv, const char *psz,
 extern int          VBoxServiceStartServices(void);
 extern int          VBoxServiceStopServices(void);
 extern void         VBoxServiceMainWait(void);
+extern int          VBoxServiceReportStatus(VBoxGuestFacilityStatus enmStatus);
 #ifdef RT_OS_WINDOWS
 extern RTEXITCODE   VBoxServiceWinInstall(void);
 extern RTEXITCODE   VBoxServiceWinUninstall(void);
@@ -295,6 +299,10 @@ extern int          VBoxServiceWinGetComponentVersions(uint32_t uiClientID);
 #endif /* RT_OS_WINDOWS */
 
 #ifdef VBOX_WITH_GUEST_CONTROL
+extern int          VBoxServiceGCtrlDirClose(uint32_t u32ClientId, uint32_t uNumParms);
+extern int          VBoxServiceGCtrlDirOpen(uint32_t u32ClientId, uint32_t uNumParms);
+extern int          VBoxServiceGCtrlDirRead(uint32_t u32ClientId, uint32_t uNumParms);
+
 extern int          VBoxServiceControlExecHandleCmdStartProcess(uint32_t u32ClientId, uint32_t uNumParms);
 extern int          VBoxServiceControlExecHandleCmdSetInput(uint32_t u32ClientId, uint32_t uNumParms, size_t cbMaxBufSize);
 extern int          VBoxServiceControlExecHandleCmdGetOutput(uint32_t u32ClientId, uint32_t uNumParms);

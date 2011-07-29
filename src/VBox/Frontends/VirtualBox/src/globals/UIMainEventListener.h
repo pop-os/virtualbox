@@ -42,7 +42,11 @@ class UIMainEventListener: public QObject
     Q_OBJECT;
 
 public:
-    UIMainEventListener(QObject *pParent);
+    UIMainEventListener();
+
+
+    HRESULT init(QObject *pParent);
+    void    uninit();
 
     STDMETHOD(HandleEvent)(VBoxEventType_T aType, IEvent *pEvent);
 
@@ -63,12 +67,14 @@ signals:
     void sigAdditionsChange();
     void sigNetworkAdapterChange(CNetworkAdapter adapter);
     void sigMediumChange(CMediumAttachment attachment);
+    void sigVRDEChange();
     void sigUSBControllerChange();
     void sigUSBDeviceStateChange(CUSBDevice device, bool fAttached, CVirtualBoxErrorInfo error);
     void sigSharedFolderChange();
     void sigRuntimeError(bool fFatal, QString strId, QString strMessage);
     void sigCanShowWindow(bool &fVeto, QString &strReason); /* use Qt::DirectConnection */
     void sigShowWindow(LONG64 &winId); /* use Qt::DirectConnection */
+    void sigCPUExecutionCapChange();
 };
 
 /* Wrap the IListener interface around our implementation class. */

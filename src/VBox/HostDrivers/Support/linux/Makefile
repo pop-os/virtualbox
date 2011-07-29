@@ -1,4 +1,4 @@
-# $Revision: 70883 $
+# $Revision: 37233 $
 ## @file
 # Makefile for the VirtualBox Linux Host Driver.
 #
@@ -118,12 +118,14 @@ OBJS   = \
 	common/misc/assert.o \
 	common/misc/handletable.o \
 	common/misc/handletablectx.o \
+	common/misc/thread.o \
 	common/string/RTStrCopyP.o \
 	common/string/strformat.o \
 	common/string/strformatrt.o \
 	common/string/strformattype.o \
 	common/string/strprintf.o \
 	common/string/strtonum.o \
+	common/table/avlpv.o \
 	common/time/time.o \
 	r0drv/linux/RTLogWriteDebugger-r0drv-linux.o \
 	generic/RTAssertShouldPanic-generic.o \
@@ -136,6 +138,7 @@ OBJS   = \
 	generic/RTSemEventMultiWait-2-ex-generic.o \
 	generic/RTSemEventMultiWaitNoResume-2-ex-generic.o \
 	generic/RTTimerCreate-generic.o \
+	generic/errvars-generic.o \
 	generic/mppresent-generic.o \
 	generic/uuid-generic.o \
 	VBox/log-vbox.o

@@ -1,4 +1,4 @@
-/* $Id: icd_drv.c $ */
+/* $Id: icd_drv.c 37986 2011-07-15 15:14:35Z vboxsync $ */
 
 /** @file
  * VBox OpenGL windows ICD driver functions
@@ -94,19 +94,23 @@ PICDTABLE APIENTRY DrvSetContext(HDC hdc, HGLRC hglrc, void *callback)
 {
     ContextInfo *context;
     WindowInfo *window;
+    BOOL ret;
 
     /*crDebug( "DrvSetContext called(0x%x, 0x%x)", hdc, hglrc );*/
     (void) (callback);
 
+    crHashtableLock(stub.windowTable);
+    crHashtableLock(stub.contextTable);
+
     context = (ContextInfo *) crHashtableSearch(stub.contextTable, (unsigned long) hglrc);
     window = stubGetWindowInfo(hdc);
 
-    if (stubMakeCurrent( window, context )) {
-        return &icdTable;
-    }
-    else {
-        return NULL;
-    }
+    ret = stubMakeCurrent(window, context);
+
+    crHashtableUnlock(stub.contextTable);
+    crHashtableUnlock(stub.windowTable);
+
+    return ret ? &icdTable:NULL;
 }
 
 BOOL APIENTRY DrvSetPixelFormat(HDC hdc, int iPixelFormat)
@@ -291,8 +295,7 @@ BOOL APIENTRY DrvSwapLayerBuffers(HDC hdc, UINT fuPlanes)
 {
     if (fuPlanes == 1)
     {
-        DrvSwapBuffers(hdc);
-        return 1;
+        return DrvSwapBuffers(hdc);
     }
     else
     {

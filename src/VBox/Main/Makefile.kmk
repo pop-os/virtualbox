@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 38037 2011-07-18 17:31:38Z vboxsync $
 ## @file
 # Makefile for the VBox Main module.
 #
 
 #
-# Copyright (C) 2006-2010 Oracle Corporation
+# Copyright (C) 2006-2011 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -61,8 +61,8 @@ VBOX_MAIN_DEFS += \
 	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS,) \
 	$(if $(VBOX_WITH_GUEST_PROPS_RDONLY_GUEST),VBOX_WITH_GUEST_PROPS_RDONLY_GUEST,) \
 	$(if $(VBOX_WITH_GUEST_CONTROL),VBOX_WITH_GUEST_CONTROL,) \
-	$(if $(VBOX_WITH_HOSTNETIF_API),VBOX_WITH_HOSTNETIF_API,) \
-	$(if $(VBOX_WITH_VDE),VBOX_WITH_VDE,)
+	$(if $(VBOX_WITH_USB_VIDEO),VBOX_WITH_USB_VIDEO,) \
+	$(if $(VBOX_WITH_HOSTNETIF_API),VBOX_WITH_HOSTNETIF_API,)
 
 # Unconditionally enable the new semaphore key generation code
 VBOX_MAIN_DEFS += VBOX_WITH_NEW_SYS_V_KEYGEN
@@ -168,7 +168,7 @@ ifdef VBOX_WITH_PYTHON
 VBOX_PYTHON_CONSTANTS = $(PATH_TARGET)/VirtualBox_constants.py
 
 INSTALLS += VBox-python-glue
-VBox-python-glue_INST = $(INST_SDK)installer
+VBox-python-glue_INST = $(INST_SDK)installer/
 VBox-python-glue_SOURCES = glue/vboxapi.py=>vboxapi/__init__.py  \
                            $(VBOX_PYTHON_CONSTANTS)=>vboxapi/VirtualBox_constants.py
 
@@ -209,7 +209,6 @@ VBoxSVC_DEFS = \
 	$(if $(VBOX_WITH_QTGUI),VBOX_WITH_QTGUI,) \
 	$(if $(VBOX_WITH_COCOA_QT),VBOX_WITH_COCOA_QT,) \
 	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
-	$(if $(VBOX_MAIN_RELEASE_LOG),VBOX_MAIN_RELEASE_LOG LOG_ENABLED,) \
 	$(if $(VBOX_WITH_ALSA),VBOX_WITH_ALSA,) \
 	$(if $(VBOX_WITH_PULSE),VBOX_WITH_PULSE,) \
 	$(if $(VBOX_WITH_WINMM),VBOX_WITH_WINMM,) \
@@ -227,7 +226,8 @@ VBoxSVC_DEFS = \
 	$(if $(VBOX_WITH_LIVE_MIGRATION),VBOX_WITH_LIVE_MIGRATION,) \
 	$(if $(VBOX_WITH_EXTPACK),VBOX_WITH_EXTPACK,) \
 	$(if $(VBOX_WITH_VUSB),VBOX_WITH_VUSB,) \
-	$(if $(VBOX_WITH_S3),VBOX_WITH_S3,)
+	$(if $(VBOX_WITH_S3),VBOX_WITH_S3,) \
+	$(if $(VBOX_WITH_PCI_PASSTHROUGH),VBOX_WITH_PCI_PASSTHROUGH,)
 ifdef VBOX_WITH_USB
  VBoxSVC_DEFS += \
 	VBOX_WITH_USB \
@@ -299,7 +299,9 @@ VBoxSVC_SOURCES = \
 	src-server/HostImpl.cpp \
 	src-server/HostNetworkInterfaceImpl.cpp \
 	src-server/HostPower.cpp \
+	src-server/Logging.cpp \
 	src-server/MachineImpl.cpp \
+	src-server/MachineImplCloneVM.cpp \
 	src-server/Matching.cpp \
 	src-server/MediumAttachmentImpl.cpp \
 	src-server/MediumFormatImpl.cpp \
@@ -351,6 +353,11 @@ VBoxSVC_SOURCES.solaris = \
 VBoxSVC_SOURCES.freebsd = \
 	src-server/freebsd/HostHardwareFreeBSD.cpp
 
+src-server/Logging.cpp_DEFS = \
+	VBOX_BUILD_TARGET=\"$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)\" \
+	$(if $(VBOX_BLEEDING_EDGE),VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\",)
+
+
 ifdef VBOX_WITH_USB
  ifdef VBOX_WITH_SYSFS_BY_DEFAULT
   src-server/linux/USBProxyServiceLinux.cpp_DEFS += VBOX_WITH_SYSFS_BY_DEFAULT
@@ -376,12 +383,10 @@ ifdef VBOX_WITH_NETFLT
  #       needing it.
  src-server/win/NetIf-win.cpp_INCS.win += $(PATH_TOOL_$(VBOX_VCC_TOOL)_INC)
  VBoxSVC_LIBS.win += \
-	$(PATH_LIB)/WinNetConfig.lib \
+	$(WinNetConfig_1_TARGET) \
+	$(VBoxDrvCfg_1_TARGET) \
 	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
 	$(PATH_SDK_WINPSDK_LIB)/WbemUuid.Lib
- ifdef VBOX_NETFLT_ONDEMAND_BIND
-  VBoxSVC_DEFS.win += VBOX_NETFLT_ONDEMAND_BIND
- endif
 endif
 VBoxSVC_LDFLAGS.darwin    = -framework IOKit -framework SystemConfiguration
 
@@ -564,7 +569,6 @@ VBoxC_DEFS = \
 	VBOX_COM_INPROC \
 	$(if $(VBOX_WITH_VRDP_VIDEO_CHANNEL),VBOX_WITH_VRDP_VIDEO_CHANNEL,) \
 	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
-	$(if $(VBOX_MAIN_RELEASE_LOG),VBOX_MAIN_RELEASE_LOG LOG_ENABLED,) \
 	$(if $(VBOX_WITH_ALSA),VBOX_WITH_ALSA,) \
 	$(if $(VBOX_WITH_PULSE),VBOX_WITH_PULSE,) \
 	$(if $(VBOX_WITH_WINMM),VBOX_WITH_WINMM,) \
@@ -580,7 +584,8 @@ VBoxC_DEFS = \
 	$(if $(VBOX_WITH_VIDEOHWACCEL),VBOX_WITH_VIDEOHWACCEL,) \
 	$(if $(VBOX_WITH_USB),VBOX_WITH_USB,) \
 	$(if-expr defined(VBOX_WITH_EHCI) && defined(VBOX_WITH_USB),VBOX_WITH_EHCI,) \
-	$(if $(VBOX_WITH_EXTPACK),VBOX_WITH_EXTPACK,)
+	$(if $(VBOX_WITH_EXTPACK),VBOX_WITH_EXTPACK,) \
+	$(if $(VBOX_WITH_PCI_PASSTHROUGH),VBOX_WITH_PCI_PASSTHROUGH,)
 
 VBoxC_DEFS.darwin.x86 = VBOX_WITH_2X_4GB_ADDR_SPACE
 VBoxC_DEFS.win.x86 += _WIN32_WINNT=0x0500
@@ -607,9 +612,11 @@ VBoxC_LIBS += \
 	$(LIB_REM)
 
 ifdef VBOX_WITH_NETFLT
- VBoxC_LIBS.win += $(PATH_LIB)/WinNetConfig.lib \
-	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
-	$(PATH_SDK_WINPSDK_LIB)/WbemUuid.Lib
+ VBoxC_LIBS.win += \
+ 	$(VBoxDrvCfg_1_TARGET) \
+ 	$(WinNetConfig_1_TARGET) \
+ 	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
+ 	$(PATH_SDK_WINPSDK_LIB)/WbemUuid.Lib
 endif
 
 VBoxC_INTERMEDIATES =            \
@@ -630,8 +637,11 @@ VBoxC_SOURCES = \
 	src-all/VirtualBoxBase.cpp \
 	src-all/VirtualBoxErrorInfoImpl.cpp \
 	$(if $(VBOX_WITH_EXTPACK),src-all/ExtPackManagerImpl.cpp src-all/ExtPackUtil.cpp,) \
+	$(if $(VBOX_WITH_USB_VIDEO),src-client/UsbWebcamInterface.cpp,) \
+	src-client/AdditionsFacilityImpl.cpp \
 	src-client/AudioSnifferInterface.cpp \
 	src-client/BusAssignmentManager.cpp \
+	$(if $(VBOX_WITH_PCI_PASSTHROUGH),src-client/PciRawDevImpl.cpp,) \
 	src-client/ConsoleImpl.cpp \
 	src-client/ConsoleImpl2.cpp \
 	src-client/ConsoleImplTeleporter.cpp \
@@ -911,7 +921,7 @@ endif # VBOX_WITH_JMSCOM
 # Install Java glue sample code.
 #
 INSTALLS += javagluesample
-javagluesample_INST = $(INST_SDK)bindings/glue/java
+javagluesample_INST = $(INST_SDK)bindings/glue/java/
 javagluesample_MODE = a+rx,u+w
 javagluesample_SOURCES = \
 	$(VBOX_PATH_MAIN_SRC)/glue/tests/TestVBox.java=>TestVBox.java \

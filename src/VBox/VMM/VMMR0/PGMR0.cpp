@@ -1,10 +1,10 @@
-/* $Id: PGMR0.cpp $ */
+/* $Id: PGMR0.cpp 37950 2011-07-14 10:13:39Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor, Ring-0.
  */
 
 /*
- * Copyright (C) 2007-2010 Oracle Corporation
+ * Copyright (C) 2007-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,8 +19,10 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_PGM
+#include <VBox/rawpci.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/gmm.h>
+#include <VBox/vmm/gvm.h>
 #include "PGMInternal.h"
 #include <VBox/vmm/vm.h>
 #include "PGMInline.h"
@@ -65,7 +67,7 @@
  */
 VMMR0DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
 {
-    Assert(PDMCritSectIsOwnerEx(&pVM->pgm.s.CritSect, pVCpu->idCpu));
+    Assert(PDMCritSectIsOwnerEx(&pVM->pgm.s.CritSect, pVCpu));
 
     /*
      * Check for error injection.
@@ -84,6 +86,7 @@ VMMR0DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
     int rc = GMMR0AllocateHandyPages(pVM, pVCpu->idCpu, cPages, cPages, &pVM->pgm.s.aHandyPages[iFirst]);
     if (RT_SUCCESS(rc))
     {
+#ifdef VBOX_STRICT
         for (uint32_t i = 0; i < RT_ELEMENTS(pVM->pgm.s.aHandyPages); i++)
         {
             Assert(pVM->pgm.s.aHandyPages[i].idPage != NIL_GMM_PAGEID);
@@ -92,6 +95,7 @@ VMMR0DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
             Assert(pVM->pgm.s.aHandyPages[i].HCPhysGCPhys != NIL_RTHCPHYS);
             Assert(!(pVM->pgm.s.aHandyPages[i].HCPhysGCPhys & ~X86_PTE_PAE_PG_MASK));
         }
+#endif
 
         pVM->pgm.s.cHandyPages = RT_ELEMENTS(pVM->pgm.s.aHandyPages);
     }
@@ -118,10 +122,10 @@ VMMR0DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
              */
             do
             {
-                cPages >>= 2;
+                cPages >>= 1;
                 if (cPages + iFirst < PGM_HANDY_PAGES_MIN)
                     cPages = PGM_HANDY_PAGES_MIN - iFirst;
-                rc = GMMR0AllocateHandyPages(pVM, pVCpu->idCpu, cPages, cPages, &pVM->pgm.s.aHandyPages[iFirst]);
+                rc = GMMR0AllocateHandyPages(pVM, pVCpu->idCpu, 0, cPages, &pVM->pgm.s.aHandyPages[iFirst]);
             } while (   (   rc == VERR_GMM_HIT_GLOBAL_LIMIT
                          || rc == VERR_GMM_HIT_VM_ACCOUNT_LIMIT)
                      && cPages + iFirst > PGM_HANDY_PAGES_MIN);
@@ -178,13 +182,189 @@ VMMR0DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
  */
 VMMR0DECL(int) PGMR0PhysAllocateLargeHandyPage(PVM pVM, PVMCPU pVCpu)
 {
-    Assert(PDMCritSectIsOwnerEx(&pVM->pgm.s.CritSect, pVCpu->idCpu));
+    Assert(PDMCritSectIsOwnerEx(&pVM->pgm.s.CritSect, pVCpu));
 
     Assert(!pVM->pgm.s.cLargeHandyPages);
     int rc = GMMR0AllocateLargePage(pVM, pVCpu->idCpu, _2M, &pVM->pgm.s.aLargeHandyPage[0].idPage, &pVM->pgm.s.aLargeHandyPage[0].HCPhysGCPhys);
     if (RT_SUCCESS(rc))
         pVM->pgm.s.cLargeHandyPages = 1;
 
+    return rc;
+}
+
+
+#ifdef VBOX_WITH_PCI_PASSTHROUGH
+/* Interface sketch.  The interface belongs to a global PCI pass-through
+   manager.  It shall use the global VM handle, not the user VM handle to
+   store the per-VM info (domain) since that is all ring-0 stuff, thus
+   passing pGVM here.  I've tentitively prefixed the functions 'GPciRawR0',
+   we can discuss the PciRaw code re-organtization when I'm back from
+   vacation.
+
+   I've implemented the initial IOMMU set up below.  For things to work
+   reliably, we will probably need add a whole bunch of checks and
+   GPciRawR0GuestPageUpdate call to the PGM code.  For the present,
+   assuming nested paging (enforced) and prealloc (enforced), no
+   ballooning (check missing), page sharing (check missing) or live
+   migration (check missing), it might work fine.  At least if some
+   VM power-off hook is present and can tear down the IOMMU page tables. */
+
+/**
+ * Tells the global PCI pass-through manager that we are about to set up the
+ * guest page to host page mappings for the specfied VM.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pGVM                The ring-0 VM structure.
+ */
+VMMR0_INT_DECL(int) GPciRawR0GuestPageBeginAssignments(PGVM pGVM)
+{
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Assigns a host page mapping for a guest page.
+ *
+ * This is only used when setting up the mappings, i.e. between
+ * GPciRawR0GuestPageBeginAssignments and GPciRawR0GuestPageEndAssignments.
+ *
+ * @returns VBox status code.
+ * @param   pGVM                The ring-0 VM structure.
+ * @param   GCPhys              The address of the guest page (page aligned).
+ * @param   HCPhys              The address of the host page (page aligned).
+ */
+VMMR0_INT_DECL(int) GPciRawR0GuestPageAssign(PGVM pGVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys)
+{
+    AssertReturn(!(GCPhys & PAGE_OFFSET_MASK), VERR_INTERNAL_ERROR_3);
+    AssertReturn(!(HCPhys & PAGE_OFFSET_MASK), VERR_INTERNAL_ERROR_3);
+
+    if (pGVM->rawpci.s.pfnContigMemInfo)
+        /** @todo: what do we do on failure? */
+        pGVM->rawpci.s.pfnContigMemInfo(&pGVM->rawpci.s, HCPhys, GCPhys, PAGE_SIZE, PCIRAW_MEMINFO_MAP);
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Indicates that the specified guest page doesn't exists but doesn't have host
+ * page mapping we trust PCI pass-through with.
+ *
+ * This is only used when setting up the mappings, i.e. between
+ * GPciRawR0GuestPageBeginAssignments and GPciRawR0GuestPageEndAssignments.
+ *
+ * @returns VBox status code.
+ * @param   pGVM                The ring-0 VM structure.
+ * @param   GCPhys              The address of the guest page (page aligned).
+ * @param   HCPhys              The address of the host page (page aligned).
+ */
+VMMR0_INT_DECL(int) GPciRawR0GuestPageUnassign(PGVM pGVM, RTGCPHYS GCPhys)
+{
+    AssertReturn(!(GCPhys & PAGE_OFFSET_MASK), VERR_INTERNAL_ERROR_3);
+
+    if (pGVM->rawpci.s.pfnContigMemInfo)
+        /** @todo: what do we do on failure? */
+        pGVM->rawpci.s.pfnContigMemInfo(&pGVM->rawpci.s, 0, GCPhys, PAGE_SIZE, PCIRAW_MEMINFO_UNMAP);
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Tells the global PCI pass-through manager that we have completed setting up
+ * the guest page to host page mappings for the specfied VM.
+ *
+ * This complements GPciRawR0GuestPageBeginAssignments and will be called even
+ * if some page assignment failed.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pGVM                The ring-0 VM structure.
+ */
+VMMR0_INT_DECL(int) GPciRawR0GuestPageEndAssignments(PGVM pGVM)
+{
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Tells the global PCI pass-through manager that a guest page mapping has
+ * changed after the initial setup.
+ *
+ * @returns VBox status code.
+ * @param   pGVM                The ring-0 VM structure.
+ * @param   GCPhys              The address of the guest page (page aligned).
+ * @param   HCPhys              The new host page address or NIL_RTHCPHYS if
+ *                              now unassigned.
+ */
+VMMR0_INT_DECL(int) GPciRawR0GuestPageUpdate(PGVM pGVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys)
+{
+    AssertReturn(!(GCPhys & PAGE_OFFSET_MASK), VERR_INTERNAL_ERROR_4);
+    AssertReturn(!(HCPhys & PAGE_OFFSET_MASK) || HCPhys == NIL_RTHCPHYS, VERR_INTERNAL_ERROR_4);
+    return VINF_SUCCESS;
+}
+
+#endif /* VBOX_WITH_PCI_PASSTHROUGH */
+
+
+/**
+ * Sets up the IOMMU when raw PCI device is enabled.
+ *
+ * @note    This is a hack that will probably be remodelled and refined later!
+ *
+ * @returns VBox status code.
+ *
+ * @param   pVM                 The VM handle.
+ */
+VMMR0_INT_DECL(int) PGMR0PhysSetupIommu(PVM pVM)
+{
+    PGVM pGVM;
+    int rc = GVMMR0ByVM(pVM, &pGVM);
+    if (RT_FAILURE(rc))
+        return rc;
+
+#ifdef VBOX_WITH_PCI_PASSTHROUGH
+    if (pVM->pgm.s.fPciPassthrough)
+    {
+        /*
+         * The Simplistic Approach - Enumerate all the pages and call tell the
+         * IOMMU about each of them.
+         */
+        pgmLock(pVM);
+        rc = GPciRawR0GuestPageBeginAssignments(pGVM);
+        if (RT_SUCCESS(rc))
+        {
+            for (PPGMRAMRANGE pRam = pVM->pgm.s.pRamRangesXR0; RT_SUCCESS(rc) && pRam; pRam = pRam->pNextR0)
+            {
+                PPGMPAGE    pPage  = &pRam->aPages[0];
+                RTGCPHYS    GCPhys = pRam->GCPhys;
+                uint32_t    cLeft  = pRam->cb >> PAGE_SHIFT;
+                while (cLeft-- > 0)
+                {
+                    /* Only expose pages that are 100% safe for now. */
+                    if (   PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_RAM
+                        && PGM_PAGE_GET_STATE(pPage) == PGM_PAGE_STATE_ALLOCATED
+                        && !PGM_PAGE_HAS_ANY_HANDLERS(pPage))
+                        rc = GPciRawR0GuestPageAssign(pGVM, GCPhys, PGM_PAGE_GET_HCPHYS(pPage));
+                    else
+                        rc = GPciRawR0GuestPageUnassign(pGVM, GCPhys);
+
+                    /* next */
+                    pPage++;
+                    GCPhys += PAGE_SIZE;
+                }
+            }
+
+            int rc2 = GPciRawR0GuestPageEndAssignments(pGVM);
+            if (RT_FAILURE(rc2) && RT_SUCCESS(rc))
+                rc = rc2;
+        }
+        pgmUnlock(pVM);
+    }
+    else
+#endif
+        rc = VERR_NOT_SUPPORTED;
     return rc;
 }
 
@@ -287,7 +467,7 @@ VMMR0DECL(int) PGMR0Trap0eHandlerNestedPaging(PVM pVM, PVMCPU pVCpu, PGMMODE enm
     }
     if (fLockTaken)
     {
-        Assert(PGMIsLockOwner(pVM));
+        PGM_LOCK_ASSERT_OWNER(pVM);
         pgmUnlock(pVM);
     }
 
@@ -347,7 +527,7 @@ VMMR0DECL(VBOXSTRICTRC) PGMR0Trap0eHandlerNPMisconfig(PVM pVM, PVMCPU pVCpu, PGM
         PPGMPAGE pPage;
         if (   (   pHandler->cAliasedPages
                 || pHandler->cTmpOffPages)
-            && (   (pPage = pgmPhysGetPage(&pVM->pgm.s, GCPhysFault)) == NULL
+            && (   (pPage = pgmPhysGetPage(pVM, GCPhysFault)) == NULL
                 || PGM_PAGE_GET_HNDL_PHYS_STATE(pPage) == PGM_PAGE_HNDL_PHYS_STATE_DISABLED)
            )
         {

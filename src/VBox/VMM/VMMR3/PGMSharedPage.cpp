@@ -1,4 +1,4 @@
-/* $Id: PGMSharedPage.cpp $ */
+/* $Id: PGMSharedPage.cpp 36891 2011-04-29 13:22:57Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor, Shared page handling
  */
@@ -261,7 +261,7 @@ VMMR3DECL(int) PGMR3SharedModuleGetPageState(PVM pVM, RTGCPTR GCPtrPage, bool *p
     {
     case VINF_SUCCESS:
     {
-        PPGMPAGE pPage = pgmPhysGetPage(&pVM->pgm.s, GCPhys);
+        PPGMPAGE pPage = pgmPhysGetPage(pVM, GCPhys);
         if (pPage)
         {
             *pfShared    = PGM_PAGE_IS_SHARED(pPage);
@@ -303,7 +303,7 @@ VMMR3DECL(int) PGMR3SharedModuleGetPageState(PVM pVM, RTGCPTR GCPtrPage, bool *p
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-DECLCALLBACK(int)  pgmR3CmdCheckDuplicatePages(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+DECLCALLBACK(int)  pgmR3CmdCheckDuplicatePages(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     unsigned cBallooned = 0;
     unsigned cShared = 0;
@@ -315,7 +315,7 @@ DECLCALLBACK(int)  pgmR3CmdCheckDuplicatePages(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdH
 
     pgmLock(pVM);
 
-    for (PPGMRAMRANGE pRam = pVM->pgm.s.pRamRangesR3; pRam; pRam = pRam->pNextR3)
+    for (PPGMRAMRANGE pRam = pVM->pgm.s.pRamRangesXR3; pRam; pRam = pRam->pNextR3)
     {
         PPGMPAGE    pPage  = &pRam->aPages[0];
         RTGCPHYS    GCPhys = pRam->GCPhys;
@@ -394,7 +394,7 @@ DECLCALLBACK(int)  pgmR3CmdCheckDuplicatePages(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdH
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-DECLCALLBACK(int)  pgmR3CmdShowSharedModules(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+DECLCALLBACK(int)  pgmR3CmdShowSharedModules(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     unsigned i = 0;
 
@@ -408,8 +408,7 @@ DECLCALLBACK(int)  pgmR3CmdShowSharedModules(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp
                 pCmdHlp->pfnPrintf(pCmdHlp, NULL, "--- Region %d: base %RGv size %x\n", j, g_apSharedModules[i]->aRegions[j].GCRegionAddr, g_apSharedModules[i]->aRegions[j].cbRegion);
         }
         i++;
-    }
-    while (i < RT_ELEMENTS(g_apSharedModules));
+    } while (i < RT_ELEMENTS(g_apSharedModules));
     pgmUnlock(pVM);
 
     return VINF_SUCCESS;

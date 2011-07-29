@@ -32,12 +32,17 @@
 #include <iprt/stdarg.h>
 #include <iprt/err.h> /* for VINF_SUCCESS */
 #if defined(RT_OS_LINUX) && defined(__KERNEL__)
+RT_C_DECLS_BEGIN
 # include <linux/string.h>
+RT_C_DECLS_END
+
 #elif defined(IN_XF86_MODULE) && !defined(NO_ANSIC)
 RT_C_DECLS_BEGIN
 # include "xf86_ansic.h"
 RT_C_DECLS_END
+
 #elif defined(RT_OS_FREEBSD) && defined(_KERNEL)
+RT_C_DECLS_BEGIN
 /** @todo
  * XXX: Very ugly hack to get things build on recent FreeBSD builds. They have
  * memchr now and we need to include param.h to get __FreeBSD_version and make
@@ -65,6 +70,8 @@ RT_C_DECLS_END
    * Defining a macro using bcopy here
    */
 # define memmove(dst, src, size) bcopy(src, dst, size)
+RT_C_DECLS_END
+
 #elif defined(RT_OS_SOLARIS) && defined(_KERNEL)
   /*
    * Same case as with FreeBSD kernel:
@@ -75,6 +82,7 @@ RT_C_DECLS_END
 # include <string.h>
 # undef ffs
 # undef strpbrk
+
 #else
 # include <string.h>
 #endif
@@ -1605,6 +1613,10 @@ DECLINLINE(char *) RTLatin1PrevCp(const char *psz)
  *      - \%RMes            - Takes a string pointer (const char *) and outputs
  *                            it as an element with the necessary escaping.
  *
+ * Group 6, CPU Architecture Register dumpers:
+ *      - \%RAx86[reg]      - Takes a 64-bit register value if the register is
+ *                            64-bit or smaller.  Check the code wrt which
+ *                            registers are implemented.
  *
  */
 
@@ -2437,7 +2449,7 @@ RT_C_DECLS_END
 DECLINLINE(char const *) RTStrEnd(char const *pszString, size_t cchMax)
 {
     /* Avoid potential issues with memchr seen in glibc.
-     * See sysdep/x86_64/memchr.S in glibc versions older than 2.11 */
+     * See sysdeps/x86_64/memchr.S in glibc versions older than 2.11 */
     while (cchMax > RTSTR_MEMCHR_MAX)
     {
         char const *pszRet = (char const *)memchr(pszString, '\0', RTSTR_MEMCHR_MAX);
@@ -2455,7 +2467,7 @@ DECLINLINE(char *) RTStrEnd(const char *pszString, size_t cchMax)
 #endif
 {
     /* Avoid potential issues with memchr seen in glibc.
-     * See sysdep/x86_64/memchr.S in glibc versions older than 2.11 */
+     * See sysdeps/x86_64/memchr.S in glibc versions older than 2.11 */
     while (cchMax > RTSTR_MEMCHR_MAX)
     {
         char *pszRet = (char *)memchr(pszString, '\0', RTSTR_MEMCHR_MAX);

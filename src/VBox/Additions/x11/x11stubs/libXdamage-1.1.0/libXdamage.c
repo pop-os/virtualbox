@@ -1,4 +1,4 @@
-/* $Id: libXdamage.c $ */
+/* $Id: libXdamage.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  * X.Org libXdamage.so linker stub

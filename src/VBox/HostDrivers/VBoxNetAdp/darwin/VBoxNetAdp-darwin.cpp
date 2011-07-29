@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdp-darwin.cpp $ */
+/* $Id: VBoxNetAdp-darwin.cpp 37423 2011-06-12 18:37:56Z vboxsync $ */
 /** @file
  * VBoxNetAdp - Virtual Network Adapter Driver (Host), Darwin Specific Code.
  */
@@ -192,6 +192,7 @@ static void vboxNetAdpDarwinDetach(ifnet_t pIface)
 }
 
 
+
 int vboxNetAdpOsCreate(PVBOXNETADP pThis, PCRTMAC pMACAddress)
 {
     int rc;
@@ -352,7 +353,7 @@ static int VBoxNetAdpDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFla
 
             PVBOXNETADP pNew;
             Log(("VBoxNetAdpDarwinIOCtl: szName=%s\n", pReq->szName));
-            rc = vboxNetAdpCreate(&pNew, 
+            rc = vboxNetAdpCreate(&pNew,
                                   pReq->szName[0] && RTStrEnd(pReq->szName, RT_MIN(cbReq, sizeof(pReq->szName))) ?
                                   pReq->szName : NULL);
             if (RT_FAILURE(rc))

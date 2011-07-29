@@ -1,4 +1,4 @@
-/* $Id: ldr.cpp $ */
+/* $Id: ldr.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
 /** @file
  * IPRT - Binary Image Loader.
  */
@@ -38,25 +38,6 @@
 #include <iprt/err.h>
 #include <iprt/log.h>
 #include "internal/ldr.h"
-
-
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
-typedef struct RTLDRREADERFILE
-{
-    /** The core. */
-    RTLDRREADER     Core;
-    /** The file. */
-    RTFILE          File;
-    /** The file size. */
-    RTFOFF          cbFile;
-    /** The current offset. */
-    RTFOFF          off;
-    /** The filename (variable size). */
-    char            szFilename[1];
-} RTLDRREADERFILE, *PRTLDRREADERFILE;
-
 
 
 /**

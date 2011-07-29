@@ -1,4 +1,4 @@
-/* $Id: fsw_efi.h $ */
+/* $Id: fsw_efi.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * fsw_efi.h - EFI host environment header.
  */

@@ -1,4 +1,4 @@
-/* $Id: darwin.cpp $ */
+/* $Id: darwin.cpp 37472 2011-06-15 16:15:34Z vboxsync $ */
 /** @file
  * Shared Clipboard: Mac OS X host.
  */
@@ -152,7 +152,7 @@ void vboxClipboardDestroy (void)
  * @param   pClient Structure containing context information about the guest system
  * @returns RT status code
  */
-int vboxClipboardConnect (VBOXCLIPBOARDCLIENTDATA *pClient)
+int vboxClipboardConnect (VBOXCLIPBOARDCLIENTDATA *pClient, bool)
 {
     if (g_ctx.pClient != NULL)
     {

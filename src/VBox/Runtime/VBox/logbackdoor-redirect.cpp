@@ -1,4 +1,4 @@
-/* $Id: logbackdoor-redirect.cpp $ */
+/* $Id: logbackdoor-redirect.cpp 36408 2011-03-24 16:25:47Z vboxsync $ */
 /** @file
  * VirtualBox Runtime - RTLog stubs for the stripped down IPRT used by
  *                      RuntimeGuestR3Shared (X11), output is redirected

@@ -1,4 +1,4 @@
-/* $Id: VBoxNetDHCPHardened.cpp $ */
+/* $Id: VBoxNetDHCPHardened.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxNetDHCP - Hardened main().
  */

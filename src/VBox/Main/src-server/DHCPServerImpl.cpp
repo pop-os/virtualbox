@@ -1,4 +1,4 @@
-/* $Id: DHCPServerImpl.cpp $ */
+/* $Id: DHCPServerImpl.cpp 35638 2011-01-19 19:10:49Z vboxsync $ */
 
 /** @file
  *
@@ -42,12 +42,14 @@ DHCPServer::~DHCPServer()
 
 HRESULT DHCPServer::FinalConstruct()
 {
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void DHCPServer::FinalRelease()
 {
     uninit ();
+
+    BaseFinalRelease();
 }
 
 void DHCPServer::uninit()

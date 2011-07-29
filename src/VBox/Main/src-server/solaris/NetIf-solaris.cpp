@@ -1,10 +1,10 @@
-/* $Id: NetIf-solaris.cpp $ */
+/* $Id: NetIf-solaris.cpp 37662 2011-06-28 11:41:49Z vboxsync $ */
 /** @file
  * Main - NetIfList, Solaris implementation.
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,7 +37,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stropts.h>
-#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <libdevinfo.h>
@@ -61,17 +60,20 @@ static void vboxSolarisAddHostIface(char *pszIface, int Instance, void *pvHostNe
     if (SolarisNICMap.empty())
     {
         SolarisNICMap.insert(NICPair("afe", "ADMtek Centaur/Comet Fast Ethernet"));
+        SolarisNICMap.insert(NICPair("atge", "Atheros/Attansic Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("aggr", "Link Aggregation Interface"));
+        SolarisNICMap.insert(NICPair("bfe", "Broadcom BCM4401 Fast Ethernet"));
         SolarisNICMap.insert(NICPair("bge", "Broadcom BCM57xx Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("bnx", "Broadcom NetXtreme Gigabit Ethernet"));
+        SolarisNICMap.insert(NICPair("bnxe", "Broadcom NetXtreme II 10 Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("ce", "Cassini Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("chxge", "Chelsio Ethernet"));
-        SolarisNICMap.insert(NICPair("dmfe", "Davicom Fast Ethernet"));
+        SolarisNICMap.insert(NICPair("dmfe", "Davicom 9102 Fast Ethernet"));
         SolarisNICMap.insert(NICPair("dnet", "DEC 21040/41 21140 Ethernet"));
         SolarisNICMap.insert(NICPair("e1000", "Intel PRO/1000 Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("e1000g", "Intel PRO/1000 Gigabit Ethernet"));
-        SolarisNICMap.insert(NICPair("elx", "3COM EtherLink III Ethernet"));
-        SolarisNICMap.insert(NICPair("elxl", "3COM Ethernet"));
+        SolarisNICMap.insert(NICPair("elx", "3COM Etherlink III Ethernet"));
+        SolarisNICMap.insert(NICPair("elxl", "3COM Etherlink XL Ethernet"));
         SolarisNICMap.insert(NICPair("eri", "eri Fast Ethernet"));
         SolarisNICMap.insert(NICPair("ge", "GEM Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("hme", "SUNW,hme Fast-Ethernet"));
@@ -79,6 +81,7 @@ static void vboxSolarisAddHostIface(char *pszIface, int Instance, void *pvHostNe
         SolarisNICMap.insert(NICPair("igb", "Intel 82575 PCI-E Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("ipge", "PCI-E Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("iprb", "Intel 82557/58/59 Ethernet"));
+        SolarisNICMap.insert(NICPair("ixgbe", "Intel 10 Gigabit PCI-E Ethernet"));
         SolarisNICMap.insert(NICPair("mxfe", "Macronix 98715 Fast Ethernet"));
         SolarisNICMap.insert(NICPair("nfo", "Nvidia Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("nge", "Nvidia Gigabit Ethernet"));
@@ -87,13 +90,16 @@ static void vboxSolarisAddHostIface(char *pszIface, int Instance, void *pvHostNe
         SolarisNICMap.insert(NICPair("qfe", "SUNW,qfe Quad Fast-Ethernet"));
         SolarisNICMap.insert(NICPair("rge", "Realtek Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("rtls", "Realtek 8139 Fast Ethernet"));
+        SolarisNICMap.insert(NICPair("sfe", "SiS900 Fast Ethernet"));
         SolarisNICMap.insert(NICPair("skge", "SksKonnect Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("spwr", "SMC EtherPower II 10/100 (9432) Ethernet"));
         SolarisNICMap.insert(NICPair("vboxnet", "VirtualBox Host Ethernet"));
         SolarisNICMap.insert(NICPair("vboxvnic_template", "VirtualBox Virtual Network Interface Template"));
         SolarisNICMap.insert(NICPair("vlan", "Virtual LAN Ethernet"));
+        SolarisNICMap.insert(NICPair("vr", "VIA Rhine Fast Ethernet"));
         SolarisNICMap.insert(NICPair("vnic", "Virtual Network Interface Ethernet"));
         SolarisNICMap.insert(NICPair("xge", "Neterior Xframe 10Gigabit Ethernet"));
+        SolarisNICMap.insert(NICPair("yge", "Marvell Yukon 2 Fast Ethernet"));
     }
 
     /*

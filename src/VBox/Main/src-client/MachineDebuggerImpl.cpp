@@ -1,4 +1,4 @@
-/* $Id: MachineDebuggerImpl.cpp $ */
+/* $Id: MachineDebuggerImpl.cpp 35638 2011-01-19 19:10:49Z vboxsync $ */
 /** @file
  * VBox IMachineDebugger COM class implementation.
  */
@@ -55,12 +55,13 @@ MachineDebugger::~MachineDebugger()
 HRESULT MachineDebugger::FinalConstruct()
 {
     unconst(mParent) = NULL;
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void MachineDebugger::FinalRelease()
 {
     uninit();
+    BaseFinalRelease();
 }
 
 // public initializer/uninitializer for internal purposes only

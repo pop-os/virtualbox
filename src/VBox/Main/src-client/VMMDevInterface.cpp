@@ -1,4 +1,4 @@
-/* $Id: VMMDevInterface.cpp $ */
+/* $Id: VMMDevInterface.cpp 37175 2011-05-21 20:51:24Z vboxsync $ */
 /** @file
  * VirtualBox Driver Interface to VMM device.
  */
@@ -232,8 +232,8 @@ DECLCALLBACK(void) vmmdevUpdateGuestInfo(PPDMIVMMDEVCONNECTOR pInterface, const 
          */
         guest->setAdditionsInfo(Bstr(), guestInfo->osType); /* Clear interface version + OS type. */
         guest->setAdditionsInfo2(Bstr(), Bstr(), Bstr()); /* Clear Guest Additions version. */
-        guest->setAdditionsStatus(VBoxGuestStatusFacility_All,
-                                  VBoxGuestStatusCurrent_Inactive,
+        guest->setAdditionsStatus(VBoxGuestFacilityType_All,
+                                  VBoxGuestFacilityStatus_Inactive,
                                   0); /* Flags; not used. */
         pConsole->onAdditionsStateChange();
     }
@@ -293,18 +293,19 @@ DECLCALLBACK(void) vmmdevUpdateGuestInfo2(PPDMIVMMDEVCONNECTOR pInterface, const
 DECLCALLBACK(void) vmmdevUpdateGuestCapabilities(PPDMIVMMDEVCONNECTOR pInterface, uint32_t newCapabilities)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    AssertPtr(pDrv);
     Console *pConsole = pDrv->pVMMDev->getParent();
 
     /* store that information in IGuest */
-    Guest* guest = pConsole->getGuest();
-    Assert(guest);
-    if (!guest)
+    Guest* pGuest = pConsole->getGuest();
+    AssertPtr(pGuest);
+    if (!pGuest)
         return;
 
     /*
      * Report our current capabilities (and assume none is active yet).
      */
-    guest->setSupportedFeatures(newCapabilities, 0 /* Active capabilities, not used here. */);
+    pGuest->setSupportedFeatures(newCapabilities);
 
     /*
      * Tell the console interface about the event
@@ -462,9 +463,6 @@ DECLCALLBACK(int) vmmdevSetVisibleRegion(PPDMIVMMDEVCONNECTOR pInterface, uint32
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
     Console *pConsole = pDrv->pVMMDev->getParent();
-
-    if (!cRect)
-        return VERR_INVALID_PARAMETER;
 
     /* Forward to Display, which calls corresponding framebuffers. */
     pConsole->getDisplay()->handleSetVisibleRegion(cRect, pRect);

@@ -1,4 +1,4 @@
-/* $Id: dir-posix.cpp $ */
+/* $Id: dir-posix.cpp 36167 2011-03-04 12:33:39Z vboxsync $ */
 /** @file
  * IPRT - Directory manipulation, POSIX.
  */
@@ -90,6 +90,7 @@ RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode)
             if (mkdir(pszNativePath, fMode & RTFS_UNIX_MASK))
             {
                 rc = errno;
+                bool fVerifyIsDir = true;
 #ifdef RT_OS_SOLARIS
                 /*
                  * mkdir on nfs mount points has been/is busted in various
@@ -100,12 +101,31 @@ RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode)
                 if (    rc == ENOSYS
                     ||  rc == EACCES)
                 {
+                    rc = RTErrConvertFromErrno(rc);
+                    fVerifyIsDir = false;  /* We'll check if it's a dir ourselves since we're going to stat() anyway. */
                     struct stat st;
                     if (!stat(pszNativePath, &st))
-                        rc = EEXIST;
+                    {
+                        rc = VERR_ALREADY_EXISTS;
+                        if (!S_ISDIR(st.st_mode))
+                            rc = VERR_IS_A_FILE;
+                    }
                 }
-#endif
+                else
+                    rc = RTErrConvertFromErrno(rc);
+#else
                 rc = RTErrConvertFromErrno(rc);
+#endif
+                if (   rc == VERR_ALREADY_EXISTS
+                    && fVerifyIsDir == true)
+                {
+                    /*
+                     * Verify that it really exists as a directory.
+                     */
+                    struct stat st;
+                    if (!stat(pszNativePath, &st) && !S_ISDIR(st.st_mode))
+                        rc = VERR_IS_A_FILE;
+                }
             }
         }
 
@@ -253,7 +273,10 @@ static int rtDirReadMore(PRTDIR pDir)
             if (rc)
             {
                 rc = RTErrConvertFromErrno(rc);
-                AssertRC(rc);
+                /** @todo Consider translating ENOENT (The current
+                 *        position of the directory stream is invalid)
+                 *        differently. */
+                AssertMsg(rc == VERR_FILE_NOT_FOUND, ("%Rrc\n", rc));
                 return rc;
             }
             if (!pResult)

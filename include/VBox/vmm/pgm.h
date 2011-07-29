@@ -30,7 +30,7 @@
 #include <VBox/sup.h>
 #include <VBox/vmm/vmapi.h>
 #include <VBox/vmm/gmm.h>               /* for PGMMREGISTERSHAREDMODULEREQ */
-#include <VBox/x86.h>
+#include <iprt/x86.h>
 #include <VBox/VMMDev.h>                /* for VMMDEVSHAREDREGIONDESC */
 #include <VBox/param.h>
 
@@ -285,7 +285,6 @@ typedef enum PGMMODE
 
 
 
-VMMDECL(bool)           PGMIsLocked(PVM pVM);
 VMMDECL(bool)           PGMIsLockOwner(PVM pVM);
 
 VMMDECL(int)            PGMRegisterStringFormatTypes(void);
@@ -329,7 +328,7 @@ VMMDECL(int)        PGMGstGetPage(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags
 VMMDECL(bool)       PGMGstIsPagePresent(PVMCPU pVCpu, RTGCPTR GCPtr);
 VMMDECL(int)        PGMGstSetPage(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t fFlags);
 VMMDECL(int)        PGMGstModifyPage(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask);
-VMMDECL(X86PDPE)    PGMGstGetPaePDPtr(PVMCPU pVCpu, unsigned iPdPt);
+VMMDECL(int)        PGMGstQueryPaePDPtr(PVMCPU pVCpu, unsigned iPdpt, PX86PDPE pPdpe);
 
 VMMDECL(int)        PGMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCPtrPage);
 VMMDECL(int)        PGMFlushTLB(PVMCPU pVCpu, uint64_t cr3, bool fGlobal);
@@ -366,8 +365,6 @@ VMMDECL(bool)       PGMPhysIsA20Enabled(PVMCPU pVCpu);
 VMMDECL(bool)       PGMPhysIsGCPhysValid(PVM pVM, RTGCPHYS GCPhys);
 VMMDECL(bool)       PGMPhysIsGCPhysNormal(PVM pVM, RTGCPHYS GCPhys);
 VMMDECL(int)        PGMPhysGCPtr2GCPhys(PVMCPU pVCpu, RTGCPTR GCPtr, PRTGCPHYS pGCPhys);
-VMMDECL(void)       PGMPhysInvalidatePageMapTLB(PVM pVM);
-VMMDECL(void)       PGMPhysInvalidatePageMapTLBEntry(PVM pVM, RTGCPHYS GCPhys);
 VMMDECL(void)       PGMPhysReleasePageMappingLock(PVM pVM, PPGMPAGEMAPLOCK pLock);
 VMMDECL(int)        PGMPhysRead(PVM pVM, RTGCPHYS GCPhys, void *pvBuf, size_t cbRead);
 VMMDECL(int)        PGMPhysWrite(PVM pVM, RTGCPHYS GCPhys, const void *pvBuf, size_t cbWrite);
@@ -395,7 +392,7 @@ VMMDECL(uint32_t)   PGMRZDynMapPushAutoSubset(PVMCPU pVCpu);
 VMMDECL(void)       PGMRZDynMapPopAutoSubset(PVMCPU pVCpu, uint32_t iPrevSubset);
 #endif
 
-VMMDECL(void) PGMSetLargePageUsage(PVM pVM, bool fUseLargePages);
+VMMDECL(int)        PGMSetLargePageUsage(PVM pVM, bool fUseLargePages);
 
 /**
  * Query large page usage state
@@ -423,6 +420,7 @@ VMMRCDECL(int)      PGMRCDynMapInit(PVM pVM);
  */
 VMMR0DECL(int)      PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu);
 VMMR0DECL(int)      PGMR0PhysAllocateLargeHandyPage(PVM pVM, PVMCPU pVCpu);
+VMMR0_INT_DECL(int) PGMR0PhysSetupIommu(PVM pVM);
 VMMR0DECL(int)      PGMR0SharedModuleCheck(PVM pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHAREDMODULE pModule, uint32_t cRegions, PGMMSHAREDREGIONDESC pRegions);
 VMMR0DECL(int)      PGMR0Trap0eHandlerNestedPaging(PVM pVM, PVMCPU pVCpu, PGMMODE enmShwPagingMode, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPHYS pvFault);
 VMMR0DECL(VBOXSTRICTRC) PGMR0Trap0eHandlerNPMisconfig(PVM pVM, PVMCPU pVCpu, PGMMODE enmShwPagingMode, PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, uint32_t uErr);
@@ -448,6 +446,7 @@ VMMR0DECL(void)     PGMR0DynMapMigrateAutoSet(PVMCPU pVCpu);
 VMMR3DECL(int)      PGMR3Init(PVM pVM);
 VMMR3DECL(int)      PGMR3InitDynMap(PVM pVM);
 VMMR3DECL(int)      PGMR3InitFinalize(PVM pVM);
+VMMR3_INT_DECL(int) PGMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat);
 VMMR3DECL(void)     PGMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
 VMMR3DECL(void)     PGMR3ResetUnpluggedCpu(PVM pVM, PVMCPU pVCpu);
 VMMR3DECL(void)     PGMR3Reset(PVM pVM);
@@ -462,8 +461,9 @@ VMMR3DECL(int)      PGMR3PhysEnumDirtyFTPages(PVM pVM, PFNPGMENUMDIRTYFTPAGES pf
 VMMR3DECL(uint32_t) PGMR3PhysGetRamRangeCount(PVM pVM);
 VMMR3DECL(int)      PGMR3PhysGetRange(PVM pVM, uint32_t iRange, PRTGCPHYS pGCPhysStart, PRTGCPHYS pGCPhysLast,
                                       const char **ppszDesc, bool *pfIsMmio);
-VMMR3DECL(int)      PGMR3QueryVMMMemoryStats(PVM pVM, uint64_t *puTotalAllocSize, uint64_t *puTotalFreeSize, uint64_t *puTotalBalloonSize, uint64_t *puTotalSharedSize);
-VMMR3DECL(int)      PGMR3QueryMemoryStats(PVM pVM, uint64_t *pulTotalMem, uint64_t *pulPrivateMem, uint64_t *puTotalSharedMem, uint64_t *puTotalZeroMem);
+VMMR3DECL(int)      PGMR3QueryMemoryStats(PVM pVM, uint64_t *pcbTotalMem, uint64_t *pcbPrivateMem, uint64_t *pcbSharedMem, uint64_t *pcbZeroMem);
+VMMR3DECL(int)      PGMR3QueryGlobalMemoryStats(PVM pVM, uint64_t *pcbAllocMem, uint64_t *pcbFreeMem, uint64_t *pcbBallonedMem, uint64_t *pcbSharedMem);
+
 VMMR3DECL(int)      PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb,
                                           R3PTRTYPE(PFNPGMR3PHYSHANDLER) pfnHandlerR3, RTR3PTR pvUserR3,
                                           R0PTRTYPE(PFNPGMR0PHYSHANDLER) pfnHandlerR0, RTR0PTR pvUserR0,

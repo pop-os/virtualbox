@@ -1,4 +1,4 @@
-/* $Id: PGMInternal.h $ */
+/* $Id: PGMInternal.h 37370 2011-06-08 08:29:42Z vboxsync $ */
 /** @file
  * PGM - Internal header file.
  */
@@ -321,7 +321,7 @@
  * For best effect only apply this to the page that was mapped most recently.
  *
  * @param   pVCpu   The current CPU.
- * @param   pPage   The pool page.
+ * @param   pvPage  The pool page.
  */
 #if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0)
 # ifdef LOG_ENABLED
@@ -340,7 +340,7 @@
  * For best effect only apply this to the page that was mapped most recently.
  *
  * @param   pVM     The VM handle.
- * @param   pPage   The pool page.
+ * @param   pvPage  The pool page.
  */
 #define PGM_DYNMAP_UNUSED_HINT_VM(pVM, pvPage)  PGM_DYNMAP_UNUSED_HINT(VMMGetCpu(pVM), pvPage)
 
@@ -688,44 +688,55 @@ typedef PGMVIRTHANDLER *PPGMVIRTHANDLER;
  * using PGM_PAGE_GET_*, PGM_PAGE_IS_ and PGM_PAGE_SET_* macros for *all*
  * accesses to the structure.
  */
-typedef struct PGMPAGE
+typedef union PGMPAGE
 {
-    /** The physical address and the Page ID. */
-    RTHCPHYS    HCPhysAndPageID;
-    /** Combination of:
-     *  - [0-7]: u2HandlerPhysStateY - the physical handler state
-     *    (PGM_PAGE_HNDL_PHYS_STATE_*).
-     *  - [8-9]: u2HandlerVirtStateY - the virtual handler state
-     *    (PGM_PAGE_HNDL_VIRT_STATE_*).
-     *  - [10]:  u1FTDirty - indicator of dirty page for fault tolerance tracking
-     *  - [13-14]: u2PDEType  - paging structure needed to map the page (PGM_PAGE_PDE_TYPE_*)
-     *  - [15]:  fWrittenToY - flag indicating that a write monitored page was
-     *    written to when set.
-     *  - [11-13]: 3 unused bits.
-     * @remarks Warning! All accesses to the bits are hardcoded.
-     *
-     * @todo    Change this to a union with both bitfields, u8 and u accessors.
-     *          That'll help deal with some of the hardcoded accesses.
-     *
-     * @todo    Include uStateY and uTypeY as well so it becomes 32-bit.  This
-     *          will make it possible to turn some of the 16-bit accesses into
-     *          32-bit ones, which may be efficient (stalls).
-     */
-    RTUINT16U   u16MiscY;
-    /** The page state.
-     * Only 3 bits are really needed for this. */
-    uint16_t    uStateY   : 3;
-    /** The page type (PGMPAGETYPE).
-     * Only 3 bits are really needed for this. */
-    uint16_t    uTypeY    : 3;
-    /** PTE index for usage tracking (page pool). */
-    uint16_t    uPteIdx   : 10;
-    /** Usage tracking (page pool). */
-    uint16_t    u16TrackingY;
-    /** The number of read locks on this page. */
-    uint8_t     cReadLocksY;
-    /** The number of write locks on this page. */
-    uint8_t     cWriteLocksY;
+    /** Structured view. */
+    struct
+    {
+        /** 1:0   - The physical handler state (PGM_PAGE_HNDL_PHYS_STATE_*). */
+        uint64_t    u2HandlerPhysStateY : 2;
+        /** 3:2   - Paging structure needed to map the page
+         * (PGM_PAGE_PDE_TYPE_*). */
+        uint64_t    u2PDETypeY          : 2;
+        /** 4     - Indicator of dirty page for fault tolerance tracking. */
+        uint64_t    fFTDirtyY           : 1;
+        /** 5     - Flag indicating that a write monitored page was written to
+         *  when set. */
+        uint64_t    fWrittenToY         : 1;
+        /** 7:6   - Unused. */
+        uint64_t    u2Unused0           : 2;
+        /** 9:8   - The physical handler state (PGM_PAGE_HNDL_VIRT_STATE_*). */
+        uint64_t    u2HandlerVirtStateY : 2;
+        /** 11:10 - Unused. */
+        uint64_t    u2Unused1           : 2;
+        /** 12:48 - The host physical frame number (shift left to get the
+         *  address). */
+        uint64_t    HCPhysFN            : 36;
+        /** 50:48 - The page state. */
+        uint64_t    uStateY             : 3;
+        /** 51:53 - The page type (PGMPAGETYPE). */
+        uint64_t    uTypeY              : 3;
+        /** 63:54 - PTE index for usage tracking (page pool). */
+        uint64_t    u10PteIdx           : 10;
+
+        /** The GMM page ID. */
+        uint32_t    idPage;
+        /** Usage tracking (page pool). */
+        uint16_t    u16TrackingY;
+        /** The number of read locks on this page. */
+        uint8_t     cReadLocksY;
+        /** The number of write locks on this page. */
+        uint8_t     cWriteLocksY;
+    } s;
+
+    /** 64-bit integer view. */
+    uint64_t    au64[2];
+    /** 16-bit view. */
+    uint32_t    au32[4];
+    /** 16-bit view. */
+    uint16_t    au16[8];
+    /** 8-bit view. */
+    uint8_t     au8[16];
 } PGMPAGE;
 AssertCompileSize(PGMPAGE, 16);
 /** Pointer to a physical guest page. */
@@ -738,46 +749,37 @@ typedef PPGMPAGE *PPPGMPAGE;
 
 /**
  * Clears the page structure.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_CLEAR(pPage) \
+#define PGM_PAGE_CLEAR(a_pPage) \
     do { \
-        (pPage)->HCPhysAndPageID     = 0; \
-        (pPage)->uStateY             = 0; \
-        (pPage)->uTypeY              = 0; \
-        (pPage)->uPteIdx             = 0; \
-        (pPage)->u16MiscY.u          = 0; \
-        (pPage)->u16TrackingY        = 0; \
-        (pPage)->cReadLocksY         = 0; \
-        (pPage)->cWriteLocksY        = 0; \
+        (a_pPage)->au64[0] = 0; \
+        (a_pPage)->au64[1] = 0; \
     } while (0)
 
 /**
  * Initializes the page structure.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_INIT(pPage, _HCPhys, _idPage, _uType, _uState) \
+#define PGM_PAGE_INIT(a_pPage, a_HCPhys, a_idPage, a_uType, a_uState) \
     do { \
-        RTHCPHYS SetHCPhysTmp = (_HCPhys); \
+        RTHCPHYS SetHCPhysTmp = (a_HCPhys); \
         AssertFatal(!(SetHCPhysTmp & ~UINT64_C(0x0000fffffffff000))); \
-        (pPage)->HCPhysAndPageID     = (SetHCPhysTmp << (28-12)) | ((_idPage) & UINT32_C(0x0fffffff)); \
-        (pPage)->uStateY             = (_uState); \
-        (pPage)->uTypeY              = (_uType); \
-        (pPage)->uPteIdx             = 0; \
-        (pPage)->u16MiscY.u          = 0; \
-        (pPage)->u16TrackingY        = 0; \
-        (pPage)->cReadLocksY         = 0; \
-        (pPage)->cWriteLocksY        = 0; \
+        (a_pPage)->au64[0]           = SetHCPhysTmp; \
+        (a_pPage)->au64[1]           = 0; \
+        (a_pPage)->s.idPage          = (a_idPage); \
+        (a_pPage)->s.uStateY         = (a_uState); \
+        (a_pPage)->s.uTypeY          = (a_uType); \
     } while (0)
 
 /**
  * Initializes the page structure of a ZERO page.
- * @param   pPage       Pointer to the physical guest page tracking structure.
- * @param   pVM         The VM handle (for getting the zero page address).
- * @param   uType       The page type (PGMPAGETYPE).
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
+ * @param   a_pVM       The VM handle (for getting the zero page address).
+ * @param   a_uType     The page type (PGMPAGETYPE).
  */
-#define PGM_PAGE_INIT_ZERO(pPage, pVM, uType)  \
-    PGM_PAGE_INIT((pPage), (pVM)->pgm.s.HCPhysZeroPg, NIL_GMM_PAGEID, (uType), PGM_PAGE_STATE_ZERO)
+#define PGM_PAGE_INIT_ZERO(a_pPage, a_pVM, a_uType)  \
+    PGM_PAGE_INIT((a_pPage), (a_pVM)->pgm.s.HCPhysZeroPg, NIL_GMM_PAGEID, (a_uType), PGM_PAGE_STATE_ZERO)
 
 
 /** @name The Page state, PGMPAGE::uStateY.
@@ -803,211 +805,263 @@ typedef PPGMPAGE *PPPGMPAGE;
 /** @} */
 
 
+/** Asserts lock ownership in some of the PGM_PAGE_XXX macros. */
+#if defined(VBOX_STRICT) && 0 /** @todo triggers in pgmRZDynMapGCPageV2Inlined */
+# define PGM_PAGE_ASSERT_LOCK(a_pVM)  PGM_LOCK_ASSERT_OWNER(a_pVM)
+#else
+# define PGM_PAGE_ASSERT_LOCK(a_pVM)  do { } while (0)
+#endif
+
 /**
  * Gets the page state.
  * @returns page state (PGM_PAGE_STATE_*).
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
+ *
+ * @remarks See PGM_PAGE_GET_HCPHYS_NA for remarks about GCC and strict
+ *          builds.
  */
-#define PGM_PAGE_GET_STATE(pPage)           ( (pPage)->uStateY )
+#define PGM_PAGE_GET_STATE_NA(a_pPage)          ( (a_pPage)->s.uStateY )
+#if defined(__GNUC__) && defined(VBOX_STRICT)
+# define PGM_PAGE_GET_STATE(a_pPage)        __extension__ ({ PGM_PAGE_ASSERT_LOCK(pVM); PGM_PAGE_GET_STATE_NA(a_pPage); })
+#else
+# define PGM_PAGE_GET_STATE                     PGM_PAGE_GET_STATE_NA
+#endif
 
 /**
  * Sets the page state.
- * @param   pPage       Pointer to the physical guest page tracking structure.
- * @param   _uState     The new page state.
+ * @param   a_pVM       The VM handle, only used for lock ownership assertions.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
+ * @param   a_uState    The new page state.
  */
-#define PGM_PAGE_SET_STATE(pPage, _uState)  do { (pPage)->uStateY = (_uState); } while (0)
+#define PGM_PAGE_SET_STATE(a_pVM, a_pPage, a_uState) \
+    do { (a_pPage)->s.uStateY = (a_uState); PGM_PAGE_ASSERT_LOCK(a_pVM); } while (0)
 
 
 /**
  * Gets the host physical address of the guest page.
  * @returns host physical address (RTHCPHYS).
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
+ *
+ * @remarks In strict builds on gcc platforms, this macro will make some ugly
+ *          assumption about a valid pVM variable/parameter being in the
+ *          current context.  It will use this pVM variable to assert that the
+ *          PGM lock is held.  Use the PGM_PAGE_GET_HCPHYS_NA in contexts where
+ *          pVM is not around.
  */
-#define PGM_PAGE_GET_HCPHYS(pPage)          ( ((pPage)->HCPhysAndPageID >> 28) << 12 )
+#if 0
+# define PGM_PAGE_GET_HCPHYS_NA(a_pPage)        ( (a_pPage)->s.HCPhysFN << 12 )
+# define PGM_PAGE_GET_HCPHYS                    PGM_PAGE_GET_HCPHYS_NA
+#else
+# define PGM_PAGE_GET_HCPHYS_NA(a_pPage)        ( (a_pPage)->au64[0] & UINT64_C(0x0000fffffffff000) )
+# if defined(__GNUC__) && defined(VBOX_STRICT)
+#  define PGM_PAGE_GET_HCPHYS(a_pPage)      __extension__ ({ PGM_PAGE_ASSERT_LOCK(pVM); PGM_PAGE_GET_HCPHYS_NA(a_pPage); })
+# else
+#  define PGM_PAGE_GET_HCPHYS                   PGM_PAGE_GET_HCPHYS_NA
+# endif
+#endif
 
 /**
  * Sets the host physical address of the guest page.
- * @param   pPage       Pointer to the physical guest page tracking structure.
- * @param   _HCPhys     The new host physical address.
+ *
+ * @param   a_pVM       The VM handle, only used for lock ownership assertions.
+ * @param   a_pPage      Pointer to the physical guest page tracking structure.
+ * @param   a_HCPhys     The new host physical address.
  */
-#define PGM_PAGE_SET_HCPHYS(pPage, _HCPhys) \
+#define PGM_PAGE_SET_HCPHYS(a_pVM, a_pPage, a_HCPhys) \
     do { \
-        RTHCPHYS SetHCPhysTmp = (_HCPhys); \
+        RTHCPHYS const SetHCPhysTmp = (a_HCPhys); \
         AssertFatal(!(SetHCPhysTmp & ~UINT64_C(0x0000fffffffff000))); \
-        (pPage)->HCPhysAndPageID = ((pPage)->HCPhysAndPageID & UINT32_C(0x0fffffff)) \
-                                 | (SetHCPhysTmp << (28-12)); \
+        (a_pPage)->s.HCPhysFN = SetHCPhysTmp >> 12; \
+        PGM_PAGE_ASSERT_LOCK(a_pVM); \
     } while (0)
 
 /**
  * Get the Page ID.
  * @returns The Page ID; NIL_GMM_PAGEID if it's a ZERO page.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_GET_PAGEID(pPage)          (  (uint32_t)((pPage)->HCPhysAndPageID & UINT32_C(0x0fffffff)) )
+#define PGM_PAGE_GET_PAGEID(a_pPage)            (  (uint32_t)(a_pPage)->s.idPage )
 
 /**
  * Sets the Page ID.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pVM       The VM handle, only used for lock ownership assertions.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
+ * @param   a_idPage    The new page ID.
  */
-#define PGM_PAGE_SET_PAGEID(pPage, _idPage) \
+#define PGM_PAGE_SET_PAGEID(a_pVM, a_pPage, a_idPage) \
     do { \
-        (pPage)->HCPhysAndPageID = (((pPage)->HCPhysAndPageID) & UINT64_C(0xfffffffff0000000)) \
-                                 | ((_idPage) & UINT32_C(0x0fffffff)); \
+        (a_pPage)->s.idPage = (a_idPage); \
+        PGM_PAGE_ASSERT_LOCK(a_pVM); \
     } while (0)
 
 /**
  * Get the Chunk ID.
  * @returns The Chunk ID; NIL_GMM_CHUNKID if it's a ZERO page.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_GET_CHUNKID(pPage)         ( PGM_PAGE_GET_PAGEID(pPage) >> GMM_CHUNKID_SHIFT )
+#define PGM_PAGE_GET_CHUNKID(a_pPage)           ( PGM_PAGE_GET_PAGEID(a_pPage) >> GMM_CHUNKID_SHIFT )
 
 /**
  * Get the index of the page within the allocation chunk.
  * @returns The page index.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_GET_PAGE_IN_CHUNK(pPage)   ( (uint32_t)((pPage)->HCPhysAndPageID & GMM_PAGEID_IDX_MASK) )
+#define PGM_PAGE_GET_PAGE_IN_CHUNK(a_pPage)     ( PGM_PAGE_GET_PAGEID(a_pPage) & GMM_PAGEID_IDX_MASK )
 
 /**
  * Gets the page type.
  * @returns The page type.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
+ *
+ * @remarks See PGM_PAGE_GET_HCPHYS_NA for remarks about GCC and strict
+ *          builds.
  */
-#define PGM_PAGE_GET_TYPE(pPage)            (pPage)->uTypeY
+#define PGM_PAGE_GET_TYPE_NA(a_pPage)           ( (a_pPage)->s.uTypeY )
+#if defined(__GNUC__) && defined(VBOX_STRICT)
+# define PGM_PAGE_GET_TYPE(a_pPage)         __extension__ ({ PGM_PAGE_ASSERT_LOCK(pVM); PGM_PAGE_GET_TYPE_NA(a_pPage); })
+#else
+# define PGM_PAGE_GET_TYPE                      PGM_PAGE_GET_TYPE_NA
+#endif
 
 /**
  * Sets the page type.
- * @param   pPage       Pointer to the physical guest page tracking structure.
- * @param   _enmType    The new page type (PGMPAGETYPE).
+ *
+ * @param   a_pVM       The VM handle, only used for lock ownership assertions.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
+ * @param   a_enmType   The new page type (PGMPAGETYPE).
  */
-#define PGM_PAGE_SET_TYPE(pPage, _enmType)  do { (pPage)->uTypeY = (_enmType); } while (0)
+#define PGM_PAGE_SET_TYPE(a_pVM, a_pPage, a_enmType) \
+    do { (a_pPage)->s.uTypeY = (a_enmType); PGM_PAGE_ASSERT_LOCK(a_pVM); } while (0)
 
 /**
  * Gets the page table index
  * @returns The page table index.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_GET_PTE_INDEX(pPage)            (pPage)->uPteIdx
+#define PGM_PAGE_GET_PTE_INDEX(a_pPage)         ( (a_pPage)->s.u10PteIdx )
 
 /**
- * Sets the page table index
- * @param   pPage       Pointer to the physical guest page tracking structure.
- * @param   iPte        New page table index.
+ * Sets the page table index.
+ * @param   a_pVM       The VM handle, only used for lock ownership assertions.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
+ * @param   a_iPte      New page table index.
  */
-#define PGM_PAGE_SET_PTE_INDEX(pPage, _iPte)  do { (pPage)->uPteIdx = (_iPte); } while (0)
+#define PGM_PAGE_SET_PTE_INDEX(a_pVM, a_pPage, a_iPte) \
+    do { (a_pPage)->s.u10PteIdx = (a_iPte); PGM_PAGE_ASSERT_LOCK(a_pVM); } while (0)
 
 /**
  * Checks if the page is marked for MMIO.
  * @returns true/false.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_IS_MMIO(pPage)             ( (pPage)->uTypeY == PGMPAGETYPE_MMIO )
+#define PGM_PAGE_IS_MMIO(a_pPage)               ( (a_pPage)->s.uTypeY == PGMPAGETYPE_MMIO )
 
 /**
  * Checks if the page is backed by the ZERO page.
  * @returns true/false.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_IS_ZERO(pPage)             ( (pPage)->uStateY == PGM_PAGE_STATE_ZERO )
+#define PGM_PAGE_IS_ZERO(a_pPage)               ( (a_pPage)->s.uStateY == PGM_PAGE_STATE_ZERO )
 
 /**
  * Checks if the page is backed by a SHARED page.
  * @returns true/false.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_IS_SHARED(pPage)           ( (pPage)->uStateY == PGM_PAGE_STATE_SHARED )
+#define PGM_PAGE_IS_SHARED(a_pPage)             ( (a_pPage)->s.uStateY == PGM_PAGE_STATE_SHARED )
 
 /**
  * Checks if the page is ballooned.
  * @returns true/false.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_IS_BALLOONED(pPage)        ( (pPage)->uStateY == PGM_PAGE_STATE_BALLOONED )
+#define PGM_PAGE_IS_BALLOONED(a_pPage)          ( (a_pPage)->s.uStateY == PGM_PAGE_STATE_BALLOONED )
 
 /**
  * Checks if the page is allocated.
  * @returns true/false.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_IS_ALLOCATED(pPage)        ( (pPage)->uStateY == PGM_PAGE_STATE_ALLOCATED )
+#define PGM_PAGE_IS_ALLOCATED(a_pPage)          ( (a_pPage)->s.uStateY == PGM_PAGE_STATE_ALLOCATED )
 
 /**
  * Marks the page as written to (for GMM change monitoring).
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pVM       The VM handle, only used for lock ownership assertions.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_SET_WRITTEN_TO(pPage)      do { (pPage)->u16MiscY.au8[1] |= UINT8_C(0x80); } while (0)
+#define PGM_PAGE_SET_WRITTEN_TO(a_pVM, a_pPage) \
+    do { (a_pPage)->au8[1] |= UINT8_C(0x80); PGM_PAGE_ASSERT_LOCK(a_pVM); } while (0) /// FIXME FIXME
 
 /**
  * Clears the written-to indicator.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pVM       The VM handle, only used for lock ownership assertions.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_CLEAR_WRITTEN_TO(pPage)    do { (pPage)->u16MiscY.au8[1] &= UINT8_C(0x7f); } while (0)
+#define PGM_PAGE_CLEAR_WRITTEN_TO(a_pVM, a_pPage) \
+    do { (a_pPage)->s.fWrittenToY = 0; PGM_PAGE_ASSERT_LOCK(a_pVM); } while (0)
 
 /**
  * Checks if the page was marked as written-to.
  * @returns true/false.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_IS_WRITTEN_TO(pPage)       ( !!((pPage)->u16MiscY.au8[1] & UINT8_C(0x80)) )
+#define PGM_PAGE_IS_WRITTEN_TO(a_pPage)         ( (a_pPage)->s.fWrittenToY )
 
 /**
  * Marks the page as dirty for FTM
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_SET_FT_DIRTY(pPage)        do { (pPage)->u16MiscY.au8[1] |= UINT8_C(0x04); } while (0)
+#define PGM_PAGE_SET_FT_DIRTY(a_pPage)          do { (a_pPage)->s.fFTDirtyY = 1; } while (0)
 
 /**
  * Clears the FTM dirty indicator
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_CLEAR_FT_DIRTY(pPage)      do { (pPage)->u16MiscY.au8[1] &= UINT8_C(0xfb); } while (0)
+#define PGM_PAGE_CLEAR_FT_DIRTY(a_pPage)        do { (a_pPage)->s.fFTDirtyY = 0; } while (0)
 
 /**
  * Checks if the page was marked as dirty for FTM
  * @returns true/false.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_IS_FT_DIRTY(pPage)         ( !!((pPage)->u16MiscY.au8[1] & UINT8_C(0x04)) )
+#define PGM_PAGE_IS_FT_DIRTY(a_pPage)           ( (a_pPage)->s.fFTDirtyY )
 
 
 /** @name PT usage values (PGMPAGE::u2PDEType).
  *
  * @{ */
 /** Either as a PT or PDE. */
-#define PGM_PAGE_PDE_TYPE_DONTCARE             0
+#define PGM_PAGE_PDE_TYPE_DONTCARE              0
 /** Must use a page table to map the range. */
-#define PGM_PAGE_PDE_TYPE_PT                   1
+#define PGM_PAGE_PDE_TYPE_PT                    1
 /** Can use a page directory entry to map the continuous range. */
-#define PGM_PAGE_PDE_TYPE_PDE                  2
+#define PGM_PAGE_PDE_TYPE_PDE                   2
 /** Can use a page directory entry to map the continuous range - temporarily disabled (by page monitoring). */
-#define PGM_PAGE_PDE_TYPE_PDE_DISABLED         3
+#define PGM_PAGE_PDE_TYPE_PDE_DISABLED          3
 /** @} */
 
 /**
  * Set the PDE type of the page
- * @param   pPage       Pointer to the physical guest page tracking structure.
- * @param   uType       PGM_PAGE_PDE_TYPE_*
+ * @param   a_pVM       The VM handle, only used for lock ownership assertions.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
+ * @param   a_uType     PGM_PAGE_PDE_TYPE_*.
  */
-#define PGM_PAGE_SET_PDE_TYPE(pPage, uType) \
-    do { \
-        (pPage)->u16MiscY.au8[1] = ((pPage)->u16MiscY.au8[1] & UINT8_C(0x9f)) \
-                                 | (((uType)                 & UINT8_C(0x03)) << 5); \
-    } while (0)
+#define PGM_PAGE_SET_PDE_TYPE(a_pVM, a_pPage, a_uType) \
+    do { (a_pPage)->s.u2PDETypeY = (a_uType); PGM_PAGE_ASSERT_LOCK(a_pVM); } while (0)
 
 /**
  * Checks if the page was marked being part of a large page
  * @returns true/false.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_GET_PDE_TYPE(pPage)       ( ((pPage)->u16MiscY.au8[1] & UINT8_C(0x60)) >> 5)
+#define PGM_PAGE_GET_PDE_TYPE(a_pPage)          ( (a_pPage)->s.u2PDETypeY )
 
 /** Enabled optimized access handler tests.
- * These optimizations makes ASSUMPTIONS about the state values and the u16MiscY
+ * These optimizations makes ASSUMPTIONS about the state values and the s1
  * layout.  When enabled, the compiler should normally generate more compact
  * code.
  */
-#define PGM_PAGE_WITH_OPTIMIZED_HANDLER_ACCESS 1
+#define PGM_PAGE_WITH_OPTIMIZED_HANDLER_ACCESS  1
 
 /** @name Physical Access Handler State values (PGMPAGE::u2HandlerPhysStateY).
  *
@@ -1015,46 +1069,45 @@ typedef PPGMPAGE *PPPGMPAGE;
  *          the correct state for a page with different handlers installed.
  * @{ */
 /** No handler installed. */
-#define PGM_PAGE_HNDL_PHYS_STATE_NONE       0
+#define PGM_PAGE_HNDL_PHYS_STATE_NONE           0
 /** Monitoring is temporarily disabled. */
-#define PGM_PAGE_HNDL_PHYS_STATE_DISABLED   1
+#define PGM_PAGE_HNDL_PHYS_STATE_DISABLED       1
 /** Write access is monitored. */
-#define PGM_PAGE_HNDL_PHYS_STATE_WRITE      2
+#define PGM_PAGE_HNDL_PHYS_STATE_WRITE          2
 /** All access is monitored. */
-#define PGM_PAGE_HNDL_PHYS_STATE_ALL        3
+#define PGM_PAGE_HNDL_PHYS_STATE_ALL            3
 /** @} */
 
 /**
  * Gets the physical access handler state of a page.
  * @returns PGM_PAGE_HNDL_PHYS_STATE_* value.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_GET_HNDL_PHYS_STATE(pPage)  \
-    ( (pPage)->u16MiscY.au8[0] )
+#define PGM_PAGE_GET_HNDL_PHYS_STATE(a_pPage)   ( (a_pPage)->s.u2HandlerPhysStateY )
 
 /**
  * Sets the physical access handler state of a page.
- * @param   pPage       Pointer to the physical guest page tracking structure.
- * @param   _uState     The new state value.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
+ * @param   a_uState    The new state value.
  */
-#define PGM_PAGE_SET_HNDL_PHYS_STATE(pPage, _uState) \
-    do { (pPage)->u16MiscY.au8[0] = (_uState); } while (0)
+#define PGM_PAGE_SET_HNDL_PHYS_STATE(a_pPage, a_uState) \
+    do { (a_pPage)->s.u2HandlerPhysStateY = (a_uState); } while (0)
 
 /**
  * Checks if the page has any physical access handlers, including temporarily disabled ones.
  * @returns true/false
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_HAS_ANY_PHYSICAL_HANDLERS(pPage) \
-    ( PGM_PAGE_GET_HNDL_PHYS_STATE(pPage) != PGM_PAGE_HNDL_PHYS_STATE_NONE )
+#define PGM_PAGE_HAS_ANY_PHYSICAL_HANDLERS(a_pPage) \
+    ( PGM_PAGE_GET_HNDL_PHYS_STATE(a_pPage) != PGM_PAGE_HNDL_PHYS_STATE_NONE )
 
 /**
  * Checks if the page has any active physical access handlers.
  * @returns true/false
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_HAS_ACTIVE_PHYSICAL_HANDLERS(pPage) \
-    ( PGM_PAGE_GET_HNDL_PHYS_STATE(pPage) >= PGM_PAGE_HNDL_PHYS_STATE_WRITE )
+#define PGM_PAGE_HAS_ACTIVE_PHYSICAL_HANDLERS(a_pPage) \
+    ( PGM_PAGE_GET_HNDL_PHYS_STATE(a_pPage) >= PGM_PAGE_HNDL_PHYS_STATE_WRITE )
 
 
 /** @name Virtual Access Handler State values (PGMPAGE::u2HandlerVirtStateY).
@@ -1063,160 +1116,167 @@ typedef PPGMPAGE *PPPGMPAGE;
  *          the correct state for a page with different handlers installed.
  * @{ */
 /** No handler installed. */
-#define PGM_PAGE_HNDL_VIRT_STATE_NONE       0
+#define PGM_PAGE_HNDL_VIRT_STATE_NONE           0
 /* 1 is reserved so the lineup is identical with the physical ones. */
 /** Write access is monitored. */
-#define PGM_PAGE_HNDL_VIRT_STATE_WRITE      2
+#define PGM_PAGE_HNDL_VIRT_STATE_WRITE          2
 /** All access is monitored. */
-#define PGM_PAGE_HNDL_VIRT_STATE_ALL        3
+#define PGM_PAGE_HNDL_VIRT_STATE_ALL            3
 /** @} */
 
 /**
  * Gets the virtual access handler state of a page.
  * @returns PGM_PAGE_HNDL_VIRT_STATE_* value.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_GET_HNDL_VIRT_STATE(pPage) ((uint8_t)( (pPage)->u16MiscY.au8[1] & UINT8_C(0x03) ))
+#define PGM_PAGE_GET_HNDL_VIRT_STATE(a_pPage)   ( (a_pPage)->s.u2HandlerVirtStateY )
 
 /**
  * Sets the virtual access handler state of a page.
- * @param   pPage       Pointer to the physical guest page tracking structure.
- * @param   _uState     The new state value.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
+ * @param   a_uState    The new state value.
  */
-#define PGM_PAGE_SET_HNDL_VIRT_STATE(pPage, _uState) \
-    do { \
-        (pPage)->u16MiscY.au8[1] = ((pPage)->u16MiscY.au8[1] & UINT8_C(0xfc)) \
-                                 | ((_uState)                & UINT8_C(0x03)); \
-    } while (0)
+#define PGM_PAGE_SET_HNDL_VIRT_STATE(a_pPage, a_uState) \
+    do { (a_pPage)->s.u2HandlerVirtStateY = (a_uState); } while (0)
 
 /**
  * Checks if the page has any virtual access handlers.
  * @returns true/false
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_HAS_ANY_VIRTUAL_HANDLERS(pPage) \
-    ( PGM_PAGE_GET_HNDL_VIRT_STATE(pPage) != PGM_PAGE_HNDL_VIRT_STATE_NONE )
+#define PGM_PAGE_HAS_ANY_VIRTUAL_HANDLERS(a_pPage) \
+    ( PGM_PAGE_GET_HNDL_VIRT_STATE(a_pPage) != PGM_PAGE_HNDL_VIRT_STATE_NONE )
 
 /**
  * Same as PGM_PAGE_HAS_ANY_VIRTUAL_HANDLERS - can't disable pages in
  * virtual handlers.
  * @returns true/false
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_HAS_ACTIVE_VIRTUAL_HANDLERS(pPage) \
-    PGM_PAGE_HAS_ANY_VIRTUAL_HANDLERS(pPage)
+#define PGM_PAGE_HAS_ACTIVE_VIRTUAL_HANDLERS(a_pPage) \
+    PGM_PAGE_HAS_ANY_VIRTUAL_HANDLERS(a_pPage)
 
 
 /**
  * Checks if the page has any access handlers, including temporarily disabled ones.
  * @returns true/false
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
 #ifdef PGM_PAGE_WITH_OPTIMIZED_HANDLER_ACCESS
-# define PGM_PAGE_HAS_ANY_HANDLERS(pPage) \
-    ( ((pPage)->u16MiscY.u & UINT16_C(0x0303)) != 0 )
+# define PGM_PAGE_HAS_ANY_HANDLERS(a_pPage) \
+    ( ((a_pPage)->au32[0] & UINT16_C(0x0303)) != 0 )
 #else
-# define PGM_PAGE_HAS_ANY_HANDLERS(pPage) \
-    (   PGM_PAGE_GET_HNDL_PHYS_STATE(pPage) != PGM_PAGE_HNDL_PHYS_STATE_NONE \
-     || PGM_PAGE_GET_HNDL_VIRT_STATE(pPage) != PGM_PAGE_HNDL_VIRT_STATE_NONE )
+# define PGM_PAGE_HAS_ANY_HANDLERS(a_pPage) \
+    (   PGM_PAGE_GET_HNDL_PHYS_STATE(a_pPage) != PGM_PAGE_HNDL_PHYS_STATE_NONE \
+     || PGM_PAGE_GET_HNDL_VIRT_STATE(a_pPage) != PGM_PAGE_HNDL_VIRT_STATE_NONE )
 #endif
 
 /**
  * Checks if the page has any active access handlers.
  * @returns true/false
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
 #ifdef PGM_PAGE_WITH_OPTIMIZED_HANDLER_ACCESS
-# define PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage) \
-    ( ((pPage)->u16MiscY.u & UINT16_C(0x0202)) != 0 )
+# define PGM_PAGE_HAS_ACTIVE_HANDLERS(a_pPage) \
+    ( ((a_pPage)->au32[0] & UINT16_C(0x0202)) != 0 )
 #else
-# define PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage) \
-    (   PGM_PAGE_GET_HNDL_PHYS_STATE(pPage) >= PGM_PAGE_HNDL_PHYS_STATE_WRITE \
-     || PGM_PAGE_GET_HNDL_VIRT_STATE(pPage) >= PGM_PAGE_HNDL_VIRT_STATE_WRITE )
+# define PGM_PAGE_HAS_ACTIVE_HANDLERS(a_pPage) \
+    (   PGM_PAGE_GET_HNDL_PHYS_STATE(a_pPage) >= PGM_PAGE_HNDL_PHYS_STATE_WRITE \
+     || PGM_PAGE_GET_HNDL_VIRT_STATE(a_pPage) >= PGM_PAGE_HNDL_VIRT_STATE_WRITE )
 #endif
 
 /**
  * Checks if the page has any active access handlers catching all accesses.
  * @returns true/false
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
 #ifdef PGM_PAGE_WITH_OPTIMIZED_HANDLER_ACCESS
-# define PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(pPage) \
-    (   ( ((pPage)->u16MiscY.au8[0] | (pPage)->u16MiscY.au8[1]) & UINT8_C(0x3) ) \
+# define PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(a_pPage) \
+    (   ( ((a_pPage)->au8[0] | (a_pPage)->au8[1]) & UINT8_C(0x3) ) \
      == PGM_PAGE_HNDL_PHYS_STATE_ALL )
 #else
-# define PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(pPage) \
-    (   PGM_PAGE_GET_HNDL_PHYS_STATE(pPage) == PGM_PAGE_HNDL_PHYS_STATE_ALL \
-     || PGM_PAGE_GET_HNDL_VIRT_STATE(pPage) == PGM_PAGE_HNDL_VIRT_STATE_ALL )
+# define PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(a_pPage) \
+    (   PGM_PAGE_GET_HNDL_PHYS_STATE(a_pPage) == PGM_PAGE_HNDL_PHYS_STATE_ALL \
+     || PGM_PAGE_GET_HNDL_VIRT_STATE(a_pPage) == PGM_PAGE_HNDL_VIRT_STATE_ALL )
 #endif
 
 
 /** @def PGM_PAGE_GET_TRACKING
  * Gets the packed shadow page pool tracking data associated with a guest page.
  * @returns uint16_t containing the data.
- * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_GET_TRACKING(pPage)        ( (pPage)->u16TrackingY )
+#define PGM_PAGE_GET_TRACKING_NA(a_pPage)       ( (a_pPage)->s.u16TrackingY )
+#if defined(__GNUC__) && defined(VBOX_STRICT)
+# define PGM_PAGE_GET_TRACKING(a_pPage)     __extension__ ({ PGM_PAGE_ASSERT_LOCK(pVM); PGM_PAGE_GET_TRACKING_NA(a_pPage); })
+#else
+# define PGM_PAGE_GET_TRACKING                  PGM_PAGE_GET_TRACKING_NA
+#endif
 
 /** @def PGM_PAGE_SET_TRACKING
  * Sets the packed shadow page pool tracking data associated with a guest page.
- * @param   pPage               Pointer to the physical guest page tracking structure.
- * @param   u16TrackingData     The tracking data to store.
+ * @param   a_pVM       The VM handle, only used for lock ownership assertions.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
+ * @param   a_u16TrackingData   The tracking data to store.
  */
-#define PGM_PAGE_SET_TRACKING(pPage, u16TrackingData) \
-    do { (pPage)->u16TrackingY = (u16TrackingData); } while (0)
+#define PGM_PAGE_SET_TRACKING(a_pVM, a_pPage, a_u16TrackingData) \
+    do { (a_pPage)->s.u16TrackingY = (a_u16TrackingData); PGM_PAGE_ASSERT_LOCK(a_pVM); } while (0)
 
 /** @def PGM_PAGE_GET_TD_CREFS
  * Gets the @a cRefs tracking data member.
  * @returns cRefs.
- * @param   pPage               Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_GET_TD_CREFS(pPage) \
-    ((PGM_PAGE_GET_TRACKING(pPage) >> PGMPOOL_TD_CREFS_SHIFT) & PGMPOOL_TD_CREFS_MASK)
+#define PGM_PAGE_GET_TD_CREFS(a_pPage) \
+    ((PGM_PAGE_GET_TRACKING(a_pPage) >> PGMPOOL_TD_CREFS_SHIFT)    & PGMPOOL_TD_CREFS_MASK)
+#define PGM_PAGE_GET_TD_CREFS_NA(a_pPage) \
+    ((PGM_PAGE_GET_TRACKING_NA(a_pPage) >> PGMPOOL_TD_CREFS_SHIFT) & PGMPOOL_TD_CREFS_MASK)
 
 /** @def PGM_PAGE_GET_TD_IDX
  * Gets the @a idx tracking data member.
  * @returns idx.
- * @param   pPage               Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_GET_TD_IDX(pPage) \
-    ((PGM_PAGE_GET_TRACKING(pPage) >> PGMPOOL_TD_IDX_SHIFT)   & PGMPOOL_TD_IDX_MASK)
+#define PGM_PAGE_GET_TD_IDX(a_pPage) \
+    ((PGM_PAGE_GET_TRACKING(a_pPage) >> PGMPOOL_TD_IDX_SHIFT)      & PGMPOOL_TD_IDX_MASK)
+#define PGM_PAGE_GET_TD_IDX_NA(a_pPage) \
+    ((PGM_PAGE_GET_TRACKING_NA(a_pPage) >> PGMPOOL_TD_IDX_SHIFT)   & PGMPOOL_TD_IDX_MASK)
 
 
 /** Max number of locks on a page. */
-#define PGM_PAGE_MAX_LOCKS                  UINT8_C(254)
+#define PGM_PAGE_MAX_LOCKS                      UINT8_C(254)
 
 /** Get the read lock count.
  * @returns count.
- * @param   pPage               Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_GET_READ_LOCKS(pPage)      ( (pPage)->cReadLocksY )
+#define PGM_PAGE_GET_READ_LOCKS(a_pPage)        ( (a_pPage)->s.cReadLocksY )
 
 /** Get the write lock count.
  * @returns count.
- * @param   pPage               Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_GET_WRITE_LOCKS(pPage)     ( (pPage)->cWriteLocksY )
+#define PGM_PAGE_GET_WRITE_LOCKS(a_pPage)       ( (a_pPage)->s.cWriteLocksY )
 
 /** Decrement the read lock counter.
- * @param   pPage               Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_DEC_READ_LOCKS(pPage)      do { --(pPage)->cReadLocksY; } while (0)
+#define PGM_PAGE_DEC_READ_LOCKS(a_pPage)        do { --(a_pPage)->s.cReadLocksY; } while (0)
 
 /** Decrement the write lock counter.
- * @param   pPage               Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_DEC_WRITE_LOCKS(pPage)     do { --(pPage)->cWriteLocksY; } while (0)
+#define PGM_PAGE_DEC_WRITE_LOCKS(a_pPage)       do { --(a_pPage)->s.cWriteLocksY; } while (0)
 
 /** Increment the read lock counter.
- * @param   pPage               Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_INC_READ_LOCKS(pPage)      do { ++(pPage)->cReadLocksY; } while (0)
+#define PGM_PAGE_INC_READ_LOCKS(a_pPage)        do { ++(a_pPage)->s.cReadLocksY; } while (0)
 
 /** Increment the write lock counter.
- * @param   pPage               Pointer to the physical guest page tracking structure.
+ * @param   a_pPage     Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_INC_WRITE_LOCKS(pPage)     do { ++(pPage)->cWriteLocksY; } while (0)
+#define PGM_PAGE_INC_WRITE_LOCKS(a_pPage)       do { ++(a_pPage)->s.cWriteLocksY; } while (0)
 
 
 #if 0
@@ -1266,7 +1326,7 @@ typedef PGMLIVESAVERAMPAGE *PPGMLIVESAVERAMPAGE;
 
 
 /**
- * Ram range for GC Phys to HC Phys conversion.
+ * RAM range for GC Phys to HC Phys conversion.
  *
  * Can be used for HC Virt to GC Phys and HC Virt to HC Phys
  * conversions too, but we'll let MM handle that for now.
@@ -1299,12 +1359,30 @@ typedef struct PGMRAMRANGE
     R0PTRTYPE(struct PGMRAMRANGE *)     pSelfR0;
     /** Pointer to self - RC pointer. */
     RCPTRTYPE(struct PGMRAMRANGE *)     pSelfRC;
+
+    /** Alignment padding. */
+    RTRCPTR                             Alignment0;
+    /** Pointer to the left search three node - ring-3 context. */
+    R3PTRTYPE(struct PGMRAMRANGE *)     pLeftR3;
+    /** Pointer to the right search three node - ring-3 context. */
+    R3PTRTYPE(struct PGMRAMRANGE *)     pRightR3;
+    /** Pointer to the left search three node - ring-0 context. */
+    R0PTRTYPE(struct PGMRAMRANGE *)     pLeftR0;
+    /** Pointer to the right search three node - ring-0 context. */
+    R0PTRTYPE(struct PGMRAMRANGE *)     pRightR0;
+    /** Pointer to the left search three node - raw-mode context. */
+    RCPTRTYPE(struct PGMRAMRANGE *)     pLeftRC;
+    /** Pointer to the right search three node - raw-mode context. */
+    RCPTRTYPE(struct PGMRAMRANGE *)     pRightRC;
+
     /** Padding to make aPage aligned on sizeof(PGMPAGE). */
-    uint32_t                            au32Alignment2[HC_ARCH_BITS == 32 ? 1 : 3];
+#if HC_ARCH_BITS == 32
+    uint32_t                            au32Alignment2[HC_ARCH_BITS == 32 ? 2 : 0];
+#endif
     /** Array of physical guest page tracking structures. */
     PGMPAGE                             aPages[1];
 } PGMRAMRANGE;
-/** Pointer to Ram range for GC Phys to HC Phys conversion. */
+/** Pointer to RAM range for GC Phys to HC Phys conversion. */
 typedef PGMRAMRANGE *PPGMRAMRANGE;
 
 /** @name PGMRAMRANGE::fFlags
@@ -1325,6 +1403,19 @@ typedef PGMRAMRANGE *PPGMRAMRANGE;
  */
 #define PGM_RAM_RANGE_IS_AD_HOC(pRam) \
     (!!( (pRam)->fFlags & (PGM_RAM_RANGE_FLAGS_AD_HOC_ROM | PGM_RAM_RANGE_FLAGS_AD_HOC_MMIO | PGM_RAM_RANGE_FLAGS_AD_HOC_MMIO2) ) )
+
+/** The number of entries in the RAM range TLBs (there is one for each
+ *  context).  Must be a power of two. */
+#define PGM_RAMRANGE_TLB_ENTRIES            8
+
+/**
+ * Calculates the RAM range TLB index for the physical address.
+ *
+ * @returns RAM range TLB index.
+ * @param   GCPhys      The guest physical address.
+ */
+#define PGM_RAMRANGE_TLB_IDX(a_GCPhys)      ( ((a_GCPhys) >> 20) & (PGM_RAMRANGE_TLB_ENTRIES - 1) )
+
 
 
 /**
@@ -2333,24 +2424,24 @@ AssertCompileMemberAlignment(PGMPOOL, aPages, 8);
  * Maps a pool page pool into the current context.
  *
  * @returns VBox status code.
- * @param   pVM     The VM handle.
- * @param   pPage   The pool page.
+ * @param   a_pVM       The VM handle.
+ * @param   a_pPage     The pool page.
  *
  * @remark  In RC this uses PGMGCDynMapHCPage(), so it will consume of the
  *          small page window employeed by that function. Be careful.
  * @remark  There is no need to assert on the result.
  */
 #if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0)
-# define PGMPOOL_PAGE_2_PTR(pVM, pPage)  pgmPoolMapPageInlined((pVM), (pPage) RTLOG_COMMA_SRC_POS)
+# define PGMPOOL_PAGE_2_PTR(a_pVM, a_pPage)     pgmPoolMapPageInlined((a_pVM), (a_pPage) RTLOG_COMMA_SRC_POS)
 #elif defined(VBOX_STRICT)
-# define PGMPOOL_PAGE_2_PTR(pVM, pPage)  pgmPoolMapPageStrict(pPage)
-DECLINLINE(void *) pgmPoolMapPageStrict(PPGMPOOLPAGE pPage)
+# define PGMPOOL_PAGE_2_PTR(a_pVM, a_pPage)     pgmPoolMapPageStrict(a_pPage)
+DECLINLINE(void *) pgmPoolMapPageStrict(PPGMPOOLPAGE a_pPage)
 {
-    Assert(pPage && pPage->pvPageR3);
-    return pPage->pvPageR3;
+    Assert(a_pPage && a_pPage->pvPageR3);
+    return a_pPage->pvPageR3;
 }
 #else
-# define PGMPOOL_PAGE_2_PTR(pVM, pPage)  ((pPage)->pvPageR3)
+# define PGMPOOL_PAGE_2_PTR(pVM, a_pPage)       ((a_pPage)->pvPageR3)
 #endif
 
 
@@ -2358,18 +2449,18 @@ DECLINLINE(void *) pgmPoolMapPageStrict(PPGMPOOLPAGE pPage)
  * Maps a pool page pool into the current context, taking both VM and VMCPU.
  *
  * @returns VBox status code.
- * @param   pVM     The VM handle.
- * @param   pVCpu   The current CPU.
- * @param   pPage   The pool page.
+ * @param   a_pVM       The VM handle.
+ * @param   a_pVCpu     The current CPU.
+ * @param   a_pPage     The pool page.
  *
  * @remark  In RC this uses PGMGCDynMapHCPage(), so it will consume of the
  *          small page window employeed by that function. Be careful.
  * @remark  There is no need to assert on the result.
  */
 #if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0)
-# define PGMPOOL_PAGE_2_PTR_V2(pVM, pVCpu, pPage)   pgmPoolMapPageV2Inlined((pVM), (pVCpu), (pPage) RTLOG_COMMA_SRC_POS)
+# define PGMPOOL_PAGE_2_PTR_V2(a_pVM, a_pVCpu, a_pPage)     pgmPoolMapPageV2Inlined((a_pVM), (a_pVCpu), (a_pPage) RTLOG_COMMA_SRC_POS)
 #else
-# define PGMPOOL_PAGE_2_PTR_V2(pVM, pVCpu, pPage)   PGMPOOL_PAGE_2_PTR((pVM), (pPage))
+# define PGMPOOL_PAGE_2_PTR_V2(a_pVM, a_pVCpu, a_pPage)     PGMPOOL_PAGE_2_PTR((a_pVM), (a_pPage))
 #endif
 
 
@@ -2791,6 +2882,10 @@ typedef struct PGMSTATS
     STAMCOUNTER StatR3ChunkR3MapTlbMisses;          /**< R3: Ring-3/0 chunk mapper TLB misses. */
     STAMCOUNTER StatR3PageMapTlbHits;               /**< R3: Ring-3/0 page mapper TLB hits. */
     STAMCOUNTER StatR3PageMapTlbMisses;             /**< R3: Ring-3/0 page mapper TLB misses. */
+    STAMCOUNTER StatRZRamRangeTlbHits;              /**< RC/R0: RAM range TLB hits. */
+    STAMCOUNTER StatRZRamRangeTlbMisses;            /**< RC/R0: RAM range TLB misses. */
+    STAMCOUNTER StatR3RamRangeTlbHits;              /**< R3: RAM range TLB hits. */
+    STAMCOUNTER StatR3RamRangeTlbMisses;            /**< R3: RAM range TLB misses. */
     STAMPROFILE StatRZSyncCR3HandlerVirtualReset;   /**< RC/R0: Profiling of the virtual handler resets. */
     STAMPROFILE StatRZSyncCR3HandlerVirtualUpdate;  /**< RC/R0: Profiling of the virtual handler updates. */
     STAMPROFILE StatR3SyncCR3HandlerVirtualReset;   /**< R3: Profiling of the virtual handler resets. */
@@ -2907,8 +3002,10 @@ typedef struct PGM
     /** We're not in a state which permits writes to guest memory.
      * (Only used in strict builds.) */
     bool                            fNoMorePhysWrites;
+    /** Set if PCI passthrough is enabled. */
+    bool                            fPciPassthrough;
     /** Alignment padding that makes the next member start on a 8 byte boundary. */
-    bool                            afAlignment1[3];
+    bool                            afAlignment1[2];
 
     /** Indicates that PGMR3FinalizeMappings has been called and that further
      * PGMR3MapIntermediate calls will be rejected. */
@@ -2941,9 +3038,13 @@ typedef struct PGM
     RTGCPHYS                        GCPhysInvAddrMask;
 
 
+    /** RAM range TLB for R3. */
+    R3PTRTYPE(PPGMRAMRANGE)         apRamRangesTlbR3[PGM_RAMRANGE_TLB_ENTRIES];
     /** Pointer to the list of RAM ranges (Phys GC -> Phys HC conversion) - for R3.
      * This is sorted by physical address and contains no overlapping ranges. */
-    R3PTRTYPE(PPGMRAMRANGE)         pRamRangesR3;
+    R3PTRTYPE(PPGMRAMRANGE)         pRamRangesXR3;
+    /** Root of the RAM range search tree for ring-3. */
+    R3PTRTYPE(PPGMRAMRANGE)         pRamRangeTreeR3;
     /** PGM offset based trees - R3 Ptr. */
     R3PTRTYPE(PPGMTREES)            pTreesR3;
     /** Caching the last physical handler we looked up in R3. */
@@ -2962,11 +3063,14 @@ typedef struct PGM
     /** Pointer to SHW+GST mode data (function pointers).
      * The index into this table is made up from */
     R3PTRTYPE(PPGMMODEDATA)         paModeData;
-    /*RTR3PTR                         R3PtrAlignment0;*/
+    RTR3PTR                         R3PtrAlignment0;
 
-
-    /** R0 pointer corresponding to PGM::pRamRangesR3. */
-    R0PTRTYPE(PPGMRAMRANGE)         pRamRangesR0;
+    /** RAM range TLB for R0. */
+    R0PTRTYPE(PPGMRAMRANGE)         apRamRangesTlbR0[PGM_RAMRANGE_TLB_ENTRIES];
+    /** R0 pointer corresponding to PGM::pRamRangesXR3. */
+    R0PTRTYPE(PPGMRAMRANGE)         pRamRangesXR0;
+    /** Root of the RAM range search tree for ring-0. */
+    R0PTRTYPE(PPGMRAMRANGE)         pRamRangeTreeR0;
     /** PGM offset based trees - R0 Ptr. */
     R0PTRTYPE(PPGMTREES)            pTreesR0;
     /** Caching the last physical handler we looked up in R0. */
@@ -2978,11 +3082,15 @@ typedef struct PGM
     R0PTRTYPE(PPGMMAPPING)          pMappingsR0;
     /** R0 pointer corresponding to PGM::pRomRangesR3. */
     R0PTRTYPE(PPGMROMRANGE)         pRomRangesR0;
-    /*RTR0PTR                         R0PtrAlignment0;*/
+    RTR0PTR                         R0PtrAlignment0;
 
 
-    /** RC pointer corresponding to PGM::pRamRangesR3. */
-    RCPTRTYPE(PPGMRAMRANGE)         pRamRangesRC;
+    /** RAM range TLB for RC. */
+    RCPTRTYPE(PPGMRAMRANGE)         apRamRangesTlbRC[PGM_RAMRANGE_TLB_ENTRIES];
+    /** RC pointer corresponding to PGM::pRamRangesXR3. */
+    RCPTRTYPE(PPGMRAMRANGE)         pRamRangesXRC;
+    /** Root of the RAM range search tree for raw-mode context. */
+    RCPTRTYPE(PPGMRAMRANGE)         pRamRangeTreeRC;
     /** PGM offset based trees - RC Ptr. */
     RCPTRTYPE(PPGMTREES)            pTreesRC;
     /** Caching the last physical handler we looked up in RC. */
@@ -2994,7 +3102,7 @@ typedef struct PGM
     RCPTRTYPE(PPGMMAPPING)          pMappingsRC;
     /** RC pointer corresponding to PGM::pRomRangesR3. */
     RCPTRTYPE(PPGMROMRANGE)         pRomRangesRC;
-    /*RTRCPTR                         RCPtrAlignment0;*/
+    RTRCPTR                         RCPtrAlignment0;
     /** Pointer to the page table entries for the dynamic page mapping area - GCPtr. */
     RCPTRTYPE(PX86PTE)              paDynPageMap32BitPTEsGC;
     /** Pointer to the page table entries for the dynamic page mapping area - GCPtr. */
@@ -3744,6 +3852,12 @@ RT_C_DECLS_BEGIN
 
 int             pgmLock(PVM pVM);
 void            pgmUnlock(PVM pVM);
+/**
+ * Asserts that the caller owns the PDM lock.
+ * This is the internal variant of PGMIsLockOwner.
+ * @param   a_pVM           The VM handle.
+ */
+#define PGM_LOCK_ASSERT_OWNER(a_pVM)    Assert(PDMCritSectIsOwner(&(a_pVM)->pgm.s.CritSect))
 
 int             pgmR3MappingsFixInternal(PVM pVM, RTGCPTR GCPtrBase, uint32_t cb);
 int             pgmR3SyncPTResolveConflict(PVM pVM, PPGMMAPPING pMapping, PX86PD pPDSrc, RTGCPTR GCPtrOldMapping);
@@ -3768,8 +3882,8 @@ int             pgmR3InitSavedState(PVM pVM, uint64_t cbRam);
 int             pgmPhysAllocPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys);
 int             pgmPhysAllocLargePage(PVM pVM, RTGCPHYS GCPhys);
 int             pgmPhysRecheckLargePage(PVM pVM, RTGCPHYS GCPhys, PPGMPAGE pLargePage);
-int             pgmPhysPageLoadIntoTlb(PPGM pPGM, RTGCPHYS GCPhys);
-int             pgmPhysPageLoadIntoTlbWithPage(PPGM pPGM, PPGMPAGE pPage, RTGCPHYS GCPhys);
+int             pgmPhysPageLoadIntoTlb(PVM pVM, RTGCPHYS GCPhys);
+int             pgmPhysPageLoadIntoTlbWithPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys);
 void            pgmPhysPageMakeWriteMonitoredWritable(PVM pVM, PPGMPAGE pPage);
 int             pgmPhysPageMakeWritable(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys);
 int             pgmPhysPageMakeWritableAndMap(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void **ppv);
@@ -3781,6 +3895,14 @@ int             pgmPhysGCPhys2CCPtrInternalReadOnly(PVM pVM, PPGMPAGE pPage, RTG
 VMMDECL(int)    pgmPhysHandlerRedirectToHC(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
 VMMDECL(int)    pgmPhysRomWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
 int             pgmPhysFreePage(PVM pVM, PGMMFREEPAGESREQ pReq, uint32_t *pcPendingPages, PPGMPAGE pPage, RTGCPHYS GCPhys);
+void            pgmPhysInvalidRamRangeTlbs(PVM pVM);
+void            pgmPhysInvalidatePageMapTLB(PVM pVM);
+void            pgmPhysInvalidatePageMapTLBEntry(PVM pVM, RTGCPHYS GCPhys);
+PPGMRAMRANGE    pgmPhysGetRangeSlow(PVM pVM, RTGCPHYS GCPhys);
+PPGMRAMRANGE    pgmPhysGetRangeAtOrAboveSlow(PVM pVM, RTGCPHYS GCPhys);
+PPGMPAGE        pgmPhysGetPageSlow(PVM pVM, RTGCPHYS GCPhys);
+int             pgmPhysGetPageExSlow(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage);
+int             pgmPhysGetPageAndRangeExSlow(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage, PPGMRAMRANGE *ppRam);
 
 #ifdef IN_RING3
 void            pgmR3PhysRelinkRamRanges(PVM pVM);
@@ -3856,8 +3978,8 @@ int             pgmGstLazyMapPaePD(PVMCPU pVCpu, uint32_t iPdpt, PX86PDPAE *ppPd
 int             pgmGstLazyMapPml4(PVMCPU pVCpu, PX86PML4 *ppPml4);
 
 # if defined(VBOX_STRICT) && HC_ARCH_BITS == 64
-DECLCALLBACK(int)  pgmR3CmdCheckDuplicatePages(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-DECLCALLBACK(int)  pgmR3CmdShowSharedModules(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
+DECLCALLBACK(int)  pgmR3CmdCheckDuplicatePages(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+DECLCALLBACK(int)  pgmR3CmdShowSharedModules(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
 # endif
 
 RT_C_DECLS_END

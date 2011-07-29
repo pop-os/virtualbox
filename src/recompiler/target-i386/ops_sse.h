@@ -15,8 +15,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /*
@@ -30,11 +29,7 @@
 
 #if SHIFT == 0
 #define Reg MMXReg
-#ifndef VBOX
-#define XMM_ONLY(x...)
-#else
-#define XMM_ONLY(x)
-#endif
+#define XMM_ONLY(...)
 #define B(n) MMX_B(n)
 #define W(n) MMX_W(n)
 #define L(n) MMX_L(n)
@@ -42,11 +37,7 @@
 #define SUFFIX _mmx
 #else
 #define Reg XMMReg
-#ifndef VBOX
-#define XMM_ONLY(x...) x
-#else
-#define XMM_ONLY(x) x
-#endif
+#define XMM_ONLY(...) __VA_ARGS__
 #define B(n) XMM_B(n)
 #define W(n) XMM_W(n)
 #define L(n) XMM_L(n)
@@ -303,11 +294,7 @@ void glue(name, SUFFIX) (Reg *d, Reg *s)\
 }
 
 #if SHIFT == 0
-#ifndef VBOX
 static inline int satub(int x)
-#else /* VBOX */
-DECLINLINE(int) satub(int x)
-#endif /* VBOX */
 {
     if (x < 0)
         return 0;
@@ -317,11 +304,7 @@ DECLINLINE(int) satub(int x)
         return x;
 }
 
-#ifndef VBOX
 static inline int satuw(int x)
-#else /* VBOX */
-DECLINLINE(int) satuw(int x)
-#endif /* VBOX */
 {
     if (x < 0)
         return 0;
@@ -331,11 +314,7 @@ DECLINLINE(int) satuw(int x)
         return x;
 }
 
-#ifndef VBOX
 static inline int satsb(int x)
-#else /* VBOX */
-DECLINLINE(int) satsb(int x)
-#endif /* VBOX */
 {
     if (x < -128)
         return -128;
@@ -345,11 +324,7 @@ DECLINLINE(int) satsb(int x)
         return x;
 }
 
-#ifndef VBOX
 static inline int satsw(int x)
-#else /* VBOX */
-DECLINLINE(int) satsw(int x)
-#endif /* VBOX */
 {
     if (x < -32768)
         return -32768;
@@ -461,11 +436,7 @@ void glue(helper_pmaddwd, SUFFIX) (Reg *d, Reg *s)
 }
 
 #if SHIFT == 0
-#ifndef VBOX
 static inline int abs1(int a)
-#else /* VBOX */
-DECLINLINE(int) abs1(int a)
-#endif /* VBOX */
 {
     if (a < 0)
         return -a;
@@ -841,6 +812,50 @@ void helper_rcpss(XMMReg *d, XMMReg *s)
     d->XMM_S(0) = approx_rcp(s->XMM_S(0));
 }
 
+static inline uint64_t helper_extrq(uint64_t src, int shift, int len)
+{
+    uint64_t mask;
+
+    if (len == 0) {
+        mask = ~0LL;
+    } else {
+        mask = (1ULL << len) - 1;
+    }
+    return (src >> shift) & mask;
+}
+
+void helper_extrq_r(XMMReg *d, XMMReg *s)
+{
+    d->XMM_Q(0) = helper_extrq(d->XMM_Q(0), s->XMM_B(1), s->XMM_B(0));
+}
+
+void helper_extrq_i(XMMReg *d, int index, int length)
+{
+    d->XMM_Q(0) = helper_extrq(d->XMM_Q(0), index, length);
+}
+
+static inline uint64_t helper_insertq(uint64_t src, int shift, int len)
+{
+    uint64_t mask;
+
+    if (len == 0) {
+        mask = ~0ULL;
+    } else {
+        mask = (1ULL << len) - 1;
+    }
+    return (src & ~(mask << shift)) | ((src & mask) << shift);
+}
+
+void helper_insertq_r(XMMReg *d, XMMReg *s)
+{
+    d->XMM_Q(0) = helper_insertq(s->XMM_Q(0), s->XMM_B(9), s->XMM_B(8));
+}
+
+void helper_insertq_i(XMMReg *d, int index, int length)
+{
+    d->XMM_Q(0) = helper_insertq(d->XMM_Q(0), index, length);
+}
+
 void helper_haddps(XMMReg *d, XMMReg *s)
 {
     XMMReg r;
@@ -934,7 +949,7 @@ SSE_HELPER_CMP(cmpnlt, FPU_CMPNLT)
 SSE_HELPER_CMP(cmpnle, FPU_CMPNLE)
 SSE_HELPER_CMP(cmpord, FPU_CMPORD)
 
-const int comis_eflags[4] = {CC_C, CC_Z, 0, CC_Z | CC_P | CC_C};
+static const int comis_eflags[4] = {CC_C, CC_Z, 0, CC_Z | CC_P | CC_C};
 
 void helper_ucomiss(Reg *d, Reg *s)
 {
@@ -1004,23 +1019,23 @@ uint32_t glue(helper_pmovmskb, SUFFIX)(Reg *s)
 {
     uint32_t val;
     val = 0;
-    val |= (s->XMM_B(0) >> 7);
-    val |= (s->XMM_B(1) >> 6) & 0x02;
-    val |= (s->XMM_B(2) >> 5) & 0x04;
-    val |= (s->XMM_B(3) >> 4) & 0x08;
-    val |= (s->XMM_B(4) >> 3) & 0x10;
-    val |= (s->XMM_B(5) >> 2) & 0x20;
-    val |= (s->XMM_B(6) >> 1) & 0x40;
-    val |= (s->XMM_B(7)) & 0x80;
+    val |= (s->B(0) >> 7);
+    val |= (s->B(1) >> 6) & 0x02;
+    val |= (s->B(2) >> 5) & 0x04;
+    val |= (s->B(3) >> 4) & 0x08;
+    val |= (s->B(4) >> 3) & 0x10;
+    val |= (s->B(5) >> 2) & 0x20;
+    val |= (s->B(6) >> 1) & 0x40;
+    val |= (s->B(7)) & 0x80;
 #if SHIFT == 1
-    val |= (s->XMM_B(8) << 1) & 0x0100;
-    val |= (s->XMM_B(9) << 2) & 0x0200;
-    val |= (s->XMM_B(10) << 3) & 0x0400;
-    val |= (s->XMM_B(11) << 4) & 0x0800;
-    val |= (s->XMM_B(12) << 5) & 0x1000;
-    val |= (s->XMM_B(13) << 6) & 0x2000;
-    val |= (s->XMM_B(14) << 7) & 0x4000;
-    val |= (s->XMM_B(15) << 8) & 0x8000;
+    val |= (s->B(8) << 1) & 0x0100;
+    val |= (s->B(9) << 2) & 0x0200;
+    val |= (s->B(10) << 3) & 0x0400;
+    val |= (s->B(11) << 4) & 0x0800;
+    val |= (s->B(12) << 5) & 0x1000;
+    val |= (s->B(13) << 6) & 0x2000;
+    val |= (s->B(14) << 7) & 0x4000;
+    val |= (s->B(15) << 8) & 0x8000;
 #endif
     return val;
 }
@@ -1816,11 +1831,7 @@ void glue(helper_mpsadbw, SUFFIX) (Reg *d, Reg *s, uint32_t offset)
 #define FCMPGTQ(d, s) d > s ? -1 : 0
 SSE_HELPER_Q(helper_pcmpgtq, FCMPGTQ)
 
-#ifndef VBOX
 static inline int pcmp_elen(int reg, uint32_t ctrl)
-#else /* VBOX */
-DECLINLINE(int) pcmp_elen(int reg, uint32_t ctrl)
-#endif /* VBOX */
 {
     int val;
 
@@ -1840,11 +1851,7 @@ DECLINLINE(int) pcmp_elen(int reg, uint32_t ctrl)
     return val;
 }
 
-#ifndef VBOX
 static inline int pcmp_ilen(Reg *r, uint8_t ctrl)
-#else /* VBOX */
-DECLINLINE(int) pcmp_ilen(Reg *r, uint8_t ctrl)
-#endif /* VBOX */
 {
     int val = 0;
 
@@ -1858,11 +1865,7 @@ DECLINLINE(int) pcmp_ilen(Reg *r, uint8_t ctrl)
     return val;
 }
 
-#ifndef VBOX
 static inline int pcmp_val(Reg *r, uint8_t ctrl, int i)
-#else /* VBOX */
-DECLINLINE(int) pcmp_val(Reg *r, uint8_t ctrl, int i)
-#endif /* VBOX */
 {
     switch ((ctrl >> 0) & 3) {
     case 0:
@@ -1877,11 +1880,7 @@ DECLINLINE(int) pcmp_val(Reg *r, uint8_t ctrl, int i)
     }
 }
 
-#ifndef VBOX
 static inline unsigned pcmpxstrx(Reg *d, Reg *s,
-#else /* VBOX */
-DECLINLINE(unsigned) pcmpxstrx(Reg *d, Reg *s,
-#endif /* VBOX */
                 int8_t ctrl, int valids, int validd)
 {
     unsigned int res = 0;
@@ -1948,11 +1947,7 @@ DECLINLINE(unsigned) pcmpxstrx(Reg *d, Reg *s,
     return res;
 }
 
-#ifndef VBOX
 static inline int rffs1(unsigned int val)
-#else /* VBOX */
-DECLINLINE(int) rffs1(unsigned int val)
-#endif /* VBOX */
 {
     int ret = 1, hi;
 
@@ -1965,11 +1960,7 @@ DECLINLINE(int) rffs1(unsigned int val)
     return ret;
 }
 
-#ifndef VBOX
 static inline int ffs1(unsigned int val)
-#else /* VBOX */
-DECLINLINE(int) ffs1(unsigned int val)
-#endif /* VBOX */
 {
     int ret = 1, hi;
 

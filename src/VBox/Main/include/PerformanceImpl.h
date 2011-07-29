@@ -1,4 +1,4 @@
-/* $Id: PerformanceImpl.h $ */
+/* $Id: PerformanceImpl.h 36128 2011-03-02 05:44:04Z vboxsync $ */
 
 /** @file
  *
@@ -35,6 +35,8 @@ namespace pm
     class Metric;
     class BaseMetric;
     class CollectorHAL;
+    class CollectorGuest;
+    class CollectorGuestManager;
 }
 
 #undef min
@@ -57,8 +59,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP (PerformanceMetric)
-        COM_INTERFACE_ENTRY (IPerformanceMetric)
-        COM_INTERFACE_ENTRY (IDispatch)
+        VBOX_DEFAULT_INTERFACE_ENTRIES (IPerformanceMetric)
     END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR (PerformanceMetric)
@@ -125,9 +126,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(PerformanceCollector)
-        COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(IPerformanceCollector)
-        COM_INTERFACE_ENTRY(IDispatch)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IPerformanceCollector)
     END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR (PerformanceCollector)
@@ -176,6 +175,8 @@ public:
     void registerMetric (pm::Metric *metric);
     void unregisterBaseMetricsFor (const ComPtr<IUnknown> &object);
     void unregisterMetricsFor (const ComPtr<IUnknown> &object);
+    void registerGuest(pm::CollectorGuest* pGuest);
+    void unregisterGuest(pm::CollectorGuest* pGuest);
 
     void suspendSampling();
     void resumeSampling();
@@ -183,7 +184,8 @@ public:
     // public methods for internal purposes only
     // (ensure there is a caller and a read lock before calling them!)
 
-    pm::CollectorHAL *getHAL() { return m.hal; };
+    pm::CollectorHAL          *getHAL()          { return m.hal; };
+    pm::CollectorGuestManager *getGuestManager() { return m.gm; };
 
 private:
     HRESULT toIPerformanceMetric(pm::Metric *src, IPerformanceMetric **dst);
@@ -206,10 +208,11 @@ private:
     {
         Data() : hal(0) {};
 
-        BaseMetricList     baseMetrics;
-        MetricList         metrics;
-        RTTIMERLR          sampler;
-        pm::CollectorHAL  *hal;
+        BaseMetricList             baseMetrics;
+        MetricList                 metrics;
+        RTTIMERLR                  sampler;
+        pm::CollectorHAL          *hal;
+        pm::CollectorGuestManager *gm;
     };
 
     Data m;

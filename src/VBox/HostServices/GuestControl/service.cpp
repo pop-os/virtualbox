@@ -1,10 +1,10 @@
-/* $Id: service.cpp $ */
+/* $Id: service.cpp 37375 2011-06-08 10:51:26Z vboxsync $ */
 /** @file
  * Guest Control Service: Controlling the guest.
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -149,7 +149,7 @@ typedef std::list< HostCmd >::const_iterator HostCmdListIterConst;
 /**
  * Class containing the shared information service functionality.
  */
-class Service : public iprt::non_copyable
+class Service : public RTCNonCopyable
 {
 private:
     /** Type definition for use in callback functions. */
@@ -308,70 +308,72 @@ private:
  */
 int Service::paramBufferAllocate(PVBOXGUESTCTRPARAMBUFFER pBuf, uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
-    AssertPtr(pBuf);
-    int rc = VINF_SUCCESS;
+    AssertPtrReturn(pBuf, VERR_INVALID_POINTER);
+    if (cParms)
+        AssertPtrReturn(paParms, VERR_INVALID_POINTER);
 
     /* Paranoia. */
     if (cParms > 256)
         cParms = 256;
+
+    int rc = VINF_SUCCESS;
 
     /*
      * Don't verify anything here (yet), because this function only buffers
      * the HGCM data into an internal structure and reaches it back to the guest (client)
      * in an unmodified state.
      */
-    if (RT_SUCCESS(rc))
+    pBuf->uMsg = uMsg;
+    pBuf->uParmCount = cParms;
+    if (pBuf->uParmCount)
     {
-        pBuf->uMsg = uMsg;
-        pBuf->uParmCount = cParms;
         pBuf->pParms = (VBOXHGCMSVCPARM*)RTMemAlloc(sizeof(VBOXHGCMSVCPARM) * pBuf->uParmCount);
         if (NULL == pBuf->pParms)
-        {
             rc = VERR_NO_MEMORY;
-        }
-        else
+    }
+
+    if (RT_SUCCESS(rc))
+    {
+        for (uint32_t i = 0; i < pBuf->uParmCount; i++)
         {
-            for (uint32_t i = 0; i < pBuf->uParmCount; i++)
+            pBuf->pParms[i].type = paParms[i].type;
+            switch (paParms[i].type)
             {
-                pBuf->pParms[i].type = paParms[i].type;
-                switch (paParms[i].type)
-                {
-                    case VBOX_HGCM_SVC_PARM_32BIT:
-                        pBuf->pParms[i].u.uint32 = paParms[i].u.uint32;
-                        break;
+                case VBOX_HGCM_SVC_PARM_32BIT:
+                    pBuf->pParms[i].u.uint32 = paParms[i].u.uint32;
+                    break;
 
-                    case VBOX_HGCM_SVC_PARM_64BIT:
-                        /* Not supported yet. */
-                        break;
+                case VBOX_HGCM_SVC_PARM_64BIT:
+                    /* Not supported yet. */
+                    break;
 
-                    case VBOX_HGCM_SVC_PARM_PTR:
-                        pBuf->pParms[i].u.pointer.size = paParms[i].u.pointer.size;
-                        if (pBuf->pParms[i].u.pointer.size > 0)
+                case VBOX_HGCM_SVC_PARM_PTR:
+                    pBuf->pParms[i].u.pointer.size = paParms[i].u.pointer.size;
+                    if (pBuf->pParms[i].u.pointer.size > 0)
+                    {
+                        pBuf->pParms[i].u.pointer.addr = RTMemAlloc(pBuf->pParms[i].u.pointer.size);
+                        if (NULL == pBuf->pParms[i].u.pointer.addr)
                         {
-                            pBuf->pParms[i].u.pointer.addr = RTMemAlloc(pBuf->pParms[i].u.pointer.size);
-                            if (NULL == pBuf->pParms[i].u.pointer.addr)
-                            {
-                                rc = VERR_NO_MEMORY;
-                                break;
-                            }
-                            else
-                                memcpy(pBuf->pParms[i].u.pointer.addr,
-                                       paParms[i].u.pointer.addr,
-                                       pBuf->pParms[i].u.pointer.size);
+                            rc = VERR_NO_MEMORY;
+                            break;
                         }
                         else
-                        {
-                            /* Size is 0 -- make sure we don't have any pointer. */
-                            pBuf->pParms[i].u.pointer.addr = NULL;
-                        }
-                        break;
+                            memcpy(pBuf->pParms[i].u.pointer.addr,
+                                   paParms[i].u.pointer.addr,
+                                   pBuf->pParms[i].u.pointer.size);
+                    }
+                    else
+                    {
+                        /* Size is 0 -- make sure we don't have any pointer. */
+                        pBuf->pParms[i].u.pointer.addr = NULL;
+                    }
+                    break;
 
-                    default:
-                        break;
-                }
-                if (RT_FAILURE(rc))
+                default:
                     break;
             }
+            if (RT_FAILURE(rc))
+                break;
         }
     }
     return rc;
@@ -528,7 +530,7 @@ int Service::clientDisconnect(uint32_t u32ClientID, void *pvClient)
                 if (mpfnHostCallback)
                 {
                     CALLBACKDATACLIENTDISCONNECTED data;
-                    data.hdr.u32Magic = CALLBACKDATAMAGICCLIENTDISCONNECTED;
+                    data.hdr.u32Magic = CALLBACKDATAMAGIC_CLIENT_DISCONNECTED;
                     data.hdr.u32ContextID = (*itContext);
                     rc = mpfnHostCallback(mpvHostData, GUEST_DISCONNECTED, (void *)(&data), sizeof(data));
                     if (RT_FAILURE(rc))
@@ -715,7 +717,7 @@ int Service::notifyHost(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paP
         && cParms    == 5)
     {
         CALLBACKDATAEXECSTATUS data;
-        data.hdr.u32Magic = CALLBACKDATAMAGICEXECSTATUS;
+        data.hdr.u32Magic = CALLBACKDATAMAGIC_EXEC_STATUS;
         paParms[0].getUInt32(&data.hdr.u32ContextID);
 
         paParms[1].getUInt32(&data.u32PID);
@@ -731,7 +733,7 @@ int Service::notifyHost(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paP
              && cParms    == 5)
     {
         CALLBACKDATAEXECOUT data;
-        data.hdr.u32Magic = CALLBACKDATAMAGICEXECOUT;
+        data.hdr.u32Magic = CALLBACKDATAMAGIC_EXEC_OUT;
         paParms[0].getUInt32(&data.hdr.u32ContextID);
 
         paParms[1].getUInt32(&data.u32PID);
@@ -747,13 +749,40 @@ int Service::notifyHost(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paP
              && cParms    == 5)
     {
         CALLBACKDATAEXECINSTATUS data;
-        data.hdr.u32Magic = CALLBACKDATAMAGICEXECINSTATUS;
+        data.hdr.u32Magic = CALLBACKDATAMAGIC_EXEC_IN_STATUS;
         paParms[0].getUInt32(&data.hdr.u32ContextID);
 
         paParms[1].getUInt32(&data.u32PID);
         paParms[2].getUInt32(&data.u32Status);
         paParms[3].getUInt32(&data.u32Flags);
         paParms[4].getUInt32(&data.cbProcessed);
+
+        if (mpfnHostCallback)
+            rc = mpfnHostCallback(mpvHostData, eFunction,
+                                  (void *)(&data), sizeof(data));
+    }
+    else if (   eFunction == GUEST_DIR_SEND_OPEN
+             && cParms    == 2)
+    {
+        CALLBACKDATADIROPEN data;
+        data.hdr.u32Magic = CALLBACKDATAMAGIC_DIR_OPEN;
+        paParms[0].getUInt32(&data.hdr.u32ContextID);
+
+        paParms[1].getUInt32(&data.u32Handle);
+
+        if (mpfnHostCallback)
+            rc = mpfnHostCallback(mpvHostData, eFunction,
+                                  (void *)(&data), sizeof(data));
+    }
+    else if (   eFunction == GUEST_DIR_SEND_READ
+             && cParms    == 3)
+    {
+        CALLBACKDATADIRREAD data;
+        data.hdr.u32Magic = CALLBACKDATAMAGIC_DIR_READ;
+        paParms[0].getUInt32(&data.hdr.u32ContextID);
+
+        paParms[1].getUInt64(&data.u64NodeId);
+        paParms[2].getString(&data.pszName, &data.cbName);
 
         if (mpfnHostCallback)
             rc = mpfnHostCallback(mpvHostData, eFunction,
@@ -784,11 +813,9 @@ int Service::processHostCmd(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM
      */
     if (mNumClients == 0)
         return VERR_NOT_FOUND;
-
     HostCmd newCmd;
     int rc = paramBufferAllocate(&newCmd.mParmBuf, eFunction, cParms, paParms);
-    if (   RT_SUCCESS(rc)
-        && newCmd.mParmBuf.uParmCount > 0)
+    if (RT_SUCCESS(rc) && cParms)
     {
         /*
          * Assume that the context ID *always* is the first parameter,
@@ -798,9 +825,10 @@ int Service::processHostCmd(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM
         Assert(newCmd.mContextID > 0);
     }
 
-    bool fProcessed = false;
     if (RT_SUCCESS(rc))
     {
+        bool fProcessed = false;
+
         /* Can we wake up a waiting client on guest? */
         if (!mClientWaiterList.empty())
         {
@@ -813,9 +841,11 @@ int Service::processHostCmd(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM
             mpHelpers->pfnCallComplete(guest.mHandle, rc);
             mClientWaiterList.pop_front();
 
-            /* If we got VERR_TOO_MUCH_DATA we buffer the host command in the next block
-             * and return success to the host. */
-            if (rc == VERR_TOO_MUCH_DATA)
+            /*
+             * If we got back an error (like VERR_TOO_MUCH_DATA or VERR_BUFFER_OVERFLOW)
+             * we buffer the host command in the next block and return success to the host.
+             */
+            if (RT_FAILURE(rc))
             {
                 rc = VINF_SUCCESS;
             }
@@ -879,28 +909,12 @@ void Service::call(VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID,
                 break;
 
             /*
-             * The guest notifies the host that some output at stdout/stderr is available.
+             * For all other regular commands we call our notifyHost
+             * function. If the current command does not support notifications
+             * notifyHost will return VERR_NOT_SUPPORTED.
              */
-            case GUEST_EXEC_SEND_OUTPUT:
-                LogFlowFunc(("GUEST_EXEC_SEND_OUTPUT\n"));
-                rc = notifyHost(eFunction, cParms, paParms);
-                break;
-
-            /*
-             * The guest notifies the host of the executed process status.
-             */
-            case GUEST_EXEC_SEND_STATUS:
-                LogFlowFunc(("GUEST_EXEC_SEND_STATUS\n"));
-                rc = notifyHost(eFunction, cParms, paParms);
-                break;
-
-            case GUEST_EXEC_SEND_INPUT_STATUS:
-                LogFlowFunc(("GUEST_EXEC_SEND_INPUT_STATUS\n"));
-                rc = notifyHost(eFunction, cParms, paParms);
-                break;
-
             default:
-                rc = VERR_NOT_SUPPORTED;
+                rc = notifyHost(eFunction, cParms, paParms);
                 break;
         }
         if (rc != VINF_HGCM_ASYNC_EXECUTE)
@@ -924,35 +938,12 @@ void Service::call(VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID,
  */
 int Service::hostCall(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
-    int rc = VINF_SUCCESS;
+    int rc = VERR_NOT_SUPPORTED;
     LogFlowFunc(("fn = %d, cParms = %d, pparms = %d\n",
                  eFunction, cParms, paParms));
     try
     {
-        switch (eFunction)
-        {
-            /* The host wants to execute something. */
-            case HOST_EXEC_CMD:
-                LogFlowFunc(("HOST_EXEC_CMD\n"));
-                rc = processHostCmd(eFunction, cParms, paParms);
-                break;
-
-            /* The host wants to send something to the
-             * started process' stdin pipe. */
-            case HOST_EXEC_SET_INPUT:
-                LogFlowFunc(("HOST_EXEC_SET_INPUT\n"));
-                rc = processHostCmd(eFunction, cParms, paParms);
-                break;
-
-            case HOST_EXEC_GET_OUTPUT:
-                LogFlowFunc(("HOST_EXEC_GET_OUTPUT\n"));
-                rc = processHostCmd(eFunction, cParms, paParms);
-                break;
-
-            default:
-                rc = VERR_NOT_SUPPORTED;
-                break;
-        }
+        rc = processHostCmd(eFunction, cParms, paParms);
     }
     catch (std::bad_alloc)
     {

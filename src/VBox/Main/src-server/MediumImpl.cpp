@@ -1,4 +1,4 @@
-/* $Id: MediumImpl.cpp $ */
+/* $Id: MediumImpl.cpp 37985 2011-07-15 15:04:39Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -137,7 +137,9 @@ struct Medium::Data
 
     bool autoReset : 1;
 
+    /** New UUID to be set on the next queryInfo() call. */
     const Guid uuidImage;
+    /** New parent UUID to be set on the next queryInfo() call. */
     const Guid uuidParentImage;
 
     bool hostDrive : 1;
@@ -896,7 +898,7 @@ HRESULT Medium::FinalConstruct()
     vrc = RTSemEventMultiSignal(m->queryInfoSem);
     AssertRCReturn(vrc, E_FAIL);
 
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void Medium::FinalRelease()
@@ -904,6 +906,8 @@ void Medium::FinalRelease()
     uninit();
 
     delete m;
+
+    BaseFinalRelease();
 }
 
 /**
@@ -918,15 +922,15 @@ void Medium::FinalRelease()
  * is set to the registry of the parent image to make sure they all end up in the same
  * file.
  *
- * For hard disks that don't have the VD_CAP_CREATE_FIXED or
- * VD_CAP_CREATE_DYNAMIC capability (and therefore cannot be created or deleted
+ * For hard disks that don't have the MediumFormatCapabilities_CreateFixed or
+ * MediumFormatCapabilities_CreateDynamic capability (and therefore cannot be created or deleted
  * with the means of VirtualBox) the associated storage unit is assumed to be
  * ready for use so the state of the hard disk object will be set to Created.
  *
  * @param aVirtualBox   VirtualBox object.
  * @param aFormat
  * @param aLocation     Storage unit location.
- * @param uuidMachineRegistry The registry to which this medium should be added (global registry UUI or medium UUID or empty if none).
+ * @param uuidMachineRegistry The registry to which this medium should be added (global registry UUID or machine UUID or empty if none).
  * @param pllRegistriesThatNeedSaving Optional list to receive the UUIDs of the media registries that need saving.
  */
 HRESULT Medium::init(VirtualBox *aVirtualBox,
@@ -1009,11 +1013,13 @@ HRESULT Medium::init(VirtualBox *aVirtualBox,
  * @param aVirtualBox   VirtualBox object.
  * @param aLocation     Storage unit location.
  * @param enOpenMode    Whether to open the medium read/write or read-only.
+ * @param fForceNewUuid Whether a new UUID should be set to avoid duplicates.
  * @param aDeviceType   Device type of medium.
  */
 HRESULT Medium::init(VirtualBox *aVirtualBox,
                      const Utf8Str &aLocation,
                      HDDOpenMode enOpenMode,
+                     bool fForceNewUuid,
                      DeviceType_T aDeviceType)
 {
     AssertReturn(aVirtualBox, E_INVALIDARG);
@@ -1048,7 +1054,9 @@ HRESULT Medium::init(VirtualBox *aVirtualBox,
     if (FAILED(rc)) return rc;
 
     /* get all the information about the medium from the storage unit */
-    rc = queryInfo(false /* fSetImageId */, false /* fSetParentId */);
+    if (fForceNewUuid)
+        unconst(m->uuidImage).create();
+    rc = queryInfo(fForceNewUuid /* fSetImageId */, false /* fSetParentId */);
 
     if (SUCCEEDED(rc))
     {
@@ -1086,7 +1094,7 @@ HRESULT Medium::init(VirtualBox *aVirtualBox,
  * @param aVirtualBox   VirtualBox object.
  * @param aParent       Parent medium disk or NULL for a root (base) medium.
  * @param aDeviceType   Device type of the medium.
- * @param uuidMachineRegistry The registry to which this medium should be added (global registry UUI or medium UUID).
+ * @param uuidMachineRegistry The registry to which this medium should be added (global registry UUID or machine UUID).
  * @param aNode         Configuration settings.
  * @param strMachineFolder The machine folder with which to resolve relative paths; if empty, then we use the VirtualBox home directory
  *
@@ -1176,24 +1184,29 @@ HRESULT Medium::init(VirtualBox *aVirtualBox,
         m->mapProperties[name] = value;
     }
 
-    // compose full path of the medium, if it's not fully qualified...
-    // slightly convoluted logic here. If the caller has given us a
-    // machine folder, then a relative path will be relative to that:
     Utf8Str strFull;
-    if (    !strMachineFolder.isEmpty()
-         && !RTPathStartsWithRoot(data.strLocation.c_str())
-       )
+    if (m->formatObj->getCapabilities() & MediumFormatCapabilities_File)
     {
-        strFull = strMachineFolder;
-        strFull += RTPATH_SLASH;
-        strFull += data.strLocation;
+        // compose full path of the medium, if it's not fully qualified...
+        // slightly convoluted logic here. If the caller has given us a
+        // machine folder, then a relative path will be relative to that:
+        if (    !strMachineFolder.isEmpty()
+             && !RTPathStartsWithRoot(data.strLocation.c_str())
+           )
+        {
+            strFull = strMachineFolder;
+            strFull += RTPATH_SLASH;
+            strFull += data.strLocation;
+        }
+        else
+        {
+            // Otherwise use the old VirtualBox "make absolute path" logic:
+            rc = m->pVirtualBox->calculateFullPath(data.strLocation, strFull);
+            if (FAILED(rc)) return rc;
+        }
     }
     else
-    {
-        // Otherwise use the old VirtualBox "make absolute path" logic:
-        rc = m->pVirtualBox->calculateFullPath(data.strLocation, strFull);
-        if (FAILED(rc)) return rc;
-    }
+        strFull = data.strLocation;
 
     rc = setLocation(strFull);
     if (FAILED(rc)) return rc;
@@ -1279,7 +1292,9 @@ HRESULT Medium::init(VirtualBox *aVirtualBox,
 
     unconst(m->pVirtualBox) = aVirtualBox;
 
-    /* fake up a UUID which is unique, but also reproducible */
+    // We do not store host drives in VirtualBox.xml or anywhere else, so if we want
+    // host drives to be identifiable by UUID and not give the drive a different UUID
+    // every time VirtualBox starts, we need to fake a reproducible UUID here:
     RTUUID uuid;
     RTUuidClear(&uuid);
     if (aDeviceType == DeviceType_DVD)
@@ -1754,6 +1769,18 @@ STDMETHODIMP Medium::COMSETTER(Type)(MediumType_T aType)
     return rc;
 }
 
+STDMETHODIMP Medium::COMGETTER(AllowedTypes)(ComSafeArrayOut(MediumType_T, aAllowedTypes))
+{
+    CheckComArgOutSafeArrayPointerValid(aAllowedTypes);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    ReturnComNotImplemented();
+}
+
 STDMETHODIMP Medium::COMGETTER(Parent)(IMedium **aParent)
 {
     CheckComArgOutPointerValid(aParent);
@@ -1803,7 +1830,7 @@ STDMETHODIMP Medium::COMGETTER(ReadOnly)(BOOL *aReadOnly)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    /* isRadOnly() will do locking */
+    /* isReadOnly() will do locking */
 
     *aReadOnly = isReadOnly();
 
@@ -1948,12 +1975,22 @@ STDMETHODIMP Medium::SetIDs(BOOL aSetImageId,
     Guid imageId, parentId;
     if (aSetImageId)
     {
-        imageId = Guid(aImageId);
-        if (imageId.isEmpty())
-            return setError(E_INVALIDARG, tr("Argument %s is empty"), "aImageId");
+        if (Bstr(aImageId).isEmpty())
+            imageId.create();
+        else
+        {
+            imageId = Guid(aImageId);
+            if (imageId.isEmpty())
+                return setError(E_INVALIDARG, tr("Argument %s is empty"), "aImageId");
+        }
     }
     if (aSetParentId)
-        parentId = Guid(aParentId);
+    {
+        if (Bstr(aParentId).isEmpty())
+            parentId.create();
+        else
+            parentId = Guid(aParentId);
+    }
 
     unconst(m->uuidImage) = imageId;
     unconst(m->uuidParentImage) = parentId;
@@ -3240,7 +3277,7 @@ HRESULT Medium::addToRegistryIDList(GuidList &llRegistryIDs)
          it != m->llRegistryIDs.end();
          ++it)
     {
-        m->pVirtualBox->addGuidToListUniquely(llRegistryIDs, *it);
+        VirtualBox::addGuidToListUniquely(llRegistryIDs, *it);
     }
 
     return S_OK;
@@ -3439,6 +3476,11 @@ const Guid* Medium::getFirstMachineBackrefSnapshotId() const
     return &ref.llSnapshotIds.front();
 }
 
+size_t Medium::getMachineBackRefCount() const
+{
+    return m->backRefs.size();
+}
+
 #ifdef DEBUG
 /**
  * Debugging helper that gets called after VirtualBox initialization that writes all
@@ -3597,6 +3639,15 @@ bool Medium::isReadOnly()
     }
 
     AssertFailedReturn(false);
+}
+
+/**
+ * Internal method to return the medium's size. Must have caller + locking!
+ * @return
+ */
+void Medium::updateId(const Guid &id)
+{
+    unconst(m->id) = id;
 }
 
 /**
@@ -5085,9 +5136,9 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
      * when opening media of some third-party formats for the first
      * time in VirtualBox (such as VMDK for which VDOpen() needs to
      * generate an UUID if it is missing) */
-    if (    (m->hddOpenMode == OpenReadOnly)
+    if (    m->hddOpenMode == OpenReadOnly
          || m->type == MediumType_Readonly
-         || !isImport
+         || (!isImport && !fSetImageId && !fSetParentId)
        )
         uOpenFlags |= VD_OPEN_FLAGS_READONLY;
 
@@ -5164,6 +5215,7 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
                 {
                     vrc = VDSetUuid(hdd, 0, m->uuidImage.raw());
                     ComAssertRCThrow(vrc, E_FAIL);
+                    mediumId = m->uuidImage;
                 }
                 if (fSetParentId)
                 {
@@ -5193,6 +5245,7 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
 
                     if (mediumId != uuid)
                     {
+                        /** @todo r=klaus this always refers to VirtualBox.xml as the medium registry, even for new VMs */
                         lastAccessError = Utf8StrFmt(
                                 tr("UUID {%RTuuid} of the medium '%s' does not match the value {%RTuuid} stored in the media registry ('%s')"),
                                 &uuid,
@@ -5208,13 +5261,15 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
                 /* the backend does not support storing UUIDs within the
                  * underlying storage so use what we store in XML */
 
-                /* generate an UUID for an imported UUID-less medium */
-                if (isImport)
+                if (fSetImageId)
                 {
-                    if (fSetImageId)
-                        mediumId = m->uuidImage;
-                    else
-                        mediumId.create();
+                    /* set the UUID if an API client wants to change it */
+                    mediumId = m->uuidImage;
+                }
+                else if (isImport)
+                {
+                    /* generate an UUID for an imported UUID-less medium */
+                    mediumId.create();
                 }
             }
 
@@ -5300,6 +5355,7 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
                         && m->pParent->getState() != MediumState_Inaccessible
                         && m->pParent->getId() != parentId)
                     {
+                        /** @todo r=klaus this always refers to VirtualBox.xml as the medium registry, even for new VMs */
                         lastAccessError = Utf8StrFmt(
                                 tr("Parent UUID {%RTuuid} of the medium '%s' does not match UUID {%RTuuid} of its parent medium stored in the media registry ('%s')"),
                                 &parentId, location.c_str(),
@@ -5333,7 +5389,7 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
 
     alock.enter();
 
-    if (isImport)
+    if (isImport || fSetImageId)
         unconst(m->id) = mediumId;
 
     if (success)
@@ -5652,8 +5708,10 @@ HRESULT Medium::setLocation(const Utf8Str &aLocation,
             }
         }
 
-        // we must always have full paths now
-        if (!RTPathStartsWithRoot(locationFull.c_str()))
+        // we must always have full paths now (if it refers to a file)
+        if (   (   m->formatObj.isNull()
+                || m->formatObj->getCapabilities() & MediumFormatCapabilities_File)
+            && !RTPathStartsWithRoot(locationFull.c_str()))
             return setError(VBOX_E_FILE_ERROR,
                             tr("The given path '%s' is not fully qualified"),
                             locationFull.c_str());
@@ -6172,8 +6230,8 @@ HRESULT Medium::taskCreateBaseHandler(Medium::CreateBaseTask &task)
         Utf8Str format(m->strFormat);
         Utf8Str location(m->strLocationFull);
         uint64_t capabilities = m->formatObj->getCapabilities();
-        ComAssertThrow(capabilities & (  VD_CAP_CREATE_FIXED
-                                       | VD_CAP_CREATE_DYNAMIC), E_FAIL);
+        ComAssertThrow(capabilities & (  MediumFormatCapabilities_CreateFixed
+                                       | MediumFormatCapabilities_CreateDynamic), E_FAIL);
         Assert(m->state == MediumState_Creating);
 
         PVBOXHDD hdd;
@@ -6186,7 +6244,7 @@ HRESULT Medium::taskCreateBaseHandler(Medium::CreateBaseTask &task)
         try
         {
             /* ensure the directory exists */
-            if (capabilities & VD_CAP_FILE)
+            if (capabilities & MediumFormatCapabilities_File)
             {
                 rc = VirtualBox::ensureFilePathExists(location);
                 if (FAILED(rc))
@@ -6303,7 +6361,7 @@ HRESULT Medium::taskCreateDiffHandler(Medium::CreateDiffTask &task)
         Utf8Str targetFormat(pTarget->m->strFormat);
         Utf8Str targetLocation(pTarget->m->strLocationFull);
         uint64_t capabilities = pTarget->m->formatObj->getCapabilities();
-        ComAssertThrow(capabilities & VD_CAP_CREATE_DYNAMIC, E_FAIL);
+        ComAssertThrow(capabilities & MediumFormatCapabilities_CreateDynamic, E_FAIL);
 
         Assert(pTarget->m->state == MediumState_Creating);
         Assert(m->state == MediumState_LockedRead);
@@ -6353,7 +6411,7 @@ HRESULT Medium::taskCreateDiffHandler(Medium::CreateDiffTask &task)
             }
 
             /* ensure the target directory exists */
-            if (capabilities & VD_CAP_FILE)
+            if (capabilities & MediumFormatCapabilities_File)
             {
                 HRESULT rc = VirtualBox::ensureFilePathExists(targetLocation);
                 if (FAILED(rc))
@@ -6856,7 +6914,7 @@ HRESULT Medium::taskCloneHandler(Medium::CloneTask &task)
             thisLock.release();
 
             /* ensure the target directory exists */
-            if (capabilities & VD_CAP_FILE)
+            if (capabilities & MediumFormatCapabilities_File)
             {
                 HRESULT rc = VirtualBox::ensureFilePathExists(targetLocation);
                 if (FAILED(rc))
@@ -7505,7 +7563,7 @@ HRESULT Medium::taskExportHandler(Medium::ExportTask &task)
             thisLock.release();
 
             /* ensure the target directory exists */
-            if (capabilities & VD_CAP_FILE)
+            if (capabilities & MediumFormatCapabilities_File)
             {
                 rc = VirtualBox::ensureFilePathExists(targetLocation);
                 if (FAILED(rc))
@@ -7630,7 +7688,7 @@ HRESULT Medium::taskImportHandler(Medium::ImportTask &task)
             thisLock.release();
 
             /* ensure the target directory exists */
-            if (capabilities & VD_CAP_FILE)
+            if (capabilities & MediumFormatCapabilities_File)
             {
                 HRESULT rc = VirtualBox::ensureFilePathExists(targetLocation);
                 if (FAILED(rc))

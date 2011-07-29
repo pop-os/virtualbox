@@ -1,4 +1,4 @@
-/* $Id: RTSystemQueryTotalRam-win.cpp $ */
+/* $Id: RTSystemQueryTotalRam-win.cpp 33503 2010-10-27 13:12:57Z vboxsync $ */
 /** @file
  * IPRT - RTSystemQueryTotalRam, windows ring-3.
  */

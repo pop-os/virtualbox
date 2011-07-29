@@ -1,4 +1,4 @@
-/* $Id: VUSBDevice.cpp $ */
+/* $Id: VUSBDevice.cpp 37359 2011-06-07 17:12:57Z vboxsync $ */
 /** @file
  * Virtual USB - Device.
  */

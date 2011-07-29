@@ -1,4 +1,4 @@
-/* $Id: VFSExplorerImpl.cpp $ */
+/* $Id: VFSExplorerImpl.cpp 37678 2011-06-29 08:24:09Z vboxsync $ */
 /** @file
  *
  * IVFSExplorer COM class implementations.
@@ -249,7 +249,7 @@ DECLCALLBACK(int) VFSExplorer::TaskVFSExplorer::taskThread(RTTHREAD /* aThread *
             break;
     }
 
-    LogFlowFunc(("rc=%Rhrc\n", rc));
+    LogFlowFunc(("rc=%Rhrc\n", rc)); NOREF(rc);
     LogFlowFuncLeave();
 
     return VINF_SUCCESS;

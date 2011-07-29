@@ -1,4 +1,4 @@
-/* $Id: UIMachineSettingsDisplay.cpp $ */
+/* $Id: UIMachineSettingsDisplay.cpp 37735 2011-07-02 13:24:54Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,9 +50,12 @@ UIMachineSettingsDisplay::UIMachineSettingsDisplay()
     , m_maxVRAM(0)
     , m_maxVRAMVisible(0)
     , m_initialVRAM(0)
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    , m_f2DVideoAccelerationSupported(false)
+#endif /* VBOX_WITH_VIDEOHWACCEL */
 #ifdef VBOX_WITH_CRHGSMI
-    , m_bWddmMode(false)
-#endif
+    , m_fWddmModeSupported(false)
+#endif /* VBOX_WITH_CRHGSMI */
 {
     /* Apply UI decorations */
     Ui::UIMachineSettingsDisplay::setupUi (this);
@@ -93,10 +96,7 @@ UIMachineSettingsDisplay::UIMachineSettingsDisplay()
     mSlMemory->setMinimum ((m_minVRAM / mSlMemory->pageStep()) * mSlMemory->pageStep());
     mSlMemory->setMaximum (m_maxVRAMVisible);
     mSlMemory->setSnappingEnabled (true);
-    quint64 needMBytes = VBoxGlobal::requiredVideoMemory (&m_machine) / _1M;
     mSlMemory->setErrorHint (0, 1);
-    mSlMemory->setWarningHint (1, needMBytes);
-    mSlMemory->setOptimalHint (needMBytes, m_maxVRAMVisible);
     mSlMonitors->setMinimum (MinMonitors);
     mSlMonitors->setMaximum (MaxMonitors);
     mSlMonitors->setErrorHint (0, MinMonitors);
@@ -119,12 +119,32 @@ UIMachineSettingsDisplay::UIMachineSettingsDisplay()
     mCb2DVideo->setVisible (false);
 #endif
 
-#ifdef VBOX_WITH_CRHGSMI
-    m_bWddmMode = false;
-#endif
-
     /* Applying language settings */
     retranslateUi();
+}
+
+void UIMachineSettingsDisplay::setGuestOSType(CGuestOSType guestOSType)
+{
+    /* Check if guest os type changed: */
+    if (m_guestOSType == guestOSType)
+        return;
+
+    /* Remember new guest os type: */
+    m_guestOSType = guestOSType;
+
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    /* Check if 2D video acceleration supported by the guest OS type: */
+    QString strguestOSTypeFamily = m_guestOSType.GetFamilyId();
+    m_f2DVideoAccelerationSupported = strguestOSTypeFamily == "Windows";
+#endif /* VBOX_WITH_VIDEOHWACCEL */
+#ifdef VBOX_WITH_CRHGSMI
+    /* Check if WDDM mode supported by the guest OS type: */
+    QString strguestOSTypeId = m_guestOSType.GetId();
+    m_fWddmModeSupported = VBoxGlobal::isWddmCompatibleOsType(strguestOSTypeId);
+#endif /* VBOX_WITH_CRHGSMI */
+
+    /* Recheck video RAM requirement: */
+    checkVRAMRequirements();
 }
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -132,18 +152,7 @@ bool UIMachineSettingsDisplay::isAcceleration2DVideoSelected() const
 {
     return mCb2DVideo->isChecked();
 }
-#endif
-
-#ifdef VBOX_WITH_CRHGSMI
-void UIMachineSettingsDisplay::setWddmMode(bool bWddm)
-{
-    if (bWddm == m_bWddmMode)
-        return;
-
-    m_bWddmMode = bWddm;
-    checkVRAMRequirements();
-}
-#endif
+#endif /* VBOX_WITH_VIDEOHWACCEL */
 
 /* Load data to cashe from corresponding external object(s),
  * this task COULD be performed in other than GUI thread: */
@@ -152,23 +161,36 @@ void UIMachineSettingsDisplay::loadToCacheFrom(QVariant &data)
     /* Fetch data to machine: */
     UISettingsPageMachine::fetchData(data);
 
-    /* Fill internal variables with corresponding values: */
-    m_cache.m_iCurrentVRAM = m_machine.GetVRAMSize();
-    m_cache.m_cMonitorCount = m_machine.GetMonitorCount();
-    m_cache.m_f3dAccelerationEnabled = m_machine.GetAccelerate3DEnabled();
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    m_cache.m_f2dAccelerationEnabled = m_machine.GetAccelerate2DVideoEnabled();
-#endif
-    CVRDEServer vrdeServer = m_machine.GetVRDEServer();
-    m_cache.m_fVRDEServerSupported = !vrdeServer.isNull();
-    m_cache.m_fVRDEServerEnabled = m_cache.m_fVRDEServerSupported && vrdeServer.GetEnabled();
-    m_cache.m_strVRDEPort = vrdeServer.GetVRDEProperty("TCP/Ports");
-    m_cache.m_iVRDEAuthType = vrdeServer.GetAuthType();
-    m_cache.m_uVRDETimeout = vrdeServer.GetAuthTimeout();
-    m_cache.m_fMultipleConnectionsAllowed = vrdeServer.GetAllowMultiConnection();
+    /* Clear cache initially: */
+    m_cache.clear();
 
-    /* Other variables: */
-    m_initialVRAM = RT_MIN(m_cache.m_iCurrentVRAM, m_maxVRAM);
+    /* Prepare display data: */
+    UIDataSettingsMachineDisplay displayData;
+
+    /* Gather display data: */
+    displayData.m_iCurrentVRAM = m_machine.GetVRAMSize();
+    displayData.m_cMonitorCount = m_machine.GetMonitorCount();
+    displayData.m_f3dAccelerationEnabled = m_machine.GetAccelerate3DEnabled();
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    displayData.m_f2dAccelerationEnabled = m_machine.GetAccelerate2DVideoEnabled();
+#endif /* VBOX_WITH_VIDEOHWACCEL */
+    /* Check if VRDE server is valid: */
+    CVRDEServer vrdeServer = m_machine.GetVRDEServer();
+    displayData.m_fVRDEServerSupported = !vrdeServer.isNull();
+    if (!vrdeServer.isNull())
+    {
+        displayData.m_fVRDEServerEnabled = vrdeServer.GetEnabled();
+        displayData.m_strVRDEPort = vrdeServer.GetVRDEProperty("TCP/Ports");
+        displayData.m_VRDEAuthType = vrdeServer.GetAuthType();
+        displayData.m_uVRDETimeout = vrdeServer.GetAuthTimeout();
+        displayData.m_fMultipleConnectionsAllowed = vrdeServer.GetAllowMultiConnection();
+    }
+
+    /* Initialize other variables: */
+    m_initialVRAM = RT_MIN(displayData.m_iCurrentVRAM, m_maxVRAM);
+
+    /* Cache display data: */
+    m_cache.cacheInitialData(displayData);
 
     /* Upload machine to data: */
     UISettingsPageMachine::uploadData(data);
@@ -178,50 +200,59 @@ void UIMachineSettingsDisplay::loadToCacheFrom(QVariant &data)
  * this task SHOULD be performed in GUI thread only: */
 void UIMachineSettingsDisplay::getFromCache()
 {
-    /* Apply internal variables data to QWidget(s): */
-    mSlMonitors->setValue(m_cache.m_cMonitorCount);
-    mCb3D->setEnabled(vboxGlobal().virtualBox().GetHost().GetAcceleration3DAvailable());
-    mCb3D->setChecked(m_cache.m_f3dAccelerationEnabled);
+    /* Get display data from cache: */
+    const UIDataSettingsMachineDisplay &displayData = m_cache.base();
+
+    /* Load display data to page: */
+    mSlMonitors->setValue(displayData.m_cMonitorCount);
+    mCb3D->setChecked(displayData.m_f3dAccelerationEnabled);
 #ifdef VBOX_WITH_VIDEOHWACCEL
-    mCb2DVideo->setEnabled(VBoxGlobal::isAcceleration2DVideoAvailable());
-    mCb2DVideo->setChecked(m_cache.m_f2dAccelerationEnabled);
-#endif
+    mCb2DVideo->setChecked(displayData.m_f2dAccelerationEnabled);
+#endif /* VBOX_WITH_VIDEOHWACCEL */
     checkVRAMRequirements();
-    mSlMemory->setValue(m_cache.m_iCurrentVRAM);
-    if (m_cache.m_fVRDEServerSupported)
+    mSlMemory->setValue(displayData.m_iCurrentVRAM);
+    if (displayData.m_fVRDEServerSupported)
     {
-        mCbVRDE->setChecked(m_cache.m_fVRDEServerEnabled);
-        mLeVRDEPort->setText(m_cache.m_strVRDEPort);
-        mCbVRDEMethod->setCurrentIndex(mCbVRDEMethod->findText(vboxGlobal().toString(m_cache.m_iVRDEAuthType)));
-        mLeVRDETimeout->setText(QString::number(m_cache.m_uVRDETimeout));
-        mCbMultipleConn->setChecked(m_cache.m_fMultipleConnectionsAllowed);
+        mCbVRDE->setChecked(displayData.m_fVRDEServerEnabled);
+        mLeVRDEPort->setText(displayData.m_strVRDEPort);
+        mCbVRDEMethod->setCurrentIndex(mCbVRDEMethod->findText(vboxGlobal().toString(displayData.m_VRDEAuthType)));
+        mLeVRDETimeout->setText(QString::number(displayData.m_uVRDETimeout));
+        mCbMultipleConn->setChecked(displayData.m_fMultipleConnectionsAllowed);
     }
-    else
-        mTwDisplay->removeTab(1);
+
+    /* Polish page finally: */
+    polishPage();
 
     /* Revalidate if possible: */
-    if (mValidator) mValidator->revalidate();
+    if (mValidator)
+        mValidator->revalidate();
 }
 
 /* Save data from corresponding widgets to cache,
  * this task SHOULD be performed in GUI thread only: */
 void UIMachineSettingsDisplay::putToCache()
 {
-    /* Gather internal variables data from QWidget(s): */
-    m_cache.m_iCurrentVRAM = mSlMemory->value();
-    m_cache.m_cMonitorCount = mSlMonitors->value();
-    m_cache.m_f3dAccelerationEnabled = mCb3D->isChecked();
+    /* Prepare audio data: */
+    UIDataSettingsMachineDisplay displayData = m_cache.base();
+
+    /* Gather display data: */
+    displayData.m_iCurrentVRAM = mSlMemory->value();
+    displayData.m_cMonitorCount = mSlMonitors->value();
+    displayData.m_f3dAccelerationEnabled = mCb3D->isChecked();
 #ifdef VBOX_WITH_VIDEOHWACCEL
-    m_cache.m_f2dAccelerationEnabled = mCb2DVideo->isChecked();
-#endif
-    if (m_cache.m_fVRDEServerSupported)
+    displayData.m_f2dAccelerationEnabled = mCb2DVideo->isChecked();
+#endif /* VBOX_WITH_VIDEOHWACCEL */
+    if (displayData.m_fVRDEServerSupported)
     {
-        m_cache.m_fVRDEServerEnabled = mCbVRDE->isChecked();
-        m_cache.m_strVRDEPort = mLeVRDEPort->text();
-        m_cache.m_iVRDEAuthType = vboxGlobal().toAuthType(mCbVRDEMethod->currentText());
-        m_cache.m_uVRDETimeout = mLeVRDETimeout->text().toULong();
-        m_cache.m_fMultipleConnectionsAllowed = mCbMultipleConn->isChecked();
+        displayData.m_fVRDEServerEnabled = mCbVRDE->isChecked();
+        displayData.m_strVRDEPort = mLeVRDEPort->text();
+        displayData.m_VRDEAuthType = vboxGlobal().toAuthType(mCbVRDEMethod->currentText());
+        displayData.m_uVRDETimeout = mLeVRDETimeout->text().toULong();
+        displayData.m_fMultipleConnectionsAllowed = mCbMultipleConn->isChecked();
     }
+
+    /* Cache display data: */
+    m_cache.cacheCurrentData(displayData);
 }
 
 /* Save data from cache to corresponding external object(s),
@@ -231,21 +262,40 @@ void UIMachineSettingsDisplay::saveFromCacheTo(QVariant &data)
     /* Fetch data to machine: */
     UISettingsPageMachine::fetchData(data);
 
-    /* Gather corresponding values from internal variables: */
-    m_machine.SetVRAMSize(m_cache.m_iCurrentVRAM);
-    m_machine.SetMonitorCount(m_cache.m_cMonitorCount);
-    m_machine.SetAccelerate3DEnabled(m_cache.m_f3dAccelerationEnabled);
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    m_machine.SetAccelerate2DVideoEnabled(m_cache.m_f2dAccelerationEnabled);
-#endif
-    CVRDEServer vrdeServer = m_machine.GetVRDEServer();
-    if (!vrdeServer.isNull())
+    /* Check if display data was changed: */
+    if (m_cache.wasChanged())
     {
-        vrdeServer.SetEnabled(m_cache.m_fVRDEServerEnabled);
-        vrdeServer.SetVRDEProperty("TCP/Ports", m_cache.m_strVRDEPort);
-        vrdeServer.SetAuthType(m_cache.m_iVRDEAuthType);
-        vrdeServer.SetAuthTimeout(m_cache.m_uVRDETimeout);
-        vrdeServer.SetAllowMultiConnection(m_cache.m_fMultipleConnectionsAllowed);
+        /* Get display data from cache: */
+        const UIDataSettingsMachineDisplay &displayData = m_cache.data();
+
+        /* Store display data: */
+        if (isMachineOffline())
+        {
+            /* Video tab: */
+            m_machine.SetVRAMSize(displayData.m_iCurrentVRAM);
+            m_machine.SetMonitorCount(displayData.m_cMonitorCount);
+            m_machine.SetAccelerate3DEnabled(displayData.m_f3dAccelerationEnabled);
+#ifdef VBOX_WITH_VIDEOHWACCEL
+            m_machine.SetAccelerate2DVideoEnabled(displayData.m_f2dAccelerationEnabled);
+#endif /* VBOX_WITH_VIDEOHWACCEL */
+        }
+        /* Check if VRDE server still valid: */
+        CVRDEServer vrdeServer = m_machine.GetVRDEServer();
+        if (!vrdeServer.isNull())
+        {
+            /* Store VRDE data: */
+            if (isMachineInValidMode())
+            {
+                vrdeServer.SetEnabled(displayData.m_fVRDEServerEnabled);
+                vrdeServer.SetVRDEProperty("TCP/Ports", displayData.m_strVRDEPort);
+                vrdeServer.SetAuthType(displayData.m_VRDEAuthType);
+                vrdeServer.SetAuthTimeout(displayData.m_uVRDETimeout);
+            }
+            if (isMachineOffline() || isMachineSaved())
+            {
+                vrdeServer.SetAllowMultiConnection(displayData.m_fMultipleConnectionsAllowed);
+            }
+        }
     }
 
     /* Upload machine to data: */
@@ -269,49 +319,70 @@ void UIMachineSettingsDisplay::setValidator (QIWidgetValidator *aVal)
              mValidator, SLOT (revalidate()));
 }
 
-bool UIMachineSettingsDisplay::revalidate (QString &aWarning, QString & /* aTitle */)
+bool UIMachineSettingsDisplay::revalidate(QString &strWarning, QString & /* strTitle */)
 {
-    /* Video RAM amount test */
-    quint64 needBytes = VBoxGlobal::requiredVideoMemory (&m_machine, mSlMonitors->value());
-    if (   vboxGlobal().shouldWarnAboutToLowVRAM(&m_machine)
-        && (quint64)mSlMemory->value() * _1M < needBytes)
-    {
-        aWarning = tr (
-                       "you have assigned less than <b>%1</b> of video memory which is "
-                       "the minimum amount required to switch the virtual machine to "
-                       "fullscreen or seamless mode.")
-            .arg (vboxGlobal().formatSize (needBytes, 0, VBoxDefs::FormatSize_RoundUp));
-    }
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    else if (mCb2DVideo->isChecked())
-    {
-        needBytes += VBoxGlobal::required2DOffscreenVideoMemory();
-        if ((quint64) mSlMemory->value() * _1M < needBytes)
-        {
-            aWarning = tr (
-                "you have assigned less than <b>%1</b> of video memory which is "
-                "the minimum amount required for HD Video to be played efficiently.")
-                .arg (vboxGlobal().formatSize (needBytes, 0, VBoxDefs::FormatSize_RoundUp));
-        }
-    }
-#endif
-#ifdef VBOX_WITH_CRHGSMI
-    else if (false) // m_bWddmMode && mCb3D->isChecked())
-    {
-        int cVal = mSlMonitors->value();
-        needBytes += VBoxGlobal::required3DWddmOffscreenVideoMemory(&m_machine, cVal);
-        needBytes = RT_MAX(needBytes, 128 * _1M);
-        needBytes = RT_MIN(needBytes, 256 * _1M);
-        if ((quint64) mSlMemory->value() * _1M < needBytes)
-        {
-            aWarning = tr(
-                "You have 3D Acceleration enabled for a operation system which uses the WDDM video driver. "
-                "For maximal performance set the guest VRAM to at least <b>%1</b>."
-                ).arg (vboxGlobal().formatSize (needBytes, 0, VBoxDefs::FormatSize_RoundUp));
-        }
-    }
-#endif
+    /* Check if video RAM requirement changed first: */
     checkVRAMRequirements();
+
+    /* Video RAM amount test: */
+    if (shouldWeWarnAboutLowVideoMemory() && !m_guestOSType.isNull())
+    {
+        quint64 uNeedBytes = VBoxGlobal::requiredVideoMemory(m_guestOSType.GetId(), mSlMonitors->value());
+
+        /* Basic video RAM amount test: */
+        if ((quint64)mSlMemory->value() * _1M < uNeedBytes)
+        {
+            strWarning = tr("you have assigned less than <b>%1</b> of video memory which is "
+                            "the minimum amount required to switch the virtual machine to "
+                            "fullscreen or seamless mode.")
+                            .arg(vboxGlobal().formatSize(uNeedBytes, 0, VBoxDefs::FormatSize_RoundUp));
+            return true;
+        }
+#ifdef VBOX_WITH_VIDEOHWACCEL
+        /* 2D acceleration video RAM amount test: */
+        if (mCb2DVideo->isChecked() && m_f2DVideoAccelerationSupported)
+        {
+            uNeedBytes += VBoxGlobal::required2DOffscreenVideoMemory();
+            if ((quint64)mSlMemory->value() * _1M < uNeedBytes)
+            {
+                strWarning = tr("you have assigned less than <b>%1</b> of video memory which is "
+                                "the minimum amount required for HD Video to be played efficiently.")
+                                .arg(vboxGlobal().formatSize(uNeedBytes, 0, VBoxDefs::FormatSize_RoundUp));
+                return true;
+            }
+        }
+#endif /* VBOX_WITH_VIDEOHWACCEL */
+#if 0
+# ifdef VBOX_WITH_CRHGSMI
+        if (mCb3D->isChecked() && m_fWddmModeSupported)
+        {
+            int cMonitorsCount = mSlMonitors->value();
+            uNeedBytes += VBoxGlobal::required3DWddmOffscreenVideoMemory(m_guestOSType.GetId(), cMonitorsCount);
+            uNeedBytes = RT_MAX(uNeedBytes, 128 * _1M);
+            uNeedBytes = RT_MIN(uNeedBytes, 256 * _1M);
+            if ((quint64)mSlMemory->value() * _1M < uNeedBytes)
+            {
+                strWarning = tr("you have 3D Acceleration enabled for a operation system which uses the WDDM video driver. "
+                                "For maximal performance set the guest VRAM to at least <b>%1</b>.")
+                                .arg(vboxGlobal().formatSize(uNeedBytes, 0, VBoxDefs::FormatSize_RoundUp));
+                return true;
+            }
+        }
+# endif /* VBOX_WITH_CRHGSMI */
+#endif /* 0 */
+    }
+
+    /* Check mode availability: */
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    /* 2D video acceleration is available for Windows guests only: */
+    if (mCb2DVideo->isChecked() && !m_f2DVideoAccelerationSupported)
+    {
+        strWarning = tr("you have 2D Video Acceleration enabled. As 2D Video Acceleration "
+                        "is supported for Windows guests only, this feature will be disabled.");
+        return true;
+    }
+#endif /* VBOX_WITH_VIDEOHWACCEL */
+
     return true;
 }
 
@@ -380,39 +451,91 @@ void UIMachineSettingsDisplay::textChangedMonitors (const QString &aText)
 
 void UIMachineSettingsDisplay::checkVRAMRequirements()
 {
-    int cVal = mSlMonitors->value();
-    /* The memory requirements have changed too. */
-    quint64 needMBytes = VBoxGlobal::requiredVideoMemory (&m_machine, cVal) / _1M;
-    /* Limit the maximum memory to save careless users from setting useless big values */
+    if (m_guestOSType.isNull())
+        return;
+
+    /* Get monitors count and base video memory requirements: */
+    int cMonitorsCount = mSlMonitors->value();
+    quint64 uNeedMBytes = VBoxGlobal::requiredVideoMemory(m_guestOSType.GetId(), cMonitorsCount) / _1M;
+
+    /* Initial values: */
+    m_maxVRAMVisible = cMonitorsCount * 32;
+    if (m_maxVRAMVisible < 128)
+        m_maxVRAMVisible = 128;
+    if (m_maxVRAMVisible < m_initialVRAM)
+        m_maxVRAMVisible = m_initialVRAM;
+
 #ifdef VBOX_WITH_VIDEOHWACCEL
-    if (mCb2DVideo->isChecked())
+    if (mCb2DVideo->isChecked() && m_f2DVideoAccelerationSupported)
     {
-        needMBytes += VBoxGlobal::required2DOffscreenVideoMemory() / _1M;
+        uNeedMBytes += VBoxGlobal::required2DOffscreenVideoMemory() / _1M;
     }
-#endif
-#if 0 // def VBOX_WITH_CRHGSMI
-    if (m_bWddmMode && mCb3D->isChecked())
+#endif /* VBOX_WITH_VIDEOHWACCEL */
+#ifdef VBOX_WITH_CRHGSMI
+    if (mCb3D->isChecked() && m_fWddmModeSupported)
     {
-        needMBytes += VBoxGlobal::required3DWddmOffscreenVideoMemory(&m_machine, cVal) / _1M;
-        needMBytes = RT_MAX(needMBytes, 128);
-        needMBytes = RT_MIN(needMBytes, 256);
+# if 0
+        uNeedMBytes += VBoxGlobal::required3DWddmOffscreenVideoMemory(m_guestOSType.GetId(), cMonitorsCount) / _1M;
+        uNeedMBytes = RT_MAX(uNeedMBytes, 128);
+        uNeedMBytes = RT_MIN(uNeedMBytes, 256);
+# endif
         m_maxVRAMVisible = 256;
     }
-    else
-#endif
-    {
-        m_maxVRAMVisible = cVal * 32;
-        if (m_maxVRAMVisible < 128)
-            m_maxVRAMVisible = 128;
-        if (m_maxVRAMVisible < m_initialVRAM)
-            m_maxVRAMVisible = m_initialVRAM;
-    }
-    mSlMemory->setWarningHint (1, needMBytes);
-    mSlMemory->setPageStep (calcPageStep (m_maxVRAMVisible));
-    mSlMemory->setMaximum (m_maxVRAMVisible);
-    mSlMemory->setOptimalHint (needMBytes, m_maxVRAMVisible);
-    mLeMemory->setValidator (new QIntValidator (m_minVRAM, m_maxVRAMVisible, this));
-    mLbMemoryMax->setText (tr ("<qt>%1&nbsp;MB</qt>").arg (m_maxVRAMVisible));
-    /* ... or just call retranslateUi()? */
+#endif /* VBOX_WITH_CRHGSMI */
+
+    mSlMemory->setWarningHint(1, uNeedMBytes);
+    mSlMemory->setPageStep(calcPageStep(m_maxVRAMVisible));
+    mSlMemory->setMaximum(m_maxVRAMVisible);
+    mSlMemory->setOptimalHint(uNeedMBytes, m_maxVRAMVisible);
+    mLeMemory->setValidator(new QIntValidator(m_minVRAM, m_maxVRAMVisible, this));
+    mLbMemoryMax->setText(tr("<qt>%1&nbsp;MB</qt>").arg(m_maxVRAMVisible));
+}
+
+bool UIMachineSettingsDisplay::shouldWeWarnAboutLowVideoMemory()
+{
+    bool fResult = true;
+
+    QStringList excludingOSList = QStringList()
+        << "Other" << "DOS" << "Netware" << "L4" << "QNX" << "JRockitVE";
+    if (excludingOSList.contains(m_guestOSType.GetId()))
+        fResult = false;
+
+    return fResult;
+}
+
+void UIMachineSettingsDisplay::polishPage()
+{
+    /* Get system data from cache: */
+    const UIDataSettingsMachineDisplay &displayData = m_cache.base();
+
+    /* Video tab: */
+    mLbMemory->setEnabled(isMachineOffline());
+    mLbMemoryMin->setEnabled(isMachineOffline());
+    mLbMemoryMax->setEnabled(isMachineOffline());
+    mLbMemoryUnit->setEnabled(isMachineOffline());
+    mSlMemory->setEnabled(isMachineOffline());
+    mLeMemory->setEnabled(isMachineOffline());
+    mLbMonitors->setEnabled(isMachineOffline());
+    mLbMonitorsMin->setEnabled(isMachineOffline());
+    mLbMonitorsMax->setEnabled(isMachineOffline());
+    mLbMonitorsUnit->setEnabled(isMachineOffline());
+    mSlMonitors->setEnabled(isMachineOffline());
+    mLeMonitors->setEnabled(isMachineOffline());
+    mLbOptions->setEnabled(isMachineOffline());
+    mCb3D->setEnabled(isMachineOffline() && vboxGlobal().virtualBox().GetHost().GetAcceleration3DAvailable());
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    mCb2DVideo->setEnabled(isMachineOffline() && VBoxGlobal::isAcceleration2DVideoAvailable());
+#endif /* VBOX_WITH_VIDEOHWACCEL */
+    /* VRDE tab: */
+    mTwDisplay->setTabEnabled(1, displayData.m_fVRDEServerSupported);
+    mCbVRDE->setEnabled(isMachineInValidMode());
+    mLbVRDPPort->setEnabled(isMachineInValidMode());
+    mLeVRDEPort->setEnabled(isMachineInValidMode());
+    mLbVRDPMethod->setEnabled(isMachineInValidMode());
+    mCbVRDEMethod->setEnabled(isMachineInValidMode());
+    mLbVRDPTimeout->setEnabled(isMachineInValidMode());
+    mLeVRDETimeout->setEnabled(isMachineInValidMode());
+    mLbOptions2->setEnabled(isMachineOffline() || isMachineSaved());
+    mCbMultipleConn->setEnabled(isMachineOffline() || isMachineSaved());
 }
 

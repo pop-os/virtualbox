@@ -412,7 +412,7 @@ VBGLR3DECL(void)    VbglR3ClosePidFile(const char *pszPath, RTFILE hFile);
 VBGLR3DECL(int)     VbglR3SetGuestCaps(uint32_t fOr, uint32_t fNot);
 VBGLR3DECL(int)     VbglR3WaitEvent(uint32_t fMask, uint32_t cMillies, uint32_t *pfEvents);
 
-VBGLR3DECL(int)     VbglR3ReportAdditionsStatus(VBoxGuestStatusFacility Facility, VBoxGuestStatusCurrent StatusCurrent, uint32_t uFlags);
+VBGLR3DECL(int)     VbglR3ReportAdditionsStatus(VBoxGuestFacilityType Facility, VBoxGuestFacilityStatus StatusCurrent, uint32_t uFlags);
 VBGLR3DECL(int)     VbglR3GetAdditionsVersion(char **ppszVer, char **ppszVerEx, char **ppszRev);
 VBGLR3DECL(int)     VbglR3GetAdditionsInstallationPath(char **ppszPath);
 VBGLR3DECL(int)     VbglR3GetSessionId(uint64_t *pu64IdSession);
@@ -546,8 +546,21 @@ VBGLR3DECL(int)     VbglR3SharedFolderGetMountDir(char **ppszDir);
  * @{ */
 VBGLR3DECL(int)     VbglR3GuestCtrlConnect(uint32_t *pu32ClientId);
 VBGLR3DECL(int)     VbglR3GuestCtrlDisconnect(uint32_t u32ClientId);
-VBGLR3DECL(int)     VbglR3GuestCtrlGetHostMsg(uint32_t u32ClientId, uint32_t *puMsg, uint32_t *puNumParms);
+VBGLR3DECL(int)     VbglR3GuestCtrlWaitForHostMsg(uint32_t u32ClientId, uint32_t *puMsg, uint32_t *puNumParms);
 VBGLR3DECL(int)     VbglR3GuestCtrlCancelPendingWaits(uint32_t u32ClientId);
+
+VBGLR3DECL(int) VbglR3GuestCtrlGetCmdDirClose(uint32_t  u32ClientId,    uint32_t  uNumParms,
+                                              uint32_t *puContext,      uint32_t *puHandle);
+VBGLR3DECL(int) VbglR3GuestCtrlGetCmdDirOpen(uint32_t  u32ClientId,    uint32_t  uNumParms,
+                                             uint32_t *puContext,
+                                             char     *pszDir,         uint32_t  cbDir,
+                                             char     *pszFilter,      uint32_t  cbFilter,
+                                             uint32_t *puFlags,
+                                             char     *pszUser,        uint32_t  cbUser,
+                                             char     *pszPassword,    uint32_t  cbPassword);
+VBGLR3DECL(int) VbglR3GuestCtrlGetCmdDirRead(uint32_t  u32ClientId,    uint32_t  uNumParms,
+                                             uint32_t *puContext,      uint32_t *puHandle);
+
 VBGLR3DECL(int)     VbglR3GuestCtrlExecGetHostCmd(uint32_t  u32ClientId,    uint32_t  uNumParms,
                                                   uint32_t *puContext,
                                                   char     *pszCmd,         uint32_t  cbCmd,

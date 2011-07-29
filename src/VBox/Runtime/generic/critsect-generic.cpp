@@ -1,10 +1,10 @@
-/* $Id: critsect-generic.cpp $ */
+/* $Id: critsect-generic.cpp 37419 2011-06-11 20:25:37Z vboxsync $ */
 /** @file
  * IPRT - Critical Section, Generic.
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,7 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#define RTCRITSECT_WITHOUT_REMAPPING
 #include <iprt/critsect.h>
 #include "internal/iprt.h"
 
@@ -40,7 +41,6 @@
 #include "internal/strict.h"
 
 
-#undef RTCritSectInit
 RTDECL(int) RTCritSectInit(PRTCRITSECT pCritSect)
 {
     return RTCritSectInitEx(pCritSect, 0, NIL_RTLOCKVALCLASS, RTLOCKVAL_SUB_CLASS_NONE, "RTCritSect");
@@ -51,7 +51,7 @@ RT_EXPORT_SYMBOL(RTCritSectInit);
 RTDECL(int) RTCritSectInitEx(PRTCRITSECT pCritSect, uint32_t fFlags, RTLOCKVALCLASS hClass, uint32_t uSubClass,
                              const char *pszNameFmt, ...)
 {
-    AssertReturn(!(fFlags & ~(RTCRITSECT_FLAGS_NO_NESTING | RTCRITSECT_FLAGS_NO_LOCK_VAL | RTCRITSECT_FLAGS_BOOTSTRAP_HACK)),
+    AssertReturn(!(fFlags & ~(RTCRITSECT_FLAGS_NO_NESTING | RTCRITSECT_FLAGS_NO_LOCK_VAL | RTCRITSECT_FLAGS_BOOTSTRAP_HACK | RTCRITSECT_FLAGS_NOP)),
                  VERR_INVALID_PARAMETER);
 
     /*
@@ -65,7 +65,7 @@ RTDECL(int) RTCritSectInitEx(PRTCRITSECT pCritSect, uint32_t fFlags, RTLOCKVALCL
     pCritSect->pValidatorRec        = NULL;
     int rc = VINF_SUCCESS;
 #ifdef RTCRITSECT_STRICT
-    if (!(fFlags & RTCRITSECT_FLAGS_BOOTSTRAP_HACK))
+    if (!(fFlags & (RTCRITSECT_FLAGS_BOOTSTRAP_HACK | RTCRITSECT_FLAGS_NOP)))
     {
         if (!pszNameFmt)
         {
@@ -110,6 +110,7 @@ RTDECL(uint32_t) RTCritSectSetSubClass(PRTCRITSECT pCritSect, uint32_t uSubClass
 #ifdef RTCRITSECT_STRICT
     AssertPtrReturn(pCritSect, RTLOCKVAL_SUB_CLASS_INVALID);
     AssertReturn(pCritSect->u32Magic == RTCRITSECT_MAGIC, RTLOCKVAL_SUB_CLASS_INVALID);
+    AssertReturn(!(pCritSect->fFlags & RTCRITSECT_FLAGS_NOP), RTLOCKVAL_SUB_CLASS_INVALID);
     return RTLockValidatorRecExclSetSubClass(pCritSect->pValidatorRec, uSubClass);
 #else
     return RTLOCKVAL_SUB_CLASS_INVALID;
@@ -121,11 +122,18 @@ DECL_FORCE_INLINE(int) rtCritSectTryEnter(PRTCRITSECT pCritSect, PCRTLOCKVALSRCP
 {
     Assert(pCritSect);
     Assert(pCritSect->u32Magic == RTCRITSECT_MAGIC);
-    RTNATIVETHREAD  NativeThreadSelf = RTThreadNativeSelf();
+    /*AssertReturn(pCritSect->u32Magic == RTCRITSECT_MAGIC, VERR_SEM_DESTROYED);*/
+
+    /*
+     * Return straight away if NOP.
+     */
+    if (pCritSect->fFlags & RTCRITSECT_FLAGS_NOP)
+        return VINF_SUCCESS;
 
     /*
      * Try take the lock. (cLockers is -1 if it's free)
      */
+    RTNATIVETHREAD NativeThreadSelf = RTThreadNativeSelf();
     if (!ASMAtomicCmpXchgS32(&pCritSect->cLockers, 0, -1))
     {
         /*
@@ -163,7 +171,6 @@ DECL_FORCE_INLINE(int) rtCritSectTryEnter(PRTCRITSECT pCritSect, PCRTLOCKVALSRCP
 }
 
 
-#undef RTCritSectTryEnter
 RTDECL(int) RTCritSectTryEnter(PRTCRITSECT pCritSect)
 {
 #ifndef RTCRTISECT_STRICT
@@ -186,19 +193,24 @@ RT_EXPORT_SYMBOL(RTCritSectTryEnterDebug);
 
 DECL_FORCE_INLINE(int) rtCritSectEnter(PRTCRITSECT pCritSect, PCRTLOCKVALSRCPOS pSrcPos)
 {
-    Assert(pCritSect);
-    Assert(pCritSect->u32Magic == RTCRITSECT_MAGIC);
+    AssertPtr(pCritSect);
+    AssertReturn(pCritSect->u32Magic == RTCRITSECT_MAGIC, VERR_SEM_DESTROYED);
+
+    /*
+     * Return straight away if NOP.
+     */
+    if (pCritSect->fFlags & RTCRITSECT_FLAGS_NOP)
+        return VINF_SUCCESS;
+
+    /*
+     * How is calling and is the order right?
+     */
     RTNATIVETHREAD  NativeThreadSelf = RTThreadNativeSelf();
-
-    /* If the critical section has already been destroyed, then inform the caller. */
-    if (pCritSect->u32Magic != RTCRITSECT_MAGIC)
-        return VERR_SEM_DESTROYED;
-
 #ifdef RTCRITSECT_STRICT
-    RTTHREAD hThreadSelf = pCritSect->pValidatorRec
-                         ? RTThreadSelfAutoAdopt()
-                         : RTThreadSelf();
-    int      rc9;
+    RTTHREAD        hThreadSelf = pCritSect->pValidatorRec
+                                ? RTThreadSelfAutoAdopt()
+                                : RTThreadSelf();
+    int             rc9;
     if (pCritSect->pValidatorRec) /* (bootstap) */
     {
          rc9 = RTLockValidatorRecExclCheckOrder(pCritSect->pValidatorRec, hThreadSelf, pSrcPos, RT_INDEFINITE_WAIT);
@@ -282,7 +294,6 @@ DECL_FORCE_INLINE(int) rtCritSectEnter(PRTCRITSECT pCritSect, PCRTLOCKVALSRCPOS 
 }
 
 
-#undef RTCritSectEnter
 RTDECL(int) RTCritSectEnter(PRTCRITSECT pCritSect)
 {
 #ifndef RTCRITSECT_STRICT
@@ -306,10 +317,16 @@ RT_EXPORT_SYMBOL(RTCritSectEnterDebug);
 RTDECL(int) RTCritSectLeave(PRTCRITSECT pCritSect)
 {
     /*
-     * Assert ownership and so on.
+     * Assert sanity and check for NOP.
      */
     Assert(pCritSect);
     Assert(pCritSect->u32Magic == RTCRITSECT_MAGIC);
+    if (pCritSect->fFlags & RTCRITSECT_FLAGS_NOP)
+        return VINF_SUCCESS;
+
+    /*
+     * Assert ownership and so on.
+     */
     Assert(pCritSect->cNestings > 0);
     Assert(pCritSect->cLockers >= 0);
     Assert(pCritSect->NativeThreadOwner == RTThreadNativeSelf());
@@ -425,7 +442,6 @@ static int rtCritSectEnterMultiple(size_t cCritSects, PRTCRITSECT *papCritSects,
 }
 
 
-#undef RTCritSectEnterMultiple
 RTDECL(int) RTCritSectEnterMultiple(size_t cCritSects, PRTCRITSECT *papCritSects)
 {
 #ifndef RTCRITSECT_STRICT

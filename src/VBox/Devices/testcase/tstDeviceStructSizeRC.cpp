@@ -1,4 +1,4 @@
-/* $Id: tstDeviceStructSizeRC.cpp $ */
+/* $Id: tstDeviceStructSizeRC.cpp 37752 2011-07-04 10:02:23Z vboxsync $ */
 /** @file
  * tstDeviceStructSizeGC - Generate structure member and size checks from the RC perspective.
  *
@@ -38,6 +38,8 @@
 #undef LOG_GROUP
 #include "../Bus/DevPCI.cpp" /* must be first! */
 #undef LOG_GROUP
+#include "../Bus/DevPciIch9.cpp"
+#undef LOG_GROUP
 #include "../Graphics/DevVGA.cpp"
 #undef LOG_GROUP
 #include "../Input/DevPS2.cpp"
@@ -54,11 +56,13 @@
 #undef LOG_GROUP
 #include "../PC/DevAPIC.cpp"
 #undef LOG_GROUP
+#include "../PC/DevIoApic.cpp"
+#undef LOG_GROUP
 #include "../Storage/DevATA.cpp"
 #ifdef VBOX_WITH_USB
 # undef LOG_GROUP
 # include "../USB/DevOHCI.cpp"
-# ifdef VBOX_WITH_EHCI
+# ifdef VBOX_WITH_EHCI_IMPL
 #  include "../USB/DevEHCI.cpp"
 # endif
 #endif
@@ -136,7 +140,7 @@ int main()
     GEN_CHECK_OFF(PCIDEVICE, Int.s.pBusRC);
     GEN_CHECK_OFF(PCIDEVICE, Int.s.pfnConfigRead);
     GEN_CHECK_OFF(PCIDEVICE, Int.s.pfnConfigWrite);
-    GEN_CHECK_OFF(PCIDEVICE, Int.s.uFlags);
+    GEN_CHECK_OFF(PCIDEVICE, Int.s.fFlags);
     GEN_CHECK_OFF(PCIDEVICE, Int.s.uIrqPinState);
     GEN_CHECK_OFF(PCIDEVICE, Int.s.pfnBridgeConfigRead);
     GEN_CHECK_OFF(PCIDEVICE, Int.s.pfnBridgeConfigWrite);
@@ -172,6 +176,34 @@ int main()
     GEN_CHECK_OFF(PCIGLOBALS, pDevInsRC);
     GEN_CHECK_OFF(PCIGLOBALS, PIIX3State);
     GEN_CHECK_OFF(PCIGLOBALS, PciBus);
+
+    /* DevPciIch9.cpp */
+    GEN_CHECK_SIZE(ICH9PCIBUS);
+    GEN_CHECK_OFF(ICH9PCIBUS, iBus);
+    GEN_CHECK_OFF(ICH9PCIBUS, cBridges);
+    GEN_CHECK_OFF(ICH9PCIBUS, apDevices);
+    GEN_CHECK_OFF(ICH9PCIBUS, apDevices[1]);
+    GEN_CHECK_OFF(ICH9PCIBUS, pDevInsR3);
+    GEN_CHECK_OFF(ICH9PCIBUS, pPciHlpR3);
+    GEN_CHECK_OFF(ICH9PCIBUS, papBridgesR3);
+    GEN_CHECK_OFF(ICH9PCIBUS, pDevInsR0);
+    GEN_CHECK_OFF(ICH9PCIBUS, pPciHlpR0);
+    GEN_CHECK_OFF(ICH9PCIBUS, pDevInsRC);
+    GEN_CHECK_OFF(ICH9PCIBUS, pPciHlpRC);
+    GEN_CHECK_OFF(ICH9PCIBUS, aPciDev);
+    GEN_CHECK_SIZE(ICH9PCIGLOBALS);
+    GEN_CHECK_OFF(ICH9PCIGLOBALS, pDevInsR3);
+    GEN_CHECK_OFF(ICH9PCIGLOBALS, pDevInsR0);
+    GEN_CHECK_OFF(ICH9PCIGLOBALS, pDevInsRC);
+    GEN_CHECK_OFF(ICH9PCIGLOBALS, uConfigReg);
+    GEN_CHECK_OFF(ICH9PCIGLOBALS, uaPciApicIrqLevels);
+    GEN_CHECK_OFF(ICH9PCIGLOBALS, uaPciApicIrqLevels[1]);
+    GEN_CHECK_OFF(ICH9PCIGLOBALS, uPciBiosIo);
+    GEN_CHECK_OFF(ICH9PCIGLOBALS, uPciBiosMmio);
+    GEN_CHECK_OFF(ICH9PCIGLOBALS, uBus);
+    GEN_CHECK_OFF(ICH9PCIGLOBALS, u64PciConfigMMioAddress);
+    GEN_CHECK_OFF(ICH9PCIGLOBALS, u64PciConfigMMioLength);
+    GEN_CHECK_OFF(ICH9PCIGLOBALS, aPciBus);
 
     /* DevVGA.cpp */
     GEN_CHECK_SIZE(VGASTATE);
@@ -450,9 +482,9 @@ int main()
     GEN_CHECK_OFF(ACPIState, pm1a_sts);
     GEN_CHECK_OFF(ACPIState, pm1a_ctl);
     GEN_CHECK_OFF(ACPIState, u64PmTimerInitial);
-    GEN_CHECK_OFF(ACPIState, tsR3);
-    GEN_CHECK_OFF(ACPIState, tsR0);
-    GEN_CHECK_OFF(ACPIState, tsRC);
+    GEN_CHECK_OFF(ACPIState, pPmTimerR3);
+    GEN_CHECK_OFF(ACPIState, pPmTimerR0);
+    GEN_CHECK_OFF(ACPIState, pPmTimerRC);
     GEN_CHECK_OFF(ACPIState, gpe0_en);
     GEN_CHECK_OFF(ACPIState, gpe0_sts);
     GEN_CHECK_OFF(ACPIState, uBatteryIndex);
@@ -588,7 +620,7 @@ int main()
     GEN_CHECK_OFF(RTCState, CurLogPeriod);
     GEN_CHECK_OFF(RTCState, CurHintPeriod);
 
-    /* PC/apic.c */
+    /* PC/DevAPIC.cpp */
     GEN_CHECK_SIZE(APICState);
     GEN_CHECK_OFF(APICState, apicbase);
     GEN_CHECK_OFF(APICState, id);
@@ -647,6 +679,7 @@ int main()
     GEN_CHECK_OFF(APICDeviceInfo, StatMMIOWriteHC);
 #endif
 
+    /* PC/DevIoApic.cpp */
     GEN_CHECK_SIZE(IOAPICState);
     GEN_CHECK_OFF(IOAPICState, id);
     GEN_CHECK_OFF(IOAPICState, ioregsel);
@@ -895,7 +928,7 @@ int main()
     GEN_CHECK_OFF(OHCI, StatDroppedUrbs);
     GEN_CHECK_OFF(OHCI, StatTimer);
 # endif
-# ifdef VBOX_WITH_EHCI
+# ifdef VBOX_WITH_EHCI_IMPL
     /* USB/DevEHCI.cpp */
     GEN_CHECK_SIZE(EHCIHUBPORT);
     GEN_CHECK_OFF(EHCIHUBPORT, fReg);
@@ -972,7 +1005,7 @@ int main()
     GEN_CHECK_OFF(EHCI, pEOFTimerNoSyncRC);
     GEN_CHECK_OFF(EHCI, pEOFTimerNoSyncR3);
     GEN_CHECK_OFF(EHCI, pEOFTimerNoSyncR0);
-# endif /* VBOX_WITH_EHCI */
+# endif /* VBOX_WITH_EHCI_IMPL */
 #endif /* VBOX_WITH_USB */
 
     /* VMMDev/VBoxDev.cpp */
@@ -1207,6 +1240,8 @@ int main()
     GEN_CHECK_OFF(AHCIPort, fPortReset);
     GEN_CHECK_OFF(AHCIPort, fAsyncInterface);
     GEN_CHECK_OFF(AHCIPort, fResetDevice);
+    GEN_CHECK_OFF(AHCIPort, fAsyncIOThreadIdle);
+    GEN_CHECK_OFF(AHCIPort, fRedo);
     GEN_CHECK_OFF(AHCIPort, cTotalSectors);
     GEN_CHECK_OFF(AHCIPort, cMultSectors);
     GEN_CHECK_OFF(AHCIPort, uATATransferMode);
@@ -1276,6 +1311,7 @@ int main()
     GEN_CHECK_OFF(AHCI, regHbaVs);
     GEN_CHECK_OFF(AHCI, regHbaCccCtl);
     GEN_CHECK_OFF(AHCI, regHbaCccPorts);
+    GEN_CHECK_OFF(AHCI, regIdx);
     GEN_CHECK_OFF(AHCI, pHbaCccTimerR3);
     GEN_CHECK_OFF(AHCI, pHbaCccTimerR0);
     GEN_CHECK_OFF(AHCI, pHbaCccTimerRC);
@@ -1668,10 +1704,13 @@ int main()
     GEN_CHECK_OFF(HpetState, pDevInsR0);
     GEN_CHECK_OFF(HpetState, pDevInsRC);
     GEN_CHECK_OFF(HpetState, u64HpetOffset);
-    GEN_CHECK_OFF(HpetState, u64Capabilities);
+    GEN_CHECK_OFF(HpetState, u32Capabilities);
+    GEN_CHECK_OFF(HpetState, u32Period);
     GEN_CHECK_OFF(HpetState, u64HpetConfig);
     GEN_CHECK_OFF(HpetState, u64Isr);
     GEN_CHECK_OFF(HpetState, u64HpetCounter);
+    GEN_CHECK_OFF(HpetState, csLock);
+    GEN_CHECK_OFF(HpetState, fIch9);
 
     GEN_CHECK_SIZE(HpetTimer);
     GEN_CHECK_OFF(HpetTimer, pTimerR3);
@@ -1680,7 +1719,7 @@ int main()
     GEN_CHECK_OFF(HpetTimer, pHpetR0);
     GEN_CHECK_OFF(HpetTimer, pTimerRC);
     GEN_CHECK_OFF(HpetTimer, pHpetRC);
-    GEN_CHECK_OFF(HpetTimer, u8TimerNumber);
+    GEN_CHECK_OFF(HpetTimer, idxTimer);
     GEN_CHECK_OFF(HpetTimer, u64Config);
     GEN_CHECK_OFF(HpetTimer, u64Cmp);
     GEN_CHECK_OFF(HpetTimer, u64Fsb);

@@ -1,4 +1,4 @@
-/* $Id: manifest.cpp $ */
+/* $Id: manifest.cpp 33289 2010-10-21 10:00:15Z vboxsync $ */
 /** @file
  * IPRT - Manifest file handling.
  */

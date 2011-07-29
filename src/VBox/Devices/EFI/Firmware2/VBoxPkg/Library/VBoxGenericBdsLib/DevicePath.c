@@ -1,4 +1,4 @@
-/* $Id: DevicePath.c $ */
+/* $Id: DevicePath.c 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * DevicePath.c - BDS internal function define the default device path string,
  * it can be replaced by platform device path.

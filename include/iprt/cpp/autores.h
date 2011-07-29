@@ -1,9 +1,9 @@
 /** @file
- * IPRT - C++ Extensions: resource lifetime management
+ * IPRT - C++ Resource Management.
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,24 +28,14 @@
 
 #include <iprt/types.h>
 #include <iprt/assert.h>
+#include <iprt/cpp/utils.h>
 
 
-/**
- * A simple class used to prevent copying and assignment.
- *
- * Inherit from this class in order to prevent automatic generation
- * of the copy constructor and assignment operator in your class.
+
+/** @defgroup grp_rt_cpp_autores    C++ Resource Management
+ * @ingroup grp_rt_cpp
+ * @{
  */
-class RTCNonCopyable
-{
-protected:
-    RTCNonCopyable() {}
-    ~RTCNonCopyable() {}
-private:
-    RTCNonCopyable(RTCNonCopyable const &);
-    RTCNonCopyable const &operator=(RTCNonCopyable const &);
-};
-
 
 /**
  * A callable class template which returns the correct value against which an
@@ -73,10 +63,10 @@ inline RTFILE RTAutoResNil(void)
  * @warning This template *must* be specialised for the types it is to work with.
  */
 template <class T>
-inline void RTAutoResDestruct(T aHandle)
+inline void RTAutoResDestruct(T a_h)
 {
     AssertFatalMsgFailed(("Unspecialized template!\n"));
-    NOREF(aHandle);
+    NOREF(a_h);
 }
 
 /**
@@ -84,14 +74,14 @@ inline void RTAutoResDestruct(T aHandle)
  * (RTMemFree() or equivalent).
  *
  * The idea of this class is to manage resources which the current code is
- * responsible for freeing.  By wrapping the resource in an RTAutoRes, you
+ * responsible for freeing.  By wrapping the resource in an RTCAutoRes, you
  * ensure that the resource will be freed when you leave the scope in which
- * the RTAutoRes is defined, unless you explicitly release the resource.
+ * the RTCAutoRes is defined, unless you explicitly release the resource.
  *
  * A typical use case is when a function is allocating a number of resources.
  * If any single allocation fails then all other resources must be freed.  If
  * all allocations succeed, then the resources should be returned to the
- * caller.  By placing all allocated resources in RTAutoRes containers, you
+ * caller.  By placing all allocated resources in RTCAutoRes containers, you
  * ensure that they will be freed on failure, and only have to take care of
  * releasing them when you return them.
  *
@@ -107,7 +97,7 @@ inline void RTAutoResDestruct(T aHandle)
  *          to the lack of a copy constructor. This is intentional.
  */
 template <class T, void Destruct(T) = RTAutoResDestruct<T>, T NilRes(void) = RTAutoResNil<T> >
-class RTAutoRes
+class RTCAutoRes
     : public RTCNonCopyable
 {
 protected:
@@ -120,7 +110,7 @@ public:
      *
      * @param   a_hRes      The handle to resource to manage. Defaults to NIL.
      */
-    RTAutoRes(T a_hRes = NilRes())
+    RTCAutoRes(T a_hRes = NilRes())
         : m_hRes(a_hRes)
     {
     }
@@ -130,7 +120,7 @@ public:
      *
      * This destroys any resource currently managed by the object.
      */
-    ~RTAutoRes()
+    ~RTCAutoRes()
     {
         if (m_hRes != NilRes())
             Destruct(m_hRes);
@@ -144,7 +134,7 @@ public:
      *
      * @param   a_hRes      The handle to the new resource.
      */
-    RTAutoRes &operator=(T a_hRes)
+    RTCAutoRes &operator=(T a_hRes)
     {
         if (m_hRes != NilRes())
             Destruct(m_hRes);
@@ -202,6 +192,8 @@ public:
         return m_hRes;
     }
 };
+
+/** @} */
 
 
 /* include after template definition */

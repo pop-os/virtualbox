@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxClientImpl.h $ */
+/* $Id: VirtualBoxClientImpl.h 35638 2011-01-19 19:10:49Z vboxsync $ */
 
 /** @file
  * Header file for the VirtualBoxClient (IVirtualBoxClient) class, VBoxC.
@@ -45,9 +45,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(VirtualBoxClient)
-        COM_INTERFACE_ENTRY2(IDispatch, IVirtualBoxClient)
-        COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(IVirtualBoxClient)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IVirtualBoxClient)
     END_COM_MAP()
 
     HRESULT FinalConstruct();

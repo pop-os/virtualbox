@@ -1,4 +1,4 @@
-/* $Id: tstCompressionBenchmark.cpp $ */
+/* $Id: tstCompressionBenchmark.cpp 33550 2010-10-28 10:53:57Z vboxsync $ */
 /** @file
  * Compression Benchmark for SSM and PGM.
  */

@@ -1,10 +1,10 @@
-/* $Id: DBGCEmulateCodeView.cpp $ */
+/* $Id: DBGCEmulateCodeView.cpp 36640 2011-04-11 11:44:08Z vboxsync $ */
 /** @file
  * DBGC - Debugger Console, CodeView / WinDbg Emulation.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,6 @@
 #include <VBox/dbg.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/pgm.h>
-#include <VBox/vmm/selm.h>
 #include <VBox/vmm/cpum.h>
 #include <VBox/dis.h>
 #include <VBox/param.h>
@@ -30,7 +29,6 @@
 #include <VBox/log.h>
 
 #include <iprt/asm.h>
-#include <iprt/alloca.h>
 #include <iprt/mem.h>
 #include <iprt/string.h>
 #include <iprt/assert.h>
@@ -45,37 +43,37 @@
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-static DECLCALLBACK(int) dbgcCmdBrkAccess(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdBrkClear(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdBrkDisable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdBrkEnable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdBrkList(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdBrkSet(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdBrkREM(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdDumpMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdDumpDT(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdDumpIDT(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdDumpPageDir(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdDumpPageDirBoth(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdDumpPageHierarchy(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdDumpPageTable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdDumpPageTableBoth(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdDumpTSS(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdEditMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdGo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdListModules(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdListNear(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdListSource(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdMemoryInfo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdReg(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdRegGuest(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdRegHyper(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdRegTerse(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdSearchMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdSearchMemType(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdStack(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdTrace(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcCmdUnassemble(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
+static DECLCALLBACK(int) dbgcCmdBrkAccess(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdBrkClear(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdBrkDisable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdBrkEnable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdBrkList(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdBrkSet(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdBrkREM(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdDumpMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdDumpDT(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdDumpIDT(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdDumpPageDir(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdDumpPageDirBoth(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdDumpPageHierarchy(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdDumpPageTable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdDumpPageTableBoth(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdDumpTSS(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdEditMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdGo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdListModules(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdListNear(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdListSource(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdMemoryInfo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdReg(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdRegGuest(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdRegHyper(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdRegTerse(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdSearchMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdSearchMemType(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdStack(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdTrace(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static DECLCALLBACK(int) dbgcCmdUnassemble(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
 
 
 /*******************************************************************************
@@ -227,12 +225,6 @@ static const DBGCVARDESC    g_aArgListNear[] =
     {  0,           ~0,         DBGCVAR_CAT_SYMBOL,     0,                              "symbol",       "Symbol to lookup." },
 };
 
-/** 'ln' return. */
-static const DBGCVARDESC    g_RetListNear =
-{
-       1,           1,          DBGCVAR_CAT_POINTER,    0,                              "address",      "The last resolved symbol/address with adjusted range."
-};
-
 
 /** 'ls' arguments. */
 static const DBGCVARDESC    g_aArgListSource[] =
@@ -297,81 +289,81 @@ static const DBGCVARDESC    g_aArgUnassemble[] =
  */
 const DBGCCMD    g_aCmdsCodeView[] =
 {
-    /* pszCmd,      cArgsMin, cArgsMax, paArgDescs,         cArgDescs,                     pResultDesc,        fFlags,  pfnHandler          pszSyntax,          ....pszDescription */
-    { "ba",         3,        6,        &g_aArgBrkAcc[0],   RT_ELEMENTS(g_aArgBrkAcc),     NULL,               0,       dbgcCmdBrkAccess,   "<access> <size> <address> [passes [max passes]] [cmds]",
-                                                                                                                                                                    "Sets a data access breakpoint." },
-    { "bc",         1,       ~0,        &g_aArgBrks[0],     RT_ELEMENTS(g_aArgBrks),       NULL,               0,       dbgcCmdBrkClear,    "all | <bp#> [bp# []]", "Enabled a set of breakpoints." },
-    { "bd",         1,       ~0,        &g_aArgBrks[0],     RT_ELEMENTS(g_aArgBrks),       NULL,               0,       dbgcCmdBrkDisable,  "all | <bp#> [bp# []]", "Disables a set of breakpoints." },
-    { "be",         1,       ~0,        &g_aArgBrks[0],     RT_ELEMENTS(g_aArgBrks),       NULL,               0,       dbgcCmdBrkEnable,   "all | <bp#> [bp# []]", "Enabled a set of breakpoints." },
-    { "bl",         0,        0,        NULL,               0,                             NULL,               0,       dbgcCmdBrkList,     "",                     "Lists all the breakpoints." },
-    { "bp",         1,        4,        &g_aArgBrkSet[0],   RT_ELEMENTS(g_aArgBrkSet),     NULL,               0,       dbgcCmdBrkSet,      "<address> [passes [max passes]] [cmds]",
-                                                                                                                                                                    "Sets a breakpoint (int 3)." },
-    { "br",         1,        4,        &g_aArgBrkREM[0],   RT_ELEMENTS(g_aArgBrkREM),     NULL,               0,       dbgcCmdBrkREM,      "<address> [passes [max passes]] [cmds]",
-                                                                                                                                                                    "Sets a recompiler specific breakpoint." },
-    { "d",          0,        1,        &g_aArgDumpMem[0],  RT_ELEMENTS(g_aArgDumpMem),    NULL,               0,       dbgcCmdDumpMem,     "[addr]",               "Dump memory using last element size." },
-    { "da",         0,        1,        &g_aArgDumpMem[0],  RT_ELEMENTS(g_aArgDumpMem),    NULL,               0,       dbgcCmdDumpMem,     "[addr]",               "Dump memory as ascii string." },
-    { "db",         0,        1,        &g_aArgDumpMem[0],  RT_ELEMENTS(g_aArgDumpMem),    NULL,               0,       dbgcCmdDumpMem,     "[addr]",               "Dump memory in bytes." },
-    { "dd",         0,        1,        &g_aArgDumpMem[0],  RT_ELEMENTS(g_aArgDumpMem),    NULL,               0,       dbgcCmdDumpMem,     "[addr]",               "Dump memory in double words." },
-    { "da",         0,        1,        &g_aArgDumpMem[0],  RT_ELEMENTS(g_aArgDumpMem),    NULL,               0,       dbgcCmdDumpMem,     "[addr]",               "Dump memory as ascii string." },
-    { "dg",         0,       ~0,        &g_aArgDumpDT[0],   RT_ELEMENTS(g_aArgDumpDT),     NULL,               0,       dbgcCmdDumpDT,      "[sel [..]]",           "Dump the global descriptor table (GDT)." },
-    { "dga",        0,       ~0,        &g_aArgDumpDT[0],   RT_ELEMENTS(g_aArgDumpDT),     NULL,               0,       dbgcCmdDumpDT,      "[sel [..]]",           "Dump the global descriptor table (GDT) including not-present entries." },
-    { "di",         0,       ~0,        &g_aArgDumpIDT[0],  RT_ELEMENTS(g_aArgDumpIDT),    NULL,               0,       dbgcCmdDumpIDT,     "[int [..]]",           "Dump the interrupt descriptor table (IDT)." },
-    { "dia",        0,       ~0,        &g_aArgDumpIDT[0],  RT_ELEMENTS(g_aArgDumpIDT),    NULL,               0,       dbgcCmdDumpIDT,     "[int [..]]",           "Dump the interrupt descriptor table (IDT) including not-present entries." },
-    { "dl",         0,       ~0,        &g_aArgDumpDT[0],   RT_ELEMENTS(g_aArgDumpDT),     NULL,               0,       dbgcCmdDumpDT,      "[sel [..]]",           "Dump the local descriptor table (LDT)." },
-    { "dla",        0,       ~0,        &g_aArgDumpDT[0],   RT_ELEMENTS(g_aArgDumpDT),     NULL,               0,       dbgcCmdDumpDT,      "[sel [..]]",           "Dump the local descriptor table (LDT) including not-present entries." },
-    { "dpd",        0,        1,        &g_aArgDumpPD[0],   RT_ELEMENTS(g_aArgDumpPD),     NULL,               0,       dbgcCmdDumpPageDir, "[addr] [index]",       "Dumps page directory entries of the default context." },
-    { "dpda",       0,        1,        &g_aArgDumpPDAddr[0],RT_ELEMENTS(g_aArgDumpPDAddr),NULL,               0,       dbgcCmdDumpPageDir, "[addr]",               "Dumps specified page directory." },
-    { "dpdb",       1,        1,        &g_aArgDumpPD[0],   RT_ELEMENTS(g_aArgDumpPD),     NULL,               0,       dbgcCmdDumpPageDirBoth, "[addr] [index]",   "Dumps page directory entries of the guest and the hypervisor. " },
-    { "dpdg",       0,        1,        &g_aArgDumpPD[0],   RT_ELEMENTS(g_aArgDumpPD),     NULL,               0,       dbgcCmdDumpPageDir, "[addr] [index]",       "Dumps page directory entries of the guest." },
-    { "dpdh",       0,        1,        &g_aArgDumpPD[0],   RT_ELEMENTS(g_aArgDumpPD),     NULL,               0,       dbgcCmdDumpPageDir, "[addr] [index]",       "Dumps page directory entries of the hypervisor. " },
-    { "dph",        0,        3,        &g_aArgDumpPH[0],   RT_ELEMENTS(g_aArgDumpPH),     NULL,               0, dbgcCmdDumpPageHierarchy, "[addr [cr3 [mode]]",   "Dumps the paging hierarchy at for specfied address range. Default context." },
-    { "dphg",       0,        3,        &g_aArgDumpPH[0],   RT_ELEMENTS(g_aArgDumpPH),     NULL,               0, dbgcCmdDumpPageHierarchy, "[addr [cr3 [mode]]",   "Dumps the paging hierarchy at for specfied address range. Guest context." },
-    { "dphh",       0,        3,        &g_aArgDumpPH[0],   RT_ELEMENTS(g_aArgDumpPH),     NULL,               0, dbgcCmdDumpPageHierarchy, "[addr [cr3 [mode]]",   "Dumps the paging hierarchy at for specfied address range. Hypervisor context." },
-    { "dpt",        1,        1,        &g_aArgDumpPT[0],   RT_ELEMENTS(g_aArgDumpPT),     NULL,               0,       dbgcCmdDumpPageTable,"<addr>",              "Dumps page table entries of the default context." },
-    { "dpta",       1,        1,        &g_aArgDumpPTAddr[0],RT_ELEMENTS(g_aArgDumpPTAddr), NULL,              0,       dbgcCmdDumpPageTable,"<addr>",              "Dumps specified page table." },
-    { "dptb",       1,        1,        &g_aArgDumpPT[0],   RT_ELEMENTS(g_aArgDumpPT),     NULL,               0,       dbgcCmdDumpPageTableBoth,"<addr>",          "Dumps page table entries of the guest and the hypervisor." },
-    { "dptg",       1,        1,        &g_aArgDumpPT[0],   RT_ELEMENTS(g_aArgDumpPT),     NULL,               0,       dbgcCmdDumpPageTable,"<addr>",              "Dumps page table entries of the guest." },
-    { "dpth",       1,        1,        &g_aArgDumpPT[0],   RT_ELEMENTS(g_aArgDumpPT),     NULL,               0,       dbgcCmdDumpPageTable,"<addr>",              "Dumps page table entries of the hypervisor." },
-    { "dq",         0,        1,        &g_aArgDumpMem[0],  RT_ELEMENTS(g_aArgDumpMem),    NULL,               0,       dbgcCmdDumpMem,     "[addr]",               "Dump memory in quad words." },
-    { "dt",         0,        1,        &g_aArgDumpTSS[0],  RT_ELEMENTS(g_aArgDumpTSS),    NULL,               0,       dbgcCmdDumpTSS,     "[tss|tss:ign|addr]",   "Dump the task state segment (TSS)." },
-    { "dt16",       0,        1,        &g_aArgDumpTSS[0],  RT_ELEMENTS(g_aArgDumpTSS),    NULL,               0,       dbgcCmdDumpTSS,     "[tss|tss:ign|addr]",   "Dump the 16-bit task state segment (TSS)." },
-    { "dt32",       0,        1,        &g_aArgDumpTSS[0],  RT_ELEMENTS(g_aArgDumpTSS),    NULL,               0,       dbgcCmdDumpTSS,     "[tss|tss:ign|addr]",   "Dump the 32-bit task state segment (TSS)." },
-    { "dt64",       0,        1,        &g_aArgDumpTSS[0],  RT_ELEMENTS(g_aArgDumpTSS),    NULL,               0,       dbgcCmdDumpTSS,     "[tss|tss:ign|addr]",   "Dump the 64-bit task state segment (TSS)." },
-    { "dw",         0,        1,        &g_aArgDumpMem[0],  RT_ELEMENTS(g_aArgDumpMem),    NULL,               0,       dbgcCmdDumpMem,     "[addr]",               "Dump memory in words." },
+    /* pszCmd,      cArgsMin, cArgsMax, paArgDescs,         cArgDescs,                      fFlags,  pfnHandler          pszSyntax,          ....pszDescription */
+    { "ba",         3,        6,        &g_aArgBrkAcc[0],   RT_ELEMENTS(g_aArgBrkAcc),      0,       dbgcCmdBrkAccess,   "<access> <size> <address> [passes [max passes]] [cmds]",
+                                                                                                                                                 "Sets a data access breakpoint." },
+    { "bc",         1,       ~0,        &g_aArgBrks[0],     RT_ELEMENTS(g_aArgBrks),        0,       dbgcCmdBrkClear,    "all | <bp#> [bp# []]", "Enabled a set of breakpoints." },
+    { "bd",         1,       ~0,        &g_aArgBrks[0],     RT_ELEMENTS(g_aArgBrks),        0,       dbgcCmdBrkDisable,  "all | <bp#> [bp# []]", "Disables a set of breakpoints." },
+    { "be",         1,       ~0,        &g_aArgBrks[0],     RT_ELEMENTS(g_aArgBrks),        0,       dbgcCmdBrkEnable,   "all | <bp#> [bp# []]", "Enabled a set of breakpoints." },
+    { "bl",         0,        0,        NULL,               0,                              0,       dbgcCmdBrkList,     "",                     "Lists all the breakpoints." },
+    { "bp",         1,        4,        &g_aArgBrkSet[0],   RT_ELEMENTS(g_aArgBrkSet),      0,       dbgcCmdBrkSet,      "<address> [passes [max passes]] [cmds]",
+                                                                                                                                                 "Sets a breakpoint (int 3)." },
+    { "br",         1,        4,        &g_aArgBrkREM[0],   RT_ELEMENTS(g_aArgBrkREM),      0,       dbgcCmdBrkREM,      "<address> [passes [max passes]] [cmds]",
+                                                                                                                                                 "Sets a recompiler specific breakpoint." },
+    { "d",          0,        1,        &g_aArgDumpMem[0],  RT_ELEMENTS(g_aArgDumpMem),     0,       dbgcCmdDumpMem,     "[addr]",               "Dump memory using last element size." },
+    { "da",         0,        1,        &g_aArgDumpMem[0],  RT_ELEMENTS(g_aArgDumpMem),     0,       dbgcCmdDumpMem,     "[addr]",               "Dump memory as ascii string." },
+    { "db",         0,        1,        &g_aArgDumpMem[0],  RT_ELEMENTS(g_aArgDumpMem),     0,       dbgcCmdDumpMem,     "[addr]",               "Dump memory in bytes." },
+    { "dd",         0,        1,        &g_aArgDumpMem[0],  RT_ELEMENTS(g_aArgDumpMem),     0,       dbgcCmdDumpMem,     "[addr]",               "Dump memory in double words." },
+    { "da",         0,        1,        &g_aArgDumpMem[0],  RT_ELEMENTS(g_aArgDumpMem),     0,       dbgcCmdDumpMem,     "[addr]",               "Dump memory as ascii string." },
+    { "dg",         0,       ~0,        &g_aArgDumpDT[0],   RT_ELEMENTS(g_aArgDumpDT),      0,       dbgcCmdDumpDT,      "[sel [..]]",           "Dump the global descriptor table (GDT)." },
+    { "dga",        0,       ~0,        &g_aArgDumpDT[0],   RT_ELEMENTS(g_aArgDumpDT),      0,       dbgcCmdDumpDT,      "[sel [..]]",           "Dump the global descriptor table (GDT) including not-present entries." },
+    { "di",         0,       ~0,        &g_aArgDumpIDT[0],  RT_ELEMENTS(g_aArgDumpIDT),     0,       dbgcCmdDumpIDT,     "[int [..]]",           "Dump the interrupt descriptor table (IDT)." },
+    { "dia",        0,       ~0,        &g_aArgDumpIDT[0],  RT_ELEMENTS(g_aArgDumpIDT),     0,       dbgcCmdDumpIDT,     "[int [..]]",           "Dump the interrupt descriptor table (IDT) including not-present entries." },
+    { "dl",         0,       ~0,        &g_aArgDumpDT[0],   RT_ELEMENTS(g_aArgDumpDT),      0,       dbgcCmdDumpDT,      "[sel [..]]",           "Dump the local descriptor table (LDT)." },
+    { "dla",        0,       ~0,        &g_aArgDumpDT[0],   RT_ELEMENTS(g_aArgDumpDT),      0,       dbgcCmdDumpDT,      "[sel [..]]",           "Dump the local descriptor table (LDT) including not-present entries." },
+    { "dpd",        0,        1,        &g_aArgDumpPD[0],   RT_ELEMENTS(g_aArgDumpPD),      0,       dbgcCmdDumpPageDir, "[addr] [index]",       "Dumps page directory entries of the default context." },
+    { "dpda",       0,        1,        &g_aArgDumpPDAddr[0],RT_ELEMENTS(g_aArgDumpPDAddr), 0,       dbgcCmdDumpPageDir, "[addr]",               "Dumps specified page directory." },
+    { "dpdb",       1,        1,        &g_aArgDumpPD[0],   RT_ELEMENTS(g_aArgDumpPD),      0,       dbgcCmdDumpPageDirBoth, "[addr] [index]",   "Dumps page directory entries of the guest and the hypervisor. " },
+    { "dpdg",       0,        1,        &g_aArgDumpPD[0],   RT_ELEMENTS(g_aArgDumpPD),      0,       dbgcCmdDumpPageDir, "[addr] [index]",       "Dumps page directory entries of the guest." },
+    { "dpdh",       0,        1,        &g_aArgDumpPD[0],   RT_ELEMENTS(g_aArgDumpPD),      0,       dbgcCmdDumpPageDir, "[addr] [index]",       "Dumps page directory entries of the hypervisor. " },
+    { "dph",        0,        3,        &g_aArgDumpPH[0],   RT_ELEMENTS(g_aArgDumpPH),      0, dbgcCmdDumpPageHierarchy, "[addr [cr3 [mode]]",   "Dumps the paging hierarchy at for specfied address range. Default context." },
+    { "dphg",       0,        3,        &g_aArgDumpPH[0],   RT_ELEMENTS(g_aArgDumpPH),      0, dbgcCmdDumpPageHierarchy, "[addr [cr3 [mode]]",   "Dumps the paging hierarchy at for specfied address range. Guest context." },
+    { "dphh",       0,        3,        &g_aArgDumpPH[0],   RT_ELEMENTS(g_aArgDumpPH),      0, dbgcCmdDumpPageHierarchy, "[addr [cr3 [mode]]",   "Dumps the paging hierarchy at for specfied address range. Hypervisor context." },
+    { "dpt",        1,        1,        &g_aArgDumpPT[0],   RT_ELEMENTS(g_aArgDumpPT),      0,       dbgcCmdDumpPageTable,"<addr>",              "Dumps page table entries of the default context." },
+    { "dpta",       1,        1,        &g_aArgDumpPTAddr[0],RT_ELEMENTS(g_aArgDumpPTAddr), 0,       dbgcCmdDumpPageTable,"<addr>",              "Dumps specified page table." },
+    { "dptb",       1,        1,        &g_aArgDumpPT[0],   RT_ELEMENTS(g_aArgDumpPT),      0,       dbgcCmdDumpPageTableBoth,"<addr>",          "Dumps page table entries of the guest and the hypervisor." },
+    { "dptg",       1,        1,        &g_aArgDumpPT[0],   RT_ELEMENTS(g_aArgDumpPT),      0,       dbgcCmdDumpPageTable,"<addr>",              "Dumps page table entries of the guest." },
+    { "dpth",       1,        1,        &g_aArgDumpPT[0],   RT_ELEMENTS(g_aArgDumpPT),      0,       dbgcCmdDumpPageTable,"<addr>",              "Dumps page table entries of the hypervisor." },
+    { "dq",         0,        1,        &g_aArgDumpMem[0],  RT_ELEMENTS(g_aArgDumpMem),     0,       dbgcCmdDumpMem,     "[addr]",               "Dump memory in quad words." },
+    { "dt",         0,        1,        &g_aArgDumpTSS[0],  RT_ELEMENTS(g_aArgDumpTSS),     0,       dbgcCmdDumpTSS,     "[tss|tss:ign|addr]",   "Dump the task state segment (TSS)." },
+    { "dt16",       0,        1,        &g_aArgDumpTSS[0],  RT_ELEMENTS(g_aArgDumpTSS),     0,       dbgcCmdDumpTSS,     "[tss|tss:ign|addr]",   "Dump the 16-bit task state segment (TSS)." },
+    { "dt32",       0,        1,        &g_aArgDumpTSS[0],  RT_ELEMENTS(g_aArgDumpTSS),     0,       dbgcCmdDumpTSS,     "[tss|tss:ign|addr]",   "Dump the 32-bit task state segment (TSS)." },
+    { "dt64",       0,        1,        &g_aArgDumpTSS[0],  RT_ELEMENTS(g_aArgDumpTSS),     0,       dbgcCmdDumpTSS,     "[tss|tss:ign|addr]",   "Dump the 64-bit task state segment (TSS)." },
+    { "dw",         0,        1,        &g_aArgDumpMem[0],  RT_ELEMENTS(g_aArgDumpMem),     0,       dbgcCmdDumpMem,     "[addr]",               "Dump memory in words." },
     /** @todo add 'e', 'ea str', 'eza str', 'eu str' and 'ezu str'. See also
      *        dbgcCmdSearchMem and its dbgcVarsToBytes usage. */
-    { "eb",         2,        2,        &g_aArgEditMem[0],  RT_ELEMENTS(g_aArgEditMem),    NULL,               0,       dbgcCmdEditMem,     "<addr> <value>",       "Write a 1-byte value to memory." },
-    { "ew",         2,        2,        &g_aArgEditMem[0],  RT_ELEMENTS(g_aArgEditMem),    NULL,               0,       dbgcCmdEditMem,     "<addr> <value>",       "Write a 2-byte value to memory." },
-    { "ed",         2,        2,        &g_aArgEditMem[0],  RT_ELEMENTS(g_aArgEditMem),    NULL,               0,       dbgcCmdEditMem,     "<addr> <value>",       "Write a 4-byte value to memory." },
-    { "eq",         2,        2,        &g_aArgEditMem[0],  RT_ELEMENTS(g_aArgEditMem),    NULL,               0,       dbgcCmdEditMem,     "<addr> <value>",       "Write a 8-byte value to memory." },
-    { "g",          0,        0,        NULL,               0,                             NULL,               0,       dbgcCmdGo,          "",                     "Continue execution." },
-    { "k",          0,        0,        NULL,               0,                             NULL,               0,       dbgcCmdStack,       "",                     "Callstack." },
-    { "kg",         0,        0,        NULL,               0,                             NULL,               0,       dbgcCmdStack,       "",                     "Callstack - guest." },
-    { "kh",         0,        0,        NULL,               0,                             NULL,               0,       dbgcCmdStack,       "",                     "Callstack - hypervisor." },
-    { "lm",         0,        ~0,       &g_aArgListMods[0], RT_ELEMENTS(g_aArgListMods),   NULL,               0,       dbgcCmdListModules, "[module [..]]",        "List modules." },
-    { "lmo",        0,        ~0,       &g_aArgListMods[0], RT_ELEMENTS(g_aArgListMods),   NULL,               0,       dbgcCmdListModules, "[module [..]]",        "List modules and their segments." },
-    { "ln",         0,        ~0,       &g_aArgListNear[0], RT_ELEMENTS(g_aArgListNear),   &g_RetListNear,     0,       dbgcCmdListNear,    "[addr/sym [..]]",      "List symbols near to the address. Default address is CS:EIP." },
-    { "ls",         0,        1,        &g_aArgListSource[0],RT_ELEMENTS(g_aArgListSource),NULL,               0,       dbgcCmdListSource,  "[addr]",               "Source." },
-    { "m",          1,        1,        &g_aArgMemoryInfo[0],RT_ELEMENTS(g_aArgMemoryInfo),NULL,               0,       dbgcCmdMemoryInfo,  "<addr>",               "Display information about that piece of memory." },
-    { "r",          0,        2,        &g_aArgReg[0],      RT_ELEMENTS(g_aArgReg),        NULL,               0,       dbgcCmdReg,         "[reg [newval]]",       "Show or set register(s) - active reg set." },
-    { "rg",         0,        2,        &g_aArgReg[0],      RT_ELEMENTS(g_aArgReg),        NULL,               0,       dbgcCmdRegGuest,    "[reg [newval]]",       "Show or set register(s) - guest reg set." },
-    { "rg32",       0,        0,        NULL,               0,                             NULL,               0,       dbgcCmdRegGuest,    "",                     "Show 32-bit guest registers." },
-    { "rg64",       0,        0,        NULL,               0,                             NULL,               0,       dbgcCmdRegGuest,    "",                     "Show 64-bit guest registers." },
-    { "rh",         0,        2,        &g_aArgReg[0],      RT_ELEMENTS(g_aArgReg),        NULL,               0,       dbgcCmdRegHyper,    "[reg [newval]]",       "Show or set register(s) - hypervisor reg set." },
-    { "rt",         0,        0,        NULL,               0,                             NULL,               0,       dbgcCmdRegTerse,    "",                     "Toggles terse / verbose register info." },
-    { "s",          0,       ~0,        &g_aArgSearchMem[0], RT_ELEMENTS(g_aArgSearchMem), NULL,               0,       dbgcCmdSearchMem,   "[options] <range> <pattern>",  "Continue last search." },
-    { "sa",         2,       ~0,        &g_aArgSearchMemType[0], RT_ELEMENTS(g_aArgSearchMemType),  NULL,      0,       dbgcCmdSearchMemType,   "<range> <pattern>",    "Search memory for an ascii string." },
-    { "sb",         2,       ~0,        &g_aArgSearchMemType[0], RT_ELEMENTS(g_aArgSearchMemType),  NULL,      0,       dbgcCmdSearchMemType,   "<range> <pattern>",    "Search memory for one or more bytes." },
-    { "sd",         2,       ~0,        &g_aArgSearchMemType[0], RT_ELEMENTS(g_aArgSearchMemType),  NULL,      0,       dbgcCmdSearchMemType,   "<range> <pattern>",    "Search memory for one or more double words." },
-    { "sq",         2,       ~0,        &g_aArgSearchMemType[0], RT_ELEMENTS(g_aArgSearchMemType),  NULL,      0,       dbgcCmdSearchMemType,   "<range> <pattern>",    "Search memory for one or more quad words." },
-    { "su",         2,       ~0,        &g_aArgSearchMemType[0], RT_ELEMENTS(g_aArgSearchMemType),  NULL,      0,       dbgcCmdSearchMemType,   "<range> <pattern>",    "Search memory for an unicode string." },
-    { "sw",         2,       ~0,        &g_aArgSearchMemType[0], RT_ELEMENTS(g_aArgSearchMemType),  NULL,      0,       dbgcCmdSearchMemType,   "<range> <pattern>",    "Search memory for one or more words." },
-    { "t",          0,        0,        NULL,               0,                             NULL,               0,       dbgcCmdTrace,       "",                     "Instruction trace (step into)." },
-    { "u",          0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble),NULL,               0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble." },
-    { "u64",        0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble),NULL,               0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble 64-bit code." },
-    { "u32",        0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble),NULL,               0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble 32-bit code." },
-    { "u16",        0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble),NULL,               0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble 16-bit code." },
-    { "uv86",       0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble),NULL,               0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble 16-bit code with v8086/real mode addressing." },
+    { "eb",         2,        2,        &g_aArgEditMem[0],  RT_ELEMENTS(g_aArgEditMem),     0,       dbgcCmdEditMem,     "<addr> <value>",       "Write a 1-byte value to memory." },
+    { "ew",         2,        2,        &g_aArgEditMem[0],  RT_ELEMENTS(g_aArgEditMem),     0,       dbgcCmdEditMem,     "<addr> <value>",       "Write a 2-byte value to memory." },
+    { "ed",         2,        2,        &g_aArgEditMem[0],  RT_ELEMENTS(g_aArgEditMem),     0,       dbgcCmdEditMem,     "<addr> <value>",       "Write a 4-byte value to memory." },
+    { "eq",         2,        2,        &g_aArgEditMem[0],  RT_ELEMENTS(g_aArgEditMem),     0,       dbgcCmdEditMem,     "<addr> <value>",       "Write a 8-byte value to memory." },
+    { "g",          0,        0,        NULL,               0,                              0,       dbgcCmdGo,          "",                     "Continue execution." },
+    { "k",          0,        0,        NULL,               0,                              0,       dbgcCmdStack,       "",                     "Callstack." },
+    { "kg",         0,        0,        NULL,               0,                              0,       dbgcCmdStack,       "",                     "Callstack - guest." },
+    { "kh",         0,        0,        NULL,               0,                              0,       dbgcCmdStack,       "",                     "Callstack - hypervisor." },
+    { "lm",         0,        ~0,       &g_aArgListMods[0], RT_ELEMENTS(g_aArgListMods),    0,       dbgcCmdListModules, "[module [..]]",        "List modules." },
+    { "lmo",        0,        ~0,       &g_aArgListMods[0], RT_ELEMENTS(g_aArgListMods),    0,       dbgcCmdListModules, "[module [..]]",        "List modules and their segments." },
+    { "ln",         0,        ~0,       &g_aArgListNear[0], RT_ELEMENTS(g_aArgListNear),    0,       dbgcCmdListNear,    "[addr/sym [..]]",      "List symbols near to the address. Default address is CS:EIP." },
+    { "ls",         0,        1,        &g_aArgListSource[0],RT_ELEMENTS(g_aArgListSource), 0,       dbgcCmdListSource,  "[addr]",               "Source." },
+    { "m",          1,        1,        &g_aArgMemoryInfo[0],RT_ELEMENTS(g_aArgMemoryInfo), 0,       dbgcCmdMemoryInfo,  "<addr>",               "Display information about that piece of memory." },
+    { "r",          0,        2,        &g_aArgReg[0],      RT_ELEMENTS(g_aArgReg),         0,       dbgcCmdReg,         "[reg [newval]]",       "Show or set register(s) - active reg set." },
+    { "rg",         0,        2,        &g_aArgReg[0],      RT_ELEMENTS(g_aArgReg),         0,       dbgcCmdRegGuest,    "[reg [newval]]",       "Show or set register(s) - guest reg set." },
+    { "rg32",       0,        0,        NULL,               0,                              0,       dbgcCmdRegGuest,    "",                     "Show 32-bit guest registers." },
+    { "rg64",       0,        0,        NULL,               0,                              0,       dbgcCmdRegGuest,    "",                     "Show 64-bit guest registers." },
+    { "rh",         0,        2,        &g_aArgReg[0],      RT_ELEMENTS(g_aArgReg),         0,       dbgcCmdRegHyper,    "[reg [newval]]",       "Show or set register(s) - hypervisor reg set." },
+    { "rt",         0,        0,        NULL,               0,                              0,       dbgcCmdRegTerse,    "",                     "Toggles terse / verbose register info." },
+    { "s",          0,       ~0,        &g_aArgSearchMem[0], RT_ELEMENTS(g_aArgSearchMem),  0,       dbgcCmdSearchMem,   "[options] <range> <pattern>",  "Continue last search." },
+    { "sa",         2,       ~0,        &g_aArgSearchMemType[0], RT_ELEMENTS(g_aArgSearchMemType),0, dbgcCmdSearchMemType, "<range> <pattern>",  "Search memory for an ascii string." },
+    { "sb",         2,       ~0,        &g_aArgSearchMemType[0], RT_ELEMENTS(g_aArgSearchMemType),0, dbgcCmdSearchMemType, "<range> <pattern>",  "Search memory for one or more bytes." },
+    { "sd",         2,       ~0,        &g_aArgSearchMemType[0], RT_ELEMENTS(g_aArgSearchMemType),0, dbgcCmdSearchMemType, "<range> <pattern>",  "Search memory for one or more double words." },
+    { "sq",         2,       ~0,        &g_aArgSearchMemType[0], RT_ELEMENTS(g_aArgSearchMemType),0, dbgcCmdSearchMemType, "<range> <pattern>",  "Search memory for one or more quad words." },
+    { "su",         2,       ~0,        &g_aArgSearchMemType[0], RT_ELEMENTS(g_aArgSearchMemType),0, dbgcCmdSearchMemType, "<range> <pattern>",  "Search memory for an unicode string." },
+    { "sw",         2,       ~0,        &g_aArgSearchMemType[0], RT_ELEMENTS(g_aArgSearchMemType),0, dbgcCmdSearchMemType, "<range> <pattern>",  "Search memory for one or more words." },
+    { "t",          0,        0,        NULL,               0,                              0,       dbgcCmdTrace,       "",                     "Instruction trace (step into)." },
+    { "u",          0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble), 0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble." },
+    { "u64",        0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble), 0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble 64-bit code." },
+    { "u32",        0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble), 0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble 32-bit code." },
+    { "u16",        0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble), 0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble 16-bit code." },
+    { "uv86",       0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble), 0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble 16-bit code with v8086/real mode addressing." },
 };
 
 /** The number of commands in the CodeView/WinDbg emulation. */
@@ -389,25 +381,22 @@ const unsigned g_cCmdsCodeView = RT_ELEMENTS(g_aCmdsCodeView);
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdGo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdGo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
+    DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
+
     /*
      * Check if the VM is halted or not before trying to resume it.
      */
     if (!DBGFR3IsHalted(pVM))
-        pCmdHlp->pfnPrintf(pCmdHlp, NULL, "warning: The VM is already running...\n");
-    else
-    {
-        int rc = DBGFR3Resume(pVM);
-        if (RT_FAILURE(rc))
-            return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "Executing DBGFR3Resume().");
-    }
+        return DBGCCmdHlpFail(pCmdHlp, pCmd, "The VM is already running");
 
-    NOREF(pCmd);
-    NOREF(paArgs);
-    NOREF(cArgs);
-    NOREF(pResult);
-    return 0;
+    int rc = DBGFR3Resume(pVM);
+    if (RT_FAILURE(rc))
+        return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGFR3Resume");
+
+    NOREF(paArgs); NOREF(cArgs);
+    return VINF_SUCCESS;
 }
 
 
@@ -421,15 +410,17 @@ static DECLCALLBACK(int) dbgcCmdGo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM,
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdBrkAccess(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR /*pResult*/)
+static DECLCALLBACK(int) dbgcCmdBrkAccess(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
+    DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
+
     /*
      * Interpret access type.
      */
     if (    !strchr("xrwi", paArgs[0].u.pszString[0])
         ||  paArgs[0].u.pszString[1])
-        return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Invalid access type '%s' for '%s'. Valid types are 'e', 'r', 'w' and 'i'.\n",
-                                  paArgs[0].u.pszString, pCmd->pszCmd);
+        return DBGCCmdHlpFail(pCmdHlp, pCmd, "Invalid access type '%s' for '%s'. Valid types are 'e', 'r', 'w' and 'i'",
+                              paArgs[0].u.pszString, pCmd->pszCmd);
     uint8_t fType = 0;
     switch (paArgs[0].u.pszString[0])
     {
@@ -443,8 +434,8 @@ static DECLCALLBACK(int) dbgcCmdBrkAccess(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
      * Validate size.
      */
     if (fType == X86_DR7_RW_EO && paArgs[1].u.u64Number != 1)
-        return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Invalid access size %RX64 for '%s'. 'x' access type requires size 1!\n",
-                                  paArgs[1].u.u64Number, pCmd->pszCmd);
+        return DBGCCmdHlpFail(pCmdHlp, pCmd, "Invalid access size %RX64 for '%s'. 'x' access type requires size 1!",
+                              paArgs[1].u.u64Number, pCmd->pszCmd);
     switch (paArgs[1].u.u64Number)
     {
         case 1:
@@ -453,8 +444,8 @@ static DECLCALLBACK(int) dbgcCmdBrkAccess(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
             break;
         /*case 8: - later*/
         default:
-            return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Invalid access size %RX64 for '%s'. 1, 2 or 4!\n",
-                                      paArgs[1].u.u64Number, pCmd->pszCmd);
+            return DBGCCmdHlpFail(pCmdHlp, pCmd, "Invalid access size %RX64 for '%s'. 1, 2 or 4!",
+                                  paArgs[1].u.u64Number, pCmd->pszCmd);
     }
     uint8_t cb = (uint8_t)paArgs[1].u.u64Number;
 
@@ -462,9 +453,9 @@ static DECLCALLBACK(int) dbgcCmdBrkAccess(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
      * Convert the pointer to a DBGF address.
      */
     DBGFADDRESS Address;
-    int rc = pCmdHlp->pfnVarToDbgfAddr(pCmdHlp, &paArgs[2], &Address);
+    int rc = DBGCCmdHlpVarToDbgfAddr(pCmdHlp, &paArgs[2], &Address);
     if (RT_FAILURE(rc))
-        return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Couldn't convert '%DV' to a DBGF address, rc=%Rrc.\n", &paArgs[2], rc);
+        return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGCCmdHlpVarToDbgfAddr(,%DV,)", &paArgs[2]);
 
     /*
      * Pick out the optional arguments.
@@ -492,24 +483,24 @@ static DECLCALLBACK(int) dbgcCmdBrkAccess(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
     /*
      * Try set the breakpoint.
      */
-    RTUINT iBp;
+    uint32_t iBp;
     rc = DBGFR3BpSetReg(pVM, &Address, iHitTrigger, iHitDisable, fType, cb, &iBp);
     if (RT_SUCCESS(rc))
     {
         PDBGC   pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
         rc = dbgcBpAdd(pDbgc, iBp, pszCmds);
         if (RT_SUCCESS(rc))
-            return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Set access breakpoint %u at %RGv\n", iBp, Address.FlatPtr);
+            return DBGCCmdHlpPrintf(pCmdHlp, "Set access breakpoint %u at %RGv\n", iBp, Address.FlatPtr);
         if (rc == VERR_DBGC_BP_EXISTS)
         {
             rc = dbgcBpUpdate(pDbgc, iBp, pszCmds);
             if (RT_SUCCESS(rc))
-                return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Updated access breakpoint %u at %RGv\n", iBp, Address.FlatPtr);
+                return DBGCCmdHlpPrintf(pCmdHlp, "Updated access breakpoint %u at %RGv\n", iBp, Address.FlatPtr);
         }
         int rc2 = DBGFR3BpClear(pDbgc->pVM, iBp);
         AssertRC(rc2);
     }
-    return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Failed to set access breakpoint at %RGv, rc=%Rrc.\n", Address.FlatPtr, rc);
+    return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "Failed to set access breakpoint at %RGv", Address.FlatPtr);
 }
 
 
@@ -523,29 +514,31 @@ static DECLCALLBACK(int) dbgcCmdBrkAccess(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdBrkClear(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR /*pResult*/)
+static DECLCALLBACK(int) dbgcCmdBrkClear(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
+    DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
+
     /*
      * Enumerate the arguments.
      */
     PDBGC   pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
-    int     rc = VINF_SUCCESS;
+    int     rc    = VINF_SUCCESS;
     for (unsigned iArg = 0; iArg < cArgs && RT_SUCCESS(rc); iArg++)
     {
         if (paArgs[iArg].enmType != DBGCVAR_TYPE_STRING)
         {
             /* one */
-            RTUINT iBp = (RTUINT)paArgs[iArg].u.u64Number;
-            if (iBp != paArgs[iArg].u.u64Number)
+            uint32_t iBp = (uint32_t)paArgs[iArg].u.u64Number;
+            if (iBp == paArgs[iArg].u.u64Number)
             {
-                rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Breakpoint id %RX64 is too large!\n", paArgs[iArg].u.u64Number);
-                break;
+                int rc2 = DBGFR3BpClear(pVM, iBp);
+                if (RT_FAILURE(rc2))
+                    rc = DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc2, "DBGFR3BpClear(,%#x)", iBp);
+                if (RT_SUCCESS(rc2) || rc2 == VERR_DBGF_BP_NOT_FOUND)
+                    dbgcBpDelete(pDbgc, iBp);
             }
-            int rc2 = DBGFR3BpClear(pVM, iBp);
-            if (RT_FAILURE(rc2))
-                rc = pCmdHlp->pfnVBoxError(pCmdHlp, rc2, "DBGFR3BpClear failed for breakpoint %u!\n", iBp);
-            if (RT_SUCCESS(rc2) || rc2 == VERR_DBGF_BP_NOT_FOUND)
-                dbgcBpDelete(pDbgc, iBp);
+            else
+                rc = DBGCCmdHlpFail(pCmdHlp, pCmd, "Breakpoint id %RX64 is too large", paArgs[iArg].u.u64Number);
         }
         else if (!strcmp(paArgs[iArg].u.pszString, "all"))
         {
@@ -553,22 +546,18 @@ static DECLCALLBACK(int) dbgcCmdBrkClear(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
             PDBGCBP pBp = pDbgc->pFirstBp;
             while (pBp)
             {
-                RTUINT iBp = pBp->iBp;
+                uint32_t iBp = pBp->iBp;
                 pBp = pBp->pNext;
 
                 int rc2 = DBGFR3BpClear(pVM, iBp);
                 if (RT_FAILURE(rc2))
-                    rc = pCmdHlp->pfnVBoxError(pCmdHlp, rc2, "DBGFR3BpClear failed for breakpoint %u!\n", iBp);
+                    rc = DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc2, "DBGFR3BpClear(,%#x)", iBp);
                 if (RT_SUCCESS(rc2) || rc2 == VERR_DBGF_BP_NOT_FOUND)
                     dbgcBpDelete(pDbgc, iBp);
             }
         }
         else
-        {
-            /* invalid parameter */
-            rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Invalid argument '%s' to '%s'!\n", paArgs[iArg].u.pszString, pCmd->pszCmd);
-            break;
-        }
+            rc = DBGCCmdHlpFail(pCmdHlp, pCmd, "Invalid argument '%s'", paArgs[iArg].u.pszString);
     }
     return rc;
 }
@@ -584,7 +573,7 @@ static DECLCALLBACK(int) dbgcCmdBrkClear(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdBrkDisable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR /*pResult*/)
+static DECLCALLBACK(int) dbgcCmdBrkDisable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Enumerate the arguments.
@@ -595,15 +584,15 @@ static DECLCALLBACK(int) dbgcCmdBrkDisable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
         if (paArgs[iArg].enmType != DBGCVAR_TYPE_STRING)
         {
             /* one */
-            RTUINT iBp = (RTUINT)paArgs[iArg].u.u64Number;
-            if (iBp != paArgs[iArg].u.u64Number)
+            uint32_t iBp = (uint32_t)paArgs[iArg].u.u64Number;
+            if (iBp == paArgs[iArg].u.u64Number)
             {
-                rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Breakpoint id %RX64 is too large!\n", paArgs[iArg].u.u64Number);
-                break;
+                rc = DBGFR3BpDisable(pVM, iBp);
+                if (RT_FAILURE(rc))
+                    rc = DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGFR3BpDisable failed for breakpoint %#x", iBp);
             }
-            rc = DBGFR3BpDisable(pVM, iBp);
-            if (RT_FAILURE(rc))
-                rc = pCmdHlp->pfnVBoxError(pCmdHlp, rc, "DBGFR3BpDisable failed for breakpoint %u!\n", iBp);
+            else
+                rc = DBGCCmdHlpFail(pCmdHlp, pCmd, "Breakpoint id %RX64 is too large", paArgs[iArg].u.u64Number);
         }
         else if (!strcmp(paArgs[iArg].u.pszString, "all"))
         {
@@ -611,17 +600,13 @@ static DECLCALLBACK(int) dbgcCmdBrkDisable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
             PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
             for (PDBGCBP pBp = pDbgc->pFirstBp; pBp; pBp = pBp->pNext)
             {
-                rc = DBGFR3BpDisable(pVM, pBp->iBp);
-                if (RT_FAILURE(rc))
-                    rc = pCmdHlp->pfnVBoxError(pCmdHlp, rc, "DBGFR3BpDisable failed for breakpoint %u!\n", pBp->iBp);
+                int rc2 = DBGFR3BpDisable(pVM, pBp->iBp);
+                if (RT_FAILURE(rc2))
+                    rc = DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc2, "DBGFR3BpDisable failed for breakpoint %#x", pBp->iBp);
             }
         }
         else
-        {
-            /* invalid parameter */
-            rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Invalid argument '%s' to '%s'!\n", paArgs[iArg].u.pszString, pCmd->pszCmd);
-            break;
-        }
+            rc = DBGCCmdHlpFail(pCmdHlp, pCmd, "Invalid argument '%s'", paArgs[iArg].u.pszString);
     }
     return rc;
 }
@@ -637,8 +622,10 @@ static DECLCALLBACK(int) dbgcCmdBrkDisable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdBrkEnable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR /*pResult*/)
+static DECLCALLBACK(int) dbgcCmdBrkEnable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
+    DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
+
     /*
      * Enumerate the arguments.
      */
@@ -648,15 +635,15 @@ static DECLCALLBACK(int) dbgcCmdBrkEnable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
         if (paArgs[iArg].enmType != DBGCVAR_TYPE_STRING)
         {
             /* one */
-            RTUINT iBp = (RTUINT)paArgs[iArg].u.u64Number;
-            if (iBp != paArgs[iArg].u.u64Number)
+            uint32_t iBp = (uint32_t)paArgs[iArg].u.u64Number;
+            if (iBp == paArgs[iArg].u.u64Number)
             {
-                rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Breakpoint id %RX64 is too large!\n", paArgs[iArg].u.u64Number);
-                break;
+                rc = DBGFR3BpEnable(pVM, iBp);
+                if (RT_FAILURE(rc))
+                    rc = DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGFR3BpEnable failed for breakpoint %#x", iBp);
             }
-            rc = DBGFR3BpEnable(pVM, iBp);
-            if (RT_FAILURE(rc))
-                rc = pCmdHlp->pfnVBoxError(pCmdHlp, rc, "DBGFR3BpEnable failed for breakpoint %u!\n", iBp);
+            else
+                rc = DBGCCmdHlpFail(pCmdHlp, pCmd, "Breakpoint id %RX64 is too large", paArgs[iArg].u.u64Number);
         }
         else if (!strcmp(paArgs[iArg].u.pszString, "all"))
         {
@@ -664,17 +651,13 @@ static DECLCALLBACK(int) dbgcCmdBrkEnable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
             PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
             for (PDBGCBP pBp = pDbgc->pFirstBp; pBp; pBp = pBp->pNext)
             {
-                rc = DBGFR3BpEnable(pVM, pBp->iBp);
-                if (RT_FAILURE(rc))
-                    rc = pCmdHlp->pfnVBoxError(pCmdHlp, rc, "DBGFR3BpEnable failed for breakpoint %u!\n", pBp->iBp);
+                int rc2 = DBGFR3BpEnable(pVM, pBp->iBp);
+                if (RT_FAILURE(rc2))
+                    rc = DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc2, "DBGFR3BpEnable failed for breakpoint %#x", pBp->iBp);
             }
         }
         else
-        {
-            /* invalid parameter */
-            rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Invalid argument '%s' to '%s'!\n", paArgs[iArg].u.pszString, pCmd->pszCmd);
-            break;
-        }
+            rc = DBGCCmdHlpFail(pCmdHlp, pCmd, "Invalid argument '%s'", paArgs[iArg].u.pszString);
     }
     return rc;
 }
@@ -690,7 +673,7 @@ static DECLCALLBACK(int) dbgcCmdBrkEnable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
  */
 static DECLCALLBACK(int) dbgcEnumBreakpointsCallback(PVM pVM, void *pvUser, PCDBGFBP pBp)
 {
-    PDBGC pDbgc = (PDBGC)pvUser;
+    PDBGC   pDbgc   = (PDBGC)pvUser;
     PDBGCBP pDbgcBp = dbgcBpGet(pDbgc, pBp->iBp);
 
     /*
@@ -723,13 +706,13 @@ static DECLCALLBACK(int) dbgcEnumBreakpointsCallback(PVM pVM, void *pvUser, PCDB
             break;
     }
 
-    pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "%2u %c %d %c %RGv %04RX64 (%04RX64 to ",
-                            pBp->iBp, pBp->fEnabled ? 'e' : 'd', cb, chType,
-                            pBp->GCPtr, pBp->cHits, pBp->iHitTrigger);
+    DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%4#x %c %d %c %RGv %04RX64 (%04RX64 to ",
+                     pBp->iBp, pBp->fEnabled ? 'e' : 'd', cb, chType,
+                     pBp->GCPtr, pBp->cHits, pBp->iHitTrigger);
     if (pBp->iHitDisable == ~(uint64_t)0)
-        pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "~0)  ");
+        DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "~0)  ");
     else
-        pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "%04RX64)");
+        DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%04RX64)");
 
     /*
      * Try resolve the address.
@@ -741,11 +724,11 @@ static DECLCALLBACK(int) dbgcEnumBreakpointsCallback(PVM pVM, void *pvUser, PCDB
     if (RT_SUCCESS(rc))
     {
         if (!off)
-            pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "%s", Sym.szName);
+            DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%s", Sym.szName);
         else if (off > 0)
-            pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "%s+%RGv", Sym.szName, off);
+            DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%s+%RGv", Sym.szName, off);
         else
-            pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "%s+%RGv", Sym.szName, -off);
+            DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "%s+%RGv", Sym.szName, -off);
     }
 
     /*
@@ -754,13 +737,12 @@ static DECLCALLBACK(int) dbgcEnumBreakpointsCallback(PVM pVM, void *pvUser, PCDB
     if (pDbgcBp)
     {
         if (pDbgcBp->cchCmd)
-            pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "\n  cmds: '%s'\n",
-                                    pDbgcBp->szCmd);
+            DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "\n  cmds: '%s'\n", pDbgcBp->szCmd);
         else
-            pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "\n");
+            DBGCCmdHlpPrintf(&pDbgc->CmdHlp, "\n");
     }
     else
-        pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, " [unknown bp]\n");
+        DBGCCmdHlpPrintf(&pDbgc->CmdHlp, " [unknown bp]\n");
 
     return VINF_SUCCESS;
 }
@@ -776,16 +758,18 @@ static DECLCALLBACK(int) dbgcEnumBreakpointsCallback(PVM pVM, void *pvUser, PCDB
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdBrkList(PCDBGCCMD /*pCmd*/, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR /*paArgs*/, unsigned /*cArgs*/, PDBGCVAR /*pResult*/)
+static DECLCALLBACK(int) dbgcCmdBrkList(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR /*paArgs*/, unsigned cArgs)
 {
-    PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
+    DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, -1, cArgs == 0);
 
     /*
      * Enumerate the breakpoints.
      */
+    PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
     int rc = DBGFR3BpEnum(pVM, dbgcEnumBreakpointsCallback, pDbgc);
     if (RT_FAILURE(rc))
-        return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "DBGFR3BpEnum failed.\n");
+        return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGFR3BpEnum");
     return rc;
 }
 
@@ -800,15 +784,15 @@ static DECLCALLBACK(int) dbgcCmdBrkList(PCDBGCCMD /*pCmd*/, PDBGCCMDHLP pCmdHlp,
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdBrkSet(PCDBGCCMD /*pCmd*/, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR /*pResult*/)
+static DECLCALLBACK(int) dbgcCmdBrkSet(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Convert the pointer to a DBGF address.
      */
     DBGFADDRESS Address;
-    int rc = pCmdHlp->pfnVarToDbgfAddr(pCmdHlp, &paArgs[0], &Address);
+    int rc = DBGCCmdHlpVarToDbgfAddr(pCmdHlp, &paArgs[0], &Address);
     if (RT_FAILURE(rc))
-        return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Couldn't convert '%DV' to a DBGF address, rc=%Rrc.\n", &paArgs[0], rc);
+        return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGCCmdHlpVarToDbgfAddr(,'%DV',)", &paArgs[0]);
 
     /*
      * Pick out the optional arguments.
@@ -836,24 +820,24 @@ static DECLCALLBACK(int) dbgcCmdBrkSet(PCDBGCCMD /*pCmd*/, PDBGCCMDHLP pCmdHlp, 
     /*
      * Try set the breakpoint.
      */
-    RTUINT iBp;
+    uint32_t iBp;
     rc = DBGFR3BpSet(pVM, &Address, iHitTrigger, iHitDisable, &iBp);
     if (RT_SUCCESS(rc))
     {
-        PDBGC   pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
+        PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
         rc = dbgcBpAdd(pDbgc, iBp, pszCmds);
         if (RT_SUCCESS(rc))
-            return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Set breakpoint %u at %RGv\n", iBp, Address.FlatPtr);
+            return DBGCCmdHlpPrintf(pCmdHlp, "Set breakpoint %u at %RGv\n", iBp, Address.FlatPtr);
         if (rc == VERR_DBGC_BP_EXISTS)
         {
             rc = dbgcBpUpdate(pDbgc, iBp, pszCmds);
             if (RT_SUCCESS(rc))
-                return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Updated breakpoint %u at %RGv\n", iBp, Address.FlatPtr);
+                return DBGCCmdHlpPrintf(pCmdHlp, "Updated breakpoint %u at %RGv\n", iBp, Address.FlatPtr);
         }
         int rc2 = DBGFR3BpClear(pDbgc->pVM, iBp);
         AssertRC(rc2);
     }
-    return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Failed to set breakpoint at %RGv, rc=%Rrc.\n", Address.FlatPtr, rc);
+    return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "Failed to set breakpoint at %RGv", Address.FlatPtr);
 }
 
 
@@ -867,15 +851,15 @@ static DECLCALLBACK(int) dbgcCmdBrkSet(PCDBGCCMD /*pCmd*/, PDBGCCMDHLP pCmdHlp, 
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdBrkREM(PCDBGCCMD /*pCmd*/, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR /*pResult*/)
+static DECLCALLBACK(int) dbgcCmdBrkREM(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Convert the pointer to a DBGF address.
      */
     DBGFADDRESS Address;
-    int rc = pCmdHlp->pfnVarToDbgfAddr(pCmdHlp, &paArgs[0], &Address);
+    int rc = DBGCCmdHlpVarToDbgfAddr(pCmdHlp, &paArgs[0], &Address);
     if (RT_FAILURE(rc))
-        return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Couldn't convert '%DV' to a DBGF address, rc=%Rrc.\n", &paArgs[0], rc);
+        return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGCCmdHlpVarToDbgfAddr(,'%DV',)", &paArgs[0]);
 
     /*
      * Pick out the optional arguments.
@@ -903,24 +887,24 @@ static DECLCALLBACK(int) dbgcCmdBrkREM(PCDBGCCMD /*pCmd*/, PDBGCCMDHLP pCmdHlp, 
     /*
      * Try set the breakpoint.
      */
-    RTUINT iBp;
+    uint32_t iBp;
     rc = DBGFR3BpSetREM(pVM, &Address, iHitTrigger, iHitDisable, &iBp);
     if (RT_SUCCESS(rc))
     {
         PDBGC   pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
         rc = dbgcBpAdd(pDbgc, iBp, pszCmds);
         if (RT_SUCCESS(rc))
-            return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Set REM breakpoint %u at %RGv\n", iBp, Address.FlatPtr);
+            return DBGCCmdHlpPrintf(pCmdHlp, "Set REM breakpoint %u at %RGv\n", iBp, Address.FlatPtr);
         if (rc == VERR_DBGC_BP_EXISTS)
         {
             rc = dbgcBpUpdate(pDbgc, iBp, pszCmds);
             if (RT_SUCCESS(rc))
-                return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Updated REM breakpoint %u at %RGv\n", iBp, Address.FlatPtr);
+                return DBGCCmdHlpPrintf(pCmdHlp, "Updated REM breakpoint %u at %RGv\n", iBp, Address.FlatPtr);
         }
         int rc2 = DBGFR3BpClear(pDbgc->pVM, iBp);
         AssertRC(rc2);
     }
-    return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Failed to set REM breakpoint at %RGv, rc=%Rrc.\n", Address.FlatPtr, rc);
+    return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "Failed to set REM breakpoint at %RGv", Address.FlatPtr);
 }
 
 
@@ -934,26 +918,24 @@ static DECLCALLBACK(int) dbgcCmdBrkREM(PCDBGCCMD /*pCmd*/, PDBGCCMDHLP pCmdHlp, 
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdUnassemble(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdUnassemble(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
-    PDBGC   pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
+    PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
     /*
      * Validate input.
      */
-    if (    cArgs > 1
-        ||  (cArgs == 1 && !DBGCVAR_ISPOINTER(paArgs[0].enmType)))
-        return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "internal error: The parser doesn't do its job properly yet.. It might help to use the '%%' operator.\n");
-    if (!pVM && !cArgs && !DBGCVAR_ISPOINTER(pDbgc->DisasmPos.enmType))
-        return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Don't know where to start disassembling...\n");
-    if (!pVM && cArgs && DBGCVAR_ISGCPOINTER(paArgs[0].enmType))
-        return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: GC address but no VM.\n");
+    DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, -1, cArgs <= 1);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, cArgs == 0 || DBGCVAR_ISPOINTER(paArgs[0].enmType));
 
-    unsigned fFlags = DBGF_DISAS_FLAGS_NO_ADDRESS;
+    if (!cArgs && !DBGCVAR_ISPOINTER(pDbgc->DisasmPos.enmType))
+        return DBGCCmdHlpFail(pCmdHlp, pCmd, "Don't know where to start disassembling");
 
     /*
      * Check the desired mode.
      */
+    unsigned fFlags = DBGF_DISAS_FLAGS_NO_ADDRESS;
     switch (pCmd->pszCmd[1])
     {
         default: AssertFailed();
@@ -971,6 +953,7 @@ static DECLCALLBACK(int) dbgcCmdUnassemble(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
     {
         if (!DBGCVAR_ISPOINTER(pDbgc->DisasmPos.enmType))
         {
+            /** @todo Batch query CS, RIP & CPU mode. */
             PVMCPU pVCpu = VMMGetCpuById(pVM, pDbgc->idCpu);
             if (    pDbgc->fRegCtxGuest
                 &&  CPUMIsGuestIn64BitCodeEx(CPUMQueryGuestCtxPtr(pVCpu)))
@@ -1008,16 +991,16 @@ static DECLCALLBACK(int) dbgcCmdUnassemble(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
 
         case DBGCVAR_RANGE_ELEMENTS:
             if (pDbgc->DisasmPos.u64Range > 2048)
-                return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: Too many lines requested. Max is 2048 lines.\n");
+                return DBGCCmdHlpFail(pCmdHlp, pCmd, "Too many lines requested. Max is 2048 lines");
             break;
 
         case DBGCVAR_RANGE_BYTES:
             if (pDbgc->DisasmPos.u64Range > 65536)
-                return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: The requested range is too big. Max is 64KB.\n");
+                return DBGCCmdHlpFail(pCmdHlp, pCmd, "The requested range is too big. Max is 64KB");
             break;
 
         default:
-            return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "internal error: Unknown range type %d.\n", pDbgc->DisasmPos.enmRangeType);
+            return DBGCCmdHlpFail(pCmdHlp, pCmd, "Unknown range type %d", pDbgc->DisasmPos.enmRangeType);
     }
 
     /*
@@ -1032,12 +1015,11 @@ static DECLCALLBACK(int) dbgcCmdUnassemble(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
         case DBGCVAR_TYPE_GC_PHYS:
         case DBGCVAR_TYPE_HC_FLAT:
         case DBGCVAR_TYPE_HC_PHYS:
-        case DBGCVAR_TYPE_HC_FAR:
         {
             DBGCVAR VarTmp;
             rc = DBGCCmdHlpEval(pCmdHlp, &VarTmp, "%%(%Dv)", &pDbgc->DisasmPos);
             if (RT_FAILURE(rc))
-                return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: failed to evaluate '%%(%Dv)' -> %Rrc .\n", &pDbgc->DisasmPos, rc);
+                return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "failed to evaluate '%%(%Dv)'", &pDbgc->DisasmPos);
             pDbgc->DisasmPos = VarTmp;
             break;
         }
@@ -1077,18 +1059,18 @@ static DECLCALLBACK(int) dbgcCmdUnassemble(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
         if (RT_SUCCESS(rc))
         {
             /* print it */
-            rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "%-16DV %s\n", &pDbgc->DisasmPos, &szDis[0]);
+            rc = DBGCCmdHlpPrintf(pCmdHlp, "%-16DV %s\n", &pDbgc->DisasmPos, &szDis[0]);
             if (RT_FAILURE(rc))
                 return rc;
         }
         else
         {
             /* bitch. */
-            rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Failed to disassemble instruction, skipping one byte.\n");
+            rc = DBGCCmdHlpPrintf(pCmdHlp, "Failed to disassemble instruction, skipping one byte.\n");
             if (RT_FAILURE(rc))
                 return rc;
             if (cTries-- > 0)
-                return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "Too many disassembly failures. Giving up.\n");
+                return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "Too many disassembly failures. Giving up");
             cbInstr = 1;
         }
 
@@ -1101,14 +1083,14 @@ static DECLCALLBACK(int) dbgcCmdUnassemble(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
             iRangeLeft -= cbInstr;
         rc = DBGCCmdHlpEval(pCmdHlp, &pDbgc->DisasmPos, "(%Dv) + %x", &pDbgc->DisasmPos, cbInstr);
         if (RT_FAILURE(rc))
-            return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "Expression: (%Dv) + %x\n", &pDbgc->DisasmPos, cbInstr);
+            return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGCCmdHlpEval(,,'(%Dv) + %x')", &pDbgc->DisasmPos, cbInstr);
         if (iRangeLeft <= 0)
             break;
         fFlags &= ~(DBGF_DISAS_FLAGS_CURRENT_GUEST | DBGF_DISAS_FLAGS_CURRENT_HYPER);
     }
 
-    NOREF(pCmd); NOREF(pResult);
-    return 0;
+    NOREF(pCmd);
+    return VINF_SUCCESS;
 }
 
 
@@ -1122,7 +1104,7 @@ static DECLCALLBACK(int) dbgcCmdUnassemble(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdListSource(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdListSource(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC  pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
@@ -1166,7 +1148,6 @@ static DECLCALLBACK(int) dbgcCmdListSource(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
         case DBGCVAR_TYPE_GC_FAR:
         case DBGCVAR_TYPE_HC_FLAT:
         case DBGCVAR_TYPE_HC_PHYS:
-        case DBGCVAR_TYPE_HC_FAR:
         {
             int rc = DBGCCmdHlpEval(pCmdHlp, &pDbgc->SourcePos, "%%(%Dv)", &pDbgc->SourcePos);
             if (RT_FAILURE(rc))
@@ -1300,7 +1281,7 @@ static DECLCALLBACK(int) dbgcCmdListSource(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
             break;
     }
 
-    NOREF(pCmd); NOREF(pResult);
+    NOREF(pCmd);
     return 0;
 }
 
@@ -1315,12 +1296,12 @@ static DECLCALLBACK(int) dbgcCmdListSource(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdReg(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdReg(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
     if (!pDbgc->fRegCtxGuest)
-        return dbgcCmdRegHyper(pCmd, pCmdHlp, pVM, paArgs, cArgs, pResult);
-    return dbgcCmdRegGuest(pCmd, pCmdHlp, pVM, paArgs, cArgs, pResult);
+        return dbgcCmdRegHyper(pCmd, pCmdHlp, pVM, paArgs, cArgs);
+    return dbgcCmdRegGuest(pCmd, pCmdHlp, pVM, paArgs, cArgs);
 }
 
 
@@ -1336,55 +1317,92 @@ static DECLCALLBACK(int) dbgcCmdReg(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM
  * @param   pszPrefix   The symbol prefix.
  */
 static DECLCALLBACK(int) dbgcCmdRegCommon(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs,
-                                          PDBGCVAR pResult, const char *pszPrefix)
+                                          const char *pszPrefix)
 {
     PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
-
-    Assert(cArgs != 0); /* handled by caller */
+    Assert(cArgs == 1 || cArgs == 2); /* cArgs == 0 is handled by the caller */
+    if (   paArgs[0].enmType != DBGCVAR_TYPE_STRING
+        && paArgs[0].enmType != DBGCVAR_TYPE_SYMBOL)
+        return DBGCCmdHlpPrintf(pCmdHlp, "internal error: The parser doesn't do its job properly yet.. Try drop the '@' or/and quote the register name\n");
 
     /*
-     * cArgs == 1: Show the register.
-     * cArgs == 2: Modify the register.
+     * Parse the register name and kind.
      */
-    if (    cArgs == 1
-        ||  cArgs == 2)
+    const char *pszReg = paArgs[0].u.pszString;
+    if (*pszReg == '@')
+        pszReg++;
+    VMCPUID idCpu = pDbgc->idCpu;
+    if (*pszPrefix)
+        idCpu |= DBGFREG_HYPER_VMCPUID;
+    if (*pszReg == '.')
     {
-        /* locate the register symbol. */
-        const char *pszReg = paArgs[0].u.pszString;
-        if (    *pszPrefix
-            &&  pszReg[0] != *pszPrefix)
-        {
-            /* prepend the prefix. */
-            char *psz = (char *)alloca(strlen(pszReg) + 2);
-            psz[0] = *pszPrefix;
-            strcpy(psz + 1, paArgs[0].u.pszString);
-            pszReg = psz;
-        }
-        PCDBGCSYM pSym = dbgcLookupRegisterSymbol(pDbgc, pszReg);
-        if (!pSym)
-            return pCmdHlp->pfnVBoxError(pCmdHlp, VERR_INVALID_PARAMETER /* VERR_DBGC_INVALID_REGISTER */, "Invalid register name '%s'.\n", pszReg);
-
-        /* show the register */
-        if (cArgs == 1)
-        {
-            DBGCVAR Var;
-            memset(&Var, 0, sizeof(Var));
-            int rc = pSym->pfnGet(pSym, pCmdHlp, DBGCVAR_TYPE_NUMBER, &Var);
-            if (RT_FAILURE(rc))
-                return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "Failed getting value for register '%s'.\n", pszReg);
-            return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "%s=%Dv\n", pszReg, &Var);
-        }
-
-        /* change the register */
-        int rc = pSym->pfnSet(pSym, pCmdHlp, &paArgs[1]);
-        if (RT_FAILURE(rc))
-            return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "Failed setting value for register '%s'.\n", pszReg);
-        return VINF_SUCCESS;
+        pszReg++;
+        idCpu |= DBGFREG_HYPER_VMCPUID;
     }
+    const char * const pszActualPrefix = idCpu & DBGFREG_HYPER_VMCPUID ? "." : "";
 
-
-    NOREF(pCmd); NOREF(paArgs); NOREF(pResult);
-    return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Huh? cArgs=%d Expected 0, 1 or 2!\n", cArgs);
+    /*
+     * Query the register type & value (the setter needs the type).
+     */
+    DBGFREGVALTYPE  enmType;
+    DBGFREGVAL      Value;
+    int rc = DBGFR3RegNmQuery(pVM, idCpu, pszReg, &Value, &enmType);
+    if (RT_FAILURE(rc))
+    {
+        if (rc == VERR_DBGF_REGISTER_NOT_FOUND)
+            return DBGCCmdHlpVBoxError(pCmdHlp, VERR_INVALID_PARAMETER, "Unknown register: '%s%s'.\n",
+                                       pszActualPrefix,  pszReg);
+        return DBGCCmdHlpVBoxError(pCmdHlp, rc, "DBGFR3RegNmQuery failed querying '%s%s': %Rrc.\n",
+                                   pszActualPrefix,  pszReg, rc);
+    }
+    if (cArgs == 1)
+    {
+        /*
+         * Show the register.
+         */
+        char szValue[160];
+        rc = DBGFR3RegFormatValue(szValue, sizeof(szValue), &Value, enmType, true /*fSpecial*/);
+        if (RT_SUCCESS(rc))
+            rc = DBGCCmdHlpPrintf(pCmdHlp, "%s%s=%s\n", pszActualPrefix, pszReg, szValue);
+        else
+            rc = DBGCCmdHlpVBoxError(pCmdHlp, rc, "DBGFR3RegFormatValue failed: %Rrc.\n", rc);
+    }
+    else if (cArgs == 2)
+    {
+        /*
+         * Modify the register.
+         */
+        if (   paArgs[1].enmType == DBGCVAR_TYPE_STRING
+            || paArgs[1].enmType == DBGCVAR_TYPE_SYMBOL)
+            return DBGCCmdHlpPrintf(pCmdHlp, "internal error: The parser doesn't do its job properly on the 2nd argument yet...\n");
+        if (enmType != DBGFREGVALTYPE_DTR)
+        {
+            enmType = DBGFREGVALTYPE_U64;
+            rc = DBGCCmdHlpVarToNumber(pCmdHlp, &paArgs[1], &Value.u64);
+        }
+        else
+        {
+            enmType = DBGFREGVALTYPE_DTR;
+            rc = DBGCCmdHlpVarToNumber(pCmdHlp, &paArgs[1], &Value.dtr.u64Base);
+            if (RT_SUCCESS(rc) && paArgs[1].enmRangeType != DBGCVAR_RANGE_NONE)
+                Value.dtr.u32Limit = (uint32_t)paArgs[1].u64Range;
+        }
+        if (RT_SUCCESS(rc))
+        {
+            rc = DBGFR3RegNmSet(pVM, idCpu, pszReg, &Value, enmType);
+            if (RT_FAILURE(rc))
+                rc = DBGCCmdHlpVBoxError(pCmdHlp, rc, "DBGFR3RegNmSet failed settings '%s%s': %Rrc\n",
+                                         pszActualPrefix, pszReg, rc);
+        }
+        else
+            rc = DBGCCmdHlpVBoxError(pCmdHlp, rc, "DBGFR3RegFormatValue failed: %Rrc.\n", rc);
+    }
+    else
+    {
+        NOREF(pCmd); NOREF(paArgs);
+        rc = DBGCCmdHlpPrintf(pCmdHlp, "Huh? cArgs=%d Expected 0, 1 or 2!\n", cArgs);
+    }
+    return rc;
 }
 
 
@@ -1398,7 +1416,7 @@ static DECLCALLBACK(int) dbgcCmdRegCommon(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdRegGuest(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdRegGuest(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Show all registers our selves.
@@ -1448,7 +1466,7 @@ static DECLCALLBACK(int) dbgcCmdRegGuest(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
                                      "ss={%04VR{ss} base=%016VR{ss_base} limit=%08VR{ss_lim} flags=%04VR{ss_attr}}\n"
                                      "dr0=%016VR{dr0} dr1=%016VR{dr1} dr2=%016VR{dr2} dr3=%016VR{dr3}\n"
                                      "dr6=%016VR{dr6} dr7=%016VR{dr7}\n"
-                                     "gdtr=%016VR{gdtr_base}:%04VR{gdtr_limit}  idtr=%016VR{idtr_base}:%04VR{idtr_limit}  rflags=%08VR{rflags}\n"
+                                     "gdtr=%016VR{gdtr_base}:%04VR{gdtr_lim}  idtr=%016VR{idtr_base}:%04VR{idtr_lim}  rflags=%08VR{rflags}\n"
                                      "ldtr={%04VR{ldtr} base=%016VR{ldtr_base} limit=%08VR{ldtr_lim} flags=%08VR{ldtr_attr}}\n"
                                      "tr  ={%04VR{tr} base=%016VR{tr_base} limit=%08VR{tr_lim} flags=%08VR{tr_attr}}\n"
                                      "    sysenter={cs=%04VR{sysenter_cs} eip=%08VR{sysenter_eip} esp=%08VR{sysenter_esp}}\n"
@@ -1467,11 +1485,11 @@ static DECLCALLBACK(int) dbgcCmdRegGuest(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
                                      "eip=%08VR{eip} esp=%08VR{esp} ebp=%08VR{ebp} %VRF{eflags}\n"
                                      "cs={%04VR{cs} base=%08VR{cs_base} limit=%08VR{cs_lim} flags=%04VR{cs_attr}} dr0=%08VR{dr0} dr1=%08VR{dr1}\n"
                                      "ds={%04VR{ds} base=%08VR{ds_base} limit=%08VR{ds_lim} flags=%04VR{ds_attr}} dr2=%08VR{dr2} dr3=%08VR{dr3}\n"
-                                     "es={%04VR{es} base=%08VR{es_base} limit=%08VR{es_lim} flags=%04VR{es_attr}} dr6=%08VR{dr6} dr6=%08VR{dr6}\n"
-                                     "fs={%04VR{fs} base=%08VR{fs_base} limit=%08VR{fs_lim} flags=%04VR{fs_attr}} cr0=%08VR{cr0} cr2=%08VR{cr0}\n"
-                                     "gs={%04VR{gs} base=%08VR{gs_base} limit=%08VR{gs_lim} flags=%04VR{gs_attr}} cr3=%08VR{cr0} cr4=%08VR{cr0}\n"
+                                     "es={%04VR{es} base=%08VR{es_base} limit=%08VR{es_lim} flags=%04VR{es_attr}} dr6=%08VR{dr6} dr7=%08VR{dr7}\n"
+                                     "fs={%04VR{fs} base=%08VR{fs_base} limit=%08VR{fs_lim} flags=%04VR{fs_attr}} cr0=%08VR{cr0} cr2=%08VR{cr2}\n"
+                                     "gs={%04VR{gs} base=%08VR{gs_base} limit=%08VR{gs_lim} flags=%04VR{gs_attr}} cr3=%08VR{cr3} cr4=%08VR{cr4}\n"
                                      "ss={%04VR{ss} base=%08VR{ss_base} limit=%08VR{ss_lim} flags=%04VR{ss_attr}} cr8=%08VR{cr8}\n"
-                                     "gdtr=%08VR{gdtr_base}:%04VR{gdtr_limit}  idtr=%08VR{idtr_base}:%04VR{idtr_limit}  eflags=%08VR{eflags}\n"
+                                     "gdtr=%08VR{gdtr_base}:%04VR{gdtr_lim}  idtr=%08VR{idtr_base}:%04VR{idtr_lim}  eflags=%08VR{eflags}\n"
                                      "ldtr={%04VR{ldtr} base=%08VR{ldtr_base} limit=%08VR{ldtr_lim} flags=%04VR{ldtr_attr}}\n"
                                      "tr  ={%04VR{tr} base=%08VR{tr_base} limit=%08VR{tr_lim} flags=%04VR{tr_attr}}\n"
                                      "sysenter={cs=%04VR{sysenter_cs} eip=%08VR{sysenter_eip} esp=%08VR{sysenter_esp}}\n"
@@ -1489,7 +1507,7 @@ static DECLCALLBACK(int) dbgcCmdRegGuest(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
          */
         return pCmdHlp->pfnExec(pCmdHlp, "%s", szDisAndRegs);
     }
-    return dbgcCmdRegCommon(pCmd, pCmdHlp, pVM, paArgs, cArgs, pResult, "");
+    return dbgcCmdRegCommon(pCmd, pCmdHlp, pVM, paArgs, cArgs, "");
 }
 
 
@@ -1503,7 +1521,7 @@ static DECLCALLBACK(int) dbgcCmdRegGuest(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdRegHyper(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdRegHyper(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Show all registers our selves.
@@ -1531,7 +1549,7 @@ static DECLCALLBACK(int) dbgcCmdRegHyper(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
                                  ".fs={%04VR{fs} base=%08VR{fs_base} limit=%08VR{fs_lim} flags=%04VR{fs_attr}} .cr3=%016VR{cr3}\n"
                                  ".gs={%04VR{gs} base=%08VR{gs_base} limit=%08VR{gs_lim} flags=%04VR{gs_attr}}\n"
                                  ".ss={%04VR{ss} base=%08VR{ss_base} limit=%08VR{ss_lim} flags=%04VR{ss_attr}}\n"
-                                 ".gdtr=%08VR{gdtr_base}:%04VR{gdtr_limit}  .idtr=%08VR{idtr_base}:%04VR{idtr_limit}  .eflags=%08VR{eflags}\n"
+                                 ".gdtr=%08VR{gdtr_base}:%04VR{gdtr_lim}  .idtr=%08VR{idtr_base}:%04VR{idtr_lim}  .eflags=%08VR{eflags}\n"
                                  ".ldtr={%04VR{ldtr} base=%08VR{ldtr_base} limit=%08VR{ldtr_lim} flags=%04VR{ldtr_attr}}\n"
                                  ".tr  ={%04VR{tr} base=%08VR{tr_base} limit=%08VR{tr_lim} flags=%04VR{tr_attr}}\n"
                                  );
@@ -1546,7 +1564,7 @@ static DECLCALLBACK(int) dbgcCmdRegHyper(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
          */
         return pCmdHlp->pfnExec(pCmdHlp, "%s", szDisAndRegs);
     }
-    return dbgcCmdRegCommon(pCmd, pCmdHlp, pVM, paArgs, cArgs, pResult, ".");
+    return dbgcCmdRegCommon(pCmd, pCmdHlp, pVM, paArgs, cArgs, ".");
 }
 
 
@@ -1560,9 +1578,9 @@ static DECLCALLBACK(int) dbgcCmdRegHyper(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdRegTerse(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdRegTerse(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
-    NOREF(pCmd); NOREF(pVM); NOREF(paArgs); NOREF(cArgs); NOREF(pResult);
+    NOREF(pCmd); NOREF(pVM); NOREF(paArgs); NOREF(cArgs);
 
     PDBGC   pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
     pDbgc->fRegTerse = !pDbgc->fRegTerse;
@@ -1580,7 +1598,7 @@ static DECLCALLBACK(int) dbgcCmdRegTerse(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdTrace(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdTrace(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC   pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
@@ -1590,7 +1608,7 @@ static DECLCALLBACK(int) dbgcCmdTrace(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM p
     else
         rc = pDbgc->CmdHlp.pfnVBoxError(&pDbgc->CmdHlp, rc, "When trying to single step VM %p\n", pDbgc->pVM);
 
-    NOREF(pCmd); NOREF(paArgs); NOREF(cArgs); NOREF(pResult);
+    NOREF(pCmd); NOREF(paArgs); NOREF(cArgs);
     return rc;
 }
 
@@ -1605,7 +1623,7 @@ static DECLCALLBACK(int) dbgcCmdTrace(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM p
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdStack(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdStack(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC   pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
@@ -1702,7 +1720,7 @@ static DECLCALLBACK(int) dbgcCmdStack(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM p
 
     DBGFR3StackWalkEnd(pFirstFrame);
 
-    NOREF(paArgs); NOREF(cArgs); NOREF(pResult);
+    NOREF(paArgs); NOREF(cArgs);
     return rc;
 }
 
@@ -1725,7 +1743,7 @@ static int dbgcCmdDumpDTWorker64(PDBGCCMDHLP pCmdHlp, PCX86DESC64 pDesc, unsigne
             "DownRO", /* 4 Expand-down, Read-Only  */
             "DownRO", /* 5 Expand-down, Read-Only - Accessed */
             "DownRW", /* 6 Expand-down, Read/Write  */
-            "DownRO", /* 7 Expand-down, Read/Write - Accessed */
+            "DownRW", /* 7 Expand-down, Read/Write - Accessed */
             "CodeEO", /* 8 Execute-Only */
             "CodeEO", /* 9 Execute-Only - Accessed */
             "CodeER", /* A Execute/Readable */
@@ -1874,7 +1892,7 @@ static int dbgcCmdDumpDTWorker32(PDBGCCMDHLP pCmdHlp, PCX86DESC pDesc, unsigned 
             "DownRO", /* 4 Expand-down, Read-Only  */
             "DownRO", /* 5 Expand-down, Read-Only - Accessed */
             "DownRW", /* 6 Expand-down, Read/Write  */
-            "DownRO", /* 7 Expand-down, Read/Write - Accessed */
+            "DownRW", /* 7 Expand-down, Read/Write - Accessed */
             "CodeEO", /* 8 Execute-Only */
             "CodeEO", /* 9 Execute-Only - Accessed */
             "CodeER", /* A Execute/Readable */
@@ -2009,7 +2027,7 @@ static int dbgcCmdDumpDTWorker32(PDBGCCMDHLP pCmdHlp, PCX86DESC pDesc, unsigned 
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdDumpDT(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdDumpDT(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Validate input.
@@ -2065,7 +2083,6 @@ static DECLCALLBACK(int) dbgcCmdDumpDT(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM 
             case DBGCVAR_TYPE_GC_FAR:   u64 = paArgs[i].u.GCFar.sel; break;
             case DBGCVAR_TYPE_GC_FLAT:  u64 = paArgs[i].u.GCFlat; break;
             case DBGCVAR_TYPE_GC_PHYS:  u64 = paArgs[i].u.GCPhys; break;
-            case DBGCVAR_TYPE_HC_FAR:   u64 = paArgs[i].u.HCFar.sel; break;
             case DBGCVAR_TYPE_HC_FLAT:  u64 = (uintptr_t)paArgs[i].u.pvHCFlat; break;
             case DBGCVAR_TYPE_HC_PHYS:  u64 = paArgs[i].u.HCPhys; break;
             default:                    u64 = _64K; break;
@@ -2120,7 +2137,6 @@ static DECLCALLBACK(int) dbgcCmdDumpDT(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM 
             pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: %llx is out of bounds\n", u64);
     }
 
-    NOREF(pResult);
     return VINF_SUCCESS;
 }
 
@@ -2135,7 +2151,7 @@ static DECLCALLBACK(int) dbgcCmdDumpDT(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM 
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdDumpIDT(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdDumpIDT(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Validate input.
@@ -2245,7 +2261,6 @@ static DECLCALLBACK(int) dbgcCmdDumpIDT(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM
             pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: %llx is out of bounds (max 256)\n", paArgs[i].u.u64Number);
     }
 
-    NOREF(pResult);
     return VINF_SUCCESS;
 }
 
@@ -2260,7 +2275,7 @@ static DECLCALLBACK(int) dbgcCmdDumpIDT(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdDumpMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdDumpMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC   pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
@@ -2435,7 +2450,7 @@ static DECLCALLBACK(int) dbgcCmdDumpMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM
             break;
     }
 
-    NOREF(pCmd); NOREF(pResult);
+    NOREF(pCmd);
     return VINF_SUCCESS;
 }
 
@@ -2528,7 +2543,7 @@ static RTHCPHYS dbgcGetShadowPageMode(PDBGC pDbgc, bool *pfPAE, bool *pfLME, boo
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdDumpPageDir(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdDumpPageDir(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC   pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
@@ -2777,7 +2792,6 @@ static DECLCALLBACK(int) dbgcCmdDumpPageDir(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp,
             VarGCPtr.u.GCFlat += fPAE ? RT_BIT_32(X86_PD_PAE_SHIFT) : RT_BIT_32(X86_PD_SHIFT);
     } while (cEntries-- > 0);
 
-    NOREF(pResult);
     return VINF_SUCCESS;
 }
 
@@ -2792,7 +2806,7 @@ static DECLCALLBACK(int) dbgcCmdDumpPageDir(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp,
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdDumpPageDirBoth(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdDumpPageDirBoth(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     if (!pVM)
         return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: No VM.\n");
@@ -2800,7 +2814,7 @@ static DECLCALLBACK(int) dbgcCmdDumpPageDirBoth(PCDBGCCMD pCmd, PDBGCCMDHLP pCmd
     int rc2 = pCmdHlp->pfnExec(pCmdHlp, "dpdh %DV", &paArgs[0]);
     if (RT_FAILURE(rc1))
         return rc1;
-    NOREF(pCmd); NOREF(paArgs); NOREF(cArgs); NOREF(pResult);
+    NOREF(pCmd); NOREF(paArgs); NOREF(cArgs);
     return rc2;
 }
 
@@ -2815,7 +2829,7 @@ static DECLCALLBACK(int) dbgcCmdDumpPageDirBoth(PCDBGCCMD pCmd, PDBGCCMDHLP pCmd
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdDumpPageHierarchy(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdDumpPageHierarchy(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
     if (!pVM)
@@ -2939,7 +2953,7 @@ static DECLCALLBACK(int) dbgcCmdDumpPageHierarchy(PCDBGCCMD pCmd, PDBGCCMDHLP pC
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdDumpPageTable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdDumpPageTable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC   pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
 
@@ -3154,7 +3168,6 @@ static DECLCALLBACK(int) dbgcCmdDumpPageTable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHl
             VarGCPtr.u.GCFlat += PAGE_SIZE;
     } while (cEntries-- > 0);
 
-    NOREF(pResult);
     return VINF_SUCCESS;
 }
 
@@ -3169,7 +3182,7 @@ static DECLCALLBACK(int) dbgcCmdDumpPageTable(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHl
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdDumpPageTableBoth(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdDumpPageTableBoth(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     if (!pVM)
         return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: No VM.\n");
@@ -3177,7 +3190,7 @@ static DECLCALLBACK(int) dbgcCmdDumpPageTableBoth(PCDBGCCMD pCmd, PDBGCCMDHLP pC
     int rc2 = pCmdHlp->pfnExec(pCmdHlp, "dpth %DV", &paArgs[0]);
     if (RT_FAILURE(rc1))
         return rc1;
-    NOREF(pCmd); NOREF(cArgs); NOREF(pResult);
+    NOREF(pCmd); NOREF(cArgs);
     return rc2;
 }
 
@@ -3192,7 +3205,7 @@ static DECLCALLBACK(int) dbgcCmdDumpPageTableBoth(PCDBGCCMD pCmd, PDBGCCMDHLP pC
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdDumpTSS(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR /*pResult*/)
+static DECLCALLBACK(int) dbgcCmdDumpTSS(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
     int   rc;
@@ -3525,12 +3538,12 @@ static DECLCALLBACK(int) dbgcCmdDumpTSS(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdMemoryInfo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdMemoryInfo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     DBGCCmdHlpPrintf(pCmdHlp, "Address: %DV\n", &paArgs[0]);
     if (!pVM)
         return DBGCCmdHlpFail(pCmdHlp, pCmd, "No VM.\n");
-    return dbgcCmdDumpPageHierarchy(pCmd, pCmdHlp, pVM, paArgs, cArgs, pResult);
+    return dbgcCmdDumpPageHierarchy(pCmd, pCmdHlp, pVM, paArgs, cArgs);
 }
 
 
@@ -3568,7 +3581,6 @@ int dbgcVarsToBytes(PDBGCCMDHLP pCmdHlp, void *pvBuf, uint32_t *pcbBuf, size_t c
         switch (paVars[i].enmType)
         {
             case DBGCVAR_TYPE_GC_FAR:
-            case DBGCVAR_TYPE_HC_FAR:
             case DBGCVAR_TYPE_GC_FLAT:
             case DBGCVAR_TYPE_GC_PHYS:
             case DBGCVAR_TYPE_HC_FLAT:
@@ -3682,7 +3694,7 @@ int dbgcVarsToBytes(PDBGCCMDHLP pCmdHlp, void *pvBuf, uint32_t *pcbBuf, size_t c
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdEditMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdEditMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
     unsigned iArg;
@@ -3734,7 +3746,6 @@ static DECLCALLBACK(int) dbgcCmdEditMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM
             return DBGCCmdHlpVBoxError(pCmdHlp, rc, "%%(%Dv)", &paArgs[0]);
     }
 
-    NOREF(pResult);
     return VINF_SUCCESS;
 }
 
@@ -3782,12 +3793,13 @@ static int dbgcCmdWorkerSearchMemDoIt(PDBGCCMDHLP pCmdHlp, PVM pVM, PDBGFADDRESS
 
         /* report result */
         DBGCVAR VarCur;
-        dbgcVarInit(&VarCur);
-        dbgcVarSetDbgfAddr(&VarCur, &HitAddress);
+        rc = DBGCCmdHlpVarFromDbgfAddr(pCmdHlp, &HitAddress, &VarCur);
+        if (RT_FAILURE(rc))
+            return DBGCCmdHlpVBoxError(pCmdHlp, rc, "DBGCCmdHlpVarFromDbgfAddr\n");
         if (!pResult)
             pCmdHlp->pfnExec(pCmdHlp, "db %DV LB 10", &VarCur);
         else
-            dbgcVarSetDbgfAddr(pResult, &HitAddress);
+            DBGCVAR_ASSIGN(pResult, &VarCur);
 
         /* advance */
         cbRange -= HitAddress.FlatPtr - pAddress->FlatPtr;
@@ -3883,7 +3895,7 @@ static int dbgcCmdWorkerSearchMemResume(PDBGCCMDHLP pCmdHlp, PVM pVM, PDBGCVAR p
 static int dbgcCmdWorkerSearchMem(PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pAddress, uint64_t cMaxHits, char chType,
                                   PCDBGCVAR paPatArgs, unsigned cPatArgs, PDBGCVAR pResult)
 {
-    dbgcVarSetGCFlat(pResult, 0);
+    DBGCVAR_INIT_GC_FLAT(pResult, 0);
 
     /*
      * Convert the search pattern into bytes and DBGFR3MemScan can deal with.
@@ -3954,7 +3966,7 @@ static int dbgcCmdWorkerSearchMem(PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pAddre
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdSearchMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdSearchMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /* check that the parser did what it's supposed to do. */
     //if (    cArgs <= 2
@@ -3965,7 +3977,7 @@ static DECLCALLBACK(int) dbgcCmdSearchMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
      * Repeat previous search?
      */
     if (cArgs == 0)
-        return dbgcCmdWorkerSearchMemResume(pCmdHlp, pVM, pResult);
+        return dbgcCmdWorkerSearchMemResume(pCmdHlp, pVM, NULL);
 
     /*
      * Parse arguments.
@@ -3985,13 +3997,13 @@ static DECLCALLBACK(int) dbgcCmdSearchMem(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, P
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdSearchMemType(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdSearchMemType(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /* check that the parser did what it's supposed to do. */
     if (    cArgs < 2
         ||  !DBGCVAR_ISGCPOINTER(paArgs[0].enmType))
         return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "parser error\n");
-    return dbgcCmdWorkerSearchMem(pCmdHlp, pVM, &paArgs[0], pResult ? 1 : 25, pCmd->pszCmd[1], paArgs + 1, cArgs - 1, pResult);
+    return dbgcCmdWorkerSearchMem(pCmdHlp, pVM, &paArgs[0], 25, pCmd->pszCmd[1], paArgs + 1, cArgs - 1, NULL);
 }
 
 
@@ -4003,10 +4015,9 @@ static DECLCALLBACK(int) dbgcCmdSearchMemType(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHl
  * @param   pVM         Pointer to the current VM (if any).
  * @param   pArg        Pointer to the address or symbol to lookup.
  */
-static int dbgcDoListNear(PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArg, PDBGCVAR pResult)
+static int dbgcDoListNear(PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArg)
 {
     PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
-    dbgcVarSetGCFlat(pResult, 0);
 
     RTDBGSYMBOL Symbol;
     int         rc;
@@ -4020,7 +4031,6 @@ static int dbgcDoListNear(PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArg, PDBGCVAR
             return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "DBGFR3AsSymbolByName(,,%s,)\n", pArg->u.pszString);
 
         rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "%Rptr %s\n", Symbol.Value, Symbol.szName);
-        dbgcVarSetGCFlatByteRange(pResult, Symbol.Value, Symbol.cb);
     }
     else
     {
@@ -4031,8 +4041,6 @@ static int dbgcDoListNear(PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArg, PDBGCVAR
         rc = DBGCCmdHlpEval(pCmdHlp, &AddrVar, "%%(%DV)", pArg);
         if (RT_FAILURE(rc))
             return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "%%(%DV)\n", pArg);
-
-        dbgcVarSetVar(pResult, &AddrVar);
 
         RTINTPTR    offDisp;
         DBGFADDRESS Addr;
@@ -4047,15 +4055,9 @@ static int dbgcDoListNear(PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArg, PDBGCVAR
         else
             rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "%DV %s - %RGv", &AddrVar, Symbol.szName, -offDisp);
         if ((RTGCINTPTR)Symbol.cb > -offDisp)
-        {
             rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, " LB %RGv\n", Symbol.cb + offDisp);
-            dbgcVarSetByteRange(pResult, Symbol.cb + offDisp);
-        }
         else
-        {
             rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "\n");
-            dbgcVarSetNoRange(pResult);
-        }
     }
 
     return rc;
@@ -4072,9 +4074,8 @@ static int dbgcDoListNear(PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArg, PDBGCVAR
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdListNear(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdListNear(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
-    dbgcVarSetGCFlat(pResult, 0);
     if (!cArgs)
     {
         /*
@@ -4084,7 +4085,7 @@ static DECLCALLBACK(int) dbgcCmdListNear(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
         int rc = DBGCCmdHlpEval(pCmdHlp, &AddrVar, "%%(cs:eip)");
         if (RT_FAILURE(rc))
             return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "%%(cs:eip)\n");
-        return dbgcDoListNear(pCmdHlp, pVM, &AddrVar, pResult);
+        return dbgcDoListNear(pCmdHlp, pVM, &AddrVar);
     }
 
 /** @todo Fix the darn parser, it's resolving symbols specified as arguments before we get in here. */
@@ -4093,12 +4094,12 @@ static DECLCALLBACK(int) dbgcCmdListNear(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PV
      */
     for (unsigned iArg = 0; iArg < cArgs; iArg++)
     {
-        int rc = dbgcDoListNear(pCmdHlp, pVM, &paArgs[iArg], pResult);
+        int rc = dbgcDoListNear(pCmdHlp, pVM, &paArgs[iArg]);
         if (RT_FAILURE(rc))
             return rc;
     }
 
-    NOREF(pCmd); NOREF(pResult);
+    NOREF(pCmd);
     return VINF_SUCCESS;
 }
 
@@ -4130,7 +4131,7 @@ static bool dbgcCmdListModuleMatch(const char *pszName, PCDBGCVAR paArgs, unsign
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-static DECLCALLBACK(int) dbgcCmdListModules(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcCmdListModules(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     bool const  fMappings   = pCmd->pszCmd[2] == 'o';
     PDBGC       pDbgc       = DBGC_CMDHLP2DBGC(pCmdHlp);
@@ -4205,6 +4206,6 @@ static DECLCALLBACK(int) dbgcCmdListModules(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp,
     }
     RTDbgAsRelease(hAs);
 
-    NOREF(pCmd); NOREF(pResult);
+    NOREF(pCmd);
     return VINF_SUCCESS;
 }

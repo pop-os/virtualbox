@@ -313,9 +313,6 @@ int vboxVDMACrHgsmiControlCompleteAsync(PPDMIDISPLAYVBVACALLBACKS pInterface, PV
     PVGASTATE pVGAState = PPDMIDISPLAYVBVACALLBACKS_2_PVGASTATE(pInterface);
     PVBOXVDMACMD_CHROMIUM_CTL_PRIVATE pCmdPrivate = VBOXVDMACMD_CHROMIUM_CTL_PRIVATE_FROM_CTL(pCmd);
     pCmdPrivate->rc = rc;
-#ifdef DEBUG_misha
-    AssertRC(rc);
-#endif
     if (pCmdPrivate->pfnCompletion)
     {
         pCmdPrivate->pfnCompletion(pVGAState, pCmd, pCmdPrivate->pvCompletion);
@@ -676,6 +673,10 @@ static int vboxVDMACmdExec(PVBOXVDMAHOST pVdma, const uint8_t *pvBuffer, uint32_
                     return cbTransfer; /* error */
                 break;
             }
+            case VBOXVDMACMD_TYPE_DMA_NOP:
+                return VINF_SUCCESS;
+            case VBOXVDMACMD_TYPE_CHILD_STATUS_IRQ:
+                return VINF_SUCCESS;
             default:
                 AssertBreakpoint();
                 return VERR_INVALID_FUNCTION;
@@ -1097,17 +1098,11 @@ int vboxVDMAConstruct(PVGASTATE pVGAState, uint32_t cPipeElements)
                 }
 # if 0 //def VBOX_WITH_CRHGSMI
                 int tmpRc = vboxVDMACrCtlHgsmiSetup(pVdma);
-#  ifdef DEBUG_misha
-                AssertRC(tmpRc);
-#  endif
 # endif
 #endif
                 pVGAState->pVdma = pVdma;
 #ifdef VBOX_WITH_CRHGSMI
                 rc = vboxVDMACrCtlHgsmiSetup(pVdma);
-# ifdef DEBUG_misha
-                AssertRC(rc);
-# endif
 #endif
                 return VINF_SUCCESS;
 #ifdef VBOX_VDMA_WITH_WORKERTHREAD
@@ -1271,17 +1266,20 @@ void vboxVDMAControl(struct VBOXVDMAHOST *pVdma, PVBOXVDMA_CTL pCmd)
 void vboxVDMACommand(struct VBOXVDMAHOST *pVdma, PVBOXVDMACBUF_DR pCmd)
 {
 #ifdef VBOX_WITH_CRHGSMI
+    /* chromium commands are processed by crhomium hgcm thread independently from our internal cmd processing pipeline
+     * this is why we process them specially */
     if (vboxVDMACmdCheckCrCmd(pVdma, pCmd))
         return;
 #endif
 
+#ifndef VBOX_VDMA_WITH_WORKERTHREAD
+    vboxVDMACommandProcess(pVdma, pCmd);
+#else
     int rc = VERR_NOT_IMPLEMENTED;
 
-#ifdef VBOX_VDMA_WITH_WORKERTHREAD
-
-#ifdef DEBUG_misha
+# ifdef DEBUG_misha
     Assert(0);
-#endif
+# endif
 
     VBOXVDMACMD_SUBMIT_CONTEXT Context;
     Context.pVdma = pVdma;
@@ -1300,11 +1298,11 @@ void vboxVDMACommand(struct VBOXVDMAHOST *pVdma, PVBOXVDMACBUF_DR pCmd)
         }
         rc = VERR_OUT_OF_RESOURCES;
     }
-#endif
     /* failure */
     Assert(RT_FAILURE(rc));
     PHGSMIINSTANCE pIns = pVdma->pHgsmi;
     pCmd->rc = rc;
     int tmpRc = VBoxSHGSMICommandComplete (pIns, pCmd);
     AssertRC(tmpRc);
+#endif
 }

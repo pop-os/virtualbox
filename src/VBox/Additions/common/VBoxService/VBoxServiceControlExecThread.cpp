@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceControlExecThread.cpp $ */
+/* $Id: VBoxServiceControlExecThread.cpp 36887 2011-04-29 10:04:52Z vboxsync $ */
 /** @file
  * VBoxServiceControlExecThread - Thread for an executed guest process.
  */
@@ -26,6 +26,8 @@
 #include <iprt/pipe.h>
 #include <iprt/semaphore.h>
 #include <iprt/string.h>
+
+#include <VBox/HostServices/GuestControlSvc.h>
 
 #include "VBoxServicePipeBuf.h"
 #include "VBoxServiceControlExecThread.h"
@@ -284,11 +286,11 @@ int VBoxServiceControlExecThreadGetOutput(uint32_t uPID, uint32_t uHandleId, uin
             PVBOXSERVICECTRLEXECPIPEBUF pPipeBuf;
             switch (uHandleId)
             {
-                case 2: /* StdErr */
+                case OUTPUT_HANDLE_ID_STDERR: /* StdErr */
                     pPipeBuf = &pData->stdErr;
                     break;
 
-                case 0: /* StdOut */
+                case OUTPUT_HANDLE_ID_STDOUT: /* StdOut */
                 default:
                     pPipeBuf = &pData->stdOut;
                     break;

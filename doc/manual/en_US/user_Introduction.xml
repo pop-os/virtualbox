@@ -442,7 +442,8 @@
               <para>Ubuntu 6.06 ("Dapper Drake"), 6.10 ("Edgy Eft"), 7.04
               ("Feisty Fawn"), 7.10 ("Gutsy Gibbon"), 8.04 ("Hardy Heron"),
               8.10 ("Intrepid Ibex"), 9.04 ("Jaunty Jackalope"), 9.10 ("Karmic
-              Koala"), 10.04 ("Lucid Lynx"), 10.10 ("Maverick Meerkat).</para>
+              Koala"), 10.04 ("Lucid Lynx"), 10.10 ("Maverick Meerkat),
+              11.04 ("Natty Narwhal").</para>
             </listitem>
 
             <listitem>
@@ -459,7 +460,7 @@
             </listitem>
 
             <listitem>
-              <para>Fedora Core 4 to 14</para>
+              <para>Fedora Core 4 to 15</para>
             </listitem>
 
             <listitem>
@@ -468,7 +469,7 @@
 
             <listitem>
               <para>SUSE Linux 9, 10 and 11, openSUSE 10.3, 11.0, 11.1, 11.2,
-              11.3</para>
+              11.3, 11.4</para>
             </listitem>
 
             <listitem>
@@ -540,6 +541,11 @@
               <listitem>
                 <para>Intel PXE boot ROM with support for the E1000 network
                 card.</para>
+              </listitem>
+
+              <listitem>
+                <para>Experimental support for PCI passthrough on Linux hosts;
+                  see <xref linkend="pcipassthrough" />.</para>
               </listitem>
             </orderedlist></para>
 
@@ -747,7 +753,7 @@
 
           <para>VirtualBox supports two types of image files:<itemizedlist>
               <listitem>
-                <para>A <emphasis role="bold">dynamically expanding
+                <para>A <emphasis role="bold">dynamically allocated
                 file</emphasis> will only grow in size when the guest actually
                 stores data on its virtual hard disk. It will therefore
                 initially be small on the host hard drive and only later grow
@@ -760,7 +766,7 @@
                 of the virtual hard disk space is actually in use. While
                 occupying much more space, a fixed-size file incurs less
                 overhead and is therefore slightly faster than a dynamically
-                expanding file.</para>
+                allocated file.</para>
               </listitem>
             </itemizedlist></para>
 
@@ -1096,6 +1102,10 @@
             key + C</emphasis>, or select "Scale mode" from the "Machine" menu
             in the VM window. To leave scale mode, press the host key + C
             again.</para>
+
+            <para>The aspect ratio of the guest screen is preserved when
+            resizing the window. To ignore the aspect ratio, press Shift
+            during the resize operation.</para>
 
             <para>Please see <xref linkend="KnownIssues" /> for additional
             remarks.</para>
@@ -1437,6 +1447,43 @@
 
     <para>The "Remove" menu item is disabled while a machine is
     running.</para>
+  </sect1>
+
+  <sect1 id="clone">
+    <title>Cloning virtual machines</title>
+
+    <para>To experiment with a VM configuration, test different guest OS levels
+    or to simply backup a VM, VirtualBox can create a full copy of an existing
+    VM.<footnote>Cloning support was introduced with VirtualBox
+    4.1.</footnote></para>
+    
+    <para>A wizard will guide you through the clone process:</para>
+
+    <mediaobject>
+      <imageobject>
+        <imagedata align="center" fileref="images/clone-vm.png"
+                   width="10cm" />
+      </imageobject>
+    </mediaobject>
+    
+    <para>This wizard can be invoked from the context menu of the Manager's VM
+    list (select "Clone") or the "Snapshots" view of the selected VM. You have
+    the choice to create a exact copy of the current state without any
+    snapshots or with all snapshots included.<!-- If you
+    invoke the clone VM wizard from the latter place and have selected a
+    specific snapshot you can additional decide if you want to clone that
+    snapshot including all child's, but without any independent snapshots in
+    the tree.--></para>
+
+    <para>The clone operation itself can be a lengthy operation depending on
+    the size and count of the attached disk images. Also keep in mind that
+    every snapshot has differencing disk images attached, which need to be cloned
+    as well.</para>
+
+    <para>The "Clone" menu item is disabled while a machine is running.</para>
+
+    <para>For how to clone a VM at the command line, please see <xref
+    linkend="vboxmanage-clonevm" />.</para>
   </sect1>
 
   <sect1 id="ovf">

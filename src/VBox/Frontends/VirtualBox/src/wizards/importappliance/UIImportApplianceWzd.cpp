@@ -1,4 +1,4 @@
-/* $Id: UIImportApplianceWzd.cpp $ */
+/* $Id: UIImportApplianceWzd.cpp 37849 2011-07-08 15:15:45Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -155,6 +155,7 @@ void UIImportApplianceWzd::retranslateUi()
 
     /* Translate 'Restore Defaults' button */
     setButtonText(QWizard::CustomButton1, tr("Restore Defaults"));
+    setButtonText(QWizard::FinishButton, tr("Import"));
 }
 
 void UIImportApplianceWzd::sltCurrentIdChanged(int iId)

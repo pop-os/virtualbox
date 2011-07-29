@@ -1,4 +1,4 @@
-/* $Id: thread-r0drv-os2.cpp $ */
+/* $Id: thread-r0drv-os2.cpp 33393 2010-10-24 16:17:00Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 1), Ring-0 Driver, OS/2.
  */

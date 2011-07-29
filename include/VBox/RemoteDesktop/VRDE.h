@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,14 +37,17 @@
 
 RT_C_DECLS_BEGIN
 
-/* Forward declaration of the VRDE server instance handle. */
+/* Forward declaration of the VRDE server instance handle.
+ * This is an opaque pointer for VirtualBox.
+ * The VRDE library uses it as a pointer to some internal data.
+ */
 #ifdef __cplusplus
 class VRDEServer;
 typedef class VRDEServerType *HVRDESERVER;
 #else
 struct VRDEServer;
 typedef struct VRDEServerType *HVRDESERVER;
-#endif /* __cplusplus */
+#endif /* !__cplusplus */
 
 /* Callback based VRDE server interface declarations. */
 
@@ -424,16 +427,28 @@ typedef struct _VRDEUSBDEVICEDESC
     uint16_t        idProduct;
     /** Revision, integer part. */
     uint16_t        bcdRev;
-    /** Manufacturer string. */
+    /** Offset of the UTF8 manufacturer string relative to the structure start. */
     uint16_t        oManufacturer;
-    /** Product string. */
+    /** Offset of the UTF8 product string relative to the structure start. */
     uint16_t        oProduct;
-    /** Serial number string. */
+    /** Offset of the UTF8 serial number string relative to the structure start. */
     uint16_t        oSerialNumber;
     /** Physical USB port the device is connected to. */
     uint16_t        idPort;
 
 } VRDEUSBDEVICEDESC;
+
+typedef struct _VRDEUSBDEVICEDESCEXT
+{
+    VRDEUSBDEVICEDESC desc;
+
+    /* Extended info.
+     */
+
+    /** Version of the physical USB port the device is connected to. */
+    uint16_t        bcdPortVersion;
+
+} VRDEUSBDEVICEDESCEXT;
 
 typedef struct _VRDE_USB_REQ_DEVICE_LIST_RET
 {
@@ -443,6 +458,20 @@ typedef struct _VRDE_USB_REQ_DEVICE_LIST_RET
      * which means that an empty list consists of 2 zero bytes.
      */
 } VRDE_USB_REQ_DEVICE_LIST_RET;
+
+typedef struct _VRDE_USB_REQ_DEVICE_LIST_EXT_RET
+{
+    VRDEUSBDEVICEDESCEXT body;
+    /* Other devices may follow.
+     * The list ends with (uint16_t)0,
+     * which means that an empty list consists of 2 zero bytes.
+     */
+} VRDE_USB_REQ_DEVICE_LIST_EXT_RET;
+
+/* The server requests the version of the port the device is attached to.
+ * The client must use VRDEUSBDEVICEDESCEXT structure.
+ */
+#define VRDE_USB_SERVER_CAPS_PORT_VERSION 0x0001
 
 typedef struct _VRDEUSBREQNEGOTIATEPARM
 {
@@ -455,19 +484,27 @@ typedef struct _VRDEUSBREQNEGOTIATEPARM
      *  a new capability without increasing the protocol version.
      */
     uint16_t version;
-    uint16_t flags;
+    uint16_t flags; /* See VRDE_USB_SERVER_CAPS_* */
 
 } VRDEUSBREQNEGOTIATEPARM;
 
+/* VRDEUSBREQNEGOTIATERET flags. */
 #define VRDE_USB_CAPS_FLAG_ASYNC    (0x0)
 #define VRDE_USB_CAPS_FLAG_POLL     (0x1)
 /* VRDE_USB_VERSION_2: New flag. */
 #define VRDE_USB_CAPS2_FLAG_VERSION (0x2) /* The client is negotiating the protocol version. */
+/* VRDE_USB_VERSION_3: New flag. */
+#define VRDE_USB_CAPS3_FLAG_EXT     (0x4) /* The client is negotiating the extended flags.
+                                           * If this flag is set, then the VRDE_USB_CAPS2_FLAG_VERSION
+                                           * must also be set.
+                                           */
 
 
 #define VRDE_USB_CAPS_VALID_FLAGS   (VRDE_USB_CAPS_FLAG_POLL)
 /* VRDE_USB_VERSION_2: A set of valid flags. */
 #define VRDE_USB_CAPS2_VALID_FLAGS  (VRDE_USB_CAPS_FLAG_POLL | VRDE_USB_CAPS2_FLAG_VERSION)
+/* VRDE_USB_VERSION_3: A set of valid flags. */
+#define VRDE_USB_CAPS3_VALID_FLAGS  (VRDE_USB_CAPS_FLAG_POLL | VRDE_USB_CAPS2_FLAG_VERSION | VRDE_USB_CAPS3_FLAG_EXT)
 
 typedef struct _VRDEUSBREQNEGOTIATERET
 {
@@ -479,6 +516,21 @@ typedef struct _VRDEUSBREQNEGOTIATERET_2
     uint8_t flags;
     uint32_t u32Version; /* This field presents only if the VRDE_USB_CAPS2_FLAG_VERSION flag is set. */
 } VRDEUSBREQNEGOTIATERET_2;
+
+/* The server requests the version of the port the device is attached to.
+ * The client must use VRDEUSBDEVICEDESCEXT structure.
+ */
+#define VRDE_USB_CLIENT_CAPS_PORT_VERSION 0x00000001
+
+typedef struct _VRDEUSBREQNEGOTIATERET_3
+{
+    uint8_t flags;
+    uint32_t u32Version; /* This field presents only if the VRDE_USB_CAPS2_FLAG_VERSION flag is set. */
+    uint32_t u32Flags;   /* This field presents only if both VRDE_USB_CAPS2_FLAG_VERSION and
+                          * VRDE_USB_CAPS2_FLAG_EXT flag are set.
+                          * See VRDE_USB_CLIENT_CAPS_*
+                          */
+} VRDEUSBREQNEGOTIATERET_3;
 #pragma pack()
 
 #define VRDE_CLIPBOARD_FORMAT_NULL         (0x0)
@@ -584,6 +636,7 @@ typedef struct _VRDEUSBREQNEGOTIATERET_2
 #define VRDE_INTERFACE_VERSION_1 (1)
 #define VRDE_INTERFACE_VERSION_2 (2)
 #define VRDE_INTERFACE_VERSION_3 (3)
+#define VRDE_INTERFACE_VERSION_4 (4)
 
 /** The header that does not change when the interface changes. */
 typedef struct _VRDEINTERFACEHDR
@@ -646,9 +699,14 @@ typedef struct _VRDEENTRYPOINTS_1
     /**
      * Send a update.
      *
+     * Note: the server must access the framebuffer bitmap only when VRDEUpdate is called.
+     *       If the have to access the bitmap later or from another thread, then
+     *       it must used an intermediate buffer and copy the framebuffer data to the
+     *       intermediate buffer in VRDEUpdate.
+     *
      * @param hServer   Handle of VRDE server instance.
      * @param uScreenId The screen index.
-     * @param pvUpdate  Pointer to VBoxGuest.h::VRDEORDERHDR structure with extra data.
+     * @param pvUpdate  Pointer to VRDEOrders.h::VRDEORDERHDR structure with extra data.
      * @param cbUpdate  Size of the update data.
      */
     DECLR3CALLBACKMEMBER(void, VRDEUpdate,(HVRDESERVER hServer,
@@ -813,9 +871,14 @@ typedef struct _VRDEENTRYPOINTS_2
     /**
      * Send a update.
      *
+     * Note: the server must access the framebuffer bitmap only when VRDEUpdate is called.
+     *       If the have to access the bitmap later or from another thread, then
+     *       it must used an intermediate buffer and copy the framebuffer data to the
+     *       intermediate buffer in VRDEUpdate.
+     *
      * @param hServer   Handle of VRDE server instance.
      * @param uScreenId The screen index.
-     * @param pvUpdate  Pointer to VBoxGuest.h::VRDEORDERHDR structure with extra data.
+     * @param pvUpdate  Pointer to VRDEOrders.h::VRDEORDERHDR structure with extra data.
      * @param cbUpdate  Size of the update data.
      */
     DECLR3CALLBACKMEMBER(void, VRDEUpdate,(HVRDESERVER hServer,
@@ -952,7 +1015,7 @@ typedef struct _VRDEENTRYPOINTS_2
 } VRDEENTRYPOINTS_2;
 
 /** The VRDE server entry points. Interface version 3.
- *  A new entry point VRDE has been added relative to version 2.
+ *  New entry points VRDEAudioInOpen and VRDEAudioInClose has been added relative to version 2.
  */
 typedef struct _VRDEENTRYPOINTS_3
 {
@@ -960,7 +1023,7 @@ typedef struct _VRDEENTRYPOINTS_3
     VRDEINTERFACEHDR header;
 
     /*
-     * Same as version 2.
+     * Same as version 2. See comment in VRDEENTRYPOINTS_2.
      */
 
     DECLR3CALLBACKMEMBER(void, VRDEDestroy,(HVRDESERVER hServer));
@@ -1054,19 +1117,32 @@ typedef struct _VRDEENTRYPOINTS_3
 } VRDEENTRYPOINTS_3;
 
 
-#define VRDE_QP_NETWORK_PORT      (1)
-#define VRDE_QP_NETWORK_ADDRESS   (2)
-#define VRDE_QP_NUMBER_MONITORS   (3)
-#define VRDE_QP_NETWORK_PORT_RANGE (4)
+/* Indexes for VRDECallbackProperty.
+ * *_QP_* queries a property.
+ * *_SP_* sets a property.
+ */
+#define VRDE_QP_NETWORK_PORT      (1) /* Obsolete. Use VRDE_QP_NETWORK_PORT_RANGE instead. */
+#define VRDE_QP_NETWORK_ADDRESS   (2) /* UTF8 string. Host network interface IP address to bind to. */
+#define VRDE_QP_NUMBER_MONITORS   (3) /* 32 bit. Number of monitors in the VM. */
+#define VRDE_QP_NETWORK_PORT_RANGE (4) /* UTF8 string. List of ports. The server must bind to one of
+                                        * free ports from the list. Example: "3000,3010-3012,4000",
+                                        * which tells the server to bind to either of ports:
+                                        * 3000, 3010, 3011, 3012, 4000.
+                                        */
 #ifdef VBOX_WITH_VRDP_VIDEO_CHANNEL
 #define VRDE_QP_VIDEO_CHANNEL         (5)
 #define VRDE_QP_VIDEO_CHANNEL_QUALITY (6)
 #define VRDE_QP_VIDEO_CHANNEL_SUNFLSH (7)
 #endif /* VBOX_WITH_VRDP_VIDEO_CHANNEL */
-#define VRDE_QP_FEATURE           (8)
+#define VRDE_QP_FEATURE           (8) /* VRDEFEATURE structure. Generic interface to query named VRDE properties. */
 
 #define VRDE_SP_BASE 0x1000
-#define VRDE_SP_NETWORK_BIND_PORT (VRDE_SP_BASE + 1)
+#define VRDE_SP_NETWORK_BIND_PORT (VRDE_SP_BASE + 1) /* 32 bit. The port number actually used by the server.
+                                                      * If VRDECreateServer fails, it should set the port to 0.
+                                                      * If VRDECreateServer succeeds, then the port must be set
+                                                      * in VRDEEnableConnections to the actually used value.
+                                                      * VRDEDestroy must set the port to 0xFFFFFFFF.
+                                                      */
 
 #pragma pack(1)
 /* VRDE_QP_FEATURE data. */
@@ -1130,6 +1206,8 @@ typedef struct _VRDECALLBACKS_1
 
     /**
      * Query or set various information, on how the VRDE server operates, from or to the application.
+     * Queries for properties will always return success, and if the key is not known or has no
+     * value associated with it an empty string is returned.
      *
      *
      * @param pvCallback  The callback specific pointer.
@@ -1164,7 +1242,8 @@ typedef struct _VRDECALLBACKS_1
                                                      const char *pszPassword,
                                                      const char *pszDomain));
 
-    /* The client has been successfully connected.
+    /* The client has been successfully connected. That is logon was successful and the
+     * remote desktop protocol connection completely established.
      *
      * @param pvCallback      The callback specific pointer.
      * @param u32ClientId     An unique client identifier generated by the server.
@@ -1249,7 +1328,9 @@ typedef struct _VRDECALLBACKS_1
                                                            unsigned uScreenId,
                                                            VRDEFRAMEBUFFERINFO *pInfo));
 
-    /* The framebuffer is locked.
+    /* Request the exclusive access to the framebuffer bitmap.
+     * Currently not used because VirtualBox makes sure that the framebuffer is available
+     * when VRDEUpdate is called.
      *
      * @param pvCallback      The callback specific pointer.
      * @param uScreenId       The framebuffer index.
@@ -1257,7 +1338,9 @@ typedef struct _VRDECALLBACKS_1
     DECLR3CALLBACKMEMBER(void, VRDECallbackFramebufferLock,(void *pvCallback,
                                                           unsigned uScreenId));
 
-    /* The framebuffer is unlocked.
+    /* Release the exclusive access to the framebuffer bitmap.
+     * Currently not used because VirtualBox makes sure that the framebuffer is available
+     * when VRDEUpdate is called.
      *
      * @param pvCallback      The callback specific pointer.
      * @param uScreenId       The framebuffer index.
@@ -1302,7 +1385,7 @@ typedef struct _VRDECALLBACKS_3
     VRDEINTERFACEHDR header;
 
     /*
-     * Same as in version 2.
+     * Same as in version 1 and 2. See comment in VRDECALLBACKS_1.
      */
     DECLR3CALLBACKMEMBER(int, VRDECallbackProperty,(void *pvCallback,
                                                     uint32_t index,
@@ -1385,6 +1468,65 @@ typedef struct _VRDECALLBACKS_3
                                                     uint32_t cbData));
 } VRDECALLBACKS_3;
 
+/** The VRDE server entry points. Interface version 4.
+ *  New entry point VRDEGetInterface has been added relative to version 3.
+ */
+typedef struct _VRDEENTRYPOINTS_4
+{
+    /* The header. */
+    VRDEINTERFACEHDR header;
+
+    /*
+     * Same as version 3. See comment in VRDEENTRYPOINTS_3.
+     */
+
+    DECLR3CALLBACKMEMBER(void, VRDEDestroy,(HVRDESERVER hServer));
+    DECLR3CALLBACKMEMBER(int,  VRDEEnableConnections,(HVRDESERVER hServer, bool fEnable));
+    DECLR3CALLBACKMEMBER(void, VRDEDisconnect,(HVRDESERVER hServer, uint32_t u32ClientId, bool fReconnect));
+    DECLR3CALLBACKMEMBER(void, VRDEResize,(HVRDESERVER hServer));
+    DECLR3CALLBACKMEMBER(void, VRDEUpdate,(HVRDESERVER hServer, unsigned uScreenId, void *pvUpdate,
+                                           uint32_t cbUpdate));
+    DECLR3CALLBACKMEMBER(void, VRDEColorPointer,(HVRDESERVER hServer, const VRDECOLORPOINTER *pPointer));
+    DECLR3CALLBACKMEMBER(void, VRDEHidePointer,(HVRDESERVER hServer));
+    DECLR3CALLBACKMEMBER(void, VRDEAudioSamples,(HVRDESERVER hServer, const void *pvSamples, uint32_t cSamples,
+                                                 VRDEAUDIOFORMAT format));
+    DECLR3CALLBACKMEMBER(void, VRDEAudioVolume,(HVRDESERVER hServer, uint16_t u16Left, uint16_t u16Right));
+    DECLR3CALLBACKMEMBER(void, VRDEUSBRequest,(HVRDESERVER hServer, uint32_t u32ClientId, void *pvParm,
+                                               uint32_t cbParm));
+    DECLR3CALLBACKMEMBER(void, VRDEClipboard,(HVRDESERVER hServer, uint32_t u32Function, uint32_t u32Format,
+                                              void *pvData, uint32_t cbData, uint32_t *pcbActualRead));
+    DECLR3CALLBACKMEMBER(void, VRDEQueryInfo,(HVRDESERVER hServer, uint32_t index, void *pvBuffer, uint32_t cbBuffer,
+                                              uint32_t *pcbOut));
+    DECLR3CALLBACKMEMBER(void, VRDERedirect,(HVRDESERVER hServer, uint32_t u32ClientId, const char *pszServer,
+                                             const char *pszUser, const char *pszDomain, const char *pszPassword,
+                                             uint32_t u32SessionId, const char *pszCookie));
+    DECLR3CALLBACKMEMBER(void, VRDEAudioInOpen,(HVRDESERVER hServer, void *pvCtx, uint32_t u32ClientId,
+                                                VRDEAUDIOFORMAT audioFormat, uint32_t u32SamplesPerBlock));
+    DECLR3CALLBACKMEMBER(void, VRDEAudioInClose,(HVRDESERVER hServer, uint32_t u32ClientId));
+
+    /**
+     * Generic interface query. An interface is a set of entry points and callbacks.
+     * It is not a reference counted interface.
+     *
+     * @param hServer    Handle of VRDE server instance.
+     * @param pszId      String identifier of the interface, like uuid.
+     * @param pInterface The interface structure to be initialized by the VRDE server.
+     *                   Only VRDEINTERFACEHDR is initialized by the caller.
+     * @param pCallbacks Callbacks required by the interface. The server makes a local copy.
+     *                   VRDEINTERFACEHDR version must correspond to the requested interface version.
+     * @param pvContext  The context to be used in callbacks.
+     */
+
+    DECLR3CALLBACKMEMBER(int, VRDEGetInterface, (HVRDESERVER hServer,
+                                                 const char *pszId,
+                                                 VRDEINTERFACEHDR *pInterface,
+                                                 const VRDEINTERFACEHDR *pCallbacks,
+                                                 void *pvContext));
+} VRDEENTRYPOINTS_4;
+
+/* Callbacks are the same for the version 3 and version 4 interfaces. */
+typedef VRDECALLBACKS_3 VRDECALLBACKS_4;
+
 /**
  * Create a new VRDE server instance. The instance is fully functional but refuses
  * client connections until the entry point VRDEEnableConnections is called by the application.
@@ -1417,6 +1559,15 @@ typedef FNVRDECREATESERVER *PFNVRDECREATESERVER;
 
 /**
  * List of names of the VRDE properties, which are recognized by the VRDE.
+ *
+ * For example VRDESupportedProperties should return gapszProperties declared as:
+ *
+ * static const char * const gapszProperties[] =
+ * {
+ *   "TCP/Ports",
+ *   "TCP/Address",
+ *   NULL
+ * };
  *
  * @returns pointer to array of pointers to name strings (UTF8).
  */

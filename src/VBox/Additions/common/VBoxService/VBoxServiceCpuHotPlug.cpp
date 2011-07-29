@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceCpuHotPlug.cpp $ */
+/* $Id: VBoxServiceCpuHotPlug.cpp 33468 2010-10-26 12:49:59Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions CPU Hot Plugging Service.
  */

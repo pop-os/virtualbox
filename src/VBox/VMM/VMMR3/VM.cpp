@@ -1,4 +1,4 @@
-/* $Id: VM.cpp $ */
+/* $Id: VM.cpp 37794 2011-07-06 10:24:07Z vboxsync $ */
 /** @file
  * VM - Virtual Machine
  */
@@ -54,6 +54,7 @@
 #include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/pdmcritsect.h>
 #include <VBox/vmm/em.h>
+#include <VBox/vmm/iem.h>
 #include <VBox/vmm/rem.h>
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/stam.h>
@@ -80,6 +81,7 @@
 #include <iprt/time.h>
 #include <iprt/semaphore.h>
 #include <iprt/thread.h>
+#include <iprt/uuid.h>
 
 
 /*******************************************************************************
@@ -272,10 +274,10 @@ VMMR3DECL(int)   VMR3Create(uint32_t cCpus, PCVMM2USERMETHODS pVmm2UserMethods,
                 AssertMsgFailed(("VMR3ReqCallU failed rc=%Rrc\n", rc));
 
             /*
-             * An error occurred during VM creation. Set the error message directly
-             * using the initial callback, as the callback list doesn't exist yet.
+             * An error occurred during VM creation.  Set the error message directly
+             * using the initial callback, as the callback list might not exist yet.
              */
-            const char *pszError = NULL;
+            const char *pszError;
             switch (rc)
             {
                 case VERR_VMX_IN_VMX_ROOT_MODE:
@@ -301,12 +303,6 @@ VMMR3DECL(int)   VMR3Create(uint32_t cCpus, PCVMM2USERMETHODS pVmm2UserMethods,
 #else
                     pszError = N_("VirtualBox can't enable the AMD-V extension. Please close all other virtualization programs.");
 #endif
-                    break;
-
-                case VERR_VERSION_MISMATCH:
-                    pszError = N_("VMMR0 driver version mismatch. Please terminate all VMs, make sure that "
-                                  "VBoxNetDHCP is not running and try again. If you still get this error, "
-                                  "re-install VirtualBox");
                     break;
 
 #ifdef RT_OS_LINUX
@@ -347,11 +343,23 @@ VMMR3DECL(int)   VMR3Create(uint32_t cCpus, PCVMM2USERMETHODS pVmm2UserMethods,
                                   "pack' which must be downloaded and installed separately");
                     break;
 
+                case VERR_PCI_PASSTHROUGH_NO_HWACCM:
+                    pszError = N_("PCI passthrough requires VT-x/AMD-V");
+                    break;
+
+                case VERR_PCI_PASSTHROUGH_NO_NESTED_PAGING:
+                    pszError = N_("PCI passthrough requires nested paging");
+                    break;
+
                 default:
-                    pszError = N_("Unknown error creating VM");
+                    if (VMR3GetErrorCountU(pUVM) == 0)
+                        pszError = RTErrGetFull(rc);
+                    else
+                        pszError = NULL; /* already set. */
                     break;
             }
-            vmR3SetErrorU(pUVM, rc, RT_SRC_POS, pszError, rc);
+            if (pszError)
+                vmR3SetErrorU(pUVM, rc, RT_SRC_POS, pszError, rc);
         }
         else
         {
@@ -466,11 +474,13 @@ static int vmR3CreateUVM(uint32_t cCpus, PCVMM2USERMETHODS pVmm2UserMethods, PUV
 
     AssertCompile(sizeof(pUVM->vm.s) <= sizeof(pUVM->vm.padding));
 
+    pUVM->vm.s.cUvmRefs      = 1;
     pUVM->vm.s.ppAtStateNext = &pUVM->vm.s.pAtState;
     pUVM->vm.s.ppAtErrorNext = &pUVM->vm.s.pAtError;
     pUVM->vm.s.ppAtRuntimeErrorNext = &pUVM->vm.s.pAtRuntimeError;
 
     pUVM->vm.s.enmHaltMethod = VMHALTMETHOD_BOOTSTRAP;
+    RTUuidClear(&pUVM->vm.s.Uuid);
 
     /* Initialize the VMCPU array in the UVM. */
     for (i = 0; i < cCpus; i++)
@@ -568,12 +578,10 @@ static int vmR3CreateUVM(uint32_t cCpus, PCVMM2USERMETHODS pVmm2UserMethods, PUV
  */
 static int vmR3CreateU(PUVM pUVM, uint32_t cCpus, PFNCFGMCONSTRUCTOR pfnCFGMConstructor, void *pvUserCFGM)
 {
-    int rc = VINF_SUCCESS;
-
     /*
      * Load the VMMR0.r0 module so that we can call GVMMR0CreateVM.
      */
-    rc = PDMR3LdrLoadVMMR0U(pUVM);
+    int rc = PDMR3LdrLoadVMMR0U(pUVM);
     if (RT_FAILURE(rc))
     {
         /** @todo we need a cleaner solution for this (VERR_VMX_IN_VMX_ROOT_MODE).
@@ -603,6 +611,9 @@ static int vmR3CreateU(PUVM pUVM, uint32_t cCpus, PFNCFGMCONSTRUCTOR pfnCFGMCons
         AssertRelease(pVM->cCpus == cCpus);
         AssertRelease(pVM->uCpuExecutionCap == 100);
         AssertRelease(pVM->offVMCPU == RT_UOFFSETOF(VM, aCpus));
+        AssertCompileMemberAlignment(VM, cpum, 64);
+        AssertCompileMemberAlignment(VM, tm, 64);
+        AssertCompileMemberAlignment(VM, aCpus, PAGE_SIZE);
 
         Log(("VMR3Create: Created pUVM=%p pVM=%p pVMR0=%p hSelf=%#x cCpus=%RU32\n",
              pUVM, pVM, pVM->pVMR0, pVM->hSelf, pVM->cCpus));
@@ -662,11 +673,33 @@ static int vmR3CreateU(PUVM pUVM, uint32_t cCpus, PFNCFGMCONSTRUCTOR pfnCFGMCons
                     rc = VERR_INVALID_PARAMETER;
                 }
             }
+
+            /*
+             * Get the CPU execution cap.
+             */
             if (RT_SUCCESS(rc))
             {
                 rc = CFGMR3QueryU32Def(pRoot, "CpuExecutionCap", &pVM->uCpuExecutionCap, 100);
                 AssertLogRelMsgRC(rc, ("Configuration error: Querying \"CpuExecutionCap\" as integer failed, rc=%Rrc\n", rc));
+            }
 
+            /*
+             * Get the VM name and UUID.
+             */
+            if (RT_SUCCESS(rc))
+            {
+                rc = CFGMR3QueryStringAllocDef(pRoot, "Name", &pUVM->vm.s.pszName, "<unknown>");
+                AssertLogRelMsg(RT_SUCCESS(rc) && rc != VERR_CFGM_VALUE_NOT_FOUND, ("Configuration error: Querying \"Name\" failed, rc=%Rrc\n", rc));
+            }
+
+            if (RT_SUCCESS(rc))
+            {
+                rc = CFGMR3QueryBytes(pRoot, "UUID", &pUVM->vm.s.Uuid, sizeof(pUVM->vm.s.Uuid));
+                AssertLogRelMsg(RT_SUCCESS(rc) && rc != VERR_CFGM_VALUE_NOT_FOUND, ("Configuration error: Querying \"UUID\" failed, rc=%Rrc\n", rc));
+            }
+
+            if (RT_SUCCESS(rc))
+            {
                 /*
                  * Init the ring-3 components and ring-3 per cpu data, finishing it off
                  * by a relocation round (intermediate context finalization will do this).
@@ -904,36 +937,43 @@ static int vmR3InitRing3(PVM pVM, PUVM pUVM)
                                                         rc = EMR3Init(pVM);
                                                         if (RT_SUCCESS(rc))
                                                         {
-                                                            rc = DBGFR3Init(pVM);
+                                                            rc = IEMR3Init(pVM);
                                                             if (RT_SUCCESS(rc))
                                                             {
-                                                                rc = PDMR3Init(pVM);
+                                                                rc = DBGFR3Init(pVM);
                                                                 if (RT_SUCCESS(rc))
                                                                 {
-                                                                    rc = PGMR3InitDynMap(pVM);
-                                                                    if (RT_SUCCESS(rc))
-                                                                        rc = MMR3HyperInitFinalize(pVM);
-                                                                    if (RT_SUCCESS(rc))
-                                                                        rc = PATMR3InitFinalize(pVM);
-                                                                    if (RT_SUCCESS(rc))
-                                                                        rc = PGMR3InitFinalize(pVM);
-                                                                    if (RT_SUCCESS(rc))
-                                                                        rc = SELMR3InitFinalize(pVM);
-                                                                    if (RT_SUCCESS(rc))
-                                                                        rc = TMR3InitFinalize(pVM);
-                                                                    if (RT_SUCCESS(rc))
-                                                                        rc = REMR3InitFinalize(pVM);
-                                                                    if (RT_SUCCESS(rc))
-                                                                        rc = vmR3InitDoCompleted(pVM, VMINITCOMPLETED_RING3);
+                                                                    rc = PDMR3Init(pVM);
                                                                     if (RT_SUCCESS(rc))
                                                                     {
-                                                                        LogFlow(("vmR3InitRing3: returns %Rrc\n", VINF_SUCCESS));
-                                                                        return VINF_SUCCESS;
+                                                                        rc = PGMR3InitDynMap(pVM);
+                                                                        if (RT_SUCCESS(rc))
+                                                                            rc = MMR3HyperInitFinalize(pVM);
+                                                                        if (RT_SUCCESS(rc))
+                                                                            rc = PATMR3InitFinalize(pVM);
+                                                                        if (RT_SUCCESS(rc))
+                                                                            rc = PGMR3InitFinalize(pVM);
+                                                                        if (RT_SUCCESS(rc))
+                                                                            rc = SELMR3InitFinalize(pVM);
+                                                                        if (RT_SUCCESS(rc))
+                                                                            rc = TMR3InitFinalize(pVM);
+                                                                        if (RT_SUCCESS(rc))
+                                                                            rc = REMR3InitFinalize(pVM);
+                                                                        if (RT_SUCCESS(rc))
+                                                                            rc = vmR3InitDoCompleted(pVM, VMINITCOMPLETED_RING3);
+                                                                        if (RT_SUCCESS(rc))
+                                                                        {
+                                                                            LogFlow(("vmR3InitRing3: returns %Rrc\n", VINF_SUCCESS));
+                                                                            return VINF_SUCCESS;
+                                                                        }
+
+                                                                        int rc2 = PDMR3Term(pVM);
+                                                                        AssertRC(rc2);
                                                                     }
-                                                                    int rc2 = PDMR3Term(pVM);
+                                                                    int rc2 = DBGFR3Term(pVM);
                                                                     AssertRC(rc2);
                                                                 }
-                                                                int rc2 = DBGFR3Term(pVM);
+                                                                int rc2 = IEMR3Term(pVM);
                                                                 AssertRC(rc2);
                                                             }
                                                             int rc2 = EMR3Term(pVM);
@@ -1010,13 +1050,12 @@ static int vmR3InitRing0(PVM pVM)
      */
     if (RT_SUCCESS(rc))
         rc = vmR3InitDoCompleted(pVM, VMINITCOMPLETED_RING0);
-
-    /** @todo Move this to the VMINITCOMPLETED_RING0 notification handler. */
     if (RT_SUCCESS(rc))
-    {
-        rc = HWACCMR3InitFinalizeR0(pVM);
+        rc = vmR3InitDoCompleted(pVM, VMINITCOMPLETED_HWACCM);
+
+    /** @todo Move this to the VMINITCOMPLETED_HWACCM notification handler. */
+    if (RT_SUCCESS(rc))
         CPUMR3SetHWVirtEx(pVM, HWACCMIsEnabled(pVM));
-    }
 
     LogFlow(("vmR3InitRing0: returns %Rrc\n", rc));
     return rc;
@@ -1067,6 +1106,8 @@ static int vmR3InitDoCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
     int rc = VMMR3InitCompleted(pVM, enmWhat);
     if (RT_SUCCESS(rc))
         rc = HWACCMR3InitCompleted(pVM, enmWhat);
+    if (RT_SUCCESS(rc))
+        rc = PGMR3InitCompleted(pVM, enmWhat);
     return rc;
 }
 
@@ -1134,6 +1175,7 @@ VMMR3DECL(void)   VMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     IOMR3Relocate(pVM, offDelta);
     EMR3Relocate(pVM);
     TMR3Relocate(pVM, offDelta);
+    IEMR3Relocate(pVM);
     DBGFR3Relocate(pVM, offDelta);
     PDMR3Relocate(pVM, offDelta);
 }
@@ -2268,7 +2310,7 @@ VMMR3DECL(int) VMR3Destroy(PVM pVM)
      * Validate input.
      */
     if (!pVM)
-        return VERR_INVALID_PARAMETER;
+        return VERR_INVALID_VM_HANDLE;
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     AssertLogRelReturn(!VM_IS_EMT(pVM), VERR_VM_THREAD_IS_EMT);
 
@@ -2370,6 +2412,8 @@ DECLCALLBACK(int) vmR3Destroy(PVM pVM)
         rc = DBGFR3Term(pVM);
         AssertRC(rc);
         rc = PDMR3Term(pVM);
+        AssertRC(rc);
+        rc = IEMR3Term(pVM);
         AssertRC(rc);
         rc = EMR3Term(pVM);
         AssertRC(rc);
@@ -2494,7 +2538,7 @@ static void vmR3DestroyUVM(PUVM pUVM, uint32_t cMilliesEMTWait)
             break;
         for (PVMREQ pReq = pReqHead; pReq; pReq = pReq->pNext)
         {
-            ASMAtomicUoWriteSize(&pReq->iStatus, VERR_INTERNAL_ERROR);
+            ASMAtomicUoWriteS32(&pReq->iStatus, VERR_INTERNAL_ERROR);
             ASMAtomicWriteSize(&pReq->enmState, VMREQSTATE_INVALID);
             RTSemEventSignal(pReq->EventSem);
             RTThreadSleep(2);
@@ -2519,7 +2563,7 @@ static void vmR3DestroyUVM(PUVM pUVM, uint32_t cMilliesEMTWait)
                 break;
             for (PVMREQ pReq = pReqHead; pReq; pReq = pReq->pNext)
             {
-                ASMAtomicUoWriteSize(&pReq->iStatus, VERR_INTERNAL_ERROR);
+                ASMAtomicUoWriteS32(&pReq->iStatus, VERR_INTERNAL_ERROR);
                 ASMAtomicWriteSize(&pReq->enmState, VMREQSTATE_INVALID);
                 RTSemEventSignal(pReq->EventSem);
                 RTThreadSleep(2);
@@ -2546,19 +2590,16 @@ static void vmR3DestroyUVM(PUVM pUVM, uint32_t cMilliesEMTWait)
     }
 
     /*
-     * Destroy the MM heap and free the UVM structure.
+     * Release the UVM structure reference.
      */
-    MMR3TermUVM(pUVM);
-    STAMR3TermUVM(pUVM);
+    VMR3ReleaseUVM(pUVM);
 
+    /*
+     * Clean up and flush logs.
+     */
 #ifdef LOG_ENABLED
     RTLogSetCustomPrefixCallback(NULL, NULL, NULL);
 #endif
-    RTTlsFree(pUVM->vm.s.idxTLS);
-
-    ASMAtomicUoWriteU32(&pUVM->u32Magic, UINT32_MAX);
-    RTMemPageFree(pUVM, RT_OFFSETOF(UVM, aCpus[pUVM->cCpus]));
-
     RTLogFlush(NULL);
 }
 
@@ -2857,6 +2898,131 @@ VMMR3DECL(int) VMR3Reset(PVM pVM)
 
 
 /**
+ * Gets the user mode VM structure pointer given the VM handle.
+ *
+ * @returns Pointer to the user mode VM structure on success. NULL if @a pVM is
+ *          invalid (asserted).
+ * @param   pVM                 The VM handle.
+ * @sa      VMR3GetVM, VMR3RetainUVM
+ */
+VMMR3DECL(PUVM) VMR3GetUVM(PVM pVM)
+{
+    VM_ASSERT_VALID_EXT_RETURN(pVM, NULL);
+    return pVM->pUVM;
+}
+
+
+/**
+ * Gets the shared VM structure pointer given the pointer to the user mode VM
+ * structure.
+ *
+ * @returns Pointer to the shared VM structure.
+ *          NULL if @a pUVM is invalid (asserted) or if no shared VM structure
+ *          is currently associated with it.
+ * @param   pUVM                The user mode VM handle.
+ * @sa      VMR3GetUVM
+ */
+VMMR3DECL(PVM) VMR3GetVM(PUVM pUVM)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, NULL);
+    return pUVM->pVM;
+}
+
+
+/**
+ * Retain the user mode VM handle.
+ *
+ * @returns Reference count.
+ *          UINT32_MAX if @a pUVM is invalid.
+ *
+ * @param   pUVM                The user mode VM handle.
+ * @sa      VMR3ReleaseUVM
+ */
+VMMR3DECL(uint32_t) VMR3RetainUVM(PUVM pUVM)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, UINT32_MAX);
+    uint32_t cRefs = ASMAtomicIncU32(&pUVM->vm.s.cUvmRefs);
+    AssertMsg(cRefs > 0 && cRefs < _64K, ("%u\n", cRefs));
+    return cRefs;
+}
+
+
+/**
+ * Does the final release of the UVM structure.
+ *
+ * @param   pUVM                The user mode VM handle.
+ */
+static void vmR3DoReleaseUVM(PUVM pUVM)
+{
+    /*
+     * Free the UVM.
+     */
+    Assert(!pUVM->pVM);
+
+    MMR3TermUVM(pUVM);
+    STAMR3TermUVM(pUVM);
+
+    ASMAtomicUoWriteU32(&pUVM->u32Magic, UINT32_MAX);
+    RTTlsFree(pUVM->vm.s.idxTLS);
+    RTMemPageFree(pUVM, RT_OFFSETOF(UVM, aCpus[pUVM->cCpus]));
+}
+
+
+/**
+ * Releases a refernece to the mode VM handle.
+ *
+ * @returns The new reference count, 0 if destroyed.
+ *          UINT32_MAX if @a pUVM is invalid.
+ *
+ * @param   pUVM                The user mode VM handle.
+ * @sa      VMR3RetainUVM
+ */
+VMMR3DECL(uint32_t) VMR3ReleaseUVM(PUVM pUVM)
+{
+    if (!pUVM)
+        return 0;
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, UINT32_MAX);
+    uint32_t cRefs = ASMAtomicDecU32(&pUVM->vm.s.cUvmRefs);
+    if (!cRefs)
+        vmR3DoReleaseUVM(pUVM);
+    else
+        AssertMsg(cRefs < _64K, ("%u\n", cRefs));
+    return cRefs;
+}
+
+
+/**
+ * Gets the VM name.
+ *
+ * @returns Pointer to a read-only string containing the name. NULL if called
+ *          too early.
+ * @param   pUVM                The user mode VM handle.
+ */
+VMMR3DECL(const char *) VMR3GetName(PUVM pUVM)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, NULL);
+    return pUVM->vm.s.pszName;
+}
+
+
+/**
+ * Gets the VM UUID.
+ *
+ * @returns pUuid on success, NULL on failure.
+ * @param   pUVM                The user mode VM handle.
+ * @param   pUuid               Where to store the UUID.
+ */
+VMMR3DECL(PRTUUID) VMR3GetUuid(PUVM pUVM, PRTUUID pUuid)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, NULL);
+    AssertPtrReturn(pUuid, NULL);
+
+    *pUuid = pUVM->vm.s.Uuid;
+    return pUuid;
+}
+
+
+/**
  * Gets the current VM state.
  *
  * @returns The current VM state.
@@ -2865,7 +3031,24 @@ VMMR3DECL(int) VMR3Reset(PVM pVM)
  */
 VMMR3DECL(VMSTATE) VMR3GetState(PVM pVM)
 {
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VMSTATE_TERMINATED);
     return pVM->enmVMState;
+}
+
+
+/**
+ * Gets the current VM state.
+ *
+ * @returns The current VM state.
+ * @param   pUVM            The user-mode VM handle.
+ * @thread  Any
+ */
+VMMR3DECL(VMSTATE) VMR3GetStateU(PUVM pUVM)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VMSTATE_TERMINATED);
+    if (RT_UNLIKELY(!pUVM->pVM))
+        return VMSTATE_TERMINATED;
+    return pUVM->pVM->enmVMState;
 }
 
 
@@ -3464,6 +3647,7 @@ VMMR3DECL(int) VMR3AtStateDeregister(PVM pVM, PFNVMATSTATE pfnAtState, void *pvU
  */
 VMMR3DECL(int)   VMR3AtErrorRegister(PVM pVM, PFNVMATERROR pfnAtError, void *pvUser)
 {
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     return VMR3AtErrorRegisterU(pVM->pUVM, pfnAtError, pvUser);
 }
 
@@ -3650,7 +3834,24 @@ VMMR3DECL(void) VMR3SetErrorWorker(PVM pVM)
  */
 VMMR3DECL(uint32_t) VMR3GetErrorCount(PVM pVM)
 {
-    return pVM->pUVM->vm.s.cErrors;
+    AssertPtrReturn(pVM, 0);
+    return VMR3GetErrorCountU(pVM->pUVM);
+}
+
+
+/**
+ * Gets the number of errors raised via VMSetError.
+ *
+ * This can be used avoid double error messages.
+ *
+ * @returns The error count.
+ * @param   pVM             The VM handle.
+ */
+VMMR3DECL(uint32_t) VMR3GetErrorCountU(PUVM pUVM)
+{
+    AssertPtrReturn(pUVM, 0);
+    AssertReturn(pUVM->u32Magic == UVM_MAGIC, 0);
+    return pUVM->vm.s.cErrors;
 }
 
 
@@ -4157,9 +4358,18 @@ VMMR3DECL(RTTHREAD) VMR3GetVMCPUThreadU(PUVM pUVM)
  */
 VMMR3DECL(int) VMR3GetCpuCoreAndPackageIdFromCpuId(PVM pVM, VMCPUID idCpu, uint32_t *pidCpuCore, uint32_t *pidCpuPackage)
 {
+    /*
+     * Validate input.
+     */
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    AssertPtrReturn(pidCpuCore, VERR_INVALID_POINTER);
+    AssertPtrReturn(pidCpuPackage, VERR_INVALID_POINTER);
     if (idCpu >= pVM->cCpus)
         return VERR_INVALID_CPU_ID;
 
+    /*
+     * Set return values.
+     */
 #ifdef VBOX_WITH_MULTI_CORE
     *pidCpuCore    = idCpu;
     *pidCpuPackage = 0;
@@ -4211,6 +4421,7 @@ static DECLCALLBACK(int) vmR3HotUnplugCpu(PVM pVM, VMCPUID idCpu)
  */
 VMMR3DECL(int) VMR3HotUnplugCpu(PVM pVM, VMCPUID idCpu)
 {
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
 
     /** @todo r=bird: Don't destroy the EMT, it'll break VMMR3EmtRendezvous and
@@ -4230,6 +4441,7 @@ VMMR3DECL(int) VMR3HotUnplugCpu(PVM pVM, VMCPUID idCpu)
  */
 VMMR3DECL(int) VMR3HotPlugCpu(PVM pVM, VMCPUID idCpu)
 {
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
 
     /** @todo r-bird: Just mark it online and make sure it waits on SPIP. */
@@ -4242,15 +4454,17 @@ VMMR3DECL(int) VMR3HotPlugCpu(PVM pVM, VMCPUID idCpu)
  *
  * @returns VBox status code.
  * @param   pVM                 The VM to operate on.
- * @param   ulCpuExecutionCap   New CPU execution cap
+ * @param   uCpuExecutionCap    New CPU execution cap in precent, 1-100. Where
+ *                              100 is max performance (default).
  */
-VMMR3DECL(int) VMR3SetCpuExecutionCap(PVM pVM, unsigned ulCpuExecutionCap)
+VMMR3DECL(int) VMR3SetCpuExecutionCap(PVM pVM, uint32_t uCpuExecutionCap)
 {
-    AssertReturn(ulCpuExecutionCap > 0 && ulCpuExecutionCap <= 100, VERR_INVALID_PARAMETER);
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    AssertReturn(uCpuExecutionCap > 0 && uCpuExecutionCap <= 100, VERR_INVALID_PARAMETER);
 
-    Log(("VMR3SetCpuExecutionCap: new priority = %d\n", ulCpuExecutionCap));
+    Log(("VMR3SetCpuExecutionCap: new priority = %d\n", uCpuExecutionCap));
     /* Note: not called from EMT. */
-    pVM->uCpuExecutionCap = ulCpuExecutionCap;
+    pVM->uCpuExecutionCap = uCpuExecutionCap;
     return VINF_SUCCESS;
 }
 

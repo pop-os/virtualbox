@@ -1,4 +1,4 @@
-/* $Id: RTPathStartsWithRoot.cpp $ */
+/* $Id: RTPathStartsWithRoot.cpp 33245 2010-10-20 09:51:08Z vboxsync $ */
 /** @file
  * IPRT - RTPathStartsWithRoot
  */

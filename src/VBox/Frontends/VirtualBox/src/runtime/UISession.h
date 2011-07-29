@@ -167,6 +167,7 @@ signals:
     void sigAdditionsStateChange();
     void sigNetworkAdapterChange(const CNetworkAdapter &networkAdapter);
     void sigMediumChange(const CMediumAttachment &mediumAttachment);
+    void sigVRDEChange();
     void sigUSBControllerChange();
     void sigUSBDeviceStateChange(const CUSBDevice &device, bool bIsAttached, const CVirtualBoxErrorInfo &error);
     void sigSharedFolderChange();
@@ -174,6 +175,7 @@ signals:
 #ifdef RT_OS_DARWIN
     void sigShowWindows();
 #endif /* RT_OS_DARWIN */
+    void sigCPUExecutionCapChange();
 
     /* Session signals: */
     void sigMachineStarted();
@@ -193,6 +195,7 @@ private slots:
     void sltKeyboardLedsChangeEvent(bool fNumLock, bool fCapsLock, bool fScrollLock);
     void sltStateChange(KMachineState state);
     void sltAdditionsChange();
+    void sltVRDEChange();
 
 private:
 

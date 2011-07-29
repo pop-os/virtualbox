@@ -1,4 +1,4 @@
-/* $Id: VBoxService-win.cpp $ */
+/* $Id: VBoxService-win.cpp 36338 2011-03-22 10:57:01Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Service Skeleton, Windows Specific Parts.
  */
@@ -308,8 +308,7 @@ static int vboxServiceWinStart(void)
                                   0, 0, 0, 0, 0, 0, 0,
                                   &pBuiltinUsersSID))
     {
-        /**@todo r=bird: rc = RTErrConvertFromWin32(GetLastError()); ?*/
-        VBoxServiceError("AllocateAndInitializeSid: Error %u\n", GetLastError());
+        rc = RTErrConvertFromWin32(GetLastError());
     }
     else
     {
@@ -344,9 +343,15 @@ static int vboxServiceWinStart(void)
             VBoxServiceMainWait();
         }
         else
+        {
             vboxServiceWinSetStatus(SERVICE_STOPPED, 0);
+#if 0 /** @todo r=bird: Enable this if SERVICE_CONTROL_STOP isn't triggered automatically */
+            VBoxServiceStopServices();
+#endif
+        }
     }
-    /**@todo r=bird: else vboxServiceWinSetStatus(SERVICE_STOPPED, 0); ? */
+    else
+        vboxServiceWinSetStatus(SERVICE_STOPPED, 0);
 
     if (RT_FAILURE(rc))
         VBoxServiceError("Service failed to start with rc=%Rrc!\n", rc);
@@ -367,7 +372,7 @@ static int vboxServiceWinStart(void)
 RTEXITCODE VBoxServiceWinEnterCtrlDispatcher(void)
 {
     if (!StartServiceCtrlDispatcher(&g_aServiceTable[0]))
-        return VBoxServiceError("StartServiceCtrlDispatcher: %u. Please start %s with option -f (foreground)!",
+        return VBoxServiceError("StartServiceCtrlDispatcher: %u. Please start %s with option -f (foreground)!\n",
                                 GetLastError(), g_pszProgName);
     return RTEXITCODE_SUCCESS;
 }
@@ -384,7 +389,7 @@ static DWORD WINAPI vboxServiceWinCtrlHandler(DWORD dwControl, DWORD dwEventType
 #ifdef TARGET_NT4
     VBoxServiceVerbose(2, "Control handler: Control=%#x\n", dwControl);
 #else
-    VBoxServiceVerbose(2, "Control handler: Control=%#x EventType=%#x\n", dwControl, dwEventType);
+    VBoxServiceVerbose(2, "Control handler: Control=%#x, EventType=%#x\n", dwControl, dwEventType);
 #endif
 
     switch (dwControl)
@@ -401,6 +406,11 @@ static DWORD WINAPI vboxServiceWinCtrlHandler(DWORD dwControl, DWORD dwEventType
             int rc2 = VBoxServiceStopServices();
             if (RT_FAILURE(rc2))
                 rcRet = ERROR_GEN_FAILURE;
+            else
+            {
+                rc2 = VBoxServiceReportStatus(VBoxGuestFacilityStatus_Terminated);
+                AssertRC(rc2);
+            }
 
             vboxServiceWinSetStatus(SERVICE_STOPPED, 0);
             break;

@@ -25,24 +25,17 @@
 #include <VBox/log.h>
 #include <VBox/VBoxGuestLib.h>
 
-#include <VBoxGuestInternal.h>
-
-#ifdef TARGET_NT4
 /*
  * XP DDK #defines ExFreePool to ExFreePoolWithTag. The latter does not exist
  * on NT4, so... The same for ExAllocatePool.
  */
-#undef ExAllocatePool
-#undef ExFreePool
+#ifdef TARGET_NT4
+# undef ExAllocatePool
+# undef ExFreePool
 #endif
 
 /*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
-
-
-/*******************************************************************************
-*   Entry Points                                                               *
+*   Internal Functions                                                         *
 *******************************************************************************/
 RT_C_DECLS_BEGIN
 static NTSTATUS vboxguestwinAddDevice(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj);
@@ -50,18 +43,12 @@ static void     vboxguestwinUnload(PDRIVER_OBJECT pDrvObj);
 static NTSTATUS vboxguestwinCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp);
 static NTSTATUS vboxguestwinClose(PDEVICE_OBJECT pDevObj, PIRP pIrp);
 static NTSTATUS vboxguestwinIOCtl(PDEVICE_OBJECT pDevObj, PIRP pIrp);
+static NTSTATUS vboxguestwinInternalIOCtl(PDEVICE_OBJECT pDevObj, PIRP pIrp);
 static NTSTATUS vboxguestwinSystemControl(PDEVICE_OBJECT pDevObj, PIRP pIrp);
 static NTSTATUS vboxguestwinShutdown(PDEVICE_OBJECT pDevObj, PIRP pIrp);
 static NTSTATUS vboxguestwinNotSupportedStub(PDEVICE_OBJECT pDevObj, PIRP pIrp);
-RT_C_DECLS_END
-
-
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
-RT_C_DECLS_BEGIN
 #ifdef DEBUG
- static void    vboxguestwinDoTests(void);
+static void     vboxguestwinDoTests(void);
 #endif
 RT_C_DECLS_END
 
@@ -87,7 +74,6 @@ RT_C_DECLS_END
 
 /** The detected Windows version. */
 winVersion_t g_winVersion;
-
 
 /**
  * Driver entry point.
@@ -165,7 +151,7 @@ ULONG DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
         pDrvObj->MajorFunction[IRP_MJ_CREATE]                  = vboxguestwinCreate;
         pDrvObj->MajorFunction[IRP_MJ_CLOSE]                   = vboxguestwinClose;
         pDrvObj->MajorFunction[IRP_MJ_DEVICE_CONTROL]          = vboxguestwinIOCtl;
-        pDrvObj->MajorFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = vboxguestwinIOCtl;
+        pDrvObj->MajorFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = vboxguestwinInternalIOCtl;
         pDrvObj->MajorFunction[IRP_MJ_SHUTDOWN]                = vboxguestwinShutdown;
         pDrvObj->MajorFunction[IRP_MJ_READ]                    = vboxguestwinNotSupportedStub;
         pDrvObj->MajorFunction[IRP_MJ_WRITE]                   = vboxguestwinNotSupportedStub;
@@ -220,6 +206,8 @@ static NTSTATUS vboxguestwinAddDevice(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDe
              */
             pDevExt = (PVBOXGUESTDEVEXT)pDeviceObject->DeviceExtension;
             RtlZeroMemory(pDevExt, sizeof(VBOXGUESTDEVEXT));
+
+            KeInitializeSpinLock(&pDevExt->win.s.MouseEventAccessLock);
 
             pDevExt->win.s.pDeviceObject = pDeviceObject;
             pDevExt->win.s.prevDevState = STOPPED;
@@ -541,7 +529,7 @@ NTSTATUS vboxguestwinCleanup(PDEVICE_OBJECT pDevObj)
  *
  * @param   pDrvObj     Driver object.
  */
-void vboxguestwinUnload(PDRIVER_OBJECT pDrvObj)
+static void vboxguestwinUnload(PDRIVER_OBJECT pDrvObj)
 {
     Log(("VBoxGuest::vboxguestwinGuestUnload\n"));
 #ifdef TARGET_NT4
@@ -576,7 +564,7 @@ void vboxguestwinUnload(PDRIVER_OBJECT pDrvObj)
  * @param   pDevObj     Device object.
  * @param   pIrp        Request packet.
  */
-NTSTATUS vboxguestwinCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp)
+static NTSTATUS vboxguestwinCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 {
     /** @todo AssertPtrReturn(pIrp); */
     PIO_STACK_LOCATION pStack   = IoGetCurrentIrpStackLocation(pIrp);
@@ -645,7 +633,7 @@ NTSTATUS vboxguestwinCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp)
  * @param   pDevObj     Device object.
  * @param   pIrp        Request packet.
  */
-NTSTATUS vboxguestwinClose(PDEVICE_OBJECT pDevObj, PIRP pIrp)
+static NTSTATUS vboxguestwinClose(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 {
     PVBOXGUESTDEVEXT   pDevExt  = (PVBOXGUESTDEVEXT)pDevObj->DeviceExtension;
     PIO_STACK_LOCATION pStack   = IoGetCurrentIrpStackLocation(pIrp);
@@ -676,20 +664,20 @@ NTSTATUS vboxguestwinClose(PDEVICE_OBJECT pDevObj, PIRP pIrp)
  * @param   pDevObj     Device object.
  * @param   pIrp        Request packet.
  */
-NTSTATUS vboxguestwinIOCtl(PDEVICE_OBJECT pDevObj, PIRP pIrp)
+static NTSTATUS vboxguestwinIOCtl(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 {
-    NTSTATUS Status = STATUS_SUCCESS;
-    PVBOXGUESTDEVEXT pDevExt = (PVBOXGUESTDEVEXT)pDevObj->DeviceExtension;
-    PIO_STACK_LOCATION pStack = IoGetCurrentIrpStackLocation(pIrp);
-    unsigned int uCmd = (unsigned int)pStack->Parameters.DeviceIoControl.IoControlCode;
+    NTSTATUS            Status   = STATUS_SUCCESS;
+    PVBOXGUESTDEVEXT    pDevExt  = (PVBOXGUESTDEVEXT)pDevObj->DeviceExtension;
+    PIO_STACK_LOCATION  pStack   = IoGetCurrentIrpStackLocation(pIrp);
+    unsigned int        uCmd     = (unsigned int)pStack->Parameters.DeviceIoControl.IoControlCode;
 
-    char *pBuf = (char *)pIrp->AssociatedIrp.SystemBuffer; /* All requests are buffered. */
-    size_t cbData = pStack->Parameters.DeviceIoControl.InputBufferLength;
-    unsigned cbOut = 0;
+    char               *pBuf     = (char *)pIrp->AssociatedIrp.SystemBuffer; /* All requests are buffered. */
+    size_t              cbData   = pStack->Parameters.DeviceIoControl.InputBufferLength;
+    unsigned            cbOut    = 0;
 
     /* Do we have a file object associated?*/
-    PFILE_OBJECT pFileObj = pStack->FileObject;
-    PVBOXGUESTSESSION pSession = NULL;
+    PFILE_OBJECT        pFileObj = pStack->FileObject;
+    PVBOXGUESTSESSION   pSession = NULL;
     if (pFileObj) /* ... then we might have a session object as well! */
         pSession = (PVBOXGUESTSESSION)pFileObj->FsContext;
 
@@ -698,6 +686,8 @@ NTSTATUS vboxguestwinIOCtl(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 
     /* We don't have a session associated with the file object? So this seems
      * to be a kernel call then. */
+    /** @todo r=bird: What on earth is this supposed to be? Each kernel session
+     *        shall have its own context of course, no hacks, pleeease. */
     if (pSession == NULL)
     {
         Log(("VBoxGuest::vboxguestwinIOCtl: Using kernel session data ...\n"));
@@ -755,7 +745,7 @@ NTSTATUS vboxguestwinIOCtl(PDEVICE_OBJECT pDevObj, PIRP pIrp)
              * Process the common IOCtls.
              */
             size_t cbDataReturned;
-            int vrc = VBoxGuestCommonIOCtl(uCmd, pDevExt, pSession, (void*)pBuf, cbData, &cbDataReturned);
+            int vrc = VBoxGuestCommonIOCtl(uCmd, pDevExt, pSession, pBuf, cbData, &cbDataReturned);
 
             Log(("VBoxGuest::vboxguestwinGuestDeviceControl: rc=%Rrc, pBuf=0x%p, cbData=%u, cbDataReturned=%u\n",
                  vrc, pBuf, cbData, cbDataReturned));
@@ -792,6 +782,71 @@ NTSTATUS vboxguestwinIOCtl(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 
     //Log(("VBoxGuest::vboxguestwinGuestDeviceControl: returned cbOut=%d rc=%#x\n", cbOut, Status));
     return Status;
+}
+
+/**
+ * Internal Device I/O Control entry point.
+ *
+ * We do not want to allow some IOCTLs to be originated from user mode, this is
+ * why we have a different entry point for internal IOCTLs.
+ *
+ * @param   pDevObj     Device object.
+ * @param   pIrp        Request packet.
+ *
+ * @todo r=bird: This is no need for this extra function for the purpose of
+ *       securing an IOCTL from user space access.  VBoxGuestCommonIOCtl
+ *       has a way to do this already, see VBOXGUEST_IOCTL_GETVMMDEVPORT.
+ */
+static NTSTATUS vboxguestwinInternalIOCtl(PDEVICE_OBJECT pDevObj, PIRP pIrp)
+{
+    NTSTATUS            Status      = STATUS_SUCCESS;
+    PVBOXGUESTDEVEXT    pDevExt     = (PVBOXGUESTDEVEXT)pDevObj->DeviceExtension;
+    PIO_STACK_LOCATION  pStack      = IoGetCurrentIrpStackLocation(pIrp);
+    unsigned int        uCmd        = (unsigned int)pStack->Parameters.DeviceIoControl.IoControlCode;
+    bool                fProcessed  = false;
+    unsigned            Info        = 0;
+
+    switch (uCmd)
+    {
+        case VBOXGUEST_IOCTL_INTERNAL_SET_MOUSE_NOTIFY_CALLBACK:
+        {
+            PVOID pvBuf = pStack->Parameters.Others.Argument1;
+            size_t cbData = (size_t)pStack->Parameters.Others.Argument2;
+            fProcessed = true;
+            if (cbData != sizeof(VBoxGuestMouseSetNotifyCallback))
+            {
+                AssertFailed();
+                Status = STATUS_INVALID_PARAMETER;
+                break;
+            }
+
+            KIRQL OldIrql;
+            VBoxGuestMouseSetNotifyCallback *pInfo = (VBoxGuestMouseSetNotifyCallback*)pvBuf;
+            /* we need a lock here to avoid concurrency with the set event functionality */
+            KeAcquireSpinLock(&pDevExt->win.s.MouseEventAccessLock, &OldIrql);
+            pDevExt->win.s.pfnMouseNotify =  pInfo->pfnNotify;
+            pDevExt->win.s.pvMouseNotify =  pInfo->pvNotify;
+            KeReleaseSpinLock(&pDevExt->win.s.MouseEventAccessLock, OldIrql);
+
+            Status = STATUS_SUCCESS;
+            break;
+        }
+
+        default:
+            break;
+    }
+
+
+    if (fProcessed)
+    {
+        pIrp->IoStatus.Status = Status;
+        pIrp->IoStatus.Information = Info;
+
+        IoCompleteRequest(pIrp, IO_NO_INCREMENT);
+        return Status;
+    }
+
+    return vboxguestwinIOCtl(pDevObj, pIrp);
 }
 
 
@@ -878,6 +933,20 @@ void vboxguestwinDpcHandler(PKDPC pDPC, PDEVICE_OBJECT pDevObj,
     PVBOXGUESTDEVEXT pDevExt = (PVBOXGUESTDEVEXT)pDevObj->DeviceExtension;
     Log(("VBoxGuest::vboxguestwinGuestDpcHandler: pDevExt=0x%p\n", pDevExt));
 
+    /* test & reset the counter */
+    if (ASMAtomicXchgU32(&pDevExt->u32MousePosChangedSeq, 0))
+    {
+        Assert(KeGetCurrentIrql() == DISPATCH_LEVEL);
+        /* we need a lock here to avoid concurrency with the set event ioctl handler thread,
+         * i.e. to prevent the event from destroyed while we're using it */
+        KeAcquireSpinLockAtDpcLevel(&pDevExt->win.s.MouseEventAccessLock);
+        if (pDevExt->win.s.pfnMouseNotify)
+        {
+            pDevExt->win.s.pfnMouseNotify(pDevExt->win.s.pvMouseNotify);
+        }
+        KeReleaseSpinLockFromDpcLevel(&pDevExt->win.s.MouseEventAccessLock);
+    }
+
     /* Process the wake-up list we were asked by the scheduling a DPC
      *  in vboxguestwinIsrHandler(). */
     VBoxGuestWaitDoWakeUps(pDevExt);
@@ -909,7 +978,7 @@ BOOLEAN vboxguestwinIsrHandler(PKINTERRUPT pInterrupt, PVOID pServiceContext)
     {
         Log(("VBoxGuest::vboxguestwinGuestIsrHandler: IRQ was taken! pInterrupt = 0x%p, pDevExt = 0x%p\n",
              pInterrupt, pDevExt));
-        if (!RTListIsEmpty(&pDevExt->WakeUpList))
+        if (ASMAtomicUoReadU32(&pDevExt->u32MousePosChangedSeq) || !RTListIsEmpty(&pDevExt->WakeUpList))
         {
             Log(("VBoxGuest::vboxguestwinGuestIsrHandler: Requesting DPC ...\n"));
             IoRequestDpc(pDevExt->win.s.pDeviceObject, pDevExt->win.s.pCurrentIrp, NULL);
@@ -920,14 +989,16 @@ BOOLEAN vboxguestwinIsrHandler(PKINTERRUPT pInterrupt, PVOID pServiceContext)
 
 
 /*
- * Overridden routine for mouse polling events.  Not
- * used at the moment on Windows.
+ * Overridden routine for mouse polling events.
  *
  * @param pDevExt     Device extension structure.
  */
 void VBoxGuestNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
 {
     NOREF(pDevExt);
+    /* nothing to do here - i.e. since we can not KeSetEvent from ISR level,
+     * we rely on the pDevExt->u32MousePosChangedSeq to be set to a non-zero value on a mouse event
+     * and queue the DPC in our ISR routine in that case doing KeSetEvent from the DPC routine */
 }
 
 
@@ -1192,10 +1263,10 @@ VBOXOSTYPE vboxguestwinVersionToOSType(winVersion_t winVer)
     return enmOsType;
 }
 
-
 #ifdef DEBUG
-/** A quick implementation of AtomicTestAndClear for uint32_t and multiple
- *  bits.
+
+/**
+ * A quick implementation of AtomicTestAndClear for uint32_t and multiple bits.
  */
 static uint32_t vboxugestwinAtomicBitsTestAndClear(void *pu32Bits, uint32_t u32Mask)
 {
@@ -1244,4 +1315,6 @@ static void vboxguestwinDoTests()
     vboxguestwinTestAtomicTestAndClearBitsU32(0x11, 0x32, 0x10);
     vboxguestwinTestAtomicTestAndClearBitsU32(0x22, 0x23, 0x22);
 }
-#endif
+
+#endif /* DEBUG */
+

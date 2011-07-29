@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (C) 2006-2010 Oracle Corporation
+# Copyright (C) 2006-2011 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -35,6 +35,7 @@ FORMS = \
     src/settings/global/UIGlobalSettingsNetwork.ui \
     src/settings/global/UIGlobalSettingsNetworkDetails.ui \
     src/settings/global/UIGlobalSettingsExtension.ui \
+    src/settings/global/UIGlobalSettingsProxy.ui \
     src/settings/machine/UIMachineSettingsGeneral.ui \
     src/settings/machine/UIMachineSettingsSystem.ui \
     src/settings/machine/UIMachineSettingsDisplay.ui \
@@ -47,15 +48,18 @@ FORMS = \
     src/settings/machine/UIMachineSettingsUSBFilterDetails.ui \
     src/settings/machine/UIMachineSettingsSF.ui \
     src/settings/machine/UIMachineSettingsSFDetails.ui \
+    src/wizards/clonevm/UICloneVMWizardPage1.ui \
+    src/wizards/clonevm/UICloneVMWizardPage2.ui \
     src/wizards/newvm/UINewVMWzdPage1.ui \
     src/wizards/newvm/UINewVMWzdPage2.ui \
     src/wizards/newvm/UINewVMWzdPage3.ui \
     src/wizards/newvm/UINewVMWzdPage4.ui \
     src/wizards/newvm/UINewVMWzdPage5.ui \
-    src/wizards/newhd/UINewHDWzdPage1.ui \
-    src/wizards/newhd/UINewHDWzdPage2.ui \
-    src/wizards/newhd/UINewHDWzdPage3.ui \
-    src/wizards/newhd/UINewHDWzdPage4.ui \
+    src/wizards/newhd/UINewHDWizardPageWelcome.ui \
+    src/wizards/newhd/UINewHDWizardPageFormat.ui \
+    src/wizards/newhd/UINewHDWizardPageVariant.ui \
+    src/wizards/newhd/UINewHDWizardPageOptions.ui \
+    src/wizards/newhd/UINewHDWizardPageSummary.ui \
     src/wizards/firstrun/UIFirstRunWzdPage1.ui \
     src/wizards/firstrun/UIFirstRunWzdPage2.ui \
     src/wizards/firstrun/UIFirstRunWzdPage3.ui \

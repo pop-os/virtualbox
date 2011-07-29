@@ -1,4 +1,4 @@
-/* $Id: RTFileOpenV.cpp $ */
+/* $Id: RTFileOpenV.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
 /** @file
  * IPRT - RTFileOpenV.
  */
@@ -36,7 +36,7 @@
 #include <iprt/string.h>
 
 
-RTR3DECL(int) RTFileOpenV(PRTFILE pFile, uint32_t fOpen, const char *pszFilenameFmt, va_list va)
+RTR3DECL(int) RTFileOpenV(PRTFILE pFile, uint64_t fOpen, const char *pszFilenameFmt, va_list va)
 {
     char szFilename[RTPATH_MAX];
     size_t cchFilename = RTStrPrintfV(szFilename, sizeof(szFilename), pszFilenameFmt, va);

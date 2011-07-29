@@ -1,7 +1,7 @@
 ;
 ; INF file for installing the VirtualBox Windows guest driver
 ;
-; Copyright (C) 2006-2007 Oracle Corporation
+; Copyright (C) 2006-2011 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,10 @@
 
 [Version]
 Signature="$WINDOWS NT$"
-Class=System
-ClassGuid={4D36E97D-E325-11CE-BFC1-08002BE10318}
 Provider=%ORACLE%
-LayoutFile=layout.inf
+ClassGuid={4D36E97D-E325-11CE-BFC1-08002BE10318}
+Class=System
+DriverPackageType=PlugAndPlay
 ;edit-DriverVer=08/26/2008,2.00.0000
 ;cat CatalogFile=VBoxGuest.cat
 
@@ -25,17 +25,14 @@ LayoutFile=layout.inf
 1 = %VBoxGuest.MediaDesc%
 2 = %VBoxControl.MediaDesc%
 3 = %VBoxTray.MediaDesc%
-4 = %vbcoinst.MediaDesc%
 
 [SourceDisksFiles]
 VBoxGuest.sys = 1
 VBoxControl.exe = 2
 VBoxTray.exe = 3
-vbcoinst.dll = 4
 
 [DestinationDirs]
 DefaultDestDir = 12 ; drivers
-VBox_CoInstaller_CopyFiles = 11 ; system32
 VBoxTray_CopyFiles = 11 ; system32
 
 [Manufacturer]
@@ -71,16 +68,6 @@ ServiceBinary  = %12%\VBoxGuest.sys
 
 [VBoxTray_Add_Reg]
 HKLM, SOFTWARE\Microsoft\Windows\CurrentVersion\Run, VBoxTray, 0x00000000, %11%\VBoxTray.exe
-
-[VBoxGuest_Install.CoInstallers]
-AddReg = VBoxGuest_Install_CoInstallers_reg
-CopyFiles = VBox_CoInstaller_CopyFiles
-
-[VBox_CoInstaller_CopyFiles]
-vbcoinst.dll
-
-[VBoxGuest_Install_CoInstallers_reg]
-HKR,,CoInstallers32,0x00010000,"vbcoinst.dll,VBoxCoInstaller"
 
 [ClassInstall32]
 ; This should fix the error 0xe0000101 (The required section was not found in the INF).

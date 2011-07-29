@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -149,6 +149,15 @@ typedef struct VMCPU
         uint8_t             padding[1472];      /* multiple of 64 */
     } em;
 
+    /** IEM part. */
+    union
+    {
+#ifdef ___IEMInternal_h
+        struct IEMCPU       s;
+#endif
+        uint8_t             padding[1024];      /* multiple of 64 */
+    } iem;
+
     /** TRPM part. */
     union
     {
@@ -204,10 +213,8 @@ typedef struct VMCPU
         uint8_t             padding[64];        /* multiple of 64 */
     } dbgf;
 
-#if 0
     /** Align the following members on page boundary. */
-    uint8_t                 abAlignment2[32];
-#endif
+    uint8_t                 abAlignment2[3072];
 
     /** PGM part. */
     union
@@ -333,9 +340,13 @@ typedef struct VMCPU
 /** Same as VM_FF_PGM_SYNC_CR3 except that global pages can be skipped.
  * (NON-GLOBAL FLUSH) */
 #define VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL    RT_BIT_32(17)
-/** Check for pending TLB shootdown actions. */
+/** Check for pending TLB shootdown actions.
+ * Consumer: HWACCM
+ * @todo rename to VMCPU_FF_HWACCM_TLB_SHOOTDOWN  */
 #define VMCPU_FF_TLB_SHOOTDOWN              RT_BIT_32(18)
-/** Check for pending TLB flush action. */
+/** Check for pending TLB flush action.
+ * Consumer: HWACCM
+ * @todo rename to VMCPU_FF_HWACCM_TLB_FLUSH  */
 #define VMCPU_FF_TLB_FLUSH                  RT_BIT_32(VMCPU_FF_TLB_FLUSH_BIT)
 /** The bit number for VMCPU_FF_TLB_FLUSH. */
 #define VMCPU_FF_TLB_FLUSH_BIT              19
@@ -403,17 +414,19 @@ typedef struct VMCPU
 /** VM Flags that cause the HWACCM loops to go back to ring-3. */
 #define VM_FF_HWACCM_TO_R3_MASK                 (VM_FF_TM_VIRTUAL_SYNC | VM_FF_PGM_NEED_HANDY_PAGES | VM_FF_PGM_NO_MEMORY | VM_FF_PDM_QUEUES | VM_FF_EMT_RENDEZVOUS)
 /** VMCPU Flags that cause the HWACCM loops to go back to ring-3. */
-#define VMCPU_FF_HWACCM_TO_R3_MASK              (VMCPU_FF_TO_R3 | VMCPU_FF_TIMER)
+#define VMCPU_FF_HWACCM_TO_R3_MASK              (VMCPU_FF_TO_R3 | VMCPU_FF_TIMER | VMCPU_FF_PDM_CRITSECT)
 
 /** All the forced VM flags. */
 #define VM_FF_ALL_MASK                          (~0U)
 /** All the forced VMCPU flags. */
 #define VMCPU_FF_ALL_MASK                       (~0U)
 
-/** All the forced VM flags. */
-#define VM_FF_ALL_BUT_RAW_MASK                  (~(VM_FF_HIGH_PRIORITY_PRE_RAW_MASK) | VM_FF_PGM_NO_MEMORY)
-/** All the forced VMCPU flags. */
-#define VMCPU_FF_ALL_BUT_RAW_MASK               (~(VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK | VMCPU_FF_CSAM_PENDING_ACTION | VMCPU_FF_PDM_CRITSECT))
+/** All the forced VM flags except those related to raw-mode and hardware
+ * assisted execution. */
+#define VM_FF_ALL_REM_MASK                      (~(VM_FF_HIGH_PRIORITY_PRE_RAW_MASK) | VM_FF_PGM_NO_MEMORY)
+/** All the forced VMCPU flags except those related to raw-mode and hardware
+ * assisted execution. */
+#define VMCPU_FF_ALL_REM_MASK                   (~(VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK | VMCPU_FF_CSAM_PENDING_ACTION | VMCPU_FF_PDM_CRITSECT | VMCPU_FF_TLB_FLUSH | VMCPU_FF_TLB_SHOOTDOWN))
 
 /** @} */
 
@@ -614,6 +627,43 @@ typedef struct VMCPU
               (rc))
 #endif
 
+/** @def VMCPU_ASSERT_EMT_OR_GURU
+ * Asserts that the current thread IS the emulation thread (EMT) of the
+ * specified virtual CPU.
+ */
+#if defined(IN_RC) || defined(IN_RING0)
+# define VMCPU_ASSERT_EMT_OR_GURU(pVCpu)    Assert(   VMCPU_IS_EMT(pVCpu) \
+                                                   || pVCpu->CTX_SUFF(pVM)->enmVMState == VMSTATE_GURU_MEDITATION \
+                                                   || pVCpu->CTX_SUFF(pVM)->enmVMState == VMSTATE_GURU_MEDITATION_LS )
+#else
+# define VMCPU_ASSERT_EMT_OR_GURU(pVCpu) \
+    AssertMsg(   VMCPU_IS_EMT(pVCpu) \
+              || pVCpu->CTX_SUFF(pVM)->enmVMState == VMSTATE_GURU_MEDITATION \
+              || pVCpu->CTX_SUFF(pVM)->enmVMState == VMSTATE_GURU_MEDITATION_LS, \
+              ("Not emulation thread! Thread=%RTnthrd ThreadEMT=%RTnthrd idCpu=%#x\n", \
+               RTThreadNativeSelf(), (pVCpu)->hNativeThread, (pVCpu)->idCpu))
+#endif
+
+/** @def VMCPU_ASSERT_EMT_OR_NOT_RUNNING
+ * Asserts that the current thread IS the emulation thread (EMT) of the
+ * specified virtual CPU when the VM is running.
+ */
+#if defined(IN_RC) || defined(IN_RING0)
+# define VMCPU_ASSERT_EMT_OR_NOT_RUNNING(pVCpu) \
+    Assert(   VMCPU_IS_EMT(pVCpu) \
+           || pVCpu->CTX_SUFF(pVM)->enmVMState == VMSTATE_RUNNING \
+           || pVCpu->CTX_SUFF(pVM)->enmVMState == VMSTATE_RUNNING_LS \
+           || pVCpu->CTX_SUFF(pVM)->enmVMState == VMSTATE_RUNNING_FT )
+#else
+# define VMCPU_ASSERT_EMT_OR_NOT_RUNNING(pVCpu) \
+    AssertMsg(   VMCPU_IS_EMT(pVCpu) \
+              || pVCpu->CTX_SUFF(pVM)->enmVMState == VMSTATE_RUNNING \
+              || pVCpu->CTX_SUFF(pVM)->enmVMState == VMSTATE_RUNNING_LS \
+              || pVCpu->CTX_SUFF(pVM)->enmVMState == VMSTATE_RUNNING_FT, \
+              ("Not emulation thread! Thread=%RTnthrd ThreadEMT=%RTnthrd idCpu=%#x\n", \
+               RTThreadNativeSelf(), (pVCpu)->hNativeThread, (pVCpu)->idCpu))
+#endif
+
 /** @def VM_ASSERT_EMT0
  * Asserts that the current thread IS emulation thread \#0 (EMT0).
  */
@@ -799,12 +849,25 @@ typedef struct VM
     bool                        fUseLargePages;
     /** @} */
 
+    /** @name Debugging
+     * @{ */
+    /** Raw-mode Context VM Pointer. */
+    RCPTRTYPE(RTTRACEBUF)       hTraceBufRC;
+    /** Alignment padding */
+    uint32_t                    uPadding3;
+    /** Ring-3 Host Context VM Pointer. */
+    R3PTRTYPE(RTTRACEBUF)       hTraceBufR3;
+    /** Ring-0 Host Context VM Pointer. */
+    R0PTRTYPE(RTTRACEBUF)       hTraceBufR0;
+    /** @} */
 
-    /* padding to make gnuc put the StatQemuToGC where msc does. */
 #if HC_ARCH_BITS == 32
-    uint32_t                    padding0;
+    /** Alignment padding.. */
+    uint32_t                    uPadding4;
 #endif
 
+    /** @name Switcher statistics (remove)
+     * @{ */
     /** Profiling the total time from Qemu to GC. */
     STAMPROFILEADV              StatTotalQemuToGC;
     /** Profiling the total time from GC to Qemu. */
@@ -828,10 +891,13 @@ typedef struct VM
     STAMPROFILEADV              StatSwitcherLidt;
     STAMPROFILEADV              StatSwitcherLldt;
     STAMPROFILEADV              StatSwitcherTSS;
+    /** @} */
 
+#if HC_ARCH_BITS != 64
     /** Padding - the unions must be aligned on a 64 bytes boundary and the unions
      *  must start at the same offset on both 64-bit and 32-bit hosts. */
-    uint8_t                     abAlignment1[HC_ARCH_BITS == 32 ? 48 : 24];
+    uint8_t                     abAlignment1[HC_ARCH_BITS == 32 ? 32 : 0];
+#endif
 
     /** CPUM part. */
     union
@@ -848,7 +914,7 @@ typedef struct VM
 #ifdef ___VMMInternal_h
         struct VMM  s;
 #endif
-        uint8_t     padding[1536];      /* multiple of 64 */
+        uint8_t     padding[1600];      /* multiple of 64 */
     } vmm;
 
     /** PGM part. */
@@ -902,7 +968,7 @@ typedef struct VM
 #ifdef ___PDMInternal_h
         struct PDM s;
 #endif
-        uint8_t     padding[1600];      /* multiple of 64 */
+        uint8_t     padding[1920];      /* multiple of 64 */
     } pdm;
 
     /** IOM part. */
@@ -947,7 +1013,7 @@ typedef struct VM
 #ifdef ___TMInternal_h
         struct TM   s;
 #endif
-        uint8_t     padding[2176];      /* multiple of 64 */
+        uint8_t     padding[2432];      /* multiple of 64 */
     } tm;
 
     /** DBGF part. */
@@ -1006,8 +1072,9 @@ typedef struct VM
         uint8_t     padding[8];         /* multiple of 8 */
     } cfgm;
 
+
     /** Padding for aligning the cpu array on a page boundary. */
-    uint8_t         abAlignment2[1502];
+    uint8_t         abAlignment2[862];
 
     /* ---- end small stuff ---- */
 
@@ -1033,3 +1100,4 @@ RT_C_DECLS_END
 /** @} */
 
 #endif
+

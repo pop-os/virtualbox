@@ -1,6 +1,8 @@
 #ifndef _QEMU_ELF_H
 #define _QEMU_ELF_H
 
+#include <inttypes.h>
+
 /* 32-bit ELF base types. */
 typedef uint32_t Elf32_Addr;
 typedef uint16_t Elf32_Half;
@@ -116,6 +118,9 @@ typedef int64_t  Elf64_Sxword;
  * This is the old interim value for S/390 architecture
  */
 #define EM_S390_OLD     0xA390
+
+#define EM_MICROBLAZE      189
+#define EM_MICROBLAZE_OLD  0xBAAB
 
 /* This is the info that is needed to parse the dynamic section of the file */
 #define DT_NULL		0
@@ -239,6 +244,8 @@ typedef struct {
 #define R_386_GOTOFF	9
 #define R_386_GOTPC	10
 #define R_386_NUM	11
+/* Not a dynamic reloc, so not included in R_386_NUM.  Used in TCG.  */
+#define R_386_PC8	23
 
 #define R_MIPS_NONE		0
 #define R_MIPS_16		1
@@ -326,6 +333,9 @@ typedef struct {
 #define R_SPARC_11		31
 #define R_SPARC_64		32
 #define R_SPARC_OLO10           33
+#define R_SPARC_HH22            34
+#define R_SPARC_HM10            35
+#define R_SPARC_LM22            36
 #define R_SPARC_WDISP16		40
 #define R_SPARC_WDISP19		41
 #define R_SPARC_7		43
@@ -447,7 +457,9 @@ typedef struct {
 #define R_PPC_SECTOFF_HI	35
 #define R_PPC_SECTOFF_HA	36
 /* Keep this the last entry.  */
+#ifndef R_PPC_NUM
 #define R_PPC_NUM		37
+#endif
 
 /* ARM specific declarations */
 
@@ -638,9 +650,9 @@ typedef struct {
 #define EFA_PARISC_1_1		    0x0210 /* PA-RISC 1.1 big-endian.  */
 #define EFA_PARISC_2_0		    0x0214 /* PA-RISC 2.0 big-endian.  */
 
-/* Additional section indices.  */
+/* Additional section indeces.  */
 
-#define SHN_PARISC_ANSI_COMMON	0xff00	   /* Section for tentatively declared
+#define SHN_PARISC_ANSI_COMMON	0xff00	   /* Section for tenatively declared
 					      symbols in ANSI C.  */
 #define SHN_PARISC_HUGE_COMMON	0xff01	   /* Common blocks in huge model.  */
 
@@ -1074,7 +1086,23 @@ typedef struct elf64_shdr {
 #define	EI_CLASS	4
 #define	EI_DATA		5
 #define	EI_VERSION	6
-#define	EI_PAD		7
+#define	EI_OSABI	7
+#define	EI_PAD		8
+
+#define ELFOSABI_NONE           0       /* UNIX System V ABI */
+#define ELFOSABI_SYSV           0       /* Alias.  */
+#define ELFOSABI_HPUX           1       /* HP-UX */
+#define ELFOSABI_NETBSD         2       /* NetBSD.  */
+#define ELFOSABI_LINUX          3       /* Linux.  */
+#define ELFOSABI_SOLARIS        6       /* Sun Solaris.  */
+#define ELFOSABI_AIX            7       /* IBM AIX.  */
+#define ELFOSABI_IRIX           8       /* SGI Irix.  */
+#define ELFOSABI_FREEBSD        9       /* FreeBSD.  */
+#define ELFOSABI_TRU64          10      /* Compaq TRU64 UNIX.  */
+#define ELFOSABI_MODESTO        11      /* Novell Modesto.  */
+#define ELFOSABI_OPENBSD        12      /* OpenBSD.  */
+#define ELFOSABI_ARM            97      /* ARM */
+#define ELFOSABI_STANDALONE     255     /* Standalone (embedded) application */
 
 #define	ELFMAG0		0x7f		/* EI_MAG */
 #define	ELFMAG1		'E'
@@ -1101,6 +1129,7 @@ typedef struct elf64_shdr {
 #define NT_PRFPREG	2
 #define NT_PRPSINFO	3
 #define NT_TASKSTRUCT	4
+#define NT_AUXV		6
 #define NT_PRXFPREG     0x46e62b7f      /* copied from gdb5.1/include/elf/common.h */
 
 
@@ -1118,6 +1147,7 @@ typedef struct elf64_note {
   Elf64_Word n_type;	/* Content type */
 } Elf64_Nhdr;
 
+#ifdef ELF_CLASS
 #if ELF_CLASS == ELFCLASS32
 
 #define elfhdr		elf32_hdr
@@ -1125,6 +1155,7 @@ typedef struct elf64_note {
 #define elf_note	elf32_note
 #define elf_shdr	elf32_shdr
 #define elf_sym		elf32_sym
+#define elf_addr_t	Elf32_Off
 
 #ifdef ELF_USES_RELOCA
 # define ELF_RELOC      Elf32_Rela
@@ -1139,6 +1170,7 @@ typedef struct elf64_note {
 #define elf_note	elf64_note
 #define elf_shdr	elf64_shdr
 #define elf_sym		elf64_sym
+#define elf_addr_t	Elf64_Off
 
 #ifdef ELF_USES_RELOCA
 # define ELF_RELOC      Elf64_Rela
@@ -1157,6 +1189,8 @@ typedef struct elf64_note {
 #  define ELFW(x)  ELF64_ ## x
 # endif
 #endif
+
+#endif /* ELF_CLASS */
 
 
 #endif /* _QEMU_ELF_H */

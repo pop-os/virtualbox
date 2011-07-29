@@ -1,10 +1,10 @@
-/* $Id: tstRTCritSect.cpp $ */
+/* $Id: tstRTCritSect.cpp 36492 2011-04-01 12:53:59Z vboxsync $ */
 /** @file
  * IPRT Testcase - Critical Sections.
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,7 @@
 #ifdef TRY_WIN32_CRIT
 # include <Windows.h>
 #endif
+#define RTCRITSECT_WITHOUT_REMAPPING
 #include <iprt/critsect.h>
 
 #include <iprt/asm.h>
@@ -58,14 +59,12 @@
 #define PRTCRITSECT     LPCRITICAL_SECTION
 #define LOCKERS(sect)   (*(LONG volatile *)&(sect).LockCount)
 
-#undef RTCritSectInit
 DECLINLINE(int) RTCritSectInit(PCRITICAL_SECTION pCritSect)
 {
     InitializeCriticalSection(pCritSect);
     return VINF_SUCCESS;
 }
 
-#undef RTCritSectEnter
 DECLINLINE(int) RTCritSectEnter(PCRITICAL_SECTION pCritSect)
 {
     EnterCriticalSection(pCritSect);

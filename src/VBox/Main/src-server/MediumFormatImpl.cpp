@@ -1,11 +1,11 @@
-/* $Id: MediumFormatImpl.cpp $ */
+/* $Id: MediumFormatImpl.cpp 37587 2011-06-22 12:02:13Z vboxsync $ */
 /** @file
  *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,12 +31,14 @@ DEFINE_EMPTY_CTOR_DTOR(MediumFormat)
 
 HRESULT MediumFormat::FinalConstruct()
 {
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void MediumFormat::FinalRelease()
 {
     uninit();
+
+    BaseFinalRelease();
 }
 
 // public initializer/uninitializer for internal purposes only
@@ -63,8 +65,8 @@ HRESULT MediumFormat::init(const VDBACKENDINFO *aVDInfo)
     /* Use id for now as long as VDBACKENDINFO hasn't any extra
      * name/description field. */
     unconst(m.strName) = aVDInfo->pszBackend;
-    /* The capabilities of the backend */
-    unconst(m.capabilities) = aVDInfo->uBackendCaps;
+    /* The capabilities of the backend. Assumes 1:1 mapping! */
+    unconst(m.capabilities) = (MediumFormatCapabilities_T)aVDInfo->uBackendCaps;
     /* Save the supported file extensions in a list */
     if (aVDInfo->paFileExtensions)
     {
@@ -181,7 +183,7 @@ void MediumFormat::uninit()
     unconst(m.llProperties).clear();
     unconst(m.llFileExtensions).clear();
     unconst(m.llDeviceTypes).clear();
-    unconst(m.capabilities) = 0;
+    unconst(m.capabilities) = (MediumFormatCapabilities_T)0;
     unconst(m.strName).setNull();
     unconst(m.strId).setNull();
 }
@@ -227,10 +229,11 @@ STDMETHODIMP MediumFormat::COMGETTER(Capabilities)(ULONG *aCaps)
     /// @todo add COMGETTER(ExtendedCapabilities) when we reach the 32 bit
     /// limit (or make the argument ULONG64 after checking that COM is capable
     /// of defining enums (used to represent bit flags) that contain 64-bit
-    /// values)
-    ComAssertRet(m.capabilities == ((ULONG)m.capabilities), E_FAIL);
+    /// values). Or go away from the enum/ulong hack for bit sets and use
+    /// a safearray like elsewhere.
+    ComAssertRet((uint64_t)m.capabilities == ((ULONG)m.capabilities), E_FAIL);
 
-    *aCaps = (ULONG) m.capabilities;
+    *aCaps = (ULONG)m.capabilities;
 
     return S_OK;
 }

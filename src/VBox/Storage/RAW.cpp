@@ -1,4 +1,4 @@
-/* $Id: RAW.cpp $ */
+/* $Id: RAW.cpp 36633 2011-04-08 21:43:41Z vboxsync $ */
 /** @file
  * RawHDDCore - Raw Disk image, Core Code.
  */
@@ -1299,12 +1299,6 @@ static void rawDump(void *pBackendData)
     }
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnIsAsyncIOSupported */
-static bool rawIsAsyncIOSupported(void *pBackendData)
-{
-    return true;
-}
-
 /** @copydoc VBOXHDDBACKEND::pfnAsyncRead */
 static int rawAsyncRead(void *pBackendData, uint64_t uOffset, size_t cbRead,
                         PVDIOCTX pIoCtx, size_t *pcbActuallyRead)
@@ -1434,8 +1428,6 @@ VBOXHDDBACKEND g_RawBackend =
     NULL,
     /* pfnSetParentFilename */
     NULL,
-    /* pfnIsAsyncIOSupported */
-    rawIsAsyncIOSupported,
     /* pfnAsyncRead */
     rawAsyncRead,
     /* pfnAsyncWrite */

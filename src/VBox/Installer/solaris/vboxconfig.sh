@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: vboxconfig.sh $
+# $Id: vboxconfig.sh 38016 2011-07-18 13:06:11Z vboxsync $
 
 #
 # VirtualBox Configuration Script, Solaris host.
@@ -55,7 +55,10 @@ DESC_VBOXNET="NetAdapter"
 MOD_VBOXNET_INST=32
 
 MOD_VBOXFLT=vboxflt
-DESC_VBOXFLT="NetFilter"
+DESC_VBOXFLT="NetFilter (STREAMS)"
+
+MOD_VBOXBOW=vboxbow
+DESC_VBOXBOW="NetFilter (Crossbow)"
 
 # No Separate VBI since (3.1)
 #MOD_VBI=vbi
@@ -67,6 +70,7 @@ DESC_VBOXUSBMON="USBMonitor"
 MOD_VBOXUSB=vboxusb
 DESC_VBOXUSB="USB"
 
+UPDATEBOOTARCHIVE=0
 REMOTEINST=0
 FATALOP=fatal
 NULLOP=nulloutput
@@ -223,17 +227,17 @@ get_sysinfo()
 {
     if test "$REMOTEINST" -eq 1 || test -z "$HOST_OS_MINORVERSION" || test -z "$HOST_OS_MAJORVERSION"; then
         if test -f "$PKG_INSTALL_ROOT/etc/release"; then
-            HOST_OS_MAJORVERSION=`cat $PKG_INSTALL_ROOT/etc/release | grep "Solaris 10"`
+            HOST_OS_MAJORVERSION=`cat "$PKG_INSTALL_ROOT/etc/release" | grep "Solaris 10"`
             if test -n "$HOST_OS_MAJORVERSION"; then
                 HOST_OS_MAJORVERSION="5.10"
             else
-                HOST_OS_MAJORVERSION=`cat $PKG_INSTALL_ROOT/etc/release | egrep "snv_|oi_"`
+                HOST_OS_MAJORVERSION=`cat "$PKG_INSTALL_ROOT/etc/release" | egrep "snv_|oi_"`
                 if test -n "$HOST_OS_MAJORVERSION"; then
                     HOST_OS_MAJORVERSION="5.11"
                 fi
             fi
             if test "$HOST_OS_MAJORVERSION" != "5.10"; then
-                HOST_OS_MINORVERSION=`cat $PKG_INSTALL_ROOT/etc/release | tr ' ' '\n' | egrep 'snv_|oi_' | sed -e "s/snv_//" -e "s/oi_//" -e "s/[^0-9]//"`
+                HOST_OS_MINORVERSION=`cat "$PKG_INSTALL_ROOT/etc/release" | tr ' ' '\n' | egrep 'snv_|oi_' | sed -e "s/snv_//" -e "s/oi_//" -e "s/[^0-9]//"`
             else
                 HOST_OS_MINORVERSION=""
             fi
@@ -277,6 +281,20 @@ check_module_arch()
     fi
 }
 
+# update_boot_archive()
+# cannot fail
+update_boot_archive()
+{
+    infoprint "Updating the boot archive..."
+    if test "$REMOTEINST" -eq 0; then
+        $BIN_BOOTADM update-archive > /dev/null
+    else
+        $BIN_BOOTADM update-archive -R "$PKG_INSTALL_ROOT" > /dev/null
+    fi
+    UPDATEBOOTARCHIVE=0
+}
+
+
 # module_added(modname)
 # returns 1 if added, 0 otherwise
 module_added()
@@ -288,7 +306,7 @@ module_added()
 
     # Add a space at end of module name to make sure we have a perfect match to avoid
     # any substring matches: e.g "vboxusb" & "vboxusbmon"
-    loadentry=`cat $PKG_INSTALL_ROOT/etc/name_to_major | grep "$1 "`
+    loadentry=`cat "$PKG_INSTALL_ROOT/etc/name_to_major" | grep "$1 "`
     if test -z "$loadentry"; then
         return 1
     fi
@@ -369,6 +387,7 @@ rem_driver()
 
     module_added $modname
     if test "$?" -eq 0; then
+        UPDATEBOOTARCHIVE=1
         if test "$ISIPS" != "$IPSOP"; then
             $BIN_REMDRV $BASEDIR_OPT $modname
         else
@@ -452,6 +471,28 @@ load_module()
     fi
 }
 
+load_vboxflt()
+{
+    if test -f "$DIR_CONF/vboxflt.conf"; then
+        add_driver "$MOD_VBOXFLT" "$DESC_VBOXFLT" "$FATALOP"
+        load_module "drv/$MOD_VBOXFLT" "$DESC_VBOXFLT" "$FATALOP"
+    else
+        # For custom pkgs that optionally ship this module, let's not fail but just warn
+        warnprint "$DESC_VBOXFLT installation requested but not shipped in this package."
+    fi
+}
+
+load_vboxbow()
+{
+    if test -f "$DIR_CONF/vboxbow.conf"; then
+        add_driver "$MOD_VBOXBOW" "$DESC_VBOXBOW" "$FATALOP"
+        load_module "drv/$MOD_VBOXBOW" "$DESC_VBOXBOW" "$FATALOP"
+    else
+        # For custom pkgs that optionally ship this module, let's not fail but just warn
+        warnprint "$DESC_VBOXBOW installation requested but not shipped in this package."
+    fi
+}
+
 # install_drivers()
 # !! failure is always fatal
 install_drivers()
@@ -470,9 +511,9 @@ install_drivers()
 
     # Add vboxdrv to devlink.tab
     if test -f "$PKG_INSTALL_ROOT/etc/devlink.tab"; then
-        sed -e '/name=vboxdrv/d' $PKG_INSTALL_ROOT/etc/devlink.tab > $PKG_INSTALL_ROOT/etc/devlink.vbox
-        echo "type=ddi_pseudo;name=vboxdrv	\D" >> $PKG_INSTALL_ROOT/etc/devlink.vbox
-        mv -f $PKG_INSTALL_ROOT/etc/devlink.vbox $PKG_INSTALL_ROOT/etc/devlink.tab
+        sed -e '/name=vboxdrv/d' "$PKG_INSTALL_ROOT/etc/devlink.tab" > "$PKG_INSTALL_ROOT/etc/devlink.vbox"
+        echo "type=ddi_pseudo;name=vboxdrv	\D" >> "$PKG_INSTALL_ROOT/etc/devlink.vbox"
+        mv -f "$PKG_INSTALL_ROOT/etc/devlink.vbox" "$PKG_INSTALL_ROOT/etc/devlink.tab"
     else
         errorprint "Missing $PKG_INSTALL_ROOT/etc/devlink.tab, aborting install"
         return 1
@@ -493,23 +534,46 @@ install_drivers()
         load_module "drv/$MOD_VBOXNET" "$DESC_VBOXNET" "$FATALOP"
     fi
 
-    # Load VBoxNetFlt
-    if test -f "$DIR_CONF/vboxflt.conf"; then
-        add_driver "$MOD_VBOXFLT" "$DESC_VBOXFLT" "$FATALOP"
-        load_module "drv/$MOD_VBOXFLT" "$DESC_VBOXFLT" "$FATALOP"
+    # If both vboxinst_vboxbow and vboxinst_vboxflt exist, bail.
+    if test -f "$PKG_INSTALL_ROOT/etc/vboxinst_vboxflt" && test -f "$PKG_INSTALL_ROOT/etc/vboxinst_vboxbow"; then
+        errorprint "Force-install files '$PKG_INSTALL_ROOT/etc/vboxinst_vboxflt' and '$PKG_INSTALL_ROOT/etc/vboxinst_vboxbow' both exist."
+        errorprint "Cannot load $DESC_VBOXFLT and $DESC_VBOXBOW drivers at the same time."
+        return 1
+    fi
+
+    # If the force-install files exists, install blindly
+    if test -f "$PKG_INSTALL_ROOT/etc/vboxinst_vboxflt"; then
+        load_vboxflt
+    elif test -f "$PKG_INSTALL_ROOT/etc/vboxinst_vboxbow"; then
+        infoprint "here"
+        load_vboxbow
+    else
+        # If host is S10 or S11 (< snv_159) or vboxbow isn't shipped, then load vboxflt
+        if test "$HOST_OS_MAJORVERSION" = "5.10" || test "$HOST_OS_MINORVERSION" -lt 159 || test ! -f "$DIR_CONF/vboxbow.conf"; then
+            load_vboxflt
+        else
+            # For S11 snv_159+ load vboxbow
+            load_vboxbow
+        fi
     fi
 
     # Load VBoxUSBMon, VBoxUSB
     if test -f "$DIR_CONF/vboxusbmon.conf" && test "$HOST_OS_MAJORVERSION" != "5.10"; then
         # For VirtualBox 3.1 the new USB code requires Nevada > 123
         if test "$HOST_OS_MINORVERSION" -gt 123; then
+            # Add a group "vboxuser" (8-character limit) for USB access.
+            # All users which need host USB-passthrough support will have to be added to this group.
+            groupadd vboxuser >/dev/null 2>&1
+
             add_driver "$MOD_VBOXUSBMON" "$DESC_VBOXUSBMON" "$FATALOP" "not-$NULLOP" "'* 0666 root sys'"
             load_module "drv/$MOD_VBOXUSBMON" "$DESC_VBOXUSBMON" "$FATALOP"
 
+            chown root:vboxuser "/devices/pseudo/vboxusbmon@0:vboxusbmon"
+
             # Add vboxusbmon to devlink.tab
-            sed -e '/name=vboxusbmon/d' $PKG_INSTALL_ROOT/etc/devlink.tab > $PKG_INSTALL_ROOT/etc/devlink.vbox
-            echo "type=ddi_pseudo;name=vboxusbmon	\D" >> $PKG_INSTALL_ROOT/etc/devlink.vbox
-            mv -f $PKG_INSTALL_ROOT/etc/devlink.vbox $PKG_INSTALL_ROOT/etc/devlink.tab
+            sed -e '/name=vboxusbmon/d' "$PKG_INSTALL_ROOT/etc/devlink.tab" > "$PKG_INSTALL_ROOT/etc/devlink.vbox"
+            echo "type=ddi_pseudo;name=vboxusbmon	\D" >> "$PKG_INSTALL_ROOT/etc/devlink.vbox"
+            mv -f "$PKG_INSTALL_ROOT/etc/devlink.vbox" "$PKG_INSTALL_ROOT/etc/devlink.tab"
 
             # Create the device link for non-remote installs
             if test "$REMOTEINST" -eq 0; then
@@ -547,18 +611,18 @@ remove_drivers()
     fatal=$1
 
     # Remove vboxdrv from devlink.tab
-    if test -f $PKG_INSTALL_ROOT/etc/devlink.tab; then
-        devlinkfound=`cat $PKG_INSTALL_ROOT/etc/devlink.tab | grep vboxdrv`
+    if test -f "$PKG_INSTALL_ROOT/etc/devlink.tab"; then
+        devlinkfound=`cat "$PKG_INSTALL_ROOT/etc/devlink.tab" | grep vboxdrv`
         if test -n "$devlinkfound"; then
-            sed -e '/name=vboxdrv/d' $PKG_INSTALL_ROOT/etc/devlink.tab > $PKG_INSTALL_ROOT/etc/devlink.vbox
-            mv -f $PKG_INSTALL_ROOT/etc/devlink.vbox $PKG_INSTALL_ROOT/etc/devlink.tab
+            sed -e '/name=vboxdrv/d' "$PKG_INSTALL_ROOT/etc/devlink.tab" > "$PKG_INSTALL_ROOT/etc/devlink.vbox"
+            mv -f "$PKG_INSTALL_ROOT/etc/devlink.vbox" "$PKG_INSTALL_ROOT/etc/devlink.tab"
         fi
 
         # Remove vboxusbmon from devlink.tab
-        devlinkfound=`cat $PKG_INSTALL_ROOT/etc/devlink.tab | grep vboxusbmon`
+        devlinkfound=`cat "$PKG_INSTALL_ROOT/etc/devlink.tab" | grep vboxusbmon`
         if test -n "$devlinkfound"; then
-            sed -e '/name=vboxusbmon/d' $PKG_INSTALL_ROOT/etc/devlink.tab > $PKG_INSTALL_ROOT/etc/devlink.vbox
-            mv -f $PKG_INSTALL_ROOT/etc/devlink.vbox $PKG_INSTALL_ROOT/etc/devlink.tab
+            sed -e '/name=vboxusbmon/d' "$PKG_INSTALL_ROOT/etc/devlink.tab" > "$PKG_INSTALL_ROOT/etc/devlink.vbox"
+            mv -f "$PKG_INSTALL_ROOT/etc/devlink.vbox" "$PKG_INSTALL_ROOT/etc/devlink.tab"
         fi
     fi
 
@@ -571,6 +635,9 @@ remove_drivers()
     unload_module "$MOD_VBOXFLT" "$DESC_VBOXFLT" "$fatal"
     rem_driver "$MOD_VBOXFLT" "$DESC_VBOXFLT" "$fatal"
 
+    unload_module "$MOD_VBOXBOW" "$DESC_VBOXBOW" "$fatal"
+    rem_driver "$MOD_VBOXBOW" "$DESC_VBOXBOW" "$fatal"
+
     unload_module "$MOD_VBOXNET" "$DESC_VBOXNET" "$fatal"
     rem_driver "$MOD_VBOXNET" "$DESC_VBOXNET" "$fatal"
 
@@ -582,14 +649,14 @@ remove_drivers()
 
     # remove devlinks
     if test -h "$PKG_INSTALL_ROOT/dev/vboxdrv" || test -f "$PKG_INSTALL_ROOT/dev/vboxdrv"; then
-        rm -f $PKG_INSTALL_ROOT/dev/vboxdrv
+        rm -f "$PKG_INSTALL_ROOT/dev/vboxdrv"
     fi
     if test -h "$PKG_INSTALL_ROOT/dev/vboxusbmon" || test -f "$PKG_INSTALL_ROOT/dev/vboxusbmon"; then
-        rm -f $PKG_INSTALL_ROOT/dev/vboxusbmon
+        rm -f "$PKG_INSTALL_ROOT/dev/vboxusbmon"
     fi
 
     # unpatch nwam/dhcpagent fix
-    nwamfile=$PKG_INSTALL_ROOT/etc/nwam/llp
+    nwamfile="$PKG_INSTALL_ROOT/etc/nwam/llp"
     nwambackupfile=$nwamfile.vbox
     if test -f "$nwamfile"; then
         sed -e '/vboxnet/d' $nwamfile > $nwambackupfile
@@ -597,11 +664,19 @@ remove_drivers()
     fi
 
     # remove netmask configuration
-    nmaskfile=$PKG_INSTALL_ROOT/etc/netmasks
+    if test -h "$PKG_INSTALL_ROOT/etc/netmasks"; then
+        nmaskfile="$PKG_INSTALL_ROOT/etc/inet/netmasks"
+    else
+        nmaskfile="$PKG_INSTALL_ROOT/etc/netmasks"
+    fi
     nmaskbackupfile=$nmaskfile.vbox
     if test -f "$nmaskfile"; then
         sed -e '/#VirtualBox_SectionStart/,/#VirtualBox_SectionEnd/d' $nmaskfile > $nmaskbackupfile
         mv -f $nmaskbackupfile $nmaskfile
+    fi
+
+    if test $UPDATEBOOTARCHIVE -eq 1; then
+        update_boot_archive
     fi
 
     return 0
@@ -664,6 +739,28 @@ stop_process()
 }
 
 
+# stop_service(servicename, shortFMRI-suitable for grep, full FMRI)
+# failure: non fatal
+stop_service()
+{
+    if test -z "$1" || test -z "$2" || test -z "$3"; then
+        errorprint "missing argument to stop_service()"
+        exit 1
+    fi
+    servicefound=`$BIN_SVCS -a | grep "$2" 2>/dev/null`
+    if test ! -z "$servicefound"; then
+        $BIN_SVCADM disable -s $3
+        # Don't delete the manifest, this is handled by the manifest class action
+        # $BIN_SVCCFG delete $3
+        if test "$?" -eq 0; then
+            subprint "Unloaded: $1"
+        else
+            subprint "Unloading: $1  ...ERROR(S)."
+        fi
+    fi
+}
+
+
 # cleanup_install([fatal])
 # failure: depends on [fatal]
 cleanup_install()
@@ -675,45 +772,10 @@ cleanup_install()
         return 0
     fi
 
-    # stop webservice
-    servicefound=`$BIN_SVCS -a | grep "virtualbox/webservice" 2>/dev/null`
-    if test ! -z "$servicefound"; then
-        $BIN_SVCADM disable -s svc:/application/virtualbox/webservice:default
-        # Don't delete the manifest, this is handled by the manifest class action
-        # $BIN_SVCCFG delete svc:/application/virtualbox/webservice:default
-        if test "$?" -eq 0; then
-            subprint "Unloaded: Web service"
-        else
-            subprint "Unloading: Web service  ...ERROR(S)."
-        fi
-    fi
-
-    # stop balloonctrl
-    servicefound=`$BIN_SVCS -a | grep "virtualbox/balloonctrl" 2>/dev/null`
-    if test ! -z "$servicefound"; then
-        $BIN_SVCADM disable -s svc:/application/virtualbox/balloonctrl:default
-        # Don't delete the manifest, this is handled by the manifest class action
-        # $BIN_SVCCFG delete svc:/application/virtualbox/balloonctrl:default
-        if test "$?" -eq 0; then
-            subprint "Unloaded: Balloon control service"
-        else
-            subprint "Unloading: Balloon control service  ...ERROR(S)."
-        fi
-    fi
-
-
-    # stop zoneaccess service
-    servicefound=`$BIN_SVCS -a | grep "virtualbox/zoneaccess" 2>/dev/null`
-    if test ! -z "$servicefound"; then
-        $BIN_SVCADM disable -s svc:/application/virtualbox/zoneaccess:default
-        # Don't delete the manifest, this is handled by the manifest class action
-        # $BIN_SVCCFG delete svc:/application/virtualbox/zoneaccess
-        if test "$?" -eq 0; then
-            subprint "Unloaded: Zone access service"
-        else
-            subprint "Unloading: Zone access service  ...ERROR(S)."
-        fi
-    fi
+    # stop the services
+    stop_service "Web service" "virtualbox/webservice" "svc:/application/virtualbox/webservice:default"
+    stop_service "Balloon control service" "virtualbox/balloonctrl" "svc:/application/virtualbox/balloonctrl:default"
+    stop_service "Zone access service" "virtualbox/zoneaccess" "svc:/application/virtualbox/zoneaccess:default"
 
     # unplumb all vboxnet instances for non-remote installs
     inst=0
@@ -754,14 +816,14 @@ cleanup_install()
 # !! failure is always fatal
 postinstall()
 {
-    infoprint "Detected Solaris $HOST_OS_MAJORVERSION Version $HOST_OS_MINORVERSION" 
+    infoprint "Detected Solaris $HOST_OS_MAJORVERSION Version $HOST_OS_MINORVERSION"
     infoprint "Loading VirtualBox kernel modules..."
     install_drivers
 
     if test "$?" -eq 0; then
         if test -f "$DIR_CONF/vboxnet.conf"; then
             # nwam/dhcpagent fix
-            nwamfile=$PKG_INSTALL_ROOT/etc/nwam/llp
+            nwamfile="$PKG_INSTALL_ROOT/etc/nwam/llp"
             nwambackupfile=$nwamfile.vbox
             if test -f "$nwamfile"; then
                 sed -e '/vboxnet/d' $nwamfile > $nwambackupfile
@@ -779,15 +841,35 @@ postinstall()
 
             # plumb and configure vboxnet0 for non-remote installs
             if test "$REMOTEINST" -eq 0; then
-                $BIN_IFCONFIG vboxnet0 plumb up
+                $BIN_IFCONFIG vboxnet0 plumb
+                $BIN_IFCONFIG vboxnet0 up
                 if test "$?" -eq 0; then
                     $BIN_IFCONFIG vboxnet0 192.168.56.1 netmask 255.255.255.0 up
 
+                    # /etc/netmasks is a symlink, older installers replaced this with
+                    # a copy of the actual file, repair that behaviour here.
+                    recreatelink=0
+                    if test -h "$PKG_INSTALL_ROOT/etc/netmasks"; then
+                        nmaskfile="$PKG_INSTALL_ROOT/etc/inet/netmasks"
+                    else
+                        nmaskfile="$PKG_INSTALL_ROOT/etc/netmasks"
+                        recreatelink=1
+                    fi
+
                     # add the netmask to stay persistent across host reboots
-                    nmaskfile=$PKG_INSTALL_ROOT/etc/netmasks
                     nmaskbackupfile=$nmaskfile.vbox
                     if test -f $nmaskfile; then
                         sed -e '/#VirtualBox_SectionStart/,/#VirtualBox_SectionEnd/d' $nmaskfile > $nmaskbackupfile
+
+                        if test $recreatelink -eq 1; then
+                            # Check after removing our settings if /etc/netmasks is identifcal to /etc/inet/netmasks 
+                            anydiff=`diff $nmaskbackupfile "$PKG_INSTALL_ROOT/etc/inet/netmasks"`
+                            if test ! -z "$anydiff"; then
+                                # User may have some custom settings in /etc/netmasks, don't overwrite /etc/netmasks!
+                                recreatelink=2
+                            fi
+                        fi                        
+
                         echo "#VirtualBox_SectionStart" >> $nmaskbackupfile
                         inst=0
                         networkn=56
@@ -798,6 +880,18 @@ postinstall()
                         done
                         echo "#VirtualBox_SectionEnd" >> $nmaskbackupfile
                         mv -f $nmaskbackupfile $nmaskfile
+
+                        # Recreate /etc/netmasks as a link if necessary
+                        if test $recreatelink -eq 1; then
+                            cp -f "$PKG_INSTALL_ROOT/etc/netmasks" "$PKG_INSTALL_ROOT/etc/inet/netmasks"
+                            ln -sf ./inet/netmasks "$PKG_INSTALL_ROOT/etc/netmasks"
+                        elif test $recreatelink -eq 2; then
+                            warnprint "/etc/netmasks is a symlink (to /etc/inet/netmasks) that older"
+                            warnprint "VirtualBox installers incorrectly overwrote. Now the contents"
+                            warnprint "of /etc/netmasks and /etc/inet/netmasks differ, therefore "
+                            warnprint "VirtualBox will not attempt to overwrite /etc/netmasks as a"
+                            warnprint "symlink to /etc/inet/netmasks. Please resolve this manually."
+                        fi
                     fi
                 else
                     # Should this be fatal?
@@ -806,22 +900,20 @@ postinstall()
             fi
         fi
 
-        if test -f $PKG_INSTALL_ROOT/var/svc/manifest/application/virtualbox/virtualbox-webservice.xml || test -f $PKG_INSTALL_ROOT/var/svc/manifest/application/virtualbox/virtualbox-zoneaccess.xml; then
+        if test -f "$PKG_INSTALL_ROOT/var/svc/manifest/application/virtualbox/virtualbox-webservice.xml" || test -f "$PKG_INSTALL_ROOT/var/svc/manifest/application/virtualbox/virtualbox-zoneaccess.xml"; then
             infoprint "Configuring services..."
             if test "$REMOTEINST" -eq 1; then
                 subprint "Skipped for targetted installs."
-            fi
-        fi
-
-        # Enable Zone access service for non-remote installs, other services (Webservice) are delivered disabled by the manifest class action
-        if test "$REMOTEINST" -eq 0; then
-            servicefound=`$BIN_SVCS -a | grep "virtualbox/zoneaccess" | grep "disabled" 2>/dev/null`
-            if test ! -z "$servicefound"; then
-                /usr/sbin/svcadm enable -s svc:/application/virtualbox/zoneaccess
-                if test "$?" -eq 0; then
-                    subprint "Loaded: Zone access service"
-                else
-                    subprint "Loading Zone access service  ...FAILED."
+            else
+                # Enable Zone access service for non-remote installs, other services (Webservice) are delivered disabled by the manifest class action
+                servicefound=`$BIN_SVCS -a | grep "virtualbox/zoneaccess" | grep "disabled" 2>/dev/null`
+                if test ! -z "$servicefound"; then
+                    /usr/sbin/svcadm enable -s svc:/application/virtualbox/zoneaccess
+                    if test "$?" -eq 0; then
+                        subprint "Loaded: Zone access service"
+                    else
+                        subprint "Loading Zone access service  ...FAILED."
+                    fi
                 fi
             fi
         fi
@@ -829,8 +921,8 @@ postinstall()
         # Update mime and desktop databases to get the right menu entries
         # and icons. There is still some delay until the GUI picks it up,
         # but that cannot be helped.
-        if test -d $PKG_INSTALL_ROOT/usr/share/icons; then
-            infoprint "Installing MIME types and icons"
+        if test -d "$PKG_INSTALL_ROOT/usr/share/icons"; then
+            infoprint "Installing MIME types and icons..."
             if test "$REMOTEINST" -eq 0; then
                 /usr/bin/update-mime-database /usr/share/mime >/dev/null 2>&1
                 /usr/bin/update-desktop-database -q 2>/dev/null
@@ -878,14 +970,8 @@ postinstall()
             warnprint "Skipped installing Python bindings. Run, as root, 'vboxapisetup.py install' manually from the booted system."
         fi
 
-        # Update boot archive
-        infoprint "Updating the boot archive..."
-        if test "$REMOTEINST" -eq 0; then
-            $BIN_BOOTADM update-archive > /dev/null
-        else
-            $BIN_BOOTADM update-archive -R $PKG_INSTALL_ROOT > /dev/null
-        fi
-
+        update_boot_archive
+    
         return 0
     else
         errorprint "Failed to install drivers"
@@ -971,6 +1057,7 @@ case "$drvop" in
     ;;
 --setupdrivers)
     remove_drivers "$fatal"
+    infoprint "Installing VirtualBox drivers:"
     install_drivers
     ;;
 *)

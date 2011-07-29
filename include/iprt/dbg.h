@@ -1,4 +1,4 @@
-/* $Id: dbg.h $ */
+/* $Id: dbg.h 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - Debugging Routines.
  */
@@ -592,6 +592,22 @@ RTDECL(int) RTDbgAs(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGLI
  *                          set to UINT32_MAX. Optional.
  */
 RTDECL(int) RTDbgAsLineAdd(RTDBGAS hDbgAs, const char *pszFile, uint32_t uLineNo, RTUINTPTR Addr, uint32_t *piOrdinal);
+
+
+/**
+ * Query a line number by address.
+ *
+ * @returns IPRT status code. See RTDbgModSymbolAddrA for more specific ones.
+ * @retval  VERR_INVALID_HANDLE if hDbgAs is invalid.
+ * @retval  VERR_NOT_FOUND if the address couldn't be mapped to a module.
+ *
+ * @param   hDbgAs          The address space handle.
+ * @param   Addr            The address which closest symbol is requested.
+ * @param   poffDisp        Where to return the distance between the line
+ *                          number and address.
+ * @param   pLine           Where to return the line number information.
+ */
+RTDECL(int) RTDbgAsLineByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGLINE pLine);
 
 /**
  * Query a line number by address.

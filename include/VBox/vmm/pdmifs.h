@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1418,7 +1418,7 @@ typedef struct PDMIMEDIASTATIC
 
 
 
-/** Pointer to a asynchronous block notify interface. */
+/** Pointer to an asynchronous block notify interface. */
 typedef struct PDMIBLOCKASYNCPORT *PPDMIBLOCKASYNCPORT;
 /**
  * Asynchronous block notify interface (up).
@@ -1427,7 +1427,7 @@ typedef struct PDMIBLOCKASYNCPORT *PPDMIBLOCKASYNCPORT;
 typedef struct PDMIBLOCKASYNCPORT
 {
     /**
-     * Notify completion of a asynchronous transfer.
+     * Notify completion of an asynchronous transfer.
      *
      * @returns VBox status code.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
@@ -1442,7 +1442,7 @@ typedef struct PDMIBLOCKASYNCPORT
 
 
 
-/** Pointer to a asynchronous block interface. */
+/** Pointer to an asynchronous block interface. */
 typedef struct PDMIBLOCKASYNC *PPDMIBLOCKASYNC;
 /**
  * Asynchronous block interface (down).
@@ -1493,7 +1493,7 @@ typedef struct PDMIBLOCKASYNC
 #define PDMIBLOCKASYNC_IID                      "78302d0d-4978-498c-be3c-8989cb5ff5c8"
 
 
-/** Pointer to a asynchronous notification interface. */
+/** Pointer to an asynchronous notification interface. */
 typedef struct PDMIMEDIAASYNCPORT *PPDMIMEDIAASYNCPORT;
 /**
  * Asynchronous version of the media interface (up).
@@ -1516,7 +1516,7 @@ typedef struct PDMIMEDIAASYNCPORT
 #define PDMIMEDIAASYNCPORT_IID                  "22d38853-901f-4a71-9670-4d9da6e82317"
 
 
-/** Pointer to a asynchronous media interface. */
+/** Pointer to an asynchronous media interface. */
 typedef struct PDMIMEDIAASYNC *PPDMIMEDIAASYNC;
 /**
  * Asynchronous version of PDMIMEDIA (down).
@@ -1970,7 +1970,7 @@ typedef struct PDMIVMMDEVPORT
      * @param   pxAbs           Pointer of result value, can be NULL
      * @param   pyAbs           Pointer of result value, can be NULL
      */
-    DECLR3CALLBACKMEMBER(int, pfnQueryAbsoluteMouse,(PPDMIVMMDEVPORT pInterface, uint32_t *pxAbs, uint32_t *pyAbs));
+    DECLR3CALLBACKMEMBER(int, pfnQueryAbsoluteMouse,(PPDMIVMMDEVPORT pInterface, int32_t *pxAbs, int32_t *pyAbs));
 
     /**
      * Set the new absolute mouse position in pixels
@@ -1980,7 +1980,7 @@ typedef struct PDMIVMMDEVPORT
      * @param   xabs            New absolute X position
      * @param   yAbs            New absolute Y position
      */
-    DECLR3CALLBACKMEMBER(int, pfnSetAbsoluteMouse,(PPDMIVMMDEVPORT pInterface, uint32_t xAbs, uint32_t yAbs));
+    DECLR3CALLBACKMEMBER(int, pfnSetAbsoluteMouse,(PPDMIVMMDEVPORT pInterface, int32_t xAbs, int32_t yAbs));
 
     /**
      * Return the current mouse capability flags
@@ -2641,6 +2641,27 @@ typedef struct PDMILEDCONNECTORS
 #define PDMILEDCONNECTORS_IID                   "8ed63568-82a7-4193-b57b-db8085ac4495"
 
 
+/** Pointer to a Media Notification interface. */
+typedef struct PDMIMEDIANOTIFY  *PPDMIMEDIANOTIFY;
+/**
+ * Interface for exporting Medium eject information (up).  No interface pair.
+ */
+typedef struct PDMIMEDIANOTIFY
+{
+    /**
+     * Signals that the medium was ejected.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   iLUN            The unit which had the medium ejected.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnEjected,(PPDMIMEDIANOTIFY pInterface, unsigned iLUN));
+
+} PDMIMEDIANOTIFY;
+/** PDMIMEDIANOTIFY interface ID. */
+#define PDMIMEDIANOTIFY_IID                     "fc22d53e-feb1-4a9c-b9fb-0a990a6ab288"
+
+
 /** The special status unit number */
 #define PDM_STATUS_LUN      999
 
@@ -2866,14 +2887,36 @@ typedef struct PDMIDISPLAYVBVACALLBACKS
      *                   s/pfnVHWACommandCompleteAsynch/pfnVHWACommandCompleteAsync/;
      *               fi
      */
-    DECLR3CALLBACKMEMBER(int, pfnVHWACommandCompleteAsynch, (PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd));
+    DECLR3CALLBACKMEMBER(int, pfnVHWACommandCompleteAsynch, (PPDMIDISPLAYVBVACALLBACKS pInterface,
+                                                             PVBOXVHWACMD pCmd));
 
-    DECLR3CALLBACKMEMBER(int, pfnCrHgsmiCommandCompleteAsync, (PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVDMACMD_CHROMIUM_CMD pCmd, int rc));
+    DECLR3CALLBACKMEMBER(int, pfnCrHgsmiCommandCompleteAsync, (PPDMIDISPLAYVBVACALLBACKS pInterface,
+                                                               PVBOXVDMACMD_CHROMIUM_CMD pCmd, int rc));
 
-    DECLR3CALLBACKMEMBER(int, pfnCrHgsmiControlCompleteAsync, (PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVDMACMD_CHROMIUM_CTL pCmd, int rc));
+    DECLR3CALLBACKMEMBER(int, pfnCrHgsmiControlCompleteAsync, (PPDMIDISPLAYVBVACALLBACKS pInterface,
+                                                               PVBOXVDMACMD_CHROMIUM_CTL pCmd, int rc));
 } PDMIDISPLAYVBVACALLBACKS;
 /** PDMIDISPLAYVBVACALLBACKS  */
-#define PDMIDISPLAYVBVACALLBACKS_IID     "b78b81d2-c821-4e66-96ff-dbafa76343a5"
+#define PDMIDISPLAYVBVACALLBACKS_IID            "b78b81d2-c821-4e66-96ff-dbafa76343a5"
+
+/** Pointer to a PCI raw connector interface. */
+typedef struct PDMIPCIRAWCONNECTOR *PPDMIPCIRAWCONNECTOR;
+/**
+ * PCI raw connector interface (up).
+ */
+typedef struct PDMIPCIRAWCONNECTOR
+{
+
+    /**
+     *
+     */
+    DECLR3CALLBACKMEMBER(int, pfnDeviceConstructComplete, (PPDMIPCIRAWCONNECTOR pInterface, const char *pcszName,
+                                                           uint32_t uHostPciAddress, uint32_t uGuestPciAddress,
+                                                           int rc));
+
+} PDMIPCIRAWCONNECTOR;
+/** PDMIPCIRAWCONNECTOR interface ID. */
+#define PDMIPCIRAWCONNECTOR_IID                 "14aa9c6c-8869-4782-9dfc-910071a6aebf"
 
 /** @} */
 

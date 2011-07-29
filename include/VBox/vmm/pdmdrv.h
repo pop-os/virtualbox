@@ -337,6 +337,8 @@ typedef PDMDRVREG const *PCPDMDRVREG;
 #define PDM_DRVREG_CLASS_STREAM         RT_BIT(14)
 /** SCSI driver. */
 #define PDM_DRVREG_CLASS_SCSI           RT_BIT(15)
+/** Generic raw PCI device driver. */
+#define PDM_DRVREG_CLASS_PCIRAW         RT_BIT(16)
 /** @} */
 
 
@@ -434,10 +436,10 @@ typedef struct PDMDRVINS
         PPDMDRVINS pDrvInsTypeCheck = (pDrvIns); NOREF(pDrvInsTypeCheck); \
         AssertLogRelMsgReturn(PDM_VERSION_ARE_COMPATIBLE((pDrvIns)->u32Version, PDM_DRVINS_VERSION), \
                               ("DrvIns=%#x  mine=%#x\n", (pDrvIns)->u32Version, PDM_DRVINS_VERSION), \
-                              VERR_VERSION_MISMATCH); \
+                              VERR_PDM_DRVINS_VERSION_MISMATCH); \
         AssertLogRelMsgReturn(PDM_VERSION_ARE_COMPATIBLE((pDrvIns)->pHlpR3->u32Version, PDM_DRVHLPR3_VERSION), \
                               ("DrvHlp=%#x  mine=%#x\n", (pDrvIns)->pHlpR3->u32Version, PDM_DRVHLPR3_VERSION), \
-                              VERR_VERSION_MISMATCH); \
+                              VERR_PDM_DRVHLPR3_VERSION_MISMATCH); \
     } while (0)
 
 /**
@@ -1142,7 +1144,7 @@ typedef struct PDMDRVHLPR3
                                                PFNPDMTHREADWAKEUPDRV pfnWakeup, size_t cbStack, RTTHREADTYPE enmType, const char *pszName));
 
     /**
-     * Creates a async completion template for a driver instance.
+     * Creates an async completion template for a driver instance.
      *
      * The template is used when creating new completion tasks.
      *

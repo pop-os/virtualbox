@@ -1,4 +1,4 @@
-/* $Id: alloc-r0drv-freebsd.c $ */
+/* $Id: alloc-r0drv-freebsd.c 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation, Ring-0 Driver, FreeBSD.
  */
@@ -51,7 +51,7 @@ MALLOC_DEFINE(M_IPRTHEAP, "iprtheap", "IPRT - heap");
 MALLOC_DEFINE(M_IPRTCONT, "iprtcont", "IPRT - contiguous");
 
 
-int rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr)
+DECLHIDDEN(int) rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr)
 {
     size_t      cbAllocated = cb;
     PRTMEMHDR   pHdr        = NULL;
@@ -121,7 +121,7 @@ int rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr)
 }
 
 
-void rtR0MemFree(PRTMEMHDR pHdr)
+DECLHIDDEN(void) rtR0MemFree(PRTMEMHDR pHdr)
 {
     pHdr->u32Magic += 1;
 

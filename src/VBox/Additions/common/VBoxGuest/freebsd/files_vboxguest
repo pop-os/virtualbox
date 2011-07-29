@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: files_vboxguest $
+# $Id: files_vboxguest 37955 2011-07-14 12:23:02Z vboxsync $
 ## @file
 # Shared file between Makefile.kmk and export_modules
 #
@@ -57,13 +57,13 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/include/iprt/path.h=>include/iprt/path.h \
     ${PATH_ROOT}/include/iprt/once.h=>include/iprt/once.h \
     ${PATH_ROOT}/include/iprt/critsect.h=>include/iprt/critsect.h \
+    ${PATH_ROOT}/include/iprt/x86.h=>include/iprt/x86.h \
     ${PATH_ROOT}/include/iprt/nocrt/limits.h=>include/iprt/nocrt/limits.h \
     ${PATH_ROOT}/include/VBox/cdefs.h=>include/VBox/cdefs.h \
     ${PATH_ROOT}/include/VBox/err.h=>include/VBox/err.h \
     ${PATH_ROOT}/include/VBox/log.h=>include/VBox/log.h \
     ${PATH_ROOT}/include/VBox/param.h=>include/VBox/param.h \
     ${PATH_ROOT}/include/VBox/types.h=>include/VBox/types.h \
-    ${PATH_ROOT}/include/VBox/x86.h=>include/VBox/x86.h \
     ${PATH_ROOT}/include/VBox/ostypes.h=>include/VBox/ostypes.h \
     ${PATH_ROOT}/include/VBox/VMMDev.h=>include/VBox/VMMDev.h \
     ${PATH_ROOT}/include/VBox/VMMDev2.h=>include/VBox/VMMDev2.h \
@@ -156,6 +156,7 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/src/VBox/Runtime/generic/RTSemEventMultiWait-2-ex-generic.cpp=>generic/RTSemEventMultiWait-2-ex-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/generic/RTSemEventMultiWaitNoResume-2-ex-generic.cpp=>generic/RTSemEventMultiWaitNoResume-2-ex-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/generic/RTTimerCreate-generic.cpp=>generic/RTTimerCreate-generic.c \
+    ${PATH_ROOT}/src/VBox/Runtime/generic/errvars-generic.cpp=>generic/errvars-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/generic/timer-generic.cpp=>generic/timer-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/generic/mppresent-generic.cpp=>generic/mppresent-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/alloc-r0drv.cpp=>r0drv/alloc-r0drv.c \

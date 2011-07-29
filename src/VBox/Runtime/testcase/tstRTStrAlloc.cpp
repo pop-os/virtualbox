@@ -1,4 +1,4 @@
-/* $Id: tstRTStrAlloc.cpp $ */
+/* $Id: tstRTStrAlloc.cpp 33285 2010-10-21 09:41:51Z vboxsync $ */
 /** @file
  * IPRT Testcase - String allocation APIs and related manipulators.
  */

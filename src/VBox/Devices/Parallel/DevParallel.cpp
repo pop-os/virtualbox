@@ -1,4 +1,4 @@
-/* $Id: DevParallel.cpp $ */
+/* $Id: DevParallel.cpp 37466 2011-06-15 12:44:16Z vboxsync $ */
 /** @file
  * DevParallel - Parallel (Port) Device Emulation.
  *
@@ -748,7 +748,7 @@ static DECLCALLBACK(int) parallelConstruct(PPDMDEVINS pDevIns,
      * Initialize critical section and event semaphore.
      * This must of course be done before attaching drivers or anything else which can call us back..
      */
-    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->CritSect, RT_SRC_POS, "Parallel#%d", iInstance);
+    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->CritSect, RT_SRC_POS, "Parallel#%u", iInstance);
     if (RT_FAILURE(rc))
         return rc;
 

@@ -1,4 +1,4 @@
-/* $Id: path2-posix.cpp $ */
+/* $Id: path2-posix.cpp 34230 2010-11-22 10:06:48Z vboxsync $ */
 /** @file
  * IPRT - Path Manipulation, POSIX, Part 2 - RTPathQueryInfo.
  */

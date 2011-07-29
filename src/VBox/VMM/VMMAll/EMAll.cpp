@@ -1,4 +1,4 @@
-/* $Id: EMAll.cpp $ */
+/* $Id: EMAll.cpp 37731 2011-07-01 13:51:57Z vboxsync $ */
 /** @file
  * EM - Execution Monitor(/Manager) - All contexts
  */
@@ -659,7 +659,7 @@ static int emInterpretIncDec(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXC
                 pParam1 = emConvertToFlatAddr(pVM, pRegFrame, pDis, &pDis->param1, pParam1);
 #ifdef IN_RC
                 /* Safety check (in theory it could cross a page boundary and fault there though) */
-                AssertReturn(pParam1 == pvFault, VERR_EM_INTERPRETER);
+                EM_ASSERT_FAULT_RETURN(pParam1 == pvFault, VERR_EM_INTERPRETER);
 #endif
                 rc = emRamRead(pVM, pVCpu, pRegFrame,  &valpar1, pParam1, param1.size);
                 if (RT_FAILURE(rc))
@@ -2665,7 +2665,7 @@ static const char *emMSRtoString(uint32_t uMsr)
     case MSR_IA32_TSC:
         return "MSR_IA32_TSC";
     case MSR_IA32_MISC_ENABLE:
-        return "Unsupported MSR_IA32_MISC_ENABLE";
+        return "MSR_IA32_MISC_ENABLE";
     case MSR_IA32_MTRR_CAP:
         return "Unsupported MSR_IA32_MTRR_CAP";
     case MSR_IA32_MCP_CAP:
@@ -3109,7 +3109,8 @@ VMMDECL(void) EMRemLock(PVM pVM)
     if (!PDMCritSectIsInitialized(&pVM->em.s.CritSectREM))
         return;     /* early init */
 
-    Assert(!PGMIsLockOwner(pVM) && !IOMIsLockOwner(pVM));
+    Assert(!PGMIsLockOwner(pVM));
+    Assert(!IOMIsLockOwner(pVM));
     int rc = PDMCritSectEnter(&pVM->em.s.CritSectREM, VERR_SEM_BUSY);
     AssertMsg(rc == VINF_SUCCESS, ("%Rrc\n", rc));
 }
@@ -3135,6 +3136,9 @@ VMMDECL(void) EMRemUnlock(PVM pVM)
  */
 VMMDECL(bool) EMRemIsLockOwner(PVM pVM)
 {
+    if (!PDMCritSectIsInitialized(&pVM->em.s.CritSectREM))
+        return true;   /* early init */
+
     return PDMCritSectIsOwner(&pVM->em.s.CritSectREM);
 }
 
@@ -3144,8 +3148,11 @@ VMMDECL(bool) EMRemIsLockOwner(PVM pVM)
  * @returns VBox status code
  * @param   pVM         The VM to operate on.
  */
-VMMDECL(int) EMTryEnterRemLock(PVM pVM)
+VMMDECL(int) EMRemTryLock(PVM pVM)
 {
+    if (!PDMCritSectIsInitialized(&pVM->em.s.CritSectREM))
+        return VINF_SUCCESS; /* early init */
+
     return PDMCritSectTryEnter(&pVM->em.s.CritSectREM);
 }
 

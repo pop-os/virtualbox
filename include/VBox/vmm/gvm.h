@@ -1,4 +1,4 @@
-/* $Id: gvm.h $ */
+/* $Id: gvm.h 37242 2011-05-27 16:17:12Z vboxsync $ */
 /** @file
  * GVM - The Global VM Data.
  */
@@ -99,8 +99,18 @@ typedef struct GVM
 #ifdef ___GMMR0Internal_h
         struct GMMPERVM     s;
 #endif
-        uint8_t             padding[256];
+        uint8_t             padding[512];
     } gmm;
+
+    /** The RAWPCIVM per vm data. */
+    union
+    {
+#ifdef ___VBox_rawpci_h
+        struct RAWPCIPERVM s;
+#endif
+        uint8_t     padding[64];
+    } rawpci;
+
 
     /** GVMCPU array for the configured number of virtual CPUs. */
     GVMCPU          aCpus[1];

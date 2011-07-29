@@ -1,4 +1,4 @@
-/* $Id: dummy.cpp $ */
+/* $Id: dummy.cpp 35477 2011-01-11 11:20:35Z vboxsync $ */
 /** @file
  * dummy.cpp - file to make kBuild happy when building a resource only DLL.
  */

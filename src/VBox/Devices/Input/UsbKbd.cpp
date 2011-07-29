@@ -1,4 +1,4 @@
-/* $Id: UsbKbd.cpp $ */
+/* $Id: UsbKbd.cpp 37795 2011-07-06 10:28:24Z vboxsync $ */
 /** @file
  * UsbKbd - USB Human Interface Device Emulation, Keyboard.
  */
@@ -42,6 +42,7 @@
 
 /** @name USB HID specific descriptor types
  * @{ */
+#define DT_IF_HID_DESCRIPTOR        0x21
 #define DT_IF_HID_REPORT            0x22
 /** @} */
 
@@ -317,8 +318,9 @@ static const VUSBDESCCONFIGEX g_UsbHidConfigDesc =
         /* .bmAttributes = */       RT_BIT(7),
         /* .MaxPower = */           50 /* 100mA */
     },
-    NULL,
-    &g_aUsbHidInterfaces[0]
+    NULL,                           /* pvMore */
+    &g_aUsbHidInterfaces[0],
+    NULL                            /* pvOriginal */
 };
 
 static const VUSBDESCDEVICE g_UsbHidDeviceDesc =
@@ -604,11 +606,11 @@ static int usbHidCompleteOk(PUSBHID pThis, PVUSBURB pUrb, size_t cbData)
 
 /**
  * Reset worker for usbHidUsbReset, usbHidUsbSetConfiguration and
- * usbHidUrbHandleDefaultPipe.
+ * usbHidHandleDefaultPipe.
  *
  * @returns VBox status code.
  * @param   pThis               The HID instance.
- * @param   pUrb                Set when usbHidUrbHandleDefaultPipe is the
+ * @param   pUrb                Set when usbHidHandleDefaultPipe is the
  *                              caller.
  * @param   fSetConfig          Set when usbHidUsbSetConfiguration is the
  *                              caller.
@@ -903,7 +905,7 @@ static DECLCALLBACK(int) usbHidKeyboardPutEvent(PPDMIKEYBOARDPORT pInterface, ui
         u8HidCode = u32Usage & 0xFF;
         AssertReturn(u8HidCode <= VBOX_USB_MAX_USAGE_CODE, VERR_INTERNAL_ERROR);
 
-        LogRelFlowFunc(("key %s: 0x%x->0x%x\n",
+        LogFlowFunc(("key %s: 0x%x->0x%x\n",
                         fKeyDown ? "down" : "up", u8KeyCode, u8HidCode));
 
         if (fKeyDown)
@@ -1083,7 +1085,20 @@ static int usbHidHandleDefaultPipe(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
                     {
                         switch (pSetup->wValue >> 8)
                         {
+                            case DT_IF_HID_DESCRIPTOR:
+                            {
+                                uint32_t    cbCopy;
+
+                                /* Returned data is written after the setup message. */
+                                cbCopy = pUrb->cbData - sizeof(*pSetup);
+                                cbCopy = RT_MIN(cbCopy, sizeof(g_UsbHidIfHidDesc));
+                                Log(("usbHidKbd: GET_DESCRIPTOR DT_IF_HID_DESCRIPTOR wValue=%#x wIndex=%#x cbCopy=%#x\n", pSetup->wValue, pSetup->wIndex, cbCopy));
+                                memcpy(&pUrb->abData[sizeof(*pSetup)], &g_UsbHidIfHidDesc, cbCopy);
+                                return usbHidCompleteOk(pThis, pUrb, cbCopy + sizeof(*pSetup));
+                            }
+
                             case DT_IF_HID_REPORT:
+                            {
                                 uint32_t    cbCopy;
 
                                 /* Returned data is written after the setup message. */
@@ -1092,6 +1107,8 @@ static int usbHidHandleDefaultPipe(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
                                 Log(("usbHid: GET_DESCRIPTOR DT_IF_HID_REPORT wValue=%#x wIndex=%#x cbCopy=%#x\n", pSetup->wValue, pSetup->wIndex, cbCopy));
                                 memcpy(&pUrb->abData[sizeof(*pSetup)], &g_UsbHidReportDesc, cbCopy);
                                 return usbHidCompleteOk(pThis, pUrb, cbCopy + sizeof(*pSetup));
+                            }
+
                             default:
                                 Log(("usbHid: GET_DESCRIPTOR, huh? wValue=%#x wIndex=%#x\n", pSetup->wValue, pSetup->wIndex));
                                 break;
@@ -1225,7 +1242,7 @@ static int usbHidHandleDefaultPipe(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
 
 
 /**
- * @copydoc PDMUSBREG::pfnQueue
+ * @copydoc PDMUSBREG::pfnUrbQueue
  */
 static DECLCALLBACK(int) usbHidQueue(PPDMUSBINS pUsbIns, PVUSBURB pUrb)
 {
@@ -1407,7 +1424,7 @@ static DECLCALLBACK(int) usbHidConstruct(PPDMUSBINS pUsbIns, int iInstance, PCFG
     /*
      * Attach the keyboard driver.
      */
-    rc = pUsbIns->pHlpR3->pfnDriverAttach(pUsbIns, 0 /*iLun*/, &pThis->Lun0.IBase, &pThis->Lun0.pDrvBase, "Keyboard Port");
+    rc = PDMUsbHlpDriverAttach(pUsbIns, 0 /*iLun*/, &pThis->Lun0.IBase, &pThis->Lun0.pDrvBase, "Keyboard Port");
     if (RT_FAILURE(rc))
         return PDMUsbHlpVMSetError(pUsbIns, rc, RT_SRC_POS, N_("HID failed to attach keyboard driver"));
 
@@ -1464,7 +1481,7 @@ const PDMUSBREG g_UsbHidKbd =
     NULL,
     /* pfnUsbReset */
     usbHidUsbReset,
-    /* pfnUsbGetCachedDescriptors */
+    /* pfnUsbGetDescriptorCache */
     usbHidUsbGetDescriptorCache,
     /* pfnUsbSetConfiguration */
     usbHidUsbSetConfiguration,
@@ -1474,7 +1491,7 @@ const PDMUSBREG g_UsbHidKbd =
     usbHidUsbClearHaltedEndpoint,
     /* pfnUrbNew */
     NULL/*usbHidUrbNew*/,
-    /* pfnQueue */
+    /* pfnUrbQueue */
     usbHidQueue,
     /* pfnUrbCancel */
     usbHidUrbCancel,

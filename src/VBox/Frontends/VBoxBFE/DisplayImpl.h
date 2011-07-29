@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.h $ */
+/* $Id: DisplayImpl.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Declaration of Display class

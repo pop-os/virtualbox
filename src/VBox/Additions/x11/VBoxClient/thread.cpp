@@ -16,7 +16,6 @@
  */
 
 #include <VBox/log.h>
-#include <iostream>   /* For std::exception */
 
 #include "thread.h"
 
@@ -56,11 +55,7 @@ VBoxGuestThread::~VBoxGuestThread(void)
     if (NIL_RTTHREAD != mSelf)
     {
         LogRelThisFunc(("Warning!  Stopping thread %s, as it is still running!\n", mName));
-        try
-        {
-            stop(2000, 0);
-        }
-        catch(...) {}
+        stop(2000, 0);
     }
     LogRelFlowFunc(("returning\n"));
 }
@@ -97,20 +92,7 @@ int VBoxGuestThread::threadFunction(RTTHREAD self, void *pvUser)
     LogRelFlowFunc(("\n"));
     PSELF pSelf = reinterpret_cast<PSELF>(pvUser);
     pSelf->mRunning = true;
-    try
-    {
-        rc = pSelf->mFunction->threadFunction(pSelf);
-    }
-    catch (const std::exception &e)
-    {
-        LogRelFunc(("Caught exception in thread: %s\n", e.what()));
-        rc = VERR_UNRESOLVED_ERROR;
-    }
-    catch (...)
-    {
-        LogRelFunc(("Caught unknown exception in thread.\n"));
-        rc = VERR_UNRESOLVED_ERROR;
-    }
+    rc = pSelf->mFunction->threadFunction(pSelf);
     pSelf->mRunning = false;
     LogRelFlowFunc(("returning %Rrc\n", rc));
     return rc;

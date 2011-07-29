@@ -1,4 +1,4 @@
-/* $Id: MouseImpl.cpp $ */
+/* $Id: MouseImpl.cpp 36161 2011-03-04 10:24:58Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -40,6 +40,17 @@ enum
 };
 /** @} */
 
+/** @name Absolute mouse reporting range
+ * @{ */
+enum
+{
+    /** Lower end */
+    MOUSE_RANGE_LOWER = 0,
+    /** Higher end */
+    MOUSE_RANGE_UPPER = 0xFFFF
+};
+/** @} */
+
 /**
  * Mouse driver instance data.
  */
@@ -78,12 +89,13 @@ HRESULT Mouse::FinalConstruct()
     mcLastAbsY = 0x8000;
     mfLastButtons = 0;
     mfVMMDevGuestCaps = 0;
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void Mouse::FinalRelease()
 {
     uninit();
+    BaseFinalRelease();
 }
 
 // public methods only for internal purposes
@@ -309,9 +321,13 @@ HRESULT Mouse::reportRelEventToMouseDev(int32_t dx, int32_t dy, int32_t dz,
  *
  * @returns   COM status code
  */
-HRESULT Mouse::reportAbsEventToMouseDev(uint32_t mouseXAbs, uint32_t mouseYAbs,
+HRESULT Mouse::reportAbsEventToMouseDev(int32_t mouseXAbs, int32_t mouseYAbs,
                                         int32_t dz, int32_t dw, uint32_t fButtons)
 {
+    if (mouseXAbs < MOUSE_RANGE_LOWER || mouseXAbs > MOUSE_RANGE_UPPER)
+        return S_OK;
+    if (mouseYAbs < MOUSE_RANGE_LOWER || mouseYAbs > MOUSE_RANGE_UPPER)
+        return S_OK;
     if (   mouseXAbs != mcLastAbsX || mouseYAbs != mcLastAbsY
         || dz || dw || fButtons != mfLastButtons)
     {
@@ -347,7 +363,7 @@ HRESULT Mouse::reportAbsEventToMouseDev(uint32_t mouseXAbs, uint32_t mouseYAbs,
  *
  * @returns   COM status code
  */
-HRESULT Mouse::reportAbsEventToVMMDev(uint32_t mouseXAbs, uint32_t mouseYAbs)
+HRESULT Mouse::reportAbsEventToVMMDev(int32_t mouseXAbs, int32_t mouseYAbs)
 {
     VMMDev *pVMMDev = mParent->getVMMDev();
     ComAssertRet(pVMMDev, E_FAIL);
@@ -373,7 +389,7 @@ HRESULT Mouse::reportAbsEventToVMMDev(uint32_t mouseXAbs, uint32_t mouseYAbs)
  *
  * @returns   COM status code
  */
-HRESULT Mouse::reportAbsEvent(uint32_t mouseXAbs, uint32_t mouseYAbs,
+HRESULT Mouse::reportAbsEvent(int32_t mouseXAbs, int32_t mouseYAbs,
                               int32_t dz, int32_t dw, uint32_t fButtons,
                               bool fUsesVMMDevEvent)
 {
@@ -403,6 +419,26 @@ HRESULT Mouse::reportAbsEvent(uint32_t mouseXAbs, uint32_t mouseYAbs,
     return rc;
 }
 
+#ifndef VBOXBFE_WITHOUT_COM
+void Mouse::fireMouseEvent(bool fAbsolute, LONG x, LONG y, LONG dz, LONG dw, LONG Buttons)
+{
+    /* If mouse button is pressed, we generate new event, to avoid reusable events coalescing and thus
+       dropping key press events */
+    if (Buttons != 0)
+    {
+        VBoxEventDesc evDesc;
+        evDesc.init(mEventSource, VBoxEventType_OnGuestMouse, fAbsolute, x, y, dz, dw, Buttons);
+        evDesc.fire(0);
+    }
+    else
+    {
+        mMouseEvent.reinit(VBoxEventType_OnGuestMouse, fAbsolute, x, y, dz, dw, Buttons);
+        mMouseEvent.fire(0);
+    }
+}
+#endif
+
+
 /**
  * Send a relative mouse event to the guest.
  * @note the VMMDev capability change is so that the guest knows we are sending
@@ -431,18 +467,16 @@ STDMETHODIMP Mouse::PutMouseEvent(LONG dx, LONG dy, LONG dz, LONG dw, LONG butto
     updateVMMDevMouseCaps(0, VMMDEV_MOUSE_HOST_WANTS_ABSOLUTE);
     rc = reportRelEventToMouseDev(dx, dy, dz, dw, fButtons);
 
-#ifndef VBOXBFE_WITHOUT_COM
-    mMouseEvent.reinit(VBoxEventType_OnGuestMouse, false, dx, dy, dz, dw, fButtons);
-    mMouseEvent.fire(0);
-#endif
+    fireMouseEvent(false, dx, dy, dz, dw, buttonState);
 
     return rc;
 }
 
 /**
  * Convert an (X, Y) value pair in screen co-ordinates (starting from 1) to a
- * value from 0 to 0xffff.  Sets the optional validity value to false if the
- * pair is not on an active screen and to true otherwise.
+ * value from MOUSE_RANGE_LOWER to MOUSE_RANGE_UPPER.  Sets the optional
+ * validity value to false if the pair is not on an active screen and to true
+ * otherwise.
  *
  * @returns   COM status value
  */
@@ -466,17 +500,18 @@ HRESULT Mouse::convertDisplayRes(LONG x, LONG y, int32_t *pcX, int32_t *pcY,
         if (FAILED(rc))
             return rc;
 
-        *pcX = displayWidth ? ((x - 1) * 0xFFFF) / displayWidth: 0;
-        *pcY = displayHeight ? ((y - 1) * 0xFFFF) / displayHeight: 0;
+        *pcX = displayWidth ? ((x - 1) * MOUSE_RANGE_UPPER) / (LONG) displayWidth: 0;
+        *pcY = displayHeight ? ((y - 1) * MOUSE_RANGE_UPPER) / (LONG) displayHeight: 0;
     }
     else
     {
         int32_t x1, y1, x2, y2;
         /* Takes the display lock */
         pDisplay->getFramebufferDimensions(&x1, &y1, &x2, &y2);
-        *pcX = x1 != x2 ? (x - 1 - x1) * 0xFFFF / (x2 - x1) : 0;
-        *pcY = y1 != y2 ? (y - 1 - y1) * 0xFFFF / (y2 - y1) : 0;
-        if (*pcX < 0 || *pcX > 0xFFFF || *pcY < 0 || *pcY > 0xFFFF)
+        *pcX = x1 != x2 ? (x - 1 - x1) * MOUSE_RANGE_UPPER / (x2 - x1) : 0;
+        *pcY = y1 != y2 ? (y - 1 - y1) * MOUSE_RANGE_UPPER / (y2 - y1) : 0;
+        if (   *pcX < MOUSE_RANGE_LOWER || *pcX > MOUSE_RANGE_UPPER
+            || *pcY < MOUSE_RANGE_LOWER || *pcY > MOUSE_RANGE_UPPER)
             if (pfValid)
                 *pfValid = false;
     }
@@ -518,13 +553,6 @@ STDMETHODIMP Mouse::PutMouseEventAbsolute(LONG x, LONG y, LONG dz, LONG dw,
     HRESULT rc = convertDisplayRes(x, y, &mouseXAbs, &mouseYAbs, &fValid);
     if (FAILED(rc)) return rc;
 
-    /** @todo multi-monitor Windows guests expect this to be unbounded.
-     * Understand the issues involved and fix for the rest. */
-    /* if (mouseXAbs > 0xffff)
-        mouseXAbs = mcLastAbsX;
-    if (mouseYAbs > 0xffff)
-        mouseYAbs = mcLastAbsY; */
-
     fButtons = mouseButtonsToPDM(buttonState);
     /* If we are doing old-style (IRQ-less) absolute reporting to the VMM
      * device then make sure the guest is aware of it, so that it knows to
@@ -536,11 +564,7 @@ STDMETHODIMP Mouse::PutMouseEventAbsolute(LONG x, LONG y, LONG dz, LONG dw,
                             RT_BOOL(  mfVMMDevGuestCaps
                                     & VMMDEV_MOUSE_NEW_PROTOCOL));
 
-#ifndef VBOXBFE_WITHOUT_COM
-        mMouseEvent.reinit(VBoxEventType_OnGuestMouse, true, x, y, dz, dw,
-                           fButtons);
-        mMouseEvent.fire(0);
-#endif
+        fireMouseEvent(true, x, y, dz, dw, buttonState);
     }
 
     return rc;

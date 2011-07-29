@@ -1,4 +1,4 @@
-/* $Id: crservice.cpp $ */
+/* $Id: crservice.cpp 37433 2011-06-14 11:44:45Z vboxsync $ */
 
 /** @file
  * VBox crOpenGL: Host service entry points.
@@ -57,6 +57,12 @@
 #endif
 
 #include <VBox/com/errorprint.h>
+#include <iprt/thread.h>
+#include <iprt/critsect.h>
+#include <iprt/semaphore.h>
+#include <iprt/asm.h>
+
+#include "cr_mem.h"
 
 PVBOXHGCMSVCHELPERS g_pHelpers;
 static IConsole* g_pConsole = NULL;
@@ -72,6 +78,7 @@ static uint8_t* g_pvVRamBase;
 
 static const char* gszVBoxOGLSSMMagic = "***OpenGL state data***";
 
+/* Used to process guest calls exceeding maximum allowed HGCM call size in a sequence of smaller calls */
 typedef struct _CRVBOXSVCBUFFER_t {
     uint32_t uiId;
     uint32_t uiSize;
@@ -82,6 +89,168 @@ typedef struct _CRVBOXSVCBUFFER_t {
 static CRVBOXSVCBUFFER_t *g_pCRVBoxSVCBuffers = NULL;
 static uint32_t g_CRVBoxSVCBufferID = 0;
 
+/* svcPresentFBO related data */
+typedef struct _CRVBOXSVCPRESENTFBOCMD_t {
+    void *pData;
+    int32_t screenId, x, y, w, h;
+    _CRVBOXSVCPRESENTFBOCMD_t *pNext;
+} CRVBOXSVCPRESENTFBOCMD_t, *PCRVBOXSVCPRESENTFBOCMD_t;
+
+typedef struct _CRVBOXSVCPRESENTFBO_t {
+    PCRVBOXSVCPRESENTFBOCMD_t pQueueHead, pQueueTail;   /* Head/Tail of FIFO cmds queue */
+    RTCRITSECT                hQueueLock;       /* Queue lock */
+    RTTHREAD                  hWorkerThread;    /* Worker thread */
+    bool volatile             bShutdownWorker;  /* Shutdown flag */
+    RTSEMEVENT                hEventProcess;    /* Signalled when worker thread should process data or exit */
+} CRVBOXSVCPRESENTFBO_t;
+
+static CRVBOXSVCPRESENTFBO_t g_SvcPresentFBO;
+
+/* Schedule a call to a separate worker thread to avoid deadlock on EMT thread when the screen configuration changes
+   and we're processing crServerPresentFBO caused by guest application command.
+   To avoid unnecessary memcpy, worker thread frees the data passed.
+*/
+static DECLCALLBACK(void) svcPresentFBO(void *data, int32_t screenId, int32_t x, int32_t y, uint32_t w, uint32_t h)
+{
+    PCRVBOXSVCPRESENTFBOCMD_t pCmd;
+
+    pCmd = (PCRVBOXSVCPRESENTFBOCMD_t) RTMemAlloc(sizeof(CRVBOXSVCPRESENTFBOCMD_t));
+    if (!pCmd)
+    {
+        LogRel(("SHARED_CROPENGL svcPresentFBO: not enough memory (%d)\n", sizeof(CRVBOXSVCPRESENTFBOCMD_t)));
+        return;
+    }
+    pCmd->pData = data;
+    pCmd->screenId = screenId;
+    pCmd->x = x;
+    pCmd->y = y;
+    pCmd->w = w;
+    pCmd->h = h;
+    pCmd->pNext = NULL;
+
+    RTCritSectEnter(&g_SvcPresentFBO.hQueueLock);
+
+    if (g_SvcPresentFBO.pQueueTail)
+    {
+        g_SvcPresentFBO.pQueueTail->pNext = pCmd;
+    }
+    else
+    {
+        Assert(!g_SvcPresentFBO.pQueueHead);
+        g_SvcPresentFBO.pQueueHead = pCmd;
+    }
+    g_SvcPresentFBO.pQueueTail = pCmd;
+
+    RTCritSectLeave(&g_SvcPresentFBO.hQueueLock);
+
+    RTSemEventSignal(g_SvcPresentFBO.hEventProcess);
+}
+
+static DECLCALLBACK(int) svcPresentFBOWorkerThreadProc(RTTHREAD ThreadSelf, void *pvUser)
+{
+    int rc = VINF_SUCCESS;
+    PCRVBOXSVCPRESENTFBOCMD_t pCmd;
+
+    Log(("SHARED_CROPENGL svcPresentFBOWorkerThreadProc started\n"));
+
+    for (;;)
+    {
+        rc = RTSemEventWait(g_SvcPresentFBO.hEventProcess, RT_INDEFINITE_WAIT);
+        AssertRCReturn(rc, rc);
+
+        if (g_SvcPresentFBO.bShutdownWorker)
+        {
+            break;
+        }
+
+        // @todo use critsect only to fetch the list and update the g_SvcPresentFBO's pQueueHead and pQueueTail.
+        rc = RTCritSectEnter(&g_SvcPresentFBO.hQueueLock);
+        AssertRCReturn(rc, rc);
+
+        pCmd = g_SvcPresentFBO.pQueueHead;
+        while (pCmd)
+        {
+            ComPtr<IDisplay> pDisplay;
+
+            /*remove from queue*/
+            g_SvcPresentFBO.pQueueHead = pCmd->pNext;
+            if (!g_SvcPresentFBO.pQueueHead)
+            {
+                g_SvcPresentFBO.pQueueTail = NULL;
+            }
+
+            CHECK_ERROR_RET(g_pConsole, COMGETTER(Display)(pDisplay.asOutParam()), rc);
+
+            RTCritSectLeave(&g_SvcPresentFBO.hQueueLock);
+
+            CHECK_ERROR_RET(pDisplay, DrawToScreen(pCmd->screenId, (BYTE*)pCmd->pData, pCmd->x, pCmd->y, pCmd->w, pCmd->h), rc);
+
+            crFree(pCmd->pData);
+            RTMemFree(pCmd);
+
+            rc = RTCritSectEnter(&g_SvcPresentFBO.hQueueLock);
+            AssertRCReturn(rc, rc);
+            pCmd = g_SvcPresentFBO.pQueueHead;
+        }
+
+        RTCritSectLeave(&g_SvcPresentFBO.hQueueLock);
+    }
+
+    Log(("SHARED_CROPENGL svcPresentFBOWorkerThreadProc finished\n"));
+
+    return rc;
+}
+
+static int svcPresentFBOInit(void)
+{
+    int rc = VINF_SUCCESS;
+
+    g_SvcPresentFBO.pQueueHead = NULL;
+    g_SvcPresentFBO.pQueueTail = NULL;
+    g_SvcPresentFBO.bShutdownWorker = false;
+
+    rc = RTCritSectInit(&g_SvcPresentFBO.hQueueLock);
+    AssertRCReturn(rc, rc);
+
+    rc = RTSemEventCreate(&g_SvcPresentFBO.hEventProcess);
+    AssertRCReturn(rc, rc);
+
+    rc = RTThreadCreate(&g_SvcPresentFBO.hWorkerThread, svcPresentFBOWorkerThreadProc, NULL, 0,
+                        RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "OpenGLWorker");
+    AssertRCReturn(rc, rc);
+
+    crVBoxServerSetPresentFBOCB(svcPresentFBO);
+
+    return rc;
+}
+
+static int svcPresentFBOTearDown(void)
+{
+    int rc = VINF_SUCCESS;
+    PCRVBOXSVCPRESENTFBOCMD_t pQueue, pTmp;
+
+    ASMAtomicWriteBool(&g_SvcPresentFBO.bShutdownWorker, true);
+    RTSemEventSignal(g_SvcPresentFBO.hEventProcess);
+    rc = RTThreadWait(g_SvcPresentFBO.hWorkerThread, 5000, NULL);
+    AssertRCReturn(rc, rc);
+
+    RTCritSectDelete(&g_SvcPresentFBO.hQueueLock);
+    RTSemEventDestroy(g_SvcPresentFBO.hEventProcess);
+
+    pQueue = g_SvcPresentFBO.pQueueHead;
+    while (pQueue)
+    {
+        pTmp = pQueue->pNext;
+        crFree(pQueue->pData);
+        RTMemFree(pQueue);
+        pQueue = pTmp;
+    }
+    g_SvcPresentFBO.pQueueHead = NULL;
+    g_SvcPresentFBO.pQueueTail = NULL;
+
+    return rc;
+}
+
 static DECLCALLBACK(int) svcUnload (void *)
 {
     int rc = VINF_SUCCESS;
@@ -89,6 +258,8 @@ static DECLCALLBACK(int) svcUnload (void *)
     Log(("SHARED_CROPENGL svcUnload\n"));
 
     crVBoxServerTearDown();
+
+    svcPresentFBOTearDown();
 
     return rc;
 }
@@ -304,38 +475,6 @@ static void svcClientVersionUnsupported(uint32_t minor, uint32_t major)
     }
 }
 
-static DECLCALLBACK(void) svcPresentFBO(void *data, int32_t screenId, int32_t x, int32_t y, uint32_t w, uint32_t h)
-{
-#if 0
-    ComPtr<IDisplay> pDisplay;
-    BYTE *data;
-    int i,j;
-    CHECK_ERROR(g_pConsole, COMGETTER(Display)(pDisplay.asOutParam()));
-
-    data = (BYTE*) RTMemTmpAllocZ(100*100*4);
-
-    for (i=0; i<100; i+=2)
-    {
-        for (j=0; j<100; ++j)
-        {
-            *(data+i*100*4+j*4+0) = 0xFF;
-            *(data+i*100*4+j*4+1) = 0xFF;
-            *(data+i*100*4+j*4+2) = 0xFF;
-            *(data+i*100*4+j*4+3) = 0xFF;
-        }
-    }
-
-    CHECK_ERROR(pDisplay, DrawToScreen(screenId, data, 0, 0, 100, 100));
-
-    RTMemTmpFree(data);
-#endif
-    HRESULT rc;
-    ComPtr<IDisplay> pDisplay;
-
-    CHECK_ERROR(g_pConsole, COMGETTER(Display)(pDisplay.asOutParam()));
-    CHECK_ERROR(pDisplay, DrawToScreen(screenId, (BYTE*)data, x, y, w, h));
-}
-
 static CRVBOXSVCBUFFER_t* svcGetBuffer(uint32_t iBuffer, uint32_t cbBufferSize)
 {
     CRVBOXSVCBUFFER_t* pBuffer;
@@ -349,8 +488,14 @@ static CRVBOXSVCBUFFER_t* svcGetBuffer(uint32_t iBuffer, uint32_t cbBufferSize)
             {
                 if (pBuffer->uiSize!=cbBufferSize)
                 {
-                    LogRel(("SHARED_CROPENGL svcGetBuffer: invalid buffer(%i) size %i instead of %i\n",
-                            iBuffer, pBuffer->uiSize, cbBufferSize));
+                    static int shown=0;
+
+                    if (shown<20)
+                    {
+                        shown++;
+                        LogRel(("SHARED_CROPENGL svcGetBuffer: invalid buffer(%i) size %i instead of %i\n",
+                                iBuffer, pBuffer->uiSize, cbBufferSize));
+                    }
                     return NULL;
                 }
                 return pBuffer;
@@ -1091,7 +1236,7 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
                     {
                         CHECK_ERROR_RET(pDisplay, GetFramebuffer(i, pFramebuffer.asOutParam(), &xo, &yo), rc);
 
-                        if (!pDisplay)
+                        if (!pFramebuffer)
                         {
                             rc = crVBoxServerUnmapScreen(i);
                             AssertRCReturn(rc, rc);
@@ -1108,6 +1253,7 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
                     }
 
                     g_pConsole = pConsole;
+
                     rc = VINF_SUCCESS;
                 }
             }
@@ -1217,6 +1363,56 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
             }
             break;
         }
+        case SHCRGL_HOST_FN_SET_OUTPUT_REDIRECT:
+        {
+            /*
+             * OutputRedirect.
+             * Note: the service calls OutputRedirect callbacks directly
+             *       and they must not block. If asynchronous processing is needed,
+             *       the callback provider must organize this.
+             */
+            Log(("svcCall: SHCRGL_HOST_FN_SET_OUTPUT_REDIRECT\n"));
+
+            /* Verify parameter count and types. */
+            if (cParms != SHCRGL_CPARMS_SET_OUTPUT_REDIRECT)
+            {
+                rc = VERR_INVALID_PARAMETER;
+            }
+            else if (paParms[0].type != VBOX_HGCM_SVC_PARM_PTR)
+            {
+                rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                /* Fetch parameters. */
+                H3DOUTPUTREDIRECT *pOutputRedirect = (H3DOUTPUTREDIRECT *)paParms[0].u.pointer.addr;
+                uint32_t cbData = paParms[0].u.pointer.size;
+
+                /* Verify parameters values. */
+                if (cbData != sizeof (H3DOUTPUTREDIRECT))
+                {
+                    rc = VERR_INVALID_PARAMETER;
+                }
+                else /* Execute the function. */
+                {
+                    rc = crVBoxServerSetOffscreenRendering(GL_TRUE);
+
+                    if (RT_SUCCESS(rc))
+                    {
+                        CROutputRedirect outputRedirect;
+                        outputRedirect.pvContext = pOutputRedirect->pvContext;
+                        outputRedirect.CRORBegin = pOutputRedirect->H3DORBegin;
+                        outputRedirect.CRORGeometry = pOutputRedirect->H3DORGeometry;
+                        outputRedirect.CRORVisibleRegion = pOutputRedirect->H3DORVisibleRegion;
+                        outputRedirect.CRORFrame = pOutputRedirect->H3DORFrame;
+                        outputRedirect.CROREnd = pOutputRedirect->H3DOREnd;
+                        outputRedirect.CRORContextProperty = pOutputRedirect->H3DORContextProperty;
+                        rc = crVBoxServerOutputRedirectSet(&outputRedirect);
+                    }
+                }
+            }
+            break;
+        }
         default:
             rc = VERR_NOT_IMPLEMENTED;
             break;
@@ -1263,7 +1459,7 @@ extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad (VBOXHGCMSVCFNTABLE *pt
             if (!crVBoxServerInit())
                 return VERR_NOT_SUPPORTED;
 
-            crVBoxServerSetPresentFBOCB(svcPresentFBO);
+            rc = svcPresentFBOInit();
         }
     }
 

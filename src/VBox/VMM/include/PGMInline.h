@@ -1,4 +1,4 @@
-/* $Id: PGMInline.h $ */
+/* $Id: PGMInline.h 37354 2011-06-07 15:05:32Z vboxsync $ */
 /** @file
  * PGM - Inlined functions.
  */
@@ -45,39 +45,45 @@
  * @{
  */
 
-/** @todo Split out all the inline stuff into a separate file.  Then we can
- *        include it later when VM and VMCPU are defined and so avoid all that
- *        &pVM->pgm.s and &pVCpu->pgm.s stuff.  It also chops ~1600 lines off
- *        this file and will make it somewhat easier to navigate... */
-
 /**
  * Gets the PGMRAMRANGE structure for a guest page.
  *
  * @returns Pointer to the RAM range on success.
  * @returns NULL on a VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS condition.
  *
- * @param   pPGM        PGM handle.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      The GC physical address.
  */
-DECLINLINE(PPGMRAMRANGE) pgmPhysGetRange(PPGM pPGM, RTGCPHYS GCPhys)
+DECLINLINE(PPGMRAMRANGE) pgmPhysGetRange(PVM pVM, RTGCPHYS GCPhys)
 {
-    /*
-     * Optimize for the first range.
-     */
-    PPGMRAMRANGE pRam = pPGM->CTX_SUFF(pRamRanges);
-    RTGCPHYS off = GCPhys - pRam->GCPhys;
-    if (RT_UNLIKELY(off >= pRam->cb))
-    {
-        do
-        {
-            pRam = pRam->CTX_SUFF(pNext);
-            if (RT_UNLIKELY(!pRam))
-                break;
-            off = GCPhys - pRam->GCPhys;
-        } while (off >= pRam->cb);
-    }
+    PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(apRamRangesTlb)[PGM_RAMRANGE_TLB_IDX(GCPhys)];
+    if (!pRam || GCPhys - pRam->GCPhys >= pRam->cb)
+        pRam = pgmPhysGetRangeSlow(pVM, GCPhys);
+    STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,RamRangeTlbHits));
     return pRam;
 }
+
+
+/**
+ * Gets the PGMRAMRANGE structure for a guest page, if unassigned get the ram
+ * range above it.
+ *
+ * @returns Pointer to the RAM range on success.
+ * @returns NULL if the address is located after the last range.
+ *
+ * @param   pVM         The VM handle.
+ * @param   GCPhys      The GC physical address.
+ */
+DECLINLINE(PPGMRAMRANGE) pgmPhysGetRangeAtOrAbove(PVM pVM, RTGCPHYS GCPhys)
+{
+    PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(apRamRangesTlb)[PGM_RAMRANGE_TLB_IDX(GCPhys)];
+    if (   !pRam
+        || (GCPhys - pRam->GCPhys) >= pRam->cb)
+        return pgmPhysGetRangeAtOrAboveSlow(pVM, GCPhys);
+    STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,RamRangeTlbHits));
+    return pRam;
+}
+
 
 
 /**
@@ -86,26 +92,17 @@ DECLINLINE(PPGMRAMRANGE) pgmPhysGetRange(PPGM pPGM, RTGCPHYS GCPhys)
  * @returns Pointer to the page on success.
  * @returns NULL on a VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS condition.
  *
- * @param   pPGM        PGM handle.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      The GC physical address.
  */
-DECLINLINE(PPGMPAGE) pgmPhysGetPage(PPGM pPGM, RTGCPHYS GCPhys)
+DECLINLINE(PPGMPAGE) pgmPhysGetPage(PVM pVM, RTGCPHYS GCPhys)
 {
-    /*
-     * Optimize for the first range.
-     */
-    PPGMRAMRANGE pRam = pPGM->CTX_SUFF(pRamRanges);
-    RTGCPHYS off = GCPhys - pRam->GCPhys;
-    if (RT_UNLIKELY(off >= pRam->cb))
-    {
-        do
-        {
-            pRam = pRam->CTX_SUFF(pNext);
-            if (RT_UNLIKELY(!pRam))
-                return NULL;
-            off = GCPhys - pRam->GCPhys;
-        } while (off >= pRam->cb);
-    }
+    PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(apRamRangesTlb)[PGM_RAMRANGE_TLB_IDX(GCPhys)];
+    RTGCPHYS off;
+    if (   !pRam
+        || (off = GCPhys - pRam->GCPhys) >= pRam->cb)
+        return pgmPhysGetPageSlow(pVM, GCPhys);
+    STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,RamRangeTlbHits));
     return &pRam->aPages[off >> PAGE_SHIFT];
 }
 
@@ -119,31 +116,19 @@ DECLINLINE(PPGMPAGE) pgmPhysGetPage(PPGM pPGM, RTGCPHYS GCPhys)
  * @retval  VINF_SUCCESS and a valid *ppPage on success.
  * @retval  VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS if the address isn't valid.
  *
- * @param   pPGM        PGM handle.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      The GC physical address.
  * @param   ppPage      Where to store the page pointer on success.
  */
-DECLINLINE(int) pgmPhysGetPageEx(PPGM pPGM, RTGCPHYS GCPhys, PPPGMPAGE ppPage)
+DECLINLINE(int) pgmPhysGetPageEx(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage)
 {
-    /*
-     * Optimize for the first range.
-     */
-    PPGMRAMRANGE pRam = pPGM->CTX_SUFF(pRamRanges);
-    RTGCPHYS off = GCPhys - pRam->GCPhys;
-    if (RT_UNLIKELY(off >= pRam->cb))
-    {
-        do
-        {
-            pRam = pRam->CTX_SUFF(pNext);
-            if (RT_UNLIKELY(!pRam))
-            {
-                *ppPage = NULL; /* avoid incorrect and very annoying GCC warnings */
-                return VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS;
-            }
-            off = GCPhys - pRam->GCPhys;
-        } while (off >= pRam->cb);
-    }
-    *ppPage = &pRam->aPages[off >> PAGE_SHIFT];
+    PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(apRamRangesTlb)[PGM_RAMRANGE_TLB_IDX(GCPhys)];
+    RTGCPHYS off;
+    if (   !pRam
+        || (off = GCPhys - pRam->GCPhys) >= pRam->cb)
+        return pgmPhysGetPageExSlow(pVM, GCPhys, ppPage);
+    *ppPage = &pRam->aPages[(GCPhys - pRam->GCPhys) >> PAGE_SHIFT];
+    STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,RamRangeTlbHits));
     return VINF_SUCCESS;
 }
 
@@ -159,34 +144,25 @@ DECLINLINE(int) pgmPhysGetPageEx(PPGM pPGM, RTGCPHYS GCPhys, PPPGMPAGE ppPage)
  * @retval  VINF_SUCCESS and a valid *ppPage on success.
  * @retval  VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS if the address isn't valid.
  *
- * @param   pPGM        PGM handle.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      The GC physical address.
  * @param   ppPage      Where to store the page pointer on success.
  * @param   ppRamHint   Where to read and store the ram list hint.
  *                      The caller initializes this to NULL before the call.
  */
-DECLINLINE(int) pgmPhysGetPageWithHintEx(PPGM pPGM, RTGCPHYS GCPhys, PPPGMPAGE ppPage, PPGMRAMRANGE *ppRamHint)
+DECLINLINE(int) pgmPhysGetPageWithHintEx(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage, PPGMRAMRANGE *ppRamHint)
 {
     RTGCPHYS off;
     PPGMRAMRANGE pRam = *ppRamHint;
     if (    !pRam
         ||  RT_UNLIKELY((off = GCPhys - pRam->GCPhys) >= pRam->cb))
     {
-        pRam = pPGM->CTX_SUFF(pRamRanges);
-        off = GCPhys - pRam->GCPhys;
-        if (RT_UNLIKELY(off >= pRam->cb))
-        {
-            do
-            {
-                pRam = pRam->CTX_SUFF(pNext);
-                if (RT_UNLIKELY(!pRam))
-                {
-                    *ppPage = NULL; /* Kill the incorrect and extremely annoying GCC warnings. */
-                    return VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS;
-                }
-                off = GCPhys - pRam->GCPhys;
-            } while (off >= pRam->cb);
-        }
+        pRam = pVM->pgm.s.CTX_SUFF(apRamRangesTlb)[PGM_RAMRANGE_TLB_IDX(GCPhys)];
+        if (   !pRam
+            || (off = GCPhys - pRam->GCPhys) >= pRam->cb)
+            return pgmPhysGetPageAndRangeExSlow(pVM, GCPhys, ppPage, ppRamHint);
+
+        STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,RamRangeTlbHits));
         *ppRamHint = pRam;
     }
     *ppPage = &pRam->aPages[off >> PAGE_SHIFT];
@@ -200,64 +176,20 @@ DECLINLINE(int) pgmPhysGetPageWithHintEx(PPGM pPGM, RTGCPHYS GCPhys, PPPGMPAGE p
  * @returns Pointer to the page on success.
  * @returns NULL on a VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS condition.
  *
- * @param   pPGM        PGM handle.
- * @param   GCPhys      The GC physical address.
- * @param   ppRam       Where to store the pointer to the PGMRAMRANGE.
- */
-DECLINLINE(PPGMPAGE) pgmPhysGetPageAndRange(PPGM pPGM, RTGCPHYS GCPhys, PPGMRAMRANGE *ppRam)
-{
-    /*
-     * Optimize for the first range.
-     */
-    PPGMRAMRANGE pRam = pPGM->CTX_SUFF(pRamRanges);
-    RTGCPHYS off = GCPhys - pRam->GCPhys;
-    if (RT_UNLIKELY(off >= pRam->cb))
-    {
-        do
-        {
-            pRam = pRam->CTX_SUFF(pNext);
-            if (RT_UNLIKELY(!pRam))
-                return NULL;
-            off = GCPhys - pRam->GCPhys;
-        } while (off >= pRam->cb);
-    }
-    *ppRam = pRam;
-    return &pRam->aPages[off >> PAGE_SHIFT];
-}
-
-
-/**
- * Gets the PGMPAGE structure for a guest page together with the PGMRAMRANGE.
- *
- * @returns Pointer to the page on success.
- * @returns NULL on a VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS condition.
- *
- * @param   pPGM        PGM handle.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      The GC physical address.
  * @param   ppPage      Where to store the pointer to the PGMPAGE structure.
  * @param   ppRam       Where to store the pointer to the PGMRAMRANGE structure.
  */
-DECLINLINE(int) pgmPhysGetPageAndRangeEx(PPGM pPGM, RTGCPHYS GCPhys, PPPGMPAGE ppPage, PPGMRAMRANGE *ppRam)
+DECLINLINE(int) pgmPhysGetPageAndRangeEx(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage, PPGMRAMRANGE *ppRam)
 {
-    /*
-     * Optimize for the first range.
-     */
-    PPGMRAMRANGE pRam = pPGM->CTX_SUFF(pRamRanges);
-    RTGCPHYS off = GCPhys - pRam->GCPhys;
-    if (RT_UNLIKELY(off >= pRam->cb))
-    {
-        do
-        {
-            pRam = pRam->CTX_SUFF(pNext);
-            if (RT_UNLIKELY(!pRam))
-            {
-                *ppRam = NULL;  /* Shut up silly GCC warnings. */
-                *ppPage = NULL; /* ditto */
-                return VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS;
-            }
-            off = GCPhys - pRam->GCPhys;
-        } while (off >= pRam->cb);
-    }
+    PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(apRamRangesTlb)[PGM_RAMRANGE_TLB_IDX(GCPhys)];
+    RTGCPHYS off;
+    if (   !pRam
+        || (off = GCPhys - pRam->GCPhys) >= pRam->cb)
+        return pgmPhysGetPageAndRangeExSlow(pVM, GCPhys, ppPage, ppRam);
+
+    STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,RamRangeTlbHits));
     *ppRam = pRam;
     *ppPage = &pRam->aPages[off >> PAGE_SHIFT];
     return VINF_SUCCESS;
@@ -268,17 +200,17 @@ DECLINLINE(int) pgmPhysGetPageAndRangeEx(PPGM pPGM, RTGCPHYS GCPhys, PPPGMPAGE p
  * Convert GC Phys to HC Phys.
  *
  * @returns VBox status.
- * @param   pPGM        PGM handle.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      The GC physical address.
  * @param   pHCPhys     Where to store the corresponding HC physical address.
  *
  * @deprecated  Doesn't deal with zero, shared or write monitored pages.
  *              Avoid when writing new code!
  */
-DECLINLINE(int) pgmRamGCPhys2HCPhys(PPGM pPGM, RTGCPHYS GCPhys, PRTHCPHYS pHCPhys)
+DECLINLINE(int) pgmRamGCPhys2HCPhys(PVM pVM, RTGCPHYS GCPhys, PRTHCPHYS pHCPhys)
 {
     PPGMPAGE pPage;
-    int rc = pgmPhysGetPageEx(pPGM, GCPhys, &pPage);
+    int rc = pgmPhysGetPageEx(pVM, GCPhys, &pPage);
     if (RT_FAILURE(rc))
         return rc;
     *pHCPhys = PGM_PAGE_GET_HCPHYS(pPage) | (GCPhys & PAGE_OFFSET_MASK);
@@ -343,10 +275,12 @@ DECLINLINE(int) pgmRZDynMapGCPageV2Inlined(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhy
     /*
      * Get the ram range.
      */
-    PPGMRAMRANGE    pRam = pVM->pgm.s.CTX_SUFF(pRamRanges);
-    RTGCPHYS        off  = GCPhys - pRam->GCPhys;
-    if (RT_UNLIKELY(off >= pRam->cb
-        /** @todo   || page state stuff */))
+    PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(apRamRangesTlb)[PGM_RAMRANGE_TLB_IDX(GCPhys)];
+    RTGCPHYS off;
+    if (   !pRam
+        || (off = GCPhys - pRam->GCPhys) >= pRam->cb
+        /** @todo   || page state stuff */
+       )
     {
         /* This case is not counted into StatRZDynMapGCPageInl. */
         STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZDynMapGCPageInlRamMisses);
@@ -417,10 +351,12 @@ DECLINLINE(int) pgmRZDynMapGCPageOffInlined(PVMCPU pVCpu, RTGCPHYS GCPhys, void 
      * Get the ram range.
      */
     PVM             pVM  = pVCpu->CTX_SUFF(pVM);
-    PPGMRAMRANGE    pRam = pVM->pgm.s.CTX_SUFF(pRamRanges);
-    RTGCPHYS        off  = GCPhys - pRam->GCPhys;
-    if (RT_UNLIKELY(off >= pRam->cb
-        /** @todo   || page state stuff */))
+    PPGMRAMRANGE    pRam = pVM->pgm.s.CTX_SUFF(apRamRangesTlb)[PGM_RAMRANGE_TLB_IDX(GCPhys)];
+    RTGCPHYS        off;
+    if (   !pRam
+        || (off = GCPhys - pRam->GCPhys) >= pRam->cb
+        /** @todo   || page state stuff */
+       )
     {
         /* This case is not counted into StatRZDynMapGCPageInl. */
         STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZDynMapGCPageInlRamMisses);
@@ -512,21 +448,21 @@ DECLINLINE(void *) pgmPoolMapPageV2Inlined(PVM pVM, PVMCPU pVCpu, PPGMPOOLPAGE p
  * @retval  VINF_SUCCESS on success
  * @retval  VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS if it's not a valid physical address.
  *
- * @param   pPGM        The PGM instance handle.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      The address of the guest page.
  * @param   ppTlbe      Where to store the pointer to the TLB entry.
  */
-DECLINLINE(int) pgmPhysPageQueryTlbe(PPGM pPGM, RTGCPHYS GCPhys, PPPGMPAGEMAPTLBE ppTlbe)
+DECLINLINE(int) pgmPhysPageQueryTlbe(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGEMAPTLBE ppTlbe)
 {
     int rc;
-    PPGMPAGEMAPTLBE pTlbe = &pPGM->CTXSUFF(PhysTlb).aEntries[PGM_PAGEMAPTLB_IDX(GCPhys)];
+    PPGMPAGEMAPTLBE pTlbe = &pVM->pgm.s.CTXSUFF(PhysTlb).aEntries[PGM_PAGEMAPTLB_IDX(GCPhys)];
     if (pTlbe->GCPhys == (GCPhys & X86_PTE_PAE_PG_MASK))
     {
-        STAM_COUNTER_INC(&pPGM->CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageMapTlbHits));
+        STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageMapTlbHits));
         rc = VINF_SUCCESS;
     }
     else
-        rc = pgmPhysPageLoadIntoTlb(pPGM, GCPhys);
+        rc = pgmPhysPageLoadIntoTlb(pVM, GCPhys);
     *ppTlbe = pTlbe;
     return rc;
 }
@@ -540,23 +476,23 @@ DECLINLINE(int) pgmPhysPageQueryTlbe(PPGM pPGM, RTGCPHYS GCPhys, PPPGMPAGEMAPTLB
  * @retval  VINF_SUCCESS on success
  * @retval  VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS if it's not a valid physical address.
  *
- * @param   pPGM        The PGM instance handle.
+ * @param   pVM         The VM handle.
  * @param   pPage       Pointer to the PGMPAGE structure corresponding to
  *                      GCPhys.
  * @param   GCPhys      The address of the guest page.
  * @param   ppTlbe      Where to store the pointer to the TLB entry.
  */
-DECLINLINE(int) pgmPhysPageQueryTlbeWithPage(PPGM pPGM, PPGMPAGE pPage, RTGCPHYS GCPhys, PPPGMPAGEMAPTLBE ppTlbe)
+DECLINLINE(int) pgmPhysPageQueryTlbeWithPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, PPPGMPAGEMAPTLBE ppTlbe)
 {
     int rc;
-    PPGMPAGEMAPTLBE pTlbe = &pPGM->CTXSUFF(PhysTlb).aEntries[PGM_PAGEMAPTLB_IDX(GCPhys)];
+    PPGMPAGEMAPTLBE pTlbe = &pVM->pgm.s.CTXSUFF(PhysTlb).aEntries[PGM_PAGEMAPTLB_IDX(GCPhys)];
     if (pTlbe->GCPhys == (GCPhys & X86_PTE_PAE_PG_MASK))
     {
-        STAM_COUNTER_INC(&pPGM->CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageMapTlbHits));
+        STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageMapTlbHits));
         rc = VINF_SUCCESS;
     }
     else
-        rc = pgmPhysPageLoadIntoTlbWithPage(pPGM, pPage, GCPhys);
+        rc = pgmPhysPageLoadIntoTlbWithPage(pVM, pPage, GCPhys);
     *ppTlbe = pTlbe;
     return rc;
 }
@@ -566,29 +502,29 @@ DECLINLINE(int) pgmPhysPageQueryTlbeWithPage(PPGM pPGM, PPGMPAGE pPage, RTGCPHYS
 
 /**
  * Enables write monitoring for an allocated page.
- *  
- * The caller is responsible for updating the shadow page tables. 
- *  
+ *
+ * The caller is responsible for updating the shadow page tables.
+ *
  * @param   pVM         The VM handle.
- * @param   pPage       The page to write monitor. 
+ * @param   pPage       The page to write monitor.
  * @param   GCPhysPage  The address of the page.
  */
 DECLINLINE(void) pgmPhysPageWriteMonitor(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhysPage)
 {
     Assert(PGM_PAGE_GET_STATE(pPage) == PGM_PAGE_STATE_ALLOCATED);
-    Assert(PGMIsLockOwner(pVM));
+    PGM_LOCK_ASSERT_OWNER(pVM);
 
-    PGM_PAGE_SET_STATE(pPage, PGM_PAGE_STATE_WRITE_MONITORED);
+    PGM_PAGE_SET_STATE(pVM, pPage, PGM_PAGE_STATE_WRITE_MONITORED);
     pVM->pgm.s.cMonitoredPages++;
 
     /* Large pages must disabled. */
     if (PGM_PAGE_GET_PDE_TYPE(pPage) == PGM_PAGE_PDE_TYPE_PDE)
     {
-        PPGMPAGE pFirstPage = pgmPhysGetPage(&pVM->pgm.s, GCPhysPage & X86_PDE2M_PAE_PG_MASK);
+        PPGMPAGE pFirstPage = pgmPhysGetPage(pVM, GCPhysPage & X86_PDE2M_PAE_PG_MASK);
         AssertFatal(pFirstPage);
         if (PGM_PAGE_GET_PDE_TYPE(pFirstPage) == PGM_PAGE_PDE_TYPE_PDE)
         {
-            PGM_PAGE_SET_PDE_TYPE(pFirstPage, PGM_PAGE_PDE_TYPE_PDE_DISABLED);
+            PGM_PAGE_SET_PDE_TYPE(pVM, pFirstPage, PGM_PAGE_PDE_TYPE_PDE_DISABLED);
             pVM->pgm.s.cLargePagesDisabled++;
         }
         else
@@ -637,15 +573,15 @@ DECL_FORCE_INLINE(bool) pgmGst32BitIsPageSizeExtActive(PVMCPU pVCpu)
  * Takes PSE-36 into account.
  *
  * @returns guest physical address
- * @param   pPGM        Pointer to the PGM instance data.
+ * @param   pVM         The VM handle.
  * @param   Pde         Guest Pde
  */
-DECLINLINE(RTGCPHYS) pgmGstGet4MBPhysPage(PPGM pPGM, X86PDE Pde)
+DECLINLINE(RTGCPHYS) pgmGstGet4MBPhysPage(PVM pVM, X86PDE Pde)
 {
     RTGCPHYS GCPhys = Pde.u & X86_PDE4M_PG_MASK;
     GCPhys |= (RTGCPHYS)Pde.b.u8PageNoHigh << 32;
 
-    return GCPhys & pPGM->GCPhys4MBPSEMask;
+    return GCPhys & pVM->pgm.s.GCPhys4MBPSEMask;
 }
 
 
@@ -1306,16 +1242,16 @@ DECLINLINE(unsigned) pgmHandlerVirtualCalcState(PPGMVIRTHANDLER pCur)
 
 
 /**
- * Clears one physical page of a virtual handler
+ * Clears one physical page of a virtual handler.
  *
- * @param   pPGM    Pointer to the PGM instance.
- * @param   pCur    Virtual handler structure
- * @param   iPage   Physical page index
+ * @param   pVM         The VM handle.
+ * @param   pCur        Virtual handler structure.
+ * @param   iPage       Physical page index.
  *
  * @remark  Only used when PGM_SYNC_UPDATE_PAGE_BIT_VIRTUAL is being set, so no
  *          need to care about other handlers in the same page.
  */
-DECLINLINE(void) pgmHandlerVirtualClearPage(PPGM pPGM, PPGMVIRTHANDLER pCur, unsigned iPage)
+DECLINLINE(void) pgmHandlerVirtualClearPage(PVM pVM, PPGMVIRTHANDLER pCur, unsigned iPage)
 {
     const PPGMPHYS2VIRTHANDLER pPhys2Virt = &pCur->aPhysToVirt[iPage];
 
@@ -1330,7 +1266,7 @@ DECLINLINE(void) pgmHandlerVirtualClearPage(PPGM pPGM, PPGMVIRTHANDLER pCur, uns
     if (pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_IS_HEAD)
     {
         /* We're the head of the alias chain. */
-        PPGMPHYS2VIRTHANDLER pRemove = (PPGMPHYS2VIRTHANDLER)RTAvlroGCPhysRemove(&pPGM->CTX_SUFF(pTrees)->PhysToVirtHandlers, pPhys2Virt->Core.Key); NOREF(pRemove);
+        PPGMPHYS2VIRTHANDLER pRemove = (PPGMPHYS2VIRTHANDLER)RTAvlroGCPhysRemove(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysToVirtHandlers, pPhys2Virt->Core.Key); NOREF(pRemove);
 #ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
         AssertReleaseMsg(pRemove != NULL,
                          ("pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32}\n",
@@ -1351,14 +1287,14 @@ DECLINLINE(void) pgmHandlerVirtualClearPage(PPGM pPGM, PPGMVIRTHANDLER pCur, uns
                              pNext, pNext->Core.Key, pNext->Core.KeyLast, pNext->offVirtHandler, pNext->offNextAlias));
 #endif
             pNext->offNextAlias |= PGMPHYS2VIRTHANDLER_IS_HEAD;
-            bool fRc = RTAvlroGCPhysInsert(&pPGM->CTX_SUFF(pTrees)->PhysToVirtHandlers, &pNext->Core);
+            bool fRc = RTAvlroGCPhysInsert(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysToVirtHandlers, &pNext->Core);
             AssertRelease(fRc);
         }
     }
     else
     {
         /* Locate the previous node in the alias chain. */
-        PPGMPHYS2VIRTHANDLER pPrev = (PPGMPHYS2VIRTHANDLER)RTAvlroGCPhysGet(&pPGM->CTX_SUFF(pTrees)->PhysToVirtHandlers, pPhys2Virt->Core.Key);
+        PPGMPHYS2VIRTHANDLER pPrev = (PPGMPHYS2VIRTHANDLER)RTAvlroGCPhysGet(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysToVirtHandlers, pPhys2Virt->Core.Key);
 #ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
         AssertReleaseMsg(pPrev != pPhys2Virt,
                          ("pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32} pPrev=%p\n",
@@ -1404,7 +1340,7 @@ DECLINLINE(void) pgmHandlerVirtualClearPage(PPGM pPGM, PPGMVIRTHANDLER pCur, uns
     /*
      * Clear the ram flags for this page.
      */
-    PPGMPAGE pPage = pgmPhysGetPage(pPGM, pPhys2Virt->Core.Key);
+    PPGMPAGE pPage = pgmPhysGetPage(pVM, pPhys2Virt->Core.Key);
     AssertReturnVoid(pPage);
     PGM_PAGE_SET_HNDL_VIRT_STATE(pPage, PGM_PAGE_HNDL_VIRT_STATE_NONE);
 }
@@ -1437,6 +1373,9 @@ DECLINLINE(void) pgmTrackDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPoolPage, PPG
     /*
      * Just deal with the simple case here.
      */
+# ifdef VBOX_STRICT
+    PVM pVM = pPool->CTX_SUFF(pVM); NOREF(pVM);
+# endif
 # ifdef LOG_ENABLED
     const unsigned uOrg = PGM_PAGE_GET_TRACKING(pPhysPage);
 # endif
@@ -1446,7 +1385,7 @@ DECLINLINE(void) pgmTrackDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPoolPage, PPG
         Assert(pPoolPage->idx == PGM_PAGE_GET_TD_IDX(pPhysPage));
         Assert(iPte == PGM_PAGE_GET_PTE_INDEX(pPhysPage));
         /* Invalidate the tracking data. */
-        PGM_PAGE_SET_TRACKING(pPhysPage, 0);
+        PGM_PAGE_SET_TRACKING(pVM, pPhysPage, 0);
     }
     else
         pgmPoolTrackPhysExtDerefGCPhys(pPool, pPoolPage, pPhysPage, iPte);
@@ -1464,7 +1403,7 @@ DECLINLINE(void) pgmTrackDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPoolPage, PPG
  */
 DECLINLINE(void) pgmPoolCacheUsed(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
 {
-    Assert(PGMIsLockOwner(pPool->CTX_SUFF(pVM)));
+    PGM_LOCK_ASSERT_OWNER(pPool->CTX_SUFF(pVM));
 
     /*
      * Move to the head of the age list.
@@ -1495,7 +1434,7 @@ DECLINLINE(void) pgmPoolCacheUsed(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
  */
 DECLINLINE(void) pgmPoolLockPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
 {
-    Assert(PGMIsLockOwner(pPool->CTX_SUFF(pVM)));
+    PGM_LOCK_ASSERT_OWNER(pPool->CTX_SUFF(pVM));
     ASMAtomicIncU32(&pPage->cLocked);
 }
 
@@ -1508,7 +1447,7 @@ DECLINLINE(void) pgmPoolLockPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
  */
 DECLINLINE(void) pgmPoolUnlockPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
 {
-    Assert(PGMIsLockOwner(pPool->CTX_SUFF(pVM)));
+    PGM_LOCK_ASSERT_OWNER(pPool->CTX_SUFF(pVM));
     Assert(pPage->cLocked);
     ASMAtomicDecU32(&pPage->cLocked);
 }
@@ -1520,7 +1459,7 @@ DECLINLINE(void) pgmPoolUnlockPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
  * @returns VBox status code.
  * @param   pPage       PGM pool page
  */
-DECLINLINE(bool) pgmPoolIsPageLocked(PPGM pPGM, PPGMPOOLPAGE pPage)
+DECLINLINE(bool) pgmPoolIsPageLocked(PPGMPOOLPAGE pPage)
 {
     if (pPage->cLocked)
     {
@@ -1539,14 +1478,14 @@ DECLINLINE(bool) pgmPoolIsPageLocked(PPGM pPGM, PPGMPOOLPAGE pPage)
  * @returns boolean result
  * @param   pVM         VM handle.
  */
-DECL_FORCE_INLINE(bool) pgmMapAreMappingsEnabled(PPGM pPGM)
+DECL_FORCE_INLINE(bool) pgmMapAreMappingsEnabled(PVM pVM)
 {
 #ifdef PGM_WITHOUT_MAPPINGS
     /* There are no mappings in VT-x and AMD-V mode. */
-    Assert(pPGM->fMappingsDisabled);
+    Assert(pVM->pgm.s.fMappingsDisabled);
     return false;
 #else
-    return !pPGM->fMappingsDisabled;
+    return !pVM->pgm.s.fMappingsDisabled;
 #endif
 }
 
@@ -1557,15 +1496,15 @@ DECL_FORCE_INLINE(bool) pgmMapAreMappingsEnabled(PPGM pPGM)
  * @returns true / false.
  * @param   pVM         The VM handle.
  */
-DECL_FORCE_INLINE(bool) pgmMapAreMappingsFloating(PPGM pPGM)
+DECL_FORCE_INLINE(bool) pgmMapAreMappingsFloating(PVM pVM)
 {
 #ifdef PGM_WITHOUT_MAPPINGS
     /* There are no mappings in VT-x and AMD-V mode. */
-    Assert(pPGM->fMappingsDisabled);
+    Assert(pVM->pgm.s.fMappingsDisabled);
     return false;
 #else
-    return !pPGM->fMappingsDisabled
-        && !pPGM->fMappingsFixed;
+    return !pVM->pgm.s.fMappingsDisabled
+        && !pVM->pgm.s.fMappingsFixed;
 #endif
 }
 

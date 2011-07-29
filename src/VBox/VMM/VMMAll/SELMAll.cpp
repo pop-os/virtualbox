@@ -1,4 +1,4 @@
-/* $Id: SELMAll.cpp $ */
+/* $Id: SELMAll.cpp 37955 2011-07-14 12:23:02Z vboxsync $ */
 /** @file
  * SELM All contexts.
  */
@@ -26,12 +26,12 @@
 #include <VBox/vmm/pgm.h>
 #include "SELMInternal.h"
 #include <VBox/vmm/vm.h>
-#include <VBox/x86.h>
 #include <VBox/err.h>
 #include <VBox/param.h>
 #include <iprt/assert.h>
 #include <VBox/log.h>
 #include <VBox/vmm/vmm.h>
+#include <iprt/x86.h>
 
 
 

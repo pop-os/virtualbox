@@ -41,21 +41,8 @@
 
 RT_C_DECLS_BEGIN
 
-typedef struct RTCIRCBUF
-{
-    /** The current read position in the buffer. */
-    size_t uReadPos;
-    /** The current write position in the buffer. */
-    size_t uWritePos;
-    /** How much space of the buffer is currently in use. */
-    volatile size_t cbBufUsed;
-    /** How big is the buffer. */
-    size_t cbBufSize;
-    /** The buffer itself. */
-    void *pvBuf;
-} RTCIRCBUF;
-/* Pointer to a circular buffer structure */
-typedef RTCIRCBUF* PRTCIRCBUF;
+/** Pointer to a circular buffer (abstract). */
+typedef struct RTCIRCBUF *PRTCIRCBUF;
 
 /**
  * Create a circular buffer.
@@ -70,10 +57,9 @@ RTDECL(int) RTCircBufCreate(PRTCIRCBUF *ppBuf, size_t cbSize);
 /**
  * Destroy the circular buffer.
  *
- * @param   pBuf           The buffer to destroy.
+ * @param   pBuf           The buffer to destroy.  NULL is ignored.
  */
 RTDECL(void) RTCircBufDestroy(PRTCIRCBUF pBuf);
-
 
 /**
  * Reset all position information in the circular buffer.
@@ -145,5 +131,5 @@ RT_C_DECLS_END
 
 /** @} */
 
-#endif /* ___iprt_circbuf_h */
+#endif /* !___iprt_circbuf_h */
 

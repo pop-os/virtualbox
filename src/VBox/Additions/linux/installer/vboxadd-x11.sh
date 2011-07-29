@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions X11 setup init script ($Revision: 71770 $)
+# Linux Additions X11 setup init script ($Revision: 37104 $)
 #
 
 #

@@ -41,6 +41,7 @@ signals:
     void sigAdditionsChange();
     void sigNetworkAdapterChange(CNetworkAdapter adapter);
     void sigMediumChange(CMediumAttachment attachment);
+    void sigVRDEChange();
     void sigUSBControllerChange();
     void sigUSBDeviceStateChange(CUSBDevice device, bool fAttached, CVirtualBoxErrorInfo error);
     void sigSharedFolderChange();
@@ -48,6 +49,7 @@ signals:
 #ifdef RT_OS_DARWIN
     void sigShowWindow();
 #endif /* RT_OS_DARWIN */
+    void sigCPUExecutionCapChange();
 
 private slots:
     void sltCanShowWindow(bool &fVeto, QString &strReason);

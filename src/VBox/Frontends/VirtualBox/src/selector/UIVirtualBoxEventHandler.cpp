@@ -1,4 +1,4 @@
-/* $Id: UIVirtualBoxEventHandler.cpp $ */
+/* $Id: UIVirtualBoxEventHandler.cpp 35722 2011-01-26 16:37:16Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -51,7 +51,9 @@ UIVirtualBoxEventHandler::UIVirtualBoxEventHandler()
 {
 //    RTPrintf("Self add: %RTthrd\n", RTThreadSelf());
     const CVirtualBox &vbox = vboxGlobal().virtualBox();
-    UIMainEventListenerImpl *pListener = new UIMainEventListenerImpl(this);
+    ComObjPtr<UIMainEventListenerImpl> pListener;
+    pListener.createObject();
+    pListener->init(new UIMainEventListener(), this);
     m_mainEventListener = CEventListener(pListener);
     QVector<KVBoxEventType> events;
     events

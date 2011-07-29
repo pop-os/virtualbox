@@ -1,4 +1,4 @@
-/* $Id: MediumFormatImpl.h $ */
+/* $Id: MediumFormatImpl.h 37587 2011-06-22 12:02:13Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -58,13 +58,13 @@ public:
 
     struct Data
     {
-        Data() : capabilities(0) {}
+        Data() : capabilities((MediumFormatCapabilities_T)0) {}
 
         const Utf8Str        strId;
         const Utf8Str        strName;
         const StrList        llFileExtensions;
         const DeviceTypeList llDeviceTypes;
-        const uint64_t       capabilities;
+        const MediumFormatCapabilities_T capabilities;
         const PropertyList   llProperties;
     };
 
@@ -75,9 +75,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(MediumFormat)
-        COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(IMediumFormat)
-        COM_INTERFACE_ENTRY(IDispatch)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IMediumFormat)
     END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR(MediumFormat)
@@ -113,7 +111,7 @@ public:
     /** Const, no need to lock */
     const StrList& getFileExtensions() const { return m.llFileExtensions; }
     /** Const, no need to lock */
-    uint64_t getCapabilities() const { return m.capabilities; }
+    MediumFormatCapabilities_T getCapabilities() const { return m.capabilities; }
     /** Const, no need to lock */
     const PropertyList& getProperties() const { return m.llProperties; }
 

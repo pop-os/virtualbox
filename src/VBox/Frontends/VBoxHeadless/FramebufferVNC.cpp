@@ -1,4 +1,4 @@
-/* $Id: FramebufferVNC.cpp $ */
+/* $Id: FramebufferVNC.cpp 36694 2011-04-18 08:18:00Z vboxsync $ */
 /** @file
  * VBoxHeadless - VNC server implementation for VirtualBox.
  *

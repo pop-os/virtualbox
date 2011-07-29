@@ -1,4 +1,4 @@
-/* $Id: KeyboardImpl.cpp $ */
+/* $Id: KeyboardImpl.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Implementation of Keyboard class and related things

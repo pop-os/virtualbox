@@ -1,4 +1,4 @@
-/* $Id: UINewVMWzd.cpp $ */
+/* $Id: UINewVMWzd.cpp 37959 2011-07-14 13:03:03Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -22,7 +22,7 @@
 
 /* Local includes */
 #include "UIIconPool.h"
-#include "UINewHDWzd.h"
+#include "UINewHDWizard.h"
 #include "UINewVMWzd.h"
 #include "QIFileDialog.h"
 #include "VBoxProblemReporter.h"
@@ -75,20 +75,20 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp("OS[/|!-]{,1}2", Qt::CaseInsensitive), "OS2" },
 
     /* Code names for Linux distributions */
-    { QRegExp("((edgy)|(feisty)|(gutsy)|(hardy)|(intrepid)|(jaunty)|(karmic)|(lucid)|(maverick)|(natty)).*64", Qt::CaseInsensitive), "Ubuntu_64" },
-    { QRegExp("(edgy)|(feisty)|(gutsy)|(hardy)|(intrepid)|(jaunty)|(karmic)|(lucid)|(maverick)|(natty)", Qt::CaseInsensitive), "Ubuntu" },
+    { QRegExp("((edgy)|(feisty)|(gutsy)|(hardy)|(intrepid)|(jaunty)|(karmic)|(lucid)|(maverick)|(natty)|(oneiric)).*64", Qt::CaseInsensitive), "Ubuntu_64" },
+    { QRegExp("(edgy)|(feisty)|(gutsy)|(hardy)|(intrepid)|(jaunty)|(karmic)|(lucid)|(maverick)|(natty)|(oneiric)", Qt::CaseInsensitive), "Ubuntu" },
     { QRegExp("((sarge)|(etch)|(lenny)|(squeeze)|(wheezy)|(sid)).*64", Qt::CaseInsensitive), "Debian_64" },
     { QRegExp("(sarge)|(etch)|(lenny)|(squeeze)|(wheezy)|(sid)", Qt::CaseInsensitive), "Debian" },
-    { QRegExp("((moonshine)|(werewolf)|(sulphur)|(cambridge)|(leonidas)|(constantine)|(goddard)|(laughlin)).*64", Qt::CaseInsensitive), "Fedora_64" },
-    { QRegExp("(moonshine)|(werewolf)|(sulphur)|(cambridge)|(leonidas)|(constantine)|(goddard)|(laughlin)", Qt::CaseInsensitive), "Fedora" },
+    { QRegExp("((moonshine)|(werewolf)|(sulphur)|(cambridge)|(leonidas)|(constantine)|(goddard)|(laughlin)|(lovelock)).*64", Qt::CaseInsensitive), "Fedora_64" },
+    { QRegExp("(moonshine)|(werewolf)|(sulphur)|(cambridge)|(leonidas)|(constantine)|(goddard)|(laughlin)|(lovelock)", Qt::CaseInsensitive), "Fedora" },
 
     /* Regular names of Linux distributions */
     { QRegExp("Arc.*64", Qt::CaseInsensitive), "ArchLinux_64" },
     { QRegExp("Arc", Qt::CaseInsensitive), "ArchLinux" },
     { QRegExp("De.*64", Qt::CaseInsensitive), "Debian_64" },
     { QRegExp("De", Qt::CaseInsensitive), "Debian" },
-    { QRegExp("((SU)|(Nov)).*64", Qt::CaseInsensitive), "OpenSUSE_64" },
-    { QRegExp("(SU)|(Nov)", Qt::CaseInsensitive), "OpenSUSE" },
+    { QRegExp("((SU)|(Nov)|(SLE)).*64", Qt::CaseInsensitive), "OpenSUSE_64" },
+    { QRegExp("(SU)|(Nov)|(SLE)", Qt::CaseInsensitive), "OpenSUSE" },
     { QRegExp("Fe.*64", Qt::CaseInsensitive), "Fedora_64" },
     { QRegExp("Fe", Qt::CaseInsensitive), "Fedora" },
     { QRegExp("((Gen)|(Sab)).*64", Qt::CaseInsensitive), "Gentoo_64" },
@@ -166,6 +166,8 @@ void UINewVMWzd::retranslateUi()
 {
     /* Wizard title */
     setWindowTitle(tr("Create New Virtual Machine"));
+
+    setButtonText(QWizard::FinishButton, tr("Create"));
 }
 
 UINewVMWzdPage1::UINewVMWzdPage1()
@@ -560,10 +562,7 @@ void UINewVMWzdPage4::getWithFileOpenDialog()
 
 bool UINewVMWzdPage4::getWithNewHardDiskWizard()
 {
-    UINewHDWzd dlg(this);
-    dlg.setRecommendedName(field("name").toString());
-    dlg.setRecommendedSize(field("type").value<CGuestOSType>().GetRecommendedHDD());
-    dlg.setDefaultPath(field("machineFolder").toString());
+    UINewHDWizard dlg(this, field("name").toString(), field("machineFolder").toString(), field("type").value<CGuestOSType>().GetRecommendedHDD());
 
     if (dlg.exec() == QDialog::Accepted)
     {
@@ -739,7 +738,7 @@ bool UINewVMWzdPage5::constructMachine()
 
     /* VRAM size - select maximum between recommended and minimum for fullscreen */
     m_Machine.SetVRAMSize (qMax (type.GetRecommendedVRAM(),
-                                (ULONG) (VBoxGlobal::requiredVideoMemory(&m_Machine) / _1M)));
+                                (ULONG) (VBoxGlobal::requiredVideoMemory(typeId) / _1M)));
 
     /* Selecting recommended chipset type */
     m_Machine.SetChipsetType(type.GetRecommendedChipset());
@@ -880,17 +879,12 @@ bool UINewVMWzdPage5::constructMachine()
         if (!success)
         {
             /* Unregister on failure */
-#if defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64)
-            /* XXX currently disabled due to a bug in ComSafeArrayIn on 64-bit Windows hosts! */
-            m_Machine.Unregister(KCleanupMode_DetachAllReturnNone);
-#else
             QVector<CMedium> aMedia = m_Machine.Unregister(KCleanupMode_UnregisterOnly);   //  @todo replace with DetachAllReturnHardDisksOnly once a progress dialog is in place below
             if (vbox.isOk())
             {
                 CProgress progress = m_Machine.Delete(aMedia);
                 progress.WaitForCompletion(-1);         // @todo do this nicely with a progress dialog, this can delete lots of files
             }
-#endif
             return false;
         }
     }

@@ -1,4 +1,4 @@
-/* $Id: DBGF.cpp $ */
+/* $Id: DBGF.cpp 37410 2011-06-10 15:11:40Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility.
  */
@@ -135,6 +135,8 @@ VMMR3DECL(int) DBGFR3Init(PVM pVM)
 {
     int rc = dbgfR3InfoInit(pVM);
     if (RT_SUCCESS(rc))
+        rc = dbgfR3TraceInit(pVM);
+    if (RT_SUCCESS(rc))
         rc = dbgfR3RegInit(pVM);
     if (RT_SUCCESS(rc))
         rc = dbgfR3AsInit(pVM);
@@ -210,6 +212,7 @@ VMMR3DECL(int) DBGFR3Term(PVM pVM)
     dbgfR3OSTerm(pVM);
     dbgfR3AsTerm(pVM);
     dbgfR3RegTerm(pVM);
+    dbgfR3TraceTerm(pVM);
     dbgfR3InfoTerm(pVM);
     return VINF_SUCCESS;
 }
@@ -225,6 +228,7 @@ VMMR3DECL(int) DBGFR3Term(PVM pVM)
  */
 VMMR3DECL(void) DBGFR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 {
+    dbgfR3TraceRelocate(pVM);
     dbgfR3AsRelocate(pVM, offDelta);
 }
 
@@ -243,7 +247,7 @@ bool dbgfR3WaitForAttach(PVM pVM, DBGFEVENTTYPE enmEvent)
      */
 #ifndef RT_OS_L4
 
-# if !defined(DEBUG) || defined(DEBUG_sandervl) || defined(DEBUG_frank)
+# if !defined(DEBUG) || defined(DEBUG_sandervl) || defined(DEBUG_frank) || defined(IEM_VERIFICATION_MODE)
     int cWait = 10;
 # else
     int cWait = HWACCMIsEnabled(pVM)

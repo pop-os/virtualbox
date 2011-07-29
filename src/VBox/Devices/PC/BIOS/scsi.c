@@ -1,4 +1,4 @@
-/* $Id: scsi.c $ */
+/* $Id: scsi.c 37427 2011-06-13 17:45:37Z vboxsync $ */
 /** @file
  * SCSI host adapter driver to boot from SCSI disks
  */
@@ -441,6 +441,11 @@ void scsi_enumerate_attached_devices(io_base)
                 write_byte(ebda_seg, &EbdaData->ata.hdidmap[hdcount], hdcount_scsi + BX_MAX_ATA_DEVICES);
                 hdcount++;
                 write_byte(ebda_seg, &EbdaData->ata.hdcount, hdcount);
+
+                /* Update hdcount in the BDA. */
+                hdcount = read_byte(0x40, 0x75);
+                hdcount++;
+                write_byte(0x40, 0x75, hdcount);
 
                 hdcount_scsi++;
                 write_byte(ebda_seg, &EbdaData->scsi.hdcount, hdcount_scsi);

@@ -1,4 +1,4 @@
-/* $Id: SUPLib.cpp $ */
+/* $Id: SUPLib.cpp 37955 2011-07-14 12:23:02Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Common code.
  */
@@ -50,7 +50,6 @@
 #include <VBox/err.h>
 #include <VBox/param.h>
 #include <VBox/log.h>
-#include <VBox/x86.h>
 
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
@@ -65,6 +64,7 @@
 #include <iprt/string.h>
 #include <iprt/env.h>
 #include <iprt/rand.h>
+#include <iprt/x86.h>
 
 #include "SUPLibInternal.h"
 #include "SUPDrvIOC.h"
@@ -96,7 +96,7 @@ static bool                     g_fPreInited = false;
  * via the pre-init mechanism from the hardened executable stub.  */
 SUPLIBDATA                      g_supLibData =
 {
-    NIL_RTFILE
+    SUP_HDEVICE_NIL
 #if   defined(RT_OS_DARWIN)
     , NULL
 #elif defined(RT_OS_LINUX)
@@ -184,10 +184,10 @@ DECLEXPORT(int) supR3PreInit(PSUPPREINITDATA pPreInitData, uint32_t fFlags)
         ||  pPreInitData->u32EndMagic != SUPPREINITDATA_MAGIC)
         return VERR_INVALID_MAGIC;
     if (    !(fFlags & SUPSECMAIN_FLAGS_DONT_OPEN_DEV)
-        &&  pPreInitData->Data.hDevice == NIL_RTFILE)
+        &&  pPreInitData->Data.hDevice == SUP_HDEVICE_NIL)
         return VERR_INVALID_HANDLE;
     if (    (fFlags & SUPSECMAIN_FLAGS_DONT_OPEN_DEV)
-        &&  pPreInitData->Data.hDevice != NIL_RTFILE)
+        &&  pPreInitData->Data.hDevice != SUP_HDEVICE_NIL)
         return VERR_INVALID_PARAMETER;
 
     /*
@@ -266,9 +266,9 @@ SUPR3DECL(int) SUPR3Init(PSUPDRVSESSION *ppSession)
         CookieReq.Hdr.rc = VERR_INTERNAL_ERROR;
         strcpy(CookieReq.u.In.szMagic, SUPCOOKIE_MAGIC);
         CookieReq.u.In.u32ReqVersion = SUPDRV_IOC_VERSION;
-        const uint32_t uMinVersion = /*(SUPDRV_IOC_VERSION & 0xffff0000) == 0x00160000
-                                   ? 0x00160001
-                                   : */ SUPDRV_IOC_VERSION & 0xffff0000;
+        const uint32_t uMinVersion = (SUPDRV_IOC_VERSION & 0xffff0000) == 0x00170000
+                                   ? 0x00170002
+                                   : SUPDRV_IOC_VERSION & 0xffff0000;
         CookieReq.u.In.u32MinVersion = uMinVersion;
         rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_COOKIE, &CookieReq, SUP_IOCTL_COOKIE_SIZE);
         if (    RT_SUCCESS(rc)
@@ -1686,6 +1686,29 @@ static DECLCALLBACK(int) supLoadModuleResolveImport(RTLDRMOD hLdrMod, const char
         *pValue = (uintptr_t)g_pSUPGlobalInfoPageR0;
         return VINF_SUCCESS;
     }
+
+    /*
+     * Symbols that are undefined by convention.
+     */
+#ifdef RT_OS_SOLARIS
+    static const char * const s_apszConvSyms[] =
+    {
+        "", "mod_getctl",
+        "", "mod_install",
+        "", "mod_remove",
+        "", "mod_info",
+        "", "mod_miscops",
+    };
+    for (unsigned i = 0; i < RT_ELEMENTS(s_apszConvSyms); i += 2)
+    {
+        if (   !RTStrCmp(s_apszConvSyms[i],     pszModule)
+            && !RTStrCmp(s_apszConvSyms[i + 1], pszSymbol))
+        {
+            *pValue = ~(uintptr_t)0;
+            return VINF_SUCCESS;
+        }
+    }
+#endif
 
     /*
      * Despair.

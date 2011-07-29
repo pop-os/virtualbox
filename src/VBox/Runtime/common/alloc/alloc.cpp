@@ -1,4 +1,4 @@
-/* $Id: alloc.cpp $ */
+/* $Id: alloc.cpp 37808 2011-07-07 07:45:50Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation.
  */
@@ -28,7 +28,9 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#define RTMEM_NO_WRAP_TO_EF_APIS
+#ifndef RTMEM_NO_WRAP_TO_EF_APIS
+# define RTMEM_NO_WRAP_TO_EF_APIS
+#endif
 #include <iprt/mem.h>
 #include "internal/iprt.h"
 

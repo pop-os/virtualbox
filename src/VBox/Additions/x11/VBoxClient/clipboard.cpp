@@ -1,4 +1,4 @@
-/** $Id: clipboard.cpp $ */
+/** $Id: clipboard.cpp 37434 2011-06-14 13:14:57Z vboxsync $ */
 /** @file
  * Guest Additions - X11 Shared Clipboard.
  */
@@ -185,7 +185,7 @@ int vboxClipboardConnect(void)
 
     /* Sanity */
     AssertReturn(g_ctx.client == 0, VERR_WRONG_ORDER);
-    g_ctx.pBackend = ClipConstructX11(&g_ctx);
+    g_ctx.pBackend = ClipConstructX11(&g_ctx, false);
     if (!g_ctx.pBackend)
         rc = VERR_NO_MEMORY;
     if (RT_SUCCESS(rc))

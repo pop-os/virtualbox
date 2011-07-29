@@ -1,4 +1,4 @@
-/* $Id: ldrMZ.h $ */
+/* $Id: ldrMZ.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT, MZ header.
  */

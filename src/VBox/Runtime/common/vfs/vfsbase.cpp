@@ -1,4 +1,4 @@
-/* $Id: vfsbase.cpp $ */
+/* $Id: vfsbase.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
 /** @file
  * IPRT - Virtual File System, Base.
  */
@@ -2297,7 +2297,7 @@ RTDECL(int) RTVfsNewFile(PCRTVFSFILEOPS pFileOps, size_t cbInstance, uint32_t fO
 }
 
 
-RTDECL(int)         RTVfsFileOpen(RTVFS hVfs, const char *pszFilename, uint32_t fOpen, PRTVFSFILE phVfsFile)
+RTDECL(int)         RTVfsFileOpen(RTVFS hVfs, const char *pszFilename, uint64_t fOpen, PRTVFSFILE phVfsFile)
 {
     /*
      * Validate input.

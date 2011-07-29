@@ -1,4 +1,4 @@
-/* $Id: sanity-c.c $ */
+/* $Id: sanity-c.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Setup Sanity Checks, C.
  */

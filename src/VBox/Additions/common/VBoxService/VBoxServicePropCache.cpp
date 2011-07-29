@@ -1,4 +1,4 @@
-/* $Id: VBoxServicePropCache.cpp $ */
+/* $Id: VBoxServicePropCache.cpp 36249 2011-03-10 12:18:20Z vboxsync $ */
 /** @file
  * VBoxServicePropCache - Guest property cache.
  */
@@ -112,6 +112,8 @@ int vboxServicePropCacheWritePropF(uint32_t u32ClientId, const char *pszName, ui
                     /* Host does not support the "TRANSRESET" flag, so only
                      * use the "TRANSIENT" flag -- better than nothing :-). */
                     rc = VbglR3GuestPropWrite(u32ClientId, pszName, pszValue, "TRANSIENT");
+                    /** @todo r=bird: Remember that the host doesn't support
+                     * this. */
                 }
             }
             else

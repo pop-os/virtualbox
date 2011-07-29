@@ -46,6 +46,7 @@
 #include <iprt/time.h>
 #include <iprt/path.h>
 #include <iprt/system.h>
+#include <iprt/base64.h>
 
 // workaround for compile problems on gcc 4.1
 #ifdef __GNUC__
@@ -521,6 +522,16 @@ public:
     {
     }
 
+    HRESULT init()
+    {
+       return S_OK;
+    }
+
+    void uninit()
+    {
+    }
+
+
     STDMETHOD(HandleEvent)(VBoxEventType_T aType, IEvent *aEvent)
     {
         switch (aType)
@@ -618,11 +629,11 @@ void WebLogSoapError(struct soap *soap)
 static void WebLogHeaderFooter(PRTLOGGER pLoggerRelease, RTLOGPHASE enmPhase, PFNRTLOGPHASEMSG pfnLog)
 {
     /* some introductory information */
-    static RTTIMESPEC timeSpec = {0};
+    static RTTIMESPEC s_TimeSpec;
     char szTmp[256];
     if (enmPhase == RTLOGPHASE_BEGIN)
-        RTTimeNow(&timeSpec);
-    RTTimeSpecToString(&timeSpec, szTmp, sizeof(szTmp));
+        RTTimeNow(&s_TimeSpec);
+    RTTimeSpecToString(&s_TimeSpec, szTmp, sizeof(szTmp));
 
     switch (enmPhase)
     {
@@ -752,6 +763,12 @@ int fntQPumper(RTTHREAD ThreadSelf, void *pvUser)
 
     return 0;
 }
+
+#ifdef RT_OS_WINDOWS
+// Required for ATL
+static CComModule _Module;
+#endif
+
 
 /**
  * Start up the webservice server. This keeps running and waits
@@ -954,11 +971,14 @@ int main(int argc, char *argv[])
     }
 
     /* VirtualBoxClient events registration. */
-    IEventListener *vboxClientListener = NULL;
+    ComPtr<IEventListener> vboxClientListener;
     {
         ComPtr<IEventSource> pES;
         CHECK_ERROR(g_pVirtualBoxClient, COMGETTER(EventSource)(pES.asOutParam()));
-        vboxClientListener = new VirtualBoxClientEventListenerImpl();
+        ComObjPtr<VirtualBoxClientEventListenerImpl> clientListener;
+        clientListener.createObject();
+        clientListener->init(new VirtualBoxClientEventListener());
+        vboxClientListener = clientListener;
         com::SafeArray<VBoxEventType_T> eventTypes;
         eventTypes.push_back(VBoxEventType_OnVBoxSVCAvailabilityChanged);
         CHECK_ERROR(pES, RegisterListener(vboxClientListener, ComSafeArrayAsInParam(eventTypes), true));
@@ -1014,7 +1034,7 @@ int main(int argc, char *argv[])
         CHECK_ERROR(g_pVirtualBoxClient, COMGETTER(EventSource)(pES.asOutParam()));
         if (!pES.isNull())
             CHECK_ERROR(pES, UnregisterListener(vboxClientListener));
-        vboxClientListener->Release();
+        vboxClientListener.setNull();
     }
 
     com::Shutdown();
@@ -1168,6 +1188,44 @@ std::string ConvertComString(const com::Guid &uuid)
 {
     com::Utf8Str ustr(uuid.toString());
     return ustr.c_str();        // @todo r=dj since the length is known, we can probably use a better std::string allocator
+}
+
+/** Code to handle string <-> byte arrays base64 conversion. */
+std::string Base64EncodeByteArray(ComSafeArrayIn(BYTE, aData))
+{
+
+    com::SafeArray<BYTE> sfaData(ComSafeArrayInArg(aData));
+    ssize_t cbData = sfaData.size();
+
+    if (cbData == 0)
+        return "";
+
+    ssize_t cchOut = RTBase64EncodedLength(cbData);
+
+    RTCString aStr;
+
+    aStr.reserve(cchOut+1);
+    int rc = RTBase64Encode(sfaData.raw(), cbData,
+                            aStr.mutableRaw(), aStr.capacity(),
+                            NULL);
+    AssertRC(rc);
+    aStr.jolt();
+
+    return aStr.c_str();
+}
+
+void Base64DecodeByteArray(std::string& aStr, ComSafeArrayOut(BYTE, aData))
+{
+    const char* pszStr = aStr.c_str();
+    ssize_t cbOut = RTBase64DecodedSize(pszStr, NULL);
+
+    Assert(cbOut > 0);
+
+    com::SafeArray<BYTE> result(cbOut);
+    int rc = RTBase64Decode(pszStr, result.raw(), cbOut, NULL, NULL);
+    AssertRC(rc);
+
+    result.detachTo(ComSafeArrayOutArg(aData));
 }
 
 /**
@@ -1992,4 +2050,3 @@ int __vbox__IWebsessionManager_USCORElogoff(
         return SOAP_FAULT;
     return SOAP_OK;
 }
-

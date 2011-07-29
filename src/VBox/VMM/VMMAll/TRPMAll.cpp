@@ -1,4 +1,4 @@
-/* $Id: TRPMAll.cpp $ */
+/* $Id: TRPMAll.cpp 37955 2011-07-14 12:23:02Z vboxsync $ */
 /** @file
  * TRPM - Trap Monitor - Any Context.
  */
@@ -29,13 +29,13 @@
 #include "TRPMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/err.h>
-#include <VBox/x86.h>
 #include <VBox/vmm/em.h>
 #include <VBox/log.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/param.h>
+#include <iprt/x86.h>
 #include "internal/pgm.h"
 
 

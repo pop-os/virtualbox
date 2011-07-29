@@ -1,4 +1,4 @@
-/* $Id: MsiCommon.cpp $ */
+/* $Id: MsiCommon.cpp 36663 2011-04-13 15:57:33Z vboxsync $ */
 /** @file
  * MSI support routines
  */
@@ -24,6 +24,7 @@
 
 #include "MsiCommon.h"
 
+/** @todo: use accessors so that raw PCI devices work correctly with MSI. */
 DECLINLINE(uint16_t) msiGetMessageControl(PPCIDEVICE pDev)
 {
     return PCIDevGetWord(pDev, pDev->Int.s.u8MsiCapOffset + VBOX_MSI_CAP_MESSAGE_CONTROL);
@@ -31,7 +32,7 @@ DECLINLINE(uint16_t) msiGetMessageControl(PPCIDEVICE pDev)
 
 DECLINLINE(bool) msiIs64Bit(PPCIDEVICE pDev)
 {
-    return (msiGetMessageControl(pDev) & VBOX_PCI_MSI_FLAGS_64BIT) != 0;
+    return pciDevIsMsi64Capable(pDev);
 }
 
 DECLINLINE(uint32_t*) msiGetMaskBits(PPCIDEVICE pDev)
@@ -100,11 +101,11 @@ DECLINLINE(bool) msiBitJustSet(uint32_t uOldValue,
     return (!(uOldValue & uMask) && !!(uNewValue & uMask));
 }
 
-
+#ifdef IN_RING3
 void     MsiPciConfigWrite(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, uint32_t u32Address, uint32_t val, unsigned len)
 {
     int32_t iOff = u32Address - pDev->Int.s.u8MsiCapOffset;
-    Assert(iOff >= 0 && (PCIIsMsiCapable(pDev) && iOff < pDev->Int.s.u8MsiCapSize));
+    Assert(iOff >= 0 && (pciDevIsMsiCapable(pDev) && iOff < pDev->Int.s.u8MsiCapSize));
 
     Log2(("MsiPciConfigWrite: %d <- %x (%d)\n", iOff, val, len));
 
@@ -189,7 +190,7 @@ uint32_t MsiPciConfigRead (PPDMDEVINS pDevIns, PPCIDEVICE pDev, uint32_t u32Addr
 {
     int32_t iOff = u32Address - pDev->Int.s.u8MsiCapOffset;
 
-    Assert(iOff >= 0 && (PCIIsMsiCapable(pDev) && iOff < pDev->Int.s.u8MsiCapSize));
+    Assert(iOff >= 0 && (pciDevIsMsiCapable(pDev) && iOff < pDev->Int.s.u8MsiCapSize));
     uint32_t rv = 0;
 
     switch (len)
@@ -212,11 +213,13 @@ uint32_t MsiPciConfigRead (PPDMDEVINS pDevIns, PPCIDEVICE pDev, uint32_t u32Addr
     return rv;
 }
 
-
 int MsiInit(PPCIDEVICE pDev, PPDMMSIREG pMsiReg)
 {
     if (pMsiReg->cMsiVectors == 0)
          return VINF_SUCCESS;
+
+    /* We cannot init MSI on raw devices yet. */
+    Assert(!pciDevIsPassthrough(pDev));
 
     uint16_t   cVectors    = pMsiReg->cMsiVectors;
     uint8_t    iCapOffset  = pMsiReg->iMsiCapOffset;
@@ -254,15 +257,17 @@ int MsiInit(PPCIDEVICE pDev, PPDMMSIREG pMsiReg)
     *msiGetMaskBits(pDev)    = 0;
     *msiGetPendingBits(pDev) = 0;
 
-    PCISetMsiCapable(pDev);
+    pciDevSetMsiCapable(pDev);
 
     return VINF_SUCCESS;
 }
 
+#endif /* IN_RING3 */
+
 
 bool     MsiIsEnabled(PPCIDEVICE pDev)
 {
-    return PCIIsMsiCapable(pDev) && msiIsEnabled(pDev);
+    return pciDevIsMsiCapable(pDev) && msiIsEnabled(pDev);
 }
 
 void MsiNotify(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, int iVector, int iLevel)

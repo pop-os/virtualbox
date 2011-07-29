@@ -1,4 +1,4 @@
-/* $Id: PDMBlkCache.cpp $ */
+/* $Id: PDMBlkCache.cpp 37933 2011-07-13 22:57:20Z vboxsync $ */
 /** @file
  * PDM Block Cache.
  */
@@ -96,7 +96,7 @@ DECLINLINE(void) pdmBlkCacheEntryRef(PPDMBLKCACHEENTRY pEntry)
     ASMAtomicIncU32(&pEntry->cRefs);
 }
 
-#ifdef DEBUG
+#ifdef VBOX_STRICT
 static void pdmBlkCacheValidate(PPDMBLKCACHEGLOBAL pCache)
 {
     /* Amount of cached data should never exceed the maximum amount. */
@@ -115,14 +115,14 @@ static void pdmBlkCacheValidate(PPDMBLKCACHEGLOBAL pCache)
 DECLINLINE(void) pdmBlkCacheLockEnter(PPDMBLKCACHEGLOBAL pCache)
 {
     RTCritSectEnter(&pCache->CritSect);
-#ifdef DEBUG
+#ifdef VBOX_STRICT
     pdmBlkCacheValidate(pCache);
 #endif
 }
 
 DECLINLINE(void) pdmBlkCacheLockLeave(PPDMBLKCACHEGLOBAL pCache)
 {
-#ifdef DEBUG
+#ifdef VBOX_STRICT
     pdmBlkCacheValidate(pCache);
 #endif
     RTCritSectLeave(&pCache->CritSect);

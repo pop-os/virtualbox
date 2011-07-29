@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.cpp $ */
+/* $Id: DisplayImpl.cpp 36590 2011-04-06 15:35:26Z vboxsync $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Implementation of Display class
@@ -36,12 +36,6 @@
 #include <VBox/log.h>
 #include <iprt/asm.h>
 #include <iprt/uuid.h>
-
-#ifdef RT_OS_L4
-# include <stdio.h>
-# include <l4/util/util.h>
-# include <l4/log/l4log.h>
-#endif
 
 #include "DisplayImpl.h"
 #include "Framebuffer.h"
@@ -390,12 +384,7 @@ void Display::updateDisplayData()
 
     while(!mFramebuffer)
     {
-#if RT_OS_L4
-      asm volatile ("nop":::"memory");
-      l4_sleep(5);
-#else
       RTThreadYield();
-#endif
     }
     Assert(mFramebuffer);
     // the driver might not have been constructed yet

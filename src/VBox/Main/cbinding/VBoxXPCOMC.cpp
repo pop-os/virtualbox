@@ -1,4 +1,4 @@
-/* $Id: VBoxXPCOMC.cpp $ */
+/* $Id: VBoxXPCOMC.cpp 29167 2010-05-06 15:58:14Z vboxsync $ */
 /** @file VBoxXPCOMC.cpp
  * Utility functions to use with the C binding for XPCOM.
  */

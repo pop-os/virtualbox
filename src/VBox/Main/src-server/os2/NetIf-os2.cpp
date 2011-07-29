@@ -1,4 +1,4 @@
-/* $Id: NetIf-os2.cpp $ */
+/* $Id: NetIf-os2.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Main - NetIfList, OS/2 implementation.
  */

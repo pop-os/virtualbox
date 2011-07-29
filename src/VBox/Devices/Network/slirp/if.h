@@ -1,4 +1,4 @@
-/* $Id: if.h $ */
+/* $Id: if.h 30016 2010-06-03 18:31:14Z vboxsync $ */
 /** @file
  * NAT - if_*.
  */

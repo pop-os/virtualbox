@@ -12,8 +12,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>
  */
 
 /*
@@ -29,11 +28,11 @@
    system emulation doesn't need/use locking, NPTL userspace uses
    pthread mutexes, and non-NPTL userspace isn't threadsafe anyway.
    In either case a spinlock is probably the wrong kind of lock.
-   Spinlocks are only good if you know another CPU has the lock and is
+   Spinlocks are only good if you know annother CPU has the lock and is
    likely to release it soon.  In environments where you have more threads
    than physical CPUs (the extreme case being a single CPU host) a spinlock
    simply wastes CPU until the OS decides to preempt it.  */
-#if defined(USE_NPTL)
+#if defined(CONFIG_USE_NPTL)
 
 #include <pthread.h>
 #define spin_lock pthread_mutex_lock
@@ -60,11 +59,7 @@ typedef int spinlock_t;
 
 #define SPIN_LOCK_UNLOCKED 0
 
-#ifndef VBOX
 static inline void resetlock (spinlock_t *p)
-#else
-DECLINLINE(void) resetlock (spinlock_t *p)
-#endif
 {
     *p = SPIN_LOCK_UNLOCKED;
 }
@@ -74,20 +69,18 @@ DECLINLINE(void) resetlock (spinlock_t *p)
 #ifdef VBOX
 DECLINLINE(int) testandset (int *p)
 {
-
     return ASMAtomicCmpXchgU32((volatile uint32_t *)p, 1, 0) ? 0 : 1;
 }
-#elif defined(__powerpc__)
+#elif defined(_ARCH_PPC)
 static inline int testandset (int *p)
 {
     int ret;
     __asm__ __volatile__ (
-                          "0:    lwarx %0,0,%1\n"
+                          "      lwarx %0,0,%1\n"
                           "      xor. %0,%3,%0\n"
-                          "      bne 1f\n"
+                          "      bne $+12\n"
                           "      stwcx. %2,0,%1\n"
-                          "      bne- 0b\n"
-                          "1:    "
+                          "      bne- $-16\n"
                           : "=&r" (ret)
                           : "r" (p), "r" (1), "r" (0)
                           : "cr0", "memory");
@@ -251,27 +244,15 @@ static inline int spin_trylock(spinlock_t *lock)
     return !testandset(lock);
 }
 #else
-#ifndef VBOX
 static inline void spin_lock(spinlock_t *lock)
-#else
-DECLINLINE(void) spin_lock(spinlock_t *lock)
-#endif
 {
 }
 
-#ifndef VBOX
 static inline void spin_unlock(spinlock_t *lock)
-#else
-DECLINLINE(void) spin_unlock(spinlock_t *lock)
-#endif
 {
 }
 
-#ifndef VBOX
 static inline int spin_trylock(spinlock_t *lock)
-#else
-DECLINLINE(int) spin_trylock(spinlock_t *lock)
-#endif
 {
     return 1;
 }

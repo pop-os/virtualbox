@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,7 @@
 #include "UISettingsDialog.h"
 
 /* Dialog which encapsulate all the specific functionalities of the Global Settings */
-class UIGLSettingsDlg : public UISettingsDialog
+class UISettingsDialogGlobal : public UISettingsDialog
 {
     Q_OBJECT;
 
@@ -39,15 +39,16 @@ public:
         GLSettingsPage_USB,
         GLSettingsPage_Network,
         GLSettingsPage_Extension,
+        GLSettingsPage_Proxy,
         GLSettingsPage_MAX
     };
 
-    UIGLSettingsDlg(QWidget *pParent);
+    UISettingsDialogGlobal(QWidget *pParent);
 
 protected:
 
-    void getFrom();
-    void putBackTo();
+    void loadData();
+    void saveData();
 
     void retranslateUi();
 
@@ -55,11 +56,11 @@ protected:
 
 private:
 
-    bool isAvailable(int id);
+    bool isPageAvailable(int iPageId);
 };
 
 /* Dialog which encapsulate all the specific functionalities of the Virtual Machine Settings */
-class UIVMSettingsDlg : public UISettingsDialog
+class UISettingsDialogMachine : public UISettingsDialog
 {
     Q_OBJECT;
 
@@ -81,22 +82,26 @@ public:
         VMSettingsPage_MAX
     };
 
-    UIVMSettingsDlg(QWidget *pParent, const CMachine &machine,
-                    const QString &strCategory, const QString &strControl);
+    UISettingsDialogMachine(QWidget *pParent, const QString &strMachineId,
+                            const QString &strCategory, const QString &strControl);
 
 protected:
 
-    void getFrom();
-    void putBackTo();
+    void loadData();
+    void saveData();
 
     void retranslateUi();
 
     QString title() const;
 
-    bool recorrelate(QWidget *pPage, QString &strWarning);
+    void recorrelate(UISettingsPage *pSettingsPage);
 
 private slots:
 
+    void sltMarkLoaded();
+    void sltMarkSaved();
+    void sltMachineStateChanged(QString strMachineId, KMachineState machineState);
+    void sltMachineDataChanged(QString strMachineId);
     void sltCategoryChanged(int cId);
     void sltAllowResetFirstRunFlag();
     void sltSetFirstRunFlag();
@@ -104,9 +109,16 @@ private slots:
 
 private:
 
-    bool isAvailable(int id);
+    bool isPageAvailable(int iPageId);
+    bool isSettingsChanged();
 
+    QString m_strMachineId;
+    KMachineState m_machineState;
+
+    CSession m_session;
     CMachine m_machine;
+    CConsole m_console;
+
     bool m_fAllowResetFirstRunFlag;
     bool m_fResetFirstRunFlag;
 };

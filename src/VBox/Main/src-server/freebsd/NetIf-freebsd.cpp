@@ -1,4 +1,4 @@
-/* $Id: NetIf-freebsd.cpp $ */
+/* $Id: NetIf-freebsd.cpp 36797 2011-04-21 15:46:31Z vboxsync $ */
 /** @file
  * Main - NetIfList, FreeBSD implementation.
  */
@@ -179,7 +179,7 @@ int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
     size_t cbNeeded;
     char *pBuf, *pNext;
     int aiMib[6];
-    unsigned short u16DefaultIface;
+    unsigned short u16DefaultIface = 0; /* shut up gcc. */
     bool fDefaultIfaceExistent = true;
 
     /* Get the index of the interface associated with default route. */

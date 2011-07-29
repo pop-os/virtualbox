@@ -1,4 +1,4 @@
-/* $Id: VBoxUSB-solaris.c $ */
+/* $Id: VBoxUSB-solaris.c 38017 2011-07-18 13:24:08Z vboxsync $ */
 /** @file
  * VirtualBox USB Client Driver, Solaris Hosts.
  */
@@ -351,6 +351,9 @@ LOCAL void vboxUSBSolarisPowerIdle(vboxusb_state_t *pState);
 int VBoxUSBMonSolarisRegisterClient(dev_info_t *pClientDip, PVBOXUSB_CLIENT_INFO pClientInfo);
 int VBoxUSBMonSolarisUnregisterClient(dev_info_t *pClientDip);
 
+/** Callbacks from Monitor */
+LOCAL int vboxUSBSolarisSetConsumerCredentials(RTPROCESS Process, int Instance, void *pvReserved);
+
 
 /*******************************************************************************
 *   Global Variables                                                           *
@@ -463,7 +466,7 @@ int VBoxUSBSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
             if (rc == DDI_SUCCESS)
             {
                 pState = ddi_get_soft_state(g_pVBoxUSBSolarisState, instance);
-                if (pState)
+                if (RT_LIKELY(pState))
                 {
                     pState->pDip = pDip;
                     pState->pDevDesc = NULL;
@@ -555,25 +558,32 @@ int VBoxUSBSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
                                                     bzero(&pState->ClientInfo, sizeof(pState->ClientInfo));
                                                     char szDevicePath[MAXPATHLEN];
                                                     ddi_pathname(pState->pDip, szDevicePath);
-                                                    RTStrPrintf(pState->ClientInfo.achClientPath, sizeof(pState->ClientInfo.achClientPath),
+                                                    RTStrPrintf(pState->ClientInfo.szClientPath, sizeof(pState->ClientInfo.szClientPath),
                                                                 "/devices%s:%s",
                                                                 szDevicePath,
                                                                 DEVICE_NAME);
                                                     RTPathStripFilename(szDevicePath);
-                                                    RTStrPrintf(pState->ClientInfo.achDeviceIdent, sizeof(pState->ClientInfo.achDeviceIdent),
+                                                    RTStrPrintf(pState->ClientInfo.szDeviceIdent, sizeof(pState->ClientInfo.szDeviceIdent),
                                                                 "%#x:%#x:%d:%s",
                                                                 pState->pDevDesc->dev_descr->idVendor,
                                                                 pState->pDevDesc->dev_descr->idProduct,
                                                                 pState->pDevDesc->dev_descr->bcdDevice,
                                                                 szDevicePath);
                                                     pState->ClientInfo.Instance = instance;
+                                                    pState->ClientInfo.pfnSetConsumerCredentials = &vboxUSBSolarisSetConsumerCredentials;
                                                     rc = VBoxUSBMonSolarisRegisterClient(pState->pDip, &pState->ClientInfo);
                                                     if (RT_SUCCESS(rc))
+                                                    {
+                                                        LogRel((DEVICE_NAME ": Captured %s %s\n",
+                                                                pState->pDevDesc->dev_product ? pState->pDevDesc->dev_product : "<Unnamed USB device>",
+                                                                pState->ClientInfo.szDeviceIdent));
+
                                                         return DDI_SUCCESS;
+                                                    }
                                                     else
                                                     {
                                                         LogRel((DEVICE_NAME ":VBoxUSBMonSolarisRegisterClient failed! rc=%d path=%s instance=%d\n",
-                                                                rc, pState->ClientInfo.achClientPath, instance));
+                                                                rc, pState->ClientInfo.szClientPath, instance));
                                                     }
 
                                                     usb_unregister_event_cbs(pState->pDip, &g_VBoxUSBSolarisEvents);
@@ -738,6 +748,10 @@ int VBoxUSBSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
 
             ddi_remove_minor_node(pState->pDip, NULL);
 
+            LogRel((DEVICE_NAME ": Released %s %s\n",
+                    pState->pDevDesc->dev_product ? pState->pDevDesc->dev_product : "<Unnamed USB device>",
+                    pState->ClientInfo.szDeviceIdent));
+
             ddi_soft_state_free(g_pVBoxUSBSolarisState, instance);
             pState = NULL;
 
@@ -806,6 +820,45 @@ int VBoxUSBSolarisGetInfo(dev_info_t *pDip, ddi_info_cmd_t enmCmd, void *pvArg, 
 }
 
 
+/**
+ * Callback invoked from the Monitor driver when a VM process tries to access
+ * this client instance. This determines which VM process will be allowed to
+ * open and access the USB device.
+ *
+ * @returns  VBox status code.
+ *
+ * @param    Process        The VM process performing the client info. query.
+ * @param    Instance       This client instance (the one set while we register
+ *                          ourselves to the Monitor driver)
+ * @param    pvReserved     Reserved for future, unused.
+ */
+LOCAL int vboxUSBSolarisSetConsumerCredentials(RTPROCESS Process, int Instance, void *pvReserved)
+{
+    LogFlowFunc((DEVICE_NAME ":vboxUSBSolarisSetConsumerCredentials Process=%u Instance=%d\n", Process, Instance));
+    vboxusb_state_t *pState = ddi_get_soft_state(g_pVBoxUSBSolarisState, Instance);
+    if (!pState)
+    {
+        LogRel((DEVICE_NAME ":vboxUSBSolarisSetConsumerCredentials failed to get device state for instance %d\n", Instance));
+        return VERR_INVALID_STATE;
+    }
+
+    int rc = VINF_SUCCESS;
+    mutex_enter(&pState->Mtx);
+
+    if (pState->Process == NIL_RTPROCESS)
+        pState->Process = Process;
+    else
+    {
+        LogRel((DEVICE_NAME ":vboxUSBSolarisSetConsumerCredentials failed! Process %u already has client open.\n", pState->Process));
+        rc = VERR_RESOURCE_BUSY;
+    }
+
+    mutex_exit(&pState->Mtx);
+
+    return rc;
+}
+
+
 int VBoxUSBSolarisOpen(dev_t *pDev, int fFlag, int fType, cred_t *pCred)
 {
     LogFlowFunc((DEVICE_NAME ":VBoxUSBSolarisOpen pDev=%p fFlag=%d fType=%d pCred=%p\n", pDev, fFlag, fType, pCred));
@@ -827,17 +880,25 @@ int VBoxUSBSolarisOpen(dev_t *pDev, int fFlag, int fType, cred_t *pCred)
         return ENXIO;
     }
 
+    mutex_enter(&pState->Mtx);
+
     /*
      * Only one user process can open a device instance at a time.
      */
-    if (pState->Process != NIL_RTPROCESS)
+    if (pState->Process != RTProcSelf())
     {
-        LogRel((DEVICE_NAME ":VBoxUSBSolarisOpen a process is already using this device instance.\n"));
-        return EBUSY;
+        if (pState->Process == NIL_RTPROCESS)
+            LogRel((DEVICE_NAME ":VBoxUSBSolarisOpen No prior information about authorized process.\n"));
+        else
+            LogRel((DEVICE_NAME ":VBoxUSBSolarisOpen Process %d is already using this device instance.\n", pState->Process));
+
+        mutex_exit(&pState->Mtx);
+        return EPERM;
     }
 
-    pState->Process = RTProcSelf();
     pState->fPoll = VBOXUSB_POLL_ON;
+
+    mutex_exit(&pState->Mtx);
 
     NOREF(fFlag);
     NOREF(pCred);
@@ -1559,8 +1620,8 @@ LOCAL int vboxUSBSolarisSendURB(vboxusb_state_t *pState, PVBOXUSBREQ_URB pUrbReq
     vboxusb_ep_t *pEp = &pState->aEps[EndPtIndex];
     AssertPtrReturn(pEp, VERR_INVALID_POINTER);
 
-//    LogFlowFunc((DEVICE_NAME ":vboxUSBSolarisSendUrb pState=%p pUrbReq=%p bEndpoint=%#x[%d] enmDir=%#x enmType=%#x cbData=%d pvData=%p\n",
-//            pState, pUrbReq, pUrbReq->bEndpoint, EndPtIndex, pUrbReq->enmDir, pUrbReq->enmType, pUrbReq->cbData, pUrbReq->pvData));
+    /* LogFlowFunc((DEVICE_NAME ":vboxUSBSolarisSendUrb pState=%p pUrbReq=%p bEndpoint=%#x[%d] enmDir=%#x enmType=%#x cbData=%d pvData=%p\n",
+            pState, pUrbReq, pUrbReq->bEndpoint, EndPtIndex, pUrbReq->enmDir, pUrbReq->enmType, pUrbReq->cbData, pUrbReq->pvData)); */
 
     if (RT_UNLIKELY(!pUrbReq->pvData))
     {

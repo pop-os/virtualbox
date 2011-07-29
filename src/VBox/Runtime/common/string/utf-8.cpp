@@ -1,4 +1,4 @@
-/* $Id: utf-8.cpp $ */
+/* $Id: utf-8.cpp 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - UTF-8 Decoding.
  */
@@ -51,7 +51,7 @@
  * @param   pcchActual      Where to store the actual size of the UTF-8 string
  *                          on success (cch = cb again). Optional.
  */
-int rtUtf8Length(const char *psz, size_t cch, size_t *pcuc, size_t *pcchActual)
+DECLHIDDEN(int) rtUtf8Length(const char *psz, size_t cch, size_t *pcuc, size_t *pcchActual)
 {
     const unsigned char *puch = (const unsigned char *)psz;
     size_t cCodePoints = 0;

@@ -1,4 +1,4 @@
-/* $Id: tstRTManifest.cpp $ */
+/* $Id: tstRTManifest.cpp 34464 2010-11-29 13:45:37Z vboxsync $ */
 /** @file
  * IPRT Testcase - Manifest files.
  */

@@ -1,4 +1,4 @@
-/* $Id: fdc.c $ */
+/* $Id: fdc.c 37478 2011-06-15 18:49:40Z vboxsync $ */
 /** @file
  * VBox storage devices: Floppy disk controller
  */
@@ -188,6 +188,8 @@ typedef struct fdrive_t {
     uint8_t media_rate;       /* Data rate of medium    */
 } fdrive_t;
 
+#define NUM_SIDES(drv)      (drv->flags & FDISK_DBL_SIDES ? 2 : 1)
+
 static void fd_init(fdrive_t *drv)
 {
     /* Drive */
@@ -199,15 +201,15 @@ static void fd_init(fdrive_t *drv)
 }
 
 static int fd_sector_calc(uint8_t head, uint8_t track, uint8_t sect,
-                          uint8_t last_sect)
+                          uint8_t last_sect, uint8_t num_sides)
 {
-    return (((track * 2) + head) * last_sect) + sect - 1; /* sect >= 1 */
+    return (((track * num_sides) + head) * last_sect) + sect - 1; /* sect >= 1 */
 }
 
 /* Returns current position, in sectors, for given drive */
 static int fd_sector(fdrive_t *drv)
 {
-    return fd_sector_calc(drv->head, drv->track, drv->sect, drv->last_sect);
+    return fd_sector_calc(drv->head, drv->track, drv->sect, drv->last_sect, NUM_SIDES(drv));
 }
 
 /* Seek to a new position:
@@ -238,7 +240,7 @@ static int fd_seek(fdrive_t *drv, uint8_t head, uint8_t track, uint8_t sect,
                        drv->max_track, drv->last_sect);
         return 3;
     }
-    sector = fd_sector_calc(head, track, sect, drv->last_sect);
+    sector = fd_sector_calc(head, track, sect, drv->last_sect, NUM_SIDES(drv));
     ret = 0;
     if (sector != fd_sector(drv)) {
 #if 0
@@ -1158,7 +1160,7 @@ static void fdctrl_start_transfer(fdctrl_t *fdctrl, int direction)
     ks = fdctrl->fifo[4];
     FLOPPY_DPRINTF("Start transfer at %d %d %02x %02x (%d)\n",
                    GET_CUR_DRV(fdctrl), kh, kt, ks,
-                   fd_sector_calc(kh, kt, ks, cur_drv->last_sect));
+                   fd_sector_calc(kh, kt, ks, cur_drv->last_sect, NUM_SIDES(cur_drv)));
     switch (fd_seek(cur_drv, kh, kt, ks, fdctrl->config & FD_CONFIG_EIS)) {
     case 2:
         /* sect too big */
@@ -1569,7 +1571,7 @@ static void fdctrl_format_sector(fdctrl_t *fdctrl)
     ks = fdctrl->fifo[8];
     FLOPPY_DPRINTF("format sector at %d %d %02x %02x (%d)\n",
                    GET_CUR_DRV(fdctrl), kh, kt, ks,
-                   fd_sector_calc(kh, kt, ks, cur_drv->last_sect));
+                   fd_sector_calc(kh, kt, ks, cur_drv->last_sect, NUM_SIDES(cur_drv)));
     switch (fd_seek(cur_drv, kh, kt, ks, fdctrl->config & FD_CONFIG_EIS)) {
     case 2:
         /* sect too big */
@@ -1636,7 +1638,7 @@ static void fdctrl_handle_lock(fdctrl_t *fdctrl, int direction)
 {
     fdctrl->lock = (fdctrl->fifo[0] & 0x80) ? 1 : 0;
     fdctrl->fifo[0] = fdctrl->lock << 4;
-    fdctrl_set_fifo(fdctrl, 1, fdctrl->lock);
+    fdctrl_set_fifo(fdctrl, 1, 0);
 }
 
 static void fdctrl_handle_dumpreg(fdctrl_t *fdctrl, int direction)
@@ -1668,12 +1670,12 @@ static void fdctrl_handle_version(fdctrl_t *fdctrl, int direction)
 {
     /* Controller's version */
     fdctrl->fifo[0] = fdctrl->version;
-    fdctrl_set_fifo(fdctrl, 1, 1);
+    fdctrl_set_fifo(fdctrl, 1, 0);
 }
 
 static void fdctrl_handle_partid(fdctrl_t *fdctrl, int direction)
 {
-    fdctrl->fifo[0] = 0x41; /* Stepping 1 */
+    fdctrl->fifo[0] = 0x01; /* Stepping 1 */
     fdctrl_set_fifo(fdctrl, 1, 0);
 }
 
@@ -1727,7 +1729,7 @@ static void fdctrl_handle_save(fdctrl_t *fdctrl, int direction)
     fdctrl->fifo[12] = fdctrl->pwrd;
     fdctrl->fifo[13] = 0;
     fdctrl->fifo[14] = 0;
-    fdctrl_set_fifo(fdctrl, 15, 1);
+    fdctrl_set_fifo(fdctrl, 15, 0);
 }
 
 static void fdctrl_handle_readid(fdctrl_t *fdctrl, int direction)
@@ -1882,7 +1884,7 @@ static void fdctrl_handle_powerdown_mode(fdctrl_t *fdctrl, int direction)
 {
     fdctrl->pwrd = fdctrl->fifo[1];
     fdctrl->fifo[0] = fdctrl->fifo[1];
-    fdctrl_set_fifo(fdctrl, 1, 1);
+    fdctrl_set_fifo(fdctrl, 1, 0);
 }
 
 static void fdctrl_handle_option(fdctrl_t *fdctrl, int direction)
@@ -1901,7 +1903,7 @@ static void fdctrl_handle_drive_specification_command(fdctrl_t *fdctrl, int dire
             fdctrl->fifo[0] = fdctrl->fifo[1];
             fdctrl->fifo[2] = 0;
             fdctrl->fifo[3] = 0;
-            fdctrl_set_fifo(fdctrl, 4, 1);
+            fdctrl_set_fifo(fdctrl, 4, 0);
         } else {
             fdctrl_reset_fifo(fdctrl);
         }
@@ -1909,7 +1911,7 @@ static void fdctrl_handle_drive_specification_command(fdctrl_t *fdctrl, int dire
         /* ERROR */
         fdctrl->fifo[0] = 0x80 |
             (cur_drv->head << 2) | GET_CUR_DRV(fdctrl);
-        fdctrl_set_fifo(fdctrl, 1, 1);
+        fdctrl_set_fifo(fdctrl, 1, 0);
     }
 }
 
@@ -2032,6 +2034,7 @@ static void fdctrl_write_data(fdctrl_t *fdctrl, uint32_t value)
         pos = command_to_handler[value & 0xff];
         FLOPPY_DPRINTF("%s command\n", handlers[pos].name);
         fdctrl->data_len = handlers[pos].parameters + 1;
+        fdctrl->msr |= FD_MSR_CMDBUSY;
     }
 
     FLOPPY_DPRINTF("%s: %02x\n", __func__, value);

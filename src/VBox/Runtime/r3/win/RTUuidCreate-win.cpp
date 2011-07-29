@@ -1,4 +1,4 @@
-/* $Id: RTUuidCreate-win.cpp $ */
+/* $Id: RTUuidCreate-win.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - UUID, Windows RTUuidCreate implementation.
  */

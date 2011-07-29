@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdp.c $ */
+/* $Id: VBoxNetAdp.c 36951 2011-05-04 07:07:34Z vboxsync $ */
 /** @file
  * VBoxNetAdp - Virtual Network Adapter Driver (Host), Common Code.
  */
@@ -1189,7 +1189,6 @@ int vboxNetAdpDestroy(PVBOXNETADP pThis)
 int  vboxNetAdpInit(void)
 {
     unsigned i;
-    PVBOXNETADP pVboxnet0;
     /*
      * Init common members and call OS-specific init.
      */
@@ -1202,8 +1201,7 @@ int  vboxNetAdpInit(void)
         vboxNetAdpOsInit(&g_aAdapters[i]);
     }
 
-    /* Create vboxnet0 */
-    return vboxNetAdpCreate(&pVboxnet0, NULL);
+    return VINF_SUCCESS;
 }
 
 /**

@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.h $ */
+/* $Id: DisplayImpl.h 35638 2011-01-19 19:10:49Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -108,9 +108,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(Display)
-        COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(IDisplay)
-        COM_INTERFACE_ENTRY2(IDispatch,IDisplay)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IDisplay)
         COM_INTERFACE_ENTRY(IEventListener)
     END_COM_MAP()
 

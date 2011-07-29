@@ -1,10 +1,10 @@
-/* $Id: tstDBGCStubs.cpp $ */
+/* $Id: tstDBGCStubs.cpp 35629 2011-01-19 15:15:21Z vboxsync $ */
 /** @file
  * DBGC Testcase - Command Parser, VMM Stub Functions.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,6 +17,7 @@
 
 #include <VBox/err.h>
 #include <VBox/vmm/vm.h>
+#include <iprt/string.h>
 
 
 
@@ -205,11 +206,46 @@ VMMR3DECL(int) DBGFR3RegCpuQueryU64( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uin
 {
     return VERR_INTERNAL_ERROR;
 }
-VMMR3DECL(int) DBGFR3RegNmQuery(    PVM pVM, VMCPUID idDefCpu, const char *pszReg, PDBGFREGVAL pValue, PDBGFREGVALTYPE penmType)
+VMMR3DECL(int) DBGFR3RegNmQuery(PVM pVM, VMCPUID idDefCpu, const char *pszReg, PDBGFREGVAL pValue, PDBGFREGVALTYPE penmType)
 {
+    if (idDefCpu == 0 || idDefCpu == DBGFREG_HYPER_VMCPUID)
+    {
+        if (!strcmp(pszReg, "ah"))
+        {
+            pValue->u16 = 0xf0;
+            *penmType   = DBGFREGVALTYPE_U8;
+            return VINF_SUCCESS;
+        }
+        if (!strcmp(pszReg, "ax"))
+        {
+            pValue->u16 = 0xbabe;
+            *penmType   = DBGFREGVALTYPE_U16;
+            return VINF_SUCCESS;
+        }
+        if (!strcmp(pszReg, "eax"))
+        {
+            pValue->u32 = 0xcafebabe;
+            *penmType   = DBGFREGVALTYPE_U32;
+            return VINF_SUCCESS;
+        }
+        if (!strcmp(pszReg, "rax"))
+        {
+            pValue->u64 = UINT64_C(0x00beef00feedface);
+            *penmType   = DBGFREGVALTYPE_U32;
+            return VINF_SUCCESS;
+        }
+    }
     return VERR_INTERNAL_ERROR;
 }
 VMMR3DECL(int) DBGFR3RegPrintf(PVM pVM, VMCPUID idCpu, char *pszBuf, size_t cbBuf, const char *pszFormat, ...)
+{
+    return VERR_INTERNAL_ERROR;
+}
+VMMDECL(ssize_t) DBGFR3RegFormatValue(char *pszBuf, size_t cbBuf, PCDBGFREGVAL pValue, DBGFREGVALTYPE enmType, bool fSpecial)
+{
+    return VERR_INTERNAL_ERROR;
+}
+VMMR3DECL(int) DBGFR3RegNmSet(PVM pVM, VMCPUID idDefCpu, const char *pszReg, PCDBGFREGVAL pValue, DBGFREGVALTYPE enmType)
 {
     return VERR_INTERNAL_ERROR;
 }
@@ -352,6 +388,10 @@ VMMR3DECL(int) PGMR3DbgR3Ptr2GCPhys(PVM pVM, RTR3PTR R3Ptr, PRTGCPHYS pGCPhys)
 }
 
 VMMR3DECL(int) PGMR3DbgR3Ptr2HCPhys(PVM pVM, RTR3PTR R3Ptr, PRTHCPHYS pHCPhys)
+{
+    return VERR_INTERNAL_ERROR;
+}
+VMMR3DECL(int) PGMR3DbgHCPhys2GCPhys(PVM pVM, RTHCPHYS HCPhys, PRTGCPHYS pGCPhys)
 {
     return VERR_INTERNAL_ERROR;
 }

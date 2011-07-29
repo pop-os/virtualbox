@@ -1,4 +1,4 @@
-/* $Id: path-win.cpp $ */
+/* $Id: path-win.cpp 36879 2011-04-29 09:15:52Z vboxsync $ */
 /** @file
  * IPRT - Path manipulation.
  */
@@ -30,11 +30,13 @@
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_PATH
 #include <Windows.h>
+#include <Shlobj.h>
 
 #include <iprt/path.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #include <iprt/time.h>
+#include <iprt/ldr.h>
 #include <iprt/mem.h>
 #include <iprt/param.h>
 #include <iprt/log.h>
@@ -42,6 +44,9 @@
 #include "internal/path.h"
 #include "internal/fs.h"
 
+/* Needed for lazy loading SHGetFolderPathW in RTPathUserDocuments(). */
+typedef HRESULT FNSHGETFOLDERPATHW(HWND, int, HANDLE, DWORD, LPWSTR);
+typedef FNSHGETFOLDERPATHW *PFNSHGETFOLDERPATHW;
 
 /**
  * Get the real (no symlinks, no . or .. components) path, must exist.
@@ -178,6 +183,40 @@ RTDECL(int) RTPathUserHome(char *pszPath, size_t cchPath)
      * Convert and return.
      */
     return RTUtf16ToUtf8Ex(&wszPath[0], RTSTR_MAX, &pszPath, cchPath, NULL);
+}
+
+
+RTDECL(int) RTPathUserDocuments(char *pszPath, size_t cchPath)
+{
+    /*
+     * Validate input
+     */
+    AssertPtrReturn(pszPath, VERR_INVALID_POINTER);
+    AssertReturn(cchPath, VERR_INVALID_PARAMETER);
+
+    RTLDRMOD hShell32;
+    int rc = RTLdrLoad("Shell32.dll", &hShell32);
+    if (RT_SUCCESS(rc))
+    {
+        PFNSHGETFOLDERPATHW pfnSHGetFolderPathW;
+        rc = RTLdrGetSymbol(hShell32, "SHGetFolderPathW", (void**)&pfnSHGetFolderPathW);
+        if (RT_SUCCESS(rc))
+        {
+            RTUTF16 wszPath[RTPATH_MAX];
+            HRESULT hrc = pfnSHGetFolderPathW(0, CSIDL_PERSONAL, NULL, SHGFP_TYPE_CURRENT, wszPath);
+            if (   hrc == S_OK     /* Found */
+                || hrc == S_FALSE) /* Found, but doesn't exist */
+            {
+                /*
+                 * Convert and return.
+                 */
+                RTLdrClose(hShell32);
+                return RTUtf16ToUtf8Ex(&wszPath[0], RTSTR_MAX, &pszPath, cchPath, NULL);
+            }
+        }
+        RTLdrClose(hShell32);
+    }
+    return VERR_PATH_NOT_FOUND;
 }
 
 

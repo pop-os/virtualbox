@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /*
@@ -31,6 +30,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include "config.h"
 
@@ -39,6 +39,7 @@
 #include "exec-all.h"
 #include "disas.h"
 #include "tcg.h"
+#include "qemu-timer.h"
 
 /* code generation context */
 TCGContext tcg_ctx;
@@ -49,37 +50,8 @@ TCGArg gen_opparam_buf[OPPARAM_BUF_SIZE];
 target_ulong gen_opc_pc[OPC_BUF_SIZE];
 uint16_t gen_opc_icount[OPC_BUF_SIZE];
 uint8_t gen_opc_instr_start[OPC_BUF_SIZE];
-#if defined(TARGET_I386)
-uint8_t gen_opc_cc_op[OPC_BUF_SIZE];
-#elif defined(TARGET_SPARC)
-target_ulong gen_opc_npc[OPC_BUF_SIZE];
-target_ulong gen_opc_jump_pc[2];
-#elif defined(TARGET_MIPS)
-uint32_t gen_opc_hflags[OPC_BUF_SIZE];
-#endif
 
-/* XXX: suppress that */
-unsigned long code_gen_max_block_size(void)
-{
-#ifdef VBOX
-    /* Just to suppress a lot of dummy warnings */
-    static long max;
-#else
-    static unsigned long max;
-#endif
-
-    if (max == 0) {
-        max = TCG_MAX_OP_SIZE;
-#define DEF(s, n, copy_size) max = (copy_size > max) ? copy_size : max;
-#include "tcg-opc.h"
-#undef DEF
-        max *= OPC_MAX_SIZE;
-    }
-
-    return max;
-}
-
-void cpu_gen_init()
+void cpu_gen_init(void)
 {
     tcg_context_init(&tcg_ctx);
     tcg_set_frame(&tcg_ctx, TCG_AREG0, offsetof(CPUState, temp_buf),
@@ -92,8 +64,7 @@ void cpu_gen_init()
    '*gen_code_size_ptr' contains the size of the generated code (host
    code).
 */
-int cpu_gen_code(CPUState *env, TranslationBlock *tb,
-                 int *gen_code_size_ptr)
+int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 {
     TCGContext *s = &tcg_ctx;
     uint8_t *gen_code_buf;
@@ -110,14 +81,11 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb,
 
 #ifdef VBOX
     RAWEx_ProfileStart(env, STATS_QEMU_COMPILATION);
+#endif
+
     tcg_func_start(s);
 
     gen_intermediate_code(env, tb);
-#else /* !VBOX */
-    tcg_func_start(s);
-
-    gen_intermediate_code(env, tb);
-#endif /* !VBOX */
 
     /* generate machine code */
     gen_code_buf = tb->tc_ptr;
@@ -127,9 +95,6 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb,
 #ifdef USE_DIRECT_JUMP
     s->tb_jmp_offset = tb->tb_jmp_offset;
     s->tb_next = NULL;
-    /* the following two entries are optional (only used for string ops) */
-    tb->tb_jmp_offset[2] = 0xffff;
-    tb->tb_jmp_offset[3] = 0xffff;
 #else
     s->tb_jmp_offset = NULL;
     s->tb_next = tb->tb_next;
@@ -140,8 +105,7 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb,
     s->interm_time += profile_getclock() - ti;
     s->code_time -= profile_getclock();
 #endif
-
-    gen_code_size = dyngen_code(s, gen_code_buf);
+    gen_code_size = tcg_gen_code(s, gen_code_buf);
     *gen_code_size_ptr = gen_code_size;
 #ifdef CONFIG_PROFILER
     s->code_time += profile_getclock();
@@ -154,11 +118,11 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb,
 #endif
 
 #ifdef DEBUG_DISAS
-    if (loglevel & CPU_LOG_TB_OUT_ASM) {
-        fprintf(logfile, "OUT: [size=%d]\n", *gen_code_size_ptr);
-        disas(logfile, tb->tc_ptr, *gen_code_size_ptr);
-        fprintf(logfile, "\n");
-        fflush(logfile);
+    if (qemu_loglevel_mask(CPU_LOG_TB_OUT_ASM)) {
+        qemu_log("OUT: [size=%d]\n", *gen_code_size_ptr);
+        log_disas(tb->tc_ptr, *gen_code_size_ptr);
+        qemu_log("\n");
+        qemu_log_flush();
     }
 #endif
     return 0;
@@ -204,7 +168,7 @@ int cpu_restore_state(TranslationBlock *tb,
     s->tb_jmp_offset = NULL;
     s->tb_next = tb->tb_next;
 #endif
-    j = dyngen_code_search_pc(s, (uint8_t *)tc_ptr, searched_pc - tc_ptr);
+    j = tcg_gen_code_search_pc(s, (uint8_t *)tc_ptr, searched_pc - tc_ptr);
     if (j < 0)
         return -1;
     /* now find start of instruction before */

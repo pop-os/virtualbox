@@ -1,4 +1,4 @@
-/* $Id: VBoxRecompiler.c $ */
+/* $Id: VBoxRecompiler.c 37852 2011-07-08 19:18:05Z vboxsync $ */
 /** @file
  * VBox Recompiler - QEMU.
  */
@@ -20,11 +20,12 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_REM
-#include "vl.h"
+#include <stdio.h>      /* FILE */
 #include "osdep.h"
-#include "exec-all.h"
 #include "config.h"
-#include "cpu-all.h"
+#include "cpu.h"
+#include "exec-all.h"
+#include "ioport.h"
 
 #include <VBox/vmm/rem.h>
 #include <VBox/vmm/vmapi.h>
@@ -59,7 +60,7 @@ extern void cpu_x86_update_cr3(CPUX86State *env, target_ulong new_cr3);
 extern void cpu_x86_update_cr0(CPUX86State *env, uint32_t new_cr0);
 extern void cpu_x86_update_cr4(CPUX86State *env, uint32_t new_cr4);
 extern void tlb_flush_page(CPUX86State *env, target_ulong addr);
-extern void tlb_flush(CPUState *env, int flush_global);
+extern void tlb_flush(CPUX86State *env, int flush_global);
 extern void sync_seg(CPUX86State *env1, int seg_reg, int selector);
 extern void sync_ldtr(CPUX86State *env1, int selector);
 
@@ -77,6 +78,9 @@ unsigned long get_phys_page_offset(target_ulong addr);
  */
 #define REM_COPY_FPU_REG(pDst, pSrc) \
     do { *(PX86FPUMMX)(pDst) = *(const X86FPUMMX *)(pSrc); } while (0)
+
+/** How remR3RunLoggingStep operates. */
+#define REM_USE_QEMU_SINGLE_STEP_FOR_LOGGING
 
 
 /*******************************************************************************
@@ -188,7 +192,7 @@ CPUWriteMemoryFunc *g_apfnHandlerWrite[3] =
 /*
  * Debugger commands.
  */
-static DECLCALLBACK(int) remR3CmdDisasEnableStepping(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
+static DECLCALLBACK(int) remR3CmdDisasEnableStepping(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
 
 /** '.remstep' arguments. */
 static const DBGCVARDESC    g_aArgRemStep[] =
@@ -206,7 +210,6 @@ static const DBGCCMD    g_aCmds[] =
         .cArgsMax = 1,
         .paArgDescs = &g_aArgRemStep[0],
         .cArgDescs = RT_ELEMENTS(g_aArgRemStep),
-        .pResultDesc = NULL,
         .fFlags = 0,
         .pfnHandler = remR3CmdDisasEnableStepping,
         .pszSyntax = "[on/off]",
@@ -216,7 +219,9 @@ static const DBGCCMD    g_aCmds[] =
 };
 #endif
 
-/** Prologue code, must be in lower 4G to simplify jumps to/from generated code. */
+/** Prologue code, must be in lower 4G to simplify jumps to/from generated code.
+ * @todo huh??? That cannot be the case on the mac... So, this
+ *       point is probably not valid any longer. */
 uint8_t *code_gen_prologue;
 
 
@@ -307,12 +312,16 @@ REMR3DECL(int) REMR3Init(PVM pVM)
     CPUMGetGuestCpuId(pVCpu,          1, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext_features, &pVM->rem.s.Env.cpuid_features);
     CPUMGetGuestCpuId(pVCpu, 0x80000001, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext3_features, &pVM->rem.s.Env.cpuid_ext2_features);
 
+    EMRemLock(pVM);
+    cpu_reset(&pVM->rem.s.Env);
+    EMRemUnlock(pVM);
+
     /* allocate code buffer for single instruction emulation. */
     pVM->rem.s.Env.cbCodeBuffer = 4096;
     pVM->rem.s.Env.pvCodeBuffer = RTMemExecAlloc(pVM->rem.s.Env.cbCodeBuffer);
     AssertMsgReturn(pVM->rem.s.Env.pvCodeBuffer, ("Failed to allocate code buffer!\n"), VERR_NO_MEMORY);
 
-    /* finally, set the cpu_single_env global. */
+    /* Finally, set the cpu_single_env global. */
     cpu_single_env = &pVM->rem.s.Env;
 
     /* Nothing is pending by default */
@@ -321,9 +330,9 @@ REMR3DECL(int) REMR3Init(PVM pVM)
     /*
      * Register ram types.
      */
-    pVM->rem.s.iMMIOMemType    = cpu_register_io_memory(-1, g_apfnMMIORead, g_apfnMMIOWrite, pVM);
+    pVM->rem.s.iMMIOMemType    = cpu_register_io_memory(g_apfnMMIORead, g_apfnMMIOWrite, pVM);
     AssertReleaseMsg(pVM->rem.s.iMMIOMemType >= 0, ("pVM->rem.s.iMMIOMemType=%d\n", pVM->rem.s.iMMIOMemType));
-    pVM->rem.s.iHandlerMemType = cpu_register_io_memory(-1, g_apfnHandlerRead, g_apfnHandlerWrite, pVM);
+    pVM->rem.s.iHandlerMemType = cpu_register_io_memory(g_apfnHandlerRead, g_apfnHandlerWrite, pVM);
     AssertReleaseMsg(pVM->rem.s.iHandlerMemType >= 0, ("pVM->rem.s.iHandlerMemType=%d\n", pVM->rem.s.iHandlerMemType));
     Log2(("REM: iMMIOMemType=%d iHandlerMemType=%d\n", pVM->rem.s.iMMIOMemType, pVM->rem.s.iHandlerMemType));
 
@@ -405,6 +414,8 @@ REMR3DECL(int) REMR3Init(PVM pVM)
 
     STAM_REG(pVM, &pVM->rem.s.Env.StatTbFlush,      STAMTYPE_PROFILE,   "/REM/TbFlush",     STAMUNIT_TICKS_PER_CALL, "profiling tb_flush().");
 #endif /* VBOX_WITH_STATISTICS */
+    AssertCompileMemberAlignment(CPUX86State, StatTbFlush, 4);
+    AssertCompileMemberAlignment(CPUX86State, StatTbFlush, 8);
 
     STAM_REL_REG(pVM, &tb_flush_count,              STAMTYPE_U32_RESET, "/REM/TbFlushCount",                STAMUNIT_OCCURENCES, "tb_flush() calls");
     STAM_REL_REG(pVM, &tb_phys_invalidate_count,    STAMTYPE_U32_RESET, "/REM/TbPhysInvldCount",            STAMUNIT_OCCURENCES, "tb_phys_invalidate() calls");
@@ -413,9 +424,6 @@ REMR3DECL(int) REMR3Init(PVM pVM)
 
 #ifdef DEBUG_ALL_LOGGING
     loglevel = ~0;
-# ifdef DEBUG_TMP_LOGGING
-    logfile = fopen("/tmp/vbox-qemu.log", "w");
-# endif
 #endif
 
     /*
@@ -464,9 +472,8 @@ REMR3DECL(int) REMR3InitFinalize(PVM pVM)
     return rc;
 }
 
-
 /**
- * Initializes phys_ram_size, phys_ram_dirty and phys_ram_dirty_size.
+ * Initializes ram_list.phys_dirty and ram_list.phys_dirty_size.
  *
  * @returns VBox status code.
  * @param   pVM         The VM handle.
@@ -477,46 +484,48 @@ static int remR3InitPhysRamSizeAndDirtyMap(PVM pVM, bool fGuarded)
     int      rc = VINF_SUCCESS;
     RTGCPHYS cb;
 
+    AssertLogRelReturn(QLIST_EMPTY(&ram_list.blocks), VERR_INTERNAL_ERROR_2);
+
     cb = pVM->rem.s.GCPhysLastRam + 1;
     AssertLogRelMsgReturn(cb > pVM->rem.s.GCPhysLastRam,
                           ("GCPhysLastRam=%RGp - out of range\n", pVM->rem.s.GCPhysLastRam),
                           VERR_OUT_OF_RANGE);
-    phys_ram_size = cb;
-    phys_ram_dirty_size = cb >> PAGE_SHIFT;
-    AssertMsg(((RTGCPHYS)phys_ram_dirty_size << PAGE_SHIFT) == cb, ("%RGp\n", cb));
+
+    ram_list.phys_dirty_size = cb >> PAGE_SHIFT;
+    AssertMsg(((RTGCPHYS)ram_list.phys_dirty_size << PAGE_SHIFT) == cb, ("%RGp\n", cb));
 
     if (!fGuarded)
     {
-        phys_ram_dirty = MMR3HeapAlloc(pVM, MM_TAG_REM, phys_ram_dirty_size);
-        AssertLogRelMsgReturn(phys_ram_dirty, ("Failed to allocate %u bytes of dirty page map bytes\n", phys_ram_dirty_size), VERR_NO_MEMORY);
+        ram_list.phys_dirty = MMR3HeapAlloc(pVM, MM_TAG_REM, ram_list.phys_dirty_size);
+        AssertLogRelMsgReturn(ram_list.phys_dirty, ("Failed to allocate %u bytes of dirty page map bytes\n", ram_list.phys_dirty_size), VERR_NO_MEMORY);
     }
     else
     {
         /*
          * Fill it up the nearest 4GB RAM and leave at least _64KB of guard after it.
          */
-        uint32_t cbBitmapAligned = RT_ALIGN_32(phys_ram_dirty_size, PAGE_SIZE);
-        uint32_t cbBitmapFull    = RT_ALIGN_32(phys_ram_dirty_size, (_4G >> PAGE_SHIFT));
+        uint32_t cbBitmapAligned = RT_ALIGN_32(ram_list.phys_dirty_size, PAGE_SIZE);
+        uint32_t cbBitmapFull    = RT_ALIGN_32(ram_list.phys_dirty_size, (_4G >> PAGE_SHIFT));
         if (cbBitmapFull == cbBitmapAligned)
             cbBitmapFull += _4G >> PAGE_SHIFT;
         else if (cbBitmapFull - cbBitmapAligned < _64K)
             cbBitmapFull += _64K;
 
-        phys_ram_dirty = RTMemPageAlloc(cbBitmapFull);
-        AssertLogRelMsgReturn(phys_ram_dirty, ("Failed to allocate %u bytes of dirty page map bytes\n", cbBitmapFull), VERR_NO_MEMORY);
+        ram_list.phys_dirty = RTMemPageAlloc(cbBitmapFull);
+        AssertLogRelMsgReturn(ram_list.phys_dirty, ("Failed to allocate %u bytes of dirty page map bytes\n", cbBitmapFull), VERR_NO_MEMORY);
 
-        rc = RTMemProtect(phys_ram_dirty + cbBitmapAligned, cbBitmapFull - cbBitmapAligned, RTMEM_PROT_NONE);
+        rc = RTMemProtect(ram_list.phys_dirty + cbBitmapAligned, cbBitmapFull - cbBitmapAligned, RTMEM_PROT_NONE);
         if (RT_FAILURE(rc))
         {
-            RTMemPageFree(phys_ram_dirty, cbBitmapFull);
+            RTMemPageFree(ram_list.phys_dirty, cbBitmapFull);
             AssertLogRelRCReturn(rc, rc);
         }
 
-        phys_ram_dirty += cbBitmapAligned - phys_ram_dirty_size;
+        ram_list.phys_dirty += cbBitmapAligned - ram_list.phys_dirty_size;
     }
 
     /* initialize it. */
-    memset(phys_ram_dirty, 0xff, phys_ram_dirty_size);
+    memset(ram_list.phys_dirty, 0xff, ram_list.phys_dirty_size);
     return rc;
 }
 
@@ -603,6 +612,8 @@ REMR3DECL(int) REMR3Term(PVM pVM)
  */
 REMR3DECL(void) REMR3Reset(PVM pVM)
 {
+    EMRemLock(pVM); /* Only pro forma, we're in a rendezvous. */
+
     /*
      * Reset the REM cpu.
      */
@@ -618,6 +629,8 @@ REMR3DECL(void) REMR3Reset(PVM pVM)
 
     /* Flush the TBs the next time we execute code here. */
     pVM->rem.s.fFlushTBs = true;
+
+    EMRemUnlock(pVM);
 }
 
 
@@ -760,11 +773,6 @@ static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, 
     CPUMGetGuestCpuId(pVCpu, 0x80000001, &u32Dummy, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext2_features);
 
     /*
-     * Sync the Load Flush the TLB
-     */
-    tlb_flush(&pRem->Env, 1);
-
-    /*
      * Stop ignoring ignorable notifications.
      */
     ASMAtomicDecU32(&pVM->rem.s.cIgnoreAll);
@@ -810,7 +818,7 @@ REMR3DECL(int) REMR3Step(PVM pVM, PVMCPU pVCpu)
      * pending interrupts and suchlike.
      */
     interrupt_request = pVM->rem.s.Env.interrupt_request;
-    Assert(!(interrupt_request & ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXIT | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER  | CPU_INTERRUPT_EXTERNAL_HARD | CPU_INTERRUPT_EXTERNAL_EXIT | CPU_INTERRUPT_EXTERNAL_TIMER)));
+    Assert(!(interrupt_request & ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER  | CPU_INTERRUPT_EXTERNAL_HARD | CPU_INTERRUPT_EXTERNAL_EXIT | CPU_INTERRUPT_EXTERNAL_FLUSH_TLB | CPU_INTERRUPT_EXTERNAL_TIMER)));
     pVM->rem.s.Env.interrupt_request = 0;
     cpu_single_step(&pVM->rem.s.Env, 1);
 
@@ -818,7 +826,7 @@ REMR3DECL(int) REMR3Step(PVM pVM, PVMCPU pVCpu)
      * If we're standing at a breakpoint, that have to be disabled before we start stepping.
      */
     GCPtrPC = pVM->rem.s.Env.eip + pVM->rem.s.Env.segs[R_CS].base;
-    fBp = !cpu_breakpoint_remove(&pVM->rem.s.Env, GCPtrPC);
+    fBp = !cpu_breakpoint_remove(&pVM->rem.s.Env, GCPtrPC, BP_GDB);
 
     /*
      * Execute and handle the return code.
@@ -861,7 +869,7 @@ REMR3DECL(int) REMR3Step(PVM pVM, PVMCPU pVCpu)
      */
     if (fBp)
     {
-        int rc2 = cpu_breakpoint_insert(&pVM->rem.s.Env, GCPtrPC);
+        int rc2 = cpu_breakpoint_insert(&pVM->rem.s.Env, GCPtrPC, BP_GDB, NULL);
         Assert(rc2 == 0); NOREF(rc2);
     }
     cpu_single_step(&pVM->rem.s.Env, 0);
@@ -882,7 +890,7 @@ REMR3DECL(int) REMR3Step(PVM pVM, PVMCPU pVCpu)
 REMR3DECL(int) REMR3BreakpointSet(PVM pVM, RTGCUINTPTR Address)
 {
     VM_ASSERT_EMT(pVM);
-    if (!cpu_breakpoint_insert(&pVM->rem.s.Env, Address))
+    if (!cpu_breakpoint_insert(&pVM->rem.s.Env, Address, BP_GDB, NULL))
     {
         LogFlow(("REMR3BreakpointSet: Address=%RGv\n", Address));
         return VINF_SUCCESS;
@@ -903,7 +911,7 @@ REMR3DECL(int) REMR3BreakpointSet(PVM pVM, RTGCUINTPTR Address)
 REMR3DECL(int) REMR3BreakpointClear(PVM pVM, RTGCUINTPTR Address)
 {
     VM_ASSERT_EMT(pVM);
-    if (!cpu_breakpoint_remove(&pVM->rem.s.Env, Address))
+    if (!cpu_breakpoint_remove(&pVM->rem.s.Env, Address, BP_GDB))
     {
         LogFlow(("REMR3BreakpointClear: Address=%RGv\n", Address));
         return VINF_SUCCESS;
@@ -950,8 +958,12 @@ REMR3DECL(int) REMR3EmulateInstruction(PVM pVM, PVMCPU pVCpu)
     if (RT_SUCCESS(rc))
     {
         int interrupt_request = pVM->rem.s.Env.interrupt_request;
-        Assert(!(interrupt_request & ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXIT | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER | CPU_INTERRUPT_EXTERNAL_HARD | CPU_INTERRUPT_EXTERNAL_EXIT | CPU_INTERRUPT_EXTERNAL_TIMER)));
+        Assert(!(interrupt_request & ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER | CPU_INTERRUPT_EXTERNAL_HARD | CPU_INTERRUPT_EXTERNAL_EXIT | CPU_INTERRUPT_EXTERNAL_FLUSH_TLB | CPU_INTERRUPT_EXTERNAL_TIMER)));
+#ifdef REM_USE_QEMU_SINGLE_STEP_FOR_LOGGING
+        cpu_single_step(&pVM->rem.s.Env, 0);
+#endif
         Assert(!pVM->rem.s.Env.singlestep_enabled);
+
         /*
          * Now we set the execute single instruction flag and enter the cpu_exec loop.
          */
@@ -983,20 +995,23 @@ REMR3DECL(int) REMR3EmulateInstruction(PVM pVM, PVMCPU pVCpu)
              * If there was a breakpoint there we're fucked now.
              */
             case EXCP_DEBUG:
-            {
-                /* breakpoint or single step? */
-                RTGCPTR     GCPtrPC = pVM->rem.s.Env.eip + pVM->rem.s.Env.segs[R_CS].base;
-                int         iBP;
-                rc = VINF_EM_DBG_STEPPED;
-                for (iBP = 0; iBP < pVM->rem.s.Env.nb_breakpoints; iBP++)
-                    if (pVM->rem.s.Env.breakpoints[iBP] == GCPtrPC)
-                    {
-                        rc = VINF_EM_DBG_BREAKPOINT;
-                        break;
-                    }
-                Log2(("REMR3EmulateInstruction: cpu_exec -> EXCP_DEBUG rc=%Rrc iBP=%d GCPtrPC=%RGv\n", rc, iBP, GCPtrPC));
+                if (pVM->rem.s.Env.watchpoint_hit)
+                {
+                    /** @todo deal with watchpoints */
+                    Log2(("REMR3EmulateInstruction: cpu_exec -> EXCP_DEBUG rc=%Rrc !watchpoint_hit!\n", rc));
+                    rc = VINF_EM_DBG_BREAKPOINT;
+                }
+                else
+                {
+                    CPUBreakpoint  *pBP;
+                    RTGCPTR         GCPtrPC = pVM->rem.s.Env.eip + pVM->rem.s.Env.segs[R_CS].base;
+                    QTAILQ_FOREACH(pBP, &pVM->rem.s.Env.breakpoints, entry)
+                        if (pBP->pc == GCPtrPC)
+                            break;
+                    rc = pBP ? VINF_EM_DBG_BREAKPOINT : VINF_EM_DBG_STEPPED;
+                    Log2(("REMR3EmulateInstruction: cpu_exec -> EXCP_DEBUG rc=%Rrc pBP=%p GCPtrPC=%RGv\n", rc, pBP, GCPtrPC));
+                }
                 break;
-            }
 
             /*
              * hlt instruction.
@@ -1064,6 +1079,207 @@ REMR3DECL(int) REMR3EmulateInstruction(PVM pVM, PVMCPU pVCpu)
 
 
 /**
+ * Used by REMR3Run to handle the case where CPU_EMULATE_SINGLE_STEP is set.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pVM                 The VM handle.
+ * @param   pVCpu               The Virtual CPU handle.
+ */
+static int remR3RunLoggingStep(PVM pVM, PVMCPU pVCpu)
+{
+    int rc;
+
+    Assert(pVM->rem.s.fInREM);
+#ifdef REM_USE_QEMU_SINGLE_STEP_FOR_LOGGING
+    cpu_single_step(&pVM->rem.s.Env, 1);
+#else
+    Assert(!pVM->rem.s.Env.singlestep_enabled);
+#endif
+
+    /*
+     * Now we set the execute single instruction flag and enter the cpu_exec loop.
+     */
+    for (;;)
+    {
+        char szBuf[256];
+
+        /*
+         * Log the current registers state and instruction.
+         */
+        remR3StateUpdate(pVM, pVCpu);
+        DBGFR3Info(pVM, "cpumguest", NULL, NULL);
+        szBuf[0] = '\0';
+        rc = DBGFR3DisasInstrEx(pVM,
+                                pVCpu->idCpu,
+                                0, /* Sel */
+                                0, /* GCPtr */
+                                DBGF_DISAS_FLAGS_CURRENT_GUEST
+                                | DBGF_DISAS_FLAGS_DEFAULT_MODE
+                                | DBGF_DISAS_FLAGS_HID_SEL_REGS_VALID,
+                                szBuf,
+                                sizeof(szBuf),
+                                NULL);
+        if (RT_FAILURE(rc))
+            RTStrPrintf(szBuf, sizeof(szBuf), "DBGFR3DisasInstrEx failed with rc=%Rrc\n", rc);
+        RTLogPrintf("CPU%d: %s\n", pVCpu->idCpu, szBuf);
+
+        /*
+         * Execute the instruction.
+         */
+        TMNotifyStartOfExecution(pVCpu);
+
+        if (   pVM->rem.s.Env.exception_index < 0
+            || pVM->rem.s.Env.exception_index > 256)
+            pVM->rem.s.Env.exception_index = -1; /** @todo We need to do similar stuff elsewhere, I think. */
+
+#ifdef REM_USE_QEMU_SINGLE_STEP_FOR_LOGGING
+        pVM->rem.s.Env.interrupt_request = 0;
+#else
+        pVM->rem.s.Env.interrupt_request = CPU_INTERRUPT_SINGLE_INSTR;
+#endif
+        if (   VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
+            || pVM->rem.s.u32PendingInterrupt != REM_NO_PENDING_IRQ)
+            pVM->rem.s.Env.interrupt_request |= CPU_INTERRUPT_HARD;
+        RTLogPrintf("remR3RunLoggingStep: interrupt_request=%#x halted=%d exception_index=%#x\n", rc,
+                    pVM->rem.s.Env.interrupt_request,
+                    pVM->rem.s.Env.halted,
+                    pVM->rem.s.Env.exception_index
+                    );
+
+        rc = cpu_exec(&pVM->rem.s.Env);
+
+        RTLogPrintf("remR3RunLoggingStep: cpu_exec -> %#x interrupt_request=%#x halted=%d exception_index=%#x\n", rc,
+                    pVM->rem.s.Env.interrupt_request,
+                    pVM->rem.s.Env.halted,
+                    pVM->rem.s.Env.exception_index
+                    );
+
+        TMNotifyEndOfExecution(pVCpu);
+
+        switch (rc)
+        {
+#ifndef REM_USE_QEMU_SINGLE_STEP_FOR_LOGGING
+            /*
+             * The normal exit.
+             */
+            case EXCP_SINGLE_INSTR:
+                if (   !VM_FF_ISPENDING(pVM, VM_FF_ALL_REM_MASK)
+                    && !VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_ALL_REM_MASK))
+                    continue;
+                RTLogPrintf("remR3RunLoggingStep: rc=VINF_SUCCESS w/ FFs (%#x/%#x)\n",
+                            pVM->fGlobalForcedActions, pVCpu->fLocalForcedActions);
+                rc = VINF_SUCCESS;
+                break;
+
+#else
+            /*
+             * The normal exit, check for breakpoints at PC just to be sure.
+             */
+#endif
+            case EXCP_DEBUG:
+                if (pVM->rem.s.Env.watchpoint_hit)
+                {
+                    /** @todo deal with watchpoints */
+                    Log2(("remR3RunLoggingStep: cpu_exec -> EXCP_DEBUG rc=%Rrc !watchpoint_hit!\n", rc));
+                    rc = VINF_EM_DBG_BREAKPOINT;
+                }
+                else
+                {
+                    CPUBreakpoint  *pBP;
+                    RTGCPTR         GCPtrPC = pVM->rem.s.Env.eip + pVM->rem.s.Env.segs[R_CS].base;
+                    QTAILQ_FOREACH(pBP, &pVM->rem.s.Env.breakpoints, entry)
+                        if (pBP->pc == GCPtrPC)
+                            break;
+                    rc = pBP ? VINF_EM_DBG_BREAKPOINT : VINF_EM_DBG_STEPPED;
+                    Log2(("remR3RunLoggingStep: cpu_exec -> EXCP_DEBUG rc=%Rrc pBP=%p GCPtrPC=%RGv\n", rc, pBP, GCPtrPC));
+                }
+#ifdef REM_USE_QEMU_SINGLE_STEP_FOR_LOGGING
+                if (rc == VINF_EM_DBG_STEPPED)
+                {
+                    if (   !VM_FF_ISPENDING(pVM, VM_FF_ALL_REM_MASK)
+                        && !VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_ALL_REM_MASK))
+                        continue;
+
+                    RTLogPrintf("remR3RunLoggingStep: rc=VINF_SUCCESS w/ FFs (%#x/%#x)\n",
+                                pVM->fGlobalForcedActions, pVCpu->fLocalForcedActions);
+                    rc = VINF_SUCCESS;
+                }
+#endif
+                break;
+
+            /*
+             * If we take a trap or start servicing a pending interrupt, we might end up here.
+             * (Timer thread or some other thread wishing EMT's attention.)
+             */
+            case EXCP_INTERRUPT:
+                RTLogPrintf("remR3RunLoggingStep: cpu_exec -> EXCP_INTERRUPT rc=VINF_SUCCESS\n");
+                rc = VINF_SUCCESS;
+                break;
+
+            /*
+             * hlt instruction.
+             */
+            case EXCP_HLT:
+                RTLogPrintf("remR3RunLoggingStep: cpu_exec -> EXCP_HLT rc=VINF_EM_HALT\n");
+                rc = VINF_EM_HALT;
+                break;
+
+            /*
+             * The VM has halted.
+             */
+            case EXCP_HALTED:
+                RTLogPrintf("remR3RunLoggingStep: cpu_exec -> EXCP_HALTED rc=VINF_EM_HALT\n");
+                rc = VINF_EM_HALT;
+                break;
+
+            /*
+             * Switch to RAW-mode.
+             */
+            case EXCP_EXECUTE_RAW:
+                RTLogPrintf("remR3RunLoggingStep: cpu_exec -> EXCP_EXECUTE_RAW rc=VINF_EM_RESCHEDULE_RAW\n");
+                rc = VINF_EM_RESCHEDULE_RAW;
+                break;
+
+            /*
+             * Switch to hardware accelerated RAW-mode.
+             */
+            case EXCP_EXECUTE_HWACC:
+                RTLogPrintf("remR3RunLoggingStep: cpu_exec -> EXCP_EXECUTE_HWACC rc=VINF_EM_RESCHEDULE_HWACC\n");
+                rc = VINF_EM_RESCHEDULE_HWACC;
+                break;
+
+            /*
+             * An EM RC was raised (VMR3Reset/Suspend/PowerOff/some-fatal-error).
+             */
+            case EXCP_RC:
+                RTLogPrintf("remR3RunLoggingStep: cpu_exec -> EXCP_RC rc=%Rrc\n", pVM->rem.s.rc);
+                rc = pVM->rem.s.rc;
+                pVM->rem.s.rc = VERR_INTERNAL_ERROR;
+                break;
+
+            /*
+             * Figure out the rest when they arrive....
+             */
+            default:
+                AssertMsgFailed(("rc=%d\n", rc));
+                RTLogPrintf("remR3RunLoggingStep: cpu_exec -> %d rc=VINF_EM_RESCHEDULE\n", rc);
+                rc = VINF_EM_RESCHEDULE;
+                break;
+        }
+        break;
+    }
+
+#ifdef REM_USE_QEMU_SINGLE_STEP_FOR_LOGGING
+//    cpu_single_step(&pVM->rem.s.Env, 0);
+#else
+    pVM->rem.s.Env.interrupt_request &= ~(CPU_INTERRUPT_SINGLE_INSTR | CPU_INTERRUPT_SINGLE_INSTR_IN_FLIGHT);
+#endif
+    return rc;
+}
+
+
+/**
  * Runs code in recompiled mode.
  *
  * Before calling this function the REM state needs to be in sync with
@@ -1079,8 +1295,12 @@ REMR3DECL(int) REMR3EmulateInstruction(PVM pVM, PVMCPU pVCpu)
 REMR3DECL(int) REMR3Run(PVM pVM, PVMCPU pVCpu)
 {
     int rc;
-    Log2(("REMR3Run: (cs:eip=%04x:%RGv)\n", pVM->rem.s.Env.segs[R_CS].selector, (RTGCPTR)pVM->rem.s.Env.eip));
+
+    if (RT_UNLIKELY(pVM->rem.s.Env.state & CPU_EMULATE_SINGLE_STEP))
+        return remR3RunLoggingStep(pVM, pVCpu);
+
     Assert(pVM->rem.s.fInREM);
+    Log2(("REMR3Run: (cs:eip=%04x:%RGv)\n", pVM->rem.s.Env.segs[R_CS].selector, (RTGCPTR)pVM->rem.s.Env.eip));
 
     TMNotifyStartOfExecution(pVCpu);
     rc = cpu_exec(&pVM->rem.s.Env);
@@ -1116,41 +1336,23 @@ REMR3DECL(int) REMR3Run(PVM pVM, PVMCPU pVCpu)
          * Breakpoint/single step.
          */
         case EXCP_DEBUG:
-        {
-#if 0//def DEBUG_bird
-            static int iBP = 0;
-            printf("howdy, breakpoint! iBP=%d\n", iBP);
-            switch (iBP)
+            if (pVM->rem.s.Env.watchpoint_hit)
             {
-                case 0:
-                    cpu_breakpoint_remove(&pVM->rem.s.Env, pVM->rem.s.Env.eip + pVM->rem.s.Env.segs[R_CS].base);
-                    pVM->rem.s.Env.state |= CPU_EMULATE_SINGLE_STEP;
-                    //pVM->rem.s.Env.interrupt_request = 0;
-                    //pVM->rem.s.Env.exception_index = -1;
-                    //g_fInterruptDisabled = 1;
-                    rc = VINF_SUCCESS;
-                    asm("int3");
-                    break;
-                default:
-                    asm("int3");
-                    break;
+                /** @todo deal with watchpoints */
+                Log2(("REMR3Run: cpu_exec -> EXCP_DEBUG rc=%Rrc !watchpoint_hit!\n", rc));
+                rc = VINF_EM_DBG_BREAKPOINT;
             }
-            iBP++;
-#else
-            /* breakpoint or single step? */
-            RTGCPTR     GCPtrPC = pVM->rem.s.Env.eip + pVM->rem.s.Env.segs[R_CS].base;
-            int         iBP;
-            rc = VINF_EM_DBG_STEPPED;
-            for (iBP = 0; iBP < pVM->rem.s.Env.nb_breakpoints; iBP++)
-                if (pVM->rem.s.Env.breakpoints[iBP] == GCPtrPC)
-                {
-                    rc = VINF_EM_DBG_BREAKPOINT;
-                    break;
-                }
-            Log2(("REMR3Run: cpu_exec -> EXCP_DEBUG rc=%Rrc iBP=%d GCPtrPC=%RGv\n", rc, iBP, GCPtrPC));
-#endif
+            else
+            {
+                CPUBreakpoint  *pBP;
+                RTGCPTR         GCPtrPC = pVM->rem.s.Env.eip + pVM->rem.s.Env.segs[R_CS].base;
+                QTAILQ_FOREACH(pBP, &pVM->rem.s.Env.breakpoints, entry)
+                    if (pBP->pc == GCPtrPC)
+                        break;
+                rc = pBP ? VINF_EM_DBG_BREAKPOINT : VINF_EM_DBG_STEPPED;
+                Log2(("REMR3Run: cpu_exec -> EXCP_DEBUG rc=%Rrc pBP=%p GCPtrPC=%RGv\n", rc, pBP, GCPtrPC));
+            }
             break;
-        }
 
         /*
          * Switch to RAW-mode.
@@ -1195,7 +1397,8 @@ REMR3DECL(int) REMR3Run(PVM pVM, PVMCPU pVCpu)
 /**
  * Check if the cpu state is suitable for Raw execution.
  *
- * @returns boolean
+ * @returns true if RAW/HWACC mode is ok, false if we should stay in REM.
+ *
  * @param   env         The CPU env struct.
  * @param   eip         The EIP to check this for (might differ from env->eip).
  * @param   fFlags      hflags OR'ed with IOPL, TF and VM from eflags.
@@ -1203,15 +1406,23 @@ REMR3DECL(int) REMR3Run(PVM pVM, PVMCPU pVCpu)
  *
  * @remark  This function must be kept in perfect sync with the scheduler in EM.cpp!
  */
-bool remR3CanExecuteRaw(CPUState *env, RTGCPTR eip, unsigned fFlags, int *piException)
+bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piException)
 {
     /* !!! THIS MUST BE IN SYNC WITH emR3Reschedule !!! */
     /* !!! THIS MUST BE IN SYNC WITH emR3Reschedule !!! */
     /* !!! THIS MUST BE IN SYNC WITH emR3Reschedule !!! */
     uint32_t u32CR0;
 
+#ifdef IEM_VERIFICATION_MODE
+    return false;
+#endif
+
     /* Update counter. */
     env->pVM->rem.s.cCanExecuteRaw++;
+
+    /* Never when single stepping+logging guest code. */
+    if (env->state & CPU_EMULATE_SINGLE_STEP)
+        return false;
 
     if (HWACCMIsEnabled(env->pVM))
     {
@@ -1326,9 +1537,15 @@ bool remR3CanExecuteRaw(CPUState *env, RTGCPTR eip, unsigned fFlags, int *piExce
         return false;
     }
 
-    if (env->nb_breakpoints > 0)
+    if (!QTAILQ_EMPTY(&env->breakpoints))
     {
         //Log2(("raw mode refused: Breakpoints\n"));
+        return false;
+    }
+
+    if (!QTAILQ_EMPTY(&env->watchpoints))
+    {
+        //Log2(("raw mode refused: Watchpoints\n"));
         return false;
     }
 
@@ -1441,7 +1658,7 @@ bool remR3CanExecuteRaw(CPUState *env, RTGCPTR eip, unsigned fFlags, int *piExce
  * @param   GCPtrInstr  Where to fetch code.
  * @param   pu8Byte     Where to store the byte on success
  */
-bool remR3GetOpcode(CPUState *env, RTGCPTR GCPtrInstr, uint8_t *pu8Byte)
+bool remR3GetOpcode(CPUX86State *env, RTGCPTR GCPtrInstr, uint8_t *pu8Byte)
 {
     int rc = PATMR3QueryOpcode(env->pVM, GCPtrInstr, pu8Byte);
     if (RT_SUCCESS(rc))
@@ -1458,11 +1675,13 @@ bool remR3GetOpcode(CPUState *env, RTGCPTR GCPtrInstr, uint8_t *pu8Byte)
  * @param   env         Pointer to cpu environment.
  * @param   GCPtr       The virtual address which page table/dir entry should be invalidated.
  */
-void remR3FlushPage(CPUState *env, RTGCPTR GCPtr)
+void remR3FlushPage(CPUX86State *env, RTGCPTR GCPtr)
 {
     PVM pVM = env->pVM;
     PCPUMCTX pCtx;
     int rc;
+
+    Assert(EMRemIsLockOwner(env->pVM));
 
     /*
      * When we're replaying invlpg instructions or restoring a saved
@@ -1502,7 +1721,7 @@ void remR3FlushPage(CPUState *env, RTGCPTR GCPtr)
 
 #ifndef REM_PHYS_ADDR_IN_TLB
 /** Wrapper for PGMR3PhysTlbGCPhys2Ptr. */
-void *remR3TlbGCPhys2Ptr(CPUState *env1, target_ulong physAddr, int fWritable)
+void *remR3TlbGCPhys2Ptr(CPUX86State *env1, target_ulong physAddr, int fWritable)
 {
     void *pv;
     int rc;
@@ -1530,7 +1749,7 @@ void *remR3TlbGCPhys2Ptr(CPUState *env1, target_ulong physAddr, int fWritable)
  * @param   env             Pointer to the CPU environment.
  * @param   GCPtr           Code page to monitor
  */
-void remR3ProtectCode(CPUState *env, RTGCPTR GCPtr)
+void remR3ProtectCode(CPUX86State *env, RTGCPTR GCPtr)
 {
 #ifdef VBOX_REM_PROTECT_PAGES_FROM_SMC
     Assert(env->pVM->rem.s.fInREM);
@@ -1550,7 +1769,7 @@ void remR3ProtectCode(CPUState *env, RTGCPTR GCPtr)
  * @param   env             Pointer to the CPU environment.
  * @param   GCPtr           Code page to monitor
  */
-void remR3UnprotectCode(CPUState *env, RTGCPTR GCPtr)
+void remR3UnprotectCode(CPUX86State *env, RTGCPTR GCPtr)
 {
     Assert(env->pVM->rem.s.fInREM);
 #ifdef VBOX_REM_PROTECT_PAGES_FROM_SMC
@@ -1571,10 +1790,11 @@ void remR3UnprotectCode(CPUState *env, RTGCPTR GCPtr)
  * @param   env             Pointer to the CPU environment.
  * @param   fGlobal         Set if the flush is global.
  */
-void remR3FlushTLB(CPUState *env, bool fGlobal)
+void remR3FlushTLB(CPUX86State *env, bool fGlobal)
 {
-    PVM pVM = env->pVM;
+    PVM      pVM = env->pVM;
     PCPUMCTX pCtx;
+    Assert(EMRemIsLockOwner(pVM));
 
     /*
      * When we're replaying invlpg instructions or restoring a saved
@@ -1615,7 +1835,7 @@ void remR3FlushTLB(CPUState *env, bool fGlobal)
  *
  * @param   env     Pointer to the CPU environment.
  */
-void remR3ChangeCpuMode(CPUState *env)
+void remR3ChangeCpuMode(CPUX86State *env)
 {
     PVM         pVM = env->pVM;
     uint64_t    efer;
@@ -1667,7 +1887,7 @@ void remR3ChangeCpuMode(CPUState *env)
  *
  * @param   env             Pointer to the CPU environment.
  */
-void remR3DmaRun(CPUState *env)
+void remR3DmaRun(CPUX86State *env)
 {
     remR3ProfileStop(STATS_QEMU_RUN_EMULATED_CODE);
     PDMR3DmaRun(env->pVM);
@@ -1680,7 +1900,7 @@ void remR3DmaRun(CPUState *env)
  *
  * @param   env             Pointer to the CPU environment.
  */
-void remR3TimersRun(CPUState *env)
+void remR3TimersRun(CPUX86State *env)
 {
     LogFlow(("remR3TimersRun:\n"));
     LogIt(LOG_INSTANCE, RTLOGGRPFLAGS_LEVEL_5, LOG_GROUP_TM, ("remR3TimersRun\n"));
@@ -1701,7 +1921,7 @@ void remR3TimersRun(CPUState *env)
  * @param   uErrorCode      Error code
  * @param   pvNextEIP       Next EIP
  */
-int remR3NotifyTrap(CPUState *env, uint32_t uTrap, uint32_t uErrorCode, RTGCPTR pvNextEIP)
+int remR3NotifyTrap(CPUX86State *env, uint32_t uTrap, uint32_t uErrorCode, RTGCPTR pvNextEIP)
 {
     PVM pVM = env->pVM;
 #ifdef VBOX_WITH_STATISTICS
@@ -1772,7 +1992,7 @@ void remR3TrapClear(PVM pVM)
  *
  * @param   env             Pointer to the CPU environment.
  */
-void remR3RecordCall(CPUState *env)
+void remR3RecordCall(CPUX86State *env)
 {
     CSAMR3RecordCallAddress(env->pVM, env->eip);
 }
@@ -1886,26 +2106,35 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
     for (i=0;i<8;i++)
         pVM->rem.s.Env.dr[i] = pCtx->dr[i];
 
+#ifdef HF_HALTED_MASK /** @todo remove me when we're up to date again. */
     /*
      * Clear the halted hidden flag (the interrupt waking up the CPU can
      * have been dispatched in raw mode).
      */
     pVM->rem.s.Env.hflags      &= ~HF_HALTED_MASK;
+#endif
 
     /*
-     * Replay invlpg?
+     * Replay invlpg?  Only if we're not flushing the TLB.
      */
+    fFlags = CPUMR3RemEnter(pVCpu, &uCpl);
+    LogFlow(("CPUMR3RemEnter %x %x\n", fFlags, uCpl));
     if (pVM->rem.s.cInvalidatedPages)
     {
-        RTUINT i;
-
-        pVM->rem.s.fIgnoreInvlPg = true;
-        for (i = 0; i < pVM->rem.s.cInvalidatedPages; i++)
+        if (!(fFlags & CPUM_CHANGED_GLOBAL_TLB_FLUSH))
         {
-            Log2(("REMR3State: invlpg %RGv\n", pVM->rem.s.aGCPtrInvalidatedPages[i]));
-            tlb_flush_page(&pVM->rem.s.Env, pVM->rem.s.aGCPtrInvalidatedPages[i]);
+            RTUINT i;
+
+            pVM->rem.s.fIgnoreCR3Load = true;
+            pVM->rem.s.fIgnoreInvlPg  = true;
+            for (i = 0; i < pVM->rem.s.cInvalidatedPages; i++)
+            {
+                Log2(("REMR3State: invlpg %RGv\n", pVM->rem.s.aGCPtrInvalidatedPages[i]));
+                tlb_flush_page(&pVM->rem.s.Env, pVM->rem.s.aGCPtrInvalidatedPages[i]);
+            }
+            pVM->rem.s.fIgnoreInvlPg  = false;
+            pVM->rem.s.fIgnoreCR3Load = false;
         }
-        pVM->rem.s.fIgnoreInvlPg = false;
         pVM->rem.s.cInvalidatedPages = 0;
     }
 
@@ -1932,8 +2161,6 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
     /*
      * Registers which are rarely changed and require special handling / order when changed.
      */
-    fFlags = CPUMR3RemEnter(pVCpu, &uCpl);
-    LogFlow(("CPUMR3RemEnter %x %x\n", fFlags, uCpl));
     if (fFlags & (  CPUM_CHANGED_GLOBAL_TLB_FLUSH
                   | CPUM_CHANGED_CR4
                   | CPUM_CHANGED_CR0
@@ -2201,20 +2428,25 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
         }
 
         /* get error code and cr2 if needed. */
-        switch (u8TrapNo)
+        if (enmType == TRPM_TRAP)
         {
-            case 0x0e:
-                pVM->rem.s.Env.cr[2] = TRPMGetFaultAddress(pVCpu);
-                /* fallthru */
-            case 0x0a: case 0x0b: case 0x0c: case 0x0d:
-                pVM->rem.s.Env.error_code = TRPMGetErrorCode(pVCpu);
-                break;
+            switch (u8TrapNo)
+            {
+                case 0x0e:
+                    pVM->rem.s.Env.cr[2] = TRPMGetFaultAddress(pVCpu);
+                    /* fallthru */
+                case 0x0a: case 0x0b: case 0x0c: case 0x0d:
+                    pVM->rem.s.Env.error_code = TRPMGetErrorCode(pVCpu);
+                    break;
 
-            case 0x11: case 0x08:
-            default:
-                pVM->rem.s.Env.error_code = 0;
-                break;
+                case 0x11: case 0x08:
+                default:
+                    pVM->rem.s.Env.error_code = 0;
+                    break;
+            }
         }
+        else
+            pVM->rem.s.Env.error_code = 0;
 
         /*
          * We can now reset the active trap since the recompiler is gonna have a go at it.
@@ -2229,7 +2461,7 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
      * Clear old interrupt request flags; Check for pending hardware interrupts.
      * (See @remark for why we don't check for other FFs.)
      */
-    pVM->rem.s.Env.interrupt_request &= ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXIT | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER);
+    pVM->rem.s.Env.interrupt_request &= ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER);
     if (    pVM->rem.s.u32PendingInterrupt != REM_NO_PENDING_IRQ
         ||  VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
         pVM->rem.s.Env.interrupt_request |= CPU_INTERRUPT_HARD;
@@ -2937,7 +3169,7 @@ REMR3DECL(void) REMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb
     ASMAtomicIncU32(&pVM->rem.s.cIgnoreAll);
 
     PDMCritSectEnter(&pVM->rem.s.CritSectRegister, VERR_SEM_BUSY);
-    cpu_register_physical_memory(GCPhys, cb, GCPhys);
+    cpu_register_physical_memory_offset(GCPhys, cb, GCPhys, GCPhys);
     PDMCritSectLeave(&pVM->rem.s.CritSectRegister);
 
     ASMAtomicDecU32(&pVM->rem.s.cIgnoreAll);
@@ -2973,7 +3205,7 @@ REMR3DECL(void) REMR3NotifyPhysRomRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, 
     ASMAtomicIncU32(&pVM->rem.s.cIgnoreAll);
 
     PDMCritSectEnter(&pVM->rem.s.CritSectRegister, VERR_SEM_BUSY);
-    cpu_register_physical_memory(GCPhys, cb, GCPhys | (fShadow ? 0 : IO_MEM_ROM));
+    cpu_register_physical_memory_offset(GCPhys, cb, GCPhys | (fShadow ? 0 : IO_MEM_ROM), GCPhys);
     PDMCritSectLeave(&pVM->rem.s.CritSectRegister);
 
     ASMAtomicDecU32(&pVM->rem.s.cIgnoreAll);
@@ -3005,7 +3237,7 @@ REMR3DECL(void) REMR3NotifyPhysRamDeregister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb
     ASMAtomicIncU32(&pVM->rem.s.cIgnoreAll);
 
     PDMCritSectEnter(&pVM->rem.s.CritSectRegister, VERR_SEM_BUSY);
-    cpu_register_physical_memory(GCPhys, cb, IO_MEM_UNASSIGNED);
+    cpu_register_physical_memory_offset(GCPhys, cb, IO_MEM_UNASSIGNED, GCPhys);
     PDMCritSectLeave(&pVM->rem.s.CritSectRegister);
 
     ASMAtomicDecU32(&pVM->rem.s.cIgnoreAll);
@@ -3038,9 +3270,9 @@ static void remR3NotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmTy
 
     PDMCritSectEnter(&pVM->rem.s.CritSectRegister, VERR_SEM_BUSY);
     if (enmType == PGMPHYSHANDLERTYPE_MMIO)
-        cpu_register_physical_memory(GCPhys, cb, pVM->rem.s.iMMIOMemType);
+        cpu_register_physical_memory_offset(GCPhys, cb, pVM->rem.s.iMMIOMemType, GCPhys);
     else if (fHasHCHandler)
-        cpu_register_physical_memory(GCPhys, cb, pVM->rem.s.iHandlerMemType);
+        cpu_register_physical_memory_offset(GCPhys, cb, pVM->rem.s.iHandlerMemType, GCPhys);
     PDMCritSectLeave(&pVM->rem.s.CritSectRegister);
 
     ASMAtomicDecU32(&pVM->rem.s.cIgnoreAll);
@@ -3087,19 +3319,19 @@ static void remR3NotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERTYPE enm
     PDMCritSectEnter(&pVM->rem.s.CritSectRegister, VERR_SEM_BUSY);
     /** @todo this isn't right, MMIO can (in theory) be restored as RAM. */
     if (enmType == PGMPHYSHANDLERTYPE_MMIO)
-        cpu_register_physical_memory(GCPhys, cb, IO_MEM_UNASSIGNED);
+        cpu_register_physical_memory_offset(GCPhys, cb, IO_MEM_UNASSIGNED, GCPhys);
     else if (fHasHCHandler)
     {
         if (!fRestoreAsRAM)
         {
             Assert(GCPhys > MMR3PhysGetRamSize(pVM));
-            cpu_register_physical_memory(GCPhys, cb, IO_MEM_UNASSIGNED);
+            cpu_register_physical_memory_offset(GCPhys, cb, IO_MEM_UNASSIGNED, GCPhys);
         }
         else
         {
             Assert(RT_ALIGN_T(GCPhys, PAGE_SIZE, RTGCPHYS) == GCPhys);
             Assert(RT_ALIGN_T(cb, PAGE_SIZE, RTGCPHYS) == cb);
-            cpu_register_physical_memory(GCPhys, cb, GCPhys);
+            cpu_register_physical_memory_offset(GCPhys, cb, GCPhys, GCPhys);
         }
     }
     PDMCritSectLeave(&pVM->rem.s.CritSectRegister);
@@ -3151,13 +3383,13 @@ static void remR3NotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERTYPE enmType
          */
         PDMCritSectEnter(&pVM->rem.s.CritSectRegister, VERR_SEM_BUSY);
         if (!fRestoreAsRAM)
-            cpu_register_physical_memory(GCPhysOld, cb, IO_MEM_UNASSIGNED);
+            cpu_register_physical_memory_offset(GCPhysOld, cb, IO_MEM_UNASSIGNED, GCPhysOld);
         else
         {
             /* This is not perfect, but it'll do for PD monitoring... */
             Assert(cb == PAGE_SIZE);
             Assert(RT_ALIGN_T(GCPhysOld, PAGE_SIZE, RTGCPHYS) == GCPhysOld);
-            cpu_register_physical_memory(GCPhysOld, cb, GCPhysOld);
+            cpu_register_physical_memory_offset(GCPhysOld, cb, GCPhysOld, GCPhysOld);
         }
 
         /*
@@ -3165,7 +3397,7 @@ static void remR3NotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERTYPE enmType
          */
         Assert(RT_ALIGN_T(GCPhysNew, PAGE_SIZE, RTGCPHYS) == GCPhysNew);
         Assert(RT_ALIGN_T(cb, PAGE_SIZE, RTGCPHYS) == cb);
-        cpu_register_physical_memory(GCPhysNew, cb, pVM->rem.s.iHandlerMemType);
+        cpu_register_physical_memory_offset(GCPhysNew, cb, pVM->rem.s.iHandlerMemType, GCPhysNew);
         PDMCritSectLeave(&pVM->rem.s.CritSectRegister);
 
         ASMAtomicDecU32(&pVM->rem.s.cIgnoreAll);
@@ -3227,9 +3459,9 @@ REMR3DECL(bool) REMR3IsPageAccessHandled(PVM pVM, RTGCPHYS GCPhys)
  * @param   addr        The virtual address.
  * @param   pTLBEntry   The TLB entry.
  */
-target_ulong remR3PhysGetPhysicalAddressCode(CPUState*          env,
+target_ulong remR3PhysGetPhysicalAddressCode(CPUX86State       *env,
                                              target_ulong       addr,
-                                             CPUTLBEntry*       pTLBEntry,
+                                             CPUTLBEntry       *pTLBEntry,
                                              target_phys_addr_t ioTLBEntry)
 {
     PVM pVM = env->pVM;
@@ -3646,6 +3878,9 @@ static DECLCALLBACK(int) remR3DisasEnableStepping(PVM pVM, bool fEnable)
         pVM->rem.s.Env.state |= CPU_EMULATE_SINGLE_STEP;
     else
         pVM->rem.s.Env.state &= ~CPU_EMULATE_SINGLE_STEP;
+#ifdef REM_USE_QEMU_SINGLE_STEP_FOR_LOGGING
+    cpu_single_step(&pVM->rem.s.Env, fEnable);
+#endif
     return VINF_SUCCESS;
 }
 
@@ -3675,26 +3910,37 @@ REMR3DECL(int) REMR3DisasEnableStepping(PVM pVM, bool fEnable)
 /**
  * External Debugger Command: .remstep [on|off|1|0]
  */
-static DECLCALLBACK(int) remR3CmdDisasEnableStepping(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) remR3CmdDisasEnableStepping(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
-    bool fEnable;
     int rc;
 
-    /* print status */
     if (cArgs == 0)
-        return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "DisasStepping is %s\n",
-                                  pVM->rem.s.Env.state & CPU_EMULATE_SINGLE_STEP ? "enabled" : "disabled");
-
-    /* convert the argument and change the mode. */
-    rc = pCmdHlp->pfnVarToBool(pCmdHlp, &paArgs[0], &fEnable);
-    if (RT_FAILURE(rc))
-        return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "boolean conversion failed!\n");
-    rc = REMR3DisasEnableStepping(pVM, fEnable);
-    if (RT_FAILURE(rc))
-        return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "REMR3DisasEnableStepping failed!\n");
+        /*
+         * Print the current status.
+         */
+        rc = DBGCCmdHlpPrintf(pCmdHlp, "DisasStepping is %s\n",
+                              pVM->rem.s.Env.state & CPU_EMULATE_SINGLE_STEP ? "enabled" : "disabled");
+    else
+    {
+        /*
+         * Convert the argument and change the mode.
+         */
+        bool fEnable;
+        rc = DBGCCmdHlpVarToBool(pCmdHlp, &paArgs[0], &fEnable);
+        if (RT_SUCCESS(rc))
+        {
+            rc = REMR3DisasEnableStepping(pVM, fEnable);
+            if (RT_SUCCESS(rc))
+                rc = DBGCCmdHlpPrintf(pCmdHlp, "DisasStepping was %s\n", fEnable ? "enabled" : "disabled");
+            else
+                rc = DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "REMR3DisasEnableStepping");
+        }
+        else
+            rc = DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGCCmdHlpVarToBool");
+    }
     return rc;
 }
-#endif
+#endif /* VBOX_WITH_DEBUGGER && !win.amd64 */
 
 
 /**
@@ -3707,7 +3953,7 @@ static DECLCALLBACK(int) remR3CmdDisasEnableStepping(PCDBGCCMD pCmd, PDBGCCMDHLP
  *                      selector will be inspected.
  * @param   pszPrefix
  */
-bool remR3DisasInstr(CPUState *env, int f32BitCode, char *pszPrefix)
+bool remR3DisasInstr(CPUX86State *env, int f32BitCode, char *pszPrefix)
 {
     PVM pVM = env->pVM;
     const bool fLog = LogIsEnabled();
@@ -3728,7 +3974,7 @@ bool remR3DisasInstr(CPUState *env, int f32BitCode, char *pszPrefix)
     /*
      * Log registers if requested.
      */
-    if (!fLog2)
+    if (fLog2)
         DBGFR3InfoLog(pVM, "cpumguest", pszPrefix);
 
     /*
@@ -3770,12 +4016,7 @@ bool remR3DisasInstr(CPUState *env, int f32BitCode, char *pszPrefix)
  */
 void disas(FILE *phFile, void *pvCode, unsigned long cb)
 {
-#ifdef DEBUG_TMP_LOGGING
-# define DISAS_PRINTF(x...) fprintf(phFile, x)
-#else
-# define DISAS_PRINTF(x...) RTLogPrintf(x)
     if (LogIs2Enabled())
-#endif
     {
         unsigned        off = 0;
         char            szOutput[256];
@@ -3788,15 +4029,15 @@ void disas(FILE *phFile, void *pvCode, unsigned long cb)
         Cpu.mode = CPUMODE_64BIT;
 #endif
 
-        DISAS_PRINTF("Recompiled Code: %p %#lx (%ld) bytes\n", pvCode, cb, cb);
+        RTLogPrintf("Recompiled Code: %p %#lx (%ld) bytes\n", pvCode, cb, cb);
         while (off < cb)
         {
             uint32_t cbInstr;
             if (RT_SUCCESS(DISInstr(&Cpu, (uintptr_t)pvCode + off, 0, &cbInstr, szOutput)))
-                DISAS_PRINTF("%s", szOutput);
+                RTLogPrintf("%s", szOutput);
             else
             {
-                DISAS_PRINTF("disas error\n");
+                RTLogPrintf("disas error\n");
                 cbInstr = 1;
 #ifdef RT_ARCH_AMD64 /** @todo remove when DISInstr starts supporting 64-bit code. */
                 break;
@@ -3805,8 +4046,6 @@ void disas(FILE *phFile, void *pvCode, unsigned long cb)
             off += cbInstr;
         }
     }
-
-#undef  DISAS_PRINTF
 }
 
 
@@ -3820,12 +4059,7 @@ void disas(FILE *phFile, void *pvCode, unsigned long cb)
  */
 void target_disas(FILE *phFile, target_ulong uCode, target_ulong cb, int fFlags)
 {
-#ifdef DEBUG_TMP_LOGGING
-# define DISAS_PRINTF(x...) fprintf(phFile, x)
-#else
-# define DISAS_PRINTF(x...) RTLogPrintf(x)
     if (LogIs2Enabled())
-#endif
     {
         PVM         pVM = cpu_single_env->pVM;
         PVMCPU      pVCpu = cpu_single_env->pVCpu;
@@ -3842,7 +4076,7 @@ void target_disas(FILE *phFile, target_ulong uCode, target_ulong cb, int fFlags)
         /*
          * Do the disassembling.
          */
-        DISAS_PRINTF("Guest Code: PC=%llx %llx bytes fFlags=%d\n", (uint64_t)uCode, (uint64_t)cb, fFlags);
+        RTLogPrintf("Guest Code: PC=%llx %llx bytes fFlags=%d\n", (uint64_t)uCode, (uint64_t)cb, fFlags);
         cs = cpu_single_env->segs[R_CS].selector;
         eip = uCode - cpu_single_env->segs[R_CS].base;
         for (;;)
@@ -3857,10 +4091,10 @@ void target_disas(FILE *phFile, target_ulong uCode, target_ulong cb, int fFlags)
                                         szBuf, sizeof(szBuf),
                                         &cbInstr);
             if (RT_SUCCESS(rc))
-                DISAS_PRINTF("%llx %s\n", (uint64_t)uCode, szBuf);
+                RTLogPrintf("%llx %s\n", (uint64_t)uCode, szBuf);
             else
             {
-                DISAS_PRINTF("%llx %04x:%llx: %s\n", (uint64_t)uCode, cs, (uint64_t)eip, szBuf);
+                RTLogPrintf("%llx %04x:%llx: %s\n", (uint64_t)uCode, cs, (uint64_t)eip, szBuf);
                 cbInstr = 1;
             }
 
@@ -3872,7 +4106,6 @@ void target_disas(FILE *phFile, target_ulong uCode, target_ulong cb, int fFlags)
             eip += cbInstr;
         }
     }
-#undef DISAS_PRINTF
 }
 
 
@@ -3948,6 +4181,7 @@ REMR3DECL(uint32_t) REMR3QueryPendingInterrupt(PVM pVM, PVMCPU pVCpu)
  */
 REMR3DECL(void) REMR3NotifyInterruptSet(PVM pVM, PVMCPU pVCpu)
 {
+#ifndef IEM_VERIFICATION_MODE
     LogFlow(("REMR3NotifyInterruptSet: fInRem=%d interrupts %s\n", pVM->rem.s.fInREM,
              (pVM->rem.s.Env.eflags & IF_MASK) && !(pVM->rem.s.Env.hflags & HF_INHIBIT_IRQ_MASK) ? "enabled" : "disabled"));
     if (pVM->rem.s.fInREM)
@@ -3955,6 +4189,7 @@ REMR3DECL(void) REMR3NotifyInterruptSet(PVM pVM, PVMCPU pVCpu)
         ASMAtomicOrS32((int32_t volatile *)&cpu_single_env->interrupt_request,
                        CPU_INTERRUPT_EXTERNAL_HARD);
     }
+#endif
 }
 
 
@@ -3985,6 +4220,7 @@ REMR3DECL(void) REMR3NotifyInterruptClear(PVM pVM, PVMCPU pVCpu)
  */
 REMR3DECL(void) REMR3NotifyTimerPending(PVM pVM, PVMCPU pVCpuDst)
 {
+#ifndef IEM_VERIFICATION_MODE
 #ifndef DEBUG_bird
     LogFlow(("REMR3NotifyTimerPending: fInRem=%d\n", pVM->rem.s.fInREM));
 #endif
@@ -4001,6 +4237,7 @@ REMR3DECL(void) REMR3NotifyTimerPending(PVM pVM, PVMCPU pVCpuDst)
     }
     else
         LogIt(LOG_INSTANCE, RTLOGGRPFLAGS_LEVEL_5, LOG_GROUP_TM, ("REMR3NotifyTimerPending: !fInREM; cpu state=%d\n", VMCPU_GET_STATE(pVCpuDst)));
+#endif
 }
 
 
@@ -4012,12 +4249,14 @@ REMR3DECL(void) REMR3NotifyTimerPending(PVM pVM, PVMCPU pVCpuDst)
  */
 REMR3DECL(void) REMR3NotifyDmaPending(PVM pVM)
 {
+#ifndef IEM_VERIFICATION_MODE
     LogFlow(("REMR3NotifyDmaPending: fInRem=%d\n", pVM->rem.s.fInREM));
     if (pVM->rem.s.fInREM)
     {
         ASMAtomicOrS32((int32_t volatile *)&cpu_single_env->interrupt_request,
                        CPU_INTERRUPT_EXTERNAL_DMA);
     }
+#endif
 }
 
 
@@ -4029,12 +4268,14 @@ REMR3DECL(void) REMR3NotifyDmaPending(PVM pVM)
  */
 REMR3DECL(void) REMR3NotifyQueuePending(PVM pVM)
 {
+#ifndef IEM_VERIFICATION_MODE
     LogFlow(("REMR3NotifyQueuePending: fInRem=%d\n", pVM->rem.s.fInREM));
     if (pVM->rem.s.fInREM)
     {
         ASMAtomicOrS32((int32_t volatile *)&cpu_single_env->interrupt_request,
                        CPU_INTERRUPT_EXTERNAL_EXIT);
     }
+#endif
 }
 
 
@@ -4046,12 +4287,14 @@ REMR3DECL(void) REMR3NotifyQueuePending(PVM pVM)
  */
 REMR3DECL(void) REMR3NotifyFF(PVM pVM)
 {
+#ifndef IEM_VERIFICATION_MODE
     LogFlow(("REMR3NotifyFF: fInRem=%d\n", pVM->rem.s.fInREM));
     if (pVM->rem.s.fInREM)
     {
         ASMAtomicOrS32((int32_t volatile *)&cpu_single_env->interrupt_request,
                        CPU_INTERRUPT_EXTERNAL_EXIT);
     }
+#endif
 }
 
 
@@ -4164,7 +4407,7 @@ void cpu_set_ferr(CPUX86State *env)
     LogFlow(("cpu_set_ferr: rc=%d\n", rc)); NOREF(rc);
 }
 
-int cpu_get_pic_interrupt(CPUState *env)
+int cpu_get_pic_interrupt(CPUX86State *env)
 {
     uint8_t u8Interrupt;
     int     rc;
@@ -4276,7 +4519,7 @@ int cpu_wrmsr(CPUX86State *env, uint32_t idMsr, uint64_t uValue)
 #undef LOG_GROUP
 #define LOG_GROUP LOG_GROUP_REM_IOPORT
 
-void cpu_outb(CPUState *env, int addr, int val)
+void cpu_outb(CPUX86State *env, pio_addr_t addr, uint8_t val)
 {
     int rc;
 
@@ -4295,7 +4538,7 @@ void cpu_outb(CPUState *env, int addr, int val)
     remAbort(rc, __FUNCTION__);
 }
 
-void cpu_outw(CPUState *env, int addr, int val)
+void cpu_outw(CPUX86State *env, pio_addr_t addr, uint16_t val)
 {
     //Log2(("cpu_outw: addr=%#06x val=%#x\n", addr, val));
     int rc = IOMIOPortWrite(env->pVM, (RTIOPORT)addr, val, 2);
@@ -4310,7 +4553,7 @@ void cpu_outw(CPUState *env, int addr, int val)
     remAbort(rc, __FUNCTION__);
 }
 
-void cpu_outl(CPUState *env, int addr, int val)
+void cpu_outl(CPUX86State *env, pio_addr_t addr, uint32_t val)
 {
     int rc;
     Log2(("cpu_outl: addr=%#06x val=%#x\n", addr, val));
@@ -4326,7 +4569,7 @@ void cpu_outl(CPUState *env, int addr, int val)
     remAbort(rc, __FUNCTION__);
 }
 
-int cpu_inb(CPUState *env, int addr)
+uint8_t cpu_inb(CPUX86State *env, pio_addr_t addr)
 {
     uint32_t u32 = 0;
     int rc = IOMIOPortRead(env->pVM, (RTIOPORT)addr, &u32, 1);
@@ -4334,38 +4577,38 @@ int cpu_inb(CPUState *env, int addr)
     {
         if (/*addr != 0x61 && */addr != 0x71)
             Log2(("cpu_inb: addr=%#06x -> %#x\n", addr, u32));
-        return (int)u32;
+        return (uint8_t)u32;
     }
     if (rc >= VINF_EM_FIRST && rc <= VINF_EM_LAST)
     {
         Log(("cpu_inb: addr=%#06x -> %#x rc=%Rrc\n", addr, u32, rc));
         remR3RaiseRC(env->pVM, rc);
-        return (int)u32;
+        return (uint8_t)u32;
     }
     remAbort(rc, __FUNCTION__);
-    return 0xff;
+    return UINT8_C(0xff);
 }
 
-int cpu_inw(CPUState *env, int addr)
+uint16_t cpu_inw(CPUX86State *env, pio_addr_t addr)
 {
     uint32_t u32 = 0;
     int rc = IOMIOPortRead(env->pVM, (RTIOPORT)addr, &u32, 2);
     if (RT_LIKELY(rc == VINF_SUCCESS))
     {
         Log2(("cpu_inw: addr=%#06x -> %#x\n", addr, u32));
-        return (int)u32;
+        return (uint16_t)u32;
     }
     if (rc >= VINF_EM_FIRST && rc <= VINF_EM_LAST)
     {
         Log(("cpu_inw: addr=%#06x -> %#x rc=%Rrc\n", addr, u32, rc));
         remR3RaiseRC(env->pVM, rc);
-        return (int)u32;
+        return (uint16_t)u32;
     }
     remAbort(rc, __FUNCTION__);
-    return 0xffff;
+    return UINT16_C(0xffff);
 }
 
-int cpu_inl(CPUState *env, int addr)
+uint32_t cpu_inl(CPUX86State *env, pio_addr_t addr)
 {
     uint32_t u32 = 0;
     int rc = IOMIOPortRead(env->pVM, (RTIOPORT)addr, &u32, 4);
@@ -4374,16 +4617,16 @@ int cpu_inl(CPUState *env, int addr)
 //if (addr==0x01f0 && u32 == 0x6b6d)
 //    loglevel = ~0;
         Log2(("cpu_inl: addr=%#06x -> %#x\n", addr, u32));
-        return (int)u32;
+        return u32;
     }
     if (rc >= VINF_EM_FIRST && rc <= VINF_EM_LAST)
     {
         Log(("cpu_inl: addr=%#06x -> %#x rc=%Rrc\n", addr, u32, rc));
         remR3RaiseRC(env->pVM, rc);
-        return (int)u32;
+        return u32;
     }
     remAbort(rc, __FUNCTION__);
-    return 0xffffffff;
+    return UINT32_C(0xffffffff);
 }
 
 #undef LOG_GROUP
@@ -4395,19 +4638,19 @@ int cpu_inl(CPUState *env, int addr)
 /**
  * Perform the CPUID instruction.
  *
- * ASMCpuId cannot be invoked from some source files where this is used because of global
- * register allocations.
- *
  * @param   env         Pointer to the recompiler CPU structure.
- * @param   uOperator   CPUID operation (eax).
+ * @param   idx         The CPUID leaf (eax).
+ * @param   idxSub      The CPUID sub-leaf (ecx) where applicable.
  * @param   pvEAX       Where to store eax.
  * @param   pvEBX       Where to store ebx.
  * @param   pvECX       Where to store ecx.
  * @param   pvEDX       Where to store edx.
  */
-void remR3CpuId(CPUState *env, unsigned uOperator, void *pvEAX, void *pvEBX, void *pvECX, void *pvEDX)
+void cpu_x86_cpuid(CPUX86State *env, uint32_t idx, uint32_t idxSub,
+                   uint32_t *pEAX, uint32_t *pEBX, uint32_t *pECX, uint32_t *pEDX)
 {
-    CPUMGetGuestCpuId(env->pVCpu, uOperator, (uint32_t *)pvEAX, (uint32_t *)pvEBX, (uint32_t *)pvECX, (uint32_t *)pvEDX);
+    NOREF(idxSub);
+    CPUMGetGuestCpuId(env->pVCpu, idx, pEAX, pEBX, pECX, pEDX);
 }
 
 
@@ -4445,7 +4688,7 @@ void hw_error(const char *pszFormat, ...)
  * Interface for the qemu cpu to report unhandled situation
  * raising a fatal VM error.
  */
-void cpu_abort(CPUState *env, const char *pszFormat, ...)
+void cpu_abort(CPUX86State *env, const char *pszFormat, ...)
 {
     va_list va;
     PVM     pVM;
@@ -5186,6 +5429,6 @@ void *memcpy(void *dst, const void *src, size_t size)
 
 #endif
 
-void cpu_smm_update(CPUState *env)
+void cpu_smm_update(CPUX86State *env)
 {
 }

@@ -1,4 +1,4 @@
-/* $Id: ATAController.cpp $ */
+/* $Id: ATAController.cpp 37687 2011-06-29 15:22:11Z vboxsync $ */
 /** @file
  * DevATA, DevAHCI - Shared ATA/ATAPI controller code (disk and cdrom).
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -684,23 +684,9 @@ static void ataCmdError(AHCIATADevState *s, uint8_t uErrorCode)
 static bool ataIdentifySS(AHCIATADevState *s)
 {
     uint16_t *p;
-    char aSerial[20];
-    int rc;
-    RTUUID Uuid;
 
     Assert(s->uTxDir == PDMBLOCKTXDIR_FROM_DEVICE);
     Assert(s->cbElementaryTransfer == 512);
-    rc = s->pDrvBlock ? s->pDrvBlock->pfnGetUuid(s->pDrvBlock, &Uuid) : RTUuidClear(&Uuid);
-    if (RT_FAILURE(rc) || RTUuidIsNull(&Uuid))
-    {
-        PAHCIATACONTROLLER pCtl = ATADEVSTATE_2_CONTROLLER(s);
-        /* Generate a predictable serial for drives which don't have a UUID. */
-        RTStrPrintf(aSerial, sizeof(aSerial), "VB%x-%04x%04x",
-                    s->iLUN + ATADEVSTATE_2_DEVINS(s)->iInstance * 32,
-                    pCtl->IOPortBase1, pCtl->IOPortBase2);
-    }
-    else
-        RTStrPrintf(aSerial, sizeof(aSerial), "VB%08x-%08x", Uuid.au32[0], Uuid.au32[3]);
 
     p = (uint16_t *)s->CTXALLSUFF(pbIOBuffer);
     memset(p, 0, 512);
@@ -710,12 +696,12 @@ static bool ataIdentifySS(AHCIATADevState *s)
     /* Block size; obsolete, but required for the BIOS. */
     p[5] = RT_H2LE_U16(512);
     p[6] = RT_H2LE_U16(s->PCHSGeometry.cSectors);
-    ataPadString((uint8_t *)(p + 10), aSerial, 20); /* serial number */
+    ataPadString((uint8_t *)(p + 10), s->pszSerialNumber, ATA_SERIAL_NUMBER_LENGTH); /* serial number */
     p[20] = RT_H2LE_U16(3); /* XXX: retired, cache type */
     p[21] = RT_H2LE_U16(512); /* XXX: retired, cache size in sectors */
     p[22] = RT_H2LE_U16(0); /* ECC bytes per sector */
-    ataPadString((uint8_t *)(p + 23), "1.0", 8); /* firmware version */
-    ataPadString((uint8_t *)(p + 27), "VBOX HARDDISK", 40); /* model */
+    ataPadString((uint8_t *)(p + 23), s->pszFirmwareRevision, ATA_FIRMWARE_REVISION_LENGTH); /* firmware version */
+    ataPadString((uint8_t *)(p + 27), s->pszModelNumber, ATA_MODEL_NUMBER_LENGTH); /* model */
 #if ATA_MAX_MULT_SECTORS > 1
     p[47] = RT_H2LE_U16(0x8000 | ATA_MAX_MULT_SECTORS);
 #endif
@@ -776,6 +762,8 @@ static bool ataIdentifySS(AHCIATADevState *s)
         p[102] = RT_H2LE_U16(s->cTotalSectors >> 32);
         p[103] = RT_H2LE_U16(s->cTotalSectors >> 48);
     }
+    if (s->fNonRotational)
+        p[217] = RT_H2LE_U16(1); /* Non-rotational medium */
     uint32_t uCsum = ataChecksum(p, 510);
     p[255] = RT_H2LE_U16(0xa5 | (uCsum << 8)); /* Integrity word */
 
@@ -811,33 +799,19 @@ static bool ataFlushSS(AHCIATADevState *s)
 static bool atapiIdentifySS(AHCIATADevState *s)
 {
     uint16_t *p;
-    char aSerial[20];
-    RTUUID Uuid;
-    int rc;
 
     Assert(s->uTxDir == PDMBLOCKTXDIR_FROM_DEVICE);
     Assert(s->cbElementaryTransfer == 512);
-    rc = s->pDrvBlock ? s->pDrvBlock->pfnGetUuid(s->pDrvBlock, &Uuid) : RTUuidClear(&Uuid);
-    if (RT_FAILURE(rc) || RTUuidIsNull(&Uuid))
-    {
-        PAHCIATACONTROLLER pCtl = ATADEVSTATE_2_CONTROLLER(s);
-        /* Generate a predictable serial for drives which don't have a UUID. */
-        RTStrPrintf(aSerial, sizeof(aSerial), "VB%x-%04x%04x",
-                    s->iLUN + ATADEVSTATE_2_DEVINS(s)->iInstance * 32,
-                    pCtl->IOPortBase1, pCtl->IOPortBase2);
-    }
-    else
-        RTStrPrintf(aSerial, sizeof(aSerial), "VB%08x-%08x", Uuid.au32[0], Uuid.au32[3]);
 
     p = (uint16_t *)s->CTXALLSUFF(pbIOBuffer);
     memset(p, 0, 512);
     /* Removable CDROM, 50us response, 12 byte packets */
     p[0] = RT_H2LE_U16(2 << 14 | 5 << 8 | 1 << 7 | 2 << 5 | 0 << 0);
-    ataPadString((uint8_t *)(p + 10), aSerial, 20); /* serial number */
+    ataPadString((uint8_t *)(p + 10), s->pszSerialNumber, ATA_SERIAL_NUMBER_LENGTH); /* serial number */
     p[20] = RT_H2LE_U16(3); /* XXX: retired, cache type */
     p[21] = RT_H2LE_U16(512); /* XXX: retired, cache size in sectors */
-    ataPadString((uint8_t *)(p + 23), "1.0", 8); /* firmware version */
-    ataPadString((uint8_t *)(p + 27), "VBOX CD-ROM", 40); /* model */
+    ataPadString((uint8_t *)(p + 23), s->pszFirmwareRevision, ATA_FIRMWARE_REVISION_LENGTH); /* firmware version */
+    ataPadString((uint8_t *)(p + 27), s->pszModelNumber, ATA_MODEL_NUMBER_LENGTH); /* model */
     p[49] = RT_H2LE_U16(1 << 11 | 1 << 9 | 1 << 8); /* DMA and LBA supported */
     p[50] = RT_H2LE_U16(1 << 14);  /* No drive specific standby timer minimum */
     p[51] = RT_H2LE_U16(240); /* PIO transfer cycle */
@@ -1631,38 +1605,183 @@ static bool atapiReadTrackInformationSS(AHCIATADevState *s)
     return false;
 }
 
+static size_t atapiGetConfigurationFillFeatureListProfiles(AHCIATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+{
+    if (cbBuf < 3*4)
+        return 0;
+
+    ataH2BE_U16(pbBuf, 0x0); /* feature 0: list of profiles supported */
+    pbBuf[2] = (0 << 2) | (1 << 1) | (1 || 0); /* version 0, persistent, current */
+    pbBuf[3] = 8; /* additional bytes for profiles */
+    /* The MMC-3 spec says that DVD-ROM read capability should be reported
+     * before CD-ROM read capability. */
+    ataH2BE_U16(pbBuf + 4, 0x10); /* profile: read-only DVD */
+    pbBuf[6] = (0 << 0); /* NOT current profile */
+    ataH2BE_U16(pbBuf + 8, 0x08); /* profile: read only CD */
+    pbBuf[10] = (1 << 0); /* current profile */
+
+    return 3*4; /* Header + 2 profiles entries */
+}
+
+static size_t atapiGetConfigurationFillFeatureCore(AHCIATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+{
+    if (cbBuf < 12)
+        return 0;
+
+    ataH2BE_U16(pbBuf, 0x1); /* feature 0001h: Core Feature */
+    pbBuf[2] = (0x2 << 2) | RT_BIT(1) | RT_BIT(0); /* Version | Persistent | Current */
+    pbBuf[3] = 8; /* Additional length */
+    ataH2BE_U16(pbBuf + 4, 0x00000002); /* Physical interface ATAPI. */
+    pbBuf[8] = RT_BIT(0); /* DBE */
+    /* Rest is reserved. */
+
+    return 12;
+}
+
+static size_t atapiGetConfigurationFillFeatureMorphing(AHCIATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+{
+    if (cbBuf < 8)
+        return 0;
+
+    ataH2BE_U16(pbBuf, 0x2); /* feature 0002h: Morphing Feature */
+    pbBuf[2] = (0x1 << 2) | RT_BIT(1) | RT_BIT(0); /* Version | Persistent | Current */
+    pbBuf[3] = 4; /* Additional length */
+    pbBuf[4] = RT_BIT(1) | 0x0; /* OCEvent | !ASYNC */
+    /* Rest is reserved. */
+
+    return 8;
+}
+
+static size_t atapiGetConfigurationFillFeatureRemovableMedium(AHCIATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+{
+    if (cbBuf < 8)
+        return 0;
+
+    ataH2BE_U16(pbBuf, 0x3); /* feature 0003h: Removable Medium Feature */
+    pbBuf[2] = (0x2 << 2) | RT_BIT(1) | RT_BIT(0); /* Version | Persistent | Current */
+    pbBuf[3] = 4; /* Additional length */
+    /* Tray type loading | Load | Eject | !Pvnt Jmpr | !DBML | Lock */
+    pbBuf[4] = (0x2 << 5) | RT_BIT(4) | RT_BIT(3) | (0x0 << 2) | (0x0 << 1) | RT_BIT(0);
+    /* Rest is reserved. */
+
+    return 8;
+}
+
+static size_t atapiGetConfigurationFillFeatureRandomReadable(AHCIATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+{
+    if (cbBuf < 12)
+        return 0;
+
+    ataH2BE_U16(pbBuf, 0x10); /* feature 0010h: Random Readable Feature */
+    pbBuf[2] = (0x0 << 2) | RT_BIT(1) | RT_BIT(0); /* Version | Persistent | Current */
+    pbBuf[3] = 8; /* Additional length */
+    ataH2BE_U32(pbBuf + 4, 2048); /* Logical block size. */
+    ataH2BE_U16(pbBuf + 8, 0x10); /* Blocking (0x10 for DVD, CD is not defined). */
+    pbBuf[10] = 0; /* PP not present */
+    /* Rest is reserved. */
+
+    return 12;
+}
+
+static size_t atapiGetConfigurationFillFeatureCDRead(AHCIATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+{
+    if (cbBuf < 8)
+        return 0;
+
+    ataH2BE_U16(pbBuf, 0x1e); /* feature 001Eh: CD Read Feature */
+    pbBuf[2] = (0x2 << 2) | RT_BIT(1) | RT_BIT(0); /* Version | Persistent | Current */
+    pbBuf[3] = 0; /* Additional length */
+    pbBuf[4] = (0x0 << 7) | (0x0 << 1) | 0x0; /* !DAP | !C2-Flags | !CD-Text. */
+    /* Rest is reserved. */
+
+    return 8;
+}
+
+static size_t atapiGetConfigurationFillFeaturePowerManagement(AHCIATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+{
+    if (cbBuf < 4)
+        return 0;
+
+    ataH2BE_U16(pbBuf, 0x100); /* feature 0100h: Power Management Feature */
+    pbBuf[2] = (0x0 << 2) | RT_BIT(1) | RT_BIT(0); /* Version | Persistent | Current */
+    pbBuf[3] = 0; /* Additional length */
+
+    return 4;
+}
+
+static size_t atapiGetConfigurationFillFeatureTimeout(AHCIATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+{
+    if (cbBuf < 8)
+        return 0;
+
+    ataH2BE_U16(pbBuf, 0x105); /* feature 0105h: Timeout Feature */
+    pbBuf[2] = (0x0 << 2) | RT_BIT(1) | RT_BIT(0); /* Version | Persistent | Current */
+    pbBuf[3] = 4; /* Additional length */
+    pbBuf[4] = 0x0; /* !Group3 */
+
+    return 8;
+}
 
 static bool atapiGetConfigurationSS(AHCIATADevState *s)
 {
     uint8_t *pbBuf = s->CTXALLSUFF(pbIOBuffer);
+    size_t cbBuf = s->cbIOBuffer;
+    size_t cbCopied = 0;
     uint16_t u16Sfn = ataBE2H_U16(&s->aATAPICmd[2]);
 
     Assert(s->uTxDir == PDMBLOCKTXDIR_FROM_DEVICE);
-    Assert(s->cbElementaryTransfer <= 32);
+    Assert(s->cbElementaryTransfer <= 80);
     /* Accept valid request types only, and only starting feature 0. */
     if ((s->aATAPICmd[1] & 0x03) == 3 || u16Sfn != 0)
     {
         atapiCmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET);
         return false;
     }
-    memset(pbBuf, '\0', 32);
-    ataH2BE_U32(pbBuf, 16);
+    memset(pbBuf, '\0', cbBuf);
     /** @todo implement switching between CD-ROM and DVD-ROM profile (the only
      * way to differentiate them right now is based on the image size). */
     if (s->cTotalSectors)
         ataH2BE_U16(pbBuf + 6, 0x08); /* current profile: read-only CD */
     else
         ataH2BE_U16(pbBuf + 6, 0x00); /* current profile: none -> no media */
+    cbBuf    -= 8;
+    pbBuf    += 8;
 
-    ataH2BE_U16(pbBuf + 8, 0); /* feature 0: list of profiles supported */
-    pbBuf[10] = (0 << 2) | (1 << 1) | (1 || 0); /* version 0, persistent, current */
-    pbBuf[11] = 8; /* additional bytes for profiles */
-    /* The MMC-3 spec says that DVD-ROM read capability should be reported
-     * before CD-ROM read capability. */
-    ataH2BE_U16(pbBuf + 12, 0x10); /* profile: read-only DVD */
-    pbBuf[14] = (0 << 0); /* NOT current profile */
-    ataH2BE_U16(pbBuf + 16, 0x08); /* profile: read only CD */
-    pbBuf[18] = (1 << 0); /* current profile */
+    cbCopied = atapiGetConfigurationFillFeatureListProfiles(s, pbBuf, cbBuf);
+    cbBuf -= cbCopied;
+    pbBuf += cbCopied;
+
+    cbCopied = atapiGetConfigurationFillFeatureCore(s, pbBuf, cbBuf);
+    cbBuf -= cbCopied;
+    pbBuf += cbCopied;
+
+    cbCopied = atapiGetConfigurationFillFeatureMorphing(s, pbBuf, cbBuf);
+    cbBuf -= cbCopied;
+    pbBuf += cbCopied;
+
+    cbCopied = atapiGetConfigurationFillFeatureRemovableMedium(s, pbBuf, cbBuf);
+    cbBuf -= cbCopied;
+    pbBuf += cbCopied;
+
+    cbCopied = atapiGetConfigurationFillFeatureRandomReadable(s, pbBuf, cbBuf);
+    cbBuf -= cbCopied;
+    pbBuf += cbCopied;
+
+    cbCopied = atapiGetConfigurationFillFeatureCDRead(s, pbBuf, cbBuf);
+    cbBuf -= cbCopied;
+    pbBuf += cbCopied;
+
+    cbCopied = atapiGetConfigurationFillFeaturePowerManagement(s, pbBuf, cbBuf);
+    cbBuf -= cbCopied;
+    pbBuf += cbCopied;
+
+    cbCopied = atapiGetConfigurationFillFeatureTimeout(s, pbBuf, cbBuf);
+    cbBuf -= cbCopied;
+    pbBuf += cbCopied;
+
+    /* Set data length now. */
+    ataH2BE_U32(s->CTX_SUFF(pbIOBuffer), s->cbIOBuffer - cbBuf);
+
     /* Other profiles we might want to add in the future: 0x40 (BD-ROM) and 0x50 (HDDVD-ROM) */
     s->iSourceSink = ATAFN_SS_NULL;
     atapiCmdOK(s);
@@ -1764,9 +1883,9 @@ static bool atapiInquirySS(AHCIATADevState *s)
     pbBuf[5] = 0; /* reserved */
     pbBuf[6] = 0; /* reserved */
     pbBuf[7] = 0; /* reserved */
-    ataSCSIPadStr(pbBuf + 8, "VBOX", 8);
-    ataSCSIPadStr(pbBuf + 16, "CD-ROM", 16);
-    ataSCSIPadStr(pbBuf + 32, "1.0", 4);
+    ataSCSIPadStr(pbBuf + 8, s->pszInquiryVendorId, 8);
+    ataSCSIPadStr(pbBuf + 16, s->pszInquiryProductId, 16);
+    ataSCSIPadStr(pbBuf + 32, s->pszInquiryRevision, 4);
     s->iSourceSink = ATAFN_SS_NULL;
     atapiCmdOK(s);
     return false;
@@ -2282,8 +2401,8 @@ static void atapiParseCmdVirtualATAPI(AHCIATADevState *s)
                     case 1: /* 01 - Start motor */
                         break;
                     case 2: /* 10 - Eject media */
+                    {
                         /* This must be done from EMT. */
-                        {
                         PAHCIATACONTROLLER pCtl = ATADEVSTATE_2_CONTROLLER(s);
                         PPDMDEVINS pDevIns = ATADEVSTATE_2_DEVINS(s);
 
@@ -2292,13 +2411,20 @@ static void atapiParseCmdVirtualATAPI(AHCIATADevState *s)
                                              (PFNRT)s->pDrvMount->pfnUnmount, 3, s->pDrvMount,
                                              false /*=fForce*/, true /*=fEeject*/);
                         Assert(RT_SUCCESS(rc) || (rc == VERR_PDM_MEDIA_LOCKED) || (rc = VERR_PDM_MEDIA_NOT_MOUNTED));
+                        if (RT_SUCCESS(rc) && pCtl->pMediaNotify)
+                        {
+                            rc = VMR3ReqCallNoWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
+                                                   (PFNRT)pCtl->pMediaNotify->pfnEjected, 2,
+                                                   pCtl->pMediaNotify, s->iLUN);
+                            AssertRC(rc);
+                        }
                         {
                             STAM_PROFILE_START(&pCtl->StatLockWait, a);
                             PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
                             STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
                         }
-                        }
                         break;
+                    }
                     case 3: /* 11 - Load media */
                         /** @todo rc = s->pDrvMount->pfnLoadMedia(s->pDrvMount) */
                         break;
@@ -2400,7 +2526,7 @@ static void atapiParseCmdVirtualATAPI(AHCIATADevState *s)
         case SCSI_GET_CONFIGURATION:
             /* No media change stuff here, it can confuse Linux guests. */
             cbMax = ataBE2H_U16(pbPacket + 7);
-            ataStartTransfer(s, RT_MIN(cbMax, 32), PDMBLOCKTXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_GET_CONFIGURATION, true);
+            ataStartTransfer(s, RT_MIN(cbMax, 80), PDMBLOCKTXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_GET_CONFIGURATION, true);
             break;
         case SCSI_INQUIRY:
             cbMax = ataBE2H_U16(pbPacket + 3);
@@ -5447,19 +5573,29 @@ int ataControllerLoadExec(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSM)
 }
 
 int ataControllerInit(PPDMDEVINS pDevIns, PAHCIATACONTROLLER pCtl,
+                      PPDMIMEDIANOTIFY pMediaNotify,
                       unsigned iLUNMaster, PPDMIBASE pDrvBaseMaster, PPDMLED pLedMaster,
                       PSTAMCOUNTER pStatBytesReadMaster, PSTAMCOUNTER pStatBytesWrittenMaster,
+                      const char *pszSerialNumberMaster, const char *pszFirmwareRevisionMaster,
+                      const char *pszModelNumberMaster, const char *pszInquiryVendorIdMaster,
+                      const char *pszInquiryProductIdMaster, const char *pszInquiryRevisionMaster,
+                      bool fNonRotationalMaster,
                       unsigned iLUNSlave, PPDMIBASE pDrvBaseSlave, PPDMLED pLedSlave,
                       PSTAMCOUNTER pStatBytesReadSlave, PSTAMCOUNTER pStatBytesWrittenSlave,
+                      const char *pszSerialNumberSlave, const char *pszFirmwareRevisionSlave,
+                      const char *pszModelNumberSlave, const char *pszInquiryVendorIdSlave,
+                      const char *pszInquiryProductIdSlave, const char *pszInquiryRevisionSlave,
+                      bool fNonRotationalSlave,
                       uint32_t *pcbSSMState, const char *szName)
 {
-    int      rc;
+    int rc;
 
     AssertMsg(pcbSSMState, ("pcbSSMState is invalid\n"));
 
     pCtl->pDevInsR3 = pDevIns;
     pCtl->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
     pCtl->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
+    pCtl->pMediaNotify = pMediaNotify;
     pCtl->AsyncIOSem = NIL_RTSEMEVENT;
     pCtl->SuspendIOSem = NIL_RTSEMEVENT;
     pCtl->AsyncIORequestMutex = NIL_RTSEMMUTEX;
@@ -5467,16 +5603,23 @@ int ataControllerInit(PPDMDEVINS pDevIns, PAHCIATACONTROLLER pCtl,
 
     for (uint32_t j = 0; j < RT_ELEMENTS(pCtl->aIfs); j++)
     {
-        pCtl->aIfs[j].iLUN              = j == 0 ? iLUNMaster : iLUNSlave;
-        pCtl->aIfs[j].pDevInsR3         = pDevIns;
-        pCtl->aIfs[j].pDevInsR0         = PDMDEVINS_2_R0PTR(pDevIns);
-        pCtl->aIfs[j].pDevInsRC         = PDMDEVINS_2_RCPTR(pDevIns);
-        pCtl->aIfs[j].pControllerR3     = pCtl;
-        pCtl->aIfs[j].pControllerR0     = MMHyperR3ToR0(PDMDevHlpGetVM(pDevIns), pCtl);
-        pCtl->aIfs[j].pControllerRC     = MMHyperR3ToRC(PDMDevHlpGetVM(pDevIns), pCtl);
-        pCtl->aIfs[j].pLed              = j == 0 ? pLedMaster : pLedSlave;
-        pCtl->aIfs[j].pStatBytesRead    = j == 0 ? pStatBytesReadMaster : pStatBytesReadSlave;
-        pCtl->aIfs[j].pStatBytesWritten = j == 0 ? pStatBytesWrittenMaster : pStatBytesWrittenSlave;
+        pCtl->aIfs[j].iLUN                  = j == 0 ? iLUNMaster : iLUNSlave;
+        pCtl->aIfs[j].pDevInsR3             = pDevIns;
+        pCtl->aIfs[j].pDevInsR0             = PDMDEVINS_2_R0PTR(pDevIns);
+        pCtl->aIfs[j].pDevInsRC             = PDMDEVINS_2_RCPTR(pDevIns);
+        pCtl->aIfs[j].pControllerR3         = pCtl;
+        pCtl->aIfs[j].pControllerR0         = MMHyperR3ToR0(PDMDevHlpGetVM(pDevIns), pCtl);
+        pCtl->aIfs[j].pControllerRC         = MMHyperR3ToRC(PDMDevHlpGetVM(pDevIns), pCtl);
+        pCtl->aIfs[j].pLed                  = j == 0 ? pLedMaster : pLedSlave;
+        pCtl->aIfs[j].pStatBytesRead        = j == 0 ? pStatBytesReadMaster : pStatBytesReadSlave;
+        pCtl->aIfs[j].pStatBytesWritten     = j == 0 ? pStatBytesWrittenMaster : pStatBytesWrittenSlave;
+        pCtl->aIfs[j].pszSerialNumber       = j == 0 ? pszSerialNumberMaster : pszSerialNumberSlave;
+        pCtl->aIfs[j].pszFirmwareRevision   = j == 0 ? pszFirmwareRevisionMaster : pszFirmwareRevisionSlave;
+        pCtl->aIfs[j].pszModelNumber        = j == 0 ? pszModelNumberMaster : pszModelNumberSlave;
+        pCtl->aIfs[j].pszInquiryVendorId    = j == 0 ? pszInquiryVendorIdMaster : pszInquiryVendorIdSlave;
+        pCtl->aIfs[j].pszInquiryProductId   = j == 0 ? pszInquiryProductIdMaster : pszInquiryProductIdSlave;
+        pCtl->aIfs[j].pszInquiryRevision    = j == 0 ? pszInquiryRevisionMaster : pszInquiryRevisionSlave;
+        pCtl->aIfs[j].fNonRotational        = j == 0 ? fNonRotationalMaster : fNonRotationalSlave;
     }
 
     /* Initialize per-controller critical section */

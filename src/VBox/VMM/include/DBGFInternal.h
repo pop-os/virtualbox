@@ -1,4 +1,4 @@
-/* $Id: DBGFInternal.h $ */
+/* $Id: DBGFInternal.h 37410 2011-06-10 15:11:40Z vboxsync $ */
 /** @file
  * DBGF - Internal header file.
  */
@@ -244,12 +244,12 @@ typedef struct DBGF
      * This part is initialized in a lazy manner for performance reasons. */
     bool                        fSymInited;
     /** Alignment padding. */
-    RTUINT                      uAlignment0;
+    uint32_t                    uAlignment0;
 
     /** The number of hardware breakpoints. */
-    RTUINT                      cHwBreakpoints;
+    uint32_t                    cHwBreakpoints;
     /** The number of active breakpoints. */
-    RTUINT                      cBreakpoints;
+    uint32_t                    cBreakpoints;
     /** Array of hardware breakpoints. (0..3)
      * This is shared among all the CPUs because life is much simpler that way. */
     DBGFBP                      aHwBreakpoints[4];
@@ -332,6 +332,7 @@ typedef DBGFCPU *PDBGFCPU;
 int  dbgfR3AsInit(PVM pVM);
 void dbgfR3AsTerm(PVM pVM);
 void dbgfR3AsRelocate(PVM pVM, RTGCUINTPTR offDelta);
+int  dbgfR3BpInit(PVM pVM);
 int  dbgfR3InfoInit(PVM pVM);
 int  dbgfR3InfoTerm(PVM pVM);
 void dbgfR3OSTerm(PVM pVM);
@@ -339,7 +340,9 @@ int  dbgfR3RegInit(PVM pVM);
 void dbgfR3RegTerm(PVM pVM);
 int  dbgfR3SymInit(PVM pVM);
 int  dbgfR3SymTerm(PVM pVM);
-int  dbgfR3BpInit(PVM pVM);
+int  dbgfR3TraceInit(PVM pVM);
+void dbgfR3TraceRelocate(PVM pVM);
+void dbgfR3TraceTerm(PVM pVM);
 
 
 

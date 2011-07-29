@@ -1,4 +1,4 @@
-/* $Id: ministring.cpp $ */
+/* $Id: ministring.cpp 36561 2011-04-05 13:42:59Z vboxsync $ */
 /** @file
  * IPRT - Mini C++ string class.
  *
@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2007-2010 Oracle Corporation
+ * Copyright (C) 2007-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,13 +32,13 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/cpp/ministring.h>
-using namespace iprt;
 
 
 /*******************************************************************************
 *   Global Variables                                                           *
 *******************************************************************************/
-const size_t MiniString::npos = ~(size_t)0;
+const size_t RTCString::npos = ~(size_t)0;
+
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
@@ -47,7 +47,7 @@ const size_t MiniString::npos = ~(size_t)0;
 #define IPRT_MINISTRING_APPEND_ALIGNMENT    64
 
 
-MiniString &MiniString::printf(const char *pszFormat, ...)
+RTCString &RTCString::printf(const char *pszFormat, ...)
 {
     va_list va;
     va_start(va, pszFormat);
@@ -57,7 +57,7 @@ MiniString &MiniString::printf(const char *pszFormat, ...)
 }
 
 /**
- * Callback used with RTStrFormatV by MiniString::printfV.
+ * Callback used with RTStrFormatV by RTCString::printfV.
  *
  * @returns The number of bytes added (not used).
  *
@@ -66,9 +66,9 @@ MiniString &MiniString::printf(const char *pszFormat, ...)
  * @param   cbChars         The number of characters.  0 on the final callback.
  */
 /*static*/ DECLCALLBACK(size_t)
-MiniString::printfOutputCallback(void *pvArg, const char *pachChars, size_t cbChars)
+RTCString::printfOutputCallback(void *pvArg, const char *pachChars, size_t cbChars)
 {
-    MiniString *pThis = (MiniString *)pvArg;
+    RTCString *pThis = (RTCString *)pvArg;
     if (cbChars)
     {
         size_t cchBoth = pThis->m_cch + cbChars;
@@ -93,14 +93,14 @@ MiniString::printfOutputCallback(void *pvArg, const char *pachChars, size_t cbCh
     return cbChars;
 }
 
-MiniString &MiniString::printfV(const char *pszFormat, va_list va)
+RTCString &RTCString::printfV(const char *pszFormat, va_list va)
 {
     cleanup();
     RTStrFormatV(printfOutputCallback, this, NULL, NULL, pszFormat, va);
     return *this;
 }
 
-MiniString &MiniString::append(const MiniString &that)
+RTCString &RTCString::append(const RTCString &that)
 {
     size_t cchThat = that.length();
     if (cchThat)
@@ -124,7 +124,7 @@ MiniString &MiniString::append(const MiniString &that)
     return *this;
 }
 
-MiniString &MiniString::append(const char *pszThat)
+RTCString &RTCString::append(const char *pszThat)
 {
     size_t cchThat = strlen(pszThat);
     if (cchThat)
@@ -148,7 +148,7 @@ MiniString &MiniString::append(const char *pszThat)
     return *this;
 }
 
-MiniString& MiniString::append(char ch)
+RTCString& RTCString::append(char ch)
 {
     Assert((unsigned char)ch < 0x80);                  /* Don't create invalid UTF-8. */
     if (ch)
@@ -169,13 +169,13 @@ MiniString& MiniString::append(char ch)
     return *this;
 }
 
-MiniString &MiniString::appendCodePoint(RTUNICP uc)
+RTCString &RTCString::appendCodePoint(RTUNICP uc)
 {
     /*
      * Single byte encoding.
      */
     if (uc < 0x80)
-        return MiniString::append((char)uc);
+        return RTCString::append((char)uc);
 
     /*
      * Multibyte encoding.
@@ -199,8 +199,7 @@ MiniString &MiniString::appendCodePoint(RTUNICP uc)
     return *this;
 }
 
-size_t MiniString::find(const char *pcszFind, size_t pos /*= 0*/)
-    const
+size_t RTCString::find(const char *pcszFind, size_t pos /*= 0*/) const
 {
     const char *pszThis, *p;
 
@@ -213,7 +212,7 @@ size_t MiniString::find(const char *pcszFind, size_t pos /*= 0*/)
     return npos;
 }
 
-void MiniString::findReplace(char cFind, char cReplace)
+void RTCString::findReplace(char cFind, char cReplace)
 {
     for (size_t i = 0; i < length(); ++i)
     {
@@ -223,10 +222,9 @@ void MiniString::findReplace(char cFind, char cReplace)
     }
 }
 
-MiniString MiniString::substrCP(size_t pos /*= 0*/, size_t n /*= npos*/)
-    const
+RTCString RTCString::substrCP(size_t pos /*= 0*/, size_t n /*= npos*/) const
 {
-    MiniString ret;
+    RTCString ret;
 
     if (n)
     {
@@ -272,7 +270,7 @@ MiniString MiniString::substrCP(size_t pos /*= 0*/, size_t n /*= npos*/)
     return ret;
 }
 
-bool MiniString::endsWith(const MiniString &that, CaseSensitivity cs /*= CaseSensitive*/) const
+bool RTCString::endsWith(const RTCString &that, CaseSensitivity cs /*= CaseSensitive*/) const
 {
     size_t l1 = length();
     if (l1 == 0)
@@ -287,11 +285,10 @@ bool MiniString::endsWith(const MiniString &that, CaseSensitivity cs /*= CaseSen
     size_t l = l1 - l2;
     if (cs == CaseSensitive)
         return ::RTStrCmp(&m_psz[l], that.m_psz) == 0;
-    else
-        return ::RTStrICmp(&m_psz[l], that.m_psz) == 0;
+    return ::RTStrICmp(&m_psz[l], that.m_psz) == 0;
 }
 
-bool MiniString::startsWith(const MiniString &that, CaseSensitivity cs /*= CaseSensitive*/) const
+bool RTCString::startsWith(const RTCString &that, CaseSensitivity cs /*= CaseSensitive*/) const
 {
     size_t l1 = length();
     size_t l2 = that.length();
@@ -303,31 +300,112 @@ bool MiniString::startsWith(const MiniString &that, CaseSensitivity cs /*= CaseS
 
     if (cs == CaseSensitive)
         return ::RTStrNCmp(m_psz, that.m_psz, l2) == 0;
-    else
-        return ::RTStrNICmp(m_psz, that.m_psz, l2) == 0;
+    return ::RTStrNICmp(m_psz, that.m_psz, l2) == 0;
 }
 
-bool MiniString::contains(const MiniString &that, CaseSensitivity cs /*= CaseSensitive*/) const
+bool RTCString::contains(const RTCString &that, CaseSensitivity cs /*= CaseSensitive*/) const
 {
     /** @todo r-bird: Not checking for NULL strings like startsWith does (and
      *        endsWith only does half way). */
     if (cs == CaseSensitive)
         return ::RTStrStr(m_psz, that.m_psz) != NULL;
-    else
-        return ::RTStrIStr(m_psz, that.m_psz) != NULL;
+    return ::RTStrIStr(m_psz, that.m_psz) != NULL;
 }
 
-int MiniString::toInt(uint64_t &i) const
+int RTCString::toInt(uint64_t &i) const
 {
     if (!m_psz)
         return VERR_NO_DIGITS;
     return RTStrToUInt64Ex(m_psz, NULL, 0, &i);
 }
 
-int MiniString::toInt(uint32_t &i) const
+int RTCString::toInt(uint32_t &i) const
 {
     if (!m_psz)
         return VERR_NO_DIGITS;
     return RTStrToUInt32Ex(m_psz, NULL, 0, &i);
+}
+
+RTCList<RTCString, RTCString *>
+RTCString::split(const RTCString &a_rstrSep, SplitMode mode /* = RemoveEmptyParts */)
+{
+    RTCList<RTCString> strRet;
+    if (!m_psz)
+        return strRet;
+    if (a_rstrSep.isEmpty())
+    {
+        strRet.append(RTCString(m_psz));
+        return strRet;
+    }
+
+    size_t      cch    = m_cch;
+    char const *pszTmp = m_psz;
+    while (cch > 0)
+    {
+        char const *pszNext = strstr(pszTmp, a_rstrSep.c_str());
+        if (!pszNext)
+        {
+            strRet.append(RTCString(pszTmp, cch));
+            break;
+        }
+        size_t cchNext = pszNext - pszTmp;
+        if (   cchNext > 0
+            || mode == KeepEmptyParts)
+            strRet.append(RTCString(pszTmp, cchNext));
+        pszTmp += cchNext + a_rstrSep.length();
+        cch    -= cchNext + a_rstrSep.length();
+    }
+
+    return strRet;
+}
+
+/* static */
+RTCString
+RTCString::join(const RTCList<RTCString, RTCString *> &a_rList,
+                const RTCString &a_rstrSep /* = "" */)
+{
+    RTCString strRet;
+    if (a_rList.size() > 1)
+    {
+        /* calc the required size */
+        size_t cbNeeded = a_rstrSep.length() * (a_rList.size() - 1) + 1;
+        for (size_t i = 0; i < a_rList.size(); ++i)
+            cbNeeded += a_rList.at(i).length();
+        strRet.reserve(cbNeeded);
+
+        /* do the appending. */
+        for (size_t i = 0; i < a_rList.size() - 1; ++i)
+        {
+            strRet.append(a_rList.at(i));
+            strRet.append(a_rstrSep);
+        }
+        strRet.append(a_rList.last());
+    }
+    /* special case: one list item. */
+    else if (a_rList.size() > 0)
+        strRet.append(a_rList.last());
+
+    return strRet;
+}
+
+const RTCString operator+(const RTCString &a_rStr1, const RTCString &a_rStr2)
+{
+    RTCString strRet(a_rStr1);
+    strRet += a_rStr2;
+    return strRet;
+}
+
+const RTCString operator+(const RTCString &a_rStr1, const char *a_pszStr2)
+{
+    RTCString strRet(a_rStr1);
+    strRet += a_pszStr2;
+    return strRet;
+}
+
+const RTCString operator+(const char *a_psz1, const RTCString &a_rStr2)
+{
+    RTCString strRet(a_psz1);
+    strRet += a_rStr2;
+    return strRet;
 }
 

@@ -79,6 +79,8 @@ typedef enum VMMCALLRING3
     VMMCALLRING3_INVALID = 0,
     /** Acquire the PDM lock. */
     VMMCALLRING3_PDM_LOCK,
+    /** Acquire the critical section specified as argument.  */
+    VMMCALLRING3_PDM_CRIT_SECT_ENTER,
     /** Acquire the PGM lock. */
     VMMCALLRING3_PGM_LOCK,
     /** Grow the PGM shadow page pool. */
@@ -364,6 +366,8 @@ typedef enum VMMR0OPERATION
     VMMR0_DO_PGM_ALLOCATE_HANDY_PAGES,
     /** Call PGMR0AllocateLargePage(). */
     VMMR0_DO_PGM_ALLOCATE_LARGE_HANDY_PAGE,
+    /** Call PGMR0PhysSetupIommu(). */
+    VMMR0_DO_PGM_PHYS_SETUP_IOMMU,
 
     /** Call GMMR0InitialReservation(). */
     VMMR0_DO_GMM_INITIAL_RESERVATION,
@@ -426,6 +430,10 @@ typedef enum VMMR0OPERATION
     VMMR0_DO_INTNET_IF_WAIT,
     /** Call IntNetR0IfAbortWait(). */
     VMMR0_DO_INTNET_IF_ABORT_WAIT,
+
+    /** Forward call to the PCI driver */
+    VMMR0_DO_PCIRAW_REQ,
+
     /** The end of the R0 service operations. */
     VMMR0_DO_SRV_END,
 
@@ -506,4 +514,3 @@ VMMRZDECL(bool)     VMMRZCallRing3IsEnabled(PVMCPU pVCpu);
 RT_C_DECLS_END
 
 #endif
-

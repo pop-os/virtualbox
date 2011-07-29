@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR3LibCoreDump.cpp $ */
+/* $Id: VBoxGuestR3LibCoreDump.cpp 32574 2010-09-16 17:44:29Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, Core Dumps.
  */

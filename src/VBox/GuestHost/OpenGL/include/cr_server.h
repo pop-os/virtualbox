@@ -18,6 +18,7 @@
 
 #include <iprt/types.h>
 #include <iprt/err.h>
+#include <iprt/string.h>
 
 #include <VBox/vmm/ssm.h>
 
@@ -25,7 +26,7 @@
 extern "C" {
 #endif
 
-#define SHCROGL_SSM_VERSION 24
+#define SHCROGL_SSM_VERSION 28
 
 #define CR_MAX_WINDOWS 100
 #define CR_MAX_CLIENTS 64
@@ -34,6 +35,30 @@ extern "C" {
 #define CR_MAX_GUEST_MONITORS 8
 
 typedef DECLCALLBACKPTR(void, PFNCRSERVERPRESENTFBO) (void *data, int32_t screenId, int32_t x, int32_t y, uint32_t w, uint32_t h);
+
+/* Callbacks for output of the rendered frames.
+ *
+ * This allows to pass rendered frames to an external component rather than draw them on screen.
+ *
+ * An external component registers the redirection callbacks using crVBoxServerOutputRedirectSet.
+ *
+ * The list of formats supported by the caller is obtained using CRORContextProperty.
+ * The actual format choosed by the service is passed as a CRORBegin parameter.
+ */
+typedef struct {
+    const void *pvContext; /* Supplied by crVBoxServerOutputRedirectSet. */
+    DECLR3CALLBACKMEMBER(void, CRORBegin,           (const void *pvContext, void **ppvInstance,
+                                                     const char *pszFormat));
+    DECLR3CALLBACKMEMBER(void, CRORGeometry,        (void *pvInstance,
+                                                     int32_t x, int32_t y, uint32_t w, uint32_t h));
+    DECLR3CALLBACKMEMBER(void, CRORVisibleRegion,   (void *pvInstance,
+                                                     uint32_t cRects, RTRECT *paRects));
+    DECLR3CALLBACKMEMBER(void, CRORFrame,           (void *pvInstance,
+                                                     void *pvData, uint32_t cbData));
+    DECLR3CALLBACKMEMBER(void, CROREnd,             (void *pvInstance));
+    DECLR3CALLBACKMEMBER(int,  CRORContextProperty, (const void *pvContext, uint32_t index,
+                                                      void *pvBuffer, uint32_t cbBuffer, uint32_t *pcbOut));
+} CROutputRedirect;
 
 typedef struct {
     CRrecti imagewindow;    /**< coordinates in mural space */
@@ -63,11 +88,15 @@ typedef struct {
     GLboolean bVisible;      /*guest window is visible*/
     GLboolean bUseFBO;       /*redirect to FBO instead of real host window*/
 
-    GLint  cVisibleRects;    /*count of visible rects*/
-    GLint *pVisibleRects;    /*visible rects left, top, right, bottom*/
+    GLint       cVisibleRects;    /*count of visible rects*/
+    GLint      *pVisibleRects;    /*visible rects left, top, right, bottom*/
+    GLboolean   bReceivedRects;   /*indicates if guest did any updates for visible regions*/
 
     GLuint idFBO, idColorTex, idDepthStencilRB;
     GLuint fboWidth, fboHeight;
+    GLuint idPBO;
+
+    void *pvOutputRedirectInstance;
 } CRMuralInfo;
 
 /**
@@ -227,6 +256,12 @@ typedef struct {
     GLuint currentSerialNo;
 
     PFNCRSERVERPRESENTFBO pfnPresentFBO;
+    GLboolean             bForceOffscreenRendering; /*Force server to render 3d data offscreen
+                                                     *using callback above to update vbox framebuffers*/
+    GLboolean             bUsePBOForReadback;       /*Use PBO's for data readback*/
+
+    GLboolean             bUseOutputRedirect;       /* Whether the output redirect was set. */
+    CROutputRedirect      outputRedirect;
 } CRServer;
 
 
@@ -256,6 +291,10 @@ extern DECLEXPORT(int32_t) crVBoxServerMapScreen(int sIndex, int32_t x, int32_t 
 extern DECLEXPORT(int32_t) crVBoxServerSetRootVisibleRegion(GLint cRects, GLint *pRects);
 
 extern DECLEXPORT(void) crVBoxServerSetPresentFBOCB(PFNCRSERVERPRESENTFBO pfnPresentFBO);
+
+extern DECLEXPORT(int32_t) crVBoxServerSetOffscreenRendering(GLboolean value);
+
+extern DECLEXPORT(int32_t) crVBoxServerOutputRedirectSet(const CROutputRedirect *pCallbacks);
 
 #ifdef __cplusplus
 }

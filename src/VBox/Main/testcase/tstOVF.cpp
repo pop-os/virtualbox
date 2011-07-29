@@ -1,4 +1,4 @@
-/* $Id: tstOVF.cpp $ */
+/* $Id: tstOVF.cpp 37862 2011-07-11 10:09:29Z vboxsync $ */
 /** @file
  *
  * tstOVF - testcases for OVF import and export
@@ -232,7 +232,8 @@ void importOVF(const char *pcszPrefix,
     }
 
     RTPrintf("%s: importing %d machine(s)...\n", pcszPrefix, aDescriptions.size());
-    rc = pAppl->ImportMachines(pProgress.asOutParam());
+    SafeArray<ImportOptions_T> sfaOptions;
+    rc = pAppl->ImportMachines(ComSafeArrayAsInParam(sfaOptions), pProgress.asOutParam());
     if (FAILED(rc)) throw MyError(rc, "Appliance::ImportMachines() failed\n");
     rc = pProgress->WaitForCompletion(-1);
     if (FAILED(rc)) throw MyError(rc, "Progress::WaitForCompletion() failed\n");

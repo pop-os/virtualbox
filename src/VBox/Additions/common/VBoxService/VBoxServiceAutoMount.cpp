@@ -1,10 +1,10 @@
-/* $Id: VBoxServiceAutoMount.cpp $ */
+/* $Id: VBoxServiceAutoMount.cpp 37832 2011-07-08 10:13:18Z vboxsync $ */
 /** @file
  * VBoxService - Auto-mounting for Shared Folders.
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -260,15 +260,19 @@ static int VBoxServiceAutoMountSharedFolder(const char *pszShareName, const char
     if (RT_SUCCESS(rc))
     {
 #ifdef RT_OS_SOLARIS
-        int flags = 0; /* No flags used yet. */
+        char achOptBuf[MAX_MNTOPT_STR] = { '\0', };
+        int flags = 0;
+        if (pOpts->ronly)
+            flags |= MS_RDONLY;
+        RTStrPrintf(achOptBuf, sizeof(achOptBuf), "uid=%d,gid=%d", pOpts->uid, pOpts->gid);
         int r = mount(pszShareName,
                       pszMountPoint,
-                      flags,
-                      "vboxsf",
+                      flags | MS_OPTIONSTR,
+                      "vboxfs",
                       NULL,                     /* char *dataptr */
                       0,                        /* int datalen */
-                      NULL,                     /* char *optptr */
-                      0);                       /* int optlen */
+                      achOptBuf,
+                      sizeof(achOptBuf));
         if (r == 0)
         {
             VBoxServiceVerbose(0, "VBoxServiceAutoMountWorker: Shared folder \"%s\" was mounted to \"%s\"\n", pszShareName, pszMountPoint);

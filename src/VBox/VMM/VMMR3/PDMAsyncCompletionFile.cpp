@@ -1,4 +1,4 @@
-/* $Id: PDMAsyncCompletionFile.cpp $ */
+/* $Id: PDMAsyncCompletionFile.cpp 37597 2011-06-22 20:54:05Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  */
@@ -20,6 +20,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_PDM_ASYNC_COMPLETION
+#define RT_STRICT
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/mm.h>
@@ -73,7 +74,8 @@
 *   Internal Functions                                                         *
 *******************************************************************************/
 #ifdef VBOX_WITH_DEBUGGER
-static DECLCALLBACK(int) pdmacEpFileErrorInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArgs, unsigned cArgs, PDBGCVAR pResult);
+static DECLCALLBACK(int) pdmacEpFileErrorInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArgs, unsigned cArgs);
+static DECLCALLBACK(int) pdmacEpFileDelayInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArgs, unsigned cArgs);
 #endif
 
 /*******************************************************************************
@@ -85,14 +87,27 @@ static const DBGCVARDESC g_aInjectErrorArgs[] =
     /* cTimesMin,   cTimesMax,  enmCategory,            fFlags,                         pszName,        pszDescription */
     {  1,           1,          DBGCVAR_CAT_STRING,     0,                              "direction",    "write/read." },
     {  1,           1,          DBGCVAR_CAT_STRING,     0,                              "filename",     "Filename." },
-    {  1,           1,          DBGCVAR_CAT_STRING,     0,                              "errcode",      "IPRT error code." },
+    {  1,           1,          DBGCVAR_CAT_NUMBER,     0,                              "errcode",      "VBox status code." },
 };
+
+# ifdef PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
+static const DBGCVARDESC g_aInjectDelayArgs[] =
+{
+    /* cTimesMin,   cTimesMax,  enmCategory,            fFlags,                         pszName,        pszDescription */
+    {  1,           1,          DBGCVAR_CAT_STRING,     0,                              "direction",    "write/read." },
+    {  1,           1,          DBGCVAR_CAT_STRING,     0,                              "filename",     "Filename." },
+    {  1,           1,          DBGCVAR_CAT_NUMBER,     0,                              "delay",        "Delay in milliseconds." },
+};
+# endif
 
 /** Command descriptors. */
 static const DBGCCMD g_aCmds[] =
 {
-    /* pszCmd,       cArgsMin, cArgsMax, paArgDesc,                cArgDescs,    pResultDesc,        fFlags,     pfnHandler          pszSyntax,          ....pszDescription */
-    { "injecterror",        3, 3,        &g_aInjectErrorArgs[0],           3,           NULL,             0,     pdmacEpFileErrorInject,        "",   "Inject error into I/O subsystem." },
+    /* pszCmd,       cArgsMin, cArgsMax, paArgDesc,                cArgDescs, fFlags, pfnHandler              pszSyntax, ....pszDescription */
+    { "injecterror",        3, 3,        &g_aInjectErrorArgs[0],           3,      0, pdmacEpFileErrorInject, "",        "Inject error into I/O subsystem." }
+# ifdef PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
+    ,{ "injectdelay",        3, 3,        &g_aInjectDelayArgs[0],           3,      0, pdmacEpFileDelayInject, "",        "Inject a delay of a request." }
+# endif
 };
 #endif
 
@@ -350,7 +365,34 @@ void pdmacFileEpTaskCompleted(PPDMACTASKFILE pTask, void *pvUser, int rc)
 
         if (!(uOld - pTask->DataSeg.cbSeg)
             && !ASMAtomicXchgBool(&pTaskFile->fCompleted, true))
+        {
+#ifdef PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
+            PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pTaskFile->Core.pEndpoint;
+
+            /* Check if we should delay completion of the request. */
+            if (   ASMAtomicReadU32(&pEpFile->msDelay) > 0
+                && ASMAtomicCmpXchgPtr(&pEpFile->pReqDelayed, pTaskFile, NULL))
+            {
+                /* Arm the delay. */
+                pEpFile->tsDelayEnd = RTTimeProgramMilliTS() + pEpFile->msDelay;
+                LogRel(("AIOMgr: Delaying request %#p for %u ms\n", pTaskFile, pEpFile->msDelay));
+                return;
+            }
+#endif
             pdmR3AsyncCompletionCompleteTask(&pTaskFile->Core, pTaskFile->rc, true);
+
+#if PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
+            /* Check for an expired delay. */
+            if (   pEpFile->pReqDelayed != NULL
+                && RTTimeProgramMilliTS() >= pEpFile->tsDelayEnd)
+            {
+                pTaskFile = ASMAtomicXchgPtrT(&pEpFile->pReqDelayed, NULL, PPDMASYNCCOMPLETIONTASKFILE);
+                ASMAtomicXchgU32(&pEpFile->msDelay, 0);
+                LogRel(("AIOMgr: Delayed request %#p completed\n", pTaskFile));
+                pdmR3AsyncCompletionCompleteTask(&pTaskFile->Core, pTaskFile->rc, true);
+            }
+#endif
+        }
     }
 }
 
@@ -423,6 +465,8 @@ int pdmacFileAioMgrCreate(PPDMASYNCCOMPLETIONEPCLASSFILE pEpClass, PPPDMACEPFILE
             pAioMgrNew->enmMgrType = enmMgrType;
         else
             pAioMgrNew->enmMgrType = pEpClass->enmMgrTypeOverride;
+
+        pAioMgrNew->msBwLimitExpired = RT_INDEFINITE_WAIT;
 
         rc = RTSemEventCreate(&pAioMgrNew->EventSem);
         if (RT_SUCCESS(rc))
@@ -593,7 +637,7 @@ static int pdmacFileEpNativeGetSize(RTFILE hFile, uint64_t *pcbSize)
 #ifdef RT_OS_WINDOWS
         DISK_GEOMETRY DriveGeo;
         DWORD cbDriveGeo;
-        if (DeviceIoControl((HANDLE)hFile,
+        if (DeviceIoControl((HANDLE)RTFileToNative(hFile),
                             IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0,
                             &DriveGeo, sizeof(DriveGeo), &cbDriveGeo, NULL))
         {
@@ -607,7 +651,7 @@ static int pdmacFileEpNativeGetSize(RTFILE hFile, uint64_t *pcbSize)
 
                 GET_LENGTH_INFORMATION DiskLenInfo;
                 DWORD junk;
-                if (DeviceIoControl((HANDLE)hFile,
+                if (DeviceIoControl((HANDLE)RTFileToNative(hFile),
                                     IOCTL_DISK_GET_LENGTH_INFO, NULL, 0,
                                     &DiskLenInfo, sizeof(DiskLenInfo), &junk, (LPOVERLAPPED)NULL))
                 {
@@ -623,18 +667,17 @@ static int pdmacFileEpNativeGetSize(RTFILE hFile, uint64_t *pcbSize)
             }
         }
         else
-        {
             rc = RTErrConvertFromWin32(GetLastError());
-        }
+
 #elif defined(RT_OS_DARWIN)
         struct stat DevStat;
-        if (!fstat(hFile, &DevStat) && S_ISBLK(DevStat.st_mode))
+        if (!fstat(RTFileToNative(hFile), &DevStat) && S_ISBLK(DevStat.st_mode))
         {
             uint64_t cBlocks;
             uint32_t cbBlock;
-            if (!ioctl(hFile, DKIOCGETBLOCKCOUNT, &cBlocks))
+            if (!ioctl(RTFileToNative(hFile), DKIOCGETBLOCKCOUNT, &cBlocks))
             {
-                if (!ioctl(hFile, DKIOCGETBLOCKSIZE, &cbBlock))
+                if (!ioctl(RTFileToNative(hFile), DKIOCGETBLOCKSIZE, &cbBlock))
                     cbSize = cBlocks * cbBlock;
                 else
                     rc = RTErrConvertFromErrno(errno);
@@ -644,25 +687,28 @@ static int pdmacFileEpNativeGetSize(RTFILE hFile, uint64_t *pcbSize)
         }
         else
             rc = VERR_INVALID_PARAMETER;
+
 #elif defined(RT_OS_SOLARIS)
         struct stat DevStat;
-        if (!fstat(hFile, &DevStat) && (   S_ISBLK(DevStat.st_mode)
-                                        || S_ISCHR(DevStat.st_mode)))
+        if (   !fstat(RTFileToNative(hFile), &DevStat)
+            && (   S_ISBLK(DevStat.st_mode)
+                || S_ISCHR(DevStat.st_mode)))
         {
             struct dk_minfo mediainfo;
-            if (!ioctl(hFile, DKIOCGMEDIAINFO, &mediainfo))
+            if (!ioctl(RTFileToNative(hFile), DKIOCGMEDIAINFO, &mediainfo))
                 cbSize = mediainfo.dki_capacity * mediainfo.dki_lbsize;
             else
                 rc = RTErrConvertFromErrno(errno);
         }
         else
             rc = VERR_INVALID_PARAMETER;
+
 #elif defined(RT_OS_FREEBSD)
         struct stat DevStat;
-        if (!fstat(hFile, &DevStat) && S_ISCHR(DevStat.st_mode))
+        if (!fstat(RTFileToNative(hFile), &DevStat) && S_ISCHR(DevStat.st_mode))
         {
             off_t cbMedia = 0;
-            if (!ioctl(hFile, DIOCGMEDIASIZE, &cbMedia))
+            if (!ioctl(RTFileToNative(hFile), DIOCGMEDIASIZE, &cbMedia))
             {
                 cbSize = cbMedia;
             }
@@ -689,39 +735,40 @@ static int pdmacFileEpNativeGetSize(RTFILE hFile, uint64_t *pcbSize)
 /**
  * Error inject callback.
  */
-static DECLCALLBACK(int) pdmacEpFileErrorInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArgs, unsigned cArgs, PDBGCVAR pResult)
+static DECLCALLBACK(int) pdmacEpFileErrorInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArgs, unsigned cArgs)
 {
-    bool fWrite;
-    PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile;
-
     /*
      * Validate input.
      */
-    if (!pVM)
-        return DBGCCmdHlpPrintf(pCmdHlp, "error: The command requires a VM to be selected.\n");
-    if (    cArgs != 3
-        ||  pArgs[0].enmType != DBGCVAR_TYPE_STRING
-        ||  pArgs[1].enmType != DBGCVAR_TYPE_STRING
-        ||  pArgs[2].enmType != DBGCVAR_TYPE_STRING)
-        return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: parser error, invalid arguments.\n");
+    DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, -1, cArgs == 3);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, pArgs[0].enmType == DBGCVAR_TYPE_STRING);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 1, pArgs[1].enmType == DBGCVAR_TYPE_STRING);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 2, pArgs[2].enmType == DBGCVAR_TYPE_NUMBER);
 
+    PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile;
     pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pVM->pUVM->pdm.s.apAsyncCompletionEndpointClass[PDMASYNCCOMPLETIONEPCLASSTYPE_FILE];
 
     /* Syntax is "read|write <filename> <status code>" */
+    bool fWrite;
     if (!RTStrCmp(pArgs[0].u.pszString, "read"))
         fWrite = false;
     else if (!RTStrCmp(pArgs[0].u.pszString, "write"))
         fWrite = true;
     else
-    {
-        DBGCCmdHlpPrintf(pCmdHlp, "error: invalid transefr direction '%s'.\n", pArgs[0].u.pszString);
-        return VINF_SUCCESS;
-    }
+        return DBGCCmdHlpFail(pCmdHlp, pCmd, "invalid transfer direction '%s'", pArgs[0].u.pszString);
 
-    /* Search for the matching endpoint. */
+    int32_t rcToInject = (int32_t)pArgs[2].u.u64Number;
+    if ((uint64_t)rcToInject != pArgs[2].u.u64Number)
+        return DBGCCmdHlpFail(pCmdHlp, pCmd, "The status code '%lld' is out of range", pArgs[0].u.u64Number);
+
+
+    /*
+     * Search for the matching endpoint.
+     */
     RTCritSectEnter(&pEpClassFile->Core.CritSect);
-    PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEpClassFile->Core.pEndpointsHead;
 
+    PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEpClassFile->Core.pEndpointsHead;
     while (pEpFile)
     {
         if (!RTStrCmp(pArgs[1].u.pszString, RTPathFilename(pEpFile->Core.pszUri)))
@@ -731,23 +778,91 @@ static DECLCALLBACK(int) pdmacEpFileErrorInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmd
 
     if (pEpFile)
     {
-        int rcToInject = RTStrToInt32(pArgs[2].u.pszString);
-
+        /*
+         * Do the job.
+         */
         if (fWrite)
             ASMAtomicXchgS32(&pEpFile->rcReqWrite, rcToInject);
         else
-            ASMAtomicXchgS32(&pEpFile->rcReqRead, rcToInject);
+            ASMAtomicXchgS32(&pEpFile->rcReqRead,  rcToInject);
 
-            DBGCCmdHlpPrintf(pCmdHlp, "Injected %Rrc into '%s' for %s\n",
-                             rcToInject, pArgs[1].u.pszString, pArgs[0].u.pszString);
+        DBGCCmdHlpPrintf(pCmdHlp, "Injected %Rrc into '%s' for %s\n",
+                         (int)rcToInject, pArgs[1].u.pszString, pArgs[0].u.pszString);
     }
-    else
-        DBGCCmdHlpPrintf(pCmdHlp, "No file with name '%s' found\n", NULL, pArgs[1].u.pszString);
 
     RTCritSectLeave(&pEpClassFile->Core.CritSect);
+
+    if (!pEpFile)
+        return DBGCCmdHlpFail(pCmdHlp, pCmd, "No file with name '%s' found", pArgs[1].u.pszString);
     return VINF_SUCCESS;
 }
-#endif
+
+# ifdef PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
+/**
+ * Delay inject callback.
+ */
+static DECLCALLBACK(int) pdmacEpFileDelayInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArgs, unsigned cArgs)
+{
+    /*
+     * Validate input.
+     */
+    DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, -1, cArgs == 3);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, pArgs[0].enmType == DBGCVAR_TYPE_STRING);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 1, pArgs[1].enmType == DBGCVAR_TYPE_STRING);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 2, pArgs[2].enmType == DBGCVAR_TYPE_NUMBER);
+
+    PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile;
+    pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pVM->pUVM->pdm.s.apAsyncCompletionEndpointClass[PDMASYNCCOMPLETIONEPCLASSTYPE_FILE];
+
+    /* Syntax is "read|write <filename> <status code>" */
+    bool fWrite;
+    if (!RTStrCmp(pArgs[0].u.pszString, "read"))
+        fWrite = false;
+    else if (!RTStrCmp(pArgs[0].u.pszString, "write"))
+        fWrite = true;
+    else
+        return DBGCCmdHlpFail(pCmdHlp, pCmd, "invalid transfer direction '%s'", pArgs[0].u.pszString);
+
+    uint32_t msDelay = (uint32_t)pArgs[2].u.u64Number;
+    if ((uint64_t)msDelay != pArgs[2].u.u64Number)
+        return DBGCCmdHlpFail(pCmdHlp, pCmd, "The delay '%lld' is out of range", pArgs[0].u.u64Number);
+
+
+    /*
+     * Search for the matching endpoint.
+     */
+    RTCritSectEnter(&pEpClassFile->Core.CritSect);
+
+    PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEpClassFile->Core.pEndpointsHead;
+    while (pEpFile)
+    {
+        if (!RTStrCmp(pArgs[1].u.pszString, RTPathFilename(pEpFile->Core.pszUri)))
+            break;
+        pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEpFile->Core.pNext;
+    }
+
+    if (pEpFile)
+    {
+        bool fXchg = ASMAtomicCmpXchgU32(&pEpFile->msDelay, msDelay, 0);
+
+        if (fXchg)
+            DBGCCmdHlpPrintf(pCmdHlp, "Injected delay of %u ms into '%s' for %s\n",
+                             msDelay, pArgs[1].u.pszString, pArgs[0].u.pszString);
+        else
+            DBGCCmdHlpPrintf(pCmdHlp, "Another delay for '%s' is still active, ignoring\n",
+                             pArgs[1].u.pszString);
+    }
+
+    RTCritSectLeave(&pEpClassFile->Core.CritSect);
+
+    if (!pEpFile)
+        return DBGCCmdHlpFail(pCmdHlp, pCmd, "No file with name '%s' found", pArgs[1].u.pszString);
+    return VINF_SUCCESS;
+}
+# endif /* PDM_ASYNC_COMPLETION_FILE_WITH_DELAY */
+
+#endif /* VBOX_WITH_DEBUGGER */
 
 static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNODE pCfgNode)
 {
@@ -822,7 +937,7 @@ static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNO
     /* Install the error injection handler. */
     if (RT_SUCCESS(rc))
     {
-        rc = DBGCRegisterCommands(&g_aCmds[0], 1);
+        rc = DBGCRegisterCommands(&g_aCmds[0], RT_ELEMENTS(g_aCmds));
         AssertRC(rc);
     }
 #endif
@@ -853,10 +968,20 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
     PDMACEPFILEMGRTYPE enmMgrType = pEpClassFile->enmMgrTypeOverride;
     PDMACFILEEPBACKEND enmEpBackend = pEpClassFile->enmEpBackendDefault;
 
-    AssertMsgReturn((fFlags & ~(PDMACEP_FILE_FLAGS_READ_ONLY | PDMACEP_FILE_FLAGS_DONT_LOCK)) == 0,
+    AssertMsgReturn((fFlags & ~(PDMACEP_FILE_FLAGS_READ_ONLY | PDMACEP_FILE_FLAGS_DONT_LOCK | PDMACEP_FILE_FLAGS_HOST_CACHE_ENABLED)) == 0,
                     ("PDMAsyncCompletion: Invalid flag specified\n"), VERR_INVALID_PARAMETER);
 
     unsigned fFileFlags = RTFILE_O_OPEN;
+
+    /*
+     * Revert to the simple manager and the buffered backend if
+     * the host cache should be enabled.
+     */
+    if (fFlags & PDMACEP_FILE_FLAGS_HOST_CACHE_ENABLED)
+    {
+        enmMgrType   = PDMACEPFILEMGRTYPE_SIMPLE;
+        enmEpBackend = PDMACFILEEPBACKEND_BUFFERED;
+    }
 
     if (fFlags & PDMACEP_FILE_FLAGS_READ_ONLY)
         fFileFlags |= RTFILE_O_READ | RTFILE_O_DENY_NONE;
@@ -888,14 +1013,13 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
          * which will trash the host cache but ensures that the host cache will not
          * contain dirty buffers.
          */
-        RTFILE File = NIL_RTFILE;
-
-        rc = RTFileOpen(&File, pszUri, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
+        RTFILE hFile;
+        rc = RTFileOpen(&hFile, pszUri, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
         if (RT_SUCCESS(rc))
         {
             uint64_t cbSize;
 
-            rc = pdmacFileEpNativeGetSize(File, &cbSize);
+            rc = pdmacFileEpNativeGetSize(hFile, &cbSize);
             Assert(RT_FAILURE(rc) || cbSize != 0);
 
             if (RT_SUCCESS(rc) && ((cbSize % 512) == 0))
@@ -910,12 +1034,12 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
                 enmMgrType   = PDMACEPFILEMGRTYPE_SIMPLE;
 #endif
             }
-            RTFileClose(File);
+            RTFileClose(hFile);
         }
     }
 
     /* Open with final flags. */
-    rc = RTFileOpen(&pEpFile->File, pszUri, fFileFlags);
+    rc = RTFileOpen(&pEpFile->hFile, pszUri, fFileFlags);
     if ((rc == VERR_INVALID_FUNCTION) || (rc == VERR_INVALID_PARAMETER))
     {
         LogRel(("pdmacFileEpInitialize: RTFileOpen %s / %08x failed with %Rrc\n",
@@ -940,7 +1064,7 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
 #endif
 
         /* Open again. */
-        rc = RTFileOpen(&pEpFile->File, pszUri, fFileFlags);
+        rc = RTFileOpen(&pEpFile->hFile, pszUri, fFileFlags);
 
         if (RT_FAILURE(rc))
         {
@@ -953,7 +1077,7 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
     {
         pEpFile->fFlags = fFileFlags;
 
-        rc = pdmacFileEpNativeGetSize(pEpFile->File, (uint64_t *)&pEpFile->cbFile);
+        rc = pdmacFileEpNativeGetSize(pEpFile->hFile, (uint64_t *)&pEpFile->cbFile);
         Assert(RT_FAILURE(rc) || pEpFile->cbFile != 0);
 
         if (RT_SUCCESS(rc))
@@ -1023,7 +1147,7 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
         }
 
         if (RT_FAILURE(rc))
-            RTFileClose(pEpFile->File);
+            RTFileClose(pEpFile->hFile);
     }
 
 #ifdef VBOX_WITH_STATISTICS
@@ -1083,7 +1207,7 @@ static int pdmacFileEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
     /* Destroy the locked ranges tree now. */
     RTAvlrFileOffsetDestroy(pEpFile->AioMgr.pTreeRangesLocked, pdmacFileEpRangesLockedDestroy, NULL);
 
-    RTFileClose(pEpFile->File);
+    RTFileClose(pEpFile->hFile);
 
 #ifdef VBOX_WITH_STATISTICS
     STAMR3Deregister(pEpClassFile->Core.pVM, &pEpFile->StatRead);
@@ -1177,7 +1301,7 @@ static int pdmacFileEpSetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint64_t cb
     PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
 
     ASMAtomicWriteU64(&pEpFile->cbFile, cbSize);
-    return RTFileSetSize(pEpFile->File, cbSize);
+    return RTFileSetSize(pEpFile->hFile, cbSize);
 }
 
 const PDMASYNCCOMPLETIONEPCLASSOPS g_PDMAsyncCompletionEndpointClassFile =

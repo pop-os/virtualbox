@@ -33,8 +33,8 @@
 #ifdef VBOX_WITH_WDDM
 #include <d3d9types.h>
 #include <D3dumddi.h>
-#include "../../WINNT/Graphics/Miniport/wddm/VBoxVideoIf.h"
-#include "../../WINNT/Graphics/Display/wddm/vboxdispmp.h"
+#include "../../WINNT/Graphics/Video/common/wddm/VBoxMPIf.h"
+#include "../../WINNT/Graphics/Video/disp/wddm/VBoxDispMp.h"
 #endif
 
 /**
@@ -857,6 +857,25 @@ static void stubSyncTrUpdateWindowCB(unsigned long key, void *data1, void *data2
 
     if (hNewRgn!=INVALID_HANDLE_VALUE)
     {
+        if (pRegions->pRegions->fFlags.bSetVisibleRects)
+        {
+            HRGN hEmptyRgn = CreateRectRgn(0, 0, 0, 0);
+
+            if (hEmptyRgn!=INVALID_HANDLE_VALUE)
+            {
+                if (pWindow->hVisibleRegion==INVALID_HANDLE_VALUE || EqualRgn(pWindow->hVisibleRegion, hEmptyRgn))
+                {
+                    SendMessageTimeout(HWND_BROADCAST, WM_SETTINGCHANGE, 0, 0, SMTO_NORMAL, 1000, NULL);
+                }
+
+                DeleteObject(hEmptyRgn);
+            }
+            else
+            {
+                crWarning("Failed to created empty region!");
+            }
+        }
+
         OffsetRgn(hNewRgn, -pWindow->x, -pWindow->y);
 
         if (pWindow->hVisibleRegion!=INVALID_HANDLE_VALUE)

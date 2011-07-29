@@ -1,4 +1,4 @@
-/* $Id: PDMAsyncCompletion.cpp $ */
+/* $Id: PDMAsyncCompletion.cpp 36001 2011-02-16 21:21:39Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  */
@@ -1190,7 +1190,7 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpCreateForFile(PPPDMASYNCCOMPLETIONENDPOINT 
     AssertReturn(VALID_PTR(pTemplate),   VERR_INVALID_POINTER);
 
     /* Check that the flags are valid. */
-    AssertReturn(((~(PDMACEP_FILE_FLAGS_READ_ONLY | PDMACEP_FILE_FLAGS_DONT_LOCK) & fFlags) == 0),
+    AssertReturn(((~(PDMACEP_FILE_FLAGS_READ_ONLY | PDMACEP_FILE_FLAGS_DONT_LOCK | PDMACEP_FILE_FLAGS_HOST_CACHE_ENABLED) & fFlags) == 0),
                  VERR_INVALID_PARAMETER);
 
     PVM  pVM  = pTemplate->pVM;

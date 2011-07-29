@@ -1,4 +1,4 @@
-/* $Id: IOMInternal.h $ */
+/* $Id: IOMInternal.h 37467 2011-06-15 13:08:45Z vboxsync $ */
 /** @file
  * IOM - Internal header file.
  */
@@ -47,7 +47,8 @@ typedef struct IOMMMIORANGE
     RTGCPHYS                    GCPhys;
     /** Size of the range. */
     uint32_t                    cb;
-    uint32_t                    u32Alignment; /**< Alignment padding. */
+    /** The reference counter. */
+    uint32_t volatile           cRefs;
 
     /** Pointer to user argument - R3. */
     RTR3PTR                     pvUserR3;
@@ -284,7 +285,7 @@ typedef struct IOMTREES
     /** Tree containing I/O port statistics (IOMIOPORTSTATS). */
     AVLOIOPORTTREE          IOPortStatTree;
     /** Tree containing MMIO statistics (IOMMMIOSTATS). */
-    AVLOGCPHYSTREE          MMIOStatTree;
+    AVLOGCPHYSTREE          MmioStatTree;
 } IOMTREES;
 /** Pointer to the IOM trees. */
 typedef IOMTREES *PIOMTREES;
@@ -321,7 +322,7 @@ typedef struct IOM
 #endif
 
     /** Lock serializing EMT access to IOM. */
-    PDMCRITSECT                     EmtLock;
+    PDMCRITSECT                     CritSect;
 
     /** @name Caching of I/O Port and MMIO ranges and statistics.
      * (Saves quite some time in rep outs/ins instruction emulation.)
@@ -417,139 +418,23 @@ typedef IOMCPU *PIOMCPU;
 
 RT_C_DECLS_BEGIN
 
+void                iomMmioFreeRange(PVM pVM, PIOMMMIORANGE pRange);
 #ifdef IN_RING3
-PIOMIOPORTSTATS iomR3IOPortStatsCreate(PVM pVM, RTIOPORT Port, const char *pszDesc);
-PIOMMMIOSTATS   iomR3MMIOStatsCreate(PVM pVM, RTGCPHYS GCPhys, const char *pszDesc);
+PIOMIOPORTSTATS     iomR3IOPortStatsCreate(PVM pVM, RTIOPORT Port, const char *pszDesc);
+PIOMMMIOSTATS       iomR3MMIOStatsCreate(PVM pVM, RTGCPHYS GCPhys, const char *pszDesc);
 #endif /* IN_RING3 */
 
-VMMDECL(int)        IOMMMIOHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
+VMMDECL(int)        IOMMMIOHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault,
+                                   RTGCPHYS GCPhysFault, void *pvUser);
 #ifdef IN_RING3
-DECLCALLBACK(int)   IOMR3MMIOHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
-#endif
-
-
-/**
- * Gets the I/O port range for the specified I/O port in the current context.
- *
- * @returns Pointer to I/O port range.
- * @returns NULL if no port registered.
- *
- * @param   pIOM    IOM instance data.
- * @param   Port    Port to lookup.
- */
-DECLINLINE(CTX_SUFF(PIOMIOPORTRANGE)) iomIOPortGetRange(PIOM pIOM, RTIOPORT Port)
-{
-#ifdef IN_RING3
-    if (PDMCritSectIsInitialized(&pIOM->EmtLock))
-#endif
-        Assert(IOMIsLockOwner(IOM2VM(pIOM)));
-    CTX_SUFF(PIOMIOPORTRANGE) pRange = (CTX_SUFF(PIOMIOPORTRANGE))RTAvlroIOPortRangeGet(&pIOM->CTX_SUFF(pTrees)->CTX_SUFF(IOPortTree), Port);
-    return pRange;
-}
-
-
-/**
- * Gets the I/O port range for the specified I/O port in the HC.
- *
- * @returns Pointer to I/O port range.
- * @returns NULL if no port registered.
- *
- * @param   pIOM    IOM instance data.
- * @param   Port    Port to lookup.
- */
-DECLINLINE(PIOMIOPORTRANGER3) iomIOPortGetRangeR3(PIOM pIOM, RTIOPORT Port)
-{
-#ifdef IN_RING3
-    if (PDMCritSectIsInitialized(&pIOM->EmtLock))
-#endif
-        Assert(IOMIsLockOwner(IOM2VM(pIOM)));
-    PIOMIOPORTRANGER3 pRange = (PIOMIOPORTRANGER3)RTAvlroIOPortRangeGet(&pIOM->CTX_SUFF(pTrees)->IOPortTreeR3, Port);
-    return pRange;
-}
-
-
-/**
- * Gets the MMIO range for the specified physical address in the current context.
- *
- * @returns Pointer to MMIO range.
- * @returns NULL if address not in a MMIO range.
- *
- * @param   pIOM    IOM instance data.
- * @param   GCPhys  Physical address to lookup.
- */
-DECLINLINE(PIOMMMIORANGE) iomMMIOGetRange(PIOM pIOM, RTGCPHYS GCPhys)
-{
-#ifdef IN_RING3
-    if (PDMCritSectIsInitialized(&pIOM->EmtLock))
-#endif
-        Assert(IOMIsLockOwner(IOM2VM(pIOM)));
-    PIOMMMIORANGE pRange = pIOM->CTX_SUFF(pMMIORangeLast);
-    if (    !pRange
-        ||  GCPhys - pRange->GCPhys >= pRange->cb)
-        pIOM->CTX_SUFF(pMMIORangeLast) = pRange = (PIOMMMIORANGE)RTAvlroGCPhysRangeGet(&pIOM->CTX_SUFF(pTrees)->MMIOTree, GCPhys);
-    return pRange;
-}
-
-#ifdef VBOX_STRICT
-/**
- * Gets the MMIO range for the specified physical address in the current context.
- *
- * @returns Pointer to MMIO range.
- * @returns NULL if address not in a MMIO range.
- *
- * @param   pIOM    IOM instance data.
- * @param   GCPhys  Physical address to lookup.
- */
-DECLINLINE(PIOMMMIORANGE) iomMMIOGetRangeUnsafe(PIOM pIOM, RTGCPHYS GCPhys)
-{
-    PIOMMMIORANGE pRange = pIOM->CTX_SUFF(pMMIORangeLast);
-    if (    !pRange
-        ||  GCPhys - pRange->GCPhys >= pRange->cb)
-        pIOM->CTX_SUFF(pMMIORangeLast) = pRange = (PIOMMMIORANGE)RTAvlroGCPhysRangeGet(&pIOM->CTX_SUFF(pTrees)->MMIOTree, GCPhys);
-    return pRange;
-}
-#endif
-
-
-#ifdef VBOX_WITH_STATISTICS
-/**
- * Gets the MMIO statistics record.
- *
- * In ring-3 this will lazily create missing records, while in GC/R0 the caller has to
- * return the appropriate status to defer the operation to ring-3.
- *
- * @returns Pointer to MMIO stats.
- * @returns NULL if not found (R0/GC), or out of memory (R3).
- *
- * @param   pIOM        IOM instance data.
- * @param   GCPhys      Physical address to lookup.
- * @param   pRange      The MMIO range.
- */
-DECLINLINE(PIOMMMIOSTATS) iomMMIOGetStats(PIOM pIOM, RTGCPHYS GCPhys, PIOMMMIORANGE pRange)
-{
-    Assert(IOMIsLockOwner(IOM2VM(pIOM)));
-    /* For large ranges, we'll put everything on the first byte. */
-    if (pRange->cb > PAGE_SIZE)
-        GCPhys = pRange->GCPhys;
-
-    PIOMMMIOSTATS pStats = pIOM->CTX_SUFF(pMMIOStatsLast);
-    if (    !pStats
-        ||  pStats->Core.Key != GCPhys)
-    {
-        pStats = (PIOMMMIOSTATS)RTAvloGCPhysGet(&pIOM->CTX_SUFF(pTrees)->MMIOStatTree, GCPhys);
-# ifdef IN_RING3
-        if (!pStats)
-            pStats = iomR3MMIOStatsCreate(IOM2VM(pIOM), GCPhys, pRange->pszDesc);
-# endif
-    }
-    return pStats;
-}
+DECLCALLBACK(int)   IOMR3MMIOHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
+                                     PGMACCESSTYPE enmAccessType, void *pvUser);
 #endif
 
 /* IOM locking helpers. */
-int     iomLock(PVM pVM);
-int     iomTryLock(PVM pVM);
-void    iomUnlock(PVM pVM);
+#define IOM_LOCK(a_pVM)     PDMCritSectEnter(&(a_pVM)->iom.s.CritSect, VERR_SEM_BUSY)
+#define IOM_UNLOCK(a_pVM)   do { PDMCritSectLeave(&(a_pVM)->iom.s.CritSect); } while (0)
+
 
 /* Disassembly helpers used in IOMAll.cpp & IOMAllMMIO.cpp */
 bool    iomGetRegImmData(PDISCPUSTATE pCpu, PCOP_PARAMETER pParam, PCPUMCTXCORE pRegFrame, uint64_t *pu64Data, unsigned *pcbSize);
@@ -564,4 +449,5 @@ RT_C_DECLS_END
 
 /** @} */
 
-#endif /* ___IOMInternal_h */
+#endif /* !___IOMInternal_h */
+

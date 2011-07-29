@@ -44,11 +44,11 @@
  * Enables the page sharing code.
  * @remarks This must match GMMR0Init; currently we only support page fusion on
  *          all 64-bit hosts except Mac OS X */
-#if (   HC_ARCH_BITS == 64 \
-     && (defined(RT_OS_FREEBSD) || defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS) || defined(RT_OS_WINDOWS)) ) \
- || defined(DOXYGEN_RUNNING)
-# define VBOX_WITH_PAGE_SHARING
-#endif
+#if (   HC_ARCH_BITS == 64          /* ASM-NOINC */ \
+     && (defined(RT_OS_FREEBSD) || defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS) || defined(RT_OS_WINDOWS)) ) /* ASM-NOINC */ \
+ || defined(DOXYGEN_RUNNING)        /* ASM-NOINC */
+# define VBOX_WITH_PAGE_SHARING     /* ASM-NOINC */
+#endif                              /* ASM-NOINC */
 
 
 /** @defgroup   grp_vbox_param_mm  Memory Monitor Parameters
@@ -71,15 +71,15 @@
 #define MM_RAM_MIN                  UINT32_C(0x00400000)
 /** The maximum guest RAM size in bytes. */
 #if HC_ARCH_BITS == 64
-# define MM_RAM_MAX                 UINT64_C(0x400000000)
+# define MM_RAM_MAX                 UINT64_C(0x20000000000)
 #else
-# define MM_RAM_MAX                 UINT64_C(0x0E0000000)
+# define MM_RAM_MAX                 UINT64_C(0x000E0000000)
 #endif
 /** The minimum guest RAM size in MBs. */
 #define MM_RAM_MIN_IN_MB            UINT32_C(4)
 /** The maximum guest RAM size in MBs. */
 #if HC_ARCH_BITS == 64
-# define MM_RAM_MAX_IN_MB           UINT32_C(16384)
+# define MM_RAM_MAX_IN_MB           UINT32_C(2097152)
 #else
 # define MM_RAM_MAX_IN_MB           UINT32_C(3584)
 #endif

@@ -1,4 +1,4 @@
-/* $Id: mp-r0drv-linux.c $ */
+/* $Id: mp-r0drv-linux.c 37672 2011-06-28 19:48:17Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Ring-0 Driver, Linux.
  */
@@ -35,6 +35,7 @@
 #include <iprt/cpuset.h>
 #include <iprt/err.h>
 #include <iprt/asm.h>
+#include <iprt/thread.h>
 #include "r0drv/mp-r0drv.h"
 
 
@@ -202,6 +203,9 @@ RTDECL(int) RTMpOnAll(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
     int rc;
     RTMPARGS Args;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
+    RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
+#endif
     Args.pfnWorker = pfnWorker;
     Args.pvUser1 = pvUser1;
     Args.pvUser2 = pvUser2;
@@ -212,19 +216,13 @@ RTDECL(int) RTMpOnAll(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
     rc = on_each_cpu(rtmpLinuxWrapper, &Args, 1 /* wait */);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
     rc = on_each_cpu(rtmpLinuxWrapper, &Args, 0 /* retry */, 1 /* wait */);
-
 #else /* older kernels */
-
-# ifdef preempt_disable
-    preempt_disable();
-# endif
+    RTThreadPreemptDisable(&PreemptState);
     rc = smp_call_function(rtmpLinuxWrapper, &Args, 0 /* retry */, 1 /* wait */);
     local_irq_disable();
     rtmpLinuxWrapper(&Args);
     local_irq_enable();
-# ifdef preempt_enable
-    preempt_enable();
-# endif
+    RTThreadPreemptRestore(&PreemptState);
 #endif /* older kernels */
     Assert(rc == 0); NOREF(rc);
     return VINF_SUCCESS;
@@ -237,23 +235,20 @@ RTDECL(int) RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
     int rc;
     RTMPARGS Args;
 
+    RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
     Args.pfnWorker = pfnWorker;
     Args.pvUser1 = pvUser1;
     Args.pvUser2 = pvUser2;
     Args.idCpu = NIL_RTCPUID;
     Args.cHits = 0;
 
-#ifdef preempt_disable
-    preempt_disable();
-#endif
+    RTThreadPreemptDisable(&PreemptState);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
     rc = smp_call_function(rtmpLinuxWrapper, &Args, 1 /* wait */);
 #else /* older kernels */
     rc = smp_call_function(rtmpLinuxWrapper, &Args, 0 /* retry */, 1 /* wait */);
 #endif /* older kernels */
-#ifdef preempt_enable
-    preempt_enable();
-#endif
+    RTThreadPreemptRestore(&PreemptState);
 
     Assert(rc == 0); NOREF(rc);
     return VINF_SUCCESS;
@@ -287,6 +282,7 @@ RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1
     int rc;
     RTMPARGS Args;
 
+    RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
     Args.pfnWorker = pfnWorker;
     Args.pvUser1 = pvUser1;
     Args.pvUser2 = pvUser2;
@@ -296,9 +292,7 @@ RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1
     if (!RTMpIsCpuPossible(idCpu))
         return VERR_CPU_NOT_FOUND;
 
-# ifdef preempt_disable
-    preempt_disable();
-# endif
+    RTThreadPreemptDisable(&PreemptState);
     if (idCpu != RTMpCpuId())
     {
         if (RTMpIsCpuOnline(idCpu))
@@ -321,9 +315,7 @@ RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1
         rtmpLinuxWrapper(&Args);
         rc = VINF_SUCCESS;
     }
-# ifdef preempt_enable
-    preempt_enable();
-# endif
+    RTThreadPreemptRestore(&PreemptState);;
 
     NOREF(rc);
     return rc;

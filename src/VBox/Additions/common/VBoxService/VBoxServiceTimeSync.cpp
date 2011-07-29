@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceTimeSync.cpp $ */
+/* $Id: VBoxServiceTimeSync.cpp 37608 2011-06-23 11:47:33Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions TimeSync Service.
  */
@@ -164,7 +164,13 @@ static DECLCALLBACK(int) VBoxServiceTimeSyncPreInit(void)
     int rc = VbglR3GuestPropConnect(&uGuestPropSvcClientID);
     if (RT_FAILURE(rc))
     {
-        VBoxServiceError("VBoxServiceTimeSyncPreInit: Failed to connect to the guest property service! Error: %Rrc\n", rc);
+        if (rc == VERR_HGCM_SERVICE_NOT_FOUND) /* Host service is not available. */
+        {
+            VBoxServiceVerbose(0, "VMInfo: Guest property service is not available, skipping\n");
+            rc = VINF_SUCCESS;
+        }
+        else
+            VBoxServiceError("Failed to connect to the guest property service! Error: %Rrc\n", rc);
     }
     else
     {
@@ -666,8 +672,8 @@ VBOXSERVICE g_TimeSync =
     /* pszUsage. */
     "              [--timesync-interval <ms>] [--timesync-min-adjust <ms>]\n"
     "              [--timesync-latency-factor <x>] [--timesync-max-latency <ms>]\n"
-    "              [--timesync-set-threshold <ms>] [--timesync-set-start]"
-    "              [--timesync-set-restore 0|1]\n"
+    "              [--timesync-set-threshold <ms>] [--timesync-set-start]\n"
+    "              [--timesync-set-on-restore 0|1]"
     ,
     /* pszOptions. */
     "    --timesync-interval     Specifies the interval at which to synchronize the\n"

@@ -1,4 +1,4 @@
-/* $Id: VMMDevTesting.cpp $ */
+/* $Id: VMMDevTesting.cpp 37636 2011-06-24 14:59:59Z vboxsync $ */
 /** @file
  * VMMDev - Testing Extensions.
  */
@@ -41,7 +41,7 @@
 /**
  * @callback_method_impl{FNIOMMMIOWRITE}
  */
-PDMBOTHCBDECL(int) vmmdevTestingMmioWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+PDMBOTHCBDECL(int) vmmdevTestingMmioWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
     switch (GCPhysAddr)
     {

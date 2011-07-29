@@ -1,4 +1,4 @@
-/* $Id: TRPM.cpp $ */
+/* $Id: TRPM.cpp 36823 2011-04-23 22:32:27Z vboxsync $ */
 /** @file
  * TRPM - The Trap Monitor.
  */
@@ -1467,7 +1467,9 @@ VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent)
         Log(("TRPMR3InjectEvent: CPU%d u8Interrupt=%d (%#x) rc=%Rrc\n", pVCpu->idCpu, u8Interrupt, u8Interrupt, rc));
         if (RT_SUCCESS(rc))
         {
+# ifndef IEM_VERIFICATION_MODE
             if (HWACCMIsEnabled(pVM))
+# endif
             {
                 rc = TRPMAssertTrap(pVCpu, u8Interrupt, enmEvent);
                 AssertRC(rc);

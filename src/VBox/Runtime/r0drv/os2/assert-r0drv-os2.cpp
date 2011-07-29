@@ -1,4 +1,4 @@
-/* $Id: assert-r0drv-os2.cpp $ */
+/* $Id: assert-r0drv-os2.cpp 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - Assertion Workers, Ring-0 Drivers, OS/2.
  */
@@ -57,7 +57,7 @@ extern size_t g_cchRTAssertMsg;
 static DECLCALLBACK(size_t) rtR0Os2AssertOutputCB(void *pvArg, const char *pachChars, size_t cbChars);
 
 
-void rtR0AssertNativeMsg1(const char *pszExpr, unsigned uLine, const char *pszFile, const char *pszFunction)
+DECLHIDDEN(void) rtR0AssertNativeMsg1(const char *pszExpr, unsigned uLine, const char *pszFile, const char *pszFunction)
 {
 #if defined(DEBUG_bird)
     RTLogComPrintf("\n!!Assertion Failed!!\n"
@@ -74,7 +74,7 @@ void rtR0AssertNativeMsg1(const char *pszExpr, unsigned uLine, const char *pszFi
 }
 
 
-void rtR0AssertNativeMsg2V(bool fInitial, const char *pszFormat, va_list va)
+DECLHIDDEN(void) rtR0AssertNativeMsg2V(bool fInitial, const char *pszFormat, va_list va)
 {
 #if defined(DEBUG_bird)
     va_list vaCopy;

@@ -1,4 +1,4 @@
-/* $Id: thread2-r0drv-solaris.c $ */
+/* $Id: thread2-r0drv-solaris.c 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 2), Ring-0 Driver, Solaris.
  */
@@ -38,7 +38,7 @@
 
 
 
-int rtThreadNativeInit(void)
+DECLHIDDEN(int) rtThreadNativeInit(void)
 {
     return VINF_SUCCESS;
 }
@@ -50,7 +50,7 @@ RTDECL(RTTHREAD) RTThreadSelf(void)
 }
 
 
-int rtThreadNativeSetPriority(PRTTHREADINT pThread, RTTHREADTYPE enmType)
+DECLHIDDEN(int) rtThreadNativeSetPriority(PRTTHREADINT pThread, RTTHREADTYPE enmType)
 {
     int iPriority;
     switch (enmType)
@@ -71,7 +71,7 @@ int rtThreadNativeSetPriority(PRTTHREADINT pThread, RTTHREADTYPE enmType)
 }
 
 
-int rtThreadNativeAdopt(PRTTHREADINT pThread)
+DECLHIDDEN(int) rtThreadNativeAdopt(PRTTHREADINT pThread)
 {
     NOREF(pThread);
     /* There is nothing special that needs doing here, but the
@@ -80,7 +80,7 @@ int rtThreadNativeAdopt(PRTTHREADINT pThread)
 }
 
 
-void rtThreadNativeDestroy(PRTTHREADINT pThread)
+DECLHIDDEN(void) rtThreadNativeDestroy(PRTTHREADINT pThread)
 {
     NOREF(pThread);
 }
@@ -100,7 +100,7 @@ static void rtThreadNativeMain(void *pvThreadInt)
 }
 
 
-int rtThreadNativeCreate(PRTTHREADINT pThreadInt, PRTNATIVETHREAD pNativeThread)
+DECLHIDDEN(int) rtThreadNativeCreate(PRTTHREADINT pThreadInt, PRTNATIVETHREAD pNativeThread)
 {
     void   *pvKernThread;
     RT_ASSERT_PREEMPTIBLE();

@@ -1,4 +1,4 @@
-/* $Id: powernotification-r0drv.c $ */
+/* $Id: powernotification-r0drv.c 37211 2011-05-25 11:37:52Z vboxsync $ */
 /** @file
  * IPRT - Power Management, Ring-0 Driver, Event Notifications.
  */
@@ -273,7 +273,7 @@ RTDECL(int) RTPowerNotificationDeregister(PFNRTPOWERNOTIFICATION pfnCallback, vo
 RT_EXPORT_SYMBOL(RTPowerNotificationDeregister);
 
 
-int rtR0PowerNotificationInit(void)
+DECLHIDDEN(int) rtR0PowerNotificationInit(void)
 {
     int rc = RTSpinlockCreate((PRTSPINLOCK)&g_hRTPowerNotifySpinLock);
     if (RT_SUCCESS(rc))
@@ -289,7 +289,7 @@ int rtR0PowerNotificationInit(void)
 }
 
 
-void rtR0PowerNotificationTerm(void)
+DECLHIDDEN(void) rtR0PowerNotificationTerm(void)
 {
     PRTPOWERNOTIFYREG   pHead;
     RTSPINLOCKTMP       Tmp       = RTSPINLOCKTMP_INITIALIZER;
@@ -300,7 +300,7 @@ void rtR0PowerNotificationTerm(void)
 
     /* pick up the list and the spinlock. */
     RTSpinlockAcquire(hSpinlock, &Tmp);
-    ASMAtomicWriteSize(&g_hRTPowerNotifySpinLock, NIL_RTSPINLOCK);
+    ASMAtomicWriteHandle(&g_hRTPowerNotifySpinLock, NIL_RTSPINLOCK);
     pHead = g_pRTPowerCallbackHead;
     g_pRTPowerCallbackHead = NULL;
     ASMAtomicIncU32(&g_iRTPowerGeneration);

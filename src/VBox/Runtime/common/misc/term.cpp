@@ -1,4 +1,4 @@
-/* $Id: term.cpp $ */
+/* $Id: term.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Common Termination Code.
  */

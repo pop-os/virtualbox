@@ -1,4 +1,4 @@
-/* $Id: tstRTThreadExecutionTime.cpp $ */
+/* $Id: tstRTThreadExecutionTime.cpp 34629 2010-12-02 17:09:09Z vboxsync $ */
 /** @file
  * IPRT Testcase - RTThreadGetExecution.
  */

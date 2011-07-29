@@ -1,4 +1,4 @@
-/* $Id: RTLogWriteDebugger-r0drv-nt.cpp $ */
+/* $Id: RTLogWriteDebugger-r0drv-nt.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Log To Debugger, Ring-0 Driver, NT.
  */

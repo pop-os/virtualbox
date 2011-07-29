@@ -1,4 +1,4 @@
-/* $Id: HostHardwareLinux.cpp $ */
+/* $Id: HostHardwareLinux.cpp 36618 2011-04-08 07:18:11Z vboxsync $ */
 /** @file
  * Classes for handling hardware detection under Linux.  Please feel free to
  * expand these to work for other systems (Solaris!) or to add new ones for
@@ -1331,6 +1331,7 @@ int hotplugInotifyImpl::drainWakeupPipe(void)
     AssertRCReturn(mStatus, VERR_WRONG_ORDER);
     cbRead = read(mhWakeupPipeR, szBuf, sizeof(szBuf));
     Assert(cbRead > 0);
+    NOREF(cbRead);
     return VINF_SUCCESS;
 }
 

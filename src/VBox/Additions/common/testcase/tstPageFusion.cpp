@@ -1,4 +1,4 @@
-/* $Id: tstPageFusion.cpp $ */
+/* $Id: tstPageFusion.cpp 37955 2011-07-14 12:23:02Z vboxsync $ */
 /** @file
  * VBoxService - Guest page sharing testcase
  */
@@ -26,8 +26,9 @@
 #include <iprt/string.h>
 #include <iprt/initterm.h>
 #include <VBox/VBoxGuestLib.h>
-#include <VBox/x86.h>
+#include <iprt/x86.h>
 #include <stdio.h>
+
 
 /*******************************************************************************
 *   Global Variables                                                           *

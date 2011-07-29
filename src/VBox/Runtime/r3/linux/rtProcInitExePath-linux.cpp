@@ -1,4 +1,4 @@
-/* $Id: rtProcInitExePath-linux.cpp $ */
+/* $Id: rtProcInitExePath-linux.cpp 28929 2010-04-30 11:26:46Z vboxsync $ */
 /** @file
  * IPRT - rtProcInitName, Linux.
  */

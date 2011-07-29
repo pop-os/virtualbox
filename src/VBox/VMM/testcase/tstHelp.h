@@ -1,4 +1,4 @@
-/* $Id: tstHelp.h $ */
+/* $Id: tstHelp.h 36931 2011-05-03 13:34:43Z vboxsync $ */
 /** @file
  * VMM testcase - Helper stuff.
  */
@@ -143,6 +143,19 @@ RT_C_DECLS_END
         { \
             printf("error! padding of %s::%s is too small, padding=%d struct=%d\n", #strct, #member, \
                    (int)sizeof(p->pad_member), (int)sizeof(p->member)); \
+            rc++; \
+        } \
+    } while (0)
+
+/**
+ * Checks that an expression is true.
+ */
+#define CHECK_EXPR(expr) \
+    do \
+    { \
+        if (!(expr)) \
+        { \
+            printf("error! '%s' failed! (line %d)\n", #expr, __LINE__); \
             rc++; \
         } \
     } while (0)

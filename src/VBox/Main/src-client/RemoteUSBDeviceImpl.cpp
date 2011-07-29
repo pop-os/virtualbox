@@ -1,4 +1,4 @@
-/* $Id: RemoteUSBDeviceImpl.cpp $ */
+/* $Id: RemoteUSBDeviceImpl.cpp 35638 2011-01-19 19:10:49Z vboxsync $ */
 
 /** @file
  *
@@ -37,12 +37,13 @@ DEFINE_EMPTY_CTOR_DTOR (RemoteUSBDevice)
 
 HRESULT RemoteUSBDevice::FinalConstruct()
 {
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void RemoteUSBDevice::FinalRelease()
 {
     uninit();
+    BaseFinalRelease();
 }
 
 // public initializer/uninitializer for internal purposes only

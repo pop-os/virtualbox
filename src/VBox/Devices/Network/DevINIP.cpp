@@ -1,4 +1,4 @@
-/* $Id: DevINIP.cpp $ */
+/* $Id: DevINIP.cpp 36044 2011-02-21 17:06:48Z vboxsync $ */
 /** @file
  * DevINIP - Internal Network IP stack device/service.
  */
@@ -74,7 +74,7 @@ typedef struct DEVINTNETIP
     PDMIBASE                IBase;
     /** The network port this device provides (LUN\#0). */
     PDMINETWORKDOWN         INetworkDown;
-    /** Tzhe network configuration port this device provides (LUN\#0). */
+    /** The network configuration port this device provides (LUN\#0). */
     PDMINETWORKCONFIG       INetworkConfig;
     /** The base interface of the network driver below us. */
     PPDMIBASE               pDrvBase;

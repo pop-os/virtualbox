@@ -1,4 +1,4 @@
-/* $Id: MouseImpl.h $ */
+/* $Id: MouseImpl.h 36161 2011-03-04 10:24:58Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -46,9 +46,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(Mouse)
-        COM_INTERFACE_ENTRY  (ISupportErrorInfo)
-        COM_INTERFACE_ENTRY  (IMouse)
-        COM_INTERFACE_ENTRY2 (IDispatch, IMouse)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IMouse)
     END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR (Mouse)
@@ -98,10 +96,10 @@ private:
     HRESULT updateVMMDevMouseCaps(uint32_t fCapsAdded, uint32_t fCapsRemoved);
     HRESULT reportRelEventToMouseDev(int32_t dx, int32_t dy, int32_t dz,
                                  int32_t dw, uint32_t fButtons);
-    HRESULT reportAbsEventToMouseDev(uint32_t mouseXAbs, uint32_t mouseYAbs,
+    HRESULT reportAbsEventToMouseDev(int32_t mouseXAbs, int32_t mouseYAbs,
                                  int32_t dz, int32_t dw, uint32_t fButtons);
-    HRESULT reportAbsEventToVMMDev(uint32_t mouseXAbs, uint32_t mouseYAbs);
-    HRESULT reportAbsEvent(uint32_t mouseXAbs, uint32_t mouseYAbs,
+    HRESULT reportAbsEventToVMMDev(int32_t mouseXAbs, int32_t mouseYAbs);
+    HRESULT reportAbsEvent(int32_t mouseXAbs, int32_t mouseYAbs,
                            int32_t dz, int32_t dw, uint32_t fButtons,
                            bool fUsesVMMDevEvent);
     HRESULT convertDisplayRes(LONG x, LONG y, int32_t *pcX, int32_t *pcY,
@@ -124,13 +122,18 @@ private:
     struct DRVMAINMOUSE    *mpDrv[MOUSE_MAX_DEVICES];
 
     uint32_t mfVMMDevGuestCaps;  /** We cache this to avoid access races */
-    uint32_t mcLastAbsX;
-    uint32_t mcLastAbsY;
+    int32_t mcLastAbsX;
+    int32_t mcLastAbsY;
     uint32_t mfLastButtons;
 
 #ifndef VBOXBFE_WITHOUT_COM
     const ComObjPtr<EventSource> mEventSource;
     VBoxEventDesc                mMouseEvent;
+
+    void fireMouseEvent(bool fAbsolute, LONG x, LONG y, LONG dz, LONG dw, LONG Buttons);
+#else
+    void fireMouseEvent(bool fAbsolute, LONG x, LONG y, LONG dz, LONG dw, LONG Buttons)
+    {}
 #endif
 };
 
@@ -145,7 +148,7 @@ enum
     MouseButtonState_RightButton = 2,
     MouseButtonState_MiddleButton = 4,
     MouseButtonState_XButton1 = 8,
-    MouseButtonState_XButton2 = 16,
+    MouseButtonState_XButton2 = 16
 };
 #endif
 

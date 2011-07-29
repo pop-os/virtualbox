@@ -101,9 +101,11 @@ typedef struct
     /** Where to store the instance. */
     int            Instance;
     /* Where to store the client path. */
-    char           achClientPath[MAXPATHLEN];
+    char           szClientPath[MAXPATHLEN];
     /** Device identifier (VendorId:ProductId:Release:StaticPath) */
-    char           achDeviceIdent[MAXPATHLEN+48];
+    char           szDeviceIdent[MAXPATHLEN+48];
+    /** Callback from monitor specifying client consumer (VM) credentials */
+    DECLR0CALLBACKMEMBER(int, pfnSetConsumerCredentials,(RTPROCESS Process, int Instance, void *pvReserved));
 } VBOXUSBREQ_CLIENT_INFO, *PVBOXUSBREQ_CLIENT_INFO;
 typedef VBOXUSBREQ_CLIENT_INFO VBOXUSB_CLIENT_INFO;
 typedef PVBOXUSBREQ_CLIENT_INFO PVBOXUSB_CLIENT_INFO;

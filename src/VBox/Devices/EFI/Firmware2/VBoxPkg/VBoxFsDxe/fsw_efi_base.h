@@ -1,4 +1,4 @@
-/* $Id: fsw_efi_base.h $ */
+/* $Id: fsw_efi_base.h 36444 2011-03-28 03:14:24Z vboxsync $ */
 /** @file
  * fsw_efi_base.h - Base definitions for the EFI host environment.
  */
@@ -86,8 +86,8 @@ typedef UINT64  fsw_u64;
 
 // message printing
 
-#define FSW_MSGSTR(s) L##s
-#define FSW_MSGFUNC Print
+#define FSW_MSGSTR(s) DEBUG_INFO, s
+#define FSW_MSGFUNC DebugPrint
 
 // 64-bit hooks
 

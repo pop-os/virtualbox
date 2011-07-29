@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdpInternal.h $ */
+/* $Id: VBoxNetAdpInternal.h 35824 2011-02-02 13:32:03Z vboxsync $ */
 /** @file
  * VBoxNetAdp - Network Filter Driver (Host), Internal Header.
  */

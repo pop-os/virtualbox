@@ -1,4 +1,4 @@
-/* $Id: CPUM.cpp $ */
+/* $Id: CPUM.cpp 37136 2011-05-18 14:45:47Z vboxsync $ */
 /** @file
  * CPUM - CPU Monitor / Manager.
  */
@@ -935,6 +935,13 @@ static int cpumR3CpuIdInit(PVM pVM)
         CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NXE);
 
     /*
+     * We don't enable the Hypervisor Present bit by default, but it may
+     * be needed by some guests.
+     */
+    rc = CFGMR3QueryBoolDef(pCpumCfg, "EnableHVP", &fEnable, false);                AssertRCReturn(rc, rc);
+    if (fEnable)
+        CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_HVP);
+    /*
      * Log the cpuid and we're good.
      */
     bool fOldBuffered = RTLogRelSetBuffering(true /*fBuffered*/);
@@ -999,7 +1006,8 @@ VMMR3DECL(void) CPUMR3SetHWVirtEx(PVM pVM, bool fHWVirtExEnabled)
      */
     if (!fHWVirtExEnabled)
     {
-        Assert(pVM->cpum.s.aGuestCpuIdStd[4].eax == 0);
+        Assert(   pVM->cpum.s.aGuestCpuIdStd[4].eax == 0
+               || pVM->cpum.s.aGuestCpuIdStd[0].eax < 0x4);
         pVM->cpum.s.aGuestCpuIdStd[4].eax = 0;
     }
 }
@@ -1100,7 +1108,7 @@ VMMR3DECL(void) CPUMR3ResetCpu(PVMCPU pVCpu)
     pCtx->dr[6]                     = X86_DR6_INIT_VAL;
     pCtx->dr[7]                     = X86_DR7_INIT_VAL;
 
-    pCtx->fpu.FTW                   = 0xff;         /* All tags are set, i.e. the regs are empty. */
+    pCtx->fpu.FTW                   = 0x00;         /* All empty (abbridged tag reg edition). */
     pCtx->fpu.FCW                   = 0x37f;
 
     /* Intel 64 and IA-32 Architectures Software Developer's Manual Volume 3A, Table 8-1. IA-32 Processor States Following Power-up, Reset, or INIT */
@@ -2488,11 +2496,11 @@ static void cpumR3InfoOne(PVM pVM, PCPUMCTX pCtx, PCCPUMCTXCORE pCtxCore, PCDBGF
 
             pHlp->pfnPrintf(pHlp,
                 "%sFCW=%04x %sFSW=%04x %sFTW=%04x %sFOP=%04x %sMXCSR=%08x %sMXCSR_MASK=%08x\n"
-                "%sFPUIP=%08x %sCS=%04x %sRsvrd1=%04x  %sFPUDP=%08x %sDS=%04x %sRsvrd2=%04x\n"
+                "%sFPUIP=%08x %sCS=%04x %sRsrvd1=%04x  %sFPUDP=%08x %sDS=%04x %sRsvrd2=%04x\n"
                 ,
                 pszPrefix, pCtx->fpu.FCW,   pszPrefix, pCtx->fpu.FSW, pszPrefix, pCtx->fpu.FTW, pszPrefix, pCtx->fpu.FOP,
                 pszPrefix, pCtx->fpu.MXCSR, pszPrefix, pCtx->fpu.MXCSR_MASK,
-                pszPrefix, pCtx->fpu.FPUIP, pszPrefix, pCtx->fpu.CS,  pszPrefix, pCtx->fpu.Rsvrd1,
+                pszPrefix, pCtx->fpu.FPUIP, pszPrefix, pCtx->fpu.CS,  pszPrefix, pCtx->fpu.Rsrvd1,
                 pszPrefix, pCtx->fpu.FPUDP, pszPrefix, pCtx->fpu.DS,  pszPrefix, pCtx->fpu.Rsrvd2
                 );
             unsigned iShift = (pCtx->fpu.FSW >> 11) & 7;
@@ -3050,7 +3058,7 @@ static DECLCALLBACK(void) cpumR3CpuIdInfo(PVM pVM, PCDBGFINFOHLP pHlp, const cha
             pHlp->pfnPrintf(pHlp, "Supports OSXSAVE                       = %d (%d)\n",  EcxGuest.u1OSXSAVE,    EcxHost.u1OSXSAVE);
             pHlp->pfnPrintf(pHlp, "AVX instruction extensions             = %d (%d)\n",  EcxGuest.u1AVX,        EcxHost.u1AVX);
             pHlp->pfnPrintf(pHlp, "29/30 - Reserved                       = %#x (%#x)\n",EcxGuest.u2Reserved3,  EcxHost.u2Reserved3);
-            pHlp->pfnPrintf(pHlp, "31 - Reserved (always 0)               = %d (%d)\n",  EcxGuest.u1Reserved4,  EcxHost.u1Reserved4);
+            pHlp->pfnPrintf(pHlp, "Hypervisor Present (we're a guest)     = %d (%d)\n",  EcxGuest.u1HVP,        EcxHost.u1HVP);
         }
     }
     if (cStdMax >= 2 && iVerbosity)

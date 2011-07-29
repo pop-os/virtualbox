@@ -1,4 +1,4 @@
-/* $Id: fakedri_drv.c $ */
+/* $Id: fakedri_drv.c 37594 2011-06-22 16:26:29Z vboxsync $ */
 
 /** @file
  * VBox OpenGL DRI driver functions
@@ -37,10 +37,10 @@
 
 //@todo this could be different...
 #ifdef RT_ARCH_AMD64
-# define DRI_DEFAULT_DRIVER_DIR "/usr/lib64/dri:/usr/lib/dri"
+# define DRI_DEFAULT_DRIVER_DIR "/usr/lib64/dri:/usr/lib/dri:/usr/lib/x86_64-linux-gnu/dri"
 # define DRI_XORG_DRV_DIR "/usr/lib/xorg/modules/drivers/"
 #else
-# define DRI_DEFAULT_DRIVER_DIR "/usr/lib/dri"
+# define DRI_DEFAULT_DRIVER_DIR "/usr/lib/dri:/usr/lib/i386-linux-gnu/dri"
 # define DRI_XORG_DRV_DIR "/usr/lib/xorg/modules/drivers/"
 #endif
 

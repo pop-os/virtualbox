@@ -1,4 +1,4 @@
-/* $Id: UIFirstRunWzd.cpp $ */
+/* $Id: UIFirstRunWzd.cpp 37849 2011-07-08 15:15:45Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -97,6 +97,8 @@ void UIFirstRunWzd::retranslateUi()
 {
     /* Wizard title */
     setWindowTitle(tr("First Run Wizard"));
+
+    setButtonText(QWizard::FinishButton, tr("Start"));
 }
 
 UIFirstRunWzdPage1::UIFirstRunWzdPage1()

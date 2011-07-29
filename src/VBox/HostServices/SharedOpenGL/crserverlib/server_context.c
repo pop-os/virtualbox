@@ -217,7 +217,7 @@ crServerDispatchMakeCurrent( GLint window, GLint nativeWindow, GLint context )
         mural = (CRMuralInfo *) crHashtableSearch(cr_server.muralTable, window);
         if (!mural)
         {
-            crWarning("CRServer: invalid window %d passed to crServerDispatchMakeCurrent()");
+            crWarning("CRServer: invalid window %d passed to crServerDispatchMakeCurrent()", window);
             return;
         }
 
@@ -230,11 +230,16 @@ crServerDispatchMakeCurrent( GLint window, GLint nativeWindow, GLint context )
     }
     else {
         oldMural = (CRMuralInfo *) crHashtableSearch(cr_server.muralTable, cr_server.currentWindow);
-        if (oldMural && oldMural->bUseFBO
-            && crServerSupportRedirMuralFBO()
-            && !crStateGetCurrent()->framebufferobject.drawFB)
+        if (oldMural && oldMural->bUseFBO && crServerSupportRedirMuralFBO())
         {
-            cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+            if (!crStateGetCurrent()->framebufferobject.drawFB)
+            {
+                cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, 0);
+            }
+            if (!crStateGetCurrent()->framebufferobject.readFB)
+            {
+                cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_READ_FRAMEBUFFER, 0);
+            }
         }
 
         ctx = cr_server.DummyContext;
@@ -305,8 +310,23 @@ crServerDispatchMakeCurrent( GLint window, GLint nativeWindow, GLint context )
     {
         if (!crStateGetCurrent()->framebufferobject.drawFB)
         {
-            cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_FRAMEBUFFER_EXT, mural->bUseFBO ? mural->idFBO:0);
+            cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, mural->bUseFBO ? mural->idFBO:0);
         }
+        if (!crStateGetCurrent()->framebufferobject.readFB)
+        {
+            cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_READ_FRAMEBUFFER, mural->bUseFBO ? mural->idFBO:0);
+        }
+    }
+
+    if (!mural->bUseFBO)
+    {
+        ctx->buffer.width = mural->width;
+        ctx->buffer.height = mural->height;
+    }
+    else
+    {
+        ctx->buffer.width = 0;
+        ctx->buffer.height = 0;
     }
 }
 

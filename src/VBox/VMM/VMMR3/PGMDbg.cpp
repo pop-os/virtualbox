@@ -1,4 +1,4 @@
-/* $Id: PGMDbg.cpp $ */
+/* $Id: PGMDbg.cpp 37187 2011-05-23 16:11:11Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor - Debugger & Debugging APIs.
  */
@@ -159,7 +159,7 @@ VMMR3DECL(int) PGMR3DbgHCPhys2GCPhys(PVM pVM, RTHCPHYS HCPhys, PRTGCPHYS pGCPhys
     if (HCPhys == 0)
         return VERR_INVALID_POINTER;
 
-    for (PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(pRamRanges);
+    for (PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(pRamRangesX);
          pRam;
          pRam = pRam->CTX_SUFF(pNext))
     {
@@ -621,7 +621,7 @@ VMMR3DECL(int) PGMR3DbgScanPhysical(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cbRange, 
      * bother to match across ranges.
      */
     pgmLock(pVM);
-    for (PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(pRamRanges);
+    for (PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(pRamRangesX);
          pRam;
          pRam = pRam->CTX_SUFF(pNext))
     {
@@ -792,7 +792,7 @@ VMMR3DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RTGCPTR
         int rc = PGMPhysGCPtr2GCPhys(pVCpu, GCPtr, &GCPhys);
         if (RT_SUCCESS(rc))
         {
-            PPGMPAGE pPage = pgmPhysGetPage(&pVM->pgm.s, GCPhys);
+            PPGMPAGE pPage = pgmPhysGetPage(pVM, GCPhys);
             if (    pPage
                 &&  (   !PGM_PAGE_IS_ZERO(pPage)
                      || fAllZero)
@@ -1040,7 +1040,7 @@ static void pgmR3DumpHierarchyShwGuestPageInfo(PPGMR3DUMPHIERARCHYSTATE pState, 
     if (RT_SUCCESS(rc))
     {
         pgmLock(pState->pVM);
-        PCPGMPAGE pPage = pgmPhysGetPage(&pState->pVM->pgm.s, GCPhys);
+        PCPGMPAGE pPage = pgmPhysGetPage(pState->pVM, GCPhys);
         if (pPage)
             RTStrPrintf(szPage, sizeof(szPage), "%R[pgmpage]", pPage);
         else
@@ -1558,7 +1558,7 @@ static int pgmR3DumpHierarchyShwDoIt(PPGMR3DUMPHIERARCHYSTATE pState, uint64_t c
         pState->pHlp->pfnPrintf(pState->pHlp, "cr3=%0*llx", cch, cr3);
         if (pState->fDumpPageInfo)
             pgmR3DumpHierarchyShwTablePageInfo(pState, cr3 & X86_CR3_AMD64_PAGE_MASK);
-        pState->pHlp->pfnPrintf(pState->pHlp, " %s%s\n",
+        pState->pHlp->pfnPrintf(pState->pHlp, " %s%s%s\n",
                                 pszMode,
                                 pState->fNp  ? " + Nested Paging" : "",
                                 pState->fNxe ? " + NX" : "");
@@ -1718,7 +1718,7 @@ static void pgmR3DumpHierarchyGstPageInfo(PPGMR3DUMPHIERARCHYSTATE pState, RTGCP
 {
     char szPage[80];
     pgmLock(pState->pVM);
-    PCPGMPAGE pPage = pgmPhysGetPage(&pState->pVM->pgm.s, GCPhys);
+    PCPGMPAGE pPage = pgmPhysGetPage(pState->pVM, GCPhys);
     if (pPage)
         RTStrPrintf(szPage, sizeof(szPage), " %R[pgmpage]", pPage);
     else

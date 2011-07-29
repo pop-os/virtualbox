@@ -1,4 +1,4 @@
-/* $Id: initterm-r0drv-freebsd.c $ */
+/* $Id: initterm-r0drv-freebsd.c 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - Initialization & Termination, Ring-0 Driver, FreeBSD.
  */
@@ -38,14 +38,14 @@
 #include "internal/initterm.h"
 
 
-int rtR0InitNative(void)
+DECLHIDDEN(int) rtR0InitNative(void)
 {
     /* nothing to do */
     return VINF_SUCCESS;
 }
 
 
-void rtR0TermNative(void)
+DECLHIDDEN(void) rtR0TermNative(void)
 {
     /* nothing to undo */
 }

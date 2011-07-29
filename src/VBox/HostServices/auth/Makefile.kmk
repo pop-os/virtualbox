@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 37429 2011-06-13 19:59:08Z vboxsync $
 ## @file
 # Sub-Makefile for the VBox RDP authentication plugins.
 #

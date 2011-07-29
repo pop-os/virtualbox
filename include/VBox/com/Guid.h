@@ -1,4 +1,4 @@
-/* $Id: Guid.h $ */
+/* $Id: Guid.h 34071 2010-11-15 15:35:10Z vboxsync $ */
 /** @file
  * MS COM / XPCOM Abstraction Layer - Guid class declaration.
  */

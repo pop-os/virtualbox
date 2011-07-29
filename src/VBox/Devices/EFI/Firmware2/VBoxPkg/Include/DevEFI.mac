@@ -1,4 +1,4 @@
-; $Id: DevEFI.mac $
+; $Id: DevEFI.mac 28800 2010-04-27 08:22:32Z vboxsync $
 ;; @file
 ; DevEFI Interface Definitions, Assembly (Yasm) Variant.
 ;

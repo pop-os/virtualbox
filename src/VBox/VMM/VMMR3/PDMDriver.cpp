@@ -1,4 +1,4 @@
-/* $Id: PDMDriver.cpp $ */
+/* $Id: PDMDriver.cpp 37418 2011-06-11 08:22:10Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, Driver parts.
  */
@@ -508,7 +508,11 @@ int pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDM
                                  pDrvAbove, pDrvAbove ? pDrvAbove->pReg->szName : "", pDrvAbove ? pDrvAbove->iInstance : UINT32_MAX));
                     }
                     else
+                    {
                         pdmR3DrvDestroyChain(pNew, PDM_TACH_FLAGS_NO_CALLBACKS);
+                        if (rc == VERR_VERSION_MISMATCH)
+                            rc = VERR_PDM_DRIVER_VERSION_MISMATCH;
+                    }
                 }
                 else
                 {

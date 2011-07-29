@@ -1,4 +1,4 @@
-/* $Id: RTMpPokeCpu-r0drv-solaris.c $ */
+/* $Id: RTMpPokeCpu-r0drv-solaris.c 29300 2010-05-10 12:30:43Z vboxsync $ */
 /** @file
  * IPRT - RTMpPokeCpu, Solaris Implementation.
  */

@@ -1,4 +1,4 @@
-/* $Id: DrvHostBase.cpp $ */
+/* $Id: DrvHostBase.cpp 37780 2011-07-05 12:55:13Z vboxsync $ */
 /** @file
  * DrvHostBase - Host base drive access driver.
  */
@@ -184,24 +184,17 @@ static DECLCALLBACK(int) drvHostBaseRead(PPDMIBLOCK pInterface, uint64_t off, vo
         /*
          * Seek and read.
          */
-        rc = RTFileSeek(pThis->FileDevice, off, RTFILE_SEEK_BEGIN, NULL);
+        rc = RTFileReadAt(pThis->hFileDevice, off, pvBuf, cbRead, NULL);
         if (RT_SUCCESS(rc))
         {
-            rc = RTFileRead(pThis->FileDevice, pvBuf, cbRead, NULL);
-            if (RT_SUCCESS(rc))
-            {
-                Log2(("%s-%d: drvHostBaseRead: off=%#llx cbRead=%#x\n"
-                      "%16.*Rhxd\n",
-                      pThis->pDrvIns->pReg->szName, pThis->pDrvIns->iInstance, off, cbRead, cbRead, pvBuf));
-            }
-            else
-                Log(("%s-%d: drvHostBaseRead: RTFileRead(%d, %p, %#x) -> %Rrc (off=%#llx '%s')\n",
-                     pThis->pDrvIns->pReg->szName, pThis->pDrvIns->iInstance, pThis->FileDevice,
-                     pvBuf, cbRead, rc, off, pThis->pszDevice));
+            Log2(("%s-%d: drvHostBaseRead: off=%#llx cbRead=%#x\n"
+                  "%16.*Rhxd\n",
+                  pThis->pDrvIns->pReg->szName, pThis->pDrvIns->iInstance, off, cbRead, cbRead, pvBuf));
         }
         else
-            Log(("%s-%d: drvHostBaseRead: RTFileSeek(%d,%#llx,) -> %Rrc\n", pThis->pDrvIns->pReg->szName,
-                 pThis->pDrvIns->iInstance, pThis->FileDevice, off, rc));
+            Log(("%s-%d: drvHostBaseRead: RTFileReadAt(%RTfile, %#llx, %p, %#x) -> %Rrc ('%s')\n",
+                 pThis->pDrvIns->pReg->szName, pThis->pDrvIns->iInstance, pThis->hFileDevice,
+                 off, pvBuf, cbRead, rc, pThis->pszDevice));
 #endif
     }
     else
@@ -240,18 +233,11 @@ static DECLCALLBACK(int) drvHostBaseWrite(PPDMIBLOCK pInterface, uint64_t off, c
             /*
              * Seek and write.
              */
-            rc = RTFileSeek(pThis->FileDevice, off, RTFILE_SEEK_BEGIN, NULL);
-            if (RT_SUCCESS(rc))
-            {
-                rc = RTFileWrite(pThis->FileDevice, pvBuf, cbWrite, NULL);
-                if (RT_FAILURE(rc))
-                    Log(("%s-%d: drvHostBaseWrite: RTFileWrite(%d, %p, %#x) -> %Rrc (off=%#llx '%s')\n",
-                         pThis->pDrvIns->pReg->szName, pThis->pDrvIns->iInstance, pThis->FileDevice,
-                         pvBuf, cbWrite, rc, off, pThis->pszDevice));
-            }
-            else
-                Log(("%s-%d: drvHostBaseWrite: RTFileSeek(%d,%#llx,) -> %Rrc\n",
-                     pThis->pDrvIns->pReg->szName, pThis->pDrvIns->iInstance, pThis->FileDevice, off, rc));
+            rc = RTFileWriteAt(pThis->hFileDevice, off, pvBuf, cbWrite, NULL);
+            if (RT_FAILURE(rc))
+                Log(("%s-%d: drvHostBaseWrite: RTFileWriteAt(%RTfile, %#llx, %p, %#x) -> %Rrc ('%s')\n",
+                     pThis->pDrvIns->pReg->szName, pThis->pDrvIns->iInstance, pThis->hFileDevice,
+                     off, pvBuf, cbWrite, rc, pThis->pszDevice));
 #endif
         }
         else
@@ -281,7 +267,7 @@ static DECLCALLBACK(int) drvHostBaseFlush(PPDMIBLOCK pInterface)
         rc = VINF_SUCCESS;
         /** @todo scsi device buffer flush... */
 #else
-        rc = RTFileFlush(pThis->FileDevice);
+        rc = RTFileFlush(pThis->hFileDevice);
 #endif
     }
     else
@@ -479,8 +465,39 @@ static DECLCALLBACK(int) drvHostBaseMount(PPDMIMOUNT pInterface, const char *psz
 /** @copydoc PDMIMOUNT::pfnUnmount */
 static DECLCALLBACK(int) drvHostBaseUnmount(PPDMIMOUNT pInterface, bool fForce, bool fEject)
 {
-     LogFlow(("drvHostBaseUnmount: returns VERR_NOT_SUPPORTED\n"));
-     return VERR_NOT_SUPPORTED;
+    /* While we're not mountable (see drvHostBaseMount), we're unmountable. */
+    PDRVHOSTBASE pThis = PDMIMOUNT_2_DRVHOSTBASE(pInterface);
+    RTCritSectEnter(&pThis->CritSect);
+
+    /*
+     * Validate state.
+     */
+    int rc = VINF_SUCCESS;
+    if (!pThis->fLocked || fForce)
+    {
+        /* Unlock drive if necessary. */
+        if (pThis->fLocked)
+        {
+            if (pThis->pfnDoLock)
+                rc = pThis->pfnDoLock(pThis, false);
+            if (RT_SUCCESS(rc))
+                pThis->fLocked = false;
+        }
+
+        /*
+         * Media is no longer present.
+         */
+        DRVHostBaseMediaNotPresent(pThis);
+    }
+    else
+    {
+        Log(("drvHostiBaseUnmount: Locked\n"));
+        rc = VERR_PDM_MEDIA_LOCKED;
+    }
+
+    RTCritSectLeave(&pThis->CritSect);
+    LogFlow(("drvHostBaseUnmount: returns %Rrc\n", rc));
+    return rc;
 }
 
 
@@ -761,7 +778,7 @@ static int drvHostBaseObtainExclusiveAccess(PDRVHOSTBASE pThis, io_object_t DVDS
  */
 static int drvHostBaseOpen(PDRVHOSTBASE pThis, PRTFILE pFileDevice, bool fReadOnly)
 {
-#ifdef RT_OS_DARWIN
+# ifdef RT_OS_DARWIN
     /* Darwin is kind of special... */
     Assert(!pFileDevice); NOREF(pFileDevice);
     Assert(!pThis->cbBlock);
@@ -939,19 +956,9 @@ static int drvHostBaseOpen(PDRVHOSTBASE pThis, PRTFILE pFileDevice, bool fReadOn
     IOObjectRelease(DVDServices);
     return rc;
 
-#elif defined(RT_OS_LINUX)
-    /** @todo we've got RTFILE_O_NON_BLOCK now. Change the code to use RTFileOpen. */
-    int FileDevice = open(pThis->pszDeviceOpen, (pThis->fReadOnlyConfig ? O_RDONLY : O_RDWR) | O_NONBLOCK);
-    if (FileDevice < 0)
-        return RTErrConvertFromErrno(errno);
-    *pFileDevice = FileDevice;
-    return VINF_SUCCESS;
-
 #elif defined(RT_OS_FREEBSD)
-    int rc = VINF_SUCCESS;
-    RTFILE FileDevice;
-
-    rc = RTFileOpen(&FileDevice, pThis->pszDeviceOpen, RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
+    RTFILE hFileDevice;
+    int rc = RTFileOpen(&hFileDevice, pThis->pszDeviceOpen, RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -963,7 +970,7 @@ static int drvHostBaseOpen(PDRVHOSTBASE pThis, PRTFILE pFileDevice, bool fReadOn
     memset(&DeviceCCB, 0, sizeof(DeviceCCB));
 
     DeviceCCB.ccb_h.func_code = XPT_GDEVLIST;
-    int rcBSD = ioctl(FileDevice, CAMGETPASSTHRU, &DeviceCCB);
+    int rcBSD = ioctl(RTFileToNative(hFileDevice), CAMGETPASSTHRU, &DeviceCCB);
     if (!rcBSD)
     {
         char *pszPassthroughDevice = NULL;
@@ -971,16 +978,12 @@ static int drvHostBaseOpen(PDRVHOSTBASE pThis, PRTFILE pFileDevice, bool fReadOn
                           DeviceCCB.cgdl.periph_name, DeviceCCB.cgdl.unit_number);
         if (rc >= 0)
         {
-            RTFILE PassthroughDevice;
-
-            rc = RTFileOpen(&PassthroughDevice, pszPassthroughDevice, RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-
+            RTFILE hPassthroughDevice;
+            rc = RTFileOpen(&hPassthroughDevice, pszPassthroughDevice, RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
             RTStrFree(pszPassthroughDevice);
-
             if (RT_SUCCESS(rc))
             {
                 /* Get needed device parameters. */
-                union ccb DeviceCCB;
 
                 /*
                  * The device path, target id and lun id. Those are
@@ -989,7 +992,7 @@ static int drvHostBaseOpen(PDRVHOSTBASE pThis, PRTFILE pFileDevice, bool fReadOn
                 memset(&DeviceCCB, 0, sizeof(DeviceCCB));
                 DeviceCCB.ccb_h.func_code = XPT_GDEVLIST;
 
-                rcBSD = ioctl(PassthroughDevice, CAMGETPASSTHRU, &DeviceCCB);
+                rcBSD = ioctl(RTFileToNative(hPassthroughDevice), CAMGETPASSTHRU, &DeviceCCB);
                 if (!rcBSD)
                 {
                     if (DeviceCCB.cgdl.status != CAM_GDEVLIST_ERROR)
@@ -997,7 +1000,7 @@ static int drvHostBaseOpen(PDRVHOSTBASE pThis, PRTFILE pFileDevice, bool fReadOn
                         pThis->ScsiBus      = DeviceCCB.ccb_h.path_id;
                         pThis->ScsiTargetID = DeviceCCB.ccb_h.target_id;
                         pThis->ScsiLunID    = DeviceCCB.ccb_h.target_lun;
-                        *pFileDevice = PassthroughDevice;
+                        *pFileDevice = hPassthroughDevice;
                     }
                     else
                     {
@@ -1009,7 +1012,7 @@ static int drvHostBaseOpen(PDRVHOSTBASE pThis, PRTFILE pFileDevice, bool fReadOn
                     rc = RTErrConvertFromErrno(errno);
 
                 if (RT_FAILURE(rc))
-                    RTFileClose(PassthroughDevice);
+                    RTFileClose(hPassthroughDevice);
             }
         }
         else
@@ -1018,11 +1021,15 @@ static int drvHostBaseOpen(PDRVHOSTBASE pThis, PRTFILE pFileDevice, bool fReadOn
     else
         rc = RTErrConvertFromErrno(errno);
 
-    RTFileClose(FileDevice);
+    RTFileClose(hFileDevice);
     return rc;
+
 #else
-    return RTFileOpen(pFileDevice, pThis->pszDeviceOpen,
-                      (fReadOnly ? RTFILE_O_READ : RTFILE_O_READWRITE) | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
+    uint32_t fFlags = (fReadOnly ? RTFILE_O_READ : RTFILE_O_READWRITE) | RTFILE_O_OPEN | RTFILE_O_DENY_NONE;
+# ifdef RT_OS_LINUX
+    fFlags |= RTFILE_O_NON_BLOCK;
+# endif
+    return RTFileOpen(pFileDevice, pThis->pszDeviceOpen, fFlags);
 #endif
 }
 
@@ -1072,22 +1079,22 @@ static int drvHostBaseReopen(PDRVHOSTBASE pThis)
 #ifndef RT_OS_DARWIN /* Only *one* open for darwin. */
     LogFlow(("%s-%d: drvHostBaseReopen: '%s'\n", pThis->pDrvIns->pReg->szName, pThis->pDrvIns->iInstance, pThis->pszDeviceOpen));
 
-    RTFILE FileDevice;
+    RTFILE hFileDevice;
 #ifdef RT_OS_SOLARIS
-    if (pThis->FileRawDevice != NIL_RTFILE)
+    if (pThis->hFileRawDevice != NIL_RTFILE)
     {
-        RTFileClose(pThis->FileRawDevice);
-        pThis->FileRawDevice = NIL_RTFILE;
+        RTFileClose(pThis->hFileRawDevice);
+        pThis->hFileRawDevice = NIL_RTFILE;
     }
-    if (pThis->FileDevice != NIL_RTFILE)
+    if (pThis->hFileDevice != NIL_RTFILE)
     {
-        RTFileClose(pThis->FileDevice);
-        pThis->FileDevice = NIL_RTFILE;
+        RTFileClose(pThis->hFileDevice);
+        pThis->hFileDevice = NIL_RTFILE;
     }
-    RTFILE FileRawDevice;
-    int rc = drvHostBaseOpen(pThis, &FileDevice, &FileRawDevice, pThis->fReadOnlyConfig);
+    RTFILE hFileRawDevice;
+    int rc = drvHostBaseOpen(pThis, &hFileDevice, &hFileRawDevice, pThis->fReadOnlyConfig);
 #else
-    int rc = drvHostBaseOpen(pThis, &FileDevice, pThis->fReadOnlyConfig);
+    int rc = drvHostBaseOpen(pThis, &hFileDevice, pThis->fReadOnlyConfig);
 #endif
     if (RT_FAILURE(rc))
     {
@@ -1095,9 +1102,9 @@ static int drvHostBaseReopen(PDRVHOSTBASE pThis)
         {
             LogFlow(("%s-%d: drvHostBaseReopen: '%s' - retry readonly (%Rrc)\n", pThis->pDrvIns->pReg->szName, pThis->pDrvIns->iInstance, pThis->pszDeviceOpen, rc));
 #ifdef RT_OS_SOLARIS
-            rc = drvHostBaseOpen(pThis, &FileDevice, &FileRawDevice, false);
+            rc = drvHostBaseOpen(pThis, &hFileDevice, &hFileRawDevice, false);
 #else
-            rc = drvHostBaseOpen(pThis, &FileDevice, false);
+            rc = drvHostBaseOpen(pThis, &hFileDevice, false);
 #endif
         }
         if (RT_FAILURE(rc))
@@ -1112,14 +1119,14 @@ static int drvHostBaseReopen(PDRVHOSTBASE pThis)
         pThis->fReadOnly = pThis->fReadOnlyConfig;
 
 #ifdef RT_OS_SOLARIS
-    if (pThis->FileRawDevice != NIL_RTFILE)
-        RTFileClose(pThis->FileRawDevice);
-    pThis->FileRawDevice = FileRawDevice;
+    if (pThis->hFileRawDevice != NIL_RTFILE)
+        RTFileClose(pThis->hFileRawDevice);
+    pThis->hFileRawDevice = hFileRawDevice;
 #endif
 
-    if (pThis->FileDevice != NIL_RTFILE)
-        RTFileClose(pThis->FileDevice);
-    pThis->FileDevice = FileDevice;
+    if (pThis->hFileDevice != NIL_RTFILE)
+        RTFileClose(pThis->hFileDevice);
+    pThis->hFileDevice = hFileDevice;
 #endif /* !RT_OS_DARWIN */
     return VINF_SUCCESS;
 }
@@ -1170,24 +1177,24 @@ static int drvHostBaseGetMediaSize(PDRVHOSTBASE pThis, uint64_t *pcb)
      * for secondary storage devices.
      */
     struct dk_minfo MediaInfo;
-    if (ioctl(pThis->FileRawDevice, DKIOCGMEDIAINFO, &MediaInfo) == 0)
+    if (ioctl(RTFileToNative(pThis->hFileRawDevice), DKIOCGMEDIAINFO, &MediaInfo) == 0)
     {
         *pcb = MediaInfo.dki_capacity * (uint64_t)MediaInfo.dki_lbsize;
         return VINF_SUCCESS;
     }
-    return RTFileSeek(pThis->FileDevice, 0, RTFILE_SEEK_END, pcb);
+    return RTFileSeek(pThis->hFileDevice, 0, RTFILE_SEEK_END, pcb);
 
 #elif defined(RT_OS_WINDOWS)
     /* use NT api, retry a few times if the media is being verified. */
     IO_STATUS_BLOCK             IoStatusBlock = {0};
     FILE_FS_SIZE_INFORMATION    FsSize= {0};
-    NTSTATUS rcNt = NtQueryVolumeInformationFile((HANDLE)pThis->FileDevice,  &IoStatusBlock,
+    NTSTATUS rcNt = NtQueryVolumeInformationFile((HANDLE)RTFileToNative(pThis->hFileDevice),  &IoStatusBlock,
                                                  &FsSize, sizeof(FsSize), FileFsSizeInformation);
     int cRetries = 5;
     while (rcNt == STATUS_VERIFY_REQUIRED && cRetries-- > 0)
     {
         RTThreadSleep(10);
-        rcNt = NtQueryVolumeInformationFile((HANDLE)pThis->FileDevice,  &IoStatusBlock,
+        rcNt = NtQueryVolumeInformationFile((HANDLE)RTFileToNative(pThis->hFileDevice),  &IoStatusBlock,
                                             &FsSize, sizeof(FsSize), FileFsSizeInformation);
     }
     if (rcNt >= 0)
@@ -1207,7 +1214,7 @@ static int drvHostBaseGetMediaSize(PDRVHOSTBASE pThis, uint64_t *pcb)
     LogFlow(("drvHostBaseGetMediaSize: NtQueryVolumeInformationFile -> %#lx\n", rcNt, rc));
     return rc;
 #else
-    return RTFileSeek(pThis->FileDevice, 0, RTFILE_SEEK_END, pcb);
+    return RTFileSeek(pThis->hFileDevice, 0, RTFILE_SEEK_END, pcb);
 #endif
 }
 
@@ -1340,7 +1347,7 @@ DECLCALLBACK(int) DRVHostBaseScsiCmd(PDRVHOSTBASE pThis, const uint8_t *pbCmd, s
     {
         pDeviceCCB->ccb_h.func_code = XPT_GDEV_TYPE;
 
-        rcBSD = ioctl(pThis->FileDevice, CAMIOCOMMAND, pDeviceCCB);
+        rcBSD = ioctl(RTFileToNative(pThis->hFileDevice), CAMIOCOMMAND, pDeviceCCB);
         if (!rcBSD)
         {
             uint32_t cbCopy =   cbBuf < sizeof(struct scsi_inquiry_data)
@@ -1375,7 +1382,7 @@ DECLCALLBACK(int) DRVHostBaseScsiCmd(PDRVHOSTBASE pThis, const uint8_t *pbCmd, s
                       cTimeoutMillies ? cTimeoutMillies : 30000/* timeout */);
 
         /* Send command */
-        rcBSD = ioctl(pThis->FileDevice, CAMIOCOMMAND, pDeviceCCB);
+        rcBSD = ioctl(RTFileToNative(pThis->hFileDevice), CAMIOCOMMAND, pDeviceCCB);
         if (!rcBSD)
         {
             switch (pDeviceCCB->ccb_h.status & CAM_STATUS_MASK)
@@ -1715,7 +1722,7 @@ DECLCALLBACK(void) DRVHostBaseDestruct(PPDMDRVINS pDrvIns)
 #else /** @todo Check if the other guys can mix pfnDoLock with scsi passthru.
        * (We're currently not unlocking the device after use. See todo in DevATA.cpp.) */
     if (    pThis->fLocked
-        &&  pThis->FileDevice != NIL_RTFILE
+        &&  pThis->hFileDevice != NIL_RTFILE
 #endif
         &&  pThis->pfnDoLock)
     {
@@ -1785,20 +1792,20 @@ DECLCALLBACK(void) DRVHostBaseDestruct(PPDMDRVINS pDrvIns)
         pThis->pDASession = NULL;
     }
 #else
-    if (pThis->FileDevice != NIL_RTFILE)
+    if (pThis->hFileDevice != NIL_RTFILE)
     {
-        int rc = RTFileClose(pThis->FileDevice);
+        int rc = RTFileClose(pThis->hFileDevice);
         AssertRC(rc);
-        pThis->FileDevice = NIL_RTFILE;
+        pThis->hFileDevice = NIL_RTFILE;
     }
 #endif
 
 #ifdef RT_OS_SOLARIS
-    if (pThis->FileRawDevice != NIL_RTFILE)
+    if (pThis->hFileRawDevice != NIL_RTFILE)
     {
-        int rc = RTFileClose(pThis->FileRawDevice);
+        int rc = RTFileClose(pThis->hFileRawDevice);
         AssertRC(rc);
-        pThis->FileRawDevice = NIL_RTFILE;
+        pThis->hFileRawDevice = NIL_RTFILE;
     }
 
     if (pThis->pszRawDeviceOpen)
@@ -1863,10 +1870,10 @@ int DRVHostBaseInitData(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, PDMBLOCKTYPE enmType
     pThis->pDADisk                          = NULL;
     pThis->pDASession                       = NULL;
 #else
-    pThis->FileDevice                       = NIL_RTFILE;
+    pThis->hFileDevice                      = NIL_RTFILE;
 #endif
 #ifdef RT_OS_SOLARIS
-    pThis->FileRawDevice                    = NIL_RTFILE;
+    pThis->hFileRawDevice                   = NIL_RTFILE;
 #endif
     pThis->enmType                          = enmType;
     //pThis->cErrors                          = 0;
@@ -2110,10 +2117,10 @@ int DRVHostBaseInitFinish(PDRVHOSTBASE pThis)
         if (   RTPathExists(pszDevice)
             && RT_SUCCESS(RTPathReal(pszDevice, szPathReal, sizeof(szPathReal))))
             pszDevice = szPathReal;
-        pThis->FileDevice = NIL_RTFILE;
+        pThis->hFileDevice = NIL_RTFILE;
 #endif
 #ifdef RT_OS_SOLARIS
-        pThis->FileRawDevice = NIL_RTFILE;
+        pThis->hFileRawDevice = NIL_RTFILE;
 #endif
 
         /*

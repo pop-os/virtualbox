@@ -145,8 +145,7 @@ void exec_op(long s2, long s0, long s1)
 #endif
     exec_opl(s2, s0, s1, 0);
 #ifdef OP_SHIFTD
-    if (s1 <= 15)
-        exec_opw(s2, s0, s1, 0);
+    exec_opw(s2, s0, s1, 0);
 #else
     exec_opw(s2, s0, s1, 0);
 #endif
@@ -184,4 +183,3 @@ void *glue(_test_, OP) __init_call = glue(test_, OP);
 #undef OP_SHIFTD
 #undef OP_NOBYTE
 #undef EXECSHIFT
-

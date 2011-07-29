@@ -1,4 +1,4 @@
-# $Id: Makefile $
+# $Id: Makefile 37233 2011-05-27 13:31:57Z vboxsync $
 ## @file
 # VirtualBox Guest Additions Module Makefile.
 #
@@ -123,6 +123,7 @@ SRCS += \
 	RTSemEventMultiWaitNoResume-2-ex-generic.c \
 	RTTimerCreate-generic.c \
 	timer-generic.c \
+	errvars-generic.c \
 	mppresent-generic.c
 
 .PATH:	${.CURDIR}/r0drv

@@ -1,10 +1,10 @@
-/* $Id: DBGCInternal.h $ */
+/* $Id: DBGCInternal.h 35694 2011-01-24 17:35:59Z vboxsync $ */
 /** @file
  * DBGC - Debugger Console, Internal Header File.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -79,7 +79,7 @@ typedef struct DBGCBP
     /** Pointer to the next breakpoint in the list. */
     struct DBGCBP  *pNext;
     /** The breakpoint identifier. */
-    RTUINT          iBp;
+    uint32_t        iBp;
     /** The size of the command. */
     size_t          cchCmd;
     /** The command to execute when the breakpoint is hit. */
@@ -151,7 +151,7 @@ typedef struct DBGC
 
     /** Pointer to the current VM. */
     PVM                 pVM;
-    /** The current virtual CPU id. */
+    /** The ID of current virtual CPU. */
     VMCPUID             idCpu;
     /** The current address space handle. */
     RTDBGAS             hDbgAs;
@@ -238,6 +238,9 @@ typedef struct DBGC
 
     /** rc from the last dbgcHlpPrintfV(). */
     int                 rcOutput;
+    /** The last character we wrote. */
+    char                chLastOutput;
+
     /** rc from the last command. */
     int                 rcCmd;
     /** @} */
@@ -315,6 +318,12 @@ typedef struct DBGCOP
     PFNDBGCOPUNARY  pfnHandlerUnary;
     /** Binary operator handler. */
     PFNDBGCOPBINARY pfnHandlerBinary;
+    /** The category of the 1st argument.
+     * Set to DBGCVAR_CAT_ANY if anything goes. */
+    DBGCVARCAT      enmCatArg1;
+    /** The category of the 2nd argument.
+     * Set to DBGCVAR_CAT_ANY if anything goes. */
+    DBGCVARCAT      enmCatArg2;
     /** Operator description. */
     const char     *pszDescription;
 } DBGCOP;
@@ -385,24 +394,16 @@ int     dbgcBpDelete(PDBGC pDbgc, RTUINT iBp);
 PDBGCBP dbgcBpGet(PDBGC pDbgc, RTUINT iBp);
 int     dbgcBpExec(PDBGC pDbgc, RTUINT iBp);
 
-void    dbgcVarInit(PDBGCVAR pVar);
-void    dbgcVarSetGCFlat(PDBGCVAR pVar, RTGCPTR GCFlat);
-void    dbgcVarSetGCFlatByteRange(PDBGCVAR pVar, RTGCPTR GCFlat, uint64_t cb);
-void    dbgcVarSetU64(PDBGCVAR pVar, uint64_t u64);
-void    dbgcVarSetVar(PDBGCVAR pVar, PCDBGCVAR pVar2);
-void    dbgcVarSetDbgfAddr(PDBGCVAR pVar, PCDBGFADDRESS pAddress);
-void    dbgcVarSetNoRange(PDBGCVAR pVar);
-void    dbgcVarSetByteRange(PDBGCVAR pVar, uint64_t cb);
-int     dbgcVarToDbgfAddr(PDBGC pDbgc, PCDBGCVAR pVar, PDBGFADDRESS pAddress);
-
-int     dbgcEvalSub(PDBGC pDbgc, char *pszExpr, size_t cchExpr, PDBGCVAR pResult);
-int     dbgcProcessCommand(PDBGC pDbgc, char *pszCmd, size_t cchCmd, bool fNoExecute);
+void    dbgcEvalInit(void);
+int     dbgcEvalSub(PDBGC pDbgc, char *pszExpr, size_t cchExpr, DBGCVARCAT enmCategory, PDBGCVAR pResult);
+int     dbgcEvalCommand(PDBGC pDbgc, char *pszCmd, size_t cchCmd, bool fNoExecute);
 
 int     dbgcSymbolGet(PDBGC pDbgc, const char *pszSymbol, DBGCVARTYPE enmType, PDBGCVAR pResult);
 PCDBGCSYM   dbgcLookupRegisterSymbol(PDBGC pDbgc, const char *pszSymbol);
 PCDBGCOP    dbgcOperatorLookup(PDBGC pDbgc, const char *pszExpr, bool fPreferBinary, char chPrev);
 PCDBGCCMD   dbgcRoutineLookup(PDBGC pDbgc, const char *pachName, size_t cchName, bool fExternal);
 
+DECLCALLBACK(int) dbgcOpRegister(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
 DECLCALLBACK(int) dbgcOpAddrFlat(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
 DECLCALLBACK(int) dbgcOpAddrHost(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
 DECLCALLBACK(int) dbgcOpAddrPhys(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
@@ -432,3 +433,4 @@ extern const unsigned   g_cOps;
 
 
 #endif
+

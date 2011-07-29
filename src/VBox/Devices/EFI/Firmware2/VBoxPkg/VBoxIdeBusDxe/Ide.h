@@ -1,4 +1,4 @@
-/* $Id: Ide.h $ */
+/* $Id: Ide.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * Ide.h
  */

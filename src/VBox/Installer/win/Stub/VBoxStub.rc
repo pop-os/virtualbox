@@ -1,10 +1,10 @@
-/* $Id: VBoxStub.rc $*/
+/* $Id: VBoxStub.rc 37987 2011-07-18 08:11:16Z vboxsync $*/
 /** @file
  * Resource file for the Windows install stub program.
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,4 +51,5 @@ BEGIN
 END
 
 #include "VBoxStub-icon.rc"
+#include "VBoxStub-manifest.rc"
 

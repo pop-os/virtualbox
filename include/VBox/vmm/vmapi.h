@@ -246,7 +246,7 @@ typedef struct VMREQ
     /** Request state. */
     volatile VMREQSTATE     enmState;
     /** VBox status code for the completed request. */
-    volatile int            iStatus;
+    volatile int32_t        iStatus;
     /** Requester event sem.
      * The request can use this event semaphore to wait/poll for completion
      * of the request.
@@ -301,10 +301,13 @@ typedef VMREQ *PVMREQ;
  */
 typedef enum VMINITCOMPLETED
 {
-    /** The Ring3 init is completed. */
+    /** The ring-3 init is completed. */
     VMINITCOMPLETED_RING3 = 1,
-    /** The Ring0 init is completed. */
+    /** The ring-0 init is completed. */
     VMINITCOMPLETED_RING0,
+    /** The hardware accelerated virtualization init is completed.
+     * Used to make decisision depending on whether HWACCMIsEnabled(). */
+    VMINITCOMPLETED_HWACCM,
     /** The GC init is completed. */
     VMINITCOMPLETED_GC
 } VMINITCOMPLETED;
@@ -343,6 +346,16 @@ VMMR3DECL(int)  VMR3Destroy(PVM pVM);
 VMMR3DECL(void) VMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
 VMMR3DECL(PVM)  VMR3EnumVMs(PVM pVMPrev);
 
+VMMR3DECL(PVM)          VMR3GetVM(PUVM pUVM);
+VMMR3DECL(PUVM)         VMR3GetUVM(PVM pVM);
+VMMR3DECL(uint32_t)     VMR3RetainUVM(PUVM pUVM);
+VMMR3DECL(uint32_t)     VMR3ReleaseUVM(PUVM pUVM);
+VMMR3DECL(const char *) VMR3GetName(PUVM pUVM);
+VMMR3DECL(PRTUUID)      VMR3GetUuid(PUVM pUVM, PRTUUID pUuid);
+VMMR3DECL(VMSTATE)      VMR3GetState(PVM pVM);
+VMMR3DECL(VMSTATE)      VMR3GetStateU(PUVM pUVM);
+VMMR3DECL(const char *) VMR3GetStateName(VMSTATE enmState);
+
 /**
  * VM destruction callback.
  * @param   pVM     The VM which is about to be destroyed.
@@ -356,14 +369,13 @@ VMMR3DECL(int)      VMR3AtDtorRegister(PFNVMATDTOR pfnAtDtor, void *pvUser);
 VMMR3DECL(int)      VMR3AtDtorDeregister(PFNVMATDTOR pfnAtDtor);
 VMMR3DECL(int)      VMR3AtStateRegister(PVM pVM, PFNVMATSTATE pfnAtState, void *pvUser);
 VMMR3DECL(int)      VMR3AtStateDeregister(PVM pVM, PFNVMATSTATE pfnAtState, void *pvUser);
-VMMR3DECL(VMSTATE)  VMR3GetState(PVM pVM);
-VMMR3DECL(const char *) VMR3GetStateName(VMSTATE enmState);
 VMMR3DECL(bool)     VMR3TeleportedAndNotFullyResumedYet(PVM pVM);
 VMMR3DECL(int)      VMR3AtErrorRegister(PVM pVM, PFNVMATERROR pfnAtError, void *pvUser);
 VMMR3DECL(int)      VMR3AtErrorRegisterU(PUVM pVM, PFNVMATERROR pfnAtError, void *pvUser);
 VMMR3DECL(int)      VMR3AtErrorDeregister(PVM pVM, PFNVMATERROR pfnAtError, void *pvUser);
 VMMR3DECL(void)     VMR3SetErrorWorker(PVM pVM);
 VMMR3DECL(uint32_t) VMR3GetErrorCount(PVM pVM);
+VMMR3DECL(uint32_t) VMR3GetErrorCountU(PUVM pUVM);
 VMMR3DECL(int)      VMR3AtRuntimeErrorRegister(PVM pVM, PFNVMATRUNTIMEERROR pfnAtRuntimeError, void *pvUser);
 VMMR3DECL(int)      VMR3AtRuntimeErrorDeregister(PVM pVM, PFNVMATRUNTIMEERROR pfnAtRuntimeError, void *pvUser);
 VMMR3DECL(int)      VMR3SetRuntimeErrorWorker(PVM pVM);
@@ -407,7 +419,7 @@ VMMR3DECL(RTNATIVETHREAD)   VMR3GetVMCPUNativeThreadU(PUVM pUVM);
 VMMR3DECL(int)              VMR3GetCpuCoreAndPackageIdFromCpuId(PVM pVM, VMCPUID idCpu, uint32_t *pidCpuCore, uint32_t *pidCpuPackage);
 VMMR3DECL(int)              VMR3HotUnplugCpu(PVM pVM, VMCPUID idCpu);
 VMMR3DECL(int)              VMR3HotPlugCpu(PVM pVM, VMCPUID idCpu);
-VMMR3DECL(int)              VMR3SetCpuExecutionCap(PVM pVM, unsigned ulExecutionCap);
+VMMR3DECL(int)              VMR3SetCpuExecutionCap(PVM pVM, uint32_t uCpuExecutionCap);
 /** @} */
 #endif /* IN_RING3 */
 

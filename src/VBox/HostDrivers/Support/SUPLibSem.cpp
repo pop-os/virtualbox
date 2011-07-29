@@ -1,4 +1,4 @@
-/* $Id: SUPLibSem.cpp $ */
+/* $Id: SUPLibSem.cpp 33167 2010-10-15 18:16:59Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Semaphores, ring-3 implementation.
  */

@@ -931,6 +931,15 @@
 #define VERR_VMM_HYPER_CR3_MISMATCH         (-2702)
 /** Reason for leaving RZ: Illegal call to ring-3. */
 #define VERR_VMM_RING3_CALL_DISABLED        (-2703)
+/** The VMMR0.r0 module version does not match VBoxVMM.dll/so/dylib.
+ * If you just upgraded VirtualBox, please terminate all VMs and make sure
+ * VBoxNetDHCP is not running.  Then try again.  If this error persists, try
+ * re-installing VirtualBox. */
+#define VERR_VMM_R0_VERSION_MISMATCH        (-2704)
+/** The VMMRC.rc module version does not match VBoxVMM.dll/so/dylib.
+ * Re-install if you are a user.  Developers should make sure the build is
+ * complete or try with a clean build. */
+#define VERR_VMM_RC_VERSION_MISMATCH        (-2705)
 /** @} */
 
 
@@ -1129,6 +1138,62 @@
 #define VERR_PDM_TOO_MANY_DRIVER_INSTANCES          (-2868)
 /** Too many instances of a usb device. */
 #define VERR_PDM_TOO_MANY_USB_DEVICE_INSTANCES      (-2869)
+/** Too many instances of a usb device. */
+#define VERR_PDM_TOO_MANY_USB_DEVICE_INSTANCES      (-2869)
+/** The device instance structure version has changed.
+ *
+ * If you have upgraded VirtualBox recently, please make sure you have
+ * terminated all VMs and upgraded any extension packs.  If this error
+ * persists, try re-installing VirtualBox. */
+#define VERR_PDM_DEVINS_VERSION_MISMATCH            (-2870)
+/** The device helper structure version has changed.
+ *
+ * If you have upgraded VirtualBox recently, please make sure you have
+ * terminated all VMs and upgraded any extension packs.  If this error
+ * persists, try re-installing VirtualBox. */
+#define VERR_PDM_DEVHLPR3_VERSION_MISMATCH          (-2871)
+/** The USB device instance structure version has changed.
+ *
+ * If you have upgraded VirtualBox recently, please make sure you have
+ * terminated all VMs and upgraded any extension packs.  If this error
+ * persists, try re-installing VirtualBox. */
+#define VERR_PDM_USBINS_VERSION_MISMATCH            (-2872)
+/** The USB device helper structure version has changed.
+ *
+ * If you have upgraded VirtualBox recently, please make sure you have
+ * terminated all VMs and upgraded any extension packs.  If this error
+ * persists, try re-installing VirtualBox. */
+#define VERR_PDM_USBHLPR3_VERSION_MISMATCH          (-2873)
+/** The driver instance structure version has changed.
+ *
+ * If you have upgraded VirtualBox recently, please make sure you have
+ * terminated all VMs and upgraded any extension packs.  If this error
+ * persists, try re-installing VirtualBox. */
+#define VERR_PDM_DRVINS_VERSION_MISMATCH            (-2874)
+/** The driver helper structure version has changed.
+ *
+ * If you have upgraded VirtualBox recently, please make sure you have
+ * terminated all VMs and upgraded any extension packs.  If this error
+ * persists, try re-installing VirtualBox. */
+#define VERR_PDM_DRVHLPR3_VERSION_MISMATCH          (-2875)
+/** Generic device structure version mismatch.
+ *
+ * If you have upgraded VirtualBox recently, please make sure you have
+ * terminated all VMs and upgraded any extension packs.  If this error
+ * persists, try re-installing VirtualBox. */
+#define VERR_PDM_DEVICE_VERSION_MISMATCH            (-2876)
+/** Generic USB device structure version mismatch.
+ *
+ * If you have upgraded VirtualBox recently, please make sure you have
+ * terminated all VMs and upgraded any extension packs.  If this error
+ * persists, try re-installing VirtualBox. */
+#define VERR_PDM_USBDEV_VERSION_MISMATCH            (-2877)
+/** Generic driver structure version mismatch.
+ *
+ * If you have upgraded VirtualBox recently, please make sure you have
+ * terminated all VMs and upgraded any extension packs.  If this error
+ * persists, try re-installing VirtualBox. */
+#define VERR_PDM_DRIVER_VERSION_MISMATCH            (-2878)
 /** @} */
 
 
@@ -1413,7 +1478,7 @@
 /** Unable to allocate more pages from the host system. */
 #define VERR_GMM_OUT_OF_MEMORY                      (-3801)
 /** Hit the global allocation limit.
- * If you know there is still sufficient memory available, try raise the limit. */
+ * If you know there is still sufficient memory available, try raising the limit. */
 #define VERR_GMM_HIT_GLOBAL_LIMIT                   (-3802)
 /** Hit the a VM account limit. */
 #define VERR_GMM_HIT_VM_ACCOUNT_LIMIT               (-3803)
@@ -1437,9 +1502,11 @@
 #define VERR_GMM_CHUNK_ALREADY_MAPPED               (-3812)
 /** The chunk to be unmapped isn't actually mapped into the process. */
 #define VERR_GMM_CHUNK_NOT_MAPPED                   (-3813)
+/** The chunk has been mapped too many times already (impossible). */
+#define VERR_GMM_TOO_MANY_CHUNK_MAPPINGS            (-3814)
 /** The reservation or reservation update was declined - too many VMs, too
  * little memory, and/or too low GMM configuration. */
-#define VERR_GMM_MEMORY_RESERVATION_DECLINED        (-3814)
+#define VERR_GMM_MEMORY_RESERVATION_DECLINED        (-3815)
 /** @} */
 
 
@@ -1662,6 +1729,26 @@
 /** The host is not supported. Uninstall the extension pack.
  * Returned by the VBOXEXTPACKREG::pfnInstalled. */
 #define VERR_EXTPACK_UNSUPPORTED_HOST_UNINSTALL     (-6000)
+/** The VirtualBox version is not supported by one of the extension packs.
+ *
+ * You have probably upgraded VirtualBox recently.  Please upgrade the
+ * extension packs to versions compatible with this VirtualBox release.
+ */
+#define VERR_EXTPACK_VBOX_VERSION_MISMATCH          (-6001)
+/** @} */
+
+/** @name PCI Passtrhough Status Codes
+ * @{
+ */
+/** RamPreAlloc not set.
+ * RAM pre-allocation is currently a requirement for PCI passthrough. */
+#define VERR_PCI_PASSTHROUGH_NO_RAM_PREALLOC       (-7000)
+/** VT-x/AMD-V not active.
+ * PCI passthrough currently works only if VT-x/AMD-V is active. */
+#define VERR_PCI_PASSTHROUGH_NO_HWACCM             (-7001)
+/** Nested paging not active.
+ * PCI passthrough currently works only if nested paging is active. */
+#define VERR_PCI_PASSTHROUGH_NO_NESTED_PAGING      (-7002)
 /** @} */
 
 /* SED-END */

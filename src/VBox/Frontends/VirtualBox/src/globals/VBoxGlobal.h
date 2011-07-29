@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -314,6 +314,9 @@ public:
         AssertMsg (!mDiskTypes.value (t).isNull(), ("No text for %d", t));
         return mDiskTypes.value (t);
     }
+    QString differencingMediumTypeName() const { return mDiskTypes_Differencing; }
+
+    QString toString(KMediumVariant mediumVariant) const;
 
     /**
      * Similar to toString (KMediumType), but returns 'Differencing' for
@@ -481,6 +484,21 @@ public:
         return KNetworkAttachmentType (it.key());
     }
 
+    QString toString (KNetworkAdapterPromiscModePolicy t) const
+    {
+        AssertMsg (!mNetworkAdapterPromiscModePolicyTypes.value (t).isNull(), ("No text for %d", t));
+        return mNetworkAdapterPromiscModePolicyTypes.value (t);
+    }
+
+    KNetworkAdapterPromiscModePolicy toNetworkAdapterPromiscModePolicyType (const QString &s) const
+    {
+        QULongStringHash::const_iterator it =
+            qFind (mNetworkAdapterPromiscModePolicyTypes.begin(), mNetworkAdapterPromiscModePolicyTypes.end(), s);
+        AssertMsg (it != mNetworkAdapterPromiscModePolicyTypes.end(), ("No value for {%s}",
+                                                                       s.toLatin1().constData()));
+        return KNetworkAdapterPromiscModePolicy (it.key());
+    }
+
     QString toString (KNATProtocol t) const
     {
         AssertMsg (!mNATProtocolTypes.value (t).isNull(), ("No text for %d", t));
@@ -620,7 +638,6 @@ public:
 
     /* public static stuff */
 
-    static bool shouldWarnAboutToLowVRAM(const CMachine *pMachine = 0);
     static bool isDOSType (const QString &aOSTypeId);
 
     static QString languageId();
@@ -647,7 +664,7 @@ public:
     static QString formatSize (quint64 aSize, uint aDecimal = 2,
                                VBoxDefs::FormatSize aMode = VBoxDefs::FormatSize_Round);
 
-    static quint64 requiredVideoMemory (CMachine *aMachine = 0, int cMonitors = 1);
+    static quint64 requiredVideoMemory(const QString &strGuestOSTypeId, int cMonitors = 1);
 
     static QString locationForHTML (const QString &aFileName);
 
@@ -699,8 +716,9 @@ public:
 #endif
 
 #ifdef VBOX_WITH_CRHGSMI
-    static quint64 required3DWddmOffscreenVideoMemory(CMachine *aMachine = 0, int cMonitors = 1);
-#endif
+    static bool isWddmCompatibleOsType(const QString &strGuestOSTypeId);
+    static quint64 required3DWddmOffscreenVideoMemory(const QString &strGuestOSTypeId, int cMonitors = 1);
+#endif /* VBOX_WITH_CRHGSMI */
 
 #ifdef Q_WS_MAC
     bool isSheetWindowsAllowed(QWidget *pParent) const;
@@ -853,6 +871,7 @@ private:
     QULongStringHash mAudioControllerTypes;
     QULongStringHash mNetworkAdapterTypes;
     QULongStringHash mNetworkAttachmentTypes;
+    QULongStringHash mNetworkAdapterPromiscModePolicyTypes;
     QULongStringHash mNATProtocolTypes;
     QULongStringHash mClipboardTypes;
     QULongStringHash mStorageControllerTypes;

@@ -1,4 +1,4 @@
-/* $Id: DevIchIntelHDA.cpp $ */
+/* $Id: DevIchIntelHDA.cpp 37654 2011-06-28 06:02:23Z vboxsync $ */
 /** @file
  * DevIchIntelHD - VBox ICH Intel HD Audio Controller.
  */
@@ -52,11 +52,11 @@ extern "C" {
 # error "Please specify your HDA device vendor/device IDs"
 #endif
 
-#define HDA_SSM_VERSION 1
 PDMBOTHCBDECL(int) hdaMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-PDMBOTHCBDECL(int) hdaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
+PDMBOTHCBDECL(int) hdaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb);
 static DECLCALLBACK(void)  hdaReset (PPDMDEVINS pDevIns);
 
+#define HDA_NREGS 112
 /* Registers */
 #define HDA_REG_IND_NAME(x) ICH6_HDA_REG_##x
 #define HDA_REG_FIELD_NAME(reg, x) ICH6_HDA_##reg##_##x
@@ -262,6 +262,10 @@ static DECLCALLBACK(void)  hdaReset (PPDMDEVINS pDevIns);
 #define SDCTL_NUM(pState, num) ((SDCTL((pState), num) & HDA_REG_FIELD_MASK(SDCTL,NUM)) >> HDA_REG_FIELD_SHIFT(SDCTL, NUM))
 #define ICH6_HDA_SDCTL_NUM_MASK   (0xF)
 #define ICH6_HDA_SDCTL_NUM_SHIFT  (20)
+#define ICH6_HDA_SDCTL_DIR_SHIFT  (19)
+#define ICH6_HDA_SDCTL_TP_SHIFT   (18)
+#define ICH6_HDA_SDCTL_STRIPE_MASK  (0x3)
+#define ICH6_HDA_SDCTL_STRIPE_SHIFT (16)
 #define ICH6_HDA_SDCTL_DEIE_SHIFT (4)
 #define ICH6_HDA_SDCTL_FEIE_SHIFT (3)
 #define ICH6_HDA_SDCTL_ICE_SHIFT  (2)
@@ -372,6 +376,8 @@ static DECLCALLBACK(void)  hdaReset (PPDMDEVINS pDevIns);
 #define ICH6_HDA_SDFMT_MULT_MASK (0x7)
 #define ICH6_HDA_SDFMT_DIV_SHIFT (8)
 #define ICH6_HDA_SDFMT_DIV_MASK (0x7)
+#define ICH6_HDA_SDFMT_BITS_SHIFT (4)
+#define ICH6_HDA_SDFMT_BITS_MASK (0x7)
 #define SDFMT_BASE_RATE(pState, num) ((SDFMT(pState, num) & HDA_REG_FIELD_FLAG_MASK(SDFMT, BASE_RATE)) >> HDA_REG_FIELD_SHIFT(SDFMT, BASE_RATE))
 #define SDFMT_MULT(pState, num) ((SDFMT((pState), num) & HDA_REG_FIELD_MASK(SDFMT,MULT)) >> HDA_REG_FIELD_SHIFT(SDFMT, MULT))
 #define SDFMT_DIV(pState, num) ((SDFMT((pState), num) & HDA_REG_FIELD_MASK(SDFMT,DIV)) >> HDA_REG_FIELD_SHIFT(SDFMT, DIV))
@@ -412,6 +418,19 @@ typedef struct HDABDLEDESC
     uint8_t     au8HdaBuffer[HDA_SDONFIFO_256B + 1];
 } HDABDLEDESC, *PHDABDLEDESC;
 
+static SSMFIELD const g_aHdaBDLEDescFields[] =
+{
+    SSMFIELD_ENTRY(     HDABDLEDESC, u64BdleCviAddr),
+    SSMFIELD_ENTRY(     HDABDLEDESC, u32BdleMaxCvi),
+    SSMFIELD_ENTRY(     HDABDLEDESC, u32BdleCvi),
+    SSMFIELD_ENTRY(     HDABDLEDESC, u32BdleCviLen),
+    SSMFIELD_ENTRY(     HDABDLEDESC, u32BdleCviPos),
+    SSMFIELD_ENTRY(     HDABDLEDESC, fBdleCviIoc),
+    SSMFIELD_ENTRY(     HDABDLEDESC, cbUnderFifoW),
+    SSMFIELD_ENTRY(     HDABDLEDESC, au8HdaBuffer),
+    SSMFIELD_ENTRY_TERM()
+};
+
 typedef struct HDASTREAMTRANSFERDESC
 {
     uint64_t u64BaseDMA;
@@ -434,7 +453,7 @@ typedef struct INTELHDLinkState
     /** The base interface for LUN\#0. */
     PDMIBASE                IBase;
     RTGCPHYS    addrMMReg;
-    uint32_t     au32Regs[113];
+    uint32_t     au32Regs[HDA_NREGS];
     HDABDLEDESC  stInBdle;
     HDABDLEDESC  stOutBdle;
     HDABDLEDESC  stMicBdle;
@@ -515,11 +534,12 @@ DECLCALLBACK(int)hdaRegReadU8(INTELHDLinkState* pState, uint32_t offset, uint32_
 DECLCALLBACK(int)hdaRegWriteU8(INTELHDLinkState* pState, uint32_t offset, uint32_t index, uint32_t pu32Value);
 
 static inline void hdaInitTransferDescriptor(PINTELHDLinkState pState, PHDABDLEDESC pBdle, uint8_t u8Strm, PHDASTREAMTRANSFERDESC pStreamDesc);
-static int hdaLookup(INTELHDLinkState* pState, uint32_t u32Offset);
+static int hdaMMIORegLookup(INTELHDLinkState* pState, uint32_t u32Offset);
 static void hdaFetchBdle(INTELHDLinkState *pState, PHDABDLEDESC pBdle, PHDASTREAMTRANSFERDESC pStreamDesc);
 #ifdef LOG_ENABLED
 static void dump_bd(INTELHDLinkState *pState, PHDABDLEDESC pBdle, uint64_t u64BaseDMA);
 #endif
+
 
 /* see 302349 p 6.2*/
 const static struct stIchIntelHDRegMap
@@ -540,7 +560,7 @@ const static struct stIchIntelHDRegMap
     const char *abbrev;
     /** Full name. */
     const char *name;
-} s_ichIntelHDRegMap[] =
+} s_ichIntelHDRegMap[HDA_NREGS] =
 {
     /* offset  size     read mask   write mask         read callback         write callback         abbrev      full name                     */
     /*-------  -------  ----------  ----------  -----------------------  ------------------------ ----------    ------------------------------*/
@@ -556,7 +576,7 @@ const static struct stIchIntelHDRegMap
     { 0x00020, 0x00004, 0xC00000FF, 0xC00000FF, hdaRegReadU32          , hdaRegWriteU32          , "INTCTL"    , "Interrupt Control" },
     { 0x00024, 0x00004, 0xC00000FF, 0x00000000, hdaRegReadINTSTS       , hdaRegWriteUnimplemented, "INTSTS"    , "Interrupt Status" },
     { 0x00030, 0x00004, 0xFFFFFFFF, 0x00000000, hdaRegReadWALCLK       , hdaRegWriteUnimplemented, "WALCLK"    , "Wall Clock Counter" },
-    //** @todo r=michaln: Doesn't the SSYNC register need to actually stop the stream(s)?
+    /// @todo r=michaln: Doesn't the SSYNC register need to actually stop the stream(s)?
     { 0x00034, 0x00004, 0x000000FF, 0x000000FF, hdaRegReadU32          , hdaRegWriteU32          , "SSYNC"     , "Stream Synchronization" },
     { 0x00040, 0x00004, 0xFFFFFF80, 0xFFFFFF80, hdaRegReadU32          , hdaRegWriteBase         , "CORBLBASE" , "CORB Lower Base Address" },
     { 0x00044, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, hdaRegReadU32          , hdaRegWriteBase         , "CORBUBASE" , "CORB Upper Base Address" },
@@ -712,18 +732,11 @@ static int hdaProcessInterrupt(INTELHDLinkState* pState)
     return VINF_SUCCESS;
 }
 
-static int hdaLookup(INTELHDLinkState* pState, uint32_t u32Offset)
+static int hdaMMIORegLookup(INTELHDLinkState* pState, uint32_t u32Offset)
 {
-    int index = 0;
-    //** @todo r=michaln: A linear search of an array with over 100 elements is very inefficient.
-    for (;index < (int)(sizeof(s_ichIntelHDRegMap)/sizeof(s_ichIntelHDRegMap[0])); ++index)
-    {
-        if (   u32Offset >= s_ichIntelHDRegMap[index].offset
-            && u32Offset < s_ichIntelHDRegMap[index].offset + s_ichIntelHDRegMap[index].size)
-        {
-            return index;
-        }
-    }
+    int idxMiddle;
+    int idxHigh = RT_ELEMENTS(s_ichIntelHDRegMap);
+    int idxLow = 0;
     /* Aliases HDA spec 3.3.45 */
     switch(u32Offset)
     {
@@ -743,6 +756,30 @@ static int hdaLookup(INTELHDLinkState* pState, uint32_t u32Offset)
             return HDA_REG_IND_NAME(SD6LPIB);
         case 0x2164:
             return HDA_REG_IND_NAME(SD7LPIB);
+    }
+    while (1)
+    {
+#ifdef DEBUG_vvl
+            Assert((   idxHigh >= 0
+                    && idxLow >= 0));
+#endif
+            if (   idxHigh < idxLow
+                || idxHigh < 0)
+                break;
+            idxMiddle = idxLow + (idxHigh - idxLow)/2;
+            if (u32Offset < s_ichIntelHDRegMap[idxMiddle].offset)
+            {
+                idxHigh = idxMiddle - 1;
+                continue;
+            }
+            if (u32Offset >= s_ichIntelHDRegMap[idxMiddle].offset + s_ichIntelHDRegMap[idxMiddle].size)
+            {
+                idxLow = idxMiddle + 1;
+                continue;
+            }
+            if (   u32Offset >= s_ichIntelHDRegMap[idxMiddle].offset
+                && u32Offset < s_ichIntelHDRegMap[idxMiddle].offset + s_ichIntelHDRegMap[idxMiddle].size)
+                return idxMiddle;
     }
     return -1;
 }
@@ -1248,7 +1285,31 @@ static void inline hdaSdFmtToAudSettings(uint32_t u32SdFmt, audsettings_t *pAudS
         case 7: u32HzDiv = 8; break;
     }
     pAudSetting->freq = u32Hz * u32HzMult / u32HzDiv;
-    pAudSetting->nchannels = 2;
+
+    switch (EXTRACT_VALUE(u32SdFmt, ICH6_HDA_SDFMT_BITS_MASK, ICH6_HDA_SDFMT_BITS_SHIFT))
+    {
+        case 0:
+            Log(("hda: %s requested 8 bit\n", __FUNCTION__));
+            pAudSetting->fmt = AUD_FMT_S8;
+        break;
+        case 1:
+            Log(("hda: %s requested 16 bit\n", __FUNCTION__));
+            pAudSetting->fmt = AUD_FMT_S16;
+        break;
+        case 2:
+            Log(("hda: %s requested 20 bit\n", __FUNCTION__));
+        break;
+        case 3:
+            Log(("hda: %s requested 24 bit\n", __FUNCTION__));
+        break;
+        case 4:
+            Log(("hda: %s requested 32 bit\n", __FUNCTION__));
+            pAudSetting->fmt = AUD_FMT_S32;
+        break;
+        default:
+            AssertMsgFailed(("Unsupported"));
+    }
+    pAudSetting->nchannels = (u32SdFmt & 0xf) + 1;
     pAudSetting->fmt = AUD_FMT_S16;
     pAudSetting->endianness = 0;
 #undef EXTRACT_VALUE
@@ -1256,26 +1317,30 @@ static void inline hdaSdFmtToAudSettings(uint32_t u32SdFmt, audsettings_t *pAudS
 
 DECLCALLBACK(int)hdaRegWriteSDFMT(INTELHDLinkState* pState, uint32_t offset, uint32_t index, uint32_t u32Value)
 {
-#if 0
-        /* @todo here some more investigations are required. */
-        audsettings_t as;
-        /* no reason to reopen voice with same settings */
-        if (u32Value == HDA_REG_IND(pState, index))
-            return VINF_SUCCESS;
-        hdaSdFmtToAudSettings(u32Value, &as);
-        switch (index)
-        {
-            case ICH6_HDA_REG_SD0FMT:
-                codecOpenVoice(&pState->Codec, PI_INDEX, &as);
-                break;
-            case ICH6_HDA_REG_SD4FMT:
-                codecOpenVoice(&pState->Codec, PO_INDEX, &as);
-                break;
-            default:
-                AssertMsgFailed(("unimplemented"));
-        }
+#ifdef VBOX_WITH_HDA_CODEC_EMU
+    /* @todo here some more investigations are required. */
+    int rc = 0;
+    audsettings_t as;
+    /* no reason to reopen voice with same settings */
+    if (u32Value == HDA_REG_IND(pState, index))
+        return VINF_SUCCESS;
+    hdaSdFmtToAudSettings(u32Value, &as);
+    switch (index)
+    {
+        case ICH6_HDA_REG_SD0FMT:
+            rc = codecOpenVoice(&pState->Codec, PI_INDEX, &as);
+            break;
+        case ICH6_HDA_REG_SD4FMT:
+            rc = codecOpenVoice(&pState->Codec, PO_INDEX, &as);
+            break;
+        default:
+            Log(("HDA: attempt to change format on %d\n", index));
+            rc = 0;
+    }
+    return hdaRegWriteU16(pState, offset, index, u32Value);
+#else
+    return hdaRegWriteU16(pState, offset, index, u32Value);
 #endif
-        return hdaRegWriteU16(pState, offset, index, u32Value);
 }
 
 DECLCALLBACK(int)hdaRegWriteSDBDPL(INTELHDLinkState* pState, uint32_t offset, uint32_t index, uint32_t u32Value)
@@ -1809,35 +1874,54 @@ PDMBOTHCBDECL(int) hdaMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhys
 {
     int rc = VINF_SUCCESS;
     PCIINTELHDLinkState *pThis = PDMINS_2_DATA(pDevIns, PCIINTELHDLinkState *);
-    uint32_t  u32Offset = GCPhysAddr - pThis->hda.addrMMReg;
-    int index = hdaLookup(&pThis->hda, u32Offset);
-    if (pThis->hda.fInReset && index != ICH6_HDA_REG_GCTL)
+    uint32_t offReg  = GCPhysAddr - pThis->hda.addrMMReg;
+    int idxReg = hdaMMIORegLookup(&pThis->hda, offReg);
+    if (pThis->hda.fInReset && idxReg != ICH6_HDA_REG_GCTL)
         Log(("hda: access to registers except GCTL is blocked while reset\n"));
 
-    if (   index == -1
-           || cb > 4)
-        LogRel(("hda: Invalid read access @0x%x(of bytes:%d)\n", u32Offset, cb));
+    if (idxReg == -1)
+        LogRel(("hda: Invalid read access @0x%x(of bytes:%d)\n", offReg, cb));
 
-    if (index != -1)
+    if (idxReg != -1)
     {
+        /** @todo r=bird: Accesses crossing register boundraries aren't handled
+         *        right from what I can tell?  If they are, please explain
+         *        what the rules are. */
         uint32_t mask = 0;
-        uint32_t shift = (u32Offset - s_ichIntelHDRegMap[index].offset) % sizeof(uint32_t) * 8;
-        uint32_t v = 0;
+        uint32_t shift = (s_ichIntelHDRegMap[idxReg].offset - offReg) % sizeof(uint32_t) * 8;
+        uint32_t u32Value = 0;
         switch(cb)
         {
             case 1: mask = 0x000000ff; break;
             case 2: mask = 0x0000ffff; break;
-            case 3: mask = 0x00ffffff; break;
-            case 4: mask = 0xffffffff; break;
+            case 4:
+            /* 18.2 of ICH6 datasheet defines wideness of the accesses byte, word and double word */
+            case 8:
+                mask = 0xffffffff;
+                cb = 4;
+                break;
         }
+#if 0
+        /* cross register access. Mac guest hit this assert doing assumption 4 byte access to 3 byte registers e.g. {I,O}SDnCTL
+         */
+        //Assert((cb <= s_ichIntelHDRegMap[idxReg].size - (offReg - s_ichIntelHDRegMap[idxReg].offset)));
+        if (cb > s_ichIntelHDRegMap[idxReg].size - (offReg - s_ichIntelHDRegMap[idxReg].offset))
+        {
+            int off = cb - (s_ichIntelHDRegMap[idxReg].size - (offReg - s_ichIntelHDRegMap[idxReg].offset));
+            rc = hdaMMIORead(pDevIns, pvUser, GCPhysAddr + cb - off, (char *)pv + cb - off, off);
+            if (RT_FAILURE(rc))
+                AssertRCReturn (rc, rc);
+        }
+        //Assert(((offReg - s_ichIntelHDRegMap[idxReg].offset) == 0));
+#endif
         mask <<= shift;
-        rc = s_ichIntelHDRegMap[index].pfnRead(&pThis->hda, u32Offset, index, &v);
-        *(uint32_t *)pv = (v & mask) >> shift;
-        Log(("hda: read %s[%x/%x]\n", s_ichIntelHDRegMap[index].abbrev, v, *(uint32_t *)pv));
+        rc = s_ichIntelHDRegMap[idxReg].pfnRead(&pThis->hda, offReg, idxReg, &u32Value);
+        *(uint32_t *)pv |= (u32Value & mask);
+        Log(("hda: read %s[%x/%x]\n", s_ichIntelHDRegMap[idxReg].abbrev, u32Value, *(uint32_t *)pv));
         return rc;
     }
     *(uint32_t *)pv = 0xFF;
-    Log(("hda: hole at %X is accessed for read\n", u32Offset));
+    Log(("hda: hole at %x is accessed for read\n", offReg));
     return rc;
 }
 
@@ -1854,39 +1938,81 @@ PDMBOTHCBDECL(int) hdaMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhys
  * @param   cb          Number of bytes to write.
  * @thread  EMT
  */
-PDMBOTHCBDECL(int) hdaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+PDMBOTHCBDECL(int) hdaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
-    int rc = VINF_SUCCESS;
-    PCIINTELHDLinkState *pThis = PDMINS_2_DATA(pDevIns, PCIINTELHDLinkState *);
-    uint32_t  u32Offset = GCPhysAddr - pThis->hda.addrMMReg;
-    int index = hdaLookup(&pThis->hda, u32Offset);
+    PCIINTELHDLinkState    *pThis     = PDMINS_2_DATA(pDevIns, PCIINTELHDLinkState *);
+    uint32_t                offReg    = GCPhysAddr - pThis->hda.addrMMReg;
+    int                     idxReg    = hdaMMIORegLookup(&pThis->hda, offReg);
+    int                     rc        = VINF_SUCCESS;
 
-    if (pThis->hda.fInReset && index != ICH6_HDA_REG_GCTL)
+    if (pThis->hda.fInReset && idxReg != ICH6_HDA_REG_GCTL)
         Log(("hda: access to registers except GCTL is blocked while reset\n"));
 
-    if (   index == -1
-           || cb > 4)
-        LogRel(("hda: Invalid write access @0x%x(of bytes:%d)\n", u32Offset, cb));
+    if (   idxReg == -1
+        || cb > 4)
+        LogRel(("hda: Invalid write access @0x%x(of bytes:%d)\n", offReg, cb));
 
-    if (index != -1)
+    if (idxReg != -1)
     {
-        uint32_t v = pThis->hda.au32Regs[index];
-        uint32_t mask = 0;
-        uint32_t shift = (u32Offset - s_ichIntelHDRegMap[index].offset) % sizeof(uint32_t) * 8;
-        switch(cb)
+        /** @todo r=bird: This looks like code for handling unalinged register
+         * accesses.  If it isn't then, add a comment explaing what you're
+         * trying to do here.  OTOH, if it is then it has the following
+         * issues:
+         *      -# You're calculating the wrong new value for the register.
+         *      -# You're not handling cross register accesses.  Imagine a
+         *       4-byte write starting at CORBCTL, or a 8-byte write.
+         *
+         * PS! consider dropping the 'offset' argument to pfnWrite/pfnRead as
+         * nobody seems to be using it and it just add complexity when reading
+         * the code.
+         *
+         */
+        uint32_t u32CurValue = pThis->hda.au32Regs[idxReg];
+        uint32_t u32NewValue;
+        uint32_t mask;
+        switch (cb)
         {
-            case 1: mask = 0xffffff00; break;
-            case 2: mask = 0xffff0000; break;
-            case 3: mask = 0xff000000; break;
-            case 4: mask = 0x00000000; break;
+            case 1:
+                u32NewValue = *(uint8_t const *)pv;
+                mask = 0xff;
+                break;
+            case 2:
+                u32NewValue = *(uint16_t const *)pv;
+                mask = 0xffff;
+                break;
+            case 4:
+            case 8:
+                /* 18.2 of ICH6 datasheet defines wideness of the accesses byte, word and double word */
+                u32NewValue = *(uint32_t const *)pv;
+                mask = 0xffffffff;
+                cb = 4;
+                break;
+            default:
+                AssertFailedReturn(VERR_INTERNAL_ERROR_4); /* shall not happen. */
         }
+        /* cross register access, see corresponding comment in hdaMMIORead */
+#if 0
+        if (cb > s_ichIntelHDRegMap[idxReg].size - (offReg - s_ichIntelHDRegMap[idxReg].offset))
+        {
+            int off = cb - (s_ichIntelHDRegMap[idxReg].size - (offReg - s_ichIntelHDRegMap[idxReg].offset));
+            rc = hdaMMIOWrite(pDevIns, pvUser, GCPhysAddr + cb - off, (char *)pv + cb - off, off);
+            if (RT_FAILURE(rc))
+                AssertRCReturn (rc, rc);
+        }
+#endif
+        uint32_t shift = (s_ichIntelHDRegMap[idxReg].offset - offReg) % sizeof(uint32_t) * 8;
         mask <<= shift;
-        *(uint32_t *)pv = ((v & mask) | (*(uint32_t *)pv & ~mask)) >> shift;
-        rc = s_ichIntelHDRegMap[index].pfnWrite(&pThis->hda, u32Offset, index, *(uint32_t *)pv);
-        Log(("hda: write %s:(%x) %x => %x\n", s_ichIntelHDRegMap[index].abbrev, *(uint32_t *)pv, v, pThis->hda.au32Regs[index]));
+        u32NewValue <<= shift;
+        u32NewValue &= mask;
+        u32NewValue |= (u32CurValue & ~mask);
+
+        rc = s_ichIntelHDRegMap[idxReg].pfnWrite(&pThis->hda, offReg, idxReg, u32NewValue);
+        Log(("hda: write %s:(%x) %x => %x\n", s_ichIntelHDRegMap[idxReg].abbrev, u32NewValue,
+             u32CurValue, pThis->hda.au32Regs[idxReg]));
         return rc;
     }
-    Log(("hda: hole at %X is accessed for write\n", u32Offset));
+
+    Log(("hda: hole at %x is accessed for write\n", offReg));
     return rc;
 }
 
@@ -1939,9 +2065,9 @@ static DECLCALLBACK(int) hdaSaveExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle)
     /* Save MMIO registers */
     SSMR3PutMem (pSSMHandle, pThis->hda.au32Regs, sizeof (pThis->hda.au32Regs));
     /* Save HDA dma counters */
-    SSMR3PutMem (pSSMHandle, &pThis->hda.stOutBdle, sizeof (HDABDLEDESC));
-    SSMR3PutMem (pSSMHandle, &pThis->hda.stMicBdle, sizeof (HDABDLEDESC));
-    SSMR3PutMem (pSSMHandle, &pThis->hda.stInBdle, sizeof (HDABDLEDESC));
+    SSMR3PutStruct (pSSMHandle, &pThis->hda.stOutBdle, g_aHdaBDLEDescFields);
+    SSMR3PutStruct (pSSMHandle, &pThis->hda.stMicBdle, g_aHdaBDLEDescFields);
+    SSMR3PutStruct (pSSMHandle, &pThis->hda.stInBdle, g_aHdaBDLEDescFields);
     return VINF_SUCCESS;
 }
 
@@ -1959,16 +2085,26 @@ static DECLCALLBACK(int) hdaLoadExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle,
 {
     PCIINTELHDLinkState *pThis = PDMINS_2_DATA(pDevIns, PCIINTELHDLinkState *);
     /* Load Codec nodes states */
-    AssertMsgReturn (uVersion == HDA_SSM_VERSION, ("%d\n", uVersion), VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION);
     Assert (uPass == SSM_PASS_FINAL); NOREF(uPass);
 
-    codecLoadState(&pThis->hda.Codec, pSSMHandle);
+    codecLoadState(&pThis->hda.Codec, pSSMHandle, uVersion);
     /* Load MMIO registers */
     SSMR3GetMem (pSSMHandle, pThis->hda.au32Regs, sizeof (pThis->hda.au32Regs));
     /* Load HDA dma counters */
-    SSMR3GetMem (pSSMHandle, &pThis->hda.stOutBdle, sizeof (HDABDLEDESC));
-    SSMR3GetMem (pSSMHandle, &pThis->hda.stMicBdle, sizeof (HDABDLEDESC));
-    SSMR3GetMem (pSSMHandle, &pThis->hda.stInBdle, sizeof (HDABDLEDESC));
+    if (   uVersion == HDA_SSM_VERSION_1
+        || uVersion == HDA_SSM_VERSION_2)
+    {
+        SSMR3GetMem (pSSMHandle, &pThis->hda.stOutBdle, sizeof (HDABDLEDESC));
+        SSMR3GetMem (pSSMHandle, &pThis->hda.stMicBdle, sizeof (HDABDLEDESC));
+        SSMR3GetMem (pSSMHandle, &pThis->hda.stInBdle, sizeof (HDABDLEDESC));
+    }
+    else
+    {
+        SSMR3GetStruct (pSSMHandle, &pThis->hda.stOutBdle, g_aHdaBDLEDescFields);
+        SSMR3GetStruct (pSSMHandle, &pThis->hda.stMicBdle, g_aHdaBDLEDescFields);
+        SSMR3GetStruct (pSSMHandle, &pThis->hda.stInBdle, g_aHdaBDLEDescFields);
+    }
+
 
     AUD_set_active_in(pThis->hda.Codec.SwVoiceIn, SDCTL(&pThis->hda, 0) & HDA_REG_FIELD_FLAG_MASK(SDCTL, RUN));
     AUD_set_active_out(pThis->hda.Codec.SwVoiceOut, SDCTL(&pThis->hda, 4) & HDA_REG_FIELD_FLAG_MASK(SDCTL, RUN));
@@ -2060,7 +2196,214 @@ static DECLCALLBACK(void *) hdaQueryInterface (struct PDMIBASE *pInterface,
     return NULL;
 }
 
+static inline int hdaLookUpRegisterByName(INTELHDLinkState *pState, const char *pszArgs)
+{
+    int iReg = 0;
+    for (; iReg < HDA_NREGS; ++iReg)
+        if (!RTStrICmp(s_ichIntelHDRegMap[iReg].abbrev, pszArgs))
+            return iReg;
+    return -1;
+}
+static inline void hdaDbgPrintRegister(INTELHDLinkState *pState, PCDBGFINFOHLP pHlp, int iHdaIndex)
+{
+    Assert(   pState
+           && iHdaIndex >= 0
+           && iHdaIndex < HDA_NREGS);
+    pHlp->pfnPrintf(pHlp, "hda: %s: 0x%x\n", s_ichIntelHDRegMap[iHdaIndex].abbrev, pState->au32Regs[iHdaIndex]);
+}
+static DECLCALLBACK(void) hdaDbgInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    PCIINTELHDLinkState *pThis = PDMINS_2_DATA(pDevIns, PCIINTELHDLinkState *);
+    INTELHDLinkState *hda = &pThis->hda;
+    int iHdaRegisterIndex = hdaLookUpRegisterByName(hda, pszArgs);
+    if (iHdaRegisterIndex != -1)
+        hdaDbgPrintRegister(hda, pHlp, iHdaRegisterIndex);
+    else
+        for(iHdaRegisterIndex = 0; (unsigned int)iHdaRegisterIndex < HDA_NREGS; ++iHdaRegisterIndex)
+            hdaDbgPrintRegister(hda, pHlp, iHdaRegisterIndex);
+}
+
+static inline void hdaDbgPrintStream(INTELHDLinkState *pState, PCDBGFINFOHLP pHlp, int iHdaStrmIndex)
+{
+    Assert(   pState
+           && iHdaStrmIndex >= 0
+           && iHdaStrmIndex < 7);
+    pHlp->pfnPrintf(pHlp, "Dump of %d Hda Stream:\n", iHdaStrmIndex);
+    pHlp->pfnPrintf(pHlp, "SD%dCTL: %R[sdctl]\n", iHdaStrmIndex, HDA_STREAM_REG2(pState, CTL, iHdaStrmIndex));
+    pHlp->pfnPrintf(pHlp, "SD%dCTS: %R[sdsts]\n", iHdaStrmIndex, HDA_STREAM_REG2(pState, STS, iHdaStrmIndex));
+    pHlp->pfnPrintf(pHlp, "SD%dFIFOS: %R[sdfifos]\n", iHdaStrmIndex, HDA_STREAM_REG2(pState, FIFOS, iHdaStrmIndex));
+    pHlp->pfnPrintf(pHlp, "SD%dFIFOW: %R[sdfifow]\n", iHdaStrmIndex, HDA_STREAM_REG2(pState, FIFOW, iHdaStrmIndex));
+}
+
+static inline int hdaLookUpStreamIndex(INTELHDLinkState *pState, const char *pszArgs)
+{
+    /* todo: add args parsing */
+    return -1;
+}
+static DECLCALLBACK(void) hdaDbgStreamInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    PCIINTELHDLinkState *pThis = PDMINS_2_DATA(pDevIns, PCIINTELHDLinkState *);
+    INTELHDLinkState *hda = &pThis->hda;
+    int iHdaStrmIndex = hdaLookUpStreamIndex(hda, pszArgs);
+    if (iHdaStrmIndex != -1)
+        hdaDbgPrintStream(hda, pHlp, iHdaStrmIndex);
+    else
+        for(iHdaStrmIndex = 0; iHdaStrmIndex < 7; ++iHdaStrmIndex)
+            hdaDbgPrintStream(hda, pHlp, iHdaStrmIndex);
+}
+
+/* Codec debugger interface */
+static DECLCALLBACK(void) hdaCodecDbgNodes(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    PCIINTELHDLinkState *pThis = PDMINS_2_DATA(pDevIns, PCIINTELHDLinkState *);
+    INTELHDLinkState *hda = &pThis->hda;
+    if (hda->Codec.pfnCodecDbgListNodes)
+        hda->Codec.pfnCodecDbgListNodes(&hda->Codec, pHlp, pszArgs);
+    else
+        pHlp->pfnPrintf(pHlp, "Codec implementation doesn't provide corresponding callback.\n");
+}
+
+static DECLCALLBACK(void) hdaCodecDbgSelector(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    PCIINTELHDLinkState *pThis = PDMINS_2_DATA(pDevIns, PCIINTELHDLinkState *);
+    INTELHDLinkState *hda = &pThis->hda;
+    if (hda->Codec.pfnCodecDbgSelector)
+        hda->Codec.pfnCodecDbgSelector(&hda->Codec, pHlp, pszArgs);
+    else
+        pHlp->pfnPrintf(pHlp, "Codec implementation doesn't provide corresponding callback.\n");
+}
+
 //#define HDA_AS_PCI_EXPRESS
+/* Misc routines */
+static inline bool printHdaIsValid(const char *pszType, const char *pszExpectedFlag)
+{
+    return (RTStrCmp(pszType, pszExpectedFlag) == 0);
+}
+static const char *printHdaYesNo(bool fFlag)
+{
+    return fFlag ? "yes" : "no";
+}
+static DECLCALLBACK(size_t)
+printHdaStrmCtl(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
+                 const char *pszType, void const *pvValue,
+                 int cchWidth, int cchPrecision, unsigned fFlags,
+                 void *pvUser)
+{
+    uint32_t sdCtl = (uint32_t)(uintptr_t)pvValue;
+    size_t cb = 0;
+    if (!printHdaIsValid(pszType, "sdctl"))
+        return cb;
+    cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
+                      "SDCTL(raw: %#0x, strm:0x%x, dir:%s, tp:%s strip:%x, deie:%s, ioce:%s, run:%s, srst:%s)",
+                      sdCtl,
+                      ((sdCtl & HDA_REG_FIELD_MASK(SDCTL, NUM)) >> ICH6_HDA_SDCTL_NUM_SHIFT),
+                      printHdaYesNo(RT_BOOL(sdCtl & HDA_REG_FIELD_FLAG_MASK(SDCTL, DIR))),
+                      printHdaYesNo(RT_BOOL(sdCtl & HDA_REG_FIELD_FLAG_MASK(SDCTL, TP))),
+                      ((sdCtl & HDA_REG_FIELD_MASK(SDCTL, STRIPE)) >> ICH6_HDA_SDCTL_STRIPE_SHIFT),
+                      printHdaYesNo(RT_BOOL(sdCtl & HDA_REG_FIELD_FLAG_MASK(SDCTL, DEIE))),
+                      printHdaYesNo(RT_BOOL(sdCtl & HDA_REG_FIELD_FLAG_MASK(SDCTL, ICE))),
+                      printHdaYesNo(RT_BOOL(sdCtl & HDA_REG_FIELD_FLAG_MASK(SDCTL, RUN))),
+                      printHdaYesNo(RT_BOOL(sdCtl & HDA_REG_FIELD_FLAG_MASK(SDCTL, SRST))));
+    return cb;
+}
+
+static DECLCALLBACK(size_t)
+printHdaStrmFifos(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
+                 const char *pszType, void const *pvValue,
+                 int cchWidth, int cchPrecision, unsigned fFlags,
+                 void *pvUser)
+{
+    uint32_t sdFifos = (uint32_t)(uintptr_t)pvValue;
+    uint32_t u32Bytes = 0;
+    size_t cb = 0;
+    if (!printHdaIsValid(pszType, "sdfifos"))
+        return cb;
+    switch(sdFifos)
+    {
+        case HDA_SDONFIFO_16B: u32Bytes = 16; break;
+        case HDA_SDONFIFO_32B: u32Bytes = 32; break;
+        case HDA_SDONFIFO_64B: u32Bytes = 64; break;
+        case HDA_SDONFIFO_128B: u32Bytes = 128; break;
+        case HDA_SDONFIFO_192B: u32Bytes = 192; break;
+        case HDA_SDONFIFO_256B: u32Bytes = 256; break;
+        case HDA_SDINFIFO_120B: u32Bytes = 120; break;
+        case HDA_SDINFIFO_160B: u32Bytes = 160; break;
+        default:;
+    }
+    cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
+                      "SDFIFOS(raw: %#0x, sdfifos:%d B)",
+                      sdFifos,
+                      u32Bytes);
+    return cb;
+}
+
+static DECLCALLBACK(size_t)
+printHdaStrmFifow(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
+                 const char *pszType, void const *pvValue,
+                 int cchWidth, int cchPrecision, unsigned fFlags,
+                 void *pvUser)
+{
+    uint32_t sdFifow = (uint32_t)(uintptr_t)pvValue;
+    uint32_t u32Bytes = 0;
+    size_t cb = 0;
+    if (!printHdaIsValid(pszType, "sdfifow"))
+        return cb;
+    switch(sdFifow)
+    {
+        case HDA_SDFIFOW_8B: u32Bytes = 8; break;
+        case HDA_SDFIFOW_16B: u32Bytes = 16; break;
+        case HDA_SDFIFOW_32B: u32Bytes = 32; break;
+    }
+    cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
+                      "SDFIFOW(raw: %#0x, sdfifow:%d B)",
+                      sdFifow,
+                      u32Bytes);
+    return cb;
+}
+
+static DECLCALLBACK(size_t)
+printHdaStrmSts(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
+                 const char *pszType, void const *pvValue,
+                 int cchWidth, int cchPrecision, unsigned fFlags,
+                 void *pvUser)
+{
+    uint32_t sdSts = (uint32_t)(uintptr_t)pvValue;
+    size_t cb = 0;
+    if (!printHdaIsValid(pszType, "sdsts"))
+        return cb;
+    cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
+                      "SDSTS(raw: %#0x, fifordy:%s, dese:%s, fifoe:%s, bcis:%s)",
+                      sdSts,
+                      printHdaYesNo(RT_BOOL(sdSts & HDA_REG_FIELD_FLAG_MASK(SDSTS, FIFORDY))),
+                      printHdaYesNo(RT_BOOL(sdSts & HDA_REG_FIELD_FLAG_MASK(SDSTS, DE))),
+                      printHdaYesNo(RT_BOOL(sdSts & HDA_REG_FIELD_FLAG_MASK(SDSTS, FE))),
+                      printHdaYesNo(RT_BOOL(sdSts & HDA_REG_FIELD_FLAG_MASK(SDSTS, BCIS))));
+    return cb;
+}
+/**
+ * This routine registers debugger info extensions and custom printf formatters
+ */
+static inline int hdaInitMisc(PPDMDEVINS pDevIns)
+{
+    int rc;
+    PDMDevHlpDBGFInfoRegister(pDevIns, "hda", "HDA info. (hda [register case-insensitive])", hdaDbgInfo);
+    PDMDevHlpDBGFInfoRegister(pDevIns, "hdastrm", "HDA stream info. (hdastrm [stream number])", hdaDbgStreamInfo);
+    PDMDevHlpDBGFInfoRegister(pDevIns, "hdcnodes", "HDA codec nodes.", hdaCodecDbgNodes);
+    PDMDevHlpDBGFInfoRegister(pDevIns, "hdcselector", "HDA codec's selector states [node number].", hdaCodecDbgSelector);
+    rc = RTStrFormatTypeRegister("sdctl", printHdaStrmCtl, NULL);
+    AssertRC(rc);
+    rc = RTStrFormatTypeRegister("sdsts", printHdaStrmSts, NULL);
+    AssertRC(rc);
+    rc = RTStrFormatTypeRegister("sdfifos", printHdaStrmFifos, NULL);
+    AssertRC(rc);
+    rc = RTStrFormatTypeRegister("sdfifow", printHdaStrmFifow, NULL);
+    AssertRC(rc);
+#if 0
+    rc = RTStrFormatTypeRegister("sdfmt", printHdaStrmFmt, NULL);
+    AssertRC(rc);
+#endif
+    return rc;
+}
 
 /**
  * @interface_method_impl{PDMDEVREG,pfnConstruct}
@@ -2116,7 +2459,7 @@ static DECLCALLBACK(int) hdaConstruct (PPDMDEVINS pDevIns, int iInstance,
     PCIDevSetCapabilityList     (&pThis->dev, 0x50);   /* ICH6 datasheet 18.1.16 */
 #endif
 
-    //** @todo r=michaln: If there are really no PCIDevSetXx for these, the meaning
+    /// @todo r=michaln: If there are really no PCIDevSetXx for these, the meaning
     // of these values needs to be properly documented!
     /* HDCTL off 0x40 bit 0 selects signaling mode (1-HDA, 0 - Ac97) 18.1.19 */
     PCIDevSetByte(&pThis->dev, 0x40, 0x01);
@@ -2217,7 +2560,7 @@ static DECLCALLBACK(int) hdaConstruct (PPDMDEVINS pDevIns, int iInstance,
 
 
     pThis->hda.Codec.pHDAState = (void *)&pThis->hda;
-    rc = codecConstruct(pDevIns, &pThis->hda.Codec, /* ALC885_CODEC */ STAC9220_CODEC);
+    rc = codecConstruct(pDevIns, &pThis->hda.Codec, pCfgHandle);
     if (RT_FAILURE(rc))
         AssertRCReturn(rc, rc);
 
@@ -2238,6 +2581,7 @@ static DECLCALLBACK(int) hdaConstruct (PPDMDEVINS pDevIns, int iInstance,
      */
     WAKEEN(&pThis->hda) = 0x0;
     STATESTS(&pThis->hda) = 0x0;
+    hdaInitMisc(pDevIns);
 
     return VINF_SUCCESS;
 }

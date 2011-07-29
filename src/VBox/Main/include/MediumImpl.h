@@ -1,4 +1,4 @@
-/* $Id: MediumImpl.h $ */
+/* $Id: MediumImpl.h 37900 2011-07-12 13:31:46Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,9 +50,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(Medium)
-        COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(IMedium)
-        COM_INTERFACE_ENTRY(IDispatch)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IMedium)
     END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR(Medium)
@@ -79,6 +77,7 @@ public:
     HRESULT init(VirtualBox *aVirtualBox,
                  const Utf8Str &aLocation,
                  HDDOpenMode enOpenMode,
+                 bool fForceNewUuid,
                  DeviceType_T aDeviceType);
 
     // initializer used when loading settings
@@ -116,6 +115,7 @@ public:
     STDMETHOD(COMGETTER(MediumFormat))(IMediumFormat **aMediumFormat);
     STDMETHOD(COMGETTER(Type))(MediumType_T *aType);
     STDMETHOD(COMSETTER(Type))(MediumType_T aType);
+    STDMETHOD(COMGETTER(AllowedTypes))(ComSafeArrayOut(MediumType_T, aAllowedTypes));
     STDMETHOD(COMGETTER(Parent))(IMedium **aParent);
     STDMETHOD(COMGETTER(Children))(ComSafeArrayOut(IMedium *, aChildren));
     STDMETHOD(COMGETTER(Base))(IMedium **aBase);
@@ -193,6 +193,7 @@ public:
     const Guid* getFirstMachineBackrefId() const;
     const Guid* getAnyMachineBackref() const;
     const Guid* getFirstMachineBackrefSnapshotId() const;
+    size_t getMachineBackRefCount() const;
 
 #ifdef DEBUG
     void dumpBackRefs();
@@ -203,6 +204,7 @@ public:
     ComObjPtr<Medium> getBase(uint32_t *aLevel = NULL);
 
     bool isReadOnly();
+    void updateId(const Guid &id);
 
     HRESULT saveSettings(settings::Medium &data,
                          const Utf8Str &strHardDiskFolder);

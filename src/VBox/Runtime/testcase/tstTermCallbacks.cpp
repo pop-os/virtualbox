@@ -1,4 +1,4 @@
-/* $Id: tstTermCallbacks.cpp $ */
+/* $Id: tstTermCallbacks.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT Testcase - Termination Callbacks.
  */

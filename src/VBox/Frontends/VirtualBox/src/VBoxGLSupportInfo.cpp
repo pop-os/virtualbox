@@ -1,4 +1,4 @@
-/* $Id: VBoxGLSupportInfo.cpp $ */
+/* $Id: VBoxGLSupportInfo.cpp 36386 2011-03-24 06:51:19Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

@@ -2,14 +2,16 @@
    context is supported */
 #include "softfloat.h"
 #include <math.h>
+#if defined(CONFIG_SOLARIS)
+#include <fenv.h>
+#endif
 
 void set_float_rounding_mode(int val STATUS_PARAM)
 {
     STATUS(float_rounding_mode) = val;
-#if defined(_BSD) && !defined(__APPLE__) || (defined(HOST_SOLARIS) && (HOST_SOLARIS < 10 || HOST_SOLARIS == 11))
+#if (defined(CONFIG_BSD) && !defined(__APPLE__) && !defined(__GLIBC__)) || \
+    (defined(CONFIG_SOLARIS) && (CONFIG_SOLARIS_VERSION < 10 || CONFIG_SOLARIS_VERSION == 11)) /* VBOX adds sol 11 */
     fpsetround(val);
-#elif defined(__arm__)
-    /* nothing to do */
 #else
     fesetround(val);
 #endif
@@ -22,7 +24,8 @@ void set_floatx80_rounding_precision(int val STATUS_PARAM)
 }
 #endif
 
-#if defined(_BSD) || (defined(HOST_SOLARIS) && HOST_SOLARIS < 10)
+#if defined(CONFIG_BSD) || \
+    (defined(CONFIG_SOLARIS) && CONFIG_SOLARIS_VERSION < 10)
 #define lrint(d)		((int32_t)rint(d))
 #define llrint(d)		((int64_t)rint(d))
 #define lrintf(f)		((int32_t)rint(f))
@@ -30,16 +33,15 @@ void set_floatx80_rounding_precision(int val STATUS_PARAM)
 #define sqrtf(f)		((float)sqrt(f))
 #define remainderf(fa, fb)	((float)remainder(fa, fb))
 #define rintf(f)		((float)rint(f))
-/* Some defines which only apply to *BSD */
-# if defined(VBOX) && defined(_BSD)
+# if defined(VBOX) && defined(HOST_BSD) /* Some defines which only apply to *BSD */
 #  define lrintl(f)            ((int32_t)rint(f))
 #  define llrintl(f)           ((int64_t)rint(f))
 #  define rintl(d)             ((int32_t)rint(d))
 #  define sqrtl(f)             (sqrt(f))
 #  define remainderl(fa, fb)   (remainder(fa, fb))
 # endif /* VBOX && _BSD */
-
-#if !defined(__sparc__) && defined(HOST_SOLARIS) && HOST_SOLARIS < 10
+#if !defined(__sparc__) && \
+    (defined(CONFIG_SOLARIS) && CONFIG_SOLARIS_VERSION < 10)
 extern long double rintl(long double);
 extern long double scalbnl(long double, int);
 
@@ -354,7 +356,8 @@ uint64_t float64_to_uint64_round_to_zero (float64 a STATUS_PARAM)
 /*----------------------------------------------------------------------------
 | Software IEC/IEEE double-precision operations.
 *----------------------------------------------------------------------------*/
-#if defined(__sun__) && defined(HOST_SOLARIS) && HOST_SOLARIS < 10
+#if defined(__sun__) && \
+    (defined(CONFIG_SOLARIS) && CONFIG_SOLARIS_VERSION < 10)
 static inline float64 trunc(float64 x)
 {
     return x < 0 ? -floor(-x) : floor(x);
@@ -367,25 +370,7 @@ float64 float64_trunc_to_int( float64 a STATUS_PARAM )
 
 float64 float64_round_to_int( float64 a STATUS_PARAM )
 {
-#if defined(__arm__)
-    switch(STATUS(float_rounding_mode)) {
-    default:
-    case float_round_nearest_even:
-        asm("rndd %0, %1" : "=f" (a) : "f"(a));
-        break;
-    case float_round_down:
-        asm("rnddm %0, %1" : "=f" (a) : "f"(a));
-        break;
-    case float_round_up:
-        asm("rnddp %0, %1" : "=f" (a) : "f"(a));
-        break;
-    case float_round_to_zero:
-        asm("rnddz %0, %1" : "=f" (a) : "f"(a));
-        break;
-    }
-#else
     return rint(a);
-#endif
 }
 
 float64 float64_rem( float64 a, float64 b STATUS_PARAM)

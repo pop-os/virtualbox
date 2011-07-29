@@ -1,4 +1,4 @@
-/* $Id: USBDeviceImpl.cpp $ */
+/* $Id: USBDeviceImpl.cpp 35638 2011-01-19 19:10:49Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -29,12 +29,13 @@ DEFINE_EMPTY_CTOR_DTOR (OUSBDevice)
 
 HRESULT OUSBDevice::FinalConstruct()
 {
-    return S_OK;
+    return BaseFinalConstruct();
 }
 
 void OUSBDevice::FinalRelease()
 {
     uninit ();
+    BaseFinalRelease();
 }
 
 // public initializer/uninitializer for internal purposes only

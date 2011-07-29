@@ -1,4 +1,4 @@
-/* $Id: HWSVMR0.cpp $ */
+/* $Id: HWSVMR0.cpp 37955 2011-07-14 12:23:02Z vboxsync $ */
 /** @file
  * HWACCM SVM - Host Context Ring 0.
  */
@@ -28,7 +28,6 @@
 #include <VBox/vmm/pdmapi.h>
 #include "HWACCMInternal.h"
 #include <VBox/vmm/vm.h>
-#include <VBox/x86.h>
 #include <VBox/vmm/hwacc_svm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
@@ -44,6 +43,7 @@
 #ifdef VBOX_WITH_VMMR0_DISABLE_PREEMPTION
 # include <iprt/thread.h>
 #endif
+#include <iprt/x86.h>
 #include "HWSVMR0.h"
 
 /*******************************************************************************
@@ -63,34 +63,34 @@ static void svmR0SetMSRPermission(PVMCPU pVCpu, unsigned ulMSR, bool fRead, bool
  * @returns VBox status code.
  * @param   pCpu            CPU info struct
  * @param   pVM             The VM to operate on. (can be NULL after a resume!!)
- * @param   pvPageCpu       Pointer to the global cpu page
- * @param   pPageCpuPhys    Physical address of the global cpu page
+ * @param   pvCpuPage       Pointer to the global cpu page.
+ * @param   HCPhysCpuPage   Physical address of the global cpu page.
  */
-VMMR0DECL(int) SVMR0EnableCpu(PHWACCM_CPUINFO pCpu, PVM pVM, void *pvPageCpu, RTHCPHYS pPageCpuPhys)
+VMMR0DECL(int) SVMR0EnableCpu(PHMGLOBLCPUINFO pCpu, PVM pVM, void *pvCpuPage, RTHCPHYS HCPhysCpuPage)
 {
-    AssertReturn(pPageCpuPhys, VERR_INVALID_PARAMETER);
-    AssertReturn(pvPageCpu, VERR_INVALID_PARAMETER);
+    AssertReturn(HCPhysCpuPage != 0 && HCPhysCpuPage != NIL_RTHCPHYS, VERR_INVALID_PARAMETER);
+    AssertReturn(pvCpuPage, VERR_INVALID_PARAMETER);
 
-    /* We must turn on AMD-V and setup the host state physical address, as those MSRs are per-cpu/core. */
-    uint64_t val = ASMRdMsr(MSR_K6_EFER);
-    if (val & MSR_K6_EFER_SVME)
+    /* We must turn on AMD-V and setup the host state physical address, as
+       those MSRs are per-cpu/core. */
+    uint64_t fEfer = ASMRdMsr(MSR_K6_EFER);
+    if (fEfer & MSR_K6_EFER_SVME)
     {
-        /* If the VBOX_HWVIRTEX_IGNORE_SVM_IN_USE hack is active, then we blindly use AMD-V. */
+        /* If the VBOX_HWVIRTEX_IGNORE_SVM_IN_USE hack is active, then we
+           blindly use AMD-V. */
         if (    pVM
             &&  pVM->hwaccm.s.svm.fIgnoreInUseError)
-        {
             pCpu->fIgnoreAMDVInUseError = true;
-        }
-
         if (!pCpu->fIgnoreAMDVInUseError)
             return VERR_SVM_IN_USE;
     }
 
     /* Turn on AMD-V in the EFER MSR. */
-    ASMWrMsr(MSR_K6_EFER, val | MSR_K6_EFER_SVME);
+    ASMWrMsr(MSR_K6_EFER, fEfer | MSR_K6_EFER_SVME);
 
-    /* Write the physical page address where the CPU will store the host state while executing the VM. */
-    ASMWrMsr(MSR_K8_VM_HSAVE_PA, pPageCpuPhys);
+    /* Write the physical page address where the CPU will store the host state
+       while executing the VM. */
+    ASMWrMsr(MSR_K8_VM_HSAVE_PA, HCPhysCpuPage);
 
     return VINF_SUCCESS;
 }
@@ -100,17 +100,17 @@ VMMR0DECL(int) SVMR0EnableCpu(PHWACCM_CPUINFO pCpu, PVM pVM, void *pvPageCpu, RT
  *
  * @returns VBox status code.
  * @param   pCpu            CPU info struct
- * @param   pvPageCpu       Pointer to the global cpu page
- * @param   pPageCpuPhys    Physical address of the global cpu page
+ * @param   pvCpuPage       Pointer to the global cpu page.
+ * @param   HCPhysCpuPage   Physical address of the global cpu page.
  */
-VMMR0DECL(int) SVMR0DisableCpu(PHWACCM_CPUINFO pCpu, void *pvPageCpu, RTHCPHYS pPageCpuPhys)
+VMMR0DECL(int) SVMR0DisableCpu(PHMGLOBLCPUINFO pCpu, void *pvCpuPage, RTHCPHYS HCPhysCpuPage)
 {
-    AssertReturn(pPageCpuPhys, VERR_INVALID_PARAMETER);
-    AssertReturn(pvPageCpu, VERR_INVALID_PARAMETER);
+    AssertReturn(HCPhysCpuPage != 0 && HCPhysCpuPage != NIL_RTHCPHYS, VERR_INVALID_PARAMETER);
+    AssertReturn(pvCpuPage, VERR_INVALID_PARAMETER);
 
     /* Turn off AMD-V in the EFER MSR. */
-    uint64_t val = ASMRdMsr(MSR_K6_EFER);
-    ASMWrMsr(MSR_K6_EFER, val & ~MSR_K6_EFER_SVME);
+    uint64_t fEfer = ASMRdMsr(MSR_K6_EFER);
+    ASMWrMsr(MSR_K6_EFER, fEfer & ~MSR_K6_EFER_SVME);
 
     /* Invalidate host state physical address. */
     ASMWrMsr(MSR_K8_VM_HSAVE_PA, 0);
@@ -966,7 +966,7 @@ VMMR0DECL(int) SVMR0RunGuestCode(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     bool        fSyncTPR = false;
     unsigned    cResume = 0;
     uint8_t     u8LastTPR;
-    PHWACCM_CPUINFO pCpu = 0;
+    PHMGLOBLCPUINFO pCpu = 0;
     RTCCUINTREG uOldEFlags = ~(RTCCUINTREG)0;
 #ifdef VBOX_STRICT
     RTCPUID     idCpuCheck;
@@ -1214,14 +1214,16 @@ ResumeExecution:
 
     pVCpu->hwaccm.s.idLastCpu = pCpu->idCpu;
 
-    /** Set TLB flush state as checked until we return from the world switch. */
-    ASMAtomicWriteU8(&pVCpu->hwaccm.s.fCheckedTLBFlush, true);
+    /* Set TLB flush state as checked until we return from the world switch. */
+    ASMAtomicWriteBool(&pVCpu->hwaccm.s.fCheckedTLBFlush, true);
 
     /* Check for tlb shootdown flushes. */
     if (VMCPU_FF_TESTANDCLEAR(pVCpu, VMCPU_FF_TLB_FLUSH))
         pVCpu->hwaccm.s.fForceTLBFlush = true;
 
-    /* Make sure we flush the TLB when required. Switch ASID to achieve the same thing, but without actually flushing the whole TLB (which is expensive). */
+    /* Make sure we flush the TLB when required.  Switch ASID to achieve the
+       same thing, but without actually flushing the whole TLB (which is
+       expensive). */
     if (    pVCpu->hwaccm.s.fForceTLBFlush
         && !pVM->hwaccm.s.svm.fAlwaysFlushTLB)
     {
@@ -1293,8 +1295,8 @@ ResumeExecution:
 #else
     pVCpu->hwaccm.s.svm.pfnVMRun(pVCpu->hwaccm.s.svm.pVMCBHostPhys, pVCpu->hwaccm.s.svm.pVMCBPhys, pCtx, pVM, pVCpu);
 #endif
-    ASMAtomicWriteU8(&pVCpu->hwaccm.s.fCheckedTLBFlush, false);
-    ASMAtomicIncU32(&pVCpu->hwaccm.s.cWorldSwitchExit);
+    ASMAtomicWriteBool(&pVCpu->hwaccm.s.fCheckedTLBFlush, false);
+    ASMAtomicIncU32(&pVCpu->hwaccm.s.cWorldSwitchExits);
     /* Possibly the last TSC value seen by the guest (too high) (only when we're in tsc offset mode). */
     if (!(pVMCB->ctrl.u32InterceptCtrl1 & SVM_CTRL1_INTERCEPT_RDTSC))
         TMCpuTickSetLastSeen(pVCpu, ASMReadTSC() + pVMCB->ctrl.u64TSCOffset - 0x400 /* guestimate of world switch overhead in clock ticks */);
@@ -2621,7 +2623,7 @@ static int svmR0EmulateTprVMMCall(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
  * @param   pVCpu       The VM CPU to operate on.
  * @param   pCpu        CPU info struct
  */
-VMMR0DECL(int) SVMR0Enter(PVM pVM, PVMCPU pVCpu, PHWACCM_CPUINFO pCpu)
+VMMR0DECL(int) SVMR0Enter(PVM pVM, PVMCPU pVCpu, PHMGLOBLCPUINFO pCpu)
 {
     Assert(pVM->hwaccm.s.svm.fSupported);
 

@@ -1,4 +1,4 @@
-/* $Id: VBoxManageGuestProp.cpp $ */
+/* $Id: VBoxManageGuestProp.cpp 35951 2011-02-14 08:15:55Z vboxsync $ */
 /** @file
  * VBoxManage - Implementation of guestproperty command.
  */
@@ -371,6 +371,11 @@ int handleGuestProperty(HandlerArg *a)
     HandlerArg arg = *a;
     arg.argc = a->argc - 1;
     arg.argv = a->argv + 1;
+
+    /** @todo This command does not follow the syntax where the <uuid|vmname>
+     * comes between the command and subcommand.  The commands controlvm,
+     * snapshot and debugvm puts it between.
+     */
 
     if (a->argc == 0)
         return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");

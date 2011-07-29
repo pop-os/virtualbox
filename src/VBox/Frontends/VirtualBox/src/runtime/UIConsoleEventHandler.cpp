@@ -1,4 +1,4 @@
-/* $Id: UIConsoleEventHandler.cpp $ */
+/* $Id: UIConsoleEventHandler.cpp 37712 2011-06-30 14:11:14Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -58,7 +58,9 @@ UIConsoleEventHandler::UIConsoleEventHandler(UISession *pSession)
     Assert(pSession);
 
 //    RTPrintf("Self add: %RTthrd\n", RTThreadSelf());
-    UIMainEventListenerImpl *pListener = new UIMainEventListenerImpl(this);
+    ComObjPtr<UIMainEventListenerImpl> pListener;
+    pListener.createObject();
+    pListener->init(new UIMainEventListener(), this);
     m_mainEventListener = CEventListener(pListener);
     QVector<KVBoxEventType> events;
     events
@@ -69,12 +71,15 @@ UIConsoleEventHandler::UIConsoleEventHandler(UISession *pSession)
         << KVBoxEventType_OnAdditionsStateChanged
         << KVBoxEventType_OnNetworkAdapterChanged
         << KVBoxEventType_OnMediumChanged
+        << KVBoxEventType_OnVRDEServerChanged
+        << KVBoxEventType_OnVRDEServerInfoChanged
         << KVBoxEventType_OnUSBControllerChanged
         << KVBoxEventType_OnUSBDeviceStateChanged
         << KVBoxEventType_OnSharedFolderChanged
         << KVBoxEventType_OnRuntimeError
         << KVBoxEventType_OnCanShowWindow
-        << KVBoxEventType_OnShowWindow;
+        << KVBoxEventType_OnShowWindow
+        << KVBoxEventType_OnCPUExecutionCapChanged;
 
     const CConsole &console = m_pSession->session().GetConsole();
     console.GetEventSource().RegisterListener(m_mainEventListener, events, TRUE);
@@ -108,6 +113,10 @@ UIConsoleEventHandler::UIConsoleEventHandler(UISession *pSession)
             this, SIGNAL(sigMediumChange(CMediumAttachment)),
             Qt::QueuedConnection);
 
+    connect(pListener->getWrapped(), SIGNAL(sigVRDEChange()),
+            this, SIGNAL(sigVRDEChange()),
+            Qt::QueuedConnection);
+
     connect(pListener->getWrapped(), SIGNAL(sigUSBControllerChange()),
             this, SIGNAL(sigUSBControllerChange()),
             Qt::QueuedConnection);
@@ -135,6 +144,10 @@ UIConsoleEventHandler::UIConsoleEventHandler(UISession *pSession)
     connect(pListener->getWrapped(), SIGNAL(sigShowWindow(LONG64&)),
             this, SLOT(sltShowWindow(LONG64&)),
             Qt::DirectConnection);
+
+    connect(pListener->getWrapped(), SIGNAL(sigCPUExecutionCapChange()),
+            this, SIGNAL(sigCPUExecutionCapChange()),
+            Qt::QueuedConnection);
 }
 
 UIConsoleEventHandler::~UIConsoleEventHandler()

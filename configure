@@ -3,7 +3,7 @@
 # libraries VBox OSE depends on.
 
 #
-# Copyright (C) 2006-2009 Oracle Corporation
+# Copyright (C) 2006-2011 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -87,6 +87,7 @@ WITH_DBUS=1
 WITH_KMODS=1
 WITH_OPENGL=1
 WITH_HARDENING=1
+WITH_UDPTUNNEL=1
 WITH_VDE=0
 WITH_VNC=0
 WITH_DOCS=1
@@ -109,7 +110,7 @@ XSLTPROC="xsltproc"
 GENISOIMAGE="genisoimage"
 MKISOFS="mkisofs"
 INCCRYPTO=""
-LIBCRYPTO="-lcrypto"
+LIBCRYPTO="-lssl -lcrypto"
 LIBPTHREAD="-lpthread"
 LIBCAP="-lcap"
 GSOAP=""
@@ -414,7 +415,7 @@ check_gcc()
              -o \( $cc_maj -eq 4 -a $cc_min -lt 1 -a "$OS" != "darwin" \) \
              -o \( $cc_maj -eq 4 -a $cc_min -gt 6 \) \
              -o $cc_maj -gt 4 ]; then
-        log_failure "gcc version $cc_ver found, expected gcc 3.x with x>1 or gcc 4.x with 0<x<5"
+        log_failure "gcc version $cc_ver found, expected gcc 3.x with x>1 or gcc 4.x with 0<x<7"
         fail really
       else
         log_success "found version $cc_ver"
@@ -837,9 +838,11 @@ check_ssl()
     cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <openssl/opensslv.h>
+#include <openssl/ssl.h>
 extern "C" int main(void)
 {
   printf("found version %s", OPENSSL_VERSION_TEXT);
+  SSL_library_init();
 #if OPENSSL_VERSION_NUMBER >= 0x00908000
   printf(", OK.\n");
   return 0;
@@ -1963,10 +1966,20 @@ setup_wine()
     echo "  wine binary not found"
     fail
   fi
-  if ! which_wrapper wineprefixcreate > /dev/null; then
-    echo "  wineprefixcreate not found"
+  if ! which_wrapper wine > /dev/null; then
+    echo "  wine not found"
     fail
   fi
+  wine_version="`wine --version`"
+  case "`expr "$wine_version" : 'wine-\([0-9.]*\)' '>' 1.1.43`" in
+    "0")
+      if ! which_wrapper wineprefixcreate > /dev/null; then
+        echo "  wineprefixcreate not found"
+        fail
+      fi
+    ;;
+    *) eval "wineprefixcreate() { true ; }" ;; # now created automatically
+  esac
   export WINEPREFIX="${ODIR}wine.$BUILD_MACHINE"
   echo "WINEPREFIX=\"${ODIR}wine.$BUILD_MACHINE\"" >> $ENV
   echo "export WINEPREFIX" >> $ENV
@@ -2059,8 +2072,15 @@ check_darwinversion()
   test_header "Darwin version"
   darwin_ver=`uname -r`
   case "$darwin_ver" in
+    11\.*)
+      darwin_ver="10.7" # Lion
+      sdk=/Developer/SDKs/MacOSX10.6.sdk
+      CXX_FLAGS="-mmacosx-version-min=10.6 -isysroot $sdk -Wl,-syslibroot,$sdk"
+      # We disable the java stuff until Apple make the java stuff downloadable.
+      WITH_JAVA=0
+      ;;
     10\.*)
-      darwin_ver="10.6"
+      darwin_ver="10.6" # Snow Leopard
       if [ "$BUILD_MACHINE" = "x86" ]; then
           sdk=/Developer/SDKs/MacOSX10.5.sdk
           CXX_FLAGS="-mmacosx-version-min=10.5 -isysroot $sdk -Wl,-syslibroot,$sdk"
@@ -2073,16 +2093,15 @@ check_darwinversion()
 #      test "$CXX" = "g++" && CXX="g++-4.0"
       ;;
     9\.*)
-      darwin_ver="10.5"
+      darwin_ver="10.5" # Leopard
       sdk=/Developer/SDKs/MacOSX10.5.sdk
       CXX_FLAGS="-mmacosx-version-min=10.5 -isysroot $sdk -Wl,-syslibroot,$sdk"
 #      test "$CC" = "gcc" && CC="gcc-4.0"
 #      test "$CXX" = "g++" && CXX="g++-4.0"
       cnf_append "VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_6" "1"
-      cnf_append "VBOX_MACOS_10_5_WORKAROUND" "1"
       ;;
     8\.*)
-      darwin_ver="10.4"
+      darwin_ver="10.4" # Tiger
       sdk=/Developer/SDKs/MacOSX10.4u.sdk
       CXX_FLAGS="-mmacosx-version-min=10.4 -isysroot $sdk -Wl,-syslibroot,$sdk"
 #      test "$CC" = "gcc" && CC="gcc-4.0"
@@ -2163,6 +2182,7 @@ EOF
 [ $WITH_DOCS    -eq 1 ] && echo "  --disable-docs           don't build the documentation"
 [ "$OS" = "linux" -o "$OS" = "freebsd" ] && echo "  --enable-vde             enable VDE networking"
 cat << EOF
+  --disable-udptunnel      disable UDP tunnel networking
   --disable-hardening      don't be strict about /dev/vboxdrv access
   --build-libxml2          build libxml2 from sources
   --build-libxslt          build libxslt from sources
@@ -2180,6 +2200,7 @@ Paths:
   --with-kbuild=DIR        kbuild directory [$KBUILDDIR]
   --with-iasl=PATH         location of the iasl compiler [$IASL]
   --with-mkisofs=PATH      location of mkisofs [$MKISOFS]
+  --with-makeself=PATH     location of makeself [$MAKESELF]
 EOF
 [ "$OS"    = "linux" ] && echo "  --with-linux=DIR         Linux kernel source directory [$LINUX]"
 [ $WITH_QT4    -eq 1 ] && echo "  --with-qt-dir=DIR        directory for Qt4 headers/libraries [pkgconfig]"
@@ -2260,7 +2281,7 @@ for option in $*; do
     --with-openssl-dir=*)
       OPENSSLDIR=`echo $option | cut -d'=' -f2`
       INCCRYPTO="-I${OPENSSLDIR}/include"
-      LIBCRYPTO="${OPENSSLDIR}/lib/libcrypto.a"
+      LIBCRYPTO="${OPENSSLDIR}/lib/libcrypto.a ${OPENSSLDIR}/lib/libssl.a"
       ;;
     --with-gsoap-dir=*)
       GSOAP=`echo $option | cut -d'=' -f2`
@@ -2276,6 +2297,9 @@ for option in $*; do
       ;;
     --with-mkisofs=*)
       MKISOFS=`echo $option | cut -d'=' -f2`
+      ;;
+    --with-makeself=*)
+      MAKESELF=`echo $option | cut -d'=' -f2`
       ;;
     --target-arch=*)
       TARGET_MACHINE=`echo $option | cut -d'=' -f2`
@@ -2336,6 +2360,9 @@ for option in $*; do
       ;;
     --enable-hardening)
       WITH_HARDENING=2
+      ;;
+    --disable-udptunnel)
+      WITH_UDPTUNNEL=0
       ;;
     --enable-vde)
       WITH_VDE=1
@@ -2586,6 +2613,11 @@ if [ $OSE -ge 1 ]; then
   else
     cnf_append "VBOX_WITH_WEBSERVICES" ""
   fi
+fi
+
+# UDPTUNNEL
+if [ $WITH_UDPTUNNEL -eq 0 ]; then
+  cnf_append "VBOX_WITH_UDPTUNNEL" ""
 fi
 
 # VDE

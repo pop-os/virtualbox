@@ -1,4 +1,4 @@
-/* $Id: TestVBox.java $ */
+/* $Id: TestVBox.java 36281 2011-03-15 11:49:08Z vboxsync $ */
 /*
  * Copyright (C) 2010 Oracle Corporation
  *
@@ -10,7 +10,7 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-import org.virtualbox_3_3.*;
+import org.virtualbox_4_1.*;
 import java.util.List;
 import java.util.Arrays;
 import java.math.BigInteger;

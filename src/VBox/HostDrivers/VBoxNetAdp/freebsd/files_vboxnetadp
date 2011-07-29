@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: files_vboxnetadp $
+# $Id: files_vboxnetadp 36190 2011-03-07 16:28:50Z vboxsync $
 ## @file
 # Shared file between Makefile.kmk and export_modules
 #

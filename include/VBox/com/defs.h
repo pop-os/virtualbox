@@ -75,6 +75,8 @@
 
 #include <objbase.h>
 #ifndef VBOX_COM_NO_ATL
+# define _ATL_FREE_THREADED
+
 # include <atlbase.h>
 #include <atlcom.h>
 #endif
@@ -134,13 +136,13 @@ typedef const OLECHAR *CBSTR;
  * @param aType Array element type.
  * @param aArg  Parameter/attribute name.
  */
-#define ComSafeArrayIn(aType, aArg)     SAFEARRAY **aArg
+#define ComSafeArrayIn(aType, aArg)     SAFEARRAY *aArg
 
 /**
  * Expands to @true if the given input safearray parameter is a "null pointer"
  * which makes it impossible to use it for reading safearray data.
  */
-#define ComSafeArrayInIsNull(aArg)      ((aArg) == NULL || *(aArg) == NULL)
+#define ComSafeArrayInIsNull(aArg)      ((aArg) == NULL)
 
 /**
  * Wraps the given parameter name to generate an expression that is suitable for
@@ -191,7 +193,7 @@ typedef const OLECHAR *CBSTR;
  * Version of ComSafeArrayIn for GUID.
  * @param aArg Parameter name to wrap.
  */
-#define ComSafeGUIDArrayIn(aArg)        SAFEARRAY **aArg
+#define ComSafeGUIDArrayIn(aArg)        SAFEARRAY *aArg
 
 /**
  * Version of ComSafeArrayInIsNull for GUID.
@@ -270,6 +272,7 @@ typedef const OLECHAR *CBSTR;
 #define COM_INTERFACE_ENTRY(a)
 #define COM_INTERFACE_ENTRY2(a,b)
 #define END_COM_MAP() NS_DECL_ISUPPORTS
+#define COM_INTERFACE_ENTRY_AGGREGATE(a,b)
 
 #define HRESULT     nsresult
 #define SUCCEEDED   NS_SUCCEEDED
@@ -505,6 +508,12 @@ namespace com
 #define VBOX_SCRIPTABLE_DISPATCH_IMPL(iface)                                 \
     STDMETHOD(QueryInterface)(REFIID riid , void **ppObj)                    \
     {                                                                        \
+        if (riid == IID_##iface)                                             \
+        {                                                                    \
+            *ppObj = (iface*)this;                                           \
+            AddRef();                                                        \
+            return S_OK;                                                     \
+        }                                                                    \
         if (riid == IID_IUnknown)                                            \
         {                                                                    \
             *ppObj = (IUnknown*)this;                                        \
@@ -517,19 +526,21 @@ namespace com
             AddRef();                                                        \
             return S_OK;                                                     \
         }                                                                    \
-        if (riid == IID_##iface)                                             \
-        {                                                                    \
-            *ppObj = (iface*)this;                                           \
-            AddRef();                                                        \
-            return S_OK;                                                     \
-        }                                                                    \
         *ppObj = NULL;                                                       \
         return E_NOINTERFACE;                                                \
     }
+
+
+#define VBOX_DEFAULT_INTERFACE_ENTRIES(iface)                                \
+        COM_INTERFACE_ENTRY(ISupportErrorInfo)                               \
+        COM_INTERFACE_ENTRY(iface)                                           \
+        COM_INTERFACE_ENTRY2(IDispatch,iface)                                \
+        COM_INTERFACE_ENTRY_AGGREGATE(IID_IMarshal, m_pUnkMarshaler.p)
 #else
 #define VBOX_SCRIPTABLE_IMPL(iface)                     \
     public iface
 #define VBOX_SCRIPTABLE_DISPATCH_IMPL(iface)
+#define VBOX_DEFAULT_INTERFACE_ENTRIES(iface)
 #endif
 
 

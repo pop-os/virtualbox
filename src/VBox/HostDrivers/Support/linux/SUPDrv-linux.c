@@ -1,4 +1,4 @@
-/* $Rev: 69377 $ */
+/* $Rev: 37972 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
@@ -739,9 +739,9 @@ int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAG
 }
 
 
-int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits)
+int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits, PSUPLDRLOAD pReq)
 {
-    NOREF(pDevExt); NOREF(pImage); NOREF(pbImageBits);
+    NOREF(pDevExt); NOREF(pImage); NOREF(pbImageBits); NOREF(pReq);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -781,22 +781,15 @@ static int VBoxDrvLinuxErr2LinuxErr(int rc)
 
 RTDECL(int) SUPR0Printf(const char *pszFormat, ...)
 {
-#if 1
-    va_list args;
+    va_list va;
     char    szMsg[512];
 
-    va_start(args, pszFormat);
-    vsnprintf(szMsg, sizeof(szMsg) - 1, pszFormat, args);
+    va_start(va, pszFormat);
+    RTStrPrintfV(szMsg, sizeof(szMsg) - 1, pszFormat, va);
+    va_end(va);
     szMsg[sizeof(szMsg) - 1] = '\0';
+
     printk("%s", szMsg);
-    va_end(args);
-#else
-    /* forward to printf - needs some more GCC hacking to fix ebp... */
-    __asm__ __volatile__ ("mov %0, %esp\n\t"
-                          "jmp %1\n\t",
-                          :: "r" ((uintptr_t)&pszFormat - 4),
-                             "m" (printk));
-#endif
     return 0;
 }
 

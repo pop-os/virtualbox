@@ -335,7 +335,7 @@ Statistics update:  disabled
 </screen></para>
   </sect1>
 
-  <sect1>
+  <sect1 id="vboxmanage-registervm">
     <title>VBoxManage registervm / unregistervm</title>
 
     <para>The <computeroutput>registervm</computeroutput> command allows you
@@ -658,7 +658,8 @@ Statistics update:  disabled
       should be changed.<itemizedlist>
           <listitem>
             <para><computeroutput>--nic&lt;1-N&gt;
-            none|null|nat|bridged|intnet|hostonly|vde</computeroutput>: With
+            none|null|nat|bridged|intnet|hostonly|generic
+            </computeroutput>: With
             this, you can set, for each of the VM's virtual network cards,
             what type of networking should be available. They can be not
             present (<computeroutput>none</computeroutput>), not connected to
@@ -667,9 +668,9 @@ Statistics update:  disabled
             bridged networking (<computeroutput>bridged</computeroutput>) or
             communicate with other virtual machines using internal networking
             (<computeroutput>intnet</computeroutput>), host-only networking
-            (<computeroutput>hostonly</computeroutput>) or on Linux and
-            FreeBSD hosts a Virtual Distributed Ethernet switch
-            (<computeroutput>vde</computeroutput>). These options correspond
+            (<computeroutput>hostonly</computeroutput>), or access rarely used
+            sub-modes (<computeroutput>generic</computeroutput>).
+            These options correspond
             to the modes which are described in detail in <xref
             linkend="networkingmodes" />.</para>
           </listitem>
@@ -744,14 +745,24 @@ Statistics update:  disabled
           </listitem>
 
           <listitem>
-            <para><computeroutput>--vdenet&lt;1-N&gt;
-            network</computeroutput>: If Virtual Distributed Ethernet is
-            available on the host and has been enabled for a virtual network
-            card (see the <computeroutput>--nic</computeroutput> option above;
-            otherwise this setting has no effect). Use this option to specify
-            the name of a VDE network for the interface to connect to (see
-            <xref linkend="networkingmodes" /> and the VDE
-            documentation).</para>
+            <para><computeroutput>--nicgenericdrv&lt;1-N&gt;
+            &lt;backend driver&gt;</computeroutput>: If generic networking has been
+            enabled for a virtual network card (see the
+            <computeroutput>--nic</computeroutput> option above; otherwise
+            this setting has no effect), this mode allows you to access
+            rarely used networking sub-modes, such as VDE network or UDP Tunnel.
+            </para>
+          </listitem>
+
+          <listitem>
+            <para><computeroutput>--nicproperty&lt;1-N&gt;
+            &lt;paramname&gt;="paramvalue"</computeroutput>:
+            This option, in combination with "nicgenericdrv" allows you to
+            pass parameters to rarely-used network backends.</para><para>
+            Those parameters are backend engine-specific, and are different
+            between UDP Tunnel and the VDE backend drivers. For example,
+            please see <xref linkend="network_udp_tunnel" />.
+            </para>
           </listitem>
         </itemizedlist></para>
 
@@ -1077,6 +1088,73 @@ Statistics update:  disabled
     </sect2>
   </sect1>
 
+  <sect1 id="vboxmanage-clonevm">
+    <title>VBoxManage clonevm</title>
+
+    <para>This command creates a full or linked copy of an existing virtual
+    machine.</para>
+
+    <para>The <computeroutput>clonevm</computeroutput> subcommand takes at
+    least the name of the virtual machine which should be cloned. The following
+    additional settings can be used to further configure the clone VM
+    operation:</para>
+
+    <itemizedlist>
+       <listitem>
+           <para><computeroutput>--snapshot &lt;uuid&gt;|&lt;name&gt;</computeroutput>: 
+            Select a specific snapshot where the clone operation should refer
+            to. Default is referring to the current state.</para>
+       </listitem>
+       <listitem>
+           <para><computeroutput>--mode machine|all</computeroutput>: 
+           Selects the cloning mode of the operation. If
+           <computeroutput>machine</computeroutput> is selected (the default),
+           the current state of the VM without any snapshots is cloned. If
+           <computeroutput>all</computeroutput> is the selected mode all
+           snapshots and the current state are cloned.
+           </para>
+       </listitem>
+       <listitem>
+           <para><computeroutput>--options link|keepallmacs|keepnatmacs|keepdisknames</computeroutput>: 
+           Allows additional fine tuning of the clone operation. The first
+           option defines that a linked clone should be created, which is
+           only possible for a machine clone from a snapshot. The next two
+           options allow to define how the MAC addresses of every virtual
+           network card should be handled. They can either be reinitialized
+           (the default), left unchanged
+           (<computeroutput>keepallmacs</computeroutput>) or left unchanged
+           when the network type is NAT
+           (<computeroutput>keepnatmacs</computeroutput>). If you add
+           <computeroutput>keepdisknames</computeroutput> all new disk images
+           are called like the original once, otherwise they are
+           renamed.</para>
+       </listitem>
+       <listitem>
+           <para><computeroutput>--name &lt;name&gt;</computeroutput>: Select a
+           new name for the new virtual machine. Default is "Original Name
+           Clone".</para>
+       </listitem>
+       <listitem>
+           <para><computeroutput>--basefolder &lt;basefolder&gt;</computeroutput>: 
+           Select the folder where the new virtual machine configuration should
+           be saved in.</para>
+       </listitem>
+       <listitem>
+           <para><computeroutput>--uuid &lt;uuid&gt;</computeroutput>: 
+           Select the UUID the new VM should have. This id has to be unique in
+           the VirtualBox instance this clone should be registered. Default is
+           creating a new UUID.</para>
+       </listitem>
+       <listitem>
+           <para><computeroutput>--register</computeroutput>: 
+           Automatically register the new clone in this VirtualBox
+           installation. If you manually want register the new VM later, see
+           <xref linkend="vboxmanage-registervm" /> for instructions how to do
+           so.</para>
+       </listitem>
+    </itemizedlist>
+  </sect1>
+
   <sect1 id="vboxmanage-import">
     <title>VBoxManage import</title>
 
@@ -1319,7 +1397,7 @@ Virtual system 0:
 
       <listitem>
         <para><computeroutput>nic&lt;1-N&gt;
-        null|nat|bridged|intnet|hostonly</computeroutput>: With this, you can
+        null|nat|bridged|intnet|hostonly|generic</computeroutput>: With this, you can
         set, for each of the VM's virtual network cards, what type of
         networking should be available. They can be not connected to the host
         (<computeroutput>null</computeroutput>), use network address
@@ -1327,7 +1405,9 @@ Virtual system 0:
         (<computeroutput>bridged</computeroutput>) or communicate with other
         virtual machines using internal networking
         (<computeroutput>intnet</computeroutput>) or host-only networking
-        (<computeroutput>hostonly</computeroutput>). These options correspond
+        (<computeroutput>hostonly</computeroutput>) or access to rarely used
+        sub-modes
+        (<computeroutput>generic</computeroutput>). These options correspond
         to the modes which are described in detail in <xref
         linkend="networkingmodes" />.</para>
       </listitem>
@@ -1486,19 +1566,22 @@ Virtual system 0:
 
     <screen>VBoxManage storageattach    &lt;uuid|vmname&gt;
                             --storagectl &lt;name&gt;
-                            --port &lt;number&gt;
-                            --device &lt;number&gt;
+                            [--port &lt;number&gt;]
+                            [--device &lt;number&gt;]
                             [--type dvddrive|hdd|fdd]
                             [--medium none|emptydrive|
                                       &lt;uuid&gt;|&lt;filename&gt;|host:&lt;drive&gt;|iscsi]
                             [--mtype normal|writethrough|immutable|shareable]
                             [--comment &lt;text&gt;]
+                            [--setuuid &lt;uuid&gt;]
+                            [--setparentuuid &lt;uuid&gt;]
                             [--passthrough on|off]
+                            [--tempeject on|off]
                             [--bandwidthgroup name|none]
                             [--forceunmount]
                             [--server &lt;name&gt;|&lt;ip&gt;]
                             [--target &lt;target&gt;]
-                            [--port &lt;port&gt;]
+                            [--tport &lt;port&gt;]
                             [--lun &lt;lun&gt;]
                             [--encodedlun &lt;lun&gt;]
                             [--username &lt;username&gt;]
@@ -1534,7 +1617,8 @@ Virtual system 0:
 
           <glossdef>
             <para>The number of the storage controller's port which is to be
-            modified. Mandatory.</para>
+            modified. Mandatory, unless the storage controller has only a
+            single port.</para>
           </glossdef>
         </glossentry>
 
@@ -1543,7 +1627,8 @@ Virtual system 0:
 
           <glossdef>
             <para>The number of the port's device which is to be modified.
-            Mandatory.</para>
+            Mandatory, unless the storage controller has only a single device
+            per port.</para>
           </glossdef>
         </glossentry>
 
@@ -1633,12 +1718,38 @@ Virtual system 0:
         </glossentry>
 
         <glossentry>
+          <glossterm>setuuid, setparentuuid</glossterm>
+
+          <glossdef>
+            <para>Modifies the UUID or parent UUID of a medium before
+            attaching it to a VM. This is an expert option. Inappropriate use
+            can make the medium unusable or lead to broken VM configurations
+            if any other VM is referring to the same media already. The most
+            frequently used variant is <code>--setuuid ""</code>, which assigns
+            a new (random) UUID to an image. This is useful to resolve the
+            duplicate UUID errors if one duplicated an image using file copy
+            utilities.</para>
+          </glossdef>
+        </glossentry>
+
+        <glossentry>
           <glossterm>passthrough</glossterm>
 
           <glossdef>
             <para>For a virtual DVD drive only, you can enable DVD writing
             support (currently experimental; see <xref
             linkend="storage-cds" />).</para>
+          </glossdef>
+        </glossentry>
+
+        <glossentry>
+          <glossterm>tempeject</glossterm>
+
+          <glossdef>
+            <para>For a virtual DVD drive only, you can configure the behavior
+            for guest-triggered medium eject. If this is set to "on", the eject
+            has only temporary effects. If the VM is powered off and restarted
+            the originally configured medium will be still in the drive.</para>
           </glossdef>
         </glossentry>
 
@@ -2003,7 +2114,7 @@ Virtual system 0:
         <listitem>
           <para>With the <computeroutput>--compact</computeroutput> option,
           can be used to compact disk images, i.e. remove blocks that only
-          contains zeroes. This will shrink a dynamically expanding image
+          contains zeroes. This will shrink a dynamically allocated image
           again; it will reduce the <emphasis>physical</emphasis> size of the
           image without affecting the logical size of the virtual disk.
           Compaction works both for base images and for diff images created as
@@ -2015,24 +2126,27 @@ Virtual system 0:
           <computeroutput>sdelete</computeroutput> tool provided by Microsoft.
           Execute <computeroutput>sdelete -c</computeroutput> in the guest to
           zero the free disk space before compressing the virtual disk
-          image.</para>
+          image. For Linux, use the <code>zerofree</code> utility which
+          supports ext2/ext3 filesystems.</para>
 
           <para>Please note that compacting is currently only available for
           VDI images. A similar effect can be achieved by zeroing out free
-          blocks and then cloning the disk to any other dynamically expanding
+          blocks and then cloning the disk to any other dynamically allocated
           format. You can use this workaround until compacting is also
           supported for disk formats other than VDI.</para>
         </listitem>
 
         <listitem>
-          <para>The --resize option allows you to expand the capacity of an
-          existing image; this increases the <emphasis>logical</emphasis> size
-          of a virtual disk without affecting the physical size much.<footnote>
+          <para>The <computeroutput>--resize</computeroutput> option allows you
+          to change the capacity of an existing image; this adjusts the
+          <emphasis>logical</emphasis> size of a virtual disk without affecting
+          the physical size much.<footnote>
               <para>Image resizing was added with VirtualBox 4.0.</para>
-            </footnote> This currently works only for the VDI and VHD formats,
-          and only for the dynamically expanding variants. For example, if you
-          originally created a 10G disk which is now full, you can use the
-          --resize command to add more space to the virtual disk without
+            </footnote> This currently works only for expanding the capacity of
+          VDI and VHD formats, and only for the dynamically allocated variants.
+          For example, if you originally created a 10G disk which is now full,
+          you can use the <computeroutput>--resize 15360</computeroutput>
+          command to add 5 GByte more space to the virtual disk without
           having to create a new image and copy all data from within a virtual
           machine.</para>
         </listitem>
@@ -2410,13 +2524,14 @@ Value: 2006.01.01</screen>
           runnable on the guest. This command only works while a VM is up and
           running and has the following syntax:</para>
 
-          <screen>VBoxManage guestcontrol exec[ute] &lt;vmname&gt;|&lt;uuid&gt;
-            &lt;path to program&gt;
+          <screen>VBoxManage guestcontrol &lt;vmname&gt;|&lt;uuid&gt; exec[ute]
+            --image &lt;path to program&gt;
             --username &lt;name&gt; --password &lt;password&gt;
-            [--arguments "&lt;arguments&gt;"]
+            [--dos2unix]
             [--environment "&lt;NAME&gt;=&lt;VALUE&gt; [&lt;NAME&gt;=&lt;VALUE&gt;]"]
-            [--flags &lt;flags&gt;] [--timeout &lt;msec&gt;]
-            [--verbose] [--wait-for exit,stdout,stderr||]</screen>
+            [--timeout &lt;msec&gt;] [--unix2dos] [--verbose]
+            [--wait-exit] [--wait-stdout] [--wait-stderr]
+            -- [[&lt;argument1&gt;] ... [&lt;argumentN&gt;]]</screen>
 
           <para>where the parameters mean: <glosslist>
               <glossentry>
@@ -2428,7 +2543,7 @@ Value: 2006.01.01</screen>
               </glossentry>
 
               <glossentry>
-                <glossterm>path to program</glossterm>
+                <glossterm>--image "&lt;path to program&gt;"</glossterm>
 
                 <glossdef>
                   <para>Absolute path and process name of process to execute
@@ -2438,16 +2553,30 @@ Value: 2006.01.01</screen>
               </glossentry>
 
               <glossentry>
-                <glossterm>--arguments "&lt;arguments&gt;"</glossterm>
+                <glossterm>--username &lt;name&gt;</glossterm>
 
                 <glossdef>
-                  <para>One or more arguments to pass to the process being
-                  executed.</para>
+                  <para>Name of the user the process should run under. This
+                  user must exist on the guest OS.</para>
+                </glossdef>
+              </glossentry>
 
-                  <para>Arguments containing spaces must be enclosed in
-                  quotation marks. More than one
-                  <computeroutput>--arguments</computeroutput> at a time can
-                  be specified to keep the command line tidy.</para>
+              <glossentry>
+                <glossterm>--password &lt;password&gt;</glossterm>
+
+                <glossdef>
+                  <para>Password of the user account specified with
+                  <computeroutput>--username</computeroutput>. If not given,
+                  an empty password is assumed.</para>
+                </glossdef>
+              </glossentry>
+
+              <glossentry>
+                <glossterm>--dos2unix</glossterm>
+
+                <glossdef>
+                  Converts output from DOS/Windows guests to UNIX-compatible
+                  line endings (CR + LF -> LF). Not implemented yet.
                 </glossdef>
               </glossentry>
 
@@ -2476,15 +2605,6 @@ Value: 2006.01.01</screen>
               </glossentry>
 
               <glossentry>
-                <glossterm>--flags &lt;flags&gt;</glossterm>
-
-                <glossdef>
-                  <para>Additional flags to set. This is not used at the
-                  moment.</para>
-                </glossdef>
-              </glossentry>
-
-              <glossentry>
                 <glossterm>--timeout &lt;msec&gt;</glossterm>
 
                 <glossdef>
@@ -2497,21 +2617,11 @@ Value: 2006.01.01</screen>
               </glossentry>
 
               <glossentry>
-                <glossterm>--username &lt;name&gt;</glossterm>
+                <glossterm>--unix2dos</glossterm>
 
                 <glossdef>
-                  <para>Name of the user the process should run under. This
-                  user must exist on the guest OS.</para>
-                </glossdef>
-              </glossentry>
-
-              <glossentry>
-                <glossterm>--password &lt;password&gt;</glossterm>
-
-                <glossdef>
-                  <para>Password of the user account specified with
-                  <computeroutput>--username</computeroutput>. If not given,
-                  an empty password is assumed.</para>
+                  Converts output from a UNIX/Linux guests to DOS-/Windows-compatible
+                  line endings (LF -> CR + LF). Not implemented yet.
                 </glossdef>
               </glossentry>
 
@@ -2524,43 +2634,54 @@ Value: 2006.01.01</screen>
               </glossentry>
 
               <glossentry>
-                <glossterm>--wait-for &lt;action&gt;</glossterm>
+                <glossterm>--wait-exit</glossterm>
 
                 <glossdef>
-                  <para>Tells VBoxManage to wait for a certain action to
-                  happen and react to it. The following actions are available:
-                  <glosslist>
-                      <glossentry>
-                        <glossterm>exit</glossterm>
-
-                        <glossdef>
-                          <para>Waits until the process ends and outputs its
-                          exit code along with the exit reason/flags.</para>
-                        </glossdef>
-                      </glossentry>
-
-                      <glossentry>
-                        <glossterm>stdout or stderr</glossterm>
-
-                        <glossdef>
-                          <para>Waits until the process ends and outputs its
-                          exit code along with the exit reason/flags. After
-                          that VBoxManage retrieves the output collected from
-                          the guest process's stdout and stderr.</para>
-                        </glossdef>
-                      </glossentry>
-                    </glosslist></para>
+                  <para>Waits until the process ends and outputs its
+                  exit code along with the exit reason/flags.</para>
                 </glossdef>
               </glossentry>
+
+              <glossentry>
+                <glossterm>--wait-stdout</glossterm>
+
+                <glossdef>
+                  <para>Waits until the process ends and outputs its
+                  exit code along with the exit reason/flags. While waiting
+                  VBoxManage retrieves the process output collected from stdout.</para>
+                </glossdef>
+              </glossentry>
+
+              <glossentry>
+                <glossterm>--wait-stderr</glossterm>
+
+                <glossdef>
+                  <para>Waits until the process ends and outputs its
+                  exit code along with the exit reason/flags. While waiting
+                  VBoxManage retrieves the process output collected from stderr.</para>
+                </glossdef>
+              </glossentry>
+
+              <glossentry>
+                <glossterm>[-- [&lt;argument1s&gt;] ... [&lt;argumentNs&gt;]]</glossterm>
+
+                <glossdef>
+                  <para>One or more arguments to pass to the process being
+                  executed.</para>
+                  <para>Arguments containing spaces must be enclosed in
+                  quotation marks.</para>
+                </glossdef>
+              </glossentry>
+
             </glosslist></para>
 
           <para><note>
               <para>On Windows there are certain limitations for graphical
               applications; please see <xref linkend="KnownIssues" /> for more
               information.</para>
-            </note> Examples: <screen>VBoxManage --nologo guestcontrol execute "My VM" "/bin/ls" --arguments "-l /usr"
-          --username foo --password bar --wait-for stdout</screen> <screen>VBoxManage --nologo guestcontrol execute "My VM" "c:\\windows\\system32\\ipconfig.exe"
-          --username foo --password bar --wait-for stdout</screen> Note that
+            </note> Examples: <screen>VBoxManage --nologo guestcontrol "My VM" execute --image "/bin/ls"
+          --username foo --password bar --wait-exit --wait-stdout -- -l /usr</screen> <screen>VBoxManage --nologo guestcontrol "My VM" execute --image "c:\\windows\\system32\\ipconfig.exe"
+          --username foo --password bar --wait-exit --wait-stdout</screen> Note that
           the double backslashes in the second example are only required on
           Unix hosts.</para>
         </listitem>
@@ -2570,7 +2691,7 @@ Value: 2006.01.01</screen>
           files from the host to the guest (only with installed Guest
           Additions 4.0 and later).</para>
 
-          <screen>VBoxManage guestcontrol copyto|cp &lt;vmname&gt;|&lt;uuid&gt;
+          <screen>VBoxManage guestcontrol &lt;vmname&gt;|&lt;uuid&gt; copyto|cp
             &lt;source on host&gt; &lt;destination on guest&gt;
             --username &lt;name&gt; --password &lt;password&gt;
             [--dryrun] [--follow] [--recursive] [--verbose]</screen>
@@ -2675,7 +2796,7 @@ Value: 2006.01.01</screen>
           copying files from the host to the guest (only with installed Guest
           Additions 4.0 and later).</para>
 
-          <screen>VBoxManage guestcontrol createdir[ectory]|mkdir|md &lt;vmname&gt;|&lt;uuid&gt;
+          <screen>VBoxManage guestcontrol &lt;vmname&gt;|&lt;uuid&gt; createdir[ectory]|mkdir|md
             &lt;directory to create on guest&gt;
             [--username "&lt;name&gt;"] [--password "&lt;password&gt;"]
             [--parents] [--mode &lt;mode&gt;] [--verbose]</screen>
@@ -3157,7 +3278,11 @@ Value: 2006.01.01</screen>
     linkend="intro-installing" />.<itemizedlist>
         <listitem>
           <para>To add a new extension pack, use <computeroutput>VBoxManage
-          extpack install &lt;tarball&gt;</computeroutput>.</para>
+          extpack install &lt;tarball&gt;</computeroutput>. This command
+          will fail if an older version of the same extension pack is already
+          installed. The optional <computeroutput>--replace</computeroutput>
+          parameter can be used to uninstall the old package before the new
+          package is installed.</para>
         </listitem>
 
         <listitem>

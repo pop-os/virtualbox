@@ -1,4 +1,4 @@
-# $Id: VBoxPkgOSEX64.dsc $
+# $Id: VBoxPkgOSEX64.dsc 32436 2010-09-13 07:30:33Z vboxsync $
 
 #
 # Copyright (C) 2009-2010 Oracle Corporation

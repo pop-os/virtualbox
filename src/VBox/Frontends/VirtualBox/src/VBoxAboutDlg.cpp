@@ -1,4 +1,4 @@
-/* $Id: VBoxAboutDlg.cpp $ */
+/* $Id: VBoxAboutDlg.cpp 37762 2011-07-04 12:55:46Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -33,7 +33,7 @@
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 VBoxAboutDlg::VBoxAboutDlg(QWidget *pParent, const QString &strVersion)
-    : QIWithRetranslateUI2<QIDialog>(pParent, Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowSystemMenuHint)
+    : QIWithRetranslateUI2<QIDialog>(pParent, Qt::CustomizeWindowHint | Qt::WindowTitleHint)
     , m_strVersion(strVersion)
 {
     /* Delete dialog on close: */

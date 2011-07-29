@@ -472,11 +472,96 @@
     </message>
     <message>
         <source>Session I&amp;nformation</source>
-        <translation>세션 정보(&amp;N)</translation>
+        <translation type="obsolete">세션 정보(&amp;N)</translation>
     </message>
     <message>
         <source>Enable R&amp;emote Display</source>
         <translation>원격 디스플레이 사용하기(&amp;E)</translation>
+    </message>
+    <message>
+        <source>&amp;Settings...</source>
+        <translation>설정(&amp;S)...</translation>
+    </message>
+    <message>
+        <source>Manage the virtual machine settings</source>
+        <translation>가상 머신 설정을 관리합니다</translation>
+    </message>
+    <message>
+        <source>Session I&amp;nformation...</source>
+        <translation>세션 정보(&amp;N)...</translation>
+    </message>
+</context>
+<context>
+    <name>UICloneVMWizard</name>
+    <message>
+        <source>Clone a virtual machine</source>
+        <translation>가상 머신을 복제합니다</translation>
+    </message>
+    <message>
+        <source>Clone</source>
+        <translation>복제</translation>
+    </message>
+</context>
+<context>
+    <name>UICloneVMWizardPage1</name>
+    <message>
+        <source>&lt;p&gt;This wizard will help you to create a clone of your virtual machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;이 마법사는 가상 머신을 복제하는 과정을 도와 줍니다.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose a name for the new virtual machine:&lt;/p&gt;</source>
+        <translation>&lt;p&gt;새 가상 머신의 이름을 지정하십시오:&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>When checked a new unique MAC address will assigned to all configured network cards.</source>
+        <translation>선택하면 모든 설정된 네트워크 카드에 새로운 고유 MAC 주소를 할당합니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Reinitialize the MAC address of all network cards</source>
+        <translation>모든 네트워크 카드의 MAC 주소 초기화(&amp;R)</translation>
+    </message>
+    <message>
+        <source>Welcome to the virtual machine clone wizard</source>
+        <translation>가상 머신 복제 마법사에 오신 것을 환영합니다</translation>
+    </message>
+    <message>
+        <source>%1 Clone</source>
+        <translation>%1 복제</translation>
+    </message>
+</context>
+<context>
+    <name>UICloneVMWizardPage2</name>
+    <message>
+        <source>Current machine state</source>
+        <translation>현재 머신 상태</translation>
+    </message>
+    <message>
+        <source>Current machine and all child states</source>
+        <translation>현재 머신 및 모든 머신 상태</translation>
+    </message>
+    <message>
+        <source>All states</source>
+        <translation>모든 상태</translation>
+    </message>
+    <message>
+        <source>Cloning Configuration</source>
+        <translation>복제 설정</translation>
+    </message>
+    <message>
+        <source>Please choose which parts of the virtual machine should be cloned.</source>
+        <translation>가상 머신의 복제할 부분을 선택하십시오.</translation>
+    </message>
+    <message>
+        <source>If you select &lt;b&gt;Current machine state&lt;/b&gt;, only the current state of the virtual machine is cloned.</source>
+        <translation>&lt;b&gt;현재 머신 상태&lt;/b&gt;를 선택하면 가상 머신의 현재 상태만 복제됩니다.</translation>
+    </message>
+    <message>
+        <source>If you select &lt;b&gt;Current machine and all child states&lt;/b&gt; the current state of the virtual machine and any states of child snapshots are cloned.</source>
+        <translation>&lt;b&gt;현재 머신 및 모든 자식 상태&lt;/b&gt;를 선택하면 현재 가상 머신의 상태와 모든 자식 상태 스냅샷을 복제합니다.</translation>
+    </message>
+    <message>
+        <source>If you select &lt;b&gt;All states&lt;/b&gt;, the current machine state and all snapshots are cloned.</source>
+        <translation>&lt;b&gt;모든 상태&lt;/b&gt;를 선택하면 현재 머신 상태와 모든 스냅샷을 복제합니다.</translation>
     </message>
 </context>
 <context>
@@ -643,7 +728,7 @@
     <message>
         <source>VDE network, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation>VDE 네트워크, &apos;%1&apos;</translation>
+        <translation type="obsolete">VDE 네트워크, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Adapter %1</source>
@@ -768,6 +853,26 @@
         <source>Description</source>
         <comment>details report</comment>
         <translation>설명</translation>
+    </message>
+    <message>
+        <source>Execution Cap</source>
+        <comment>details report</comment>
+        <translation>실행 제한</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
+        <comment>details report</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Generic driver, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>일반 드라이버, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
+        <comment>details report (network)</comment>
+        <translation>일반 드라이버, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</translation>
     </message>
 </context>
 <context>
@@ -948,6 +1053,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&amp;Hostname:</source>
         <translation type="obsolete">호스트 이름(&amp;H):</translation>
+    </message>
+    <message>
+        <source>Export</source>
+        <translation>내보내기</translation>
     </message>
 </context>
 <context>
@@ -1280,6 +1389,10 @@ p, li { white-space: pre-wrap; }
         <source>Cancel</source>
         <translation type="obsolete">취소</translation>
     </message>
+    <message>
+        <source>Start</source>
+        <translation>시작</translation>
+    </message>
 </context>
 <context>
     <name>UIFirstRunWzdPage1</name>
@@ -1350,41 +1463,6 @@ p, li { white-space: pre-wrap; }
         <source>Source</source>
         <comment>summary</comment>
         <translation>원본</translation>
-    </message>
-</context>
-<context>
-    <name>UIGLSettingsDlg</name>
-    <message>
-        <source>General</source>
-        <translation>일반</translation>
-    </message>
-    <message>
-        <source>Input</source>
-        <translation>입력</translation>
-    </message>
-    <message>
-        <source>Update</source>
-        <translation>업데이트</translation>
-    </message>
-    <message>
-        <source>Language</source>
-        <translation>언어</translation>
-    </message>
-    <message>
-        <source>USB</source>
-        <translation>USB</translation>
-    </message>
-    <message>
-        <source>Network</source>
-        <translation>네트워크</translation>
-    </message>
-    <message>
-        <source>Extensions</source>
-        <translation>확장</translation>
-    </message>
-    <message>
-        <source>VirtualBox - %1</source>
-        <translation>VirtualBox - %1</translation>
     </message>
 </context>
 <context>
@@ -1824,6 +1902,57 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UIGlobalSettingsProxy</name>
+    <message>
+        <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation>선택하면 VirtualBox 게스트 확장 다운로드 및 업데이트 확인 등 네트워크를 사용하는 작업에 아래 프록시를 사용합니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Enable proxy</source>
+        <translation>프록시 사용하기(&amp;E)</translation>
+    </message>
+    <message>
+        <source>Ho&amp;st:</source>
+        <translation>호스트(&amp;S):</translation>
+    </message>
+    <message>
+        <source>Changes the proxy host.</source>
+        <translation>프록시 호스트를 변경합니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Port:</source>
+        <translation>포트(&amp;P):</translation>
+    </message>
+    <message>
+        <source>Changes the proxy port.</source>
+        <translation>프록시 포트를 변경합니다.</translation>
+    </message>
+    <message>
+        <source>When checked the authentication supplied will be used with the proxy server.</source>
+        <translation>선택하면 프록시 서버에 지정한 인증 정보로 인증합니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Use authentication</source>
+        <translation>인증 사용하기(&amp;U)</translation>
+    </message>
+    <message>
+        <source>User &amp;name:</source>
+        <translation>사용자 이름(&amp;N):</translation>
+    </message>
+    <message>
+        <source>Changes the user name used for authentication.</source>
+        <translation>인증에 사용할 사용자 이름을 설정합니다.</translation>
+    </message>
+    <message>
+        <source>Pass&amp;word:</source>
+        <translation>암호(&amp;W):</translation>
+    </message>
+    <message>
+        <source>Changes the password used for authentication.</source>
+        <translation>인증에 사용할 암호를 설정합니다.</translation>
+    </message>
+</context>
+<context>
     <name>UIGlobalSettingsUpdate</name>
     <message>
         <source>When checked, the application will periodically connect to the VirtualBox website and check whether a new VirtualBox version is available.</source>
@@ -1893,23 +2022,23 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Left Shift</source>
-        <translation>왼쪽 Shift</translation>
+        <translation type="obsolete">왼쪽 Shift</translation>
     </message>
     <message>
         <source>Right Shift</source>
-        <translation>오른쪽 Shift</translation>
+        <translation type="obsolete">오른쪽 Shift</translation>
     </message>
     <message>
         <source>Left Ctrl</source>
-        <translation>왼쪽 Ctrl</translation>
+        <translation type="obsolete">왼쪽 Ctrl</translation>
     </message>
     <message>
         <source>Right Ctrl</source>
-        <translation>오른쪽 Ctrl</translation>
+        <translation type="obsolete">오른쪽 Ctrl</translation>
     </message>
     <message>
         <source>Left Alt</source>
-        <translation>왼쪽 Alt</translation>
+        <translation type="obsolete">왼쪽 Alt</translation>
     </message>
     <message>
         <source>Right Alt</source>
@@ -1917,11 +2046,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Left WinKey</source>
-        <translation>왼쪽 윈도 키</translation>
+        <translation>왼쪽 Win 키</translation>
     </message>
     <message>
         <source>Right WinKey</source>
-        <translation>오른쪽 윈도 키</translation>
+        <translation>오른쪽 Win 키</translation>
     </message>
     <message>
         <source>Menu key</source>
@@ -2126,6 +2255,10 @@ p, li { white-space: pre-wrap; }
         <source>&amp;Import &gt;</source>
         <translation type="obsolete">가져오기(&amp;I) &gt;</translation>
     </message>
+    <message>
+        <source>Import</source>
+        <translation>가져오기</translation>
+    </message>
 </context>
 <context>
     <name>UIImportApplianceWzdPage1</name>
@@ -2270,7 +2403,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</source>
         <comment>Virtualization Stuff LED</comment>
-        <translation>이 가상 머신에서 사용하는 하드웨어 가상화 기능의 상태를 표시합니다:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</translation>
+        <translation type="obsolete">이 가상 머신에서 사용하는 하드웨어 가상화 기능의 상태를 표시합니다:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</source>
@@ -2292,6 +2425,11 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;hr&gt;The Remote Desktop Server is listening on port %1</source>
         <translation>&lt;hr&gt;원격 데스크톱 서버가 포트 %1에서 듣는 중</translation>
+    </message>
+    <message>
+        <source>Indicates the status of different features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6%&lt;/nobr&gt;</source>
+        <comment>Virtualization Stuff LED</comment>
+        <translation>이 가상 머신의 여러 기능 상태를 표시합니다:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6%&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
@@ -2492,7 +2630,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>You have 3D Acceleration enabled for a operation system which uses the WDDM video driver. For maximal performance set the guest VRAM to at least &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>WDDM 비디오 드라이버를 사용하는 게스트 운영 체제의 3차원 가속을 활성화하였습니다. 최대 성능을 위하여 게스트 비디오 메모리를 최소 &lt;b&gt;%1&lt;/b&gt; 이상으로 설정하십시오.</translation>
+        <translation type="obsolete">WDDM 비디오 드라이버를 사용하는 게스트 운영 체제의 3차원 가속을 활성화하였습니다. 최대 성능을 위하여 게스트 비디오 메모리를 최소 &lt;b&gt;%1&lt;/b&gt; 이상으로 설정하십시오.</translation>
+    </message>
+    <message>
+        <source>you have 3D Acceleration enabled for a operation system which uses the WDDM video driver. For maximal performance set the guest VRAM to at least &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>WDDM 비디오 드라이버를 사용하는 운영 체제의 3차원 가속을 활성화하였습니다. 최대 성능을 위하여 게스트 비디오 메모리를 최소 &lt;b&gt;%1&lt;/b&gt; 이상으로 설정하십시오.</translation>
+    </message>
+    <message>
+        <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
+        <translation>2차원 가속을 선택하였습니다. 2차원 비디오 가속은 Windows 게스트만 지원하므로 이 기능은 비활성화될 것입니다.</translation>
     </message>
 </context>
 <context>
@@ -2721,6 +2867,10 @@ p, li { white-space: pre-wrap; }
         <source>Show At &amp;Top Of Screen</source>
         <translation>화면 위에 보이기(&amp;T)</translation>
     </message>
+    <message>
+        <source>you have selected a 64-bit guest OS type for this VM. As such guests require hardware virtualization (VT-x/AMD-V), this feature will be enabled automatically.</source>
+        <translation>이 가상 머신에 64비트 게스트 운영체제를 사용하려면 하드웨어 가상화(VT-x/AMD-V)가 필요하므로, 이 기능은 자동으로 활성화됩니다.</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsNetwork</name>
@@ -2822,7 +2972,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Selects the name of the network adapter for &lt;b&gt;Bridged Adapter&lt;/b&gt; or &lt;b&gt;Host-only Adapter&lt;/b&gt; attachments and the name of the network &lt;b&gt;Internal Network&lt;/b&gt; attachments.</source>
-        <translation>연결 종류가 &lt;b&gt;브리지 어댑터&lt;/b&gt; 및 &lt;b&gt;호스트 전용 어댑터&lt;/b&gt;인 경우 해당하는 어댑터를 선택하시고, &lt;b&gt;내부 네트워크&lt;/b&gt;인 경우 내부 네트워크의 이름을 입력하십시오.</translation>
+        <translation type="obsolete">연결 종류가 &lt;b&gt;브리지 어댑터&lt;/b&gt; 및 &lt;b&gt;호스트 전용 어댑터&lt;/b&gt;인 경우 해당하는 어댑터를 선택하시고, &lt;b&gt;내부 네트워크&lt;/b&gt;인 경우 내부 네트워크의 이름을 입력하십시오.</translation>
     </message>
     <message>
         <source>A&amp;dvanced</source>
@@ -2859,6 +3009,42 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&amp;Port Forwarding</source>
         <translation>포트 포워딩(&amp;P)</translation>
+    </message>
+    <message>
+        <source>&amp;Promiscuous Mode:</source>
+        <translation>무작위 모드(&amp;P):</translation>
+    </message>
+    <message>
+        <source>Selects the promiscuous mode policy of the network adapter when attached to an internal network, host only network or a bridge.</source>
+        <translation>내부 네트워크, 호스트 전용 네트워크, 브리지에 연결되었을 때 네트워크 어댑터의 무작위 모드를 선택합니다.</translation>
+    </message>
+    <message>
+        <source>Generic Properties:</source>
+        <translation>일반 속성:</translation>
+    </message>
+    <message>
+        <source>Enter any configuration settings here for the network attachment driver you will be using. The settings should be of the form &lt;b&gt;name=value&lt;/b&gt; and will depend on the driver. Use &lt;b&gt;shift-enter&lt;/b&gt; to add a new entry.</source>
+        <translation>사용할 네트워크 드라이버의 설정 사항을 입력하십시오. 설정 사항은 드라이버마다 다르며 &lt;b&gt;이름=값&lt;/b&gt; 형식을 가집니다. 새 항목을 입력하려면 &lt;b&gt;Shift+Enter&lt;/b&gt; 키를 누르십시오.</translation>
+    </message>
+    <message>
+        <source>no generic driver is selected</source>
+        <translation>일반 드라이버가 선택되지 않았음</translation>
+    </message>
+    <message>
+        <source>Selects the network adapter on the host system that traffic to and from this network card will go through.</source>
+        <translation>이 네트워크 카드의 트래픽을 담당할 호스트 시스템의 네트워크 어댑터를 선택하십시오.</translation>
+    </message>
+    <message>
+        <source>Enter the name of the internal network that this network card will be connected to. You can create a new internal network by choosing a name which is not used by any other network cards in this virtual machine or others.</source>
+        <translation>이 네트워크 카드를 연결할 내부 네트워크의 이름을 입력하십시오. 이 가상 머신이나 다른 가상 머신에 사용되지 않는 이름을 입력하면 새 내부 네트워크를 만들 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Selects the virtual network adapter on the host system that traffic to and from this network card will go through. You can create and remove adapters using the global network settings in the virtual machine manager window.</source>
+        <translation>이 네트워크 카드의 트래픽을 담당할 호스트 시스템의 가상 네트워크 어댑터를 선택하십시오. 가상 머신 관리자 창의 전역 네트워크 설정에서 어댑터를 추가하거나 삭제할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Selects the driver to be used with this network card.</source>
+        <translation>이 네트워크 카드에 사용할 드라이버를 선택하십시오.</translation>
     </message>
 </context>
 <context>
@@ -3371,7 +3557,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>No hard disk is selected for &lt;i&gt;%1&lt;/i&gt;.</source>
-        <translation>&lt;i&gt;%1&lt;/i&gt;의 하드디스크가 선택되지 않았습니다.</translation>
+        <translation type="obsolete">&lt;i&gt;%1&lt;/i&gt;의 하드디스크가 선택되지 않았습니다.</translation>
     </message>
     <message>
         <source>&lt;i&gt;%1&lt;/i&gt; uses a medium that is already attached to &lt;i&gt;%2&lt;/i&gt;.</source>
@@ -3645,6 +3831,60 @@ p, li { white-space: pre-wrap; }
         <source>Choose a virtual floppy disk file...</source>
         <translation>가상 플로피 디스크 파일 선택...</translation>
     </message>
+    <message>
+        <source>When checked, it suppresses unmounting the medium when the guest OS ejects it.</source>
+        <translation>선택하면 게스트 운영 체제에서 미디어를 꺼낼 때 마운트를 해제하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Live CD/DVD</source>
+        <translation>라이브 CD/DVD(&amp;L)</translation>
+    </message>
+    <message>
+        <source>When checked, this marks the medium as non-rotational storage (SSD).</source>
+        <translation>선택하면 이 미디어를 SSD로 표시합니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Solid-state drive</source>
+        <translation>SSD(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Details:</source>
+        <translation>정보:</translation>
+    </message>
+    <message>
+        <source>no name specified for controller at position &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>위치 &lt;b&gt;%1&lt;/b&gt;에 있는 컨트롤러의 이름이 지정되지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>controller at position &lt;b&gt;%1&lt;/b&gt; uses the name that is already used by controller at position &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>위치 &lt;b&gt;%1&lt;/b&gt;에 있는 컨트롤러의 이름이 위치 &lt;b&gt;%2&lt;/b&gt;에 있는 컨트롤러에서 사용 중입니다.</translation>
+    </message>
+    <message>
+        <source>no hard disk is selected for &lt;i&gt;%1&lt;/i&gt;.</source>
+        <translation>&lt;i&gt;%1&lt;/i&gt;의 하드디스크가 선택되지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>at most one supported</source>
+        <comment>controller</comment>
+        <translation>최대 1개만 지원함</translation>
+    </message>
+    <message>
+        <source>up to %1 supported</source>
+        <comment>controllers</comment>
+        <translation>최대 %1개까지 지원함</translation>
+    </message>
+    <message>
+        <source>you are currently using more storage controllers than a %1 chipset supports. Please change the chipset type on the System settings page or reduce the number of the following storage controllers on the Storage settings page: %2.</source>
+        <translation>%1 칩셋이 지원하는 갯수 이상의 저장소 컨트롤러를 사용하고 있습니다. 시스템 설정 페이지에서 칩셋 종류를 바꾸거나 저장소 설정 페이지의 다음 저장소 컨트롤러의 갯수를 줄이십시오: %2.</translation>
+    </message>
+    <message>
+        <source>&amp;Port Count:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selects the port count of the SATA storage controller currently selected in the Storage Tree. This value can&apos;t be less than the maximum used port number + 1.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsSystem</name>
@@ -3740,7 +3980,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>When checked, the virtual machine will support the Input Output APIC (IO APIC), which may slightly decrease performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
-        <translation>선택하면 가상 머신에서 IO APIC를 사용합니다. 이 경우 가상 머신의 성능이 저하될 수도 있습니다. &lt;b&gt;주의:&lt;/b&gt; 게스트 운영체제로 윈도를 설치한 후에 이 기능을 끄지 마십시오!</translation>
+        <translation>선택하면 가상 머신에서 IO APIC를 사용합니다. 이 경우 가상 머신의 성능이 저하될 수도 있습니다. &lt;b&gt;주의:&lt;/b&gt; 게스트 운영체제로 Windows를 설치한 후에 이 기능을 끄지 마십시오!</translation>
     </message>
     <message>
         <source>Enable &amp;IO APIC</source>
@@ -3834,6 +4074,32 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>you have assigned ICH9 chipset type to this VM. It will not work properly unless the IO-APIC feature is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
         <translation>이 가상 머신에 ICH9 칩셋을 사용하기로 선택하였습니다. IO APIC 기능을 활성화하지 않으면 작동하지 않을 것입니다. 확인 단추를 누르면 가상 머신 설정에서 IO APIC를 켤 것입니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Execution Cap:</source>
+        <translation>실행 제한(&amp;E):</translation>
+    </message>
+    <message>
+        <source>Limits the amount of time that each virtual CPU is allowed to run for. Each virtual CPU will be allowed to use up to this percentage of the processing time available on one physical CPU. The execution cap can be disabled by setting it to 100%. Setting the cap too low can make the machine feel slow to respond.</source>
+        <translation>가상 CPU가 실행될 수 있는 시간을 제한합니다. 각각 가상 머신은 실제 물리적 CPU의 다음 백분율 이상으로 프로세싱 시간을 사용할 수 없습니다. 실행 제한 설정을 비활성화하려면 100%로 설정하십시오. 실행 제한 비율을 너무 낮게 잡으면 가상 머신이 느리게 작동할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>you have set the processor execution cap to a low value. This can make the machine feel slow to respond.</source>
+        <translation>실행 제한을 너무 낮게 설정하였습니다. 가상 머신이 느리게 작동할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>you have enabled a USB HID (Human Interface Device). This will not work unless USB emulation is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
+        <translation>USB HID를 활성화했습니다. USB 에뮬레이션이 활성화되어야 하므로, 가상 머신 설정을 저장할 때 자동으로 활성화됩니다.</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;%1%&lt;/qt&gt;</source>
+        <comment>Min CPU execution cap in %</comment>
+        <translation>&lt;qt&gt;%1%&lt;/qt&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;%1%&lt;/qt&gt;</source>
+        <comment>Max CPU execution cap in %</comment>
+        <translation>&lt;qt&gt;%1%&lt;/qt&gt;</translation>
     </message>
 </context>
 <context>
@@ -3961,6 +4227,10 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>USB 2.0 is currently enabled for this virtual machine. However this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site. After this you will be able to re-enable USB 2.0. It will be disabled in the meantime unless you cancel the current settings changes.</source>
+        <translation type="obsolete">현재 가상 머신에서 USB 2.0을 사용할 수 있으나, &lt;b&gt;%1&lt;/b&gt;을(를) 설치해야 합니다. VirtualBox 다운로드 사이트에서 확장 기능 패키지를 설치하면 USB 2.0을 사용할 수 있습니다. 이대로 변경 사항을 저장하면 확장 기능 패키지를 설치하기 전까지 USB 2.0을 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site. After this you will be able to re-enable USB 2.0. It will be disabled in the meantime unless you cancel the current settings changes.</source>
         <translation>현재 가상 머신에서 USB 2.0을 사용할 수 있으나, &lt;b&gt;%1&lt;/b&gt;을(를) 설치해야 합니다. VirtualBox 다운로드 사이트에서 확장 기능 패키지를 설치하면 USB 2.0을 사용할 수 있습니다. 이대로 변경 사항을 저장하면 확장 기능 패키지를 설치하기 전까지 USB 2.0을 사용할 수 없습니다.</translation>
     </message>
 </context>
@@ -4074,6 +4344,21 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UIMediumTypeChangeDialog</name>
+    <message>
+        <source>Modify medium attributes</source>
+        <translation>미디어 속성 수정</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to change the attributes of the virtual disk located in &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please choose one of the following medium types and press &lt;b&gt;%2&lt;/b&gt; to proceed or &lt;b&gt;%3&lt;/b&gt; otherwise.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;의 가상 디스크 속성을 수정할 것입니다.&lt;/p&gt;&lt;p&gt;미디어 종류 중 하나를 선택하시고, 계속 진행하려면 &lt;b&gt;%2&lt;/b&gt;, 취소하려면 &lt;b&gt;%3&lt;/b&gt;을(를) 누르십시오.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Choose medium type:</source>
+        <translation>미디어 종류 선택:</translation>
+    </message>
+</context>
+<context>
     <name>UIMiniProcessWidgetAdditions</name>
     <message>
         <source>Cancel</source>
@@ -4119,7 +4404,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>UINewHDWzd</name>
+    <name>UINewHDWizard</name>
     <message>
         <source>Create New Virtual Disk</source>
         <translation>새 가상 디스크 만들기</translation>
@@ -4134,7 +4419,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Summary</source>
-        <translation type="obsolete">요약</translation>
+        <translation>요약</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1 Bytes&lt;/nobr&gt;</source>
@@ -4146,7 +4431,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Select a file for the new hard disk image file</source>
-        <translation type="obsolete">새 하드디스크 이미지 파일을 선택하십시오</translation>
+        <translation>새 하드디스크 이미지 파일을 선택하십시오</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
@@ -4168,12 +4453,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Location</source>
         <comment>summary</comment>
-        <translation type="obsolete">위치</translation>
+        <translation>위치</translation>
     </message>
     <message>
         <source>Size</source>
         <comment>summary</comment>
-        <translation type="obsolete">크기</translation>
+        <translation>크기</translation>
     </message>
     <message>
         <source>Bytes</source>
@@ -4232,108 +4517,280 @@ p, li { white-space: pre-wrap; }
         <source>If the above settings are correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, a new hard disk will be created.</source>
         <translation type="obsolete">만약 위 설정이 올바르다면 &lt;b&gt;마침&lt;/b&gt; 단추를 누르십시오. 완료 단추를 누르면 새 가상 하드디스크가 생성됩니다.                            </translation>
     </message>
-</context>
-<context>
-    <name>UINewHDWzdPage1</name>
     <message>
-        <source>Welcome to the Create New Virtual Disk Wizard!</source>
-        <translation>새 가상 디스크 생성 마법사에 오신 것을 환영합니다!</translation>
+        <source>%1_copy</source>
+        <comment>copied virtual disk name</comment>
+        <translation>사본_%1</translation>
     </message>
     <message>
-        <source>&lt;p&gt;This wizard will help you to create a new virtual hard disk for your virtual machine.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
-        <translation>&lt;p&gt;이 마법사는 가상 머신에 새로운 하드디스크를 만드는 과정을 도와줍니다.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
-    </message>
-</context>
-<context>
-    <name>UINewHDWzdPage2</name>
-    <message>
-        <source>&lt;p&gt;Select the type of virtual hard disk you want to create.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;dynamically expanding storage&lt;/b&gt; initially occupies a very small amount of space on your physical hard disk. It will grow dynamically (up to the size specified) as the Guest OS claims disk space.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;fixed-size storage&lt;/b&gt; does not grow. It is stored in a file of approximately the same size as the size of the virtual hard disk. The creation of a fixed-size storage may take a long time depending on the storage size and the write performance of your harddisk.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;만들고자 하는 가상 하드디스크 이미지의 종류를 선택하십시오.&lt;/p&gt;&lt;p&gt;&lt;b&gt;동적 확장 저장소&lt;/b&gt;는 처음 만들었을 때 아주 작은 공간만 차지합니다. 게스트 운영체제에서 디스크 공간을 사용하면 디스크 이미지 파일은 여기에 지정한 크기까지 커집니다.&lt;/p&gt;&lt;p&gt;&lt;b&gt;고정 크기 저장소&lt;/b&gt;의 크기는 변하지 않습니다. 가상 하드디스크와 거의 같은 크기의 이미지 파일에 저장됩니다. 하드디스크의 쓰기 성능과 저장소 크기에 따라서 생성 시간이 달라질 수 있습니다.&lt;/p&gt;</translation>
+        <source>Create</source>
+        <translation>만들기</translation>
     </message>
     <message>
-        <source>Storage Type</source>
-        <translation>저장소 종류</translation>
+        <source>Copy Virtual Disk</source>
+        <translation>가상 디스크 복사</translation>
     </message>
     <message>
-        <source>&amp;Dynamically expanding storage</source>
-        <translation>동적 확장 저장소(&amp;D)</translation>
+        <source>Copy</source>
+        <translation>복사</translation>
     </message>
     <message>
-        <source>&amp;Fixed-size storage</source>
-        <translation>고정 크기 저장소(&amp;F)</translation>
+        <source>Welcome to the virtual disk copying wizard</source>
+        <translation>가상 디스크 복사 마법사에 오신 것을 환영합니다</translation>
     </message>
     <message>
-        <source>Hard Disk Storage Type</source>
-        <translation>하드디스크 저장소 종류</translation>
-    </message>
-</context>
-<context>
-    <name>UINewHDWzdPage3</name>
-    <message>
-        <source>&lt;p&gt;Press the &lt;b&gt;Select&lt;/b&gt; button to select the location of a file to store the hard disk data or type a file name in the entry field.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;선택&lt;/b&gt; 단추를 눌러서 하드디스크 데이터를 저장할 경로와 파일 이름을 지정하거나 파일 이름을 직접 입력하십시오.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;This wizard will help you to copy a virtual disk.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;이 마법사는 가상 디스크 복사를 도와 줍니다.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&amp;Location</source>
-        <translation>위치(&amp;L)</translation>
+        <source>Please select the virtual disk which you would like to copy if it is not already selected. You can either choose one from the list or use the folder icon beside the list to select a virtual disk file.</source>
+        <translation>복사할 가상 디스크를 선택하십시오. 목록에서 선택하거나 목록 옆의 폴더 아이콘을 눌러서 복사할 디스크 파일을 지정할 수 있습니다.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Select the size of the virtual hard disk in megabytes. This size will be reported to the Guest OS as the maximum size of this hard disk.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;가상 하드디스크의 크기를 메가바이트 단위로 지정하십시오. 이 크기는 게스트 운영체제가 인식하는 가상 하드디스크의 크기입니다.&lt;/p&gt;</translation>
+        <source>&amp;VDI (VirtualBox Disk Image)</source>
+        <translation>VDI (VirtualBox 디스크 이미지)(&amp;V)</translation>
     </message>
     <message>
-        <source>&amp;Size</source>
-        <translation>크기(&amp;S)</translation>
+        <source>V&amp;MDK (Virtual Machine Disk)</source>
+        <translation>VMDK (가상 머신 디스크)(&amp;M)</translation>
     </message>
     <message>
-        <source>Virtual Disk Location and Size</source>
-        <translation>가상 디스크 위치와 크기</translation>
+        <source>V&amp;HD (Virtual Hard Disk)</source>
+        <translation>VHD (가상 하드 디스크)(&amp;H)</translation>
     </message>
     <message>
-        <source>Select a file for the new hard disk image file</source>
-        <translation>새 하드디스크 이미지 파일을 선택하십시오</translation>
+        <source>Welcome to the virtual disk creation wizard</source>
+        <translation>가상 디스크 생성 마법사에 오신 것을 환영합니다</translation>
     </message>
     <message>
-        <source>Hard disk images (*.vdi)</source>
-        <translation>하드디스크 이미지 (*.vdi)</translation>
+        <source>&lt;p&gt;This wizard will help you to create a new virtual disk for your virtual machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;이 마법사는 가상 머신에 사용할 새 가상 디스크를 만드는 것을 도와 줍니다.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose the type of file that you would like to use for the new virtual disk. If you do not need to use it with other virtualization software you can leave this setting unchanged.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;새 가상 디스크 파일 형식을 선택하십시오. 다른 가상화 소프트웨어에서 디스크를 사용하지 않으려면 선택을 변경하지 않아도 됩니다.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Virtual disk file type</source>
+        <translation>가상 디스크 파일 형식</translation>
+    </message>
+    <message>
+        <source>Please choose the type of file that you would like to use for the new virtual disk. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
+        <translation>새 가상 디스크 파일 형식을 선택하십시오. 다른 가상화 소프트웨어에서 디스크를 사용하지 않으려면 선택을 변경하지 않아도 됩니다.</translation>
+    </message>
+    <message>
+        <source>Virtual disk storage details</source>
+        <translation>가상 디스크 저장소 설정</translation>
+    </message>
+    <message>
+        <source>Please choose whether the new virtual disk file should be allocated as it is used or if it should be created fully allocated.</source>
+        <translation>가상 디스크 파일을 사용할 때 확장할 지, 미리 지정한 크기로 만들지 선택하십시오.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; virtual disk file will only use space on your physical hard disk as it fills up, although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;b&gt;동적 할당&lt;/b&gt; 가상 디스크는 가상 디스크를 사용할 때 파일 크기가 커지지만, 사용량이 줄어들어도 작아지지는 않습니다.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; virtual disk file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;b&gt;고정 크기&lt;/b&gt; 가상 디스크는 만드는 데 더 오래 걸리지만 사용할 때 더 빠릅니다.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You can also choose to &lt;b&gt;split&lt;/b&gt; the virtual disk into several files of up to two gigabytes each. This is mainly useful if you wish to store the virtual machine on removable USB devices or old systems, some of which cannot handle very large files.</source>
+        <translation>&lt;p&gt;가상 디스크를 2GB 파일 여러 개로 &lt;b&gt;분할&lt;/b&gt;할 수도 있습니다. 큰 파일을 처리할 수 없는 시스템이나 이동식 디스크 등에 가상 머신을 저장할 때 유용합니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Dynamically allocated</source>
+        <translation>동적 할당(&amp;D)</translation>
+    </message>
+    <message>
+        <source>&amp;Fixed size</source>
+        <translation>고정 크기(&amp;F)</translation>
+    </message>
+    <message>
+        <source>&amp;Split into files of less than 2GB</source>
+        <translation>2GB 단위로 분할하기(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Virtual disk file location and size</source>
+        <translation>가상 디스크 파일 위치와 크기</translation>
+    </message>
+    <message>
+        <source>Select the size of the virtual disk in megabytes. This size will be reported to the Guest OS as the maximum size of this virtual disk.</source>
+        <translation>가상 디스크의 크기를 메가바이트 단위로 지정하십시오. 이 크기는 게스트 운영체제에 가상 디스크의 크기로 보여집니다.</translation>
+    </message>
+    <message>
+        <source>Virtual disk file location</source>
+        <translation>가상 디스크 파일 위치</translation>
+    </message>
+    <message>
+        <source>Press the &lt;b&gt;Select&lt;/b&gt; button to select the location of a file to store the virtual disk data or type a file name in the entry field.</source>
+        <translation>&lt;b&gt;선택&lt;/b&gt; 단추를 눌러서 가상 디스크 데이터를 저장할 경로와 파일 이름을 지정하거나 파일 이름을 직접 입력하십시오.</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
         <translation>&lt;nobr&gt;%1 (%2 바이트)&lt;/nobr&gt;</translation>
     </message>
-</context>
-<context>
-    <name>UINewHDWzdPage4</name>
     <message>
-        <source>You are going to create a new virtual hard disk with the following parameters:</source>
-        <translation>다음 설정을 사용하여 새 가상 하드디스크를 만듭니다:</translation>
+        <source>You are going to create a new virtual disk with the following parameters:</source>
+        <translation>다음 설정을 사용하여 새 가상 디스크를 만듭니다:</translation>
     </message>
     <message>
-        <source>Summary</source>
-        <translation>요약</translation>
+        <source>You are going to create a copied virtual disk with the following parameters:</source>
+        <translation>다음 설정을 사용하여 복제된 가상 디스크를 만듭니다:</translation>
+    </message>
+    <message>
+        <source>If the above settings are correct, press the &lt;b&gt;%1&lt;/b&gt; button. Once you press it the new virtual disk file will be created.</source>
+        <translation>위 설정이 올바르다면 &lt;b&gt;%1&lt;/b&gt; 단추를 누르십시오. 이 단추를 누르면 새 가상 디스크가 생성됩니다.</translation>
     </message>
     <message>
         <source>%1 B</source>
         <translation>%1 바이트</translation>
     </message>
     <message>
+        <source>File type</source>
+        <comment>summary</comment>
+        <translation>파일 형식</translation>
+    </message>
+    <message>
+        <source>Details</source>
+        <comment>summary</comment>
+        <translation>정보</translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWizardPageFormat</name>
+    <message>
+        <source>File type</source>
+        <translation>파일 형식</translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWizardPageOptions</name>
+    <message>
+        <source>&amp;Location</source>
+        <translation>위치(&amp;L)</translation>
+    </message>
+    <message>
+        <source>&amp;Size</source>
+        <translation>크기(&amp;S)</translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWizardPageVariant</name>
+    <message>
+        <source>Storage details</source>
+        <translation>저장소 정보</translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWizardPageWelcome</name>
+    <message>
+        <source>Welcome to the Create New Virtual Disk Wizard!</source>
+        <translation type="obsolete">새 가상 디스크 생성 마법사에 오신 것을 환영합니다!</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will help you to create a new virtual hard disk for your virtual machine.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;이 마법사는 가상 머신에 새로운 하드디스크를 만드는 과정을 도와줍니다.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Virtual disk to copy</source>
+        <translation>복사할 가상 디스크</translation>
+    </message>
+    <message>
+        <source>Choose a virtual hard disk file...</source>
+        <translation>가상 하드디스크 파일 선택...</translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWzdPage2</name>
+    <message>
+        <source>&lt;p&gt;Select the type of virtual hard disk you want to create.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;dynamically expanding storage&lt;/b&gt; initially occupies a very small amount of space on your physical hard disk. It will grow dynamically (up to the size specified) as the Guest OS claims disk space.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;fixed-size storage&lt;/b&gt; does not grow. It is stored in a file of approximately the same size as the size of the virtual hard disk. The creation of a fixed-size storage may take a long time depending on the storage size and the write performance of your harddisk.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;만들고자 하는 가상 하드디스크 이미지의 종류를 선택하십시오.&lt;/p&gt;&lt;p&gt;&lt;b&gt;동적 확장 저장소&lt;/b&gt;는 처음 만들었을 때 아주 작은 공간만 차지합니다. 게스트 운영체제에서 디스크 공간을 사용하면 디스크 이미지 파일은 여기에 지정한 크기까지 커집니다.&lt;/p&gt;&lt;p&gt;&lt;b&gt;고정 크기 저장소&lt;/b&gt;의 크기는 변하지 않습니다. 가상 하드디스크와 거의 같은 크기의 이미지 파일에 저장됩니다. 하드디스크의 쓰기 성능과 저장소 크기에 따라서 생성 시간이 달라질 수 있습니다.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Storage Type</source>
+        <translation type="obsolete">저장소 종류</translation>
+    </message>
+    <message>
+        <source>&amp;Dynamically expanding storage</source>
+        <translation type="obsolete">동적 확장 저장소(&amp;D)</translation>
+    </message>
+    <message>
+        <source>&amp;Fixed-size storage</source>
+        <translation type="obsolete">고정 크기 저장소(&amp;F)</translation>
+    </message>
+    <message>
+        <source>Hard Disk Storage Type</source>
+        <translation type="obsolete">하드디스크 저장소 종류</translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWzdPage3</name>
+    <message>
+        <source>&lt;p&gt;Press the &lt;b&gt;Select&lt;/b&gt; button to select the location of a file to store the hard disk data or type a file name in the entry field.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;&lt;b&gt;선택&lt;/b&gt; 단추를 눌러서 하드디스크 데이터를 저장할 경로와 파일 이름을 지정하거나 파일 이름을 직접 입력하십시오.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Location</source>
+        <translation type="obsolete">위치(&amp;L)</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the size of the virtual hard disk in megabytes. This size will be reported to the Guest OS as the maximum size of this hard disk.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;가상 하드디스크의 크기를 메가바이트 단위로 지정하십시오. 이 크기는 게스트 운영체제가 인식하는 가상 하드디스크의 크기입니다.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Size</source>
+        <translation type="obsolete">크기(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Virtual Disk Location and Size</source>
+        <translation type="obsolete">가상 디스크 위치와 크기</translation>
+    </message>
+    <message>
+        <source>Select a file for the new hard disk image file</source>
+        <translation type="obsolete">새 하드디스크 이미지 파일을 선택하십시오</translation>
+    </message>
+    <message>
+        <source>Hard disk images (*.vdi)</source>
+        <translation type="obsolete">하드디스크 이미지 (*.vdi)</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
+        <translation type="obsolete">&lt;nobr&gt;%1 (%2 바이트)&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWzdPage4</name>
+    <message>
+        <source>You are going to create a new virtual hard disk with the following parameters:</source>
+        <translation type="obsolete">다음 설정을 사용하여 새 가상 하드디스크를 만듭니다:</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="obsolete">요약</translation>
+    </message>
+    <message>
+        <source>%1 B</source>
+        <translation type="obsolete">%1 바이트</translation>
+    </message>
+    <message>
         <source>Type</source>
         <comment>summary</comment>
-        <translation>종류</translation>
+        <translation type="obsolete">종류</translation>
     </message>
     <message>
         <source>Location</source>
         <comment>summary</comment>
-        <translation>위치</translation>
+        <translation type="obsolete">위치</translation>
     </message>
     <message>
         <source>Size</source>
         <comment>summary</comment>
-        <translation>크기</translation>
+        <translation type="obsolete">크기</translation>
     </message>
     <message>
         <source>If the above settings are correct, press the &lt;b&gt;%1&lt;/b&gt; button. Once you press it, a new hard disk will be created.</source>
-        <translation>만약 위 설정이 올바르다면 &lt;b&gt;%1&lt;/b&gt; 단추를 누르십시오. 단추를 누르면 새 가상 하드디스크가 생성됩니다.                            </translation>
+        <translation type="obsolete">만약 위 설정이 올바르다면 &lt;b&gt;%1&lt;/b&gt; 단추를 누르십시오. 단추를 누르면 새 가상 하드디스크가 생성됩니다.                            </translation>
     </message>
 </context>
 <context>
@@ -4462,6 +4919,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&amp;Use existing hard disk</source>
         <translation type="obsolete">기존 하드 디스크 사용하기(&amp;U)</translation>
+    </message>
+    <message>
+        <source>Create</source>
+        <translation>만들기</translation>
     </message>
 </context>
 <context>
@@ -4696,6 +5157,120 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UISettingsDialogGlobal</name>
+    <message>
+        <source>General</source>
+        <translation>일반</translation>
+    </message>
+    <message>
+        <source>Input</source>
+        <translation>입력</translation>
+    </message>
+    <message>
+        <source>Update</source>
+        <translation>업데이트</translation>
+    </message>
+    <message>
+        <source>Language</source>
+        <translation>언어</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <translation>USB</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <translation>네트워크</translation>
+    </message>
+    <message>
+        <source>Extensions</source>
+        <translation>확장</translation>
+    </message>
+    <message>
+        <source>VirtualBox - %1</source>
+        <translation>VirtualBox - %1</translation>
+    </message>
+    <message>
+        <source>Proxy</source>
+        <translation>프록시</translation>
+    </message>
+</context>
+<context>
+    <name>UISettingsDialogMachine</name>
+    <message>
+        <source>General</source>
+        <translation>일반</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <translation>시스템</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <translation>디스플레이</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <translation>저장소</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <translation>오디오</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <translation>네트워크</translation>
+    </message>
+    <message>
+        <source>Ports</source>
+        <translation>포트</translation>
+    </message>
+    <message>
+        <source>Serial Ports</source>
+        <translation>직렬 포트</translation>
+    </message>
+    <message>
+        <source>Parallel Ports</source>
+        <translation>병렬 포트</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <translation>USB</translation>
+    </message>
+    <message>
+        <source>Shared Folders</source>
+        <translation>공유 폴더</translation>
+    </message>
+    <message>
+        <source>%1 - %2</source>
+        <translation>%1 - %2</translation>
+    </message>
+    <message>
+        <source>you have selected a 64-bit guest OS type for this VM. As such guests require hardware virtualization (VT-x/AMD-V), this feature will be enabled automatically.</source>
+        <translation type="obsolete">이 가상 머신에 64비트 게스트 운영체제를 사용하려면 하드웨어 가상화(VT-x/AMD-V)가 필요하므로, 이 기능은 자동으로 활성화됩니다.</translation>
+    </message>
+    <message>
+        <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
+        <translation type="obsolete">2차원 가속을 선택하였습니다. 2차원 비디오 가속은 윈도 게스트만 지원하므로 이 기능은 비활성화될 것입니다.</translation>
+    </message>
+    <message>
+        <source>you have enabled a USB HID (Human Interface Device). This will not work unless USB emulation is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
+        <translation type="obsolete">USB HID를 활성화했습니다. USB 에뮬레이션이 활성화되어야 하므로, 가상 머신 설정을 저장할 때 자동으로 활성화됩니다.</translation>
+    </message>
+    <message>
+        <source>at most one supported</source>
+        <translation type="obsolete">최대 1개만 지원함</translation>
+    </message>
+    <message>
+        <source>up to %1 supported</source>
+        <translation type="obsolete">최대 %1개까지 지원함</translation>
+    </message>
+    <message>
+        <source>you are currently using more storage controllers than a %1 chipset supports. Please change the chipset type on the System settings page or reduce the number of the following storage controllers on the Storage settings page: %2.</source>
+        <translation type="obsolete">%1 칩셋이 지원하는 개수 이상의 저장소 컨트롤러를 사용하고 있습니다. 시스템 설정 페이지에서 칩셋 종류를 바꾸거나 저장소 설정 페이지의 다음 저장소 컨트롤러의 개수를 줄이십시오: %2.</translation>
+    </message>
+</context>
+<context>
     <name>UIVMCloseDialog</name>
     <message>
         <source>Close Virtual Machine</source>
@@ -4831,81 +5406,6 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>No Preview</source>
         <translation>미리 보지 않음</translation>
-    </message>
-</context>
-<context>
-    <name>UIVMSettingsDlg</name>
-    <message>
-        <source>General</source>
-        <translation>일반</translation>
-    </message>
-    <message>
-        <source>System</source>
-        <translation>시스템</translation>
-    </message>
-    <message>
-        <source>Display</source>
-        <translation>디스플레이</translation>
-    </message>
-    <message>
-        <source>Storage</source>
-        <translation>저장소</translation>
-    </message>
-    <message>
-        <source>Audio</source>
-        <translation>오디오</translation>
-    </message>
-    <message>
-        <source>Network</source>
-        <translation>네트워크</translation>
-    </message>
-    <message>
-        <source>Ports</source>
-        <translation>포트</translation>
-    </message>
-    <message>
-        <source>Serial Ports</source>
-        <translation>직렬 포트</translation>
-    </message>
-    <message>
-        <source>Parallel Ports</source>
-        <translation>병렬 포트</translation>
-    </message>
-    <message>
-        <source>USB</source>
-        <translation>USB</translation>
-    </message>
-    <message>
-        <source>Shared Folders</source>
-        <translation>공유 폴더</translation>
-    </message>
-    <message>
-        <source>%1 - %2</source>
-        <translation>%1 - %2</translation>
-    </message>
-    <message>
-        <source>you have selected a 64-bit guest OS type for this VM. As such guests require hardware virtualization (VT-x/AMD-V), this feature will be enabled automatically.</source>
-        <translation>이 가상 머신에 64비트 게스트 운영체제를 사용하려면 하드웨어 가상화(VT-x/AMD-V)가 필요하므로, 이 기능은 자동으로 활성화됩니다.</translation>
-    </message>
-    <message>
-        <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
-        <translation>2차원 가속을 선택하였습니다. 2차원 비디오 가속은 윈도 게스트만 지원하므로 이 기능은 비활성화될 것입니다.</translation>
-    </message>
-    <message>
-        <source>you have enabled a USB HID (Human Interface Device). This will not work unless USB emulation is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation>USB HID를 활성화했습니다. USB 에뮬레이션이 활성화되어야 하므로, 가상 머신 설정을 저장할 때 자동으로 활성화됩니다.</translation>
-    </message>
-    <message>
-        <source>at most one supported</source>
-        <translation>최대 1개만 지원함</translation>
-    </message>
-    <message>
-        <source>up to %1 supported</source>
-        <translation>최대 %1개까지 지원함</translation>
-    </message>
-    <message>
-        <source>you are currently using more storage controllers than a %1 chipset supports. Please change the chipset type on the System settings page or reduce the number of the following storage controllers on the Storage settings page: %2.</source>
-        <translation>%1 칩셋이 지원하는 개수 이상의 저장소 컨트롤러를 사용하고 있습니다. 시스템 설정 페이지에서 칩셋 종류를 바꾸거나 저장소 설정 페이지의 다음 저장소 컨트롤러의 개수를 줄이십시오: %2.</translation>
     </message>
 </context>
 <context>
@@ -5065,6 +5565,14 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Hard Disk Controller (SAS)</source>
         <translation>하드 디스크 컨트롤러 (SAS)</translation>
+    </message>
+    <message>
+        <source>When checked a new unique MAC address will assigned to all configured network cards.</source>
+        <translation>선택하면 모든 설정된 네트워크 카드에 새 고유 MAC 주소를 할당합니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Reinitialize the MAC address of all network cards</source>
+        <translation>모든 네트워크 카드의 MAC 주소 초기화(&amp;R)</translation>
     </message>
 </context>
 <context>
@@ -6129,7 +6637,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Windows Multimedia</source>
         <comment>AudioDriverType</comment>
-        <translation>윈도 멀티미디어</translation>
+        <translation>Windows 멀티미디어</translation>
     </message>
     <message>
         <source>OSS Audio Driver</source>
@@ -6144,7 +6652,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Windows DirectSound</source>
         <comment>AudioDriverType</comment>
-        <translation>윈도 DirectSound</translation>
+        <translation>Windows DirectSound</translation>
     </message>
     <message>
         <source>CoreAudio</source>
@@ -6467,7 +6975,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Adapter %1</source>
         <comment>network</comment>
-        <translation>어댑터 %1</translation>
+        <translation type="obsolete">어댑터 %1</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;Type&amp;nbsp;(Format):&amp;nbsp;&amp;nbsp;%2&amp;nbsp;(%3)&lt;/nobr&gt;</source>
@@ -6923,7 +7431,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>VDE network, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation>VDE 네트워크, &apos;%1&apos;</translation>
+        <translation type="obsolete">VDE 네트워크, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>SAS</source>
@@ -6933,7 +7441,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>VDE Adapter</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>VDE 어댑터</translation>
+        <translation type="obsolete">VDE 어댑터</translation>
     </message>
     <message>
         <source>LsiLogic SAS</source>
@@ -7130,6 +7638,61 @@ p, li { white-space: pre-wrap; }
         <comment>DiskType</comment>
         <translation>다중 연결 가능</translation>
     </message>
+    <message>
+        <source>Dynamically allocated storage</source>
+        <translation>동적 확장 저장소</translation>
+    </message>
+    <message>
+        <source>Fixed size storage</source>
+        <translation>고정 크기 저장소</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated storage split into files of less than 2GB</source>
+        <translation>2GB 단위로 나뉘어 있는 동적 할당 저장소</translation>
+    </message>
+    <message>
+        <source>Fixed size storage split into files of less than 2GB</source>
+        <translation>2GB 단위로 나뉘어 있는 고정 크기 저장소</translation>
+    </message>
+    <message>
+        <source>Execution Cap</source>
+        <comment>details report</comment>
+        <translation>실행 제한</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
+        <comment>details report</comment>
+        <translation>&lt;nobr&gt;%1%&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Generic, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>일반, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic Driver</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation>일반 드라이버</translation>
+    </message>
+    <message>
+        <source>Deny</source>
+        <comment>NetworkAdapterPromiscModePolicyType</comment>
+        <translation>거부</translation>
+    </message>
+    <message>
+        <source>Allow VMs</source>
+        <comment>NetworkAdapterPromiscModePolicyType</comment>
+        <translation>가상 머신에 허용</translation>
+    </message>
+    <message>
+        <source>Allow All</source>
+        <comment>NetworkAdapterPromiscModePolicyType</comment>
+        <translation>모두 허용</translation>
+    </message>
+    <message>
+        <source>Adapter %1</source>
+        <translation>어댑터 %1</translation>
+    </message>
 </context>
 <context>
     <name>VBoxGlobalSettings</name>
@@ -7292,15 +7855,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Location</source>
-        <translation>위치</translation>
+        <translation type="obsolete">위치</translation>
     </message>
     <message>
         <source>Type (Format)</source>
-        <translation>종류 (형식)</translation>
+        <translation type="obsolete">종류 (형식)</translation>
     </message>
     <message>
         <source>Attached to</source>
-        <translation>다음에 연결됨</translation>
+        <translation type="obsolete">다음에 연결됨</translation>
     </message>
     <message>
         <source>Checking accessibility</source>
@@ -7382,17 +7945,17 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Attached to</source>
         <comment>VMM: Virtual Disk</comment>
-        <translation>다음에 연결됨</translation>
+        <translation type="obsolete">다음에 연결됨</translation>
     </message>
     <message>
         <source>Attached to</source>
         <comment>VMM: CD/DVD Image</comment>
-        <translation>다음에 연결됨</translation>
+        <translation type="obsolete">다음에 연결됨</translation>
     </message>
     <message>
         <source>Attached to</source>
         <comment>VMM: Floppy Image</comment>
-        <translation>다음에 연결됨</translation>
+        <translation type="obsolete">다음에 연결됨</translation>
     </message>
     <message>
         <source>CD/DVD-ROM disk</source>
@@ -7409,6 +7972,46 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>All %1 images (%2)</source>
         <translation>모든 %1 이미지 (%2)</translation>
+    </message>
+    <message>
+        <source>Type:</source>
+        <translation>종류:</translation>
+    </message>
+    <message>
+        <source>Location:</source>
+        <translation>위치:</translation>
+    </message>
+    <message>
+        <source>Format:</source>
+        <translation>형식:</translation>
+    </message>
+    <message>
+        <source>Storage details:</source>
+        <translation>저장소 정보:</translation>
+    </message>
+    <message>
+        <source>Attached to:</source>
+        <translation>다음에 연결됨:</translation>
+    </message>
+    <message>
+        <source>&amp;Copy...</source>
+        <translation>복사(&amp;C)...</translation>
+    </message>
+    <message>
+        <source>&amp;Modify...</source>
+        <translation>수정(&amp;M)...</translation>
+    </message>
+    <message>
+        <source>Copy an existing medium</source>
+        <translation>존재하는 미디어 복사</translation>
+    </message>
+    <message>
+        <source>Modify the attributes of the selected medium</source>
+        <translation>선택한 미디어 속성 수정</translation>
+    </message>
+    <message>
+        <source>C&amp;lose</source>
+        <translation>닫기(&amp;L)</translation>
     </message>
 </context>
 <context>
@@ -7434,7 +8037,7 @@ p, li { white-space: pre-wrap; }
     <name>VBoxNetworkDialog</name>
     <message>
         <source>Network Adapters</source>
-        <translation>네트워크 어댑터</translation>
+        <translation type="obsolete">네트워크 어댑터</translation>
     </message>
 </context>
 <context>
@@ -8119,7 +8722,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Could not access USB on the host system, because neither the USB file system (usbfs) nor the DBus and hal services are currently available. If you wish to use host USB devices inside guest systems, you must correct this and restart VirtualBox.</source>
-        <translation>호스트 시스템의 USB에 접근할 수 없습니다. 게스트 시스템에서 USB를 사용하려면 USB 파일 시스템(usbfs), D-Bus/HAL 서비스 둘 중 하나를 활성화한 다음 VirtualBox를 다시 시작하십시오.</translation>
+        <translation type="obsolete">호스트 시스템의 USB에 접근할 수 없습니다. 게스트 시스템에서 USB를 사용하려면 USB 파일 시스템(usbfs), D-Bus/HAL 서비스 둘 중 하나를 활성화한 다음 VirtualBox를 다시 시작하십시오.</translation>
     </message>
     <message>
         <source>You are trying to shut down the guest with the ACPI power button. This is currently not possible because the guest does not support software shutdown.</source>
@@ -8240,7 +8843,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to restore snapshot &lt;b&gt;%1&lt;/b&gt;? This will cause you to lose your current machine state, which cannot be recovered.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;스냅샷 &lt;b&gt;%1&lt;/b&gt;(으)로 되돌리시겠습니까? 현재 가상 머신 상태가 삭제되며, 복구할 수 없습니다.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;스냅샷 &lt;b&gt;%1&lt;/b&gt;(으)로 되돌리시겠습니까? 현재 가상 머신 상태가 삭제되며, 복구할 수 없습니다.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Restore</source>
@@ -8538,7 +9141,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Sorry, some generic error happens.</source>
-        <translation type="obsolete">일반 오류가 발생하였습니다.</translation>
+        <translation>일반 오류가 발생하였습니다.</translation>
     </message>
     <message>
         <source>Failed to attach the hard disk (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) to the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
@@ -8627,7 +9230,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Deletion of all files belonging to the VM is currently disabled on Windows/x64 to prevent a crash. That will be fixed in the next release.</source>
-        <translation>충돌을 방지하기 위하여 64비트 윈도에서는 가상 머신에 속해 있는 모든 파일을 삭제할 수 없습니다. 곧 수정하겠습니다.</translation>
+        <translation type="obsolete">충돌을 방지하기 위하여 64비트 윈도에서는 가상 머신에 속해 있는 모든 파일을 삭제할 수 없습니다. 곧 수정하겠습니다.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Cannot create the machine folder &lt;b&gt;%1&lt;/b&gt; in the parent folder &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please check that the parent really exists and that you have permissions to create the machine folder.&lt;/p&gt;</source>
@@ -8635,7 +9238,71 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;USB 2.0 is currently enabled for this virtual machine. However this requires the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; to be installed.&lt;/p&gt;&lt;p&gt;Please install the Extension Pack from the VirtualBox download site. After this you will be able to re-enable USB 2.0. It will be disabled in the meantime unless you cancel the current settings changes.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;현재 가상 머신에서 USB 2.0을 사용할 수 있으나, &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;을(를) 설치해야 합니다.&lt;/p&gt;&lt;p&gt;VirtualBox 다운로드 사이트에서 확장 기능 패키지를 설치하면 USB 2.0을 사용할 수 있습니다. 이대로 변경 사항을 저장하면 확장 기능 패키지를 설치하기 전까지 USB 2.0을 사용할 수 없습니다.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to register the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>가상 머신 &lt;b&gt;%1&lt;/b&gt;을(를) 등록할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The machine settings were changed while you were editing them. You currently have unsaved setting changes.&lt;/p&gt;&lt;p&gt;Would you like to reload the changed settings or to keep your own changes?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;머신 설정을 편집하는 중 변경되었습니다. 현재 저장되지 않은 변경 사항이 있습니다.&lt;/p&gt;&lt;p&gt;변경 사항을 다시 불러오거나, 현재 저장되지 않은 변경 사항을 유지하시겠습니까?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Reload settings</source>
+        <translation>설정 새로 고침</translation>
+    </message>
+    <message>
+        <source>Keep changes</source>
+        <translation>변경 사항 유지</translation>
+    </message>
+    <message>
+        <source>The state of the virtual machine you currently edit has changed. Only settings which are editable at runtime are saved when you press OK. All changes to other settings will be lost.</source>
+        <translation>편집 중인 가상 머신의 상태가 변경되었습니다. 확인 단추를 누르면 실행 중 변경 가능한 설정만 저장되며 모든 다른 설정은 저장되지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Failed to clone the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>가상 머신 &lt;b&gt;%1&lt;/b&gt;을(를) 복제하는 데 실패하였습니다.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to restore snapshot &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;You can create a snapshot of the current state of the virtual machine first by checking the box below; if you do not do this the current state will be permanently lost. Do you wish to proceed?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;스냅샷 &lt;b&gt;%1&lt;/b&gt;을(를) 복원하려고 합니다.&lt;/p&gt;&lt;p&gt;아래 상자를 선택하면 가상 머신의 현재 상태를 스냅샷으로 저장할 수 있습니다. 현재 상태를 저장하지 않으면 복원할 수 없습니다. 계속 진행하시겠습니까?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Create a snapshot of the current machine state</source>
+        <translation>현재 가상 머신 상태 스냅샷 만들기</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to restore snapshot &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;스냅샷 &lt;b&gt;%1&lt;/b&gt;을(를) 복원하시겠습니까?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Error changing medium type from &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;미디어 종류를 &lt;b&gt;%1&lt;/b&gt;에서 &lt;b&gt;%2&lt;/b&gt;(으)로 변경하는 데 실패하였습니다.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; to be installed.&lt;/p&gt;&lt;p&gt;Please install the Extension Pack from the VirtualBox download site. After this you will be able to re-enable USB 2.0. It will be disabled in the meantime unless you cancel the current settings changes.&lt;/p&gt;</source>
         <translation>&lt;p&gt;현재 가상 머신에서 USB 2.0을 사용할 수 있으나, &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;을(를) 설치해야 합니다.&lt;/p&gt;&lt;p&gt;VirtualBox 다운로드 사이트에서 확장 기능 패키지를 설치하면 USB 2.0을 사용할 수 있습니다. 이대로 변경 사항을 저장하면 확장 기능 패키지를 설치하기 전까지 USB 2.0을 사용할 수 없습니다.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Could not load the Host USB Proxy Service (VERR_FILE_NOT_FOUND). The service might not be installed on the host computer</source>
+        <translation>호스트 USB 프록시 서비스를 불러올 수 없습니다(VERR_FILE_NOT_FOUND). 호스트 컴퓨터에 서비스가 설치되어 있지 않을 수도 있습니다</translation>
+    </message>
+    <message>
+        <source>VirtualBox is not currently allowed to access USB devices.  You can change this by adding your user to the &apos;vboxusers&apos; group.  Please see the user manual for a more detailed explanation</source>
+        <translation>VirtualBox에서 USB 장치에 접근할 수 없습니다. 현재 사용자를 &apos;vboxusers&apos; 그룹에 추가하십시오. 더 자세한 설명은 사용자 설명서를 참고하십시오</translation>
+    </message>
+    <message>
+        <source>VirtualBox is not currently allowed to access USB devices.  You can change this by allowing your user to access the &apos;usbfs&apos; folder and files.  Please see the user manual for a more detailed explanation</source>
+        <translation>VirtualBox에서 USB 장치에 접근할 수 없습니다. 현재 사용자가 &apos;usbfs&apos; 폴더 및 파일에 접근할 수 있도록 하십시오. 더 자세한 설명은 사용자 설명서를 참고하십시오</translation>
+    </message>
+    <message>
+        <source>The USB Proxy Service has not yet been ported to this host</source>
+        <translation>USB 프록시 서비스를 현재 호스트에서 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Could not load the Host USB Proxy service</source>
+        <translation>호스트 USB 프록시 서비스를 불러올 수 없음</translation>
     </message>
 </context>
 <context>
@@ -8749,7 +9416,7 @@ p, li { white-space: pre-wrap; }
     <name>VBoxSFDialog</name>
     <message>
         <source>Shared Folders</source>
-        <translation>공유 폴더</translation>
+        <translation type="obsolete">공유 폴더</translation>
     </message>
 </context>
 <context>
@@ -8820,7 +9487,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>D&amp;iscard</source>
-        <translation>삭제(&amp;I)</translation>
+        <translation type="obsolete">삭제(&amp;I)</translation>
     </message>
     <message>
         <source>Discard the saved state of the selected virtual machine</source>
@@ -9022,6 +9689,22 @@ p, li { white-space: pre-wrap; }
         <source>Show Statusbar</source>
         <translation>상태 표시줄 보이기</translation>
     </message>
+    <message>
+        <source>Cl&amp;one...</source>
+        <translation>복제(&amp;O)...</translation>
+    </message>
+    <message>
+        <source>Clone the selected virtual machine</source>
+        <translation>선택한 가상 머신을 복제합니다</translation>
+    </message>
+    <message>
+        <source>Discard</source>
+        <translation>삭제</translation>
+    </message>
+    <message>
+        <source>D&amp;iscard Saved State</source>
+        <translation>저장된 상태 삭제(&amp;I)</translation>
+    </message>
 </context>
 <context>
     <name>VBoxSettingsDialog</name>
@@ -9218,6 +9901,14 @@ p, li { white-space: pre-wrap; }
     <message>
         <source> (%1 ago)</source>
         <translation> (%1 지남)</translation>
+    </message>
+    <message>
+        <source>&amp;Clone...</source>
+        <translation>복제(&amp;C)...</translation>
+    </message>
+    <message>
+        <source>Clone the selected virtual machine</source>
+        <translation>선택한 가상 머신을 복제합니다</translation>
     </message>
 </context>
 <context>

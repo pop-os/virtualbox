@@ -55,6 +55,8 @@
 #include <VBox/VBoxVideoGuest.h>
 #include <VBox/VBoxVideo.h>
 
+#include <iprt/asm-math.h>
+
 #ifdef DEBUG
 
 #define TRACE_ENTRY() \
@@ -116,11 +118,6 @@ if (!(expr)) \
 # include "xf86Pci.h"
 #endif
 
-#include "vgaHW.h"
-
-/* VBE/DDC support */
-#include "vbe.h"
-
 /* ShadowFB support */
 #include "shadowfb.h"
 
@@ -168,7 +165,6 @@ extern void GlxSetVisualConfigs(int nconfigs, __GLXvisualConfig *configs,
 
 typedef struct VBOXRec
 {
-    vbeInfoPtr pVbe;  /** @todo do the VBE bits ourselves? */
     EntityInfoPtr pEnt;
 #ifdef PCIACCESS
     struct pci_device *pciInfo;
@@ -184,11 +180,11 @@ typedef struct VBOXRec
     unsigned long cbView;
     /** The current line size in bytes */
     uint32_t cbLine;
-    CARD8 *state, *pstate;	/* SVGA state */
-    int statePage, stateSize, stateMode;
-    CARD32 *savedPal;
-    CARD8 *fonts;
-    vgaRegRec vgaRegs;  /* Space for saving VGA information */
+    /** Whether the pre-X-server mode was a VBE mode */
+    bool fSavedVBEMode;
+    /** Paramters of the saved pre-X-server VBE mode, invalid if there is none
+     */
+    uint16_t cSavedWidth, cSavedHeight, cSavedPitch, cSavedBPP, fSavedFlags;
     CloseScreenProcPtr CloseScreen;
     /** Default X server procedure for enabling and disabling framebuffer access */
     xf86EnableDisableFBAccessProc *EnableDisableFBAccess;
@@ -276,6 +272,42 @@ extern void VBOXDRICloseScreen(ScreenPtr pScreen, VBOXPtr pVBox);
 #ifdef VBOXVIDEO_13
 extern Bool VBOXEDIDSet(struct _xf86Output *output, DisplayModePtr pmode);
 #endif
+
+/* Utilities */
+
+static inline VBOXPtr VBOXGetRec(ScrnInfoPtr pScrn)
+{
+    if (!pScrn->driverPrivate)
+    {
+        pScrn->driverPrivate = calloc(sizeof(VBOXRec), 1);
+    }
+
+    return ((VBOXPtr)pScrn->driverPrivate);
+}
+
+/** Calculate the BPP from the screen depth */
+static inline uint16_t vboxBPP(ScrnInfoPtr pScrn)
+{
+    return pScrn->depth == 24 ? 32 : 16;
+}
+
+/** Calculate the scan line length for a display width */
+static inline int32_t vboxLineLength(ScrnInfoPtr pScrn, int32_t cDisplayWidth)
+{
+    uint64_t cbLine = ((uint64_t)cDisplayWidth * vboxBPP(pScrn) / 8 + 3) & ~3;
+    return cbLine < INT32_MAX ? cbLine : INT32_MAX;
+}
+
+/** Calculate the display pitch from the scan line length */
+static inline int32_t vboxDisplayPitch(ScrnInfoPtr pScrn, int32_t cbLine)
+{
+    return ASMDivU64ByU32RetU32((uint64_t)cbLine * 8, vboxBPP(pScrn));
+}
+
+extern void vboxClearVRAM(ScrnInfoPtr pScrn, int32_t cNewX, int32_t cNewY);
+extern Bool VBOXSetMode(ScrnInfoPtr pScrn, unsigned cDisplay, unsigned cWidth,
+                        unsigned cHeight, int x, int y);
+extern Bool VBOXAdjustScreenPixmap(ScrnInfoPtr pScrn, int width, int height);
 
 #endif /* _VBOXVIDEO_H_ */
 

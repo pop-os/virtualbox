@@ -1,4 +1,4 @@
-/* $Id: DevPCNet.cpp $ */
+/* $Id: DevPCNet.cpp 37636 2011-06-24 14:59:59Z vboxsync $ */
 /** @file
  * DevPCNet - AMD PCnet-PCI II / PCnet-FAST III (Am79C970A / Am79C973) Ethernet Controller Emulation.
  *
@@ -1143,18 +1143,6 @@ DECLINLINE(RTGCPHYS32) pcnetTdraAddr(PCNetState *pThis, int idx)
 }
 
 RT_C_DECLS_BEGIN
-PDMBOTHCBDECL(int) pcnetIOPortRead(PPDMDEVINS pDevIns, void *pvUser,
-                                   RTIOPORT Port, uint32_t *pu32, unsigned cb);
-PDMBOTHCBDECL(int) pcnetIOPortWrite(PPDMDEVINS pDevIns, void *pvUser,
-                                    RTIOPORT Port, uint32_t u32, unsigned cb);
-PDMBOTHCBDECL(int) pcnetIOPortAPromWrite(PPDMDEVINS pDevIns, void *pvUser,
-                                         RTIOPORT Port, uint32_t u32, unsigned cb);
-PDMBOTHCBDECL(int) pcnetIOPortAPromRead(PPDMDEVINS pDevIns, void *pvUser,
-                                        RTIOPORT Port, uint32_t *pu32, unsigned cb);
-PDMBOTHCBDECL(int) pcnetMMIORead(PPDMDEVINS pDevIns, void *pvUser,
-                                 RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-PDMBOTHCBDECL(int) pcnetMMIOWrite(PPDMDEVINS pDevIns, void *pvUser,
-                                  RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
 #ifndef IN_RING3
 DECLEXPORT(int) pcnetHandleRingWrite(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
                                      RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
@@ -3864,7 +3852,7 @@ PDMBOTHCBDECL(int) pcnetMMIORead(PPDMDEVINS pDevIns, void *pvUser,
  * @param   cb          Number of bytes to write.
  */
 PDMBOTHCBDECL(int) pcnetMMIOWrite(PPDMDEVINS pDevIns, void *pvUser,
-                                  RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+                                  RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
     PCNetState *pThis = (PCNetState *)pvUser;
     int         rc    = VINF_SUCCESS;
@@ -3915,6 +3903,8 @@ PDMBOTHCBDECL(int) pcnetMMIOWrite(PPDMDEVINS pDevIns, void *pvUser,
 static DECLCALLBACK(void) pcnetTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
     PCNetState *pThis = (PCNetState *)pvUser;
+    Assert(PDMCritSectIsOwner(&pThis->CritSect));
+
     STAM_PROFILE_ADV_START(&pThis->StatTimer, a);
     pcnetPollTimer(pThis);
     STAM_PROFILE_ADV_STOP(&pThis->StatTimer, a);
@@ -3931,8 +3921,8 @@ static DECLCALLBACK(void) pcnetTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *
 static DECLCALLBACK(void) pcnetTimerSoftInt(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
     PCNetState *pThis = (PCNetState *)pvUser;
+    Assert(PDMCritSectIsOwner(&pThis->CritSect));
 
-/** @todo why aren't we taking any critsect here?!? */
     pThis->aCSR[7] |= 0x0800; /* STINT */
     pcnetUpdateIrq(pThis);
     TMTimerSetNano(pThis->CTX_SUFF(pTimerSoftInt), 12800U * (pThis->aBCR[BCR_STVAL] & 0xffff));
@@ -5172,7 +5162,7 @@ static DECLCALLBACK(int) pcnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
      * This must be done before register the critsect with the timer code, and also before
      * attaching drivers or anything else that may call us back.
      */
-    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->CritSect, RT_SRC_POS, "PCNet#%d", iInstance);
+    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->CritSect, RT_SRC_POS, "PCNet#%u", iInstance);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -5200,11 +5190,12 @@ static DECLCALLBACK(int) pcnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
     {
         /* Software Interrupt timer */
         rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, pcnetTimerSoftInt, pThis, /** @todo r=bird: the locking here looks bogus now with SMP... */
-                                    TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "PCNet SoftInt Timer", &pThis->pTimerSoftIntR3);
+                                    TMTIMER_FLAGS_NO_CRIT_SECT, "PCNet SoftInt Timer", &pThis->pTimerSoftIntR3);
         if (RT_FAILURE(rc))
             return rc;
         pThis->pTimerSoftIntR0 = TMTimerR0Ptr(pThis->pTimerSoftIntR3);
         pThis->pTimerSoftIntRC = TMTimerRCPtr(pThis->pTimerSoftIntR3);
+        TMR3TimerSetCritSect(pThis->pTimerSoftIntR3, &pThis->CritSect);
     }
     rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, pcnetTimerRestore, pThis,
                                 TMTIMER_FLAGS_NO_CRIT_SECT, "PCNet Restore Timer", &pThis->pTimerRestore);

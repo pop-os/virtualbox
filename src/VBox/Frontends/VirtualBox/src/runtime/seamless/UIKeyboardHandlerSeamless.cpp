@@ -1,4 +1,4 @@
-/* $Id: UIKeyboardHandlerSeamless.cpp $ */
+/* $Id: UIKeyboardHandlerSeamless.cpp 35752 2011-01-28 10:57:53Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

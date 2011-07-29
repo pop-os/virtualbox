@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 38002 2011-07-18 10:16:41Z vboxsync $
 ## @file
 # Makefile for the VirtualBox Qt GUI.
 #
 
 #
-# Copyright (C) 2006-2010 Oracle Corporation
+# Copyright (C) 2006-2011 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -128,6 +128,7 @@ VirtualBox_DEFS          += \
 	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000) \
 	$(if $(VBOX_WITH_NETFLT)$(eq $(KBUILD_TARGET),freebsd),VBOX_WITH_NETFLT) \
 	$(if $(VBOX_WITH_VDE),VBOX_WITH_VDE) \
+	$(if $(VBOX_WITH_UDPTUNNEL),VBOX_WITH_UDPTUNNEL) \
 	$(if $(VBOX_WITH_EHCI),VBOX_WITH_EHCI) \
 	$(if $(VBOX_GUI_WITH_PIDFILE),VBOX_GUI_WITH_PIDFILE) \
 	$(if $(VBOX_GUI_WITH_KEYS_RESET_HANDLER),VBOX_GUI_WITH_KEYS_RESET_HANDLER) \
@@ -176,6 +177,7 @@ VBOX_GUI_INC_DIRS = \
 	./src/settings \
 	./src/settings/global \
 	./src/settings/machine \
+	./src/wizards/clonevm \
 	./src/wizards/newvm \
 	./src/wizards/newhd \
 	./src/wizards/firstrun \
@@ -225,9 +227,14 @@ else
  endif
 endif
 
-if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_GUI_USE_QGL)
- VirtualBox_LDFLAGS.win += /DelayLoad:QtOpenGLVBox4.dll /DelayLoad:OPENGL32.dll
-endif
+# delay loading causes VM process crashes due to the misbehave of the current QtOpenGLVBox4.dll we use
+# (i.e. it does not create the ogl context properly when loaded this way)
+#
+# @todo: investigate a better work-around and enable back delay loading since it is needed to avoid
+# crashes caused by buggy ogl drivers for the case 2D is not used (i.e. no ogl stuff loaded)
+#if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_GUI_USE_QGL)
+# VirtualBox_LDFLAGS.win += /DelayLoad:QtOpenGLVBox4.dll /DelayLoad:OPENGL32.dll
+#endif
 
 VirtualBox_LDFLAGS.darwin = \
 	-framework AppKit -framework Carbon \
@@ -259,6 +266,7 @@ VirtualBox_QT_MOCHDRS = \
 	src/VBoxAboutDlg.h \
 	src/VBoxGlobalSettings.h \
 	src/VBoxMediaManagerDlg.h \
+	src/UIMediumTypeChangeDialog.h \
 	src/VBoxSnapshotDetailsDlg.h \
 	src/VBoxTakeSnapshotDlg.h \
 	src/VBoxUpdateDlg.h \
@@ -304,6 +312,7 @@ VirtualBox_QT_MOCHDRS = \
 	src/settings/global/UIGlobalSettingsNetwork.h \
 	src/settings/global/UIGlobalSettingsNetworkDetails.h \
 	src/settings/global/UIGlobalSettingsExtension.h \
+	src/settings/global/UIGlobalSettingsProxy.h \
 	src/settings/machine/UIMachineSettingsGeneral.h \
 	src/settings/machine/UIMachineSettingsSystem.h \
 	src/settings/machine/UIMachineSettingsDisplay.h \
@@ -317,8 +326,9 @@ VirtualBox_QT_MOCHDRS = \
 	src/settings/machine/UIMachineSettingsUSBFilterDetails.h \
 	src/settings/machine/UIMachineSettingsSF.h \
 	src/settings/machine/UIMachineSettingsSFDetails.h \
+	src/wizards/clonevm/UICloneVMWizard.h \
 	src/wizards/newvm/UINewVMWzd.h \
-	src/wizards/newhd/UINewHDWzd.h \
+	src/wizards/newhd/UINewHDWizard.h \
 	src/wizards/firstrun/UIFirstRunWzd.h \
 	src/wizards/exportappliance/UIExportApplianceWzd.h \
 	src/wizards/importappliance/UIImportApplianceWzd.h \
@@ -392,8 +402,8 @@ VirtualBox_QT_MOCSRCS = \
 	src/runtime/UIActionsPool.cpp \
 	src/runtime/UIIndicatorsPool.cpp \
 	src/runtime/UIMachine.cpp \
-	src/runtime/UIMachineLogic.cpp \
-	src/runtime/UIMachineMenuBar.cpp
+	src/runtime/UIMachineMenuBar.cpp \
+	src/wizards/newhd/UINewHDWizard.cpp
 
 VirtualBox_QT_MOCSRCS.darwin += \
     src/platform/darwin/UIWindowMenuManager.cpp
@@ -421,6 +431,7 @@ VirtualBox_SOURCES = \
 	src/VBoxGlobalSettings.cpp \
 	src/VBoxHelpActions.cpp \
 	src/VBoxMediaManagerDlg.cpp \
+	src/UIMediumTypeChangeDialog.cpp \
 	src/VBoxMedium.cpp \
 	src/VBoxSnapshotDetailsDlg.cpp \
 	src/VBoxTakeSnapshotDlg.cpp \
@@ -458,6 +469,7 @@ VirtualBox_SOURCES = \
 	src/extensions/QITreeWidget.cpp \
 	src/extensions/QIWidgetValidator.cpp \
 	src/extensions/QIWizard.cpp \
+	src/settings/UISettingsDefs.cpp \
 	src/settings/UISettingsDialog.cpp \
 	src/settings/UISettingsDialogSpecific.cpp \
 	src/settings/UISettingsPage.cpp \
@@ -469,6 +481,7 @@ VirtualBox_SOURCES = \
 	src/settings/global/UIGlobalSettingsNetwork.cpp \
 	src/settings/global/UIGlobalSettingsNetworkDetails.cpp \
 	src/settings/global/UIGlobalSettingsExtension.cpp \
+	src/settings/global/UIGlobalSettingsProxy.cpp \
 	src/settings/machine/UIMachineSettingsGeneral.cpp \
 	src/settings/machine/UIMachineSettingsSystem.cpp \
 	src/settings/machine/UIMachineSettingsDisplay.cpp \
@@ -482,8 +495,9 @@ VirtualBox_SOURCES = \
 	src/settings/machine/UIMachineSettingsUSBFilterDetails.cpp \
 	src/settings/machine/UIMachineSettingsSF.cpp \
 	src/settings/machine/UIMachineSettingsSFDetails.cpp \
+	src/wizards/clonevm/UICloneVMWizard.cpp \
 	src/wizards/newvm/UINewVMWzd.cpp \
-	src/wizards/newhd/UINewHDWzd.cpp \
+	src/wizards/newhd/UINewHDWizard.cpp \
 	src/wizards/firstrun/UIFirstRunWzd.cpp \
 	src/wizards/exportappliance/UIExportApplianceWzd.cpp \
 	src/wizards/importappliance/UIImportApplianceWzd.cpp \
@@ -573,7 +587,8 @@ endif
 
 VirtualBox_SOURCES.win += \
 	src/platform/win/VirtualBox.rc \
-	src/platform/win/UIDesktopServices_win.cpp
+	src/platform/win/UIDesktopServices_win.cpp \
+	src/platform/win/VBoxUtils-win.cpp
 
 VirtualBox_DEFS.darwin += VBOX_DARWIN_USE_NATIVE_CONTROLS
 VirtualBox_SOURCES.darwin += \
@@ -857,7 +872,11 @@ VirtualBox.app_SOURCES = \
 	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-vbox.icns=>Resources/virtualbox-vbox.icns \
 	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-vbox-extpack.icns=>Resources/virtualbox-vbox-extpack.icns \
 	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-ovf.icns=>Resources/virtualbox-ovf.icns \
-	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-ova.icns=>Resources/virtualbox-ova.icns
+	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-ova.icns=>Resources/virtualbox-ova.icns \
+	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-vdi.icns=>Resources/virtualbox-vdi.icns \
+	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-vmdk.icns=>Resources/virtualbox-vmdk.icns \
+	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-vhd.icns=>Resources/virtualbox-vhd.icns \
+	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-hdd.icns=>Resources/virtualbox-hdd.icns
 
 $$(VirtualBox.app_0_OUTDIR)/Info.plist: $(PATH_SUB_CURRENT)/src/platform/darwin/Info.plist $(VBOX_VERSION_MK) | $$(@D)/
 	$(call MSG_GENERATE,VirtualBox.app,$<,$@)
@@ -902,7 +921,7 @@ vmstarter_LDFLAGS += -framework AppKit
 vmstarter_INST = $(INST_BIN)vmstarter
 
 INSTALLS += vmstarter.app
-vmstarter.app_INST = $(VirtualBox.app_INST)Resources/vmstarter.app/Contents
+vmstarter.app_INST = $(VirtualBox.app_INST)Resources/vmstarter.app/Contents/
 vmstarter.app_MODE = 644
 vmstarter.app_SOURCES = \
 	src/platform/darwin/vmstarter-PkgInfo=>PkgInfo \

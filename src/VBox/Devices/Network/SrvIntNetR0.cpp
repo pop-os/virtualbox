@@ -1,4 +1,4 @@
-/* $Id: SrvIntNetR0.cpp $ */
+/* $Id: SrvIntNetR0.cpp 37979 2011-07-15 14:04:24Z vboxsync $ */
 /** @file
  * Internal networking - The ring 0 service.
  */
@@ -282,6 +282,8 @@ typedef struct INTNETIF
     PINTNETDSTTAB volatile  pDstTab;
     /** Pointer to the trunk's per interface data.  Can be NULL. */
     void                   *pvIfData;
+    /** Header buffer for when we're carving GSO frames. */
+    uint8_t                 abGsoHdrs[256];
 } INTNETIF;
 /** Pointer to an internal network interface. */
 typedef INTNETIF *PINTNETIF;
@@ -318,8 +320,6 @@ typedef struct INTNETTRUNKIF
      * This is as bit map where each bit represents the GSO type with the same
      * number. */
     uint32_t                fHostGsoCapabilites;
-    /** Header buffer for when we're carving GSO frames. */
-    uint8_t                 abGsoHdrs[256];
     /** The destination table spinlock, interrupt safe.
      * Protects apTaskDstTabs and apIntDstTabs. */
     RTSPINLOCK              hDstTabSpinlock;
@@ -2664,11 +2664,11 @@ static int intnetR0TrunkIfSendGsoFallback(PINTNETTRUNKIF pThis, PINTNETIF pIfSen
     {
         uint32_t cbSegPayload;
         uint32_t offSegPayload = PDMNetGsoCarveSegment(&pSG->GsoCtx, (uint8_t *)pSG->aSegs[0].pv, pSG->cbTotal, iSeg, cSegs,
-                                                       pThis->abGsoHdrs, &cbSegPayload);
+                                                       pIfSender->abGsoHdrs, &cbSegPayload);
 
         IntNetSgInitTempSegs(&u.SG, pSG->GsoCtx.cbHdrs + cbSegPayload, 2, 2);
         u.SG.aSegs[0].Phys = NIL_RTHCPHYS;
-        u.SG.aSegs[0].pv   = pThis->abGsoHdrs;
+        u.SG.aSegs[0].pv   = pIfSender->abGsoHdrs;
         u.SG.aSegs[0].cb   = pSG->GsoCtx.cbHdrs;
         u.SG.aSegs[1].Phys = NIL_RTHCPHYS;
         u.SG.aSegs[1].pv   = (uint8_t *)pSG->aSegs[0].pv + offSegPayload;
@@ -2948,23 +2948,29 @@ static void intnetR0NetworkEditDhcpFromIntNet(PINTNETNETWORK pNetwork, PINTNETSG
         return;
     }
     PCRTNETBOOTP pDhcp = (PCRTNETBOOTP)(pUdpHdr + 1);
-    uint8_t MsgType;
-    if (!RTNetIPv4IsDHCPValid(pUdpHdr, pDhcp, cbUdpPkt - sizeof(*pUdpHdr), &MsgType))
+    uint8_t bMsgType;
+    if (!RTNetIPv4IsDHCPValid(pUdpHdr, pDhcp, cbUdpPkt - sizeof(*pUdpHdr), &bMsgType))
     {
         Log6(("intnetR0NetworkEditDhcpFromIntNet: Bad DHCP packet\n"));
         return;
     }
 
-    switch (MsgType)
+    switch (bMsgType)
     {
         case RTNET_DHCP_MT_DISCOVER:
         case RTNET_DHCP_MT_REQUEST:
-            Log6(("intnetR0NetworkEditDhcpFromIntNet: Setting broadcast flag in DHCP %#x, previously %x\n", MsgType, pDhcp->bp_flags));
+            /*
+             * Must set the broadcast flag or we won't catch the respons.
+             */
             if (!(pDhcp->bp_flags & RT_H2BE_U16_C(RTNET_DHCP_FLAG_BROADCAST)))
             {
+                Log6(("intnetR0NetworkEditDhcpFromIntNet: Setting broadcast flag in DHCP %#x, previously %x\n",
+                      bMsgType, pDhcp->bp_flags));
+
                 /* Patch flags */
                 uint16_t uFlags = pDhcp->bp_flags | RT_H2BE_U16_C(RTNET_DHCP_FLAG_BROADCAST);
                 intnetR0SgWritePart(pSG, (uintptr_t)&pDhcp->bp_flags - (uintptr_t)pIpHdr + sizeof(RTNETETHERHDR), sizeof(uFlags), &uFlags);
+
                 /* Patch UDP checksum */
                 uint32_t uChecksum = (uint32_t)~pUdpHdr->uh_sum + RT_H2BE_U16_C(RTNET_DHCP_FLAG_BROADCAST);
                 while (uChecksum >> 16)
@@ -2972,6 +2978,31 @@ static void intnetR0NetworkEditDhcpFromIntNet(PINTNETNETWORK pNetwork, PINTNETSG
                 uChecksum = ~uChecksum;
                 intnetR0SgWritePart(pSG, (uintptr_t)&pUdpHdr->uh_sum - (uintptr_t)pIpHdr + sizeof(RTNETETHERHDR), sizeof(pUdpHdr->uh_sum), &uChecksum);
             }
+
+#ifdef RT_OS_DARWIN
+            /*
+             * Work around little endian checksum issue in mac os x 10.7.0 GM.
+             */
+            if (   pIpHdr->ip_tos
+                && (pNetwork->fFlags & INTNET_OPEN_FLAGS_WORKAROUND_1))
+            {
+                /* Patch it. */
+                uint8_t uTos  = pIpHdr->ip_tos;
+                uint8_t uZero = 0;
+                intnetR0SgWritePart(pSG, sizeof(RTNETETHERHDR) + 1, sizeof(uZero), &uZero);
+
+                /* Patch the IP header checksum. */
+                uint32_t uChecksum = (uint32_t)~pIpHdr->ip_sum - (uTos << 8);
+                while (uChecksum >> 16)
+                    uChecksum = (uChecksum >> 16) + (uChecksum & 0xFFFF);
+                uChecksum = ~uChecksum;
+
+                Log(("intnetR0NetworkEditDhcpFromIntNet: cleared ip_tos (was %#04x); ip_sum=%#06x -> %#06x\n",
+                     uTos, RT_BE2H_U16(pIpHdr->ip_sum), RT_BE2H_U16(uChecksum) ));
+                intnetR0SgWritePart(pSG, sizeof(RTNETETHERHDR) + RT_OFFSETOF(RTNETIPV4, ip_sum),
+                                    sizeof(pIpHdr->ip_sum), &uChecksum);
+            }
+#endif
             break;
     }
 }

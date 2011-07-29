@@ -1,4 +1,4 @@
-/* $Id: QITableView.cpp $ */
+/* $Id: QITableView.cpp 31533 2010-08-10 13:08:56Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

@@ -338,6 +338,12 @@ GLboolean crVBoxServerInit(void)
     crServerInitDispatch();
     crStateDiffAPI( &(cr_server.head_spu->dispatch_table) );
 
+    /*Check for PBO support*/
+    if (crStateGetCurrent()->extensions.ARB_pixel_buffer_object)
+    {
+        cr_server.bUsePBOForReadback=GL_TRUE;
+    }
+
     return GL_TRUE;
 }
 
@@ -942,7 +948,7 @@ DECLEXPORT(int32_t) crVBoxServerLoadState(PSSMHANDLE pSSM, uint32_t version)
         crServerDispatchWindowSize(key, muralInfo.width, muralInfo.height);
         crServerDispatchWindowPosition(key, muralInfo.gX, muralInfo.gY);
         /* Same workaround as described in stub.c:stubUpdateWindowVisibileRegions for compiz on a freshly booted VM*/
-        if (muralInfo.cVisibleRects)
+        if (muralInfo.bReceivedRects)
         {
             crServerDispatchWindowVisibleRegion(key, muralInfo.cVisibleRects, muralInfo.pVisibleRects);
         }
@@ -1199,11 +1205,11 @@ DECLEXPORT(int32_t) crVBoxServerMapScreen(int sIndex, int32_t x, int32_t y, uint
         {
             cr_server.curClient = cr_server.clients[i];
             if (cr_server.curClient->currentCtx
-                && cr_server.curClient->currentCtx->pImage
+                && (cr_server.curClient->currentCtx->buffer.pFrontImg || cr_server.curClient->currentCtx->buffer.pBackImg)
                 && cr_server.curClient->currentMural
                 && cr_server.curClient->currentMural->screenId == sIndex
-                && cr_server.curClient->currentCtx->viewport.viewportH == h
-                && cr_server.curClient->currentCtx->viewport.viewportW == w)
+                && cr_server.curClient->currentCtx->buffer.storedHeight == h
+                && cr_server.curClient->currentCtx->buffer.storedWidth == w)
             {
                 int clientWindow = cr_server.curClient->currentWindow;
                 int clientContext = cr_server.curClient->currentContextNumber;
@@ -1233,4 +1239,42 @@ DECLEXPORT(int32_t) crVBoxServerSetRootVisibleRegion(GLint cRects, GLint *pRects
 DECLEXPORT(void) crVBoxServerSetPresentFBOCB(PFNCRSERVERPRESENTFBO pfnPresentFBO)
 {
     cr_server.pfnPresentFBO = pfnPresentFBO;
+}
+
+DECLEXPORT(int32_t) crVBoxServerSetOffscreenRendering(GLboolean value)
+{
+    if (cr_server.bForceOffscreenRendering==value)
+    {
+        return VINF_SUCCESS;
+    }
+
+    if (value && !crServerSupportRedirMuralFBO())
+    {
+        return VERR_NOT_SUPPORTED;
+    }
+
+    cr_server.bForceOffscreenRendering=value;
+
+    crHashtableWalk(cr_server.muralTable, crVBoxServerCheckMuralCB, NULL);
+
+    return VINF_SUCCESS;
+}
+
+DECLEXPORT(int32_t) crVBoxServerOutputRedirectSet(const CROutputRedirect *pCallbacks)
+{
+    /* No need for a synchronization as this is single threaded. */
+    if (pCallbacks)
+    {
+        cr_server.outputRedirect = *pCallbacks;
+        cr_server.bUseOutputRedirect = true;
+    }
+    else
+    {
+        cr_server.bUseOutputRedirect = false;
+    }
+
+    // @todo dynamically intercept already existing output:
+    // crHashtableWalk(cr_server.muralTable, crVBoxServerOutputRedirectCB, NULL);
+
+    return VINF_SUCCESS;
 }

@@ -1,4 +1,4 @@
-/* $Id: VBoxStub.cpp $ */
+/* $Id: VBoxStub.cpp 37989 2011-07-18 08:51:46Z vboxsync $ */
 /** @file
  * VBoxStub - VirtualBox's Windows installer stub.
  */
@@ -19,6 +19,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <windows.h>
+#include <commctrl.h>
 #include <lmerr.h>
 #include <msiquery.h>
 #include <objbase.h>
@@ -567,6 +568,16 @@ int WINAPI WinMain(HINSTANCE  hInstance,
                             RTStrFree(pszLog);
                             AssertMsgBreak(uLogLevel == ERROR_SUCCESS, ("Could not set installer logging level!\n"));
                         }
+
+                        /* Initialize the common controls (extended version). This is necessary to
+                         * run the actual .MSI installers with the new fancy visual control
+                         * styles (XP+). Also, an integrated manifest is required. */
+                        INITCOMMONCONTROLSEX ccEx;
+                        ccEx.dwSize = sizeof(INITCOMMONCONTROLSEX);
+                        ccEx.dwICC = ICC_LINK_CLASS | ICC_LISTVIEW_CLASSES | ICC_PAGESCROLLER_CLASS |
+                                     ICC_PROGRESS_CLASS | ICC_STANDARD_CLASSES | ICC_TAB_CLASSES | ICC_TREEVIEW_CLASSES |
+                                     ICC_UPDOWN_CLASS | ICC_USEREX_CLASSES | ICC_WIN95_CLASSES;
+                        InitCommonControlsEx(&ccEx); /* Ignore failure. */
 
                         UINT uStatus = ::MsiInstallProductA(pszTempFile, szMSIArgs);
                         if (   (uStatus != ERROR_SUCCESS)

@@ -557,7 +557,7 @@ svccfg -s svc:/application/virtualbox/webservice:default setprop config/user=roo
                 <para>Open a terminal and change to the directory where the
                 JAX-WS samples reside.<footnote>
                     <para>In
-                    <computeroutput>sdk/bindings/webservice/java/jax-ws/samples/</computeroutput>.</para>
+                    <computeroutput>sdk/bindings/glue/java/</computeroutput>.</para>
                   </footnote> Examine the header of
                 <computeroutput>Makefile</computeroutput> to see if the
                 supplied variables (Java compiler, Java executable) and a few
@@ -702,12 +702,14 @@ svccfg -s svc:/application/virtualbox/webservice:default setprop config/user=roo
             <para>On On Mac OS X only the Python versions bundled with the OS
             are officially supported. This means Python 2.3 for 10.4, Python
             2.5 for 10.5 and Python 2.5 and 2.6 for 10.6.</para>
-          </footnote>), and you cannot connect to VirtualBox remotely. On
-        Windows, you can use the Main API from Python if the Win32 extensions
-        package for Python<footnote>
+          </footnote>). On Windows, you can use the Main API from Python if the Win32 extensions
+          package for Python<footnote>
             <para>See <ulink
             url="http://sourceforge.net/project/showfiles.php?group_id=78018">http://sourceforge.net/project/showfiles.php?group_id=78018</ulink>.</para>
-          </footnote> is installed.</para>
+          </footnote> is installed. Version of Python Win32 extensions earlier than 2.16 are known to have bugs,
+          leading to issues with VirtualBox Python bindings, and also some early builds of Python 2.5 for Windows have issues with 
+          reporting platform name on some Windows versions, so please make sure to use latest available Python 
+          and Win32 extensions.</para>
 
         <para>The VirtualBox OOWS for Python relies on the Python ZSI SOAP
         implementation (see <ulink
@@ -1437,36 +1439,33 @@ virtualBoxManager = VirtualBoxManager("WEBSERVICE",
         perform operations on the IVirtualBox class. For example, the
         following code will a start virtual machine by name or ID:</para>
 
-        <screen>vbox = virtualBoxManager.vbox
-mgr = virtualBoxManager.mgr
-print "Version is",vbox.version
-
-def machById(id):
-    mach = None
-    for m in virtualBoxManager.getArray(vbox, 'machines'):
-        if m.name == id or mach.id == id:
-            mach = m
-            break
-    return mach
-
+        <screen>from vboxapi import VirtualBoxManager
+mgr = VirtualBoxManager(None, None)
+vbox = mgr.vbox
 name = "Linux"
-mach = machById(name)
-if mach is None:
-    print "cannot find machine",name
-else:
-    session = mgr.getSessionObject(vbox)
-    # one can also start headless session with "headless" instead of "gui"
-    progress = mach.launchVMProcess(session, mach.id, "gui", "")
-    progress.waitForCompletion(-1)
-    session.close()
+mach = vbox.findMachine(name)
+session = mgr.mgr.getSessionObject(vbox)
+progress = mach.launchVMProcess(session, "gui", "")
+progress.waitForCompletion(-1)
+mgr.closeMachineSession(session)
+        </screen>
+        <para>
+          Following code will print all registered machines and their log folders
+        </para>
+        <screen>from vboxapi import VirtualBoxManager
+mgr = VirtualBoxManager(None, None)
+vbox = mgr.vbox
+
+for m in mgr.getArray(vbox, 'machines'):
+print "Machine '%s' logs in '%s'" %(m.name, m.logFolder)
         </screen>
 
-        <para>This code also shows cross-platform access to array properties
+        <para>Code above demonstartes cross-platform access to array properties
         (certain limitations prevent one from using
         <computeroutput>vbox.machines</computeroutput> to access a list of
         available virtual machines in case of XPCOM), and a mechanism of
-        uniform session creation
-        (<computeroutput>virtualBoxManager.mgr.getSessionObject()</computeroutput>).</para>
+        uniform session creation and closing
+        (<computeroutput>mgr.mgr.getSessionObject()</computeroutput>).</para>
 
         <para>In case you want to use the glue layer with a different Python
         installation, use these steps in a shell to add the necessary
@@ -3444,6 +3443,103 @@ AuthResult AUTHCALL AuthEntry(
     existing client code.</para>
 
     <sect1>
+      <title>Incompatible API changes with version 4.1</title>
+
+      <itemizedlist>
+        <listitem>
+          <para>The method <xref linkend="IAppliance__importMachines"
+          xreflabel="IAppliance::importMachines()" /> has one more parameter
+          now, which allows to configure the import process in more detail.
+          </para>
+        </listitem>
+
+        <listitem>
+          <para>The method <xref linkend="IVirtualBox__openMedium"
+          xreflabel="IVirtualBox::openMedium()" /> has one more parameter
+          now, which allows resolving duplicate medium UUIDs without the need
+          for external tools.</para>
+        </listitem>
+
+        <listitem>
+          <para>The <xref linkend="INetworkAdapter" xreflabel="INetworkAdapter"/>
+          interface has been cleaned up. The various methods to activate an
+          attachment type have been replaced by the
+          <xref linkend="INetworkAdapter__attachmentType" xreflabel="INetworkAdapter::attachmentType"/> setter.</para>
+          <para>Additionally each attachment mode now has its own attribute,
+          which means that host only networks no longer share the settings with
+          bridged interfaces.</para>
+          <para>To allow introducing new network attachment implementations
+          without making API changes, the concept of a generic network
+          attachment driver has been introduced, which is configurable through
+          key/value properties.</para>
+        </listitem>
+
+        <listitem>
+          <para>This version introduces the guest facilities concept. A guest
+          facility either represents a module or feature the guest is running or
+          offering, which is defined by <xref linkend="AdditionsFacilityType"
+          xreflabel="AdditionsFacilityType"/>. Each facility is member of a
+          <xref linkend="AdditionsFacilityClass" xreflabel="AdditionsFacilityClass"/>
+          and has a current status indicated by <xref linkend="AdditionsFacilityStatus"
+          xreflabel="AdditionsFacilityStatus"/>, together with a timestamp (in ms) of
+          the last status update.</para>
+          <para>To address the above concept, the following changes were made:
+            <itemizedlist>
+              <listitem>
+                <para>
+                  In the <xref linkend="IGuest" xreflabel="IGuest"/> interface, the following were removed:
+                  <itemizedlist>
+                    <listitem>
+                      <para>the <computeroutput>supportsSeamless</computeroutput> attribute;</para>
+                    </listitem>
+                    <listitem>
+                      <para>the <computeroutput>supportsGraphics</computeroutput> attribute;</para>
+                    </listitem>
+                  </itemizedlist>
+                </para>
+              </listitem>
+              <listitem>
+                <para>
+                  The function <xref linkend="IGuest__getFacilityStatus" xreflabel="IGuest::getFacilityStatus()"/>
+                  was added. It quickly provides a facility's status without the need to get the facility
+                  collection with <xref linkend="IGuest__facilities" xreflabel="IGuest::facilities"/>.
+                </para>
+              </listitem>
+              <listitem>
+                <para>
+                  The attribute <xref linkend="IGuest__facilities" xreflabel="IGuest::facilities"/>
+                  was added to provide an easy to access collection of all currently known guest
+                  facilities, that is, it contains all facilies where at least one status update was
+                  made since the guest was started.
+                </para>
+              </listitem>
+              <listitem>
+                <para>
+                  The interface <xref linkend="IAdditionsFacility" xreflabel="IAdditionsFacility"/>
+                  was added to represent a single facility returned by
+                  <xref linkend="IGuest__facilities" xreflabel="IGuest::facilities"/>.
+                </para>
+              </listitem>
+              <listitem>
+                <para>
+                  <xref linkend="AdditionsFacilityStatus" xreflabel="AdditionsFacilityStatus"/>
+                  was added to represent a facility's overall status.
+                </para>
+              </listitem>
+              <listitem>
+                <para>
+                  <xref linkend="AdditionsFacilityType" xreflabel="AdditionsFacilityType"/> and
+                  <xref linkend="AdditionsFacilityClass" xreflabel="AdditionsFacilityClass"/> were
+                  added to represent the facility's type and class.
+                </para>
+              </listitem>
+            </itemizedlist>
+          </para>
+        </listitem>
+      </itemizedlist>
+    </sect1>
+
+    <sect1>
       <title>Incompatible API changes with version 4.0</title>
 
       <itemizedlist>
@@ -4002,8 +4098,8 @@ AuthResult AUTHCALL AuthEntry(
 
         <listitem>
           <para>The <computeroutput>IVRDPServer</computeroutput>,
-          <computeroutput>IRemoteDisplayInfo</computeroutput> and
-          <computeroutput>IConsoleCallback</computeroutput>  interfaces were
+          <computeroutput>IRemoteDisplayInfo"</computeroutput> and
+          <computeroutput>IConsoleCallback</computeroutput> interfaces were
           changed to reflect VRDP server ability to bind to one of available
           ports from a list of ports.</para>
 
@@ -4012,7 +4108,7 @@ AuthResult AUTHCALL AuthEntry(
           <computeroutput>IVRDPServer::ports</computeroutput>, which is a
           comma-separated list of ports or ranges of ports.</para>
 
-          <para>An <computeroutput>IRemoteDisplayInfo::port</computeroutput>
+          <para>An <computeroutput>IRemoteDisplayInfo::port"</computeroutput>
           attribute has been added for querying the actual port VRDP server
           listens on.</para>
 
@@ -4258,8 +4354,7 @@ AuthResult AUTHCALL AuthEntry(
 
             <listitem>
               <para>INetworkAdapter::attachToHostInterface() has been renamed
-              to <xref linkend="INetworkAdapter__attachToBridgedInterface"
-              xreflabel="INetworkAdapter::attachToBridgedInterface()" /></para>
+              to INetworkAdapter::attachToBridgedInterface</para>
             </listitem>
 
             <listitem>

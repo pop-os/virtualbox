@@ -1,4 +1,4 @@
-; $Id: setjmp.asm $
+; $Id: setjmp.asm 28800 2010-04-27 08:22:32Z vboxsync $
 ;; @file
 ; IPRT - No-CRT setjmp & longjmp - AMD64 & X86.
 ;

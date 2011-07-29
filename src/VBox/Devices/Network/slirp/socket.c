@@ -1,4 +1,4 @@
-/* $Id: socket.c $ */
+/* $Id: socket.c 38057 2011-07-19 09:17:18Z vboxsync $ */
 /** @file
  * NAT - socket handling.
  */
@@ -151,7 +151,8 @@ soread(PNATState pData, struct socket *so)
     SOCKET_LOCK(so);
     QSOCKET_UNLOCK(tcb);
 
-    LogFlow(("soread: so = %lx\n", (long)so));
+    LogFlow(("soread: so = %R[natsock]\n", so));
+    Log2(("%s: so = %R[natsock] so->so_snd = %R[sbuf]\n", __PRETTY_FUNCTION__, so, sb));
 
     /*
      * No need to check if there's enough room to read.
@@ -215,10 +216,11 @@ soread(PNATState pData, struct socket *so)
 
 #ifdef HAVE_READV
     nn = readv(so->s, (struct iovec *)iov, n);
-    Log2((" ... read nn = %d bytes\n", nn));
 #else
     nn = recv(so->s, iov[0].iov_base, iov[0].iov_len, (so->so_tcpcb->t_force? MSG_OOB:0));
 #endif
+    Log2(("%s: read(1) nn = %d bytes\n", __PRETTY_FUNCTION__, nn));
+    Log2(("%s: so = %R[natsock] so->so_snd = %R[sbuf]\n", __PRETTY_FUNCTION__, so, sb));
     if (nn <= 0)
     {
         /*
@@ -232,7 +234,7 @@ soread(PNATState pData, struct socket *so)
         unsigned long pending = 0;
         status = ioctlsocket(so->s, FIONREAD, &pending);
         if (status < 0)
-            Log(("NAT:error in WSAIoctl: %d\n", errno));
+            Log(("NAT:%s: error in WSAIoctl: %d\n", __PRETTY_FUNCTION__, errno));
         if (nn == 0 && (pending != 0))
         {
             SOCKET_UNLOCK(so);
@@ -251,8 +253,8 @@ soread(PNATState pData, struct socket *so)
         else
         {
             /* nn == 0 means peer has performed an orderly shutdown */
-            Log2((" --- soread() disconnected, nn = %d, errno = %d (%s)\n",
-                  nn, errno, strerror(errno)));
+            Log2(("%s: disconnected, nn = %d, errno = %d (%s)\n",
+                  __PRETTY_FUNCTION__, nn, errno, strerror(errno)));
             sofcantrcvmore(so);
             tcp_sockclosed(pData, sototcpcb(so));
             SOCKET_UNLOCK(so);
@@ -298,14 +300,18 @@ soread(PNATState pData, struct socket *so)
         );
     }
 
-    Log2((" ... read nn = %d bytes\n", nn));
+    Log2(("%s: read(2) nn = %d bytes\n", __PRETTY_FUNCTION__, nn));
 #endif
 
     /* Update fields */
     sb->sb_cc += nn;
     sb->sb_wptr += nn;
+    Log2(("%s: update so_snd (readed nn = %d) %R[sbuf]\n", __PRETTY_FUNCTION__, nn, sb));
     if (sb->sb_wptr >= (sb->sb_data + sb->sb_datalen))
+    {
         sb->sb_wptr -= sb->sb_datalen;
+        Log2(("%s: alter sb_wptr  so_snd = %R[sbuf]\n", __PRETTY_FUNCTION__, sb));
+    }
     STAM_PROFILE_STOP(&pData->StatIOread, a);
     SOCKET_UNLOCK(so);
     return nn;
@@ -328,7 +334,7 @@ soread(PNATState pData, struct socket *so)
     SOCKET_LOCK(so);
     QSOCKET_UNLOCK(tcb);
 
-    LogFlow(("soread: so = %lx\n", (long)so));
+    LogFlowFunc(("soread: so = %lx\n", (long)so));
 
     if (len > mss)
         len -= len % mss;
@@ -403,7 +409,7 @@ sorecvoob(PNATState pData, struct socket *so)
     struct tcpcb *tp = sototcpcb(so);
     ssize_t ret;
 
-    LogFlow(("sorecvoob: so = %lx\n", (long)so));
+    LogFlowFunc(("sorecvoob: so = %R[natsock]\n", so));
 
     /*
      * We take a guess at how much urgent data has arrived.
@@ -432,7 +438,7 @@ sosendoob(struct socket *so)
 
     int n, len;
 
-    LogFlow(("sosendoob so = %lx\n", (long)so));
+    LogFlowFunc(("sosendoob so = %R[natsock]\n", so));
 
     if (so->so_urgc > sizeof(buff))
         so->so_urgc = sizeof(buff); /* XXX */
@@ -505,7 +511,8 @@ sowrite(PNATState pData, struct socket *so)
     STAM_COUNTER_RESET(&pData->StatIOWrite_no_w);
     STAM_COUNTER_RESET(&pData->StatIOWrite_rest);
     STAM_COUNTER_RESET(&pData->StatIOWrite_rest_bytes);
-    LogFlow(("sowrite: so = %lx\n", (long)so));
+    LogFlowFunc(("so = %R[natsock]\n", so));
+    Log2(("%s: so = %R[natsock] so->so_rcv = %R[sbuf]\n", __PRETTY_FUNCTION__, so, sb));
     QSOCKET_LOCK(tcb);
     SOCKET_LOCK(so);
     QSOCKET_UNLOCK(tcb);
@@ -571,10 +578,10 @@ sowrite(PNATState pData, struct socket *so)
     /* Check if there's urgent data to send, and if so, send it */
 #ifdef HAVE_READV
     nn = writev(so->s, (const struct iovec *)iov, n);
-    Log2(("  ... wrote nn = %d bytes\n", nn));
 #else
     nn = send(so->s, iov[0].iov_base, iov[0].iov_len, 0);
 #endif
+    Log2(("%s: wrote(1) nn = %d bytes\n", __PRETTY_FUNCTION__, nn));
     /* This should never happen, but people tell me it does *shrug* */
     if (   nn < 0
         && (   errno == EAGAIN
@@ -588,8 +595,8 @@ sowrite(PNATState pData, struct socket *so)
 
     if (nn < 0 || (nn == 0 && iov[0].iov_len > 0))
     {
-        Log2((" --- sowrite disconnected, so->so_state = %x, errno = %d\n",
-              so->so_state, errno));
+        Log2(("%s: disconnected, so->so_state = %x, errno = %d\n",
+              __PRETTY_FUNCTION__, so->so_state, errno));
         sofcantsendmore(so);
         tcp_sockclosed(pData, sototcpcb(so));
         SOCKET_UNLOCK(so);
@@ -612,14 +619,18 @@ sowrite(PNATState pData, struct socket *so)
             }
         });
     }
-    Log2(("  ... wrote nn = %d bytes\n", nn));
+    Log2(("%s: wrote(2) nn = %d bytes\n", __PRETTY_FUNCTION__, nn));
 #endif
 
     /* Update sbuf */
     sb->sb_cc -= nn;
     sb->sb_rptr += nn;
+    Log2(("%s: update so_rcv (written nn = %d) %R[sbuf]\n", __PRETTY_FUNCTION__, nn, sb));
     if (sb->sb_rptr >= (sb->sb_data + sb->sb_datalen))
+    {
         sb->sb_rptr -= sb->sb_datalen;
+        Log2(("%s: alter sb_rptr of so_rcv %R[sbuf]\n", __PRETTY_FUNCTION__, sb));
+    }
 
     /*
      * If in DRAIN mode, and there's no more data, set
@@ -640,7 +651,7 @@ do_sosend(struct socket *so, int fUrg)
 
     int n, len;
 
-    LogFlow(("sosendoob: so = %lx\n", (long)so));
+    LogFlowFunc(("sosendoob: so = %R[natsock]\n", so));
 
     len = sbuf_len(sb);
 
@@ -695,7 +706,7 @@ sorecvfrom(PNATState pData, struct socket *so)
     struct sockaddr_in addr;
     socklen_t addrlen = sizeof(struct sockaddr_in);
 
-    LogFlow(("sorecvfrom: so = %lx\n", (long)so));
+    LogFlowFunc(("sorecvfrom: so = %lx\n", (long)so));
 
     if (so->so_type == IPPROTO_ICMP)
     {
@@ -814,7 +825,6 @@ sorecvfrom(PNATState pData, struct socket *so)
 
             Log2((" rx error, tx icmp ICMP_UNREACH:%i\n", code));
             icmp_error(pData, so->so_m, ICMP_UNREACH, code, 0, strerror(errno));
-            m_freem(pData, so->so_m);
             so->so_m = NULL;
         }
         else
@@ -869,10 +879,10 @@ sosendto(PNATState pData, struct socket *so, struct mbuf *m)
 #if 0
     struct sockaddr_in host_addr;
 #endif
-    caddr_t buf;
+    caddr_t buf = 0;
     int mlen;
 
-    LogFlow(("sosendto: so = %lx, m = %lx\n", (long)so, (long)m));
+    LogFlowFunc(("sosendto: so = %R[natsock], m = %lx\n", so, (long)m));
 
     memset(&addr, 0, sizeof(struct sockaddr));
 #ifdef RT_OS_DARWIN
@@ -920,16 +930,24 @@ sosendto(PNATState pData, struct socket *so, struct mbuf *m)
           RT_N2H_U16(paddr->sin_port), inet_ntoa(paddr->sin_addr)));
 
     /* Don't care what port we get */
+    /*
+     * > nmap -sV -T4 -O -A -v -PU3483 255.255.255.255
+     * generates bodyless messages, annoying memmory management system.
+     */
     mlen = m_length(m, NULL);
-    buf = RTMemAlloc(mlen);
-    if (buf == NULL)
+    if (mlen > 0)
     {
-        return -1;
+        buf = RTMemAlloc(mlen);
+        if (buf == NULL)
+        {
+            return -1;
+        }
+        m_copydata(m, 0, mlen, buf);
     }
-    m_copydata(m, 0, mlen, buf);
     ret = sendto(so->s, buf, mlen, 0,
                  (struct sockaddr *)&addr, sizeof (struct sockaddr));
-    RTMemFree(buf);
+    if (buf)
+        RTMemFree(buf);
     if (ret < 0)
     {
         Log2(("UDP: sendto fails (%s)\n", strerror(errno)));
@@ -958,7 +976,7 @@ solisten(PNATState pData, u_int32_t bind_addr, u_int port, u_int32_t laddr, u_in
     int s, opt = 1;
     int status;
 
-    LogFlow(("solisten: port = %d, laddr = %x, lport = %d, flags = %x\n", port, laddr, lport, flags));
+    LogFlowFunc(("solisten: port = %d, laddr = %x, lport = %d, flags = %x\n", port, laddr, lport, flags));
 
     if ((so = socreate()) == NULL)
     {
@@ -1359,7 +1377,6 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
             case IP_DEST_PORT_UNREACHABLE:
                 code = (code != ~0 ? code : ICMP_UNREACH_PORT);
                 icmp_error(pData, so->so_m, ICMP_UNREACH, code, 0, "Error occurred!!!");
-                m_freem(pData, so->so_m);
                 so->so_m = NULL;
                 break;
             case IP_SUCCESS: /* echo replied */
@@ -1478,7 +1495,6 @@ static void sorecvfrom_icmp_unix(PNATState pData, struct socket *so)
 
         LogRel((" udp icmp rx errno = %d (%s)\n", errno, strerror(errno)));
         icmp_error(pData, so->so_m, ICMP_UNREACH, code, 0, strerror(errno));
-        m_freem(pData, so->so_m);
         so->so_m = NULL;
         Log(("sorecvfrom_icmp_unix: 1 - step can't read IP datagramm\n"));
         return;

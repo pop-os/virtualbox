@@ -1,4 +1,4 @@
-/* $Revision: 71409 $ */
+/* $Revision: 37955 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Common code.
  */
@@ -54,13 +54,13 @@
 # include <iprt/rand.h>
 # include <iprt/path.h>
 #endif
+#include <iprt/x86.h>
 
 #include <VBox/param.h>
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <VBox/vmm/hwacc_svm.h>
 #include <VBox/vmm/hwacc_vmx.h>
-#include <VBox/x86.h>
 
 #ifdef VBOX_WITH_DTRACE
 # include "SUPDrv-dtrace.h"
@@ -278,7 +278,6 @@ static SUPFUNC g_aFunctions[] =
     { "RTThreadNativeSelf",                     (void *)RTThreadNativeSelf },
     { "RTThreadSleep",                          (void *)RTThreadSleep },
     { "RTThreadYield",                          (void *)RTThreadYield },
-#if 0 /* Thread APIs, Part 2. */
     { "RTThreadSelf",                           (void *)RTThreadSelf },
     { "RTThreadCreate",                         (void *)RTThreadCreate },
     { "RTThreadGetNative",                      (void *)RTThreadGetNative },
@@ -291,7 +290,6 @@ static SUPFUNC g_aFunctions[] =
     { "RTThreadUserReset",                      (void *)RTThreadUserReset },
     { "RTThreadUserWait",                       (void *)RTThreadUserWait },
     { "RTThreadUserWaitNoResume",               (void *)RTThreadUserWaitNoResume },
-#endif
     { "RTThreadPreemptIsEnabled",               (void *)RTThreadPreemptIsEnabled },
     { "RTThreadPreemptIsPending",               (void *)RTThreadPreemptIsPending },
     { "RTThreadPreemptIsPendingTrusty",         (void *)RTThreadPreemptIsPendingTrusty },
@@ -323,6 +321,8 @@ static SUPFUNC g_aFunctions[] =
     { "RTMpGetSet",                             (void *)RTMpGetSet },
     { "RTMpIsCpuOnline",                        (void *)RTMpIsCpuOnline },
     { "RTMpIsCpuWorkPending",                   (void *)RTMpIsCpuWorkPending },
+    { "RTMpNotificationRegister",               (void *)RTMpNotificationRegister },
+    { "RTMpNotificationDeregister",             (void *)RTMpNotificationDeregister },
     { "RTMpOnAll",                              (void *)RTMpOnAll },
     { "RTMpOnOthers",                           (void *)RTMpOnOthers },
     { "RTMpOnSpecific",                         (void *)RTMpOnSpecific },
@@ -336,6 +336,7 @@ static SUPFUNC g_aFunctions[] =
     { "RTR0AssertPanicSystem",                  (void *)RTR0AssertPanicSystem },
     { "RTAssertMsg1",                           (void *)RTAssertMsg1 },
     { "RTAssertMsg2V",                          (void *)RTAssertMsg2V },
+    { "RTAssertMsg2AddV",                       (void *)RTAssertMsg2AddV },
     { "RTAssertSetQuiet",                       (void *)RTAssertSetQuiet },
     { "RTAssertMayPanic",                       (void *)RTAssertMayPanic },
     { "RTAssertSetMayPanic",                    (void *)RTAssertSetMayPanic },
@@ -1399,8 +1400,8 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
         case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_CALL_VMMR0_BIG):
         {
             /* validate */
+            PSUPCALLVMMR0 pReq = (PSUPCALLVMMR0)pReqHdr;
             PSUPVMMR0REQHDR pVMMReq;
-            PSUPCALLVMMR0   pReq = (PSUPCALLVMMR0)pReqHdr;
             Log4(("SUP_IOCTL_CALL_VMMR0_BIG: op=%u in=%u arg=%RX64 p/t=%RTproc/%RTthrd\n",
                   pReq->u.In.uOperation, pReq->Hdr.cbIn, pReq->u.In.u64Arg, RTProcSelf(), RTThreadNativeSelf()));
 
@@ -4064,7 +4065,7 @@ static int supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
         pImage->pfnModuleTerm = pReq->u.In.pfnModuleTerm;
 
         if (pImage->fNative)
-            rc = supdrvOSLdrLoad(pDevExt, pImage, pReq->u.In.abImage);
+            rc = supdrvOSLdrLoad(pDevExt, pImage, pReq->u.In.abImage, pReq);
         else
             memcpy(pImage->pvImage, &pReq->u.In.abImage[0], pImage->cbImageBits);
     }
@@ -4276,16 +4277,18 @@ static int supdrvIOCtl_LdrGetSymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSessi
 
     /*
      * Search the symbol strings.
+     *
+     * Note! The int32_t is for native loading on solaris where the data
+     *       and text segments are in very different places.
      */
     pchStrings = pImage->pachStrTab;
     paSyms     = pImage->paSymbols;
     for (i = 0; i < pImage->cSymbols; i++)
     {
-        if (    paSyms[i].offSymbol < pImage->cbImageBits /* paranoia */
-            &&  paSyms[i].offName + cbSymbol <= pImage->cbStrTab
+        if (    paSyms[i].offName + cbSymbol <= pImage->cbStrTab
             &&  !memcmp(pchStrings + paSyms[i].offName, pReq->u.In.szSymbol, cbSymbol))
         {
-            pvSymbol = (uint8_t *)pImage->pvImage + paSyms[i].offSymbol;
+            pvSymbol = (uint8_t *)pImage->pvImage + (int32_t)paSyms[i].offSymbol;
             rc = VINF_SUCCESS;
             break;
         }
@@ -4365,14 +4368,13 @@ static int supdrvIDC_LdrGetSymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession
             PCSUPLDRSYM paSyms     = pImage->paSymbols;
             for (i = 0; i < pImage->cSymbols; i++)
             {
-                if (    paSyms[i].offSymbol < pImage->cbImageBits /* paranoia */
-                    &&  paSyms[i].offName + cbSymbol <= pImage->cbStrTab
+                if (    paSyms[i].offName + cbSymbol <= pImage->cbStrTab
                     &&  !memcmp(pchStrings + paSyms[i].offName, pszSymbol, cbSymbol))
                 {
                     /*
                      * Found it! Calc the symbol address and add a reference to the module.
                      */
-                    pReq->u.Out.pfnSymbol = (PFNRT)((uint8_t *)pImage->pvImage + paSyms[i].offSymbol);
+                    pReq->u.Out.pfnSymbol = (PFNRT)((uint8_t *)pImage->pvImage + (int32_t)paSyms[i].offSymbol);
                     rc = supdrvLdrAddUsage(pSession, pImage);
                     break;
                 }
@@ -4991,6 +4993,40 @@ static DECLCALLBACK(void) supdrvGipAsyncTimer(PRTTIMER pTimer, void *pvUser, uin
 
 
 /**
+ * Finds our (@a idCpu) entry, or allocates a new one if not found.
+ *
+ * @returns Index of the CPU in the cache set.
+ * @param   pGip                The GIP.
+ * @param   idCpu               The CPU ID.
+ */
+static uint32_t supdrvGipCpuIndexFromCpuId(PSUPGLOBALINFOPAGE pGip, RTCPUID idCpu)
+{
+    uint32_t i, cTries;
+
+    /*
+     * ASSUMES that CPU IDs are constant.
+     */
+    for (i = 0; i < pGip->cCpus; i++)
+        if (pGip->aCPUs[i].idCpu == idCpu)
+            return i;
+
+    cTries = 0;
+    do
+    {
+        for (i = 0; i < pGip->cCpus; i++)
+        {
+            bool fRc;
+            ASMAtomicCmpXchgSize(&pGip->aCPUs[i].idCpu, idCpu, NIL_RTCPUID, fRc);
+            if (fRc)
+                return i;
+        }
+    } while (cTries++ < 32);
+    AssertReleaseFailed();
+    return i - 1;
+}
+
+
+/**
  * The calling CPU should be accounted as online, update GIP accordingly.
  *
  * This is used by supdrvGipMpEvent as well as the supdrvGipCreate.
@@ -5000,11 +5036,11 @@ static DECLCALLBACK(void) supdrvGipAsyncTimer(PRTTIMER pTimer, void *pvUser, uin
  */
 static void supdrvGipMpEventOnline(PSUPGLOBALINFOPAGE pGip, RTCPUID idCpu)
 {
-    int         iCpuSet;
-    uint8_t     idApic;
-    uint32_t    i;
+    int         iCpuSet = 0;
+    uint16_t    idApic = UINT16_MAX;
+    uint32_t    i = 0;
 
-    Assert(idCpu == RTMpCpuId());
+    AssertRelease(idCpu == RTMpCpuId());
     Assert(pGip->cPossibleCpus == RTMpGetCount());
 
     /*
@@ -5021,38 +5057,22 @@ static void supdrvGipMpEventOnline(PSUPGLOBALINFOPAGE pGip, RTCPUID idCpu)
     }
 
     /*
-     * Find our entry, or allocate one if not found.
-     * ASSUMES that CPU IDs are constant.
-     */
-    for (i = 0; i < pGip->cCpus; i++)
-        if (pGip->aCPUs[i].idCpu == idCpu)
-            break;
-
-    if (i >= pGip->cCpus)
-        for (i = 0; i < pGip->cCpus; i++)
-        {
-            bool fRc;
-            ASMAtomicCmpXchgSize(&pGip->aCPUs[i].idCpu, idCpu, NIL_RTCPUID, fRc);
-            if (fRc)
-                break;
-        }
-
-    AssertReturnVoid(i < pGip->cCpus);
-
-    /*
      * Update the entry.
      */
+    i = supdrvGipCpuIndexFromCpuId(pGip, idCpu);
     idApic = ASMGetApicId();
     ASMAtomicUoWriteU16(&pGip->aCPUs[i].idApic,  idApic);
     ASMAtomicUoWriteS16(&pGip->aCPUs[i].iCpuSet, (int16_t)iCpuSet);
     ASMAtomicUoWriteSize(&pGip->aCPUs[i].idCpu,  idCpu);
-    ASMAtomicWriteSize(&pGip->aCPUs[i].enmState, SUPGIPCPUSTATE_ONLINE);
 
     /*
      * Update the APIC ID and CPU set index mappings.
      */
     ASMAtomicWriteU16(&pGip->aiCpuFromApicId[idApic],     i);
     ASMAtomicWriteU16(&pGip->aiCpuFromCpuSetIdx[iCpuSet], i);
+
+    /* commit it */
+    ASMAtomicWriteSize(&pGip->aCPUs[i].enmState, SUPGIPCPUSTATE_ONLINE);
 }
 
 
@@ -5077,8 +5097,10 @@ static void supdrvGipMpEventOffline(PSUPGLOBALINFOPAGE pGip, RTCPUID idCpu)
     AssertReturnVoid(pGip->aCPUs[i].idCpu == idCpu);
 
     Assert(RTCpuSetIsMemberByIndex(&pGip->PossibleCpuSet, iCpuSet));
-    ASMAtomicWriteSize(&pGip->aCPUs[i].enmState, SUPGIPCPUSTATE_OFFLINE);
     RTCpuSetDelByIndex(&pGip->OnlineCpuSet, iCpuSet);
+
+    /* commit it */
+    ASMAtomicWriteSize(&pGip->aCPUs[i].enmState, SUPGIPCPUSTATE_OFFLINE);
 }
 
 
@@ -5096,6 +5118,9 @@ static DECLCALLBACK(void) supdrvGipMpEvent(RTMPEVENT enmEvent, RTCPUID idCpu, vo
 {
     PSUPDRVDEVEXT       pDevExt = (PSUPDRVDEVEXT)pvUser;
     PSUPGLOBALINFOPAGE  pGip    = pDevExt->pGip;
+
+    AssertRelease(idCpu == RTMpCpuId());
+    AssertRelease(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
 
     /*
      * Update the GIP CPU data.
@@ -5119,8 +5144,7 @@ static DECLCALLBACK(void) supdrvGipMpEvent(RTMPEVENT enmEvent, RTCPUID idCpu, vo
      */
     if (enmEvent == RTMPEVENT_OFFLINE)
     {
-        RTCPUID idGipMaster;
-        ASMAtomicReadSize(&pDevExt->idGipMaster, &idGipMaster);
+        RTCPUID idGipMaster = ASMAtomicReadU32(&pDevExt->idGipMaster);
         if (idGipMaster == idCpu)
         {
             /*
@@ -5360,7 +5384,7 @@ static void supdrvGipInit(PSUPDRVDEVEXT pDevExt, PSUPGLOBALINFOPAGE pGip, RTHCPH
         pGip->aCPUs[i].enmState          = SUPGIPCPUSTATE_INVALID;
         pGip->aCPUs[i].idCpu             = NIL_RTCPUID;
         pGip->aCPUs[i].iCpuSet           = -1;
-        pGip->aCPUs[i].idApic            = UINT8_MAX;
+        pGip->aCPUs[i].idApic            = UINT16_MAX;
 
         /*
          * We don't know the following values until we've executed updates.
@@ -5619,14 +5643,26 @@ static void supdrvGipUpdate(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, uint64_
 static void supdrvGipUpdatePerCpu(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, uint64_t u64TSC,
                                   RTCPUID idCpu, uint8_t idApic, uint64_t iTick)
 {
-    unsigned iCpu = pGip->aiCpuFromApicId[idApic];
+    uint32_t iCpu;
 
+    /*
+     * Avoid a potential race when a CPU online notification doesn't fire on
+     * the onlined CPU but the tick creeps in before the event notification is
+     * run.
+     */
+    if (RT_UNLIKELY(iTick == 1))
+    {
+        iCpu = supdrvGipCpuIndexFromCpuId(pGip, idCpu);
+        if (pGip->aCPUs[iCpu].enmState == SUPGIPCPUSTATE_OFFLINE)
+            supdrvGipMpEventOnline(pGip, idCpu);
+    }
+
+    iCpu = pGip->aiCpuFromApicId[idApic];
     if (RT_LIKELY(iCpu < pGip->cCpus))
     {
         PSUPGIPCPU pGipCpu = &pGip->aCPUs[iCpu];
         if (pGipCpu->idCpu == idCpu)
         {
-
             /*
              * Start update transaction.
              */

@@ -123,6 +123,11 @@ protected:
     static bool darwinEventHandlerProc(const void *pvCocoaEvent, const void *pvCarbonEvent, void *pvUser);
 #endif
 
+    bool keyEventCADHandled(uint8_t uScan);
+    bool keyEventHandleNormal(int iKey, uint8_t uScan, int fFlags, LONG *pCodes, uint *puCodesCount);
+    bool keyEventHostComboHandled(int iKey, wchar_t *pUniKey, bool isHostComboStateChanged, bool *pfResult);
+    void keyEventHandleHostComboRelease(ulong uScreenId);
+    void keyEventReleaseHostComboKeys(CKeyboard keyboard);
     /* Separate function to handle most of existing keyboard-events: */
     bool keyEvent(int iKey, uint8_t uScan, int fFlags, ulong uScreenId, wchar_t *pUniKey = 0);
     bool processHotKey(int iHotKey, wchar_t *pUniKey);
@@ -131,6 +136,11 @@ protected:
     void fixModifierState(LONG *piCodes, uint *puCount);
     void saveKeyStates();
     void sendChangedKeyStates();
+    bool isAutoCaptureDisabled();
+    void setAutoCaptureDisabled(bool fIsAutoCaptureDisabled);
+    bool autoCaptureSetGlobally();
+    bool viewHasFocus(ulong uScreenId);
+    bool isSessionRunning();
 
     UIMachineWindow* isItListenedWindow(QObject *pWatchedObject) const;
     UIMachineView* isItListenedView(QObject *pWatchedObject) const;

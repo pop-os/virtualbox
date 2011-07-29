@@ -55,16 +55,16 @@ void crStateTextureInit(CRContext *ctx)
 
     /* compute max levels from max sizes */
     for (i=0, a=limits->maxTextureSize; a; i++, a=a>>1);
-    t->maxLevel = i;
+    t->maxLevel = i-1;
     for (i=0, a=limits->max3DTextureSize; a; i++, a=a>>1);
-    t->max3DLevel = i;
+    t->max3DLevel = i-1;
 #ifdef CR_ARB_texture_cube_map
     for (i=0, a=limits->maxCubeMapTextureSize; a; i++, a=a>>1);
-    t->maxCubeMapLevel = i;
+    t->maxCubeMapLevel = i-1;
 #endif
 #ifdef CR_NV_texture_rectangle
     for (i=0, a=limits->maxRectTextureSize; a; i++, a=a>>1);
-    t->maxRectLevel = i;
+    t->maxRectLevel = i-1;
 #endif
 
     crStateTextureInitTextureObj(ctx, &(t->base1D), 0, GL_TEXTURE_1D);
@@ -790,6 +790,8 @@ void STATE_APIENTRY crStateClientActiveTextureARB( GLenum texture )
     }
 
     c->curClientTextureUnit = texture - GL_TEXTURE0_ARB;
+
+    DIRTY(GetCurrentBits()->client.dirty, g->neg_bitid);
 }
 
 void STATE_APIENTRY crStateActiveTextureARB( GLenum texture )
@@ -901,7 +903,9 @@ void STATE_APIENTRY crStateBindTexture(GLenum target, GLuint texture)
         /* Target isn't set so set it now.*/
         tobj->target = target;
     }
-    else if (tobj->target != target)
+    else if ((tobj->target != target) 
+             && !((target==GL_TEXTURE_RECTANGLE_NV && tobj->target==GL_TEXTURE_2D)
+                  ||(target==GL_TEXTURE_2D && tobj->target==GL_TEXTURE_RECTANGLE_NV)))
     {
         crWarning( "You called glBindTexture with a target of 0x%x, but the texture you wanted was target 0x%x [1D: %x 2D: %x 3D: %x cube: %x]", (int) target, (int) tobj->target, GL_TEXTURE_1D, GL_TEXTURE_2D, GL_TEXTURE_3D, GL_TEXTURE_CUBE_MAP );
         crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION, "Attempt to bind a texture of different dimensions");

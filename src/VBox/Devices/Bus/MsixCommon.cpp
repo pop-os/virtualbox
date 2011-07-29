@@ -1,4 +1,4 @@
-/* $Id: MsixCommon.cpp $ */
+/* $Id: MsixCommon.cpp 37636 2011-06-24 14:59:59Z vboxsync $ */
 /** @file
  * MSI-X support routines
  */
@@ -28,7 +28,8 @@
 #include "MsiCommon.h"
 
 #pragma pack(1)
-typedef struct {
+typedef struct
+{
     uint32_t  u32MsgAddressLo;
     uint32_t  u32MsgAddressHi;
     uint32_t  u32MsgData;
@@ -37,6 +38,7 @@ typedef struct {
 AssertCompileSize(MsixTableRecord, VBOX_MSIX_ENTRY_SIZE);
 #pragma pack()
 
+/** @todo: use accessors so that raw PCI devices work correctly with MSI-X. */
 DECLINLINE(uint16_t)  msixGetMessageControl(PPCIDEVICE pDev)
 {
     return PCIDevGetWord(pDev, pDev->Int.s.u8MsixCapOffset + VBOX_MSIX_CAP_MESSAGE_CONTROL);
@@ -126,7 +128,7 @@ PDMBOTHCBDECL(int) msixMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhy
     return VINF_SUCCESS;
 }
 
-PDMBOTHCBDECL(int) msixMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+PDMBOTHCBDECL(int) msixMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
     /// @todo: qword accesses?
     AssertMsgReturn(cb == 4,
@@ -165,24 +167,37 @@ int MsixInit(PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, PPDMMSIREG pMsiReg)
     if (pMsiReg->cMsixVectors == 0)
          return VINF_SUCCESS;
 
+     /* We cannot init MSI-X on raw devices yet. */
+    Assert(!pciDevIsPassthrough(pDev));
+
     uint16_t   cVectors    = pMsiReg->cMsixVectors;
     uint8_t    iCapOffset  = pMsiReg->iMsixCapOffset;
     uint8_t    iNextOffset = pMsiReg->iMsixNextOffset;
     uint8_t    iBar        = pMsiReg->iMsixBar;
 
     if (cVectors > VBOX_MSIX_MAX_ENTRIES)
+    {
+        AssertMsgFailed(("Too many MSI-X vectors: %d\n", cVectors));
         return VERR_TOO_MUCH_DATA;
+    }
 
     if (iBar > 5)
+    {
+        AssertMsgFailed(("Using wrong BAR for MSI-X: %d\n", iBar));
         return VERR_INVALID_PARAMETER;
+    }
 
     Assert(iCapOffset != 0 && iCapOffset < 0xff && iNextOffset < 0xff);
 
-    int rc;
+    int rc = VINF_SUCCESS;
 
-    rc = PDMDevHlpPCIIORegionRegister (pDev->pDevIns, iBar, 0x1000, PCI_ADDRESS_SPACE_MEM, msixMap);
-    if (RT_FAILURE (rc))
-        return rc;
+    /* If device is passthrough, BAR is registered using common mechanism. */
+    if (!pciDevIsPassthrough(pDev))
+    {
+        rc = PDMDevHlpPCIIORegionRegister (pDev->pDevIns, iBar, 0x1000, PCI_ADDRESS_SPACE_MEM, msixMap);
+        if (RT_FAILURE (rc))
+            return rc;
+    }
 
     pDev->Int.s.u8MsixCapOffset = iCapOffset;
     pDev->Int.s.u8MsixCapSize   = VBOX_MSIX_CAP_SIZE;
@@ -209,7 +224,7 @@ int MsixInit(PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, PPDMMSIREG pMsiReg)
     PCIDevSetDWord(pDev,  iCapOffset + VBOX_MSIX_TABLE_BIROFFSET, offTable | iBar);
     PCIDevSetDWord(pDev,  iCapOffset + VBOX_MSIX_PBA_BIROFFSET,   offPBA   | iBar);
 
-    PCISetMsixCapable(pDev);
+    pciDevSetMsixCapable(pDev);
 
     return VINF_SUCCESS;
 }
@@ -217,7 +232,7 @@ int MsixInit(PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, PPDMMSIREG pMsiReg)
 
 bool     MsixIsEnabled(PPCIDEVICE pDev)
 {
-    return PCIIsMsixCapable(pDev) && msixIsEnabled(pDev);
+    return pciDevIsMsixCapable(pDev) && msixIsEnabled(pDev);
 }
 
 void MsixNotify(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, int iVector, int iLevel)
@@ -266,7 +281,7 @@ static void msixCheckPendingVectors(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPC
 void MsixPciConfigWrite(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, uint32_t u32Address, uint32_t val, unsigned len)
 {
     int32_t iOff = u32Address - pDev->Int.s.u8MsixCapOffset;
-    Assert(iOff >= 0 && (PCIIsMsixCapable(pDev) && iOff < pDev->Int.s.u8MsixCapSize));
+    Assert(iOff >= 0 && (pciDevIsMsixCapable(pDev) && iOff < pDev->Int.s.u8MsixCapSize));
 
     Log2(("MsixPciConfigWrite: %d <- %x (%d)\n", iOff, val, len));
 
@@ -311,7 +326,7 @@ uint32_t MsixPciConfigRead (PPDMDEVINS pDevIns, PPCIDEVICE pDev, uint32_t u32Add
 {
     int32_t iOff = u32Address - pDev->Int.s.u8MsixCapOffset;
 
-    Assert(iOff >= 0 && (PCIIsMsixCapable(pDev) && iOff < pDev->Int.s.u8MsixCapSize));
+    Assert(iOff >= 0 && (pciDevIsMsixCapable(pDev) && iOff < pDev->Int.s.u8MsixCapSize));
     uint32_t rv = 0;
 
     switch (len)

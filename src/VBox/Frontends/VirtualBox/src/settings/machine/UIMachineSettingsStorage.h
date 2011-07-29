@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -310,10 +310,12 @@ public:
     QString ctrName() const;
     KStorageControllerType ctrType() const;
     ControllerTypeList ctrTypes() const;
+    uint portCount();
     bool ctrUseIoCache() const;
 
     void setCtrName (const QString &aCtrName);
     void setCtrType (KStorageControllerType aCtrType);
+    void setPortCount (uint aPortCount);
     void setCtrUseIoCache (bool aUseIoCache);
 
     SlotsList ctrAllSlots() const;
@@ -337,6 +339,7 @@ private:
 
     QString mCtrName;
     AbstractControllerType *mCtrType;
+    uint mPortCount;
     bool mUseIoCache;
     QList <AbstractItem*> mAttachments;
 };
@@ -355,16 +358,21 @@ public:
     QString attMediumId() const;
     bool attIsHostDrive() const;
     bool attIsPassthrough() const;
+    bool attIsTempEject() const;
+    bool attIsNonRotational() const;
 
     void setAttSlot (const StorageSlot &aAttSlot);
     void setAttDevice (KDeviceType aAttDeviceType);
     void setAttMediumId (const QString &aAttMediumId);
     void setAttIsPassthrough (bool aPassthrough);
+    void setAttIsTempEject (bool aTempEject);
+    void setAttIsNonRotational (bool aNonRotational);
 
     QString attSize() const;
     QString attLogicalSize() const;
     QString attLocation() const;
     QString attFormat() const;
+    QString attDetails() const;
     QString attUsage() const;
 
 private:
@@ -389,6 +397,8 @@ private:
     bool mAttIsShowDiffs;
     bool mAttIsHostDrive;
     bool mAttIsPassthrough;
+    bool mAttIsTempEject;
+    bool mAttIsNonRotational;
 
     QString mAttName;
     QString mAttTip;
@@ -398,6 +408,7 @@ private:
     QString mAttLogicalSize;
     QString mAttLocation;
     QString mAttFormat;
+    QString mAttDetails;
     QString mAttUsage;
 };
 
@@ -432,6 +443,7 @@ public:
         R_CtrTypes,
         R_CtrDevices,
         R_CtrBusType,
+        R_CtrPortCount,
         R_CtrIoCache,
 
         R_AttSlot,
@@ -441,10 +453,13 @@ public:
         R_AttIsShowDiffs,
         R_AttIsHostDrive,
         R_AttIsPassthrough,
+        R_AttIsTempEject,
+        R_AttIsNonRotational,
         R_AttSize,
         R_AttLogicalSize,
         R_AttLocation,
         R_AttFormat,
+        R_AttDetails,
         R_AttUsage,
 
         R_Margin,
@@ -502,6 +517,10 @@ public:
     KChipsetType chipsetType() const;
     void setChipsetType(KChipsetType type);
 
+    void setDialogType(SettingsDialogType settingsDialogType);
+
+    void clear();
+
     QMap<KStorageBus, int> currentControllerTypes() const;
     QMap<KStorageBus, int> maximumControllerTypes() const;
 
@@ -520,6 +539,7 @@ private:
     ToolTipType mToolTipType;
 
     KChipsetType m_chipsetType;
+    SettingsDialogType m_dialogType;
 };
 Q_DECLARE_METATYPE (StorageModel::ToolTipType);
 
@@ -539,32 +559,84 @@ private:
     bool mDisableStaticControls;
 };
 
-/* Machine settings / Storage page / Attachment data: */
-struct UIStorageAttachmentData
+/* Machine settings / Storage page / Storage attachment data: */
+struct UIDataSettingsMachineStorageAttachment
 {
+    /* Default constructor: */
+    UIDataSettingsMachineStorageAttachment()
+        : m_attachmentType(KDeviceType_Null)
+        , m_iAttachmentPort(-1)
+        , m_iAttachmentDevice(-1)
+        , m_strAttachmentMediumId(QString())
+        , m_fAttachmentPassthrough(false)
+        , m_fAttachmentTempEject(false)
+        , m_fAttachmentNonRotational(false) {}
+    /* Functions: */
+    bool equal(const UIDataSettingsMachineStorageAttachment &other) const
+    {
+        return (m_attachmentType == other.m_attachmentType) &&
+               (m_iAttachmentPort == other.m_iAttachmentPort) &&
+               (m_iAttachmentDevice == other.m_iAttachmentDevice) &&
+               (m_strAttachmentMediumId == other.m_strAttachmentMediumId) &&
+               (m_fAttachmentPassthrough == other.m_fAttachmentPassthrough) &&
+               (m_fAttachmentTempEject == other.m_fAttachmentTempEject) &&
+               (m_fAttachmentNonRotational == other.m_fAttachmentNonRotational);
+    }
+    /* Operators: */
+    bool operator==(const UIDataSettingsMachineStorageAttachment &other) const { return equal(other); }
+    bool operator!=(const UIDataSettingsMachineStorageAttachment &other) const { return !equal(other); }
+    /* Variables: */
     KDeviceType m_attachmentType;
     LONG m_iAttachmentPort;
     LONG m_iAttachmentDevice;
     QString m_strAttachmentMediumId;
     bool m_fAttachmentPassthrough;
+    bool m_fAttachmentTempEject;
+    bool m_fAttachmentNonRotational;
 };
+typedef UISettingsCache<UIDataSettingsMachineStorageAttachment> UICacheSettingsMachineStorageAttachment;
 
-/* Machine settings / Storage page / Controller data: */
-struct UIStorageControllerData
+/* Machine settings / Storage page / Storage controller data: */
+struct UIDataSettingsMachineStorageController
 {
+    /* Default constructor: */
+    UIDataSettingsMachineStorageController()
+        : m_strControllerName(QString())
+        , m_controllerBus(KStorageBus_Null)
+        , m_controllerType(KStorageControllerType_Null)
+        , m_uPortCount(0)
+        , m_fUseHostIOCache(false) {}
+    /* Functions: */
+    bool equal(const UIDataSettingsMachineStorageController &other) const
+    {
+        return (m_strControllerName == other.m_strControllerName) &&
+               (m_controllerBus == other.m_controllerBus) &&
+               (m_controllerType == other.m_controllerType) &&
+               (m_uPortCount == other.m_uPortCount) &&
+               (m_fUseHostIOCache == other.m_fUseHostIOCache);
+    }
+    /* Operators: */
+    bool operator==(const UIDataSettingsMachineStorageController &other) const { return equal(other); }
+    bool operator!=(const UIDataSettingsMachineStorageController &other) const { return !equal(other); }
+    /* Variables: */
     QString m_strControllerName;
     KStorageBus m_controllerBus;
     KStorageControllerType m_controllerType;
+    uint m_uPortCount;
     bool m_fUseHostIOCache;
-    QList<UIStorageAttachmentData> m_items;
 };
+typedef UISettingsCachePool<UIDataSettingsMachineStorageController, UICacheSettingsMachineStorageAttachment> UICacheSettingsMachineStorageController;
 
-/* Machine settings / Storage page / Cache: */
-struct UISettingsCacheMachineStorage
+/* Machine settings / Storage page / Storage data: */
+struct UIDataSettingsMachineStorage
 {
-    QString m_strMachineId;
-    QList<UIStorageControllerData> m_items;
+    /* Default constructor: */
+    UIDataSettingsMachineStorage() {}
+    /* Operators: */
+    bool operator==(const UIDataSettingsMachineStorage& /* other */) const { return true; }
+    bool operator!=(const UIDataSettingsMachineStorage& /* other */) const { return false; }
 };
+typedef UISettingsCachePool<UIDataSettingsMachineStorage, UICacheSettingsMachineStorageController> UICacheSettingsMachineStorage;
 
 /* Machine settings / Storage page: */
 class UIMachineSettingsStorage : public UISettingsPageMachine,
@@ -576,11 +648,7 @@ public:
 
     UIMachineSettingsStorage();
 
-    KChipsetType chipsetType() const;
     void setChipsetType(KChipsetType type);
-
-    QMap<KStorageBus, int> currentControllerTypes() const;
-    QMap<KStorageBus, int> maximumControllerTypes() const;
 
 signals:
 
@@ -601,6 +669,9 @@ protected:
     /* Save data from cache to corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void saveFromCacheTo(QVariant &data);
+
+    /* Page changed: */
+    bool changed() const { return m_cache.wasChanged(); }
 
     void setValidator (QIWidgetValidator *aVal);
     bool revalidate (QString &aWarning, QString &aTitle);
@@ -669,7 +740,27 @@ private:
     void addChooseHostDriveActions(QMenu *pOpenMediumMenu);
     void addRecentMediumActions(QMenu *pOpenMediumMenu, VBoxDefs::MediumType recentMediumType);
 
+    bool updateStorageData();
+    bool removeStorageController(const UICacheSettingsMachineStorageController &controllerCache);
+    bool createStorageController(const UICacheSettingsMachineStorageController &controllerCache);
+    bool updateStorageController(const UICacheSettingsMachineStorageController &controllerCache);
+    bool removeStorageAttachment(const UICacheSettingsMachineStorageController &controllerCache,
+                                 const UICacheSettingsMachineStorageAttachment &attachmentCache);
+    bool createStorageAttachment(const UICacheSettingsMachineStorageController &controllerCache,
+                                 const UICacheSettingsMachineStorageAttachment &attachmentCache);
+    bool updateStorageAttachment(const UICacheSettingsMachineStorageController &controllerCache,
+                                 const UICacheSettingsMachineStorageAttachment &attachmentCache);
+    bool isControllerCouldBeUpdated(const UICacheSettingsMachineStorageController &controllerCache) const;
+    bool isAttachmentCouldBeUpdated(const UICacheSettingsMachineStorageAttachment &attachmentCache) const;
+
+    void setDialogType(SettingsDialogType settingsDialogType);
+    void polishPage();
+
     QIWidgetValidator *mValidator;
+
+    QString m_strMachineId;
+    QString m_strMachineSettingsFilePath;
+    QString m_strMachineGuestOSTypeId;
 
     StorageModel *mStorageModel;
 
@@ -693,7 +784,7 @@ private:
     bool mDisableStaticControls;
 
     /* Cache: */
-    UISettingsCacheMachineStorage m_cache;
+    UICacheSettingsMachineStorage m_cache;
 };
 
 #endif // __UIMachineSettingsStorage_h__

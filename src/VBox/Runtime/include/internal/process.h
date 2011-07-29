@@ -1,4 +1,4 @@
-/* $Id: process.h $ */
+/* $Id: process.h 36555 2011-04-05 12:34:09Z vboxsync $ */
 /** @file
  * IPRT - Internal RTProc header.
  */
@@ -32,12 +32,13 @@
 
 RT_C_DECLS_BEGIN
 
-extern RTPROCESS        g_ProcessSelf;
-extern RTPROCPRIORITY   g_enmProcessPriority;
-extern char             g_szrtProcExePath[RTPATH_MAX];
-extern size_t           g_cchrtProcExePath;
-extern size_t           g_cchrtProcDir;
-extern size_t           g_offrtProcName;
+extern DECLHIDDEN(RTPROCESS)        g_ProcessSelf;
+extern DECLHIDDEN(RTPROCPRIORITY)   g_enmProcessPriority;
+extern DECLHIDDEN(char)             g_szrtProcExePath[RTPATH_MAX];
+extern DECLHIDDEN(size_t)           g_cchrtProcExePath;
+extern DECLHIDDEN(size_t)           g_cchrtProcDir;
+extern DECLHIDDEN(size_t)           g_offrtProcName;
+extern DECLHIDDEN(bool volatile)    g_frtAtExitCalled;
 
 /**
  * Validates and sets the process priority.
@@ -48,7 +49,7 @@ extern size_t           g_offrtProcName;
  * @param   enmPriority     The priority to validate and set.
  * @remark  Located in sched.
  */
-int rtProcNativeSetPriority(RTPROCPRIORITY enmPriority);
+DECLHIDDEN(int) rtProcNativeSetPriority(RTPROCPRIORITY enmPriority);
 
 /**
  * Determines the full path to the executable image.

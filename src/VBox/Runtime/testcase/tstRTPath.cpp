@@ -1,10 +1,10 @@
-/* $Id: tstRTPath.cpp $ */
+/* $Id: tstRTPath.cpp 36881 2011-04-29 09:17:05Z vboxsync $ */
 /** @file
  * IPRT Testcase - Test various path functions.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,7 +55,7 @@ int main()
      * RTPathExecDir, RTPathUserHome and RTProcGetExecutablePath.
      */
     RTTestSub(hTest, "RTPathExecDir");
-    RTTESTI_CHECK_RC(RTPathExecDir(szPath, sizeof(szPath)), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(rc = RTPathExecDir(szPath, sizeof(szPath)), VINF_SUCCESS);
     if (RT_SUCCESS(rc))
         RTTestIPrintf(RTTESTLVL_INFO, "ExecDir={%s}\n", szPath);
 
@@ -66,12 +66,17 @@ int main()
         RTTestIFailed("RTProcGetExecutablePath -> NULL");
 
     RTTestSub(hTest, "RTPathUserHome");
-    RTTESTI_CHECK_RC(RTPathUserHome(szPath, sizeof(szPath)), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(rc = RTPathUserHome(szPath, sizeof(szPath)), VINF_SUCCESS);
     if (RT_SUCCESS(rc))
         RTTestIPrintf(RTTESTLVL_INFO, "UserHome={%s}\n", szPath);
 
+    RTTestSub(hTest, "RTPathUserDocuments");
+    RTTESTI_CHECK_RC(rc = RTPathUserDocuments(szPath, sizeof(szPath)), VINF_SUCCESS);
+    if (RT_SUCCESS(rc))
+        RTTestIPrintf(RTTESTLVL_INFO, "UserDocuments={%s}\n", szPath);
+
     RTTestSub(hTest, "RTPathTemp");
-    RTTESTI_CHECK_RC(RTPathTemp(szPath, sizeof(szPath)), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(rc = RTPathTemp(szPath, sizeof(szPath)), VINF_SUCCESS);
     if (RT_SUCCESS(rc))
         RTTestIPrintf(RTTESTLVL_INFO, "PathTemp={%s}\n", szPath);
     size_t cch = strlen(szPath);

@@ -1,4 +1,4 @@
-/* $Id: VBoxCommon.cpp $ */
+/* $Id: VBoxCommon.cpp 37289 2011-06-01 11:59:23Z vboxsync $ */
 /** @file
  * VBoxCommon - Misc helper routines for install helper.
  */
@@ -51,7 +51,6 @@ UINT VBoxGetProperty(MSIHANDLE a_hModule, TCHAR* a_pszName, TCHAR* a_pValue, DWO
         ZeroMemory(a_pValue, a_dwSize);
         uiRet = MsiGetProperty(a_hModule, a_pszName, a_pValue, &dwBuffer);
     }
-
     return uiRet;
 }
 
