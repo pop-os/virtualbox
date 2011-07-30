@@ -1,3 +1,3 @@
 .NOTPARALLEL:
 
-obj-m = vboxdrv/ vboxnetflt/ vboxnetadp/
+obj-m = vboxdrv/ vboxnetflt/ vboxnetadp/ vboxpci/

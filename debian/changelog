@@ -7,6 +7,7 @@ virtualbox (4.1.0-dfsg-1) UNRELEASED; urgency=low
   * Drop 22-no-static-libstdcpp.patch and 31-multiarch-dri-path.patch,
     applied upstream.
   * Add 34-fix-vboxpci-build.patch to fix a VBoxPCI build failure.
+  * Add vboxpci kernel module to virtualbox-dkms and virtualbox-source.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 29 Jul 2011 18:04:05 +0200
 

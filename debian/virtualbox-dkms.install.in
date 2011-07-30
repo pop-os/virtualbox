@@ -10,6 +10,10 @@ out/bin/src/vboxnetadp/*.* /usr/src/virtualbox-CVERSION/vboxnetadp
 out/bin/src/vboxnetadp/linux /usr/src/virtualbox-CVERSION/vboxnetadp
 out/bin/src/vboxnetadp/Makefile /usr/src/virtualbox-CVERSION/vboxnetadp
 
+out/bin/src/vboxpci/*.* /usr/src/virtualbox-CVERSION/vboxpci
+out/bin/src/vboxpci/linux /usr/src/virtualbox-CVERSION/vboxpci
+out/bin/src/vboxpci/Makefile /usr/src/virtualbox-CVERSION/vboxpci
+
 out/bin/src/vboxdrv/*-generated.h /usr/src/virtualbox-CVERSION/include
 out/bin/src/vboxdrv/include/iprt/* /usr/src/virtualbox-CVERSION/include/iprt
 out/bin/src/vboxdrv/include/VBox/* /usr/src/virtualbox-CVERSION/include/VBox
@@ -21,6 +25,9 @@ out/bin/src/vboxnetflt/include/VBox/* /usr/src/virtualbox-CVERSION/include/VBox
 out/bin/src/vboxnetadp/include/iprt/* /usr/src/virtualbox-CVERSION/include/iprt
 out/bin/src/vboxnetadp/include/VBox/* /usr/src/virtualbox-CVERSION/include/VBox
 out/bin/src/vboxnetadp/include/internal/* /usr/src/virtualbox-CVERSION/include/internal
+
+out/bin/src/vboxpci/include/iprt/* /usr/src/virtualbox-CVERSION/include/iprt
+out/bin/src/vboxpci/include/VBox/* /usr/src/virtualbox-CVERSION/include/VBox
 
 out/bin/src/vboxdrv/r0drv /usr/src/virtualbox-CVERSION
 out/bin/src/vboxdrv/common /usr/src/virtualbox-CVERSION
