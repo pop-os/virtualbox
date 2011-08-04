@@ -12,7 +12,7 @@ diff -urNad virtualbox-ose-4.0.2-dfsg/src/VBox/VMM/VMMR3/VM.cpp virtualbox-ose-4
 -                                  "that no kernel modules from an older version of VirtualBox exist. "
 -                                  "Then try to recompile and reload the kernel modules by executing "
 -                                  "'/etc/init.d/vboxdrv setup' as root");
-+		    pszError = N_("Please install the virtualbox-ose-dkms package "
++		    pszError = N_("Please install the virtualbox-dkms package "
 +				  "and execute 'modprobe vboxdrv' as root");
                      break;
  #endif
@@ -25,7 +25,7 @@ diff -urNad virtualbox-ose-4.0.2-dfsg/src/VBox/VMM/VMMR3/VM.cpp virtualbox-ose-4
 -                                  "was either not loaded or /dev/vboxdrv is not set up properly. "
 -                                  "Re-setup the kernel module by executing "
 -                                  "'/etc/init.d/vboxdrv setup' as root");
-+                    pszError = N_("Please install the virtualbox-ose-dkms package "
++                    pszError = N_("Please install the virtualbox-dkms package "
 +		    		  "and execute 'modprobe vboxdrv' as root");
  #else
                      pszError = N_("VirtualBox kernel driver not loaded");
@@ -38,7 +38,7 @@ diff -urNad virtualbox-ose-4.0.2-dfsg/src/VBox/VMM/VMMR3/VM.cpp virtualbox-ose-4
 -                                  "was either not loaded or /dev/vboxdrv was not created for some "
 -                                  "reason. Re-setup the kernel module by executing "
 -                                  "'/etc/init.d/vboxdrv setup' as root");
-+                    pszError = N_("Please install the virtualbox-ose-dkms package "
++                    pszError = N_("Please install the virtualbox-dkms package "
 +		    		  "and execute 'modprobe vboxdrv' as root");
  #else
                      pszError = N_("VirtualBox kernel driver not installed");
@@ -57,7 +57,7 @@ diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Frontends/VirtualBox/src/main.cp
 -  "as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS "
 -  "package first. This package keeps track of Linux kernel changes and "
 -  "recompiles the vboxdrv kernel module if necessary."
-+  "Please install the virtualbox-ose-dkms package "
++  "Please install the virtualbox-dkms package "
 +  "and execute 'modprobe vboxdrv' as root."
    );
  
@@ -72,7 +72,7 @@ diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Frontends/VirtualBox/src/main.cp
 -  "  <font color=blue>'/etc/init.d/vboxdrv setup'</font><br/><br/>"
 -  "may correct this. Make sure that you do not mix the "
 -  "OSE version and the PUEL version of VirtualBox."
-+  "Please install the virtualbox-ose-dkms package "
++  "Please install the virtualbox-dkms package "
 +  "and execute 'modprobe vboxdrv' as root."
    );
  
