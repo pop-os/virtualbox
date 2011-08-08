@@ -6,10 +6,6 @@
 /usr/src/virtualbox-CVERSION/include /usr/src/virtualbox-CVERSION/vboxnetflt/include
 /usr/src/virtualbox-CVERSION/include /usr/src/virtualbox-CVERSION/vboxnetadp/include
 /usr/src/virtualbox-CVERSION/include /usr/src/virtualbox-CVERSION/vboxpci/include
-/usr/src/virtualbox-CVERSION/alloc /usr/src/virtualbox-CVERSION/vboxdrv/alloc
-/usr/src/virtualbox-CVERSION/alloc /usr/src/virtualbox-CVERSION/vboxnetflt/alloc
-/usr/src/virtualbox-CVERSION/alloc /usr/src/virtualbox-CVERSION/vboxnetadp/alloc
-/usr/src/virtualbox-CVERSION/alloc /usr/src/virtualbox-CVERSION/vboxpci/alloc
 /usr/src/virtualbox-CVERSION/common /usr/src/virtualbox-CVERSION/vboxdrv/common
 /usr/src/virtualbox-CVERSION/common /usr/src/virtualbox-CVERSION/vboxnetflt/common
 /usr/src/virtualbox-CVERSION/common /usr/src/virtualbox-CVERSION/vboxnetadp/common

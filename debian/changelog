@@ -10,6 +10,7 @@ virtualbox (4.1.0-dfsg-1) UNRELEASED; urgency=low
   * Add vboxpci kernel module to virtualbox-dkms and virtualbox-source.
   * Update package names in 04-vboxdrv-references.patch.
   * Add 35-libvdeplug-soname.patch to fix VDE networking. (Closes: #636335)
+  * Drop broken "alloc" symlink in virtualbox-dkms and virtualbox-source.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 29 Jul 2011 18:04:05 +0200
 

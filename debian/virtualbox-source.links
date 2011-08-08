@@ -8,10 +8,6 @@
 /usr/src/modules/virtualbox/include /usr/src/modules/virtualbox/vboxnetflt/include
 /usr/src/modules/virtualbox/include /usr/src/modules/virtualbox/vboxnetadp/include
 /usr/src/modules/virtualbox/include /usr/src/modules/virtualbox/vboxpci/include
-/usr/src/modules/virtualbox/alloc /usr/src/modules/virtualbox/vboxdrv/alloc
-/usr/src/modules/virtualbox/alloc /usr/src/modules/virtualbox/vboxnetflt/alloc
-/usr/src/modules/virtualbox/alloc /usr/src/modules/virtualbox/vboxnetadp/alloc
-/usr/src/modules/virtualbox/alloc /usr/src/modules/virtualbox/vboxpci/alloc
 /usr/src/modules/virtualbox/common /usr/src/modules/virtualbox/vboxdrv/common
 /usr/src/modules/virtualbox/common /usr/src/modules/virtualbox/vboxnetflt/common
 /usr/src/modules/virtualbox/common /usr/src/modules/virtualbox/vboxnetadp/common
