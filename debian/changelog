@@ -1,4 +1,4 @@
-virtualbox (4.1.0-dfsg-1) UNRELEASED; urgency=low
+virtualbox (4.1.0-dfsg-1) unstable; urgency=low
 
   * New upstream release.
   * Use VBOX_BUILD_PUBLISHER instead of VBOX_VERSION_STRING to set the
@@ -12,7 +12,7 @@ virtualbox (4.1.0-dfsg-1) UNRELEASED; urgency=low
   * Add 35-libvdeplug-soname.patch to fix VDE networking. (Closes: #636335)
   * Drop broken "alloc" symlink in virtualbox-dkms and virtualbox-source.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 29 Jul 2011 18:04:05 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 08 Aug 2011 16:39:11 +0200
 
 virtualbox (4.0.10-dfsg-1) unstable; urgency=low
 
