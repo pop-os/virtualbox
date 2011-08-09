@@ -15,3 +15,4 @@
 33-link-static-libgsoap.patch
 34-fix-vboxpci-build.patch
 35-libvdeplug-soname.patch
+36-fix-kernel-panic-suspend.patch
