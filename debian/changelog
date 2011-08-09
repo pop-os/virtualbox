@@ -1,3 +1,10 @@
+virtualbox (4.1.0-dfsg-2) UNRELEASED; urgency=low
+
+  * Install vboxpci module in virtualbox-modules packages, thanks to
+    YOSHINO Yoshihito. (Closes: #637177)
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 09 Aug 2011 11:54:29 +0200
+
 virtualbox (4.1.0-dfsg-1) unstable; urgency=low
 
   * New upstream release.

@@ -50,6 +50,7 @@ clean:
 	$(MAKE) -C vboxdrv clean
 	$(MAKE) -C vboxnetflt clean
 	$(MAKE) -C vboxnetadp clean
+	$(MAKE) -C vboxpci clean
 	dh_clean
 
 binary-modules: prep-deb-files
@@ -61,6 +62,7 @@ binary-modules: prep-deb-files
 	dh_install vboxdrv/vboxdrv.ko /lib/modules/$(KVERS)/misc/
 	dh_install vboxnetflt/vboxnetflt.ko /lib/modules/$(KVERS)/misc/
 	dh_install vboxnetadp/vboxnetadp.ko /lib/modules/$(KVERS)/misc/
+	dh_install vboxpci/vboxpci.ko /lib/modules/$(KVERS)/misc/
 	dh_installudev
 	dh_installdocs
 	dh_installchangelogs
