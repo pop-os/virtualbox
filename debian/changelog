@@ -1,4 +1,4 @@
-virtualbox (4.1.0-dfsg-2) UNRELEASED; urgency=low
+virtualbox (4.1.0-dfsg-2) unstable; urgency=low
 
   * Install vboxpci module in virtualbox-modules packages, thanks to
     YOSHINO Yoshihito. (Closes: #637177)
@@ -6,7 +6,7 @@ virtualbox (4.1.0-dfsg-2) UNRELEASED; urgency=low
     panic on suspend caused by the vboxdrv module.
     (Closes: #637226; LP: #814323)
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 09 Aug 2011 11:54:29 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Wed, 10 Aug 2011 14:09:43 +0200
 
 virtualbox (4.1.0-dfsg-1) unstable; urgency=low
 
