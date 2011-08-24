@@ -216,6 +216,9 @@ ifneq (,$(filter $(psource), $(shell dh_listpackages)))
 	cd debian/$(gsource)/usr/src && \
 	    tar -cjf $(gname).tar.bz2 modules && \
 	    rm -rf modules
+
+	chmod 644 debian/$(psource)/usr/src/$(sname).tar.bz2
+	chmod 644 debian/$(gsource)/usr/src/$(gname).tar.bz2
 endif
 
 override_dh_installudev:
