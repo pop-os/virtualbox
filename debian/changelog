@@ -1,6 +1,10 @@
 virtualbox (4.1.2-dfsg-1) UNRELEASED; urgency=low
 
+  [ Michael Meskes ]
   * New upstream release.
+
+  [ Felix Geyer ]
+  * Refresh patches.
 
  -- Michael Meskes <meskes@debian.org>  Wed, 24 Aug 2011 13:20:38 +0200
 
