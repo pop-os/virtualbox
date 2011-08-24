@@ -1,4 +1,4 @@
-/* $Id: VBoxManageStorageController.cpp 37929 2011-07-13 18:34:49Z vboxsync $ */
+/* $Id: VBoxManageStorageController.cpp 38330 2011-08-05 15:19:55Z vboxsync $ */
 /** @file
  * VBoxManage - The storage controller related commands.
  */
@@ -383,6 +383,16 @@ int handleStorageAttach(HandlerArg *a)
                                                          NULL,
                                                          fForceUnmount));
                     }
+                }
+                else if (devTypeRequested == DeviceType_DVD)
+                {
+                    /*
+                     * Try to attach an empty DVD drive as a hotplug operation.
+                     * Main will complain if the controller doesn't support hotplugging.
+                     */
+                    CHECK_ERROR(machine, AttachDevice(Bstr(pszCtl).raw(), port, device,
+                                                      devTypeRequested, NULL));
+                    deviceType = DeviceType_DVD; /* To avoid the error message below. */
                 }
 
                 if (   FAILED(rc)

@@ -1,4 +1,4 @@
-/* $Id: UIMachineView.cpp 35247 2010-12-20 14:19:48Z vboxsync $ */
+/* $Id: UIMachineView.cpp 38348 2011-08-08 12:09:18Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -26,7 +26,7 @@
 
 /* Local includes */
 #include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 #include "UIFrameBuffer.h"
 #include "UIFrameBufferQGL.h"
 #include "UIFrameBufferQImage.h"
@@ -34,7 +34,6 @@
 #include "UIFrameBufferSDL.h"
 #include "VBoxFBOverlay.h"
 #include "UISession.h"
-#include "UIActionsPool.h"
 #include "UIKeyboardHandler.h"
 #include "UIMouseHandler.h"
 #include "UIMachineLogic.h"

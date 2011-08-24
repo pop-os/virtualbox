@@ -1,4 +1,4 @@
-/* $Id: s3.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: s3.cpp 38285 2011-08-02 18:50:37Z vboxsync $ */
 /** @file
  * IPRT - S3 communication API.
  */
@@ -354,19 +354,21 @@ static void rtS3ReinitCurl(PRTS3INTERNAL pS3Int)
 *   Private XML helper                                                         *
 *******************************************************************************/
 
-static xmlNodePtr rtS3FindNode(xmlNodePtr pNode, const char* pszName)
+static xmlNodePtr rtS3FindNode(xmlNodePtr pNode, const char *pszName)
 {
     pNode = pNode->xmlChildrenNode;
     while (pNode != NULL)
     {
-        /* Check this level */
-        if ((!xmlStrcmp(pNode->name, (const xmlChar *)pszName)))
+        /* Check this level. */
+        if (!xmlStrcmp(pNode->name, (const xmlChar *)pszName))
             return pNode;
-        /* Recursively check the childs of this node */
+
+        /* Recursively check the children of this node. */
         xmlNodePtr pChildNode = rtS3FindNode(pNode, pszName);
         if (pChildNode != NULL)
             return pChildNode;
-        /* Next node*/
+
+        /* Next node. */
         pNode = pNode->next;
     }
     return pNode;

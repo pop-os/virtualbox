@@ -1,4 +1,4 @@
-/* $Id: EM.cpp 36825 2011-04-23 22:41:20Z vboxsync $ */
+/* $Id: EM.cpp 38378 2011-08-09 13:37:41Z vboxsync $ */
 /** @file
  * EM - Execution Monitor / Manager.
  */
@@ -111,13 +111,12 @@ VMMR3DECL(int) EMR3Init(PVM pVM)
      * Init the structure.
      */
     pVM->em.s.offVM = RT_OFFSETOF(VM, em.s);
-    int rc = CFGMR3QueryBool(CFGMR3GetRoot(pVM), "RawR3Enabled", &pVM->fRawR3Enabled);
-    if (RT_FAILURE(rc))
-        pVM->fRawR3Enabled = true;
-    rc = CFGMR3QueryBool(CFGMR3GetRoot(pVM), "RawR0Enabled", &pVM->fRawR0Enabled);
-    if (RT_FAILURE(rc))
-        pVM->fRawR0Enabled = true;
-    Log(("EMR3Init: fRawR3Enabled=%d fRawR0Enabled=%d\n", pVM->fRawR3Enabled, pVM->fRawR0Enabled));
+    bool fEnabled;
+    int rc = CFGMR3QueryBool(CFGMR3GetRoot(pVM), "RawR3Enabled", &fEnabled);
+    pVM->fRecompileUser       = RT_SUCCESS(rc) ? !fEnabled : false;
+    rc = CFGMR3QueryBool(CFGMR3GetRoot(pVM), "RawR0Enabled", &fEnabled);
+    pVM->fRecompileSupervisor = RT_SUCCESS(rc) ? !fEnabled : false;
+    Log(("EMR3Init: fRecompileUser=%RTbool fRecompileSupervisor=%RTbool\n", pVM->fRecompileUser, pVM->fRecompileSupervisor));
 
     /*
      * Initialize the REM critical section.
@@ -585,6 +584,77 @@ static DECLCALLBACK(int) emR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, u
 
 
 /**
+ * Argument packet for emR3SetExecutionPolicy.
+ */
+struct EMR3SETEXECPOLICYARGS
+{
+    EMEXECPOLICY    enmPolicy;
+    bool            fEnforce;
+};
+
+
+/**
+ * @callback_method_impl{FNVMMEMTRENDEZVOUS, Rendezvous callback for EMR3SetExecutionPolicy.}
+ */
+static DECLCALLBACK(VBOXSTRICTRC) emR3SetExecutionPolicy(PVM pVM, PVMCPU pVCpu, void *pvUser)
+{
+    /*
+     * Only the first CPU changes the variables.
+     */
+    if (pVCpu->idCpu == 0)
+    {
+        struct EMR3SETEXECPOLICYARGS *pArgs = (struct EMR3SETEXECPOLICYARGS *)pvUser;
+        switch (pArgs->enmPolicy)
+        {
+            case EMEXECPOLICY_RECOMPILE_RING0:
+                pVM->fRecompileSupervisor = pArgs->fEnforce;
+                break;
+            case EMEXECPOLICY_RECOMPILE_RING3:
+                pVM->fRecompileUser = pArgs->fEnforce;
+                break;
+            default:
+                AssertFailedReturn(VERR_INVALID_PARAMETER);
+        }
+        Log(("emR3SetExecutionPolicy: fRecompileUser=%RTbool fRecompileSupervisor=%RTbool\n",
+              pVM->fRecompileUser, pVM->fRecompileSupervisor));
+    }
+
+    /*
+     * Force rescheduling if in RAW, HWACCM or REM.
+     */
+    return    pVCpu->em.s.enmState == EMSTATE_RAW
+           || pVCpu->em.s.enmState == EMSTATE_HWACC
+           || pVCpu->em.s.enmState == EMSTATE_REM
+         ? VINF_EM_RESCHEDULE
+         : VINF_SUCCESS;
+}
+
+
+/**
+ * Changes a the execution scheduling policy.
+ *
+ * This is used to enable or disable raw-mode / hardware-virtualization
+ * execution of user and supervisor code.
+ *
+ * @returns VINF_SUCCESS on success.
+ * @returns VINF_RESCHEDULE if a rescheduling might be required.
+ * @returns VERR_INVALID_PARAMETER on an invalid enmMode value.
+ *
+ * @param   pVM             The VM to operate on.
+ * @param   enmPolicy       The scheduling policy to change.
+ * @param   fEnforce        Whether to enforce the policy or not.
+ */
+VMMR3DECL(int) EMR3SetExecutionPolicy(PVM pVM, EMEXECPOLICY enmPolicy, bool fEnforce)
+{
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    AssertReturn(enmPolicy > EMEXECPOLICY_INVALID && enmPolicy < EMEXECPOLICY_END, VERR_INVALID_PARAMETER);
+
+    struct EMR3SETEXECPOLICYARGS Args = { enmPolicy, fEnforce };
+    return VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_DESCENDING, emR3SetExecutionPolicy, &Args);
+}
+
+
+/**
  * Raise a fatal error.
  *
  * Safely terminate the VM with full state report and stuff. This function
@@ -615,7 +685,6 @@ static const char *emR3GetStateName(EMSTATE enmState)
         case EMSTATE_RAW:               return "EMSTATE_RAW";
         case EMSTATE_HWACC:             return "EMSTATE_HWACC";
         case EMSTATE_REM:               return "EMSTATE_REM";
-        case EMSTATE_PARAV:             return "EMSTATE_PARAV";
         case EMSTATE_HALTED:            return "EMSTATE_HALTED";
         case EMSTATE_WAIT_SIPI:         return "EMSTATE_WAIT_SIPI";
         case EMSTATE_SUSPENDED:         return "EMSTATE_SUSPENDED";
@@ -1082,15 +1151,20 @@ EMSTATE emR3Reschedule(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     X86EFLAGS EFlags = pCtx->eflags;
     if (HWACCMIsEnabled(pVM))
     {
-        /* Hardware accelerated raw-mode:
+        /*
+         * Hardware accelerated raw-mode:
          *
-         * Typically only 32-bits protected mode, with paging enabled, code is allowed here.
+         * Typically only 32-bits protected mode, with paging enabled, code is
+         * allowed here.
          */
-        if (HWACCMR3CanExecuteGuest(pVM, pCtx) == true)
+        if (   EMIsHwVirtExecutionEnabled(pVM)
+            && HWACCMR3CanExecuteGuest(pVM, pCtx))
             return EMSTATE_HWACC;
 
-        /* Note: Raw mode and hw accelerated mode are incompatible. The latter turns
-         * off monitoring features essential for raw mode! */
+        /*
+         * Note! Raw mode and hw accelerated mode are incompatible. The latter
+         *       turns off monitoring features essential for raw mode!
+         */
         return EMSTATE_REM;
     }
 
@@ -1503,21 +1577,26 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
 
         /*
          * The instruction following an emulated STI should *always* be executed!
+         * 
+         * Note! We intentionally don't clear VM_FF_INHIBIT_INTERRUPTS here if
+         *       the eip is the same as the inhibited instr address.  Before we
+         *       are able to execute this instruction in raw mode (iret to
+         *       guest code) an external interrupt might force a world switch
+         *       again.  Possibly allowing a guest interrupt to be dispatched
+         *       in the process.  This could break the guest.  Sounds very
+         *       unlikely, but such timing sensitive problem are not as rare as
+         *       you might think.
          */
         if (    VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
             &&  !VM_FF_ISPENDING(pVM, VM_FF_PGM_NO_MEMORY))
         {
             Log(("VMCPU_FF_INHIBIT_INTERRUPTS at %RGv successor %RGv\n", (RTGCPTR)CPUMGetGuestRIP(pVCpu), EMGetInhibitInterruptsPC(pVCpu)));
             if (CPUMGetGuestRIP(pVCpu) != EMGetInhibitInterruptsPC(pVCpu))
-            {
-                /* Note: we intentionally don't clear VM_FF_INHIBIT_INTERRUPTS here if the eip is the same as the inhibited instr address.
-                 *  Before we are able to execute this instruction in raw mode (iret to guest code) an external interrupt might
-                 *  force a world switch again. Possibly allowing a guest interrupt to be dispatched in the process. This could
-                 *  break the guest. Sounds very unlikely, but such timing sensitive problem are not as rare as you might think.
-                 */
                 VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
-            }
-            if (HWACCMR3IsActive(pVCpu))
+
+            if (EMIsSupervisorCodeRecompiled(pVM))
+                rc2 = VINF_EM_RESCHEDULE_REM;
+            else if (HWACCMR3IsActive(pVCpu))
                 rc2 = VINF_EM_RESCHEDULE_HWACC;
             else
                 rc2 = PATMAreInterruptsEnabled(pVM) ? VINF_EM_RESCHEDULE_RAW : VINF_EM_RESCHEDULE_REM;
@@ -1767,9 +1846,9 @@ VMMR3DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                     || VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_ALL_REM_MASK)))
             {
                 rc = emR3ForcedActions(pVM, pVCpu, rc);
-                if (    (   rc == VINF_EM_RESCHEDULE_REM
-                         || rc == VINF_EM_RESCHEDULE_HWACC)
-                    &&  pVCpu->em.s.fForceRAW)
+                if (   (   rc == VINF_EM_RESCHEDULE_REM
+                        || rc == VINF_EM_RESCHEDULE_HWACC)
+                    && pVCpu->em.s.fForceRAW)
                     rc = VINF_EM_RESCHEDULE_RAW;
             }
             else if (fFFDone)

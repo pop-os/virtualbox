@@ -1,4 +1,4 @@
-/* $Id: SUPR3HardenedMain.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
+/* $Id: SUPR3HardenedMain.cpp 38076 2011-07-19 16:53:07Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Hardened main().
  */
@@ -684,6 +684,11 @@ static void supR3HardenedMainGrabCapabilites(void)
         /* for memory allocation failures just continue */
         seteuid(0);
     }
+
+    if (pPrivEffective)
+        priv_freeset(pPrivEffective);
+    if (pPrivNew)
+        priv_freeset(pPrivNew);
 # endif
 }
 

@@ -37,7 +37,7 @@ class CAppliance;
 enum StorageType { Filesystem, SunCloud, S3 };
 Q_DECLARE_METATYPE(StorageType);
 
-typedef QPointer<VBoxExportApplianceWgt> ExportAppliancePointer;
+typedef QPointer<UIApplianceExportEditorWidget> ExportAppliancePointer;
 Q_DECLARE_METATYPE(ExportAppliancePointer);
 
 class UIExportApplianceWzd : public QIWizard
@@ -192,7 +192,6 @@ private:
 
     ExportAppliancePointer applianceWidget() const { return m_pApplianceWidget; }
     void setApplianceWidget(const ExportAppliancePointer &pApplianceWidget) { m_pApplianceWidget = pApplianceWidget; }
-    ExportAppliancePointer m_pApplianceWidget;
 };
 
 

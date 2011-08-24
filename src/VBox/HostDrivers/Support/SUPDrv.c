@@ -1,4 +1,4 @@
-/* $Revision: 37955 $ */
+/* $Revision: 38323 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Common code.
  */
@@ -973,7 +973,9 @@ int VBOXCALL supdrvIOCtlFast(uintptr_t uIOCtl, VMCPUID idCpu, PSUPDRVDEVEXT pDev
     /*
      * We check the two prereqs after doing this only to allow the compiler to optimize things better.
      */
-    if (RT_LIKELY(pSession->pVM && pDevExt->pfnVMMR0EntryFast))
+    if (RT_LIKELY(   RT_VALID_PTR(pSession) 
+                  && pSession->pVM 
+                  && pDevExt->pfnVMMR0EntryFast))
     {
         switch (uIOCtl)
         {
@@ -1045,6 +1047,12 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
     {
         OSDBGPRINT(("vboxdrv: Bad ioctl request header; cbIn=%#lx cbOut=%#lx fFlags=%#lx\n",
                     (long)pReqHdr->cbIn, (long)pReqHdr->cbOut, (long)pReqHdr->fFlags));
+        VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VINF_SUCCESS);
+        return VERR_INVALID_PARAMETER;
+    }
+    if (RT_UNLIKELY(!RT_VALID_PTR(pSession)))
+    {
+        OSDBGPRINT(("vboxdrv: Invalid pSession valud %p (ioctl=%p)\n", pSession, (void *)uIOCtl));
         VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VINF_SUCCESS);
         return VERR_INVALID_PARAMETER;
     }
@@ -1843,7 +1851,7 @@ int VBOXCALL supdrvIDC(uintptr_t uReq, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSe
              */
             if (pReq->Hdr.pSession != NULL)
             {
-                OSDBGPRINT(("SUPDRV_IDC_REQ_CONNECT: pSession=%p expected NULL!\n", pReq->Hdr.pSession));
+                OSDBGPRINT(("SUPDRV_IDC_REQ_CONNECT: Hdr.pSession=%p expected NULL!\n", pReq->Hdr.pSession));
                 return pReqHdr->rc = VERR_INVALID_PARAMETER;
             }
             if (pReq->u.In.u32MagicCookie != SUPDRVIDCREQ_CONNECT_MAGIC_COOKIE)
@@ -1857,6 +1865,11 @@ int VBOXCALL supdrvIDC(uintptr_t uReq, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSe
             {
                 OSDBGPRINT(("SUPDRV_IDC_REQ_CONNECT: uMinVersion=%#x uMaxVersion=%#x doesn't match!\n",
                             pReq->u.In.uMinVersion, pReq->u.In.uReqVersion));
+                return pReqHdr->rc = VERR_INVALID_PARAMETER;
+            }
+            if (pSession != NULL)
+            {
+                OSDBGPRINT(("SUPDRV_IDC_REQ_CONNECT: pSession=%p expected NULL!\n", pSession));
                 return pReqHdr->rc = VERR_INVALID_PARAMETER;
             }
 
@@ -1882,22 +1895,12 @@ int VBOXCALL supdrvIDC(uintptr_t uReq, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSe
             pReq->u.Out.uDriverVersion  = SUPDRV_IDC_VERSION;
             pReq->u.Out.uDriverRevision = VBOX_SVN_REV;
 
-            /*
-             * On NT we will already have a session associated with the
-             * client, just like with the SUP_IOCTL_COOKIE request, while
-             * the other doesn't.
-             */
-#ifdef RT_OS_WINDOWS
-            pReq->Hdr.rc = VINF_SUCCESS;
-#else
-            AssertReturn(!pSession, VERR_INTERNAL_ERROR);
             pReq->Hdr.rc = supdrvCreateSession(pDevExt, false /* fUser */, &pSession);
             if (RT_FAILURE(pReq->Hdr.rc))
             {
                 OSDBGPRINT(("SUPDRV_IDC_REQ_CONNECT: failed to create session, rc=%d\n", pReq->Hdr.rc));
                 return VINF_SUCCESS;
             }
-#endif
 
             pReq->u.Out.pSession = pSession;
             pReq->Hdr.pSession = pSession;
@@ -1909,11 +1912,7 @@ int VBOXCALL supdrvIDC(uintptr_t uReq, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSe
         {
             REQ_CHECK_IDC_SIZE(SUPDRV_IDC_REQ_DISCONNECT, sizeof(*pReqHdr));
 
-#ifdef RT_OS_WINDOWS
-            /* Windows will destroy the session when the file object is destroyed. */
-#else
             supdrvCloseSession(pDevExt, pSession);
-#endif
             return pReqHdr->rc = VINF_SUCCESS;
         }
 

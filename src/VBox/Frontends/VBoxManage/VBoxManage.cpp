@@ -1,4 +1,4 @@
-/* $Id: VBoxManage.cpp 37172 2011-05-20 17:15:55Z vboxsync $ */
+/* $Id: VBoxManage.cpp 38417 2011-08-11 13:58:34Z vboxsync $ */
 /** @file
  * VBoxManage - VirtualBox's command-line interface.
  */
@@ -229,12 +229,12 @@ HRESULT showProgress(ComPtr<IProgress> progress)
     return hrc;
 }
 
-#endif /* !VBOX_ONLY_DOCS */
-
 #ifdef RT_OS_WINDOWS
 // Required for ATL
 static CComModule _Module;
 #endif
+
+#endif /* !VBOX_ONLY_DOCS */
 
 
 int main(int argc, char *argv[])

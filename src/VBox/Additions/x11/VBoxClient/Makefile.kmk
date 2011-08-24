@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 37720 2011-06-30 20:27:48Z vboxsync $
+# $Id: Makefile.kmk 38152 2011-07-25 12:19:13Z vboxsync $
 ## @file
 # Sub-Makefile for the VirtualBox Guest Addition X11 Client.
 #
@@ -89,8 +89,8 @@ ifdef VBOX_X11_SEAMLESS_GUEST
 
    TESTING  += $(tstSeamlessX11-auto_0_OUTDIR)/tstSeamlessX11-auto
 $$(tstSeamlessX11-auto_0_OUTDIR)/tstSeamlessX11-auto.run: \
-        $$(INSTARGET_tstSeamlessX11-auto)
-	export VBOX_LOG_DEST=nofile; $(INSTARGET_tstSeamlessX11-auto) quiet
+        $$(tstSeamlessX11-auto_1_STAGE_TARGET)
+	export VBOX_LOG_DEST=nofile; $(tstSeamlessX11-auto_1_STAGE_TARGET) quiet
 	$(QUIET)$(APPEND) -t "$@" "done"
 
    #

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 37037 2011-05-11 12:53:40Z vboxsync $
+# $Id: Makefile.kmk 38082 2011-07-20 14:26:24Z vboxsync $
 ## @file
 # Sub-Makefile for VBoxSDL (a simple frontend based on SDL).
 #
@@ -81,7 +81,7 @@ VBoxSDL_LIBS = \
 endif
 ifeq ($(filter-out freebsd linux netbsd openbsd solaris,$(KBUILD_TARGET)),) # X11
 VBoxSDL_LIBS += \
-	$(PATH_DLL)/VBoxKeyboard$(VBOX_SUFF_DLL) \
+	$(PATH_STAGE_DLL)/VBoxKeyboard$(VBOX_SUFF_DLL) \
 	$(VBOX_XCURSOR_LIBS) \
 	X11
 VBoxSDL_LIBPATH = \

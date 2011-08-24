@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxImpl.cpp 37985 2011-07-15 15:04:39Z vboxsync $ */
+/* $Id: VirtualBoxImpl.cpp 38211 2011-07-28 09:26:31Z vboxsync $ */
 
 /** @file
  * Implementation of IVirtualBox in VBoxSVC.
@@ -3184,7 +3184,7 @@ HRESULT VirtualBox::checkMediaForConflicts(const Guid &aId,
         Utf8Str strLocFound = pMediumFound->getLocationFull();
         Guid idFound = pMediumFound->getId();
 
-        if (    (strLocFound == aLocation)
+        if (    (RTPathCompare(strLocFound.c_str(), aLocation.c_str()) == 0)
              && (idFound == aId)
            )
             fIdentical = true;

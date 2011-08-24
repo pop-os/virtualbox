@@ -1,4 +1,4 @@
-/* $Id: service.cpp 37375 2011-06-08 10:51:26Z vboxsync $ */
+/* $Id: service.cpp 38133 2011-07-25 09:02:17Z vboxsync $ */
 /** @file
  * Guest Control Service: Controlling the guest.
  */
@@ -756,33 +756,6 @@ int Service::notifyHost(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paP
         paParms[2].getUInt32(&data.u32Status);
         paParms[3].getUInt32(&data.u32Flags);
         paParms[4].getUInt32(&data.cbProcessed);
-
-        if (mpfnHostCallback)
-            rc = mpfnHostCallback(mpvHostData, eFunction,
-                                  (void *)(&data), sizeof(data));
-    }
-    else if (   eFunction == GUEST_DIR_SEND_OPEN
-             && cParms    == 2)
-    {
-        CALLBACKDATADIROPEN data;
-        data.hdr.u32Magic = CALLBACKDATAMAGIC_DIR_OPEN;
-        paParms[0].getUInt32(&data.hdr.u32ContextID);
-
-        paParms[1].getUInt32(&data.u32Handle);
-
-        if (mpfnHostCallback)
-            rc = mpfnHostCallback(mpvHostData, eFunction,
-                                  (void *)(&data), sizeof(data));
-    }
-    else if (   eFunction == GUEST_DIR_SEND_READ
-             && cParms    == 3)
-    {
-        CALLBACKDATADIRREAD data;
-        data.hdr.u32Magic = CALLBACKDATAMAGIC_DIR_READ;
-        paParms[0].getUInt32(&data.hdr.u32ContextID);
-
-        paParms[1].getUInt64(&data.u64NodeId);
-        paParms[2].getString(&data.pszName, &data.cbName);
 
         if (mpfnHostCallback)
             rc = mpfnHostCallback(mpvHostData, eFunction,

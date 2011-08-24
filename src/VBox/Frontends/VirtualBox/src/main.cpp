@@ -1,4 +1,4 @@
-/* $Id: main.cpp 35652 2011-01-20 14:16:38Z vboxsync $ */
+/* $Id: main.cpp 38324 2011-08-05 14:02:53Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -24,7 +24,7 @@
 #endif /* Q_WS_MAC */
 #else /* !VBOX_WITH_PRECOMPILED_HEADERS */
 #include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 #include "VBoxSelectorWnd.h"
 #include "VBoxUtils.h"
 #ifdef Q_WS_MAC
@@ -169,8 +169,8 @@ static void ShutUpAppKit(void)
     /* Check for Snow Leopard or higher */
     char szInfo[64];
     int rc = RTSystemQueryOSInfo (RTSYSOSINFO_RELEASE, szInfo, sizeof(szInfo));
-    if (RT_SUCCESS (rc) &&
-        szInfo[0] == '1') /* higher than 1x.x.x */
+    if (   RT_SUCCESS (rc)
+        && szInfo[0] == '1') /* higher than 1x.x.x */
     {
         /*
          * Find issetguid() and make it always return 0 by modifying the code.
@@ -271,6 +271,17 @@ static void showHelp()
             "  --start-paused             start the VM in the paused state\n"
             "  --start-running            start the VM running (for overriding --debug*)\n"
             "\n"
+# endif
+            "Expert options:\n"
+            "  --disable-patm             disable code patching (ignored by AMD-V/VT-x)\n"
+            "  --disable-csam             disable code scanning (ignored by AMD-V/VT-x)\n"
+            "  --recompile-supervisor     recompiled execution of supervisor code (*)\n"
+            "  --recompile-user           recompiled execution of user code (*)\n"
+            "  --recompile-all            recompiled execution of all code, with disabled\n"
+            "                             code patching and scanning\n"
+            "  (*) For AMD-V/VT-x setups the effect is --recompile-all.\n"
+            "\n"
+# ifdef VBOX_WITH_DEBUGGER_GUI
             "The following environment variables are evaluated:\n"
             "  VBOX_GUI_DBG_ENABLED       enable the GUI debug menu if set\n"
             "  VBOX_GUI_DBG_AUTO_SHOW     show debug windows at VM startup\n"
@@ -457,7 +468,7 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
             if (vboxGlobal().processArgs())
                 return 0;
 
-            vboxProblem().checkForMountedWrongUSB();
+            msgCenter().checkForMountedWrongUSB();
 
             VBoxGlobalSettings settings = vboxGlobal().settings();
             /* Process known keys */
@@ -479,12 +490,12 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
             }
             else if (noSelector)
             {
-                vboxProblem().cannotRunInSelectorMode();
+                msgCenter().cannotRunInSelectorMode();
             }
             else
             {
 #ifdef VBOX_BLEEDING_EDGE
-                vboxProblem().showBEBWarning();
+                msgCenter().showBEBWarning();
 #else
 # ifndef DEBUG
                 /* Check for BETA version */
@@ -495,7 +506,7 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
                     QString str = vboxGlobal().virtualBox().
                         GetExtraData (VBoxDefs::GUI_PreventBetaWarning);
                     if (str != vboxVersion)
-                        vboxProblem().showBETAWarning();
+                        msgCenter().showBETAWarning();
                 }
 # endif
 #endif

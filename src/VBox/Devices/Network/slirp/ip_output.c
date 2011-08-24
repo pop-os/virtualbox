@@ -1,4 +1,4 @@
-/* $Id: ip_output.c 37936 2011-07-14 03:54:41Z vboxsync $ */
+/* $Id: ip_output.c 38110 2011-07-22 04:52:59Z vboxsync $ */
 /** @file
  * NAT - IP output.
  */
@@ -141,6 +141,7 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
     }
 #endif
     ip = mtod(m, struct ip *);
+    LogFunc(("ip(src:%RTnaipv4, dst:%RTnaipv4)\n", ip->ip_src, ip->ip_dst));
     /*
      * Fill in IP header.
      */
@@ -188,6 +189,8 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
 
         memcpy(eh->h_source, eth_dst, ETH_ALEN);
 
+        LogFlowFunc(("ip(ip_src:%RTnaipv4, ip_dst:%RTnaipv4)\n",
+                     ip->ip_src, ip->ip_dst));
         if_encap(pData, ETH_P_IP, m, urg? ETH_ENCAP_URG : 0);
         goto done;
      }

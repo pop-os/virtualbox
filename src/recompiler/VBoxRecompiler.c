@@ -1,4 +1,4 @@
-/* $Id: VBoxRecompiler.c 37852 2011-07-08 19:18:05Z vboxsync $ */
+/* $Id: VBoxRecompiler.c 38326 2011-08-05 14:35:08Z vboxsync $ */
 /** @file
  * VBox Recompiler - QEMU.
  */
@@ -1431,6 +1431,12 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
         env->state |= CPU_RAW_HWACC;
 
         /*
+         * The simple check first...
+         */
+        if (!EMIsHwVirtExecutionEnabled(env->pVM))
+            return false;
+
+        /*
          * Create partial context for HWACCMR3CanExecuteGuest
          */
         Ctx.cr0            = env->cr[0];
@@ -2157,6 +2163,17 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
     else
         pVM->rem.s.Env.hflags &= ~(HF_LMA_MASK | HF_CS64_MASK);
 #endif
+
+    /*
+     * Sync the A20 gate.
+     */
+    bool fA20State = PGMPhysIsA20Enabled(pVCpu);
+    if (fA20State != RT_BOOL(pVM->rem.s.Env.a20_mask & RT_BIT(20)))
+    {
+        ASMAtomicIncU32(&pVM->rem.s.cIgnoreAll);
+        cpu_x86_set_a20(&pVM->rem.s.Env, fA20State);
+        ASMAtomicDecU32(&pVM->rem.s.cIgnoreAll);
+    }
 
     /*
      * Registers which are rarely changed and require special handling / order when changed.
@@ -2959,9 +2976,13 @@ REMR3DECL(void) REMR3A20Set(PVM pVM, PVMCPU pVCpu, bool fEnable)
     LogFlow(("REMR3A20Set: fEnable=%d\n", fEnable));
     VM_ASSERT_EMT(pVM);
 
-    ASMAtomicIncU32(&pVM->rem.s.cIgnoreAll);
-    cpu_x86_set_a20(&pVM->rem.s.Env, fEnable);
-    ASMAtomicDecU32(&pVM->rem.s.cIgnoreAll);
+    /** @todo SMP and the A20 gate... */
+    if (pVM->rem.s.Env.pVCpu == pVCpu)
+    {
+        ASMAtomicIncU32(&pVM->rem.s.cIgnoreAll);
+        cpu_x86_set_a20(&pVM->rem.s.Env, fEnable);
+        ASMAtomicDecU32(&pVM->rem.s.cIgnoreAll);
+    }
 }
 
 

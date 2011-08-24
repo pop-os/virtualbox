@@ -1,4 +1,4 @@
-/* $Id: VBoxUSB-solaris.c 38017 2011-07-18 13:24:08Z vboxsync $ */
+/* $Id: VBoxUSB-solaris.c 38379 2011-08-09 14:32:10Z vboxsync $ */
 /** @file
  * VirtualBox USB Client Driver, Solaris Hosts.
  */
@@ -574,9 +574,12 @@ int VBoxUSBSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
                                                     rc = VBoxUSBMonSolarisRegisterClient(pState->pDip, &pState->ClientInfo);
                                                     if (RT_SUCCESS(rc))
                                                     {
-                                                        LogRel((DEVICE_NAME ": Captured %s %s\n",
+                                                        LogRel((DEVICE_NAME ": Captured %s %#x:%#x:%d:%s\n",
                                                                 pState->pDevDesc->dev_product ? pState->pDevDesc->dev_product : "<Unnamed USB device>",
-                                                                pState->ClientInfo.szDeviceIdent));
+                                                                pState->pDevDesc->dev_descr->idVendor,
+                                                                pState->pDevDesc->dev_descr->idProduct,
+                                                                pState->pDevDesc->dev_descr->bcdDevice,
+                                                                pState->ClientInfo.szClientPath));
 
                                                         return DDI_SUCCESS;
                                                     }

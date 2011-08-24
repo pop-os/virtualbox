@@ -1,4 +1,4 @@
-/* $Id: libslirp.h 35922 2011-02-09 20:04:14Z vboxsync $ */
+/* $Id: libslirp.h 38111 2011-07-22 06:05:36Z vboxsync $ */
 /** @file
  * NAT - slirp interface.
  */
@@ -94,6 +94,7 @@ void slirp_set_tcp_sndspace(PNATState pData, int kilobytes);
 int  slirp_set_binding_address(PNATState, char *addr);
 void slirp_set_mtu(PNATState, int);
 void slirp_info(PNATState pData, PCDBGFINFOHLP pHlp, const char *pszArgs);
+void slirp_set_somaxconn(PNATState pData, int iSoMaxConn);
 
 #if defined(RT_OS_WINDOWS)
 

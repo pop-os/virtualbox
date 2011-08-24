@@ -1,4 +1,4 @@
-/* $Id: UIMachineWindowScale.cpp 36083 2011-02-25 12:33:58Z vboxsync $ */
+/* $Id: UIMachineWindowScale.cpp 38348 2011-08-08 12:09:18Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -25,11 +25,10 @@
 
 /* Local includes */
 #include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 #include "VBoxUtils.h"
 
 #include "UISession.h"
-#include "UIActionsPool.h"
 #include "UIMachineLogic.h"
 #include "UIMachineView.h"
 #include "UIMachineWindowScale.h"

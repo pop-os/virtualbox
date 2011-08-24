@@ -1,4 +1,4 @@
-/* $Id: VBoxSnapshotDetailsDlg.cpp 35710 2011-01-25 13:14:13Z vboxsync $ */
+/* $Id: VBoxSnapshotDetailsDlg.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -27,7 +27,7 @@
 
 /* Local includes */
 #include <VBoxGlobal.h>
-#include <VBoxProblemReporter.h>
+#include <UIMessageCenter.h>
 #include <VBoxSnapshotDetailsDlg.h>
 #include <VBoxUtils.h>
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
@@ -48,7 +48,7 @@ VBoxSnapshotDetailsDlg::VBoxSnapshotDetailsDlg (QWidget *aParent)
 
     /* Setup connections */
     connect (mLeName, SIGNAL (textChanged (const QString&)), this, SLOT (onNameChanged (const QString&)));
-    connect (mButtonBox, SIGNAL (helpRequested()), &vboxProblem(), SLOT (showHelpHelpDialog()));
+    connect (mButtonBox, SIGNAL (helpRequested()), &msgCenter(), SLOT (sltShowHelpHelpDialog()));
 }
 
 void VBoxSnapshotDetailsDlg::getFromSnapshot (const CSnapshot &aSnapshot)

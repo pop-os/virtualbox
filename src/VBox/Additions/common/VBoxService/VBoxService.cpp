@@ -1,4 +1,4 @@
-/* $Id: VBoxService.cpp 36745 2011-04-20 10:08:26Z vboxsync $ */
+/* $Id: VBoxService.cpp 38223 2011-07-28 14:38:54Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Service Skeleton.
  */
@@ -58,6 +58,10 @@
 char *g_pszProgName =  (char *)"";
 /** The current verbosity level. */
 int g_cVerbosity = 0;
+/** Critical section for (debug) logging. */
+#ifdef DEBUG
+ RTCRITSECT g_csLog;
+#endif
 /** The default service interval (the -i | --interval) option). */
 uint32_t g_DefaultInterval = 0;
 #ifdef RT_OS_WINDOWS
@@ -127,7 +131,8 @@ static int vboxServiceUsage(void)
 {
     RTPrintf("Usage:\n"
              " %-12s [-f|--foreground] [-v|--verbose] [-i|--interval <seconds>]\n"
-             "              [--disable-<service>] [--enable-<service>] [-h|-?|--help]\n", g_pszProgName);
+             "              [--disable-<service>] [--enable-<service>]\n"
+             "              [--only-<service>] [-h|-?|--help]\n", g_pszProgName);
 #ifdef RT_OS_WINDOWS
     RTPrintf("              [-r|--register] [-u|--unregister]\n");
 #endif
@@ -153,6 +158,7 @@ static int vboxServiceUsage(void)
     {
         RTPrintf("    --enable-%-14s Enables the %s service. (default)\n", g_aServices[j].pDesc->pszName, g_aServices[j].pDesc->pszName);
         RTPrintf("    --disable-%-13s Disables the %s service.\n", g_aServices[j].pDesc->pszName, g_aServices[j].pDesc->pszName);
+        RTPrintf("    --only-%-16s Only enables the %s service.\n", g_aServices[j].pDesc->pszName, g_aServices[j].pDesc->pszName);
         if (g_aServices[j].pDesc->pszOptions)
             RTPrintf("%s", g_aServices[j].pDesc->pszOptions);
     }
@@ -216,17 +222,35 @@ RTEXITCODE VBoxServiceError(const char *pszFormat, ...)
  */
 void VBoxServiceVerbose(int iLevel, const char *pszFormat, ...)
 {
-    if (iLevel <= g_cVerbosity)
+#ifdef DEBUG
+    int rc = RTCritSectEnter(&g_csLog);
+    if (RT_SUCCESS(rc))
     {
-        RTStrmPrintf(g_pStdOut, "%s: ", g_pszProgName);
-        va_list va;
-        va_start(va, pszFormat);
-        RTStrmPrintfV(g_pStdOut, pszFormat, va);
-        va_end(va);
-        va_start(va, pszFormat);
-        LogRel(("%s: %N", g_pszProgName, pszFormat, &va));
-        va_end(va);
+#endif
+        if (iLevel <= g_cVerbosity)
+        {
+#ifdef DEBUG
+            const char *pszThreadName = RTThreadSelfName();
+            AssertPtr(pszThreadName);
+            RTStrmPrintf(g_pStdOut, "%s [%s]: ",
+                         g_pszProgName, pszThreadName);
+#else
+            RTStrmPrintf(g_pStdOut, "%s: ", g_pszProgName);
+#endif
+            va_list va;
+            va_start(va, pszFormat);
+            RTStrmPrintfV(g_pStdOut, pszFormat, va);
+            va_end(va);
+            va_start(va, pszFormat);
+            LogRel(("%s: %N", g_pszProgName, pszFormat, &va));
+            va_end(va);
+        }
+#ifdef DEBUG
+        int rc2 = RTCritSectLeave(&g_csLog);
+        if (RT_SUCCESS(rc))
+            rc = rc2;
     }
+#endif
 }
 
 
@@ -579,6 +603,10 @@ int main(int argc, char **argv)
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
     g_pszProgName = RTPathFilename(argv[0]);
+#ifdef DEBUG
+    rc = RTCritSectInit(&g_csLog);
+    AssertRC(rc);
+#endif
 
 #ifdef VBOXSERVICE_TOOLBOX
     /*
@@ -672,6 +700,10 @@ int main(int argc, char **argv)
                     for (unsigned j = 0; !fFound && j < RT_ELEMENTS(g_aServices); j++)
                         if ((fFound = !RTStrICmp(psz + sizeof("disable-") - 1, g_aServices[j].pDesc->pszName)))
                             g_aServices[j].fEnabled = false;
+
+                if (cch > sizeof("only-") && !memcmp(psz, "only-", sizeof("only-") - 1))
+                    for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
+                        g_aServices[j].fEnabled = !RTStrICmp(psz + sizeof("only-") - 1, g_aServices[j].pDesc->pszName);
 
                 if (!fFound)
                 {
@@ -850,6 +882,10 @@ int main(int argc, char **argv)
 #endif
 
     VBoxServiceVerbose(0, "Ended.\n");
+
+#ifdef DEBUG
+    RTCritSectDelete(&g_csLog);
+#endif
     return rcExit;
 }
 

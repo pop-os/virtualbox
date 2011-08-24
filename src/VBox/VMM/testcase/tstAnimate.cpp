@@ -1,4 +1,4 @@
-/* $Id: tstAnimate.cpp 36408 2011-03-24 16:25:47Z vboxsync $ */
+/* $Id: tstAnimate.cpp 38324 2011-08-05 14:02:53Z vboxsync $ */
 /** @file
  * VBox Animation Testcase / Tool.
  */
@@ -865,8 +865,8 @@ int main(int argc, char **argv)
                     rc = REMR3DisasEnableStepping(pVM, true);
                     if (RT_SUCCESS(rc))
                     {
-                        rc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)EMR3RawSetMode, 2, pVM, EMRAW_NONE);
-                        AssertReleaseRC(rc);
+                        rc = EMR3SetExecutionPolicy(pVM, EMEXECPOLICY_RECOMPILE_RING0, true); AssertReleaseRC(rc);
+                        rc = EMR3SetExecutionPolicy(pVM, EMEXECPOLICY_RECOMPILE_RING3, true); AssertReleaseRC(rc);
                         DBGFR3Info(pVM, "cpumguest", "verbose", NULL);
                         if (fPowerOn)
                             rc = VMR3PowerOn(pVM);

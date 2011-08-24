@@ -212,7 +212,6 @@ void PACKSPU_APIENTRY packspu_DestroyContext( GLint ctx )
     }
 }
 
-
 void PACKSPU_APIENTRY packspu_MakeCurrent( GLint window, GLint nativeWindow, GLint ctx )
 {
     GET_THREAD(thread);
@@ -233,6 +232,25 @@ void PACKSPU_APIENTRY packspu_MakeCurrent( GLint window, GLint nativeWindow, GLi
 
         newCtx = &pack_spu.context[slot];
         CRASSERT(newCtx->clientState);  /* verify valid */
+
+        if (newCtx->fAutoFlush)
+        {
+            if (newCtx->currentThread && newCtx->currentThread != thread)
+            {
+                crLockMutex(&_PackMutex);
+                /* do a flush for the previusly assigned thread
+                 * to ensure all commands issued there are submitted */
+                if (newCtx->currentThread
+                    && newCtx->currentThread->inUse
+                    && newCtx->currentThread->netServer.conn
+                    && newCtx->currentThread->packer && newCtx->currentThread->packer->currentBuffer)
+                {
+                    packspuFlush((void *) newCtx->currentThread);
+                }
+                crUnlockMutex(&_PackMutex);
+            }
+            newCtx->currentThread = thread;
+        }
 
         thread->currentContext = newCtx;
 

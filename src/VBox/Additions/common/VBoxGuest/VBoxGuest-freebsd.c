@@ -1,4 +1,4 @@
-/* $Id: VBoxGuest-freebsd.c 34521 2010-11-30 14:35:40Z vboxsync $ */
+/* $Id: VBoxGuest-freebsd.c 38322 2011-08-05 10:15:15Z vboxsync $ */
 /** @file
  * VirtualBox Guest Additions Driver for FreeBSD.
  */
@@ -177,7 +177,7 @@ static void VBoxGuestFreeBSDClone(void *pvArg, struct ucred *pCred, char *pszNam
                           iUnit,
                           UID_ROOT,
                           GID_WHEEL,
-                          0644,
+                          0664,
                           "vboxguest%d", iUnit);
         if (*ppDev)
         {

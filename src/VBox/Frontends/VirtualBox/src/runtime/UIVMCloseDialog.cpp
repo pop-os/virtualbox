@@ -1,4 +1,4 @@
-/* $Id: UIVMCloseDialog.cpp 32483 2010-09-14 13:45:07Z vboxsync $ */
+/* $Id: UIVMCloseDialog.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -21,7 +21,7 @@
 # include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 #include "UIVMCloseDialog.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 #include "UIMachineWindowNormal.h"
 
 #ifdef Q_WS_MAC
@@ -56,7 +56,7 @@ UIVMCloseDialog::UIVMCloseDialog(QWidget *pParent)
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
     connect(mButtonBox, SIGNAL(helpRequested()),
-            &vboxProblem(), SLOT(showHelpHelpDialog()));
+            &msgCenter(), SLOT(sltShowHelpHelpDialog()));
 }
 
 void UIVMCloseDialog::retranslateUi()

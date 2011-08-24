@@ -1,4 +1,4 @@
-/* $Id: HWSVMR0.cpp 37955 2011-07-14 12:23:02Z vboxsync $ */
+/* $Id: HWSVMR0.cpp 38243 2011-07-31 20:36:00Z vboxsync $ */
 /** @file
  * HWACCM SVM - Host Context Ring 0.
  */
@@ -1492,6 +1492,15 @@ ResumeExecution:
     SVM_ASSERT_SEL_GRANULARITY(fs);
     SVM_ASSERT_SEL_GRANULARITY(gs);
 #undef  SVM_ASSERT_SEL_GRANULARITY
+
+    /*
+     * Correct the hidden SS DPL field. It can be wrong on certain CPUs
+     * sometimes (seen it on AMD Fusion APUs with 64bit guests). The CPU
+     * always uses the CPL field in the VMCB instead of the DPL in the hidden
+     * SS (chapter 15.5.1 Basic operation).
+     */
+    Assert(!(pVMCB->guest.u8CPL & ~0x3));
+    pCtx->ssHid.Attr.n.u2Dpl = pVMCB->guest.u8CPL & 0x3;
 
     /* Remaining guest CPU context: TR, IDTR, GDTR, LDTR; must sync everything otherwise we can get out of sync when jumping to ring 3. */
     SVM_READ_SELREG(LDTR, ldtr);

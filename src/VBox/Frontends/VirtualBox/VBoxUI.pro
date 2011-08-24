@@ -50,6 +50,7 @@ FORMS = \
     src/settings/machine/UIMachineSettingsSFDetails.ui \
     src/wizards/clonevm/UICloneVMWizardPage1.ui \
     src/wizards/clonevm/UICloneVMWizardPage2.ui \
+    src/wizards/clonevm/UICloneVMWizardPage3.ui \
     src/wizards/newvm/UINewVMWzdPage1.ui \
     src/wizards/newvm/UINewVMWzdPage2.ui \
     src/wizards/newvm/UINewVMWzdPage3.ui \
@@ -70,7 +71,7 @@ FORMS = \
     src/wizards/importappliance/UIImportApplianceWzdPage1.ui \
     src/wizards/importappliance/UIImportApplianceWzdPage2.ui \
     src/wizards/registration/UIRegistrationWzdPage1.ui \
-    src/widgets/VBoxApplianceEditorWgt.ui \
+    src/widgets/UIApplianceEditorWidget.ui \
     src/selector/VBoxSnapshotsWgt.ui \
     src/runtime/UIVMCloseDialog.ui
 

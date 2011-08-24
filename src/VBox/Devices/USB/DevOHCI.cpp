@@ -1,4 +1,4 @@
-/* $Id: DevOHCI.cpp 37668 2011-06-28 16:02:10Z vboxsync $ */
+/* $Id: DevOHCI.cpp 38350 2011-08-08 13:57:50Z vboxsync $ */
 /** @file
  * DevOHCI - Open Host Controller Interface for USB.
  */
@@ -4926,14 +4926,14 @@ static DECLCALLBACK(int) ohciR3SavePrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
     POHCI pOhci = PDMINS_2_DATA(pDevIns, POHCI);
     POHCIROOTHUB pRh = &pOhci->RootHub;
-    unsigned i;
     LogFlow(("ohciR3SavePrep: \n"));
 
     /*
      * Detach all proxied devices.
      */
+    PDMCritSectEnter(pOhci->pDevInsR3->pCritSectRoR3, VERR_IGNORED);
     /** @todo we a) can't tell which are proxied, and b) this won't work well when continuing after saving! */
-    for (i = 0; i < RT_ELEMENTS(pRh->aPorts); i++)
+    for (unsigned i = 0; i < RT_ELEMENTS(pRh->aPorts); i++)
     {
         PVUSBIDEVICE pDev = pRh->aPorts[i].pDev;
         if (pDev)
@@ -4947,6 +4947,7 @@ static DECLCALLBACK(int) ohciR3SavePrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
             pRh->aPorts[i].pDev = pDev;
         }
     }
+    PDMCritSectLeave(pOhci->pDevInsR3->pCritSectRoR3);
 
     /*
      * Kill old load data which might be hanging around.

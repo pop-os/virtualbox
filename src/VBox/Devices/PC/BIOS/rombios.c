@@ -1840,12 +1840,12 @@ keyboard_init()
     while ( (inb(0x64) & 0x02) && (--max>0)) outb(0x80, 0x00);
 
     /* flush incoming keys */
-    max=4;
+    max=8;
     while (--max > 0) {
         outb(0x80, 0x00);
         if (inb(0x64) & 0x01) {
             inb(0x60);
-            max = 4;
+            max = 8;
             }
         }
 
@@ -1891,10 +1891,6 @@ keyboard_init()
     if ((inb(0x60) != 0x00)) {
         keyboard_panic(992);
     }
-
-    /* Enable Keyboard clock */
-    outb(0x64,0xae);
-    outb(0x64,0xa8);
 
     /* ------------------- keyboard side ------------------------*/
     /* reset keyboard and self test  (keyboard side) */
@@ -1975,6 +1971,10 @@ keyboard_init()
     if ((inb(0x60) != 0xfa)) {
         keyboard_panic(996);
     }
+
+    /* Enable Keyboard clock */
+    outb(0x64,0xae);
+    outb(0x64,0xa8);
 
     outb(0x80, 0x77);
 }
@@ -11237,6 +11237,9 @@ no_serial:
 
 rom_checksum:
   push ax
+#ifdef NO_ROM_CHECKSUM
+  xor  ax, ax
+#else
   push bx
   push cx
   xor  ax, ax
@@ -11251,6 +11254,7 @@ checksum_loop:
   and  al, #0xff
   pop  cx
   pop  bx
+#endif
   pop  ax
   ret
 
@@ -12218,7 +12222,7 @@ int15_handler32:
 pmode_IDT_info:
 dw 0x0000  ;; limit 15:00
 dw 0x0000  ;; base  15:00
-db 0x0f    ;; base  23:16
+dw 0x0f    ;; base  23:16
 
 ;; Real mode IDT descriptor
 ;;
@@ -12229,7 +12233,7 @@ db 0x0f    ;; base  23:16
 rmode_IDT_info:
 dw 0x03ff  ;; limit 15:00
 dw 0x0000  ;; base  15:00
-db 0x00    ;; base  23:16
+dw 0x00    ;; base  23:16
 
 ;;
 ;; Handler for unexpected hardware interrupts

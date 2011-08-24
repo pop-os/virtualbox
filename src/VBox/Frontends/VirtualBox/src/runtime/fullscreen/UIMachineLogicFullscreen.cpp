@@ -1,4 +1,4 @@
-/* $Id: UIMachineLogicFullscreen.cpp 30936 2010-07-20 16:59:35Z vboxsync $ */
+/* $Id: UIMachineLogicFullscreen.cpp 38348 2011-08-08 12:09:18Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -23,10 +23,10 @@
 /* Local includes */
 #include "COMDefs.h"
 #include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 
 #include "UISession.h"
-#include "UIActionsPool.h"
+#include "UIActionPoolRuntime.h"
 #include "UIMachineLogicFullscreen.h"
 #include "UIMachineWindowFullscreen.h"
 #include "UIMultiScreenLayout.h"
@@ -37,8 +37,8 @@
 # include <Carbon/Carbon.h>
 #endif /* Q_WS_MAC */
 
-UIMachineLogicFullscreen::UIMachineLogicFullscreen(QObject *pParent, UISession *pSession, UIActionsPool *pActionsPool)
-    : UIMachineLogic(pParent, pSession, pActionsPool, UIVisualStateType_Fullscreen)
+UIMachineLogicFullscreen::UIMachineLogicFullscreen(QObject *pParent, UISession *pSession)
+    : UIMachineLogic(pParent, pSession, UIVisualStateType_Fullscreen)
 {
     m_pScreenLayout = new UIMultiScreenLayout(this);
 }
@@ -76,7 +76,7 @@ bool UIMachineLogicFullscreen::checkAvailability()
     /* Check that there are enough physical screens are connected: */
     if (cHostScreens < cGuestScreens)
     {
-        vboxProblem().cannotEnterFullscreenMode();
+        msgCenter().cannotEnterFullscreenMode();
         return false;
     }
 
@@ -91,7 +91,7 @@ bool UIMachineLogicFullscreen::checkAvailability()
         quint64 usedBits = m_pScreenLayout->memoryRequirements();
         if (availBits < usedBits)
         {
-            int result = vboxProblem().cannotEnterFullscreenMode(0, 0, 0,
+            int result = msgCenter().cannotEnterFullscreenMode(0, 0, 0,
                                                                  (((usedBits + 7) / 8 + _1M - 1) / _1M) * _1M);
             if (result == QIMessageBox::Cancel)
                 return false;
@@ -102,11 +102,11 @@ bool UIMachineLogicFullscreen::checkAvailability()
      * VBoxGlobal::extractKeyFromActionText gets exactly the
      * linked key without the 'Host+' part we are adding it here. */
     QString hotKey = QString("Host+%1")
-        .arg(VBoxGlobal::extractKeyFromActionText(actionsPool()->action(UIActionIndex_Toggle_Fullscreen)->text()));
+        .arg(VBoxGlobal::extractKeyFromActionText(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen)->text()));
     Assert(!hotKey.isEmpty());
 
     /* Show the info message. */
-    if (!vboxProblem().confirmGoingFullscreen(hotKey))
+    if (!msgCenter().confirmGoingFullscreen(hotKey))
         return false;
 
     return true;
@@ -180,10 +180,10 @@ void UIMachineLogicFullscreen::prepareActionGroups()
     UIMachineLogic::prepareActionGroups();
 
     /* Adjust-window action isn't allowed in fullscreen: */
-    actionsPool()->action(UIActionIndex_Simple_AdjustWindow)->setVisible(false);
+    gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(false);
 
     /* Add the view menu: */
-    QMenu *pMenu = actionsPool()->action(UIActionIndex_Menu_View)->menu();
+    QMenu *pMenu = gActionPool->action(UIActionIndexRuntime_Menu_View)->menu();
     m_pScreenLayout->initialize(pMenu);
 }
 
@@ -242,7 +242,7 @@ void UIMachineLogicFullscreen::cleanupMachineWindows()
 void UIMachineLogicFullscreen::cleanupActionGroups()
 {
     /* Reenable adjust-window action: */
-    actionsPool()->action(UIActionIndex_Simple_AdjustWindow)->setVisible(true);
+    gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(true);
 }
 
 #ifdef Q_WS_MAC

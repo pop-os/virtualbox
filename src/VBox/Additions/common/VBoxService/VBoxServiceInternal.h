@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceInternal.h 37375 2011-06-08 10:51:26Z vboxsync $ */
+/* $Id: VBoxServiceInternal.h 38180 2011-07-26 12:26:34Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Services.
  */
@@ -101,7 +101,7 @@ typedef VBOXSERVICE const *PCVBOXSERVICE;
 /** The friendly service name. */
 # define VBOXSERVICE_FRIENDLY_NAME  "VirtualBox Guest Additions Service"
 /** The service description (only W2K+ atm) */
-# define VBOXSERVICE_DESCRIPTION    "Manages VM runtime information, time synchronization, remote sysprep execution and miscellaneous utilities for guest operating systems."
+# define VBOXSERVICE_DESCRIPTION    "Manages VM runtime information, time synchronization, guest control execution and miscellaneous utilities for guest operating systems."
 /** The following constant may be defined by including NtStatus.h. */
 # define STATUS_SUCCESS             ((NTSTATUS)0x00000000L)
 #endif /* RT_OS_WINDOWS */
@@ -115,7 +115,8 @@ typedef enum VBOXSERVICECTRLTHREADDATATYPE
 
 typedef enum VBOXSERVICECTRLPIPEID
 {
-    VBOXSERVICECTRLPIPEID_STDIN_ERROR  = 0,
+    VBOXSERVICECTRLPIPEID_STDIN = 0,
+    VBOXSERVICECTRLPIPEID_STDIN_ERROR,
     VBOXSERVICECTRLPIPEID_STDIN_WRITABLE,
     VBOXSERVICECTRLPIPEID_STDIN_INPUT_NOTIFY,
     VBOXSERVICECTRLPIPEID_STDOUT,
@@ -127,6 +128,10 @@ typedef enum VBOXSERVICECTRLPIPEID
  */
 typedef struct
 {
+    /** The PID the pipe is assigned to. */
+    uint32_t    uPID;
+    /** The pipe's Id of enum VBOXSERVICECTRLPIPEID. */
+    uint8_t     uPipeId;
     /** The data buffer. */
     uint8_t    *pbData;
     /** The amount of allocated buffer space. */
@@ -299,18 +304,18 @@ extern int          VBoxServiceWinGetComponentVersions(uint32_t uiClientID);
 #endif /* RT_OS_WINDOWS */
 
 #ifdef VBOX_WITH_GUEST_CONTROL
-extern int          VBoxServiceGCtrlDirClose(uint32_t u32ClientId, uint32_t uNumParms);
-extern int          VBoxServiceGCtrlDirOpen(uint32_t u32ClientId, uint32_t uNumParms);
-extern int          VBoxServiceGCtrlDirRead(uint32_t u32ClientId, uint32_t uNumParms);
+extern void         VBoxServiceControlThreadSignalShutdown(const PVBOXSERVICECTRLTHREAD pThread);
+extern int          VBoxServiceControlThreadWaitForShutdown(const PVBOXSERVICECTRLTHREAD pThread);
 
 extern int          VBoxServiceControlExecHandleCmdStartProcess(uint32_t u32ClientId, uint32_t uNumParms);
 extern int          VBoxServiceControlExecHandleCmdSetInput(uint32_t u32ClientId, uint32_t uNumParms, size_t cbMaxBufSize);
 extern int          VBoxServiceControlExecHandleCmdGetOutput(uint32_t u32ClientId, uint32_t uNumParms);
-extern int          VBoxServiceControlExecProcess(uint32_t uContext, const char *pszCmd, uint32_t uFlags,
+extern int          VBoxServiceControlExecProcess(uint32_t uClientID, uint32_t uContext,
+                                                  const char *pszCmd, uint32_t uFlags,
                                                   const char *pszArgs, uint32_t uNumArgs,
                                                   const char *pszEnv, uint32_t cbEnv, uint32_t uNumEnvVars,
                                                   const char *pszUser, const char *pszPassword, uint32_t uTimeLimitMS);
-extern void         VBoxServiceControlExecThreadDestroy(PVBOXSERVICECTRLTHREADDATAEXEC pThread);
+extern void         VBoxServiceControlExecThreadDataDestroy(PVBOXSERVICECTRLTHREADDATAEXEC pThread);
 #endif /* VBOX_WITH_GUEST_CONTROL */
 
 #ifdef VBOXSERVICE_MANAGEMENT

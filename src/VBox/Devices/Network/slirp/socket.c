@@ -1,4 +1,4 @@
-/* $Id: socket.c 38057 2011-07-19 09:17:18Z vboxsync $ */
+/* $Id: socket.c 38402 2011-08-10 14:30:29Z vboxsync $ */
 /** @file
  * NAT - socket handling.
  */
@@ -1016,10 +1016,15 @@ solisten(PNATState pData, u_int32_t bind_addr, u_int port, u_int32_t laddr, u_in
     addr.sin_addr.s_addr = bind_addr;
     addr.sin_port = port;
 
+    /**
+     * changing listen(,1->SOMAXCONN) shouldn't be harmful for NAT's TCP/IP stack,
+     * kernel will choose the optimal value for requests queue length.
+     * @note: MSDN recommends low (2-4) values for bluetooth networking devices.
+     */
     if (   ((s = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         || (setsockopt(s, SOL_SOCKET, SO_REUSEADDR,(char *)&opt, sizeof(int)) < 0)
         || (bind(s,(struct sockaddr *)&addr, sizeof(addr)) < 0)
-        || (listen(s, 1) < 0))
+        || (listen(s, pData->soMaxConn) < 0))
     {
 #ifdef RT_OS_WINDOWS
         int tmperrno = WSAGetLastError(); /* Don't clobber the real reason we failed */
@@ -1413,6 +1418,15 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
                 icp->icmp_id = so->so_icmp_id;
                 icp->icmp_seq = so->so_icmp_seq;
 
+                icm = icmp_find_original_mbuf(pData, ip);
+                if (icm)
+                {
+                    /* on this branch we don't need stored variant */
+                    m_freem(pData, icm->im_m);
+                    LIST_REMOVE(icm, im_list);
+                    RTMemFree(icm);
+                }
+
                 data_len += ICMP_MINLEN;
 
                 hlen = (ip->ip_hl << 2);
@@ -1452,6 +1466,9 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
                 m->m_pkthdr.header = mtod(m, void *);
                 m_copyback(pData, m, ip->ip_hl >> 2, icr[i].DataSize, icr[i].Data);
                 icmp_reflect(pData, m);
+                /* Here is different situation from Unix world, where we can receive icmp in response on TCP/UDP */
+                LIST_REMOVE(icm, im_list);
+                RTMemFree(icm);
                 break;
             default:
                 Log(("ICMP(default): message with Status: %x was received from %x\n", icr[i].Status, icr[i].Address));

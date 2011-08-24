@@ -1,4 +1,4 @@
-/* $Id: UIVMListView.cpp 37423 2011-06-12 18:37:56Z vboxsync $ */
+/* $Id: UIVMListView.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -23,7 +23,7 @@
 
 /* Local includes */
 #include "UIVMListView.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 #include "VBoxSelectorWnd.h"
 
 /* Global includes */

@@ -1,4 +1,4 @@
-/* $Id: MachineImplCloneVM.cpp 38061 2011-07-19 09:50:33Z vboxsync $ */
+/* $Id: MachineImplCloneVM.cpp 38428 2011-08-12 10:21:10Z vboxsync $ */
 /** @file
  * Implementation of MachineCloneVM
  */
@@ -24,6 +24,9 @@
 #include <iprt/path.h>
 #include <iprt/dir.h>
 #include <iprt/cpp/utils.h>
+#ifdef DEBUG_poetzsch
+# include <iprt/stream.h>
+#endif
 
 #include <VBox/com/list.h>
 #include <VBox/com/MultiResult.h>
@@ -35,6 +38,7 @@ typedef struct
 {
     Utf8Str                 strBaseName;
     ComPtr<IMedium>         pMedium;
+    uint32_t                uIdx;
     ULONG                   uWeight;
 } MEDIUMTASK;
 
@@ -93,13 +97,24 @@ struct MachineCloneVMPrivate
     }
 
     /* Private helper methods */
+
+    /* MachineCloneVM::start helper: */
     HRESULT createMachineList(const ComPtr<ISnapshot> &pSnapshot, RTCList< ComObjPtr<Machine> > &machineList) const;
-    settings::Snapshot findSnapshot(settings::MachineConfigFile *pMCF, const settings::SnapshotsList &snl, const Guid &id) const;
+    inline void updateProgressStats(MEDIUMTASKCHAIN &mtc, bool fAttachLinked, ULONG &uCount, ULONG &uTotalWeight) const;
+    inline HRESULT addSaveState(const ComObjPtr<Machine> &machine, ULONG &uCount, ULONG &uTotalWeight);
+    inline HRESULT queryBaseName(const ComPtr<IMedium> &pMedium, Utf8Str &strBaseName) const;
+    HRESULT queryMediasForMachineState(const RTCList<ComObjPtr<Machine> > &machineList, bool fAttachLinked, ULONG &uCount, ULONG &uTotalWeight);
+    HRESULT queryMediasForMachineAndChildStates(const RTCList<ComObjPtr<Machine> > &machineList, bool fAttachLinked, ULONG &uCount, ULONG &uTotalWeight);
+    HRESULT queryMediasForAllStates(const RTCList<ComObjPtr<Machine> > &machineList, bool fAttachLinked, ULONG &uCount, ULONG &uTotalWeight);
+
+    /* MachineCloneVM::run helper: */
+    bool findSnapshot(const settings::SnapshotsList &snl, const Guid &id, settings::Snapshot &sn) const;
     void updateMACAddresses(settings::NetworkAdaptersList &nwl) const;
     void updateMACAddresses(settings::SnapshotsList &sl) const;
     void updateStorageLists(settings::StorageControllersList &sc, const Bstr &bstrOldId, const Bstr &bstrNewId) const;
     void updateSnapshotStorageLists(settings::SnapshotsList &sl, const Bstr &bstrOldId, const Bstr &bstrNewId) const;
     void updateStateFile(settings::SnapshotsList &snl, const Guid &id, const Utf8Str &strFile) const;
+    HRESULT createDifferencingMedium(const ComObjPtr<Medium> &pParent, const Utf8Str &strSnapshotFolder, RTCList<ComObjPtr<Medium> > &newMedia, ComObjPtr<Medium> *ppDiff) const;
     static int copyStateFileProgress(unsigned uPercentage, void *pvUser);
 
     /* Private q and parent pointer */
@@ -142,17 +157,419 @@ HRESULT MachineCloneVMPrivate::createMachineList(const ComPtr<ISnapshot> &pSnaps
     return rc;
 }
 
-settings::Snapshot MachineCloneVMPrivate::findSnapshot(settings::MachineConfigFile *pMCF, const settings::SnapshotsList &snl, const Guid &id) const
+void MachineCloneVMPrivate::updateProgressStats(MEDIUMTASKCHAIN &mtc, bool fAttachLinked, ULONG &uCount, ULONG &uTotalWeight) const
+{
+    if (fAttachLinked)
+    {
+        /* Implicit diff creation as part of attach is a pretty cheap
+         * operation, and does only need one operation per attachment. */
+        ++uCount;
+        uTotalWeight += 1;  /* 1MB per attachment */
+    }
+    else
+    {
+        /* Currently the copying of diff images involves reading at least
+         * the biggest parent in the previous chain. So even if the new
+         * diff image is small in size, it could need some time to create
+         * it. Adding the biggest size in the chain should balance this a
+         * little bit more, i.e. the weight is the sum of the data which
+         * needs to be read and written. */
+        uint64_t uMaxSize = 0;
+        for (size_t e = mtc.chain.size(); e > 0; --e)
+        {
+            MEDIUMTASK &mt = mtc.chain.at(e - 1);
+            mt.uWeight += uMaxSize;
+
+            /* Calculate progress data */
+            ++uCount;
+            uTotalWeight += mt.uWeight;
+
+            /* Save the max size for better weighting of diff image
+             * creation. */
+            uMaxSize = RT_MAX(uMaxSize, mt.uWeight);
+        }
+    }
+}
+
+HRESULT MachineCloneVMPrivate::addSaveState(const ComObjPtr<Machine> &machine, ULONG &uCount, ULONG &uTotalWeight)
+{
+    Bstr bstrSrcSaveStatePath;
+    HRESULT rc = machine->COMGETTER(StateFilePath)(bstrSrcSaveStatePath.asOutParam());
+    if (FAILED(rc)) return rc;
+    if (!bstrSrcSaveStatePath.isEmpty())
+    {
+        SAVESTATETASK sst;
+        sst.snapshotUuid     = machine->getSnapshotId();
+        sst.strSaveStateFile = bstrSrcSaveStatePath;
+        uint64_t cbSize;
+        int vrc = RTFileQuerySize(sst.strSaveStateFile.c_str(), &cbSize);
+        if (RT_FAILURE(vrc))
+            return p->setError(VBOX_E_IPRT_ERROR, p->tr("Could not query file size of '%s' (%Rrc)"), sst.strSaveStateFile.c_str(), vrc);
+        /* same rule as above: count both the data which needs to
+         * be read and written */
+        sst.uWeight = 2 * (cbSize + _1M - 1) / _1M;
+        llSaveStateFiles.append(sst);
+        ++uCount;
+        uTotalWeight += sst.uWeight;
+    }
+    return S_OK;
+}
+
+HRESULT MachineCloneVMPrivate::queryBaseName(const ComPtr<IMedium> &pMedium, Utf8Str &strBaseName) const
+{
+    ComPtr<IMedium> pBaseMedium;
+    HRESULT rc = pMedium->COMGETTER(Base)(pBaseMedium.asOutParam());
+    if (FAILED(rc)) return rc;
+    Bstr bstrBaseName;
+    rc = pBaseMedium->COMGETTER(Name)(bstrBaseName.asOutParam());
+    if (FAILED(rc)) return rc;
+    strBaseName = bstrBaseName;
+    return rc;
+}
+
+HRESULT MachineCloneVMPrivate::queryMediasForMachineState(const RTCList<ComObjPtr<Machine> > &machineList, bool fAttachLinked, ULONG &uCount, ULONG &uTotalWeight)
+{
+    /* This mode is pretty straightforward. We didn't need to know about any
+     * parent/children relationship and therefor simply adding all directly
+     * attached images of the source VM as cloning targets. The IMedium code
+     * take than care to merge any (possibly) existing parents into the new
+     * image. */
+    HRESULT rc = S_OK;
+    for (size_t i = 0; i < machineList.size(); ++i)
+    {
+        const ComObjPtr<Machine> &machine = machineList.at(i);
+        /* If this is the Snapshot Machine we want to clone, we need to
+         * create a new diff file for the new "current state". */
+        const bool fCreateDiffs = (machine == pOldMachineState);
+        /* Add all attachments of the different machines to a worker list. */
+        SafeIfaceArray<IMediumAttachment> sfaAttachments;
+        rc = machine->COMGETTER(MediumAttachments)(ComSafeArrayAsOutParam(sfaAttachments));
+        if (FAILED(rc)) return rc;
+        for (size_t a = 0; a < sfaAttachments.size(); ++a)
+        {
+            const ComPtr<IMediumAttachment> &pAtt = sfaAttachments[a];
+            DeviceType_T type;
+            rc = pAtt->COMGETTER(Type)(&type);
+            if (FAILED(rc)) return rc;
+
+            /* Only harddisk's are of interest. */
+            if (type != DeviceType_HardDisk)
+                continue;
+
+            /* Valid medium attached? */
+            ComPtr<IMedium> pSrcMedium;
+            rc = pAtt->COMGETTER(Medium)(pSrcMedium.asOutParam());
+            if (FAILED(rc)) return rc;
+            if (pSrcMedium.isNull())
+                continue;
+
+            /* Create the medium task chain. In this case it will always
+             * contain one image only. */
+            MEDIUMTASKCHAIN mtc;
+            mtc.fCreateDiffs  = fCreateDiffs;
+            mtc.fAttachLinked = fAttachLinked;
+
+            /* Refresh the state so that the file size get read. */
+            MediumState_T e;
+            rc = pSrcMedium->RefreshState(&e);
+            if (FAILED(rc)) return rc;
+            LONG64 lSize;
+            rc = pSrcMedium->COMGETTER(Size)(&lSize);
+            if (FAILED(rc)) return rc;
+
+            MEDIUMTASK mt;
+            mt.uIdx = UINT32_MAX; /* No read/write optimization possible. */
+
+            /* Save the base name. */
+            rc = queryBaseName(pSrcMedium, mt.strBaseName);
+            if (FAILED(rc)) return rc;
+
+            /* Save the current medium, for later cloning. */
+            mt.pMedium = pSrcMedium;
+            if (fAttachLinked)
+                mt.uWeight = 0; /* dummy */
+            else
+                mt.uWeight = (lSize + _1M - 1) / _1M;
+            mtc.chain.append(mt);
+
+            /* Update the progress info. */
+            updateProgressStats(mtc, fAttachLinked, uCount, uTotalWeight);
+            /* Append the list of images which have  to be cloned. */
+            llMedias.append(mtc);
+        }
+        /* Add the save state files of this machine if there is one. */
+        rc = addSaveState(machine, uCount, uTotalWeight);
+        if (FAILED(rc)) return rc;
+    }
+
+    return rc;
+}
+
+HRESULT MachineCloneVMPrivate::queryMediasForMachineAndChildStates(const RTCList<ComObjPtr<Machine> > &machineList, bool fAttachLinked, ULONG &uCount, ULONG &uTotalWeight)
+{
+    /* This is basically a three step approach. First select all medias
+     * directly or indirectly involved in the clone. Second create a histogram
+     * of the usage of all that medias. Third select the medias which are
+     * directly attached or have more than one directly/indirectly used child
+     * in the new clone. Step one and two are done in the first loop.
+     *
+     * Example of the histogram counts after going through 3 attachments from
+     * bottom to top:
+     *
+     *           3
+     *           |
+     *        -> 3
+     *          / \
+     *         2   1 <-
+     *        /
+     *    -> 2
+     *      / \
+     *  -> 1   1
+     *          \
+     *           1 <-
+     *
+     * Whenever the histogram count is changing compared to the previous one we
+     * need to include that image in the cloning step (Marked with <-). If we
+     * start at zero even the directly attached images are automatically
+     * included.
+     *
+     * Note: This still leads to media chains which can have the same medium
+     * included. This case is handled in "run" and therefor not critical, but
+     * it leads to wrong progress infos which isn't nice. */
+
+    HRESULT rc = S_OK;
+    std::map<ComPtr<IMedium>, uint32_t> mediaHist; /* Our usage histogram for the medias */
+    for (size_t i = 0; i < machineList.size(); ++i)
+    {
+        const ComObjPtr<Machine> &machine = machineList.at(i);
+        /* If this is the Snapshot Machine we want to clone, we need to
+         * create a new diff file for the new "current state". */
+        const bool fCreateDiffs = (machine == pOldMachineState);
+        /* Add all attachments (and their parents) of the different
+         * machines to a worker list. */
+        SafeIfaceArray<IMediumAttachment> sfaAttachments;
+        rc = machine->COMGETTER(MediumAttachments)(ComSafeArrayAsOutParam(sfaAttachments));
+        if (FAILED(rc)) return rc;
+        for (size_t a = 0; a < sfaAttachments.size(); ++a)
+        {
+            const ComPtr<IMediumAttachment> &pAtt = sfaAttachments[a];
+            DeviceType_T type;
+            rc = pAtt->COMGETTER(Type)(&type);
+            if (FAILED(rc)) return rc;
+
+            /* Only harddisk's are of interest. */
+            if (type != DeviceType_HardDisk)
+                continue;
+
+            /* Valid medium attached? */
+            ComPtr<IMedium> pSrcMedium;
+            rc = pAtt->COMGETTER(Medium)(pSrcMedium.asOutParam());
+            if (FAILED(rc)) return rc;
+
+            if (pSrcMedium.isNull())
+                continue;
+
+            MEDIUMTASKCHAIN mtc;
+            mtc.fCreateDiffs  = fCreateDiffs;
+            mtc.fAttachLinked = fAttachLinked;
+
+            while (!pSrcMedium.isNull())
+            {
+                /* Build a histogram of used medias and the parent chain. */
+                ++mediaHist[pSrcMedium];
+
+                /* Refresh the state so that the file size get read. */
+                MediumState_T e;
+                rc = pSrcMedium->RefreshState(&e);
+                if (FAILED(rc)) return rc;
+                LONG64 lSize;
+                rc = pSrcMedium->COMGETTER(Size)(&lSize);
+                if (FAILED(rc)) return rc;
+
+                MEDIUMTASK mt;
+                mt.uIdx    = UINT32_MAX;
+                mt.pMedium = pSrcMedium;
+                mt.uWeight = (lSize + _1M - 1) / _1M;
+                mtc.chain.append(mt);
+
+                /* Query next parent. */
+                rc = pSrcMedium->COMGETTER(Parent)(pSrcMedium.asOutParam());
+                if (FAILED(rc)) return rc;
+            }
+
+            llMedias.append(mtc);
+        }
+        /* Add the save state files of this machine if there is one. */
+        rc = addSaveState(machine, uCount, uTotalWeight);
+        if (FAILED(rc)) return rc;
+    }
+    /* Build up the index list of the image chain. Unfortunately we can't do
+     * that in the previous loop, cause there we go from child -> parent and
+     * didn't know how many are between. */
+    for (size_t i = 0; i < llMedias.size(); ++i)
+    {
+        uint32_t uIdx = 0;
+        MEDIUMTASKCHAIN &mtc = llMedias.at(i);
+        for (size_t a = mtc.chain.size(); a > 0; --a)
+            mtc.chain[a - 1].uIdx = uIdx++;
+    }
+#ifdef DEBUG_poetzsch
+    /* Print the histogram */
+    std::map<ComPtr<IMedium>, uint32_t>::iterator it;
+    for (it = mediaHist.begin(); it != mediaHist.end(); ++it)
+    {
+        Bstr bstrSrcName;
+        rc = (*it).first->COMGETTER(Name)(bstrSrcName.asOutParam());
+        if (FAILED(rc)) return rc;
+        RTPrintf("%ls: %d\n", bstrSrcName.raw(), (*it).second);
+    }
+#endif
+    /* Go over every medium in the list and check if it either a directly
+     * attached disk or has more than one children. If so it needs to be
+     * replicated. Also we have to make sure that any direct or indirect
+     * children knows of the new parent (which doesn't necessarily mean it
+     * is a direct children in the source chain). */
+    for (size_t i = 0; i < llMedias.size(); ++i)
+    {
+        MEDIUMTASKCHAIN &mtc = llMedias.at(i);
+        RTCList<MEDIUMTASK> newChain;
+        uint32_t used = 0;
+        for (size_t a = 0; a < mtc.chain.size(); ++a)
+        {
+            const MEDIUMTASK &mt = mtc.chain.at(a);
+            uint32_t hist = mediaHist[mt.pMedium];
+#ifdef DEBUG_poetzsch
+            Bstr bstrSrcName;
+            rc = mt.pMedium->COMGETTER(Name)(bstrSrcName.asOutParam());
+            if (FAILED(rc)) return rc;
+            RTPrintf("%ls: %d (%d)\n", bstrSrcName.raw(), hist, used);
+#endif
+            /* Check if there is a "step" in the histogram when going the chain
+             * upwards. If so, we need this image, cause there is another branch
+             * from here in the cloned VM. */
+            if (hist > used)
+            {
+                newChain.append(mt);
+                used = hist;
+            }
+        }
+        /* Make sure we always using the old base name as new base name, even
+         * if the base is a differencing image in the source VM (with the UUID
+         * as name). */
+        rc = queryBaseName(newChain.last().pMedium, newChain.last().strBaseName);
+        if (FAILED(rc)) return rc;
+        /* Update the old medium chain with the updated one. */
+        mtc.chain = newChain;
+        /* Update the progress info. */
+        updateProgressStats(mtc, fAttachLinked, uCount, uTotalWeight);
+    }
+
+    return rc;
+}
+
+HRESULT MachineCloneVMPrivate::queryMediasForAllStates(const RTCList<ComObjPtr<Machine> > &machineList, bool fAttachLinked, ULONG &uCount, ULONG &uTotalWeight)
+{
+    /* In this case we create a exact copy of the original VM. This means just
+     * adding all directly and indirectly attached disk images to the worker
+     * list. */
+    HRESULT rc = S_OK;
+    for (size_t i = 0; i < machineList.size(); ++i)
+    {
+        const ComObjPtr<Machine> &machine = machineList.at(i);
+        /* If this is the Snapshot Machine we want to clone, we need to
+         * create a new diff file for the new "current state". */
+        const bool fCreateDiffs = (machine == pOldMachineState);
+        /* Add all attachments (and their parents) of the different
+         * machines to a worker list. */
+        SafeIfaceArray<IMediumAttachment> sfaAttachments;
+        rc = machine->COMGETTER(MediumAttachments)(ComSafeArrayAsOutParam(sfaAttachments));
+        if (FAILED(rc)) return rc;
+        for (size_t a = 0; a < sfaAttachments.size(); ++a)
+        {
+            const ComPtr<IMediumAttachment> &pAtt = sfaAttachments[a];
+            DeviceType_T type;
+            rc = pAtt->COMGETTER(Type)(&type);
+            if (FAILED(rc)) return rc;
+
+            /* Only harddisk's are of interest. */
+            if (type != DeviceType_HardDisk)
+                continue;
+
+            /* Valid medium attached? */
+            ComPtr<IMedium> pSrcMedium;
+            rc = pAtt->COMGETTER(Medium)(pSrcMedium.asOutParam());
+            if (FAILED(rc)) return rc;
+            if (pSrcMedium.isNull())
+                continue;
+
+            /* Build up a child->parent list of this attachment. (Note: we are
+             * not interested of any child's not attached to this VM. So this
+             * will not create a full copy of the base/child relationship.) */
+            MEDIUMTASKCHAIN mtc;
+            mtc.fCreateDiffs  = fCreateDiffs;
+            mtc.fAttachLinked = fAttachLinked;
+
+            while (!pSrcMedium.isNull())
+            {
+                /* Refresh the state so that the file size get read. */
+                MediumState_T e;
+                rc = pSrcMedium->RefreshState(&e);
+                if (FAILED(rc)) return rc;
+                LONG64 lSize;
+                rc = pSrcMedium->COMGETTER(Size)(&lSize);
+                if (FAILED(rc)) return rc;
+
+                /* Save the current medium, for later cloning. */
+                MEDIUMTASK mt;
+                mt.uIdx    = UINT32_MAX;
+                mt.pMedium = pSrcMedium;
+                mt.uWeight = (lSize + _1M - 1) / _1M;
+                mtc.chain.append(mt);
+
+                /* Query next parent. */
+                rc = pSrcMedium->COMGETTER(Parent)(pSrcMedium.asOutParam());
+                if (FAILED(rc)) return rc;
+            }
+            /* Update the progress info. */
+            updateProgressStats(mtc, fAttachLinked, uCount, uTotalWeight);
+            /* Append the list of images which have  to be cloned. */
+            llMedias.append(mtc);
+        }
+        /* Add the save state files of this machine if there is one. */
+        rc = addSaveState(machine, uCount, uTotalWeight);
+        if (FAILED(rc)) return rc;
+    }
+    /* Build up the index list of the image chain. Unfortunately we can't do
+     * that in the previous loop, cause there we go from child -> parent and
+     * didn't know how many are between. */
+    for (size_t i = 0; i < llMedias.size(); ++i)
+    {
+        uint32_t uIdx = 0;
+        MEDIUMTASKCHAIN &mtc = llMedias.at(i);
+        for (size_t a = mtc.chain.size(); a > 0; --a)
+            mtc.chain[a - 1].uIdx = uIdx++;
+    }
+
+    return rc;
+}
+
+bool MachineCloneVMPrivate::findSnapshot(const settings::SnapshotsList &snl, const Guid &id, settings::Snapshot &sn) const
 {
     settings::SnapshotsList::const_iterator it;
     for (it = snl.begin(); it != snl.end(); ++it)
     {
         if (it->uuid == id)
-            return *it;
+        {
+            sn = (*it);
+            return true;
+        }
         else if (!it->llChildSnapshots.empty())
-            return findSnapshot(pMCF, it->llChildSnapshots, id);
+        {
+            if (findSnapshot(it->llChildSnapshots, id, sn))
+                return true;
+        }
     }
-    return settings::Snapshot();
+    return false;
 }
 
 void MachineCloneVMPrivate::updateMACAddresses(settings::NetworkAdaptersList &nwl) const
@@ -224,6 +641,54 @@ void MachineCloneVMPrivate::updateStateFile(settings::SnapshotsList &snl, const 
         else if (!it->llChildSnapshots.empty())
             updateStateFile(it->llChildSnapshots, id, strFile);
     }
+}
+
+HRESULT MachineCloneVMPrivate::createDifferencingMedium(const ComObjPtr<Medium> &pParent, const Utf8Str &strSnapshotFolder, RTCList<ComObjPtr<Medium> > &newMedia, ComObjPtr<Medium> *ppDiff) const
+{
+    HRESULT rc = S_OK;
+    try
+    {
+        Bstr bstrSrcId;
+        rc = pParent->COMGETTER(Id)(bstrSrcId.asOutParam());
+        if (FAILED(rc)) throw rc;
+        ComObjPtr<Medium> diff;
+        diff.createObject();
+        rc = diff->init(p->getVirtualBox(),
+                        pParent->getPreferredDiffFormat(),
+                        Utf8StrFmt("%s%c", strSnapshotFolder.c_str(), RTPATH_DELIMITER),
+                        Guid::Empty, /* empty media registry */
+                        NULL);       /* pllRegistriesThatNeedSaving */
+        if (FAILED(rc)) throw rc;
+        MediumLockList *pMediumLockList(new MediumLockList());
+        rc = diff->createMediumLockList(true /* fFailIfInaccessible */,
+                                        true /* fMediumLockWrite */,
+                                        pParent,
+                                        *pMediumLockList);
+        if (FAILED(rc)) throw rc;
+        rc = pMediumLockList->Lock();
+        if (FAILED(rc)) throw rc;
+        /* this already registers the new diff image */
+        rc = pParent->createDiffStorage(diff, MediumVariant_Standard,
+                                        pMediumLockList,
+                                        NULL /* aProgress */,
+                                        true /* aWait */,
+                                        NULL); // pllRegistriesThatNeedSaving
+        delete pMediumLockList;
+        if (FAILED(rc)) throw rc;
+        /* Remember created medium. */
+        newMedia.append(diff);
+        *ppDiff = diff;
+    }
+    catch (HRESULT rc2)
+    {
+        rc = rc2;
+    }
+    catch (...)
+    {
+        rc = VirtualBox::handleUnexpectedExceptions(RT_SRC_POS);
+    }
+
+    return rc;
 }
 
 /* static */
@@ -327,6 +792,7 @@ HRESULT MachineCloneVM::start(IProgress **pProgress)
                         break;
                     }
                     rc = pSnapshot->COMGETTER(Parent)(pSnapshot.asOutParam());
+                    if (FAILED(rc)) throw rc;
                 }
             }
             else
@@ -372,9 +838,6 @@ HRESULT MachineCloneVM::start(IProgress **pProgress)
                 {
                     if (fSubtreeIncludesCurrent)
                     {
-                        /* zap d->snapshotId because there is no need to
-                         * create a new current state. */
-                        d->snapshotId.clear();
                         if (pCurrState.isNull())
                             throw E_FAIL;
                         machineList.append(pCurrState);
@@ -388,172 +851,38 @@ HRESULT MachineCloneVM::start(IProgress **pProgress)
             }
         }
 
-        /* Go over every machine and walk over every attachment this machine has. */
+        /* We have different approaches for getting the medias which needs to
+         * be replicated based on the clone mode the user requested (this is
+         * mostly about the full clone mode).
+         * MachineState:
+         * - Only the images which are directly attached to an source VM will
+         *   be cloned. Any parent disks in the original chain will be merged
+         *   into the final cloned disk.
+         * MachineAndChildStates:
+         * - In this case we search for images which have more than one
+         *   children in the cloned VM or are directly attached to the new VM.
+         *   All others will be merged into the remaining images which are
+         *   cloned.
+         *   This case is the most complicated one and needs several iterations
+         *   to make sure we are only cloning images which are really
+         *   necessary.
+         * AllStates:
+         * - All disks which are directly or indirectly attached to the
+         *   original VM are cloned.
+         *
+         * Note: If you change something generic in one of the methods its
+         * likely that it need to be changed in the others as well! */
         ULONG uCount       = 2; /* One init task and the machine creation. */
         ULONG uTotalWeight = 2; /* The init task and the machine creation is worth one. */
-        for (size_t i = 0; i < machineList.size(); ++i)
+        bool fAttachLinked = d->options.contains(CloneOptions_Link); /* Linked clones requested? */
+        switch (d->mode)
         {
-            ComObjPtr<Machine> machine = machineList.at(i);
-            /* If this is the Snapshot Machine we want to clone, we need to
-             * create a new diff file for the new "current state". */
-            bool fCreateDiffs = false;
-            if (machine == d->pOldMachineState)
-                fCreateDiffs = true;
-            /* If we want to create a linked clone just attach the medium
-             * associated with the snapshot. The rest is taken care of by
-             * attach already, so no need to duplicate this. */
-            bool fAttachLinked = false;
-            if (d->options.contains(CloneOptions_Link))
-                fAttachLinked = true;
-            SafeIfaceArray<IMediumAttachment> sfaAttachments;
-            rc = machine->COMGETTER(MediumAttachments)(ComSafeArrayAsOutParam(sfaAttachments));
-            if (FAILED(rc)) throw rc;
-            /* Add all attachments (and their parents) of the different
-             * machines to a worker list. */
-            for (size_t a = 0; a < sfaAttachments.size(); ++a)
-            {
-                const ComPtr<IMediumAttachment> &pAtt = sfaAttachments[a];
-                DeviceType_T type;
-                rc = pAtt->COMGETTER(Type)(&type);
-                if (FAILED(rc)) throw rc;
-
-                /* Only harddisk's are of interest. */
-                if (type != DeviceType_HardDisk)
-                    continue;
-
-                /* Valid medium attached? */
-                ComPtr<IMedium> pSrcMedium;
-                rc = pAtt->COMGETTER(Medium)(pSrcMedium.asOutParam());
-                if (FAILED(rc)) throw rc;
-                if (pSrcMedium.isNull())
-                    continue;
-
-                /* Build up a child->parent list of this attachment. (Note: we are
-                 * not interested of any child's not attached to this VM. So this
-                 * will not create a full copy of the base/child relationship.) */
-                MEDIUMTASKCHAIN mtc;
-                mtc.fCreateDiffs = fCreateDiffs;
-                mtc.fAttachLinked = fAttachLinked;
-
-                /* If the current state without any snapshots is cloned, we
-                 * don't need any diff images in the new clone. Add the last
-                 * medium to the list of medias to create only (the clone
-                 * operation of IMedium will create a merged copy
-                 * automatically). */
-                if (d->mode == CloneMode_MachineState)
-                {
-                    /* Refresh the state so that the file size get read. */
-                    MediumState_T e;
-                    rc = pSrcMedium->RefreshState(&e);
-                    if (FAILED(rc)) throw rc;
-                    LONG64 lSize;
-                    rc = pSrcMedium->COMGETTER(Size)(&lSize);
-                    if (FAILED(rc)) throw rc;
-
-                    ComPtr<IMedium> pBaseMedium;
-                    rc = pSrcMedium->COMGETTER(Base)(pBaseMedium.asOutParam());
-                    if (FAILED(rc)) throw rc;
-
-                    MEDIUMTASK mt;
-
-                    Bstr bstrBaseName;
-                    rc = pBaseMedium->COMGETTER(Name)(bstrBaseName.asOutParam());
-                    if (FAILED(rc)) throw rc;
-
-                    /* Save the base name. */
-                    mt.strBaseName = bstrBaseName;
-
-                    /* Save the current medium, for later cloning. */
-                    mt.pMedium = pSrcMedium;
-                    if (fAttachLinked)
-                        mt.uWeight = 0; /* dummy */
-                    else
-                        mt.uWeight = (lSize + _1M - 1) / _1M;
-                    mtc.chain.append(mt);
-                }
-                else
-                {
-                    /** @todo r=klaus this puts way too many images in the list
-                     * when cloning a snapshot (sub)tree, which means that more
-                     * images are cloned than necessary. It is just the easiest
-                     * way to get a working VM, as getting the image
-                     * parent/child relationships right for only the bare
-                     * minimum cloning is rather tricky. */
-                    while (!pSrcMedium.isNull())
-                    {
-                        /* Refresh the state so that the file size get read. */
-                        MediumState_T e;
-                        rc = pSrcMedium->RefreshState(&e);
-                        if (FAILED(rc)) throw rc;
-                        LONG64 lSize;
-                        rc = pSrcMedium->COMGETTER(Size)(&lSize);
-                        if (FAILED(rc)) throw rc;
-
-                        /* Save the current medium, for later cloning. */
-                        MEDIUMTASK mt;
-                        mt.pMedium = pSrcMedium;
-                        mt.uWeight = (lSize + _1M - 1) / _1M;
-                        mtc.chain.append(mt);
-
-                        /* Query next parent. */
-                        rc = pSrcMedium->COMGETTER(Parent)(pSrcMedium.asOutParam());
-                        if (FAILED(rc)) throw rc;
-                    }
-                }
-
-                if (fAttachLinked)
-                {
-                    /* Implicit diff creation as part of attach is a pretty cheap
-                     * operation, and does only need one operation per attachment. */
-                    ++uCount;
-                    uTotalWeight += 1;  /* 1MB per attachment */
-                }
-                else
-                {
-                    /* Currently the copying of diff images involves reading at least
-                     * the biggest parent in the previous chain. So even if the new
-                     * diff image is small in size, it could need some time to create
-                     * it. Adding the biggest size in the chain should balance this a
-                     * little bit more, i.e. the weight is the sum of the data which
-                     * needs to be read and written. */
-                    uint64_t uMaxSize = 0;
-                    for (size_t e = mtc.chain.size(); e > 0; --e)
-                    {
-                        MEDIUMTASK &mt = mtc.chain.at(e - 1);
-                        mt.uWeight += uMaxSize;
-
-                        /* Calculate progress data */
-                        ++uCount;
-                        uTotalWeight += mt.uWeight;
-
-                        /* Save the max size for better weighting of diff image
-                         * creation. */
-                        uMaxSize = RT_MAX(uMaxSize, mt.uWeight);
-                    }
-                }
-                d->llMedias.append(mtc);
-            }
-            Bstr bstrSrcSaveStatePath;
-            rc = machine->COMGETTER(StateFilePath)(bstrSrcSaveStatePath.asOutParam());
-            if (FAILED(rc)) throw rc;
-            if (!bstrSrcSaveStatePath.isEmpty())
-            {
-                SAVESTATETASK sst;
-                sst.snapshotUuid     = machine->getSnapshotId();
-                sst.strSaveStateFile = bstrSrcSaveStatePath;
-                uint64_t cbSize;
-                int vrc = RTFileQuerySize(sst.strSaveStateFile.c_str(), &cbSize);
-                if (RT_FAILURE(vrc))
-                    throw p->setError(VBOX_E_IPRT_ERROR, p->tr("Could not query file size of '%s' (%Rrc)"), sst.strSaveStateFile.c_str(), vrc);
-                /* same rule as above: count both the data which needs to
-                 * be read and written */
-                sst.uWeight = 2 * (cbSize + _1M - 1) / _1M;
-                d->llSaveStateFiles.append(sst);
-                ++uCount;
-                uTotalWeight += sst.uWeight;
-            }
+            case CloneMode_MachineState:          d->queryMediasForMachineState(machineList, fAttachLinked, uCount, uTotalWeight); break;
+            case CloneMode_MachineAndChildStates: d->queryMediasForMachineAndChildStates(machineList, fAttachLinked, uCount, uTotalWeight); break;
+            case CloneMode_AllStates:             d->queryMediasForAllStates(machineList, fAttachLinked, uCount, uTotalWeight); break;
         }
 
+        /* Now create the progress project, so the user knows whats going on. */
         rc = d->pProgress.createObject();
         if (FAILED(rc)) throw rc;
         rc = d->pProgress->init(p->getVirtualBox(),
@@ -619,7 +948,11 @@ HRESULT MachineCloneVM::run()
          * with the stuff from the snapshot. */
         settings::Snapshot sn;
         if (!d->snapshotId.isEmpty())
-            sn = d->findSnapshot(&trgMCF, trgMCF.llFirstSnapshot, d->snapshotId);
+            if (!d->findSnapshot(trgMCF.llFirstSnapshot, d->snapshotId, sn))
+                throw p->setError(E_FAIL,
+                                  p->tr("Could not find data to snapshots '%s'"), d->snapshotId.toString().c_str());
+
+
 
         if (d->mode == CloneMode_MachineState)
         {
@@ -636,12 +969,19 @@ HRESULT MachineCloneVM::run()
         else if (   d->mode == CloneMode_MachineAndChildStates
                  && !sn.uuid.isEmpty())
         {
-            /* Copy the snapshot data to the current machine. */
-            trgMCF.hardwareMachine = sn.hardware;
-            trgMCF.storageMachine  = sn.storage;
+            if (!d->pOldMachineState.isNull())
+            {
+                /* Copy the snapshot data to the current machine. */
+                trgMCF.hardwareMachine = sn.hardware;
+                trgMCF.storageMachine  = sn.storage;
 
+                /* Current state is under root snapshot. */
+                trgMCF.uuidCurrentSnapshot = sn.uuid;
+                /* There will be created a new differencing image based on this
+                 * snapshot. So reset the modified state. */
+                trgMCF.fCurrentStateModified = false;
+            }
             /* The snapshot will be the root one. */
-            trgMCF.uuidCurrentSnapshot = sn.uuid;
             trgMCF.llFirstSnapshot.clear();
             trgMCF.llFirstSnapshot.push_back(sn);
         }
@@ -658,8 +998,6 @@ HRESULT MachineCloneVM::run()
         if (RTPathStartsWithRoot(trgMCF.machineUserData.strSnapshotFolder.c_str()))
             trgMCF.machineUserData.strSnapshotFolder = "Snapshots";
         trgMCF.strStateFile = "";
-        /* Force writing of setting file. */
-        trgMCF.fCurrentStateModified = true;
         /* Set the new name. */
         const Utf8Str strOldVMName = trgMCF.machineUserData.strName;
         trgMCF.machineUserData.strName = d->pTrgMachine->mUserData->s.strName;
@@ -687,6 +1025,8 @@ HRESULT MachineCloneVM::run()
         {
             const MEDIUMTASKCHAIN &mtc = d->llMedias.at(i);
             ComObjPtr<Medium> pNewParent;
+            uint32_t uSrcParentIdx = UINT32_MAX;
+            uint32_t uTrgParentIdx = UINT32_MAX;
             for (size_t a = mtc.chain.size(); a > 0; --a)
             {
                 const MEDIUMTASK &mt = mtc.chain.at(a - 1);
@@ -714,8 +1054,8 @@ HRESULT MachineCloneVM::run()
                     {
                         ComObjPtr<Medium> pDiff;
                         /* create the diff under the snapshot medium */
-                        rc = createDiffHelper(pLMedium, strTrgSnapshotFolder,
-                                              &newMedia, &pDiff);
+                        rc = d->createDifferencingMedium(pLMedium, strTrgSnapshotFolder,
+                                                         newMedia, &pDiff);
                         if (FAILED(rc)) throw rc;
                         map.insert(TStrMediumPair(Utf8Str(bstrSrcId), pDiff));
                         /* diff image has to be used... */
@@ -819,10 +1159,14 @@ HRESULT MachineCloneVM::run()
                         srcLock.release();
                         /* Do the disk cloning. */
                         ComPtr<IProgress> progress2;
-                        rc = pMedium->CloneTo(pTarget,
-                                              srcVar,
-                                              pNewParent,
-                                              progress2.asOutParam());
+
+                        ComObjPtr<Medium> pLMedium = static_cast<Medium*>((IMedium*)pMedium);
+                        rc = pLMedium->cloneToEx(pTarget,
+                                                 srcVar,
+                                                 pNewParent,
+                                                 progress2.asOutParam(),
+                                                 uSrcParentIdx,
+                                                 uTrgParentIdx);
                         if (FAILED(rc)) throw rc;
 
                         /* Wait until the async process has finished. */
@@ -862,6 +1206,11 @@ HRESULT MachineCloneVM::run()
                         pNewParent = pTarget;
                     }
                 }
+                /* Save the current source medium index as the new parent
+                 * medium index. */
+                uSrcParentIdx = mt.uIdx;
+                /* Simply increase the target index. */
+                ++uTrgParentIdx;
             }
 
             Bstr bstrSrcId;
@@ -884,8 +1233,8 @@ HRESULT MachineCloneVM::run()
                 if (pBase->isReadOnly())
                 {
                     ComObjPtr<Medium> pDiff;
-                    rc = createDiffHelper(pNewParent, strTrgSnapshotFolder,
-                                          &newMedia, &pDiff);
+                    rc = d->createDifferencingMedium(pNewParent, strTrgSnapshotFolder,
+                                                     newMedia, &pDiff);
                     if (FAILED(rc)) throw rc;
                     /* diff image has to be used... */
                     pNewParent = pDiff;
@@ -975,15 +1324,26 @@ HRESULT MachineCloneVM::run()
             rc = d->pTrgMachine->loadMachineDataFromSettings(trgMCF,
                                                              &d->pTrgMachine->mData->mUuid);
             if (FAILED(rc)) throw rc;
+            /* save all VM data */
+            bool fNeedsGlobalSaveSettings = false;
+            rc = d->pTrgMachine->saveSettings(&fNeedsGlobalSaveSettings, Machine::SaveS_Force);
+            if (FAILED(rc)) throw rc;
+            /* Release all locks */
+            trgLock.release();
+            srcLock.release();
+            if (fNeedsGlobalSaveSettings)
+            {
+                /* save the global settings; for that we should hold only the
+                 * VirtualBox lock */
+                AutoWriteLock vlock(p->mParent COMMA_LOCKVAL_SRC_POS);
+                rc = p->mParent->saveSettings();
+                if (FAILED(rc)) throw rc;
+            }
         }
 
-        /* Now save the new configuration to disk. */
-        rc = d->pTrgMachine->SaveSettings();
-        if (FAILED(rc)) throw rc;
-        trgLock.release();
+        /* Any additional machines need saving? */
         if (!llRegistriesThatNeedSaving.empty())
         {
-            srcLock.release();
             rc = p->mParent->saveRegistries(llRegistriesThatNeedSaving);
             if (FAILED(rc)) throw rc;
         }
@@ -1027,60 +1387,6 @@ HRESULT MachineCloneVM::run()
     }
 
     return mrc;
-}
-
-HRESULT MachineCloneVM::createDiffHelper(const ComObjPtr<Medium> &pParent,
-                                         const Utf8Str &strSnapshotFolder,
-                                         RTCList< ComObjPtr<Medium> > *pNewMedia,
-                                         ComObjPtr<Medium> *ppDiff)
-{
-    DPTR(MachineCloneVM);
-    ComObjPtr<Machine> &p = d->p;
-    HRESULT rc = S_OK;
-
-    try
-    {
-        Bstr bstrSrcId;
-        rc = pParent->COMGETTER(Id)(bstrSrcId.asOutParam());
-        if (FAILED(rc)) throw rc;
-        ComObjPtr<Medium> diff;
-        diff.createObject();
-        rc = diff->init(p->mParent,
-                        pParent->getPreferredDiffFormat(),
-                        Utf8StrFmt("%s%c", strSnapshotFolder.c_str(), RTPATH_DELIMITER),
-                        Guid::Empty, /* empty media registry */
-                        NULL);       /* pllRegistriesThatNeedSaving */
-        if (FAILED(rc)) throw rc;
-        MediumLockList *pMediumLockList(new MediumLockList());
-        rc = diff->createMediumLockList(true /* fFailIfInaccessible */,
-                                        true /* fMediumLockWrite */,
-                                        pParent,
-                                        *pMediumLockList);
-        if (FAILED(rc)) throw rc;
-        rc = pMediumLockList->Lock();
-        if (FAILED(rc)) throw rc;
-        /* this already registers the new diff image */
-        rc = pParent->createDiffStorage(diff, MediumVariant_Standard,
-                                        pMediumLockList,
-                                        NULL /* aProgress */,
-                                        true /* aWait */,
-                                        NULL); // pllRegistriesThatNeedSaving
-        delete pMediumLockList;
-        if (FAILED(rc)) throw rc;
-        /* Remember created medium. */
-        pNewMedia->append(diff);
-        *ppDiff = diff;
-    }
-    catch (HRESULT rc2)
-    {
-        rc = rc2;
-    }
-    catch (...)
-    {
-        rc = VirtualBox::handleUnexpectedExceptions(RT_SRC_POS);
-    }
-
-    return rc;
 }
 
 void MachineCloneVM::destroy()

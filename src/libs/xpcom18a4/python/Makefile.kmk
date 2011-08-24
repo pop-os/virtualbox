@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 37113 2011-05-16 16:20:00Z vboxsync $
+# $Id: Makefile.kmk 38093 2011-07-21 12:45:30Z vboxsync $
 ## @file
 # Sub-Makefile for Python bindings
 #
@@ -72,8 +72,8 @@ VBoxPythonBase_SOURCES  = \
 	src/TypeObject.cpp \
 	src/VariantUtils.cpp
 VBoxPythonBase_LIBS     = \
-	$(PATH_LIB)/VBoxCOM$(VBOX_SUFF_LIB) \
-	$(PATH_BIN)/VBoxXPCOM$(VBOX_SUFF_DLL)
+	$(PATH_STAGE_LIB)/VBoxCOM$(VBOX_SUFF_LIB) \
+	$(PATH_STAGE_BIN)/VBoxXPCOM$(VBOX_SUFF_DLL)
 
 
 if defined(VBOX_PYTHON23_INC) \
@@ -170,6 +170,7 @@ endif # VBOX_ONLY_SDK
 #
 INSTALLS += VBoxPython-inst-py-xpcom
 VBoxPython-inst-py-xpcom_INST = $(INST_SDK)bindings/xpcom/python/xpcom/
+VBoxPython-inst-py-xpcom_MODE = a+r,u+w
 VBoxPython-inst-py-xpcom_SOURCES = \
 	vboxxpcom.py \
 	components.py \

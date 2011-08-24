@@ -1,4 +1,4 @@
-/* $Id: string.h 36527 2011-04-04 13:16:09Z vboxsync $ */
+/* $Id: string.h 38437 2011-08-12 15:05:41Z vboxsync $ */
 /** @file
  * MS COM / XPCOM Abstraction Layer - Smart string classes declaration.
  */
@@ -504,6 +504,8 @@ public:
         return *this;
     }
 
+    bool operator<(const RTCString &that) const { return RTCString::operator<(that); }
+
     RTMEMEF_NEW_AND_DELETE_OPERATORS();
 
 #if defined(VBOX_WITH_XPCOM)
@@ -562,7 +564,6 @@ public:
      *  Static immutable empty-string object. May be used for comparison purposes.
      */
     static const Utf8Str Empty;
-
 protected:
 
     void copyFrom(CBSTR a_pbstr);

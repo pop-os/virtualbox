@@ -1,4 +1,4 @@
-/* $Id: UINewHDWizard.cpp 37912 2011-07-13 11:21:36Z vboxsync $ */
+/* $Id: UINewHDWizard.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -24,7 +24,7 @@
 
 /* Local includes: */
 #include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 #include "QIFileDialog.h"
 #include "UIIconPool.h"
 #include "UINewHDWizard.h"
@@ -656,7 +656,7 @@ void UINewHDWizardPageOptions::retranslateUi()
         default:
             break;
     }
-    m_pLabel1->setText(UINewHDWizard::tr("Press the <b>Select</b> button to select the location of a file to store the virtual disk data or type a file name in the entry field."));
+    m_pLabel1->setText(UINewHDWizard::tr("Please type the name of the new virtual disk file into the box below or click on the folder icon to select a different folder to create the file in."));
 }
 
 void UINewHDWizardPageOptions::initializePage()
@@ -724,7 +724,7 @@ bool UINewHDWizardPageOptions::validatePage()
 {
     if (QFileInfo(m_strMediumPath).exists())
     {
-        vboxProblem().sayCannotOverwriteHardDiskStorage(this, m_strMediumPath);
+        msgCenter().sayCannotOverwriteHardDiskStorage(this, m_strMediumPath);
         return false;
     }
     return true;
@@ -1016,7 +1016,7 @@ bool UINewHDWizardPageSummary::createHardDisk()
     CProgress progress;
     if (!vbox.isOk())
     {
-        vboxProblem().cannotCreateHardDiskStorage(this, vbox, strMediumPath, hardDisk, progress);
+        msgCenter().cannotCreateHardDiskStorage(this, vbox, strMediumPath, hardDisk, progress);
         return false;
     }
 
@@ -1043,15 +1043,15 @@ bool UINewHDWizardPageSummary::createHardDisk()
     /* Check for errors: */
     if (!hardDisk.isOk())
     {
-        vboxProblem().cannotCreateHardDiskStorage(this, vbox, strMediumPath, hardDisk, progress);
+        msgCenter().cannotCreateHardDiskStorage(this, vbox, strMediumPath, hardDisk, progress);
         return false;
     }
-    vboxProblem().showModalProgressDialog(progress, windowTitle(), ":/progress_media_create_90px.png", this, true);
+    msgCenter().showModalProgressDialog(progress, windowTitle(), ":/progress_media_create_90px.png", this, true);
     if (progress.GetCanceled())
         return false;
     if (!progress.isOk() || progress.GetResultCode() != 0)
     {
-        vboxProblem().cannotCreateHardDiskStorage(this, vbox, strMediumPath, hardDisk, progress);
+        msgCenter().cannotCreateHardDiskStorage(this, vbox, strMediumPath, hardDisk, progress);
         return false;
     }
 

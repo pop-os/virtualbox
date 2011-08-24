@@ -1,12 +1,12 @@
-/* $Id: VBoxExportApplianceWgt.cpp 29986 2010-06-02 12:30:38Z vboxsync $ */
+/* $Id: UIApplianceExportEditorWidget.cpp 38410 2011-08-11 09:34:18Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
- * VBoxExportApplianceWgt class implementation
+ * UIApplianceExportEditorWidget class implementation
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,9 +18,9 @@
  */
 
 /* VBox includes */
-#include "VBoxExportApplianceWgt.h"
+#include "UIApplianceExportEditorWidget.h"
 #include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // ExportSortProxyModel
@@ -28,10 +28,10 @@
 class ExportSortProxyModel: public VirtualSystemSortProxyModel
 {
 public:
-    ExportSortProxyModel (QObject *aParent = NULL)
-      : VirtualSystemSortProxyModel (aParent)
+    ExportSortProxyModel(QObject *pParent = NULL)
+      : VirtualSystemSortProxyModel(pParent)
     {
-        mFilterList
+        m_filterList
             << KVirtualSystemDescriptionType_OS
             << KVirtualSystemDescriptionType_CPU
             << KVirtualSystemDescriptionType_Memory
@@ -48,63 +48,63 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-// VBoxExportApplianceWgt
+// UIApplianceExportEditorWidget
 
-VBoxExportApplianceWgt::VBoxExportApplianceWgt (QWidget *aParent /* = NULL */)
-  : VBoxApplianceEditorWgt (aParent)
+UIApplianceExportEditorWidget::UIApplianceExportEditorWidget(QWidget *pParent /* = NULL */)
+  : UIApplianceEditorWidget(pParent)
 {
 }
 
-CAppliance* VBoxExportApplianceWgt::init()
+CAppliance* UIApplianceExportEditorWidget::init()
 {
-    if (mAppliance)
-        delete mAppliance;
+    if (m_pAppliance)
+        delete m_pAppliance;
     CVirtualBox vbox = vboxGlobal().virtualBox();
     /* Create a appliance object */
-    mAppliance = new CAppliance(vbox.CreateAppliance());
-//    bool fResult = mAppliance->isOk();
-    return mAppliance;
+    m_pAppliance = new CAppliance(vbox.CreateAppliance());
+//    bool fResult = m_pAppliance->isOk();
+    return m_pAppliance;
 }
 
-void VBoxExportApplianceWgt::populate()
+void UIApplianceExportEditorWidget::populate()
 {
-    if (mModel)
-        delete mModel;
+    if (m_pModel)
+        delete m_pModel;
 
-    QVector<CVirtualSystemDescription> vsds = mAppliance->GetVirtualSystemDescriptions();
+    QVector<CVirtualSystemDescription> vsds = m_pAppliance->GetVirtualSystemDescriptions();
 
-    mModel = new VirtualSystemModel (vsds, this);
+    m_pModel = new VirtualSystemModel(vsds, this);
 
-    ExportSortProxyModel *proxy = new ExportSortProxyModel (this);
-    proxy->setSourceModel (mModel);
-    proxy->sort (DescriptionSection, Qt::DescendingOrder);
+    ExportSortProxyModel *pProxy = new ExportSortProxyModel(this);
+    pProxy->setSourceModel(m_pModel);
+    pProxy->sort(DescriptionSection, Qt::DescendingOrder);
 
-    VirtualSystemDelegate *delegate = new VirtualSystemDelegate (proxy, this);
+    VirtualSystemDelegate *pDelegate = new VirtualSystemDelegate(pProxy, this);
 
     /* Set our own model */
-    mTvSettings->setModel (proxy);
+    m_pTvSettings->setModel(pProxy);
     /* Set our own delegate */
-    mTvSettings->setItemDelegate (delegate);
+    m_pTvSettings->setItemDelegate(pDelegate);
     /* For now we hide the original column. This data is displayed as tooltip
        also. */
-    mTvSettings->setColumnHidden (OriginalValueSection, true);
-    mTvSettings->expandAll();
+    m_pTvSettings->setColumnHidden(OriginalValueSection, true);
+    m_pTvSettings->expandAll();
 
     /* Check for warnings & if there are one display them. */
     bool fWarningsEnabled = false;
-    QVector<QString> warnings = mAppliance->GetWarnings();
+    QVector<QString> warnings = m_pAppliance->GetWarnings();
     if (warnings.size() > 0)
     {
         foreach (const QString& text, warnings)
-            mWarningTextEdit->append ("- " + text);
+            mWarningTextEdit->append("- " + text);
         fWarningsEnabled = true;
     }
-    mWarningWidget->setShown (fWarningsEnabled);
+    m_pWarningWidget->setShown(fWarningsEnabled);
 }
 
-void VBoxExportApplianceWgt::prepareExport()
+void UIApplianceExportEditorWidget::prepareExport()
 {
-    if (mAppliance)
-        mModel->putBack();
+    if (m_pAppliance)
+        m_pModel->putBack();
 }
 

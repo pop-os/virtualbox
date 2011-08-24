@@ -1,4 +1,4 @@
-/* $Id: GuestCtrlImpl.cpp 37930 2011-07-13 19:56:55Z vboxsync $ */
+/* $Id: GuestCtrlImpl.cpp 38439 2011-08-12 15:29:32Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation: Guest
  */
@@ -16,6 +16,7 @@
  */
 
 #include "GuestImpl.h"
+#include "GuestCtrlImplPrivate.h"
 
 #include "Global.h"
 #include "ConsoleImpl.h"
@@ -39,1101 +40,6 @@
 #include <VBox/vmm/pgm.h>
 
 #include <memory>
-
-struct Guest::TaskGuest
-{
-    enum TaskType
-    {
-        /** Copies a file from host to the guest. */
-        CopyFileToGuest   = 50,
-        /** Copies a file from guest to the host. */
-        CopyFileFromGuest = 55,
-
-        /** Update Guest Additions by directly copying the required installer
-         *  off the .ISO file, transfer it to the guest and execute the installer
-         *  with system privileges. */
-        UpdateGuestAdditions = 100
-    };
-
-    TaskGuest(TaskType aTaskType, Guest *aThat, Progress *aProgress)
-        : taskType(aTaskType),
-          pGuest(aThat),
-          progress(aProgress),
-          rc(S_OK)
-    {}
-    virtual ~TaskGuest() {}
-
-    int startThread();
-    static int taskThread(RTTHREAD aThread, void *pvUser);
-    static int uploadProgress(unsigned uPercent, void *pvUser);
-
-    static HRESULT setProgressErrorInfo(HRESULT hr, ComObjPtr<Progress> pProgress, const char * pszText, ...);
-    static HRESULT setProgressErrorInfo(HRESULT hr, ComObjPtr<Progress> pProgress, ComObjPtr<Guest> pGuest);
-
-    TaskType taskType;
-    Guest *pGuest;
-    ComObjPtr<Progress> progress;
-    HRESULT rc;
-
-    /* Task data. */
-    Utf8Str strSource;
-    Utf8Str strDest;
-    Utf8Str strUserName;
-    Utf8Str strPassword;
-    ULONG   uFlags;
-};
-
-int Guest::TaskGuest::startThread()
-{
-    int vrc = RTThreadCreate(NULL, Guest::TaskGuest::taskThread, this,
-                             0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0,
-                             "Guest::Task");
-
-    if (RT_FAILURE(vrc))
-        return Guest::setErrorStatic(E_FAIL, Utf8StrFmt("Could not create taskThreadGuest (%Rrc)\n", vrc));
-
-    return vrc;
-}
-
-/* static */
-DECLCALLBACK(int) Guest::TaskGuest::taskThread(RTTHREAD /* aThread */, void *pvUser)
-{
-    std::auto_ptr<TaskGuest> task(static_cast<TaskGuest*>(pvUser));
-    AssertReturn(task.get(), VERR_GENERAL_FAILURE);
-
-    Guest *pGuest = task->pGuest;
-
-    LogFlowFuncEnter();
-    LogFlowFunc(("Guest %p\n", pGuest));
-
-    HRESULT rc = S_OK;
-
-    switch (task->taskType)
-    {
-#ifdef VBOX_WITH_GUEST_CONTROL
-        case TaskGuest::CopyFileToGuest:
-        {
-            rc = pGuest->taskCopyFileToGuest(task.get());
-            break;
-        }
-        case TaskGuest::CopyFileFromGuest:
-        {
-            rc = pGuest->taskCopyFileFromGuest(task.get());
-            break;
-        }
-        case TaskGuest::UpdateGuestAdditions:
-        {
-            rc = pGuest->taskUpdateGuestAdditions(task.get());
-            break;
-        }
-#endif
-        default:
-            AssertMsgFailed(("Invalid task type %u specified!\n", task->taskType));
-            break;
-    }
-
-    LogFlowFunc(("rc=%Rhrc\n", rc));
-    LogFlowFuncLeave();
-
-    return VINF_SUCCESS;
-}
-
-/* static */
-int Guest::TaskGuest::uploadProgress(unsigned uPercent, void *pvUser)
-{
-    Guest::TaskGuest *pTask = *(Guest::TaskGuest**)pvUser;
-
-    if (pTask &&
-        !pTask->progress.isNull())
-    {
-        BOOL fCanceled;
-        pTask->progress->COMGETTER(Canceled)(&fCanceled);
-        if (fCanceled)
-            return -1;
-        pTask->progress->SetCurrentOperationProgress(uPercent);
-    }
-    return VINF_SUCCESS;
-}
-
-/* static */
-HRESULT Guest::TaskGuest::setProgressErrorInfo(HRESULT hr, ComObjPtr<Progress> pProgress, const char *pszText, ...)
-{
-    BOOL fCanceled;
-    BOOL fCompleted;
-    if (   SUCCEEDED(pProgress->COMGETTER(Canceled(&fCanceled)))
-        && !fCanceled
-        && SUCCEEDED(pProgress->COMGETTER(Completed(&fCompleted)))
-        && !fCompleted)
-    {
-        va_list va;
-        va_start(va, pszText);
-        HRESULT hr2 = pProgress->notifyCompleteV(hr,
-                                                 COM_IIDOF(IGuest),
-                                                 Guest::getStaticComponentName(),
-                                                 pszText,
-                                                 va);
-        va_end(va);
-        if (hr2 == S_OK) /* If unable to retrieve error, return input error. */
-            hr2 = hr;
-        return hr2;
-    }
-    return S_OK;
-}
-
-/* static */
-HRESULT Guest::TaskGuest::setProgressErrorInfo(HRESULT hr, ComObjPtr<Progress> pProgress, ComObjPtr<Guest> pGuest)
-{
-    return setProgressErrorInfo(hr, pProgress,
-                                Utf8Str(com::ErrorInfo((IGuest*)pGuest, COM_IIDOF(IGuest)).getText()).c_str());
-}
-
-#ifdef VBOX_WITH_GUEST_CONTROL
-HRESULT Guest::taskCopyFileToGuest(TaskGuest *aTask)
-{
-    LogFlowFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /*
-     * Do *not* take a write lock here since we don't (and won't)
-     * touch any class-specific data (of IGuest) here - only the member functions
-     * which get called here can do that.
-     */
-
-    HRESULT rc = S_OK;
-
-    try
-    {
-        Guest *pGuest = aTask->pGuest;
-        AssertPtr(pGuest);
-
-        /* Does our source file exist? */
-        if (!RTFileExists(aTask->strSource.c_str()))
-        {
-            rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                 Guest::tr("Source file \"%s\" does not exist, or is not a file"),
-                                                 aTask->strSource.c_str());
-        }
-        else
-        {
-            RTFILE fileSource;
-            int vrc = RTFileOpen(&fileSource, aTask->strSource.c_str(),
-                                 RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_WRITE);
-            if (RT_FAILURE(vrc))
-            {
-                rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                     Guest::tr("Could not open source file \"%s\" for reading (%Rrc)"),
-                                                     aTask->strSource.c_str(),  vrc);
-            }
-            else
-            {
-                uint64_t cbSize;
-                vrc = RTFileGetSize(fileSource, &cbSize);
-                if (RT_FAILURE(vrc))
-                {
-                    rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                         Guest::tr("Could not query file size of \"%s\" (%Rrc)"),
-                                                         aTask->strSource.c_str(), vrc);
-                }
-                else
-                {
-                    com::SafeArray<IN_BSTR> args;
-                    com::SafeArray<IN_BSTR> env;
-
-                    /*
-                     * Prepare tool command line.
-                     */
-                    char szOutput[RTPATH_MAX];
-                    if (RTStrPrintf(szOutput, sizeof(szOutput), "--output=%s", aTask->strDest.c_str()) <= sizeof(szOutput) - 1)
-                    {
-                        /*
-                         * Normalize path slashes, based on the detected guest.
-                         */
-                        Utf8Str osType = mData.mOSTypeId;
-                        if (   osType.contains("Microsoft", Utf8Str::CaseInsensitive)
-                            || osType.contains("Windows", Utf8Str::CaseInsensitive))
-                        {
-                            /* We have a Windows guest. */
-                            RTPathChangeToDosSlashes(szOutput, true /* Force conversion. */);
-                        }
-                        else /* ... or something which isn't from Redmond ... */
-                        {
-                            RTPathChangeToUnixSlashes(szOutput, true /* Force conversion. */);
-                        }
-
-                        args.push_back(Bstr(szOutput).raw());             /* We want to write a file ... */
-                    }
-                    else
-                    {
-                        rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                             Guest::tr("Error preparing command line"));
-                    }
-
-                    ComPtr<IProgress> execProgress;
-                    ULONG uPID;
-                    if (SUCCEEDED(rc))
-                    {
-                        LogRel(("Copying file \"%s\" to guest \"%s\" (%u bytes) ...\n",
-                                aTask->strSource.c_str(), aTask->strDest.c_str(), cbSize));
-                        /*
-                         * Okay, since we gathered all stuff we need until now to start the
-                         * actual copying, start the guest part now.
-                         */
-                        rc = pGuest->ExecuteProcess(Bstr(VBOXSERVICE_TOOL_CAT).raw(),
-                                                      ExecuteProcessFlag_Hidden
-                                                    | ExecuteProcessFlag_WaitForProcessStartOnly,
-                                                    ComSafeArrayAsInParam(args),
-                                                    ComSafeArrayAsInParam(env),
-                                                    Bstr(aTask->strUserName).raw(),
-                                                    Bstr(aTask->strPassword).raw(),
-                                                    5 * 1000 /* Wait 5s for getting the process started. */,
-                                                    &uPID, execProgress.asOutParam());
-                        if (FAILED(rc))
-                            rc = TaskGuest::setProgressErrorInfo(rc, aTask->progress, pGuest);
-                    }
-
-                    if (SUCCEEDED(rc))
-                    {
-                        BOOL fCompleted = FALSE;
-                        BOOL fCanceled = FALSE;
-
-                        size_t cbToRead = cbSize;
-                        size_t cbTransfered = 0;
-                        size_t cbRead;
-                        SafeArray<BYTE> aInputData(_64K);
-                        while (   SUCCEEDED(execProgress->COMGETTER(Completed(&fCompleted)))
-                               && !fCompleted)
-                        {
-                            if (!cbToRead)
-                                cbRead = 0;
-                            else
-                            {
-                                vrc = RTFileRead(fileSource, (uint8_t*)aInputData.raw(),
-                                                 RT_MIN(cbToRead, _64K), &cbRead);
-                                /*
-                                 * Some other error occured? There might be a chance that RTFileRead
-                                 * could not resolve/map the native error code to an IPRT code, so just
-                                 * print a generic error.
-                                 */
-                                if (RT_FAILURE(vrc))
-                                {
-                                    rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                                         Guest::tr("Could not read from file \"%s\" (%Rrc)"),
-                                                                         aTask->strSource.c_str(), vrc);
-                                    break;
-                                }
-                            }
-
-                            /* Resize buffer to reflect amount we just have read.
-                             * Size 0 is allowed! */
-                            aInputData.resize(cbRead);
-
-                            ULONG uFlags = ProcessInputFlag_None;
-                            /* Did we reach the end of the content we want to transfer (last chunk)? */
-                            if (   (cbRead < _64K)
-                                /* Did we reach the last block which is exactly _64K? */
-                                || (cbToRead - cbRead == 0)
-                                /* ... or does the user want to cancel? */
-                                || (   SUCCEEDED(aTask->progress->COMGETTER(Canceled(&fCanceled)))
-                                    && fCanceled)
-                               )
-                            {
-                                uFlags |= ProcessInputFlag_EndOfFile;
-                            }
-
-                            /* Transfer the current chunk ... */
-                            ULONG uBytesWritten;
-                            rc = pGuest->SetProcessInput(uPID, uFlags,
-                                                         10 * 1000 /* Wait 10s for getting the input data transfered. */,
-                                                         ComSafeArrayAsInParam(aInputData), &uBytesWritten);
-                            if (FAILED(rc))
-                            {
-                                rc = TaskGuest::setProgressErrorInfo(rc, aTask->progress, pGuest);
-                                break;
-                            }
-
-                            Assert(cbRead <= cbToRead);
-                            Assert(cbToRead >= cbRead);
-                            cbToRead -= cbRead;
-
-                            cbTransfered += uBytesWritten;
-                            Assert(cbTransfered <= cbSize);
-                            aTask->progress->SetCurrentOperationProgress(cbTransfered / (cbSize / 100.0));
-
-                            /* End of file reached? */
-                            if (cbToRead == 0)
-                                break;
-
-                            /* Did the user cancel the operation above? */
-                            if (fCanceled)
-                                break;
-
-                            /* Progress canceled by Main API? */
-                            if (   SUCCEEDED(execProgress->COMGETTER(Canceled(&fCanceled)))
-                                && fCanceled)
-                            {
-                                rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                                     Guest::tr("Copy operation of file \"%s\" was canceled on guest side"),
-                                                                     aTask->strSource.c_str());
-                                break;
-                            }
-                        }
-
-                        if (SUCCEEDED(rc))
-                        {
-                            /*
-                             * If we got here this means the started process either was completed,
-                             * canceled or we simply got all stuff transferred.
-                             */
-                            ExecuteProcessStatus_T retStatus;
-                            ULONG uRetExitCode;
-                            rc = pGuest->waitForProcessStatusChange(uPID, &retStatus, &uRetExitCode, 10 * 1000 /* 10s timeout. */);
-                            if (FAILED(rc))
-                            {
-                                rc = TaskGuest::setProgressErrorInfo(rc, aTask->progress, pGuest);
-                            }
-                            else
-                            {
-                                if (   uRetExitCode != 0
-                                    || retStatus    != ExecuteProcessStatus_TerminatedNormally)
-                                {
-                                    rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                                         Guest::tr("Guest reported error %u while copying file \"%s\" to \"%s\""),
-                                                                         uRetExitCode, aTask->strSource.c_str(), aTask->strDest.c_str());
-                                }
-                            }
-                        }
-
-                        if (SUCCEEDED(rc))
-                        {
-                            if (fCanceled)
-                            {
-                                /*
-                                 * In order to make the progress object to behave nicely, we also have to
-                                 * notify the object with a complete event when it's canceled.
-                                 */
-                                aTask->progress->notifyComplete(VBOX_E_IPRT_ERROR,
-                                                                COM_IIDOF(IGuest),
-                                                                Guest::getStaticComponentName(),
-                                                                Guest::tr("Copying file \"%s\" canceled"), aTask->strSource.c_str());
-                            }
-                            else
-                            {
-                                /*
-                                 * Even if we succeeded until here make sure to check whether we really transfered
-                                 * everything.
-                                 */
-                                if (   cbSize > 0
-                                    && cbTransfered == 0)
-                                {
-                                    /* If nothing was transfered but the file size was > 0 then "vbox_cat" wasn't able to write
-                                     * to the destination -> access denied. */
-                                    rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                                         Guest::tr("Access denied when copying file \"%s\" to \"%s\""),
-                                                                         aTask->strSource.c_str(), aTask->strDest.c_str());
-                                }
-                                else if (cbTransfered < cbSize)
-                                {
-                                    /* If we did not copy all let the user know. */
-                                    rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                                         Guest::tr("Copying file \"%s\" failed (%u/%u bytes transfered)"),
-                                                                         aTask->strSource.c_str(), cbTransfered, cbSize);
-                                }
-                                else /* Yay, all went fine! */
-                                    aTask->progress->notifyComplete(S_OK);
-                            }
-                        }
-                    }
-                }
-                RTFileClose(fileSource);
-            }
-        }
-    }
-    catch (HRESULT aRC)
-    {
-        rc = aRC;
-    }
-
-    /* Clean up */
-    aTask->rc = rc;
-
-    LogFlowFunc(("rc=%Rhrc\n", rc));
-    LogFlowFuncLeave();
-
-    return VINF_SUCCESS;
-}
-
-HRESULT Guest::taskCopyFileFromGuest(TaskGuest *aTask)
-{
-    LogFlowFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /*
-     * Do *not* take a write lock here since we don't (and won't)
-     * touch any class-specific data (of IGuest) here - only the member functions
-     * which get called here can do that.
-     */
-
-    HRESULT rc = S_OK;
-
-    try
-    {
-        Guest *pGuest = aTask->pGuest;
-        AssertPtr(pGuest);
-
-
-
-#if 0
-        /* Does our source file exist? */
-        if (!RTFileExists(aTask->strSource.c_str()))
-        {
-            rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                 Guest::tr("Source file \"%s\" does not exist, or is not a file"),
-                                                 aTask->strSource.c_str());
-        }
-        else
-        {
-            RTFILE fileSource;
-            int vrc = RTFileOpen(&fileSource, aTask->strSource.c_str(),
-                                 RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_WRITE);
-            if (RT_FAILURE(vrc))
-            {
-                rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                     Guest::tr("Could not open source file \"%s\" for reading (%Rrc)"),
-                                                     aTask->strSource.c_str(),  vrc);
-            }
-            else
-            {
-                uint64_t cbSize;
-                vrc = RTFileGetSize(fileSource, &cbSize);
-                if (RT_FAILURE(vrc))
-                {
-                    rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                         Guest::tr("Could not query file size of \"%s\" (%Rrc)"),
-                                                         aTask->strSource.c_str(), vrc);
-                }
-                else
-                {
-                    com::SafeArray<IN_BSTR> args;
-                    com::SafeArray<IN_BSTR> env;
-
-                    /*
-                     * Prepare tool command line.
-                     */
-                    char szOutput[RTPATH_MAX];
-                    if (RTStrPrintf(szOutput, sizeof(szOutput), "--output=%s", aTask->strDest.c_str()) <= sizeof(szOutput) - 1)
-                    {
-                        /*
-                         * Normalize path slashes, based on the detected guest.
-                         */
-                        Utf8Str osType = mData.mOSTypeId;
-                        if (   osType.contains("Microsoft", Utf8Str::CaseInsensitive)
-                            || osType.contains("Windows", Utf8Str::CaseInsensitive))
-                        {
-                            /* We have a Windows guest. */
-                            RTPathChangeToDosSlashes(szOutput, true /* Force conversion. */);
-                        }
-                        else /* ... or something which isn't from Redmond ... */
-                        {
-                            RTPathChangeToUnixSlashes(szOutput, true /* Force conversion. */);
-                        }
-
-                        args.push_back(Bstr(szOutput).raw());             /* We want to write a file ... */
-                    }
-                    else
-                    {
-                        rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                             Guest::tr("Error preparing command line"));
-                    }
-
-                    ComPtr<IProgress> execProgress;
-                    ULONG uPID;
-                    if (SUCCEEDED(rc))
-                    {
-                        LogRel(("Copying file \"%s\" to guest \"%s\" (%u bytes) ...\n",
-                                aTask->strSource.c_str(), aTask->strDest.c_str(), cbSize));
-                        /*
-                         * Okay, since we gathered all stuff we need until now to start the
-                         * actual copying, start the guest part now.
-                         */
-                        rc = pGuest->ExecuteProcess(Bstr(VBOXSERVICE_TOOL_CAT).raw(),
-                                                      ExecuteProcessFlag_Hidden
-                                                    | ExecuteProcessFlag_WaitForProcessStartOnly,
-                                                    ComSafeArrayAsInParam(args),
-                                                    ComSafeArrayAsInParam(env),
-                                                    Bstr(aTask->strUserName).raw(),
-                                                    Bstr(aTask->strPassword).raw(),
-                                                    5 * 1000 /* Wait 5s for getting the process started. */,
-                                                    &uPID, execProgress.asOutParam());
-                        if (FAILED(rc))
-                            rc = TaskGuest::setProgressErrorInfo(rc, aTask->progress, pGuest);
-                    }
-
-                    if (SUCCEEDED(rc))
-                    {
-                        BOOL fCompleted = FALSE;
-                        BOOL fCanceled = FALSE;
-
-                        size_t cbToRead = cbSize;
-                        size_t cbTransfered = 0;
-                        size_t cbRead;
-                        SafeArray<BYTE> aInputData(_64K);
-                        while (   SUCCEEDED(execProgress->COMGETTER(Completed(&fCompleted)))
-                               && !fCompleted)
-                        {
-                            if (!cbToRead)
-                                cbRead = 0;
-                            else
-                            {
-                                vrc = RTFileRead(fileSource, (uint8_t*)aInputData.raw(),
-                                                 RT_MIN(cbToRead, _64K), &cbRead);
-                                /*
-                                 * Some other error occured? There might be a chance that RTFileRead
-                                 * could not resolve/map the native error code to an IPRT code, so just
-                                 * print a generic error.
-                                 */
-                                if (RT_FAILURE(vrc))
-                                {
-                                    rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                                         Guest::tr("Could not read from file \"%s\" (%Rrc)"),
-                                                                         aTask->strSource.c_str(), vrc);
-                                    break;
-                                }
-                            }
-
-                            /* Resize buffer to reflect amount we just have read.
-                             * Size 0 is allowed! */
-                            aInputData.resize(cbRead);
-
-                            ULONG uFlags = ProcessInputFlag_None;
-                            /* Did we reach the end of the content we want to transfer (last chunk)? */
-                            if (   (cbRead < _64K)
-                                /* Did we reach the last block which is exactly _64K? */
-                                || (cbToRead - cbRead == 0)
-                                /* ... or does the user want to cancel? */
-                                || (   SUCCEEDED(aTask->progress->COMGETTER(Canceled(&fCanceled)))
-                                    && fCanceled)
-                               )
-                            {
-                                uFlags |= ProcessInputFlag_EndOfFile;
-                            }
-
-                            /* Transfer the current chunk ... */
-                            ULONG uBytesWritten;
-                            rc = pGuest->SetProcessInput(uPID, uFlags,
-                                                         10 * 1000 /* Wait 10s for getting the input data transfered. */,
-                                                         ComSafeArrayAsInParam(aInputData), &uBytesWritten);
-                            if (FAILED(rc))
-                            {
-                                rc = TaskGuest::setProgressErrorInfo(rc, aTask->progress, pGuest);
-                                break;
-                            }
-
-                            Assert(cbRead <= cbToRead);
-                            Assert(cbToRead >= cbRead);
-                            cbToRead -= cbRead;
-
-                            cbTransfered += uBytesWritten;
-                            Assert(cbTransfered <= cbSize);
-                            aTask->progress->SetCurrentOperationProgress(cbTransfered / (cbSize / 100.0));
-
-                            /* End of file reached? */
-                            if (cbToRead == 0)
-                                break;
-
-                            /* Did the user cancel the operation above? */
-                            if (fCanceled)
-                                break;
-
-                            /* Progress canceled by Main API? */
-                            if (   SUCCEEDED(execProgress->COMGETTER(Canceled(&fCanceled)))
-                                && fCanceled)
-                            {
-                                rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                                     Guest::tr("Copy operation of file \"%s\" was canceled on guest side"),
-                                                                     aTask->strSource.c_str());
-                                break;
-                            }
-                        }
-
-                        if (SUCCEEDED(rc))
-                        {
-                            /*
-                             * If we got here this means the started process either was completed,
-                             * canceled or we simply got all stuff transferred.
-                             */
-                            ExecuteProcessStatus_T retStatus;
-                            ULONG uRetExitCode;
-                            rc = pGuest->waitForProcessStatusChange(uPID, &retStatus, &uRetExitCode, 10 * 1000 /* 10s timeout. */);
-                            if (FAILED(rc))
-                            {
-                                rc = TaskGuest::setProgressErrorInfo(rc, aTask->progress, pGuest);
-                            }
-                            else
-                            {
-                                if (   uRetExitCode != 0
-                                    || retStatus    != ExecuteProcessStatus_TerminatedNormally)
-                                {
-                                    rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                                         Guest::tr("Guest reported error %u while copying file \"%s\" to \"%s\""),
-                                                                         uRetExitCode, aTask->strSource.c_str(), aTask->strDest.c_str());
-                                }
-                            }
-                        }
-
-                        if (SUCCEEDED(rc))
-                        {
-                            if (fCanceled)
-                            {
-                                /*
-                                 * In order to make the progress object to behave nicely, we also have to
-                                 * notify the object with a complete event when it's canceled.
-                                 */
-                                aTask->progress->notifyComplete(VBOX_E_IPRT_ERROR,
-                                                                COM_IIDOF(IGuest),
-                                                                Guest::getStaticComponentName(),
-                                                                Guest::tr("Copying file \"%s\" canceled"), aTask->strSource.c_str());
-                            }
-                            else
-                            {
-                                /*
-                                 * Even if we succeeded until here make sure to check whether we really transfered
-                                 * everything.
-                                 */
-                                if (   cbSize > 0
-                                    && cbTransfered == 0)
-                                {
-                                    /* If nothing was transfered but the file size was > 0 then "vbox_cat" wasn't able to write
-                                     * to the destination -> access denied. */
-                                    rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                                         Guest::tr("Access denied when copying file \"%s\" to \"%s\""),
-                                                                         aTask->strSource.c_str(), aTask->strDest.c_str());
-                                }
-                                else if (cbTransfered < cbSize)
-                                {
-                                    /* If we did not copy all let the user know. */
-                                    rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                                         Guest::tr("Copying file \"%s\" failed (%u/%u bytes transfered)"),
-                                                                         aTask->strSource.c_str(), cbTransfered, cbSize);
-                                }
-                                else /* Yay, all went fine! */
-                                    aTask->progress->notifyComplete(S_OK);
-                            }
-                        }
-                    }
-                }
-                RTFileClose(fileSource);
-            }
-        }
-#endif
-    }
-    catch (HRESULT aRC)
-    {
-        rc = aRC;
-    }
-
-    /* Clean up */
-    aTask->rc = rc;
-
-    LogFlowFunc(("rc=%Rhrc\n", rc));
-    LogFlowFuncLeave();
-
-    return VINF_SUCCESS;
-}
-
-HRESULT Guest::taskUpdateGuestAdditions(TaskGuest *aTask)
-{
-    LogFlowFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /*
-     * Do *not* take a write lock here since we don't (and won't)
-     * touch any class-specific data (of IGuest) here - only the member functions
-     * which get called here can do that.
-     */
-
-    HRESULT rc = S_OK;
-    BOOL fCompleted;
-    BOOL fCanceled;
-
-    try
-    {
-        Guest *pGuest = aTask->pGuest;
-        AssertPtr(pGuest);
-
-        aTask->progress->SetCurrentOperationProgress(10);
-
-        /*
-         * Determine guest OS type and the required installer image.
-         * At the moment only Windows guests are supported.
-         */
-        Utf8Str installerImage;
-        Bstr osTypeId;
-        if (   SUCCEEDED(pGuest->COMGETTER(OSTypeId(osTypeId.asOutParam())))
-            && !osTypeId.isEmpty())
-        {
-            Utf8Str osTypeIdUtf8(osTypeId); /* Needed for .contains(). */
-            if (   osTypeIdUtf8.contains("Microsoft", Utf8Str::CaseInsensitive)
-                || osTypeIdUtf8.contains("Windows", Utf8Str::CaseInsensitive))
-            {
-                if (osTypeIdUtf8.contains("64", Utf8Str::CaseInsensitive))
-                    installerImage = "VBOXWINDOWSADDITIONS_AMD64.EXE";
-                else
-                    installerImage = "VBOXWINDOWSADDITIONS_X86.EXE";
-                /* Since the installers are located in the root directory,
-                 * no further path processing needs to be done (yet). */
-            }
-            else /* Everything else is not supported (yet). */
-                throw TaskGuest::setProgressErrorInfo(VBOX_E_NOT_SUPPORTED, aTask->progress,
-                                                      Guest::tr("Detected guest OS (%s) does not support automatic Guest Additions updating, please update manually"),
-                                                      osTypeIdUtf8.c_str());
-        }
-        else
-            throw TaskGuest::setProgressErrorInfo(VBOX_E_NOT_SUPPORTED, aTask->progress,
-                                                  Guest::tr("Could not detected guest OS type/version, please update manually"));
-        Assert(!installerImage.isEmpty());
-
-        /*
-         * Try to open the .ISO file and locate the specified installer.
-         */
-        RTISOFSFILE iso;
-        int vrc = RTIsoFsOpen(&iso, aTask->strSource.c_str());
-        if (RT_FAILURE(vrc))
-        {
-            rc = TaskGuest::setProgressErrorInfo(VBOX_E_FILE_ERROR, aTask->progress,
-                                                 Guest::tr("Invalid installation medium detected: \"%s\""),
-                                                 aTask->strSource.c_str());
-        }
-        else
-        {
-            uint32_t cbOffset;
-            size_t cbLength;
-            vrc = RTIsoFsGetFileInfo(&iso, installerImage.c_str(), &cbOffset, &cbLength);
-            if (   RT_SUCCESS(vrc)
-                && cbOffset
-                && cbLength)
-            {
-                vrc = RTFileSeek(iso.file, cbOffset, RTFILE_SEEK_BEGIN, NULL);
-                if (RT_FAILURE(vrc))
-                    rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                         Guest::tr("Could not seek to setup file on installation medium \"%s\" (%Rrc)"),
-                                                         aTask->strSource.c_str(), vrc);
-            }
-            else
-            {
-                switch (vrc)
-                {
-                    case VERR_FILE_NOT_FOUND:
-                        rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                             Guest::tr("Setup file was not found on installation medium \"%s\""),
-                                                             aTask->strSource.c_str());
-                        break;
-
-                    default:
-                        rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                             Guest::tr("An unknown error (%Rrc) occured while retrieving information of setup file on installation medium \"%s\""),
-                                                             vrc, aTask->strSource.c_str());
-                        break;
-                }
-            }
-
-            /* Specify the ouput path on the guest side. */
-            Utf8Str strInstallerPath = "%TEMP%\\VBoxWindowsAdditions.exe";
-
-            if (RT_SUCCESS(vrc))
-            {
-                /* Okay, we're ready to start our copy routine on the guest! */
-                aTask->progress->SetCurrentOperationProgress(15);
-
-                /* Prepare command line args. */
-                com::SafeArray<IN_BSTR> args;
-                com::SafeArray<IN_BSTR> env;
-
-                args.push_back(Bstr("--output").raw());               /* We want to write a file ... */
-                args.push_back(Bstr(strInstallerPath.c_str()).raw()); /* ... with this path. */
-
-                if (SUCCEEDED(rc))
-                {
-                    ComPtr<IProgress> progressCat;
-                    ULONG uPID;
-
-                    /*
-                     * Start built-in "vbox_cat" tool (inside VBoxService) to
-                     * copy over/pipe the data into a file on the guest (with
-                     * system rights, no username/password specified).
-                     */
-                    rc = pGuest->executeProcessInternal(Bstr(VBOXSERVICE_TOOL_CAT).raw(),
-                                                          ExecuteProcessFlag_Hidden
-                                                        | ExecuteProcessFlag_WaitForProcessStartOnly,
-                                                        ComSafeArrayAsInParam(args),
-                                                        ComSafeArrayAsInParam(env),
-                                                        Bstr("").raw() /* Username. */,
-                                                        Bstr("").raw() /* Password */,
-                                                        5 * 1000 /* Wait 5s for getting the process started. */,
-                                                        &uPID, progressCat.asOutParam(), &vrc);
-                    if (FAILED(rc))
-                    {
-                        /* Errors which return VBOX_E_NOT_SUPPORTED can be safely skipped by the caller
-                         * to silently fall back to "normal" (old) .ISO mounting. */
-
-                        /* Due to a very limited COM error range we use vrc for a more detailed error
-                         * lookup to figure out what went wrong. */
-                        switch (vrc)
-                        {
-                            /* Guest execution service is not (yet) ready. This basically means that either VBoxService
-                             * is not running (yet) or that the Guest Additions are too old (because VBoxService does not
-                             * support the guest execution feature in this version). */
-                            case VERR_NOT_FOUND:
-                                LogRel(("Guest Additions seem not to be installed yet\n"));
-                                rc = TaskGuest::setProgressErrorInfo(VBOX_E_NOT_SUPPORTED, aTask->progress,
-                                                                     Guest::tr("Guest Additions seem not to be installed or are not ready to update yet"));
-                                break;
-
-                            /* Getting back a VERR_INVALID_PARAMETER indicates that the installed Guest Additions are supporting the guest
-                             * execution but not the built-in "vbox_cat" tool of VBoxService (< 4.0). */
-                            case VERR_INVALID_PARAMETER:
-                                LogRel(("Guest Additions are installed but don't supported automatic updating\n"));
-                                rc = TaskGuest::setProgressErrorInfo(VBOX_E_NOT_SUPPORTED, aTask->progress,
-                                                                     Guest::tr("Installed Guest Additions do not support automatic updating"));
-                                break;
-
-                            case VERR_TIMEOUT:
-                                LogRel(("Guest was unable to start copying the Guest Additions setup within time\n"));
-                                rc = TaskGuest::setProgressErrorInfo(E_FAIL, aTask->progress,
-                                                                     Guest::tr("Guest was unable to start copying the Guest Additions setup within time"));
-                                break;
-
-                            default:
-                                rc = TaskGuest::setProgressErrorInfo(E_FAIL, aTask->progress,
-                                                                     Guest::tr("Error copying Guest Additions setup file to guest path \"%s\" (%Rrc)"),
-                                                                     strInstallerPath.c_str(), vrc);
-                                break;
-                        }
-                    }
-                    else
-                    {
-                        LogRel(("Automatic update of Guest Additions started, using \"%s\"\n", aTask->strSource.c_str()));
-                        LogRel(("Copying Guest Additions installer \"%s\" to \"%s\" on guest ...\n",
-                                installerImage.c_str(), strInstallerPath.c_str()));
-                        aTask->progress->SetCurrentOperationProgress(20);
-
-                        /* Wait for process to exit ... */
-                        SafeArray<BYTE> aInputData(_64K);
-                        while (   SUCCEEDED(progressCat->COMGETTER(Completed(&fCompleted)))
-                               && !fCompleted)
-                        {
-                            size_t cbRead;
-                            /* cbLength contains remaining bytes of our installer file
-                             * opened above to read. */
-                            size_t cbToRead = RT_MIN(cbLength, _64K);
-                            if (cbToRead)
-                            {
-                                vrc = RTFileRead(iso.file, (uint8_t*)aInputData.raw(), cbToRead, &cbRead);
-                                if (   cbRead
-                                    && RT_SUCCESS(vrc))
-                                {
-                                    /* Resize buffer to reflect amount we just have read. */
-                                    if (cbRead > 0)
-                                        aInputData.resize(cbRead);
-
-                                    /* Did we reach the end of the content we want to transfer (last chunk)? */
-                                    ULONG uFlags = ProcessInputFlag_None;
-                                    if (   (cbRead < _64K)
-                                        /* Did we reach the last block which is exactly _64K? */
-                                        || (cbToRead - cbRead == 0)
-                                        /* ... or does the user want to cancel? */
-                                        || (   SUCCEEDED(aTask->progress->COMGETTER(Canceled(&fCanceled)))
-                                            && fCanceled)
-                                       )
-                                    {
-                                        uFlags |= ProcessInputFlag_EndOfFile;
-                                    }
-
-                                    /* Transfer the current chunk ... */
-                                #ifdef DEBUG_andy
-                                    LogRel(("Copying Guest Additions (%u bytes left) ...\n", cbLength));
-                                #endif
-                                    ULONG uBytesWritten;
-                                    rc = pGuest->SetProcessInput(uPID, uFlags,
-                                                                 10 * 1000 /* Wait 10s for getting the input data transfered. */,
-                                                                 ComSafeArrayAsInParam(aInputData), &uBytesWritten);
-                                    if (FAILED(rc))
-                                    {
-                                        rc = TaskGuest::setProgressErrorInfo(rc, aTask->progress, pGuest);
-                                        break;
-                                    }
-
-                                    /* If task was canceled above also cancel the process execution. */
-                                    if (fCanceled)
-                                        progressCat->Cancel();
-
-                                #ifdef DEBUG_andy
-                                    LogRel(("Copying Guest Additions (%u bytes written) ...\n", uBytesWritten));
-                                #endif
-                                    Assert(cbLength >= uBytesWritten);
-                                    cbLength -= uBytesWritten;
-                                }
-                                else if (RT_FAILURE(vrc))
-                                {
-                                    rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                                         Guest::tr("Error while reading setup file \"%s\" (To read: %u, Size: %u) from installation medium (%Rrc)"),
-                                                                         installerImage.c_str(), cbToRead, cbLength, vrc);
-                                }
-                            }
-
-                            /* Internal progress canceled? */
-                            if (   SUCCEEDED(progressCat->COMGETTER(Canceled(&fCanceled)))
-                                && fCanceled)
-                            {
-                                aTask->progress->Cancel();
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            RTIsoFsClose(&iso);
-
-            if (   SUCCEEDED(rc)
-                && (   SUCCEEDED(aTask->progress->COMGETTER(Canceled(&fCanceled)))
-                    && !fCanceled
-                   )
-               )
-            {
-                /*
-                 * Installer was transferred successfully, so let's start it
-                 * (with system rights).
-                 */
-                LogRel(("Preparing to execute Guest Additions update ...\n"));
-                aTask->progress->SetCurrentOperationProgress(66);
-
-                /* Prepare command line args for installer. */
-                com::SafeArray<IN_BSTR> installerArgs;
-                com::SafeArray<IN_BSTR> installerEnv;
-
-                /** @todo Only Windows! */
-                installerArgs.push_back(Bstr(strInstallerPath).raw()); /* The actual (internal) installer image (as argv[0]). */
-                /* Note that starting at Windows Vista the lovely session 0 separation applies:
-                 * This means that if we run an application with the profile/security context
-                 * of VBoxService (system rights!) we're not able to show any UI. */
-                installerArgs.push_back(Bstr("/S").raw());      /* We want to install in silent mode. */
-                installerArgs.push_back(Bstr("/l").raw());      /* ... and logging enabled. */
-                /* Don't quit VBoxService during upgrade because it still is used for this
-                 * piece of code we're in right now (that is, here!) ... */
-                installerArgs.push_back(Bstr("/no_vboxservice_exit").raw());
-                /* Tell the installer to report its current installation status
-                 * using a running VBoxTray instance via balloon messages in the
-                 * Windows taskbar. */
-                installerArgs.push_back(Bstr("/post_installstatus").raw());
-
-                /*
-                 * Start the just copied over installer with system rights
-                 * in silent mode on the guest. Don't use the hidden flag since there
-                 * may be pop ups the user has to process.
-                 */
-                ComPtr<IProgress> progressInstaller;
-                ULONG uPID;
-                rc = pGuest->executeProcessInternal(Bstr(strInstallerPath).raw(),
-                                                    ExecuteProcessFlag_WaitForProcessStartOnly,
-                                                    ComSafeArrayAsInParam(installerArgs),
-                                                    ComSafeArrayAsInParam(installerEnv),
-                                                    Bstr("").raw() /* Username */,
-                                                    Bstr("").raw() /* Password */,
-                                                    10 * 1000 /* Wait 10s for getting the process started */,
-                                                    &uPID, progressInstaller.asOutParam(), &vrc);
-                if (SUCCEEDED(rc))
-                {
-                    LogRel(("Guest Additions update is running ...\n"));
-
-                    /* If the caller does not want to wait for out guest update process to end,
-                     * complete the progress object now so that the caller can do other work. */
-                    if (aTask->uFlags & AdditionsUpdateFlag_WaitForUpdateStartOnly)
-                        aTask->progress->notifyComplete(S_OK);
-                    else
-                        aTask->progress->SetCurrentOperationProgress(70);
-
-                    /* Wait until the Guest Additions installer finishes ... */
-                    while (   SUCCEEDED(progressInstaller->COMGETTER(Completed(&fCompleted)))
-                           && !fCompleted)
-                    {
-                        if (   SUCCEEDED(aTask->progress->COMGETTER(Canceled(&fCanceled)))
-                            && fCanceled)
-                        {
-                            progressInstaller->Cancel();
-                            break;
-                        }
-                        /* Progress canceled by Main API? */
-                        if (   SUCCEEDED(progressInstaller->COMGETTER(Canceled(&fCanceled)))
-                            && fCanceled)
-                        {
-                            break;
-                        }
-                        RTThreadSleep(100);
-                    }
-
-                    ExecuteProcessStatus_T retStatus;
-                    ULONG uRetExitCode, uRetFlags;
-                    rc = pGuest->GetProcessStatus(uPID, &uRetExitCode, &uRetFlags, &retStatus);
-                    if (SUCCEEDED(rc))
-                    {
-                        if (fCompleted)
-                        {
-                            if (uRetExitCode == 0)
-                            {
-                                LogRel(("Guest Additions update successful!\n"));
-                                if (   SUCCEEDED(aTask->progress->COMGETTER(Completed(&fCompleted)))
-                                    && !fCompleted)
-                                    aTask->progress->notifyComplete(S_OK);
-                            }
-                            else
-                            {
-                                LogRel(("Guest Additions update failed (Exit code=%u, Status=%u, Flags=%u)\n",
-                                        uRetExitCode, retStatus, uRetFlags));
-                                rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                                     Guest::tr("Guest Additions update failed with exit code=%u (status=%u, flags=%u)"),
-                                                                     uRetExitCode, retStatus, uRetFlags);
-                            }
-                        }
-                        else if (   SUCCEEDED(progressInstaller->COMGETTER(Canceled(&fCanceled)))
-                                 && fCanceled)
-                        {
-                            LogRel(("Guest Additions update was canceled\n"));
-                            rc = TaskGuest::setProgressErrorInfo(VBOX_E_IPRT_ERROR, aTask->progress,
-                                                                 Guest::tr("Guest Additions update was canceled by the guest with exit code=%u (status=%u, flags=%u)"),
-                                                                 uRetExitCode, retStatus, uRetFlags);
-                        }
-                        else
-                        {
-                            LogRel(("Guest Additions update was canceled by the user\n"));
-                        }
-                    }
-                    else
-                        rc = TaskGuest::setProgressErrorInfo(rc, aTask->progress, pGuest);
-                }
-                else
-                    rc = TaskGuest::setProgressErrorInfo(rc, aTask->progress, pGuest);
-            }
-        }
-    }
-    catch (HRESULT aRC)
-    {
-        rc = aRC;
-    }
-
-    /* Clean up */
-    aTask->rc = rc;
-
-    LogFlowFunc(("rc=%Rhrc\n", rc));
-    LogFlowFuncLeave();
-
-    return VINF_SUCCESS;
-}
-#endif
 
 // public methods only for internal purposes
 /////////////////////////////////////////////////////////////////////////////
@@ -1201,13 +107,13 @@ int Guest::prepareExecuteEnv(const char *pszEnv, void **ppvList, uint32_t *pcbLi
  * to identify a callback from the guest side.
  *
  * @return  IPRT status code.
+ * @param   pCallback
  * @param   puContextID
- * @param   pCallbackData
  */
-int Guest::callbackAdd(const PVBOXGUESTCTRL_CALLBACK pCallbackData, uint32_t *puContextID)
+int Guest::callbackAdd(const PVBOXGUESTCTRL_CALLBACK pCallback, uint32_t *puContextID)
 {
-    AssertPtrReturn(pCallbackData, VERR_INVALID_PARAMETER);
-    AssertPtrReturn(puContextID, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pCallback, VERR_INVALID_PARAMETER);
+    /* puContextID is optional. */
 
     int rc;
 
@@ -1235,11 +141,12 @@ int Guest::callbackAdd(const PVBOXGUESTCTRL_CALLBACK pCallbackData, uint32_t *pu
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
         /* Add callback with new context ID to our callback map. */
-        mCallbackMap[uNewContextID] = *pCallbackData;
+        mCallbackMap[uNewContextID] = *pCallback;
         Assert(mCallbackMap.size());
 
         /* Report back new context ID. */
-        *puContextID = uNewContextID;
+        if (puContextID)
+            *puContextID = uNewContextID;
     }
 
     return rc;
@@ -1340,6 +247,60 @@ void* Guest::callbackGetUserDataMutableRaw(uint32_t uContextID, size_t *pcbData)
     }
 
     return NULL;
+}
+
+int Guest::callbackInit(PVBOXGUESTCTRL_CALLBACK pCallback, eVBoxGuestCtrlCallbackType enmType,
+                        ComPtr<Progress> pProgress)
+{
+    AssertPtrReturn(pCallback, VERR_INVALID_POINTER);
+    /* Everything else is optional. */
+
+    int rc = VINF_SUCCESS;
+    switch (enmType)
+    {
+        case VBOXGUESTCTRLCALLBACKTYPE_EXEC_START:
+        {
+            PCALLBACKDATAEXECSTATUS pData = (PCALLBACKDATAEXECSTATUS)RTMemAlloc(sizeof(CALLBACKDATAEXECSTATUS));
+            AssertPtrReturn(pData, VERR_NO_MEMORY);
+            RT_BZERO(pData, sizeof(CALLBACKDATAEXECSTATUS));
+            pCallback->cbData = sizeof(CALLBACKDATAEXECSTATUS);
+            pCallback->pvData = pData;
+            break;
+        }
+
+        case VBOXGUESTCTRLCALLBACKTYPE_EXEC_OUTPUT:
+        {
+            PCALLBACKDATAEXECOUT pData = (PCALLBACKDATAEXECOUT)RTMemAlloc(sizeof(CALLBACKDATAEXECOUT));
+            AssertPtrReturn(pData, VERR_NO_MEMORY);
+            RT_BZERO(pData, sizeof(CALLBACKDATAEXECOUT));
+            pCallback->cbData = sizeof(CALLBACKDATAEXECOUT);
+            pCallback->pvData = pData;
+            break;
+        }
+
+        case VBOXGUESTCTRLCALLBACKTYPE_EXEC_INPUT_STATUS:
+        {
+            PCALLBACKDATAEXECINSTATUS pData = (PCALLBACKDATAEXECINSTATUS)RTMemAlloc(sizeof(CALLBACKDATAEXECINSTATUS));
+            AssertPtrReturn(pData, VERR_NO_MEMORY);
+            RT_BZERO(pData, sizeof(PCALLBACKDATAEXECINSTATUS));
+            pCallback->cbData = sizeof(PCALLBACKDATAEXECINSTATUS);
+            pCallback->pvData = pData;
+            break;
+        }
+
+        default:
+            rc = VERR_INVALID_PARAMETER;
+            break;
+    }
+
+    if (RT_SUCCESS(rc))
+    {
+        /* Init/set common stuff. */
+        pCallback->mType  = enmType;
+        pCallback->pProgress = pProgress;
+    }
+
+    return rc;
 }
 
 bool Guest::callbackIsCanceled(uint32_t uContextID)
@@ -1568,6 +529,16 @@ int Guest::callbackNotifyComplete(uint32_t uContextID)
     return callbackNotifyEx(uContextID, S_OK, NULL /* No message */);
 }
 
+/**
+ * Waits for a callback (using its context ID) to complete.
+ *
+ * @return  IPRT status code.
+ * @param   uContextID              Context ID to wait for.
+ * @param   lStage                  Stage to wait for. Specify -1 if no staging is present/required.
+ *                                  Specifying a stage is only needed if there's a multi operation progress
+ *                                  object to wait for.
+ * @param   lTimeout                Timeout (in ms) to wait for.
+ */
 int Guest::callbackWaitForCompletion(uint32_t uContextID, LONG lStage, LONG lTimeout)
 {
     AssertReturn(uContextID, VERR_INVALID_PARAMETER);
@@ -1708,6 +679,7 @@ int Guest::notifyCtrlExecStatus(uint32_t                u32Function,
     AssertPtrReturn(pData, VERR_INVALID_PARAMETER);
 
     uint32_t uContextID = pData->hdr.u32ContextID;
+    Assert(uContextID);
 
     /* Scope write locks as much as possible. */
     {
@@ -1723,8 +695,8 @@ int Guest::notifyCtrlExecStatus(uint32_t                u32Function,
             /** @todo Copy void* buffer contents? */
         }
         else
-            AssertReleaseMsgFailed(("Process status (PID=%u) does not have allocated callback data!\n",
-                                    pData->u32PID));
+            AssertReleaseMsgFailed(("Process status (PID=%u, CID=%u) does not have allocated callback data!\n",
+                                    pData->u32PID, uContextID));
     }
 
     int vrc = VINF_SUCCESS;
@@ -1906,8 +878,8 @@ int Guest::notifyCtrlExecOut(uint32_t             u32Function,
             }
         }
         else
-            AssertReleaseMsgFailed(("Process output status (PID=%u) does not have allocated callback data!\n",
-                                    pData->u32PID));
+            AssertReleaseMsgFailed(("Process output status (PID=%u, CID=%u) does not have allocated callback data!\n",
+                                    pData->u32PID, uContextID));
     }
 
     int vrc;
@@ -1947,8 +919,8 @@ int Guest::notifyCtrlExecInStatus(uint32_t                  u32Function,
             pCallbackData->u32PID = pData->u32PID;
         }
         else
-            AssertReleaseMsgFailed(("Process input status (PID=%u) does not have allocated callback data!\n",
-                                    pData->u32PID));
+            AssertReleaseMsgFailed(("Process input status (PID=%u, CID=%u) does not have allocated callback data!\n",
+                                    pData->u32PID, uContextID));
     }
 
     return callbackNotifyComplete(uContextID);
@@ -2065,38 +1037,118 @@ HRESULT Guest::handleErrorHGCM(int rc)
                             tr("The HGCM call failed with error %Rrc"), rc);
     return hRC;
 }
+#endif /* VBOX_WITH_GUEST_CONTROL */
 
-HRESULT Guest::waitForProcessStatusChange(ULONG uPID, ExecuteProcessStatus_T *pRetStatus, ULONG *puRetExitCode, ULONG uTimeoutMS)
+STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
+                                   ComSafeArrayIn(IN_BSTR, aArguments), ComSafeArrayIn(IN_BSTR, aEnvironment),
+                                   IN_BSTR aUsername, IN_BSTR aPassword,
+                                   ULONG aTimeoutMS, ULONG *aPID, IProgress **aProgress)
 {
-    AssertPtr(pRetStatus);
-    AssertPtr(puRetExitCode);
+/** @todo r=bird: Eventually we should clean up all the timeout parameters
+ *        in the API and have the same way of specifying infinite waits!  */
+#ifndef VBOX_WITH_GUEST_CONTROL
+    ReturnComNotImplemented();
+#else  /* VBOX_WITH_GUEST_CONTROL */
+    using namespace guestControl;
 
-    if (uTimeoutMS == 0)
-        uTimeoutMS = UINT32_MAX;
+    CheckComArgStrNotEmptyOrNull(aCommand);
+    CheckComArgOutPointerValid(aPID);
+    CheckComArgOutPointerValid(aProgress);
 
-    uint64_t u64StartMS = RTTimeMilliTS();
+    /* Do not allow anonymous executions (with system rights). */
+    if (RT_UNLIKELY((aUsername) == NULL || *(aUsername) == '\0'))
+        return setError(E_INVALIDARG, tr("No user name specified"));
 
-    HRESULT hRC;
-    ULONG uRetFlagsIgnored;
-    do
+    LogRel(("Executing guest process \"%s\" as user \"%s\" ...\n",
+            Utf8Str(aCommand).c_str(), Utf8Str(aUsername).c_str()));
+
+    return executeProcessInternal(aCommand, aFlags, ComSafeArrayInArg(aArguments),
+                                  ComSafeArrayInArg(aEnvironment),
+                                  aUsername, aPassword, aTimeoutMS, aPID, aProgress, NULL /* rc */);
+#endif
+}
+
+#ifdef VBOX_WITH_GUEST_CONTROL
+/**
+ * Executes and waits for an internal tool (that is, a tool which is integrated into
+ * VBoxService, beginning with "vbox_" (e.g. "vbox_ls")) to finish its operation.
+ *
+ * @return  HRESULT
+ * @param   aTool                   Name of tool to execute.
+ * @param   aDescription            Friendly description of the operation.
+ * @param   aFlags                  Execution flags.
+ * @param   aUsername               Username to execute tool under.
+ * @param   aPassword               The user's password.
+ * @param   aProgress               Pointer which receives the tool's progress object. Optional.
+ * @param   aPID                    Pointer which receives the tool's PID. Optional.
+ */
+HRESULT Guest::executeAndWaitForTool(IN_BSTR aTool, IN_BSTR aDescription,
+                                     ComSafeArrayIn(IN_BSTR, aArguments), ComSafeArrayIn(IN_BSTR, aEnvironment),
+                                     IN_BSTR aUsername, IN_BSTR aPassword,
+                                     IProgress **aProgress, ULONG *aPID)
+{
+    ComPtr<IProgress> progressTool;
+    ULONG uPID;
+
+    HRESULT rc = ExecuteProcess(aTool,
+                                ExecuteProcessFlag_Hidden,
+                                ComSafeArrayInArg(aArguments),
+                                ComSafeArrayInArg(aEnvironment),
+                                aUsername, aPassword,
+                                5 * 1000 /* Wait 5s for getting the process started. */,
+                                &uPID, progressTool.asOutParam());
+    if (SUCCEEDED(rc))
     {
-        /*
-         * Do some busy waiting within the specified time period (if any).
-         */
-        if (   uTimeoutMS != UINT32_MAX
-            && RTTimeMilliTS() - u64StartMS > uTimeoutMS)
+        /* Wait for process to exit ... */
+        rc = progressTool->WaitForCompletion(-1);
+        if (FAILED(rc)) return rc;
+
+        BOOL fCompleted = FALSE;
+        BOOL fCanceled = FALSE;
+        progressTool->COMGETTER(Completed)(&fCompleted);
+        if (!fCompleted)
+            progressTool->COMGETTER(Canceled)(&fCanceled);
+
+        if (fCompleted)
         {
-            hRC = setError(VBOX_E_IPRT_ERROR,
-                           tr("The process (PID %u) did not change its status within time (%ums)"),
-                           uPID, uTimeoutMS);
-            break;
+            ExecuteProcessStatus_T retStatus;
+            ULONG uRetExitCode, uRetFlags;
+            if (SUCCEEDED(rc))
+            {
+                rc = GetProcessStatus(uPID, &uRetExitCode, &uRetFlags, &retStatus);
+                if (SUCCEEDED(rc))
+                {
+                    if (uRetExitCode != 0) /* Not equal 0 means some error occured. */
+                    {
+                        /** @todo IPRT exit code to string! */
+                        rc = setError(VBOX_E_IPRT_ERROR,
+                                      tr("%s: Error %u occured"),
+                                      Utf8Str(aDescription).c_str(), uRetExitCode);
+                    }
+                    else /* Return code 0, success. */
+                    {
+                        if (aProgress)
+                        {
+                            /* Return the progress to the caller. */
+                            progressTool.queryInterfaceTo(aProgress);
+                        }
+                        if (aPID)
+                            *aPID = uPID;
+                    }
+                }
+            }
         }
-        hRC = GetProcessStatus(uPID, puRetExitCode, &uRetFlagsIgnored, pRetStatus);
-        if (FAILED(hRC))
-            break;
-        RTThreadSleep(100);
-    } while(*pRetStatus == ExecuteProcessStatus_Started && SUCCEEDED(hRC));
-    return hRC;
+        else if (fCanceled)
+        {
+            rc = setError(VBOX_E_IPRT_ERROR,
+                          tr("%s was aborted"), aDescription);
+        }
+        else
+            AssertReleaseMsgFailed(("%s: Operation neither completed nor canceled!?\n",
+                                    Utf8Str(aDescription).c_str()));
+    }
+
+    return rc;
 }
 
 HRESULT Guest::executeProcessResult(const char *pszCommand, const char *pszUser, ULONG ulTimeout,
@@ -2154,6 +1206,9 @@ HRESULT Guest::executeProcessResult(const char *pszCommand, const char *pszUser,
                 else if (vrc == VERR_PERMISSION_DENIED)
                     rc = setErrorNoLog(VBOX_E_IPRT_ERROR,
                                        tr("Invalid user/password credentials"));
+                else if (vrc == VERR_MAX_PROCS_REACHED)
+                    rc = setErrorNoLog(VBOX_E_IPRT_ERROR,
+                                       tr("Concurrent guest process limit is reached"));
                 else
                 {
                     if (pExecStatus && pExecStatus->u32Status == PROC_STS_ERROR)
@@ -2180,47 +1235,220 @@ HRESULT Guest::executeProcessResult(const char *pszCommand, const char *pszUser,
 
     return rc;
 }
-#endif /* VBOX_WITH_GUEST_CONTROL */
 
-STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
-                                   ComSafeArrayIn(IN_BSTR, aArguments), ComSafeArrayIn(IN_BSTR, aEnvironment),
-                                   IN_BSTR aUserName, IN_BSTR aPassword,
-                                   ULONG aTimeoutMS, ULONG *aPID, IProgress **aProgress)
+/**
+ * TODO
+ *
+ * @return  HRESULT
+ * @param   aObjName
+ * @param   pStreamBlock
+ * @param   pObjInfo
+ * @param   enmAddAttribs
+ */
+HRESULT Guest::executeStreamQueryFsObjInfo(IN_BSTR aObjName,
+                                           GuestProcessStreamBlock &streamBlock,
+                                           PRTFSOBJINFO pObjInfo,
+                                           RTFSOBJATTRADD enmAddAttribs)
 {
-/** @todo r=bird: Eventually we should clean up all the timeout parameters
- *        in the API and have the same way of specifying infinite waits!  */
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else  /* VBOX_WITH_GUEST_CONTROL */
-    using namespace guestControl;
+    HRESULT rc = S_OK;
+    Utf8Str Utf8ObjName(aObjName);
 
-    CheckComArgStrNotEmptyOrNull(aCommand);
-    CheckComArgOutPointerValid(aPID);
-    CheckComArgOutPointerValid(aProgress);
-
-    /* Do not allow anonymous executions (with system rights). */
-    if (RT_UNLIKELY((aUserName) == NULL || *(aUserName) == '\0'))
-        return setError(E_INVALIDARG, tr("No user name specified"));
-
-    LogRel(("Executing guest process \"%s\" as user \"%s\" ...\n",
-            Utf8Str(aCommand).c_str(), Utf8Str(aUserName).c_str()));
-
-    return executeProcessInternal(aCommand, aFlags, ComSafeArrayInArg(aArguments),
-                                  ComSafeArrayInArg(aEnvironment),
-                                  aUserName, aPassword, aTimeoutMS, aPID, aProgress, NULL /* rc */);
-#endif
+    int64_t iVal;
+    int vrc = streamBlock.GetInt64Ex("st_size", &iVal);
+    if (RT_SUCCESS(vrc))
+        pObjInfo->cbObject = iVal;
+    else
+        rc = setError(VBOX_E_IPRT_ERROR,
+                      tr("Unable to retrieve size for \"%s\" (%Rrc)"),
+                      Utf8ObjName.c_str(), vrc);
+    /** @todo Add more stuff! */
+    return rc;
 }
 
+/**
+ * Tries to drain the guest's output (from stdout) and fill it into
+ * a guest process stream object for later usage.
+ *
+ * @return  IPRT status code.
+ * @param   aPID                    PID of process to get the output from.
+ * @param   stream                  Reference to guest process stream to fill.
+ */
+int Guest::executeStreamDrain(ULONG aPID, GuestProcessStream &stream)
+{
+    AssertReturn(aPID, VERR_INVALID_PARAMETER);
+
+    /** @todo Should we try to drain the stream harder? */
+
+    int rc = VINF_SUCCESS;
+    for (;;)
+    {
+        SafeArray<BYTE> aOutputData;
+        HRESULT hr = GetProcessOutput(aPID, ProcessOutputFlag_None /* Stdout */,
+                                      10 * 1000 /* Timeout in ms */,
+                                      _64K, ComSafeArrayAsOutParam(aOutputData));
+        if (   SUCCEEDED(hr)
+            && aOutputData.size())
+        {
+            rc = stream.AddData(aOutputData.raw(), aOutputData.size());
+            if (RT_UNLIKELY(RT_FAILURE(rc)))
+                break;
+        }
+        else /* No more output and/or error! */
+            break;
+    }
+
+    return rc;
+}
+
+/**
+ * Tries to get the next upcoming value block from a started guest process
+ * by first draining its output and then processing the received guest stream.
+ *
+ * @return  IPRT status code.
+ * @param   aPID                    PID of process to get/parse the output from.
+ * @param   stream                  Reference to process stream object to use.
+ * @param   streamBlock             Reference that receives the next stream block data.
+ *
+ */
+int Guest::executeStreamGetNextBlock(ULONG aPID, GuestProcessStream &stream,
+                                     GuestProcessStreamBlock &streamBlock)
+{
+    int rc = executeStreamDrain(aPID, stream);
+    if (RT_SUCCESS(rc))
+    {
+        do
+        {
+            rc = stream.ParseBlock(streamBlock);
+            if (streamBlock.GetCount())
+                break; /* We got a block, bail out! */
+        } while (RT_SUCCESS(rc));
+
+        /* In case this was the last block, VERR_NO_DATA is returned.
+         * Overwrite this to get a proper return value for the last block. */
+        if(    streamBlock.GetCount()
+            && rc == VERR_NO_DATA)
+        {
+            rc = VINF_SUCCESS;
+        }
+    }
+
+    return rc;
+}
+
+/**
+ * Gets output from a formerly started guest process, tries to parse all of its guest
+ * stream (as long as data is available) and returns a stream object which can contain
+ * multiple stream blocks (which in turn then can contain key=value pairs).
+ *
+ * @return  HRESULT
+ * @param   aPID                    PID of process to get/parse the output from.
+ * @param   streamObjects           Reference to a guest stream object structure for
+ *                                  storing the parsed data.
+ */
+HRESULT Guest::executeStreamParse(ULONG aPID, GuestCtrlStreamObjects &streamObjects)
+{
+    GuestProcessStream guestStream;
+    HRESULT hr = executeStreamDrain(aPID, guestStream);
+    if (SUCCEEDED(hr))
+    {
+        for (;;)
+        {
+            /* Try to parse the stream output we gathered until now. If we still need more
+             * data the parsing routine will tell us and we just do another poll round. */
+            GuestProcessStreamBlock curBlock;
+            int vrc = guestStream.ParseBlock(curBlock);
+            if (RT_SUCCESS(vrc))
+            {
+                if (curBlock.GetCount())
+                {
+                    streamObjects.push_back(curBlock);
+                }
+                else
+                    break; /* No more data. */
+            }
+            else /* Everything else would be an error! */
+                hr = setError(VBOX_E_IPRT_ERROR,
+                              tr("Error while parsing guest output (%Rrc)"), vrc);
+        }
+    }
+
+    /** @todo Add check if there now are any sream objects at all! */
+
+    return hr;
+}
+
+/**
+ * Does busy waiting on a formerly started guest process.
+ *
+ * @return  HRESULT
+ * @param   uPID                    PID of guest process to wait for.
+ * @param   uTimeoutMS              Waiting timeout (in ms). Specify 0 for an infinite timeout.
+ * @param   pRetStatus              Pointer which receives current process status after the change.
+ *                                  Optional.
+ * @param   puRetExitCode           Pointer which receives the final exit code in case of guest process
+ *                                  termination. Optional.
+ */
+HRESULT Guest::executeWaitForStatusChange(ULONG uPID, ULONG uTimeoutMS,
+                                          ExecuteProcessStatus_T *pRetStatus, ULONG *puRetExitCode)
+{
+    if (uTimeoutMS == 0)
+        uTimeoutMS = UINT32_MAX;
+
+    uint64_t u64StartMS = RTTimeMilliTS();
+
+    HRESULT hRC;
+    ULONG uExitCode, uRetFlags;
+    ExecuteProcessStatus_T curStatus;
+    hRC = GetProcessStatus(uPID, &uExitCode, &uRetFlags, &curStatus);
+    if (FAILED(hRC))
+        return hRC;
+
+    do
+    {
+        if (   uTimeoutMS != UINT32_MAX
+            && RTTimeMilliTS() - u64StartMS > uTimeoutMS)
+        {
+            hRC = setError(VBOX_E_IPRT_ERROR,
+                           tr("The process (PID %u) did not change its status within time (%ums)"),
+                           uPID, uTimeoutMS);
+            break;
+        }
+        hRC = GetProcessStatus(uPID, &uExitCode, &uRetFlags, &curStatus);
+        if (FAILED(hRC))
+            break;
+        RTThreadSleep(100);
+    } while(*pRetStatus == curStatus);
+
+    if (SUCCEEDED(hRC))
+    {
+        if (pRetStatus)
+            *pRetStatus = curStatus;
+        if (puRetExitCode)
+            *puRetExitCode = uExitCode;
+    }
+    return hRC;
+}
+
+/**
+ * Does the actual guest process execution, internal function.
+ *
+ * @return  HRESULT
+ * @param   aCommand                Command line to execute.
+ * @param   aFlags                  Execution flags.
+ * @param   Username                Username to execute the process with.
+ * @param   aPassword               The user's password.
+ * @param   aTimeoutMS              Timeout (in ms) to wait for the execution operation.
+ * @param   aPID                    Pointer that receives the guest process' PID.
+ * @param   aProgress               Pointer that receives the guest process' progress object.
+ * @param   pRC                     Pointer that receives the internal IPRT return code. Optional.
+ */
 HRESULT Guest::executeProcessInternal(IN_BSTR aCommand, ULONG aFlags,
                                       ComSafeArrayIn(IN_BSTR, aArguments), ComSafeArrayIn(IN_BSTR, aEnvironment),
-                                      IN_BSTR aUserName, IN_BSTR aPassword,
+                                      IN_BSTR aUsername, IN_BSTR aPassword,
                                       ULONG aTimeoutMS, ULONG *aPID, IProgress **aProgress, int *pRC)
 {
 /** @todo r=bird: Eventually we should clean up all the timeout parameters
  *        in the API and have the same way of specifying infinite waits!  */
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else  /* VBOX_WITH_GUEST_CONTROL */
     using namespace guestControl;
 
     AutoCaller autoCaller(this);
@@ -2290,7 +1518,7 @@ HRESULT Guest::executeProcessInternal(IN_BSTR aCommand, ULONG aFlags,
             papszArgv[uNumArgs] = NULL;
         }
 
-        Utf8Str Utf8UserName(aUserName);
+        Utf8Str Utf8UserName(aUsername);
         Utf8Str Utf8Password(aPassword);
         if (RT_SUCCESS(vrc))
         {
@@ -2321,19 +1549,21 @@ HRESULT Guest::executeProcessInternal(IN_BSTR aCommand, ULONG aFlags,
 
                 if (RT_SUCCESS(vrc))
                 {
-                    /* Allocate payload. */
-                    PCALLBACKDATAEXECSTATUS pStatus = (PCALLBACKDATAEXECSTATUS)RTMemAlloc(sizeof(CALLBACKDATAEXECSTATUS));
-                    AssertReturn(pStatus, VBOX_E_IPRT_ERROR);
-                    RT_ZERO(*pStatus);
-
-                    /* Create callback. */
                     VBOXGUESTCTRL_CALLBACK callback;
-                    callback.mType  = VBOXGUESTCTRLCALLBACKTYPE_EXEC_START;
-                    callback.cbData = sizeof(CALLBACKDATAEXECSTATUS);
-                    callback.pvData = pStatus;
-                    callback.pProgress = pProgress;
+                    vrc = callbackInit(&callback, VBOXGUESTCTRLCALLBACKTYPE_EXEC_START, pProgress);
+                    if (RT_SUCCESS(vrc))
+                    {
+                        /* Allocate and assign payload. */
+                        callback.cbData = sizeof(CALLBACKDATAEXECSTATUS);
+                        PCALLBACKDATAEXECSTATUS pData = (PCALLBACKDATAEXECSTATUS)RTMemAlloc(callback.cbData);
+                        AssertReturn(pData, E_OUTOFMEMORY);
+                        RT_BZERO(pData, callback.cbData);
+                        callback.pvData = pData;
+                    }
 
-                    vrc = callbackAdd(&callback, &uContextID);
+                    if (RT_SUCCESS(vrc))
+                        vrc = callbackAdd(&callback, &uContextID);
+
                     if (RT_SUCCESS(vrc))
                     {
                         VBOXHGCMSVCPARM paParms[15];
@@ -2454,8 +1684,8 @@ HRESULT Guest::executeProcessInternal(IN_BSTR aCommand, ULONG aFlags,
         rc = E_OUTOFMEMORY;
     }
     return rc;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
+#endif /* VBOX_WITH_GUEST_CONTROL */
 
 STDMETHODIMP Guest::SetProcessInput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS, ComSafeArrayIn(BYTE, aData), ULONG *aBytesWritten)
 {
@@ -2519,24 +1749,20 @@ STDMETHODIMP Guest::SetProcessInput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS, 
             if (aTimeoutMS == 0)
                 aTimeoutMS = UINT32_MAX;
 
-            /* Construct callback data. */
             VBOXGUESTCTRL_CALLBACK callback;
-            callback.mType  = VBOXGUESTCTRLCALLBACKTYPE_EXEC_INPUT_STATUS;
-            callback.cbData = sizeof(CALLBACKDATAEXECINSTATUS);
+            vrc = callbackInit(&callback, VBOXGUESTCTRLCALLBACKTYPE_EXEC_INPUT_STATUS, pProgress);
+            if (RT_SUCCESS(vrc))
+            {
+                PCALLBACKDATAEXECINSTATUS pData = (PCALLBACKDATAEXECINSTATUS)callback.pvData;
 
-            PCALLBACKDATAEXECINSTATUS pStatus = (PCALLBACKDATAEXECINSTATUS)RTMemAlloc(callback.cbData);
-            AssertReturn(pStatus, VBOX_E_IPRT_ERROR);
-            RT_ZERO(*pStatus);
+                /* Save PID + output flags for later use. */
+                pData->u32PID = aPID;
+                pData->u32Flags = aFlags;
+            }
 
-            /* Save PID + output flags for later use. */
-            pStatus->u32PID = aPID;
-            pStatus->u32Flags = aFlags;
+            if (RT_SUCCESS(vrc))
+                vrc = callbackAdd(&callback, &uContextID);
 
-            callback.pvData = pStatus;
-            callback.pProgress = pProgress;
-
-            /* Add the callback. */
-            vrc = callbackAdd(&callback, &uContextID);
             if (RT_SUCCESS(vrc))
             {
                 com::SafeArray<BYTE> sfaData(ComSafeArrayInArg(aData));
@@ -2675,7 +1901,7 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
         int vrc = processGetByPID(aPID, &process);
         if (RT_FAILURE(vrc))
             rc = setError(VBOX_E_IPRT_ERROR,
-                          Guest::tr("Cannot get output from non-existent process (PID %u)"), aPID);
+                          Guest::tr("Cannot get output from non-existent guest process (PID %u)"), aPID);
 
         if (SUCCEEDED(rc))
         {
@@ -2692,7 +1918,7 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
             if (SUCCEEDED(rc))
             {
                 rc = pProgress->init(static_cast<IGuest*>(this),
-                                     Bstr(tr("Setting input for process")).raw(),
+                                     Bstr(tr("Getting output for guest process")).raw(),
                                      TRUE /* Cancelable */);
             }
             if (FAILED(rc)) throw rc;
@@ -2707,24 +1933,20 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
             if (aFlags & ProcessOutputFlag_StdErr)
                 uHandleID = OUTPUT_HANDLE_ID_STDERR;
 
-            /* Construct callback data. */
             VBOXGUESTCTRL_CALLBACK callback;
-            callback.mType  = VBOXGUESTCTRLCALLBACKTYPE_EXEC_OUTPUT;
-            callback.cbData = sizeof(CALLBACKDATAEXECOUT);
+            vrc = callbackInit(&callback, VBOXGUESTCTRLCALLBACKTYPE_EXEC_OUTPUT, pProgress);
+            if (RT_SUCCESS(vrc))
+            {
+                PCALLBACKDATAEXECOUT pData = (PCALLBACKDATAEXECOUT)callback.pvData;
 
-            PCALLBACKDATAEXECOUT pStatus = (PCALLBACKDATAEXECOUT)RTMemAlloc(callback.cbData);
-            AssertReturn(pStatus, VBOX_E_IPRT_ERROR);
-            RT_ZERO(*pStatus);
+                /* Save PID + output flags for later use. */
+                pData->u32PID = aPID;
+                pData->u32Flags = aFlags;
+            }
 
-            /* Save PID + output flags for later use. */
-            pStatus->u32PID = aPID;
-            pStatus->u32Flags = aFlags;
+            if (RT_SUCCESS(vrc))
+                vrc = callbackAdd(&callback, &uContextID);
 
-            callback.pvData = pStatus;
-            callback.pProgress = pProgress;
-
-            /* Add the callback. */
-            vrc = callbackAdd(&callback, &uContextID);
             if (RT_SUCCESS(vrc))
             {
                 VBOXHGCMSVCPARM paParms[5];
@@ -2766,10 +1988,10 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
 
                 PCALLBACKDATAEXECOUT pExecOut = NULL;
 
-                 /*
-                 * Wait for the first stage (=0) to complete (that is starting the process).
+                /*
+                 * Wait for the first output callback notification to arrive.
                  */
-                vrc = callbackWaitForCompletion(uContextID, 0 /* Stage */, aTimeoutMS);
+                vrc = callbackWaitForCompletion(uContextID, -1 /* No staging */, aTimeoutMS);
                 if (RT_SUCCESS(vrc))
                 {
                     vrc = callbackGetUserData(uContextID, NULL /* We know the type. */,
@@ -2810,11 +2032,6 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
             }
             else
                 rc = handleErrorHGCM(vrc);
-
-            if (SUCCEEDED(rc))
-            {
-
-            }
 
             /* The callback isn't needed anymore -- just was kept locally. */
             callbackDestroy(uContextID);
@@ -2870,14 +2087,82 @@ STDMETHODIMP Guest::GetProcessStatus(ULONG aPID, ULONG *aExitCode, ULONG *aFlags
 }
 
 STDMETHODIMP Guest::CopyFromGuest(IN_BSTR aSource, IN_BSTR aDest,
-                                  IN_BSTR aUserName, IN_BSTR aPassword,
+                                  IN_BSTR aUsername, IN_BSTR aPassword,
                                   ULONG aFlags, IProgress **aProgress)
 {
+#ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
+#else /* VBOX_WITH_GUEST_CONTROL */
+    CheckComArgStrNotEmptyOrNull(aSource);
+    CheckComArgStrNotEmptyOrNull(aDest);
+    CheckComArgStrNotEmptyOrNull(aUsername);
+    CheckComArgStrNotEmptyOrNull(aPassword);
+    CheckComArgOutPointerValid(aProgress);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /* Validate flags. */
+    if (aFlags != CopyFileFlag_None)
+    {
+        if (   !(aFlags & CopyFileFlag_Recursive)
+            && !(aFlags & CopyFileFlag_Update)
+            && !(aFlags & CopyFileFlag_FollowLinks))
+        {
+            return setError(E_INVALIDARG, tr("Unknown flags (%#x)"), aFlags);
+        }
+    }
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    HRESULT rc = S_OK;
+
+    ComObjPtr<Progress> progress;
+    try
+    {
+        /* Create the progress object. */
+        progress.createObject();
+
+        rc = progress->init(static_cast<IGuest*>(this),
+                            Bstr(tr("Copying file from guest to host")).raw(),
+                            TRUE /* aCancelable */);
+        if (FAILED(rc)) throw rc;
+
+        /* Initialize our worker task. */
+        GuestTask *pTask = new GuestTask(GuestTask::TaskType_CopyFileFromGuest, this, progress);
+        AssertPtr(pTask);
+        std::auto_ptr<GuestTask> task(pTask);
+
+        /* Assign data - aSource is the source file on the host,
+         * aDest reflects the full path on the guest. */
+        task->strSource   = (Utf8Str(aSource));
+        task->strDest     = (Utf8Str(aDest));
+        task->strUserName = (Utf8Str(aUsername));
+        task->strPassword = (Utf8Str(aPassword));
+        task->uFlags      = aFlags;
+
+        rc = task->startThread();
+        if (FAILED(rc)) throw rc;
+
+        /* Don't destruct on success. */
+        task.release();
+    }
+    catch (HRESULT aRC)
+    {
+        rc = aRC;
+    }
+
+    if (SUCCEEDED(rc))
+    {
+        /* Return progress to the caller. */
+        progress.queryInterfaceTo(aProgress);
+    }
+    return rc;
+#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
 STDMETHODIMP Guest::CopyToGuest(IN_BSTR aSource, IN_BSTR aDest,
-                                IN_BSTR aUserName, IN_BSTR aPassword,
+                                IN_BSTR aUsername, IN_BSTR aPassword,
                                 ULONG aFlags, IProgress **aProgress)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
@@ -2885,7 +2170,7 @@ STDMETHODIMP Guest::CopyToGuest(IN_BSTR aSource, IN_BSTR aDest,
 #else /* VBOX_WITH_GUEST_CONTROL */
     CheckComArgStrNotEmptyOrNull(aSource);
     CheckComArgStrNotEmptyOrNull(aDest);
-    CheckComArgStrNotEmptyOrNull(aUserName);
+    CheckComArgStrNotEmptyOrNull(aUsername);
     CheckComArgStrNotEmptyOrNull(aPassword);
     CheckComArgOutPointerValid(aProgress);
 
@@ -2919,15 +2204,15 @@ STDMETHODIMP Guest::CopyToGuest(IN_BSTR aSource, IN_BSTR aDest,
         if (FAILED(rc)) throw rc;
 
         /* Initialize our worker task. */
-        TaskGuest *pTask = new TaskGuest(TaskGuest::CopyFileToGuest, this, progress);
+        GuestTask *pTask = new GuestTask(GuestTask::TaskType_CopyFileToGuest, this, progress);
         AssertPtr(pTask);
-        std::auto_ptr<TaskGuest> task(pTask);
+        std::auto_ptr<GuestTask> task(pTask);
 
         /* Assign data - aSource is the source file on the host,
          * aDest reflects the full path on the guest. */
         task->strSource   = (Utf8Str(aSource));
         task->strDest     = (Utf8Str(aDest));
-        task->strUserName = (Utf8Str(aUserName));
+        task->strUserName = (Utf8Str(aUsername));
         task->strPassword = (Utf8Str(aPassword));
         task->uFlags      = aFlags;
 
@@ -2949,175 +2234,6 @@ STDMETHODIMP Guest::CopyToGuest(IN_BSTR aSource, IN_BSTR aDest,
     }
     return rc;
 #endif /* VBOX_WITH_GUEST_CONTROL */
-}
-
-STDMETHODIMP Guest::DirectoryClose(ULONG aHandle)
-{
-    ReturnComNotImplemented();
-}
-
-STDMETHODIMP Guest::DirectoryCreate(IN_BSTR aDirectory,
-                                    IN_BSTR aUserName, IN_BSTR aPassword,
-                                    ULONG aMode, ULONG aFlags)
-{
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else  /* VBOX_WITH_GUEST_CONTROL */
-    using namespace guestControl;
-
-    CheckComArgStrNotEmptyOrNull(aDirectory);
-
-    /* Do not allow anonymous executions (with system rights). */
-    if (RT_UNLIKELY((aUserName) == NULL || *(aUserName) == '\0'))
-        return setError(E_INVALIDARG, tr("No user name specified"));
-
-    LogRel(("Creating guest directory \"%s\" as  user \"%s\" ...\n",
-            Utf8Str(aDirectory).c_str(), Utf8Str(aUserName).c_str()));
-
-    return directoryCreateInternal(aDirectory,
-                                   aUserName, aPassword,
-                                   aMode, aFlags, NULL /* rc */);
-#endif
-}
-
-HRESULT Guest::directoryCreateInternal(IN_BSTR aDirectory,
-                                       IN_BSTR aUserName, IN_BSTR aPassword,
-                                       ULONG aMode, ULONG aFlags, int *pRC)
-{
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else /* VBOX_WITH_GUEST_CONTROL */
-    using namespace guestControl;
-
-    CheckComArgStrNotEmptyOrNull(aDirectory);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /* Validate flags. */
-    if (aFlags != DirectoryCreateFlag_None)
-    {
-        if (!(aFlags & DirectoryCreateFlag_Parents))
-        {
-            return setError(E_INVALIDARG, tr("Unknown flags (%#x)"), aFlags);
-        }
-    }
-
-    HRESULT rc = S_OK;
-    try
-    {
-        Utf8Str Utf8Directory(aDirectory);
-        Utf8Str Utf8UserName(aUserName);
-        Utf8Str Utf8Password(aPassword);
-
-        com::SafeArray<IN_BSTR> args;
-        com::SafeArray<IN_BSTR> env;
-
-        /*
-         * Prepare tool command line.
-         */
-        if (aFlags & DirectoryCreateFlag_Parents)
-            args.push_back(Bstr("--parents").raw());        /* We also want to create the parent directories. */
-        if (aMode > 0)
-        {
-            args.push_back(Bstr("--mode").raw());           /* Set the creation mode. */
-
-            char szMode[16];
-            RTStrPrintf(szMode, sizeof(szMode), "%o", aMode);
-            args.push_back(Bstr(szMode).raw());
-        }
-        args.push_back(Bstr(Utf8Directory).raw());  /* The directory we want to create. */
-
-        /*
-         * Execute guest process.
-         */
-        ComPtr<IProgress> progressExec;
-        ULONG uPID;
-        if (SUCCEEDED(rc))
-        {
-            rc = ExecuteProcess(Bstr(VBOXSERVICE_TOOL_MKDIR).raw(),
-                                ExecuteProcessFlag_Hidden,
-                                ComSafeArrayAsInParam(args),
-                                ComSafeArrayAsInParam(env),
-                                Bstr(Utf8UserName).raw(),
-                                Bstr(Utf8Password).raw(),
-                                5 * 1000 /* Wait 5s for getting the process started. */,
-                                &uPID, progressExec.asOutParam());
-        }
-
-        if (SUCCEEDED(rc))
-        {
-            /* Wait for process to exit ... */
-            rc = progressExec->WaitForCompletion(-1);
-            if (FAILED(rc)) return rc;
-
-            BOOL fCompleted = FALSE;
-            BOOL fCanceled = FALSE;
-            progressExec->COMGETTER(Completed)(&fCompleted);
-            if (!fCompleted)
-                progressExec->COMGETTER(Canceled)(&fCanceled);
-
-            if (fCompleted)
-            {
-                ExecuteProcessStatus_T retStatus;
-                ULONG uRetExitCode, uRetFlags;
-                if (SUCCEEDED(rc))
-                {
-                    rc = GetProcessStatus(uPID, &uRetExitCode, &uRetFlags, &retStatus);
-                    if (SUCCEEDED(rc) && uRetExitCode != 0)
-                    {
-                        rc = setError(VBOX_E_IPRT_ERROR,
-                                      tr("Error %u while creating guest directory"), uRetExitCode);
-                    }
-                }
-            }
-            else if (fCanceled)
-                rc = setError(VBOX_E_IPRT_ERROR,
-                              tr("Guest directory creation was aborted"));
-            else
-                AssertReleaseMsgFailed(("Guest directory creation neither completed nor canceled!?\n"));
-        }
-    }
-    catch (std::bad_alloc &)
-    {
-        rc = E_OUTOFMEMORY;
-    }
-    return rc;
-#endif /* VBOX_WITH_GUEST_CONTROL */
-}
-
-STDMETHODIMP Guest::DirectoryOpen(IN_BSTR aDirectory, IN_BSTR aFilter,
-                                  ULONG aFlags, IN_BSTR aUserName, IN_BSTR aPassword,
-                                  ULONG *aHandle)
-{
-    ReturnComNotImplemented();
-}
-
-STDMETHODIMP Guest::DirectoryRead(ULONG aHandle, IGuestDirEntry **aDirEntry)
-{
-    ReturnComNotImplemented();
-}
-
-STDMETHODIMP Guest::FileExists(IN_BSTR aFile, IN_BSTR aUserName, IN_BSTR aPassword, BOOL *aExists)
-{
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else /* VBOX_WITH_GUEST_CONTROL */
-    using namespace guestControl;
-
-    return VBOX_E_NOT_SUPPORTED;
-#endif
-}
-
-STDMETHODIMP Guest::FileQuerySize(IN_BSTR aFile, IN_BSTR aUserName, IN_BSTR aPassword, LONG64 *aSize)
-{
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else /* VBOX_WITH_GUEST_CONTROL */
-    using namespace guestControl;
-
-    return VBOX_E_NOT_SUPPORTED;
-#endif
 }
 
 STDMETHODIMP Guest::UpdateGuestAdditions(IN_BSTR aSource, ULONG aFlags, IProgress **aProgress)
@@ -3154,9 +2270,9 @@ STDMETHODIMP Guest::UpdateGuestAdditions(IN_BSTR aSource, ULONG aFlags, IProgres
         if (FAILED(rc)) throw rc;
 
         /* Initialize our worker task. */
-        TaskGuest *pTask = new TaskGuest(TaskGuest::UpdateGuestAdditions, this, progress);
+        GuestTask *pTask = new GuestTask(GuestTask::TaskType_UpdateGuestAdditions, this, progress);
         AssertPtr(pTask);
-        std::auto_ptr<TaskGuest> task(pTask);
+        std::auto_ptr<GuestTask> task(pTask);
 
         /* Assign data - in that case aSource is the full path
          * to the Guest Additions .ISO we want to mount. */

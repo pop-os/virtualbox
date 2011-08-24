@@ -1,4 +1,4 @@
-/* $Id: ApplianceImpl.h 37862 2011-07-11 10:09:29Z vboxsync $ */
+/* $Id: ApplianceImpl.h 38455 2011-08-15 09:57:51Z vboxsync $ */
 
 /** @file
  *
@@ -149,7 +149,7 @@ private:
     HRESULT readFS(TaskOVF *pTask);
     HRESULT readFSOVF(TaskOVF *pTask);
     HRESULT readFSOVA(TaskOVF *pTask);
-    HRESULT readFSImpl(TaskOVF *pTask, PVDINTERFACEIO pCallbacks, PSHA1STORAGE pStorage);
+    HRESULT readFSImpl(TaskOVF *pTask, const RTCString &strFilename, PVDINTERFACEIO pCallbacks, PSHA1STORAGE pStorage);
     HRESULT readS3(TaskOVF *pTask);
 
     /*******************************************************************************

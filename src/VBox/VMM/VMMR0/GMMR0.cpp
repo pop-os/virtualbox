@@ -1,4 +1,4 @@
-/* $Id: GMMR0.cpp 37805 2011-07-06 15:00:19Z vboxsync $ */
+/* $Id: GMMR0.cpp 38072 2011-07-19 14:53:11Z vboxsync $ */
 /** @file
  * GMM - Global Memory Manager.
  */
@@ -805,7 +805,7 @@ GMMR0DECL(void) GMMR0Term(void)
     RTAvlU32Destroy(&pGMM->pChunks, gmmR0TermDestroyChunk, pGMM);
 
     /* Destroy the chunk locks. */
-    for (unsigned iMtx = 0; iMtx++ < RT_ELEMENTS(pGMM->aChunkMtx); iMtx++)
+    for (unsigned iMtx = 0; iMtx < RT_ELEMENTS(pGMM->aChunkMtx); iMtx++)
     {
         Assert(pGMM->aChunkMtx[iMtx].cUsers == 0);
         RTSemFastMutexDestroy(pGMM->aChunkMtx[iMtx].hMtx);

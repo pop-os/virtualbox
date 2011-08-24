@@ -1,4 +1,4 @@
-/* $Id: VBoxUsbLib-win.cpp 37431 2011-06-14 09:32:05Z vboxsync $ */
+/* $Id: VBoxUsbLib-win.cpp 38280 2011-08-02 13:12:56Z vboxsync $ */
 /** @file
  * VBox USB R3 Driver Interface library
  */
@@ -765,14 +765,16 @@ static int usbLibDevGetHubPortDevices(HANDLE hHub, LPCSTR lpcszHubName, ULONG iP
         return VINF_SUCCESS;
     }
 
+    bool fFreeNameBuf = true;
+    char nameEmptyBuf = '\0';
     LPSTR lpszName = NULL;
     rc = usbLibDevStrDriverKeyGet(hHub, iPort, &lpszName);
-    if (RT_FAILURE(rc))
+    Assert(!!lpszName == !!RT_SUCCESS(rc));
+    if (!lpszName)
     {
-        return rc;
+        lpszName = &nameEmptyBuf;
+        fFreeNameBuf = false;
     }
-
-    Assert(lpszName);
 
     PUSB_CONFIGURATION_DESCRIPTOR pCfgDr = NULL;
     PVBOXUSB_STRING_DR_ENTRY pList = NULL;
@@ -797,8 +799,11 @@ static int usbLibDevGetHubPortDevices(HANDLE hHub, LPCSTR lpcszHubName, ULONG iP
 
     if (pCfgDr)
         usbLibDevCfgDrFree(pCfgDr);
-    if (lpszName)
+    if (fFreeNameBuf)
+    {
+        Assert(lpszName);
         usbLibDevStrFree(lpszName);
+    }
     if (pList)
         usbLibDevStrDrEntryFreeList(pList);
 
@@ -1417,7 +1422,10 @@ USBLIB_DECL(int) USBLibInit(void)
                     }
                     else
                     {
-                        AssertMsgFailed((__FUNCTION__": Monitor driver version mismatch!!\n"));
+                        LogRel((__FUNCTION__": Monitor driver version mismatch!!\n"));
+#ifdef VBOX_WITH_ANNOYING_USB_ASSERTIONS
+                        AssertFailed();
+#endif
                         rc = VERR_VERSION_MISMATCH;
                     }
                 }

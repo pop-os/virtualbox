@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.cpp 37220 2011-05-26 10:18:39Z vboxsync $ */
+/* $Id: DisplayImpl.cpp 38275 2011-08-02 11:14:44Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -973,6 +973,11 @@ void Display::handleDisplayUpdate (unsigned uScreenId, int x, int y, int w, int 
     }
 }
 
+/**
+ * Returns the upper left and lower right corners of the virtual framebuffer.
+ * The lower right is "exclusive" (i.e. first pixel beyond the framebuffer),
+ * and the origin is (0, 0), not (1, 1) like the GUI returns.
+ */
 void Display::getFramebufferDimensions(int32_t *px1, int32_t *py1,
                                        int32_t *px2, int32_t *py2)
 {

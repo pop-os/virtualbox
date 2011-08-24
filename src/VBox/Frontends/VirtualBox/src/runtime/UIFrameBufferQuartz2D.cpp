@@ -1,4 +1,4 @@
-/* $Id: UIFrameBufferQuartz2D.cpp 37063 2011-05-13 10:21:28Z vboxsync $ */
+/* $Id: UIFrameBufferQuartz2D.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -436,7 +436,7 @@ void UIFrameBufferQuartz2D::resizeEvent(UIResizeEvent *aEvent)
 #endif
 
 //    if (remind)
-//        vboxProblem().remindAboutWrongColorDepth(aEvent->bitsPerPixel(), 32);
+//        msgCenter().remindAboutWrongColorDepth(aEvent->bitsPerPixel(), 32);
 }
 
 void UIFrameBufferQuartz2D::clean()

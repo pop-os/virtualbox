@@ -1,4 +1,4 @@
-/* $Id: UIMachineLogicScale.cpp 34984 2010-12-13 10:29:58Z vboxsync $ */
+/* $Id: UIMachineLogicScale.cpp 38348 2011-08-08 12:09:18Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -20,10 +20,10 @@
 /* Local includes */
 #include "COMDefs.h"
 #include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 
 #include "UISession.h"
-#include "UIActionsPool.h"
+#include "UIActionPoolRuntime.h"
 #include "UIMachineLogicScale.h"
 #include "UIMachineWindow.h"
 #include "UIDownloaderAdditions.h"
@@ -32,8 +32,8 @@
 #include "VBoxUtils.h"
 #endif /* Q_WS_MAC */
 
-UIMachineLogicScale::UIMachineLogicScale(QObject *pParent, UISession *pSession, UIActionsPool *pActionsPool)
-    : UIMachineLogic(pParent, pSession, pActionsPool, UIVisualStateType_Scale)
+UIMachineLogicScale::UIMachineLogicScale(QObject *pParent, UISession *pSession)
+    : UIMachineLogic(pParent, pSession, UIVisualStateType_Scale)
 {
 }
 
@@ -64,11 +64,11 @@ bool UIMachineLogicScale::checkAvailability()
      * VBoxGlobal::extractKeyFromActionText gets exactly the
      * linked key without the 'Host+' part we are adding it here. */
     QString strHotKey = QString("Host+%1")
-        .arg(VBoxGlobal::extractKeyFromActionText(actionsPool()->action(UIActionIndex_Toggle_Scale)->text()));
+        .arg(VBoxGlobal::extractKeyFromActionText(gActionPool->action(UIActionIndexRuntime_Toggle_Scale)->text()));
     Assert(!strHotKey.isEmpty());
 
     /* Show the info message. */
-    if (!vboxProblem().confirmGoingScale(strHotKey))
+    if (!msgCenter().confirmGoingScale(strHotKey))
         return false;
 
     return true;
@@ -128,10 +128,10 @@ void UIMachineLogicScale::prepareActionGroups()
     UIMachineLogic::prepareActionGroups();
 
     /* Guest auto-resize isn't allowed in scale-mode: */
-    actionsPool()->action(UIActionIndex_Toggle_GuestAutoresize)->setVisible(false);
+    gActionPool->action(UIActionIndexRuntime_Toggle_GuestAutoresize)->setVisible(false);
 
     /* Adjust-window isn't allowed in scale-mode: */
-    actionsPool()->action(UIActionIndex_Simple_AdjustWindow)->setVisible(false);
+    gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(false);
 }
 
 void UIMachineLogicScale::prepareMachineWindows()
@@ -173,9 +173,9 @@ void UIMachineLogicScale::cleanupMachineWindow()
 void UIMachineLogicScale::cleanupActionGroups()
 {
     /* Reenable guest-autoresize action: */
-    actionsPool()->action(UIActionIndex_Toggle_GuestAutoresize)->setVisible(true);
+    gActionPool->action(UIActionIndexRuntime_Toggle_GuestAutoresize)->setVisible(true);
 
     /* Reenable adjust-window action: */
-    actionsPool()->action(UIActionIndex_Simple_AdjustWindow)->setVisible(true);
+    gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(true);
 }
 

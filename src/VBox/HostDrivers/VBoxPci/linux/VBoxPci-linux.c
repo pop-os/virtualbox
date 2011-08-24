@@ -1,4 +1,4 @@
-/* $Id: VBoxPci-linux.c 37868 2011-07-11 12:34:04Z vboxsync $ */
+/* $Id: VBoxPci-linux.c 38299 2011-08-03 11:35:54Z vboxsync $ */
 /** @file
  * VBoxPci - PCI Driver (Host), Linux Specific Code.
  */
@@ -35,7 +35,11 @@
 #ifdef VBOX_WITH_IOMMU
 #include <linux/dmar.h>
 #include <linux/intel-iommu.h>
-#include <asm/amd_iommu.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0)
+# include <asm/amd_iommu.h>
+#else
+# include <linux/amd-iommu.h>
+#endif
 #endif
 
 

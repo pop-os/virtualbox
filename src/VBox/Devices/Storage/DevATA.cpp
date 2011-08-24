@@ -1,4 +1,4 @@
-/* $Id: DevATA.cpp 37687 2011-06-29 15:22:11Z vboxsync $ */
+/* $Id: DevATA.cpp 38219 2011-07-28 13:41:34Z vboxsync $ */
 /** @file
  * VBox storage devices: ATA/ATAPI controller device (disk and cdrom).
  */
@@ -3732,7 +3732,7 @@ static bool ataExecuteDeviceDiagnosticSS(ATADevState *s)
     if (s->fATAPI)
         ataSetStatusValue(s, 0); /* NOTE: READY is _not_ set */
     else
-        ataSetStatusValue(s, ATA_STAT_READY);
+        ataSetStatusValue(s, ATA_STAT_READY | ATA_STAT_SEEK);
     s->uATARegError = 0x01;
     return false;
 }
@@ -3797,7 +3797,7 @@ static void ataParseCmd(ATADevState *s, uint8_t cmd)
         case ATA_READ_VERIFY_SECTORS:
         case ATA_READ_VERIFY_SECTORS_WITHOUT_RETRIES:
             /* do sector number check ? */
-            ataCmdOK(s, 0);
+            ataCmdOK(s, ATA_STAT_SEEK);
             ataSetIRQ(s); /* Shortcut, do not use AIO thread. */
             break;
         case ATA_READ_SECTORS_EXT:

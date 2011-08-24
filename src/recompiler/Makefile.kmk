@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 37692 2011-06-29 16:19:17Z vboxsync $
+# $Id: Makefile.kmk 38082 2011-07-20 14:26:24Z vboxsync $
 ## @file
 # The Recompiler Sub-Makefile.
 #
@@ -128,7 +128,7 @@ if "$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)" == "win.amd64"
         Sun/crt
  VBoxRemPrimary_SYSSUFF    = .rel
  VBoxRemPrimary_LIBS       = \
- 	$(PATH_LIB)/RuntimeR3NoCRTGCC$(VBOX_SUFF_LIB)
+ 	$(PATH_STAGE_LIB)/RuntimeR3NoCRTGCC$(VBOX_SUFF_LIB)
  VBoxRemPrimary_POST_CMDS  = $(NO_SUCH_VARIABLE)
  VBOX_REM_WRAPPER          = 2
 

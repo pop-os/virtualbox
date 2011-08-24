@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 32229 2010-09-03 07:38:52Z vboxsync $
+# $Id: Makefile.kmk 38093 2011-07-21 12:45:30Z vboxsync $
 ## @file
 # Sub-Makefile for Java bindings
 #
@@ -57,8 +57,8 @@ VBoxJXpcom_SOURCES  = \
         src/nsJavaXPCOMGlue.cpp \
         src/nsJavaInterfaces.cpp
 VBoxJXpcom_LIBS     = \
-	$(PATH_LIB)/VBoxCOM$(VBOX_SUFF_LIB) \
-	$(PATH_BIN)/VBoxXPCOM$(VBOX_SUFF_DLL)
+	$(PATH_STAGE_LIB)/VBoxCOM$(VBOX_SUFF_LIB) \
+	$(PATH_STAGE_BIN)/VBoxXPCOM$(VBOX_SUFF_DLL)
 
 #VBoxJXpcom_ORDERDEPS = $(VBOX_JXPCOM_GENH)
 #VBoxJXpcom_CLEAN     = $(VBOX_JXPCOM_GENH)
@@ -89,6 +89,7 @@ VBOX_JXPCOM_GEN     = $(VBOX_JXPCOM_TARGET)/jxpcomgen-idl
 endif
 
 VBoxJXpcom-inst-jar_INST = $(INST_SDK)bindings/xpcom/java/
+VBoxJXpcom-inst-jar_MODE = a+r,u+w
 VBoxJXpcom-inst-jar_SOURCES = \
 	$(VBOX_JXPCOM_JAR)
 VBoxJXpcom-inst-jar_CLEAN = \

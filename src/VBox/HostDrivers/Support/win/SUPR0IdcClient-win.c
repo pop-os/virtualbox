@@ -1,4 +1,4 @@
-/* $Id: SUPR0IdcClient-win.c 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: SUPR0IdcClient-win.c 38321 2011-08-05 10:08:31Z vboxsync $ */
 /** @file
  * VirtualBox Support Driver - IDC Client Lib, Windows Specific Code.
  */
@@ -118,7 +118,7 @@ int VBOXCALL supR0IdcNativeOpen(PSUPDRVIDCHANDLE pHandle, PSUPDRVIDCREQCONNECT p
         if (RT_SUCCESS(rc))
         {
             pHandle->s.pDeviceObject = pDeviceObject;
-            pHandle->s.pFileObject = pFileObject;
+            pHandle->s.pFileObject   = pFileObject;
             return rc;
         }
 

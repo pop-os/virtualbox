@@ -1,4 +1,4 @@
-/* $Id: ProgressImpl.cpp 37069 2011-05-13 12:41:38Z vboxsync $ */
+/* $Id: ProgressImpl.cpp 38181 2011-07-26 12:31:09Z vboxsync $ */
 /** @file
  *
  * VirtualBox Progress COM class implementation
@@ -930,6 +930,7 @@ STDMETHODIMP Progress::WaitForAsyncProgressCompletion(IProgress *pProgressAsync)
     BOOL fCancelable     = FALSE;
     BOOL fCompleted      = FALSE;
     BOOL fCanceled       = FALSE;
+    ULONG prevPercent    = UINT32_MAX;
     ULONG currentPercent = 0;
     ULONG cOp            = 0;
     /* Is the async process cancelable? */
@@ -976,14 +977,19 @@ STDMETHODIMP Progress::WaitForAsyncProgressCompletion(IProgress *pProgressAsync)
                     rc = SetNextOperation(bstr.raw(), currentWeight);
                     if (FAILED(rc)) return rc;
                     ++cOp;
-                }else
+                }
+                else
                     break;
             }
 
             rc = pProgressAsync->COMGETTER(OperationPercent(&currentPercent));
             if (FAILED(rc)) return rc;
-            rc = SetCurrentOperationProgress(currentPercent);
-            if (FAILED(rc)) return rc;
+            if (currentPercent != prevPercent)
+            {
+                prevPercent = currentPercent;
+                rc = SetCurrentOperationProgress(currentPercent);
+                if (FAILED(rc)) return rc;
+            }
         }
         if (fCompleted)
             break;

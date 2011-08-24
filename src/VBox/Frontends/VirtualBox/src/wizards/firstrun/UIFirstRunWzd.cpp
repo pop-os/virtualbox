@@ -1,4 +1,4 @@
-/* $Id: UIFirstRunWzd.cpp 37849 2011-07-08 15:15:45Z vboxsync $ */
+/* $Id: UIFirstRunWzd.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -21,7 +21,7 @@
 #include "UIFirstRunWzd.h"
 #include "UIIconPool.h"
 #include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 
 UIFirstRunWzd::UIFirstRunWzd(QWidget *pParent, const CMachine &machine) : QIWizard(pParent)
 {
@@ -352,7 +352,7 @@ bool UIFirstRunWzdPage3::insertDevice()
         return true;
     else
     {
-        vboxProblem().cannotRemountMedium(this, m_Machine, vmedium,
+        msgCenter().cannotRemountMedium(this, m_Machine, vmedium,
                                           true /* mount? */, false /* retry? */);
         return false;
     }

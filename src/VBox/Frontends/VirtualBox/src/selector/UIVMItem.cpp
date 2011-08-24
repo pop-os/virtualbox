@@ -1,4 +1,4 @@
-/* $Id: UIVMItem.cpp 34065 2010-11-15 11:34:50Z vboxsync $ */
+/* $Id: UIVMItem.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -245,7 +245,7 @@ bool UIVMItem::recache()
         m_accessError = m_machine.GetAccessError();
 
         /* this should be in sync with
-         * VBoxProblemReporter::confirm_machineDeletion() */
+         * UIMessageCenter::confirm_machineDeletion() */
         QFileInfo fi(m_strSettingsFile);
         QString name = VBoxGlobal::hasAllowedExtension(fi.completeSuffix(), VBoxDefs::VBoxFileExts) ?
                        fi.completeBaseName() : fi.fileName();

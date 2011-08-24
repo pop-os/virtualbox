@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-darwin.cpp 33676 2010-11-02 09:48:24Z vboxsync $ */
+/* $Id: VBoxNetFlt-darwin.cpp 38408 2011-08-10 20:07:04Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Darwin Specific Code.
  */
@@ -837,7 +837,17 @@ static errno_t vboxNetFltDarwinIffInputOutputWorker(PVBOXNETFLTINS pThis, mbuf_t
 
         fDropIt = pThis->pSwitchPort->pfnRecv(pThis->pSwitchPort, NULL /* pvIf */, pSG, fSrc);
         if (fDropIt)
-            mbuf_freem(pMBuf);
+        {
+            /*
+             * Check if this interface is in promiscuous mode. We should not drop
+             * any packets before they get to the driver as it passes them to tap
+             * callbacks in order for BPF to work properly.
+             */
+            if (vboxNetFltDarwinIsPromiscuous(pThis))
+                fDropIt = false;
+            else
+                mbuf_freem(pMBuf);
+        }
     }
 
     vboxNetFltRelease(pThis, true /* fBusy */);
