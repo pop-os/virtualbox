@@ -26,6 +26,7 @@
 /* Generated includes: */
 #include "UICloneVMWizardPage1.gen.h"
 #include "UICloneVMWizardPage2.gen.h"
+#include "UICloneVMWizardPage3.gen.h"
 
 /* Clone vm wizard class: */
 class UICloneVMWizard : public QIWizard
@@ -34,10 +35,17 @@ class UICloneVMWizard : public QIWizard
 
 public:
 
-    /* Constructor: */
-    UICloneVMWizard(QWidget *pParent, CMachine machine, bool fShowChildsOption = true);
+    enum
+    {
+        PageIntro,
+        PageType,
+        PageMode
+    };
 
-    bool createClone(const QString &strName, KCloneMode mode, bool fReinitMACs);
+    /* Constructor: */
+    UICloneVMWizard(QWidget *pParent, CMachine machine, CSnapshot snapshot = CSnapshot());
+
+    bool createClone(const QString &strName, KCloneMode mode, bool fReinitMACs, bool fLinked = false);
 
 private:
 
@@ -46,6 +54,7 @@ private:
 
     /* Private member vars */
     CMachine m_machine;
+    CSnapshot m_snapshot;
 };
 
 /* Base wrapper for the wizard page
@@ -62,7 +71,7 @@ public:
 protected:
 
     /* Returns parent wizard object: */
-    UICloneVMWizard* wizard() { return qobject_cast<UICloneVMWizard*>(QIWizardPage::wizard()); }
+    UICloneVMWizard* wizard() const { return qobject_cast<UICloneVMWizard*>(QIWizardPage::wizard()); }
 };
 
 /* Page1 of the new clonevm wizard: */
@@ -107,12 +116,42 @@ private:
 class UICloneVMWizardPage2 : public UICloneVMWizardPage, public Ui::UICloneVMWizardPage2
 {
     Q_OBJECT;
+
+public:
+
+    /* Constructor: */
+    UICloneVMWizardPage2(bool fAdditionalInfo);
+    int nextId() const;
+
+protected:
+
+    /* Translation stuff: */
+    void retranslateUi();
+
+    /* Prepare page: */
+    void initializePage();
+
+    bool validatePage();
+
+private slots:
+
+    void buttonClicked(QAbstractButton *pButton);
+
+private:
+
+    bool m_fAdditionalInfo;
+};
+
+/* Page3 of the new clonevm wizard: */
+class UICloneVMWizardPage3 : public UICloneVMWizardPage, public Ui::UICloneVMWizardPage3
+{
+    Q_OBJECT;
     Q_PROPERTY(KCloneMode cloneMode READ cloneMode WRITE setCloneMode);
 
 public:
 
     /* Constructor: */
-    UICloneVMWizardPage2(bool fShowChildsOption = true);
+    UICloneVMWizardPage3(bool fShowChildsOption = true);
 
 protected:
 

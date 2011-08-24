@@ -1,4 +1,4 @@
-/* $Id: state_snapshot.c 37613 2011-06-23 12:42:08Z vboxsync $ */
+/* $Id: state_snapshot.c 38394 2011-08-10 11:46:47Z vboxsync $ */
 
 /** @file
  * VBox Context state saving/loading used by VM snapshot
@@ -877,6 +877,11 @@ static int32_t crStateLoadClientPointer(CRVertexArrays *pArrays, int32_t index, 
     rc = SSMR3GetU32(pSSM, &ui);
     AssertRCReturn(rc, rc);
     cp->buffer = ui==0 ? pContext->bufferobject.nullBuffer : crHashtableSearch(pContext->shared->buffersTable, ui);
+
+    if (!cp->buffer)
+    {
+        crWarning("crStateLoadClientPointer: ui=%d loaded as NULL buffer!", ui);
+    }
 
 #ifdef CR_EXT_compiled_vertex_array
     if (cp->locked)
@@ -1991,6 +1996,7 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PSSMHAN
                 size_t itemsize, datasize;
 
                 rc = SSMR3GetMem(pSSM, &pProgram->pUniforms[k].type, sizeof(GLenum));
+                AssertRCReturn(rc, rc);
                 pProgram->pUniforms[k].name = crStateLoadString(pSSM);
 
                 if (crStateIsIntUniform(pProgram->pUniforms[k].type))
@@ -2003,6 +2009,7 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PSSMHAN
                 if (!pProgram->pUniforms[k].data) return VERR_NO_MEMORY;
 
                 rc = SSMR3GetMem(pSSM, pProgram->pUniforms[k].data, datasize);
+                AssertRCReturn(rc, rc);
             }
         }
     }

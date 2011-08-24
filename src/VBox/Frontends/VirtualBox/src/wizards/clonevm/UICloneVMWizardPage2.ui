@@ -41,9 +41,9 @@
     </widget>
    </item>
    <item>
-    <widget class="QRadioButton" name="m_pMachineRadio">
+    <widget class="QRadioButton" name="m_pFullCloneRadio">
      <property name="text">
-      <string>Current machine state</string>
+      <string>Full Clone</string>
      </property>
      <property name="checked">
       <bool>true</bool>
@@ -51,16 +51,9 @@
     </widget>
    </item>
    <item>
-    <widget class="QRadioButton" name="m_pMachineAndChildsRadio">
+    <widget class="QRadioButton" name="m_pLinkedCloneRadio">
      <property name="text">
-      <string>Current machine and all child states</string>
-     </property>
-    </widget>
-   </item>
-   <item>
-    <widget class="QRadioButton" name="m_pAllRadio">
-     <property name="text">
-      <string>All states</string>
+      <string>Linked Clone</string>
      </property>
     </widget>
    </item>

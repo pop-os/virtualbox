@@ -1,4 +1,4 @@
-/* $Id: VBoxLicenseViewer.cpp 35103 2010-12-14 16:33:26Z vboxsync $ */
+/* $Id: VBoxLicenseViewer.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -23,7 +23,7 @@
 #include "VBoxLicenseViewer.h"
 #include "QIDialogButtonBox.h"
 #include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 
 /* Qt includes */
 #include <QTextBrowser>
@@ -79,7 +79,7 @@ int VBoxLicenseViewer::showLicenseFromFile(const QString &strLicenseFileName)
     }
     else
     {
-        vboxProblem().cannotOpenLicenseFile(this, strLicenseFileName);
+        msgCenter().cannotOpenLicenseFile(this, strLicenseFileName);
         return QDialog::Rejected;
     }
 }

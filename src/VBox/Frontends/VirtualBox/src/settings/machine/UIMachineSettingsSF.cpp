@@ -1,4 +1,4 @@
-/* $Id: UIMachineSettingsSF.cpp 37126 2011-05-17 13:56:50Z vboxsync $ */
+/* $Id: UIMachineSettingsSF.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -20,7 +20,7 @@
 /* Local includes */
 #include "UIIconPool.h"
 #include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 #include "VBoxUtils.h"
 #include "UIMachineSettingsSF.h"
 #include "UIMachineSettingsSFDetails.h"
@@ -760,7 +760,7 @@ bool UIMachineSettingsSF::removeSharedFolder(const UICacheSettingsSharedFolder &
                     /* Mark the page as failed: */
                     setFailed(true);
                     /* Show error message: */
-                    vboxProblem().cannotRemoveSharedFolder(m_machine, strName, strPath);
+                    msgCenter().cannotRemoveSharedFolder(m_machine, strName, strPath);
                     /* Finish early: */
                     return false;
                 }
@@ -774,7 +774,7 @@ bool UIMachineSettingsSF::removeSharedFolder(const UICacheSettingsSharedFolder &
                     /* Mark the page as failed: */
                     setFailed(true);
                     /* Show error message: */
-                    vboxProblem().cannotRemoveSharedFolder(m_console, strName, strPath);
+                    msgCenter().cannotRemoveSharedFolder(m_console, strName, strPath);
                     /* Finish early: */
                     return false;
                 }
@@ -817,7 +817,7 @@ bool UIMachineSettingsSF::createSharedFolder(const UICacheSettingsSharedFolder &
                     /* Mark the page as failed: */
                     setFailed(true);
                     /* Show error message: */
-                    vboxProblem().cannotCreateSharedFolder(m_machine, strName, strPath);
+                    msgCenter().cannotCreateSharedFolder(m_machine, strName, strPath);
                     /* Finish early: */
                     return false;
                 }
@@ -832,7 +832,7 @@ bool UIMachineSettingsSF::createSharedFolder(const UICacheSettingsSharedFolder &
                     /* Mark the page as failed: */
                     setFailed(true);
                     /* Show error message: */
-                    vboxProblem().cannotCreateSharedFolder(m_console, strName, strPath);
+                    msgCenter().cannotCreateSharedFolder(m_console, strName, strPath);
                     /* Finish early: */
                     return false;
                 }

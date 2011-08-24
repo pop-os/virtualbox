@@ -1,4 +1,4 @@
-/* $Id: UIMachineSettingsGeneral.cpp 37168 2011-05-20 16:56:46Z vboxsync $ */
+/* $Id: UIMachineSettingsGeneral.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -19,7 +19,7 @@
 
 #include "UIMachineSettingsGeneral.h"
 #include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 #include "QIWidgetValidator.h"
 
 #include <QDir>

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 38001 2011-07-18 10:16:11Z vboxsync $
+# $Id: Makefile.kmk 38093 2011-07-21 12:45:30Z vboxsync $
 ## @file
 # Sub-Makefile for the VBox Linux installer testcase.
 #
@@ -26,15 +26,16 @@ tstInstallerLinux_SOURCES = $(tstInstallerLinux_0_OUTDIR)/tstInstallerLinux.sh
 tstInstallerLinux_CLEAN   = $(tstInstallerLinux_0_OUTDIR)/tstInstallerLinux.sh
 
 $$(tstInstallerLinux_0_OUTDIR)/tstInstallerLinux.sh: \
-	$(PATH_SUB_CURRENT)/tstInstallerLinux.sh \
-	$(PATH_SUB_CURRENT)/../installer-utils.sh \
-	| $$(dir $$@)
+		$(PATH_SUB_CURRENT)/tstInstallerLinux.sh \
+		$(PATH_SUB_CURRENT)/../installer-utils.sh \
+		| $$(dir $$@)
 	$(QUIET)$(SED) \
-	-e '/#include installer-utils.sh/ {' \
-	-e "r $(PATH_ROOT)/src/VBox/Installer/linux/installer-utils.sh" \
-	-e 'd' \
-	-e '}' \
-	--output $@ \
-	$<
+		-e '/#include installer-utils.sh/ {' \
+		-e "r $(PATH_ROOT)/src/VBox/Installer/linux/installer-utils.sh" \
+		-e 'd' \
+		-e '}' \
+		--output $@ \
+		$<
+	$(QUIET)$(CHMOD) a+rx,u+w $@
 
 include	$(KBUILD_PATH)/subfooter.kmk

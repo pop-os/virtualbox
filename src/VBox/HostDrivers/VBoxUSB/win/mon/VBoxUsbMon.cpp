@@ -1,4 +1,4 @@
-/* $Id: VBoxUsbMon.cpp 37757 2011-07-04 10:44:53Z vboxsync $ */
+/* $Id: VBoxUsbMon.cpp 38425 2011-08-11 20:22:34Z vboxsync $ */
 /** @file
  * VBox USB Monitor
  */
@@ -101,7 +101,7 @@ VOID VBoxUsbMonMemFree(PVOID pvMem)
 #define VBOXUSBDBG_STRCASE(_t) \
         case _t: return #_t
 #define VBOXUSBDBG_STRCASE_UNKNOWN(_v) \
-        default: Log((__FUNCTION__": Unknown Value (0n%d), (0x%x)\n", _v, _v)); return "Unknown"
+        default: LOG((__FUNCTION__": Unknown Value (0n%d), (0x%x)\n", _v, _v)); return "Unknown"
 
 static const char* vboxUsbDbgStrPnPMn(UCHAR uMn)
 {
@@ -139,7 +139,7 @@ void vboxUsbDbgPrintUnicodeString(PUNICODE_STRING pUnicodeString)
     PWSTR pStr = pUnicodeString->Buffer;
     for (int i = 0; i < pUnicodeString->Length/2; ++i)
     {
-        Log(("%c", *pStr++));
+        LOG(("%c", *pStr++));
     }
 }
 
@@ -167,7 +167,7 @@ NTSTATUS VBoxUsbMonQueryBusRelations(PDEVICE_OBJECT pDevObj, PFILE_OBJECT pFileO
     pIrp = IoBuildSynchronousFsdRequest(IRP_MJ_PNP, pDevObj, NULL, 0, NULL, &Event, &IoStatus);
     if (!pIrp)
     {
-        AssertMsgFailed(("IoBuildDeviceIoControlRequest failed!!\n"));
+        WARN(("IoBuildDeviceIoControlRequest failed!!\n"));
         return STATUS_INSUFFICIENT_RESOURCES;
     }
     IoStatus.Status = STATUS_NOT_SUPPORTED;
@@ -181,7 +181,7 @@ NTSTATUS VBoxUsbMonQueryBusRelations(PDEVICE_OBJECT pDevObj, PFILE_OBJECT pFileO
     Status = IoCallDriver(pDevObj, pIrp);
     if (Status == STATUS_PENDING)
     {
-        Log(("IoCallDriver returned STATUS_PENDING!!\n"));
+        LOG(("IoCallDriver returned STATUS_PENDING!!\n"));
         KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
         Status = IoStatus.Status;
     }
@@ -189,16 +189,22 @@ NTSTATUS VBoxUsbMonQueryBusRelations(PDEVICE_OBJECT pDevObj, PFILE_OBJECT pFileO
     if (Status == STATUS_SUCCESS)
     {
         PDEVICE_RELATIONS pRel = (PDEVICE_RELATIONS)IoStatus.Information;
-        Log(("pRel = %p\n", pRel));
+        LOG(("pRel = %p\n", pRel));
         if (VALID_PTR(pRel))
         {
             *pDevRelations = pRel;
         }
         else
-            Log(("Invalid pointer %p\n", pRel));
+        {
+            WARN(("Invalid pointer %p\n", pRel));
+        }
+    }
+    else
+    {
+        WARN(("IRP_MN_QUERY_DEVICE_RELATIONS failed Status(0x%x)\n", Status));
     }
 
-    Log(("IoCallDriver returned %x\n", Status));
+    LOG(("IoCallDriver returned %x\n", Status));
     return Status;
 }
 
@@ -212,11 +218,11 @@ static PDRIVER_OBJECT vboxUsbMonHookFindHubDrvObj()
     szStandardHubName.Buffer = 0;
     RtlInitUnicodeString(&szStandardHubName, L"\\Driver\\usbhub");
 
-    Log(("Search USB hub\n"));
+    LOG(("Search USB hub\n"));
     for (int i = 0; i < 16; i++)
     {
-        WCHAR           szwHubName[32];
-        char            szHubName[32];
+        WCHAR           szwHubName[32] = {};
+        char            szHubName[32] = {};
         ANSI_STRING     AnsiName;
         UNICODE_STRING  UnicodeName;
         PDEVICE_OBJECT  pHubDevObj;
@@ -237,32 +243,59 @@ static PDRIVER_OBJECT vboxUsbMonHookFindHubDrvObj()
             Status = IoGetDeviceObjectPointer(&UnicodeName, FILE_READ_DATA, &pHubFileObj, &pHubDevObj);
             if (Status == STATUS_SUCCESS)
             {
-                Log(("IoGetDeviceObjectPointer for %S returned %p %p\n", szwHubName, pHubDevObj, pHubFileObj));
+                LOG(("IoGetDeviceObjectPointer for %S returned %p %p\n", szwHubName, pHubDevObj, pHubFileObj));
 
                 if (pHubDevObj->DriverObject
                     && pHubDevObj->DriverObject->DriverName.Buffer
                     && pHubDevObj->DriverObject->DriverName.Length
                     && !RtlCompareUnicodeString(&szStandardHubName, &pHubDevObj->DriverObject->DriverName, TRUE /* case insensitive */))
                 {
-#if 0
-                    Log(("Associated driver"));
-                    Log(("%S\n", &pHubDevObj->DriverObject->DriverName.Buffer));
-#endif
-                    Log(("pnp handler %p\n", pHubDevObj->DriverObject->MajorFunction[IRP_MJ_PNP]));
+                    LOG(("Associated driver"));
+                    LOG_USTR(&pHubDevObj->DriverObject->DriverName);
+                    LOG(("pnp handler %p\n", pHubDevObj->DriverObject->MajorFunction[IRP_MJ_PNP]));
 
                     pDrvObj = pHubDevObj->DriverObject;
+                    /* ensure the driver object is not destroyed */
+                    ObReferenceObject(pDrvObj);
+                    /* release the file object which will releade the dev objectas well,
+                     * as we do not need those anymore */
+                    ObDereferenceObject(pHubFileObj);
                     break;
+                }
+                else
+                {
+                    LOG(("driver object (0x%p) no match", pHubDevObj->DriverObject));
+                    if (pHubDevObj->DriverObject)
+                    {
+                        if (   pHubDevObj->DriverObject->DriverName.Buffer
+                            && pHubDevObj->DriverObject->DriverName.Length)
+                        {
+                            LOG(("driver name not match, was:"));
+                            LOG_USTR(&pHubDevObj->DriverObject->DriverName);
+                            LOG(("but expected:"));
+                            LOG_USTR(&szStandardHubName);
+                        }
+                        else
+                        {
+                            LOG(("driver name is zero, Length(%d), Buffer(0x%p)",
+                                    pHubDevObj->DriverObject->DriverName.Length, pHubDevObj->DriverObject->DriverName.Buffer));
+                        }
+                    }
+                    else
+                    {
+                        LOG(("driver object is NULL"));
+                    }
                 }
                 ObDereferenceObject(pHubFileObj);
             }
             else
             {
-                AssertFailed();
+                WARN(("IoGetDeviceObjectPointer returned Status (0x%x) for (%S)", Status, szwHubName));
             }
         }
         else
         {
-            AssertFailed();
+            WARN(("RtlAnsiStringToUnicodeString failed, Status (0x%x) for Ansu name (%s)", Status, szHubName));
         }
     }
 
@@ -274,12 +307,12 @@ static PDRIVER_OBJECT vboxUsbMonHookFindHubDrvObj()
  * See the note in VBoxUsbPnPCompletion for detail */
 static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCATION pSl, PIO_STATUS_BLOCK pIoStatus)
 {
-    Log(("VBoxUSBMonHandlePnPIoctl IRQL = %d\n", KeGetCurrentIrql()));
+    LOG(("IRQL = %d\n", KeGetCurrentIrql()));
     switch(pSl->MinorFunction)
     {
         case IRP_MN_QUERY_DEVICE_TEXT:
         {
-            Log(("IRP_MN_QUERY_DEVICE_TEXT: pIoStatus->Status = %x\n", pIoStatus->Status));
+            LOG(("IRP_MN_QUERY_DEVICE_TEXT: pIoStatus->Status = %x\n", pIoStatus->Status));
             if (pIoStatus->Status == STATUS_SUCCESS)
             {
                 WCHAR *pId = (WCHAR *)pIoStatus->Information;
@@ -287,17 +320,20 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
                 {
                     KIRQL Iqrl = KeGetCurrentIrql();
                     /* IRQL should be always passive here */
-                    Assert(Iqrl == PASSIVE_LEVEL);
+                    ASSERT_WARN(Iqrl == PASSIVE_LEVEL, ("irql is not PASSIVE"));
                     switch(pSl->Parameters.QueryDeviceText.DeviceTextType)
                     {
                         case DeviceTextLocationInformation:
-                            Log(("DeviceTextLocationInformation %ws\n", pId));
+                            LOG(("DeviceTextLocationInformation"));
+                            LOG_STRW(pId);
                             break;
 
                         case DeviceTextDescription:
-                            Log(("DeviceTextDescription %ws\n", pId));
+                            LOG(("DeviceTextDescription"));
+                            LOG_STRW(pId);
                             if (VBoxUsbFltPdoIsFiltered(pDevObj))
                             {
+                                LOG(("PDO (0x%p) is filtered", pDevObj));
                                 WCHAR *pId = (WCHAR *)ExAllocatePool(PagedPool, sizeof(szDeviceTextDescription));
                                 if (!pId)
                                 {
@@ -305,48 +341,56 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
                                     break;
                                 }
                                 memcpy(pId, szDeviceTextDescription, sizeof(szDeviceTextDescription));
-                                Log(("NEW szDeviceTextDescription %ws\n", pId));
+                                LOG(("NEW szDeviceTextDescription"));
+                                LOG_STRW(pId);
                                 ExFreePool((PVOID)pIoStatus->Information);
                                 pIoStatus->Information = (ULONG_PTR)pId;
                             }
+                            else
+                            {
+                                LOG(("PDO (0x%p) is NOT filtered", pDevObj));
+                            }
                             break;
                         default:
+                            LOG(("DeviceText %d", pSl->Parameters.QueryDeviceText.DeviceTextType));
                             break;
                     }
                 }
                 else
-                    Log(("Invalid pointer %p\n", pId));
+                    LOG(("Invalid pointer %p\n", pId));
             }
             break;
         }
 
         case IRP_MN_QUERY_ID:
         {
-            Log(("IRP_MN_QUERY_ID: Irp->pIoStatus->Status = %x\n", pIoStatus->Status));
+            LOG(("IRP_MN_QUERY_ID: Irp->pIoStatus->Status = %x\n", pIoStatus->Status));
             if (pIoStatus->Status == STATUS_SUCCESS &&  pDevObj)
             {
                 WCHAR *pId = (WCHAR *)pIoStatus->Information;
-#ifdef DEBUG
+#ifdef VBOX_USB_WITH_VERBOSE_LOGGING
                 WCHAR *pTmp;
 #endif
                 if (VALID_PTR(pId))
                 {
                     KIRQL Iqrl = KeGetCurrentIrql();
                     /* IRQL should be always passive here */
-                    Assert(Iqrl == PASSIVE_LEVEL);
+                    ASSERT_WARN(Iqrl == PASSIVE_LEVEL, ("irql is not PASSIVE"));
 
                     switch (pSl->Parameters.QueryDeviceRelations.Type)
                     {
                         case BusQueryInstanceID:
-                            Log(("BusQueryInstanceID %ws\n", pId));
+                            LOG(("BusQueryInstanceID"));
+                            LOG_STRW(pId);
                             break;
 
                         case BusQueryDeviceID:
                         {
+                            LOG(("BusQueryDeviceID"));
                             pId = (WCHAR *)ExAllocatePool(PagedPool, sizeof(szBusQueryDeviceId));
                             if (!pId)
                             {
-                                AssertFailed();
+                                WARN(("ExAllocatePool failed"));
                                 break;
                             }
 
@@ -354,11 +398,19 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
                             NTSTATUS Status = VBoxUsbFltPdoAdd(pDevObj, &bFiltered);
                             if (Status != STATUS_SUCCESS || !bFiltered)
                             {
-                                Assert(Status == STATUS_SUCCESS);
+                                if(Status == STATUS_SUCCESS)
+                                {
+                                    LOG(("PDO (0x%p) is NOT filtered", pDevObj));
+                                }
+                                else
+                                {
+                                    WARN(("VBoxUsbFltPdoAdd for PDO (0x%p) failed Status 0x%x", pDevObj, Status));
+                                }
                                 ExFreePool(pId);
                                 break;
                             }
 
+                            LOG(("PDO (0x%p) is filtered", pDevObj));
                             ExFreePool((PVOID)pIoStatus->Information);
                             memcpy(pId, szBusQueryDeviceId, sizeof(szBusQueryDeviceId));
                             pIoStatus->Information = (ULONG_PTR)pId;
@@ -366,10 +418,11 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
                         }
                     case BusQueryHardwareIDs:
                     {
-#ifdef DEBUG
+                        LOG(("BusQueryHardwareIDs"));
+#ifdef VBOX_USB_WITH_VERBOSE_LOGGING
                         while(*pId) //MULTI_SZ
                         {
-                            Log(("BusQueryHardwareIDs %ws\n", pId));
+                            LOG_STRW(pId);
                             while(*pId) pId++;
                             pId++;
                         }
@@ -377,7 +430,7 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
                         pId = (WCHAR *)ExAllocatePool(PagedPool, sizeof(szBusQueryHardwareIDs));
                         if (!pId)
                         {
-                            AssertFailed();
+                            WARN(("ExAllocatePool failed"));
                             break;
                         }
 
@@ -385,17 +438,28 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
                         NTSTATUS Status = VBoxUsbFltPdoAdd(pDevObj, &bFiltered);
                         if (Status != STATUS_SUCCESS || !bFiltered)
                         {
-                            Assert(Status == STATUS_SUCCESS);
+                            if(Status == STATUS_SUCCESS)
+                            {
+                                LOG(("PDO (0x%p) is NOT filtered", pDevObj));
+                            }
+                            else
+                            {
+                                WARN(("VBoxUsbFltPdoAdd for PDO (0x%p) failed Status 0x%x", pDevObj, Status));
+                            }
                             ExFreePool(pId);
                             break;
                         }
 
+                        LOG(("PDO (0x%p) is filtered", pDevObj));
+
                         memcpy(pId, szBusQueryHardwareIDs, sizeof(szBusQueryHardwareIDs));
-#ifdef DEBUG
+#ifdef VBOX_USB_WITH_VERBOSE_LOGGING
+                        LOG(("NEW BusQueryHardwareIDs"));
                         pTmp = pId;
                         while(*pTmp) //MULTI_SZ
                         {
-                            Log(("NEW BusQueryHardwareIDs %ws\n", pTmp));
+
+                            LOG_STRW(pTmp);
                             while(*pTmp) pTmp++;
                             pTmp++;
                         }
@@ -405,28 +469,31 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
                         break;
                     }
                     case BusQueryCompatibleIDs:
-#ifdef DEBUG
+                        LOG(("BusQueryCompatibleIDs"));
+#ifdef VBOX_USB_WITH_VERBOSE_LOGGING
                         while(*pId) //MULTI_SZ
                         {
-                            Log(("BusQueryCompatibleIDs %ws\n", pId));
+                            LOG_STRW(pId);
                             while(*pId) pId++;
                             pId++;
                         }
 #endif
                         if (VBoxUsbFltPdoIsFiltered(pDevObj))
                         {
+                            LOG(("PDO (0x%p) is filtered", pDevObj));
                             pId = (WCHAR *)ExAllocatePool(PagedPool, sizeof(szBusQueryCompatibleIDs));
                             if (!pId)
                             {
-                                AssertFailed();
+                                WARN(("ExAllocatePool failed"));
                                 break;
                             }
                             memcpy(pId, szBusQueryCompatibleIDs, sizeof(szBusQueryCompatibleIDs));
-#ifdef DEBUG
+#ifdef VBOX_USB_WITH_VERBOSE_LOGGING
+                            LOG(("NEW BusQueryCompatibleIDs"));
                             pTmp = pId;
                             while(*pTmp) //MULTI_SZ
                             {
-                                Log(("NEW BusQueryCompatibleIDs %ws\n", pTmp));
+                                LOG_STRW(pTmp);
                                 while(*pTmp) pTmp++;
                                 pTmp++;
                             }
@@ -434,49 +501,55 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
                             ExFreePool((PVOID)pIoStatus->Information);
                             pIoStatus->Information = (ULONG_PTR)pId;
                         }
+                        else
+                        {
+                            LOG(("PDO (0x%p) is NOT filtered", pDevObj));
+                        }
                         break;
                     }
                 }
                 else
-                    Log(("Invalid pointer %p\n", pId));
+                {
+                    LOG(("Invalid pointer %p\n", pId));
+                }
             }
             break;
         }
 
-#ifdef DEBUG
+#ifdef VBOX_USB_WITH_VERBOSE_LOGGING
         case IRP_MN_QUERY_DEVICE_RELATIONS:
         {
             switch(pSl->Parameters.QueryDeviceRelations.Type)
             {
             case BusRelations:
             {
-                Log(("BusRelations\n"));
+                LOG(("BusRelations\n"));
 
                 if (pIoStatus->Status == STATUS_SUCCESS)
                 {
                     PDEVICE_RELATIONS pRel = (PDEVICE_RELATIONS)pIoStatus->Information;
-                    Log(("pRel = %p\n", pRel));
+                    LOG(("pRel = %p\n", pRel));
                     if (VALID_PTR(pRel))
                     {
                         for (unsigned i=0;i<pRel->Count;i++)
                         {
                             if (VBoxUsbFltPdoIsFiltered(pDevObj))
-                                Log(("New PDO %p\n", pRel->Objects[i]));
+                                LOG(("New PDO %p\n", pRel->Objects[i]));
                         }
                     }
                     else
-                        Log(("Invalid pointer %p\n", pRel));
+                        LOG(("Invalid pointer %p\n", pRel));
                 }
                 break;
             }
             case TargetDeviceRelation:
-                Log(("TargetDeviceRelation\n"));
+                LOG(("TargetDeviceRelation\n"));
                 break;
             case RemovalRelations:
-                Log(("RemovalRelations\n"));
+                LOG(("RemovalRelations\n"));
                 break;
             case EjectionRelations:
-                Log(("EjectionRelations\n"));
+                LOG(("EjectionRelations\n"));
                 break;
             }
             break;
@@ -484,19 +557,19 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
 
         case IRP_MN_QUERY_CAPABILITIES:
         {
-            Log(("IRP_MN_QUERY_CAPABILITIES: pIoStatus->Status = %x\n", pIoStatus->Status));
+            LOG(("IRP_MN_QUERY_CAPABILITIES: pIoStatus->Status = %x\n", pIoStatus->Status));
             if (pIoStatus->Status == STATUS_SUCCESS)
             {
                 PDEVICE_CAPABILITIES pCaps = pSl->Parameters.DeviceCapabilities.Capabilities;
                 if (VALID_PTR(pCaps))
                 {
-                    Log(("Caps.SilentInstall  = %d\n", pCaps->SilentInstall));
-                    Log(("Caps.UniqueID       = %d\n", pCaps->UniqueID ));
-                    Log(("Caps.Address        = %d\n", pCaps->Address ));
-                    Log(("Caps.UINumber       = %d\n", pCaps->UINumber ));
+                    LOG(("Caps.SilentInstall  = %d\n", pCaps->SilentInstall));
+                    LOG(("Caps.UniqueID       = %d\n", pCaps->UniqueID ));
+                    LOG(("Caps.Address        = %d\n", pCaps->Address ));
+                    LOG(("Caps.UINumber       = %d\n", pCaps->UINumber ));
                 }
                 else
-                    Log(("Invalid pointer %p\n", pCaps));
+                    LOG(("Invalid pointer %p\n", pCaps));
             }
             break;
         }
@@ -506,13 +579,14 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
 #endif
     } /*switch */
 
-    Log(("VBoxUSBMonHandlePnPIoctl returns %x (IRQL = %d)\n", pIoStatus->Status, KeGetCurrentIrql()));
+    LOG(("Done returns %x (IRQL = %d)\n", pIoStatus->Status, KeGetCurrentIrql()));
     return pIoStatus->Status;
 }
 
 NTSTATUS _stdcall VBoxUsbPnPCompletion(DEVICE_OBJECT *pDevObj, IRP *pIrp, void *pvContext)
 {
-    Assert(pvContext);
+    LOG(("Completion PDO(0x%p), IRP(0x%p), Status(0x%x)\n", pDevObj, pIrp, pIrp->IoStatus.Status));
+    ASSERT_WARN(pvContext, ("zero context"));
 
     PVBOXUSBHOOK_REQUEST pRequest = (PVBOXUSBHOOK_REQUEST)pvContext;
     /* NOTE: despite a regular IRP processing the stack location in our completion
@@ -526,7 +600,7 @@ NTSTATUS _stdcall VBoxUsbPnPCompletion(DEVICE_OBJECT *pDevObj, IRP *pIrp, void *
      * This is why we use the stack location we saved on IRP way down.
      * */
     PIO_STACK_LOCATION pSl = &pRequest->OldLocation;
-    Assert(pIrp == pRequest->pIrp);
+    ASSERT_WARN(pIrp == pRequest->pIrp, ("completed IRP(0x%x) not match request IRP(0x%x)", pIrp, pRequest->pIrp));
     /* NOTE: we can not rely on pDevObj passed in IoCompletion since it may be zero
      * in case IRP was created with extra stack locations and the caller did not initialize
      * the IO_STACK_LOCATION::DeviceObject */
@@ -538,7 +612,7 @@ NTSTATUS _stdcall VBoxUsbPnPCompletion(DEVICE_OBJECT *pDevObj, IRP *pIrp, void *
     {
         case IRP_MN_QUERY_DEVICE_TEXT:
         case IRP_MN_QUERY_ID:
-#ifdef DEBUG
+#ifdef VBOX_USB_WITH_VERBOSE_LOGGING
         case IRP_MN_QUERY_DEVICE_RELATIONS:
         case IRP_MN_QUERY_CAPABILITIES:
 #endif
@@ -548,7 +622,7 @@ NTSTATUS _stdcall VBoxUsbPnPCompletion(DEVICE_OBJECT *pDevObj, IRP *pIrp, void *
             }
             else
             {
-                Assert(pIrp->IoStatus.Status == STATUS_NOT_SUPPORTED);
+                ASSERT_WARN(pIrp->IoStatus.Status == STATUS_NOT_SUPPORTED, ("Irp failed with status(0x%x)", pIrp->IoStatus.Status));
             }
             break;
 
@@ -582,7 +656,7 @@ NTSTATUS _stdcall VBoxUsbPnPCompletion(DEVICE_OBJECT *pDevObj, IRP *pIrp, void *
             break;
     }
 
-    Log(("<==PnP: Mn(%s), PDO(0x%p), IRP(0x%p), Status(0x%x), Sl PDO(0x%p), Compl PDO(0x%p)\n",
+    LOG(("<==PnP: Mn(%s), PDO(0x%p), IRP(0x%p), Status(0x%x), Sl PDO(0x%p), Compl PDO(0x%p)\n",
                             vboxUsbDbgStrPnPMn(pSl->MinorFunction),
                             pRealDevObj, pIrp, pIrp->IoStatus.Status,
                             pSl->DeviceObject, pDevObj));
@@ -609,15 +683,18 @@ NTSTATUS _stdcall VBoxUsbPnPCompletion(DEVICE_OBJECT *pDevObj, IRP *pIrp, void *
  */
 NTSTATUS _stdcall VBoxUsbMonPnPHook(IN PDEVICE_OBJECT pDevObj, IN PIRP pIrp)
 {
+    LOG(("==>PnP: Mn(%s), PDO(0x%p), IRP(0x%p), Status(0x%x)\n", vboxUsbDbgStrPnPMn(IoGetCurrentIrpStackLocation(pIrp)->MinorFunction), pDevObj, pIrp, pIrp->IoStatus.Status));
+
     if(!VBoxUsbHookRetain(&g_VBoxUsbMonGlobals.UsbHubPnPHook.Hook))
     {
+        WARN(("VBoxUsbHookRetain failed"));
         return VBoxUsbHookRequestPassDownHookSkip(&g_VBoxUsbMonGlobals.UsbHubPnPHook.Hook, pDevObj, pIrp);
     }
 
     PVBOXUSBHUB_PNPHOOK_COMPLETION pCompletion = (PVBOXUSBHUB_PNPHOOK_COMPLETION)VBoxUsbMonMemAlloc(sizeof (*pCompletion));
     if (!pCompletion)
     {
-        AssertFailed();
+        WARN(("VBoxUsbMonMemAlloc failed"));
         VBoxUsbHookRelease(&g_VBoxUsbMonGlobals.UsbHubPnPHook.Hook);
         pIrp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
         pIrp->IoStatus.Information = 0;
@@ -625,13 +702,16 @@ NTSTATUS _stdcall VBoxUsbMonPnPHook(IN PDEVICE_OBJECT pDevObj, IN PIRP pIrp)
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    Log(("==>PnP: Mn(%s), PDO(0x%p), IRP(0x%p), Status(0x%x)\n", vboxUsbDbgStrPnPMn(IoGetCurrentIrpStackLocation(pIrp)->MinorFunction), pDevObj, pIrp, pIrp->IoStatus.Status));
-
     NTSTATUS Status = VBoxUsbHookRequestPassDownHookCompletion(&g_VBoxUsbMonGlobals.UsbHubPnPHook.Hook, pDevObj, pIrp, VBoxUsbPnPCompletion, &pCompletion->Rq);
-#ifdef DEBUG
+#ifdef VBOX_USB_WITH_VERBOSE_LOGGING
     if (Status != STATUS_PENDING)
     {
+        LOG(("Request completed, Status(0x%x)", Status));
         VBoxUsbHookVerifyCompletion(&g_VBoxUsbMonGlobals.UsbHubPnPHook.Hook, &pCompletion->Rq, pIrp);
+    }
+    else
+    {
+        LOG(("Request pending"));
     }
 #endif
     return Status;
@@ -642,15 +722,19 @@ static NTSTATUS vboxUsbMonHookCheckInit()
 {
     static bool fIsHookInited = false;
     if (fIsHookInited)
+    {
+        LOG(("hook inited already, success"));
         return STATUS_SUCCESS;
+    }
     PDRIVER_OBJECT pDrvObj = vboxUsbMonHookFindHubDrvObj();
-    Assert(pDrvObj);
     if (pDrvObj)
     {
         VBoxUsbHookInit(&g_VBoxUsbMonGlobals.UsbHubPnPHook.Hook, pDrvObj, IRP_MJ_PNP, VBoxUsbMonPnPHook);
         fIsHookInited = true;
+        LOG(("SUCCESS"));
         return STATUS_SUCCESS;
     }
+    WARN(("hub drv obj not found, fail"));
     return STATUS_UNSUCCESSFUL;
 }
 
@@ -661,7 +745,7 @@ static NTSTATUS vboxUsbMonHookInstall()
 #else
     if (g_VBoxUsbMonGlobals.UsbHubPnPHook.fUninitFailed)
     {
-        AssertMsgFailed(("trying to hook usbhub pnp after the unhook failed, do nothing & pretend success..\n"));
+        WARN(("trying to hook usbhub pnp after the unhook failed, do nothing & pretend success"));
         return STATUS_SUCCESS;
     }
     return VBoxUsbHookInstall(&g_VBoxUsbMonGlobals.UsbHubPnPHook.Hook);
@@ -720,13 +804,15 @@ static NTSTATUS vboxUsbMonCheckInitStuff()
             FALSE, /* BOOLEAN Alertable */
             NULL /* IN PLARGE_INTEGER Timeout */
         );
-    Assert(Status == STATUS_SUCCESS);
     if (Status == STATUS_SUCCESS)
     {
         do
         {
             if (g_VBoxUsbMonGlobals.cOpens++)
+            {
+                LOG(("opens: %d, success", g_VBoxUsbMonGlobals.cOpens));
                 break;
+            }
 
             Status = VBoxUsbFltInit();
             if (NT_SUCCESS(Status))
@@ -738,18 +824,23 @@ static NTSTATUS vboxUsbMonCheckInitStuff()
                     if (NT_SUCCESS(Status))
                     {
                         Status = STATUS_SUCCESS;
+                        LOG(("succeded!!"));
                         break;
                     }
                     else
                     {
-                        AssertFailed();
+                        WARN(("vboxUsbMonHookInstall failed, Status (0x%x)", Status));
                     }
+                }
+                else
+                {
+                    WARN(("vboxUsbMonHookCheckInit failed, Status (0x%x)", Status));
                 }
                 VBoxUsbFltTerm();
             }
             else
             {
-                AssertFailed();
+                WARN(("VBoxUsbFltInit failed, Status (0x%x)", Status));
             }
 
             --g_VBoxUsbMonGlobals.cOpens;
@@ -757,6 +848,10 @@ static NTSTATUS vboxUsbMonCheckInitStuff()
         } while (0);
 
         KeSetEvent(&g_VBoxUsbMonGlobals.OpenSynchEvent, 0, FALSE);
+    }
+    else
+    {
+        WARN(("KeWaitForSingleObject failed, Status (0x%x)", Status));
     }
     return Status;
 }
@@ -775,23 +870,24 @@ static NTSTATUS vboxUsbMonContextCreate(PVBOXUSBMONCTX *ppCtx)
             if (Status == STATUS_SUCCESS)
             {
                 *ppCtx = pFileCtx;
+                LOG(("succeeded!!"));
                 return STATUS_SUCCESS;
             }
             else
             {
-                AssertFailed();
+                WARN(("VBoxUsbFltCreate failed"));
             }
             vboxUsbMonCheckTermStuff();
         }
         else
         {
-            AssertFailed();
+            WARN(("vboxUsbMonCheckInitStuff failed"));
         }
         VBoxUsbMonMemFree(pFileCtx);
     }
     else
     {
-        AssertFailed();
+        WARN(("VBoxUsbMonMemAllocZ failed"));
         Status = STATUS_NO_MEMORY;
     }
 
@@ -818,14 +914,16 @@ static NTSTATUS _stdcall VBoxUsbMonClose(PDEVICE_OBJECT pDevObj, PIRP pIrp)
     PFILE_OBJECT pFileObj = pStack->FileObject;
     Assert(pFileObj->FsContext);
     PVBOXUSBMONCTX pCtx = (PVBOXUSBMONCTX)pFileObj->FsContext;
+
+    LOG(("VBoxUsbMonClose"));
+
     NTSTATUS Status = vboxUsbMonContextClose(pCtx);
-    Assert(Status == STATUS_SUCCESS);
     if (Status != STATUS_SUCCESS)
     {
-        AssertMsgFailed(("close failed with Status 0x%x, prefent unload\n", Status));
+        WARN(("vboxUsbMonContextClose failed, Status (0x%x), prefent unload", Status));
         if (!InterlockedExchange(&g_VBoxUsbMonGlobals.ulPreventUnloadOn, 1))
         {
-            LogRel(("ulPreventUnloadOn not set, preventing unload\n"));
+            LOGREL(("ulPreventUnloadOn not set, preventing unload\n"));
             UNICODE_STRING UniName;
             PDEVICE_OBJECT pTmpDevObj;
             RtlInitUnicodeString(&UniName, USBMON_DEVICE_NAME_NT);
@@ -835,8 +933,9 @@ static NTSTATUS _stdcall VBoxUsbMonClose(PDEVICE_OBJECT pDevObj, PIRP pIrp)
         }
         else
         {
-            AssertMsgFailed(("ulPreventUnloadOn already set\n"));
+            WARN(("ulPreventUnloadOn already set"));
         }
+        LOG(("success!!"));
         Status = STATUS_SUCCESS;
     }
     pFileObj->FsContext = NULL;
@@ -853,10 +952,11 @@ static NTSTATUS _stdcall VBoxUsbMonCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp)
     PFILE_OBJECT pFileObj = pStack->FileObject;
     NTSTATUS Status;
 
-    Log(("VBoxUSBMonCreate\n"));
+    LOG(("VBoxUSBMonCreate"));
 
     if (pStack->Parameters.Create.Options & FILE_DIRECTORY_FILE)
     {
+        WARN(("trying to open as a directory"));
         pIrp->IoStatus.Status = STATUS_NOT_A_DIRECTORY;
         pIrp->IoStatus.Information = 0;
         IoCompleteRequest(pIrp, IO_NO_INCREMENT);
@@ -870,6 +970,10 @@ static NTSTATUS _stdcall VBoxUsbMonCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp)
     {
         Assert(pCtx);
         pFileObj->FsContext = pCtx;
+    }
+    else
+    {
+        WARN(("vboxUsbMonContextCreate failed Status (0x%x)", Status));
     }
 
     pIrp->IoStatus.Status = Status;
@@ -929,10 +1033,10 @@ static NTSTATUS vboxUsbMonIoctlDispatch(PVBOXUSBMONCTX pContext, ULONG Ctl, PVOI
         {
             PUSBSUP_VERSION pOut = (PUSBSUP_VERSION)pvBuffer;
 
-            Log(("SUPUSBFLT_IOCTL_GET_VERSION\n"));
+            LOG(("SUPUSBFLT_IOCTL_GET_VERSION\n"));
             if (!pvBuffer || cbOutBuffer != sizeof(*pOut) || cbInBuffer != 0)
             {
-                AssertMsgFailed(("SUPUSBFLT_IOCTL_GET_VERSION: Invalid input/output sizes. cbIn=%d expected %d. cbOut=%d expected %d.\n",
+                WARN(("SUPUSBFLT_IOCTL_GET_VERSION: Invalid input/output sizes. cbIn=%d expected %d. cbOut=%d expected %d.\n",
                         cbInBuffer, 0, cbOutBuffer, sizeof (*pOut)));
                 Status = STATUS_INVALID_PARAMETER;
                 break;
@@ -940,6 +1044,7 @@ static NTSTATUS vboxUsbMonIoctlDispatch(PVBOXUSBMONCTX pContext, ULONG Ctl, PVOI
             pOut->u32Major = USBMON_MAJOR_VERSION;
             pOut->u32Minor = USBMON_MINOR_VERSION;
             Info = sizeof (*pOut);
+            ASSERT_WARN(Status == STATUS_SUCCESS, ("unexpected status, 0x%x", Status));
             break;
         }
 
@@ -951,7 +1056,7 @@ static NTSTATUS vboxUsbMonIoctlDispatch(PVBOXUSBMONCTX pContext, ULONG Ctl, PVOI
             int rc;
             if (RT_UNLIKELY(!pvBuffer || cbInBuffer != sizeof (*pFilter) || cbOutBuffer != sizeof (*pOut)))
             {
-                AssertMsgFailed(("SUPUSBFLT_IOCTL_ADD_FILTER: Invalid input/output sizes. cbIn=%d expected %d. cbOut=%d expected %d.\n",
+                WARN(("SUPUSBFLT_IOCTL_ADD_FILTER: Invalid input/output sizes. cbIn=%d expected %d. cbOut=%d expected %d.\n",
                         cbInBuffer, sizeof (*pFilter), cbOutBuffer, sizeof (*pOut)));
                 Status = STATUS_INVALID_PARAMETER;
                 break;
@@ -961,6 +1066,7 @@ static NTSTATUS vboxUsbMonIoctlDispatch(PVBOXUSBMONCTX pContext, ULONG Ctl, PVOI
             pOut->rc  = rc;
             pOut->uId = uId;
             Info = sizeof (*pOut);
+            ASSERT_WARN(Status == STATUS_SUCCESS, ("unexpected status, 0x%x", Status));
             break;
         }
 
@@ -971,12 +1077,12 @@ static NTSTATUS vboxUsbMonIoctlDispatch(PVBOXUSBMONCTX pContext, ULONG Ctl, PVOI
 
             if (!pvBuffer || cbInBuffer != sizeof (*pIn) || (cbOutBuffer && cbOutBuffer != sizeof (*pRc)))
             {
-                AssertMsgFailed(("SUPUSBFLT_IOCTL_REMOVE_FILTER: Invalid input/output sizes. cbIn=%d expected %d. cbOut=%d expected %d.\n",
+                WARN(("SUPUSBFLT_IOCTL_REMOVE_FILTER: Invalid input/output sizes. cbIn=%d expected %d. cbOut=%d expected %d.\n",
                         cbInBuffer, sizeof (*pIn), cbOutBuffer, 0));
                 Status = STATUS_INVALID_PARAMETER;
                 break;
             }
-            Log(("SUPUSBFLT_IOCTL_REMOVE_FILTER %x\n", *pIn));
+            LOG(("SUPUSBFLT_IOCTL_REMOVE_FILTER %x\n", *pIn));
             int rc = VBoxUsbMonFltRemove(pContext, *pIn);
             if (cbOutBuffer)
             {
@@ -985,6 +1091,7 @@ static NTSTATUS vboxUsbMonIoctlDispatch(PVBOXUSBMONCTX pContext, ULONG Ctl, PVOI
                 *pRc = rc;
                 Info = sizeof (*pRc);
             }
+            ASSERT_WARN(Status == STATUS_SUCCESS, ("unexpected status, 0x%x", Status));
             break;
         }
 
@@ -992,15 +1099,14 @@ static NTSTATUS vboxUsbMonIoctlDispatch(PVBOXUSBMONCTX pContext, ULONG Ctl, PVOI
         {
             if (pvBuffer || cbInBuffer || cbOutBuffer)
             {
-                AssertMsgFailed(("SUPUSBFLT_IOCTL_RUN_FILTERS: Invalid input/output sizes. cbIn=%d expected %d. cbOut=%d expected %d.\n",
+                WARN(("SUPUSBFLT_IOCTL_RUN_FILTERS: Invalid input/output sizes. cbIn=%d expected %d. cbOut=%d expected %d.\n",
                         cbInBuffer, 0, cbOutBuffer, 0));
                 Status = STATUS_INVALID_PARAMETER;
                 break;
             }
-            Log(("SUPUSBFLT_IOCTL_RUN_FILTERS \n"));
+            LOG(("SUPUSBFLT_IOCTL_RUN_FILTERS \n"));
             Status = VBoxUsbMonRunFilters(pContext);
-            Assert(Status == STATUS_SUCCESS);
-            Assert(Status != STATUS_PENDING);
+            ASSERT_WARN(Status != STATUS_PENDING, ("status pending!"));
             break;
         }
 
@@ -1010,7 +1116,7 @@ static NTSTATUS vboxUsbMonIoctlDispatch(PVBOXUSBMONCTX pContext, ULONG Ctl, PVOI
             PUSBSUP_GETDEV_MON pOut = (PUSBSUP_GETDEV_MON)pvBuffer;
             if (!pvBuffer || cbInBuffer != sizeof (hDevice) || cbOutBuffer < sizeof (*pOut))
             {
-                AssertMsgFailed(("SUPUSBFLT_IOCTL_GET_DEVICE: Invalid input/output sizes. cbIn=%d expected %d. cbOut=%d expected >= %d.\n",
+                WARN(("SUPUSBFLT_IOCTL_GET_DEVICE: Invalid input/output sizes. cbIn=%d expected %d. cbOut=%d expected >= %d.\n",
                         cbInBuffer, sizeof (hDevice), cbOutBuffer, sizeof (*pOut)));
                 Status = STATUS_INVALID_PARAMETER;
                 break;
@@ -1024,7 +1130,7 @@ static NTSTATUS vboxUsbMonIoctlDispatch(PVBOXUSBMONCTX pContext, ULONG Ctl, PVOI
             }
             else
             {
-                AssertFailed();
+                WARN(("VBoxUsbMonGetDevice fail 0x%x", Status));
             }
             break;
         }
@@ -1034,7 +1140,7 @@ static NTSTATUS vboxUsbMonIoctlDispatch(PVBOXUSBMONCTX pContext, ULONG Ctl, PVOI
             PUSBSUP_SET_NOTIFY_EVENT pSne = (PUSBSUP_SET_NOTIFY_EVENT)pvBuffer;
             if (!pvBuffer || cbInBuffer != sizeof (*pSne) || cbOutBuffer != sizeof (*pSne))
             {
-                AssertMsgFailed(("SUPUSBFLT_IOCTL_SET_NOTIFY_EVENT: Invalid input/output sizes. cbIn=%d expected %d. cbOut=%d expected %d.\n",
+                WARN(("SUPUSBFLT_IOCTL_SET_NOTIFY_EVENT: Invalid input/output sizes. cbIn=%d expected %d. cbOut=%d expected %d.\n",
                         cbInBuffer, sizeof (*pSne), cbOutBuffer, sizeof (*pSne)));
                 Status = STATUS_INVALID_PARAMETER;
                 break;
@@ -1042,15 +1148,17 @@ static NTSTATUS vboxUsbMonIoctlDispatch(PVBOXUSBMONCTX pContext, ULONG Ctl, PVOI
 
             pSne->u.rc = VBoxUsbMonSetNotifyEvent(pContext, pSne->u.hEvent);
             Info = sizeof (*pSne);
+            ASSERT_WARN(Status == STATUS_SUCCESS, ("unexpected status, 0x%x", Status));
             break;
         }
 
         default:
+            WARN(("Unknown code 0x%x", Ctl));
             Status = STATUS_INVALID_PARAMETER;
             break;
     }
 
-    Assert(Status != STATUS_PENDING);
+    ASSERT_WARN(Status != STATUS_PENDING, ("Status pending!"));
 
     *pInfo = Info;
     return Status;
@@ -1074,9 +1182,13 @@ static NTSTATUS _stdcall VBoxUsbMonDeviceControl(PDEVICE_OBJECT pDevObj, PIRP pI
                     pSl->Parameters.DeviceIoControl.InputBufferLength,
                     pSl->Parameters.DeviceIoControl.OutputBufferLength,
                     &Info);
-        Assert(Status != STATUS_PENDING);
+        ASSERT_WARN(Status != STATUS_PENDING, ("Status pending"));
 
         IoReleaseRemoveLock(&g_VBoxUsbMonGlobals.RmLock, pDevObj);
+    }
+    else
+    {
+        WARN(("IoAcquireRemoveLock failed Status (0x%x)", Status));
     }
 
     pIrp->IoStatus.Information = Info;
@@ -1095,15 +1207,16 @@ static NTSTATUS vboxUsbMonInternalIoctlDispatch(ULONG Ctl, PVOID pvBuffer,  ULON
         {
             PVBOXUSBIDC_VERSION pOut = (PVBOXUSBIDC_VERSION)pvBuffer;
 
-            Log(("VBOXUSBIDC_INTERNAL_IOCTL_GET_VERSION\n"));
+            LOG(("VBOXUSBIDC_INTERNAL_IOCTL_GET_VERSION\n"));
             if (!pvBuffer)
             {
-                AssertMsgFailed(("VBOXUSBIDC_INTERNAL_IOCTL_GET_VERSION: Buffer is NULL\n"));
+                WARN(("VBOXUSBIDC_INTERNAL_IOCTL_GET_VERSION: Buffer is NULL\n"));
                 Status = STATUS_INVALID_PARAMETER;
                 break;
             }
             pOut->u32Major = VBOXUSBIDC_VERSION_MAJOR;
             pOut->u32Minor = VBOXUSBIDC_VERSION_MINOR;
+            ASSERT_WARN(Status == STATUS_SUCCESS, ("unexpected status, 0x%x", Status));
             break;
         }
 
@@ -1111,15 +1224,17 @@ static NTSTATUS vboxUsbMonInternalIoctlDispatch(ULONG Ctl, PVOID pvBuffer,  ULON
         {
             PVBOXUSBIDC_PROXY_STARTUP pOut = (PVBOXUSBIDC_PROXY_STARTUP)pvBuffer;
 
-            Log(("VBOXUSBIDC_INTERNAL_IOCTL_PROXY_STARTUP\n"));
+            LOG(("VBOXUSBIDC_INTERNAL_IOCTL_PROXY_STARTUP\n"));
             if (!pvBuffer)
             {
-                AssertMsgFailed(("VBOXUSBIDC_INTERNAL_IOCTL_GET_VERSION: Buffer is NULL\n"));
+                WARN(("VBOXUSBIDC_INTERNAL_IOCTL_PROXY_STARTUP: Buffer is NULL\n"));
                 Status = STATUS_INVALID_PARAMETER;
                 break;
             }
 
             pOut->u.hDev = VBoxUsbFltProxyStarted(pOut->u.pPDO);
+            ASSERT_WARN(pOut->u.hDev, ("zero hDev"));
+            ASSERT_WARN(Status == STATUS_SUCCESS, ("unexpected status, 0x%x", Status));
             break;
         }
 
@@ -1127,21 +1242,23 @@ static NTSTATUS vboxUsbMonInternalIoctlDispatch(ULONG Ctl, PVOID pvBuffer,  ULON
         {
             PVBOXUSBIDC_PROXY_TEARDOWN pOut = (PVBOXUSBIDC_PROXY_TEARDOWN)pvBuffer;
 
-            Log(("VBOXUSBIDC_INTERNAL_IOCTL_PROXY_TEARDOWN\n"));
+            LOG(("VBOXUSBIDC_INTERNAL_IOCTL_PROXY_TEARDOWN\n"));
             if (!pvBuffer)
             {
-                AssertMsgFailed(("VBOXUSBIDC_INTERNAL_IOCTL_PROXY_TEARDOWN: Buffer is NULL\n"));
+                WARN(("VBOXUSBIDC_INTERNAL_IOCTL_PROXY_TEARDOWN: Buffer is NULL\n"));
                 Status = STATUS_INVALID_PARAMETER;
                 break;
             }
 
+            ASSERT_WARN(pOut->hDev, ("zero hDev"));
             VBoxUsbFltProxyStopped(pOut->hDev);
+            ASSERT_WARN(Status == STATUS_SUCCESS, ("unexpected status, 0x%x", Status));
             break;
         }
 
         default:
         {
-            AssertFailed();
+            WARN(("Unknown code 0x%x", Ctl));
             Status = STATUS_INVALID_PARAMETER;
             break;
         }
@@ -1178,7 +1295,7 @@ static NTSTATUS _stdcall VBoxUsbMonInternalDeviceControl(PDEVICE_OBJECT pDevObj,
  */
 static void _stdcall VBoxUsbMonUnload(PDRIVER_OBJECT pDrvObj)
 {
-    Log(("VBoxUSBMonUnload pDrvObj (0x%p)\n", pDrvObj));
+    LOG(("VBoxUSBMonUnload pDrvObj (0x%p)\n", pDrvObj));
 
     IoReleaseRemoveLockAndWait(&g_VBoxUsbMonGlobals.RmLock, &g_VBoxUsbMonGlobals);
 
@@ -1216,11 +1333,12 @@ RT_C_DECLS_END
  */
 NTSTATUS _stdcall DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
 {
-#ifdef DEBUG_misha
-    RTLogGroupSettings(0, "+default.e.l.f.l2.l3");;
+#ifdef VBOX_USB_WITH_VERBOSE_LOGGING
+    RTLogGroupSettings(0, "+default.e.l.f.l2.l3");
+    RTLogDestinations(0, "debugger");
 #endif
 
-    Log(("VBoxUSBMon::DriverEntry\n"));
+    LOGREL(("Built %s %s", __DATE__, __TIME__));
 
     memset (&g_VBoxUsbMonGlobals, 0, sizeof (g_VBoxUsbMonGlobals));
     KeInitializeEvent(&g_VBoxUsbMonGlobals.OpenSynchEvent, SynchronizationEvent, TRUE /* signaled */);
@@ -1250,7 +1368,7 @@ NTSTATUS _stdcall DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
                 pDrvObj->MajorFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = VBoxUsbMonInternalDeviceControl;
 
                 g_VBoxUsbMonGlobals.pDevObj = pDevObj;
-                Log(("VBoxUSBMon::DriverEntry returning STATUS_SUCCESS\n"));
+                LOG(("VBoxUSBMon::DriverEntry returning STATUS_SUCCESS\n"));
                 return STATUS_SUCCESS;
             }
             IoDeleteDevice(pDevObj);

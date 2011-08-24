@@ -1,4 +1,4 @@
-/* $Id: IEMAllInstructions.cpp.h 37934 2011-07-13 22:58:03Z vboxsync $ */
+/* $Id: IEMAllInstructions.cpp.h 38084 2011-07-20 16:45:23Z vboxsync $ */
 /** @file
  * IEM - Instruction Decoding and Emulation.
  */
@@ -7686,7 +7686,50 @@ FNIEMOP_DEF(iemOp_xchg_eDI_eAX)
 
 
 /** Opcode 0x98. */
-FNIEMOP_STUB(iemOp_cbw);
+FNIEMOP_DEF(iemOp_cbw)
+{
+    IEMOP_HLP_NO_LOCK_PREFIX();
+    switch (pIemCpu->enmEffOpSize)
+    {
+        case IEMMODE_16BIT:
+            IEMOP_MNEMONIC("cbw");
+            IEM_MC_BEGIN(0, 1);
+            IEM_MC_IF_GREG_BIT_SET(X86_GREG_xAX, 7) {
+                IEM_MC_OR_GREG_U16(X86_GREG_xAX, UINT16_C(0xff00));
+            } IEM_MC_ELSE() {
+                IEM_MC_AND_GREG_U16(X86_GREG_xAX, UINT16_C(0x00ff));
+            } IEM_MC_ENDIF();
+            IEM_MC_ADVANCE_RIP();
+            IEM_MC_END();
+            return VINF_SUCCESS;
+
+        case IEMMODE_32BIT:
+            IEMOP_MNEMONIC("cwde");
+            IEM_MC_BEGIN(0, 1);
+            IEM_MC_IF_GREG_BIT_SET(X86_GREG_xAX, 15) {
+                IEM_MC_OR_GREG_U32(X86_GREG_xAX, UINT32_C(0xffff0000));
+            } IEM_MC_ELSE() {
+                IEM_MC_AND_GREG_U32(X86_GREG_xAX, UINT32_C(0x0000ffff));
+            } IEM_MC_ENDIF();
+            IEM_MC_ADVANCE_RIP();
+            IEM_MC_END();
+            return VINF_SUCCESS;
+
+        case IEMMODE_64BIT:
+            IEMOP_MNEMONIC("cdqe");
+            IEM_MC_BEGIN(0, 1);
+            IEM_MC_IF_GREG_BIT_SET(X86_GREG_xAX, 31) {
+                IEM_MC_OR_GREG_U64(X86_GREG_xAX, UINT64_C(0xffffffff00000000));
+            } IEM_MC_ELSE() {
+                IEM_MC_AND_GREG_U64(X86_GREG_xAX, UINT64_C(0x00000000ffffffff));
+            } IEM_MC_ENDIF();
+            IEM_MC_ADVANCE_RIP();
+            IEM_MC_END();
+            return VINF_SUCCESS;
+
+        IEM_NOT_REACHED_DEFAULT_CASE_RET();
+    }
+}
 
 
 /** Opcode 0x99. */
@@ -7708,7 +7751,7 @@ FNIEMOP_DEF(iemOp_cwd)
             return VINF_SUCCESS;
 
         case IEMMODE_32BIT:
-            IEMOP_MNEMONIC("cwq");
+            IEMOP_MNEMONIC("cdq");
             IEM_MC_BEGIN(0, 1);
             IEM_MC_IF_GREG_BIT_SET(X86_GREG_xAX, 31) {
                 IEM_MC_STORE_GREG_U32_CONST(X86_GREG_xDX, UINT32_C(0xffffffff));
@@ -7737,7 +7780,24 @@ FNIEMOP_DEF(iemOp_cwd)
 
 
 /** Opcode 0x9a. */
-FNIEMOP_STUB(iemOp_call_Ap);
+FNIEMOP_DEF(iemOp_call_Ap)
+{
+    IEMOP_MNEMONIC("call Ap");
+    IEMOP_HLP_NO_64BIT();
+
+    /* Decode the far pointer address and pass it on to the far call C implementation. */
+    uint32_t offSeg;
+    if (pIemCpu->enmEffOpSize != IEMMODE_16BIT)
+        IEM_OPCODE_GET_NEXT_U32(&offSeg);
+    else
+    {
+        uint16_t offSeg16; IEM_OPCODE_GET_NEXT_U16(&offSeg16);
+        offSeg = offSeg16;
+    }
+    uint16_t uSel;  IEM_OPCODE_GET_NEXT_U16(&uSel);
+    IEMOP_HLP_NO_LOCK_PREFIX();
+    return IEM_MC_DEFER_TO_CIMPL_3(iemCImpl_callf, uSel, offSeg, pIemCpu->enmEffOpSize);
+}
 
 
 /** Opcode 0x9b. (aka fwait) */
@@ -7774,9 +7834,42 @@ FNIEMOP_DEF(iemOp_popf_Fv)
 
 
 /** Opcode 0x9e. */
-FNIEMOP_STUB(iemOp_sahf);
+FNIEMOP_DEF(iemOp_sahf)
+{
+    IEMOP_MNEMONIC("sahf");
+    IEMOP_HLP_NO_LOCK_PREFIX();
+    IEMOP_HLP_NO_64BIT();
+    IEM_MC_BEGIN(0, 2);
+    IEM_MC_LOCAL(uint32_t, u32Flags);
+    IEM_MC_LOCAL(uint32_t, EFlags);
+    IEM_MC_FETCH_EFLAGS(EFlags);
+    IEM_MC_FETCH_GREG_U8_ZX_U32(u32Flags, X86_GREG_xSP/*=AH*/);
+    IEM_MC_AND_LOCAL_U32(u32Flags, UINT32_C(0xd7));
+    IEM_MC_AND_LOCAL_U32(EFlags, UINT32_C(0xffffff00));
+    IEM_MC_OR_LOCAL_U32(u32Flags, UINT32_C(0x00000002));
+    IEM_MC_OR_2LOCS_U32(EFlags, u32Flags);
+    IEM_MC_COMMIT_EFLAGS(EFlags);
+    IEM_MC_ADVANCE_RIP();
+    IEM_MC_END();
+    return VINF_SUCCESS;
+}
+
+
 /** Opcode 0x9f. */
-FNIEMOP_STUB(iemOp_lahf);
+FNIEMOP_DEF(iemOp_lahf)
+{
+    IEMOP_MNEMONIC("lahf");
+    IEMOP_HLP_NO_LOCK_PREFIX();
+    IEMOP_HLP_NO_64BIT();
+    IEM_MC_BEGIN(0, 1);
+    IEM_MC_LOCAL(uint8_t, u8Flags);
+    IEM_MC_FETCH_EFLAGS_U8(u8Flags);
+    IEM_MC_STORE_GREG_U8(X86_GREG_xSP/*=AH*/, u8Flags);
+    IEM_MC_ADVANCE_RIP();
+    IEM_MC_END();
+    return VINF_SUCCESS;
+}
+
 
 /**
  * Macro used by iemOp_mov_Al_Ob, iemOp_mov_rAX_Ov, iemOp_mov_Ob_AL and
@@ -9756,7 +9849,14 @@ FNIEMOP_DEF(iemOp_Grp2_Ev_CL)
 }
 
 /** Opcode 0xd4. */
-FNIEMOP_STUB(iemOp_aam_Ib);
+FNIEMOP_DEF(iemOp_aam_Ib)
+{
+    IEMOP_MNEMONIC("aam Ib");
+    uint8_t bImm; IEM_OPCODE_GET_NEXT_U8(&bImm);
+    IEMOP_HLP_NO_LOCK_PREFIX();
+    IEMOP_HLP_NO_64BIT();
+    return IEM_MC_DEFER_TO_CIMPL_1(iemCImpl_aam, bImm);
+}
 
 
 /** Opcode 0xd5. */
@@ -10453,7 +10553,16 @@ FNIEMOP_DEF(iemOp_hlt)
 
 
 /** Opcode 0xf5. */
-FNIEMOP_STUB(iemOp_cmc);
+FNIEMOP_DEF(iemOp_cmc)
+{
+    IEMOP_MNEMONIC("cmc");
+    IEMOP_HLP_NO_LOCK_PREFIX();
+    IEM_MC_BEGIN(0, 0);
+    IEM_MC_FLIP_EFL_BIT(X86_EFL_CF);
+    IEM_MC_ADVANCE_RIP();
+    IEM_MC_END();
+    return VINF_SUCCESS;
+}
 
 
 /**
@@ -11081,7 +11190,7 @@ FNIEMOP_DEF(iemOp_clc)
 /** Opcode 0xf9. */
 FNIEMOP_DEF(iemOp_stc)
 {
-    IEMOP_MNEMONIC("slc");
+    IEMOP_MNEMONIC("stc");
     IEMOP_HLP_NO_LOCK_PREFIX();
     IEM_MC_BEGIN(0, 0);
     IEM_MC_SET_EFL_BIT(X86_EFL_CF);

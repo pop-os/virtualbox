@@ -23,8 +23,7 @@
 #include "COMDefs.h"
 #include "QIWithRetranslateUI.h"
 #include "VBoxGlobal.h"
-#include "VBoxHelpActions.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 
 /* Global includes */
 #include <QMainWindow>
@@ -140,10 +139,12 @@ private slots:
 
 private:
 
+    /* Helping stuff: */
+    void prepareMenuHelp(QMenu *pMenu);
+
     /* Main menus */
     QMenu *mFileMenu;
     QMenu *mVMMenu;
-    QMenu *mHelpMenu;
 
     /* Central splitter window */
     QISplitter *m_pSplitter;
@@ -175,8 +176,6 @@ private:
     QAction *mVmShowLogsAction;
     QAction *mVmOpenInFileManagerAction;
     QAction *mVmCreateShortcut;
-
-    VBoxHelpActions mHelpActions;
 
 #ifdef VBOX_GUI_WITH_SYSTRAY
     /* The systray icon */

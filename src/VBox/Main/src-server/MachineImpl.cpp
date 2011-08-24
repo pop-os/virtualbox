@@ -1,4 +1,4 @@
-/* $Id: MachineImpl.cpp 38056 2011-07-19 09:03:26Z vboxsync $ */
+/* $Id: MachineImpl.cpp 38357 2011-08-08 16:05:00Z vboxsync $ */
 /** @file
  * Implementation of IMachine in VBoxSVC.
  */
@@ -3456,10 +3456,6 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
                         tr("Controller '%ls' does not support hotplugging"),
                         aControllerName);
 
-    if (fHotplug && aType == DeviceType_DVD)
-        return setError(VBOX_E_INVALID_VM_STATE,
-                        tr("Attaching a DVD drive while the VM is running is not supported"));
-
     // check that the port and device are not out of range
     rc = ctl->checkPortAndDeviceValid(aControllerPort, aDevice);
     if (FAILED(rc)) return rc;
@@ -3891,10 +3887,6 @@ STDMETHODIMP Machine::DetachDevice(IN_BSTR aControllerName, LONG aControllerPort
         return setError(VBOX_E_OBJECT_NOT_FOUND,
                         tr("No storage device attached to device slot %d on port %d of controller '%ls'"),
                         aDevice, aControllerPort, aControllerName);
-
-    if (fHotplug && pAttach->getType() == DeviceType_DVD)
-        return setError(VBOX_E_INVALID_VM_STATE,
-                        tr("Detaching a DVD drive while the VM is running is not supported"));
 
     /*
      * The VM has to detach the device before we delete any implicit diffs.
@@ -6253,12 +6245,6 @@ STDMETHODIMP Machine::CloneTo(IMachine *pTarget, CloneMode_T mode, ComSafeArrayI
 
     CheckComArgNotNull(pTarget);
     CheckComArgOutPointerValid(pProgress);
-
-    /** @todo r=klaus disabled as there are apparently still cases which are
-     * not handled correctly */
-    if (mode == CloneMode_MachineAndChildStates)
-        return setError(VBOX_E_NOT_SUPPORTED,
-                        tr("The clone mode \"Machine and child states\" is not yet supported. Please try again in the next VirtualBox maintenance update"));
 
     /* Convert the options. */
     RTCList<CloneOptions_T> optList;
@@ -9442,7 +9428,7 @@ HRESULT Machine::createImplicitDiffs(IProgress *aProgress,
                                   true /* aImplicit */,
                                   false /* aPassthrough */,
                                   false /* aTempEject */,
-                                  false /* aNonRotational */,
+                                  pAtt->getNonRotational(),
                                   pAtt->getBandwidthGroup());
             if (FAILED(rc)) throw rc;
 

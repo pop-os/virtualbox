@@ -1,4 +1,4 @@
-/* $Id: UIMediumTypeChangeDialog.cpp 37895 2011-07-12 12:48:15Z vboxsync $ */
+/* $Id: UIMediumTypeChangeDialog.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -26,7 +26,7 @@
 /* Local includes: */
 #include "UIMediumTypeChangeDialog.h"
 #include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 #include "QILabel.h"
 #include "QIDialogButtonBox.h"
 
@@ -90,7 +90,7 @@ void UIMediumTypeChangeDialog::sltAccept()
     if (!m_medium.isOk())
     {
         /* Show error message: */
-        vboxProblem().cannotChangeMediumType(this, m_medium, m_oldMediumType, m_newMediumType);
+        msgCenter().cannotChangeMediumType(this, m_medium, m_oldMediumType, m_newMediumType);
         return;
     }
     /* Accept dialog with parent class method: */

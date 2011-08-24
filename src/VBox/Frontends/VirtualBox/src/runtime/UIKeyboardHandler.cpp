@@ -1,4 +1,4 @@
-/* $Id: UIKeyboardHandler.cpp 37716 2011-06-30 16:34:13Z vboxsync $ */
+/* $Id: UIKeyboardHandler.cpp 38348 2011-08-08 12:09:18Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -22,8 +22,8 @@
 
 /* Local includes */
 #include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
-#include "UIActionsPool.h"
+#include "UIMessageCenter.h"
+#include "UIActionPool.h"
 #include "UIKeyboardHandlerNormal.h"
 #include "UIKeyboardHandlerFullscreen.h"
 #include "UIKeyboardHandlerSeamless.h"
@@ -878,7 +878,7 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
                         keyboard.PutScancodes(combo);
                     }
                     /* Process hot keys not processed in keyEvent() (as in case of non-alphanumeric keys): */
-                    machineLogic()->actionsPool()->processHotKey(QKeySequence(pKeyEvent->key()));
+                    gActionPool->processHotKey(QKeySequence(pKeyEvent->key()));
                 }
                 else if (!m_bIsHostComboPressed && pEvent->type() == QEvent::KeyRelease)
                 {
@@ -887,7 +887,7 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
                     {
                         /* If the reminder is disabled we pass the event to Qt to enable normal
                          * keyboard functionality (for example, menu access with Alt+Letter): */
-                        if (!vboxProblem().remindAboutPausedVMInput())
+                        if (!msgCenter().remindAboutPausedVMInput())
                             break;
                     }
                 }
@@ -1250,7 +1250,7 @@ void UIKeyboardHandler::keyEventHandleHostComboRelease(ulong uScreenId)
                      * defined by the dialog result itself: */
                     setAutoCaptureDisabled(true);
                     bool fIsAutoConfirmed = false;
-                    ok = vboxProblem().confirmInputCapture(&fIsAutoConfirmed);
+                    ok = msgCenter().confirmInputCapture(&fIsAutoConfirmed);
                     if (fIsAutoConfirmed)
                         setAutoCaptureDisabled(false);
                     /* Otherwise, the disable flag will be reset in the next
@@ -1458,7 +1458,7 @@ bool UIKeyboardHandler::processHotKey(int iHotKey, wchar_t *pHotKey)
         if (!ToUnicodeEx(iHotKey, 0, keys, &symbol, 1, 0, pList[i]) == 1)
             symbol = 0;
         if (symbol)
-            fWasProcessed = machineLogic()->actionsPool()->processHotKey(QKeySequence((Qt::UNICODE_ACCEL + QChar(symbol).toUpper().unicode())));
+            fWasProcessed = gActionPool->processHotKey(QKeySequence((Qt::UNICODE_ACCEL + QChar(symbol).toUpper().unicode())));
     }
     delete[] pList;
 #endif /* Q_WS_WIN */
@@ -1477,7 +1477,7 @@ bool UIKeyboardHandler::processHotKey(int iHotKey, wchar_t *pHotKey)
         if (symbol)
         {
             QChar qtSymbol = QString::fromLocal8Bit(&symbol, 1)[0];
-            fWasProcessed = machineLogic()->actionsPool()->processHotKey(QKeySequence((Qt::UNICODE_ACCEL + qtSymbol.toUpper().unicode())));
+            fWasProcessed = gActionPool->processHotKey(QKeySequence((Qt::UNICODE_ACCEL + qtSymbol.toUpper().unicode())));
         }
     }
 #endif /* Q_WS_X11 */
@@ -1485,7 +1485,7 @@ bool UIKeyboardHandler::processHotKey(int iHotKey, wchar_t *pHotKey)
 #ifdef Q_WS_MAC
     Q_UNUSED(iHotKey);
     if (pHotKey && pHotKey[0] && !pHotKey[1])
-        fWasProcessed = machineLogic()->actionsPool()->processHotKey(QKeySequence(Qt::UNICODE_ACCEL + QChar(pHotKey[0]).toUpper().unicode()));
+        fWasProcessed = gActionPool->processHotKey(QKeySequence(Qt::UNICODE_ACCEL + QChar(pHotKey[0]).toUpper().unicode()));
 #endif /* Q_WS_MAC */
 
     /* Grab the key from the Qt if it was processed, or pass it to the Qt otherwise

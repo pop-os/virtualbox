@@ -1,4 +1,4 @@
-/* $Id: VBoxVMLogViewer.cpp 30356 2010-06-22 08:42:22Z vboxsync $ */
+/* $Id: VBoxVMLogViewer.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -24,7 +24,7 @@
 #include "UIIconPool.h"
 #include "UISpecialControls.h"
 #include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 #include "VBoxUtils.h"
 #include "VBoxVMLogViewer.h"
 
@@ -110,7 +110,7 @@ VBoxVMLogViewer::VBoxVMLogViewer (QWidget *aParent,
 
     /* Setup connections */
     connect (mButtonBox, SIGNAL (helpRequested()),
-             &vboxProblem(), SLOT (showHelpHelpDialog()));
+             &msgCenter(), SLOT (sltShowHelpHelpDialog()));
     connect (mBtnFind, SIGNAL (clicked()), this, SLOT (search()));
     connect (mBtnSave, SIGNAL (clicked()), this, SLOT (save()));
     connect (mBtnRefresh, SIGNAL (clicked()), this, SLOT (refresh()));

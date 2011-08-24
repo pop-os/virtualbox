@@ -1,4 +1,4 @@
-/* $Id: mpnotification-r0drv-linux.c 37672 2011-06-28 19:48:17Z vboxsync $ */
+/* $Id: mpnotification-r0drv-linux.c 38232 2011-07-28 18:32:16Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor Event Notifications, Ring-0 Driver, Linux.
  */
@@ -32,6 +32,7 @@
 #include "internal/iprt.h"
 
 #include <iprt/mp.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/err.h>
 #include <iprt/cpuset.h>
 #include <iprt/thread.h>
@@ -76,13 +77,14 @@ static RTCPUSET g_MpPendingOfflineSet;
  * @param pvUser2           The notification event.
  * @remarks This can be invoked in interrupt context.
  */
-static void rtMpNotificationLinuxOnCurrentCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+static DECLCALLBACK(void) rtMpNotificationLinuxOnCurrentCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2)
 {
     unsigned long ulNativeEvent = *(unsigned long *)pvUser2;
     NOREF(pvUser1);
 
     AssertRelease(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
-    AssertRelease(idCpu == RTMpCpuId());   /* ASSUMES iCpu == RTCPUID */
+    AssertReleaseMsg(idCpu == RTMpCpuId(),  /* ASSUMES iCpu == RTCPUID */
+                     ("idCpu=%u RTMpCpuId=%d ApicId=%d\n", idCpu, RTMpCpuId(), ASMGetApicId() ));
 
     switch (ulNativeEvent)
     {

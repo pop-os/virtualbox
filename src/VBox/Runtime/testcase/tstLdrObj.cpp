@@ -1,4 +1,4 @@
-/* $Id: tstLdrObj.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
+/* $Id: tstLdrObj.cpp 38325 2011-08-05 14:11:58Z vboxsync $ */
 /** @file
  * IPRT - RTLdr test object.
  *
@@ -56,8 +56,8 @@ extern "C" DECLIMPORT(int) SomeImportFunction(void);
 
 extern "C" DECLEXPORT(int) Entrypoint(void)
 {
-    g_VM.fRawR0Enabled = true;
-    g_VM.fRawR3Enabled = true;
+    g_VM.fRecompileSupervisor = false;
+    g_VM.fRecompileUser       = false;
     g_VM.fGlobalForcedActions = 0;
     strcpy(achBss, szStr2);
     memcpy(achBss, szStr1, sizeof(szStr1));

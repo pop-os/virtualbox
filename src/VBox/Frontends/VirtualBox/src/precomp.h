@@ -1,4 +1,4 @@
-/* $Id: precomp.h 35347 2010-12-27 16:25:58Z vboxsync $*/
+/* $Id: precomp.h 38412 2011-08-11 09:50:04Z vboxsync $*/
 /** @file
  * Header used if VBOX_WITH_PRECOMPILED_HEADERS is active.
  */
@@ -192,7 +192,7 @@
 # include "DockIconPreview.h"
 #endif
 #include "VBoxAboutDlg.h"
-#include "VBoxApplianceEditorWgt.h"
+#include "UIApplianceEditorWidget.h"
 #include "VBoxCloseVMDlg.h"
 #ifdef Q_WS_MAC
 # include "VBoxCocoaHelper.h"
@@ -200,7 +200,7 @@
 #endif
 #include "VBoxDefs.h"
 #include "VBoxDownloaderWgt.h"
-#include "VBoxExportApplianceWgt.h"
+#include "UIApplianceExportEditorWidget.h"
 #include "VBoxExportApplianceWzd.h"
 #include "VBoxFBOverlay.h"
 #include "VBoxFBOverlayCommon.h"
@@ -215,14 +215,13 @@
 #include "VBoxGlobal.h"
 #include "VBoxGlobalSettings.h"
 #include "VBoxGuestRAMSlider.h"
-#include "VBoxHelpActions.h"
 #ifdef Q_WS_MAC
 # include "VBoxIChatTheaterWrapper.h"
 #endif
-#include "VBoxImportApplianceWgt.h"
+#include "UIApplianceImportEditorWidget.h"
 #include "VBoxImportApplianceWzd.h"
 #include "VBoxLicenseViewer.h"
-#include "VBoxLineTextEdit.h"
+#include "UILineTextEdit.h"
 //#include "VBoxMediaComboBox.h"
 #include "VBoxMediaManagerDlg.h"
 //#include "VBoxMedium.h"               /* Expensive? Or what? */
@@ -231,7 +230,7 @@
 #include "VBoxNewVMWzd.h"
 #include "VBoxOSTypeSelectorButton.h"
 #include "VBoxOSTypeSelectorWidget.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 #include "VBoxProgressDialog.h"
 #include "VBoxRegistrationDlg.h"
 #include "VBoxSelectorWnd.h"

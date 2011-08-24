@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 38002 2011-07-18 10:16:41Z vboxsync $
+# $Id: Makefile.kmk 38421 2011-08-11 14:55:02Z vboxsync $
 ## @file
 # Makefile for the VirtualBox Qt GUI.
 #
@@ -184,6 +184,7 @@ VBOX_GUI_INC_DIRS = \
 	./src/wizards/exportappliance \
 	./src/wizards/importappliance \
 	./src/widgets \
+	./src/net \
 	./src/selector \
 	./src/runtime \
 	./src/runtime/fullscreen \
@@ -251,7 +252,7 @@ VirtualBox_LIBS.win       = \
 	$(PATH_SDK_DXSDK_LIB)/ddraw.lib \
 	$(PATH_SDK_DXSDK_LIB)/dxguid.lib
 if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd solaris) # X11
- VirtualBox_LIBS         += $(PATH_DLL)/VBoxKeyboard$(VBOX_SUFF_DLL)
+ VirtualBox_LIBS         += $(PATH_STAGE_DLL)/VBoxKeyboard$(VBOX_SUFF_DLL)
 endif
 
 if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_GUI_USE_QGL)
@@ -274,10 +275,11 @@ VirtualBox_QT_MOCHDRS = \
 	src/VBoxVMLogViewer.h \
 	src/VBoxLicenseViewer.h \
 	src/globals/VBoxGlobal.h \
-	src/globals/VBoxProblemReporter.h \
+	src/globals/UIMessageCenter.h \
 	src/globals/VBoxUtils.h \
 	src/globals/UIMainEventListener.h \
 	src/globals/UIExtraDataEventHandler.h \
+	src/globals/UIActionPool.h \
 	src/extensions/QIAdvancedSlider.h \
 	src/extensions/QIArrowButtonPress.h \
 	src/extensions/QIArrowButtonSwitch.h \
@@ -334,24 +336,26 @@ VirtualBox_QT_MOCHDRS = \
 	src/wizards/importappliance/UIImportApplianceWzd.h \
 	src/widgets/UIBar.h \
 	src/widgets/UIBootTable.h \
-	src/widgets/UIDownloader.h \
-	src/widgets/UIDownloaderAdditions.h \
-	src/widgets/UIDownloaderUserManual.h \
 	src/widgets/UIHotKeyEditor.h \
 	src/widgets/UIPopupBox.h \
 	src/widgets/UIProgressDialog.h \
 	src/widgets/UISpacerWidgets.h \
 	src/widgets/UISpecialControls.h \
-	src/widgets/VBoxApplianceEditorWgt.h \
-	src/widgets/VBoxExportApplianceWgt.h \
+	src/widgets/UIApplianceEditorWidget.h \
+	src/widgets/UIApplianceExportEditorWidget.h \
+	src/widgets/UIApplianceImportEditorWidget.h \
 	src/widgets/VBoxFilePathSelectorWidget.h \
-	src/widgets/VBoxImportApplianceWgt.h \
-	src/widgets/VBoxLineTextEdit.h \
+	src/widgets/UILineTextEdit.h \
 	src/widgets/VBoxMediaComboBox.h \
 	src/widgets/VBoxMiniToolBar.h \
 	src/widgets/VBoxOSTypeSelectorButton.h \
 	src/widgets/VBoxOSTypeSelectorWidget.h \
 	src/widgets/VBoxWarningPane.h \
+	src/net/UINetworkManager.h \
+	src/net/UIDownloader.h \
+	src/net/UIDownloaderAdditions.h \
+	src/net/UIDownloaderUserManual.h \
+	src/selector/UIActionPoolSelector.h \
 	src/selector/UIVMDesktop.h \
 	src/selector/UIVMListView.h \
 	src/selector/UIVMPreviewWindow.h \
@@ -359,7 +363,7 @@ VirtualBox_QT_MOCHDRS = \
 	src/selector/UIVirtualBoxEventHandler.h \
 	src/selector/VBoxSelectorWnd.h \
 	src/selector/VBoxSnapshotsWgt.h \
-	src/runtime/UIActionsPool.h \
+	src/runtime/UIActionPoolRuntime.h \
 	src/runtime/UIConsoleEventHandler.h \
 	src/runtime/UIIndicatorsPool.h \
 	src/runtime/UIKeyboardHandler.h \
@@ -394,12 +398,13 @@ VirtualBox_QT_MOCHDRS.darwin += \
 VirtualBox_QT_MOCSRCS = \
 	src/VBoxMediaManagerDlg.cpp \
 	src/globals/UIExtraDataEventHandler.cpp \
+	src/globals/UIActionPool.cpp \
 	src/extensions/QISplitter.cpp \
 	src/selector/UIVMDesktop.cpp \
 	src/settings/UISettingsDialogSpecific.cpp \
 	src/settings/machine/UIMachineSettingsStorage.cpp \
 	src/settings/machine/UIMachineSettingsPortForwardingDlg.cpp \
-	src/runtime/UIActionsPool.cpp \
+	src/runtime/UIActionPoolRuntime.cpp \
 	src/runtime/UIIndicatorsPool.cpp \
 	src/runtime/UIMachine.cpp \
 	src/runtime/UIMachineMenuBar.cpp \
@@ -429,7 +434,6 @@ VirtualBox_SOURCES = \
 	src/main.cpp \
 	src/VBoxAboutDlg.cpp \
 	src/VBoxGlobalSettings.cpp \
-	src/VBoxHelpActions.cpp \
 	src/VBoxMediaManagerDlg.cpp \
 	src/UIMediumTypeChangeDialog.cpp \
 	src/VBoxMedium.cpp \
@@ -442,11 +446,12 @@ VirtualBox_SOURCES = \
 	src/globals/COMDefs.cpp \
 	src/globals/VBoxDefs.cpp \
 	src/globals/VBoxGlobal.cpp \
-	src/globals/VBoxProblemReporter.cpp \
+	src/globals/UIMessageCenter.cpp \
 	src/globals/UIIconPool.cpp \
 	src/globals/UIMainEventListener.cpp \
 	src/globals/UIExtraDataEventHandler.cpp \
 	src/globals/UIImageTools.cpp \
+	src/globals/UIActionPool.cpp \
 	src/extensions/QIAdvancedSlider.cpp \
 	src/extensions/QIArrowButtonPress.cpp \
 	src/extensions/QIArrowButtonSwitch.cpp \
@@ -503,25 +508,27 @@ VirtualBox_SOURCES = \
 	src/wizards/importappliance/UIImportApplianceWzd.cpp \
 	src/widgets/UIBar.cpp \
 	src/widgets/UIBootTable.cpp \
-	src/widgets/UIDownloader.cpp \
-	src/widgets/UIDownloaderAdditions.cpp \
-	src/widgets/UIDownloaderUserManual.cpp \
 	src/widgets/UIHotKeyEditor.cpp \
 	src/widgets/UIPopupBox.cpp \
 	src/widgets/UIProgressDialog.cpp \
 	src/widgets/UISpecialControls.cpp \
 	src/widgets/UIToolBar.cpp \
-	src/widgets/VBoxApplianceEditorWgt.cpp \
-	src/widgets/VBoxExportApplianceWgt.cpp \
+	src/widgets/UIApplianceEditorWidget.cpp \
+	src/widgets/UIApplianceExportEditorWidget.cpp \
+	src/widgets/UIApplianceImportEditorWidget.cpp \
 	src/widgets/VBoxFilePathSelectorWidget.cpp \
 	src/widgets/VBoxGuestRAMSlider.cpp \
-	src/widgets/VBoxImportApplianceWgt.cpp \
-	src/widgets/VBoxLineTextEdit.cpp \
+	src/widgets/UILineTextEdit.cpp \
 	src/widgets/VBoxMediaComboBox.cpp \
 	src/widgets/VBoxMiniToolBar.cpp \
 	src/widgets/VBoxOSTypeSelectorButton.cpp \
 	src/widgets/VBoxOSTypeSelectorWidget.cpp \
 	src/widgets/VBoxWarningPane.cpp \
+	src/net/UINetworkManager.cpp \
+	src/net/UIDownloader.cpp \
+	src/net/UIDownloaderAdditions.cpp \
+	src/net/UIDownloaderUserManual.cpp \
+	src/selector/UIActionPoolSelector.cpp \
 	src/selector/UISelectorShortcuts.cpp \
 	src/selector/UIVMDesktop.cpp \
 	src/selector/UIVMItem.cpp \
@@ -530,7 +537,7 @@ VirtualBox_SOURCES = \
 	src/selector/UIVirtualBoxEventHandler.cpp \
 	src/selector/VBoxSelectorWnd.cpp \
 	src/selector/VBoxSnapshotsWgt.cpp \
-	src/runtime/UIActionsPool.cpp \
+	src/runtime/UIActionPoolRuntime.cpp \
 	src/runtime/UIConsoleEventHandler.cpp \
 	src/runtime/UIFrameBuffer.cpp \
 	src/runtime/UIFrameBufferQGL.cpp \

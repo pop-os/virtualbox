@@ -1,3 +1,9 @@
+virtualbox (4.1.2-dfsg-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+
+ -- Michael Meskes <meskes@debian.org>  Wed, 24 Aug 2011 13:20:38 +0200
+
 virtualbox (4.1.0-dfsg-2) unstable; urgency=low
 
   * Install vboxpci module in virtualbox-modules packages, thanks to

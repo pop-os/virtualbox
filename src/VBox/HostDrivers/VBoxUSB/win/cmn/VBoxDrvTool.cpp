@@ -1,4 +1,4 @@
-/* $Id: VBoxDrvTool.cpp 37490 2011-06-16 10:58:27Z vboxsync $ */
+/* $Id: VBoxDrvTool.cpp 38356 2011-08-08 15:49:01Z vboxsync $ */
 /** @file
  * Windows Driver R0 Tooling.
  */
@@ -18,6 +18,9 @@
 #include "VBoxDrvTool.h"
 
 #include <iprt/assert.h>
+#include <VBox/log.h>
+
+#include "../../../win/VBoxDbgLog.h"
 
 #define VBOXDRVTOOL_MEMTAG 'TDBV'
 
@@ -136,6 +139,8 @@ VBOXDRVTOOL_DECL(NTSTATUS) VBoxDrvToolIoPostSync(PDEVICE_OBJECT pDevObj, PIRP pI
 VBOXDRVTOOL_DECL(NTSTATUS) VBoxDrvToolIoPostSyncWithTimeout(PDEVICE_OBJECT pDevObj, PIRP pIrp, ULONG dwTimeoutMs)
 {
     KEVENT Event;
+    LOG(("post irp (0x%p) to DevObj(0x%p) with timeout (%u)", pIrp, pDevObj, dwTimeoutMs));
+
     KeInitializeEvent(&Event, NotificationEvent, FALSE);
     NTSTATUS Status = VBoxDrvToolIoPostAsync(pDevObj, pIrp, &Event);
     if (Status == STATUS_PENDING)
@@ -151,14 +156,11 @@ VBOXDRVTOOL_DECL(NTSTATUS) VBoxDrvToolIoPostSyncWithTimeout(PDEVICE_OBJECT pDevO
         Status = KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, pInterval);
         if (Status == STATUS_TIMEOUT)
         {
-#ifdef DEBUG_misha
-            /* debugging only */
-            AssertFailed();
-#endif
+            WARN(("irp (0x%p) to DevObj(0x%p) was not completed within timeout (%u), cancelling", pIrp, pDevObj, dwTimeoutMs));
             if (!IoCancelIrp(pIrp))
             {
                 /* this may happen, but this is something the caller with timeout is not expecting */
-                AssertFailed();
+                WARN(("IoCancelIrp failed"));
             }
 
             /* wait for the IRP to complete */
@@ -166,11 +168,16 @@ VBOXDRVTOOL_DECL(NTSTATUS) VBoxDrvToolIoPostSyncWithTimeout(PDEVICE_OBJECT pDevO
         }
         else
         {
-            Assert(Status == STATUS_SUCCESS);
+            ASSERT_WARN(Status == STATUS_SUCCESS, ("uunexpected Status (0x%x)", Status));
         }
 
         /* by this time the IRP is completed */
         Status = pIrp->IoStatus.Status;
+        LOG(("Pending IRP(0x%p) completed with status(0x%x)", pIrp, Status));
+    }
+    else
+    {
+        LOG(("IRP(0x%p) completed with status(0x%x)", pIrp, Status));
     }
     return Status;
 }

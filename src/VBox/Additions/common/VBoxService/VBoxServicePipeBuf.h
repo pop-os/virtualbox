@@ -1,4 +1,4 @@
-/* $Id: VBoxServicePipeBuf.h 36744 2011-04-20 10:05:09Z vboxsync $ */
+/* $Id: VBoxServicePipeBuf.h 38113 2011-07-22 13:57:35Z vboxsync $ */
 /** @file
  * VBoxServicePipeBuf - Pipe buffering.
  */
@@ -20,7 +20,7 @@
 
 #include "VBoxServiceInternal.h"
 
-int  VBoxServicePipeBufInit(PVBOXSERVICECTRLEXECPIPEBUF pBuf, bool fNeedNotificationPipe);
+int  VBoxServicePipeBufInit(PVBOXSERVICECTRLEXECPIPEBUF pBuf, uint8_t uId, bool fNeedNotificationPipe);
 int  VBoxServicePipeBufRead(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
                             uint8_t *pbBuffer, uint32_t cbBuffer, uint32_t *pcbToRead);
 int VBoxServicePipeBufPeek(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
@@ -33,6 +33,7 @@ int  VBoxServicePipeBufWriteToPipe(PVBOXSERVICECTRLEXECPIPEBUF pBuf, RTPIPE hPip
                                    size_t *pcbWritten, size_t *pcbLeft);
 bool VBoxServicePipeBufIsEnabled(PVBOXSERVICECTRLEXECPIPEBUF pBuf);
 bool VBoxServicePipeBufIsClosing(PVBOXSERVICECTRLEXECPIPEBUF pBuf);
+int  VBoxServicePipeBufSetPID(PVBOXSERVICECTRLEXECPIPEBUF pBuf, uint32_t uPID);
 int  VBoxServicePipeBufSetStatus(PVBOXSERVICECTRLEXECPIPEBUF pBuf, bool fEnabled);
 int  VBoxServicePipeBufWaitForEvent(PVBOXSERVICECTRLEXECPIPEBUF pBuf, RTMSINTERVAL cMillies);
 void VBoxServicePipeBufDestroy(PVBOXSERVICECTRLEXECPIPEBUF pBuf);

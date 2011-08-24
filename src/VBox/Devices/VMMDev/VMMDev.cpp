@@ -1,4 +1,4 @@
-/* $Id: VMMDev.cpp 38037 2011-07-18 17:31:38Z vboxsync $ */
+/* $Id: VMMDev.cpp 38227 2011-07-28 17:24:16Z vboxsync $ */
 /** @file
  * VMMDev - Guest <-> VMM/Host communication device.
  */
@@ -2986,7 +2986,7 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
                                 N_("Configuration error: Failed querying \"GuestCoreDumpEnabled\" as a boolean"));
 
     char *pszGuestCoreDumpDir = NULL;
-    rc = CFGMR3QueryStringAlloc(pCfg, "GuestCoreDumpDir", &pszGuestCoreDumpDir);
+    rc = CFGMR3QueryStringAllocDef(pCfg, "GuestCoreDumpDir", &pszGuestCoreDumpDir, "");
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed querying \"GuestCoreDumpDir\" as a string"));

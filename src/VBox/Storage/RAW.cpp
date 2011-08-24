@@ -1,4 +1,4 @@
-/* $Id: RAW.cpp 36633 2011-04-08 21:43:41Z vboxsync $ */
+/* $Id: RAW.cpp 38333 2011-08-05 15:37:03Z vboxsync $ */
 /** @file
  * RawHDDCore - Raw Disk image, Core Code.
  */
@@ -380,8 +380,6 @@ static int rawCreateImage(PRAWIMAGE pImage, uint64_t cbSize,
         goto out;
     }
     uImageFlags |= VD_IMAGE_FLAGS_FIXED;
-
-    pImage->uImageFlags = uImageFlags;
 
     pImage->uOpenFlags = uOpenFlags & ~VD_OPEN_FLAGS_READONLY;
 

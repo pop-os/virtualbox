@@ -1,4 +1,4 @@
-/* $Id: getoptargv.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: getoptargv.cpp 38083 2011-07-20 16:24:38Z vboxsync $ */
 /** @file
  * IPRT - Command Line Parsing, Argument Vector.
  */
@@ -68,7 +68,7 @@ int main()
         ASMBitSet(&g_abmQuoteChars[RTGETOPTARGV_CNV_QUOTE_##ConstSuffix], (ch));
 
     /* just flag all the control chars as in need of quoting. */
-    for (char ch = 1; ch < 20; ch++)
+    for (char ch = 1; ch < 0x20; ch++)
         SET_ALL(ch);
 
     /* ... and space of course */

@@ -1,4 +1,4 @@
-/* $Id: VBoxFBOverlay.cpp 37495 2011-06-16 13:32:37Z vboxsync $ */
+/* $Id: VBoxFBOverlay.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
 /** @file
  * VBoxFBOverlay implementation
  */
@@ -23,7 +23,7 @@
 
 #include "VBoxFBOverlay.h"
 
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 #include "VBoxGlobal.h"
 
 #include <VBox/VBoxGL2D.h>
@@ -3693,26 +3693,6 @@ void VBoxVHWAImage::vboxDoUpdateRect(const QRect * pRect)
 
 void VBoxVHWAImage::resize(const VBoxFBSizeInfo & size)
 {
-//    VBOXQGLLOG(("format().blueBufferSize()(%d)\n", format().blueBufferSize()));
-//    VBOXQGLLOG(("format().greenBufferSize()(%d)\n", format().greenBufferSize()));
-//    VBOXQGLLOG(("format().redBufferSize()(%d)\n", format().redBufferSize()));
-//#ifdef DEBUG_misha
-//    Assert(format().blueBufferSize() == 8);
-//    Assert(format().greenBufferSize() == 8);
-//    Assert(format().redBufferSize() == 8);
-//#endif
-//
-//    Assert(format().directRendering());
-//    Assert(format().doubleBuffer());
-//    Assert(format().hasOpenGL());
-//    VBOXQGLLOG(("hasOpenGLOverlays(%d), hasOverlay(%d)\n", format().hasOpenGLOverlays(), format().hasOverlay()));
-//    Assert(format().plane() == 0);
-//    Assert(format().rgba());
-//    Assert(!format().sampleBuffers());
-//    Assert(!format().stereo());
-//    VBOXQGLLOG(("swapInterval(%d)\n", format().swapInterval()));
-
-
     VBOXQGL_CHECKERR(
             vboxglActiveTexture(GL_TEXTURE0);
         );
@@ -3938,7 +3918,7 @@ void VBoxVHWAImage::resize(const VBoxFBSizeInfo & size)
 //    }
 
     if (remind)
-        vboxProblem().remindAboutWrongColorDepth(size.bitsPerPixel(), 32);
+        msgCenter().remindAboutWrongColorDepth(size.bitsPerPixel(), 32);
 }
 
 VBoxVHWAColorFormat::VBoxVHWAColorFormat (uint32_t bitsPerPixel, uint32_t r, uint32_t g, uint32_t b) :
@@ -5133,7 +5113,7 @@ VBoxVHWACommandElement * VBoxVHWACommandElementProcessor::detachCmdList(VBoxVHWA
 
         if (pList)
         {
-            /* assume the caller atimically calls detachCmdList to free the elements obtained now those and reset the state */
+            /* assume the caller atomically calls detachCmdList to free the elements obtained now those and reset the state */
             mbProcessingList = true;
             RTCritSectLeave(&mCritSect);
             return pList;

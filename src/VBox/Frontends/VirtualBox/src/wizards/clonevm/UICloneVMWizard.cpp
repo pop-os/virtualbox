@@ -1,4 +1,4 @@
-/* $Id: UICloneVMWizard.cpp 38055 2011-07-19 08:55:42Z vboxsync $ */
+/* $Id: UICloneVMWizard.cpp 38440 2011-08-12 15:32:49Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -24,23 +24,25 @@
 
 /* Local includes: */
 #include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 #include "QIFileDialog.h"
 #include "UIIconPool.h"
 #include "UICloneVMWizard.h"
 #include "iprt/path.h"
 
-UICloneVMWizard::UICloneVMWizard(QWidget *pParent, CMachine machine, bool fShowChildsOption /* = true */)
+UICloneVMWizard::UICloneVMWizard(QWidget *pParent, CMachine machine, CSnapshot snapshot /* = CSnapshot() */)
     : QIWizard(pParent)
     , m_machine(machine)
+    , m_snapshot(snapshot)
 {
     /* Create & add pages: */
-    addPage(new UICloneVMWizardPage1(machine.GetName()));
+    setPage(PageIntro, new UICloneVMWizardPage1(machine.GetName()));
+    /* If we are having a snapshot we can show the "Linked" option. */
+    setPage(PageType, new UICloneVMWizardPage2(snapshot.isNull()));
     /* If the machine has no snapshots, we don't bother the user about options
      * for it. */
     if (machine.GetSnapshotCount() > 0)
-//        addPage(new UICloneVMWizardPage2(fShowChildsOption));
-        addPage(new UICloneVMWizardPage2(false));
+        setPage(PageMode, new UICloneVMWizardPage3(snapshot.isNull() ? false : snapshot.GetChildrenCount() > 0));
 
     /* Translate wizard: */
     retranslateUi();
@@ -69,16 +71,64 @@ void UICloneVMWizard::retranslateUi()
     setButtonText(QWizard::FinishButton, tr("Clone"));
 }
 
-bool UICloneVMWizard::createClone(const QString &strName, KCloneMode mode, bool fReinitMACs)
+bool UICloneVMWizard::createClone(const QString &strName, KCloneMode mode, bool fReinitMACs, bool fLinked /* = false */)
 {
     CVirtualBox vbox = vboxGlobal().virtualBox();
     const QString &strSettingsFile = vbox.ComposeMachineFilename(strName, QString::null);
+
+    CMachine srcMachine = m_machine;
+    /* If the user like to create a linked clone from the current machine, we
+     * have to take a little bit more action. First we create an snapshot, so
+     * that new differencing images on the source VM are created. Based on that
+     * we could use the new snapshot machine for cloning. */
+    if (   fLinked
+        && m_snapshot.isNull())
+    {
+        const QString &strId = m_machine.GetId();
+        CSession session = vboxGlobal().openSession(strId);
+        if (session.isNull())
+            return false;
+        CConsole console = session.GetConsole();
+
+        /* Take the snapshot */
+        QString strSnapshotName = tr("Linked Base for %1 and %2").arg(m_machine.GetName()).arg(strName);
+        CProgress progress = console.TakeSnapshot(strSnapshotName, "");
+
+        if (console.isOk())
+        {
+            /* Show the "Taking Snapshot" progress dialog */
+            msgCenter().showModalProgressDialog(progress, m_machine.GetName(), ":/progress_snapshot_create_90px.png", this, true);
+
+            if (!progress.isOk() || progress.GetResultCode() != 0)
+            {
+                msgCenter().cannotTakeSnapshot(progress);
+                return false;
+            }
+        }
+        else
+        {
+            msgCenter().cannotTakeSnapshot(console);
+            return false;
+        }
+
+        /* Unlock machine finally: */
+        session.UnlockMachine();
+
+        /* Get the new snapshot and the snapshot machine. */
+        const CSnapshot &newSnapshot = m_machine.FindSnapshot(strSnapshotName);
+        if (newSnapshot.isNull())
+        {
+            msgCenter().cannotFindSnapshotByName(this, m_machine, strSnapshotName);
+            return false;
+        }
+        srcMachine = newSnapshot.GetMachine();
+    }
 
     /* Create a new machine object. */
     CMachine cloneMachine = vbox.CreateMachine(strSettingsFile, strName, QString::null, QString::null, false);
     if (!vbox.isOk())
     {
-        vboxProblem().cannotCreateMachine(vbox, this);
+        msgCenter().cannotCreateMachine(vbox, this);
         return false;
     }
 
@@ -86,22 +136,25 @@ bool UICloneVMWizard::createClone(const QString &strName, KCloneMode mode, bool 
     QVector<KCloneOptions> options;
     if (!fReinitMACs)
         options.append(KCloneOptions_KeepAllMACs);
+    /* Linked clones requested? */
+    if (fLinked)
+        options.append(KCloneOptions_Link);
 
     /* Start cloning. */
-    CProgress progress = m_machine.CloneTo(cloneMachine, mode, options);
-    if (!m_machine.isOk())
+    CProgress progress = srcMachine.CloneTo(cloneMachine, mode, options);
+    if (!srcMachine.isOk())
     {
-        vboxProblem().cannotCreateClone(m_machine, this);
+        msgCenter().cannotCreateClone(srcMachine, this);
         return false;
     }
 
     /* Wait until done. */
-    vboxProblem().showModalProgressDialog(progress, windowTitle(), ":/progress_clone_90px.png", this, true);
+    msgCenter().showModalProgressDialog(progress, windowTitle(), ":/progress_clone_90px.png", this, true);
     if (progress.GetCanceled())
         return false;
     if (!progress.isOk() || progress.GetResultCode() != 0)
     {
-        vboxProblem().cannotCreateClone(m_machine, progress, this);
+        msgCenter().cannotCreateClone(srcMachine, progress, this);
         return false;
     }
 
@@ -109,7 +162,7 @@ bool UICloneVMWizard::createClone(const QString &strName, KCloneMode mode, bool 
     vbox.RegisterMachine(cloneMachine);
     if (!vbox.isOk())
     {
-        vboxProblem().cannotRegisterMachine(vbox, m_machine, this);
+        msgCenter().cannotRegisterMachine(vbox, cloneMachine, this);
         return false;
     }
 
@@ -192,14 +245,29 @@ void UICloneVMWizardPage1::sltNameEditorTextChanged(const QString & /* strText *
     emit completeChanged();
 }
 
-UICloneVMWizardPage2::UICloneVMWizardPage2(bool fShowChildsOption /* = true */)
-  : m_fShowChildsOption(fShowChildsOption)
+UICloneVMWizardPage2::UICloneVMWizardPage2(bool fAdditionalInfo)
+  : m_fAdditionalInfo(fAdditionalInfo)
 {
     /* Decorate page: */
     Ui::UICloneVMWizardPage2::setupUi(this);
 
-    if (!fShowChildsOption)
-       m_pMachineAndChildsRadio->hide();
+    QButtonGroup *pButtonGroup = new QButtonGroup(this);
+    pButtonGroup->addButton(m_pFullCloneRadio);
+    pButtonGroup->addButton(m_pLinkedCloneRadio);
+
+    connect(pButtonGroup, SIGNAL(buttonClicked(QAbstractButton *)),
+            this, SLOT(buttonClicked(QAbstractButton *)));
+}
+
+void UICloneVMWizardPage2::buttonClicked(QAbstractButton *pButton)
+{
+    setFinalPage(pButton != m_pFullCloneRadio);
+    /* On older Qt versions the content of the current page isn't updated when
+     * using setFinalPage. So switch back and for to simulate it. */
+#if QT_VERSION < 0x040700
+    wizard()->back();
+    wizard()->next();
+#endif
 }
 
 void UICloneVMWizardPage2::retranslateUi()
@@ -208,6 +276,60 @@ void UICloneVMWizardPage2::retranslateUi()
     Ui::UICloneVMWizardPage2::retranslateUi(this);
 
     /* Set 'Page2' page title: */
+    setTitle(tr("Cloning Configuration"));
+
+    QString strLabel = tr("<p>Please select the type of the clone.</p><p>If you choose <b>Full Clone</b> an exact copy (including all virtual disk images) of the original VM will be created. If you select <b>Linked Clone</b>, a new VM will be created, but the virtual disk images will point to the virtual disk images of original VM.</p>");
+    if (m_fAdditionalInfo)
+        strLabel += tr("<p>Note that a new snapshot within the source VM is created in case you select <b>Linked Clone</b>.</p>");
+    m_pLabel->setText(strLabel);
+}
+
+void UICloneVMWizardPage2::initializePage()
+{
+    /* Retranslate page: */
+    retranslateUi();
+}
+
+int UICloneVMWizardPage2::nextId() const
+{
+    return m_pFullCloneRadio->isChecked() && wizard()->page(UICloneVMWizard::PageMode) ? UICloneVMWizard::PageMode : -1;
+}
+
+bool UICloneVMWizardPage2::validatePage()
+{
+    if (isFinalPage())
+    {
+        /* Start performing long-time operation: */
+        startProcessing();
+        /* Try to create the clone: */
+        QString strName = field("cloneName").toString();
+        bool fReinitMACs = field("reinitMACs").toBool();
+        bool fResult = static_cast<UICloneVMWizard*>(wizard())->createClone(strName, KCloneMode_MachineState, fReinitMACs, m_pLinkedCloneRadio->isChecked());
+        /* Finish performing long-time operation: */
+        endProcessing();
+        /* Return operation result: */
+        return fResult;
+    }
+    else
+        return true;
+}
+
+UICloneVMWizardPage3::UICloneVMWizardPage3(bool fShowChildsOption /* = true */)
+  : m_fShowChildsOption(fShowChildsOption)
+{
+    /* Decorate page: */
+    Ui::UICloneVMWizardPage3::setupUi(this);
+
+    if (!fShowChildsOption)
+       m_pMachineAndChildsRadio->hide();
+}
+
+void UICloneVMWizardPage3::retranslateUi()
+{
+    /* Translate uic generated strings: */
+    Ui::UICloneVMWizardPage3::retranslateUi(this);
+
+    /* Set 'Page3' page title: */
     setTitle(tr("Cloning Configuration"));
 
     const QString strGeneral = tr("Please choose which parts of the virtual machine should be cloned.");
@@ -227,13 +349,13 @@ void UICloneVMWizardPage2::retranslateUi()
                           .arg(strOpt3));
 }
 
-void UICloneVMWizardPage2::initializePage()
+void UICloneVMWizardPage3::initializePage()
 {
     /* Retranslate page: */
     retranslateUi();
 }
 
-bool UICloneVMWizardPage2::validatePage()
+bool UICloneVMWizardPage3::validatePage()
 {
     /* Start performing long-time operation: */
     startProcessing();
@@ -247,7 +369,7 @@ bool UICloneVMWizardPage2::validatePage()
     return fResult;
 }
 
-KCloneMode UICloneVMWizardPage2::cloneMode() const
+KCloneMode UICloneVMWizardPage3::cloneMode() const
 {
     if (m_pMachineRadio->isChecked())
         return KCloneMode_MachineState;
@@ -256,7 +378,7 @@ KCloneMode UICloneVMWizardPage2::cloneMode() const
     return KCloneMode_AllStates;
 }
 
-void UICloneVMWizardPage2::setCloneMode(KCloneMode mode)
+void UICloneVMWizardPage3::setCloneMode(KCloneMode mode)
 {
     switch(mode)
     {

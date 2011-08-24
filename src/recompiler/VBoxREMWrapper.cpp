@@ -1,4 +1,4 @@
-/* $Id: VBoxREMWrapper.cpp 37693 2011-06-29 16:41:39Z vboxsync $ */
+/* $Id: VBoxREMWrapper.cpp 38364 2011-08-08 19:12:29Z vboxsync $ */
 /** @file
  *
  * VBoxREM Win64 DLL Wrapper.
@@ -1200,6 +1200,7 @@ static REMFNDESC g_aVMMImports[] =
     { "CPUMGetGuestESP",                        VMM_FN(CPUMGetGuestESP),                &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
     { "CPUMGetGuestCS",                         VMM_FN(CPUMGetGuestCS),                 &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(RTSEL),      NULL },
     { "CPUMGetGuestSS",                         VMM_FN(CPUMGetGuestSS),                 &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(RTSEL),      NULL },
+    { "CPUMGetGuestCpuVendor",                  VMM_FN(CPUMGetGuestCpuVendor),          &g_aArgsVM[0],                           RT_ELEMENTS(g_aArgsVMCPU),                                REMFNDESC_FLAGS_RET_INT, sizeof(CPUMCPUVENDOR), NULL },
     { "CPUMQueryGuestCtxPtr",                   VMM_FN(CPUMQueryGuestCtxPtr),           &g_aArgsCPUMQueryGuestCtxPtr[0],            RT_ELEMENTS(g_aArgsCPUMQueryGuestCtxPtr),              REMFNDESC_FLAGS_RET_INT,    sizeof(PCPUMCTX),   NULL },
     { "CSAMR3MonitorPage",                      VMM_FN(CSAMR3MonitorPage),              &g_aArgsCSAMR3MonitorPage[0],               RT_ELEMENTS(g_aArgsCSAMR3MonitorPage),                 REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "CSAMR3UnmonitorPage",                    VMM_FN(CSAMR3UnmonitorPage),            &g_aArgsCSAMR3UnmonitorPage[0],             RT_ELEMENTS(g_aArgsCSAMR3UnmonitorPage),               REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },

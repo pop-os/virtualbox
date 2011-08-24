@@ -1,4 +1,4 @@
-/* $Id: VBoxTakeSnapshotDlg.cpp 31319 2010-08-02 16:41:47Z vboxsync $ */
+/* $Id: VBoxTakeSnapshotDlg.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -25,7 +25,7 @@
 
 /* Local includes */
 #include "VBoxTakeSnapshotDlg.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 #include "VBoxUtils.h"
 #ifdef Q_WS_MAC
 # include "UIMachineWindowNormal.h"
@@ -53,7 +53,7 @@ VBoxTakeSnapshotDlg::VBoxTakeSnapshotDlg(QWidget *pParent, const CMachine &machi
     altKeyFilter->watchOn(mLeName);
 
     /* Setup connections */
-    connect (mButtonBox, SIGNAL(helpRequested()), &vboxProblem(), SLOT(showHelpHelpDialog()));
+    connect (mButtonBox, SIGNAL(helpRequested()), &msgCenter(), SLOT(sltShowHelpHelpDialog()));
     connect (mLeName, SIGNAL(textChanged(const QString &)), this, SLOT(nameChanged(const QString &)));
 
     /* Check if machine have immutable attachments */

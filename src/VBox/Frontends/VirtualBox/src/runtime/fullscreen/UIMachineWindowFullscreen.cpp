@@ -1,4 +1,4 @@
-/* $Id: UIMachineWindowFullscreen.cpp 36083 2011-02-25 12:33:58Z vboxsync $ */
+/* $Id: UIMachineWindowFullscreen.cpp 38348 2011-08-08 12:09:18Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -29,7 +29,7 @@
 #include "VBoxMiniToolBar.h"
 
 #include "UISession.h"
-#include "UIActionsPool.h"
+#include "UIActionPoolRuntime.h"
 #include "UIMachineLogicFullscreen.h"
 #include "UIMachineWindowFullscreen.h"
 #include "UIMachineView.h"
@@ -194,9 +194,9 @@ void UIMachineWindowFullscreen::prepareMiniToolBar()
         *m_pMiniToolBar << menus;
         connect(m_pMiniToolBar, SIGNAL(minimizeAction()), this, SLOT(showMinimized()));
         connect(m_pMiniToolBar, SIGNAL(exitAction()),
-                uisession()->actionsPool()->action(UIActionIndex_Toggle_Fullscreen), SLOT(trigger()));
+                gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SLOT(trigger()));
         connect(m_pMiniToolBar, SIGNAL(closeAction()),
-                uisession()->actionsPool()->action(UIActionIndex_Simple_Close), SLOT(trigger()));
+                gActionPool->action(UIActionIndexRuntime_Simple_Close), SLOT(trigger()));
     }
 }
 

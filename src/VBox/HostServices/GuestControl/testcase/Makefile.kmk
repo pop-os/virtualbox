@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 35380 2010-12-30 16:06:17Z vboxsync $
+# $Id: Makefile.kmk 38152 2011-07-25 12:19:13Z vboxsync $
 ## @file
 # Sub-Makefile for the Guest Control Host Service testcases.
 #
@@ -37,8 +37,8 @@ if defined(VBOX_WITH_TESTCASES) && !defined(VBOX_ONLY_ADDITIONS) && !defined(VBO
 	tstGuestControlSvc.cpp
  tstGuestControlSvc_LIBS     = $(LIB_RUNTIME)
 
-$$(tstGuestControlSvc_0_OUTDIR)/tstGuestControlSvc.run: $$(INSTARGET_tstGuestControlSvc)
-	export VBOX_LOG_DEST=nofile; $(INSTARGET_tstGuestControlSvc) quiet
+$$(tstGuestControlSvc_0_OUTDIR)/tstGuestControlSvc.run: $$(tstGuestControlSvc_1_STAGE_TARGET)
+	export VBOX_LOG_DEST=nofile; $(tstGuestControlSvc_1_STAGE_TARGET) quiet
 	$(QUIET)$(APPEND) -t "$@" "done"
 
 endif

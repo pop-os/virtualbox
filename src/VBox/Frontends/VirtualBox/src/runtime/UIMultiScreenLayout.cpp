@@ -1,4 +1,4 @@
-/* $Id: UIMultiScreenLayout.cpp 36083 2011-02-25 12:33:58Z vboxsync $ */
+/* $Id: UIMultiScreenLayout.cpp 38348 2011-08-08 12:09:18Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -20,10 +20,10 @@
 /* Local includes */
 #include "UIMultiScreenLayout.h"
 #include "COMDefs.h"
-#include "UIActionsPool.h"
+#include "UIActionPoolRuntime.h"
 #include "UIMachineLogic.h"
 #include "UISession.h"
-#include "VBoxProblemReporter.h"
+#include "UIMessageCenter.h"
 
 /* Global includes */
 #include <QApplication>
@@ -134,7 +134,7 @@ void UIMultiScreenLayout::update()
     }
 
     /* Get the list of all view-menu actions: */
-    QList<QAction*> viewMenuActions = m_pMachineLogic->actionsPool()->action(UIActionIndex_Menu_View)->menu()->actions();
+    QList<QAction*> viewMenuActions = gActionPool->action(UIActionIndexRuntime_Menu_View)->menu()->actions();
     /* Get the list of all view related actions: */
     QList<QAction*> viewActions;
     for (int i = 0; i < viewMenuActions.size(); ++i)
@@ -225,9 +225,9 @@ void UIMultiScreenLayout::sltScreenLayoutChanged(QAction *pAction)
             /* We have to little video memory for the new layout, so say it to the
              * user and revert all changes. */
             if (m_pMachineLogic->visualStateType() == UIVisualStateType_Seamless)
-                vboxProblem().cannotSwitchScreenInSeamless((((usedBits + 7) / 8 + _1M - 1) / _1M) * _1M);
+                msgCenter().cannotSwitchScreenInSeamless((((usedBits + 7) / 8 + _1M - 1) / _1M) * _1M);
             else
-                fSuccess = vboxProblem().cannotSwitchScreenInFullscreen((((usedBits + 7) / 8 + _1M - 1) / _1M) * _1M) != QIMessageBox::Cancel;
+                fSuccess = msgCenter().cannotSwitchScreenInFullscreen((((usedBits + 7) / 8 + _1M - 1) / _1M) * _1M) != QIMessageBox::Cancel;
         }
     }
     if (fSuccess)
@@ -238,7 +238,7 @@ void UIMultiScreenLayout::sltScreenLayoutChanged(QAction *pAction)
     }
 
     /* Get the list of all view-menu actions: */
-    QList<QAction*> viewMenuActions = m_pMachineLogic->actionsPool()->action(UIActionIndex_Menu_View)->menu()->actions();
+    QList<QAction*> viewMenuActions = gActionPool->action(UIActionIndexRuntime_Menu_View)->menu()->actions();
     /* Get the list of all view related actions: */
     QList<QAction*> viewActions;
     for (int i = 0; i < viewMenuActions.size(); ++i)

@@ -1,4 +1,4 @@
-/* $Id: VBoxUsbHook.cpp 37083 2011-05-13 19:24:39Z vboxsync $ */
+/* $Id: VBoxUsbHook.cpp 38356 2011-08-08 15:49:01Z vboxsync $ */
 /** @file
  * Driver Dispatch Table Hooking API
  */
@@ -23,7 +23,7 @@ NTSTATUS VBoxUsbHookInstall(PVBOXUSBHOOK_ENTRY pHook)
     KeAcquireSpinLock(&pHook->Lock, &Irql);
     if (pHook->fIsInstalled)
     {
-        AssertFailed();
+        WARN(("hook is marked installed, returning failure"));
         KeReleaseSpinLock(&pHook->Lock, Irql);
         return STATUS_UNSUCCESSFUL;
     }
@@ -179,7 +179,7 @@ VOID VBoxUsbHookVerifyCompletion(PVBOXUSBHOOK_ENTRY pHook, PVBOXUSBHOOK_REQUEST 
             continue;
         if (pCur->pIrp != pIrp)
             continue;
-        AssertFailed();
+        WARN(("found pending IRP(0x%p) when it should not be", pIrp));
     }
     KeReleaseSpinLock(&pHook->Lock, oldIrql);
 

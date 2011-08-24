@@ -1,4 +1,4 @@
-/* $Id: fileaio-freebsd.cpp 37774 2011-07-04 21:19:27Z vboxsync $ */
+/* $Id: fileaio-freebsd.cpp 38332 2011-08-05 15:32:09Z vboxsync $ */
 /** @file
  * IPRT - File async I/O, native implementation for the FreeBSD host platform.
  */
@@ -416,7 +416,8 @@ RTDECL(int) RTFileAioCtxSubmit(RTFILEAIOCTX hAioCtx, PRTFILEAIOREQ pahReqs, size
                 {
                     pReqInt = pahReqs[i];
                     rcBSD = aio_error(&pReqInt->AioCB);
-                    if (rcBSD == EINVAL || rcBSD == EAGAIN)
+                    if (   rcBSD == -1
+                        && errno == EINVAL)
                     {
                         /* Was not submitted. */
                         RTFILEAIOREQ_SET_STATE(pReqInt, PREPARED);
