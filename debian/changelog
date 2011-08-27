@@ -1,4 +1,4 @@
-virtualbox (4.1.2-dfsg-1) UNRELEASED; urgency=low
+virtualbox (4.1.2-dfsg-1) unstable; urgency=low
 
   [ Michael Meskes ]
   * New upstream release.
@@ -9,7 +9,7 @@ virtualbox (4.1.2-dfsg-1) UNRELEASED; urgency=low
   * Bump minimum kbuild version to 1:0.1.9998svn2537.
   * Fix permissions of the kernel module tarballs.
 
- -- Michael Meskes <meskes@debian.org>  Wed, 24 Aug 2011 13:20:38 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sat, 27 Aug 2011 10:42:30 +0200
 
 virtualbox (4.1.0-dfsg-2) unstable; urgency=low
 
