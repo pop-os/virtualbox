@@ -1,3 +1,9 @@
+virtualbox (4.1.2-dfsg-2) UNRELEASED; urgency=low
+
+  * Restrict dh_pycentral to the virtualbox binary package.
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 20 Sep 2011 22:58:00 +0200
+
 virtualbox (4.1.2-dfsg-1) unstable; urgency=low
 
   [ Michael Meskes ]

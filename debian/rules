@@ -249,6 +249,9 @@ override_dh_shlibdeps:
 override_dh_compress:
 	dh_compress -X.pdf
 
+override_dh_pycentral:
+	dh_pycentral -p$(sname)
+
 override_dh_auto_clean:
 	dh_auto_clean
 
