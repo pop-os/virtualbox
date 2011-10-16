@@ -132,7 +132,7 @@ override_dh_auto_build:
 	    VBOX_BUILD_PUBLISHER=_$(DIST_NAME) \
 	    VBOX_WITH_REGISTRATION_REQUEST= \
 	    VBOX_WITH_UPDATE_REQUEST= \
-	    $(if $(DH_VERBOSE),KBUILD_VERBOSE=2,)
+	    KBUILD_VERBOSE=2
 
 	mkdir -p out/vdfuse
 	gcc debian/vdfuse/vdfuse.c -o out/vdfuse/vdfuse -pipe -g -Wl,--as-needed -Wl,--rpath,$(INSTALL_PATH) -Wall \

@@ -5,6 +5,7 @@ virtualbox (4.1.2-dfsg-2) UNRELEASED; urgency=low
     on Ubuntu:
     - Add an Apport hook.
     - Add vboxguest modalias to the package control field.
+  * Pass KBUILD_VERBOSE=2 to kmk.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 20 Sep 2011 22:58:00 +0200
 
