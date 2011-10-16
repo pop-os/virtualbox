@@ -167,6 +167,10 @@ override_dh_auto_install:
 	echo "xviddriver:Provides=$(VIDDRIVER_PROVIDES)" >> debian/$(uxname).substvars
 	echo "xinpdriver:Provides=$(INPDRIVER_PROVIDES)" >> debian/$(uxname).substvars
 
+ifeq ($(DIST_NAME),Ubuntu)
+	echo "modaliases=vboxguest(pci:v000080EEd0000CAFEsv00000000sd00000000bc*sc*i*)" >> debian/$(gdkms).substvars
+endif
+
 override_dh_install:
 	dh_install
 
@@ -182,6 +186,13 @@ endif
 
 	convert debian/$(sxname)/usr/share/icons/hicolor/32x32/apps/virtualbox.png \
 	    debian/$(sxname)/usr/share/pixmaps/virtualbox.xpm
+
+ifeq ($(DIST_NAME),Ubuntu)
+	install -m 644 -p -D debian/apport-hook.py \
+	    debian/$(sname)/usr/share/apport/package-hooks/source_$(sname).py
+	install -m 644 -p -D debian/apport-hook.py \
+	    debian/$(gdkms)/usr/share/apport/package-hooks/$(gdkms).py
+endif
 
 override_dh_fixperms:
 	dh_fixperms

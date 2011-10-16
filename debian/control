@@ -167,6 +167,7 @@ Depends: ${misc:Depends},
 Breaks: virtualbox-ose-guest-dkms (<< 4.0.6-dfsg-1~)
 Replaces: virtualbox-ose-guest-dkms (<< 4.0.6-dfsg-1~),
           virtualbox-ose-guest-source (<< 3.1.0-dfsg-1~)
+XB-Modaliases: ${modaliases}
 Description: x86 virtualization solution - guest addition module source for dkms
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
