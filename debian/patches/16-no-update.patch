@@ -2,19 +2,18 @@ Description: Disable "Check for Updates" action.
 Bug-Ubuntu: https://bugs.launchpad.net/bugs/272212
 Author: Daniel Hahler <ubuntu@thequod.de>, Felix Geyer <debfx-pkg@fobos.de>
 
-diff -Nur virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp virtualbox-ose-4.0.0-dfsg/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp
---- virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp	2010-12-17 16:14:24.000000000 +0100
-+++ virtualbox-ose-4.0.0-dfsg/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp	2011-01-01 23:55:23.240440031 +0100
-@@ -4565,6 +4565,9 @@
-  */
- void VBoxGlobal::showUpdateDialog (bool aForce)
+diff a/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp b/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
+--- a/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
++++ b/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
+@@ -65,6 +65,8 @@ void UIUpdateManager::shutdown()
+ 
+ void UIUpdateManager::sltForceCheck()
  {
-+    // Updates are handled through package managers.
 +    return;
 +
-     /* Silently check in one day after current time-stamp */
-     QTimer::singleShot (24 /* hours */   * 60   /* minutes */ *
-                         60 /* seconds */ * 1000 /* milliseconds */,
+     /* Force call for new version check: */
+     sltCheckIfUpdateIsNecessary(true);
+ }
 diff -Nur virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Frontends/VirtualBox/src/runtime/UIMachineMenuBar.cpp virtualbox-ose-4.0.0-dfsg/src/VBox/Frontends/VirtualBox/src/runtime/UIMachineMenuBar.cpp
 --- virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Frontends/VirtualBox/src/runtime/UIMachineMenuBar.cpp	2010-11-22 11:05:07.000000000 +0100
 +++ virtualbox-ose-4.0.0-dfsg/src/VBox/Frontends/VirtualBox/src/runtime/UIMachineMenuBar.cpp	2011-01-01 23:56:55.292774878 +0100
@@ -37,7 +36,7 @@ diff -Nur virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Frontends/VirtualBox/src/runti
          VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_About), SIGNAL(triggered()),
                              &msgCenter(), SLOT(sltShowHelpAboutDialog()));
 -        VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_Update), SIGNAL(triggered()),
--                            &vboxGlobal(), SLOT(showUpdateDialog()));
+-                            gUpdateManager, SLOT(sltForceCheck()));
  #if defined(Q_WS_MAC) && (QT_VERSION < 0x040700)
      }
  #endif
@@ -108,7 +107,7 @@ diff --git a/src/VBox/Frontends/VirtualBox/src/selector/VBoxSelectorWnd.cpp b/sr
                          gActionPool->action(UIActionIndex_Simple_Register), SLOT(setEnabled(bool)));
  #endif /* VBOX_WITH_REGISTRATION */
 -    VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_Update), SIGNAL(triggered()),
--                        &vboxGlobal(), SLOT(showUpdateDialog()));
+-                        gUpdateManager, SLOT(sltForceCheck()));
      VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_About), SIGNAL(triggered()),
                          &msgCenter(), SLOT(sltShowHelpAboutDialog()));
  }

@@ -1,22 +1,6 @@
 Description: Fix FTBFS with ld --as-needed.
-Origin: vendor, http://sources.gentoo.org/cgi-bin/viewvc.cgi/gentoo-x86/app-emulation/virtualbox/files/virtualbox-4-asneeded.patch?revision=1.2
+Origin: vendor, http://sources.gentoo.org/cgi-bin/viewvc.cgi/gentoo-x86/app-emulation/virtualbox/files/virtualbox-4.1.4-asneeded.patch?revision=1.2&view=markup
 
---- VirtualBox-4.0.0_OSE/src/libs/xpcom18a4/Makefile.kmk
-+++ VirtualBox-4.0.0_OSE/src/libs/xpcom18a4/Makefile.kmk
-@@ -469,9 +469,11 @@
-  libIDL_config_cflags := $(shell $(VBOX_LIBIDL_CONFIG) --cflags)
-  libIDL_config_libs   := $(shell $(VBOX_LIBIDL_CONFIG) --libs)
-  xpidl_CFLAGS = \
--	$(libIDL_config_cflags)
-+	$(shell pkg-config --cflags libIDL-2.0)
-  xpidl_LDFLAGS = \
--	$(libIDL_config_libs)
-+	$(shell pkg-config --libs-only-L libIDL-2.0)
-+xpidl_LIBS.linux = \
-+	$(shell pkg-config --libs-only-l libIDL-2.0 | sed -e 's/-l//g')
-  xpidl_LDFLAGS.linux = \
- 	$(VBOX_LD_as_needed)
- endif
 --- VirtualBox-4.0.0_OSE/Config.kmk
 +++ VirtualBox-4.0.0_OSE/Config.kmk
 @@ -4082,7 +4082,7 @@

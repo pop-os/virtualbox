@@ -47,7 +47,7 @@ diff --git a/src/VBox/Additions/x11/Makefile.kmk b/src/VBox/Additions/x11/Makefi
  SUB_DEPTH = ../../../..
  include $(KBUILD_PATH)/subheader.kmk
  
-+ifn1of ($(XSERVER_VERSION), 13 14 15 16 17 18 19 110)
++ifn1of ($(XSERVER_VERSION), 13 14 15 16 17 18 19 110 111)
 + XSERVER_VERSION := 17
 +endif
 +
@@ -113,53 +113,6 @@ diff --git a/src/VBox/Additions/x11/vboxmouse/Makefile.kmk b/src/VBox/Additions/
  vboxmouse_drv_16_TEMPLATE = VBOXGUESTR3XORGMOD
  vboxmouse_drv_16_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
  vboxmouse_drv_16_INCS := \
-@@ -157,7 +150,6 @@ vboxmouse_drv_16_SOURCES = \
- #
- # vboxmouse_drv_17
- #
--DLLS += vboxmouse_drv_17
- vboxmouse_drv_17_TEMPLATE = VBOXGUESTR3XORGMOD
- vboxmouse_drv_17_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
- ## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
-@@ -177,7 +169,6 @@ vboxmouse_drv_17_SOURCES = \
- #
- # vboxmouse_drv_18
- #
--DLLS += vboxmouse_drv_18
- vboxmouse_drv_18_TEMPLATE = VBOXGUESTR3XORGMOD
- vboxmouse_drv_18_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
- ## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
-@@ -197,7 +188,6 @@ vboxmouse_drv_18_SOURCES = \
- #
- # vboxmouse_drv_19
- #
--DLLS += vboxmouse_drv_19
- vboxmouse_drv_19_TEMPLATE = VBOXGUESTR3XORGMOD
- vboxmouse_drv_19_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
- ## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
-@@ -217,7 +207,6 @@ vboxmouse_drv_19_SOURCES = \
- #
- # vboxmouse_drv_110
- #
--DLLS += vboxmouse_drv_110
- vboxmouse_drv_110_TEMPLATE = VBOXGUESTR3XORGMOD
- vboxmouse_drv_110_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
- ## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
-@@ -234,6 +224,14 @@ vboxmouse_drv_110_SOURCES = \
- 	vboxmouse_15.c
- 
- 
-+vboxmouse_drv_$(XSERVER_VERSION)_NAME := vboxmouse_drv
-+vboxmouse_drv_$(XSERVER_VERSION)_INCS := \
-+	/usr/include/x11 \
-+	/usr/include/xorg \
-+	/usr/include/pixman-1
-+DLLS += vboxmouse_drv_$(XSERVER_VERSION)
-+
-+
- # Check the undefined symbols in the X.Org modules against lists of allowed
- # symbols.  Not very elegant, but it will catch problems early.
- ifdef VBOX_WITH_TESTCASES
 diff --git a/src/VBox/Additions/x11/vboxvideo/Makefile.kmk b/src/VBox/Additions/x11/vboxvideo/Makefile.kmk
 --- a/src/VBox/Additions/x11/vboxvideo/Makefile.kmk
 +++ b/src/VBox/Additions/x11/vboxvideo/Makefile.kmk
@@ -251,8 +204,16 @@ diff --git a/src/VBox/Additions/x11/vboxvideo/Makefile.kmk b/src/VBox/Additions/
  vboxvideo_drv_110_TEMPLATE = VBOXGUESTR3XORGMOD
  vboxvideo_drv_110_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
  vboxvideo_drv_110_DEFS := $(vboxvideo_drv_15_DEFS)
-@@ -317,6 +306,23 @@ vboxvideo_drv_110_INCS = \
- vboxvideo_drv_110_SOURCES := $(vboxvideo_drv_15_SOURCES)
+@@ -320,7 +309,6 @@ vboxvideo_drv_110_SOURCES := $(vboxvideo_drv_15_SOURCES)
+ #
+ # vboxvideo_drv_111
+ #
+-DLLS += vboxvideo_drv_111
+ vboxvideo_drv_111_TEMPLATE = VBOXGUESTR3XORGMOD
+ vboxvideo_drv_111_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
+ vboxvideo_drv_111_DEFS := $(vboxvideo_drv_15_DEFS)
+@@ -317,6 +306,23 @@ vboxvideo_drv_111_INCS = \
+ vboxvideo_drv_111_SOURCES := $(vboxvideo_drv_15_SOURCES)
  
  
 +vboxvideo_drv_$(XSERVER_VERSION)_NAME := vboxvideo_drv
