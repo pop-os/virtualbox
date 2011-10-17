@@ -1,5 +1,6 @@
-virtualbox (4.1.2-dfsg-2) UNRELEASED; urgency=low
+virtualbox (4.1.4-dfsg-1) UNRELEASED; urgency=low
 
+  * New upstream release.
   * Restrict dh_pycentral to the virtualbox binary package.
   * Merge changes from the Ubuntu package but use them only when built
     on Ubuntu:
