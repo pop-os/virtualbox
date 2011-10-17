@@ -12,6 +12,7 @@ virtualbox (4.1.4-dfsg-1) UNRELEASED; urgency=low
     - Add an Apport hook.
     - Add vboxguest modalias to the package control field.
   * Pass KBUILD_VERBOSE=2 to kmk.
+  * Add 36-fix-text-mode.patch to fix text mode when using the vboxvideo driver.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 20 Sep 2011 22:58:00 +0200
 
