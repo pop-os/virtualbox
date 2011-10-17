@@ -1,4 +1,4 @@
-/* $Id: semrw-lockless-generic.cpp 36190 2011-03-07 16:28:50Z vboxsync $ */
+/* $Id: semrw-lockless-generic.cpp $ */
 /** @file
  * IPRT Testcase - RTSemXRoads, generic implementation.
  */

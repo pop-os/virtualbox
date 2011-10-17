@@ -1,4 +1,4 @@
-/* $Id: VBoxPrintString.c 29085 2010-05-05 14:03:59Z vboxsync $ */
+/* $Id: VBoxPrintString.c $ */
 /** @file
  * VBoxPrintString.c - Implementation of the VBoxPrintString() debug logging routine.
  */

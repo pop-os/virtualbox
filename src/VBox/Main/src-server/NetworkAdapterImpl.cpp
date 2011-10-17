@@ -1,4 +1,4 @@
-/* $Id: NetworkAdapterImpl.cpp 37927 2011-07-13 15:48:41Z vboxsync $ */
+/* $Id: NetworkAdapterImpl.cpp $ */
 /** @file
  * Implementation of INetworkAdaptor in VBoxSVC.
  */

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 36871 2011-04-28 07:57:12Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for Windows driver tooling lib.
 #

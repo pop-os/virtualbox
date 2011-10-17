@@ -484,15 +484,15 @@
     </message>
     <message>
         <source>Dock Icon</source>
-        <translation></translation>
+        <translation>Dock ikon</translation>
     </message>
     <message>
         <source>Show Monitor Preview</source>
-        <translation></translation>
+        <translation>Monitor-előnézet megjelenítése</translation>
     </message>
     <message>
         <source>Show Application Icon</source>
-        <translation></translation>
+        <translation>Ikon megjelenítése</translation>
     </message>
     <message>
         <source>Enter &amp;Fullscreen Mode</source>
@@ -1241,6 +1241,13 @@
     <message>
         <source>Select folder to save Guest Additions image to</source>
         <translation>Válaszd ki a mappát a képfájl mentéséhez</translation>
+    </message>
+</context>
+<context>
+    <name>UIDownloaderExtensionPack</name>
+    <message>
+        <source>Select folder to save %1 to</source>
+        <translation>Válaszd ki a(z) %1 mentési mappáját</translation>
     </message>
 </context>
 <context>
@@ -2694,7 +2701,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation></translation>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 kábel %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>connected</source>
@@ -2735,10 +2742,6 @@ p, li { white-space: pre-wrap; }
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No shared folders&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>Shared folders tooltip</comment>
         <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Nincs megosztott mappa&lt;/b&gt;&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
-        <translation type="obsolete">Jelzi, hogy a Távoli képernyő (VRDP szerver) engedélyezett (&lt;img src=:/vrdp_16px.png/&gt;) vagy sem (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
@@ -2795,11 +2798,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Preview Monitor %1</source>
-        <translation></translation>
+        <translation>Monitor-előnézet: %1</translation>
     </message>
     <message>
         <source>Snapshot %1</source>
-        <translation>Pillanatkép %1</translation>
+        <translation>Pillanatkép: %1</translation>
     </message>
     <message>
         <source>More CD/DVD Images...</source>
@@ -2823,7 +2826,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>No CD/DVD devices attached to that VM</source>
-        <translation></translation>
+        <translation>A Virtuális géphez nincs CD/DVD csatlakoztatva</translation>
     </message>
     <message>
         <source>No Floppy Devices Attached</source>
@@ -2831,11 +2834,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>No floppy devices attached to that VM</source>
-        <translation></translation>
+        <translation>A Virtuális géphez nincs floppy csatlakoztatva</translation>
     </message>
     <message>
         <source>No USB Devices Connected</source>
-        <translation></translation>
+        <translation>Nincs USB eszköz csatlakoztatva</translation>
     </message>
     <message>
         <source>No supported devices connected to the host PC</source>
@@ -4166,7 +4169,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>When checked the virtual disk will not be removed when the guest system ejects it.</source>
-        <translation>Ha engedélyezed,a virtuális lemez nem lesz eltávolítva, mikor a vendég rendszer kiadja azt.</translation>
+        <translation>Ha engedélyezed, a virtuális lemez nem lesz eltávolítva, mikor a vendég rendszer kiadja azt.</translation>
     </message>
     <message>
         <source>&amp;Live CD/DVD</source>
@@ -4520,7 +4523,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>[filter]</source>
-        <translation></translation>
+        <translation>[szűrő]</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Vendor ID: %1&lt;/nobr&gt;</source>
@@ -5981,6 +5984,36 @@ p, li { white-space: pre-wrap; }
         <source>&lt;p&gt;Failed to save the downloaded file as &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
         <translation>&lt;p&gt;Nem sikerült elmenteni a letöltött fájlt: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;You have an old version (%1) of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;Do you wish to download latest one from the Internet?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Régi verziós (%1) &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; van telepítve.&lt;/p&gt;&lt;p&gt;Le szeretnéd tölteni az internetről a legfrissebbet?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <comment>extension pack</comment>
+        <translation>Letöltés</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Biztos le akarod tölteni: &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; ? Letöltési hely: &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (%3 bájt).&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to install this extension pack?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; sikeresen letöltve &lt;nobr&gt;(&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;)&lt;/nobr&gt; és elmentve: &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Szeretnéd telepíteni a kiterjesztő csomagot?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Install</source>
+        <comment>extension pack</comment>
+        <translation>Telepítés</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; sikeresen letöltve &lt;nobr&gt;(&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;)&lt;/nobr&gt;, de nem lehetett elmenteni: &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Kérlek válassz másik helyet a fájl számára.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; letöltése sikertelen a következő helyről: &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -6025,6 +6058,17 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
         <translation>A VirtualBox Integrációs szolgáltatások CD letöltése innen: &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIMiniProgressWidgetExtension</name>
+    <message>
+        <source>Cancel the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; download</source>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; letöltésének megszakítása</translation>
+    </message>
+    <message>
+        <source>Downloading the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</source>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; letöltése  &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt; helyről...&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
@@ -6405,6 +6449,18 @@ a rámásolt adatok függvényében növekszik az általa elfoglalt hely - míg 
         <source>Details</source>
         <comment>summary</comment>
         <translation>Részletek</translation>
+    </message>
+    <message>
+        <source>H&amp;DD (Parallels Hard Disk)</source>
+        <translation>H&amp;DD (Parallels merevlemez)</translation>
+    </message>
+    <message>
+        <source>Q&amp;ED (QEMU enhanced disk)</source>
+        <translation>Q&amp;ED (QEMU enhanced disk)</translation>
+    </message>
+    <message>
+        <source>&amp;QCOW (QEMU Copy-On-Write)</source>
+        <translation>&amp;QCOW (QEMU Copy-On-Write)</translation>
     </message>
 </context>
 <context>
@@ -7151,6 +7207,109 @@ esetleg a &lt;b&gt;Létező&lt;/b&gt; gombbal a Virtuális lemezkezelőből.&lt;
     </message>
 </context>
 <context>
+    <name>UIUpdateManager</name>
+    <message>
+        <source>1 day</source>
+        <translation>Naponta</translation>
+    </message>
+    <message>
+        <source>2 days</source>
+        <translation>2 naponta</translation>
+    </message>
+    <message>
+        <source>3 days</source>
+        <translation>3 naponta</translation>
+    </message>
+    <message>
+        <source>4 days</source>
+        <translation>4 naponta</translation>
+    </message>
+    <message>
+        <source>5 days</source>
+        <translation>5 naponta</translation>
+    </message>
+    <message>
+        <source>6 days</source>
+        <translation>6 naponta</translation>
+    </message>
+    <message>
+        <source>1 week</source>
+        <translation>Hetente</translation>
+    </message>
+    <message>
+        <source>2 weeks</source>
+        <translation>2 hetente</translation>
+    </message>
+    <message>
+        <source>3 weeks</source>
+        <translation>3 hetente</translation>
+    </message>
+    <message>
+        <source>1 month</source>
+        <translation>Havonta</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>Sosem</translation>
+    </message>
+    <message>
+        <source>Connection timed out.</source>
+        <translation type="obsolete">A kapcsolat időtúllépés miatt megszakadt.</translation>
+    </message>
+    <message>
+        <source>Could not locate the latest version list on the server (response: %1).</source>
+        <translation type="obsolete">Nem találom a legújabb verziók adatainak a fájlját a szerveren (a szerver válasza: %1).</translation>
+    </message>
+    <message>
+        <source>Chec&amp;k</source>
+        <translation type="obsolete">&amp;Ellenőrzés</translation>
+    </message>
+    <message>
+        <source>&amp;Close</source>
+        <translation type="obsolete">Be&amp;zárás</translation>
+    </message>
+    <message>
+        <source>VirtualBox Update Wizard</source>
+        <translation type="obsolete">VirtualBox frissítési varázsló</translation>
+    </message>
+    <message>
+        <source>Check for Updates</source>
+        <translation type="obsolete">Frissítések ellenőrzése</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;
+&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;
+&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Ez a varázsló ellenőrzi a VirtualBox weboldalán, hogy elérhető-e újabb verzió a jelenleginél.&lt;/p&gt;
+&lt;p&gt;Nyomd meg az &lt;b&gt;Ellenőrzés&lt;/b&gt; gombot a frissítések kereséséhez. A &lt;b&gt;Mégsem&lt;/b&gt; gombbal kiléphetsz a varázslóból az ellenőrzés lefutása nélkül.&lt;/p&gt;
+&lt;p&gt;Ezt a varázslót bármikor elindíthatod a &lt;b&gt;Súgó&lt;/b menü &lt;b&gt;Frissítések ellenőrzése...&lt;/b&gt; menüpontjával.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">Mégsem</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="obsolete">Összegzés</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Elérhető a VirtualBox egy újabb verziója! A(z) &lt;b&gt;%1&lt;/b&gt; -s verzió elérhető a &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt; weboldalon.&lt;/p&gt;&lt;p&gt;Közvetlenül pedig erről a linkről töltheted le:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to obtain the new version information due to the following network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Nem lehet letölteni az új verziók információit a következő hálózati probléma miatt:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>You are already running the most recent version of VirtualBox.</source>
+        <translation type="obsolete">Nincs a jelenleginél újabb VirtualBox verzió. Később azonban érdemes lenne újra megnézni.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Ez a varázsló ellenőrizni fogja a VirtualBox weboldalán, hogy elérhető-e újabb verzió a VirtualBox-ból.&lt;/p&gt;&lt;p&gt;Az &lt;b&gt;Ellenőrzés&lt;/b&gt; gombbal tudod elindítani a folyamatot és a &lt;b&gt;Mégsem&lt;/b&gt; gombbal jelezheted, ha nem akarsz ellenőrizni.&lt;/p&gt;&lt;p&gt;Bármikor elindíthatod a varázslót a &lt;b&gt;Súgó&lt;/b&gt; menü &lt;b&gt;Frissítések ellenőrzése...&lt;/b&gt; pontjával.&lt;/p&gt;</translation>
+    </message>
+</context>
+<context>
     <name>UIVMCloseDialog</name>
     <message>
         <source>Close Virtual Machine</source>
@@ -7730,16 +7889,8 @@ Verzió %1</translation>
         <translation type="obsolete">Sú&amp;gó</translation>
     </message>
     <message>
-        <source>Indicates whether the guest display auto-resize function is On (&lt;img src=auto_resize_on_16px.png/&gt;) or Off (&lt;img src=auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">Jelzi, hogy a vendég képernyőjének átméretezése engedélyezett (&lt;img src=auto_resize_on_16px.png/&gt;) vagy sem (&lt;img src=auto_resize_off_16px.png/&gt;). Ez a funkció a Integrációs szolgáltatások telepítését igényli a vendég gépen.</translation>
-    </message>
-    <message>
-        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">Jelzi, hogy az egér a vendég gép fogságában van:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;egér nincs elfogva&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;egér elfogva&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;egér-integráció be&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;egér integtáció ki, egér elfogva&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;egér-integráció ki, egér nincs elfogva&lt;/nobr&gt;&lt;br&gt;Az egér-integráció csak akkor működik, ha a vendég rendszerre fel vannak telepítve az Integrációs szolgáltatások.</translation>
-    </message>
-    <message>
-        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=hostkey_captured_16px.png/&gt;) or not (&lt;img src=hostkey_16px.png/&gt;)</source>
-        <translation type="obsolete">Jelzi,hogy a billentyűzet a vendég fogságában van (&lt;img src=hostkey_captured_16px.png/&gt;) avagy nem (&lt;img src=hostkey_16px.png/&gt;)</translation>
+        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
+        <translation type="obsolete">Jelzi, hogy az egér a vendég gép fogságában van:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;egér nincs elfogva&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;egér elfogva&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;egér-integráció be&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;egér integtáció ki, egér elfogva&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;egér-integráció ki, egér nincs elfogva&lt;/nobr&gt;&lt;br&gt;Az egér-integráció csak akkor működik, ha a vendég rendszerre fel vannak telepítve az Integrációs szolgáltatások.</translation>
     </message>
     <message>
         <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
@@ -7791,8 +7942,8 @@ Verzió %1</translation>
         <translation type="obsolete">&lt;qt&gt;Jelzi&amp;nbsp;a&amp;nbsp;hálózat&amp;nbsp;aktivítását&lt;br&gt;[&lt;b&gt;%1&lt;/b&gt;]&lt;/qt&gt;</translation>
     </message>
     <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=vrdp_16px.png/&gt;) or not (&lt;img src=vrdp_disabled_16px.png/&gt;)</source>
-        <translation type="obsolete">Jelzi, hogy a Távoli képernyő (VRDP) szerver engedélyezett (&lt;img src=vrdp_16px.png/&gt;) vagy sem (&lt;img src=vrdp_disabled_16px.png/&gt;)</translation>
+        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;)</source>
+        <translation type="obsolete">Jelzi, hogy a Távoli képernyő (VRDP) szerver engedélyezett (&lt;img src=:/vrdp_16px.png/&gt;) vagy sem (&lt;img src=:/vrdp_disabled_16px.png/&gt;)</translation>
     </message>
     <message>
         <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
@@ -7880,10 +8031,6 @@ Verzió %1</translation>
     <message>
         <source>Switch to seamless desktop integration mode</source>
         <translation type="obsolete">Átkapcsolás asztal-integrációs módra</translation>
-    </message>
-    <message>
-        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=hostkey_captured_16px.png/&gt;) or not (&lt;img src=hostkey_16px.png/&gt;).</source>
-        <translation type="obsolete">Jelzi, hogy a billentyűzetet elkapta-e a vendég OS (&lt;img src=hostkey_captured_16px.png/&gt;) vagy nem (&lt;img src=hostkey_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the floppy media:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -7976,8 +8123,8 @@ Verzió %1</translation>
         <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Az USB vezérlő le van tiltva&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=vrdp_16px.png/&gt;) or not (&lt;img src=vrdp_disabled_16px.png/&gt;).</source>
-        <translation type="obsolete">Jelzi, hogy a Távoli képernyő (VRDP szerver) engedélyezett (&lt;img src=vrdp_16px.png/&gt;) vagy sem (&lt;img src=vrdp_disabled_16px.png/&gt;).</translation>
+        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
+        <translation type="obsolete">Jelzi, hogy a Távoli képernyő (VRDP szerver) engedélyezett (&lt;img src=:/vrdp_16px.png/&gt;) vagy sem (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the machineof the machine&apos;sapos;s shared folders: shared folders:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -8028,20 +8175,8 @@ Verzió %1</translation>
         <translation type="obsolete">Paran&amp;cssor...</translation>
     </message>
     <message>
-        <source>Indicates whether the guest display auto-resize function is On (&lt;img src=:/auto_resize_on_16px.png/&gt;) or Off (&lt;img src=:/auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">Jelzi, hogy a vendég képernyőjének átméretezése engedélyezett (&lt;img src=:/auto_resize_on_16px.png/&gt;) vagy sem (&lt;img src=:/auto_resize_off_16px.png/&gt;). Ez a funkció az Integrációs szolgáltatások telepítését igényli a vendég gépen.</translation>
-    </message>
-    <message>
-        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">Jelzi, hogy az egér a vendég gép fogságában van:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;egér nincs elfogva&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;egér elfogva&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;egér-integráció be&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;egér-integráció ki, egér elfogva&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;egér-integráció ki, egér nincs elfogva&lt;/nobr&gt;&lt;br&gt;Az egér-integráció csak akkor működik, ha a vendég rendszerre fel vannak telepítve az Integrációs szolgáltatások.</translation>
-    </message>
-    <message>
         <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
         <translation type="obsolete">Jelzi, hogy a billentyűzetet elkapta-e a vendég OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) vagy nem (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
-    </message>
-    <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
-        <translation type="obsolete">Jelzi, hogy a Távoli képernyő (VRDP szerver) engedélyezett (&lt;img src=:/vrdp_16px.png/&gt;) vagy sem (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>&amp;Logging...</source>
@@ -8485,7 +8620,7 @@ Verzió %1</translation>
     <name>VBoxFilePathSelectorWidget</name>
     <message>
         <source>&lt;reset to default&gt;</source>
-        <translation></translation>
+        <translation>&lt;alapértelmezettre állítás&gt;</translation>
     </message>
     <message>
         <source>The actual default path value will be displayed after accepting the changes and opening this dialog again.</source>
@@ -10463,7 +10598,7 @@ to the system default language.&lt;/qt&gt;
     </message>
     <message>
         <source>VirtualBox License</source>
-        <translation></translation>
+        <translation>VirtualBox licence</translation>
     </message>
 </context>
 <context>
@@ -11169,7 +11304,7 @@ to the system default language.&lt;/qt&gt;
     </message>
     <message>
         <source>S&amp;how</source>
-        <translation>M&amp;utat</translation>
+        <translation type="unfinished">Á&amp;tváltás</translation>
     </message>
     <message>
         <source>Show</source>
@@ -11190,10 +11325,6 @@ to the system default language.&lt;/qt&gt;
     <message>
         <source>Start the selected virtual machine</source>
         <translation>A kiválasztott virtuális gép elindítása</translation>
-    </message>
-    <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;h3&gt;A VirtualBox üdvözöl!&lt;/h3&gt;&lt;p&gt;Az ablak bal oldali részében a virtuális gépeid listáját látod. Ez jelenleg üres, hiszen most indítod ezt a programot először.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Új virtuális gép létrehozásához kattints az &lt;b&gt;Új&lt;/b&gt; gombra az eszköztáron.&lt;/p&gt;&lt;p&gt;Az &lt;b&gt;%1&lt;/b&gt; billentyű megnyomásával azonnali segítséget kérhetsz, vagy látogass el a &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; címre a legfrissebb információkért és hírekért.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Machine</source>
@@ -11241,7 +11372,7 @@ to the system default language.&lt;/qt&gt;
     </message>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Üdvözöl a VirtualBox!&lt;/h3&gt;&lt;p&gt;Az ablak bal oldali részében a virtuális gépeid listáját látod. Ez jelenleg üres, hiszen most indítod ezt a programot először.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Új virtuális gép létrehozásához kattints az &lt;b&gt;Új&lt;/b&gt; gombra az eszköztáron.&lt;/p&gt;&lt;p&gt;Az &lt;b&gt;%1&lt;/b&gt; billentyű megnyomásával azonnali segítséget kérhetsz, vagy látogass el a &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; címre a legfrissebb információkért és hírekért.&lt;/p&gt;</translation>
+        <translation>&lt;h3&gt;Üdvözöl a VirtualBox!&lt;/h3&gt;&lt;p&gt;Az ablak bal oldali részében a virtuális gépeid listáját látod. Ez jelenleg üres, hiszen most indítod ezt a programot először.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Új virtuális gép létrehozásához kattints az &lt;b&gt;Új&lt;/b&gt; gombra az eszköztáron.&lt;/p&gt;&lt;p&gt;Az &lt;b&gt;%1&lt;/b&gt; billentyű megnyomásával azonnali segítséget kérhetsz, vagy látogass el a &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; címre a legfrissebb információkért és hírekért.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Virtual Media Manager...</source>
@@ -11964,109 +12095,6 @@ value.&lt;/qt&gt;</source>
         <source>No supported devices connected to the host PC</source>
         <comment>USB device tooltip</comment>
         <translation>Nincs támogatott eszköz a gazda PC-hez csatlakoztatva</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxUpdateDlg</name>
-    <message>
-        <source>1 day</source>
-        <translation>Naponta</translation>
-    </message>
-    <message>
-        <source>2 days</source>
-        <translation>2 naponta</translation>
-    </message>
-    <message>
-        <source>3 days</source>
-        <translation>3 naponta</translation>
-    </message>
-    <message>
-        <source>4 days</source>
-        <translation>4 naponta</translation>
-    </message>
-    <message>
-        <source>5 days</source>
-        <translation>5 naponta</translation>
-    </message>
-    <message>
-        <source>6 days</source>
-        <translation>6 naponta</translation>
-    </message>
-    <message>
-        <source>1 week</source>
-        <translation>Hetente</translation>
-    </message>
-    <message>
-        <source>2 weeks</source>
-        <translation>2 hetente</translation>
-    </message>
-    <message>
-        <source>3 weeks</source>
-        <translation>3 hetente</translation>
-    </message>
-    <message>
-        <source>1 month</source>
-        <translation>Havonta</translation>
-    </message>
-    <message>
-        <source>Never</source>
-        <translation>Sosem</translation>
-    </message>
-    <message>
-        <source>Connection timed out.</source>
-        <translation type="obsolete">A kapcsolat időtúllépés miatt megszakadt.</translation>
-    </message>
-    <message>
-        <source>Could not locate the latest version list on the server (response: %1).</source>
-        <translation type="obsolete">Nem találom a legújabb verziók adatainak a fájlját a szerveren (a szerver válasza: %1).</translation>
-    </message>
-    <message>
-        <source>Chec&amp;k</source>
-        <translation>&amp;Ellenőrzés</translation>
-    </message>
-    <message>
-        <source>&amp;Close</source>
-        <translation>Be&amp;zárás</translation>
-    </message>
-    <message>
-        <source>VirtualBox Update Wizard</source>
-        <translation>VirtualBox frissítési varázsló</translation>
-    </message>
-    <message>
-        <source>Check for Updates</source>
-        <translation>Frissítések ellenőrzése</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;
-&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;
-&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Ez a varázsló ellenőrzi a VirtualBox weboldalán, hogy elérhető-e újabb verzió a jelenleginél.&lt;/p&gt;
-&lt;p&gt;Nyomd meg az &lt;b&gt;Ellenőrzés&lt;/b&gt; gombot a frissítések kereséséhez. A &lt;b&gt;Mégsem&lt;/b&gt; gombbal kiléphetsz a varázslóból az ellenőrzés lefutása nélkül.&lt;/p&gt;
-&lt;p&gt;Ezt a varázslót bármikor elindíthatod a &lt;b&gt;Súgó&lt;/b menü &lt;b&gt;Frissítések ellenőrzése...&lt;/b&gt; menüpontjával.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Mégsem</translation>
-    </message>
-    <message>
-        <source>Summary</source>
-        <translation>Összegzés</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Elérhető a VirtualBox egy újabb verziója! A(z) &lt;b&gt;%1&lt;/b&gt; -s verzió elérhető a &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt; weboldalon.&lt;/p&gt;&lt;p&gt;Közvetlenül pedig erről a linkről töltheted le:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Unable to obtain the new version information due to the following network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Nem lehet letölteni az új verziók információit a következő hálózati probléma miatt:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>You are already running the most recent version of VirtualBox.</source>
-        <translation>Nincs a jelenleginél újabb VirtualBox verzió. Később azonban érdemes lenne újra megnézni.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Ez a varázsló ellenőrizni fogja a VirtualBox weboldalán, hogy elérhető-e újabb verzió a VirtualBox-ból.&lt;/p&gt;&lt;p&gt;Az &lt;b&gt;Ellenőrzés&lt;/b&gt; gombbal tudod elindítani a folyamatot és a &lt;b&gt;Mégsem&lt;/b&gt; gombbal jelezheted, ha nem akarsz ellenőrizni.&lt;/p&gt;&lt;p&gt;Bármikor elindíthatod a varázslót a &lt;b&gt;Súgó&lt;/b&gt; menü &lt;b&gt;Frissítések ellenőrzése...&lt;/b&gt; pontjával.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>

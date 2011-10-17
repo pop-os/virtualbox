@@ -1,4 +1,4 @@
-/* $Id: VBoxServicePropCache.cpp 36249 2011-03-10 12:18:20Z vboxsync $ */
+/* $Id: VBoxServicePropCache.cpp $ */
 /** @file
  * VBoxServicePropCache - Guest property cache.
  */

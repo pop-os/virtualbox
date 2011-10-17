@@ -1,4 +1,4 @@
-/* $Id: Virtio.cpp 37466 2011-06-15 12:44:16Z vboxsync $ */
+/* $Id: Virtio.cpp $ */
 /** @file
  * Virtio - Virtio Common Functions (VRing, VQueue, Virtio PCI)
  */

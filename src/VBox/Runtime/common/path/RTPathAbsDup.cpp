@@ -1,4 +1,4 @@
-/* $Id: RTPathAbsDup.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTPathAbsDup.cpp $ */
 /** @file
  * IPRT - RTPathAbsDup
  */

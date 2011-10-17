@@ -1,4 +1,4 @@
-/* $Id: QIArrowButtonPress.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: QIArrowButtonPress.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

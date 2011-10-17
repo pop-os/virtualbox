@@ -1,4 +1,4 @@
-/* $Id: RTStrCopyP.cpp 36407 2011-03-24 16:14:57Z vboxsync $ */
+/* $Id: RTStrCopyP.cpp $ */
 /** @file
  * IPRT - RTStrCopyP.
  */

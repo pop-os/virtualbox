@@ -1167,6 +1167,13 @@
     </message>
 </context>
 <context>
+    <name>UIDownloaderExtensionPack</name>
+    <message>
+        <source>Select folder to save %1 to</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIDownloaderUserManual</name>
     <message>
         <source>Select folder to save User Manual to</source>
@@ -4939,18 +4946,6 @@ p, li { white-space: pre-wrap; }
         <translation>从虚拟电脑 &lt;b&gt;%3&lt;/b&gt; 删除数据空间 &lt;b&gt;%1&lt;/b&gt; (指向 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) 失败.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You have &lt;b&gt;clicked the mouse&lt;/b&gt; inside the Virtual Machine display or pressed the &lt;b&gt;host key&lt;/b&gt;. This will cause the Virtual Machine to &lt;b&gt;capture&lt;/b&gt; the host mouse pointer (only if the mouse pointer integration is not currently supported by the guest OS) and the keyboard, which will make them unavailable to other applications running on your host machine.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window, next to the&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;icon. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;鼠标和键盘已被本虚拟电脑捕获，按&lt;b&gt;host key&lt;/b&gt;可释放它们，该键显示在&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;图标边上.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You have the &lt;b&gt;Auto capture keyboard&lt;/b&gt; option turned on. This will cause the Virtual Machine to automatically &lt;b&gt;capture&lt;/b&gt; the keyboard every time the VM window is activated and make it unavailable to other applications running on your host machine: when the keyboard is captured, all keystrokes (including system ones like Alt-Tab) will be directed to the VM.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window, next to the&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;icon. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;鼠标和键盘已被本虚拟电脑捕获，按&lt;b&gt;host key&lt;/b&gt;可释放它们，该键显示在&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;图标边上.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The Virtual Machine reports that the guest OS supports &lt;b&gt;mouse pointer integration&lt;/b&gt;. This means that you do not need to &lt;i&gt;capture&lt;/i&gt; the mouse pointer to be able to use it in your guest OS -- all mouse actions you perform when the mouse pointer is over the Virtual Machine&apos;s display are directly sent to the guest OS. If the mouse is currently captured, it will be automatically uncaptured.&lt;/p&gt;&lt;p&gt;The mouse icon on the status bar will look like&amp;nbsp;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;to inform you that mouse pointer integration is supported by the guest OS and is currently turned on.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;: Some applications may behave incorrectly in mouse pointer integration mode. You can always disable it for the current session (and enable it again) by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;鼠标和键盘已被本虚拟电脑捕获，按&lt;b&gt;host key&lt;/b&gt;可释放它们，该键显示在&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;图标边上.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS does not support &lt;b&gt;mouse pointer integration&lt;/b&gt; in the current video mode. You need to capture the mouse (by clicking over the VM display or pressing the host key) in order to use the mouse inside the guest OS.&lt;/p&gt;</source>
         <translation>&lt;p&gt;当前虚拟电脑中的系统不支持鼠标自动切换，需要通过&lt;b&gt;host key&lt;/b&gt;手动切换.&lt;/p&gt;</translation>
     </message>
@@ -6120,6 +6115,36 @@ p, li { white-space: pre-wrap; }
         <source>&lt;p&gt;Failed to save the downloaded file as &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
         <translation type="unfinished">&lt;p&gt;无法将下载的文件保存为 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;You have an old version (%1) of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;Do you wish to download latest one from the Internet?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <comment>extension pack</comment>
+        <translation type="unfinished">下载</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to install this extension pack?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install</source>
+        <comment>extension pack</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -6159,6 +6184,17 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIMiniProgressWidgetExtension</name>
+    <message>
+        <source>Cancel the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; download</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -6537,6 +6573,18 @@ time depending on the image size and the write performance of your harddisk.&lt;
     <message>
         <source>Details</source>
         <comment>summary</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>H&amp;DD (Parallels Hard Disk)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Q&amp;ED (QEMU enhanced disk)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;QCOW (QEMU Copy-On-Write)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -7233,6 +7281,109 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
     </message>
 </context>
 <context>
+    <name>UIUpdateManager</name>
+    <message>
+        <source>1 day</source>
+        <translation>1 天</translation>
+    </message>
+    <message>
+        <source>2 days</source>
+        <translation>2 天</translation>
+    </message>
+    <message>
+        <source>3 days</source>
+        <translation>3 天</translation>
+    </message>
+    <message>
+        <source>4 days</source>
+        <translation>4 天</translation>
+    </message>
+    <message>
+        <source>5 days</source>
+        <translation>5 天</translation>
+    </message>
+    <message>
+        <source>6 days</source>
+        <translation>6 天</translation>
+    </message>
+    <message>
+        <source>1 week</source>
+        <translation>1 星期</translation>
+    </message>
+    <message>
+        <source>2 weeks</source>
+        <translation>2 星期</translation>
+    </message>
+    <message>
+        <source>3 weeks</source>
+        <translation>3 星期</translation>
+    </message>
+    <message>
+        <source>1 month</source>
+        <translation>1 个月</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>从不</translation>
+    </message>
+    <message>
+        <source>Connection timed out.</source>
+        <translation type="obsolete">连接超时.</translation>
+    </message>
+    <message>
+        <source>Could not locate the latest version list on the server (response: %1).</source>
+        <translation type="obsolete">无法在服务器上找到最新的版本列表 (回复: %1).</translation>
+    </message>
+    <message>
+        <source>Chec&amp;k</source>
+        <translation type="obsolete">检测(&amp;k)</translation>
+    </message>
+    <message>
+        <source>&amp;Close</source>
+        <translation type="obsolete">关闭(&amp;C)</translation>
+    </message>
+    <message>
+        <source>VirtualBox Update Wizard</source>
+        <translation type="obsolete">VirtualBox 升级向导</translation>
+    </message>
+    <message>
+        <source>Check for Updates</source>
+        <translation type="obsolete">查找升级信息</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;
+&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;
+&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;该向导将连接到VirtualBox服务器，以检测是否有新版本。&lt;/p&gt;
+&lt;p&gt;按 &lt;b&gt;检测&lt;/b&gt; 按钮以查看现在是否有新的版本，或者按 &lt;b&gt;取消&lt;/b&gt; 按钮，如果你现在不想执行该检测。&lt;/p&gt;
+&lt;p&gt;在任何时候你都可以通过按 &lt;b&gt;帮助&lt;/b&gt; 菜单中的 &lt;b&gt;检测更新...&lt;/b&gt; 来运行本向导.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">取消</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="obsolete">摘要</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;一个新版的VirtualBox已发布! 版本 &lt;b&gt;%1&lt;/b&gt; 位于 &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;你可以从这个连位置直接下载:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to obtain the new version information due to the following network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;无法获取有关新版本的信息，因为如下网络错误:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>You are already running the most recent version of VirtualBox.</source>
+        <translation type="obsolete">当前版本即为最新版，请以后再来检查.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;该向导将连接到虚拟电脑控制台的主站点，以检测是否有新版本。&lt;/p&gt;&lt;p&gt;按 &lt;b&gt;检测&lt;/b&gt; 按钮以查看现在是否有新的版本，或者按 &lt;b&gt;取消&lt;/b&gt; 按钮，如果你现在不想执行该检测。&lt;/p&gt;&lt;p&gt;在任何时候你都可以通过按 &lt;b&gt;帮助&lt;/b&gt; 菜单中的 &lt;b&gt;检测更新...&lt;/b&gt; 来运行本向导.&lt;/p&gt;</translation>
+    </message>
+</context>
+<context>
     <name>UIVMCloseDialog</name>
     <message>
         <source>Close Virtual Machine</source>
@@ -7839,18 +7990,6 @@ Version %1</translation>
         <translation type="obsolete">帮助(&amp;H)</translation>
     </message>
     <message>
-        <source>Indicates whether the guest display auto-resize function is On (&lt;img src=auto_resize_on_16px.png/&gt;) or Off (&lt;img src=auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">指示自动调整显示尺寸功能已 启用 (&lt;img src=auto_resize_on_16px.png/&gt;) 或禁用 (&lt;img src=auto_resize_off_16px.png/&gt;).</translation>
-    </message>
-    <message>
-        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">指示当前鼠标状态:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;鼠标未被捕获&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;鼠标已被捕获&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;鼠标集成已开启&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;鼠标自动捕获已关闭，鼠标已被捕获&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;鼠标自动捕获已关闭，鼠标未被捕获&lt;/nobr&gt;&lt;br&gt;.</translation>
-    </message>
-    <message>
-        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=hostkey_captured_16px.png/&gt;) or not (&lt;img src=hostkey_16px.png/&gt;)</source>
-        <translation type="obsolete">指示键盘已被虚拟电脑捕获 (&lt;img src=hostkey_captured_16px.png/&gt;) 或未被捕获 (&lt;img src=hostkey_16px.png/&gt;)</translation>
-    </message>
-    <message>
         <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
         <translation type="obsolete">当前组合键.</translation>
     </message>
@@ -7864,8 +8003,8 @@ Version %1</translation>
         <translation type="obsolete">&lt;br&gt;[&lt;b&gt;没有分配&lt;/b&gt;]</translation>
     </message>
     <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=vrdp_16px.png/&gt;) or not (&lt;img src=vrdp_disabled_16px.png/&gt;)</source>
-        <translation type="obsolete">指示远程桌面服务 (VRDP Server) 已启用 (&lt;img src=vrdp_16px.png/&gt;) 或被禁用 (&lt;img src=vrdp_disabled_16px.png/&gt;)</translation>
+        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;)</source>
+        <translation type="obsolete">指示远程桌面服务 (VRDP Server) 已启用 (&lt;img src=:/vrdp_16px.png/&gt;) 或被禁用 (&lt;img src=:/vrdp_disabled_16px.png/&gt;)</translation>
     </message>
     <message>
         <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
@@ -7970,10 +8109,6 @@ Version %1</translation>
         <translation type="obsolete">切换到无缝模式</translation>
     </message>
     <message>
-        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=hostkey_captured_16px.png/&gt;) or not (&lt;img src=hostkey_16px.png/&gt;).</source>
-        <translation type="obsolete">指示键盘可用 (&lt;img src=hostkey_captured_16px.png/&gt;) 或键盘无效 (&lt;img src=hostkey_16px.png/&gt;).</translation>
-    </message>
-    <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the floppy media:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>Floppy tooltip</comment>
         <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;指示软驱活动状态:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
@@ -8064,10 +8199,6 @@ Version %1</translation>
         <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB控制器已被禁用&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=vrdp_16px.png/&gt;) or not (&lt;img src=vrdp_disabled_16px.png/&gt;).</source>
-        <translation type="obsolete">指示远程桌面 (VRDP Server) 已启用 (&lt;img src=vrdp_16px.png/&gt;) 或未启用 (&lt;img src=vrdp_disabled_16px.png/&gt;).</translation>
-    </message>
-    <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the machineof the machine&apos;sapos;s shared folders: shared folders:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>Shared folders tooltip</comment>
         <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;指示数据空间活动状态:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
@@ -8125,20 +8256,8 @@ Version %1</translation>
         <translation type="obsolete">保存日志(&amp;L)...</translation>
     </message>
     <message>
-        <source>Indicates whether the guest display auto-resize function is On (&lt;img src=:/auto_resize_on_16px.png/&gt;) or Off (&lt;img src=:/auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">指示自动调整显示尺寸功能是否已 启用 (&lt;img src=:/auto_resize_on_16px.png/&gt;) 或 禁用 (&lt;img src=:/auto_resize_off_16px.png/&gt;).请注意该功能需要在虚拟电脑的操作系统内安装增强功能包.</translation>
-    </message>
-    <message>
-        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">指示鼠标被操作系统捕获的情况:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;鼠标未被捕获&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;鼠标已被捕获&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;鼠标集成功能已启用&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;鼠标集成功能已关闭，鼠标已被捕获&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;鼠标集成功能已关闭，鼠标未被捕获&lt;/nobr&gt;&lt;br&gt;请注意要使用鼠标集成功能必须在虚拟电脑的操作系统内安装增强功能包.</translation>
-    </message>
-    <message>
         <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
         <translation type="obsolete">指示键盘已被虚拟电脑捕获 (&lt;img src=:/hostkey_captured_16px.png/&gt;) 或未被捕获 (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
-    </message>
-    <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
-        <translation type="obsolete">指示远程桌面服务 (VRDP Server) 已启用 (&lt;img src=:/vrdp_16px.png/&gt;) 或被禁用 (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
@@ -11511,10 +11630,6 @@ to the system default language.&lt;/qt&gt;
         <translation>启动所选的虚拟电脑</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;F1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;h3&gt;欢迎使用虚拟电脑控制台!&lt;/h3&gt;&lt;p&gt;窗口的左边用来显示已生成的虚拟电脑列表. 现在列表是空的，因为你还没有新建任何虚拟电脑.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;要新建一个虚拟电脑, 请按 &lt;b&gt;新建&lt;/b&gt; 按钮， 它位于窗口顶部的主工具栏.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&amp;Machine</source>
         <translation>控制(&amp;M)</translation>
     </message>
@@ -12365,109 +12480,6 @@ value.&lt;/qt&gt;</source>
         <source>No supported devices connected to the host PC</source>
         <comment>USB device tooltip</comment>
         <translation>没有可用设备连接到主机</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxUpdateDlg</name>
-    <message>
-        <source>1 day</source>
-        <translation>1 天</translation>
-    </message>
-    <message>
-        <source>2 days</source>
-        <translation>2 天</translation>
-    </message>
-    <message>
-        <source>3 days</source>
-        <translation>3 天</translation>
-    </message>
-    <message>
-        <source>4 days</source>
-        <translation>4 天</translation>
-    </message>
-    <message>
-        <source>5 days</source>
-        <translation>5 天</translation>
-    </message>
-    <message>
-        <source>6 days</source>
-        <translation>6 天</translation>
-    </message>
-    <message>
-        <source>1 week</source>
-        <translation>1 星期</translation>
-    </message>
-    <message>
-        <source>2 weeks</source>
-        <translation>2 星期</translation>
-    </message>
-    <message>
-        <source>3 weeks</source>
-        <translation>3 星期</translation>
-    </message>
-    <message>
-        <source>1 month</source>
-        <translation>1 个月</translation>
-    </message>
-    <message>
-        <source>Never</source>
-        <translation>从不</translation>
-    </message>
-    <message>
-        <source>Connection timed out.</source>
-        <translation type="obsolete">连接超时.</translation>
-    </message>
-    <message>
-        <source>Could not locate the latest version list on the server (response: %1).</source>
-        <translation type="obsolete">无法在服务器上找到最新的版本列表 (回复: %1).</translation>
-    </message>
-    <message>
-        <source>Chec&amp;k</source>
-        <translation>检测(&amp;k)</translation>
-    </message>
-    <message>
-        <source>&amp;Close</source>
-        <translation>关闭(&amp;C)</translation>
-    </message>
-    <message>
-        <source>VirtualBox Update Wizard</source>
-        <translation>VirtualBox 升级向导</translation>
-    </message>
-    <message>
-        <source>Check for Updates</source>
-        <translation>查找升级信息</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;
-&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;
-&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;该向导将连接到VirtualBox服务器，以检测是否有新版本。&lt;/p&gt;
-&lt;p&gt;按 &lt;b&gt;检测&lt;/b&gt; 按钮以查看现在是否有新的版本，或者按 &lt;b&gt;取消&lt;/b&gt; 按钮，如果你现在不想执行该检测。&lt;/p&gt;
-&lt;p&gt;在任何时候你都可以通过按 &lt;b&gt;帮助&lt;/b&gt; 菜单中的 &lt;b&gt;检测更新...&lt;/b&gt; 来运行本向导.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>取消</translation>
-    </message>
-    <message>
-        <source>Summary</source>
-        <translation>摘要</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;一个新版的VirtualBox已发布! 版本 &lt;b&gt;%1&lt;/b&gt; 位于 &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;你可以从这个连位置直接下载:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Unable to obtain the new version information due to the following network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;无法获取有关新版本的信息，因为如下网络错误:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>You are already running the most recent version of VirtualBox.</source>
-        <translation>当前版本即为最新版，请以后再来检查.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;该向导将连接到虚拟电脑控制台的主站点，以检测是否有新版本。&lt;/p&gt;&lt;p&gt;按 &lt;b&gt;检测&lt;/b&gt; 按钮以查看现在是否有新的版本，或者按 &lt;b&gt;取消&lt;/b&gt; 按钮，如果你现在不想执行该检测。&lt;/p&gt;&lt;p&gt;在任何时候你都可以通过按 &lt;b&gt;帮助&lt;/b&gt; 菜单中的 &lt;b&gt;检测更新...&lt;/b&gt; 来运行本向导.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>

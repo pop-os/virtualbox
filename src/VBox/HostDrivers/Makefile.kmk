@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 38136 2011-07-25 09:10:40Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Top-level makefile for the VBox Host drivers.
 #

@@ -1,4 +1,4 @@
-; $Id: tstAsmPop-1.asm 35474 2011-01-11 09:08:30Z vboxsync $
+; $Id: tstAsmPop-1.asm $
 ;; @file
 ; Disassembly testcase - Valid pop sequences and related instructions.
 ;

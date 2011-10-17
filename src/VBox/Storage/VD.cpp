@@ -1,4 +1,4 @@
-/* $Id: VD.cpp 38449 2011-08-14 10:53:13Z vboxsync $ */
+/* $Id: VD.cpp $ */
 /** @file
  * VBoxHDD - VBox HDD Container implementation.
  */

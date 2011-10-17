@@ -1,4 +1,4 @@
-/* $Id: tstHelp.h 36931 2011-05-03 13:34:43Z vboxsync $ */
+/* $Id: tstHelp.h $ */
 /** @file
  * VMM testcase - Helper stuff.
  */

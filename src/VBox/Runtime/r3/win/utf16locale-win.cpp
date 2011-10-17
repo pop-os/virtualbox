@@ -1,4 +1,4 @@
-/* $Id: utf16locale-win.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: utf16locale-win.cpp $ */
 /** @file
  * IPRT - UTF-16 Locale Specific Manipulation, Win32.
  */

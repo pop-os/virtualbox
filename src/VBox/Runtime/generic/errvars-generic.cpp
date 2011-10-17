@@ -1,4 +1,4 @@
-/* $Id: errvars-generic.cpp 37233 2011-05-27 13:31:57Z vboxsync $ */
+/* $Id: errvars-generic.cpp $ */
 /** @file
  * IPRT - Save and Restore Error Variables, generic stub implementation.
  */

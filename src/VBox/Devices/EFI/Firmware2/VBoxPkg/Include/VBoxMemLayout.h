@@ -1,4 +1,4 @@
-/* $Id: VBoxMemLayout.h 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: VBoxMemLayout.h $ */
 /** @file
  * VBoxMemLayout.h - Constants defining the memory layout. (Merge with DevEFI?)
  */

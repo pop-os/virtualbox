@@ -1,4 +1,4 @@
-/* $Id: env-generic.cpp 36576 2011-04-06 13:28:12Z vboxsync $ */
+/* $Id: env-generic.cpp $ */
 /** @file
  * IPRT - Environment, Generic.
  */

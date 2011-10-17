@@ -1,4 +1,4 @@
-/* $Id: tcp_output.c 38110 2011-07-22 04:52:59Z vboxsync $ */
+/* $Id: tcp_output.c $ */
 /** @file
  * NAT - TCP output.
  */

@@ -1,4 +1,4 @@
-/* $Id: tstRTDarwinMachKernel.cpp 37573 2011-06-21 11:40:11Z vboxsync $ */
+/* $Id: tstRTDarwinMachKernel.cpp $ */
 /** @file
  * IPRT Testcase - mach_kernel symbol resolving hack.
  */

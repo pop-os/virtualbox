@@ -1,4 +1,4 @@
-/* $Id: VBoxPci-linux.c 38299 2011-08-03 11:35:54Z vboxsync $ */
+/* $Id: VBoxPci-linux.c $ */
 /** @file
  * VBoxPci - PCI Driver (Host), Linux Specific Code.
  */

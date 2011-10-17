@@ -1,4 +1,4 @@
-/* $Id: CSAM.cpp 36969 2011-05-05 08:59:43Z vboxsync $ */
+/* $Id: CSAM.cpp $ */
 /** @file
  * CSAM - Guest OS Code Scanning and Analysis Manager
  */

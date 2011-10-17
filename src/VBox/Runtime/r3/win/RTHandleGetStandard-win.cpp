@@ -1,4 +1,4 @@
-/* $Id: RTHandleGetStandard-win.cpp 36123 2011-03-01 15:38:35Z vboxsync $ */
+/* $Id: RTHandleGetStandard-win.cpp $ */
 /** @file
  * IPRT - RTHandleGetStandard, Windows.
  */

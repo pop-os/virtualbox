@@ -1,4 +1,4 @@
-/* $Id: tls-win.cpp 34507 2010-11-30 13:14:14Z vboxsync $ */
+/* $Id: tls-win.cpp $ */
 /** @file
  * IPRT - Thread Local Storage (TLS), Win32.
  */

@@ -1,4 +1,4 @@
-/* $Id: glx_proto.h 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: glx_proto.h $ */
 /** @file
  *
  * VirtualBox guest OpenGL DRI GLX header C prototypes

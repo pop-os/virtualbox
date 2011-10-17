@@ -1,4 +1,4 @@
-/* $Id: UISession.cpp 38348 2011-08-08 12:09:18Z vboxsync $ */
+/* $Id: UISession.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -1026,11 +1026,6 @@ void UISession::reinitMenuPool()
 
 void UISession::preparePowerUp()
 {
-#ifdef VBOX_WITH_UPDATE_REQUEST
-    /* Check for updates if necessary: */
-    vboxGlobal().showUpdateDialog(false /* force request? */);
-#endif
-
     /* Notify user about mouse&keyboard auto-capturing: */
     if (vboxGlobal().settings().autoCapture())
         msgCenter().remindAboutAutoCapture();

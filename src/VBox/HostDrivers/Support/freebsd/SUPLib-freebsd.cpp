@@ -1,4 +1,4 @@
-/* $Id: SUPLib-freebsd.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
+/* $Id: SUPLib-freebsd.cpp $ */
 /** @file
  * VirtualBox Support Library - FreeBSD specific parts.
  */

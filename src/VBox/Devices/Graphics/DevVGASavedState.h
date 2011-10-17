@@ -1,4 +1,4 @@
-/* $Id: DevVGASavedState.h 37770 2011-07-04 17:43:06Z vboxsync $ */
+/* $Id: DevVGASavedState.h $ */
 /** @file
  * DevVGA - Saved state versions.
  *

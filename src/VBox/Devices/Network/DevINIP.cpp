@@ -1,4 +1,4 @@
-/* $Id: DevINIP.cpp 36044 2011-02-21 17:06:48Z vboxsync $ */
+/* $Id: DevINIP.cpp $ */
 /** @file
  * DevINIP - Internal Network IP stack device/service.
  */

@@ -1,4 +1,4 @@
-/* $Id: BdsBoot.c 37147 2011-05-19 02:44:57Z vboxsync $ */
+/* $Id: BdsBoot.c $ */
 /** @file
  * BdsBoot.c
  */

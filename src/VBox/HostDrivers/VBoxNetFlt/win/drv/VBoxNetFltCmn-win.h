@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltCmn-win.h 36184 2011-03-07 10:57:04Z vboxsync $ */
+/* $Id: VBoxNetFltCmn-win.h $ */
 /** @file
  * VBoxNetFltCmn-win.h - Bridged Networking Driver, Windows Specific Code.
  * Common header with configuration defines and global defs

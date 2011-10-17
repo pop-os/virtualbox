@@ -1,4 +1,4 @@
-/* $Id: HWVMXR0.h 37320 2011-06-03 15:05:36Z vboxsync $ */
+/* $Id: HWVMXR0.h $ */
 /** @file
  * HWACCM VT-x - Internal header file.
  */

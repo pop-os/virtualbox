@@ -1,4 +1,4 @@
-/* $Id: HostImpl.h 36615 2011-04-07 12:45:27Z vboxsync $ */
+/* $Id: HostImpl.h $ */
 /** @file
  * Implementation of IHost.
  */

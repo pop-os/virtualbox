@@ -1,4 +1,4 @@
-/* $Id: RTMpIsCpuWorkPending-r0drv-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTMpIsCpuWorkPending-r0drv-generic.cpp $ */
 /** @file
  * IPRT - RTMpIsCpuWorkPending, Generic.
  */

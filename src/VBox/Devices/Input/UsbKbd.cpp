@@ -1,4 +1,4 @@
-/* $Id: UsbKbd.cpp 37795 2011-07-06 10:28:24Z vboxsync $ */
+/* $Id: UsbKbd.cpp $ */
 /** @file
  * UsbKbd - USB Human Interface Device Emulation, Keyboard.
  */

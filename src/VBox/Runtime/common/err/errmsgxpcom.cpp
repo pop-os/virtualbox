@@ -1,4 +1,4 @@
-/* $Id: errmsgxpcom.cpp 34654 2010-12-02 19:59:22Z vboxsync $ */
+/* $Id: errmsgxpcom.cpp $ */
 /** @file
  * IPRT - Status code messages for XPCOM.
  */

@@ -1,4 +1,4 @@
-# $Id: VBoxConsoleDxe.inf 28800 2010-04-27 08:22:32Z vboxsync $
+# $Id: VBoxConsoleDxe.inf $
 ## @file
 # VBoxConsole.inf - VBoxConsoleDxe module declarations.
 #

@@ -1,4 +1,4 @@
-/* $Id: thread-affinity-solaris.cpp 37156 2011-05-19 13:11:14Z vboxsync $ */
+/* $Id: thread-affinity-solaris.cpp $ */
 /** @file
  * IPRT - Thread Affinity, Solaris ring-3 implementation.
  */

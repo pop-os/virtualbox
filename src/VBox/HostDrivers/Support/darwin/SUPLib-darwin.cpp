@@ -1,4 +1,4 @@
-/* $Id: SUPLib-darwin.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
+/* $Id: SUPLib-darwin.cpp $ */
 /** @file
  * VirtualBox Support Library - Darwin specific parts.
  */

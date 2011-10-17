@@ -1,4 +1,4 @@
-/* $Id: strformatrt.cpp 37996 2011-07-18 10:09:19Z vboxsync $ */
+/* $Id: strformatrt.cpp $ */
 /** @file
  * IPRT - IPRT String Formatter Extensions.
  */
@@ -30,8 +30,10 @@
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_STRING
 #include <iprt/string.h>
-#define RT_NO_EXPORT_SYMBOL /* don't slurp <linux/module.h> which then again
-                               slurps arch-specific headers defining symbols */
+#ifndef RT_NO_EXPORT_SYMBOL
+# define RT_NO_EXPORT_SYMBOL /* don't slurp <linux/module.h> which then again
+                                slurps arch-specific headers defining symbols */
+#endif
 #include "internal/iprt.h"
 
 #include <iprt/log.h>

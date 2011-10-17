@@ -1,4 +1,4 @@
-; $Id: DisasmTestA.asm 37955 2011-07-14 12:23:02Z vboxsync $
+; $Id: DisasmTestA.asm $
 ;; @file
 ; VBox disassembler: Assembler test routines
 ;

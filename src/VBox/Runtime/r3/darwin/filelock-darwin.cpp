@@ -1,4 +1,4 @@
-/* $Id: filelock-darwin.cpp 37597 2011-06-22 20:54:05Z vboxsync $ */
+/* $Id: filelock-darwin.cpp $ */
 /** @file
  * IPRT - File Locking, POSIX.
  */

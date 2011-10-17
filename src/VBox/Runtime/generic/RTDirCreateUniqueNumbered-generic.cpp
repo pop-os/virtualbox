@@ -1,4 +1,4 @@
-/* $Id: RTDirCreateUniqueNumbered-generic.cpp 36604 2011-04-06 23:02:52Z vboxsync $ */
+/* $Id: RTDirCreateUniqueNumbered-generic.cpp $ */
 /** @file
  * IPRT - RTDirCreateUniqueNumbered, generic implementation.
  */

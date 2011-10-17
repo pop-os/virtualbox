@@ -1,4 +1,4 @@
-/* $Id: PerformanceSolaris.cpp 36090 2011-02-25 15:53:28Z vboxsync $ */
+/* $Id: PerformanceSolaris.cpp $ */
 
 /** @file
  *

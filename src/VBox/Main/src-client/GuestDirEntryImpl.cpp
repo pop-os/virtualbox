@@ -1,4 +1,4 @@
-/* $Id: GuestDirEntryImpl.cpp 38395 2011-08-10 11:48:29Z vboxsync $ */
+/* $Id: GuestDirEntryImpl.cpp $ */
 /** @file
  * VirtualBox Main - interface for guest directory entries, VBoxC.
  */

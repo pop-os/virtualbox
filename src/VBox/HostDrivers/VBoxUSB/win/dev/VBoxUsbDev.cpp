@@ -1,4 +1,4 @@
-/* $Id: VBoxUsbDev.cpp 36968 2011-05-05 08:55:16Z vboxsync $ */
+/* $Id: VBoxUsbDev.cpp $ */
 /** @file
  * VBoxUsbDev.cpp - USB device.
  */

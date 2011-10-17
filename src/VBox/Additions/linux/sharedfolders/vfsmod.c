@@ -277,10 +277,13 @@ static int sf_read_super_aux(struct super_block *sb, void *data, int flags)
         goto fail3;
     }
 
-    if (sf_init_backing_dev(sf_g, info->name))
+    if (sf_init_backing_dev(sf_g))
     {
         err = -EINVAL;
         LogFunc(("could not init bdi\n"));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 25)
+        unlock_new_inode(iroot);
+#endif
         goto fail4;
     }
 

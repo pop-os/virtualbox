@@ -1,4 +1,4 @@
-/* $Id: StatusImpl.h 35346 2010-12-27 16:13:13Z vboxsync $ */
+/* $Id: StatusImpl.h $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Declaration of VMStatus class

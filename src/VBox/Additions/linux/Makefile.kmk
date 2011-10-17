@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 38196 2011-07-27 11:25:22Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Makefile for the linux guest additions base directory.
 #
@@ -132,10 +132,6 @@ VBOX_ADD_STRIP_MOD.linux = \
 	vboxmouse_drv_14.so \
 	vboxmouse_drv_15.so \
 	vboxmouse_drv_16.so \
-	vboxmouse_drv_17.so \
-	vboxmouse_drv_18.so \
-	vboxmouse_drv_19.so \
-	vboxmouse_drv_110.so \
 	vboxvideo_drv_70.so \
 	vboxvideo_drv_71.so \
 	vboxvideo_drv_13.so \
@@ -146,6 +142,7 @@ VBOX_ADD_STRIP_MOD.linux = \
 	vboxvideo_drv_18.so \
 	vboxvideo_drv_19.so \
 	vboxvideo_drv_110.so \
+	vboxvideo_drv_111.so \
 	pam_vbox.so \
 	mount.vboxsf
 
@@ -321,9 +318,6 @@ lnx_add_inst-noexec_INSTTYPE = stage
 lnx_add_inst-noexec_SOURCES  = \
 	$(VBOX_REL_X11_ADD_INST)vboxclient.desktop \
 	$(VBOX_REL_X11_ADD_INST)vboxvideo.ids \
-	$(VBOX_REL_X11_ADD_INST)50-vboxmouse.conf \
-	$(VBOX_REL_LNX_ADD_INST)70-xorg-vboxmouse.rules \
-	$(VBOX_REL_LNX_ADD_INST)90-vboxguest.fdi \
 	selinux-fedora/vbox_x11.pp \
 	selinux-fedora/vbox_accel.pp
 
@@ -413,13 +407,13 @@ $(VBOX_LNX_ADD_ARCHIVE.$(KBUILD_TARGET_ARCH)): \
 	$(QUIET)$(RM) -f -- $(wildcard $(dir $@)VBoxGuestAdditions-*r*.tar.bz2)
 	$(QUIET)$(MKDIR) -p $(@D)
 ifdef VBOX_USE_PBZIP2
- 	$(QUIET)tar --owner 0 --group 0 -cRf $(patsubst %.bz2,%,$@) \
+ 	$(QUIET)tar --dereference --owner 0 --group 0 -cRf $(patsubst %.bz2,%,$@) \
  		-C $(VBOX_LNX_ADD_INST_OUT_DIR) \
  		LICENSE bin init lib sbin share src \
  		$(if $(filter $(KBUILD_TYPE),debug),debug)
 	$(QUIET)pbzip2 $(patsubst %.bz2,%,$@)
 else
-	$(QUIET)tar --owner 0 --group 0 --ignore-failed-read -cjRf $@ \
+	$(QUIET)tar --dereference --owner 0 --group 0 --ignore-failed-read -cjRf $@ \
  		-C $(VBOX_LNX_ADD_INST_OUT_DIR) \
  		LICENSE bin init lib sbin share src \
  		$(if $(filter $(KBUILD_TYPE),debug),debug)
@@ -437,12 +431,12 @@ $(PATH_STAGE_BIN)/additions/VBoxGuestAdditions-dbg.tar.bz2: \
 	$(QUIET)$(RM) -f -- $@ $(patsubst %.bz2,%,$@)
 	$(QUIET)$(MKDIR) -p $(@D)
 ifdef VBOX_USE_PBZIP2
- 	$(QUIET)tar --owner 0 --group 0 -cRf $(patsubst %.bz2,%,$@) \
+ 	$(QUIET)tar --dereference --owner 0 --group 0 -cRf $(patsubst %.bz2,%,$@) \
  		-C $(VBOX_LNX_ADD_INST_DBG_DIR) \
  		bin lib sbin
 	$(QUIET)pbzip2 $(patsubst %.bz2,%,$@)
 else
-	$(QUIET)tar --owner 0 --group 0 --ignore-failed-read -cjRf $@ \
+	$(QUIET)tar --dereference --owner 0 --group 0 --ignore-failed-read -cjRf $@ \
  		-C $(VBOX_LNX_ADD_INST_DBG_DIR) \
  		bin lib sbin
 endif

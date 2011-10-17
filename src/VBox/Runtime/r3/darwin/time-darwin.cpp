@@ -1,4 +1,4 @@
-/* $Id: time-darwin.cpp 34921 2010-12-09 19:46:36Z vboxsync $ */
+/* $Id: time-darwin.cpp $ */
 /** @file
  * IPRT - Time, Darwin.
  */

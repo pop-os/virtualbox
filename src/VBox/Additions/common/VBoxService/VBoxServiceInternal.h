@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceInternal.h 38180 2011-07-26 12:26:34Z vboxsync $ */
+/* $Id: VBoxServiceInternal.h $ */
 /** @file
  * VBoxService - Guest Additions Services.
  */
@@ -157,7 +157,7 @@ typedef struct
     /** The other end of hNotificationPipeW. */
     RTPIPE      hNotificationPipeR;
     /** The event semaphore for getting notified whether something
-     *  has changed, e.g. written or read from this buffer. */
+     *  has changed, e.g. written to this buffer or enabled/disabled it. */
     RTSEMEVENT  hEventSem;
 } VBOXSERVICECTRLEXECPIPEBUF;
 /** Pointer to buffered pipe data. */
@@ -274,6 +274,9 @@ extern VBOXSERVICE  g_PageSharing;
 #endif
 #ifdef VBOX_WITH_SHARED_FOLDERS
 extern VBOXSERVICE  g_AutoMount;
+#endif
+#ifdef DEBUG
+extern RTCRITSECT   g_csLog; /* For guest process stdout dumping. */
 #endif
 
 extern RTEXITCODE   VBoxServiceSyntax(const char *pszFormat, ...);

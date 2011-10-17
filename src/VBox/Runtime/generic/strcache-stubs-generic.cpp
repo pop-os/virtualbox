@@ -1,4 +1,4 @@
-/* $Id: strcache-stubs-generic.cpp 30320 2010-06-21 08:35:09Z vboxsync $ */
+/* $Id: strcache-stubs-generic.cpp $ */
 /** @file
  * IPRT - String Cache, stub implementation.
  */

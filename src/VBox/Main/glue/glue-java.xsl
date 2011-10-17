@@ -10,7 +10,7 @@
         XSLT stylesheet that generates Java glue code for XPCOM, MSCOM and JAX-WS from
         VirtualBox.xidl.
 
-     Copyright (C) 2010 Oracle Corporation
+     Copyright (C) 2010-2011 Oracle Corporation
 
      This file is part of VirtualBox Open Source Edition (OSE), as
      available from http://www.virtualbox.org. This file is free software;
@@ -42,18 +42,22 @@
 
 <xsl:include href="../webservice/websrv-shared.inc.xsl" />
 
+<xsl:strip-space elements="*"/>
+
 <xsl:template name="fileheader">
   <xsl:param name="name" />
-  <xsl:text>/**
- *  Copyright (C) 2010 Oracle Corporation
+  <xsl:text>/*
+ *  Copyright (C) 2010-2011 Oracle Corporation
  *
- *  This file is part of VirtualBox Open Source Edition (OSE), as
- *  available from http://www.virtualbox.org. This file is free software;
- *  you can redistribute it and/or modify it under the terms of the GNU
- *  General Public License (GPL) as published by the Free Software
- *  Foundation, in version 2 as it comes in the "COPYING" file of the
- *  VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- *  hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ *  This file is part of the VirtualBox SDK, as available from
+ *  http://www.virtualbox.org.  This library is free software; you can
+ *  redistribute it and/or modify it under the terms of the GNU Lesser General
+ *  Public License as published by the Free Software Foundation, in version 2.1
+ *  as it comes in the "COPYING.LIB" file of the VirtualBox SDK distribution.
+ *  This library is distributed in the hope that it will be useful, but WITHOUT
+ *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+ *  License for more details.
  *
 </xsl:text>
   <xsl:value-of select="concat(' * ',$name)"/>
@@ -71,7 +75,7 @@
   <xsl:param name="file" />
   <xsl:param name="package" />
 
-  <xsl:value-of select="concat('&#10;// ##### BEGINFILE &quot;', $file, '&quot;&#10;&#10;')" />
+  <xsl:value-of select="concat('&#10;// ##### BEGINFILE &quot;', $G_vboxDirPrefix, $file, '&quot;&#10;&#10;')" />
   <xsl:call-template name="fileheader">
     <xsl:with-param name="name" select="$file" />
   </xsl:call-template>
@@ -90,7 +94,7 @@
     </xsl:when>
 
     <xsl:when test="$G_vboxGlueStyle='jaxws'">
-      <xsl:value-of select="       'import javax.xml.ws.*;&#10;'" />
+      <xsl:value-of select="'import javax.xml.ws.*;&#10;'" />
     </xsl:when>
 
     <xsl:otherwise>
@@ -106,6 +110,384 @@
  <xsl:value-of select="concat('&#10;// ##### ENDFILE &quot;', $file, '&quot;&#10;&#10;')" />
 </xsl:template>
 
+
+<xsl:template name="string-replace">
+  <xsl:param name="haystack"/>
+  <xsl:param name="needle"/>
+  <xsl:param name="replacement"/>
+  <xsl:choose>
+    <xsl:when test="contains($haystack,$needle)">
+      <xsl:value-of select="substring-before($haystack,$needle)"/>
+      <xsl:value-of select="$replacement"/>
+      <xsl:call-template name="string-replace">
+        <xsl:with-param name="haystack" select="substring-after($haystack,$needle)"/>
+        <xsl:with-param name="needle" select="$needle"/>
+        <xsl:with-param name="replacement" select="$replacement"/>
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:value-of select="$haystack"/>
+    </xsl:otherwise>
+  </xsl:choose>
+</xsl:template>
+
+<!-- descriptions -->
+
+<xsl:template match="*/text()">
+  <!-- TODO: strip out @c/@a for now. long term solution is changing that to a
+       tag in the xidl file, and translate it when generating doxygen etc. -->
+  <xsl:variable name="rep1">
+    <xsl:call-template name="string-replace">
+      <xsl:with-param name="haystack" select="."/>
+      <xsl:with-param name="needle" select="'@c'"/>
+      <xsl:with-param name="replacement" select="''"/>
+    </xsl:call-template>
+  </xsl:variable>
+
+  <xsl:variable name="rep2">
+    <xsl:call-template name="string-replace">
+      <xsl:with-param name="haystack" select="$rep1"/>
+      <xsl:with-param name="needle" select="'@a'"/>
+      <xsl:with-param name="replacement" select="''"/>
+    </xsl:call-template>
+  </xsl:variable>
+
+  <xsl:variable name="rep3">
+    <xsl:call-template name="string-replace">
+      <xsl:with-param name="haystack" select="$rep2"/>
+      <xsl:with-param name="needle" select="'@todo'"/>
+      <xsl:with-param name="replacement" select="'TODO'"/>
+    </xsl:call-template>
+  </xsl:variable>
+
+  <xsl:value-of select="$rep3"/>
+</xsl:template>
+
+<!--
+ *  all sub-elements that are not explicitly matched are considered to be
+ *  html tags and copied w/o modifications
+-->
+<xsl:template match="desc//*">
+  <xsl:variable name="tagname" select="local-name()"/>
+  <xsl:value-of select="concat('&lt;',$tagname,'&gt;')"/>
+  <xsl:apply-templates/>
+  <xsl:value-of select="concat('&lt;/',$tagname,'&gt;')"/>
+</xsl:template>
+
+<xsl:template name="emit_refsig">
+  <xsl:param name="context"/>
+  <xsl:param name="identifier"/>
+
+  <xsl:choose>
+    <xsl:when test="//enum[@name=$context]/const[@name=$identifier]">
+      <xsl:value-of select="$identifier"/>
+    </xsl:when>
+    <xsl:when test="//interface[@name=$context]/method[@name=$identifier]">
+      <xsl:value-of select="$identifier"/>
+      <xsl:text>(</xsl:text>
+      <xsl:for-each select="//interface[@name=$context]/method[@name=$identifier]/param">
+        <xsl:if test="@dir!='return'">
+          <xsl:if test="position() > 1">
+            <xsl:text>,</xsl:text>
+          </xsl:if>
+          <xsl:choose>
+            <xsl:when test="@dir='out'">
+              <xsl:text>Holder</xsl:text>
+            </xsl:when>
+            <xsl:otherwise>
+              <xsl:call-template name="typeIdl2Glue">
+                <xsl:with-param name="type" select="@type"/>
+                <xsl:with-param name="safearray" select="@safearray"/>
+                <xsl:with-param name="skiplisttype" select="'yes'"/>
+              </xsl:call-template>
+            </xsl:otherwise>
+          </xsl:choose>
+        </xsl:if>
+      </xsl:for-each>
+      <xsl:text>)</xsl:text>
+    </xsl:when>
+    <xsl:when test="//interface[@name=$context]/attribute[@name=$identifier]">
+      <xsl:call-template name="makeGetterName">
+        <xsl:with-param name="attrname" select="$identifier" />
+      </xsl:call-template>
+      <xsl:text>()</xsl:text>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:call-template name="fatalError">
+        <xsl:with-param name="msg" select="concat('unknown reference destination in @see/@link: context=',$context,' identifier=',$identifier)" />
+      </xsl:call-template>
+    </xsl:otherwise>
+  </xsl:choose>
+</xsl:template>
+
+<!--
+ *  link
+-->
+<xsl:template match="desc//link">
+  <xsl:text>{@link </xsl:text>
+  <xsl:apply-templates select="." mode="middle"/>
+  <xsl:text>}</xsl:text>
+</xsl:template>
+
+<xsl:template match="link" mode="middle">
+  <xsl:variable name="linktext">
+    <xsl:value-of select="translate(@to,'_','#')"/>
+  </xsl:variable>
+  <xsl:choose>
+    <xsl:when test="substring($linktext,1,1)='#'">
+      <xsl:variable name="context">
+        <xsl:choose>
+          <xsl:when test="local-name(../..)='interface' or local-name(../..)='enum'">
+            <xsl:value-of select="../../@name"/>
+          </xsl:when>
+          <xsl:when test="local-name(../../..)='interface' or local-name(../../..)='enum'">
+            <xsl:value-of select="../../../@name"/>
+          </xsl:when>
+          <xsl:when test="local-name(../../../..)='interface' or local-name(../../../..)='enum'">
+            <xsl:value-of select="../../../../@name"/>
+          </xsl:when>
+          <xsl:when test="local-name(../../../../..)='interface' or local-name(../../../../..)='enum'">
+            <xsl:value-of select="../../../../../@name"/>
+          </xsl:when>
+          <xsl:when test="local-name(../../../../../..)='interface' or local-name(../../../../../..)='enum'">
+            <xsl:value-of select="../../../../../../@name"/>
+          </xsl:when>
+          <xsl:otherwise>
+            <xsl:call-template name="fatalError">
+              <xsl:with-param name="msg" select="concat('cannot determine context for identifier ',$linktext)" />
+            </xsl:call-template>
+          </xsl:otherwise>
+        </xsl:choose>
+      </xsl:variable>
+      <xsl:variable name="linkname">
+        <xsl:value-of select="substring($linktext,2)"/>
+      </xsl:variable>
+      <xsl:text>#</xsl:text>
+      <xsl:call-template name="emit_refsig">
+        <xsl:with-param name="context" select="$context"/>
+        <xsl:with-param name="identifier" select="$linkname"/>
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:when test="contains($linktext,'::')">
+      <xsl:variable name="context">
+        <xsl:value-of select="substring-before($linktext,'::')"/>
+      </xsl:variable>
+      <xsl:variable name="linkname">
+        <xsl:value-of select="substring-after($linktext,'::')"/>
+      </xsl:variable>
+      <xsl:value-of select="concat($G_virtualBoxPackage,'.',$context,'#')"/>
+      <xsl:call-template name="emit_refsig">
+        <xsl:with-param name="context" select="$context"/>
+        <xsl:with-param name="identifier" select="$linkname"/>
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:value-of select="concat($G_virtualBoxPackage,'.',$linktext)"/>
+    </xsl:otherwise>
+  </xsl:choose>
+</xsl:template>
+<!--
+ *  note
+-->
+<xsl:template match="desc/note">
+  <xsl:if test="not(@internal='yes')">
+    <xsl:text>&#10;NOTE: </xsl:text>
+    <xsl:apply-templates/>
+    <xsl:text>&#10;</xsl:text>
+  </xsl:if>
+</xsl:template>
+
+<!--
+ *  see
+-->
+<xsl:template match="desc/see">
+  <!-- TODO: quirk in our xidl file: only one <see> tag with <link> nested
+       into it, translate this to multiple @see lines and strip the rest.
+       Should be replaced in the xidl by multiple <see> without nested tag  -->
+  <xsl:text>&#10;</xsl:text>
+  <xsl:apply-templates match="link"/>
+</xsl:template>
+
+<xsl:template match="desc/see/text()"/>
+
+<xsl:template match="desc/see/link">
+  <xsl:text>@see </xsl:text>
+  <xsl:apply-templates select="." mode="middle"/>
+  <xsl:text>&#10;</xsl:text>
+</xsl:template>
+
+<!--
+ *  common comment prologue (handles group IDs)
+-->
+<xsl:template match="desc" mode="begin">
+  <xsl:param name="id" select="@group | preceding::descGroup[1]/@id"/>
+  <xsl:text>/**&#10;</xsl:text>
+  <xsl:if test="$id">
+    <xsl:value-of select="concat(' @ingroup ',$id,'&#10;')"/>
+  </xsl:if>
+</xsl:template>
+
+<!--
+ *  common middle part of the comment block
+-->
+<xsl:template match="desc" mode="middle">
+  <xsl:apply-templates select="text() | *[not(self::note or self::see)]"/>
+  <xsl:apply-templates select="note"/>
+  <xsl:apply-templates select="see"/>
+</xsl:template>
+
+<!--
+ *  result part of the comment block
+-->
+<xsl:template match="desc" mode="results">
+  <xsl:if test="result">
+    <xsl:text>&#10;Expected result codes:&#10;</xsl:text>
+    <xsl:text>&lt;table&gt;&#10;</xsl:text>
+    <xsl:for-each select="result">
+      <xsl:text>&lt;tr&gt;</xsl:text>
+      <xsl:choose>
+        <xsl:when test="ancestor::library/result[@name=current()/@name]">
+          <xsl:value-of select="concat('&lt;td&gt;@link ::',@name,' ',@name,'&lt;/td&gt;')"/>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:value-of select="concat('&lt;td&gt;',@name,'&lt;/td&gt;')"/>
+        </xsl:otherwise>
+      </xsl:choose>
+      <xsl:text>&lt;td&gt;</xsl:text>
+      <xsl:apply-templates select="text() | *[not(self::note or self::see or
+                                                  self::result)]"/>
+      <xsl:text>&lt;/td&gt;&lt;tr&gt;&#10;</xsl:text>
+    </xsl:for-each>
+    <xsl:text>&lt;/table&gt;&#10;</xsl:text>
+  </xsl:if>
+</xsl:template>
+
+<!--
+ *  translates the string to uppercase
+-->
+<xsl:template name="uppercase">
+  <xsl:param name="str" select="."/>
+  <xsl:value-of select="
+    translate($str,'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+  "/>
+</xsl:template>
+
+<!--
+ *  comment for interfaces
+-->
+<xsl:template match="desc" mode="interface">
+  <xsl:apply-templates select="." mode="begin"/>
+  <xsl:apply-templates select="." mode="middle"/>
+  <xsl:text>&#10;Interface ID: &lt;tt&gt;{</xsl:text>
+  <xsl:call-template name="uppercase">
+    <xsl:with-param name="str" select="../@uuid"/>
+  </xsl:call-template>
+  <xsl:text>}&lt;/tt&gt;&#10;*/&#10;</xsl:text>
+</xsl:template>
+
+<!--
+ *  comment for attribute getters
+-->
+<xsl:template match="desc" mode="attribute_get">
+  <xsl:apply-templates select="." mode="begin"/>
+  <xsl:apply-templates select="text() | *[not(self::note or self::see or self::result)]"/>
+  <xsl:apply-templates select="." mode="results"/>
+  <xsl:apply-templates select="note"/>
+  <xsl:text>&#10;@return </xsl:text>
+  <xsl:call-template name="typeIdl2Glue">
+    <xsl:with-param name="type" select="../@type"/>
+    <xsl:with-param name="safearray" select="../@safearray"/>
+  </xsl:call-template>
+  <xsl:text>&#10;</xsl:text>
+  <xsl:apply-templates select="see"/>
+  <xsl:text>&#10;*/&#10;</xsl:text>
+</xsl:template>
+
+<!--
+ *  comment for attribute setters
+-->
+<xsl:template match="desc" mode="attribute_set">
+  <xsl:apply-templates select="." mode="begin"/>
+  <xsl:apply-templates select="text() | *[not(self::note or self::see or self::result)]"/>
+  <xsl:apply-templates select="." mode="results"/>
+  <xsl:apply-templates select="note"/>
+  <xsl:text>&#10;@param value </xsl:text>
+  <xsl:call-template name="typeIdl2Glue">
+    <xsl:with-param name="type" select="../@type"/>
+    <xsl:with-param name="safearray" select="../@safearray"/>
+  </xsl:call-template>
+  <xsl:text>&#10;</xsl:text>
+  <xsl:apply-templates select="see"/>
+  <xsl:text>&#10;*/&#10;</xsl:text>
+</xsl:template>
+
+<!--
+ *  comment for methods
+-->
+<xsl:template match="desc" mode="method">
+  <xsl:apply-templates select="." mode="begin"/>
+  <xsl:apply-templates select="text() | *[not(self::note or self::see or self::result)]"/>
+  <xsl:for-each select="../param">
+    <xsl:apply-templates select="desc"/>
+  </xsl:for-each>
+  <xsl:apply-templates select="." mode="results"/>
+  <xsl:apply-templates select="note"/>
+  <xsl:apply-templates select="../param/desc/note"/>
+  <xsl:apply-templates select="see"/>
+  <xsl:text>&#10;*/&#10;</xsl:text>
+</xsl:template>
+
+<!--
+ *  comment for method parameters
+-->
+<xsl:template match="method/param/desc">
+  <xsl:if test="text() | *[not(self::note or self::see)]">
+    <xsl:choose>
+      <xsl:when test="../@dir='return'">
+        <xsl:text>&#10;@return </xsl:text>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:text>&#10;@param </xsl:text>
+        <xsl:value-of select="../@name"/>
+        <xsl:text> </xsl:text>
+      </xsl:otherwise>
+    </xsl:choose>
+    <xsl:apply-templates select="text() | *[not(self::note or self::see)]"/>
+    <xsl:text>&#10;</xsl:text>
+  </xsl:if>
+</xsl:template>
+
+<!--
+ *  comment for enums
+-->
+<xsl:template match="desc" mode="enum">
+  <xsl:apply-templates select="." mode="begin"/>
+  <xsl:apply-templates select="." mode="middle"/>
+  <xsl:text>&#10;Interface ID: &lt;tt&gt;{</xsl:text>
+  <xsl:call-template name="uppercase">
+    <xsl:with-param name="str" select="../@uuid"/>
+  </xsl:call-template>
+  <xsl:text>}&lt;/tt&gt;&#10;*/&#10;</xsl:text>
+</xsl:template>
+
+<!--
+ *  comment for enum values
+-->
+<xsl:template match="desc" mode="enum_const">
+  <xsl:apply-templates select="." mode="begin"/>
+  <xsl:apply-templates select="." mode="middle"/>
+  <xsl:text>&#10;*/&#10;</xsl:text>
+</xsl:template>
+
+<!--
+ *  ignore descGroups by default (processed in /idl)
+-->
+<xsl:template match="descGroup"/>
+
+
+
+<!-- actual code generation -->
+
 <xsl:template name="genEnum">
   <xsl:param name="enumname" />
   <xsl:param name="filename" />
@@ -115,8 +497,10 @@
     <xsl:with-param name="package" select="$G_virtualBoxPackage" />
   </xsl:call-template>
 
+  <xsl:apply-templates select="desc" mode="enum"/>
   <xsl:value-of select="concat('public enum ', $enumname, ' {&#10;&#10;')" />
   <xsl:for-each select="const">
+    <xsl:apply-templates select="desc" mode="enum_const"/>
     <xsl:variable name="enumconst" select="@name" />
     <xsl:value-of select="concat('    ', $enumconst, '(', @value, ')')" />
     <xsl:choose>
@@ -163,7 +547,7 @@
 
 <xsl:template name="startExcWrapper">
 
-  <xsl:value-of select="   '      try {&#10;'" />
+  <xsl:value-of select="'      try {&#10;'" />
 
 </xsl:template>
 
@@ -246,34 +630,42 @@
   <xsl:param name="type" />
   <xsl:param name="safearray" />
   <xsl:param name="forceelem" />
+  <xsl:param name="skiplisttype" />
 
   <xsl:variable name="needarray" select="($safearray='yes') and not($forceelem='yes')" />
   <xsl:variable name="needlist" select="($needarray) and not($type='octet')" />
 
   <xsl:if test="($needlist)">
-    <xsl:value-of select="'List&lt;'" />
+    <xsl:value-of select="'List'" />
+    <xsl:if test="not($skiplisttype='yes')">
+      <xsl:value-of select="'&lt;'" />
+    </xsl:if>
   </xsl:if>
 
-  <!-- look up Java type from IDL type from table array in websrv-shared.inc.xsl -->
-  <xsl:variable name="javatypefield" select="exsl:node-set($G_aSharedTypes)/type[@idlname=$type]/@javaname" />
+  <xsl:if test="not($needlist) or not($skiplisttype='yes')">
+    <!-- look up Java type from IDL type from table array in websrv-shared.inc.xsl -->
+    <xsl:variable name="javatypefield" select="exsl:node-set($G_aSharedTypes)/type[@idlname=$type]/@javaname" />
 
-  <xsl:choose>
-    <xsl:when test="string-length($javatypefield)">
-      <xsl:value-of select="$javatypefield" />
-    </xsl:when>
-    <!-- not a standard type: then it better be one of the types defined in the XIDL -->
-    <xsl:when test="$type='$unknown'">IUnknown</xsl:when>
-    <xsl:otherwise>
-      <xsl:call-template name="fullClassName">
-        <xsl:with-param name="name" select="$type" />
-        <xsl:with-param name="collPrefix" select="''"/>
-      </xsl:call-template>
-    </xsl:otherwise>
-  </xsl:choose>
+    <xsl:choose>
+      <xsl:when test="string-length($javatypefield)">
+        <xsl:value-of select="$javatypefield" />
+      </xsl:when>
+      <!-- not a standard type: then it better be one of the types defined in the XIDL -->
+      <xsl:when test="$type='$unknown'">IUnknown</xsl:when>
+      <xsl:otherwise>
+        <xsl:call-template name="fullClassName">
+          <xsl:with-param name="name" select="$type" />
+          <xsl:with-param name="collPrefix" select="''"/>
+        </xsl:call-template>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:if>
 
   <xsl:choose>
     <xsl:when test="($needlist)">
-      <xsl:value-of select="'&gt;'" />
+      <xsl:if test="not($skiplisttype='yes')">
+        <xsl:value-of select="'&gt;'" />
+      </xsl:if>
     </xsl:when>
     <xsl:when test="($needarray)">
       <xsl:value-of select="'[]'" />
@@ -287,9 +679,9 @@
 <xsl:template name="typeIdl2Back">
   <xsl:param name="type" />
   <xsl:param name="safearray" />
-  <xsl:param name="forceelem" />  
+  <xsl:param name="forceelem" />
 
-  <xsl:choose>     
+  <xsl:choose>
     <xsl:when test="($G_vboxGlueStyle='xpcom')">
       <xsl:variable name="needarray" select="($safearray='yes') and not($forceelem='yes')" />
 
@@ -368,7 +760,7 @@
 
     <xsl:when test="($G_vboxGlueStyle='jaxws')">
       <xsl:variable name="needarray" select="($safearray='yes' and not($type='octet')) and not($forceelem='yes')" />
-      
+
       <xsl:if test="$needarray">
         <xsl:value-of select="'List&lt;'" />
       </xsl:if>
@@ -1426,6 +1818,7 @@
           </xsl:otherwise>
         </xsl:choose>
       </xsl:variable>
+      <xsl:apply-templates select="desc" mode="method"/>
       <xsl:value-of select="concat('    public ', $returngluetype, ' ', $methodname, '(')" />
       <xsl:variable name="paramsinout" select="param[@dir='in' or @dir='out']" />
       <xsl:for-each select="exsl:node-set($paramsinout)">
@@ -1866,6 +2259,7 @@
 
       <xsl:otherwise>
         <!-- emit getter method -->
+        <xsl:apply-templates select="desc" mode="attribute_get"/>
         <xsl:variable name="gettername">
           <xsl:call-template name="makeGetterName">
             <xsl:with-param name="attrname" select="$attrname" />
@@ -1908,6 +2302,7 @@
         <xsl:value-of select=       "'    }&#10;'" />
         <xsl:if test="not(@readonly='yes')">
           <!-- emit setter method -->
+          <xsl:apply-templates select="desc" mode="attribute_set"/>
           <xsl:variable name="settername"><xsl:call-template name="makeSetterName"><xsl:with-param name="attrname" select="$attrname" /></xsl:call-template></xsl:variable>
           <xsl:variable name="unwrapped">
             <xsl:call-template name="cookInParam">
@@ -1961,43 +2356,45 @@
     <xsl:with-param name="package" select="$G_virtualBoxPackage" />
   </xsl:call-template>
 
-   <xsl:text>import java.util.List;&#10;</xsl:text>
+  <xsl:text>import java.util.List;&#10;&#10;</xsl:text>
 
-    <xsl:choose>
-        <xsl:when test="($wsmap='struct') and ($G_vboxGlueStyle='jaxws')">
-          <xsl:value-of select="concat('public class ', $ifname, ' {&#10;&#10;')" />
-          <xsl:call-template name="genStructWrapperJaxws">
-            <xsl:with-param name="ifname" select="$ifname" />
-          </xsl:call-template>
+  <xsl:apply-templates select="desc" mode="interface"/>
+
+  <xsl:choose>
+    <xsl:when test="($wsmap='struct') and ($G_vboxGlueStyle='jaxws')">
+      <xsl:value-of select="concat('public class ', $ifname, ' {&#10;&#10;')" />
+      <xsl:call-template name="genStructWrapperJaxws">
+        <xsl:with-param name="ifname" select="$ifname" />
+      </xsl:call-template>
+    </xsl:when>
+
+    <xsl:otherwise>
+      <xsl:variable name="extends" select="//interface[@name=$ifname]/@extends" />
+      <xsl:choose>
+        <xsl:when test="($extends = '$unknown') or ($extends = '$dispatched') or ($extends = '$errorinfo')">
+          <xsl:value-of select="concat('public class ', $ifname, ' extends IUnknown {&#10;&#10;')" />
         </xsl:when>
-
+        <xsl:when test="//interface[@name=$extends]">
+          <xsl:value-of select="concat('public class ', $ifname, ' extends ', $extends, ' {&#10;&#10;')" />
+        </xsl:when>
         <xsl:otherwise>
-          <xsl:variable name="extends" select="//interface[@name=$ifname]/@extends" />
-          <xsl:choose>
-            <xsl:when test="($extends = '$unknown') or ($extends = '$dispatched') or ($extends = '$errorinfo')">
-              <xsl:value-of select="concat('public class ', $ifname, ' extends IUnknown {&#10;&#10;')" />
-            </xsl:when>
-            <xsl:when test="//interface[@name=$extends]">
-              <xsl:value-of select="concat('public class ', $ifname, ' extends ', $extends, ' {&#10;&#10;')" />
-            </xsl:when>
-            <xsl:otherwise>
-              <xsl:call-template name="fatalError">
-                <xsl:with-param name="msg" select="concat('Interface generation: interface &quot;', $ifname, '&quot; has invalid &quot;extends&quot; value ', $extends, '.')" />
-              </xsl:call-template>
-            </xsl:otherwise>
-          </xsl:choose>
-          <xsl:call-template name="genIfaceWrapper">
-             <xsl:with-param name="ifname" select="$ifname" />
-           </xsl:call-template>
+          <xsl:call-template name="fatalError">
+            <xsl:with-param name="msg" select="concat('Interface generation: interface &quot;', $ifname, '&quot; has invalid &quot;extends&quot; value ', $extends, '.')" />
+          </xsl:call-template>
         </xsl:otherwise>
-    </xsl:choose>
+      </xsl:choose>
+      <xsl:call-template name="genIfaceWrapper">
+        <xsl:with-param name="ifname" select="$ifname" />
+      </xsl:call-template>
+    </xsl:otherwise>
+  </xsl:choose>
 
-    <!-- end of class -->
-    <xsl:value-of select="'}&#10;'" />
+  <!-- end of class -->
+  <xsl:value-of select="'}&#10;'" />
 
-    <xsl:call-template name="endFile">
-      <xsl:with-param name="file" select="$filename" />
-    </xsl:call-template>
+  <xsl:call-template name="endFile">
+    <xsl:with-param name="file" select="$filename" />
+  </xsl:call-template>
 
 </xsl:template>
 
@@ -2075,30 +2472,6 @@
 </xsl:template>
 
 <xsl:template name="emitHandwritten">
-
- <xsl:call-template name="startFile">
-    <xsl:with-param name="file" select="'Holder.java'" />
-    <xsl:with-param name="package" select="$G_virtualBoxPackage" />
-  </xsl:call-template>
-
- <xsl:text><![CDATA[
-public class Holder<T>
-{
-   public T value;
-
-   public Holder()
-   {
-   }
-   public Holder(T value)
-   {
-       this.value = value;
-   }
-}
-]]></xsl:text>
-
- <xsl:call-template name="endFile">
-   <xsl:with-param name="file" select="'Holder.java'" />
- </xsl:call-template>
 
 <xsl:call-template name="startFile">
     <xsl:with-param name="file" select="'Holder.java'" />
@@ -3106,7 +3479,7 @@ public class VirtualBoxManager
 
   <xsl:call-template name="startFile">
     <xsl:with-param name="file" select="'IUnknown.java'" />
-    <xsl:with-param name="package" select="$G_virtualBoxPackageCom" />
+    <xsl:with-param name="package" select="$G_virtualBoxPackage" />
   </xsl:call-template>
 
  <xsl:text><![CDATA[
@@ -3154,7 +3527,7 @@ public class IUnknown
 
  <xsl:call-template name="startFile">
    <xsl:with-param name="file" select="'Helper.java'" />
-   <xsl:with-param name="package" select="$G_virtualBoxPackageCom" />
+   <xsl:with-param name="package" select="$G_virtualBoxPackage" />
  </xsl:call-template>
 
 <xsl:text><![CDATA[
@@ -3242,13 +3615,13 @@ public class Helper {
             throw new AssertionError(e);
         }
     }
-    
+
     /* Pretty naive Base64 encoder/decoder. */
     private static final char[] valToChar = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".toCharArray();
     private static final int[] charToVal = new int[256];
 
-    /* Initialize recoding alphabet. */ 
-    static 
+    /* Initialize recoding alphabet. */
+    static
     {
         for (int i = 0; i < charToVal.length; i++)
             charToVal[i] = -1;
@@ -3282,7 +3655,7 @@ public class Helper {
             result[stringIndex++] = valToChar[((ch2 << 2) & 0x3f) | (ch3 >> 6)];
             result[stringIndex++] = valToChar[ch3 & 0x3f];
         }
-        
+
         switch (data.length - dataIndex)
         {
             case 0:
@@ -3326,7 +3699,7 @@ public class Helper {
     {
         if (str == null)
             return null;
-        
+
         int stringLength = str.length();
         if (stringLength == 0)
             return new byte[0];
@@ -3342,7 +3715,7 @@ public class Helper {
             if (ch == '=')
                 padChars++;
         }
-        
+
         if ((validChars * 3 % 4) != 0)
             throw new RuntimeException("invalid encoded string "+str);
 
@@ -3364,13 +3737,13 @@ public class Helper {
             int ch4 = str.charAt(stringIndex++);
 
             result[dataIndex++] = (byte)(((charToVal[ch1] << 2) | charToVal[ch2] >> 4) & 0xff);
-            /* we check this to ensure that we don't override data with '=' padding. */ 
+            /* we check this to ensure that we don't override data with '=' padding. */
             if (dataIndex < result.length)
                 result[dataIndex++] = (byte)(((charToVal[ch2] << 4) | charToVal[ch3] >> 2) & 0xff);
             if (dataIndex < result.length)
                 result[dataIndex++] = (byte)(((charToVal[ch3] << 6) | charToVal[ch4]) & 0xff);
         }
-        
+
         return result;
     }
 }

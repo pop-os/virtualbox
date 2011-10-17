@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.0">
+<TS version="2.0" language="pt_BR">
 <context>
     <name>@@@</name>
     <message>
@@ -234,11 +234,11 @@
     </message>
     <message>
         <source>Copy all errors to the clipboard</source>
-        <translation type="unfinished"></translation>
+        <translation>Copiar todos os erros para a área de transferência</translation>
     </message>
     <message>
         <source>Copy</source>
-        <translation type="unfinished">Copiar</translation>
+        <translation>Copiar</translation>
     </message>
 </context>
 <context>
@@ -748,7 +748,8 @@
     </message>
     <message>
         <source>Linked Base for %1 and %2</source>
-        <translation type="unfinished"></translation>
+        <translatorcomment>Decidi deixar o termo &quot;linkada&quot; por ser mais fácil de assimilar</translatorcomment>
+        <translation>Base Linkada para %1 e %2</translation>
     </message>
 </context>
 <context>
@@ -779,7 +780,7 @@
     </message>
     <message>
         <source>When checked a new unique MAC address will be assigned to all configured network cards.</source>
-        <translation type="unfinished"></translation>
+        <translation>Quando selecionado, define um endereço MAC único para todas as placas de rede configuradas.</translation>
     </message>
 </context>
 <context>
@@ -818,54 +819,55 @@
     </message>
     <message>
         <source>Full Clone</source>
-        <translation type="unfinished"></translation>
+        <translation>Clone Completo</translation>
     </message>
     <message>
         <source>Linked Clone</source>
-        <translation type="unfinished"></translation>
+        <translatorcomment>Decidi deixar o termo &quot;linkado&quot; por ser mais comum no meio</translatorcomment>
+        <translation>Clone Linkado</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please select the type of the clone.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Full Clone&lt;/b&gt; an exact copy (including all virtual disk images) of the original VM will be created. If you select &lt;b&gt;Linked Clone&lt;/b&gt;, a new VM will be created, but the virtual disk images will point to the virtual disk images of original VM.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Selecione o tipo de clone.&lt;/p&gt;&lt;p&gt;Se você escolher &lt;b&gt;Clone Completo&lt;/b&gt;, uma cópia exata da VM original (incluindo todas as imagens de discos virtuais) será criada. Se você selecionar &lt;b&gt;Clone Linkado&lt;/b&gt;, uma nova VM será criada, mas as imagens de discos virtuais irão apontar para as imagens de discos da VM original.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Note that a new snapshot within the source VM is created in case you select &lt;b&gt;Linked Clone&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Atenção: um novo snapshot será criado na VM original caso você selecione &lt;b&gt;Clone Linkado&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
     <name>UICloneVMWizardPage3</name>
     <message>
         <source>Current machine state</source>
-        <translation type="unfinished">Estado atual da máquina</translation>
+        <translation>Estado atual da máquina</translation>
     </message>
     <message>
         <source>Current machine and all child states</source>
-        <translation type="unfinished">Estado atual da máquina e todos os estados-filhos</translation>
+        <translation>Estado atual da máquina e todos os estados-filhos</translation>
     </message>
     <message>
         <source>All states</source>
-        <translation type="unfinished">Todos os estados</translation>
+        <translation>Todos os estados</translation>
     </message>
     <message>
         <source>Cloning Configuration</source>
-        <translation type="unfinished">Configuração de Clonagem</translation>
+        <translation>Configuração de Clonagem</translation>
     </message>
     <message>
         <source>Please choose which parts of the virtual machine should be cloned.</source>
-        <translation type="unfinished">Escolha quais partes da máquina virtual deverão ser clonadas.</translation>
+        <translation>Escolha quais partes da máquina virtual deverão ser clonadas.</translation>
     </message>
     <message>
         <source>If you select &lt;b&gt;Current machine state&lt;/b&gt;, only the current state of the virtual machine is cloned.</source>
-        <translation type="unfinished">Se você selecionar &lt;b&gt;estado atual da máquina&lt;/b&gt;, apenas o estado atual da máquina virtual será clonado.</translation>
+        <translation>Se você selecionar &lt;b&gt;estado atual da máquina&lt;/b&gt;, apenas o estado atual da máquina virtual será clonado.</translation>
     </message>
     <message>
         <source>If you select &lt;b&gt;Current machine and all child states&lt;/b&gt; the current state of the virtual machine and any states of child snapshots are cloned.</source>
-        <translation type="unfinished">Se você selecionar &lt;b&gt;Estado atual da máquina e de todos os estados-filho&lt;/b&gt;, o estado atual da máquina virtual e todos os estados de snapshots serão clonados.</translation>
+        <translation>Se você selecionar &lt;b&gt;Estado atual da máquina e de todos os estados-filho&lt;/b&gt;, o estado atual da máquina virtual e todos os estados de snapshots serão clonados.</translation>
     </message>
     <message>
         <source>If you select &lt;b&gt;All states&lt;/b&gt;, the current machine state and all snapshots are cloned.</source>
-        <translation type="unfinished">Se você selecionar &lt;b&gt;Todos os estados&lt;/b&gt;, o estado atual da máquina e todos os snapshots serão clonados.</translation>
+        <translation>Se você selecionar &lt;b&gt;Todos os estados&lt;/b&gt;, o estado atual da máquina e todos os snapshots serão clonados.</translation>
     </message>
 </context>
 <context>
@@ -1251,6 +1253,13 @@
     <message>
         <source>Select folder to save Guest Additions image to</source>
         <translation>Selecione a pasta onde a imagem dos Adicionais para Convidado será gravada</translation>
+    </message>
+</context>
+<context>
+    <name>UIDownloaderExtensionPack</name>
+    <message>
+        <source>Select folder to save %1 to</source>
+        <translation>Selecione uma pasta para salvar %1</translation>
     </message>
 </context>
 <context>
@@ -2398,23 +2407,23 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Left Shift</source>
-        <translation type="unfinished">Shift Esquerdo</translation>
+        <translation>Shift Esquerdo</translation>
     </message>
     <message>
         <source>Right Shift</source>
-        <translation type="unfinished">Shift Direito</translation>
+        <translation>Shift Direito</translation>
     </message>
     <message>
         <source>Left Ctrl</source>
-        <translation type="unfinished">Ctrl Esquerdo</translation>
+        <translation>Ctrl Esquerdo</translation>
     </message>
     <message>
         <source>Right Ctrl</source>
-        <translation type="unfinished">Ctrl Direito</translation>
+        <translation>Ctrl Direito</translation>
     </message>
     <message>
         <source>Left Alt</source>
-        <translation type="unfinished">Alt Esquerdo</translation>
+        <translation>Alt Esquerdo</translation>
     </message>
     <message>
         <source>Right Alt</source>
@@ -2769,10 +2778,6 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Nenhuma pasta compartilhada&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
-        <translation type="obsolete">Indica se o servidor de Tela Remota (VRDP) está habilitado (&lt;img src=vrdp_16px.png/&gt;) ou não (&lt;img src=vrdp_disabled_16px.png/&gt;).</translation>
-    </message>
-    <message>
         <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
         <translation type="obsolete">&lt;hr&gt;O Servidor VRDP está ouvindo na porta %1</translation>
     </message>
@@ -2788,15 +2793,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation>Indica se o ponteiro do mouse do sistema hospedeiro foi capturado pelo sistema convidado:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;o ponteiro não foi capturado&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;o ponteiro foi capturado&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integração de mouse (IM) está Ligada&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM está Desligada, o ponteiro foi capturado&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM está Desligada, o ponteiro não está capturado&lt;/nobr&gt;&lt;br&gt;Note que o recurso de integração do mouse requer que os Adicionais Para Convidado sejam instalados no sistema convidado.</translation>
+        <translation>Indica se o ponteiro do mouse do sistema hospedeiro foi capturado pelo sistema convidado:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;o ponteiro não foi capturado&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;o ponteiro foi capturado&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integração de mouse (IM) está Ligada&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM está Desligada, o ponteiro foi capturado&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM está Desligada, o ponteiro não está capturado&lt;/nobr&gt;&lt;br&gt;Note que o recurso de integração do mouse requer que os Adicionais Para Convidado sejam instalados no sistema convidado.</translation>
     </message>
     <message>
         <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
-        <translation>Indica se o teclado foi capturad pelo sistema operacional Convidado (&lt;img src=hostkey_captured_16px.png/&gt;) ou não (&lt;img src=hostkey_16px.png/&gt;).</translation>
+        <translation>Indica se o teclado foi capturad pelo sistema operacional Convidado (&lt;img src=:/hostkey_captured_16px.png/&gt;) ou não (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>Indicates whether the Remote Desktop Server is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
-        <translation>Indica se a Tela Remota (servidor VRDP) está habilitada (&lt;img src=vrdp_16px.png/&gt;) ou não (&lt;img src=vrdp_disabled_16px.png/&gt;).</translation>
+        <translation>Indica se a Tela Remota (servidor VRDP) está habilitada (&lt;img src=:/vrdp_16px.png/&gt;) ou não (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>&lt;hr&gt;The Remote Desktop Server is listening on port %1</source>
@@ -4323,7 +4328,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>When checked the virtual disk will not be removed when the guest system ejects it.</source>
-        <translation type="unfinished">Quando selecionado, evita a desmontagem da mídia quando o sistema convidado solicitar a ejeção.</translation>
+        <translation>Quando selecionado, evita a desmontagem da mídia quando o sistema convidado solicitar a ejeção.</translation>
     </message>
     <message>
         <source>&amp;Live CD/DVD</source>
@@ -4331,7 +4336,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>When checked the guest system will see the virtual disk as a solid state device.</source>
-        <translation type="unfinished">Quando selecionado, define a mídia como de estado sólido (SSD).</translation>
+        <translation>Quando selecionado, define a mídia como sendo de estado sólido (SSD).</translation>
     </message>
     <message>
         <source>&amp;Solid-state drive</source>
@@ -4373,7 +4378,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Selects the port count of the SATA storage controller currently selected in the Storage Tree. This must be at least one more than the highest port number you need to use.</source>
-        <translation type="unfinished">Seleciona a quantidade de portas da controladora SATA escolhida na Árvore de Armazenamento. Este valor não pode ser menor que o número máximo de portas utilizadas + 1.</translation>
+        <translation>Seleciona a quantidade de portas da controladora SATA escolhida na Árvore de Armazenamento. Este valor não pode ser menor que o número máximo de portas utilizadas + 1.</translation>
     </message>
 </context>
 <context>
@@ -4559,7 +4564,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Selects the chipset to be emulated in this virtual machine. Note that the ICH9 chipset emulation is experimental and not recommended except for guest systems (such as Mac OS X) which require it.</source>
-        <translation type="unfinished">Define o tipo de chipset usado por esta VM.</translation>
+        <translation>Define o tipo de chipset usado por esta VM. Atenção: a emulação do chipset ICH9 é experimental e não é recomendado o seu uso, exceto em sistemas Convidades que o exigem (como o Mac OS X, por exemplo).</translation>
     </message>
     <message>
         <source>you have selected emulation of an ICH9 chipset in this machine. This requires the IO-APIC feature to be enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
@@ -4593,7 +4598,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>you have assigned ICH9 chipset type to this VM. It will not work properly unless the IO-APIC feature is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation type="unfinished"></translation>
+        <translation>você definiu o tipo de chipset desta VM como ICH9. Este chipset não funcionará corretamente a menos que o recurso de IO APIC também esteja habilitado. Isto será feito automaticamente assim que clicar no botão OK.</translation>
     </message>
 </context>
 <context>
@@ -5085,18 +5090,6 @@ p, li { white-space: pre-wrap; }
         <translation>Falha ao remover a pasta compartilhada &lt;b&gt;%1&lt;/b&gt; (apontando para &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) da máquina virtual &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You have &lt;b&gt;clicked the mouse&lt;/b&gt; inside the Virtual Machine display or pressed the &lt;b&gt;host key&lt;/b&gt;. This will cause the Virtual Machine to &lt;b&gt;capture&lt;/b&gt; the host mouse pointer (only if the mouse pointer integration is not currently supported by the guest OS) and the keyboard, which will make them unavailable to other applications running on your host machine.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window, next to the&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;icon. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Você &lt;b&gt;clicou o mouse&lt;/b&gt; dentro da tela da Máquina Virtual ou pressionou a &lt;b&gt;tecla de hospedeiro&lt;/b&gt;. Isto fará com que a Máquina Virtual &lt;b&gt;capture&lt;/b&gt; o ponteiro do mouse do computador hospedeiro (apenas se a integração de ponteiro de mouse não for suportada pelo sistema operacional convidado) e o teclado, tornando-os indisponíveis para outras aplicações que estejam rodando no computador hospedeiro.&lt;/p&gt;&lt;p&gt;Você pode pressionar a &lt;b&gt;tecla de hospedeiro&lt;/b&gt; a qualquer momento para &lt;b&gt;liberar&lt;/b&gt; o teclado e o mouse (se estiverem capturados) e retorná-los à sua operação normal. A tecla de hospedeiro atualmente definida é mostrada na barra de status na parte de baixo da janela da Máquina Virtual, próxima ao ícone&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;. Este ícone, juntamente com o ícone do mouse próximo a ele, indica o estado de captura do teclado e do mouse.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You have the &lt;b&gt;Auto capture keyboard&lt;/b&gt; option turned on. This will cause the Virtual Machine to automatically &lt;b&gt;capture&lt;/b&gt; the keyboard every time the VM window is activated and make it unavailable to other applications running on your host machine: when the keyboard is captured, all keystrokes (including system ones like Alt-Tab) will be directed to the VM.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window, next to the&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;icon. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Você tem a opção &lt;b&gt;Auto-capturar teclado&lt;/b&gt; ligada. Isto fará com que a Máquina Virtual automaticamente &lt;b&gt;capture&lt;/b&gt; o teclado todas as vezes em que a janela da MV seja ativada, tornando-o indisponível para outras aplicações que estejam rodando em seu computador hospedeiro: quando o teclado é capturado, todas as teclas (incluindo teclas de sistema como Alt-Tab) serão direcionadas para a MV.&lt;/p&gt;&lt;p&gt;Você pode pressionar a &lt;b&gt;tecla de hospedeiro&lt;/b&gt; a qualquer hora para  &lt;b&gt;liberar&lt;/b&gt; o teclado e o mouse (se estiver capturado também) e retorná-los a sua operação normal. A tecla de hospedeiro atual é mostrada na barra de status na parte de baixo da janela da Máquina Virtual, próximo ao ícone&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;. Este ícone, juntamente com o ícone de mouse próximo a ele, indicam o estado de captura atual do teclado e do mouse.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The Virtual Machine reports that the guest OS supports &lt;b&gt;mouse pointer integration&lt;/b&gt;. This means that you do not need to &lt;i&gt;capture&lt;/i&gt; the mouse pointer to be able to use it in your guest OS -- all mouse actions you perform when the mouse pointer is over the Virtual Machine&apos;s display are directly sent to the guest OS. If the mouse is currently captured, it will be automatically uncaptured.&lt;/p&gt;&lt;p&gt;The mouse icon on the status bar will look like&amp;nbsp;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;to inform you that mouse pointer integration is supported by the guest OS and is currently turned on.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;: Some applications may behave incorrectly in mouse pointer integration mode. You can always disable it for the current session (and enable it again) by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;A Máquina Virtual informa que o sistema operacional convidado suporta o recurso de &lt;b&gt;integração de ponteiro de mouse&lt;/b&gt;. Isto significa que você não precisa  &lt;i&gt;capturar&lt;/i&gt; o ponteiro do mouse para poder usá-lo em seu sistema operacional convidado -- todas as ações de mouse que você executar quando o ponteiro estiver em cima da janela da Máquina Virtual serão enviadas diretamente para o sistema operacional convidado. Se o mouse estiver capturado, ele será automaticamente liberado.&lt;/p&gt;&lt;p&gt;O ícone de mouse na barra de status irá ficar assim:&amp;nbsp;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;para informálo que a integração de ponteiro de mouse é suportada pelo sistema operacional convidado e que este recurso está ativo.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Nota&lt;/b&gt;: Algumas aplicações podem se comportar de forma errônea no modo de integração de ponteiro de mouse. Se necessário, você pode desabilitar o recurso para a sessão atual (e habilitá-lo de novo) selecionando a ação correspondente na barra de menu.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS does not support &lt;b&gt;mouse pointer integration&lt;/b&gt; in the current video mode. You need to capture the mouse (by clicking over the VM display or pressing the host key) in order to use the mouse inside the guest OS.&lt;/p&gt;</source>
         <translation>&lt;p&gt;A Máquina Virtual informa que o sistema operacional convidado não suporta o recurso de &lt;b&gt;integração de ponteiro de mouse&lt;/b&gt; no modo de vídeo atual. Você precisa capturar o mouse (clicando na janela da MV ou pressionando a tecla de hospedeiro) para poder utilizar o mouse dentro do sistema operacional convidado.&lt;/p&gt;</translation>
     </message>
@@ -5454,15 +5447,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;You have &lt;b&gt;clicked the mouse&lt;/b&gt; inside the Virtual Machine display or pressed the &lt;b&gt;host key&lt;/b&gt;. This will cause the Virtual Machine to &lt;b&gt;capture&lt;/b&gt; the host mouse pointer (only if the mouse pointer integration is not currently supported by the guest OS) and the keyboard, which will make them unavailable to other applications running on your host machine.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window, next to the&amp;nbsp;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;icon. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Você &lt;b&gt;clicou o mouse&lt;/b&gt; dentro da tela da Máquina Virtual ou pressionou a &lt;b&gt;tecla de hospedeiro&lt;/b&gt;. Isto fará com que a Máquina Virtual &lt;b&gt;capture&lt;/b&gt; o ponteiro do mouse do computador hospedeiro (apenas se a integração de ponteiro de mouse não for suportada pelo sistema operacional convidado) e o teclado, tornando-os indisponíveis para outras aplicações que estejam rodando no computador hospedeiro.&lt;/p&gt;&lt;p&gt;Você pode pressionar a &lt;b&gt;tecla de hospedeiro&lt;/b&gt; a qualquer momento para &lt;b&gt;liberar&lt;/b&gt; o teclado e o mouse (se estiverem capturados) e retorná-los à sua operação normal. A tecla de hospedeiro atualmente definida é mostrada na barra de status na parte de baixo da janela da Máquina Virtual, próxima ao ícone&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;. Este ícone, juntamente com o ícone do mouse próximo a ele, indica o estado de captura do teclado e do mouse.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Você &lt;b&gt;clicou o mouse&lt;/b&gt; dentro da tela da Máquina Virtual ou pressionou a &lt;b&gt;tecla de hospedeiro&lt;/b&gt;. Isto fará com que a Máquina Virtual &lt;b&gt;capture&lt;/b&gt; o ponteiro do mouse do computador hospedeiro (apenas se a integração de ponteiro de mouse não for suportada pelo sistema operacional convidado) e o teclado, tornando-os indisponíveis para outras aplicações que estejam rodando no computador hospedeiro.&lt;/p&gt;&lt;p&gt;Você pode pressionar a &lt;b&gt;tecla de hospedeiro&lt;/b&gt; a qualquer momento para &lt;b&gt;liberar&lt;/b&gt; o teclado e o mouse (se estiverem capturados) e retorná-los à sua operação normal. A tecla de hospedeiro atualmente definida é mostrada na barra de status na parte de baixo da janela da Máquina Virtual, próxima ao ícone&amp;nbsp;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;. Este ícone, juntamente com o ícone do mouse próximo a ele, indica o estado de captura do teclado e do mouse.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You have the &lt;b&gt;Auto capture keyboard&lt;/b&gt; option turned on. This will cause the Virtual Machine to automatically &lt;b&gt;capture&lt;/b&gt; the keyboard every time the VM window is activated and make it unavailable to other applications running on your host machine: when the keyboard is captured, all keystrokes (including system ones like Alt-Tab) will be directed to the VM.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window, next to the&amp;nbsp;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;icon. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Você tem a opção &lt;b&gt;Auto-capturar teclado&lt;/b&gt; ligada. Isto fará com que a Máquina Virtual automaticamente &lt;b&gt;capture&lt;/b&gt; o teclado todas as vezes em que a janela da MV seja ativada, tornando-o indisponível para outras aplicações que estejam rodando em seu computador hospedeiro: quando o teclado é capturado, todas as teclas (incluindo teclas de sistema como Alt-Tab) serão direcionadas para a MV.&lt;/p&gt;&lt;p&gt;Você pode pressionar a &lt;b&gt;tecla de hospedeiro&lt;/b&gt; a qualquer hora para  &lt;b&gt;liberar&lt;/b&gt; o teclado e o mouse (se estiver capturado também) e retorná-los a sua operação normal. A tecla de hospedeiro atual é mostrada na barra de status na parte de baixo da janela da Máquina Virtual, próximo ao ícone&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;. Este ícone, juntamente com o ícone de mouse próximo a ele, indicam o estado de captura atual do teclado e do mouse.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Você tem a opção &lt;b&gt;Auto-capturar teclado&lt;/b&gt; ligada. Isto fará com que a Máquina Virtual automaticamente &lt;b&gt;capture&lt;/b&gt; o teclado todas as vezes em que a janela da MV seja ativada, tornando-o indisponível para outras aplicações que estejam rodando em seu computador hospedeiro: quando o teclado é capturado, todas as teclas (incluindo teclas de sistema como Alt-Tab) serão direcionadas para a MV.&lt;/p&gt;&lt;p&gt;Você pode pressionar a &lt;b&gt;tecla de hospedeiro&lt;/b&gt; a qualquer hora para  &lt;b&gt;liberar&lt;/b&gt; o teclado e o mouse (se estiver capturado também) e retorná-los a sua operação normal. A tecla de hospedeiro atual é mostrada na barra de status na parte de baixo da janela da Máquina Virtual, próximo ao ícone&amp;nbsp;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;. Este ícone, juntamente com o ícone de mouse próximo a ele, indicam o estado de captura atual do teclado e do mouse.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS supports &lt;b&gt;mouse pointer integration&lt;/b&gt;. This means that you do not need to &lt;i&gt;capture&lt;/i&gt; the mouse pointer to be able to use it in your guest OS -- all mouse actions you perform when the mouse pointer is over the Virtual Machine&apos;s display are directly sent to the guest OS. If the mouse is currently captured, it will be automatically uncaptured.&lt;/p&gt;&lt;p&gt;The mouse icon on the status bar will look like&amp;nbsp;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;to inform you that mouse pointer integration is supported by the guest OS and is currently turned on.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;: Some applications may behave incorrectly in mouse pointer integration mode. You can always disable it for the current session (and enable it again) by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;A Máquina Virtual informa que o sistema operacional convidado suporta o recurso de &lt;b&gt;integração de ponteiro de mouse&lt;/b&gt;. Isto significa que você não precisa  &lt;i&gt;capturar&lt;/i&gt; o ponteiro do mouse para poder usá-lo em seu sistema operacional convidado -- todas as ações de mouse que você executar quando o ponteiro estiver em cima da janela da Máquina Virtual serão enviadas diretamente para o sistema operacional convidado. Se o mouse estiver capturado, ele será automaticamente liberado.&lt;/p&gt;&lt;p&gt;O ícone de mouse na barra de status irá ficar assim:&amp;nbsp;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;para informálo que a integração de ponteiro de mouse é suportada pelo sistema operacional convidado e que este recurso está ativo.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Nota&lt;/b&gt;: Algumas aplicações podem se comportar de forma errônea no modo de integração de ponteiro de mouse. Se necessário, você pode desabilitar o recurso para a sessão atual (e habilitá-lo de novo) selecionando a ação correspondente na barra de menu.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;A Máquina Virtual informa que o sistema operacional convidado suporta o recurso de &lt;b&gt;integração de ponteiro de mouse&lt;/b&gt;. Isto significa que você não precisa  &lt;i&gt;capturar&lt;/i&gt; o ponteiro do mouse para poder usá-lo em seu sistema operacional convidado -- todas as ações de mouse que você executar quando o ponteiro estiver em cima da janela da Máquina Virtual serão enviadas diretamente para o sistema operacional convidado. Se o mouse estiver capturado, ele será automaticamente liberado.&lt;/p&gt;&lt;p&gt;O ícone de mouse na barra de status irá ficar assim:&amp;nbsp;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;para informálo que a integração de ponteiro de mouse é suportada pelo sistema operacional convidado e que este recurso está ativo.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Nota&lt;/b&gt;: Algumas aplicações podem se comportar de forma errônea no modo de integração de ponteiro de mouse. Se necessário, você pode desabilitar o recurso para a sessão atual (e habilitá-lo de novo) selecionando a ação correspondente na barra de menu.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;fullscreen&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;. Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in fullscreen mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
@@ -6073,10 +6066,9 @@ p, li { white-space: pre-wrap; }
     </message>
     <message numerus="yes">
         <source>&lt;p&gt;The virtual machine(s) &lt;b&gt;%1&lt;/b&gt; are currently in a saved state.&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. Note that the existing machine(s) are not changed.&lt;/p&gt;</source>
-        <translation type="unfinished">
-            <numerusform>&lt;p&gt;As máquinas virtuais &lt;b&gt;%1&lt;/b&gt; possuem estado de execução salvo. &lt;/p&gt;&lt;p&gt;Se você continuar, o estado atual de execução destas máquinas será descartado. As máquinas existentes não serão afetadas.&lt;/p&gt;
-        
-        </numerusform>
+        <translation>
+            <numerusform>&lt;p&gt;As máquinas virtuais &lt;b&gt;%1&lt;/b&gt; possuem estado de execução salvo. &lt;/p&gt;&lt;p&gt;Se você continuar, o estado atual de execução destas máquinas será descartado. As máquinas existentes não serão afetadas.&lt;/p&gt;</numerusform>
+            <numerusform></numerusform>
         </translation>
     </message>
     <message>
@@ -6222,7 +6214,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>The virtual machine that you are changing has been started. Only certain settings can be changed while a machine is running. All other changes will be lost if you close this window now.</source>
-        <translation type="unfinished">O estado da máquina virtual que você está editando foi alterado. Apenas as configurações que são editáveis em tempo de execução serão salvas quando clicar em OK. Todas as outras mudanças serão perdidas.</translation>
+        <translation>O estado da máquina virtual que você está editando foi alterado. Apenas as configurações que são editáveis em tempo de execução serão salvas quando clicar em OK. Todas as outras mudanças serão perdidas.</translation>
     </message>
     <message>
         <source>Failed to clone the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -6270,11 +6262,41 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Can&apos;t find snapshot named &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Não foi possível encontrar um snapshot com o nome &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Failed to save the downloaded file as &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation type="unfinished">&lt;p&gt;Falha ao salvar o arquivo baixado como &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Falha ao salvar o arquivo baixado como &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have an old version (%1) of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;Do you wish to download latest one from the Internet?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Você possui uma versão antiga (%1) de &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; instalado.&lt;/p&gt;&lt;p&gt;Deseja baixar a versão mais recente a partir da Internet?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <comment>extension pack</comment>
+        <translation>Baixar</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Você tem certeza de que deseja baixar &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; de &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (tamanho %3 bytes)?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to install this extension pack?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;O arquivo &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; foi baixado com sucesso de &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; e gravado localmente em &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Você deseja instalar este pacote de extensões?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Install</source>
+        <comment>extension pack</comment>
+        <translation>Instalar</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;O arquivo &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; foi baixado com sucesso de &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; mas não pode ser gravado localmente como &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Por favor escolha outro local para gravar este arquivo.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Falha ao baixar o arquivo &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; de &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -6315,11 +6337,22 @@ p, li { white-space: pre-wrap; }
     <name>UIMiniProgressWidgetAdditions</name>
     <message>
         <source>Cancel the VirtualBox Guest Additions CD image download</source>
-        <translation type="unfinished"></translation>
+        <translation>Cancelar o download da imagem de CD dos Adicionais para Convidado do VirtualBox</translation>
     </message>
     <message>
         <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>Baixando a imagem de CD dos Adicionais para Convidado do VirtualBox a partir de &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIMiniProgressWidgetExtension</name>
+    <message>
+        <source>Cancel the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; download</source>
+        <translation>Cancelar o download de &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Downloading the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</source>
+        <translation>Baixando o arquivo &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; de &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
@@ -6676,7 +6709,7 @@ demorar bastante tempo, dependendo do tamanho escolhido e da velocidade de seu d
     </message>
     <message>
         <source>Please type the name of the new virtual disk file into the box below or click on the folder icon to select a different folder to create the file in.</source>
-        <translation type="unfinished">Pressione o botão &lt;b&gt;Selecionar&lt;/b&gt; para selecionar a localização do arquivo que irá armazenar os dados do disco virtual, ou digite o nome de um arquivo no campo.</translation>
+        <translation>Informe o nome do arquivo em disco que conterá o disco virtual no campo abaixo ou clique no ícone da pasta para selecionar uma localização diferente para o arquivo.</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
@@ -6707,6 +6740,18 @@ demorar bastante tempo, dependendo do tamanho escolhido e da velocidade de seu d
         <source>Details</source>
         <comment>summary</comment>
         <translation>Detalhes</translation>
+    </message>
+    <message>
+        <source>H&amp;DD (Parallels Hard Disk)</source>
+        <translation>H&amp;DD (Disco Rígido do Parallels)</translation>
+    </message>
+    <message>
+        <source>Q&amp;ED (QEMU enhanced disk)</source>
+        <translation>Q&amp;ED (Disco do QEMU)</translation>
+    </message>
+    <message>
+        <source>&amp;QCOW (QEMU Copy-On-Write)</source>
+        <translation>&amp;QCOW (QEMU Copy-On-Write)</translation>
     </message>
 </context>
 <context>
@@ -7179,11 +7224,11 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Start-up &amp;Disk</source>
-        <translation type="unfinished">&amp;Disco Rígido de Boot</translation>
+        <translation>&amp;Disco de Boot</translation>
     </message>
     <message>
         <source>&lt;p&gt;If you wish you can now add a start-up disk to the new machine. You can either create a new virtual disk or select one from the list or from another location using the folder icon.&lt;/p&gt;&lt;p&gt;If you need a more complex virtual disk setup you can skip this step and make the changes to the machine settings once the machine is created.&lt;/p&gt;</source>
-        <translation type="unfinished">&lt;p&gt;Selecione uma imagem de disco rígido virtual para ser utilizada como disco rígido de boot da máquina virtual. Você pode criar um novo disco rígido virtual ou selecionar uma imagem existente pressionando o botão correspondente.&lt;/p&gt;&lt;p&gt;Se você precisa de uma configuração mais complexa de discos rígidos, você pode pular este passo e conectar os discos rígidos posteriormente utilizando o diálogo de Configurações da VM.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Caso deseje, você poderá escolher um disco de inicialização para a nova máquina. Você pode selecionar uma imagem de disco rígido virtual da lista ou selecionar outro local utilizando o ícone de pasta.&lt;/p&gt;&lt;p&gt;Caso necessite de uma configuração de discos virtuais mais complexa, você pode pular este passo e fazer as mudanças manualmente na configuração da máquina virtual assim que o processo de criação for completado.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Choose a virtual hard disk file...</source>
@@ -7191,7 +7236,7 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>The recommended size of the start-up disk is &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished">O tamanho recomendado para o disco rígido de boot é de &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation>O tamanho recomendado para o disco rígido de boot é de &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
 </context>
 <context>
@@ -7227,7 +7272,7 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     <message>
         <source>Start-up Disk</source>
         <comment>summary</comment>
-        <translation type="unfinished">Disco Rígido de Boot</translation>
+        <translation>Disco de Boot</translation>
     </message>
     <message>
         <source>&lt;p&gt;If the above is correct press the &lt;b&gt;%1&lt;/b&gt; button. Once you press it, a new virtual machine will be created. &lt;/p&gt;&lt;p&gt;Note that you can alter these and all other setting of the created virtual machine at any time using the &lt;b&gt;Settings&lt;/b&gt; dialog accessible through the menu of the main window.&lt;/p&gt;</source>
@@ -7511,6 +7556,109 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     <message>
         <source>Select a file to open...</source>
         <translation>Selecione um arquivo para abrir...</translation>
+    </message>
+</context>
+<context>
+    <name>UIUpdateManager</name>
+    <message>
+        <source>1 day</source>
+        <translation>1 dia</translation>
+    </message>
+    <message>
+        <source>2 days</source>
+        <translation>2 dias</translation>
+    </message>
+    <message>
+        <source>3 days</source>
+        <translation>3 dias</translation>
+    </message>
+    <message>
+        <source>4 days</source>
+        <translation>4 dias</translation>
+    </message>
+    <message>
+        <source>5 days</source>
+        <translation>5 dias</translation>
+    </message>
+    <message>
+        <source>6 days</source>
+        <translation>6 dias</translation>
+    </message>
+    <message>
+        <source>1 week</source>
+        <translation>1 semana</translation>
+    </message>
+    <message>
+        <source>2 weeks</source>
+        <translation>2 semanas</translation>
+    </message>
+    <message>
+        <source>3 weeks</source>
+        <translation>3 semanas</translation>
+    </message>
+    <message>
+        <source>1 month</source>
+        <translation>1 mês</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>Nunca</translation>
+    </message>
+    <message>
+        <source>Connection timed out.</source>
+        <translation type="obsolete">Tempo para conexão excedido.</translation>
+    </message>
+    <message>
+        <source>Could not locate the latest version list on the server (response: %1).</source>
+        <translation type="obsolete">Não foi possível localizar a lista com as últimas versões no servidor (resposta: %1).</translation>
+    </message>
+    <message>
+        <source>Chec&amp;k</source>
+        <translation type="obsolete">Verificar (&amp;k)</translation>
+    </message>
+    <message>
+        <source>&amp;Close</source>
+        <translation type="obsolete">Fe&amp;char</translation>
+    </message>
+    <message>
+        <source>VirtualBox Update Wizard</source>
+        <translation type="obsolete">Assistente de Atualização do VirtualBox</translation>
+    </message>
+    <message>
+        <source>Check for Updates</source>
+        <translation type="obsolete">Verificar por atualizações</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;
+&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;
+&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Este assistente irá conectar ao site na web do VirtualBox e verificar se uma versão mais recente do VirtualBox está disponível.&lt;/p&gt;
+&lt;p&gt;Utilize o botão &lt;b&gt;Verificar&lt;/b&gt; para verificar se uma nova versão agora ou o botão &lt;b&gt;Cancelar&lt;/b&gt; se você não deseja realizar esta verificação.&lt;/p&gt;
+&lt;p&gt;Você pode executar este assistente a qualquer momento escolhendo a opção &lt;b&gt;Verificar por Atualizações...&lt;/b&gt; no menu de &lt;b&gt;Ajuda&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">Cancelar</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="obsolete">Sumário</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Uma nova versão do VirtualBox foi lançada! A versão &lt;b&gt;%1&lt;/b&gt; está disponível em &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Você pode baixá-la diretamente através deste link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to obtain the new version information due to the following network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Não foi possível obter informações de versão devido ao seguinte erro de rede:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>You are already running the most recent version of VirtualBox.</source>
+        <translation type="obsolete">Você já possui a versão mais recente do VirtualBox. Por favor verifique mais tarde.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Este assistente irá conectar-se ao site na web do VirtualBox e verificar se uma versão mais recente do VirtualBox está disponível.&lt;/p&gt;&lt;p&gt;Utilize o botão &lt;b&gt;Verificar&lt;/b&gt; para verificar se uma nova versão agora ou o botão &lt;b&gt;Cancelar&lt;/b&gt; se você não deseja realizar esta verificação.&lt;/p&gt;&lt;p&gt;Você pode executar este assistente a qualquer momento escolhendo a opção &lt;b&gt;Verificar por Atualizações...&lt;/b&gt; no menu de &lt;b&gt;Ajuda&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -8109,16 +8257,8 @@ Versão %1</translation>
         <translation type="obsolete">Ajuda (&amp;H)</translation>
     </message>
     <message>
-        <source>Indicates whether the guest display auto-resize function is On (&lt;img src=auto_resize_on_16px.png/&gt;) or Off (&lt;img src=auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">Indica se a função de auto-redimensionar a tela do sistema convidado está Ligada (&lt;img src=auto_resize_on_16px.png/&gt;) ou Desligada (&lt;img src=auto_resize_off_16px.png/&gt;). Note que esta função requer que os Adicionais Para Convidado estejam instalados no sistema convidado.</translation>
-    </message>
-    <message>
-        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">Indica se o ponteiro do mouse do sistema hospedeiro foi capturado pelo sistema convidado:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;o ponteiro não foi capturado&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;o ponteiro foi capturado&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integração de mouse (IM) está Ligada&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM está Desligada, o ponteiro foi capturado&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM está Desligada, o ponteiro não está capturado&lt;/nobr&gt;&lt;br&gt;Note que o recurso de integração do mouse requer que os Adicionais Para Convidado sejam instalados no sistema convidado.</translation>
-    </message>
-    <message>
-        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=hostkey_captured_16px.png/&gt;) or not (&lt;img src=hostkey_16px.png/&gt;)</source>
-        <translation type="obsolete">Indica se o teclado foi capturado pelo sistema convidado (&lt;img src=hostkey_captured_16px.png/&gt;) ou não (&lt;img src=hostkey_16px.png/&gt;)</translation>
+        <source>Indicates whether the guest display auto-resize function is On (&lt;img src=:/auto_resize_on_16px.png/&gt;) or Off (&lt;img src=:/auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
+        <translation type="obsolete">Indica se a função de auto-redimensionar a tela do sistema convidado está Ligada (&lt;img src=:/auto_resize_on_16px.png/&gt;) ou Desligada (&lt;img src=:/auto_resize_off_16px.png/&gt;). Note que esta função requer que os Adicionais Para Convidado estejam instalados no sistema convidado.</translation>
     </message>
     <message>
         <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
@@ -8166,8 +8306,8 @@ Versão %1</translation>
         <translation type="obsolete">&lt;br&gt;[&lt;b&gt;não conectado&lt;/b&gt;]</translation>
     </message>
     <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=vrdp_16px.png/&gt;) or not (&lt;img src=vrdp_disabled_16px.png/&gt;)</source>
-        <translation type="obsolete">Indica se a Tela Remota (servidor VRDP) está habilitada (&lt;img src=vrdp_16px.png/&gt;) ou não (&lt;img src=vrdp_disabled_16px.png/&gt;)</translation>
+        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;)</source>
+        <translation type="obsolete">Indica se a Tela Remota (servidor VRDP) está habilitada (&lt;img src=:/vrdp_16px.png/&gt;) ou não (&lt;img src=:/vrdp_disabled_16px.png/&gt;)</translation>
     </message>
     <message>
         <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
@@ -8282,10 +8422,6 @@ Versão %1</translation>
         <translation type="obsolete">Alterna para o modo &quot;seamless&quot; de integração com o desktop</translation>
     </message>
     <message>
-        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=hostkey_captured_16px.png/&gt;) or not (&lt;img src=hostkey_16px.png/&gt;).</source>
-        <translation type="obsolete">Indica se o teclado foi capturad pelo sistema operacional Convidado (&lt;img src=hostkey_captured_16px.png/&gt;) ou não (&lt;img src=hostkey_16px.png/&gt;).</translation>
-    </message>
-    <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the floppy media:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>Floppy tooltip</comment>
         <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;Indica a atividade na mídia de disquete:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
@@ -8376,10 +8512,6 @@ Versão %1</translation>
         <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Controladora USB desabilitada&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=vrdp_16px.png/&gt;) or not (&lt;img src=vrdp_disabled_16px.png/&gt;).</source>
-        <translation type="obsolete">Indica se o servidor de Display Remoto (VRDP) está habilitado (&lt;img src=vrdp_16px.png/&gt;) ou não (&lt;img src=vrdp_disabled_16px.png/&gt;).</translation>
-    </message>
-    <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the machineof the machine&apos;sapos;s shared folders: shared folders:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>Shared folders tooltip</comment>
         <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;Indica a atividade em pastas compartilhadas:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
@@ -8431,22 +8563,6 @@ Versão %1</translation>
         <source>&amp;Logging...</source>
         <comment>debug action</comment>
         <translation type="obsolete">Opções de &amp;Log...</translation>
-    </message>
-    <message>
-        <source>Indicates whether the guest display auto-resize function is On (&lt;img src=:/auto_resize_on_16px.png/&gt;) or Off (&lt;img src=:/auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">Indica se a função de auto-redimensionar a tela do sistema convidado está Ligada (&lt;img src=auto_resize_on_16px.png/&gt;) ou Desligada (&lt;img src=auto_resize_off_16px.png/&gt;). Note que esta função requer que os Adicionais Para Convidado estejam instalados no sistema convidado.</translation>
-    </message>
-    <message>
-        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">Indica se o ponteiro do mouse do sistema hospedeiro foi capturado pelo sistema convidado:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;o ponteiro não foi capturado&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;o ponteiro foi capturado&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integração de mouse (IM) está Ligada&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM está Desligada, o ponteiro foi capturado&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM está Desligada, o ponteiro não está capturado&lt;/nobr&gt;&lt;br&gt;Note que o recurso de integração do mouse requer que os Adicionais Para Convidado sejam instalados no sistema convidado.</translation>
-    </message>
-    <message>
-        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
-        <translation type="obsolete">Indica se o teclado foi capturad pelo sistema operacional Convidado (&lt;img src=hostkey_captured_16px.png/&gt;) ou não (&lt;img src=hostkey_16px.png/&gt;).</translation>
-    </message>
-    <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
-        <translation type="obsolete">Indica se o servidor de Tela Remota (VRDP) está habilitado (&lt;img src=vrdp_16px.png/&gt;) ou não (&lt;img src=vrdp_disabled_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
@@ -10228,50 +10344,44 @@ Versão %1</translation>
     </message>
     <message numerus="yes">
         <source>%n year(s)</source>
-        <translation type="unfinished">
-            <numerusform>%n ano(s)
-        
-        </numerusform>
+        <translation>
+            <numerusform>%n ano(s)</numerusform>
+            <numerusform></numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n month(s)</source>
-        <translation type="unfinished">
-            <numerusform>%n mes(es)
-        
-        </numerusform>
+        <translation>
+            <numerusform>%n mes(es)</numerusform>
+            <numerusform></numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n day(s)</source>
-        <translation type="unfinished">
-            <numerusform>%n dia(s)
-        
-        </numerusform>
+        <translation>
+            <numerusform>%n dia(s)</numerusform>
+            <numerusform></numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n hour(s)</source>
-        <translation type="unfinished">
-            <numerusform>%n hora(s)
-        
-        </numerusform>
+        <translation>
+            <numerusform>%n hora(s)</numerusform>
+            <numerusform></numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n minute(s)</source>
-        <translation type="unfinished">
-            <numerusform>%n minuto(s)
-        
-        </numerusform>
+        <translation>
+            <numerusform>%n minuto(s)</numerusform>
+            <numerusform></numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n second(s)</source>
-        <translation type="unfinished">
-            <numerusform>%n segundo(s)
-        
-        </numerusform>
+        <translation>
+            <numerusform>%n segundo(s)</numerusform>
+            <numerusform></numerusform>
         </translation>
     </message>
     <message>
@@ -11874,10 +11984,6 @@ to the system default language.&lt;/qt&gt;
         <translation>Iniciar a máquina virtual selecionada</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;h3&gt;Bem-Vindo ao VirtualBox!&lt;/h3&gt;&lt;p&gt;A parte esquerda desta janela mostra uma lista de todas as máquinas virtuais disponíveis em seu computador. A lista está vazia agora porque você ainda não criou nenhuma máquina virtual ainda.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Para criar uma nova máquina virtual, pressione o botão &lt;b&gt;Novo&lt;/b&gt; na barra de ferramentas principal, localizada no topo da janela.&lt;/p&gt;&lt;p&gt;Você pode pressionar &lt;b&gt;%1&lt;/b&gt; para obter ajuda instantânea, ou visitar &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; para obter informações e notícias sobre o VirtualBox.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&amp;Machine</source>
         <translation>&amp;Máquina</translation>
     </message>
@@ -11935,7 +12041,7 @@ to the system default language.&lt;/qt&gt;
     </message>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Bem-Vindo ao VirtualBox!&lt;/h3&gt;&lt;p&gt;A parte esquerda desta janela mostra uma lista de todas as máquinas virtuais disponíveis em seu computador. A lista está vazia agora porque você ainda não criou nenhuma máquina virtual ainda.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Para criar uma nova máquina virtual, pressione o botão &lt;b&gt;Novo&lt;/b&gt; na barra de ferramentas principal, localizada no topo da janela.&lt;/p&gt;&lt;p&gt;Você pode pressionar &lt;b&gt;%1&lt;/b&gt; para obter ajuda instantânea, ou visitar &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; para obter informações e notícias sobre o VirtualBox.&lt;/p&gt;</translation>
+        <translation>&lt;h3&gt;Bem-Vindo ao VirtualBox!&lt;/h3&gt;&lt;p&gt;A parte esquerda desta janela mostra uma lista de todas as máquinas virtuais disponíveis em seu computador. A lista está vazia agora porque você ainda não criou nenhuma máquina virtual ainda.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Para criar uma nova máquina virtual, pressione o botão &lt;b&gt;Novo&lt;/b&gt; na barra de ferramentas principal, localizada no topo da janela.&lt;/p&gt;&lt;p&gt;Você pode pressionar &lt;b&gt;%1&lt;/b&gt; para obter ajuda instantânea, ou visitar &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; para obter informações e notícias sobre o VirtualBox.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Virtual Media Manager...</source>
@@ -12573,10 +12679,9 @@ para acessá-lo de um sistema operacional Linux. Este recurso requer a instalaç
     </message>
     <message numerus="yes">
         <source>Warning: You are taking a snapshot of a running machine which has %n immutable image(s) attached to it. As long as you are working from this snapshot the immutable image(s) will not be reset to avoid loss of data.</source>
-        <translation type="unfinished">
-            <numerusform>Aviso: Você está criando um snapshot de uma máquina em execução que possui %n imagens imutáveis associadas a ela. Enquanto você estiver trabalhando a partir deste snapshot, as imagens imutáveis não serão reestabelecidas para evitar perda de dados.
-        
-        </numerusform>
+        <translation>
+            <numerusform>Aviso: Você está criando um snapshot de uma máquina em execução que possui %n imagens imutáveis associadas a ela. Enquanto você estiver trabalhando a partir deste snapshot, as imagens imutáveis não serão reestabelecidas para evitar perda de dados.</numerusform>
+            <numerusform></numerusform>
         </translation>
     </message>
 </context>
@@ -12766,109 +12871,6 @@ qualquer valor.&lt;/qt&gt;</translation>
         <source>No supported devices connected to the host PC</source>
         <comment>USB device tooltip</comment>
         <translation>Nenhum dispositivo suportado está conectado ao PC hospedeiro</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxUpdateDlg</name>
-    <message>
-        <source>1 day</source>
-        <translation>1 dia</translation>
-    </message>
-    <message>
-        <source>2 days</source>
-        <translation>2 dias</translation>
-    </message>
-    <message>
-        <source>3 days</source>
-        <translation>3 dias</translation>
-    </message>
-    <message>
-        <source>4 days</source>
-        <translation>4 dias</translation>
-    </message>
-    <message>
-        <source>5 days</source>
-        <translation>5 dias</translation>
-    </message>
-    <message>
-        <source>6 days</source>
-        <translation>6 dias</translation>
-    </message>
-    <message>
-        <source>1 week</source>
-        <translation>1 semana</translation>
-    </message>
-    <message>
-        <source>2 weeks</source>
-        <translation>2 semanas</translation>
-    </message>
-    <message>
-        <source>3 weeks</source>
-        <translation>3 semanas</translation>
-    </message>
-    <message>
-        <source>1 month</source>
-        <translation>1 mês</translation>
-    </message>
-    <message>
-        <source>Never</source>
-        <translation>Nunca</translation>
-    </message>
-    <message>
-        <source>Connection timed out.</source>
-        <translation type="obsolete">Tempo para conexão excedido.</translation>
-    </message>
-    <message>
-        <source>Could not locate the latest version list on the server (response: %1).</source>
-        <translation type="obsolete">Não foi possível localizar a lista com as últimas versões no servidor (resposta: %1).</translation>
-    </message>
-    <message>
-        <source>Chec&amp;k</source>
-        <translation>Verificar (&amp;k)</translation>
-    </message>
-    <message>
-        <source>&amp;Close</source>
-        <translation>Fe&amp;char</translation>
-    </message>
-    <message>
-        <source>VirtualBox Update Wizard</source>
-        <translation>Assistente de Atualização do VirtualBox</translation>
-    </message>
-    <message>
-        <source>Check for Updates</source>
-        <translation>Verificar por atualizações</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;
-&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;
-&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Este assistente irá conectar ao site na web do VirtualBox e verificar se uma versão mais recente do VirtualBox está disponível.&lt;/p&gt;
-&lt;p&gt;Utilize o botão &lt;b&gt;Verificar&lt;/b&gt; para verificar se uma nova versão agora ou o botão &lt;b&gt;Cancelar&lt;/b&gt; se você não deseja realizar esta verificação.&lt;/p&gt;
-&lt;p&gt;Você pode executar este assistente a qualquer momento escolhendo a opção &lt;b&gt;Verificar por Atualizações...&lt;/b&gt; no menu de &lt;b&gt;Ajuda&lt;/b&gt;.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Cancelar</translation>
-    </message>
-    <message>
-        <source>Summary</source>
-        <translation>Sumário</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Uma nova versão do VirtualBox foi lançada! A versão &lt;b&gt;%1&lt;/b&gt; está disponível em &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Você pode baixá-la diretamente através deste link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Unable to obtain the new version information due to the following network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Não foi possível obter informações de versão devido ao seguinte erro de rede:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>You are already running the most recent version of VirtualBox.</source>
-        <translation>Você já possui a versão mais recente do VirtualBox. Por favor verifique mais tarde.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Este assistente irá conectar-se ao site na web do VirtualBox e verificar se uma versão mais recente do VirtualBox está disponível.&lt;/p&gt;&lt;p&gt;Utilize o botão &lt;b&gt;Verificar&lt;/b&gt; para verificar se uma nova versão agora ou o botão &lt;b&gt;Cancelar&lt;/b&gt; se você não deseja realizar esta verificação.&lt;/p&gt;&lt;p&gt;Você pode executar este assistente a qualquer momento escolhendo a opção &lt;b&gt;Verificar por Atualizações...&lt;/b&gt; no menu de &lt;b&gt;Ajuda&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>

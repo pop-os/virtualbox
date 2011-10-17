@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 37955 2011-07-14 12:23:02Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Top level makefile.
 #
@@ -1280,7 +1280,7 @@ snapshot-ose:
 	$(QUIET)$(MKDIR) -p $(TARBALLPATH)
 	$(QUIET)$(RM) -f $(TARBALLPATH)/$(TARBALLROOT)
 	$(QUIET)$(LN_SYMLINK) $(PATH_ROOT) $(TARBALLPATH)/$(TARBALLROOT)
-	$(QUIET)tar -cjh --owner 0 --group 0 --totals \
+	$(QUIET)tar -cjh --dereference --owner 0 --group 0 --totals \
 	    --exclude=.svn \
 	    --exclude=$(TARBALLROOT)/out \
 	    --exclude=$(TARBALLROOT)/env.sh \

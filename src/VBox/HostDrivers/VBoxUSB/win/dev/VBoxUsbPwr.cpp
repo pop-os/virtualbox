@@ -1,4 +1,4 @@
-/* $Id: VBoxUsbPwr.cpp 36968 2011-05-05 08:55:16Z vboxsync $ */
+/* $Id: VBoxUsbPwr.cpp $ */
 /** @file
  * USB Power state Handling
  */

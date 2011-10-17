@@ -1,4 +1,4 @@
-/* $Id: VBoxUtils-win.cpp 35940 2011-02-11 11:58:32Z vboxsync $ */
+/* $Id: VBoxUtils-win.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

@@ -1,4 +1,4 @@
-/* $Id: config-host.h 37689 2011-06-29 16:01:23Z vboxsync $ */
+/* $Id: config-host.h $ */
 /** @file
  * Sun host config - maintained by hand
  */

@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR3LibBalloon.cpp 31045 2010-07-23 09:48:52Z vboxsync $ */
+/* $Id: VBoxGuestR3LibBalloon.cpp $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, Ballooning.
  */

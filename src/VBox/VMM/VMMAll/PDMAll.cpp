@@ -1,4 +1,4 @@
-/* $Id: PDMAll.cpp 37475 2011-06-15 16:42:55Z vboxsync $ */
+/* $Id: PDMAll.cpp $ */
 /** @file
  * PDM Critical Sections
  */

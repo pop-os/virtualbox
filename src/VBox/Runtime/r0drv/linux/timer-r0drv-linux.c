@@ -1,4 +1,4 @@
-/* $Id: timer-r0drv-linux.c 33603 2010-10-29 12:42:24Z vboxsync $ */
+/* $Id: timer-r0drv-linux.c $ */
 /** @file
  * IPRT - Timers, Ring-0 Driver, Linux.
  */

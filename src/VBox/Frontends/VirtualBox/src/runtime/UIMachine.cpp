@@ -1,4 +1,4 @@
-/* $Id: UIMachine.cpp 38348 2011-08-08 12:09:18Z vboxsync $ */
+/* $Id: UIMachine.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -385,9 +385,6 @@ UIMachine::UIMachine(UIMachine **ppSelf, const CSession &session)
     if (m_ppThis)
         *m_ppThis = this;
 
-    /* Create action pool: */
-    UIActionPoolRuntime::create();
-
     /* Create UISession object: */
     m_pSession = new UISession(this, m_session);
 
@@ -417,8 +414,6 @@ UIMachine::~UIMachine()
     m_pSession = 0;
     m_session.UnlockMachine();
     m_session.detach();
-    /* Destroy action pool: */
-    UIActionPoolRuntime::destroy();
     /* Quit application: */
     QApplication::quit();
 }

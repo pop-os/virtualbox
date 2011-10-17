@@ -1,4 +1,4 @@
-/* $Id: HGCMObjects.cpp 35374 2010-12-30 14:42:15Z vboxsync $ */
+/* $Id: HGCMObjects.cpp $ */
 /** @file
  * HGCMObjects - Host-Guest Communication Manager objects
  */

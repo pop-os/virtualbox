@@ -1,4 +1,4 @@
-/* $Id: tstR0ThreadPreemption.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstR0ThreadPreemption.h $ */
 /** @file
  * IPRT R0 Testcase - Thread Preemption, common header.
  */

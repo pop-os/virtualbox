@@ -1,4 +1,4 @@
-# $Id: tstVDIo.vd 38413 2011-08-11 11:18:44Z vboxsync $
+# $Id: tstVDIo.vd $
 #
 # Storage: Simple I/O testing for most backends.
 #

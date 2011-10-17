@@ -1,4 +1,4 @@
-/* $Id: VMMTests.cpp 37955 2011-07-14 12:23:02Z vboxsync $ */
+/* $Id: VMMTests.cpp $ */
 /** @file
  * VMM - The Virtual Machine Monitor Core, Tests.
  */

@@ -1,4 +1,4 @@
-/* $Id: DisplayPNGUtil.cpp 36494 2011-04-01 13:14:47Z vboxsync $ */
+/* $Id: DisplayPNGUtil.cpp $ */
 /** @file
  * PNG utilities
  */

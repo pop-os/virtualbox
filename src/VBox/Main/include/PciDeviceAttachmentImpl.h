@@ -1,4 +1,4 @@
-/* $Id: PciDeviceAttachmentImpl.h 35885 2011-02-08 01:20:04Z vboxsync $ */
+/* $Id: PciDeviceAttachmentImpl.h $ */
 
 /** @file
  *

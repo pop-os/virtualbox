@@ -1,4 +1,4 @@
-/** $Id: clipboard.cpp 37434 2011-06-14 13:14:57Z vboxsync $ */
+/** $Id: clipboard.cpp $ */
 /** @file
  * Guest Additions - X11 Shared Clipboard.
  */

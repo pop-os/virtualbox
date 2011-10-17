@@ -1,4 +1,4 @@
-/* $Id: SUPDrv-darwin.cpp 37970 2011-07-14 14:37:23Z vboxsync $ */
+/* $Id: SUPDrv-darwin.cpp $ */
 /** @file
  * VirtualBox Support Driver - Darwin Specific Code.
  */

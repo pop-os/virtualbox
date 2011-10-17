@@ -1,4 +1,4 @@
-/* $Id: alsa_stubs.c 34451 2010-11-29 11:00:53Z vboxsync $ */
+/* $Id: alsa_stubs.c $ */
 /** @file
  * Stubs for libasound.
  */

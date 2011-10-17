@@ -1,4 +1,4 @@
-/* $Id: VBoxGuest.cpp 34406 2010-11-26 16:45:34Z vboxsync $ */
+/* $Id: VBoxGuest.cpp $ */
 /** @file
  * VBoxGuest - Guest Additions Driver, Common Code.
  */
@@ -56,6 +56,10 @@
 #ifdef VBOX_WITH_HGCM
 static DECLCALLBACK(int) VBoxGuestHGCMAsyncWaitCallback(VMMDevHGCMRequestHeader *pHdrNonVolatile, void *pvUser, uint32_t u32User);
 #endif
+#ifdef DEBUG
+static void testSetMouseStatus(void);
+#endif
+static int VBoxGuestCommonIOCtl_SetMouseStatus(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession, uint32_t fFeatures);
 
 
 /*******************************************************************************
@@ -708,7 +712,6 @@ int VBoxGuestInitDevExt(PVBOXGUESTDEVEXT pDevExt, uint16_t IOPortBase,
     pDevExt->f32PendingEvents = 0;
     pDevExt->u32MousePosChangedSeq = 0;
     pDevExt->SessionSpinlock = NIL_RTSPINLOCK;
-    pDevExt->u32ClipboardClientId = 0;
     pDevExt->MemBalloon.hMtx = NIL_RTSEMFASTMUTEX;
     pDevExt->MemBalloon.cChunks = 0;
     pDevExt->MemBalloon.cMaxChunks = 0;
@@ -787,6 +790,10 @@ int VBoxGuestInitDevExt(PVBOXGUESTDEVEXT pDevExt, uint16_t IOPortBase,
                     if (RT_SUCCESS(rc))
                     {
                         vboxGuestInitFixateGuestMappings(pDevExt);
+
+#ifdef DEBUG
+                        testSetMouseStatus();  /* Other tests? */
+#endif
 
                         rc = VBoxGuestReportDriverStatus(true /* Driver is active */);
                         if (RT_FAILURE(rc))
@@ -978,6 +985,8 @@ void VBoxGuestCloseSession(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession)
     pSession->Process = NIL_RTPROCESS;
     pSession->R0Process = NIL_RTR0PROCESS;
     vboxGuestCloseMemBalloon(pDevExt, pSession);
+    /* Reset any mouse status flags which the session may have set. */
+    VBoxGuestCommonIOCtl_SetMouseStatus(pDevExt, pSession, 0);
     RTMemFree(pSession);
 }
 
@@ -1817,74 +1826,6 @@ static int VBoxGuestCommonIOCtl_HGCMCall(PVBOXGUESTDEVEXT pDevExt,
 }
 
 
-/**
- * @returns VBox status code. Unlike the other HGCM IOCtls this will combine
- *          the VbglHGCMConnect/Disconnect return code with the Info.result.
- *
- * @param   pDevExt             The device extension.
- * @param   pu32ClientId        The client id.
- * @param   pcbDataReturned     Where to store the amount of returned data. Can
- *                              be NULL.
- */
-static int VBoxGuestCommonIOCtl_HGCMClipboardReConnect(PVBOXGUESTDEVEXT pDevExt, uint32_t *pu32ClientId, size_t *pcbDataReturned)
-{
-    int                         rc;
-    VBoxGuestHGCMConnectInfo    CnInfo;
-
-    Log(("VBoxGuestCommonIOCtl: CLIPBOARD_CONNECT: Current u32ClientId=%RX32\n", pDevExt->u32ClipboardClientId));
-
-    /*
-     * If there is an old client, try disconnect it first.
-     */
-    if (pDevExt->u32ClipboardClientId != 0)
-    {
-        VBoxGuestHGCMDisconnectInfo DiInfo;
-        DiInfo.result = VERR_WRONG_ORDER;
-        DiInfo.u32ClientID = pDevExt->u32ClipboardClientId;
-        rc = VbglR0HGCMInternalDisconnect(&DiInfo, VBoxGuestHGCMAsyncWaitCallback, pDevExt, RT_INDEFINITE_WAIT);
-        if (RT_SUCCESS(rc))
-        {
-            LogRel(("VBoxGuestCommonIOCtl: CLIPBOARD_CONNECT: failed to disconnect old client. VbglHGCMDisconnect -> rc=%Rrc\n", rc));
-            return rc;
-        }
-        if (RT_FAILURE((int32_t)DiInfo.result))
-        {
-            Log(("VBoxGuestCommonIOCtl: CLIPBOARD_CONNECT: failed to disconnect old client. DiInfo.result=%Rrc\n", DiInfo.result));
-            return DiInfo.result;
-        }
-        pDevExt->u32ClipboardClientId = 0;
-    }
-
-    /*
-     * Try connect.
-     */
-    CnInfo.Loc.type = VMMDevHGCMLoc_LocalHost_Existing;
-    strcpy(CnInfo.Loc.u.host.achName, "VBoxSharedClipboard");
-    CnInfo.u32ClientID = 0;
-    CnInfo.result = VERR_WRONG_ORDER;
-
-    rc = VbglR0HGCMInternalConnect(&CnInfo, VBoxGuestHGCMAsyncWaitCallback, pDevExt, RT_INDEFINITE_WAIT);
-    if (RT_FAILURE(rc))
-    {
-        LogRel(("VBoxGuestCommonIOCtl: CLIPBOARD_CONNECT: VbglHGCMConnected -> rc=%Rrc\n", rc));
-        return rc;
-    }
-    if (RT_FAILURE(CnInfo.result))
-    {
-        LogRel(("VBoxGuestCommonIOCtl: CLIPBOARD_CONNECT: VbglHGCMConnected -> rc=%Rrc\n", rc));
-        return rc;
-    }
-
-    Log(("VBoxGuestCommonIOCtl: CLIPBOARD_CONNECT: connected successfully u32ClientId=%RX32\n", CnInfo.u32ClientID));
-
-    pDevExt->u32ClipboardClientId = CnInfo.u32ClientID;
-    *pu32ClientId = CnInfo.u32ClientID;
-    if (pcbDataReturned)
-        *pcbDataReturned = sizeof(uint32_t);
-
-    return VINF_SUCCESS;
-}
-
 #endif /* VBOX_WITH_HGCM */
 
 /**
@@ -2068,6 +2009,172 @@ static int VBoxGuestCommonIOCtl_DisableVRDPSession(VBOXGUESTDEVEXT pDevExt, PVBO
 }
 #endif /* VBOX_WITH_VRDP_SESSION_HANDLING */
 
+#ifdef DEBUG
+/** Unit test SetMouseStatus instead of really executing the request. */
+static bool     g_test_fSetMouseStatus = false;
+/** When unit testing SetMouseStatus, the fake RC for the GR to return. */
+static int      g_test_SetMouseStatusGRRC;
+/** When unit testing SetMouseStatus this will be set to the status passed to
+ * the GR. */
+static uint32_t g_test_statusSetMouseStatus;
+#endif
+
+static int vboxguestcommonSetMouseStatus(uint32_t fFeatures)
+{
+    VMMDevReqMouseStatus *pReq;
+    int rc;
+
+    LogRelFlowFunc(("fFeatures=%u\n", (int) fFeatures));
+    rc = VbglGRAlloc((VMMDevRequestHeader **)&pReq, sizeof(*pReq), VMMDevReq_SetMouseStatus);
+    if (RT_SUCCESS(rc))
+    {
+        pReq->mouseFeatures = fFeatures;
+        pReq->pointerXPos = 0;
+        pReq->pointerYPos = 0;
+#ifdef DEBUG
+        if (g_test_fSetMouseStatus)
+        {
+            g_test_statusSetMouseStatus = pReq->mouseFeatures;
+            rc = g_test_SetMouseStatusGRRC;
+        }
+        else
+#endif
+            rc = VbglGRPerform(&pReq->header);
+        VbglGRFree(&pReq->header);
+    }
+    LogRelFlowFunc(("rc=%Rrc\n", rc));
+    return rc;
+}
+
+
+/**
+ * Sets the mouse status features for this session and updates them
+ * globally.  We aim to ensure that if several threads call this in
+ * parallel the most recent status will always end up being set.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pDevExt             The device extention.
+ * @param   pSession            The session.
+ * @param   fFeatures           New bitmap of enabled features.
+ */
+static int VBoxGuestCommonIOCtl_SetMouseStatus(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession, uint32_t fFeatures)
+{
+    unsigned i;
+    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
+    uint32_t fNewDevExtStatus = 0;
+    int rc;
+    /* Exit early if nothing has changed - hack to work around the
+     * Windows Additions not using the common code. */
+    bool fNoAction;
+
+    RTSpinlockAcquireNoInts(pDevExt->SessionSpinlock, &Tmp);
+    for (i = 0; i < sizeof(fFeatures) * 8; ++i)
+    {
+        if (RT_BIT_32(i) & VMMDEV_MOUSE_GUEST_MASK)
+        {
+            if (   (RT_BIT_32(i) & fFeatures)
+                && !(RT_BIT_32(i) & pSession->fMouseStatus))
+                ++pDevExt->cMouseFeatureUsage[i];
+            else if (   !(RT_BIT_32(i) & fFeatures)
+                     && (RT_BIT_32(i) & pSession->fMouseStatus))
+                --pDevExt->cMouseFeatureUsage[i];
+        }
+        if (pDevExt->cMouseFeatureUsage[i] > 0)
+            fNewDevExtStatus |= RT_BIT_32(i);
+    }
+    pSession->fMouseStatus = fFeatures & VMMDEV_MOUSE_GUEST_MASK;
+    fNoAction = (pDevExt->fMouseStatus == fNewDevExtStatus);
+    pDevExt->fMouseStatus = fNewDevExtStatus;
+    RTSpinlockReleaseNoInts(pDevExt->SessionSpinlock, &Tmp);
+    if (fNoAction)
+        return VINF_SUCCESS;
+    do
+    {
+        fNewDevExtStatus = pDevExt->fMouseStatus;
+        rc = vboxguestcommonSetMouseStatus(fNewDevExtStatus);
+    } while(RT_SUCCESS(rc) && fNewDevExtStatus != pDevExt->fMouseStatus);
+    return rc;
+}
+
+
+#ifdef DEBUG
+/** Unit test for the SET_MOUSE_STATUS IoCtl.  Since this is closely tied to
+ * the code in question it probably makes most sense to keep it next to the
+ * code. */
+static void testSetMouseStatus(void)
+{
+    int cFailures = 0;
+    uint32_t u32Data;
+    int rc;
+    RTSPINLOCK Spinlock;
+
+    g_test_fSetMouseStatus = true;
+    rc = RTSpinlockCreate(&Spinlock);
+    AssertRCReturnVoid(rc);
+    {
+        VBOXGUESTDEVEXT  DevExt  = { 0 };
+        VBOXGUESTSESSION Session = { 0 };
+
+        g_test_statusSetMouseStatus = ~0;
+        g_test_SetMouseStatusGRRC = VINF_SUCCESS;
+        DevExt.SessionSpinlock = Spinlock;
+        u32Data = VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE;
+        rc = VBoxGuestCommonIOCtl(VBOXGUEST_IOCTL_SET_MOUSE_STATUS, &DevExt,
+                                  &Session, &u32Data, sizeof(u32Data), NULL);
+        AssertRCSuccess(rc);
+        AssertMsg(   g_test_statusSetMouseStatus
+                  == VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE,
+                  ("Actual status: 0x%x\n", g_test_statusSetMouseStatus));
+        DevExt.cMouseFeatureUsage[ASMBitFirstSetU32(VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR) - 1] = 1;
+        rc = VBoxGuestCommonIOCtl(VBOXGUEST_IOCTL_SET_MOUSE_STATUS, &DevExt,
+                                  &Session, &u32Data, sizeof(u32Data), NULL);
+        AssertRCSuccess(rc);
+        AssertMsg(   g_test_statusSetMouseStatus
+                  == (  VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE
+                      | VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR),
+                  ("Actual status: 0x%x\n", g_test_statusSetMouseStatus));
+        u32Data = VMMDEV_MOUSE_HOST_WANTS_ABSOLUTE;  /* Can't change this */
+        rc = VBoxGuestCommonIOCtl(VBOXGUEST_IOCTL_SET_MOUSE_STATUS, &DevExt,
+                                  &Session, &u32Data, sizeof(u32Data), NULL);
+        AssertRCSuccess(rc);
+        AssertMsg(   g_test_statusSetMouseStatus
+                  == VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR,
+                  ("Actual status: 0x%x\n", g_test_statusSetMouseStatus));
+        u32Data = VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR;
+        rc = VBoxGuestCommonIOCtl(VBOXGUEST_IOCTL_SET_MOUSE_STATUS, &DevExt,
+                                  &Session, &u32Data, sizeof(u32Data), NULL);
+        AssertRCSuccess(rc);
+        AssertMsg(   g_test_statusSetMouseStatus
+                  == VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR,
+                  ("Actual status: 0x%x\n", g_test_statusSetMouseStatus));
+        u32Data = 0;
+        rc = VBoxGuestCommonIOCtl(VBOXGUEST_IOCTL_SET_MOUSE_STATUS, &DevExt,
+                                  &Session, &u32Data, sizeof(u32Data), NULL);
+        AssertRCSuccess(rc);
+        AssertMsg(   g_test_statusSetMouseStatus
+                  == VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR,
+                  ("Actual status: 0x%x\n", g_test_statusSetMouseStatus));
+        AssertMsg(DevExt.cMouseFeatureUsage[ASMBitFirstSetU32(VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR) - 1] == 1,
+                  ("Actual value: %d\n", DevExt.cMouseFeatureUsage[ASMBitFirstSetU32(VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR)]));
+        g_test_SetMouseStatusGRRC = VERR_UNRESOLVED_ERROR;
+        /* This should succeed as the host request should not be made
+         * since nothing has changed. */
+        rc = VBoxGuestCommonIOCtl(VBOXGUEST_IOCTL_SET_MOUSE_STATUS, &DevExt,
+                                  &Session, &u32Data, sizeof(u32Data), NULL);
+        AssertRCSuccess(rc);
+        /* This should fail with VERR_UNRESOLVED_ERROR as set above. */
+        u32Data = VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE;
+        rc = VBoxGuestCommonIOCtl(VBOXGUEST_IOCTL_SET_MOUSE_STATUS, &DevExt,
+                                  &Session, &u32Data, sizeof(u32Data), NULL);
+        AssertMsg(rc == VERR_UNRESOLVED_ERROR, ("rc == %Rrc\n", rc));
+        /* Untested paths: out of memory; race setting status to host */
+   }
+    RTSpinlockDestroy(Spinlock);
+    g_test_fSetMouseStatus = false;
+}
+#endif
+
 
 /**
  * Guest backdoor logging.
@@ -2140,6 +2247,20 @@ int VBoxGuestCommonIOCtl(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUES
         if ((cbMin) != 0 && !VALID_PTR(pvData)) \
         { \
             LogRel(("VBoxGuestCommonIOCtl: " mnemonic ": Invalid pointer %p\n", pvData)); \
+            return VERR_INVALID_POINTER; \
+        } \
+    } while (0)
+#define CHECKRET_SIZE(mnemonic, cb) \
+    do { \
+        if (cbData != (cb)) \
+        { \
+            LogFunc((mnemonic ": cbData=%#zx (%zu) expected is %#zx (%zu)\n", \
+                 cbData, cbData, (size_t)(cb), (size_t)(cb))); \
+            return VERR_BUFFER_OVERFLOW; \
+        } \
+        if ((cb) != 0 && !VALID_PTR(pvData)) \
+        { \
+            LogFunc((mnemonic ": Invalid pointer %p\n", pvData)); \
             return VERR_INVALID_POINTER; \
         } \
     } while (0)
@@ -2243,11 +2364,6 @@ int VBoxGuestCommonIOCtl(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUES
                 CHECKRET_MIN_SIZE("HGCM_DISCONNECT", sizeof(VBoxGuestHGCMDisconnectInfo));
                 rc = VBoxGuestCommonIOCtl_HGCMDisconnect(pDevExt, pSession, (VBoxGuestHGCMDisconnectInfo *)pvData, pcbDataReturned);
                 break;
-
-            case VBOXGUEST_IOCTL_CLIPBOARD_CONNECT:
-                CHECKRET_MIN_SIZE("CLIPBOARD_CONNECT", sizeof(uint32_t));
-                rc = VBoxGuestCommonIOCtl_HGCMClipboardReConnect(pDevExt, (uint32_t *)pvData, pcbDataReturned);
-                break;
 #endif /* VBOX_WITH_HGCM */
 
             case VBOXGUEST_IOCTL_CHECK_BALLOON:
@@ -2274,6 +2390,11 @@ int VBoxGuestCommonIOCtl(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUES
                 rc = VBoxGuestCommonIOCtl_DisableVRDPSession(pDevExt, pSession);
                 break;
 #endif /* VBOX_WITH_VRDP_SESSION_HANDLING */
+            case VBOXGUEST_IOCTL_SET_MOUSE_STATUS:
+                CHECKRET_SIZE("SET_MOUSE_STATUS", sizeof(uint32_t));
+                rc = VBoxGuestCommonIOCtl_SetMouseStatus(pDevExt, pSession,
+                                                         *(uint32_t *)pvData);
+                break;
 
             default:
             {

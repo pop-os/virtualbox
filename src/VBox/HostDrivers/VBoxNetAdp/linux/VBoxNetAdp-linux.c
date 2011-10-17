@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdp-linux.c 35809 2011-02-01 12:31:15Z vboxsync $ */
+/* $Id: VBoxNetAdp-linux.c $ */
 /** @file
  * VBoxNetAdp - Virtual Network Adapter Driver (Host), Linux Specific Code.
  */

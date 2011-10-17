@@ -1,4 +1,4 @@
-/* $Id: UIMachineWindowScale.cpp 38348 2011-08-08 12:09:18Z vboxsync $ */
+/* $Id: UIMachineWindowScale.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

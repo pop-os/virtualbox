@@ -1,4 +1,4 @@
-/* $Id: VBoxPrintHex.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxPrintHex.c $ */
 /** @file
  * VBoxPrintHex.c - Implementation of the VBoxPrintHex() debug logging routine.
  */

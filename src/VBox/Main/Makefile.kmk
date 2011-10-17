@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 38290 2011-08-03 09:22:12Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Makefile for the VBox Main module.
 #
@@ -906,16 +906,17 @@ VBoxJMscom-inst-jar_CLEAN = \
 	)
 VBoxJMscom-inst-jar_BLDDIRS += $(VBOX_JMSCOM_GEN)/java
 
-$(VBOX_JMSCOM_GEN)/jmscomglue.list:  \
-		$(VBOX_XIDL_FILE)    \
-                $(VBOX_GLUE_XSLT_DIR)/glue-java.xsl \
-                $(VBOX_FILESPLIT)    \
+$(VBOX_JMSCOM_GEN)/jmscomglue.list: \
+		$(VBOX_XIDL_FILE) \
+		$(VBOX_GLUE_XSLT_DIR)/glue-java.xsl \
+		$(VBOX_FILESPLIT) \
 		| $(VBOX_JMSCOM_GEN)/java/
 	$(call MSG_L1,Generating Java MSCOM glue files from XIDL)
 	$(QUIET)$(RM) -f $(wildcard $(VBOX_JMSCOM_GEN)/java/*.java)
 	$(QUIET)$(VBOX_XSLTPROC) \
               --stringparam G_vboxApiSuffix $(VBOX_API_SUFFIX) \
               --stringparam G_vboxGlueStyle mscom              \
+              --stringparam G_vboxDirPrefix ""                 \
               -o $(VBOX_JMSCOM_GEN)/java/merged.file $(VBOX_GLUE_XSLT_DIR)/glue-java.xsl $<
 	$(QUIET)$(VBOX_FILESPLIT) $(VBOX_JMSCOM_GEN)/java/merged.file $(VBOX_JMSCOM_GEN)/java
 	$(QUIET)echo $(VBOX_JMSCOM_GEN)/java/*.java > $@
@@ -931,6 +932,8 @@ $$(VBOX_JMSCOM_JAR): $(VBOX_JMSCOM_GEN)/jmscomglue.list | $$(dir $$@)
 	$(call MSG_LINK,$(notdir $@),$@)
 	$(VBOX_JAR) cf $@ -C $(VBOX_JMSCOM_JDEST) .
 
+## @todo compile TestVBox.java (see below) to have sanity checking
+
 endif # VBOX_WITH_JMSCOM
 
 #
@@ -941,7 +944,7 @@ javagluesample_INST = $(INST_SDK)bindings/glue/java/
 javagluesample_MODE = a+r,u+w
 javagluesample_SOURCES = \
 	$(VBOX_PATH_MAIN_SRC)/glue/tests/TestVBox.java=>TestVBox.java \
-	$(VBOX_PATH_MAIN_SRC)/glue/tests/Makefile.kmk=>Makefile.kmk
+	$(VBOX_PATH_MAIN_SRC)/glue/tests/Makefile=>Makefile
 
 updatenls::
 	$(VBOX_LUPDATE) $(VBoxSVC_SOURCES) $(VBoxSVC_VBOX_HEADERS) -ts $(VBoxSVC_VBOX_TRANSLATIONS)

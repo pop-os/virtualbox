@@ -1,4 +1,4 @@
-/* $Id: VBoxUsbMon.h 38356 2011-08-08 15:49:01Z vboxsync $ */
+/* $Id: VBoxUsbMon.h $ */
 /** @file
  * VBox USB Monitor
  */
@@ -45,5 +45,17 @@ NTSTATUS VBoxUsbMonGetDescriptor(PDEVICE_OBJECT pDevObj, void *buffer, int size,
 NTSTATUS VBoxUsbMonQueryBusRelations(PDEVICE_OBJECT pDevObj, PFILE_OBJECT pFileObj, PDEVICE_RELATIONS *pDevRelations);
 
 void vboxUsbDbgPrintUnicodeString(PUNICODE_STRING pUnicodeString);
+
+/* visit usbhub-originated device PDOs */
+#define VBOXUSBMONHUBWALK_F_PDO 0x00000001
+/* visit usbhub device FDOs */
+#define VBOXUSBMONHUBWALK_F_FDO 0x00000002
+/* visit all usbhub-originated device objects */
+#define VBOXUSBMONHUBWALK_F_ALL (VBOXUSBMONHUBWALK_F_FDO | VBOXUSBMONHUBWALK_F_PDO)
+
+typedef DECLCALLBACK(BOOLEAN) FNVBOXUSBMONDEVWALKER(PFILE_OBJECT pFile, PDEVICE_OBJECT pTopDo, PDEVICE_OBJECT pHubDo, PVOID pvContext);
+typedef FNVBOXUSBMONDEVWALKER *PFNVBOXUSBMONDEVWALKER;
+
+VOID vboxUsbMonHubDevWalk(PFNVBOXUSBMONDEVWALKER pfnWalker, PVOID pvWalker, ULONG fFlags);
 
 #endif /* #ifndef ___VBoxUsbMon_h___ */

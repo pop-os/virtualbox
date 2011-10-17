@@ -1,4 +1,4 @@
-/* $Id: DevPCI.cpp 36079 2011-02-24 17:10:31Z vboxsync $ */
+/* $Id: DevPCI.cpp $ */
 /** @file
  * DevPCI - PCI BUS Device.
  */

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 38286 2011-08-02 18:51:11Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the Darwin VBoxUSB kernel extension.
 #

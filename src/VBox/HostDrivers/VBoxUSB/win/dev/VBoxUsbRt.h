@@ -1,4 +1,4 @@
-/* $Id: VBoxUsbRt.h 36968 2011-05-05 08:55:16Z vboxsync $ */
+/* $Id: VBoxUsbRt.h $ */
 /** @file
  * VBox USB R0 runtime
  */

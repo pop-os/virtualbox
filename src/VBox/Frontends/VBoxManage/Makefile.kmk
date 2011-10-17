@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 38416 2011-08-11 13:47:31Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for VBoxManage (the cli frontend).
 #

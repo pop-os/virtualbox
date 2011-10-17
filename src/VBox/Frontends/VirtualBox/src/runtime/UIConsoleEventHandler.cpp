@@ -1,4 +1,4 @@
-/* $Id: UIConsoleEventHandler.cpp 37712 2011-06-30 14:11:14Z vboxsync $ */
+/* $Id: UIConsoleEventHandler.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

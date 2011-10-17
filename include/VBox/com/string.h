@@ -1,4 +1,4 @@
-/* $Id: string.h 38437 2011-08-12 15:05:41Z vboxsync $ */
+/* $Id: string.h $ */
 /** @file
  * MS COM / XPCOM Abstraction Layer - Smart string classes declaration.
  */

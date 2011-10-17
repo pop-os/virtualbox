@@ -1,4 +1,4 @@
-/* $Id: VMMInternal.h 37452 2011-06-14 18:13:48Z vboxsync $ */
+/* $Id: VMMInternal.h $ */
 /** @file
  * VMM - Internal header file.
  */

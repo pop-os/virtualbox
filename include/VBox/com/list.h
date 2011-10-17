@@ -1,4 +1,4 @@
-/* $Id: list.h 37861 2011-07-11 10:03:22Z vboxsync $ */
+/* $Id: list.h $ */
 /** @file
  * MS COM / XPCOM Abstraction Layer - List classes declaration.
  */

@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltRt-win.h 36184 2011-03-07 10:57:04Z vboxsync $ */
+/* $Id: VBoxNetFltRt-win.h $ */
 /** @file
  * VBoxNetFltRt-win.h - Bridged Networking Driver, Windows Specific Code.
  * NetFlt Runtime API

@@ -1,4 +1,4 @@
-/* $Id: VBoxUtils-darwin-cocoa.mm 35870 2011-02-07 13:18:02Z vboxsync $ */
+/* $Id: VBoxUtils-darwin-cocoa.mm $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

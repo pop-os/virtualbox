@@ -1,4 +1,4 @@
-/* $Id: VBoxUsbCmn.h 36968 2011-05-05 08:55:16Z vboxsync $ */
+/* $Id: VBoxUsbCmn.h $ */
 /** @file
  * VBoxUsmCmn.h - USB device. Common defs
  */

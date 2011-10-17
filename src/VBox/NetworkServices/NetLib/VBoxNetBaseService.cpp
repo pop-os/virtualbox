@@ -1,4 +1,4 @@
-/* $Id: VBoxNetBaseService.cpp 36217 2011-03-09 03:22:09Z vboxsync $ */
+/* $Id: VBoxNetBaseService.cpp $ */
 /** @file
  * VBoxNetDHCP - DHCP Service for connecting to IntNet.
  */

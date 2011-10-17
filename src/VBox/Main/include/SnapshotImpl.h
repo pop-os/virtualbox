@@ -1,4 +1,4 @@
-/* $Id: SnapshotImpl.h 37449 2011-06-14 16:34:16Z vboxsync $ */
+/* $Id: SnapshotImpl.h $ */
 
 /** @file
  *

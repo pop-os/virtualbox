@@ -1,4 +1,4 @@
-/* $Id: TMInline.h 37517 2011-06-16 19:24:00Z vboxsync $ */
+/* $Id: TMInline.h $ */
 /** @file
  * TM - Common Inlined functions.
  */

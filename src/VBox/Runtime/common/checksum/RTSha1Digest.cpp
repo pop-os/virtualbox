@@ -1,4 +1,4 @@
-/* $Id: RTSha1Digest.cpp 32569 2010-09-16 15:42:51Z vboxsync $ */
+/* $Id: RTSha1Digest.cpp $ */
 /** @file
  * IPRT - SHA1 digest creation
  */

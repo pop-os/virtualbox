@@ -1,4 +1,4 @@
-/* $Id: UISettingsDefs.cpp 36589 2011-04-06 15:24:00Z vboxsync $ */
+/* $Id: UISettingsDefs.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

@@ -1,4 +1,4 @@
-/* $Id: DrvTAP.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
+/* $Id: DrvTAP.cpp $ */
 /** @file
  * DrvTAP - Universal TAP network transport driver.
  */

@@ -1,4 +1,4 @@
-/* $Id: RTPathHaveExt.cpp 32864 2010-10-01 12:32:06Z vboxsync $ */
+/* $Id: RTPathHaveExt.cpp $ */
 /** @file
  * IPRT - RTPathHaveExt
  */

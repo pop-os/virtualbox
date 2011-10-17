@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 37991 2011-07-18 09:26:43Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the stub installer.
 #

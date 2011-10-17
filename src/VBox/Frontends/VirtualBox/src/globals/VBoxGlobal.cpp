@@ -1,4 +1,4 @@
-/* $Id: VBoxGlobal.cpp 38421 2011-08-11 14:55:02Z vboxsync $ */
+/* $Id: VBoxGlobal.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -28,16 +28,18 @@
 #include "QIMessageBox.h"
 #include "QIDialogButtonBox.h"
 #include "UIIconPool.h"
+#include "UIActionPoolSelector.h"
+#include "UIActionPoolRuntime.h"
 #include "UIExtraDataEventHandler.h"
 #include "QIFileDialog.h"
 #include "UINetworkManager.h"
+#include "UIUpdateManager.h"
 
 #include "UIMachine.h"
 #include "UISession.h"
 #ifdef VBOX_WITH_REGISTRATION
 # include "UIRegistrationWzd.h"
 #endif
-#include "VBoxUpdateDlg.h"
 #ifdef VBOX_WITH_VIDEOHWACCEL
 # include "VBoxFBOverlay.h"
 #endif /* VBOX_WITH_VIDEOHWACCEL */
@@ -270,7 +272,6 @@ VBoxGlobal::VBoxGlobal()
 #ifdef VBOX_WITH_REGISTRATION
     , mRegDlg (NULL)
 #endif
-    , mUpdDlg (NULL)
 #ifdef VBOX_GUI_WITH_SYSTRAY
     , mIsTrayMenu (false)
     , mIncreasedWindowCounter (false)
@@ -372,6 +373,16 @@ uint VBoxGlobal::qtCTVersion()
     return (ct_ver_str.section ('.', 0, 0).toInt() << 16) +
            (ct_ver_str.section ('.', 1, 1).toInt() << 8) +
            ct_ver_str.section ('.', 2, 2).toInt();
+}
+
+QString VBoxGlobal::vboxVersionString() const
+{
+    return mVBox.GetVersion();
+}
+
+QString VBoxGlobal::vboxVersionStringNormalized() const
+{
+    return vboxVersionString().remove(VBOX_BUILD_PUBLISHER);
 }
 
 bool VBoxGlobal::isBeta() const
@@ -4466,7 +4477,10 @@ quint64 VBoxGlobal::required3DWddmOffscreenVideoMemory(const QString &strGuestOS
 /* static */
 bool VBoxGlobal::isWddmCompatibleOsType(const QString &strGuestOSTypeId)
 {
-    return strGuestOSTypeId.startsWith("WindowsVista") || strGuestOSTypeId.startsWith("Windows7") || strGuestOSTypeId.startsWith("Windows2008");
+    return    strGuestOSTypeId.startsWith("WindowsVista")
+           || strGuestOSTypeId.startsWith("Windows7")
+           || strGuestOSTypeId.startsWith("Windows8")
+           || strGuestOSTypeId.startsWith("Windows2008");
 }
 #endif /* VBOX_WITH_CRHGSMI */
 
@@ -4610,67 +4624,6 @@ void VBoxGlobal::showRegistrationDialog (bool aForce)
         }
     }
 #endif
-}
-
-/**
- * Shows the VirtualBox version check & update dialog.
- *
- * @note that this method is not part of UIMessageCenter (like e.g.
- *       UIMessageCenter::sltShowHelpAboutDialog()) because it is tied to
- *       VBoxCallback::OnExtraDataChange() handling performed by VBoxGlobal.
- *
- * @param aForce
- */
-void VBoxGlobal::showUpdateDialog (bool aForce)
-{
-    /* Silently check in one day after current time-stamp */
-    QTimer::singleShot (24 /* hours */   * 60   /* minutes */ *
-                        60 /* seconds */ * 1000 /* milliseconds */,
-                        this, SLOT (perDayNewVersionNotifier()));
-
-    bool isNecessary = VBoxUpdateDlg::isNecessary();
-
-    if (!aForce && !isNecessary)
-        return;
-
-    if (mUpdDlg)
-    {
-        if (!mUpdDlg->isHidden())
-        {
-            mUpdDlg->setWindowState (mUpdDlg->windowState() & ~Qt::WindowMinimized);
-            mUpdDlg->raise();
-            mUpdDlg->activateWindow();
-        }
-    }
-    else
-    {
-        /* Store the ID of the main window to ensure that only one
-         * update dialog is shown at a time. Due to manipulations with
-         * OnExtraDataCanChange() and OnExtraDataChange() signals, this extra
-         * data item acts like an inter-process mutex, so the first process
-         * that attempts to set it will win, the rest will get a failure from
-         * the SetExtraData() call. */
-        mVBox.SetExtraData (VBoxDefs::GUI_UpdateDlgWinID,
-                            QString ("%1").arg ((qulonglong) mMainWindow->winId()));
-
-        if (mVBox.isOk())
-        {
-            /* We've got the "mutex", create a new update dialog */
-            VBoxUpdateDlg *dlg = new VBoxUpdateDlg (&mUpdDlg, aForce, 0);
-            dlg->setAttribute (Qt::WA_DeleteOnClose);
-            Assert (dlg == mUpdDlg);
-
-            /* Update dialog always in background mode for now.
-             * if (!aForce && isAutomatic) */
-            mUpdDlg->search();
-            /* else mUpdDlg->show(); */
-        }
-    }
-}
-
-void VBoxGlobal::perDayNewVersionNotifier()
-{
-    showUpdateDialog (false /* force show? */);
 }
 
 void VBoxGlobal::sltGUILanguageChange(QString strLang)
@@ -4930,6 +4883,8 @@ void VBoxGlobal::init()
         {"Windows2008_64",  ":/os_win2k8_64.png"},
         {"Windows7",        ":/os_win7.png"},
         {"Windows7_64",     ":/os_win7_64.png"},
+        {"Windows8",        ":/os_win8.png"},
+        {"Windows8_64",     ":/os_win8_64.png"},
         {"WindowsNT",       ":/os_win_other.png"},
         {"OS2Warp3",        ":/os_os2warp3.png"},
         {"OS2Warp4",        ":/os_os2warp4.png"},
@@ -5243,8 +5198,17 @@ void VBoxGlobal::init()
     /* Handle global settings change for the first time: */
     sltProcessGlobalSettingChange();
 
+    /* Create action pool: */
+    if (isVMConsoleProcess())
+        UIActionPoolRuntime::create();
+    else
+        UIActionPoolSelector::create();
+
     /* Create network manager: */
     UINetworkManager::create();
+
+    /* Schedule update manager: */
+    UIUpdateManager::schedule();
 }
 
 
@@ -5255,8 +5219,17 @@ void VBoxGlobal::init()
  */
 void VBoxGlobal::cleanup()
 {
+    /* Shutdown update manager: */
+    UIUpdateManager::shutdown();
+
     /* Destroy network manager: */
     UINetworkManager::destroy();
+
+    /* Destroy action pool: */
+    if (isVMConsoleProcess())
+        UIActionPoolRuntime::destroy();
+    else
+        UIActionPoolSelector::destroy();
 
     /* sanity check */
     if (!sVBoxGlobalInCleanup)

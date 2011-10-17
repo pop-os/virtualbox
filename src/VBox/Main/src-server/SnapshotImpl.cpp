@@ -1,4 +1,4 @@
-/* $Id: SnapshotImpl.cpp 37985 2011-07-15 15:04:39Z vboxsync $ */
+/* $Id: SnapshotImpl.cpp $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1430,7 +1430,7 @@ STDMETHODIMP SessionMachine::BeginTakingSnapshot(IConsole *aInitiator,
     if (strStateFilePath.isNotEmpty())
     {
         // ensure the directory for the saved state file exists
-        HRESULT rc = VirtualBox::ensureFilePathExists(strStateFilePath);
+        HRESULT rc = VirtualBox::ensureFilePathExists(strStateFilePath, true /* fCreate */);
         if (FAILED(rc)) return rc;
     }
 
@@ -1819,7 +1819,16 @@ void SessionMachine::restoreSnapshotHandler(RestoreSnapshotTask &aTask)
             // restore the attachments from the snapshot
             setModified(IsModified_Storage);
             mMediaData.backup();
-            mMediaData->mAttachments = pSnapshotMachine->mMediaData->mAttachments;
+            mMediaData->mAttachments.clear();
+            for (MediaData::AttachmentList::const_iterator it = pSnapshotMachine->mMediaData->mAttachments.begin();
+                 it != pSnapshotMachine->mMediaData->mAttachments.end();
+                 ++it)
+            {
+                ComObjPtr<MediumAttachment> pAttach;
+                pAttach.createObject();
+                pAttach->initCopy(this, *it);
+                mMediaData->mAttachments.push_back(pAttach);
+            }
 
             /* leave the locks before the potentially lengthy operation */
             snapshotLock.release();

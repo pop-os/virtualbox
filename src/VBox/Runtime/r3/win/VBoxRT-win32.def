@@ -1,4 +1,4 @@
-; $Id: VBoxRT-win32.def 32404 2010-09-10 13:17:42Z vboxsync $
+; $Id: VBoxRT-win32.def $
 ;; @file
 ; IPRT - Win32 ASM exports.
 ;

@@ -1,4 +1,4 @@
-/* $Id: VMMRC.cpp 35810 2011-02-01 13:00:24Z vboxsync $ */
+/* $Id: VMMRC.cpp $ */
 /** @file
  * VMM - Raw-mode Context.
  */

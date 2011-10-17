@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-darwin.cpp 38408 2011-08-10 20:07:04Z vboxsync $ */
+/* $Id: VBoxNetFlt-darwin.cpp $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Darwin Specific Code.
  */
@@ -996,7 +996,12 @@ int  vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, u
         /*
          * Create a mbuf for the gather list and push it onto the wire.
          */
-        if (fDst & INTNETTRUNKDIR_WIRE)
+        /*
+         * If the interface is in the promiscuous mode we need to send
+         * the packet down the stack so it reaches the driver and Berkeley
+         * Packet Filter (see #5817).
+         */
+        if ((fDst & INTNETTRUNKDIR_WIRE) || vboxNetFltDarwinIsPromiscuous(pThis))
         {
             mbuf_t pMBuf = vboxNetFltDarwinMBufFromSG(pThis, pSG);
             if (pMBuf)

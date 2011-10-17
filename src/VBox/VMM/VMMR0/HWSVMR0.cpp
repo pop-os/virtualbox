@@ -1,4 +1,4 @@
-/* $Id: HWSVMR0.cpp 38243 2011-07-31 20:36:00Z vboxsync $ */
+/* $Id: HWSVMR0.cpp $ */
 /** @file
  * HWACCM SVM - Host Context Ring 0.
  */
@@ -862,7 +862,7 @@ VMMR0DECL(int) SVMR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     pVMCB->guest.u64RFlags = pCtx->eflags.u32;
 
     /* Set CPL */
-    pVMCB->guest.u8CPL     = pCtx->csHid.Attr.n.u2Dpl;
+    pVMCB->guest.u8CPL     = pCtx->ssHid.Attr.n.u2Dpl;
 
     /* RAX/EAX too, as VMRUN uses RAX as an implicit parameter. */
     pVMCB->guest.u64RAX    = pCtx->rax;
@@ -1091,7 +1091,7 @@ ResumeExecution:
      *
      * Note! Interrupts must be disabled done *before* we check for TLB flushes; TLB
      *       shootdowns rely on this.
-     */
+     */                                               
     uOldEFlags = ASMIntDisableFlags();
     if (RTThreadPreemptIsPending(NIL_RTTHREAD))
     {
@@ -2223,13 +2223,13 @@ ResumeExecution:
                 {
                     Log2(("IOMInterpretOUTSEx %RGv %x size=%d\n", (RTGCPTR)pCtx->rip, IoExitInfo.n.u16Port, uIOSize));
                     STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitIOStringWrite);
-                    rc = IOMInterpretOUTSEx(pVM, CPUMCTX2CORE(pCtx), IoExitInfo.n.u16Port, pDis->prefix, uIOSize);
+                    rc = IOMInterpretOUTSEx(pVM, CPUMCTX2CORE(pCtx), IoExitInfo.n.u16Port, pDis->prefix, pDis->addrmode, uIOSize);
                 }
                 else
                 {
                     Log2(("IOMInterpretINSEx  %RGv %x size=%d\n", (RTGCPTR)pCtx->rip, IoExitInfo.n.u16Port, uIOSize));
                     STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitIOStringRead);
-                    rc = IOMInterpretINSEx(pVM, CPUMCTX2CORE(pCtx), IoExitInfo.n.u16Port, pDis->prefix, uIOSize);
+                    rc = IOMInterpretINSEx(pVM, CPUMCTX2CORE(pCtx), IoExitInfo.n.u16Port, pDis->prefix, pDis->addrmode, uIOSize);
                 }
             }
             else

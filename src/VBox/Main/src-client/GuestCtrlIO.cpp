@@ -1,4 +1,4 @@
-/* $Id: GuestCtrlIO.cpp 38439 2011-08-12 15:29:32Z vboxsync $ */
+/* $Id: GuestCtrlIO.cpp $ */
 /** @file
  *
  * IO helper for IGuest COM class implementations.

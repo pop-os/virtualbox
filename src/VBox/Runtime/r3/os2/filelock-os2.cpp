@@ -1,4 +1,4 @@
-/* $Id: filelock-os2.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: filelock-os2.cpp $ */
 /** @file
  * IPRT - File Locking, OS/2.
  */

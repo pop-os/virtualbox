@@ -1,4 +1,4 @@
-/* $Id: tstDBGCStubs.cpp 35629 2011-01-19 15:15:21Z vboxsync $ */
+/* $Id: tstDBGCStubs.cpp $ */
 /** @file
  * DBGC Testcase - Command Parser, VMM Stub Functions.
  */

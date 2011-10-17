@@ -1,4 +1,4 @@
-/* $Id: UIImportApplianceWzd.cpp 38412 2011-08-11 09:50:04Z vboxsync $ */
+/* $Id: UIImportApplianceWzd.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

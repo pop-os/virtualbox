@@ -1,4 +1,4 @@
-/* $Id: DrvRawImage.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
+/* $Id: DrvRawImage.cpp $ */
 /** @file
  * VBox storage devices: Raw image driver
  */

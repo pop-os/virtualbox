@@ -1,4 +1,4 @@
-/* $Id: tstVector.cpp 37829 2011-07-08 08:35:47Z vboxsync $ */
+/* $Id: tstVector.cpp $ */
 /** @file
  * IPRT Testcase - Vector container structure.
  */

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 38152 2011-07-25 12:19:13Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Top-level sub-makefile for the devices, drivers and services.
 #
@@ -719,7 +719,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  endif
 
  if defined(VBOX_WITH_PCI_PASSTHROUGH_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
-  VBoxDDR0_SOURCES      +=
+  VBoxDDR0_SOURCES      += \
 	Bus/DevPciRaw.cpp
  endif
 
@@ -935,15 +935,20 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  endif
 
  ifdef VBOX_WITH_UDPTUNNEL
- Drivers_SOURCES += \
+  Drivers_SOURCES += \
 	Network/DrvUDPTunnel.cpp
- Drivers_DEFS += VBOX_WITH_UDPTUNNEL
+  Drivers_DEFS += VBOX_WITH_UDPTUNNEL
  endif
  ifdef VBOX_WITH_VDE
- Drivers_SOURCES += \
+  Drivers_SOURCES += \
  	Network/DrvVDE.cpp \
  	Network/VDEPlug.cpp
- Drivers_DEFS += VBOX_WITH_VDE
+  Drivers_DEFS += VBOX_WITH_VDE
+ endif
+ if defined(VBOX_WITH_PCI_PASSTHROUGH_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
+  Drivers_SOURCES += \
+	Bus/DrvPciRaw.cpp
+  Drivers_DEFS += VBOX_WITH_PCI_PASSTHROUGH_IMPL
  endif
 
  # -- OS specific --
@@ -1145,7 +1150,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  # Ring-0 Services (library, linked into VMMR0.r0)
  #
  ServicesR0_TEMPLATE  = VBoxR0
- ServicesR0_DEFS      = IN_INTNET_R0 IN_RT_R0 $(if $(VBOX_WITH_PCI_PASSTHROUGH_IMPL),IN_PCIRAW_R0,)
+ ServicesR0_DEFS      = IN_INTNET_R0 IN_RT_R0 $(if $(VBOX_WITH_PCI_PASSTHROUGH),IN_PCIRAW_R0,)
  ServicesR0_SOURCES   = \
  	Network/SrvIntNetR0.cpp \
         $(if $(VBOX_WITH_PCI_PASSTHROUGH),Bus/SrvPciRawR0.cpp,)

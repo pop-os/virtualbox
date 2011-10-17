@@ -1,4 +1,4 @@
-/* $Id: IEMInternal.h 37423 2011-06-12 18:37:56Z vboxsync $ */
+/* $Id: IEMInternal.h $ */
 /** @file
  * IEM - Internal header file.
  */

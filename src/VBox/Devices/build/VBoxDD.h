@@ -1,4 +1,4 @@
-/* $Id: VBoxDD.h 37781 2011-07-05 13:35:29Z vboxsync $ */
+/* $Id: VBoxDD.h $ */
 /** @file
  * Built-in drivers & devices (part 1) header.
  */
@@ -122,6 +122,9 @@ extern const PDMDRVREG g_DrvHostParallel;
 extern const PDMDRVREG g_DrvHostSerial;
 #ifdef VBOX_WITH_DRV_DISK_INTEGRITY
 extern const PDMDRVREG g_DrvDiskIntegrity;
+#endif
+#ifdef VBOX_WITH_PCI_PASSTHROUGH_IMPL
+extern const PDMDRVREG g_DrvPciRaw;
 #endif
 
 #ifdef VBOX_WITH_USB

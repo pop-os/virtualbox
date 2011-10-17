@@ -1,4 +1,4 @@
-/* $Id: NetIf-solaris.cpp 37662 2011-06-28 11:41:49Z vboxsync $ */
+/* $Id: NetIf-solaris.cpp $ */
 /** @file
  * Main - NetIfList, Solaris implementation.
  */

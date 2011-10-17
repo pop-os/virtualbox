@@ -1,4 +1,4 @@
-/* $Id: dbgmodnm.cpp 36555 2011-04-05 12:34:09Z vboxsync $ */
+/* $Id: dbgmodnm.cpp $ */
 /** @file
  * IPRT - Debug Map Reader For NM Like Mapfiles.
  */

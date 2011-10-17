@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltP-win.h 36184 2011-03-07 10:57:04Z vboxsync $ */
+/* $Id: VBoxNetFltP-win.h $ */
 /** @file
  * VBoxNetFltP-win.h - Bridged Networking Driver, Windows Specific Code.
  * Protocol edge API

@@ -1171,6 +1171,13 @@
     </message>
 </context>
 <context>
+    <name>UIDownloaderExtensionPack</name>
+    <message>
+        <source>Select folder to save %1 to</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIDownloaderUserManual</name>
     <message>
         <source>Select folder to save User Manual to</source>
@@ -2609,10 +2616,6 @@ Acest director este folosit, dacă nu este explicit specificat altfel, atunci c�
         <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Nici un dosar partajat&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
-        <translation type="obsolete">Indică dacă Remote Display (Server VRDP) este activat (&lt;img src=vrdp_16px.png/&gt;) sau nu (&lt;img src=vrdp_disabled_16px.png/&gt;).</translation>
-    </message>
-    <message>
         <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
         <translation type="obsolete">&lt;hr&gt;Serverul VRDP ascultă pe portul %1</translation>
     </message>
@@ -2628,11 +2631,11 @@ Acest director este folosit, dacă nu este explicit specificat altfel, atunci c�
     </message>
     <message>
         <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation>Inidică dacă cursorul mouse sistemului gazdă este capturat de către SO musafir:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;cursorul nu este capturat&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;cursorul este capturat&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integrare mouse (IM) este Activată&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM este Inactivă, cursorul este capturat&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM este Inactivă, cursorul nu este capturat.&lt;/nobr&gt;&lt;br&gt;Notă: funcția integrare mouse necesită instalarea pe SO musafir a Guest Additions.</translation>
+        <translation>Inidică dacă cursorul mouse sistemului gazdă este capturat de către SO musafir:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;cursorul nu este capturat&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;cursorul este capturat&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integrare mouse (IM) este Activată&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM este Inactivă, cursorul este capturat&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM este Inactivă, cursorul nu este capturat.&lt;/nobr&gt;&lt;br&gt;Notă: funcția integrare mouse necesită instalarea pe SO musafir a Guest Additions.</translation>
     </message>
     <message>
         <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
-        <translation>Indică dacă tastatura este capturată de SO musafir (&lt;img src=hostkey_captured_16px.png/&gt;) sau nu (&lt;img src=hostkey_16px.png/&gt;).</translation>
+        <translation>Indică dacă tastatura este capturată de SO musafir (&lt;img src=:/hostkey_captured_16px.png/&gt;) sau nu (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>Indicates whether the Remote Desktop Server is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
@@ -4744,18 +4747,6 @@ Acest director este folosit, dacă nu este explicit specificat altfel, atunci c�
         <translation>Nu am putut șterge directorul partajat &lt;b&gt;%1&lt;/b&gt; (&lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) din mașina virtuală &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You have &lt;b&gt;clicked the mouse&lt;/b&gt; inside the Virtual Machine display or pressed the &lt;b&gt;host key&lt;/b&gt;. This will cause the Virtual Machine to &lt;b&gt;capture&lt;/b&gt; the host mouse pointer (only if the mouse pointer integration is not currently supported by the guest OS) and the keyboard, which will make them unavailable to other applications running on your host machine.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window, next to the&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;icon. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Ați &lt;b&gt;dat clic&lt;/b&gt; în interiorul ecranului mașinii virtuale sau ați apăsat &lt;b&gt;tasta gazdă&lt;/b&gt;. Acest lucru va cauza &lt;b&gt;capturarea&lt;/b&gt; de către mașina virtuală a cursorului mouse (numai dacă integrarea mouse nu este suportată de către SO musafir) și a tastaturi, ceea ce o va face indisponibilă celorlate aplicații rulând pe mașina dvs gazdă.&lt;/p&gt;&lt;p&gt;Puteți oricând apăsa &lt;b&gt;tasta gazdă&lt;/b&gt; pentru a &lt;b&gt;opri capturarea&lt;/b&gt; mouse și tastaturii și a le întoarce la operare normală. Tasta gazdă asociată în prezent este afișată în bara de stare, în partea de jos a ferestrei mașinii virtuale, lângă iconul&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;. Acest icon, împreună cu iconul mouse alăturat, indică starea curentă a capturării mouse și tastaturii.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You have the &lt;b&gt;Auto capture keyboard&lt;/b&gt; option turned on. This will cause the Virtual Machine to automatically &lt;b&gt;capture&lt;/b&gt; the keyboard every time the VM window is activated and make it unavailable to other applications running on your host machine: when the keyboard is captured, all keystrokes (including system ones like Alt-Tab) will be directed to the VM.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window, next to the&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;icon. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Opțiunea &lt;b&gt;Captură automată tastatură&lt;/b&gt; este pornită. Acest lucru va face ca mașina virtuală să &lt;b&gt;captureze&lt;/b&gt; automat tastatura de fiecare dată când fereastra MV este activată și să facă tastatura indisponibilă celorlate aplicații rulând pe mașina gazđă.&lt;/p&gt;&lt;p&gt;Puteți apăsa &lt;b&gt;tasta gazdă&lt;/b&gt; în orice moment pentru a &lt;b&gt;opri captura&lt;/b&gt; tastaturii și a mouse (dacă este capturat) și a le readuce la modul normal de funcționare. Tasta gazdă asociată în prezent este afișată în bara de stare, în partea de jos a ferestrei mașinii virtuale, lângă iconul&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;. Acest icon, împreună cu iconul mouse alăturat, indică starea curentă a capturării mouse și tastaturii.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The Virtual Machine reports that the guest OS supports &lt;b&gt;mouse pointer integration&lt;/b&gt;. This means that you do not need to &lt;i&gt;capture&lt;/i&gt; the mouse pointer to be able to use it in your guest OS -- all mouse actions you perform when the mouse pointer is over the Virtual Machine&apos;s display are directly sent to the guest OS. If the mouse is currently captured, it will be automatically uncaptured.&lt;/p&gt;&lt;p&gt;The mouse icon on the status bar will look like&amp;nbsp;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;to inform you that mouse pointer integration is supported by the guest OS and is currently turned on.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;: Some applications may behave incorrectly in mouse pointer integration mode. You can always disable it for the current session (and enable it again) by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Mașina virtuală a detectat că SO musafir suportă &lt;b&gt;integrare cursor mouse&lt;/b&gt;. Aceasta însemnă că nu trebuie să &lt;i&gt;capturați&lt;/i&gt; cursorul mouse pentru a-l putea folosi în SO musafir -- toate acțiunile cu mouse pe care le faceți când cursorul este deasupra ecranului MV sunt trimise direct către SO musafir. Dacă mouse este capturat, va fi automat eliberat.&lt;/p&gt;&lt;p&gt;Iconul mouse din bara de stare va arăta&amp;nbsp;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;pentru a vă informa că integrarea mouse este suportată și pornită.,/p&gt;&lt;p&gt;&lt;b&gt;Notă&lt;/b&gt;: Unele aplicații se pot comporta incorect în modul integrare cursor mouse. Puteți oricând să o dezactivați în sesiunea curentă (și să o reactivați) selectând acțiunea corespunzătoare din bara meniu.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS does not support &lt;b&gt;mouse pointer integration&lt;/b&gt; in the current video mode. You need to capture the mouse (by clicking over the VM display or pressing the host key) in order to use the mouse inside the guest OS.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Mașina virtuală raportează că SO musafir nu suportă &lt;b&gt;integrarea cursorului mouse&lt;/b&gt; în modul video curent. Va trebui să capturați mouse (dând click pe ecranul MV sau apăsând tasta gazdă) pentru a-l putea folosi în SO musafir.&lt;/P&gt;</translation>
     </message>
@@ -5127,15 +5118,15 @@ Acest director este folosit, dacă nu este explicit specificat altfel, atunci c�
     </message>
     <message>
         <source>&lt;p&gt;You have &lt;b&gt;clicked the mouse&lt;/b&gt; inside the Virtual Machine display or pressed the &lt;b&gt;host key&lt;/b&gt;. This will cause the Virtual Machine to &lt;b&gt;capture&lt;/b&gt; the host mouse pointer (only if the mouse pointer integration is not currently supported by the guest OS) and the keyboard, which will make them unavailable to other applications running on your host machine.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window, next to the&amp;nbsp;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;icon. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Ați &lt;b&gt;dat clic&lt;/b&gt; în interiorul ecranului mașinii virtuale sau ați apăsat &lt;b&gt;tasta gazdă&lt;/b&gt;. Acest lucru va cauza &lt;b&gt;capturarea&lt;/b&gt; de către mașina virtuală a cursorului mouse (numai dacă integrarea mouse nu este suportată de către SO musafir) și a tastaturi, ceea ce o va face indisponibilă celorlate aplicații rulând pe mașina dvs gazdă.&lt;/p&gt;&lt;p&gt;Puteți oricând apăsa &lt;b&gt;tasta gazdă&lt;/b&gt; pentru a &lt;b&gt;opri capturarea&lt;/b&gt; mouse și tastaturii și a le întoarce la operare normală. Tasta gazdă asociată în prezent este afișată în bara de stare, în partea de jos a ferestrei mașinii virtuale, lângă iconul&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;. Acest icon, împreună cu iconul mouse alăturat, indică starea curentă a capturării mouse și tastaturii.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Ați &lt;b&gt;dat clic&lt;/b&gt; în interiorul ecranului mașinii virtuale sau ați apăsat &lt;b&gt;tasta gazdă&lt;/b&gt;. Acest lucru va cauza &lt;b&gt;capturarea&lt;/b&gt; de către mașina virtuală a cursorului mouse (numai dacă integrarea mouse nu este suportată de către SO musafir) și a tastaturi, ceea ce o va face indisponibilă celorlate aplicații rulând pe mașina dvs gazdă.&lt;/p&gt;&lt;p&gt;Puteți oricând apăsa &lt;b&gt;tasta gazdă&lt;/b&gt; pentru a &lt;b&gt;opri capturarea&lt;/b&gt; mouse și tastaturii și a le întoarce la operare normală. Tasta gazdă asociată în prezent este afișată în bara de stare, în partea de jos a ferestrei mașinii virtuale, lângă iconul&amp;nbsp;&lt;img src=:/hostkey_16px.png/&gt;. Acest icon, împreună cu iconul mouse alăturat, indică starea curentă a capturării mouse și tastaturii.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You have the &lt;b&gt;Auto capture keyboard&lt;/b&gt; option turned on. This will cause the Virtual Machine to automatically &lt;b&gt;capture&lt;/b&gt; the keyboard every time the VM window is activated and make it unavailable to other applications running on your host machine: when the keyboard is captured, all keystrokes (including system ones like Alt-Tab) will be directed to the VM.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window, next to the&amp;nbsp;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;icon. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Opțiunea &lt;b&gt;Captură automată tastatură&lt;/b&gt; este activă. Acest lucru va face ca mașina virtuală să &lt;b&gt;captureze&lt;/b&gt; automat tastatura de fiecare dată când fereastra MV este activată și să facă tastatura indisponibilă celorlate aplicații rulând pe mașina gazđă.&lt;/p&gt;&lt;p&gt;Puteți apăsa &lt;b&gt;tasta gazdă&lt;/b&gt; în orice moment pentru a &lt;b&gt;opri captura&lt;/b&gt; tastaturii și a mouse (dacă este capturat) și a le readuce la modul normal de funcționare. Tasta gazdă asociată în prezent este afișată în bara de stare, în partea de jos a ferestrei mașinii virtuale, lângă iconul&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;. Acest icon, împreună cu iconul mouse alăturat, indică starea curentă a capturării mouse și tastaturii.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Opțiunea &lt;b&gt;Captură automată tastatură&lt;/b&gt; este activă. Acest lucru va face ca mașina virtuală să &lt;b&gt;captureze&lt;/b&gt; automat tastatura de fiecare dată când fereastra MV este activată și să facă tastatura indisponibilă celorlate aplicații rulând pe mașina gazđă.&lt;/p&gt;&lt;p&gt;Puteți apăsa &lt;b&gt;tasta gazdă&lt;/b&gt; în orice moment pentru a &lt;b&gt;opri captura&lt;/b&gt; tastaturii și a mouse (dacă este capturat) și a le readuce la modul normal de funcționare. Tasta gazdă asociată în prezent este afișată în bara de stare, în partea de jos a ferestrei mașinii virtuale, lângă iconul&amp;nbsp;&lt;img src=:/hostkey_16px.png/&gt;. Acest icon, împreună cu iconul mouse alăturat, indică starea curentă a capturării mouse și tastaturii.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS supports &lt;b&gt;mouse pointer integration&lt;/b&gt;. This means that you do not need to &lt;i&gt;capture&lt;/i&gt; the mouse pointer to be able to use it in your guest OS -- all mouse actions you perform when the mouse pointer is over the Virtual Machine&apos;s display are directly sent to the guest OS. If the mouse is currently captured, it will be automatically uncaptured.&lt;/p&gt;&lt;p&gt;The mouse icon on the status bar will look like&amp;nbsp;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;to inform you that mouse pointer integration is supported by the guest OS and is currently turned on.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;: Some applications may behave incorrectly in mouse pointer integration mode. You can always disable it for the current session (and enable it again) by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Mașina virtuală a detectat că SO musafir suportă &lt;b&gt;integrare cursor mouse&lt;/b&gt;. Aceasta însemnă că nu trebuie să &lt;i&gt;capturați&lt;/i&gt; cursorul mouse pentru a-l putea folosi în SO musafir -- toate acțiunile cu mouse pe care le faceți când cursorul este deasupra ecranului MV sunt trimise direct către SO musafir. Dacă mouse este capturat, va fi automat eliberat.&lt;/p&gt;&lt;p&gt;Iconul mouse din bara de stare va arăta&amp;nbsp;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;pentru a vă informa că integrarea mouse este suportată și pornită.,/p&gt;&lt;p&gt;&lt;b&gt;Notă&lt;/b&gt;: Unele aplicații se pot comporta incorect în modul integrare cursor mouse. Puteți oricând să o dezactivați în sesiunea curentă (și să o reactivați) selectând acțiunea corespunzătoare din bara de meniu.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Mașina virtuală a detectat că SO musafir suportă &lt;b&gt;integrare cursor mouse&lt;/b&gt;. Aceasta însemnă că nu trebuie să &lt;i&gt;capturați&lt;/i&gt; cursorul mouse pentru a-l putea folosi în SO musafir -- toate acțiunile cu mouse pe care le faceți când cursorul este deasupra ecranului MV sunt trimise direct către SO musafir. Dacă mouse este capturat, va fi automat eliberat.&lt;/p&gt;&lt;p&gt;Iconul mouse din bara de stare va arăta&amp;nbsp;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;pentru a vă informa că integrarea mouse este suportată și pornită.,/p&gt;&lt;p&gt;&lt;b&gt;Notă&lt;/b&gt;: Unele aplicații se pot comporta incorect în modul integrare cursor mouse. Puteți oricând să o dezactivați în sesiunea curentă (și să o reactivați) selectând acțiunea corespunzătoare din bara de meniu.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;fullscreen&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;. Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in fullscreen mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
@@ -5861,6 +5852,36 @@ Acest director este folosit, dacă nu este explicit specificat altfel, atunci c�
         <source>&lt;p&gt;Failed to save the downloaded file as &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>&lt;p&gt;You have an old version (%1) of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;Do you wish to download latest one from the Internet?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <comment>extension pack</comment>
+        <translation type="unfinished">Descarcă</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to install this extension pack?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install</source>
+        <comment>extension pack</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -5904,6 +5925,17 @@ Acest director este folosit, dacă nu este explicit specificat altfel, atunci c�
     </message>
     <message>
         <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIMiniProgressWidgetExtension</name>
+    <message>
+        <source>Cancel the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; download</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -6289,6 +6321,18 @@ time depending on the image size and the write performance of your harddisk.&lt;
     <message>
         <source>Details</source>
         <comment>summary</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>H&amp;DD (Parallels Hard Disk)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Q&amp;ED (QEMU enhanced disk)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;QCOW (QEMU Copy-On-Write)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -7025,6 +7069,142 @@ din listă apăsând butonul &lt;b&gt;Existent&lt;/b&gt; (pentru a invoca dialog
     </message>
 </context>
 <context>
+    <name>UIUpdateManager</name>
+    <message>
+        <source>1 day</source>
+        <translation>1 zi</translation>
+    </message>
+    <message>
+        <source>2 days</source>
+        <translation>2 zile</translation>
+    </message>
+    <message>
+        <source>3 days</source>
+        <translation>3 zile</translation>
+    </message>
+    <message>
+        <source>4 days</source>
+        <translation>4 zile</translation>
+    </message>
+    <message>
+        <source>5 days</source>
+        <translation>5 zile</translation>
+    </message>
+    <message>
+        <source>6 days</source>
+        <translation>6 zile</translation>
+    </message>
+    <message>
+        <source>1 week</source>
+        <translation>1 săptămână</translation>
+    </message>
+    <message>
+        <source>2 weeks</source>
+        <translation>2 săptămâni</translation>
+    </message>
+    <message>
+        <source>3 weeks</source>
+        <translation>3 săptămâni</translation>
+    </message>
+    <message>
+        <source>1 month</source>
+        <translation>1 lună</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>Niciodată</translation>
+    </message>
+    <message>
+        <source>Connection timed out.</source>
+        <translation type="obsolete">Conexiunea a expirat.</translation>
+    </message>
+    <message>
+        <source>Could not locate the latest version list on the server (response: %1).</source>
+        <translation type="obsolete">Nu am putut localiza ultima versiune pe server (răspuns: %1).</translation>
+    </message>
+    <message>
+        <source>VirtualBox New Version Notifier</source>
+        <translation type="obsolete">Agent versiune nouă VirtualBox</translation>
+    </message>
+    <message>
+        <source>Check for a new version</source>
+        <translation type="obsolete">Caută o versiune mai nouă</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;VirtualBox can check the latest version available for downloading. Will you let VirtualBox to do this now?&lt;/p&gt;&lt;p&gt;You can make VirtualBox look for the newer version now by pressing &lt;b&gt;Check&lt;/b&gt; button or postpone it for then next time by pressing &lt;b&gt;Cancel&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;You can run VirtualBox New Version Notifier anytime from the application Help menu by activating &lt;b&gt;&apos;Check for a new version...&apos;&lt;/b&gt; action.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;VirtualBox poate verifica după ultima versiune disponibilă spre descărcare. Doriți ca VirtualBox să facă asta acum?&lt;/p&gt;&lt;/p&gt;Puteți face asta apăsând butonul &lt;b&gt;Verifică&lt;/b&gt; sau puteți amâna acțiunea pentru data viitoare, apăsând &lt;b&gt;Revocare&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Puteți rula Agentul versiune nouă VirtualBox oricând, din meniul Ajutor al aplicației prin acțiunea &lt;b&gt;&apos;Caută o versiune nouă...&apos;&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Chec&amp;k</source>
+        <translation type="obsolete">&amp;Verifică</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation type="obsolete">&amp;Revocare</translation>
+    </message>
+    <message>
+        <source>Check Results</source>
+        <translation type="obsolete">Rezultate căutare</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;New VirtualBox %1 version available to download from:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Noul VirtualBox versiunea %1 este disponibil pentru descărcare la:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to obtain new version information due to network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Nu am putut obține informații despre ultima versiune, datorită unei erori din rețea:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>You are already running the most recent version of VirtualBox.version, there is no newer version currently available.</source>
+        <translation type="obsolete">Aveți instalată ultima versiune a VirtualBox, momentan nu există o versiune mai nouă.</translation>
+    </message>
+    <message>
+        <source>&amp;Close</source>
+        <translation type="obsolete">În&amp;chide</translation>
+    </message>
+    <message>
+        <source>VirtualBox Update Wizard</source>
+        <translation type="obsolete">Asistent actualizare VirtualBox</translation>
+    </message>
+    <message>
+        <source>Check for Updates</source>
+        <translation type="obsolete">Verifică după actualizări</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;
+&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;
+&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Acest asistent se va conecta la site-ul VirtualBox și va verifica dacă o versiune mai nouă este disponibilă.&lt;/p&gt;
+&lt;p&gt;Folosiți butonul &lt;b&gt;Verifică&lt;/b&gt; pentru a verifica aacum dacă există o nouă versiune, sau butonul &lt;b&gt;Renunță&lt;/b&gt; dacă nu doriți să faceți această verificare.&lt;/p&gt;
+&lt;p&gt;Puteți rula acest asistent oricând alegănd din meniul &lt;b&gt;Ajutor&lt;/b&gt; comanda &lt;b&gt;Verifică după actualizări...&lt;/b&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">Renunță</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="obsolete">Rezumat</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;O versiune mai nouă a VirtualBox a fost lansată! Versiunea &lt;b&gt;%1&lt;/b&gt; este disponibilă la &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Puteți descărca această versiune direct de la:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to obtain the new version information due to the following network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Nu am putut obține informații despre ultima versiune datorită unei erori din rețea:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>You are already running the most recent version of VirtualBox.</source>
+        <translation type="obsolete">Aveți instalată ultima versiune a VirtualBox. Vă rog repetați verificarea actualizărilor mai târziu.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Acest asistent se va conecta la site-ul VirtualBox și va verifica dacă o versiune mai nouă este disponibilă.&lt;/p&gt;&lt;p&gt;Folosiți butonul &lt;b&gt;Verifică&lt;/b&gt; pentru a verifica acum dacă există o nouă versiune, sau butonul &lt;b&gt;Renunță&lt;/b&gt; dacă nu doriți să faceți această verificare.&lt;/p&gt;
+&lt;p&gt;Puteți rula acest asistent oricând alegănd din meniul &lt;b&gt;Ajutor&lt;/b&gt; comanda &lt;b&gt;Verifică după actualizări...&lt;/b&gt;&lt;/p&gt;</translation>
+    </message>
+</context>
+<context>
     <name>UIVMCloseDialog</name>
     <message>
         <source>Close Virtual Machine</source>
@@ -7640,16 +7820,8 @@ Versiunea %1</translation>
         <translation type="obsolete">&amp;Ajutor</translation>
     </message>
     <message>
-        <source>Indicates whether the guest display auto-resize function is On (&lt;img src=auto_resize_on_16px.png/&gt;) or Off (&lt;img src=auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">Indică dacă funcția de autoredimnsionare a ecranului musafir este Activă (&lt;img src=auto_resize_on_16px.png/&gt;) sau Inactivă (&lt;Img src=auto_resize_off_16px.png/&gt;). Notă: această funcție necesită Guest Addition instalat pe SO musafir.</translation>
-    </message>
-    <message>
-        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">Inidică dacă cursorul mouse sistemului gazdă este capturat de către SO musafir:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;cursorul nu este capturat&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;cursorul este capturat&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integrare mouse (IM) este Activată&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM este Inactivă, cursorul este capturat&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM este Inactivă, cursorul nu este capturat.&lt;/nobr&gt;&lt;br&gt;Notă: funcția integrare mouse necesită instalarea pe SO musafir a Guest Additions.</translation>
-    </message>
-    <message>
-        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=hostkey_captured_16px.png/&gt;) or not (&lt;img src=hostkey_16px.png/&gt;)</source>
-        <translation type="obsolete">Indică dacă tastatura este capturată de către SO musafir (&lt;img src=hostkey_captured_16px.png/&gt;) sau nu (&lt;img src=hostkey_16px.png/&gt;)</translation>
+        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
+        <translation type="obsolete">Inidică dacă cursorul mouse sistemului gazdă este capturat de către SO musafir:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;cursorul nu este capturat&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;cursorul este capturat&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integrare mouse (IM) este Activată&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM este Inactivă, cursorul este capturat&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM este Inactivă, cursorul nu este capturat.&lt;/nobr&gt;&lt;br&gt;Notă: funcția integrare mouse necesită instalarea pe SO musafir a Guest Additions.</translation>
     </message>
     <message>
         <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
@@ -7701,8 +7873,8 @@ Versiunea %1</translation>
         <translation type="obsolete">&lt;qt&gt;Indică&amp;nbsp;activitatea&amp;nbsp;interfețelor&amp;nbsp;de&amp;nbsp;rețea&lt;br&gt;[&lt;b&gt;%1 dispozitiv(e)&lt;/b&gt;]&lt;/qt&gt;</translation>
     </message>
     <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=vrdp_16px.png/&gt;) or not (&lt;img src=vrdp_disabled_16px.png/&gt;)</source>
-        <translation type="obsolete">Indică dacă Remote Display (Server VRDP) este activat (&lt;img src=vrdp_16px.png/&gt;) sau nu (&lt;img src=vrdp_disabled_16px.png/&gt;)</translation>
+        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;)</source>
+        <translation type="obsolete">Indică dacă Remote Display (Server VRDP) este activat (&lt;img src=:/vrdp_16px.png/&gt;) sau nu (&lt;img src=:/vrdp_disabled_16px.png/&gt;)</translation>
     </message>
     <message>
         <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
@@ -7829,10 +8001,6 @@ Versiunea %1</translation>
         <translation type="obsolete">Schimbă în modul continuu de integrare cu spațiul de lucru</translation>
     </message>
     <message>
-        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=hostkey_captured_16px.png/&gt;) or not (&lt;img src=hostkey_16px.png/&gt;).</source>
-        <translation type="obsolete">Indică dacă tastatura este capturată de SO musafir (&lt;img src=hostkey_captured_16px.png/&gt;) sau nu (&lt;img src=hostkey_16px.png/&gt;).</translation>
-    </message>
-    <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the floppy media:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>Floppy tooltip</comment>
         <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;Indică activitatea dischetei:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
@@ -7923,8 +8091,8 @@ Versiunea %1</translation>
         <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Controlorul USB este dezactivat&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=vrdp_16px.png/&gt;) or not (&lt;img src=vrdp_disabled_16px.png/&gt;).</source>
-        <translation type="obsolete">Indică dacă Remote Display (Server VRDP) este activat (&lt;img src=vrdp_16px.png/&gt;) sau nu (&lt;img src=vrdp_disabled_16px.png/&gt;).</translation>
+        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
+        <translation type="obsolete">Indică dacă Remote Display (Server VRDP) este activat (&lt;img src=:/vrdp_16px.png/&gt;) sau nu (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the machineof the machine&apos;sapos;s shared folders: shared folders:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -7984,19 +8152,11 @@ Versiunea %1</translation>
     </message>
     <message>
         <source>Indicates whether the guest display auto-resize function is On (&lt;img src=:/auto_resize_on_16px.png/&gt;) or Off (&lt;img src=:/auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">Indică dacă funcția de autoredimnsionare a ecranului musafir este Activă (&lt;img src=auto_resize_on_16px.png/&gt;) sau Inactivă (&lt;Img src=auto_resize_off_16px.png/&gt;). Notă: această funcție necesită Guest Addition instalat pe SO musafir.</translation>
-    </message>
-    <message>
-        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">Inidică dacă cursorul mouse sistemului gazdă este capturat de către SO musafir:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;cursorul nu este capturat&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;cursorul este capturat&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integrare mouse (IM) este Activată&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM este Inactivă, cursorul este capturat&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;IM este Inactivă, cursorul nu este capturat.&lt;/nobr&gt;&lt;br&gt;Notă: funcția integrare mouse necesită instalarea pe SO musafir a Guest Additions.</translation>
+        <translation type="obsolete">Indică dacă funcția de autoredimnsionare a ecranului musafir este Activă (&lt;img src=:/auto_resize_on_16px.png/&gt;) sau Inactivă (&lt;img src=:/auto_resize_off_16px.png/&gt;). Notă: această funcție necesită Guest Addition instalat pe SO musafir.</translation>
     </message>
     <message>
         <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
-        <translation type="obsolete">Indică dacă tastatura este capturată de SO musafir (&lt;img src=hostkey_captured_16px.png/&gt;) sau nu (&lt;img src=hostkey_16px.png/&gt;).</translation>
-    </message>
-    <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
-        <translation type="obsolete">Indică dacă Remote Display (Server VRDP) este activat (&lt;img src=vrdp_16px.png/&gt;) sau nu (&lt;img src=vrdp_disabled_16px.png/&gt;).</translation>
+        <translation type="obsolete">Indică dacă tastatura este capturată de SO musafir (&lt;img src=:/hostkey_captured_16px.png/&gt;) sau nu (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>&amp;Logging...</source>
@@ -11362,10 +11522,6 @@ Folosiți meniul contextual sau butaonele din dreapta pentru a adâuga sau șter
         <translation>Pornește mașina virtuală selectată</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;h3&gt;Bun venit în VirtualBox!&lt;/h3&gt;&lt;p&gt;Partea din stânga a ferestrei arată lista tuturor mașinilor virtuale din computerul dvs. Lista este goală acum deoarece nu a fost creată nici o mașină virtuală până acum.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Pentru a crea o mașină virtuală nouă apăsați butonul &lt;b&gt;Nouă&lt;/b&gt; în bara de unelte principală localizată în partea de sus a ferestrei.&lt;/p&gt;&lt;p&gt;Puteți apăsa tasta &lt;b&gt;%1&lt;/b&gt; pentru a obține ajutor instantaneu, sau puteți vizita &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; pentru ultimele știri și informații.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&amp;Machine</source>
         <translation>&amp;Mașină</translation>
     </message>
@@ -11431,7 +11587,7 @@ Folosiți meniul contextual sau butaonele din dreapta pentru a adâuga sau șter
     </message>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Bun venit în VirtualBox!&lt;/h3&gt;&lt;p&gt;Partea din stânga a ferestrei arată lista tuturor mașinilor virtuale din computerul dvs. Lista este goală acum deoarece nu a fost creată nici o mașină virtuală până acum.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Pentru a crea o mașină virtuală nouă apăsați butonul &lt;b&gt;Nouă&lt;/b&gt; în bara de unelte principală localizată în partea de sus a ferestrei.&lt;/p&gt;&lt;p&gt;Puteți apăsa tasta &lt;b&gt;%1&lt;/b&gt; pentru a obține ajutor instantaneu, sau puteți vizita &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; pentru ultimele știri și informații.&lt;/p&gt;</translation>
+        <translation>&lt;h3&gt;Bun venit în VirtualBox!&lt;/h3&gt;&lt;p&gt;Partea din stânga a ferestrei arată lista tuturor mașinilor virtuale din computerul dvs. Lista este goală acum deoarece nu a fost creată nici o mașină virtuală până acum.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Pentru a crea o mașină virtuală nouă apăsați butonul &lt;b&gt;Nouă&lt;/b&gt; în bara de unelte principală localizată în partea de sus a ferestrei.&lt;/p&gt;&lt;p&gt;Puteți apăsa tasta &lt;b&gt;%1&lt;/b&gt; pentru a obține ajutor instantaneu, sau puteți vizita &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; pentru ultimele știri și informații.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Virtual Media Manager...</source>
@@ -12311,142 +12467,6 @@ value.&lt;/qt&gt;</source>
         <source>No supported devices connected to the host PC</source>
         <comment>USB device tooltip</comment>
         <translation>Nici un dispozitiv suportat nu este conectat la PC gazdă</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxUpdateDlg</name>
-    <message>
-        <source>1 day</source>
-        <translation>1 zi</translation>
-    </message>
-    <message>
-        <source>2 days</source>
-        <translation>2 zile</translation>
-    </message>
-    <message>
-        <source>3 days</source>
-        <translation>3 zile</translation>
-    </message>
-    <message>
-        <source>4 days</source>
-        <translation>4 zile</translation>
-    </message>
-    <message>
-        <source>5 days</source>
-        <translation>5 zile</translation>
-    </message>
-    <message>
-        <source>6 days</source>
-        <translation>6 zile</translation>
-    </message>
-    <message>
-        <source>1 week</source>
-        <translation>1 săptămână</translation>
-    </message>
-    <message>
-        <source>2 weeks</source>
-        <translation>2 săptămâni</translation>
-    </message>
-    <message>
-        <source>3 weeks</source>
-        <translation>3 săptămâni</translation>
-    </message>
-    <message>
-        <source>1 month</source>
-        <translation>1 lună</translation>
-    </message>
-    <message>
-        <source>Never</source>
-        <translation>Niciodată</translation>
-    </message>
-    <message>
-        <source>Connection timed out.</source>
-        <translation type="obsolete">Conexiunea a expirat.</translation>
-    </message>
-    <message>
-        <source>Could not locate the latest version list on the server (response: %1).</source>
-        <translation type="obsolete">Nu am putut localiza ultima versiune pe server (răspuns: %1).</translation>
-    </message>
-    <message>
-        <source>VirtualBox New Version Notifier</source>
-        <translation type="obsolete">Agent versiune nouă VirtualBox</translation>
-    </message>
-    <message>
-        <source>Check for a new version</source>
-        <translation type="obsolete">Caută o versiune mai nouă</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;VirtualBox can check the latest version available for downloading. Will you let VirtualBox to do this now?&lt;/p&gt;&lt;p&gt;You can make VirtualBox look for the newer version now by pressing &lt;b&gt;Check&lt;/b&gt; button or postpone it for then next time by pressing &lt;b&gt;Cancel&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;You can run VirtualBox New Version Notifier anytime from the application Help menu by activating &lt;b&gt;&apos;Check for a new version...&apos;&lt;/b&gt; action.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;VirtualBox poate verifica după ultima versiune disponibilă spre descărcare. Doriți ca VirtualBox să facă asta acum?&lt;/p&gt;&lt;/p&gt;Puteți face asta apăsând butonul &lt;b&gt;Verifică&lt;/b&gt; sau puteți amâna acțiunea pentru data viitoare, apăsând &lt;b&gt;Revocare&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Puteți rula Agentul versiune nouă VirtualBox oricând, din meniul Ajutor al aplicației prin acțiunea &lt;b&gt;&apos;Caută o versiune nouă...&apos;&lt;/b&gt;.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Chec&amp;k</source>
-        <translation>&amp;Verifică</translation>
-    </message>
-    <message>
-        <source>&amp;Cancel</source>
-        <translation type="obsolete">&amp;Revocare</translation>
-    </message>
-    <message>
-        <source>Check Results</source>
-        <translation type="obsolete">Rezultate căutare</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;New VirtualBox %1 version available to download from:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Noul VirtualBox versiunea %1 este disponibil pentru descărcare la:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Unable to obtain new version information due to network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Nu am putut obține informații despre ultima versiune, datorită unei erori din rețea:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>You are already running the most recent version of VirtualBox.version, there is no newer version currently available.</source>
-        <translation type="obsolete">Aveți instalată ultima versiune a VirtualBox, momentan nu există o versiune mai nouă.</translation>
-    </message>
-    <message>
-        <source>&amp;Close</source>
-        <translation>În&amp;chide</translation>
-    </message>
-    <message>
-        <source>VirtualBox Update Wizard</source>
-        <translation>Asistent actualizare VirtualBox</translation>
-    </message>
-    <message>
-        <source>Check for Updates</source>
-        <translation>Verifică după actualizări</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;
-&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;
-&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Acest asistent se va conecta la site-ul VirtualBox și va verifica dacă o versiune mai nouă este disponibilă.&lt;/p&gt;
-&lt;p&gt;Folosiți butonul &lt;b&gt;Verifică&lt;/b&gt; pentru a verifica aacum dacă există o nouă versiune, sau butonul &lt;b&gt;Renunță&lt;/b&gt; dacă nu doriți să faceți această verificare.&lt;/p&gt;
-&lt;p&gt;Puteți rula acest asistent oricând alegănd din meniul &lt;b&gt;Ajutor&lt;/b&gt; comanda &lt;b&gt;Verifică după actualizări...&lt;/b&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Renunță</translation>
-    </message>
-    <message>
-        <source>Summary</source>
-        <translation>Rezumat</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;O versiune mai nouă a VirtualBox a fost lansată! Versiunea &lt;b&gt;%1&lt;/b&gt; este disponibilă la &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Puteți descărca această versiune direct de la:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Unable to obtain the new version information due to the following network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Nu am putut obține informații despre ultima versiune datorită unei erori din rețea:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>You are already running the most recent version of VirtualBox.</source>
-        <translation>Aveți instalată ultima versiune a VirtualBox. Vă rog repetați verificarea actualizărilor mai târziu.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Acest asistent se va conecta la site-ul VirtualBox și va verifica dacă o versiune mai nouă este disponibilă.&lt;/p&gt;&lt;p&gt;Folosiți butonul &lt;b&gt;Verifică&lt;/b&gt; pentru a verifica acum dacă există o nouă versiune, sau butonul &lt;b&gt;Renunță&lt;/b&gt; dacă nu doriți să faceți această verificare.&lt;/p&gt;
-&lt;p&gt;Puteți rula acest asistent oricând alegănd din meniul &lt;b&gt;Ajutor&lt;/b&gt; comanda &lt;b&gt;Verifică după actualizări...&lt;/b&gt;&lt;/p&gt;</translation>
     </message>
 </context>
 <context>

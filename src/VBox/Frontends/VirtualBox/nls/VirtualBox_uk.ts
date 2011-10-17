@@ -193,11 +193,11 @@
     </message>
     <message>
         <source>Copy all errors to the clipboard</source>
-        <translation type="unfinished"></translation>
+        <translation>Скопіювати всі помилки до буфера</translation>
     </message>
     <message>
         <source>Copy</source>
-        <translation type="unfinished">Скопіювати</translation>
+        <translation>Скопіювати</translation>
     </message>
 </context>
 <context>
@@ -688,7 +688,7 @@
     </message>
     <message>
         <source>Linked Base for %1 and %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Сполучені бази для %1 і %2</translation>
     </message>
 </context>
 <context>
@@ -719,7 +719,7 @@
     </message>
     <message>
         <source>When checked a new unique MAC address will be assigned to all configured network cards.</source>
-        <translation type="unfinished"></translation>
+        <translation>Якщо позначено, нову унікальну адресу MAC буде призначено для всіх налаштованих мережевих плат.</translation>
     </message>
 </context>
 <context>
@@ -758,54 +758,54 @@
     </message>
     <message>
         <source>Full Clone</source>
-        <translation type="unfinished"></translation>
+        <translation>Повний клон</translation>
     </message>
     <message>
         <source>Linked Clone</source>
-        <translation type="unfinished"></translation>
+        <translation>Сполучений клон</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please select the type of the clone.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Full Clone&lt;/b&gt; an exact copy (including all virtual disk images) of the original VM will be created. If you select &lt;b&gt;Linked Clone&lt;/b&gt;, a new VM will be created, but the virtual disk images will point to the virtual disk images of original VM.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Будь ласка, виберіть тип клонування.&lt;/p&gt;&lt;p&gt;Якщо вибрати &lt;b&gt;Повний клон&lt;/b&gt;, буде створено точну копію (зокрема всі образи віртуальних дисків) первинної віртуальної машиниof. Якщо вибрати &lt;b&gt;Сполучений клон&lt;/b&gt;, буде створено нову віртуальну машину, але образи віртуального диска будуть спрямовані на образи з первинної віртуальної машини.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Note that a new snapshot within the source VM is created in case you select &lt;b&gt;Linked Clone&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Завважте, нові зрізи у джерелі віртуальної машини створено внаслідок вибору &lt;b&gt;Сполучений клон&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
     <name>UICloneVMWizardPage3</name>
     <message>
         <source>Current machine state</source>
-        <translation type="unfinished">Поточний стан машини</translation>
+        <translation>Поточний стан машини</translation>
     </message>
     <message>
         <source>Current machine and all child states</source>
-        <translation type="unfinished">Стани поточної машини і її підпорядованих</translation>
+        <translation>Стани поточної машини і її підпорядованих</translation>
     </message>
     <message>
         <source>All states</source>
-        <translation type="unfinished">Усі стани</translation>
+        <translation>Усі стани</translation>
     </message>
     <message>
         <source>Cloning Configuration</source>
-        <translation type="unfinished">Налаштування клонування</translation>
+        <translation>Налаштування клонування</translation>
     </message>
     <message>
         <source>Please choose which parts of the virtual machine should be cloned.</source>
-        <translation type="unfinished">Будь ласка, виберіть, які частини віртуальної машини слід клонувати.</translation>
+        <translation>Будь ласка, виберіть, які частини віртуальної машини слід клонувати.</translation>
     </message>
     <message>
         <source>If you select &lt;b&gt;Current machine state&lt;/b&gt;, only the current state of the virtual machine is cloned.</source>
-        <translation type="unfinished">Якщо вибрати &lt;b&gt;Поточний стан машини&lt;/b&gt;, клонується лише поточний стан віртуальної машини.</translation>
+        <translation>Якщо вибрати &lt;b&gt;Поточний стан машини&lt;/b&gt;, клонується лише поточний стан віртуальної машини.</translation>
     </message>
     <message>
         <source>If you select &lt;b&gt;Current machine and all child states&lt;/b&gt; the current state of the virtual machine and any states of child snapshots are cloned.</source>
-        <translation type="unfinished">Якщо вибрати &lt;b&gt;Стани поточної машини і її підпорядованих&lt;/b&gt;, клонується поточний стан віртуальної машини і певні зрізи.</translation>
+        <translation>Якщо вибрати &lt;b&gt;Стани поточної машини і її підпорядованих&lt;/b&gt;, клонується поточний стан віртуальної машини і певні зрізи.</translation>
     </message>
     <message>
         <source>If you select &lt;b&gt;All states&lt;/b&gt;, the current machine state and all snapshots are cloned.</source>
-        <translation type="unfinished">Якщо вибрати &lt;b&gt;Усі стани&lt;/b&gt;, клонується поточний стан машини і всі зрізи.</translation>
+        <translation>Якщо вибрати &lt;b&gt;Усі стани&lt;/b&gt;, клонується поточний стан машини і всі зрізи.</translation>
     </message>
 </context>
 <context>
@@ -1151,6 +1151,13 @@
     <message>
         <source>Select folder to save Guest Additions image to</source>
         <translation>Вибрати теку, щоб зберегти образ гостьових доповнень</translation>
+    </message>
+</context>
+<context>
+    <name>UIDownloaderExtensionPack</name>
+    <message>
+        <source>Select folder to save %1 to</source>
+        <translation>Вибрати теку для збереженя в неї %1</translation>
     </message>
 </context>
 <context>
@@ -2261,23 +2268,23 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Left Shift</source>
-        <translation type="unfinished">Лівий Shift</translation>
+        <translation>Лівий Shift</translation>
     </message>
     <message>
         <source>Right Shift</source>
-        <translation type="unfinished">Правий Shift</translation>
+        <translation>Правий Shift</translation>
     </message>
     <message>
         <source>Left Ctrl</source>
-        <translation type="unfinished">Лівий Ctrl</translation>
+        <translation>Лівий Ctrl</translation>
     </message>
     <message>
         <source>Right Ctrl</source>
-        <translation type="unfinished">Правий Ctrl</translation>
+        <translation>Правий Ctrl</translation>
     </message>
     <message>
         <source>Left Alt</source>
-        <translation type="unfinished">Лівий Alt</translation>
+        <translation>Лівий Alt</translation>
     </message>
     <message>
         <source>Right Alt</source>
@@ -4047,7 +4054,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>When checked the virtual disk will not be removed when the guest system ejects it.</source>
-        <translation type="unfinished">Якщо позначено, це стримувати демонтування носія, коли госьова система виштовхуватиме його.</translation>
+        <translation>Якщо позначено, віртуальний диск не буде вилучено, коли його витягнуто з гостьової системи.</translation>
     </message>
     <message>
         <source>&amp;Live CD/DVD</source>
@@ -4055,7 +4062,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>When checked the guest system will see the virtual disk as a solid state device.</source>
-        <translation type="unfinished">Якщо позначено, це залишить носій як необертову пам&apos;ять (SSD).</translation>
+        <translation>Якщо позначено, гостьова система бачитиме віртуальні диск як твердотільний пристрій.</translation>
     </message>
     <message>
         <source>&amp;Solid-state drive</source>
@@ -4093,11 +4100,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Port Count:</source>
-        <translation type="unfinished"></translation>
+        <translation>Кількість &amp;портів:</translation>
     </message>
     <message>
         <source>Selects the port count of the SATA storage controller currently selected in the Storage Tree. This must be at least one more than the highest port number you need to use.</source>
-        <translation type="unfinished"></translation>
+        <translation>Вибирає кількість портів контролера пам&apos;яті SATA, як5і поточно вибрано в дереві пам&apos;яті. Потрібно вказати щонайменше на один більше за найвищу кількість можливих у використанні потрів.</translation>
     </message>
 </context>
 <context>
@@ -4283,7 +4290,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Selects the chipset to be emulated in this virtual machine. Note that the ICH9 chipset emulation is experimental and not recommended except for guest systems (such as Mac OS X) which require it.</source>
-        <translation type="unfinished">Визначає тип комплекту мікросхем, які використовується у віртуальній машині.</translation>
+        <translation>Вибирає комплекс мікросхем, що емулюватимуться у віртуальній машині. Зауважте, емулювання мікросхеми ICH9 є експерементальною й не рекомендується, крім гостьових систем (наприклад, Mac OS X), які потребують цього.</translation>
     </message>
     <message>
         <source>you have selected emulation of an ICH9 chipset in this machine. This requires the IO-APIC feature to be enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
@@ -4317,7 +4324,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>you have assigned ICH9 chipset type to this VM. It will not work properly unless the IO-APIC feature is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation type="unfinished"></translation>
+        <translation>ви вакзали ти комплексу мікросхем ICH9 для цієї віртуальної машини. Це не буде працювати коректно, поки паралельно увімкнено IO-APIC. Це буде здійснено автоматично, коли натиснете «Гаразд» у налаштуваннях віртуальної машини.</translation>
     </message>
 </context>
 <context>
@@ -5777,7 +5784,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>The virtual machine that you are changing has been started. Only certain settings can be changed while a machine is running. All other changes will be lost if you close this window now.</source>
-        <translation type="unfinished">Стан віртуальної машиний, яку ви зараз редагуєте, змінено. Щоб зберегти лише ті налаштування, які можна редагувати при роботі машини, натисніть «Гаразд». Усі інші зміни буде втрачено.</translation>
+        <translation>Віртуальну машину, що ви змінюєте, запущено. Лише певні налаштування можна змінити протягом роботи машини. Усі зміни буде втрачено, якщо закрити вікно зараз.</translation>
     </message>
     <message>
         <source>Failed to clone the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -5825,11 +5832,41 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Can&apos;t find snapshot named &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Неможливо знайти зіріз з назвою &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Failed to save the downloaded file as &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation type="unfinished">&lt;p&gt;Не вдалось зберегти звантажений файл як &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Не вдалось зберегти звантажений файл як &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have an old version (%1) of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;Do you wish to download latest one from the Internet?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Стару версію (%1) &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; встановлено.&lt;/p&gt;&lt;p&gt;Звантажити найновішу через інтернет?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <comment>extension pack</comment>
+        <translation>Звантажити</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Звантажити &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; з &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (розміром %3 байтів)?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to install this extension pack?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; успішно звантажено з &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; і збережено локально як &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Установити пакунок розширення?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Install</source>
+        <comment>extension pack</comment>
+        <translation>Установити</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; успішно звантажено з &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt;, однак неможливо зберегти локально як &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Будь ласка, виберіть іншу адресу для файла.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Не вдалось звантажити &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; з &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -5870,11 +5907,22 @@ p, li { white-space: pre-wrap; }
     <name>UIMiniProgressWidgetAdditions</name>
     <message>
         <source>Cancel the VirtualBox Guest Additions CD image download</source>
-        <translation type="unfinished">Скасувати звантаження образу CD гостьових доповнень VirtualBox</translation>
+        <translation>Скасувати звантаження образу CD гостьових доповнень VirtualBox</translation>
     </message>
     <message>
         <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
-        <translation type="unfinished">Звантаження образу CD віртуальних доповнень VirtualBox з &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
+        <translation>Звантаження образу CD віртуальних доповнень VirtualBox з &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIMiniProgressWidgetExtension</name>
+    <message>
+        <source>Cancel the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; download</source>
+        <translation>Скасувати зватаження &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Downloading the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</source>
+        <translation>Звантаження &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; з &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;…&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
@@ -6110,7 +6158,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Please type the name of the new virtual disk file into the box below or click on the folder icon to select a different folder to create the file in.</source>
-        <translation type="unfinished">Натисніть кнопку &lt;b&gt;Вибрати&lt;/b&gt;, щоб вибрати адресу файла для збереження даних віртуального диска, або введіть назву файла в полі.</translation>
+        <translation>Будь ласка, введіть назву нового файла віртуального диска в коробку, що нижче, або натиніть на піктограму теки, щоб вибрати іншу теку для створення файла в ній.</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
@@ -6141,6 +6189,18 @@ p, li { white-space: pre-wrap; }
         <source>Details</source>
         <comment>summary</comment>
         <translation>Подробиці</translation>
+    </message>
+    <message>
+        <source>H&amp;DD (Parallels Hard Disk)</source>
+        <translation>H&amp;DD (паралельний жорсткий диск)</translation>
+    </message>
+    <message>
+        <source>Q&amp;ED (QEMU enhanced disk)</source>
+        <translation>Q&amp;ED (розширений диск QEMU)</translation>
+    </message>
+    <message>
+        <source>&amp;QCOW (QEMU Copy-On-Write)</source>
+        <translation>&amp;QCOW (копія на запис QEMU)</translation>
     </message>
 </context>
 <context>
@@ -6505,11 +6565,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Start-up &amp;Disk</source>
-        <translation type="unfinished">З&amp;авантажувальний жорсткий диск</translation>
+        <translation>За&amp;пускальний диск</translation>
     </message>
     <message>
         <source>&lt;p&gt;If you wish you can now add a start-up disk to the new machine. You can either create a new virtual disk or select one from the list or from another location using the folder icon.&lt;/p&gt;&lt;p&gt;If you need a more complex virtual disk setup you can skip this step and make the changes to the machine settings once the machine is created.&lt;/p&gt;</source>
-        <translation type="unfinished">&lt;p&gt;Виберіть жорсткий диск, який буде завантажувальним для віртуальної машини. Ви можете або створити новий жорсткий диск, або вибрати наявний зі спадного списку або натиснувши відповідну кнопку (щоб викликати потрібне вікно).&lt;/p&gt;&lt;p&gt;Якщо вам потрібно складніші налаштування жорсткого диска, можна також пропустити цей крок і під&apos;єднати жорсткі диски використовуючи діалог налаштувань віртуальної машини.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Якщо бажаєте, можете зараз додати запускальний диск до нової машини. Можете як створити новий віртуальний диск, так і вибрати його зі списку або з іншої місця, використовуючи піктограму теки.&lt;/p&gt;&lt;p&gt;Якщо потрібно більше налаштувань віртуального диска, можете пропустити цей крок і зробити зміни у налаштуваннях опісля її створення.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Choose a virtual hard disk file...</source>
@@ -6517,7 +6577,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>The recommended size of the start-up disk is &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished">Рекомендований розмір завантажувального жорсткого диска — &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation>Рекомендований розмір запускального диска — &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
 </context>
 <context>
@@ -6553,7 +6613,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Start-up Disk</source>
         <comment>summary</comment>
-        <translation type="unfinished">Завантажувальний жорсткий диск</translation>
+        <translation>Запускальний диск</translation>
     </message>
     <message>
         <source>&lt;p&gt;If the above is correct press the &lt;b&gt;%1&lt;/b&gt; button. Once you press it, a new virtual machine will be created. &lt;/p&gt;&lt;p&gt;Note that you can alter these and all other setting of the created virtual machine at any time using the &lt;b&gt;Settings&lt;/b&gt; dialog accessible through the menu of the main window.&lt;/p&gt;</source>
@@ -6837,6 +6897,93 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Select a file to open...</source>
         <translation>Вибрати файл...</translation>
+    </message>
+</context>
+<context>
+    <name>UIUpdateManager</name>
+    <message>
+        <source>1 day</source>
+        <translation>1 день</translation>
+    </message>
+    <message>
+        <source>2 days</source>
+        <translation>2 дні</translation>
+    </message>
+    <message>
+        <source>3 days</source>
+        <translation>3 дні</translation>
+    </message>
+    <message>
+        <source>4 days</source>
+        <translation>4 дні</translation>
+    </message>
+    <message>
+        <source>5 days</source>
+        <translation>5 днів</translation>
+    </message>
+    <message>
+        <source>6 days</source>
+        <translation>6 днів</translation>
+    </message>
+    <message>
+        <source>1 week</source>
+        <translation>1 тиждень</translation>
+    </message>
+    <message>
+        <source>2 weeks</source>
+        <translation>2 тижні</translation>
+    </message>
+    <message>
+        <source>3 weeks</source>
+        <translation>3 тижні</translation>
+    </message>
+    <message>
+        <source>1 month</source>
+        <translation>1 місяць</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>Ніколи</translation>
+    </message>
+    <message>
+        <source>Chec&amp;k</source>
+        <translation type="obsolete">&amp;Перевірити</translation>
+    </message>
+    <message>
+        <source>&amp;Close</source>
+        <translation type="obsolete">&amp;Закрити</translation>
+    </message>
+    <message>
+        <source>VirtualBox Update Wizard</source>
+        <translation type="obsolete">Майстер оновлень VirtualBox</translation>
+    </message>
+    <message>
+        <source>Check for Updates</source>
+        <translation type="obsolete">Перевірити на оновлення</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">Скасувати</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="obsolete">Підсумок</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Вийшла нова версія VirtualBox! Версія &lt;b&gt;%1&lt;/b&gt; доступна на &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Ви можете звантажити цю версію прямим посиланням:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to obtain the new version information due to the following network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Неможливо отримати інформацію про нову версію через таку мережеву помилку:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>You are already running the most recent version of VirtualBox.</source>
+        <translation type="obsolete">У вас уже встановлена остання версія VirtualBox. Будь ласка, спробуйте перевірити версію пізніше.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Цей майстер з&apos;єднається з сайтом VirtualBox і перевірить, чи доступна найновіша версія VirtualBox.&lt;/p&gt;&lt;p&gt;Використайте кнопку &lt;b&gt;Перевірити&lt;/b&gt;, щоб перевірити на нову версію зараз або кнопку &lt;b&gt;Скасувати&lt;/b&gt;, якщо ви не бажаєте здійснювати цю перевірку.&lt;/p&gt;&lt;p&gt;Ви можете запустити цього майстра в будь-який час вибираючи &lt;b&gt;Перевірити на оновлення...&lt;/b&gt; з меню &lt;b&gt;Довідка&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -10233,93 +10380,6 @@ p, li { white-space: pre-wrap; }
         <source>No supported devices connected to the host PC</source>
         <comment>USB device tooltip</comment>
         <translation>Нема підтримки пристроїв, які під&apos;єднанні до головного комп&apos;ютера</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxUpdateDlg</name>
-    <message>
-        <source>1 day</source>
-        <translation>1 день</translation>
-    </message>
-    <message>
-        <source>2 days</source>
-        <translation>2 дні</translation>
-    </message>
-    <message>
-        <source>3 days</source>
-        <translation>3 дні</translation>
-    </message>
-    <message>
-        <source>4 days</source>
-        <translation>4 дні</translation>
-    </message>
-    <message>
-        <source>5 days</source>
-        <translation>5 днів</translation>
-    </message>
-    <message>
-        <source>6 days</source>
-        <translation>6 днів</translation>
-    </message>
-    <message>
-        <source>1 week</source>
-        <translation>1 тиждень</translation>
-    </message>
-    <message>
-        <source>2 weeks</source>
-        <translation>2 тижні</translation>
-    </message>
-    <message>
-        <source>3 weeks</source>
-        <translation>3 тижні</translation>
-    </message>
-    <message>
-        <source>1 month</source>
-        <translation>1 місяць</translation>
-    </message>
-    <message>
-        <source>Never</source>
-        <translation>Ніколи</translation>
-    </message>
-    <message>
-        <source>Chec&amp;k</source>
-        <translation>&amp;Перевірити</translation>
-    </message>
-    <message>
-        <source>&amp;Close</source>
-        <translation>&amp;Закрити</translation>
-    </message>
-    <message>
-        <source>VirtualBox Update Wizard</source>
-        <translation>Майстер оновлень VirtualBox</translation>
-    </message>
-    <message>
-        <source>Check for Updates</source>
-        <translation>Перевірити на оновлення</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Скасувати</translation>
-    </message>
-    <message>
-        <source>Summary</source>
-        <translation>Підсумок</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Вийшла нова версія VirtualBox! Версія &lt;b&gt;%1&lt;/b&gt; доступна на &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Ви можете звантажити цю версію прямим посиланням:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Unable to obtain the new version information due to the following network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Неможливо отримати інформацію про нову версію через таку мережеву помилку:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>You are already running the most recent version of VirtualBox.</source>
-        <translation>У вас уже встановлена остання версія VirtualBox. Будь ласка, спробуйте перевірити версію пізніше.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Цей майстер з&apos;єднається з сайтом VirtualBox і перевірить, чи доступна найновіша версія VirtualBox.&lt;/p&gt;&lt;p&gt;Використайте кнопку &lt;b&gt;Перевірити&lt;/b&gt;, щоб перевірити на нову версію зараз або кнопку &lt;b&gt;Скасувати&lt;/b&gt;, якщо ви не бажаєте здійснювати цю перевірку.&lt;/p&gt;&lt;p&gt;Ви можете запустити цього майстра в будь-який час вибираючи &lt;b&gt;Перевірити на оновлення...&lt;/b&gt; з меню &lt;b&gt;Довідка&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>

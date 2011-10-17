@@ -1,4 +1,4 @@
-/* $Id: DevVirtioNet.cpp 37324 2011-06-03 16:28:03Z vboxsync $ */
+/* $Id: DevVirtioNet.cpp $ */
 /** @file
  * DevVirtioNet - Virtio Network Device
  */
@@ -334,7 +334,7 @@ PDMBOTHCBDECL(uint32_t) vnetGetHostFeatures(void *pvState)
         | VNET_F_CSUM
         | VNET_F_HOST_TSO4
         | VNET_F_HOST_TSO6
-        | VNET_F_HOST_UFO
+/*        | VNET_F_HOST_UFO UDP fragmentation offloading was broken prior 4.2 (#5846) */
 #endif
 #ifdef VNET_WITH_MERGEABLE_RX_BUFS
         | VNET_F_MRG_RXBUF

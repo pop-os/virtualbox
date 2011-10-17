@@ -1,4 +1,4 @@
-/* $Id: VHD.cpp 37737 2011-07-02 20:12:28Z vboxsync $ */
+/* $Id: VHD.cpp $ */
 /** @file
  * VHD Disk image, Core Code.
  */
@@ -1652,83 +1652,81 @@ static int vhdRead(void *pBackendData, uint64_t uOffset, void *pvBuf,
         LogFlowFunc(("cBlockAllocationTableEntry=%u cBatEntryIndex=%u\n", cBlockAllocationTableEntry, cBATEntryIndex));
         LogFlowFunc(("BlockAllocationEntry=%u\n", pImage->pBlockAllocationTable[cBlockAllocationTableEntry]));
 
-        /*
-         * If the block is not allocated the content of the entry is ~0
-         */
-        if (pImage->pBlockAllocationTable[cBlockAllocationTableEntry] == ~0U)
-        {
-            /* Return block size as read. */
-            *pcbActuallyRead = RT_MIN(cbBuf, pImage->cSectorsPerDataBlock * VHD_SECTOR_SIZE);
-            rc = VERR_VD_BLOCK_FREE;
-            goto out;
-        }
-
-        uVhdOffset = ((uint64_t)pImage->pBlockAllocationTable[cBlockAllocationTableEntry] + pImage->cDataBlockBitmapSectors + cBATEntryIndex) * VHD_SECTOR_SIZE;
-        LogFlowFunc(("uVhdOffset=%llu cbBuf=%u\n", uVhdOffset, cbBuf));
 
         /*
          * Clip read range to remain in this data block.
          */
         cbBuf = RT_MIN(cbBuf, (pImage->cbDataBlock - (cBATEntryIndex * VHD_SECTOR_SIZE)));
 
-        /* Read in the block's bitmap. */
-        rc = vhdFileReadSync(pImage,
-                             ((uint64_t)pImage->pBlockAllocationTable[cBlockAllocationTableEntry]) * VHD_SECTOR_SIZE,
-                             pImage->pu8Bitmap, pImage->cbDataBlockBitmap,
-                             NULL);
-        if (RT_SUCCESS(rc))
+        /*
+         * If the block is not allocated the content of the entry is ~0
+         */
+        if (pImage->pBlockAllocationTable[cBlockAllocationTableEntry] == ~0U)
+            rc = VERR_VD_BLOCK_FREE;
+        else
         {
-            uint32_t cSectors = 0;
+            uVhdOffset = ((uint64_t)pImage->pBlockAllocationTable[cBlockAllocationTableEntry] + pImage->cDataBlockBitmapSectors + cBATEntryIndex) * VHD_SECTOR_SIZE;
+            LogFlowFunc(("uVhdOffset=%llu cbBuf=%u\n", uVhdOffset, cbBuf));
 
-            if (vhdBlockBitmapSectorContainsData(pImage, cBATEntryIndex))
+            /* Read in the block's bitmap. */
+            rc = vhdFileReadSync(pImage,
+                                 ((uint64_t)pImage->pBlockAllocationTable[cBlockAllocationTableEntry]) * VHD_SECTOR_SIZE,
+                                 pImage->pu8Bitmap, pImage->cbDataBlockBitmap,
+                                 NULL);
+            if (RT_SUCCESS(rc))
             {
-                cBATEntryIndex++;
-                cSectors = 1;
+                uint32_t cSectors = 0;
 
-                /*
-                 * The first sector being read is marked dirty, read as much as we
-                 * can from child. Note that only sectors that are marked dirty
-                 * must be read from child.
-                 */
-                while (   (cSectors < (cbBuf / VHD_SECTOR_SIZE))
-                       && vhdBlockBitmapSectorContainsData(pImage, cBATEntryIndex))
+                if (vhdBlockBitmapSectorContainsData(pImage, cBATEntryIndex))
                 {
                     cBATEntryIndex++;
-                    cSectors++;
+                    cSectors = 1;
+
+                    /*
+                     * The first sector being read is marked dirty, read as much as we
+                     * can from child. Note that only sectors that are marked dirty
+                     * must be read from child.
+                     */
+                    while (   (cSectors < (cbBuf / VHD_SECTOR_SIZE))
+                           && vhdBlockBitmapSectorContainsData(pImage, cBATEntryIndex))
+                    {
+                        cBATEntryIndex++;
+                        cSectors++;
+                    }
+
+                    cbBuf = cSectors * VHD_SECTOR_SIZE;
+
+                    LogFlowFunc(("uVhdOffset=%llu cbBuf=%u\n", uVhdOffset, cbBuf));
+                    rc = vhdFileReadSync(pImage, uVhdOffset, pvBuf, cbBuf, NULL);
                 }
+                else
+                {
+                    /*
+                     * The first sector being read is marked clean, so we should read from
+                     * our parent instead, but only as much as there are the following
+                     * clean sectors, because the block may still contain dirty sectors
+                     * further on. We just need to compute the number of clean sectors
+                     * and pass it to our caller along with the notification that they
+                     * should be read from the parent.
+                     */
+                    cBATEntryIndex++;
+                    cSectors = 1;
 
-                cbBuf = cSectors * VHD_SECTOR_SIZE;
+                    while (   (cSectors < (cbBuf / VHD_SECTOR_SIZE))
+                           && !vhdBlockBitmapSectorContainsData(pImage, cBATEntryIndex))
+                    {
+                        cBATEntryIndex++;
+                        cSectors++;
+                    }
 
-                LogFlowFunc(("uVhdOffset=%llu cbBuf=%u\n", uVhdOffset, cbBuf));
-                rc = vhdFileReadSync(pImage, uVhdOffset, pvBuf, cbBuf, NULL);
+                    cbBuf = cSectors * VHD_SECTOR_SIZE;
+                    LogFunc(("Sectors free: uVhdOffset=%llu cbBuf=%u\n", uVhdOffset, cbBuf));
+                    rc = VERR_VD_BLOCK_FREE;
+                }
             }
             else
-            {
-                /*
-                 * The first sector being read is marked clean, so we should read from
-                 * our parent instead, but only as much as there are the following
-                 * clean sectors, because the block may still contain dirty sectors
-                 * further on. We just need to compute the number of clean sectors
-                 * and pass it to our caller along with the notification that they
-                 * should be read from the parent.
-                 */
-                cBATEntryIndex++;
-                cSectors = 1;
-
-                while (   (cSectors < (cbBuf / VHD_SECTOR_SIZE))
-                       && !vhdBlockBitmapSectorContainsData(pImage, cBATEntryIndex))
-                {
-                    cBATEntryIndex++;
-                    cSectors++;
-                }
-
-                cbBuf = cSectors * VHD_SECTOR_SIZE;
-                LogFunc(("Sectors free: uVhdOffset=%llu cbBuf=%u\n", uVhdOffset, cbBuf));
-                rc = VERR_VD_BLOCK_FREE;
-            }
+                AssertMsgFailed(("Reading block bitmap failed rc=%Rrc\n", rc));
         }
-        else
-            AssertMsgFailed(("Reading block bitmap failed rc=%Rrc\n", rc));
     }
     else
     {
@@ -2488,84 +2486,82 @@ static int vhdAsyncRead(void *pBackendData, uint64_t uOffset, size_t cbRead,
         LogFlowFunc(("BlockAllocationEntry=%u\n", pImage->pBlockAllocationTable[cBlockAllocationTableEntry]));
 
         /*
-         * If the block is not allocated the content of the entry is ~0
-         */
-        if (pImage->pBlockAllocationTable[cBlockAllocationTableEntry] == ~0U)
-        {
-            /* Return block size as read. */
-            *pcbActuallyRead = RT_MIN(cbRead, pImage->cSectorsPerDataBlock * VHD_SECTOR_SIZE);
-            return VERR_VD_BLOCK_FREE;
-        }
-
-        uVhdOffset = ((uint64_t)pImage->pBlockAllocationTable[cBlockAllocationTableEntry] + pImage->cDataBlockBitmapSectors + cBATEntryIndex) * VHD_SECTOR_SIZE;
-        LogFlowFunc(("uVhdOffset=%llu cbRead=%u\n", uVhdOffset, cbRead));
-
-        /*
          * Clip read range to remain in this data block.
          */
         cbRead = RT_MIN(cbRead, (pImage->cbDataBlock - (cBATEntryIndex * VHD_SECTOR_SIZE)));
 
-        /* Read in the block's bitmap. */
-        PVDMETAXFER pMetaXfer;
-        rc = vhdFileReadMetaAsync(pImage,
-                                  ((uint64_t)pImage->pBlockAllocationTable[cBlockAllocationTableEntry]) * VHD_SECTOR_SIZE,
-                                  pImage->pu8Bitmap, pImage->cbDataBlockBitmap,
-                                  pIoCtx, &pMetaXfer, NULL, NULL);
-
-        if (RT_SUCCESS(rc))
+        /*
+         * If the block is not allocated the content of the entry is ~0
+         */
+        if (pImage->pBlockAllocationTable[cBlockAllocationTableEntry] == ~0U)
+            rc = VERR_VD_BLOCK_FREE;
+        else
         {
-            uint32_t cSectors = 0;
+            uVhdOffset = ((uint64_t)pImage->pBlockAllocationTable[cBlockAllocationTableEntry] + pImage->cDataBlockBitmapSectors + cBATEntryIndex) * VHD_SECTOR_SIZE;
+            LogFlowFunc(("uVhdOffset=%llu cbRead=%u\n", uVhdOffset, cbRead));
 
-            vhdFileMetaXferRelease(pImage, pMetaXfer);
-            if (vhdBlockBitmapSectorContainsData(pImage, cBATEntryIndex))
+            /* Read in the block's bitmap. */
+            PVDMETAXFER pMetaXfer;
+            rc = vhdFileReadMetaAsync(pImage,
+                                      ((uint64_t)pImage->pBlockAllocationTable[cBlockAllocationTableEntry]) * VHD_SECTOR_SIZE,
+                                      pImage->pu8Bitmap, pImage->cbDataBlockBitmap,
+                                      pIoCtx, &pMetaXfer, NULL, NULL);
+
+            if (RT_SUCCESS(rc))
             {
-                cBATEntryIndex++;
-                cSectors = 1;
+                uint32_t cSectors = 0;
 
-                /*
-                 * The first sector being read is marked dirty, read as much as we
-                 * can from child. Note that only sectors that are marked dirty
-                 * must be read from child.
-                 */
-                while (   (cSectors < (cbRead / VHD_SECTOR_SIZE))
-                       && vhdBlockBitmapSectorContainsData(pImage, cBATEntryIndex))
+                vhdFileMetaXferRelease(pImage, pMetaXfer);
+                if (vhdBlockBitmapSectorContainsData(pImage, cBATEntryIndex))
                 {
                     cBATEntryIndex++;
-                    cSectors++;
+                    cSectors = 1;
+
+                    /*
+                     * The first sector being read is marked dirty, read as much as we
+                     * can from child. Note that only sectors that are marked dirty
+                     * must be read from child.
+                     */
+                    while (   (cSectors < (cbRead / VHD_SECTOR_SIZE))
+                           && vhdBlockBitmapSectorContainsData(pImage, cBATEntryIndex))
+                    {
+                        cBATEntryIndex++;
+                        cSectors++;
+                    }
+
+                    cbRead = cSectors * VHD_SECTOR_SIZE;
+
+                    LogFlowFunc(("uVhdOffset=%llu cbRead=%u\n", uVhdOffset, cbRead));
+                    rc = vhdFileReadUserAsync(pImage, uVhdOffset, pIoCtx, cbRead);
                 }
+                else
+                {
+                    /*
+                     * The first sector being read is marked clean, so we should read from
+                     * our parent instead, but only as much as there are the following
+                     * clean sectors, because the block may still contain dirty sectors
+                     * further on. We just need to compute the number of clean sectors
+                     * and pass it to our caller along with the notification that they
+                     * should be read from the parent.
+                     */
+                    cBATEntryIndex++;
+                    cSectors = 1;
 
-                cbRead = cSectors * VHD_SECTOR_SIZE;
+                    while (   (cSectors < (cbRead / VHD_SECTOR_SIZE))
+                           && !vhdBlockBitmapSectorContainsData(pImage, cBATEntryIndex))
+                    {
+                        cBATEntryIndex++;
+                        cSectors++;
+                    }
 
-                LogFlowFunc(("uVhdOffset=%llu cbRead=%u\n", uVhdOffset, cbRead));
-                rc = vhdFileReadUserAsync(pImage, uVhdOffset, pIoCtx, cbRead);
+                    cbRead = cSectors * VHD_SECTOR_SIZE;
+                    LogFunc(("Sectors free: uVhdOffset=%llu cbRead=%u\n", uVhdOffset, cbRead));
+                    rc = VERR_VD_BLOCK_FREE;
+                }
             }
             else
-            {
-                /*
-                 * The first sector being read is marked clean, so we should read from
-                 * our parent instead, but only as much as there are the following
-                 * clean sectors, because the block may still contain dirty sectors
-                 * further on. We just need to compute the number of clean sectors
-                 * and pass it to our caller along with the notification that they
-                 * should be read from the parent.
-                 */
-                cBATEntryIndex++;
-                cSectors = 1;
-
-                while (   (cSectors < (cbRead / VHD_SECTOR_SIZE))
-                       && !vhdBlockBitmapSectorContainsData(pImage, cBATEntryIndex))
-                {
-                    cBATEntryIndex++;
-                    cSectors++;
-                }
-
-                cbRead = cSectors * VHD_SECTOR_SIZE;
-                LogFunc(("Sectors free: uVhdOffset=%llu cbRead=%u\n", uVhdOffset, cbRead));
-                rc = VERR_VD_BLOCK_FREE;
-            }
+                AssertMsg(rc == VERR_VD_NOT_ENOUGH_METADATA, ("Reading block bitmap failed rc=%Rrc\n", rc));
         }
-        else
-            AssertMsg(rc == VERR_VD_NOT_ENOUGH_METADATA, ("Reading block bitmap failed rc=%Rrc\n", rc));
     }
     else
     {

@@ -1,4 +1,4 @@
-; $Id: ASMNopPause.asm 33540 2010-10-28 09:27:05Z vboxsync $
+; $Id: ASMNopPause.asm $
 ;; @file
 ; IPRT - ASMNopPause().
 ;

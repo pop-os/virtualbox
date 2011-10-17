@@ -1,4 +1,4 @@
-/* $Id: UISettingsDialogSpecific.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
+/* $Id: UISettingsDialogSpecific.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -469,12 +469,6 @@ void UISettingsDialogGlobal::saveData()
 
 void UISettingsDialogGlobal::retranslateUi()
 {
-    /* Base-class UI translation: */
-    UISettingsDialog::retranslateUi();
-
-    /* Set dialog's name: */
-    setWindowTitle(title());
-
     /* General page: */
     m_pSelector->setItemText(GLSettingsPage_General, tr("General"));
 
@@ -499,8 +493,14 @@ void UISettingsDialogGlobal::retranslateUi()
     /* Proxy page: */
     m_pSelector->setItemText(GLSettingsPage_Proxy, tr("Proxy"));
 
-    /* Translate the selector: */
+    /* Polish the selector: */
     m_pSelector->polish();
+
+    /* Base-class UI translation: */
+    UISettingsDialog::retranslateUi();
+
+    /* Set dialog's name: */
+    setWindowTitle(title());
 }
 
 QString UISettingsDialogGlobal::title() const
@@ -864,12 +864,6 @@ void UISettingsDialogMachine::retranslateUi()
     if (QWidget *pPage = m_pSelector->idToPage(VMSettingsPage_Parallel))
         qApp->sendEvent(pPage, &event);
 
-    /* Base-class UI translation: */
-    UISettingsDialog::retranslateUi();
-
-    /* Set dialog's name: */
-    setWindowTitle(title());
-
     /* General page: */
     m_pSelector->setItemText(VMSettingsPage_General, tr("General"));
 
@@ -903,8 +897,14 @@ void UISettingsDialogMachine::retranslateUi()
     /* SFolders page: */
     m_pSelector->setItemText(VMSettingsPage_SF, tr("Shared Folders"));
 
-    /* Translate the selector: */
+    /* Polish the selector: */
     m_pSelector->polish();
+
+    /* Base-class UI translation: */
+    UISettingsDialog::retranslateUi();
+
+    /* Set dialog's name: */
+    setWindowTitle(title());
 }
 
 QString UISettingsDialogMachine::title() const

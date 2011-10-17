@@ -1,4 +1,4 @@
-/* $Id: DevLsiLogicSCSI.cpp 37636 2011-06-24 14:59:59Z vboxsync $ */
+/* $Id: DevLsiLogicSCSI.cpp $ */
 /** @file
  * VBox storage devices: LsiLogic LSI53c1030 SCSI controller.
  */

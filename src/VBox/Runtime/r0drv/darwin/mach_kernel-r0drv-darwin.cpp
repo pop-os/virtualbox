@@ -1,4 +1,4 @@
-/* $Id: mach_kernel-r0drv-darwin.cpp 37597 2011-06-22 20:54:05Z vboxsync $ */
+/* $Id: mach_kernel-r0drv-darwin.cpp $ */
 /** @file
  * IPRT - mach_kernel symbol resolving hack, R0 Driver, Darwin.
  */

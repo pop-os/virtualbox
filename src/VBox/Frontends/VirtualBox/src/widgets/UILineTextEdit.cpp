@@ -1,4 +1,4 @@
-/* $Id: UILineTextEdit.cpp 38375 2011-08-09 11:55:48Z vboxsync $ */
+/* $Id: UILineTextEdit.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

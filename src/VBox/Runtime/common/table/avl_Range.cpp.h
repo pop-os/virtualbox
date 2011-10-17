@@ -1,4 +1,4 @@
-/* $Id: avl_Range.cpp.h 36555 2011-04-05 12:34:09Z vboxsync $ */
+/* $Id: avl_Range.cpp.h $ */
 /** @file
  * kAVLRange  - Range routines for AVL trees.
  */

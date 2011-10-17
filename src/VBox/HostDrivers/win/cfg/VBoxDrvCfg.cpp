@@ -1,4 +1,4 @@
-/* $Id: VBoxDrvCfg.cpp 36941 2011-05-03 14:56:08Z vboxsync $ */
+/* $Id: VBoxDrvCfg.cpp $ */
 /** @file
  * VBoxDrvCfg.cpp - Windows Driver Manipulation API implementation
  */

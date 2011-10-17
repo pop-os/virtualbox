@@ -1,4 +1,4 @@
-/* $Id: tstIEMCheckMc.cpp 38077 2011-07-19 17:15:29Z vboxsync $ */
+/* $Id: tstIEMCheckMc.cpp $ */
 /** @file
  * IEM Testcase - Check the "Microcode".
  */

@@ -1,4 +1,4 @@
-/* $Id: MediumImpl.cpp 38452 2011-08-15 08:50:33Z vboxsync $ */
+/* $Id: MediumImpl.cpp $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -2935,7 +2935,12 @@ STDMETHODIMP Medium::Reset(IProgress **aProgress)
             throw rc;
         }
 
+        /* Temporary leave this lock, cause IMedium::LockWrite, will wait for
+         * an running IMedium::queryInfo. If there is one running it might be
+         * it tries to acquire a MediaTreeLock as well -> dead-lock. */
+        multilock.leave();
         rc = pMediumLockList->Lock();
+        multilock.enter();
         if (FAILED(rc))
         {
             delete pMediumLockList;
@@ -3135,9 +3140,7 @@ Utf8Str Medium::getName()
  * one registry, which causes trouble with keeping diff images in sync.
  * See getFirstRegistryMachineId() for details.
  *
- * Must have caller + locking!
- *
- * If fRecurse == true, then additionally the media tree lock must be held for reading.
+ * If fRecurse == true, then the media tree lock must be held for reading.
  *
  * @param id
  * @param fRecurse If true, recurses into child media to make sure the whole tree has registries in sync.
@@ -3145,55 +3148,59 @@ Utf8Str Medium::getName()
  */
 bool Medium::addRegistry(const Guid& id, bool fRecurse)
 {
-    // hard disks cannot be in more than one registry
-    if (    m->devType == DeviceType_HardDisk
-         && m->llRegistryIDs.size() > 0
-       )
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
         return false;
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    bool fAdd = true;
+
+    // hard disks cannot be in more than one registry
+    if (   m->devType == DeviceType_HardDisk
+        && m->llRegistryIDs.size() > 0)
+        fAdd = false;
 
     // no need to add the UUID twice
-    for (GuidList::const_iterator it = m->llRegistryIDs.begin();
-         it != m->llRegistryIDs.end();
-         ++it)
+    if (fAdd)
     {
-        if ((*it) == id)
-            return false;
+        for (GuidList::const_iterator it = m->llRegistryIDs.begin();
+             it != m->llRegistryIDs.end();
+             ++it)
+        {
+            if ((*it) == id)
+            {
+                fAdd = false;
+                break;
+            }
+        }
     }
 
-    addRegistryImpl(id, fRecurse);
-
-    return true;
-}
-
-/**
- * Private implementation for addRegistry() so we can recurse more efficiently.
- * @param id
- * @param fRecurse
- */
-void Medium::addRegistryImpl(const Guid& id, bool fRecurse)
-{
-    m->llRegistryIDs.push_back(id);
+    if (fAdd)
+        m->llRegistryIDs.push_back(id);
 
     if (fRecurse)
     {
-        for (MediaList::iterator it = m->llChildren.begin();
-             it != m->llChildren.end();
+        // Get private list of children and release medium lock straight away.
+        MediaList llChildren(m->llChildren);
+        alock.release();
+
+        for (MediaList::iterator it = llChildren.begin();
+             it != llChildren.end();
              ++it)
         {
             Medium *pChild = *it;
-            // recurse!
-            pChild->addRegistryImpl(id, fRecurse);
+            fAdd |= pChild->addRegistry(id, true);
         }
     }
+
+    return fAdd;
 }
 
 /**
  * Removes the given UUID from the list of media registry UUIDs. Returns true
  * if found or false if not.
  *
- * Must have caller + locking!
- *
- * If fRecurse == true, then additionally the media tree lock must be held for reading.
+ * If fRecurse == true, then the media tree lock must be held for reading.
  *
  * @param id
  * @param fRecurse If true, recurses into child media to make sure the whole tree has registries in sync.
@@ -3201,6 +3208,13 @@ void Medium::addRegistryImpl(const Guid& id, bool fRecurse)
  */
 bool Medium::removeRegistry(const Guid& id, bool fRecurse)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return false;
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    bool fRemove = false;
+
     for (GuidList::iterator it = m->llRegistryIDs.begin();
          it != m->llRegistryIDs.end();
          ++it)
@@ -3208,40 +3222,39 @@ bool Medium::removeRegistry(const Guid& id, bool fRecurse)
         if ((*it) == id)
         {
             m->llRegistryIDs.erase(it);
-
-            if (fRecurse)
-            {
-                for (MediaList::iterator it2 = m->llChildren.begin();
-                     it2 != m->llChildren.end();
-                     ++it2)
-                {
-                    Medium *pChild = *it2;
-                    pChild->removeRegistry(id, true);
-                }
-            }
-
-            return true;
+            fRemove = true;
+            break;
         }
     }
 
-    return false;
+    if (fRecurse)
+    {
+        // Get private list of children and release medium lock straight away.
+        MediaList llChildren(m->llChildren);
+        alock.release();
+
+        for (MediaList::iterator it = llChildren.begin();
+             it != llChildren.end();
+             ++it)
+        {
+            Medium *pChild = *it;
+            fRemove |= pChild->removeRegistry(id, true);
+        }
+    }
+
+    return fRemove;
 }
 
 /**
  * Returns true if id is in the list of media registries for this medium.
  *
- * Must have caller + locking!
+ * Must have caller + read locking!
  *
  * @param id
  * @return
  */
 bool Medium::isInRegistry(const Guid& id)
 {
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return false;
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
     for (GuidList::const_iterator it = m->llRegistryIDs.begin();
          it != m->llRegistryIDs.end();
          ++it)
@@ -4251,6 +4264,11 @@ HRESULT Medium::deleteStorage(ComObjPtr<Progress> *aProgress,
 
         /* Undo deleting state if necessary. */
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        /* Make sure that any error signalled by unmarkForDeletion() is not
+         * ending up in the error list (if the caller uses MultiResult). It
+         * usually is spurious, as in most cases the medium hasn't been marked
+         * for deletion when the error was thrown above. */
+        ErrorInfoKeeper eik;
         unmarkForDeletion();
     }
 
@@ -6401,7 +6419,7 @@ HRESULT Medium::taskCreateBaseHandler(Medium::CreateBaseTask &task)
             /* ensure the directory exists */
             if (capabilities & MediumFormatCapabilities_File)
             {
-                rc = VirtualBox::ensureFilePathExists(location);
+                rc = VirtualBox::ensureFilePathExists(location, !(task.mVariant & MediumVariant_NoCreateDir) /* fCreate */);
                 if (FAILED(rc))
                     throw rc;
             }
@@ -6412,7 +6430,7 @@ HRESULT Medium::taskCreateBaseHandler(Medium::CreateBaseTask &task)
                                format.c_str(),
                                location.c_str(),
                                task.mSize,
-                               task.mVariant,
+                               task.mVariant & ~MediumVariant_NoCreateDir,
                                NULL,
                                &geo,
                                &geo,
@@ -6568,7 +6586,7 @@ HRESULT Medium::taskCreateDiffHandler(Medium::CreateDiffTask &task)
             /* ensure the target directory exists */
             if (capabilities & MediumFormatCapabilities_File)
             {
-                HRESULT rc = VirtualBox::ensureFilePathExists(targetLocation);
+                HRESULT rc = VirtualBox::ensureFilePathExists(targetLocation, !(task.mVariant & MediumVariant_NoCreateDir) /* fCreate */);
                 if (FAILED(rc))
                     throw rc;
             }
@@ -6576,7 +6594,7 @@ HRESULT Medium::taskCreateDiffHandler(Medium::CreateDiffTask &task)
             vrc = VDCreateDiff(hdd,
                                targetFormat.c_str(),
                                targetLocation.c_str(),
-                               task.mVariant | VD_IMAGE_FLAGS_DIFF,
+                               (task.mVariant & ~MediumVariant_NoCreateDir) | VD_IMAGE_FLAGS_DIFF,
                                NULL,
                                targetId.raw(),
                                id.raw(),
@@ -7071,7 +7089,7 @@ HRESULT Medium::taskCloneHandler(Medium::CloneTask &task)
             /* ensure the target directory exists */
             if (capabilities & MediumFormatCapabilities_File)
             {
-                HRESULT rc = VirtualBox::ensureFilePathExists(targetLocation);
+                HRESULT rc = VirtualBox::ensureFilePathExists(targetLocation, !(task.mVariant & MediumVariant_NoCreateDir) /* fCreate */);
                 if (FAILED(rc))
                     throw rc;
             }
@@ -7134,7 +7152,7 @@ HRESULT Medium::taskCloneHandler(Medium::CloneTask &task)
                                  (fCreatingTarget) ? targetLocation.c_str() : (char *)NULL,
                                  false /* fMoveByRename */,
                                  0 /* cbSize */,
-                                 task.mVariant,
+                                 task.mVariant & ~MediumVariant_NoCreateDir,
                                  targetId.raw(),
                                  VD_OPEN_FLAGS_NORMAL,
                                  NULL /* pVDIfsOperation */,
@@ -7152,7 +7170,7 @@ HRESULT Medium::taskCloneHandler(Medium::CloneTask &task)
                                    0 /* cbSize */,
                                    task.midxSrcImageSame,
                                    task.midxDstImageSame,
-                                   task.mVariant,
+                                   task.mVariant & ~MediumVariant_NoCreateDir,
                                    targetId.raw(),
                                    VD_OPEN_FLAGS_NORMAL,
                                    NULL /* pVDIfsOperation */,
@@ -7742,7 +7760,7 @@ HRESULT Medium::taskExportHandler(Medium::ExportTask &task)
             /* ensure the target directory exists */
             if (capabilities & MediumFormatCapabilities_File)
             {
-                rc = VirtualBox::ensureFilePathExists(targetLocation);
+                rc = VirtualBox::ensureFilePathExists(targetLocation, !(task.mVariant & MediumVariant_NoCreateDir) /* fCreate */);
                 if (FAILED(rc))
                     throw rc;
             }
@@ -7760,7 +7778,7 @@ HRESULT Medium::taskExportHandler(Medium::ExportTask &task)
                              targetLocation.c_str(),
                              false /* fMoveByRename */,
                              0 /* cbSize */,
-                             task.mVariant,
+                             task.mVariant & ~MediumVariant_NoCreateDir,
                              NULL /* pDstUuid */,
                              VD_OPEN_FLAGS_NORMAL | VD_OPEN_FLAGS_SEQUENTIAL,
                              NULL /* pVDIfsOperation */,
@@ -7867,7 +7885,7 @@ HRESULT Medium::taskImportHandler(Medium::ImportTask &task)
             /* ensure the target directory exists */
             if (capabilities & MediumFormatCapabilities_File)
             {
-                HRESULT rc = VirtualBox::ensureFilePathExists(targetLocation);
+                HRESULT rc = VirtualBox::ensureFilePathExists(targetLocation, !(task.mVariant & MediumVariant_NoCreateDir) /* fCreate */);
                 if (FAILED(rc))
                     throw rc;
             }
@@ -7928,7 +7946,7 @@ HRESULT Medium::taskImportHandler(Medium::ImportTask &task)
                              (fCreatingTarget) ? targetLocation.c_str() : (char *)NULL,
                              false /* fMoveByRename */,
                              0 /* cbSize */,
-                             task.mVariant,
+                             task.mVariant & ~MediumVariant_NoCreateDir,
                              targetId.raw(),
                              VD_OPEN_FLAGS_NORMAL,
                              NULL /* pVDIfsOperation */,

@@ -1,4 +1,4 @@
-/* $Id: dvmbsdlabel.cpp 37423 2011-06-12 18:37:56Z vboxsync $ */
+/* $Id: dvmbsdlabel.cpp $ */
 /** @file
  * IPRT Disk Volume Management API (DVM) - BSD disklabel format backend.
  */

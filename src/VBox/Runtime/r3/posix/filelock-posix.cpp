@@ -1,4 +1,4 @@
-/* $Id: filelock-posix.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
+/* $Id: filelock-posix.cpp $ */
 /** @file
  * IPRT - File Locking, POSIX.
  */

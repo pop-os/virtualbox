@@ -1,4 +1,4 @@
-/* $Id: semrw-posix.cpp 30111 2010-06-09 12:14:59Z vboxsync $ */
+/* $Id: semrw-posix.cpp $ */
 /** @file
  * IPRT - Read-Write Semaphore, POSIX.
  */

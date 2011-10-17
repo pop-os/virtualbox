@@ -1,4 +1,4 @@
-/* $Id: tstDevPhy.cpp 31885 2010-08-24 07:22:23Z vboxsync $ */
+/* $Id: tstDevPhy.cpp $ */
 /** @file
  * PHY MDIO unit tests.
  */

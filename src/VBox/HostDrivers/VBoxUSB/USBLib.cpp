@@ -1,4 +1,4 @@
-/* $Id: USBLib.cpp 31898 2010-08-24 09:28:43Z vboxsync $ */
+/* $Id: USBLib.cpp $ */
 /** @file
  * VirtualBox USB Library, Common Bits.
  */

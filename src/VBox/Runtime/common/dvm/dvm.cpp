@@ -1,4 +1,4 @@
-/* $Id: dvm.cpp 37270 2011-05-30 21:25:42Z vboxsync $ */
+/* $Id: dvm.cpp $ */
 /** @file
  * IPRT Disk Volume Management API (DVM) - generic code.
  */

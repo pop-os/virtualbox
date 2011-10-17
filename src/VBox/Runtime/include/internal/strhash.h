@@ -1,4 +1,4 @@
-/* $Id: strhash.h 36597 2011-04-06 19:46:15Z vboxsync $ */
+/* $Id: strhash.h $ */
 /** @file
  * IPRT - Internal header containing inline string hashing functions.
  */

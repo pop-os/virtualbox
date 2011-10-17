@@ -1,4 +1,4 @@
-/* $Id: BdsConsole.c 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: BdsConsole.c $ */
 /** @file
  * BdsConsole.c - BDS Lib functions which contain all the code to connect console device.
  */

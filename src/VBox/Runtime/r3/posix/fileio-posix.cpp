@@ -1,4 +1,4 @@
-/* $Id: fileio-posix.cpp 37679 2011-06-29 08:24:44Z vboxsync $ */
+/* $Id: fileio-posix.cpp $ */
 /** @file
  * IPRT - File I/O, POSIX, Part 1.
  */

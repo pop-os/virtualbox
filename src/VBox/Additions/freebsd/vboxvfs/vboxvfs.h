@@ -1,4 +1,4 @@
-/* $Id: vboxvfs.h 31012 2010-07-22 15:55:04Z vboxsync $ */
+/* $Id: vboxvfs.h $ */
 /** @file
  * Description.
  */

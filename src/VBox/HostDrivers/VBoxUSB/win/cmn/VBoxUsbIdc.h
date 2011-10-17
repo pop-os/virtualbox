@@ -1,4 +1,4 @@
-/* $Id: VBoxUsbIdc.h 36968 2011-05-05 08:55:16Z vboxsync $ */
+/* $Id: VBoxUsbIdc.h $ */
 /** @file
  * Windows USB Proxy - Monitor Driver communication interface.
  */

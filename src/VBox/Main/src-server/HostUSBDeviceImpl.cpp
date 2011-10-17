@@ -1,4 +1,4 @@
-/* $Id: HostUSBDeviceImpl.cpp 38213 2011-07-28 09:35:47Z vboxsync $ */
+/* $Id: HostUSBDeviceImpl.cpp $ */
 /** @file
  * VirtualBox IHostUSBDevice COM interface implementation.
  */

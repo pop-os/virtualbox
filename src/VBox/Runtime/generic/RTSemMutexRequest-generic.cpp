@@ -1,4 +1,4 @@
-/* $Id: RTSemMutexRequest-generic.cpp 36190 2011-03-07 16:28:50Z vboxsync $ */
+/* $Id: RTSemMutexRequest-generic.cpp $ */
 /** @file
  * IPRT - RTSemMutexRequest, generic RTSemMutexRequestNoResume wrapper.
  */

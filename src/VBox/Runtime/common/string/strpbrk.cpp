@@ -1,4 +1,4 @@
-/* $Id: strpbrk.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: strpbrk.cpp $ */
 /** @file
  * IPRT - strpbrk().
  */

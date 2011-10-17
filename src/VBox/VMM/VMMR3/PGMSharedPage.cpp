@@ -1,4 +1,4 @@
-/* $Id: PGMSharedPage.cpp 36891 2011-04-29 13:22:57Z vboxsync $ */
+/* $Id: PGMSharedPage.cpp $ */
 /** @file
  * PGM - Page Manager and Monitor, Shared page handling
  */

@@ -1,4 +1,4 @@
-/* $Id: UIVMDesktop.cpp 37755 2011-07-04 10:21:00Z vboxsync $ */
+/* $Id: UIVMDesktop.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

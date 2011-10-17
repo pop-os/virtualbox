@@ -1,4 +1,4 @@
-/* $Id: strversion.cpp 35076 2010-12-14 13:31:41Z vboxsync $ */
+/* $Id: strversion.cpp $ */
 /** @file
  * IPRT - Version String Parsing.
  */

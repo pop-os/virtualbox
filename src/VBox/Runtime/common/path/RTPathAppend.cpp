@@ -1,4 +1,4 @@
-/* $Id: RTPathAppend.cpp 34214 2010-11-19 17:18:15Z vboxsync $ */
+/* $Id: RTPathAppend.cpp $ */
 /** @file
  * IPRT - RTPathAppend
  */

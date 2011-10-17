@@ -1,4 +1,4 @@
-/* $Id: UINewHDWizard.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
+/* $Id: UINewHDWizard.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -196,11 +196,11 @@ UINewHDWizard::UINewHDWizard(QWidget *pParent, const QString &strDefaultName, co
 
     /* Create & add pages: */
     if (wizardType() == UINewHDWizardType_Copying)
-        addPage(new UINewHDWizardPageWelcome(sourceHardDisk));
-    addPage(new UINewHDWizardPageFormat);
-    addPage(new UINewHDWizardPageVariant);
-    addPage(new UINewHDWizardPageOptions(strDefaultName, strDefaultPath, uDefaultSize));
-    addPage(new UINewHDWizardPageSummary);
+        setPage(PageWelcome, new UINewHDWizardPageWelcome(sourceHardDisk));
+    setPage(PageFormat, new UINewHDWizardPageFormat);
+    setPage(PageVariant, new UINewHDWizardPageVariant);
+    setPage(PageOptions, new UINewHDWizardPageOptions(strDefaultName, strDefaultPath, uDefaultSize));
+    setPage(PageSummary, new UINewHDWizardPageSummary);
 
     /* Translate wizard: */
     retranslateUi();
@@ -371,6 +371,12 @@ QString UINewHDWizardPageFormat::fullFormatName(const QString &strBaseFormatName
         return UINewHDWizard::tr("V&MDK (Virtual Machine Disk)");
     else if (strBaseFormatName == "VHD")
         return UINewHDWizard::tr("V&HD (Virtual Hard Disk)");
+    else if (strBaseFormatName == "Parallels")
+        return UINewHDWizard::tr("H&DD (Parallels Hard Disk)");
+    else if (strBaseFormatName == "QED")
+        return UINewHDWizard::tr("Q&ED (QEMU enhanced disk)");
+    else if (strBaseFormatName == "QCOW")
+        return UINewHDWizard::tr("&QCOW (QEMU Copy-On-Write)");
     return strBaseFormatName;
 }
 
@@ -447,6 +453,23 @@ bool UINewHDWizardPageFormat::isComplete() const
     return !m_mediumFormat.isNull();
 }
 
+int UINewHDWizardPageFormat::nextId() const
+{
+    CMediumFormat mediumFormat = field("mediumFormat").value<CMediumFormat>();
+    ULONG uCapabilities = mediumFormat.GetCapabilities();
+    int cTest = 0;
+    if (uCapabilities & KMediumFormatCapabilities_CreateDynamic)
+        ++cTest;
+    if (uCapabilities & KMediumFormatCapabilities_CreateFixed)
+        ++cTest;
+    if (uCapabilities & KMediumFormatCapabilities_CreateSplit2G)
+        ++cTest;
+    if (cTest > 1)
+        return UINewHDWizard::PageVariant;
+
+    return UINewHDWizard::PageOptions;
+}
+
 void UINewHDWizardPageFormat::processFormat(CMediumFormat mediumFormat)
 {
     /* Check that medium format supports creation: */
@@ -481,7 +504,10 @@ UINewHDWizardPageVariant::UINewHDWizardPageVariant()
     /* Register 'mediumVariant' field: */
     registerField("mediumVariant", this, "mediumVariant");
 
-    /* Unfortuanelly, KMediumVariant is very messy,
+    /* Default */
+    setMediumVariant(KMediumVariant_Standard);
+
+    /* Unfortunately, KMediumVariant is very messy,
      * so we can't enumerate it to make sure GUI will not hard-code its values,
      * we can only use hard-coded values that we need: */
 

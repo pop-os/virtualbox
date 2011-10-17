@@ -1,4 +1,4 @@
-/* $Id: assert.h 36555 2011-04-05 12:34:09Z vboxsync $ */
+/* $Id: assert.h $ */
 /** @file
  * IPRT - Internal RTAssert header
  */

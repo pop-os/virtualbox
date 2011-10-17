@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 38093 2011-07-21 12:45:30Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the VBox Linux installer testcase.
 #

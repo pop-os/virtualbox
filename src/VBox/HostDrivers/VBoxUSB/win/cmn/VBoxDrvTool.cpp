@@ -1,4 +1,4 @@
-/* $Id: VBoxDrvTool.cpp 38356 2011-08-08 15:49:01Z vboxsync $ */
+/* $Id: VBoxDrvTool.cpp $ */
 /** @file
  * Windows Driver R0 Tooling.
  */

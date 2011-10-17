@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltUninstall.cpp 36184 2011-03-07 10:57:04Z vboxsync $ */
+/* $Id: VBoxNetFltUninstall.cpp $ */
 /** @file
  * NetFltUninstall - VBoxNetFlt uninstaller command line tool
  */

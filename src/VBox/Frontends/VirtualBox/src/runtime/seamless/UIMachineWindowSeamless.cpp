@@ -1,4 +1,4 @@
-/* $Id: UIMachineWindowSeamless.cpp 38348 2011-08-08 12:09:18Z vboxsync $ */
+/* $Id: UIMachineWindowSeamless.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

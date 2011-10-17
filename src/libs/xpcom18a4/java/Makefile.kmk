@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk 38093 2011-07-21 12:45:30Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for Java bindings
 #
 
 #
-# Copyright (C) 2010 Oracle Corporation
+# Copyright (C) 2010-2011 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -175,6 +175,7 @@ $(VBOX_JXPCOM_GEN)/jxpcomglue.list:  \
 	$(QUIET)$(VBOX_XSLTPROC)   \
               --stringparam G_vboxApiSuffix $(VBOX_API_SUFFIX) \
               --stringparam G_vboxGlueStyle xpcom              \
+              --stringparam G_vboxDirPrefix ""                 \
               -o $(VBOX_JXPCOM_GEN)/java/glue/merged.file $(VBOX_GLUE_XSLT_DIR)/glue-java.xsl $<
 	$(QUIET)$(VBOX_FILESPLIT) $(VBOX_JXPCOM_GEN)/java/glue/merged.file $(VBOX_JXPCOM_GEN)/java/glue/
 	$(QUIET)echo $(VBOX_JXPCOM_GEN)/java/glue/*.java > $@

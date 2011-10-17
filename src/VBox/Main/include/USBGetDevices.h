@@ -1,4 +1,4 @@
-/* $Id: USBGetDevices.h 37624 2011-06-24 08:57:35Z vboxsync $ */
+/* $Id: USBGetDevices.h $ */
 /** @file
  * VirtualBox Linux host USB device enumeration.
  */

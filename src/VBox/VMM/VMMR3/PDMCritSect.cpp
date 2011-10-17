@@ -1,4 +1,4 @@
-/* $Id: PDMCritSect.cpp 37466 2011-06-15 12:44:16Z vboxsync $ */
+/* $Id: PDMCritSect.cpp $ */
 /** @file
  * PDM - Critical Sections, Ring-3.
  */

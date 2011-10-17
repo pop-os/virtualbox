@@ -1,4 +1,4 @@
-/* $Id: RTPathUserDocuments-posix.cpp 36611 2011-04-07 10:35:29Z vboxsync $ */
+/* $Id: RTPathUserDocuments-posix.cpp $ */
 /** @file
  * IPRT - RTPathUserDocuments, posix ring-3.
  */

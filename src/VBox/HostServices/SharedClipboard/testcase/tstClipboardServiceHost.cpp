@@ -1,4 +1,4 @@
-/* $Id: tstClipboardServiceHost.cpp 37472 2011-06-15 16:15:34Z vboxsync $ */
+/* $Id: tstClipboardServiceHost.cpp $ */
 /** @file
  * Shared Clipboard host service test case.
  */
