@@ -1,6 +1,8 @@
 virtualbox (4.1.4-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release.
+    - Fixes missing icons when using pt_BR locale. (Closes: #507188)
+    - Fixes guest additions download url. (Closes: #637349; LP: #840668)
   * Refresh patches.
   * Restrict dh_pycentral to the virtualbox binary package.
   * Merge changes from the Ubuntu package but use them only when built
