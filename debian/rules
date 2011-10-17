@@ -23,7 +23,6 @@ DIST_NAME := $(shell lsb_release -si)
 DIST_RELEASE := $(DIST_NAME)/$(shell lsb_release -sc)
 
 XSERVER_VERSION = 17
-INSTALL_XORGCONFD = new
 XORG_PKG_ABI = 3
 
 ifeq ($(DIST_RELEASE),Debian/squeeze)
@@ -35,7 +34,6 @@ ifeq ($(DIST_RELEASE),Ubuntu/maverick)
 endif
 
 ifeq ($(DIST_RELEASE),Ubuntu/lucid)
-	INSTALL_XORGCONFD = old
 	XORG_PKG_ABI = 1
 endif
 
@@ -174,16 +172,6 @@ endif
 override_dh_install:
 	dh_install
 
-ifeq ($(INSTALL_XORGCONFD),new)
-	dh_install -p$(uxname) --ignore debian/$(uxname).install \
-	    src/VBox/Additions/x11/Installer/50-vboxmouse.conf \
-	    /usr/share/X11/xorg.conf.d
-else
-	dh_install -p$(uxname) --ignore debian/$(uxname).install \
-	    src/VBox/Additions/x11/Installer/50-vboxmouse.conf \
-	    /usr/lib/X11/xorg.conf.d
-endif
-
 	convert debian/$(sxname)/usr/share/icons/hicolor/32x32/apps/virtualbox.png \
 	    debian/$(sxname)/usr/share/pixmaps/virtualbox.xpm
 
@@ -231,10 +219,6 @@ ifneq (,$(filter $(psource), $(shell dh_listpackages)))
 	chmod 644 debian/$(psource)/usr/src/$(sname).tar.bz2
 	chmod 644 debian/$(gsource)/usr/src/$(gname).tar.bz2
 endif
-
-override_dh_installudev:
-	dh_installudev -p$(uxname) --priority=69
-	dh_installudev --remaining-packages
 
 override_dh_installinit:
 	dh_installinit --no-start
