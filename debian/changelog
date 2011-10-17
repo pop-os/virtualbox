@@ -1,4 +1,4 @@
-virtualbox (4.1.4-dfsg-1) UNRELEASED; urgency=low
+virtualbox (4.1.4-dfsg-1) unstable; urgency=low
 
   * New upstream release.
     - Fixes missing icons when using pt_BR locale. (Closes: #507188)
@@ -14,7 +14,7 @@ virtualbox (4.1.4-dfsg-1) UNRELEASED; urgency=low
   * Pass KBUILD_VERBOSE=2 to kmk.
   * Add 36-fix-text-mode.patch to fix text mode when using the vboxvideo driver.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 20 Sep 2011 22:58:00 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 17 Oct 2011 23:23:09 +0200
 
 virtualbox (4.1.2-dfsg-1) unstable; urgency=low
 
