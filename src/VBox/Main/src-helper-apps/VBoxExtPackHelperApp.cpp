@@ -1,4 +1,4 @@
-/* $Id: VBoxExtPackHelperApp.cpp 36527 2011-04-04 13:16:09Z vboxsync $ */
+/* $Id: VBoxExtPackHelperApp.cpp $ */
 /** @file
  * VirtualBox Main - Extension Pack Helper Application, usually set-uid-to-root.
  */

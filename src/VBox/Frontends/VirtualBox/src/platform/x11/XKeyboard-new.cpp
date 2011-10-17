@@ -1,4 +1,4 @@
-/* $Id: XKeyboard-new.cpp 36335 2011-03-21 21:58:58Z vboxsync $ */
+/* $Id: XKeyboard-new.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

@@ -1,4 +1,4 @@
-/* $Id: RTThreadSetAffinity-stub-generic.cpp 37154 2011-05-19 12:54:32Z vboxsync $ */
+/* $Id: RTThreadSetAffinity-stub-generic.cpp $ */
 /** @file
  * IPRT - Generic RTThreadSetAffinity stub.
  */

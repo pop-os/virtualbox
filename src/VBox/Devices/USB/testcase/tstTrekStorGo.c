@@ -1,4 +1,4 @@
-/* $Id: tstTrekStorGo.c 33595 2010-10-29 10:35:00Z vboxsync $ */
+/* $Id: tstTrekStorGo.c $ */
 /** @file
  * Some simple inquiry test for the TrekStor USB-Stick GO, linux usbfs
  */

@@ -1,4 +1,4 @@
-/* $Id: VBoxUsbHook.cpp 38356 2011-08-08 15:49:01Z vboxsync $ */
+/* $Id: VBoxUsbHook.cpp $ */
 /** @file
  * Driver Dispatch Table Hooking API
  */

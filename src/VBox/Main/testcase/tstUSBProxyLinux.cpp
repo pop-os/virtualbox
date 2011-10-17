@@ -1,4 +1,4 @@
-/* $Id: tstUSBProxyLinux.cpp 37618 2011-06-23 17:16:39Z vboxsync $ */
+/* $Id: tstUSBProxyLinux.cpp $ */
 /** @file
  * USBProxyServiceLinux test case.
  */

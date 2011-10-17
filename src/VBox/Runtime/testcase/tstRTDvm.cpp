@@ -1,4 +1,4 @@
-/* $Id: tstRTDvm.cpp 37270 2011-05-30 21:25:42Z vboxsync $ */
+/* $Id: tstRTDvm.cpp $ */
 /** @file
  * IPRT Testcase - IPRT Disk Volume Management (DVM)
  */

@@ -1,4 +1,4 @@
-/* $Id: fdc.c 37478 2011-06-15 18:49:40Z vboxsync $ */
+/* $Id: fdc.c $ */
 /** @file
  * VBox storage devices: Floppy disk controller
  */
@@ -2454,7 +2454,7 @@ static DECLCALLBACK(int)  fdcAttach (PPDMDEVINS pDevIns,
     /*
      * Validate.
      */
-    if (iLUN > 2) {
+    if (iLUN >= 2) {
         AssertMsgFailed (("Configuration error: cannot attach or detach any but the first two LUNs - iLUN=%u\n",
                           iLUN));
         return VERR_PDM_DEVINS_NO_ATTACH;

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 38392 2011-08-10 07:21:07Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the Windows USB drivers.
 #

@@ -33,7 +33,7 @@ if [ -f /etc/redhat-release ]; then
     PIDFILE="/var/lock/subsys/vboxadd-service"
 elif [ -f /etc/SuSE-release ]; then
     system=suse
-    PIDFILE="/var/lock/subsys/vboxadd-service"
+    PIDFILE="/var/run/vboxadd-service"
 elif [ -f /etc/debian_version ]; then
     system=debian
     PIDFILE="/var/run/vboxadd-service"
@@ -170,7 +170,7 @@ if [ "$system" = "arch" ]; then
 
 fi
 
-if [ "$system" = "slackware" ]; then
+if [ "$system" = "slackware" -o "$system" = "other" ]; then
     daemon() {
         $1 $2
     }
@@ -214,20 +214,6 @@ if [ "$system" = "lfs" ]; then
 
     status() {
         statusproc $1
-    }
-fi
-
-if [ "$system" = "other" ]; then
-    fail_msg() {
-        echo " ...fail!"
-    }
-
-    succ_msg() {
-        echo " ...done."
-    }
-
-    begin() {
-        echo -n "$1"
     }
 fi
 

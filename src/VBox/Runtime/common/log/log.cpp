@@ -1,4 +1,4 @@
-/* $Id: log.cpp 37818 2011-07-07 13:25:03Z vboxsync $ */
+/* $Id: log.cpp $ */
 /** @file
  * Runtime VBox - Logger.
  */

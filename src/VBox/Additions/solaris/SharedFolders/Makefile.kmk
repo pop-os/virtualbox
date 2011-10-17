@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 38078 2011-07-19 17:24:10Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the Solaris Shared folder kernel module.
 #

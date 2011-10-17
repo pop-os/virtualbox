@@ -1,4 +1,4 @@
-/* $Id: tar.h 34179 2010-11-18 15:49:17Z vboxsync $ */
+/* $Id: tar.h $ */
 /** @file
  * IPRT - TAR Virtual Filesystem.
  */

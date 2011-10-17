@@ -1,4 +1,4 @@
-/* $Id: VBoxSkeletonMain.cpp 35963 2011-02-14 16:18:36Z vboxsync $ */
+/* $Id: VBoxSkeletonMain.cpp $ */
 /** @file
  * Skeleton main module.
  */

@@ -1,4 +1,4 @@
-# $Id: dep.sed 37289 2011-06-01 11:59:23Z vboxsync $
+# $Id: dep.sed $
 ## @file
 # Generate dependencies from .wxs and .wxi sources.
 #

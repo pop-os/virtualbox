@@ -1,4 +1,4 @@
-/* $Id: VBoxBalloonCtrl.cpp 37103 2011-05-16 12:59:24Z vboxsync $ */
+/* $Id: VBoxBalloonCtrl.cpp $ */
 /** @file
  * VBoxBalloonCtrl - VirtualBox Ballooning Control Service.
  */

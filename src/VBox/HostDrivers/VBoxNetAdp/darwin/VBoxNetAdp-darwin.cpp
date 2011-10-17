@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdp-darwin.cpp 38408 2011-08-10 20:07:04Z vboxsync $ */
+/* $Id: VBoxNetAdp-darwin.cpp $ */
 /** @file
  * VBoxNetAdp - Virtual Network Adapter Driver (Host), Darwin Specific Code.
  */

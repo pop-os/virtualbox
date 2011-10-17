@@ -1,4 +1,4 @@
-/* $Id: pathhost-posix.cpp 37563 2011-06-20 19:47:47Z vboxsync $ */
+/* $Id: pathhost-posix.cpp $ */
 /** @file
  * IPRT - Path Conversions, POSIX.
  */

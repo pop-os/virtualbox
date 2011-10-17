@@ -1,4 +1,4 @@
-/* $Id: PGMAllPhys.cpp 37360 2011-06-07 17:28:20Z vboxsync $ */
+/* $Id: PGMAllPhys.cpp $ */
 /** @file
  * PGM - Page Manager and Monitor, Physical Memory Addressing.
  */

@@ -1,4 +1,4 @@
-/* $Id: tstX86-1.cpp 36865 2011-04-28 00:59:50Z vboxsync $ */
+/* $Id: tstX86-1.cpp $ */
 /** @file
  * X86 instruction set exploration/testcase #1.
  */

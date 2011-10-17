@@ -1,4 +1,4 @@
-/* $Id: dbgmod.h 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: dbgmod.h $ */
 /** @file
  * IPRT - Internal Header for RTDbgMod and the associated interpreters.
  */

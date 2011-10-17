@@ -1,4 +1,4 @@
-/* $Id: UIVMListView.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
+/* $Id: UIVMListView.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

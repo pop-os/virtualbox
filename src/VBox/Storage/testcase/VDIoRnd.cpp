@@ -1,4 +1,4 @@
-/* $Id: VDIoRnd.cpp 36529 2011-04-04 13:54:13Z vboxsync $ */
+/* $Id: VDIoRnd.cpp $ */
 /** @file
  * VBox HDD container test utility - I/O data generator.
  */

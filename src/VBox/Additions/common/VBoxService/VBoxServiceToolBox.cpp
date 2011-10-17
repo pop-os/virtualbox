@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceToolBox.cpp 38015 2011-07-18 12:49:31Z vboxsync $ */
+/* $Id: VBoxServiceToolBox.cpp $ */
 /** @file
  * VBoxServiceToolbox - Internal (BusyBox-like) toolbox.
  */
@@ -607,7 +607,8 @@ static int VBoxServiceToolboxLsHandleDir(const char *pszDir,
     int rc = RTPathAbs(pszDir, szPathAbs, sizeof(szPathAbs));
     if (RT_FAILURE(rc))
     {
-        RTMsgError("Failed to retrieve absolute path of '%s', rc=%Rrc\n", pszDir, rc);
+        if (!(uOutputFlags & VBOXSERVICETOOLBOXOUTPUTFLAG_PARSEABLE))
+            RTMsgError("Failed to retrieve absolute path of '%s', rc=%Rrc\n", pszDir, rc);
         return rc;
     }
 
@@ -615,7 +616,8 @@ static int VBoxServiceToolboxLsHandleDir(const char *pszDir,
     rc = RTDirOpen(&pDir, szPathAbs);
     if (RT_FAILURE(rc))
     {
-        RTMsgError("Failed to open directory '%s', rc=%Rrc\n", szPathAbs, rc);
+        if (!(uOutputFlags & VBOXSERVICETOOLBOXOUTPUTFLAG_PARSEABLE))
+            RTMsgError("Failed to open directory '%s', rc=%Rrc\n", szPathAbs, rc);
         return rc;
     }
 
@@ -649,8 +651,9 @@ static int VBoxServiceToolboxLsHandleDir(const char *pszDir,
     int rc2 = RTDirClose(pDir);
     if (RT_FAILURE(rc2))
     {
-        RTMsgError("Failed to close dir '%s', rc=%Rrc\n",
-                   pszDir, rc2);
+        if (!(uOutputFlags & VBOXSERVICETOOLBOXOUTPUTFLAG_PARSEABLE))
+            RTMsgError("Failed to close dir '%s', rc=%Rrc\n",
+                       pszDir, rc2);
         if (RT_SUCCESS(rc))
             rc = rc2;
     }
@@ -837,8 +840,9 @@ static RTEXITCODE VBoxServiceToolboxLs(int argc, char **argv)
                                             RTFSOBJATTRADD_UNIX, RTPATH_F_ON_LINK /* @todo Follow link? */);
                 if (RT_FAILURE(rc2))
                 {
-                    RTMsgError("Cannot access '%s': No such file or directory\n",
-                               pNodeIt->pszName);
+                    if (!(fOutputFlags & VBOXSERVICETOOLBOXOUTPUTFLAG_PARSEABLE))
+                        RTMsgError("Cannot access '%s': No such file or directory\n",
+                                   pNodeIt->pszName);
                     rc = VERR_FILE_NOT_FOUND;
                     /* Do not break here -- process every element in the list
                      * and keep failing rc. */
@@ -1069,8 +1073,9 @@ static RTEXITCODE VBoxServiceToolboxStat(int argc, char **argv)
                                         RTFSOBJATTRADD_UNIX, RTPATH_F_ON_LINK /* @todo Follow link? */);
             if (RT_FAILURE(rc2))
             {
-                RTMsgError("Cannot stat for '%s': No such file or directory\n",
-                           pNodeIt->pszName);
+                if (!(fOutputFlags & VBOXSERVICETOOLBOXOUTPUTFLAG_PARSEABLE))
+                    RTMsgError("Cannot stat for '%s': No such file or directory\n",
+                               pNodeIt->pszName);
                 rc = VERR_FILE_NOT_FOUND;
                 /* Do not break here -- process every element in the list
                  * and keep failing rc. */
@@ -1179,10 +1184,42 @@ bool VBoxServiceToolboxMain(int argc, char **argv, RTEXITCODE *prcExit)
     }
 
     /*
+     * The input is ASSUMED to be in the current process codeset (NT guarantees
+     * ACP, unixy systems doesn't guarantee anything).  This loop converts all
+     * the argv[*] strings to UTF-8, which is a tad ugly but who cares.
+     * (As a rule all strings in VirtualBox are UTF-8.)
+     */
+    for (int i = 0; i < argc; i++)
+    {
+        char *pszConverted;
+        int rc = RTStrCurrentCPToUtf8(&pszConverted, argv[i]);
+        if (RT_SUCCESS(rc))
+            argv[i] = pszConverted;
+        else
+        {
+            RTMsgError("Failed to convert argument %d to UTF-8, rc=%Rrc\n",
+                       i + 1, rc);
+
+            /* Conversion was not possible,probably due to invalid characters.
+             * Keep in mind that we do RTStrFree on the whole array below. */
+            argv[i] = RTStrDup(argv[i]);
+        }
+    }
+
+    /*
      * Invoke the handler.
      */
     RTMsgSetProgName("VBoxService/%s", pszTool);
     *prcExit = pfnHandler(argc, argv);
+
+    /*
+     * Free converted argument vector
+     */
+    for (int i = 0; i < argc; i++)
+    {
+        RTStrFree(argv[i]);
+        argv[i] = NULL;
+    }
     return true;
 
 }

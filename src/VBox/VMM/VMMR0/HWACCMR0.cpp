@@ -1,4 +1,4 @@
-/* $Id: HWACCMR0.cpp 37955 2011-07-14 12:23:02Z vboxsync $ */
+/* $Id: HWACCMR0.cpp $ */
 /** @file
  * Hardware Assisted Virtualization Manager - Host Context Ring-0.
  */

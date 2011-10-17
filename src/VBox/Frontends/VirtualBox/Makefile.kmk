@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 38421 2011-08-11 14:55:02Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Makefile for the VirtualBox Qt GUI.
 #
@@ -129,6 +129,7 @@ VirtualBox_DEFS          += \
 	$(if $(VBOX_WITH_NETFLT)$(eq $(KBUILD_TARGET),freebsd),VBOX_WITH_NETFLT) \
 	$(if $(VBOX_WITH_VDE),VBOX_WITH_VDE) \
 	$(if $(VBOX_WITH_UDPTUNNEL),VBOX_WITH_UDPTUNNEL) \
+	$(if $(VBOX_WITH_EXTPACK),VBOX_WITH_EXTPACK) \
 	$(if $(VBOX_WITH_EHCI),VBOX_WITH_EHCI) \
 	$(if $(VBOX_GUI_WITH_PIDFILE),VBOX_GUI_WITH_PIDFILE) \
 	$(if $(VBOX_GUI_WITH_KEYS_RESET_HANDLER),VBOX_GUI_WITH_KEYS_RESET_HANDLER) \
@@ -144,6 +145,9 @@ ifdef VBOX_WITH_VIDEOHWACCEL
 	VBOX_GUI_USE_QGL
 else ifdef VBOX_GUI_USE_QGL
  VirtualBox_DEFS        += VBOX_GUI_USE_QGL
+endif
+ifdef VBOX_WITH_CROGL
+ VirtualBox_DEFS        += VBOX_WITH_CROGL
 endif
 ifdef VBOX_WITH_VIRTIO
  VirtualBox_DEFS        += VBOX_WITH_VIRTIO
@@ -270,7 +274,6 @@ VirtualBox_QT_MOCHDRS = \
 	src/UIMediumTypeChangeDialog.h \
 	src/VBoxSnapshotDetailsDlg.h \
 	src/VBoxTakeSnapshotDlg.h \
-	src/VBoxUpdateDlg.h \
 	src/VBoxVMInformationDlg.h \
 	src/VBoxVMLogViewer.h \
 	src/VBoxLicenseViewer.h \
@@ -352,9 +355,11 @@ VirtualBox_QT_MOCHDRS = \
 	src/widgets/VBoxOSTypeSelectorWidget.h \
 	src/widgets/VBoxWarningPane.h \
 	src/net/UINetworkManager.h \
+	src/net/UIUpdateManager.h \
 	src/net/UIDownloader.h \
 	src/net/UIDownloaderAdditions.h \
 	src/net/UIDownloaderUserManual.h \
+	src/net/UIDownloaderExtensionPack.h \
 	src/selector/UIActionPoolSelector.h \
 	src/selector/UIVMDesktop.h \
 	src/selector/UIVMListView.h \
@@ -439,7 +444,6 @@ VirtualBox_SOURCES = \
 	src/VBoxMedium.cpp \
 	src/VBoxSnapshotDetailsDlg.cpp \
 	src/VBoxTakeSnapshotDlg.cpp \
-	src/VBoxUpdateDlg.cpp \
 	src/VBoxVMInformationDlg.cpp \
 	src/VBoxVMLogViewer.cpp \
 	src/VBoxLicenseViewer.cpp \
@@ -525,9 +529,12 @@ VirtualBox_SOURCES = \
 	src/widgets/VBoxOSTypeSelectorWidget.cpp \
 	src/widgets/VBoxWarningPane.cpp \
 	src/net/UINetworkManager.cpp \
+	src/net/UIUpdateDefs.cpp \
+	src/net/UIUpdateManager.cpp \
 	src/net/UIDownloader.cpp \
 	src/net/UIDownloaderAdditions.cpp \
 	src/net/UIDownloaderUserManual.cpp \
+	src/net/UIDownloaderExtensionPack.cpp \
 	src/selector/UIActionPoolSelector.cpp \
 	src/selector/UISelectorShortcuts.cpp \
 	src/selector/UIVMDesktop.cpp \

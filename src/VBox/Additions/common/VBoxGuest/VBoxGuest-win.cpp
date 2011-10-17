@@ -109,6 +109,9 @@ ULONG DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
                 case 1: /* Note: Also could be Windows 2008 Server R2! */
                     g_winVersion = WIN7;
                     break;
+                case 2:
+                    g_winVersion = WIN8;
+                    break;
                 default:
                     Log(("VBoxGuest::DriverEntry: Unknown version of Windows (%u.%u), refusing!\n",
                          majorVersion, minorVersion));
@@ -514,6 +517,26 @@ NTSTATUS vboxguestwinCleanup(PDEVICE_OBJECT pDevObj)
     PVBOXGUESTDEVEXT pDevExt = (PVBOXGUESTDEVEXT)pDevObj->DeviceExtension;
     if (pDevExt)
     {
+
+#if 0 /* @todo: test & enable cleaning global session data */
+#ifdef VBOX_WITH_HGCM
+        if (pDevExt->win.s.pKernelSession)
+        {
+            VBoxGuestCloseSession(pDevExt, pDevExt->win.s.pKernelSession);
+            pDevExt->win.s.pKernelSession = NULL;
+        }
+#endif
+#endif
+
+        if (pDevExt->win.s.pInterruptObject)
+        {
+            IoDisconnectInterrupt(pDevExt->win.s.pInterruptObject);
+            pDevExt->win.s.pInterruptObject = NULL;
+        }
+
+        /* @todo: cleanup the rest stuff */
+
+
 #ifdef VBOX_WITH_GUEST_BUGCHECK_DETECTION
         hlpDeregisterBugCheckCallback(pDevExt); /* ignore failure! */
 #endif
@@ -1252,6 +1275,14 @@ VBOXOSTYPE vboxguestwinVersionToOSType(winVersion_t winVer)
             enmOsType = VBOXOSTYPE_Win7_x64;
 #else
             enmOsType = VBOXOSTYPE_Win7;
+#endif
+            break;
+
+        case WIN8:
+#if ARCH_BITS == 64
+            enmOsType = VBOXOSTYPE_Win8_x64;
+#else
+            enmOsType = VBOXOSTYPE_Win8;
 #endif
             break;
 

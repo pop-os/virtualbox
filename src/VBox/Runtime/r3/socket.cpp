@@ -1,4 +1,4 @@
-/* $Id: socket.cpp 37196 2011-05-24 14:50:05Z vboxsync $ */
+/* $Id: socket.cpp $ */
 /** @file
  * IPRT - Network Sockets.
  */

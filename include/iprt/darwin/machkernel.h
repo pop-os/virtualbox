@@ -1,4 +1,4 @@
-/* $Id: machkernel.h 37573 2011-06-21 11:40:11Z vboxsync $ */
+/* $Id: machkernel.h $ */
 /** @file
  * IPRT - mach_kernel symbol resolving hack, R0 Driver, Darwin.
  */

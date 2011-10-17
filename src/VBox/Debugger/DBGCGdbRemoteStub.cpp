@@ -1,4 +1,4 @@
-/* $Id: DBGCGdbRemoteStub.cpp 35628 2011-01-19 14:58:26Z vboxsync $ */
+/* $Id: DBGCGdbRemoteStub.cpp $ */
 /** @file
  * DBGC - Debugger Console, GDB Remote Stub.
  */

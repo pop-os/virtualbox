@@ -1,4 +1,4 @@
-/* $Id: ExtPackUtil.h 37843 2011-07-08 12:34:18Z vboxsync $ */
+/* $Id: ExtPackUtil.h $ */
 /** @file
  * VirtualBox Main - Extension Pack Utilities and definitions, VBoxC, VBoxSVC, ++.
  */

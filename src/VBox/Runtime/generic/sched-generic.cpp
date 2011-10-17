@@ -1,4 +1,4 @@
-/* $Id: sched-generic.cpp 36555 2011-04-05 12:34:09Z vboxsync $ */
+/* $Id: sched-generic.cpp $ */
 /** @file
  * IPRT - Scheduling, generic stubs.
  */

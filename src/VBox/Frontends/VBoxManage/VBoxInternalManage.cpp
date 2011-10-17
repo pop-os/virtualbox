@@ -1,4 +1,4 @@
-/* $Id: VBoxInternalManage.cpp 37925 2011-07-13 15:31:10Z vboxsync $ */
+/* $Id: VBoxInternalManage.cpp $ */
 /** @file
  * VBoxManage - The 'internalcommands' command.
  *

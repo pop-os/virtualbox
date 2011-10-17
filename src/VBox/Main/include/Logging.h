@@ -1,4 +1,4 @@
-/* $Id: Logging.h 38037 2011-07-18 17:31:38Z vboxsync $ */
+/* $Id: Logging.h $ */
 
 /** @file
  *

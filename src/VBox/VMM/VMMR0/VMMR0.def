@@ -1,4 +1,4 @@
-; $Id: VMMR0.def 37454 2011-06-14 19:18:56Z vboxsync $
+; $Id: VMMR0.def $
 ;; @file
 ; VMM Ring 0 DLL - Definition file.
 

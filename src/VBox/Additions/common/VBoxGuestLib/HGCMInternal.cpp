@@ -1,4 +1,4 @@
-/* $Revision: 36373 $ */
+/* $Revision: 70720 $ */
 /** @file
  * VBoxGuestLib - Host-Guest Communication Manager internal functions, implemented by VBoxGuest
  */

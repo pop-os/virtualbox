@@ -1,4 +1,4 @@
-/* $Id: misc.c 35957 2011-02-14 12:27:21Z vboxsync $ */
+/* $Id: misc.c $ */
 /** @file
  * NAT - helpers.
  */

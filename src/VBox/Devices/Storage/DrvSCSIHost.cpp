@@ -1,4 +1,4 @@
-/* $Id: DrvSCSIHost.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
+/* $Id: DrvSCSIHost.cpp $ */
 /** @file
  * VBox storage drivers: Host SCSI access driver.
  */

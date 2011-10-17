@@ -1,4 +1,4 @@
-/* $Id: mpnotification-r0drv.c 37211 2011-05-25 11:37:52Z vboxsync $ */
+/* $Id: mpnotification-r0drv.c $ */
 /** @file
  * IPRT - Multiprocessor, Ring-0 Driver, Event Notifications.
  */

@@ -1,4 +1,4 @@
-/* $Id: UIMachineWindow.cpp 38348 2011-08-08 12:09:18Z vboxsync $ */
+/* $Id: UIMachineWindow.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -197,6 +197,13 @@ void UIMachineWindow::closeEvent(QCloseEvent *pEvent)
             /* Get the machine: */
             CMachine machine = session().GetMachine();
 
+            /* Check if there is a close hock script defined. */
+            const QString& strScript = machine.GetExtraData(VBoxDefs::GUI_CloseActionHook);
+            if (!strScript.isEmpty())
+            {
+                QProcess::startDetached(strScript, QStringList() << machine.GetId());
+                return;
+            }
             /* Prepare close dialog: */
             UIVMCloseDialog dlg(machineWindow());
 

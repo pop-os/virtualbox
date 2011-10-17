@@ -1,4 +1,4 @@
-/* $Id: tstSemPingPong.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstSemPingPong.cpp $ */
 /** @file
  * IPRT Testcase - RTSemPing/RTSemPong.
  */

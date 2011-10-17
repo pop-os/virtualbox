@@ -127,6 +127,9 @@ public:
     static QString qtCTVersionString();
     static uint qtCTVersion();
 
+    QString vboxVersionString() const;
+    QString vboxVersionStringNormalized() const;
+
     QString versionString() const { return mVerString; }
     bool isBeta() const;
 
@@ -770,8 +773,6 @@ public slots:
     bool openURL (const QString &aURL);
 
     void showRegistrationDialog (bool aForce = true);
-    void showUpdateDialog (bool aForce = true);
-    void perDayNewVersionNotifier();
     void sltGUILanguageChange(QString strLang);
     void sltProcessGlobalSettingChange();
 
@@ -805,7 +806,6 @@ private:
 #ifdef VBOX_WITH_REGISTRATION
     UIRegistrationWzd *mRegDlg;
 #endif
-    VBoxUpdateDlg *mUpdDlg;
 
     QString vmUuid;
     QList<QUrl> m_ArgUrlList;

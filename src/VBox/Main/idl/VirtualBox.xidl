@@ -1,4 +1,4 @@
-<?xml version="1.0" ?>
+<?xml version="1.0" encoding="utf-8"?>
 
 <!--
 
@@ -2633,11 +2633,11 @@
     </method>
 
     <method name="getWarnings">
-        <desc>Returns textual warnings which occurred during execution of <link to="#interpret" />.</desc>
+      <desc>Returns textual warnings which occurred during execution of <link to="#interpret" />.</desc>
 
-        <param name="aWarnings" type="wstring" dir="return" safearray="yes">
-            <desc></desc>
-        </param>
+      <param name="aWarnings" type="wstring" dir="return" safearray="yes">
+        <desc></desc>
+      </param>
     </method>
 
   </interface>
@@ -3759,7 +3759,7 @@
         will return an appropriate error message explaining the exact
         reason and the changes you made to this machine will not be saved.
 
-        Starting with VirtualBox 4.0, a “.vbox” extension of the settings
+        Starting with VirtualBox 4.0, a ".vbox" extension of the settings
         file is recommended, but not enforced. (Previous versions always
         used a generic ".xml" extension.)
       </desc>
@@ -4383,11 +4383,11 @@
 
         The @a environment argument is a string containing definitions of
         environment variables in the following format:
-        @code
+        <pre>
         NAME[=VALUE]\n
         NAME[=VALUE]\n
         ...
-        @endcode
+        </pre>
         where <tt>\\n</tt> is the new line character. These environment
         variables will be appended to the environment of the VirtualBox server
         process. If an environment variable exists both in the server process
@@ -9780,6 +9780,12 @@
     <const name="Diff" value="0x20000">
       <desc>
         Differencing image. Only allowed for child images.
+      </desc>
+    </const>
+    <const name="NoCreateDir" value="0x40000000">
+      <desc>
+        Special flag which suppresses automatic creation of the subdirectory.
+        Only used when passing the medium variant as an input parameter.
       </desc>
     </const>
   </enum>

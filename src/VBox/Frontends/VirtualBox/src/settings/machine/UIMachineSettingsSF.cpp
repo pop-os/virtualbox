@@ -1,4 +1,4 @@
-/* $Id: UIMachineSettingsSF.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
+/* $Id: UIMachineSettingsSF.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

@@ -1,4 +1,4 @@
-/* $Id: DrvHostBase.cpp 37780 2011-07-05 12:55:13Z vboxsync $ */
+/* $Id: DrvHostBase.cpp $ */
 /** @file
  * DrvHostBase - Host base drive access driver.
  */

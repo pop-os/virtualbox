@@ -1,4 +1,4 @@
-/* $Id: MachineImpl.cpp 38357 2011-08-08 16:05:00Z vboxsync $ */
+/* $Id: MachineImpl.cpp $ */
 /** @file
  * Implementation of IMachine in VBoxSVC.
  */
@@ -1903,7 +1903,7 @@ STDMETHODIMP Machine::SetCPUIDLeaf(ULONG aId, ULONG aValEax, ULONG aValEbx, ULON
         case 0x8:
         case 0x9:
         case 0xA:
-            AssertCompile(RT_ELEMENTS(mHWData->mCpuIdStdLeafs) == 0xA);
+            AssertCompile(RT_ELEMENTS(mHWData->mCpuIdStdLeafs) == 0xB);
             AssertRelease(aId < RT_ELEMENTS(mHWData->mCpuIdStdLeafs));
             setModified(IsModified_MachineData);
             mHWData.backup();
@@ -1925,7 +1925,7 @@ STDMETHODIMP Machine::SetCPUIDLeaf(ULONG aId, ULONG aValEax, ULONG aValEbx, ULON
         case 0x80000008:
         case 0x80000009:
         case 0x8000000A:
-            AssertCompile(RT_ELEMENTS(mHWData->mCpuIdExtLeafs) == 0xA);
+            AssertCompile(RT_ELEMENTS(mHWData->mCpuIdExtLeafs) == 0xB);
             AssertRelease(aId - 0x80000000 < RT_ELEMENTS(mHWData->mCpuIdExtLeafs));
             setModified(IsModified_MachineData);
             mHWData.backup();
@@ -1965,7 +1965,7 @@ STDMETHODIMP Machine::RemoveCPUIDLeaf(ULONG aId)
         case 0x8:
         case 0x9:
         case 0xA:
-            AssertCompile(RT_ELEMENTS(mHWData->mCpuIdStdLeafs) == 0xA);
+            AssertCompile(RT_ELEMENTS(mHWData->mCpuIdStdLeafs) == 0xB);
             AssertRelease(aId < RT_ELEMENTS(mHWData->mCpuIdStdLeafs));
             setModified(IsModified_MachineData);
             mHWData.backup();
@@ -1984,7 +1984,7 @@ STDMETHODIMP Machine::RemoveCPUIDLeaf(ULONG aId)
         case 0x80000008:
         case 0x80000009:
         case 0x8000000A:
-            AssertCompile(RT_ELEMENTS(mHWData->mCpuIdExtLeafs) == 0xA);
+            AssertCompile(RT_ELEMENTS(mHWData->mCpuIdExtLeafs) == 0xB);
             AssertRelease(aId - 0x80000000 < RT_ELEMENTS(mHWData->mCpuIdExtLeafs));
             setModified(IsModified_MachineData);
             mHWData.backup();
@@ -3732,7 +3732,9 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
             // image that has not yet been attached (medium then points to the base and we're
             // creating the diff image for the immutable, and the parent is not yet registered);
             // put the parent in the machine registry then
+            mediumLock.release();
             addMediumToRegistry(medium, llRegistriesThatNeedSaving, &uuidRegistryParent);
+            mediumLock.acquire();
         }
         rc = diff->init(mParent,
                         medium->getPreferredDiffFormat(),
@@ -3815,9 +3817,11 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
         // here we can fail because of Deleting, or being in process of creating a Diff
         if (FAILED(rc)) return rc;
 
+        mediumLock.release();
         addMediumToRegistry(medium,
                             llRegistriesThatNeedSaving,
                             NULL /* Guid *puuid */);
+        mediumLock.acquire();
     }
 
     /* success: finally remember the attachment */
@@ -4189,7 +4193,9 @@ STDMETHODIMP Machine::MountMedium(IN_BSTR aControllerName,
         {
             pMedium->addBackReference(mData->mUuid);
 
+            mediumLock.release();
             addMediumToRegistry(pMedium, llRegistriesThatNeedSaving, NULL /* Guid *puuid */ );
+            mediumLock.acquire();
         }
 
         pAttach->updateMedium(pMedium);
@@ -4946,7 +4952,7 @@ STDMETHODIMP Machine::CreateSharedFolder(IN_BSTR aName, IN_BSTR aHostPath, BOOL 
                             aHostPath,
                             !!aWritable,
                             !!aAutoMount,
-                           true /* fFailOnError */);
+                            true /* fFailOnError */);
     if (FAILED(rc)) return rc;
 
     setModified(IsModified_SharedFolders);
@@ -6286,6 +6292,7 @@ STDMETHODIMP Machine::CloneTo(IMachine *pTarget, CloneMode_T mode, ComSafeArrayI
 void Machine::setModified(uint32_t fl)
 {
     mData->flModifications |= fl;
+    mData->mCurrentStateModified = true;
 }
 
 /**
@@ -6297,7 +6304,7 @@ void Machine::setModified(uint32_t fl)
 void Machine::setModifiedLock(uint32_t fModification)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    mData->flModifications |= fModification;
+    setModified(fModification);
 }
 
 /**
@@ -6629,7 +6636,13 @@ HRESULT Machine::launchVMProcess(IInternalSessionControl *aControl,
             unsigned pos = RT_ELEMENTS(args) - 2;
             args[pos] = "--capture";
         }
-        vrc = RTProcCreate(szPath, args, env, 0, &pid);
+        vrc = RTProcCreate(szPath, args, env,
+#ifdef RT_OS_WINDOWS
+                           RTPROC_FLAGS_NO_WINDOW,
+#else
+                           0,
+#endif
+                           &pid);
     }
 #else /* !VBOX_WITH_HEADLESS */
     if (0)
@@ -7832,15 +7845,32 @@ HRESULT Machine::loadHardware(const settings::Hardware &data)
         rc = mAudioAdapter->loadSettings(data.audioAdapter);
         if (FAILED(rc)) return rc;
 
+        /* Shared folders */
         for (settings::SharedFoldersList::const_iterator it = data.llSharedFolders.begin();
              it != data.llSharedFolders.end();
              ++it)
         {
             const settings::SharedFolder &sf = *it;
-            rc = CreateSharedFolder(Bstr(sf.strName).raw(),
-                                    Bstr(sf.strHostPath).raw(),
-                                    sf.fWritable, sf.fAutoMount);
+
+            ComObjPtr<SharedFolder> sharedFolder;
+            /* Check for double entries. Not allowed! */
+            rc = findSharedFolder(sf.strName, sharedFolder, false /* aSetError */);
+            if (SUCCEEDED(rc))
+                return setError(VBOX_E_OBJECT_IN_USE,
+                                tr("Shared folder named '%s' already exists"),
+                                sf.strName.c_str());
+
+            /* Create the new shared folder. Don't break on error. This will be
+             * reported when the machine starts. */
+            sharedFolder.createObject();
+            rc = sharedFolder->init(getMachine(),
+                                    sf.strName,
+                                    sf.strHostPath,
+                                    RT_BOOL(sf.fWritable),
+                                    RT_BOOL(sf.fAutoMount),
+                                    false /* fFailOnError */);
             if (FAILED(rc)) return rc;
+            mHWData->mSharedFolders.push_back(sharedFolder);
         }
 
         // Clipboard
@@ -8588,7 +8618,7 @@ HRESULT Machine::saveSettings(bool *pfNeedsGlobalSaveSettings,
                 // previously stored in the config file; this invokes MachineConfigFile::operator==
                 // which does a deep compare of all the settings, which is expensive but less expensive
                 // than writing out XML in vain
-                bool fAnySettingsChanged = (*pNewConfig == *pOldConfig);
+                bool fAnySettingsChanged = !(*pNewConfig == *pOldConfig);
 
                 // could still be modified if any settings changed
                 mData->mCurrentStateModified = fAnySettingsChanged;
@@ -9182,7 +9212,8 @@ HRESULT Machine::saveStateSettings(int aFlags)
  * that registry is added to the given list so that the caller can save the
  * registry.
  *
- * Caller must hold machine read lock!
+ * Caller must hold machine read lock and at least media tree read lock!
+ * Caller must NOT hold any medium locks.
  *
  * @param pMedium
  * @param llRegistriesThatNeedSaving
@@ -9192,6 +9223,11 @@ void Machine::addMediumToRegistry(ComObjPtr<Medium> &pMedium,
                                   GuidList &llRegistriesThatNeedSaving,
                                   Guid *puuid)
 {
+    ComObjPtr<Medium> pBase = pMedium->getBase();
+    /* Paranoia checks: do not hold medium locks. */
+    AssertReturnVoid(!pMedium->isWriteLockOnCurrentThread());
+    AssertReturnVoid(!pBase->isWriteLockOnCurrentThread());
+
     // decide which medium registry to use now that the medium is attached:
     Guid uuid;
     if (mData->pMachineConfigFile->canHaveOwnMediaRegistry())
@@ -9200,13 +9236,25 @@ void Machine::addMediumToRegistry(ComObjPtr<Medium> &pMedium,
     else
         uuid = mParent->getGlobalRegistryId(); // VirtualBox global registry UUID
 
-    AutoCaller autoCaller(pMedium);
-    if (FAILED(autoCaller.rc())) return;
-    AutoWriteLock alock(pMedium COMMA_LOCKVAL_SRC_POS);
-
+    bool fAdd = false;
     if (pMedium->addRegistry(uuid, false /* fRecurse */))
+    {
         // registry actually changed:
         VirtualBox::addGuidToListUniquely(llRegistriesThatNeedSaving, uuid);
+        fAdd = true;
+    }
+
+    /* For more complex hard disk structures it can happen that the base
+     * medium isn't yet associated with any medium registry. Do that now. */
+    if (pMedium != pBase)
+    {
+        if (   pBase->addRegistry(uuid, true /* fRecurse */)
+            && !fAdd)
+        {
+            VirtualBox::addGuidToListUniquely(llRegistriesThatNeedSaving, uuid);
+            fAdd = true;
+        }
+    }
 
     if (puuid)
         *puuid = uuid;

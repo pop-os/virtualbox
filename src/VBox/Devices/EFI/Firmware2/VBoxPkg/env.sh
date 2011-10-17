@@ -1,5 +1,5 @@
 #!/bin/bash
-# $Id: env.sh 30101 2010-06-09 09:48:56Z vboxsync $
+# $Id: env.sh $
 # @file
 # Environmental Setup Script for VBoxPkg + EDK2.
 

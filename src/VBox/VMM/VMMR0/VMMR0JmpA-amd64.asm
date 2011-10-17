@@ -1,4 +1,4 @@
-; $Id: VMMR0JmpA-amd64.asm 37227 2011-05-26 18:35:59Z vboxsync $
+; $Id: VMMR0JmpA-amd64.asm $
 ;; @file
 ; VMM - R0 SetJmp / LongJmp routines for AMD64.
 ;

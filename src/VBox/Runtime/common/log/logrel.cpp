@@ -1,4 +1,4 @@
-/* $Id: logrel.cpp 33704 2010-11-02 18:21:28Z vboxsync $ */
+/* $Id: logrel.cpp $ */
 /** @file
  * Runtime VBox - Release Logger.
  */

@@ -108,6 +108,7 @@ sfprov_connect(int version)
 	}
 	else
 		cmn_err(CE_WARN, "sfprov_connect: vboxInit() failed rc=%d\n", rc);
+	return (NULL);
 }
 
 void
@@ -138,7 +139,7 @@ sfprov_mount(sfp_connection_t *conn, char *path, sfp_mount_t **mnt)
 	m = kmem_zalloc(sizeof (*m), KM_SLEEP);
 	str = sfprov_string(path, &size);
 	rc = vboxCallMapFolder(&vbox_client, str, &m->map);
-	if (!RT_SUCCESS(rc)) {
+	if (RT_FAILURE(rc)) {
 		cmn_err(CE_WARN, "sfprov_mount: vboxCallMapFolder() failed rc=%d\n", rc);
 		kmem_free(m, sizeof (*m));
 		*mnt = NULL;
@@ -157,7 +158,7 @@ sfprov_unmount(sfp_mount_t *mnt)
 	int rc;
 
 	rc = vboxCallUnmapFolder(&vbox_client, &mnt->map);
-	if (!RT_SUCCESS(rc)) {
+	if (RT_FAILURE(rc)) {
 		cmn_err(CE_WARN, "sfprov_mount: vboxCallUnmapFolder() failed rc=%d\n", rc);
 		rc = EINVAL;
 	} else {
@@ -335,6 +336,8 @@ sfprov_open(sfp_mount_t *mnt, char *path, sfp_file_t **fp)
 			return (ENOENT);
 		}
 	}
+	else
+		kmem_free(str, size);
 	newfp = kmem_alloc(sizeof(sfp_file_t), KM_SLEEP);
 	newfp->handle = parms.Handle;
 	newfp->map = mnt->map;
@@ -359,9 +362,9 @@ sfprov_trunc(sfp_mount_t *mnt, char *path)
 	parms.CreateFlags = SHFL_CF_ACT_FAIL_IF_NEW | SHFL_CF_ACCESS_READWRITE |
 	    SHFL_CF_ACT_OVERWRITE_IF_EXISTS;
 	rc = vboxCallCreate(&vbox_client, &mnt->map, str, &parms);
+	kmem_free(str, size);
 
 	if (RT_FAILURE(rc)) {
-		kmem_free(str, size);
 		return (EINVAL);
 	}
 	(void)vboxCallClose(&vbox_client, &mnt->map, parms.Handle);

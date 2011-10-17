@@ -1,4 +1,4 @@
-/* $Id: UIMessageCenter.cpp 38337 2011-08-08 09:05:36Z vboxsync $ */
+/* $Id: UIMessageCenter.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -21,6 +21,7 @@
 #include <QDir>
 #include <QDesktopWidget>
 #include <QFileInfo>
+#include <QLocale>
 #include <QThread>
 #ifdef Q_WS_MAC
 # include <QPushButton>
@@ -1702,14 +1703,14 @@ void UIMessageCenter::cannotMountGuestAdditions(const QString &strMachineName)
                  .arg(strMachineName));
 }
 
-bool UIMessageCenter::confirmDownloadAdditions(const QString &strUrl,
-                                               ulong uSize)
+bool UIMessageCenter::confirmDownloadAdditions(const QString &strUrl, qulonglong uSize)
 {
+    QLocale loc(VBoxGlobal::languageId());
     return messageOkCancel(mainMachineWindowShown(), Question,
         tr("<p>Are you sure you want to download the VirtualBox "
            "Guest Additions CD image from "
            "<nobr><a href=\"%1\">%2</a></nobr> "
-           "(size %3 bytes)?</p>").arg(strUrl).arg(strUrl).arg(uSize),
+           "(size %3 bytes)?</p>").arg(strUrl).arg(strUrl).arg(loc.toString(uSize)),
         0, /* pcszAutoConfirmId */
         tr("Download", "additions"));
 }
@@ -1747,13 +1748,14 @@ bool UIMessageCenter::askAboutUserManualDownload(const QString &strMissedLocatio
                            tr("Download", "additions"));
 }
 
-bool UIMessageCenter::confirmUserManualDownload(const QString &strURL, ulong uSize)
+bool UIMessageCenter::confirmUserManualDownload(const QString &strURL, qulonglong uSize)
 {
+    QLocale loc(VBoxGlobal::languageId());
     return messageOkCancel(mainWindowShown(), Question,
                            tr("<p>Are you sure you want to download the VirtualBox "
                               "User Manual from "
                               "<nobr><a href=\"%1\">%2</a></nobr> "
-                              "(size %3 bytes)?</p>").arg(strURL).arg(strURL).arg(uSize),
+                              "(size %3 bytes)?</p>").arg(strURL).arg(strURL).arg(loc.toString(uSize)),
                            0, /* Auto-confirm Id */
                            tr("Download", "additions"));
 }
@@ -1785,6 +1787,57 @@ void UIMessageCenter::warnAboutUserManualCantBeSaved(const QString &strURL, cons
                "but can't be saved locally as <nobr><b>%3</b>.</nobr></p>"
                "<p>Please choose another location for that file.</p>")
                .arg(strURL).arg(strURL).arg(strTarget));
+}
+
+bool UIMessageCenter::proposeDownloadExtensionPack(const QString &strExtPackName, const QString &strExtPackVersion)
+{
+    return messageOkCancel(mainWindowShown(), Question,
+                           tr("<p>You have an old version (%1) of the <b><nobr>%2</nobr></b> installed.</p>"
+                              "<p>Do you wish to download latest one from the Internet?</p>")
+                              .arg(strExtPackVersion).arg(strExtPackName),
+                           0, /* Auto-confirm Id */
+                           tr("Download", "extension pack"));
+}
+
+bool UIMessageCenter::confirmDownloadExtensionPack(const QString &strExtPackName, const QString &strURL, qulonglong uSize)
+{
+    QLocale loc(VBoxGlobal::languageId());
+    return messageOkCancel(mainWindowShown(), Question,
+                           tr("<p>Are you sure you want to download the <b><nobr>%1</nobr></b> "
+                              "from <nobr><a href=\"%2\">%2</a></nobr> (size %3 bytes)?</p>")
+                              .arg(strExtPackName, strURL, loc.toString(uSize)),
+                           0, /* Auto-confirm Id */
+                           tr("Download", "extension pack"));
+}
+
+bool UIMessageCenter::proposeInstallExtentionPack(const QString &strExtPackName, const QString &strFrom, const QString &strTo)
+{
+    return messageOkCancel(mainWindowShown(), Question,
+                           tr("<p>The <b><nobr>%1</nobr></b> has been "
+                              "successfully downloaded from <nobr><a href=\"%2\">%2</a></nobr> "
+                              "and saved locally as <nobr><b>%3</b>.</nobr></p>"
+                              "<p>Do you wish to install this extension pack?</p>")
+                              .arg(strExtPackName, strFrom, strTo),
+                           0, /* Auto-confirm Id */
+                           tr ("Install", "extension pack"));
+}
+
+void UIMessageCenter::warnAboutExtentionPackCantBeSaved(const QString &strExtPackName, const QString &strFrom, const QString &strTo)
+{
+    message(mainWindowShown(), Error,
+            tr("<p>The <b><nobr>%1</nobr></b> has been "
+               "successfully downloaded from <nobr><a href=\"%2\">%2</a></nobr> "
+               "but can't be saved locally as <nobr><b>%3</b>.</nobr></p>"
+               "<p>Please choose another location for that file.</p>")
+               .arg(strExtPackName, strFrom, strTo));
+}
+
+void UIMessageCenter::cannotDownloadExtensionPack(const QString &strExtPackName, const QString &strFrom, const QString &strError)
+{
+    message(mainWindowShown(), Error,
+            tr("<p>Failed to download the <b><nobr>%1</nobr></b> "
+               "from <nobr><a href=\"%2\">%2</a>.</nobr></p><p>%3</p>")
+               .arg(strExtPackName, strFrom, strError));
 }
 
 void UIMessageCenter::cannotConnectRegister(QWidget *pParent,
@@ -2833,7 +2886,7 @@ void UIMessageCenter::sltShowHelpHelpDialog()
         UIDownloaderUserManual *pDl = UIDownloaderUserManual::create();
         /* Configure User Manual downloader: */
         CVirtualBox vbox = vboxGlobal().virtualBox();
-        pDl->addSource(QString("http://download.virtualbox.org/virtualbox/%1/").arg(vbox.GetVersion().remove("_OSE")) + strShortFileName);
+        pDl->addSource(QString("http://download.virtualbox.org/virtualbox/%1/").arg(vboxGlobal().vboxVersionStringNormalized()) + strShortFileName);
         pDl->addSource(QString("http://download.virtualbox.org/virtualbox/") + strShortFileName);
         pDl->setTarget(strUserManualFileName2);
         pDl->setParentWidget(mainWindowShown());

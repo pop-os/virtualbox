@@ -1,4 +1,4 @@
-; $Id: VBoxGuestA-os2.asm 31517 2010-08-10 11:28:35Z vboxsync $
+; $Id: VBoxGuestA-os2.asm $
 ;; @file
 ; VBoxGuest - OS/2 assembly file, the first file in the link.
 ;

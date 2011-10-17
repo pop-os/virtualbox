@@ -1,4 +1,4 @@
-/* $Id: dvm.h 37270 2011-05-30 21:25:42Z vboxsync $ */
+/* $Id: dvm.h $ */
 /** @file
  * IPRT - Disk Volume Management Internals.
  */

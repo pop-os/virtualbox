@@ -1,4 +1,4 @@
-/* $Id: DBGCCmdWorkers.cpp 35673 2011-01-24 10:15:44Z vboxsync $ */
+/* $Id: DBGCCmdWorkers.cpp $ */
 /** @file
  * DBGC - Debugger Console, Command Worker Routines.
  */

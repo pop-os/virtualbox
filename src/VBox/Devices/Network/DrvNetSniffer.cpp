@@ -1,4 +1,4 @@
-/* $Id: DrvNetSniffer.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
+/* $Id: DrvNetSniffer.cpp $ */
 /** @file
  * DrvNetSniffer - Network sniffer filter driver.
  */

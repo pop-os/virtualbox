@@ -1,4 +1,4 @@
-/* $Id: tstIprtList.cpp 37861 2011-07-11 10:03:22Z vboxsync $ */
+/* $Id: tstIprtList.cpp $ */
 /** @file
  * IPRT Testcase - RTCList/RTCMTList.
  */

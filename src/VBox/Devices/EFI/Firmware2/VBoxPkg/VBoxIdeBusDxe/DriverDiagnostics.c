@@ -1,4 +1,4 @@
-/* $Id: DriverDiagnostics.c 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: DriverDiagnostics.c $ */
 /** @file
  * DriverDiagnostics.c
  */

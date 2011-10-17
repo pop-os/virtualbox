@@ -1,4 +1,4 @@
-/* $Id: UIGlobalSettingsNetworkDetails.cpp 34162 2010-11-18 12:04:47Z vboxsync $ */
+/* $Id: UIGlobalSettingsNetworkDetails.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

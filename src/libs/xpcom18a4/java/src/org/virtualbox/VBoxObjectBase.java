@@ -1,4 +1,4 @@
-/* $Id: VBoxObjectBase.java 29233 2010-05-07 19:52:15Z vboxsync $ */
+/* $Id: VBoxObjectBase.java $ */
 /*
  * Copyright (C) 2010 Oracle Corporation
  *

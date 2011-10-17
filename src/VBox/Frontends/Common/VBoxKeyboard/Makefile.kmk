@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 38158 2011-07-25 13:13:51Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Makefile for the VirtualBox X11 keyboard library
 #
@@ -75,7 +75,8 @@ $$(VBoxKeyboard-Tarball_0_OUTDIR)/vboxkeyboard.tar.bz2: \
 	$(call MSG_L1,Packing $@)
 	$(QUIET)$(RM) -f -- $@ $(patsubst %.bz2,%,$@)
 ifdef VBOX_GTAR
-	$(QUIET)$(VBOX_GTAR) --owner 0 --group 0 --ignore-failed-read -cjRf $@ \
+	$(QUIET)$(VBOX_GTAR) --dereference --owner 0 --group 0 --ignore-failed-read \
+		-cjRf $@ \
  		-C $(PATH_STAGE)/$(VBoxKeyboard-Files_INST).. VBoxKeyboard
 else
 	$(QUIET)tar -cjf $@ \

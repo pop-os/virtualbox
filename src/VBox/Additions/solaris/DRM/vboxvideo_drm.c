@@ -1,4 +1,4 @@
-/* $Id: vboxvideo_drm.c 33656 2010-11-01 14:18:11Z vboxsync $ */
+/* $Id: vboxvideo_drm.c $ */
 /** @file
  * vboxvideo_drm - Direct Rendering Module, Solaris Specific Code.
  */

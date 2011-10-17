@@ -1,4 +1,4 @@
-/* $Id: VBoxDefs.cpp 35897 2011-02-08 13:25:30Z vboxsync $ */
+/* $Id: VBoxDefs.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -23,6 +23,10 @@
 /* Global includes */
 #include <QStringList>
 
+/* VBoxGlobalDefs stuff: */
+const char* VBoxGlobalDefs::UI_ExtPackName = "Oracle VM VirtualBox Extension Pack";
+
+/* VBoxDefs stuff: */
 const char* VBoxDefs::GUI_LastWindowPosition = "GUI/LastWindowPosition";
 const char* VBoxDefs::GUI_LastNormalWindowPosition = "GUI/LastNormalWindowPosition";
 const char* VBoxDefs::GUI_LastScaleWindowPosition = "GUI/LastScaleWindowPosition";
@@ -43,6 +47,7 @@ const char* VBoxDefs::GUI_MiniToolBarAlignment = "GUI/MiniToolBarAlignment";
 const char* VBoxDefs::GUI_MiniToolBarAutoHide = "GUI/MiniToolBarAutoHide";
 const char* VBoxDefs::GUI_LastCloseAction = "GUI/LastCloseAction";
 const char* VBoxDefs::GUI_RestrictedCloseActions = "GUI/RestrictedCloseActions";
+const char* VBoxDefs::GUI_CloseActionHook = "GUI/CloseActionHook";
 const char* VBoxDefs::GUI_SuppressMessages = "GUI/SuppressMessages";
 const char* VBoxDefs::GUI_PermanentSharedFoldersAtRuntime = "GUI/PermanentSharedFoldersAtRuntime";
 const char* VBoxDefs::GUI_LanguageId = "GUI/LanguageID";

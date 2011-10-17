@@ -1,4 +1,4 @@
-/* $Id: dvmgpt.cpp 37024 2011-05-10 11:23:44Z vboxsync $ */
+/* $Id: dvmgpt.cpp $ */
 /** @file
  * IPRT Disk Volume Management API (DVM) - GPT format backend.
  */

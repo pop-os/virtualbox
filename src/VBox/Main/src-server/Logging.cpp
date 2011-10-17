@@ -1,4 +1,4 @@
-/* $Id: Logging.cpp 37666 2011-06-28 12:33:34Z vboxsync $ */
+/* $Id: Logging.cpp $ */
 
 /** @file
  *

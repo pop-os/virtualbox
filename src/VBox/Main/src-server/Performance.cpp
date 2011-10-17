@@ -1,4 +1,4 @@
-/* $Id: Performance.cpp 36839 2011-04-25 17:29:21Z vboxsync $ */
+/* $Id: Performance.cpp $ */
 /** @file
  * VBox Performance Classes implementation.
  */

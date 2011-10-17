@@ -1,4 +1,4 @@
-/* $Id: errvars-posix.cpp 37233 2011-05-27 13:31:57Z vboxsync $ */
+/* $Id: errvars-posix.cpp $ */
 /** @file
  * IPRT - Save and Restore Error Variables, POSIX Ring-3.
  */

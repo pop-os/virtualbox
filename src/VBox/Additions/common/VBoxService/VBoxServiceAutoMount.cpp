@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceAutoMount.cpp 37832 2011-07-08 10:13:18Z vboxsync $ */
+/* $Id: VBoxServiceAutoMount.cpp $ */
 /** @file
  * VBoxService - Auto-mounting for Shared Folders.
  */
@@ -331,7 +331,8 @@ static int VBoxServiceAutoMountSharedFolder(const char *pszShareName, const char
                     break;
 
                 case 3:
-                    VBoxServiceError("VBoxServiceAutoMountWorker: Could not add an entry to the mount table: %s\n", strerror(errno));
+                    /* VBoxServiceError("VBoxServiceAutoMountWorker: Could not add an entry to the mount table: %s\n", strerror(errno)); */
+                    errno = 0;
                     break;
 
                 default:

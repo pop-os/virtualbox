@@ -1,4 +1,4 @@
-/* $Id: RTLogWriteUser-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTLogWriteUser-generic.cpp $ */
 /** @file
  * IPRT - Log User Specific Output, Generic Dummy.
  */

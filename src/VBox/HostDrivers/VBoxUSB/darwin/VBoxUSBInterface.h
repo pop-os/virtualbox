@@ -1,4 +1,4 @@
-/** $Id: VBoxUSBInterface.h 31898 2010-08-24 09:28:43Z vboxsync $ */
+/** $Id: VBoxUSBInterface.h $ */
 /** @file
  * VirtualBox USB Driver User<->Kernel Interface.
  */

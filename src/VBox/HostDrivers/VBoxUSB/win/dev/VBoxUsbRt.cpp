@@ -1,4 +1,4 @@
-/* $Id: VBoxUsbRt.cpp 37047 2011-05-12 10:29:26Z vboxsync $ */
+/* $Id: VBoxUsbRt.cpp $ */
 /** @file
  * VBox USB R0 runtime
  */

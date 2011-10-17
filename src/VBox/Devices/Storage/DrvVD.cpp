@@ -1,4 +1,4 @@
-/* $Id: DrvVD.cpp 37641 2011-06-26 17:16:35Z vboxsync $ */
+/* $Id: DrvVD.cpp $ */
 /** @file
  * DrvVD - Generic VBox disk media driver.
  */

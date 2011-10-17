@@ -1,4 +1,4 @@
-/* $Id: dvmmbr.cpp 37024 2011-05-10 11:23:44Z vboxsync $ */
+/* $Id: dvmmbr.cpp $ */
 /** @file
  * IPRT Disk Volume Management API (DVM) - MBR format backend.
  */

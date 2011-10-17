@@ -1,4 +1,4 @@
-/* $Id: USBProxyDevice-solaris.cpp 37811 2011-07-07 08:37:58Z vboxsync $ */
+/* $Id: USBProxyDevice-solaris.cpp $ */
 /** @file
  * USB device proxy - the Solaris backend.
  */

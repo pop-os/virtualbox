@@ -1,4 +1,4 @@
-/* $Id: sched-linux.cpp 36912 2011-05-02 14:23:01Z vboxsync $ */
+/* $Id: sched-linux.cpp $ */
 /** @file
  * IPRT - Scheduling, POSIX.
  */

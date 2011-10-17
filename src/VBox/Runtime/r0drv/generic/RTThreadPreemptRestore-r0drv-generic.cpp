@@ -1,4 +1,4 @@
-/* $Id: RTThreadPreemptRestore-r0drv-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTThreadPreemptRestore-r0drv-generic.cpp $ */
 /** @file
  * IPRT - RTThreadPreemptRestore, Generic ring-0 driver implementation.
  */

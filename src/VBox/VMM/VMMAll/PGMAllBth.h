@@ -1,4 +1,4 @@
-/* $Id: PGMAllBth.h 38086 2011-07-21 08:55:54Z vboxsync $ */
+/* $Id: PGMAllBth.h $ */
 /** @file
  * VBox - Page Manager, Shadow+Guest Paging Template - All context code.
  *
@@ -4458,6 +4458,7 @@ PGM_BTH_DECL(int, MapCR3)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3)
             RTGCPTR  GCPtr      = pVM->pgm.s.GCPtrCR3Mapping + PAGE_SIZE;
             for (unsigned i = 0; i < X86_PG_PAE_PDPE_ENTRIES; i++, GCPtr += PAGE_SIZE)
             {
+                pVCpu->pgm.s.aGstPaePdpeRegs[i].u = pGuestPDPT->a[i].u;
                 if (pGuestPDPT->a[i].n.u1Present)
                 {
                     RTHCPTR     HCPtr;

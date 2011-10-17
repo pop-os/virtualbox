@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdp-freebsd.c 35950 2011-02-14 07:46:18Z vboxsync $ */
+/* $Id: VBoxNetAdp-freebsd.c $ */
 /** @file
  * VBoxNetAdp - Virtual Network Adapter Driver (Host), FreeBSD Specific Code.
  */

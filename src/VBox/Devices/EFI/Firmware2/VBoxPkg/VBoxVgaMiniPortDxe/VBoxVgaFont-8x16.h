@@ -1,4 +1,4 @@
-/* $Id: VBoxVgaFont-8x16.h 29104 2010-05-05 19:06:09Z vboxsync $ */
+/* $Id: VBoxVgaFont-8x16.h $ */
 /** @file
  * VGA-ROM.F16 from ftp://ftp.simtel.net/pub/simtelnet/msdos/screen/fntcol16.zip .
  * The package is (C) Joseph (Yossi) Gil.

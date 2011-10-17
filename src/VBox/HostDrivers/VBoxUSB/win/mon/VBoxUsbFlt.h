@@ -1,4 +1,4 @@
-/* $Id: VBoxUsbFlt.h 36998 2011-05-07 20:19:55Z vboxsync $ */
+/* $Id: VBoxUsbFlt.h $ */
 /** @file
  * VBox USB Monitor Device Filtering functionality
  */

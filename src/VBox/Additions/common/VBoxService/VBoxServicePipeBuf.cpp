@@ -1,4 +1,4 @@
-/* $Id: VBoxServicePipeBuf.cpp 38437 2011-08-12 15:05:41Z vboxsync $ */
+/* $Id: VBoxServicePipeBuf.cpp $ */
 /** @file
  * VBoxServicePipeBuf - Pipe buffering.
  */
@@ -111,14 +111,11 @@ int VBoxServicePipeBufRead(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
             pBuf->cbOffset += cbToRead;
 
 #ifdef DEBUG_andy
-            VBoxServiceVerbose(4, "Pipe [%u %u 0x%p %s] read pcbToRead=%u, cbSize=%u, cbAlloc=%u, cbOff=%u\n",
+            VBoxServiceVerbose(4, "Pipe [%u %u 0x%p %s] read cbToRead=%u, cbSize=%u, cbAlloc=%u, cbOff=%u\n",
                                pBuf->uPID, pBuf->uPipeId, pBuf, pBuf->fEnabled ? "EN" : "DIS", cbToRead, pBuf->cbSize, pBuf->cbAllocated, pBuf->cbOffset);
 #endif
-            if (pBuf->hEventSem != NIL_RTSEMEVENT)
-            {
-                rc = RTSemEventSignal(pBuf->hEventSem);
-                AssertRC(rc);
-            }
+            /* Don't signal event semaphore here -- we only read out something from
+             * this pipe buffer. */
 
             *pcbToRead = cbToRead;
         }
@@ -401,7 +398,8 @@ bool VBoxServicePipeBufIsEnabled(PVBOXSERVICECTRLEXECPIPEBUF pBuf)
     if (RT_SUCCESS(rc))
     {
         fEnabled = pBuf->fEnabled;
-        RTCritSectLeave(&pBuf->CritSect);
+        rc = RTCritSectLeave(&pBuf->CritSect);
+        AssertRC(rc);
     }
     return fEnabled;
 }
@@ -452,6 +450,11 @@ int VBoxServicePipeBufSetStatus(PVBOXSERVICECTRLEXECPIPEBUF pBuf, bool fEnabled)
         if (   pBuf->fEnabled != fEnabledOld
             && pBuf->hEventSem)
         {
+#ifdef DEBUG_andy
+            VBoxServiceVerbose(4, "Pipe [%u %u] status %s -> %s\n",
+                               pBuf->uPID, pBuf->uPipeId,
+                               fEnabledOld ? "EN" : "DIS", pBuf->fEnabled ? "EN" : "DIS");
+#endif
             /* Let waiter know that something has changed ... */
             RTSemEventSignal(pBuf->hEventSem);
         }

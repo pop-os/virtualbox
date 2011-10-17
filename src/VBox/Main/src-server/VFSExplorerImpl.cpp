@@ -1,4 +1,4 @@
-/* $Id: VFSExplorerImpl.cpp 37678 2011-06-29 08:24:09Z vboxsync $ */
+/* $Id: VFSExplorerImpl.cpp $ */
 /** @file
  *
  * IVFSExplorer COM class implementations.

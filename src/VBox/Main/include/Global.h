@@ -1,4 +1,4 @@
-/* $Id: Global.h 34244 2010-11-22 14:31:02Z vboxsync $ */
+/* $Id: Global.h $ */
 /** @file
  * VirtualBox COM API - Global Declarations and Definitions.
  */

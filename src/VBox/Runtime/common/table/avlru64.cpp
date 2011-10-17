@@ -1,4 +1,4 @@
-/* $Id: avlru64.cpp 34218 2010-11-21 17:00:38Z vboxsync $ */
+/* $Id: avlru64.cpp $ */
 /** @file
  * IPRT - AVL tree, void *, range, unique keys.
  */

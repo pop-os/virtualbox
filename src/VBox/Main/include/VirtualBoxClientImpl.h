@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxClientImpl.h 35638 2011-01-19 19:10:49Z vboxsync $ */
+/* $Id: VirtualBoxClientImpl.h $ */
 
 /** @file
  * Header file for the VirtualBoxClient (IVirtualBoxClient) class, VBoxC.

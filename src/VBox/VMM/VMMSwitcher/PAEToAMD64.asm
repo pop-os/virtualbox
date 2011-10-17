@@ -1,4 +1,4 @@
-; $Id: PAEToAMD64.asm 28800 2010-04-27 08:22:32Z vboxsync $
+; $Id: PAEToAMD64.asm $
 ;; @file
 ; VMM - World Switchers, PAE to AMD64
 ;

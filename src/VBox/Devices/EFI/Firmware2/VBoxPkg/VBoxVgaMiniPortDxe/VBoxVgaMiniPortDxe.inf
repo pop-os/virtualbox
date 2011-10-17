@@ -1,4 +1,4 @@
-# $Id: VBoxVgaMiniPortDxe.inf 28800 2010-04-27 08:22:32Z vboxsync $
+# $Id: VBoxVgaMiniPortDxe.inf $
 ## @file
 # VBoxVgaMiniPortDxe.inf - VgaMiniPort Protocol module declaration.
 #

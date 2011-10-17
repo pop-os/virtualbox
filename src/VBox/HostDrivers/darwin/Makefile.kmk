@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 38183 2011-07-26 13:20:51Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-makefile for the darwin host driver helper scripts.
 #

@@ -1120,6 +1120,13 @@
     </message>
 </context>
 <context>
+    <name>UIDownloaderExtensionPack</name>
+    <message>
+        <source>Select folder to save %1 to</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIDownloaderUserManual</name>
     <message>
         <source>Select folder to save User Manual to</source>
@@ -4143,18 +4150,6 @@
         <translation>Huts &lt;b&gt;%1&lt;/b&gt; partekatutako karpeta (&lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;-ra lotua) &lt;b&gt;%3&lt;/b&gt; makina birtualetik kentzerakoan.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You have &lt;b&gt;clicked the mouse&lt;/b&gt; inside the Virtual Machine display or pressed the &lt;b&gt;host key&lt;/b&gt;. This will cause the Virtual Machine to &lt;b&gt;capture&lt;/b&gt; the host mouse pointer (only if the mouse pointer integration is not currently supported by the guest OS) and the keyboard, which will make them unavailable to other applications running on your host machine.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window, next to the&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;icon. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Zuk Makina Birtualaren pantailan &lt;b&gt;sagu botoia&lt;/b&gt; edo &lt;b&gt;ostalari tekla&lt;/b&gt; sakatu duzu. Honek makina birtualak ostalariaren sagu markatzailea (bakarrik sagu markatzaile integrazioa ez badu SE bezeroak onartzen) eta teklatua &lt;b&gt;kapturatzea&lt;/b&gt; eragingo du, honekin agian ez dira erabilgarri izango ostalari makinan abiarazirik dauden aplikazio batzuekin .&lt;/p&gt;&lt;p&gt;&lt;b&gt;Ostalari tekla&lt;/b&gt; sakatu dezakezu edozein momentutan sagu eta teklatu &lt;b&gt;kaptura kentzeko&lt;/b&gt; (kapturaturik badaude) eta portamolde arruntera itzultzeko. Unean ezarritako ostalari tekla Makina Birtual leihoaren behealdeko barran erakusten da, &amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;ikono ondoan. Ikono honek eta ondoan kokaturiko sagu ikonoak uneko sagu eta teklatu kaptura egoera erakusten dute.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You have the &lt;b&gt;Auto capture keyboard&lt;/b&gt; option turned on. This will cause the Virtual Machine to automatically &lt;b&gt;capture&lt;/b&gt; the keyboard every time the VM window is activated and make it unavailable to other applications running on your host machine: when the keyboard is captured, all keystrokes (including system ones like Alt-Tab) will be directed to the VM.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window, next to the&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;icon. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;&lt;b&gt;Teklatu auto-kapturatzea&lt;/b&gt; gaiturik duzu. Honek Makina Birtualak automatikoki teklatua &lt;b&gt;kapturatzea&lt;/b&gt; eragingo du MB leihoa aktibatzen den bakoitzean eta ostalari makinan abiarazirik dituzun beste zenbait aplikazioentzat erabiltezina gea liteke: teklatua kapturatzen denean, Tekla zanpatze guztia (Alt-Tab) barne MB-ra bidaliko dira.&lt;/p&gt;&lt;p&gt; &lt;b&gt;Ostalari tekla&lt;/b&gt; sakatu dezakezu edozein momentutan teklatu eta sagu (kapturatua badago) &lt;b&gt;kapura uzteko&lt;/b&gt; eta funtzionamendu normalera itzultzeko. Ezarririk dagoen ostalari tekla makina birtualaren beheko eskuinaldean agertzen da&amp;nbsp;&lt;img src=hostkey_16px.png/&gt;&amp;nbsp;ikonoaren ondoan. Ikono honek gertu dagoen saguarenak bezala sagu eta teklatu kaptura egoera erakusten du.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The Virtual Machine reports that the guest OS supports &lt;b&gt;mouse pointer integration&lt;/b&gt;. This means that you do not need to &lt;i&gt;capture&lt;/i&gt; the mouse pointer to be able to use it in your guest OS -- all mouse actions you perform when the mouse pointer is over the Virtual Machine&apos;s display are directly sent to the guest OS. If the mouse is currently captured, it will be automatically uncaptured.&lt;/p&gt;&lt;p&gt;The mouse icon on the status bar will look like&amp;nbsp;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;to inform you that mouse pointer integration is supported by the guest OS and is currently turned on.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;: Some applications may behave incorrectly in mouse pointer integration mode. You can always disable it for the current session (and enable it again) by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Makina Birtualak bezero SE-ak &lt;b&gt;sagu markatzaile integrazioa&lt;/b&gt; onartzen duela dio. Honekin ez duzu zure sagua &lt;i&gt;kapturatu&lt;/i&gt; beharko bezero sistema eragilean erabiltzeko -- markatzailea makina birtualaren leihoaren gainean dagoela egindako ekintzak zuzenean bezero sistema eragilera bidaliko dira. Sagua une honetan kapturatua badago, automatikoki utziko du.&lt;/p&gt;&lt;p&gt; Egoera barrako sagu ikonoak itsura hau izan beharko luke &amp;nbsp;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;zuri sagu integrazioa bezeroak onartzen duela eta gaiturik dagoela adierazeko.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Oharra&lt;/b&gt;: Zenbait aplikaziok oker funtziona dezake sagu integrazioarekin.  Beti saio batetarako ezgaitu dezakezu (eta berriz gaitu) menu-barran dagokion ekintza hautatuaz.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS does not support &lt;b&gt;mouse pointer integration&lt;/b&gt; in the current video mode. You need to capture the mouse (by clicking over the VM display or pressing the host key) in order to use the mouse inside the guest OS.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Makina Birtualak bezero SE-ak bideo modu honetan ez duela &lt;b&gt;sagu integrazioa&lt;/b&gt; onartzen erreportatu du. Sagua kapturatu egin beharko duzu (MB leihoan klikatuaz edo ostalari tekla sakatuaz) sagua bezeroko sistema eragilean erabili ahal izateko.&lt;/p&gt;</translation>
     </message>
@@ -4463,7 +4458,7 @@
     </message>
     <message>
         <source>&lt;p&gt;You have &lt;b&gt;clicked the mouse&lt;/b&gt; inside the Virtual Machine display or pressed the &lt;b&gt;host key&lt;/b&gt;. This will cause the Virtual Machine to &lt;b&gt;capture&lt;/b&gt; the host mouse pointer (only if the mouse pointer integration is not currently supported by the guest OS) and the keyboard, which will make them unavailable to other applications running on your host machine.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window, next to the&amp;nbsp;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;icon. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">&lt;p&gt;Zuk Makina Birtualaren pantailan &lt;b&gt;sagu botoia&lt;/b&gt; edo &lt;b&gt;ostalari tekla&lt;/b&gt; sakatu duzu. Honek makina birtualak ostalariaren sagu markatzailea (bakarrik sagu markatzaile integrazioa ez badu SE bezeroak onartzen) eta teklatua &lt;b&gt;kapturatzea&lt;/b&gt; eragingo du, honekin agian ez dira erabilgarri izango ostalari makinan abiarazirik dauden aplikazio batzuekin .&lt;/p&gt;&lt;p&gt;&lt;b&gt;Ostalari tekla&lt;/b&gt; sakatu dezakezu edozein momentutan sagu eta teklatu &lt;b&gt;kaptura kentzeko&lt;/b&gt; (kapturaturik badaude) eta portamolde arruntera itzultzeko. Unean ezarritako ostalari tekla Makina Birtual leihoaren behealdeko barran erakusten da, &amp;nbsp;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;ikono ondoan. Ikono honek eta ondoan kokaturiko sagu ikonoak uneko sagu eta teklatu kaptura egoera erakusten dute.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You have the &lt;b&gt;Auto capture keyboard&lt;/b&gt; option turned on. This will cause the Virtual Machine to automatically &lt;b&gt;capture&lt;/b&gt; the keyboard every time the VM window is activated and make it unavailable to other applications running on your host machine: when the keyboard is captured, all keystrokes (including system ones like Alt-Tab) will be directed to the VM.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window, next to the&amp;nbsp;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;icon. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
@@ -5125,6 +5120,36 @@
         <source>&lt;p&gt;Failed to save the downloaded file as &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
         <translation type="unfinished">&lt;p&gt;Huts deskargatutako fitxategia &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt; bezala gordetzerakoan.&lt;/nobr&gt;&lt;/p&gt;</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;You have an old version (%1) of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;Do you wish to download latest one from the Internet?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <comment>extension pack</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to install this extension pack?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install</source>
+        <comment>extension pack</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -5169,6 +5194,17 @@
     <message>
         <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
         <translation type="unfinished">VirtualBox Bezero Gehigarri CD irudia &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;-etik deskargatzen...&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIMiniProgressWidgetExtension</name>
+    <message>
+        <source>Cancel the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; download</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5454,6 +5490,18 @@ disko gogor birtual tamaina bezala&lt;/p&gt;</translation>
     <message>
         <source>Details</source>
         <comment>summary</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>H&amp;DD (Parallels Hard Disk)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Q&amp;ED (QEMU enhanced disk)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;QCOW (QEMU Copy-On-Write)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -6060,6 +6108,65 @@ gogorrak erantsi ditzakezu.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
+    <name>UIUpdateManager</name>
+    <message>
+        <source>1 day</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>2 days</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3 days</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>4 days</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>5 days</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>6 days</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>1 week</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>2 weeks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3 weeks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>1 month</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connection timed out.</source>
+        <translation type="obsolete">Konexioa denboraz kanpo.</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">Utzi</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="obsolete">Laburpena</translation>
+    </message>
+</context>
+<context>
     <name>UIVMCloseDialog</name>
     <message>
         <source>Close Virtual Machine</source>
@@ -6560,12 +6667,12 @@ gogorrak erantsi ditzakezu.&lt;/p&gt;</translation>
         <translation type="obsolete">&amp;Laguntza</translation>
     </message>
     <message>
-        <source>Indicates whether the guest display auto-resize function is On (&lt;img src=auto_resize_on_16px.png/&gt;) or Off (&lt;img src=auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">Bezero pantaila automatikoki tamainaz aldatzeko funtzioa gaiturik (&lt;img src=auto_resize_on_16px.png/&gt;) edo ezgaiturik (&lt;img src=auto_resize_off_16px.png/&gt;) dagoen erakusten du. Kontutan izan funtzio honek Bezero Gehigarriak sistema eragile bezeroan instalaturik egotea behar duela.</translation>
+        <source>Indicates whether the guest display auto-resize function is On (&lt;img src=:/auto_resize_on_16px.png/&gt;) or Off (&lt;img src=:/auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
+        <translation type="obsolete">Bezero pantaila automatikoki tamainaz aldatzeko funtzioa gaiturik (&lt;img src=:/auto_resize_on_16px.png/&gt;) edo ezgaiturik (&lt;img src=:/auto_resize_off_16px.png/&gt;) dagoen erakusten du. Kontutan izan funtzio honek Bezero Gehigarriak sistema eragile bezeroan instalaturik egotea behar duela.</translation>
     </message>
     <message>
-        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">Bezeroaren sistema eragileak sagu markatzailea kapturatzen duen erakusten du:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;markatzailea ez da kapturatzen&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;markatzailea kapturatzen da&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;sagu integrazioa (MI) gaiturik dago&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI ezgaiturik dago, markatzailea kapturatu egingo da&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI ezgaiturik dago, markatzailea ez da kapturatuko&lt;/nobr&gt;&lt;br&gt;Kontutan izan sagu integrazio funtzioak  Bezero Gehigarriak sistema eragile bezeroan instalaturik egotea behar duela.</translation>
+        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
+        <translation type="obsolete">Bezeroaren sistema eragileak sagu markatzailea kapturatzen duen erakusten du:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;markatzailea ez da kapturatzen&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;markatzailea kapturatzen da&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;sagu integrazioa (MI) gaiturik dago&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI ezgaiturik dago, markatzailea kapturatu egingo da&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI ezgaiturik dago, markatzailea ez da kapturatuko&lt;/nobr&gt;&lt;br&gt;Kontutan izan sagu integrazio funtzioak  Bezero Gehigarriak sistema eragile bezeroan instalaturik egotea behar duela.</translation>
     </message>
     <message>
         <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
@@ -6651,10 +6758,6 @@ gogorrak erantsi ditzakezu.&lt;/p&gt;</translation>
         <translation type="obsolete">Idazmahai integrazio garden modura aldatu</translation>
     </message>
     <message>
-        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=hostkey_captured_16px.png/&gt;) or not (&lt;img src=hostkey_16px.png/&gt;).</source>
-        <translation type="obsolete">Bezeroaren sistema eragileak teklatua kapturatzen duen &lt;img (src=hostkey_captured_16px.png/&gt;) edo ez (&lt;img src=hostkey_16px.png/&gt;) duen erakusten du.</translation>
-    </message>
-    <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the floppy media:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>Floppy tooltip</comment>
         <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;Diskete medioaren aktibitatea erakusten du:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
@@ -6730,8 +6833,8 @@ gogorrak erantsi ditzakezu.&lt;/p&gt;</translation>
         <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Kontrolatzailea ezgaiturik dago&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=vrdp_16px.png/&gt;) or not (&lt;img src=vrdp_disabled_16px.png/&gt;).</source>
-        <translation type="obsolete">Urruneko Pantaila (VRDP Zerbitzaria) gaiturik dagoen (&lt;img src=vrdp_16px.png/&gt;) ala ez (&lt;img src=vrdp_disabled_16px.png/&gt;) erakusten du.</translation>
+        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
+        <translation type="obsolete">Urruneko Pantaila (VRDP Zerbitzaria) gaiturik dagoen (&lt;img src=:/vrdp_16px.png/&gt;) ala ez (&lt;img src=:/vrdp_disabled_16px.png/&gt;) erakusten du.</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the machineof the machine&apos;sapos;s shared folders: shared folders:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -9505,10 +9608,6 @@ sistemako lehenetsiriko hizkuntza berrezartzeko.&lt;/qt&gt;
         <translation>Hautatutako makina birtuala abiarazi</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;h3&gt;Ongietorri VirtualBox-era!&lt;/h3&gt;&lt;p&gt;Leiho honen ezkerreko zatian ordenagailu honetako makina birtual guztiak daude. Zerrenda orain hutsik dago oraindik ez duzu makina birtualik sortu eta.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Makina berri bat sortzeko sakatu &lt;b&gt;Berria&lt;/b&gt; botoia leihoaren goialdeko tresna-barran nagusian.&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; tekla sakatu dezakezu laguntza eskuratzeko edo  &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; webgunera joan argibide eta azken berrien bila.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&amp;Machine</source>
         <translation>&amp;Makina</translation>
     </message>
@@ -9566,7 +9665,7 @@ sistemako lehenetsiriko hizkuntza berrezartzeko.&lt;/qt&gt;
     </message>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">&lt;h3&gt;Ongietorri VirtualBox-era!&lt;/h3&gt;&lt;p&gt;Leiho honen ezkerreko zatian ordenagailu honetako makina birtual guztiak daude. Zerrenda orain hutsik dago oraindik ez duzu makina birtualik sortu eta.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Makina berri bat sortzeko sakatu &lt;b&gt;Berria&lt;/b&gt; botoia leihoaren goialdeko tresna-barran nagusian.&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; tekla sakatu dezakezu laguntza eskuratzeko edo  &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; webgunera joan argibide eta azken berrien bila.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Virtual Media Manager...</source>
@@ -10225,97 +10324,6 @@ Kate hutsak edozein balio bilatuko du.&lt;/qt&gt;</translation>
         <source>No supported devices connected to the host PC</source>
         <comment>USB device tooltip</comment>
         <translation>Ez dago onartutako gailurik konektaturik ostalari PC-ra</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxUpdateDlg</name>
-    <message>
-        <source>1 day</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>2 days</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>3 days</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>4 days</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>5 days</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>6 days</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>1 week</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>2 weeks</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>3 weeks</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>1 month</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Never</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Connection timed out.</source>
-        <translation type="obsolete">Konexioa denboraz kanpo.</translation>
-    </message>
-    <message>
-        <source>Chec&amp;k</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Close</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>VirtualBox Update Wizard</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Check for Updates</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation type="unfinished">Utzi</translation>
-    </message>
-    <message>
-        <source>Summary</source>
-        <translation type="unfinished">Laburpena</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Unable to obtain the new version information due to the following network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>You are already running the most recent version of VirtualBox.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

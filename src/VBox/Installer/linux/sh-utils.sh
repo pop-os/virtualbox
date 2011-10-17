@@ -1,4 +1,4 @@
-# $Id: sh-utils.sh 36779 2011-04-20 20:55:49Z vboxsync $
+# $Id: sh-utils.sh $
 # Shell script include file
 ## @file
 # Shell script routines which are likely to be useful for different scripts

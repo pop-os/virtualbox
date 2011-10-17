@@ -47,6 +47,15 @@
 #define SIZEOF_ARRAY(a) (sizeof(a) / sizeof(a[0]))
 #endif
 
+/**
+ *  Common global VBox namespace.
+ *  Later it will replace VBoxDefs struct used as global VBox namespace.
+ */
+namespace VBoxGlobalDefs
+{
+    extern const char *UI_ExtPackName;
+}
+
 /** Common namespace for all enums */
 struct VBoxDefs
 {
@@ -118,6 +127,7 @@ struct VBoxDefs
     static const char* GUI_MiniToolBarAutoHide;
     static const char* GUI_LastCloseAction;
     static const char* GUI_RestrictedCloseActions;
+    static const char* GUI_CloseActionHook;
     static const char* GUI_SuppressMessages;
     static const char* GUI_PermanentSharedFoldersAtRuntime;
     static const char* GUI_LanguageId;

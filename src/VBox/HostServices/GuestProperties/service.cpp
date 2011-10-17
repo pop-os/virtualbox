@@ -1,4 +1,4 @@
-/* $Id: service.cpp 36529 2011-04-04 13:54:13Z vboxsync $ */
+/* $Id: service.cpp $ */
 /** @file
  * Guest Property Service: Host service entry points.
  */

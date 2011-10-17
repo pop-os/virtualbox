@@ -1,4 +1,4 @@
-/* $Id: ConsoleImpl2.cpp 38192 2011-07-27 05:41:11Z vboxsync $ */
+/* $Id: ConsoleImpl2.cpp $ */
 /** @file
  * VBox Console COM Class implementation
  *
@@ -232,7 +232,10 @@ static int findEfiRom(IVirtualBox* vbox, FirmwareType_T aFirmwareType, Utf8Str *
     AssertComRCReturn(hrc, Global::vboxStatusCodeFromCOM(hrc));
 
     if (!fPresent)
+    {
+        LogRel(("Failed to find an EFI ROM file.\n"));
         return VERR_FILE_NOT_FOUND;
+    }
 
     *pEfiRomFile = Utf8Str(aFilePath);
 

@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: files_vboxguest 37955 2011-07-14 12:23:02Z vboxsync $
+# $Id: files_vboxguest $
 ## @file
 # Shared file between Makefile.kmk and export_modules
 #

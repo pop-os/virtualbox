@@ -1,4 +1,4 @@
-/* $Id: VBoxStub.rc 37987 2011-07-18 08:11:16Z vboxsync $*/
+/* $Id: VBoxStub.rc $*/
 /** @file
  * Resource file for the Windows install stub program.
  */

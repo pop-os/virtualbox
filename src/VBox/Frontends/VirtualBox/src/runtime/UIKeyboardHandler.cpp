@@ -1,4 +1,4 @@
-/* $Id: UIKeyboardHandler.cpp 38348 2011-08-08 12:09:18Z vboxsync $ */
+/* $Id: UIKeyboardHandler.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -918,9 +918,6 @@ bool UIKeyboardHandler::winLowKeyboardEvent(UINT msg, const KBDLLHOOKSTRUCT &eve
     if (!m_views.contains(m_iKeyboardHookViewIndex))
         return false;
 
-    if (!m_fIsKeyboardCaptured)
-        return false;
-
     /* Sometimes it happens that Win inserts additional events on some key
      * press/release. For example, it prepends ALT_GR in German layout with
      * the VK_LCONTROL vkey with curious 0x21D scan code (seems to be necessary
@@ -938,6 +935,14 @@ bool UIKeyboardHandler::winLowKeyboardEvent(UINT msg, const KBDLLHOOKSTRUCT &eve
         else
             return true;
     }
+
+    /** @todo this needs to be after the preceding check so that
+     *        we ignore those spurious key events even when the
+     *        keyboard is not captured.  However, that is probably a
+     *        hint that that filtering should be done somewhere else,
+     *        and not in the keyboard capture handler. */
+    if (!m_fIsKeyboardCaptured)
+        return false;
 
     /* It's possible that a key has been pressed while the keyboard was not
      * captured, but is being released under the capture. Detect this situation

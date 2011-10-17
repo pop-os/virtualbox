@@ -1,4 +1,4 @@
-# $Id: VBoxFsDxe.inf 29125 2010-05-06 09:43:05Z vboxsync $
+# $Id: VBoxFsDxe.inf $
 ## @file
 # VBoxFsDxe - VBox filesystem wrapper.
 #

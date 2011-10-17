@@ -1,4 +1,4 @@
-/* $Id: UIMachineMenuBar.cpp 38348 2011-08-08 12:09:18Z vboxsync $ */
+/* $Id: UIMachineMenuBar.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -25,6 +25,7 @@
 #include "UIMessageCenter.h"
 #include "UIExtraDataEventHandler.h"
 #include "UIImageTools.h"
+#include "UIUpdateManager.h"
 
 /* Global includes */
 #include <QMenuBar>
@@ -294,7 +295,7 @@ void UIMachineMenuBar::prepareMenuHelp(QMenu *pMenu)
         VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_About), SIGNAL(triggered()),
                             &msgCenter(), SLOT(sltShowHelpAboutDialog()));
         VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_Update), SIGNAL(triggered()),
-                            &vboxGlobal(), SLOT(showUpdateDialog()));
+                            gUpdateManager, SLOT(sltForceCheck()));
 #if defined(Q_WS_MAC) && (QT_VERSION < 0x040700)
     }
 #endif

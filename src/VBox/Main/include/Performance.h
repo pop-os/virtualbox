@@ -1,4 +1,4 @@
-/* $Id: Performance.h 36842 2011-04-26 07:54:09Z vboxsync $ */
+/* $Id: Performance.h $ */
 /** @file
  * VirtualBox Main - Performance Classes declaration.
  */

@@ -1,4 +1,4 @@
-/* $Id: internal-r0drv-nt.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: internal-r0drv-nt.h $ */
 /** @file
  * IPRT - Internal Header for the NT Ring-0 Driver Code.
  */

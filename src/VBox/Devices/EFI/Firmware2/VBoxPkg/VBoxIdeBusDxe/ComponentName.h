@@ -1,4 +1,4 @@
-/* $Id: ComponentName.h 33027 2010-10-11 06:17:12Z vboxsync $ */
+/* $Id: ComponentName.h $ */
 /** @file
  * ComponentName.h
  */

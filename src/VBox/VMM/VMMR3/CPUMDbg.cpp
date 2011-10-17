@@ -1,4 +1,4 @@
-/* $Id: CPUMDbg.cpp 35625 2011-01-19 11:17:34Z vboxsync $ */
+/* $Id: CPUMDbg.cpp $ */
 /** @file
  * CPUM - CPU Monitor / Manager, Debugger & Debugging APIs.
  */

@@ -1,4 +1,4 @@
-/* $Id: DBGCTcp.cpp 35628 2011-01-19 14:58:26Z vboxsync $ */
+/* $Id: DBGCTcp.cpp $ */
 /** @file
  * DBGC - Debugger Console, TCP backend.
  */

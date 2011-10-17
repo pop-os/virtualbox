@@ -1,4 +1,4 @@
-/* $Id: VMDK.cpp 38030 2011-07-18 15:42:12Z vboxsync $ */
+/* $Id: VMDK.cpp $ */
 /** @file
  * VMDK disk image, core code.
  */
@@ -91,6 +91,11 @@
 
 /** Marker for footer in streamOptimized images. */
 #define VMDK_MARKER_FOOTER 3
+
+/** Marker for unknown purpose in streamOptimized images.
+ * Shows up in very recent images created by vSphere, but only sporadically.
+ * They "forgot" to document that one in the VMDK specification. */
+#define VMDK_MARKER_UNSPECIFIED 4
 
 /** Dummy marker for "don't check the marker value". */
 #define VMDK_MARKER_IGNORE 0xffffffffU
@@ -3956,7 +3961,7 @@ static int vmdkCreateRegularImage(PVMDKIMAGE pImage, uint64_t cbSize,
                 if (pfnProgress)
                 {
                     rc = pfnProgress(pvUser,
-                                     uPercentStart + uOff * uPercentSpan / cbExtent);
+                                     uPercentStart + (cbOffset + uOff) * uPercentSpan / cbSize);
                     if (RT_FAILURE(rc))
                     {
                         RTMemFree(pvBuf);
@@ -4023,11 +4028,12 @@ static int vmdkCreateRegularImage(PVMDKIMAGE pImage, uint64_t cbSize,
                 return vmdkError(pImage, rc, RT_SRC_POS, N_("VMDK: could not create new grain directory in '%s'"), pExtent->pszFullname);
         }
 
+        cbOffset += cbExtent;
+
         if (RT_SUCCESS(rc) && pfnProgress)
-            pfnProgress(pvUser, uPercentStart + i * uPercentSpan / cExtents);
+            pfnProgress(pvUser, uPercentStart + cbOffset * uPercentSpan / cbSize);
 
         cbRemaining -= cbExtent;
-        cbOffset += cbExtent;
     }
 
     if (pImage->uImageFlags & VD_VMDK_IMAGE_FLAGS_ESX)
@@ -5559,6 +5565,12 @@ static int vmdkStreamReadSequential(PVMDKIMAGE pImage, PVMDKEXTENT pExtent,
                         break;
                     case VMDK_MARKER_FOOTER:
                         uGrainSectorAbs += 2;
+                        break;
+                    case VMDK_MARKER_UNSPECIFIED:
+                        /* Skip over the contents of the unspecified marker
+                         * type 4 which exists in some vSphere created files. */
+                        /** @todo figure out what the payload means. */
+                        uGrainSectorAbs += 1;
                         break;
                     default:
                         AssertMsgFailed(("VMDK: corrupted marker, type=%#x\n", Marker.uType));

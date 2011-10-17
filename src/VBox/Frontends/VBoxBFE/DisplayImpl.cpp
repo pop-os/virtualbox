@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.cpp 36590 2011-04-06 15:35:26Z vboxsync $ */
+/* $Id: DisplayImpl.cpp $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Implementation of Display class

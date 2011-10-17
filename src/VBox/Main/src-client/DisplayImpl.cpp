@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.cpp 38275 2011-08-02 11:14:44Z vboxsync $ */
+/* $Id: DisplayImpl.cpp $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -2192,7 +2192,8 @@ int Display::displayTakeScreenshotEMT(Display *pDisplay, ULONG aScreenId, uint8_
 {
     int rc;
     pDisplay->vbvaLock();
-    if (aScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
+    if (   aScreenId == VBOX_VIDEO_PRIMARY_SCREEN
+        && pDisplay->maFramebuffers[aScreenId].fVBVAEnabled == false) /* A non-VBVA mode. */
     {
         rc = pDisplay->mpDrv->pUpPort->pfnTakeScreenshot(pDisplay->mpDrv->pUpPort, ppu8Data, pcbData, pu32Width, pu32Height);
     }
@@ -2990,6 +2991,19 @@ DECLCALLBACK(int) Display::changeFramebuffer (Display *that, IFramebuffer *aFB,
     {
         /* Setup the new framebuffer, the resize will lead to an updateDisplayData call. */
         DISPLAYFBINFO *pFBInfo = &that->maFramebuffers[uScreenId];
+
+#if defined(VBOX_WITH_CROGL)
+        /* Leave the lock, because SHCRGL_HOST_FN_SCREEN_CHANGED will read current framebuffer */
+        {
+            BOOL is3denabled;
+            that->mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
+
+            if (is3denabled)
+            {
+                alock.leave ();
+            }
+        }
+#endif
 
         if (pFBInfo->fVBVAEnabled && pFBInfo->pu8FramebufferVRAM)
         {

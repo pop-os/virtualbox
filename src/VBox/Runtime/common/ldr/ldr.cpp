@@ -1,4 +1,4 @@
-/* $Id: ldr.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
+/* $Id: ldr.cpp $ */
 /** @file
  * IPRT - Binary Image Loader.
  */

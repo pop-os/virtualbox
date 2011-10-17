@@ -1,4 +1,4 @@
-/* $Id: SUPR0IdcClient-win.c 38321 2011-08-05 10:08:31Z vboxsync $ */
+/* $Id: SUPR0IdcClient-win.c $ */
 /** @file
  * VirtualBox Support Driver - IDC Client Lib, Windows Specific Code.
  */

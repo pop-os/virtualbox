@@ -1,4 +1,4 @@
-/* $Id: server_getshaders.c 33045 2010-10-11 16:57:21Z vboxsync $ */
+/* $Id: server_getshaders.c $ */
 
 /** @file
  * VBox OpenGL GLSL related get functions

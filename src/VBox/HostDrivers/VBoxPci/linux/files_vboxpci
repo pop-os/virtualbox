@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: files_vboxpci 37798 2011-07-06 11:35:19Z vboxsync $
+# $Id: files_vboxpci $
 ## @file
 # Shared file between Makefile.kmk and export_modules
 #

@@ -1,4 +1,4 @@
-/* $Id: path-posix.cpp 36906 2011-05-01 16:35:12Z vboxsync $ */
+/* $Id: path-posix.cpp $ */
 /** @file
  * IPRT - Path Manipulation, POSIX, Part 1.
  */

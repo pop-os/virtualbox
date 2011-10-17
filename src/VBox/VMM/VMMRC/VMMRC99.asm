@@ -1,4 +1,4 @@
-; $Id: VMMRC99.asm 35335 2010-12-27 12:34:40Z vboxsync $
+; $Id: VMMRC99.asm $
 ;; @file
 ; VMMGC99 - The last object module in the link.
 ;

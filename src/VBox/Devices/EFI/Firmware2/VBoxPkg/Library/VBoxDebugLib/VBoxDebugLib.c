@@ -1,4 +1,4 @@
-/* $Id: VBoxDebugLib.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxDebugLib.c $ */
 /** @file
  * VBoxDebugLib.c - Debug logging and assertions support routines using DevEFI.
  */

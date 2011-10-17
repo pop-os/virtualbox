@@ -1,4 +1,4 @@
-/* $Id: GVMMR0Internal.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: GVMMR0Internal.h $ */
 /** @file
  * GVMM - The Global VM Manager, Internal header.
  */

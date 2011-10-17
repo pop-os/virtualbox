@@ -1,4 +1,4 @@
-/* $Id: NetworkAdapterImpl.h 37200 2011-05-24 15:34:06Z vboxsync $ */
+/* $Id: NetworkAdapterImpl.h $ */
 
 /** @file
  *

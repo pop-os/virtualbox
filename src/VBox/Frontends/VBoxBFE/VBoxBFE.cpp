@@ -1,4 +1,4 @@
-/* $Id: VBoxBFE.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
+/* $Id: VBoxBFE.cpp $ */
 /** @file
  * Basic Frontend (BFE): VBoxBFE main routines.
  *

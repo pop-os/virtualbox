@@ -1,4 +1,4 @@
-/* $Id: memtracker.cpp 36674 2011-04-14 16:03:06Z vboxsync $ */
+/* $Id: memtracker.cpp $ */
 /** @file
  * IPRT - Memory Tracker & Leak Detector.
  */

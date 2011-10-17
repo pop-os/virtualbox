@@ -1,4 +1,4 @@
-/* $Id: mp-r0drv.h 36555 2011-04-05 12:34:09Z vboxsync $ */
+/* $Id: mp-r0drv.h $ */
 /** @file
  * IPRT - Multiprocessor, Ring-0 Driver, Internal Header.
  */

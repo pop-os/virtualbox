@@ -1,4 +1,4 @@
-/* $Id: UIHotKeyEditor.cpp 35862 2011-02-07 08:57:38Z vboxsync $ */
+/* $Id: UIHotKeyEditor.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

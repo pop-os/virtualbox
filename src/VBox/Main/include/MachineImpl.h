@@ -1,4 +1,4 @@
-/* $Id: MachineImpl.h 37851 2011-07-08 17:04:03Z vboxsync $ */
+/* $Id: MachineImpl.h $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -270,8 +270,8 @@ public:
 
         BOOL                 mCPUAttached[SchemaDefs::MaxCPUCount];
 
-        settings::CpuIdLeaf  mCpuIdStdLeafs[10];
-        settings::CpuIdLeaf  mCpuIdExtLeafs[10];
+        settings::CpuIdLeaf  mCpuIdStdLeafs[11];
+        settings::CpuIdLeaf  mCpuIdExtLeafs[11];
 
         DeviceType_T         mBootOrder[SchemaDefs::MaxBootPosition];
 

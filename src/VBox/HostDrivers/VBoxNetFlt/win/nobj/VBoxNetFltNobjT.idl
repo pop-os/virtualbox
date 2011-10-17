@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltNobjT.idl 36184 2011-03-07 10:57:04Z vboxsync $ */
+/* $Id: VBoxNetFltNobjT.idl $ */
 /** @file
  * VBoxNetFltNobjT.idl - Notify Object for Bridged Networking Driver.
  * Type lib definition

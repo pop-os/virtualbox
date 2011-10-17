@@ -1,4 +1,4 @@
-/* $Id: thread-affinity-linux.cpp 37170 2011-05-20 17:15:07Z vboxsync $ */
+/* $Id: thread-affinity-linux.cpp $ */
 /** @file
  * IPRT - Thread Affinity, Linux ring-3 implementation.
  */

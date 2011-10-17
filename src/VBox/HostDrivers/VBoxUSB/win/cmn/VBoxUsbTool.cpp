@@ -1,4 +1,4 @@
-/* $Id: VBoxUsbTool.cpp 38356 2011-08-08 15:49:01Z vboxsync $ */
+/* $Id: VBoxUsbTool.cpp $ */
 /** @file
  * Windows USB R0 Tooling.
  */

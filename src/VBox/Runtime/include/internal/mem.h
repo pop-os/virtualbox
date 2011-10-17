@@ -1,4 +1,4 @@
-/* $Id: mem.h 33676 2010-11-02 09:48:24Z vboxsync $ */
+/* $Id: mem.h $ */
 /** @file
  * IPRT - Memory Management.
  */

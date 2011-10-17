@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: files_vboxvideo_drm 37350 2011-06-07 13:44:25Z vboxsync $
+# $Id: files_vboxvideo_drm $
 ## @file
 # Shared file between Makefile.kmk and export_modules
 #

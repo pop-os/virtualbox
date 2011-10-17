@@ -1,4 +1,4 @@
-/* $Id: DarwinKeyboard.cpp 35873 2011-02-07 14:10:08Z vboxsync $ */
+/* $Id: DarwinKeyboard.cpp $ */
 /** @file
  * Common GUI Library - Darwin Keyboard routines.
  *

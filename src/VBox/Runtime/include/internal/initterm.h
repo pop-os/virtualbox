@@ -1,4 +1,4 @@
-/* $Id: initterm.h 36555 2011-04-05 12:34:09Z vboxsync $ */
+/* $Id: initterm.h $ */
 /** @file
  * IPRT - Initialization & Termination.
  */

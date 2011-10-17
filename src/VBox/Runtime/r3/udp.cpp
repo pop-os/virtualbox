@@ -1,4 +1,4 @@
-/* $Id: udp.cpp 37197 2011-05-24 14:56:02Z vboxsync $ */
+/* $Id: udp.cpp $ */
 /** @file
  * IPRT - UDP/IP.
  */

@@ -1,4 +1,4 @@
-/* $Id: VBoxDrvTool.h 37047 2011-05-12 10:29:26Z vboxsync $ */
+/* $Id: VBoxDrvTool.h $ */
 /** @file
  * Windows Driver R0 Tooling.
  */

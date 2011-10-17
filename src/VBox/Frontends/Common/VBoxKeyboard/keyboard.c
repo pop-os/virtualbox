@@ -1,4 +1,4 @@
-/* $Id: keyboard.c 36335 2011-03-21 21:58:58Z vboxsync $ */
+/* $Id: keyboard.c $ */
 /** @file
  * VBox/Frontends/Common - X11 keyboard handler library.
  */

@@ -1,4 +1,4 @@
-/* $Id: string.cpp 36530 2011-04-04 13:56:10Z vboxsync $ */
+/* $Id: string.cpp $ */
 /** @file
  * MS COM / XPCOM Abstraction Layer - UTF-8 and UTF-16 string classes.
  */

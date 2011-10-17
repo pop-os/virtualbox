@@ -1,4 +1,4 @@
-/* $Id: VBoxServicePageSharing.cpp 38411 2011-08-11 09:40:35Z vboxsync $ */
+/* $Id: VBoxServicePageSharing.cpp $ */
 /** @file
  * VBoxService - Guest page sharing.
  */

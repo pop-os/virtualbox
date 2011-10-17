@@ -193,11 +193,11 @@
     </message>
     <message>
         <source>Copy all errors to the clipboard</source>
-        <translation type="unfinished"></translation>
+        <translation>Копирати све грешке у остави</translation>
     </message>
     <message>
         <source>Copy</source>
-        <translation type="unfinished">Копирај</translation>
+        <translation>Копирај</translation>
     </message>
 </context>
 <context>
@@ -639,7 +639,7 @@
     </message>
     <message>
         <source>Linked Base for %1 and %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Линкована база за %1 и %2</translation>
     </message>
 </context>
 <context>
@@ -670,7 +670,7 @@
     </message>
     <message>
         <source>When checked a new unique MAC address will be assigned to all configured network cards.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ако унето, нова MAC адреса ће бити постављена свим картицама.</translation>
     </message>
 </context>
 <context>
@@ -709,54 +709,54 @@
     </message>
     <message>
         <source>Full Clone</source>
-        <translation type="unfinished"></translation>
+        <translation>Цео клон</translation>
     </message>
     <message>
         <source>Linked Clone</source>
-        <translation type="unfinished"></translation>
+        <translation>Линкован клон</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please select the type of the clone.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Full Clone&lt;/b&gt; an exact copy (including all virtual disk images) of the original VM will be created. If you select &lt;b&gt;Linked Clone&lt;/b&gt;, a new VM will be created, but the virtual disk images will point to the virtual disk images of original VM.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Одабрати тип клона.&lt;/p&gt;&lt;p&gt;Ако изаберете &lt;b&gt;Цео клон&lt;/b&gt; додатна копија (и вируалне слике) оригиналне машине ће бити креирана. Ако одаберете &lt;b&gt;Линкован клон&lt;/b&gt;, нова машина ће бити креирана, али виртуалне слике ће показивати на слике оригиналне машине.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Note that a new snapshot within the source VM is created in case you select &lt;b&gt;Linked Clone&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Нова слика у изворној машини ће бити креирана ако одаберете &lt;b&gt;Линкован клон&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
     <name>UICloneVMWizardPage3</name>
     <message>
         <source>Current machine state</source>
-        <translation type="unfinished">Актуелни статус машине</translation>
+        <translation>Актуелни статус машине</translation>
     </message>
     <message>
         <source>Current machine and all child states</source>
-        <translation type="unfinished">Статус актуелне машине и деце</translation>
+        <translation>Статус актуелне машине и деце</translation>
     </message>
     <message>
         <source>All states</source>
-        <translation type="unfinished">Сви статуси</translation>
+        <translation>Сви статуси</translation>
     </message>
     <message>
         <source>Cloning Configuration</source>
-        <translation type="unfinished">Подешавање клонирања</translation>
+        <translation>Подешавање клонирања</translation>
     </message>
     <message>
         <source>Please choose which parts of the virtual machine should be cloned.</source>
-        <translation type="unfinished">Одаберите шта треба да се клонира.</translation>
+        <translation>Одаберите шта треба да се клонира.</translation>
     </message>
     <message>
         <source>If you select &lt;b&gt;Current machine state&lt;/b&gt;, only the current state of the virtual machine is cloned.</source>
-        <translation type="unfinished">Ако одаберете &lt;b&gt;Актуелни статус машине&lt;/b&gt;, само ће актуелни статус да буде клониран.</translation>
+        <translation>Ако одаберете &lt;b&gt;Актуелни статус машине&lt;/b&gt;, само ће актуелни статус да буде клониран.</translation>
     </message>
     <message>
         <source>If you select &lt;b&gt;Current machine and all child states&lt;/b&gt; the current state of the virtual machine and any states of child snapshots are cloned.</source>
-        <translation type="unfinished">Ако одаберете &lt;b&gt;Статус актуелне машине и деце&lt;/b&gt; клонирано је актуелни статус машине и статус снимака деце.</translation>
+        <translation>Ако одаберете &lt;b&gt;Статус актуелне машине и деце&lt;/b&gt; клонирано је актуелни статус машине и статус снимака деце.</translation>
     </message>
     <message>
         <source>If you select &lt;b&gt;All states&lt;/b&gt;, the current machine state and all snapshots are cloned.</source>
-        <translation type="unfinished">Ако одаберете &lt;b&gt;Сви статуси&lt;/b&gt;,актуелна машина и све слике су клониране.</translation>
+        <translation>Ако одаберете &lt;b&gt;Сви статуси&lt;/b&gt;,актуелна машина и све слике су клониране.</translation>
     </message>
 </context>
 <context>
@@ -1097,6 +1097,13 @@
     <message>
         <source>Select folder to save Guest Additions image to</source>
         <translation>Одабрати фасциклу за сачувавање &apos;додатка госта&apos;</translation>
+    </message>
+</context>
+<context>
+    <name>UIDownloaderExtensionPack</name>
+    <message>
+        <source>Select folder to save %1 to</source>
+        <translation>Одабрати фасциклу где да се сачува %1</translation>
     </message>
 </context>
 <context>
@@ -2194,23 +2201,23 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Left Shift</source>
-        <translation type="unfinished">Леви шифт</translation>
+        <translation>Леви шифт</translation>
     </message>
     <message>
         <source>Right Shift</source>
-        <translation type="unfinished">Десни шифт</translation>
+        <translation>Десни шифт</translation>
     </message>
     <message>
         <source>Left Ctrl</source>
-        <translation type="unfinished">Леви Ctrl</translation>
+        <translation>Леви Ctrl</translation>
     </message>
     <message>
         <source>Right Ctrl</source>
-        <translation type="unfinished">Десни Ctrl</translation>
+        <translation>Десни Ctrl</translation>
     </message>
     <message>
         <source>Left Alt</source>
-        <translation type="unfinished">Леви Alt</translation>
+        <translation>Леви Alt</translation>
     </message>
     <message>
         <source>Right Alt</source>
@@ -2485,7 +2492,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation>Показује да ли је хост курсор интегрисан од стране госта:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;курсор није интегрисан&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;курсор је интегрисан&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;интеграција миша (ИМ) је On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;ИМ је Off, курсор је интегрисан&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;ИМ је Off, курсор није интегрисан&lt;/nobr&gt;&lt;br&gt;За интеграцији миша је потребно да &apos;додатци госта&apos; буду инсталирани.</translation>
+        <translation>Показује да ли је хост курсор интегрисан од стране госта:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;курсор није интегрисан&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;курсор је интегрисан&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;интеграција миша (ИМ) је On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;ИМ је Off, курсор је интегрисан&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;ИМ је Off, курсор није интегрисан&lt;/nobr&gt;&lt;br&gt;За интеграцији миша је потребно да &apos;додатци госта&apos; буду инсталирани.</translation>
     </message>
     <message>
         <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
@@ -4160,7 +4167,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>you have assigned ICH9 chipset type to this VM. It will not work properly unless the IO-APIC feature is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation type="unfinished"></translation>
+        <translation>поставили сте ICH9 чипсет овој машини. Неће лепо радити док се не упали IO-APIC способност. То ће аутоматско да се уради када прихватите подешавања преко дугмета У реду.</translation>
     </message>
 </context>
 <context>
@@ -5653,11 +5660,41 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Can&apos;t find snapshot named &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Не могу да нађен снимак &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Failed to save the downloaded file as &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation type="unfinished">&lt;p&gt;Неуспешно сачувавање датотеке као &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Неуспешно сачувавање датотеке као &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have an old version (%1) of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;Do you wish to download latest one from the Internet?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Имате инсталирану стару верзију (%1) од &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Да ли да се преузме последња са Инетрнета?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <comment>extension pack</comment>
+        <translation>Преузми</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Сигурно да се преузме &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; од &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (%3 бајтова)?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to install this extension pack?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; је успешно преузето од &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; и сачувано као &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Да ли да се инсталира тај пакет?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Install</source>
+        <comment>extension pack</comment>
+        <translation>Инсталирај</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; је преузето од &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; али не ноже да се локално сачува као &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Одабрити други смештај за датотеку.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Неуспешно преузимање &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; од &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -5698,11 +5735,22 @@ p, li { white-space: pre-wrap; }
     <name>UIMiniProgressWidgetAdditions</name>
     <message>
         <source>Cancel the VirtualBox Guest Additions CD image download</source>
-        <translation type="unfinished"></translation>
+        <translation>Зауставити преузимање &apos;додатка госта&apos;</translation>
     </message>
     <message>
         <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>Преузимање &apos;додатка госта&apos; од &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIMiniProgressWidgetExtension</name>
+    <message>
+        <source>Cancel the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; download</source>
+        <translation>Поништи &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; преузимање</translation>
+    </message>
+    <message>
+        <source>Downloading the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</source>
+        <translation>Преузимање &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; од &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
@@ -5968,6 +6016,18 @@ p, li { white-space: pre-wrap; }
         <source>Details</source>
         <comment>summary</comment>
         <translation>Детаљи</translation>
+    </message>
+    <message>
+        <source>H&amp;DD (Parallels Hard Disk)</source>
+        <translation>HDD (Паралелни ахрд диск)</translation>
+    </message>
+    <message>
+        <source>Q&amp;ED (QEMU enhanced disk)</source>
+        <translation>QED (QEMU напредни диск)</translation>
+    </message>
+    <message>
+        <source>&amp;QCOW (QEMU Copy-On-Write)</source>
+        <translation>QCOW (QEMU цопирај-на-писање)</translation>
     </message>
 </context>
 <context>
@@ -6635,6 +6695,93 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UIUpdateManager</name>
+    <message>
+        <source>1 day</source>
+        <translation>1 дан</translation>
+    </message>
+    <message>
+        <source>2 days</source>
+        <translation>2 дана</translation>
+    </message>
+    <message>
+        <source>3 days</source>
+        <translation>3 дана</translation>
+    </message>
+    <message>
+        <source>4 days</source>
+        <translation>4 дана</translation>
+    </message>
+    <message>
+        <source>5 days</source>
+        <translation>5 дана</translation>
+    </message>
+    <message>
+        <source>6 days</source>
+        <translation>6 дана</translation>
+    </message>
+    <message>
+        <source>1 week</source>
+        <translation>1 недеља</translation>
+    </message>
+    <message>
+        <source>2 weeks</source>
+        <translation>2 недеље</translation>
+    </message>
+    <message>
+        <source>3 weeks</source>
+        <translation>3 недеље</translation>
+    </message>
+    <message>
+        <source>1 month</source>
+        <translation>1 месец</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>Никада</translation>
+    </message>
+    <message>
+        <source>Chec&amp;k</source>
+        <translation type="obsolete">Провери</translation>
+    </message>
+    <message>
+        <source>&amp;Close</source>
+        <translation type="obsolete">Затвори</translation>
+    </message>
+    <message>
+        <source>VirtualBox Update Wizard</source>
+        <translation type="obsolete">Асистент ажурирања VirtualBox-а</translation>
+    </message>
+    <message>
+        <source>Check for Updates</source>
+        <translation type="obsolete">Проверити ажурирања</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">Поништи</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="obsolete">Резиме</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Нађена новија верзија VirtualBox-а! Верзија &lt;b&gt;%1&lt;/b&gt; је доступна на &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Можете преузети ову верзију са овим линком:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to obtain the new version information due to the following network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Немогуће добијање верзије због ове грешке:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>You are already running the most recent version of VirtualBox.</source>
+        <translation type="obsolete">Већ користите задњу верзију VirtualBox-а.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Асистент ће се привезати на сајту VirtualBox-а и проверити да ли има новија верзија.&lt;/p&gt;&lt;p&gt;Користити &lt;b&gt;Провери&lt;/b&gt; за проверу новије верзије или &lt;b&gt;Анулирај&lt;/b&gt; ако нећете да проверите.&lt;/p&gt;&lt;p&gt;Можете покренути овај асистент када год пожелите преко &lt;b&gt;Провери ажурирања...&lt;/b&gt; са менија &lt;b&gt;Помоћ&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+</context>
+<context>
     <name>UIVMCloseDialog</name>
     <message>
         <source>Close Virtual Machine</source>
@@ -7240,7 +7387,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation type="obsolete">Показује да ли је хост курсор интегрисан од стране госта:&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;курсор није интегрисан&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;курсор је интегрисан&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;интеграција миша (ИМ) је On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;ИМ је Off, курсор је интегрисан&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;ИМ је Off, курсор није интегрисан&lt;/nobr&gt;&lt;br&gt;За интеграцији миша је потребно да &apos;додатци госта&apos; буду инсталирани.</translation>
+        <translation type="obsolete">Показује да ли је хост курсор интегрисан од стране госта:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;курсор није интегрисан&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;курсор је интегрисан&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;интеграција миша (ИМ) је On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;ИМ је Off, курсор је интегрисан&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;ИМ је Off, курсор није интегрисан&lt;/nobr&gt;&lt;br&gt;За интеграцији миша је потребно да &apos;додатци госта&apos; буду инсталирани.</translation>
     </message>
     <message>
         <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
@@ -9548,7 +9695,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Добродошли у VirtualBox!&lt;/h3&gt;&lt;p&gt;Леви део прозор показује списак виртуелне машине са рачунара. Списак је празан пошто нисте још креирали виртуелну машину.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;За креацију нове виртуелне машине, стиснути &lt;b&gt;Ново&lt;/b&gt; са главне траке која је на горњи део прозора.&lt;/p&gt;&lt;p&gt;Можете да стиснете &lt;b&gt;F1&lt;/b&gt; за инстантни помоћ, или ићи на &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; за задње информације и новости.&lt;/p&gt;</translation>
+        <translation>&lt;h3&gt;Добродошли у VirtualBox!&lt;/h3&gt;&lt;p&gt;Леви део прозор показује списак виртуелне машине са рачунара. Списак је празан пошто нисте још креирали виртуелну машину.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;За креацију нове виртуелне машине, стиснути &lt;b&gt;Ново&lt;/b&gt; са главне траке која је на горњи део прозора.&lt;/p&gt;&lt;p&gt;Можете да стиснете &lt;b&gt;F1&lt;/b&gt; за инстантни помоћ, или ићи на &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; за задње информације и новости.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Virtual Media Manager...</source>
@@ -9965,93 +10112,6 @@ p, li { white-space: pre-wrap; }
         <source>No supported devices connected to the host PC</source>
         <comment>USB device tooltip</comment>
         <translation>Нема подрђана уређаја прикачени на рачунар</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxUpdateDlg</name>
-    <message>
-        <source>1 day</source>
-        <translation>1 дан</translation>
-    </message>
-    <message>
-        <source>2 days</source>
-        <translation>2 дана</translation>
-    </message>
-    <message>
-        <source>3 days</source>
-        <translation>3 дана</translation>
-    </message>
-    <message>
-        <source>4 days</source>
-        <translation>4 дана</translation>
-    </message>
-    <message>
-        <source>5 days</source>
-        <translation>5 дана</translation>
-    </message>
-    <message>
-        <source>6 days</source>
-        <translation>6 дана</translation>
-    </message>
-    <message>
-        <source>1 week</source>
-        <translation>1 недеља</translation>
-    </message>
-    <message>
-        <source>2 weeks</source>
-        <translation>2 недеље</translation>
-    </message>
-    <message>
-        <source>3 weeks</source>
-        <translation>3 недеље</translation>
-    </message>
-    <message>
-        <source>1 month</source>
-        <translation>1 месец</translation>
-    </message>
-    <message>
-        <source>Never</source>
-        <translation>Никада</translation>
-    </message>
-    <message>
-        <source>Chec&amp;k</source>
-        <translation>Провери</translation>
-    </message>
-    <message>
-        <source>&amp;Close</source>
-        <translation>Затвори</translation>
-    </message>
-    <message>
-        <source>VirtualBox Update Wizard</source>
-        <translation>Асистент ажурирања VirtualBox-а</translation>
-    </message>
-    <message>
-        <source>Check for Updates</source>
-        <translation>Проверити ажурирања</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Поништи</translation>
-    </message>
-    <message>
-        <source>Summary</source>
-        <translation>Резиме</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Нађена новија верзија VirtualBox-а! Верзија &lt;b&gt;%1&lt;/b&gt; је доступна на &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Можете преузети ову верзију са овим линком:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Unable to obtain the new version information due to the following network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Немогуће добијање верзије због ове грешке:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>You are already running the most recent version of VirtualBox.</source>
-        <translation>Већ користите задњу верзију VirtualBox-а.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will connect to the VirtualBox web-site and check if a newer version of VirtualBox is available.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Check&lt;/b&gt; button to check for a new version now or the &lt;b&gt;Cancel&lt;/b&gt; button if you do not want to perform this check.&lt;/p&gt;&lt;p&gt;You can run this wizard at any time by choosing &lt;b&gt;Check for Updates...&lt;/b&gt; from the &lt;b&gt;Help&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Асистент ће се привезати на сајту VirtualBox-а и проверити да ли има новија верзија.&lt;/p&gt;&lt;p&gt;Користити &lt;b&gt;Провери&lt;/b&gt; за проверу новије верзије или &lt;b&gt;Анулирај&lt;/b&gt; ако нећете да проверите.&lt;/p&gt;&lt;p&gt;Можете покренути овај асистент када год пожелите преко &lt;b&gt;Провери ажурирања...&lt;/b&gt; са менија &lt;b&gt;Помоћ&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>

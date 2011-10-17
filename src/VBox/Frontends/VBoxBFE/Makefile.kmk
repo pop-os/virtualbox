@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 36586 2011-04-06 15:19:46Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for VBoxBFE (a basic frontend which doesn't make use of Main).
 #

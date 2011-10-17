@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltNobj.cpp 36184 2011-03-07 10:57:04Z vboxsync $ */
+/* $Id: VBoxNetFltNobj.cpp $ */
 /** @file
  * VBoxNetFltNobj.cpp - Notify Object for Bridged Networking Driver.
  * Used to filter Bridged Networking Driver bindings

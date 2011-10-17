@@ -1,4 +1,4 @@
-/** $Id: tstUSBFilter.cpp 31898 2010-08-24 09:28:43Z vboxsync $ */
+/** $Id: tstUSBFilter.cpp $ */
 /** @file
  * VirtualBox USB filter abstraction - testcase.
  */

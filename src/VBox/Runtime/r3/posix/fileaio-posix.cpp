@@ -1,4 +1,4 @@
-/* $Id: fileaio-posix.cpp 37596 2011-06-22 19:30:06Z vboxsync $ */
+/* $Id: fileaio-posix.cpp $ */
 /** @file
  * IPRT - File async I/O, native implementation for POSIX compliant host platforms.
  */

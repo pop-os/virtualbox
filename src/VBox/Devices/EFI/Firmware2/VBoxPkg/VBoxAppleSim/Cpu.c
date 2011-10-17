@@ -1,4 +1,4 @@
-/* $Id: Cpu.c 29070 2010-05-05 12:32:52Z vboxsync $ */
+/* $Id: Cpu.c $ */
 /** @file
  * Cpu.c - VirtualBox CPU descriptors
  */

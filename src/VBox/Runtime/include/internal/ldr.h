@@ -1,4 +1,4 @@
-/* $Id: ldr.h 35183 2010-12-16 13:59:44Z vboxsync $ */
+/* $Id: ldr.h $ */
 /** @file
  * IPRT - Loader Internals.
  */

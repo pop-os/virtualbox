@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltM-win.h 36207 2011-03-08 17:12:10Z vboxsync $ */
+/* $Id: VBoxNetFltM-win.h $ */
 /** @file
  * VBoxNetFltM-win.h - Bridged Networking Driver, Windows Specific Code - Miniport edge API
  */

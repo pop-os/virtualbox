@@ -1,4 +1,4 @@
-/* $Id: process-creation-posix.cpp 37499 2011-06-16 14:46:47Z vboxsync $ */
+/* $Id: process-creation-posix.cpp $ */
 /** @file
  * IPRT - Process Creation, POSIX.
  */

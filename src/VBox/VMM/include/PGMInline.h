@@ -1,4 +1,4 @@
-/* $Id: PGMInline.h 37354 2011-06-07 15:05:32Z vboxsync $ */
+/* $Id: PGMInline.h $ */
 /** @file
  * PGM - Inlined functions.
  */

@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltNobjRc.h 36184 2011-03-07 10:57:04Z vboxsync $ */
+/* $Id: VBoxNetFltNobjRc.h $ */
 /** @file
  * VBoxNetFltNobjRc.h - Notify Object for Bridged Networking Driver.
  * Resource definitions

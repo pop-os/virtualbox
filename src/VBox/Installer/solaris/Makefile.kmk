@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 38135 2011-07-25 09:09:08Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the Solaris installer.
 #
@@ -58,10 +58,11 @@ SOLARIS_OUT_BIN_64         := $(PATH_OUT_BASE)/solaris.amd64/$(KBUILD_TYPE)/bin
 SOLARIS_OUT_BIN_32         := $(PATH_OUT_BASE)/solaris.x86/$(KBUILD_TYPE)/bin
 SOLARIS_OUT_BIN            := $(PATH_STAGE_BIN)
 
-SOLARIS_DBG_DIR            := $(PATH_TARGET)/Installer/DebugPkg
+SOLARIS_DBG_DIR_NAME       := DebugPkg
+SOLARIS_DBG_DIR            := $(SOLARIS_INST_OUT_DIR)/$(SOLARIS_DBG_DIR_NAME)
 SOLARIS_DBG_DIR_32         := $(SOLARIS_DBG_DIR)/$(SOLARIS_DIR_NAME_32)
 SOLARIS_DBG_DIR_64         := $(SOLARIS_DBG_DIR)/$(SOLARIS_DIR_NAME_64)
-SOLARIS_VBI_DIR            := $(PATH_TARGET)/Installer/KernelPkg
+SOLARIS_VBI_DIR            := $(SOLARIS_INST_OUT_DIR)/KernelPkg
 
 ifeq ($(KBUILD_TARGET_ARCH),amd64)
  SOLARIS_VBOXINST_DIR_ISA    := $(SOLARIS_VBOXINST_DIR_64)
@@ -605,6 +606,10 @@ ifdef VBOX_WITH_COMBINED_PACKAGE
 	$(QUIET)$(if $(VBOX_WITH_QTGUI),$(LN_SYMLINK) -f ../rdesktop-vrdp-keymaps                                            $(SOLARIS_VBOXINST_DIR_64)/rdesktop-vrdp-keymaps,)
 	$(QUIET)$(if $(VBOX_WITH_QTGUI),$(LN_SYMLINK) -f ../additions                                                        $(SOLARIS_VBOXINST_DIR_32)/additions,)
 	$(QUIET)$(if $(VBOX_WITH_QTGUI),$(LN_SYMLINK) -f ../additions                                                        $(SOLARIS_VBOXINST_DIR_64)/additions,)
+	$(QUIET)$(if $(VBOX_WITH_EFIFW_PACKING),$(LN_SYMLINK) -f ../VBoxEFI32.fd                                             $(SOLARIS_VBOXINST_DIR_32)/,)
+	$(QUIET)$(if $(VBOX_WITH_EFIFW_PACKING),$(LN_SYMLINK) -f ../VBoxEFI32.fd                                             $(SOLARIS_VBOXINST_DIR_64)/,)
+	$(QUIET)$(if $(VBOX_WITH_EFIFW_PACKING),$(LN_SYMLINK) -f ../VBoxEFI64.fd                                             $(SOLARIS_VBOXINST_DIR_32)/,)
+	$(QUIET)$(if $(VBOX_WITH_EFIFW_PACKING),$(LN_SYMLINK) -f ../VBoxEFI64.fd                                             $(SOLARIS_VBOXINST_DIR_64)/,)
 else
  ifndef VBOX_OSE
 	$(QUIET)$(if $(VBOX_WITH_VBOXSDL),$(INSTALL) -m 0644 $(PATH_DEVTOOLS_TRG)/libSDL/v1.2.13/lib/libSDL-1.2.so.0.11.2    $(SOLARIS_VBOXINST_DIR_ISA)/libSDL-1.2.so.0,)
@@ -618,6 +623,8 @@ else
 	$(QUIET)$(INSTALL) -m 0755 $(SOLARIS_OUT_BIN)/VBoxISAExec                                                            $(SOLARIS_VBOXINST_DIR)/VBoxISAExec
 	$(QUIET)$(if $(VBOX_WITH_QTGUI),$(LN_SYMLINK) -f ../rdesktop-vrdp-keymaps                                            $(SOLARIS_VBOXINST_DIR_ISA)/rdesktop-vrdp-keymaps,)
 	$(QUIET)$(if $(VBOX_WITH_QTGUI),$(LN_SYMLINK) -f ../additions                                                        $(SOLARIS_VBOXINST_DIR_ISA)/additions,)
+	$(QUIET)$(if $(VBOX_WITH_EFIFW_PACKING),$(LN_SYMLINK) -f ../VBoxEFI32.fd                                             $(SOLARIS_VBOXINST_DIR_ISA)/,)
+	$(QUIET)$(if $(VBOX_WITH_EFIFW_PACKING),$(LN_SYMLINK) -f ../VBoxEFI64.fd                                             $(SOLARIS_VBOXINST_DIR_ISA)/,)
 endif
 	$(QUIET)$(LN_SYMLINK) -f ./pkginstall.sh                                                                             $(SOLARIS_VBOXINST_DIR)/ipsinstall.sh
 	$(QUIET)$(if $(VBOX_WITH_QTGUI),$(LN_SYMLINK) -f ../../$(SOLARIS_VBOXINST_SUBDIR)/VBox.sh                            $(SOLARIS_USRBIN_DIR)/VBoxQtconfig,)
@@ -833,7 +840,8 @@ $(PATH_STAGE_BIN)/$(DBG_ARCHIVE): \
 		$(SOLARIS_DBG_DEPFILES)
 	$(call MSG_L1,Installing debug binaries $(SOLARIS_DBG_DIR))
 	$(call MSG_L1,Packing $@)
-	$(QUIET)/usr/sfw/bin/gtar --owner 0 --group 0 -cjRhf $(PATH_STAGE_BIN)/$(DBG_ARCHIVE) -C $(SOLARIS_DBG_DIR) $(SOLARIS_DBG_DEPFILES)
+	$(QUIET)/usr/sfw/bin/gtar --dereference --owner 0 --group 0 \
+		-cjRhf "$(PATH_STAGE_BIN)/$(DBG_ARCHIVE)" -C "$(SOLARIS_INST_OUT_DIR)" "$(SOLARIS_DBG_DIR_NAME)"
 	$(QUIET)$(CHMOD) 0644 $@
 
 #

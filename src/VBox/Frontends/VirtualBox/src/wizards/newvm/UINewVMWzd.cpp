@@ -1,4 +1,4 @@
-/* $Id: UINewVMWzd.cpp 38311 2011-08-04 13:08:39Z vboxsync $ */
+/* $Id: UINewVMWzd.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -27,6 +27,10 @@
 #include "QIFileDialog.h"
 #include "UIMessageCenter.h"
 #include "UIMachineSettingsStorage.h"
+#include "VBoxDefs.h"
+
+/* Using declarations: */
+using namespace VBoxGlobalDefs;
 
 /* Globals */
 struct osTypePattern
@@ -55,9 +59,11 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp("(Wi.*V)|(Vista)", Qt::CaseInsensitive), "WindowsVista" },
     { QRegExp("((Wi.*2008)|(W2K8)).*64", Qt::CaseInsensitive), "Windows2008_64" },
     { QRegExp("(Wi.*2008)|(W2K8)", Qt::CaseInsensitive), "Windows2008" },
-    { QRegExp("(Wi.*2)|(W2K)", Qt::CaseInsensitive), "Windows2000" },
+    { QRegExp("(Wi.*2000)|(W2K)", Qt::CaseInsensitive), "Windows2000" },
     { QRegExp("(Wi.*7.*64)|(W7.*64)", Qt::CaseInsensitive), "Windows7_64" },
     { QRegExp("(Wi.*7)|(W7)", Qt::CaseInsensitive), "Windows7" },
+    { QRegExp("(Wi.*8.*64)|(W8.*64)", Qt::CaseInsensitive), "Windows8_64" },
+    { QRegExp("(Wi.*8)|(W8)", Qt::CaseInsensitive), "Windows8" },
     { QRegExp("Wi.*3", Qt::CaseInsensitive), "Windows31" },
     { QRegExp("Wi", Qt::CaseInsensitive), "WindowsXP" },
 
@@ -85,8 +91,8 @@ static const osTypePattern gs_OSTypePattern[] =
     /* Regular names of Linux distributions */
     { QRegExp("Arc.*64", Qt::CaseInsensitive), "ArchLinux_64" },
     { QRegExp("Arc", Qt::CaseInsensitive), "ArchLinux" },
-    { QRegExp("De.*64", Qt::CaseInsensitive), "Debian_64" },
-    { QRegExp("De", Qt::CaseInsensitive), "Debian" },
+    { QRegExp("Deb.*64", Qt::CaseInsensitive), "Debian_64" },
+    { QRegExp("Deb", Qt::CaseInsensitive), "Debian" },
     { QRegExp("((SU)|(Nov)|(SLE)).*64", Qt::CaseInsensitive), "OpenSUSE_64" },
     { QRegExp("(SU)|(Nov)|(SLE)", Qt::CaseInsensitive), "OpenSUSE" },
     { QRegExp("Fe.*64", Qt::CaseInsensitive), "Fedora_64" },
@@ -763,9 +769,8 @@ bool UINewVMWzdPage5::constructMachine()
          * necessary evil to patch over legacy compatability issues
          * introduced by the new distribution model.
          */
-        static const char *s_pszUsbExtPackName = "Oracle VM VirtualBox Extension Pack";
         CExtPackManager manager = vboxGlobal().virtualBox().GetExtensionPackManager();
-        if (manager.IsExtPackUsable(s_pszUsbExtPackName))
+        if (manager.IsExtPackUsable(UI_ExtPackName))
             usbController.SetEnabledEhci(true);
     }
 

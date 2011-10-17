@@ -1,4 +1,4 @@
-/* $Id: kvm.h 37675 2011-06-29 07:07:14Z vboxsync $ */
+/* $Id: kvm.h $ */
 /** @file
  * VBox Recompiler - kvm stub header.
  */

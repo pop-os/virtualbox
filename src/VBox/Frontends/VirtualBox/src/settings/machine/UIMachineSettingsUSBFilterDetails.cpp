@@ -1,4 +1,4 @@
-/* $Id: UIMachineSettingsUSBFilterDetails.cpp 33882 2010-11-09 09:32:27Z vboxsync $ */
+/* $Id: UIMachineSettingsUSBFilterDetails.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

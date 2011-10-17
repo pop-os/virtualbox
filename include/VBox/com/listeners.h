@@ -1,4 +1,4 @@
-/* $Id: listeners.h 36536 2011-04-04 15:43:40Z vboxsync $ */
+/* $Id: listeners.h $ */
 /** @file
  * Listeners helpers.
  */
