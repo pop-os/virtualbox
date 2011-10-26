@@ -39,60 +39,41 @@ endif
 
 
 ifeq ($(XORG_PKG_ABI),3)
-	INPUTDEP = $(shell cat /usr/share/xserver-xorg/xinputdep 2>/dev/null)
 	VIDEODEP = $(shell cat /usr/share/xserver-xorg/videodrvdep 2>/dev/null)
 
-	SERVER_DEPENDS = $(INPUTDEP), $(VIDEODEP)
+	SERVER_DEPENDS = $(VIDEODEP)
 	VIDDRIVER_PROVIDES = xorg-driver-video
-	INPDRIVER_PROVIDES = xorg-driver-input
 
-	ifeq ($(strip $(INPUTDEP)),)
-		XORG_PKG_ABI_ERROR = INPUTDEP is empty
-	endif
 	ifeq ($(strip $(VIDEODEP)),)
 		XORG_PKG_ABI_ERROR = VIDEODEP is empty
 	endif
 endif
 ifeq ($(XORG_PKG_ABI),2)
 	VIDEODEP = $(shell cat /usr/share/xserver-xorg/videodrvdep 2>/dev/null)
-	INPUTDEP = $(shell cat /usr/share/xserver-xorg/xinputdep 2>/dev/null)
 	VIDEOABI = $(shell cat /usr/share/xserver-xorg/videoabiver 2>/dev/null)
-	INPUTABI = $(shell cat /usr/share/xserver-xorg/inputabiver 2>/dev/null)
 
-	SERVER_DEPENDS = $(INPUTDEP), $(VIDEODEP)
+	SERVER_DEPENDS = $(VIDEODEP)
 	VIDDRIVER_PROVIDES = xserver-xorg-video-$(VIDEOABI)
-	INPDRIVER_PROVIDES = xserver-xorg-input-$(INPUTABI)
 
-	ifeq ($(strip $(INPUTDEP)),)
-		XORG_PKG_ABI_ERROR = INPUTDEP is empty
-	endif
 	ifeq ($(strip $(VIDEODEP)),)
 		XORG_PKG_ABI_ERROR = VIDEODEP is empty
 	endif
 	ifeq ($(strip $(VIDEOABI)),)
 		XORG_PKG_ABI_ERROR = VIDEOABI is empty
 	endif
-	ifeq ($(strip $(INPUTABI)),)
-		XORG_PKG_ABI_ERROR = INPUTABI is empty
-	endif
 endif
 ifeq ($(XORG_PKG_ABI),1)
 	SERVERMINVERS = $(shell cat /usr/share/xserver-xorg/serverminver 2>/dev/null)
 	VIDEOABI = $(shell cat /usr/share/xserver-xorg/videoabiver 2>/dev/null)
-	INPUTABI = $(shell cat /usr/share/xserver-xorg/inputabiver 2>/dev/null)
 
 	SERVER_DEPENDS = xserver-xorg-core (>= $(SERVERMINVERS))
 	VIDDRIVER_PROVIDES = xserver-xorg-video-$(VIDEOABI)
-	INPDRIVER_PROVIDES = xserver-xorg-input-$(INPUTABI)
 
 	ifeq ($(strip $(SERVERMINVERS)),)
 		XORG_PKG_ABI_ERROR = SERVERMINVERS is empty
 	endif
 	ifeq ($(strip $(VIDEOABI)),)
 		XORG_PKG_ABI_ERROR = VIDEOABI is empty
-	endif
-	ifeq ($(strip $(INPUTABI)),)
-		XORG_PKG_ABI_ERROR = INPUTABI is empty
 	endif
 endif
 
