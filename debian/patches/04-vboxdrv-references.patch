@@ -43,37 +43,3 @@ diff -urNad virtualbox-ose-4.0.2-dfsg/src/VBox/VMM/VMMR3/VM.cpp virtualbox-ose-4
  #else
                      pszError = N_("VirtualBox kernel driver not installed");
  #endif
-diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Frontends/VirtualBox/src/main.cpp virtualbox-ose-3.1.0-dfsg/src/VBox/Frontends/VirtualBox/src/main.cpp
---- virtualbox-ose-3.1.0-dfsg~/src/VBox/Frontends/VirtualBox/src/main.cpp	2009-10-07 11:27:13.000000000 +0200
-+++ virtualbox-ose-3.1.0-dfsg/src/VBox/Frontends/VirtualBox/src/main.cpp	2009-10-07 13:42:18.215472116 +0200
-@@ -72,13 +72,8 @@
-   );
- 
- QString g_QStrHintLinuxNoDriver = QApplication::tr(
--  "The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or "
--  "there is a permission problem with /dev/vboxdrv. Please reinstall the kernel "
--  "module by executing<br/><br/>"
--  "  <font color=blue>'/etc/init.d/vboxdrv setup'</font><br/><br/>"
--  "as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS "
--  "package first. This package keeps track of Linux kernel changes and "
--  "recompiles the vboxdrv kernel module if necessary."
-+  "Please install the virtualbox-dkms package "
-+  "and execute 'modprobe vboxdrv' as root."
-   );
- 
- QString g_QStrHintOtherWrongDriverVersion = QApplication::tr(
-@@ -89,12 +84,8 @@
-   );
- 
- QString g_QStrHintLinuxWrongDriverVersion = QApplication::tr(
--  "The VirtualBox kernel modules do not match this version of "
--  "VirtualBox. The installation of VirtualBox was apparently not "
--  "successful. Executing<br/><br/>"
--  "  <font color=blue>'/etc/init.d/vboxdrv setup'</font><br/><br/>"
--  "may correct this. Make sure that you do not mix the "
--  "OSE version and the PUEL version of VirtualBox."
-+  "Please install the virtualbox-dkms package "
-+  "and execute 'modprobe vboxdrv' as root."
-   );
- 
- QString g_QStrHintOtherNoDriver = QApplication::tr(
