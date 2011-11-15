@@ -88,11 +88,19 @@ static const int icmp_flush[19] =
 /* ADDR MASK REPLY (18) */   0
 };
 
+static void icmp_cache_clean(PNATState pData, int iEntries);
+
 int
-icmp_init(PNATState pData)
+icmp_init(PNATState pData, int iIcmpCacheLimit)
 {
     pData->icmp_socket.so_type = IPPROTO_ICMP;
     pData->icmp_socket.so_state = SS_ISFCONNECTED;
+    if (iIcmpCacheLimit < 0)
+    {
+        LogRel(("NAT: iIcmpCacheLimit is invalid %d, will be alter to default value 100\n", iIcmpCacheLimit));
+        iIcmpCacheLimit = 100;
+    }
+    pData->iIcmpCacheLimit = iIcmpCacheLimit;
 #ifndef RT_OS_WINDOWS
 # ifndef RT_OS_DARWIN
     pData->icmp_socket.s = socket(PF_INET, SOCK_RAW, IPPROTO_ICMP);
@@ -157,6 +165,22 @@ icmp_init(PNATState pData)
 #endif /* RT_OS_WINDOWS */
     LIST_INIT(&pData->icmp_msg_head);
     return 0;
+}
+
+/**
+ * Cleans ICMP cache.
+ */
+void
+icmp_finit(PNATState pData)
+{
+    icmp_cache_clean(pData, -1);
+#ifdef RT_OS_WINDOWS
+    pData->pfIcmpCloseHandle(pData->icmp_socket.sh);
+    FreeLibrary(pData->hmIcmpLibrary);
+    RTMemFree(pData->pvIcmpBuffer);
+#else
+    closesocket(pData->icmp_socket.s);
+#endif
 }
 
 /*
@@ -294,6 +318,9 @@ icmp_find_original_mbuf(PNATState pData, struct ip *ip)
          * better add flag if it should removed from lis
          */
         LIST_INSERT_HEAD(&pData->icmp_msg_head, icm, im_list);
+        pData->cIcmpCacheSize++;
+        if (pData->cIcmpCacheSize > pData->iIcmpCacheLimit)
+            icmp_cache_clean(pData, pData->iIcmpCacheLimit/2);
         LogFlowFunc(("LEAVE: icm:%p\n", icm));
         return (icm);
     }
@@ -307,6 +334,40 @@ icmp_find_original_mbuf(PNATState pData, struct ip *ip)
     return NULL;
 }
 
+/**
+ * iEntries how many entries to leave, if iEntries < 0, clean all
+ */
+static void icmp_cache_clean(PNATState pData, int iEntries)
+{
+    int iIcmpCount = 0;
+    struct icmp_msg *icm = NULL;
+    LogFlowFunc(("iEntries:%d\n", iEntries));
+    if (iEntries > pData->cIcmpCacheSize)
+    {
+        LogFlowFuncLeave();
+        return;
+    }
+    while(!LIST_EMPTY(&pData->icmp_msg_head))
+    {
+        icm = LIST_FIRST(&pData->icmp_msg_head);
+        if (    iEntries > 0
+            &&  iIcmpCount < iEntries)
+        {
+            iIcmpCount++;
+            continue;
+        }
+
+        LIST_REMOVE(icm, im_list);
+        if (icm->im_m)
+        {
+            pData->cIcmpCacheSize--;
+            m_freem(pData, icm->im_m);
+        }
+        RTMemFree(icm);
+    }
+    LogFlowFuncLeave();
+}
+
 static int
 icmp_attach(PNATState pData, struct mbuf *m)
 {
@@ -318,6 +379,9 @@ icmp_attach(PNATState pData, struct mbuf *m)
     icm->im_m = m;
     icm->im_so = m->m_so;
     LIST_INSERT_HEAD(&pData->icmp_msg_head, icm, im_list);
+    pData->cIcmpCacheSize++;
+    if (pData->cIcmpCacheSize > pData->iIcmpCacheLimit)
+        icmp_cache_clean(pData, pData->iIcmpCacheLimit/2);
     return 0;
 }
 

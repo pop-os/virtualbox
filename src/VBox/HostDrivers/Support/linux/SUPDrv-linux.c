@@ -1,4 +1,4 @@
-/* $Rev: 72885 $ */
+/* $Rev: 74561 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
@@ -84,6 +84,11 @@
 # error "CONFIG_X86_HIGH_ENTRY is not supported by VBoxDrv at this time."
 #endif
 
+/* to include the version number of VirtualBox into kernel backtraces */
+#define VBoxDrvLinuxVersion RT_CONCAT3(RT_CONCAT(VBOX_VERSION_MAJOR, _), \
+                                       RT_CONCAT(VBOX_VERSION_MINOR, _), \
+                                       VBOX_VERSION_BUILD)
+#define VBoxDrvLinuxIOCtl RT_CONCAT(VBoxDrvLinuxIOCtl_,VBoxDrvLinuxVersion)
 
 /*******************************************************************************
 *   Internal Functions                                                         *
