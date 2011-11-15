@@ -3801,7 +3801,10 @@ DECLCALLBACK(int) Display::displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, c
         return VINF_SUCCESS;
     }
 
-    bool fResize = pFBInfo->fDisabled; /* If display was disabled, do a resize, because the framebuffer was changed. */
+    /* If display was disabled or there is no framebuffer, a resize will be required,
+     * because the framebuffer was/will be changed.
+     */
+    bool fResize = pFBInfo->fDisabled || pFBInfo->pFramebuffer.isNull();
 
     if (pFBInfo->fDisabled)
     {
@@ -3811,12 +3814,7 @@ DECLCALLBACK(int) Display::displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, c
                                      pScreen->u32ViewIndex,
                                      pScreen->i32OriginX, pScreen->i32OriginY,
                                      pScreen->u32Width, pScreen->u32Height);
-        if (pFBInfo->pFramebuffer.isNull())
-        {
-            /* @todo If no framebuffer, remember the resize parameters to issue a requestResize later. */
-            return VINF_SUCCESS;
-        }
-        /* If the framebuffer already set for the screen, do a regular resize. */
+        /* Continue to update pFBInfo. */
     }
 
     /* Check if this is a real resize or a notification about the screen origin.
@@ -3890,6 +3888,13 @@ DECLCALLBACK(int) Display::displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, c
         return VINF_SUCCESS;
     }
 
+    if (pFBInfo->pFramebuffer.isNull())
+    {
+        /* If no framebuffer, the resize will be done later when a new framebuffer will be set in changeFramebuffer. */
+        return VINF_SUCCESS;
+    }
+
+    /* If the framebuffer already set for the screen, do a regular resize. */
     return pThis->handleDisplayResize(pScreen->u32ViewIndex, pScreen->u16BitsPerPixel,
                                       (uint8_t *)pvVRAM + pScreen->u32StartOffset,
                                       pScreen->u32LineSize, pScreen->u32Width, pScreen->u32Height, pScreen->u16Flags);

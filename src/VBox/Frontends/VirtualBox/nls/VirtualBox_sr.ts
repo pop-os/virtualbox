@@ -9120,7 +9120,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>C&amp;ase Sensitive</source>
-        <translation>пази слова</translation>
+        <translation>Пази на слова</translation>
     </message>
     <message>
         <source>Perform case sensitive search (when checked)</source>
@@ -9128,7 +9128,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>String not found</source>
-        <translation>Ништа нажено</translation>
+        <translation>Ништа није нађено</translation>
     </message>
 </context>
 <context>

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,8 +52,14 @@ static void printUsage(PRTSTREAM pStrm)
                  "   info         --filename <filename>\n"
                  "\n"
                  "   compact      --filename <filename>\n"
+                 "\n"
                  "   createcache  --filename <filename>\n"
-                 "                --size <cache size>\n",
+                 "                --size <cache size>\n"
+                 "\n"
+                 "   createbase   --filename <filename>\n"
+                 "                --size <size in bytes>\n"
+                 "                [--format VDI|VMDK|VHD] (default: VDI)\n"
+                 "                [--variant Standard,Fixed,Split2G,Stream,ESX]\n",
                  g_pszProgName);
 }
 
@@ -119,6 +125,52 @@ int errorRuntime(const char *pszFormat, ...)
     return 1;
 }
 
+static int parseDiskVariant(const char *psz, unsigned *puImageFlags)
+{
+    int rc = VINF_SUCCESS;
+    unsigned uImageFlags = *puImageFlags;
+
+    while (psz && *psz && RT_SUCCESS(rc))
+    {
+        size_t len;
+        const char *pszComma = strchr(psz, ',');
+        if (pszComma)
+            len = pszComma - psz;
+        else
+            len = strlen(psz);
+        if (len > 0)
+        {
+            /*
+             * Parsing is intentionally inconsistent: "standard" resets the
+             * variant, whereas the other flags are cumulative.
+             */
+            if (!RTStrNICmp(psz, "standard", len))
+                uImageFlags = VD_IMAGE_FLAGS_NONE;
+            else if (   !RTStrNICmp(psz, "fixed", len)
+                     || !RTStrNICmp(psz, "static", len))
+                uImageFlags |= VD_IMAGE_FLAGS_FIXED;
+            else if (!RTStrNICmp(psz, "Diff", len))
+                uImageFlags |= VD_IMAGE_FLAGS_DIFF;
+            else if (!RTStrNICmp(psz, "split2g", len))
+                uImageFlags |= VD_VMDK_IMAGE_FLAGS_SPLIT_2G;
+            else if (   !RTStrNICmp(psz, "stream", len)
+                     || !RTStrNICmp(psz, "streamoptimized", len))
+                uImageFlags |= VD_VMDK_IMAGE_FLAGS_STREAM_OPTIMIZED;
+            else if (!RTStrNICmp(psz, "esx", len))
+                uImageFlags |= VD_VMDK_IMAGE_FLAGS_ESX;
+            else
+                rc = VERR_PARSE_ERROR;
+        }
+        if (pszComma)
+            psz += len + 1;
+        else
+            psz += len;
+    }
+
+    if (RT_SUCCESS(rc))
+        *puImageFlags = uImageFlags;
+    return rc;
+}
 
 
 int handleSetUUID(HandlerArg *a)
@@ -240,9 +292,7 @@ int handleSetUUID(HandlerArg *a)
                                 pszFilename, rc);
     }
 
-    rc = VDCloseAll(pVD);
-    if (RT_FAILURE(rc))
-        return errorRuntime("Closing image failed! rc=%Rrc\n", rc);
+    VDDestroy(pVD);
 
     if (pszFormat)
     {
@@ -844,9 +894,9 @@ int handleConvert(HandlerArg *a)
     while (0);
 
     if (pDstDisk)
-        VDCloseAll(pDstDisk);
+        VDDestroy(pDstDisk);
     if (pSrcDisk)
-        VDCloseAll(pSrcDisk);
+        VDDestroy(pSrcDisk);
 
     return RT_SUCCESS(rc) ? 0 : 1;
 }
@@ -904,7 +954,7 @@ int handleInfo(HandlerArg *a)
 
     VDDumpImages(pDisk);
 
-    VDCloseAll(pDisk);
+    VDDestroy(pDisk);
 
     return rc;
 }
@@ -964,7 +1014,7 @@ int handleCompact(HandlerArg *a)
     if (RT_FAILURE(rc))
         errorRuntime("Error while compacting image: %Rrc\n", rc);
 
-    VDCloseAll(pDisk);
+    VDDestroy(pDisk);
 
     return rc;
 }
@@ -1023,7 +1073,91 @@ int handleCreateCache(HandlerArg *a)
     if (RT_FAILURE(rc))
         return errorRuntime("Error while creating the virtual disk cache: %Rrc\n", rc);
 
-    VDCloseAll(pDisk);
+    VDDestroy(pDisk);
+
+    return rc;
+}
+
+
+int handleCreateBase(HandlerArg *a)
+{
+    int rc = VINF_SUCCESS;
+    PVBOXHDD pDisk = NULL;
+    const char *pszFilename = NULL;
+    const char *pszBackend  = "VDI";
+    const char *pszVariant  = NULL;
+    unsigned uImageFlags = VD_IMAGE_FLAGS_NONE;
+    uint64_t cbSize = 0;
+    VDGEOMETRY LCHSGeometry, PCHSGeometry;
+
+    memset(&LCHSGeometry, 0, sizeof(VDGEOMETRY));
+    memset(&PCHSGeometry, 0, sizeof(VDGEOMETRY));
+
+    /* Parse the command line. */
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "--filename", 'f', RTGETOPT_REQ_STRING },
+        { "--size",     's', RTGETOPT_REQ_UINT64 },
+        { "--format",   'b', RTGETOPT_REQ_STRING },
+        { "--variant",  'v', RTGETOPT_REQ_STRING }
+    };
+    int ch;
+    RTGETOPTUNION ValueUnion;
+    RTGETOPTSTATE GetState;
+    RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 0, 0 /* fFlags */);
+    while ((ch = RTGetOpt(&GetState, &ValueUnion)))
+    {
+        switch (ch)
+        {
+            case 'f':   // --filename
+                pszFilename = ValueUnion.psz;
+                break;
+
+            case 's':   // --size
+                cbSize = ValueUnion.u64;
+                break;
+
+            case 'b':   // --format
+                pszBackend = ValueUnion.psz;
+                break;
+
+            case 'v':   // --variant
+                pszVariant = ValueUnion.psz;
+                break;
+
+            default:
+                ch = RTGetOptPrintError(ch, &ValueUnion);
+                printUsage(g_pStdErr);
+                return ch;
+        }
+    }
+
+    /* Check for mandatory parameters. */
+    if (!pszFilename)
+        return errorSyntax("Mandatory --filename option missing\n");
+
+    if (!cbSize)
+        return errorSyntax("Mandatory --size option missing\n");
+
+    if (pszVariant)
+    {
+        rc = parseDiskVariant(pszVariant, &uImageFlags);
+        if (RT_FAILURE(rc))
+            return errorSyntax("Invalid variant %s given\n", pszVariant);
+    }
+
+    /* just try it */
+    rc = VDCreate(pVDIfs, VDTYPE_HDD, &pDisk);
+    if (RT_FAILURE(rc))
+        return errorRuntime("Error while creating the virtual disk container: %Rrc\n", rc);
+
+    rc = VDCreateBase(pDisk, pszBackend, pszFilename, cbSize, uImageFlags,
+                      NULL, &PCHSGeometry, &LCHSGeometry, NULL, VD_OPEN_FLAGS_NORMAL,
+                      NULL, NULL);
+    if (RT_FAILURE(rc))
+        return errorRuntime("Error while creating the virtual disk: %Rrc\n", rc);
+
+    VDDestroy(pDisk);
 
     return rc;
 }
@@ -1117,6 +1251,7 @@ int main(int argc, char *argv[])
         { "info",        handleInfo        },
         { "compact",     handleCompact     },
         { "createcache", handleCreateCache },
+        { "createbase",  handleCreateBase  },
         { NULL,                       NULL }
     };
 

@@ -28,6 +28,9 @@ ifeq ($(shell if grep -q '^/usr/lib/virtualbox' /etc/permissions* 2>/dev/null; t
 # make sure openSUSE permissions fixes don't interfere with us
 $(error Fix /etc/permissions*)
 endif
+ifeq ($(shell if grep -q '^%disttag' /usr/lib/rpm/macros.d/mandriva 2>/dev/null; then echo yes; fi),yes)
+$(error Fix /usr/lib/rpm/macros.d/mandriva)
+endif
 
 verpkg   := VirtualBox-4.1
 current  := $(shell pwd)
@@ -55,13 +58,13 @@ ifneq ($(MAKECMDGOALS),clean)
   $(error Cannot detect package distribution (rpmrel=$(rpmrel)))
  endif
 
- ifeq ($(filter-out rhel4 rhel5 rhel6 ol4 ol5 ol6 centos4 centos5 centos6 fedora9 fedora11 fedora12 fedora13 fedora14 fedora15 turbolinux11,$(rpmrel)),)
+ ifeq ($(filter-out rhel4 rhel5 rhel6 ol4 ol5 ol6 centos4 centos5 centos6 fedora9 fedora11 fedora12 fedora13 fedora14 fedora15 fedora16 turbolinux11,$(rpmrel)),)
   rpmspec := rpm_redhat
  endif
  ifeq ($(filter-out openSUSE110 openSUSE111 openSUSE112 openSUSE113 openSUSE114 sles10.1 sles11.0,$(rpmrel)),)
   rpmspec := rpm_suse
  endif
- ifeq ($(filter-out mdv2009.1 mdv2010.0,$(rpmrel)),)
+ ifeq ($(filter-out mdv2009.1 mdv2010.0 mdv2011.0,$(rpmrel)),)
   rpmspec := rpm_mdv
  endif
  ifeq ($(rpmspec),)
@@ -79,7 +82,7 @@ archdir  := $(current)/rpm/VirtualBox-$(ver)
 rpmname  := $(verpkg)-$(rpmver)_$(rpmrel)
 
 # Fedora13/14 is bleeding edge, the other jails have outdated kernel headers
-instmod  := $(if $(filter rhel4 rhel5 rhel6 ol4 ol5 ol6 centos4 centos5 centos6 sles10.1 sles11.0 fedora13 fedora14 fedora15,$(rpmrel)),,install_rpm)
+instmod  := $(if $(filter rhel4 rhel5 rhel6 ol4 ol5 ol6 centos4 centos5 centos6 sles10.1 sles11.0 fedora13 fedora14 fedora15 fedora16,$(rpmrel)),,install_rpm)
 
 ifneq ($(STAGEDISO),)
 ifeq ($(wildcard $(STAGEDISO)/VBoxGuestAdditions.iso),)
@@ -197,7 +200,7 @@ binary: rpm/build-stamp
 	tar -cjf rpm/VirtualBox.tar.bz2 -C rpm $(rpmname)
 	rm -f /usr/src/packages/RPMS/*/VirtualBox*rpm
 	rm -f /usr/src/packages/SPECS/*
-	rpmbuild -tb --clean rpm/VirtualBox.tar.bz2
+	(cd rpm; rpmbuild -tb --clean VirtualBox.tar.bz2)
 	mv /usr/src/packages/RPMS/*/$(verpkg)-debug* $(pkgdir) || true
 	file=`find /usr/src/packages/RPMS -name $(verpkg)*rpm -print`; \
 	    mv $$file $(pkgdir)

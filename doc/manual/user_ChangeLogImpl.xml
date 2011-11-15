@@ -1,6 +1,94 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.1.6 (2011-11-04)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VRDP: fixed screen corruption</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: the interface stopped working after a lot of failed
+          ICMP requests (bug #9371)</para>
+      </listitem>
+
+      <listitem>
+        <para>E1000: fixed rare Windows 7 guest hangs, either at boot time
+          or when reconfiguring the network card in unusual setups (bug #6223)</para>
+      </listitem>
+
+      <listitem>
+        <para>ATA: fixed a possible crash during ATAPI passthrough with
+          certain guests</para>
+      </listitem>
+
+      <listitem>
+        <para>ATA: improved compatibility with ancient Linux kernels</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: fixed incorrect framebuffer information after leaving
+          the fullscreen mode with X11 guests, this lead to a scrambled
+          preview window in the GUI for example</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed the problem with duplicate packets when
+          bridged to a wireless interface (bug #9648)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fix for 3D support on Fedora 15 (bug #9799)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: don't call <emphasis>del_timer_sync</emphasis>
+          from an interrupt context (Fedora bug report 746331)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Vista and 7 guests: more WDDM fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed kernel module compilation failure on Redhat
+           Enterprise Linux 4 (bug #9709)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: install the DRI driver correctly on Ubuntu 11.10
+          guests</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Additions: added read-only mmap support for shared
+           folders</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Additions: added directory, file mode and mask options for
+          shared folders</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: implemented faster detection of logged-in guest
+          users and stale sessions</para>
+      </listitem>
+
+      <listitem>
+        <para>X.Org Additions: fixed graphical corruption when switching to a
+           virtual terminal (bug #9490)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 4.1.4 (2011-10-03)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -22,7 +110,7 @@
         <para>VMM: fixed clobbered CPU registers during <emphasis>stos/lods/ins/outs</emphasis>
           emulation under rare circumstances</para>
       </listitem>
-      
+
       <listitem>
         <para>VMM: another fix for 64-bit guests on recent AMD CPUs</para>
       </listitem>
@@ -34,7 +122,7 @@
 
       <listitem>
         <para>GUI: fixed spurious LCtrl key events on some Windows hosts
-          (4.0.6 regression; bug #5908)</para>
+          (4.0.6 regression; bug #373)</para>
       </listitem>
 
       <listitem>
@@ -43,7 +131,7 @@
       </listitem>
 
       <listitem>
-        <para>VBoxManage: allow to specifiy the UUID of the target image in
+        <para>VBoxManage: allow to specify the UUID of the target image in
           <emphasis>convertfromraw</emphasis></para>
       </listitem>
 
@@ -187,7 +275,7 @@
       </listitem>
 
       <listitem>
-        <para>Linux Additions: start VBoxService correcly on openSUSE 12.1
+        <para>Linux Additions: start VBoxService correctly on openSUSE 12.1
            (bug #6229)
           </para>
       </listitem>
@@ -199,7 +287,7 @@
 
       <listitem>
         <para>Solaris Additions: fixed memory leaks and panics while mounting
-          (from console) and unmounting shared folders.</para>
+          (from console) and unmounting shared folders</para>
       </listitem>
 
       <listitem>
@@ -229,7 +317,7 @@
 
       <listitem>
         <para>Windows Additions: fixed guest hangs when switching back from fullscreen
-          text mode apps (bug #9636)</para>
+          text mode applications (bug #9636)</para>
       </listitem>
 
     </itemizedlist>
@@ -514,7 +602,7 @@
       <listitem>
         <para>GUI: added slider for setting the CPU execution cap allowing to
           limit the amount of CPU time spent for the execution of the guest,
-          see <xref linkend="settings-processor"/>.</para>
+          see <xref linkend="settings-processor"/></para>
       </listitem>
 
       <listitem>
@@ -1380,7 +1468,7 @@
       </listitem>
 
       <listitem>
-        <para>Metrics: introduced <emphasis>RAM/VMM</emphasis> base metric.</para>
+        <para>Metrics: introduced <emphasis>RAM/VMM</emphasis> base metric</para>
       </listitem>
 
       <listitem>
@@ -1476,17 +1564,17 @@
 
       <listitem>
         <para>X.Org guests: support X.Org Server 1.10 pre-release and Ubuntu
-           11.04 Alpha.</para>
+           11.04 Alpha</para>
       </listitem>
 
       <listitem>
         <para>X.Org guests: Add EDID emulation in the graphics driver to
-          prevent GNOME settings daemon changing the mode on login.</para>
+          prevent GNOME settings daemon changing the mode on login</para>
       </listitem>
 
       <listitem>
         <para>X.Org guests: never send graphics modes to the host that older
-           VirtualBox versions can't handle.</para>
+           VirtualBox versions can't handle</para>
       </listitem>
 
       <listitem>
@@ -1651,7 +1739,7 @@
       </listitem>
 
       <listitem>
-        <para>Linux hosts: fixed a crash during USB device enumeration.</para>
+        <para>Linux hosts: fixed a crash during USB device enumeration</para>
       </listitem>
 
       <listitem>
@@ -1779,7 +1867,7 @@
       </listitem>
 
       <listitem>
-        <para>Storage: support for resizing VDI and VHD images; see <xref linkend="vboxmanage-modifyvdi" />.</para>
+        <para>Storage: support for resizing VDI and VHD images; see <xref linkend="vboxmanage-modifyvdi" /></para>
       </listitem>
 
      <listitem>
