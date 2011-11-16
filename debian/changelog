@@ -1,11 +1,13 @@
-virtualbox (4.1.6-dfsg-1) UNRELEASED; urgency=low
+virtualbox (4.1.6-dfsg-1) unstable; urgency=low
 
   [ Felix Geyer ]
   * virtualbox-guest-x11: Drop xorg input driver from Provides and xorg input
     abi from Depends.
 
   [ Michael Meskes ]
-  * Imported Upstream version 4.1.6-dfsg
+  * New upstream release.
+    - Fixes graphical corruption when switching to a virtual terminal.
+      (Closes: #638941)
 
  -- Michael Meskes <meskes@debian.org>  Tue, 15 Nov 2011 12:37:22 +0100
 
