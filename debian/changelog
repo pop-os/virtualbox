@@ -1,3 +1,10 @@
+virtualbox (4.1.6-dfsg-2) UNRELEASED; urgency=low
+
+  * Fix build errors with kernel 3.2. (LP: #892506)
+    - Add 36-kernel-3.2.patch, cherry-picked from upstream.
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sat, 19 Nov 2011 15:54:12 +0100
+
 virtualbox (4.1.6-dfsg-1) unstable; urgency=low
 
   [ Felix Geyer ]
