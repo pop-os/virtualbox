@@ -4,6 +4,7 @@ virtualbox (4.1.6-dfsg-2) UNRELEASED; urgency=low
     - Add 36-kernel-3.2.patch, cherry-picked from upstream.
   * Make dependencies of the dkms packages on virtualbox/virtualbox-guest-utils
     versioned.
+  * Move VBoxDbg.so to virtualbox-qt as it's a GUI component.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Sat, 19 Nov 2011 15:54:12 +0100
 

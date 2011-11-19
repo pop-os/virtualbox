@@ -1,6 +1,7 @@
 debian/virtualbox-qt.files/virtualbox.desktop /usr/share/applications
 
 out/bin/VirtualBox* /usr/lib/virtualbox
+out/bin/VBoxDbg.so /usr/lib/virtualbox
 
 out/bin/nls /usr/share/virtualbox
 

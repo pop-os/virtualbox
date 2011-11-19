@@ -73,9 +73,11 @@ Architecture: amd64 i386
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          virtualbox (= ${binary:Version})
-Breaks: virtualbox-ose-qt (<< 4.0.6-dfsg-1~)
+Breaks: virtualbox-ose-qt (<< 4.0.6-dfsg-1~),
+        virtualbox (<< 4.1.6-dfsg-2~)
 Replaces: virtualbox-ose-qt (<< 4.0.6-dfsg-1~),
-          virtualbox-ose (<< 2.2.0-dfsg-1~)
+          virtualbox-ose (<< 2.2.0-dfsg-1~),
+          virtualbox (<< 4.1.6-dfsg-2~)
 Description: x86 virtualization solution - Qt based user interface
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a

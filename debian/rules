@@ -151,7 +151,8 @@ ifeq ($(DIST_NAME),Ubuntu)
 endif
 
 override_dh_install:
-	dh_install
+	dh_install -p$(sname) -X out/bin/VBoxDbg.so
+	dh_install --remaining-packages
 
 	convert debian/$(sxname)/usr/share/icons/hicolor/32x32/apps/virtualbox.png \
 	    debian/$(sxname)/usr/share/pixmaps/virtualbox.xpm
