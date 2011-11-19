@@ -126,7 +126,7 @@ Description: x86 virtualization solution - debugging symbols
 Package: virtualbox-dkms
 Section: kernel
 Architecture: all
-Depends: ${misc:Depends}, virtualbox
+Depends: ${misc:Depends}, virtualbox (>= ${source:Version})
 Breaks: virtualbox-ose-dkms (<< 4.0.6-dfsg-1~)
 Replaces: virtualbox-ose-dkms (<< 4.0.6-dfsg-1~),
           virtualbox-ose-source (<< 3.1.0-dfsg-1~)
@@ -163,7 +163,7 @@ Package: virtualbox-guest-dkms
 Section: kernel
 Architecture: all
 Depends: ${misc:Depends},
-         virtualbox-guest-utils
+         virtualbox-guest-utils (>= ${source:Version})
 Breaks: virtualbox-ose-guest-dkms (<< 4.0.6-dfsg-1~)
 Replaces: virtualbox-ose-guest-dkms (<< 4.0.6-dfsg-1~),
           virtualbox-ose-guest-source (<< 3.1.0-dfsg-1~)
