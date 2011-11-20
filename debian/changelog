@@ -1,4 +1,4 @@
-virtualbox (4.1.6-dfsg-2) UNRELEASED; urgency=low
+virtualbox (4.1.6-dfsg-2) unstable; urgency=low
 
   * Fix build errors with kernel 3.2. (LP: #892506)
     - Add 36-kernel-3.2.patch, cherry-picked from upstream.
@@ -6,7 +6,7 @@ virtualbox (4.1.6-dfsg-2) UNRELEASED; urgency=low
     versioned.
   * Move VBoxDbg.so to virtualbox-qt as it's a GUI component.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Sat, 19 Nov 2011 15:54:12 +0100
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sat, 19 Nov 2011 18:55:11 +0100
 
 virtualbox (4.1.6-dfsg-1) unstable; urgency=low
 
