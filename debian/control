@@ -256,6 +256,8 @@ Description: x86 virtualization solution - virtual filesystem
  VirtualBox disk so all partitions can be loop-mounted.
 
 Package: virtualbox-ose-qt
+Section: oldlibs
+Priority: extra
 Architecture: all
 Depends: ${misc:Depends},
          virtualbox-qt
@@ -264,6 +266,8 @@ Description: transitional package for virtualbox-qt
  safely removed after the installation is complete.
 
 Package: virtualbox-ose
+Section: oldlibs
+Priority: extra
 Architecture: all
 Depends: ${misc:Depends},
          virtualbox
@@ -272,7 +276,7 @@ Description: transitional package for virtualbox
  safely removed after the installation is complete.
 
 Package: virtualbox-ose-dbg
-Section: debug
+Section: oldlibs
 Priority: extra
 Architecture: all
 Depends: ${misc:Depends},
@@ -282,7 +286,8 @@ Description: transitional package for virtualbox-dbg
  safely removed after the installation is complete.
 
 Package: virtualbox-ose-dkms
-Section: kernel
+Section: oldlibs
+Priority: extra
 Architecture: all
 Depends: ${misc:Depends},
          virtualbox-dkms
@@ -291,7 +296,8 @@ Description: transitional package for virtualbox-dkms
  safely removed after the installation is complete.
 
 Package: virtualbox-ose-source
-Section: kernel
+Section: oldlibs
+Priority: extra
 Architecture: all
 Depends: ${misc:Depends},
          virtualbox-source
@@ -300,7 +306,8 @@ Description: transitional package for virtualbox-source
  safely removed after the installation is complete.
 
 Package: virtualbox-ose-guest-dkms
-Section: kernel
+Section: oldlibs
+Priority: extra
 Architecture: all
 Depends: ${misc:Depends},
          virtualbox-guest-dkms
@@ -309,7 +316,8 @@ Description: transitional package for virtualbox-guest-dkms
  safely removed after the installation is complete.
 
 Package: virtualbox-ose-guest-source
-Section: kernel
+Section: oldlibs
+Priority: extra
 Architecture: all
 Depends: ${misc:Depends},
          virtualbox-guest-source
@@ -318,7 +326,8 @@ Description: transitional package for virtualbox-guest-source
  safely removed after the installation is complete.
 
 Package: virtualbox-ose-guest-x11
-Section: x11
+Section: oldlibs
+Priority: extra
 Architecture: all
 Depends: ${misc:Depends},
          virtualbox-guest-x11
@@ -327,6 +336,8 @@ Description: transitional package for virtualbox-guest-x11
  safely removed after the installation is complete.
 
 Package: virtualbox-ose-guest-utils
+Section: oldlibs
+Priority: extra
 Architecture: all
 Depends: ${misc:Depends},
          virtualbox-guest-utils
@@ -335,6 +346,8 @@ Description: transitional package for virtualbox-guest-utils
  safely removed after the installation is complete.
 
 Package: virtualbox-ose-fuse
+Section: oldlibs
+Priority: extra
 Architecture: all
 Depends: ${misc:Depends},
          virtualbox-fuse
