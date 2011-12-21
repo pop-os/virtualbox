@@ -1064,9 +1064,10 @@ static int sha1ReadSyncCallback(void *pvUser, void *pvStorage, uint64_t uOffset,
     if (pInt->cbCurAll < uOffset)
     {
         rc = sha1ReadSyncCallback(pvUser, pvStorage, pInt->cbCurAll, 0,
-                                    (size_t)(uOffset - pInt->cbCurAll), 0);
+                                  (size_t)(uOffset - pInt->cbCurAll), 0);
         if (RT_FAILURE(rc))
             return rc;
+//        RTPrintf("Gap Read uOffset: %7lu cbRead: %7lu = %7lu\n", uOffset, cbRead, uOffset + cbRead);
     }
 
     size_t cbAllRead = 0;
@@ -1076,8 +1077,9 @@ static int sha1ReadSyncCallback(void *pvUser, void *pvStorage, uint64_t uOffset,
         if (cbAllRead == cbRead)
             break;
         size_t cbAvail = RTCircBufUsed(pInt->pCircBuf);
-        if (   cbAvail == 0
-            && pInt->fEOF)
+        if (    cbAvail == 0
+            &&  pInt->fEOF
+            && !RTCircBufIsWriting(pInt->pCircBuf))
         {
             break;
         }

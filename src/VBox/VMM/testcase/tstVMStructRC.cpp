@@ -189,6 +189,8 @@ int main()
     GEN_CHECK_SIZE(IOMMMIORANGE);
     GEN_CHECK_OFF(IOMMMIORANGE, GCPhys);
     GEN_CHECK_OFF(IOMMMIORANGE, cb);
+    GEN_CHECK_OFF(IOMMMIORANGE, cRefs);
+    GEN_CHECK_OFF(IOMMMIORANGE, fFlags);
     GEN_CHECK_OFF(IOMMMIORANGE, pszDesc);
     GEN_CHECK_OFF(IOMMMIORANGE, pvUserR3);
     GEN_CHECK_OFF(IOMMMIORANGE, pDevInsR3);
@@ -598,7 +600,7 @@ int main()
     GEN_CHECK_OFF(PGMCPU, GCPhysA20Mask);
     GEN_CHECK_OFF(PGMCPU, fA20Enabled);
     GEN_CHECK_OFF(PGMCPU, fSyncFlags);
-    GEN_CHECK_OFF(PGM, CritSect);
+    GEN_CHECK_OFF(PGM, CritSectX);
     GEN_CHECK_OFF(PGM, pPoolR3);
     GEN_CHECK_OFF(PGM, pPoolR0);
     GEN_CHECK_OFF(PGM, pPoolRC);
@@ -609,7 +611,6 @@ int main()
     GEN_CHECK_OFF(PGM, ChunkR3Map.c);
     GEN_CHECK_OFF(PGM, ChunkR3Map.cMax);
     GEN_CHECK_OFF(PGM, ChunkR3Map.iNow);
-    GEN_CHECK_OFF(PGM, ChunkR3Map.AgeingCountdown);
     GEN_CHECK_OFF(PGM, PhysTlbHC);
     GEN_CHECK_OFF(PGM, PhysTlbHC.aEntries[0]);
     GEN_CHECK_OFF(PGM, PhysTlbHC.aEntries[1]);
@@ -1018,7 +1019,6 @@ int main()
     GEN_CHECK_OFF(VMM, pYieldTimer);
     GEN_CHECK_OFF(VMM, cYieldResumeMillies);
     GEN_CHECK_OFF(VMM, cYieldEveryMillies);
-    GEN_CHECK_OFF(VMM, CritSectSync);
     GEN_CHECK_OFF(VMM, pahEvtRendezvousEnterOrdered);
     GEN_CHECK_OFF(VMM, hEvtRendezvousEnterOneByOne);
     GEN_CHECK_OFF(VMM, hEvtMulRendezvousEnterAllAtOnce);

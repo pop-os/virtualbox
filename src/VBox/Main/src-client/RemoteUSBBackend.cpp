@@ -804,7 +804,7 @@ void RemoteUSBBackend::PollRemoteDevices (void)
         && menmPollRemoteDevicesStatus != PollRemoteDevicesStatus_Dereferenced)
     {
         /* Unmount all remote USB devices. */
-        mConsole->processRemoteUSBDevices (mu32ClientId, NULL, 0);
+        mConsole->processRemoteUSBDevices (mu32ClientId, NULL, 0, false);
 
         menmPollRemoteDevicesStatus = PollRemoteDevicesStatus_Dereferenced;
 
@@ -821,7 +821,8 @@ void RemoteUSBBackend::PollRemoteDevices (void)
 
             parm.code = VRDE_USB_REQ_NEGOTIATE;
             parm.version = VRDE_USB_VERSION;
-            parm.flags = 0;
+            /* VRDE_USB_VERSION_3: support VRDE_USB_REQ_DEVICE_LIST_EXT_RET. */
+            parm.flags = VRDE_USB_SERVER_CAPS_PORT_VERSION;
 
             mServer->SendUSBRequest (mu32ClientId, &parm, sizeof (parm));
 
@@ -863,7 +864,7 @@ void RemoteUSBBackend::PollRemoteDevices (void)
 
             if (mfHasDeviceList)
             {
-                mConsole->processRemoteUSBDevices (mu32ClientId, (VRDEUSBDEVICEDESC *)mpvDeviceList, mcbDeviceList);
+                mConsole->processRemoteUSBDevices (mu32ClientId, (VRDEUSBDEVICEDESC *)mpvDeviceList, mcbDeviceList, mfDescExt);
                 LogFlow(("USB::PollRemoteDevices: WaitResponse after process\n"));
 
                 menmPollRemoteDevicesStatus = PollRemoteDevicesStatus_SendRequest;
@@ -949,7 +950,8 @@ RemoteUSBBackend::RemoteUSBBackend(Console *console, ConsoleVRDPServer *server, 
     mfPollURB (true),
     mpDevices (NULL),
     mfWillBeDeleted (false),
-    mClientVersion (0)                   /* VRDE_USB_VERSION_2: the client version. */
+    mClientVersion (0),                   /* VRDE_USB_VERSION_2: the client version. */
+    mfDescExt (false)                     /* VRDE_USB_VERSION_3: VRDE_USB_REQ_DEVICE_LIST_EXT_RET. */
 {
     Assert(console);
     Assert(server);
@@ -1043,6 +1045,22 @@ int RemoteUSBBackend::negotiateResponse (const VRDEUSBREQNEGOTIATERET *pret, uin
     if (RT_SUCCESS(rc))
     {
         LogRel(("VRDP: remote USB protocol version %d.\n", mClientVersion));
+
+        /* VRDE_USB_VERSION_3: check the client capabilities: VRDE_USB_CLIENT_CAPS_*. */
+        if (mClientVersion == VRDE_USB_VERSION_3)
+        {
+            if (cbRet >= sizeof (VRDEUSBREQNEGOTIATERET_3))
+            {
+                VRDEUSBREQNEGOTIATERET_3 *pret3 = (VRDEUSBREQNEGOTIATERET_3 *)pret;
+
+                mfDescExt = (pret3->u32Flags & VRDE_USB_CLIENT_CAPS_PORT_VERSION) != 0;
+            }
+            else
+            {
+                LogRel(("VRDP: ERROR: invalid remote USB negotiate request packet size %d.\n", cbRet));
+                rc = VERR_NOT_SUPPORTED;
+            }
+        }
 
         menmPollRemoteDevicesStatus = PollRemoteDevicesStatus_SendRequest;
     }
@@ -1282,10 +1300,12 @@ int RemoteUSBBackend::reapURB (const void *pvBody, uint32_t cbBody)
 
             if (fURBCompleted)
             {
-                /* Move the URB to head of URB list, so the iface_ReapURB could find it faster. */
+                /* Move the URB near the head of URB list, so that iface_ReapURB can
+                 * find it faster. Note that the order of completion must be preserved!
+                 */
                 if (qurb->prev)
                 {
-                    /* The URB is not in the head. */
+                    /* The URB is not in the head. Unlink it from its current position. */
                     qurb->prev->next = qurb->next;
 
                     if (qurb->next)
@@ -1297,11 +1317,34 @@ int RemoteUSBBackend::reapURB (const void *pvBody, uint32_t cbBody)
                         pDevice->pTailQURBs = qurb->prev;
                     }
 
-                    qurb->next = pDevice->pHeadQURBs;
-                    qurb->prev = NULL;
+                    /* And insert it to its new place. */
+                    if (pDevice->pHeadQURBs->fCompleted)
+                    {
+                        /* At least one other completed URB; insert after the 
+                         * last completed URB.
+                         */
+                        REMOTEUSBQURB *prev_qurb = pDevice->pHeadQURBs;
+                        while (prev_qurb->next && prev_qurb->next->fCompleted)
+                            prev_qurb = prev_qurb->next;
 
-                    pDevice->pHeadQURBs->prev = qurb;
-                    pDevice->pHeadQURBs = qurb;
+                        qurb->next = prev_qurb->next;
+                        qurb->prev = prev_qurb;
+
+                        if (prev_qurb->next)
+                            prev_qurb->next->prev = qurb;
+                        else
+                            pDevice->pTailQURBs = qurb;
+                        prev_qurb->next = qurb;
+                    }
+                    else
+                    {
+                        /* No other completed URBs; insert at head. */
+                        qurb->next = pDevice->pHeadQURBs;
+                        qurb->prev = NULL;
+    
+                        pDevice->pHeadQURBs->prev = qurb;
+                        pDevice->pHeadQURBs = qurb;
+                    }
                 }
 
                 qurb->u32Len = qurb->u32TransferredLen; /* Update the final length. */

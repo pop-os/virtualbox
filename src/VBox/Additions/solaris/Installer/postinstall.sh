@@ -110,7 +110,9 @@ fi
 if test "$currentzone" = "global"; then
     # vboxguest.sh would've been installed, we just need to call it.
     echo "Configuring VirtualBox guest kernel module..."
-    $vboxadditions_path/vboxguest.sh restartall silentunload
+    # stop all previous moduels (vboxguest, vboxfs) and start only starts vboxguest 
+    $vboxadditions_path/vboxguest.sh stopall silentunload
+    $vboxadditions_path/vboxguest.sh start
 
     sed -e '/name=vboxguest/d' /etc/devlink.tab > /etc/devlink.vbox
     echo "type=ddi_pseudo;name=vboxguest	\D" >> /etc/devlink.vbox
@@ -392,13 +394,11 @@ fi
 
 
 if test "$currentzone" = "global"; then
+    /usr/sbin/devfsadm -i vboxguest
+
     # Setup our VBoxService SMF service
     echo "Configuring service..."
-
-    /usr/sbin/svccfg import /var/svc/manifest/system/virtualbox/vboxservice.xml
-    /usr/sbin/svcadm enable svc:/system/virtualbox/vboxservice
-
-    /usr/sbin/devfsadm -i vboxguest
+    /usr/sbin/svcadm enable -s virtualbox/vboxservice
 
     # Update boot archive
     BOOTADMBIN=/sbin/bootadm

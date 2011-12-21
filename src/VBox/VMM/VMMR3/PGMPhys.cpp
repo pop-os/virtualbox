@@ -141,21 +141,25 @@ VMMR3DECL(int) PGMR3PhysReadExternal(PVM pVM, RTGCPHYS GCPhys, void *pvBuf, size
                 {
                     pgmUnlock(pVM);
 
-                    return VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)pgmR3PhysReadExternalEMT, 4,
-                                           pVM, &GCPhys, pvBuf, cbRead);
+                    return VMR3ReqPriorityCallWait(pVM, VMCPUID_ANY, (PFNRT)pgmR3PhysReadExternalEMT, 4,
+                                                   pVM, &GCPhys, pvBuf, cbRead);
                 }
                 Assert(!PGM_PAGE_IS_MMIO(pPage));
 
                 /*
                  * Simple stuff, go ahead.
                  */
-                size_t   cb    = PAGE_SIZE - (off & PAGE_OFFSET_MASK);
+                size_t cb = PAGE_SIZE - (off & PAGE_OFFSET_MASK);
                 if (cb > cbRead)
                     cb = cbRead;
-                const void *pvSrc;
-                int rc = pgmPhysGCPhys2CCPtrInternalReadOnly(pVM, pPage, pRam->GCPhys + off, &pvSrc);
+                PGMPAGEMAPLOCK PgMpLck;
+                const void    *pvSrc;
+                int rc = pgmPhysGCPhys2CCPtrInternalReadOnly(pVM, pPage, pRam->GCPhys + off, &pvSrc, &PgMpLck);
                 if (RT_SUCCESS(rc))
+                {
                     memcpy(pvBuf, pvSrc, cb);
+                    pgmPhysReleaseInternalPageMappingLock(pVM, &PgMpLck);
+                }
                 else
                 {
                     AssertLogRelMsgFailed(("pgmPhysGCPhys2CCPtrInternalReadOnly failed on %RGp / %R[pgmpage] -> %Rrc\n",
@@ -280,8 +284,8 @@ VMMDECL(int) PGMR3PhysWriteExternal(PVM pVM, RTGCPHYS GCPhys, const void *pvBuf,
                     {
                         pgmUnlock(pVM);
 
-                        return VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)pgmR3PhysWriteExternalEMT, 4,
-                                               pVM, &GCPhys, pvBuf, cbWrite);
+                        return VMR3ReqPriorityCallWait(pVM, VMCPUID_ANY, (PFNRT)pgmR3PhysWriteExternalEMT, 4,
+                                                       pVM, &GCPhys, pvBuf, cbWrite);
                     }
                 }
                 Assert(!PGM_PAGE_IS_MMIO(pPage));
@@ -289,13 +293,17 @@ VMMDECL(int) PGMR3PhysWriteExternal(PVM pVM, RTGCPHYS GCPhys, const void *pvBuf,
                 /*
                  * Simple stuff, go ahead.
                  */
-                size_t      cb    = PAGE_SIZE - (off & PAGE_OFFSET_MASK);
+                size_t cb = PAGE_SIZE - (off & PAGE_OFFSET_MASK);
                 if (cb > cbWrite)
                     cb = cbWrite;
-                void *pvDst;
-                int rc = pgmPhysGCPhys2CCPtrInternal(pVM, pPage, pRam->GCPhys + off, &pvDst);
+                PGMPAGEMAPLOCK PgMpLck;
+                void          *pvDst;
+                int rc = pgmPhysGCPhys2CCPtrInternal(pVM, pPage, pRam->GCPhys + off, &pvDst, &PgMpLck);
                 if (RT_SUCCESS(rc))
+                {
                     memcpy(pvDst, pvBuf, cb);
+                    pgmPhysReleaseInternalPageMappingLock(pVM, &PgMpLck);
+                }
                 else
                     AssertLogRelMsgFailed(("pgmPhysGCPhys2CCPtrInternal failed on %RGp / %R[pgmpage] -> %Rrc\n",
                                            pRam->GCPhys + off, pPage, rc));
@@ -462,8 +470,8 @@ VMMR3DECL(int) PGMR3PhysGCPhys2CCPtrExternal(PVM pVM, RTGCPHYS GCPhys, void **pp
                 {
                     pgmUnlock(pVM);
 
-                    return VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)pgmR3PhysGCPhys2CCPtrDelegated, 4,
-                                           pVM, &GCPhys, ppv, pLock);
+                    return VMR3ReqPriorityCallWait(pVM, VMCPUID_ANY, (PFNRT)pgmR3PhysGCPhys2CCPtrDelegated, 4,
+                                                   pVM, &GCPhys, ppv, pLock);
                 }
             }
 
@@ -3375,7 +3383,7 @@ static DECLCALLBACK(int) pgmR3PhysRomWriteHandler(PVM pVM, RTGCPHYS GCPhys, void
             default:
                 AssertMsgFailedReturn(("enmProt=%d iPage=%d GCPhys=%RGp\n",
                                        pRom->aPages[iPage].enmProt, iPage, GCPhys),
-                                      VERR_INTERNAL_ERROR);
+                                      VERR_IPE_NOT_REACHED_DEFAULT_CASE);
         }
     }
     else
@@ -3413,7 +3421,7 @@ static DECLCALLBACK(int) pgmR3PhysRomWriteHandler(PVM pVM, RTGCPHYS GCPhys, void
                 if (!PGMROMPROT_IS_ROM(pRomPage->enmProt))
                 {
                     pShadowPage = pgmPhysGetPage(pVM, GCPhys);
-                    AssertLogRelReturn(pShadowPage, VERR_INTERNAL_ERROR);
+                    AssertLogRelReturn(pShadowPage, VERR_PGM_PHYS_PAGE_GET_IPE);
                 }
 
                 void *pvDstPage;
@@ -3431,7 +3439,7 @@ static DECLCALLBACK(int) pgmR3PhysRomWriteHandler(PVM pVM, RTGCPHYS GCPhys, void
             default:
                 AssertMsgFailedReturn(("enmProt=%d iPage=%d GCPhys=%RGp\n",
                                        pRom->aPages[iPage].enmProt, iPage, GCPhys),
-                                      VERR_INTERNAL_ERROR);
+                                      VERR_IPE_NOT_REACHED_DEFAULT_CASE);
         }
     }
 }
@@ -3685,7 +3693,6 @@ VMMDECL(void) PGMR3PhysSetA20(PVMCPU pVCpu, bool fEnable)
     }
 }
 
-#ifdef PGM_WITH_LARGE_ADDRESS_SPACE_ON_32_BIT_HOST
 
 /**
  * Tree enumeration callback for dealing with age rollover.
@@ -3695,52 +3702,15 @@ static DECLCALLBACK(int) pgmR3PhysChunkAgeingRolloverCallback(PAVLU32NODECORE pN
 {
     /* Age compression - ASSUMES iNow == 4. */
     PPGMCHUNKR3MAP pChunk = (PPGMCHUNKR3MAP)pNode;
-    if (pChunk->iAge >= UINT32_C(0xffffff00))
-        pChunk->iAge = 3;
-    else if (pChunk->iAge >= UINT32_C(0xfffff000))
-        pChunk->iAge = 2;
-    else if (pChunk->iAge)
-        pChunk->iAge = 1;
-    else /* iAge = 0 */
-        pChunk->iAge = 4;
+    if (pChunk->iLastUsed >= UINT32_C(0xffffff00))
+        pChunk->iLastUsed = 3;
+    else if (pChunk->iLastUsed >= UINT32_C(0xfffff000))
+        pChunk->iLastUsed = 2;
+    else if (pChunk->iLastUsed)
+        pChunk->iLastUsed = 1;
+    else /* iLastUsed = 0 */
+        pChunk->iLastUsed = 4;
     return 0;
-}
-
-
-/**
- * Tree enumeration callback that updates the chunks that have
- * been used since the last
- */
-static DECLCALLBACK(int) pgmR3PhysChunkAgeingCallback(PAVLU32NODECORE pNode, void *pvUser)
-{
-    PPGMCHUNKR3MAP pChunk = (PPGMCHUNKR3MAP)pNode;
-    if (!pChunk->iAge)
-    {
-        PVM pVM = (PVM)pvUser;
-        pChunk->iAge = pVM->pgm.s.ChunkR3Map.iNow;
-    }
-    return 0;
-}
-
-
-/**
- * Performs ageing of the ring-3 chunk mappings.
- *
- * @param   pVM         The VM handle.
- */
-VMMR3DECL(void) PGMR3PhysChunkAgeing(PVM pVM)
-{
-    pgmLock(pVM);
-    pVM->pgm.s.ChunkR3Map.AgeingCountdown = RT_MIN(pVM->pgm.s.ChunkR3Map.cMax / 4, 1024);
-    pVM->pgm.s.ChunkR3Map.iNow++;
-    if (pVM->pgm.s.ChunkR3Map.iNow == 0)
-    {
-        pVM->pgm.s.ChunkR3Map.iNow = 4;
-        RTAvlU32DoWithAll(&pVM->pgm.s.ChunkR3Map.pTree, true /*fFromLeft*/, pgmR3PhysChunkAgeingRolloverCallback, pVM);
-    }
-    else
-        RTAvlU32DoWithAll(&pVM->pgm.s.ChunkR3Map.pTree, true /*fFromLeft*/, pgmR3PhysChunkAgeingCallback, pVM);
-    pgmUnlock(pVM);
 }
 
 
@@ -3751,7 +3721,6 @@ typedef struct PGMR3PHYSCHUNKUNMAPCB
 {
     PVM                 pVM;            /**< The VM handle. */
     PPGMCHUNKR3MAP      pChunk;         /**< The chunk to unmap. */
-    uint32_t            iLastAge;       /**< Highest age found so far. */
 } PGMR3PHYSCHUNKUNMAPCB, *PPGMR3PHYSCHUNKUNMAPCB;
 
 
@@ -3761,36 +3730,43 @@ typedef struct PGMR3PHYSCHUNKUNMAPCB
  */
 static DECLCALLBACK(int) pgmR3PhysChunkUnmapCandidateCallback(PAVLU32NODECORE pNode, void *pvUser)
 {
-    PPGMCHUNKR3MAP pChunk = (PPGMCHUNKR3MAP)pNode;
-    PPGMR3PHYSCHUNKUNMAPCB pArg = (PPGMR3PHYSCHUNKUNMAPCB)pvUser;
+    PPGMCHUNKR3MAP          pChunk = (PPGMCHUNKR3MAP)pNode;
+    PPGMR3PHYSCHUNKUNMAPCB  pArg   = (PPGMR3PHYSCHUNKUNMAPCB)pvUser;
 
-    if (    pChunk->iAge
-        &&  !pChunk->cRefs
-        &&  pArg->iLastAge < pChunk->iAge)
+    /*
+     * Check for locks and compare when last used.
+     */
+    if (pChunk->cRefs)
+        return 0;
+    if (pChunk->cPermRefs)
+        return 0;
+    if (   pArg->pChunk
+        && pChunk->iLastUsed >= pArg->pChunk->iLastUsed)
+        return 0;
+
+    /*
+     * Check that it's not in any of the TLBs.
+     */
+    PVM pVM = pArg->pVM;
+    if (   pVM->pgm.s.ChunkR3Map.Tlb.aEntries[PGM_CHUNKR3MAPTLB_IDX(pChunk->Core.Key)].idChunk
+        == pChunk->Core.Key)
     {
-        /*
-         * Check that it's not in any of the TLBs.
-         */
-        PVM pVM = pArg->pVM;
-        for (unsigned i = 0; i < RT_ELEMENTS(pVM->pgm.s.ChunkR3Map.Tlb.aEntries); i++)
-            if (pVM->pgm.s.ChunkR3Map.Tlb.aEntries[i].pChunk == pChunk)
-            {
-                pChunk = NULL;
-                break;
-            }
-        if (pChunk)
-            for (unsigned i = 0; i < RT_ELEMENTS(pVM->pgm.s.PhysTlbHC.aEntries); i++)
-                if (pVM->pgm.s.PhysTlbHC.aEntries[i].pMap == pChunk)
-                {
-                    pChunk = NULL;
-                    break;
-                }
-        if (pChunk)
-        {
-            pArg->pChunk = pChunk;
-            pArg->iLastAge = pChunk->iAge;
-        }
+        pChunk = NULL;
+        return 0;
     }
+#ifdef VBOX_STRICT
+    for (unsigned i = 0; i < RT_ELEMENTS(pVM->pgm.s.ChunkR3Map.Tlb.aEntries); i++)
+    {
+        Assert(pVM->pgm.s.ChunkR3Map.Tlb.aEntries[i].pChunk != pChunk);
+        Assert(pVM->pgm.s.ChunkR3Map.Tlb.aEntries[i].idChunk != pChunk->Core.Key);
+    }
+#endif
+
+    for (unsigned i = 0; i < RT_ELEMENTS(pVM->pgm.s.PhysTlbHC.aEntries); i++)
+        if (pVM->pgm.s.PhysTlbHC.aEntries[i].pMap == pChunk)
+            return 0;
+
+    pArg->pChunk = pChunk;
     return 0;
 }
 
@@ -3809,27 +3785,18 @@ static int32_t pgmR3PhysChunkFindUnmapCandidate(PVM pVM)
     PGM_LOCK_ASSERT_OWNER(pVM);
 
     /*
-     * Do tree ageing first?
-     */
-    if (pVM->pgm.s.ChunkR3Map.AgeingCountdown-- == 0)
-    {
-        STAM_PROFILE_START(&pVM->pgm.s.CTX_SUFF(pStats)->StatChunkAging, a);
-        PGMR3PhysChunkAgeing(pVM);
-        STAM_PROFILE_STOP(&pVM->pgm.s.CTX_SUFF(pStats)->StatChunkAging, a);
-    }
-
-    /*
      * Enumerate the age tree starting with the left most node.
      */
     STAM_PROFILE_START(&pVM->pgm.s.CTX_SUFF(pStats)->StatChunkFindCandidate, a);
     PGMR3PHYSCHUNKUNMAPCB Args;
-    Args.pVM      = pVM;
-    Args.pChunk   = NULL;
-    Args.iLastAge = 0;
+    Args.pVM    = pVM;
+    Args.pChunk = NULL;
     RTAvlU32DoWithAll(&pVM->pgm.s.ChunkR3Map.pTree, true /*fFromLeft*/, pgmR3PhysChunkUnmapCandidateCallback, &Args);
     Assert(Args.pChunk);
     if (Args.pChunk)
     {
+        Assert(Args.pChunk->cRefs == 0);
+        Assert(Args.pChunk->cPermRefs == 0);
         STAM_PROFILE_STOP(&pVM->pgm.s.CTX_SUFF(pStats)->StatChunkFindCandidate, a);
         return Args.pChunk->Core.Key;
     }
@@ -3837,6 +3804,7 @@ static int32_t pgmR3PhysChunkFindUnmapCandidate(PVM pVM)
     STAM_PROFILE_STOP(&pVM->pgm.s.CTX_SUFF(pStats)->StatChunkFindCandidate, a);
     return INT32_MAX;
 }
+
 
 /**
  * Rendezvous callback used by pgmR3PhysUnmapChunk that unmaps a chunk
@@ -3858,7 +3826,8 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PhysUnmapChunkRendezvous(PVM pVM, PVMCPU pVCpu, 
     if (pVM->pgm.s.ChunkR3Map.c >= pVM->pgm.s.ChunkR3Map.cMax)
     {
         /* Flush the pgm pool cache; call the internal rendezvous handler as we're already in a rendezvous handler here. */
-        /* todo: also not really efficient to unmap a chunk that contains PD or PT pages. */
+        /** @todo also not really efficient to unmap a chunk that contains PD
+         *  or PT pages. */
         pgmR3PoolClearAllRendezvous(pVM, &pVM->aCpus[0], NULL /* no need to flush the REM TLB as we already did that above */);
 
         /*
@@ -3866,11 +3835,10 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PhysUnmapChunkRendezvous(PVM pVM, PVMCPU pVCpu, 
          */
         GMMMAPUNMAPCHUNKREQ Req;
         Req.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-        Req.Hdr.cbReq = sizeof(Req);
-        Req.pvR3 = NULL;
-        Req.idChunkMap = NIL_GMM_CHUNKID;
+        Req.Hdr.cbReq    = sizeof(Req);
+        Req.pvR3         = NULL;
+        Req.idChunkMap   = NIL_GMM_CHUNKID;
         Req.idChunkUnmap = pgmR3PhysChunkFindUnmapCandidate(pVM);
-
         if (Req.idChunkUnmap != INT32_MAX)
         {
             STAM_PROFILE_START(&pVM->pgm.s.CTX_SUFF(pStats)->StatChunkUnmap, a);
@@ -3878,10 +3846,14 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PhysUnmapChunkRendezvous(PVM pVM, PVMCPU pVCpu, 
             STAM_PROFILE_STOP(&pVM->pgm.s.CTX_SUFF(pStats)->StatChunkUnmap, a);
             if (RT_SUCCESS(rc))
             {
-                /* remove the unmapped one. */
+                /*
+                 * Remove the unmapped one.
+                 */
                 PPGMCHUNKR3MAP pUnmappedChunk = (PPGMCHUNKR3MAP)RTAvlU32Remove(&pVM->pgm.s.ChunkR3Map.pTree, Req.idChunkUnmap);
                 AssertRelease(pUnmappedChunk);
-                pUnmappedChunk->pv = NULL;
+                AssertRelease(!pUnmappedChunk->cRefs);
+                AssertRelease(!pUnmappedChunk->cPermRefs);
+                pUnmappedChunk->pv       = NULL;
                 pUnmappedChunk->Core.Key = UINT32_MAX;
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
                 MMR3HeapFree(pUnmappedChunk);
@@ -3891,8 +3863,10 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PhysUnmapChunkRendezvous(PVM pVM, PVMCPU pVCpu, 
                 pVM->pgm.s.ChunkR3Map.c--;
                 pVM->pgm.s.cUnmappedChunks++;
 
-                /* Flush dangling PGM pointers (R3 & R0 ptrs to GC physical addresses) */
-                /* todo: we should not flush chunks which include cr3 mappings. */
+                /*
+                 * Flush dangling PGM pointers (R3 & R0 ptrs to GC physical addresses).
+                 */
+                /** todo: we should not flush chunks which include cr3 mappings. */
                 for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
                 {
                     PPGMCPU pPGM = &pVM->aCpus[idCpu].pgm.s;
@@ -3938,7 +3912,6 @@ void pgmR3PhysUnmapChunk(PVM pVM)
     AssertRC(rc);
 }
 
-#endif /* PGM_WITH_LARGE_ADDRESS_SPACE_ON_32_BIT_HOST */
 
 /**
  * Maps the given chunk into the ring-3 mapping cache.
@@ -3960,6 +3933,16 @@ int pgmR3PhysChunkMap(PVM pVM, uint32_t idChunk, PPPGMCHUNKR3MAP ppChunk)
     PGM_LOCK_ASSERT_OWNER(pVM);
 
     /*
+     * Move the chunk time forward.
+     */
+    pVM->pgm.s.ChunkR3Map.iNow++;
+    if (pVM->pgm.s.ChunkR3Map.iNow == 0)
+    {
+        pVM->pgm.s.ChunkR3Map.iNow = 4;
+        RTAvlU32DoWithAll(&pVM->pgm.s.ChunkR3Map.pTree, true /*fFromLeft*/, pgmR3PhysChunkAgeingRolloverCallback, NULL);
+    }
+
+    /*
      * Allocate a new tracking structure first.
      */
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
@@ -3968,16 +3951,17 @@ int pgmR3PhysChunkMap(PVM pVM, uint32_t idChunk, PPPGMCHUNKR3MAP ppChunk)
     PPGMCHUNKR3MAP pChunk = (PPGMCHUNKR3MAP)MMR3UkHeapAllocZ(pVM, MM_TAG_PGM_CHUNK_MAPPING, sizeof(*pChunk), NULL);
 #endif
     AssertReturn(pChunk, VERR_NO_MEMORY);
-    pChunk->Core.Key = idChunk;
+    pChunk->Core.Key  = idChunk;
+    pChunk->iLastUsed = pVM->pgm.s.ChunkR3Map.iNow;
 
     /*
      * Request the ring-0 part to map the chunk in question.
      */
     GMMMAPUNMAPCHUNKREQ Req;
     Req.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-    Req.Hdr.cbReq = sizeof(Req);
-    Req.pvR3 = NULL;
-    Req.idChunkMap = idChunk;
+    Req.Hdr.cbReq    = sizeof(Req);
+    Req.pvR3         = NULL;
+    Req.idChunkMap   = idChunk;
     Req.idChunkUnmap = NIL_GMM_CHUNKID;
 
     /* Must be callable from any thread, so can't use VMMR3CallR0. */
@@ -3986,28 +3970,57 @@ int pgmR3PhysChunkMap(PVM pVM, uint32_t idChunk, PPPGMCHUNKR3MAP ppChunk)
     STAM_PROFILE_STOP(&pVM->pgm.s.CTX_SUFF(pStats)->StatChunkMap, a);
     if (RT_SUCCESS(rc))
     {
-        /*
-         * Update the tree.
-         */
-        /* insert the new one. */
-        AssertPtr(Req.pvR3);
         pChunk->pv = Req.pvR3;
+
+        /*
+         * If we're running out of virtual address space, then we should
+         * unmap another chunk.
+         *
+         * Currently, an unmap operation requires that all other virtual CPUs
+         * are idling and not by chance making use of the memory we're
+         * unmapping.  So, we create an async unmap operation here.
+         *
+         * Now, when creating or restoring a saved state this wont work very
+         * well since we may want to restore all guest RAM + a little something.
+         * So, we have to do the unmap synchronously.  Fortunately for us
+         * though, during these operations the other virtual CPUs are inactive
+         * and it should be safe to do this.
+         */
+        /** @todo Eventually we should lock all memory when used and do
+         *        map+unmap as one kernel call without any rendezvous or
+         *        other precautions. */
+        if (pVM->pgm.s.ChunkR3Map.c + 1 >= pVM->pgm.s.ChunkR3Map.cMax)
+        {
+            switch (VMR3GetState(pVM))
+            {
+                case VMSTATE_LOADING:
+                case VMSTATE_SAVING:
+                {
+                    PVMCPU pVCpu = VMMGetCpu(pVM);
+                    if (   pVCpu
+                        && pVM->pgm.s.cDeprecatedPageLocks == 0)
+                    {
+                        pgmR3PhysUnmapChunkRendezvous(pVM, pVCpu, NULL);
+                        break;
+                    }
+                    /* fall thru */
+                }
+                default:
+                    rc = VMR3ReqCallNoWait(pVM, VMCPUID_ANY_QUEUE, (PFNRT)pgmR3PhysUnmapChunk, 1, pVM);
+                    AssertRC(rc);
+                    break;
+            }
+        }
+
+        /*
+         * Update the tree.  We must do this after any unmapping to make sure
+         * the chunk we're going to return isn't unmapped by accident.
+         */
+        AssertPtr(Req.pvR3);
         bool fRc = RTAvlU32Insert(&pVM->pgm.s.ChunkR3Map.pTree, &pChunk->Core);
         AssertRelease(fRc);
         pVM->pgm.s.ChunkR3Map.c++;
         pVM->pgm.s.cMappedChunks++;
-
-        /* If we're running out of virtual address space, then we should unmap another chunk. */
-        if (pVM->pgm.s.ChunkR3Map.c >= pVM->pgm.s.ChunkR3Map.cMax)
-        {
-#ifdef PGM_WITH_LARGE_ADDRESS_SPACE_ON_32_BIT_HOST
-            /* Postpone the unmap operation (which requires a rendezvous operation) as we own the PGM lock here. */
-            rc = VMR3ReqCallNoWaitU(pVM->pUVM, VMCPUID_ANY_QUEUE, (PFNRT)pgmR3PhysUnmapChunk, 1, pVM);
-            AssertRC(rc);
-#else
-            AssertFatalFailed();  /* can't happen */
-#endif
-        }
     }
     else
     {
@@ -4213,7 +4226,7 @@ VMMR3DECL(int) PGMR3PhysAllocateHandyPages(PVM pVM)
      * Allocate more pages, noting down the index of the first new page.
      */
     uint32_t iClear = pVM->pgm.s.cHandyPages;
-    AssertMsgReturn(iClear <= RT_ELEMENTS(pVM->pgm.s.aHandyPages), ("%d", iClear), VERR_INTERNAL_ERROR);
+    AssertMsgReturn(iClear <= RT_ELEMENTS(pVM->pgm.s.aHandyPages), ("%d", iClear), VERR_PGM_HANDY_PAGE_IPE);
     Log(("PGMR3PhysAllocateHandyPages: %d -> %d\n", iClear, RT_ELEMENTS(pVM->pgm.s.aHandyPages)));
     int rcAlloc = VINF_SUCCESS;
     int rcSeed  = VINF_SUCCESS;

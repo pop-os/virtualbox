@@ -1438,13 +1438,13 @@ static DECLCALLBACK(int) hpetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
      * addresses and sizes.
      */
     rc = PDMDevHlpMMIORegister(pDevIns, HPET_BASE, 0x1000, pThis,
-                               hpetMMIOWrite, hpetMMIORead, NULL, "HPET Memory");
+                               IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU,
+                               hpetMMIOWrite, hpetMMIORead, "HPET Memory");
     AssertRCReturn(rc, rc);
 
     if (fRCEnabled)
     {
-        rc = PDMDevHlpMMIORegisterRC(pDevIns, HPET_BASE, 0x1000, 0,
-                                     "hpetMMIOWrite", "hpetMMIORead", NULL);
+        rc = PDMDevHlpMMIORegisterRC(pDevIns, HPET_BASE, 0x1000, NIL_RTRCPTR /*pvUser*/, "hpetMMIOWrite", "hpetMMIORead");
         AssertRCReturn(rc, rc);
 
         pThis->pHpetHlpRC = pThis->pHpetHlpR3->pfnGetRCHelpers(pDevIns);
@@ -1453,8 +1453,8 @@ static DECLCALLBACK(int) hpetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
 
     if (fR0Enabled)
     {
-        rc = PDMDevHlpMMIORegisterR0(pDevIns, HPET_BASE, 0x1000, 0,
-                                     "hpetMMIOWrite", "hpetMMIORead", NULL);
+        rc = PDMDevHlpMMIORegisterR0(pDevIns, HPET_BASE, 0x1000, NIL_RTR0PTR /*pvUser*/,
+                                     "hpetMMIOWrite", "hpetMMIORead");
         AssertRCReturn(rc, rc);
 
         pThis->pHpetHlpR0 = pThis->pHpetHlpR3->pfnGetR0Helpers(pDevIns);

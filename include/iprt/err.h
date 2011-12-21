@@ -863,6 +863,8 @@ RT_C_DECLS_END
 #define VERR_DUPLICATE                      (-98)
 /** Something is missing. */
 #define VERR_MISSING                        (-99)
+/** An unexpected (/unknown) exception was caught. */
+#define VERR_UNEXPECTED_EXCEPTION           (-22400)
 /** @} */
 
 
@@ -1027,6 +1029,8 @@ RT_C_DECLS_END
 /** Internal error: Uninitialized status code.
  * @remarks This is used by value elsewhere.  */
 #define VERR_IPE_UNINITIALIZED_STATUS       (-233)
+/** Internal error: Supposedly unreachable default case in a switch. */
+#define VERR_IPE_NOT_REACHED_DEFAULT_CASE   (-234)
 /** @} */
 
 
@@ -1105,6 +1109,9 @@ RT_C_DECLS_END
 #define VERR_SEM_DESTROYED                  (-363)
 /** Nested ownership requests are not permitted for this semaphore type. */
 #define VERR_SEM_NESTED                     (-364)
+/** The release call only release a semaphore nesting, i.e. the caller is still
+ * holding the semaphore. */
+#define VINF_SEM_NESTED                     (364)
 /** Deadlock detected. */
 #define VERR_DEADLOCK                       (-365)
 /** Ping-Pong listen or speak out of turn error. */

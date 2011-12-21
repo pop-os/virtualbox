@@ -67,7 +67,7 @@
  */
 VMMR0DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
 {
-    Assert(PDMCritSectIsOwnerEx(&pVM->pgm.s.CritSect, pVCpu));
+    PGM_LOCK_ASSERT_OWNER_EX(pVM, pVCpu);
 
     /*
      * Check for error injection.
@@ -79,7 +79,7 @@ VMMR0DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
      * Try allocate a full set of handy pages.
      */
     uint32_t iFirst = pVM->pgm.s.cHandyPages;
-    AssertReturn(iFirst <= RT_ELEMENTS(pVM->pgm.s.aHandyPages), VERR_INTERNAL_ERROR);
+    AssertReturn(iFirst <= RT_ELEMENTS(pVM->pgm.s.aHandyPages), VERR_PGM_HANDY_PAGE_IPE);
     uint32_t cPages = RT_ELEMENTS(pVM->pgm.s.aHandyPages) - iFirst;
     if (!cPages)
         return VINF_SUCCESS;
@@ -182,10 +182,12 @@ VMMR0DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
  */
 VMMR0DECL(int) PGMR0PhysAllocateLargeHandyPage(PVM pVM, PVMCPU pVCpu)
 {
-    Assert(PDMCritSectIsOwnerEx(&pVM->pgm.s.CritSect, pVCpu));
-
+    PGM_LOCK_ASSERT_OWNER_EX(pVM, pVCpu);
     Assert(!pVM->pgm.s.cLargeHandyPages);
-    int rc = GMMR0AllocateLargePage(pVM, pVCpu->idCpu, _2M, &pVM->pgm.s.aLargeHandyPage[0].idPage, &pVM->pgm.s.aLargeHandyPage[0].HCPhysGCPhys);
+
+    int rc = GMMR0AllocateLargePage(pVM, pVCpu->idCpu, _2M,
+                                    &pVM->pgm.s.aLargeHandyPage[0].idPage,
+                                    &pVM->pgm.s.aLargeHandyPage[0].HCPhysGCPhys);
     if (RT_SUCCESS(rc))
         pVM->pgm.s.cLargeHandyPages = 1;
 
@@ -583,7 +585,7 @@ VMMR0DECL(VBOXSTRICTRC) PGMR0Trap0eHandlerNPMisconfig(PVM pVM, PVMCPU pVCpu, PGM
 
 #else
     AssertLogRelFailed();
-    return VERR_INTERNAL_ERROR_4;
+    return VERR_PGM_NOT_USED_IN_MODE;
 #endif
 }
 

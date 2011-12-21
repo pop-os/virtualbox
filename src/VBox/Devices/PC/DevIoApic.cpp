@@ -624,15 +624,15 @@ static DECLCALLBACK(int) ioapicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
      * Register MMIO callbacks and saved state.
      */
     rc = PDMDevHlpMMIORegister(pDevIns, 0xfec00000, 0x1000, s,
-                               ioapicMMIOWrite, ioapicMMIORead, NULL, "I/O APIC Memory");
+                               IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU,
+                               ioapicMMIOWrite, ioapicMMIORead, "I/O APIC Memory");
     if (RT_FAILURE(rc))
         return rc;
 
     if (fGCEnabled) {
         s->pIoApicHlpRC = s->pIoApicHlpR3->pfnGetRCHelpers(pDevIns);
 
-        rc = PDMDevHlpMMIORegisterRC(pDevIns, 0xfec00000, 0x1000, 0,
-                                     "ioapicMMIOWrite", "ioapicMMIORead", NULL);
+        rc = PDMDevHlpMMIORegisterRC(pDevIns, 0xfec00000, 0x1000, NIL_RTRCPTR /*pvUser*/, "ioapicMMIOWrite", "ioapicMMIORead");
         if (RT_FAILURE(rc))
             return rc;
     }
@@ -640,8 +640,8 @@ static DECLCALLBACK(int) ioapicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     if (fR0Enabled) {
         s->pIoApicHlpR0 = s->pIoApicHlpR3->pfnGetR0Helpers(pDevIns);
 
-        rc = PDMDevHlpMMIORegisterR0(pDevIns, 0xfec00000, 0x1000, 0,
-                                     "ioapicMMIOWrite", "ioapicMMIORead", NULL);
+        rc = PDMDevHlpMMIORegisterR0(pDevIns, 0xfec00000, 0x1000, NIL_RTR0PTR /*pvUser*/,
+                                     "ioapicMMIOWrite", "ioapicMMIORead");
         if (RT_FAILURE(rc))
             return rc;
     }

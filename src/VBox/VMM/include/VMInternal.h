@@ -173,8 +173,10 @@ typedef VMINT *PVMINT;
  */
 typedef struct VMINTUSERPERVM
 {
-    /** Head of the request queue. Atomic. */
-    volatile PVMREQ                 pReqs;
+    /** Head of the standard request queue. Atomic. */
+    volatile PVMREQ                 pNormalReqs;
+    /** Head of the priority request queue. Atomic. */
+    volatile PVMREQ                 pPriorityReqs;
     /** The last index used during alloc/free. */
     volatile uint32_t               iReqFree;
     /** Number of free request packets. */
@@ -314,8 +316,10 @@ typedef VMINTUSERPERVM *PVMINTUSERPERVM;
  */
 typedef struct VMINTUSERPERVMCPU
 {
-    /** Head of the request queue. Atomic. */
-    volatile PVMREQ                 pReqs;
+    /** Head of the normal request queue. Atomic. */
+    volatile PVMREQ                 pNormalReqs;
+    /** Head of the priority request queue. Atomic. */
+    volatile PVMREQ                 pPriorityReqs;
 
     /** The handle to the EMT thread. */
     RTTHREAD                        ThreadEMT;
@@ -326,7 +330,7 @@ typedef struct VMINTUSERPERVMCPU
     /** Wait/Idle indicator. */
     bool volatile                   fWait;
     /** Align the next bit. */
-    bool                            afAlignment[7];
+    bool                            afAlignment[HC_ARCH_BITS == 32 ? 3 : 7];
 
     /** @name Generic Halt data
      * @{

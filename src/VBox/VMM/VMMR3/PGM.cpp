@@ -1185,7 +1185,7 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
      */
     AssertCompile(sizeof(pVM->pgm.s) <= sizeof(pVM->pgm.padding));
     AssertCompile(sizeof(pVM->aCpus[0].pgm.s) <= sizeof(pVM->aCpus[0].pgm.padding));
-    AssertCompileMemberAlignment(PGM, CritSect, sizeof(uintptr_t));
+    AssertCompileMemberAlignment(PGM, CritSectX, sizeof(uintptr_t));
 
     /*
      * Init the structure.
@@ -1263,8 +1263,12 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
                            );
     AssertLogRelRCReturn(rc, rc);
 
-#ifdef PGM_WITH_LARGE_ADDRESS_SPACE_ON_32_BIT_HOST
+#if HC_ARCH_BITS == 32
+# ifdef RT_OS_DARWIN
+    rc = CFGMR3QueryU32Def(pCfgPGM, "MaxRing3Chunks", &pVM->pgm.s.ChunkR3Map.cMax, _1G / GMM_CHUNK_SIZE * 3);
+# else
     rc = CFGMR3QueryU32Def(pCfgPGM, "MaxRing3Chunks", &pVM->pgm.s.ChunkR3Map.cMax, _1G / GMM_CHUNK_SIZE);
+# endif
 #else
     rc = CFGMR3QueryU32Def(pCfgPGM, "MaxRing3Chunks", &pVM->pgm.s.ChunkR3Map.cMax, UINT32_MAX);
 #endif
@@ -1337,7 +1341,7 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
     /*
      * Initialize the PGM critical section and flush the phys TLBs
      */
-    rc = PDMR3CritSectInit(pVM, &pVM->pgm.s.CritSect, RT_SRC_POS, "PGM");
+    rc = PDMR3CritSectInit(pVM, &pVM->pgm.s.CritSectX, RT_SRC_POS, "PGM");
     AssertRCReturn(rc, rc);
 
     PGMR3PhysChunkInvalidateTLB(pVM);
@@ -1449,7 +1453,7 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
     }
 
     /* Almost no cleanup necessary, MM frees all memory. */
-    PDMR3CritSectDelete(&pVM->pgm.s.CritSect);
+    PDMR3CritSectDelete(&pVM->pgm.s.CritSectX);
 
     return rc;
 }
@@ -2211,7 +2215,7 @@ VMMR3_INT_DECL(int) PGMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
                 }
             }
 #else
-            AssertLogRelReturn(!pVM->pgm.s.fPciPassthrough, VERR_INTERNAL_ERROR_5);
+            AssertLogRelReturn(!pVM->pgm.s.fPciPassthrough, VERR_PGM_PCI_PASSTHRU_MISCONFIG);
 #endif
             break;
 
@@ -2573,7 +2577,7 @@ VMMR3DECL(int) PGMR3Term(PVM pVM)
     pgmUnlock(pVM);
 
     PGMDeregisterStringFormatTypes();
-    return PDMR3CritSectDelete(&pVM->pgm.s.CritSect);
+    return PDMR3CritSectDelete(&pVM->pgm.s.CritSectX);
 }
 
 
@@ -2684,9 +2688,9 @@ static DECLCALLBACK(void) pgmR3InfoCr3(PVM pVM, PCDBGFINFOHLP pHlp, const char *
     /*
      * Get page directory addresses.
      */
+    pgmLock(pVM);
     PX86PD     pPDSrc = pgmGstGet32bitPDPtr(pVCpu);
     Assert(pPDSrc);
-    Assert(PGMPhysGCPhys2R3PtrAssert(pVM, (RTGCPHYS)(CPUMGetGuestCR3(pVCpu) & X86_CR3_PAGE_MASK), sizeof(*pPDSrc)) == pPDSrc);
 
     /*
      * Iterate the page directory.
@@ -2710,6 +2714,7 @@ static DECLCALLBACK(void) pgmR3InfoCr3(PVM pVM, PCDBGFINFOHLP pHlp, const char *
                                 PdeSrc.n.u1Present, PdeSrc.n.u1User, PdeSrc.n.u1Write, PdeSrc.b.u1Global && fPGE);
         }
     }
+    pgmUnlock(pVM);
 }
 
 
@@ -2721,7 +2726,7 @@ static DECLCALLBACK(void) pgmR3InfoCr3(PVM pVM, PCDBGFINFOHLP pHlp, const char *
  */
 VMMR3DECL(int) PGMR3LockCall(PVM pVM)
 {
-    int rc = PDMR3CritSectEnterEx(&pVM->pgm.s.CritSect, true /* fHostCall */);
+    int rc = PDMR3CritSectEnterEx(&pVM->pgm.s.CritSectX, true /* fHostCall */);
     AssertRC(rc);
     return rc;
 }

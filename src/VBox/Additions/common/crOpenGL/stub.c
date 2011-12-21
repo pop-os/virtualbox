@@ -87,18 +87,22 @@ void APIENTRY crMakeCurrent( GLint window, GLint context )
 
 GLint APIENTRY crGetCurrentContext( void )
 {
+    ContextInfo *context;
     stubInit();
-    if (stub.currentContext)
-      return (GLint) stub.currentContext->id;
+    context = stubGetCurrentContext();
+    if (context)
+      return (GLint) context->id;
     else
       return 0;
 }
 
 GLint APIENTRY crGetCurrentWindow( void )
 {
+    ContextInfo *context;
     stubInit();
-    if (stub.currentContext && stub.currentContext->currentDrawable)
-      return stub.currentContext->currentDrawable->spuWindow;
+    context = stubGetCurrentContext();
+    if (context && context->currentDrawable)
+      return context->currentDrawable->spuWindow;
     else
       return -1;
 }
@@ -118,6 +122,16 @@ GLint APIENTRY crWindowCreate( const char *dpyName, GLint visBits )
 {
     stubInit();
     return stubNewWindow( dpyName, visBits );
+}
+
+static void stubWindowCleanupForContextsCB(unsigned long key, void *data1, void *data2)
+{
+    ContextInfo *context = (ContextInfo *) data1;
+
+    CRASSERT(context);
+
+    if (context->currentDrawable == data2)
+        context->currentDrawable = NULL;
 }
 
 void APIENTRY crWindowDestroy( GLint window )
@@ -148,6 +162,9 @@ void APIENTRY crWindowDestroy( GLint window )
 # endif
 #endif
         crForcedFlush();
+
+        crHashtableWalk(stub.contextTable, stubWindowCleanupForContextsCB, winInfo);
+
         crHashtableDelete(stub.windowTable, window, crFree);
 
         crHashtableUnlock(stub.windowTable);

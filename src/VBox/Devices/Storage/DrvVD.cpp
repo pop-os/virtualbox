@@ -1965,6 +1965,12 @@ static DECLCALLBACK(void) drvvdReset(PPDMDRVINS pDrvIns)
     LogFlowFunc(("\n"));
     PVBOXDISK pThis = PDMINS_2_DATA(pDrvIns, PVBOXDISK);
 
+    if (pThis->pBlkCache)
+    {
+        int rc = PDMR3BlkCacheClear(pThis->pBlkCache);
+        AssertRC(rc);
+    }
+
     if (pThis->fBootAccelEnabled)
     {
         pThis->fBootAccelActive = true;

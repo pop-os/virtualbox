@@ -55,6 +55,9 @@
 # error CHROMIUM_THREADSAFE have to be defined
 #endif
 
+#ifdef CHROMIUM_THREADSAFE
+# include <cr_threads.h>
+#endif
 /*#define VBOX_TEST_MEGOO*/
 
 #if 0 && defined(CR_NEWWINTRACK) && !defined(WINDOWS)
@@ -110,6 +113,10 @@ struct context_info_t
     unsigned long id;          /* the client-visible handle */
     GLint visBits;
     WindowInfo *currentDrawable;
+
+#ifdef CHROMIUM_THREADSAFE
+    VBOXTLSREFDATA
+#endif
 
 #ifdef WINDOWS
     HGLRC hglrc;
@@ -224,7 +231,9 @@ typedef struct {
     /* contexts */
     int freeContextNumber;
     CRHashTable *contextTable;
+#ifndef CHROMIUM_THREADSAFE
     ContextInfo *currentContext; /* may be NULL */
+#endif
 
     /* windows */
     CRHashTable *windowTable;
@@ -257,8 +266,29 @@ typedef struct {
 
 } Stub;
 
+#ifdef CHROMIUM_THREADSAFE
+/* we place the g_stubCurrentContextTLS outside the Stub data because Stub data is inited by the client's call,
+ * while we need g_stubCurrentContextTLS the g_stubCurrentContextTLS to be valid at any time to be able to handle
+ * THREAD_DETACH cleanup on windows.
+ * Note that we can not do
+ *  STUB_INIT_LOCK();
+ *  if (stub_initialized) stubSetCurrentContext(NULL);
+ *  STUB_INIT_UNLOCK();
+ * on THREAD_DETACH since it may cause deadlock, i.e. in this situation loader lock is acquired first and then the init lock,
+ * but since we use GetModuleFileName in crGetProcName called from stubInitLocked, the lock order might be the oposite.
+ * Note that GetModuleFileName acquires the loader lock.
+ * */
+extern CRtsd g_stubCurrentContextTSD;
+
+# define stubGetCurrentContext() VBoxTlsRefGetCurrent(ContextInfo, &g_stubCurrentContextTSD)
+# define stubSetCurrentContext(_ctx) VBoxTlsRefSetCurrent(ContextInfo, &g_stubCurrentContextTSD, _ctx)
+#else
+# define stubGetCurrentContext() (stub.currentContext)
+# define stubSetCurrentContext(_ctx) do { stub.currentContext = (_ctx); } while (0)
+#endif
 
 extern Stub stub;
+
 extern DECLEXPORT(SPUDispatchTable) glim;
 extern SPUDispatchTable stubThreadsafeDispatch;
 extern DECLEXPORT(SPUDispatchTable) stubNULLDispatch;

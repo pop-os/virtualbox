@@ -961,7 +961,7 @@ static DECLCALLBACK(int) ssmR3SelfLiveExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uP
         return rc;
     }
     AssertFailed();
-    return VERR_INTERNAL_ERROR_3;
+    return VERR_SSM_UNEXPECTED_PASS;
 }
 
 
@@ -2755,7 +2755,7 @@ static int ssmR3StrmSkipTo(PSSMSTRM pStrm, uint64_t offDst)
     for (;;)
     {
         uint64_t offCur = ssmR3StrmTell(pStrm);
-        AssertReturn(offCur <= offDst, VERR_INTERNAL_ERROR_4);
+        AssertReturn(offCur <= offDst, VERR_SSM_SKIP_BACKWARDS);
         if (offCur == offDst)
             return VINF_SUCCESS;
 
@@ -3169,7 +3169,7 @@ static int ssmR3DataWriteRecHdr(PSSMHANDLE pSSM, size_t cb, uint8_t u8TypeAndFla
         abHdr[6] = (uint8_t)(0x80 | (cb & 0x3f));
     }
     else
-        AssertLogRelMsgFailedReturn(("cb=%#x\n", cb), pSSM->rc = VERR_INTERNAL_ERROR);
+        AssertLogRelMsgFailedReturn(("cb=%#x\n", cb), pSSM->rc = VERR_SSM_MEM_TOO_BIG);
 
     Log3(("ssmR3DataWriteRecHdr: %08llx|%08llx/%08x: Type=%02x fImportant=%RTbool cbHdr=%u\n",
           ssmR3StrmTell(&pSSM->Strm) + cbHdr, pSSM->offUnit + cbHdr, cb, u8TypeAndFlags & SSM_REC_TYPE_MASK, !!(u8TypeAndFlags & SSM_REC_FLAGS_IMPORTANT), cbHdr));
@@ -4238,7 +4238,7 @@ static int ssmR3SaveDoDoneRun(PVM pVM, PSSMHANDLE pSSM)
                     rc = pUnit->u.External.pfnSaveDone(pSSM, pUnit->u.External.pvUser);
                     break;
                 default:
-                    rc = VERR_INTERNAL_ERROR;
+                    rc = VERR_SSM_IPE_1;
                     break;
             }
             if (RT_SUCCESS(rc) && pSSM->rc != rcOld)
@@ -4586,7 +4586,7 @@ static int ssmR3SaveDoExecRun(PVM pVM, PSSMHANDLE pSSM)
                 rc = pSSM->rc;
                 break;
             default:
-                rc = VERR_INTERNAL_ERROR;
+                rc = VERR_SSM_IPE_1;
                 break;
         }
         pUnit->fCalled = true;
@@ -4673,7 +4673,7 @@ static int ssmR3SaveDoPrepRun(PVM pVM, PSSMHANDLE pSSM)
                     rc = pUnit->u.External.pfnSavePrep(pSSM, pUnit->u.External.pvUser);
                     break;
                 default:
-                    rc = VERR_INTERNAL_ERROR;
+                    rc = VERR_SSM_IPE_1;
                     break;
             }
             pUnit->fCalled = true;
@@ -5013,7 +5013,7 @@ static int ssmR3LiveDoVoteRun(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass)
                     rc = pUnit->u.External.pfnLiveVote(pSSM, pUnit->u.External.pvUser, uPass);
                     break;
                 default:
-                    rc = VERR_INTERNAL_ERROR;
+                    rc = VERR_SSM_IPE_1;
                     break;
             }
             pUnit->fCalled = true;
@@ -5151,7 +5151,7 @@ static int ssmR3LiveDoExecRun(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass)
                 rc = pUnit->u.External.pfnLiveExec(pSSM, pUnit->u.External.pvUser, uPass);
                 break;
             default:
-                rc = VERR_INTERNAL_ERROR;
+                rc = VERR_SSM_IPE_1;
                 break;
         }
         pUnit->fCalled = true;
@@ -5308,7 +5308,7 @@ static int ssmR3DoLivePrepRun(PVM pVM, PSSMHANDLE pSSM)
                     rc = pUnit->u.External.pfnLivePrep(pSSM, pUnit->u.External.pvUser);
                     break;
                 default:
-                    rc = VERR_INTERNAL_ERROR;
+                    rc = VERR_SSM_IPE_1;
                     break;
             }
             pUnit->fCalled = true;
@@ -5621,12 +5621,18 @@ static int ssmR3DataReadFinishV2(PSSMHANDLE pSSM)
     if (    !pSSM->u.Read.fEndOfData
         &&  RT_SUCCESS(rc))
     {
-        rc = ssmR3DataReadRecHdrV2(pSSM);
-        if (    RT_SUCCESS(rc)
-            &&  !pSSM->u.Read.fEndOfData)
-        {
+        if (   pSSM->u.Read.cbDataBuffer != pSSM->u.Read.offDataBuffer
+            && pSSM->u.Read.cbDataBuffer > 0)
             rc = VERR_SSM_LOADED_TOO_LITTLE;
-            AssertFailed();
+        else
+        {
+            rc = ssmR3DataReadRecHdrV2(pSSM);
+            if (    RT_SUCCESS(rc)
+                &&  !pSSM->u.Read.fEndOfData)
+            {
+                rc = VERR_SSM_LOADED_TOO_LITTLE;
+                AssertFailed();
+            }
         }
         pSSM->rc = rc;
     }
@@ -5875,7 +5881,7 @@ static int ssmR3DataReadRecHdrV2(PSSMHANDLE pSSM)
                 AssertLogRelMsgReturn((abHdr[2] & 0xc0) == 0x80, ("2/%u: %.*Rhxs\n", cb, cb + 1, &abHdr[0]), VERR_SSM_INTEGRITY_REC_HDR);
                 break;
             default:
-                return VERR_INTERNAL_ERROR;
+                return VERR_IPE_NOT_REACHED_DEFAULT_CASE;
         }
 
         /*
@@ -5923,7 +5929,7 @@ static int ssmR3DataReadRecHdrV2(PSSMHANDLE pSSM)
 #endif
                 break;
             default:
-                return VERR_INTERNAL_ERROR;
+                return VERR_IPE_NOT_REACHED_DEFAULT_CASE;
         }
 
         pSSM->u.Read.cbRecLeft = cb;
@@ -6043,7 +6049,7 @@ static int ssmR3DataReadUnbufferedV2(PSSMHANDLE pSSM, void *pvBuf, size_t cbBuf)
             }
 
             default:
-                AssertMsgFailedReturn(("%x\n", pSSM->u.Read.u8TypeAndFlags), VERR_INTERNAL_ERROR_5);
+                AssertMsgFailedReturn(("%x\n", pSSM->u.Read.u8TypeAndFlags), VERR_SSM_BAD_REC_TYPE);
         }
 
         cbBuf -= cbToRead;
@@ -6144,7 +6150,7 @@ static int ssmR3DataReadBufferedV2(PSSMHANDLE pSSM, void *pvBuf, size_t cbBuf)
             }
 
             default:
-                AssertMsgFailedReturn(("%x\n", pSSM->u.Read.u8TypeAndFlags), VERR_INTERNAL_ERROR_5);
+                AssertMsgFailedReturn(("%x\n", pSSM->u.Read.u8TypeAndFlags), VERR_SSM_BAD_REC_TYPE);
         }
         /*pSSM->u.Read.offDataBuffer = 0;*/
 
@@ -7454,7 +7460,7 @@ static int ssmR3HeaderAndValidate(PSSMHANDLE pSSM, bool fChecksumIt, bool fCheck
             pSSM->fLiveSave             = !!(uHdr.v2_0.fFlags & SSMFILEHDR_FLAGS_STREAM_LIVE_SAVE);
         }
         else
-            AssertFailedReturn(VERR_INTERNAL_ERROR);
+            AssertFailedReturn(VERR_SSM_IPE_2);
         if (!pSSM->u.Read.fStreamCrc32)
             ssmR3StrmDisableChecksumming(&pSSM->Strm);
 
@@ -7552,7 +7558,7 @@ static int ssmR3HeaderAndValidate(PSSMHANDLE pSSM, bool fChecksumIt, bool fCheck
             fHaveVersion        = true;
         }
         else
-            AssertFailedReturn(VERR_INTERNAL_ERROR);
+            AssertFailedReturn(VERR_SSM_IPE_1);
 
         /*
          * The MachineUuid must be NULL (was never used).
@@ -7865,7 +7871,7 @@ static int ssmR3LoadExecV1(PVM pVM, PSSMHANDLE pSSM)
                                 rc = pUnit->u.External.pfnLoadExec(pSSM, pUnit->u.External.pvUser, UnitHdr.u32Version, SSM_PASS_FINAL);
                                 break;
                             default:
-                                rc = VERR_INTERNAL_ERROR;
+                                rc = VERR_SSM_IPE_1;
                                 break;
                         }
                         pUnit->fCalled = true;
@@ -8127,7 +8133,7 @@ static int ssmR3LoadExecV2(PVM pVM, PSSMHANDLE pSSM)
                     rc = pUnit->u.External.pfnLoadExec(pSSM, pUnit->u.External.pvUser, UnitHdr.u32Version, UnitHdr.u32Pass);
                     break;
                 default:
-                    rc = VERR_INTERNAL_ERROR;
+                    rc = VERR_SSM_IPE_1;
                     break;
             }
             pUnit->fCalled = true;
@@ -8294,7 +8300,7 @@ VMMR3DECL(int) SSMR3Load(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamO
                         rc = pUnit->u.External.pfnLoadPrep(&Handle, pUnit->u.External.pvUser);
                         break;
                     default:
-                        rc = VERR_INTERNAL_ERROR;
+                        rc = VERR_SSM_IPE_1;
                         break;
                 }
                 Handle.u.Read.pCurUnit = NULL;
@@ -8365,7 +8371,7 @@ VMMR3DECL(int) SSMR3Load(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamO
                         rc = pUnit->u.External.pfnLoadDone(&Handle, pUnit->u.External.pvUser);
                         break;
                     default:
-                        rc = VERR_INTERNAL_ERROR;
+                        rc = VERR_SSM_IPE_1;
                         break;
                 }
                 Handle.u.Read.pCurUnit = NULL;
@@ -9092,7 +9098,7 @@ VMMR3DECL(int) SSMR3Cancel(PVM pVM)
         else
         {
             AssertLogRelMsgFailed(("fCancelled=%RX32 enmOp=%d\n", u32Old, pSSM->enmOp));
-            rc = VERR_INTERNAL_ERROR_2;
+            rc = VERR_SSM_IPE_3;
         }
     }
     else

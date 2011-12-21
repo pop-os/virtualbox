@@ -308,6 +308,50 @@ stubGetWindowInfo( Display *dpy, GLXDrawable drawable )
     return winInfo;
 }
 
+static void stubWindowCheckOwnerCB(unsigned long key, void *data1, void *data2);
+
+static void
+stubDestroyContextLocked( ContextInfo *context )
+{
+    unsigned long contextId = context->id;
+    if (context->type == NATIVE) {
+#ifdef WINDOWS
+        stub.wsInterface.wglDeleteContext( context->hglrc );
+#elif defined(Darwin)
+        stub.wsInterface.CGLDestroyContext( context->cglc );
+#elif defined(GLX)
+        stub.wsInterface.glXDestroyContext( context->dpy, context->glxContext );
+#endif
+    }
+    else if (context->type == CHROMIUM) {
+        /* Have pack SPU or tilesort SPU, etc. destroy the context */
+        CRASSERT(context->spuContext >= 0);
+        stub.spu->dispatch_table.DestroyContext( context->spuContext );
+        crHashtableWalk(stub.windowTable, stubWindowCheckOwnerCB, context);
+    }
+
+#ifdef GLX
+    crFreeHashtable(context->pGLXPixmapsHash, crFree);
+    if (context->damageDpy)
+    {
+        XCloseDisplay(context->damageDpy);
+    }
+#endif
+
+    crMemZero(context, sizeof(ContextInfo));  /* just to be safe */
+    crHashtableDelete(stub.contextTable, contextId, crFree);
+}
+
+#ifdef CHROMIUM_THREADSAFE
+static DECLCALLBACK(void) stubContextDtor(void*pvContext)
+{
+    crHashtableLock(stub.windowTable);
+    crHashtableLock(stub.contextTable);
+    stubDestroyContextLocked((ContextInfo*)pvContext);
+    crHashtableUnlock(stub.contextTable);
+    crHashtableUnlock(stub.windowTable);
+}
+#endif
 
 /**
  * Allocate a new ContextInfo object, initialize it, put it into the
@@ -352,6 +396,10 @@ stubNewContext( const char *dpyName, GLint visBits, ContextType type,
     context->currentDrawable = NULL;
     crStrncpy(context->dpyName, dpyName, MAX_DPY_NAME);
     context->dpyName[MAX_DPY_NAME-1] = 0;
+
+#ifdef CHROMIUM_THREADSAFE
+    VBoxTlsRefInit(context, stubContextDtor);
+#endif
 
 #if defined(GLX) || defined(DARWIN)
     context->share = (ContextInfo *)
@@ -924,11 +972,12 @@ stubMakeCurrent( WindowInfo *window, ContextInfo *context )
      */
 
     if (!context || !window) {
-        if (stub.currentContext)
-            stub.currentContext->currentDrawable = NULL;
+        ContextInfo * currentContext = stubGetCurrentContext();
+        if (currentContext)
+            currentContext->currentDrawable = NULL;
         if (context)
             context->currentDrawable = NULL;
-        stub.currentContext = NULL;
+        stubSetCurrentContext(NULL);
         return GL_TRUE;  /* OK */
     }
 
@@ -1061,7 +1110,7 @@ stubMakeCurrent( WindowInfo *window, ContextInfo *context )
     window->type = context->type;
     window->pOwner = context;
     context->currentDrawable = window;
-    stub.currentContext = context;
+    stubSetCurrentContext(context);
 
     if (retVal) {
         /* Now, if we've transitions from Chromium to native rendering, or
@@ -1133,44 +1182,30 @@ stubDestroyContext( unsigned long contextId )
         return;
     }
 
+    /* the lock order is windowTable->contextTable (see wglMakeCurrent_prox, glXMakeCurrent)
+     * this is why we need to take a windowTable lock since we will later do stub.windowTable access & locking */
+    crHashtableLock(stub.windowTable);
     crHashtableLock(stub.contextTable);
 
     context = (ContextInfo *) crHashtableSearch(stub.contextTable, contextId);
 
     CRASSERT(context);
 
-    if (context->type == NATIVE) {
-#ifdef WINDOWS
-        stub.wsInterface.wglDeleteContext( context->hglrc );
-#elif defined(Darwin)
-        stub.wsInterface.CGLDestroyContext( context->cglc );
-#elif defined(GLX)
-        stub.wsInterface.glXDestroyContext( context->dpy, context->glxContext );
-#endif
-    }
-    else if (context->type == CHROMIUM) {
-        /* Have pack SPU or tilesort SPU, etc. destroy the context */
-        CRASSERT(context->spuContext >= 0);
-        stub.spu->dispatch_table.DestroyContext( context->spuContext );
-        crHashtableWalk(stub.windowTable, stubWindowCheckOwnerCB, context);
+#ifdef CHROMIUM_THREADSAFE
+    if (stubGetCurrentContext() == context) {
+        stubSetCurrentContext(NULL);
     }
 
-    if (stub.currentContext == context) {
-        stub.currentContext = NULL;
-    }
+    VBoxTlsRefRelease(context);
+#else
+    stubDestroyContextLocked(context);
 
-#ifdef GLX
-    crFreeHashtable(context->pGLXPixmapsHash, crFree);
-    if (context->damageDpy)
-    {
-        XCloseDisplay(context->damageDpy);
+    if (stubGetCurrentContext() == context) {
+        stubSetCurrentContext(NULL);
     }
 #endif
-
-    crMemZero(context, sizeof(ContextInfo));  /* just to be safe */
-    crHashtableDelete(stub.contextTable, contextId, crFree);
-
     crHashtableUnlock(stub.contextTable);
+    crHashtableUnlock(stub.windowTable);
 }
 
 void

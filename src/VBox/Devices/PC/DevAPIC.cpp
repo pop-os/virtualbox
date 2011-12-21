@@ -2193,7 +2193,8 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
      */
     uint32_t ApicBase = pDev->paLapicsR3[0].apicbase & ~0xfff;
     rc = PDMDevHlpMMIORegister(pDevIns, ApicBase, 0x1000, pDev,
-                               apicMMIOWrite, apicMMIORead, NULL, "APIC Memory");
+                               IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU,
+                               apicMMIOWrite, apicMMIORead, "APIC Memory");
     if (RT_FAILURE(rc))
         return rc;
 
@@ -2201,8 +2202,7 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         pDev->pApicHlpRC  = pDev->pApicHlpR3->pfnGetRCHelpers(pDevIns);
         pDev->pCritSectRC = pDev->pApicHlpR3->pfnGetRCCritSect(pDevIns);
 
-        rc = PDMDevHlpMMIORegisterRC(pDevIns, ApicBase, 0x1000, 0,
-                                     "apicMMIOWrite", "apicMMIORead", NULL);
+        rc = PDMDevHlpMMIORegisterRC(pDevIns, ApicBase, 0x1000, NIL_RTRCPTR /*pvUser*/, "apicMMIOWrite", "apicMMIORead");
         if (RT_FAILURE(rc))
             return rc;
     }
@@ -2211,8 +2211,7 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         pDev->pApicHlpR0  = pDev->pApicHlpR3->pfnGetR0Helpers(pDevIns);
         pDev->pCritSectR0 = pDev->pApicHlpR3->pfnGetR0CritSect(pDevIns);
 
-        rc = PDMDevHlpMMIORegisterR0(pDevIns, ApicBase, 0x1000, 0,
-                                     "apicMMIOWrite", "apicMMIORead", NULL);
+        rc = PDMDevHlpMMIORegisterR0(pDevIns, ApicBase, 0x1000, NIL_RTR0PTR /*pvUser*/, "apicMMIOWrite", "apicMMIORead");
         if (RT_FAILURE(rc))
             return rc;
     }
