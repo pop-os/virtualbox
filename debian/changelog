@@ -2,6 +2,7 @@ virtualbox (4.1.8-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release.
   * Move all transitional packages to section oldlibs and priority extra.
+  * Refresh 16-no-update.patch.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 13 Dec 2011 16:31:00 +0100
 
