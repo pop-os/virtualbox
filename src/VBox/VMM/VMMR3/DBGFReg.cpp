@@ -863,8 +863,8 @@ static int dbgfR3RegCpuQueryWorker(PVM pVM, VMCPUID idCpu, DBGFREG enmReg, DBGFR
     idCpu &= ~DBGFREG_HYPER_VMCPUID;
     AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
 
-    return VMR3ReqCallWait(pVM, idCpu, (PFNRT)dbgfR3RegCpuQueryWorkerOnCpu, 6,
-                           pVM, idCpu, enmReg, enmType, fGuestRegs, pValue);
+    return VMR3ReqPriorityCallWait(pVM, idCpu, (PFNRT)dbgfR3RegCpuQueryWorkerOnCpu, 6,
+                                   pVM, idCpu, enmReg, enmType, fGuestRegs, pValue);
 }
 
 
@@ -1044,7 +1044,7 @@ static DECLCALLBACK(int) dbgfR3RegCpuQueryBatchWorker(PVM pVM, VMCPUID idCpu, PD
                         pReg->Val.au16[5] = pu->au16[5];
                         break;
                     default:
-                        AssertMsgFailedReturn(("%s %d\n", pDesc->pszName, pDesc->enmType), VERR_INTERNAL_ERROR_3);
+                        AssertMsgFailedReturn(("%s %d\n", pDesc->pszName, pDesc->enmType), VERR_IPE_NOT_REACHED_DEFAULT_CASE);
                 }
             }
             else
@@ -1408,7 +1408,7 @@ static int dbgfR3RegNmQueryWorker(PVM pVM, VMCPUID idDefCpu, const char *pszReg,
             idDefCpu = pLookupRec->pSet->uUserArg.pVCpu->idCpu;
         else if (idDefCpu != VMCPUID_ANY)
             idDefCpu &= ~DBGFREG_HYPER_VMCPUID;
-        return VMR3ReqCallWait(pVM, idDefCpu, (PFNRT)dbgfR3RegNmQueryWorkerOnCpu, 5, pVM, pLookupRec, enmType, pValue, penmType);
+        return VMR3ReqPriorityCallWait(pVM, idDefCpu, (PFNRT)dbgfR3RegNmQueryWorkerOnCpu, 5, pVM, pLookupRec, enmType, pValue, penmType);
     }
     return VERR_DBGF_REGISTER_NOT_FOUND;
 }
@@ -1871,7 +1871,7 @@ DECLINLINE(ssize_t) dbgfR3RegFormatValueInt(char *pszTmp, size_t cbTmp, PCDBGFRE
         {
             ssize_t cch = RTStrFormatU64(pszTmp, cbTmp, pValue->dtr.u64Base,
                                          16, 2+16, 0, RTSTR_F_SPECIAL | RTSTR_F_ZEROPAD);
-            AssertReturn(cch > 0, VERR_INTERNAL_ERROR_4);
+            AssertReturn(cch > 0, VERR_DBGF_REG_IPE_1);
             pszTmp[cch++] = ':';
             cch += RTStrFormatU64(&pszTmp[cch], cbTmp - cch, pValue->dtr.u32Limit,
                                   16, 4, 0, RTSTR_F_ZEROPAD | RTSTR_F_32BIT);
@@ -1886,7 +1886,7 @@ DECLINLINE(ssize_t) dbgfR3RegFormatValueInt(char *pszTmp, size_t cbTmp, PCDBGFRE
     }
 
     RTStrPrintf(pszTmp, cbTmp, "!enmType=%d!", enmType);
-    return VERR_INTERNAL_ERROR_5;
+    return VERR_DBGF_REG_IPE_2;
 }
 
 
@@ -2279,7 +2279,7 @@ VMMR3DECL(int) DBGFR3RegPrintfV(PVM pVM, VMCPUID idCpu, char *pszBuf, size_t cbB
     Args.offBuf     = 0;
     Args.cchLeftBuf = cbBuf - 1;
     Args.rc         = VINF_SUCCESS;
-    int rc = VMR3ReqCallWait(pVM, Args.idCpu, (PFNRT)dbgfR3RegPrintfWorkerOnCpu, 1, &Args);
+    int rc = VMR3ReqPriorityCallWait(pVM, Args.idCpu, (PFNRT)dbgfR3RegPrintfWorkerOnCpu, 1, &Args);
     va_end(Args.va);
     return rc;
 }

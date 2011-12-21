@@ -738,7 +738,7 @@ static void pdmR3SaveBoth(PVM pVM, PSSMHANDLE pSSM)
 static DECLCALLBACK(int) pdmR3LiveExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass)
 {
     LogFlow(("pdmR3LiveExec:\n"));
-    AssertReturn(uPass == 0, VERR_INTERNAL_ERROR_4);
+    AssertReturn(uPass == 0, VERR_SSM_UNEXPECTED_PASS);
     pdmR3SaveBoth(pVM, pSSM);
     return VINF_SSM_DONT_CALL_AGAIN;
 }
@@ -1235,15 +1235,13 @@ static void pdmR3NotifyAsyncLog(PPDMNOTIFYASYNCSTATS pThis)
  */
 static void pdmR3NotifyAsyncWaitAndProcessRequests(PPDMNOTIFYASYNCSTATS pThis, PVM pVM)
 {
-    /** @todo This is utterly nuts and completely unsafe... will get back to it in a
-     *        bit I hope... */
     VM_ASSERT_EMT0(pVM);
     int rc = VMR3AsyncPdmNotificationWaitU(&pVM->pUVM->aCpus[0]);
     AssertReleaseMsg(rc == VINF_SUCCESS, ("%Rrc - %s - %s\n", rc, pThis->pszOp, pThis->szList));
 
-    rc = VMR3ReqProcessU(pVM->pUVM, VMCPUID_ANY);
+    rc = VMR3ReqProcessU(pVM->pUVM, VMCPUID_ANY, true /*fPriorityOnly*/);
     AssertReleaseMsg(rc == VINF_SUCCESS, ("%Rrc - %s - %s\n", rc, pThis->pszOp, pThis->szList));
-    rc = VMR3ReqProcessU(pVM->pUVM, 0/*idDstCpu*/);
+    rc = VMR3ReqProcessU(pVM->pUVM, 0/*idDstCpu*/, true /*fPriorityOnly*/);
     AssertReleaseMsg(rc == VINF_SUCCESS, ("%Rrc - %s - %s\n", rc, pThis->pszOp, pThis->szList));
 }
 
@@ -1277,9 +1275,9 @@ DECLINLINE(bool) pdmR3ResetDrv(PPDMDRVINS pDrvIns, PPDMNOTIFYASYNCSTATS pAsync,
             }
             else if (pDrvIns->Internal.s.pfnAsyncNotify(pDrvIns))
             {
-                pDrvIns->Internal.s.pfnAsyncNotify = false;
                 LogFlow(("PDMR3Reset: Async notification completed - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
                          pDrvIns->pReg->szName, pDrvIns->iInstance, iLun, pszDevName, iDevInstance));
+                pDrvIns->Internal.s.pfnAsyncNotify = NULL;
             }
             if (pDrvIns->Internal.s.pfnAsyncNotify)
             {
@@ -1501,9 +1499,9 @@ DECLINLINE(bool) pdmR3SuspendDrv(PPDMDRVINS pDrvIns, PPDMNOTIFYASYNCSTATS pAsync
             }
             else if (pDrvIns->Internal.s.pfnAsyncNotify(pDrvIns))
             {
-                pDrvIns->Internal.s.pfnAsyncNotify = NULL;
                 LogFlow(("PDMR3Suspend: Async notification completed - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
                          pDrvIns->pReg->szName, pDrvIns->iInstance, iLun, pszDevName, iDevInstance));
+                pDrvIns->Internal.s.pfnAsyncNotify = NULL;
             }
 
             cNsElapsed = RTTimeNanoTS() - cNsElapsed;
@@ -1858,9 +1856,9 @@ DECLINLINE(bool) pdmR3PowerOffDrv(PPDMDRVINS pDrvIns, PPDMNOTIFYASYNCSTATS pAsyn
             }
             else if (pDrvIns->Internal.s.pfnAsyncNotify(pDrvIns))
             {
-                pDrvIns->Internal.s.pfnAsyncNotify = false;
                 LogFlow(("PDMR3PowerOff: Async notification completed - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
                          pDrvIns->pReg->szName, pDrvIns->iInstance, iLun, pszDevName, iDevInstance));
+                pDrvIns->Internal.s.pfnAsyncNotify = NULL;
             }
 
             cNsElapsed = RTTimeNanoTS() - cNsElapsed;

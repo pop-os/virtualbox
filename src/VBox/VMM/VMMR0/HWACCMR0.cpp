@@ -860,11 +860,7 @@ static int hmR0EnableCpu(PVM pVM, RTCPUID idCpu)
     pCpu->cTLBFlushes   = 0;
 
     /* Should never happen */
-    if (pCpu->hMemObj == NIL_RTR0MEMOBJ)
-    {
-        AssertLogRelMsgFailed(("hmR0EnableCpu failed idCpu=%u.\n", idCpu));
-        return VERR_INTERNAL_ERROR;
-    }
+    AssertLogRelMsgReturn(pCpu->hMemObj != NIL_RTR0MEMOBJ, ("hmR0EnableCpu failed idCpu=%u.\n", idCpu), VERR_HM_IPE_1);
 
     void    *pvCpuPage     = RTR0MemObjAddress(pCpu->hMemObj);
     RTHCPHYS HCPhysCpuPage = RTR0MemObjGetPagePhysAddr(pCpu->hMemObj, 0);
@@ -913,7 +909,7 @@ static DECLCALLBACK(int32_t) hmR0EnableAllCpuOnce(void *pvUser, void *pvUserIgno
      * Note! There is a potential race between this function and the suspend
      *       notification.  Kind of unlikely though, so ignored for now.
      */
-    AssertReturn(!g_HvmR0.fEnabled, VERR_INTERNAL_ERROR_3);
+    AssertReturn(!g_HvmR0.fEnabled, VERR_HM_ALREADY_ENABLED_IPE);
     ASMAtomicWriteBool(&g_HvmR0.fEnabled, true);
 
     /*
@@ -1462,14 +1458,10 @@ VMMR0DECL(int) HWACCMR0Leave(PVM pVM, PVMCPU pVCpu)
 
     /* Keep track of the CPU owning the VMCS for debugging scheduling weirdness
        and ring-3 calls. */
-#ifdef RT_STRICT
-    if (RT_UNLIKELY(   pVCpu->hwaccm.s.idEnteredCpu != idCpu
-                    && RT_FAILURE(rc)))
-    {
-        AssertMsgFailed(("Owner is %d, I'm %d", (int)pVCpu->hwaccm.s.idEnteredCpu, (int)idCpu));
-        rc = VERR_INTERNAL_ERROR;
-    }
-#endif
+    AssertMsgStmt(   pVCpu->hwaccm.s.idEnteredCpu == idCpu
+                  || RT_FAILURE_NP(rc),
+                  ("Owner is %u, I'm %u", pVCpu->hwaccm.s.idEnteredCpu, idCpu),
+                  rc = VERR_HM_WRONG_CPU_1);
     pVCpu->hwaccm.s.idEnteredCpu = NIL_RTCPUID;
 
     /*
@@ -1698,12 +1690,11 @@ VMMR0DECL(int) HWACCMR0EnterSwitcher(PVM pVM, bool *pfVTxDisabled)
             break;                  /* unsafe switchers */
 
         default:
-            AssertFailed();
-            return VERR_INTERNAL_ERROR;
+            AssertFailedReturn(VERR_HM_WRONG_SWITCHER);
     }
 
     PHMGLOBLCPUINFO pCpu = HWACCMR0GetCurrentCpu();
-    AssertReturn(pCpu && pCpu->hMemObj != NIL_RTR0MEMOBJ, VERR_INTERNAL_ERROR);
+    AssertReturn(pCpu && pCpu->hMemObj != NIL_RTR0MEMOBJ, VERR_HM_IPE_2);
 
     *pfVTxDisabled = true;
     void    *pvCpuPage     = RTR0MemObjAddress(pCpu->hMemObj);
@@ -1732,7 +1723,7 @@ VMMR0DECL(int) HWACCMR0LeaveSwitcher(PVM pVM, bool fVTxDisabled)
     Assert(g_HvmR0.fGlobalInit);
 
     PHMGLOBLCPUINFO pCpu = HWACCMR0GetCurrentCpu();
-    AssertReturn(pCpu && pCpu->hMemObj != NIL_RTR0MEMOBJ, VERR_INTERNAL_ERROR);
+    AssertReturn(pCpu && pCpu->hMemObj != NIL_RTR0MEMOBJ, VERR_HM_IPE_2);
 
     void           *pvCpuPage     = RTR0MemObjAddress(pCpu->hMemObj);
     RTHCPHYS        HCPhysCpuPage = RTR0MemObjGetPagePhysAddr(pCpu->hMemObj, 0);

@@ -5171,15 +5171,15 @@ HRESULT Console::getGuestProperty(IN_BSTR aName, BSTR *aValue,
     {
         VBOXHGCMSVCPARM parm[4];
         Utf8Str Utf8Name = aName;
-        char pszBuffer[MAX_VALUE_LEN + MAX_FLAGS_LEN];
+        char szBuffer[MAX_VALUE_LEN + MAX_FLAGS_LEN];
 
         parm[0].type = VBOX_HGCM_SVC_PARM_PTR;
         parm[0].u.pointer.addr = (void*)Utf8Name.c_str();
         /* The + 1 is the null terminator */
         parm[0].u.pointer.size = (uint32_t)Utf8Name.length() + 1;
         parm[1].type = VBOX_HGCM_SVC_PARM_PTR;
-        parm[1].u.pointer.addr = pszBuffer;
-        parm[1].u.pointer.size = sizeof(pszBuffer);
+        parm[1].u.pointer.addr = szBuffer;
+        parm[1].u.pointer.size = sizeof(szBuffer);
         int vrc = m_pVMMDev->hgcmHostCall("VBoxGuestPropSvc", GET_PROP_HOST,
                                           4, &parm[0]);
         /* The returned string should never be able to be greater than our buffer */
@@ -5190,7 +5190,7 @@ HRESULT Console::getGuestProperty(IN_BSTR aName, BSTR *aValue,
             rc = S_OK;
             if (vrc != VERR_NOT_FOUND)
             {
-                Utf8Str strBuffer(pszBuffer);
+                Utf8Str strBuffer(szBuffer);
                 strBuffer.cloneTo(aValue);
 
                 if (aTimestamp)
@@ -5199,7 +5199,7 @@ HRESULT Console::getGuestProperty(IN_BSTR aName, BSTR *aValue,
                 if (aFlags)
                 {
                     size_t iFlags = strBuffer.length() + 1;
-                    Utf8Str(pszBuffer + iFlags).cloneTo(aFlags);
+                    Utf8Str(szBuffer + iFlags).cloneTo(aFlags);
                 }
             }
             else
@@ -7128,9 +7128,15 @@ HRESULT Console::createSharedFolder(const Utf8Str &strName, const SharedFolderDa
     AssertReturn(mpUVM, E_FAIL);
     AssertReturn(m_pVMMDev && m_pVMMDev->isShFlActive(), E_FAIL);
 
-    VBOXHGCMSVCPARM parms[SHFL_CPARMS_ADD_MAPPING2];
+    VBOXHGCMSVCPARM parms[SHFL_CPARMS_ADD_MAPPING];
     SHFLSTRING *pFolderName, *pMapName;
     size_t cbString;
+
+    Bstr value;
+    HRESULT hrc = mMachine->GetExtraData(BstrFmt("VBoxInternal2/SharedFoldersEnableSymlinksCreate/%s",
+                                                 strName.c_str()).raw(),
+                                         value.asOutParam());
+    bool fSymlinksCreate = hrc == S_OK && value == "1";
 
     Log(("Adding shared folder '%s' -> '%s'\n", strName.c_str(), aData.m_strHostPath.c_str()));
 
@@ -7191,20 +7197,13 @@ HRESULT Console::createSharedFolder(const Utf8Str &strName, const SharedFolderDa
     parms[1].u.pointer.size = sizeof(SHFLSTRING) + (uint16_t)cbString;
 
     parms[2].type = VBOX_HGCM_SVC_PARM_32BIT;
-    parms[2].u.uint32 = aData.m_fWritable;
-
-    /*
-     * Auto-mount flag; is indicated by using the SHFL_CPARMS_ADD_MAPPING2
-     * define below.  This shows the host service that we have supplied
-     * an additional parameter (auto-mount) and keeps the actual command
-     * backwards compatible.
-     */
-    parms[3].type = VBOX_HGCM_SVC_PARM_32BIT;
-    parms[3].u.uint32 = aData.m_fAutoMount;
+    parms[2].u.uint32 = (aData.m_fWritable ? SHFL_ADD_MAPPING_F_WRITABLE : 0)
+                      | (aData.m_fAutoMount ? SHFL_ADD_MAPPING_F_AUTOMOUNT : 0)
+                      | (fSymlinksCreate ? SHFL_ADD_MAPPING_F_CREATE_SYMLINKS : 0);
 
     vrc = m_pVMMDev->hgcmHostCall("VBoxSharedFolders",
                                   SHFL_FN_ADD_MAPPING,
-                                  SHFL_CPARMS_ADD_MAPPING2, &parms[0]);
+                                  SHFL_CPARMS_ADD_MAPPING, &parms[0]);
     RTMemFree(pFolderName);
     RTMemFree(pMapName);
 
@@ -8262,10 +8261,10 @@ void Console::detachAllUSBDevices(bool aDone)
 /**
  * @note Locks this object for writing.
  */
-void Console::processRemoteUSBDevices(uint32_t u32ClientId, VRDEUSBDEVICEDESC *pDevList, uint32_t cbDevList)
+void Console::processRemoteUSBDevices(uint32_t u32ClientId, VRDEUSBDEVICEDESC *pDevList, uint32_t cbDevList, bool fDescExt)
 {
     LogFlowThisFuncEnter();
-    LogFlowThisFunc(("u32ClientId = %d, pDevList=%p, cbDevList = %d\n", u32ClientId, pDevList, cbDevList));
+    LogFlowThisFunc(("u32ClientId = %d, pDevList=%p, cbDevList = %d, fDescExt = %d\n", u32ClientId, pDevList, cbDevList, fDescExt));
 
     AutoCaller autoCaller(this);
     if (!autoCaller.isOk())
@@ -8336,7 +8335,7 @@ void Console::processRemoteUSBDevices(uint32_t u32ClientId, VRDEUSBDEVICEDESC *p
             /* Create the device object and add the new device to list. */
             ComObjPtr<RemoteUSBDevice> pUSBDevice;
             pUSBDevice.createObject();
-            pUSBDevice->init(u32ClientId, e);
+            pUSBDevice->init(u32ClientId, e, fDescExt);
 
             mRemoteUSBDevices.push_back(pUSBDevice);
 
@@ -9558,26 +9557,29 @@ DECLCALLBACK(int) Console::drvStatus_MediumEjected(PPDMIMEDIANOTIFY pInterface, 
         Assert(!pMediumAtt.isNull());
         if (!pMediumAtt.isNull())
         {
-            IMedium *pMedium;
+            IMedium *pMedium = NULL;
             HRESULT rc = pMediumAtt->COMGETTER(Medium)(&pMedium);
             AssertComRC(rc);
-            BOOL fHostDrive = FALSE;
-            rc = pMedium->COMGETTER(HostDrive)(&fHostDrive);
-            AssertComRC(rc);
-            if (!fHostDrive)
+            if (SUCCEEDED(rc) && pMedium)
             {
-                alock.release();
-
-                ComPtr<IMediumAttachment> pNewMediumAtt;
-                rc = pData->pConsole->mControl->EjectMedium(pMediumAtt, pNewMediumAtt.asOutParam());
-                if (SUCCEEDED(rc))
-                    fireMediumChangedEvent(pData->pConsole->mEventSource, pNewMediumAtt);
-
-                alock.acquire();
-                if (pNewMediumAtt != pMediumAtt)
+                BOOL fHostDrive = FALSE;
+                rc = pMedium->COMGETTER(HostDrive)(&fHostDrive);
+                AssertComRC(rc);
+                if (!fHostDrive)
                 {
-                    pData->pmapMediumAttachments->erase(devicePath);
-                    pData->pmapMediumAttachments->insert(std::make_pair(devicePath, pNewMediumAtt));
+                    alock.release();
+
+                    ComPtr<IMediumAttachment> pNewMediumAtt;
+                    rc = pData->pConsole->mControl->EjectMedium(pMediumAtt, pNewMediumAtt.asOutParam());
+                    if (SUCCEEDED(rc))
+                        fireMediumChangedEvent(pData->pConsole->mEventSource, pNewMediumAtt);
+
+                    alock.acquire();
+                    if (pNewMediumAtt != pMediumAtt)
+                    {
+                        pData->pmapMediumAttachments->erase(devicePath);
+                        pData->pmapMediumAttachments->insert(std::make_pair(devicePath, pNewMediumAtt));
+                    }
                 }
             }
         }

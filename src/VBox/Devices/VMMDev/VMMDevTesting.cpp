@@ -336,22 +336,16 @@ int vmmdevTestingInitialize(PPDMDEVINS pDevIns)
      * tests interfaces.
      */
     int rc = PDMDevHlpMMIORegister(pDevIns, VMMDEV_TESTING_MMIO_BASE, VMMDEV_TESTING_MMIO_SIZE, NULL /*pvUser*/,
-                                   vmmdevTestingMmioWrite,
-                                   vmmdevTestingMmioRead,
-                                   NULL /*pfnFill*/,
-                                   "VMMDev Testing");
+                                   IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU,
+                                   vmmdevTestingMmioWrite, vmmdevTestingMmioRead, "VMMDev Testing");
     AssertRCReturn(rc, rc);
     if (pThis->fRZEnabled)
     {
         rc = PDMDevHlpMMIORegisterR0(pDevIns, VMMDEV_TESTING_MMIO_BASE, VMMDEV_TESTING_MMIO_SIZE, NIL_RTR0PTR /*pvUser*/,
-                                     "vmmdevTestingMmioWrite",
-                                     "vmmdevTestingMmioRead",
-                                     NULL /*pszFill*/);
+                                     "vmmdevTestingMmioWrite", "vmmdevTestingMmioRead");
         AssertRCReturn(rc, rc);
         rc = PDMDevHlpMMIORegisterRC(pDevIns, VMMDEV_TESTING_MMIO_BASE, VMMDEV_TESTING_MMIO_SIZE, NIL_RTRCPTR /*pvUser*/,
-                                     "vmmdevTestingMmioWrite",
-                                     "vmmdevTestingMmioRead",
-                                     NULL /*pszFill*/);
+                                     "vmmdevTestingMmioWrite", "vmmdevTestingMmioRead");
         AssertRCReturn(rc, rc);
     }
 

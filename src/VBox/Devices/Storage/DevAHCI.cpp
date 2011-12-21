@@ -2489,23 +2489,22 @@ static DECLCALLBACK(int) ahciR3MMIOMap(PPCIDEVICE pPciDev, /*unsigned*/ int iReg
     Assert(cb >= 4352);
 
     /* We use the assigned size here, because we currently only support page aligned MMIO ranges. */
-    rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress, cb, NULL,
-                               ahciMMIOWrite, ahciMMIORead, NULL, "AHCI");
+    rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress, cb, NULL /*pvUser*/,
+                               IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU,
+                               ahciMMIOWrite, ahciMMIORead, "AHCI");
     if (RT_FAILURE(rc))
         return rc;
 
     if (pThis->fR0Enabled)
     {
-        rc = PDMDevHlpMMIORegisterR0(pDevIns, GCPhysAddress, cb, 0,
-                                     "ahciMMIOWrite", "ahciMMIORead", NULL);
+        rc = PDMDevHlpMMIORegisterR0(pDevIns, GCPhysAddress, cb, NIL_RTR0PTR /*pvUser*/, "ahciMMIOWrite", "ahciMMIORead");
         if (RT_FAILURE(rc))
             return rc;
     }
 
     if (pThis->fGCEnabled)
     {
-        rc = PDMDevHlpMMIORegisterRC(pDevIns, GCPhysAddress, cb, 0,
-                                     "ahciMMIOWrite", "ahciMMIORead", NULL);
+        rc = PDMDevHlpMMIORegisterRC(pDevIns, GCPhysAddress, cb, NIL_RTRCPTR /*pvUser*/, "ahciMMIOWrite", "ahciMMIORead");
         if (RT_FAILURE(rc))
             return rc;
     }
@@ -4390,9 +4389,9 @@ static AHCITXDIR atapiParseCmdVirtualATAPI(PAHCIPort pAhciPort, PAHCIPORTTASKSTA
                         PAHCI pAhci = pAhciPort->CTX_SUFF(pAhci);
                         PPDMDEVINS pDevIns = pAhci->CTX_SUFF(pDevIns);
 
-                        rc2 = VMR3ReqCallWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
-                                              (PFNRT)pAhciPort->pDrvMount->pfnUnmount, 3,
-                                              pAhciPort->pDrvMount, false/*=fForce*/, true/*=fEject*/);
+                        rc2 = VMR3ReqPriorityCallWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
+                                                      (PFNRT)pAhciPort->pDrvMount->pfnUnmount, 3,
+                                                      pAhciPort->pDrvMount, false/*=fForce*/, true/*=fEject*/);
                         Assert(RT_SUCCESS(rc2) || (rc2 == VERR_PDM_MEDIA_LOCKED) || (rc2 = VERR_PDM_MEDIA_NOT_MOUNTED));
                         if (RT_SUCCESS(rc) && pAhci->pMediaNotify)
                         {

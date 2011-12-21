@@ -3840,49 +3840,51 @@ static DECLCALLBACK(int) lsilogicMap(PPCIDEVICE pPciDev, /*unsigned*/ int iRegio
     if ((enmType == PCI_ADDRESS_SPACE_MEM) && (iRegion == 1))
     {
         /* We use the assigned size here, because we currently only support page aligned MMIO ranges. */
-        rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress, cb, NULL,
-                                   lsilogicMMIOWrite, lsilogicMMIORead, NULL, pcszCtrl);
+        rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress, cb, NULL /*pvUser*/,
+                                   IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU,
+                                   lsilogicMMIOWrite, lsilogicMMIORead, pcszCtrl);
         if (RT_FAILURE(rc))
             return rc;
 
         if (pThis->fR0Enabled)
         {
-            rc = PDMDevHlpMMIORegisterR0(pDevIns, GCPhysAddress, cb, 0,
-                                         "lsilogicMMIOWrite", "lsilogicMMIORead", NULL);
+            rc = PDMDevHlpMMIORegisterR0(pDevIns, GCPhysAddress, cb, NIL_RTR0PTR /*pvUser*/,
+                                         "lsilogicMMIOWrite", "lsilogicMMIORead");
             if (RT_FAILURE(rc))
                 return rc;
         }
 
         if (pThis->fGCEnabled)
         {
-            rc = PDMDevHlpMMIORegisterRC(pDevIns, GCPhysAddress, cb, 0,
-                                         "lsilogicMMIOWrite", "lsilogicMMIORead", NULL);
+            rc = PDMDevHlpMMIORegisterRC(pDevIns, GCPhysAddress, cb, NIL_RTRCPTR /*pvUser*/,
+                                         "lsilogicMMIOWrite", "lsilogicMMIORead");
             if (RT_FAILURE(rc))
                 return rc;
         }
 
         pThis->GCPhysMMIOBase = GCPhysAddress;
     }
-    else if ((enmType == PCI_ADDRESS_SPACE_MEM) && (iRegion == 2))
+    else if (enmType == PCI_ADDRESS_SPACE_MEM && iRegion == 2)
     {
         /* We use the assigned size here, because we currently only support page aligned MMIO ranges. */
-        rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress, cb, NULL,
-                                   lsilogicDiagnosticWrite, lsilogicDiagnosticRead, NULL, pcszDiag);
+        rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress, cb, NULL /*pvUser*/,
+                                   IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU,
+                                   lsilogicDiagnosticWrite, lsilogicDiagnosticRead, pcszDiag);
         if (RT_FAILURE(rc))
             return rc;
 
         if (pThis->fR0Enabled)
         {
-            rc = PDMDevHlpMMIORegisterR0(pDevIns, GCPhysAddress, cb, 0,
-                                         "lsilogicDiagnosticWrite", "lsilogicDiagnosticRead", NULL);
+            rc = PDMDevHlpMMIORegisterR0(pDevIns, GCPhysAddress, cb, NIL_RTR0PTR /*pvUser*/,
+                                         "lsilogicDiagnosticWrite", "lsilogicDiagnosticRead");
             if (RT_FAILURE(rc))
                 return rc;
         }
 
         if (pThis->fGCEnabled)
         {
-            rc = PDMDevHlpMMIORegisterRC(pDevIns, GCPhysAddress, cb, 0,
-                                         "lsilogicDiagnosticWrite", "lsilogicDiagnosticRead", NULL);
+            rc = PDMDevHlpMMIORegisterRC(pDevIns, GCPhysAddress, cb, NIL_RTRCPTR /*pvUser*/,
+                                         "lsilogicDiagnosticWrite", "lsilogicDiagnosticRead");
             if (RT_FAILURE(rc))
                 return rc;
         }

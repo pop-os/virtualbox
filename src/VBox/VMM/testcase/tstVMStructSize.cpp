@@ -201,6 +201,8 @@ int main()
     PRINT_OFFSET(VM, cpum);
     CHECK_PADDING_VM(64, cpum);
     CHECK_PADDING_VM(64, vmm);
+    PRINT_OFFSET(VM, pgm);
+    PRINT_OFFSET(VM, pgm.s.CritSectX);
     CHECK_PADDING_VM(64, pgm);
     CHECK_PADDING_VM(64, hwaccm);
     CHECK_PADDING_VM(64, trpm);
@@ -379,7 +381,7 @@ int main()
 
     CHECK_MEMBER_ALIGNMENT(IOM, CritSect, sizeof(uintptr_t));
     CHECK_MEMBER_ALIGNMENT(EM, CritSectREM, sizeof(uintptr_t));
-    CHECK_MEMBER_ALIGNMENT(PGM, CritSect, sizeof(uintptr_t));
+    CHECK_MEMBER_ALIGNMENT(PGM, CritSectX, sizeof(uintptr_t));
     CHECK_MEMBER_ALIGNMENT(PDM, CritSect, sizeof(uintptr_t));
     CHECK_MEMBER_ALIGNMENT(MMHYPERHEAP, Lock, sizeof(uintptr_t));
 

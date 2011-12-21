@@ -10,6 +10,7 @@
 #include "cr_spu.h"
 
 #ifdef CHROMIUM_THREADSAFE
+static bool __isContextTLSInited = false;
 CRtsd __contextTSD;
 #else
 CRContext *__currentContext = NULL;
@@ -144,6 +145,15 @@ crStateSetSharedContext(CRContext *pCtx)
     gSharedState = pCtx->shared;
 }
 
+#ifdef CHROMIUM_THREADSAFE
+static void
+crStateFreeContext(CRContext *ctx);
+static DECLCALLBACK(void) crStateContextDtor(void *pvCtx)
+{
+    crStateFreeContext((CRContext*)pvCtx);
+}
+#endif
+
 /*
  * Helper for crStateCreateContext, below.
  */
@@ -157,6 +167,9 @@ crStateCreateContextId(int i, const CRLimitsState *limits,
     int node = i & 0x1f;
 
     ctx->id = i;
+#ifdef CHROMIUM_THREADSAFE
+    VBoxTlsRefInit(ctx, crStateContextDtor);
+#endif
     ctx->flush_func = NULL;
     for (j=0;j<CR_MAX_BITARRAY;j++){
         if (j == node32) {
@@ -278,6 +291,15 @@ crStateFreeContext(CRContext *ctx)
     crFree( ctx );
 }
 
+#ifdef CHROMIUM_THREADSAFE
+# ifndef RT_OS_WINDOWS
+static DECLCALLBACK(void) crStateThreadTlsDtor(void *pvValue)
+{
+    CRContext *pCtx = (CRContext*)pvValue;
+    VBoxTlsRefRelease(pCtx);
+}
+# endif
+#endif
 
 /*
  * Allocate the state (dirty) bits data structures.
@@ -303,13 +325,28 @@ void crStateInit(void)
     for (i=0;i<CR_MAX_CONTEXTS;i++)
         g_availableContexts[i] = 0;
 
+#ifdef CHROMIUM_THREADSAFE
+    if (!__isContextTLSInited)
+    {
+# ifndef RT_OS_WINDOWS
+        /* tls destructor is implemented for all platforms except windows*/
+        crInitTSDF(&__contextTSD, crStateThreadTlsDtor);
+# else
+        /* windows should do cleanup via DllMain THREAD_DETACH notification */
+        crInitTSD(&__contextTSD);
+# endif
+        __isContextTLSInited = 1;
+    }
+#endif
+
     if (defaultContext) {
         /* Free the default/NULL context.
          * Ensures context bits are reset */
-        crStateFreeContext(defaultContext);
 #ifdef CHROMIUM_THREADSAFE
-        crSetTSD(&__contextTSD, NULL);
+        SetCurrentContext(NULL);
+        VBoxTlsRefRelease(defaultContext);
 #else
+        crStateFreeContext(defaultContext);
         __currentContext = NULL;
 #endif
     }
@@ -323,7 +360,7 @@ void crStateInit(void)
     g_availableContexts[0] = 1; /* in use forever */
 
 #ifdef CHROMIUM_THREADSAFE
-    crSetTSD(&__contextTSD, defaultContext);
+    SetCurrentContext(defaultContext);
 #else
     __currentContext = defaultContext;
 #endif
@@ -341,6 +378,7 @@ void crStateDestroy(void)
 
 #ifdef CHROMIUM_THREADSAFE
     crFreeTSD(&__contextTSD);
+    __isContextTLSInited = 0;
 #endif
 }
 
@@ -433,7 +471,7 @@ void crStateDestroyContext( CRContext *ctx )
         if (diff_api.AlphaFunc)
             crStateSwitchContext(current, defaultContext);
 #ifdef CHROMIUM_THREADSAFE
-        crSetTSD(&__contextTSD, defaultContext);
+        SetCurrentContext(defaultContext);
 #else
         __currentContext = defaultContext;
 #endif
@@ -442,7 +480,11 @@ void crStateDestroyContext( CRContext *ctx )
     }
     g_availableContexts[ctx->id] = 0;
 
+#ifdef CHROMIUM_THREADSAFE
+    VBoxTlsRefRelease(ctx);
+#else
     crStateFreeContext(ctx);
+#endif
 }
 
 
@@ -466,7 +508,7 @@ void crStateMakeCurrent( CRContext *ctx )
     }
 
 #ifdef CHROMIUM_THREADSAFE
-    crSetTSD(&__contextTSD, ctx);
+    SetCurrentContext(ctx);
 #else
     __currentContext = ctx;
 #endif
@@ -492,7 +534,7 @@ void crStateSetCurrent( CRContext *ctx )
     CRASSERT(ctx);
 
 #ifdef CHROMIUM_THREADSAFE
-    crSetTSD(&__contextTSD, ctx);
+    SetCurrentContext(ctx);
 #else
     __currentContext = ctx;
 #endif
@@ -548,3 +590,11 @@ crStateReadPixels( GLint x, GLint y, GLsizei width, GLsizei height,
     /* This no-op function helps smooth code-gen */
 }
 
+void crStateOnThreadAttachDetach(GLboolean attach)
+{
+    if (attach)
+        return;
+
+    /* release the context ref so that it can be freed */
+    SetCurrentContext(NULL);
+}

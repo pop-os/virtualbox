@@ -68,46 +68,6 @@
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
-/**
- * Generic pointer union.
- * @todo move me to iprt/types.h
- */
-typedef union RTPTRUNION
-{
-    /** Pointer into the void... */
-    void        *pv;
-    /** Pointer to a 8-bit unsigned value. */
-    uint8_t     *pu8;
-    /** Pointer to a 16-bit unsigned value. */
-    uint16_t    *pu16;
-    /** Pointer to a 32-bit unsigned value. */
-    uint32_t    *pu32;
-    /** Pointer to a 64-bit unsigned value. */
-    uint64_t    *pu64;
-} RTPTRUNION;
-/** Pointer to a pointer union. */
-typedef RTPTRUNION *PRTPTRUNION;
-
-/**
- * Generic const pointer union.
- * @todo move me to iprt/types.h
- */
-typedef union RTCPTRUNION
-{
-    /** Pointer into the void... */
-    void const       *pv;
-    /** Pointer to a 8-bit unsigned value. */
-    uint8_t const     *pu8;
-    /** Pointer to a 16-bit unsigned value. */
-    uint16_t const    *pu16;
-    /** Pointer to a 32-bit unsigned value. */
-    uint32_t const    *pu32;
-    /** Pointer to a 64-bit unsigned value. */
-    uint64_t const    *pu64;
-} RTCPTRUNION;
-/** Pointer to a const pointer union. */
-typedef RTCPTRUNION *PRTCPTRUNION;
-
 /** @typedef PFNIEMOP
  * Pointer to an opcode decoder function.
  */
@@ -193,7 +153,7 @@ typedef IEMSELDESC *PIEMSELDESC;
 
 /** Used to shut up GCC warnings about variables that 'may be used uninitialized'
  * due to GCC lacking knowledge about the value range of a switch. */
-#define IEM_NOT_REACHED_DEFAULT_CASE_RET() default: AssertFailedReturn(VERR_INTERNAL_ERROR_4)
+#define IEM_NOT_REACHED_DEFAULT_CASE_RET() default: AssertFailedReturn(VERR_IPE_NOT_REACHED_DEFAULT_CASE)
 
 /**
  * Call an opcode decoder function.

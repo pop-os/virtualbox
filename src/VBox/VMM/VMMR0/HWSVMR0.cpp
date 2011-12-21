@@ -278,7 +278,7 @@ VMMR0DECL(int) SVMR0SetupVM(PVM pVM)
         PVMCPU    pVCpu = &pVM->aCpus[i];
         SVM_VMCB *pVMCB = (SVM_VMCB *)pVM->aCpus[i].hwaccm.s.svm.pVMCB;
 
-        AssertMsgReturn(pVMCB, ("Invalid pVMCB\n"), VERR_EM_INTERNAL_ERROR);
+        AssertMsgReturn(pVMCB, ("Invalid pVMCB\n"), VERR_HMSVM_INVALID_PVMCB);
 
         /* Program the control fields. Most of them never have to be changed again. */
         /* CR0/3/4 reads must be intercepted, our shadow values are not necessarily the same as the guest's. */
@@ -658,7 +658,7 @@ VMMR0DECL(int) SVMR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     Assert(pVM->hwaccm.s.svm.fSupported);
 
     pVMCB = (SVM_VMCB *)pVCpu->hwaccm.s.svm.pVMCB;
-    AssertMsgReturn(pVMCB, ("Invalid pVMCB\n"), VERR_EM_INTERNAL_ERROR);
+    AssertMsgReturn(pVMCB, ("Invalid pVMCB\n"), VERR_HMSVM_INVALID_PVMCB);
 
     /* Guest CPU context: ES, CS, SS, DS, FS, GS. */
     if (pVCpu->hwaccm.s.fContextUseFlags & HWACCM_CHANGED_GUEST_SEGMENT_REGS)
@@ -976,7 +976,7 @@ VMMR0DECL(int) SVMR0RunGuestCode(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 #endif
 
     pVMCB = (SVM_VMCB *)pVCpu->hwaccm.s.svm.pVMCB;
-    AssertMsgReturn(pVMCB, ("Invalid pVMCB\n"), VERR_EM_INTERNAL_ERROR);
+    AssertMsgReturn(pVMCB, ("Invalid pVMCB\n"), VERR_HMSVM_INVALID_PVMCB);
 
     /* We can jump to this point to resume execution after determining that a VM-exit is innocent.
      */
@@ -1847,7 +1847,7 @@ ResumeExecution:
 #endif
         default:
             AssertMsgFailed(("Unexpected vm-exit caused by exception %x\n", vector));
-            rc = VERR_EM_INTERNAL_ERROR;
+            rc = VERR_HMSVM_UNEXPECTED_XCPT_EXIT;
             break;
 
         } /* switch (vector) */
@@ -2513,7 +2513,7 @@ ResumeExecution:
     case SVM_EXIT_CR0_SEL_WRITE:
     default:
         /* Unexpected exit codes. */
-        rc = VERR_EM_INTERNAL_ERROR;
+        rc = VERR_HMSVM_UNEXPECTED_EXIT;
         AssertMsgFailed(("Unexpected exit code %x\n", exitCode));                 /* Can't happen. */
         break;
     }
@@ -2617,7 +2617,7 @@ static int svmR0EmulateTprVMMCall(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
             pCtx->rip += pPatch->cbOp;
             break;
         default:
-            AssertMsgFailedReturn(("Unexpected type %d\n", pPatch->enmType), VERR_INTERNAL_ERROR);
+            AssertMsgFailedReturn(("Unexpected type %d\n", pPatch->enmType), VERR_HMSVM_UNEXPECTED_PATCH_TYPE);
         }
     }
     return VINF_SUCCESS;
@@ -2789,7 +2789,7 @@ VMMR0DECL(int) SVMR0InvalidatePage(PVM pVM, PVMCPU pVCpu, RTGCPTR GCVirt)
         Assert(pVM->hwaccm.s.svm.fSupported);
 
         pVMCB = (SVM_VMCB *)pVCpu->hwaccm.s.svm.pVMCB;
-        AssertMsgReturn(pVMCB, ("Invalid pVMCB\n"), VERR_EM_INTERNAL_ERROR);
+        AssertMsgReturn(pVMCB, ("Invalid pVMCB\n"), VERR_HMSVM_INVALID_PVMCB);
 
 #if HC_ARCH_BITS == 32
         /* If we get a flush in 64 bits guest mode, then force a full TLB flush. Invlpga takes only 32 bits addresses. */

@@ -104,7 +104,7 @@ static SHFLROOT vbsfMappingGetRootFromIndex(SHFLROOT iMapping)
     return SHFL_ROOT_NIL;
 }
 
-static MAPPING *vbsfMappingGetByName (PRTUTF16 utf16Name, SHFLROOT *pRoot)
+static MAPPING *vbsfMappingGetByName (PRTUTF16 pwszName, SHFLROOT *pRoot)
 {
     unsigned i;
 
@@ -112,7 +112,7 @@ static MAPPING *vbsfMappingGetByName (PRTUTF16 utf16Name, SHFLROOT *pRoot)
     {
         if (FolderMapping[i].fValid == true)
         {
-            if (!RTUtf16LocaleICmp(FolderMapping[i].pMapName->String.ucs2, utf16Name))
+            if (!RTUtf16LocaleICmp(FolderMapping[i].pMapName->String.ucs2, pwszName))
             {
                 SHFLROOT root = vbsfMappingGetRootFromIndex(i);
 
@@ -173,7 +173,7 @@ static void vbsfRootHandleRemove(SHFLROOT iMapping)
  * We are always executed from one specific HGCM thread. So thread safe.
  */
 int vbsfMappingsAdd(PSHFLSTRING pFolderName, PSHFLSTRING pMapName,
-                    uint32_t fWritable, uint32_t fAutoMount)
+                    bool fWritable, bool fAutoMount, bool fSymlinksCreate)
 {
     unsigned i;
 
@@ -198,47 +198,39 @@ int vbsfMappingsAdd(PSHFLSTRING pFolderName, PSHFLSTRING pMapName,
     {
         if (FolderMapping[i].fValid == false)
         {
-            FolderMapping[i].pFolderName = (PSHFLSTRING)RTMemAlloc(ShflStringSizeOfBuffer(pFolderName));
-            Assert(FolderMapping[i].pFolderName);
-            if (FolderMapping[i].pFolderName == NULL)
-                return VERR_NO_MEMORY;
-
-            FolderMapping[i].pFolderName->u16Length = pFolderName->u16Length;
-            FolderMapping[i].pFolderName->u16Size   = pFolderName->u16Size;
-            memcpy(FolderMapping[i].pFolderName->String.ucs2, pFolderName->String.ucs2, pFolderName->u16Size);
+            int rc = RTUtf16ToUtf8(pFolderName->String.ucs2, &FolderMapping[i].pszFolderName);
+            AssertRCReturn(rc, rc);
 
             FolderMapping[i].pMapName = (PSHFLSTRING)RTMemAlloc(ShflStringSizeOfBuffer(pMapName));
-            Assert(FolderMapping[i].pMapName);
-            if (FolderMapping[i].pMapName == NULL)
+            if (!FolderMapping[i].pMapName)
+            {
+                RTStrFree(FolderMapping[i].pszFolderName);
+                AssertFailed();
                 return VERR_NO_MEMORY;
+            }
 
             FolderMapping[i].pMapName->u16Length = pMapName->u16Length;
             FolderMapping[i].pMapName->u16Size   = pMapName->u16Size;
             memcpy(FolderMapping[i].pMapName->String.ucs2, pMapName->String.ucs2, pMapName->u16Size);
 
-            FolderMapping[i].fValid     = true;
-            FolderMapping[i].cMappings  = 0;
-            FolderMapping[i].fWritable  = !!fWritable;
-            FolderMapping[i].fAutoMount = !!fAutoMount;
+            FolderMapping[i].fValid          = true;
+            FolderMapping[i].cMappings       = 0;
+            FolderMapping[i].fWritable       = fWritable;
+            FolderMapping[i].fAutoMount      = fAutoMount;
+            FolderMapping[i].fSymlinksCreate = fSymlinksCreate;
 
             /* Check if the host file system is case sensitive */
             RTFSPROPERTIES prop;
-            char *utf8Root, *asciiroot;
+            char *pszAsciiRoot;
 
-            int rc = RTUtf16ToUtf8(FolderMapping[i].pFolderName->String.ucs2, &utf8Root);
-            AssertRC(rc);
-
+            rc = RTStrUtf8ToCurrentCP(&pszAsciiRoot, FolderMapping[i].pszFolderName);
             if (RT_SUCCESS(rc))
             {
-                rc = RTStrUtf8ToCurrentCP(&asciiroot, utf8Root);
-                if (RT_SUCCESS(rc))
-                {
-                    rc = RTFsQueryProperties(asciiroot, &prop);
-                    AssertRC(rc);
-                    RTStrFree(asciiroot);
-                }
-                RTStrFree(utf8Root);
+                rc = RTFsQueryProperties(pszAsciiRoot, &prop);
+                AssertRC(rc);
+                RTStrFree(pszAsciiRoot);
             }
+
             FolderMapping[i].fHostCaseSensitive = RT_SUCCESS(rc) ? prop.fCaseSensitive : false;
             vbsfRootHandleAdd(i);
             break;
@@ -273,11 +265,11 @@ int vbsfMappingsRemove(PSHFLSTRING pMapName)
                     return VERR_PERMISSION_DENIED;
                 }
 
-                RTMemFree(FolderMapping[i].pFolderName);
+                RTStrFree(FolderMapping[i].pszFolderName);
                 RTMemFree(FolderMapping[i].pMapName);
-                FolderMapping[i].pFolderName = NULL;
-                FolderMapping[i].pMapName    = NULL;
-                FolderMapping[i].fValid      = false;
+                FolderMapping[i].pszFolderName = NULL;
+                FolderMapping[i].pMapName      = NULL;
+                FolderMapping[i].fValid        = false;
                 vbsfRootHandleRemove(i);
                 break;
             }
@@ -293,40 +285,24 @@ int vbsfMappingsRemove(PSHFLSTRING pMapName)
     return VINF_SUCCESS;
 }
 
-PCRTUTF16 vbsfMappingsQueryHostRoot(SHFLROOT root, uint32_t *pcbRoot)
+const char* vbsfMappingsQueryHostRoot(SHFLROOT root)
 {
     MAPPING *pFolderMapping = vbsfMappingGetByRoot(root);
-    if (pFolderMapping == NULL)
-    {
-        AssertFailed();
-        return NULL;
-    }
-
-    *pcbRoot = pFolderMapping->pFolderName->u16Size;
-    return &pFolderMapping->pFolderName->String.ucs2[0];
+    AssertReturn(pFolderMapping, NULL);
+    return pFolderMapping->pszFolderName;
 }
 
 bool vbsfIsGuestMappingCaseSensitive(SHFLROOT root)
 {
     MAPPING *pFolderMapping = vbsfMappingGetByRoot(root);
-    if (pFolderMapping == NULL)
-    {
-        AssertFailed();
-        return false;
-    }
-
+    AssertReturn(pFolderMapping, false);
     return pFolderMapping->fGuestCaseSensitive;
 }
 
 bool vbsfIsHostMappingCaseSensitive(SHFLROOT root)
 {
     MAPPING *pFolderMapping = vbsfMappingGetByRoot(root);
-    if (pFolderMapping == NULL)
-    {
-        AssertFailed();
-        return false;
-    }
-
+    AssertReturn(pFolderMapping, false);
     return pFolderMapping->fHostCaseSensitive;
 }
 
@@ -412,14 +388,10 @@ int vbsfMappingsQueryWritable(PSHFLCLIENTDATA pClient, SHFLROOT root, bool *fWri
 {
     int rc = VINF_SUCCESS;
 
-    LogFlow(("vbsfMappingsQueryWritable: pClient = %p, root = %d\n",
-             pClient, root));
+    LogFlow(("vbsfMappingsQueryWritable: pClient = %p, root = %d\n", pClient, root));
 
     MAPPING *pFolderMapping = vbsfMappingGetByRoot(root);
-    if (pFolderMapping == NULL)
-    {
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertReturn(pFolderMapping, VERR_INVALID_PARAMETER);
 
     if (pFolderMapping->fValid == true)
         *fWritable = pFolderMapping->fWritable;
@@ -435,14 +407,10 @@ int vbsfMappingsQueryAutoMount(PSHFLCLIENTDATA pClient, SHFLROOT root, bool *fAu
 {
     int rc = VINF_SUCCESS;
 
-    LogFlow(("vbsfMappingsQueryAutoMount: pClient = %p, root = %d\n",
-             pClient, root));
+    LogFlow(("vbsfMappingsQueryAutoMount: pClient = %p, root = %d\n", pClient, root));
 
     MAPPING *pFolderMapping = vbsfMappingGetByRoot(root);
-    if (pFolderMapping == NULL)
-    {
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertReturn(pFolderMapping, VERR_INVALID_PARAMETER);
 
     if (pFolderMapping->fValid == true)
         *fAutoMount = pFolderMapping->fAutoMount;
@@ -454,8 +422,27 @@ int vbsfMappingsQueryAutoMount(PSHFLCLIENTDATA pClient, SHFLROOT root, bool *fAu
     return rc;
 }
 
+int vbsfMappingsQuerySymlinksCreate(PSHFLCLIENTDATA pClient, SHFLROOT root, bool *fSymlinksCreate)
+{
+    int rc = VINF_SUCCESS;
+
+    LogFlow(("vbsfMappingsQueryAutoMount: pClient = %p, root = %d\n", pClient, root));
+
+    MAPPING *pFolderMapping = vbsfMappingGetByRoot(root);
+    AssertReturn(pFolderMapping, VERR_INVALID_PARAMETER);
+
+    if (pFolderMapping->fValid == true)
+        *fSymlinksCreate = pFolderMapping->fSymlinksCreate;
+    else
+        rc = VERR_FILE_NOT_FOUND;
+
+    LogFlow(("vbsfMappingsQueryAutoMount:SymlinksCreate return rc = %Rrc\n", rc));
+
+    return rc;
+}
+
 int vbsfMapFolder(PSHFLCLIENTDATA pClient, PSHFLSTRING pszMapName,
-                  RTUTF16 delimiter, bool fCaseSensitive, SHFLROOT *pRoot)
+                  RTUTF16 pwszDelimiter, bool fCaseSensitive, SHFLROOT *pRoot)
 {
     MAPPING *pFolderMapping = NULL;
 
@@ -470,11 +457,11 @@ int vbsfMapFolder(PSHFLCLIENTDATA pClient, PSHFLSTRING pszMapName,
 
     if (pClient->PathDelimiter == 0)
     {
-        pClient->PathDelimiter = delimiter;
+        pClient->PathDelimiter = pwszDelimiter;
     }
     else
     {
-        Assert(delimiter == pClient->PathDelimiter);
+        Assert(pwszDelimiter == pClient->PathDelimiter);
     }
 
     if (BIT_FLAG(pClient->fu32Flags, SHFL_CF_UTF8))

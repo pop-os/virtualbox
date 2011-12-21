@@ -172,7 +172,7 @@ sfprov_unmount(sfp_mount_t *mnt)
  * query information about a mounted file system
  */
 int
-sfprov_get_blksize(sfp_mount_t *mnt, uint64_t *blksize)
+sfprov_get_fsinfo(sfp_mount_t *mnt, sffs_fsinfo_t *fsinfo)
 {
 	int rc;
 	SHFLVOLINFO info;
@@ -182,70 +182,121 @@ sfprov_get_blksize(sfp_mount_t *mnt, uint64_t *blksize)
 	    (SHFL_INFO_GET | SHFL_INFO_VOLUME), &bytes, (SHFLDIRINFO *)&info);
 	if (RT_FAILURE(rc))
 		return (EINVAL);
-	*blksize = info.ulBytesPerAllocationUnit;
+
+	fsinfo->blksize = info.ulBytesPerAllocationUnit;
+	fsinfo->blksused = (info.ullTotalAllocationBytes - info.ullAvailableAllocationBytes) / info.ulBytesPerAllocationUnit;
+	fsinfo->blksavail = info.ullAvailableAllocationBytes / info.ulBytesPerAllocationUnit;
+	fsinfo->maxnamesize = info.fsProperties.cbMaxComponent;
+	fsinfo->readonly = info.fsProperties.fReadOnly;
 	return (0);
 }
 
-int
-sfprov_get_blksused(sfp_mount_t *mnt, uint64_t *blksused)
+/*
+ * file/directory information conversions.
+ */
+static void
+sfprov_fmode_from_mode(RTFMODE *fMode, mode_t mode)
 {
-	int rc;
-	SHFLVOLINFO info;
-	uint32_t bytes = sizeof(SHFLVOLINFO);
+	RTFMODE m = 0;
 
-	rc = vboxCallFSInfo(&vbox_client, &mnt->map, 0,
-	    (SHFL_INFO_GET | SHFL_INFO_VOLUME), &bytes, (SHFLDIRINFO *)&info);
-	if (RT_FAILURE(rc))
-		return (EINVAL);
-	*blksused = (info.ullTotalAllocationBytes -
-	    info.ullAvailableAllocationBytes) / info.ulBytesPerAllocationUnit;
-	return (0);
+#define mode_set(r) ((mode & (S_##r)) ? RTFS_UNIX_##r : 0)
+	m  = mode_set (ISUID);
+	m |= mode_set (ISGID);
+	m |= (mode & S_ISVTX) ? RTFS_UNIX_ISTXT : 0;
+	m |= mode_set (IRUSR);
+	m |= mode_set (IWUSR);
+	m |= mode_set (IXUSR);
+	m |= mode_set (IRGRP);
+	m |= mode_set (IWGRP);
+	m |= mode_set (IXGRP);
+	m |= mode_set (IROTH);
+	m |= mode_set (IWOTH);
+	m |= mode_set (IXOTH);
+
+	if (S_ISDIR(mode))
+		m |= RTFS_TYPE_DIRECTORY;
+	else if (S_ISREG(mode))
+		m |= RTFS_TYPE_FILE;
+	else if (S_ISFIFO(mode))
+		m |= RTFS_TYPE_FIFO;
+	else if (S_ISCHR(mode))
+		m |= RTFS_TYPE_DEV_CHAR;
+	else if (S_ISBLK(mode))
+		m |= RTFS_TYPE_DEV_BLOCK;
+	else if (S_ISLNK(mode))
+		m |= RTFS_TYPE_SYMLINK;
+	else if (S_ISSOCK(mode))
+		m |= RTFS_TYPE_SOCKET;
+	else
+		m |= RTFS_TYPE_FILE;
+
+	*fMode = m;
 }
 
-int
-sfprov_get_blksavail(sfp_mount_t *mnt, uint64_t *blksavail)
+static void
+sfprov_mode_from_fmode(mode_t *mode, RTFMODE fMode)
 {
-	int rc;
-	SHFLVOLINFO info;
-	uint32_t bytes = sizeof(SHFLVOLINFO);
+	mode_t m = 0;
 
-	rc = vboxCallFSInfo(&vbox_client, &mnt->map, 0,
-	    (SHFL_INFO_GET | SHFL_INFO_VOLUME), &bytes, (SHFLDIRINFO *)&info);
-	if (RT_FAILURE(rc))
-		return (EINVAL);
-	*blksavail =
-	    info.ullAvailableAllocationBytes / info.ulBytesPerAllocationUnit;
-	return (0);
+	if (RTFS_IS_DIRECTORY(fMode))
+		m |= S_IFDIR;
+	else if (RTFS_IS_FILE(fMode))
+		m |= S_IFREG;
+	else if (RTFS_IS_FIFO(fMode))
+		m |= S_IFIFO;
+	else if (RTFS_IS_DEV_CHAR(fMode))
+		m |= S_IFCHR;
+	else if (RTFS_IS_DEV_BLOCK(fMode))
+		m |= S_IFBLK;
+	else if (RTFS_IS_SYMLINK(fMode))
+		m |= S_IFLNK;
+	else if (RTFS_IS_SOCKET(fMode))
+		m |= S_IFSOCK;
+
+	if (fMode & RTFS_UNIX_IRUSR)
+		m |= S_IRUSR;
+	if (fMode & RTFS_UNIX_IWUSR)
+		m |= S_IWUSR;
+	if (fMode & RTFS_UNIX_IXUSR)
+		m |= S_IXUSR;
+	if (fMode & RTFS_UNIX_IRGRP)
+		m |= S_IRGRP;
+	if (fMode & RTFS_UNIX_IWGRP)
+		m |= S_IWGRP;
+	if (fMode & RTFS_UNIX_IXGRP)
+		m |= S_IXGRP;
+	if (fMode & RTFS_UNIX_IROTH)
+		m |= S_IROTH;
+	if (fMode & RTFS_UNIX_IWOTH)
+		m |= S_IWOTH;
+	if (fMode & RTFS_UNIX_IXOTH)
+		m |= S_IXOTH;
+	if (fMode & RTFS_UNIX_ISUID)
+		m |= S_ISUID;
+	if (fMode & RTFS_UNIX_ISGID)
+		m |= S_ISGID;
+	if (fMode & RTFS_UNIX_ISTXT)
+		m |= S_ISVTX;
+	*mode = m;
 }
 
-int
-sfprov_get_maxnamesize(sfp_mount_t *mnt, uint32_t *maxnamesize)
+static void
+sfprov_ftime_from_timespec(timestruc_t *time, RTTIMESPEC *ts)
 {
-	int rc;
-	SHFLVOLINFO info;
-	uint32_t bytes = sizeof(SHFLVOLINFO);
-
-	rc = vboxCallFSInfo(&vbox_client, &mnt->map, 0,
-	    (SHFL_INFO_GET | SHFL_INFO_VOLUME), &bytes, (SHFLDIRINFO *)&info);
-	if (RT_FAILURE(rc))
-		return (EINVAL);
-	*maxnamesize = info.fsProperties.cbMaxComponent;
-	return (0);
+	uint64_t nanosec = RTTimeSpecGetNano(ts);
+	time->tv_sec = nanosec / UINT64_C(1000000000);
+	time->tv_nsec = nanosec % UINT64_C(1000000000);
 }
 
-int
-sfprov_get_readonly(sfp_mount_t *mnt, uint32_t *readonly)
+static void
+sfprov_stat_from_info(sffs_stat_t *stat, SHFLFSOBJINFO *info)
 {
-	int rc;
-	SHFLVOLINFO info;
-	uint32_t bytes = sizeof(SHFLVOLINFO);
-
-	rc = vboxCallFSInfo(&vbox_client, &mnt->map, 0,
-	    (SHFL_INFO_GET | SHFL_INFO_VOLUME), &bytes, (SHFLDIRINFO *)&info);
-	if (RT_FAILURE(rc))
-		return (EINVAL);
-	*readonly = info.fsProperties.fReadOnly;
-	return (0);
+	sfprov_mode_from_fmode(&stat->sf_mode, info->Attr.fMode);
+	stat->sf_size  = info->cbObject;
+	stat->sf_alloc = info->cbAllocated;
+	sfprov_ftime_from_timespec(&stat->sf_atime, &info->AccessTime);
+	sfprov_ftime_from_timespec(&stat->sf_mtime, &info->ModificationTime);
+	sfprov_ftime_from_timespec(&stat->sf_ctime, &info->ChangeTime);
 }
 
 /*
@@ -260,7 +311,12 @@ struct sfp_file {
 };
 
 int
-sfprov_create(sfp_mount_t *mnt, char *path, sfp_file_t **fp)
+sfprov_create(
+	sfp_mount_t *mnt,
+	char *path,
+	mode_t mode,
+	sfp_file_t **fp,
+	sffs_stat_t *stat)
 {
 
 	int rc;
@@ -270,8 +326,9 @@ sfprov_create(sfp_mount_t *mnt, char *path, sfp_file_t **fp)
 	sfp_file_t *newfp;
 
 	str = sfprov_string(path, &size);
-	parms.Handle = 0;
+	parms.Handle = SHFL_HANDLE_NIL;
 	parms.Info.cbObject = 0;
+	sfprov_fmode_from_mode(&parms.Info.Attr.fMode, mode);
 	parms.CreateFlags = SHFL_CF_ACT_CREATE_IF_NEW |
 	    SHFL_CF_ACT_REPLACE_IF_EXISTS | SHFL_CF_ACCESS_READWRITE;
 	rc = vboxCallCreate(&vbox_client, &mnt->map, str, &parms);
@@ -292,6 +349,7 @@ sfprov_create(sfp_mount_t *mnt, char *path, sfp_file_t **fp)
 	newfp->handle = parms.Handle;
 	newfp->map = mnt->map;
 	*fp = newfp;
+	sfprov_stat_from_info(stat, &parms.Info);
 	return (0);
 }
 
@@ -443,56 +501,6 @@ sfprov_getinfo(sfp_mount_t *mnt, char *path, PSHFLFSOBJINFO info)
 /*
  * get information about a file (or directory)
  */
-static void
-sfprov_mode_from_fmode(mode_t *mode, RTFMODE fMode)
-{
-	mode_t m = 0;
-
-	if (RTFS_IS_DIRECTORY(fMode))
-		m |= S_IFDIR;
-	else if (RTFS_IS_FILE(fMode))
-		m |= S_IFREG;
-	else if (RTFS_IS_FIFO(fMode))
-		m |= S_IFIFO;
-	else if (RTFS_IS_DEV_CHAR(fMode))
-		m |= S_IFCHR;
-	else if (RTFS_IS_DEV_BLOCK(fMode))
-		m |= S_IFBLK;
-	else if (RTFS_IS_SYMLINK(fMode))
-		m |= S_IFLNK;
-	else if (RTFS_IS_SOCKET(fMode))
-		m |= S_IFSOCK;
-
-	if (fMode & RTFS_UNIX_IRUSR)
-		m |= S_IRUSR;
-	if (fMode & RTFS_UNIX_IWUSR)
-		m |= S_IWUSR;
-	if (fMode & RTFS_UNIX_IXUSR)
-		m |= S_IXUSR;
-	if (fMode & RTFS_UNIX_IRGRP)
-		m |= S_IRGRP;
-	if (fMode & RTFS_UNIX_IWGRP)
-		m |= S_IWGRP;
-	if (fMode & RTFS_UNIX_IXGRP)
-		m |= S_IXGRP;
-	if (fMode & RTFS_UNIX_IROTH)
-		m |= S_IROTH;
-	if (fMode & RTFS_UNIX_IWOTH)
-		m |= S_IWOTH;
-	if (fMode & RTFS_UNIX_IXOTH)
-		m |= S_IXOTH;
-	if (fMode & RTFS_UNIX_ISUID)
-		m |= S_ISUID;
-	if (fMode & RTFS_UNIX_ISGID)
-		m |= S_ISGID;
-	if (fMode & RTFS_UNIX_ISTXT)
-		m |= S_ISVTX;
-	*mode = m;
-}
-
-/*
- * get information about a file (or directory)
- */
 int
 sfprov_get_mode(sfp_mount_t *mnt, char *path, mode_t *mode)
 {
@@ -519,13 +527,6 @@ sfprov_get_size(sfp_mount_t *mnt, char *path, uint64_t *size)
 	return (0);
 }
 
-static void
-sfprov_ftime_from_timespec(timestruc_t *time, RTTIMESPEC *ts)
-{
-	uint64_t nanosec = RTTimeSpecGetNano(ts);
-	time->tv_sec = nanosec / UINT64_C(1000000000);
-	time->tv_nsec = nanosec % UINT64_C(1000000000);
-}
 
 int
 sfprov_get_atime(sfp_mount_t *mnt, char *path, timestruc_t *time)
@@ -567,14 +568,7 @@ sfprov_get_ctime(sfp_mount_t *mnt, char *path, timestruc_t *time)
 }
 
 int
-sfprov_get_attr(
-	sfp_mount_t *mnt,
-	char *path,
-	mode_t *mode,
-	uint64_t *size,
-	timestruc_t *atime,
-	timestruc_t *mtime,
-	timestruc_t *ctime)
+sfprov_get_attr(sfp_mount_t *mnt, char *path, sffs_stat_t *attr)
 {
 	int rc;
 	SHFLFSOBJINFO info;
@@ -582,18 +576,7 @@ sfprov_get_attr(
 	rc = sfprov_getinfo(mnt, path, &info);
 	if (rc)
 		return (rc);
-
-	if (mode)
-		sfprov_mode_from_fmode(mode, info.Attr.fMode);
-	if (size != NULL)
-		*size = info.cbObject;
-	if (atime != NULL)
-		sfprov_ftime_from_timespec(atime, &info.AccessTime);
-	if (mtime != NULL)
-		sfprov_ftime_from_timespec(mtime, &info.ModificationTime);
-	if (ctime != NULL)
-		sfprov_ftime_from_timespec(ctime, &info.ChangeTime);
-
+	sfprov_stat_from_info(attr, &info);
 	return (0);
 }
 
@@ -642,40 +625,8 @@ sfprov_set_attr(
 	}
 
 	RT_ZERO(info);
-	if (mask & AT_MODE) {
-#define mode_set(r) ((mode & (S_##r)) ? RTFS_UNIX_##r : 0)
-
-		info.Attr.fMode  = mode_set (ISUID);
-		info.Attr.fMode |= mode_set (ISGID);
-		info.Attr.fMode |= (mode & S_ISVTX) ? RTFS_UNIX_ISTXT : 0;
-		info.Attr.fMode |= mode_set (IRUSR);
-		info.Attr.fMode |= mode_set (IWUSR);
-		info.Attr.fMode |= mode_set (IXUSR);
-		info.Attr.fMode |= mode_set (IRGRP);
-		info.Attr.fMode |= mode_set (IWGRP);
-		info.Attr.fMode |= mode_set (IXGRP);
-		info.Attr.fMode |= mode_set (IROTH);
-		info.Attr.fMode |= mode_set (IWOTH);
-		info.Attr.fMode |= mode_set (IXOTH);
-
-		if (S_ISDIR(mode))
-			info.Attr.fMode |= RTFS_TYPE_DIRECTORY;
-		else if (S_ISREG(mode))
-			info.Attr.fMode |= RTFS_TYPE_FILE;
-		else if (S_ISFIFO(mode))
-			info.Attr.fMode |= RTFS_TYPE_FIFO;
-		else if (S_ISCHR(mode))
-			info.Attr.fMode |= RTFS_TYPE_DEV_CHAR;
-		else if (S_ISBLK(mode))
-			info.Attr.fMode |= RTFS_TYPE_DEV_BLOCK;
-		else if (S_ISLNK(mode))
-			info.Attr.fMode |= RTFS_TYPE_SYMLINK;
-		else if (S_ISSOCK(mode))
-			info.Attr.fMode |= RTFS_TYPE_SOCKET;
-		else
-			info.Attr.fMode |= RTFS_TYPE_FILE;
-	}
-
+	if (mask & AT_MODE)
+		sfprov_fmode_from_mode(&info.Attr.fMode, mode);
 	if (mask & AT_ATIME)
 		sfprov_timespec_from_ftime(&info.AccessTime, atime);
 	if (mask & AT_MTIME)
@@ -768,7 +719,12 @@ fail2:
  * Directory operations
  */
 int
-sfprov_mkdir(sfp_mount_t *mnt, char *path, sfp_file_t **fp)
+sfprov_mkdir(
+	sfp_mount_t *mnt,
+	char *path,
+	mode_t mode,
+	sfp_file_t **fp,
+	sffs_stat_t *stat)
 {
 	int rc;
 	SHFLCREATEPARMS parms;
@@ -777,8 +733,9 @@ sfprov_mkdir(sfp_mount_t *mnt, char *path, sfp_file_t **fp)
 	sfp_file_t *newfp;
 
 	str = sfprov_string(path, &size);
-	parms.Handle = 0;
+	parms.Handle = SHFL_HANDLE_NIL;
 	parms.Info.cbObject = 0;
+	sfprov_fmode_from_mode(&parms.Info.Attr.fMode, mode);
 	parms.CreateFlags = SHFL_CF_DIRECTORY | SHFL_CF_ACT_CREATE_IF_NEW |
 	    SHFL_CF_ACT_FAIL_IF_EXISTS | SHFL_CF_ACCESS_READ;
 	rc = vboxCallCreate(&vbox_client, &mnt->map, str, &parms);
@@ -795,22 +752,89 @@ sfprov_mkdir(sfp_mount_t *mnt, char *path, sfp_file_t **fp)
 	newfp->handle = parms.Handle;
 	newfp->map = mnt->map;
 	*fp = newfp;
+	sfprov_stat_from_info(stat, &parms.Info);
 	return (0);
 }
 
 int
-sfprov_remove(sfp_mount_t *mnt, char *path)
+sfprov_set_show_symlinks(void)
+{
+	int rc;
+
+	rc = vboxCallSetSymlinks(&vbox_client);
+	if (RT_FAILURE(rc))
+		return (sfprov_vbox2errno(rc));
+
+	return (0);
+}
+
+int
+sfprov_remove(sfp_mount_t *mnt, char *path, uint_t is_link)
 {
 	int rc;
 	SHFLSTRING *str;
 	int size;
 
 	str = sfprov_string(path, &size);
-	rc = vboxCallRemove(&vbox_client, &mnt->map, str, SHFL_REMOVE_FILE);
+	rc = vboxCallRemove(&vbox_client, &mnt->map, str,
+		SHFL_REMOVE_FILE | (is_link ? SHFL_REMOVE_SYMLINK : 0));
 	kmem_free(str, size);
 	if (RT_FAILURE(rc))
 		return (sfprov_vbox2errno(rc));
 	return (0);
+}
+
+int
+sfprov_readlink(
+	sfp_mount_t *mnt,
+	char *path,
+	char *target,
+	size_t tgt_size)
+{
+	int rc;
+	SHFLSTRING *str;
+	int size;
+
+	str = sfprov_string(path, &size);
+
+	rc = vboxReadLink(&vbox_client, &mnt->map, str, (uint32_t) tgt_size,
+	    target);
+	if (RT_FAILURE(rc))
+		rc = sfprov_vbox2errno(rc);
+
+	kmem_free(str, size);
+	return (rc);
+}
+
+int
+sfprov_symlink(
+	sfp_mount_t *mnt,
+	char *linkname,
+	char *target,
+	sffs_stat_t *stat)
+{
+	int rc;
+	SHFLSTRING *lnk, *tgt;
+	int lnk_size, tgt_size;
+	SHFLFSOBJINFO info;
+
+	lnk = sfprov_string(linkname, &lnk_size);
+	tgt = sfprov_string(target, &tgt_size);
+
+	rc = vboxCallSymlink(&vbox_client, &mnt->map, lnk, tgt, &info);
+	if (RT_FAILURE(rc)) {
+		rc = sfprov_vbox2errno(rc);
+		goto done;
+	}
+
+	if (stat != NULL)
+		sfprov_stat_from_info(stat, &info);
+
+done:
+	kmem_free(lnk, lnk_size);
+	kmem_free(tgt, tgt_size);
+
+	return (rc);
 }
 
 int
@@ -863,8 +887,7 @@ int
 sfprov_readdir(
 	sfp_mount_t *mnt,
 	char *path,
-	sffs_dirents_t **dirents,
-	sffs_stats_t **stats)
+	sffs_dirents_t **dirents)
 {
 	int error;
 	char *cp;
@@ -877,22 +900,20 @@ sfprov_readdir(
 	uint32_t numbytes;
 	uint32_t nents;
 	uint32_t size;
-	uint32_t cnt;
+	off_t offset;
 	sffs_dirents_t *cur_buf;
-	sffs_stats_t *cur_stats;
-	struct dirent64 *dirent;
-	sffs_stat_t *stat;
+	struct sffs_dirent *dirent;
 	unsigned short reclen;
+	unsigned short entlen;
 
 	*dirents = NULL;
-	*stats = NULL;
 
 	error = sfprov_open(mnt, path, &fp);
 	if (error != 0)
 		return (ENOENT);
 
 	/*
-	 * Allocate the first dirents and stats buffers.
+	 * Allocate the first dirents buffers.
 	 */
 	*dirents = kmem_alloc(SFFS_DIRENTS_SIZE, KM_SLEEP);
 	if (*dirents == NULL) {
@@ -902,15 +923,6 @@ sfprov_readdir(
 	cur_buf = *dirents;
 	cur_buf->sf_next = NULL;
 	cur_buf->sf_len = 0;
-
-	*stats = kmem_alloc(sizeof(**stats), KM_SLEEP);
-	if (*stats == NULL) {
-		error = (ENOSPC);
-		goto done;
-	}
-	cur_stats = *stats;
-	cur_stats->sf_next = NULL;
-	cur_stats->sf_num = 0;
 
 	/*
 	 * Create mask that VBox expects. This needs to be the directory path,
@@ -936,7 +948,7 @@ sfprov_readdir(
 		goto done;
 	}
 
-	cnt = 0;
+	offset = 0;
 	for (;;) {
 		numbytes = infobuff_alloc;
 		error = vboxCallDirInfo(&vbox_client, &fp->map, fp->handle,
@@ -963,7 +975,8 @@ sfprov_readdir(
 		for (info = infobuff; (char *) info < (char *) infobuff + numbytes; nents--) {
 			/* expand buffers if we need more space */
 			reclen = DIRENT64_RECLEN(strlen(info->name.String.utf8));
-			if (SFFS_DIRENTS_OFF + cur_buf->sf_len + reclen > SFFS_DIRENTS_SIZE) {
+			entlen = sizeof(sffs_stat_t) + reclen;
+			if (SFFS_DIRENTS_OFF + cur_buf->sf_len + entlen > SFFS_DIRENTS_SIZE) {
 				cur_buf->sf_next = kmem_alloc(SFFS_DIRENTS_SIZE, KM_SLEEP);
 				if (cur_buf->sf_next == NULL) {
 					error = ENOSPC;
@@ -974,38 +987,19 @@ sfprov_readdir(
 				cur_buf->sf_len = 0;
 			}
 
-			if (cur_stats->sf_num >= SFFS_STATS_LEN) {
-				cur_stats->sf_next = kmem_alloc(sizeof(**stats), KM_SLEEP);
-				if (cur_stats->sf_next == NULL) {
-					error = (ENOSPC);
-					goto done;
-				}
-				cur_stats = cur_stats->sf_next;
-				cur_stats->sf_next = NULL;
-				cur_stats->sf_num = 0;
-			}
-
 			/* create the dirent with the name, offset, and len */
-			dirent = (dirent64_t *)
+			dirent = (struct sffs_dirent *)
 			    (((char *) &cur_buf->sf_entries[0]) + cur_buf->sf_len);
-			strcpy(&dirent->d_name[0], info->name.String.utf8);
-			dirent->d_reclen = reclen;
-			dirent->d_off = cnt;
-
-			cur_buf->sf_len += reclen;
-			++cnt;
+			strncpy(&dirent->sf_entry.d_name[0], info->name.String.utf8, DIRENT64_NAMELEN(reclen));
+			dirent->sf_entry.d_reclen = reclen;
+			offset += entlen;
+			dirent->sf_entry.d_off = offset;
 
 			/* save the stats */
-			stat = &cur_stats->sf_stats[cur_stats->sf_num];
-			++cur_stats->sf_num;
-
-			sfprov_mode_from_fmode(&stat->sf_mode, info->Info.Attr.fMode);
-			stat->sf_size = info->Info.cbObject;
-			sfprov_ftime_from_timespec(&stat->sf_atime, &info->Info.AccessTime);
-			sfprov_ftime_from_timespec(&stat->sf_mtime, &info->Info.ModificationTime);
-			sfprov_ftime_from_timespec(&stat->sf_ctime, &info->Info.ChangeTime);
+			sfprov_stat_from_info(&dirent->sf_stat, &info->Info);
 
 			/* next info */
+			cur_buf->sf_len += entlen;
 			size = offsetof (SHFLDIRINFO, name.String) + info->name.u16Size;
 			info = (SHFLDIRINFO *) ((uintptr_t) info + size);
 		}
@@ -1023,11 +1017,6 @@ done:
 			cur_buf = (*dirents)->sf_next;
 			kmem_free(*dirents, SFFS_DIRENTS_SIZE);
 			*dirents = cur_buf;
-		}
-		while (*stats) {
-			cur_stats = (*stats)->sf_next;
-			kmem_free(*stats, sizeof(**stats));
-			*stats = cur_stats;
 		}
 	}
 	if (infobuff != NULL)

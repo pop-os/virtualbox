@@ -78,7 +78,8 @@ UIUpdateManager::UIUpdateManager()
 
 #ifdef VBOX_WITH_UPDATE_REQUEST
     /* Ask updater to check for the first time: */
-    QTimer::singleShot(0, this, SLOT(sltCheckIfUpdateIsNecessary()));
+    if (!vboxGlobal().isVMConsoleProcess())
+        QTimer::singleShot(0, this, SLOT(sltCheckIfUpdateIsNecessary()));
 #endif /* VBOX_WITH_UPDATE_REQUEST */
 }
 
@@ -139,7 +140,8 @@ void UIUpdateManager::checkIfUpdateIsNecessaryForExtensionPack(bool /* fForceCal
     VBoxVersion vboxVersion(strVBoxVersion);
     /* Get extension pack version: */
     QString strExtPackVersion(extPack.GetVersion().remove(VBOX_BUILD_PUBLISHER));
-    VBoxVersion extPackVersion(strExtPackVersion);
+    QStringList strExtPackVersionParts = strExtPackVersion.split(QRegExp("[-_]"), QString::SkipEmptyParts);
+    VBoxVersion extPackVersion(strExtPackVersionParts[0]);
     /* Check if extension pack version less than required: */
     if ((vboxVersion.z() % 2 != 0) /* Skip unstable VBox version */ ||
         !(extPackVersion < vboxVersion) /* Ext Pack version more or equal to VBox version */)
@@ -221,7 +223,6 @@ void UINewVersionChecker::checkForTheNewVersion()
     request.setRawHeader("User-Agent", strUserAgent.toAscii());
     QNetworkReply *pReply = gNetworkManager->get(request);
     connect(pReply, SIGNAL(finished()), this, SLOT(sltHandleCheckReply()));
-    connect(pReply, SIGNAL(sslErrors(QList<QSslError>)), pReply, SLOT(ignoreSslErrors()));
 
     /* Lock event loop: */
     m_pLoop->exec();

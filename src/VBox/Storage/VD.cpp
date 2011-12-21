@@ -1339,14 +1339,12 @@ static int vdReadHelperAsync(PVDIOCTX pIoCtx)
     int rc;
     size_t cbToRead     = pIoCtx->cbTransfer;
     uint64_t uOffset    = pIoCtx->uOffset;
-    PVDIMAGE pCurrImage = NULL;
+    PVDIMAGE pCurrImage = pIoCtx->pImageCur;
     size_t cbThisRead;
 
     /* Loop until all reads started or we have a backend which needs to read metadata. */
     do
     {
-        pCurrImage = pIoCtx->pImageCur;
-
         /* Search for image with allocated block. Do not attempt to read more
          * than the previous reads marked as valid. Otherwise this would return
          * stale data when different block sizes are used for the images. */
@@ -1394,6 +1392,7 @@ static int vdReadHelperAsync(PVDIOCTX pIoCtx)
 
         cbToRead -= cbThisRead;
         uOffset  += cbThisRead;
+        pCurrImage = pIoCtx->pImageStart; /* Start with the highest image in the chain. */
     } while (cbToRead != 0 && RT_SUCCESS(rc));
 
     if (   rc == VERR_VD_NOT_ENOUGH_METADATA
@@ -2870,6 +2869,8 @@ static int vdIoCtxContinue(PVDIOCTX pIoCtx, int rcReq)
             }
             else
             {
+                RTCritSectLeave(&pDisk->CritSect);
+
                 if (pIoCtx->enmTxDir == VDIOCTXTXDIR_FLUSH)
                 {
                     vdIoCtxUnlockDisk(pDisk, pIoCtx, true /* fProcessDerredReqs */);
@@ -2884,7 +2885,6 @@ static int vdIoCtxContinue(PVDIOCTX pIoCtx, int rcReq)
                 }
 
                 LogFlowFunc(("I/O context completed pIoCtx=%#p rcReq=%Rrc\n", pIoCtx, pIoCtx->rcReq));
-                RTCritSectLeave(&pDisk->CritSect);
                 pIoCtx->Type.Root.pfnComplete(pIoCtx->Type.Root.pvUser1,
                                               pIoCtx->Type.Root.pvUser2,
                                               pIoCtx->rcReq);
