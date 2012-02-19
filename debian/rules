@@ -164,6 +164,11 @@ ifeq ($(DIST_NAME),Ubuntu)
 	    debian/$(gdkms)/usr/share/apport/package-hooks/$(gdkms).py
 endif
 
+override_dh_link:
+	dh_link
+	dh_link -p$(uxname) --ignore debian/$(uxname).links \
+	    /usr/lib/VBoxOGL.so $(shell pkg-config --variable dridriverdir dri)/vboxvideo_dri.so
+
 override_dh_fixperms:
 	dh_fixperms
 

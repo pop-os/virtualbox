@@ -1,3 +1,10 @@
+virtualbox (4.1.8-dfsg-2) unstable; urgency=low
+
+  * Install vboxvideo_dri.so into the directory provided by the dri pkg-config
+    file. (LP: #930324)
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 19 Feb 2012 17:17:04 +0100
+
 virtualbox (4.1.8-dfsg-1) unstable; urgency=low
 
   * New upstream release.
