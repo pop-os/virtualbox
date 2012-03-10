@@ -1,3 +1,9 @@
+virtualbox (4.1.8-dfsg-3) UNRELEASED; urgency=low
+
+  * Build-depend on libpng-dev instead of libpng12-dev. (Closes: #662537)
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 05 Mar 2012 14:54:53 +0100
+
 virtualbox (4.1.8-dfsg-2) unstable; urgency=low
 
   * Install vboxvideo_dri.so into the directory provided by the dri pkg-config
