@@ -1030,7 +1030,7 @@ void VBoxSelectorWnd::sltOpenUrls(QList<QUrl> list /* = QList<QUrl>() */)
             }
             else if (VBoxGlobal::hasAllowedExtension(strFile, VBoxDefs::VBoxExtPackFileExts))
             {
-                UIGlobalSettingsExtension::doInstallation(strFile, this, NULL);
+                UIGlobalSettingsExtension::doInstallation(strFile, QString(), this, NULL);
             }
         }
     }

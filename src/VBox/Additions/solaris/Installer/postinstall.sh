@@ -22,6 +22,10 @@
 # terms and conditions of either the GPL or the CDDL or both.
 #
 
+# LC_ALL should take precedence over LC_* and LANG but whatever...
+LC_ALL=C
+export LC_ALL
+
 LANG=C
 export LANG
 
@@ -398,6 +402,7 @@ if test "$currentzone" = "global"; then
 
     # Setup our VBoxService SMF service
     echo "Configuring service..."
+    /usr/sbin/svcadm restart svc:/system/manifest-import:default
     /usr/sbin/svcadm enable -s virtualbox/vboxservice
 
     # Update boot archive

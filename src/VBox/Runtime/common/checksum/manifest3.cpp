@@ -529,6 +529,7 @@ RTDECL(int) RTManifestEntryAddIoStream(RTMANIFEST hManifest, RTVFSIOSTREAM hVfsI
                 break;
             rtManifestHashesUpdate(pHashes, pvBuf, cbRead);
         }
+        RTMemTmpFree(pvBuf);
         if (RT_SUCCESS(rc))
         {
             /*

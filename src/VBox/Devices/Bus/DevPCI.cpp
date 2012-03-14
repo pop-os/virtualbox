@@ -2553,7 +2553,7 @@ const PDMDEVREG g_DevicePCIBridge =
     /* fClass */
     PDM_DEVREG_CLASS_BUS_PCI,
     /* cMaxInstances */
-    ~0,
+    ~0U,
     /* cbInstance */
     sizeof(PCIBUS),
     /* pfnConstruct */

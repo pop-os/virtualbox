@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (C) 2006-2011 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -117,6 +117,12 @@ if "$(VBOX_PATH_GSOAP_BIN)" == ""
   VBOX_PATH_GSOAP_BIN  := $(VBOX_PATH_GSOAP_BIN)/win32
  else if "$(KBUILD_HOST)" == "linux"
   VBOX_PATH_GSOAP_BIN  := $(VBOX_PATH_GSOAP_BIN)/linux386
+ else if "$(KBUILD_HOST)" == "solaris"
+  if $(VBOX_SOLARIS_11_VERSION) >= 164
+   VBOX_PATH_GSOAP_BIN  := $(VBOX_PATH_GSOAP_BIN)/solaris11.x86
+  else
+   VBOX_PATH_GSOAP_BIN  := $(VBOX_PATH_GSOAP_BIN)/solaris.x86
+  endif
  else
   VBOX_PATH_GSOAP_BIN  := $(VBOX_PATH_GSOAP_BIN)/$(KBUILD_HOST).x86
  endif
@@ -205,6 +211,10 @@ ifdef VBOX_GSOAP_INSTALLED
 	$(VBOX_GSOAP_INCS) \
 	$(VBOXWEB_OUT_DIR) \
 	$(PATH_SUB_CURRENT)
+ ifdef VBOX_WITH_WEBSERVICES_SSL
+  vboxsoap_DEFS += WITH_OPENSSL
+  vboxsoap_SDKS += VBOX_OPENSSL2
+ endif
  ifdef VBOX_WITHOUT_SPLIT_SOAPC
   vboxsoap_SOURCES = \
 	$(VBOXWEB_OUT_DIR)/soapC.cpp
@@ -243,6 +253,10 @@ ifdef VBOX_GSOAP_INSTALLED
 	$(VBOXWEB_OUT_DIR)/gsoap_copy_all_ts
  ifn1of ($(KBUILD_TARGET), win)
   $(VBOX_GSOAP_CXX_SOURCES)_CXXFLAGS = -Wno-format
+  # currently necessary when compiling against OpenSSL 1.0 due to a missing
+  # typecase from 'const v3_ext_method*' to 'aka v3_ext_method*'.
+  $(VBOX_GSOAP_CXX_SOURCES)_CXXFLAGS += -fpermissive
+
  endif
  $(VBOXWEB_OUT_DIR)/soapC-3.cpp_CXXFLAGS.win.x86 = -Og- # VCC70 says "function too large".
 
@@ -280,8 +294,13 @@ endif
  endif
  vboxwebsrv_LIBS += \
 	$(PATH_STAGE_LIB)/vboxsoap$(VBOX_SUFF_LIB) \
-	$(VBOX_GSOAP_CXX_LIBS)
+	$(VBOX_GSOAP_CXX_LIBS) \
+	$(LIB_RUNTIME)
  vboxwebsrv_LIBS.solaris += socket nsl
+ ifdef VBOX_WITH_WEBSERVICES_SSL
+  vboxwebsrv_DEFS += WITH_OPENSSL
+  vboxwebsrv_SDKS += VBOX_OPENSSL2
+ endif
  vboxwebsrv_SOURCES = \
 	vboxweb.cpp \
 	$(VBOXWEB_OUT_DIR)/methodmaps.cpp \
@@ -423,8 +442,13 @@ $$(VBOX_JWSSRC_JAR): $$(VBOX_JWS_JAR) | $$(dir $$@)
 	.
  webtest_LIBS += \
 	$(PATH_STAGE_LIB)/vboxsoap$(VBOX_SUFF_LIB) \
-	$(VBOX_GSOAP_CXX_LIBS)
+	$(VBOX_GSOAP_CXX_LIBS) \
+	$(LIB_RUNTIME)
  webtest_LIBS.solaris += nsl
+ ifdef VBOX_WITH_WEBSERVICES_SSL
+  webtest_DEFS += WITH_OPENSSL
+  webtest_SDKS += VBOX_OPENSSL2
+ endif
  webtest_SOURCES = \
 	webtest.cpp \
 	$(VBOXWEB_OUT_DIR)/soapClient.cpp
@@ -498,7 +522,8 @@ ifdef VBOX_ONLY_SDK
  vboxwebinst_MODE = a+rx,u+w
  vboxwebinst_SOURCES = \
 	samples/perl/clienttest.pl=>perl/samples/clienttest.pl \
-	samples/php/clienttest.php=>php/samples/clienttest.php
+	samples/php/clienttest.php=>php/samples/clienttest.php \
+	samples/python/clienttest.py=>python/samples/clienttest.py
 
  INSTALLS += vboxwebinst_nox
  vboxwebinst_nox_INST = $(INST_SDK)bindings/webservice/

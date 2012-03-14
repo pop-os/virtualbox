@@ -53,7 +53,7 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>Soit le pilote noyau Linux de VirtualBox (vboxdrv) n&apos;est pas en mémoire, soit il y a un problème de permissions avec /dev/vboxdrv. Veuillez réinitialiser le module noyau en exécutant en tant qu&apos;administrateur &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;. Les utilisateurs des distributions Ubuntu, Fedora et Mandriva devraient installer le paquet DKMS au préalable. Ce paquet suit les changements du noyau Linux et recompile si besoin est le module noyau vboxdrv.</translation>
+        <translation type="obsolete">Soit le pilote noyau Linux de VirtualBox (vboxdrv) n&apos;est pas en mémoire, soit il y a un problème de permissions avec /dev/vboxdrv. Veuillez réinitialiser le module noyau en exécutant en tant qu&apos;administrateur &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;. Les utilisateurs des distributions Ubuntu, Fedora et Mandriva devraient installer le paquet DKMS au préalable. Ce paquet suit les changements du noyau Linux et recompile si besoin est le module noyau vboxdrv.</translation>
     </message>
     <message>
         <source>Make sure the kernel module has been loaded successfully.</source>
@@ -86,6 +86,10 @@
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>Cette erreur signifie que le module noyau n&apos;a pas pu allouer suffisamment de mémoire, ou bien qu&apos;une opération de translation a échoué.</translation>
+    </message>
+    <message>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -492,6 +496,174 @@
     <message>
         <source>Session I&amp;nformation...</source>
         <translation>I&amp;nformation de session...</translation>
+    </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Mac OS X version</comment>
+        <translation>&amp;Fichier</translation>
+    </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Non Mac OS X version</comment>
+        <translation>&amp;Fichier</translation>
+    </message>
+    <message>
+        <source>&amp;Virtual Media Manager...</source>
+        <translation>&amp;Gestionnaire de médias...</translation>
+    </message>
+    <message>
+        <source>Display the Virtual Media Manager dialog</source>
+        <translation>Afficher la fenêtre du Gestionnaire de médias virtuels</translation>
+    </message>
+    <message>
+        <source>&amp;Import Appliance...</source>
+        <translation>&amp;Importer application virtuelle...</translation>
+    </message>
+    <message>
+        <source>Import an appliance into VirtualBox</source>
+        <translation>Importer une application virtuelle (ensemble de machines pré-configurées) dans VirtualBox</translation>
+    </message>
+    <message>
+        <source>&amp;Export Appliance...</source>
+        <translation>&amp;Exporter application virtuelle...</translation>
+    </message>
+    <message>
+        <source>Export one or more VirtualBox virtual machines as an appliance</source>
+        <translation>Exporter une ou plusieurs machines de VirtualBox en tant qu&apos;application virtuelle</translation>
+    </message>
+    <message>
+        <source>&amp;Preferences...</source>
+        <comment>global settings</comment>
+        <translatorcomment>In French &quot;(Global) Settings&quot; is &quot;Préférences&quot;, &quot;(Machine) Settings&quot; is &quot;Configuration&quot;</translatorcomment>
+        <translation>&amp;Paramètres...</translation>
+    </message>
+    <message>
+        <source>Display the global settings dialog</source>
+        <translation>Afficher la fenêtre Préférences de VirtualBox</translation>
+    </message>
+    <message>
+        <source>E&amp;xit</source>
+        <translation>&amp;Quitter</translation>
+    </message>
+    <message>
+        <source>Close application</source>
+        <translation>Fermer VirtualBox</translation>
+    </message>
+    <message>
+        <source>&amp;New...</source>
+        <translation>&amp;Créer...</translation>
+    </message>
+    <message>
+        <source>Create a new virtual machine</source>
+        <translation>Créer une nouvelle machine virtuelle</translation>
+    </message>
+    <message>
+        <source>&amp;Add...</source>
+        <translation>&amp;Ajouter...</translation>
+    </message>
+    <message>
+        <source>Add an existing virtual machine</source>
+        <translation>Ajouter une machine virtuelle existante</translation>
+    </message>
+    <message>
+        <source>Cl&amp;one...</source>
+        <translation>Cl&amp;oner...</translation>
+    </message>
+    <message>
+        <source>Clone the selected virtual machine</source>
+        <translation>Cloner la machine virtuelle sélectionnée</translation>
+    </message>
+    <message>
+        <source>&amp;Remove</source>
+        <translation>&amp;Supprimer</translation>
+    </message>
+    <message>
+        <source>Remove the selected virtual machine</source>
+        <translation>Supprimer la machine virtuelle sélectionnée</translation>
+    </message>
+    <message>
+        <source>S&amp;tart</source>
+        <translation>&amp;Démarrer</translation>
+    </message>
+    <message>
+        <source>Start the selected virtual machine</source>
+        <translation>Démarrer la machine virtuelle sélectionnée</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation>A&amp;fficher</translation>
+    </message>
+    <message>
+        <source>Switch to the window of the selected virtual machine</source>
+        <translation>Montrer la fenêtre de la machine virtuelle sélectionnée</translation>
+    </message>
+    <message>
+        <source>Discard</source>
+        <translation>Oublier</translation>
+    </message>
+    <message>
+        <source>D&amp;iscard Saved State</source>
+        <translation>Oub&amp;lier l&apos;état sauvegardé</translation>
+    </message>
+    <message>
+        <source>Discard the saved state of the selected virtual machine</source>
+        <translation>Oublier l&apos;état sauvegardé de la machine virtuelle sélectionnée</translation>
+    </message>
+    <message>
+        <source>Re&amp;fresh</source>
+        <translation>&amp;Actualiser</translation>
+    </message>
+    <message>
+        <source>Refresh the accessibility state of the selected virtual machine</source>
+        <translation>Actualiser l&apos;état de la machine virtuelle sélectionnée</translation>
+    </message>
+    <message>
+        <source>Show &amp;Log...</source>
+        <translation>Afficher le &amp;journal...</translation>
+    </message>
+    <message>
+        <source>Show the log files of the selected virtual machine</source>
+        <translation>Afficher le journal de la machine virtuelle sélectionnée</translation>
+    </message>
+    <message>
+        <source>Show in Finder</source>
+        <translation>Afficher dans le Finder</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in Finder.</source>
+        <translation>Afficher le fichier de définition de la machine VirtualBox dans le Finder.</translation>
+    </message>
+    <message>
+        <source>Show in Explorer</source>
+        <translation>Afficher dans l&apos;explorateur</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in Explorer.</source>
+        <translation>Afficher le fichier de définition de la machine virtuelle dans l&apos;explorateur.</translation>
+    </message>
+    <message>
+        <source>Show in File Manager</source>
+        <translation>Afficher dans le gestionnaire de fichier</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in the File Manager</source>
+        <translation>Afficher le fichier de définition de la machine virtuelle dans le gestionnaire de fichier</translation>
+    </message>
+    <message>
+        <source>Create Alias on Desktop</source>
+        <translation>Créer un alias sur le bureau</translation>
+    </message>
+    <message>
+        <source>Creates an Alias file to the VirtualBox Machine Definition file on your Desktop.</source>
+        <translation>Créé un alias du fichier de définition de la machine VirtualBox sur votre bureau.</translation>
+    </message>
+    <message>
+        <source>Create Shortcut on Desktop</source>
+        <translation>Créer un raccourci sur le bureau</translation>
+    </message>
+    <message>
+        <source>Creates an Shortcut file to the VirtualBox Machine Definition file on your Desktop.</source>
+        <translation>Créé un raccourci vers le fichier de définition de la machine virtuelle sur votre bureau.</translation>
     </message>
 </context>
 <context>
@@ -3836,7 +4008,7 @@
     </message>
     <message>
         <source>&lt;p&gt;You are about to change the attributes of the virtual disk located in &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please choose one of the following medium types and press &lt;b&gt;%2&lt;/b&gt; to proceed or &lt;b&gt;%3&lt;/b&gt; otherwise.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Vous êtes sur le point de modifier les attributs du disque virtuel correspondant au fichier &lt;b&gt;%1&gt;/b&gt;.&gt;/p&gt;&lt;p&gt;Choisissez un des types de média suivants et utilisez le bouton &lt;b&gt;%2&lt;/b&gt; pour continuer ou bien &lt;b&gt;%3&lt;/b&gt; pour annuler.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Vous êtes sur le point de modifier les attributs du disque virtuel correspondant au fichier &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Choisissez un des types de média suivants et utilisez le bouton &lt;b&gt;%2&lt;/b&gt; pour continuer ou bien &lt;b&gt;%3&lt;/b&gt; pour annuler.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Choose medium type:</source>
@@ -4308,7 +4480,7 @@
     </message>
     <message>
         <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Une nouvelle version de VirtualBox est disponible ! La version &lt;b&gt;%1&lt;/b&gt; est disponible sur &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Vous pouvez télécharger cette version en utilisant le lien suivant : &lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Une nouvelle version de VirtualBox est disponible ! La version &lt;b&gt;%1&lt;/b&gt; est disponible sur &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Vous pouvez télécharger cette version en utilisant le lien suivant : &lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to release the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;</source>
@@ -5008,6 +5180,15 @@
     <message>
         <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
         <translation>&lt;p&gt;Échec lors du téléchargement de &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; depuis &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have version %1 of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;You should download and install version %3 of this extension pack from Oracle!&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ok</source>
+        <comment>extension pack</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -7471,49 +7652,6 @@ And the size is not necessarily &quot;in megabytes&quot;, the slider chooses the
     </message>
 </context>
 <context>
-    <name>VBoxLogSearchPanel</name>
-    <message>
-        <source>Close the search panel</source>
-        <translation>Fermer le panneau de recherche</translation>
-    </message>
-    <message>
-        <source>Find </source>
-        <translation>Rechercher </translation>
-    </message>
-    <message>
-        <source>Enter a search string here</source>
-        <translation>Entrez ici la chaîne de caractères à rechercher</translation>
-    </message>
-    <message>
-        <source>&amp;Previous</source>
-        <translation>&amp;Précédent</translation>
-    </message>
-    <message>
-        <source>Search for the previous occurrence of the string</source>
-        <translation>Rechercher l&apos;occurrence précédente de la chaîne de caractères</translation>
-    </message>
-    <message>
-        <source>&amp;Next</source>
-        <translation>&amp;Suivant</translation>
-    </message>
-    <message>
-        <source>Search for the next occurrence of the string</source>
-        <translation>Rechercher l&apos;occurrence suivante de la chaîne de caractères</translation>
-    </message>
-    <message>
-        <source>C&amp;ase Sensitive</source>
-        <translation>&amp;Respecter la casse</translation>
-    </message>
-    <message>
-        <source>Perform case sensitive search (when checked)</source>
-        <translation>Si cette case est cochée, la recherche tient compte des majuscules et des minuscules</translation>
-    </message>
-    <message>
-        <source>String not found</source>
-        <translation>Chaîne de caractères non trouvée</translation>
-    </message>
-</context>
-<context>
     <name>VBoxMediaManagerDlg</name>
     <message>
         <source>&amp;Actions</source>
@@ -7802,32 +7940,6 @@ And the size is not necessarily &quot;in megabytes&quot;, the slider chooses the
         <translation type="obsolete">&amp;Détails</translation>
     </message>
     <message>
-        <source>&amp;Preferences...</source>
-        <comment>global settings</comment>
-        <translatorcomment>In French &quot;(Global) Settings&quot; is &quot;Préférences&quot;, &quot;(Machine) Settings&quot; is &quot;Configuration&quot;</translatorcomment>
-        <translation>&amp;Paramètres...</translation>
-    </message>
-    <message>
-        <source>Display the global settings dialog</source>
-        <translation>Afficher la fenêtre Préférences de VirtualBox</translation>
-    </message>
-    <message>
-        <source>E&amp;xit</source>
-        <translation>&amp;Quitter</translation>
-    </message>
-    <message>
-        <source>Close application</source>
-        <translation>Fermer VirtualBox</translation>
-    </message>
-    <message>
-        <source>&amp;New...</source>
-        <translation>&amp;Créer...</translation>
-    </message>
-    <message>
-        <source>Create a new virtual machine</source>
-        <translation>Créer une nouvelle machine virtuelle</translation>
-    </message>
-    <message>
         <source>&amp;Settings...</source>
         <translation>&amp;Configuration...</translation>
     </message>
@@ -7848,14 +7960,6 @@ And the size is not necessarily &quot;in megabytes&quot;, the slider chooses the
         <translation type="obsolete">&amp;Oublier</translation>
     </message>
     <message>
-        <source>Discard the saved state of the selected virtual machine</source>
-        <translation>Oublier l&apos;état sauvegardé de la machine virtuelle sélectionnée</translation>
-    </message>
-    <message>
-        <source>Refresh the accessibility state of the selected virtual machine</source>
-        <translation>Actualiser l&apos;état de la machine virtuelle sélectionnée</translation>
-    </message>
-    <message>
         <source>&amp;Help</source>
         <translation type="obsolete">&amp;Aide</translation>
     </message>
@@ -7872,32 +7976,8 @@ And the size is not necessarily &quot;in megabytes&quot;, the slider chooses the
         <translation type="obsolete">D&amp;escription *</translation>
     </message>
     <message>
-        <source>S&amp;how</source>
-        <translation>A&amp;fficher</translation>
-    </message>
-    <message>
-        <source>Switch to the window of the selected virtual machine</source>
-        <translation>Montrer la fenêtre de la machine virtuelle sélectionnée</translation>
-    </message>
-    <message>
-        <source>S&amp;tart</source>
-        <translation>&amp;Démarrer</translation>
-    </message>
-    <message>
-        <source>Start the selected virtual machine</source>
-        <translation>Démarrer la machine virtuelle sélectionnée</translation>
-    </message>
-    <message>
         <source>&amp;Machine</source>
         <translation>&amp;Machine</translation>
-    </message>
-    <message>
-        <source>Show &amp;Log...</source>
-        <translation>Afficher le &amp;journal...</translation>
-    </message>
-    <message>
-        <source>Show the log files of the selected virtual machine</source>
-        <translation>Afficher le journal de la machine virtuelle sélectionnée</translation>
     </message>
     <message>
         <source>R&amp;esume</source>
@@ -7920,47 +8000,9 @@ And the size is not necessarily &quot;in megabytes&quot;, the slider chooses the
         <translation>&lt;h3&gt;Bienvenue dans VirtualBox !&lt;/h3&gt;&lt;p&gt;La partie gauche de cette fenêtre affiche la liste des machines virtuelles de votre ordinateur. Cette liste est vide car vous n&apos;avez pas encore créé de machine virtuelle.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Pour créer une nouvelle machine virtuelle cliquez sur le bouton &lt;b&gt;Créer&lt;/b&gt; en haut de cette liste.&lt;/p&gt;&lt;p&gt;Vous pouvez appuyer sur &lt;b&gt;%1&lt;/b&gt; pour obtenir de l&apos;aide et visiter le site de VirtualBox &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; (en anglais).&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&amp;Virtual Media Manager...</source>
-        <translation>&amp;Gestionnaire de médias...</translation>
-    </message>
-    <message>
-        <source>Display the Virtual Media Manager dialog</source>
-        <translation>Afficher la fenêtre du Gestionnaire de médias virtuels</translation>
-    </message>
-    <message>
         <source>Log</source>
         <comment>icon text</comment>
         <translation>Journal</translation>
-    </message>
-    <message>
-        <source>&amp;Import Appliance...</source>
-        <translation>&amp;Importer application virtuelle...</translation>
-    </message>
-    <message>
-        <source>Import an appliance into VirtualBox</source>
-        <translation>Importer une application virtuelle (ensemble de machines pré-configurées) dans VirtualBox</translation>
-    </message>
-    <message>
-        <source>&amp;Export Appliance...</source>
-        <translation>&amp;Exporter application virtuelle...</translation>
-    </message>
-    <message>
-        <source>Export one or more VirtualBox virtual machines as an appliance</source>
-        <translation>Exporter une ou plusieurs machines de VirtualBox en tant qu&apos;application virtuelle</translation>
-    </message>
-    <message>
-        <source>Re&amp;fresh</source>
-        <translation>&amp;Actualiser</translation>
-    </message>
-    <message>
-        <source>&amp;File</source>
-        <comment>Mac OS X version</comment>
-        <translation>&amp;Fichier</translation>
-    </message>
-    <message>
-        <source>&amp;File</source>
-        <comment>Non Mac OS X version</comment>
-        <translation>&amp;Fichier</translation>
     </message>
     <message>
         <source>Select a virtual machine file</source>
@@ -7976,84 +8018,12 @@ And the size is not necessarily &quot;in megabytes&quot;, the slider chooses the
         <translation>-- Gestionnaire de machines</translation>
     </message>
     <message>
-        <source>&amp;Add...</source>
-        <translation>&amp;Ajouter...</translation>
-    </message>
-    <message>
-        <source>Add an existing virtual machine</source>
-        <translation>Ajouter une machine virtuelle existante</translation>
-    </message>
-    <message>
-        <source>&amp;Remove</source>
-        <translation>&amp;Supprimer</translation>
-    </message>
-    <message>
-        <source>Remove the selected virtual machine</source>
-        <translation>Supprimer la machine virtuelle sélectionnée</translation>
-    </message>
-    <message>
-        <source>Show in Finder</source>
-        <translation>Afficher dans le Finder</translation>
-    </message>
-    <message>
-        <source>Show the VirtualBox Machine Definition file in Finder.</source>
-        <translation>Afficher le fichier de définition de la machine VirtualBox dans le Finder.</translation>
-    </message>
-    <message>
-        <source>Create Alias on Desktop</source>
-        <translation>Créer un alias sur le bureau</translation>
-    </message>
-    <message>
-        <source>Creates an Alias file to the VirtualBox Machine Definition file on your Desktop.</source>
-        <translation>Créé un alias du fichier de définition de la machine VirtualBox sur votre bureau.</translation>
-    </message>
-    <message>
-        <source>Show in Explorer</source>
-        <translation>Afficher dans l&apos;explorateur</translation>
-    </message>
-    <message>
-        <source>Show the VirtualBox Machine Definition file in Explorer.</source>
-        <translation>Afficher le fichier de définition de la machine virtuelle dans l&apos;explorateur.</translation>
-    </message>
-    <message>
-        <source>Create Shortcut on Desktop</source>
-        <translation>Créer un raccourci sur le bureau</translation>
-    </message>
-    <message>
-        <source>Creates an Shortcut file to the VirtualBox Machine Definition file on your Desktop.</source>
-        <translation>Créé un raccourci vers le fichier de définition de la machine virtuelle sur votre bureau.</translation>
-    </message>
-    <message>
-        <source>Show in File Manager</source>
-        <translation>Afficher dans le gestionnaire de fichier</translation>
-    </message>
-    <message>
-        <source>Show the VirtualBox Machine Definition file in the File Manager</source>
-        <translation>Afficher le fichier de définition de la machine virtuelle dans le gestionnaire de fichier</translation>
-    </message>
-    <message>
         <source>Show Toolbar</source>
         <translation>Afficher la barre d&apos;outils</translation>
     </message>
     <message>
         <source>Show Statusbar</source>
         <translation>Afficher la barre d&apos;état</translation>
-    </message>
-    <message>
-        <source>Cl&amp;one...</source>
-        <translation>Cl&amp;oner...</translation>
-    </message>
-    <message>
-        <source>Clone the selected virtual machine</source>
-        <translation>Cloner la machine virtuelle sélectionnée</translation>
-    </message>
-    <message>
-        <source>Discard</source>
-        <translation>Oublier</translation>
-    </message>
-    <message>
-        <source>D&amp;iscard Saved State</source>
-        <translation>Oub&amp;lier l&apos;état sauvegardé</translation>
     </message>
 </context>
 <context>
@@ -8405,7 +8375,7 @@ And the size is not necessarily &quot;in megabytes&quot;, the slider chooses the
     </message>
 </context>
 <context>
-    <name>VBoxVMLogViewer</name>
+    <name>UIVMLogViewer</name>
     <message>
         <source>Log Viewer</source>
         <translation>Affichage des journaux</translation>
@@ -8437,6 +8407,42 @@ And the size is not necessarily &quot;in megabytes&quot;, the slider chooses the
     <message>
         <source>Close</source>
         <translation>Fermer</translation>
+    </message>
+    <message>
+        <source>Close the search panel</source>
+        <translation>Fermer le panneau de recherche</translation>
+    </message>
+    <message>
+        <source>Enter a search string here</source>
+        <translation>Entrez ici la chaîne de caractères à rechercher</translation>
+    </message>
+    <message>
+        <source>&amp;Previous</source>
+        <translation>&amp;Précédent</translation>
+    </message>
+    <message>
+        <source>Search for the previous occurrence of the string</source>
+        <translation>Rechercher l&apos;occurrence précédente de la chaîne de caractères</translation>
+    </message>
+    <message>
+        <source>&amp;Next</source>
+        <translation>&amp;Suivant</translation>
+    </message>
+    <message>
+        <source>Search for the next occurrence of the string</source>
+        <translation>Rechercher l&apos;occurrence suivante de la chaîne de caractères</translation>
+    </message>
+    <message>
+        <source>C&amp;ase Sensitive</source>
+        <translation>&amp;Respecter la casse</translation>
+    </message>
+    <message>
+        <source>Perform case sensitive search (when checked)</source>
+        <translation>Si cette case est cochée, la recherche tient compte des majuscules et des minuscules</translation>
+    </message>
+    <message>
+        <source>String not found</source>
+        <translation>Chaîne de caractères non trouvée</translation>
     </message>
 </context>
 <context>

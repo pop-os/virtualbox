@@ -38,10 +38,20 @@ static int swedish_chef = 0;
 static int australia = 0;
 static int warnings_enabled = 1;
 
+#ifdef DEBUG_misha
+//int g_VBoxFbgFBreakDdi = 0;
+#define DebugBreak() Assert(0)
+#endif
+
 void __getHostInfo( void )
 {
     char *temp;
+    /* on windows guests we're typically get called in a context of VBoxOGL!DllMain ( which calls VBoxOGLcrutil!crNetInit ),
+     * which may lead to deadlocks..
+     * Avoid it as it is needed for debugging purposes only */
+#if !defined(IN_GUEST) || !defined(RT_OS_WINDOWS)
     if ( crGetHostname( my_hostname, sizeof( my_hostname ) ) )
+#endif
     {
         crStrcpy( my_hostname, "????" );
     }
@@ -99,7 +109,7 @@ static void outputChromiumMessage( FILE *output, char *str )
             );
     fflush( output );
 
-#if defined(DEBUG) && defined(WINDOWS) && !defined(DEBUG_misha)
+#if defined(DEBUG) && defined(WINDOWS) /* && (!defined(DEBUG_misha) || !defined(IN_GUEST) ) */
     OutputDebugString(str);
     OutputDebugString("\n");
 #endif
@@ -196,7 +206,7 @@ DECLEXPORT(void) crError(const char *format, ... )
         va_end( args );
 #ifdef WINDOWS
     }
-#if !defined(DEBUG_leo) && !defined(DEBUG_ll158262) && !(defined(DEBUG_misha) && defined(IN_GUEST))
+#if !defined(DEBUG_leo) && !defined(DEBUG_ll158262) && !defined(DEBUG_misha)
     if (crGetenv( "CR_DEBUG_ON_ERROR" ) != NULL)
 #endif
     {
@@ -240,7 +250,7 @@ DECLEXPORT(void) crWarning(const char *format, ... )
 #endif
         va_end( args );
 
-#if defined(WINDOWS) && defined(DEBUG) && !defined(IN_GUEST) && !defined(DEBUG_misha)
+#if defined(WINDOWS) && defined(DEBUG) && !defined(IN_GUEST)
         DebugBreak();
 #endif
     }
@@ -316,12 +326,12 @@ DECLEXPORT(void) crDebug(const char *format, ... )
         }
         else
         {
-#if defined(WINDOWS) && defined(IN_GUEST) && (defined(DEBUG_leo) || defined(DEBUG_ll158262))
+#if defined(WINDOWS) && defined(IN_GUEST) && (defined(DEBUG_leo) || defined(DEBUG_ll158262) || defined(DEBUG_misha))
             crRedirectIOToConsole();
 #endif
             output = stderr;
         }
-#if !defined(DEBUG) || defined(DEBUG_misha)
+#if !defined(DEBUG)/* || defined(DEBUG_misha)*/
         /* Release mode: only emit crDebug messages if CR_DEBUG
          * or CR_DEBUG_FILE is set.
          */
@@ -382,11 +392,15 @@ DECLEXPORT(void) crDebug(const char *format, ... )
 # if defined(DEBUG) && (defined(DEBUG_leo) || defined(DEBUG_ll158262))
     outputChromiumMessage( output, txt );
 # endif
+#ifndef DEBUG_misha
     if (output==stderr)
+#endif
     {
         LogRel(("%s\n", txt));
     }
+#ifndef DEBUG_misha
     else
+#endif
     {
         outputChromiumMessage(output, txt);
     }

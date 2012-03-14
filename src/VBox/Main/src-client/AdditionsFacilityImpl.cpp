@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,11 +22,12 @@
 #include "Logging.h"
 
 /* static */
-const AdditionsFacility::FacilityInfo AdditionsFacility::sFacilityInfo[8] =
+const AdditionsFacility::FacilityInfo AdditionsFacility::s_aFacilityInfo[8] =
 {
     /* NOTE: We assume that unknown is always the first entry! */
     { "Unknown", AdditionsFacilityType_None, AdditionsFacilityClass_None },
     { "VirtualBox Base Driver", AdditionsFacilityType_VBoxGuestDriver, AdditionsFacilityClass_Driver },
+    { "Auto Logon", AdditionsFacilityType_AutoLogon, AdditionsFacilityClass_Feature },
     { "VirtualBox System Service", AdditionsFacilityType_VBoxService, AdditionsFacilityClass_Service },
     { "VirtualBox Desktop Integration", AdditionsFacilityType_VBoxTrayClient, AdditionsFacilityClass_Program },
     { "Seamless Mode", AdditionsFacilityType_Seamless, AdditionsFacilityClass_Feature },
@@ -55,18 +56,25 @@ void AdditionsFacility::FinalRelease()
 // public initializer/uninitializer for internal purposes only
 /////////////////////////////////////////////////////////////////////////////
 
-HRESULT AdditionsFacility::init(Guest *aParent, AdditionsFacilityType_T enmFacility, AdditionsFacilityStatus_T enmStatus)
+HRESULT AdditionsFacility::init(Guest *a_pParent, AdditionsFacilityType_T a_enmFacility, AdditionsFacilityStatus_T a_enmStatus,
+                                uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS)
 {
-    LogFlowThisFunc(("aParent=%p\n", aParent));
+    LogFlowThisFunc(("a_pParent=%p\n", a_pParent));
 
     /* Enclose the state transition NotReady->InInit->Ready. */
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    RTTimeNow(&mData.mLastUpdated);
-    mData.mStatus = enmStatus;
-    mData.mType = enmFacility;
+    FacilityState state;
+    state.mStatus    = a_enmStatus;
+    state.mTimestamp = *a_pTimeSpecTS;
+    NOREF(a_fFlags);
+
+    Assert(mData.mStates.size() == 0);
+    mData.mStates.push_back(state);
+    mData.mType      = a_enmFacility;
     /** @todo mClass is not initialized here. */
+    NOREF(a_fFlags);
 
     /* Confirm a successful initialization when it's the case. */
     autoInitSpan.setSucceeded();
@@ -86,6 +94,8 @@ void AdditionsFacility::uninit()
     AutoUninitSpan autoUninitSpan(this);
     if (autoUninitSpan.uninitDone())
         return;
+
+    mData.mStates.clear();
 }
 
 STDMETHODIMP AdditionsFacility::COMGETTER(ClassType)(AdditionsFacilityClass_T *aClass)
@@ -170,12 +180,12 @@ STDMETHODIMP AdditionsFacility::COMGETTER(Type)(AdditionsFacilityType_T *aType)
 
 const AdditionsFacility::FacilityInfo &AdditionsFacility::typeToInfo(AdditionsFacilityType_T aType)
 {
-    for (size_t i = 0; i < RT_ELEMENTS(sFacilityInfo); ++i)
+    for (size_t i = 0; i < RT_ELEMENTS(s_aFacilityInfo); ++i)
     {
-        if (sFacilityInfo[i].mType == aType)
-            return sFacilityInfo[i];
+        if (s_aFacilityInfo[i].mType == aType)
+            return s_aFacilityInfo[i];
     }
-    return sFacilityInfo[0]; /* Return unknown type. */
+    return s_aFacilityInfo[0]; /* Return unknown type. */
 }
 
 AdditionsFacilityClass_T AdditionsFacility::getClass() const
@@ -190,12 +200,20 @@ Bstr AdditionsFacility::getName() const
 
 LONG64 AdditionsFacility::getLastUpdated() const
 {
-    return RTTimeSpecGetMilli(&mData.mLastUpdated);
+    if (mData.mStates.size())
+        return RTTimeSpecGetMilli(&mData.mStates.front().mTimestamp);
+
+    AssertMsgFailed(("Unknown timestamp of facility!\n"));
+    return 0; /* Should never happen! */
 }
 
 AdditionsFacilityStatus_T AdditionsFacility::getStatus() const
 {
-    return mData.mStatus;
+    if (mData.mStates.size())
+        return mData.mStates.back().mStatus;
+
+    AssertMsgFailed(("Unknown status of facility!\n"));
+    return AdditionsFacilityStatus_Unknown; /* Should never happen! */
 }
 
 AdditionsFacilityType_T AdditionsFacility::getType() const
@@ -203,11 +221,18 @@ AdditionsFacilityType_T AdditionsFacility::getType() const
     return mData.mType;
 }
 
-HRESULT AdditionsFacility::update(AdditionsFacilityStatus_T aStatus, RTTIMESPEC aTimestamp)
+/**
+ * Method used by IGuest::facilityUpdate to make updates.
+ */
+void AdditionsFacility::update(AdditionsFacilityStatus_T a_enmStatus, uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS)
 {
-    mData.mStatus = aStatus;
-    mData.mLastUpdated = aTimestamp;
+    FacilityState state;
+    state.mStatus    = a_enmStatus;
+    state.mTimestamp = *a_pTimeSpecTS;
+    NOREF(a_fFlags);
 
-    return S_OK;
+    mData.mStates.push_back(state);
+    if (mData.mStates.size() > 10) /* Only keep the last 10 states. */
+        mData.mStates.erase(mData.mStates.begin());
 }
 

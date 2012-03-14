@@ -70,9 +70,9 @@ extern "C" uint32_t g_fVMXIs64bitHost;
 *   Local Functions                                                            *
 *******************************************************************************/
 static void VMXR0ReportWorldSwitchError(PVM pVM, PVMCPU pVCpu, VBOXSTRICTRC rc, PCPUMCTX pCtx);
-static void vmxR0SetupTLBEPT(PVM pVM, PVMCPU pVCpu);
-static void vmxR0SetupTLBVPID(PVM pVM, PVMCPU pVCpu);
-static void vmxR0SetupTLBDummy(PVM pVM, PVMCPU pVCpu);
+static DECLCALLBACK(void) vmxR0SetupTLBEPT(PVM pVM, PVMCPU pVCpu);
+static DECLCALLBACK(void) vmxR0SetupTLBVPID(PVM pVM, PVMCPU pVCpu);
+static DECLCALLBACK(void) vmxR0SetupTLBDummy(PVM pVM, PVMCPU pVCpu);
 static void vmxR0FlushEPT(PVM pVM, PVMCPU pVCpu, VMX_FLUSH enmFlush, RTGCPHYS GCPhys);
 static void vmxR0FlushVPID(PVM pVM, PVMCPU pVCpu, VMX_FLUSH enmFlush, RTGCPTR GCPtr);
 static void vmxR0UpdateExceptionBitmap(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
@@ -2150,7 +2150,7 @@ DECLINLINE(int) VMXR0SaveGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
  * @param   pVM         The VM to operate on.
  * @param   pVCpu       The VMCPU to operate on.
  */
-static void vmxR0SetupTLBDummy(PVM pVM, PVMCPU pVCpu)
+static DECLCALLBACK(void) vmxR0SetupTLBDummy(PVM pVM, PVMCPU pVCpu)
 {
     NOREF(pVM);
     VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_TLB_FLUSH);
@@ -2166,7 +2166,7 @@ static void vmxR0SetupTLBDummy(PVM pVM, PVMCPU pVCpu)
  * @param   pVM         The VM to operate on.
  * @param   pVCpu       The VMCPU to operate on.
  */
-static void vmxR0SetupTLBEPT(PVM pVM, PVMCPU pVCpu)
+static DECLCALLBACK(void) vmxR0SetupTLBEPT(PVM pVM, PVMCPU pVCpu)
 {
     PHMGLOBLCPUINFO pCpu;
 
@@ -2231,7 +2231,7 @@ static void vmxR0SetupTLBEPT(PVM pVM, PVMCPU pVCpu)
  * @param   pVM         The VM to operate on.
  * @param   pVCpu       The VMCPU to operate on.
  */
-static void vmxR0SetupTLBVPID(PVM pVM, PVMCPU pVCpu)
+static DECLCALLBACK(void) vmxR0SetupTLBVPID(PVM pVM, PVMCPU pVCpu)
 {
     PHMGLOBLCPUINFO pCpu;
 

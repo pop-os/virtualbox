@@ -1202,6 +1202,104 @@ VMMR3DECL(PCFGMNODE) CFGMR3CreateTree(PVM pVM)
 
 
 /**
+ * Duplicates a CFGM sub-tree or a full tree.
+ *
+ * @returns Pointer to the root node.  NULL if we run out of memory or the
+ *          input parameter is NULL.
+ * @param   pRoot       The root of the tree to duplicate.
+ * @param   ppCopy      Where to return the root of the duplicate.
+ */
+VMMR3DECL(int) CFGMR3DuplicateSubTree(PCFGMNODE pRoot, PCFGMNODE *ppCopy)
+{
+    AssertPtrReturn(pRoot, VERR_INVALID_POINTER);
+
+    /*
+     * Create a new tree.
+     */
+    PCFGMNODE pNewRoot = CFGMR3CreateTree(pRoot->pVM);
+    if (!pNewRoot)
+        return VERR_NO_MEMORY;
+
+    /*
+     * Duplicate the content.
+     */
+    int         rc      = VINF_SUCCESS;
+    PCFGMNODE   pSrcCur = pRoot;
+    PCFGMNODE   pDstCur = pNewRoot;
+    for (;;)
+    {
+        if (   !pDstCur->pFirstChild
+            && !pDstCur->pFirstLeaf)
+        {
+            /*
+             * Values first.
+             */
+            /** @todo this isn't the most efficient way to do it. */
+            for (PCFGMLEAF pLeaf = pSrcCur->pFirstLeaf; pLeaf && RT_SUCCESS(rc); pLeaf = pLeaf->pNext)
+                rc = CFGMR3InsertValue(pDstCur, pLeaf);
+
+            /*
+             * Insert immediate child nodes.
+             */
+            /** @todo this isn't the most efficient way to do it. */
+            for (PCFGMNODE pChild = pSrcCur->pFirstChild; pChild && RT_SUCCESS(rc); pChild = pChild->pNext)
+                rc = CFGMR3InsertNode(pDstCur, pChild->szName, NULL);
+
+            AssertLogRelRCBreak(rc);
+        }
+
+        /*
+         * Deep copy of the children.
+         */
+        if (pSrcCur->pFirstChild)
+        {
+            Assert(pDstCur->pFirstChild && !strcmp(pDstCur->pFirstChild->szName, pSrcCur->pFirstChild->szName));
+            pSrcCur = pSrcCur->pFirstChild;
+            pDstCur = pDstCur->pFirstChild;
+        }
+        /*
+         * If it's the root node, we're done.
+         */
+        else if (pSrcCur == pRoot)
+            break;
+        else
+        {
+            /*
+             * Upon reaching the end of a sibling list, we must ascend and
+             * resume the sibiling walk on an previous level.
+             */
+            if (!pSrcCur->pNext)
+            {
+                do
+                {
+                    pSrcCur = pSrcCur->pParent;
+                    pDstCur = pDstCur->pParent;
+                } while (!pSrcCur->pNext && pSrcCur != pRoot);
+                if (pSrcCur == pRoot)
+                    break;
+            }
+
+            /*
+             * Next sibling.
+             */
+            Assert(pDstCur->pNext && !strcmp(pDstCur->pNext->szName, pSrcCur->pNext->szName));
+            pSrcCur = pSrcCur->pNext;
+            pDstCur = pDstCur->pNext;
+        }
+    }
+
+    if (RT_FAILURE(rc))
+    {
+        CFGMR3RemoveNode(pNewRoot);
+        return rc;
+    }
+
+    *ppCopy = pNewRoot;
+    return VINF_SUCCESS;
+}
+
+
+/**
  * Insert subtree.
  *
  * This function inserts (no duplication) a tree created by CFGMR3CreateTree()
@@ -1224,10 +1322,11 @@ VMMR3DECL(int) CFGMR3InsertSubTree(PCFGMNODE pNode, const char *pszName, PCFGMNO
     /*
      * Validate input.
      */
+    AssertPtrReturn(pNode, VERR_INVALID_POINTER);
     AssertPtrReturn(pSubTree, VERR_INVALID_POINTER);
+    AssertReturn(pNode != pSubTree, VERR_INVALID_PARAMETER);
     AssertReturn(!pSubTree->pParent, VERR_INVALID_PARAMETER);
     AssertReturn(pSubTree->pVM, VERR_INVALID_PARAMETER);
-    AssertReturn(pSubTree->pParent != pSubTree->pVM->cfgm.s.pRoot, VERR_INVALID_PARAMETER);
     Assert(!pSubTree->pNext);
     Assert(!pSubTree->pPrev);
 
@@ -1240,9 +1339,13 @@ VMMR3DECL(int) CFGMR3InsertSubTree(PCFGMNODE pNode, const char *pszName, PCFGMNO
     if (RT_SUCCESS(rc))
     {
         Assert(!pNewChild->pFirstChild);
-        pNewChild->pFirstChild = pSubTree->pFirstChild;
         Assert(!pNewChild->pFirstLeaf);
+
+        pNewChild->pFirstChild = pSubTree->pFirstChild;
         pNewChild->pFirstLeaf = pSubTree->pFirstLeaf;
+        for (PCFGMNODE pChild = pNewChild->pFirstChild; pChild; pChild = pChild->pNext)
+            pChild->pParent = pNewChild;
+
         if (ppChild)
             *ppChild = pNewChild;
 
@@ -1254,6 +1357,139 @@ VMMR3DECL(int) CFGMR3InsertSubTree(PCFGMNODE pNode, const char *pszName, PCFGMNO
     }
     return rc;
 }
+
+
+/**
+ * Replaces a (sub-)tree with new one.
+ *
+ * This function removes the exiting (sub-)tree, completely freeing it in the
+ * process, and inserts (no duplication) the specified tree.  The tree can
+ * either be created by CFGMR3CreateTree or CFGMR3DuplicateSubTree.
+ *
+ * @returns VBox status code.
+ * @param   pRoot       The sub-tree to replace.  This node will remain valid
+ *                      after the call.
+ * @param   pNewRoot    The tree to replace @a pRoot with.  This not will
+ *                      become invalid after a successful call.
+ */
+VMMR3DECL(int) CFGMR3ReplaceSubTree(PCFGMNODE pRoot, PCFGMNODE pNewRoot)
+{
+    /*
+     * Validate input.
+     */
+    AssertPtrReturn(pRoot, VERR_INVALID_POINTER);
+    AssertPtrReturn(pNewRoot, VERR_INVALID_POINTER);
+    AssertReturn(pRoot != pNewRoot, VERR_INVALID_PARAMETER);
+    AssertReturn(!pNewRoot->pParent, VERR_INVALID_PARAMETER);
+    AssertReturn(pNewRoot->pVM, VERR_INVALID_PARAMETER);
+    AssertReturn(pNewRoot->pVM == pRoot->pVM, VERR_INVALID_PARAMETER);
+    AssertReturn(!pNewRoot->pNext, VERR_INVALID_PARAMETER);
+    AssertReturn(!pNewRoot->pPrev, VERR_INVALID_PARAMETER);
+
+    /*
+     * Free the current properties fo pRoot.
+     */
+    while (pRoot->pFirstChild)
+        CFGMR3RemoveNode(pRoot->pFirstChild);
+
+    while (pRoot->pFirstLeaf)
+        cfgmR3RemoveLeaf(pRoot, pRoot->pFirstLeaf);
+
+    /*
+     * Copy all the properties from the new root to the current one.
+     */
+    pRoot->pFirstLeaf       = pNewRoot->pFirstLeaf;
+    pRoot->pFirstChild      = pNewRoot->pFirstChild;
+    for (PCFGMNODE pChild = pRoot->pFirstChild; pChild; pChild = pChild->pNext)
+        pChild->pParent     = pRoot;
+
+    pNewRoot->pFirstLeaf    = NULL;
+    pNewRoot->pFirstChild   = NULL;
+    pNewRoot->pVM           = NULL;
+    MMR3HeapFree(pNewRoot);
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Copies all values and keys from one tree onto another.
+ *
+ * The flags control what happens to keys and values with the same name
+ * existing in both source and destination.
+ *
+ * @returns VBox status code.
+ * @param   pDstTree            The destination tree.
+ * @param   pSrcTree            The source tree.
+ * @param   fFlags              Copy flags, see CFGM_COPY_FLAGS_XXX.
+ */
+VMMR3DECL(int) CFGMR3CopyTree(PCFGMNODE pDstTree, PCFGMNODE pSrcTree, uint32_t fFlags)
+{
+    /*
+     * Input validation.
+     */
+    AssertPtrReturn(pSrcTree, VERR_INVALID_POINTER);
+    AssertPtrReturn(pDstTree, VERR_INVALID_POINTER);
+    AssertReturn(pDstTree != pSrcTree, VERR_INVALID_PARAMETER);
+    AssertReturn(!(fFlags & ~(CFGM_COPY_FLAGS_VALUE_DISP_MASK | CFGM_COPY_FLAGS_KEY_DISP_MASK)), VERR_INVALID_PARAMETER);
+    AssertReturn(   (fFlags & CFGM_COPY_FLAGS_VALUE_DISP_MASK) != CFGM_COPY_FLAGS_RESERVED_VALUE_DISP_0
+                 && (fFlags & CFGM_COPY_FLAGS_VALUE_DISP_MASK) != CFGM_COPY_FLAGS_RESERVED_VALUE_DISP_1,
+                 VERR_INVALID_PARAMETER);
+    AssertReturn((fFlags & CFGM_COPY_FLAGS_KEY_DISP_MASK) != CFGM_COPY_FLAGS_RESERVED_KEY_DISP,
+                 VERR_INVALID_PARAMETER);
+
+    /*
+     * Copy the values.
+     */
+    int rc;
+    for (PCFGMLEAF pValue = CFGMR3GetFirstValue(pSrcTree); pValue; pValue = CFGMR3GetNextValue(pValue))
+    {
+        rc = CFGMR3InsertValue(pDstTree, pValue);
+        if (rc == VERR_CFGM_LEAF_EXISTS)
+        {
+            if ((fFlags & CFGM_COPY_FLAGS_VALUE_DISP_MASK) == CFGM_COPY_FLAGS_REPLACE_VALUES)
+            {
+                rc = CFGMR3RemoveValue(pDstTree, pValue->szName);
+                if (RT_FAILURE(rc))
+                    break;
+                rc = CFGMR3InsertValue(pDstTree, pValue);
+            }
+            else
+                rc = VINF_SUCCESS;
+        }
+        AssertRCReturn(rc, rc);
+    }
+
+    /*
+     * Copy/merge the keys - merging results in recursion.
+     */
+    for (PCFGMNODE pSrcChild = CFGMR3GetFirstChild(pSrcTree); pSrcChild; pSrcChild = CFGMR3GetNextChild(pSrcChild))
+    {
+        PCFGMNODE pDstChild = CFGMR3GetChild(pDstTree, pSrcChild->szName);
+        if (   pDstChild
+            && (fFlags & CFGM_COPY_FLAGS_KEY_DISP_MASK) == CFGM_COPY_FLAGS_REPLACE_KEYS)
+        {
+            CFGMR3RemoveNode(pDstChild);
+            pDstChild = NULL;
+        }
+        if (!pDstChild)
+        {
+            PCFGMNODE pChildCopy;
+            rc = CFGMR3DuplicateSubTree(pSrcChild, &pChildCopy);
+            AssertRCReturn(rc, rc);
+            rc = CFGMR3InsertSubTree(pDstTree, pSrcChild->szName, pChildCopy, NULL);
+            AssertRCReturnStmt(rc, CFGMR3RemoveNode(pChildCopy), rc);
+        }
+        else if ((fFlags & CFGM_COPY_FLAGS_KEY_DISP_MASK) == CFGM_COPY_FLAGS_MERGE_KEYS)
+        {
+            rc = CFGMR3CopyTree(pDstChild, pSrcChild, fFlags);
+            AssertRCReturn(rc, rc);
+        }
+    }
+
+    return VINF_SUCCESS;
+}
+
 
 
 /**
@@ -1888,6 +2124,39 @@ VMMR3DECL(int) CFGMR3InsertBytes(PCFGMNODE pNode, const char *pszName, const voi
     else
         rc = VERR_CFGM_NO_PARENT;
 
+    return rc;
+}
+
+
+/**
+ * Make a copy of the specified value under the given node.
+ *
+ * @returns VBox status code.
+ * @param   pNode               Parent node.
+ * @param   pValue              The value to copy and insert.
+ */
+VMMR3DECL(int) CFGMR3InsertValue(PCFGMNODE pNode, PCFGMLEAF pValue)
+{
+    int rc;
+    switch (pValue->enmType)
+    {
+        case CFGMVALUETYPE_INTEGER:
+            rc = CFGMR3InsertInteger(pNode, pValue->szName, pValue->Value.Integer.u64);
+            break;
+
+        case CFGMVALUETYPE_BYTES:
+            rc = CFGMR3InsertBytes(pNode, pValue->szName, pValue->Value.Bytes.pau8, pValue->Value.Bytes.cb);
+            break;
+
+        case CFGMVALUETYPE_STRING:
+            rc = CFGMR3InsertStringN(pNode, pValue->szName, pValue->Value.String.psz, pValue->Value.String.cb - 1);
+            break;
+
+        default:
+            rc = VERR_CFGM_IPE_1;
+            AssertMsgFailed(("Invalid value type %d\n", pValue->enmType));
+            break;
+    }
     return rc;
 }
 
@@ -2807,7 +3076,7 @@ static void cfgmR3Dump(PCFGMNODE pRoot, unsigned iLevel, PCDBGFINFOHLP pHlp)
         Assert(pChild->pPrev != pChild);
         Assert(pChild->pPrev != pChild->pNext || !pChild->pPrev);
         Assert(pChild->pFirstChild != pChild);
-        Assert(pChild->pParent != pChild);
+        Assert(pChild->pParent == pRoot);
         cfgmR3Dump(pChild, iLevel + 1, pHlp);
     }
 }

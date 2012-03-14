@@ -747,11 +747,73 @@ crStateFramebufferObjectSwitch(CRContext *from, CRContext *to)
     }
 }
 
+DECLEXPORT(void) STATE_APIENTRY
+crStateFramebufferObjectDisableHW(CRContext *ctx)
+{
+    GLboolean fAdjustDrawReadBuffers = GL_FALSE;
+
+    if (ctx->framebufferobject.drawFB)
+    {
+        diff_api.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, 0);
+        fAdjustDrawReadBuffers = GL_TRUE;
+    }
+
+    if (ctx->framebufferobject.readFB)
+    {
+        diff_api.BindFramebufferEXT(GL_READ_FRAMEBUFFER, 0);
+        fAdjustDrawReadBuffers = GL_TRUE;
+    }
+
+    if (fAdjustDrawReadBuffers)
+    {
+        diff_api.DrawBuffer(GL_BACK);
+        diff_api.ReadBuffer(GL_BACK);
+    }
+
+    if (ctx->framebufferobject.renderbuffer)
+        diff_api.BindRenderbufferEXT(GL_RENDERBUFFER_EXT, 0);
+}
+
+DECLEXPORT(void) STATE_APIENTRY
+crStateFramebufferObjectReenableHW(CRContext *fromCtx, CRContext *toCtx)
+{
+    GLboolean fAdjustDrawReadBuffers = GL_FALSE;
+
+    if (fromCtx->framebufferobject.drawFB /* <- the FBO state was reset in crStateFramebufferObjectDisableHW */
+            && fromCtx->framebufferobject.drawFB == toCtx->framebufferobject.drawFB) /* .. and it was NOT restored properly in crStateFramebufferObjectSwitch */
+    {
+        diff_api.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, toCtx->framebufferobject.drawFB->hwid);
+        fAdjustDrawReadBuffers = GL_TRUE;
+    }
+
+    if (fromCtx->framebufferobject.readFB /* <- the FBO state was reset in crStateFramebufferObjectDisableHW */
+            && fromCtx->framebufferobject.readFB == toCtx->framebufferobject.readFB) /* .. and it was NOT restored properly in crStateFramebufferObjectSwitch */
+    {
+        diff_api.BindFramebufferEXT(GL_READ_FRAMEBUFFER, toCtx->framebufferobject.readFB->hwid);
+        fAdjustDrawReadBuffers = GL_TRUE;
+    }
+
+    if (fAdjustDrawReadBuffers)
+    {
+        diff_api.DrawBuffer(toCtx->framebufferobject.drawFB?toCtx->framebufferobject.drawFB->drawbuffer[0]:toCtx->buffer.drawBuffer);
+        diff_api.ReadBuffer(toCtx->framebufferobject.readFB?toCtx->framebufferobject.readFB->readbuffer:toCtx->buffer.readBuffer);
+    }
+
+    if (fromCtx->framebufferobject.renderbuffer /* <- the FBO state was reset in crStateFramebufferObjectDisableHW */
+            && fromCtx->framebufferobject.renderbuffer==toCtx->framebufferobject.renderbuffer) /* .. and it was NOT restored properly in crStateFramebufferObjectSwitch */
+    {
+        diff_api.BindRenderbufferEXT(GL_RENDERBUFFER_EXT, toCtx->framebufferobject.renderbuffer->hwid);
+    }
+}
+
+
 DECLEXPORT(GLuint) STATE_APIENTRY crStateGetFramebufferHWID(GLuint id)
 {
     CRContext *g = GetCurrentContext();
     CRFramebufferObject *pFBO = (CRFramebufferObject*) crHashtableSearch(g->shared->fbTable, id);
-
+#ifdef DEBUG_misha
+    crDebug("FB id(%d) hw(%d)", id, pFBO ? pFBO->hwid : 0);
+#endif
     return pFBO ? pFBO->hwid : 0;
 }
 

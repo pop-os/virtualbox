@@ -349,6 +349,7 @@ if [ "$ACTION" = "install" ]; then
         chcon -t java_exec_t    $INSTALLATION_DIR/VBoxExtPackHelperApp > /dev/null 2>&1
         chcon -t java_exec_t    $INSTALLATION_DIR/vboxwebsrv > /dev/null 2>&1
         chcon -t java_exec_t    $INSTALLATION_DIR/webtest > /dev/null 2>&1
+        chcon -t bin_t          $INSTALLATION_DIR/src/vboxhost/*/build_in_tmp > /dev/null 2>&1
     fi
 
     # Hardened build: Mark selected binaries set-user-ID-on-execution,
@@ -453,6 +454,9 @@ if [ "$ACTION" = "install" ]; then
     echo "# VirtualBox version" >> $CONFIG_DIR/$CONFIG
     echo "INSTALL_VER='$VERSION'" >> $CONFIG_DIR/$CONFIG
     echo "INSTALL_REV='$SVNREV'" >> $CONFIG_DIR/$CONFIG
+    echo "# Build type and user name for logging purposes" >> $CONFIG_DIR/$CONFIG
+    echo "BUILD_TYPE='$BUILD_TYPE'" >> $CONFIG_DIR/$CONFIG
+    echo "USERNAME='$USERNAME'" >> $CONFIG_DIR/$CONFIG
 
     # Make kernel module
     MODULE_FAILED="false"

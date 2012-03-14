@@ -1,6 +1,172 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.1.10 (2012-03-13)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: if 3D support on the host is not available for some reason,
+          do not only disable this VM setting but also uncheck the checkbox</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a potential problem causing to schedule interrupts during
+          <emphasis>SYSEXIT</emphasis> right after <emphasis>STI</emphasis></para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a potential guest memory corruption issue with page
+          fusion</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: adjusted the module matching algorithm for page fusion a
+           little, generally resulting in slightly more shared pages</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: host interfaces no longer have "defaults" for IP address
+          and network mask attributes</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: don't depend on a password for certain guest control operations
+          (bug #10030)</para>
+      </listitem>
+
+      <listitem>
+        <para>3D Support: fixed Windows XP hosts support (4.1.8 regression;
+          bugs #10071 and #10088</para>
+      </listitem>
+
+      <listitem>
+        <para>3D Support: rendering fixes for Linux hosts with NVIDIA graphics</para>
+      </listitem>
+
+      <listitem>
+        <para>3D Support: fixed saved state issues (4.1.8 regression; bug #10126)</para>
+      </listitem>
+
+      <listitem>
+        <para>3D Support: WDDM driver: fixed powershell_ise crashes (bug #10167),
+          make WPF-based apps work with Aero enabled, fixed additional possible WinSAT crashes</para>
+      </listitem>
+
+      <listitem>
+        <para>VRDP: fixed remote clipboard compatibility issues with some clients</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a possible data corruption when compacting VDI or VHD
+          images with snapshots (32-bit hosts only)</para>
+      </listitem>
+
+      <listitem>
+        <para>iSCSI: fixed crash when using incorrect credentials
+          when authenticating with a LIO target (bug #10173)</para>
+      </listitem>
+
+      <listitem>
+        <para>Serial: don't abort in host mode under rare error conditions
+          (non-Windows hosts only)</para>
+      </listitem>
+
+      <listitem>
+        <para>SDK: actually ship current C bindings</para>
+      </listitem>
+
+      <listitem>
+        <para>SDK: fixed the Java glue code for JDK 1.7.0 (bug #9848)</para>
+      </listitem>
+
+      <listitem>
+        <para>SDK: added Python example</para>
+      </listitem>
+
+      <listitem>
+        <para>Metrics: make metrics collection more robust regarding blocked VMs</para>
+      </listitem>
+
+      <listitem>
+        <para>Web service: added SSL/TLS support</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxShell: fixed Guest Additions information lookup</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris installer: fixed dependency checking while installing VirtualBox
+          in a zone</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts/guests: Linux 3.3-rc1 compile fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris hosts: fixed debug kernel panics while opening module CTF data
+          (#9591)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed Python support on Lion</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: make 3D passthrough work on OL/RHEL 6.2 (bug
+           #10010)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed missing implementation when copying shared
+           folder data through kernel high memory (bug #9878)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: make sure all data is written when closing a
+          memory mapped file on a shared folder</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: added support for X.Org Server 1.12</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Additions: fixed guest kernel driver to load properly
+          on guest reboot (4.1.8 regression; bug #10113)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Additions: fixed missing 64-bit OpenGL library VBoxOGL.so
+          (bug #10151)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Additions: fixed VBoxService import and start for Solaris 11
+          guests.</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: some Windows 8 adaptions</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: several fixes for shared folders (bug #9753)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest control: miscellaneous bugfixes</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 4.1.8 (2011-12-19)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -69,9 +235,9 @@
       </listitem>
 
       <listitem>
-        <para>3D Support: Fixed fullscreen mode issues for ATI graphics (bug #9775),
+        <para>3D Support: fixed full screen mode issues for ATI graphics (bug #9775),
           Windows Media Player rendering for XPDM-based Direct3D support (bug# 8341).
-          Multiple fixes to XPDM and WDDM - based 3D support for Windows Guests 
+          Multiple fixes to XPDM and WDDM - based 3D support for Windows Guests
           and for 3D support in general</para>
       </listitem>
 
@@ -91,7 +257,7 @@
         <para>Windows Additions: various fixes for Direct3D support (un)installation, added
           detection of missing or wrong Direct3D system files</para>
       </listitem>
-      
+
     </itemizedlist>
   </sect1>
 
@@ -128,7 +294,7 @@
 
       <listitem>
         <para>Main: fixed incorrect framebuffer information after leaving
-          the fullscreen mode with X11 guests, this lead to a scrambled
+          the full screen mode with X11 guests, this lead to a scrambled
           preview window in the GUI for example</para>
       </listitem>
 
@@ -297,7 +463,7 @@
 
       <listitem>
         <para>3D Support: fixed incorrect rendering and possible crashes when switching
-          to/from fullscreen with enabled 2D acceleration</para>
+          to/from full screen with enabled 2D acceleration</para>
       </listitem>
 
       <listitem>
@@ -305,7 +471,7 @@
       </listitem>
 
       <listitem>
-        <para>Guest control: Miscellaneous small bugfixes</para>
+        <para>Guest control: miscellaneous small bugfixes</para>
       </listitem>
 
       <listitem>
@@ -411,7 +577,7 @@
       </listitem>
 
       <listitem>
-        <para>Windows Additions: fixed guest hangs when switching back from fullscreen
+        <para>Windows Additions: fixed guest hangs when switching back from full screen
           text mode applications (bug #9636)</para>
       </listitem>
 
@@ -843,7 +1009,7 @@
       </listitem>
 
       <listitem>
-        <para>Webservice: fixed timeout handling with HTTP 1.1 keepalive, and
+        <para>Web service: fixed timeout handling with HTTP 1.1 keepalive, and
           be more robust when connections fail</para>
       </listitem>
 
@@ -974,6 +1140,7 @@
 
     </itemizedlist>
   </sect1>
+
   <sect1>
     <title>Version 4.0.10 (2011-06-22)</title>
 
@@ -1468,7 +1635,7 @@
       </listitem>
 
       <listitem>
-        <para>Webservice: use own log file, with log rotation to limit size</para>
+        <para>Web service: use own log file, with log rotation to limit size</para>
       </listitem>
 
     </itemizedlist>
@@ -1809,7 +1976,7 @@
       </listitem>
 
       <listitem>
-        <para>Webservice: now listens to localhost by default as documented
+        <para>Web service: now listens to localhost by default as documented
           (bug #6067)</para>
       </listitem>
 
@@ -2009,7 +2176,7 @@
       </listitem>
 
       <listitem>
-        <para>GUI: fixed black fullscreen minitoolbar on KDE4 hosts
+        <para>GUI: fixed black full screen minitoolbar on KDE4 hosts
           (Linux hosts only; bug #5449)</para>
       </listitem>
 
@@ -2478,7 +2645,7 @@
 
       <listitem>
         <para>3D support: fixed broken 3D support when switching to
-          fullscreen/seamless modes (bug #7314)</para>
+          full screen / seamless modes (bug #7314)</para>
       </listitem>
 
       <listitem>
@@ -2823,7 +2990,7 @@
       </listitem>
 
       <listitem>
-        <para>GUI: fixed quit dialog when used in seamless or fullscreen mode
+        <para>GUI: fixed quit dialog when used in seamless or full screen mode
           (Mac OS X hosts only; bug #6938)</para>
       </listitem>
 
@@ -2834,7 +3001,7 @@
       </listitem>
 
       <listitem>
-        <para>2D Video acceleration: fixed crashes when leaving the fullscreen mode
+        <para>2D Video acceleration: fixed crashes when leaving the full screen mode
           (bug #6768)</para>
       </listitem>
 
@@ -3202,7 +3369,7 @@
       </listitem>
 
       <listitem>
-        <para>Webservice: fixed a rare crash when calling IGuest methods from the webservice</para>
+        <para>Web service: fixed a rare crash when calling IGuest methods from the web service</para>
       </listitem>
 
       <listitem>
@@ -3615,7 +3782,7 @@
       </listitem>
 
       <listitem>
-        <para>webservice: more structs and array fixes in PHP bindings</para>
+        <para>Web service: more structs and array fixes in PHP bindings</para>
       </listitem>
 
       <listitem>
@@ -3786,11 +3953,11 @@
       </listitem>
 
       <listitem>
-        <para>webservice: vboxwebsrv is now multithreaded</para>
+        <para>Web service: vboxwebsrv is now multithreaded</para>
       </listitem>
 
        <listitem>
-        <para>webservice: fixed handling of structs and arrays in PHP bindings</para>
+        <para>Web service: fixed handling of structs and arrays in PHP bindings</para>
       </listitem>
 
       <listitem>
@@ -3911,7 +4078,7 @@
       </listitem>
 
       <listitem>
-        <para>GUI: fixed guest fullscreen mode after reboot (bug #5372)</para>
+        <para>GUI: fixed guest full screen mode after reboot (bug #5372)</para>
       </listitem>
 
       <listitem>
@@ -4147,13 +4314,13 @@
 
       <listitem>
         <para>Mac OS X hosts: dock &amp; menubar don't disappear in
-          fullscreen when the VM is not running on the primary display (bug
+          full screen when the VM is not running on the primary display (bug
           #1762)</para>
       </listitem>
 
       <listitem>
         <para>Mac OS X hosts: added an option for enabling "Auto show Dock &amp;
-          Menubar in fullscreen" (bug #5636)</para>
+          Menubar in full screen" (bug #5636)</para>
       </listitem>
 
       <listitem>
@@ -4433,7 +4600,7 @@
       </listitem>
 
       <listitem>
-        <para>Mac OS X hosts: don't auto show the menu and dock in fullscreen
+        <para>Mac OS X hosts: don't auto show the menu and dock in full screen
           (bug #4866)</para>
       </listitem>
 
@@ -4984,7 +5151,7 @@
 
       <listitem>
         <para>Python WS: fixed issue with certain enumerations constants having
-          wrong values in Python webservices bindings</para>
+          wrong values in Python web services bindings</para>
       </listitem>
 
       <listitem>
@@ -5035,7 +5202,7 @@
       </listitem>
 
       <listitem>
-        <para>Webservice: fixed a severe memory leak, at least on platforms using XPCOM</para>
+        <para>Web service: fixed a severe memory leak, at least on platforms using XPCOM</para>
       </listitem>
 
       <listitem>
@@ -5548,7 +5715,7 @@
       </listitem>
 
       <listitem>
-        <para>GUI: added mini toolbar for fullscreen and seamless mode (Thanks to Huihong Luo)</para>
+        <para>GUI: added mini toolbar for full screen and seamless mode (Thanks to Huihong Luo)</para>
       </listitem>
 
       <listitem>

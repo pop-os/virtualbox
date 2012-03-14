@@ -681,7 +681,7 @@ const PDMDRVREG g_DrvNamedPipe =
     /* fClass. */
     PDM_DRVREG_CLASS_STREAM,
     /* cMaxInstances */
-    ~0,
+    ~0U,
     /* cbInstance */
     sizeof(DRVNAMEDPIPE),
     /* pfnConstruct */

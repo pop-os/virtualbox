@@ -785,7 +785,18 @@ void slirp_term(PNATState pData)
     ftp_alias_unload(pData);
     nbt_alias_unload(pData);
     if (pData->fUseHostResolver)
+    {
         dns_alias_unload(pData);
+#ifdef VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER
+        while (!LIST_EMPTY(&pData->DNSMapHead))
+        {
+            PDNSMAPPINGENTRY pDnsEntry = LIST_FIRST(&pData->DNSMapHead);
+            LIST_REMOVE(pDnsEntry, MapList);
+            RTStrFree(pDnsEntry->pszCName);
+            RTMemFree(pDnsEntry);
+        }
+#endif
+    }
     while (!LIST_EMPTY(&instancehead))
     {
         struct libalias *la = LIST_FIRST(&instancehead);
@@ -2129,6 +2140,43 @@ void slirp_arp_who_has(PNATState pData, uint32_t dst)
     if_encap(pData, ETH_P_ARP, m, ETH_ENCAP_URG);
     LogFlowFuncLeave();
 }
+#ifdef VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER
+void  slirp_add_host_resolver_mapping(PNATState pData, const char *pszHostName, const char *pszHostNamePattern, uint32_t u32HostIP)
+{
+    LogFlowFunc(("ENTER: pszHostName:%s, pszHostNamePattern:%s u32HostIP:%RTnaipv4\n",
+                pszHostName ? pszHostName : "(null)",
+                pszHostNamePattern ? pszHostNamePattern : "(null)",
+                u32HostIP));
+    if (   (   pszHostName
+            || pszHostNamePattern)
+        && u32HostIP != INADDR_ANY
+        && u32HostIP != INADDR_BROADCAST)
+    {
+        PDNSMAPPINGENTRY pDnsMapping = RTMemAllocZ(sizeof(DNSMAPPINGENTRY));
+        if (!pDnsMapping)
+        {
+            LogFunc(("Can't allocate DNSMAPPINGENTRY\n"));
+            LogFlowFuncLeave();
+            return;
+        }
+        pDnsMapping->u32IpAddress = u32HostIP;
+        if (pszHostName)
+            pDnsMapping->pszCName = RTStrDup(pszHostName);
+        else if (pszHostNamePattern)
+            pDnsMapping->pszPattern = RTStrDup(pszHostNamePattern);
+        if (   !pDnsMapping->pszCName
+            && !pDnsMapping->pszPattern)
+        {
+            LogFunc(("Can't allocate enough room for %s\n", pszHostName ? pszHostName : pszHostNamePattern));
+            RTMemFree(pDnsMapping);
+            LogFlowFuncLeave();
+            return;
+        }
+        LIST_INSERT_HEAD(&pData->DNSMapHead, pDnsMapping, MapList);
+    }
+    LogFlowFuncLeave();
+}
+#endif
 
 /* updates the arp cache
  * @note: this is helper function, slirp_arp_cache_update_or_add should be used.

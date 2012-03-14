@@ -1001,7 +1001,7 @@ const PDMDRVREG g_DrvBlock =
     /* fClass. */
     PDM_DRVREG_CLASS_BLOCK,
     /* cMaxInstances */
-    ~0,
+    ~0U,
     /* cbInstance */
     sizeof(DRVBLOCK),
     /* pfnConstruct */

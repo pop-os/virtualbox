@@ -102,47 +102,6 @@ PPDMIVMMDEVPORT VMMDev::getVMMDevPort()
     return mpDrv->pUpPort;
 }
 
-
-/**
- * Reports Guest Additions status.
- * Called whenever the Additions issue a guest status report request or the VM is reset.
- *
- * @param   pInterface          Pointer to this interface.
- * @param   guestInfo           Pointer to guest information structure
- * @thread  The emulation thread.
- */
-DECLCALLBACK(void) VMMDev::UpdateGuestStatus(PPDMIVMMDEVCONNECTOR pInterface, const VBoxGuestStatus *guestStatus)
-{
-    return;
-}
-
-/**
- * Report guest information.
- * Called whenever the Additions issue a guest version report request.
- *
- * @param   pInterface          Pointer to this interface.
- * @param   guestInfo           Pointer to guest information structure
- * @thread  The emulation thread.
- */
-DECLCALLBACK(void) VMMDev::UpdateGuestInfo(PPDMIVMMDEVCONNECTOR pInterface, const VBoxGuestInfo *guestInfo)
-{
-    return;
-}
-
-/**
- * Update the guest additions capabilities.
- * This is called when the guest additions capabilities change. The new capabilities
- * are given and the connector should update its internal state.
- *
- * @param   pInterface          Pointer to this interface.
- * @param   newCapabilities     New capabilities.
- * @thread  The emulation thread.
- */
-DECLCALLBACK(void) VMMDev::UpdateGuestCapabilities(PPDMIVMMDEVCONNECTOR pInterface, uint32_t newCapabilities)
-{
-    return;
-}
-
 /**
  * Update the mouse capabilities.
  * This is called when the mouse capabilities change. The new capabilities
@@ -389,9 +348,9 @@ DECLCALLBACK(int) VMMDev::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint3
      */
     pDrvIns->IBase.pfnQueryInterface            = VMMDev::drvQueryInterface;
 
-    pData->Connector.pfnUpdateGuestStatus       = VMMDev::UpdateGuestStatus;
-    pData->Connector.pfnUpdateGuestInfo         = VMMDev::UpdateGuestInfo;
-    pData->Connector.pfnUpdateGuestCapabilities = VMMDev::UpdateGuestCapabilities;
+    //pData->Connector.pfnUpdateGuestStatus       = VMMDev::UpdateGuestStatus;
+    //pData->Connector.pfnUpdateGuestInfo         = VMMDev::UpdateGuestInfo;
+    //pData->Connector.pfnUpdateGuestCapabilities = VMMDev::UpdateGuestCapabilities;
     pData->Connector.pfnUpdateMouseCapabilities = VMMDev::UpdateMouseCapabilities;
     pData->Connector.pfnUpdatePointerShape      = VMMDev::UpdatePointerShape;
     pData->Connector.pfnVideoAccelEnable        = iface_VideoAccelEnable;
@@ -484,7 +443,7 @@ const PDMDRVREG VMMDev::DrvReg =
     /* fClass. */
     PDM_DRVREG_CLASS_VMMDEV,
     /* cMaxInstances */
-    ~0,
+    ~0U,
     /* cbInstance */
     sizeof(DRVMAINVMMDEV),
     /* pfnConstruct */

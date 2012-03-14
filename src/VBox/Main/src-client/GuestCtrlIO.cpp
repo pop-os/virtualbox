@@ -20,7 +20,10 @@
  *   Header Files                                                             *
  ******************************************************************************/
 #include "GuestCtrlImplPrivate.h"
-
+#ifdef DEBUG
+# include "Logging.h"
+# include <iprt/file.h>
+#endif /* DEBUG */
 
 /******************************************************************************
  *   Structures and Typedefs                                                  *
@@ -63,6 +66,20 @@ void GuestProcessStreamBlock::Clear()
 {
     m_mapPairs.clear();
 }
+
+#ifdef DEBUG
+void GuestProcessStreamBlock::Dump()
+{
+    LogFlowFunc(("Dumping contents of stream block=0x%p (%ld items):\n",
+                 this, m_mapPairs.size()));
+
+    for (GuestCtrlStreamPairMapIterConst it = m_mapPairs.begin();
+         it != m_mapPairs.end(); it++)
+    {
+        LogFlowFunc(("\t%s=%s\n", it->first.c_str(), it->second.mValue.c_str()));
+    }
+}
+#endif
 
 /**
  * Returns a 64-bit signed integer of a specified key.
@@ -192,7 +209,7 @@ int GuestProcessStreamBlock::SetValue(const char *pszKey, const char *pszValue)
 
         if (pszValue)
         {
-            VBOXGUESTCTRL_STREAMVALUE val(pszValue);
+            GuestProcessStreamValue val(pszValue);
             m_mapPairs[Utf8Key] = val;
         }
     }
@@ -306,6 +323,22 @@ void GuestProcessStream::Destroy()
     m_cbOffset = 0;
 }
 
+#ifdef DEBUG
+void GuestProcessStream::Dump(const char *pszFile)
+{
+    LogFlowFunc(("Dumping contents of stream=0x%p (cbAlloc=%u, cbSize=%u, cbOff=%u) to %s\n",
+                 m_pbBuffer, m_cbAllocated, m_cbSize, m_cbOffset, pszFile));
+
+    RTFILE hFile;
+    int rc = RTFileOpen(&hFile, pszFile, RTFILE_O_CREATE_REPLACE | RTFILE_O_WRITE | RTFILE_O_DENY_WRITE);
+    if (RT_SUCCESS(rc))
+    {
+        rc = RTFileWrite(hFile, m_pbBuffer, m_cbSize, NULL /* pcbWritten */);
+        RTFileClose(hFile);
+    }
+}
+#endif
+
 /**
  * Returns the current offset of the parser within
  * the internal data buffer.
@@ -315,6 +348,11 @@ void GuestProcessStream::Destroy()
 uint32_t GuestProcessStream::GetOffset()
 {
     return m_cbOffset;
+}
+
+uint32_t GuestProcessStream::GetSize()
+{
+    return m_cbSize;
 }
 
 /**
@@ -349,12 +387,14 @@ int GuestProcessStream::ParseBlock(GuestProcessStreamBlock &streamBlock)
 
     int rc = VINF_SUCCESS;
 
-    char *pszOff   = (char*)&m_pbBuffer[m_cbOffset];
-    char *pszStart = pszOff;
+    char    *pszOff    = (char*)&m_pbBuffer[m_cbOffset];
+    char    *pszStart  = pszOff;
+    uint32_t uDistance;
     while (*pszStart)
     {
         size_t pairLen = strlen(pszStart);
-        if ((pszStart - pszOff) + pairLen + 1 >= m_cbSize)
+        uDistance = (pszStart - pszOff);
+        if (m_cbOffset + uDistance + pairLen + 1 >= m_cbSize)
         {
             rc = VERR_MORE_DATA;
             break;
@@ -387,7 +427,7 @@ int GuestProcessStream::ParseBlock(GuestProcessStreamBlock &streamBlock)
     /* If we did not do any movement but we have stuff left
      * in our buffer just skip the current termination so that
      * we can try next time. */
-    uint32_t uDistance = (pszStart - pszOff);
+    uDistance = (pszStart - pszOff);
     if (   !uDistance
         && *pszStart == '\0'
         && m_cbOffset < m_cbSize)

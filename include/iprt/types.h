@@ -109,6 +109,20 @@ RT_C_DECLS_END
 #    include <linux/autoconf.h>
 #   endif
 #  endif
+#  include <linux/compiler.h>
+#  if defined(__cplusplus)
+    /*
+     * Starting with 3.3, <linux/compiler-gcc.h> appends 'notrace' (which
+     * expands to __attribute__((no_instrument_function))) to inline,
+     * __inline and __inline__. Revert that.
+     */
+#   undef inline
+#   define inline inline
+#   undef __inline__
+#   define __inline__ __inline__
+#   undef __inline
+#   define __inline __inline
+#  endif
 #  include <linux/types.h>
 #  include <linux/stddef.h>
 #  undef uintptr_t
@@ -684,6 +698,11 @@ typedef uint32_t            RTMSINTERVAL;
 typedef RTMSINTERVAL       *PRTMSINTERVAL;
 /** Pointer to a const millisecond interval. */
 typedef const RTMSINTERVAL *PCRTMSINTERVAL;
+
+/** Pointer to a time spec structure. */
+typedef struct RTTIMESPEC  *PRTTIMESPEC;
+/** Pointer to a const time spec structure. */
+typedef const struct RTTIMESPEC *PCRTTIMESPEC;
 
 /**
  * Generic pointer union.

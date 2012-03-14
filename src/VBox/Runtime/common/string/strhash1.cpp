@@ -1,10 +1,10 @@
-/* $Id: RTStrConvertHexBytes.cpp $ */
+/* $Id: strhash1.cpp $ */
 /** @file
- * IPRT - RTStrConvertHexBytes.
+ * IPRT - String Hashing by Algorithm \#1.
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,16 +31,42 @@
 #include "internal/iprt.h"
 #include <iprt/string.h>
 
-#include <iprt/assert.h>
-#include <iprt/err.h>
+#include "internal/strhash.h"
 
 
-RTDECL(int) RTStrConvertHexBytes(char const *pszHex, void *pv, size_t cb, uint32_t fFlags)
+RTDECL(uint32_t)    RTStrHash1(const char *pszString)
 {
-    AssertPtrReturn(pszHex, VERR_INVALID_POINTER);
-    AssertReturn(!fFlags, VERR_INVALID_PARAMETER);
+    size_t cchIgnored;
+    return sdbm(pszString, &cchIgnored);
+}
 
-    AssertFailed();
-    return VERR_NOT_IMPLEMENTED;
+
+RTDECL(uint32_t)    RTStrHash1N(const char *pszString, size_t cchString)
+{
+    size_t cchIgnored;
+    return sdbmN(pszString, cchString, &cchIgnored);
+}
+
+
+RTDECL(uint32_t)    RTStrHash1ExN(size_t cPairs, ...)
+{
+    va_list va;
+    va_start(va, cPairs);
+    uint32_t uHash = RTStrHash1ExNV(cPairs, va);
+    va_end(va);
+    return uHash;
+}
+
+
+RTDECL(uint32_t)    RTStrHash1ExNV(size_t cPairs, va_list va)
+{
+    uint32_t uHash = 0;
+    for (uint32_t i = 0; i < cPairs; i++)
+    {
+        const char *psz = va_arg(va, const char *);
+        size_t      cch = va_arg(va, size_t);
+        uHash += sdbmIncN(psz, cch, uHash);
+    }
+    return uHash;
 }
 

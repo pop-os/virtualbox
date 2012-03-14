@@ -156,7 +156,7 @@ static int renderspuAtiQuirk_GetICDDriverList(char *pBuf, DWORD cbBuf, DWORD *pc
     static LPCSTR aValueNames[] = {"OpenGLVendorName", "OpenGLDriverName"};
     char *pBufPos = pBuf;
     DWORD cbBufRemain = cbBuf, cbTotal = 0;
-    HKEY hKey;
+    HKEY hKey, hSubkey;
     DWORD dwIndex = 0;
     int i;
     int rc = VINF_SUCCESS;
@@ -190,17 +190,35 @@ static int renderspuAtiQuirk_GetICDDriverList(char *pBuf, DWORD cbBuf, DWORD *pc
             continue;
         }
 
+        lRc = RegOpenKeyEx(hKey,
+                NameBuf,
+                0, /* reserved*/
+                KEY_READ,
+                &hSubkey);
+        if (ERROR_SUCCESS != lRc)
+        {
+            crDebug("RegOpenKeyEx 2 failed, %d", lRc);
+            RegCloseKey(hKey);
+            return VERR_OPEN_FAILED;
+        }
+
         for (i = 0; i < RT_ELEMENTS(aValueNames); ++i)
         {
             DWORD cbCur = cbBufRemain;
-            lRc = RegGetValueA(hKey, NameBuf, aValueNames[i], RRF_RT_REG_MULTI_SZ,
-                    NULL, /* LPDWORD pdwType */
-                    pBufPos,
-                    &cbCur);
+            DWORD type;
+            lRc = RegQueryValueExA(hSubkey, aValueNames[i], NULL, /* reserved*/
+                    &type,
+                    (PBYTE)pBufPos, &cbCur);
             /* exclude second null termination */
             --cbCur;
+
             if (ERROR_MORE_DATA == lRc)
             {
+                if (REG_MULTI_SZ != type)
+                {
+                    crWarning("unexpected data type! %d", type);
+                    continue;
+                }
                 rc = VERR_BUFFER_OVERFLOW;
                 pBufPos = NULL;
                 cbBufRemain = 0;
@@ -210,7 +228,13 @@ static int renderspuAtiQuirk_GetICDDriverList(char *pBuf, DWORD cbBuf, DWORD *pc
             }
             if (ERROR_SUCCESS != lRc)
             {
-                crWarning("RegGetValueA failed, %d", lRc);
+                crDebug("RegQueryValueExA failed, %d", lRc);
+                continue;
+            }
+
+            if (REG_MULTI_SZ != type)
+            {
+                crWarning("unexpected data type! %d", type);
                 continue;
             }
 
@@ -221,7 +245,11 @@ static int renderspuAtiQuirk_GetICDDriverList(char *pBuf, DWORD cbBuf, DWORD *pc
             cbTotal += cbCur;
             CRASSERT(cbBufRemain < UINT32_MAX/2);
         }
+
+        RegCloseKey(hSubkey);
     }
+
+    RegCloseKey(hKey);
 
     if (cbTotal)
     {
@@ -258,7 +286,7 @@ static int renderspuAtiQuirk_ApplyForModule(LPCSTR pszAtiDll)
     }
 
     crDebug("renderspuAtiQuirk_ApplyForModule SUCCEEDED!");
-    crInfo("ATI Fullscreen qwirk for SUCCEEDED!");
+    crInfo("ATI Fullscreen qwirk SUCCEEDED!");
 
     return VINF_SUCCESS;
 }

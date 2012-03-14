@@ -863,7 +863,7 @@ const PDMDRVREG g_DrvSCSI =
     /* fClass. */
     PDM_DRVREG_CLASS_SCSI,
     /* cMaxInstances */
-    ~0,
+    ~0U,
     /* cbInstance */
     sizeof(DRVSCSI),
     /* pfnConstruct */

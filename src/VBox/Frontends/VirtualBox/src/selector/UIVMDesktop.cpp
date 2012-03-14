@@ -168,6 +168,7 @@ private:
 
     /* Private member vars */
     CVirtualBox m_vbox;
+    CHost m_host;
     CMachine m_machine;
 
     /* Details view */
@@ -193,6 +194,7 @@ UIDetailsPagePrivate::UIDetailsPagePrivate(QWidget *aParent,
                                            QAction *aRefreshAction /* = 0 */)
     : QIWithRetranslateUI<QStackedWidget>(aParent)
     , m_vbox(vboxGlobal().virtualBox())
+    , m_host(vboxGlobal().host())
     , m_fChangeable(false)
     , m_fUSBAvailable(true)
     , m_pText(0)
@@ -632,7 +634,7 @@ void UIDetailsPagePrivate::sltUpdateSystem()
 #endif /* VBOX_WITH_FULL_DETAILS_REPORT */
 
             QStringList accel;
-            if (m_vbox.GetHost().GetProcessorFeature(KProcessorFeature_HWVirtEx))
+            if (m_host.GetProcessorFeature(KProcessorFeature_HWVirtEx))
             {
                 /* VT-x/AMD-V */
                 if (m_machine.GetHWVirtExProperty(KHWVirtExPropertyType_Enabled))

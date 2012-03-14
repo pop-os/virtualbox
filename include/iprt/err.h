@@ -865,6 +865,14 @@ RT_C_DECLS_END
 #define VERR_MISSING                        (-99)
 /** An unexpected (/unknown) exception was caught. */
 #define VERR_UNEXPECTED_EXCEPTION           (-22400)
+/** Buffer underflow. */
+#define VERR_BUFFER_UNDERFLOW               (-22401)
+/** Buffer underflow. */
+#define VINF_BUFFER_UNDERFLOW               22401
+/** Uneven input. */
+#define VERR_UNEVEN_INPUT                   (-22402)
+/** Something is not available or not working properly. */
+#define VERR_NOT_AVAILABLE                  (-22403)
 /** @} */
 
 
@@ -1010,7 +1018,7 @@ RT_C_DECLS_END
 /** @name Internal Processing Errors
  * @{
  */
-/** Internal error - we're screwed if this happens.  */
+/** Internal error - this should never happen.  */
 #define VERR_INTERNAL_ERROR                 (-225)
 /** Internal error no. 2. */
 #define VERR_INTERNAL_ERROR_2               (-226)
@@ -1073,6 +1081,10 @@ RT_C_DECLS_END
 #define VERR_PIPE_NOT_CONNECTED             (-305)
 /** More data available in pipe. */
 #define VERR_MORE_DATA                      (-306)
+/** Expected read pipe, got a write pipe instead. */
+#define VERR_PIPE_NOT_READ                  (-307)
+/** Expected write pipe, got a read pipe instead. */
+#define VERR_PIPE_NOT_WRITE                 (-308)
 /** @} */
 
 
@@ -1526,6 +1538,12 @@ RT_C_DECLS_END
 #define VERR_MANIFEST_DIGEST_MISMATCH           (-902)
 /** The file list doesn't match to the content of the manifest file. */
 #define VERR_MANIFEST_FILE_MISMATCH             (-903)
+/** The specified attribute (name) was not found in the manifest.  */
+#define VERR_MANIFEST_ATTR_NOT_FOUND            (-904)
+/** The attribute type did not match. */
+#define VERR_MANIFEST_ATTR_TYPE_MISMATCH        (-905)
+/** No attribute of the specified types was found. */
+#define VERR_MANIFEST_ATTR_TYPE_NOT_FOUND        (-906)
 /** @} */
 
 /** @name RTTar status codes

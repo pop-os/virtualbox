@@ -22,12 +22,19 @@
 # terms and conditions of either the GPL or the CDDL or both.
 #
 
+LC_ALL=C
+export LC_ALL
+
+LANG=C
+export LANG
+
 echo "Removing VirtualBox service..."
 
 # stop and unregister VBoxService
 /usr/sbin/svcadm disable -s virtualbox/vboxservice
 # Don't need to delete, taken care of by the manifest action
 # /usr/sbin/svccfg delete svc:/application/virtualbox/vboxservice:default
+/usr/sbin/svcadm restart svc:/system/manifest-import:default
 
 # stop VBoxClient
 pkill -INT VBoxClient

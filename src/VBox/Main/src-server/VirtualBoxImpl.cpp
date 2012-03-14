@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,6 @@
 #include <iprt/path.h>
 #include <iprt/process.h>
 #include <iprt/string.h>
-#include <iprt/stream.h>
 #include <iprt/thread.h>
 #include <iprt/uuid.h>
 #include <iprt/cpp/xml.h>
@@ -1580,7 +1579,10 @@ STDMETHODIMP VirtualBox::OpenMedium(IN_BSTR aLocation,
 
     ComObjPtr<Medium> pMedium;
 
-    /* we don't access non-const data members so no need to lock */
+    // have to get write lock as the whole find/update sequence must be done
+    // in one critical section, otherwise there are races which can lead to
+    // multiple Medium objects with the same content
+    AutoWriteLock treeLock(getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
     // check if the device type is correct, and see if a medium for the
     // given path has already initialized; if so, return that
@@ -1622,8 +1624,6 @@ STDMETHODIMP VirtualBox::OpenMedium(IN_BSTR aLocation,
 
         if (SUCCEEDED(rc))
         {
-            AutoWriteLock treeLock(getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
-
             switch (deviceType)
             {
                 case DeviceType_HardDisk:
@@ -3952,7 +3952,7 @@ HRESULT VirtualBox::ensureFilePathExists(const Utf8Str &strFileName, bool fCreat
     {
         if (fCreate)
         {
-            int vrc = RTDirCreateFullPath(strDir.c_str(), 0777);
+            int vrc = RTDirCreateFullPath(strDir.c_str(), 0700);
             if (RT_FAILURE(vrc))
                 return setErrorStatic(VBOX_E_IPRT_ERROR,
                                       Utf8StrFmt(tr("Could not create the directory '%s' (%Rrc)"),

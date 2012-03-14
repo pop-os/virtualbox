@@ -113,7 +113,7 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>A VirtualBox Linux kernel modulja (vboxdrv) nincs betöltve, vagy jogosultsági problémák léptek fel a /dev/vboxdrv eszközfájlon. Próbáld meg a &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt; futtatásával újrakonfigurálni a kernelmodult root-ként. Ubuntu, Dedora és Mandriva felhasználóknak előbb a DKMS csomagot érdemes feltelepíteniük. Ez a csomag követi a Linux kernel változásait, és újrafordítja a modulokat, ha szükséges. </translation>
+        <translation type="obsolete">A VirtualBox Linux kernel modulja (vboxdrv) nincs betöltve, vagy jogosultsági problémák léptek fel a /dev/vboxdrv eszközfájlon. Próbáld meg a &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt; futtatásával újrakonfigurálni a kernelmodult root-ként. Ubuntu, Dedora és Mandriva felhasználóknak előbb a DKMS csomagot érdemes feltelepíteniük. Ez a csomag követi a Linux kernel változásait, és újrafordítja a modulokat, ha szükséges. </translation>
     </message>
     <message>
         <source>Make sure the kernel module has been loaded successfully.</source>
@@ -147,6 +147,10 @@
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translatorcomment>CHECK</translatorcomment>
         <translation>A kernel driver nem tudott elegendő memóriát lefoglalni, vagy valamilyen memóriaművelet nem sikerült.</translation>
+    </message>
+    <message>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -6013,6 +6017,15 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
         <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; letöltése sikertelen a következő helyről: &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have version %1 of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;You should download and install version %3 of this extension pack from Oracle!&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ok</source>
+        <comment>extension pack</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

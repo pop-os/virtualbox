@@ -2122,6 +2122,10 @@
         <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
         <translation>haben Sie 2D-Video-Beschleunigung aktiviert. Diese Funktion wird momentan nur für Windows-Gäste unterstützt und wird daher deaktiviert.</translation>
     </message>
+    <message>
+        <source>you enabled 3D acceleration. However, 3D acceleration is not working on the current host setup so you will not be able to start the VM.</source>
+        <translation>haben Sie die 3D-Unterstützung aktiviert. Allderings funktioniert die 3D-Hardwarebeschleunigung nicht auf dem Host, und daher die VM kann nicht gestartet werden.</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsGeneral</name>

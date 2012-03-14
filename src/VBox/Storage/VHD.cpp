@@ -2948,7 +2948,7 @@ static int vhdCompact(void *pBackendData, unsigned uPercentStart,
                 }
                 else if (pfnParentRead)
                 {
-                    rc = pfnParentRead(pvParent, i * pImage->cbDataBlock, pvParent, pImage->cbDataBlock);
+                    rc = pfnParentRead(pvParent, (uint64_t)i * pImage->cbDataBlock, pvParent, pImage->cbDataBlock);
                     if (RT_FAILURE(rc))
                         break;
                     if (!memcmp(pvParent, pvBuf, pImage->cbDataBlock))

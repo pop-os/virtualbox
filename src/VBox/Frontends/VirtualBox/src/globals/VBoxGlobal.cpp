@@ -118,7 +118,6 @@
 #include <iprt/file.h>
 #include <iprt/ldr.h>
 #include <iprt/system.h>
-#include <iprt/stream.h>
 
 #ifdef VBOX_GUI_WITH_SYSTRAY
 #include <iprt/process.h>
@@ -282,7 +281,8 @@ VBoxGlobal::VBoxGlobal()
     , mDisableCsam(false)
     , mRecompileSupervisor(false)
     , mRecompileUser(false)
-    , mVerString ("1.0")
+    , mVerString("1.0")
+    , m3DAvailable(false)
 {
 }
 
@@ -1656,7 +1656,7 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
             : tr ("Disabled", "details report (Nested Paging)");
 
         /* VT-x/AMD-V availability: */
-        bool fVTxAMDVSupported = virtualBox().GetHost().GetProcessorFeature(KProcessorFeature_HWVirtEx);
+        bool fVTxAMDVSupported = host().GetProcessorFeature(KProcessorFeature_HWVirtEx);
 
         if (fVTxAMDVSupported)
             iRowCount += 2; /* VT-x/AMD-V items. */
@@ -1711,7 +1711,7 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
             ++rows;
         }
 
-        QString acc3d = aMachine.GetAccelerate3DEnabled()
+        QString acc3d = is3DAvailable() && aMachine.GetAccelerate3DEnabled()
             ? tr ("Enabled", "details report (3D Acceleration)")
             : tr ("Disabled", "details report (3D Acceleration)");
 
@@ -2403,9 +2403,9 @@ void VBoxGlobal::startEnumeratingMedia()
     mMediaList.clear();
     addNullMediumToList (mMediaList, mMediaList.end());
     addHardDisksToList (mVBox.GetHardDisks(), mMediaList, mMediaList.end());
-    addMediumsToList (mVBox.GetHost().GetDVDDrives(), mMediaList, mMediaList.end(), VBoxDefs::MediumType_DVD);
+    addMediumsToList (mHost.GetDVDDrives(), mMediaList, mMediaList.end(), VBoxDefs::MediumType_DVD);
     addMediumsToList (mVBox.GetDVDImages(), mMediaList, mMediaList.end(), VBoxDefs::MediumType_DVD);
-    addMediumsToList (mVBox.GetHost().GetFloppyDrives(), mMediaList, mMediaList.end(), VBoxDefs::MediumType_Floppy);
+    addMediumsToList (mHost.GetFloppyDrives(), mMediaList, mMediaList.end(), VBoxDefs::MediumType_Floppy);
     addMediumsToList (mVBox.GetFloppyImages(), mMediaList, mMediaList.end(), VBoxDefs::MediumType_Floppy);
 
     /* enumeration thread class */
@@ -4791,6 +4791,8 @@ void VBoxGlobal::init()
         msgCenter().cannotCreateVirtualBox (mVBox);
         return;
     }
+    mHost = virtualBox().GetHost();
+    m3DAvailable = mHost.GetAcceleration3DAvailable();
 
     /* create default non-null global settings */
     gset = VBoxGlobalSettings (false);
@@ -5289,7 +5291,8 @@ void VBoxGlobal::cleanup()
 
     /* media list contains a lot of CUUnknown, release them */
     mMediaList.clear();
-    /* the last step to ensure we don't use COM any more */
+    /* the last steps to ensure we don't use COM any more */
+    mHost.detach();
     mVBox.detach();
 
     /* There may be VBoxMediaEnumEvent instances still in the message
@@ -5448,7 +5451,7 @@ void VBoxUSBMenu::processAboutToShow()
     clear();
     mUSBDevicesMap.clear();
 
-    CHost host = vboxGlobal().virtualBox().GetHost();
+    CHost host = vboxGlobal().host();
 
     bool isUSBEmpty = host.GetUSBDevices().size() == 0;
     if (isUSBEmpty)

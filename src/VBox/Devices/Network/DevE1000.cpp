@@ -5557,7 +5557,7 @@ static DECLCALLBACK(int) e1kDestruct(PPDMDEVINS pDevIns)
 static DECLCALLBACK(void) e1kInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
     E1KSTATE* pState = PDMINS_2_DATA(pDevIns, E1KSTATE*);
-    int       i;
+    unsigned    i;
     bool        fRcvRing = false;
     bool        fXmtRing = false;
 

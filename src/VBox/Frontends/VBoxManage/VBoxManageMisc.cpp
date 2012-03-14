@@ -1019,7 +1019,7 @@ int handleSharedFolder(HandlerArg *a)
         }
     }
     else
-        return errorSyntax(USAGE_SETPROPERTY, "Invalid parameter '%s'", Utf8Str(a->argv[0]).c_str());
+        return errorSyntax(USAGE_SHAREDFOLDER, "Invalid parameter '%s'", Utf8Str(a->argv[0]).c_str());
 
     return 0;
 }

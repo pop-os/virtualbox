@@ -477,7 +477,7 @@ fail0:
  * @returns 0 on success, Linux error code otherwise
  */
 static int sf_create_aux(struct inode *parent, struct dentry *dentry,
-                         int mode, int fDirectory)
+                         umode_t mode, int fDirectory)
 {
     int rc, err;
     SHFLCREATEPARMS params;
@@ -575,11 +575,13 @@ fail0:
  * @param mode          file mode
  * @returns 0 on success, Linux error code otherwise
  */
-static int sf_create(struct inode *parent, struct dentry *dentry, int mode
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
-                   , struct nameidata *nd
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0)
+static int sf_create(struct inode *parent, struct dentry *dentry, umode_t mode, struct nameidata *nd)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
+static int sf_create(struct inode *parent, struct dentry *dentry, int mode, struct nameidata *nd)
+#else
+static int sf_create(struct inode *parent, struct dentry *dentry, int mode)
 #endif
-                    )
 {
     TRACE();
     return sf_create_aux(parent, dentry, mode, 0);
@@ -593,7 +595,11 @@ static int sf_create(struct inode *parent, struct dentry *dentry, int mode
  * @param mode          file mode
  * @returns 0 on success, Linux error code otherwise
  */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0)
+static int sf_mkdir(struct inode *parent, struct dentry *dentry, umode_t mode)
+#else
 static int sf_mkdir(struct inode *parent, struct dentry *dentry, int mode)
+#endif
 {
     TRACE();
     return sf_create_aux(parent, dentry, mode, 1);

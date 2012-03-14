@@ -77,7 +77,7 @@ public:
     // IGuest properties
     STDMETHOD(COMGETTER(OSTypeId)) (BSTR *aOSTypeId);
     STDMETHOD(COMGETTER(AdditionsRunLevel)) (AdditionsRunLevelType_T *aRunLevel);
-    STDMETHOD(COMGETTER(AdditionsVersion)) (BSTR *aAdditionsVersion);
+    STDMETHOD(COMGETTER(AdditionsVersion))(BSTR *a_pbstrAdditionsVersion);
     STDMETHOD(COMGETTER(Facilities)) (ComSafeArrayOut(IAdditionsFacility*, aFacilities));
     STDMETHOD(COMGETTER(MemoryBalloonSize)) (ULONG *aMemoryBalloonSize);
     STDMETHOD(COMSETTER(MemoryBalloonSize)) (ULONG aMemoryBalloonSize);
@@ -120,10 +120,10 @@ public:
 
     // Public methods that are not in IDL (only called internally).
     void setAdditionsInfo(Bstr aInterfaceVersion, VBOXOSTYPE aOsType);
-    void setAdditionsInfo2(Bstr aAdditionsVersion, Bstr aVersionName, Bstr aRevision);
+    void setAdditionsInfo2(uint32_t a_uFullVersion, const char *a_pszName, uint32_t a_uRevision, uint32_t a_fFeatures);
     bool facilityIsActive(VBoxGuestFacilityType enmFacility);
-    HRESULT facilityUpdate(VBoxGuestFacilityType enmFacility, VBoxGuestFacilityStatus enmStatus);
-    void setAdditionsStatus(VBoxGuestFacilityType enmFacility, VBoxGuestFacilityStatus enmStatus, ULONG aFlags);
+    void facilityUpdate(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacilityStatus a_enmStatus, uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS);
+    void setAdditionsStatus(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacilityStatus a_enmStatus, uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS);
     void setSupportedFeatures(uint32_t aCaps);
     HRESULT setStatistic(ULONG aCpuId, GUESTSTATTYPE enmType, ULONG aVal);
     BOOL isPageFusionEnabled();
@@ -152,17 +152,23 @@ public:
     HRESULT executeAndWaitForTool(IN_BSTR aTool, IN_BSTR aDescription,
                                   ComSafeArrayIn(IN_BSTR, aArguments), ComSafeArrayIn(IN_BSTR, aEnvironment),
                                   IN_BSTR aUsername, IN_BSTR aPassword,
+                                  ULONG uFlagsToAdd,
+                                  GuestCtrlStreamObjects *pObjStdOut, GuestCtrlStreamObjects *pObjStdErr,
                                   IProgress **aProgress, ULONG *aPID);
     HRESULT executeProcessInternal(IN_BSTR aCommand, ULONG aFlags,
                                    ComSafeArrayIn(IN_BSTR, aArguments), ComSafeArrayIn(IN_BSTR, aEnvironment),
                                    IN_BSTR aUsername, IN_BSTR aPassword,
                                    ULONG aTimeoutMS, ULONG *aPID, IProgress **aProgress, int *pRC);
+    HRESULT getProcessOutputInternal(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
+                                     LONG64 aSize, ComSafeArrayOut(BYTE, aData), int *pRC);
     HRESULT executeProcessResult(const char *pszCommand, const char *pszUser, ULONG ulTimeout, PCALLBACKDATAEXECSTATUS pExecStatus, ULONG *puPID);
-    HRESULT executeStreamQueryFsObjInfo(IN_BSTR aObjName,GuestProcessStreamBlock &streamBlock, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD enmAddAttribs);
-    int     executeStreamDrain(ULONG aPID, GuestProcessStream &stream);
-    int     executeStreamGetNextBlock(ULONG aPID, GuestProcessStream &stream, GuestProcessStreamBlock &streamBlock);
-    HRESULT executeStreamParse(ULONG aPID, GuestCtrlStreamObjects &streamObjects);
-    HRESULT executeWaitForStatusChange(ULONG uPID, ULONG uTimeoutMS, ExecuteProcessStatus_T *pRetStatus, ULONG *puRetExitCode);
+    int     executeStreamQueryFsObjInfo(IN_BSTR aObjName,GuestProcessStreamBlock &streamBlock, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD enmAddAttribs);
+    int     executeStreamDrain(ULONG aPID, ULONG ulFlags, GuestProcessStream &stream);
+    int     executeStreamGetNextBlock(ULONG ulPID, ULONG ulFlags, GuestProcessStream &stream, GuestProcessStreamBlock &streamBlock);
+    int     executeStreamParseNextBlock(ULONG ulPID, ULONG ulFlags, GuestProcessStream &stream, GuestProcessStreamBlock &streamBlock);
+    HRESULT executeStreamParse(ULONG uPID, ULONG ulFlags, GuestCtrlStreamObjects &streamObjects);
+    HRESULT executeWaitForExit(ULONG uPID, ComPtr<IProgress> pProgress, ULONG uTimeoutMS,
+                               ExecuteProcessStatus_T *pRetStatus, ULONG *puRetExitCode);
     // Internal guest file functions
     HRESULT fileExistsInternal(IN_BSTR aFile, IN_BSTR aUsername, IN_BSTR aPassword, BOOL *aExists);
     HRESULT fileQueryInfoInternal(IN_BSTR aFile, IN_BSTR aUsername, IN_BSTR aPassword, PRTFSOBJINFO aObjInfo, RTFSOBJATTRADD enmAddAttribs, int *pRC);
@@ -178,6 +184,7 @@ public:
     HRESULT taskCopyFileFromGuest(GuestTask *aTask);
     HRESULT taskUpdateGuestAdditions(GuestTask *aTask);
 # endif
+    void enableVMMStatistics(BOOL aEnable) { mCollectVMMStats = aEnable; };
 
 private:
 
@@ -199,6 +206,7 @@ private:
 
     int callbackAdd(const PVBOXGUESTCTRL_CALLBACK pCallbackData, uint32_t *puContextID);
     void callbackDestroy(uint32_t uContextID);
+    void callbackRemove(uint32_t uContextID);
     bool callbackExists(uint32_t uContextID);
     void callbackFreeUserData(void *pvData);
     int callbackGetUserData(uint32_t uContextID, eVBoxGuestCtrlCallbackType *pEnmType, void **ppvData, size_t *pcbData);
@@ -228,9 +236,8 @@ private:
     typedef std::map< uint32_t, VBOXGUESTCTRL_PROCESS >::iterator GuestProcessMapIter;
     typedef std::map< uint32_t, VBOXGUESTCTRL_PROCESS >::const_iterator GuestProcessMapIterConst;
 
-    int processAdd(uint32_t u32PID, ExecuteProcessStatus_T enmStatus, uint32_t uExitCode, uint32_t uFlags);
-    int processGetByPID(uint32_t u32PID, PVBOXGUESTCTRL_PROCESS pProcess);
-    int processSetStatus(uint32_t u32PID, ExecuteProcessStatus_T enmStatus, uint32_t uExitCode, uint32_t uFlags);
+    int  processGetStatus(uint32_t u32PID, PVBOXGUESTCTRL_PROCESS pProcess, bool fRemove);
+    int  processSetStatus(uint32_t u32PID, ExecuteProcessStatus_T enmStatus, uint32_t uExitCode, uint32_t uFlags);
 
     // Internal guest directory representation.
     typedef struct VBOXGUESTCTRL_DIRECTORY
@@ -269,18 +276,25 @@ private:
 
     struct Data
     {
-        Data() : mAdditionsRunLevel (AdditionsRunLevelType_None) {}
+        Data() : mAdditionsRunLevel(AdditionsRunLevelType_None)
+            , mAdditionsVersionFull(0), mAdditionsRevision(0), mAdditionsFeatures(0)
+        { }
 
         Bstr                    mOSTypeId;
         FacilityMap             mFacilityMap;
         AdditionsRunLevelType_T mAdditionsRunLevel;
-        Bstr                    mAdditionsVersion;
+        uint32_t                mAdditionsVersionFull;
+        Bstr                    mAdditionsVersionNew;
+        uint32_t                mAdditionsRevision;
+        uint32_t                mAdditionsFeatures;
         Bstr                    mInterfaceVersion;
     };
 
     ULONG mMemoryBalloonSize;
     ULONG mStatUpdateInterval;
     ULONG mCurrentGuestStat[GUESTSTATTYPE_MAX];
+    ULONG mGuestValidStats;
+    BOOL  mCollectVMMStats;
     BOOL  mfPageFusionEnabled;
 
     Console *mParent;
@@ -297,7 +311,12 @@ private:
     GuestDirectoryMap mGuestDirectoryMap;
     GuestProcessMap   mGuestProcessMap;
 # endif
+    static void staticUpdateStats(RTTIMERLR hTimerLR, void *pvUser, uint64_t iTick);
+    void updateStats(uint64_t iTick);
+    RTTIMERLR         mStatTimer;
+    uint32_t          mMagic;
 };
+#define GUEST_MAGIC 0xCEED2006u
 
 #endif // ____H_GUESTIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

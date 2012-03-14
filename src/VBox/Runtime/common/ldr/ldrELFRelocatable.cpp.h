@@ -275,7 +275,7 @@ static int RTLDRELF_NAME(RelocateSection)(PRTLDRMODELF pModElf, Elf_Addr BaseAdd
         /*
          * Get the symbol.
          */
-        const Elf_Sym  *pSym;
+        const Elf_Sym  *pSym = NULL;
         Elf_Addr        SymValue = 0; /* shut up gcc-4 */
         int rc = RTLDRELF_NAME(Symbol)(pModElf, BaseAddr, pfnGetImport, pvUser, ELF_R_SYM(paRels[iRel].r_info), &pSym, &SymValue);
         if (RT_FAILURE(rc))

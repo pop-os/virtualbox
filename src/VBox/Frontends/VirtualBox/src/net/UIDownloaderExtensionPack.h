@@ -54,7 +54,7 @@ public:
 signals:
 
     /* Notify listeners about extension pack downloaded: */
-    void sigNotifyAboutExtensionPackDownloaded(const QString &strSource, const QString &strTarget);
+    void sigNotifyAboutExtensionPackDownloaded(const QString &strSource, const QString &strTarget, QString strHash);
 
 private:
 

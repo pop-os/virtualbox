@@ -394,7 +394,7 @@ const PDMDRVREG g_DrvHostParallel =
     /* fClass. */
     PDM_DRVREG_CLASS_CHAR,
     /* cMaxInstances */
-    ~0,
+    ~0U,
     /* cbInstance */
     sizeof(DRVHOSTPARALLEL),
     /* pfnConstruct */
