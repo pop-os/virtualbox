@@ -249,6 +249,7 @@ if [ -x /usr/bin/chcon ]; then
   chcon -t java_exec_t    /usr/lib/virtualbox/VBoxExtPackHelperApp > /dev/null 2>&1
   chcon -t java_exec_t    /usr/lib/virtualbox/VBoxBalloonCtrl > /dev/null 2>&1
   chcon -t java_exec_t    /usr/lib/virtualbox/vboxwebsrv > /dev/null 2>&1
+  chcon -t bin_t          /usr/share/virtualbox/src/vboxhost/*/build_in_tmp > /dev/null 2>&1
 fi
 %endif
 

@@ -1005,7 +1005,7 @@ const PDMDRVREG g_DrvDiskIntegrity =
     /* fClass. */
     PDM_DRVREG_CLASS_BLOCK,
     /* cMaxInstances */
-    ~0,
+    ~0U,
     /* cbInstance */
     sizeof(DRVDISKINTEGRITY),
     /* pfnConstruct */

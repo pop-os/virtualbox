@@ -24,11 +24,13 @@
 
 #include <iprt/types.h>
 #include <iprt/err.h>
+#include <iprt/cpp/lock.h>
 
 #include <algorithm>
 #include <functional> /* For std::fun_ptr in testcase */
 #include <list>
 #include <vector>
+#include <queue>
 
 /* Forward decl. */
 class Machine;
@@ -139,20 +141,133 @@ namespace pm
     };
 
     /* Guest Collector Classes  *********************************/
+    /*
+     * WARNING! The bits in the following masks must correspond to parameters
+     * of CollectorGuest::updateStats().
+     */
+    typedef enum
+    {
+        GUESTSTATMASK_NONE       = 0x00000000,
+        GUESTSTATMASK_CPUUSER    = 0x00000001,
+        GUESTSTATMASK_CPUKERNEL  = 0x00000002,
+        GUESTSTATMASK_CPUIDLE    = 0x00000004,
+        GUESTSTATMASK_MEMTOTAL   = 0x00000008,
+        GUESTSTATMASK_MEMFREE    = 0x00000010,
+        GUESTSTATMASK_MEMBALLOON = 0x00000020,
+        GUESTSTATMASK_MEMSHARED  = 0x00000040,
+        GUESTSTATMASK_MEMCACHE   = 0x00000080,
+        GUESTSTATMASK_PAGETOTAL  = 0x00000100,
+        GUESTSTATMASK_ALLOCVMM   = 0x00000200,
+        GUESTSTATMASK_FREEVMM    = 0x00000400,
+        GUESTSTATMASK_BALOONVMM  = 0x00000800,
+        GUESTSTATMASK_SHAREDVMM  = 0x00001000
+    } GUESTSTATMASK;
+
+    const ULONG GUESTSTATS_CPULOAD = 
+        GUESTSTATMASK_CPUUSER|GUESTSTATMASK_CPUKERNEL|GUESTSTATMASK_CPUIDLE;
+    const ULONG GUESTSTATS_RAMUSAGE =
+        GUESTSTATMASK_MEMTOTAL|GUESTSTATMASK_MEMFREE|GUESTSTATMASK_MEMBALLOON|
+        GUESTSTATMASK_MEMSHARED|GUESTSTATMASK_MEMCACHE|
+        GUESTSTATMASK_PAGETOTAL;
+    const ULONG GUESTSTATS_VMMRAM =
+        GUESTSTATMASK_ALLOCVMM|GUESTSTATMASK_FREEVMM|
+        GUESTSTATMASK_BALOONVMM|GUESTSTATMASK_SHAREDVMM;
+    const ULONG GUESTSTATS_ALL = GUESTSTATS_CPULOAD|GUESTSTATS_RAMUSAGE|GUESTSTATS_VMMRAM;
+
+    class CollectorGuest;
+
+    class CollectorGuestRequest
+    {
+    public:
+        CollectorGuestRequest()
+            : mCGuest(0) {};
+        virtual ~CollectorGuestRequest() {};
+        void setGuest(CollectorGuest *aGuest) { mCGuest = aGuest; };
+        CollectorGuest *getGuest() { return mCGuest; };
+        virtual int execute() = 0;
+
+        virtual void debugPrint(void *aObject, const char *aFunction, const char *aText) = 0;
+    protected:
+        CollectorGuest *mCGuest;
+        const char *mDebugName;
+    };
+
+    class CGRQEnable : public CollectorGuestRequest
+    {
+    public:
+        CGRQEnable(ULONG aMask)
+            : mMask(aMask) {};
+        int execute();
+
+        void debugPrint(void *aObject, const char *aFunction, const char *aText);
+    private:
+        ULONG mMask;
+    };
+
+    class CGRQDisable : public CollectorGuestRequest
+    {
+    public:
+        CGRQDisable(ULONG aMask)
+            : mMask(aMask) {};
+        int execute();
+
+        void debugPrint(void *aObject, const char *aFunction, const char *aText);
+    private:
+        ULONG mMask;
+    };
+
+    class CGRQAbort : public CollectorGuestRequest
+    {
+    public:
+        CGRQAbort() {};
+        int execute();
+
+        void debugPrint(void *aObject, const char *aFunction, const char *aText);
+    };
+
+    class CollectorGuestQueue
+    {
+    public:
+        CollectorGuestQueue();
+        ~CollectorGuestQueue();
+        void push(CollectorGuestRequest* rq);
+        CollectorGuestRequest* pop();
+    private:
+        RTCLockMtx mLockMtx;
+        RTSEMEVENT mEvent;
+        std::queue<CollectorGuestRequest*> mQueue;
+    };
+
+    class CollectorGuestManager;
+
     class CollectorGuest
     {
     public:
         CollectorGuest(Machine *machine, RTPROCESS process);
         ~CollectorGuest();
 
-        bool isUnregistered()   { return mUnregistered; };
-        bool isEnabled()        { return mEnabled; };
-        bool isValid()          { return mValid; };
-        void invalidateStats()  { mValid = false; };
-        void unregister()       { mUnregistered = true; };
-        int updateStats();
-        int enable();
-        int disable();
+        void setManager(CollectorGuestManager *aManager)
+                                    { mManager = aManager; };
+        bool isUnregistered()       { return mUnregistered; };
+        bool isEnabled()            { return mEnabled != 0; };
+        bool isValid(ULONG mask)    { return (mValid & mask) == mask; };
+        void invalidate(ULONG mask) { mValid &= ~mask; };
+        void unregister()           { mUnregistered = true; };
+        void updateStats(ULONG aValidStats, ULONG aCpuUser,
+                         ULONG aCpuKernel, ULONG aCpuIdle,
+                         ULONG aMemTotal, ULONG aMemFree,
+                         ULONG aMemBalloon, ULONG aMemShared,
+                         ULONG aMemCache, ULONG aPageTotal,
+                         ULONG aAllocVMM, ULONG aFreeVMM,
+                         ULONG aBalloonedVMM, ULONG aSharedVMM);
+        int enable(ULONG mask);
+        int disable(ULONG mask);
+
+        int enqueueRequest(CollectorGuestRequest *aRequest);
+        int enableInternal(ULONG mask);
+        int disableInternal(ULONG mask);
+
+        const com::Utf8Str& getVMName() const { return mMachineName; };
 
         RTPROCESS getProcess()  { return mProcess; };
         ULONG getCpuUser()      { return mCpuUser; };
@@ -170,10 +285,15 @@ namespace pm
         ULONG getSharedVMM()    { return mSharedVMM; };
 
     private:
+        int enableVMMStats(bool mCollectVMMStats);
+
+        CollectorGuestManager *mManager;
+
         bool                 mUnregistered;
-        bool                 mEnabled;
-        bool                 mValid;
+        ULONG                mEnabled;
+        ULONG                mValid;
         Machine             *mMachine;
+        com::Utf8Str         mMachineName;
         RTPROCESS            mProcess;
         ComPtr<IConsole>     mConsole;
         ComPtr<IGuest>       mGuest;
@@ -196,16 +316,24 @@ namespace pm
     class CollectorGuestManager
     {
     public:
-        CollectorGuestManager() : mVMMStatsProvider(NULL) {};
-        ~CollectorGuestManager() { Assert(mGuests.size() == 0); };
+        CollectorGuestManager();
+        ~CollectorGuestManager();
         void registerGuest(CollectorGuest* pGuest);
         void unregisterGuest(CollectorGuest* pGuest);
         CollectorGuest *getVMMStatsProvider() { return mVMMStatsProvider; };
         void preCollect(CollectorHints& hints, uint64_t iTick);
         void destroyUnregistered();
+        int enqueueRequest(CollectorGuestRequest *aRequest);
+
+        CollectorGuest *getBlockedGuest() { return mGuestBeingCalled; };
+
+        static DECLCALLBACK(int) requestProcessingThread(RTTHREAD aThread, void *pvUser);
     private:
-        CollectorGuestList mGuests;
-        CollectorGuest    *mVMMStatsProvider;
+        RTTHREAD            mThread;
+        CollectorGuestList  mGuests;
+        CollectorGuest     *mVMMStatsProvider;
+        CollectorGuestQueue mQueue;
+        CollectorGuest     *mGuestBeingCalled;
     };
 
     /* Collector Hardware Abstraction Layer *********************************/
@@ -253,8 +381,8 @@ namespace pm
 
         bool collectorBeat(uint64_t nowAt);
 
-        void enable()  { mEnabled = true; };
-        void disable() { mEnabled = false; };
+        virtual int enable()  { mEnabled = true; return S_OK; };
+        virtual int disable() { mEnabled = false; return S_OK; };
         void unregister() { mUnregistered = true; };
 
         bool isUnregistered() { return mUnregistered; };
@@ -358,6 +486,7 @@ namespace pm
         SubMetric *mAvailable;
     };
 
+#ifndef VBOX_COLLECTOR_TEST_CASE
     class HostRamVmm : public BaseMetric
     {
     public:
@@ -370,6 +499,8 @@ namespace pm
         void init(ULONG period, ULONG length);
         void preCollect(CollectorHints& hints, uint64_t iTick);
         void collect();
+        int enable();
+        int disable();
         const char *getUnit() { return "kB"; };
         ULONG getMinValue() { return 0; };
         ULONG getMaxValue() { return INT32_MAX; };
@@ -386,6 +517,7 @@ namespace pm
         ULONG                  mBalloonedCurrent;
         ULONG                  mSharedCurrent;
     };
+#endif /* VBOX_COLLECTOR_TEST_CASE */
 
     class MachineCpuLoad : public BaseMetric
     {
@@ -440,6 +572,7 @@ namespace pm
     };
 
 
+#ifndef VBOX_COLLECTOR_TEST_CASE
     class GuestCpuLoad : public BaseGuestMetric
     {
     public:
@@ -450,6 +583,8 @@ namespace pm
         void init(ULONG period, ULONG length);
         void preCollect(CollectorHints& hints, uint64_t iTick);
         void collect();
+        int enable();
+        int disable();
         const char *getUnit() { return "%"; };
         ULONG getMinValue() { return 0; };
         ULONG getMaxValue() { return PM_CPU_LOAD_MULTIPLIER; };
@@ -470,6 +605,8 @@ namespace pm
         void init(ULONG period, ULONG length);
         void preCollect(CollectorHints& hints, uint64_t iTick);
         void collect();
+        int enable();
+        int disable();
         const char *getUnit() { return "kB"; };
         ULONG getMinValue() { return 0; };
         ULONG getMaxValue() { return INT32_MAX; };
@@ -477,6 +614,7 @@ namespace pm
     private:
         SubMetric *mTotal, *mFree, *mBallooned, *mCache, *mPagedTotal, *mShared;
     };
+#endif /* VBOX_COLLECTOR_TEST_CASE */
 
     /* Aggregate Functions **************************************************/
     class Aggregate

@@ -1,4 +1,4 @@
-/* $Revision: 60692 $ */
+/* $Revision: 76576 $ */
 /** @file
  * VBoxGuestLibR0 - System dependent helpers internal header.
  */
@@ -28,6 +28,8 @@
 #define __VBoxGuestLib_SysHlp_h
 
 #ifdef RT_OS_WINDOWS
+# undef PAGE_SIZE
+# undef PAGE_SHIFT
 # if (_MSC_VER >= 1400) && !defined(VBOX_WITH_PATCHED_DDK)
 #  include <iprt/asm.h>
 #  define _InterlockedExchange           _InterlockedExchange_StupidDDKVsCompilerCrap

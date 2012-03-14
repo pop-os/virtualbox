@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,6 +34,7 @@
 #include <VBox/err.h>
 #include <VBox/vmm/vm.h> /* for VM_IS_EMT */
 #include <VBox/dbg.h>
+#include <VBox/version.h>
 
 #include <iprt/asm.h>
 #include <iprt/asm-amd64-x86.h>
@@ -85,10 +86,14 @@
            && RT_LOWORD(additionsVersion) >  RT_LOWORD(VMMDEV_VERSION) ) )
 
 /** The saved state version. */
-#define VMMDEV_SAVED_STATE_VERSION          13
+#define VMMDEV_SAVED_STATE_VERSION                              15
+/** The saved state version which is missing the guest facility statuses. */
+#define VMMDEV_SAVED_STATE_VERSION_MISSING_FACILITY_STATUSES    14
+/** The saved state version which is missing the guestInfo2 bits. */
+#define VMMDEV_SAVED_STATE_VERSION_MISSING_GUEST_INFO_2         13
 /** The saved state version used by VirtualBox 3.0.
  *  This doesn't have the config part. */
-#define VMMDEV_SAVED_STATE_VERSION_VBOX_30  11
+#define VMMDEV_SAVED_STATE_VERSION_VBOX_30                      11
 
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
@@ -387,14 +392,416 @@ static DECLCALLBACK(int) vmmdevTimesyncBackdoorRead(PPDMDEVINS pDevIns, void *pv
 }
 #endif /* TIMESYNC_BACKDOOR */
 
+/**
+ * Validates a publisher tag.
+ *
+ * @returns true / false.
+ * @param   pszTag              Tag to validate.
+ */
+static bool vmmdevReqIsValidPublisherTag(const char *pszTag)
+{
+    /* Note! This character set is also found in Config.kmk. */
+    static char const s_szValidChars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz()[]{}+-.,";
+
+    while (*pszTag != '\0')
+    {
+        if (!strchr(s_szValidChars, *pszTag))
+            return false;
+        pszTag++;
+    }
+    return true;
+}
+
+
+/**
+ * Validates a build tag.
+ *
+ * @returns true / false.
+ * @param   pszTag              Tag to validate.
+ */
+static bool vmmdevReqIsValidBuildTag(const char *pszTag)
+{
+    int cchPrefix;
+    if (!strncmp(pszTag, "RC", 2))
+        cchPrefix = 2;
+    else if (!strncmp(pszTag, "BETA", 4))
+        cchPrefix = 4;
+    else if (!strncmp(pszTag, "ALPHA", 5))
+        cchPrefix = 5;
+    else
+        return false;
+
+    if (pszTag[cchPrefix] == '\0')
+        return true;
+
+    uint8_t u8;
+    int rc = RTStrToUInt8Full(&pszTag[cchPrefix], 10, &u8);
+    return rc == VINF_SUCCESS;
+}
+
+/**
+ * Handles VMMDevReq_ReportGuestInfo2.
+ *
+ * @returns VBox status code that the guest should see.
+ * @param   pThis           The VMMDev instance data.
+ * @param   pRequestHeader  The header of the request to handle.
+ */
+static int vmmdevReqHandler_ReportGuestInfo2(VMMDevState *pThis, VMMDevRequestHeader *pRequestHeader)
+{
+    AssertMsgReturn(pRequestHeader->size == sizeof(VMMDevReportGuestInfo2), ("%u\n", pRequestHeader->size), VERR_INVALID_PARAMETER);
+    VBoxGuestInfo2 const *pInfo2 = &((VMMDevReportGuestInfo2 *)pRequestHeader)->guestInfo;
+
+    LogRel(("Guest Additions information report: Version %d.%d.%d r%d '%.*s'\n",
+            pInfo2->additionsMajor, pInfo2->additionsMinor, pInfo2->additionsBuild,
+            pInfo2->additionsRevision, sizeof(pInfo2->szName), pInfo2->szName));
+
+    /* The interface was introduced in 3.2 and will definitely not be
+       backported beyond 3.0 (bird). */
+    AssertMsgReturn(pInfo2->additionsMajor >= 3,
+                    ("%u.%u.%u\n", pInfo2->additionsMajor, pInfo2->additionsMinor, pInfo2->additionsBuild),
+                    VERR_INVALID_PARAMETER);
+
+    /* The version must fit in a full version compression. */
+    uint32_t uFullVersion = VBOX_FULL_VERSION_MAKE(pInfo2->additionsMajor, pInfo2->additionsMinor, pInfo2->additionsBuild);
+    AssertMsgReturn(   VBOX_FULL_VERSION_GET_MAJOR(uFullVersion) == pInfo2->additionsMajor
+                    && VBOX_FULL_VERSION_GET_MINOR(uFullVersion) == pInfo2->additionsMinor
+                    && VBOX_FULL_VERSION_GET_BUILD(uFullVersion) == pInfo2->additionsBuild,
+                    ("%u.%u.%u\n", pInfo2->additionsMajor, pInfo2->additionsMinor, pInfo2->additionsBuild),
+                    VERR_OUT_OF_RANGE);
+
+    /*
+     * Validate the name.
+     * Be less strict towards older additions (< v4.1.50).
+     */
+    AssertCompile(sizeof(pThis->guestInfo2.szName) == sizeof(pInfo2->szName));
+    AssertReturn(memchr(pInfo2->szName, '\0', sizeof(pInfo2->szName)) != NULL, VERR_INVALID_PARAMETER);
+    const char *pszName = pInfo2->szName;
+
+    /* The version number which shouldn't be there. */
+    char        szTmp[sizeof(pInfo2->szName)];
+    size_t      cchStart = RTStrPrintf(szTmp, sizeof(szTmp), "%u.%u.%u", pInfo2->additionsMajor, pInfo2->additionsMinor, pInfo2->additionsBuild);
+    AssertMsgReturn(!strncmp(pszName, szTmp, cchStart), ("%s != %s\n", pszName, szTmp), VERR_INVALID_PARAMETER);
+    pszName += cchStart;
+
+    /* Now we can either have nothing or a build tag or/and a publisher tag. */
+    if (*pszName != '\0')
+    {
+        const char *pszRelaxedName = "";
+        bool const fStrict = pInfo2->additionsMajor > 4
+                          || (pInfo2->additionsMajor == 4 && pInfo2->additionsMinor > 1)
+                          || (pInfo2->additionsMajor == 4 && pInfo2->additionsMinor == 1 && pInfo2->additionsBuild >= 50);
+        bool fOk = false;
+        if (*pszName == '_')
+        {
+            pszName++;
+            strcpy(szTmp, pszName);
+            char *pszTag2 = strchr(szTmp, '_');
+            if (!pszTag2)
+            {
+                fOk = vmmdevReqIsValidBuildTag(szTmp)
+                   || vmmdevReqIsValidPublisherTag(szTmp);
+            }
+            else
+            {
+                *pszTag2++ = '\0';
+                fOk = vmmdevReqIsValidBuildTag(szTmp);
+                if (fOk)
+                {
+                    fOk = vmmdevReqIsValidPublisherTag(pszTag2);
+                    if (!fOk)
+                        pszRelaxedName = szTmp;
+                }
+            }
+        }
+
+        if (!fOk)
+        {
+            AssertLogRelMsgReturn(!fStrict, ("%s", pszName), VERR_INVALID_PARAMETER);
+
+            /* non-strict mode, just zap the extra stuff. */
+            LogRel(("ReportGuestInfo2: Ignoring unparsable version name bits: '%s' -> '%s'.\n", pszName, pszRelaxedName));
+            pszName = pszRelaxedName;
+        }
+    }
+
+    /*
+     * Save the info and tell Main or whoever is listening.
+     */
+    pThis->guestInfo2.uFullVersion  = uFullVersion;
+    pThis->guestInfo2.uRevision     = pInfo2->additionsRevision;
+    pThis->guestInfo2.fFeatures     = pInfo2->additionsFeatures;
+    strcpy(pThis->guestInfo2.szName, pszName);
+
+    if (pThis->pDrv && pThis->pDrv->pfnUpdateGuestInfo2)
+        pThis->pDrv->pfnUpdateGuestInfo2(pThis->pDrv, uFullVersion, pszName, pInfo2->additionsRevision, pInfo2->additionsFeatures);
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * Allocates a new facility status entry, initializing it to inactive.
+ *
+ * @returns Pointer to a facility status entry on success, NULL on failure
+ *          (table full).
+ * @param   pThis           The VMMDev instance data.
+ * @param   uFacility       The facility type code - VBoxGuestFacilityType.
+ * @param   fFixed          This is set when allocating the standard entries
+ *                          from the constructor.
+ * @param   pTimeSpecNow    Optionally giving the entry timestamp to use (ctor).
+ */
+static PVMMDEVFACILITYSTATUSENTRY
+vmmdevAllocFacilityStatusEntry(VMMDevState *pThis, uint32_t uFacility, bool fFixed, PCRTTIMESPEC pTimeSpecNow)
+{
+    /* If full, expunge one inactive entry. */
+    if (pThis->cFacilityStatuses == RT_ELEMENTS(pThis->aFacilityStatuses))
+    {
+        uint32_t i = pThis->cFacilityStatuses;
+        while (i-- > 0)
+        {
+            if (   pThis->aFacilityStatuses[i].uStatus == VBoxGuestFacilityStatus_Inactive
+                && !pThis->aFacilityStatuses[i].fFixed)
+            {
+                pThis->cFacilityStatuses--;
+                int cToMove = pThis->cFacilityStatuses - i;
+                if (cToMove)
+                    memmove(&pThis->aFacilityStatuses[i], &pThis->aFacilityStatuses[i + 1],
+                            cToMove * sizeof(pThis->aFacilityStatuses[i]));
+                RT_ZERO(pThis->aFacilityStatuses[pThis->cFacilityStatuses]);
+                break;
+            }
+        }
+
+        if (pThis->cFacilityStatuses == RT_ELEMENTS(pThis->aFacilityStatuses))
+            return NULL;
+    }
+
+    /* Find location in array (it's sorted). */
+    uint32_t i = pThis->cFacilityStatuses;
+    while (i-- > 0)
+        if (pThis->aFacilityStatuses[i].uFacility < uFacility)
+            break;
+    i++;
+
+    /* Move. */
+    int cToMove = pThis->cFacilityStatuses - i;
+    if (cToMove > 0)
+        memmove(&pThis->aFacilityStatuses[i + 1], &pThis->aFacilityStatuses[i],
+                cToMove * sizeof(pThis->aFacilityStatuses[i]));
+    pThis->cFacilityStatuses++;
+
+    /* Initialize. */
+    pThis->aFacilityStatuses[i].uFacility   = uFacility;
+    pThis->aFacilityStatuses[i].uStatus     = VBoxGuestFacilityStatus_Inactive;
+    pThis->aFacilityStatuses[i].fFixed      = fFixed;
+    pThis->aFacilityStatuses[i].fPadding    = 0;
+    pThis->aFacilityStatuses[i].fFlags      = 0;
+    pThis->aFacilityStatuses[i].uPadding    = 0;
+    if (pTimeSpecNow)
+        pThis->aFacilityStatuses[i].TimeSpecTS = *pTimeSpecNow;
+    else
+        RTTimeSpecSetNano(&pThis->aFacilityStatuses[i].TimeSpecTS, 0);
+
+    return &pThis->aFacilityStatuses[i];
+
+}
+
+/**
+ * Gets a facility status entry, allocating a new one if not already present.
+ *
+ * @returns Pointer to a facility status entry on success, NULL on failure
+ *          (table full).
+ * @param   pThis           The VMMDev instance data.
+ * @param   uFacility       The facility type code - VBoxGuestFacilityType.
+ */
+static PVMMDEVFACILITYSTATUSENTRY vmmdevGetFacilityStatusEntry(VMMDevState *pThis, uint32_t uFacility)
+{
+    /** @todo change to binary search. */
+    uint32_t i = pThis->cFacilityStatuses;
+    while (i-- > 0)
+    {
+        if (pThis->aFacilityStatuses[i].uFacility == uFacility)
+            return &pThis->aFacilityStatuses[i];
+        if (pThis->aFacilityStatuses[i].uFacility < uFacility)
+            break;
+    }
+    return vmmdevAllocFacilityStatusEntry(pThis, uFacility, false /*fFixed*/, NULL);
+}
+
+/**
+ * Handles VMMDevReq_ReportGuestStatus.
+ *
+ * @returns VBox status code that the guest should see.
+ * @param   pThis           The VMMDev instance data.
+ * @param   pRequestHeader  The header of the request to handle.
+ */
+static int vmmdevReqHandler_ReportGuestStatus(VMMDevState *pThis, VMMDevRequestHeader *pRequestHeader)
+{
+    /*
+     * Validate input.
+     */
+    AssertMsgReturn(pRequestHeader->size == sizeof(VMMDevReportGuestStatus), ("%u\n", pRequestHeader->size), VERR_INVALID_PARAMETER);
+    VBoxGuestStatus *pStatus = &((VMMDevReportGuestStatus *)pRequestHeader)->guestStatus;
+    AssertMsgReturn(   pStatus->facility > VBoxGuestFacilityType_Unknown
+                    && pStatus->facility <= VBoxGuestFacilityType_All,
+                    ("%d\n", pStatus->facility),
+                    VERR_INVALID_PARAMETER);
+    AssertMsgReturn(pStatus->status == (VBoxGuestFacilityStatus)(uint16_t)pStatus->status,
+                    ("%#x (%u)\n", pStatus->status, pStatus->status),
+                    VERR_OUT_OF_RANGE);
+
+    /*
+     * Do the update.
+     */
+    RTTIMESPEC Now;
+    RTTimeNow(&Now);
+    if (pStatus->facility == VBoxGuestFacilityType_All)
+    {
+        uint32_t i = pThis->cFacilityStatuses;
+        while (i-- > 0)
+        {
+            pThis->aFacilityStatuses[i].TimeSpecTS = Now;
+            pThis->aFacilityStatuses[i].uStatus    = (uint16_t)pStatus->status;
+            pThis->aFacilityStatuses[i].fFlags     = pStatus->flags;
+        }
+    }
+    else
+    {
+        PVMMDEVFACILITYSTATUSENTRY pEntry = vmmdevGetFacilityStatusEntry(pThis, pStatus->facility);
+        if (!pEntry)
+        {
+            static int g_cLogEntries = 0;
+            if (g_cLogEntries++ < 10)
+                LogRel(("VMM: Facility table is full - facility=%u status=%u.\n", pStatus->facility, pStatus->status));
+            return VERR_OUT_OF_RESOURCES;
+        }
+
+        pEntry->TimeSpecTS = Now;
+        pEntry->uStatus    = (uint16_t)pStatus->status;
+        pEntry->fFlags     = pStatus->flags;
+    }
+
+    if (pThis->pDrv && pThis->pDrv->pfnUpdateGuestStatus)
+        pThis->pDrv->pfnUpdateGuestStatus(pThis->pDrv, pStatus->facility, pStatus->status, pStatus->flags, &Now);
+
+    return VINF_SUCCESS;
+}
+
+#ifdef VBOX_WITH_PAGE_SHARING
+
+/**
+ * Handles VMMDevReq_RegisterSharedModule.
+ *
+ * @returns VBox status code that the guest should see.
+ * @param   pDevIns         The VMMDev device instance.
+ * @param   pReq            Pointer to the request.
+ */
+static int vmmdevReqHandler_RegisterSharedModule(PPDMDEVINS pDevIns, VMMDevSharedModuleRegistrationRequest *pReq)
+{
+    /*
+     * Basic input validation (more done by GMM).
+     */
+    AssertMsgReturn(pReq->header.size >= sizeof(VMMDevSharedModuleRegistrationRequest),
+                    ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
+    AssertMsgReturn(pReq->header.size == RT_UOFFSETOF(VMMDevSharedModuleRegistrationRequest, aRegions[pReq->cRegions]),
+                    ("%u cRegions=%u\n", pReq->header.size, pReq->cRegions), VERR_INVALID_PARAMETER);
+
+    AssertReturn(memchr(pReq->szName, '\0', sizeof(pReq->szName)), VERR_INVALID_PARAMETER);
+    AssertReturn(memchr(pReq->szVersion, '\0', sizeof(pReq->szVersion)), VERR_INVALID_PARAMETER);
+
+    /*
+     * Forward the request to the VMM.
+     */
+    return PGMR3SharedModuleRegister(PDMDevHlpGetVM(pDevIns), pReq->enmGuestOS, pReq->szName, pReq->szVersion,
+                                     pReq->GCBaseAddr, pReq->cbModule, pReq->cRegions, pReq->aRegions);
+}
+
+/**
+ * Handles VMMDevReq_UnregisterSharedModule.
+ *
+ * @returns VBox status code that the guest should see.
+ * @param   pDevIns         The VMMDev device instance.
+ * @param   pReq            Pointer to the request.
+ */
+static int vmmdevReqHandler_UnregisterSharedModule(PPDMDEVINS pDevIns, VMMDevSharedModuleUnregistrationRequest *pReq)
+{
+    /*
+     * Basic input validation.
+     */
+    AssertMsgReturn(pReq->header.size == sizeof(VMMDevSharedModuleUnregistrationRequest),
+                    ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
+
+    AssertReturn(memchr(pReq->szName, '\0', sizeof(pReq->szName)), VERR_INVALID_PARAMETER);
+    AssertReturn(memchr(pReq->szVersion, '\0', sizeof(pReq->szVersion)), VERR_INVALID_PARAMETER);
+
+    /*
+     * Forward the request to the VMM.
+     */
+    return PGMR3SharedModuleUnregister(PDMDevHlpGetVM(pDevIns), pReq->szName, pReq->szVersion,
+                                       pReq->GCBaseAddr, pReq->cbModule);
+}
+
+/**
+ * Handles VMMDevReq_CheckSharedModules.
+ *
+ * @returns VBox status code that the guest should see.
+ * @param   pDevIns         The VMMDev device instance.
+ * @param   pReq            Pointer to the request.
+ */
+static int vmmdevReqHandler_CheckSharedModules(PPDMDEVINS pDevIns, VMMDevSharedModuleCheckRequest *pReq)
+{
+    AssertMsgReturn(pReq->header.size == sizeof(VMMDevSharedModuleCheckRequest),
+                    ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
+    return PGMR3SharedModuleCheckAll(PDMDevHlpGetVM(pDevIns));
+}
+
+/**
+ * Handles VMMDevReq_GetPageSharingStatus.
+ *
+ * @returns VBox status code that the guest should see.
+ * @param   pThis           The VMMDev instance data.
+ * @param   pReq            Pointer to the request.
+ */
+static int vmmdevReqHandler_GetPageSharingStatus(VMMDevState *pThis, VMMDevPageSharingStatusRequest *pReq)
+{
+    AssertMsgReturn(pReq->header.size == sizeof(VMMDevPageSharingStatusRequest),
+                    ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
+
+    pReq->fEnabled = false;
+    int rc = pThis->pDrv->pfnIsPageFusionEnabled(pThis->pDrv, &pReq->fEnabled);
+    if (RT_FAILURE(rc))
+        pReq->fEnabled = false;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Handles VMMDevReq_DebugIsPageShared.
+ *
+ * @returns VBox status code that the guest should see.
+ * @param   pDevIns         The VMMDev device instance.
+ * @param   pReq            Pointer to the request.
+ */
+static int vmmdevReqHandler_DebugIsPageShared(PPDMDEVINS pDevIns, VMMDevPageIsSharedRequest *pReq)
+{
+    AssertMsgReturn(pReq->header.size == sizeof(VMMDevPageIsSharedRequest),
+                    ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
+
+#ifdef DEBUG
+    return PGMR3SharedModuleGetPageState(PDMDevHlpGetVM(pDevIns), pReq->GCPtrPage, &pReq->fShared, &pReq->uPageFlags);
+#else
+    return VERR_NOT_IMPLEMENTED;
+#endif
+}
+
+#endif /* VBOX_WITH_PAGE_SHARING */
 
 /**
  * Port I/O Handler for the generic request interface
  * @see FNIOMIOPORTOUT for details.
  *
- * @todo Too long, suggest doing the request copying here and moving the
- *       switch into a different function (or better case -> functions), and
- *       looing the gotos.
+ * @todo This function is too long!!  All new request SHALL be implemented as
+ *       functions called from the switch!  When making changes, please move the
+ *       relevant cases into functions.
  */
 static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
@@ -495,58 +902,35 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
          */
         case VMMDevReq_ReportGuestInfo:
         {
-            if (pRequestHeader->size != sizeof(VMMDevReportGuestInfo))
+            AssertMsgBreakStmt(pRequestHeader->size == sizeof(VMMDevReportGuestInfo), ("%u\n", pRequestHeader->size),
+                               pRequestHeader->rc = VERR_INVALID_PARAMETER);
+            VBoxGuestInfo *pGuestInfo = &((VMMDevReportGuestInfo*)pRequestHeader)->guestInfo;
+
+            if (memcmp(&pThis->guestInfo, pGuestInfo, sizeof(*pGuestInfo)) != 0)
             {
-                AssertMsgFailed(("VMMDev guest information structure has an invalid size!\n"));
-                pRequestHeader->rc = VERR_INVALID_PARAMETER;
-            }
-            else
-            {
-                VBoxGuestInfo *guestInfo = &((VMMDevReportGuestInfo*)pRequestHeader)->guestInfo;
+                /* make a copy of supplied information */
+                pThis->guestInfo = *pGuestInfo;
 
-                if (memcmp (&pThis->guestInfo, guestInfo, sizeof(*guestInfo)) != 0)
-                {
-                    /* make a copy of supplied information */
-                    pThis->guestInfo = *guestInfo;
+                /* Check additions version */
+                pThis->fu32AdditionsOk = VBOX_GUEST_INTERFACE_VERSION_OK(pThis->guestInfo.interfaceVersion);
 
-                    /* Check additions version */
-                    pThis->fu32AdditionsOk = VBOX_GUEST_INTERFACE_VERSION_OK(pThis->guestInfo.interfaceVersion);
-
-                    LogRel(("Guest Additions information report: Interface = 0x%08X osType = 0x%08X\n",
-                            pThis->guestInfo.interfaceVersion,
-                            pThis->guestInfo.osType));
+                LogRel(("Guest Additions information report: Interface = 0x%08X osType = 0x%08X\n",
+                        pThis->guestInfo.interfaceVersion,
+                        pThis->guestInfo.osType));
+                if (pThis->pDrv && pThis->pDrv->pfnUpdateGuestInfo)
                     pThis->pDrv->pfnUpdateGuestInfo(pThis->pDrv, &pThis->guestInfo);
-                }
-
-                if (pThis->fu32AdditionsOk)
-                {
-                    pRequestHeader->rc = VINF_SUCCESS;
-                }
-                else
-                {
-                    pRequestHeader->rc = VERR_VERSION_MISMATCH;
-                }
             }
+
+            if (pThis->fu32AdditionsOk)
+                pRequestHeader->rc = VINF_SUCCESS;
+            else
+                pRequestHeader->rc = VERR_VERSION_MISMATCH;
             break;
         }
 
         case VMMDevReq_ReportGuestInfo2:
         {
-            if (pRequestHeader->size != sizeof(VMMDevReportGuestInfo2))
-            {
-                AssertMsgFailed(("VMMDev guest information 2 structure has an invalid size!\n"));
-                pRequestHeader->rc = VERR_INVALID_PARAMETER;
-            }
-            else
-            {
-                VBoxGuestInfo2 *pGuestInfo2 = &((VMMDevReportGuestInfo2*)pRequestHeader)->guestInfo;
-                AssertPtr(pGuestInfo2);
-                LogRel(("Guest Additions information report: Version %d.%d.%d r%d '%.*s'\n",
-                        pGuestInfo2->additionsMajor, pGuestInfo2->additionsMinor, pGuestInfo2->additionsBuild,
-                        pGuestInfo2->additionsRevision, sizeof(pGuestInfo2->szName), pGuestInfo2->szName));
-                pThis->pDrv->pfnUpdateGuestInfo2(pThis->pDrv, pGuestInfo2);
-                pRequestHeader->rc = VINF_SUCCESS;
-            }
+            pRequestHeader->rc = vmmdevReqHandler_ReportGuestInfo2(pThis, pRequestHeader);
             break;
         }
 
@@ -603,21 +987,8 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
         }
 
         case VMMDevReq_ReportGuestStatus:
-        {
-            if (pRequestHeader->size != sizeof(VMMDevReportGuestStatus))
-            {
-                AssertMsgFailed(("VMMDev guest status structure has an invalid size!\n"));
-                pRequestHeader->rc = VERR_INVALID_PARAMETER;
-            }
-            else
-            {
-                VBoxGuestStatus *guestStatus = &((VMMDevReportGuestStatus*)pRequestHeader)->guestStatus;
-                pThis->pDrv->pfnUpdateGuestStatus(pThis->pDrv, guestStatus);
-
-                pRequestHeader->rc = VINF_SUCCESS;
-            }
+            pRequestHeader->rc = vmmdevReqHandler_ReportGuestStatus(pThis, pRequestHeader);
             break;
-        }
 
         /* Report guest capabilities */
         case VMMDevReq_ReportGuestCapabilities:
@@ -649,7 +1020,8 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
                             guestCaps->caps & VMMDEV_GUEST_SUPPORTS_GUEST_HOST_WINDOW_MAPPING ? "yes" : "no",
                             guestCaps->caps & VMMDEV_GUEST_SUPPORTS_GRAPHICS ? "yes" : "no"));
 
-                    pThis->pDrv->pfnUpdateGuestCapabilities(pThis->pDrv, guestCaps->caps);
+                    if (pThis->pDrv && pThis->pDrv->pfnUpdateGuestCapabilities)
+                        pThis->pDrv->pfnUpdateGuestCapabilities(pThis->pDrv, guestCaps->caps);
                 }
                 pRequestHeader->rc = VINF_SUCCESS;
             }
@@ -680,7 +1052,8 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
                         pThis->guestCaps & VMMDEV_GUEST_SUPPORTS_GUEST_HOST_WINDOW_MAPPING ? "yes" : "no",
                         pThis->guestCaps & VMMDEV_GUEST_SUPPORTS_GRAPHICS ? "yes" : "no"));
 
-                pThis->pDrv->pfnUpdateGuestCapabilities(pThis->pDrv, pThis->guestCaps);
+                if (pThis->pDrv && pThis->pDrv->pfnUpdateGuestCapabilities)
+                    pThis->pDrv->pfnUpdateGuestCapabilities(pThis->pDrv, pThis->guestCaps);
                 pRequestHeader->rc = VINF_SUCCESS;
             }
             break;
@@ -1882,87 +2255,30 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
 
 #ifdef VBOX_WITH_PAGE_SHARING
         case VMMDevReq_RegisterSharedModule:
-        {
-            VMMDevSharedModuleRegistrationRequest *pReqModule = (VMMDevSharedModuleRegistrationRequest *)pRequestHeader;
-
-            if (    pRequestHeader->size < sizeof(VMMDevSharedModuleRegistrationRequest)
-                ||  pRequestHeader->size != RT_UOFFSETOF(VMMDevSharedModuleRegistrationRequest, aRegions[pReqModule->cRegions]))
-            {
-                pRequestHeader->rc = VERR_INVALID_PARAMETER;
-            }
-            else
-            {
-                pRequestHeader->rc = PGMR3SharedModuleRegister(PDMDevHlpGetVM(pDevIns), pReqModule->enmGuestOS, pReqModule->szName, pReqModule->szVersion,
-                                                               pReqModule->GCBaseAddr, pReqModule->cbModule,
-                                                               pReqModule->cRegions, pReqModule->aRegions);
-            }
+            pRequestHeader->rc = vmmdevReqHandler_RegisterSharedModule(pDevIns,
+                                     (VMMDevSharedModuleRegistrationRequest *)pRequestHeader);
             break;
-        }
 
         case VMMDevReq_UnregisterSharedModule:
-        {
-            VMMDevSharedModuleUnregistrationRequest *pReqModule = (VMMDevSharedModuleUnregistrationRequest *)pRequestHeader;
-
-            if (pRequestHeader->size != sizeof(VMMDevSharedModuleUnregistrationRequest))
-            {
-                pRequestHeader->rc = VERR_INVALID_PARAMETER;
-            }
-            else
-            {
-                pRequestHeader->rc = PGMR3SharedModuleUnregister(PDMDevHlpGetVM(pDevIns), pReqModule->szName, pReqModule->szVersion,
-                                                                 pReqModule->GCBaseAddr, pReqModule->cbModule);
-            }
+            pRequestHeader->rc = vmmdevReqHandler_UnregisterSharedModule(pDevIns,
+                                     (VMMDevSharedModuleUnregistrationRequest *)pRequestHeader);
             break;
-        }
 
         case VMMDevReq_CheckSharedModules:
-        {
-            VMMDevSharedModuleCheckRequest *pReqModule = (VMMDevSharedModuleCheckRequest *)pRequestHeader;
-
-            if (pRequestHeader->size != sizeof(VMMDevSharedModuleCheckRequest))
-                pRequestHeader->rc = VERR_INVALID_PARAMETER;
-            else
-                pRequestHeader->rc = PGMR3SharedModuleCheckAll(PDMDevHlpGetVM(pDevIns));
+            pRequestHeader->rc = vmmdevReqHandler_CheckSharedModules(pDevIns,
+                                     (VMMDevSharedModuleCheckRequest *)pRequestHeader);
             break;
-        }
 
         case VMMDevReq_GetPageSharingStatus:
-        {
-            VMMDevPageSharingStatusRequest *pReqStatus = (VMMDevPageSharingStatusRequest *)pRequestHeader;
-
-            if (pRequestHeader->size != sizeof(VMMDevPageSharingStatusRequest))
-            {
-                pRequestHeader->rc = VERR_INVALID_PARAMETER;
-            }
-            else
-            {
-                pReqStatus->fEnabled = false;
-                pThis->pDrv->pfnIsPageFusionEnabled(pThis->pDrv, &pReqStatus->fEnabled);
-                pRequestHeader->rc = VINF_SUCCESS;
-            }
+            pRequestHeader->rc = vmmdevReqHandler_GetPageSharingStatus(pThis,
+                                     (VMMDevPageSharingStatusRequest *)pRequestHeader);
             break;
-        }
 
         case VMMDevReq_DebugIsPageShared:
-        {
-# ifdef DEBUG
-            VMMDevPageIsSharedRequest *pReq = (VMMDevPageIsSharedRequest *)pRequestHeader;
-
-            if (pRequestHeader->size != sizeof(VMMDevPageIsSharedRequest))
-            {
-                pRequestHeader->rc = VERR_INVALID_PARAMETER;
-            }
-            else
-            {
-                pRequestHeader->rc = PGMR3SharedModuleGetPageState(PDMDevHlpGetVM(pDevIns), pReq->GCPtrPage, &pReq->fShared, &pReq->uPageFlags);
-            }
-# else
-            pRequestHeader->rc = VERR_NOT_IMPLEMENTED;
-# endif
+            pRequestHeader->rc = vmmdevReqHandler_DebugIsPageShared(pDevIns, (VMMDevPageIsSharedRequest *)pRequestHeader);
             break;
-        }
 
-#endif
+#endif /* VBOX_WITH_PAGE_SHARING */
 
 #ifdef DEBUG
         case VMMDevReq_LogString:
@@ -2561,7 +2877,7 @@ static DECLCALLBACK(int) vmmdevSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     /* The following is not strictly necessary as PGM restores MMIO2, keeping it for historical reasons. */
     SSMR3PutMem(pSSM, &pThis->pVMMDevRAMR3->V, sizeof(pThis->pVMMDevRAMR3->V));
 
-    SSMR3PutMem(pSSM, &pThis->guestInfo, sizeof (pThis->guestInfo));
+    SSMR3PutMem(pSSM, &pThis->guestInfo, sizeof(pThis->guestInfo));
     SSMR3PutU32(pSSM, pThis->fu32AdditionsOk);
     SSMR3PutU32(pSSM, pThis->u32VideoAccelEnabled);
     SSMR3PutBool(pSSM, pThis->displayChangeData.fGuestSentChangeEventAck);
@@ -2573,6 +2889,19 @@ static DECLCALLBACK(int) vmmdevSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 #endif /* VBOX_WITH_HGCM */
 
     SSMR3PutU32(pSSM, pThis->fHostCursorRequested);
+
+    SSMR3PutU32(pSSM, pThis->guestInfo2.uFullVersion);
+    SSMR3PutU32(pSSM, pThis->guestInfo2.uRevision);
+    SSMR3PutU32(pSSM, pThis->guestInfo2.fFeatures);
+    SSMR3PutStrZ(pSSM, pThis->guestInfo2.szName);
+    SSMR3PutU32(pSSM, pThis->cFacilityStatuses);
+    for (uint32_t i = 0; i < pThis->cFacilityStatuses; i++)
+    {
+        SSMR3PutU32(pSSM, pThis->aFacilityStatuses[i].uFacility);
+        SSMR3PutU32(pSSM, pThis->aFacilityStatuses[i].fFlags);
+        SSMR3PutU16(pSSM, pThis->aFacilityStatuses[i].uStatus);
+        SSMR3PutS64(pSSM, RTTimeSpecGetNano(&pThis->aFacilityStatuses[i].TimeSpecTS));
+    }
 
     return VINF_SUCCESS;
 }
@@ -2657,6 +2986,44 @@ static DECLCALLBACK(int) vmmdevLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
         rc = SSMR3GetU32(pSSM, &pThis->fHostCursorRequested);
     AssertRCReturn(rc, rc);
 
+    if (uVersion > VMMDEV_SAVED_STATE_VERSION_MISSING_GUEST_INFO_2)
+    {
+        SSMR3GetU32(pSSM, &pThis->guestInfo2.uFullVersion);
+        SSMR3GetU32(pSSM, &pThis->guestInfo2.uRevision);
+        SSMR3GetU32(pSSM, &pThis->guestInfo2.fFeatures);
+        rc = SSMR3GetStrZ(pSSM, &pThis->guestInfo2.szName[0], sizeof(pThis->guestInfo2.szName));
+        AssertRCReturn(rc, rc);
+    }
+
+    if (uVersion > VMMDEV_SAVED_STATE_VERSION_MISSING_FACILITY_STATUSES)
+    {
+        uint32_t cFacilityStatuses;
+        rc = SSMR3GetU32(pSSM, &cFacilityStatuses);
+        AssertRCReturn(rc, rc);
+
+        for (uint32_t i = 0; i < cFacilityStatuses; i++)
+        {
+            uint32_t uFacility, fFlags;
+            uint16_t uStatus;
+            int64_t  iTimeStampNano;
+
+            SSMR3GetU32(pSSM, &uFacility);
+            SSMR3GetU32(pSSM, &fFlags);
+            SSMR3GetU16(pSSM, &uStatus);
+            rc = SSMR3GetS64(pSSM, &iTimeStampNano);
+            AssertRCReturn(rc, rc);
+
+            PVMMDEVFACILITYSTATUSENTRY pEntry = vmmdevGetFacilityStatusEntry(pThis, uFacility);
+            AssertLogRelMsgReturn(pEntry,
+                                  ("VMMDev: Ran out of entries restoring the guest facility statuses. Saved state has %u.\n", cFacilityStatuses),
+                                  VERR_OUT_OF_RESOURCES);
+            pEntry->uStatus = uStatus;
+            pEntry->fFlags  = fFlags;
+            RTTimeSpecSetNano(&pEntry->TimeSpecTS, iTimeStampNano);
+        }
+    }
+
+
     /*
      * On a resume, we send the capabilities changed message so
      * that listeners can sync their state again
@@ -2678,7 +3045,7 @@ static DECLCALLBACK(int) vmmdevLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
     if (    pThis->u32VideoAccelEnabled
         &&  pThis->pDrv)
     {
-        pThis->pDrv->pfnVideoAccelEnable (pThis->pDrv, !!pThis->u32VideoAccelEnabled, &pThis->pVMMDevRAMR3->vbvaMemory);
+        pThis->pDrv->pfnVideoAccelEnable(pThis->pDrv, !!pThis->u32VideoAccelEnabled, &pThis->pVMMDevRAMR3->vbvaMemory);
     }
 
     if (pThis->fu32AdditionsOk)
@@ -2687,10 +3054,27 @@ static DECLCALLBACK(int) vmmdevLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
                 pThis->guestInfo.interfaceVersion,
                 pThis->guestInfo.osType));
         if (pThis->pDrv)
-            pThis->pDrv->pfnUpdateGuestInfo(pThis->pDrv, &pThis->guestInfo);
-/** @todo Missing pfnUpdateGuestInfo2 */
+        {
+            if (pThis->guestInfo2.uFullVersion && pThis->pDrv->pfnUpdateGuestInfo2)
+                pThis->pDrv->pfnUpdateGuestInfo2(pThis->pDrv, pThis->guestInfo2.uFullVersion, pThis->guestInfo2.szName,
+                                                 pThis->guestInfo2.uRevision, pThis->guestInfo2.fFeatures);
+            if (pThis->pDrv->pfnUpdateGuestInfo)
+                pThis->pDrv->pfnUpdateGuestInfo(pThis->pDrv, &pThis->guestInfo);
+
+            if (pThis->pDrv->pfnUpdateGuestStatus)
+            {
+                for (uint32_t i = 0; i < pThis->cFacilityStatuses; i++) /* ascending order! */
+                    if (   pThis->aFacilityStatuses[i].uStatus != VBoxGuestFacilityStatus_Inactive
+                        || !pThis->aFacilityStatuses[i].fFixed)
+                        pThis->pDrv->pfnUpdateGuestStatus(pThis->pDrv,
+                                                          pThis->aFacilityStatuses[i].uFacility,
+                                                          pThis->aFacilityStatuses[i].uStatus,
+                                                          pThis->aFacilityStatuses[i].fFlags,
+                                                          &pThis->aFacilityStatuses[i].TimeSpecTS);
+            }
+        }
     }
-    if (pThis->pDrv)
+    if (pThis->pDrv && pThis->pDrv->pfnUpdateGuestCapabilities)
         pThis->pDrv->pfnUpdateGuestCapabilities(pThis->pDrv, pThis->guestCaps);
 
     return VINF_SUCCESS;
@@ -2779,6 +3163,18 @@ static DECLCALLBACK(void) vmmdevReset(PPDMDEVINS pDevIns)
              pThis->fu32AdditionsOk, pThis->guestInfo.interfaceVersion, pThis->guestInfo.osType));
     pThis->fu32AdditionsOk = false;
     memset (&pThis->guestInfo, 0, sizeof (pThis->guestInfo));
+    RT_ZERO(pThis->guestInfo2);
+
+    /* Clear facilities. No need to tell Main as it will get a
+       pfnUpdateGuestInfo callback. */
+    RTTIMESPEC TimeStampNow;
+    RTTimeNow(&TimeStampNow);
+    uint32_t iFacility = pThis->cFacilityStatuses;
+    while (iFacility-- > 0)
+    {
+        pThis->aFacilityStatuses[iFacility].uStatus    = VBoxGuestFacilityStatus_Inactive;
+        pThis->aFacilityStatuses[iFacility].TimeSpecTS = TimeStampNow;
+    }
 
     /* clear pending display change request. */
     for (unsigned i = 0; i < RT_ELEMENTS(pThis->displayChangeData.aRequests); i++)
@@ -2824,9 +3220,9 @@ static DECLCALLBACK(void) vmmdevReset(PPDMDEVINS pDevIns)
     /*
      * Call the update functions as required.
      */
-    if (fVersionChanged)
+    if (fVersionChanged && pThis->pDrv && pThis->pDrv->pfnUpdateGuestInfo)
         pThis->pDrv->pfnUpdateGuestInfo(pThis->pDrv, &pThis->guestInfo);
-    if (fCapsChanged)
+    if (fCapsChanged    && pThis->pDrv && pThis->pDrv->pfnUpdateGuestCapabilities)
         pThis->pDrv->pfnUpdateGuestCapabilities(pThis->pDrv, pThis->guestCaps);
 
     /* Generate a unique session id for this VM; it will be changed for each start, reset or restore.
@@ -2897,6 +3293,15 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     PCIDevSetHeaderType(&pThis->dev, 0x00);
     /* interrupt on pin 0 */
     PCIDevSetInterruptPin(&pThis->dev, 0x01);
+
+    RTTIMESPEC TimeStampNow;
+    RTTimeNow(&TimeStampNow);
+    vmmdevAllocFacilityStatusEntry(pThis, VBoxGuestFacilityType_VBoxGuestDriver, true /*fFixed*/, &TimeStampNow);
+    vmmdevAllocFacilityStatusEntry(pThis, VBoxGuestFacilityType_VBoxService,     true /*fFixed*/, &TimeStampNow);
+    vmmdevAllocFacilityStatusEntry(pThis, VBoxGuestFacilityType_VBoxTrayClient,  true /*fFixed*/, &TimeStampNow);
+    vmmdevAllocFacilityStatusEntry(pThis, VBoxGuestFacilityType_Seamless,        true /*fFixed*/, &TimeStampNow);
+    vmmdevAllocFacilityStatusEntry(pThis, VBoxGuestFacilityType_Graphics,        true /*fFixed*/, &TimeStampNow);
+    Assert(pThis->cFacilityStatuses == 5);
 
     /*
      * Interfaces

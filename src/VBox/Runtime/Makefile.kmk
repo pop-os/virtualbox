@@ -362,7 +362,6 @@ RuntimeR3_SOURCES       = \
 	common/string/RTStrCatP.cpp \
 	common/string/RTStrCatPEx.cpp \
 	common/string/RTStrCmp.cpp \
-	common/string/RTStrConvertHexBytes.cpp \
 	common/string/RTStrCopy.cpp \
 	common/string/RTStrCopyEx.cpp \
 	common/string/RTStrCopyP.cpp \
@@ -379,6 +378,7 @@ RuntimeR3_SOURCES       = \
 	common/string/strformatnum.cpp \
 	common/string/strformatrt.cpp \
 	common/string/strformattype.cpp \
+	common/string/strhash1.cpp \
 	common/string/stringalloc.cpp \
 	common/string/strprintf.cpp \
 	common/string/strspace.cpp \
@@ -1260,8 +1260,7 @@ VBoxRT_INCS                    = $(RuntimeR3_INCS)
 VBoxRT_INCS.$(KBUILD_TARGET)   = $(RuntimeR3_INCS.$(KBUILD_TARGET))
 VBoxRT_INCS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH) = $(RuntimeR3_INCS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH))
 VBoxRT_LIBS                    = \
-	$(PATH_STAGE_LIB)/VBox-liblzf$(VBOX_SUFF_LIB) \
-	$(SDK_VBOX_ZLIB_LIBS)
+	$(PATH_STAGE_LIB)/VBox-liblzf$(VBOX_SUFF_LIB)
 if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
 VBoxRT_LIBS                   += \
 	$(PATH_STAGE_LIB)/SUPR3$(VBOX_SUFF_LIB)
@@ -1274,6 +1273,8 @@ ifndef SDK_VBOX_LIBXML2_LIBS
  VBoxRT_LIBS                 += \
 	$(PATH_STAGE_LIB)/VBox-libxml2$(VBOX_SUFF_LIB)
 endif
+VBoxRT_LIBS                  += \
+	$(SDK_VBOX_ZLIB_LIBS)
 ifndef SDK_VBOX_OPENSSL_LIBS
  VBoxRT_LIBS                 += \
 	$(PATH_STAGE_LIB)/VBox-libcrypto$(VBOX_SUFF_LIB) \
@@ -1471,6 +1472,7 @@ RuntimeR0_SOURCES       = \
 	common/misc/sanity-cpp.cpp \
 	common/misc/term.cpp \
  	common/path/RTPathFilename.cpp \
+	common/string/strhash1.cpp \
 	common/string/strncmp.cpp \
 	common/string/strpbrk.cpp \
 	common/string/RTStrCat.cpp \
@@ -1636,6 +1638,7 @@ RuntimeR0Drv_SOURCES    = \
 	common/string/strformatnum.cpp \
 	common/string/strformatrt.cpp \
 	common/string/strformattype.cpp \
+	common/string/strhash1.cpp \
 	common/string/strprintf.cpp \
 	common/string/strtonum.cpp \
 	common/string/stringalloc.cpp \

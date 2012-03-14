@@ -2759,7 +2759,7 @@ const PDMDRVREG g_DrvVD =
     /* fClass. */
     PDM_DRVREG_CLASS_MEDIA,
     /* cMaxInstances */
-    ~0,
+    ~0U,
     /* cbInstance */
     sizeof(VBOXDISK),
     /* pfnConstruct */

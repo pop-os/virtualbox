@@ -59,7 +59,7 @@ private slots:
     void sltCheckIfUpdateIsNecessary(bool fForceCall = false);
 
     /* Handle downloaded extension pack: */
-    void sltHandleDownloadedExtensionPack(const QString &strSource, const QString &strTarget);
+    void sltHandleDownloadedExtensionPack(const QString &strSource, const QString &strTarget, QString strDigest);
 
 private:
 

@@ -22,6 +22,12 @@
 # terms and conditions of either the GPL or the CDDL or both.
 #
 
+LC_ALL=C
+export LC_ALL
+
+LANG=C
+export LANG
+
 SILENTUNLOAD=""
 MODNAME="vboxguest"
 VFSMODNAME="vboxfs"
@@ -95,18 +101,13 @@ check_root()
 
 start_module()
 {
-    if vboxguest_loaded; then
-        info "VirtualBox guest kernel module already loaded."
+    /usr/sbin/add_drv -i'pci80ee,cafe' -m'* 0666 root sys' $MODNAME
+    if test ! vboxguest_loaded; then
+        abort "Failed to load VirtualBox guest kernel module."
+    elif test -c "/devices/pci@0,0/pci80ee,cafe@4:$MODNAME"; then
+        info "VirtualBox guest kernel module loaded."
     else
-        /usr/sbin/add_drv -i'pci80ee,cafe' -m'* 0666 root sys' $MODNAME
-        sync
-        if test ! vboxguest_loaded; then
-            abort "Failed to load VirtualBox guest kernel module."
-        elif test -c "/devices/pci@0,0/pci80ee,cafe@4:$MODNAME"; then
-            info "VirtualBox guest kernel module loaded."
-        else
-            abort "Aborting due to attach failure."
-        fi
+        abort "Aborting due to attach failure."
     fi
 }
 

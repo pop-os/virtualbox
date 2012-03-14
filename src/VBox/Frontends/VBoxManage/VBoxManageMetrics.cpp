@@ -288,6 +288,9 @@ static int handleMetricsSetup(int argc, char *argv[],
         SetupMetrics(ComSafeArrayAsInParam(metrics),
                      ComSafeArrayAsInParam(objects), period, samples,
                      ComSafeArrayAsOutParam(affectedMetrics)));
+    if (FAILED(rc))
+        return 2;
+
     if (listMatches)
         listAffectedMetrics(aVirtualBox,
                             ComSafeArrayAsInParam(affectedMetrics));
@@ -460,6 +463,9 @@ static int handleMetricsCollect(int argc, char *argv[],
         SetupMetrics(ComSafeArrayAsInParam(baseMetrics),
                      ComSafeArrayAsInParam(objects), period, samples,
                      ComSafeArrayAsOutParam(affectedMetrics)));
+    if (FAILED(rc))
+        return 2;
+
     if (listMatches)
         listAffectedMetrics(aVirtualBox,
                             ComSafeArrayAsInParam(affectedMetrics));
@@ -566,6 +572,9 @@ static int handleMetricsEnable(int argc, char *argv[],
         EnableMetrics(ComSafeArrayAsInParam(metrics),
                       ComSafeArrayAsInParam(objects),
                       ComSafeArrayAsOutParam(affectedMetrics)));
+    if (FAILED(rc))
+        return 2;
+
     if (listMatches)
         listAffectedMetrics(aVirtualBox,
                             ComSafeArrayAsInParam(affectedMetrics));
@@ -608,6 +617,9 @@ static int handleMetricsDisable(int argc, char *argv[],
         DisableMetrics(ComSafeArrayAsInParam(metrics),
                        ComSafeArrayAsInParam(objects),
                        ComSafeArrayAsOutParam(affectedMetrics)));
+    if (FAILED(rc))
+        return 2;
+
     if (listMatches)
         listAffectedMetrics(aVirtualBox,
                             ComSafeArrayAsInParam(affectedMetrics));

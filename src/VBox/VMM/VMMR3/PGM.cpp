@@ -671,7 +671,7 @@ static const DBGCCMD    g_aCmds[] =
     { "pgmerroroff",   0, 1,        &g_aPgmErrorArgs[0],      1,         0,      pgmR3CmdError,      "",                     "Disables inject runtime errors into parts of PGM." },
 # ifdef VBOX_STRICT
     { "pgmassertcr3",  0, 0,        NULL,                     0,         0,      pgmR3CmdAssertCR3,  "",                     "Check the shadow CR3 mapping." },
-#  if HC_ARCH_BITS == 64
+#  ifdef VBOX_WITH_PAGE_SHARING
     { "pgmcheckduppages", 0, 0,     NULL,                     0,         0,      pgmR3CmdCheckDuplicatePages,  "",           "Check for duplicate pages in all running VMs." },
     { "pgmsharedmodules", 0, 0,     NULL,                     0,         0,      pgmR3CmdShowSharedModules,  "",             "Print shared modules info." },
 #  endif
@@ -1665,6 +1665,8 @@ static int pgmR3InitStats(PVM pVM)
     STAM_REL_REG(pVM, &pPGM->StatLargePageReused,                STAMTYPE_COUNTER, "/PGM/LargePage/Reused",              STAMUNIT_OCCURENCES, "The number of times we've reused a large page.");
     STAM_REL_REG(pVM, &pPGM->StatLargePageRefused,               STAMTYPE_COUNTER, "/PGM/LargePage/Refused",             STAMUNIT_OCCURENCES, "The number of times we couldn't use a large page.");
     STAM_REL_REG(pVM, &pPGM->StatLargePageRecheck,               STAMTYPE_COUNTER, "/PGM/LargePage/Recheck",             STAMUNIT_OCCURENCES, "The number of times we've rechecked a disabled large page.");
+
+    STAM_REL_REG(pVM, &pPGM->StatShModCheck,                     STAMTYPE_PROFILE, "/PGM/ShMod/Check",                   STAMUNIT_TICKS_PER_CALL, "Profiles the shared module checking.");
 
     /* Live save */
     STAM_REL_REG_USED(pVM, &pPGM->LiveSave.fActive,              STAMTYPE_U8,      "/PGM/LiveSave/fActive",              STAMUNIT_COUNT,     "Active or not.");

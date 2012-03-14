@@ -214,7 +214,7 @@ const PDMDRVREG g_DrvRawFile =
     /* fClass. */
     PDM_DRVREG_CLASS_STREAM,
     /* cMaxInstances */
-    ~0,
+    ~0U,
     /* cbInstance */
     sizeof(DRVRAWFILE),
     /* pfnConstruct */

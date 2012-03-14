@@ -880,7 +880,9 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Network/slirp/libalias/alias_nbt.c \
  	Network/slirp/libalias/alias_util.c
 
- # some day will be deleted
+ # Enable VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER here for a while, then move to $(file)_DEFS or clean the code 
+ # disabled with this definition
+ VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER=1
 
  Drivers_SOURCES += $(VBOX_SLIRP_SOURCES)
  define def_vbox_slirp_cflags
@@ -888,6 +890,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
        $(if $(VBOX_WITH_SLIRP_BSD_SBUF),VBOX_WITH_SLIRP_BSD_SBUF,) \
        $(if $(VBOX_WITH_SLIRP_MEMORY_CHECK),RTMEM_WRAP_TO_EF_APIS,) \
        $(if $(VBOX_WITH_DEBUG_NAT_SOCKETS),VBOX_WITH_DEBUG_NAT_SOCKETS,)	\
+       $(if $(VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER),VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER,)	\
        $(if $(VBOX_WITH_SLIRP_MT),VBOX_WITH_SLIRP_MT,)
   $(file)_INCS += $(1)/slirp/bsd/sys
   $(file)_INCS += $(1)/slirp/bsd/sys/sys
@@ -1201,7 +1204,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
 
 endif # !VBOX_ONLY_EXTPACKS
 
-ifdef VBOX_WITH_EXTPACK_PUEL
+if defined(VBOX_WITH_EXTPACK_PUEL) && defined(VBOX_WITH_EXTPACK_PUEL_BUILD)
  #
  # The EHCI (USB 2.0) Extension Pack Modules.
  #

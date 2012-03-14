@@ -647,7 +647,15 @@ typedef struct VBoxGuestInfo2
     uint32_t additionsRevision;
     /** Feature mask, currently unused. */
     uint32_t additionsFeatures;
-    /** Some additional information, for example 'Beta 1' or something like that. */
+    /** The intentional meaning of this field was:
+     * Some additional information, for example 'Beta 1' or something like that.
+     *
+     * The way it was implemented was implemented: VBOX_VERSION_STRING.
+     *
+     * This means the first three members are duplicated in this field (if the guest
+     * build config is sane). So, the user must check this and chop it off before
+     * usage.  There is, because of the Main code's blind trust in the field's
+     * content, no way back. */
     char     szName[128];
 } VBoxGuestInfo2;
 AssertCompileSize(VBoxGuestInfo2, 144);
@@ -675,6 +683,7 @@ typedef enum
 {
     VBoxGuestFacilityType_Unknown         = 0,
     VBoxGuestFacilityType_VBoxGuestDriver = 20,
+    VBoxGuestFacilityType_AutoLogon       = 90,  /* VBoxGINA / VBoxCredProv / pam_vbox. */
     VBoxGuestFacilityType_VBoxService     = 100,
     VBoxGuestFacilityType_VBoxTrayClient  = 101, /* VBoxTray (Windows), VBoxClient (Linux, Unix). */
     VBoxGuestFacilityType_Seamless        = 1000,
@@ -1213,7 +1222,7 @@ AssertCompileSize(VMMDevGetCpuHotPlugRequest, 24+4+4+4);
 /**
  * Shared region description
  */
-typedef struct
+typedef struct VMMDEVSHAREDREGIONDESC
 {
     RTGCPTR64           GCRegionAddr;
     uint32_t            cbRegion;

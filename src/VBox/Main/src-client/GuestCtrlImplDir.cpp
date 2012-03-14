@@ -29,6 +29,8 @@
 
 #include <VBox/VMMDev.h>
 #ifdef VBOX_WITH_GUEST_CONTROL
+# include <iprt/path.h>
+
 # include <VBox/com/array.h>
 # include <VBox/com/ErrorInfo.h>
 #endif
@@ -123,6 +125,8 @@ HRESULT Guest::directoryCreateInternal(IN_BSTR aDirectory,
                                    ComSafeArrayAsInParam(args),
                                    ComSafeArrayAsInParam(env),
                                    aUsername, aPassword,
+                                   ExecuteProcessFlag_None,
+                                   NULL, NULL,
                                    NULL /* Progress */, NULL /* PID */);
     }
     catch (std::bad_alloc &)
@@ -245,17 +249,13 @@ HRESULT Guest::directoryExistsInternal(IN_BSTR aDirectory, IN_BSTR aUsername, IN
                 *aExists = TRUE;
                 break;
 
-            case VERR_FILE_NOT_FOUND:
+            case VERR_PATH_NOT_FOUND:
                 *aExists = FALSE;
                 break;
 
-            case VERR_NOT_FOUND:
-                rc = setError(VBOX_E_IPRT_ERROR,
-                              Guest::tr("Unable to query directory existence"));
-                break;
-
             default:
-                AssertReleaseMsgFailed(("directoryExistsInternal: Unknown return value (%Rrc)\n", rc));
+                hr = setError(VBOX_E_IPRT_ERROR,
+                              Guest::tr("Unable to query directory existence (%Rrc)"), rc);
                 break;
         }
     }
@@ -297,7 +297,11 @@ int Guest::directoryGetNextEntry(uint32_t uHandle, GuestProcessStreamBlock &stre
     GuestDirectoryMapIter it = mGuestDirectoryMap.find(uHandle);
     if (it != mGuestDirectoryMap.end())
     {
+#ifdef DEBUG
+        it->second.mStream.Dump("/tmp/stream.txt");
+#endif
         return executeStreamGetNextBlock(it->second.mPID,
+                                         ProcessOutputFlag_None /* StdOut */,
                                          it->second.mStream, streamBlock);
     }
 
@@ -391,37 +395,41 @@ HRESULT Guest::directoryOpenInternal(IN_BSTR aDirectory, IN_BSTR aFilter,
 
         /* Construct and hand in actual directory name + filter we want to open. */
         char *pszDirectoryFinal;
-        int cbRet;
         if (Utf8Filter.isEmpty())
-            cbRet = RTStrAPrintf(&pszDirectoryFinal, "%s", Utf8Directory.c_str());
+            pszDirectoryFinal = RTStrDup(Utf8Directory.c_str());
         else
-            cbRet = RTStrAPrintf(&pszDirectoryFinal, "%s/%s",
-                                 Utf8Directory.c_str(), Utf8Filter.c_str());
-        if (!cbRet)
+            pszDirectoryFinal = RTPathJoinA(Utf8Directory.c_str(), Utf8Filter.c_str());
+        if (!pszDirectoryFinal)
             return setError(E_OUTOFMEMORY, tr("Out of memory while allocating final directory"));
 
         args.push_back(Bstr(pszDirectoryFinal).raw());  /* The directory we want to open. */
+        RTStrFree(pszDirectoryFinal);
 
         ULONG uPID;
-        /** @todo Don't wait for tool to finish! Might take a lot of time! */
+        /* We only start the directory listing and requesting stdout data but don't get its
+         * data here; this is done in sequential IGuest::DirectoryRead calls then. */
         hr = executeAndWaitForTool(Bstr(VBOXSERVICE_TOOL_LS).raw(), Bstr("Opening directory").raw(),
                                    ComSafeArrayAsInParam(args),
                                    ComSafeArrayAsInParam(env),
                                    aUsername, aPassword,
+                                   ExecuteProcessFlag_WaitForStdOut,
+                                   NULL, NULL,
                                    NULL /* Progress */, &uPID);
         if (SUCCEEDED(hr))
         {
             /* Assign new directory handle ID. */
             ULONG uHandleNew;
-            int vrc = directoryCreateHandle(&uHandleNew, uPID,
-                                            aDirectory, aFilter, aFlags);
-            if (RT_SUCCESS(vrc))
+            int rc = directoryCreateHandle(&uHandleNew, uPID,
+                                           aDirectory, aFilter, aFlags);
+            if (RT_SUCCESS(rc))
             {
                 *aHandle = uHandleNew;
             }
             else
                 hr = setError(VBOX_E_IPRT_ERROR,
-                              tr("Unable to create guest directory handle (%Rrc)"), vrc);
+                              tr("Unable to create guest directory handle (%Rrc)"), rc);
+            if (pRC)
+                *pRC = rc;
         }
     }
     catch (std::bad_alloc &)
@@ -473,40 +481,41 @@ HRESULT Guest::directoryQueryInfoInternal(IN_BSTR aDirectory,
          * Execute guest process.
          */
         ULONG uPID;
+        GuestCtrlStreamObjects stdOut;
         hr = executeAndWaitForTool(Bstr(VBOXSERVICE_TOOL_STAT).raw(), Bstr("Querying directory information").raw(),
                                    ComSafeArrayAsInParam(args),
                                    ComSafeArrayAsInParam(env),
                                    aUsername, aPassword,
+                                   ExecuteProcessFlag_WaitForStdOut,
+                                   &stdOut, NULL /* stdErr */,
                                    NULL /* Progress */, &uPID);
         if (SUCCEEDED(hr))
         {
-            GuestCtrlStreamObjects streamObjs;
-            hr = executeStreamParse(uPID, streamObjs);
-            if (SUCCEEDED(hr))
+            int rc = VINF_SUCCESS;
+            if (stdOut.size())
             {
-                int rc = VINF_SUCCESS;
-
-                Assert(streamObjs.size());
-                const char *pszFsType = streamObjs[0].GetString("ftype");
+                const char *pszFsType = stdOut[0].GetString("ftype");
                 if (!pszFsType) /* Attribute missing? */
-                     rc = VERR_NOT_FOUND;
+                     rc = VERR_PATH_NOT_FOUND;
                 if (   RT_SUCCESS(rc)
                     && strcmp(pszFsType, "d")) /* Directory? */
                 {
-                     rc = VERR_FILE_NOT_FOUND;
+                     rc = VERR_PATH_NOT_FOUND;
                      /* This is not critical for Main, so don't set hr --
                       * we will take care of rc then. */
                 }
                 if (   RT_SUCCESS(rc)
                     && aObjInfo) /* Do we want object details? */
                 {
-                    hr = executeStreamQueryFsObjInfo(aDirectory, streamObjs[0],
+                    rc = executeStreamQueryFsObjInfo(aDirectory, stdOut[0],
                                                      aObjInfo, enmAddAttribs);
                 }
-
-                if (pRC)
-                    *pRC = rc;
             }
+            else
+                rc = VERR_NO_DATA;
+
+            if (pRC)
+                *pRC = rc;
         }
     }
     catch (std::bad_alloc &)
@@ -536,24 +545,30 @@ STDMETHODIMP Guest::DirectoryRead(ULONG aHandle, IGuestDirEntry **aDirEntry)
         int rc = directoryGetNextEntry(aHandle, streamBlock);
         if (RT_SUCCESS(rc))
         {
-            ComObjPtr <GuestDirEntry> pDirEntry;
-            hr = pDirEntry.createObject();
-            ComAssertComRC(hr);
-
-            Assert(streamBlock.GetCount());
-            hr = pDirEntry->init(this, streamBlock);
-            if (SUCCEEDED(hr))
+            if (streamBlock.GetCount())
             {
-                pDirEntry.queryInterfaceTo(aDirEntry);
+                ComObjPtr <GuestDirEntry> pDirEntry;
+                hr = pDirEntry.createObject();
+                ComAssertComRC(hr);
+
+                hr = pDirEntry->init(this, streamBlock);
+                if (SUCCEEDED(hr))
+                {
+                    pDirEntry.queryInterfaceTo(aDirEntry);
+                }
+                else
+                {
+#ifdef DEBUG
+                    streamBlock.Dump();
+#endif
+                    hr = VBOX_E_FILE_ERROR;
+                }
             }
             else
-                hr = setError(VBOX_E_IPRT_ERROR,
-                              Guest::tr("Failed to init guest directory entry"));
-        }
-        else if (rc == VERR_NO_DATA)
-        {
-            /* No more directory entries to read. That's fine. */
-            hr = E_ABORT; /** @todo Find/define a better rc! */
+            {
+                /* No more directory entries to read. That's fine. */
+                hr = E_ABORT; /** @todo Find/define a better rc! */
+            }
         }
         else
             hr = setError(VBOX_E_IPRT_ERROR,

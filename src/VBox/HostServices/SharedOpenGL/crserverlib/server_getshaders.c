@@ -105,7 +105,7 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGetAttachedObjectsARB(GLhandleARB 
         GLsizei i;
         GLuint *ids=(GLuint*)&pLocal[1];
 
-        for (i=0; i<*pLocal; ++i);
+        for (i=0; i<*pLocal; ++i)
           ids[i] = crStateGLSLShaderHWIDtoID(ids[i]);
     }
 
@@ -128,7 +128,7 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGetInfoLogARB(GLhandleARB obj, GLs
     hwid = crStateGetProgramHWID(obj);
     if (!hwid) hwid = crStateGetShaderHWID(obj);
     cr_server.head_spu->dispatch_table.GetInfoLogARB(hwid, maxLength, pLocal, (char*)&pLocal[1]);
-    crServerReturnValue(pLocal, (*pLocal)+1+sizeof(GLsizei));
+    crServerReturnValue(pLocal, (*pLocal)+sizeof(GLsizei));
     crFree(pLocal);
 }
 

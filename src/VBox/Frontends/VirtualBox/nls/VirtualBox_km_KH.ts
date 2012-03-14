@@ -57,7 +57,7 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>កម្ម​វិធី​ខឺ​ណែល​លីនុច​ VirtualBox (vboxdrv) មិនត្រូវ​បាន​ផ្ទុក​ ឬ​មាន​បញ្ហា​សិទ្ធិ​ជាមួយ​ /dev/vboxdrv ។ សូម​ដំឡើង​ឡើង​វិញ​ម៉ូ​​ឌុល​ខឺ​ណែល​​​ដោយ​ការ​ប្រតិបត្តិ​​ &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv ដំឡើ​ង&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;​ដូច Root ។ អ្នក​ប្រើ​យូប៊ុន​ទូ​ Fedora ឬ​ Mandriva គួរ​តែដំឡើង​កញ្ចប់​ដំបូង​របស់​ DKMS ។ កញ្ចប់​នេះ​​តាម​ដាន​​រក្សា​ទុក​​នៃ​ការ​ផ្លាស់​ប្តូរ​ខឺ​ណែល​លីនុច​ និងចង​​ក្រង​ឡើងវិញ​នៃ​​ម៉ូឌុល​ខឺណែល​របស់​ vboxdrv ប្រសិន​បើ​ចាំ​បាច់ ។</translation>
+        <translation type="obsolete">កម្ម​វិធី​ខឺ​ណែល​លីនុច​ VirtualBox (vboxdrv) មិនត្រូវ​បាន​ផ្ទុក​ ឬ​មាន​បញ្ហា​សិទ្ធិ​ជាមួយ​ /dev/vboxdrv ។ សូម​ដំឡើង​ឡើង​វិញ​ម៉ូ​​ឌុល​ខឺ​ណែល​​​ដោយ​ការ​ប្រតិបត្តិ​​ &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv ដំឡើ​ង&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;​ដូច Root ។ អ្នក​ប្រើ​យូប៊ុន​ទូ​ Fedora ឬ​ Mandriva គួរ​តែដំឡើង​កញ្ចប់​ដំបូង​របស់​ DKMS ។ កញ្ចប់​នេះ​​តាម​ដាន​​រក្សា​ទុក​​នៃ​ការ​ផ្លាស់​ប្តូរ​ខឺ​ណែល​លីនុច​ និងចង​​ក្រង​ឡើងវិញ​នៃ​​ម៉ូឌុល​ខឺណែល​របស់​ vboxdrv ប្រសិន​បើ​ចាំ​បាច់ ។</translation>
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Please try completely uninstalling and reinstalling VirtualBox.</source>
@@ -86,6 +86,10 @@
     <message>
         <source>Unknown error %2 during initialization of the Runtime</source>
         <translation>មិន​ស្គាល់​កំហុស​ %2 អំឡុង​ពេល​ដែលការ​ចាប់​ផ្តើមពេលវេលា​រត់​</translation>
+    </message>
+    <message>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5421,6 +5425,15 @@ medium</comment>
     </message>
     <message>
         <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have version %1 of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;You should download and install version %3 of this extension pack from Oracle!&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ok</source>
+        <comment>extension pack</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>

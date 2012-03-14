@@ -90,9 +90,9 @@ WITH_HARDENING=1
 WITH_UDPTUNNEL=1
 WITH_VDE=0
 WITH_VNC=0
+WITH_EXTPACK=1
 WITH_DOCS=1
 BUILD_LIBXML2=
-BUILD_LIBXSLT=
 BUILD_LIBCURL=
 BUILD_LIBSSL=
 PASSIVE_MESA=0
@@ -413,9 +413,9 @@ check_gcc()
       elif [ $cc_maj -lt 3 \
              -o \( $cc_maj -eq 3 -a $cc_min -lt 2 \) \
              -o \( $cc_maj -eq 4 -a $cc_min -lt 1 -a "$OS" != "darwin" \) \
-             -o \( $cc_maj -eq 4 -a $cc_min -gt 6 \) \
+             -o \( $cc_maj -eq 4 -a $cc_min -gt 7 \) \
              -o $cc_maj -gt 4 ]; then
-        log_failure "gcc version $cc_ver found, expected gcc 3.x with x>1 or gcc 4.x with 0<x<7"
+        log_failure "gcc version $cc_ver found, expected gcc 3.x with x>1 or gcc 4.x with 0<x<8"
         fail really
       else
         log_success "found version $cc_ver"
@@ -709,89 +709,6 @@ EOF
       fi
     else
       log_failure "neither pkg-config nor xml2-config found"
-      fail
-    fi
-  fi
-}
-
-
-#
-# Check for libxslt, needed by VBoxSettings. For now we depend on 1.1.15,
-# as Solaris right now has no newer version and it definitely works.
-# 1.1.17 is available on Ubuntu Edgy which fulfils the minimal libxml2
-# requirement (2.6.26).
-#
-check_libxslt()
-{
-  if [ -z "$BUILD_LIBXSLT" ]; then
-    test_header libxslt
-    if which_wrapper pkg-config > /dev/null; then
-      libxslt_ver=`pkg-config libxslt --modversion 2>> $LOG`
-      if [ $? -ne 0 ]; then
-        log_failure "libxslt not found"
-        fail
-      else
-        FLGXSLT=`pkg-config libxslt --cflags`
-        INCXSLT=`strip_I "$FLGXSLT"`
-        LIBXSLT=`pkg-config libxslt --libs`
-        cat > $ODIR.tmp_src.cc << EOF
-#include <cstdio>
-#include <libxslt/xsltconfig.h>
-extern "C" int main(void)
-{
-  printf("found version %s", LIBXSLT_DOTTED_VERSION);
-#if LIBXSLT_VERSION >= 10117
-  printf(", OK.\n");
-  return 0;
-#else
-  printf(", expected version 1.1.17 or higher\n");
-  return 1;
-#endif
-}
-EOF
-        [ -n "$INCXSLT" ] && I_INCXSLT=`prefix_I "$INCXSLT"`
-        if test_compile "$LIBXSLT $LIBPTHREAD $I_INCXSLT" xslt xslt; then
-          if test_execute; then
-            cnf_append "SDK_VBOX_LIBXSLT_INCS" "$INCXSLT"
-            cnf_append "SDK_VBOX_LIBXSLT_LIBS" "`strip_l "$LIBXSLT"`"
-          fi
-        fi
-      fi
-    elif which_wrapper xslt-config; then
-      libxslt_ver=`xslt-config --version`
-      if [ $? -ne 0 ]; then
-        log_failure "xslt-config not working"
-        fail
-      else
-        log_success "found version $libxslt_ver"
-        FLGXSLT=`xslt-config --cflags`
-        INCXSLT=`strip_I "$FLGXSLT"`
-        LIBXSLT=`xslt-config --libs`
-        cat > $ODIR.tmp_src.cc << EOF
-#include <cstdio>
-#include <libxslt/xsltconfig.h>
-extern "C" int main(void)
-{
-  printf("found version %s", LIBXSLT_DOTTED_VERSION);
-#if LIBXSLT_VERSION >= 10117
-  printf(", OK.\n");
-  return 0;
-#else
-  printf(", expected version 1.1.17 or higher\n");
-  return 1;
-#endif
-}
-EOF
-        [ -n "$INCXSLT" ] && I_INCXSLT=`prefix_I "$INCXSLT"`
-        if test_compile "$LIBXSLT $LIBPTHREAD $I_INCXSLT" xslt xslt; then
-          if test_execute; then
-            cnf_append "SDK_VBOX_LIBXSLT_INCS" "$INCXSLT"
-            cnf_append "SDK_VBOX_LIBXSLT_LIBS" "`strip_l "$LIBXSLT"`"
-          fi
-        fi
-      fi
-    else
-      log_failure "neither pkg-config nor xslt-config found"
       fail
     fi
   fi
@@ -2076,8 +1993,6 @@ check_darwinversion()
       darwin_ver="10.7" # Lion
       sdk=/Developer/SDKs/MacOSX10.6.sdk
       CXX_FLAGS="-mmacosx-version-min=10.6 -isysroot $sdk -Wl,-syslibroot,$sdk"
-      # We disable the java stuff until Apple make the java stuff downloadable.
-      WITH_JAVA=0
       ;;
     10\.*)
       darwin_ver="10.6" # Snow Leopard
@@ -2091,6 +2006,7 @@ check_darwinversion()
       fi
 #      test "$CC" = "gcc" && CC="gcc-4.0"
 #      test "$CXX" = "g++" && CXX="g++-4.0"
+      cnf_append "VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_7" "1"
       ;;
     9\.*)
       darwin_ver="10.5" # Leopard
@@ -2099,6 +2015,7 @@ check_darwinversion()
 #      test "$CC" = "gcc" && CC="gcc-4.0"
 #      test "$CXX" = "g++" && CXX="g++-4.0"
       cnf_append "VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_6" "1"
+      cnf_append "VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_7" "1"
       ;;
     8\.*)
       darwin_ver="10.4" # Tiger
@@ -2108,6 +2025,7 @@ check_darwinversion()
 #      test "$CXX" = "g++" && CXX="g++-4.0"
       cnf_append "VBOX_WITH_COCOA_QT" ""
       cnf_append "VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_6" "1"
+      cnf_append "VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_7" "1"
       ;;
     *)
       echo "  failed to determine Darwin version. (uname -r: $darwin_ver)"
@@ -2179,13 +2097,13 @@ EOF
 [ $WITH_OPENGL  -eq 1 ] && echo "  --disable-opengl         disable OpenGL support (2D & 3D)"
 [ $WITH_GSOAP   -eq 0 ] && echo "  --enable-webservice      enable the webservice stuff"
 [ $OSE          -eq 1 ] && echo "  --enable-vnc             enable the VNC server"
+[ $OSE          -eq 0 ] && echo "  --disable-extpack        don't build the extpack"
 [ $WITH_DOCS    -eq 1 ] && echo "  --disable-docs           don't build the documentation"
 [ "$OS" = "linux" -o "$OS" = "freebsd" ] && echo "  --enable-vde             enable VDE networking"
 cat << EOF
   --disable-udptunnel      disable UDP tunnel networking
   --disable-hardening      don't be strict about /dev/vboxdrv access
   --build-libxml2          build libxml2 from sources
-  --build-libxslt          build libxslt from sources
 EOF
 [ $OSE -eq 0 ] && cat << EOF
   --build-libssl           build openssl from sources
@@ -2242,12 +2160,9 @@ if [ "$OS" = "darwin" ]; then
   WITH_PULSE=0
   WITH_DBUS=0
   WITH_KMODS=0
-  BUILD_LIBXSLT=1
   BUILD_LIBXML2=1
   [ $OSE -eq 1 ] || BUILD_LIBCURL=1
-  [ $OSE -eq 1 ] || BUILD_LIBSSL=1
 fi
-
 
 # scan command line options
 for option in $*; do
@@ -2355,6 +2270,9 @@ for option in $*; do
     --disable-hardening)
       WITH_HARDENING=0
       ;;
+    --disable-extpack)
+      WITH_EXTPACK=0
+      ;;
     --disable-docs)
       WITH_DOCS=0
       ;;
@@ -2375,9 +2293,6 @@ for option in $*; do
       ;;
     --build-libxml2)
       BUILD_LIBXML2=1
-      ;;
-    --build-libxslt)
-      BUILD_LIBXSLT=1
       ;;
     --build-libssl)
       BUILD_LIBSSL=1
@@ -2512,6 +2427,15 @@ if [ $OSE -ge 1 ]; then
   echo >> $CNF
 fi
 
+# extpack
+if [ $OSE -eq 0 ]; then
+  if [ $WITH_EXTPACK -eq 1 ]; then
+    BUILD_LIBSSL=1
+  else
+    cnf_append "VBOX_WITH_EXTPACK_PUEL_BUILD" ""
+  fi
+fi
+
 # headless
 if [ -n "$HEADLESS" ]; then
   cnf_append "VBOX_HEADLESS" "1"
@@ -2549,7 +2473,6 @@ check_gcc
 # the libraries
 [ "$OS" != "darwin"  ] && check_pthread
 check_libxml2
-[ $WITH_XPCOM  -eq 1 ] && check_libxslt
 [ $WITH_LIBIDL -eq 1 ] && check_libidl
 check_ssl
 check_curl

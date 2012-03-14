@@ -142,6 +142,7 @@ void UIUpdateManager::checkIfUpdateIsNecessaryForExtensionPack(bool /* fForceCal
     QString strExtPackVersion(extPack.GetVersion().remove(VBOX_BUILD_PUBLISHER));
     QStringList strExtPackVersionParts = strExtPackVersion.split(QRegExp("[-_]"), QString::SkipEmptyParts);
     VBoxVersion extPackVersion(strExtPackVersionParts[0]);
+
     /* Check if extension pack version less than required: */
     if ((vboxVersion.z() % 2 != 0) /* Skip unstable VBox version */ ||
         !(extPackVersion < vboxVersion) /* Ext Pack version more or equal to VBox version */)
@@ -165,11 +166,11 @@ void UIUpdateManager::checkIfUpdateIsNecessaryForExtensionPack(bool /* fForceCal
     UIDownloaderExtensionPack::download(this);
 }
 
-void UIUpdateManager::sltHandleDownloadedExtensionPack(const QString &strSource, const QString &strTarget)
+void UIUpdateManager::sltHandleDownloadedExtensionPack(const QString &strSource, const QString &strTarget, QString strDigest)
 {
     /* Warn the user about extension pack was downloaded and saved, propose to install it: */
     if (msgCenter().proposeInstallExtentionPack(UI_ExtPackName, strSource, QDir::toNativeSeparators(strTarget)))
-        UIGlobalSettingsExtension::doInstallation(strTarget, msgCenter().mainWindowShown(), NULL);
+        UIGlobalSettingsExtension::doInstallation(strTarget, strDigest, msgCenter().mainWindowShown(), NULL);
 }
 
 /* UINewVersionChecker stuff: */

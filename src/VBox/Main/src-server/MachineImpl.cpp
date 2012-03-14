@@ -5262,7 +5262,9 @@ HRESULT Machine::setGuestPropertyToService(IN_BSTR aName, IN_BSTR aValue,
         {
             /** @todo r=bird: Why aren't we leaving the lock here?  The
              *                same code in PushGuestProperty does... */
-            mParent->onGuestPropertyChange(mData->mUuid, aName, aValue, aFlags);
+            mParent->onGuestPropertyChange(mData->mUuid, aName,
+                                           aValue ? aValue : Bstr("").raw(),
+                                           aFlags ? aFlags : Bstr("").raw());
         }
     }
     catch (std::bad_alloc &)
@@ -8555,7 +8557,7 @@ HRESULT Machine::prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
         path.stripFilename();
         if (!RTDirExists(path.c_str()))
         {
-            vrc = RTDirCreateFullPath(path.c_str(), 0777);
+            vrc = RTDirCreateFullPath(path.c_str(), 0700);
             if (RT_FAILURE(vrc))
             {
                 return setError(E_FAIL,
@@ -11174,6 +11176,26 @@ RWLockHandle *SessionMachine::lockHandle() const
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
+ *  Passes collected guest statistics to performance collector object
+ */
+STDMETHODIMP SessionMachine::ReportGuestStatistics(ULONG aValidStats, ULONG aCpuUser,
+                                                   ULONG aCpuKernel, ULONG aCpuIdle,
+                                                   ULONG aMemTotal, ULONG aMemFree,
+                                                   ULONG aMemBalloon, ULONG aMemShared,
+                                                   ULONG aMemCache, ULONG aPageTotal,
+                                                   ULONG aAllocVMM, ULONG aFreeVMM,
+                                                   ULONG aBalloonedVMM, ULONG aSharedVMM)
+{
+    if (mCollectorGuest)
+        mCollectorGuest->updateStats(aValidStats, aCpuUser, aCpuKernel, aCpuIdle,
+                                     aMemTotal, aMemFree, aMemBalloon, aMemShared,
+                                     aMemCache, aPageTotal, aAllocVMM, aFreeVMM,
+                                     aBalloonedVMM, aSharedVMM);
+
+    return S_OK;
+}
+
+/**
  *  @note Locks this object for writing.
  */
 STDMETHODIMP SessionMachine::SetRemoveSavedStateFile(BOOL aRemove)
@@ -11770,8 +11792,8 @@ STDMETHODIMP SessionMachine::PushGuestProperty(IN_BSTR aName,
     using namespace guestProp;
 
     CheckComArgStrNotEmptyOrNull(aName);
-    CheckComArgMaybeNull(aValue);
-    CheckComArgMaybeNull(aFlags);
+    CheckComArgNotNull(aValue);
+    CheckComArgNotNull(aFlags);
 
     try
     {

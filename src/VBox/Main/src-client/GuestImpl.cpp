@@ -24,6 +24,7 @@
 
 #include "AutoCaller.h"
 #include "Logging.h"
+#include "Performance.h"
 
 #include <VBox/VMMDev.h>
 #ifdef VBOX_WITH_GUEST_CONTROL
@@ -31,7 +32,9 @@
 # include <VBox/com/ErrorInfo.h>
 #endif
 #include <iprt/cpp/utils.h>
+#include <iprt/timer.h>
 #include <VBox/vmm/pgm.h>
+#include <VBox/version.h>
 
 // defines
 /////////////////////////////////////////////////////////////////////////////
@@ -88,10 +91,18 @@ HRESULT Guest::init(Console *aParent)
         mfPageFusionEnabled = false;                /* Default is no page fusion*/
 
     mStatUpdateInterval = 0;                    /* Default is not to report guest statistics at all */
+    mCollectVMMStats = false;
 
     /* Clear statistics. */
     for (unsigned i = 0 ; i < GUESTSTATTYPE_MAX; i++)
         mCurrentGuestStat[i] = 0;
+    mGuestValidStats = pm::GUESTSTATMASK_NONE;
+
+    mMagic = GUEST_MAGIC;
+    int vrc = RTTimerLRCreate (&mStatTimer, 1000 /* ms */,
+                               &Guest::staticUpdateStats, this);
+    AssertMsgRC (vrc, ("Failed to create guest statistics "
+                       "update timer(%Rra)\n", vrc));
 
 #ifdef VBOX_WITH_GUEST_CONTROL
     /* Init the context ID counter at 1000. */
@@ -109,6 +120,11 @@ void Guest::uninit()
 {
     LogFlowThisFunc(("\n"));
 
+    /* Enclose the state transition Ready->InUninit->NotReady */
+    AutoUninitSpan autoUninitSpan(this);
+    if (autoUninitSpan.uninitDone())
+        return;
+
 #ifdef VBOX_WITH_GUEST_CONTROL
     /* Scope write lock as much as possible. */
     {
@@ -119,43 +135,149 @@ void Guest::uninit()
          */
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-        /* Clean up callback data. */
+        /* Notify left over callbacks that we are about to shutdown ... */
         CallbackMapIter it;
+        for (it = mCallbackMap.begin(); it != mCallbackMap.end(); it++)
+        {
+            int rc2 = callbackNotifyEx(it->first, VERR_CANCELLED,
+                                       Guest::tr("VM is shutting down, canceling uncompleted guest requests ..."));
+            AssertRC(rc2);
+        }
+
+        /* Destroy left over callback data. */
         for (it = mCallbackMap.begin(); it != mCallbackMap.end(); it++)
             callbackDestroy(it->first);
 
-        /* Clear process map. */
+        /* Clear process map (remove all callbacks). */
         mGuestProcessMap.clear();
     }
 #endif
 
-    /* Enclose the state transition Ready->InUninit->NotReady */
-    AutoUninitSpan autoUninitSpan(this);
-    if (autoUninitSpan.uninitDone())
-        return;
+    /* Destroy stat update timer */
+    int vrc = RTTimerLRDestroy (mStatTimer);
+    AssertMsgRC (vrc, ("Failed to create guest statistics "
+                       "update timer(%Rra)\n", vrc));
+    mStatTimer = NULL;
+    mMagic     = 0;
 
     unconst(mParent) = NULL;
+}
+
+/* static */
+void Guest::staticUpdateStats(RTTIMERLR hTimerLR, void *pvUser, uint64_t iTick)
+{
+    AssertReturnVoid (pvUser != NULL);
+    Guest *guest = static_cast <Guest *> (pvUser);
+    Assert(guest->mMagic == GUEST_MAGIC);
+    if (guest->mMagic == GUEST_MAGIC)
+        guest->updateStats(iTick);
+
+    NOREF (hTimerLR);
+}
+
+void Guest::updateStats(uint64_t iTick)
+{
+    uint64_t uFreeTotal, uAllocTotal, uBalloonedTotal, uSharedTotal;
+    uint64_t uTotalMem, uPrivateMem, uSharedMem, uZeroMem;
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    ULONG aGuestStats[GUESTSTATTYPE_MAX];
+    RT_ZERO(aGuestStats);
+    ULONG validStats = mGuestValidStats;
+    /* Check if we have anything to report */
+    if (validStats)
+    {
+        mGuestValidStats = pm::GUESTSTATMASK_NONE;
+        memcpy(aGuestStats, mCurrentGuestStat, sizeof(aGuestStats));
+    }
+    alock.release();
+    /*
+     * Calling SessionMachine may take time as the object resides in VBoxSVC
+     * process. This is why we took a snapshot of currently collected stats
+     * and released the lock.
+     */
+    uFreeTotal      = 0;
+    uAllocTotal     = 0; 
+    uBalloonedTotal = 0; 
+    uSharedTotal    = 0;
+    uTotalMem       = 0;
+    uPrivateMem     = 0;
+    uSharedMem      = 0;
+    uZeroMem        = 0;
+
+    Console::SafeVMPtr pVM (mParent);
+    if (pVM.isOk())
+    {
+        int rc;
+
+        /*
+         * There is no point in collecting VM shared memory if other memory
+         * statistics are not available yet. Or is it?
+         */
+        if (validStats)
+        {
+            /* Query the missing per-VM memory statistics. */
+            rc = PGMR3QueryMemoryStats(pVM.raw(), &uTotalMem, &uPrivateMem, &uSharedMem, &uZeroMem);
+            if (rc == VINF_SUCCESS)
+            {
+                validStats |= pm::GUESTSTATMASK_MEMSHARED;
+            }
+        }
+
+        if (mCollectVMMStats)
+        {
+            rc = PGMR3QueryGlobalMemoryStats(pVM.raw(), &uAllocTotal, &uFreeTotal, &uBalloonedTotal, &uSharedTotal);
+            AssertRC(rc);
+            if (rc == VINF_SUCCESS)
+            {
+                validStats |= pm::GUESTSTATMASK_ALLOCVMM|pm::GUESTSTATMASK_FREEVMM|
+                    pm::GUESTSTATMASK_BALOONVMM|pm::GUESTSTATMASK_SHAREDVMM;
+            }
+        }
+
+    }
+
+    mParent->reportGuestStatistics(validStats,
+                                   aGuestStats[GUESTSTATTYPE_CPUUSER],
+                                   aGuestStats[GUESTSTATTYPE_CPUKERNEL], 
+                                   aGuestStats[GUESTSTATTYPE_CPUIDLE],
+                                   /* Convert the units for RAM usage stats: page (4K) -> 1KB units */
+                                   mCurrentGuestStat[GUESTSTATTYPE_MEMTOTAL] * (_4K/_1K),
+                                   mCurrentGuestStat[GUESTSTATTYPE_MEMFREE] * (_4K/_1K),
+                                   mCurrentGuestStat[GUESTSTATTYPE_MEMBALLOON] * (_4K/_1K),
+                                   (ULONG)(uSharedMem / _1K), /* bytes -> KB */
+                                   mCurrentGuestStat[GUESTSTATTYPE_MEMCACHE] * (_4K/_1K),
+                                   mCurrentGuestStat[GUESTSTATTYPE_PAGETOTAL] * (_4K/_1K),
+                                   (ULONG)(uAllocTotal / _1K), /* bytes -> KB */
+                                   (ULONG)(uFreeTotal / _1K),
+                                   (ULONG)(uBalloonedTotal / _1K),
+                                   (ULONG)(uSharedTotal / _1K));
 }
 
 // IGuest properties
 /////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP Guest::COMGETTER(OSTypeId) (BSTR *aOSTypeId)
+STDMETHODIMP Guest::COMGETTER(OSTypeId)(BSTR *a_pbstrOSTypeId)
 {
-    CheckComArgOutPointerValid(aOSTypeId);
+    CheckComArgOutPointerValid(a_pbstrOSTypeId);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    /* Redirect the call to IMachine if no additions are installed. */
-    if (mData.mAdditionsVersion.isEmpty())
-        return mParent->machine()->COMGETTER(OSTypeId)(aOSTypeId);
-
-    mData.mOSTypeId.cloneTo(aOSTypeId);
-
-    return S_OK;
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        if (!mData.mInterfaceVersion.isEmpty())
+            mData.mOSTypeId.cloneTo(a_pbstrOSTypeId);
+        else
+        {
+            /* Redirect the call to IMachine if no additions are installed. */
+            ComPtr<IMachine> ptrMachine(mParent->machine());
+            alock.release();
+            hrc = ptrMachine->COMGETTER(OSTypeId)(a_pbstrOSTypeId);
+        }
+    }
+    return hrc;
 }
 
 STDMETHODIMP Guest::COMGETTER(AdditionsRunLevel) (AdditionsRunLevelType_T *aRunLevel)
@@ -170,75 +292,69 @@ STDMETHODIMP Guest::COMGETTER(AdditionsRunLevel) (AdditionsRunLevelType_T *aRunL
     return S_OK;
 }
 
-STDMETHODIMP Guest::COMGETTER(AdditionsVersion) (BSTR *aAdditionsVersion)
+STDMETHODIMP Guest::COMGETTER(AdditionsVersion)(BSTR *a_pbstrAdditionsVersion)
 {
-    CheckComArgOutPointerValid(aAdditionsVersion);
+    CheckComArgOutPointerValid(a_pbstrAdditionsVersion);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    HRESULT hr = S_OK;
-    if (   mData.mAdditionsVersion.isEmpty()
-        /* Only try alternative way if GA are active! */
-        && mData.mAdditionsRunLevel > AdditionsRunLevelType_None)
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
     {
-        /*
-         * If we got back an empty string from GetAdditionsVersion() we either
-         * really don't have the Guest Additions version yet or the guest is running
-         * older Guest Additions (< 3.2.0) which don't provide VMMDevReq_ReportGuestInfo2,
-         * so get the version + revision from the (hopefully) provided guest properties
-         * instead.
-         */
-        Bstr addVersion;
-        LONG64 u64Timestamp;
-        Bstr flags;
-        hr = mParent->machine()->GetGuestProperty(Bstr("/VirtualBox/GuestAdd/Version").raw(),
-                                                  addVersion.asOutParam(), &u64Timestamp, flags.asOutParam());
-        if (hr == S_OK)
-        {
-            Bstr addRevision;
-            hr = mParent->machine()->GetGuestProperty(Bstr("/VirtualBox/GuestAdd/Revision").raw(),
-                                                      addRevision.asOutParam(), &u64Timestamp, flags.asOutParam());
-            if (   hr == S_OK
-                && !addVersion.isEmpty()
-                && !addRevision.isEmpty())
-            {
-                /* Some Guest Additions versions had interchanged version + revision values,
-                 * so check if the version value at least has a dot to identify it and change
-                 * both values to reflect the right content. */
-                if (!Utf8Str(addVersion).contains("."))
-                {
-                    Bstr addTemp = addVersion;
-                    addVersion = addRevision;
-                    addRevision = addTemp;
-                }
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-                Bstr additionsVersion = BstrFmt("%ls r%ls",
-                                                addVersion.raw(), addRevision.raw());
-                additionsVersion.cloneTo(aAdditionsVersion);
-            }
-            /** @todo r=bird: else: Should not return failure! */
+        /*
+         * Return the ReportGuestInfo2 version info if available.
+         */
+        if (!mData.mAdditionsVersionNew.isEmpty())
+        {
+            /* Since we don't have the API in 4.1 to return a separate revision, we
+             * need to ship the revision as part of the version string, separated with
+             * the "r" prefix. */
+            Bstr strVersion = mData.mAdditionsRevision
+                            ? BstrFmt("%lsr%u", mData.mAdditionsVersionNew.raw(), mData.mAdditionsRevision)
+                            : BstrFmt("%ls", mData.mAdditionsVersionNew.raw());
+            strVersion.cloneTo(a_pbstrAdditionsVersion);
         }
         else
         {
-            /* If getting the version + revision above fails or they simply aren't there
-             * because of *really* old Guest Additions we only can report the interface
-             * version to at least have something. */
-            mData.mInterfaceVersion.cloneTo(aAdditionsVersion);
-            /** @todo r=bird: hr is still indicating failure! */
+            /*
+             * If we're running older guest additions (< 3.2.0) try get it from
+             * the guest properties.  Detected switched around Version and
+             * Revision in early 3.1.x releases (see r57115).
+             */
+            ComPtr<IMachine> ptrMachine = mParent->machine();
+            alock.release(); /* No need to hold this during the IPC fun. */
+
+            Bstr bstr;
+            hrc = ptrMachine->GetGuestPropertyValue(Bstr("/VirtualBox/GuestAdd/Version").raw(), bstr.asOutParam());
+            if (   SUCCEEDED(hrc)
+                && !bstr.isEmpty())
+            {
+                Utf8Str str(bstr);
+                if (str.count('.') == 0)
+                    hrc = ptrMachine->GetGuestPropertyValue(Bstr("/VirtualBox/GuestAdd/Revision").raw(), bstr.asOutParam());
+                str = bstr;
+                if (str.count('.') != 2)
+                    hrc = E_FAIL;
+            }
+
+            if (SUCCEEDED(hrc))
+                bstr.detachTo(a_pbstrAdditionsVersion);
+            else
+            {
+                /* Returning 1.4 is better than nothing. */
+                alock.acquire();
+                mData.mInterfaceVersion.cloneTo(a_pbstrAdditionsVersion);
+                hrc = S_OK;
+            }
         }
     }
-    else
-        mData.mAdditionsVersion.cloneTo(aAdditionsVersion);
-
-    return hr;
+    return hrc;
 }
 
 STDMETHODIMP Guest::COMGETTER(Facilities)(ComSafeArrayOut(IAdditionsFacility*, aFacilities))
 {
-    CheckComArgOutPointerValid(aFacilities);
+    CheckComArgOutSafeArrayPointerValid(aFacilities);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -324,6 +440,17 @@ STDMETHODIMP Guest::COMSETTER(StatisticsUpdateInterval)(ULONG aUpdateInterval)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
+    if (mStatUpdateInterval)
+        if (aUpdateInterval == 0)
+            RTTimerLRStop(mStatTimer);
+        else
+            RTTimerLRChangeInterval(mStatTimer, aUpdateInterval);
+    else
+        if (aUpdateInterval != 0)
+        {
+            RTTimerLRChangeInterval(mStatTimer, aUpdateInterval);
+            RTTimerLRStart(mStatTimer, 0);
+        }
     mStatUpdateInterval = aUpdateInterval;
     /* forward the information to the VMM device */
     VMMDev *pVMMDev = mParent->getVMMDev();
@@ -420,6 +547,18 @@ STDMETHODIMP Guest::InternalGetStatistics(ULONG *aCpuUser, ULONG *aCpuKernel, UL
 
 HRESULT Guest::setStatistic(ULONG aCpuId, GUESTSTATTYPE enmType, ULONG aVal)
 {
+    static ULONG indexToPerfMask[] =
+    {
+        pm::GUESTSTATMASK_CPUUSER,
+        pm::GUESTSTATMASK_CPUKERNEL,
+        pm::GUESTSTATMASK_CPUIDLE,
+        pm::GUESTSTATMASK_MEMTOTAL,
+        pm::GUESTSTATMASK_MEMFREE,
+        pm::GUESTSTATMASK_MEMBALLOON,
+        pm::GUESTSTATMASK_MEMCACHE,
+        pm::GUESTSTATMASK_PAGETOTAL,
+        pm::GUESTSTATMASK_NONE
+    };
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
@@ -429,6 +568,7 @@ HRESULT Guest::setStatistic(ULONG aCpuId, GUESTSTATTYPE enmType, ULONG aVal)
         return E_INVALIDARG;
 
     mCurrentGuestStat[enmType] = aVal;
+    mGuestValidStats |= indexToPerfMask[enmType];
     return S_OK;
 }
 
@@ -545,10 +685,14 @@ STDMETHODIMP Guest::SetCredentials(IN_BSTR aUserName, IN_BSTR aPassword,
  */
 void Guest::setAdditionsInfo(Bstr aInterfaceVersion, VBOXOSTYPE aOsType)
 {
+    RTTIMESPEC TimeSpecTS;
+    RTTimeNow(&TimeSpecTS);
+
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
 
     /*
      * Note: The Guest Additions API (interface) version is deprecated
@@ -571,7 +715,7 @@ void Guest::setAdditionsInfo(Bstr aInterfaceVersion, VBOXOSTYPE aOsType)
      * So only mark the Additions as being active (run level = system) when we
      * don't have the Additions version set.
      */
-    if (mData.mAdditionsVersion.isEmpty())
+    if (mData.mAdditionsVersionNew.isEmpty())
     {
         if (aInterfaceVersion.isEmpty())
             mData.mAdditionsRunLevel = AdditionsRunLevelType_None;
@@ -584,7 +728,7 @@ void Guest::setAdditionsInfo(Bstr aInterfaceVersion, VBOXOSTYPE aOsType)
              * "graphics" (feature) facility to active as soon as we got the Guest Additions
              * interface version.
              */
-            facilityUpdate(VBoxGuestFacilityType_Graphics, VBoxGuestFacilityStatus_Active);
+            facilityUpdate(VBoxGuestFacilityType_Graphics, VBoxGuestFacilityStatus_Active,  0 /*fFlags*/, &TimeSpecTS);
         }
     }
 
@@ -593,8 +737,21 @@ void Guest::setAdditionsInfo(Bstr aInterfaceVersion, VBOXOSTYPE aOsType)
      * so enable it by default. Newer Additions will not enable this here
      * and use the setSupportedFeatures function instead.
      */
-    facilityUpdate(VBoxGuestFacilityType_Graphics, facilityIsActive(VBoxGuestFacilityType_VBoxGuestDriver) ?
-                   VBoxGuestFacilityStatus_Active : VBoxGuestFacilityStatus_Inactive);
+    /** @todo r=bird: I don't get the above comment nor the code below...
+     * One talks about capability bits, the one always does something to a facility.
+     * Then there is the comment below it all, which is placed like it addresses the
+     * mOSTypeId, but talks about something which doesn't remotely like mOSTypeId...
+     *
+     * Andy, could you please try clarify and make the comments shorter and more
+     * coherent! Also, explain why this is important and what depends on it.
+     *
+     * PS. There is the VMMDEV_GUEST_SUPPORTS_GRAPHICS capability* report... It
+     * should come in pretty quickly after this update, normally.
+     */
+    facilityUpdate(VBoxGuestFacilityType_Graphics,
+                   facilityIsActive(VBoxGuestFacilityType_VBoxGuestDriver)
+                   ? VBoxGuestFacilityStatus_Active : VBoxGuestFacilityStatus_Inactive,
+                   0 /*fFlags*/, &TimeSpecTS); /** @todo the timestamp isn't gonna be right here on saved state restore. */
 
     /*
      * Note! There is a race going on between setting mAdditionsRunLevel and
@@ -606,26 +763,49 @@ void Guest::setAdditionsInfo(Bstr aInterfaceVersion, VBOXOSTYPE aOsType)
 
 /**
  * Sets the Guest Additions version information details.
- * Gets called by vmmdevUpdateGuestInfo2.
  *
- * @param aAdditionsVersion
- * @param aVersionName
+ * Gets called by vmmdevUpdateGuestInfo2 and vmmdevUpdateGuestInfo (to clear the
+ * state).
+ *
+ * @param   a_uFullVersion          VBoxGuestInfo2::additionsMajor,
+ *                                  VBoxGuestInfo2::additionsMinor and
+ *                                  VBoxGuestInfo2::additionsBuild combined into
+ *                                  one value by VBOX_FULL_VERSION_MAKE.
+ *
+ *                                  When this is 0, it's vmmdevUpdateGuestInfo
+ *                                  calling to reset the state.
+ *
+ * @param   a_pszName               Build type tag and/or publisher tag, empty
+ *                                  string if neiter of those are present.
+ * @param   a_uRevision             See VBoxGuestInfo2::additionsRevision.
+ * @param   a_fFeatures             See VBoxGuestInfo2::additionsFeatures.
  */
-void Guest::setAdditionsInfo2(Bstr aAdditionsVersion, Bstr aVersionName, Bstr aRevision)
+void Guest::setAdditionsInfo2(uint32_t a_uFullVersion, const char *a_pszName, uint32_t a_uRevision, uint32_t a_fFeatures)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (!aVersionName.isEmpty())
-        /*
-         * aVersionName could be "x.y.z_BETA1_FOOBAR", so append revision manually to
-         * become "x.y.z_BETA1_FOOBAR r12345".
-         */
-        mData.mAdditionsVersion = BstrFmt("%ls r%ls", aVersionName.raw(), aRevision.raw());
-    else /* aAdditionsVersion is in x.y.zr12345 format. */
-        mData.mAdditionsVersion = aAdditionsVersion;
+    if (a_uFullVersion)
+    {
+        mData.mAdditionsVersionNew  = BstrFmt(*a_pszName ? "%u.%u.%u_%s" : "%u.%u.%u",
+                                              VBOX_FULL_VERSION_GET_MAJOR(a_uFullVersion),
+                                              VBOX_FULL_VERSION_GET_MINOR(a_uFullVersion),
+                                              VBOX_FULL_VERSION_GET_BUILD(a_uFullVersion),
+                                              a_pszName);
+        mData.mAdditionsVersionFull = a_uFullVersion;
+        mData.mAdditionsRevision    = a_uRevision;
+        mData.mAdditionsFeatures    = a_fFeatures;
+    }
+    else
+    {
+        Assert(!a_fFeatures && !a_uRevision && !*a_pszName);
+        mData.mAdditionsVersionNew.setNull();
+        mData.mAdditionsVersionFull = 0;
+        mData.mAdditionsRevision    = 0;
+        mData.mAdditionsFeatures    = 0;
+    }
 }
 
 bool Guest::facilityIsActive(VBoxGuestFacilityType enmFacility)
@@ -640,96 +820,83 @@ bool Guest::facilityIsActive(VBoxGuestFacilityType enmFacility)
     return false;
 }
 
-HRESULT Guest::facilityUpdate(VBoxGuestFacilityType enmFacility, VBoxGuestFacilityStatus enmStatus)
+void Guest::facilityUpdate(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacilityStatus a_enmStatus,
+                           uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS)
 {
-    ComAssertRet(enmFacility < INT32_MAX, E_INVALIDARG);
+    AssertReturnVoid(   a_enmFacility < VBoxGuestFacilityType_All
+                     && a_enmFacility > VBoxGuestFacilityType_Unknown);
 
-    HRESULT rc;
-    RTTIMESPEC tsNow;
-    RTTimeNow(&tsNow);
-
-    FacilityMapIter it = mData.mFacilityMap.find((AdditionsFacilityType_T)enmFacility);
+    FacilityMapIter it = mData.mFacilityMap.find((AdditionsFacilityType_T)a_enmFacility);
     if (it != mData.mFacilityMap.end())
     {
         AdditionsFacility *pFac = it->second;
-        rc = pFac->update((AdditionsFacilityStatus_T)enmStatus, tsNow);
+        pFac->update((AdditionsFacilityStatus_T)a_enmStatus, a_fFlags, a_pTimeSpecTS);
     }
     else
     {
-        ComObjPtr<AdditionsFacility> pFacility;
-        pFacility.createObject();
-        ComAssert(!pFacility.isNull());
-        rc = pFacility->init(this,
-                             (AdditionsFacilityType_T)enmFacility,
-                             (AdditionsFacilityStatus_T)enmStatus);
-        if (SUCCEEDED(rc))
-            mData.mFacilityMap.insert(std::make_pair((AdditionsFacilityType_T)enmFacility, pFacility));
-    }
+        if (mData.mFacilityMap.size() > 64)
+        {
+            /* The easy way out for now. We could automatically destroy
+               inactive facilities like VMMDev does if we like... */
+            AssertFailedReturnVoid();
+        }
 
-    LogFlowFunc(("Returned with rc=%Rrc\n"));
-    return rc;
+        ComObjPtr<AdditionsFacility> ptrFac;
+        ptrFac.createObject();
+        AssertReturnVoid(!ptrFac.isNull());
+
+        HRESULT hrc = ptrFac->init(this, (AdditionsFacilityType_T)a_enmFacility, (AdditionsFacilityStatus_T)a_enmStatus,
+                                   a_fFlags, a_pTimeSpecTS);
+        if (SUCCEEDED(hrc))
+            mData.mFacilityMap.insert(std::make_pair((AdditionsFacilityType_T)a_enmFacility, ptrFac));
+    }
 }
 
 /**
  * Sets the status of a certain Guest Additions facility.
- * Gets called by vmmdevUpdateGuestStatus.
  *
- * @param enmFacility   Facility to set the status for.
- * @param enmStatus     Actual status to set.
- * @param aFlags
+ * Gets called by vmmdevUpdateGuestStatus, which just passes the report along.
+ *
+ * @param   a_pInterface        Pointer to this interface.
+ * @param   a_enmFacility       The facility.
+ * @param   a_enmStatus         The status.
+ * @param   a_fFlags            Flags assoicated with the update. Currently
+ *                              reserved and should be ignored.
+ * @param   a_pTimeSpecTS       Pointer to the timestamp of this report.
+ * @sa      PDMIVMMDEVCONNECTOR::pfnUpdateGuestStatus, vmmdevUpdateGuestStatus
+ * @thread  The emulation thread.
  */
-void Guest::setAdditionsStatus(VBoxGuestFacilityType enmFacility, VBoxGuestFacilityStatus enmStatus, ULONG aFlags)
+void Guest::setAdditionsStatus(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacilityStatus a_enmStatus,
+                               uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS)
 {
+    Assert(   a_enmFacility > VBoxGuestFacilityType_Unknown
+           && a_enmFacility <= VBoxGuestFacilityType_All); /* Paranoia, VMMDev checks for this. */
+
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /*
-     * Set overall additions run level.
-     */
-
-    /* First check for disabled status. */
-    uint32_t uCurFacility = enmFacility + (enmStatus == VBoxGuestFacilityStatus_Active ? 0 : -1);
-    if (   enmFacility < VBoxGuestFacilityType_VBoxGuestDriver
-        || (   enmFacility == VBoxGuestFacilityType_All
-            && enmStatus   == VBoxGuestFacilityStatus_Inactive)
-       )
-    {
-        mData.mAdditionsRunLevel = AdditionsRunLevelType_None;
-    }
-    else if (uCurFacility >= VBoxGuestFacilityType_VBoxTrayClient)
-    {
-        mData.mAdditionsRunLevel = AdditionsRunLevelType_Desktop;
-    }
-    else if (uCurFacility >= VBoxGuestFacilityType_VBoxService)
-    {
-        mData.mAdditionsRunLevel = AdditionsRunLevelType_Userland;
-    }
-    else if (uCurFacility >= VBoxGuestFacilityType_VBoxGuestDriver)
-    {
-        mData.mAdditionsRunLevel = AdditionsRunLevelType_System;
-    }
-    else /* Should never happen! */
-        AssertMsgFailed(("Invalid facility status/run level detected! uCurFacility=%d\n", uCurFacility));
-
-    /*
      * Set a specific facility status.
      */
-    if (enmFacility > VBoxGuestFacilityType_Unknown)
-    {
-        if (enmFacility == VBoxGuestFacilityType_All)
-        {
-            FacilityMapIter it = mData.mFacilityMap.begin();
-            while (it != mData.mFacilityMap.end())
-            {
-                facilityUpdate((VBoxGuestFacilityType)it->first, enmStatus);
-                it++;
-            }
-        }
-        else /* Update one facility only. */
-            facilityUpdate(enmFacility, enmStatus);
-    }
+    if (a_enmFacility == VBoxGuestFacilityType_All)
+        for (FacilityMapIter it = mData.mFacilityMap.begin(); it != mData.mFacilityMap.end(); ++it)
+            facilityUpdate((VBoxGuestFacilityType)it->first, a_enmStatus, a_fFlags, a_pTimeSpecTS);
+    else /* Update one facility only. */
+        facilityUpdate(a_enmFacility, a_enmStatus, a_fFlags, a_pTimeSpecTS);
+
+    /*
+     * Recalc the runlevel.
+     */
+    if (facilityIsActive(VBoxGuestFacilityType_VBoxTrayClient))
+        mData.mAdditionsRunLevel = AdditionsRunLevelType_Desktop;
+    else if (facilityIsActive(VBoxGuestFacilityType_VBoxService))
+        mData.mAdditionsRunLevel = AdditionsRunLevelType_Userland;
+    else if (facilityIsActive(VBoxGuestFacilityType_VBoxGuestDriver))
+        mData.mAdditionsRunLevel = AdditionsRunLevelType_System;
+    else
+        mData.mAdditionsRunLevel = AdditionsRunLevelType_None;
 }
 
 /**
@@ -744,10 +911,18 @@ void Guest::setSupportedFeatures(uint32_t aCaps)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    facilityUpdate(VBoxGuestFacilityType_Seamless, aCaps & VMMDEV_GUEST_SUPPORTS_SEAMLESS ?
-                   VBoxGuestFacilityStatus_Active : VBoxGuestFacilityStatus_Inactive);
+    /** @todo A nit: The timestamp is wrong on saved state restore. Would be better
+     *  to move the graphics and seamless capability -> facility translation to
+     *  VMMDev so this could be saved.  */
+    RTTIMESPEC TimeSpecTS;
+    RTTimeNow(&TimeSpecTS);
+
+    facilityUpdate(VBoxGuestFacilityType_Seamless,
+                   aCaps & VMMDEV_GUEST_SUPPORTS_SEAMLESS ? VBoxGuestFacilityStatus_Active : VBoxGuestFacilityStatus_Inactive,
+                   0 /*fFlags*/, &TimeSpecTS);
     /** @todo Add VMMDEV_GUEST_SUPPORTS_GUEST_HOST_WINDOW_MAPPING */
-    facilityUpdate(VBoxGuestFacilityType_Graphics, aCaps & VMMDEV_GUEST_SUPPORTS_GRAPHICS ?
-                   VBoxGuestFacilityStatus_Active : VBoxGuestFacilityStatus_Inactive);
+    facilityUpdate(VBoxGuestFacilityType_Graphics,
+                   aCaps & VMMDEV_GUEST_SUPPORTS_GRAPHICS ? VBoxGuestFacilityStatus_Active : VBoxGuestFacilityStatus_Inactive,
+                   0 /*fFlags*/, &TimeSpecTS);
 }
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

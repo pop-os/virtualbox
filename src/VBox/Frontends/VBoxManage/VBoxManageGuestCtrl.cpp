@@ -81,33 +81,60 @@ typedef struct COPYCONTEXT
 /**
  * An entry for a source element, including an optional DOS-like wildcard (*,?).
  */
-typedef struct SOURCEFILEENTRY
+class SOURCEFILEENTRY
 {
-    SOURCEFILEENTRY(const char *pszSource, const char *pszFilter)
-                    : mSource(pszSource),
-                      mFilter(pszFilter) {}
-    SOURCEFILEENTRY(const char *pszSource)
-                    : mSource(pszSource)
-    {
-        if (   !RTFileExists(pszSource)
-            && !RTDirExists(pszSource))
+    public:
+
+        SOURCEFILEENTRY(const char *pszSource, const char *pszFilter)
+                        : mSource(pszSource),
+                          mFilter(pszFilter) {}
+
+        SOURCEFILEENTRY(const char *pszSource)
+                        : mSource(pszSource)
         {
-            /* No file and no directory -- maybe a filter? */
-            char *pszFilename = RTPathFilename(pszSource);
-            if (   pszFilename
-                && strpbrk(pszFilename, "*?"))
-            {
-                /* Yep, get the actual filter part. */
-                mFilter = RTPathFilename(pszSource);
-                /* Remove the filter from actual sourcec directory name. */
-                RTPathStripFilename(mSource.mutableRaw());
-                mSource.jolt();
-            }
+            Parse(pszSource);
         }
-    }
-    Utf8Str mSource;
-    Utf8Str mFilter;
-} SOURCEFILEENTRY, *PSOURCEFILEENTRY;
+
+        const char* GetSource() const
+        {
+            return mSource.c_str();
+        }
+
+        const char* GetFilter() const
+        {
+            return mFilter.c_str();
+        }
+
+    private:
+
+        int Parse(const char *pszPath)
+        {
+            AssertPtrReturn(pszPath, VERR_INVALID_POINTER);
+
+            if (   !RTFileExists(pszPath)
+                && !RTDirExists(pszPath))
+            {
+                /* No file and no directory -- maybe a filter? */
+                char *pszFilename = RTPathFilename(pszPath);
+                if (   pszFilename
+                    && strpbrk(pszFilename, "*?"))
+                {
+                    /* Yep, get the actual filter part. */
+                    mFilter = RTPathFilename(pszPath);
+                    /* Remove the filter from actual sourcec directory name. */
+                    RTPathStripFilename(mSource.mutableRaw());
+                    mSource.jolt();
+                }
+            }
+
+            return VINF_SUCCESS; /* @todo */
+        }
+
+    private:
+
+        Utf8Str mSource;
+        Utf8Str mFilter;
+};
 typedef std::vector<SOURCEFILEENTRY> SOURCEVEC, *PSOURCEVEC;
 
 /**
@@ -196,6 +223,8 @@ enum OUTPUTTYPE
     OUTPUTTYPE_DOS2UNIX  = 10,
     OUTPUTTYPE_UNIX2DOS  = 20
 };
+
+static int ctrlCopyDirExists(PCOPYCONTEXT pContext, bool bGuest, const char *pszDir, bool *fExists);
 
 #endif /* VBOX_ONLY_DOCS */
 
@@ -452,8 +481,112 @@ static int ctrlInitVM(HandlerArg *pArg, const char *pszNameOrId, ComPtr<IGuest> 
     return SUCCEEDED(rc) ? VINF_SUCCESS : VERR_GENERAL_FAILURE;
 }
 
+/**
+ * Prints the desired guest output to a stream.
+ *
+ * @return  IPRT status code.
+ * @param   pGuest          Pointer to IGuest interface.
+ * @param   uPID            PID of guest process to get the output from.
+ * @param   fOutputFlags    Output flags of type ProcessOutputFlag.
+ * @param   cMsTimeout      Timeout value (in ms) to wait for output.
+ */
+static int ctrlExecPrintOutput(IGuest *pGuest, ULONG uPID,
+                               PRTSTREAM pStrmOutput, uint32_t fOutputFlags,
+                               uint32_t cMsTimeout)
+{
+    AssertPtrReturn(pGuest, VERR_INVALID_POINTER);
+    AssertReturn(uPID, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pStrmOutput, VERR_INVALID_POINTER);
+
+    SafeArray<BYTE> aOutputData;
+    ULONG cbOutputData = 0;
+
+    int vrc = VINF_SUCCESS;
+    HRESULT rc = pGuest->GetProcessOutput(uPID, fOutputFlags,
+                                          cMsTimeout,
+                                          _64K, ComSafeArrayAsOutParam(aOutputData));
+    if (FAILED(rc))
+    {
+        vrc = ctrlPrintError(pGuest, COM_IIDOF(IGuest));
+        cbOutputData = 0;
+    }
+    else
+    {
+        cbOutputData = aOutputData.size();
+        if (cbOutputData > 0)
+        {
+            BYTE *pBuf = aOutputData.raw();
+            AssertPtr(pBuf);
+            pBuf[cbOutputData - 1] = 0; /* Properly terminate buffer. */
+
+            /** @todo r=bird: Use a VFS I/O stream filter for doing this, it's a
+            *        generic problem and the new VFS APIs will handle it more
+            *        transparently. (requires writing dos2unix/unix2dos filters ofc) */
+
+            /*
+             * If aOutputData is text data from the guest process' stdout or stderr,
+             * it has a platform dependent line ending. So standardize on
+             * Unix style, as RTStrmWrite does the LF -> CR/LF replacement on
+             * Windows. Otherwise we end up with CR/CR/LF on Windows.
+             */
+
+            char *pszBufUTF8;
+            vrc = RTStrCurrentCPToUtf8(&pszBufUTF8, (const char*)aOutputData.raw());
+            if (RT_SUCCESS(vrc))
+            {
+                cbOutputData = strlen(pszBufUTF8);
+
+                ULONG cbOutputDataPrint = cbOutputData;
+                for (char *s = pszBufUTF8, *d = s;
+                     s - pszBufUTF8 < (ssize_t)cbOutputData;
+                     s++, d++)
+                {
+                    if (*s == '\r')
+                    {
+                        /* skip over CR, adjust destination */
+                        d--;
+                        cbOutputDataPrint--;
+                    }
+                    else if (s != d)
+                        *d = *s;
+                }
+
+                vrc = RTStrmWrite(pStrmOutput, pszBufUTF8, cbOutputDataPrint);
+                if (RT_FAILURE(vrc))
+                    RTMsgError("Unable to write output, rc=%Rrc\n", vrc);
+
+                RTStrFree(pszBufUTF8);
+            }
+            else
+                RTMsgError("Unable to convert output, rc=%Rrc\n", vrc);
+        }
+    }
+
+    return vrc;
+}
+
+/**
+ * Returns the remaining time (in ms) based on the start time and a set
+ * timeout value. Returns RT_INDEFINITE_WAIT if no timeout was specified.
+ *
+ * @return  RTMSINTERVAL    Time left (in ms).
+ * @param   u64StartMs      Start time (in ms).
+ * @param   u32TimeoutMs    Timeout value (in ms).
+ */
+inline RTMSINTERVAL ctrlExecGetRemainingTime(uint64_t u64StartMs, uint32_t u32TimeoutMs)
+{
+    if (!u32TimeoutMs) /* If no timeout specified, wait forever. */
+        return RT_INDEFINITE_WAIT;
+
+    uint64_t u64ElapsedMs = RTTimeMilliTS() - u64StartMs;
+    if (u64ElapsedMs >= u32TimeoutMs)
+        return 0;
+
+    return u32TimeoutMs - u64ElapsedMs;
+}
+
 /* <Missing docuemntation> */
-static int handleCtrlExecProgram(ComPtr<IGuest> guest, HandlerArg *pArg)
+static int handleCtrlExecProgram(ComPtr<IGuest> pGuest, HandlerArg *pArg)
 {
     AssertPtrReturn(pArg, VERR_INVALID_PARAMETER);
 
@@ -487,8 +620,7 @@ static int handleCtrlExecProgram(ComPtr<IGuest> guest, HandlerArg *pArg)
     RTGetOptInit(&GetState, pArg->argc, pArg->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 0, 0);
 
     Utf8Str                 Utf8Cmd;
-    uint32_t                fExecFlags = ExecuteProcessFlag_None;
-    uint32_t                fOutputFlags = ProcessOutputFlag_None;
+    uint32_t                fExecFlags      = ExecuteProcessFlag_None;
     com::SafeArray<IN_BSTR> args;
     com::SafeArray<IN_BSTR> env;
     Utf8Str                 Utf8UserName;
@@ -497,7 +629,6 @@ static int handleCtrlExecProgram(ComPtr<IGuest> guest, HandlerArg *pArg)
     OUTPUTTYPE              eOutputType     = OUTPUTTYPE_UNDEFINED;
     bool                    fOutputBinary   = false;
     bool                    fWaitForExit    = false;
-    bool                    fWaitForStdOut  = false;
     bool                    fVerbose        = false;
 
     int                     vrc             = VINF_SUCCESS;
@@ -569,12 +700,13 @@ static int handleCtrlExecProgram(ComPtr<IGuest> guest, HandlerArg *pArg)
                 break;
 
             case GETOPTDEF_EXEC_WAITFORSTDOUT:
+                fExecFlags |= ExecuteProcessFlag_WaitForStdOut;
                 fWaitForExit = true;
-                fWaitForStdOut = true;
                 break;
 
             case GETOPTDEF_EXEC_WAITFORSTDERR:
-                fWaitForExit = (fOutputFlags |= ProcessOutputFlag_StdErr) ? true : false;
+                fExecFlags |= ExecuteProcessFlag_WaitForStdErr;
+                fWaitForExit = true;
                 break;
 
             case VINF_GETOPT_NOT_OPTION:
@@ -620,7 +752,7 @@ static int handleCtrlExecProgram(ComPtr<IGuest> guest, HandlerArg *pArg)
     int rcProc = RTEXITCODE_FAILURE;
     ComPtr<IProgress> progress;
     ULONG uPID = 0;
-    rc = guest->ExecuteProcess(Bstr(Utf8Cmd).raw(),
+    rc = pGuest->ExecuteProcess(Bstr(Utf8Cmd).raw(),
                                fExecFlags,
                                ComSafeArrayAsInParam(args),
                                ComSafeArrayAsInParam(env),
@@ -630,7 +762,7 @@ static int handleCtrlExecProgram(ComPtr<IGuest> guest, HandlerArg *pArg)
                                &uPID,
                                progress.asOutParam());
     if (FAILED(rc))
-        return ctrlPrintError(guest, COM_IIDOF(IGuest));
+        return ctrlPrintError(pGuest, COM_IIDOF(IGuest));
 
     if (fVerbose)
         RTPrintf("Process '%s' (PID: %u) started\n", Utf8Cmd.c_str(), uPID);
@@ -662,91 +794,33 @@ static int handleCtrlExecProgram(ComPtr<IGuest> guest, HandlerArg *pArg)
         if (fCancelable)
             ctrlSignalHandlerInstall();
 
+        PRTSTREAM pStream = g_pStdOut; /* StdOut by default. */
+        AssertPtr(pStream);
+
         /* Wait for process to exit ... */
         BOOL fCompleted    = FALSE;
         BOOL fCanceled     = FALSE;
-        while (SUCCEEDED(progress->COMGETTER(Completed(&fCompleted))))
+        while (   SUCCEEDED(progress->COMGETTER(Completed(&fCompleted)))
+               && !fCompleted)
         {
-            SafeArray<BYTE> aOutputData;
-            ULONG cbOutputData = 0;
-
-            /*
-             * Some data left to output?
-             */
-            if (fOutputFlags || fWaitForStdOut)
+            /* Do we need to output stuff? */
+            uint32_t cMsTimeLeft;
+            if (fExecFlags & ExecuteProcessFlag_WaitForStdOut)
             {
-                /** @todo r=bird: The timeout argument is bogus in several
-                 * ways:
-                 *  1. RT_MAX will evaluate the arguments twice, which may
-                 *     result in different values because RTTimeMilliTS()
-                 *     returns a higher value the 2nd time. Worst case:
-                 *     Imagine when RT_MAX calculates the remaining time
-                 *     out (first expansion) there is say 60 ms left.  Then
-                 *     we're preempted and rescheduled after, say, 120 ms.
-                 *     We call RTTimeMilliTS() again and ends up with a
-                 *     value -60 ms, which translate to a UINT32_MAX - 59
-                 *     ms timeout.
-                 *
-                 *  2. When the period expires, we will wait forever since
-                 *     both 0 and -1 mean indefinite timeout with this API,
-                 *     at least that's one way of reading the main code.
-                 *
-                 *  3. There is a signed/unsigned ambiguity in the
-                 *     RT_MAX expression.  The left hand side is signed
-                 *     integer (0), the right side is unsigned 64-bit. From
-                 *     what I can tell, the compiler will treat this as
-                 *     unsigned 64-bit and never return 0.
-                 */
-                rc = guest->GetProcessOutput(uPID, fOutputFlags,
-                                             RT_MAX(0, cMsTimeout - (RTTimeMilliTS() - u64StartMS)) /* Timeout in ms */,
-                                             _64K, ComSafeArrayAsOutParam(aOutputData));
-                if (FAILED(rc))
-                {
-                    vrc = ctrlPrintError(guest, COM_IIDOF(IGuest));
-                    cbOutputData = 0;
-                }
-                else
-                {
-                    cbOutputData = aOutputData.size();
-                    if (cbOutputData > 0)
-                    {
-                        /** @todo r=bird: Use a VFS I/O stream filter for doing this, it's a
-                        *        generic problem and the new VFS APIs will handle it more
-                        *        transparently. (requires writing dos2unix/unix2dos filters ofc) */
-
-                        /*
-                         * If aOutputData is text data from the guest process' stdout or stderr,
-                         * it has a platform dependent line ending. So standardize on
-                         * Unix style, as RTStrmWrite does the LF -> CR/LF replacement on
-                         * Windows. Otherwise we end up with CR/CR/LF on Windows.
-                         */
-                        ULONG cbOutputDataPrint = cbOutputData;
-                        for (BYTE *s = aOutputData.raw(), *d = s;
-                             s - aOutputData.raw() < (ssize_t)cbOutputData;
-                             s++, d++)
-                        {
-                            if (*s == '\r')
-                            {
-                                /* skip over CR, adjust destination */
-                                d--;
-                                cbOutputDataPrint--;
-                            }
-                            else if (s != d)
-                                *d = *s;
-                        }
-                        RTStrmWrite(g_pStdOut, aOutputData.raw(), cbOutputDataPrint);
-                    }
-                }
+                cMsTimeLeft = ctrlExecGetRemainingTime(u64StartMS, cMsTimeout);
+                if (cMsTimeLeft)
+                    vrc = ctrlExecPrintOutput(pGuest, uPID,
+                                              pStream, ProcessOutputFlag_None /* StdOut */,
+                                              cMsTimeLeft == RT_INDEFINITE_WAIT ? 0 : cMsTimeLeft);
             }
 
-            /* No more output data left? */
-            if (cbOutputData <= 0)
+            if (fExecFlags & ExecuteProcessFlag_WaitForStdErr)
             {
-                /* Only break out from process handling loop if we processed (displayed)
-                 * all output data or if there simply never was output data and the process
-                 * has been marked as complete. */
-                if (fCompleted)
-                    break;
+                cMsTimeLeft = ctrlExecGetRemainingTime(u64StartMS, cMsTimeout);
+                if (cMsTimeLeft)
+                    vrc = ctrlExecPrintOutput(pGuest, uPID,
+                                              pStream, ProcessOutputFlag_StdErr /* StdErr */,
+                                              cMsTimeLeft == RT_INDEFINITE_WAIT ? 0 : cMsTimeLeft);
             }
 
             /* Process async cancelation */
@@ -795,10 +869,18 @@ static int handleCtrlExecProgram(ComPtr<IGuest> guest, HandlerArg *pArg)
             {
                 ExecuteProcessStatus_T retStatus;
                 ULONG uRetExitCode, uRetFlags;
-                rc = guest->GetProcessStatus(uPID, &uRetExitCode, &uRetFlags, &retStatus);
-                if (SUCCEEDED(rc) && fVerbose)
-                    RTPrintf("Exit code=%u (Status=%u [%s], Flags=%u)\n", uRetExitCode, retStatus, ctrlExecProcessStatusToText(retStatus), uRetFlags);
-                rcProc = ctrlExecProcessStatusToExitCode(retStatus, uRetExitCode);
+                rc = pGuest->GetProcessStatus(uPID, &uRetExitCode, &uRetFlags, &retStatus);
+                if (SUCCEEDED(rc))
+                {
+                    if (fVerbose)
+                        RTPrintf("Exit code=%u (Status=%u [%s], Flags=%u)\n", uRetExitCode, retStatus, ctrlExecProcessStatusToText(retStatus), uRetFlags);
+                    rcProc = ctrlExecProcessStatusToExitCode(retStatus, uRetExitCode);
+                }
+                else
+                {
+                    ctrlPrintError(pGuest, COM_IIDOF(IGuest));
+                    rcProc = RTEXITCODE_FAILURE;
+                }
             }
         }
         else
@@ -912,16 +994,47 @@ static int ctrlCopyTranslatePath(const char *pszSourceRoot, const char *pszSourc
     char szTranslated[RTPATH_MAX];
     size_t srcOff = strlen(pszSourceRoot);
     AssertReturn(srcOff, VERR_INVALID_PARAMETER);
-    int rc = RTPathJoin(szTranslated, sizeof(szTranslated),
-                        pszDest, &pszSource[srcOff]);
+
+    char *pszDestPath = RTStrDup(pszDest);
+    AssertPtrReturn(pszDestPath, VERR_NO_MEMORY);
+
+    int rc;
+    if (!RTPathFilename(pszDestPath))
+    {
+        rc = RTPathJoin(szTranslated, sizeof(szTranslated),
+                        pszDestPath, &pszSource[srcOff]);
+    }
+    else
+    {
+        char *pszDestFileName = RTStrDup(RTPathFilename(pszDestPath));
+        if (pszDestFileName)
+        {
+            RTPathStripFilename(pszDestPath);
+            rc = RTPathJoin(szTranslated, sizeof(szTranslated),
+                            pszDestPath, pszDestFileName);
+            RTStrFree(pszDestFileName);
+        }
+        else
+            rc = VERR_NO_MEMORY;
+    }
+    RTStrFree(pszDestPath);
+
     if (RT_SUCCESS(rc))
+    {
         *ppszTranslated = RTStrDup(szTranslated);
+#if 0
+        RTPrintf("Root: %s, Source: %s, Dest: %s, Translated: %s\n",
+                 pszSourceRoot, pszSource, pszDest, *ppszTranslated);
+#endif
+    }
     return rc;
 }
 
 #ifdef DEBUG_andy
 static int tstTranslatePath()
 {
+    RTAssertSetMayPanic(false /* Do not freak out, please. */);
+
     static struct
     {
         const char *pszSourceRoot;
@@ -933,15 +1046,20 @@ static int tstTranslatePath()
     {
         /* Invalid stuff. */
         { NULL, NULL, NULL, NULL, VERR_INVALID_POINTER },
+#ifdef RT_OS_WINDOWS
         /* Windows paths. */
         { "c:\\foo", "c:\\foo\\bar.txt", "c:\\test", "c:\\test\\bar.txt", VINF_SUCCESS },
-        { "c:\\foo", "c:\\foo\\baz\\bar.txt", "c:\\test", "c:\\test\\baz\\bar.txt", VINF_SUCCESS }
-        /* UNIX-like paths. */
+        { "c:\\foo", "c:\\foo\\baz\\bar.txt", "c:\\test", "c:\\test\\baz\\bar.txt", VINF_SUCCESS },
+#else /* RT_OS_WINDOWS */
+        { "/home/test/foo", "/home/test/foo/bar.txt", "/opt/test", "/opt/test/bar.txt", VINF_SUCCESS },
+        { "/home/test/foo", "/home/test/foo/baz/bar.txt", "/opt/test", "/opt/test/baz/bar.txt", VINF_SUCCESS },
+#endif /* !RT_OS_WINDOWS */
         /* Mixed paths*/
         /** @todo */
+        { NULL }
     };
 
-    int iTest = 0;
+    size_t iTest = 0;
     for (iTest; iTest < RT_ELEMENTS(aTests); iTest++)
     {
         RTPrintf("=> Test %d\n", iTest);
@@ -987,24 +1105,33 @@ static int ctrlCopyDirCreate(PCOPYCONTEXT pContext, const char *pszDir)
     AssertPtrReturn(pContext, VERR_INVALID_POINTER);
     AssertPtrReturn(pszDir, VERR_INVALID_POINTER);
 
+    bool fDirExists;
+    int rc = ctrlCopyDirExists(pContext, pContext->fHostToGuest, pszDir, &fDirExists);
+    if (   RT_SUCCESS(rc)
+        && fDirExists)
+    {
+        if (pContext->fVerbose)
+            RTPrintf("Directory \"%s\" already exists\n", pszDir);
+        return VINF_SUCCESS;
+    }
+
     if (pContext->fVerbose)
         RTPrintf("Creating directory \"%s\" ...\n", pszDir);
 
     if (pContext->fDryRun)
         return VINF_SUCCESS;
 
-    int rc = VINF_SUCCESS;
     if (pContext->fHostToGuest) /* We want to create directories on the guest. */
     {
         HRESULT hrc = pContext->pGuest->DirectoryCreate(Bstr(pszDir).raw(),
                                                         Bstr(pContext->pszUsername).raw(), Bstr(pContext->pszPassword).raw(),
-                                                        700, DirectoryCreateFlag_Parents);
+                                                        0700, DirectoryCreateFlag_Parents);
         if (FAILED(hrc))
             rc = ctrlPrintError(pContext->pGuest, COM_IIDOF(IGuest));
     }
     else /* ... or on the host. */
     {
-        rc = RTDirCreateFullPath(pszDir, 700);
+        rc = RTDirCreateFullPath(pszDir, 0700);
         if (rc == VERR_ALREADY_EXISTS)
             rc = VINF_SUCCESS;
     }
@@ -1177,26 +1304,28 @@ static int ctrlCopyFileToDest(PCOPYCONTEXT pContext, const char *pszFileSource,
 
     int vrc = VINF_SUCCESS;
     ComPtr<IProgress> progress;
-    HRESULT hr;
+    HRESULT rc;
     if (pContext->fHostToGuest)
     {
-        hr = pContext->pGuest->CopyToGuest(Bstr(pszFileSource).raw(), Bstr(pszFileDest).raw(),
+        rc = pContext->pGuest->CopyToGuest(Bstr(pszFileSource).raw(), Bstr(pszFileDest).raw(),
                                            Bstr(pContext->pszUsername).raw(), Bstr(pContext->pszPassword).raw(),
                                            fFlags, progress.asOutParam());
     }
     else
     {
-        hr = pContext->pGuest->CopyFromGuest(Bstr(pszFileSource).raw(), Bstr(pszFileDest).raw(),
+        rc = pContext->pGuest->CopyFromGuest(Bstr(pszFileSource).raw(), Bstr(pszFileDest).raw(),
                                              Bstr(pContext->pszUsername).raw(), Bstr(pContext->pszPassword).raw(),
                                              fFlags, progress.asOutParam());
     }
 
-    if (FAILED(hr))
+    if (FAILED(rc))
         vrc = ctrlPrintError(pContext->pGuest, COM_IIDOF(IGuest));
     else
     {
-        hr = showProgress(progress);
-        if (FAILED(hr))
+        rc = pContext->fVerbose
+           ? showProgress(progress)
+           : progress->WaitForCompletion(-1 /* No timeout */);
+        if (FAILED(rc))
             vrc = ctrlPrintProgressError(progress);
     }
 
@@ -1235,7 +1364,7 @@ static int ctrlCopyDirToGuest(PCOPYCONTEXT pContext,
         rc = RTPathAppend(szCurDir, sizeof(szCurDir), pszSubDir);
 
     if (pContext->fVerbose)
-        RTPrintf("Processing directory: %s\n", szCurDir);
+        RTPrintf("Processing host directory: %s\n", szCurDir);
 
     /* Flag indicating whether the current directory was created on the
      * target or not. */
@@ -1404,7 +1533,7 @@ static int ctrlCopyDirToHost(PCOPYCONTEXT pContext,
         return rc;
 
     if (pContext->fVerbose)
-        RTPrintf("Processing directory: %s\n", szCurDir);
+        RTPrintf("Processing guest directory: %s\n", szCurDir);
 
     /* Flag indicating whether the current directory was created on the
      * target or not. */
@@ -1432,6 +1561,8 @@ static int ctrlCopyDirToHost(PCOPYCONTEXT pContext,
             {
                 case GuestDirEntryType_Directory:
                 {
+                    Assert(!strName.isEmpty());
+
                     /* Skip "." and ".." entries. */
                     if (   !strName.compare(Bstr("."))
                         || !strName.compare(Bstr("..")))
@@ -1478,6 +1609,8 @@ static int ctrlCopyDirToHost(PCOPYCONTEXT pContext,
 
                 case GuestDirEntryType_File:
                 {
+                    Assert(!strName.isEmpty());
+
                     Utf8Str strFile(strName);
                     if (   pszFilter
                         && !RTStrSimplePatternMatch(pszFilter, strFile.c_str()))
@@ -1525,6 +1658,8 @@ static int ctrlCopyDirToHost(PCOPYCONTEXT pContext,
                 }
 
                 default:
+                    RTPrintf("Warning: Directory entry of type %ld not handled, skipping ...\n",
+                             enmType);
                     break;
             }
 
@@ -1532,10 +1667,25 @@ static int ctrlCopyDirToHost(PCOPYCONTEXT pContext,
                 break;
         }
 
-        if (FAILED(hr))
+        if (RT_UNLIKELY(FAILED(hr)))
         {
-            if (hr != E_ABORT)
-                rc = ctrlPrintError(pContext->pGuest, COM_IIDOF(IGuest));
+            switch (hr)
+            {
+                case E_ABORT: /* No more directory entries left to process. */
+                    break;
+
+                case VBOX_E_FILE_ERROR: /* Current entry cannot be accessed to
+                                           to missing rights. */
+                {
+                    RTPrintf("Warning: Cannot access \"%s\", skipping ...\n",
+                             szCurDir);
+                    break;
+                }
+
+                default:
+                    rc = ctrlPrintError(pContext->pGuest, COM_IIDOF(IGuest));
+                    break;
+            }
         }
 
         HRESULT hr2 = pContext->pGuest->DirectoryClose(uDirHandle);
@@ -1710,8 +1860,8 @@ static int handleCtrlCopyTo(ComPtr<IGuest> guest, HandlerArg *pArg,
             case VINF_GETOPT_NOT_OPTION:
             {
                 /* Last argument and no destination specified with
-                 * --target-directory yet? Then use the current argument
-                 * as destination. */
+                 * --target-directory yet? Then use the current
+                 * (= last) argument as destination. */
                 if (   pArg->argc == GetState.iNext
                     && Utf8Dest.isEmpty())
                 {
@@ -1769,13 +1919,20 @@ static int handleCtrlCopyTo(ComPtr<IGuest> guest, HandlerArg *pArg,
 
     /* If the destination is a path, (try to) create it. */
     const char *pszDest = Utf8Dest.c_str();
-    AssertPtr(pszDest);
-    size_t lenDest = strlen(pszDest);
-    if (   lenDest
-         ||pszDest[lenDest - 1] == '/'
-        || pszDest[lenDest - 1] == '\\')
+    if (!RTPathFilename(pszDest))
     {
         vrc = ctrlCopyDirCreate(pContext, pszDest);
+    }
+    else
+    {
+        /* We assume we got a file name as destination -- so strip
+         * the actual file name and make sure the appropriate
+         * directories get created. */
+        char *pszDestDir = RTStrDup(pszDest);
+        AssertPtr(pszDestDir);
+        RTPathStripFilename(pszDestDir);
+        vrc = ctrlCopyDirCreate(pContext, pszDestDir);
+        RTStrFree(pszDestDir);
     }
 
     if (RT_SUCCESS(vrc))
@@ -1786,9 +1943,9 @@ static int handleCtrlCopyTo(ComPtr<IGuest> guest, HandlerArg *pArg,
          */
         for (unsigned long s = 0; s < vecSources.size(); s++)
         {
-            char *pszSource = RTStrDup(vecSources[s].mSource.c_str());
+            char *pszSource = RTStrDup(vecSources[s].GetSource());
             AssertPtrBreakStmt(pszSource, vrc = VERR_NO_MEMORY);
-            const char *pszFilter = vecSources[s].mFilter.c_str();
+            const char *pszFilter = vecSources[s].GetFilter();
             if (!strlen(pszFilter))
                 pszFilter = NULL; /* If empty filter then there's no filter :-) */
 
@@ -1804,51 +1961,39 @@ static int handleCtrlCopyTo(ComPtr<IGuest> guest, HandlerArg *pArg,
                 RTPrintf("Source: %s\n", pszSource);
 
             /** @todo Files with filter?? */
-            bool fIsFile = false;
-            bool fExists;
+            bool fSourceIsFile = false;
+            bool fSourceExists;
 
             size_t cchSource = strlen(pszSource);
             if (   cchSource > 1
                 && RTPATH_IS_SLASH(pszSource[cchSource - 1]))
             {
-#ifndef DEBUG_andy
-                if (pContext->fHostToGuest)
-                {
-#endif
-                    if (pszFilter) /* Directory with filter (so use source root w/o the actual filter). */
-                        vrc = ctrlCopyDirExistsOnSource(pContext, pszSourceRoot, &fExists);
-                    else /* Regular directory without filter. */
-                        vrc = ctrlCopyDirExistsOnSource(pContext, pszSource, &fExists);
+                if (pszFilter) /* Directory with filter (so use source root w/o the actual filter). */
+                    vrc = ctrlCopyDirExistsOnSource(pContext, pszSourceRoot, &fSourceExists);
+                else /* Regular directory without filter. */
+                    vrc = ctrlCopyDirExistsOnSource(pContext, pszSource, &fSourceExists);
 
-                    if (fExists)
-                    {
-                        /* Strip trailing slash from our source element so that other functions
-                         * can use this stuff properly (like RTPathStartsWith). */
-                        RTPathStripTrailingSlash(pszSource);
-                    }
-#ifndef DEBUG_andy
-                }
-                else
+                if (fSourceExists)
                 {
-                    RTMsgError("Copying of guest directories to the host is not supported yet!\n");
-                    vrc = VERR_NOT_IMPLEMENTED;
+                    /* Strip trailing slash from our source element so that other functions
+                     * can use this stuff properly (like RTPathStartsWith). */
+                    RTPathStripTrailingSlash(pszSource);
                 }
-#endif
             }
             else
             {
-                vrc = ctrlCopyFileExistsOnSource(pContext, pszSource, &fExists);
+                vrc = ctrlCopyFileExistsOnSource(pContext, pszSource, &fSourceExists);
                 if (   RT_SUCCESS(vrc)
-                    && fExists)
+                    && fSourceExists)
                 {
-                    fIsFile = true;
+                    fSourceIsFile = true;
                 }
             }
 
             if (   RT_SUCCESS(vrc)
-                && fExists)
+                && fSourceExists)
             {
-                if (fIsFile)
+                if (fSourceIsFile)
                 {
                     /* Single file. */
                     char *pszDestFile;
@@ -1875,7 +2020,7 @@ static int handleCtrlCopyTo(ComPtr<IGuest> guest, HandlerArg *pArg,
             ctrlCopyFreeSourceRoot(pszSourceRoot);
 
             if (   RT_SUCCESS(vrc)
-                && !fExists)
+                && !fSourceExists)
             {
                 RTMsgError("Warning: Source \"%s\" does not exist, skipping!\n",
                            pszSource);
@@ -2225,7 +2370,9 @@ static int handleCtrlUpdateAdditions(ComPtr<IGuest> guest, HandlerArg *pArg)
             vrc = ctrlPrintError(guest, COM_IIDOF(IGuest));
         else
         {
-            rc = showProgress(progress);
+            rc = fVerbose
+               ? showProgress(progress)
+               : progress->WaitForCompletion(-1 /* No timeout */);
             if (FAILED(rc))
                 vrc = ctrlPrintProgressError(progress);
             else if (   SUCCEEDED(rc)
@@ -2249,7 +2396,7 @@ int handleGuestControl(HandlerArg *pArg)
 {
     AssertPtrReturn(pArg, VERR_INVALID_PARAMETER);
 
-#ifdef DEBUG_andy
+#ifdef DEBUG_andy_disabled
     if (RT_FAILURE(tstTranslatePath()))
         return RTEXITCODE_FAILURE;
 #endif

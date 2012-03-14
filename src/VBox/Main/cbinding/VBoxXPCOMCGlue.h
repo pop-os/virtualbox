@@ -1,10 +1,10 @@
-/* $Revision: 61277 $ */
+/* $Revision: 75929 $ */
 /** @file VBoxXPCOMCGlue.h
  * Glue for dynamically linking with VBoxXPCOMC.
  */
 
 /*
- * Copyright (C) 2008-2009 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -31,7 +31,7 @@
 #ifndef ___VBoxXPCOMC_cglue_h
 #define ___VBoxXPCOMC_cglue_h
 
-#include "VBoxCAPI_v3_2.h"
+#include "VBoxCAPI_v4_1.h"
 
 #ifdef __cplusplus
 extern "C" {

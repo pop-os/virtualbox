@@ -21,6 +21,7 @@
 #include <QDir>
 #include <QFile>
 #include <QNetworkReply>
+#include <iprt/sha.h>
 
 /* Local includes: */
 #include "UIDownloaderExtensionPack.h"
@@ -60,8 +61,8 @@ void UIDownloaderExtensionPack::download(QObject *pListener)
     /* Configure connections for the passed listener: */
     connect(pDownloader, SIGNAL(sigToStartAcknowledging()),
             pListener, SIGNAL(sigDownloaderCreatedForExtensionPack()));
-    connect(pDownloader, SIGNAL(sigNotifyAboutExtensionPackDownloaded(const QString &, const QString &)),
-            pListener, SLOT(sltHandleDownloadedExtensionPack(const QString &, const QString &)));
+    connect(pDownloader, SIGNAL(sigNotifyAboutExtensionPackDownloaded(const QString &, const QString &, QString)),
+            pListener, SLOT(sltHandleDownloadedExtensionPack(const QString &, const QString &, QString)));
 }
 
 UIDownloaderExtensionPack::UIDownloaderExtensionPack()
@@ -110,8 +111,9 @@ void UIDownloaderExtensionPack::handleDownloadedObject(QNetworkReply *pReply)
 {
     /* Read received data into buffer: */
     QByteArray receivedData(pReply->readAll());
+
     /* Serialize the incoming buffer into the file: */
-    while (true)
+    for (;;)
     {
         /* Try to open file for writing: */
         QFile file(target());
@@ -120,15 +122,25 @@ void UIDownloaderExtensionPack::handleDownloadedObject(QNetworkReply *pReply)
             /* Write incoming buffer into the file: */
             file.write(receivedData);
             file.close();
+
+            /* Calc the SHA-256 on the bytes, creating a string. */
+            uint8_t abHash[RTSHA256_HASH_SIZE];
+            RTSha256(receivedData.constData(), receivedData.length(), abHash);
+            char szDigest[RTSHA256_DIGEST_LEN + 1];
+            int rc = RTSha256ToString(abHash, szDigest, sizeof(szDigest));
+            if (RT_FAILURE(rc))
+            {
+                AssertRC(rc);
+                szDigest[0] = '\0';
+            }
+
             /* Notify listener about extension pack was downloaded: */
-            emit sigNotifyAboutExtensionPackDownloaded(source(), target());
+            emit sigNotifyAboutExtensionPackDownloaded(source(), target(), &szDigest[0]);
             break;
         }
-        else
-        {
-            /* Warn the user about extension pack was downloaded but was NOT saved, explain it: */
-            msgCenter().warnAboutExtentionPackCantBeSaved(UI_ExtPackName, source(), QDir::toNativeSeparators(target()));
-        }
+
+        /* Warn the user about extension pack was downloaded but was NOT saved, explain it: */
+        msgCenter().warnAboutExtentionPackCantBeSaved(UI_ExtPackName, source(), QDir::toNativeSeparators(target()));
 
         /* Ask the user for another location for the extension pack file: */
         QString strTarget = QIFileDialog::getExistingDirectory(QFileInfo(target()).absolutePath(), parentWidget(),

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -548,15 +548,15 @@ VBGLR3DECL(int)     VbglR3GuestCtrlConnect(uint32_t *pu32ClientId);
 VBGLR3DECL(int)     VbglR3GuestCtrlDisconnect(uint32_t u32ClientId);
 VBGLR3DECL(int)     VbglR3GuestCtrlWaitForHostMsg(uint32_t u32ClientId, uint32_t *puMsg, uint32_t *puNumParms);
 VBGLR3DECL(int)     VbglR3GuestCtrlCancelPendingWaits(uint32_t u32ClientId);
-VBGLR3DECL(int)     VbglR3GuestCtrlExecGetHostCmd(uint32_t  u32ClientId,    uint32_t  uNumParms,
-                                                  uint32_t *puContext,
-                                                  char     *pszCmd,         uint32_t  cbCmd,
-                                                  uint32_t *puFlags,
-                                                  char     *pszArgs,        uint32_t  cbArgs,   uint32_t *puNumArgs,
-                                                  char     *pszEnv,         uint32_t *pcbEnv,   uint32_t *puNumEnvVars,
-                                                  char     *pszUser,        uint32_t  cbUser,
-                                                  char     *pszPassword,    uint32_t  cbPassword,
-                                                  uint32_t *puTimeLimit);
+VBGLR3DECL(int)     VbglR3GuestCtrlExecGetHostCmdExec(uint32_t  u32ClientId,    uint32_t  cParms,
+                                                      uint32_t *puContext,
+                                                      char     *pszCmd,         uint32_t  cbCmd,
+                                                      uint32_t *puFlags,
+                                                      char     *pszArgs,        uint32_t  cbArgs,   uint32_t *puNumArgs,
+                                                      char     *pszEnv,         uint32_t *pcbEnv,   uint32_t *puNumEnvVars,
+                                                      char     *pszUser,        uint32_t  cbUser,
+                                                      char     *pszPassword,    uint32_t  cbPassword,
+                                                      uint32_t *puTimeLimit);
 VBGLR3DECL(int)     VbglR3GuestCtrlExecGetHostCmdInput(uint32_t  u32ClientId,    uint32_t   uNumParms,
                                                        uint32_t *puContext,      uint32_t  *puPID,
                                                        uint32_t *puFlags,        void      *pvData,
@@ -587,11 +587,20 @@ VBGLR3DECL(int)     VbglR3GuestCtrlExecReportStatusIn(uint32_t     u32ClientId,
 /** @}  */
 # endif /* VBOX_WITH_GUEST_CONTROL defined */
 
+/** @name Auto-logon handling
+ * @{ */
+VBGLR3DECL(int)     VbglR3AutoLogonReportStatus(VBoxGuestFacilityStatus enmStatus);
+VBGLR3DECL(bool)    VbglR3AutoLogonIsRemoteSession(void);
+/** @}  */
+
 /** @name User credentials handling
  * @{ */
 VBGLR3DECL(int)     VbglR3CredentialsQueryAvailability(void);
 VBGLR3DECL(int)     VbglR3CredentialsRetrieve(char **ppszUser, char **ppszPassword, char **ppszDomain);
+VBGLR3DECL(int)     VbglR3CredentialsRetrieveUtf16(PRTUTF16 *ppwszUser, PRTUTF16 *ppwszPassword, PRTUTF16 *ppwszDomain);
 VBGLR3DECL(void)    VbglR3CredentialsDestroy(char *pszUser, char *pszPassword, char *pszDomain, uint32_t cPasses);
+VBGLR3DECL(void)    VbglR3CredentialsDestroyUtf16(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUTF16 pwszDomain,
+                                                  uint32_t cPasses);
 /** @}  */
 
 /** @name CPU hotplug monitor

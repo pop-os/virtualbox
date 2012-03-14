@@ -2957,7 +2957,7 @@
 
   <interface
     name="IInternalMachineControl" extends="$unknown"
-    uuid="2087906d-bb92-43a0-8014-4cab009e4888"
+    uuid="ec824977-e43f-479c-81c9-ac6cae1423a5"
     internal="yes"
     wsmap="suppress"
     >
@@ -3413,6 +3413,57 @@
           A new reference to the medium attachment, as the config change can
           result in the creation of a new instance.
         </desc>
+      </param>
+    </method>
+
+    <method name="reportGuestStatistics">
+      <desc>
+        Passes collected guest statistics to VBoxSVC.
+      </desc>
+      <param name="validStats" type="unsigned long" dir="in">
+        <desc>
+          Mask defining which parameters are valid. For example: 0x11 means
+          that cpuIdle and XXX are valid. Other parameters should be ignored.
+        </desc>
+      </param>
+      <param name="cpuUser" type="unsigned long" dir="in">
+        <desc>Percentage of processor time spent in user mode as seen by the guest.</desc>
+      </param>
+      <param name="cpuKernel" type="unsigned long" dir="in">
+        <desc>Percentage of processor time spent in kernel mode as seen by the guest.</desc>
+      </param>
+      <param name="cpuIdle" type="unsigned long" dir="in">
+        <desc>Percentage of processor time spent idling as seen by the guest.</desc>
+      </param>
+      <param name="memTotal" type="unsigned long" dir="in">
+        <desc>Total amount of physical guest RAM.</desc>
+      </param>
+      <param name="memFree" type="unsigned long" dir="in">
+        <desc>Free amount of physical guest RAM.</desc>
+      </param>
+      <param name="memBalloon" type="unsigned long" dir="in">
+        <desc>Amount of ballooned physical guest RAM.</desc>
+      </param>
+      <param name="memShared" type="unsigned long" dir="in">
+        <desc>Amount of shared physical guest RAM.</desc>
+      </param>
+      <param name="memCache" type="unsigned long" dir="in">
+        <desc>Total amount of guest (disk) cache memory.</desc>
+      </param>
+      <param name="pagedTotal" type="unsigned long" dir="in">
+        <desc>Total amount of space in the page file.</desc>
+      </param>
+      <param name="memAllocTotal" type="unsigned long" dir="in">
+        <desc>Total amount of memory allocated by the hypervisor.</desc>
+      </param>
+      <param name="memFreeTotal" type="unsigned long" dir="in">
+        <desc>Total amount of free memory available in the hypervisor.</desc>
+      </param>
+      <param name="memBalloonTotal" type="unsigned long" dir="in">
+        <desc>Total amount of memory ballooned by the hypervisor.</desc>
+      </param>
+      <param name="memSharedTotal" type="unsigned long" dir="in">
+        <desc>Total amount of shared memory in the hypervisor.</desc>
       </param>
     </method>
   </interface>
@@ -8220,6 +8271,9 @@
     <const name="VBoxGuestDriver"         value="20">
       <desc>VirtualBox base driver (VBoxGuest).</desc>
     </const>
+    <const name="AutoLogon"               value="90">
+      <desc>Auto-logon modules (VBoxGINA, VBoxCredProv, pam_vbox).</desc>
+    </const>
     <const name="VBoxService"             value="100">
       <desc>VirtualBox system service (VBoxService).</desc>
     </const>
@@ -8399,10 +8453,16 @@
       <desc>Do not report an error when executed processes are still alive when VBoxService or the guest OS is shutting down.</desc>
     </const>
     <const name="Hidden"                  value="4">
-      <desc>Don't show the started process according to the guest OS guidelines.</desc>
+      <desc>Do not show the started process according to the guest OS guidelines.</desc>
     </const>
     <const name="NoProfile"               value="8">
       <desc>Do not use the user's profile data when exeuting a process.</desc>
+    </const>
+    <const name="WaitForStdOut"           value="16">
+      <desc>The guest process waits until all data from stdout is read out.</desc>
+    </const>
+    <const name="WaitForStdErr"           value="32">
+      <desc>The guest process waits until all data from stderr is read out.</desc>
     </const>
   </enum>
 
@@ -8734,13 +8794,15 @@
         Executes an existing program inside the guest VM.
 
         <note>
-        Starting at VirtualBox 4.1.2 guest process execution by default is limited
-        to serve up to 5 guest processes at a time. If a new guest process gets started
-        which would exceed this limit, the oldest not running guest process will be discarded
-        in order to be able to run that new process. Also, retrieving output from this
-        old guest process will not be possible anymore then. If all 5 guest processes
+        Starting at VirtualBox 4.1.8 guest process execution by default is limited
+        to serve up to 25 guest processes at a time. If all 25 guest processes
         are still active and running, starting a new guest process will result in an
         appropriate error message.
+
+        If ExecuteProcessFlag_WaitForStdOut and/or respectively
+        ExecuteProcessFlag_WaitForStdErr of <link to="ExecuteProcessFlag"/> is
+        set, the guest process will not exit until all data from the specified
+        stream(s) is/are read out.
 
         To raise or lower the guest process execution limit, either the guest property
         "/VirtualBox/GuestAdd/VBoxService/--control-procs-max-kept" or VBoxService'
@@ -8806,7 +8868,15 @@
 
     <method name="getProcessOutput">
       <desc>
-        Retrieves output of a formerly started process.
+        Retrieves output of a formerly started and running guest process.
+
+        <note>
+        Starting with VirtualBox 4.1.8 this only will return output data
+        from stdout or stderr if flag ExecuteProcessFlag_WaitForStdOut
+        and/or respectively ExecuteProcessFlag_WaitForStdErr of
+        <link to="ExecuteProcessFlag"/> is set in the
+        former <link to="#executeProcess"/> call for this guest process.
+        </note>
 
         <result name="VBOX_E_IPRT_ERROR">
           Could not retrieve output.
@@ -8846,7 +8916,10 @@
 
     <method name="getProcessStatus">
       <desc>
-        Retrieves status, exit code and the exit reason of a formerly started process.
+        Retrieves status, exit code and the exit reason of a formerly started
+        guest process. If a guest process exited or got terminated this function
+        returns its final status and removes this process from the list of 
+        known guest processes for further retrieval.
 
         <result name="VBOX_E_IPRT_ERROR">
           Process with specified PID was not found.
@@ -14186,7 +14259,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IInternalSessionControl" extends="$unknown"
-    uuid="0bdda5da-67c8-47be-a610-b83a7fa3e8b6"
+    uuid="c2b4cd5f-d3ce-4dd6-b915-123272163ef5"
     internal="yes"
     wsmap="suppress"
     >
@@ -14636,6 +14709,23 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         <desc>
           Progress object for this operation.
         </desc>
+      </param>
+    </method>
+
+    <method name="enableVMMStatistics">
+      <desc>
+        Enables or disables collection of VMM RAM statistics.
+
+        <result name="VBOX_E_INVALID_VM_STATE">
+          Machine session is not open.
+        </result>
+        <result name="VBOX_E_INVALID_OBJECT_STATE">
+          Session type is not direct.
+        </result>
+
+      </desc>
+      <param name="enable" type="boolean" dir="in">
+        <desc>True enables statistics collection.</desc>
       </param>
     </method>
 
@@ -15860,7 +15950,8 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         installation.
       </desc>
       <param name="path" type="wstring" dir="in">
-        <desc>The path of the extension pack tarball.</desc>
+        <desc>The path of the extension pack tarball.  This can optionally be
+        followed by a "::SHA-256=hex-digit" of the tarball. </desc>
       </param>
       <param name="file" type="IExtPackFile" dir="return">
         <desc>The interface of the extension pack file object.</desc>

@@ -7,7 +7,7 @@
 #
 
 #
-# Copyright (C) 2006-2011 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -192,30 +192,29 @@ VBOX_VERSION_MINOR = 1
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 8
+VBOX_VERSION_BUILD = 10
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
 VBOX_VERSION_STRING_RAW = $(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD)
-# Full version string (may include more than just x.y.z, but no spaces or other problematic chars).
+# This can be overridden in LocalConfig.kmk or elsewhere.
+# For the convension, see checks near the end of Config.kmk.
 VBOX_BUILD_PUBLISHER =
-if $(int-gt $(length $(VBOX_BUILD_PUBLISHER)),10)
-  $(error VBOX_BUILD_PUBLISHER must not be longer than 10 characters!)
-endif
+# Full version string (may include more than just x.y.z, but no spaces or other problematic chars).
 VBOX_VERSION_STRING = $(VBOX_VERSION_STRING_RAW)$(VBOX_BUILD_PUBLISHER)
-# Force the additions.sh script to get an exact additions build when we're doing the release.
 
+# Force the additions.sh script to get an exact additions build when we're doing the release.
 ifeq ($(int-mod $(VBOX_VERSION_BUILD),2),0)
- export VBOX_ADDITIONS_SH_MODE = release
+ export VBOX_ADDITIONS_SH_MODE     = release
  export VBOX_DOCUMENTATION_SH_MODE = release
- export VBOX_EFI_SH_MODE = release
- export VBOX_EXTPACKS_SH_MODE = release
+ export VBOX_EFI_SH_MODE           = release
+ export VBOX_EXTPACKS_SH_MODE      = release
 endif
 
 # Some info on the vendor
-VBOX_VENDOR = Oracle Corporation
+VBOX_VENDOR       = Oracle Corporation
 VBOX_VENDOR_SHORT = Oracle
-VBOX_PRODUCT = Oracle VM VirtualBox
+VBOX_PRODUCT      = Oracle VM VirtualBox
 # Not all could be done automatically. Here is a list of known places which
 # have to be updated manually, please keep this up to date:
 #	src/VBox/Devices/PC/PXE/client/uinit.asm
@@ -484,6 +483,7 @@ endif
 #VBOX_WITHOUT_COM = 1
 # The webservices api.
 VBOX_WITH_WEBSERVICES = 1
+VBOX_WITH_WEBSERVICES_SSL = 1
 # The Qt 4 GUI.
 VBOX_WITH_QTGUI = 1
 # Indicates the Qt is Cocoa based on the Mac.
@@ -1883,7 +1883,13 @@ ifeq ($(KBUILD_TARGET),darwin)
  endif
 
  if1of ($(VBOX_DEF_MACOSX_VERSION_MIN), 10.4 10.5 10.6 10.7)
-  VBOX_PATH_MACOSX_SDK_10_7            ?= /Developer/SDKs/MacOSX10.7.sdk
+  ifndef VBOX_PATH_MACOSX_SDK_10_7
+   ifneq ($(wildcard /Developer/SDKs/MacOSX10.7.sdk),)
+    VBOX_PATH_MACOSX_SDK_10_7           = /Developer/SDKs/MacOSX10.7.sdk
+   else
+    VBOX_PATH_MACOSX_SDK_10_7           = $(PATH_DEVTOOLS)/darwin.x86/SDKs/MacOSX10.7.sdk
+   endif
+  endif
   VBOX_DARWIN_DEF_SDK_10_7_DEFS        := MAC_OS_X_VERSION_MIN_REQUIRED=1070 MAC_OS_X_VERSION_MAX_ALLOWED=1070
   VBOX_DARWIN_DEF_SDK_10_7_CFLAGS      := -mmacosx-version-min=10.7 -isysroot $(VBOX_PATH_MACOSX_SDK_10_7)
   VBOX_DARWIN_DEF_SDK_10_7_CXXFLAGS    := -mmacosx-version-min=10.7 -isysroot $(VBOX_PATH_MACOSX_SDK_10_7)
@@ -2415,28 +2421,11 @@ VBOXLNX32GUEST_SUFF_LIB = .a
 # SDKs for external libraries.
 #
 SDK_VBOX_LIBXML2          = .
-SDK_VBOX_LIBXML2_INCS   ?= $(PATH_ROOT)/src/libs/libxml2-2.6.30/include
+SDK_VBOX_LIBXML2_INCS   ?= $(PATH_ROOT)/src/libs/libxml2-2.6.31/include
 SDK_VBOX_LIBXML2_DEFS  ?= _REENTRANT
 SDK_VBOX_LIBXML2_DEFS.win += WIN32 _WINDOWS _MBCS
 # note: no linking to LIB here, we do that explicitly in src/VBox/Runtime/Makefile.kmk to link
 # libxml against VBoxRT
-
-SDK_VBOX_LIBXSLT          = .
-#if1of ($(KBUILD_TARGET), os2 solaris win)
- SDK_VBOX_LIBXSLT_INCS   ?= $(PATH_ROOT)/src/libs/libxslt-1.1.22
- SDK_VBOX_LIBXSLT_LIBS   ?= $(PATH_STAGE_LIB)/VBox-libxslt$(VBOX_SUFF_LIB)
- SDK_VBOX_LIBXSLT_DEFS   ?=
- SDK_VBOX_LIBXSLT_DEFS.win += WIN32 _WINDOWS _MBCS _REENTRANT
-#else if1of ($(KBUILD_TARGET), linux)
-# SDK_VBOX_LIBXSLT_INCS      ?=
-# SDK_VBOX_LIBXSLT_LIBS      ?=
-# SDK_VBOX_LIBXSLT_CFLAGS    ?= $(shell pkg-config libxslt-1.0 --cflags)
-# SDK_VBOX_LIBXSLT_CXXFLAGS  ?= $(SDK_VBOX_LIBXSLT_CFLAGS)
-# SDK_VBOX_LIBXSLT_LDFLAGS   ?= $(shell pkg-config libxslt-1.0 --libs)
-#else
-# SDK_VBOX_LIBXSLT_INCS   ?=
-# SDK_VBOX_LIBXSLT_LIBS   ?= xslt
-#endif
 
 SDK_VBOX_LIBPNG       = .
 SDK_VBOX_LIBPNG_INCS ?= $(PATH_ROOT)/src/libs/libpng-1.2.8
@@ -2444,7 +2433,7 @@ SDK_VBOX_LIBPNG_LIBS ?= $(PATH_STAGE_LIB)/VBox-libpng$(VBOX_SUFF_LIB)
 
 SDK_VBOX_ZLIB         = .
 if1of ($(KBUILD_TARGET), os2 solaris win)
- SDK_VBOX_ZLIB_INCS  ?= $(PATH_ROOT)/src/libs/zlib-1.2.1
+ SDK_VBOX_ZLIB_INCS  ?= $(PATH_ROOT)/src/libs/zlib-1.2.6
  SDK_VBOX_ZLIB_LIBS  ?= $(PATH_STAGE_LIB)/VBox-zlib$(VBOX_SUFF_LIB)
 else
  SDK_VBOX_ZLIB_INCS  ?=
@@ -2554,10 +2543,12 @@ if1of ($(KBUILD_TARGET), linux)
    else
     kernelpath := $(VBOX_LINUX_SRC)
    endif
+   #
    VBOX_LINUX_INCS  += $(kernelpath)/include/asm-i386/mach-default \
                        $(kernelpath)/include/asm-x86/mach-default \
                        $(kernelpath)/arch/x86/include \
                        $(kernelpath)/arch/x86/include/asm/mach-default \
+                       $(kernelpath)/arch/x86/include/generated \
                        $(kernelpath)/include
   endif
  endif
@@ -2587,13 +2578,15 @@ ifeq ($(KBUILD_TARGET),solaris)
   # We cannot compile additions on Solaris 10, due kernel interface deps
   VBOX_WITHOUT_ADDITIONS := 1
   VBOX_WITH_ADDITIONS =
- else
-  ## @todo r=bird: Why eval, and why export? Actually, since this isn't used anywhere, why not
-  # VBOX_WITH_SOLARIS_OSS := $(if-expr $(shell uname -v | cut -f2 -d'_')) >= 115,1,)
-  $(eval export VBOX_SOLARIS_SNV_VERSION := $(shell uname -v | cut -f2 -d'_'))
+ else ifeq ($(VBOX_SOLARIS_VERSION),511)
+  # uname -v can report "snv_XYZ" or "11.X"
+  VBOX_SOLARIS_11_VERSION = $(shell uname -v | sed 's/snv_//' | cut -f1 -d'.')
+  ifeq ($(VBOX_SOLARIS_11_VERSION),11)
+   VBOX_SOLARIS_11_VERSION = $(shell pkg contents -H -t set -o pkg.fmri entire | head -1 | sed 's/^.*\@//;s/\:.*//;s/.*,//' | cut -f2 -d'-' | cut -f2 -d'.')
+  endif
 
   # OSS audio support for Solaris
- VBOX_WITH_SOLARIS_OSS := $(if-expr $(VBOX_SOLARIS_SNV_VERSION) >= 115,1,)
+ VBOX_WITH_SOLARIS_OSS := $(if-expr $(VBOX_SOLARIS_11_VERSION) >= 115,1,)
  endif
 endif
 
@@ -2708,14 +2701,11 @@ ifdef VBOX_WITH_RAW_MODE
   TEMPLATE_VBoxRcExe_LDFLAGS.strict = -g
   TEMPLATE_VBoxRcExe_LDFLAGS.release = -g
   if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), freebsd.amd64)
-   # The FreeBSD port of gcc isn't picking up -m32 where it should. the .o order below isn't
-   # quite right (target source comes first), if it stops working we'll have to write a linker tool.
+   # The FreeBSD port of gcc isn't picking up -m32 where it should.
    TEMPLATE_VBoxRcExe_DEFS.$(KBUILD_TARGET)    = $(TEMPLATE_VBoxRc_DEFS.$(KBUILD_TARGET))    IPRT_DONT_USE_SYSTEM_STDINT_H
-   TEMPLATE_VBoxRcExe_LDFLAGS.$(KBUILD_TARGET) = $(TEMPLATE_VBoxRc_LDFLAGS.$(KBUILD_TARGET)) -nostdlib -v
-   TEMPLATE_VBoxRcExe_SOURCES.$(KBUILD_TARGET) = /usr/lib32/crtend.o /usr/lib32/crtn.o
-   TEMPLATE_VBoxRcExe_SOURCES                  =	/usr/lib32/crt1.o /usr/lib32/crti.o /usr/lib32/crtbegin.o
+   TEMPLATE_VBoxRcExe_LDFLAGS.$(KBUILD_TARGET) = /usr/lib32/crt1.o /usr/lib32/crti.o /usr/lib32/crtbegin.o $(TEMPLATE_VBoxRc_LDFLAGS.$(KBUILD_TARGET)) -nostdlib -v
    TEMPLATE_VBoxRcExe_LIBPATH.$(KBUILD_TARGET) = /usr/lib32
-   TEMPLATE_VBoxRcExe_LIBS.$(KBUILD_TARGET)    = /usr/lib32/libc.so
+   TEMPLATE_VBoxRcExe_LIBS.$(KBUILD_TARGET)    = /usr/lib32/crtend.o /usr/lib32/crtn.o /usr/lib32/libc.so
   endif
  endif
 
@@ -4707,6 +4697,62 @@ else
 endif
 
 
+#
+# Check the publisher and version string.
+#
+# We are being very strict because the version string is visible in various
+# APIs and logs and must be machine readable.
+#
+VBOX_VERSION_COMP_VALID_CHAR_SET = ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz()[]{}+-.,
+ifneq ($(VBOX_BUILD_PUBLISHER),)
+ if $(length $(VBOX_BUILD_PUBLISHER)) > 10
+  $(error VBOX_BUILD_PUBLISHER must not be longer than 10 characters!)
+ endif
+ if "$(substr $(VBOX_BUILD_PUBLISHER), 1, 1)" != "_"
+  $(error VBOX_BUILD_PUBLISHER must start with an underscore!)
+ endif
+ if "$(translate $(substr $(VBOX_BUILD_PUBLISHER),2),$(VBOX_VERSION_COMP_VALID_CHAR_SET),)" != ""
+  $(error VBOX_BUILD_PUBLISHER='$(VBOX_BUILD_PUBLISHER)' contains bad characters! Valid set is:$(NLTAB)$(VBOX_VERSION_COMP_VALID_CHAR_SET))
+ endif
+endif
+
+if $(words $(VBOX_VERSION_STRING)) != 1
+ $(error VBOX_VERSION_STRING='$(VBOX_VERSION_STRING)' contains spaces or is empty.)
+endif
+if "$(subst __,-,$(VBOX_VERSION_STRING))" != "$(VBOX_VERSION_STRING)"
+ $(error VBOX_VERSION_STRING='$(VBOX_VERSION_STRING)' contains double underscores.)
+endif
+
+VBOX_VER_TMP1 := $(subst _,$(SP),$(VBOX_VERSION_STRING))
+
+if $(words $(VBOX_VER_TMP1)) > 3
+ $(error VBOX_VERSION_STRING='$(VBOX_VERSION_STRING)' contains too many parts (underscores), max 3!)
+endif
+if "$(translate $(word 1,$(VBOX_VER_TMP1)),0123456789,)" != ".."
+ $(error The x.y.z part of VBOX_VERSION_STRING='$(VBOX_VERSION_STRING)' is malformed: '$(word 1,$(VBOX_VER_TMP1))')
+endif
+if "$(word 1,$(VBOX_VER_TMP1))" != "$(VBOX_VERSION_STRING_RAW)"
+ $(error VBOX_VERSION_STRING='$(VBOX_VERSION_STRING)' does not start with VBOX_VERSION_STRING_RAW='$(VBOX_VERSION_STRING_RAW)')
+endif
+
+if $(words $(VBOX_VER_TMP1)) == 3 || ($(words $(VBOX_VER_TMP1)) == 2 && "$(VBOX_BUILD_PUBLISHER)" == "")
+ if      "$(substr $(word 2,$(VBOX_VER_TMP1)),1,4)" == "BETA"
+  VBOX_VER_TMP2 = 5
+ else if "$(substr $(word 2,$(VBOX_VER_TMP1)),1,5)" == "ALPHA"
+  VBOX_VER_TMP2 = 6
+ else if "$(substr $(word 2,$(VBOX_VER_TMP1)),1,2)" == "RC"
+  VBOX_VER_TMP2 = 3
+ else
+  $(error VBOX_VERSION_STRING='$(VBOX_VERSION_STRING)' uses an unknown build type: '$(word 2,$(VBOX_VER_TMP1))')
+ endif
+ if "$(translate $(substr $(word 2,$(VBOX_VER_TMP1)),$(VBOX_VER_TMP2)),0123456789)" != ""
+  $(error VBOX_VERSION_STRING='$(VBOX_VERSION_STRING)' uses an unknown build type: '$(word 2,$(VBOX_VER_TMP1))')
+ endif
+endif
+
+VBOX_VER_TMP1 :=
+VBOX_VER_TMP2 :=
+
 
 #
 # Two targets to coordinate version number changes properly. Note that the
@@ -4836,7 +4882,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 75467 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 76795 $  )
  VBOX_SVN_DEP          := $(wildcard $(PATH_ROOT)/.svn/entries)
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

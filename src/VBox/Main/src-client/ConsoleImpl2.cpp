@@ -1713,9 +1713,9 @@ int Console::configConstructorInner(PVM pVM, AutoWriteLock *pAlock)
         {
             ComPtr<INetworkAdapter> networkAdapter;
             hrc = pMachine->GetNetworkAdapter(ulInstance, networkAdapter.asOutParam());     H();
-            BOOL fEnabled = FALSE;
-            hrc = networkAdapter->COMGETTER(Enabled)(&fEnabled);                            H();
-            if (!fEnabled)
+            BOOL fEnabledNetAdapter = FALSE;
+            hrc = networkAdapter->COMGETTER(Enabled)(&fEnabledNetAdapter);                  H();
+            if (!fEnabledNetAdapter)
                 continue;
 
             /*
@@ -1928,10 +1928,10 @@ int Console::configConstructorInner(PVM pVM, AutoWriteLock *pAlock)
         {
             ComPtr<ISerialPort> serialPort;
             hrc = pMachine->GetSerialPort(ulInstance, serialPort.asOutParam());             H();
-            BOOL fEnabled = FALSE;
+            BOOL fEnabledSerPort = FALSE;
             if (serialPort)
-                hrc = serialPort->COMGETTER(Enabled)(&fEnabled);                            H();
-            if (!fEnabled)
+                hrc = serialPort->COMGETTER(Enabled)(&fEnabledSerPort);                     H();
+            if (!fEnabledSerPort)
                 continue;
 
             InsertConfigNode(pDev, Utf8StrFmt("%u", ulInstance).c_str(), &pInst);
@@ -1989,12 +1989,12 @@ int Console::configConstructorInner(PVM pVM, AutoWriteLock *pAlock)
         {
             ComPtr<IParallelPort> parallelPort;
             hrc = pMachine->GetParallelPort(ulInstance, parallelPort.asOutParam());         H();
-            BOOL fEnabled = FALSE;
+            BOOL fEnabledParPort = FALSE;
             if (parallelPort)
             {
-                hrc = parallelPort->COMGETTER(Enabled)(&fEnabled);                          H();
+                hrc = parallelPort->COMGETTER(Enabled)(&fEnabledParPort);                   H();
             }
-            if (!fEnabled)
+            if (!fEnabledParPort)
                 continue;
 
             InsertConfigNode(pDev, Utf8StrFmt("%u", ulInstance).c_str(), &pInst);
@@ -2457,11 +2457,21 @@ int Console::configConstructorInner(PVM pVM, AutoWriteLock *pAlock)
          * crOpenGL
          */
         {
-            BOOL fEnabled = false;
-            hrc = pMachine->COMGETTER(Accelerate3DEnabled)(&fEnabled); H();
+            BOOL fEnabled3D = false;
+            hrc = pMachine->COMGETTER(Accelerate3DEnabled)(&fEnabled3D); H();
 
-            if (fEnabled)
+            if (fEnabled3D)
             {
+                BOOL fSupports3D = false;
+                hrc = host->COMGETTER(Acceleration3DAvailable)(&fSupports3D); H();
+                if (!fSupports3D)
+                    return VMSetError(pVM, VERR_NOT_AVAILABLE, RT_SRC_POS,
+                            N_("This VM was configured to use 3D acceleration. However, the "
+                               "3D support of the host is not working properly and the "
+                               "VM cannot be started. To fix this problem, either "
+                               "fix the host 3D support (update the host graphics driver?) "
+                               "or disable 3D acceleration in the VM settings"));
+
                 /* Load the service */
                 rc = pVMMDev->hgcmLoadService("VBoxSharedCrOpenGL", "VBoxSharedCrOpenGL");
                 if (RT_FAILURE(rc))
@@ -4527,15 +4537,15 @@ int Console::configNetwork(const char *pszDevice,
                         if (SUCCEEDED(hrc))
                         {
                             /* there is a DHCP server available for this network */
-                            BOOL fEnabled;
-                            hrc = dhcpServer->COMGETTER(Enabled)(&fEnabled);
+                            BOOL fEnabledDhcp;
+                            hrc = dhcpServer->COMGETTER(Enabled)(&fEnabledDhcp);
                             if (FAILED(hrc))
                             {
                                 LogRel(("DHCP svr: COMGETTER(Enabled) failed, hrc (%Rhrc)", hrc));
                                 H();
                             }
 
-                            if (fEnabled)
+                            if (fEnabledDhcp)
                                 hrc = dhcpServer->Start(networkName.raw(),
                                                         trunkName.raw(),
                                                         trunkType.raw());

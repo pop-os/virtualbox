@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions kernel module init script ($Revision: 75121 $)
+# Linux Additions kernel module init script ($Revision: 75651 $)
 #
 
 #
@@ -27,6 +27,10 @@
 # Default-Stop:   0 1 6
 # Description:    VirtualBox Linux Additions kernel modules
 ### END INIT INFO
+
+. /var/lib/VBoxGuestAdditions/config
+export BUILD_TYPE
+export USERNAME
 
 PATH=$PATH:/bin:/sbin:/usr/sbin
 PACKAGE=VBoxGuestAdditions
@@ -375,6 +379,11 @@ setup_modules()
     # don't stop the old modules here -- they might be in use
     cleanup_modules
     begin "Building the VirtualBox Guest Additions kernel modules"
+
+    chcon -t bin_t "$BUILDVBOXGUEST" > /dev/null 2>&1
+    chcon -t bin_t "$BUILDVBOXSF"    > /dev/null 2>&1
+    chcon -t bin_t "$BUILDVBOXVIDEO" > /dev/null 2>&1
+    chcon -t bin_t "$DODKMS"         > /dev/null 2>&1
 
     # Short cut out if a dkms build succeeds
     if $DODKMS install >> $LOG 2>&1; then

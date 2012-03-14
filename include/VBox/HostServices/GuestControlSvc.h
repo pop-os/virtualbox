@@ -76,12 +76,33 @@ enum eProcessStatus
 #define INPUT_FLAG_EOF              RT_BIT(0)
 
 /**
+ * Execution flags.
+ * Note: Has to match Main's ExecuteProcessFlag_* flags!
+ */
+#define EXECUTEPROCESSFLAG_NONE             0x0
+#define EXECUTEPROCESSFLAG_WAIT_START       RT_BIT(0)
+#define EXECUTEPROCESSFLAG_IGNORE_ORPHANED  RT_BIT(1)
+#define EXECUTEPROCESSFLAG_HIDDEN           RT_BIT(2)
+#define EXECUTEPROCESSFLAG_NO_PROFILE       RT_BIT(3)
+#define EXECUTEPROCESSFLAG_WAIT_STDOUT      RT_BIT(4)
+#define EXECUTEPROCESSFLAG_WAIT_STDERR      RT_BIT(5)
+
+/**
  * Pipe handle IDs used internally for referencing to
  * a certain pipe buffer.
  */
 #define OUTPUT_HANDLE_ID_STDOUT_DEPRECATED  0 /* Needed for VBox hosts < 4.1.0. */
 #define OUTPUT_HANDLE_ID_STDOUT             1
 #define OUTPUT_HANDLE_ID_STDERR             2
+
+/**
+ * Defines for guest process array lengths.
+ */
+#define GUESTPROCESS_MAX_CMD_LEN            _1K
+#define GUESTPROCESS_MAX_ARGS_LEN           _1K
+#define GUESTPROCESS_MAX_ENV_LEN            _64K
+#define GUESTPROCESS_MAX_USER_LEN           128
+#define GUESTPROCESS_MAX_PASSWORD_LEN       128
 
 /** @name Internal tools built into VBoxService which are used in order to
  *        accomplish tasks host<->guest.

@@ -72,7 +72,7 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>VirtualBox 리눅스 커널 드라이버(vboxdrv)가 불러와지지 않았거나 /dev/vobxdrv에 접근할 수 없습니다. 루트 권한으로 다음 명령어를 실행시켜서 커널 모듈을 다시 설정하십시오.&lt;br /&gt;&lt;br /&gt;&lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br /&gt;&lt;br /&gt;우분투, 페도라, 맨드리바 사용자들께서는 DKMS 패키지를 설치하는 것을 추천합니다. 이 패키지를 사용하면 리눅스 커널이 바뀌었을 때 자동으로 커널 모듈을 다시 컴파일합니다.</translation>
+        <translation type="obsolete">VirtualBox 리눅스 커널 드라이버(vboxdrv)가 불러와지지 않았거나 /dev/vobxdrv에 접근할 수 없습니다. 루트 권한으로 다음 명령어를 실행시켜서 커널 모듈을 다시 설정하십시오.&lt;br /&gt;&lt;br /&gt;&lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br /&gt;&lt;br /&gt;우분투, 페도라, 맨드리바 사용자들께서는 DKMS 패키지를 설치하는 것을 추천합니다. 이 패키지를 사용하면 리눅스 커널이 바뀌었을 때 자동으로 커널 모듈을 다시 컴파일합니다.</translation>
     </message>
     <message>
         <source>Make sure the kernel module has been loaded successfully.</source>
@@ -105,6 +105,10 @@
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>이 버전의 VirtualBox에서는 현재 설치되어 있는 커널 모듈을 사용할 수 없습니다. VirtualBox 설치 과정이 실패했을 수도 있습니다. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; 명령을 실행시키면 문제를 해결할 수도 있습니다. VirtualBox OSE 버전과 PUEL 버전을 같이 설치하지 마십시오..</translation>
+    </message>
+    <message>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5860,6 +5864,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have version %1 of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;You should download and install version %3 of this extension pack from Oracle!&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ok</source>
+        <comment>extension pack</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>

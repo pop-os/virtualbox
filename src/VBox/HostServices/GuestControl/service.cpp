@@ -26,7 +26,7 @@
  *           which wants to control something on the guest.
  * - Client: A client (e.g. VBoxService) running inside the guest OS waiting for
  *           new host commands to perform. There can be multiple clients connected
- *           to a service. A client is represented by its HGCM client ID.
+ *           to this service. A client is represented by its unique HGCM client ID.
  * - Context ID: An (almost) unique ID automatically generated on the host (Main API)
  *               to not only distinguish clients but individual requests. Because
  *               the host does not know anything about connected clients it needs
@@ -280,12 +280,13 @@ public:
 private:
     int paramBufferAllocate(PVBOXGUESTCTRPARAMBUFFER pBuf, uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
     void paramBufferFree(PVBOXGUESTCTRPARAMBUFFER pBuf);
-    int paramBufferAssign(PVBOXGUESTCTRPARAMBUFFER pBuf, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
+    int paramBufferAssign(VBOXHGCMSVCPARM paDstParms[], uint32_t cDstParms, PVBOXGUESTCTRPARAMBUFFER pSrcBuf);
     int prepareExecute(uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
     int clientConnect(uint32_t u32ClientID, void *pvClient);
     int clientDisconnect(uint32_t u32ClientID, void *pvClient);
-    int sendHostCmdToGuest(HostCmd *pCmd, VBOXHGCMCALLHANDLE callHandle, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
+    int assignHostCmdToGuest(HostCmd *pCmd, VBOXHGCMCALLHANDLE callHandle, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
     int retrieveNextHostCmd(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHandle, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
+    int cancelHostCmd(uint32_t u32ContextID);
     int cancelPendingWaits(uint32_t u32ClientID);
     int notifyHost(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
     int processHostCmd(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
@@ -406,57 +407,77 @@ void Service::paramBufferFree(PVBOXGUESTCTRPARAMBUFFER pBuf)
 }
 
 /**
- * Assigns data from a buffered HGCM request to the current HGCM request.
+ * Copies data from a buffered HGCM request to the current HGCM request.
  *
  * @return  IPRT status code.
- * @param   pBuf                    Parameter buffer to assign.
- * @param   cParms                  Number of parameters the HGCM request can handle.
- * @param   paParms                 Array of parameters of HGCM request to fill the data into.
+ * @param   paDstParms              Array of parameters of HGCM request to fill the data into.
+ * @param   cPDstarms               Number of parameters the HGCM request can handle.
+ * @param   pSrcBuf                 Parameter buffer to assign.
  */
-int Service::paramBufferAssign(PVBOXGUESTCTRPARAMBUFFER pBuf, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
+int Service::paramBufferAssign(VBOXHGCMSVCPARM paDstParms[], uint32_t cDstParms, PVBOXGUESTCTRPARAMBUFFER pSrcBuf)
 {
-    AssertPtr(pBuf);
+    AssertPtr(pSrcBuf);
     int rc = VINF_SUCCESS;
-    if (cParms != pBuf->uParmCount)
+    if (cDstParms != pSrcBuf->uParmCount)
     {
-        LogFlowFunc(("Parameter count does not match: %u (host) vs. %u (guest)\n",
-                     pBuf->uParmCount, cParms));
+        LogFlowFunc(("Parameter count does not match (got %u, expected %u)\n",
+                     cDstParms, pSrcBuf->uParmCount));
         rc = VERR_INVALID_PARAMETER;
     }
     else
     {
-        /** @todo Add check to verify if the HGCM request is the same *type* as the buffered one! */
-        for (uint32_t i = 0; i < pBuf->uParmCount; i++)
+        for (uint32_t i = 0; i < pSrcBuf->uParmCount; i++)
         {
-            paParms[i].type = pBuf->pParms[i].type;
-            switch (paParms[i].type)
+            if (paDstParms[i].type != pSrcBuf->pParms[i].type)
             {
-                case VBOX_HGCM_SVC_PARM_32BIT:
-                    paParms[i].u.uint32 = pBuf->pParms[i].u.uint32;
-                    break;
+                LogFlowFunc(("Parameter %u type mismatch (got %u, expected %u)\n",
+                             i, paDstParms[i].type, pSrcBuf->pParms[i].type));
+                rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                switch (pSrcBuf->pParms[i].type)
+                {
+                    case VBOX_HGCM_SVC_PARM_32BIT:
+                        paDstParms[i].u.uint32 = pSrcBuf->pParms[i].u.uint32;
+                        break;
 
-                case VBOX_HGCM_SVC_PARM_64BIT:
-                    /* Not supported yet. */
-                    break;
-
-                case VBOX_HGCM_SVC_PARM_PTR:
-                    if (paParms[i].u.pointer.size >= pBuf->pParms[i].u.pointer.size)
+                    case VBOX_HGCM_SVC_PARM_PTR:
                     {
-                        /* Only copy buffer if there actually is something to copy. */
-                        if (pBuf->pParms[i].u.pointer.size)
-                        {
-                            AssertPtr(pBuf->pParms[i].u.pointer.addr);
-                            memcpy(paParms[i].u.pointer.addr,
-                                   pBuf->pParms[i].u.pointer.addr,
-                                   pBuf->pParms[i].u.pointer.size);
-                        }
-                    }
-                    else
-                        rc = VERR_BUFFER_OVERFLOW;
-                    break;
+                        if (!pSrcBuf->pParms[i].u.pointer.size)
+                            continue; /* Only copy buffer if there actually is something to copy. */
 
-                default:
-                    break;
+                        if (!paDstParms[i].u.pointer.addr)
+                            rc = VERR_INVALID_PARAMETER;
+
+                        if (paDstParms[i].u.pointer.size < pSrcBuf->pParms[i].u.pointer.size)
+                            rc = VERR_BUFFER_OVERFLOW;
+
+                        if (RT_SUCCESS(rc))
+                        {
+                            memcpy(paDstParms[i].u.pointer.addr,
+                                   pSrcBuf->pParms[i].u.pointer.addr,
+                                   pSrcBuf->pParms[i].u.pointer.size);
+                        }
+
+                        break;
+                    }
+
+                    case VBOX_HGCM_SVC_PARM_64BIT:
+                        /* Fall through is intentional. */
+                    default:
+                        LogFlowFunc(("Parameter %u of type %u is not supported yet\n",
+                                     i, pSrcBuf->pParms[i].type));
+                        rc = VERR_NOT_SUPPORTED;
+                        break;
+                }
+            }
+
+            if (RT_FAILURE(rc))
+            {
+                LogFlowFunc(("Parameter %u invalid (rc=%Rrc), refusing\n",
+                             i, rc));
+                break;
             }
         }
     }
@@ -491,9 +512,16 @@ int Service::clientConnect(uint32_t u32ClientID, void *pvClient)
  */
 int Service::clientDisconnect(uint32_t u32ClientID, void *pvClient)
 {
-    LogFlowFunc(("Client (%ld) disconnected\n", u32ClientID));
+    LogFlowFunc(("Client (ID=%u, %u clients total) disconnected\n",
+                 u32ClientID, mNumClients));
     Assert(mNumClients > 0);
     mNumClients--;
+
+    /* If this was the last connected (guest) client we need to
+     * unblock all eventually queued up (waiting) host calls. */
+    bool fAllClientsDisconnected = mNumClients == 0;
+    if (fAllClientsDisconnected)
+        LogFlowFunc(("No connected clients left, notifying all queued up callbacks\n"));
 
     /*
      * Throw out all stale clients.
@@ -511,56 +539,87 @@ int Service::clientDisconnect(uint32_t u32ClientID, void *pvClient)
             itCall++;
     }
 
-    ClientContextsListIter it = mClientContextsList.begin();
-    while (   it != mClientContextsList.end()
+    ClientContextsListIter itContextList = mClientContextsList.begin();
+    while (   itContextList != mClientContextsList.end()
            && RT_SUCCESS(rc))
     {
-        if (it->mClientID == u32ClientID)
+        /*
+         * Unblock/call back all queued items of the specified client
+         * or for all items in case there is no waiting client around
+         * anymore.
+         */
+        if (   itContextList->mClientID == u32ClientID
+            || fAllClientsDisconnected)
         {
-            std::list< uint32_t >::iterator itContext = it->mContextList.begin();
-            while (   itContext != it->mContextList.end()
-                   && RT_SUCCESS(rc))
+            std::list< uint32_t >::iterator itContext = itContextList->mContextList.begin();
+            while (itContext != itContextList->mContextList.end())
             {
-                LogFlowFunc(("Notifying host context %u of disconnect ...\n", (*itContext)));
+                uint32_t uContextID = (*itContext);
 
                 /*
                  * Notify the host that clients with u32ClientID are no longer
                  * around and need to be cleaned up (canceling waits etc).
                  */
-                if (mpfnHostCallback)
+                LogFlowFunc(("Notifying CID=%u of disconnect ...\n", uContextID));
+                rc = cancelHostCmd(uContextID);
+                if (RT_FAILURE(rc))
                 {
-                    CALLBACKDATACLIENTDISCONNECTED data;
-                    data.hdr.u32Magic = CALLBACKDATAMAGIC_CLIENT_DISCONNECTED;
-                    data.hdr.u32ContextID = (*itContext);
-                    rc = mpfnHostCallback(mpvHostData, GUEST_DISCONNECTED, (void *)(&data), sizeof(data));
-                    if (RT_FAILURE(rc))
-                        LogFlowFunc(("Notification of host context %u failed with %Rrc\n", rc));
+                    LogFlowFunc(("Cancelling of CID=%u failed with rc=%Rrc\n",
+                                 uContextID, rc));
+                    /* Keep going. */
                 }
+
                 itContext++;
             }
-            it = mClientContextsList.erase(it);
+            itContextList = mClientContextsList.erase(itContextList);
         }
         else
-            it++;
+            itContextList++;
     }
+
+    if (fAllClientsDisconnected)
+    {
+        /*
+         * If all clients disconnected we also need to make sure that all buffered
+         * host commands need to be notified, because Main is waiting a notification
+         * via a (multi stage) progress object.
+         */
+        HostCmdListIter itHostCmd;
+        for (itHostCmd = mHostCmds.begin(); itHostCmd != mHostCmds.end(); itHostCmd++)
+        {
+            rc = cancelHostCmd(itHostCmd->mContextID);
+            if (RT_FAILURE(rc))
+            {
+                LogFlowFunc(("Cancelling of buffered CID=%u failed with rc=%Rrc\n",
+                             itHostCmd->mContextID, rc));
+                /* Keep going. */
+            }
+
+            paramBufferFree(&itHostCmd->mParmBuf);
+        }
+
+        mHostCmds.clear();
+    }
+
     return rc;
 }
 
 /**
- * Sends a specified host command to a client.
+ * Assigns a specified host command to a client.
  *
  * @return  IPRT status code.
- * @param   pCmd                    Host comamnd to send.
+ * @param   pCmd                    Host command to send.
  * @param   callHandle              Call handle of the client to send the command to.
  * @param   cParms                  Number of parameters.
  * @param   paParms                 Array of parameters.
  */
-int Service::sendHostCmdToGuest(HostCmd *pCmd, VBOXHGCMCALLHANDLE callHandle, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
+int Service::assignHostCmdToGuest(HostCmd *pCmd, VBOXHGCMCALLHANDLE callHandle, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
-    AssertPtr(pCmd);
+    AssertPtrReturn(pCmd, VERR_INVALID_POINTER);
     int rc;
 
-    /* Sufficient parameter space? */
+    /* Does the current host command need more parameter space which
+     * the client does not provide yet? */
     if (pCmd->mParmBuf.uParmCount > cParms)
     {
         paParms[0].setUInt32(pCmd->mParmBuf.uMsg);       /* Message ID */
@@ -575,8 +634,10 @@ int Service::sendHostCmdToGuest(HostCmd *pCmd, VBOXHGCMCALLHANDLE callHandle, ui
     }
     else
     {
-        rc = paramBufferAssign(&pCmd->mParmBuf, cParms, paParms);
+        rc = paramBufferAssign(paParms, cParms, &pCmd->mParmBuf);
     }
+
+    LogFlowFunc(("Returned with rc=%Rrc\n", rc));
     return rc;
 }
 
@@ -631,7 +692,7 @@ int Service::retrieveNextHostCmd(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHa
          * Get the next unassigned host command in the list.
          */
          HostCmd curCmd = mHostCmds.front();
-         rc = sendHostCmdToGuest(&curCmd, callHandle, cParms, paParms);
+         rc = assignHostCmdToGuest(&curCmd, callHandle, cParms, paParms);
          if (RT_SUCCESS(rc))
          {
              /* Remember which client processes which context (for
@@ -657,8 +718,8 @@ int Service::retrieveNextHostCmd(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHa
          }
          else
          {
-            /* Client did not understand the message or something else weird happened. Try again one
-             * more time and drop it if it didn't get handled then. */
+             /* Client did not understand the message or something else weird happened. Try again one
+              * more time and drop it if it didn't get handled then. */
              if (++curCmd.mTries > 1)
              {
                  paramBufferFree(&curCmd.mParmBuf);
@@ -667,6 +728,30 @@ int Service::retrieveNextHostCmd(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHa
          }
     }
     return rc;
+}
+
+/**
+ * Cancels a buffered host command to unblock waits on Main side
+ * (via (multi stage) progress objects.
+ *
+ * @return  IPRT status code.
+ * @param   u32ContextID                Context ID of host command to cancel.
+ */
+int Service::cancelHostCmd(uint32_t u32ContextID)
+{
+    AssertReturn(u32ContextID, VERR_INVALID_PARAMETER);
+    Assert(mpfnHostCallback);
+
+    LogFlowFunc(("Cancelling CID=%u ...\n", u32ContextID));
+
+    CALLBACKDATACLIENTDISCONNECTED data;
+    data.hdr.u32Magic = CALLBACKDATAMAGIC_CLIENT_DISCONNECTED;
+    data.hdr.u32ContextID = u32ContextID;
+
+    AssertPtr(mpfnHostCallback);
+    AssertPtr(mpvHostData);
+
+    return mpfnHostCallback(mpvHostData, GUEST_DISCONNECTED, (void *)(&data), sizeof(data));
 }
 
 /**
@@ -788,7 +873,8 @@ int Service::processHostCmd(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM
         return VERR_NOT_FOUND;
     HostCmd newCmd;
     int rc = paramBufferAllocate(&newCmd.mParmBuf, eFunction, cParms, paParms);
-    if (RT_SUCCESS(rc) && cParms)
+    if (   RT_SUCCESS(rc)
+        && cParms) /* Make sure we at least get one parameter (that is, the context ID). */
     {
         /*
          * Assume that the context ID *always* is the first parameter,
@@ -797,17 +883,22 @@ int Service::processHostCmd(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM
         newCmd.mParmBuf.pParms[0].getUInt32(&newCmd.mContextID);
         Assert(newCmd.mContextID > 0);
     }
+    else if (!cParms)
+        rc = VERR_INVALID_PARAMETER;
 
     if (RT_SUCCESS(rc))
     {
+        LogFlowFunc(("Handling host command CID = %u\n",
+                     newCmd.mContextID));
+
         bool fProcessed = false;
 
         /* Can we wake up a waiting client on guest? */
         if (!mClientWaiterList.empty())
         {
             ClientWaiter guest = mClientWaiterList.front();
-            rc = sendHostCmdToGuest(&newCmd,
-                                    guest.mHandle, guest.mNumParms, guest.mParms);
+            rc = assignHostCmdToGuest(&newCmd,
+                                      guest.mHandle, guest.mNumParms, guest.mParms);
 
             /* In any case the client did something, so wake up and remove from list. */
             AssertPtr(mpHelpers);
@@ -824,22 +915,23 @@ int Service::processHostCmd(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM
             }
             else /* If command was understood by the client, free and remove from host commands list. */
             {
+                LogFlowFunc(("Host command CID = %u processed with rc=%Rrc\n",
+                             newCmd.mContextID, rc));
+
                 paramBufferFree(&newCmd.mParmBuf);
-                fProcessed = true;
             }
         }
 
-        /* If not processed, buffer it ... */
         if (!fProcessed)
         {
+            LogFlowFunc(("Buffering host command CID = %u (rc=%Rrc)\n",
+                         newCmd.mContextID, rc));
+
             mHostCmds.push_back(newCmd);
-#if 0
-            /* Limit list size by deleting oldest element. */
-            if (mHostCmds.size() > 256) /** @todo Use a define! */
-                mHostCmds.pop_front();
-#endif
         }
     }
+
+    LogFlowFunc(("Returned with rc=%Rrc\n", rc));
     return rc;
 }
 
@@ -857,7 +949,7 @@ void Service::call(VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID,
                    VBOXHGCMSVCPARM paParms[])
 {
     int rc = VINF_SUCCESS;
-    LogFlowFunc(("u32ClientID = %d, fn = %d, cParms = %d, pparms = %d\n",
+    LogFlowFunc(("u32ClientID = %u, fn = %u, cParms = %u, paParms = 0x%p\n",
                  u32ClientID, eFunction, cParms, paParms));
     try
     {
@@ -912,7 +1004,7 @@ void Service::call(VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID,
 int Service::hostCall(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
     int rc = VERR_NOT_SUPPORTED;
-    LogFlowFunc(("fn = %d, cParms = %d, pparms = %d\n",
+    LogFlowFunc(("fn = %u, cParms = %u, paParms = 0x%p\n",
                  eFunction, cParms, paParms));
     try
     {
@@ -929,11 +1021,7 @@ int Service::hostCall(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paPar
 
 int Service::uninit()
 {
-    /* Free allocated buffered host commands. */
-    HostCmdListIter it;
-    for (it = mHostCmds.begin(); it != mHostCmds.end(); it++)
-        paramBufferFree(&it->mParmBuf);
-    mHostCmds.clear();
+    Assert(mHostCmds.empty());
 
     return VINF_SUCCESS;
 }

@@ -96,6 +96,7 @@ struct Medium::Data
           autoReset(false),
           hostDrive(false),
           implicit(false),
+          uOpenFlagsDef(VD_OPEN_FLAGS_IGNORE_FLUSH),
           numCreateDiffTasks(0),
           vdDiskIfaces(NULL),
           vdImageIfaces(NULL)
@@ -147,6 +148,9 @@ struct Medium::Data
     settings::StringsMap mapProperties;
 
     bool implicit : 1;
+
+    /** Default flags passed to VDOpen(). */
+    unsigned uOpenFlagsDef;
 
     uint32_t numCreateDiffTasks;
 
@@ -4906,7 +4910,7 @@ HRESULT Medium::fixParentUuidOfChildren(const MediaList &childrenToReparent)
                 vrc = VDOpen(hdd,
                              pMedium->m->strFormat.c_str(),
                              pMedium->m->strLocationFull.c_str(),
-                             VD_OPEN_FLAGS_READONLY,
+                             VD_OPEN_FLAGS_READONLY | m->uOpenFlagsDef,
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
                     throw vrc;
@@ -4920,7 +4924,7 @@ HRESULT Medium::fixParentUuidOfChildren(const MediaList &childrenToReparent)
                 vrc = VDOpen(hdd,
                              (*it)->m->strFormat.c_str(),
                              (*it)->m->strLocationFull.c_str(),
-                             VD_OPEN_FLAGS_INFO,
+                             VD_OPEN_FLAGS_INFO | m->uOpenFlagsDef,
                              (*it)->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
                     throw vrc;
@@ -5371,7 +5375,7 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
             vrc = VDOpen(hdd,
                          format.c_str(),
                          location.c_str(),
-                         uOpenFlags,
+                         uOpenFlags | m->uOpenFlagsDef,
                          m->vdImageIfaces);
             if (RT_FAILURE(vrc))
             {
@@ -5622,7 +5626,7 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
                 vrc = VDOpen(hdd,
                              format.c_str(),
                              location.c_str(),
-                             uOpenFlags & ~VD_OPEN_FLAGS_READONLY,
+                             (uOpenFlags & ~VD_OPEN_FLAGS_READONLY) | m->uOpenFlagsDef,
                              m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
                     throw S_OK;
@@ -6435,7 +6439,7 @@ HRESULT Medium::taskCreateBaseHandler(Medium::CreateBaseTask &task)
                                &geo,
                                &geo,
                                id.raw(),
-                               VD_OPEN_FLAGS_NORMAL,
+                               VD_OPEN_FLAGS_NORMAL | m->uOpenFlagsDef,
                                m->vdImageIfaces,
                                task.mVDOperationIfaces);
             if (RT_FAILURE(vrc))
@@ -6574,7 +6578,7 @@ HRESULT Medium::taskCreateDiffHandler(Medium::CreateDiffTask &task)
                 vrc = VDOpen(hdd,
                              pMedium->m->strFormat.c_str(),
                              pMedium->m->strLocationFull.c_str(),
-                             VD_OPEN_FLAGS_READONLY,
+                             VD_OPEN_FLAGS_READONLY | m->uOpenFlagsDef,
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
                     throw setError(VBOX_E_FILE_ERROR,
@@ -6598,7 +6602,7 @@ HRESULT Medium::taskCreateDiffHandler(Medium::CreateDiffTask &task)
                                NULL,
                                targetId.raw(),
                                id.raw(),
-                               VD_OPEN_FLAGS_NORMAL,
+                               VD_OPEN_FLAGS_NORMAL | m->uOpenFlagsDef,
                                pTarget->m->vdImageIfaces,
                                task.mVDOperationIfaces);
             if (RT_FAILURE(vrc))
@@ -6778,7 +6782,7 @@ HRESULT Medium::taskMergeHandler(Medium::MergeTask &task)
                 vrc = VDOpen(hdd,
                              pMedium->m->strFormat.c_str(),
                              pMedium->m->strLocationFull.c_str(),
-                             uOpenFlags,
+                             uOpenFlags | m->uOpenFlagsDef,
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
                     throw vrc;
@@ -6810,7 +6814,7 @@ HRESULT Medium::taskMergeHandler(Medium::MergeTask &task)
                         vrc = VDOpen(hdd,
                                      (*it)->m->strFormat.c_str(),
                                      (*it)->m->strLocationFull.c_str(),
-                                     VD_OPEN_FLAGS_INFO,
+                                     VD_OPEN_FLAGS_INFO | m->uOpenFlagsDef,
                                      (*it)->m->vdImageIfaces);
                         if (RT_FAILURE(vrc))
                             throw vrc;
@@ -7064,7 +7068,7 @@ HRESULT Medium::taskCloneHandler(Medium::CloneTask &task)
                 vrc = VDOpen(hdd,
                              pMedium->m->strFormat.c_str(),
                              pMedium->m->strLocationFull.c_str(),
-                             VD_OPEN_FLAGS_READONLY,
+                             VD_OPEN_FLAGS_READONLY | m->uOpenFlagsDef,
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
                     throw setError(VBOX_E_FILE_ERROR,
@@ -7133,7 +7137,7 @@ HRESULT Medium::taskCloneHandler(Medium::CloneTask &task)
                     vrc = VDOpen(targetHdd,
                                  pMedium->m->strFormat.c_str(),
                                  pMedium->m->strLocationFull.c_str(),
-                                 uOpenFlags,
+                                 uOpenFlags | m->uOpenFlagsDef,
                                  pMedium->m->vdImageIfaces);
                     if (RT_FAILURE(vrc))
                         throw setError(VBOX_E_FILE_ERROR,
@@ -7154,7 +7158,7 @@ HRESULT Medium::taskCloneHandler(Medium::CloneTask &task)
                                  0 /* cbSize */,
                                  task.mVariant & ~MediumVariant_NoCreateDir,
                                  targetId.raw(),
-                                 VD_OPEN_FLAGS_NORMAL,
+                                 VD_OPEN_FLAGS_NORMAL | m->uOpenFlagsDef,
                                  NULL /* pVDIfsOperation */,
                                  pTarget->m->vdImageIfaces,
                                  task.mVDOperationIfaces);
@@ -7172,7 +7176,7 @@ HRESULT Medium::taskCloneHandler(Medium::CloneTask &task)
                                    task.midxDstImageSame,
                                    task.mVariant & ~MediumVariant_NoCreateDir,
                                    targetId.raw(),
-                                   VD_OPEN_FLAGS_NORMAL,
+                                   VD_OPEN_FLAGS_NORMAL | m->uOpenFlagsDef,
                                    NULL /* pVDIfsOperation */,
                                    pTarget->m->vdImageIfaces,
                                    task.mVDOperationIfaces);
@@ -7320,7 +7324,7 @@ HRESULT Medium::taskDeleteHandler(Medium::DeleteTask &task)
             vrc = VDOpen(hdd,
                          format.c_str(),
                          location.c_str(),
-                         VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO,
+                         VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO | m->uOpenFlagsDef,
                          m->vdImageIfaces);
             if (RT_SUCCESS(vrc))
                 vrc = VDClose(hdd, true /* fDelete */);
@@ -7418,7 +7422,7 @@ HRESULT Medium::taskResetHandler(Medium::ResetTask &task)
                 vrc = VDOpen(hdd,
                              pMedium->m->strFormat.c_str(),
                              pMedium->m->strLocationFull.c_str(),
-                             VD_OPEN_FLAGS_READONLY,
+                             VD_OPEN_FLAGS_READONLY | m->uOpenFlagsDef,
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
                     throw setError(VBOX_E_FILE_ERROR,
@@ -7442,7 +7446,7 @@ HRESULT Medium::taskResetHandler(Medium::ResetTask &task)
             vrc = VDOpen(hdd,
                          parentFormat.c_str(),
                          parentLocation.c_str(),
-                         VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO,
+                         VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO | m->uOpenFlagsDef,
                          m->vdImageIfaces);
             if (RT_FAILURE(vrc))
                 throw setError(VBOX_E_FILE_ERROR,
@@ -7548,7 +7552,7 @@ HRESULT Medium::taskCompactHandler(Medium::CompactTask &task)
                 vrc = VDOpen(hdd,
                              pMedium->m->strFormat.c_str(),
                              pMedium->m->strLocationFull.c_str(),
-                             (it == mediumListLast) ? VD_OPEN_FLAGS_NORMAL : VD_OPEN_FLAGS_READONLY,
+                             m->uOpenFlagsDef | (it == mediumListLast) ? VD_OPEN_FLAGS_NORMAL : VD_OPEN_FLAGS_READONLY,
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
                     throw setError(VBOX_E_FILE_ERROR,
@@ -7645,7 +7649,7 @@ HRESULT Medium::taskResizeHandler(Medium::ResizeTask &task)
                 vrc = VDOpen(hdd,
                              pMedium->m->strFormat.c_str(),
                              pMedium->m->strLocationFull.c_str(),
-                             (it == mediumListLast) ? VD_OPEN_FLAGS_NORMAL : VD_OPEN_FLAGS_READONLY,
+                             m->uOpenFlagsDef | (it == mediumListLast) ? VD_OPEN_FLAGS_NORMAL : VD_OPEN_FLAGS_READONLY,
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
                     throw setError(VBOX_E_FILE_ERROR,
@@ -7739,7 +7743,7 @@ HRESULT Medium::taskExportHandler(Medium::ExportTask &task)
                 vrc = VDOpen(hdd,
                              pMedium->m->strFormat.c_str(),
                              pMedium->m->strLocationFull.c_str(),
-                             VD_OPEN_FLAGS_READONLY,
+                             VD_OPEN_FLAGS_READONLY | m->uOpenFlagsDef,
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
                     throw setError(VBOX_E_FILE_ERROR,
@@ -7862,7 +7866,7 @@ HRESULT Medium::taskImportHandler(Medium::ImportTask &task)
             vrc = VDOpen(hdd,
                          task.mFormat->getId().c_str(),
                          task.mFilename.c_str(),
-                         VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_SEQUENTIAL,
+                         VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_SEQUENTIAL | m->uOpenFlagsDef,
                          task.mVDImageIfaces);
             if (RT_FAILURE(vrc))
                 throw setError(VBOX_E_FILE_ERROR,
@@ -7929,7 +7933,7 @@ HRESULT Medium::taskImportHandler(Medium::ImportTask &task)
                     vrc = VDOpen(targetHdd,
                                  pMedium->m->strFormat.c_str(),
                                  pMedium->m->strLocationFull.c_str(),
-                                 uOpenFlags,
+                                 uOpenFlags | m->uOpenFlagsDef,
                                  pMedium->m->vdImageIfaces);
                     if (RT_FAILURE(vrc))
                         throw setError(VBOX_E_FILE_ERROR,
