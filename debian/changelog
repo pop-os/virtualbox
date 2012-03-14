@@ -1,6 +1,7 @@
 virtualbox (4.1.10-dfsg-1) UNRELEASED; urgency=low
 
   * Build-depend on libpng-dev instead of libpng12-dev. (Closes: #662537)
+  * Refresh 18-system-xorg.patch.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 05 Mar 2012 14:54:53 +0100
 

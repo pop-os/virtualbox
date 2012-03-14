@@ -212,8 +212,16 @@ diff --git a/src/VBox/Additions/x11/vboxvideo/Makefile.kmk b/src/VBox/Additions/
  vboxvideo_drv_111_TEMPLATE = VBOXGUESTR3XORGMOD
  vboxvideo_drv_111_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
  vboxvideo_drv_111_DEFS := $(vboxvideo_drv_15_DEFS)
+@@ -347,7 +336,6 @@ vboxvideo_drv_110_SOURCES := $(vboxvideo_drv_15_SOURCES)
+ #
+ # vboxvideo_drv_112
+ #
+-DLLS += vboxvideo_drv_112
+ vboxvideo_drv_112_TEMPLATE = VBOXGUESTR3XORGMOD
+ vboxvideo_drv_112_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
+ vboxvideo_drv_112_DEFS := $(vboxvideo_drv_15_DEFS)
 @@ -317,6 +306,23 @@ vboxvideo_drv_111_INCS = \
- vboxvideo_drv_111_SOURCES := $(vboxvideo_drv_15_SOURCES)
+ vboxvideo_drv_112_SOURCES := $(vboxvideo_drv_15_SOURCES)
  
  
 +vboxvideo_drv_$(XSERVER_VERSION)_NAME := vboxvideo_drv
