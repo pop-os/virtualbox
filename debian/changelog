@@ -4,6 +4,8 @@ virtualbox (4.1.10-dfsg-1) UNRELEASED; urgency=low
   * Refresh 18-system-xorg.patch.
   * Link against libgsoapssl++ instead of libgsoap++.
     - Update 33-link-static-libgsoap.patch
+  * Enable PAE when creating Ubuntu VMs as it's required by the i386 kernel.
+    - Add 36-ubuntu-pae.patch
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 05 Mar 2012 14:54:53 +0100
 

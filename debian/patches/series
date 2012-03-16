@@ -14,3 +14,4 @@
 32-disable-guest-version-check.patch
 33-link-static-libgsoap.patch
 35-libvdeplug-soname.patch
+36-ubuntu-pae.patch

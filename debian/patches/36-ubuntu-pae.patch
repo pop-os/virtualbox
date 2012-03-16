@@ -1,0 +1,16 @@
+Description: Enable PAE when creating Ubuntu VMs.
+Author: Felix Geyer <debfx-pkg@fobos.de>
+Bug: https://www.virtualbox.org/ticket/10236
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/907390
+
+--- a/src/VBox/Main/src-all/Global.cpp
++++ b/src/VBox/Main/src-all/Global.cpp
+@@ -196,7 +196,7 @@ const Global::OSType Global::sOSTypes[SchemaDefs::OSTypeId_COUNT] =
+        384,  12,  8 * _1G64, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
+         StorageControllerType_IntelAhci, StorageBus_SATA, ChipsetType_PIIX3, AudioControllerType_AC97  },
+     { "Linux",   "Linux",             SchemaDefs_OSTypeId_Ubuntu,          "Ubuntu",
+-      VBOXOSTYPE_Ubuntu,          VBOXOSHINT_RTCUTC | VBOXOSHINT_USBTABLET,
++      VBOXOSTYPE_Ubuntu,          VBOXOSHINT_RTCUTC | VBOXOSHINT_PAE | VBOXOSHINT_USBTABLET,
+        512,  12,  8 * _1G64, NetworkAdapterType_I82540EM, 0, StorageControllerType_PIIX4, StorageBus_IDE,
+         StorageControllerType_IntelAhci, StorageBus_SATA, ChipsetType_PIIX3, AudioControllerType_AC97  },
+     { "Linux",   "Linux",             SchemaDefs_OSTypeId_Ubuntu_64,       "Ubuntu (64 bit)",
