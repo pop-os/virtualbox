@@ -1,4 +1,4 @@
-Description: Link against the static gsoap++ library.
+Description: Link against the static gsoapssl++ library.
 Author: Felix Geyer <debfx-pkg@fobos.de>
 Bug-Debian: http://bugs.debian.org/632368
 
@@ -14,8 +14,8 @@ diff --git a/configure b/configure
 -          cnf_append "VBOX_PATH_GSOAP_IMPORT" "$GSOAP_IMPORT"
 -          if [ -f "$GSOAP/share/gsoap/stdsoap2.cpp" ]; then
 -            cnf_append "VBOX_GSOAP_CXX_SOURCES" "$GSOAP/share/gsoap/stdsoap2.cpp"
-+          GSOAP_LIBDIR=`pkg-config --variable=libdir gsoap++`
-+          if [ $? -eq 0 ] && [ -f "$GSOAP_LIBDIR/libgsoap++.a" ]; then
++          GSOAP_LIBDIR=`pkg-config --variable=libdir gsoapssl++`
++          if [ $? -eq 0 ] && [ -f "$GSOAP_LIBDIR/libgsoapssl++.a" ]; then
 +            cnf_append "VBOX_GSOAP_INSTALLED"   "1"
 +            cnf_append "VBOX_PATH_GSOAP"        "$GSOAP"
 +            cnf_append "VBOX_PATH_GSOAP_IMPORT" "$GSOAP_IMPORT"
@@ -24,11 +24,11 @@ diff --git a/configure b/configure
 +            else
 +              cnf_append "VBOX_GSOAP_CXX_SOURCES" ""
 +            fi
-+            cnf_append "VBOX_GSOAP_CXX_LIBS"    "$GSOAP_LIBDIR/libgsoap++.a"
++            cnf_append "VBOX_GSOAP_CXX_LIBS"    "$GSOAP_LIBDIR/libgsoapssl++.a"
 +            log_success "found"
            else
 -            cnf_append "VBOX_GSOAP_CXX_SOURCES" ""
-+            log_failure "libgsoap++.a not found -- disabling webservice"
++            log_failure "libgsoapssl++.a not found -- disabling webservice"
 +            cnf_append "VBOX_WITH_WEBSERVICES" ""
            fi
 -          cnf_append "VBOX_GSOAP_CXX_LIBS"    "libgsoap++"
