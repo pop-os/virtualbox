@@ -7,6 +7,7 @@ virtualbox (4.1.10-dfsg-1) UNRELEASED; urgency=low
     - Update 33-link-static-libgsoap.patch
   * Enable PAE when creating Ubuntu VMs as it's required by the i386 kernel.
     - Add 36-ubuntu-pae.patch
+  * Bump Standards-Version to 3.9.3, no changes needed.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 05 Mar 2012 14:54:53 +0100
 
