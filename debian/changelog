@@ -1,3 +1,11 @@
+virtualbox (4.1.10-dfsg-2) UNRELEASED; urgency=low
+
+  * Make the vboxpci module buildable for a i386 kernel when running amd64.
+    (Closes: #664730)
+    - Update 12-make-module.patch
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 01 Apr 2012 23:23:16 +0200
+
 virtualbox (4.1.10-dfsg-1) unstable; urgency=low
 
   * New upstream release.

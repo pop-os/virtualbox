@@ -1,10 +1,118 @@
 Description: Fix ARCH setting in modules Makefiles.
 Author: Michael Meskes <meskes@debian.org>
 
-diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Installer/linux/Makefile.include.header virtualbox-ose-3.0.8-dfsg/src/VBox/Installer/linux/Makefile.include.header
---- virtualbox-ose-3.0.8-dfsg~/src/VBox/Installer/linux/Makefile.include.header	2009-10-07 11:27:13.000000000 +0200
-+++ virtualbox-ose-3.0.8-dfsg/src/VBox/Installer/linux/Makefile.include.header	2009-10-07 13:43:30.705472033 +0200
-@@ -33,9 +33,21 @@
+diff --git a/src/VBox/HostDrivers/Support/linux/Makefile b/src/VBox/HostDrivers/Support/linux/Makefile
+--- a/src/VBox/HostDrivers/Support/linux/Makefile
++++ b/src/VBox/HostDrivers/Support/linux/Makefile
+@@ -44,9 +44,21 @@ ifeq ($(BUILD_TARGET_ARCH),)
+   BUILD_TARGET_ARCH := amd64
+  else
+   ifeq ($(ARCH),i386)
+-   BUILD_TARGET_ARCH := x86
++   ifeq ($(CONFIG_X86_32),y)
++     BUILD_TARGET_ARCH := x86
++   else
++     BUILD_TARGET_ARCH := amd64
++   endif
+   else
+-   BUILD_TARGET_ARCH := $(BUILD_TARGET_ARCH_DEF)
++   ifeq ($(ARCH),x86)
++     ifeq ($(CONFIG_X86_32),y)
++       BUILD_TARGET_ARCH := x86
++     else
++       BUILD_TARGET_ARCH := amd64
++     endif
++   else
++     BUILD_TARGET_ARCH := $(BUILD_TARGET_ARCH_DEF)
++   endif
+   endif
+  endif
+ else
+diff --git a/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile b/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile
+--- a/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile
++++ b/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile
+@@ -35,9 +35,21 @@ ifeq ($(BUILD_TARGET_ARCH),)
+   BUILD_TARGET_ARCH := amd64
+  else
+   ifeq ($(ARCH),i386)
+-   BUILD_TARGET_ARCH := x86
++   ifeq ($(CONFIG_X86_32),y)
++     BUILD_TARGET_ARCH := x86
++   else
++     BUILD_TARGET_ARCH := amd64
++   endif
+   else
+-   BUILD_TARGET_ARCH := $(BUILD_TARGET_ARCH_DEF)
++   ifeq ($(ARCH),x86)
++     ifeq ($(CONFIG_X86_32),y)
++       BUILD_TARGET_ARCH := x86
++     else
++       BUILD_TARGET_ARCH := amd64
++     endif
++   else
++     BUILD_TARGET_ARCH := $(BUILD_TARGET_ARCH_DEF)
++   endif
+   endif
+  endif
+ else
+diff --git a/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile b/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile
+--- a/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile
++++ b/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile
+@@ -35,9 +35,21 @@ ifeq ($(BUILD_TARGET_ARCH),)
+   BUILD_TARGET_ARCH := amd64
+  else
+   ifeq ($(ARCH),i386)
+-   BUILD_TARGET_ARCH := x86
++   ifeq ($(CONFIG_X86_32),y)
++     BUILD_TARGET_ARCH := x86
++   else
++     BUILD_TARGET_ARCH := amd64
++   endif
+   else
+-   BUILD_TARGET_ARCH := $(BUILD_TARGET_ARCH_DEF)
++   ifeq ($(ARCH),x86)
++     ifeq ($(CONFIG_X86_32),y)
++       BUILD_TARGET_ARCH := x86
++     else
++       BUILD_TARGET_ARCH := amd64
++     endif
++   else
++     BUILD_TARGET_ARCH := $(BUILD_TARGET_ARCH_DEF)
++   endif
+   endif
+  endif
+ else
+diff --git a/src/VBox/HostDrivers/VBoxPci/linux/Makefile b/src/VBox/HostDrivers/VBoxPci/linux/Makefile
+--- a/src/VBox/HostDrivers/VBoxPci/linux/Makefile
++++ b/src/VBox/HostDrivers/VBoxPci/linux/Makefile
+@@ -35,9 +35,21 @@ ifeq ($(BUILD_TARGET_ARCH),)
+   BUILD_TARGET_ARCH := amd64
+  else
+   ifeq ($(ARCH),i386)
+-   BUILD_TARGET_ARCH := x86
++   ifeq ($(CONFIG_X86_32),y)
++     BUILD_TARGET_ARCH := x86
++   else
++     BUILD_TARGET_ARCH := amd64
++   endif
+   else
+-   BUILD_TARGET_ARCH := $(BUILD_TARGET_ARCH_DEF)
++   ifeq ($(ARCH),x86)
++     ifeq ($(CONFIG_X86_32),y)
++       BUILD_TARGET_ARCH := x86
++     else
++       BUILD_TARGET_ARCH := amd64
++     endif
++   else
++     BUILD_TARGET_ARCH := $(BUILD_TARGET_ARCH_DEF)
++   endif
+   endif
+  endif
+ else
+diff --git a/src/VBox/Installer/linux/Makefile.include.header b/src/VBox/Installer/linux/Makefile.include.header
+--- a/src/VBox/Installer/linux/Makefile.include.header
++++ b/src/VBox/Installer/linux/Makefile.include.header
+@@ -54,9 +54,21 @@ ifeq ($(BUILD_TARGET_ARCH),)
    BUILD_TARGET_ARCH := amd64
   else
    ifeq ($(ARCH),i386)
@@ -25,87 +133,6 @@ diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Installer/linux/Makefile.include
 +    else
 +      BUILD_TARGET_ARCH := $(BUILD_TARGET_ARCH_DEF)
 +    endif
-   endif
-  endif
- else
-diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/HostDrivers/Support/linux/Makefile virtualbox-ose-3.0.8-dfsg/src/VBox/HostDrivers/Support/linux/Makefile
---- virtualbox-ose-3.0.8-dfsg~/src/VBox/HostDrivers/Support/linux/Makefile	2009-10-07 11:27:14.000000000 +0200
-+++ virtualbox-ose-3.0.8-dfsg/src/VBox/HostDrivers/Support/linux/Makefile	2009-10-07 13:43:30.705472033 +0200
-@@ -44,9 +44,21 @@
-   BUILD_TARGET_ARCH := amd64
-  else
-   ifeq ($(ARCH),i386)
--   BUILD_TARGET_ARCH := x86
-+   ifeq ($(CONFIG_X86_32),y)
-+     BUILD_TARGET_ARCH := x86
-+   else
-+     BUILD_TARGET_ARCH := amd64
-+   endif
-   else
--   BUILD_TARGET_ARCH := $(BUILD_TARGET_ARCH_DEF)
-+   ifeq ($(ARCH),x86)
-+     ifeq ($(CONFIG_X86_32),y)
-+       BUILD_TARGET_ARCH := x86
-+     else
-+       BUILD_TARGET_ARCH := amd64
-+     endif
-+   else
-+     BUILD_TARGET_ARCH := $(BUILD_TARGET_ARCH_DEF)
-+   endif
-   endif
-  endif
- else
-diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile virtualbox-ose-3.0.8-dfsg/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile
---- virtualbox-ose-3.0.8-dfsg~/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile	2009-10-07 11:27:14.000000000 +0200
-+++ virtualbox-ose-3.0.8-dfsg/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile	2009-10-07 13:43:30.705472033 +0200
-@@ -35,9 +35,21 @@
-   BUILD_TARGET_ARCH := amd64
-  else
-   ifeq ($(ARCH),i386)
--   BUILD_TARGET_ARCH := x86
-+   ifeq ($(CONFIG_X86_32),y)
-+     BUILD_TARGET_ARCH := x86
-+   else
-+     BUILD_TARGET_ARCH := amd64
-+   endif
-   else
--   BUILD_TARGET_ARCH := $(BUILD_TARGET_ARCH_DEF)
-+   ifeq ($(ARCH),x86)
-+     ifeq ($(CONFIG_X86_32),y)
-+       BUILD_TARGET_ARCH := x86
-+     else
-+       BUILD_TARGET_ARCH := amd64
-+     endif
-+   else
-+     BUILD_TARGET_ARCH := $(BUILD_TARGET_ARCH_DEF)
-+   endif
-   endif
-  endif
- else
-diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile virtualbox-ose-3.0.8-dfsg/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile
---- virtualbox-ose-3.0.8-dfsg~/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile	2009-10-07 11:27:14.000000000 +0200
-+++ virtualbox-ose-3.0.8-dfsg/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile	2009-10-07 13:43:30.705472033 +0200
-@@ -35,9 +35,21 @@
-   BUILD_TARGET_ARCH := amd64
-  else
-   ifeq ($(ARCH),i386)
--   BUILD_TARGET_ARCH := x86
-+   ifeq ($(CONFIG_X86_32),y)
-+     BUILD_TARGET_ARCH := x86
-+   else
-+     BUILD_TARGET_ARCH := amd64
-+   endif
-   else
--   BUILD_TARGET_ARCH := $(BUILD_TARGET_ARCH_DEF)
-+   ifeq ($(ARCH),x86)
-+     ifeq ($(CONFIG_X86_32),y)
-+       BUILD_TARGET_ARCH := x86
-+     else
-+       BUILD_TARGET_ARCH := amd64
-+     endif
-+   else
-+     BUILD_TARGET_ARCH := $(BUILD_TARGET_ARCH_DEF)
-+   endif
    endif
   endif
  else
