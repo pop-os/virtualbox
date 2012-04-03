@@ -4,8 +4,6 @@ virtualbox (4.1.12-dfsg-1) UNRELEASED; urgency=low
   * Make the vboxpci module buildable for a i386 kernel when running amd64.
     (Closes: #664730)
     - Update 12-make-module.patch
-  * Fix Guru Mediation errors VERR_NOT_SUPPORTED and VERR_RAW_MODE_INVALID_SMP.
-    - Add 37-fix-guru-mediation.patch, cherry-picked from upstream
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 01 Apr 2012 23:23:16 +0200
 
