@@ -1,6 +1,78 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.1.12 (2012-04-02)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed <emphasis>VERR_NOT_SUPPORTED</emphasis> and
+          <emphasis>VERR_RAW_MODE_INVALID_SMP</emphasis> guru meditation
+          due to an invalid reschedule to raw mode (bug #10370)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed <emphasis>PDMCritSectLeave</emphasis> guru meditation
+          under rare circumstances with SMP guests</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: proper <emphasis>Math Fault</emphasis> handling with certain
+          legacy guests (bug #9042)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed a socket leak under certain conditions</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: better sanity check against reading beyond end-of-file</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed a crash in the NUL audio backend (bug #10374;
+          4.1.10 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>HGCM: fixed a crash during savestate under rare circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC: several locking fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: return the correct error code if
+          <emphasis>controlvm savestate</emphasis> failed (bug #10134)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Additions: VBoxService should not crash on exit (bug #10326;
+          4.1.10 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: set the correct time stamp when a file is
+          closed (bug #6473)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: better help if the DirectX backups are not
+          properly installed</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: Linux 3.4-rc1 compile fixes</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 4.1.10 (2012-03-13)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -110,7 +182,7 @@
 
       <listitem>
         <para>Solaris hosts: fixed debug kernel panics while opening module CTF data
-          (#9591)</para>
+          (bug #9651)</para>
       </listitem>
 
       <listitem>

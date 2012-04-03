@@ -155,7 +155,7 @@
     </sect2>
 
     <sect2>
-      <title id="debugger">The built-in VM debugger</title>
+      <title id="ts_debugger">The built-in VM debugger</title>
 
       <para>VirtualBox includes a built-in VM debugger, which advanced users
       may find useful. This debugger allows for examining and, to some extent,
@@ -305,7 +305,7 @@
 
           <listitem>
             <para><computeroutput>writecore</computeroutput> -- writes a VM
-            core file to disk, refer <xref linkend="guestcoreformat" /></para>
+            core file to disk, refer <xref linkend="ts_guest-core-format" /></para>
           </listitem>
         </itemizedlist></para>
 
@@ -405,7 +405,7 @@
       provided can be invaluable.</para>
     </sect2>
 
-    <sect2 id="guestcoreformat">
+    <sect2 id="ts_guest-core-format">
       <title>VM core format</title>
 
       <para>VirtualBox uses the 64-bit ELF format for its VM core files
@@ -456,7 +456,7 @@
   <sect1>
     <title>General</title>
 
-    <sect2 id="configPeriodicFlush">
+    <sect2 id="ts_config-periodic-flush">
       <title>Guest shows IDE/SATA errors for file-based images on slow host
       file system</title>
 
@@ -542,13 +542,13 @@
       29.</para>
 
       <para>Note that this doesn't affect the flushes performed according to
-      the configuration described in <xref linkend="configPeriodicFlush"
+      the configuration described in <xref linkend="ts_config-periodic-flush"
       xrefstyle="template: %n" />. Restoring the default of ignoring flush
       commands is possible by setting the value to 1 or by removing the
       key.</para>
     </sect2>
 
-    <sect2 id="hostPowerMgmt">
+    <sect2 id="ts_host-powermgmt">
       <title>Poor performance caused by host power management</title>
 
       <para>On some hardware platforms and operating systems, virtualization
@@ -568,7 +568,7 @@
       considered.</para>
     </sect2>
 
-    <sect2 id="gui2D_grayedout">
+    <sect2 id="ts_gui-2d-grayed-out">
       <title>GUI: 2D Video Acceleration option is grayed out</title>
 
       <para>To use 2D Video Acceleration within VirtualBox, your host's video
@@ -744,15 +744,15 @@
     <sect2>
       <title>USB tablet coordinates wrong in Windows 98 guests</title>
 
-      <para>If a Windows 98 VM is configured to use the emulated USB tablet 
-      (absolute pointing device), the coordinate translation may be incorrect 
-      and the pointer is restricted to the upper left quarter of the guest's 
+      <para>If a Windows 98 VM is configured to use the emulated USB tablet
+      (absolute pointing device), the coordinate translation may be incorrect
+      and the pointer is restricted to the upper left quarter of the guest's
       screen.
       </para>
 
-      <para>The USB HID (Human Interface Device) drivers in Windows 98 are very 
-          old and do not handle tablets the same way all more recent operating 
-          systems do (Windows 2000 and later, Mac OS X, Solaris). To 
+      <para>The USB HID (Human Interface Device) drivers in Windows 98 are very
+          old and do not handle tablets the same way all more recent operating
+          systems do (Windows 2000 and later, Mac OS X, Solaris). To
           work around the problem, issue the following command:
       </para>
 
@@ -780,11 +780,42 @@
       </para>
     </sect2>
 
-    <sect2>
+    <sect2 id="ts_d3d8-d3d9-restore">
       <title>Restoring d3d8.dll and d3d9.dll</title>
 
-      <para>Extracting d3d8 and d3d9.dll from Windows XP installation CD
-      </para>
+      <para>VirtualBox Guest Additions for Windows prior to 4.1.8 did not properly
+          back up the original d3d8.dll and d3d9.dll system files when selecting
+          and installing the experimental Direct3D support. This process replaces
+          both system files with files from the VirtualBox Guest Additions so that
+          Direct3D calls can be handled correctly. Although this issue was fixed
+          with VirtualBox 4.1.8, there is no way the Windows Guest Additions
+          installer can repair these files.</para>
+
+      <para>Corruption of these files has no implications in case 3D acceleration
+          is enabled and basic Direct3D support is installed, that is, without WDDM
+          (on Windows Vista or higher) or on older Windows systems like Windows XP.
+          With the basic Direct3D support all Direct3D 8.0 and Direct3D 9.0
+          applications will utilize VirtualBox Direct3D files directly and thus
+          will run as expected.</para>
+
+      <para>For WDDM Direct3D support however, the originally shipped d3d8.dll and
+          d3d9.dll files are required in order to run Direct3D 8.0
+          and Direct3D 9.0 applications. As a result of the above mentioned system
+          files corruption these applications will not work anymore. See below for
+          a step-by-step guide for restoring the original d3d8.dll and d3d9.dll
+          system files in case the VirtualBox Guest Additions installer warned
+          about those incorrect files or when having trouble running Direct3D
+          applications.</para>
+
+      <note><para>Starting at Windows 7 the 3D desktop (aka Aero) uses DirectX 10
+          for rendering so that corrupted d3d8.dll and d3d9.dll system files will
+          have no effect on the actual rendering.</para></note>
+          
+      <para>This is why such a detected file corruption is not considered as fatal 
+          for the basic Direct3D installation on all supported Windows guests,
+          and for WDDM Direct3D installation on Windows 7 and later guests.</para>
+
+      <para>Extracting d3d8 and d3d9.dll from a Windows XP installation CD:</para>
 
       <orderedlist>
         <listitem>
@@ -887,7 +918,7 @@
       linkend="settings-system" />).</para>
     </sect2>
 
-    <sect2 id="trouble-linux-buggy">
+    <sect2 id="ts_linux-buggy">
       <title>Buggy Linux 2.6 kernel versions</title>
 
       <para>The following bugs in Linux kernels prevent them from executing
@@ -1096,7 +1127,7 @@ VirtualBox</screen>
   <sect1>
     <title>Linux hosts</title>
 
-    <sect2 id="linuxkernelmodulefailstoload">
+    <sect2 id="ts_linux-kernelmodule-fails-to-load">
       <title>Linux kernel module refuses to load</title>
 
       <para>If the VirtualBox kernel module
@@ -1238,7 +1269,7 @@ VirtualBox</screen>
       directory.</para>
     </sect2>
 
-    <sect2 id="usb_linux">
+    <sect2 id="ts_usb-linux">
       <title>USB not working</title>
 
       <para>If USB is not working on your Linux host, make sure that the

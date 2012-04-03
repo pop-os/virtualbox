@@ -103,6 +103,9 @@ sofree(PNATState pData, struct socket *so)
         tcp_last_so = &tcb;
     else if (so == udp_last_so)
         udp_last_so = &udb;
+    /* libalias notification */
+    if (so->so_pvLnk)
+        slirpDeleteLinkSocket(so->so_pvLnk);
 
     /* check if mbuf haven't been already freed  */
     if (so->so_m != NULL)
@@ -1124,6 +1127,7 @@ soisfconnected(struct socket *so)
 void
 sofcantrcvmore(struct  socket *so)
 {
+    LogFlowFunc(("ENTER: so:%R[natsock]\n", so));
     if ((so->so_state & SS_NOFDREF) == 0)
     {
         shutdown(so->s, 0);
@@ -1134,11 +1138,13 @@ sofcantrcvmore(struct  socket *so)
                                    /* XXX close() here as well? */
     else
         so->so_state |= SS_FCANTRCVMORE;
+    LogFlowFuncLeave();
 }
 
 void
 sofcantsendmore(struct socket *so)
 {
+    LogFlowFunc(("ENTER: so:%R[natsock]\n", so));
     if ((so->so_state & SS_NOFDREF) == 0)
         shutdown(so->s, 1);           /* send FIN to fhost */
 
@@ -1147,6 +1153,7 @@ sofcantsendmore(struct socket *so)
         so->so_state = SS_NOFDREF; /* as above */
     else
         so->so_state |= SS_FCANTSENDMORE;
+    LogFlowFuncLeave();
 }
 
 void

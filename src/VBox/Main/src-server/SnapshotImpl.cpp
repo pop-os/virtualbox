@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -3220,7 +3220,7 @@ STDMETHODIMP SessionMachine::FinishOnlineMergeMedium(IMediumAttachment *aMediumA
     {
         // first, unregister the target since it may become a base
         // hard disk which needs re-registration
-        rc = mParent->unregisterHardDisk(pTarget, NULL /*&fNeedsGlobalSaveSettings*/);
+        rc = mParent->unregisterMedium(pTarget, NULL /*&fNeedsGlobalSaveSettings*/);
         AssertComRC(rc);
 
         // then, reparent it and disconnect the deleted branch at
@@ -3231,7 +3231,7 @@ STDMETHODIMP SessionMachine::FinishOnlineMergeMedium(IMediumAttachment *aMediumA
             pSource->deparent();
 
         // then, register again
-        rc = mParent->registerHardDisk(pTarget, NULL /* pllRegistriesThatNeedSaving */);
+        rc = mParent->registerMedium(pTarget, &pTarget, DeviceType_HardDisk, NULL /* pllRegistriesThatNeedSaving */);
         AssertComRC(rc);
     }
     else
@@ -3302,8 +3302,7 @@ STDMETHODIMP SessionMachine::FinishOnlineMergeMedium(IMediumAttachment *aMediumA
         }
         else
         {
-            rc = mParent->unregisterHardDisk(pMedium,
-                                             NULL /*pfNeedsGlobalSaveSettings*/);
+            rc = mParent->unregisterMedium(pMedium, NULL /* pllRegistriesThatNeedSaving */);
             AssertComRC(rc);
 
             /* now, uninitialize the deleted hard disk (note that

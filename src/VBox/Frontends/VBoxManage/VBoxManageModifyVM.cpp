@@ -29,6 +29,8 @@
 #endif /* !VBOX_ONLY_DOCS */
 
 #include <iprt/cidr.h>
+#include <iprt/ctype.h>
+#include <iprt/file.h>
 #include <iprt/param.h>
 #include <iprt/path.h>
 #include <iprt/stream.h>
@@ -159,6 +161,7 @@ enum
     MODIFYVM_TELEPORTER_PORT,
     MODIFYVM_TELEPORTER_ADDRESS,
     MODIFYVM_TELEPORTER_PASSWORD,
+    MODIFYVM_TELEPORTER_PASSWORD_FILE,
     MODIFYVM_HARDWARE_UUID,
     MODIFYVM_HPET,
     MODIFYVM_IOCACHE,
@@ -290,6 +293,7 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--teleporterport",           MODIFYVM_TELEPORTER_PORT,           RTGETOPT_REQ_UINT32 },
     { "--teleporteraddress",        MODIFYVM_TELEPORTER_ADDRESS,        RTGETOPT_REQ_STRING },
     { "--teleporterpassword",       MODIFYVM_TELEPORTER_PASSWORD,       RTGETOPT_REQ_STRING },
+    { "--teleporterpasswordfile",   MODIFYVM_TELEPORTER_PASSWORD_FILE,  RTGETOPT_REQ_STRING },
     { "--hardwareuuid",             MODIFYVM_HARDWARE_UUID,             RTGETOPT_REQ_STRING },
     { "--hpet",                     MODIFYVM_HPET,                      RTGETOPT_REQ_BOOL_ONOFF },
     { "--iocache",                  MODIFYVM_IOCACHE,                   RTGETOPT_REQ_BOOL_ONOFF },
@@ -2153,6 +2157,41 @@ int handleModifyVM(HandlerArg *a)
             case MODIFYVM_TELEPORTER_PASSWORD:
             {
                 CHECK_ERROR(machine, COMSETTER(TeleporterPassword)(Bstr(ValueUnion.psz).raw()));
+                break;
+            }
+
+            case MODIFYVM_TELEPORTER_PASSWORD_FILE:
+            {
+                size_t cbFile;
+                char szPasswd[512];
+                int vrc = VINF_SUCCESS;
+                bool fStdIn = !strcmp(ValueUnion.psz, "stdin");
+                PRTSTREAM pStrm;
+                if (!fStdIn)
+                    vrc = RTStrmOpen(ValueUnion.psz, "r", &pStrm);
+                else
+                    pStrm = g_pStdIn;
+                if (RT_SUCCESS(vrc))
+                {
+                    vrc = RTStrmReadEx(pStrm, szPasswd, sizeof(szPasswd)-1, &cbFile);
+                    if (RT_SUCCESS(vrc))
+                    {
+                        if (cbFile >= sizeof(szPasswd)-1)
+                            errorArgument("Provided password too long");
+                        else
+                        {
+                            unsigned i;
+                            for (i = 0; i < cbFile && !RT_C_IS_CNTRL(szPasswd[i]); i++)
+                                ;
+                            szPasswd[i] = '\0';
+                            CHECK_ERROR(machine, COMSETTER(TeleporterPassword)(Bstr(szPasswd).raw()));
+                        }
+                    }
+                    if (!fStdIn)
+                        RTStrmClose(pStrm);
+                }
+                else
+                    errorArgument("Cannot open password file '%s' (%Rrc)", ValueUnion.psz, vrc);
                 break;
             }
 

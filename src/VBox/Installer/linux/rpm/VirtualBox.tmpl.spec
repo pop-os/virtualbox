@@ -3,7 +3,7 @@
 #
 
 #
-# Copyright (C) 2006-2011 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,7 @@
 #
 
 %define %SPEC% 1
+%define %OSE% 1
 %{!?python_sitelib: %define python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib()")}
 
 Summary:   Oracle VM VirtualBox
@@ -109,11 +110,16 @@ cd icons
 cd -
 rmdir icons
 mv virtualbox.xml $RPM_BUILD_ROOT/usr/share/mime/packages
-for i in VBoxManage VBoxSVC VBoxSDL VirtualBox VBoxHeadless VBoxExtPackHelperApp VBoxBalloonCtrl vboxwebsrv webtest; do
+for i in VBoxManage VBoxSVC VBoxSDL VirtualBox VBoxHeadless VBoxExtPackHelperApp VBoxBalloonCtrl; do
   mv $i $RPM_BUILD_ROOT/usr/lib/virtualbox; done
+if %WEBSVC%; then
+  for i in vboxwebsrv webtest; do
+    mv $i $RPM_BUILD_ROOT/usr/lib/virtualbox; done
+fi
 for i in VBoxSDL VirtualBox VBoxHeadless VBoxNetDHCP VBoxNetAdpCtl; do
   chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/$i; done
 mv VBoxTunctl $RPM_BUILD_ROOT/usr/bin
+%if %{?is_ose:0}%{!?is_ose:1}
 for d in /lib/modules/*; do
   if [ -L $d/build ]; then
     rm -f /tmp/vboxdrv-Module.symvers
@@ -135,13 +141,18 @@ for d in /lib/modules/*; do
       %INSTMOD%
   fi
 done
-mv kchmviewer $RPM_BUILD_ROOT/usr/lib/virtualbox
-for i in rdesktop-vrdp.tar.gz rdesktop-vrdp-keymaps additions/VBoxGuestAdditions.iso; do
+%endif
+%if %{?is_ose:0}%{!?is_ose:1}
+  mv kchmviewer $RPM_BUILD_ROOT/usr/lib/virtualbox
+  for i in rdesktop-vrdp.tar.gz rdesktop-vrdp-keymaps; do
+    mv $i $RPM_BUILD_ROOT/usr/share/virtualbox; done
+  mv rdesktop-vrdp $RPM_BUILD_ROOT/usr/bin
+%endif
+for i in additions/VBoxGuestAdditions.iso; do
   mv $i $RPM_BUILD_ROOT/usr/share/virtualbox; done
 if [ -d accessible ]; then
   mv accessible $RPM_BUILD_ROOT/usr/lib/virtualbox
 fi
-mv rdesktop-vrdp $RPM_BUILD_ROOT/usr/bin
 install -D -m 755 vboxdrv.init $RPM_BUILD_ROOT%{_initrddir}/vboxdrv
 %if %{?rpm_suse:1}%{!?rpm_suse:0}
 ln -sf ../etc/init.d/vboxdrv $RPM_BUILD_ROOT/sbin/rcvboxdrv
@@ -410,9 +421,9 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root)
-%doc LICENSE
+%doc %{!?is_ose: LICENSE}
 %doc UserManual*.pdf
-%doc VirtualBox*.chm
+%doc %{!?is_ose: VirtualBox*.chm}
 %{_initrddir}/vboxdrv
 %{_initrddir}/vboxballoonctrl-service
 %{_initrddir}/vboxweb-service

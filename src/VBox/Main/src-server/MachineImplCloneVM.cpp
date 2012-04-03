@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1198,7 +1198,7 @@ HRESULT MachineCloneVM::run()
                         /* register the new harddisk */
                         {
                             AutoWriteLock tlock(p->mParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
-                            rc = p->mParent->registerHardDisk(pTarget, NULL /* pllRegistriesThatNeedSaving */);
+                            rc = p->mParent->registerMedium(pTarget, &pTarget, DeviceType_HardDisk, NULL /* pllRegistriesThatNeedSaving */);
                             if (FAILED(rc)) throw rc;
                         }
                         /* This medium becomes the parent of the next medium in the
@@ -1342,11 +1342,7 @@ HRESULT MachineCloneVM::run()
         }
 
         /* Any additional machines need saving? */
-        if (!llRegistriesThatNeedSaving.empty())
-        {
-            rc = p->mParent->saveRegistries(llRegistriesThatNeedSaving);
-            if (FAILED(rc)) throw rc;
-        }
+        p->mParent->saveRegistries(llRegistriesThatNeedSaving);
     }
     catch (HRESULT rc2)
     {

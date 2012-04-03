@@ -105,7 +105,12 @@ struct socket
 #endif
     /* required for port-forwarding */
     struct libalias *so_la;
+    /* libalias might attach the socket and we want to notify libalias we're freeing it */
+    void *so_pvLnk;
 };
+
+/* this function inform libalias about socket close */
+void slirpDeleteLinkSocket(void *pvLnk);
 
 #ifdef VBOX_WITH_SLIRP_MT
 # define SOCKET_LOCK(so)                                                \

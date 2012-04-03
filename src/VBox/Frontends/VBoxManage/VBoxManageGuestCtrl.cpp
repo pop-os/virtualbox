@@ -400,21 +400,32 @@ static int ctrlPrintError(IUnknown *pObj, const GUID &aIID)
     return ctrlPrintError(ErrInfo);
 }
 
-static int ctrlPrintProgressError(ComPtr<IProgress> progress)
+static int ctrlPrintProgressError(ComPtr<IProgress> pProgress)
 {
-    int rc;
-    BOOL fCanceled;
-    if (   SUCCEEDED(progress->COMGETTER(Canceled(&fCanceled)))
-        && fCanceled)
+    int vrc = VINF_SUCCESS;
+    HRESULT rc;
+
+    do
     {
-        rc = VERR_CANCELLED;
-    }
-    else
-    {
-        com::ProgressErrorInfo ErrInfo(progress);
-        rc = ctrlPrintError(ErrInfo);
-    }
-    return rc;
+        BOOL fCanceled;
+        CHECK_ERROR_BREAK(pProgress, COMGETTER(Canceled)(&fCanceled));
+        if (!fCanceled)
+        {
+            LONG rcProc;
+            CHECK_ERROR_BREAK(pProgress, COMGETTER(ResultCode)(&rcProc));
+            if (FAILED(rcProc))
+            {
+                com::ProgressErrorInfo ErrInfo(pProgress);
+                vrc = ctrlPrintError(ErrInfo);
+            }
+        }
+
+    } while(0);
+
+    if (FAILED(rc))
+        AssertMsgStmt(NULL, ("Could not lookup progress information\n"), vrc = VERR_COM_UNEXPECTED);
+
+    return vrc;
 }
 
 /**
@@ -1106,14 +1117,19 @@ static int ctrlCopyDirCreate(PCOPYCONTEXT pContext, const char *pszDir)
     AssertPtrReturn(pszDir, VERR_INVALID_POINTER);
 
     bool fDirExists;
-    int rc = ctrlCopyDirExists(pContext, pContext->fHostToGuest, pszDir, &fDirExists);
-    if (   RT_SUCCESS(rc)
+    int vrc = ctrlCopyDirExists(pContext, pContext->fHostToGuest, pszDir, &fDirExists);
+    if (   RT_SUCCESS(vrc)
         && fDirExists)
     {
         if (pContext->fVerbose)
             RTPrintf("Directory \"%s\" already exists\n", pszDir);
         return VINF_SUCCESS;
     }
+
+    /* If querying for a directory existence fails there's no point of even trying
+     * to create such a directory. */
+    if (RT_FAILURE(vrc))
+        return vrc;
 
     if (pContext->fVerbose)
         RTPrintf("Creating directory \"%s\" ...\n", pszDir);
@@ -1123,19 +1139,19 @@ static int ctrlCopyDirCreate(PCOPYCONTEXT pContext, const char *pszDir)
 
     if (pContext->fHostToGuest) /* We want to create directories on the guest. */
     {
-        HRESULT hrc = pContext->pGuest->DirectoryCreate(Bstr(pszDir).raw(),
-                                                        Bstr(pContext->pszUsername).raw(), Bstr(pContext->pszPassword).raw(),
-                                                        0700, DirectoryCreateFlag_Parents);
-        if (FAILED(hrc))
-            rc = ctrlPrintError(pContext->pGuest, COM_IIDOF(IGuest));
+        HRESULT rc = pContext->pGuest->DirectoryCreate(Bstr(pszDir).raw(),
+                                                       Bstr(pContext->pszUsername).raw(), Bstr(pContext->pszPassword).raw(),
+                                                       0700, DirectoryCreateFlag_Parents);
+        if (FAILED(rc))
+            vrc = ctrlPrintError(pContext->pGuest, COM_IIDOF(IGuest));
     }
     else /* ... or on the host. */
     {
-        rc = RTDirCreateFullPath(pszDir, 0700);
-        if (rc == VERR_ALREADY_EXISTS)
-            rc = VINF_SUCCESS;
+        vrc = RTDirCreateFullPath(pszDir, 0700);
+        if (vrc == VERR_ALREADY_EXISTS)
+            vrc = VINF_SUCCESS;
     }
-    return rc;
+    return vrc;
 }
 
 /**
@@ -2261,8 +2277,9 @@ static int handleCtrlStat(ComPtr<IGuest> guest, HandlerArg *pArg)
                  * drop out with exitcode 1. */
                 if (!fExists)
                 {
-                    RTPrintf("Cannot stat for element \"%s\": No such file or directory\n",
-                             it->first.c_str());
+                    if (fVerbose)
+                        RTPrintf("Cannot stat for element \"%s\": No such file or directory\n",
+                                 it->first.c_str());
                     rcExit = RTEXITCODE_FAILURE;
                 }
             }
@@ -2361,20 +2378,20 @@ static int handleCtrlUpdateAdditions(ComPtr<IGuest> guest, HandlerArg *pArg)
             RTPrintf("Using source: %s\n", Utf8Source.c_str());
 
         HRESULT rc = S_OK;
-        ComPtr<IProgress> progress;
+        ComPtr<IProgress> pProgress;
         CHECK_ERROR(guest, UpdateGuestAdditions(Bstr(Utf8Source).raw(),
                                                 /* Wait for whole update process to complete. */
                                                 AdditionsUpdateFlag_None,
-                                                progress.asOutParam()));
+                                                pProgress.asOutParam()));
         if (FAILED(rc))
             vrc = ctrlPrintError(guest, COM_IIDOF(IGuest));
         else
         {
             rc = fVerbose
-               ? showProgress(progress)
-               : progress->WaitForCompletion(-1 /* No timeout */);
+               ? showProgress(pProgress)
+               : pProgress->WaitForCompletion(-1 /* No timeout */);
             if (FAILED(rc))
-                vrc = ctrlPrintProgressError(progress);
+                vrc = ctrlPrintProgressError(pProgress);
             else if (   SUCCEEDED(rc)
                      && fVerbose)
             {

@@ -344,6 +344,8 @@ struct alias_link {     /* Main data structure */
      * managment and deletion are in repsponsible of Slirp.
      */
     int     sockfd; /* socket descriptor                   */
+#  else
+    struct socket *pSo;
 # endif
 #endif
             LIST_ENTRY    (alias_link) list_out;    /* Linked list of
@@ -568,7 +570,11 @@ Port search:
 /* Local prototypes */
 static int  GetNewPort(struct libalias *, struct alias_link *, int);
 #ifndef NO_USE_SOCKETS
+# ifdef VBOX
+static u_short  GetSocket(struct libalias *, u_short, struct alias_link*, int);
+# else
 static u_short  GetSocket(struct libalias *, u_short, int *, int);
+# endif
 #endif
 static void CleanupAliasData(struct libalias *);
 
@@ -686,7 +692,7 @@ GetNewPort(struct libalias *la, struct alias_link *lnk, int alias_port_param)
 #ifndef VBOX
                 if (GetSocket(la, port_net, &lnk->sockfd, lnk->link_type)) {
 #else
-                if (GetSocket(la, port_net, NULL, lnk->link_type)) {
+                if (GetSocket(la, port_net, lnk, lnk->link_type)) {
 #endif
                     lnk->alias_port = port_net;
                     return (0);
@@ -714,7 +720,11 @@ GetNewPort(struct libalias *la, struct alias_link *lnk, int alias_port_param)
 
 #ifndef NO_USE_SOCKETS
 static      u_short
+# ifndef VBOX
 GetSocket(struct libalias *la, u_short port_net, int *sockfd, int link_type)
+# else
+GetSocket(struct libalias *la, u_short port_net, struct alias_link *pLnk, int link_type)
+# endif
 {
     int err;
     int sock;
@@ -801,6 +811,8 @@ GetSocket(struct libalias *la, u_short port_net, int *sockfd, int link_type)
         else
             Assert(!"Shouldn't be here");
         LogFunc(("bind called for socket: %R[natsock]\n", so));
+        pLnk->pSo = so;
+        so->so_pvLnk = pLnk;
 #else
         *sockfd = sock;
 #endif
@@ -955,10 +967,28 @@ IncrementalCleanup(struct libalias *la)
         la->cleanupIndex = 0;
 }
 
+#ifdef VBOX
+/**
+ * when slirp delete the link we need inform libalias about it.
+ */
+void slirpDeleteLinkSocket(void *pvLnk)
+{
+    struct alias_link *lnk = (struct alias_link *)pvLnk;
+    if (   lnk
+        && lnk->pSo)
+    {
+        struct libalias *la = lnk->la;
+        la->sockCount--;
+        lnk->pSo = NULL;
+    }
+}
+#endif /* !VBOX */
+
 static void
 DeleteLink(struct alias_link *lnk)
 {
     struct libalias *la = lnk->la;
+    LogFlowFunc(("ENTER: lnk->pSo:%R[natsock]\n", lnk->pSo));
 
     LIBALIAS_LOCK_ASSERT(la);
 /* Don't do anything if the link is marked permanent */
@@ -993,7 +1023,18 @@ DeleteLink(struct alias_link *lnk)
         close(lnk->sockfd);
     }
 # else
-    /* Slirp will close the socket in its own way */
+    if (lnk->pSo)
+    {
+        /* libalias's sockCount decremented in slirpDeleteLinkSocket,
+         * which called from sofree
+         */
+        /* la->sockCount--; */
+        /* should we be more smart, or it's enough to be
+         * narrow-minded and just do sofree here
+         */
+        sofree(la->pData, lnk->pSo);
+        lnk->pSo = NULL;
+    }
 # endif
 #endif
 /* Link-type dependent cleanup */
@@ -1033,6 +1074,7 @@ DeleteLink(struct alias_link *lnk)
     if (la->packetAliasMode & PKT_ALIAS_LOG) {
         ShowAliasStats(la);
     }
+    LogFlowFuncLeave();
 }
 
 
@@ -1066,6 +1108,8 @@ AddLink(struct libalias *la, struct in_addr src_addr,
 #ifndef NO_USE_SOCKETS
 # ifndef VBOX
         lnk->sockfd = -1;
+# else
+        lnk->pSo = NULL;
 # endif
 #endif
         lnk->flags = 0;

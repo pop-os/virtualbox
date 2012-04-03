@@ -752,6 +752,8 @@ void Console::guestPropertiesVRDPUpdateLogon(uint32_t u32ClientId, const char *p
     if (!guestPropertiesVRDPEnabled())
         return;
 
+    LogFlowFunc(("\n"));
+
     char szPropNm[256];
     Bstr bstrReadOnlyGuest(L"RDONLYGUEST");
 
@@ -774,7 +776,7 @@ void Console::guestPropertiesVRDPUpdateLogon(uint32_t u32ClientId, const char *p
                                bstrReadOnlyGuest.raw());
 
     char szClientId[64];
-    RTStrPrintf(szClientId, sizeof(szClientId), "%d", u32ClientId);
+    RTStrPrintf(szClientId, sizeof(szClientId), "%u", u32ClientId);
     mMachine->SetGuestProperty(Bstr("/VirtualBox/HostInfo/VRDP/LastConnectedClient").raw(),
                                Bstr(szClientId).raw(),
                                bstrReadOnlyGuest.raw());
@@ -782,24 +784,87 @@ void Console::guestPropertiesVRDPUpdateLogon(uint32_t u32ClientId, const char *p
     return;
 }
 
+void Console::guestPropertiesVRDPUpdateActiveClient(uint32_t u32ClientId)
+{
+    if (!guestPropertiesVRDPEnabled())
+        return;
+
+    LogFlowFunc(("%d\n", u32ClientId));
+
+    Bstr bstrFlags(L"RDONLYGUEST,TRANSIENT");
+
+    char szClientId[64];
+    RTStrPrintf(szClientId, sizeof(szClientId), "%u", u32ClientId);
+
+    mMachine->SetGuestProperty(Bstr("/VirtualBox/HostInfo/VRDP/ActiveClient").raw(),
+                               Bstr(szClientId).raw(),
+                               bstrFlags.raw());
+
+    return;
+}
+
+void Console::guestPropertiesVRDPUpdateNameChange(uint32_t u32ClientId, const char *pszName)
+{
+    if (!guestPropertiesVRDPEnabled())
+        return;
+
+    LogFlowFunc(("\n"));
+
+    char szPropNm[256];
+    Bstr bstrReadOnlyGuest(L"RDONLYGUEST");
+
+    RTStrPrintf(szPropNm, sizeof(szPropNm), "/VirtualBox/HostInfo/VRDP/Client/%u/Name", u32ClientId);
+    Bstr clientName(pszName);
+
+    mMachine->SetGuestProperty(Bstr(szPropNm).raw(),
+                               clientName.raw(),
+                               bstrReadOnlyGuest.raw());
+
+}
+
+void Console::guestPropertiesVRDPUpdateClientAttach(uint32_t u32ClientId, bool fAttached)
+{
+    if (!guestPropertiesVRDPEnabled())
+        return;
+
+    LogFlowFunc(("\n"));
+
+    Bstr bstrReadOnlyGuest(L"RDONLYGUEST");
+
+    char szPropNm[256];
+    RTStrPrintf(szPropNm, sizeof(szPropNm), "/VirtualBox/HostInfo/VRDP/Client/%u/Attach", u32ClientId);
+
+    Bstr bstrValue = fAttached? "1": "0";
+
+    mMachine->SetGuestProperty(Bstr(szPropNm).raw(),
+                               bstrValue.raw(),
+                               bstrReadOnlyGuest.raw());
+}
+
 void Console::guestPropertiesVRDPUpdateDisconnect(uint32_t u32ClientId)
 {
     if (!guestPropertiesVRDPEnabled())
         return;
 
+    LogFlowFunc(("\n"));
+
     Bstr bstrReadOnlyGuest(L"RDONLYGUEST");
 
     char szPropNm[256];
     RTStrPrintf(szPropNm, sizeof(szPropNm), "/VirtualBox/HostInfo/VRDP/Client/%u/Name", u32ClientId);
-    mMachine->SetGuestProperty(Bstr(szPropNm).raw(), Bstr("").raw(),
+    mMachine->SetGuestProperty(Bstr(szPropNm).raw(), NULL,
                                bstrReadOnlyGuest.raw());
 
     RTStrPrintf(szPropNm, sizeof(szPropNm), "/VirtualBox/HostInfo/VRDP/Client/%u/User", u32ClientId);
-    mMachine->SetGuestProperty(Bstr(szPropNm).raw(), Bstr("").raw(),
+    mMachine->SetGuestProperty(Bstr(szPropNm).raw(), NULL,
                                bstrReadOnlyGuest.raw());
 
     RTStrPrintf(szPropNm, sizeof(szPropNm), "/VirtualBox/HostInfo/VRDP/Client/%u/Domain", u32ClientId);
-    mMachine->SetGuestProperty(Bstr(szPropNm).raw(), Bstr("").raw(),
+    mMachine->SetGuestProperty(Bstr(szPropNm).raw(), NULL,
+                               bstrReadOnlyGuest.raw());
+
+    RTStrPrintf(szPropNm, sizeof(szPropNm), "/VirtualBox/HostInfo/VRDP/Client/%u/Attach", u32ClientId);
+    mMachine->SetGuestProperty(Bstr(szPropNm).raw(), NULL,
                                bstrReadOnlyGuest.raw());
 
     char szClientId[64];
@@ -1061,6 +1126,32 @@ int Console::VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const ch
     return VINF_SUCCESS;
 }
 
+void Console::VRDPClientStatusChange(uint32_t u32ClientId, const char *pszStatus)
+{
+    LogFlowFuncEnter();
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturnVoid(autoCaller.rc());
+
+    LogFlowFunc(("%s\n", pszStatus));
+
+    /* Parse the status string. */
+    if (RTStrICmp(pszStatus, "ATTACH") == 0)
+    {
+        guestPropertiesVRDPUpdateClientAttach(u32ClientId, true);
+    }
+    else if (RTStrICmp(pszStatus, "DETACH") == 0)
+    {
+        guestPropertiesVRDPUpdateClientAttach(u32ClientId, false);
+    }
+    else if (RTStrNICmp(pszStatus, "NAME=", strlen("NAME=")) == 0)
+    {
+        guestPropertiesVRDPUpdateNameChange(u32ClientId, pszStatus + strlen("NAME="));
+    }
+
+    LogFlowFuncLeave();
+}
+
 void Console::VRDPClientConnect(uint32_t u32ClientId)
 {
     LogFlowFuncEnter();
@@ -1083,6 +1174,10 @@ void Console::VRDPClientConnect(uint32_t u32ClientId)
 
     NOREF(u32ClientId);
     mDisplay->VideoAccelVRDP(true);
+
+#ifdef VBOX_WITH_GUEST_PROPS
+    guestPropertiesVRDPUpdateActiveClient(u32ClientId);
+#endif /* VBOX_WITH_GUEST_PROPS */
 
     LogFlowFuncLeave();
     return;
@@ -1154,6 +1249,8 @@ void Console::VRDPClientDisconnect(uint32_t u32ClientId,
 
 #ifdef VBOX_WITH_GUEST_PROPS
     guestPropertiesVRDPUpdateDisconnect(u32ClientId);
+    if (u32Clients == 0)
+        guestPropertiesVRDPUpdateActiveClient(0);
 #endif /* VBOX_WITH_GUEST_PROPS */
 
     if (u32Clients == 0)
@@ -1828,7 +1925,7 @@ STDMETHODIMP Console::COMSETTER(UseHostClipboard)(BOOL aUseHostClipboard)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mfUseHostClipboard = aUseHostClipboard;
+    mfUseHostClipboard = !!aUseHostClipboard;
 
     return S_OK;
 }
@@ -2996,8 +3093,8 @@ Console::CreateSharedFolder(IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable, BO
     rc = pSharedFolder->init(this,
                              strName,
                              strHostPath,
-                             aWritable,
-                             aAutoMount,
+                             !!aWritable,
+                             !!aAutoMount,
                              true /* fFailOnError */);
     if (FAILED(rc)) return rc;
 
@@ -3019,7 +3116,7 @@ Console::CreateSharedFolder(IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable, BO
         }
 
         /* second, create the given folder */
-        rc = createSharedFolder(aName, SharedFolderData(aHostPath, aWritable, aAutoMount));
+        rc = createSharedFolder(aName, SharedFolderData(aHostPath, !!aWritable, !!aAutoMount));
         if (FAILED(rc))
             return rc;
     }
@@ -4360,7 +4457,7 @@ HRESULT Console::onNATRedirectRuleChange(ULONG ulInstance, BOOL aNatRuleRemove,
                 break;
 
             bool fUdp = aProto == NATProtocol_UDP;
-            vrc = pNetNatCfg->pfnRedirectRuleCommand(pNetNatCfg, aNatRuleRemove, fUdp,
+            vrc = pNetNatCfg->pfnRedirectRuleCommand(pNetNatCfg, !!aNatRuleRemove, fUdp,
                                                      Utf8Str(aHostIp).c_str(), aHostPort, Utf8Str(aGuestIp).c_str(),
                                                      aGuestPort);
             if (RT_FAILURE(vrc))
@@ -7012,7 +7109,7 @@ HRESULT Console::fetchSharedFolders(BOOL aGlobal)
                 if (FAILED(rc)) throw rc;
 
                 m_mapMachineSharedFolders.insert(std::make_pair(strName,
-                                                                SharedFolderData(strHostPath, writable, autoMount)));
+                                                                SharedFolderData(strHostPath, !!writable, !!autoMount)));
 
                 /* send changes to HGCM if the VM is running */
                 if (online)
@@ -7039,9 +7136,7 @@ HRESULT Console::fetchSharedFolders(BOOL aGlobal)
 
                             /* create the new machine folder */
                             rc = createSharedFolder(strName,
-                                                    SharedFolderData(strHostPath,
-                                                                     writable,
-                                                                     autoMount));
+                                                    SharedFolderData(strHostPath, !!writable, !!autoMount));
                             if (FAILED(rc)) throw rc;
                         }
                     }

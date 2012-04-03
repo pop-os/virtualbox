@@ -1090,6 +1090,7 @@ STDMETHODIMP Host::CreateHostOnlyNetworkInterface(IHostNetworkInterface **aHostN
                                                   IProgress **aProgress)
 {
     CheckComArgOutPointerValid(aHostNetworkInterface);
+    CheckComArgNotNull(*aHostNetworkInterface);
     CheckComArgOutPointerValid(aProgress);
 
     AutoCaller autoCaller(this);
