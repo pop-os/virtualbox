@@ -989,17 +989,17 @@
 <context>
     <name>UIDescriptionPagePrivate</name>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="1318"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="1320"/>
         <source>No description. Press the Edit button below to add it.</source>
         <translation>説明がありません。[編集]ボタンをクリックして追加してください。</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="1320"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="1322"/>
         <source>Edit</source>
         <translation>編集</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="1322"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="1324"/>
         <source>Edit (Ctrl+E)</source>
         <translation>編集(Ctrl+E)</translation>
     </message>
@@ -1007,200 +1007,200 @@
 <context>
     <name>UIDetailsPagePrivate</name>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="567"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="569"/>
         <source>Name</source>
         <comment>details report</comment>
         <translation>名前</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="569"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="571"/>
         <source>OS Type</source>
         <comment>details report</comment>
         <translation>OSタイプ</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="588"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="590"/>
         <source>Base Memory</source>
         <comment>details report</comment>
         <translation>メインメモリ</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="589"/>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="677"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="591"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="679"/>
         <source>&lt;nobr&gt;%1 MB&lt;/nobr&gt;</source>
         <comment>details report</comment>
         <translation>&lt;nobr&gt;%1 MB&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="594"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="596"/>
         <source>Processors</source>
         <comment>details report</comment>
         <translation>プロセッサ</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="595"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="597"/>
         <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
         <comment>details report</comment>
         <translation>&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="600"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="602"/>
         <source>Execution Cap</source>
         <comment>details report</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="601"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="603"/>
         <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
         <comment>details report</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="616"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="618"/>
         <source>Boot Order</source>
         <comment>details report</comment>
         <translation>起動順序</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="624"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="626"/>
         <source>ACPI</source>
         <comment>details report</comment>
         <translation>ACPI</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="628"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="630"/>
         <source>IO APIC</source>
         <comment>details report</comment>
         <translation>IO APIC</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="631"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="633"/>
         <source>BIOS</source>
         <comment>details report</comment>
         <translation>BIOS</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="640"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="642"/>
         <source>VT-x/AMD-V</source>
         <comment>details report</comment>
         <translation>VT-x/AMD-V</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="644"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="646"/>
         <source>Nested Paging</source>
         <comment>details report</comment>
         <translation>ネステッドページング</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="649"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="651"/>
         <source>PAE/NX</source>
         <comment>details report</comment>
         <translation>PAE/NX</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="652"/>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="697"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="654"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="699"/>
         <source>Acceleration</source>
         <comment>details report</comment>
         <translation>アクセラレーション</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="676"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="678"/>
         <source>Video Memory</source>
         <comment>details report</comment>
         <translation>ビデオメモリ</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="684"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="686"/>
         <source>Screens</source>
         <comment>details report</comment>
         <translation>スクリーン</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="691"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="693"/>
         <source>2D Video</source>
         <comment>details report</comment>
         <translation>2D ビデオ</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="694"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="696"/>
         <source>3D</source>
         <comment>details report</comment>
         <translation>3D</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="705"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="707"/>
         <source>Remote Desktop Server Port</source>
         <comment>details report (VRDE Server)</comment>
         <translation>リモートデスクトップ サーバー ポート</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="709"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="711"/>
         <source>Remote Desktop Server</source>
         <comment>details report (VRDE Server)</comment>
         <translation>リモートデスクトップ サーバー</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="710"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="712"/>
         <source>Disabled</source>
         <comment>details report (VRDE Server)</comment>
         <translation>無効</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="748"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="750"/>
         <source>(CD/DVD)</source>
         <translation>(CD/DVD)</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="779"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="781"/>
         <source>Not Attached</source>
         <comment>details report (Storage)</comment>
         <translation>未割り当て</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="802"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="804"/>
         <source>Host Driver</source>
         <comment>details report (audio)</comment>
         <translation>ホスト ドライバ</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="805"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="807"/>
         <source>Controller</source>
         <comment>details report (audio)</comment>
         <translation>コントローラ</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="809"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="811"/>
         <source>Disabled</source>
         <comment>details report (audio)</comment>
         <translation>無効</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="841"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="843"/>
         <source>Bridged adapter, %1</source>
         <comment>details report (network)</comment>
         <translation>ブリッジ アダプタ, &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="844"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="846"/>
         <source>Internal network, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
         <translation>内部ネットワーク, &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="847"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="849"/>
         <source>Host-only adapter, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
         <translation>ホストオンリー アダプタ, &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="853"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="855"/>
         <source>Generic driver, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="854"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="856"/>
         <source>Generic driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
         <comment>details report (network)</comment>
         <translation type="unfinished"></translation>
@@ -1211,150 +1211,150 @@
         <translation type="obsolete">VDE ネットワーク, &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="861"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="863"/>
         <source>Adapter %1</source>
         <comment>details report (network)</comment>
         <translation>アダプタ %1</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="869"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="871"/>
         <source>Disabled</source>
         <comment>details report (network)</comment>
         <translation>無効</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="908"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="910"/>
         <source>Port %1</source>
         <comment>details report (serial ports)</comment>
         <translation>ポート %1</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="916"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="918"/>
         <source>Disabled</source>
         <comment>details report (serial ports)</comment>
         <translation>無効</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="949"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="951"/>
         <source>Port %1</source>
         <comment>details report (parallel ports)</comment>
         <translation>ポート %1</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="957"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="959"/>
         <source>Disabled</source>
         <comment>details report (parallel ports)</comment>
         <translation>無効</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="994"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="996"/>
         <source>Device Filters</source>
         <comment>details report (USB)</comment>
         <translation>デバイス フィルタ</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="995"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="997"/>
         <source>%1 (%2 active)</source>
         <comment>details report (USB)</comment>
         <translation>%1 (%2 アクティブ)</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="1000"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="1002"/>
         <source>Disabled</source>
         <comment>details report (USB)</comment>
         <translation>無効</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="1029"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="1031"/>
         <source>Shared Folders</source>
         <comment>details report (shared folders)</comment>
         <translation>共有フォルダ</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="1034"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="1036"/>
         <source>None</source>
         <comment>details report (shared folders)</comment>
         <translation>なし</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="1058"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="1060"/>
         <source>None</source>
         <comment>details report (description)</comment>
         <translation>なし</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="471"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="473"/>
         <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
         <translation>選択した仮想マシンに&lt;i&gt;アクセスできません&lt;/i&gt;。アクセス可否を再確認するには以下に示されたエラーメッセージを調査して&lt;b&gt;[最新の情報に更新]&lt;/b&gt;ボタンをクリックしてください:</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="486"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="488"/>
         <source>General</source>
         <comment>details report</comment>
         <translation>一般</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="492"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="494"/>
         <source>System</source>
         <comment>details report</comment>
         <translation>システム</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="498"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="500"/>
         <source>Preview</source>
         <comment>details report</comment>
         <translation>プレビュー</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="504"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="506"/>
         <source>Display</source>
         <comment>details report</comment>
         <translation>ディスプレイ</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="510"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="512"/>
         <source>Storage</source>
         <comment>details report</comment>
         <translation>ストレージ</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="516"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="518"/>
         <source>Audio</source>
         <comment>details report</comment>
         <translation>オーディオ</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="522"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="524"/>
         <source>Network</source>
         <comment>details report</comment>
         <translation>ネットワーク</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="528"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="530"/>
         <source>Serial Ports</source>
         <comment>details report</comment>
         <translation>シリアルポート</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="535"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="537"/>
         <source>Parallel Ports</source>
         <comment>details report</comment>
         <translation>パラレルポート</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="542"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="544"/>
         <source>USB</source>
         <comment>details report</comment>
         <translation>USB</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="548"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="550"/>
         <source>Shared Folders</source>
         <comment>details report</comment>
         <translation>共有フォルダ</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="554"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="556"/>
         <source>Description</source>
         <comment>details report</comment>
         <translation>説明</translation>
@@ -1426,7 +1426,7 @@
 <context>
     <name>UIDownloaderExtensionPack</name>
     <message>
-        <location filename="../src/net/UIDownloaderExtensionPack.cpp" line="135"/>
+        <location filename="../src/net/UIDownloaderExtensionPack.cpp" line="147"/>
         <source>Select folder to save %1 to</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2067,28 +2067,28 @@ p, li { white-space: pre-wrap; }
         <translation>バージョン</translation>
     </message>
     <message>
-        <location filename="../src/settings/global/UIGlobalSettingsExtension.cpp" line="206"/>
-        <location filename="../src/settings/global/UIGlobalSettingsExtension.cpp" line="425"/>
+        <location filename="../src/settings/global/UIGlobalSettingsExtension.cpp" line="216"/>
+        <location filename="../src/settings/global/UIGlobalSettingsExtension.cpp" line="435"/>
         <source>Extensions</source>
         <translation>機能拡張</translation>
     </message>
     <message>
-        <location filename="../src/settings/global/UIGlobalSettingsExtension.cpp" line="288"/>
+        <location filename="../src/settings/global/UIGlobalSettingsExtension.cpp" line="298"/>
         <source>Add package</source>
         <translation>パッケージを追加</translation>
     </message>
     <message>
-        <location filename="../src/settings/global/UIGlobalSettingsExtension.cpp" line="289"/>
+        <location filename="../src/settings/global/UIGlobalSettingsExtension.cpp" line="299"/>
         <source>Remove package</source>
         <translation>パッケージを除去</translation>
     </message>
     <message>
-        <location filename="../src/settings/global/UIGlobalSettingsExtension.cpp" line="332"/>
+        <location filename="../src/settings/global/UIGlobalSettingsExtension.cpp" line="342"/>
         <source>Select an extension package file</source>
         <translation>機能拡張パッケージを選択</translation>
     </message>
     <message>
-        <location filename="../src/settings/global/UIGlobalSettingsExtension.cpp" line="336"/>
+        <location filename="../src/settings/global/UIGlobalSettingsExtension.cpp" line="346"/>
         <source>Extension package files (%1)</source>
         <translation>機能拡張パッケージファイル(%1)</translation>
     </message>
@@ -3290,7 +3290,7 @@ p, li { white-space: pre-wrap; }
 <context>
     <name>UIMachineSettingsDisplay</name>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="335"/>
+        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="343"/>
         <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required to switch the virtual machine to fullscreen or seamless mode.</source>
         <translation>仮想マシンをフルスクリーンまたはシームレスモードに切り換えるために必要な値(%1)より少ないビデオメモリが仮想マシンに割り当てられました。</translation>
     </message>
@@ -3299,25 +3299,30 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">WDDMドライバを使用するオペレーティングシステムで3Dアクセラレーションが有効化されました。性能向上のため&lt;b&gt;%1&lt;/b&gt;以上のビデオメモリを指定してください。</translation>
     </message>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="365"/>
+        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="329"/>
+        <source>you enabled 3D acceleration. However, 3D acceleration is not working on the current host setup so you will not be able to start the VM.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="373"/>
         <source>you have 3D Acceleration enabled for a operation system which uses the WDDM video driver. For maximal performance set the guest VRAM to at least &lt;b&gt;%1&lt;/b&gt;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="380"/>
+        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="388"/>
         <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
         <translation type="unfinished">2D ビデオ アクセラレーションが有効化されました。2D ビデオ アクセラレーションはWindowsゲストでのみサポートされるため、本機能は無効化されます。</translation>
     </message>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="418"/>
-        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="419"/>
-        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="491"/>
+        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="426"/>
+        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="427"/>
+        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="499"/>
         <source>&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</source>
         <translation>&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</translation>
     </message>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="420"/>
-        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="421"/>
+        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="428"/>
+        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="429"/>
         <source>&lt;qt&gt;%1&lt;/qt&gt;</source>
         <translation>&lt;qt&gt;%1&lt;/qt&gt;</translation>
     </message>
@@ -3424,7 +3429,7 @@ p, li { white-space: pre-wrap; }
         <translation>ゲスト認証のタイムアウト値をミリ秒単位で指定します。</translation>
     </message>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="348"/>
+        <location filename="../src/settings/machine/UIMachineSettingsDisplay.cpp" line="356"/>
         <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required for HD Video to be played efficiently.</source>
         <translation>HD Videoを効率よく再生するために必要な値(%1)より少ないビデオメモリが仮想マシンに割り当てられました。</translation>
     </message>
@@ -4720,31 +4725,31 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="2293"/>
-        <location filename="../src/wizards/newvm/UINewVMWzd.cpp" line="911"/>
+        <location filename="../src/wizards/newvm/UINewVMWzd.cpp" line="915"/>
         <source>IDE Controller</source>
         <translation>IDE コントローラ</translation>
     </message>
     <message>
         <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="2298"/>
-        <location filename="../src/wizards/newvm/UINewVMWzd.cpp" line="919"/>
+        <location filename="../src/wizards/newvm/UINewVMWzd.cpp" line="923"/>
         <source>SATA Controller</source>
         <translation>SATA コントローラ</translation>
     </message>
     <message>
         <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="2303"/>
-        <location filename="../src/wizards/newvm/UINewVMWzd.cpp" line="927"/>
+        <location filename="../src/wizards/newvm/UINewVMWzd.cpp" line="931"/>
         <source>SCSI Controller</source>
         <translation>SCSI コントローラ</translation>
     </message>
     <message>
         <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="2308"/>
-        <location filename="../src/wizards/newvm/UINewVMWzd.cpp" line="935"/>
+        <location filename="../src/wizards/newvm/UINewVMWzd.cpp" line="939"/>
         <source>Floppy Controller</source>
         <translation>フロッピー コントローラ</translation>
     </message>
     <message>
         <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="2313"/>
-        <location filename="../src/wizards/newvm/UINewVMWzd.cpp" line="943"/>
+        <location filename="../src/wizards/newvm/UINewVMWzd.cpp" line="947"/>
         <source>SAS Controller</source>
         <translation>SAS コントローラ</translation>
     </message>
@@ -7352,12 +7357,12 @@ p, li { white-space: pre-wrap; }
 <context>
     <name>UIMiniProgressWidgetExtension</name>
     <message>
-        <location filename="../src/net/UIDownloaderExtensionPack.cpp" line="45"/>
+        <location filename="../src/net/UIDownloaderExtensionPack.cpp" line="46"/>
         <source>Cancel the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; download</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/net/UIDownloaderExtensionPack.cpp" line="46"/>
+        <location filename="../src/net/UIDownloaderExtensionPack.cpp" line="47"/>
         <source>Downloading the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</source>
         <translation type="unfinished"></translation>
     </message>
@@ -8809,12 +8814,12 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
 <context>
     <name>UIVMDesktop</name>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="1431"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="1433"/>
         <source>&amp;Details</source>
         <translation>詳細(&amp;D)</translation>
     </message>
     <message>
-        <location filename="../src/selector/UIVMDesktop.cpp" line="1455"/>
+        <location filename="../src/selector/UIVMDesktop.cpp" line="1457"/>
         <source>&amp;Snapshots</source>
         <translation>スナップショット(&amp;S)</translation>
     </message>
@@ -10300,7 +10305,7 @@ Version %1</source>
         <translation>オーディオ</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="653"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="659"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="1884"/>
         <source>Adapter %1</source>
         <comment>details report (network)</comment>
@@ -10791,7 +10796,7 @@ Version %1</source>
         <translation type="obsolete">カスタム ハードディスク</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="492"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="498"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="1682"/>
         <location filename="../src/runtime/UIIndicatorsPool.cpp" line="577"/>
         <source>VT-x/AMD-V</source>
@@ -10805,7 +10810,7 @@ Version %1</source>
         <translation>PAE/NX</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="464"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="467"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="1650"/>
         <location filename="../src/runtime/UIIndicatorsPool.cpp" line="560"/>
         <source>Enabled</source>
@@ -10813,7 +10818,7 @@ Version %1</source>
         <translation>有効</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="465"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="468"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="1651"/>
         <location filename="../src/runtime/UIIndicatorsPool.cpp" line="561"/>
         <source>Disabled</source>
@@ -10821,7 +10826,7 @@ Version %1</source>
         <translation>無効</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="496"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="502"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="1738"/>
         <source>Remote Desktop Server Port</source>
         <comment>details report (VRDE Server)</comment>
@@ -11149,21 +11154,21 @@ Version %1</source>
         <translation>差分</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="493"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="499"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="1683"/>
         <source>Nested Paging</source>
         <comment>details report</comment>
         <translation>ネステッドページング</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="467"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="470"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="1655"/>
         <source>Enabled</source>
         <comment>details report (Nested Paging)</comment>
         <translation>有効</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="468"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="471"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="1656"/>
         <source>Disabled</source>
         <comment>details report (Nested Paging)</comment>
@@ -11801,42 +11806,42 @@ Version %1</source>
         <translation>このベース ハードディスクは以下の差分ハードディスクを使用して間接的に割り当てられます:</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/globals/VBoxGlobal.h" line="222"/>
+        <location filename="../src/globals/VBoxGlobal.h" line="225"/>
         <source>%n year(s)</source>
         <translation>
             <numerusform>%n 年</numerusform>
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/globals/VBoxGlobal.h" line="227"/>
+        <location filename="../src/globals/VBoxGlobal.h" line="230"/>
         <source>%n month(s)</source>
         <translation>
             <numerusform>%n 月</numerusform>
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/globals/VBoxGlobal.h" line="232"/>
+        <location filename="../src/globals/VBoxGlobal.h" line="235"/>
         <source>%n day(s)</source>
         <translation>
             <numerusform>%n 日</numerusform>
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/globals/VBoxGlobal.h" line="237"/>
+        <location filename="../src/globals/VBoxGlobal.h" line="240"/>
         <source>%n hour(s)</source>
         <translation>
             <numerusform>%n 時間</numerusform>
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/globals/VBoxGlobal.h" line="242"/>
+        <location filename="../src/globals/VBoxGlobal.h" line="245"/>
         <source>%n minute(s)</source>
         <translation>
             <numerusform>%n 分</numerusform>
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/globals/VBoxGlobal.h" line="247"/>
+        <location filename="../src/globals/VBoxGlobal.h" line="250"/>
         <source>%n second(s)</source>
         <translation>
             <numerusform>%n 秒</numerusform>
@@ -13828,12 +13833,12 @@ DOS系ゲストOSからアクセスする場合は &lt;tt&gt;net use x:¥¥vboxs
 <context>
     <name>VBoxSwitchMenu</name>
     <message>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="5526"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="5529"/>
         <source>Disable</source>
         <translation>無効</translation>
     </message>
     <message>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="5526"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="5529"/>
         <source>Enable</source>
         <translation>有効</translation>
     </message>
@@ -14051,13 +14056,13 @@ value.&lt;/qt&gt;</source>
 <context>
     <name>VBoxUSBMenu</name>
     <message>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="5456"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="5459"/>
         <source>&lt;no devices available&gt;</source>
         <comment>USB devices</comment>
         <translation>&lt;利用できるデバイスがありません&gt;</translation>
     </message>
     <message>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="5458"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="5461"/>
         <source>No supported devices connected to the host PC</source>
         <comment>USB device tooltip</comment>
         <translation>ホストマシンに接続されたデバイスはサポートされていません</translation>
@@ -14152,18 +14157,18 @@ value.&lt;/qt&gt;</source>
         <translation>データ受信</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="479"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="485"/>
         <source>Not Available</source>
         <comment>details report (VRDE server port)</comment>
         <translation>利用不可</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="490"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="496"/>
         <source>Runtime Attributes</source>
         <translation>ランタイム属性</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="491"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="497"/>
         <source>Screen Resolution</source>
         <translation>画面解像度</translation>
     </message>
@@ -14181,24 +14186,24 @@ value.&lt;/qt&gt;</source>
         <translation type="obsolete">バージョン %1.%2</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="471"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="476"/>
         <source>Not Detected</source>
         <comment>guest additions</comment>
         <translation>未検出</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="474"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="479"/>
         <source>Not Detected</source>
         <comment>guest os type</comment>
         <translation>未検出</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="494"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="500"/>
         <source>Guest Additions</source>
         <translation>Guest Additions</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="495"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="501"/>
         <source>Guest OS Type</source>
         <translation>ゲストOSのタイプ</translation>
     </message>
@@ -14211,7 +14216,7 @@ value.&lt;/qt&gt;</source>
         <translation type="obsolete">ハードディスクなし</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="602"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="608"/>
         <source>No Network Adapters</source>
         <translation>ネットワーク アダプタなし</translation>
     </message>
@@ -14253,17 +14258,17 @@ value.&lt;/qt&gt;</source>
         <translation type="obsolete">利用不可</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="504"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="510"/>
         <source>Storage Statistics</source>
         <translation>ストレージ 統計</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="575"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="581"/>
         <source>No Storage Devices</source>
         <translation>ストレージ デバイス なし</translation>
     </message>
     <message>
-        <location filename="../src/VBoxVMInformationDlg.cpp" line="586"/>
+        <location filename="../src/VBoxVMInformationDlg.cpp" line="592"/>
         <source>Network Statistics</source>
         <translation>ネットワーク 統計</translation>
     </message>

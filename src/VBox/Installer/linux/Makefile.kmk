@@ -142,7 +142,7 @@ VBOX_LNX_STRIP_BIN = \
 		VBoxTestOGL \
 		VBoxSharedCrOpenGL.so,) \
 	$(if $(VBOX_WITH_PYTHON),$(notdir $(wildcard $(PATH_STAGE_BIN)/VBoxPython*.so)),) \
-        $(if $(VBOX_WITH_JXPCOM),libvboxjxpcom.so,) \
+	$(if $(VBOX_WITH_JXPCOM),libvboxjxpcom.so,) \
 	VBoxTunctl
 
 # Do not remove relocation information of these binaries
@@ -465,7 +465,7 @@ $(addprefix $(VBOX_LNX_INST_OUT_DIR)/archive/,$(VBOX_LNX_NO_STRIP)): \
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(LN_SYMLINK) $< $@
 
-# rules for creating directories in archive (the pattern rules depends on these). ## @todo use BLDDIRS
+# rules for creating directories in archive (the pattern rules depends on these).
 BLDDIRS += $(foreach d,\
 	archive \
 	archive/components \
@@ -476,7 +476,7 @@ BLDDIRS += $(foreach d,\
 	  archive/sdk/installer/vboxapi \
 	  archive/sdk/bindings/xpcom/python/xpcom \
 	  archive/sdk/bindings/xpcom/python/xpcom/client \
-          archive/sdk/bindings/xpcom/python/xpcom/server,) \
+	  archive/sdk/bindings/xpcom/python/xpcom/server,) \
 	$(if $(VBOX_WITH_JXPCOM),\
 	  archive/sdk/bindings/xpcom/java,) \
 	archive/additions \
@@ -508,7 +508,7 @@ $(addprefix $(VBOX_LNX_INST_OUT_DIR)/archive-dbg/$(VBOX_LNX_DBG_PATH)/,$(VBOX_LN
 	$(call MSG_TOOL,copydbg,$<,$@)
 	$(QUIET)objcopy --only-keep-debug $< $@
 
-# rules for creating directories in archive-dbg (the pattern rules depends on these). ## @todo use BLDDIRS
+# rules for creating directories in archive-dbg (the pattern rules depends on these).
 BLDDIRS += $(foreach d,\
 	$(VBOX_LNX_DBG_PATH) \
 	$(VBOX_LNX_DBG_PATH)/components \

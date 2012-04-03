@@ -2818,6 +2818,10 @@ p, li { white-space: pre-wrap; }
         <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
         <translation type="unfinished">អ្នកបាន​បើក​បង្កើនល្បឿន​​វី​ដេអូ​​ទ្វេ​​មាត្រ​ ។ បង្កើនល្បឿន​វីដេអូ​​ទ្វេ​មាត្រ​​ត្រូវ​បាន​គាំ​ទ្រ​សម្រាប់​​​ម៉ាស៊ីន​វីនដូ​តែ​ប៉ុ​ណ្ណោះ​ លក្ខណៈ​ពិសេសនេះ​​នឹង​​មិន​ត្រូវ​បាន​អនុញ្ញាត​ ។​</translation>
     </message>
+    <message>
+        <source>you enabled 3D acceleration. However, 3D acceleration is not working on the current host setup so you will not be able to start the VM.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsGeneral</name>

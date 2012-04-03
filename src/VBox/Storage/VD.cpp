@@ -4456,6 +4456,7 @@ VBOXDDU_DECL(int) VDOpen(PVBOXHDD pDisk, const char *pszBackend,
         AssertRC(rc);
 
         pImage->uOpenFlags = uOpenFlags & (VD_OPEN_FLAGS_HONOR_SAME | VD_OPEN_FLAGS_IGNORE_FLUSH);
+        pImage->VDIo.fIgnoreFlush = (uOpenFlags & VD_OPEN_FLAGS_IGNORE_FLUSH) != 0;
         rc = pImage->Backend->pfnOpen(pImage->pszFilename,
                                       uOpenFlags & ~(VD_OPEN_FLAGS_HONOR_SAME | VD_OPEN_FLAGS_IGNORE_FLUSH),
                                       pDisk->pVDIfsDisk,
@@ -4492,7 +4493,6 @@ VBOXDDU_DECL(int) VDOpen(PVBOXHDD pDisk, const char *pszBackend,
         fLockWrite = true;
 
         pImage->VDIo.pBackendData = pImage->pBackendData;
-        pImage->VDIo.fIgnoreFlush = (uOpenFlags & VD_OPEN_FLAGS_IGNORE_FLUSH) != 0;
 
         /* Check image type. As the image itself has only partial knowledge
          * whether it's a base image or not, this info is derived here. The
@@ -4712,6 +4712,7 @@ VBOXDDU_DECL(int) VDCacheOpen(PVBOXHDD pDisk, const char *pszBackend,
         AssertRC(rc);
 
         pCache->uOpenFlags = uOpenFlags & VD_OPEN_FLAGS_HONOR_SAME;
+        pCache->VDIo.fIgnoreFlush = (uOpenFlags & VD_OPEN_FLAGS_IGNORE_FLUSH) != 0;
         rc = pCache->Backend->pfnOpen(pCache->pszFilename,
                                       uOpenFlags & ~VD_OPEN_FLAGS_HONOR_SAME,
                                       pDisk->pVDIfsDisk,
@@ -4979,6 +4980,7 @@ VBOXDDU_DECL(int) VDCreateBase(PVBOXHDD pDisk, const char *pszBackend,
 
         pImage->uOpenFlags = uOpenFlags & VD_OPEN_FLAGS_HONOR_SAME;
         uImageFlags &= ~VD_IMAGE_FLAGS_DIFF;
+        pImage->VDIo.fIgnoreFlush = (uOpenFlags & VD_OPEN_FLAGS_IGNORE_FLUSH) != 0;
         rc = pImage->Backend->pfnCreate(pImage->pszFilename, cbSize,
                                         uImageFlags, pszComment, pPCHSGeometry,
                                         pLCHSGeometry, pUuid,
@@ -4992,7 +4994,6 @@ VBOXDDU_DECL(int) VDCreateBase(PVBOXHDD pDisk, const char *pszBackend,
         if (RT_SUCCESS(rc))
         {
             pImage->VDIo.pBackendData = pImage->pBackendData;
-            pImage->VDIo.fIgnoreFlush = (uOpenFlags & VD_OPEN_FLAGS_IGNORE_FLUSH) != 0;
             pImage->uImageFlags = uImageFlags;
 
             /* Force sane optimization settings. It's not worth avoiding writes
@@ -5245,6 +5246,7 @@ VBOXDDU_DECL(int) VDCreateDiff(PVBOXHDD pDisk, const char *pszBackend,
         }
 
         pImage->uOpenFlags = uOpenFlags & VD_OPEN_FLAGS_HONOR_SAME;
+        pImage->VDIo.fIgnoreFlush = (uOpenFlags & VD_OPEN_FLAGS_IGNORE_FLUSH) != 0;
         uImageFlags |= VD_IMAGE_FLAGS_DIFF;
         rc = pImage->Backend->pfnCreate(pImage->pszFilename, pDisk->cbSize,
                                         uImageFlags | VD_IMAGE_FLAGS_DIFF,
@@ -5260,7 +5262,6 @@ VBOXDDU_DECL(int) VDCreateDiff(PVBOXHDD pDisk, const char *pszBackend,
         if (RT_SUCCESS(rc))
         {
             pImage->VDIo.pBackendData = pImage->pBackendData;
-            pImage->VDIo.fIgnoreFlush = (uOpenFlags & VD_OPEN_FLAGS_IGNORE_FLUSH) != 0;
             pImage->uImageFlags = uImageFlags;
 
             /* Lock disk for writing, as we modify pDisk information below. */
@@ -5500,6 +5501,7 @@ VBOXDDU_DECL(int) VDCreateCache(PVBOXHDD pDisk, const char *pszBackend,
         }
 
         pCache->uOpenFlags = uOpenFlags & VD_OPEN_FLAGS_HONOR_SAME;
+        pCache->VDIo.fIgnoreFlush = (uOpenFlags & VD_OPEN_FLAGS_IGNORE_FLUSH) != 0;
         rc = pCache->Backend->pfnCreate(pCache->pszFilename, cbSize,
                                         uImageFlags,
                                         pszComment, pUuid,
@@ -5518,7 +5520,6 @@ VBOXDDU_DECL(int) VDCreateCache(PVBOXHDD pDisk, const char *pszBackend,
             fLockWrite = true;
 
             pCache->VDIo.pBackendData = pCache->pBackendData;
-            pCache->VDIo.fIgnoreFlush = (uOpenFlags & VD_OPEN_FLAGS_IGNORE_FLUSH) != 0;
 
             /* Re-check state, as the lock wasn't held and another image
              * creation call could have been done by another thread. */

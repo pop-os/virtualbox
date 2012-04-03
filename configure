@@ -900,14 +900,14 @@ extern "C" int main()
   for (; *v !='.' && *v != '\0'; v++) micro = micro*10 + *v-'0';
 
   printf("found version %s", LIBVNCSERVER_PACKAGE_VERSION);
-  if (major*10000 + minor*100 + micro >= 907)
+  if (major*10000 + minor*100 + micro >= 900)
   {
     printf(", OK.\n");
     return 0;
   }
   else
   {
-    printf(", expected version 0.9.7 or higher\n");
+    printf(", expected version 0.9 or higher\n");
     return 1;
   }
 }
@@ -1936,6 +1936,30 @@ setup_wine()
 check_gsoap()
 {
   test_header "GSOAP compiler"
+  if [ -z "$GSOAP" -a -z "$GSOAP_IMPORT" ]; then
+    if which_wrapper pkg-config > /dev/null; then
+      GSOAP_CXX_LIBS=`pkg-config gsoapssl++ --libs 2>> $LOG`
+      if [ $? -eq 0 ]; then
+        GSOAP=`pkg-config gsoapssl++ --variable=exec_prefix`
+        GSOAP_IMPORT="$GSOAP/share/gsoap/import"
+        if [ ! -d "$GSOAP_IMPORT"  -a  -d "$GSOAP/include/gsoap" ]; then
+          GSOAP_IMPORT="$GSOAP/include/gsoap"
+        fi
+        cnf_append "VBOX_GSOAP_INSTALLED"   "1"
+        cnf_append "VBOX_PATH_GSOAP"        "$GSOAP"
+        cnf_append "VBOX_PATH_GSOAP_IMPORT" "$GSOAP_IMPORT"
+        if [ -f "$GSOAP/share/gsoap/stdsoap2.cpp" ]; then
+          cnf_append "VBOX_GSOAP_CXX_SOURCES" "$GSOAP/share/gsoap/stdsoap2.cpp"
+        else
+          cnf_append "VBOX_GSOAP_CXX_SOURCES" ""
+        fi
+        cnf_append "VBOX_GSOAP_CXX_LIBS"    "`strip_l "$GSOAP_CXX_LIBS"`"
+        gsoap_version=`pkg-config gsoapssl++ --modversion`
+        log_success "found version $gsoap_version"
+        return
+      fi
+    fi
+  fi
   if [ -z "$GSOAP" ]; then
     GSOAP="/usr"
   fi
@@ -1959,7 +1983,7 @@ check_gsoap()
           else
             cnf_append "VBOX_GSOAP_CXX_SOURCES" ""
           fi
-          cnf_append "VBOX_GSOAP_CXX_LIBS"    "libgsoap++"
+          cnf_append "VBOX_GSOAP_CXX_LIBS"    "libgsoapssl++"
           log_success "found"
         else
           log_failure "stlvector.h not found -- disabling webservice"

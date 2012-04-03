@@ -370,9 +370,20 @@ DECL_FORCE_INLINE(bool) caIsRunning(AudioDeviceID deviceID)
 
 static char* caCFStringToCString(const CFStringRef pCFString)
 {
-    const char *pszTmp = NULL;
     char *pszResult = NULL;
     CFIndex cLen;
+#if 0
+    /**
+     * CFStringGetCStringPtr doesn't reliably return requested string instead return depends on "many factors" (not clear which)
+     * ( please follow the link
+     *  http://developer.apple.com/library/mac/#documentation/CoreFoundation/Reference/CFStringRef/Reference/reference.html
+     * for more details). Branch below allocates memory using mechanisms which hasn't got single method for memory free:
+     * RTStrDup - RTStrFree
+     * RTMemAllocZTag - RTMemFree
+     * which aren't compatible, opposite to CFStringGetCStringPtr CFStringGetCString has well defined
+     * behaviour and confident return value.
+     */
+    const char *pszTmp = NULL;
 
     /* First try to get the pointer directly. */
     pszTmp = CFStringGetCStringPtr(pCFString, kCFStringEncodingUTF8);
@@ -390,6 +401,16 @@ static char* caCFStringToCString(const CFStringRef pCFString)
             pszResult = NULL;
         }
     }
+#else
+    /* If the pointer isn't available directly, we have to make a copy. */
+    cLen = CFStringGetLength(pCFString) + 1;
+    pszResult = RTMemAllocZTag(cLen * sizeof(char), RTSTR_TAG);
+    if (!CFStringGetCString(pCFString, pszResult, cLen, kCFStringEncodingUTF8))
+    {
+        RTStrFree(pszResult);
+        pszResult = NULL;
+    }
+#endif
 
     return pszResult;
 }
@@ -691,9 +712,9 @@ static int caInitOutput(HWVoiceOut *hw)
             CFRelease(name);
             if (pszName && pszUID)
                 LogRel(("CoreAudio: Using output device: %s (UID: %s)\n", pszName, pszUID));
-            RTStrFree(pszUID);
+            RTMemFree(pszUID);
         }
-        RTStrFree(pszName);
+        RTMemFree(pszName);
     }
     else
         LogRel(("CoreAudio: [Output] Unable to get output device name (%RI32)\n", err));
@@ -1463,8 +1484,8 @@ static int caInitInput(HWVoiceIn *hw)
     UInt32 uSize = 0; /* temporary size of properties */
     UInt32 uFlag = 0; /* for setting flags */
     CFStringRef name; /* for the temporary device name fetching */
-    char *pszName;
-    char *pszUID;
+    char *pszName = NULL;
+    char *pszUID = NULL;
     ComponentDescription cd; /* description for an audio component */
     Component cp; /* an audio component */
     AURenderCallbackStruct cb; /* holds the callback structure */
@@ -1515,9 +1536,11 @@ static int caInitInput(HWVoiceIn *hw)
             CFRelease(name);
             if (pszName && pszUID)
                 LogRel(("CoreAudio: Using input device: %s (UID: %s)\n", pszName, pszUID));
-            RTStrFree(pszUID);
+            if (pszUID)
+                RTMemFree(pszUID);
         }
-        RTStrFree(pszName);
+        if (pszName)
+            RTMemFree(pszName);
     }
     else
         LogRel(("CoreAudio: [Input] Unable to get input device name (%RI32)\n", err));

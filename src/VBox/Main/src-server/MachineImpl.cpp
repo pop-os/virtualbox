@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -3932,7 +3932,7 @@ STDMETHODIMP Machine::DetachDevice(IN_BSTR aControllerName, LONG aControllerPort
     alock.release();
 
     if (SUCCEEDED(rc))
-        rc = mParent->saveRegistries(llRegistriesThatNeedSaving);
+        mParent->saveRegistries(llRegistriesThatNeedSaving);
 
     return rc;
 }
@@ -4910,8 +4910,7 @@ HRESULT Machine::deleteTaskWorker(DeleteTask &task)
 
         alock.release();
 
-        rc = mParent->saveRegistries(task.llRegistriesThatNeedSaving);
-        if (FAILED(rc)) throw rc;
+        mParent->saveRegistries(task.llRegistriesThatNeedSaving);
     }
     catch (HRESULT aRC) { rc = aRC; }
 
@@ -9890,7 +9889,7 @@ HRESULT Machine::detachAllMedia(AutoWriteLock &writeLock,
         rc = detachDevice(pAttach,
                           writeLock,
                           pSnapshot,
-                          NULL /* pfNeedsSaveSettings */);
+                          NULL /* pllRegistriesThatNeedSaving */);
 
         if (FAILED(rc))
             return rc;
@@ -10083,9 +10082,6 @@ void Machine::commitMedia(bool aOnline /*= false*/)
  * Does nothing if the hard disk attachment data (mMediaData) is not changed (not
  * backed up).
  *
- * @param pfNeedsSaveSettings Optional pointer to a bool that must have been initialized to false and that will be set to true
- *                by this function if the caller should invoke VirtualBox::saveSettings() because the global settings have changed.
- *
  * @note Locks this object for writing!
  *
  * @todo r=dj this needs a pllRegistriesThatNeedSaving as well
@@ -10141,7 +10137,7 @@ void Machine::rollbackMedia()
      * based rollback logic. */
     // @todo r=dj the below totally fails if this gets called from Machine::rollback(),
     // which gets called if Machine::registeredInit() fails...
-    deleteImplicitDiffs(NULL /*pfNeedsSaveSettings*/);
+    deleteImplicitDiffs(NULL /* pllRegistriesThatNeedSaving */);
 
     return;
 }

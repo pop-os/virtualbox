@@ -343,7 +343,6 @@ DECLINLINE(PCRVBOXHGSMI_CLIENT) _crVBoxHGSMIClientGet(CRConnection *conn)
         return &conn->HgsmiClient;
     {
         PVBOXUHGSMI pHgsmi = VBoxCrHgsmiCreate();
-        CRASSERT(pHgsmi);
         if (pHgsmi)
         {
             int rc = _crVBoxHGSMIClientInit(&conn->HgsmiClient, pHgsmi);
@@ -354,6 +353,10 @@ DECLINLINE(PCRVBOXHGSMI_CLIENT) _crVBoxHGSMIClientGet(CRConnection *conn)
                 return &conn->HgsmiClient;
             }
             VBoxCrHgsmiDestroy(pHgsmi);
+        }
+        else
+        {
+            crWarning("VBoxCrHgsmiCreate failed");
         }
     }
     return NULL;
@@ -595,10 +598,18 @@ static bool _crVBoxHGCMWriteBytes(CRConnection *conn, const void *buf, uint32_t 
  * @param   cbData      Data size
  */
 /** @todo use vbglR3DoIOCtl here instead */
-static int crVBoxHGCMCall(void *pvData, unsigned cbData)
+static int crVBoxHGCMCall(CRConnection *conn, void *pvData, unsigned cbData)
 {
 #ifdef IN_GUEST
-
+# if defined(VBOX_WITH_CRHGSMI)
+    PCRVBOXHGSMI_CLIENT pClient = _crVBoxHGSMIClientGet(conn);
+    if (pClient)
+    {
+        return VBoxCrHgsmiCtlConCall(pClient->pHgsmi, (struct VBoxGuestHGCMCallInfo *)pvData, cbData);
+    }
+    else
+# endif
+    {
 # ifdef RT_OS_WINDOWS
     DWORD cbReturned, lerr;
 
@@ -682,7 +693,7 @@ static int crVBoxHGCMCall(void *pvData, unsigned cbData)
         crWarning("vboxCall failed with %x\n", errno);
     return VERR_NOT_SUPPORTED;
 # endif /*#ifdef RT_OS_WINDOWS*/
-
+    }
 #else /*#ifdef IN_GUEST*/
     crError("crVBoxHGCMCall called on host side!");
     CRASSERT(FALSE);
@@ -852,7 +863,7 @@ static void _crVBoxHGCMWriteExact(CRConnection *conn, const void *buf, unsigned 
         parms.pBuffer.u.Pointer.size         = len;
         parms.pBuffer.u.Pointer.u.linearAddr = (uintptr_t) buf;
 
-        rc = crVBoxHGCMCall(&parms, sizeof(parms));
+        rc = crVBoxHGCMCall(conn, &parms, sizeof(parms));
         callRes = parms.hdr.result;
     }
     else
@@ -869,7 +880,7 @@ static void _crVBoxHGCMWriteExact(CRConnection *conn, const void *buf, unsigned 
         parms.pBuffer.u.Pointer.size         = len;
         parms.pBuffer.u.Pointer.u.linearAddr = (uintptr_t) buf;
 
-        rc = crVBoxHGCMCall(&parms, sizeof(parms));
+        rc = crVBoxHGCMCall(conn, &parms, sizeof(parms));
         callRes = parms.hdr.result;
     }
 
@@ -910,7 +921,7 @@ static void crVBoxHGCMReadExact( CRConnection *conn, const void *buf, unsigned i
     parms.cbBuffer.type      = VMMDevHGCMParmType_32bit;
     parms.cbBuffer.u.value32 = 0;
 
-    rc = crVBoxHGCMCall(&parms, sizeof(parms));
+    rc = crVBoxHGCMCall(conn, &parms, sizeof(parms));
 
     if (RT_FAILURE(rc) || RT_FAILURE(parms.hdr.result))
     {
@@ -966,7 +977,7 @@ crVBoxHGCMWriteReadExact(CRConnection *conn, const void *buf, unsigned int len, 
     parms.cbWriteback.type      = VMMDevHGCMParmType_32bit;
     parms.cbWriteback.u.value32 = 0;
 
-    rc = crVBoxHGCMCall(&parms, sizeof(parms));
+    rc = crVBoxHGCMCall(conn, &parms, sizeof(parms));
 
 #if defined(RT_OS_LINUX) || defined(RT_OS_WINDOWS)
     if (VERR_OUT_OF_RANGE==rc && CR_VBOXHGCM_USERALLOCATED==bufferKind)
@@ -1002,7 +1013,7 @@ crVBoxHGCMWriteReadExact(CRConnection *conn, const void *buf, unsigned int len, 
         {
             crDebug("SHCRGL_GUEST_FN_WRITE_BUFFER, offset=%u, size=%u", wbParms.ui32Offset.u.value32, wbParms.pBuffer.u.Pointer.size);
 
-            rc = crVBoxHGCMCall(&wbParms, sizeof(wbParms));
+            rc = crVBoxHGCMCall(conn, &wbParms, sizeof(wbParms));
             if (RT_FAILURE(rc) || RT_FAILURE(wbParms.hdr.result))
             {
                 crError("SHCRGL_GUEST_FN_WRITE_BUFFER (%i) failed with %x %x\n", wbParms.pBuffer.u.Pointer.size, rc, wbParms.hdr.result);
@@ -1027,7 +1038,7 @@ crVBoxHGCMWriteReadExact(CRConnection *conn, const void *buf, unsigned int len, 
             crMemcpy(&wrbParms.pWriteback, &parms.pWriteback, sizeof(HGCMFunctionParameter));
             crMemcpy(&wrbParms.cbWriteback, &parms.cbWriteback, sizeof(HGCMFunctionParameter));
 
-            rc = crVBoxHGCMCall(&wrbParms, sizeof(wrbParms));
+            rc = crVBoxHGCMCall(conn, &wrbParms, sizeof(wrbParms));
 
             /*bit of hack to reuse code below*/
             parms.hdr.result = wrbParms.hdr.result;
@@ -1163,7 +1174,7 @@ static void crVBoxHGCMPollHost(CRConnection *conn)
     parms.cbBuffer.type      = VMMDevHGCMParmType_32bit;
     parms.cbBuffer.u.value32 = 0;
 
-    rc = crVBoxHGCMCall(&parms, sizeof(parms));
+    rc = crVBoxHGCMCall(conn, &parms, sizeof(parms));
 
     if (RT_FAILURE(rc) || RT_FAILURE(parms.hdr.result))
     {
@@ -1371,7 +1382,7 @@ static int crVBoxHGCMSetVersion(CRConnection *conn, unsigned int vMajor, unsigne
     parms.vMinor.type      = VMMDevHGCMParmType_32bit;
     parms.vMinor.u.value32 = CR_PROTOCOL_VERSION_MINOR;
 
-    rc = crVBoxHGCMCall(&parms, sizeof(parms));
+    rc = crVBoxHGCMCall(conn, &parms, sizeof(parms));
 
     if (RT_FAILURE(rc) || RT_FAILURE(parms.hdr.result))
     {
@@ -1399,7 +1410,7 @@ static int crVBoxHGCMSetPID(CRConnection *conn, unsigned long long pid)
     parms.u64PID.type     = VMMDevHGCMParmType_64bit;
     parms.u64PID.u.value64 = pid;
 
-    rc = crVBoxHGCMCall(&parms, sizeof(parms));
+    rc = crVBoxHGCMCall(conn, &parms, sizeof(parms));
 
     if (RT_FAILURE(rc) || RT_FAILURE(parms.hdr.result))
     {
@@ -1441,6 +1452,7 @@ static int crVBoxHGCMDoConnect( CRConnection *conn )
         if (g_crvboxhgcm.hGuestDrv == INVALID_HANDLE_VALUE)
         {
             crDebug("could not open VBox Guest Additions driver! rc = %d\n", GetLastError());
+            CRASSERT(0);
             VBOXCRHGSMIPROFILE_FUNC_EPILOGUE();
             return FALSE;
         }
@@ -1532,25 +1544,9 @@ static int crVBoxHGCMDoConnect( CRConnection *conn )
 #endif
 }
 
-/*@todo same, replace DeviceIoControl with vbglR3DoIOCtl */
-static void crVBoxHGCMDoDisconnect( CRConnection *conn )
+static bool _crVBoxCommonDoDisconnectLocked( CRConnection *conn )
 {
-#ifdef IN_GUEST
-    VBoxGuestHGCMDisconnectInfo info;
-# ifdef RT_OS_WINDOWS
-    DWORD cbReturned;
-# endif
     int i;
-#endif
-
-    if (!g_crvboxhgcm.initialized) return;
-
-#ifdef CHROMIUM_THREADSAFE
-    crLockMutex(&g_crvboxhgcm.mutex);
-#endif
-
-    VBOXCRHGSMIPROFILE_FUNC_PROLOGUE();
-
     if (conn->pHostBuffer)
     {
         crFree(conn->pHostBuffer);
@@ -1575,6 +1571,33 @@ static void crVBoxHGCMDoDisconnect( CRConnection *conn )
 
         conn->type = CR_NO_CONNECTION;
     }
+
+    for (i = 0; i < g_crvboxhgcm.num_conns; i++)
+        if (g_crvboxhgcm.conns[i] && g_crvboxhgcm.conns[i]->type != CR_NO_CONNECTION)
+            return true;
+    return false;
+}
+
+/*@todo same, replace DeviceIoControl with vbglR3DoIOCtl */
+static void crVBoxHGCMDoDisconnect( CRConnection *conn )
+{
+#ifdef IN_GUEST
+    VBoxGuestHGCMDisconnectInfo info;
+# ifdef RT_OS_WINDOWS
+    DWORD cbReturned;
+# endif
+#endif
+    bool fHasActiveCons = false;
+
+    if (!g_crvboxhgcm.initialized) return;
+
+#ifdef CHROMIUM_THREADSAFE
+    crLockMutex(&g_crvboxhgcm.mutex);
+#endif
+
+    VBOXCRHGSMIPROFILE_FUNC_PROLOGUE();
+
+    fHasActiveCons = _crVBoxCommonDoDisconnectLocked(conn);
 
 #ifndef IN_GUEST
 #else /* IN_GUEST */
@@ -1612,13 +1635,8 @@ static void crVBoxHGCMDoDisconnect( CRConnection *conn )
         conn->u32ClientID = 0;
     }
 
-    /* see if any connections remain */
-    for (i = 0; i < g_crvboxhgcm.num_conns; i++)
-        if (g_crvboxhgcm.conns[i] && g_crvboxhgcm.conns[i]->type != CR_NO_CONNECTION)
-            break;
-
     /* close guest additions driver*/
-    if (i>=g_crvboxhgcm.num_conns)
+    if (!fHasActiveCons)
     {
 # ifdef RT_OS_WINDOWS
         CloseHandle(g_crvboxhgcm.hGuestDrv);
@@ -1671,7 +1689,7 @@ bool _crVBoxHGSMIInit()
     {
         int rc;
 #ifndef VBOX_CRHGSMI_WITH_D3DDEV
-        rc = VBoxCrHgsmiInit();
+        rc = VBoxCrHgsmiInit(CR_PROTOCOL_VERSION_MAJOR, CR_PROTOCOL_VERSION_MINOR);
 #else
         VBOXCRHGSMI_CALLBACKS Callbacks;
         Callbacks.pfnClientCreate = _crVBoxHGSMIClientCreate;
@@ -2304,14 +2322,43 @@ static void crVBoxHGSMIAccept( CRConnection *conn, const char *hostname, unsigne
 
 static int crVBoxHGSMIDoConnect( CRConnection *conn )
 {
-    return crVBoxHGCMDoConnect(conn);
+    PCRVBOXHGSMI_CLIENT pClient;
+    int rc = VINF_SUCCESS;
+
+#ifdef CHROMIUM_THREADSAFE
+    crLockMutex(&g_crvboxhgcm.mutex);
+#endif
+
+    VBOXCRHGSMIPROFILE_FUNC_PROLOGUE();
+
+    pClient = _crVBoxHGSMIClientGet(conn);
+    if (pClient)
+        rc = VBoxCrHgsmiCtlConGetClientID(pClient->pHgsmi, &conn->u32ClientID);
+    else
+        rc = VERR_GENERAL_FAILURE;
+
+    VBOXCRHGSMIPROFILE_FUNC_EPILOGUE();
+
+#ifdef CHROMIUM_THREADSAFE
+    crUnlockMutex(&g_crvboxhgcm.mutex);
+#endif
+    return RT_SUCCESS(rc);
 }
 
 static void crVBoxHGSMIDoDisconnect( CRConnection *conn )
 {
+    bool fHasActiveCons = false;
+
+    if (!g_crvboxhgcm.initialized) return;
+
+    VBOXCRHGSMIPROFILE_FUNC_PROLOGUE();
+
 #ifdef CHROMIUM_THREADSAFE
     crLockMutex(&g_crvboxhgcm.mutex);
 #endif
+
+    fHasActiveCons = _crVBoxCommonDoDisconnectLocked(conn);
+
 #ifndef VBOX_CRHGSMI_WITH_D3DDEV
     if (conn->HgsmiClient.pHgsmi)
     {
@@ -2320,8 +2367,12 @@ static void crVBoxHGSMIDoDisconnect( CRConnection *conn )
         CRASSERT(pHgsmi);
         VBoxCrHgsmiDestroy(pHgsmi);
     }
+#else
+# error "port me!"
 #endif
-    crVBoxHGCMDoDisconnect(conn);
+
+    VBOXCRHGSMIPROFILE_FUNC_EPILOGUE();
+
 #ifdef CHROMIUM_THREADSAFE
     crUnlockMutex(&g_crvboxhgcm.mutex);
 #endif

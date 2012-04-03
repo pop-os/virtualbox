@@ -62,6 +62,7 @@ VBoxGuestR0Lib_SOURCES      = \
 	VMMDev.cpp \
 	HGCM.cpp \
 	VBoxGuestR0LibSharedFolders.c \
+	VBoxGuestR0LibCrOgl.cpp \
 	VbglR0CanUsePhysPageList.cpp
 
 #
