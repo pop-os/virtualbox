@@ -12,5 +12,4 @@
 29-fix-ftbfs-as-needed.patch
 30-usb-warning-filters.patch
 32-disable-guest-version-check.patch
-33-link-static-libgsoap.patch
 35-libvdeplug-soname.patch
