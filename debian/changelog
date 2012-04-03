@@ -1,6 +1,7 @@
 virtualbox (4.1.12-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release.
+  * Drop 36-ubuntu-pae.patch, applied upstream.
   * Make the vboxpci module buildable for a i386 kernel when running amd64.
     (Closes: #664730)
     - Update 12-make-module.patch
