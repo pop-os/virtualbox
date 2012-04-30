@@ -2014,17 +2014,22 @@ static int e1kHandleRxPacket(E1KSTATE* pState, const void *pvBuf, size_t cb, E1K
 
     Assert(cb <= E1K_MAX_RX_PKT_SIZE);
     memcpy(rxPacket, pvBuf, cb);
+
+    size_t cbMax = ((RCTL & RCTL_LPE) ? E1K_MAX_RX_PKT_SIZE - 4 : 1518) - (status.fVP ? 0 : 4);
+    E1kLog3(("%s Max RX packet size is %u\n", INSTANCE(pState), cbMax));
+
     /* Pad short packets */
     if (cb < 60)
     {
         memset(rxPacket + cb, 0, 60 - cb);
         cb = 60;
     }
-    if (!(RCTL & RCTL_SECRC))
+    if (!(RCTL & RCTL_SECRC) && cb <= cbMax)
     {
         /* Add FCS if CRC stripping is not enabled */
         *(uint32_t*)(rxPacket + cb) = RTCrc32(rxPacket, cb);
         cb += sizeof(uint32_t);
+        E1kLog3(("%s Added FCS (cb=%u)\n", INSTANCE(pState), cb));
     }
     /* Compute checksum of complete packet */
     uint16_t checksum = e1kCSum16(rxPacket + GET_BITS(RXCSUM, PCSS), cb);

@@ -108,7 +108,7 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation type="unfinished"></translation>
+        <translation>Драйвер ядра VirtualBox для Linux (vboxdrv) або не завантажено, або проблема з доступом до /dev/vboxdrv. Перевстановіть модуль ядра, виконавши&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;з-під адміністратора, якщо це можливо у вашому дистрибутиві, споачтку слід установити пакунок DKMS. Цей пакунок слідкує за змінами у ядрі й перезбирує модуль ядра vboxdrv, якщо в цьому є потреба.</translation>
     </message>
 </context>
 <context>
@@ -539,6 +539,209 @@
         <source>Session I&amp;nformation...</source>
         <translation>&amp;Інформація про сеанс…</translation>
     </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Mac OS X version</comment>
+        <translation type="obsolete">&amp;Файл</translation>
+    </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Non Mac OS X version</comment>
+        <translation type="obsolete">&amp;Файл</translation>
+    </message>
+    <message>
+        <source>&amp;Virtual Media Manager...</source>
+        <translation type="obsolete">&amp;Керування віртуальними носіями...</translation>
+    </message>
+    <message>
+        <source>Display the Virtual Media Manager dialog</source>
+        <translation type="obsolete">Показати вікно керування віртуального носія</translation>
+    </message>
+    <message>
+        <source>&amp;Import Appliance...</source>
+        <translation type="obsolete">&amp;Імпортувати образу віртуальної машини…</translation>
+    </message>
+    <message>
+        <source>Import an appliance into VirtualBox</source>
+        <translation type="obsolete">Імпортувати образу віртуальної машини у VirtualBox</translation>
+    </message>
+    <message>
+        <source>&amp;Export Appliance...</source>
+        <translation type="obsolete">&amp;Експортувати образу віртуальної машини…</translation>
+    </message>
+    <message>
+        <source>Export one or more VirtualBox virtual machines as an appliance</source>
+        <translation type="obsolete">Експортувати образу віртуальної машини з VirtualBox</translation>
+    </message>
+    <message>
+        <source>&amp;Preferences...</source>
+        <comment>global settings</comment>
+        <translation type="obsolete">&amp;Налаштування...</translation>
+    </message>
+    <message>
+        <source>Display the global settings dialog</source>
+        <translation type="obsolete">Показати вікно загальних налаштувань</translation>
+    </message>
+    <message>
+        <source>E&amp;xit</source>
+        <translation type="obsolete">Ви&amp;йти</translation>
+    </message>
+    <message>
+        <source>Close application</source>
+        <translation type="obsolete">Закрити програму</translation>
+    </message>
+    <message>
+        <source>&amp;New...</source>
+        <translation type="obsolete">&amp;Створити…</translation>
+    </message>
+    <message>
+        <source>Create a new virtual machine</source>
+        <translation type="obsolete">Створити нову віртуальну машину</translation>
+    </message>
+    <message>
+        <source>&amp;Add...</source>
+        <translation type="obsolete">&amp;Додати...</translation>
+    </message>
+    <message>
+        <source>Add an existing virtual machine</source>
+        <translation type="obsolete">Додати наявну віртуальну машину</translation>
+    </message>
+    <message>
+        <source>Cl&amp;one...</source>
+        <translation type="obsolete">К&amp;лонувати…</translation>
+    </message>
+    <message>
+        <source>Clone the selected virtual machine</source>
+        <translation type="obsolete">Клонувати вибрану віртуальну машину</translation>
+    </message>
+    <message>
+        <source>&amp;Remove</source>
+        <translation type="obsolete">&amp;Вилучити</translation>
+    </message>
+    <message>
+        <source>Remove the selected virtual machine</source>
+        <translation type="obsolete">Вилучити вибрану віртуальну машину</translation>
+    </message>
+    <message>
+        <source>S&amp;tart</source>
+        <translation type="obsolete">З&amp;апуск</translation>
+    </message>
+    <message>
+        <source>Start the selected virtual machine</source>
+        <translation type="obsolete">Запустити вибрану віртуальну машину</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation type="obsolete">По&amp;казати</translation>
+    </message>
+    <message>
+        <source>Switch to the window of the selected virtual machine</source>
+        <translation type="obsolete">Перемкнутись до вікна вибраної віртуальної машини</translation>
+    </message>
+    <message>
+        <source>Discard</source>
+        <translation type="obsolete">Відкинути</translation>
+    </message>
+    <message>
+        <source>D&amp;iscard Saved State</source>
+        <translation type="obsolete">Ві&amp;дкинути збережений стан</translation>
+    </message>
+    <message>
+        <source>Discard the saved state of the selected virtual machine</source>
+        <translation type="obsolete">Відкинути збережений стан вибраної віртуальної машини</translation>
+    </message>
+    <message>
+        <source>Re&amp;fresh</source>
+        <translation type="obsolete">&amp;Оновити</translation>
+    </message>
+    <message>
+        <source>Refresh the accessibility state of the selected virtual machine</source>
+        <translation type="obsolete">Оновити доступність стану вибраної віртуальної машини</translation>
+    </message>
+    <message>
+        <source>Show &amp;Log...</source>
+        <translation type="obsolete">Показати &amp;журнал...</translation>
+    </message>
+    <message>
+        <source>Show the log files of the selected virtual machine</source>
+        <translation type="obsolete">Показати файли журналу вибраної віртуальної машини</translation>
+    </message>
+    <message>
+        <source>Show in Finder</source>
+        <translation type="obsolete">Показувати в пошуку</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in Finder.</source>
+        <translation type="obsolete">Показати значення файла віртуальної машини в пошуку.</translation>
+    </message>
+    <message>
+        <source>Show in Explorer</source>
+        <translation type="obsolete">Показувати в переглядачі</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in Explorer.</source>
+        <translation type="obsolete">Показати визначення файла віртуальної машин у переглядачі.</translation>
+    </message>
+    <message>
+        <source>Show in File Manager</source>
+        <translation type="obsolete">Показувати у файловому менеджері</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in the File Manager</source>
+        <translation type="obsolete">Показувати визначення файла віртуальної машин у файловому менеджері</translation>
+    </message>
+    <message>
+        <source>Create Alias on Desktop</source>
+        <translation type="obsolete">Створити назву на стільниці</translation>
+    </message>
+    <message>
+        <source>Creates an Alias file to the VirtualBox Machine Definition file on your Desktop.</source>
+        <translation type="obsolete">Створює назву файла для визначення файла віртуальної машини на стільниці.</translation>
+    </message>
+    <message>
+        <source>Create Shortcut on Desktop</source>
+        <translation type="obsolete">Створити скорочення на стільниці</translation>
+    </message>
+    <message>
+        <source>Creates an Shortcut file to the VirtualBox Machine Definition file on your Desktop.</source>
+        <translation type="obsolete">Створює файл скорочення визначення файла віртуальної машин на стільниці.</translation>
+    </message>
+    <message>
+        <source>Take Sn&amp;apshot...</source>
+        <translation type="obsolete">Зробити з&amp;різ…</translation>
+    </message>
+    <message>
+        <source>Take Screensh&amp;ot...</source>
+        <translation type="obsolete">Зробити З&amp;німок…</translation>
+    </message>
+    <message>
+        <source>Take a screenshot of the virtual machine</source>
+        <translation type="obsolete">Зробити знімок віртуальної машини</translation>
+    </message>
+    <message>
+        <source>Ins&amp;ert Ctrl-Alt-Backspace</source>
+        <translation type="obsolete">Вс&amp;тавити Ctrl-Alt-Backspace</translation>
+    </message>
+    <message>
+        <source>Sort List</source>
+        <translation type="obsolete">Упорядкувати список</translation>
+    </message>
+    <message>
+        <source>Sort the VM list alphabetically (Shift for descending order)</source>
+        <translation type="obsolete">Упорядкувати список машин за алфавітом (Shift для спадного порядку)</translation>
+    </message>
+    <message>
+        <source>&amp;Close</source>
+        <translation type="obsolete">&amp;Закрити</translation>
+    </message>
+    <message>
+        <source>Po&amp;wer Off</source>
+        <translation type="obsolete">&amp;Вимкнути</translation>
+    </message>
+    <message>
+        <source>Power off the virtual machine</source>
+        <translation type="obsolete">Вимкнути віртуальну машину</translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceEditorWidget</name>
@@ -825,6 +1028,238 @@
     <message>
         <source>Edit (Ctrl+E)</source>
         <translation>Редагувати (Ctrl+E)</translation>
+    </message>
+</context>
+<context>
+    <name>UIDetailsBlock</name>
+    <message>
+        <source>Name</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Назва</translation>
+    </message>
+    <message>
+        <source>OS Type</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Тип операційної системи</translation>
+    </message>
+    <message>
+        <source>Information inaccessible</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Інформація недоступна</translation>
+    </message>
+    <message>
+        <source>Base Memory</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Основна пам&apos;ять</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1 MB&lt;/nobr&gt;</source>
+        <comment>details report</comment>
+        <translation type="obsolete">&lt;nobr&gt;%1 МБ&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Processors</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Процесори</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
+        <comment>details report</comment>
+        <translation type="obsolete">&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Execution Cap</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Виконавча шапка</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
+        <comment>details report</comment>
+        <translation type="obsolete">&lt;nobr&gt;%1%&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Boot Order</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Порядок завантаження</translation>
+    </message>
+    <message>
+        <source>ACPI</source>
+        <comment>details report</comment>
+        <translation type="obsolete">ACPI</translation>
+    </message>
+    <message>
+        <source>IO APIC</source>
+        <comment>details report</comment>
+        <translation type="obsolete">APIC В/В</translation>
+    </message>
+    <message>
+        <source>BIOS</source>
+        <comment>details report</comment>
+        <translation type="obsolete">BIOS</translation>
+    </message>
+    <message>
+        <source>VT-x/AMD-V</source>
+        <comment>details report</comment>
+        <translation type="obsolete">VT-x/AMD-V</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Вкладене заміщення сторінок</translation>
+    </message>
+    <message>
+        <source>PAE/NX</source>
+        <comment>details report</comment>
+        <translation type="obsolete">PAE/NX</translation>
+    </message>
+    <message>
+        <source>Acceleration</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Прискорення</translation>
+    </message>
+    <message>
+        <source>Video Memory</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Відеопам&apos;ять</translation>
+    </message>
+    <message>
+        <source>Screens</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Екрани</translation>
+    </message>
+    <message>
+        <source>2D Video</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Двовимірне відео</translation>
+    </message>
+    <message>
+        <source>3D</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Просторове</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation type="obsolete">Порт віддаленого стільничного сервера</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation type="obsolete">Віддалений стільничний сервер</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation type="obsolete">Вимкнено</translation>
+    </message>
+    <message>
+        <source>(CD/DVD)</source>
+        <translation type="obsolete">(CD/DVD)</translation>
+    </message>
+    <message>
+        <source>Not Attached</source>
+        <comment>details report (Storage)</comment>
+        <translation type="obsolete">Не під&apos;єднано</translation>
+    </message>
+    <message>
+        <source>Host Driver</source>
+        <comment>details report (audio)</comment>
+        <translation type="obsolete">Головний драйвер</translation>
+    </message>
+    <message>
+        <source>Controller</source>
+        <comment>details report (audio)</comment>
+        <translation type="obsolete">Контролер</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (audio)</comment>
+        <translation type="obsolete">Вимкнено</translation>
+    </message>
+    <message>
+        <source>Bridged adapter, %1</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Проміжний адаптер, %1</translation>
+    </message>
+    <message>
+        <source>Internal network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Внутрішня мережа, «%1»</translation>
+    </message>
+    <message>
+        <source>Host-only adapter, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Лише головний адаптер, «%1»</translation>
+    </message>
+    <message>
+        <source>Generic driver, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Загальний драйвер, «%1»</translation>
+    </message>
+    <message>
+        <source>Generic driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Загальний драйвер, «%1» {&amp;nbsp;%2&amp;nbsp;}</translation>
+    </message>
+    <message>
+        <source>Adapter %1</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Адаптер %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Вимкнено</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details report (serial ports)</comment>
+        <translation type="obsolete">Порт %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (serial ports)</comment>
+        <translation type="obsolete">Вимкнено</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details report (parallel ports)</comment>
+        <translation type="obsolete">Порт %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (parallel ports)</comment>
+        <translation type="obsolete">Вимкнено</translation>
+    </message>
+    <message>
+        <source>Device Filters</source>
+        <comment>details report (USB)</comment>
+        <translation type="obsolete">Фільтр пристроїв</translation>
+    </message>
+    <message>
+        <source>%1 (%2 active)</source>
+        <comment>details report (USB)</comment>
+        <translation type="obsolete">%1 (%2 активно)</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (USB)</comment>
+        <translation type="obsolete">Вимкнено</translation>
+    </message>
+    <message>
+        <source>Shared Folders</source>
+        <comment>details report (shared folders)</comment>
+        <translation type="obsolete">Спільні теки</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>details report (shared folders)</comment>
+        <translation type="obsolete">Немає</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>details report (description)</comment>
+        <translation type="obsolete">Немає</translation>
     </message>
 </context>
 <context>
@@ -1133,6 +1568,14 @@
         <source>The download process has been canceled by the user.</source>
         <translation type="obsolete">Звантаження скасовано користувачем.</translation>
     </message>
+    <message>
+        <source>Looking for %1...</source>
+        <translation type="obsolete">Пошук %1…</translation>
+    </message>
+    <message>
+        <source>Downloading %1...</source>
+        <translation type="obsolete">Звантаження %1…</translation>
+    </message>
 </context>
 <context>
     <name>UIDownloaderAdditions</name>
@@ -1156,6 +1599,10 @@
         <source>Select folder to save Guest Additions image to</source>
         <translation>Вибрати теку, щоб зберегти образ гостьових доповнень</translation>
     </message>
+    <message>
+        <source>VirtualBox Guest Additions</source>
+        <translation type="obsolete">Гостьові доповнення VirtualBox</translation>
+    </message>
 </context>
 <context>
     <name>UIDownloaderExtensionPack</name>
@@ -1163,12 +1610,20 @@
         <source>Select folder to save %1 to</source>
         <translation>Вибрати теку для збереженя в неї %1</translation>
     </message>
+    <message>
+        <source>VirtualBox Extension Pack</source>
+        <translation type="obsolete">Пакунок розширень VirtualBox</translation>
+    </message>
 </context>
 <context>
     <name>UIDownloaderUserManual</name>
     <message>
         <source>Select folder to save User Manual to</source>
         <translation>Виберіть теку для збереження посібника користувача</translation>
+    </message>
+    <message>
+        <source>VirtualBox User Manual</source>
+        <translation type="obsolete">Посібник користувача VirtualBox</translation>
     </message>
 </context>
 <context>
@@ -1713,6 +2168,52 @@ p, li { white-space: pre-wrap; }
         <source>Source</source>
         <comment>summary</comment>
         <translation>Джерело</translation>
+    </message>
+</context>
+<context>
+    <name>UIGlobalSettingsDisplay</name>
+    <message>
+        <source>Maximum Guest Screen &amp;Size:</source>
+        <translation type="obsolete">Максимальний &amp;розмір гостьового екрана:</translation>
+    </message>
+    <message>
+        <source>&amp;Width:</source>
+        <translation type="obsolete">&amp;Ширина:</translation>
+    </message>
+    <message>
+        <source>&amp;Height:</source>
+        <translation type="obsolete">&amp;Висота:</translation>
+    </message>
+    <message>
+        <source>Specifies the maximum height which we would like the guest to use.</source>
+        <translation type="obsolete">Вказує максимальну висоту, яку слід використоувати у гостьовій системі.</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <comment>Maximum Guest Screen Size</comment>
+        <translation type="obsolete">Автоматично</translation>
+    </message>
+    <message>
+        <source>Suggest a reasonable maximum screen size to the guest. The guest will only see this suggestion when guest additions are installed.</source>
+        <translation type="obsolete">Радить поміркований максимальний розмір для гостьового екрана. Це можна побачити лише, коли встановлено гостьові доповнення.</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>Maximum Guest Screen Size</comment>
+        <translation type="obsolete">Немає</translation>
+    </message>
+    <message>
+        <source>Do not attempt to limit the size of the guest screen.</source>
+        <translation type="obsolete">Не намагатись обмежити розмір гостьового екрана.</translation>
+    </message>
+    <message>
+        <source>Hint</source>
+        <comment>Maximum Guest Screen Size</comment>
+        <translation type="obsolete">Натяк</translation>
+    </message>
+    <message>
+        <source>Suggest a maximum screen size to the guest. The guest will only see this suggestion when guest additions are installed.</source>
+        <translation type="obsolete">Радить максимальний розмір для гостьового екрана. Це можна побачити лише, коли встановлено гостьові доповнення.</translation>
     </message>
 </context>
 <context>
@@ -2747,6 +3248,10 @@ p, li { white-space: pre-wrap; }
         <source>No supported devices connected to the host PC</source>
         <translation>Нема підтримки пристроїв, які під&apos;єднанні до головного комп&apos;ютера</translation>
     </message>
+    <message>
+        <source>Select a filename for the screenshot ...</source>
+        <translation type="obsolete">Вибрати назву для файла змінку…</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -2899,7 +3404,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>you enabled 3D acceleration. However, 3D acceleration is not working on the current host setup so you will not be able to start the VM.</source>
-        <translation type="unfinished"></translation>
+        <translation>ви ввімкнули просторове прискорення. Однак, воно не працює на цих параметрах комп&apos;ютера, тож неможливо запустити віртуальну машину.</translation>
     </message>
 </context>
 <context>
@@ -5188,7 +5693,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Unable to obtain the new version information due to the following error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Неможливо отримати нову інформацію про версію через таку помилку:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Неможливо одержати нову інформацію про версію через таку помилку:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;One or more virtual hard disks, CD/DVD or floppy media are not currently accessible. As a result, you will not be able to operate virtual machines that use these media until they become accessible later.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Check&lt;/b&gt; to open the Virtual Media Manager window and see what media are inaccessible, or press &lt;b&gt;Ignore&lt;/b&gt; to ignore this message.&lt;/p&gt;</source>
@@ -5567,11 +6072,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;You are about to remove the virtual machine &lt;b&gt;%1&lt;/b&gt; from the machine list.&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Ви збираєтесь вилучити віртуальну машину &lt;b&gt;%1&lt;/b&gt; зі списку.&lt;/p&gt;&lt;p&gt;Бажаєте вилучити файли, які містять віртуальну машину, з вашого жорсткого диска також?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Ви збираєтесь вилучити віртуальну машину &lt;b&gt;%1&lt;/b&gt; зі списку.&lt;/p&gt;&lt;p&gt;Також вилучити файли, які містять віртуальну машину, з вашого жорсткого диска?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You are about to remove the virtual machine &lt;b&gt;%1&lt;/b&gt; from the machine list.&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well? Doing this will also remove the files containing the machine&apos;s virtual hard disks if they are not in use by another machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Ви збираєтесь вилучити віртуальну машину &lt;b&gt;%1&lt;/b&gt; зі списку.&lt;/p&gt;&lt;p&gt;Бажаєте вилучити файли, які містять віртуальну машину, з вашого жорсткого диска також? Це спричинить також вилучення файлів, які містять віртуальні жорсткі диски, якщо вони не використовується іншими машинами.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Ви збираєтесь вилучити віртуальну машину &lt;b&gt;%1&lt;/b&gt; зі списку.&lt;/p&gt;&lt;p&gt;Також вилучити файли, які містять віртуальну машину, з вашого жорсткого диска? Це теж вилучить файли, які містять віртуальні жорсткі диски, якщо вони не використовується іншими машинами.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Delete all files</source>
@@ -5877,13 +6382,71 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;p&gt;Не вдалось звантажити &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; з &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
     </message>
     <message>
+        <source>Network Operations Manager...</source>
+        <translation type="obsolete">Менеджер операцій мережі…</translation>
+    </message>
+    <message>
+        <source>Show Network Operations Manager</source>
+        <translation type="obsolete">Показати менеджера операцій мережі</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to remove following inaccessible virtual machines from the machine list:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Do you wish to proceed?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Ви намагаєтесь вилучити такі недоступні віртуальні машини зі списку машин:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Продовжити?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to remove following virtual machines from the machine list:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well? Doing this will also remove the files containing the machine&apos;s virtual hard disks if they are not in use by another machine.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Ви намагаєтесь вилучити такі недоступні віртуальні машини зі списку машин:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Також вилучити файли, що містять віртуальну машину, з жорсткого диска? Це теж вилучить файли, що містять жорсткі диски віртуальних машин, якщо вони не використовуються іншими машинами.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to remove following virtual machines from the machine list:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Ви намагаєтесь вилучити такі недоступні віртуальні машини зі списку машин:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Також вилучити файли, що містять віртуальну машину, з жорсткого диска?&lt;/p&gt;</translation>
+    </message>
+    <message>
         <source>&lt;p&gt;You have version %1 of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;You should download and install version %3 of this extension pack from Oracle!&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Встановлено версію %1 &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Слід звантажити і встановити версію %3 пакунка розширень від Oracle!&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Ok</source>
         <comment>extension pack</comment>
-        <translation type="unfinished"></translation>
+        <translation>Гаразд</translation>
+    </message>
+    <message>
+        <source>Do you wish to cancel all current network operations?</source>
+        <translation type="obsolete">Скасувати всі теперіші операції мережі?</translation>
+    </message>
+    <message>
+        <source>Do you wish to cancel all current network operations or leave them running in the background?</source>
+        <translation type="obsolete">Скасувати всі теперішні операції мережі чи залишити їх запущеними на тлі?</translation>
+    </message>
+    <message>
+        <source>Cancel All</source>
+        <translation type="obsolete">Скасувати все</translation>
+    </message>
+    <message>
+        <source>Leave in Background</source>
+        <translation type="obsolete">Залишити на тлі</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Do you really want to send an ACPI shutdown signal to the virtual machine?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Надіслати сигнал вимкнення ACPI віртуальній машині?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>ACPI Shutdown</source>
+        <comment>machine</comment>
+        <translation type="obsolete">Вимкнення ACPI</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Do you really want to power off the virtual machine?&lt;/p&gt;&lt;p&gt;This will cause any unsaved data in applications running inside it to be lost.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Вимкнути віртуальну машину?&lt;/p&gt;&lt;p&gt;Усі незбережені дані в запущених програмах буде втрачено.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Power Off</source>
+        <comment>machine</comment>
+        <translation type="obsolete">Вимкнути</translation>
+    </message>
+    <message>
+        <source>Failed to drop data.</source>
+        <translation type="obsolete">Не вдалось відкинути дані.</translation>
     </message>
 </context>
 <context>
@@ -5951,6 +6514,41 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Use Host Screen %1</source>
         <translation>Використовувати головний екран %1</translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkManager</name>
+    <message>
+        <source>Network Operation</source>
+        <translation type="obsolete">Операції мережі</translation>
+    </message>
+    <message>
+        <source>Restart network operation</source>
+        <translation type="obsolete">Перезапустити операції мережі</translation>
+    </message>
+    <message>
+        <source>Cancel network operation</source>
+        <translation type="obsolete">Скасувати операції мережі</translation>
+    </message>
+    <message>
+        <source>Error: %1.</source>
+        <translation type="obsolete">Помилка: %1.</translation>
+    </message>
+    <message>
+        <source>Network Operations Manager</source>
+        <translation type="obsolete">Менеджер операцій мережі</translation>
+    </message>
+    <message>
+        <source>There are no active network operations.</source>
+        <translation type="obsolete">Немає запущених операцій мережі.</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel All</source>
+        <translation type="obsolete">&amp;Скасувати все</translation>
+    </message>
+    <message>
+        <source>Cancel all active network operations</source>
+        <translation type="obsolete">Скасувати усі запущені операції мережі</translation>
     </message>
 </context>
 <context>
@@ -6138,8 +6736,8 @@ p, li { white-space: pre-wrap; }
         <translation>Будь ласка, виберіть, чи файл нового віртуального диска повиннен визначатись, чи його слід створити повністю визначеним.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; virtual disk file will only use space on your physical hard disk as it fills up, although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;Динамічно визначений&lt;/b&gt; файл віртуального диска лише займає на фізичному жорсткому диску в міру його заповнення, хоча воно не зменшується назад автоматично, коли звільнилось місце.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; virtual disk file will only use space on your physical hard disk as it fills up (up to a &lt;b&gt;fixed maximum size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;&lt;b&gt;Динамічно визначений&lt;/b&gt; файл віртуального диска лише займає на фізичному жорсткому диску в міру його заповнення, хоча воно не зменшується назад автоматично, коли звільнилось місце.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; virtual disk file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
@@ -6218,6 +6816,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&amp;QCOW (QEMU Copy-On-Write)</source>
         <translation>&amp;QCOW (копія на запис QEMU)</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; virtual disk file will only use space on your physical hard disk as it fills up, although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;b&gt;Динамічно розміщений&lt;/b&gt; файл віртуального диска буде використовувати простір тільки на вашому фізичному жорсткому диску.в міру його наповнення, хоча воно не щезне знову, якщо простір на ньому буде звільнено.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -6750,6 +7352,34 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UISelectorWindow</name>
+    <message>
+        <source>Show Toolbar</source>
+        <translation type="obsolete">Показувати панель інструментів</translation>
+    </message>
+    <message>
+        <source>Show Statusbar</source>
+        <translation type="obsolete">Показувати смужку стану</translation>
+    </message>
+    <message>
+        <source>Select a virtual machine file</source>
+        <translation type="obsolete">Вибрати файл віртуальної машини</translation>
+    </message>
+    <message>
+        <source>Virtual machine files (%1)</source>
+        <translation type="obsolete">Файли віртуальної машини (%1)</translation>
+    </message>
+    <message>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;h3&gt;Ласкаво просимо до VirtualBox!&lt;/h3&gt;&lt;p&gt;У лівій частині цього вікна показується список віртуальних машин на вашому комп&apos;ютері. Зараз список порожній, оскільки, поки що, ви не маєте створених віртуальних машин.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Для того, щоб створити нову віртуальну машину, натисніть &lt;b&gt;Створити&lt;/b&gt; в головному меню панелі інструментів, які розміщено зверху вікна.&lt;/p&gt;&lt;p&gt;Ви можете натиснути &lt;b&gt;%1&lt;/b&gt;, щоб одержати миттєву довідку, або відвідайте &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; щодо останніх новин.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Manager</source>
+        <comment>Note: main window title which is pretended by the product name.</comment>
+        <translation type="obsolete">Менеджер</translation>
+    </message>
+</context>
+<context>
     <name>UISession</name>
     <message>
         <source>Install</source>
@@ -6816,6 +7446,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Proxy</source>
         <translation>Проксі</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <translation type="obsolete">Екран</translation>
     </message>
 </context>
 <context>
@@ -7004,6 +7638,13 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UIUpdateStepVirtualBox</name>
+    <message>
+        <source>Checking for a new VirtualBox version...</source>
+        <translation type="obsolete">Перевіряння на нову версію VirtualBox…</translation>
+    </message>
+</context>
+<context>
     <name>UIVMCloseDialog</name>
     <message>
         <source>Close Virtual Machine</source>
@@ -7108,6 +7749,77 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Suspend the execution of the virtual machine</source>
         <translation type="obsolete">Призупинити роботу віртуальної машини</translation>
+    </message>
+</context>
+<context>
+    <name>UIVMLogViewer</name>
+    <message>
+        <source>Log Viewer</source>
+        <translation type="obsolete">Переглядач журналу</translation>
+    </message>
+    <message>
+        <source>&amp;Save</source>
+        <translation type="obsolete">&amp;Зберегти</translation>
+    </message>
+    <message>
+        <source>&amp;Refresh</source>
+        <translation type="obsolete">&amp;Оновити</translation>
+    </message>
+    <message>
+        <source>%1 - VirtualBox Log Viewer</source>
+        <translation type="obsolete">%1 — Переглядач журналу VirtualBox</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;No log files found. Press the &lt;b&gt;Refresh&lt;/b&gt; button to rescan the log folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Файли журналу не знайдені. Натисніть клавішу &lt;b&gt;Оновити&lt;/b&gt; для повторного перегляду теки журналу &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Save VirtualBox Log As</source>
+        <translation type="obsolete">Зберегти журнал VirtualBox як</translation>
+    </message>
+    <message>
+        <source>&amp;Find</source>
+        <translation type="obsolete">З&amp;найти</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="obsolete">Закрити</translation>
+    </message>
+    <message>
+        <source>Close the search panel</source>
+        <translation type="obsolete">Закрити пошукову панель</translation>
+    </message>
+    <message>
+        <source>Enter a search string here</source>
+        <translation type="obsolete">Введіть пошуковий рядок сюди</translation>
+    </message>
+    <message>
+        <source>&amp;Previous</source>
+        <translation type="obsolete">&amp;Попередній</translation>
+    </message>
+    <message>
+        <source>Search for the previous occurrence of the string</source>
+        <translation type="obsolete">Шукати за попереднім екземпляром рядка</translation>
+    </message>
+    <message>
+        <source>&amp;Next</source>
+        <translation type="obsolete">&amp;Наступний</translation>
+    </message>
+    <message>
+        <source>Search for the next occurrence of the string</source>
+        <translation type="obsolete">Шукати за наступним екземпляром рядка</translation>
+    </message>
+    <message>
+        <source>C&amp;ase Sensitive</source>
+        <translation type="obsolete">&amp;Чутливий до змін</translation>
+    </message>
+    <message>
+        <source>Perform case sensitive search (when checked)</source>
+        <translation type="obsolete">Виконувати з чутливим до змін пошуком (коли стоїть мітка)</translation>
+    </message>
+    <message>
+        <source>String not found</source>
+        <translation type="obsolete">Рядок не знайдено</translation>
     </message>
 </context>
 <context>
@@ -9341,7 +10053,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Find </source>
-        <translation>Знайти</translation>
+        <translation>Знайти </translation>
     </message>
     <message>
         <source>Enter a search string here</source>
@@ -9818,33 +10530,8 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">&amp;Подробиці</translation>
     </message>
     <message>
-        <source>&amp;Preferences...</source>
-        <comment>global settings</comment>
-        <translation>&amp;Налаштування...</translation>
-    </message>
-    <message>
-        <source>Display the global settings dialog</source>
-        <translation>Показати вікно загальних налаштувань</translation>
-    </message>
-    <message>
-        <source>E&amp;xit</source>
-        <translation>Ви&amp;йти</translation>
-    </message>
-    <message>
-        <source>Close application</source>
-        <translation>Закрити програму</translation>
-    </message>
-    <message>
-        <source>&amp;New...</source>
-        <translation>&amp;Створити…</translation>
-    </message>
-    <message>
-        <source>Create a new virtual machine</source>
-        <translation>Створити нову віртуальну машину</translation>
-    </message>
-    <message>
         <source>&amp;Settings...</source>
-        <translation>&amp;Параметри...</translation>
+        <translation>&amp;Параметри…</translation>
     </message>
     <message>
         <source>Configure the selected virtual machine</source>
@@ -9863,16 +10550,8 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Ві&amp;дкинути</translation>
     </message>
     <message>
-        <source>Discard the saved state of the selected virtual machine</source>
-        <translation>Відкинути збережений стан вибраної віртуальної машини</translation>
-    </message>
-    <message>
         <source>&amp;Refresh</source>
         <translation type="obsolete">&amp;Оновити</translation>
-    </message>
-    <message>
-        <source>Refresh the accessibility state of the selected virtual machine</source>
-        <translation>Оновити доступність стану вибраної віртуальної машини</translation>
     </message>
     <message>
         <source>&amp;File</source>
@@ -9895,32 +10574,8 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Оп&amp;ис *</translation>
     </message>
     <message>
-        <source>S&amp;how</source>
-        <translation>По&amp;казати</translation>
-    </message>
-    <message>
-        <source>Switch to the window of the selected virtual machine</source>
-        <translation>Перемкнутись до вікна вибраної віртуальної машини</translation>
-    </message>
-    <message>
-        <source>S&amp;tart</source>
-        <translation>З&amp;апуск</translation>
-    </message>
-    <message>
-        <source>Start the selected virtual machine</source>
-        <translation>Запустити вибрану віртуальну машину</translation>
-    </message>
-    <message>
         <source>&amp;Machine</source>
         <translation>&amp;Машина</translation>
-    </message>
-    <message>
-        <source>Show &amp;Log...</source>
-        <translation>Показати &amp;журнал...</translation>
-    </message>
-    <message>
-        <source>Show the log files of the selected virtual machine</source>
-        <translation>Показати файли журналу вибраної віртуальної машини</translation>
     </message>
     <message>
         <source>Sun xVM VirtualBox</source>
@@ -9947,14 +10602,6 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">&lt;h3&gt;Ласкаво просимо до програми VirtualBox!&lt;/h3&gt;&lt;p&gt;Ліва частина цього вікна призначена для показу списку всіх віртуальних машин на вашому комп&apos;ютері. Цей список зараз порожній, бо ви ще не створили жодної віртуальної машини.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Щоб створити нову віртуальну машину, натисніть кнопку &lt;b&gt;Створити&lt;/b&gt; на головній панелі інструментів, який знаходиться зверху вікна.&lt;/p&gt;&lt;p&gt;Ви можете натиснути клавішу &lt;b&gt;F1&lt;/b&gt; для отримання  миттєвої допомоги, або відвідайте &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt;, щоб дізнатися останню інформацію та новини.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&amp;Virtual Media Manager...</source>
-        <translation>&amp;Керування віртуальними носіями...</translation>
-    </message>
-    <message>
-        <source>Display the Virtual Media Manager dialog</source>
-        <translation>Показати вікно керування віртуального носія</translation>
-    </message>
-    <message>
         <source>Log</source>
         <comment>icon text</comment>
         <translation>Журнал</translation>
@@ -9964,38 +10611,8 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Sun VirtualBox</translation>
     </message>
     <message>
-        <source>&amp;Import Appliance...</source>
-        <translation>&amp;Імпортувати образу віртуальної машини…</translation>
-    </message>
-    <message>
-        <source>Import an appliance into VirtualBox</source>
-        <translation>Імпортувати образу віртуальної машини у VirtualBox</translation>
-    </message>
-    <message>
-        <source>&amp;Export Appliance...</source>
-        <translation>&amp;Експортувати образу віртуальної машини…</translation>
-    </message>
-    <message>
-        <source>Export one or more VirtualBox virtual machines as an appliance</source>
-        <translation>Експортувати образу віртуальної машини з VirtualBox</translation>
-    </message>
-    <message>
-        <source>Re&amp;fresh</source>
-        <translation>&amp;Оновити</translation>
-    </message>
-    <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Ласкаво просимо до VirtualBox!&lt;/h3&gt;&lt;p&gt;У лівій частині цього вікна показується список віртуальних машин на вашому комп&apos;ютері. Зараз список порожній, оскільки, поки що, ви не маєте створених віртуальних машин.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Для того, щоб створити нову віртуальну машину, натисніть &lt;b&gt;Створити&lt;/b&gt; в головному меню панелі інструментів , які знаходяться зверху вікна.&lt;/p&gt;&lt;p&gt;Ви можете натиснути &lt;b&gt;%1&lt;/b&gt;, щоб отримати миттєву довідку, або відвідайте  &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; щодо останніх новин.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;File</source>
-        <comment>Mac OS X version</comment>
-        <translation>&amp;Файл</translation>
-    </message>
-    <message>
-        <source>&amp;File</source>
-        <comment>Non Mac OS X version</comment>
-        <translation>&amp;Файл</translation>
+        <translation>&lt;h3&gt;Ласкаво просимо до VirtualBox!&lt;/h3&gt;&lt;p&gt;У лівій частині цього вікна показується список віртуальних машин на вашому комп&apos;ютері. Зараз список порожній, оскільки, поки що, ви не маєте створених віртуальних машин.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Для того, щоб створити нову віртуальну машину, натисніть &lt;b&gt;Створити&lt;/b&gt; в головному меню панелі інструментів, які розміщено зверху вікна.&lt;/p&gt;&lt;p&gt;Ви можете натиснути &lt;b&gt;%1&lt;/b&gt;, щоб одержати миттєву довідку, або відвідайте  &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; щодо останніх новин.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Select a virtual machine file</source>
@@ -10008,15 +10625,80 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Manager</source>
         <comment>Note: main window title which is pretended by the product name.</comment>
-        <translation>Керування</translation>
+        <translation>Менеджер</translation>
+    </message>
+    <message>
+        <source>Show Toolbar</source>
+        <translation>Показувати панель інструментів</translation>
+    </message>
+    <message>
+        <source>Show Statusbar</source>
+        <translation>Показувати смужку стану</translation>
+    </message>
+    <message>
+        <source>&amp;Virtual Media Manager...</source>
+        <translation>&amp;Керування віртуальними носіями…</translation>
+    </message>
+    <message>
+        <source>Display the Virtual Media Manager dialog</source>
+        <translation>Показати вікно керування віртуальним носієм</translation>
+    </message>
+    <message>
+        <source>&amp;Import Appliance...</source>
+        <translation>&amp;Імпортувати образ віртуальної машини…</translation>
+    </message>
+    <message>
+        <source>Import an appliance into VirtualBox</source>
+        <translation>Імпортувати образ віртуальної машини у VirtualBox</translation>
+    </message>
+    <message>
+        <source>&amp;Export Appliance...</source>
+        <translation>&amp;Експортувати образ віртуальної машини…</translation>
+    </message>
+    <message>
+        <source>Export one or more VirtualBox virtual machines as an appliance</source>
+        <translation>Експортувати образ віртуальної машини з VirtualBox</translation>
+    </message>
+    <message>
+        <source>&amp;Preferences...</source>
+        <comment>global settings</comment>
+        <translation>&amp;Параметри…</translation>
+    </message>
+    <message>
+        <source>Display the global settings dialog</source>
+        <translation>Показати вікно загальних параметрів</translation>
+    </message>
+    <message>
+        <source>E&amp;xit</source>
+        <translation>В&amp;ийти</translation>
+    </message>
+    <message>
+        <source>Close application</source>
+        <translation>Закрити програму</translation>
+    </message>
+    <message>
+        <source>&amp;New...</source>
+        <translation>&amp;Створити…</translation>
+    </message>
+    <message>
+        <source>Create a new virtual machine</source>
+        <translation>Створити нову віртуальну машину</translation>
     </message>
     <message>
         <source>&amp;Add...</source>
-        <translation>&amp;Додати...</translation>
+        <translation>&amp;Додати…</translation>
     </message>
     <message>
         <source>Add an existing virtual machine</source>
         <translation>Додати наявну віртуальну машину</translation>
+    </message>
+    <message>
+        <source>Cl&amp;one...</source>
+        <translation>К&amp;лонувати…</translation>
+    </message>
+    <message>
+        <source>Clone the selected virtual machine</source>
+        <translation>Клонувати вибрану віртуальну машину</translation>
     </message>
     <message>
         <source>&amp;Remove</source>
@@ -10025,6 +10707,34 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Remove the selected virtual machine</source>
         <translation>Вилучити вибрану віртуальну машину</translation>
+    </message>
+    <message>
+        <source>Discard</source>
+        <translation>Відкинути</translation>
+    </message>
+    <message>
+        <source>D&amp;iscard Saved State</source>
+        <translation>Ві&amp;дкинути збережений стан</translation>
+    </message>
+    <message>
+        <source>Discard the saved state of the selected virtual machine</source>
+        <translation>Відкинути збережений стан вибраної віртуальної машини</translation>
+    </message>
+    <message>
+        <source>Re&amp;fresh</source>
+        <translation>&amp;Оновити</translation>
+    </message>
+    <message>
+        <source>Refresh the accessibility state of the selected virtual machine</source>
+        <translation>Оновити доступність стану вибраної віртуальної машини</translation>
+    </message>
+    <message>
+        <source>Show &amp;Log...</source>
+        <translation>Показати &amp;журнал…</translation>
+    </message>
+    <message>
+        <source>Show the log files of the selected virtual machine</source>
+        <translation>Показати файли журналу вибраної віртуальної машини</translation>
     </message>
     <message>
         <source>Show in Finder</source>
@@ -10067,28 +10777,30 @@ p, li { white-space: pre-wrap; }
         <translation>Показувати визначення файла віртуальної машин у файловому менеджері</translation>
     </message>
     <message>
-        <source>Show Toolbar</source>
-        <translation>Показувати панель інструментів</translation>
+        <source>&amp;File</source>
+        <comment>Mac OS X version</comment>
+        <translation>&amp;Файл</translation>
     </message>
     <message>
-        <source>Show Statusbar</source>
-        <translation>Показувати смужку стану</translation>
+        <source>&amp;File</source>
+        <comment>Non Mac OS X version</comment>
+        <translation>&amp;Файл</translation>
     </message>
     <message>
-        <source>Cl&amp;one...</source>
-        <translation>К&amp;лонувати…</translation>
+        <source>S&amp;tart</source>
+        <translation>&amp;Запустити</translation>
     </message>
     <message>
-        <source>Clone the selected virtual machine</source>
-        <translation>Клонувати вибрану віртуальну машину</translation>
+        <source>Start the selected virtual machine</source>
+        <translation>Запустити вибрану віртуальну машину</translation>
     </message>
     <message>
-        <source>Discard</source>
-        <translation>Відкинути</translation>
+        <source>S&amp;how</source>
+        <translation>По&amp;казати</translation>
     </message>
     <message>
-        <source>D&amp;iscard Saved State</source>
-        <translation>Ві&amp;дкинути збережений стан</translation>
+        <source>Switch to the window of the selected virtual machine</source>
+        <translation>Перемкнутись до вікна вибраної віртуальної машини</translation>
     </message>
 </context>
 <context>
@@ -10563,18 +11275,6 @@ p, li { white-space: pre-wrap; }
         <translation>Переглядач журналу</translation>
     </message>
     <message>
-        <source>&amp;Save</source>
-        <translation>&amp;Зберегти</translation>
-    </message>
-    <message>
-        <source>&amp;Refresh</source>
-        <translation>&amp;Оновити</translation>
-    </message>
-    <message>
-        <source>%1 - VirtualBox Log Viewer</source>
-        <translation>%1 — Переглядач журналу VirtualBox</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;No log files found. Press the &lt;b&gt;Refresh&lt;/b&gt; button to rescan the log folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Файли журналу не знайдені. Натисніть клавішу &lt;b&gt;Оновити&lt;/b&gt; для повторного перегляду теки журналу &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</translation>
     </message>
@@ -10583,8 +11283,20 @@ p, li { white-space: pre-wrap; }
         <translation>Зберегти журнал VirtualBox як</translation>
     </message>
     <message>
+        <source>%1 - VirtualBox Log Viewer</source>
+        <translation>%1 — Переглядач журналу VirtualBox</translation>
+    </message>
+    <message>
         <source>&amp;Find</source>
         <translation>З&amp;найти</translation>
+    </message>
+    <message>
+        <source>&amp;Refresh</source>
+        <translation>&amp;Оновити</translation>
+    </message>
+    <message>
+        <source>&amp;Save</source>
+        <translation>&amp;Зберегти</translation>
     </message>
     <message>
         <source>Close</source>

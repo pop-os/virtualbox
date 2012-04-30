@@ -53,7 +53,7 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>VirtualBox Linux 内核驱动程序 (vboxdrv) 没有加载，或 /dev/vboxdrv 有权限问题。请以 root 权限执行&lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;“/etc/init.d/vboxdrv setup”&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;，以便重新安装核心模块。Ubuntu、Fedora 或 Mandriva 的用户应该首先安装 DKMS 软件包。此程序包跟踪 Linux 内核的更改，并在必要时重新编译 vboxdrv 内核模块。</translation>
+        <translation type="obsolete">VirtualBox Linux 内核驱动程序 (vboxdrv) 没有加载，或 /dev/vboxdrv 有权限问题。请以 root 权限执行&lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;“/etc/init.d/vboxdrv setup”&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;，以便重新安装核心模块。Ubuntu、Fedora 或 Mandriva 的用户应该首先安装 DKMS 软件包。此程序包跟踪 Linux 内核的更改，并在必要时重新编译 vboxdrv 内核模块。</translation>
     </message>
     <message>
         <source>Make sure the kernel module has been loaded successfully.</source>
@@ -86,6 +86,10 @@
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>该错误意味着当前的内核驱动模块无法分配足够的内存或某些映射操作失败.</translation>
+    </message>
+    <message>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>VirtualBox Linux 内核驱动程序 (vboxdrv) 没有加载，或 /dev/vboxdrv 有权限问题。请以 root 权限执行&lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;“/etc/init.d/vboxdrv setup”&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;，以便重新安装内核模块。如果你所用的发行版bs有DKMS软件包，你应该首先安装之。此程序包跟踪 Linux 内核的更改，并在必要时重新编译 vboxdrv 内核模块。</translation>
     </message>
 </context>
 <context>
@@ -2129,6 +2133,11 @@
         <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
         <translation>您已启用了2D视频加速。但该功能目前只能用于虚拟电脑内的Windows系统，因此该特性将被禁用。</translation>
     </message>
+    <message>
+        <source>you enabled 3D acceleration. However, 3D acceleration is not working on the current host setup so you will not be able to start the VM.</source>
+        <translatorcomment>TODO</translatorcomment>
+        <translation>3D加速已启用。但是当前主机的配置并不支持3D加速，因此你将不能启动虚拟电脑。</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsGeneral</name>
@@ -2954,7 +2963,7 @@
     </message>
     <message>
         <source>for performance reasons, the number of virtual CPUs attached to the virtual machine may not be more than twice the number of physical CPUs on the host (&lt;b&gt;%1&lt;/b&gt;). Please reduce the number of virtual CPUs.</source>
-        <translation>为了获得更好的性能，分配给虚拟电脑的虚拟CPU数量不应超过电脑上实际CPU数量 (&lt;b&gt;%1&lt;/b&gt;) 的两倍，因此请减少为该虚拟电脑所分配的虚拟CPU的数量。</translation>
+        <translation>为了获得更好的性能，分配给虚拟电脑的虚拟处理器的数量不应超过电脑上实际的处理器数量 (&lt;b&gt;%1&lt;/b&gt;) 的两倍，因此请减少为该虚拟电脑所分配的虚拟处理器的数量。</translation>
     </message>
     <message>
         <source>you have assigned more virtual CPUs to the virtual machine than the number of physical CPUs on your host system (&lt;b&gt;%1&lt;/b&gt;). This is likely to degrade the performance of your virtual machine. Please consider reducing the number of virtual CPUs.</source>
@@ -2975,7 +2984,7 @@
     <message>
         <source>&lt;qt&gt;%1&amp;nbsp;CPU&lt;/qt&gt;</source>
         <comment>%1 is 1 for now</comment>
-        <translation>&lt;qt&gt;%1&amp;nbsp;CPU&lt;/qt&gt;</translation>
+        <translation>&lt;qt&gt;%1&amp;nbsp;个&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Motherboard</source>
@@ -3035,7 +3044,7 @@
     </message>
     <message>
         <source>&amp;Processor(s):</source>
-        <translation>CPU数量(&amp;P):</translation>
+        <translation>处理器数量(&amp;P):</translation>
     </message>
     <message>
         <source>When checked, the Physical Address Extension (PAE) feature of the host CPU will be exposed to the virtual machine.</source>
@@ -3055,7 +3064,7 @@
     </message>
     <message>
         <source>When checked, the virtual machine will try to make use of the host CPU&apos;s hardware virtualization extensions such as Intel VT-x and AMD-V.</source>
-        <translation>选中，虚拟电脑将尝试利用CPU上的硬件加速扩展.</translation>
+        <translation>选中，虚拟电脑将尝试利用主机处理器上的硬件加速扩展.</translation>
     </message>
     <message>
         <source>Enable &amp;VT-x/AMD-V</source>
@@ -3063,7 +3072,7 @@
     </message>
     <message>
         <source>When checked, the virtual machine will try to make use of the nested paging extension of Intel VT-x and AMD-V.</source>
-        <translation>选中，虚拟电脑将尝试利用Intel VT-x或AMD-V等CPU上具备的嵌套分页扩展特性。</translation>
+        <translation>选中，虚拟电脑将尝试利用Intel VT-x或AMD-V等具备的嵌套分页扩展特性。</translation>
     </message>
     <message>
         <source>Enable Nested Pa&amp;ging</source>
@@ -3072,7 +3081,7 @@
     <message>
         <source>&lt;qt&gt;%1&amp;nbsp;CPUs&lt;/qt&gt;</source>
         <comment>%1 is host cpu count * 2 for now</comment>
-        <translation>&lt;qt&gt;%1&amp;nbsp;CPUs&lt;/qt&gt;</translation>
+        <translation>&lt;qt&gt;%1&amp;nbsp;个&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>When checked, the guest will support the Extended Firmware Interface (EFI), which is required to boot certain guest OSes. Non-EFI aware OSes will not be able to boot if this option is activated.</source>
@@ -3897,7 +3906,7 @@
     </message>
     <message>
         <source>&lt;p&gt;VT-x/AMD-V hardware acceleration has been enabled, but is not operational. Your 64-bit guest will fail to detect a 64-bit CPU and will not be able to boot.&lt;/p&gt;&lt;p&gt;Please ensure that you have enabled VT-x/AMD-V properly in the BIOS of your host computer.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;VT-x/AMD-V 硬件加速已被启用, 但当前处于无效状态. 您虚拟电脑内的操作系统将无法检测到64位的CPU，因此也将无法启动.&lt;/p&gt;&lt;p&gt;请确认在您电脑的BIOS中已启用 VT-x/AMD-V 支持.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;VT-x/AMD-V 硬件加速已被启用, 但当前处于无效状态. 您虚拟电脑内的操作系统将无法检测到64位的处理器，因此也将无法启动.&lt;/p&gt;&lt;p&gt;请确认在您电脑的BIOS中已启用 VT-x/AMD-V 支持.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Close VM</source>
@@ -4072,7 +4081,7 @@
     </message>
     <message>
         <source>&lt;p&gt;VT-x/AMD-V hardware acceleration is not available on your system. Your 64-bit guest will fail to detect a 64-bit CPU and will not be able to boot.</source>
-        <translation>&lt;p&gt;VT-x/AMD-V 硬件加速在您的系统中不可用。您的 64-位虚拟机将无法检测到 64-位 CPU，从而无法启动。</translation>
+        <translation>&lt;p&gt;VT-x/AMD-V 硬件加速在您的系统中不可用。您的 64-位虚拟机将无法检测到 64-位处理器，从而无法启动。</translation>
     </message>
     <message>
         <source>&lt;p&gt;VT-x/AMD-V hardware acceleration is not available on your system. Certain guests (e.g. OS/2 and QNX) require this feature and will fail to boot without it.&lt;/p&gt;</source>
@@ -4422,6 +4431,15 @@
         <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
         <translation>&lt;p&gt;从 &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; 下载 &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; 失败。&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;You have version %1 of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;You should download and install version %3 of this extension pack from Oracle!&lt;/p&gt;</source>
+        <translation>&lt;p&gt;您已安装的 &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; 是旧版本 (%1)。&lt;/p&gt;&lt;p&gt;您应从Oracle网站下载此扩展包的最新版 %3！&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Ok</source>
+        <comment>extension pack</comment>
+        <translation>确定</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetUserManual</name>
@@ -4548,7 +4566,7 @@
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; virtual disk file will only use space on your physical hard disk as it fills up (up to a &lt;b&gt;fixed maximum size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;动态分配&lt;/b&gt;的虚拟磁盘只是逐渐占用物理硬盘的空间 (直至达到 &lt;b&gt;分配的大小&lt;/b&gt;), 不过当其内部空间不用时不会自动缩减占用的物理硬盘空间。&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;&lt;b&gt;动态分配&lt;/b&gt;的虚拟磁盘只是逐渐占用物理硬盘的空间 (直至达到 &lt;b&gt;分配的大小&lt;/b&gt;), 不过当其内部空间不用时不会自动缩减占用的物理硬盘空间。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; virtual disk file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
@@ -4645,6 +4663,10 @@
     <message>
         <source>&amp;QCOW (QEMU Copy-On-Write)</source>
         <translation>QCOW (QEMU 写入时复制)(&amp;Q)</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; virtual disk file will only use space on your physical hard disk as it fills up, although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;&lt;b&gt;动态分配&lt;/b&gt;的虚拟磁盘只是逐渐占用物理硬盘的空间, 不过当其内部空间不用时不会自动缩减占用的物理硬盘空间。&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -6459,6 +6481,49 @@
     </message>
 </context>
 <context>
+    <name>VBoxLogSearchPanel</name>
+    <message>
+        <source>Close the search panel</source>
+        <translation>关闭搜索面板</translation>
+    </message>
+    <message>
+        <source>Find </source>
+        <translation>查找</translation>
+    </message>
+    <message>
+        <source>Enter a search string here</source>
+        <translation>输入搜索字符串</translation>
+    </message>
+    <message>
+        <source>&amp;Previous</source>
+        <translation>向前(&amp;P)</translation>
+    </message>
+    <message>
+        <source>Search for the previous occurrence of the string</source>
+        <translation>向前搜索该字符串</translation>
+    </message>
+    <message>
+        <source>&amp;Next</source>
+        <translation>向后(&amp;N)</translation>
+    </message>
+    <message>
+        <source>Search for the next occurrence of the string</source>
+        <translation>向后搜索该字符串</translation>
+    </message>
+    <message>
+        <source>C&amp;ase Sensitive</source>
+        <translation>区分大小写(&amp;A)</translation>
+    </message>
+    <message>
+        <source>Perform case sensitive search (when checked)</source>
+        <translation>区分大小写进行搜索(选中时)</translation>
+    </message>
+    <message>
+        <source>String not found</source>
+        <translation>字符串未找到</translation>
+    </message>
+</context>
+<context>
     <name>VBoxMediaManagerDlg</name>
     <message>
         <source>&amp;Actions</source>
@@ -7215,49 +7280,6 @@
     <message>
         <source>Close</source>
         <translation>关闭</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxLogSearchPanel</name>
-    <message>
-        <source>Close the search panel</source>
-        <translation>关闭搜索面板</translation>
-    </message>
-    <message>
-        <source>Find </source>
-        <translation>查找</translation>
-    </message>
-    <message>
-        <source>Enter a search string here</source>
-        <translation>输入搜索字符串</translation>
-    </message>
-    <message>
-        <source>&amp;Previous</source>
-        <translation>向前(&amp;P)</translation>
-    </message>
-    <message>
-        <source>Search for the previous occurrence of the string</source>
-        <translation>向前搜索该字符串</translation>
-    </message>
-    <message>
-        <source>&amp;Next</source>
-        <translation>向后(&amp;N)</translation>
-    </message>
-    <message>
-        <source>Search for the next occurrence of the string</source>
-        <translation>向后搜索该字符串</translation>
-    </message>
-    <message>
-        <source>C&amp;ase Sensitive</source>
-        <translation>区分大小写(&amp;A)</translation>
-    </message>
-    <message>
-        <source>Perform case sensitive search (when checked)</source>
-        <translation>区分大小写进行搜索(选中时)</translation>
-    </message>
-    <message>
-        <source>String not found</source>
-        <translation>字符串未找到</translation>
     </message>
 </context>
 </TS>

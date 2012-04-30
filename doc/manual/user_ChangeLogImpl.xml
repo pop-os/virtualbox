@@ -1,7 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
-    <title>Version 4.1.12 (2012-04-02)</title>
+    <title>Version 4.1.14 (2012-04-12)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>Network: fixed the problem with packets larger than MTU-4 when
+          PCnet or PRO/1000 was bridged to certain types of adapters on OS X hosts
+          (bug #3783)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed a segfault under rare circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>3D Support: fixed Windows WDDM video driver crash for SMP guests
+          (bugs #10200, #10331)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Guest Additions, VRDP: fixed occasional corruption of vertical text</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
+    <title>Version 4.1.12 (2012-04-03)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
       added:</para>
@@ -39,6 +70,11 @@
 
       <listitem>
         <para>HGCM: fixed a crash during savestate under rare circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>Metrics: fixed an occasional crash during VM shutdown if host
+          RAM/VMM metrics are enabled</para>
       </listitem>
 
       <listitem>

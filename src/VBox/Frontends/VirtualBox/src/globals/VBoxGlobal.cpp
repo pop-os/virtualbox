@@ -133,6 +133,8 @@
 #include <iprt/mem.h>
 #endif
 
+#include <VBox/VBoxOGLTest.h>
+
 //#define VBOX_WITH_FULL_DETAILS_REPORT /* hidden for now */
 
 //#warning "port me: check this"
@@ -4792,7 +4794,7 @@ void VBoxGlobal::init()
         return;
     }
     mHost = virtualBox().GetHost();
-    m3DAvailable = mHost.GetAcceleration3DAvailable();
+    m3DAvailable = VBoxOglIs3DAccelerationSupported();
 
     /* create default non-null global settings */
     gset = VBoxGlobalSettings (false);
