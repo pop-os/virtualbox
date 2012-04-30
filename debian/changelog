@@ -1,6 +1,7 @@
 virtualbox (4.1.14-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release.
+    - Drop 36-tarball-respin.patch
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 30 Apr 2012 23:54:31 +0200
 
