@@ -2124,7 +2124,7 @@
     </message>
     <message>
         <source>you enabled 3D acceleration. However, 3D acceleration is not working on the current host setup so you will not be able to start the VM.</source>
-        <translation>haben Sie die 3D-Unterstützung aktiviert. Allderings funktioniert die 3D-Hardwarebeschleunigung nicht auf dem Host, und daher die VM kann nicht gestartet werden.</translation>
+        <translation>haben Sie die 3D-Unterstützung aktiviert. Allderings funktioniert die 3D-Hardwarebeschleunigung nicht auf dem Host, daher kann die VM nicht gestartet werden.</translation>
     </message>
 </context>
 <context>

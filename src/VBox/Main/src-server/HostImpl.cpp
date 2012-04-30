@@ -122,7 +122,7 @@ typedef SOLARISDVD *PSOLARISDVD;
 #endif
 
 #ifdef VBOX_WITH_CROGL
-extern bool is3DAccelerationSupported();
+#include <VBox/VBoxOGLTest.h>
 #endif /* VBOX_WITH_CROGL */
 
 #include <iprt/asm-amd64-x86.h>
@@ -364,7 +364,7 @@ HRESULT Host::init(VirtualBox *aParent)
     m->f3DAccelerationSupported = false;
 
 #ifdef VBOX_WITH_CROGL
-    m->f3DAccelerationSupported = is3DAccelerationSupported();
+    m->f3DAccelerationSupported = VBoxOglIs3DAccelerationSupported();
 #endif /* VBOX_WITH_CROGL */
 
 #if defined (RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
@@ -1083,6 +1083,10 @@ STDMETHODIMP Host::COMGETTER(Acceleration3DAvailable)(BOOL *aSupported)
 
     *aSupported = m->f3DAccelerationSupported;
 
+#ifdef DEBUG_misha
+    AssertMsgFailed(("should not be here any more!\n"));
+#endif
+
     return S_OK;
 }
 
@@ -1090,7 +1094,6 @@ STDMETHODIMP Host::CreateHostOnlyNetworkInterface(IHostNetworkInterface **aHostN
                                                   IProgress **aProgress)
 {
     CheckComArgOutPointerValid(aHostNetworkInterface);
-    CheckComArgNotNull(*aHostNetworkInterface);
     CheckComArgOutPointerValid(aProgress);
 
     AutoCaller autoCaller(this);
@@ -1103,6 +1106,10 @@ STDMETHODIMP Host::CreateHostOnlyNetworkInterface(IHostNetworkInterface **aHostN
     int r = NetIfCreateHostOnlyNetworkInterface(m->pParent, aHostNetworkInterface, aProgress);
     if (RT_SUCCESS(r))
     {
+        if (!*aHostNetworkInterface)
+            return setError(E_FAIL,
+                            tr("Unable to create a host network interface"));
+
 #if !defined(RT_OS_WINDOWS)
         Bstr tmpAddr, tmpMask, tmpName;
         HRESULT hrc;
