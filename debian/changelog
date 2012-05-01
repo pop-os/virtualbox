@@ -1,11 +1,11 @@
-virtualbox (4.1.14-dfsg-1) UNRELEASED; urgency=low
+virtualbox (4.1.14-dfsg-1) unstable; urgency=low
 
   * New upstream release.
     - Drop 36-tarball-respin.patch
   * Fix FTBFS with X Server 1.12. (Closes: #671061)
     - Add 36-fix-ftbfs-xserver-112.patch
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 30 Apr 2012 23:54:31 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 01 May 2012 20:22:40 +0200
 
 virtualbox (4.1.12-dfsg-2) unstable; urgency=low
 
