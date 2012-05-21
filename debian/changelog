@@ -1,9 +1,9 @@
-virtualbox (4.1.14-dfsg-2) UNRELEASED; urgency=low
+virtualbox (4.1.14-dfsg-2) unstable; urgency=low
 
   * Fix FTBFS with gcc 4.7 on i386.
     - Add 37-fix-build-gcc47.patch
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Thu, 03 May 2012 15:15:38 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 21 May 2012 10:39:19 +0200
 
 virtualbox (4.1.14-dfsg-1) unstable; urgency=low
 
