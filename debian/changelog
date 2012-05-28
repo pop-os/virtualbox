@@ -1,3 +1,9 @@
+virtualbox (4.1.16-dfsg-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 28 May 2012 18:01:20 +0200
+
 virtualbox (4.1.14-dfsg-2) unstable; urgency=low
 
   * Fix FTBFS with gcc 4.7 on i386.
