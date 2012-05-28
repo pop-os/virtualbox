@@ -295,6 +295,10 @@ static int rtProcMapErrorCodes(DWORD dwError)
             rc = VERR_AUTHENTICATION_FAILURE;
             break;
 
+        case ERROR_FILE_CORRUPT:
+            rc = VERR_BAD_EXE_FORMAT;
+            break;
+
         default:
             /* Could trigger a debug assertion! */
             rc = RTErrConvertFromWin32(dwError);

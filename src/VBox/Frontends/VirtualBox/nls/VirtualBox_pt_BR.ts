@@ -6593,8 +6593,8 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">&lt;p&gt;Os Adicionais para Convidado não estão disponíveis nesta máquina virtual, e portanto não é possível utilizar o recurso de pastas compartilhadas. Para utilizar pastas compartilhadas dentro da máquina virtual, instale os Adicionais para Convidado, ou instale-os novamente caso não estejam funcionando corretamente. Para fazer isto, selecione a opção &lt;b&gt;Instalar Adicionais para Convidado&lt;/b&gt; no menu &lt;b&gt;Máquina&lt;/b&gt;. Caso já esteja instalado mas a máquina esteja em processo de inicialização, aguarde até que esteja totalmente ativa e a opção de pastas compartilhadas estará disponível.&lt;/p&gt;</translation>
     </message>
     <message numerus="yes">
-        <source>&lt;p&gt;The virtual machine(s) &lt;b&gt;%1&lt;/b&gt; are currently in a saved state.&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. Note that the existing machine(s) are not changed.&lt;/p&gt;</source>
-        <translation>
+        <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
+        <translation type="unfinished">
             <numerusform>&lt;p&gt;As máquinas virtuais &lt;b&gt;%1&lt;/b&gt; possuem estado de execução salvo. &lt;/p&gt;&lt;p&gt;Se você continuar, o estado atual de execução destas máquinas será descartado. As máquinas existentes não serão afetadas.&lt;/p&gt;</numerusform>
             <numerusform></numerusform>
         </translation>

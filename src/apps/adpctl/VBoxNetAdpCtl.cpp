@@ -38,6 +38,7 @@
 
 /** @todo These are duplicates from src/VBox/HostDrivers/VBoxNetAdp/VBoxNetAdpInternal.h */
 #define VBOXNETADP_CTL_DEV_NAME    "/dev/vboxnetctl"
+#define VBOXNETADP_MAX_INSTANCES   128
 #define VBOXNETADP_NAME            "vboxnet"
 #define VBOXNETADP_MAX_NAME_LEN    32
 #define VBOXNETADP_CTL_ADD   _IOWR('v', 1, VBOXNETADPREQ)
@@ -209,7 +210,7 @@ static int checkAdapterName(const char *pcszNameIn, char *pszNameOut)
 
     if (   strlen(pcszNameIn) >= VBOXNETADP_MAX_NAME_LEN
         || sscanf(pcszNameIn, "vboxnet%d", &iAdapterIndex) != 1
-        || iAdapterIndex < 0 || iAdapterIndex > 99 )
+        || iAdapterIndex < 0 || iAdapterIndex >= VBOXNETADP_MAX_INSTANCES )
     {
         fprintf(stderr, "VBoxNetAdpCtl: Setting configuration for '%s' is not supported.\n", pcszNameIn);
         return ADPCTLERR_BAD_NAME;

@@ -5634,8 +5634,8 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">&lt;p&gt;현재 가상 머신에서 VirtualBox 게스트 확장을 사용할 수 없는 것 같으며, 공유 폴더를 사용하려면 이 기능이 필요합니다. 가상 머신에서 공유 폴더를 사용하려면, 게스트 확장이 설치되어 있지 않으면 우선 설치하시고, 작동하지 않으면 &lt;b&gt;머신&lt;/b&gt; 메뉴의 &lt;b&gt;게스트 확장 설치&lt;/b&gt; 항목을 선택하셔서 다시 설치하십시오. 게스트 확장이 설치되어 있으나 가상 머신이 시작하는 중일 때에는 공유 폴더 기능이 작동하지 않습니다.&lt;/p&gt;</translation>
     </message>
     <message numerus="yes">
-        <source>&lt;p&gt;The virtual machine(s) &lt;b&gt;%1&lt;/b&gt; are currently in a saved state.&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. Note that the existing machine(s) are not changed.&lt;/p&gt;</source>
-        <translation>
+        <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
+        <translation type="unfinished">
             <numerusform>&lt;p&gt;가상 머신 &lt;b&gt;%1&lt;/b&gt;의 실행 상태가 저장되어 있습니다.&lt;/p&gt;&lt;p&gt;머신을 내보내더라도 저장된 실행 상태는 내보내지 않을 것입니다. 기존 머신의 실행 상태는 변경되지 않습니다.&lt;/p&gt;</numerusform>
         </translation>
     </message>

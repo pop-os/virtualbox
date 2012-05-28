@@ -6143,8 +6143,8 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">&lt;p&gt;Гостьові доповнення VirtualBox не з&apos;явились доступними на віртуальній машині, і без них неможливо використовувати спільні теки. Щоб використовувати їх усередині віртуальної машини, будь ласка, встановіть гостьові доповнення, якщо вони все ще не встановлені, або перевстановіть, якщо вони працюють некоректно, вибравши &lt;b&gt;Встановити гостьові доповнення&lt;/b&gt; з меню &lt;b&gt;Машина&lt;/b&gt;. Якщо вони встановлені, але машина поки що неповністю запущена, то потрібно зачекати поки вона запуститься до кінця.&lt;/p&gt;</translation>
     </message>
     <message numerus="yes">
-        <source>&lt;p&gt;The virtual machine(s) &lt;b&gt;%1&lt;/b&gt; are currently in a saved state.&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. Note that the existing machine(s) are not changed.&lt;/p&gt;</source>
-        <translation>
+        <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
+        <translation type="unfinished">
             <numerusform>&lt;p&gt;Віртуальна машина &lt;b&gt;%1&lt;/b&gt; у збереженому стані.&lt;/p&gt;&lt;p&gt;Якщо ви покинете цей стан, то експортування машини буде відкинуто. Майте на увазі, наявну машину не змінено.&lt;/p&gt;</numerusform>
             <numerusform>&lt;p&gt;Віртуальні машини &lt;b&gt;%1&lt;/b&gt; у збереженому стані.&lt;/p&gt;&lt;p&gt;Якщо ви покинете цей стан, то експортування машин буде відкинуто. Майте на увазі, наявні машини не змінено.&lt;/p&gt;</numerusform>
             <numerusform>&lt;p&gt;Віртуальні машини &lt;b&gt;%1&lt;/b&gt; у збереженому стані.&lt;/p&gt;&lt;p&gt;Якщо ви покинете цей стан, то експортування машин буде відкинуто. Майте на увазі, наявні машини не змінено.&lt;/p&gt;</numerusform>

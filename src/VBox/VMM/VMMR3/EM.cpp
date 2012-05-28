@@ -1606,6 +1606,7 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
         /*
          * Interrupts.
          */
+        bool fWakeupPending = false;
         if (    !VM_FF_ISPENDING(pVM, VM_FF_PGM_NO_MEMORY)
             &&  !VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
             &&  (!rc || rc >= VINF_EM_RESCHEDULE_HWACC)
@@ -1623,6 +1624,8 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
                 rcIrq = rc2;
 #endif
                 UPDATE_RC();
+                /* Reschedule required: We must not miss the wakeup below! */
+                fWakeupPending = true;
             }
             /** @todo really ugly; if we entered the hlt state when exiting the recompiler and an interrupt was pending, we previously got stuck in the halted state. */
             else if (REMR3QueryPendingInterrupt(pVM, pVCpu) != REM_NO_PENDING_IRQ)
@@ -1653,7 +1656,8 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
         /*
          * EMT Rendezvous (must be serviced before termination).
          */
-        if (VM_FF_ISPENDING(pVM, VM_FF_EMT_RENDEZVOUS))
+        if (   !fWakeupPending /* don't miss the wakeup from EMSTATE_HALTED! */
+            && VM_FF_ISPENDING(pVM, VM_FF_EMT_RENDEZVOUS))
         {
             rc2 = VMMR3EmtRendezvousFF(pVM, pVCpu);
             UPDATE_RC();
@@ -1672,7 +1676,8 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
         /*
          * State change request (cleared by vmR3SetStateLocked).
          */
-        if (VM_FF_ISPENDING(pVM, VM_FF_CHECK_VM_STATE))
+        if (   !fWakeupPending /* don't miss the wakeup from EMSTATE_HALTED! */
+            && VM_FF_ISPENDING(pVM, VM_FF_CHECK_VM_STATE))
         {
             VMSTATE enmState = VMR3GetState(pVM);
             switch (enmState)

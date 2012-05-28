@@ -6835,8 +6835,8 @@ p, li { white-space: pre-wrap; }
     </message>
     <message numerus="yes">
         <location filename="../src/globals/UIMessageCenter.cpp" line="2345"/>
-        <source>&lt;p&gt;The virtual machine(s) &lt;b&gt;%1&lt;/b&gt; are currently in a saved state.&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. Note that the existing machine(s) are not changed.&lt;/p&gt;</source>
-        <translation>
+        <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
+        <translation type="unfinished">
             <numerusform>&lt;p&gt;仮想マシン&lt;b&gt;&quot;%1&quot;&lt;/b&gt;は状態の保存中です。&lt;/p&gt;&lt;p&gt;続行するとエクスポートした仮想マシンのランタイム状態は破棄されます。注：既存の仮想マシンは変更されません。&lt;/p&gt;</numerusform>
         </translation>
     </message>

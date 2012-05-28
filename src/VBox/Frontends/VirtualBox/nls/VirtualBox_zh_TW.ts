@@ -4190,8 +4190,8 @@
         <translation>從機器 &lt;b&gt;%3&lt;/b&gt; 的插槽 &lt;i&gt;%2&lt;/i&gt; 分離軟碟裝置 (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) 失敗。</translation>
     </message>
     <message numerus="yes">
-        <source>&lt;p&gt;The virtual machine(s) &lt;b&gt;%1&lt;/b&gt; are currently in a saved state.&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. Note that the existing machine(s) are not changed.&lt;/p&gt;</source>
-        <translation>
+        <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
+        <translation type="unfinished">
             <numerusform>&lt;p&gt;虛擬機器 &lt;b&gt;%1&lt;/b&gt; 目前在儲存的狀態。&lt;/p&gt;&lt;p&gt;如果您繼續，匯出機器的執行階段狀態將捨棄。 請注意，現有的機器未變更。&lt;/p&gt;</numerusform>
         </translation>
     </message>
