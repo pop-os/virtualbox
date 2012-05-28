@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -138,6 +138,8 @@ typedef struct RTR0MACHKERNELINT
     uint32_t            cSyms;
     /** The file offset of the symbol table. */
     uint32_t            offSyms;
+    /** Offset between link address and actual load address. */
+    uintptr_t           offLoad;
     /** @} */
 
     /** @name Used during loading.
@@ -352,7 +354,6 @@ static void rtR0MachKernelLoadDone(RTR0MACHKERNELINT *pThis)
 /**
  * Looks up a kernel symbol.
  *
- *
  * @returns The symbol address on success, 0 on failure.
  * @param   pThis               The internal scratch data.
  * @param   pszSymbol           The symbol to resolve.  Automatically prefixed
@@ -373,7 +374,7 @@ static uintptr_t rtR0MachKernelLookup(RTR0MACHKERNELINT *pThis, const char *pszS
         const char *pszTabName= &pThis->pachStrTab[(uint32_t)pSym->n_un.n_strx];
         if (   *pszTabName == '_'
             && strcmp(pszTabName + 1, pszSymbol) == 0)
-            return pSym->n_value;
+            return pSym->n_value + pThis->offLoad;
     }
 #else
     /** @todo binary search. */
@@ -517,6 +518,8 @@ static int rtR0MachKernelCheckStandardSymbols(RTR0MACHKERNELINT *pThis)
         KNOWN_ENTRY(vm_region),
         KNOWN_ENTRY(vm_map_wire),
         KNOWN_ENTRY(PE_kputc),
+        KNOWN_ENTRY(kernel_map),
+        KNOWN_ENTRY(kernel_pmap),
     };
 
     for (unsigned i = 0; i < RT_ELEMENTS(s_aStandardCandles); i++)
@@ -583,7 +586,7 @@ static int rtR0MachKernelLoadSymTab(RTR0MACHKERNELINT *pThis)
             RETURN_VERR_BAD_EXE_FORMAT;
         const char *pszSym = &pThis->pachStrTab[(uint32_t)pSym->n_un.n_strx];
 #ifdef IN_RING3
-        RTAssertMsg2("%05i: %02x:%08x %02x %04x %s\n", iSym, pSym->n_sect, pSym->n_value, pSym->n_type, pSym->n_desc, pszSym);
+        RTAssertMsg2("%05i: %02x:%08llx %02x %04x %s\n", iSym, pSym->n_sect, (uint64_t)pSym->n_value, pSym->n_type, pSym->n_desc, pszSym);
 #endif
 
         if (strcmp(pszSym, pszPrev) < 0)
@@ -600,19 +603,19 @@ static int rtR0MachKernelLoadSymTab(RTR0MACHKERNELINT *pThis)
                         RETURN_VERR_BAD_EXE_FORMAT;
                     if (pSym->n_desc & ~(REFERENCED_DYNAMICALLY))
                         RETURN_VERR_BAD_EXE_FORMAT;
-                    if (pSym->n_value < pThis->apSections[pSym->n_sect - 1]->addr)
+                    if (   pSym->n_value < pThis->apSections[pSym->n_sect - 1]->addr
+                        && strcmp(pszSym, "__mh_execute_header"))    /* in 10.8 it's no longer absolute (PIE?). */
                         RETURN_VERR_BAD_EXE_FORMAT;
-                    if (   pSym->n_value - pThis->apSections[pSym->n_sect - 1]->addr
-                        > pThis->apSections[pSym->n_sect - 1]->size)
+                    if (      pSym->n_value - pThis->apSections[pSym->n_sect - 1]->addr
+                           > pThis->apSections[pSym->n_sect - 1]->size
+                        && strcmp(pszSym, "__mh_execute_header"))    /* see above. */
                         RETURN_VERR_BAD_EXE_FORMAT;
                     break;
 
                 case MACHO_N_ABS:
-#if 0 /* Spec say MACHO_NO_SECT, __mh_execute_header has 1 with 10.7/amd64 */
-                    if (pSym->n_sect != MACHO_NO_SECT)
-#else
-                    if (pSym->n_sect > pThis->cSections)
-#endif
+                    if (   pSym->n_sect != MACHO_NO_SECT
+                        && (   strcmp(pszSym, "__mh_execute_header") /* n_sect=1 in 10.7/amd64 */
+                            || pSym->n_sect > pThis->cSections) )
                         RETURN_VERR_BAD_EXE_FORMAT;
                     if (pSym->n_desc & ~(REFERENCED_DYNAMICALLY))
                         RETURN_VERR_BAD_EXE_FORMAT;
@@ -821,6 +824,12 @@ static int rtR0MachKernelLoadCommands(RTR0MACHKERNELINT *pThis)
 
             case LC_DYSYMTAB:
             case LC_UNIXTHREAD:
+            case LC_CODE_SIGNATURE:
+            case LC_VERSION_MIN_MACOSX:
+            case LC_FUNCTION_STARTS:
+            case LC_MAIN:
+            case LC_DATA_IN_CODE:
+            case LC_SOURCE_VERSION:
                 break;
 
             /* not observed */
@@ -840,6 +849,12 @@ static int rtR0MachKernelLoadCommands(RTR0MACHKERNELINT *pThis)
             case LC_PREPAGE:
             case LC_TWOLEVEL_HINTS:
             case LC_PREBIND_CKSUM:
+            case LC_SEGMENT_SPLIT_INFO:
+            case LC_ENCRYPTION_INFO:
+                RETURN_VERR_LDR_UNEXPECTED;
+
+            /* no phones here yet */
+            case LC_VERSION_MIN_IPHONEOS:
                 RETURN_VERR_LDR_UNEXPECTED;
 
             /* dylib */
@@ -853,6 +868,14 @@ static int rtR0MachKernelLoadCommands(RTR0MACHKERNELINT *pThis)
             case LC_SUB_UMBRELLA:
             case LC_SUB_CLIENT:
             case LC_SUB_LIBRARY:
+            case LC_RPATH:
+            case LC_REEXPORT_DYLIB:
+            case LC_LAZY_LOAD_DYLIB:
+            case LC_DYLD_INFO:
+            case LC_DYLD_INFO_ONLY:
+            case LC_LOAD_UPWARD_DYLIB:
+            case LC_DYLD_ENVIRONMENT:
+            case LC_DYLIB_CODE_SIGN_DRS:
                 RETURN_VERR_LDR_UNEXPECTED;
 
             default:
@@ -989,7 +1012,17 @@ RTDECL(int) RTR0MachKernelOpen(const char *pszMachKernel, PRTR0MACHKERNEL phKern
     if (RT_SUCCESS(rc))
         rc = rtR0MachKernelLoadSymTab(pThis);
     if (RT_SUCCESS(rc))
+    {
+#ifdef IN_RING0
+        /*
+         * Determine the load displacement (10.8 kernels are PIE).
+         */
+        uintptr_t uLinkAddr = rtR0MachKernelLookup(pThis, "kernel_map");
+        if (uLinkAddr != 0)
+            pThis->offLoad = (uintptr_t)&kernel_map - uLinkAddr;
+#endif
         rc = rtR0MachKernelCheckStandardSymbols(pThis);
+    }
 
     rtR0MachKernelLoadDone(pThis);
     if (RT_SUCCESS(rc))

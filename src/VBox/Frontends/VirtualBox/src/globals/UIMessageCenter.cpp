@@ -579,6 +579,17 @@ void UIMessageCenter::cannotInitCOM(HRESULT rc)
         formatErrorInfo(COMErrorInfo(), rc));
 }
 
+void UIMessageCenter::cannotInitUserHome(const QString &strUserHome)
+{
+    message(0, Critical,
+        tr("<p>Failed to initialize COM because the VirtualBox global "
+           "configuration directory <b><nobr>%1</nobr></b> is not accessible. "
+           "Please check the permissions of this directory and of its parent "
+           "directory.</p>"
+           "<p>The application will now terminate.</p>").arg(strUserHome),
+        formatErrorInfo(COMErrorInfo()));
+}
+
 void UIMessageCenter::cannotCreateVirtualBox(const CVirtualBox &vbox)
 {
     message(0, Critical,
@@ -2342,10 +2353,9 @@ bool UIMessageCenter::confirmExportMachinesInSaveState(const QStringList &strMac
                                                        QWidget *pParent /* = NULL */) const
 {
     return messageOkCancel(pParent ? pParent : mainWindowShown(), Warning,
-        tr("<p>The virtual machine(s) <b>%1</b> are currently in a saved state.</p>"
+        tr("<p>The %n following virtual machine(s) are currently in a saved state: <b>%1</b></p>"
            "<p>If you continue the runtime state of the exported machine(s) "
-           "will be discarded. Note that the existing machine(s) are not "
-           "changed.</p>", "",
+           "will be discarded. The other machine(s) will not be changed.</p>", "This text is never used with n == 0.  Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many machines are in the list and doesn't need to be told).",
            strMachineNames.size()).arg(VBoxGlobal::toHumanReadableList(strMachineNames)),
         0 /* pcszAutoConfirmId */,
         tr("Continue"), tr("Cancel"));

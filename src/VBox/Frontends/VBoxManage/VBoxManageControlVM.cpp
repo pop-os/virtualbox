@@ -180,9 +180,11 @@ int handleControlVM(HandlerArg *a)
         else if (!strcmp(a->argv[1], "savestate"))
         {
             /* first pause so we don't trigger a live save which needs more time/resources */
+            bool fPaused = false;
             rc = console->Pause();
             if (FAILED(rc))
             {
+                bool fError = true;
                 if (rc == VBOX_E_INVALID_VM_STATE)
                 {
                     /* check if we are already paused */
@@ -195,15 +197,22 @@ int handleControlVM(HandlerArg *a)
                         RTMsgError("Machine in invalid state %d -- %s\n",
                                    machineState, machineStateToName(machineState, false));
                     }
+                    else
+                    {
+                        fError = false;
+                        fPaused = true;
+                    }
                 }
-                break;
+                if (fError)
+                    break;
             }
 
             ComPtr<IProgress> progress;
             CHECK_ERROR(console, SaveState(progress.asOutParam()));
             if (FAILED(rc))
             {
-                console->Resume();
+                if (!fPaused)
+                    console->Resume();
                 break;
             }
 
@@ -215,7 +224,8 @@ int handleControlVM(HandlerArg *a)
                     RTMsgError("Failed to save machine state. Error message: %lS", info.getText().raw());
                 else
                     RTMsgError("Failed to save machine state. No error message available!");
-                console->Resume();
+                if (!fPaused)
+                    console->Resume();
             }
         }
         else if (!strcmp(a->argv[1], "acpipowerbutton"))

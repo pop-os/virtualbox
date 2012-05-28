@@ -5548,8 +5548,8 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">&lt;p&gt;Виртуалните Добавки на VirtualBox за тази виртуална машина изглежда не са достъпни, а споделените папки не могат да се използват без тях. За да използвате споделени папки във виртуалната машина, моля, инсталирайте Виртуалните Добавки, ако не са инсталирани, или ги преинсталирайте, ако не работят правилно, като изберете &lt;b&gt;Инсталиране на Виртуални Добавки&lt;/b&gt; от менюто &lt;b&gt;Машина&lt;/b&gt;. Ако те са инсталирани, но машината все още не е заредила напълно, споделените папки ще станат достъпни, когато машината зареди.&lt;/p&gt;</translation>
     </message>
     <message numerus="yes">
-        <source>&lt;p&gt;The virtual machine(s) &lt;b&gt;%1&lt;/b&gt; are currently in a saved state.&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. Note that the existing machine(s) are not changed.&lt;/p&gt;</source>
-        <translation>
+        <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
+        <translation type="unfinished">
             <numerusform>&lt;p&gt;Виртуалната машина &lt;b&gt;%1&lt;/b&gt; текущо е в запомнено състояние.&lt;/p&gt;&lt;p&gt;Ако продължите, текущото състояние на изнесената машина ще бъде отхвърлено. Имайте предвид, че съществуващата машина не е променена.&lt;/p&gt;</numerusform>
             <numerusform>&lt;p&gt;Виртуалните машини &lt;b&gt;%1&lt;/b&gt; текущо са в запомнено състояние.&lt;/p&gt;&lt;p&gt;Ако продължите, текущото състояние на изнесените машини ще бъде отхвърлено. Имайте предвид, че съществуващите машини не са променени.&lt;/p&gt;</numerusform>
         </translation>

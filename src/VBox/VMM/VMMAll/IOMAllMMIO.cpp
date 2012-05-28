@@ -614,7 +614,11 @@ DECLINLINE(int) iomRamRead(PVMCPU pVCpu, void *pDest, RTGCPTR GCSrc, uint32_t cb
     /* Note: This will fail in R0 or RC if it hits an access handler. That
              isn't a problem though since the operation can be restarted in REM. */
 #ifdef IN_RC
-    return MMGCRamReadNoTrapHandler(pDest, (void *)(uintptr_t)GCSrc, cb);
+    int rc = MMGCRamReadNoTrapHandler(pDest, (void *)(uintptr_t)GCSrc, cb);
+    /* Page may be protected and not directly accessible. */
+    if (rc == VERR_ACCESS_DENIED)
+        rc = VINF_IOM_HC_IOPORT_WRITE;
+    return rc;
 #else
     return PGMPhysReadGCPtr(pVCpu, pDest, GCSrc, cb);
 #endif
@@ -1516,7 +1520,6 @@ static int iomMMIOHandler(PVM pVM, uint32_t uErrorCode, PCPUMCTXCORE pCtxCore, R
     PDISCPUSTATE    pDis  = &pVCpu->iom.s.DisState;
     unsigned        cbOp;
     rc = EMInterpretDisasOne(pVM, pVCpu, pCtxCore, pDis, &cbOp);
-    AssertRC(rc);
     if (RT_FAILURE(rc))
     {
         iomMmioReleaseRange(pVM, pRange);

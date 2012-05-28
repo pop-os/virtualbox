@@ -1789,18 +1789,6 @@
 # undef CLSIZELOG2
 #endif
 
-
-/** @def NULL
- * NULL pointer.
- */
-#ifndef NULL
-# ifdef __cplusplus
-#  define NULL 0
-# else
-#  define NULL ((void*)0)
-# endif
-#endif
-
 /** @def NIL_OFFSET
  * NIL offset.
  * Whenever we use offsets instead of pointers to save space and relocation effort
@@ -1851,8 +1839,14 @@
  */
 /** 1 K (Kilo)                     (1 024). */
 #define _1K                     0x00000400
+/** 2 K (Kilo)                     (2 048). */
+#define _2K                     0x00000800
 /** 4 K (Kilo)                     (4 096). */
 #define _4K                     0x00001000
+/** 8 K (Kilo)                     (8 192). */
+#define _8K                     0x00002000
+/** 16 K (Kilo)                   (16 384). */
+#define _16K                    0x00004000
 /** 32 K (Kilo)                   (32 678). */
 #define _32K                    0x00008000
 /** 64 K (Kilo)                   (65 536). */

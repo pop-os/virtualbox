@@ -4208,9 +4208,9 @@
         <translation>Het is niet gelukt diskette station &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; los te koppelen van het slot &lt;i&gt;%2&lt;/i&gt; van virtuele machine &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message numerus="yes">
-        <source>&lt;p&gt;The virtual machine(s) &lt;b&gt;%1&lt;/b&gt; are currently in a saved state.&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. Note that the existing machine(s) are not changed.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
         <translatorcomment>RL - Noodzakelijke %n place marker ontbreekt, old format - Bij ticket #10400 virtualbox.org gezet, afwachten (02.04.2012)</translatorcomment>
-        <translation>
+        <translation type="unfinished">
             <numerusform>&lt;p&gt;De virtuele machine &lt;b&gt;%1&lt;/b&gt; bevindt zich momenteel in opgeslagen staat.&lt;/p&gt;&lt;p&gt;Indien u doorgaat wordt de runtime staat van de geëxporteerde machine weggegooid. Weet dat de bestaande machine niet worden veranderd.&lt;/p&gt;</numerusform>
             <numerusform>&lt;p&gt;De virtuele machines &lt;b&gt;%1&lt;/b&gt; bevinden zich momenteel in opgeslagen staat.&lt;/p&gt;&lt;p&gt;Indien u doorgaat wordt de runtime staat van de geëxporteerde machines weggegooid. Weet dat de bestaande machines niet worden veranderd.&lt;/p&gt;</numerusform>
         </translation>

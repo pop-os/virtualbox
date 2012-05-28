@@ -1442,39 +1442,6 @@ VMMR0DECL(int) VMXR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
                     pCtx->fsHid.Attr.n.u2Dpl  = 0;
                     pCtx->gsHid.Attr.n.u2Dpl  = 0;
                     pCtx->ssHid.Attr.n.u2Dpl  = 0;
-
-                    /* The limit must correspond to the 32 bits setting. */
-                    if (!pCtx->csHid.Attr.n.u1DefBig)
-                        pCtx->csHid.u32Limit &= 0xffff;
-                    if (!pCtx->dsHid.Attr.n.u1DefBig)
-                        pCtx->dsHid.u32Limit &= 0xffff;
-                    if (!pCtx->esHid.Attr.n.u1DefBig)
-                        pCtx->esHid.u32Limit &= 0xffff;
-                    if (!pCtx->fsHid.Attr.n.u1DefBig)
-                        pCtx->fsHid.u32Limit &= 0xffff;
-                    if (!pCtx->gsHid.Attr.n.u1DefBig)
-                        pCtx->gsHid.u32Limit &= 0xffff;
-                    if (!pCtx->ssHid.Attr.n.u1DefBig)
-                        pCtx->ssHid.u32Limit &= 0xffff;
-                }
-                else
-                /* Switching from protected mode to real mode. */
-                if (    pVCpu->hwaccm.s.vmx.enmLastSeenGuestMode >= PGMMODE_PROTECTED
-                    &&  enmGuestMode == PGMMODE_REAL)
-                {
-                    /* The limit must also be set to 0xffff. */
-                    pCtx->csHid.u32Limit = 0xffff;
-                    pCtx->dsHid.u32Limit = 0xffff;
-                    pCtx->esHid.u32Limit = 0xffff;
-                    pCtx->fsHid.u32Limit = 0xffff;
-                    pCtx->gsHid.u32Limit = 0xffff;
-                    pCtx->ssHid.u32Limit = 0xffff;
-
-                    Assert(pCtx->csHid.u64Base <= 0xfffff);
-                    Assert(pCtx->dsHid.u64Base <= 0xfffff);
-                    Assert(pCtx->esHid.u64Base <= 0xfffff);
-                    Assert(pCtx->fsHid.u64Base <= 0xfffff);
-                    Assert(pCtx->gsHid.u64Base <= 0xfffff);
                 }
                 pVCpu->hwaccm.s.vmx.enmLastSeenGuestMode = enmGuestMode;
             }
@@ -3493,7 +3460,6 @@ ResumeExecution:
 
         /* Handle the pagefault trap for the nested shadow table. */
         rc = PGMR0Trap0eHandlerNestedPaging(pVM, pVCpu, PGMMODE_EPT, errCode, CPUMCTX2CORE(pCtx), GCPhys);
-        Log2(("PGMR0Trap0eHandlerNestedPaging %RGv returned %Rrc\n", (RTGCPTR)pCtx->rip, VBOXSTRICTRC_VAL(rc)));
         if (rc == VINF_SUCCESS)
         {   /* We've successfully synced our shadow pages, so let's just continue execution. */
             Log2(("Shadow page fault at %RGv cr2=%RGp error code %x\n", (RTGCPTR)pCtx->rip, exitQualification , errCode));
@@ -3502,10 +3468,13 @@ ResumeExecution:
             TRPMResetTrap(pVCpu);
             goto ResumeExecution;
         }
+        /** @todo We probably should handle failure to get the instruction page
+         *        (VERR_PAGE_NOT_PRESENT, VERR_PAGE_TABLE_NOT_PRESENT). See
+         *        @bugref{6043}. */
 
 #ifdef VBOX_STRICT
         if (rc != VINF_EM_RAW_EMULATE_INSTR)
-            LogFlow(("PGMTrap0eHandlerNestedPaging failed with %d\n", VBOXSTRICTRC_VAL(rc)));
+            LogFlow(("PGMTrap0eHandlerNestedPaging at %RGv failed with %Rrc\n", (RTGCPTR)pCtx->rip, VBOXSTRICTRC_VAL(rc)));
 #endif
         /* Need to go back to the recompiler to emulate the instruction. */
         TRPMResetTrap(pVCpu);
@@ -3545,6 +3514,9 @@ ResumeExecution:
             Log2(("PGMR0Trap0eHandlerNPMisconfig(,,,%RGp) at %RGv -> resume\n", GCPhys, (RTGCPTR)pCtx->rip));
             goto ResumeExecution;
         }
+        /** @todo We probably should handle failure to get the instruction page
+         *        (VERR_PAGE_NOT_PRESENT, VERR_PAGE_TABLE_NOT_PRESENT). See
+         *        @bugref{6043}. */
 
         Log2(("PGMR0Trap0eHandlerNPMisconfig(,,,%RGp) at %RGv -> %Rrc\n", GCPhys, (RTGCPTR)pCtx->rip, VBOXSTRICTRC_VAL(rc)));
         break;
@@ -4421,7 +4393,8 @@ VMMR0DECL(int) VMXR0InvalidatePage(PVM pVM, PVMCPU pVCpu, RTGCPTR GCVirt)
 
     Log2(("VMXR0InvalidatePage %RGv\n", GCVirt));
 
-    /* Only relevant if we want to use VPID.
+    /* Only relevant if we want to use VPID as otherwise every VMX transition
+     * will flush the TLBs and paging-structure caches.
      * In the nested paging case we still see such calls, but
      * can safely ignore them. (e.g. after cr3 updates)
      */
