@@ -1,9 +1,9 @@
-virtualbox (4.1.16-dfsg-1) UNRELEASED; urgency=low
+virtualbox (4.1.16-dfsg-1) unstable; urgency=low
 
   * New upstream release.
   * Drop 37-fix-build-gcc47.patch, fixed upstream.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 28 May 2012 18:01:20 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 29 May 2012 10:09:31 +0200
 
 virtualbox (4.1.14-dfsg-2) unstable; urgency=low
 
