@@ -14,4 +14,3 @@
 32-disable-guest-version-check.patch
 35-libvdeplug-soname.patch
 36-fix-ftbfs-xserver-112.patch
-37-fix-build-gcc47.patch
