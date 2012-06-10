@@ -80,7 +80,7 @@ endif
 
 
 %:
-	dh $@ --with python_central,dkms
+	dh $@ --with python2,dkms
 
 override_dh_auto_configure:
 	@echo Building for $(DIST_RELEASE)
@@ -230,9 +230,6 @@ override_dh_shlibdeps:
 
 override_dh_compress:
 	dh_compress -X.pdf
-
-override_dh_pycentral:
-	dh_pycentral -p$(sname)
 
 override_dh_auto_clean:
 	dh_auto_clean

@@ -49,8 +49,7 @@ Build-Depends: bcc,
                lsb-release,
                lynx-cur,
                makeself,
-               python-central (>= 0.6.7~),
-               python-dev (>= 2.4),
+               python-dev (>= 2.6.6-3~),
                texlive-fonts-extra,
                texlive-fonts-recommended,
                texlive-latex-extra,
@@ -62,7 +61,7 @@ Build-Depends: bcc,
                xsltproc,
                yasm (>= 0.7.0),
                zlib1g-dev
-XS-Python-Version: >= 2.5
+X-Python-Version: >= 2.5
 Standards-Version: 3.9.3
 Homepage: http://www.virtualbox.org/
 Vcs-Git: git://git.debian.org/git/pkg-virtualbox/virtualbox.git
@@ -99,7 +98,6 @@ Suggests: virtualbox-guest-additions-iso,
 Conflicts: virtualbox-2.0, virtualbox-2.1, virtualbox-2.2, virtualbox-3.0
 Breaks: virtualbox-ose (<< 4.0.6-dfsg-1~)
 Replaces: virtualbox-ose (<< 4.0.6-dfsg-1~)
-XB-Python-Version: ${python:Versions}
 Description: x86 virtualization solution - base binaries
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
