@@ -1,6 +1,6 @@
 virtualbox (4.1.16-dfsg-2) UNRELEASED; urgency=low
 
-  * Fix unregistering vboxnet devices. (LP: #1009156)
+  * Fix vboxnet device unregistration on kernel >= 3.2.18. (LP: #1009156)
     - Add 37-fix-unregister-netdevice.patch, backported from upstream.
   * Switch from python-central to dh_python2. (Closes: #617143)
 
