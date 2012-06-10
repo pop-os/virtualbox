@@ -1,3 +1,10 @@
+virtualbox (4.1.16-dfsg-2) UNRELEASED; urgency=low
+
+  * Fix unregistering vboxnet devices. (LP: #1009156)
+    - Add 37-fix-unregister-netdevice.patch, backported from upstream.
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 10 Jun 2012 19:59:09 +0200
+
 virtualbox (4.1.16-dfsg-1) unstable; urgency=low
 
   * New upstream release.
