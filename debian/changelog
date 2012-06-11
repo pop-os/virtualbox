@@ -1,10 +1,10 @@
-virtualbox (4.1.16-dfsg-2) UNRELEASED; urgency=low
+virtualbox (4.1.16-dfsg-2) unstable; urgency=low
 
   * Fix vboxnet device unregistration on kernel >= 3.2.18. (LP: #1009156)
     - Add 37-fix-unregister-netdevice.patch, backported from upstream.
   * Switch from python-central to dh_python2. (Closes: #617143)
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 10 Jun 2012 19:59:09 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 10 Jun 2012 21:32:09 +0200
 
 virtualbox (4.1.16-dfsg-1) unstable; urgency=low
 
