@@ -265,7 +265,9 @@ if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_GUI_USE_QGL)
  VirtualBox_LIBS.linux   += GL
  VirtualBox_LIBS.freebsd += GL
 endif
-VirtualBox_LIBS += $(PATH_STAGE_LIB)/VBoxOGLTest$(VBOX_SUFF_LIB)
+ifdef VBOX_WITH_CROGL
+ VirtualBox_LIBS += $(PATH_STAGE_LIB)/VBoxOGLTest$(VBOX_SUFF_LIB)
+endif
 
 
 # Headers containing definitions of classes that use the Q_OBJECT macro.

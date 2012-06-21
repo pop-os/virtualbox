@@ -240,6 +240,7 @@ static int sf_read_super_aux(struct super_block *sb, void *data, int flags)
     sf_i->path->u16Size = 2;
     sf_i->path->String.utf8[0] = '/';
     sf_i->path->String.utf8[1] = 0;
+    sf_i->force_reread = 0;
 
     err = sf_stat(__func__, sf_g, sf_i->path, &fsinfo, 0);
     if (err)
@@ -373,7 +374,11 @@ static void sf_evict_inode(struct inode *inode)
 
     TRACE();
     truncate_inode_pages(&inode->i_data, 0);
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+    clear_inode(inode);
+# else
     end_writeback(inode);
+# endif
 
     sf_i = GET_INODE_INFO(inode);
     if (!sf_i)

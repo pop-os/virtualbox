@@ -1,6 +1,57 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.1.18 (2012-06-06)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed <emphasis>VERR_REM_VIRTUAL_CPU_ERROR</emphasis>
+          under rare conditions after the guest has been reset (bug #5164
+        and others)</para>
+      </listitem>
+
+      <listitem>
+        <para>VRDP: added a workaround for rdesktop clients not properly
+          updating the screen size when minimized</para>
+      </listitem>
+
+      <listitem>
+        <para>AHCI: fixed a rare bug which can cause a guest memory corruption
+          after the guest storage controler has been reset</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: another attempt to fix crashes under rare conditions
+          (Windows hosts only; bug #10513)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / Bridged Networking: fixed the problem with device driver
+          unloading on kernels 3.2.18 and newer due to an invalid reference counter
+          (bug #10624)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: the guest content was sometimes not properly
+          updated (bug #9887)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: Linux 3.5-rc1 fix (not for 3.5-rc1 hosts yet!)</para>
+      </listitem>
+      
+      <listitem>
+        <para>Solaris Additions: installer fix for X.org Server 1.11 and 1.12</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 4.1.16 (2012-05-22)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

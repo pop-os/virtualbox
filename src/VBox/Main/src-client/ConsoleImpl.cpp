@@ -59,6 +59,9 @@
 #ifdef VBOX_WITH_USB_VIDEO
 # include "UsbWebcamInterface.h"
 #endif
+#ifdef VBOX_WITH_USB_CARDREADER
+# include "UsbCardReader.h"
+#endif
 #include "ProgressCombinedImpl.h"
 #include "ConsoleVRDPServer.h"
 #include "VMMDev.h"
@@ -377,6 +380,9 @@ Console::Console()
 #ifdef VBOX_WITH_USB_VIDEO
     , mUsbWebcamInterface(NULL)
 #endif
+#ifdef VBOX_WITH_USB_CARDREADER
+    , mUsbCardReader(NULL)
+#endif
     , mBusMgr(NULL)
     , mVMStateChangeCallbackDisabled(false)
     , mfUseHostClipboard(true)
@@ -518,6 +524,10 @@ HRESULT Console::init(IMachine *aMachine, IInternalMachineControl *aControl)
     unconst(mUsbWebcamInterface) = new UsbWebcamInterface(this);
     AssertReturn(mUsbWebcamInterface, E_FAIL);
 #endif
+#ifdef VBOX_WITH_USB_CARDREADER
+    unconst(mUsbCardReader) = new UsbCardReader(this);
+    AssertReturn(mUsbCardReader, E_FAIL);
+#endif
 
     /* VirtualBox events registration. */
     {
@@ -614,6 +624,14 @@ void Console::uninit()
     {
         delete mUsbWebcamInterface;
         unconst(mUsbWebcamInterface) = NULL;
+    }
+#endif
+
+#ifdef VBOX_WITH_USB_CARDREADER
+    if (mUsbCardReader)
+    {
+        delete mUsbCardReader;
+        unconst(mUsbCardReader) = NULL;
     }
 #endif
 
@@ -1139,6 +1157,7 @@ void Console::VRDPClientStatusChange(uint32_t u32ClientId, const char *pszStatus
 
     LogFlowFunc(("%s\n", pszStatus));
 
+#ifdef VBOX_WITH_GUEST_PROPS
     /* Parse the status string. */
     if (RTStrICmp(pszStatus, "ATTACH") == 0)
     {
@@ -1152,6 +1171,7 @@ void Console::VRDPClientStatusChange(uint32_t u32ClientId, const char *pszStatus
     {
         guestPropertiesVRDPUpdateNameChange(u32ClientId, pszStatus + strlen("NAME="));
     }
+#endif
 
     LogFlowFuncLeave();
 }

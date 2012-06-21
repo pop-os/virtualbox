@@ -24,6 +24,7 @@
 #include <VBox/VBoxAuth.h>
 
 #include <VBox/RemoteDesktop/VRDEImage.h>
+#include <VBox/RemoteDesktop/VRDESCard.h>
 
 #include <VBox/HostServices/VBoxClipboardExt.h>
 
@@ -139,6 +140,8 @@ public:
     int GetVideoFrameDimensions(uint16_t *pu16Heigh, uint16_t *pu16Width);
     int SendVideoSreamOn(bool fFetch);
 #endif
+
+    int SCardRequest(void *pvUser, uint32_t u32Function, const void *pvData, uint32_t cbData);
 
 private:
     /* Note: This is not a ComObjPtr here, because the ConsoleVRDPServer object
@@ -258,6 +261,20 @@ private:
                                                 uint32_t u32Id,
                                                 void *pvData,
                                                 uint32_t cbData);
+
+    /* Smartcard interface. */
+    VRDESCARDINTERFACE m_interfaceSCard;
+    VRDESCARDCALLBACKS m_interfaceCallbacksSCard;
+    static DECLCALLBACK(int) VRDESCardCbNotify(void *pvContext,
+                                               uint32_t u32Id,
+                                               void *pvData,
+                                               uint32_t cbData);
+    static DECLCALLBACK(int) VRDESCardCbResponse(void *pvContext,
+                                                 int rcRequest,
+                                                 void *pvUser,
+                                                 uint32_t u32Function,
+                                                 void *pvData,
+                                                 uint32_t cbData);
 };
 
 

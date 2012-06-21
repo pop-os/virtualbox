@@ -271,6 +271,26 @@ const uint8_t zerro_ethaddr[6] =
     0x0, 0x0, 0x0, 0x0, 0x0, 0x0
 };
 
+/**
+ * This helper routine do the checks in descriptions to
+ * ''fUnderPolling'' and ''fShouldBeRemoved'' flags
+ * @returns 1 if socket removed and 0 if no changes was made.
+ */
+static int slirpVerifyAndFreeSocket(PNATState pData, struct socket *pSocket)
+{
+    AssertPtrReturn(pData, 0);
+    AssertPtrReturn(pSocket, 0);
+    AssertReturn(pSocket->fUnderPolling, 0);
+    if (pSocket->fShouldBeRemoved)
+    {
+        pSocket->fUnderPolling = 0;
+        sofree(pData, pSocket);
+        /* so is PHANTOM, now */
+        return 1;
+    }
+    return 0;
+}
+
 #ifdef RT_OS_WINDOWS
 static int get_dns_addr_domain(PNATState pData, bool fVerbose,
                                struct in_addr *pdns_addr,
@@ -1218,6 +1238,8 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
         if (so->so_state & SS_NOFDREF || so->s == -1)
             CONTINUE(tcp);
 
+        Assert(!so->fUnderPolling);
+        so->fUnderPolling = 1;
         POLL_TCP_EVENTS(rc, error, so, &NetworkEvents);
 
         LOG_NAT_SOCK(so, TCP, &NetworkEvents, readfds, writefds, xfds);
@@ -1246,6 +1268,8 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
         )
         {
             sorecvoob(pData, so);
+            if (slirpVerifyAndFreeSocket(pData, so))
+                CONTINUE(tcp);
         }
 
         /*
@@ -1262,6 +1286,8 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
                 /* should we ignore return value? */
                 bool fRet = slirpConnectOrWrite(pData, so, true);
                 LogFunc(("fRet:%RTbool\n", fRet));
+                if (slirpVerifyAndFreeSocket(pData, so))
+                    CONTINUE(tcp);
             }
 #endif
             /*
@@ -1270,14 +1296,24 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
             if (so->so_state & SS_FACCEPTCONN)
             {
                 TCP_CONNECT(pData, so);
-                if (!CHECK_FD_SET(so, NetworkEvents, closefds))
+                if (slirpVerifyAndFreeSocket(pData, so))
                     CONTINUE(tcp);
+                if (!CHECK_FD_SET(so, NetworkEvents, closefds))
+                {
+                    so->fUnderPolling = 0;
+                    CONTINUE(tcp);
+                }
             }
 
             ret = soread(pData, so);
+            if (slirpVerifyAndFreeSocket(pData, so))
+                CONTINUE(tcp);
             /* Output it if we read something */
             if (RT_LIKELY(ret > 0))
                 TCP_OUTPUT(pData, sototcpcb(so));
+
+            if (slirpVerifyAndFreeSocket(pData, so))
+                CONTINUE(tcp);
         }
 
         /*
@@ -1287,28 +1323,27 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
         if (   CHECK_FD_SET(so, NetworkEvents, closefds)
             || (so->so_close == 1))
         {
-            struct socket *pPrevSo = NULL;
-            /**
-             * we need easy way to detection mechanism if socket has been freed or not
-             * before continuing any further diagnostic.
-             */
-            pPrevSo = so->so_prev;
-            AssertPtr(pPrevSo);
             /*
              * drain the socket
              */
-            for (; pPrevSo->so_next == so ;)
+            for (;   so_next->so_prev == so
+                  && !slirpVerifyAndFreeSocket(pData, so);)
             {
                 ret = soread(pData, so);
+                if (slirpVerifyAndFreeSocket(pData, so))
+                    break;
+
                 if (ret > 0)
                     TCP_OUTPUT(pData, sototcpcb(so));
-                else if (pPrevSo->so_next == so)
+                else if (so_next->so_prev == so)
                 {
                     Log2(("%R[natsock] errno %d (%s)\n", so, errno, strerror(errno)));
                     break;
                 }
             }
-            if (pPrevSo->so_next == so)
+
+            /* if socket freed ''so'' is PHANTOM and next socket isn't points on it */
+            if (so_next->so_prev == so)
             {
                 /* mark the socket for termination _after_ it was drained */
                 so->so_close = 1;
@@ -1319,6 +1354,8 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
                     sofcantsendmore(so);
 #endif
             }
+            if (so_next->so_prev == so)
+                so->fUnderPolling = 0;
             CONTINUE(tcp);
         }
 
@@ -1332,7 +1369,11 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
             )
         {
             if(!slirpConnectOrWrite(pData, so, false))
+            {
+                if (!slirpVerifyAndFreeSocket(pData, so))
+                    so->fUnderPolling = 0;
                 CONTINUE(tcp);
+            }
         }
 
         /*
@@ -1383,6 +1424,8 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
             TCP_INPUT((struct mbuf *)NULL, sizeof(struct ip),so);
         } /* SS_ISFCONNECTING */
 #endif
+        if (!slirpVerifyAndFreeSocket(pData, so))
+            so->fUnderPolling = 0;
         LOOP_LABEL(tcp, so, so_next);
     }
 

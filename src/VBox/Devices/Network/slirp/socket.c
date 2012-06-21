@@ -98,19 +98,34 @@ socreate()
 void
 sofree(PNATState pData, struct socket *so)
 {
-    struct socket *so_prev = NULL;
+    LogFlowFunc(("ENTER:%R[natsock]\n", so));
+    /*
+     * We should not remove socket when polling routine do the polling
+     * instead we mark it for deletion.
+     */
+    if (so->fUnderPolling)
+    {
+        so->fShouldBeRemoved = 1;
+        LogFlowFunc(("LEAVE:%R[natsock] postponed deletion\n", so));
+        return;
+    }
     if (so == tcp_last_so)
         tcp_last_so = &tcb;
     else if (so == udp_last_so)
         udp_last_so = &udb;
+
+#ifndef VBOX_WITH_SLIRP_MT
+
     /* libalias notification */
     if (so->so_pvLnk)
         slirpDeleteLinkSocket(so->so_pvLnk);
-
     /* check if mbuf haven't been already freed  */
     if (so->so_m != NULL)
+    {
         m_freem(pData, so->so_m);
-#ifndef VBOX_WITH_SLIRP_MT
+        so->so_m = NULL;
+    }
+
     if (so->so_next && so->so_prev)
     {
         remque(pData, so);  /* crashes if so is not in a queue */
@@ -121,6 +136,7 @@ sofree(PNATState pData, struct socket *so)
 #else
     so->so_deleted = 1;
 #endif
+    LogFlowFuncLeave();
 }
 
 #ifdef VBOX_WITH_SLIRP_MT
