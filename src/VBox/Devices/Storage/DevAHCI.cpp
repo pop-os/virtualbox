@@ -6125,8 +6125,6 @@ static int ahciTransferComplete(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPor
                                &pAhciPortTaskState->cmdHdr, sizeof(CmdHdr));
         }
 
-        /* Add the task to the cache. */
-        ASMAtomicWritePtr(&pAhciPort->aCachedTasks[pAhciPortTaskState->uTag], pAhciPortTaskState);
         ASMAtomicDecU32(&pAhciPort->cTasksActive);
 
         if (!fRedo)
@@ -6623,6 +6621,7 @@ static DECLCALLBACK(bool) ahciNotifyQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEI
                 pAhciPortTaskState = (PAHCIPORTTASKSTATE)RTMemAllocZ(sizeof(AHCIPORTTASKSTATE));
                 AssertMsg(pAhciPortTaskState, ("%s: Cannot allocate task state memory!\n"));
                 pAhciPortTaskState->enmTxState = AHCITXSTATE_FREE;
+                pAhciPort->aCachedTasks[idx] = pAhciPortTaskState;
             }
             else
                 pAhciPortTaskState = pAhciPort->aCachedTasks[idx];
@@ -6657,7 +6656,6 @@ static DECLCALLBACK(bool) ahciNotifyQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEI
                     ahciLog(("%s: Setting device into reset state\n", __FUNCTION__));
                     pAhciPort->fResetDevice = true;
                     ahciSendD2HFis(pAhciPort, pAhciPortTaskState, pAhciPortTaskState->cmdFis, true);
-                    pAhciPort->aCachedTasks[idx] = pAhciPortTaskState;
 
                     ASMAtomicCmpXchgSize(&pAhciPortTaskState->enmTxState, AHCITXSTATE_FREE, AHCITXSTATE_ACTIVE, fXchg);
                     AssertMsg(fXchg, ("Task is not active\n"));
@@ -6666,7 +6664,6 @@ static DECLCALLBACK(bool) ahciNotifyQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEI
                 else if (pAhciPort->fResetDevice) /* The bit is not set and we are in a reset state. */
                 {
                     ahciFinishStorageDeviceReset(pAhciPort, pAhciPortTaskState);
-                    pAhciPort->aCachedTasks[idx] = pAhciPortTaskState;
 
                     ASMAtomicCmpXchgSize(&pAhciPortTaskState->enmTxState, AHCITXSTATE_FREE, AHCITXSTATE_ACTIVE, fXchg);
                     AssertMsg(fXchg, ("Task is not active\n"));
