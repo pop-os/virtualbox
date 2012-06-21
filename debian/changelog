@@ -1,3 +1,11 @@
+virtualbox (4.1.18-dfsg-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+    - Fixes host freezes with 64-bit guests on 32-bit hosts. (LP: #1012627)
+    - Fixes odd permissions of files in shared folders. (LP: #1013368)
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Thu, 21 Jun 2012 10:58:59 +0200
+
 virtualbox (4.1.16-dfsg-2) unstable; urgency=low
 
   * Fix vboxnet device unregistration on kernel >= 3.2.18. (LP: #1009156)
