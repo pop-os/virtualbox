@@ -272,5 +272,5 @@ dfsg-free: clean
 	    -type d ! -name '*mesa-*' -exec rm -rf {} \;
 	cd ..; mv $(CURDIR) virtualbox-$(upstreamversion)-dfsg; \
 	    tar --exclude .svn --exclude '.git*' --exclude debian \
-	        -cjf virtualbox_$(upstreamversion)-dfsg.orig.tar.bz2 \
+	        -cJf virtualbox_$(upstreamversion)-dfsg.orig.tar.xz \
 	        virtualbox-$(upstreamversion)-dfsg
