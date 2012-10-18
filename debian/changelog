@@ -1,3 +1,11 @@
+virtualbox (4.1.18-dfsg-1.1) unstable; urgency=high
+
+  * Non-maintainer upload.
+  * Fix cve-2012-3221: missing privilege check for task gate switches
+    (closes: 690777).
+
+ -- Michael Gilbert <mgilbert@debian.org>  Thu, 18 Oct 2012 14:20:28 -0400
+
 virtualbox (4.1.18-dfsg-1) unstable; urgency=low
 
   * New upstream release.
