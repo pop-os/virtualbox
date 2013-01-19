@@ -1,3 +1,11 @@
+virtualbox (4.1.18-dfsg-2) unstable; urgency=high
+
+  [ John Paul Adrian Glaubitz ]
+  * Include patch to fix virtual graphics device user
+    vulnerability CVE-2013-0420. (Closes: #698292)
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sat, 19 Jan 2013 18:05:25 +0100
+
 virtualbox (4.1.18-dfsg-1.1) unstable; urgency=high
 
   * Non-maintainer upload.

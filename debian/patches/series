@@ -15,3 +15,4 @@
 35-libvdeplug-soname.patch
 36-fix-ftbfs-xserver-112.patch
 cve-2012-3221.patch
+CVE-2013-0420.patch
