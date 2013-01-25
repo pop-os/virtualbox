@@ -51,7 +51,7 @@
 static char* gsViewportHackApps[] = {"googleearth.exe", NULL};
 #endif
 
-static int stub_initialized = 0;
+static bool stub_initialized = 0;
 #ifdef WINDOWS
 static CRmutex stub_init_mutex;
 #define STUB_INIT_LOCK() do { crLockMutex(&stub_init_mutex); } while (0)
@@ -189,9 +189,9 @@ static void stubCheckWindowsCB(unsigned long key, void *data1, void *data2)
     if (!stubSystemWindowExist(pWindow))
     {
 #ifdef WINDOWS
-        crWindowDestroy((GLint)pWindow->hWnd);
+        stubDestroyWindow(CR_CTX_CON(pCtx), (GLint)pWindow->hWnd);
 #else
-        crWindowDestroy((GLint)pWindow->drawable);
+        stubDestroyWindow(CR_CTX_CON(pCtx), (GLint)pWindow->drawable);
 #endif
         return;
     }
@@ -830,7 +830,7 @@ static void stubSyncTrUpdateWindowCB(unsigned long key, void *data1, void *data2
     WindowInfo *pWindow = (WindowInfo *) data1;
     PVBOXCR_UPDATEWNDCB pCbData = (PVBOXCR_UPDATEWNDCB) data2;
     VBOXDISPMP_REGIONS *pRegions = &pCbData->Regions;
-    bool bChanged = false;
+    bool bChanged = false, bDoMap = false;
     HRGN hNewRgn = INVALID_HANDLE_VALUE;
 
     if (pRegions->hWnd != pWindow->hWnd)
@@ -842,20 +842,17 @@ static void stubSyncTrUpdateWindowCB(unsigned long key, void *data1, void *data2
 
     if (!stubSystemWindowExist(pWindow))
     {
-        crWindowDestroy((GLint)pWindow->hWnd);
+        stubDestroyWindow(0, (GLint)pWindow->hWnd);
         return;
-    }
-
-    if (!pWindow->mapped)
-    {
-        pWindow->mapped = GL_TRUE;
-        bChanged = true;
-        crDebug("Dispatched: WindowShow(%i, %i)", pWindow->spuWindow, pWindow->mapped);
-        stub.spu->dispatch_table.WindowShow(pWindow->spuWindow, pWindow->mapped);
     }
 
     if (pRegions->pRegions->fFlags.bAddVisibleRects || pRegions->pRegions->fFlags.bSetViewRect)
     {
+        if (!pWindow->mapped)
+        {
+            bDoMap = true;
+        }
+
         /* ensure data integrity */
         Assert(!pRegions->pRegions->fFlags.bAddHiddenRects);
 
@@ -870,7 +867,7 @@ static void stubSyncTrUpdateWindowCB(unsigned long key, void *data1, void *data2
             winW = pRegions->pRegions->RectsInfo.aRects[0].right - winX;
             winH = pRegions->pRegions->RectsInfo.aRects[0].bottom - winY;
 
-            if (stub.trackWindowPos && (winX!=pWindow->x || winY!=pWindow->y))
+            if (stub.trackWindowPos && (bDoMap || winX!=pWindow->x || winY!=pWindow->y))
             {
                 crDebug("Dispatched WindowPosition (%i)", pWindow->spuWindow);
                 stub.spuDispatch.WindowPosition(pWindow->spuWindow, winX, winY);
@@ -879,7 +876,7 @@ static void stubSyncTrUpdateWindowCB(unsigned long key, void *data1, void *data2
                 bChanged = true;
             }
 
-            if (stub.trackWindowSize && (winW!=pWindow->width || winH!=pWindow->height))
+            if (stub.trackWindowSize && (bDoMap || winW!=pWindow->width || winH!=pWindow->height))
             {
                 crDebug("Dispatched WindowSize (%i)", pWindow->spuWindow);
                 stub.spuDispatch.WindowSize(pWindow->spuWindow, winW, winH);
@@ -963,12 +960,20 @@ static void stubSyncTrUpdateWindowCB(unsigned long key, void *data1, void *data2
         }
     }
 
+    if (bDoMap)
+    {
+        pWindow->mapped = GL_TRUE;
+        bChanged = true;
+        crDebug("Dispatched: WindowShow(%i, %i)", pWindow->spuWindow, pWindow->mapped);
+        stub.spu->dispatch_table.WindowShow(pWindow->spuWindow, pWindow->mapped);
+    }
+
     if (bChanged)
     {
         stub.spu->dispatch_table.Flush();
     }
 }
-# endif
+# endif /* VBOX_WITH_WDDM */
 
 static void stubSyncTrCheckWindowsCB(unsigned long key, void *data1, void *data2)
 {
@@ -985,9 +990,9 @@ static void stubSyncTrCheckWindowsCB(unsigned long key, void *data1, void *data2
     if (!stubSystemWindowExist(pWindow))
     {
 #ifdef WINDOWS
-        crWindowDestroy((GLint)pWindow->hWnd);
+        stubDestroyWindow(0, (GLint)pWindow->hWnd);
 #else
-        crWindowDestroy((GLint)pWindow->drawable);
+        stubDestroyWindow(0, (GLint)pWindow->drawable);
 #endif
         /*No need to flush here as crWindowDestroy does it*/
         return;
@@ -1009,6 +1014,7 @@ static DECLCALLBACK(int) stubSyncThreadProc(RTTHREAD ThreadSelf, void *pvUser)
     HMODULE hVBoxD3D = NULL;
     VBOXCR_UPDATEWNDCB RegionsData;
     HRESULT hr;
+    GLint spuConnection = 0;
 # endif
 #endif
 
@@ -1018,10 +1024,10 @@ static DECLCALLBACK(int) stubSyncThreadProc(RTTHREAD ThreadSelf, void *pvUser)
 #ifdef WINDOWS
     PeekMessage(&msg, NULL, WM_USER, WM_USER, PM_NOREMOVE);
 # ifdef VBOX_WITH_WDDM
-    hVBoxD3D = GetModuleHandle("VBoxDispD3D");
+    hVBoxD3D = GetModuleHandle(VBOX_MODNAME_DISPD3D);
     if (hVBoxD3D)
     {
-        hVBoxD3D = LoadLibrary("VBoxDispD3D");
+        hVBoxD3D = LoadLibrary(VBOX_MODNAME_DISPD3D);
     }
 
     if (hVBoxD3D)
@@ -1044,9 +1050,12 @@ static DECLCALLBACK(int) stubSyncThreadProc(RTTHREAD ThreadSelf, void *pvUser)
                 }
                 else
                 {
-                    crDebug("running with VBoxDispD3D");
+                    crDebug("running with " VBOX_MODNAME_DISPD3D);
                     stub.trackWindowVisibleRgn = 0;
                     stub.bRunningUnderWDDM = true;
+#ifdef VBOX_WDDM_MINIPORT_WITH_VISIBLE_RECTS
+                    crError("should not be here, visible rects should be processed in miniport!");
+#endif
                 }
             }
             else
@@ -1055,11 +1064,20 @@ static DECLCALLBACK(int) stubSyncThreadProc(RTTHREAD ThreadSelf, void *pvUser)
             }
         }
     }
-# endif
-#endif
+# endif /* VBOX_WITH_WDDM */
+#endif /* WINDOWS */
 
     crLockMutex(&stub.mutex);
-    stub.spu->dispatch_table.VBoxPackSetInjectThread();
+#if defined(WINDOWS) && defined(VBOX_WITH_WDDM)
+    spuConnection =
+#endif
+            stub.spu->dispatch_table.VBoxPackSetInjectThread(NULL);
+#if defined(WINDOWS) && defined(VBOX_WITH_WDDM)
+    if (stub.bRunningUnderWDDM && !spuConnection)
+    {
+        crError("VBoxPackSetInjectThread failed!");
+    }
+#endif
     crUnlockMutex(&stub.mutex);
 
     RTThreadUserSignal(ThreadSelf);
@@ -1136,6 +1154,10 @@ static DECLCALLBACK(int) stubSyncThreadProc(RTTHREAD ThreadSelf, void *pvUser)
     {
         VBoxDispMpTstCallbacks.pfnDisableEvents();
     }
+    if (spuConnection)
+    {
+        stub.spu->dispatch_table.VBoxConDestroy(spuConnection);
+    }
     if (hVBoxD3D)
     {
         FreeLibrary(hVBoxD3D);
@@ -1144,7 +1166,7 @@ static DECLCALLBACK(int) stubSyncThreadProc(RTTHREAD ThreadSelf, void *pvUser)
     crDebug("Sync thread stopped");
     return 0;
 }
-#endif
+#endif /* CR_NEWWINTRACK */
 
 /**
  * Do one-time initializations for the faker.
@@ -1184,6 +1206,14 @@ stubInitLocked(void)
     {
         disable_sync = 1;
     }
+#elif defined(WINDOWS) && defined(VBOX_WITH_WDDM) && defined(VBOX_WDDM_MINIPORT_WITH_VISIBLE_RECTS)
+    if (GetModuleHandle(VBOX_MODNAME_DISPD3D))
+    {
+        disable_sync = 1;
+        crDebug("running with " VBOX_MODNAME_DISPD3D);
+        stub.trackWindowVisibleRgn = 0;
+        stub.bRunningUnderWDDM = true;
+    }
 #endif
 
     /* @todo check if it'd be of any use on other than guests, no use for windows */
@@ -1197,7 +1227,11 @@ stubInitLocked(void)
 
         ns.name = "vboxhgcm://host:0";
         ns.buffer_size = 1024;
-        crNetServerConnect(&ns);
+        crNetServerConnect(&ns
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , NULL
+#endif
+                );
         if (!ns.conn)
         {
             crWarning("Failed to connect to host. Make sure 3D acceleration is enabled for this VM.");
@@ -1273,7 +1307,7 @@ raise(SIGINT);*/
     {
         int rc;
 
-        RTR3Init();
+        RTR3InitDll(0);
 
         if (!disable_sync)
         {
@@ -1338,11 +1372,12 @@ stubInit(void)
 #ifdef DEBUG_misha
  /* debugging: this is to be able to catch first-chance notifications
   * for exceptions other than EXCEPTION_BREAKPOINT in kernel debugger */
-//# define VDBG_VEHANDLER
+# define VDBG_VEHANDLER
 #endif
 
 #ifdef VDBG_VEHANDLER
 static PVOID g_VBoxWDbgVEHandler = NULL;
+static DWORD g_VBoxWDbgVEHExit = 1;
 LONG WINAPI vboxVDbgVectoredHandler(struct _EXCEPTION_POINTERS *pExceptionInfo)
 {
     PEXCEPTION_RECORD pExceptionRecord = pExceptionInfo->ExceptionRecord;
@@ -1358,6 +1393,8 @@ LONG WINAPI vboxVDbgVectoredHandler(struct _EXCEPTION_POINTERS *pExceptionInfo)
         case EXCEPTION_INT_DIVIDE_BY_ZERO:
         case EXCEPTION_ILLEGAL_INSTRUCTION:
             CRASSERT(0);
+            if (g_VBoxWDbgVEHExit)
+                exit(1);
             break;
         default:
             break;
@@ -1408,7 +1445,11 @@ BOOL WINAPI DllMain(HINSTANCE hDLLInst, DWORD fdwReason, LPVOID lpvReserved)
         crNetInit(NULL, NULL);
         ns.name = "vboxhgcm://host:0";
         ns.buffer_size = 1024;
-        crNetServerConnect(&ns);
+        crNetServerConnect(&ns
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , NULL
+#endif
+);
         if (!ns.conn)
         {
             crDebug("Failed to connect to host (is guest 3d acceleration enabled?), aborting ICD load.");

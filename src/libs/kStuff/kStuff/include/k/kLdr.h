@@ -1,4 +1,4 @@
-/* $Id: kLdr.h 29 2009-07-01 20:30:29Z bird $ */
+/* $Id: kLdr.h 41 2011-08-24 14:35:57Z bird $ */
 /** @file
  * kLdr - The Dynamic Loader.
  */
@@ -336,6 +336,8 @@ typedef enum KLDRTYPE
     KLDRTYPE_FORWARDER_DLL,
     /** Core or dump. */
     KLDRTYPE_CORE,
+    /** Debug module (debug info with empty code & data segments). */
+    KLDRTYPE_DEBUG_INFO,
     /** The end of the valid types values (exclusive). */
     KLDRTYPE_END,
     /** Hack to blow the type up to 32-bit. */
@@ -522,6 +524,7 @@ typedef FNKLDRMODENUMSYMS *PFNKLDRMODENUMSYMS;
  * @param   enmType     The debug info type.
  * @param   iMajorVer   The major version number of the debug info format. -1 if unknow - implies invalid iMinorVer.
  * @param   iMinorVer   The minor version number of the debug info format. -1 when iMajorVer is -1.
+ * @param   pszPartNm   The name of the debug info part, NULL if not applicable.
  * @param   offFile     The file offset *if* this type has one specific location in the executable image file.
  *                      This is -1 if there isn't any specific file location.
  * @param   LinkAddress The link address of the debug info if it's loadable. NIL_KLDRADDR if not loadable.
@@ -531,7 +534,8 @@ typedef FNKLDRMODENUMSYMS *PFNKLDRMODENUMSYMS;
  * @param   pvUser      The user parameter specified to kLdrModEnumDbgInfo.
  */
 typedef int FNKLDRENUMDBG(PKLDRMOD pMod, KU32 iDbgInfo, KLDRDBGINFOTYPE enmType, KI16 iMajorVer, KI16 iMinorVer,
-                          KLDRFOFF offFile, KLDRADDR LinkAddress, KLDRSIZE cb, const char *pszExtFile, void *pvUser);
+                          const char *pszPartNm, KLDRFOFF offFile, KLDRADDR LinkAddress, KLDRSIZE cb,
+                          const char *pszExtFile, void *pvUser);
 /** Pointer to a debug info enumerator callback. */
 typedef FNKLDRENUMDBG *PFNKLDRENUMDBG;
 

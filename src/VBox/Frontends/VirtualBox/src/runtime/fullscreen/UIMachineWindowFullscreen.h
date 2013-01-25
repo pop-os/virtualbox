@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,68 +19,52 @@
 #ifndef __UIMachineWindowFullscreen_h__
 #define __UIMachineWindowFullscreen_h__
 
-/* Global includes */
-#include <QMainWindow>
-
-/* Local includes */
-#include "QIWithRetranslateUI.h"
+/* Local includes: */
 #include "UIMachineWindow.h"
 
-/* Local forwards */
+/* Forward declarations: */
 class VBoxMiniToolBar;
 
-class UIMachineWindowFullscreen : public QIWithRetranslateUI2<QMainWindow>, public UIMachineWindow
+/* Fullscreen machine-window implementation: */
+class UIMachineWindowFullscreen : public UIMachineWindow
 {
     Q_OBJECT;
 
-public slots:
-
-    void sltPlaceOnScreen();
-
 protected:
 
-    /* Fullscreen machine window constructor/destructor: */
+    /* Constructor: */
     UIMachineWindowFullscreen(UIMachineLogic *pMachineLogic, ulong uScreenId);
-    virtual ~UIMachineWindowFullscreen();
 
 private slots:
 
-    /* Console callback handlers: */
+    /* Session event-handlers: */
     void sltMachineStateChanged();
 
-    /* Popup main menu: */
-    void sltPopupMainMenu();
+    /* Places window on screen: */
+    void sltPlaceOnScreen();
 
-    /* Close window reimplementation: */
-    void sltTryClose();
+    /* Popup main-menu: */
+    void sltPopupMainMenu();
 
 private:
 
-    /* Translate routine: */
-    void retranslateUi();
-
-    /* Event handlers: */
-#ifdef Q_WS_X11
-    bool x11Event(XEvent *pEvent);
-#endif /* Q_WS_X11 */
-    void closeEvent(QCloseEvent *pEvent);
-
     /* Prepare helpers: */
     void prepareMenu();
-    void prepareMiniToolBar();
-    void prepareMachineView();
-    //void loadWindowSettings() {}
+    void prepareVisualState();
+    void prepareMiniToolbar();
 
     /* Cleanup helpers: */
-    void saveWindowSettings();
-    void cleanupMachineView();
-    void cleanupMiniToolBar();
+    void cleanupMiniToolbar();
+    void cleanupVisualState();
     void cleanupMenu();
 
-    /* Update routines: */
+    /* Show stuff: */
+    void showInNecessaryMode();
+
+    /* Update stuff: */
     void updateAppearanceOf(int iElement);
 
-    /* Private variables: */
+    /* Widgets: */
     QMenu *m_pMainMenu;
     VBoxMiniToolBar *m_pMiniToolBar;
 

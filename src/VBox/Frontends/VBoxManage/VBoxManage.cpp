@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,6 +36,7 @@
 
 #include <iprt/asm.h>
 #include <iprt/buildconfig.h>
+#include <iprt/ctype.h>
 #include <iprt/initterm.h>
 #include <iprt/path.h>
 #include <iprt/stream.h>
@@ -99,6 +100,12 @@ HRESULT showProgress(ComPtr<IProgress> progress)
         RTStrmFlush(g_pStdErr);
         return hrc;
     }
+
+    /*
+     * Note: Outputting the progress info to stderr (g_pStdErr) is intentional
+     *       to not get intermixed with other (raw) stdout data which might get
+     *       written in the meanwhile.
+     */
 
     if (!g_fDetailedProgress)
     {
@@ -238,13 +245,69 @@ static CComModule _Module;
 #endif /* !VBOX_ONLY_DOCS */
 
 
+#ifndef VBOX_ONLY_DOCS
+RTEXITCODE readPasswordFile(const char *pszFilename, com::Utf8Str *pPasswd)
+{
+    size_t cbFile;
+    char szPasswd[512];
+    int vrc = VINF_SUCCESS;
+    RTEXITCODE rcExit = RTEXITCODE_SUCCESS;
+    bool fStdIn = !strcmp(pszFilename, "stdin");
+    PRTSTREAM pStrm;
+    if (!fStdIn)
+        vrc = RTStrmOpen(pszFilename, "r", &pStrm);
+    else
+        pStrm = g_pStdIn;
+    if (RT_SUCCESS(vrc))
+    {
+        vrc = RTStrmReadEx(pStrm, szPasswd, sizeof(szPasswd)-1, &cbFile);
+        if (RT_SUCCESS(vrc))
+        {
+            if (cbFile >= sizeof(szPasswd)-1)
+                rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Provided password in file '%s' is too long", pszFilename);
+            else
+            {
+                unsigned i;
+                for (i = 0; i < cbFile && !RT_C_IS_CNTRL(szPasswd[i]); i++)
+                    ;
+                szPasswd[i] = '\0';
+                *pPasswd = szPasswd;
+            }
+        }
+        else
+            rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Cannot read password from file '%s': %Rrc", pszFilename, vrc);
+        if (!fStdIn)
+            RTStrmClose(pStrm);
+    }
+    else
+        rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Cannot open password file '%s' (%Rrc)", pszFilename, vrc);
+
+    return rcExit;
+}
+
+static RTEXITCODE settingsPasswordFile(ComPtr<IVirtualBox> virtualBox, const char *pszFilename)
+{
+    com::Utf8Str passwd;
+    RTEXITCODE rcExit = readPasswordFile(pszFilename, &passwd);
+    if (rcExit == RTEXITCODE_SUCCESS)
+    {
+        int rc;
+        CHECK_ERROR(virtualBox, SetSettingsSecret(com::Bstr(passwd).raw()));
+        if (FAILED(rc))
+            rcExit = RTEXITCODE_FAILURE;
+    }
+
+    return rcExit;
+}
+#endif
+
 int main(int argc, char *argv[])
 {
     /*
      * Before we do anything, init the runtime without loading
      * the support driver.
      */
-    RTR3Init();
+    RTR3InitExe(argc, &argv, 0);
 
     /*
      * Parse the global options
@@ -253,6 +316,8 @@ int main(int argc, char *argv[])
     bool fShowHelp = false;
     int  iCmd      = 1;
     int  iCmdArg;
+    const char *g_pszSettingsPw = NULL;
+    const char *g_pszSettingsPwFile = NULL;
 
     for (int i = 1; i < argc || argc <= iCmd; i++)
     {
@@ -309,10 +374,25 @@ int main(int argc, char *argv[])
             g_fDetailedProgress = true;
             iCmd++;
         }
-        else
+        else if (!strcmp(argv[i], "--settingspw"))
         {
-            break;
+            if (i >= argc-1)
+                return RTMsgErrorExit(RTEXITCODE_FAILURE,
+                                      "Password expected");
+            /* password for certain settings */
+            g_pszSettingsPw = argv[i+1];
+            iCmd += 2;
         }
+        else if (!strcmp(argv[i], "--settingspwfile"))
+        {
+            if (i >= argc-1)
+                return RTMsgErrorExit(RTEXITCODE_FAILURE,
+                                      "No password file specified");
+            g_pszSettingsPwFile = argv[i+1];
+            iCmd += 2;
+        }
+        else
+            break;
     }
 
     iCmdArg = iCmd + 1;
@@ -338,24 +418,6 @@ int main(int argc, char *argv[])
 # endif
     if (FAILED(hrc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to initialize COM!");
-
-    /*
-     * The input is ASSUMED to be in the current process codeset (NT guarantees
-     * ACP, unixy systems doesn't guarantee anything).  This loop converts all
-     * the argv[*] strings to UTF-8, which is a tad ugly but who cares.
-     * (As a rule all strings in VirtualBox are UTF-8.)
-     */
-    for (int i = iCmdArg; i < argc; i++)
-    {
-        char *pszConverted;
-        int rc = RTStrCurrentCPToUtf8(&pszConverted, argv[i]);
-        if (RT_SUCCESS(rc))
-            argv[i] = pszConverted;
-        else
-            /* Conversion was not possible,probably due to invalid characters.
-             * Keep in mind that we do RTStrFree on the whole array below. */
-            argv[i] = RTStrDup(argv[i]);
-    }
 
     RTEXITCODE rcExit = RTEXITCODE_FAILURE;
     do
@@ -458,6 +520,23 @@ int main(int argc, char *argv[])
             { NULL,               0,                       NULL }
         };
 
+        if (g_pszSettingsPw)
+        {
+            int rc;
+            CHECK_ERROR(virtualBox, SetSettingsSecret(Bstr(g_pszSettingsPw).raw()));
+            if (FAILED(rc))
+            {
+                rcExit = RTEXITCODE_FAILURE;
+                break;
+            }
+        }
+        else if (g_pszSettingsPwFile)
+        {
+            rcExit = settingsPasswordFile(virtualBox, g_pszSettingsPwFile);
+            if (rcExit != RTEXITCODE_SUCCESS)
+                break;
+        }
+
         HandlerArg  handlerArg = { 0, NULL, virtualBox, session };
         int         commandIndex;
         for (commandIndex = 0; s_commandHandlers[commandIndex].command != NULL; commandIndex++)
@@ -508,15 +587,6 @@ int main(int argc, char *argv[])
     } while (0);
 
     com::Shutdown();
-
-    /*
-     * Free converted argument vector
-     */
-    for (int i = iCmdArg; i < argc; i++)
-    {
-        RTStrFree(argv[i]);
-        argv[i] = NULL;
-    }
 
     return rcExit;
 #else  /* VBOX_ONLY_DOCS */

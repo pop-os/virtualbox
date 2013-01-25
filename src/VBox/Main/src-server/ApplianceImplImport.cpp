@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -191,7 +191,7 @@ STDMETHODIMP Appliance::Interpret()
                 nameVBox = pNewDesc->m->pConfig->machineUserData.strName;
             else
                 nameVBox = vsysThis.strName;
-            /* If the there isn't any name specified create a default one out
+            /* If there isn't any name specified create a default one out
              * of the OS type */
             if (nameVBox.isEmpty())
                 nameVBox = strOsTypeVBox;
@@ -204,7 +204,9 @@ STDMETHODIMP Appliance::Interpret()
             /* Based on the VM name, create a target machine path. */
             Bstr bstrMachineFilename;
             rc = mVirtualBox->ComposeMachineFilename(Bstr(nameVBox).raw(),
-                                                     NULL,
+                                                     NULL /* aGroup */,
+                                                     NULL /* aCreateFlags */,
+                                                     NULL /* aBaseFolder */,
                                                      bstrMachineFilename.asOutParam());
             if (FAILED(rc)) throw rc;
             /* Determine the machine folder from that */
@@ -352,16 +354,18 @@ STDMETHODIMP Appliance::Interpret()
             /* If there is a <vbox:Machine>, we always prefer the setting from there. */
             if (vsysThis.pelmVboxMachine)
             {
+                uint32_t maxNetworkAdapters = Global::getMaxNetworkAdapters(pNewDesc->m->pConfig->hardwareMachine.chipsetType);
+
                 const settings::NetworkAdaptersList &llNetworkAdapters = pNewDesc->m->pConfig->hardwareMachine.llNetworkAdapters;
                 /* Check for the constrains */
-                if (llNetworkAdapters.size() > SchemaDefs::NetworkAdapterCount)
+                if (llNetworkAdapters.size() > maxNetworkAdapters)
                     addWarning(tr("The virtual system \"%s\" claims support for %zu network adapters, but VirtualBox has support for max %u network adapter only."),
-                                  vsysThis.strName.c_str(), llNetworkAdapters.size(), SchemaDefs::NetworkAdapterCount);
+                                  vsysThis.strName.c_str(), llNetworkAdapters.size(), maxNetworkAdapters);
                 /* Iterate through all network adapters. */
                 settings::NetworkAdaptersList::const_iterator it1;
                 size_t a = 0;
                 for (it1 = llNetworkAdapters.begin();
-                     it1 != llNetworkAdapters.end() && a < SchemaDefs::NetworkAdapterCount;
+                     it1 != llNetworkAdapters.end() && a < maxNetworkAdapters;
                      ++it1, ++a)
                 {
                     if (it1->fEnabled)
@@ -379,10 +383,12 @@ STDMETHODIMP Appliance::Interpret()
             /* else we use the ovf configuration. */
             else if (size_t cEthernetAdapters = vsysThis.llEthernetAdapters.size() >  0)
             {
+                uint32_t maxNetworkAdapters = Global::getMaxNetworkAdapters(ChipsetType_PIIX3);
+
                 /* Check for the constrains */
-                if (cEthernetAdapters > SchemaDefs::NetworkAdapterCount)
+                if (cEthernetAdapters > maxNetworkAdapters)
                     addWarning(tr("The virtual system \"%s\" claims support for %zu network adapters, but VirtualBox has support for max %u network adapter only."),
-                                  vsysThis.strName.c_str(), cEthernetAdapters, SchemaDefs::NetworkAdapterCount);
+                                  vsysThis.strName.c_str(), cEthernetAdapters, maxNetworkAdapters);
 
                 /* Get the default network adapter type for the selected guest OS */
                 NetworkAdapterType_T defaultAdapterVBox = NetworkAdapterType_Am79C970A;
@@ -390,11 +396,11 @@ STDMETHODIMP Appliance::Interpret()
                 if (FAILED(rc)) throw rc;
 
                 ovf::EthernetAdaptersList::const_iterator itEA;
-                /* Iterate through all abstract networks. We support 8 network
-                 * adapters at the maximum, so the first 8 will be added only. */
+                /* Iterate through all abstract networks. Ignore network cards
+                 * which exceed the limit of VirtualBox. */
                 size_t a = 0;
                 for (itEA = vsysThis.llEthernetAdapters.begin();
-                     itEA != vsysThis.llEthernetAdapters.end() && a < SchemaDefs::NetworkAdapterCount;
+                     itEA != vsysThis.llEthernetAdapters.end() && a < maxNetworkAdapters;
                      ++itEA, ++a)
                 {
                     const ovf::EthernetAdapter &ea = *itEA; // logical network to connect to
@@ -813,42 +819,41 @@ HRESULT Appliance::readFSOVF(TaskOVF *pTask)
 
     HRESULT rc = S_OK;
 
-    PVDINTERFACEIO pSha1Callbacks = 0;
-    PVDINTERFACEIO pFileCallbacks = 0;
+    PVDINTERFACEIO pShaIo = 0;
+    PVDINTERFACEIO pFileIo = 0;
     do
     {
-        pSha1Callbacks = Sha1CreateInterface();
-        if (!pSha1Callbacks)
+        pShaIo = ShaCreateInterface();
+        if (!pShaIo)
         {
             rc = E_OUTOFMEMORY;
             break;
         }
-        pFileCallbacks = FileCreateInterface();
-        if (!pFileCallbacks)
+        pFileIo = FileCreateInterface();
+        if (!pFileIo)
         {
             rc = E_OUTOFMEMORY;
             break;
         }
-        VDINTERFACE VDInterfaceIO;
-        SHA1STORAGE storage;
+        SHASTORAGE storage;
         RT_ZERO(storage);
-        int vrc = VDInterfaceAdd(&VDInterfaceIO, "Appliance::IOFile",
-                                 VDINTERFACETYPE_IO, pFileCallbacks,
-                                 0, &storage.pVDImageIfaces);
+        int vrc = VDInterfaceAdd(&pFileIo->Core, "Appliance::IOFile",
+                                 VDINTERFACETYPE_IO, 0, sizeof(VDINTERFACEIO),
+                                 &storage.pVDImageIfaces);
         if (RT_FAILURE(vrc))
         {
-            rc = E_FAIL;
+            rc = setError(VBOX_E_IPRT_ERROR, "Creation of the VD interface failed (%Rrc)", vrc);
             break;
         }
 
-        rc = readFSImpl(pTask, pTask->locInfo.strPath, pSha1Callbacks, &storage);
+        rc = readFSImpl(pTask, pTask->locInfo.strPath, pShaIo, &storage);
     }while(0);
 
     /* Cleanup */
-    if (pSha1Callbacks)
-        RTMemFree(pSha1Callbacks);
-    if (pFileCallbacks)
-        RTMemFree(pFileCallbacks);
+    if (pShaIo)
+        RTMemFree(pShaIo);
+    if (pFileIo)
+        RTMemFree(pFileIo);
 
     LogFlowFunc(("rc=%Rhrc\n", rc));
     LogFlowFuncLeave();
@@ -869,8 +874,8 @@ HRESULT Appliance::readFSOVA(TaskOVF *pTask)
 
     HRESULT rc = S_OK;
 
-    PVDINTERFACEIO pSha1Callbacks = 0;
-    PVDINTERFACEIO pTarCallbacks = 0;
+    PVDINTERFACEIO pShaIo = 0;
+    PVDINTERFACEIO pTarIo = 0;
     char *pszFilename = 0;
     do
     {
@@ -880,30 +885,29 @@ HRESULT Appliance::readFSOVA(TaskOVF *pTask)
             rc = VBOX_E_FILE_ERROR;
             break;
         }
-        pSha1Callbacks = Sha1CreateInterface();
-        if (!pSha1Callbacks)
+        pShaIo = ShaCreateInterface();
+        if (!pShaIo)
         {
             rc = E_OUTOFMEMORY;
             break;
         }
-        pTarCallbacks = TarCreateInterface();
-        if (!pTarCallbacks)
+        pTarIo = TarCreateInterface();
+        if (!pTarIo)
         {
             rc = E_OUTOFMEMORY;
             break;
         }
-        VDINTERFACE VDInterfaceIO;
-        SHA1STORAGE storage;
+        SHASTORAGE storage;
         RT_ZERO(storage);
-        vrc = VDInterfaceAdd(&VDInterfaceIO, "Appliance::IOTar",
-                             VDINTERFACETYPE_IO, pTarCallbacks,
-                             tar, &storage.pVDImageIfaces);
+        vrc = VDInterfaceAdd(&pTarIo->Core, "Appliance::IOTar",
+                             VDINTERFACETYPE_IO, tar, sizeof(VDINTERFACEIO),
+                             &storage.pVDImageIfaces);
         if (RT_FAILURE(vrc))
         {
-            rc = E_FAIL;
+            rc = setError(VBOX_E_IPRT_ERROR, "Creation of the VD interface failed (%Rrc)", vrc);
             break;
         }
-        rc = readFSImpl(pTask, pszFilename, pSha1Callbacks, &storage);
+        rc = readFSImpl(pTask, pszFilename, pShaIo, &storage);
     }while(0);
 
     RTTarClose(tar);
@@ -911,10 +915,10 @@ HRESULT Appliance::readFSOVA(TaskOVF *pTask)
     /* Cleanup */
     if (pszFilename)
         RTMemFree(pszFilename);
-    if (pSha1Callbacks)
-        RTMemFree(pSha1Callbacks);
-    if (pTarCallbacks)
-        RTMemFree(pTarCallbacks);
+    if (pShaIo)
+        RTMemFree(pShaIo);
+    if (pTarIo)
+        RTMemFree(pTarIo);
 
     LogFlowFunc(("rc=%Rhrc\n", rc));
     LogFlowFuncLeave();
@@ -922,7 +926,7 @@ HRESULT Appliance::readFSOVA(TaskOVF *pTask)
     return rc;
 }
 
-HRESULT Appliance::readFSImpl(TaskOVF *pTask, const RTCString &strFilename, PVDINTERFACEIO pCallbacks, PSHA1STORAGE pStorage)
+HRESULT Appliance::readFSImpl(TaskOVF *pTask, const RTCString &strFilename, PVDINTERFACEIO pIfIo, PSHASTORAGE pStorage)
 {
     LogFlowFuncEnter();
 
@@ -935,14 +939,14 @@ HRESULT Appliance::readFSImpl(TaskOVF *pTask, const RTCString &strFilename, PVDI
     {
         /* Read the OVF into a memory buffer */
         size_t cbSize = 0;
-        int vrc = Sha1ReadBuf(strFilename.c_str(), &pvTmpBuf, &cbSize, pCallbacks, pStorage);
+        int vrc = ShaReadBuf(strFilename.c_str(), &pvTmpBuf, &cbSize, pIfIo, pStorage);
         if (   RT_FAILURE(vrc)
             || !pvTmpBuf)
             throw setError(VBOX_E_FILE_ERROR,
                            tr("Could not read OVF file '%s' (%Rrc)"),
                            RTPathFilename(strFilename.c_str()), vrc);
-        /* Copy the SHA1 sum of the OVF file for later validation */
-        m->strOVFSHA1Digest = pStorage->strDigest;
+        /* Copy the SHA1/SHA256 sum of the OVF file for later validation */
+        m->strOVFSHADigest = pStorage->strDigest;
         /* Read & parse the XML structure of the OVF file */
         m->pReader = new ovf::OVFReader(pvTmpBuf, cbSize, pTask->locInfo.strPath);
     }
@@ -1004,7 +1008,7 @@ HRESULT Appliance::readS3(TaskOVF *pTask)
 
         /* We need a temporary directory which we can put the OVF file & all
          * disk images in */
-        vrc = RTDirCreateTemp(pszTmpDir);
+        vrc = RTDirCreateTemp(pszTmpDir, 0700);
         if (RT_FAILURE(vrc))
             throw setError(VBOX_E_FILE_ERROR,
                            tr("Cannot create temporary directory '%s'"), pszTmpDir);
@@ -1230,48 +1234,51 @@ HRESULT Appliance::importFSOVF(TaskOVF *pTask, AutoWriteLockBase& writeLock)
 
     HRESULT rc = S_OK;
 
-    PVDINTERFACEIO pSha1Callbacks = 0;
-    PVDINTERFACEIO pFileCallbacks = 0;
-    void *pvMfBuf = 0;
+    PVDINTERFACEIO pShaIo = NULL;
+    PVDINTERFACEIO pFileIo = NULL;
+    void *pvMfBuf = NULL;
     writeLock.release();
     try
     {
         /* Create the necessary file access interfaces. */
-        pSha1Callbacks = Sha1CreateInterface();
-        if (!pSha1Callbacks)
-            throw E_OUTOFMEMORY;
-        pFileCallbacks = FileCreateInterface();
-        if (!pFileCallbacks)
-            throw E_OUTOFMEMORY;
+        pFileIo = FileCreateInterface();
+        if (!pFileIo)
+            throw setError(E_OUTOFMEMORY);
 
-        VDINTERFACE VDInterfaceIO;
-        SHA1STORAGE storage;
-        RT_ZERO(storage);
-        storage.fCreateDigest = true;
-        int vrc = VDInterfaceAdd(&VDInterfaceIO, "Appliance::IOFile",
-                                 VDINTERFACETYPE_IO, pFileCallbacks,
-                                 0, &storage.pVDImageIfaces);
-        if (RT_FAILURE(vrc))
-            throw E_FAIL;
-
-        size_t cbMfSize = 0;
         Utf8Str strMfFile = Utf8Str(pTask->locInfo.strPath).stripExt().append(".mf");
         /* Create the import stack for the rollback on errors. */
         ImportStack stack(pTask->locInfo, m->pReader->m_mapDisks, pTask->pProgress);
-        /* Do we need the digest information? */
-        storage.fCreateDigest = RTFileExists(strMfFile.c_str());
-        /* Now import the appliance. */
-        importMachines(stack, pSha1Callbacks, &storage);
-        /* Read & verify the manifest file, if there is one. */
-        if (storage.fCreateDigest)
+
+        if (RTFileExists(strMfFile.c_str()))
         {
+            SHASTORAGE storage;
+            RT_ZERO(storage);
+
+            pShaIo = ShaCreateInterface();
+            if (!pShaIo)
+                throw setError(E_OUTOFMEMORY);
+
+            storage.fCreateDigest = true;
+            int vrc = VDInterfaceAdd(&pFileIo->Core, "Appliance::IOFile",
+                                     VDINTERFACETYPE_IO, 0, sizeof(VDINTERFACEIO),
+                                     &storage.pVDImageIfaces);
+            if (RT_FAILURE(vrc))
+                throw setError(VBOX_E_IPRT_ERROR, "Creation of the VD interface failed (%Rrc)", vrc);
+
+            size_t cbMfSize = 0;
+            storage.fCreateDigest = true;
+            /* Now import the appliance. */
+            importMachines(stack, pShaIo, &storage);
+            /* Read & verify the manifest file. */
             /* Add the ovf file to the digest list. */
-            stack.llSrcDisksDigest.push_front(STRPAIR(pTask->locInfo.strPath, m->strOVFSHA1Digest));
-            rc = readManifestFile(strMfFile, &pvMfBuf, &cbMfSize, pSha1Callbacks, &storage);
+            stack.llSrcDisksDigest.push_front(STRPAIR(pTask->locInfo.strPath, m->strOVFSHADigest));
+            rc = readManifestFile(strMfFile, &pvMfBuf, &cbMfSize, pShaIo, &storage);
             if (FAILED(rc)) throw rc;
             rc = verifyManifestFile(strMfFile, stack, pvMfBuf, cbMfSize);
             if (FAILED(rc)) throw rc;
         }
+        else
+            importMachines(stack, pFileIo, NULL);
     }
     catch (HRESULT rc2)
     {
@@ -1282,10 +1289,10 @@ HRESULT Appliance::importFSOVF(TaskOVF *pTask, AutoWriteLockBase& writeLock)
     /* Cleanup */
     if (pvMfBuf)
         RTMemFree(pvMfBuf);
-    if (pSha1Callbacks)
-        RTMemFree(pSha1Callbacks);
-    if (pFileCallbacks)
-        RTMemFree(pFileCallbacks);
+    if (pShaIo)
+        RTMemFree(pShaIo);
+    if (pFileIo)
+        RTMemFree(pFileIo);
 
     LogFlowFunc(("rc=%Rhrc\n", rc));
     LogFlowFuncLeave();
@@ -1306,46 +1313,45 @@ HRESULT Appliance::importFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock)
 
     HRESULT rc = S_OK;
 
-    PVDINTERFACEIO pSha1Callbacks = 0;
-    PVDINTERFACEIO pTarCallbacks = 0;
+    PVDINTERFACEIO pShaIo = 0;
+    PVDINTERFACEIO pTarIo = 0;
     char *pszFilename = 0;
     void *pvMfBuf = 0;
     writeLock.release();
     try
     {
         /* Create the necessary file access interfaces. */
-        pSha1Callbacks = Sha1CreateInterface();
-        if (!pSha1Callbacks)
-            throw E_OUTOFMEMORY;
-        pTarCallbacks = TarCreateInterface();
-        if (!pTarCallbacks)
-            throw E_OUTOFMEMORY;
+        pShaIo = ShaCreateInterface();
+        if (!pShaIo)
+            throw setError(E_OUTOFMEMORY);
+        pTarIo = TarCreateInterface();
+        if (!pTarIo)
+            throw setError(E_OUTOFMEMORY);
 
-        VDINTERFACE VDInterfaceIO;
-        SHA1STORAGE storage;
+        SHASTORAGE storage;
         RT_ZERO(storage);
-        vrc = VDInterfaceAdd(&VDInterfaceIO, "Appliance::IOTar",
-                             VDINTERFACETYPE_IO, pTarCallbacks,
-                             tar, &storage.pVDImageIfaces);
+        vrc = VDInterfaceAdd(&pTarIo->Core, "Appliance::IOTar",
+                             VDINTERFACETYPE_IO, tar, sizeof(VDINTERFACEIO),
+                             &storage.pVDImageIfaces);
         if (RT_FAILURE(vrc))
-            throw setError(E_FAIL,
-                           tr("Internal error (%Rrc)"), vrc);
+            throw setError(VBOX_E_IPRT_ERROR,
+                           tr("Creation of the VD interface failed (%Rrc)"), vrc);
 
         /* Read the file name of the first file (need to be the ovf file). This
          * is how all internal files are named. */
         vrc = RTTarCurrentFile(tar, &pszFilename);
         if (RT_FAILURE(vrc))
-            throw setError(E_FAIL,
-                           tr("Internal error (%Rrc)"), vrc);
+            throw setError(VBOX_E_IPRT_ERROR,
+                           tr("Getting the current file within the archive failed (%Rrc)"), vrc);
         /* Skip the OVF file, cause this was read in IAppliance::Read already. */
         vrc = RTTarSeekNextFile(tar);
         if (   RT_FAILURE(vrc)
             && vrc != VERR_TAR_END_OF_FILE)
-            throw setError(E_FAIL,
-                           tr("Internal error (%Rrc)"), vrc);
+            throw setError(VBOX_E_IPRT_ERROR,
+                           tr("Seeking within the archive failed (%Rrc)"), vrc);
 
-        PVDINTERFACEIO pCallbacks = pSha1Callbacks;
-        PSHA1STORAGE pStorage = &storage;
+        PVDINTERFACEIO pCallbacks = pShaIo;
+        PSHASTORAGE pStorage = &storage;
 
         /* We always need to create the digest, cause we didn't know if there
          * is a manifest file in the stream. */
@@ -1381,7 +1387,7 @@ HRESULT Appliance::importFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock)
         if (pvMfBuf)
         {
             /* Add the ovf file to the digest list. */
-            stack.llSrcDisksDigest.push_front(STRPAIR(Utf8Str(pszFilename).stripExt().append(".ovf"), m->strOVFSHA1Digest));
+            stack.llSrcDisksDigest.push_front(STRPAIR(Utf8Str(pszFilename).stripExt().append(".ovf"), m->strOVFSHADigest));
             rc = verifyManifestFile(strMfFile, stack, pvMfBuf, cbMfSize);
             if (FAILED(rc)) throw rc;
         }
@@ -1399,10 +1405,10 @@ HRESULT Appliance::importFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock)
         RTMemFree(pszFilename);
     if (pvMfBuf)
         RTMemFree(pvMfBuf);
-    if (pSha1Callbacks)
-        RTMemFree(pSha1Callbacks);
-    if (pTarCallbacks)
-        RTMemFree(pTarCallbacks);
+    if (pShaIo)
+        RTMemFree(pShaIo);
+    if (pTarIo)
+        RTMemFree(pTarIo);
 
     LogFlowFunc(("rc=%Rhrc\n", rc));
     LogFlowFuncLeave();
@@ -1446,7 +1452,7 @@ HRESULT Appliance::importS3(TaskOVF *pTask)
 
         /* We need a temporary directory which we can put the all disk images
          * in */
-        vrc = RTDirCreateTemp(pszTmpDir);
+        vrc = RTDirCreateTemp(pszTmpDir, 0700);
         if (RT_FAILURE(vrc))
             throw setError(VBOX_E_FILE_ERROR,
                            tr("Cannot create temporary directory '%s' (%Rrc)"), pszTmpDir, vrc);
@@ -1603,13 +1609,13 @@ HRESULT Appliance::importS3(TaskOVF *pTask)
 }
 #endif /* VBOX_WITH_S3 */
 
-HRESULT Appliance::readManifestFile(const Utf8Str &strFile, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pCallbacks, PSHA1STORAGE pStorage)
+HRESULT Appliance::readManifestFile(const Utf8Str &strFile, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pCallbacks, PSHASTORAGE pStorage)
 {
     HRESULT rc = S_OK;
 
     bool fOldDigest = pStorage->fCreateDigest;
     pStorage->fCreateDigest = false; /* No digest for the manifest file */
-    int vrc = Sha1ReadBuf(strFile.c_str(), ppvBuf, pcbSize, pCallbacks, pStorage);
+    int vrc = ShaReadBuf(strFile.c_str(), ppvBuf, pcbSize, pCallbacks, pStorage);
     if (   RT_FAILURE(vrc)
         && vrc != VERR_FILE_NOT_FOUND)
         rc = setError(VBOX_E_FILE_ERROR,
@@ -1620,7 +1626,7 @@ HRESULT Appliance::readManifestFile(const Utf8Str &strFile, void **ppvBuf, size_
     return rc;
 }
 
-HRESULT Appliance::readTarManifestFile(RTTAR tar, const Utf8Str &strFile, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pCallbacks, PSHA1STORAGE pStorage)
+HRESULT Appliance::readTarManifestFile(RTTAR tar, const Utf8Str &strFile, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pCallbacks, PSHASTORAGE pStorage)
 {
     HRESULT rc = S_OK;
 
@@ -1633,7 +1639,7 @@ HRESULT Appliance::readTarManifestFile(RTTAR tar, const Utf8Str &strFile, void *
         RTStrFree(pszCurFile);
     }
     else if (vrc != VERR_TAR_END_OF_FILE)
-        rc = E_FAIL;
+        rc = setError(VBOX_E_IPRT_ERROR, "Seeking within the archive failed (%Rrc)", vrc);
 
     return rc;
 }
@@ -1794,7 +1800,7 @@ void Appliance::importOneDiskImage(const ovf::DiskImage &di,
                                    ComObjPtr<Medium> &pTargetHD,
                                    ImportStack &stack,
                                    PVDINTERFACEIO pCallbacks,
-                                   PSHA1STORAGE pStorage)
+                                   PSHASTORAGE pStorage)
 {
     ComObjPtr<Progress> pProgress;
     pProgress.createObject();
@@ -1846,8 +1852,7 @@ void Appliance::importOneDiskImage(const ovf::DiskImage &di,
         rc = pTargetHD->init(mVirtualBox,
                              strTrgFormat,
                              strTargetPath,
-                             Guid::Empty,       // media registry: none yet
-                             NULL /* llRegistriesThatNeedSaving */);
+                             Guid::Empty /* media registry: none yet */);
         if (FAILED(rc)) throw rc;
 
         /* Now create an empty hard disk. */
@@ -1912,7 +1917,7 @@ void Appliance::importOneDiskImage(const ovf::DiskImage &di,
 
     /* Add the newly create disk path + a corresponding digest the our list for
      * later manifest verification. */
-    stack.llSrcDisksDigest.push_back(STRPAIR(strSrcFilePath, pStorage->strDigest));
+    stack.llSrcDisksDigest.push_back(STRPAIR(strSrcFilePath, pStorage ? pStorage->strDigest : ""));
 }
 
 /**
@@ -1933,7 +1938,7 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
                                      ComPtr<IMachine> &pNewMachine,
                                      ImportStack &stack,
                                      PVDINTERFACEIO pCallbacks,
-                                     PSHA1STORAGE pStorage)
+                                     PSHASTORAGE pStorage)
 {
     HRESULT rc;
 
@@ -1944,11 +1949,12 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
     if (FAILED(rc)) throw rc;
 
     /* Create the machine */
+    SafeArray<BSTR> groups; /* no groups */
     rc = mVirtualBox->CreateMachine(NULL, /* machine name: use default */
                                     Bstr(stack.strNameVBox).raw(),
+                                    ComSafeArrayAsInParam(groups),
                                     Bstr(stack.strOsTypeVBox).raw(),
-                                    NULL, /* uuid */
-                                    FALSE, /* fForceOverwrite */
+                                    NULL, /* aCreateFlags */
                                     pNewMachine.asOutParam());
     if (FAILED(rc)) throw rc;
 
@@ -2029,6 +2035,8 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
 #endif /* VBOX_WITH_USB */
 
     /* Change the network adapters */
+    uint32_t maxNetworkAdapters = Global::getMaxNetworkAdapters(ChipsetType_PIIX3);
+
     std::list<VirtualSystemDescriptionEntry*> vsdeNW = vsdescThis->findByType(VirtualSystemDescriptionType_NetworkAdapter);
     if (vsdeNW.size() == 0)
     {
@@ -2039,10 +2047,10 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
         rc = nwVBox->COMSETTER(Enabled)(false);
         if (FAILED(rc)) throw rc;
     }
-    else if (vsdeNW.size() > SchemaDefs::NetworkAdapterCount)
+    else if (vsdeNW.size() > maxNetworkAdapters)
         throw setError(VBOX_E_FILE_ERROR,
                        tr("Too many network adapters: OVF requests %d network adapters, but VirtualBox only supports %d"),
-                       vsdeNW.size(), SchemaDefs::NetworkAdapterCount);
+                       vsdeNW.size(), maxNetworkAdapters);
     else
     {
         list<VirtualSystemDescriptionEntry*>::const_iterator nwIt;
@@ -2499,7 +2507,7 @@ void Appliance::importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescThi
                                   ComPtr<IMachine> &pReturnNewMachine,
                                   ImportStack &stack,
                                   PVDINTERFACEIO pCallbacks,
-                                  PSHA1STORAGE pStorage)
+                                  PSHASTORAGE pStorage)
 {
     Assert(vsdescThis->m->pConfig);
 
@@ -2811,7 +2819,7 @@ void Appliance::importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescThi
 
 void Appliance::importMachines(ImportStack &stack,
                                PVDINTERFACEIO pCallbacks,
-                               PSHA1STORAGE pStorage)
+                               PSHASTORAGE pStorage)
 {
     HRESULT rc = S_OK;
 
@@ -2858,7 +2866,9 @@ void Appliance::importMachines(ImportStack &stack,
         // put the disk images in the same directory
         Bstr bstrMachineFilename;
         rc = mVirtualBox->ComposeMachineFilename(Bstr(stack.strNameVBox).raw(),
-                                                 NULL,
+                                                 NULL /* aGroup */,
+                                                 NULL /* aCreateFlags */,
+                                                 NULL /* aBaseFolder */,
                                                  bstrMachineFilename.asOutParam());
         if (FAILED(rc)) throw rc;
         // and determine the machine folder from that

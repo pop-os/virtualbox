@@ -1,11 +1,10 @@
 /* $Id: DevAPIC.cpp $ */
 /** @file
- * Advanced Programmable Interrupt Controller (APIC) Device and
- * I/O Advanced Programmable Interrupt Controller (IO-APIC) Device.
+ * Advanced Programmable Interrupt Controller (APIC) Device.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,13 +46,15 @@
 
 #include <VBox/log.h>
 #include <VBox/vmm/stam.h>
-#include <iprt/assert.h>
+#include <VBox/vmm/vmcpuset.h>
 #include <iprt/asm.h>
+#include <iprt/assert.h>
 
 #include <VBox/msi.h>
 
 #include "VBoxDD2.h"
 #include "DevApic.h"
+
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
@@ -124,23 +125,42 @@
         PDMCritSectLeave((a_pDev)->CTX_SUFF(pCritSect)); \
     } while (0)
 
-#define foreach_apic(pDev, mask, code)                    \
-    do {                                                  \
-        APICState *apic = (pDev)->CTX_SUFF(paLapics);     \
-        for (uint32_t i = 0; i < (pDev)->cCpus; i++)      \
-        {                                                 \
-            if (mask & (1 << (apic->id)))                 \
-            {                                             \
-                code;                                     \
-            }                                             \
-            apic++;                                       \
-        }                                                 \
-    } while (0)
+/**
+ * Begins an APIC enumeration block.
+ *
+ * Code placed between this and the APIC_FOREACH_END macro will be executed for
+ * each APIC instance present in the system.
+ *
+ * @param   a_pDev      The APIC device.
+ */
+#define APIC_FOREACH_BEGIN(a_pDev) \
+    do { \
+        VMCPUID const cApics   = (a_pDev)->cCpus; \
+        APICState    *pCurApic = (a_pDev)->CTX_SUFF(paLapics); \
+        for (VMCPUID  iCurApic = 0; iCurApic < cApics; iCurApic++, pCurApic++) \
+        { \
+            do { } while (0)
 
-# define set_bit(pvBitmap, iBit)    ASMBitSet(pvBitmap, iBit)
-# define reset_bit(pvBitmap, iBit)  ASMBitClear(pvBitmap, iBit)
-# define fls_bit(value)             (ASMBitLastSetU32(value) - 1)
-# define ffs_bit(value)             (ASMBitFirstSetU32(value) - 1)
+/**
+ * Begins an APIC enumeration block, given a destination set.
+ *
+ * Code placed between this and the APIC_FOREACH_END macro will be executed for
+ * each APIC instance present in @a a_pDstSet.
+ *
+ * @param   a_pDev      The APIC device.
+ * @param   a_pDstSet   The destination set.
+ */
+#define APIC_FOREACH_IN_SET_BEGIN(a_pDev, a_pDstSet) \
+    APIC_FOREACH_BEGIN(a_pDev); \
+        if (!VMCPUSET_IS_PRESENT((a_pDstSet), iCurApic)) \
+            continue; \
+        do { } while (0)
+
+
+/** Counterpart to APIC_FOREACH_IN_SET_BEGIN and APIC_FOREACH_BEGIN. */
+#define APIC_FOREACH_END() \
+        } \
+    } while (0)
 
 #define DEBUG_APIC
 
@@ -189,7 +209,92 @@ typedef uint32_t LogApicId;
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
-typedef struct APICState {
+typedef struct APIC256BITREG
+{
+    /** The bitmap data.  */
+    uint32_t    au32Bitmap[8 /*256/32*/];
+} APIC256BITREG;
+typedef APIC256BITREG *PAPIC256BITREG;
+typedef APIC256BITREG const *PCAPIC256BITREG;
+
+/**
+ * Tests if a bit in the 256-bit APIC register is set.
+ *
+ * @returns true if set, false if clear.
+ *
+ * @param   pReg        The register.
+ * @param   iBit        The bit to test for.
+ */
+DECLINLINE(bool) Apic256BitReg_IsBitSet(PCAPIC256BITREG pReg, unsigned iBit)
+{
+    Assert(iBit < 256);
+    return ASMBitTest(&pReg->au32Bitmap[0], iBit);
+}
+
+
+/**
+ * Sets a bit in the 256-bit APIC register is set.
+ *
+ * @param   pReg        The register.
+ * @param   iBit        The bit to set.
+ */
+DECLINLINE(void) Apic256BitReg_SetBit(PAPIC256BITREG pReg, unsigned iBit)
+{
+    Assert(iBit < 256);
+    return ASMBitSet(&pReg->au32Bitmap[0], iBit);
+}
+
+
+/**
+ * Clears a bit in the 256-bit APIC register is set.
+ *
+ * @param   pReg        The register.
+ * @param   iBit        The bit to clear.
+ */
+DECLINLINE(void) Apic256BitReg_ClearBit(PAPIC256BITREG pReg, unsigned iBit)
+{
+    Assert(iBit < 256);
+    return ASMBitClear(&pReg->au32Bitmap[0], iBit);
+}
+
+/**
+ * Clears all bits in the 256-bit APIC register set.
+ *
+ * @param   pReg        The register.
+ */
+DECLINLINE(void) Apic256BitReg_Empty(PAPIC256BITREG pReg)
+{
+    memset(&pReg->au32Bitmap[0], 0, sizeof(pReg->au32Bitmap));
+}
+
+/**
+ * Finds the last bit set in the register, i.e. the highest priority interrupt.
+ *
+ * @returns The index of the found bit, @a iRetAllClear if none was found.
+ *
+ * @param   pReg            The register.
+ * @param   iRetAllClear    What to return if all bits are clear.
+ */
+static int Apic256BitReg_FindLastSetBit(PCAPIC256BITREG pReg, int iRetAllClear)
+{
+    uint32_t i = RT_ELEMENTS(pReg->au32Bitmap);
+    while (i-- > 0)
+    {
+        uint32_t u = pReg->au32Bitmap[i];
+        if (u)
+        {
+            u = ASMBitLastSetU32(u);
+            u--;
+            u |= i << 5;
+            return (int)u;
+        }
+    }
+    return iRetAllClear;
+}
+
+
+typedef struct APICState
+{
     uint32_t apicbase;
     /* Task priority register (interrupt level) */
     uint32_t   tpr;
@@ -202,9 +307,9 @@ typedef struct APICState {
     uint32_t spurious_vec;
     uint8_t log_dest;
     uint8_t dest_mode;
-    uint32_t isr[8];  /* in service register */
-    uint32_t tmr[8];  /* trigger mode register */
-    uint32_t irr[8]; /* interrupt request register */
+    APIC256BITREG isr;  /**< in service register */
+    APIC256BITREG tmr;  /**< trigger mode register */
+    APIC256BITREG irr;  /**< interrupt request register */
     uint32_t lvt[APIC_LVT_NB];
     uint32_t esr; /* error register */
     uint32_t icr[2];
@@ -233,6 +338,10 @@ typedef struct APICState {
     uint32_t                uHintedCountShift;
     /** Timer description timer. */
     R3PTRTYPE(char *)       pszDesc;
+
+    /** The IRQ tags and source IDs for each (tracing purposes). */
+    uint32_t                auTags[256];
+
 # ifdef VBOX_WITH_STATISTICS
 #  if HC_ARCH_BITS == 32
     uint32_t                u32Alignment0;
@@ -318,20 +427,20 @@ AssertCompileMemberAlignment(APICDeviceInfo, StatMMIOReadGC, 8);
 static void apic_update_tpr(APICDeviceInfo *pDev, APICState* s, uint32_t val);
 
 static void apic_eoi(APICDeviceInfo *pDev, APICState* s); /*  */
-static uint32_t apic_get_delivery_bitmask(APICDeviceInfo* pDev, uint8_t dest, uint8_t dest_mode);
+static PVMCPUSET apic_get_delivery_bitmask(APICDeviceInfo* pDev, uint8_t dest, uint8_t dest_mode, PVMCPUSET pDstSet);
 static int apic_deliver(APICDeviceInfo* pDev, APICState *s,
                         uint8_t dest, uint8_t dest_mode,
                         uint8_t delivery_mode, uint8_t vector_num,
                         uint8_t polarity, uint8_t trigger_mode);
-static int apic_get_arb_pri(APICState *s);
-static int apic_get_ppr(APICState *s);
-static uint32_t apic_get_current_count(APICDeviceInfo* pDev, APICState *s);
+static int apic_get_arb_pri(APICState const *s);
+static int apic_get_ppr(APICState const *s);
+static uint32_t apic_get_current_count(APICDeviceInfo const *pDev, APICState const *s);
 static void apicTimerSetInitialCount(APICDeviceInfo *pDev, APICState *s, uint32_t initial_count);
 static void apicTimerSetLvt(APICDeviceInfo *pDev, APICState *pApic, uint32_t fNew);
 static void apicSendInitIpi(APICDeviceInfo* pDev, APICState *s);
 
 static void apic_init_ipi(APICDeviceInfo* pDev, APICState *s);
-static void apic_set_irq(APICDeviceInfo* pDev, APICState *s, int vector_num, int trigger_mode);
+static void apic_set_irq(APICDeviceInfo* pDev, APICState *s, int vector_num, int trigger_mode, uint32_t uTagSrc);
 static bool apic_update_irq(APICDeviceInfo* pDev, APICState *s);
 
 
@@ -358,14 +467,14 @@ DECLINLINE(void) cpuSetInterrupt(APICDeviceInfo* pDev, APICState *s, PDMAPICIRQ 
 {
     LogFlow(("apic: setting interrupt flag for cpu %d\n", getCpuFromLapic(pDev, s)));
     pDev->CTX_SUFF(pApicHlp)->pfnSetInterruptFF(pDev->CTX_SUFF(pDevIns), enmType,
-                                               getCpuFromLapic(pDev, s));
+                                                getCpuFromLapic(pDev, s));
 }
 
 DECLINLINE(void) cpuClearInterrupt(APICDeviceInfo* pDev, APICState *s, PDMAPICIRQ enmType = PDMAPICIRQ_HARDWARE)
 {
     LogFlow(("apic: clear interrupt flag\n"));
     pDev->CTX_SUFF(pApicHlp)->pfnClearInterruptFF(pDev->CTX_SUFF(pDevIns), enmType,
-                                                 getCpuFromLapic(pDev, s));
+                                                  getCpuFromLapic(pDev, s));
 }
 
 # ifdef IN_RING3
@@ -375,8 +484,8 @@ DECLINLINE(void) cpuSendSipi(APICDeviceInfo* pDev, APICState *s, int vector)
     Log2(("apic: send SIPI vector=%d\n", vector));
 
     pDev->pApicHlpR3->pfnSendSipi(pDev->pDevInsR3,
-                                 getCpuFromLapic(pDev, s),
-                                 vector);
+                                  getCpuFromLapic(pDev, s),
+                                  vector);
 }
 
 DECLINLINE(void) cpuSendInitIpi(APICDeviceInfo* pDev, APICState *s)
@@ -423,49 +532,54 @@ DECLINLINE(PDMAPICVERSION) getApicMode(APICState *apic)
 }
 
 static int apic_bus_deliver(APICDeviceInfo* pDev,
-                            uint32_t deliver_bitmask, uint8_t delivery_mode,
+                            PCVMCPUSET pDstSet, uint8_t delivery_mode,
                             uint8_t vector_num, uint8_t polarity,
-                            uint8_t trigger_mode)
+                            uint8_t trigger_mode, uint32_t uTagSrc)
 {
-    LogFlow(("apic_bus_deliver mask=%x mode=%x vector=%x polarity=%x trigger_mode=%x\n", deliver_bitmask, delivery_mode, vector_num, polarity, trigger_mode));
-    switch (delivery_mode) {
+    LogFlow(("apic_bus_deliver mask=%R[vmcpuset] mode=%x vector=%x polarity=%x trigger_mode=%x uTagSrc=%#x\n",
+             pDstSet, delivery_mode, vector_num, polarity, trigger_mode, uTagSrc));
+
+    switch (delivery_mode)
+    {
         case APIC_DM_LOWPRI:
         {
-            int d = -1;
-            if (deliver_bitmask)
-                d = ffs_bit(deliver_bitmask);
-            if (d >= 0)
+            VMCPUID idDstCpu = VMCPUSET_FIND_FIRST_PRESENT(pDstSet);
+            if (idDstCpu != NIL_VMCPUID)
             {
-                APICState* apic = getLapicById(pDev, d);
-                apic_set_irq(pDev, apic, vector_num, trigger_mode);
+                APICState *pApic = getLapicById(pDev, idDstCpu);
+                apic_set_irq(pDev, pApic, vector_num, trigger_mode, uTagSrc);
             }
             return VINF_SUCCESS;
         }
+
         case APIC_DM_FIXED:
-            /* XXX: arbitration */
+            /** @todo XXX: arbitration */
             break;
 
         case APIC_DM_SMI:
-            foreach_apic(pDev, deliver_bitmask,
-                         cpuSetInterrupt(pDev, apic, PDMAPICIRQ_SMI));
+            APIC_FOREACH_IN_SET_BEGIN(pDev, pDstSet);
+                cpuSetInterrupt(pDev, pCurApic, PDMAPICIRQ_SMI);
+            APIC_FOREACH_END();
             return VINF_SUCCESS;
 
         case APIC_DM_NMI:
-            foreach_apic(pDev, deliver_bitmask,
-                         cpuSetInterrupt(pDev, apic, PDMAPICIRQ_NMI));
+            APIC_FOREACH_IN_SET_BEGIN(pDev, pDstSet);
+                cpuSetInterrupt(pDev, pCurApic, PDMAPICIRQ_NMI);
+            APIC_FOREACH_END();
             return VINF_SUCCESS;
 
         case APIC_DM_INIT:
             /* normal INIT IPI sent to processors */
 #ifdef IN_RING3
-            foreach_apic(pDev, deliver_bitmask,
-                         apicSendInitIpi(pDev, apic));
+            APIC_FOREACH_IN_SET_BEGIN(pDev, pDstSet);
+                apicSendInitIpi(pDev, pCurApic);
+            APIC_FOREACH_END();
             return VINF_SUCCESS;
 #else
-            /* We shall send init IPI only in R3, R0 calls should be
-               rescheduled to R3 */
-            return VINF_IOM_HC_MMIO_READ_WRITE;
+            /* We shall send init IPI only in R3. */
+            return VINF_IOM_R3_MMIO_READ_WRITE;
 #endif /* IN_RING3 */
+
         case APIC_DM_EXTINT:
             /* handled in I/O APIC code */
             break;
@@ -474,8 +588,9 @@ static int apic_bus_deliver(APICDeviceInfo* pDev,
             return VINF_SUCCESS;
     }
 
-    foreach_apic(pDev, deliver_bitmask,
-                       apic_set_irq (pDev, apic, vector_num, trigger_mode));
+    APIC_FOREACH_IN_SET_BEGIN(pDev, pDstSet);
+        apic_set_irq(pDev, pCurApic, vector_num, trigger_mode, uTagSrc);
+    APIC_FOREACH_END();
     return VINF_SUCCESS;
 }
 
@@ -550,6 +665,33 @@ PDMBOTHCBDECL(uint8_t) apicGetTPR(PPDMDEVINS pDevIns, VMCPUID idCpu)
     Log2(("apicGetTPR: returns %#x\n", s->tpr));
     return s->tpr;
 }
+
+
+/**
+ * apicWriteRegister helper for dealing with invalid register access.
+ *
+ * @returns Strict VBox status code.
+ * @param   pDev                The PDM device instance.
+ * @param   pApic               The APIC being written to.
+ * @param   iReg                The APIC register index.
+ * @param   u64Value            The value being written.
+ * @param   rcBusy              The busy return code to employ.  See
+ *                              PDMCritSectEnter for a description.
+ * @param   fMsr                Set if called via MSR, clear if MMIO.
+ */
+static int apicWriteRegisterInvalid(APICDeviceInfo *pDev, APICState *pApic, uint32_t iReg, uint64_t u64Value,
+                                    int rcBusy, bool fMsr)
+{
+    Log(("apicWriteRegisterInvalid/%u: iReg=%#x fMsr=%RTbool u64Value=%#llx\n", pApic->phys_id, iReg, fMsr, u64Value));
+    int rc = PDMDevHlpDBGFStop(pDev->CTX_SUFF(pDevIns), RT_SRC_POS,
+                               "iReg=%#x fMsr=%RTbool u64Value=%#llx id=%u\n", iReg, fMsr, u64Value, pApic->phys_id);
+    APIC_LOCK(pDev, rcBusy);
+    pApic->esr |= ESR_ILLEGAL_ADDRESS;
+    APIC_UNLOCK(pDev);
+    return rc;
+}
+
+
 
 /**
  * Writes to an APIC register via MMIO or MSR.
@@ -635,12 +777,14 @@ static int apicWriteRegister(APICDeviceInfo *pDev, APICState *pApic, uint32_t iR
             break;
 
         case 0x31:
-            APIC_LOCK(pDev, rcBusy);
             if (!fMsr)
+            {
+                APIC_LOCK(pDev, rcBusy);
                 pApic->icr[1] = (uint64_t)u64Value;
+                APIC_UNLOCK(pDev);
+            }
             else
-                pApic->esr |= ESR_ILLEGAL_ADDRESS;
-            APIC_UNLOCK(pDev);
+                rc = apicWriteRegisterInvalid(pDev, pApic, iReg, u64Value, rcBusy, fMsr);
             break;
 
         case 0x32 + APIC_LVT_TIMER:
@@ -682,22 +826,222 @@ static int apicWriteRegister(APICDeviceInfo *pDev, APICState *pApic, uint32_t iR
                 /* Self IPI, see x2APIC book 2.4.5 */
                 APIC_LOCK(pDev, rcBusy);
                 int vector = u64Value & 0xff;
+                VMCPUSET SelfSet;
+                VMCPUSET_EMPTY(&SelfSet);
+                VMCPUSET_ADD(&SelfSet, pApic->id);
                 rc = apic_bus_deliver(pDev,
-                                      1 << pApic->id /* Self */,
+                                      &SelfSet,
                                       0 /* Delivery mode - fixed */,
                                       vector,
                                       0 /* Polarity - conform to the bus */,
-                                      0 /* Trigger mode - edge */);
+                                      0 /* Trigger mode - edge */,
+                                      pDev->CTX_SUFF(pApicHlp)->pfnCalcIrqTag(pDev->CTX_SUFF(pDevIns), PDM_IRQ_LEVEL_HIGH));
                 APIC_UNLOCK(pDev);
                 break;
             }
             /* else: fall thru */
+
         default:
-            AssertMsgFailed(("unknown iReg %x\n", iReg));
-            pApic->esr |= ESR_ILLEGAL_ADDRESS;
+            rc = apicWriteRegisterInvalid(pDev, pApic, iReg, u64Value, rcBusy, fMsr);
             break;
     }
 
+    return rc;
+}
+
+
+/**
+ * apicReadRegister helper for dealing with invalid register access.
+ *
+ * @returns Strict VBox status code.
+ * @param   pDev                The PDM device instance.
+ * @param   pApic               The APIC being read to.
+ * @param   iReg                The APIC register index.
+ * @param   pu64Value           Where to store the value we've read.
+ * @param   rcBusy              The busy return code to employ.  See
+ *                              PDMCritSectEnter for a description.
+ * @param   fMsr                Set if called via MSR, clear if MMIO.
+ */
+static int apicReadRegisterInvalid(APICDeviceInfo *pDev, APICState *pApic, uint32_t iReg, uint64_t *pu64Value,
+                                   int rcBusy, bool fMsr)
+{
+    Log(("apicReadRegisterInvalid/%u: iReg=%#x fMsr=%RTbool\n", pApic->phys_id, iReg, fMsr));
+    int rc = PDMDevHlpDBGFStop(pDev->CTX_SUFF(pDevIns), RT_SRC_POS,
+                               "iReg=%#x fMsr=%RTbool id=%u\n", iReg, fMsr, pApic->phys_id);
+    APIC_LOCK(pDev, rcBusy);
+    pApic->esr |= ESR_ILLEGAL_ADDRESS;
+    APIC_UNLOCK(pDev);
+    *pu64Value = 0;
+    return rc;
+}
+
+
+/**
+ * Read from an APIC register via MMIO or MSR.
+ *
+ * @returns Strict VBox status code.
+ * @param   pDev                The PDM device instance.
+ * @param   pApic               The APIC being read to.
+ * @param   iReg                The APIC register index.
+ * @param   pu64Value           Where to store the value we've read.
+ * @param   rcBusy              The busy return code to employ.  See
+ *                              PDMCritSectEnter for a description.
+ * @param   fMsr                Set if called via MSR, clear if MMIO.
+ */
+static int apicReadRegister(APICDeviceInfo *pDev, APICState *pApic, uint32_t iReg, uint64_t *pu64Value,
+                            int rcBusy, bool fMsr)
+{
+    Assert(!PDMCritSectIsOwner(pDev->CTX_SUFF(pCritSect)));
+
+    int rc = VINF_SUCCESS;
+    switch (iReg)
+    {
+        case 0x02: /* id */
+            APIC_LOCK(pDev, rcBusy);
+            *pu64Value = pApic->id << 24;
+            APIC_UNLOCK(pDev);
+            break;
+
+        case 0x03: /* version */
+            APIC_LOCK(pDev, rcBusy);
+            *pu64Value = APIC_HW_VERSION
+                       | ((APIC_LVT_NB - 1) << 16) /* Max LVT index */
+#if 0
+                       | (0 << 24) /* Support for EOI broadcast suppression */
+#endif
+                       ;
+            APIC_UNLOCK(pDev);
+            break;
+
+        case 0x08:
+            APIC_LOCK(pDev, rcBusy);
+            *pu64Value = pApic->tpr;
+            APIC_UNLOCK(pDev);
+            break;
+
+        case 0x09:
+            *pu64Value = apic_get_arb_pri(pApic);
+            break;
+
+        case 0x0a:
+            /* ppr */
+            APIC_LOCK(pDev, rcBusy);
+            *pu64Value = apic_get_ppr(pApic);
+            APIC_UNLOCK(pDev);
+            break;
+
+        case 0x0b:
+            Log(("apicReadRegister: %x -> write only returning 0\n", iReg));
+            *pu64Value = 0;
+            break;
+
+        case 0x0d:
+            APIC_LOCK(pDev, rcBusy);
+            *pu64Value = (uint64_t)pApic->log_dest << 24;
+            APIC_UNLOCK(pDev);
+            break;
+
+        case 0x0e:
+            /* Bottom 28 bits are always 1 */
+            APIC_LOCK(pDev, rcBusy);
+            *pu64Value = ((uint64_t)pApic->dest_mode << 28) | UINT32_C(0xfffffff);
+            APIC_UNLOCK(pDev);
+            break;
+
+        case 0x0f:
+            APIC_LOCK(pDev, rcBusy);
+            *pu64Value = pApic->spurious_vec;
+            APIC_UNLOCK(pDev);
+            break;
+
+        case 0x10: case 0x11: case 0x12: case 0x13: case 0x14: case 0x15: case 0x16: case 0x17:
+            APIC_LOCK(pDev, rcBusy);
+            *pu64Value = pApic->isr.au32Bitmap[iReg & 7];
+            APIC_UNLOCK(pDev);
+            break;
+
+        case 0x18: case 0x19: case 0x1a: case 0x1b: case 0x1c: case 0x1d: case 0x1e: case 0x1f:
+            APIC_LOCK(pDev, rcBusy);
+            *pu64Value = pApic->tmr.au32Bitmap[iReg & 7];
+            APIC_UNLOCK(pDev);
+            break;
+
+        case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27:
+            APIC_LOCK(pDev, rcBusy);
+            *pu64Value = pApic->irr.au32Bitmap[iReg & 7];
+            APIC_UNLOCK(pDev);
+            break;
+
+        case 0x28:
+            APIC_LOCK(pDev, rcBusy);
+            *pu64Value = pApic->esr;
+            APIC_UNLOCK(pDev);
+            break;
+
+        case 0x30:
+            /* Here one of the differences with regular APIC: ICR is single 64-bit register */
+            APIC_LOCK(pDev, rcBusy);
+            if (fMsr)
+                *pu64Value = RT_MAKE_U64(pApic->icr[0], pApic->icr[1]);
+            else
+                *pu64Value = pApic->icr[0];
+            APIC_UNLOCK(pDev);
+            break;
+
+        case 0x31:
+            if (fMsr)
+                rc = apicReadRegisterInvalid(pDev, pApic, iReg, pu64Value, rcBusy, fMsr);
+            else
+            {
+                APIC_LOCK(pDev, rcBusy);
+                *pu64Value = pApic->icr[1];
+                APIC_UNLOCK(pDev);
+            }
+            break;
+
+        case 0x32: case 0x33: case 0x34: case 0x35: case 0x36: case 0x37:
+            APIC_LOCK(pDev, rcBusy);
+            *pu64Value = pApic->lvt[iReg - 0x32];
+            APIC_UNLOCK(pDev);
+            break;
+
+        case 0x38:
+            APIC_LOCK(pDev, rcBusy);
+            *pu64Value = pApic->initial_count;
+            APIC_UNLOCK(pDev);
+            break;
+
+        case 0x39:
+            APIC_AND_TM_LOCK(pDev, pApic, rcBusy);
+            *pu64Value = apic_get_current_count(pDev, pApic);
+            APIC_AND_TM_UNLOCK(pDev, pApic);
+            break;
+
+        case 0x3e:
+            APIC_LOCK(pDev, rcBusy);
+            *pu64Value = pApic->divide_conf;
+            APIC_UNLOCK(pDev);
+            break;
+
+        case 0x3f:
+            if (fMsr)
+            {
+                /* Self IPI register is write only */
+                Log(("apicReadMSR: read from write-only register %d ignored\n", iReg));
+                *pu64Value = 0;
+            }
+            else
+                rc = apicReadRegisterInvalid(pDev, pApic, iReg, pu64Value, rcBusy, fMsr);
+            break;
+        case 0x2f: /** @todo Correctable machine check exception vector,  implement me! */
+        default:
+            /**
+             * @todo: according to spec when APIC writes to ESR it msut raise error interrupt,
+             *        i.e. LVT[5]
+             */
+            rc = apicReadRegisterInvalid(pDev, pApic, iReg, pu64Value, rcBusy, fMsr);
+            break;
+    }
     return rc;
 }
 
@@ -722,97 +1066,13 @@ PDMBOTHCBDECL(int) apicWriteMSR(PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32R
 PDMBOTHCBDECL(int) apicReadMSR(PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Reg, uint64_t *pu64Value)
 {
     APICDeviceInfo *pDev = PDMINS_2_DATA(pDevIns, APICDeviceInfo *);
-    Assert(PDMCritSectIsOwner(pDev->CTX_SUFF(pCritSect)));
 
     if (pDev->enmVersion < PDMAPICVERSION_X2APIC)
         return VERR_EM_INTERPRETER;
 
-    uint32_t    index = (u32Reg - MSR_IA32_APIC_START) & 0xff;
-    APICState  *apic = getLapicById(pDev, idCpu);
-    uint64_t    val = 0;
-    int         rc = VINF_SUCCESS;
-
-    switch (index)
-    {
-        case 0x02: /* id */
-            val = apic->id << 24;
-            break;
-        case 0x03: /* version */
-            val = APIC_HW_VERSION
-                | ((APIC_LVT_NB - 1) << 16) /* Max LVT index */
-                | (0 << 24) /* Support for EOI broadcast suppression */;
-            break;
-        case 0x08:
-            val = apic->tpr;
-            break;
-        case 0x09:
-            val = apic_get_arb_pri(apic);
-            break;
-        case 0x0a:
-            /* ppr */
-            val = apic_get_ppr(apic);
-            break;
-        case 0x0b:
-            val = 0;
-            break;
-        case 0x0d:
-            val = (uint64_t)apic->log_dest << 24;
-            break;
-        case 0x0e:
-            /* Bottom 28 bits are always 1 */
-            val = ((uint64_t)apic->dest_mode << 28) | 0xfffffff;
-            break;
-        case 0x0f:
-            val = apic->spurious_vec;
-            break;
-        case 0x10: case 0x11: case 0x12: case 0x13: case 0x14: case 0x15: case 0x16: case 0x17:
-            val = apic->isr[index & 7];
-            break;
-        case 0x18: case 0x19: case 0x1a: case 0x1b: case 0x1c: case 0x1d: case 0x1e: case 0x1f:
-            val = apic->tmr[index & 7];
-            break;
-        case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27:
-            val = apic->irr[index & 7];
-            break;
-        case 0x28:
-            val = apic->esr;
-            break;
-        case 0x30:
-            /* Here one of the differences with regular APIC: ICR is single 64-bit register */
-            val = ((uint64_t)apic->icr[1] << 32) | apic->icr[0];
-            break;
-        case 0x32: case 0x33: case 0x34: case 0x35: case 0x36: case 0x37:
-            val = apic->lvt[index - 0x32];
-            break;
-        case 0x38:
-            val = apic->initial_count;
-            break;
-        case 0x39:
-            val = apic_get_current_count(pDev, apic);
-            break;
-        case 0x3e:
-            val = apic->divide_conf;
-            break;
-        case 0x3f:
-            /* Self IPI register is write only */
-            Log(("apicReadMSR: read from write-only register %d ignored\n", index));
-            break;
-        case 0x2f:
-            /**
-             * Correctable machine check exception vector, @todo: implement me!
-             */
-        default:
-            AssertMsgFailed(("apicReadMSR: unknown index %x\n", index));
-            /**
-             * @todo: according to spec when APIC writes to ESR it msut raise error interrupt,
-             *        i.e. LVT[5]
-             */
-            apic->esr |= ESR_ILLEGAL_ADDRESS;
-            val = 0;
-            break;
-    }
-    *pu64Value = val;
-    return rc;
+    APICState      *pApic = getLapicById(pDev, idCpu);
+    uint32_t        iReg = (u32Reg - MSR_IA32_APIC_START) & 0xff;
+    return apicReadRegister(pDev, pApic, iReg, pu64Value, VINF_SUCCESS /*rcBusy*/, true /*fMsr*/);
 }
 
 /**
@@ -820,15 +1080,16 @@ PDMBOTHCBDECL(int) apicReadMSR(PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Re
  * for connecting the two devices.
  */
 PDMBOTHCBDECL(int) apicBusDeliverCallback(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode,
-                                           uint8_t u8DeliveryMode, uint8_t iVector, uint8_t u8Polarity,
-                                           uint8_t u8TriggerMode)
+                                          uint8_t u8DeliveryMode, uint8_t iVector, uint8_t u8Polarity,
+                                          uint8_t u8TriggerMode, uint32_t uTagSrc)
 {
     APICDeviceInfo *pDev = PDMINS_2_DATA(pDevIns, APICDeviceInfo *);
     Assert(PDMCritSectIsOwner(pDev->CTX_SUFF(pCritSect)));
-    LogFlow(("apicBusDeliverCallback: pDevIns=%p u8Dest=%#x u8DestMode=%#x u8DeliveryMode=%#x iVector=%#x u8Polarity=%#x u8TriggerMode=%#x\n",
-             pDevIns, u8Dest, u8DestMode, u8DeliveryMode, iVector, u8Polarity, u8TriggerMode));
-    return apic_bus_deliver(pDev, apic_get_delivery_bitmask(pDev, u8Dest, u8DestMode),
-                            u8DeliveryMode, iVector, u8Polarity, u8TriggerMode);
+    LogFlow(("apicBusDeliverCallback: pDevIns=%p u8Dest=%#x u8DestMode=%#x u8DeliveryMode=%#x iVector=%#x u8Polarity=%#x u8TriggerMode=%#x uTagSrc=%#x\n",
+             pDevIns, u8Dest, u8DestMode, u8DeliveryMode, iVector, u8Polarity, u8TriggerMode, uTagSrc));
+    VMCPUSET DstSet;
+    return apic_bus_deliver(pDev, apic_get_delivery_bitmask(pDev, u8Dest, u8DestMode, &DstSet),
+                            u8DeliveryMode, iVector, u8Polarity, u8TriggerMode, uTagSrc);
 }
 
 /**
@@ -921,26 +1182,12 @@ PDMBOTHCBDECL(int) apicLocalInterrupt(PPDMDEVINS pDevIns, uint8_t u8Pin, uint8_t
     return VINF_SUCCESS;
 }
 
-/* return -1 if no bit is set */
-static int get_highest_priority_int(uint32_t *tab)
+static int apic_get_ppr(APICState const *s)
 {
-    int i;
-    for(i = 7; i >= 0; i--) {
-        if (tab[i] != 0) {
-            return i * 32 + fls_bit(tab[i]);
-        }
-    }
-    return -1;
-}
+    int ppr;
 
-static int apic_get_ppr(APICState *s)
-{
-    int tpr, isrv, ppr;
-
-    tpr = (s->tpr >> 4);
-    isrv = get_highest_priority_int(s->isr);
-    if (isrv < 0)
-        isrv = 0;
+    int tpr = (s->tpr >> 4);
+    int isrv = Apic256BitReg_FindLastSetBit(&s->isr, 0);
     isrv >>= 4;
     if (tpr >= isrv)
         ppr = s->tpr;
@@ -951,24 +1198,18 @@ static int apic_get_ppr(APICState *s)
 
 static int apic_get_ppr_zero_tpr(APICState *s)
 {
-    int isrv;
-
-    isrv = get_highest_priority_int(s->isr);
-    if (isrv < 0)
-        isrv = 0;
-    return isrv;
+    return Apic256BitReg_FindLastSetBit(&s->isr, 0);
 }
 
-static int apic_get_arb_pri(APICState *s)
+static int apic_get_arb_pri(APICState const *s)
 {
-    /* XXX: arbitration */
+    /** @todo XXX: arbitration */
     return 0;
 }
 
 /* signal the CPU if an irq is pending */
 static bool apic_update_irq(APICDeviceInfo *pDev, APICState* s)
 {
-    int irrv, ppr;
     if (!(s->spurious_vec & APIC_SV_ENABLE))
     {
         /* Clear any pending APIC interrupt action flag. */
@@ -976,10 +1217,10 @@ static bool apic_update_irq(APICDeviceInfo *pDev, APICState* s)
         return false;
     }
 
-    irrv = get_highest_priority_int(s->irr);
+    int irrv = Apic256BitReg_FindLastSetBit(&s->irr, -1);
     if (irrv < 0)
         return false;
-    ppr = apic_get_ppr(s);
+    int ppr = apic_get_ppr(s);
     if (ppr && (irrv & 0xf0) <= (ppr & 0xf0))
         return false;
     cpuSetInterrupt(pDev, s);
@@ -989,7 +1230,6 @@ static bool apic_update_irq(APICDeviceInfo *pDev, APICState* s)
 /* Check if the APIC has a pending interrupt/if a TPR change would active one. */
 PDMBOTHCBDECL(bool) apicHasPendingIrq(PPDMDEVINS pDevIns)
 {
-    int irrv, ppr;
     APICDeviceInfo *pDev = PDMINS_2_DATA(pDevIns, APICDeviceInfo *);
     if (!pDev)
         return false;
@@ -1000,13 +1240,14 @@ PDMBOTHCBDECL(bool) apicHasPendingIrq(PPDMDEVINS pDevIns)
 
     /*
      * All our callbacks now come from single IOAPIC, thus locking
-     * seems to be excessive now (@todo: check)
+     * seems to be excessive now
      */
-    irrv = get_highest_priority_int(s->irr);
+    /** @todo check excessive locking whatever... */
+    int irrv = Apic256BitReg_FindLastSetBit(&s->irr, -1);
     if (irrv < 0)
         return false;
 
-    ppr = apic_get_ppr_zero_tpr(s);
+    int ppr = apic_get_ppr_zero_tpr(s);
 
     if (ppr && (irrv & 0xf0) <= (ppr & 0xf0))
         return false;
@@ -1032,68 +1273,66 @@ static void apic_update_tpr(APICDeviceInfo *pDev, APICState* s, uint32_t val)
     }
 }
 
-static void apic_set_irq(APICDeviceInfo *pDev,  APICState* s, int vector_num, int trigger_mode)
+static void apic_set_irq(APICDeviceInfo *pDev,  APICState* s, int vector_num, int trigger_mode, uint32_t uTagSrc)
 {
-    LogFlow(("CPU%d: apic_set_irq vector=%x, trigger_mode=%x\n", s->phys_id, vector_num, trigger_mode));
-    set_bit(s->irr, vector_num);
+    LogFlow(("CPU%d: apic_set_irq vector=%x trigger_mode=%x uTagSrc=%#x\n", s->phys_id, vector_num, trigger_mode, uTagSrc));
+
+    Apic256BitReg_SetBit(&s->irr, vector_num);
     if (trigger_mode)
-        set_bit(s->tmr, vector_num);
+        Apic256BitReg_SetBit(&s->tmr, vector_num);
     else
-        reset_bit(s->tmr, vector_num);
+        Apic256BitReg_ClearBit(&s->tmr, vector_num);
+
+    if (!s->auTags[vector_num])
+        s->auTags[vector_num] = uTagSrc;
+    else
+        s->auTags[vector_num] |= RT_BIT_32(31);
+
     apic_update_irq(pDev, s);
 }
 
 static void apic_eoi(APICDeviceInfo *pDev, APICState* s)
 {
-    int isrv;
-    isrv = get_highest_priority_int(s->isr);
+    int isrv = Apic256BitReg_FindLastSetBit(&s->isr, -1);
     if (isrv < 0)
         return;
-    reset_bit(s->isr, isrv);
+    Apic256BitReg_ClearBit(&s->isr, isrv);
     LogFlow(("CPU%d: apic_eoi isrv=%x\n", s->phys_id, isrv));
-    /* XXX: send the EOI packet to the APIC bus to allow the I/O APIC to
-            set the remote IRR bit for level triggered interrupts. */
+    /** @todo XXX: send the EOI packet to the APIC bus to allow the I/O APIC to
+     *             set the remote IRR bit for level triggered interrupts. */
     apic_update_irq(pDev, s);
 }
 
-static uint32_t apic_get_delivery_bitmask(APICDeviceInfo *pDev, uint8_t dest, uint8_t dest_mode)
+static PVMCPUSET apic_get_delivery_bitmask(APICDeviceInfo *pDev, uint8_t dest, uint8_t dest_mode, PVMCPUSET pDstSet)
 {
-    uint32_t mask = 0;
+    VMCPUSET_EMPTY(pDstSet);
 
     if (dest_mode == 0)
     {
-        if (dest == 0xff)
-            mask = 0xff;
+        if (dest == 0xff) /* The broadcast ID. */
+            VMCPUSET_FILL(pDstSet);
         else
-            mask = 1 << dest;
+            VMCPUSET_ADD(pDstSet, dest);
     }
     else
     {
-        APICState *apic = pDev->CTX_SUFF(paLapics);
-        uint32_t i;
-
-        /* XXX: cluster mode */
-        for(i = 0; i < pDev->cCpus; i++)
-        {
-            if (apic->dest_mode == APIC_DESTMODE_FLAT)
+        /** @todo XXX: cluster mode */
+        APIC_FOREACH_BEGIN(pDev);
+            if (pCurApic->dest_mode == APIC_DESTMODE_FLAT)
             {
-                if (dest & apic->log_dest)
-                    mask |= (1 << i);
+                if (dest & pCurApic->log_dest)
+                    VMCPUSET_ADD(pDstSet, iCurApic);
             }
-            else if (apic->dest_mode == APIC_DESTMODE_CLUSTER)
+            else if (pCurApic->dest_mode == APIC_DESTMODE_CLUSTER)
             {
-                if ((dest & 0xf0) == (apic->log_dest & 0xf0)
-                    &&
-                    (dest & apic->log_dest & 0x0f))
-                {
-                    mask |= (1 << i);
-                }
+                if (   (dest & 0xf0) == (pCurApic->log_dest & 0xf0)
+                    && (dest & pCurApic->log_dest & 0x0f))
+                    VMCPUSET_ADD(pDstSet, iCurApic);
             }
-            apic++;
-        }
+        APIC_FOREACH_END();
     }
 
-    return mask;
+    return pDstSet;
 }
 
 #ifdef IN_RING3
@@ -1107,9 +1346,9 @@ static void apic_init_ipi(APICDeviceInfo* pDev, APICState *s)
     s->spurious_vec = 0xff;
     s->log_dest = 0;
     s->dest_mode = 0xff; /** @todo 0xff???? */
-    memset(s->isr, 0, sizeof(s->isr));
-    memset(s->tmr, 0, sizeof(s->tmr));
-    memset(s->irr, 0, sizeof(s->irr));
+    Apic256BitReg_Empty(&s->isr);
+    Apic256BitReg_Empty(&s->tmr);
+    Apic256BitReg_Empty(&s->irr);
     s->esr = 0;
     memset(s->icr, 0, sizeof(s->icr));
     s->divide_conf = 0;
@@ -1134,63 +1373,70 @@ static void apic_startup(APICDeviceInfo* pDev, APICState *s, int vector_num)
 }
 #endif /* IN_RING3 */
 
-static int  apic_deliver(APICDeviceInfo* pDev, APICState *s,
+static int  apic_deliver(APICDeviceInfo *pDev, APICState *s,
                          uint8_t dest, uint8_t dest_mode,
                          uint8_t delivery_mode, uint8_t vector_num,
                          uint8_t polarity, uint8_t trigger_mode)
 {
-    uint32_t deliver_bitmask = 0;
     int dest_shorthand = (s->icr[0] >> 18) & 3;
+    LogFlow(("apic_deliver dest=%x dest_mode=%x dest_shorthand=%x delivery_mode=%x vector_num=%x polarity=%x trigger_mode=%x uTagSrc=%#x\n", dest, dest_mode, dest_shorthand, delivery_mode, vector_num, polarity, trigger_mode));
 
-    LogFlow(("apic_deliver dest=%x dest_mode=%x dest_shorthand=%x delivery_mode=%x vector_num=%x polarity=%x trigger_mode=%x\n", dest, dest_mode, dest_shorthand, delivery_mode, vector_num, polarity, trigger_mode));
-
-    switch (dest_shorthand) {
+    VMCPUSET DstSet;
+    switch (dest_shorthand)
+    {
         case 0:
-            deliver_bitmask = apic_get_delivery_bitmask(pDev, dest, dest_mode);
+            apic_get_delivery_bitmask(pDev, dest, dest_mode, &DstSet);
             break;
         case 1:
-            deliver_bitmask = (1 << s->id);
+            VMCPUSET_EMPTY(&DstSet);
+            VMCPUSET_ADD(&DstSet, s->id);
             break;
         case 2:
-            deliver_bitmask = 0xffffffff;
+            VMCPUSET_FILL(&DstSet);
             break;
         case 3:
-            deliver_bitmask = 0xffffffff & ~(1 << s->id);
+            VMCPUSET_FILL(&DstSet);
+            VMCPUSET_DEL(&DstSet, s->id);
             break;
     }
 
-    switch (delivery_mode) {
+    switch (delivery_mode)
+    {
         case APIC_DM_INIT:
+        {
+            uint32_t const trig_mode = (s->icr[0] >> 15) & 1;
+            uint32_t const level     = (s->icr[0] >> 14) & 1;
+            if (level == 0 && trig_mode == 1)
             {
-                int trig_mode = (s->icr[0] >> 15) & 1;
-                int level = (s->icr[0] >> 14) & 1;
-                if (level == 0 && trig_mode == 1) {
-                    foreach_apic(pDev, deliver_bitmask,
-                                       apic->arb_id = apic->id);
-                    Log(("CPU%d: APIC_DM_INIT arbitration id(s) set\n", s->phys_id));
-                    return VINF_SUCCESS;
-                }
+                APIC_FOREACH_IN_SET_BEGIN(pDev, &DstSet);
+                    pCurApic->arb_id = pCurApic->id;
+                APIC_FOREACH_END();
+                Log(("CPU%d: APIC_DM_INIT arbitration id(s) set\n", s->phys_id));
+                return VINF_SUCCESS;
             }
             break;
+        }
 
         case APIC_DM_SIPI:
 # ifdef IN_RING3
-            foreach_apic(pDev, deliver_bitmask,
-                         apic_startup(pDev, apic, vector_num));
+            APIC_FOREACH_IN_SET_BEGIN(pDev, &DstSet);
+                apic_startup(pDev, pCurApic, vector_num);
+            APIC_FOREACH_END();
             return VINF_SUCCESS;
 # else
             /* We shall send SIPI only in R3, R0 calls should be
                rescheduled to R3 */
-            return  VINF_IOM_HC_MMIO_WRITE;
+            return VINF_IOM_R3_MMIO_WRITE;
 # endif
     }
 
-    return apic_bus_deliver(pDev, deliver_bitmask, delivery_mode, vector_num,
-                            polarity, trigger_mode);
+    return apic_bus_deliver(pDev, &DstSet, delivery_mode, vector_num,
+                            polarity, trigger_mode,
+                            pDev->CTX_SUFF(pApicHlp)->pfnCalcIrqTag(pDev->CTX_SUFF(pDevIns), PDM_IRQ_LEVEL_HIGH));
 }
 
 
-PDMBOTHCBDECL(int) apicGetInterrupt(PPDMDEVINS pDevIns)
+PDMBOTHCBDECL(int) apicGetInterrupt(PPDMDEVINS pDevIns, uint32_t *puTagSrc)
 {
     APICDeviceInfo *pDev = PDMINS_2_DATA(pDevIns, APICDeviceInfo *);
     /* if the APIC is not installed or enabled, we let the 8259 handle the
@@ -1204,57 +1450,57 @@ PDMBOTHCBDECL(int) apicGetInterrupt(PPDMDEVINS pDevIns)
     Assert(PDMCritSectIsOwner(pDev->CTX_SUFF(pCritSect)));
 
     APICState *s = getLapic(pDev);  /** @todo fix interface */
-    int intno;
 
-    if (!(s->spurious_vec & APIC_SV_ENABLE)) {
+    if (!(s->spurious_vec & APIC_SV_ENABLE))
+    {
         Log(("CPU%d: apic_get_interrupt: returns -1 (APIC_SV_ENABLE)\n", s->phys_id));
         return -1;
     }
 
-    /* XXX: spurious IRQ handling */
-    intno = get_highest_priority_int(s->irr);
-    if (intno < 0) {
+    /** @todo XXX: spurious IRQ handling */
+    int intno = Apic256BitReg_FindLastSetBit(&s->irr, -1);
+    if (intno < 0)
+    {
         Log(("CPU%d: apic_get_interrupt: returns -1 (irr)\n", s->phys_id));
         return -1;
     }
-    if (s->tpr && (uint32_t)intno <= s->tpr) {
+
+    if (s->tpr && (uint32_t)intno <= s->tpr)
+    {
+        *puTagSrc = 0;
         Log(("apic_get_interrupt: returns %d (sp)\n", s->spurious_vec & 0xff));
         return s->spurious_vec & 0xff;
     }
-    reset_bit(s->irr, intno);
-    set_bit(s->isr, intno);
+
+    Apic256BitReg_ClearBit(&s->irr, intno);
+    Apic256BitReg_SetBit(&s->isr, intno);
+
+    *puTagSrc = s->auTags[intno];
+    s->auTags[intno] = 0;
+
     apic_update_irq(pDev, s);
-    LogFlow(("CPU%d: apic_get_interrupt: returns %d\n", s->phys_id, intno));
+
+    LogFlow(("CPU%d: apic_get_interrupt: returns %d / %#x\n", s->phys_id, intno, *puTagSrc));
     return intno;
 }
 
 /**
- * May return to ring-3 to acquire the TM and PDM lock.
+ * @remarks Caller (apicReadRegister) takes both the TM and APIC locks before
+ *          calling this function.
  */
-static uint32_t apic_get_current_count(APICDeviceInfo *pDev, APICState *s)
+static uint32_t apic_get_current_count(APICDeviceInfo const *pDev, APICState const *pApic)
 {
-    int64_t d;
+    int64_t d = (TMTimerGet(pApic->CTX_SUFF(pTimer)) - pApic->initial_count_load_time)
+             >> pApic->count_shift;
+
     uint32_t val;
-
-    /* Acquire the timer lock w/ lock order kludge. */
-    PDMCritSectLeave(pDev->CTX_SUFF(pCritSect));
-    TMTimerLock(s->CTX_SUFF(pTimer), VINF_SUCCESS);
-    PDMCritSectEnter(pDev->CTX_SUFF(pCritSect), VINF_SUCCESS);
-
-    d = (TMTimerGet(s->CTX_SUFF(pTimer)) - s->initial_count_load_time) >>
-        s->count_shift;
-
-    if (s->lvt[APIC_LVT_TIMER] & APIC_LVT_TIMER_PERIODIC) {
+    if (pApic->lvt[APIC_LVT_TIMER] & APIC_LVT_TIMER_PERIODIC)
         /* periodic */
-        val = s->initial_count - (d % ((uint64_t)s->initial_count + 1));
-    } else {
-        if (d >= s->initial_count)
-            val = 0;
-        else
-            val = s->initial_count - d;
-    }
-
-    TMTimerUnlock(s->CTX_SUFF(pTimer));
+        val = pApic->initial_count - (d % ((uint64_t)pApic->initial_count + 1));
+    else if (d >= pApic->initial_count)
+        val = 0;
+    else
+        val = pApic->initial_count - d;
 
     return val;
 }
@@ -1382,7 +1628,7 @@ static void apicTimerSetLvt(APICDeviceInfo *pDev, APICState *pApic, uint32_t fNe
         /*
          * We postpone stopping the timer when it's masked, this way we can
          * avoid some timer work when the guest temporarily masks the timer.
-         * (apicTimerCallback will stop it if still masked.)
+         * (apicR3TimerCallback will stop it if still masked.)
          */
         if (fNew & APIC_LVT_MASKED)
             STAM_COUNTER_INC(&pApic->StatTimerSetLvtPostponed);
@@ -1441,7 +1687,7 @@ static void apicTimerSetLvt(APICDeviceInfo *pDev, APICState *pApic, uint32_t fNe
  * @param  pTimer       The timer handle.
  * @param  pvUser       User argument pointing to the APIC instance.
  */
-static DECLCALLBACK(void) apicTimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
+static DECLCALLBACK(void) apicR3TimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
     APICDeviceInfo *pDev   = PDMINS_2_DATA(pDevIns, APICDeviceInfo *);
     APICState      *pApic = (APICState *)pvUser;
@@ -1452,7 +1698,8 @@ static DECLCALLBACK(void) apicTimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer,
 
     if (!(pApic->lvt[APIC_LVT_TIMER] & APIC_LVT_MASKED)) {
         LogFlow(("apic_timer: trigger irq\n"));
-        apic_set_irq(pDev, pApic, pApic->lvt[APIC_LVT_TIMER] & 0xff, APIC_TRIGGER_EDGE);
+        apic_set_irq(pDev, pApic, pApic->lvt[APIC_LVT_TIMER] & 0xff, APIC_TRIGGER_EDGE,
+                     pDev->CTX_SUFF(pApicHlp)->pfnCalcIrqTag(pDevIns, PDM_IRQ_LEVEL_HIGH));
 
         if (   (pApic->lvt[APIC_LVT_TIMER] & APIC_LVT_TIMER_PERIODIC)
             && pApic->initial_count > 0) {
@@ -1461,7 +1708,7 @@ static DECLCALLBACK(void) apicTimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer,
             TMTimerSet(pApic->CTX_SUFF(pTimer), pApic->next_time);
             pApic->fTimerArmed = true;
             apicDoFrequencyHinting(pApic);
-            Log2(("apicTimerCallback: ic=%#x sh=%#x nxt=%#llx\n", pApic->initial_count, pApic->count_shift, pApic->next_time));
+            Log2(("apicR3TimerCallback: ic=%#x sh=%#x nxt=%#llx\n", pApic->initial_count, pApic->count_shift, pApic->next_time));
         } else {
             /* single shot or disabled. */
             pApic->fTimerArmed = false;
@@ -1473,91 +1720,6 @@ static DECLCALLBACK(void) apicTimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer,
         pApic->uHintedCountShift = pApic->uHintedInitialCount = 0;
     }
 }
-# endif /* IN_RING3 */
-
-static uint32_t apic_mem_readl(APICDeviceInfo* pDev, APICState *s, RTGCPHYS addr)
-{
-    uint32_t val;
-    int index;
-
-    index = (addr >> 4) & 0xff;
-
-    switch(index) {
-    case 0x02: /* id */
-        val = s->id << 24;
-        break;
-    case 0x03: /* version */
-        val = APIC_HW_VERSION | ((APIC_LVT_NB - 1) << 16);
-        break;
-    case 0x08:
-        val = s->tpr;
-        break;
-    case 0x09:
-        val = apic_get_arb_pri(s);
-        break;
-    case 0x0a:
-        /* ppr */
-        val = apic_get_ppr(s);
-        break;
-    case 0x0b:
-        Log(("apic_mem_readl %x %x -> write only returning 0\n", addr, index));
-        val = 0;
-        break;
-    case 0x0d:
-        val = s->log_dest << 24;
-        break;
-    case 0x0e:
-        /* Bottom 28 bits are always 1 */
-        val = (s->dest_mode << 28) | 0xfffffff;
-        break;
-    case 0x0f:
-        val = s->spurious_vec;
-        break;
-    case 0x10: case 0x11: case 0x12: case 0x13: case 0x14: case 0x15: case 0x16: case 0x17:
-        val = s->isr[index & 7];
-        break;
-    case 0x18: case 0x19: case 0x1a: case 0x1b: case 0x1c: case 0x1d: case 0x1e: case 0x1f:
-        val = s->tmr[index & 7];
-        break;
-    case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27:
-        val = s->irr[index & 7];
-        break;
-    case 0x28:
-        val = s->esr;
-        break;
-    case 0x30:
-    case 0x31:
-        val = s->icr[index & 1];
-        break;
-    case 0x32: case 0x33: case 0x34: case 0x35: case 0x36: case 0x37:
-        val = s->lvt[index - 0x32];
-        break;
-    case 0x38:
-        val = s->initial_count;
-        break;
-    case 0x39:
-        val = apic_get_current_count(pDev, s);
-        break;
-    case 0x3e:
-        val = s->divide_conf;
-        break;
-    case 0x2f:
-        /**
-         * Correctable machine check exception vector, @todo: implement me!
-         */
-    default:
-        AssertMsgFailed(("apic_mem_readl: unknown index %x\n", index));
-        s->esr |= ESR_ILLEGAL_ADDRESS;
-        val = 0;
-        break;
-    }
-#ifdef DEBUG_APIC
-    Log(("CPU%d: APIC read: %08x = %08x\n", s->phys_id, (uint32_t)addr, val));
-#endif
-    return val;
-}
-
-#ifdef IN_RING3
 
 static void apic_save(SSMHANDLE* f, void *opaque)
 {
@@ -1573,9 +1735,9 @@ static void apic_save(SSMHANDLE* f, void *opaque)
     SSMR3PutU8(f,  s->log_dest);
     SSMR3PutU8(f,  s->dest_mode);
     for (i = 0; i < 8; i++) {
-        SSMR3PutU32(f, s->isr[i]);
-        SSMR3PutU32(f, s->tmr[i]);
-        SSMR3PutU32(f, s->irr[i]);
+        SSMR3PutU32(f, s->isr.au32Bitmap[i]);
+        SSMR3PutU32(f, s->tmr.au32Bitmap[i]);
+        SSMR3PutU32(f, s->irr.au32Bitmap[i]);
     }
     for (i = 0; i < APIC_LVT_NB; i++) {
         SSMR3PutU32(f, s->lvt[i]);
@@ -1597,7 +1759,7 @@ static int apic_load(SSMHANDLE *f, void *opaque, int version_id)
     APICState *s = (APICState*)opaque;
     int i;
 
-     /* XXX: what if the base changes? (registered memory regions) */
+    /** @todo XXX: what if the base changes? (registered memory regions) */
     SSMR3GetU32(f, &s->apicbase);
 
     switch (version_id)
@@ -1627,9 +1789,9 @@ static int apic_load(SSMHANDLE *f, void *opaque, int version_id)
     SSMR3GetU8(f, &s->log_dest);
     SSMR3GetU8(f, &s->dest_mode);
     for (i = 0; i < 8; i++) {
-        SSMR3GetU32(f, &s->isr[i]);
-        SSMR3GetU32(f, &s->tmr[i]);
-        SSMR3GetU32(f, &s->irr[i]);
+        SSMR3GetU32(f, &s->isr.au32Bitmap[i]);
+        SSMR3GetU32(f, &s->tmr.au32Bitmap[i]);
+        SSMR3GetU32(f, &s->irr.au32Bitmap[i]);
     }
     for (i = 0; i < APIC_LVT_NB; i++) {
         SSMR3GetU32(f, &s->lvt[i]);
@@ -1644,6 +1806,7 @@ static int apic_load(SSMHANDLE *f, void *opaque, int version_id)
     SSMR3GetU64(f, (uint64_t *)&s->next_time);
 
     int rc = TMR3TimerLoad(s->CTX_SUFF(pTimer), f);
+    AssertRCReturn(rc, rc);
     s->uHintedCountShift = s->uHintedInitialCount = 0;
     s->fTimerArmed = TMTimerIsActive(s->CTX_SUFF(pTimer));
     if (s->fTimerArmed)
@@ -1662,17 +1825,20 @@ PDMBOTHCBDECL(int) apicMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhy
 
     Log(("CPU%d: apicMMIORead at %llx\n", s->phys_id,  (uint64_t)GCPhysAddr));
 
-    /** @todo: add LAPIC range validity checks (different LAPICs can theoretically have
-               different physical addresses, see #3092) */
+    /** @todo add LAPIC range validity checks (different LAPICs can
+     *        theoretically have different physical addresses, see @bugref{3092}) */
 
     STAM_COUNTER_INC(&CTXSUFF(pDev->StatMMIORead));
     switch (cb)
     {
         case 1:
+            /** @todo this is not how recent APIC behave!  We will fix
+             *        this via the IOM. */
             *(uint8_t *)pv = 0;
             break;
 
         case 2:
+            /** @todo this is not how recent APIC behave! */
             *(uint16_t *)pv = 0;
             break;
 
@@ -1695,11 +1861,15 @@ PDMBOTHCBDECL(int) apicMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhy
             }
 #endif
 #endif /* experimental */
-            APIC_LOCK(pDev, VINF_IOM_HC_MMIO_READ);
-            *(uint32_t *)pv = apic_mem_readl(pDev, s, GCPhysAddr);
-            APIC_UNLOCK(pDev);
-            break;
+
+            /* It does its own locking. */
+            uint64_t u64Value = 0;
+            int rc = apicReadRegister(pDev, s, (GCPhysAddr >> 4) & 0xff, &u64Value,
+                                      VINF_IOM_R3_MMIO_READ, false /*fMsr*/);
+            *(uint32_t *)pv = (uint32_t)u64Value;
+            return rc;
         }
+
         default:
             AssertReleaseMsgFailed(("cb=%d\n", cb)); /* for now we assume simple accesses. */
             return VERR_INTERNAL_ERROR;
@@ -1715,7 +1885,7 @@ PDMBOTHCBDECL(int) apicMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPh
     Log(("CPU%d: apicMMIOWrite at %llx\n", s->phys_id, (uint64_t)GCPhysAddr));
 
     /** @todo: add LAPIC range validity checks (multiple LAPICs can theoretically have
-               different physical addresses, see #3092) */
+     *         different physical addresses, see @bugref{3092}) */
 
     STAM_COUNTER_INC(&CTXSUFF(pDev->StatMMIOWrite));
     switch (cb)
@@ -1728,7 +1898,7 @@ PDMBOTHCBDECL(int) apicMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPh
         case 4:
             /* It does its own locking. */
             return apicWriteRegister(pDev, s, (GCPhysAddr >> 4) & 0xff, *(uint32_t const *)pv,
-                                     VINF_IOM_HC_MMIO_WRITE, false /*fMsr*/);
+                                     VINF_IOM_R3_MMIO_WRITE, false /*fMsr*/);
 
         default:
             AssertReleaseMsgFailed(("cb=%d\n", cb)); /* for now we assume simple accesses. */
@@ -1739,148 +1909,168 @@ PDMBOTHCBDECL(int) apicMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPh
 
 #ifdef IN_RING3
 
-/* Print a 8-dword LAPIC bit map (256 bits). */
-static void lapicDumpVec(APICDeviceInfo  *pDev, APICState *lapic, PCDBGFINFOHLP pHlp, unsigned start)
+/**
+ * Wrapper around apicReadRegister.
+ *
+ * @returns 64-bit register value.
+ * @param   pDev                The PDM device instance.
+ * @param   pApic               The Local APIC in question.
+ * @param   iReg                The APIC register index.
+ */
+static uint64_t apicR3InfoReadReg(APICDeviceInfo *pDev, APICState *pApic, uint32_t iReg)
 {
-    unsigned    i;
-    uint32_t    val;
+    uint64_t u64Value;
+    int rc = apicReadRegister(pDev, pApic, iReg, &u64Value, VINF_SUCCESS, true /*fMsr*/);
+    AssertRCReturn(rc, UINT64_MAX);
+    return u64Value;
+}
 
-    for (i = 0; i < 8; ++i)
-    {
-        val = apic_mem_readl(pDev, lapic, start + (i << 4));
-        pHlp->pfnPrintf(pHlp, "%08X", val);
-    }
+
+/**
+ * Print a 8-DWORD Local APIC bit map (256 bits).
+ *
+ * @param   pDev                The PDM device instance.
+ * @param   pApic               The Local APIC in question.
+ * @param   pHlp                The output helper.
+ * @param   iStartReg           The register to start at.
+ */
+static void apicR3DumpVec(APICDeviceInfo *pDev, APICState *pApic, PCDBGFINFOHLP pHlp, uint32_t iStartReg)
+{
+    for (uint32_t i = 0; i < 8; i++)
+        pHlp->pfnPrintf(pHlp, "%08x", apicR3InfoReadReg(pDev, pApic, iStartReg + i));
     pHlp->pfnPrintf(pHlp, "\n");
 }
 
-/* Print basic LAPIC state. */
-static DECLCALLBACK(void) lapicInfoBasic(APICDeviceInfo  *pDev, APICState *lapic, PCDBGFINFOHLP pHlp)
+/**
+ * Print basic Local APIC state.
+ *
+ * @param   pDev                The PDM device instance.
+ * @param   pApic               The Local APIC in question.
+ * @param   pHlp                The output helper.
+ */
+static void apicR3InfoBasic(APICDeviceInfo  *pDev, APICState *pApic, PCDBGFINFOHLP pHlp)
 {
-    uint32_t        val;
-    unsigned        max_lvt;
+    uint64_t u64;
 
-    pHlp->pfnPrintf(pHlp, "Local APIC at %08X:\n", lapic->apicbase);
-    val = apic_mem_readl(pDev, lapic, 0x20);
-    pHlp->pfnPrintf(pHlp, "  LAPIC ID  : %08X\n", val);
-    pHlp->pfnPrintf(pHlp, "    APIC ID = %02X\n", (val >> 24) & 0xff);
-    val = apic_mem_readl(pDev, lapic, 0x30);
-    max_lvt = (val >> 16) & 0xff;
-    pHlp->pfnPrintf(pHlp, "  APIC VER   : %08X\n", val);
-    pHlp->pfnPrintf(pHlp, "    version  = %02X\n", val & 0xff);
-    pHlp->pfnPrintf(pHlp, "    lvts     = %d\n", ((val >> 16) & 0xff) + 1);
-    val = apic_mem_readl(pDev, lapic, 0x80);
-    pHlp->pfnPrintf(pHlp, "  TPR        : %08X\n", val);
-    pHlp->pfnPrintf(pHlp, "    task pri = %d/%d\n", (val >> 4) & 0xf, val & 0xf);
-    val = apic_mem_readl(pDev, lapic, 0xA0);
-    pHlp->pfnPrintf(pHlp, "  PPR        : %08X\n", val);
-    pHlp->pfnPrintf(pHlp, "    cpu pri  = %d/%d\n", (val >> 4) & 0xf, val & 0xf);
-    val = apic_mem_readl(pDev, lapic, 0xD0);
-    pHlp->pfnPrintf(pHlp, "  LDR       : %08X\n", val);
-    pHlp->pfnPrintf(pHlp, "    log id  = %02X\n", (val >> 24) & 0xff);
-    val = apic_mem_readl(pDev, lapic, 0xE0);
-    pHlp->pfnPrintf(pHlp, "  DFR       : %08X\n", val);
-    val = apic_mem_readl(pDev, lapic, 0xF0);
-    pHlp->pfnPrintf(pHlp, "  SVR       : %08X\n", val);
-    pHlp->pfnPrintf(pHlp, "    focus   = %s\n", val & (1 << 9) ? "check off" : "check on");
-    pHlp->pfnPrintf(pHlp, "    lapic   = %s\n", val & (1 << 8) ? "ENABLED" : "DISABLED");
-    pHlp->pfnPrintf(pHlp, "    vector  = %02X\n", val & 0xff);
+    pHlp->pfnPrintf(pHlp, "Local APIC at %08llx:\n", pApic->apicbase);
+    u64 = apicR3InfoReadReg(pDev, pApic, 0x2);
+    pHlp->pfnPrintf(pHlp, "  LAPIC ID  : %08llx\n", u64);
+    pHlp->pfnPrintf(pHlp, "    APIC ID = %02llx\n", (u64 >> 24) & 0xff);
+    u64 = apicR3InfoReadReg(pDev, pApic, 0x3);
+    pHlp->pfnPrintf(pHlp, "  APIC VER   : %08llx\n", u64);
+    pHlp->pfnPrintf(pHlp, "    version  = %02x\n", (int)RT_BYTE1(u64));
+    pHlp->pfnPrintf(pHlp, "    lvts     = %d\n", (int)RT_BYTE3(u64) + 1);
+    u64 = apicR3InfoReadReg(pDev, pApic, 0x8);
+    pHlp->pfnPrintf(pHlp, "  TPR        : %08llx\n", u64);
+    pHlp->pfnPrintf(pHlp, "    task pri = %lld/%lld\n", (u64 >> 4) & 0xf, u64 & 0xf);
+    u64 = apicR3InfoReadReg(pDev, pApic, 0xA);
+    pHlp->pfnPrintf(pHlp, "  PPR        : %08llx\n", u64);
+    pHlp->pfnPrintf(pHlp, "    cpu pri  = %lld/%lld\n", (u64 >> 4) & 0xf, u64 & 0xf);
+    u64 = apicR3InfoReadReg(pDev, pApic, 0xD);
+    pHlp->pfnPrintf(pHlp, "  LDR       : %08llx\n", u64);
+    pHlp->pfnPrintf(pHlp, "    log id  = %02llx\n", (u64 >> 24) & 0xff);
+    pHlp->pfnPrintf(pHlp, "  DFR       : %08llx\n", apicR3InfoReadReg(pDev, pApic, 0xE));
+    u64 = apicR3InfoReadReg(pDev, pApic, 0xF);
+    pHlp->pfnPrintf(pHlp, "  SVR       : %08llx\n", u64);
+    pHlp->pfnPrintf(pHlp, "    focus   = %s\n", u64 & RT_BIT(9) ? "check off" : "check on");
+    pHlp->pfnPrintf(pHlp, "    lapic   = %s\n", u64 & RT_BIT(8) ? "ENABLED" : "DISABLED");
+    pHlp->pfnPrintf(pHlp, "    vector  = %02x\n", (unsigned)RT_BYTE1(u64));
     pHlp->pfnPrintf(pHlp, "  ISR       : ");
-    lapicDumpVec(pDev, lapic, pHlp, 0x100);
-    val = get_highest_priority_int(lapic->isr);
-    pHlp->pfnPrintf(pHlp, "    highest = %02X\n", val == ~0U ? 0 : val);
+    apicR3DumpVec(pDev, pApic, pHlp, 0x10);
+    int iMax = Apic256BitReg_FindLastSetBit(&pApic->isr, -1);
+    pHlp->pfnPrintf(pHlp, "    highest = %02x\n", iMax == -1 ? 0 : iMax);
     pHlp->pfnPrintf(pHlp, "  IRR       : ");
-    lapicDumpVec(pDev, lapic, pHlp, 0x200);
-    val = get_highest_priority_int(lapic->irr);
-    pHlp->pfnPrintf(pHlp, "    highest = %02X\n", val == ~0U ? 0 : val);
-    val = apic_mem_readl(pDev, lapic, 0x320);
+    apicR3DumpVec(pDev, pApic, pHlp, 0x20);
+    iMax = Apic256BitReg_FindLastSetBit(&pApic->irr, -1);
+    pHlp->pfnPrintf(pHlp, "    highest = %02X\n", iMax == -1 ? 0 : iMax);
 }
 
-/* Print the more interesting LAPIC LVT entries. */
-static DECLCALLBACK(void) lapicInfoLVT(APICDeviceInfo  *pDev, APICState *lapic, PCDBGFINFOHLP pHlp)
-{
-    uint32_t        val;
-    static const char *dmodes[] = { "Fixed ", "Reserved", "SMI", "Reserved",
-                                    "NMI", "INIT", "Reserved", "ExtINT" };
-
-    val = apic_mem_readl(pDev, lapic, 0x320);
-    pHlp->pfnPrintf(pHlp, "  LVT Timer : %08X\n", val);
-    pHlp->pfnPrintf(pHlp, "    mode    = %s\n", val & (1 << 17) ? "periodic" : "one-shot");
-    pHlp->pfnPrintf(pHlp, "    mask    = %d\n", (val >> 16) & 1);
-    pHlp->pfnPrintf(pHlp, "    status  = %s\n", val & (1 << 12) ? "pending" : "idle");
-    pHlp->pfnPrintf(pHlp, "    vector  = %02X\n", val & 0xff);
-    val = apic_mem_readl(pDev, lapic, 0x350);
-    pHlp->pfnPrintf(pHlp, "  LVT LINT0 : %08X\n", val);
-    pHlp->pfnPrintf(pHlp, "    mask    = %d\n", (val >> 16) & 1);
-    pHlp->pfnPrintf(pHlp, "    trigger = %s\n", val & (1 << 15) ? "level" : "edge");
-    pHlp->pfnPrintf(pHlp, "    rem irr = %d\n", (val >> 14) & 1);
-    pHlp->pfnPrintf(pHlp, "    polarty = %d\n", (val >> 13) & 1);
-    pHlp->pfnPrintf(pHlp, "    status  = %s\n", val & (1 << 12) ? "pending" : "idle");
-    pHlp->pfnPrintf(pHlp, "    delivry = %s\n", dmodes[(val >> 8) & 7]);
-    pHlp->pfnPrintf(pHlp, "    vector  = %02X\n", val & 0xff);
-    val = apic_mem_readl(pDev, lapic, 0x360);
-    pHlp->pfnPrintf(pHlp, "  LVT LINT1 : %08X\n", val);
-    pHlp->pfnPrintf(pHlp, "    mask    = %d\n", (val >> 16) & 1);
-    pHlp->pfnPrintf(pHlp, "    trigger = %s\n", val & (1 << 15) ? "level" : "edge");
-    pHlp->pfnPrintf(pHlp, "    rem irr = %d\n", (val >> 14) & 1);
-    pHlp->pfnPrintf(pHlp, "    polarty = %d\n", (val >> 13) & 1);
-    pHlp->pfnPrintf(pHlp, "    status  = %s\n", val & (1 << 12) ? "pending" : "idle");
-    pHlp->pfnPrintf(pHlp, "    delivry = %s\n", dmodes[(val >> 8) & 7]);
-    pHlp->pfnPrintf(pHlp, "    vector  = %02X\n", val & 0xff);
-}
-
-/* Print LAPIC timer state. */
-static DECLCALLBACK(void) lapicInfoTimer(APICDeviceInfo  *pDev, APICState *lapic, PCDBGFINFOHLP pHlp)
-{
-    uint32_t        val;
-    unsigned        divider;
-
-    pHlp->pfnPrintf(pHlp, "Local APIC timer:\n");
-    val = apic_mem_readl(pDev, lapic, 0x380);
-    pHlp->pfnPrintf(pHlp, "  Initial count : %08X\n", val);
-    val = apic_mem_readl(pDev, lapic, 0x390);
-    pHlp->pfnPrintf(pHlp, "  Current count : %08X\n", val);
-    val = apic_mem_readl(pDev, lapic, 0x3E0);
-    pHlp->pfnPrintf(pHlp, "  Divide config : %08X\n", val);
-    divider = ((val >> 1) & 0x04) | (val & 0x03);
-    pHlp->pfnPrintf(pHlp, "    divider     = %d\n", divider == 7 ? 1 : 2 << divider);
-}
 
 /**
- * Info handler, device version. Dumps Local APIC(s) state according to given argument.
+ * Print the more interesting Local APIC LVT entries.
  *
- * @param   pDevIns     Device instance which registered the info.
- * @param   pHlp        Callback functions for doing output.
- * @param   pszArgs     Argument string. Optional.
+ * @param   pDev                The PDM device instance.
+ * @param   pApic               The Local APIC in question.
+ * @param   pHlp                The output helper.
  */
-static DECLCALLBACK(void) lapicInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+static void apicR3InfoLVT(APICDeviceInfo *pDev, APICState *pApic, PCDBGFINFOHLP pHlp)
 {
-    APICDeviceInfo  *pDev = PDMINS_2_DATA(pDevIns, APICDeviceInfo *);
-    APICState       *lapic;
+    static const char * const s_apszDeliveryModes[] =
+    {
+        "Fixed ", "Reserved", "SMI", "Reserved", "NMI", "INIT", "Reserved", "ExtINT"
+    };
+    uint64_t u64;
 
-    lapic = getLapic(pDev);
+    u64 = apicR3InfoReadReg(pDev, pApic, 0x32);
+    pHlp->pfnPrintf(pHlp, "  LVT Timer : %08llx\n", u64);
+    pHlp->pfnPrintf(pHlp, "    mode    = %s\n", u64 & RT_BIT(17) ? "periodic" : "one-shot");
+    pHlp->pfnPrintf(pHlp, "    mask    = %llu\n", (u64 >> 16) & 1);
+    pHlp->pfnPrintf(pHlp, "    status  = %s\n", u64 & RT_BIT(12) ? "pending" : "idle");
+    pHlp->pfnPrintf(pHlp, "    vector  = %02llx\n", u64 & 0xff);
+    u64 = apicR3InfoReadReg(pDev, pApic, 0x35);
+    pHlp->pfnPrintf(pHlp, "  LVT LINT0 : %08llx\n", u64);
+    pHlp->pfnPrintf(pHlp, "    mask    = %llu\n", (u64 >> 16) & 1);
+    pHlp->pfnPrintf(pHlp, "    trigger = %s\n", u64 & RT_BIT(15) ? "level" : "edge");
+    pHlp->pfnPrintf(pHlp, "    rem irr = %llu\n", (u64 >> 14) & 1);
+    pHlp->pfnPrintf(pHlp, "    polarty = %llu\n", (u64 >> 13) & 1);
+    pHlp->pfnPrintf(pHlp, "    status  = %s\n", u64 & RT_BIT(12) ? "pending" : "idle");
+    pHlp->pfnPrintf(pHlp, "    delivry = %s\n", s_apszDeliveryModes[(u64 >> 8) & 7]);
+    pHlp->pfnPrintf(pHlp, "    vector  = %02llx\n", u64 & 0xff);
+    u64 = apicR3InfoReadReg(pDev, pApic, 0x36);
+    pHlp->pfnPrintf(pHlp, "  LVT LINT1 : %08llx\n", u64);
+    pHlp->pfnPrintf(pHlp, "    mask    = %llu\n", (u64 >> 16) & 1);
+    pHlp->pfnPrintf(pHlp, "    trigger = %s\n", u64 & RT_BIT(15) ? "level" : "edge");
+    pHlp->pfnPrintf(pHlp, "    rem irr = %lld\n", (u64 >> 14) & 1);
+    pHlp->pfnPrintf(pHlp, "    polarty = %lld\n", (u64 >> 13) & 1);
+    pHlp->pfnPrintf(pHlp, "    status  = %s\n", u64 & RT_BIT(12) ? "pending" : "idle");
+    pHlp->pfnPrintf(pHlp, "    delivry = %s\n", s_apszDeliveryModes[(u64 >> 8) & 7]);
+    pHlp->pfnPrintf(pHlp, "    vector  = %02llx\n", u64 & 0xff);
+}
+
+
+/**
+ * Print LAPIC timer state.
+ *
+ * @param   pDev                The PDM device instance.
+ * @param   pApic               The Local APIC in question.
+ * @param   pHlp                The output helper.
+ */
+static void apicR3InfoTimer(APICDeviceInfo *pDev, APICState *pApic, PCDBGFINFOHLP pHlp)
+{
+    pHlp->pfnPrintf(pHlp, "Local APIC timer:\n");
+    pHlp->pfnPrintf(pHlp, "  Initial count : %08llx\n", apicR3InfoReadReg(pDev, pApic, 0x38));
+    pHlp->pfnPrintf(pHlp, "  Current count : %08llx\n", apicR3InfoReadReg(pDev, pApic, 0x39));
+    uint64_t u64 = apicR3InfoReadReg(pDev, pApic, 0x3e);
+    pHlp->pfnPrintf(pHlp, "  Divide config : %08llx\n", u64);
+    unsigned uDivider = ((u64 >> 1) & 0x04) | (u64 & 0x03);
+    pHlp->pfnPrintf(pHlp, "    divider     = %u\n", uDivider == 7 ? 1 : 2 << uDivider);
+}
+
+
+/**
+ * @callback_method_impl{FNDBGFHANDLERDEV,
+ *      Dumps the Local APIC state according to given argument.}
+ */
+static DECLCALLBACK(void) apicR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    APICDeviceInfo  *pDev  = PDMINS_2_DATA(pDevIns, APICDeviceInfo *);
+    APICState       *pApic = getLapic(pDev);
 
     if (pszArgs == NULL || !strcmp(pszArgs, "basic"))
-    {
-        lapicInfoBasic(pDev, lapic, pHlp);
-    }
+        apicR3InfoBasic(pDev, pApic, pHlp);
     else if (!strcmp(pszArgs, "lvt"))
-    {
-        lapicInfoLVT(pDev, lapic, pHlp);
-    }
+        apicR3InfoLVT(pDev, pApic, pHlp);
     else if (!strcmp(pszArgs, "timer"))
-    {
-        lapicInfoTimer(pDev, lapic, pHlp);
-    }
+        apicR3InfoTimer(pDev, pApic, pHlp);
     else
-    {
         pHlp->pfnPrintf(pHlp, "Invalid argument. Recognized arguments are 'basic', 'lvt', 'timer'.\n");
-    }
 }
+
 
 /**
  * @copydoc FNSSMDEVLIVEEXEC
  */
-static DECLCALLBACK(int) apicLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
+static DECLCALLBACK(int) apicR3LiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
     APICDeviceInfo *pDev = PDMINS_2_DATA(pDevIns, APICDeviceInfo *);
 
@@ -1892,18 +2082,21 @@ static DECLCALLBACK(int) apicLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint3
     return VINF_SSM_DONT_CALL_AGAIN;
 }
 
+
 /**
  * @copydoc FNSSMDEVSAVEEXEC
  */
-static DECLCALLBACK(int) apicSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
+static DECLCALLBACK(int) apicR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
     APICDeviceInfo *pDev = PDMINS_2_DATA(pDevIns, APICDeviceInfo *);
 
     /* config */
-    apicLiveExec(pDevIns, pSSM, SSM_PASS_FINAL);
+    apicR3LiveExec(pDevIns, pSSM, SSM_PASS_FINAL);
 
-    /* save all APICs data, @todo: is it correct? */
-    foreach_apic(pDev, 0xffffffff, apic_save(pSSM, apic));
+    /* save all APICs data */ /** @todo: is it correct? */
+    APIC_FOREACH_BEGIN(pDev);
+        apic_save(pSSM, pCurApic);
+    APIC_FOREACH_END();
 
     return VINF_SUCCESS;
 }
@@ -1911,7 +2104,7 @@ static DECLCALLBACK(int) apicSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 /**
  * @copydoc FNSSMDEVLOADEXEC
  */
-static DECLCALLBACK(int) apicLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
+static DECLCALLBACK(int) apicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
     APICDeviceInfo *pDev = PDMINS_2_DATA(pDevIns, APICDeviceInfo *);
 
@@ -1921,15 +2114,18 @@ static DECLCALLBACK(int) apicLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint3
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
 
     /* config */
-    if (uVersion > APIC_SAVED_STATE_VERSION_VBOX_30) {
+    if (uVersion > APIC_SAVED_STATE_VERSION_VBOX_30)
+    {
         uint32_t cCpus;
         int rc = SSMR3GetU32(pSSM, &cCpus); AssertRCReturn(rc, rc);
         if (cCpus != pDev->cCpus)
             return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("Config mismatch - cCpus: saved=%#x config=%#x"), cCpus, pDev->cCpus);
+
         bool fIoApic;
         rc = SSMR3GetBool(pSSM, &fIoApic); AssertRCReturn(rc, rc);
         if (fIoApic != pDev->fIoApic)
             return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("Config mismatch - fIoApic: saved=%RTbool config=%RTbool"), fIoApic, pDev->fIoApic);
+
         uint32_t uApicVersion;
         rc = SSMR3GetU32(pSSM, &uApicVersion); AssertRCReturn(rc, rc);
         if (uApicVersion != (uint32_t)pDev->enmVersion)
@@ -1941,36 +2137,40 @@ static DECLCALLBACK(int) apicLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint3
 
     /* load all APICs data */ /** @todo: is it correct? */
     APIC_LOCK(pDev, VERR_INTERNAL_ERROR_3);
-    foreach_apic(pDev, 0xffffffff,
-                 if (apic_load(pSSM, apic, uVersion)) {
-                      AssertFailed();
-                      APIC_UNLOCK(pDev);
-                      return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
-                 }
-                 );
+
+    int rc = VINF_SUCCESS;
+    APIC_FOREACH_BEGIN(pDev);
+        rc = apic_load(pSSM, pCurApic, uVersion);
+        if (RT_FAILURE(rc))
+            break;
+    APIC_FOREACH_END();
+
     APIC_UNLOCK(pDev);
-    return VINF_SUCCESS;
+    return rc;
 }
 
 /**
  * @copydoc FNPDMDEVRESET
  */
-static DECLCALLBACK(void) apicReset(PPDMDEVINS pDevIns)
+static DECLCALLBACK(void) apicR3Reset(PPDMDEVINS pDevIns)
 {
     APICDeviceInfo *pDev = PDMINS_2_DATA(pDevIns, APICDeviceInfo *);
     TMTimerLock(pDev->paLapicsR3[0].pTimerR3, VERR_IGNORED);
     APIC_LOCK_VOID(pDev, VERR_IGNORED);
 
     /* Reset all APICs. */
-    for (VMCPUID i = 0; i < pDev->cCpus; i++) {
+    for (VMCPUID i = 0; i < pDev->cCpus; i++)
+    {
         APICState *pApic = &pDev->CTX_SUFF(paLapics)[i];
         TMTimerStop(pApic->CTX_SUFF(pTimer));
 
         /* Clear LAPIC state as if an INIT IPI was sent. */
         apic_init_ipi(pDev, pApic);
+
         /* The IDs are not touched by apic_init_ipi() and must be reset now. */
         pApic->arb_id = pApic->id = i;
         Assert(pApic->id == pApic->phys_id);    /* The two should match again. */
+
         /* Reset should re-enable the APIC, see comment in msi.h */
         pApic->apicbase = VBOX_MSI_ADDR_BASE | MSR_IA32_APICBASE_ENABLE;
         if (pApic->phys_id == 0)
@@ -1987,10 +2187,11 @@ static DECLCALLBACK(void) apicReset(PPDMDEVINS pDevIns)
     TMTimerUnlock(pDev->paLapicsR3[0].pTimerR3);
 }
 
+
 /**
  * @copydoc FNPDMDEVRELOCATE
  */
-static DECLCALLBACK(void) apicRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
+static DECLCALLBACK(void) apicR3Relocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
     APICDeviceInfo *pDev = PDMINS_2_DATA(pDevIns, APICDeviceInfo *);
     pDev->pDevInsRC   = PDMDEVINS_2_RCPTR(pDevIns);
@@ -2001,35 +2202,38 @@ static DECLCALLBACK(void) apicRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
         pDev->paLapicsR3[i].pTimerRC = TMTimerRCPtr(pDev->paLapicsR3[i].pTimerR3);
 }
 
-DECLINLINE(void) initApicData(APICState* apic, uint8_t id)
-{
-    int i;
-    memset(apic, 0, sizeof(*apic));
 
-    /* See comment in msi.h for LAPIC base info */
-    apic->apicbase = VBOX_MSI_ADDR_BASE | MSR_IA32_APICBASE_ENABLE;
-    /* Mark first CPU as BSP */
-    if (id == 0)
-        apic->apicbase |= MSR_IA32_APICBASE_BSP;
-    for (i = 0; i < APIC_LVT_NB; i++)
-        apic->lvt[i] = 1 << 16; /* mask LVT */
-    apic->spurious_vec = 0xff;
-    apic->phys_id = apic->id = id;
+/**
+ * Initializes the state of one local APIC.
+ *
+ * @param   pApic       The Local APIC state to init.
+ * @param   id          The Local APIC ID.
+ */
+DECLINLINE(void) initApicData(APICState *pApic, uint8_t id)
+{
+    memset(pApic, 0, sizeof(*pApic));
+
+    /* See comment in msi.h for LAPIC base info. */
+    pApic->apicbase = VBOX_MSI_ADDR_BASE | MSR_IA32_APICBASE_ENABLE;
+    if (id == 0) /* Mark first CPU as BSP. */
+        pApic->apicbase |= MSR_IA32_APICBASE_BSP;
+
+    for (int i = 0; i < APIC_LVT_NB; i++)
+        pApic->lvt[i] = RT_BIT_32(16); /* mask LVT */
+
+    pApic->spurious_vec = 0xff;
+    pApic->phys_id      = id;
+    pApic->id           = id;
 }
+
 
 /**
  * @copydoc FNPDMDEVCONSTRUCT
  */
-static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
+static DECLCALLBACK(int) apicR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
-    PDMAPICREG      ApicReg;
-    int             rc;
-    uint32_t        i;
-    bool            fIoApic;
-    bool            fGCEnabled;
-    bool            fR0Enabled;
     APICDeviceInfo *pDev = PDMINS_2_DATA(pDevIns, APICDeviceInfo *);
-    uint32_t        cCpus;
+    uint32_t        i;
 
     /*
      * Only single device instance.
@@ -2039,38 +2243,28 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfg,
-                              "IOAPIC\0"
-                              "GCEnabled\0"
-                              "R0Enabled\0"
-                              "NumCPUs\0"))
-        return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
+    PDMDEV_VALIDATE_CONFIG_RETURN(pDevIns, "IOAPIC|RZEnabled|NumCPUs", "");
 
-    rc = CFGMR3QueryBoolDef(pCfg, "IOAPIC", &fIoApic, true);
+    bool fIoApic;
+    int rc = CFGMR3QueryBoolDef(pCfg, "IOAPIC", &fIoApic, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"IOAPIC\""));
 
-    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
+    bool fRZEnabled;
+    rc = CFGMR3QueryBoolDef(pCfg, "RZEnabled", &fRZEnabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to query boolean value \"GCEnabled\""));
+                                N_("Configuration error: Failed to query boolean value \"RZEnabled\""));
 
-    rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &fR0Enabled, true);
-    if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to query boolean value \"R0Enabled\""));
-
+    uint32_t cCpus;
     rc = CFGMR3QueryU32Def(pCfg, "NumCPUs", &cCpus, 1);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query integer value \"NumCPUs\""));
 
-    Log(("APIC: cCpus=%d fR0Enabled=%RTbool fGCEnabled=%RTbool fIoApic=%RTbool\n", cCpus, fR0Enabled, fGCEnabled, fIoApic));
-
-    /** @todo Current implementation is limited to 32 CPUs due to the use of 32
-     *        bits bitmasks. */
-    if (cCpus > 32)
+    Log(("APIC: cCpus=%d fRZEnabled=%RTbool fIoApic=%RTbool\n", cCpus, fRZEnabled, fIoApic));
+    if (cCpus > 255)
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Invalid value for \"NumCPUs\""));
 
@@ -2106,6 +2300,7 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     /*
      * Register the APIC.
      */
+    PDMAPICREG ApicReg;
     ApicReg.u32Version              = PDM_APICREG_VERSION;
     ApicReg.pfnGetInterruptR3       = apicGetInterrupt;
     ApicReg.pfnHasPendingIrqR3      = apicHasPendingIrq;
@@ -2117,7 +2312,8 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     ApicReg.pfnReadMSRR3            = apicReadMSR;
     ApicReg.pfnBusDeliverR3         = apicBusDeliverCallback;
     ApicReg.pfnLocalInterruptR3     = apicLocalInterrupt;
-    if (fGCEnabled) {
+    if (fRZEnabled)
+    {
         ApicReg.pszGetInterruptRC   = "apicGetInterrupt";
         ApicReg.pszHasPendingIrqRC  = "apicHasPendingIrq";
         ApicReg.pszSetBaseRC        = "apicSetBase";
@@ -2128,19 +2324,7 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         ApicReg.pszReadMSRRC        = "apicReadMSR";
         ApicReg.pszBusDeliverRC     = "apicBusDeliverCallback";
         ApicReg.pszLocalInterruptRC = "apicLocalInterrupt";
-    } else {
-        ApicReg.pszGetInterruptRC   = NULL;
-        ApicReg.pszHasPendingIrqRC  = NULL;
-        ApicReg.pszSetBaseRC        = NULL;
-        ApicReg.pszGetBaseRC        = NULL;
-        ApicReg.pszSetTPRRC         = NULL;
-        ApicReg.pszGetTPRRC         = NULL;
-        ApicReg.pszWriteMSRRC       = NULL;
-        ApicReg.pszReadMSRRC        = NULL;
-        ApicReg.pszBusDeliverRC     = NULL;
-        ApicReg.pszLocalInterruptRC = NULL;
-    }
-    if (fR0Enabled) {
+
         ApicReg.pszGetInterruptR0   = "apicGetInterrupt";
         ApicReg.pszHasPendingIrqR0  = "apicHasPendingIrq";
         ApicReg.pszSetBaseR0        = "apicSetBase";
@@ -2151,7 +2335,20 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         ApicReg.pszReadMSRR0        = "apicReadMSR";
         ApicReg.pszBusDeliverR0     = "apicBusDeliverCallback";
         ApicReg.pszLocalInterruptR0 = "apicLocalInterrupt";
-    } else {
+    }
+    else
+    {
+        ApicReg.pszGetInterruptRC   = NULL;
+        ApicReg.pszHasPendingIrqRC  = NULL;
+        ApicReg.pszSetBaseRC        = NULL;
+        ApicReg.pszGetBaseRC        = NULL;
+        ApicReg.pszSetTPRRC         = NULL;
+        ApicReg.pszGetTPRRC         = NULL;
+        ApicReg.pszWriteMSRRC       = NULL;
+        ApicReg.pszReadMSRRC        = NULL;
+        ApicReg.pszBusDeliverRC     = NULL;
+        ApicReg.pszLocalInterruptRC = NULL;
+
         ApicReg.pszGetInterruptR0   = NULL;
         ApicReg.pszHasPendingIrqR0  = NULL;
         ApicReg.pszSetBaseR0        = NULL;
@@ -2169,19 +2366,21 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     pDev->pCritSectR3 = pDev->pApicHlpR3->pfnGetR3CritSect(pDevIns);
 
     /*
-     * The the CPUID feature bit.
+     * The CPUID feature bit.
      */
-    /** @todo r=bird: See remark in the apicReset. */
+    /** @todo r=bird: See remark in the apicR3Reset. */
     uint32_t u32Eax, u32Ebx, u32Ecx, u32Edx;
     PDMDevHlpGetCpuId(pDevIns, 0, &u32Eax, &u32Ebx, &u32Ecx, &u32Edx);
-    if (u32Eax >= 1) {
+    if (u32Eax >= 1)
+    {
         if (   fIoApic                       /* If IOAPIC is enabled, enable Local APIC in any case */
             || (   u32Ebx == X86_CPUID_VENDOR_INTEL_EBX
                 && u32Ecx == X86_CPUID_VENDOR_INTEL_ECX
                 && u32Edx == X86_CPUID_VENDOR_INTEL_EDX /* GenuineIntel */)
             || (   u32Ebx == X86_CPUID_VENDOR_AMD_EBX
                 && u32Ecx == X86_CPUID_VENDOR_AMD_ECX
-                && u32Edx == X86_CPUID_VENDOR_AMD_EDX   /* AuthenticAMD */)) {
+                && u32Edx == X86_CPUID_VENDOR_AMD_EDX   /* AuthenticAMD */))
+        {
             LogRel(("Activating Local APIC\n"));
             pDev->pApicHlpR3->pfnChangeFeature(pDevIns, pDev->enmVersion);
         }
@@ -2189,8 +2388,8 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
 
     /*
      * Register the MMIO range.
-     * @todo: shall reregister, if base changes.
      */
+    /** @todo: shall reregister, if base changes. */
     uint32_t ApicBase = pDev->paLapicsR3[0].apicbase & ~0xfff;
     rc = PDMDevHlpMMIORegister(pDevIns, ApicBase, 0x1000, pDev,
                                IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU,
@@ -2198,19 +2397,16 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     if (RT_FAILURE(rc))
         return rc;
 
-    if (fGCEnabled) {
+    if (fRZEnabled)
+    {
         pDev->pApicHlpRC  = pDev->pApicHlpR3->pfnGetRCHelpers(pDevIns);
         pDev->pCritSectRC = pDev->pApicHlpR3->pfnGetRCCritSect(pDevIns);
-
         rc = PDMDevHlpMMIORegisterRC(pDevIns, ApicBase, 0x1000, NIL_RTRCPTR /*pvUser*/, "apicMMIOWrite", "apicMMIORead");
         if (RT_FAILURE(rc))
             return rc;
-    }
 
-    if (fR0Enabled) {
         pDev->pApicHlpR0  = pDev->pApicHlpR3->pfnGetR0Helpers(pDevIns);
         pDev->pCritSectR0 = pDev->pApicHlpR3->pfnGetR0CritSect(pDevIns);
-
         rc = PDMDevHlpMMIORegisterR0(pDevIns, ApicBase, 0x1000, NIL_RTR0PTR /*pvUser*/, "apicMMIOWrite", "apicMMIORead");
         if (RT_FAILURE(rc))
             return rc;
@@ -2219,10 +2415,11 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     /*
      * Create the APIC timers.
      */
-    for (i = 0; i < cCpus; i++) {
+    for (i = 0; i < cCpus; i++)
+    {
         APICState *pApic = &pDev->paLapicsR3[i];
         pApic->pszDesc = MMR3HeapAPrintf(pVM, MM_TAG_PDM_DEVICE_USER, "APIC Timer #%u", i);
-        rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL_SYNC, apicTimerCallback, pApic,
+        rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL_SYNC, apicR3TimerCallback, pApic,
                                     TMTIMER_FLAGS_NO_CRIT_SECT, pApic->pszDesc, &pApic->pTimerR3);
         if (RT_FAILURE(rc))
             return rc;
@@ -2235,15 +2432,15 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
      * Saved state.
      */
     rc = PDMDevHlpSSMRegister3(pDevIns, APIC_SAVED_STATE_VERSION, sizeof(*pDev),
-                               apicLiveExec, apicSaveExec, apicLoadExec);
+                               apicR3LiveExec, apicR3SaveExec, apicR3LoadExec);
     if (RT_FAILURE(rc))
         return rc;
 
     /*
      * Register debugger info callback.
      */
-    PDMDevHlpDBGFInfoRegister(pDevIns, "lapic", "Display Local APIC state for current CPU. "
-                              "Recognizes 'basic', 'lvt', 'timer' as arguments, defaulting to 'basic'.", lapicInfo);
+    PDMDevHlpDBGFInfoRegister(pDevIns, "apic", "Display Local APIC state for current CPU. "
+                              "Recognizes 'basic', 'lvt', 'timer' as arguments, defaulting to 'basic'.", apicR3Info);
 
 #ifdef VBOX_WITH_STATISTICS
     /*
@@ -2254,7 +2451,8 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     PDMDevHlpSTAMRegister(pDevIns, &pDev->StatMMIOWriteGC,    STAMTYPE_COUNTER,  "/Devices/APIC/MMIOWriteGC",  STAMUNIT_OCCURENCES, "Number of APIC MMIO writes in GC.");
     PDMDevHlpSTAMRegister(pDevIns, &pDev->StatMMIOWriteHC,    STAMTYPE_COUNTER,  "/Devices/APIC/MMIOWriteHC",  STAMUNIT_OCCURENCES, "Number of APIC MMIO writes in HC.");
     PDMDevHlpSTAMRegister(pDevIns, &pDev->StatClearedActiveIrq,STAMTYPE_COUNTER, "/Devices/APIC/MaskedActiveIRQ", STAMUNIT_OCCURENCES, "Number of cleared irqs.");
-    for (i = 0; i < cCpus; i++) {
+    for (i = 0; i < cCpus; i++)
+    {
         APICState *pApic = &pDev->paLapicsR3[i];
         PDMDevHlpSTAMRegisterF(pDevIns, &pApic->StatTimerSetInitialCount,       STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Calls to apicTimerSetInitialCount.",   "/Devices/APIC/%u/TimerSetInitialCount", i);
         PDMDevHlpSTAMRegisterF(pDevIns, &pApic->StatTimerSetInitialCountArm,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "TMTimerSetRelative calls.",            "/Devices/APIC/%u/TimerSetInitialCount/Arm", i);
@@ -2297,17 +2495,17 @@ const PDMDEVREG g_DeviceAPIC =
     /* cbInstance */
     sizeof(APICState),
     /* pfnConstruct */
-    apicConstruct,
+    apicR3Construct,
     /* pfnDestruct */
     NULL,
     /* pfnRelocate */
-    apicRelocate,
+    apicR3Relocate,
     /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */
     NULL,
     /* pfnReset */
-    apicReset,
+    apicR3Reset,
     /* pfnSuspend */
     NULL,
     /* pfnResume */

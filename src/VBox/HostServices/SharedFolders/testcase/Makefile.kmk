@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2007 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -50,8 +50,41 @@ tstShflCase_DEFS     = VBOX_WITH_HGCM
 tstShflCase_SOURCES  = tstShflCase.cpp
 tstShflCase_LIBS     = $(LIB_RUNTIME)
 
+#
+# HGCM service testcase.
+#
+
+# As there are differences between the Windows build of the service and others,
+# we do an additional build with RT_OS_WINDOWS defined on non-Windows targets.
+PROGRAMS += \
+    tstSharedFolderService \
+    $(if $(eq $(KBUILD_TARGET),win),,tstSharedFolderService-win)
+
+tstSharedFolderService_TEMPLATE = VBOXR3TSTEXE
+tstSharedFolderService_DEFS     = VBOX_WITH_HGCM UNITTEST
+tstSharedFolderService_INCS     = ..
+tstSharedFolderService_SOURCES  = \
+    tstSharedFolderService.cpp \
+    ../mappings.cpp \
+    ../service.cpp \
+    ../shflhandle.cpp \
+    ../vbsf.cpp
+tstSharedFolderService_LDFLAGS.darwin = \
+	-framework Carbon
+tstSharedFolderService_LIBS     = $(LIB_RUNTIME)
+
+tstSharedFolderService-win_TEMPLATE = $(tstSharedFolderService_TEMPLATE)
+tstSharedFolderService-win_DEFS     = \
+    $(tstSharedFolderService_DEFS) \
+    RT_OS_WINDOWS
+tstSharedFolderService-win_INCS     = $(tstSharedFolderService_INCS)
+tstSharedFolderService-win_SOURCES  = $(tstSharedFolderService_SOURCES)
+tstSharedFolderService-win_LDFLAGS.darwin = \
+    $(tstSharedFolderService_LDFLAGS.darwin)
+tstSharedFolderService-win_LIBS     = $(tstSharedFolderService_LIBS)
+
 endif # VBOX_WITH_TESTCASES
 
 
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

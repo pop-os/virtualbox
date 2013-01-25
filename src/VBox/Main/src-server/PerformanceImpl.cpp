@@ -65,6 +65,14 @@ static const char *g_papcszMetricNames[] =
     "CPU/MHz:avg",
     "CPU/MHz:min",
     "CPU/MHz:max",
+    "Net/*/Load/Rx",
+    "Net/*/Load/Rx:avg",
+    "Net/*/Load/Rx:min",
+    "Net/*/Load/Rx:max",
+    "Net/*/Load/Tx",
+    "Net/*/Load/Tx:avg",
+    "Net/*/Load/Tx:min",
+    "Net/*/Load/Tx:max",
     "RAM/Usage/Total",
     "RAM/Usage/Total:avg",
     "RAM/Usage/Total:min",
@@ -590,37 +598,42 @@ void PerformanceCollector::registerMetric(pm::Metric *metric)
     //LogFlowThisFuncLeave();
 }
 
-void PerformanceCollector::unregisterBaseMetricsFor(const ComPtr<IUnknown> &aObject)
+void PerformanceCollector::unregisterBaseMetricsFor(const ComPtr<IUnknown> &aObject, const Utf8Str name)
 {
     //LogFlowThisFuncEnter();
     AutoCaller autoCaller(this);
     if (!SUCCEEDED(autoCaller.rc())) return;
+
+    pm::Filter filter(name, aObject);
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     int n = 0;
     BaseMetricList::iterator it;
     for (it = m.baseMetrics.begin(); it != m.baseMetrics.end(); ++it)
-        if ((*it)->associatedWith(aObject))
+        if (filter.match((*it)->getObject(), (*it)->getName()))
         {
             (*it)->unregister();
             ++n;
         }
-    LogAleksey(("{%p} " LOG_FN_FMT ": obj=%p, marked %d metrics\n",
-                this, __PRETTY_FUNCTION__, (void *)aObject, n));
+    LogAleksey(("{%p} " LOG_FN_FMT ": obj=%p, name=%s, marked %d metrics\n",
+                this, __PRETTY_FUNCTION__, (void *)aObject, name.c_str(), n));
     //LogFlowThisFuncLeave();
 }
 
-void PerformanceCollector::unregisterMetricsFor(const ComPtr<IUnknown> &aObject)
+void PerformanceCollector::unregisterMetricsFor(const ComPtr<IUnknown> &aObject, const Utf8Str name)
 {
     //LogFlowThisFuncEnter();
     AutoCaller autoCaller(this);
     if (!SUCCEEDED(autoCaller.rc())) return;
 
+    pm::Filter filter(name, aObject);
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    LogAleksey(("{%p} " LOG_FN_FMT ": obj=%p\n", this, __PRETTY_FUNCTION__, (void *)aObject));
+    LogAleksey(("{%p} " LOG_FN_FMT ": obj=%p, name=%s\n", this,
+                __PRETTY_FUNCTION__, (void *)aObject, name.c_str()));
     MetricList::iterator it;
     for (it = m.metrics.begin(); it != m.metrics.end();)
-        if ((*it)->associatedWith(aObject))
+        if (filter.match((*it)->getObject(), (*it)->getName()))
         {
             delete *it;
             it = m.metrics.erase(it);

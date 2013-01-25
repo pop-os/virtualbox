@@ -14,10 +14,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef UNITTEST
+# include "testcase/tstSharedFolderService.h"
+#endif
+
 #include "mappings.h"
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
+
+#ifdef UNITTEST
+# include "teststubs.h"
+#endif
 
 /* Shared folders order in the saved state and in the FolderMapping can differ.
  * So a translation array of root handle is needed.
@@ -169,11 +177,21 @@ static void vbsfRootHandleRemove(SHFLROOT iMapping)
 
 
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_ADD_MAPPING API.  Located here as a form of API
+ * documentation. */
+void testMappingsAdd(RTTEST hTest)
+{
+    /* If the number or types of parameters are wrong the API should fail. */
+    testMappingsAddBadParameters(hTest);
+    /* Add tests as required... */
+}
+#endif
 /*
  * We are always executed from one specific HGCM thread. So thread safe.
  */
 int vbsfMappingsAdd(PSHFLSTRING pFolderName, PSHFLSTRING pMapName,
-                    bool fWritable, bool fAutoMount, bool fSymlinksCreate)
+                    bool fWritable, bool fAutoMount, bool fSymlinksCreate, bool fMissing)
 {
     unsigned i;
 
@@ -218,6 +236,7 @@ int vbsfMappingsAdd(PSHFLSTRING pFolderName, PSHFLSTRING pMapName,
             FolderMapping[i].fWritable       = fWritable;
             FolderMapping[i].fAutoMount      = fAutoMount;
             FolderMapping[i].fSymlinksCreate = fSymlinksCreate;
+            FolderMapping[i].fMissing        = fMissing;
 
             /* Check if the host file system is case sensitive */
             RTFSPROPERTIES prop;
@@ -246,6 +265,16 @@ int vbsfMappingsAdd(PSHFLSTRING pFolderName, PSHFLSTRING pMapName,
     return VINF_SUCCESS;
 }
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_REMOVE_MAPPING API.  Located here as a form of API
+ * documentation. */
+void testMappingsRemove(RTTEST hTest)
+{
+    /* If the number or types of parameters are wrong the API should fail. */
+    testMappingsRemoveBadParameters(hTest);
+    /* Add tests as required... */
+}
+#endif
 int vbsfMappingsRemove(PSHFLSTRING pMapName)
 {
     unsigned i;
@@ -289,6 +318,8 @@ const char* vbsfMappingsQueryHostRoot(SHFLROOT root)
 {
     MAPPING *pFolderMapping = vbsfMappingGetByRoot(root);
     AssertReturn(pFolderMapping, NULL);
+    if (pFolderMapping->fMissing)
+        return NULL;
     return pFolderMapping->pszFolderName;
 }
 
@@ -306,6 +337,21 @@ bool vbsfIsHostMappingCaseSensitive(SHFLROOT root)
     return pFolderMapping->fHostCaseSensitive;
 }
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_QUERY_MAPPINGS API.  Located here as a form of API
+ * documentation (or should it better be inline in include/VBox/shflsvc.h?) */
+void testMappingsQuery(RTTEST hTest)
+{
+    /* The API should return all mappings if we provide enough buffers. */
+    testMappingsQuerySimple(hTest);
+    /* If we provide too few buffers that should be signalled correctly. */
+    testMappingsQueryTooFewBuffers(hTest);
+    /* The SHFL_MF_AUTOMOUNT flag means return only auto-mounted mappings. */
+    testMappingsQueryAutoMount(hTest);
+    /* The mappings return array must have numberOfMappings entries. */
+    testMappingsQueryArrayWrongSize(hTest);
+}
+#endif
 /**
  * Note: If pMappings / *pcMappings is smaller than the actual amount of mappings
  *       that *could* have been returned *pcMappings contains the required buffer size
@@ -351,6 +397,19 @@ int vbsfMappingsQuery(PSHFLCLIENTDATA pClient, PSHFLMAPPING pMappings, uint32_t 
     return rc;
 }
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_QUERY_MAP_NAME API.  Located here as a form of API
+ * documentation. */
+void testMappingsQueryName(RTTEST hTest)
+{
+    /* If we query an valid mapping it should be returned. */
+    testMappingsQueryNameValid(hTest);
+    /* If we query an invalid mapping that should be signalled. */
+    testMappingsQueryNameInvalid(hTest);
+    /* If we pass in a bad string buffer that should be detected. */
+    testMappingsQueryNameBadBuffer(hTest);
+}
+#endif
 int vbsfMappingsQueryName(PSHFLCLIENTDATA pClient, SHFLROOT root, SHFLSTRING *pString)
 {
     int rc = VINF_SUCCESS;
@@ -403,7 +462,8 @@ int vbsfMappingsQueryWritable(PSHFLCLIENTDATA pClient, SHFLROOT root, bool *fWri
     MAPPING *pFolderMapping = vbsfMappingGetByRoot(root);
     AssertReturn(pFolderMapping, VERR_INVALID_PARAMETER);
 
-    if (pFolderMapping->fValid == true)
+    if (   pFolderMapping->fValid
+        && !pFolderMapping->fMissing)
         *fWritable = pFolderMapping->fWritable;
     else
         rc = VERR_FILE_NOT_FOUND;
@@ -451,6 +511,28 @@ int vbsfMappingsQuerySymlinksCreate(PSHFLCLIENTDATA pClient, SHFLROOT root, bool
     return rc;
 }
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_MAP_FOLDER API.  Located here as a form of API
+ * documentation. */
+void testMapFolder(RTTEST hTest)
+{
+    /* If we try to map a valid name we should get the root. */
+    testMapFolderValid(hTest);
+    /* If we try to map a valid name we should get VERR_FILE_NOT_FOUND. */
+    testMapFolderInvalid(hTest);
+    /* If we map a folder twice we can unmap it twice.
+     * Currently unmapping too often is only asserted but not signalled. */
+    testMapFolderTwice(hTest);
+    /* The delimiter should be converted in e.g. file delete operations. */
+    testMapFolderDelimiter(hTest);
+    /* Test case sensitive mapping by opening a file with the wrong case. */
+    testMapFolderCaseSensitive(hTest);
+    /* Test case insensitive mapping by opening a file with the wrong case. */
+    testMapFolderCaseInsensitive(hTest);
+    /* If the number or types of parameters are wrong the API should fail. */
+    testMapFolderBadParameters(hTest);
+}
+#endif
 int vbsfMapFolder(PSHFLCLIENTDATA pClient, PSHFLSTRING pszMapName,
                   RTUTF16 pwszDelimiter, bool fCaseSensitive, SHFLROOT *pRoot)
 {
@@ -502,6 +584,20 @@ int vbsfMapFolder(PSHFLCLIENTDATA pClient, PSHFLSTRING pszMapName,
     return VINF_SUCCESS;
 }
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_UNMAP_FOLDER API.  Located here as a form of API
+ * documentation. */
+void testUnmapFolder(RTTEST hTest)
+{
+    /* Unmapping a mapped folder should succeed.
+     * If the folder is not mapped this is only asserted, not signalled. */
+    testUnmapFolderValid(hTest);
+    /* Unmapping a non-existant root should fail. */
+    testUnmapFolderInvalid(hTest);
+    /* If the number or types of parameters are wrong the API should fail. */
+    testUnmapFolderBadParameters(hTest);
+}
+#endif
 int vbsfUnmapFolder(PSHFLCLIENTDATA pClient, SHFLROOT root)
 {
     int rc = VINF_SUCCESS;

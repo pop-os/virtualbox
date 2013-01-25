@@ -36,11 +36,11 @@
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-static DECLCALLBACK(int) dbgcOpMinus(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcOpPluss(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcOpBooleanNot(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcOpBitwiseNot(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
-static DECLCALLBACK(int) dbgcOpVar(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
+static DECLCALLBACK(int) dbgcOpMinus(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult);
+static DECLCALLBACK(int) dbgcOpPluss(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult);
+static DECLCALLBACK(int) dbgcOpBooleanNot(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult);
+static DECLCALLBACK(int) dbgcOpBitwiseNot(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult);
+static DECLCALLBACK(int) dbgcOpVar(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult);
 
 static DECLCALLBACK(int) dbgcOpAddrFar(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2, PDBGCVAR pResult);
 static DECLCALLBACK(int) dbgcOpMult(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2, PDBGCVAR pResult);
@@ -80,6 +80,9 @@ static DECLCALLBACK(int) dbgcOpRangeTo(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR p
 #define DBGC_GEN_ARIT_BINARY_OP(pDbgc, pArg1, pArg2, pResult, Operator, fIsDiv) \
     do \
     { \
+        if ((pArg1)->enmType == DBGCVAR_TYPE_STRING) \
+            return VERR_DBGC_PARSE_INVALID_OPERATION; \
+        \
         /* Get the 64-bit right side value. */ \
         uint64_t u64Right; \
         int rc = dbgcOpHelperGetNumber((pDbgc), (pArg2), &u64Right); \
@@ -88,8 +91,7 @@ static DECLCALLBACK(int) dbgcOpRangeTo(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR p
         else if (RT_SUCCESS(rc)) \
         { \
             /* Apply it to the left hand side. */ \
-            if (   (pArg1)->enmType == DBGCVAR_TYPE_SYMBOL \
-                || (pArg1)->enmType == DBGCVAR_TYPE_STRING) \
+            if ((pArg1)->enmType == DBGCVAR_TYPE_SYMBOL) \
             { \
                 rc = dbgcSymbolGet((pDbgc), (pArg1)->u.pszString, DBGCVAR_TYPE_ANY, (pResult)); \
                 if (RT_FAILURE(rc)) \
@@ -118,7 +120,7 @@ static DECLCALLBACK(int) dbgcOpRangeTo(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR p
                     (pResult)->u.u64Number  = (pResult)->u.u64Number  Operator  u64Right; \
                     break; \
                 default: \
-                    return VERR_PARSE_INCORRECT_ARG_TYPE; \
+                    return VERR_DBGC_PARSE_INCORRECT_ARG_TYPE; \
             } \
         } \
         return rc; \
@@ -151,7 +153,7 @@ static DECLCALLBACK(int) dbgcOpRangeTo(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR p
 *   Global Variables                                                           *
 *******************************************************************************/
 /** Operators. */
-const DBGCOP g_aOps[] =
+const DBGCOP g_aDbgcOps[] =
 {
     /* szName is initialized as a 4 char array because of M$C elsewise optimizing it away in /Ox mode (the 'const char' vs 'char' problem). */
     /* szName,          cchName, fBinary,    iPrecedence,    pfnHandlerUnary,    pfnHandlerBitwise  */
@@ -164,11 +166,11 @@ const DBGCOP g_aOps[] =
     { {'%','%'},        2,       false,      3,              dbgcOpAddrPhys,     NULL,                       DBGCVAR_CAT_ANY,    DBGCVAR_CAT_ANY, "Physical address." },
     { {'#'},            1,       false,      3,              dbgcOpAddrHost,     NULL,                       DBGCVAR_CAT_ANY,    DBGCVAR_CAT_ANY, "Flat host address." },
     { {'#','%','%'},    3,       false,      3,              dbgcOpAddrHostPhys, NULL,                       DBGCVAR_CAT_ANY,    DBGCVAR_CAT_ANY, "Physical host address." },
-    { {'$'},            1,       false,      3,              dbgcOpVar,          NULL,                       DBGCVAR_CAT_STRING, DBGCVAR_CAT_ANY, "Reference a variable." },
-    { {'@'},            1,       false,      3,              dbgcOpRegister,     NULL,                       DBGCVAR_CAT_STRING, DBGCVAR_CAT_ANY, "Reference a register." },
+    { {'$'},            1,       false,      3,              dbgcOpVar,          NULL,                       DBGCVAR_CAT_SYMBOL, DBGCVAR_CAT_ANY, "Reference a variable." },
+    { {'@'},            1,       false,      3,              dbgcOpRegister,     NULL,                       DBGCVAR_CAT_SYMBOL, DBGCVAR_CAT_ANY, "Reference a register." },
     { {'*'},            1,       true,       10,             NULL,               dbgcOpMult,                 DBGCVAR_CAT_ANY,    DBGCVAR_CAT_ANY, "Multiplication." },
     { {'/'},            1,       true,       11,             NULL,               dbgcOpDiv,                  DBGCVAR_CAT_ANY,    DBGCVAR_CAT_ANY, "Division." },
-    { {'%'},            1,       true,       12,             NULL,               dbgcOpMod,                  DBGCVAR_CAT_ANY,    DBGCVAR_CAT_ANY, "Modulus." },
+    { {'m','o','d'},    3,       true,       12,             NULL,               dbgcOpMod,                  DBGCVAR_CAT_ANY,    DBGCVAR_CAT_ANY, "Modulus." },
     { {'+'},            1,       true,       13,             NULL,               dbgcOpAdd,                  DBGCVAR_CAT_ANY,    DBGCVAR_CAT_ANY, "Addition." },
     { {'-'},            1,       true,       14,             NULL,               dbgcOpSub,                  DBGCVAR_CAT_ANY,    DBGCVAR_CAT_ANY, "Subtraction." },
     { {'<','<'},        2,       true,       15,             NULL,               dbgcOpBitwiseShiftLeft,     DBGCVAR_CAT_ANY,    DBGCVAR_CAT_ANY, "Bitwise left shift." },
@@ -184,7 +186,7 @@ const DBGCOP g_aOps[] =
 };
 
 /** Number of operators in the operator array. */
-const unsigned g_cOps = RT_ELEMENTS(g_aOps);
+const uint32_t g_cDbgcOps = RT_ELEMENTS(g_aDbgcOps);
 
 
 /**
@@ -215,7 +217,9 @@ static int dbgcOpHelperGetNumber(PDBGC pDbgc, PCDBGCVAR pArg, uint64_t *pu64Ret)
         case DBGCVAR_TYPE_HC_PHYS:
             *pu64Ret = Var.u.HCPhys;
             break;
-        case DBGCVAR_TYPE_STRING:
+        case DBGCVAR_TYPE_NUMBER:
+            *pu64Ret = Var.u.u64Number;
+            break;
         case DBGCVAR_TYPE_SYMBOL:
         {
             int rc = dbgcSymbolGet(pDbgc, Var.u.pszString, DBGCVAR_TYPE_NUMBER, &Var);
@@ -223,11 +227,9 @@ static int dbgcOpHelperGetNumber(PDBGC pDbgc, PCDBGCVAR pArg, uint64_t *pu64Ret)
                 return rc;
             /* fall thru */
         }
-        case DBGCVAR_TYPE_NUMBER:
-            *pu64Ret = Var.u.u64Number;
-            break;
+        case DBGCVAR_TYPE_STRING:
         default:
-            return VERR_PARSE_INCORRECT_ARG_TYPE;
+            return VERR_DBGC_PARSE_INCORRECT_ARG_TYPE;
     }
     return VINF_SUCCESS;
 }
@@ -243,7 +245,7 @@ static int dbgcOpHelperGetNumber(PDBGC pDbgc, PCDBGCVAR pArg, uint64_t *pu64Ret)
  * @param   pArg        The argument.
  * @param   pResult     Where to store the result.
  */
-static DECLCALLBACK(int) dbgcOpMinus(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcOpMinus(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult)
 {
     LogFlow(("dbgcOpMinus\n"));
     *pResult = *pArg;
@@ -268,10 +270,10 @@ static DECLCALLBACK(int) dbgcOpMinus(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResu
             pResult->u.u64Number    = -(int64_t)pResult->u.u64Number;
             break;
 
-        case DBGCVAR_TYPE_UNKNOWN:
         case DBGCVAR_TYPE_STRING:
+        case DBGCVAR_TYPE_SYMBOL:
         default:
-            return VERR_PARSE_INCORRECT_ARG_TYPE;
+            return VERR_DBGC_PARSE_INCORRECT_ARG_TYPE;
     }
     NOREF(pDbgc);
     return VINF_SUCCESS;
@@ -288,7 +290,7 @@ static DECLCALLBACK(int) dbgcOpMinus(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResu
  * @param   pArg        The argument.
  * @param   pResult     Where to store the result.
  */
-static DECLCALLBACK(int) dbgcOpPluss(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcOpPluss(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult)
 {
     LogFlow(("dbgcOpPluss\n"));
     *pResult = *pArg;
@@ -302,10 +304,10 @@ static DECLCALLBACK(int) dbgcOpPluss(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResu
         case DBGCVAR_TYPE_NUMBER:
             break;
 
-        case DBGCVAR_TYPE_UNKNOWN:
         case DBGCVAR_TYPE_STRING:
+        case DBGCVAR_TYPE_SYMBOL:
         default:
-            return VERR_PARSE_INCORRECT_ARG_TYPE;
+            return VERR_DBGC_PARSE_INCORRECT_ARG_TYPE;
     }
     NOREF(pDbgc);
     return VINF_SUCCESS;
@@ -322,7 +324,7 @@ static DECLCALLBACK(int) dbgcOpPluss(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResu
  * @param   pArg        The argument.
  * @param   pResult     Where to store the result.
  */
-static DECLCALLBACK(int) dbgcOpBooleanNot(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcOpBooleanNot(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult)
 {
     LogFlow(("dbgcOpBooleanNot\n"));
     *pResult = *pArg;
@@ -347,12 +349,13 @@ static DECLCALLBACK(int) dbgcOpBooleanNot(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR 
             pResult->u.u64Number    = !pResult->u.u64Number;
             break;
         case DBGCVAR_TYPE_STRING:
+        case DBGCVAR_TYPE_SYMBOL:
             pResult->u.u64Number    = !pResult->u64Range;
             break;
 
         case DBGCVAR_TYPE_UNKNOWN:
         default:
-            return VERR_PARSE_INCORRECT_ARG_TYPE;
+            return VERR_DBGC_PARSE_INCORRECT_ARG_TYPE;
     }
     pResult->enmType = DBGCVAR_TYPE_NUMBER;
     NOREF(pDbgc);
@@ -370,7 +373,7 @@ static DECLCALLBACK(int) dbgcOpBooleanNot(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR 
  * @param   pArg        The argument.
  * @param   pResult     Where to store the result.
  */
-static DECLCALLBACK(int) dbgcOpBitwiseNot(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcOpBitwiseNot(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult)
 {
     LogFlow(("dbgcOpBitwiseNot\n"));
     *pResult = *pArg;
@@ -395,10 +398,10 @@ static DECLCALLBACK(int) dbgcOpBitwiseNot(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR 
             pResult->u.u64Number    = ~pResult->u.u64Number;
             break;
 
-        case DBGCVAR_TYPE_UNKNOWN:
         case DBGCVAR_TYPE_STRING:
+        case DBGCVAR_TYPE_SYMBOL:
         default:
-            return VERR_PARSE_INCORRECT_ARG_TYPE;
+            return VERR_DBGC_PARSE_INCORRECT_ARG_TYPE;
     }
     NOREF(pDbgc);
     return VINF_SUCCESS;
@@ -415,15 +418,10 @@ static DECLCALLBACK(int) dbgcOpBitwiseNot(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR 
  * @param   pArg        The argument.
  * @param   pResult     Where to store the result.
  */
-static DECLCALLBACK(int) dbgcOpVar(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult)
+static DECLCALLBACK(int) dbgcOpVar(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult)
 {
     LogFlow(("dbgcOpVar: %s\n", pArg->u.pszString));
-
-    /*
-     * Parse sanity.
-     */
-    if (pArg->enmType != DBGCVAR_TYPE_STRING)
-        return VERR_PARSE_INCORRECT_ARG_TYPE;
+    AssertReturn(pArg->enmType == DBGCVAR_TYPE_SYMBOL, VERR_DBGC_PARSE_BUG);
 
     /*
      * Lookup the variable.
@@ -438,7 +436,7 @@ static DECLCALLBACK(int) dbgcOpVar(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult
         }
     }
 
-    return VERR_PARSE_VARIABLE_NOT_FOUND;
+    return VERR_DBGC_PARSE_VARIABLE_NOT_FOUND;
 }
 
 
@@ -452,16 +450,22 @@ static DECLCALLBACK(int) dbgcOpVar(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult
  * @param   pArg        The argument.
  * @param   pResult     Where to store the result.
  */
-DECLCALLBACK(int) dbgcOpRegister(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult)
+DECLCALLBACK(int) dbgcOpRegister(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult)
 {
     LogFlow(("dbgcOpRegister: %s\n", pArg->u.pszString));
+    AssertReturn(pArg->enmType == DBGCVAR_TYPE_SYMBOL, VERR_DBGC_PARSE_BUG);
 
     /*
-     * Parse sanity.
+     * If the desired result is a symbol, pass the argument along unmodified.
+     * This is a great help for "r @eax" and such, since it will be translated to "r eax".
      */
-    if (   pArg->enmType != DBGCVAR_TYPE_STRING
-        && pArg->enmType != DBGCVAR_TYPE_SYMBOL)
-        return VERR_PARSE_INCORRECT_ARG_TYPE;
+    if (enmCat == DBGCVAR_CAT_SYMBOL)
+    {
+        int rc = DBGFR3RegNmValidate(pDbgc->pVM, pDbgc->idCpu, pArg->u.pszString);
+        if (RT_SUCCESS(rc))
+            DBGCVAR_INIT_STRING(pResult, pArg->u.pszString);
+        return rc;
+    }
 
     /*
      * Get the register.
@@ -495,9 +499,9 @@ DECLCALLBACK(int) dbgcOpRegister(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult)
 
             case DBGFREGVALTYPE_R80:
 #ifdef RT_COMPILER_WITH_80BIT_LONG_DOUBLE
-                DBGCVAR_INIT_NUMBER(pResult, (uint64_t)Value.r80.lrd);
+                DBGCVAR_INIT_NUMBER(pResult, (uint64_t)Value.r80Ex.lrd);
 #else
-                DBGCVAR_INIT_NUMBER(pResult, (uint64_t)Value.r80.sj64.u63Fraction);
+                DBGCVAR_INIT_NUMBER(pResult, (uint64_t)Value.r80Ex.sj64.u63Fraction);
 #endif
                 return VINF_SUCCESS;
 
@@ -526,7 +530,7 @@ DECLCALLBACK(int) dbgcOpRegister(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult)
  * @param   pArg        The argument.
  * @param   pResult     Where to store the result.
  */
-DECLCALLBACK(int) dbgcOpAddrFlat(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult)
+DECLCALLBACK(int) dbgcOpAddrFlat(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult)
 {
     LogFlow(("dbgcOpAddrFlat\n"));
     DBGCVARTYPE enmType = DBGCVAR_ISHCPOINTER(pArg->enmType) ? DBGCVAR_TYPE_HC_FLAT : DBGCVAR_TYPE_GC_FLAT;
@@ -544,7 +548,7 @@ DECLCALLBACK(int) dbgcOpAddrFlat(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult)
  * @param   pArg        The argument.
  * @param   pResult     Where to store the result.
  */
-DECLCALLBACK(int) dbgcOpAddrPhys(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult)
+DECLCALLBACK(int) dbgcOpAddrPhys(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult)
 {
     LogFlow(("dbgcOpAddrPhys\n"));
     DBGCVARTYPE enmType = DBGCVAR_ISHCPOINTER(pArg->enmType) ? DBGCVAR_TYPE_HC_PHYS : DBGCVAR_TYPE_GC_PHYS;
@@ -562,7 +566,7 @@ DECLCALLBACK(int) dbgcOpAddrPhys(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult)
  * @param   pArg        The argument.
  * @param   pResult     Where to store the result.
  */
-DECLCALLBACK(int) dbgcOpAddrHostPhys(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult)
+DECLCALLBACK(int) dbgcOpAddrHostPhys(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult)
 {
     LogFlow(("dbgcOpAddrPhys\n"));
     return DBGCCmdHlpConvert(&pDbgc->CmdHlp, pArg, DBGCVAR_TYPE_HC_PHYS, true /*fConvSyms*/, pResult);
@@ -579,7 +583,7 @@ DECLCALLBACK(int) dbgcOpAddrHostPhys(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResu
  * @param   pArg        The argument.
  * @param   pResult     Where to store the result.
  */
-DECLCALLBACK(int) dbgcOpAddrHost(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult)
+DECLCALLBACK(int) dbgcOpAddrHost(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult)
 {
     LogFlow(("dbgcOpAddrHost\n"));
     return DBGCCmdHlpConvert(&pDbgc->CmdHlp, pArg, DBGCVAR_TYPE_HC_FLAT, true /*fConvSyms*/, pResult);
@@ -603,7 +607,7 @@ static DECLCALLBACK(int) dbgcOpAddrFar(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR p
 
     switch (pArg1->enmType)
     {
-        case DBGCVAR_TYPE_STRING:
+        case DBGCVAR_TYPE_SYMBOL:
             rc = dbgcSymbolGet(pDbgc, pArg1->u.pszString, DBGCVAR_TYPE_NUMBER, pResult);
             if (RT_FAILURE(rc))
                 return rc;
@@ -611,15 +615,8 @@ static DECLCALLBACK(int) dbgcOpAddrFar(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR p
         case DBGCVAR_TYPE_NUMBER:
             *pResult = *pArg1;
             break;
-
-        case DBGCVAR_TYPE_GC_FLAT:
-        case DBGCVAR_TYPE_GC_FAR:
-        case DBGCVAR_TYPE_GC_PHYS:
-        case DBGCVAR_TYPE_HC_FLAT:
-        case DBGCVAR_TYPE_HC_PHYS:
-        case DBGCVAR_TYPE_UNKNOWN:
         default:
-            return VERR_PARSE_INCORRECT_ARG_TYPE;
+            return VERR_DBGC_PARSE_INCORRECT_ARG_TYPE;
     }
     pResult->u.GCFar.sel = (RTSEL)pResult->u.u64Number;
 
@@ -641,7 +638,7 @@ static DECLCALLBACK(int) dbgcOpAddrFar(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR p
             pResult->enmType    = DBGCVAR_TYPE_GC_FAR;
             break;
 
-        case DBGCVAR_TYPE_STRING:
+        case DBGCVAR_TYPE_SYMBOL:
         {
             DBGCVAR Var;
             rc = dbgcSymbolGet(pDbgc, pArg2->u.pszString, DBGCVAR_TYPE_NUMBER, &Var);
@@ -652,12 +649,8 @@ static DECLCALLBACK(int) dbgcOpAddrFar(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR p
             break;
         }
 
-        case DBGCVAR_TYPE_GC_FAR:
-        case DBGCVAR_TYPE_GC_PHYS:
-        case DBGCVAR_TYPE_HC_PHYS:
-        case DBGCVAR_TYPE_UNKNOWN:
         default:
-            return VERR_PARSE_INCORRECT_ARG_TYPE;
+            return VERR_DBGC_PARSE_INCORRECT_ARG_TYPE;
     }
     return VINF_SUCCESS;
 
@@ -737,18 +730,23 @@ static DECLCALLBACK(int) dbgcOpAdd(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
     /*
      * An addition operation will return (when possible) the left side type in the
      * expression. We make an omission for numbers, where we'll take the right side
-     * type instead. An expression where only the left hand side is a string we'll
-     * use the right hand type assuming that the string is a symbol.
+     * type instead. An expression where only the left hand side is a symbol we'll
+     * use the right hand type to try resolve it.
      */
-    if (    (pArg1->enmType == DBGCVAR_TYPE_NUMBER && pArg2->enmType != DBGCVAR_TYPE_STRING)
-        ||  (pArg1->enmType == DBGCVAR_TYPE_STRING && pArg2->enmType != DBGCVAR_TYPE_STRING))
+    if (   pArg1->enmType == DBGCVAR_TYPE_STRING
+        || pArg2->enmType == DBGCVAR_TYPE_STRING)
+        return VERR_DBGC_PARSE_INVALID_OPERATION; /** @todo string contactenation later. */
+
+    if (    (pArg1->enmType == DBGCVAR_TYPE_NUMBER && pArg2->enmType != DBGCVAR_TYPE_SYMBOL)
+        ||  (pArg1->enmType == DBGCVAR_TYPE_SYMBOL && pArg2->enmType != DBGCVAR_TYPE_SYMBOL))
     {
         PCDBGCVAR pTmp = pArg2;
         pArg2 = pArg1;
         pArg1 = pTmp;
     }
+
     DBGCVAR     Sym1, Sym2;
-    if (pArg1->enmType == DBGCVAR_TYPE_STRING)
+    if (pArg1->enmType == DBGCVAR_TYPE_SYMBOL)
     {
         int rc = dbgcSymbolGet(pDbgc, pArg1->u.pszString, DBGCVAR_TYPE_ANY, &Sym1);
         if (RT_FAILURE(rc))
@@ -774,10 +772,10 @@ static DECLCALLBACK(int) dbgcOpAdd(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
             {
                 case DBGCVAR_TYPE_HC_FLAT:
                 case DBGCVAR_TYPE_HC_PHYS:
-                    return VERR_PARSE_INVALID_OPERATION;
+                    return VERR_DBGC_PARSE_INVALID_OPERATION;
                 default:
                     *pResult = *pArg1;
-                    rc = dbgcOpAddrFlat(pDbgc, pArg2, &Var);
+                    rc = dbgcOpAddrFlat(pDbgc, pArg2, DBGCVAR_CAT_ANY, &Var);
                     if (RT_FAILURE(rc))
                         return rc;
                     pResult->u.GCFlat += pArg2->u.GCFlat;
@@ -793,16 +791,16 @@ static DECLCALLBACK(int) dbgcOpAdd(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
             {
                 case DBGCVAR_TYPE_HC_FLAT:
                 case DBGCVAR_TYPE_HC_PHYS:
-                    return VERR_PARSE_INVALID_OPERATION;
+                    return VERR_DBGC_PARSE_INVALID_OPERATION;
                 case DBGCVAR_TYPE_NUMBER:
                     *pResult = *pArg1;
                     pResult->u.GCFar.off += (RTGCPTR)pArg2->u.u64Number;
                     break;
                 default:
-                    rc = dbgcOpAddrFlat(pDbgc, pArg1, pResult);
+                    rc = dbgcOpAddrFlat(pDbgc, pArg1, DBGCVAR_CAT_ANY, pResult);
                     if (RT_FAILURE(rc))
                         return rc;
-                    rc = dbgcOpAddrFlat(pDbgc, pArg2, &Var);
+                    rc = dbgcOpAddrFlat(pDbgc, pArg2, DBGCVAR_CAT_ANY, &Var);
                     if (RT_FAILURE(rc))
                         return rc;
                     pResult->u.GCFlat += pArg2->u.GCFlat;
@@ -818,14 +816,14 @@ static DECLCALLBACK(int) dbgcOpAdd(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
             {
                 case DBGCVAR_TYPE_HC_FLAT:
                 case DBGCVAR_TYPE_HC_PHYS:
-                    return VERR_PARSE_INVALID_OPERATION;
+                    return VERR_DBGC_PARSE_INVALID_OPERATION;
                 default:
                     *pResult = *pArg1;
-                    rc = dbgcOpAddrPhys(pDbgc, pArg2, &Var);
+                    rc = dbgcOpAddrPhys(pDbgc, pArg2, DBGCVAR_CAT_ANY, &Var);
                     if (RT_FAILURE(rc))
                         return rc;
                     if (Var.enmType != DBGCVAR_TYPE_GC_PHYS)
-                        return VERR_PARSE_INVALID_OPERATION;
+                        return VERR_DBGC_PARSE_INVALID_OPERATION;
                     pResult->u.GCPhys += Var.u.GCPhys;
                     break;
             }
@@ -836,10 +834,10 @@ static DECLCALLBACK(int) dbgcOpAdd(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
          */
         case DBGCVAR_TYPE_HC_FLAT:
             *pResult = *pArg1;
-            rc = dbgcOpAddrHost(pDbgc, pArg2, &Var2);
+            rc = dbgcOpAddrHost(pDbgc, pArg2, DBGCVAR_CAT_ANY, &Var2);
             if (RT_FAILURE(rc))
                 return rc;
-            rc = dbgcOpAddrFlat(pDbgc, &Var2, &Var);
+            rc = dbgcOpAddrFlat(pDbgc, &Var2, DBGCVAR_CAT_ANY, &Var);
             if (RT_FAILURE(rc))
                 return rc;
             pResult->u.pvHCFlat = (char *)pResult->u.pvHCFlat + (uintptr_t)Var.u.pvHCFlat;
@@ -850,7 +848,7 @@ static DECLCALLBACK(int) dbgcOpAdd(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
          */
         case DBGCVAR_TYPE_HC_PHYS:
             *pResult = *pArg1;
-            rc = dbgcOpAddrHostPhys(pDbgc, pArg2, &Var);
+            rc = dbgcOpAddrHostPhys(pDbgc, pArg2, DBGCVAR_CAT_ANY, &Var);
             if (RT_FAILURE(rc))
                 return rc;
             pResult->u.HCPhys += Var.u.HCPhys;
@@ -864,7 +862,6 @@ static DECLCALLBACK(int) dbgcOpAdd(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
             switch (pArg2->enmType)
             {
                 case DBGCVAR_TYPE_SYMBOL:
-                case DBGCVAR_TYPE_STRING:
                     rc = dbgcSymbolGet(pDbgc, pArg2->u.pszString, DBGCVAR_TYPE_NUMBER, &Var);
                     if (RT_FAILURE(rc))
                         return rc;
@@ -872,12 +869,12 @@ static DECLCALLBACK(int) dbgcOpAdd(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
                     pResult->u.u64Number += pArg2->u.u64Number;
                     break;
                 default:
-                    return VERR_PARSE_INVALID_OPERATION;
+                    return VERR_DBGC_PARSE_INVALID_OPERATION;
             }
             break;
 
         default:
-            return VERR_PARSE_INVALID_OPERATION;
+            return VERR_DBGC_PARSE_INVALID_OPERATION;
 
     }
     return VINF_SUCCESS;
@@ -903,12 +900,12 @@ static DECLCALLBACK(int) dbgcOpSub(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
      * An subtraction operation will return the left side type in the expression.
      * However, if the left hand side is a number and the right hand a pointer of
      * some kind we'll convert the left hand side to the same type as the right hand.
-     * Any strings will be attempted resolved as symbols.
+     * Any symbols will be resolved, strings will be rejected.
      */
     DBGCVAR     Sym1, Sym2;
-    if (    pArg2->enmType == DBGCVAR_TYPE_STRING
+    if (    pArg2->enmType == DBGCVAR_TYPE_SYMBOL
         &&  (   pArg1->enmType == DBGCVAR_TYPE_NUMBER
-             || pArg1->enmType == DBGCVAR_TYPE_STRING))
+             || pArg1->enmType == DBGCVAR_TYPE_SYMBOL))
     {
         int rc = dbgcSymbolGet(pDbgc, pArg2->u.pszString, DBGCVAR_TYPE_ANY, &Sym2);
         if (RT_FAILURE(rc))
@@ -916,7 +913,11 @@ static DECLCALLBACK(int) dbgcOpSub(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
         pArg2 = &Sym2;
     }
 
-    if (pArg1->enmType == DBGCVAR_TYPE_STRING)
+    if (   pArg1->enmType == DBGCVAR_TYPE_STRING
+        || pArg2->enmType == DBGCVAR_TYPE_STRING)
+        return VERR_DBGC_PARSE_INVALID_OPERATION;
+
+    if (pArg1->enmType == DBGCVAR_TYPE_SYMBOL)
     {
         DBGCVARTYPE enmType;
         switch (pArg2->enmType)
@@ -933,12 +934,7 @@ static DECLCALLBACK(int) dbgcOpSub(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
             case DBGCVAR_TYPE_GC_FAR:
                 enmType = DBGCVAR_TYPE_GC_FLAT;
                 break;
-
-            default:
-            case DBGCVAR_TYPE_STRING:
-                AssertMsgFailed(("Can't happen\n"));
-                enmType = DBGCVAR_TYPE_STRING;
-                break;
+            default: AssertFailedReturn(VERR_DBGC_IPE);
         }
         if (enmType != DBGCVAR_TYPE_STRING)
         {
@@ -968,20 +964,16 @@ static DECLCALLBACK(int) dbgcOpSub(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
                 break;
             case DBGCVAR_TYPE_NUMBER:
                 break;
-            default:
-            case DBGCVAR_TYPE_STRING:
-                AssertMsgFailed(("Can't happen\n"));
-                break;
+            default: AssertFailedReturn(VERR_DBGC_IPE);
         }
         if (pOp)
         {
-            int rc = pOp(pDbgc, pArg1, &Sym1);
+            int rc = pOp(pDbgc, pArg1, DBGCVAR_CAT_ANY, &Sym1);
             if (RT_FAILURE(rc))
                 return rc;
             pArg1 = &Sym1;
         }
     }
-
 
     /*
      * Normal processing.
@@ -999,10 +991,10 @@ static DECLCALLBACK(int) dbgcOpSub(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
             {
                 case DBGCVAR_TYPE_HC_FLAT:
                 case DBGCVAR_TYPE_HC_PHYS:
-                    return VERR_PARSE_INVALID_OPERATION;
+                    return VERR_DBGC_PARSE_INVALID_OPERATION;
                 default:
                     *pResult = *pArg1;
-                    rc = dbgcOpAddrFlat(pDbgc, pArg2, &Var);
+                    rc = dbgcOpAddrFlat(pDbgc, pArg2, DBGCVAR_CAT_ANY, &Var);
                     if (RT_FAILURE(rc))
                         return rc;
                     pResult->u.GCFlat -= pArg2->u.GCFlat;
@@ -1018,16 +1010,16 @@ static DECLCALLBACK(int) dbgcOpSub(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
             {
                 case DBGCVAR_TYPE_HC_FLAT:
                 case DBGCVAR_TYPE_HC_PHYS:
-                    return VERR_PARSE_INVALID_OPERATION;
+                    return VERR_DBGC_PARSE_INVALID_OPERATION;
                 case DBGCVAR_TYPE_NUMBER:
                     *pResult = *pArg1;
                     pResult->u.GCFar.off -= (RTGCPTR)pArg2->u.u64Number;
                     break;
                 default:
-                    rc = dbgcOpAddrFlat(pDbgc, pArg1, pResult);
+                    rc = dbgcOpAddrFlat(pDbgc, pArg1, DBGCVAR_CAT_ANY, pResult);
                     if (RT_FAILURE(rc))
                         return rc;
-                    rc = dbgcOpAddrFlat(pDbgc, pArg2, &Var);
+                    rc = dbgcOpAddrFlat(pDbgc, pArg2, DBGCVAR_CAT_ANY, &Var);
                     if (RT_FAILURE(rc))
                         return rc;
                     pResult->u.GCFlat -= pArg2->u.GCFlat;
@@ -1043,14 +1035,14 @@ static DECLCALLBACK(int) dbgcOpSub(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
             {
                 case DBGCVAR_TYPE_HC_FLAT:
                 case DBGCVAR_TYPE_HC_PHYS:
-                    return VERR_PARSE_INVALID_OPERATION;
+                    return VERR_DBGC_PARSE_INVALID_OPERATION;
                 default:
                     *pResult = *pArg1;
-                    rc = dbgcOpAddrPhys(pDbgc, pArg2, &Var);
+                    rc = dbgcOpAddrPhys(pDbgc, pArg2, DBGCVAR_CAT_ANY, &Var);
                     if (RT_FAILURE(rc))
                         return rc;
                     if (Var.enmType != DBGCVAR_TYPE_GC_PHYS)
-                        return VERR_PARSE_INVALID_OPERATION;
+                        return VERR_DBGC_PARSE_INVALID_OPERATION;
                     pResult->u.GCPhys -= Var.u.GCPhys;
                     break;
             }
@@ -1061,10 +1053,10 @@ static DECLCALLBACK(int) dbgcOpSub(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
          */
         case DBGCVAR_TYPE_HC_FLAT:
             *pResult = *pArg1;
-            rc = dbgcOpAddrHost(pDbgc, pArg2, &Var2);
+            rc = dbgcOpAddrHost(pDbgc, pArg2, DBGCVAR_CAT_ANY, &Var2);
             if (RT_FAILURE(rc))
                 return rc;
-            rc = dbgcOpAddrFlat(pDbgc, &Var2, &Var);
+            rc = dbgcOpAddrFlat(pDbgc, &Var2, DBGCVAR_CAT_ANY, &Var);
             if (RT_FAILURE(rc))
                 return rc;
             pResult->u.pvHCFlat = (char *)pResult->u.pvHCFlat - (uintptr_t)Var.u.pvHCFlat;
@@ -1075,7 +1067,7 @@ static DECLCALLBACK(int) dbgcOpSub(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
          */
         case DBGCVAR_TYPE_HC_PHYS:
             *pResult = *pArg1;
-            rc = dbgcOpAddrHostPhys(pDbgc, pArg2, &Var);
+            rc = dbgcOpAddrHostPhys(pDbgc, pArg2, DBGCVAR_CAT_ANY, &Var);
             if (RT_FAILURE(rc))
                 return rc;
             pResult->u.HCPhys -= Var.u.HCPhys;
@@ -1089,7 +1081,6 @@ static DECLCALLBACK(int) dbgcOpSub(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
             switch (pArg2->enmType)
             {
                 case DBGCVAR_TYPE_SYMBOL:
-                case DBGCVAR_TYPE_STRING:
                     rc = dbgcSymbolGet(pDbgc, pArg2->u.pszString, DBGCVAR_TYPE_NUMBER, &Var);
                     if (RT_FAILURE(rc))
                         return rc;
@@ -1097,12 +1088,12 @@ static DECLCALLBACK(int) dbgcOpSub(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2
                     pResult->u.u64Number -= pArg2->u.u64Number;
                     break;
                 default:
-                    return VERR_PARSE_INVALID_OPERATION;
+                    return VERR_DBGC_PARSE_INVALID_OPERATION;
             }
             break;
 
         default:
-            return VERR_PARSE_INVALID_OPERATION;
+            return VERR_DBGC_PARSE_INVALID_OPERATION;
 
     }
     return VINF_SUCCESS;
@@ -1255,10 +1246,13 @@ static DECLCALLBACK(int) dbgcOpRangeLength(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCV
 {
     LogFlow(("dbgcOpRangeLength\n"));
 
-    /*
-     * Make result. Strings needs to be resolved into symbols.
-     */
     if (pArg1->enmType == DBGCVAR_TYPE_STRING)
+        return VERR_DBGC_PARSE_INVALID_OPERATION;
+
+    /*
+     * Make result. Symbols needs to be resolved.
+     */
+    if (pArg1->enmType == DBGCVAR_TYPE_SYMBOL)
     {
         int rc = dbgcSymbolGet(pDbgc, pArg1->u.pszString, DBGCVAR_TYPE_ANY, pResult);
         if (RT_FAILURE(rc))
@@ -1277,7 +1271,7 @@ static DECLCALLBACK(int) dbgcOpRangeLength(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCV
             pResult->u64Range = pArg2->u.u64Number;
             break;
 
-        case DBGCVAR_TYPE_STRING:
+        case DBGCVAR_TYPE_SYMBOL:
         {
             int rc = dbgcSymbolGet(pDbgc, pArg2->u.pszString, DBGCVAR_TYPE_NUMBER, pResult);
             if (RT_FAILURE(rc))
@@ -1286,8 +1280,9 @@ static DECLCALLBACK(int) dbgcOpRangeLength(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCV
             break;
         }
 
+        case DBGCVAR_TYPE_STRING:
         default:
-            return VERR_PARSE_INVALID_OPERATION;
+            return VERR_DBGC_PARSE_INVALID_OPERATION;
     }
 
     return VINF_SUCCESS;
@@ -1363,9 +1358,10 @@ static DECLCALLBACK(int) dbgcOpRangeTo(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR p
 
         case DBGCVAR_TYPE_GC_FAR:
         case DBGCVAR_TYPE_STRING:
+        case DBGCVAR_TYPE_SYMBOL:
         default:
             AssertMsgFailed(("Impossible!\n"));
-            return VERR_PARSE_INVALID_OPERATION;
+            return VERR_DBGC_PARSE_INVALID_OPERATION;
     }
 
     return VINF_SUCCESS;
@@ -1387,30 +1383,30 @@ static DECLCALLBACK(int) dbgcOpRangeTo(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR p
 PCDBGCOP dbgcOperatorLookup(PDBGC pDbgc, const char *pszExpr, bool fPreferBinary, char chPrev)
 {
     PCDBGCOP    pOp = NULL;
-    for (unsigned iOp = 0; iOp < RT_ELEMENTS(g_aOps); iOp++)
+    for (unsigned iOp = 0; iOp < RT_ELEMENTS(g_aDbgcOps); iOp++)
     {
-        if (     g_aOps[iOp].szName[0] == pszExpr[0]
-            &&  (!g_aOps[iOp].szName[1] || g_aOps[iOp].szName[1] == pszExpr[1])
-            &&  (!g_aOps[iOp].szName[2] || g_aOps[iOp].szName[2] == pszExpr[2]))
+        if (     g_aDbgcOps[iOp].szName[0] == pszExpr[0]
+            &&  (!g_aDbgcOps[iOp].szName[1] || g_aDbgcOps[iOp].szName[1] == pszExpr[1])
+            &&  (!g_aDbgcOps[iOp].szName[2] || g_aDbgcOps[iOp].szName[2] == pszExpr[2]))
         {
             /*
              * Check that we don't mistake it for some other operator which have more chars.
              */
             unsigned j;
-            for (j = iOp + 1; j < RT_ELEMENTS(g_aOps); j++)
-                if (    g_aOps[j].cchName > g_aOps[iOp].cchName
-                    &&  g_aOps[j].szName[0] == pszExpr[0]
-                    &&  (!g_aOps[j].szName[1] || g_aOps[j].szName[1] == pszExpr[1])
-                    &&  (!g_aOps[j].szName[2] || g_aOps[j].szName[2] == pszExpr[2]) )
+            for (j = iOp + 1; j < RT_ELEMENTS(g_aDbgcOps); j++)
+                if (    g_aDbgcOps[j].cchName > g_aDbgcOps[iOp].cchName
+                    &&  g_aDbgcOps[j].szName[0] == pszExpr[0]
+                    &&  (!g_aDbgcOps[j].szName[1] || g_aDbgcOps[j].szName[1] == pszExpr[1])
+                    &&  (!g_aDbgcOps[j].szName[2] || g_aDbgcOps[j].szName[2] == pszExpr[2]) )
                     break;
-            if (j < RT_ELEMENTS(g_aOps))
+            if (j < RT_ELEMENTS(g_aDbgcOps))
                 continue;       /* we'll catch it later. (for theoretical +,++,+++ cases.) */
-            pOp = &g_aOps[iOp];
+            pOp = &g_aDbgcOps[iOp];
 
             /*
              * Preferred type?
              */
-            if (g_aOps[iOp].fBinary == fPreferBinary)
+            if (g_aDbgcOps[iOp].fBinary == fPreferBinary)
                 break;
         }
     }

@@ -19,9 +19,6 @@
 #ifndef ___VBoxVersion_h___
 #define ___VBoxVersion_h___
 
-/* Global includes: */
-#include <QStringList>
-
 /**
  *  Represents VirtualBox version wrapper
  */

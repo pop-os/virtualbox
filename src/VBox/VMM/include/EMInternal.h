@@ -43,15 +43,16 @@ RT_C_DECLS_BEGIN
 #define EM_SAVED_STATE_VERSION_PRE_SMP                  2
 
 
-/**
- * MWait state flags.
+/** @name MWait state flags.
+ * @{
  */
-/* MWait activated. */
+/** MWait activated. */
 #define EMMWAIT_FLAG_ACTIVE             RT_BIT(0)
-/* MWait will continue when an interrupt is pending even when IF=0. */
+/** MWait will continue when an interrupt is pending even when IF=0. */
 #define EMMWAIT_FLAG_BREAKIRQIF0        RT_BIT(1)
-/* Monitor instruction was executed previously. */
+/** Monitor instruction was executed previously. */
 #define EMMWAIT_FLAG_MONITOR_ACTIVE     RT_BIT(2)
+/** @} */
 
 /** EM time slice in ms; used for capping execution time. */
 #define EM_TIME_SLICE                   100
@@ -270,8 +271,8 @@ typedef struct EMSTATS
     STAMCOUNTER             StatOut;
     STAMCOUNTER             StatInvlpg;
     STAMCOUNTER             StatHlt;
-    STAMCOUNTER             StatMovReadCR[USE_REG_CR4 + 1];
-    STAMCOUNTER             StatMovWriteCR[USE_REG_CR4 + 1];
+    STAMCOUNTER             StatMovReadCR[DISCREG_CR4 + 1];
+    STAMCOUNTER             StatMovWriteCR[DISCREG_CR4 + 1];
     STAMCOUNTER             StatMovDRx;
     STAMCOUNTER             StatIret;
     STAMCOUNTER             StatMovLgdt;
@@ -309,10 +310,12 @@ typedef struct EM
     /** Id of the VCPU that last executed code in the recompiler. */
     VMCPUID                 idLastRemCpu;
 
+#ifdef VBOX_WITH_REM
     /** REM critical section.
      * This protects recompiler usage
      */
     PDMCRITSECT             CritSectREM;
+#endif
 } EM;
 /** Pointer to EM VM instance data. */
 typedef EM *PEM;
@@ -330,7 +333,7 @@ typedef struct EMCPU
     /** Execution Manager State. */
     EMSTATE volatile        enmState;
 
-    /** Previous Execution Manager State. */
+    /** The state prior to the suspending of the VM. */
     EMSTATE                 enmPrevState;
 
     /** Force raw-mode execution.
@@ -361,17 +364,17 @@ typedef struct EMCPU
     uint64_t                u64TimeSliceExec;
     uint64_t                u64Alignment;
 
-    /* MWait halt state. */
+    /** MWait halt state. */
     struct
     {
-        uint32_t            fWait;          /* type of mwait; see EMMWAIT_FLAG_* */
-        uint32_t            a32Padding[1];
-        RTGCPTR             uMWaitEAX;      /* mwait hints */
-        RTGCPTR             uMWaitECX;      /* mwait extensions */
-        RTGCPTR             uMonitorEAX;    /* monitored address. */
-        RTGCPTR             uMonitorECX;    /* monitor extension. */
-        RTGCPTR             uMonitorEDX;    /* monitor hint. */
-    } mwait;
+        uint32_t            fWait;          /** Type of mwait; see EMMWAIT_FLAG_*. */
+        uint32_t            u32Padding;
+        RTGCPTR             uMWaitRAX;      /** MWAIT hints. */
+        RTGCPTR             uMWaitRCX;      /** MWAIT extensions. */
+        RTGCPTR             uMonitorRAX;    /** Monitored address. */
+        RTGCPTR             uMonitorRCX;    /** Monitor extension. */
+        RTGCPTR             uMonitorRDX;    /** Monitor hint. */
+    } MWait;
 
     union
     {
@@ -386,15 +389,8 @@ typedef struct EMCPU
     } u;
 
     /** For saving stack space, the disassembler state is allocated here instead of
-     * on the stack.
-     * @note The DISCPUSTATE structure is not R3/R0/RZ clean!  */
-    union
-    {
-        /** The disassembler scratch space. */
-        DISCPUSTATE         DisState;
-        /** Padding. */
-        uint8_t             abDisStatePadding[DISCPUSTATE_PADDING_SIZE];
-    };
+     * on the stack. */
+    DISCPUSTATE             DisState;
 
     /** @name Execution profiling.
      * @{ */

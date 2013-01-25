@@ -176,7 +176,7 @@ static void _PR_InitStuff(void)
     if (_pr_initialized) return;
     _pr_initialized = PR_TRUE;
 #ifdef VBOX_USE_IPRT_IN_NSPR
-    RTR3Init();
+    RTR3InitDll(0);
 #endif
 #ifdef _PR_ZONE_ALLOCATOR
     _PR_InitZones();
@@ -680,7 +680,7 @@ PR_IMPLEMENT(PRFileDesc *) PR_GetInheritedFD(
 
     ptr = envVar;
     while (1) {
-        if ((ptr[len] == ':') && (strncmp(ptr, name, len) == 0)) {
+        if ((strncmp(ptr, name, len) == 0) && (ptr[len] == ':')) {
             ptr += len + 1;
             PR_sscanf(ptr, "%d:0x%lx", &fileType, &osfd);
             switch ((PRDescType)fileType) {

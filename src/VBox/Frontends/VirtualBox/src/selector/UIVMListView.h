@@ -44,6 +44,7 @@ public:
 
     UIVMItemModel(QObject *aParent = 0)
         :QAbstractListModel(aParent) {}
+    ~UIVMItemModel() { clear(); }
 
     void addItem(const CMachine &machine);
     void addItem(UIVMItem *aItem);
@@ -62,7 +63,7 @@ public:
     int rowById(const QString &aId) const;;
 
     QStringList idList() const;
-    void sortByIdList(const QStringList &list);
+    void sortByIdList(const QStringList &list, Qt::SortOrder order = Qt::AscendingOrder);
 
     int rowCount(const QModelIndex &aParent = QModelIndex()) const;
 
@@ -81,6 +82,7 @@ public:
 
 private:
     static bool UIVMItemNameCompareLessThan(UIVMItem* aItem1, UIVMItem* aItem2);
+    static bool UIVMItemNameCompareMoreThan(UIVMItem* aItem1, UIVMItem* aItem2);
 
     /* Private member vars */
     QList<UIVMItem *> m_VMItemList;
@@ -95,8 +97,9 @@ public:
 
     void selectItemByRow(int row);
     void selectItemById(const QString &aID);
-    void ensureSomeRowSelected(int aRowHint);
-    UIVMItem *selectedItem() const;
+    void ensureOneRowSelected(int aRowHint);
+    UIVMItem* currentItem() const;
+    QList<UIVMItem*> currentItems() const;
 
     void ensureCurrentVisible();
 
@@ -107,8 +110,6 @@ signals:
 
 protected slots:
     void selectionChanged(const QItemSelection &aSelected, const QItemSelection &aDeselected);
-    void currentChanged(const QModelIndex &aCurrent, const QModelIndex &aPrevious);
-    void dataChanged(const QModelIndex &aTopLeft, const QModelIndex &aBottomRight);
     void sltRowsAboutToBeInserted(const QModelIndex &parent, int start, int end);
 
 protected:

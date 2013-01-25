@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2008-2011 Oracle Corporation
+# Copyright (C) 2008-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,7 +16,7 @@
 #
 
 SUB_DEPTH = ../../../../..
-include	$(KBUILD_PATH)/subheader.kmk
+include $(KBUILD_PATH)/subheader.kmk
 
 DLLS += VBoxInstallHelper
 VBoxInstallHelper_TEMPLATE = VBOXR3STATIC
@@ -33,23 +33,20 @@ VBoxInstallHelper_SOURCES  = \
 ifndef VBOX_OSE
  VBoxInstallHelper_SOURCES += internal/VBoxSerial.cpp
 endif
-VBoxInstallHelper_SDKS     = WINPSDK W2K3DDK
-VBoxInstallHelper_LIBS     = $(PATH_SDK_W2K3DDK_LIB)/Msi.lib
+VBoxInstallHelper_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK)
+VBoxInstallHelper_LIBS     = $(PATH_SDK_$(VBOX_WINPSDK)_LIB)/Msi.lib
 ifdef VBOX_WITH_NETFLT
  VBoxInstallHelper_LIBS   += \
 	$(PATH_STAGE_LIB)/WinNetConfig.lib \
 	$(PATH_STAGE_LIB)/VBoxDrvCfg.lib \
+	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
  	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
- 	$(PATH_SDK_WINPSDK_LIB)/WbemUuid.Lib
+ 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
 endif
 
-ifeq ($(KBUILD_TARGET),win)
- ifdef VBOX_WITH_TESTCASES
-  ifndef VBOX_OSE
-   include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
-  endif
- endif
+if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_TESTCASES) && !defined(VBOX_OSE)
+ include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
 endif
 
-include	$(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

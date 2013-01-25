@@ -535,6 +535,9 @@ static int vmmdevReqHandler_ReportGuestInfo2(VMMDevState *pThis, VMMDevRequestHe
     if (pThis->pDrv && pThis->pDrv->pfnUpdateGuestInfo2)
         pThis->pDrv->pfnUpdateGuestInfo2(pThis->pDrv, uFullVersion, pszName, pInfo2->additionsRevision, pInfo2->additionsFeatures);
 
+    /* Clear our IRQ in case it was high for whatever reason. */
+    PDMDevHlpPCISetIrqNoWait (pThis->pDevIns, 0, 0);
+
     return VINF_SUCCESS;
 }
 
@@ -922,7 +925,11 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
             }
 
             if (pThis->fu32AdditionsOk)
+            {
                 pRequestHeader->rc = VINF_SUCCESS;
+                /* Clear our IRQ in case it was high for whatever reason. */
+                PDMDevHlpPCISetIrqNoWait (pThis->pDevIns, 0, 0);
+            }
             else
                 pRequestHeader->rc = VERR_VERSION_MISMATCH;
             break;
@@ -1348,7 +1355,17 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
         }
 
         /*
-         * Get display change request
+         * Retrieve a display resize request sent by the host using
+         * @a IDisplay:setVideoModeHint.  Deprecated.
+         * See documentation in VMMDev.h.
+         */
+        /**
+         * @todo It looks like a multi-monitor guest which only uses
+         *        @a VMMDevReq_GetDisplayChangeRequest (not the *2 version)
+         *        will get into a @a VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST event
+         *        loop if it tries to acknowlege host requests for additional
+         *        monitors.  Should the loop which checks for those requests
+         *        be removed?
          */
         case VMMDevReq_GetDisplayChangeRequest:
         {
@@ -1411,6 +1428,11 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
             break;
         }
 
+        /*
+         * Retrieve a display resize request sent by the host using
+         * @a IDisplay:setVideoModeHint.
+         * See documentation in VMMDev.h.
+         */
         case VMMDevReq_GetDisplayChangeRequest2:
         {
             if (pRequestHeader->size != sizeof(VMMDevDisplayChangeRequest2))

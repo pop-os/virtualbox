@@ -110,20 +110,28 @@ uint8_t ldub_code_raw(target_ulong pc)
         b = ldub_code(pc);
     return b;
 }
-#define ldub_code(a) ldub_code_raw(a)
+# define ldub_code(a) ldub_code_raw(a)
 
 uint16_t lduw_code_raw(target_ulong pc)
 {
-    return (ldub_code(pc+1) << 8) | ldub_code(pc);
+    uint16_t u16;
+    u16  = (uint16_t)ldub_code_raw(pc);
+    u16 |= (uint16_t)ldub_code_raw(pc + 1) << 8;
+    return u16;
 }
-#define lduw_code(a) lduw_code_raw(a)
+# define lduw_code(a) lduw_code_raw(a)
 
 
 uint32_t ldl_code_raw(target_ulong pc)
 {
-    return (ldub_code(pc+3) << 24) | (ldub_code(pc+2) << 16) | (ldub_code(pc+1) << 8) | ldub_code(pc);
+    uint32_t u32;
+    u32  = (uint32_t)ldub_code_raw(pc);
+    u32 |= (uint32_t)ldub_code_raw(pc + 1) << 8;
+    u32 |= (uint32_t)ldub_code_raw(pc + 2) << 16;
+    u32 |= (uint32_t)ldub_code_raw(pc + 3) << 24;
+    return u32;
 }
-#define ldl_code(a) ldl_code_raw(a)
+# define ldl_code(a) ldl_code_raw(a)
 
 #endif /* VBOX */
 
@@ -2471,7 +2479,7 @@ static inline void gen_goto_tb(DisasContext *s, int tb_num, target_ulong eip)
         /* jump to same page: we can use a direct jump */
         tcg_gen_goto_tb(tb_num);
         gen_jmp_im(eip);
-        tcg_gen_exit_tb((long)tb + tb_num);
+        tcg_gen_exit_tb((intptr_t)tb + tb_num);
     } else {
         /* jump to another page: currently not optimized */
         gen_jmp_im(eip);
@@ -8355,7 +8363,7 @@ void gen_intermediate_code_pc(CPUState *env, TranslationBlock *tb)
 }
 
 void gen_pc_load(CPUState *env, TranslationBlock *tb,
-                unsigned long searched_pc, int pc_pos, void *puc)
+                 uintptr_t searched_pc, int pc_pos, void *puc)
 {
     int cc_op;
 #ifdef DEBUG_DISAS

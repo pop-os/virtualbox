@@ -1,12 +1,10 @@
 /* $Id: UIGlobalSettingsExtension.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIGlobalSettingsExtension class implementation
+ * VBox Qt GUI - UIGlobalSettingsExtension class implementation.
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,16 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes */
+/* Qt includes: */
 #include <QHeaderView>
 
-/* Local includes */
+/* GUI includes: */
 #include "UIGlobalSettingsExtension.h"
 #include "UIIconPool.h"
 #include "QIFileDialog.h"
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
 #include "VBoxLicenseViewer.h"
+
+/* COM includes: */
+#include "CExtPackManager.h"
+#include "CExtPack.h"
+#include "CExtPackFile.h"
 
 /* Extension package item: */
 class UIExtensionPackageItem : public QTreeWidgetItem
@@ -112,8 +115,7 @@ UIGlobalSettingsExtension::UIGlobalSettingsExtension()
 /**
  * Attempt the actual installation.
  *
- * This code is shared by UIGlobalSettingsExtension::sltInstallPackage and
- * VBoxSelectorWnd::sltOpenUrls.
+ * This code is shared by UIGlobalSettingsExtension::sltInstallPackage and UISelectorWindow::sltOpenUrls.
  *
  * @param   strFilePath     The path to the tarball.
  * @param   strDigest       The digest of the file (SHA-256). Empty string if no
@@ -150,12 +152,7 @@ UIGlobalSettingsExtension::UIGlobalSettingsExtension()
 
     QString strPackName = extPackFile.GetName();
     QString strPackDescription = extPackFile.GetDescription();
-    QString strVersion(extPackFile.GetVersion().section(QRegExp("[-_]"), 0, 0));
-    QString strAppend;
-    /* workaround for http://qt.gitorious.org/qt/qt/commit/7fc63dd0ff368a637dcd17e692b9d6b26278b538 */
-    if (extPackFile.GetVersion().contains(QRegExp("[-_]")))
-        strAppend = extPackFile.GetVersion().section(QRegExp("[-_]"), 1, -1, QString::SectionIncludeLeadingSep);
-    QString strPackVersion = QString("%1r%2%3").arg(strVersion).arg(extPackFile.GetRevision()).arg(strAppend);
+    QString strPackVersion = QString("%1r%2%3").arg(extPackFile.GetVersion()).arg(extPackFile.GetRevision()).arg(extPackFile.GetEdition());
 
     /*
      * Check if there is a version of the extension pack already
@@ -166,12 +163,7 @@ UIGlobalSettingsExtension::UIGlobalSettingsExtension()
     bool fReplaceIt = extPackCur.isOk();
     if (fReplaceIt)
     {
-        QString strVersionCur(extPackCur.GetVersion().section(QRegExp("[-_]"), 0, 0));
-        QString strAppendCur;
-        /* workaround for http://qt.gitorious.org/qt/qt/commit/7fc63dd0ff368a637dcd17e692b9d6b26278b538 */
-        if (extPackCur.GetVersion().contains(QRegExp("[-_]")))
-            strAppendCur = extPackCur.GetVersion().section(QRegExp("[-_]"), 1, -1, QString::SectionIncludeLeadingSep);
-        QString strPackVersionCur = QString("%1r%2%3").arg(strVersionCur).arg(extPackCur.GetRevision()).arg(strAppendCur);
+        QString strPackVersionCur = QString("%1r%2%3").arg(extPackCur.GetVersion()).arg(extPackCur.GetRevision()).arg(extPackCur.GetEdition());
         if (!msgCenter().confirmReplacePackage(strPackName, strPackVersion, strPackVersionCur, strPackDescription, pParent))
             return;
     }
@@ -341,8 +333,8 @@ void UIGlobalSettingsExtension::sltInstallPackage()
     }
     QString strTitle = tr("Select an extension package file");
     QStringList extensions;
-    for (int i = 0; i < VBoxDefs::VBoxExtPackFileExts.size(); ++i)
-        extensions << QString("*.%1").arg(VBoxDefs::VBoxExtPackFileExts[i]);
+    for (int i = 0; i < VBoxExtPackFileExts.size(); ++i)
+        extensions << QString("*.%1").arg(VBoxExtPackFileExts[i]);
     QString strFilter = tr("Extension package files (%1)").arg(extensions.join(" "));
 
     QStringList fileNames = QIFileDialog::getOpenFileNames(strBaseFolder, strFilter, this, strTitle, 0, true, true);

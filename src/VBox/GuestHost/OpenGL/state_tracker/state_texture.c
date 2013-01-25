@@ -249,6 +249,11 @@ crStateTextureInitTextureObj(CRContext *ctx, CRTextureObj *tobj,
     {
         RESET(tobj->paramsBit[i], ctx->bitid);
     }
+
+#ifndef IN_GUEST
+    CR_STATE_SHAREDOBJ_USAGE_INIT(tobj);
+    CR_STATE_SHAREDOBJ_USAGE_SET(tobj, ctx);
+#endif
 }
 
 
@@ -615,9 +620,23 @@ crStateDeleteTextureObject(CRTextureObj *tobj)
     crFree(tobj);
 }
 
-void STATE_APIENTRY crStateGenTextures(GLsizei n, GLuint *textures) 
+void crStateRegNames(CRContext *g, CRHashTable *table, GLsizei n, GLuint *names)
 {
-    CRContext *g = GetCurrentContext();
+    GLint i;
+    for (i = 0; i < n; i++)
+    {
+        if (names[i])
+        {
+            GLboolean isNewKey = crHashtableAllocRegisterKey(table, names[i]);
+            CRASSERT(isNewKey);
+        }
+        else
+            crWarning("RegNames: requested to register a null name");
+    }
+}
+
+void crStateGenNames(CRContext *g, CRHashTable *table, GLsizei n, GLuint *names)
+{
     GLint start;
 
     FLUSH();
@@ -625,28 +644,34 @@ void STATE_APIENTRY crStateGenTextures(GLsizei n, GLuint *textures)
     if (g->current.inBeginEnd)
     {
         crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
-                                 "glGenTextures called in Begin/End");
+                                 "crStateGenNames called in Begin/End");
         return;
     }
 
     if (n < 0)
     {
         crStateError(__LINE__, __FILE__, GL_INVALID_VALUE,
-                                 "Negative n passed to glGenTextures: %d", n);
+                                 "Negative n passed to crStateGenNames: %d", n);
         return;
     }
 
-    start = crHashtableAllocKeys(g->shared->textureTable, n);
+    start = crHashtableAllocKeys(table, n);
     if (start)
     {
         GLint i;
         for (i = 0; i < n; i++)
-            textures[i] = (GLuint) (start + i);
+            names[i] = (GLuint) (start + i);
     }
     else
     {
         crStateError(__LINE__, __FILE__, GL_OUT_OF_MEMORY, "glGenTextures");
     }
+}
+
+void STATE_APIENTRY crStateGenTextures(GLsizei n, GLuint *textures) 
+{
+    CRContext *g = GetCurrentContext();
+    crStateGenNames(g, g->shared->textureTable, n, textures);
 }
 
 static void crStateTextureCheckFBOAPs(GLenum target, GLuint texture)
@@ -682,6 +707,52 @@ static void crStateTextureCheckFBOAPs(GLenum target, GLuint texture)
     }
 }
 
+static void crStateCleanupTextureRefs(CRContext *g, CRTextureObj *tObj)
+{
+    CRTextureState *t = &(g->texture);
+    GLuint u;
+
+    /*
+     ** reset back to the base texture.
+     */
+    for (u = 0; u < g->limits.maxTextureUnits; u++)
+    {
+        if (tObj == t->unit[u].currentTexture1D)
+        {
+            t->unit[u].currentTexture1D = &(t->base1D);
+        }
+        if (tObj == t->unit[u].currentTexture2D)
+        {
+            t->unit[u].currentTexture2D = &(t->base2D);
+        }
+#ifdef CR_OPENGL_VERSION_1_2
+        if (tObj == t->unit[u].currentTexture3D)
+        {
+            t->unit[u].currentTexture3D = &(t->base3D);
+        }
+#endif
+#ifdef CR_ARB_texture_cube_map
+        if (tObj == t->unit[u].currentTextureCubeMap)
+        {
+            t->unit[u].currentTextureCubeMap = &(t->baseCubeMap);
+        }
+#endif
+#ifdef CR_NV_texture_rectangle
+        if (tObj == t->unit[u].currentTextureRect)
+        {
+            t->unit[u].currentTextureRect = &(t->baseRect);
+        }
+#endif
+
+#ifdef CR_EXT_framebuffer_object
+        crStateTextureCheckFBOAPs(GL_DRAW_FRAMEBUFFER, tObj->id);
+        crStateTextureCheckFBOAPs(GL_READ_FRAMEBUFFER, tObj->id);
+#endif
+    }
+
+    CR_STATE_SHAREDOBJ_USAGE_CLEAR(tObj, g);
+}
+
 void STATE_APIENTRY crStateDeleteTextures(GLsizei n, const GLuint *textures) 
 {
     CRContext *g = GetCurrentContext();
@@ -713,48 +784,26 @@ void STATE_APIENTRY crStateDeleteTextures(GLsizei n, const GLuint *textures)
         GET_TOBJ(tObj, g, name);
         if (name && tObj)
         {
-            GLuint u;
-            /* remove from hashtable */
-            crHashtableDelete(g->shared->textureTable, name, NULL);
+            GLuint j;
 
-            /* if the currentTexture is deleted, 
-             ** reset back to the base texture.
-             */
-            for (u = 0; u < g->limits.maxTextureUnits; u++)
+            crStateCleanupTextureRefs(g, tObj);
+
+            CR_STATE_SHAREDOBJ_USAGE_FOREACH_USED_IDX(tObj, j)
             {
-                if (tObj == t->unit[u].currentTexture1D) 
-                {
-                    t->unit[u].currentTexture1D = &(t->base1D);
-                }
-                if (tObj == t->unit[u].currentTexture2D) 
-                {
-                    t->unit[u].currentTexture2D = &(t->base2D);
-                }
-#ifdef CR_OPENGL_VERSION_1_2
-                if (tObj == t->unit[u].currentTexture3D) 
-                {
-                    t->unit[u].currentTexture3D = &(t->base3D);
-                }
-#endif
-#ifdef CR_ARB_texture_cube_map
-                if (tObj == t->unit[u].currentTextureCubeMap)
-                {
-                    t->unit[u].currentTextureCubeMap = &(t->baseCubeMap);
-                }
-#endif
-#ifdef CR_NV_texture_rectangle
-                if (tObj == t->unit[u].currentTextureRect)
-                {
-                    t->unit[u].currentTextureRect = &(t->baseRect);
-                }
-#endif
+                /* saved state version <= SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS does not have usage bits info,
+                 * so on restore, we set mark bits as used.
+                 * This is why g_pAvailableContexts[j] could be NULL
+                 * also g_pAvailableContexts[0] will hold default context, which we should discard */
+                CRContext *ctx = g_pAvailableContexts[j];
+                if (j && ctx)
+                    crStateCleanupTextureRefs(ctx, tObj);
+                else
+                    CR_STATE_SHAREDOBJ_USAGE_CLEAR_IDX(tObj, j);
             }
 
-#ifdef CR_EXT_framebuffer_object
-            crStateTextureCheckFBOAPs(GL_DRAW_FRAMEBUFFER, name);
-            crStateTextureCheckFBOAPs(GL_READ_FRAMEBUFFER, name);
-#endif
-            crStateDeleteTextureObject(tObj);
+            /* on the host side, ogl texture object is deleted by a separate cr_server.head_spu->dispatch_table.DeleteTextures(n, newTextures);
+             * in crServerDispatchDeleteTextures, we just delete a state object here, which crStateDeleteTextureObject does */
+            crHashtableDelete(g->shared->textureTable, name, (CRHashtableCallback)crStateDeleteTextureObject);
         }
     }
 
@@ -831,6 +880,46 @@ void STATE_APIENTRY crStateActiveTextureARB( GLenum texture )
     }
 }
 
+DECLEXPORT(void) crStateSetTextureUsed(GLuint texture, GLboolean used)
+{
+    CRContext *g = GetCurrentContext();
+    CRTextureObj *tobj;
+
+    if (!texture)
+    {
+        crWarning("crStateSetTextureUsed: null texture name specified!");
+        return;
+    }
+
+    GET_TOBJ(tobj, g, texture);
+    if (!tobj)
+    {
+        crWarning("crStateSetTextureUsed: failed to fined a HW name for texture(%d)!", texture);
+        return;
+    }
+
+    if (used)
+        CR_STATE_SHAREDOBJ_USAGE_SET(tobj, g);
+    else
+    {
+        CRStateBits *sb = GetCurrentBits();
+        CRTextureBits *tb = &(sb->texture);
+        CRTextureState *t = &(g->texture);
+
+        crStateCleanupTextureRefs(g, tobj);
+
+        if (!CR_STATE_SHAREDOBJ_USAGE_IS_USED(tobj))
+        {
+            /* on the host side, we need to delete an ogl texture object here as well, which crStateDeleteTextureCallback will do
+             * in addition to calling crStateDeleteTextureObject to delete a state object */
+            crHashtableDelete(g->shared->textureTable, texture, crStateDeleteTextureCallback);
+        }
+
+        DIRTY(tb->dirty, g->neg_bitid);
+        DIRTY(tb->current[t->curTextureUnit], g->neg_bitid);
+    }
+}
+
 void STATE_APIENTRY crStateBindTexture(GLenum target, GLuint texture) 
 {
     CRContext *g = GetCurrentContext();
@@ -900,6 +989,10 @@ void STATE_APIENTRY crStateBindTexture(GLenum target, GLuint texture)
     {
         tobj = crStateTextureAllocate_t(g, texture);
     }
+
+#ifndef IN_GUEST
+    CR_STATE_SHAREDOBJ_USAGE_SET(tobj, g);
+#endif
 
     /* Check the targets */
     if (tobj->target == GL_NONE)

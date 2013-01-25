@@ -19,9 +19,14 @@
 #ifndef __UISettingsDialogSpecific_h__
 #define __UISettingsDialogSpecific_h__
 
-/* Local includes */
-#include "COMDefs.h"
+/* GUI includes: */
 #include "UISettingsDialog.h"
+
+/* COM includes: */
+#include "COMEnums.h"
+#include "CSession.h"
+#include "CConsole.h"
+#include "CMachine.h"
 
 /* Dialog which encapsulate all the specific functionalities of the Global Settings */
 class UISettingsDialogGlobal : public UISettingsDialog
@@ -36,6 +41,7 @@ public:
         GLSettingsPage_Input,
         GLSettingsPage_Update,
         GLSettingsPage_Language,
+        GLSettingsPage_Display,
         GLSettingsPage_USB,
         GLSettingsPage_Network,
         GLSettingsPage_Extension,
@@ -44,6 +50,7 @@ public:
     };
 
     UISettingsDialogGlobal(QWidget *pParent);
+    ~UISettingsDialogGlobal();
 
 protected:
 
@@ -84,6 +91,7 @@ public:
 
     UISettingsDialogMachine(QWidget *pParent, const QString &strMachineId,
                             const QString &strCategory, const QString &strControl);
+    ~UISettingsDialogMachine();
 
 protected:
 

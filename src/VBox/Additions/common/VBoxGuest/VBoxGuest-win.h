@@ -23,7 +23,13 @@
 #include <iprt/cdefs.h>
 
 RT_C_DECLS_BEGIN
+#ifdef RT_ARCH_X86
+# define _InterlockedAddLargeStatistic  _InterlockedAddLargeStatistic_StupidDDKVsCompilerCrap
+#endif
 #include <ntddk.h>
+#ifdef RT_ARCH_X86
+# undef _InterlockedAddLargeStatistic
+#endif
 RT_C_DECLS_END
 
 #include <iprt/spinlock.h>
@@ -116,10 +122,9 @@ typedef struct VBOXGUESTDEVEXTWIN
       * for handling kernel IOCtls. */
     PVBOXGUESTSESSION pKernelSession;
 
-
+    /** Spinlock protecting MouseNotifyCallback. Required since the consumer is
+     *  in a DPC callback and not the ISR. */
     KSPIN_LOCK MouseEventAccessLock;
-    PFNVBOXMOUSENOTIFYCB pfnMouseNotify;
-    void *pvMouseNotify;
 } VBOXGUESTDEVEXTWIN, *PVBOXGUESTDEVEXTWIN;
 
 #define VBOXGUEST_UPDATE_DEVSTATE(_pDevExt, _newDevState) do {    \

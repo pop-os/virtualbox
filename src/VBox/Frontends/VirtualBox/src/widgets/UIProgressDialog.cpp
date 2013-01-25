@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,25 +17,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* VBox includes */
-#include "UIProgressDialog.h"
-#include "COMDefs.h"
-#include "QIDialogButtonBox.h"
-#include "QILabel.h"
-#include "UISpecialControls.h"
-#include "VBoxGlobal.h"
-
-#ifdef Q_WS_MAC
-# include "VBoxUtils-darwin.h"
-#endif /* Q_WS_MAC */
-
-/* Qt includes */
+/* Qt includes: */
 #include <QCloseEvent>
 #include <QEventLoop>
 #include <QProgressBar>
 #include <QTime>
 #include <QTimer>
 #include <QVBoxLayout>
+
+/* GUI includes: */
+#include "UIProgressDialog.h"
+#include "QIDialogButtonBox.h"
+#include "QILabel.h"
+#include "UISpecialControls.h"
+#include "VBoxGlobal.h"
+#ifdef Q_WS_MAC
+# include "VBoxUtils-darwin.h"
+#endif /* Q_WS_MAC */
+
+/* COM includes: */
+#include "CProgress.h"
 
 const char *UIProgressDialog::m_spcszOpDescTpl = "%1 ... (%2/%3)";
 
@@ -48,7 +49,6 @@ UIProgressDialog::UIProgressDialog(CProgress &progress,
   : QIDialog(pParent, Qt::MSWindowsFixedSizeDialogHint | Qt::WindowTitleHint)
   , m_progress(progress)
   , m_pImageLbl(0)
-  , m_pCancelBtn(0)
   , m_fCancelEnabled(false)
   , m_cOperations(m_progress.GetOperationCount())
   , m_iCurrentOperation(m_progress.GetOperation() + 1)
@@ -59,11 +59,12 @@ UIProgressDialog::UIProgressDialog(CProgress &progress,
     QHBoxLayout *pLayout0 = new QHBoxLayout(this);
 
 #ifdef Q_WS_MAC
-    /* No sheets in another mode than normal for now. Firstly it looks ugly and
-     * secondly in some cases it is broken. */
-    if (   fSheetOnDarwin
-        && vboxGlobal().isSheetWindowsAllowed(pParent))
+    /* Check if Mac Sheet is allowed: */
+    if (fSheetOnDarwin && vboxGlobal().isSheetWindowAllowed(pParent))
+    {
+        vboxGlobal().setSheetWindowUsed(pParent, true);
         setWindowFlags(Qt::Sheet);
+    }
     ::darwinSetHidesAllTitleButtons(this);
     ::darwinSetShowsResizeIndicator(this, false);
     if (pImage)
@@ -106,13 +107,11 @@ UIProgressDialog::UIProgressDialog(CProgress &progress,
     setWindowTitle(QString("%1: %2").arg(strTitle, m_progress.GetDescription()));
     m_progressBar->setValue(0);
     m_fCancelEnabled = m_progress.GetCancelable();
-    if (m_fCancelEnabled)
-    {
-        m_pCancelBtn = new UIMiniCancelButton(this);
-        m_pCancelBtn->setFocusPolicy(Qt::ClickFocus);
-        pLayout2->addWidget(m_pCancelBtn, 0, Qt::AlignVCenter);
-        connect(m_pCancelBtn, SIGNAL(clicked()), this, SLOT(cancelOperation()));
-    }
+    m_pCancelBtn = new UIMiniCancelButton(this);
+    m_pCancelBtn->setEnabled(m_fCancelEnabled);
+    m_pCancelBtn->setFocusPolicy(Qt::ClickFocus);
+    pLayout2->addWidget(m_pCancelBtn, 0, Qt::AlignVCenter);
+    connect(m_pCancelBtn, SIGNAL(clicked()), this, SLOT(cancelOperation()));
 
     m_pEtaLbl = new QILabel(this);
     pLayout1->addWidget(m_pEtaLbl, 0, Qt::AlignLeft | Qt::AlignVCenter);
@@ -128,14 +127,20 @@ UIProgressDialog::UIProgressDialog(CProgress &progress,
     QTimer::singleShot(cMinDuration, this, SLOT(showDialog()));
 }
 
+UIProgressDialog::~UIProgressDialog()
+{
+#ifdef Q_WS_MAC
+    /* Check if Mac Sheet was used: */
+    if ((windowFlags() & Qt::Sheet) == Qt::Sheet)
+        vboxGlobal().setSheetWindowUsed(parentWidget(), false);
+#endif /* Q_WS_MAC */
+}
+
 void UIProgressDialog::retranslateUi()
 {
     m_strCancel = tr("Canceling...");
-    if (m_pCancelBtn)
-    {
-        m_pCancelBtn->setText(tr("&Cancel"));
-        m_pCancelBtn->setToolTip(tr("Cancel the current operation"));
-    }
+    m_pCancelBtn->setText(tr("&Cancel"));
+    m_pCancelBtn->setToolTip(tr("Cancel the current operation"));
 }
 
 int UIProgressDialog::run(int cRefreshInterval)
@@ -275,7 +280,12 @@ void UIProgressDialog::timerEvent(QTimerEvent * /* pEvent */)
                                        .arg(m_iCurrentOperation).arg(m_cOperations));
         }
         m_progressBar->setValue(m_progress.GetPercent());
-    }else
+
+        /* Then cancel button: */
+        m_fCancelEnabled = m_progress.GetCancelable();
+        m_pCancelBtn->setEnabled(m_fCancelEnabled);
+    }
+    else
         m_pEtaLbl->setText(m_strCancel);
 }
 
@@ -300,8 +310,7 @@ void UIProgressDialog::showDialog()
 
 void UIProgressDialog::cancelOperation()
 {
-    if (m_pCancelBtn)
-        m_pCancelBtn->setEnabled(false);
+    m_pCancelBtn->setEnabled(false);
     m_progress.Cancel();
 }
 

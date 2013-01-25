@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,16 +20,13 @@
 #define __UIUpdateManager_h__
 
 /* Global includes: */
-#include <QUrl>
-
-/* Local includes: */
-#include "UIUpdateDefs.h"
+#include <QObject>
 
 /* Forward declarations: */
-class QEventLoop;
+class UIUpdateQueue;
 
-/* Singleton to check for the new VirtualBox version.
- * Performs update of required parts if necessary. */
+/* Singleton to perform new version checks
+ * and update of various VirtualBox parts. */
 class UIUpdateManager : public QObject
 {
     Q_OBJECT;
@@ -43,11 +40,6 @@ public:
     /* Manager instance: */
     static UIUpdateManager* instance() { return m_pInstance; }
 
-signals:
-
-    /* Signal to notify listeners about downloading: */
-    void sigDownloaderCreatedForExtensionPack();
-
 public slots:
 
     /* Force call for new version check: */
@@ -58,8 +50,8 @@ private slots:
     /* Slot to check if update is necessary: */
     void sltCheckIfUpdateIsNecessary(bool fForceCall = false);
 
-    /* Handle downloaded extension pack: */
-    void sltHandleDownloadedExtensionPack(const QString &strSource, const QString &strTarget, QString strDigest);
+    /* Slot to handle update finishing: */
+    void sltHandleUpdateFinishing();
 
 private:
 
@@ -67,40 +59,13 @@ private:
     UIUpdateManager();
     ~UIUpdateManager();
 
-    /* Helping stuff: */
-    void checkIfUpdateIsNecessary(bool fForceCall);
-    void checkIfUpdateIsNecessaryForExtensionPack(bool fForceCall);
-
     /* Variables: */
     static UIUpdateManager* m_pInstance;
+    UIUpdateQueue *m_pQueue;
+    bool m_fIsRunning;
     quint64 m_uTime;
 };
 #define gUpdateManager UIUpdateManager::instance()
 
-/* Class to check for the new VirtualBox version: */
-class UINewVersionChecker : public QObject
-{
-    Q_OBJECT;
-
-public:
-
-    /* Constructor: */
-    UINewVersionChecker(bool fForceCall);
-
-    /* Function to check if new version is available: */
-    void checkForTheNewVersion();
-
-private slots:
-
-    /* Slot to analyze new version check reply: */
-    void sltHandleCheckReply();
-
-private:
-
-    /* Variables: */
-    QUrl m_url;
-    bool m_fForceCall;
-    QEventLoop *m_pLoop;
-};
-
 #endif // __UIUpdateManager_h__
+

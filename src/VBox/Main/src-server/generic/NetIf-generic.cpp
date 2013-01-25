@@ -78,6 +78,50 @@ static int NetIfAdpCtl(HostNetworkInterface * pIf, const char *pszAddr, const ch
     return NetIfAdpCtl(strName.c_str(), pszAddr, pszOption, pszMask);
 }
 
+int NetIfAdpCtlOut(const char * pcszName, const char * pcszCmd, char *pszBuffer, size_t cBufSize)
+{
+    char szAdpCtl[RTPATH_MAX];
+    int rc = RTPathExecDir(szAdpCtl, sizeof(szAdpCtl) - sizeof("/" VBOXNETADPCTL_NAME " ") - strlen(pcszCmd));
+    if (RT_FAILURE(rc))
+    {
+        LogRel(("NetIfAdpCtlOut: Failed to get program path, rc=%Rrc\n", rc));
+        return VERR_INVALID_PARAMETER;
+    }
+    strcat(szAdpCtl, "/" VBOXNETADPCTL_NAME " ");
+    if (pcszName && strlen(pcszName) <= RTPATH_MAX - strlen(szAdpCtl) - 1 - strlen(pcszCmd))
+    {
+        strcat(szAdpCtl, pcszName);
+        strcat(szAdpCtl, " ");
+        strcat(szAdpCtl, pcszCmd);
+    }
+    else
+    {
+        LogRel(("NetIfAdpCtlOut: Command line is too long: %s%s %s\n", szAdpCtl, pcszName, pcszCmd));
+        return VERR_INVALID_PARAMETER;
+    }
+    if (strlen(szAdpCtl) < RTPATH_MAX - sizeof(" 2>&1"))
+        strcat(szAdpCtl, " 2>&1");
+    FILE *fp = popen(szAdpCtl, "r");
+    if (fp)
+    {
+        if (fgets(pszBuffer, cBufSize, fp))
+        {
+            if (!strncmp(VBOXNETADPCTL_NAME ":", pszBuffer, sizeof(VBOXNETADPCTL_NAME)))
+            {
+                LogRel(("NetIfAdpCtlOut: %s", pszBuffer));
+                rc = VERR_INTERNAL_ERROR;
+            }
+        }
+        else
+        {
+            LogRel(("NetIfAdpCtlOut: No output from " VBOXNETADPCTL_NAME));
+            rc = VERR_INTERNAL_ERROR;
+        }
+        pclose(fp);
+    }
+    return rc;
+}
+
 int NetIfEnableStaticIpConfig(VirtualBox * /* vBox */, HostNetworkInterface * pIf, ULONG aOldIp, ULONG aNewIp, ULONG aMask)
 {
     const char *pszOption, *pszMask;
@@ -165,13 +209,24 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox,
             }
             else
                 strcat(szAdpCtl, "add");
+            if (strlen(szAdpCtl) < RTPATH_MAX - sizeof(" 2>&1"))
+                strcat(szAdpCtl, " 2>&1");
             FILE *fp = popen(szAdpCtl, "r");
 
             if (fp)
             {
-                char szBuf[VBOXNET_MAX_SHORT_NAME];
+                char szBuf[128]; /* We are not interested in long error messages. */
                 if (fgets(szBuf, sizeof(szBuf), fp))
                 {
+                    if (!strncmp(VBOXNETADPCTL_NAME ":", szBuf, sizeof(VBOXNETADPCTL_NAME)))
+                    {
+                        progress->notifyComplete(E_FAIL,
+                                                 COM_IIDOF(IHostNetworkInterface),
+                                                 HostNetworkInterface::getStaticComponentName(),
+                                                 "%s", szBuf);
+                        pclose(fp);
+                        return E_FAIL;
+                    }
                     char *pLast = szBuf + strlen(szBuf) - 1;
                     if (pLast >= szBuf && *pLast == '\n')
                         *pLast = 0;
@@ -204,18 +259,30 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox,
                         }
                         RTMemFree(pInfo);
                     }
+                    if ((rc = pclose(fp)) != 0)
+                    {
+                        progress->notifyComplete(E_FAIL,
+                                                 COM_IIDOF(IHostNetworkInterface),
+                                                 HostNetworkInterface::getStaticComponentName(),
+                                                 "Failed to execute '"VBOXNETADPCTL_NAME " add' (exit status: %d)", rc);
+                        rc = VERR_INTERNAL_ERROR;
+                    }
                 }
-                if ((rc = pclose(fp)) != 0)
+                else
                 {
+                    /* Failed to add an interface */
+                    rc = VERR_PERMISSION_DENIED;
                     progress->notifyComplete(E_FAIL,
                                              COM_IIDOF(IHostNetworkInterface),
                                              HostNetworkInterface::getStaticComponentName(),
-                                             "Failed to execute '"VBOXNETADPCTL_NAME " add' (exit status: %d)", rc);
-                    rc = VERR_INTERNAL_ERROR;
+                                             "Failed to execute '"VBOXNETADPCTL_NAME " add' (exit status: %d). Check permissions!", rc);
+                    pclose(fp);
                 }
             }
             if (RT_SUCCESS(rc))
                 progress->notifyComplete(rc);
+            else
+                hrc = E_FAIL;
         }
     }
 
@@ -225,6 +292,7 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox,
     NOREF(pVBox);
     NOREF(aHostNetworkInterface);
     NOREF(aProgress);
+    NOREF(pcszName);
     return VERR_NOT_IMPLEMENTED;
 #endif
 }

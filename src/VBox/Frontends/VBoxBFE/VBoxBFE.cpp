@@ -913,9 +913,9 @@ int main(int argc, char **argv)
     /*
      * Before we do *anything*, we initialize the runtime.
      */
-    int rc = RTR3Init();
+    int rc = RTR3InitExe(argc, &argv, 0);
     if (RT_FAILURE(rc))
-        return FatalError("RTR3Init failed rc=%Rrc\n", rc);
+        return FatalError("RTR3InitExe failed rc=%Rrc\n", rc);
 
     return TrustedMain(argc, argv, NULL);
 }
@@ -1725,10 +1725,6 @@ static DECLCALLBACK(int) vboxbfeConfigConstructor(PVM pVM, void *pvUser)
 
 #elif defined(RT_OS_SOLARIS)
                     rc = CFGMR3InsertString(pCfg, "Device", g_aNetDevs[ulInstance].pszName); UPDATE_RC();
-# ifdef VBOX_WITH_CROSSBOW
-                    rc = CFGMR3InsertBytes(pCfg, "MAC", &g_aNetDevs[ulInstance].Mac, sizeof(g_aNetDevs[ulInstance].Mac));
-                    UPDATE_RC();
-# endif
 
 #elif defined(RT_OS_OS2)
                     /*

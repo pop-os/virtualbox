@@ -54,7 +54,7 @@ static DECLCALLBACK(int) vmmGCTestTmpPFHandlerCorruptFS(PVM pVM, PCPUMCTXCORE pR
  * The GC entry point.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   uOperation  Which operation to execute (VMMGCOPERATION).
  * @param   uArg        Argument to that operation.
  */
@@ -182,7 +182,7 @@ VMMRCDECL(int) vmmGCLoggerFlush(PRTLOGGERRC pLogger)
 /**
  * Flush logger if almost full.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  */
 VMMRCDECL(void) VMMGCLogFlushIfFull(PVM pVM)
 {
@@ -199,13 +199,25 @@ VMMRCDECL(void) VMMGCLogFlushIfFull(PVM pVM)
 /**
  * Switches from guest context to host context.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   rc          The status code.
  */
 VMMRCDECL(void) VMMGCGuestToHost(PVM pVM, int rc)
 {
-    pVM->vmm.s.pfnGuestToHostRC(rc);
+    pVM->vmm.s.pfnRCToHost(rc);
 }
+
+
+/**
+ * Calls the ring-0 host code.
+ *
+ * @param   pVM             Pointer to the VM.
+ */
+DECLASM(void) vmmRCProbeFireHelper(PVM pVM)
+{
+    pVM->vmm.s.pfnRCToHost(VINF_VMM_CALL_TRACER);
+}
+
 
 
 /**
@@ -219,7 +231,7 @@ VMMRCDECL(void) VMMGCGuestToHost(PVM pVM, int rc)
  * @returns VERR_NOT_IMPLEMENTED if the testcase wasn't implemented.
  * @returns VERR_GENERAL_FAILURE if the testcase continued when it shouldn't.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   uOperation  The testcase.
  * @param   uArg        The variation. See function description for odd / even details.
  *
@@ -331,7 +343,7 @@ static int vmmGCTest(PVM pVM, unsigned uOperation, unsigned uArg)
  *
  * @returns VBox status code (appropriate for GC return).
  *          In this context RT_SUCCESS means to restart the instruction.
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pRegFrame   Trap register frame.
  */
 static DECLCALLBACK(int) vmmGCTestTmpPFHandler(PVM pVM, PCPUMCTXCORE pRegFrame)
@@ -341,6 +353,7 @@ static DECLCALLBACK(int) vmmGCTestTmpPFHandler(PVM pVM, PCPUMCTXCORE pRegFrame)
         pRegFrame->eip = (uintptr_t)vmmGCTestTrap0e_ResumeEIP;
         return VINF_SUCCESS;
     }
+    NOREF(pVM);
     return VERR_INTERNAL_ERROR;
 }
 
@@ -351,13 +364,13 @@ static DECLCALLBACK(int) vmmGCTestTmpPFHandler(PVM pVM, PCPUMCTXCORE pRegFrame)
  *
  * @returns VBox status code (appropriate for GC return).
  *          In this context RT_SUCCESS means to restart the instruction.
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pRegFrame   Trap register frame.
  */
 static DECLCALLBACK(int) vmmGCTestTmpPFHandlerCorruptFS(PVM pVM, PCPUMCTXCORE pRegFrame)
 {
     int rc = vmmGCTestTmpPFHandler(pVM, pRegFrame);
-    pRegFrame->fs = 0x30;
+    pRegFrame->fs.Sel = 0x30;
     return rc;
 }
 

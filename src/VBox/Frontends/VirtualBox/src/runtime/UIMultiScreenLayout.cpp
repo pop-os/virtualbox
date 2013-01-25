@@ -17,19 +17,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Local includes */
+/* Qt includes: */
+#include <QApplication>
+#include <QDesktopWidget>
+#include <QMap>
+#include <QMenu>
+
+/* GUI includes: */
+#include "UIDefs.h"
 #include "UIMultiScreenLayout.h"
-#include "COMDefs.h"
 #include "UIActionPoolRuntime.h"
 #include "UIMachineLogic.h"
 #include "UISession.h"
 #include "UIMessageCenter.h"
 
-/* Global includes */
-#include <QApplication>
-#include <QDesktopWidget>
-#include <QMap>
-#include <QMenu>
+/* COM includes: */
+#include "COMEnums.h"
+#include "CSession.h"
+#include "CConsole.h"
+#include "CMachine.h"
+#include "CDisplay.h"
 
 UIMultiScreenLayout::UIMultiScreenLayout(UIMachineLogic *pMachineLogic)
     : m_pMachineLogic(pMachineLogic)
@@ -92,7 +99,7 @@ void UIMultiScreenLayout::update()
     for (int i = 0; i < m_cGuestScreens; ++i)
     {
         /* If the user ever selected a combination in the view menu, we have the following entry: */
-        QString strTest = machine.GetExtraData(QString("%1%2").arg(VBoxDefs::GUI_VirtualScreenToHostScreen).arg(i));
+        QString strTest = machine.GetExtraData(QString("%1%2").arg(GUI_VirtualScreenToHostScreen).arg(i));
         bool fOk;
         int cScreen = strTest.toInt(&fOk);
         /* Check if valid: */
@@ -106,7 +113,7 @@ void UIMultiScreenLayout::update()
              * multi-screen. The user just have to move all the normal windows
              * to the target screens and they will magically open there in
              * seamless/fullscreen also. */
-            QString strTest1 = machine.GetExtraData(VBoxDefs::GUI_LastWindowPosition + (i > 0 ? QString::number(i): ""));
+            QString strTest1 = machine.GetExtraData(GUI_LastNormalWindowPosition + (i > 0 ? QString::number(i): ""));
             QRegExp posParser("(-?\\d+),(-?\\d+),(-?\\d+),(-?\\d+)");
             if (posParser.exactMatch(strTest1))
             {
@@ -250,7 +257,7 @@ void UIMultiScreenLayout::sltScreenLayoutChanged(QAction *pAction)
     for (int i = 0; i < viewActions.size(); ++i)
     {
         int iHostScreen = m_pScreenMap->value(i);
-        machine.SetExtraData(QString("%1%2").arg(VBoxDefs::GUI_VirtualScreenToHostScreen).arg(i), QString::number(iHostScreen));
+        machine.SetExtraData(QString("%1%2").arg(GUI_VirtualScreenToHostScreen).arg(i), QString::number(iHostScreen));
         QList<QAction*> screenActions = viewActions.at(i)->menu()->actions();
         for (int w = 0; w < screenActions.size(); ++w)
         {

@@ -22,11 +22,13 @@
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/dbgftrace.h>
+#include <VBox/vmm/vmcpuset.h>
 #include <VBox/log.h>
 #include <VBox/param.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/asm-math.h>
+#include <iprt/file.h>
 #ifdef IN_RING3
 # include <iprt/alloc.h>
 # include <iprt/string.h>
@@ -227,10 +229,10 @@ typedef struct ACPIState
     uint32_t            gpe0_en;
     uint32_t            gpe0_sts;
 
-    unsigned int        uBatteryIndex;
+    uint32_t            uBatteryIndex;
     uint32_t            au8BatteryInfo[13];
 
-    unsigned int        uSystemInfoIndex;
+    uint32_t            uSystemInfoIndex;
     uint64_t            u64RamSize;
     /** The number of bytes above 4GB. */
     uint64_t            cbRamHigh;
@@ -325,6 +327,25 @@ typedef struct ACPIState
     R3PTRTYPE(PFNPCICONFIGREAD)   pfnAcpiPciConfigRead;
     /** Pointer to default PCI config write function. */
     R3PTRTYPE(PFNPCICONFIGWRITE)  pfnAcpiPciConfigWrite;
+
+    /** If custom table should be supported */
+    bool                fUseCust;
+    /** ACPI OEM ID */
+    uint8_t             au8OemId[6];
+    /** ACPI Crator ID */
+    uint8_t             au8CreatorId[4];
+    /** ACPI Crator Rev */
+    uint32_t            u32CreatorRev;
+    /** ACPI custom OEM Tab ID */
+    uint8_t             au8OemTabId[8];
+    /** ACPI custom OEM Rev */
+    uint32_t            u32OemRevision;
+    uint32_t            Alignment0;
+
+    /** The custom table binary data. */
+    R3PTRTYPE(uint8_t *) pu8CustBin;
+    /** The size of the custom table binary. */
+    uint64_t            cbCustBin;
 } ACPIState;
 
 #pragma pack(1)
@@ -583,6 +604,14 @@ AssertCompileSize(ACPITBLMCFGENTRY, 16);
 
 #  define PCAT_COMPAT   0x1                     /**< system has also a dual-8259 setup */
 
+/** Custom Description Table */
+struct ACPITBLCUST
+{
+    ACPITBLHEADER       header;
+    uint8_t             au8Data[476];
+};
+AssertCompileSize(ACPITBLCUST, 512);
+
 /**
  * Multiple APIC Description Table.
  *
@@ -720,7 +749,7 @@ static int acpiPlantTables(ACPIState *pThis);
 DECLINLINE(void) acpiSetIrq(ACPIState *pThis, int level)
 {
     if (pThis->pm1a_ctl & SCI_EN)
-        PDMDevHlpPCISetIrq(pThis->pDevIns, -1, level);
+        PDMDevHlpPCISetIrq(pThis->pDevIns, 0, level);
 }
 
 DECLINLINE(uint32_t) pm1a_pure_en(uint32_t en)
@@ -947,7 +976,8 @@ static void acpiPmTimerReset(ACPIState *pThis, uint64_t uNow)
 static DECLCALLBACK(void) acpiPmTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
     ACPIState *pThis = (ACPIState *)pvUser;
-    Assert(TMTimerIsLockOwner(pThis->pPmTimerR3));
+    Assert(TMTimerIsLockOwner(pTimer));
+    NOREF(pDevIns);
 
     DEVACPI_LOCK_R3(pThis);
     Log(("acpi: pm timer sts %#x (%d), en %#x (%d)\n",
@@ -956,7 +986,7 @@ static DECLCALLBACK(void) acpiPmTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void 
     update_pm1a(pThis, pThis->pm1a_sts | TMR_STS, pThis->pm1a_en);
     DEVACPI_UNLOCK(pThis);
 
-    acpiPmTimerReset(pThis, TMTimerGet(pThis->pPmTimerR3));
+    acpiPmTimerReset(pThis, TMTimerGet(pTimer));
 }
 
 /**
@@ -1193,7 +1223,7 @@ PDMBOTHCBDECL(int) acpiSysInfoDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
     DEVACPI_LOCK_R3(pThis);
 
     int rc = VINF_SUCCESS;
-    unsigned const uSystemInfoIndex = pThis->uSystemInfoIndex;
+    uint32_t const uSystemInfoIndex = pThis->uSystemInfoIndex;
     switch (uSystemInfoIndex)
     {
         case SYSTEM_INFO_INDEX_LOW_MEMORY_LENGTH:
@@ -1408,6 +1438,7 @@ PDMBOTHCBDECL(int) acpiSysInfoDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
  */
 PDMBOTHCBDECL(int) acpiPm1aEnRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
+    NOREF(pDevIns); NOREF(Port);
     if (cb != 2)
         return VERR_IOM_IOPORT_UNUSED;
 
@@ -1584,7 +1615,7 @@ PDMBOTHCBDECL(int) acpiPMTmrRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port
      * We use the clock lock to serialize access to u64PmTimerInitial and to
      * make sure we get a reliable time from the clock.
      */
-    int rc = TMTimerLock(pThis->CTX_SUFF(pPmTimer), VINF_IOM_HC_IOPORT_READ);
+    int rc = TMTimerLock(pThis->CTX_SUFF(pPmTimer), VINF_IOM_R3_IOPORT_READ);
     if (rc == VINF_SUCCESS)
     {
         uint64_t const u64PmTimerInitial = pThis->u64PmTimerInitial;
@@ -1600,6 +1631,7 @@ PDMBOTHCBDECL(int) acpiPMTmrRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port
         Log(("acpi: acpiPMTmrRead -> %#x\n", *pu32));
     }
 
+    NOREF(pvUser); NOREF(Port);
     return rc;
 }
 
@@ -1713,6 +1745,7 @@ PDMBOTHCBDECL(int) acpiSmiWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port,
 PDMBOTHCBDECL(int) acpiResetWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
     Log(("acpiResetWrite: %#x\n", u32));
+    NOREF(pvUser);
     if (cb != 1)
         return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d Port=%u u32=%#x\n", cb, Port, u32);
 
@@ -1736,6 +1769,7 @@ PDMBOTHCBDECL(int) acpiResetWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Por
  */
 PDMBOTHCBDECL(int) acpiDhexWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
+    NOREF(pvUser);
     switch (cb)
     {
         case 1:
@@ -1757,6 +1791,7 @@ PDMBOTHCBDECL(int) acpiDhexWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port
  */
 PDMBOTHCBDECL(int) acpiDchrWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
+    NOREF(pvUser);
     switch (cb)
     {
         case 1:
@@ -2051,18 +2086,19 @@ static uint8_t acpiChecksum(const void * const pvSrc, size_t cbData)
 /**
  * Prepare a ACPI table header.
  */
-static void acpiPrepareHeader(ACPITBLHEADER *header, const char au8Signature[4],
+static void acpiPrepareHeader(ACPIState *pThis, ACPITBLHEADER *header,
+                              const char au8Signature[4],
                               uint32_t u32Length, uint8_t u8Revision)
 {
     memcpy(header->au8Signature, au8Signature, 4);
     header->u32Length             = RT_H2LE_U32(u32Length);
     header->u8Revision            = u8Revision;
-    memcpy(header->au8OemId, "VBOX  ", 6);
+    memcpy(header->au8OemId, pThis->au8OemId, 6);
     memcpy(header->au8OemTabId, "VBOX", 4);
     memcpy(header->au8OemTabId+4, au8Signature, 4);
     header->u32OemRevision        = RT_H2LE_U32(1);
-    memcpy(header->au8CreatorId, "ASL ", 4);
-    header->u32CreatorRev         = RT_H2LE_U32(0x61);
+    memcpy(header->au8CreatorId, pThis->au8CreatorId, 4);
+    header->u32CreatorRev         = pThis->u32CreatorRev;
 }
 
 /**
@@ -2134,7 +2170,7 @@ static void acpiSetupFADT(ACPIState *pThis, RTGCPHYS32 GCPhysAcpi1, RTGCPHYS32 G
 
     /* First the ACPI version 2+ version of the structure. */
     memset(&fadt, 0, sizeof(fadt));
-    acpiPrepareHeader(&fadt.header, "FACP", sizeof(fadt), 4);
+    acpiPrepareHeader(pThis, &fadt.header, "FACP", sizeof(fadt), 4);
     fadt.u32FACS              = RT_H2LE_U32(GCPhysFacs);
     fadt.u32DSDT              = RT_H2LE_U32(GCPhysDsdt);
     fadt.u8IntModel           = 0;  /* dropped from the ACPI 2.0 spec. */
@@ -2220,7 +2256,7 @@ static int acpiSetupRSDT(ACPIState *pThis, RTGCPHYS32 addr, unsigned int nb_entr
     if (!rsdt)
         return PDMDEV_SET_ERROR(pThis->pDevIns, VERR_NO_TMP_MEMORY, N_("Cannot allocate RSDT"));
 
-    acpiPrepareHeader(&rsdt->header, "RSDT", (uint32_t)size, 1);
+    acpiPrepareHeader(pThis, &rsdt->header, "RSDT", (uint32_t)size, 1);
     for (unsigned int i = 0; i < nb_entries; ++i)
     {
         rsdt->u32Entry[i] = RT_H2LE_U32(addrs[i]);
@@ -2244,7 +2280,11 @@ static int acpiSetupXSDT(ACPIState *pThis, RTGCPHYS32 addr, unsigned int nb_entr
     if (!xsdt)
         return VERR_NO_TMP_MEMORY;
 
-    acpiPrepareHeader(&xsdt->header, "XSDT", (uint32_t)size, 1 /* according to ACPI 3.0 specs */);
+    acpiPrepareHeader(pThis, &xsdt->header, "XSDT", (uint32_t)size, 1 /* according to ACPI 3.0 specs */);
+
+    if (pThis->fUseCust)
+        memcpy(xsdt->header.au8OemTabId, pThis->au8OemTabId, 8);
+
     for (unsigned int i = 0; i < nb_entries; ++i)
     {
         xsdt->u64Entry[i] = RT_H2LE_U64((uint64_t)addrs[i]);
@@ -2259,13 +2299,13 @@ static int acpiSetupXSDT(ACPIState *pThis, RTGCPHYS32 addr, unsigned int nb_entr
 /**
  * Plant the Root System Description Pointer (RSDP).
  */
-static void acpiSetupRSDP(ACPITBLRSDP *rsdp, RTGCPHYS32 GCPhysRsdt, RTGCPHYS GCPhysXsdt)
+static void acpiSetupRSDP(ACPIState *pThis, ACPITBLRSDP *rsdp, RTGCPHYS32 GCPhysRsdt, RTGCPHYS GCPhysXsdt)
 {
     memset(rsdp, 0, sizeof(*rsdp));
 
     /* ACPI 1.0 part (RSDT */
     memcpy(rsdp->au8Signature, "RSD PTR ", 8);
-    memcpy(rsdp->au8OemId, "VBOX  ", 6);
+    memcpy(rsdp->au8OemId, pThis->au8OemId, 6);
     rsdp->u8Revision    = ACPI_REVISION;
     rsdp->u32RSDT       = RT_H2LE_U32(GCPhysRsdt);
     rsdp->u8Checksum    = acpiChecksum(rsdp, RT_OFFSETOF(ACPITBLRSDP, u32Length));
@@ -2288,7 +2328,7 @@ static void acpiSetupMADT(ACPIState *pThis, RTGCPHYS32 addr)
     uint16_t cpus = pThis->cCpus;
     AcpiTableMADT madt(cpus, NUMBER_OF_IRQ_SOURCE_OVERRIDES);
 
-    acpiPrepareHeader(madt.header_addr(), "APIC", madt.size(), 2);
+    acpiPrepareHeader(pThis, madt.header_addr(), "APIC", madt.size(), 2);
 
     *madt.u32LAPIC_addr()          = RT_H2LE_U32(0xfee00000);
     *madt.u32Flags_addr()          = RT_H2LE_U32(PCAT_COMPAT);
@@ -2360,7 +2400,7 @@ static void acpiSetupHPET(ACPIState *pThis, RTGCPHYS32 addr)
 
     memset(&hpet, 0, sizeof(hpet));
 
-    acpiPrepareHeader(&hpet.aHeader, "HPET", sizeof(hpet), 1);
+    acpiPrepareHeader(pThis, &hpet.aHeader, "HPET", sizeof(hpet), 1);
     /* Keep base address consistent with appropriate DSDT entry  (vbox.dsl) */
     acpiWriteGenericAddr(&hpet.HpetAddr,
                          0  /* Memory address space */,
@@ -2379,6 +2419,22 @@ static void acpiSetupHPET(ACPIState *pThis, RTGCPHYS32 addr)
     acpiPhyscpy(pThis, addr, (const uint8_t *)&hpet, sizeof(hpet));
 }
 
+
+/** Custom Description Table */
+static void acpiSetupCUST(ACPIState *pThis, RTGCPHYS32 addr)
+{
+    ACPITBLCUST cust;
+
+    /* First the ACPI version 1 version of the structure. */
+    memset(&cust, 0, sizeof(cust));
+    acpiPrepareHeader(pThis, &cust.header, "CUST", sizeof(cust), 1);
+
+    memcpy(cust.header.au8OemTabId, pThis->au8OemTabId, 8);
+    cust.header.u32OemRevision = RT_H2LE_U32(pThis->u32OemRevision);
+    cust.header.u8Checksum = acpiChecksum((uint8_t *)&cust, sizeof(cust));
+
+    acpiPhyscpy(pThis, addr, pThis->pu8CustBin, pThis->cbCustBin);
+}
 
 /**
  * Used by acpiPlantTables to plant a MMCONFIG PCI config space access (MCFG)
@@ -2399,7 +2455,7 @@ static void acpiSetupMCFG(ACPIState *pThis, RTGCPHYS32 GCPhysDst)
 
     RT_ZERO(tbl);
 
-    acpiPrepareHeader(&tbl.hdr.aHeader, "MCFG", sizeof(tbl), 1);
+    acpiPrepareHeader(pThis, &tbl.hdr.aHeader, "MCFG", sizeof(tbl), 1);
     tbl.entry.u64BaseAddress = pThis->u64PciConfigMMioAddress;
     tbl.entry.u8StartBus     = u8StartBus;
     tbl.entry.u8EndBus       = u8EndBus;
@@ -2431,6 +2487,7 @@ static int acpiPlantTables(ACPIState *pThis)
     RTGCPHYS32 GCPhysApic = 0;
     RTGCPHYS32 GCPhysSsdt = 0;
     RTGCPHYS32 GCPhysMcfg = 0;
+    RTGCPHYS32 GCPhysCust = 0;
     uint32_t   addend = 0;
     RTGCPHYS32 aGCPhysRsdt[8];
     RTGCPHYS32 aGCPhysXsdt[8];
@@ -2439,6 +2496,7 @@ static int acpiPlantTables(ACPIState *pThis)
     uint32_t   iHpet  = 0;
     uint32_t   iSsdt  = 0;
     uint32_t   iMcfg  = 0;
+    uint32_t   iCust  = 0;
     size_t     cbRsdt = sizeof(ACPITBLHEADER);
     size_t     cbXsdt = sizeof(ACPITBLHEADER);
 
@@ -2451,6 +2509,9 @@ static int acpiPlantTables(ACPIState *pThis)
 
     if (pThis->fUseMcfg)
         iMcfg = cAddr++;        /* MCFG */
+
+    if (pThis->fUseCust)
+        iCust = cAddr++;        /* CUST */
 
     iSsdt = cAddr++;            /* SSDT */
 
@@ -2517,6 +2578,11 @@ static int acpiPlantTables(ACPIState *pThis)
         /* Assume one entry */
         GCPhysCur = RT_ALIGN_32(GCPhysCur + sizeof(ACPITBLMCFG) + sizeof(ACPITBLMCFGENTRY), 16);
     }
+    if (pThis->fUseCust)
+    {
+        GCPhysCust = GCPhysCur;
+        GCPhysCur = RT_ALIGN_32(GCPhysCur + pThis->cbCustBin, 16);
+    }
 
     void  *pvSsdtCode = NULL;
     size_t cbSsdtSize = 0;
@@ -2552,10 +2618,12 @@ static int acpiPlantTables(ACPIState *pThis)
         Log((" HPET 0x%08X", GCPhysHpet + addend));
     if (pThis->fUseMcfg)
         Log((" MCFG 0x%08X", GCPhysMcfg + addend));
+    if (pThis->fUseCust)
+        Log((" CUST 0x%08X", GCPhysCust + addend));
     Log((" SSDT 0x%08X", GCPhysSsdt + addend));
     Log(("\n"));
 
-    acpiSetupRSDP((ACPITBLRSDP *)pThis->au8RSDPPage, GCPhysRsdt + addend, GCPhysXsdt + addend);
+    acpiSetupRSDP(pThis, (ACPITBLRSDP *)pThis->au8RSDPPage, GCPhysRsdt + addend, GCPhysXsdt + addend);
     acpiSetupDSDT(pThis, GCPhysDsdt + addend, pvDsdtCode, cbDsdtSize);
     acpiCleanupDsdt(pThis->pDevIns, pvDsdtCode);
     acpiSetupFACS(pThis, GCPhysFacs + addend);
@@ -2580,6 +2648,12 @@ static int acpiPlantTables(ACPIState *pThis)
         acpiSetupMCFG(pThis, GCPhysMcfg + addend);
         aGCPhysRsdt[iMcfg] = GCPhysMcfg + addend;
         aGCPhysXsdt[iMcfg] = GCPhysMcfg + addend;
+    }
+    if (pThis->fUseCust)
+    {
+        acpiSetupCUST(pThis, GCPhysCust + addend);
+        aGCPhysRsdt[iCust] = GCPhysCust + addend;
+        aGCPhysXsdt[iCust] = GCPhysCust + addend;
     }
 
     acpiSetupSSDT(pThis, GCPhysSsdt + addend, pvSsdtCode, cbSsdtSize);
@@ -2772,6 +2846,21 @@ static DECLCALLBACK(void) acpiRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
     ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
     pThis->pPmTimerRC = TMTimerRCPtr(pThis->pPmTimerR3);
+    NOREF(offDelta);
+}
+
+/**
+ * @interface_methid_impl{PDMDEVREG,pfnDestruct}
+ */
+static DECLCALLBACK(int) acpiDestruct(PPDMDEVINS pDevIns)
+{
+    ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
+    if (pThis->pu8CustBin)
+    {
+        MMR3HeapFree(pThis->pu8CustBin);
+        pThis->pu8CustBin = NULL;
+    }
+    return VINF_SUCCESS;
 }
 
 /**
@@ -2845,6 +2934,11 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
                               "Serial1IoPortBase\0"
                               "Serial0Irq\0"
                               "Serial1Irq\0"
+                              "AcpiOemId\0"
+                              "AcpiCreatorId\0"
+                              "AcpiCreatorRev\0"
+                              "CustomTable\0"
+                              "SLICTable\0"
                               ))
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_("Configuration error: Invalid config key for ACPI device"));
@@ -2881,6 +2975,9 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"McfgLength\""));
     pThis->fUseMcfg = (pThis->u64PciConfigMMioAddress != 0) && (pThis->u64PciConfigMMioLength != 0);
+
+    /* query whether we are supposed to present custom table */
+    pThis->fUseCust = false;
 
     /* query whether we are supposed to present SMC */
     rc = CFGMR3QueryBoolDef(pCfg, "SmcEnabled", &pThis->fUseSmc, false);
@@ -2948,19 +3045,15 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"CpuHotPlug\""));
 
-    rc = CFGMR3QueryBool(pCfg, "GCEnabled", &pThis->fGCEnabled);
-    if (rc == VERR_CFGM_VALUE_NOT_FOUND)
-        pThis->fGCEnabled = true;
-    else if (RT_FAILURE(rc))
+    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &pThis->fGCEnabled, true);
+    if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"GCEnabled\""));
 
-    rc = CFGMR3QueryBool(pCfg, "R0Enabled", &pThis->fR0Enabled);
-    if (rc == VERR_CFGM_VALUE_NOT_FOUND)
-        pThis->fR0Enabled = true;
-    else if (RT_FAILURE(rc))
+    rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &pThis->fR0Enabled, true);
+    if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("configuration error: failed to read R0Enabled as boolean"));
+                                N_("configuration error: failed to read \"R0Enabled\""));
 
     /* query serial info */
     rc = CFGMR3QueryU8Def(pCfg, "Serial0Irq", &pThis->uSerial0Irq, 4);
@@ -3011,6 +3104,112 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         }
     }
 
+    char *pszOemId = NULL;
+    rc = CFGMR3QueryStringAllocDef(pThis->pDevIns->pCfg, "AcpiOemId", &pszOemId, "VBOX  ");
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pThis->pDevIns, rc,
+                                N_("Configuration error: Querying \"AcpiOemId\" as string failed"));
+    size_t cbOemId = strlen(pszOemId);
+    if (cbOemId > 6)
+        return PDMDEV_SET_ERROR(pThis->pDevIns, rc,
+                                N_("Configuration error: \"AcpiOemId\" must contain not more than 6 characters"));
+    memset(pThis->au8OemId, ' ', sizeof(pThis->au8OemId));
+    memcpy(pThis->au8OemId, pszOemId, cbOemId);
+    MMR3HeapFree(pszOemId);
+
+    char *pszCreatorId = NULL;
+    rc = CFGMR3QueryStringAllocDef(pThis->pDevIns->pCfg, "AcpiCreatorId", &pszCreatorId, "ASL ");
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pThis->pDevIns, rc,
+                                N_("Configuration error: Querying \"AcpiCreatorId\" as string failed"));
+    size_t cbCreatorId = strlen(pszCreatorId);
+    if (cbCreatorId > 4)
+        return PDMDEV_SET_ERROR(pThis->pDevIns, rc,
+                                N_("Configuration error: \"AcpiCreatorId\" must contain not more than 4 characters"));
+    memset(pThis->au8CreatorId, ' ', sizeof(pThis->au8CreatorId));
+    memcpy(pThis->au8CreatorId, pszCreatorId, cbCreatorId);
+    MMR3HeapFree(pszCreatorId);
+
+    rc = CFGMR3QueryU32Def(pThis->pDevIns->pCfg, "AcpiCreatorRev", &pThis->u32CreatorRev, RT_H2LE_U32(0x61));
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pThis->pDevIns, rc,
+                                N_("Configuration error: Querying \"AcpiCreatorRev\" as integer failed"));
+    pThis->u32OemRevision         = RT_H2LE_U32(0x1);
+
+    /*
+     * Get the custom table binary file name.
+     */
+    char *pszCustBinFile;
+    rc = CFGMR3QueryStringAlloc(pThis->pDevIns->pCfg, "CustomTable", &pszCustBinFile);
+    if (rc == VERR_CFGM_VALUE_NOT_FOUND)
+        rc = CFGMR3QueryStringAlloc(pThis->pDevIns->pCfg, "SLICTable", &pszCustBinFile);
+    if (rc == VERR_CFGM_VALUE_NOT_FOUND)
+    {
+        pszCustBinFile = NULL;
+        rc = VINF_SUCCESS;
+    }
+    else if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pThis->pDevIns, rc,
+                                N_("Configuration error: Querying \"CustomTable\" as a string failed"));
+    else if (!*pszCustBinFile)
+    {
+        MMR3HeapFree(pszCustBinFile);
+        pszCustBinFile = NULL;
+    }
+
+    /*
+     * Determine the custom table binary size, open specified ROM file in the process.
+     */
+    if (pszCustBinFile)
+    {
+        RTFILE FileCUSTBin;
+        rc = RTFileOpen(&FileCUSTBin, pszCustBinFile,
+                        RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE);
+        if (RT_SUCCESS(rc))
+        {
+            rc = RTFileGetSize(FileCUSTBin, &pThis->cbCustBin);
+            if (RT_SUCCESS(rc))
+            {
+                /* The following checks should be in sync the AssertReleaseMsg's below. */
+                if (    pThis->cbCustBin > 3072
+                    ||  pThis->cbCustBin < sizeof(ACPITBLHEADER))
+                    rc = VERR_TOO_MUCH_DATA;
+
+                /*
+                 * Allocate buffer for the custom table binary data.
+                 */
+                pThis->pu8CustBin = (uint8_t *)PDMDevHlpMMHeapAlloc(pThis->pDevIns, pThis->cbCustBin);
+                if (pThis->pu8CustBin)
+                {
+                    rc = RTFileRead(FileCUSTBin, pThis->pu8CustBin, pThis->cbCustBin, NULL);
+                    if (RT_FAILURE(rc))
+                    {
+                        AssertMsgFailed(("RTFileRead(,,%d,NULL) -> %Rrc\n", pThis->cbCustBin, rc));
+                        MMR3HeapFree(pThis->pu8CustBin);
+                        pThis->pu8CustBin = NULL;
+                    }
+                    else
+                    {
+                        pThis->fUseCust = true;
+                        memcpy(&pThis->au8OemId[0], &pThis->pu8CustBin[10], 6);
+                        memcpy(&pThis->au8OemTabId[0], &pThis->pu8CustBin[16], 8);
+                        memcpy(&pThis->u32OemRevision, &pThis->pu8CustBin[24], 4);
+                        memcpy(&pThis->au8CreatorId[0], &pThis->pu8CustBin[28], 4);
+                        memcpy(&pThis->u32CreatorRev, &pThis->pu8CustBin[32], 4);
+                        LogRel(("Reading custom ACPI table from file '%s' (%d bytes)\n", pszCustBinFile, pThis->cbCustBin));
+                    }
+                }
+                else
+                    rc = VERR_NO_MEMORY;
+
+                RTFileClose(FileCUSTBin);
+            }
+        }
+        MMR3HeapFree(pszCustBinFile);
+        if (RT_FAILURE(rc))
+            return PDMDEV_SET_ERROR(pDevIns, rc,
+                                    N_("Error reading custom ACPI table"));
+    }
 
     /* Set default port base */
     pThis->uPmIoPortBase = PM_PORT_BASE;
@@ -3177,7 +3376,7 @@ const PDMDEVREG g_DeviceACPI =
     /* pfnConstruct */
     acpiConstruct,
     /* pfnDestruct */
-    NULL,
+    acpiDestruct,
     /* pfnRelocate */
     acpiRelocate,
     /* pfnIOCtl */

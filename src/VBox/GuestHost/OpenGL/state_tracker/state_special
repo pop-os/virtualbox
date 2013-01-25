@@ -375,3 +375,7 @@ ValidateProgram
 BindAttribLocation
 GetUniformLocation
 CopyTexImage2D
+GenFramebuffersEXT
+GenRenderbuffersEXT
+IsRenderbufferEXT
+IsFramebufferEXT

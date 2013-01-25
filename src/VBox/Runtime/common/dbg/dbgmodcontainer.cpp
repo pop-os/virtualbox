@@ -287,7 +287,7 @@ static DECLCALLBACK(int) rtDbgModContainer_LineAdd(PRTDBGMODINT pMod, const char
 
 
 /** @copydoc RTDBGMODVTDBG::pfnSymbolByAddr */
-static DECLCALLBACK(int) rtDbgModContainer_SymbolByAddr(PRTDBGMODINT pMod, RTDBGSEGIDX iSeg, RTUINTPTR off,
+static DECLCALLBACK(int) rtDbgModContainer_SymbolByAddr(PRTDBGMODINT pMod, RTDBGSEGIDX iSeg, RTUINTPTR off, uint32_t fFlags,
                                                         PRTINTPTR poffDisp, PRTDBGSYMBOL pSymInfo)
 {
     PRTDBGMODCTN pThis = (PRTDBGMODCTN)pMod->pvDbgPriv;
@@ -311,7 +311,7 @@ static DECLCALLBACK(int) rtDbgModContainer_SymbolByAddr(PRTDBGMODINT pMod, RTDBG
                                                             ? &pThis->AbsAddrTree
                                                             : &pThis->paSegs[iSeg].SymAddrTree,
                                                             off,
-                                                            false /*fAbove*/);
+                                                            fFlags == RTDBGSYMADDR_FLAGS_GREATER_OR_EQUAL /*fAbove*/);
     if (!pAvlCore)
         return VERR_SYMBOL_NOT_FOUND;
     PCRTDBGMODCTNSYMBOL pMySym = RT_FROM_MEMBER(pAvlCore, RTDBGMODCTNSYMBOL const, AddrCore);
@@ -399,7 +399,7 @@ static DECLCALLBACK(int) rtDbgModContainer_SymbolAdd(PRTDBGMODINT pMod, const ch
     pSymbol->iSeg               = iSeg;
     pSymbol->cb                 = cb;
     pSymbol->fFlags             = fFlags;
-    pSymbol->NameCore.pszString = RTStrCacheEnter(g_hDbgModStrCache, pszSymbol);
+    pSymbol->NameCore.pszString = RTStrCacheEnterN(g_hDbgModStrCache, pszSymbol, cchSymbol);
     int rc;
     if (pSymbol->NameCore.pszString)
     {
@@ -479,7 +479,8 @@ static DECLCALLBACK(int) rtDbgModContainer_SegmentAdd(PRTDBGMODINT pMod, RTUINTP
         RTUINTPTR uCurRva     = pThis->paSegs[iSeg].off;
         RTUINTPTR uCurRvaLast = uCurRva + RT_MAX(pThis->paSegs[iSeg].cb, 1) - 1;
         if (   uRva      <= uCurRvaLast
-            && uRvaLast  >= uCurRva)
+            && uRvaLast  >= uCurRva
+            && (cb != 0 || pThis->paSegs[iSeg].cb != 0)) /* HACK ALERT! Allow empty segments to share space (bios/watcom). */
             AssertMsgFailedReturn(("uRva=%RTptr uRvaLast=%RTptr (cb=%RTptr) \"%s\";\n"
                                    "uRva=%RTptr uRvaLast=%RTptr (cb=%RTptr) \"%s\" iSeg=%#x\n",
                                    uRva, uRvaLast, cb, pszName,
@@ -564,10 +565,18 @@ static DECLCALLBACK(RTDBGSEGIDX) rtDbgModContainer_RvaToSegOff(PRTDBGMODINT pMod
         uint32_t iLast  = cSegs - 1;
         for (;;)
         {
-            uint32_t    iSeg   = iFirst + (iFirst - iLast) / 2;
+            uint32_t    iSeg   = iFirst + (iLast - iFirst) / 2;
             RTUINTPTR   offSeg = uRva - paSeg[iSeg].off;
             if (offSeg < paSeg[iSeg].cb)
             {
+#if 0 /* Enable if we change the above test. */
+                if (offSeg == 0 && paSeg[iSeg].cb == 0)
+                    while (   iSeg > 0
+                           && paSeg[iSeg - 1].cb  == 0
+                           && paSeg[iSeg - 1].off == uRva)
+                        iSeg--;
+#endif
+
                 if (poffSeg)
                     *poffSeg = offSeg;
                 return iSeg;
@@ -603,6 +612,7 @@ static DECLCALLBACK(int)  rtDbgModContainer_DestroyTreeNode(PAVLRUINTPTRNODECORE
     RTStrCacheRelease(g_hDbgModStrCache, pSym->NameCore.pszString);
     pSym->NameCore.pszString = NULL;
     RTMemFree(pSym);
+    NOREF(pvUser);
     return 0;
 }
 
@@ -637,6 +647,7 @@ static DECLCALLBACK(int) rtDbgModContainer_Close(PRTDBGMODINT pMod)
 /** @copydoc RTDBGMODVTDBG::pfnTryOpen */
 static DECLCALLBACK(int) rtDbgModContainer_TryOpen(PRTDBGMODINT pMod)
 {
+    NOREF(pMod);
     return VERR_INTERNAL_ERROR_5;
 }
 

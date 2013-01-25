@@ -20,9 +20,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #ifdef RT_OS_WINDOWS
-# include <windows.h>
-# include <tchar.h>
-# include <stdio.h>
+# include <Windows.h>
 # include <Shlobj.h>
 #endif
 
@@ -40,25 +38,25 @@ int main()
     /*
      * Init globals and such.
      */
-    RTR3Init();
+    RTR3InitExeNoArguments(0);
 
     int rc = VbglR3Init();
     if (RT_FAILURE(rc))
     {
-        printf("VbglR3Init failed with rc=%Rrc.\n", rc);
+        RTPrintf("VbglR3Init failed with rc=%Rrc.\n", rc);
         return -1;
     }
 #ifdef RT_OS_WINDOWS
-    TCHAR szPath[MAX_PATH];
-    HRESULT hRes = SHGetFolderPath(0, CSIDL_APPDATA, 0, 0, szPath);
+    WCHAR   wszPath[MAX_PATH];
+    HRESULT hRes = SHGetFolderPathW(0, CSIDL_APPDATA, 0, 0, wszPath);
 
     if (SUCCEEDED(hRes))
     {
-        RTPrintf("SHGetFolderPathW (CSIDL_APPDATA) = %ls\n", szPath);
-        hRes = SHGetFolderPath(0, CSIDL_PERSONAL, 0, 0, szPath);
+        RTPrintf("SHGetFolderPathW (CSIDL_APPDATA) = %ls\n", wszPath);
+        hRes = SHGetFolderPathW(0, CSIDL_PERSONAL, 0, 0, wszPath);
         if (SUCCEEDED(hRes))
         {
-            RTPrintf("SHGetFolderPathW (CSIDL_PERSONAL) = %ls\n", szPath);
+            RTPrintf("SHGetFolderPathW (CSIDL_PERSONAL) = %ls\n", wszPath);
         }
         else
             RTPrintf("SHGetFolderPathW (CSIDL_PERSONAL) returned error: 0x%x\n", hRes);
@@ -73,6 +71,6 @@ int main()
     RTPrintf("Environment:\n\n");
     RTPrintf("APPDATA = %s\n", getenv("APPDATA"));
 #endif
-    return RT_SUCCESS(rc) ? 0 : 1;
+    return RT_SUCCESS(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 

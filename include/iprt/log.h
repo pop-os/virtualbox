@@ -52,6 +52,8 @@ typedef enum RTLOGGROUP
 {
     /** Default logging group. */
     RTLOGGROUP_DEFAULT,
+    RTLOGGROUP_DBG,
+    RTLOGGROUP_DBG_DWARF,
     RTLOGGROUP_DIR,
     RTLOGGROUP_FILE,
     RTLOGGROUP_FS,
@@ -81,6 +83,8 @@ typedef enum RTLOGGROUP
  */
 #define RT_LOGGROUP_NAMES \
     "DEFAULT",      \
+    "RT_DBG",       \
+    "RT_DBG_DWARF", \
     "RT_DIR",       \
     "RT_FILE",      \
     "RT_FS",        \
@@ -91,8 +95,6 @@ typedef enum RTLOGGROUP
     "RT_THREAD",    \
     "RT_TIME",      \
     "RT_TIMER",     \
-    "RT_11", \
-    "RT_12", \
     "RT_13", \
     "RT_14", \
     "RT_15", \
@@ -1642,9 +1644,9 @@ RTDECL(int) RTLogGetGroupSettings(PRTLOGGER pLogger, char *pszBuf, size_t cchBuf
  * @returns iprt status code.
  *          Failures can safely be ignored.
  * @param   pLogger     Logger instance (NULL for default logger).
- * @param   pszVar      Value to parse.
+ * @param   pszValue    Value to parse.
  */
-RTDECL(int) RTLogGroupSettings(PRTLOGGER pLogger, const char *pszVar);
+RTDECL(int) RTLogGroupSettings(PRTLOGGER pLogger, const char *pszValue);
 #endif /* !IN_RC */
 
 /**
@@ -1654,9 +1656,9 @@ RTDECL(int) RTLogGroupSettings(PRTLOGGER pLogger, const char *pszVar);
  * @returns iprt status code.
  *          Failures can safely be ignored.
  * @param   pLogger     Logger instance (NULL for default logger).
- * @param   pszVar      Value to parse.
+ * @param   pszValue    Value to parse.
  */
-RTDECL(int) RTLogFlags(PRTLOGGER pLogger, const char *pszVar);
+RTDECL(int) RTLogFlags(PRTLOGGER pLogger, const char *pszValue);
 
 /**
  * Changes the buffering setting of the specified logger.
@@ -1701,9 +1703,9 @@ RTDECL(int) RTLogGetFlags(PRTLOGGER pLogger, char *pszBuf, size_t cchBuf);
  *
  * @returns VINF_SUCCESS or VERR_BUFFER_OVERFLOW.
  * @param   pLogger             Logger instance (NULL for default logger).
- * @param   pszVar              The value to parse.
+ * @param   pszValue            The value to parse.
  */
-RTDECL(int) RTLogDestinations(PRTLOGGER pLogger, char const *pszVar);
+RTDECL(int) RTLogDestinations(PRTLOGGER pLogger, char const *pszValue);
 
 /**
  * Get the current log destinations as a string.

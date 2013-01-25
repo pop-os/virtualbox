@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,8 +50,8 @@ typedef enum CPUMCPUIDFEATURE
     CPUMCPUIDFEATURE_SYSCALL,
     /** The PAE feature bit. (Std+Ext) */
     CPUMCPUIDFEATURE_PAE,
-    /** The NXE feature bit. (Ext) */
-    CPUMCPUIDFEATURE_NXE,
+    /** The NX feature bit. (Ext) */
+    CPUMCPUIDFEATURE_NX,
     /** The LAHF/SAHF feature bit (64 bits mode only). (Ext) */
     CPUMCPUIDFEATURE_LAHF,
     /** The LONG MODE feature bit. (Ext) */
@@ -90,6 +90,7 @@ VMMDECL(void)       CPUMGetGuestGDTR(PVMCPU pVCpu, PVBOXGDTR pGDTR);
 VMMDECL(RTGCPTR)    CPUMGetGuestIDTR(PVMCPU pVCpu, uint16_t *pcbLimit);
 VMMDECL(RTSEL)      CPUMGetGuestTR(PVMCPU pVCpu, PCPUMSELREGHID pHidden);
 VMMDECL(RTSEL)      CPUMGetGuestLDTR(PVMCPU pVCpu);
+VMMDECL(RTSEL)      CPUMGetGuestLdtrEx(PVMCPU pVCpu, uint64_t *pGCPtrBase, uint32_t *pcbLimit);
 VMMDECL(uint64_t)   CPUMGetGuestCR0(PVMCPU pVCpu);
 VMMDECL(uint64_t)   CPUMGetGuestCR2(PVMCPU pVCpu);
 VMMDECL(uint64_t)   CPUMGetGuestCR3(PVMCPU pVCpu);
@@ -169,6 +170,8 @@ VMMDECL(void)       CPUMSetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeatur
 VMMDECL(void)       CPUMClearGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature);
 VMMDECL(bool)       CPUMGetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature);
 VMMDECL(void)       CPUMSetGuestCtx(PVMCPU pVCpu, const PCPUMCTX pCtx);
+VMM_INT_DECL(void)  CPUMGuestLazyLoadHiddenCsAndSs(PVMCPU pVCpu);
+VMM_INT_DECL(void)  CPUMGuestLazyLoadHiddenSelectorReg(PVMCPU pVCpu, PCPUMSELREG pSReg);
 /** @} */
 
 
@@ -177,6 +180,7 @@ VMMDECL(void)       CPUMSetGuestCtx(PVMCPU pVCpu, const PCPUMCTX pCtx);
 
 VMMDECL(bool)       CPUMIsGuestIn16BitCode(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestIn32BitCode(PVMCPU pVCpu);
+VMMDECL(bool)       CPUMIsGuestIn64BitCode(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestNXEnabled(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestPageSizeExtEnabled(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestPagingEnabled(PVMCPU pVCpu);
@@ -187,6 +191,7 @@ VMMDECL(bool)       CPUMIsGuestInProtectedMode(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestInPagedProtectedMode(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestInLongMode(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestInPAEMode(PVMCPU pVCpu);
+VMM_INT_DECL(bool)  CPUMIsGuestInRawMode(PVMCPU pVCpu);
 
 #ifndef VBOX_WITHOUT_UNNAMED_UNIONS
 
@@ -235,34 +240,22 @@ DECLINLINE(bool)    CPUMIsGuestInLongModeEx(PCPUMCTX pCtx)
     return (pCtx->msrEFER & MSR_K6_EFER_LMA) == MSR_K6_EFER_LMA;
 }
 
-/**
- * Tests if the guest is running in 64 bits mode or not.
- *
- * @returns true if in 64 bits protected mode, otherwise false.
- * @param   pVM     The VM handle.
- * @param   pCtx    Current CPU context
- */
-DECLINLINE(bool)    CPUMIsGuestIn64BitCode(PVMCPU pVCpu, PCCPUMCTXCORE pCtx)
-{
-    if (!CPUMIsGuestInLongMode(pVCpu))
-        return false;
-
-    return pCtx->csHid.Attr.n.u1Long;
-}
+VMM_INT_DECL(bool) CPUMIsGuestIn64BitCodeSlow(PCPUMCTX pCtx);
 
 /**
  * Tests if the guest is running in 64 bits mode or not.
  *
  * @returns true if in 64 bits protected mode, otherwise false.
- * @param   pVM     The VM handle.
+ * @param   pVCpu   The current virtual CPU.
  * @param   pCtx    Current CPU context
  */
-DECLINLINE(bool)    CPUMIsGuestIn64BitCodeEx(PCCPUMCTX pCtx)
+DECLINLINE(bool)    CPUMIsGuestIn64BitCodeEx(PCPUMCTX pCtx)
 {
     if (!(pCtx->msrEFER & MSR_K6_EFER_LMA))
         return false;
-
-    return pCtx->csHid.Attr.n.u1Long;
+    if (!CPUMSELREG_ARE_HIDDEN_PARTS_VALID(NULL, &pCtx->cs))
+        return CPUMIsGuestIn64BitCodeSlow(pCtx);
+    return pCtx->cs.Attr.n.u1Long;
 }
 
 /**
@@ -340,6 +333,7 @@ VMMDECL(void)           CPUMSetHyperSS(PVMCPU pVCpu, RTSEL SelSS);
 VMMDECL(void)           CPUMSetHyperESP(PVMCPU pVCpu, uint32_t u32ESP);
 VMMDECL(int)            CPUMSetHyperEFlags(PVMCPU pVCpu, uint32_t Efl);
 VMMDECL(void)           CPUMSetHyperEIP(PVMCPU pVCpu, uint32_t u32EIP);
+VMM_INT_DECL(void)      CPUMSetHyperState(PVMCPU pVCpu, uint32_t u32EIP, uint32_t u32ESP, uint32_t u32EAX, uint32_t u32EDX);
 VMMDECL(void)           CPUMSetHyperDR0(PVMCPU pVCpu, RTGCUINTREG uDr0);
 VMMDECL(void)           CPUMSetHyperDR1(PVMCPU pVCpu, RTGCUINTREG uDr1);
 VMMDECL(void)           CPUMSetHyperDR2(PVMCPU pVCpu, RTGCUINTREG uDr2);
@@ -351,19 +345,18 @@ VMMDECL(int)            CPUMRecalcHyperDRx(PVMCPU pVCpu);
 /** @} */
 
 VMMDECL(void)           CPUMPushHyper(PVMCPU pVCpu, uint32_t u32);
-VMMDECL(void)           CPUMHyperSetCtxCore(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore);
 VMMDECL(int)            CPUMQueryHyperCtxPtr(PVMCPU pVCpu, PCPUMCTX *ppCtx);
+VMMDECL(PCPUMCTX)       CPUMGetHyperCtxPtr(PVMCPU pVCpu);
 VMMDECL(PCCPUMCTXCORE)  CPUMGetHyperCtxCore(PVMCPU pVCpu);
 VMMDECL(PCPUMCTX)       CPUMQueryGuestCtxPtr(PVMCPU pVCpu);
 VMMDECL(PCCPUMCTXCORE)  CPUMGetGuestCtxCore(PVMCPU pVCpu);
-VMMDECL(void)           CPUMSetGuestCtxCore(PVMCPU pVCpu, PCCPUMCTXCORE pCtxCore);
 VMMR3DECL(int)          CPUMR3RawEnter(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore);
 VMMR3DECL(int)          CPUMR3RawLeave(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, int rc);
-VMMDECL(uint32_t)       CPUMRawGetEFlags(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore);
-VMMDECL(void)           CPUMRawSetEFlags(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint32_t eflags);
+VMMDECL(uint32_t)       CPUMRawGetEFlags(PVMCPU pVCpu);
+VMMDECL(void)           CPUMRawSetEFlags(PVMCPU pVCpu, uint32_t fEfl);
 VMMDECL(int)            CPUMHandleLazyFPU(PVMCPU pVCpu);
 
-/** @name Changed flags
+/** @name Changed flags.
  * These flags are used to keep track of which important register that
  * have been changed since last they were reset. The only one allowed
  * to clear them is REM!
@@ -377,16 +370,15 @@ VMMDECL(int)            CPUMHandleLazyFPU(PVMCPU pVCpu);
 #define CPUM_CHANGED_GDTR                       RT_BIT(5)
 #define CPUM_CHANGED_IDTR                       RT_BIT(6)
 #define CPUM_CHANGED_LDTR                       RT_BIT(7)
-#define CPUM_CHANGED_TR                         RT_BIT(8)
+#define CPUM_CHANGED_TR                         RT_BIT(8)  /**@< Currently unused. */
 #define CPUM_CHANGED_SYSENTER_MSR               RT_BIT(9)
-#define CPUM_CHANGED_HIDDEN_SEL_REGS            RT_BIT(10)
+#define CPUM_CHANGED_HIDDEN_SEL_REGS            RT_BIT(10) /**@< Currently unused. */
 #define CPUM_CHANGED_CPUID                      RT_BIT(11)
-/** All except CPUM_CHANGED_HIDDEN_SEL_REGS_INVALID.  */
 #define CPUM_CHANGED_ALL                        (  CPUM_CHANGED_FPU_REM \
                                                  | CPUM_CHANGED_CR0 \
+                                                 | CPUM_CHANGED_CR4 \
                                                  | CPUM_CHANGED_GLOBAL_TLB_FLUSH \
                                                  | CPUM_CHANGED_CR3 \
-                                                 | CPUM_CHANGED_CR4 \
                                                  | CPUM_CHANGED_GDTR \
                                                  | CPUM_CHANGED_IDTR \
                                                  | CPUM_CHANGED_LDTR \
@@ -394,11 +386,6 @@ VMMDECL(int)            CPUMHandleLazyFPU(PVMCPU pVCpu);
                                                  | CPUM_CHANGED_SYSENTER_MSR \
                                                  | CPUM_CHANGED_HIDDEN_SEL_REGS \
                                                  | CPUM_CHANGED_CPUID )
-/** This one is used by raw-mode to indicate that the hidden register
- * information is not longer reliable and have to be re-determined.
- *
- * @remarks This must not be part of CPUM_CHANGED_ALL! */
-#define CPUM_CHANGED_HIDDEN_SEL_REGS_INVALID    RT_BIT(12)
 /** @} */
 
 VMMDECL(void)           CPUMSetChangedFlags(PVMCPU pVCpu, uint32_t fChangedFlags);
@@ -413,9 +400,10 @@ VMMDECL(bool)           CPUMIsGuestDebugStateActive(PVMCPU pVCpu);
 VMMDECL(void)           CPUMDeactivateGuestDebugState(PVMCPU pVCpu);
 VMMDECL(bool)           CPUMIsHyperDebugStateActive(PVMCPU pVCpu);
 VMMDECL(void)           CPUMDeactivateHyperDebugState(PVMCPU pVCpu);
-VMMDECL(uint32_t)       CPUMGetGuestCPL(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore);
-VMMDECL(bool)           CPUMAreHiddenSelRegsValid(PVMCPU pVCpu);
+VMMDECL(uint32_t)       CPUMGetGuestCPL(PVMCPU pVCpu);
 VMMDECL(CPUMMODE)       CPUMGetGuestMode(PVMCPU pVCpu);
+VMMDECL(uint32_t)       CPUMGetGuestCodeBits(PVMCPU pVCpu);
+VMMDECL(DISCPUMODE)     CPUMGetGuestDisMode(PVMCPU pVCpu);
 
 
 #ifdef IN_RING3
@@ -425,15 +413,13 @@ VMMDECL(CPUMMODE)       CPUMGetGuestMode(PVMCPU pVCpu);
  */
 
 VMMR3DECL(int)          CPUMR3Init(PVM pVM);
+VMMR3DECL(void)         CPUMR3LogCpuIds(PVM pVM);
 VMMR3DECL(void)         CPUMR3Relocate(PVM pVM);
 VMMR3DECL(int)          CPUMR3Term(PVM pVM);
 VMMR3DECL(void)         CPUMR3Reset(PVM pVM);
 VMMR3DECL(void)         CPUMR3ResetCpu(PVMCPU pVCpu);
 VMMDECL(bool)           CPUMR3IsStateRestorePending(PVM pVM);
 VMMR3DECL(void)         CPUMR3SetHWVirtEx(PVM pVM, bool fHWVirtExEnabled);
-# ifdef DEBUG
-VMMR3DECL(void)         CPUMR3SaveEntryCtx(PVM pVM);
-# endif
 VMMR3DECL(int)          CPUMR3SetCR4Feature(PVM pVM, RTHCUINTREG fOr, RTHCUINTREG fAnd);
 VMMR3DECL(RCPTRTYPE(PCCPUMCPUID)) CPUMR3GetGuestCpuIdStdRCPtr(PVM pVM);
 VMMR3DECL(RCPTRTYPE(PCCPUMCPUID)) CPUMR3GetGuestCpuIdExtRCPtr(PVM pVM);

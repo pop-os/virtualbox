@@ -31,6 +31,7 @@
 #include <iprt/time.h>
 #include <iprt/thread.h>
 #include <iprt/initterm.h>
+#include <iprt/message.h>
 #include <iprt/stream.h>
 #include <iprt/err.h>
 
@@ -67,12 +68,9 @@ int main()
      * Init runtime
      */
     unsigned cErrors = 0;
-    int rc = RTR3Init();
+    int rc = RTR3InitExeNoArguments(0);
     if (RT_FAILURE(rc))
-    {
-        RTPrintf("tstTimer: RTR3Init() -> %d\n", rc);
-        return 1;
-    }
+        return RTMsgInitFailure(rc);
 
     /*
      * Check that the clock is reliable.
@@ -217,7 +215,7 @@ int main()
         rc = RTTimerLRCreateEx(&hTimerLR, aTests[0].uMilliesInterval * (uint64_t)1000000, 0, TimerLRCallback, NULL);
         if (RT_FAILURE(rc))
         {
-            RTPrintf("RTTimerLRCreateEX(,%u*1M,,,) -> %d\n", aTests[i].uMilliesInterval, rc);
+            RTPrintf("RTTimerLRCreateEX(,%u*1M,,,) -> %d\n", aTests[0].uMilliesInterval, rc);
             cErrors++;
             continue;
         }

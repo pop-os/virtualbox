@@ -5,7 +5,7 @@
  *      (plus static gSOAP server code) to implement the actual webservice
  *      server, to which clients can connect.
  *
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,8 +31,6 @@
 #include <VBox/version.h>
 #include <VBox/log.h>
 
-#include <package-generated.h>
-
 #include <iprt/buildconfig.h>
 #include <iprt/ctype.h>
 #include <iprt/getopt.h>
@@ -50,6 +48,7 @@
 #include <iprt/system.h>
 #include <iprt/base64.h>
 #include <iprt/stream.h>
+#include <iprt/asm.h>
 
 // workaround for compile problems on gcc 4.1
 #ifdef __GNUC__
@@ -143,9 +142,7 @@ uint32_t                g_uHistoryFileTime = RT_SEC_1DAY; // max 1 day per file
 uint64_t                g_uHistoryFileSize = 100 * _1M; // max 100MB per file
 bool                    g_fVerbose = false;             // be verbose
 
-#if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX) || defined (RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
 bool                    g_fDaemonize = false;           // run in background.
-#endif
 
 const WSDLT_ID          g_EmptyWSDLID;                  // for NULL MORs
 
@@ -681,10 +678,9 @@ typedef ListenerImpl<VirtualBoxClientEventListener> VirtualBoxClientEventListene
 VBOX_LISTENER_DECLARE(VirtualBoxClientEventListenerImpl)
 
 /**
- * Implementation for WEBLOG macro defined in vboxweb.h; this prints a message
- * to the console and optionally to the file that may have been given to the
- * vboxwebsrv command line.
+ * Prints a message to the webservice log file.
  * @param pszFormat
+ * @todo eliminate, has no significant additional value over direct calls to LogRel.
  */
 void WebLog(const char *pszFormat, ...)
 {
@@ -719,74 +715,6 @@ void WebLogSoapError(struct soap *soap)
            (ppcszDetail && *ppcszDetail) ? *ppcszDetail : "no details available");
 }
 
-static void WebLogHeaderFooter(PRTLOGGER pLoggerRelease, RTLOGPHASE enmPhase, PFNRTLOGPHASEMSG pfnLog)
-{
-    /* some introductory information */
-    static RTTIMESPEC s_TimeSpec;
-    char szTmp[256];
-    if (enmPhase == RTLOGPHASE_BEGIN)
-        RTTimeNow(&s_TimeSpec);
-    RTTimeSpecToString(&s_TimeSpec, szTmp, sizeof(szTmp));
-
-    switch (enmPhase)
-    {
-        case RTLOGPHASE_BEGIN:
-        {
-            pfnLog(pLoggerRelease,
-                   "VirtualBox web service %s r%u %s (%s %s) release log\n"
-#ifdef VBOX_BLEEDING_EDGE
-                   "EXPERIMENTAL build " VBOX_BLEEDING_EDGE "\n"
-#endif
-                   "Log opened %s\n",
-                   VBOX_VERSION_STRING, RTBldCfgRevision(), VBOX_BUILD_TARGET,
-                   __DATE__, __TIME__, szTmp);
-
-            int vrc = RTSystemQueryOSInfo(RTSYSOSINFO_PRODUCT, szTmp, sizeof(szTmp));
-            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
-                pfnLog(pLoggerRelease, "OS Product: %s\n", szTmp);
-            vrc = RTSystemQueryOSInfo(RTSYSOSINFO_RELEASE, szTmp, sizeof(szTmp));
-            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
-                pfnLog(pLoggerRelease, "OS Release: %s\n", szTmp);
-            vrc = RTSystemQueryOSInfo(RTSYSOSINFO_VERSION, szTmp, sizeof(szTmp));
-            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
-                pfnLog(pLoggerRelease, "OS Version: %s\n", szTmp);
-            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
-                pfnLog(pLoggerRelease, "OS Service Pack: %s\n", szTmp);
-
-            /* the package type is interesting for Linux distributions */
-            char szExecName[RTPATH_MAX];
-            char *pszExecName = RTProcGetExecutablePath(szExecName, sizeof(szExecName));
-            pfnLog(pLoggerRelease,
-                   "Executable: %s\n"
-                   "Process ID: %u\n"
-                   "Package type: %s"
-#ifdef VBOX_OSE
-                   " (OSE)"
-#endif
-                   "\n",
-                   pszExecName ? pszExecName : "unknown",
-                   RTProcSelf(),
-                   VBOX_PACKAGE_STRING);
-            break;
-        }
-
-        case RTLOGPHASE_PREROTATE:
-            pfnLog(pLoggerRelease, "Log rotated - Log started %s\n", szTmp);
-            break;
-
-        case RTLOGPHASE_POSTROTATE:
-            pfnLog(pLoggerRelease, "Log continuation - Log started %s\n", szTmp);
-            break;
-
-        case RTLOGPHASE_END:
-            pfnLog(pLoggerRelease, "End of log file - Log started %s\n", szTmp);
-            break;
-
-        default:
-            /* nothing */;
-    }
-}
-
 #ifdef WITH_OPENSSL
 /****************************************************************************
  *
@@ -816,9 +744,12 @@ static void CRYPTO_locking_function(int mode, int n, const char * /*file*/, int 
 
 static struct CRYPTO_dynlock_value *CRYPTO_dyn_create_function(const char * /*file*/, int /*line*/)
 {
+    static uint32_t s_iCritSectDynlock = 0;
     struct CRYPTO_dynlock_value *value = (struct CRYPTO_dynlock_value *)RTMemAlloc(sizeof(struct CRYPTO_dynlock_value));
     if (value)
-        RTCritSectInit(&value->mutex);
+        RTCritSectInitEx(&value->mutex, RTCRITSECT_FLAGS_NO_LOCK_VAL,
+                         NIL_RTLOCKVALCLASS, RTLOCKVAL_SUB_CLASS_NONE,
+                         "openssl-dyn-%u", ASMAtomicIncU32(&s_iCritSectDynlock) - 1);
 
     return value;
 }
@@ -849,7 +780,9 @@ static int CRYPTO_thread_setup()
 
     for (int i = 0; i < num_locks; i++)
     {
-        int rc = RTCritSectInit(&g_pSSLMutexes[i]);
+        int rc = RTCritSectInitEx(&g_pSSLMutexes[i], RTCRITSECT_FLAGS_NO_LOCK_VAL,
+                                  NIL_RTLOCKVALCLASS, RTLOCKVAL_SUB_CLASS_NONE,
+                                  "openssl-%d", i);
         if (RT_FAILURE(rc))
         {
             for ( ; i >= 0; i--)
@@ -1006,15 +939,15 @@ static CComModule _Module;
 int main(int argc, char *argv[])
 {
     // initialize runtime
-    int rc = RTR3Init();
+    int rc = RTR3InitExe(argc, &argv, 0);
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
 
     // store a log prefix for this thread
     g_mapThreads[RTThreadSelf()] = "[M  ]";
 
-    RTStrmPrintf(g_pStdErr, VBOX_PRODUCT " web service version " VBOX_VERSION_STRING "\n"
-                            "(C) 2005-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
+    RTStrmPrintf(g_pStdErr, VBOX_PRODUCT " web service Version " VBOX_VERSION_STRING "\n"
+                            "(C) 2007-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
                             "All rights reserved.\n");
 
     int c;
@@ -1156,28 +1089,16 @@ int main(int argc, char *argv[])
         }
     }
 
-    /* create release logger */
-    PRTLOGGER pLoggerRelease;
-    static const char * const s_apszGroups[] = VBOX_LOGGROUP_NAMES;
-    RTUINT fFlags = RTLOGFLAGS_PREFIX_THREAD | RTLOGFLAGS_PREFIX_TIME_PROG;
-#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
-    fFlags |= RTLOGFLAGS_USECRLF;
-#endif
-    char szError[RTPATH_MAX + 128] = "";
-    int vrc = RTLogCreateEx(&pLoggerRelease, fFlags, "all",
-                            "VBOXWEBSRV_RELEASE_LOG", RT_ELEMENTS(s_apszGroups), s_apszGroups, RTLOGDEST_STDOUT,
-                            WebLogHeaderFooter, g_cHistory, g_uHistoryFileSize, g_uHistoryFileTime,
-                            szError, sizeof(szError), pszLogFile);
-    if (RT_SUCCESS(vrc))
-    {
-        /* register this logger as the release logger */
-        RTLogRelSetDefaultInstance(pLoggerRelease);
-
-        /* Explicitly flush the log in case of VBOXWEBSRV_RELEASE_LOG=buffered. */
-        RTLogFlush(pLoggerRelease);
-    }
-    else
-        return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to open release log (%s, %Rrc)", szError, vrc);
+    /* create release logger, to stdout */
+    char szError[RTPATH_MAX + 128];
+    rc = com::VBoxLogRelCreate("web service", g_fDaemonize ? NULL : pszLogFile,
+                               RTLOGFLAGS_PREFIX_THREAD | RTLOGFLAGS_PREFIX_TIME_PROG,
+                               "all", "VBOXWEBSRV_RELEASE_LOG",
+                               RTLOGDEST_STDOUT, UINT32_MAX /* cMaxEntriesPerGroup */,
+                               g_cHistory, g_uHistoryFileTime, g_uHistoryFileSize,
+                               szError, sizeof(szError));
+    if (RT_FAILURE(rc))
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to open release log (%s, %Rrc)", szError, rc);
 
 #if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX) || defined (RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
     if (g_fDaemonize)
@@ -1185,39 +1106,30 @@ int main(int argc, char *argv[])
         /* prepare release logging */
         char szLogFile[RTPATH_MAX];
 
-        rc = com::GetVBoxUserHomeDirectory(szLogFile, sizeof(szLogFile));
-        if (RT_FAILURE(rc))
-             return RTMsgErrorExit(RTEXITCODE_FAILURE, "could not get base directory for logging: %Rrc", rc);
-        rc = RTPathAppend(szLogFile, sizeof(szLogFile), "vboxwebsrv.log");
-        if (RT_FAILURE(rc))
-             return RTMsgErrorExit(RTEXITCODE_FAILURE, "could not construct logging path: %Rrc", rc);
+        if (!pszLogFile || !*pszLogFile)
+        {
+            rc = com::GetVBoxUserHomeDirectory(szLogFile, sizeof(szLogFile));
+            if (RT_FAILURE(rc))
+                 return RTMsgErrorExit(RTEXITCODE_FAILURE, "could not get base directory for logging: %Rrc", rc);
+            rc = RTPathAppend(szLogFile, sizeof(szLogFile), "vboxwebsrv.log");
+            if (RT_FAILURE(rc))
+                 return RTMsgErrorExit(RTEXITCODE_FAILURE, "could not construct logging path: %Rrc", rc);
+            pszLogFile = szLogFile;
+        }
 
         rc = RTProcDaemonizeUsingFork(false /* fNoChDir */, false /* fNoClose */, pszPidFile);
         if (RT_FAILURE(rc))
             return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to daemonize, rc=%Rrc. exiting.", rc);
 
-        /* create release logger */
-        PRTLOGGER pLoggerReleaseFile;
-        static const char * const s_apszGroupsFile[] = VBOX_LOGGROUP_NAMES;
-        RTUINT fFlagsFile = RTLOGFLAGS_PREFIX_THREAD | RTLOGFLAGS_PREFIX_TIME_PROG;
-#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
-        fFlagsFile |= RTLOGFLAGS_USECRLF;
-#endif
-        char szErrorFile[RTPATH_MAX + 128] = "";
-        int vrc = RTLogCreateEx(&pLoggerReleaseFile, fFlagsFile, "all",
-                                "VBOXWEBSRV_RELEASE_LOG", RT_ELEMENTS(s_apszGroupsFile), s_apszGroupsFile, RTLOGDEST_FILE,
-                                WebLogHeaderFooter, g_cHistory, g_uHistoryFileSize, g_uHistoryFileTime,
-                                szErrorFile, sizeof(szErrorFile), szLogFile);
-        if (RT_SUCCESS(vrc))
-        {
-            /* register this logger as the release logger */
-            RTLogRelSetDefaultInstance(pLoggerReleaseFile);
-
-            /* Explicitly flush the log in case of VBOXWEBSRV_RELEASE_LOG=buffered. */
-            RTLogFlush(pLoggerReleaseFile);
-        }
-        else
-            return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to open release log (%s, %Rrc)", szErrorFile, vrc);
+        /* create release logger, to file */
+        rc = com::VBoxLogRelCreate("web service", pszLogFile,
+                                   RTLOGFLAGS_PREFIX_THREAD | RTLOGFLAGS_PREFIX_TIME_PROG,
+                                   "all", "VBOXWEBSRV_RELEASE_LOG",
+                                   RTLOGDEST_FILE, UINT32_MAX /* cMaxEntriesPerGroup */,
+                                   g_cHistory, g_uHistoryFileTime, g_uHistoryFileSize,
+                                   szError, sizeof(szError));
+        if (RT_FAILURE(rc))
+            return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to open release log (%s, %Rrc)", szError, rc);
     }
 #endif
 
@@ -1524,17 +1436,25 @@ std::string Base64EncodeByteArray(ComSafeArrayIn(BYTE, aData))
 
     return aStr.c_str();
 }
-
-void Base64DecodeByteArray(std::string& aStr, ComSafeArrayOut(BYTE, aData))
+#define DECODE_STR_MAX 0x100000
+void Base64DecodeByteArray(struct soap *soap, std::string& aStr, ComSafeArrayOut(BYTE, aData))
 {
     const char* pszStr = aStr.c_str();
     ssize_t cbOut = RTBase64DecodedSize(pszStr, NULL);
 
-    Assert(cbOut > 0);
+    if(cbOut > DECODE_STR_MAX)
+    {
+        WebLog("Decode string too long.\n");
+        RaiseSoapRuntimeFault(soap, VERR_BUFFER_OVERFLOW, (ComPtr<IUnknown>)NULL);
+    }
 
     com::SafeArray<BYTE> result(cbOut);
     int rc = RTBase64Decode(pszStr, result.raw(), cbOut, NULL, NULL);
-    AssertRC(rc);
+    if (FAILED(rc))
+    {
+        WebLog("String Decoding Failed. ERROR: 0x%lX\n", rc);
+        RaiseSoapRuntimeFault(soap, rc, (ComPtr<IUnknown>)NULL);
+    }
 
     result.detachTo(ComSafeArrayOutArg(aData));
 }
@@ -1554,9 +1474,9 @@ void RaiseSoapRuntimeFault2(struct soap *soap,
 
     WEBDEBUG(("   error, raising SOAP exception\n"));
 
-    RTStrmPrintf(g_pStdErr, "API return code:            0x%08X (%Rhrc)\n", apirc, apirc);
-    RTStrmPrintf(g_pStdErr, "COM error info result code: 0x%lX\n", info.getResultCode());
-    RTStrmPrintf(g_pStdErr, "COM error info text:        %ls\n", info.getText().raw());
+    WebLog("API return code:            0x%08X (%Rhrc)\n", apirc, apirc);
+    WebLog("COM error info result code: 0x%lX\n", info.getResultCode());
+    WebLog("COM error info text:        %ls\n", info.getText().raw());
 
     // allocated our own soap fault struct
     _vbox__RuntimeFault *ex = soap_new__vbox__RuntimeFault(soap, 1);

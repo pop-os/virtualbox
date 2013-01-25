@@ -38,10 +38,10 @@
  *
  * @returns The following VBox status codes.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pGVM                Pointer to the GVM instance data.
  * @param   idCpu               The ID of the calling virtual CPU.
- * @param   pModule             Global module description
+ * @param   pModule             Global module description.
  * @param   paRegionsGCPtrs     Array parallel to pModules->aRegions with the
  *                              addresses of the regions in the calling
  *                              process.
@@ -101,19 +101,20 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVM pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHA
                         Log(("PGMR0SharedModuleCheck: shared page gst virt=%RGv phys=%RGp host %RHp->%RHp\n",
                              GCPtrPage, PageDesc.GCPhys, PGM_PAGE_GET_HCPHYS(pPage), PageDesc.HCPhys));
 
+                        /* Page was either replaced by an existing shared
+                           version of it or converted into a read-only shared
+                           page, so, clear all references. */
+                        bool fFlush = false;
+                        rc = pgmPoolTrackUpdateGCPhys(pVM, PageDesc.GCPhys, pPage, true /* clear the entries */, &fFlush);
+                        Assert(   rc == VINF_SUCCESS
+                               || (   VMCPU_FF_ISSET(pVCpu, VMCPU_FF_PGM_SYNC_CR3)
+                                   && (pVCpu->pgm.s.fSyncFlags & PGM_SYNC_CLEAR_PGM_POOL)));
+                        if (rc == VINF_SUCCESS)
+                            fFlushTLBs |= fFlush;
+                        fFlushRemTLBs = true;
+
                         if (PageDesc.HCPhys != PGM_PAGE_GET_HCPHYS(pPage))
                         {
-                            /* Page was replaced by an existing shared version
-                               of it; clear all references first. */
-                            bool fFlush = false;
-                            rc = pgmPoolTrackUpdateGCPhys(pVM, PageDesc.GCPhys, pPage, true /* clear the entries */, &fFlush);
-                            Assert(   rc == VINF_SUCCESS
-                                   || (   VMCPU_FF_ISSET(pVCpu, VMCPU_FF_PGM_SYNC_CR3)
-                                       && (pVCpu->pgm.s.fSyncFlags & PGM_SYNC_CLEAR_PGM_POOL)));
-                            if (rc == VINF_SUCCESS)
-                                fFlushTLBs |= fFlush;
-                            fFlushRemTLBs = true;
-
                             /* Update the physical address and page id now. */
                             PGM_PAGE_SET_HCPHYS(pVM, pPage, PageDesc.HCPhys);
                             PGM_PAGE_SET_PAGEID(pVM, pPage, PageDesc.idPage);
@@ -128,6 +129,11 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVM pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHA
                         pVM->pgm.s.cSharedPages++;
                         pVM->pgm.s.cPrivatePages--;
                         PGM_PAGE_SET_STATE(pVM, pPage, PGM_PAGE_STATE_SHARED);
+
+# ifdef VBOX_STRICT /* check sum hack */
+                        pPage->s.u2Unused0 = PageDesc.u32StrictChecksum        & 3;
+                        pPage->s.u2Unused1 = (PageDesc.u32StrictChecksum >> 8) & 3;
+# endif
                     }
                 }
             }

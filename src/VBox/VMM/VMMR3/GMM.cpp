@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -70,7 +70,7 @@ GMMR3DECL(int)  GMMR3UpdateReservation(PVM pVM, uint64_t cBasePages, uint32_t cS
  * Prepares a GMMR0AllocatePages request.
  *
  * @returns VINF_SUCCESS or VERR_NO_TMP_MEMORY.
- * @param       pVM         Pointer to the shared VM structure.
+ * @param       pVM         Pointer to the VM.
  * @param[out]  ppReq       Where to store the pointer to the request packet.
  * @param       cPages      The number of pages that's to be allocated.
  * @param       enmAccount  The account to charge.
@@ -97,7 +97,7 @@ GMMR3DECL(int) GMMR3AllocatePagesPrepare(PVM pVM, PGMMALLOCATEPAGESREQ *ppReq, u
  * This will call VMSetError on failure.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the shared VM structure.
+ * @param   pVM         Pointer to the VM.
  * @param   pReq        Pointer to the request (returned by GMMR3AllocatePagesPrepare).
  */
 GMMR3DECL(int) GMMR3AllocatePagesPerform(PVM pVM, PGMMALLOCATEPAGESREQ pReq)
@@ -151,7 +151,7 @@ GMMR3DECL(void) GMMR3AllocatePagesCleanup(PGMMALLOCATEPAGESREQ pReq)
  * Prepares a GMMR0FreePages request.
  *
  * @returns VINF_SUCCESS or VERR_NO_TMP_MEMORY.
- * @param       pVM         Pointer to the shared VM structure.
+ * @param       pVM         Pointer to the VM.
  * @param[out]  ppReq       Where to store the pointer to the request packet.
  * @param       cPages      The number of pages that's to be freed.
  * @param       enmAccount  The account to charge.
@@ -177,7 +177,7 @@ GMMR3DECL(int) GMMR3FreePagesPrepare(PVM pVM, PGMMFREEPAGESREQ *ppReq, uint32_t 
  * Re-prepares a GMMR0FreePages request.
  *
  * @returns VINF_SUCCESS or VERR_NO_TMP_MEMORY.
- * @param       pVM         Pointer to the shared VM structure.
+ * @param       pVM         Pointer to the VM.
  * @param       pReq        A request buffer previously returned by
  *                          GMMR3FreePagesPrepare().
  * @param       cPages      The number of pages originally passed to
@@ -199,7 +199,7 @@ GMMR3DECL(void) GMMR3FreePagesRePrep(PVM pVM, PGMMFREEPAGESREQ pReq, uint32_t cP
  * This will call VMSetError on failure.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the shared VM structure.
+ * @param   pVM             Pointer to the VM.
  * @param   pReq            Pointer to the request (returned by GMMR3FreePagesPrepare).
  * @param   cActualPages    The number of pages actually freed.
  */
@@ -245,7 +245,7 @@ GMMR3DECL(void) GMMR3FreePagesCleanup(PGMMFREEPAGESREQ pReq)
  *
  * This will not call VMSetError on failure but will use AssertLogRel instead.
  *
- * @param   pVM         Pointer to the shared VM structure.
+ * @param   pVM         Pointer to the VM.
  * @param   pAllocReq   The allocation request to undo.
  */
 GMMR3DECL(void) GMMR3FreeAllocatedPages(PVM pVM, GMMALLOCATEPAGESREQ const *pAllocReq)
@@ -286,6 +286,7 @@ GMMR3DECL(int)  GMMR3BalloonedPages(PVM pVM, GMMBALLOONACTION enmAction, uint32_
     return VMMR3CallR0(pVM, VMMR0_DO_GMM_BALLOONED_PAGES, 0, &Req.Hdr);
 }
 
+
 /**
  * @see GMMR0QueryVMMMemoryStatsReq
  */
@@ -316,6 +317,7 @@ GMMR3DECL(int)  GMMR3QueryHypervisorMemoryStats(PVM pVM, uint64_t *pcTotalAllocP
     return rc;
 }
 
+
 /**
  * @see GMMR0QueryMemoryStatsReq
  */
@@ -342,6 +344,7 @@ GMMR3DECL(int)  GMMR3QueryMemoryStats(PVM pVM, uint64_t *pcAllocPages, uint64_t 
     return rc;
 }
 
+
 /**
  * @see GMMR0MapUnmapChunk
  */
@@ -359,6 +362,7 @@ GMMR3DECL(int)  GMMR3MapUnmapChunk(PVM pVM, uint32_t idChunkMap, uint32_t idChun
     return rc;
 }
 
+
 /**
  * @see GMMR0FreeLargePage
  */
@@ -370,6 +374,7 @@ GMMR3DECL(int)  GMMR3FreeLargePage(PVM pVM,  uint32_t idPage)
     Req.idPage = idPage;
     return VMMR3CallR0(pVM, VMMR0_DO_GMM_FREE_LARGE_PAGE, 0, &Req.Hdr);
 }
+
 
 /**
  * @see GMMR0SeedChunk
@@ -393,6 +398,7 @@ GMMR3DECL(int) GMMR3RegisterSharedModule(PVM pVM, PGMMREGISTERSHAREDMODULEREQ pR
     return rc;
 }
 
+
 /**
  * @see GMMR0RegisterSharedModule
  */
@@ -403,6 +409,7 @@ GMMR3DECL(int) GMMR3UnregisterSharedModule(PVM pVM, PGMMUNREGISTERSHAREDMODULERE
     return VMMR3CallR0(pVM, VMMR0_DO_GMM_UNREGISTER_SHARED_MODULE, 0, &pReq->Hdr);
 }
 
+
 /**
  * @see GMMR0ResetSharedModules
  */
@@ -411,6 +418,7 @@ GMMR3DECL(int) GMMR3ResetSharedModules(PVM pVM)
     return VMMR3CallR0(pVM, VMMR0_DO_GMM_RESET_SHARED_MODULES, 0, NULL);
 }
 
+
 /**
  * @see GMMR0CheckSharedModules
  */
@@ -418,6 +426,7 @@ GMMR3DECL(int)  GMMR3CheckSharedModules(PVM pVM)
 {
     return VMMR3CallR0(pVM, VMMR0_DO_GMM_CHECK_SHARED_MODULES, 0, NULL);
 }
+
 
 #if defined(VBOX_STRICT) && HC_ARCH_BITS == 64
 /**
@@ -435,8 +444,7 @@ GMMR3DECL(bool) GMMR3IsDuplicatePage(PVM pVM, uint32_t idPage)
     int rc = SUPR3CallVMMR0Ex(pVM->pVMR0, NIL_VMCPUID, VMMR0_DO_GMM_FIND_DUPLICATE_PAGE, 0, &Req.Hdr);
     if (rc == VINF_SUCCESS)
         return Req.fDuplicate;
-    else
-        return false;
+    return false;
 }
 #endif /* VBOX_STRICT && HC_ARCH_BITS == 64 */
 

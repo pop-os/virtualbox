@@ -17,19 +17,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Local includes */
+/* GUI includes: */
 #include "UIConsoleEventHandler.h"
 #include "UIMainEventListener.h"
 #include "VBoxGlobal.h"
 #include "UISession.h"
-
 #ifdef Q_WS_MAC
 # include "VBoxUtils.h"
 #endif /* Q_WS_MAC */
 
-/* Global includes */
-//#include <iprt/thread.h>
-//#include <iprt/stream.h>
+/* COM includes: */
+#include "CConsole.h"
+#include "CEventSource.h"
 
 /* static */
 UIConsoleEventHandler *UIConsoleEventHandler::m_pInstance = 0;
@@ -79,7 +78,8 @@ UIConsoleEventHandler::UIConsoleEventHandler(UISession *pSession)
         << KVBoxEventType_OnRuntimeError
         << KVBoxEventType_OnCanShowWindow
         << KVBoxEventType_OnShowWindow
-        << KVBoxEventType_OnCPUExecutionCapChanged;
+        << KVBoxEventType_OnCPUExecutionCapChanged
+        << KVBoxEventType_OnGuestMonitorChanged;
 
     const CConsole &console = m_pSession->session().GetConsole();
     console.GetEventSource().RegisterListener(m_mainEventListener, events, TRUE);
@@ -147,6 +147,10 @@ UIConsoleEventHandler::UIConsoleEventHandler(UISession *pSession)
 
     connect(pListener->getWrapped(), SIGNAL(sigCPUExecutionCapChange()),
             this, SIGNAL(sigCPUExecutionCapChange()),
+            Qt::QueuedConnection);
+
+    connect(pListener->getWrapped(), SIGNAL(sigGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)),
+            this, SIGNAL(sigGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)),
             Qt::QueuedConnection);
 }
 

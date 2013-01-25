@@ -19,30 +19,38 @@
 #define __VBoxFBOverlay_h__
 #if defined (VBOX_GUI_USE_QGL) || defined(VBOX_WITH_VIDEOHWACCEL)
 
+/* Defines: */
 //#define VBOXQGL_PROF_BASE 1
 //#define VBOXQGL_DBG_SURF 1
-
 //#define VBOXVHWADBG_RENDERCHECK
+#define VBOXVHWA_ALLOW_PRIMARY_AND_OVERLAY_ONLY 1
 
-#include "COMDefs.h"
+/* Qt includes: */
 #include <QGLWidget>
+
+/* GUI includes: */
+#include "UIDefs.h"
+#include "VBoxFBOverlayCommon.h"
+
+/* COM includes: */
+#include "COMEnums.h"
+
+/* Other VBox includes: */
 #include <iprt/assert.h>
 #include <iprt/critsect.h>
 #include <iprt/asm.h>
 #include <iprt/err.h>
-
 #include <VBox/VBoxGL2D.h>
-#include "VBoxFBOverlayCommon.h"
-
-#define VBOXVHWA_ALLOW_PRIMARY_AND_OVERLAY_ONLY 1
+#ifdef VBOXVHWA_PROFILE_FPS
+# include <iprt/stream.h>
+#endif /* VBOXVHWA_PROFILE_FPS */
 
 #ifdef DEBUG_misha
 # define VBOXVHWA_PROFILE_FPS
-#endif
+#endif /* DEBUG_misha */
 
-#ifdef VBOXVHWA_PROFILE_FPS
-# include <iprt/stream.h>
-#endif
+/* Forward declarations: */
+class CSession;
 
 #ifdef DEBUG
 class VBoxVHWADbgTimer
@@ -63,7 +71,7 @@ private:
     uint32_t miPeriod;
 };
 
-#endif
+#endif /* DEBUG */
 
 class VBoxVHWASettings
 {
@@ -1568,7 +1576,7 @@ public:
             double fps = mFPSCounter.fps();
             if(!(mFPSCounter.frames() % 31))
             {
-                RTPrintf("fps: %f\n", fps);
+                LogRel(("fps: %f\n", fps));
             }
             mbNewFrame = false;
         }

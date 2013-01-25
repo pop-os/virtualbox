@@ -27,6 +27,17 @@
 #include <sys/wait.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
+#ifdef RT_OS_LINUX
+# include <net/if.h>
+# include <linux/types.h>
+/* Older versions of ethtool.h rely on these: */
+typedef unsigned long long u64;
+typedef __uint32_t u32;
+typedef __uint16_t u16;
+typedef __uint8_t u8;
+# include <linux/ethtool.h>
+# include <linux/sockios.h>
+#endif
 #ifdef RT_OS_SOLARIS
 # include <sys/ioccom.h>
 #endif
@@ -35,6 +46,7 @@
 #define ADPCTLERR_BAD_NAME         2
 #define ADPCTLERR_NO_CTL_DEV       3
 #define ADPCTLERR_IOCTL_FAILED     4
+#define ADPCTLERR_SOCKET_FAILED    5
 
 /** @todo These are duplicates from src/VBox/HostDrivers/VBoxNetAdp/VBoxNetAdpInternal.h */
 #define VBOXNETADP_CTL_DEV_NAME    "/dev/vboxnetctl"
@@ -184,8 +196,9 @@ static int doIOCtl(unsigned long uCmd, VBOXNETADPREQ *pReq)
     int fd = open(VBOXNETADP_CTL_DEV_NAME, O_RDWR);
     if (fd == -1)
     {
-        fprintf(stderr, "VBoxNetAdpCtl: Error while %s '%s': ",
-               uCmd == VBOXNETADP_CTL_REMOVE ? "removing" : "adding", pReq->szName);
+        fprintf(stderr, "VBoxNetAdpCtl: Error while %s %s: ",
+                uCmd == VBOXNETADP_CTL_REMOVE ? "removing" : "adding",
+                pReq->szName[0] ? pReq->szName : "new interface");
         perror("failed to open " VBOXNETADP_CTL_DEV_NAME);
         return ADPCTLERR_NO_CTL_DEV;
     }
@@ -193,8 +206,9 @@ static int doIOCtl(unsigned long uCmd, VBOXNETADPREQ *pReq)
     int rc = ioctl(fd, uCmd, pReq);
     if (rc == -1)
     {
-        fprintf(stderr, "VBoxNetAdpCtl: Error while %s '%s': ",
-               uCmd == VBOXNETADP_CTL_REMOVE ? "removing" : "adding", pReq->szName);
+        fprintf(stderr, "VBoxNetAdpCtl: Error while %s %s: ",
+                uCmd == VBOXNETADP_CTL_REMOVE ? "removing" : "adding",
+                pReq->szName[0] ? pReq->szName : "new interface");
         perror("VBoxNetAdpCtl: ioctl failed for " VBOXNETADP_CTL_DEV_NAME);
         rc = ADPCTLERR_IOCTL_FAILED;
     }
@@ -273,6 +287,73 @@ int main(int argc, char *argv[])
         {
             pszAdapterName = argv[1];
             memset(&Req, '\0', sizeof(Req));
+#ifdef RT_OS_LINUX
+            if (strcmp("speed", argv[2]) == 0)
+            {
+                /*
+                 * This ugly hack is needed for retrieving the link speed on
+                 * pre-2.6.33 kernels (see @bugref{6345}).
+                 */
+                if (strlen(pszAdapterName) >= IFNAMSIZ)
+                {
+                    showUsage();
+                    return -1;
+                }
+                struct ifreq IfReq;
+                struct ethtool_value EthToolVal;
+                struct ethtool_cmd EthToolReq;
+                int fd = socket(AF_INET, SOCK_DGRAM, 0);
+                if (fd < 0)
+                {
+                    fprintf(stderr, "VBoxNetAdpCtl: Error while retrieving link "
+                            "speed for %s: ", pszAdapterName);
+                    perror("VBoxNetAdpCtl: failed to open control socket");
+                    return ADPCTLERR_SOCKET_FAILED;
+                }
+                /* Get link status first. */
+                memset(&EthToolVal, 0, sizeof(EthToolVal));
+                memset(&IfReq, 0, sizeof(IfReq));
+                snprintf(IfReq.ifr_name, sizeof(IfReq.ifr_name), "%s", pszAdapterName);
+
+                EthToolVal.cmd = ETHTOOL_GLINK;
+                IfReq.ifr_data = (caddr_t)&EthToolVal;
+                rc = ioctl(fd, SIOCETHTOOL, &IfReq);
+                if (rc == 0)
+                {
+                    if (EthToolVal.data)
+                    {
+                        memset(&IfReq, 0, sizeof(IfReq));
+                        snprintf(IfReq.ifr_name, sizeof(IfReq.ifr_name), "%s", pszAdapterName);
+                        EthToolReq.cmd = ETHTOOL_GSET;
+                        IfReq.ifr_data = (caddr_t)&EthToolReq;
+                        rc = ioctl(fd, SIOCETHTOOL, &IfReq);
+                        if (rc == 0)
+                        {
+                            printf("%u", EthToolReq.speed);
+                        }
+                        else
+                        {
+                            fprintf(stderr, "VBoxNetAdpCtl: Error while retrieving link "
+                                    "speed for %s: ", pszAdapterName);
+                            perror("VBoxNetAdpCtl: ioctl failed");
+                            rc = ADPCTLERR_IOCTL_FAILED;
+                        }
+                    }
+                    else
+                        printf("0");
+                }
+                else
+                {
+                    fprintf(stderr, "VBoxNetAdpCtl: Error while retrieving link "
+                            "status for %s: ", pszAdapterName);
+                    perror("VBoxNetAdpCtl: ioctl failed");
+                    rc = ADPCTLERR_IOCTL_FAILED;
+                }
+
+                close(fd);
+                return rc;
+            }
+#endif
             rc = checkAdapterName(pszAdapterName, szAdapterName);
             if (rc)
                 return rc;

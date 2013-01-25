@@ -28,7 +28,7 @@ GLuint PACKSPU_APIENTRY packspu_CreateProgram(void)
     GET_THREAD(thread);
     int writeback = 1;
     GLuint return_val = (GLuint) 0;
-    if (!(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))
+    if (!CRPACKSPU_IS_WDDM_CRHGSMI() && !(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))
     {
         crError("packspu_CreateProgram doesn't work when there's no actual network involved!\nTry using the simplequery SPU in your chain!");
     }
@@ -41,8 +41,7 @@ GLuint PACKSPU_APIENTRY packspu_CreateProgram(void)
         crPackCreateProgram(&return_val, &writeback);
     }
     packspuFlush((void *) thread);
-    while (writeback)
-        crNetRecv();
+    CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
     if (pack_spu.swap)
     {
         return_val = (GLuint) SWAP32(return_val);
@@ -58,7 +57,7 @@ static GLint packspu_GetUniformLocationUncached(GLuint program, const char * nam
     GET_THREAD(thread);
     int writeback = 1;
     GLint return_val = (GLint) 0;
-    if (!(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))
+    if (!CRPACKSPU_IS_WDDM_CRHGSMI() && !(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))
     {
         crError("packspu_GetUniformLocation doesn't work when there's no actual network involved!\nTry using the simplequery SPU in your chain!");
     }
@@ -71,8 +70,7 @@ static GLint packspu_GetUniformLocationUncached(GLuint program, const char * nam
         crPackGetUniformLocation(program, name, &return_val, &writeback);
     }
     packspuFlush((void *) thread);
-    while (writeback)
-        crNetRecv();
+    CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
     if (pack_spu.swap)
     {
         return_val = (GLint) SWAP32(return_val);
@@ -103,8 +101,7 @@ GLint PACKSPU_APIENTRY packspu_GetUniformLocation(GLuint program, const char * n
         crPackGetUniformsLocations(program, maxcbData, pData, NULL, &writeback);
 
         packspuFlush((void *) thread);
-        while (writeback)
-            crNetRecv();
+        CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
 
         crStateGLSLProgramCacheUniforms(program, pData[0], &pData[1]);
 
@@ -135,6 +132,8 @@ void PACKSPU_APIENTRY packspu_DeleteProgram(GLuint program)
 void PACK_APIENTRY packspu_DeleteObjectARB(GLhandleARB obj)
 {
     GLuint hwid = crStateGetProgramHWID(obj);
+
+    CRASSERT(obj);
 
     if (hwid)
     {

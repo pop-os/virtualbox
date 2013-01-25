@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,20 +34,22 @@
 #include <iprt/string.h>
 #include <iprt/x86.h>
 
+
 /**
  * Queues a page for invalidation
  *
  * @returns VBox status code.
- * @param   pVCpu       The VMCPU to operate on.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   GCVirt      Page to invalidate
  */
-void hwaccmQueueInvlPage(PVMCPU pVCpu, RTGCPTR GCVirt)
+static void hwaccmQueueInvlPage(PVMCPU pVCpu, RTGCPTR GCVirt)
 {
     /* Nothing to do if a TLB flush is already pending */
     if (VMCPU_FF_ISSET(pVCpu, VMCPU_FF_TLB_FLUSH))
         return;
 #if 1
     VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_FLUSH);
+    NOREF(GCVirt);
 #else
     Be very careful when activating this code!
     if (iPage == RT_ELEMENTS(pVCpu->hwaccm.s.TlbShootdown.aPages))
@@ -61,7 +63,7 @@ void hwaccmQueueInvlPage(PVMCPU pVCpu, RTGCPTR GCVirt)
  * Invalidates a guest page
  *
  * @returns VBox status code.
- * @param   pVCpu       The VMCPU to operate on.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   GCVirt      Page to invalidate
  */
 VMMDECL(int) HWACCMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt)
@@ -74,17 +76,18 @@ VMMDECL(int) HWACCMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt)
 
     Assert(pVM->hwaccm.s.svm.fSupported);
     return SVMR0InvalidatePage(pVM, pVCpu, GCVirt);
-#endif
 
+#else
     hwaccmQueueInvlPage(pVCpu, GCVirt);
     return VINF_SUCCESS;
+#endif
 }
 
 /**
  * Flushes the guest TLB
  *
  * @returns VBox status code.
- * @param   pVCpu       The VMCPU to operate on.
+ * @param   pVCpu       Pointer to the VMCPU.
  */
 VMMDECL(int) HWACCMFlushTLB(PVMCPU pVCpu)
 {
@@ -103,6 +106,7 @@ VMMDECL(int) HWACCMFlushTLB(PVMCPU pVCpu)
  */
 static DECLCALLBACK(void) hwaccmFlushHandler(RTCPUID idCpu, void *pvUser1, void *pvUser2)
 {
+    NOREF(idCpu); NOREF(pvUser1); NOREF(pvUser2);
     return;
 }
 
@@ -185,7 +189,7 @@ static void hmPokeCpuForTlbFlush(PVMCPU pVCpu, bool fAccountFlushStat)
  * Invalidates a guest page on all VCPUs.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   GCVirt      Page to invalidate
  */
 VMMDECL(int) HWACCMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCPtr)
@@ -219,7 +223,7 @@ VMMDECL(int) HWACCMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCPtr)
  * Flush the TLBs of all VCPUs
  *
  * @returns VBox status code.
- * @param   pVM       The VM to operate on.
+ * @param   pVM       Pointer to the VM.
  */
 VMMDECL(int) HWACCMFlushTLBOnAllVCpus(PVM pVM)
 {
@@ -253,7 +257,7 @@ VMMDECL(int) HWACCMFlushTLBOnAllVCpus(PVM pVM)
  * Checks if nested paging is enabled
  *
  * @returns boolean
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMDECL(bool) HWACCMIsNestedPagingActive(PVM pVM)
 {
@@ -264,7 +268,7 @@ VMMDECL(bool) HWACCMIsNestedPagingActive(PVM pVM)
  * Return the shadow paging mode for nested paging/ept
  *
  * @returns shadow paging mode
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMDECL(PGMMODE) HWACCMGetShwPagingMode(PVM pVM)
 {
@@ -282,7 +286,7 @@ VMMDECL(PGMMODE) HWACCMGetShwPagingMode(PVM pVM)
  * NOTE: Assumes the current instruction references this physical page though a virtual address!!
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPhys      Page to invalidate
  */
 VMMDECL(int) HWACCMInvalidatePhysPage(PVM pVM, RTGCPHYS GCPhys)
@@ -313,6 +317,8 @@ VMMDECL(int) HWACCMInvalidatePhysPage(PVM pVM, RTGCPHYS GCPhys)
     /* AMD-V doesn't support invalidation with guest physical addresses; see
        comment in SVMR0InvalidatePhysPage. */
     Assert(pVM->hwaccm.s.svm.fSupported);
+#else
+    NOREF(GCPhys);
 #endif
 
     HWACCMFlushTLBOnAllVCpus(pVM);
@@ -323,7 +329,7 @@ VMMDECL(int) HWACCMInvalidatePhysPage(PVM pVM, RTGCPHYS GCPhys)
  * Checks if an interrupt event is currently pending.
  *
  * @returns Interrupt event pending state.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMDECL(bool) HWACCMHasPendingIrq(PVM pVM)
 {

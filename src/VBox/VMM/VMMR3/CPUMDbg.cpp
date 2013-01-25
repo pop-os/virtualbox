@@ -107,6 +107,7 @@ static DECLCALLBACK(int) cpumR3RegSet_Generic(void *pvUser, PCDBGFREGDESC pDesc,
 static DECLCALLBACK(int) cpumR3RegSet_seg(void *pvUser, PCDBGFREGDESC pDesc, PCDBGFREGVAL pValue, PCDBGFREGVAL pfMask)
 {
     /** @todo perform a selector load, updating hidden selectors and stuff. */
+    NOREF(pvUser); NOREF(pDesc); NOREF(pValue); NOREF(pfMask);
     return VERR_NOT_IMPLEMENTED;
 }
 
@@ -133,6 +134,7 @@ static DECLCALLBACK(int) cpumR3RegGet_gdtr(void *pvUser, PCDBGFREGDESC pDesc, PD
  */
 static DECLCALLBACK(int) cpumR3RegSet_gdtr(void *pvUser, PCDBGFREGDESC pDesc, PCDBGFREGVAL pValue, PCDBGFREGVAL pfMask)
 {
+    NOREF(pvUser); NOREF(pDesc); NOREF(pValue); NOREF(pfMask);
     return VERR_NOT_IMPLEMENTED;
 }
 
@@ -159,6 +161,7 @@ static DECLCALLBACK(int) cpumR3RegGet_idtr(void *pvUser, PCDBGFREGDESC pDesc, PD
  */
 static DECLCALLBACK(int) cpumR3RegSet_idtr(void *pvUser, PCDBGFREGDESC pDesc, PCDBGFREGVAL pValue, PCDBGFREGVAL pfMask)
 {
+    NOREF(pvUser); NOREF(pDesc); NOREF(pValue); NOREF(pfMask);
     return VERR_NOT_IMPLEMENTED;
 }
 
@@ -167,11 +170,12 @@ static DECLCALLBACK(int) cpumR3RegSet_idtr(void *pvUser, PCDBGFREGDESC pDesc, PC
  * Is the FPU state in FXSAVE format or not.
  *
  * @returns true if it is, false if it's in FNSAVE.
- * @param   pVCpu               The virtual CPU handle.
+ * @param   pVCpu               Pointer to the VMCPU.
  */
 DECLINLINE(bool) cpumR3RegIsFxSaveFormat(PVMCPU pVCpu)
 {
 #ifdef RT_ARCH_AMD64
+    NOREF(pVCpu);
     return true;
 #else
     return pVCpu->pVMR3->cpum.s.CPUFeatures.edx.u1FXSR;
@@ -184,7 +188,7 @@ DECLINLINE(bool) cpumR3RegIsFxSaveFormat(PVMCPU pVCpu)
  * format is FXSAVE.
  *
  * @returns The tag register value.
- * @param   pVCpu               The virtual CPU handle.
+ * @param   pFpu                Pointer to the guest FPU.
  * @param   iReg                The register number (0..7).
  */
 DECLINLINE(uint16_t) cpumR3RegCalcFpuTagFromFxSave(PCX86FXSTATE pFpu, unsigned iReg)
@@ -247,6 +251,7 @@ static DECLCALLBACK(int) cpumR3RegGet_ftw(void *pvUser, PCDBGFREGDESC pDesc, PDB
  */
 static DECLCALLBACK(int) cpumR3RegSet_ftw(void *pvUser, PCDBGFREGDESC pDesc, PCDBGFREGVAL pValue, PCDBGFREGVAL pfMask)
 {
+    NOREF(pvUser); NOREF(pDesc); NOREF(pValue); NOREF(pfMask);
     return VERR_DBGF_READ_ONLY_REGISTER;
 }
 
@@ -263,9 +268,7 @@ static DECLCALLBACK(int) cpumR3RegSet_ftw(void *pvUser, PCDBGFREGDESC pDesc, PCD
  */
 static DECLCALLBACK(int) cpumR3RegGstGet_crX(void *pvUser, PCDBGFREGDESC pDesc, PDBGFREGVAL pValue)
 {
-    PVMCPU      pVCpu   = (PVMCPU)pvUser;
-    void const *pv      = (uint8_t const *)&pVCpu->cpum + pDesc->offRegister;
-
+    PVMCPU pVCpu = (PVMCPU)pvUser;
     VMCPU_ASSERT_EMT(pVCpu);
 
     uint64_t u64Value;
@@ -288,8 +291,7 @@ static DECLCALLBACK(int) cpumR3RegGstGet_crX(void *pvUser, PCDBGFREGDESC pDesc, 
 static DECLCALLBACK(int) cpumR3RegGstSet_crX(void *pvUser, PCDBGFREGDESC pDesc, PCDBGFREGVAL pValue, PCDBGFREGVAL pfMask)
 {
     int         rc;
-    PVMCPU      pVCpu   = (PVMCPU)pvUser;
-    void const *pv      = (uint8_t const *)&pVCpu->cpum + pDesc->offRegister;
+    PVMCPU      pVCpu = (PVMCPU)pvUser;
 
     VMCPU_ASSERT_EMT(pVCpu);
 
@@ -311,7 +313,7 @@ static DECLCALLBACK(int) cpumR3RegGstSet_crX(void *pvUser, PCDBGFREGDESC pDesc, 
             fMask    = pfMask->u32;
             fMaskMax = UINT32_MAX;
             break;
-        default:                    
+        default:
             AssertFailedReturn(VERR_IPE_NOT_REACHED_DEFAULT_CASE);
     }
     if (fMask != fMaskMax)
@@ -346,9 +348,7 @@ static DECLCALLBACK(int) cpumR3RegGstSet_crX(void *pvUser, PCDBGFREGDESC pDesc, 
  */
 static DECLCALLBACK(int) cpumR3RegGstGet_drX(void *pvUser, PCDBGFREGDESC pDesc, PDBGFREGVAL pValue)
 {
-    PVMCPU      pVCpu   = (PVMCPU)pvUser;
-    void const *pv      = (uint8_t const *)&pVCpu->cpum + pDesc->offRegister;
-
+    PVMCPU pVCpu = (PVMCPU)pvUser;
     VMCPU_ASSERT_EMT(pVCpu);
 
     uint64_t u64Value;
@@ -371,8 +371,7 @@ static DECLCALLBACK(int) cpumR3RegGstGet_drX(void *pvUser, PCDBGFREGDESC pDesc, 
 static DECLCALLBACK(int) cpumR3RegGstSet_drX(void *pvUser, PCDBGFREGDESC pDesc, PCDBGFREGVAL pValue, PCDBGFREGVAL pfMask)
 {
     int         rc;
-    PVMCPU      pVCpu   = (PVMCPU)pvUser;
-    void const *pv      = (uint8_t const *)&pVCpu->cpum + pDesc->offRegister;
+    PVMCPU      pVCpu = (PVMCPU)pvUser;
 
     VMCPU_ASSERT_EMT(pVCpu);
 
@@ -394,7 +393,7 @@ static DECLCALLBACK(int) cpumR3RegGstSet_drX(void *pvUser, PCDBGFREGDESC pDesc, 
             fMask    = pfMask->u32;
             fMaskMax = UINT32_MAX;
             break;
-        default:                    
+        default:
             AssertFailedReturn(VERR_IPE_NOT_REACHED_DEFAULT_CASE);
     }
     if (fMask != fMaskMax)
@@ -419,10 +418,9 @@ static DECLCALLBACK(int) cpumR3RegGstSet_drX(void *pvUser, PCDBGFREGDESC pDesc, 
  */
 static DECLCALLBACK(int) cpumR3RegGstGet_msr(void *pvUser, PCDBGFREGDESC pDesc, PDBGFREGVAL pValue)
 {
-    PVMCPU      pVCpu   = (PVMCPU)pvUser;
-    void const *pv      = (uint8_t const *)&pVCpu->cpum + pDesc->offRegister;
-
+    PVMCPU pVCpu = (PVMCPU)pvUser;
     VMCPU_ASSERT_EMT(pVCpu);
+
     uint64_t u64Value;
     int rc = CPUMQueryGuestMsr(pVCpu, pDesc->offRegister, &u64Value);
     if (RT_SUCCESS(rc))
@@ -448,7 +446,6 @@ static DECLCALLBACK(int) cpumR3RegGstSet_msr(void *pvUser, PCDBGFREGDESC pDesc, 
 {
     int         rc;
     PVMCPU      pVCpu   = (PVMCPU)pvUser;
-    void const *pv      = (uint8_t const *)&pVCpu->cpum + pDesc->offRegister;
 
     VMCPU_ASSERT_EMT(pVCpu);
 
@@ -475,7 +472,7 @@ static DECLCALLBACK(int) cpumR3RegGstSet_msr(void *pvUser, PCDBGFREGDESC pDesc, 
             fMask    = pfMask->u16;
             fMaskMax = UINT16_MAX;
             break;
-        default:                    
+        default:
             AssertFailedReturn(VERR_IPE_NOT_REACHED_DEFAULT_CASE);
     }
     if (fMask != fMaskMax)
@@ -500,9 +497,7 @@ static DECLCALLBACK(int) cpumR3RegGstSet_msr(void *pvUser, PCDBGFREGDESC pDesc, 
  */
 static DECLCALLBACK(int) cpumR3RegGstGet_stN(void *pvUser, PCDBGFREGDESC pDesc, PDBGFREGVAL pValue)
 {
-    PVMCPU      pVCpu   = (PVMCPU)pvUser;
-    void const *pv      = (uint8_t const *)&pVCpu->cpum.s.Guest + pDesc->offRegister;
-
+    PVMCPU pVCpu = (PVMCPU)pvUser;
     VMCPU_ASSERT_EMT(pVCpu);
     Assert(pDesc->enmType == DBGFREGVALTYPE_R80);
 
@@ -511,7 +506,7 @@ static DECLCALLBACK(int) cpumR3RegGstGet_stN(void *pvUser, PCDBGFREGDESC pDesc, 
         unsigned iReg = (pVCpu->cpum.s.Guest.fpu.FSW >> 11) & 7;
         iReg += pDesc->offRegister;
         iReg &= 7;
-        pValue->r80 = pVCpu->cpum.s.Guest.fpu.aRegs[iReg].r80;
+        pValue->r80Ex = pVCpu->cpum.s.Guest.fpu.aRegs[iReg].r80Ex;
     }
     else
     {
@@ -521,7 +516,7 @@ static DECLCALLBACK(int) cpumR3RegGstGet_stN(void *pvUser, PCDBGFREGDESC pDesc, 
         iReg += pDesc->offRegister;
         iReg &= 7;
 
-        pValue->r80 = pOldFpu->regs[iReg].r80;
+        pValue->r80Ex = pOldFpu->regs[iReg].r80Ex;
     }
 
     return VINF_SUCCESS;
@@ -533,6 +528,7 @@ static DECLCALLBACK(int) cpumR3RegGstGet_stN(void *pvUser, PCDBGFREGDESC pDesc, 
  */
 static DECLCALLBACK(int) cpumR3RegGstSet_stN(void *pvUser, PCDBGFREGDESC pDesc, PCDBGFREGVAL pValue, PCDBGFREGVAL pfMask)
 {
+    NOREF(pvUser); NOREF(pDesc); NOREF(pValue); NOREF(pfMask);
     return VERR_NOT_IMPLEMENTED;
 }
 
@@ -580,6 +576,7 @@ static DECLCALLBACK(int) cpumR3RegHyperGet_crX(void *pvUser, PCDBGFREGDESC pDesc
 static DECLCALLBACK(int) cpumR3RegHyperSet_crX(void *pvUser, PCDBGFREGDESC pDesc, PCDBGFREGVAL pValue, PCDBGFREGVAL pfMask)
 {
     /* Not settable, prevents killing your host. */
+    NOREF(pvUser); NOREF(pDesc); NOREF(pValue); NOREF(pfMask);
     return VERR_ACCESS_DENIED;
 }
 
@@ -589,9 +586,7 @@ static DECLCALLBACK(int) cpumR3RegHyperSet_crX(void *pvUser, PCDBGFREGDESC pDesc
  */
 static DECLCALLBACK(int) cpumR3RegHyperGet_drX(void *pvUser, PCDBGFREGDESC pDesc, PDBGFREGVAL pValue)
 {
-    PVMCPU      pVCpu   = (PVMCPU)pvUser;
-    void const *pv      = (uint8_t const *)&pVCpu->cpum + pDesc->offRegister;
-
+    PVMCPU pVCpu = (PVMCPU)pvUser;
     VMCPU_ASSERT_EMT(pVCpu);
 
     uint64_t    u64Value;
@@ -623,6 +618,7 @@ static DECLCALLBACK(int) cpumR3RegHyperGet_drX(void *pvUser, PCDBGFREGDESC pDesc
 static DECLCALLBACK(int) cpumR3RegHyperSet_drX(void *pvUser, PCDBGFREGDESC pDesc, PCDBGFREGVAL pValue, PCDBGFREGVAL pfMask)
 {
     /* Not settable, prevents killing your host. */
+    NOREF(pvUser); NOREF(pDesc); NOREF(pValue); NOREF(pfMask);
     return VERR_ACCESS_DENIED;
 }
 
@@ -632,6 +628,8 @@ static DECLCALLBACK(int) cpumR3RegHyperSet_drX(void *pvUser, PCDBGFREGDESC pDesc
  */
 static DECLCALLBACK(int) cpumR3RegHyperGet_msr(void *pvUser, PCDBGFREGDESC pDesc, PDBGFREGVAL pValue)
 {
+    NOREF(pvUser);
+
     /* Not availble at present, return all FFs to keep things quiet */
     uint64_t u64Value = UINT64_MAX;
     switch (pDesc->enmType)
@@ -672,7 +670,7 @@ static DECLCALLBACK(int) cpumR3RegHyperGet_stN(void *pvUser, PCDBGFREGDESC pDesc
         unsigned iReg = (pVCpu->cpum.s.Guest.fpu.FSW >> 11) & 7;
         iReg += pDesc->offRegister;
         iReg &= 7;
-        pValue->r80 = pVCpu->cpum.s.Guest.fpu.aRegs[iReg].r80;
+        pValue->r80Ex = pVCpu->cpum.s.Guest.fpu.aRegs[iReg].r80Ex;
     }
     else
     {
@@ -682,7 +680,7 @@ static DECLCALLBACK(int) cpumR3RegHyperGet_stN(void *pvUser, PCDBGFREGDESC pDesc
         iReg += pDesc->offRegister;
         iReg &= 7;
 
-        pValue->r80 = pOldFpu->regs[iReg].r80;
+        pValue->r80Ex = pOldFpu->regs[iReg].r80Ex;
     }
 
     return VINF_SUCCESS;
@@ -695,6 +693,7 @@ static DECLCALLBACK(int) cpumR3RegHyperGet_stN(void *pvUser, PCDBGFREGDESC pDesc
 static DECLCALLBACK(int) cpumR3RegHyperSet_stN(void *pvUser, PCDBGFREGDESC pDesc, PCDBGFREGVAL pValue, PCDBGFREGVAL pfMask)
 {
     /* There isn't a FPU context for the hypervisor yet, so no point in trying to set stuff. */
+    NOREF(pvUser); NOREF(pDesc); NOREF(pValue); NOREF(pfMask);
     return VERR_ACCESS_DENIED;
 }
 
@@ -1013,10 +1012,10 @@ static DBGFREGSUBFIELD const g_aCpumRegFields_sf_mask[] =
     CPU_REG_RW_AS(#LName,           UName,          U64, LName,                 cpumR3RegGet_Generic, cpumR3RegSet_Generic, g_aCpumRegAliases_##LName,  NULL)
 
 #define CPU_REG_SEG(UName, LName) \
-    CPU_REG_RW_AS(#LName,           UName,          U16, LName,                 cpumR3RegGet_Generic, cpumR3RegSet_seg,     NULL,                       NULL                ), \
-    CPU_REG_RW_AS(#LName "_attr",   UName##_ATTR,   U32, LName##Hid.Attr.u,     cpumR3RegGet_Generic, cpumR3RegSet_Generic, NULL,                       g_aCpumRegFields_seg), \
-    CPU_REG_RW_AS(#LName "_base",   UName##_BASE,   U64, LName##Hid.u64Base,    cpumR3RegGet_Generic, cpumR3RegSet_Generic, NULL,                       NULL                ), \
-    CPU_REG_RW_AS(#LName "_lim",    UName##_LIMIT,  U32, LName##Hid.u32Limit,   cpumR3RegGet_Generic, cpumR3RegSet_Generic, NULL,                       NULL                )
+    CPU_REG_RW_AS(#LName,           UName,          U16, LName.Sel,             cpumR3RegGet_Generic, cpumR3RegSet_seg,     NULL,                       NULL                ), \
+    CPU_REG_RW_AS(#LName "_attr",   UName##_ATTR,   U32, LName.Attr.u,          cpumR3RegGet_Generic, cpumR3RegSet_Generic, NULL,                       g_aCpumRegFields_seg), \
+    CPU_REG_RW_AS(#LName "_base",   UName##_BASE,   U64, LName.u64Base,         cpumR3RegGet_Generic, cpumR3RegSet_Generic, NULL,                       NULL                ), \
+    CPU_REG_RW_AS(#LName "_lim",    UName##_LIMIT,  U32, LName.u32Limit,        cpumR3RegGet_Generic, cpumR3RegSet_Generic, NULL,                       NULL                )
 
 #define CPU_REG_MM(n) \
     CPU_REG_RW_AS("mm" #n,          MM##n,          U64, fpu.aRegs[n].mmx,      cpumR3RegGet_Generic, cpumR3RegSet_Generic, NULL,                       g_aCpumRegFields_mmN)
@@ -1287,7 +1286,7 @@ static DBGFREGDESC const g_aCpumRegHyperDescs[] =
  * Called by CPUMR3Init.
  *
  * @returns VBox status code.
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  */
 int cpumR3DbgInit(PVM pVM)
 {

@@ -59,7 +59,7 @@ typedef struct {
     GLbitfield visAttribs;
     const char *displayName;
 #if defined(WINDOWS)
-    HDC device_context;
+//    HDC device_context;
 #elif defined(DARWIN)
 # ifndef VBOX_WITH_COCOA_QT
     WindowRef window;
@@ -89,6 +89,7 @@ typedef struct {
     HDC nativeWindow; /**< for render_to_app_window */
     HWND hWnd;
     HDC device_context;
+    HRGN hRgn;
 #elif defined(DARWIN)
 # ifndef VBOX_WITH_COCOA_QT
     WindowRef window;
@@ -246,6 +247,8 @@ typedef struct {
     bool fInit;
 # endif
 #endif /* RT_OS_DARWIN */
+
+    int force_hidden_wdn_create;
 } RenderSPU;
 
 #ifdef RT_OS_WINDOWS
@@ -276,10 +279,19 @@ extern uint64_t render_spu_parent_window_id;
 
 #ifdef CHROMIUM_THREADSAFE
 extern CRtsd _RenderTSD;
-#define GET_CONTEXT(T)  ContextInfo *T = (ContextInfo *) crGetTSD(&_RenderTSD)
+#define GET_CONTEXT_VAL() ((ContextInfo *) crGetTSD(&_RenderTSD))
+#define SET_CONTEXT_VAL(_v) do { \
+        crSetTSD(&_RenderTSD, (_v)); \
+    } while (0)
 #else
-#define GET_CONTEXT(T)  ContextInfo *T = render_spu.currentContext
+#define GET_CONTEXT_VAL() (render_spu.currentContext)
+#define SET_CONTEXT_VAL(_v) do { \
+        render_spu.currentContext = (_v); \
+    } while (0)
+
 #endif
+
+#define GET_CONTEXT(T)  ContextInfo *T = GET_CONTEXT_VAL()
 
 extern void renderspuSetVBoxConfiguration( RenderSPU *spu );
 extern void renderspuMakeVisString( GLbitfield visAttribs, char *s );
@@ -316,6 +328,7 @@ extern void renderspu_GCWindow(void);
 extern int renderspuCreateFunctions( SPUNamedFunctionTable table[] );
 
 extern GLint RENDER_APIENTRY renderspuWindowCreate( const char *dpyName, GLint visBits );
+void RENDER_APIENTRY renderspuWindowDestroy( GLint win );
 extern GLint RENDER_APIENTRY renderspuCreateContext( const char *dpyname, GLint visBits, GLint shareCtx );
 extern void RENDER_APIENTRY renderspuMakeCurrent(GLint crWindow, GLint nativeWindow, GLint ctx);
 extern void RENDER_APIENTRY renderspuSwapBuffers( GLint window, GLint flags );

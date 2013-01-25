@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -219,12 +219,16 @@ typedef enum LOGGROUP
     LOG_GROUP_FTM,
     /** GMM group. */
     LOG_GROUP_GMM,
+    /** Guest control. */
+    LOG_GROUP_GUEST_CONTROL,
     /** GUI group. */
     LOG_GROUP_GUI,
     /** GVMM group. */
     LOG_GROUP_GVMM,
     /** HGCM group */
     LOG_GROUP_HGCM,
+    /** HGSMI group */
+    LOG_GROUP_HGSMI,
     /** HWACCM group. */
     LOG_GROUP_HWACCM,
     /** IEM group. */
@@ -257,6 +261,8 @@ typedef enum LOGGROUP
     LOG_GROUP_NET_FLT_DRV,
     /** The common network service group */
     LOG_GROUP_NET_SERVICE,
+    /** Network traffic shaper driver group. */
+    LOG_GROUP_NET_SHAPER,
     /** PATM group. */
     LOG_GROUP_PATM,
     /** PDM group. */
@@ -337,10 +343,16 @@ typedef enum LOGGROUP
     LOG_GROUP_USB_WEBCAM,
     /** Generic virtual disk layer. */
     LOG_GROUP_VD,
+    /** DMG virtual disk backend. */
+    LOG_GROUP_VD_DMG,
     /** iSCSI virtual disk backend. */
     LOG_GROUP_VD_ISCSI,
     /** Parallels HDD virtual disk backend. */
     LOG_GROUP_VD_PARALLELS,
+    /** QCOW virtual disk backend. */
+    LOG_GROUP_VD_QCOW,
+    /** QED virtual disk backend. */
+    LOG_GROUP_VD_QED,
     /** Raw virtual disk backend. */
     LOG_GROUP_VD_RAW,
     /** VDI virtual disk backend. */
@@ -353,6 +365,8 @@ typedef enum LOGGROUP
     LOG_GROUP_VM,
     /** VMM group. */
     LOG_GROUP_VMM,
+    /** VRDE group */
+    LOG_GROUP_VRDE,
     /** VRDP group */
     LOG_GROUP_VRDP,
     /** VSCSI group */
@@ -460,9 +474,11 @@ typedef enum LOGGROUP
     "EM",           \
     "FTM",          \
     "GMM",          \
+    "GUEST_CONTROL", \
     "GUI",          \
     "GVMM",         \
     "HGCM",         \
+    "HGSMI",        \
     "HWACCM",       \
     "IEM",          \
     "IOM",          \
@@ -479,6 +495,7 @@ typedef enum LOGGROUP
     "NET_ADP_DRV",  \
     "NET_FLT_DRV",  \
     "NET_SERVICE",  \
+    "NET_SHAPER",   \
     "PATM",         \
     "PDM",          \
     "PDM_ASYNC_COMPLETION", \
@@ -519,14 +536,18 @@ typedef enum LOGGROUP
     "USB_MSD",      \
     "USB_WEBCAM",   \
     "VD",           \
+    "VD_DMG",       \
     "VD_ISCSI",     \
     "VD_PARALLELS", \
+    "VD_QCOW",      \
+    "VD_QED",       \
     "VD_RAW",       \
     "VD_VDI",       \
     "VD_VHD",       \
     "VD_VMDK",      \
     "VM",           \
     "VMM",          \
+    "VRDE",         \
     "VRDP",         \
     "VSCSI",        \
     "WEBSERVICE",   \

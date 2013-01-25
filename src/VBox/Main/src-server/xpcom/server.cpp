@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2004-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,7 +35,6 @@
 #include "Logging.h"
 
 #include <VBox/param.h>
-#include <VBox/version.h>
 
 #include <iprt/buildconfig.h>
 #include <iprt/initterm.h>
@@ -225,14 +224,10 @@ NS_IMPL_THREADSAFE_ISUPPORTS1_CI(BandwidthControl, IBandwidthControl)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum
-{
-    /* Delay before shutting down the VirtualBox server after the last
-     * VirtualBox instance is released, in ms */
-    VBoxSVC_ShutdownDelay = 5000
-};
-
 static bool gAutoShutdown = false;
+/** Delay before shutting down the VirtualBox server after the last
+ * VirtualBox instance is released, in ms */
+static uint32_t gShutdownDelayMs = 5000;
 
 static nsIEventQueue  *gEventQ          = nsnull;
 static PRBool volatile gKeepRunning     = PR_TRUE;
@@ -343,14 +338,14 @@ public:
             if (sTimer != NULL)
             {
                 LogFlowFunc(("Last VirtualBox instance was released.\n"));
-                LogFlowFunc(("Scheduling server shutdown in %d ms...\n",
-                             VBoxSVC_ShutdownDelay));
+                LogFlowFunc(("Scheduling server shutdown in %u ms...\n",
+                             gShutdownDelayMs));
 
                 /* make sure the previous timer (if any) is stopped;
                  * otherwise RTTimerStart() will definitely fail. */
                 RTTimerLRStop(sTimer);
 
-                int vrc = RTTimerLRStart(sTimer, uint64_t(VBoxSVC_ShutdownDelay) * 1000000);
+                int vrc = RTTimerLRStart(sTimer, gShutdownDelayMs * RT_NS_1MS_64);
                 AssertRC(vrc);
                 timerStarted = SUCCEEDED(vrc);
             }
@@ -404,7 +399,7 @@ public:
         /* called on the main thread */
         void *handler()
         {
-            LogFlowFunc(("\n"));
+            LogFlowFuncEnter();
 
             Assert(RTCritSectIsInitialized(&sLock));
 
@@ -431,6 +426,8 @@ public:
                     /* make it leave the event loop */
                     gKeepRunning = PR_FALSE;
                 }
+                else
+                    LogFlowFunc(("No automatic shutdown.\n"));
             }
             else
             {
@@ -442,6 +439,7 @@ public:
 
             RTCritSectLeave(&sLock);
 
+            LogFlowFuncLeave();
             return NULL;
         }
     };
@@ -788,14 +786,17 @@ int main(int argc, char **argv)
      * Initialize the VBox runtime without loading
      * the support driver
      */
-    RTR3Init();
+    int vrc = RTR3InitExe(argc, &argv, 0);
+    if (RT_FAILURE(vrc))
+        return RTMsgInitFailure(vrc);
 
     static const RTGETOPTDEF s_aOptions[] =
     {
         { "--automate",         'a', RTGETOPT_REQ_NOTHING },
         { "--auto-shutdown",    'A', RTGETOPT_REQ_NOTHING },
         { "--daemonize",        'd', RTGETOPT_REQ_NOTHING },
-        { "--pidfile",          'p', RTGETOPT_REQ_STRING  },
+        { "--shutdown-delay",   'D', RTGETOPT_REQ_UINT32 },
+        { "--pidfile",          'p', RTGETOPT_REQ_STRING },
         { "--logfile",          'F', RTGETOPT_REQ_STRING },
         { "--logrotate",        'R', RTGETOPT_REQ_UINT32 },
         { "--logsize",          'S', RTGETOPT_REQ_UINT64 },
@@ -810,7 +811,7 @@ int main(int argc, char **argv)
     PRFileDesc      *daemon_pipe_wr = nsnull;
 
     RTGETOPTSTATE   GetOptState;
-    int vrc = RTGetOptInit(&GetOptState, argc, argv, &s_aOptions[0], RT_ELEMENTS(s_aOptions), 1, 0 /*fFlags*/);
+    vrc = RTGetOptInit(&GetOptState, argc, argv, &s_aOptions[0], RT_ELEMENTS(s_aOptions), 1, 0 /*fFlags*/);
     AssertRC(vrc);
 
     RTGETOPTUNION   ValueUnion;
@@ -819,33 +820,29 @@ int main(int argc, char **argv)
         switch (vrc)
         {
             case 'a':
-            {
                 /* --automate mode means we are started by XPCOM on
                  * demand. Daemonize ourselves and activate
                  * auto-shutdown. */
                 gAutoShutdown = true;
                 fDaemonize = true;
                 break;
-            }
 
-            /* --auto-shutdown mode means we're already daemonized. */
             case 'A':
-            {
+                /* --auto-shutdown mode means we're already daemonized. */
                 gAutoShutdown = true;
                 break;
-            }
 
             case 'd':
-            {
                 fDaemonize = true;
                 break;
-            }
+
+            case 'D':
+                gShutdownDelayMs = ValueUnion.u32;
+                break;
 
             case 'p':
-            {
                 g_pszPidFile = ValueUnion.psz;
                 break;
-            }
 
             case 'F':
                 pszLogFile = ValueUnion.psz;
@@ -864,16 +861,12 @@ int main(int argc, char **argv)
                 break;
 
             case 'h':
-            {
                 RTPrintf("no help\n");
                 return 1;
-            }
 
             case 'V':
-            {
                 RTPrintf("%sr%s\n", RTBldCfgVersion(), RTBldCfgRevisionStr());
                 return 0;
-            }
 
             default:
                 return RTGetOptPrintError(vrc, &ValueUnion);
@@ -901,7 +894,15 @@ int main(int argc, char **argv)
         if (RT_FAILURE(vrc))
             return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to determine release log file (%Rrc)", vrc);
     }
-    VBoxSVCLogRelCreate(pszLogFile, cHistory, uHistoryFileTime, uHistoryFileSize);
+    char szError[RTPATH_MAX + 128];
+    vrc = com::VBoxLogRelCreate("XPCOM Server", pszLogFile,
+                                RTLOGFLAGS_PREFIX_THREAD | RTLOGFLAGS_PREFIX_TIME_PROG,
+                                "all", "VBOXSVC_RELEASE_LOG",
+                                RTLOGDEST_FILE, UINT32_MAX /* cMaxEntriesPerGroup */,
+                                cHistory, uHistoryFileTime, uHistoryFileSize,
+                                szError, sizeof(szError));
+    if (RT_FAILURE(vrc))
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to open release log (%s, %Rrc)", szError, vrc);
 
     daemon_pipe_wr = PR_GetInheritedFD(VBOXSVC_STARTUP_PIPE_NAME);
     RTEnvUnset("NSPR_INHERIT_FDS");
@@ -1010,7 +1011,7 @@ int main(int argc, char **argv)
             for (int i = iSize; i > 0; i--)
                 putchar('*');
             RTPrintf("\n%s\n", szBuf);
-            RTPrintf("(C) 2008-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
+            RTPrintf("(C) 2004-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
                      "All rights reserved.\n");
 #ifdef DEBUG
             RTPrintf("Debug version.\n");

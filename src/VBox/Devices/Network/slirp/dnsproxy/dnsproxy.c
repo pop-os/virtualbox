@@ -78,10 +78,9 @@ signal_event(void)
     return 0;
 }
 
-#else
+#else /* VBOX */
 
 # define RD(x) (*(x + 2) & 0x01)
-# define MAX_BUFSPACE 512
 
 # define QUERYID queryid++
 
@@ -126,7 +125,7 @@ timeout(PNATState pData, struct socket *so, void *arg)
             LogRel(("NAT: can't create DNS socket\n"));
             return;
         }
-        if(udp_attach(pData, so1, 0) == -1)
+        if(udp_attach(pData, so1) == -1)
         {
             LogRel(("NAT: can't attach udp socket\n"));
             sofree(pData, so1);

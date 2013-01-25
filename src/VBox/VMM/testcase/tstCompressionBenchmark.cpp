@@ -234,7 +234,7 @@ static int Error(const char *pszMsgFmt, ...)
 
 int main(int argc, char **argv)
 {
-    RTR3Init();
+    RTR3InitExe(argc, &argv, 0);
 
     /*
      * Parse arguments.

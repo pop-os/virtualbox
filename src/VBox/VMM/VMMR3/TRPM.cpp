@@ -89,7 +89,9 @@
 #include "TRPMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/em.h>
-#include <VBox/vmm/rem.h>
+#ifdef VBOX_WITH_REM
+# include <VBox/vmm/rem.h>
+#endif
 #include <VBox/vmm/hwaccm.h>
 
 #include <VBox/err.h>
@@ -444,7 +446,7 @@ static DECLCALLBACK(int) trpmR3GuestIDTWriteHandler(PVM pVM, RTGCPTR GCPtr, void
  * Initializes the Trap Manager
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3DECL(int) TRPMR3Init(PVM pVM)
 {
@@ -541,13 +543,21 @@ VMMR3DECL(int) TRPMR3Init(PVM pVM)
     STAM_REG(pVM, &pVM->trpm.s.aStatGCTraps[0x13],      STAMTYPE_PROFILE_ADV, "/TRPM/GC/Traps/13",          STAMUNIT_TICKS_PER_CALL, "#XF - SIMD Floating-Point Exception.");
 
 #ifdef VBOX_WITH_STATISTICS
-    rc = MMHyperAlloc(pVM, sizeof(STAMCOUNTER) * 255, 8, MM_TAG_STAM, (void **)&pVM->trpm.s.paStatForwardedIRQR3);
+    rc = MMHyperAlloc(pVM, sizeof(STAMCOUNTER) * 256, sizeof(STAMCOUNTER), MM_TAG_TRPM, (void **)&pVM->trpm.s.paStatForwardedIRQR3);
     AssertRCReturn(rc, rc);
     pVM->trpm.s.paStatForwardedIRQRC = MMHyperR3ToRC(pVM, pVM->trpm.s.paStatForwardedIRQR3);
     pVM->trpm.s.paStatForwardedIRQR0 = MMHyperR3ToR0(pVM, pVM->trpm.s.paStatForwardedIRQR3);
-    for (unsigned i = 0; i < 255; i++)
+    for (unsigned i = 0; i < 256; i++)
         STAMR3RegisterF(pVM, &pVM->trpm.s.paStatForwardedIRQR3[i], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES, "Forwarded interrupts.",
                         i < 0x20 ? "/TRPM/ForwardRaw/TRAP/%02X" : "/TRPM/ForwardRaw/IRQ/%02X", i);
+
+    rc = MMHyperAlloc(pVM, sizeof(STAMCOUNTER) * 256, sizeof(STAMCOUNTER), MM_TAG_TRPM, (void **)&pVM->trpm.s.paStatHostIrqR3);
+    AssertRCReturn(rc, rc);
+    pVM->trpm.s.paStatHostIrqRC = MMHyperR3ToRC(pVM, pVM->trpm.s.paStatHostIrqR3);
+    pVM->trpm.s.paStatHostIrqR0 = MMHyperR3ToR0(pVM, pVM->trpm.s.paStatHostIrqR3);
+    for (unsigned i = 0; i < 256; i++)
+        STAMR3RegisterF(pVM, &pVM->trpm.s.paStatHostIrqR3[i], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+                        "Host interrupts.", "/TRPM/HostIRQs/%02x", i);
 #endif
 
     STAM_REG(pVM, &pVM->trpm.s.StatForwardProfR3,       STAMTYPE_PROFILE_ADV, "/TRPM/ForwardRaw/ProfR3",   STAMUNIT_TICKS_PER_CALL, "Profiling TRPMForwardTrap.");
@@ -575,7 +585,7 @@ VMMR3DECL(int) TRPMR3Init(PVM pVM)
  * This function will be called at init and whenever the VMM need
  * to relocate itself inside the GC.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   offDelta    Relocation delta relative to old location.
  */
 VMMR3DECL(void) TRPMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
@@ -694,7 +704,9 @@ VMMR3DECL(void) TRPMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 
 #ifdef VBOX_WITH_STATISTICS
     pVM->trpm.s.paStatForwardedIRQRC += offDelta;
-    pVM->trpm.s.paStatForwardedIRQR0 = MMHyperR3ToR0(pVM, pVM->trpm.s.paStatForwardedIRQR3);
+    pVM->trpm.s.paStatForwardedIRQR0  = MMHyperR3ToR0(pVM, pVM->trpm.s.paStatForwardedIRQR3);
+    pVM->trpm.s.paStatHostIrqRC += offDelta;
+    pVM->trpm.s.paStatHostIrqR0  = MMHyperR3ToR0(pVM, pVM->trpm.s.paStatHostIrqR3);
 #endif
 }
 
@@ -703,7 +715,7 @@ VMMR3DECL(void) TRPMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
  * Terminates the Trap Manager
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3DECL(int) TRPMR3Term(PVM pVM)
 {
@@ -717,7 +729,7 @@ VMMR3DECL(int) TRPMR3Term(PVM pVM)
  *
  * Used by TRPMR3Reset and CPU hot plugging.
  *
- * @param   pVCpu               The virtual CPU handle.
+ * @param   pVCpu               Pointer to the VMCPU.
  */
 VMMR3DECL(void) TRPMR3ResetCpu(PVMCPU pVCpu)
 {
@@ -731,7 +743,7 @@ VMMR3DECL(void) TRPMR3ResetCpu(PVMCPU pVCpu)
  * For the TRPM component this means that any IDT write monitors
  * needs to be removed, any pending trap cleared, and the IDT reset.
  *
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 VMMR3DECL(void) TRPMR3Reset(PVM pVM)
 {
@@ -769,10 +781,44 @@ VMMR3DECL(void) TRPMR3Reset(PVM pVM)
 
 
 /**
+ * Resolve a builtin RC symbol.
+ *
+ * Called by PDM when loading or relocating RC modules.
+ *
+ * @returns VBox status
+ * @param   pVM             Pointer to the VM.
+ * @param   pszSymbol       Symbol to resolv
+ * @param   pRCPtrValue     Where to store the symbol value.
+ *
+ * @remark  This has to work before VMMR3Relocate() is called.
+ */
+VMMR3_INT_DECL(int) TRPMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue)
+{
+    if (!strcmp(pszSymbol, "g_TRPM"))
+        *pRCPtrValue = VM_RC_ADDR(pVM, &pVM->trpm);
+    else if (!strcmp(pszSymbol, "g_TRPMCPU"))
+        *pRCPtrValue = VM_RC_ADDR(pVM, &pVM->aCpus[0].trpm);
+    else if (!strcmp(pszSymbol, "g_trpmGuestCtxCore"))
+    {
+        PCPUMCTX pCtx = CPUMQueryGuestCtxPtr(VMMGetCpuById(pVM, 0));
+        *pRCPtrValue = VM_RC_ADDR(pVM, CPUMCTX2CORE(pCtx));
+    }
+    else if (!strcmp(pszSymbol, "g_trpmHyperCtxCore"))
+    {
+        PCPUMCTX pCtx = CPUMGetHyperCtxPtr(VMMGetCpuById(pVM, 0));
+        *pRCPtrValue = VM_RC_ADDR(pVM, CPUMCTX2CORE(pCtx));
+    }
+    else
+        return VERR_SYMBOL_NOT_FOUND;
+    return VINF_SUCCESS;
+}
+
+
+/**
  * Execute state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pSSM            SSM operation handle.
  */
 static DECLCALLBACK(int) trpmR3Save(PVM pVM, PSSMHANDLE pSSM)
@@ -823,7 +869,7 @@ static DECLCALLBACK(int) trpmR3Save(PVM pVM, PSSMHANDLE pSSM)
  * Execute state load operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pSSM            SSM operation handle.
  * @param   uVersion        Data layout version.
  * @param   uPass           The data pass.
@@ -957,8 +1003,8 @@ static DECLCALLBACK(int) trpmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion,
  * (callback for the VMCPU_FF_TRPM_SYNC_IDT forced action).
  *
  * @returns VBox status code.
- * @param   pVM         The VM handle.
- * @param   pVCpu       The VMCPU handle.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
  */
 VMMR3DECL(int) TRPMR3SyncIDT(PVM pVM, PVMCPU pVCpu)
 {
@@ -1065,7 +1111,7 @@ VMMR3DECL(int) TRPMR3SyncIDT(PVM pVM, PVMCPU pVCpu)
 /**
  * Disable IDT monitoring and syncing
  *
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3DECL(void) TRPMR3DisableMonitoring(PVM pVM)
 {
@@ -1109,7 +1155,7 @@ VMMR3DECL(void) TRPMR3DisableMonitoring(PVM pVM)
  *
  * @returns VINF_SUCCESS if the handler have carried out the operation.
  * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   GCPtr           The virtual address the guest is writing to. (not correct if it's an alias!)
  * @param   pvPtr           The HC mapping of that address.
  * @param   pvBuf           What the guest is reading/writing.
@@ -1117,10 +1163,13 @@ VMMR3DECL(void) TRPMR3DisableMonitoring(PVM pVM)
  * @param   enmAccessType   The access type.
  * @param   pvUser          User argument.
  */
-static DECLCALLBACK(int) trpmR3GuestIDTWriteHandler(PVM pVM, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser)
+static DECLCALLBACK(int) trpmR3GuestIDTWriteHandler(PVM pVM, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
+                                                    PGMACCESSTYPE enmAccessType, void *pvUser)
 {
-    Assert(enmAccessType == PGMACCESSTYPE_WRITE);
-    Log(("trpmR3GuestIDTWriteHandler: write to %RGv size %d\n", GCPtr, cbBuf));
+    Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
+    Log(("trpmR3GuestIDTWriteHandler: write to %RGv size %d\n", GCPtr, cbBuf)); NOREF(GCPtr); NOREF(cbBuf);
+    NOREF(pvPtr); NOREF(pvUser); NOREF(pvBuf);
+
     VMCPU_FF_SET(VMMGetCpu(pVM), VMCPU_FF_TRPM_SYNC_IDT);
     return VINF_PGM_HANDLER_DO_DEFAULT;
 }
@@ -1130,7 +1179,7 @@ static DECLCALLBACK(int) trpmR3GuestIDTWriteHandler(PVM pVM, RTGCPTR GCPtr, void
  * Clear passthrough interrupt gate handler (reset to default handler)
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   iTrap       Trap/interrupt gate number.
  */
 VMMR3DECL(int) trpmR3ClearPassThroughHandler(PVM pVM, unsigned iTrap)
@@ -1192,7 +1241,7 @@ VMMR3DECL(int) trpmR3ClearPassThroughHandler(PVM pVM, unsigned iTrap)
  *
  * @returns gate nr or ~0 is not found
  *
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPtr       GC address to check.
  */
 VMMR3DECL(uint32_t) TRPMR3QueryGateByHandler(PVM pVM, RTRCPTR GCPtr)
@@ -1220,7 +1269,7 @@ VMMR3DECL(uint32_t) TRPMR3QueryGateByHandler(PVM pVM, RTRCPTR GCPtr)
  * Get guest trap/interrupt gate handler
  *
  * @returns Guest trap handler address or TRPM_INVALID_HANDLER if none installed
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   iTrap       Interrupt/trap number.
  */
 VMMR3DECL(RTRCPTR) TRPMR3GetGuestTrapHandler(PVM pVM, unsigned iTrap)
@@ -1236,7 +1285,7 @@ VMMR3DECL(RTRCPTR) TRPMR3GetGuestTrapHandler(PVM pVM, unsigned iTrap)
  * Used for setting up trap gates used for kernel calls.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   iTrap       Interrupt/trap number.
  * @param   pHandler    GC handler pointer
  */
@@ -1297,14 +1346,14 @@ VMMR3DECL(int) TRPMR3SetGuestTrapHandler(PVM pVM, unsigned iTrap, RTRCPTR pHandl
          * to work ok... However on 64-bit Vista (SMP?) is doesn't work reliably.
          * Booting Linux/BSD guest will cause system lockups on most of the computers.
          * -> Update: It seems gate 0x80 is not safe on 32-bits Windows either. See
-         *            defect #3604.
+         *            @bugref{3604}.
          *
          * PORTME - Check if your host keeps any of these gates free from hw ints.
          *
          * Note! SELMR3SyncTSS also has code related to this interrupt handler replacing.
          */
         /** @todo handle those dependencies better! */
-        /** @todo Solve this in a proper manner. see defect #1186 */
+        /** @todo Solve this in a proper manner. see @bugref{1186} */
 #if defined(RT_OS_WINDOWS) && defined(RT_ARCH_X86)
         if (iTrap == 0x2E)
 #elif defined(RT_OS_LINUX)
@@ -1360,7 +1409,7 @@ VMMR3DECL(int) TRPMR3SetGuestTrapHandler(PVM pVM, unsigned iTrap, RTRCPTR pHandl
  *
  * @returns True is gate handler, false if not.
  *
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPtr       GC address to check.
  */
 VMMR3DECL(bool) TRPMR3IsGateHandler(PVM pVM, RTRCPTR GCPtr)
@@ -1438,24 +1487,24 @@ VMMR3DECL(bool) TRPMR3IsGateHandler(PVM pVM, RTRCPTR GCPtr)
  * Inject event (such as external irq or trap)
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
- * @param   pVCpu       The VMCPU to operate on.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   enmEvent    Trpm event type
  */
 VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent)
 {
-    PCPUMCTX pCtx;
-    int      rc;
-
-    pCtx = CPUMQueryGuestCtxPtr(pVCpu);
+    PCPUMCTX pCtx = CPUMQueryGuestCtxPtr(pVCpu);
     Assert(!PATMIsPatchGCAddr(pVM, pCtx->eip));
     Assert(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS));
 
     /* Currently only useful for external hardware interrupts. */
     Assert(enmEvent == TRPM_HARDWARE_INT);
 
-    if (   REMR3QueryPendingInterrupt(pVM, pVCpu) == REM_NO_PENDING_IRQ
-        && !EMIsSupervisorCodeRecompiled(pVM))
+    if (   !EMIsSupervisorCodeRecompiled(pVM)
+#ifdef VBOX_WITH_REM
+        && REMR3QueryPendingInterrupt(pVM, pVCpu) == REM_NO_PENDING_IRQ
+#endif
+        )
     {
 #ifdef TRPM_FORWARD_TRAPS_IN_GC
 
@@ -1465,7 +1514,7 @@ VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent)
 # endif
 
         uint8_t u8Interrupt;
-        rc = PDMGetInterrupt(pVCpu, &u8Interrupt);
+        int rc = PDMGetInterrupt(pVCpu, &u8Interrupt);
         Log(("TRPMR3InjectEvent: CPU%d u8Interrupt=%d (%#x) rc=%Rrc\n", pVCpu->idCpu, u8Interrupt, u8Interrupt, rc));
         if (RT_SUCCESS(rc))
         {
@@ -1504,30 +1553,30 @@ VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent)
             }
             else
                 STAM_COUNTER_INC(&pVM->trpm.s.StatForwardFailNoHandler);
+# ifdef VBOX_WITH_REM
             REMR3NotifyPendingInterrupt(pVM, pVCpu, u8Interrupt);
+# endif
         }
         else
         {
             AssertRC(rc);
             return HWACCMR3IsActive(pVCpu) ? VINF_EM_RESCHEDULE_HWACC : VINF_EM_RESCHEDULE_REM; /* (Heed the halted state if this is changed!) */
         }
-#else
-        if (HWACCMR3IsActive(pVM))
+#else /* !TRPM_FORWARD_TRAPS_IN_GC */
+        if (HWACCMR3IsActive(pVCpu))
         {
             uint8_t u8Interrupt;
-            rc = PDMGetInterrupt(pVCpu, &u8Interrupt);
+            int rc = PDMGetInterrupt(pVCpu, &u8Interrupt);
             Log(("TRPMR3InjectEvent: u8Interrupt=%d (%#x) rc=%Rrc\n", u8Interrupt, u8Interrupt, rc));
             if (RT_SUCCESS(rc))
             {
-                rc = TRPMAssertTrap(pVM, u8Interrupt, TRPM_HARDWARE_INT);
+                rc = TRPMAssertTrap(pVCpu, u8Interrupt, TRPM_HARDWARE_INT);
                 AssertRC(rc);
                 STAM_COUNTER_INC(&pVM->trpm.s.paStatForwardedIRQR3[u8Interrupt]);
                 return VINF_EM_RESCHEDULE_HWACC;
             }
         }
-        else
-            AssertRC(rc);
-#endif
+#endif /* !TRPM_FORWARD_TRAPS_IN_GC */
     }
     /** @todo check if it's safe to translate the patch address to the original guest address.
      *        this implies a safe state in translated instructions and should take sti successors into account (instruction fusing)

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -75,6 +75,7 @@ extern "C" DECLEXPORT(HRESULT) VBoxRegisterFFmpegFB(ULONG width,
  * buffer to 0 so that RequestResize() does not free it the first time
  * it is called.
  */
+#ifdef VBOX_WITH_VPX
 FFmpegFB::FFmpegFB(ULONG width, ULONG height, ULONG bitrate,
                    com::Bstr filename) :
     mfUrlOpen(false),
@@ -85,27 +86,62 @@ FFmpegFB::FFmpegFB(ULONG width, ULONG height, ULONG bitrate,
     mBytesPerLine(0),
     mFrameWidth(width), mFrameHeight(height),
     mYUVFrameSize(width * height * 3 / 2),
-    mRGBBuffer(0), mpFormatContext(0), mpStream(0),
+    mRGBBuffer(0),
     mOutOfMemory(false), mToggle(false)
+#else
+FFmpegFB::FFmpegFB(ULONG width, ULONG height, ULONG bitrate,
+                   com::Bstr filename) :
+    mpFormatContext(0), mpStream(0),
+    mfUrlOpen(false),
+    mBitRate(bitrate),
+    mPixelFormat(FramebufferPixelFormat_Opaque),
+    mBitsPerPixel(0),
+    mFileName(filename),
+    mBytesPerLine(0),
+    mFrameWidth(width), mFrameHeight(height),
+    mYUVFrameSize(width * height * 3 / 2),mRGBBuffer(0),
+    mOutOfMemory(false), mToggle(false)
+#endif
 {
     ULONG cPixels = width * height;
 
+#ifdef VBOX_WITH_VPX
+    Assert(width % 2 == 0 && height % 2 == 0);
+    /* For temporary RGB frame we allocate enough memory to deal with
+       RGB16 to RGB32 */
+    mTempRGBBuffer = reinterpret_cast<uint8_t *>(RTMemAlloc(cPixels * 4));
+    if (!mTempRGBBuffer)
+        goto nomem_temp_rgb_buffer;
+    mYUVBuffer = reinterpret_cast<uint8_t *>(RTMemAlloc(mYUVFrameSize));
+    if (!mYUVBuffer)
+        goto nomem_yuv_buffer;
+    return;
+
+    /* C-based memory allocation and how to deal with it in C++ :) */
+nomem_yuv_buffer:
+    Log(("Failed to allocate memory for mYUVBuffer\n"));
+    RTMemFree(mYUVBuffer);
+nomem_temp_rgb_buffer:
+    Log(("Failed to allocate memory for mTempRGBBuffer\n"));
+    RTMemFree(mTempRGBBuffer);
+    mOutOfMemory = true;
+#else
     LogFlow(("Creating FFmpegFB object %p, width=%lu, height=%lu\n",
              this, (unsigned long) width,  (unsigned long) height));
     Assert(width % 2 == 0 && height % 2 == 0);
     /* For temporary RGB frame we allocate enough memory to deal with
        RGB16 to RGB32 */
     mTempRGBBuffer = reinterpret_cast<uint8_t *>(av_malloc(cPixels * 4));
-    if (mTempRGBBuffer == 0)
+    if (!mTempRGBBuffer)
         goto nomem_temp_rgb_buffer;
     mYUVBuffer = reinterpret_cast<uint8_t *>(av_malloc(mYUVFrameSize));
-    if (mYUVBuffer == 0)
+    if (!mYUVBuffer)
         goto nomem_yuv_buffer;
     mFrame = avcodec_alloc_frame();
-    if (mFrame == 0)
+    if (!mFrame)
         goto nomem_mframe;
     mOutBuf = reinterpret_cast<uint8_t *>(av_malloc(mYUVFrameSize * 2));
-    if (mOutBuf == 0)
+    if (!mOutBuf)
         goto nomem_moutbuf;
 
     return;
@@ -123,6 +159,7 @@ nomem_yuv_buffer:
 nomem_temp_rgb_buffer:
     Log(("Failed to allocate memory for mTempRGBBuffer\n"));
     mOutOfMemory = true;
+#endif
 }
 
 
@@ -132,6 +169,29 @@ nomem_temp_rgb_buffer:
 FFmpegFB::~FFmpegFB()
 {
     LogFlow(("Destroying FFmpegFB object %p\n", this));
+#ifdef VBOX_WITH_VPX
+    /* Dummy update to make sure we get all the frame (timing). */
+    NotifyUpdate(0, 0, 0, 0);
+    /* Write the last pending frame before exiting */
+    int rc = do_rgb_to_yuv_conversion();
+    if (rc == S_OK)
+        VideoRecEncodeAndWrite(pVideoRecContext, mFrameWidth, mFrameHeight, mYUVBuffer);
+# if 1
+    /* Add another 10 seconds. */
+    for (int i = 10*25; i > 0; i--)
+        VideoRecEncodeAndWrite(pVideoRecContext, mFrameWidth, mFrameHeight, mYUVBuffer);
+# endif
+    VideoRecContextClose(pVideoRecContext);
+    RTCritSectDelete(&mCritSect);
+
+    /* We have already freed the stream above */
+    if (mTempRGBBuffer)
+        RTMemFree(mTempRGBBuffer);
+    if (mYUVBuffer)
+        RTMemFree(mYUVBuffer);
+    if (mRGBBuffer)
+        RTMemFree(mRGBBuffer);
+#else
     if (mpFormatContext != 0)
     {
         if (mfUrlOpen)
@@ -142,11 +202,11 @@ FFmpegFB::~FFmpegFB()
             int rc = do_rgb_to_yuv_conversion();
             if (rc == S_OK)
                 do_encoding_and_write();
-#if 1
+# if 1
             /* Add another 10 seconds. */
             for (int i = 10*25; i > 0; i--)
                 do_encoding_and_write();
-#endif
+# endif
             /* write a png file of the last frame */
             write_png();
             avcodec_close(mpStream->codec);
@@ -157,27 +217,28 @@ FFmpegFB::~FFmpegFB()
                 av_freep(&mpFormatContext->streams[i]);
             }
 /* Changed sometime between 50.5.0 and 52.7.0 */
-#if LIBAVFORMAT_VERSION_INT >= (52 << 16)
+# if LIBAVFORMAT_VERSION_INT >= (52 << 16)
             url_fclose(mpFormatContext->pb);
-#else /* older version */
+# else /* older version */
             url_fclose(&mpFormatContext->pb);
-#endif /* older version */
+# endif /* older version */
         }
         av_free(mpFormatContext);
     }
     RTCritSectDelete(&mCritSect);
     /* We have already freed the stream above */
     mpStream = 0;
-    if (mTempRGBBuffer != 0)
+    if (mTempRGBBuffer)
         av_free(mTempRGBBuffer);
-    if (mYUVBuffer != 0)
+    if (mYUVBuffer)
         av_free(mYUVBuffer);
-    if (mFrame != 0)
+    if (mFrame)
         av_free(mFrame);
-    if (mOutBuf != 0)
+    if (mOutBuf)
         av_free(mOutBuf);
-    if (mRGBBuffer != 0)
+    if (mRGBBuffer)
         RTMemFree(mRGBBuffer);
+#endif
 }
 
 // public methods only for internal purposes
@@ -200,20 +261,36 @@ HRESULT FFmpegFB::init()
     LogFlow(("Initialising FFmpegFB object %p\n", this));
     if (mOutOfMemory == true)
         return E_OUTOFMEMORY;
-    int rc = RTCritSectInit(&mCritSect);
+    int rc;
+    int rcOpenFile;
+    int rcOpenCodec;
+
+#ifdef VBOX_WITH_VPX
+
+    rc = VideoRecContextCreate(&pVideoRecContext);
+    rc = RTCritSectInit(&mCritSect);
+    AssertReturn(rc == VINF_SUCCESS, E_UNEXPECTED);
+
+    if(rc == VINF_SUCCESS)
+        rc = VideoRecContextInit(pVideoRecContext, mFileName, mFrameWidth, mFrameHeight);
+#else
+    rc = RTCritSectInit(&mCritSect);
     AssertReturn(rc == VINF_SUCCESS, E_UNEXPECTED);
     int rcSetupLibrary = setup_library();
     AssertReturn(rcSetupLibrary == S_OK, rcSetupLibrary);
     int rcSetupFormat = setup_output_format();
     AssertReturn(rcSetupFormat == S_OK, rcSetupFormat);
-    int rcOpenCodec = open_codec();
+    rcOpenCodec = open_codec();
     AssertReturn(rcOpenCodec == S_OK, rcOpenCodec);
-    int rcOpenFile = open_output_file();
+    rcOpenFile = open_output_file();
     AssertReturn(rcOpenFile == S_OK, rcOpenFile);
+
     /* Fill in the picture data for the AVFrame - not particularly
        elegant, but that is the API. */
     avpicture_fill((AVPicture *) mFrame, mYUVBuffer, PIX_FMT_YUV420P,
                    mFrameWidth, mFrameHeight);
+#endif
+
     /* Set the initial framebuffer size to the mpeg frame dimensions */
     BOOL finished;
     RequestResize(0, FramebufferPixelFormat_Opaque, NULL, 0, 0,
@@ -442,13 +519,28 @@ STDMETHODIMP FFmpegFB::NotifyUpdate(ULONG x, ULONG y, ULONG w, ULONG h)
         rc = do_rgb_to_yuv_conversion();
         if (rc != S_OK)
         {
-            copy_to_intermediate_buffer(x, y, w, h);
+#ifdef VBOX_WITH_VPX
+            VideoRecCopyToIntBuffer(pVideoRecContext, x, y, w, h, mPixelFormat,
+                                    mBitsPerPixel, mBytesPerLine, mFrameWidth,
+                                    mFrameHeight, mGuestHeight, mGuestWidth,
+                                    mBufferAddress, mTempRGBBuffer);
+#else
+           copy_to_intermediate_buffer(x, y, w, h);
+#endif
             return rc;
         }
         rc = do_encoding_and_write();
         if (rc != S_OK)
         {
+#ifdef VBOX_WITH_VPX
+            VideoRecCopyToIntBuffer(pVideoRecContext, x, y, w, h, mPixelFormat,
+                                    mBitsPerPixel, mBytesPerLine, mFrameWidth,
+                                    mFrameHeight, mGuestHeight, mGuestWidth,
+                                    mBufferAddress, mTempRGBBuffer);
+#else
             copy_to_intermediate_buffer(x, y, w, h);
+#endif
+
             return rc;
         }
         mLastTime = mLastTime + 40;
@@ -465,7 +557,14 @@ STDMETHODIMP FFmpegFB::NotifyUpdate(ULONG x, ULONG y, ULONG w, ULONG h)
 */          rc = do_encoding_and_write();
             if (rc != S_OK)
             {
+#ifdef VBOX_WITH_VPX
+                VideoRecCopyToIntBuffer(pVideoRecContext, x, y, w, h, mPixelFormat,
+                                        mBitsPerPixel, mBytesPerLine, mFrameWidth,
+                                        mFrameHeight, mGuestHeight, mGuestWidth,
+                                        mBufferAddress, mTempRGBBuffer);
+#else
                 copy_to_intermediate_buffer(x, y, w, h);
+#endif
                 return rc;
             }
             mLastTime = mLastTime + 40;
@@ -473,7 +572,15 @@ STDMETHODIMP FFmpegFB::NotifyUpdate(ULONG x, ULONG y, ULONG w, ULONG h)
     }
     /* Finally we copy the updated data to the intermediate buffer,
        ready for the next update. */
+#ifdef VBOX_WITH_VPX
+    VideoRecCopyToIntBuffer(pVideoRecContext, x, y, w, h, mPixelFormat,
+                            mBitsPerPixel, mBytesPerLine, mFrameWidth,
+                            mFrameHeight, mGuestHeight, mGuestWidth,
+                            mBufferAddress, mTempRGBBuffer);
+
+#else
     copy_to_intermediate_buffer(x, y, w, h);
+#endif
     return S_OK;
 }
 
@@ -535,6 +642,20 @@ STDMETHODIMP FFmpegFB::RequestResize(ULONG aScreenId, ULONG pixelFormat,
     {
         switch (bitsPerPixel)
         {
+#ifdef VBOX_WITH_VPX
+            case 32:
+                mFFMPEGPixelFormat = VPX_IMG_FMT_RGB32;
+                Log2(("FFmpeg::RequestResize: setting ffmpeg pixel format to VPX_IMG_FMT_RGB32\n"));
+                break;
+            case 24:
+                mFFMPEGPixelFormat = VPX_IMG_FMT_RGB24;
+                Log2(("FFmpeg::RequestResize: setting ffmpeg pixel format to VPX_IMG_FMT_RGB24\n"));
+                break;
+            case 16:
+                mFFMPEGPixelFormat = VPX_IMG_FMT_RGB565;
+                Log2(("FFmpeg::RequestResize: setting ffmpeg pixel format to VPX_IMG_FMT_RGB565\n"));
+                break;
+#else
             case 32:
                 mFFMPEGPixelFormat = PIX_FMT_RGBA32;
                 Log2(("FFmpeg::RequestResize: setting ffmpeg pixel format to PIX_FMT_RGBA32\n"));
@@ -547,6 +668,7 @@ STDMETHODIMP FFmpegFB::RequestResize(ULONG aScreenId, ULONG pixelFormat,
                 mFFMPEGPixelFormat = PIX_FMT_RGB565;
                 Log2(("FFmpeg::RequestResize: setting ffmpeg pixel format to PIX_FMT_RGB565\n"));
                 break;
+#endif
             default:
                 fallback = true;
                 break;
@@ -571,8 +693,13 @@ STDMETHODIMP FFmpegFB::RequestResize(ULONG aScreenId, ULONG pixelFormat,
     {
         /* we always fallback to 32bpp RGB */
         mPixelFormat = FramebufferPixelFormat_FOURCC_RGB;
+#ifdef VBOX_WITH_VPX
+        mFFMPEGPixelFormat = VPX_IMG_FMT_RGB32;
+        Log2(("FFmpeg::RequestResize: setting ffmpeg pixel format to VPX_IMG_FMT_RGB32\n"));
+#else
         mFFMPEGPixelFormat = PIX_FMT_RGBA32;
         Log2(("FFmpeg::RequestResize: setting ffmpeg pixel format to PIX_FMT_RGBA32\n"));
+#endif
 
         mBytesPerLine = w * 4;
         mBitsPerPixel = 32;
@@ -636,7 +763,7 @@ STDMETHODIMP FFmpegFB::ProcessVHWACommand(BYTE *pCommand)
 // Private Methods
 //////////////////////////////////////////////////////////////////////////
 //
-
+#ifndef VBOX_WITH_VPX
 HRESULT FFmpegFB::setup_library()
 {
     /* Set up the avcodec library */
@@ -668,14 +795,14 @@ HRESULT FFmpegFB::setup_output_format()
     Assert(mpFormatContext != 0);
     AVOutputFormat *pOutFormat = guess_format(0, com::Utf8Str(mFileName).c_str(),
                                               0);
-#ifdef VBOX_SHOW_AVAILABLE_FORMATS
+# ifdef VBOX_SHOW_AVAILABLE_FORMATS
     if (!pOutFormat)
     {
         RTPrintf("Could not guess an output format for that extension.\n"
                  "Available formats:\n");
         list_formats();
     }
-#endif
+# endif
     AssertMsgReturn(pOutFormat != 0,
                     ("Could not deduce output format from file name\n"),
                     E_INVALIDARG);
@@ -691,7 +818,7 @@ HRESULT FFmpegFB::setup_output_format()
     /* Set format specific parameters - requires the format to be set. */
     int rcSetParam = av_set_parameters(mpFormatContext, 0);
     AssertReturn(rcSetParam >= 0, E_UNEXPECTED);
-#if 1 /* bird: This works for me on the mac, please review & test elsewhere. */
+# if 1 /* bird: This works for me on the mac, please review & test elsewhere. */
     /* Fill in any uninitialized parameters like opt_output_file in ffpmeg.c does.
        This fixes most of the buffer underflow warnings:
        http://lists.mplayerhq.hu/pipermail/ffmpeg-devel/2005-June/001699.html */
@@ -699,7 +826,7 @@ HRESULT FFmpegFB::setup_output_format()
         mpFormatContext->preload = (int)(0.5 * AV_TIME_BASE);
     if (!mpFormatContext->max_delay)
         mpFormatContext->max_delay = (int)(0.7 * AV_TIME_BASE);
-#endif
+# endif
     return S_OK;
 }
 
@@ -721,8 +848,9 @@ HRESULT FFmpegFB::list_formats()
     }
     return S_OK;
 }
+#endif
 
-
+#ifndef VBOX_WITH_VPX
 /**
  * Open the FFmpeg codec and set it up (width, etc) for our MPEG file.
  *
@@ -739,14 +867,14 @@ HRESULT FFmpegFB::open_codec()
     AVCodecContext *pCodecContext = mpStream->codec;
     AssertReturn(pCodecContext != 0, E_UNEXPECTED);
     AVCodec *pCodec = avcodec_find_encoder(pOutFormat->video_codec);
-#ifdef VBOX_SHOW_AVAILABLE_FORMATS
+# ifdef VBOX_SHOW_AVAILABLE_FORMATS
     if (!pCodec)
     {
         RTPrintf("Could not find a suitable codec for the output format on your system\n"
                  "Available formats:\n");
         list_formats();
     }
-#endif
+# endif
     AssertReturn(pCodec != 0, E_UNEXPECTED);
     pCodecContext->codec_id = pOutFormat->video_codec;
     pCodecContext->codec_type = CODEC_TYPE_VIDEO;
@@ -792,7 +920,7 @@ HRESULT FFmpegFB::open_output_file()
     av_write_header(mpFormatContext);
     return S_OK;
 }
-
+#endif
 
 /**
  * Copy an area from the output buffer used by the virtual VGA (may
@@ -826,6 +954,7 @@ void FFmpegFB::copy_to_intermediate_buffer(ULONG x, ULONG y, ULONG w, ULONG h)
     }
     else
         destX = x + xDiff;
+
     if (LONG(h) + yDiff + LONG(y) <= 0)  /* nothing visible */
         return;
     if (LONG(y) < -yDiff)
@@ -890,6 +1019,23 @@ HRESULT FFmpegFB::do_rgb_to_yuv_conversion()
 {
     switch (mFFMPEGPixelFormat)
     {
+#ifdef VBOX_WITH_VPX
+        case VPX_IMG_FMT_RGB32:
+            if (!FFmpegWriteYUV420p<FFmpegBGRA32Iter>(mFrameWidth, mFrameHeight,
+                                                      mYUVBuffer, mTempRGBBuffer))
+                return E_UNEXPECTED;
+            break;
+        case VPX_IMG_FMT_RGB24:
+            if (!FFmpegWriteYUV420p<FFmpegBGR24Iter>(mFrameWidth, mFrameHeight,
+                                                     mYUVBuffer, mTempRGBBuffer))
+                return E_UNEXPECTED;
+            break;
+        case VPX_IMG_FMT_RGB565:
+            if (!FFmpegWriteYUV420p<FFmpegBGR565Iter>(mFrameWidth, mFrameHeight,
+                                                      mYUVBuffer, mTempRGBBuffer))
+                return E_UNEXPECTED;
+            break;
+#else
         case PIX_FMT_RGBA32:
             if (!FFmpegWriteYUV420p<FFmpegBGRA32Iter>(mFrameWidth, mFrameHeight,
                                                       mYUVBuffer, mTempRGBBuffer))
@@ -905,12 +1051,13 @@ HRESULT FFmpegFB::do_rgb_to_yuv_conversion()
                                                       mYUVBuffer, mTempRGBBuffer))
                 return E_UNEXPECTED;
             break;
+
+#endif
         default:
             return E_UNEXPECTED;
     }
     return S_OK;
 }
-
 
 /**
  * Encode the YUV framebuffer as an MPEG frame and write it to the file.
@@ -919,7 +1066,7 @@ HRESULT FFmpegFB::do_rgb_to_yuv_conversion()
  */
 HRESULT FFmpegFB::do_encoding_and_write()
 {
-    AVCodecContext *pContext = mpStream->codec;
+
 
     /* A hack: ffmpeg mpeg2 only writes a frame if something has
         changed.  So we flip the low luminance bit of the first
@@ -929,6 +1076,11 @@ HRESULT FFmpegFB::do_encoding_and_write()
     else
         mYUVBuffer[0] &= 0xfe;
     mToggle = !mToggle;
+
+#ifdef VBOX_WITH_VPX
+    VideoRecEncodeAndWrite(pVideoRecContext, mFrameWidth, mFrameHeight, mYUVBuffer);
+#else
+    AVCodecContext *pContext = mpStream->codec;
     int cSize = avcodec_encode_video(pContext, mOutBuf, mYUVFrameSize * 2,
                                   mFrame);
     AssertMsgReturn(cSize >= 0,
@@ -952,10 +1104,11 @@ HRESULT FFmpegFB::do_encoding_and_write()
         int rcWriteFrame = av_write_frame(mpFormatContext, &Packet);
         AssertReturn(rcWriteFrame == 0, E_UNEXPECTED);
     }
+#endif
     return S_OK;
 }
 
-
+#ifndef VBOX_WITH_VPX
 /**
  * Capture the current (i.e. the last) frame as a PNG file with the
  * same basename as the captured video file.
@@ -1062,7 +1215,7 @@ fopen_failed:
         Log(("FFmpegFB::write_png: Failed to write .png image of final frame\n"));
     return errorCode;
 }
-
+#endif
 
 #ifdef VBOX_WITH_XPCOM
 NS_DECL_CLASSINFO(FFmpegFB)

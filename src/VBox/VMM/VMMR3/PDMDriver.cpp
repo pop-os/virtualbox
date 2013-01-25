@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -75,7 +75,7 @@ static int pdmR3DrvLoad(PVM pVM, PPDMDRVREGCBINT pRegCB, const char *pszFilename
  * Register drivers in a statically linked environment.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pfnCallback Driver registration callback
  */
 VMMR3DECL(int) PDMR3DrvStaticRegistration(PVM pVM, FNPDMVBOXDRIVERSREGISTER pfnCallback)
@@ -105,7 +105,7 @@ VMMR3DECL(int) PDMR3DrvStaticRegistration(PVM pVM, FNPDMVBOXDRIVERSREGISTER pfnC
  * loaded and called for registration.
  *
  * @returns VBox status code.
- * @param   pVM     VM Handle.
+ * @param   pVM     Pointer to the VM.
  */
 int pdmR3DrvInit(PVM pVM)
 {
@@ -217,7 +217,7 @@ int pdmR3DrvInit(PVM pVM)
  * Loads one driver module and call the registration entry point.
  *
  * @returns VBox status code.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pRegCB          The registration callback stuff.
  * @param   pszFilename     Module filename.
  * @param   pszName         Module name.
@@ -376,7 +376,7 @@ PPDMDRV pdmR3DrvLookup(PVM pVM, const char *pszName)
  * Worker for pdmR3DrvInstantiate.
  *
  * @returns VBox status code.
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pDrvAbove           The driver above, NULL if top.
  * @param   pLun                The LUN.
  * @param   ppNode              The AttachedDriver node, replaced if any
@@ -394,7 +394,9 @@ static int pdmR3DrvMaybeTransformChain(PVM pVM, PPDMDRVINS pDrvAbove, PPDMLUN pL
     /*
      * Gather the attributes used in the matching process.
      */
-    const char *pszDevice = pLun->pDevIns->Internal.s.pDevR3->pReg->szName;
+    const char *pszDevice = pLun->pDevIns
+                          ? pLun->pDevIns->Internal.s.pDevR3->pReg->szName
+                          : pLun->pUsbIns->Internal.s.pUsbDev->pReg->szName;
     char        szLun[32];
     RTStrPrintf(szLun, sizeof(szLun), "%u", pLun->iLun);
     const char *pszAbove  = pDrvAbove ? pDrvAbove->Internal.s.pDrv->pReg->szName : "<top>";
@@ -619,7 +621,7 @@ static int pdmR3DrvMaybeTransformChain(PVM pVM, PPDMDRVINS pDrvAbove, PPDMLUN pL
  *
  * @returns VBox status code, including informational statuses.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pNode               The CFGM node for the driver.
  * @param   pBaseInterface      The base interface.
  * @param   pDrvAbove           The driver above it.  NULL if it's the top-most
@@ -662,7 +664,6 @@ int pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDM
     if (RT_SUCCESS(rc))
     {
         PPDMDRV pDrv = pdmR3DrvLookup(pVM, pszName);
-        MMR3HeapFree(pszName);
         if (    pDrv
             &&  pDrv->cInstances < pDrv->pReg->cMaxInstances)
         {
@@ -691,6 +692,7 @@ int pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDM
                      * Initialize the instance structure (declaration order).
                      */
                     pNew->u32Version                = PDM_DRVINS_VERSION;
+                    pNew->iInstance                 = pDrv->iNextInstance;
                     pNew->Internal.s.pUp            = pDrvAbove ? pDrvAbove : NULL;
                     //pNew->Internal.s.pDown          = NULL;
                     pNew->Internal.s.pLun           = pLun;
@@ -706,11 +708,12 @@ int pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDM
                     pNew->Internal.s.pCfgHandle     = pNode;
                     pNew->pReg                      = pDrv->pReg;
                     pNew->pCfg                      = pConfigNode;
-                    pNew->iInstance                 = pDrv->iNextInstance;
                     pNew->pUpBase                   = pBaseInterface;
                     Assert(!pDrvAbove || pBaseInterface == &pDrvAbove->IBase);
                     //pNew->pDownBase                 = NULL;
                     //pNew->IBase.pfnQueryInterface   = NULL;
+                    //pNew->fTracing                  = 0;
+                    pNew->idTracing                 = ++pVM->pdm.s.idTracingOther;
                     pNew->pHlpR3                    = &g_pdmR3DrvHlp;
                     pNew->pvInstanceDataR3          = &pNew->achInstanceData[0];
                     if (pDrv->pReg->fFlags & PDM_DRVREG_FLAGS_R0)
@@ -792,12 +795,14 @@ int pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDM
             AssertMsgFailed(("Driver '%s' wasn't found!\n", pszName));
             rc = VERR_PDM_DRIVER_NOT_FOUND;
         }
+        MMR3HeapFree(pszName);
     }
     else
     {
-        AssertMsgFailed(("Query for string value of \"Driver\" -> %Rrc\n", rc));
         if (rc == VERR_CFGM_VALUE_NOT_FOUND)
             rc = VERR_PDM_CFG_MISSING_DRIVER_NAME;
+        else
+            AssertMsgFailed(("Query for string value of \"Driver\" -> %Rrc\n", rc));
     }
     return rc;
 }
@@ -829,9 +834,12 @@ int pdmR3DrvDetach(PPDMDRVINS pDrvIns, uint32_t fFlags)
      * Check that we actually can detach this instance.
      * The requirement is that the driver/device above has a detach method.
      */
-    if (pDrvIns->Internal.s.pUp
+    if (  pDrvIns->Internal.s.pUp
         ? !pDrvIns->Internal.s.pUp->pReg->pfnDetach
-        : !pDrvIns->Internal.s.pLun->pDevIns->pReg->pfnDetach)
+        :   pDrvIns->Internal.s.pLun->pDevIns
+          ? !pDrvIns->Internal.s.pLun->pDevIns->pReg->pfnDetach
+          : !pDrvIns->Internal.s.pLun->pUsbIns->pReg->pfnDriverDetach
+       )
     {
         AssertMsgFailed(("Cannot detach driver instance because the driver/device above doesn't support it!\n"));
         return VERR_PDM_DRIVER_DETACH_NOT_POSSIBLE;
@@ -898,8 +906,27 @@ void pdmR3DrvDestroyChain(PPDMDRVINS pDrvIns, uint32_t fFlags)
             /* device parent */
             Assert(pLun->pTop == pCur);
             pLun->pTop = NULL;
-            if (!(fFlags & PDM_TACH_FLAGS_NO_CALLBACKS) && pLun->pDevIns->pReg->pfnDetach)
-                pLun->pDevIns->pReg->pfnDetach(pLun->pDevIns, pLun->iLun, fFlags);
+            if (!(fFlags & PDM_TACH_FLAGS_NO_CALLBACKS))
+            {
+                if (pLun->pDevIns)
+                {
+                    if (pLun->pDevIns->pReg->pfnDetach)
+                    {
+                        PDMCritSectEnter(pLun->pDevIns->pCritSectRoR3, VERR_IGNORED);
+                        pLun->pDevIns->pReg->pfnDetach(pLun->pDevIns, pLun->iLun, fFlags);
+                        PDMCritSectLeave(pLun->pDevIns->pCritSectRoR3);
+                    }
+                }
+                else
+                {
+                    if (pLun->pUsbIns->pReg->pfnDriverDetach)
+                    {
+                        /** @todo USB device locking? */
+                        /** @todo add flags to pfnDriverDetach. */
+                        pLun->pUsbIns->pReg->pfnDriverDetach(pLun->pUsbIns, pLun->iLun);
+                    }
+                }
+            }
         }
 
         /*
@@ -1525,6 +1552,38 @@ static DECLCALLBACK(int) pdmR3DrvHlp_AsyncCompletionTemplateCreate(PPDMDRVINS pD
 }
 
 
+#ifdef VBOX_WITH_NETSHAPER
+/** @interface_method_impl{PDMDRVHLP,pfnNetShaperAttach} */
+static DECLCALLBACK(int) pdmR3DrvHlp_NetShaperAttach(PPDMDRVINS pDrvIns, const char *pszBwGroup, PPDMNSFILTER pFilter)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    LogFlow(("pdmR3DrvHlp_NetShaperAttach: caller='%s'/%d: pFilter=%p pszBwGroup=%p:{%s}\n",
+             pDrvIns->pReg->szName, pDrvIns->iInstance, pFilter, pszBwGroup, pszBwGroup));
+
+    int rc = PDMR3NsAttach(pDrvIns->Internal.s.pVMR3, pDrvIns, pszBwGroup, pFilter);
+
+    LogFlow(("pdmR3DrvHlp_NetShaperAttach: caller='%s'/%d: returns %Rrc\n", pDrvIns->pReg->szName,
+             pDrvIns->iInstance, rc));
+    return rc;
+}
+
+
+/** @interface_method_impl{PDMDRVHLP,pfnNetShaperDetach} */
+static DECLCALLBACK(int) pdmR3DrvHlp_NetShaperDetach(PPDMDRVINS pDrvIns, PPDMNSFILTER pFilter)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    LogFlow(("pdmR3DrvHlp_NetShaperDetach: caller='%s'/%d: pFilter=%p\n",
+             pDrvIns->pReg->szName, pDrvIns->iInstance, pFilter));
+
+    int rc = PDMR3NsDetach(pDrvIns->Internal.s.pVMR3, pDrvIns, pFilter);
+
+    LogFlow(("pdmR3DrvHlp_NetShaperDetach: caller='%s'/%d: returns %Rrc\n", pDrvIns->pReg->szName,
+             pDrvIns->iInstance, rc));
+    return rc;
+}
+#endif /* VBOX_WITH_NETSHAPER */
+
+
 /** @interface_method_impl{PDMDRVHLP,pfnLdrGetRCInterfaceSymbols} */
 static DECLCALLBACK(int) pdmR3DrvHlp_LdrGetRCInterfaceSymbols(PPDMDRVINS pDrvIns, void *pvInterface, size_t cbInterface,
                                                               const char *pszSymPrefix, const char *pszSymList)
@@ -1683,11 +1742,12 @@ static DECLCALLBACK(int) pdmR3DrvHlp_FTSetCheckpoint(PPDMDRVINS pDrvIns, FTMCHEC
 static DECLCALLBACK(int) pdmR3DrvHlp_BlkCacheRetain(PPDMDRVINS pDrvIns, PPPDMBLKCACHE ppBlkCache,
                                                     PFNPDMBLKCACHEXFERCOMPLETEDRV pfnXferComplete,
                                                     PFNPDMBLKCACHEXFERENQUEUEDRV pfnXferEnqueue,
+                                                    PFNPDMBLKCACHEXFERENQUEUEDISCARDDRV pfnXferEnqueueDiscard,
                                                     const char *pcszId)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
     return PDMR3BlkCacheRetainDriver(pDrvIns->Internal.s.pVMR3, pDrvIns, ppBlkCache,
-                                     pfnXferComplete, pfnXferEnqueue, pcszId);
+                                     pfnXferComplete, pfnXferEnqueue, pfnXferEnqueueDiscard, pcszId);
 }
 
 
@@ -1728,6 +1788,10 @@ const PDMDRVHLPR3 g_pdmR3DrvHlp =
     pdmR3DrvHlp_AsyncNotificationCompleted,
     pdmR3DrvHlp_ThreadCreate,
     pdmR3DrvHlp_AsyncCompletionTemplateCreate,
+#ifdef VBOX_WITH_NETSHAPER
+    pdmR3DrvHlp_NetShaperAttach,
+    pdmR3DrvHlp_NetShaperDetach,
+#endif /* VBOX_WITH_NETSHAPER */
     pdmR3DrvHlp_LdrGetRCInterfaceSymbols,
     pdmR3DrvHlp_LdrGetR0InterfaceSymbols,
     pdmR3DrvHlp_CritSectInit,

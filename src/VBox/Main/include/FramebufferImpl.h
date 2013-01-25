@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,8 +25,6 @@
 
 class ATL_NO_VTABLE Framebuffer :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<Framebuffer, IFramebuffer>,
-    public VirtualBoxSupportTranslation<Framebuffer>,
     VBOX_SCRIPTABLE_IMPL(IFramebuffer)
 {
 public:
@@ -72,10 +70,6 @@ public:
     STDMETHOD(SetVisibleRegion)(BYTE *aRectangles, ULONG aCount) = 0;
 
     STDMETHOD(ProcessVHWACommand)(BYTE *pCommand) = 0;
-
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"Framebuffer"; }
-
 };
 
 #endif // ____H_H_FRAMEBUFFERIMPL

@@ -45,14 +45,8 @@ protected:
 
 private slots:
 
-    /* Slot to perform guest resize: */
-    void sltPerformGuestResize(const QSize &aSize = QSize());
-
     /* Console callback handlers: */
     void sltAdditionsStateChanged();
-
-    /* Watch dog for desktop resizes: */
-    void sltDesktopResized();
 
 private:
 
@@ -63,27 +57,23 @@ private:
     /* Prepare helpers: */
     void prepareCommon();
     void prepareFilters();
-    void prepareConnections();
     void prepareConsoleConnections();
     void prepareSeamless();
 
     /* Cleanup helpers: */
     void cleanupSeamless();
     //void cleanupConsoleConnections() {}
-    //void prepareConnections() {}
     //void cleanupFilters() {}
     //void cleanupCommon() {}
 
     /* Private helpers: */
     void normalizeGeometry(bool /* fAdjustPosition */) {}
-    QRect workingArea();
-    void calculateDesktopGeometry();
+    QRect workingArea() const;
+    QSize calculateMaxGuestSize() const;
     void maybeRestrictMinimumSize() {}
 
     /* Private variables: */
-    bool m_fShouldWeDoResize : 1;
     QRegion m_lastVisibleRegion;
-    UIMachineViewBlocker *m_pSyncBlocker;
 
     /* Friend classes: */
     friend class UIMachineView;

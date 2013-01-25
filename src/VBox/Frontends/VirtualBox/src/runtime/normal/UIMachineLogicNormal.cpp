@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,21 +17,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes */
+/* Qt includes: */
 #include <QMenu>
 
-/* Local includes */
-#include "COMDefs.h"
+/* GUI includes: */
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
-
 #include "UISession.h"
 #include "UIActionPoolRuntime.h"
 #include "UIMachineLogicNormal.h"
 #include "UIMachineWindow.h"
 #include "UIDownloaderAdditions.h"
+#include "UIDownloaderUserManual.h"
 #include "UIDownloaderExtensionPack.h"
-
 #ifdef Q_WS_MAC
 #include "VBoxUtils.h"
 #endif /* Q_WS_MAC */
@@ -41,69 +39,10 @@ UIMachineLogicNormal::UIMachineLogicNormal(QObject *pParent, UISession *pSession
 {
 }
 
-UIMachineLogicNormal::~UIMachineLogicNormal()
+bool UIMachineLogicNormal::checkAvailability()
 {
-#ifdef Q_WS_MAC
-    /* Cleanup the dock stuff before the machine window(s): */
-    cleanupDock();
-#endif /* Q_WS_MAC */
-
-    /* Cleanup machine window(s): */
-    cleanupMachineWindow();
-
-    /* Cleanup handlers: */
-    cleanupHandlers();
-}
-
-void UIMachineLogicNormal::initialize()
-{
-    /* Prepare required features: */
-    prepareRequiredFeatures();
-
-    /* Prepare session connections: */
-    prepareSessionConnections();
-
-    /* Prepare action groups:
-     * Note: This has to be done before prepareActionConnections
-     * cause here actions/menus are recreated. */
-    prepareActionGroups();
-
-    /* Prepare action connections: */
-    prepareActionConnections();
-
-    /* Prepare handlers: */
-    prepareHandlers();
-
-    /* Prepare normal machine window: */
-    prepareMachineWindows();
-
-    /* If there is an Additions download running, update the parent window information. */
-    if (UIDownloaderAdditions *pDl = UIDownloaderAdditions::current())
-        pDl->setParentWidget(mainMachineWindow()->machineWindow());
-
-    /* If there is an Extension Pack download running, update the parent window information. */
-    if (UIDownloaderExtensionPack *pDl = UIDownloaderExtensionPack::current())
-        pDl->setParentWidget(mainMachineWindow()->machineWindow());
-
-#ifdef Q_WS_MAC
-    /* Prepare dock: */
-    prepareDock();
-#endif /* Q_WS_MAC */
-
-    /* Power up machine: */
-    uisession()->powerUp();
-
-    /* Initialization: */
-    sltMachineStateChanged();
-    sltAdditionsStateChanged();
-    sltMouseCapabilityChanged();
-
-#ifdef VBOX_WITH_DEBUGGER_GUI
-    prepareDebugger();
-#endif /* VBOX_WITH_DEBUGGER_GUI */
-
-    /* Retranslate logic part: */
-    retranslateUi();
+    /* Normal mode is always available: */
+    return true;
 }
 
 void UIMachineLogicNormal::sltPrepareNetworkAdaptersMenu()
@@ -160,16 +99,16 @@ void UIMachineLogicNormal::prepareMachineWindows()
     ulong uMonitorCount = session().GetMachine().GetMonitorCount();
     /* Create machine window(s): */
     for (ulong uScreenId = 0; uScreenId < uMonitorCount; ++ uScreenId)
-        addMachineWindow(UIMachineWindow::create(this, visualStateType(), uScreenId));
+        addMachineWindow(UIMachineWindow::create(this, uScreenId));
     /* Order machine window(s): */
     for (ulong uScreenId = uMonitorCount; uScreenId > 0; -- uScreenId)
-        machineWindows()[uScreenId - 1]->machineWindow()->raise();
+        machineWindows()[uScreenId - 1]->raise();
 
     /* Remember what machine window(s) created: */
     setMachineWindowsCreated(true);
 }
 
-void UIMachineLogicNormal::cleanupMachineWindow()
+void UIMachineLogicNormal::cleanupMachineWindows()
 {
     /* Do not cleanup machine window(s) if not present: */
     if (!isMachineWindowsCreated())

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1064,7 +1064,7 @@ static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t uOffset, void con
                  */
 #ifndef IN_RING3
                 if (pThis->iMessage == pThis->cMessage - 1)
-                    return VINF_IOM_HC_MMIO_WRITE;
+                    return VINF_IOM_R3_MMIO_WRITE;
 #endif
                 pThis->aMessage[pThis->iMessage++] = u32;
 #ifdef IN_RING3
@@ -1144,7 +1144,7 @@ static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t uOffset, void con
         case LSILOGIC_REG_HOST_DIAGNOSTIC:
         {
 #ifndef IN_RING3
-            return VINF_IOM_HC_IOPORT_WRITE;
+            return VINF_IOM_R3_IOPORT_WRITE;
 #else
             if (u32 & LSILOGIC_REG_HOST_DIAGNOSTIC_RESET_ADAPTER)
             {
@@ -1187,7 +1187,7 @@ static int lsilogicRegisterRead(PLSILOGICSCSI pThis, uint32_t uOffset, void *pv,
             if (RT_UNLIKELY(cb != 4))
                 LogFlowFunc((": cb is not 4 (%u)\n", cb));
 
-            rc = PDMCritSectEnter(&pThis->ReplyPostQueueCritSect, VINF_IOM_HC_MMIO_READ);
+            rc = PDMCritSectEnter(&pThis->ReplyPostQueueCritSect, VINF_IOM_R3_MMIO_READ);
             if (rc != VINF_SUCCESS)
                 break;
 
@@ -1303,8 +1303,8 @@ PDMBOTHCBDECL(int) lsilogicIOPortWrite (PPDMDEVINS pDevIns, void *pvUser,
     Assert(cb <= 4);
 
     int rc = lsilogicRegisterWrite(pThis, uOffset, &u32, cb);
-    if (rc == VINF_IOM_HC_MMIO_WRITE)
-        rc = VINF_IOM_HC_IOPORT_WRITE;
+    if (rc == VINF_IOM_R3_MMIO_WRITE)
+        rc = VINF_IOM_R3_IOPORT_WRITE;
 
     return rc;
 }
@@ -1318,8 +1318,8 @@ PDMBOTHCBDECL(int) lsilogicIOPortRead (PPDMDEVINS pDevIns, void *pvUser,
     Assert(cb <= 4);
 
     int rc = lsilogicRegisterRead(pThis, uOffset, pu32, cb);
-    if (rc == VINF_IOM_HC_MMIO_READ)
-        rc = VINF_IOM_HC_IOPORT_READ;
+    if (rc == VINF_IOM_R3_MMIO_READ)
+        rc = VINF_IOM_R3_IOPORT_READ;
 
     return rc;
 }
@@ -3668,8 +3668,8 @@ static int  lsilogicIsaIOPortRead (PPDMDEVINS pDevIns, void *pvUser,
     Assert(cb == 1);
 
     uint8_t iRegister =   pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
-                        ? Port - LSILOGIC_ISA_IO_PORT
-                        : Port - LSILOGIC_SAS_ISA_IO_PORT;
+                        ? Port - LSILOGIC_BIOS_IO_PORT
+                        : Port - LSILOGIC_SAS_BIOS_IO_PORT;
     rc = vboxscsiReadRegister(&pThis->VBoxSCSI, iRegister, pu32);
 
     Log2(("%s: pu32=%p:{%.*Rhxs} iRegister=%d rc=%Rrc\n",
@@ -3757,8 +3757,8 @@ static int lsilogicIsaIOPortWrite (PPDMDEVINS pDevIns, void *pvUser,
     Assert(cb == 1);
 
     uint8_t iRegister =   pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
-                        ? Port - LSILOGIC_ISA_IO_PORT
-                        : Port - LSILOGIC_SAS_ISA_IO_PORT;
+                        ? Port - LSILOGIC_BIOS_IO_PORT
+                        : Port - LSILOGIC_SAS_BIOS_IO_PORT;
     rc = vboxscsiWriteRegister(&pThis->VBoxSCSI, iRegister, (uint8_t)u32);
     if (rc == VERR_MORE_DATA)
     {
@@ -3784,8 +3784,8 @@ static DECLCALLBACK(int) lsilogicIsaIOPortWriteStr(PPDMDEVINS pDevIns, void *pvU
           pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
 
     uint8_t iRegister =   pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
-                        ? Port - LSILOGIC_ISA_IO_PORT
-                        : Port - LSILOGIC_SAS_ISA_IO_PORT;
+                        ? Port - LSILOGIC_BIOS_IO_PORT
+                        : Port - LSILOGIC_SAS_BIOS_IO_PORT;
     rc = vboxscsiWriteString(pDevIns, &pThis->VBoxSCSI, iRegister,
                              pGCPtrSrc, pcTransfer, cb);
     if (rc == VERR_MORE_DATA)
@@ -3811,8 +3811,8 @@ static DECLCALLBACK(int) lsilogicIsaIOPortReadStr(PPDMDEVINS pDevIns, void *pvUs
                  pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
 
     uint8_t iRegister =   pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
-                        ? Port - LSILOGIC_ISA_IO_PORT
-                        : Port - LSILOGIC_SAS_ISA_IO_PORT;
+                        ? Port - LSILOGIC_BIOS_IO_PORT
+                        : Port - LSILOGIC_SAS_BIOS_IO_PORT;
     return vboxscsiReadString(pDevIns, &pThis->VBoxSCSI, iRegister,
                               pGCPtrDst, pcTransfer, cb);
 }
@@ -5229,12 +5229,12 @@ static DECLCALLBACK(int) lsilogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
     if (fBootable)
     {
         if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
-            rc = PDMDevHlpIOPortRegister(pDevIns, LSILOGIC_ISA_IO_PORT, 3, NULL,
+            rc = PDMDevHlpIOPortRegister(pDevIns, LSILOGIC_BIOS_IO_PORT, 4, NULL,
                                          lsilogicIsaIOPortWrite, lsilogicIsaIOPortRead,
                                          lsilogicIsaIOPortWriteStr, lsilogicIsaIOPortReadStr,
                                          "LsiLogic BIOS");
         else if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
-            rc = PDMDevHlpIOPortRegister(pDevIns, LSILOGIC_SAS_ISA_IO_PORT, 3, NULL,
+            rc = PDMDevHlpIOPortRegister(pDevIns, LSILOGIC_SAS_BIOS_IO_PORT, 4, NULL,
                                          lsilogicIsaIOPortWrite, lsilogicIsaIOPortRead,
                                          lsilogicIsaIOPortWriteStr, lsilogicIsaIOPortReadStr,
                                          "LsiLogic SAS BIOS");
@@ -5345,7 +5345,8 @@ const PDMDEVREG g_DeviceLsiLogicSAS =
     "LSI Logic SAS1068 controller.\n",
     /* fFlags */
     PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0 |
-    PDM_DEVREG_FLAGS_FIRST_SUSPEND_NOTIFICATION | PDM_DEVREG_FLAGS_FIRST_POWEROFF_NOTIFICATION,
+    PDM_DEVREG_FLAGS_FIRST_SUSPEND_NOTIFICATION | PDM_DEVREG_FLAGS_FIRST_POWEROFF_NOTIFICATION |
+    PDM_DEVREG_FLAGS_FIRST_RESET_NOTIFICATION,
     /* fClass */
     PDM_DEVREG_CLASS_STORAGE,
     /* cMaxInstances */

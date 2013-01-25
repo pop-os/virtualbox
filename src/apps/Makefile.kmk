@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2007 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,11 @@ if1of ($(KBUILD_TARGET),darwin solaris linux freebsd)
   include $(PATH_SUB_CURRENT)/adpctl/Makefile.kmk
  endif
 endif
+ifdef VBOX_WITH_DEVMAPPER
+ ifneq ($(wildcard $(PATH_SUB_CURRENT)/volinfo),)
+  include $(PATH_SUB_CURRENT)/volinfo/Makefile.kmk
+ endif
+endif
 
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

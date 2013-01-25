@@ -28,6 +28,10 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_SUP_DRV
+#ifdef DEBUG_ramshankar
+# define LOG_ENABLED
+# define LOG_INSTANCE       RTLogRelDefaultInstance()
+#endif
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/errno.h>
@@ -60,6 +64,8 @@
 #include <iprt/alloc.h>
 #include <iprt/string.h>
 #include <iprt/err.h>
+
+#include "dtrace/SUPDrv.h"
 
 
 /*******************************************************************************
@@ -217,7 +223,7 @@ int _init(void)
              * Initialize the session hash table.
              */
             memset(g_apSessionHashTab, 0, sizeof(g_apSessionHashTab));
-            rc = RTSpinlockCreate(&g_Spinlock);
+            rc = RTSpinlockCreate(&g_Spinlock, RTSPINLOCK_FLAGS_INTERRUPT_SAFE, "VBoxDrvSol");
             if (RT_SUCCESS(rc))
             {
                 rc = ddi_soft_state_init(&g_pVBoxDrvSolarisState, sizeof(vbox_devstate_t), 8);
@@ -237,18 +243,27 @@ int _init(void)
                 g_Spinlock = NIL_RTSPINLOCK;
             }
             else
+            {
                 LogRel((DEVICE_NAME ":VBoxDrvSolarisAttach: RTSpinlockCreate failed\n"));
+                rc = RTErrConvertToErrno(rc);
+            }
             supdrvDeleteDevExt(&g_DevExt);
         }
         else
+        {
             LogRel((DEVICE_NAME ":VBoxDrvSolarisAttach: supdrvInitDevExt failed\n"));
+            rc = RTErrConvertToErrno(rc);
+        }
         RTR0TermForced();
     }
     else
+    {
         LogRel((DEVICE_NAME ":VBoxDrvSolarisAttach: failed to init R0Drv\n"));
+        rc = RTErrConvertToErrno(rc);
+    }
     memset(&g_DevExt, 0, sizeof(g_DevExt));
 
-    return RTErrConvertToErrno(rc);
+    return rc;
 }
 
 
@@ -478,7 +493,6 @@ static int VBoxDrvSolarisOpen(dev_t *pDev, int fFlag, int fType, cred_t *pCred)
     rc = supdrvCreateSession(&g_DevExt, true /* fUser */, &pSession);
     if (RT_SUCCESS(rc))
     {
-        RTSPINLOCKTMP   Tmp = RTSPINLOCKTMP_INITIALIZER;
         unsigned        iHash;
 
         pSession->Uid = crgetruid(pCred);
@@ -488,10 +502,10 @@ static int VBoxDrvSolarisOpen(dev_t *pDev, int fFlag, int fType, cred_t *pCred)
          * Insert it into the hash table.
          */
         iHash = SESSION_HASH(pSession->Process);
-        RTSpinlockAcquireNoInts(g_Spinlock, &Tmp);
+        RTSpinlockAcquire(g_Spinlock);
         pSession->pNextHash = g_apSessionHashTab[iHash];
         g_apSessionHashTab[iHash] = pSession;
-        RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
+        RTSpinlockReleaseNoInts(g_Spinlock);
         LogFlow((DEVICE_NAME ":VBoxDrvSolarisOpen success\n"));
     }
 
@@ -544,7 +558,6 @@ static int VBoxDrvSolarisClose(dev_t Dev, int flag, int otyp, cred_t *cred)
             Dev, pSession, RTProcSelf(), RTR0ProcHandleSelf(), RTThreadNativeSelf() ));
 
 #else
-    RTSPINLOCKTMP   Tmp = RTSPINLOCKTMP_INITIALIZER;
     const RTPROCESS Process = RTProcSelf();
     const unsigned  iHash = SESSION_HASH(Process);
     PSUPDRVSESSION  pSession;
@@ -552,7 +565,7 @@ static int VBoxDrvSolarisClose(dev_t Dev, int flag, int otyp, cred_t *cred)
     /*
      * Remove from the hash table.
      */
-    RTSpinlockAcquireNoInts(g_Spinlock, &Tmp);
+    RTSpinlockAcquire(g_Spinlock);
     pSession = g_apSessionHashTab[iHash];
     if (pSession)
     {
@@ -580,7 +593,7 @@ static int VBoxDrvSolarisClose(dev_t Dev, int flag, int otyp, cred_t *cred)
             }
         }
     }
-    RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
+    RTSpinlockReleaseNoInts(g_Spinlock);
     if (!pSession)
     {
         LogRel((DEVICE_NAME ":VBoxDrvSolarisClose: WHAT?!? pSession == NULL! This must be a mistake... pid=%d (close)\n",
@@ -643,7 +656,6 @@ static int VBoxDrvSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArgs, int Mode, cre
         return DDI_SUCCESS;
     }
 #else
-    RTSPINLOCKTMP       Tmp = RTSPINLOCKTMP_INITIALIZER;
     const RTPROCESS     Process = RTProcSelf();
     const unsigned      iHash = SESSION_HASH(Process);
     PSUPDRVSESSION      pSession;
@@ -651,14 +663,14 @@ static int VBoxDrvSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArgs, int Mode, cre
     /*
      * Find the session.
      */
-    RTSpinlockAcquireNoInts(g_Spinlock, &Tmp);
+    RTSpinlockAcquire(g_Spinlock);
     pSession = g_apSessionHashTab[iHash];
     if (pSession && pSession->Process != Process)
     {
         do pSession = pSession->pNextHash;
         while (pSession && pSession->Process != Process);
     }
-    RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
+    RTSpinlockReleaseNoInts(g_Spinlock);
     if (!pSession)
     {
         LogRel((DEVICE_NAME ":VBoxSupDrvIOCtl: WHAT?!? pSession == NULL! This must be a mistake... pid=%d iCmd=%#x\n",
@@ -982,6 +994,12 @@ int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 }
 
 
+void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
+{
+    NOREF(pDevExt); NOREF(pImage);
+}
+
+
 int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, void *pv, const uint8_t *pbImageBits)
 {
     NOREF(pDevExt); NOREF(pImage); NOREF(pv); NOREF(pbImageBits);
@@ -1123,6 +1141,12 @@ int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 {
     NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
     return VERR_NOT_SUPPORTED;
+}
+
+
+void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
+{
+    NOREF(pDevExt); NOREF(pImage);
 }
 
 

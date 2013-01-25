@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,11 +17,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes */
+/* Qt includes: */
 #include <QDesktopWidget>
 #include <QMouseEvent>
 
-/* Local includes */
+/* GUI includes: */
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
 #include "UIKeyboardHandler.h"
@@ -53,6 +53,12 @@ const int XKeyRelease = KeyRelease;
 #ifdef Q_WS_MAC
 # include "VBoxUtils-darwin.h"
 #endif /* Q_WS_MAC */
+
+/* COM includes: */
+#include "CConsole.h"
+#include "CMouse.h"
+#include "CFramebuffer.h"
+#include "CDisplay.h"
 
 /* Factory function to create mouse-handler: */
 UIMouseHandler* UIMouseHandler::create(UIMachineLogic *pMachineLogic,
@@ -91,7 +97,7 @@ void UIMouseHandler::prepareListener(ulong uIndex, UIMachineWindow *pMachineWind
     if (!m_windows.contains(uIndex))
     {
         /* Register machine-window: */
-        m_windows.insert(uIndex, pMachineWindow->machineWindow());
+        m_windows.insert(uIndex, pMachineWindow);
         /* Install event-filter for machine-window: */
         m_windows[uIndex]->installEventFilter(this);
     }
@@ -556,7 +562,8 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                     /* Check if we should activate window under cursor: */
                     if (!uisession()->isMouseCaptured() &&
                         QApplication::activeWindow() &&
-                        QApplication::activeWindow()->inherits("UIMachineWindow") &&
+                        m_windows.values().contains(QApplication::activeWindow()) &&
+                        m_windows.values().contains(pWatchedWidget->window()) &&
                         QApplication::activeWindow() != pWatchedWidget->window())
                     {
                         /* Activating hovered machine window: */
@@ -763,7 +770,7 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
     else /* !uisession()->isMouseCaptured() */
     {
 #if 0 // TODO: Move that to fullscreen event-handler:
-        if (vboxGlobal().vmRenderMode() != VBoxDefs::SDLMode)
+        if (vboxGlobal().vmRenderMode() != SDLMode)
         {
             /* try to automatically scroll the guest canvas if the
              * mouse is on the screen border */
@@ -790,7 +797,7 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
             int iCw = m_views[uScreenId]->contentsWidth(), iCh = m_views[uScreenId]->contentsHeight();
             int iVw = m_views[uScreenId]->visibleWidth(), iVh = m_views[uScreenId]->visibleHeight();
 
-            if (vboxGlobal().vmRenderMode() != VBoxDefs::SDLMode)
+            if (vboxGlobal().vmRenderMode() != SDLMode)
             {
                 /* Try to automatically scroll the guest canvas if the
                  * mouse goes outside its visible part: */
@@ -812,8 +819,25 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
             double xRatio = scaledSize.isValid() ? (double)pFrameBuffer->width() / (double)scaledSize.width() : 1;
             double yRatio = scaledSize.isValid() ? (double)pFrameBuffer->height() / (double)scaledSize.height() : 1;
             /* Set scaling if scale-factor is present: */
-            cpnt.setX(cpnt.x() * xRatio);
-            cpnt.setY(cpnt.y() * yRatio);
+            cpnt.setX((int)(cpnt.x() * xRatio));
+            cpnt.setY((int)(cpnt.y() * yRatio));
+
+#ifdef VBOX_WITH_DRAG_AND_DROP
+# ifdef VBOX_WITH_DRAG_AND_DROP_GH
+            if (   cpnt.x() < 0
+                || cpnt.x() > iCw - 1
+                || cpnt.y() < 0
+                || cpnt.y() > iCh - 1)
+            {
+                if ((mouseButtons.testFlag(Qt::LeftButton)))
+                {
+                    m_views[uScreenId]->handleGHDnd();
+
+                    return false;
+                }
+            }
+# endif
+#endif /* VBOX_WITH_DRAG_AND_DROP */
 
             /* Bound coordinates: */
             if (cpnt.x() < 0) cpnt.setX(0);

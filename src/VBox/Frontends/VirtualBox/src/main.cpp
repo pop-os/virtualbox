@@ -25,7 +25,7 @@
 #else /* !VBOX_WITH_PRECOMPILED_HEADERS */
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
-#include "VBoxSelectorWnd.h"
+#include "UISelectorWindow.h"
 #include "VBoxUtils.h"
 #ifdef Q_WS_MAC
 # include "UICocoaApplication.h"
@@ -279,12 +279,15 @@ static void showHelp()
             "  --recompile-user           recompiled execution of user code (*)\n"
             "  --recompile-all            recompiled execution of all code, with disabled\n"
             "                             code patching and scanning\n"
+            "  --warp-pct <pct>           time warp factor, 100%% (= 1.0) = normal speed\n"
             "  (*) For AMD-V/VT-x setups the effect is --recompile-all.\n"
             "\n"
 # ifdef VBOX_WITH_DEBUGGER_GUI
-            "The following environment variables are evaluated:\n"
-            "  VBOX_GUI_DBG_ENABLED       enable the GUI debug menu if set\n"
-            "  VBOX_GUI_DBG_AUTO_SHOW     show debug windows at VM startup\n"
+            "The following environment (and extra data) variables are evaluated:\n"
+            "  VBOX_GUI_DBG_ENABLED (GUI/Dbg/Enabled)\n"
+            "                             enable the GUI debug menu if set\n"
+            "  VBOX_GUI_DBG_AUTO_SHOW (GUI/Dbg/AutoShow)\n"
+            "                             show debug windows at VM startup\n"
             "  VBOX_GUI_NO_DEBUGGER       disable the GUI debug menu and debug windows\n"
 # endif
             "\n",
@@ -384,11 +387,8 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
             QApplication::setStyle (new QPlastiqueStyle);
 
 #ifdef Q_OS_SOLARIS
-        /* Solaris have some issue with cleanlooks style which leads to application
-         * crash in case of using it on Qt4.4 version, lets make the same substitute */
-        if (VBoxGlobal::qtRTVersionString().startsWith ("4.4") &&
-            qobject_cast <QCleanlooksStyle*> (QApplication::style()))
-            QApplication::setStyle (new QPlastiqueStyle);
+        /* Use plastique look 'n feel for Solaris instead of the default motif (Qt 4.7.x) */
+        QApplication::setStyle (new QPlastiqueStyle);
 #endif
 
 #ifdef Q_WS_X11
@@ -504,7 +504,7 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
                 {
                     /* Allow to prevent this message */
                     QString str = vboxGlobal().virtualBox().
-                        GetExtraData (VBoxDefs::GUI_PreventBetaWarning);
+                        GetExtraData(GUI_PreventBetaWarning);
                     if (str != vboxVersion)
                         msgCenter().showBETAWarning();
                 }
@@ -567,20 +567,13 @@ int main (int argc, char **argv, char **envp)
         }
     }
 
-    int rc;
-    if (!fInitSUPLib)
-        rc = RTR3Init();
-    else
-        rc = RTR3InitAndSUPLib();
+    int rc = RTR3InitExe(argc, &argv, fInitSUPLib ? RTR3INIT_FLAGS_SUPLIB : 0);
     if (RT_FAILURE(rc))
     {
         QApplication a (argc, &argv[0]);
 #ifdef Q_OS_SOLARIS
-        /* Solaris have some issue with cleanlooks style which leads to application
-         * crash in case of using it on Qt4.4 version, lets make the same substitute */
-        if (VBoxGlobal::qtRTVersionString().startsWith ("4.4") &&
-            qobject_cast <QCleanlooksStyle*> (QApplication::style()))
-            QApplication::setStyle (new QPlastiqueStyle);
+        /* Use plastique look 'n feel for Solaris instead of the default motif (Qt 4.7.x) */
+        QApplication::setStyle (new QPlastiqueStyle);
 #endif
         QString msgTitle = QApplication::tr ("VirtualBox - Runtime Error");
         QString msgText = "<html>";

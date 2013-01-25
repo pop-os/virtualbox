@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2011 Oracle Corporation
+# Copyright (C) 2004-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,8 @@ ifndef VBOX_ONLY_SDK
 	$(if $(VBOX_OSE),,tstOVF) \
 	$(if $(VBOX_WITH_XPCOM),tstVBoxAPILinux,tstVBoxAPIWin) \
 	$(if $(VBOX_WITH_RESOURCE_USAGE_API),tstCollector,) \
-	$(if $(VBOX_WITH_GUEST_CONTROL),tstGuestCtrlParseBuffer,)
+	$(if $(VBOX_WITH_GUEST_CONTROL),tstGuestCtrlParseBuffer,) \
+	$(if $(VBOX_WITH_GUEST_CONTROL),tstGuestCtrlContextID,)
   PROGRAMS.linux += \
 	$(if $(VBOX_WITH_USB),tstUSBProxyLinux,)
  endif # !VBOX_WITH_TESTCASES
@@ -142,7 +143,7 @@ tstCollector_SOURCES  = \
 tstCollector_INCS     = ../include
 tstCollector_DEFS    += VBOX_COLLECTOR_TEST_CASE
 tstCollector_LDFLAGS.darwin  += -lproc
-tstCollector_LDFLAGS.solaris += -lkstat
+tstCollector_LDFLAGS.solaris += -lkstat -lnvpair
 tstCollector_LDFLAGS.win     += psapi.lib powrprof.lib
 
 
@@ -150,14 +151,31 @@ tstCollector_LDFLAGS.win     += psapi.lib powrprof.lib
 # tstGuestCtrlParseBuffer
 #
 tstGuestCtrlParseBuffer_TEMPLATE = VBOXMAINCLIENTEXE
+tstGuestCtrlParseBuffer_DEFS    += VBOX_WITH_HGCM VBOX_WITH_GUEST_CONTROL
 tstGuestCtrlParseBuffer_SOURCES  = \
 	tstGuestCtrlParseBuffer.cpp \
-	../src-client/GuestCtrlIO.cpp
+	../src-client/GuestCtrlPrivate.cpp
 tstGuestCtrlParseBuffer_INCS     = ../include
 ifeq ($(KBUILD_TARGET),win) ## @todo just add this to the template.
  tstGuestCtrlParseBuffer_DEPS    = $(VBOX_PATH_SDK)/bindings/mscom/include/VirtualBox.h
 else
  tstGuestCtrlParseBuffer_DEPS    = $(VBOX_PATH_SDK)/bindings/xpcom/include/VirtualBox_XPCOM.h
+endif
+
+
+#
+# tstGuestCtrlContextID
+#
+tstGuestCtrlContextID_TEMPLATE = VBOXMAINCLIENTEXE
+tstGuestCtrlContextID_DEFS    += VBOX_WITH_HGCM VBOX_WITH_GUEST_CONTROL
+tstGuestCtrlContextID_SOURCES  = \
+	tstGuestCtrlContextID.cpp \
+	../src-client/GuestCtrlPrivate.cpp
+tstGuestCtrlContextID_INCS     = ../include
+ifeq ($(KBUILD_TARGET),win) ## @todo just add this to the template.
+ tstGuestCtrlContextID_DEPS    = $(VBOX_PATH_SDK)/bindings/mscom/include/VirtualBox.h
+else
+ tstGuestCtrlContextID_DEPS    = $(VBOX_PATH_SDK)/bindings/xpcom/include/VirtualBox_XPCOM.h
 endif
 
 
@@ -183,9 +201,10 @@ tstUSBProxyLinux_DEFS      = \
 tstUSBProxyLinux_DEPS     = \
 	$(VBOX_PATH_SDK)/bindings/xpcom/include/VirtualBox_XPCOM.h
 tstUSBProxyLinux_LIBS     += \
-	$(PATH_OUT)/lib/USBLib.a
+	$(PATH_OUT)/lib/USBLib.a \
+	$(PATH_OUT)/lib/VBoxCOM.a
 
 
 # generate rules.
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

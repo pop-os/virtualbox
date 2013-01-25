@@ -1,11 +1,10 @@
+/* $Id: HGSMICommon.cpp $ */
 /** @file
- *
- * VBox Host Guest Shared Memory Interface (HGSMI).
- * HGSMI functions common for both host and guest.
+ * VBox Host Guest Shared Memory Interface (HGSMI) - Functions common to both host and guest.
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,16 +15,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_DISABLED /* Maybe we can enabled it all the time now? */
+#define LOG_GROUP LOG_GROUP_HGSMI
 #include <iprt/heap.h>
 #include <iprt/string.h>
 
 #include <VBox/HGSMI/HGSMI.h>
-
-//#define LOG_GROUP LOG_GROUP_HGSMI
-//#include <VBox/log.h>
-#define Log(f) do{}while(0)
-#define LogFlowFunc(f) do{}while(0)
-#define LogFunc(f) do{}while(0)
+#include <VBox/log.h>
 
 
 /* Channel flags. */
@@ -306,18 +302,9 @@ void *HGSMIHeapAlloc (HGSMIHEAP *pHeap,
 
     size_t cbAlloc = HGSMIBufferRequiredSize (cbData);
 
-    HGSMIBUFFERHEADER *pHeader;
-    if (!pHeap->fOffsetBased)
-        pHeader = (HGSMIBUFFERHEADER *)RTHeapSimpleAlloc (pHeap->u.hPtr, cbAlloc, 0);
-    else
-        pHeader = (HGSMIBUFFERHEADER *)RTHeapOffsetAlloc (pHeap->u.hOff, cbAlloc, 0);
-
+    HGSMIBUFFERHEADER *pHeader = (HGSMIBUFFERHEADER *)HGSMIHeapBufferAlloc (pHeap, cbAlloc);
     if (!pHeader)
-    {
         return NULL;
-    }
-
-    ++pHeap->cRefs;
 
     hgsmiBufferInitializeSingle (&pHeap->area, pHeader, cbData, u8Channel, u16ChannelInfo);
 
@@ -342,13 +329,34 @@ void HGSMIHeapFree (HGSMIHEAP *pHeap,
     {
         HGSMIBUFFERHEADER *pHeader = HGSMIBufferHeaderFromData (pvData);
 
-        if (!pHeap->fOffsetBased)
-            RTHeapSimpleFree (pHeap->u.hPtr, pHeader);
-        else
-            RTHeapOffsetFree (pHeap->u.hOff, pHeader);
-
-        --pHeap->cRefs;
+        HGSMIHeapBufferFree (pHeap, pHeader);
     }
+}
+
+void* HGSMIHeapBufferAlloc (HGSMIHEAP *pHeap, HGSMISIZE cbBuffer)
+{
+    void* pvBuf;
+    if (!pHeap->fOffsetBased)
+        pvBuf = RTHeapSimpleAlloc (pHeap->u.hPtr, cbBuffer, 0);
+    else
+        pvBuf = RTHeapOffsetAlloc (pHeap->u.hOff, cbBuffer, 0);
+
+    if (!pvBuf)
+        return NULL;
+
+    ++pHeap->cRefs;
+    return pvBuf;
+}
+
+void HGSMIHeapBufferFree(HGSMIHEAP *pHeap,
+                    void *pvBuf)
+{
+    if (!pHeap->fOffsetBased)
+        RTHeapSimpleFree (pHeap->u.hPtr, pvBuf);
+    else
+        RTHeapOffsetFree (pHeap->u.hOff, pvBuf);
+
+    --pHeap->cRefs;
 }
 
 /* Verify that the given offBuffer points to a valid buffer, which is within the area.

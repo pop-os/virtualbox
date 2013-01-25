@@ -49,9 +49,9 @@ typedef struct
 {
     /** The core structure. */
     DISCPUSTATE     Cpu;
-    /** The VM handle. */
+    /** Pointer to the VM. */
     PVM             pVM;
-    /** The VMCPU handle. */
+    /** Pointer to the VMCPU. */
     PVMCPU          pVCpu;
     /** The address space for resolving symbol. */
     RTDBGAS         hAs;
@@ -66,7 +66,7 @@ typedef struct
     /** Pointer to the current page - R3 Ptr. */
     void const     *pvPageR3;
     /** Pointer to the current page - GC Ptr. */
-    RTGCPTR         pvPageGC;
+    RTGCPTR         GCPtrPage;
     /** Pointer to the next instruction (relative to GCPtrSegBase). */
     RTGCUINTPTR     GCPtrNext;
     /** The lock information that PGMPhysReleasePageMappingLock needs. */
@@ -81,7 +81,7 @@ typedef struct
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-static DECLCALLBACK(int) dbgfR3DisasInstrRead(RTUINTPTR pSrc, uint8_t *pDest, uint32_t size, void *pvUserdata);
+static FNDISREADBYTES dbgfR3DisasInstrRead;
 
 
 
@@ -89,8 +89,8 @@ static DECLCALLBACK(int) dbgfR3DisasInstrRead(RTUINTPTR pSrc, uint8_t *pDest, ui
  * Calls the disassembler with the proper reader functions and such for disa
  *
  * @returns VBox status code.
- * @param   pVM         VM handle
- * @param   pVCpu       VMCPU handle
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   pSelInfo    The selector info.
  * @param   enmMode     The guest paging mode.
  * @param   fFlags      DBGF_DISAS_FLAGS_XXX.
@@ -104,7 +104,7 @@ static int dbgfR3DisasInstrFirst(PVM pVM, PVMCPU pVCpu, PDBGFSELINFO pSelInfo, P
     pState->GCPtrSegEnd     = pSelInfo->cbLimit + 1 + (RTGCUINTPTR)pSelInfo->GCPtrBase;
     pState->cbSegLimit      = pSelInfo->cbLimit;
     pState->enmMode         = enmMode;
-    pState->pvPageGC        = 0;
+    pState->GCPtrPage       = 0;
     pState->pvPageR3        = NULL;
     pState->hAs             = pSelInfo->fFlags & DBGFSELINFO_FLAGS_HYPER /** @todo Deal more explicitly with RC in DBGFR3Disas*. */
                             ? DBGF_AS_RC_AND_GC_GLOBAL
@@ -121,30 +121,30 @@ static int dbgfR3DisasInstrFirst(PVM pVM, PVMCPU pVCpu, PDBGFSELINFO pSelInfo, P
             AssertFailed();
         case DBGF_DISAS_FLAGS_DEFAULT_MODE:
             enmCpuMode   = pState->f64Bits
-                         ? CPUMODE_64BIT
+                         ? DISCPUMODE_64BIT
                          : pSelInfo->u.Raw.Gen.u1DefBig
-                         ? CPUMODE_32BIT
-                         : CPUMODE_16BIT;
+                         ? DISCPUMODE_32BIT
+                         : DISCPUMODE_16BIT;
             break;
         case DBGF_DISAS_FLAGS_16BIT_MODE:
         case DBGF_DISAS_FLAGS_16BIT_REAL_MODE:
-            enmCpuMode = CPUMODE_16BIT;
+            enmCpuMode = DISCPUMODE_16BIT;
             break;
         case DBGF_DISAS_FLAGS_32BIT_MODE:
-            enmCpuMode = CPUMODE_32BIT;
+            enmCpuMode = DISCPUMODE_32BIT;
             break;
         case DBGF_DISAS_FLAGS_64BIT_MODE:
-            enmCpuMode = CPUMODE_64BIT;
+            enmCpuMode = DISCPUMODE_64BIT;
             break;
     }
 
     uint32_t cbInstr;
-    int rc = DISCoreOneEx(GCPtr,
-                          enmCpuMode,
-                          dbgfR3DisasInstrRead,
-                          &pState->Cpu,
-                          &pState->Cpu,
-                          &cbInstr);
+    int rc = DISInstrWithReader(GCPtr,
+                                enmCpuMode,
+                                dbgfR3DisasInstrRead,
+                                &pState->Cpu,
+                                &pState->Cpu,
+                                &cbInstr);
     if (RT_SUCCESS(rc))
     {
         pState->GCPtrNext = GCPtr + cbInstr;
@@ -198,35 +198,31 @@ static void dbgfR3DisasInstrDone(PDBGFDISASSTATE pState)
 
 
 /**
- * Instruction reader.
+ * @callback_method_impl{FNDISREADBYTES}
  *
- * @returns VBox status code. (Why this is a int32_t and not just an int is also beyond me.)
- * @param   PtrSrc      Address to read from.
- *                      In our case this is relative to the selector pointed to by the 2nd user argument of uDisCpu.
- * @param   pu8Dst      Where to store the bytes.
- * @param   cbRead      Number of bytes to read.
- * @param   uDisCpu     Pointer to the disassembler cpu state. (Why this is a VBOXHUINTPTR is beyond me...)
- *                      In this context it's always pointer to the Core of a DBGFDISASSTATE.
+ * @remarks The source is relative to the base address indicated by
+ *          DBGFDISASSTATE::GCPtrSegBase.
  */
-static DECLCALLBACK(int) dbgfR3DisasInstrRead(RTUINTPTR PtrSrc, uint8_t *pu8Dst, uint32_t cbRead, void *pvDisCpu)
+static DECLCALLBACK(int) dbgfR3DisasInstrRead(PDISCPUSTATE pDis, uint8_t offInstr, uint8_t cbMinRead, uint8_t cbMaxRead)
 {
-    PDBGFDISASSTATE pState = (PDBGFDISASSTATE)pvDisCpu;
-    Assert(cbRead > 0);
+    PDBGFDISASSTATE pState = (PDBGFDISASSTATE)pDis;
     for (;;)
     {
-        RTGCUINTPTR GCPtr = PtrSrc + pState->GCPtrSegBase;
+        RTGCUINTPTR GCPtr = pDis->uInstrAddr + offInstr + pState->GCPtrSegBase;
 
-        /* Need to update the page translation? */
+        /*
+         * Need to update the page translation?
+         */
         if (    !pState->pvPageR3
-            ||  (GCPtr >> PAGE_SHIFT) != (pState->pvPageGC >> PAGE_SHIFT))
+            ||  (GCPtr >> PAGE_SHIFT) != (pState->GCPtrPage >> PAGE_SHIFT))
         {
             int rc = VINF_SUCCESS;
 
             /* translate the address */
-            pState->pvPageGC = GCPtr & PAGE_BASE_GC_MASK;
-            if (MMHyperIsInsideArea(pState->pVM, pState->pvPageGC))
+            pState->GCPtrPage = GCPtr & PAGE_BASE_GC_MASK;
+            if (MMHyperIsInsideArea(pState->pVM, pState->GCPtrPage))
             {
-                pState->pvPageR3 = MMHyperRCToR3(pState->pVM, (RTRCPTR)pState->pvPageGC);
+                pState->pvPageR3 = MMHyperRCToR3(pState->pVM, (RTRCPTR)pState->GCPtrPage);
                 if (!pState->pvPageR3)
                     rc = VERR_INVALID_POINTER;
             }
@@ -236,9 +232,9 @@ static DECLCALLBACK(int) dbgfR3DisasInstrRead(RTUINTPTR PtrSrc, uint8_t *pu8Dst,
                     PGMPhysReleasePageMappingLock(pState->pVM, &pState->PageMapLock);
 
                 if (pState->enmMode <= PGMMODE_PROTECTED)
-                    rc = PGMPhysGCPhys2CCPtrReadOnly(pState->pVM, pState->pvPageGC, &pState->pvPageR3, &pState->PageMapLock);
+                    rc = PGMPhysGCPhys2CCPtrReadOnly(pState->pVM, pState->GCPtrPage, &pState->pvPageR3, &pState->PageMapLock);
                 else
-                    rc = PGMPhysGCPtr2CCPtrReadOnly(pState->pVCpu, pState->pvPageGC, &pState->pvPageR3, &pState->PageMapLock);
+                    rc = PGMPhysGCPtr2CCPtrReadOnly(pState->pVCpu, pState->GCPtrPage, &pState->pvPageR3, &pState->PageMapLock);
                 pState->fLocked = RT_SUCCESS_NP(rc);
             }
             if (RT_FAILURE(rc))
@@ -248,11 +244,15 @@ static DECLCALLBACK(int) dbgfR3DisasInstrRead(RTUINTPTR PtrSrc, uint8_t *pu8Dst,
             }
         }
 
-        /* check the segment limit */
-        if (!pState->f64Bits && PtrSrc > pState->cbSegLimit)
+        /*
+         * Check the segment limit.
+         */
+        if (!pState->f64Bits && pDis->uInstrAddr + offInstr > pState->cbSegLimit)
             return VERR_OUT_OF_SELECTOR_BOUNDS;
 
-        /* calc how much we can read */
+        /*
+         * Calc how much we can read, maxing out the read.
+         */
         uint32_t cb = PAGE_SIZE - (GCPtr & PAGE_OFFSET_MASK);
         if (!pState->f64Bits)
         {
@@ -260,16 +260,21 @@ static DECLCALLBACK(int) dbgfR3DisasInstrRead(RTUINTPTR PtrSrc, uint8_t *pu8Dst,
             if (cb > cbSeg && cbSeg)
                 cb = cbSeg;
         }
-        if (cb > cbRead)
-            cb = cbRead;
+        if (cb > cbMaxRead)
+            cb = cbMaxRead;
 
-        /* read and advance */
-        memcpy(pu8Dst, (char *)pState->pvPageR3 + (GCPtr & PAGE_OFFSET_MASK), cb);
-        cbRead -= cb;
-        if (!cbRead)
+        /*
+         * Read and advance,
+         */
+        memcpy(&pDis->abInstr[offInstr], (char *)pState->pvPageR3 + (GCPtr & PAGE_OFFSET_MASK), cb);
+        offInstr  += (uint8_t)cb;
+        if (cb >= cbMinRead)
+        {
+            pDis->cbCachedInstr = offInstr;
             return VINF_SUCCESS;
-        pu8Dst += cb;
-        PtrSrc += cb;
+        }
+        cbMaxRead -= (uint8_t)cb;
+        cbMinRead -= (uint8_t)cb;
     }
 }
 
@@ -287,7 +292,7 @@ static DECLCALLBACK(int) dbgfR3DisasGetSymbol(PCDISCPUSTATE pCpu, uint32_t u32Se
     int             rc;
 
     if (   DIS_FMT_SEL_IS_REG(u32Sel)
-        ?  DIS_FMT_SEL_GET_REG(u32Sel) == DIS_SELREG_CS
+        ?  DIS_FMT_SEL_GET_REG(u32Sel) == DISSELREG_CS
         :  pSelInfo->Sel == DIS_FMT_SEL_GET_VALUE(u32Sel))
     {
         rc = DBGFR3AddrFromSelInfoOff(pState->pVM, &Addr, pSelInfo, uAddress);
@@ -316,8 +321,8 @@ static DECLCALLBACK(int) dbgfR3DisasGetSymbol(PCDISCPUSTATE pCpu, uint32_t u32Se
  * address, internal worker executing on the EMT of the specified virtual CPU.
  *
  * @returns VBox status code.
- * @param       pVM             The VM handle.
- * @param       pVCpu           The virtual CPU handle.
+ * @param       pVM             Pointer to the VM.
+ * @param       pVCpu           Pointer to the VMCPU.
  * @param       Sel             The code selector. This used to determine the 32/16 bit ness and
  *                              calculation of the actual instruction address.
  * @param       pGCPtr          Pointer to the variable holding the code address
@@ -334,44 +339,60 @@ dbgfR3DisasInstrExOnVCpu(PVM pVM, PVMCPU pVCpu, RTSEL Sel, PRTGCPTR pGCPtr, uint
 {
     VMCPU_ASSERT_EMT(pVCpu);
     RTGCPTR GCPtr = *pGCPtr;
+    int     rc;
 
     /*
      * Get the Sel and GCPtr if fFlags requests that.
      */
     PCCPUMCTXCORE  pCtxCore   = NULL;
-    PCPUMSELREGHID pHiddenSel = NULL;
-    int rc;
-    if (fFlags & (DBGF_DISAS_FLAGS_CURRENT_GUEST | DBGF_DISAS_FLAGS_CURRENT_HYPER))
+    PCCPUMSELREG   pSRegCS    = NULL;
+    if (fFlags & DBGF_DISAS_FLAGS_CURRENT_GUEST)
     {
-        if (fFlags & DBGF_DISAS_FLAGS_CURRENT_GUEST)
-            pCtxCore = CPUMGetGuestCtxCore(pVCpu);
-        else
-            pCtxCore = CPUMGetHyperCtxCore(pVCpu);
-        Sel        = pCtxCore->cs;
-        pHiddenSel = (CPUMSELREGHID *)&pCtxCore->csHid;
+        pCtxCore   = CPUMGetGuestCtxCore(pVCpu);
+        Sel        = pCtxCore->cs.Sel;
+        pSRegCS    = &pCtxCore->cs;
         GCPtr      = pCtxCore->rip;
+    }
+    else if (fFlags & DBGF_DISAS_FLAGS_CURRENT_HYPER)
+    {
+        pCtxCore   = CPUMGetHyperCtxCore(pVCpu);
+        Sel        = pCtxCore->cs.Sel;
+        GCPtr      = pCtxCore->rip;
+    }
+    /*
+     * Check if the selector matches the guest CS, use the hidden
+     * registers from that if they are valid. Saves time and effort.
+     */
+    else
+    {
+        pCtxCore = CPUMGetGuestCtxCore(pVCpu);
+        if (pCtxCore->cs.Sel == Sel && Sel != DBGF_SEL_FLAT)
+            pSRegCS = &pCtxCore->cs;
+        else
+            pCtxCore = NULL;
     }
 
     /*
      * Read the selector info - assume no stale selectors and nasty stuff like that.
-     * Since the selector flags in the CPUMCTX structures aren't up to date unless
-     * we recently visited REM, we'll not search for the selector there.
+     *
+     * Note! We CANNOT load invalid hidden selector registers since that would
+     *       mean that log/debug statements or the debug will influence the
+     *       guest state and make things behave differently.
      */
     DBGFSELINFO     SelInfo;
     const PGMMODE   enmMode          = PGMGetGuestMode(pVCpu);
     bool            fRealModeAddress = false;
 
-    if (    pHiddenSel
-        &&  (   (fFlags & DBGF_DISAS_FLAGS_HID_SEL_REGS_VALID)
-             || CPUMAreHiddenSelRegsValid(pVCpu)))
+    if (   pSRegCS
+        && CPUMSELREG_ARE_HIDDEN_PARTS_VALID(pVCpu, pSRegCS))
     {
         SelInfo.Sel                     = Sel;
         SelInfo.SelGate                 = 0;
-        SelInfo.GCPtrBase               = pHiddenSel->u64Base;
-        SelInfo.cbLimit                 = pHiddenSel->u32Limit;
+        SelInfo.GCPtrBase               = pSRegCS->u64Base;
+        SelInfo.cbLimit                 = pSRegCS->u32Limit;
         SelInfo.fFlags                  = PGMMODE_IS_LONG_MODE(enmMode)
                                         ? DBGFSELINFO_FLAGS_LONG_MODE
-                                        : enmMode != PGMMODE_REAL && (!pCtxCore || !pCtxCore->eflags.Bits.u1VM)
+                                        : enmMode != PGMMODE_REAL && !pCtxCore->eflags.Bits.u1VM
                                         ? DBGFSELINFO_FLAGS_PROT_MODE
                                         : DBGFSELINFO_FLAGS_REAL_MODE;
 
@@ -379,12 +400,12 @@ dbgfR3DisasInstrExOnVCpu(PVM pVM, PVMCPU pVCpu, RTSEL Sel, PRTGCPTR pGCPtr, uint
         SelInfo.u.Raw.au32[1]           = 0;
         SelInfo.u.Raw.Gen.u16LimitLow   = 0xffff;
         SelInfo.u.Raw.Gen.u4LimitHigh   = 0xf;
-        SelInfo.u.Raw.Gen.u1Present     = pHiddenSel->Attr.n.u1Present;
-        SelInfo.u.Raw.Gen.u1Granularity = pHiddenSel->Attr.n.u1Granularity;;
-        SelInfo.u.Raw.Gen.u1DefBig      = pHiddenSel->Attr.n.u1DefBig;
-        SelInfo.u.Raw.Gen.u1Long        = pHiddenSel->Attr.n.u1Long;
-        SelInfo.u.Raw.Gen.u1DescType    = pHiddenSel->Attr.n.u1DescType;
-        SelInfo.u.Raw.Gen.u4Type        = pHiddenSel->Attr.n.u4Type;
+        SelInfo.u.Raw.Gen.u1Present     = pSRegCS->Attr.n.u1Present;
+        SelInfo.u.Raw.Gen.u1Granularity = pSRegCS->Attr.n.u1Granularity;;
+        SelInfo.u.Raw.Gen.u1DefBig      = pSRegCS->Attr.n.u1DefBig;
+        SelInfo.u.Raw.Gen.u1Long        = pSRegCS->Attr.n.u1Long;
+        SelInfo.u.Raw.Gen.u1DescType    = pSRegCS->Attr.n.u1DescType;
+        SelInfo.u.Raw.Gen.u4Type        = pSRegCS->Attr.n.u4Type;
         fRealModeAddress                = !!(SelInfo.fFlags & DBGFSELINFO_FLAGS_REAL_MODE);
     }
     else if (Sel == DBGF_SEL_FLAT)
@@ -403,21 +424,20 @@ dbgfR3DisasInstrExOnVCpu(PVM pVM, PVMCPU pVCpu, RTSEL Sel, PRTGCPTR pGCPtr, uint
         SelInfo.u.Raw.Gen.u16LimitLow   = 0xffff;
         SelInfo.u.Raw.Gen.u4LimitHigh   = 0xf;
 
-        if (   (fFlags & DBGF_DISAS_FLAGS_HID_SEL_REGS_VALID)
-            || CPUMAreHiddenSelRegsValid(pVCpu))
-        {   /* Assume the current CS defines the execution mode. */
-            pCtxCore   = CPUMGetGuestCtxCore(pVCpu);
-            pHiddenSel = (CPUMSELREGHID *)&pCtxCore->csHid;
-
-            SelInfo.u.Raw.Gen.u1Present     = pHiddenSel->Attr.n.u1Present;
-            SelInfo.u.Raw.Gen.u1Granularity = pHiddenSel->Attr.n.u1Granularity;;
-            SelInfo.u.Raw.Gen.u1DefBig      = pHiddenSel->Attr.n.u1DefBig;
-            SelInfo.u.Raw.Gen.u1Long        = pHiddenSel->Attr.n.u1Long;
-            SelInfo.u.Raw.Gen.u1DescType    = pHiddenSel->Attr.n.u1DescType;
-            SelInfo.u.Raw.Gen.u4Type        = pHiddenSel->Attr.n.u4Type;
+        pSRegCS = &CPUMGetGuestCtxCore(pVCpu)->cs;
+        if (CPUMSELREG_ARE_HIDDEN_PARTS_VALID(pVCpu, pSRegCS))
+        {
+            /* Assume the current CS defines the execution mode. */
+            SelInfo.u.Raw.Gen.u1Present     = pSRegCS->Attr.n.u1Present;
+            SelInfo.u.Raw.Gen.u1Granularity = pSRegCS->Attr.n.u1Granularity;;
+            SelInfo.u.Raw.Gen.u1DefBig      = pSRegCS->Attr.n.u1DefBig;
+            SelInfo.u.Raw.Gen.u1Long        = pSRegCS->Attr.n.u1Long;
+            SelInfo.u.Raw.Gen.u1DescType    = pSRegCS->Attr.n.u1DescType;
+            SelInfo.u.Raw.Gen.u4Type        = pSRegCS->Attr.n.u4Type;
         }
         else
         {
+            pSRegCS  = NULL;
             SelInfo.u.Raw.Gen.u1Present     = 1;
             SelInfo.u.Raw.Gen.u1Granularity = 1;
             SelInfo.u.Raw.Gen.u1DefBig      = 1;
@@ -504,30 +524,28 @@ dbgfR3DisasInstrExOnVCpu(PVM pVM, PVMCPU pVCpu, RTSEL Sel, PRTGCPTR pGCPtr, uint
     }
     else
     {
-        uint32_t cbBits = State.Cpu.opsize;
-        uint8_t *pau8Bits = (uint8_t *)alloca(cbBits);
-        rc = dbgfR3DisasInstrRead(GCPtr, pau8Bits, cbBits, &State);
-        AssertRC(rc);
+        uint32_t        cbInstr  = State.Cpu.cbInstr;
+        uint8_t const  *pabInstr = State.Cpu.abInstr;
         if (fFlags & DBGF_DISAS_FLAGS_NO_ADDRESS)
             RTStrPrintf(pszOutput, cbOutput, "%.*Rhxs%*s %s",
-                        cbBits, pau8Bits, cbBits < 8 ? (8 - cbBits) * 3 : 0, "",
+                        cbInstr, pabInstr, cbInstr < 8 ? (8 - cbInstr) * 3 : 0, "",
                         szBuf);
         else if (fRealModeAddress)
             RTStrPrintf(pszOutput, cbOutput, "%04x:%04x %.*Rhxs%*s %s",
                         Sel, (unsigned)GCPtr,
-                        cbBits, pau8Bits, cbBits < 8 ? (8 - cbBits) * 3 : 0, "",
+                        cbInstr, pabInstr, cbInstr < 8 ? (8 - cbInstr) * 3 : 0, "",
                         szBuf);
         else if (Sel == DBGF_SEL_FLAT)
         {
             if (enmMode >= PGMMODE_AMD64)
                 RTStrPrintf(pszOutput, cbOutput, "%RGv %.*Rhxs%*s %s",
                             GCPtr,
-                            cbBits, pau8Bits, cbBits < 8 ? (8 - cbBits) * 3 : 0, "",
+                            cbInstr, pabInstr, cbInstr < 8 ? (8 - cbInstr) * 3 : 0, "",
                             szBuf);
             else
                 RTStrPrintf(pszOutput, cbOutput, "%08RX32 %.*Rhxs%*s %s",
                             (uint32_t)GCPtr,
-                            cbBits, pau8Bits, cbBits < 8 ? (8 - cbBits) * 3 : 0, "",
+                            cbInstr, pabInstr, cbInstr < 8 ? (8 - cbInstr) * 3 : 0, "",
                             szBuf);
         }
         else
@@ -535,18 +553,18 @@ dbgfR3DisasInstrExOnVCpu(PVM pVM, PVMCPU pVCpu, RTSEL Sel, PRTGCPTR pGCPtr, uint
             if (enmMode >= PGMMODE_AMD64)
                 RTStrPrintf(pszOutput, cbOutput, "%04x:%RGv %.*Rhxs%*s %s",
                             Sel, GCPtr,
-                            cbBits, pau8Bits, cbBits < 8 ? (8 - cbBits) * 3 : 0, "",
+                            cbInstr, pabInstr, cbInstr < 8 ? (8 - cbInstr) * 3 : 0, "",
                             szBuf);
             else
                 RTStrPrintf(pszOutput, cbOutput, "%04x:%08RX32 %.*Rhxs%*s %s",
                             Sel, (uint32_t)GCPtr,
-                            cbBits, pau8Bits, cbBits < 8 ? (8 - cbBits) * 3 : 0, "",
+                            cbInstr, pabInstr, cbInstr < 8 ? (8 - cbInstr) * 3 : 0, "",
                             szBuf);
         }
     }
 
     if (pcbInstr)
-        *pcbInstr = State.Cpu.opsize;
+        *pcbInstr = State.Cpu.cbInstr;
 
     dbgfR3DisasInstrDone(&State);
     return VINF_SUCCESS;
@@ -557,7 +575,7 @@ dbgfR3DisasInstrExOnVCpu(PVM pVM, PVMCPU pVCpu, RTSEL Sel, PRTGCPTR pGCPtr, uint
  * Disassembles the one instruction according to the specified flags and address.
  *
  * @returns VBox status code.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   idCpu           The ID of virtual CPU.
  * @param   Sel             The code selector. This used to determine the 32/16 bit ness and
  *                          calculation of the actual instruction address.
@@ -603,7 +621,7 @@ VMMR3DECL(int) DBGFR3DisasInstrEx(PVM pVM, VMCPUID idCpu, RTSEL Sel, RTGCPTR GCP
  * All registers and data will be displayed. Addresses will be attempted resolved to symbols.
  *
  * @returns VBox status code.
- * @param   pVCpu           VMCPU handle.
+ * @param   pVCpu           Pointer to the VMCPU.
  * @param   pszOutput       Output buffer.  This will always be properly
  *                          terminated if @a cbOutput is greater than zero.
  * @param   cbOutput        Size of the output buffer.
@@ -624,7 +642,7 @@ VMMR3DECL(int) DBGFR3DisasInstrCurrent(PVMCPU pVCpu, char *pszOutput, uint32_t c
  * All registers and data will be displayed. Addresses will be attempted resolved to symbols.
  *
  * @returns VBox status code.
- * @param   pVCpu           VMCPU handle.
+ * @param   pVCpu           Pointer to the VMCPU.
  * @param   pszPrefix       Short prefix string to the disassembly string. (optional)
  */
 VMMR3DECL(int) DBGFR3DisasInstrCurrentLogInternal(PVMCPU pVCpu, const char *pszPrefix)
@@ -635,7 +653,7 @@ VMMR3DECL(int) DBGFR3DisasInstrCurrentLogInternal(PVMCPU pVCpu, const char *pszP
     if (RT_FAILURE(rc))
         RTStrPrintf(szBuf, sizeof(szBuf), "DBGFR3DisasInstrCurrentLog failed with rc=%Rrc\n", rc);
     if (pszPrefix && *pszPrefix)
-        RTLogPrintf("%s-CPU%d: %s\n", pszPrefix, pVCpu->idCpu, szBuf);
+        RTLogPrintf("%s-CPU%u: %s\n", pszPrefix, pVCpu->idCpu, szBuf);
     else
         RTLogPrintf("%s\n", szBuf);
     return rc;
@@ -648,20 +666,24 @@ VMMR3DECL(int) DBGFR3DisasInstrCurrentLogInternal(PVMCPU pVCpu, const char *pszP
  * Addresses will be attempted resolved to symbols.
  *
  * @returns VBox status code.
- * @param   pVM             VM handle.
- * @param   pVCpu           The virtual CPU handle, defaults to CPU 0 if NULL.
+ * @param   pVM             Pointer to the VM.
+ * @param   pVCpu           Pointer to the VMCPU, defaults to CPU 0 if NULL.
  * @param   Sel             The code selector. This used to determine the 32/16 bit-ness and
  *                          calculation of the actual instruction address.
  * @param   GCPtr           The code address relative to the base of Sel.
+ * @param   pszPrefix       Short prefix string to the disassembly string. (optional)
  */
-VMMR3DECL(int) DBGFR3DisasInstrLogInternal(PVMCPU pVCpu, RTSEL Sel, RTGCPTR GCPtr)
+VMMR3DECL(int) DBGFR3DisasInstrLogInternal(PVMCPU pVCpu, RTSEL Sel, RTGCPTR GCPtr, const char *pszPrefix)
 {
     char szBuf[256];
     int rc = DBGFR3DisasInstrEx(pVCpu->pVMR3, pVCpu->idCpu, Sel, GCPtr, DBGF_DISAS_FLAGS_DEFAULT_MODE,
                                 &szBuf[0], sizeof(szBuf), NULL);
     if (RT_FAILURE(rc))
         RTStrPrintf(szBuf, sizeof(szBuf), "DBGFR3DisasInstrLog(, %RTsel, %RGv) failed with rc=%Rrc\n", Sel, GCPtr, rc);
-    RTLogPrintf("%s\n", szBuf);
+    if (pszPrefix && *pszPrefix)
+        RTLogPrintf("%s-CPU%u: %s\n", pszPrefix, pVCpu->idCpu, szBuf);
+    else
+        RTLogPrintf("%s\n", szBuf);
     return rc;
 }
 

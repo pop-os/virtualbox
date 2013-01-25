@@ -1264,7 +1264,8 @@ static int codecReset(struct CODECState *pState, uint32_t cmd, uint64_t *pResp)
 {
     Assert((CODEC_CAD(cmd) == pState->id));
     Assert(CODEC_NID(cmd) == 1 /* AFG */);
-    if(CODEC_NID(cmd) == 1 /* AFG */)
+    if(   CODEC_NID(cmd) == 1 /* AFG */
+       && pState->pfnCodecNodeReset)
     {
         uint8_t i;
         Log(("HDAcodec: enters reset\n"));

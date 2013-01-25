@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2011 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,7 +16,7 @@
 #
 
 SUB_DEPTH = ../../../../..
-include	$(KBUILD_PATH)/subheader.kmk
+include $(KBUILD_PATH)/subheader.kmk
 
 
 #
@@ -29,21 +29,7 @@ vboxsf-mod_SOURCES      = \
 	$(subst $(DQUOTE),,$(FILES_VBOXSF_NOBIN))
 vboxsf-mod_EXEC_SOURCES = \
 	$(subst $(DQUOTE),,$(FILES_VBOXSF_BIN)) \
-	$(vboxsf-mod_0_OUTDIR)/build_in_tmp \
 	$(PATH_ROOT)/src/VBox/HostDrivers/linux/do_Module.symvers
-vboxsf-mod_CLEAN       += $(vboxsf-mod_0_OUTDIR)/build_in_tmp
-
-# Script needed for building the kernel module.
-$$(vboxsf-mod_0_OUTDIR)/build_in_tmp: \
-		$(PATH_ROOT)/src/VBox/HostDrivers/linux/build_in_tmp \
-		$(VBOX_VERSION_STAMP) \
-		| $$(dir $$@)
-	$(call MSG_TOOL,Creating,,$@)
-	$(QUIET)$(RM) -f -- $@
-	$(QUIET)$(SED) -e "s;_VERSION_;${VBOX_VERSION_STRING};g; s;_MODULE_;vboxsf;g; s;_BUILDTYPE_;${KBUILD_TYPE};g" \
-		--output $@ $<
-	$(QUIET)$(CHMOD) 0755 $@
-
 
 
 #
@@ -53,7 +39,6 @@ $$(vboxsf-mod_0_OUTDIR)/build_in_tmp: \
 ifdef VBOX_WITH_ADDITION_DRIVERS
  SYSMODS += vboxsf
  vboxsf_TEMPLATE        = VBOXGUESTR0
- vboxsf_NOINST          = 1
  vboxsf_CFLAGS          = -fshort-wchar
  vboxsf_DEFS            = \
  	MODULE IN_RT_R0 VBOXGUEST VBOX_WITH_HGCM \
@@ -90,11 +75,11 @@ endif
 # The mount util.
 #
 PROGRAMS += mount.vboxsf
-mount.vboxsf_TEMPLATE    = VBOXGUESTR3EXE
+mount.vboxsf_TEMPLATE    = NewVBoxGuestR3Exe
 mount.vboxsf_DEFS        = _GNU_SOURCE
 mount.vboxsf_SOURCES     = \
 	mount.vboxsf.c \
 	vbsfmount.c
 
-include	$(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

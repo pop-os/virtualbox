@@ -25,7 +25,9 @@
 #include <VBox/vmm/cfgm.h>
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/pgm.h>
-#include <VBox/vmm/rem.h>
+#ifdef VBOX_WITH_REM
+# include <VBox/vmm/rem.h>
+#endif
 #include <VBox/vmm/ssm.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/err.h>
@@ -324,7 +326,7 @@ static DECLCALLBACK(int) loadMem(PVM pVM, RTFILE File, uint64_t *poff)
  * This assumes an empty tree.
  *
  * @returns VBox status code.
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 static DECLCALLBACK(int) cfgmR3CreateDefault(PVM pVM, void *pvUser)
 {
@@ -620,7 +622,7 @@ int main(int argc, char **argv)
 {
     int rcRet = 1;
     int rc;
-    RTR3InitAndSUPLib();
+    RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
 
     /*
      * Parse input.
@@ -868,7 +870,11 @@ int main(int argc, char **argv)
                      */
                     RTPrintf("info: powering on the VM...\n");
                     RTLogGroupSettings(NULL, "+REM_DISAS.e.l.f");
+#ifdef VBOX_WITH_REM
                     rc = REMR3DisasEnableStepping(pVM, true);
+#else
+                    rc = VERR_NOT_IMPLEMENTED; /** @todo need some EM single-step indicator */
+#endif
                     if (RT_SUCCESS(rc))
                     {
                         rc = EMR3SetExecutionPolicy(pVM, EMEXECPOLICY_RECOMPILE_RING0, true); AssertReleaseRC(rc);

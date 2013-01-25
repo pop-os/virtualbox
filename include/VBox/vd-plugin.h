@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,7 @@
 #define __VBoxHDD_Plugin_h__
 
 #include <VBox/vd.h>
+#include <VBox/vd-ifs-internal.h>
 
 
 /** @name VBox HDD backend write flags
@@ -36,6 +37,16 @@
  * flag. The backend may still decide in some circumstances that it wants
  * to ignore this flag (which may cause extra dynamic image expansion). */
 #define VD_WRITE_NO_ALLOC   RT_BIT(1)
+/** @}*/
+
+/** @name VBox HDD backend discard flags
+ * @{
+ */
+/** Don't discard block but mark the given range as unused
+ * (usually by writing 0's to it).
+ * This doesn't require the range to be aligned on a block boundary but
+ * the image size might not be decreased. */
+#define VD_DISCARD_MARK_UNUSED RT_BIT(0)
 /** @}*/
 
 
@@ -538,7 +549,7 @@ typedef struct VBOXHDDBACKEND
      * isn't supported yet (for file-based images) or not necessary.
      *
      * @returns VBox status code.
-     * @returns VERR_NOT_SUPPORTED if this image cannot be compacted yet.
+     * @returns VERR_NOT_SUPPORTED if this image cannot be resized yet.
      * @param   pBackendData    Opaque state data for this image.
      * @param   cbSize          New size of the image.
      * @param   pPCHSGeometry   Pointer to the new physical disk geometry <= (16383,16,63). Not NULL.
@@ -557,6 +568,82 @@ typedef struct VBOXHDDBACKEND
                                           PVDINTERFACE pVDIfsDisk,
                                           PVDINTERFACE pVDIfsImage,
                                           PVDINTERFACE pVDIfsOperation));
+
+    /**
+     * Discards the given amount of bytes decreasing the size of the image if possible.
+     *
+     * @returns VBox status code.
+     * @retval  VERR_VD_DISCARD_ALIGNMENT_NOT_MET if the range doesn't meet the required alignment
+     *          for the discard.
+     * @param   pBackendData         Opaque state data for this image.
+     * @param   uOffset              The offset of the first byte to discard.
+     * @param   cbDiscard            How many bytes to discard.
+     * @param   pcbPreAllocated      Pointer to the returned amount of bytes that must
+     *                               be discarded before the range to perform a full
+     *                               block discard.
+     * @param   pcbPostAllocated     Pointer to the returned amount of bytes that must
+     *                               be discarded after the range to perform a full
+     *                               block discard.
+     * @param   pcbActuallyDiscarded Pointer to the returned amount of bytes which
+     *                               could be actually discarded.
+     * @param   ppbmAllocationBitmap Where to store the pointer to the allocation bitmap
+     *                               if VERR_VD_DISCARD_ALIGNMENT_NOT_MET is returned or NULL
+     *                               if the allocation bitmap should be returned.
+     * @param   fDiscard             Flags which affect discard behavior. Combination
+     *                               of the VD_DISCARD_* flags.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnDiscard, (void *pBackendData,
+                                           uint64_t uOffset, size_t cbDiscard,
+                                           size_t *pcbPreAllocated,
+                                           size_t *pcbPostAllocated,
+                                           size_t *pcbActuallyDiscarded,
+                                           void   **ppbmAllocationBitmap,
+                                           unsigned fDiscard));
+
+    /**
+     * Discards the given amount of bytes decreasing the size of the image if possible
+     * callback version for asynchronous I/O.
+     *
+     * @returns VBox status code.
+     * @retval  VERR_VD_DISCARD_ALIGNMENT_NOT_MET if the range doesn't meet the required alignment
+     *          for the discard.
+     * @param   pBackendData         Opaque state data for this image.
+     * @param   pIoCtx               I/O context associated with this request.
+     * @param   uOffset              The offset of the first byte to discard.
+     * @param   cbDiscard            How many bytes to discard.
+     * @param   pcbPreAllocated      Pointer to the returned amount of bytes that must
+     *                               be discarded before the range to perform a full
+     *                               block discard.
+     * @param   pcbPostAllocated     Pointer to the returned amount of bytes that must
+     *                               be discarded after the range to perform a full
+     *                               block discard.
+     * @param   pcbActuallyDiscarded Pointer to the returned amount of bytes which
+     *                               could be actually discarded.
+     * @param   ppbmAllocationBitmap Where to store the pointer to the allocation bitmap
+     *                               if VERR_VD_DISCARD_ALIGNMENT_NOT_MET is returned or NULL
+     *                               if the allocation bitmap should be returned.
+     * @param   fDiscard             Flags which affect discard behavior. Combination
+     *                               of the VD_DISCARD_* flags.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnAsyncDiscard, (void *pBackendData, PVDIOCTX pIoCtx,
+                                                uint64_t uOffset, size_t cbDiscard,
+                                                size_t *pcbPreAllocated,
+                                                size_t *pcbPostAllocated,
+                                                size_t *pcbActuallyDiscarded,
+                                                void   **ppbmAllocationBitmap,
+                                                unsigned fDiscard));
+
+    /**
+     * Try to repair the given image.
+     *
+     * @returns VBox status code.
+     * @param   pszFilename     Name of the image file.
+     * @param   pVDIfsDisk      Pointer to the per-disk VD interface list.
+     * @param   pVDIfsImage     Pointer to the per-image VD interface list.
+     * @param   fFlags          Combination of the VD_REPAIR_* flags.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnRepair, (const char *pszFilename, PVDINTERFACE pVDIfsDisk,
+                                          PVDINTERFACE pVDIfsImage, uint32_t fFlags));
 
 } VBOXHDDBACKEND;
 

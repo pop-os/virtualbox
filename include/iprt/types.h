@@ -83,6 +83,8 @@ RT_C_DECLS_END
 #  include <stddef.h>
 #  define _UINT64_T_DECLARED
 #  define _INT64_T_DECLARED
+#  define _UINTPTR_T_DECLARED
+#  define _INTPTR_T_DECLARED
 #  include <sys/types.h>
 
 # elif defined(RT_OS_LINUX) && defined(__KERNEL__)
@@ -152,6 +154,7 @@ RT_C_DECLS_END
 #  include <sys/types.h>
 # endif
 
+
 /* Define any types missing from sys/types.h on windows. */
 # ifdef _MSC_VER
 #  undef ssize_t
@@ -172,6 +175,7 @@ RT_C_DECLS_END
 #  define NULL ((void*)0)
 # endif
 #endif
+
 
 
 /** @defgroup grp_rt_types  IPRT Base Types
@@ -196,6 +200,10 @@ RT_C_DECLS_END
 # if defined(__GNUC__)
 #  if defined(RT_OS_LINUX) && __GNUC__ < 3
 typedef uint8_t bool;
+#  elif defined(RT_OS_FREEBSD)
+#   ifndef __bool_true_false_are_defined
+typedef _Bool bool;
+#   endif
 #  else
 #   if defined(RT_OS_DARWIN) && defined(_STDBOOL_H)
 #    undef bool
@@ -2311,6 +2319,20 @@ typedef enum RTEXITCODE
     RTEXITCODE_32BIT_HACK = 0x7fffffff
 } RTEXITCODE;
 
+/**
+ * Range descriptor.
+ */
+typedef struct RTRANGE
+{
+    /** Start offset. */
+    uint64_t    offStart;
+    /** Range size. */
+    size_t      cbRange;
+} RTRANGE;
+/** Pointer to a range descriptor. */
+typedef RTRANGE *PRTRANGE;
+/** Pointer to a readonly range descriptor. */
+typedef const RTRANGE *PCRTRANGE;
 
 #ifdef __cplusplus
 /**

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,28 +17,33 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes */
+/* Global includes: */
 #include <QTimer>
 
-/* Local includes */
+/* Local includes: */
 #include "VBoxGlobal.h"
 #include "UIMachine.h"
 #include "UISession.h"
 #include "UIActionPoolRuntime.h"
 #include "UIMachineLogic.h"
 #include "UIMachineWindow.h"
-
 #ifdef Q_WS_MAC
 # include <ApplicationServices/ApplicationServices.h>
 #endif /* Q_WS_MAC */
 
+/* Visual state interface: */
 class UIVisualState : public QObject
 {
     Q_OBJECT;
 
+signals:
+
+    /* Signal to change-state: */
+    void sigChangeVisualState(UIVisualStateType newVisualStateType);
+
 public:
 
-    /* Visual state holder constructor: */
+    /* Constructor: */
     UIVisualState(QObject *pParent, UISession *pSession)
         : QObject(pParent)
         , m_pSession(pSession)
@@ -51,10 +56,26 @@ public:
         connect(this, SIGNAL(sigChangeVisualState(UIVisualStateType)), parent(), SLOT(sltChangeVisualState(UIVisualStateType)));
     }
 
-    /* Public getters: */
-    UIMachineLogic* machineLogic() const  { return m_pMachineLogic; }
+    /* Destructor: */
+    ~UIVisualState()
+    {
+        /* Cleanup/delete machine logic if exists: */
+        if (m_pMachineLogic)
+        {
+            /* Cleanup the logic object: */
+            m_pMachineLogic->cleanup();
+            /* Destroy the logic object: */
+            UIMachineLogic::destroy(m_pMachineLogic);
+        }
+    }
+
+    /* Visual state type getter: */
     virtual UIVisualStateType visualStateType() const = 0;
 
+    /* Machine logic getter: */
+    UIMachineLogic* machineLogic() const { return m_pMachineLogic; }
+
+    /* Method to prepare change one visual state to another: */
     virtual bool prepareChange(UIVisualStateType previousVisualStateType)
     {
         m_pMachineLogic = UIMachineLogic::create(this, m_pSession, visualStateType());
@@ -77,8 +98,14 @@ public:
         return fResult;
     }
 
-    virtual void change() = 0;
+    /* Method to change one visual state to another: */
+    virtual void change()
+    {
+        /* Prepare the logic object: */
+        m_pMachineLogic->prepare();
+    }
 
+    /* Method to finish change one visual state to another: */
     virtual void finishChange()
     {
 #ifdef Q_WS_MAC
@@ -94,15 +121,9 @@ public:
 #endif /* Q_WS_MAC */
     }
 
-
-signals:
-
-    /* Signal to change-state: */
-    void sigChangeVisualState(UIVisualStateType visualStateType);
-
 protected:
 
-    /* Protected members: */
+    /* Variables: */
     UISession *m_pSession;
     UIMachineLogic *m_pMachineLogic;
 #ifdef Q_WS_MAC
@@ -110,20 +131,35 @@ protected:
 #endif /* Q_WS_MAC */
 };
 
+/* Normal visual state implementation: */
 class UIVisualStateNormal : public UIVisualState
 {
     Q_OBJECT;
 
 public:
 
-    /* Normal visual state holder constructor: */
+    /* Constructor: */
     UIVisualStateNormal(QObject *pParent, UISession *pSession)
         : UIVisualState(pParent, pSession) {}
 
+private slots:
+
+    /* State-change handlers: */
+    void sltGoToFullscreenMode() { emit sigChangeVisualState(UIVisualStateType_Fullscreen); }
+    void sltGoToSeamlessMode() { emit sigChangeVisualState(UIVisualStateType_Seamless); }
+    void sltGoToScaleMode() { emit sigChangeVisualState(UIVisualStateType_Scale); }
+
+private:
+
+    /* Visual state type getter: */
     UIVisualStateType visualStateType() const { return UIVisualStateType_Normal; }
 
+    /* Method to change previous visual state to this one: */
     void change()
     {
+        /* Call to base-class: */
+        UIVisualState::change();
+
         /* Connect action handlers: */
         connect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
                 this, SLOT(sltGoToFullscreenMode()), Qt::QueuedConnection);
@@ -131,39 +167,17 @@ public:
                 this, SLOT(sltGoToSeamlessMode()), Qt::QueuedConnection);
         connect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
                 this, SLOT(sltGoToScaleMode()), Qt::QueuedConnection);
-
-        /* Initialize the logic object: */
-        m_pMachineLogic->initialize();
-    }
-
-private slots:
-
-    void sltGoToFullscreenMode()
-    {
-        /* Change visual state to fullscreen: */
-        emit sigChangeVisualState(UIVisualStateType_Fullscreen);
-    }
-
-    void sltGoToSeamlessMode()
-    {
-        /* Change visual state to seamless: */
-        emit sigChangeVisualState(UIVisualStateType_Seamless);
-    }
-
-    void sltGoToScaleMode()
-    {
-        /* Change visual state to scale: */
-        emit sigChangeVisualState(UIVisualStateType_Scale);
     }
 };
 
+/* Fullscreen visual state implementation: */
 class UIVisualStateFullscreen : public UIVisualState
 {
     Q_OBJECT;
 
 public:
 
-    /* Fullscreen visual state holder constructor: */
+    /* Constructor: */
     UIVisualStateFullscreen(QObject *pParent, UISession *pSession)
         : UIVisualState(pParent, pSession)
     {
@@ -178,7 +192,7 @@ public:
         }
     }
 
-    /* Fullscreen visual state holder destructor: */
+    /* Destructor: */
     virtual ~UIVisualStateFullscreen()
     {
         /* This visual state should take care of own action: */
@@ -192,10 +206,24 @@ public:
         }
     }
 
+private slots:
+
+    /* State-change handlers: */
+    void sltGoToNormalMode() { emit sigChangeVisualState(UIVisualStateType_Normal); }
+    void sltGoToSeamlessMode() { emit sigChangeVisualState(UIVisualStateType_Seamless); }
+    void sltGoToScaleMode() { emit sigChangeVisualState(UIVisualStateType_Scale); }
+
+private:
+
+    /* Visual state type getter: */
     UIVisualStateType visualStateType() const { return UIVisualStateType_Fullscreen; }
 
+    /* Method to change previous visual state to this one: */
     void change()
     {
+        /* Call to base-class: */
+        UIVisualState::change();
+
         /* Connect action handlers: */
         connect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
                 this, SLOT(sltGoToNormalMode()), Qt::QueuedConnection);
@@ -203,39 +231,17 @@ public:
                 this, SLOT(sltGoToSeamlessMode()), Qt::QueuedConnection);
         connect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
                 this, SLOT(sltGoToScaleMode()), Qt::QueuedConnection);
-
-        /* Initialize the logic object: */
-        m_pMachineLogic->initialize();
-    }
-
-private slots:
-
-    void sltGoToNormalMode()
-    {
-        /* Change visual state to normal: */
-        emit sigChangeVisualState(UIVisualStateType_Normal);
-    }
-
-    void sltGoToSeamlessMode()
-    {
-        /* Change visual state to seamless: */
-        emit sigChangeVisualState(UIVisualStateType_Seamless);
-    }
-
-    void sltGoToScaleMode()
-    {
-        /* Change visual state to scale: */
-        emit sigChangeVisualState(UIVisualStateType_Scale);
     }
 };
 
+/* Seamless visual state implementation: */
 class UIVisualStateSeamless : public UIVisualState
 {
     Q_OBJECT;
 
 public:
 
-    /* Seamless visual state holder constructor: */
+    /* Constructor: */
     UIVisualStateSeamless(QObject *pParent, UISession *pSession)
         : UIVisualState(pParent, pSession)
     {
@@ -250,7 +256,7 @@ public:
         }
     }
 
-    /* Seamless visual state holder destructor: */
+    /* Destructor: */
     virtual ~UIVisualStateSeamless()
     {
         /* This visual state should take care of own action: */
@@ -264,10 +270,24 @@ public:
         }
     }
 
+private slots:
+
+    /* State-change handlers: */
+    void sltGoToNormalMode() { emit sigChangeVisualState(UIVisualStateType_Normal); }
+    void sltGoToFullscreenMode() { emit sigChangeVisualState(UIVisualStateType_Fullscreen); }
+    void sltGoToScaleMode() { emit sigChangeVisualState(UIVisualStateType_Scale); }
+
+private:
+
+    /* Visual state type getter: */
     UIVisualStateType visualStateType() const { return UIVisualStateType_Seamless; }
 
+    /* Method to change previous visual state to this one: */
     void change()
     {
+        /* Call to base-class: */
+        UIVisualState::change();
+
         /* Connect action handlers: */
         connect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
                 this, SLOT(sltGoToNormalMode()), Qt::QueuedConnection);
@@ -275,39 +295,17 @@ public:
                 this, SLOT(sltGoToFullscreenMode()), Qt::QueuedConnection);
         connect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
                 this, SLOT(sltGoToScaleMode()), Qt::QueuedConnection);
-
-        /* Initialize the logic object: */
-        m_pMachineLogic->initialize();
-    }
-
-private slots:
-
-    void sltGoToNormalMode()
-    {
-        /* Change visual state to normal: */
-        emit sigChangeVisualState(UIVisualStateType_Normal);
-    }
-
-    void sltGoToFullscreenMode()
-    {
-        /* Change visual state to fullscreen: */
-        emit sigChangeVisualState(UIVisualStateType_Fullscreen);
-    }
-
-    void sltGoToScaleMode()
-    {
-        /* Change visual state to scale: */
-        emit sigChangeVisualState(UIVisualStateType_Scale);
     }
 };
 
+/* Scale visual state implementation: */
 class UIVisualStateScale : public UIVisualState
 {
     Q_OBJECT;
 
 public:
 
-    /* Scale visual state holder constructor: */
+    /* Constructor: */
     UIVisualStateScale(QObject *pParent, UISession *pSession)
         : UIVisualState(pParent, pSession)
     {
@@ -322,7 +320,7 @@ public:
         }
     }
 
-    /* Seamless visual state holder destructor: */
+    /* Destructor: */
     virtual ~UIVisualStateScale()
     {
         /* This visual state should take care of own action: */
@@ -336,10 +334,24 @@ public:
         }
     }
 
+private slots:
+
+    /* State-change handlers: */
+    void sltGoToNormalMode() { emit sigChangeVisualState(UIVisualStateType_Normal); }
+    void sltGoToFullscreenMode() { emit sigChangeVisualState(UIVisualStateType_Fullscreen); }
+    void sltGoToSeamlessMode() { emit sigChangeVisualState(UIVisualStateType_Seamless); }
+
+private:
+
+    /* Visual state type getter: */
     UIVisualStateType visualStateType() const { return UIVisualStateType_Scale; }
 
+    /* Method to change previous visual state to this one: */
     void change()
     {
+        /* Call to base-class: */
+        UIVisualState::change();
+
         /* Connect action handlers: */
         connect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
                 this, SLOT(sltGoToNormalMode()), Qt::QueuedConnection);
@@ -347,29 +359,6 @@ public:
                 this, SLOT(sltGoToFullscreenMode()), Qt::QueuedConnection);
         connect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
                 this, SLOT(sltGoToSeamlessMode()), Qt::QueuedConnection);
-
-        /* Initialize the logic object: */
-        m_pMachineLogic->initialize();
-    }
-
-private slots:
-
-    void sltGoToNormalMode()
-    {
-        /* Change visual state to normal: */
-        emit sigChangeVisualState(UIVisualStateType_Normal);
-    }
-
-    void sltGoToFullscreenMode()
-    {
-        /* Change visual state to fullscreen: */
-        emit sigChangeVisualState(UIVisualStateType_Fullscreen);
-    }
-
-    void sltGoToSeamlessMode()
-    {
-        /* Change visual state to seamless: */
-        emit sigChangeVisualState(UIVisualStateType_Seamless);
     }
 };
 
@@ -381,11 +370,11 @@ UIMachine::UIMachine(UIMachine **ppSelf, const CSession &session)
     , m_pSession(0)
     , m_pVisualState(0)
 {
-    /* Storing self: */
+    /* Store self pointer: */
     if (m_ppThis)
         *m_ppThis = this;
 
-    /* Create UISession object: */
+    /* Create UI session: */
     m_pSession = new UISession(this, m_session);
 
     /* Preventing application from closing in case of window(s) closed: */
@@ -405,34 +394,39 @@ UIMachine::~UIMachine()
 {
     /* Save machine settings: */
     saveMachineSettings();
-    /* Erase itself pointer: */
-    *m_ppThis = 0;
-    /* Delete uisession children in backward direction: */
+
+    /* Delete visual state: */
     delete m_pVisualState;
     m_pVisualState = 0;
+
+    /* Delete UI session: */
     delete m_pSession;
     m_pSession = 0;
+
+    /* Free session finally: */
     m_session.UnlockMachine();
     m_session.detach();
+
+    /* Clear self pointer: */
+    *m_ppThis = 0;
+
     /* Quit application: */
     QApplication::quit();
 }
 
 QWidget* UIMachine::mainWindow() const
 {
-    if (machineLogic() &&
-        machineLogic()->mainMachineWindow() &&
-        machineLogic()->mainMachineWindow()->machineWindow())
-        return machineLogic()->mainMachineWindow()->machineWindow();
+    if (machineLogic() && machineLogic()->mainMachineWindow())
+        return machineLogic()->mainMachineWindow();
     else
         return 0;
 }
 
-void UIMachine::sltChangeVisualState(UIVisualStateType visualStateType)
+void UIMachine::sltChangeVisualState(UIVisualStateType newVisualStateType)
 {
     /* Create new state: */
     UIVisualState *pNewVisualState = 0;
-    switch (visualStateType)
+    switch (newVisualStateType)
     {
         case UIVisualStateType_Normal:
         {
@@ -462,6 +456,7 @@ void UIMachine::sltChangeVisualState(UIVisualStateType visualStateType)
             break;
     }
 
+    /* Get previous visual state type: */
     UIVisualStateType previousVisualStateType = UIVisualStateType_Normal;
     if (m_pVisualState)
         previousVisualStateType = m_pVisualState->visualStateType();
@@ -527,7 +522,7 @@ void UIMachine::loadMachineSettings()
         if (!fIsSomeExtendedModeChosen)
         {
             /* Test 'scale' flag: */
-            QString strScaleSettings = machine.GetExtraData(VBoxDefs::GUI_Scale);
+            QString strScaleSettings = machine.GetExtraData(GUI_Scale);
             if (strScaleSettings == "on")
             {
                 fIsSomeExtendedModeChosen = true;
@@ -539,7 +534,7 @@ void UIMachine::loadMachineSettings()
         if (!fIsSomeExtendedModeChosen)
         {
             /* Test 'seamless' flag: */
-            QString strSeamlessSettings = machine.GetExtraData(VBoxDefs::GUI_Seamless);
+            QString strSeamlessSettings = machine.GetExtraData(GUI_Seamless);
             if (strSeamlessSettings == "on")
             {
                 fIsSomeExtendedModeChosen = true;
@@ -552,7 +547,7 @@ void UIMachine::loadMachineSettings()
         if (!fIsSomeExtendedModeChosen)
         {
             /* Test 'fullscreen' flag: */
-            QString strFullscreenSettings = machine.GetExtraData(VBoxDefs::GUI_Fullscreen);
+            QString strFullscreenSettings = machine.GetExtraData(GUI_Fullscreen);
             if (strFullscreenSettings == "on")
             {
                 fIsSomeExtendedModeChosen = true;
@@ -571,15 +566,15 @@ void UIMachine::saveMachineSettings()
     /* Save extra-data settings: */
     {
         /* Set 'scale' flag: */
-        machine.SetExtraData(VBoxDefs::GUI_Scale, m_pVisualState &&
+        machine.SetExtraData(GUI_Scale, m_pVisualState &&
                              m_pVisualState->visualStateType() == UIVisualStateType_Scale ? "on" : QString());
 
         /* Set 'seamless' flag: */
-        machine.SetExtraData(VBoxDefs::GUI_Seamless, m_pVisualState &&
+        machine.SetExtraData(GUI_Seamless, m_pVisualState &&
                              m_pVisualState->visualStateType() == UIVisualStateType_Seamless ? "on" : QString());
 
         /* Set 'fullscreen' flag: */
-        machine.SetExtraData(VBoxDefs::GUI_Fullscreen, m_pVisualState &&
+        machine.SetExtraData(GUI_Fullscreen, m_pVisualState &&
                              m_pVisualState->visualStateType() == UIVisualStateType_Fullscreen ? "on" : QString());
     }
 }

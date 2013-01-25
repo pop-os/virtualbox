@@ -24,8 +24,31 @@
 
 #ifndef IN_GUEST
 #define LOG_GROUP LOG_GROUP_SHARED_CROPENGL
+#endif
+#if !defined(IN_GUEST) || defined(CR_DEBUG_BACKDOOR_ENABLE)
 #include <VBox/log.h>
 #endif
+
+#if defined(WINDOWS)
+# define CR_DEBUG_CONSOLE_ENABLE
+#endif
+
+#if defined(WINDOWS) && defined(IN_GUEST)
+# ifndef CR_DEBUG_BACKDOOR_ENABLE
+#  error "CR_DEBUG_BACKDOOR_ENABLE is expected!"
+# endif
+#else
+# ifdef CR_DEBUG_BACKDOOR_ENABLE
+#  error "CR_DEBUG_BACKDOOR_ENABLE is NOT expected!"
+# endif
+#endif
+
+
+#ifdef CR_DEBUG_BACKDOOR_ENABLE
+# include <VBoxDispMpLogger.h>
+# include <iprt/err.h>
+#endif
+
 
 static char my_hostname[256];
 #ifdef WINDOWS
@@ -108,11 +131,6 @@ static void outputChromiumMessage( FILE *output, char *str )
             australia ? ", mate!" : ""
             );
     fflush( output );
-
-#if defined(DEBUG) && defined(WINDOWS) /* && (!defined(DEBUG_misha) || !defined(IN_GUEST) ) */
-    OutputDebugString(str);
-    OutputDebugString("\n");
-#endif
 }
 
 #ifdef WINDOWS
@@ -279,6 +297,31 @@ DECLEXPORT(void) crInfo(const char *format, ... )
     va_end( args );
 }
 
+#ifdef CR_DEBUG_BACKDOOR_ENABLE
+static DECLCALLBACK(void) crDebugBackdoorRt(char* pcszStr)
+{
+    RTLogBackdoorPrintf("%s", pcszStr);
+}
+
+static DECLCALLBACK(void) crDebugBackdoorDispMp(char* pcszStr)
+{
+    VBoxDispMpLoggerLog(pcszStr);
+}
+#endif
+
+
+#if defined(DEBUG) && defined(WINDOWS) /* && (!defined(DEBUG_misha) || !defined(IN_GUEST) ) */
+# define CR_DEBUG_DBGPRINT_ENABLE
+#endif
+
+#ifdef CR_DEBUG_DBGPRINT_ENABLE
+static void crDebugDbgPrint(const char *str)
+{
+    OutputDebugString(str);
+    OutputDebugString("\n");
+}
+#endif
+
 DECLEXPORT(void) crDebug(const char *format, ... )
 {
     va_list args;
@@ -290,26 +333,61 @@ DECLEXPORT(void) crDebug(const char *format, ... )
     static FILE *output;
     static int first_time = 1;
     static int silent = 0;
+#ifdef CR_DEBUG_BACKDOOR_ENABLE
+    typedef DECLCALLBACK(void) FNCRGEDUGBACKDOOR(char* pcszStr);
+    typedef FNCRGEDUGBACKDOOR *PFNCRGEDUGBACKDOOR;
+    static PFNCRGEDUGBACKDOOR pfnLogBackdoor = NULL;
+#endif
+#ifdef CR_DEBUG_DBGPRINT_ENABLE
+    static int dbgPrintEnable = 0;
+#endif
 
     if (first_time)
     {
         const char *fname = crGetenv( "CR_DEBUG_FILE" );
-        char str[1024];
-
-#if defined(Linux) && defined(IN_GUEST) && defined(DEBUG_leo)
-        if (!fname)
+        const char *fnamePrefix = crGetenv( "CR_DEBUG_FILE_PREFIX" );
+        char str[2048];
+#ifdef CR_DEBUG_CONSOLE_ENABLE
+        int logToConsole = 0;
+#endif
+#ifdef CR_DEBUG_BACKDOOR_ENABLE
+        if (crGetenv( "CR_DEBUG_BACKDOOR" ))
         {
-            char pname[1024];
-            crGetProcName(pname, 1024);
-            sprintf(str, "/home/leo/crlog_%s.txt", pname);
-            fname = &str[0];
+            int rc = VBoxDispMpLoggerInit();
+            if (RT_SUCCESS(rc))
+                pfnLogBackdoor = crDebugBackdoorDispMp;
+            else
+                pfnLogBackdoor = crDebugBackdoorRt;
         }
 #endif
+#ifdef CR_DEBUG_DBGPRINT_ENABLE
+        if (crGetenv( "CR_DEBUG_DBGPRINT" ))
+        {
+            dbgPrintEnable = 1;
+        }
+#endif
+
+        if (!fname && fnamePrefix)
+        {
+            char pname[1024];
+            if (crStrlen(fnamePrefix) < sizeof (str) - sizeof (pname) - 20)
+            {
+                crGetProcName(pname, 1024);
+                sprintf(str, "%s_%s_%u.txt", fnamePrefix, pname,
+#ifdef RT_OS_WINDOWS
+                        GetCurrentProcessId()
+#else
+                        crGetPID()
+#endif
+                        );
+                fname = &str[0];
+            }
+        }
 
         first_time = 0;
         if (fname)
         {
-            char debugFile[1000], *p;
+            char debugFile[2048], *p;
             crStrcpy(debugFile, fname);
             p = crStrstr(debugFile, "%p");
             if (p) {
@@ -326,16 +404,31 @@ DECLEXPORT(void) crDebug(const char *format, ... )
         }
         else
         {
-#if defined(WINDOWS) && defined(IN_GUEST) && (defined(DEBUG_leo) || defined(DEBUG_ll158262) || defined(DEBUG_misha))
-            crRedirectIOToConsole();
+#ifdef CR_DEBUG_CONSOLE_ENABLE
+            if (crGetenv( "CR_DEBUG_CONSOLE" ))
+            {
+                crRedirectIOToConsole();
+                logToConsole = 1;
+            }
 #endif
             output = stderr;
         }
+
 #if !defined(DEBUG)/* || defined(DEBUG_misha)*/
         /* Release mode: only emit crDebug messages if CR_DEBUG
          * or CR_DEBUG_FILE is set.
          */
-        if (!fname && !crGetenv("CR_DEBUG"))
+        if (!fname && !crGetenv("CR_DEBUG")
+#ifdef CR_DEBUG_CONSOLE_ENABLE
+                    && !logToConsole
+#endif
+#ifdef CR_DEBUG_BACKDOOR_ENABLE
+                    && !pfnLogBackdoor
+#endif
+#ifdef CR_DEBUG_DBGPRINT_ENABLE
+                    && !dbgPrintEnable
+#endif
+                )
             silent = 1;
 #endif
     }
@@ -379,29 +472,41 @@ DECLEXPORT(void) crDebug(const char *format, ... )
     }
     else
     {
-        offset = sprintf( txt, "[0x%x] OpenGL Debug: ", crThreadID());
+        offset = sprintf( txt, "[0x%x.0x%x] OpenGL Debug: ", GetCurrentProcessId(), crThreadID());
     }
 #else
-    offset = sprintf( txt, "[0x%lx] OpenGL Debug: ", crThreadID());
+    offset = sprintf( txt, "[0x%lx.0x%lx] OpenGL Debug: ", crGetPID(), crThreadID());
 #endif
     va_start( args, format );
     vsprintf( txt + offset, format, args );
+#ifdef CR_DEBUG_BACKDOOR_ENABLE
+    if (pfnLogBackdoor)
+    {
+        pfnLogBackdoor(txt);
+    }
+#endif
+#ifdef CR_DEBUG_DBGPRINT_ENABLE
+    if (dbgPrintEnable)
+    {
+        crDebugDbgPrint(txt);
+    }
+#endif
 #if defined(IN_GUEST)
     outputChromiumMessage( output, txt );
 #else
-# if defined(DEBUG) && (defined(DEBUG_leo) || defined(DEBUG_ll158262))
-    outputChromiumMessage( output, txt );
+    if (!output
+# ifndef DEBUG_misha
+            || output==stderr
 # endif
-#ifndef DEBUG_misha
-    if (output==stderr)
-#endif
+            )
     {
         LogRel(("%s\n", txt));
     }
-#ifndef DEBUG_misha
     else
-#endif
     {
+# ifndef DEBUG_misha
+        LogRel(("%s\n", txt));
+# endif
         outputChromiumMessage(output, txt);
     }
 #endif

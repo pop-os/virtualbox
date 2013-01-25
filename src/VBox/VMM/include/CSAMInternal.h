@@ -231,7 +231,7 @@ typedef struct CSAM
  * Call for analyzing the instructions following the privileged instr. for compliance with our heuristics
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pCpu        CPU disassembly state
  * @param   pInstrHC    Guest context pointer to privileged instruction
  * @param   pCurInstrGC Guest context pointer to current instruction
@@ -250,29 +250,29 @@ typedef int (VBOXCALL *PFN_CSAMR3ANALYSE)(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(
 inline RTRCPTR CSAMResolveBranch(PDISCPUSTATE pCpu, RTRCPTR pBranchInstrGC)
 {
     uint32_t disp;
-    if (pCpu->param1.flags & USE_IMMEDIATE8_REL)
+    if (pCpu->Param1.fUse & DISUSE_IMMEDIATE8_REL)
     {
-        disp = (int32_t)(char)pCpu->param1.parval;
+        disp = (int32_t)(char)pCpu->Param1.uValue;
     }
     else
-    if (pCpu->param1.flags & USE_IMMEDIATE16_REL)
+    if (pCpu->Param1.fUse & DISUSE_IMMEDIATE16_REL)
     {
-        disp = (int32_t)(uint16_t)pCpu->param1.parval;
+        disp = (int32_t)(uint16_t)pCpu->Param1.uValue;
     }
     else
-    if (pCpu->param1.flags & USE_IMMEDIATE32_REL)
+    if (pCpu->Param1.fUse & DISUSE_IMMEDIATE32_REL)
     {
-        disp = (int32_t)pCpu->param1.parval;
+        disp = (int32_t)pCpu->Param1.uValue;
     }
     else
     {
-        Log(("We don't support far jumps here!! (%08X)\n", pCpu->param1.flags));
+        Log(("We don't support far jumps here!! (%08X)\n", pCpu->Param1.fUse));
         return 0;
     }
 #ifdef IN_RC
-    return (RTRCPTR)((uint8_t *)pBranchInstrGC + pCpu->opsize + disp);
+    return (RTRCPTR)((uint8_t *)pBranchInstrGC + pCpu->cbInstr + disp);
 #else
-    return pBranchInstrGC + pCpu->opsize + disp;
+    return pBranchInstrGC + pCpu->cbInstr + disp;
 #endif
 }
 

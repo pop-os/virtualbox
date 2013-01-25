@@ -78,6 +78,9 @@ EXPORTS
     IntNetR0IfSend
     IntNetR0IfWait
 
+    ; Network Shaper
+    PDMR0NsAllocateBandwidth
+
     ; runtime
     RTAssertMsg1Weak
     RTAssertMsg2Weak
@@ -92,10 +95,12 @@ EXPORTS
     RTTimeNanoTS
     ASMMultU64ByU32DivByU32             ; not-os2
     ASMAtomicXchgU8                     ; not-x86
+    ASMBitFirstSet                      ; not-x86
     nocrt_memchr
     nocrt_memcmp
     nocrt_memcpy
     memcpy=nocrt_memcpy                 ; not-os2
+    nocrt_memmove
     nocrt_memset
     memset=nocrt_memset                 ; not-os2
     nocrt_strcpy

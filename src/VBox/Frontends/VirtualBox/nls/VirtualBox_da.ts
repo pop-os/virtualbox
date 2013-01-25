@@ -111,7 +111,7 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation type="unfinished"></translation>
+        <translation>VirtualBox&apos; Linux kernemodul (vboxdrv) er enten ikke indlæst eller der er et problem med rettighederne på /dev/vboxdrv. Geninstaller kernemodulet ved at køre&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;som root. Hvis din distribution understøtter det, bør du installere DKMS pakken først. Denne pakke holder styr på ændringer i Linux-kernen og rekompilerer vboxdrv kernemodulet om nødvendigt.</translation>
     </message>
 </context>
 <context>
@@ -147,11 +147,11 @@
     <name>QIHttp</name>
     <message>
         <source>Connection timed out</source>
-        <translation>Forbindelsen overskred tidsgrænsen</translation>
+        <translation type="obsolete">Forbindelsen overskred tidsgrænsen</translation>
     </message>
     <message>
         <source>Could not locate the file on the server (response: %1)</source>
-        <translation>Kunne ikke finde filen på serveren (besked: %1)</translation>
+        <translation type="obsolete">Kunne ikke finde filen på serveren (besked: %1)</translation>
     </message>
 </context>
 <context>
@@ -232,7 +232,7 @@
     <name>QIWizardPage</name>
     <message>
         <source>Use the &lt;b&gt;%1&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;%2&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;%3&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
-        <translation>Brug knappen &lt;b&gt;%1&lt;/b&gt; for at gå til næste trin af guiden og &lt;b&gt;%2&lt;/b&gt; for at gå til forrige trin. Du kan også bruge &lt;b&gt;%3&lt;/b&gt; hvis du vil afbryde guiden.&lt;/p&gt;</translation>
+        <translation type="obsolete">Brug knappen &lt;b&gt;%1&lt;/b&gt; for at gå til næste trin af guiden og &lt;b&gt;%2&lt;/b&gt; for at gå til forrige trin. Du kan også bruge &lt;b&gt;%3&lt;/b&gt; hvis du vil afbryde guiden.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -299,7 +299,7 @@
     </message>
     <message>
         <source>&amp;Insert Ctrl-Alt-Backspace</source>
-        <translation>Send Ctrl-Alt-Backspace</translation>
+        <translation type="obsolete">Send Ctrl-Alt-Backspace</translation>
     </message>
     <message>
         <source>Send the Ctrl-Alt-Backspace sequence to the virtual machine</source>
@@ -307,7 +307,7 @@
     </message>
     <message>
         <source>Take &amp;Snapshot...</source>
-        <translation>Tag øjeblik&amp;sbillede...</translation>
+        <translation type="obsolete">Tag øjeblik&amp;sbillede...</translation>
     </message>
     <message>
         <source>Take a snapshot of the virtual machine</source>
@@ -554,6 +554,357 @@
         <source>Session I&amp;nformation...</source>
         <translation>I&amp;nformation om session...</translation>
     </message>
+    <message>
+        <source>Show the log files of the selected virtual machine</source>
+        <translation>Vis logfilerne fra den valgte virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>&amp;Contents...</source>
+        <translation>Indhold...</translation>
+    </message>
+    <message>
+        <source>Show help contents</source>
+        <translation>Vis indholdet af hjælp</translation>
+    </message>
+    <message>
+        <source>Open the browser and go to the VirtualBox product web site</source>
+        <translation>Åbn browseren og gå til VirtualBox&apos; hjemmeside</translation>
+    </message>
+    <message>
+        <source>Go back to showing all suppressed warnings and messages</source>
+        <translation>Vis alle undertrykte advarsler og beskeder igen</translation>
+    </message>
+    <message>
+        <source>&amp;Network Operations Manager...</source>
+        <translation>&amp;Netværkshåndtering...</translation>
+    </message>
+    <message>
+        <source>Show Network Operations Manager</source>
+        <translation>Vis Netværkshåndtering</translation>
+    </message>
+    <message>
+        <source>Check for a new VirtualBox version</source>
+        <translation>Søg efter ny version af VirtualBox</translation>
+    </message>
+    <message>
+        <source>&amp;About VirtualBox...</source>
+        <translation>Om Virtu&amp;alBox...</translation>
+    </message>
+    <message>
+        <source>Show a dialog with product information</source>
+        <translation>Vis vindue med produktinformation</translation>
+    </message>
+    <message>
+        <source>Take Sn&amp;apshot...</source>
+        <translation>T&amp;ag øjebliksbillede...</translation>
+    </message>
+    <message>
+        <source>Take Screensh&amp;ot...</source>
+        <translation>Tag skærmbillede...</translation>
+    </message>
+    <message>
+        <source>Take a screenshot of the virtual machine</source>
+        <translation>Tag et skærmbillede af den virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>Ins&amp;ert Ctrl-Alt-Backspace</source>
+        <translation>S&amp;end Ctrl-Alt-Backspace</translation>
+    </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Mac OS X version</comment>
+        <translation>&amp;Fil</translation>
+    </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Non Mac OS X version</comment>
+        <translation>&amp;Fil</translation>
+    </message>
+    <message>
+        <source>&amp;Virtual Media Manager...</source>
+        <translation>&amp;Virtuel diskhåndtering...</translation>
+    </message>
+    <message>
+        <source>Display the Virtual Media Manager dialog</source>
+        <translation>Åbner Virtual diskhåndtering</translation>
+    </message>
+    <message>
+        <source>&amp;Import Appliance...</source>
+        <translation>&amp;Importér Prækonfigureret system...</translation>
+    </message>
+    <message>
+        <source>Import an appliance into VirtualBox</source>
+        <translation>Importerer et Prækonfigureret system til VirtualBox</translation>
+    </message>
+    <message>
+        <source>&amp;Export Appliance...</source>
+        <translation>&amp;Eksportér Prækonfigureret system...</translation>
+    </message>
+    <message>
+        <source>Export one or more VirtualBox virtual machines as an appliance</source>
+        <translation>Eksporterer et Prækonfigureret system fra VirtualBox</translation>
+    </message>
+    <message>
+        <source>&amp;Preferences...</source>
+        <comment>global settings</comment>
+        <translation>Indstillinger...</translation>
+    </message>
+    <message>
+        <source>Display the global settings dialog</source>
+        <translation>Vis globale indstillinger</translation>
+    </message>
+    <message>
+        <source>E&amp;xit</source>
+        <translation>Afslut</translation>
+    </message>
+    <message>
+        <source>Close application</source>
+        <translation>Luk programmet</translation>
+    </message>
+    <message>
+        <source>&amp;Group</source>
+        <translation>&amp;Gruppe</translation>
+    </message>
+    <message>
+        <source>Create a new virtual machine</source>
+        <translation>Opret en ny virtuel maskine</translation>
+    </message>
+    <message>
+        <source>Add an existing virtual machine</source>
+        <translation>Tilføj en eksisterende virtuel maskine</translation>
+    </message>
+    <message>
+        <source>Rename the selected virtual machine group</source>
+        <translation>Omdøb den valgte gruppe af virtuelle maskiner</translation>
+    </message>
+    <message>
+        <source>S&amp;tart</source>
+        <translation>S&amp;tart</translation>
+    </message>
+    <message>
+        <source>Start the selected virtual machine</source>
+        <translation type="obsolete">Start den valgte virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation>Vis</translation>
+    </message>
+    <message>
+        <source>Switch to the window of the selected virtual machine</source>
+        <translation type="obsolete">Skift til den valgte virtuelle maskines vindue</translation>
+    </message>
+    <message>
+        <source>Re&amp;fresh...</source>
+        <translation>Op&amp;frisk...</translation>
+    </message>
+    <message>
+        <source>Refresh the accessibility state of the selected virtual machine</source>
+        <translation>Opfrisk tilgængeligheden af den valgte virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>Show in Finder</source>
+        <translation>Vis i Finder</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in Finder.</source>
+        <translation type="obsolete">Vis VirtualBox maskindefinitionsfil i Finder.</translation>
+    </message>
+    <message>
+        <source>Show in Explorer</source>
+        <translation>Vis i Stifinder</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in Explorer.</source>
+        <translation type="obsolete">Vis VirtualBox maskindefinitionsfil i Filhåndtering.</translation>
+    </message>
+    <message>
+        <source>Show in File Manager</source>
+        <translation>Vis i Filhåndtering</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in the File Manager</source>
+        <translation>Vis VirtualBox maskindefinitionsfilen i Filhåndtering</translation>
+    </message>
+    <message>
+        <source>&amp;New...</source>
+        <translation>&amp;Ny...</translation>
+    </message>
+    <message>
+        <source>&amp;Add...</source>
+        <translation>Tilføj...</translation>
+    </message>
+    <message>
+        <source>Add a new group based on the items selected</source>
+        <translation>Tilføj en ny gruppe baseret på de valgte punkter</translation>
+    </message>
+    <message>
+        <source>Cl&amp;one...</source>
+        <translation>Kl&amp;on...</translation>
+    </message>
+    <message>
+        <source>Clone the selected virtual machine</source>
+        <translation>Klon den valgte virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>&amp;Remove...</source>
+        <translation>Fje&amp;rn...</translation>
+    </message>
+    <message>
+        <source>Remove the selected virtual machine</source>
+        <translation type="obsolete">Fjern den valgte virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>Discard</source>
+        <translation>Kassér</translation>
+    </message>
+    <message>
+        <source>D&amp;iscard saved state...</source>
+        <translation>Kassér gemt t&amp;ilstand...</translation>
+    </message>
+    <message>
+        <source>Discard the saved state of the selected virtual machine</source>
+        <translation type="obsolete">Dropper den gemte tilstand af den valgte virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>Create Alias on Desktop</source>
+        <translation>Opret alias på skrivebordet</translation>
+    </message>
+    <message>
+        <source>Creates an Alias file to the VirtualBox Machine Definition file on your Desktop.</source>
+        <translation type="obsolete">Opretter et alias til VirtualBox maskindefinitionsfilen på dit skrivebord.</translation>
+    </message>
+    <message>
+        <source>Create Shortcut on Desktop</source>
+        <translation>Opret genvej på skrivebordet</translation>
+    </message>
+    <message>
+        <source>Creates an Shortcut file to the VirtualBox Machine Definition file on your Desktop.</source>
+        <translation type="obsolete">Opretter en genvej til VirtualBox maskindefinitionsfilen på dit skrivebord.</translation>
+    </message>
+    <message>
+        <source>&amp;Close</source>
+        <translation>Luk</translation>
+    </message>
+    <message>
+        <source>Show &amp;Log...</source>
+        <translation>Vis &amp;log...</translation>
+    </message>
+    <message>
+        <source>&amp;VirtualBox Web Site...</source>
+        <translation>&amp;VirtualBox&apos; hjemmeside...</translation>
+    </message>
+    <message>
+        <source>&amp;Reset All Warnings</source>
+        <translation>Nulstil alle adva&amp;rsler</translation>
+    </message>
+    <message>
+        <source>C&amp;heck for Updates...</source>
+        <translation>Søg efter opdateringer...</translation>
+    </message>
+    <message>
+        <source>Rena&amp;me Group...</source>
+        <translation>O&amp;mdøb gruppe...</translation>
+    </message>
+    <message>
+        <source>Sort the items of the selected virtual machine group alphabetically</source>
+        <translation>Vis medlemmerne af den valgte virtuel maskingruppe i alfabetisk orden</translation>
+    </message>
+    <message>
+        <source>Remove the selected virtual machines</source>
+        <translation>Fjern de valgte virtuelle maskiner</translation>
+    </message>
+    <message>
+        <source>Start the selected virtual machines</source>
+        <translation>Start de valgte virtuelle maskiner</translation>
+    </message>
+    <message>
+        <source>Switch to the windows of the selected virtual machines</source>
+        <translation>Skift til de valgte virtuelle maskiners vinduer</translation>
+    </message>
+    <message>
+        <source>Suspend the execution of the selected virtual machines</source>
+        <translation>Suspendér afviklingen af de valgte virtuelle maskiner</translation>
+    </message>
+    <message>
+        <source>Reset the selected virtual machines</source>
+        <translation>Nulstil de valgte virtuelle maskiner</translation>
+    </message>
+    <message>
+        <source>Discard the saved state of the selected virtual machines</source>
+        <translation>Kassér den gemte tilstand af de valgte virtuelle maskiner</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in Finder</source>
+        <translation>Vis VirtualBox maskindefinitionsfilen i Finder</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in Explorer</source>
+        <translation>Vis VirtualBox maskindefinitionsfil i Stifinder</translation>
+    </message>
+    <message>
+        <source>Creates an alias file to the VirtualBox Machine Definition file on your desktop</source>
+        <translation>Opretter et alias til VirtualBox maskindefinitionsfilen på dit skrivebord</translation>
+    </message>
+    <message>
+        <source>Creates an shortcut file to the VirtualBox Machine Definition file on your desktop</source>
+        <translation>Opretter en genvej til VirtualBox maskindefinitionsfilen på dit skrivebord</translation>
+    </message>
+    <message>
+        <source>Save State</source>
+        <translation>Gem tilstand</translation>
+    </message>
+    <message>
+        <source>Save the machine state of the selected virtual machines</source>
+        <translation>Gem tilstanden af de valgte virtuelle maskiner</translation>
+    </message>
+    <message>
+        <source>Send the ACPI Power Button press event to the selected virtual machines</source>
+        <translation>Send kommandoen &quot;ACPI-sluk&quot; til de valgte virtuelle maskiner</translation>
+    </message>
+    <message>
+        <source>Po&amp;wer Off</source>
+        <translation>Sluk</translation>
+    </message>
+    <message>
+        <source>Power off the selected virtual machines</source>
+        <translation>Sluk de valgte virtuelle maskiner</translation>
+    </message>
+    <message>
+        <source>&amp;New Machine...</source>
+        <translation>&amp;Ny maskine...</translation>
+    </message>
+    <message>
+        <source>&amp;Add Machine...</source>
+        <translation>Tilføj m&amp;askine...</translation>
+    </message>
+    <message>
+        <source>&amp;Ungroup...</source>
+        <translation>Nedlæg gr&amp;uppe...</translation>
+    </message>
+    <message>
+        <source>Ungroup items of the selected virtual machine group</source>
+        <translation>Nedlæg den valgte virtuel maskingruppe (ikke maskinerne selv)</translation>
+    </message>
+    <message>
+        <source>Sort</source>
+        <translation>Sortér</translation>
+    </message>
+    <message>
+        <source>Gro&amp;up</source>
+        <translation>Gr&amp;uppér</translation>
+    </message>
+    <message>
+        <source>Sort the group of the first selected machine alphabetically</source>
+        <translation>Vis medlemmerne af den valgte virtuel maskines gruppe i alfabetisk orden</translation>
+    </message>
+    <message>
+        <source>Shared &amp;Clipboard</source>
+        <translation>Delt udklipsholder</translation>
+    </message>
+    <message>
+        <source>Drag&apos;n&apos;Drop</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceEditorWidget</name>
@@ -699,100 +1050,100 @@
     <name>UICloneVMWizard</name>
     <message>
         <source>Clone a virtual machine</source>
-        <translation>Klon en virtual maskine</translation>
+        <translation type="obsolete">Klon en virtual maskine</translation>
     </message>
     <message>
         <source>Clone</source>
-        <translation>Klon</translation>
+        <translation type="obsolete">Klon</translation>
     </message>
     <message>
         <source>Linked Base for %1 and %2</source>
-        <translation>Koblet basis for %1 og %2</translation>
+        <translation type="obsolete">Koblet basis for %1 og %2</translation>
     </message>
 </context>
 <context>
     <name>UICloneVMWizardPage1</name>
     <message>
         <source>&lt;p&gt;This wizard will help you to create a clone of your virtual machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Denne guide hjælper dig med at lave en klon af din virtuelle maskine.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Denne guide hjælper dig med at lave en klon af din virtuelle maskine.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please choose a name for the new virtual machine:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Angiv navnet på den nye virtualle maskine:&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Angiv navnet på den nye virtualle maskine:&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Reinitialize the MAC address of all network cards</source>
-        <translation>&amp;Reinitialisér MAC-adressen på alle netværkskort</translation>
+        <translation type="obsolete">&amp;Reinitialisér MAC-adressen på alle netværkskort</translation>
     </message>
     <message>
         <source>Welcome to the virtual machine clone wizard</source>
-        <translation>Denne guide hjælper dig med at oprette en klon af en virtuel maskine</translation>
+        <translation type="obsolete">Denne guide hjælper dig med at oprette en klon af en virtuel maskine</translation>
     </message>
     <message>
         <source>%1 Clone</source>
-        <translation>%1 Klon</translation>
+        <translation type="obsolete">%1 Klon</translation>
     </message>
     <message>
         <source>When checked a new unique MAC address will be assigned to all configured network cards.</source>
-        <translation>Hvis markeret, vil en ny unik MAC-adresse blive tildelt alle konfigurerede netværkskort.</translation>
+        <translation type="obsolete">Hvis markeret, vil en ny unik MAC-adresse blive tildelt alle konfigurerede netværkskort.</translation>
     </message>
 </context>
 <context>
     <name>UICloneVMWizardPage2</name>
     <message>
         <source>Cloning Configuration</source>
-        <translation>Kloningskonfiguration</translation>
+        <translation type="obsolete">Kloningskonfiguration</translation>
     </message>
     <message>
         <source>Full Clone</source>
-        <translation>Komplet klon</translation>
+        <translation type="obsolete">Komplet klon</translation>
     </message>
     <message>
         <source>Linked Clone</source>
-        <translation>Koblet klon</translation>
+        <translation type="obsolete">Koblet klon</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please select the type of the clone.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Full Clone&lt;/b&gt; an exact copy (including all virtual disk images) of the original VM will be created. If you select &lt;b&gt;Linked Clone&lt;/b&gt;, a new VM will be created, but the virtual disk images will point to the virtual disk images of original VM.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Vælg kloningstypen.&lt;/p&gt;&lt;p&gt;Vælger du &lt;b&gt;Komplet klon&lt;/b&gt; vil en nøjagtigt kopi (inklusiv alle virtuelle diskaftryk) af kilde-VM&apos;en blive lavet. Vælger du &lt;b&gt;Koblet klon&lt;/b&gt;, vil en ny VM blive lavet, men de virtuelle diskaftryk vil pege på diskaftrykkene fra kilde-VM&apos;en&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Vælg kloningstypen.&lt;/p&gt;&lt;p&gt;Vælger du &lt;b&gt;Komplet klon&lt;/b&gt; vil en nøjagtigt kopi (inklusiv alle virtuelle diskaftryk) af kilde-VM&apos;en blive lavet. Vælger du &lt;b&gt;Koblet klon&lt;/b&gt;, vil en ny VM blive lavet, men de virtuelle diskaftryk vil pege på diskaftrykkene fra kilde-VM&apos;en&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Note that a new snapshot within the source VM is created in case you select &lt;b&gt;Linked Clone&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Bemærk at hvis du vælger &lt;b&gt;Koblet klon&lt;/b&gt; vil der blive lavet et nyt øjebliksbillede i kilde-VM&apos;en&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Bemærk at hvis du vælger &lt;b&gt;Koblet klon&lt;/b&gt; vil der blive lavet et nyt øjebliksbillede i kilde-VM&apos;en&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
     <name>UICloneVMWizardPage3</name>
     <message>
         <source>Current machine state</source>
-        <translation>Aktuel maskintilstand</translation>
+        <translation type="obsolete">Aktuel maskintilstand</translation>
     </message>
     <message>
         <source>Current machine and all child states</source>
-        <translation>Aktuel maskintilstand og afledte øjebliksbilleder</translation>
+        <translation type="obsolete">Aktuel maskintilstand og afledte øjebliksbilleder</translation>
     </message>
     <message>
         <source>All states</source>
-        <translation>Alle tilstande</translation>
+        <translation type="obsolete">Alle tilstande</translation>
     </message>
     <message>
         <source>Cloning Configuration</source>
-        <translation>Kloningskonfiguration</translation>
+        <translation type="obsolete">Kloningskonfiguration</translation>
     </message>
     <message>
         <source>Please choose which parts of the virtual machine should be cloned.</source>
-        <translation>Vælg hvilke dele af den virtuelle maskine, der skal klones.</translation>
+        <translation type="obsolete">Vælg hvilke dele af den virtuelle maskine, der skal klones.</translation>
     </message>
     <message>
         <source>If you select &lt;b&gt;Current machine state&lt;/b&gt;, only the current state of the virtual machine is cloned.</source>
-        <translation>Hvis du vælger &lt;b&gt;Aktuel maskintilstand&lt;/b&gt;, klones kun den nuværende tilstand af den virtuelle maskine.</translation>
+        <translation type="obsolete">Hvis du vælger &lt;b&gt;Aktuel maskintilstand&lt;/b&gt;, klones kun den nuværende tilstand af den virtuelle maskine.</translation>
     </message>
     <message>
         <source>If you select &lt;b&gt;Current machine and all child states&lt;/b&gt; the current state of the virtual machine and any states of child snapshots are cloned.</source>
-        <translation>Hvis du vælger &lt;b&gt;Aktuel maskintilstand og afledte øjebliksbilleder&lt;/b&gt; klones den nuværende tilstand af den virtuelle maskine og alle afledte øjebliksbilleder (&quot;børn&quot;).</translation>
+        <translation type="obsolete">Hvis du vælger &lt;b&gt;Aktuel maskintilstand og afledte øjebliksbilleder&lt;/b&gt; klones den nuværende tilstand af den virtuelle maskine og alle afledte øjebliksbilleder (&quot;børn&quot;).</translation>
     </message>
     <message>
         <source>If you select &lt;b&gt;All states&lt;/b&gt;, the current machine state and all snapshots are cloned.</source>
-        <translation>Hvis du vælger&lt;b&gt;Alle tilstande&lt;/b&gt;, klones den nuværende tilstand af den virtuelle maskine og alle øjebliksbilleder.</translation>
+        <translation type="obsolete">Hvis du vælger&lt;b&gt;Alle tilstande&lt;/b&gt;, klones den nuværende tilstand af den virtuelle maskine og alle øjebliksbilleder.</translation>
     </message>
 </context>
 <context>
@@ -811,7 +1162,7 @@
     </message>
 </context>
 <context>
-    <name>UIDetailsPagePrivate</name>
+    <name>UIDetailsBlock</name>
     <message>
         <source>Name</source>
         <comment>details report</comment>
@@ -821,6 +1172,11 @@
         <source>OS Type</source>
         <comment>details report</comment>
         <translation>OS type</translation>
+    </message>
+    <message>
+        <source>Information inaccessible</source>
+        <comment>details report</comment>
+        <translation>Information utilgængelig</translation>
     </message>
     <message>
         <source>Base Memory</source>
@@ -841,6 +1197,16 @@
         <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
         <comment>details report</comment>
         <translation>&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Execution Cap</source>
+        <comment>details report</comment>
+        <translation>Ydelsesbegrænsning</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
+        <comment>details report</comment>
+        <translation>&lt;nobr&gt;%1%&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Boot Order</source>
@@ -905,17 +1271,17 @@
     <message>
         <source>Remote Desktop Server Port</source>
         <comment>details report (VRDE Server)</comment>
-        <translation>Fjernskærm-serverport</translation>
+        <translation>Port til Fjernskærmsserver</translation>
     </message>
     <message>
         <source>Remote Desktop Server</source>
         <comment>details report (VRDE Server)</comment>
-        <translation>Fjernskærm-server</translation>
+        <translation>Fjernskærmsserver</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (VRDE Server)</comment>
-        <translation>Slået fra</translation>
+        <translation>Deaktiveret</translation>
     </message>
     <message>
         <source>(CD/DVD)</source>
@@ -939,7 +1305,7 @@
     <message>
         <source>Disabled</source>
         <comment>details report (audio)</comment>
-        <translation>Slået fra</translation>
+        <translation>Deaktiveret</translation>
     </message>
     <message>
         <source>Bridged adapter, %1</source>
@@ -957,9 +1323,14 @@
         <translation>Værtsbegrænset netværkskort, &apos;%1&apos;</translation>
     </message>
     <message>
-        <source>VDE network, &apos;%1&apos;</source>
+        <source>Generic driver, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation type="obsolete">VDE netværk, &apos;%1&apos;</translation>
+        <translation>Generisk driver, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
+        <comment>details report (network)</comment>
+        <translation>Generisk driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</translation>
     </message>
     <message>
         <source>Adapter %1</source>
@@ -969,7 +1340,7 @@
     <message>
         <source>Disabled</source>
         <comment>details report (network)</comment>
-        <translation>Slået fra</translation>
+        <translation>Deaktiveret</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -979,7 +1350,7 @@
     <message>
         <source>Disabled</source>
         <comment>details report (serial ports)</comment>
-        <translation>Slået fra</translation>
+        <translation>Deaktiveret</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -989,7 +1360,7 @@
     <message>
         <source>Disabled</source>
         <comment>details report (parallel ports)</comment>
-        <translation>Slået fra</translation>
+        <translation>Deaktiveret</translation>
     </message>
     <message>
         <source>Device Filters</source>
@@ -1004,7 +1375,7 @@
     <message>
         <source>Disabled</source>
         <comment>details report (USB)</comment>
-        <translation>Slået fra</translation>
+        <translation>Deaktiveret</translation>
     </message>
     <message>
         <source>Shared Folders</source>
@@ -1020,6 +1391,218 @@
         <source>None</source>
         <comment>details report (description)</comment>
         <translation>Ingen</translation>
+    </message>
+</context>
+<context>
+    <name>UIDetailsPagePrivate</name>
+    <message>
+        <source>Name</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Navn</translation>
+    </message>
+    <message>
+        <source>OS Type</source>
+        <comment>details report</comment>
+        <translation type="obsolete">OS type</translation>
+    </message>
+    <message>
+        <source>Base Memory</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Hukommelse</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1 MB&lt;/nobr&gt;</source>
+        <comment>details report</comment>
+        <translation type="obsolete">&lt;nobr&gt;%1 MB&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Processors</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Processorer</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
+        <comment>details report</comment>
+        <translation type="obsolete">&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Boot Order</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Opstartsrækkefølge</translation>
+    </message>
+    <message>
+        <source>ACPI</source>
+        <comment>details report</comment>
+        <translation type="obsolete">ACPI</translation>
+    </message>
+    <message>
+        <source>IO APIC</source>
+        <comment>details report</comment>
+        <translation type="obsolete">IO APIC</translation>
+    </message>
+    <message>
+        <source>BIOS</source>
+        <comment>details report</comment>
+        <translation type="obsolete">BIOS</translation>
+    </message>
+    <message>
+        <source>VT-x/AMD-V</source>
+        <comment>details report</comment>
+        <translation type="obsolete">VT-x/AMD-V</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Nested Paging</translation>
+    </message>
+    <message>
+        <source>PAE/NX</source>
+        <comment>details report</comment>
+        <translation type="obsolete">PAE/NX</translation>
+    </message>
+    <message>
+        <source>Acceleration</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Acceleration</translation>
+    </message>
+    <message>
+        <source>Video Memory</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Grafikhukommelse</translation>
+    </message>
+    <message>
+        <source>Screens</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Skærme</translation>
+    </message>
+    <message>
+        <source>2D Video</source>
+        <comment>details report</comment>
+        <translation type="obsolete">2D-video</translation>
+    </message>
+    <message>
+        <source>3D</source>
+        <comment>details report</comment>
+        <translation type="obsolete">3D</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation type="obsolete">Fjernskærm-serverport</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation type="obsolete">Fjernskærm-server</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (VRDE Server)</comment>
+        <translation type="obsolete">Slået fra</translation>
+    </message>
+    <message>
+        <source>(CD/DVD)</source>
+        <translation type="obsolete">(CD/DVD)</translation>
+    </message>
+    <message>
+        <source>Not Attached</source>
+        <comment>details report (Storage)</comment>
+        <translation type="obsolete">Ikke tilsluttet</translation>
+    </message>
+    <message>
+        <source>Host Driver</source>
+        <comment>details report (audio)</comment>
+        <translation type="obsolete">Lydsystem</translation>
+    </message>
+    <message>
+        <source>Controller</source>
+        <comment>details report (audio)</comment>
+        <translation type="obsolete">Lydenhed</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (audio)</comment>
+        <translation type="obsolete">Slået fra</translation>
+    </message>
+    <message>
+        <source>Bridged adapter, %1</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Netværksbro, %1</translation>
+    </message>
+    <message>
+        <source>Internal network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Internt netværk, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Host-only adapter, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Værtsbegrænset netværkskort, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>VDE network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">VDE netværk, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Adapter %1</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Netværkskort %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Slået fra</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details report (serial ports)</comment>
+        <translation type="obsolete">Port %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (serial ports)</comment>
+        <translation type="obsolete">Slået fra</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details report (parallel ports)</comment>
+        <translation type="obsolete">Port %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (parallel ports)</comment>
+        <translation type="obsolete">Slået fra</translation>
+    </message>
+    <message>
+        <source>Device Filters</source>
+        <comment>details report (USB)</comment>
+        <translation type="obsolete">Enhedsfiltre</translation>
+    </message>
+    <message>
+        <source>%1 (%2 active)</source>
+        <comment>details report (USB)</comment>
+        <translation type="obsolete">%1 (%2 aktiv)</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (USB)</comment>
+        <translation type="obsolete">Slået fra</translation>
+    </message>
+    <message>
+        <source>Shared Folders</source>
+        <comment>details report (shared folders)</comment>
+        <translation type="obsolete">Delte mapper</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>details report (shared folders)</comment>
+        <translation type="obsolete">Ingen</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>details report (description)</comment>
+        <translation type="obsolete">Ingen</translation>
     </message>
     <message>
         <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
@@ -1088,22 +1671,36 @@
     <message>
         <source>Execution Cap</source>
         <comment>details report</comment>
-        <translation>Ydelsesbegrænsning</translation>
+        <translation type="obsolete">Ydelsesbegrænsning</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
         <comment>details report</comment>
-        <translation>&lt;nobr&gt;%1%&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;nobr&gt;%1%&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Generic driver, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation>Generisk driver, &apos;%1&apos;</translation>
+        <translation type="obsolete">Generisk driver, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Generic driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
         <comment>details report (network)</comment>
-        <translation>Generisk driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</translation>
+        <translation type="obsolete">Generisk driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</translation>
+    </message>
+</context>
+<context>
+    <name>UIDnDHandler</name>
+    <message>
+        <source>Dropping data ...</source>
+        <translation>Kasserer data ...</translation>
+    </message>
+</context>
+<context>
+    <name>UIDnDMimeData</name>
+    <message>
+        <source>Dropping data ...</source>
+        <translation>Kasserer data ...</translation>
     </message>
 </context>
 <context>
@@ -1115,6 +1712,14 @@
     <message>
         <source>The download process has been canceled by the user.</source>
         <translation type="obsolete">Filhentning annulleret af bruger.</translation>
+    </message>
+    <message>
+        <source>Looking for %1...</source>
+        <translation>Søger efter %1...</translation>
+    </message>
+    <message>
+        <source>Downloading %1...</source>
+        <translation>Henter %1...</translation>
     </message>
 </context>
 <context>
@@ -1139,6 +1744,10 @@
         <source>Select folder to save Guest Additions image to</source>
         <translation>Vælg mappen hvor CD&apos;en med Gæstetilføjelser skal gemmes</translation>
     </message>
+    <message>
+        <source>VirtualBox Guest Additions</source>
+        <translation>VirtualBox Gæstetilføjelser</translation>
+    </message>
 </context>
 <context>
     <name>UIDownloaderExtensionPack</name>
@@ -1146,12 +1755,20 @@
         <source>Select folder to save %1 to</source>
         <translation>Vælg folderen, hvor %1 skal gemmes</translation>
     </message>
+    <message>
+        <source>VirtualBox Extension Pack</source>
+        <translation>VirtualBox udvidelsespakke</translation>
+    </message>
 </context>
 <context>
     <name>UIDownloaderUserManual</name>
     <message>
         <source>Select folder to save User Manual to</source>
         <translation>Vælg folderen, hvor brugermanualen skal gemmes</translation>
+    </message>
+    <message>
+        <source>VirtualBox User Manual</source>
+        <translation>VirtualBox brugerhåndbog</translation>
     </message>
 </context>
 <context>
@@ -1174,7 +1791,7 @@
     </message>
     <message>
         <source>Appliance Export Wizard</source>
-        <translation>Eksport af Prækonfigureret system</translation>
+        <translation type="obsolete">Eksport af Prækonfigureret system</translation>
     </message>
     <message>
         <source>Welcome to the Appliance Export Wizard!</source>
@@ -1218,7 +1835,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Restore Defaults</source>
-        <translation>Brug standardværdier</translation>
+        <translation type="obsolete">Brug standardværdier</translation>
     </message>
     <message>
         <source>&amp;Export &gt;</source>
@@ -1290,18 +1907,18 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Export</source>
-        <translation>Eksport</translation>
+        <translation type="obsolete">Eksport</translation>
     </message>
 </context>
 <context>
     <name>UIExportApplianceWzdPage1</name>
     <message>
         <source>Welcome to the Appliance Export Wizard!</source>
-        <translation>Denne guide hjælper dig med at eksportere et Prækonfigureret system!</translation>
+        <translation type="obsolete">Denne guide hjælper dig med at eksportere et Prækonfigureret system!</translation>
     </message>
     <message>
         <source>&lt;p&gt;This wizard will guide you through the process of exporting an appliance.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Please select the virtual machines that should be added to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Denne guide hjælper dig med at eksportere et Prækonfigureret system.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Vælg en eller flere virtuelle maskiner, der skal tilføjes til det prækonfigurerede system. De virtuelle maskiner skal være inaktive før de kan eksporteres.</translation>
+        <translation type="obsolete">&lt;p&gt;Denne guide hjælper dig med at eksportere et Prækonfigureret system.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Vælg en eller flere virtuelle maskiner, der skal tilføjes til det prækonfigurerede system. De virtuelle maskiner skal være inaktive før de kan eksporteres.</translation>
     </message>
 </context>
 <context>
@@ -1312,23 +1929,23 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Appliance Export Settings</source>
-        <translation>Indstillinger for eksport af Prækonfigureret system</translation>
+        <translation type="obsolete">Indstillinger for eksport af Prækonfigureret system</translation>
     </message>
     <message>
         <source>Please specify the target for the OVF export. You can choose between a local file system export, uploading the OVF to the Sun Cloud service or an S3 storage server.</source>
-        <translation>Angiv destinationen for OVF-eksporten. Du kan vælge at eksportere til et lokalt filsystem eller sende OVF&apos;en til Sun Cloud servicen eller en S3 lagerserver.</translation>
+        <translation type="obsolete">Angiv destinationen for OVF-eksporten. Du kan vælge at eksportere til et lokalt filsystem eller sende OVF&apos;en til Sun Cloud servicen eller en S3 lagerserver.</translation>
     </message>
     <message>
         <source>&amp;Local Filesystem </source>
-        <translation>&amp;Lokalt filsystem</translation>
+        <translation type="obsolete">&amp;Lokalt filsystem</translation>
     </message>
     <message>
         <source>Sun &amp;Cloud</source>
-        <translation>Sun &amp;Cloud</translation>
+        <translation type="obsolete">Sun &amp;Cloud</translation>
     </message>
     <message>
         <source>&amp;Simple Storage System (S3)</source>
-        <translation>&amp;Simple Storage System (S3)</translation>
+        <translation type="obsolete">&amp;Simple Storage System (S3)</translation>
     </message>
 </context>
 <context>
@@ -1351,72 +1968,72 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Appliance Export Settings</source>
-        <translation>Indstillinger for eksport af Prækonfigureret system</translation>
+        <translation type="obsolete">Indstillinger for eksport af Prækonfigureret system</translation>
     </message>
     <message>
         <source>&amp;Username:</source>
-        <translation>Br&amp;ugernavn:</translation>
+        <translation type="obsolete">Br&amp;ugernavn:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation>Kodeord:</translation>
+        <translation type="obsolete">Kodeord:</translation>
     </message>
     <message>
         <source>&amp;Hostname:</source>
-        <translation>Værtsnavn:</translation>
+        <translation type="obsolete">Værtsnavn:</translation>
     </message>
     <message>
         <source>&amp;Bucket:</source>
         <translatorcomment>Kontekst?</translatorcomment>
-        <translation>&amp;Bucket:</translation>
+        <translation type="obsolete">&amp;Bucket:</translation>
     </message>
     <message>
         <source>&amp;File:</source>
-        <translation>&amp;Fil:</translation>
+        <translation type="obsolete">&amp;Fil:</translation>
     </message>
     <message>
         <source>Write in legacy OVF 0.9 format for compatibility with other virtualization products.</source>
-        <translation>Gem i OVF 0.9 format for kompatibilitet med andre virtualiseringsprodukter.</translation>
+        <translation type="obsolete">Gem i OVF 0.9 format for kompatibilitet med andre virtualiseringsprodukter.</translation>
     </message>
     <message>
         <source>&amp;Write legacy OVF 0.9</source>
-        <translation>Gem i OVF 0.9 format</translation>
+        <translation type="obsolete">Gem i OVF 0.9 format</translation>
     </message>
     <message>
         <source>Create a Manifest file for automatic data integrity checks on import.</source>
-        <translation>Opret en Manifest-fil for automatisk kontrol af dataintegritet ved import.</translation>
+        <translation type="obsolete">Opret en Manifest-fil for automatisk kontrol af dataintegritet ved import.</translation>
     </message>
     <message>
         <source>Write &amp;Manifest file</source>
-        <translation>Gem &amp;Manifest-fil</translation>
+        <translation type="obsolete">Gem &amp;Manifest-fil</translation>
     </message>
     <message>
         <source>Appliance</source>
-        <translation>Prækonfigureret system</translation>
+        <translation type="obsolete">Prækonfigureret system</translation>
     </message>
     <message>
         <source>Select a file to export into</source>
-        <translation>Vælg den fil, der skal eksporteres til</translation>
+        <translation type="obsolete">Vælg den fil, der skal eksporteres til</translation>
     </message>
     <message>
         <source>Open Virtualization Format Archive (%1)</source>
-        <translation>Open Virtualization Format arkiv (%1)</translation>
+        <translation type="obsolete">Open Virtualization Format arkiv (%1)</translation>
     </message>
     <message>
         <source>Open Virtualization Format (%1)</source>
-        <translation>Open Virtualization Format (%1)</translation>
+        <translation type="obsolete">Open Virtualization Format (%1)</translation>
     </message>
     <message>
         <source>Please choose a filename to export the OVF/OVA to. If you use an &lt;i&gt;ova&lt;/i&gt; file name extension, then all the files will be combined into one Open Virtualization Format Archive. If you use an &lt;i&gt;ovf&lt;/i&gt; extension, several files will be written separately. Other extensions are not allowed.</source>
-        <translation>Angiv filnavnet OVF/OVA&apos;en skal eksporteres til. Hvis du bruger fil-endelsen &lt;i&gt;ova&lt;/i&gt;, vil samtlige filer blive kombineret i ét Open Virtualization Format arkiv. Hvis du bruger fil-endelsen &lt;i&gt;ovf&lt;/i&gt; vil filerne blive skrevet enkeltvis. Andre fil-endelser er ikke tilladt.</translation>
+        <translation type="obsolete">Angiv filnavnet OVF/OVA&apos;en skal eksporteres til. Hvis du bruger fil-endelsen &lt;i&gt;ova&lt;/i&gt;, vil samtlige filer blive kombineret i ét Open Virtualization Format arkiv. Hvis du bruger fil-endelsen &lt;i&gt;ovf&lt;/i&gt; vil filerne blive skrevet enkeltvis. Andre fil-endelser er ikke tilladt.</translation>
     </message>
     <message>
         <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
-        <translation>Udfyld de øvrige felter såsom brugernavn, kodeord og bucket. Afslut med at angive et filnavn til OVF-eksporten.</translation>
+        <translation type="obsolete">Udfyld de øvrige felter såsom brugernavn, kodeord og bucket. Afslut med at angive et filnavn til OVF-eksporten.</translation>
     </message>
     <message>
         <source>Please complete the additional fields like the username, password, hostname and the bucket, and provide a filename for the OVF target.</source>
-        <translation>Udfyld de øvrige felter såsom brugernavn, kodeord, værtsnavn og bucket. Afslut med at angive et filnavn til OVF-eksporten.</translation>
+        <translation type="obsolete">Udfyld de øvrige felter såsom brugernavn, kodeord, værtsnavn og bucket. Afslut med at angive et filnavn til OVF-eksporten.</translation>
     </message>
 </context>
 <context>
@@ -1452,7 +2069,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Appliance Export Settings</source>
-        <translation>Indstillinger for eksport af Prækonfigureret system</translation>
+        <translation type="obsolete">Indstillinger for eksport af Prækonfigureret system</translation>
     </message>
     <message>
         <source>Appliance</source>
@@ -1480,26 +2097,26 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Checking files ...</source>
-        <translation>Kontrollerer filer ...</translation>
+        <translation type="obsolete">Kontrollerer filer ...</translation>
     </message>
     <message>
         <source>Removing files ...</source>
-        <translation>Fjerner filer ...</translation>
+        <translation type="obsolete">Fjerner filer ...</translation>
     </message>
     <message>
         <source>Exporting Appliance ...</source>
-        <translation>Eksporterer Prækonfigureret system ...</translation>
+        <translation type="obsolete">Eksporterer Prækonfigureret system ...</translation>
     </message>
     <message>
         <source>Here you can change additional configuration values of the selected virtual machines. You can modify most of the properties shown by double-clicking on the items.</source>
-        <translation>Her kan du tilpasse yderligere indstillinger for de valgte virtuelle maskiner. Du kan ændre de fleste af de viste egenskaber ved at dobbeltklikke på værdien.</translation>
+        <translation type="obsolete">Her kan du tilpasse yderligere indstillinger for de valgte virtuelle maskiner. Du kan ændre de fleste af de viste egenskaber ved at dobbeltklikke på værdien.</translation>
     </message>
 </context>
 <context>
     <name>UIFirstRunWzd</name>
     <message>
         <source>First Run Wizard</source>
-        <translation>Guide til 1.gang</translation>
+        <translation type="obsolete">Guide til 1.gang</translation>
     </message>
     <message>
         <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for installing an operating system of your choice onto this virtual machine.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
@@ -1631,78 +2248,668 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Start</source>
-        <translation>Start</translation>
+        <translation type="obsolete">Start</translation>
     </message>
 </context>
 <context>
     <name>UIFirstRunWzdPage1</name>
     <message>
         <source>Welcome to the First Run Wizard!</source>
-        <translation>Velkommen til 1.gang-guiden!</translation>
+        <translation type="obsolete">Velkommen til 1.gang-guiden!</translation>
     </message>
     <message>
         <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for installing an operating system of your choice onto this virtual machine.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Du har startet en nyoprettet virtuel maskine for første gang. Denne guide hjælper dig med at installere et operativsystem efter eget valg i denne virtuelle maskine.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Du har startet en nyoprettet virtuel maskine for første gang. Denne guide hjælper dig med at installere et operativsystem efter eget valg i denne virtuelle maskine.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for booting an operating system of your choice on the virtual machine.&lt;/p&gt;&lt;p&gt;Note that you will not be able to install an operating system into this virtual machine right now because you did not attach any hard disk to it. If this is not what you want, you can cancel the execution of this wizard, select &lt;b&gt;Settings&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window to access the settings dialog of this machine and change the hard disk configuration.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Du har startet en nyoprettet virtuel maskine for første gang. Denne guide hjælper dig med at udføre de trin, der er nødvendige for at starte et operativsystem i den virtuelle maskine.&lt;/p&gt;&lt;p&gt;Bemærk at du ikke kan installere et operativsystem i denne virtuelle maskine endnu, da du ikke har tilsluttet en harddisk til den. Hvis du ønsker at tilføje en harddisk, så skal du afbryde denne guide og vælge &lt;b&gt;Indstillinger&lt;/b&gt; fra menuen &lt;b&gt;Maskine&lt;/b&gt; i VirtualBox&apos; hovedvindue for at ændre konfigurationen af harddiske.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Du har startet en nyoprettet virtuel maskine for første gang. Denne guide hjælper dig med at udføre de trin, der er nødvendige for at starte et operativsystem i den virtuelle maskine.&lt;/p&gt;&lt;p&gt;Bemærk at du ikke kan installere et operativsystem i denne virtuelle maskine endnu, da du ikke har tilsluttet en harddisk til den. Hvis du ønsker at tilføje en harddisk, så skal du afbryde denne guide og vælge &lt;b&gt;Indstillinger&lt;/b&gt; fra menuen &lt;b&gt;Maskine&lt;/b&gt; i VirtualBox&apos; hovedvindue for at ændre konfigurationen af harddiske.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
     <name>UIFirstRunWzdPage2</name>
     <message>
         <source>&lt;p&gt;Select the media which contains the setup program of the operating system you want to install. This media must be bootable, otherwise the setup program will not be able to start.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Vælg mediet, som indeholder opsætningsprogrammet til det ønskede operativsystem. Det skal være muligt at starte op på mediet for at opsætningsprogrammet kan køre.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Vælg mediet, som indeholder opsætningsprogrammet til det ønskede operativsystem. Det skal være muligt at starte op på mediet for at opsætningsprogrammet kan køre.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Select the media that contains the operating system you want to work with. This media must be bootable, otherwise the operating system will not be able to start.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Vælg mediet, som indeholder operativsystemet du vil anvende. Det skal være muligt at starte op på mediet for at operativsystem kan starte.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Vælg mediet, som indeholder operativsystemet du vil anvende. Det skal være muligt at starte op på mediet for at operativsystem kan starte.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Media Source</source>
-        <translation>Mediekilde</translation>
+        <translation type="obsolete">Mediekilde</translation>
     </message>
     <message>
         <source>Select Installation Media</source>
-        <translation>Vælg installationsmedie</translation>
+        <translation type="obsolete">Vælg installationsmedie</translation>
     </message>
 </context>
 <context>
     <name>UIFirstRunWzdPage3</name>
     <message>
         <source>&lt;p&gt;You have selected the following media to boot from:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Du har valgt at starte op på følgende medie:&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Du har valgt at starte op på følgende medie:&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You have selected the following media to boot an operating system from:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Du har valgt at starte et operativsystem fra følgende medie:&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Du har valgt at starte et operativsystem fra følgende medie:&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;&lt;p&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;&lt;p&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;b&gt;Unmount...&lt;/b&gt; action in the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Tryk på knappen &lt;b&gt;Færdig&lt;/b&gt;, hvis ovenstående er korrekt. Når du trykker, vil det valgte medie midlertidigt blive monteret i den virtuelle maskine, som derefter vil starte op.&lt;/p&gt;&lt;p&gt;Bemærk at når du lukker den virtuelle maskine, vil det angivne medie automatisk blive afmonteret og opstartsenheden vil igen være den første harddisk.&lt;/p&gt;&lt;p&gt;Afhængig af dit installationsprogram kan det være nødvendigt manuelt at afmontere mediet efter installationsprogrammet har genstartet den virtuelle maskine for at undgå at installationsprogrammet starter forfra. Du kan gøre dette ved at vælge &lt;b&gt;Afmontér...&lt;/b&gt; i menuen &lt;b&gt;Enheder&lt;/b&gt;.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Tryk på knappen &lt;b&gt;Færdig&lt;/b&gt;, hvis ovenstående er korrekt. Når du trykker, vil det valgte medie midlertidigt blive monteret i den virtuelle maskine, som derefter vil starte op.&lt;/p&gt;&lt;p&gt;Bemærk at når du lukker den virtuelle maskine, vil det angivne medie automatisk blive afmonteret og opstartsenheden vil igen være den første harddisk.&lt;/p&gt;&lt;p&gt;Afhængig af dit installationsprogram kan det være nødvendigt manuelt at afmontere mediet efter installationsprogrammet har genstartet den virtuelle maskine for at undgå at installationsprogrammet starter forfra. Du kan gøre dette ved at vælge &lt;b&gt;Afmontér...&lt;/b&gt; i menuen &lt;b&gt;Enheder&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be mounted on the virtual machine and the machine will start execution.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Tryk &lt;b&gt;Færdig&lt;/b&gt; hvis ovenstående er korrekt. Det valgte medie vil så blive monteret på den virtuelle maskine og maskinen vil begynde afviklingen.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Tryk &lt;b&gt;Færdig&lt;/b&gt; hvis ovenstående er korrekt. Det valgte medie vil så blive monteret på den virtuelle maskine og maskinen vil begynde afviklingen.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Summary</source>
-        <translation>Oversigt</translation>
+        <translation type="obsolete">Oversigt</translation>
     </message>
     <message>
         <source>CD/DVD-ROM Device</source>
-        <translation>CD/DVD-ROM drev</translation>
+        <translation type="obsolete">CD/DVD-ROM drev</translation>
     </message>
     <message>
         <source>Type</source>
         <comment>summary</comment>
-        <translation>Type</translation>
+        <translation type="obsolete">Type</translation>
     </message>
     <message>
         <source>Source</source>
         <comment>summary</comment>
-        <translation>Kilde</translation>
+        <translation type="obsolete">Kilde</translation>
+    </message>
+</context>
+<context>
+    <name>UIGChooserItemGroup</name>
+    <message>
+        <source>&lt;b&gt;%1&lt;/b&gt;</source>
+        <comment>Group item tool-tip / Group name</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n group(s)</source>
+        <comment>Group item tool-tip / Group info</comment>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
+        <comment>Group item tool-tip / Group info wrapper</comment>
+        <translation type="unfinished">&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n machine(s)</source>
+        <comment>Group item tool-tip / Machine info</comment>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n running)</source>
+        <comment>Group item tool-tip / Running machine info</comment>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
+        <comment>Group item tool-tip / Machine info wrapper</comment>
+        <translation type="unfinished">&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1 %2&lt;/nobr&gt;</source>
+        <comment>Group item tool-tip / Machine info wrapper, including running</comment>
+        <translation type="unfinished">&lt;nobr&gt;%1&lt;/nobr&gt; {1 %2&lt;?}</translation>
+    </message>
+    <message>
+        <source>Collapse group</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Expand group</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enter group</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit group</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIGChooserModel</name>
+    <message>
+        <source>New group</source>
+        <translation>Ny gruppe</translation>
+    </message>
+</context>
+<context>
+    <name>UIGDetails</name>
+    <message>
+        <source>Name</source>
+        <comment>details (general)</comment>
+        <translation>Navn</translation>
+    </message>
+    <message>
+        <source>Groups</source>
+        <comment>details (general)</comment>
+        <translation>Grupper</translation>
+    </message>
+    <message>
+        <source>%1 MB</source>
+        <comment>details</comment>
+        <translation>%1 MB</translation>
+    </message>
+    <message>
+        <source>Processors</source>
+        <comment>details (system)</comment>
+        <translation>Processorer</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <comment>details</comment>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>VT-x/AMD-V</source>
+        <comment>details (system)</comment>
+        <translation>VT-x/AMD-V</translation>
+    </message>
+    <message>
+        <source>PAE/NX</source>
+        <comment>details (system)</comment>
+        <translation>PAE/NX</translation>
+    </message>
+    <message>
+        <source>Acceleration</source>
+        <comment>details (system)</comment>
+        <translation>Acceleration</translation>
+    </message>
+    <message>
+        <source>Screens</source>
+        <comment>details (display)</comment>
+        <translation>Skærme</translation>
+    </message>
+    <message>
+        <source>3D</source>
+        <comment>details (display)</comment>
+        <translation>3D</translation>
+    </message>
+    <message>
+        <source>Acceleration</source>
+        <comment>details (display)</comment>
+        <translation>Acceleration</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (display/vrde/VRDE server)</comment>
+        <translation>Deaktiveret</translation>
+    </message>
+    <message>
+        <source>[CD/DVD]</source>
+        <comment>details (storage)</comment>
+        <translation>[CD/DVD]</translation>
+    </message>
+    <message>
+        <source>Not attached</source>
+        <comment>details (storage)</comment>
+        <translation type="obsolete">Ikke tilsluttet</translation>
+    </message>
+    <message>
+        <source>Controller</source>
+        <comment>details (audio)</comment>
+        <translation>Lydenhed</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (audio)</comment>
+        <translation>Deaktiveret</translation>
+    </message>
+    <message>
+        <source>Bridged adapter, %1</source>
+        <comment>details (network)</comment>
+        <translation type="obsolete">Netværksbro, %1</translation>
+    </message>
+    <message>
+        <source>Internal network, &apos;%1&apos;</source>
+        <comment>details (network)</comment>
+        <translation type="obsolete">Internt netværk, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Host-only adapter, &apos;%1&apos;</source>
+        <comment>details (network)</comment>
+        <translation type="obsolete">Værtsbegrænset netværkskort, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic driver, &apos;%1&apos;</source>
+        <comment>details (network)</comment>
+        <translation type="obsolete">Generisk driver, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
+        <comment>details (network)</comment>
+        <translation type="obsolete">Generisk driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</translation>
+    </message>
+    <message>
+        <source>Adapter %1</source>
+        <comment>details (network)</comment>
+        <translation>Netværkskort %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (network/adapter)</comment>
+        <translation>Deaktiveret</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details (serial)</comment>
+        <translation>Port %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (serial)</comment>
+        <translation>Deaktiveret</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details (parallel)</comment>
+        <translation>Port %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (parallel)</comment>
+        <translation>Deaktiveret</translation>
+    </message>
+    <message>
+        <source>%1 (%2 active)</source>
+        <comment>details (usb)</comment>
+        <translation>%1 (%2 aktiv)</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (usb)</comment>
+        <translation>Deaktiveret</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>details (shared folders)</comment>
+        <translation>Ingen</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>details (description)</comment>
+        <translation>Ingen</translation>
+    </message>
+    <message>
+        <source>Operating System</source>
+        <comment>details (general)</comment>
+        <translation>Operativsystem</translation>
+    </message>
+    <message>
+        <source>Information Inaccessible</source>
+        <comment>details</comment>
+        <translation>Information utilgængelig</translation>
+    </message>
+    <message>
+        <source>Base Memory</source>
+        <comment>details (system)</comment>
+        <translation>Hukommelse</translation>
+    </message>
+    <message>
+        <source>Execution Cap</source>
+        <comment>details (system)</comment>
+        <translation>Ydelsesbegrænsning</translation>
+    </message>
+    <message>
+        <source>Boot Order</source>
+        <comment>details (system)</comment>
+        <translation>Opstartsrækkefølge</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details (system)</comment>
+        <translation>Nested Paging</translation>
+    </message>
+    <message>
+        <source>Video Memory</source>
+        <comment>details (display)</comment>
+        <translation>Grafikhukommelse</translation>
+    </message>
+    <message>
+        <source>2D Video</source>
+        <comment>details (display)</comment>
+        <translation>2D-video</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <comment>details (display/vrde)</comment>
+        <translation>Port til Fjernskærmsserver</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server</source>
+        <comment>details (display/vrde)</comment>
+        <translation>Fjernskærmsserver</translation>
+    </message>
+    <message>
+        <source>Not Attached</source>
+        <comment>details (storage)</comment>
+        <translation>Ikke tilsluttet</translation>
+    </message>
+    <message>
+        <source>Host Driver</source>
+        <comment>details (audio)</comment>
+        <translation>Lydsystem</translation>
+    </message>
+    <message>
+        <source>Bridged Adapter, %1</source>
+        <comment>details (network)</comment>
+        <translation>Netværksbro, %1</translation>
+    </message>
+    <message>
+        <source>Internal Network, &apos;%1&apos;</source>
+        <comment>details (network)</comment>
+        <translation>Internt netværk, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Host-only Adapter, &apos;%1&apos;</source>
+        <comment>details (network)</comment>
+        <translation>Værtsbegrænset netværkskort, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic Driver, &apos;%1&apos;</source>
+        <comment>details (network)</comment>
+        <translation>Generisk driver, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic Driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
+        <comment>details (network)</comment>
+        <translation>Generisk driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</translation>
+    </message>
+    <message>
+        <source>Device Filters</source>
+        <comment>details (usb)</comment>
+        <translation>Enhedsfiltre</translation>
+    </message>
+    <message>
+        <source>USB Controller Inaccessible</source>
+        <comment>details (usb)</comment>
+        <translation>USB-styreenhed utilgængelig</translation>
+    </message>
+    <message>
+        <source>Shared Folders</source>
+        <comment>details (shared folders)</comment>
+        <translation>Delte mapper</translation>
+    </message>
+</context>
+<context>
+    <name>UIGDetailsUpdateThreadAudio</name>
+    <message>
+        <source>Controller</source>
+        <comment>details</comment>
+        <translation type="obsolete">Lydenhed</translation>
+    </message>
+</context>
+<context>
+    <name>UIGDetailsUpdateThreadDescription</name>
+    <message>
+        <source>None</source>
+        <comment>details</comment>
+        <translation type="obsolete">Ingen</translation>
+    </message>
+</context>
+<context>
+    <name>UIGDetailsUpdateThreadDisplay</name>
+    <message>
+        <source>Video Memory</source>
+        <comment>details</comment>
+        <translation type="obsolete">Grafikhukommelse</translation>
+    </message>
+    <message>
+        <source>Screens</source>
+        <comment>details</comment>
+        <translation type="obsolete">Skærme</translation>
+    </message>
+    <message>
+        <source>2D Video</source>
+        <comment>details report</comment>
+        <translation type="obsolete">2D-video</translation>
+    </message>
+    <message>
+        <source>3D</source>
+        <comment>details report</comment>
+        <translation type="obsolete">3D</translation>
+    </message>
+    <message>
+        <source>Acceleration</source>
+        <comment>details</comment>
+        <translation type="obsolete">Acceleration</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <comment>details</comment>
+        <translation type="obsolete">Fjernskærm-serverport</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server</source>
+        <comment>details</comment>
+        <translation type="obsolete">Fjernskærm-server</translation>
+    </message>
+</context>
+<context>
+    <name>UIGDetailsUpdateThreadGeneral</name>
+    <message>
+        <source>Name</source>
+        <comment>details</comment>
+        <translation type="obsolete">Navn</translation>
+    </message>
+</context>
+<context>
+    <name>UIGDetailsUpdateThreadNetwork</name>
+    <message>
+        <source>Bridged adapter, %1</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Netværksbro, %1</translation>
+    </message>
+    <message>
+        <source>Internal network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Internt netværk, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Host-only adapter, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Værtsbegrænset netværkskort, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic driver, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Generisk driver, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
+        <comment>details report (network)</comment>
+        <translation type="obsolete">Generisk driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</translation>
+    </message>
+    <message>
+        <source>Adapter %1</source>
+        <comment>details</comment>
+        <translation type="obsolete">Netværkskort %1</translation>
+    </message>
+</context>
+<context>
+    <name>UIGDetailsUpdateThreadParallel</name>
+    <message>
+        <source>Port %1</source>
+        <comment>details</comment>
+        <translation type="obsolete">Port %1</translation>
+    </message>
+</context>
+<context>
+    <name>UIGDetailsUpdateThreadSF</name>
+    <message>
+        <source>None</source>
+        <comment>details</comment>
+        <translation type="obsolete">Ingen</translation>
+    </message>
+</context>
+<context>
+    <name>UIGDetailsUpdateThreadSerial</name>
+    <message>
+        <source>Port %1</source>
+        <comment>details</comment>
+        <translation type="obsolete">Port %1</translation>
+    </message>
+</context>
+<context>
+    <name>UIGDetailsUpdateThreadStorage</name>
+    <message>
+        <source>Not attached</source>
+        <comment>details</comment>
+        <translation type="obsolete">Ikke tilsluttet</translation>
+    </message>
+</context>
+<context>
+    <name>UIGDetailsUpdateThreadSystem</name>
+    <message>
+        <source>Base Memory</source>
+        <comment>details</comment>
+        <translation type="obsolete">Hukommelse</translation>
+    </message>
+    <message>
+        <source>Processors</source>
+        <comment>details</comment>
+        <translation type="obsolete">Processorer</translation>
+    </message>
+    <message>
+        <source>Execution Cap</source>
+        <comment>details</comment>
+        <translation type="obsolete">Ydelsesbegrænsning</translation>
+    </message>
+    <message>
+        <source>Boot Order</source>
+        <comment>details</comment>
+        <translation type="obsolete">Opstartsrækkefølge</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details</comment>
+        <translation type="obsolete">Nested Paging</translation>
+    </message>
+    <message>
+        <source>PAE/NX</source>
+        <comment>details report</comment>
+        <translation type="obsolete">PAE/NX</translation>
+    </message>
+    <message>
+        <source>Acceleration</source>
+        <comment>details</comment>
+        <translation type="obsolete">Acceleration</translation>
+    </message>
+</context>
+<context>
+    <name>UIGDetailsUpdateThreadUSB</name>
+    <message>
+        <source>%1 (%2 active)</source>
+        <comment>details</comment>
+        <translation type="obsolete">%1 (%2 aktiv)</translation>
+    </message>
+</context>
+<context>
+    <name>UIGMachinePreview</name>
+    <message>
+        <source>Update Disabled</source>
+        <translation type="obsolete">Opdatering slået fra</translation>
+    </message>
+    <message>
+        <source>Every 0.5 s</source>
+        <translation>Hvert halve sekund</translation>
+    </message>
+    <message>
+        <source>Every 1 s</source>
+        <translation>Hvert sekund</translation>
+    </message>
+    <message>
+        <source>Every 2 s</source>
+        <translation>Hvert andet sekund</translation>
+    </message>
+    <message>
+        <source>Every 5 s</source>
+        <translation>Hvert femte sekund</translation>
+    </message>
+    <message>
+        <source>Every 10 s</source>
+        <translation>Hvert tiende sekund</translation>
+    </message>
+    <message>
+        <source>No Preview</source>
+        <translation type="obsolete">Ingen forhåndsvisning</translation>
+    </message>
+    <message>
+        <source>Update disabled</source>
+        <translation>Opdatering deaktiveret</translation>
+    </message>
+    <message>
+        <source>No preview</source>
+        <translation>Ingen forhåndsvisning</translation>
+    </message>
+</context>
+<context>
+    <name>UIGlobalSettingsDisplay</name>
+    <message>
+        <source>Maximum Guest Screen &amp;Size:</source>
+        <translation>&amp;Største skærmopløsning i gæst:</translation>
+    </message>
+    <message>
+        <source>&amp;Width:</source>
+        <translation>Bredde:</translation>
+    </message>
+    <message>
+        <source>Specifies the maximum width which we would like the guest to use.</source>
+        <translation>Angiver den største skærmbredde som gæsten kan anvende.</translation>
+    </message>
+    <message>
+        <source>&amp;Height:</source>
+        <translation>&amp;Højde:</translation>
+    </message>
+    <message>
+        <source>Specifies the maximum height which we would like the guest to use.</source>
+        <translation>Angiver den største skærmhøjde som gæsten kan anvende.</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <comment>Maximum Guest Screen Size</comment>
+        <translation>Automatisk</translation>
+    </message>
+    <message>
+        <source>Suggest a reasonable maximum screen size to the guest. The guest will only see this suggestion when guest additions are installed.</source>
+        <translation>Foreslå en fornuftig største skærmopløsning til gæsten. Gæsten ser kun dette forslag, når Gæstetilføjelser er installeret.</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>Maximum Guest Screen Size</comment>
+        <translation>Ingen</translation>
+    </message>
+    <message>
+        <source>Do not attempt to limit the size of the guest screen.</source>
+        <translation>Begræns ikke størrelsen af gæstens skærm.</translation>
+    </message>
+    <message>
+        <source>Hint</source>
+        <comment>Maximum Guest Screen Size</comment>
+        <translation>Tip</translation>
+    </message>
+    <message>
+        <source>Suggest a maximum screen size to the guest. The guest will only see this suggestion when guest additions are installed.</source>
+        <translation>Foreslå en største skærmopløsning til gæsten. Gæsten ser kun dette forslag, når Gæstetilføjelser er installeret.</translation>
     </message>
 </context>
 <context>
@@ -2447,7 +3654,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Appliance Import Wizard</source>
-        <translation>Guide til import af Prækonfigureret system</translation>
+        <translation type="obsolete">Guide til import af Prækonfigureret system</translation>
     </message>
     <message>
         <source>Welcome to the Appliance Import Wizard!</source>
@@ -2491,7 +3698,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Restore Defaults</source>
-        <translation>Brug standardværdier</translation>
+        <translation type="obsolete">Brug standardværdier</translation>
     </message>
     <message>
         <source>&amp;Import &gt;</source>
@@ -2499,37 +3706,37 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Import</source>
-        <translation>Import</translation>
+        <translation type="obsolete">Import</translation>
     </message>
 </context>
 <context>
     <name>UIImportApplianceWzdPage1</name>
     <message>
         <source>Select an appliance to import</source>
-        <translation>Vælg det Prækonfigurerede system, der skal importeres</translation>
+        <translation type="obsolete">Vælg det Prækonfigurerede system, der skal importeres</translation>
     </message>
     <message>
         <source>Open Virtualization Format (%1)</source>
-        <translation>Open Virtualization Format (%1)</translation>
+        <translation type="obsolete">Open Virtualization Format (%1)</translation>
     </message>
     <message>
         <source>Welcome to the Appliance Import Wizard!</source>
-        <translation>Denne guide hjælper dig med at importere et Prækonfigureret system!</translation>
+        <translation type="obsolete">Denne guide hjælper dig med at importere et Prækonfigureret system!</translation>
     </message>
     <message>
         <source>&lt;p&gt;This wizard will guide you through importing an appliance.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Denne guide hjælper dig med at importere et Prækonfigureret system.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;VirtualBox understøtter Open Virtualization Format (OVF). For at fortsætte, vælg filen herunder:&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Denne guide hjælper dig med at importere et Prækonfigureret system.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;VirtualBox understøtter Open Virtualization Format (OVF). For at fortsætte, vælg filen herunder:&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
     <name>UIImportApplianceWzdPage2</name>
     <message>
         <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
-        <translation>Disse virtuelle maskiner og deres konfiguration er en del af det Prækonfigurerede system og kan importeres til VirtualBox. Du kan ændre de fleste af de viste egenskaber ved at dobbeltklikke på værdierne og deaktivere andre ved hjælp af afkrydsningsfelterne.</translation>
+        <translation type="obsolete">Disse virtuelle maskiner og deres konfiguration er en del af det Prækonfigurerede system og kan importeres til VirtualBox. Du kan ændre de fleste af de viste egenskaber ved at dobbeltklikke på værdierne og deaktivere andre ved hjælp af afkrydsningsfelterne.</translation>
     </message>
     <message>
         <source>Appliance Import Settings</source>
-        <translation>Indstillinger for import af Prækonfigureret system</translation>
+        <translation type="obsolete">Indstillinger for import af Prækonfigureret system</translation>
     </message>
 </context>
 <context>
@@ -2689,7 +3896,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
-        <translation>EKSPERIMENTEL version %1r%2 - %3</translation>
+        <translation type="obsolete">EKSPERIMENTEL version %1r%2 - %3</translation>
     </message>
     <message>
         <source>Preview Monitor %1</source>
@@ -2738,6 +3945,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>No supported devices connected to the host PC</source>
         <translation>Ingen understøttede enheder forbundet til værtsmaskinen</translation>
+    </message>
+    <message>
+        <source>Select a filename for the screenshot ...</source>
+        <translation>Vælg et filnavn til skærmbilledet ...</translation>
     </message>
 </context>
 <context>
@@ -2891,7 +4102,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>you enabled 3D acceleration. However, 3D acceleration is not working on the current host setup so you will not be able to start the VM.</source>
-        <translation type="unfinished"></translation>
+        <translation>du har aktiveret 3D-acceleration. 3D-acceleration virker ikke med gæstens nuværende opsætning, så den virtuelle maskine kan ikke startes.</translation>
     </message>
 </context>
 <context>
@@ -2906,11 +4117,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Name:</source>
-        <translation>&amp;Navn:</translation>
+        <translation type="obsolete">&amp;Navn:</translation>
     </message>
     <message>
         <source>Displays the name of the virtual machine.</source>
-        <translation>Viser navnet på den virtuelle maskine.</translation>
+        <translation type="obsolete">Viser navnet på den virtuelle maskine.</translation>
     </message>
     <message>
         <source>&amp;Advanced</source>
@@ -2972,6 +4183,14 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>you have selected a 64-bit guest OS type for this VM. As such guests require hardware virtualization (VT-x/AMD-V), this feature will be enabled automatically.</source>
         <translation>Du har valgt et 64-bit gæsteoperativsystem til denne VM. Da denne type gæst kræver hardware-virtualisering (VT-x/AMD-V) er dette automatisk blevet slået til.</translation>
+    </message>
+    <message>
+        <source>&amp;Drag&apos;n&apos;Drop:</source>
+        <translation>Træk og slip:</translation>
+    </message>
+    <message>
+        <source>Selects which data will be copied between the guest and the host OS by drag&apos;n&apos;drop. This feature requires Guest Additions to be installed in the guest OS.</source>
+        <translation>Vælger hvilke data der kopieres mellem gæst- og værtsoperativsystem via træk og slip. Denne funktion kræver at Gæstetilføjelser er installeret i gæsteoperativsystemet.</translation>
     </message>
 </context>
 <context>
@@ -3039,7 +4258,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Mac Address:</source>
-        <translation>&amp;MAC-adresse:</translation>
+        <translation type="obsolete">&amp;MAC-adresse:</translation>
     </message>
     <message>
         <source>Displays the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</source>
@@ -3101,6 +4320,18 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Selects the driver to be used with this network card.</source>
         <translation>Vælger driveren, der bruges til dette netværkskort.</translation>
+    </message>
+    <message>
+        <source>&amp;MAC Address:</source>
+        <translation>&amp;MAC-adresse:</translation>
+    </message>
+    <message>
+        <source>the MAC address must be 12 hexadecimal digits long.</source>
+        <translation>MAC-adressen skal bestå af 12 hexadecimale tegn.</translation>
+    </message>
+    <message>
+        <source>the second digit in the MAC address may not be odd as only unicast addresses are allowed.</source>
+        <translation>Det andet tegn i MAC-adressen må ikke være ulige, da kun unicast-adresser er tilladt.</translation>
     </message>
 </context>
 <context>
@@ -3613,19 +4844,19 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>IDE Controller</source>
-        <translation>IDE-styreenhed</translation>
+        <translation type="obsolete">IDE-styreenhed</translation>
     </message>
     <message>
         <source>SATA Controller</source>
-        <translation>SATA-styreenhed</translation>
+        <translation type="obsolete">SATA-styreenhed</translation>
     </message>
     <message>
         <source>SCSI Controller</source>
-        <translation>SCSI-styreenhed</translation>
+        <translation type="obsolete">SCSI-styreenhed</translation>
     </message>
     <message>
         <source>Floppy Controller</source>
-        <translation>Diskette-styreenhed</translation>
+        <translation type="obsolete">Diskette-styreenhed</translation>
     </message>
     <message>
         <source>Hard &amp;Disk:</source>
@@ -3745,7 +4976,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>SAS Controller</source>
-        <translation>SAS styreenhed</translation>
+        <translation type="obsolete">SAS styreenhed</translation>
     </message>
     <message>
         <source>Storage Controller</source>
@@ -3873,6 +5104,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Selects the port count of the SATA storage controller currently selected in the Storage Tree. This must be at least one more than the highest port number you need to use.</source>
         <translation>Vælger port-antal for SATA lagerstyreenheden, der er valgt i Lager-træstrukturen. Antallet skal være mindst en højere end det højeste port-nummer du har brug for.</translation>
+    </message>
+    <message>
+        <source>Controller: %1</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4331,10 +5566,40 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UIMachineWindow</name>
+    <message>
+        <source> EXPERIMENTAL build %1r%2 - %3</source>
+        <translation>EKSPERIMENTEL version %1r%2 - %3</translation>
+    </message>
+</context>
+<context>
     <name>UIMachineWindowNormal</name>
     <message>
         <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
         <translation>Viser den nuværende værtstast.&lt;br&gt;Et tryk på den angivne tast skifter status for integration med mus og tastatur. Den kan også bruges i kombination med andre taster til at kalde handlinger fra hovedmenuen direkte.</translation>
+    </message>
+</context>
+<context>
+    <name>UIMediumManager</name>
+    <message>
+        <source>&amp;Hard drives</source>
+        <translation>&amp;Harddiske</translation>
+    </message>
+    <message>
+        <source>&amp;Optical disks</source>
+        <translation>&amp;Optiske diske</translation>
+    </message>
+    <message>
+        <source>&amp;Floppy disks</source>
+        <translation>Disketter</translation>
+    </message>
+    <message>
+        <source>&amp;Select</source>
+        <translation>Vælg</translation>
+    </message>
+    <message>
+        <source>C&amp;lose</source>
+        <translation>&amp;Luk</translation>
     </message>
 </context>
 <context>
@@ -4474,7 +5739,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to discard the saved state of the virtual machine &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;This operation is equivalent to resetting or powering off the machine without doing a proper shutdown of the guest OS.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Er du sikker på at du vil droppe den gemte tilstand af den virtuelle maskine &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;Handlingen svarer til at nulstille eller slukke for maskinen uden at lukke gæsteoperativsystemet pænt ned først.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Er du sikker på at du vil droppe den gemte tilstand af den virtuelle maskine &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;Handlingen svarer til at nulstille eller slukke for maskinen uden at lukke gæsteoperativsystemet pænt ned først.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to create a new session.</source>
@@ -4609,11 +5874,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Could not find the VirtualBox Guest Additions CD image file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; or &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this CD image from the Internet?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Kunne ikke finde VirtualBox Gæstetilføjelser CD-aftrykket &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; eller &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Vil du hente det fra internettet?&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Kunne ikke finde VirtualBox Gæstetilføjelser CD-aftrykket &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; eller &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Vil du hente det fra internettet?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Failed to download the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Kunne ikke hente VirtualBox Gæstetilføjelser CD-aftrykket fra &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Kunne ikke hente VirtualBox Gæstetilføjelser CD-aftrykket fra &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to download the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
@@ -4629,7 +5894,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings dialog or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you wish to continue?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Du har ikke tilsluttet en harddisk til den nye virtuelle maskine. Maskinen vil ikke kunne starte, medmindre du tilslutter en harddisk indeholdende et gæsteoperativsystem eller andet opstartsprogram enten via Maskin-indstillinger eller Første gang-guiden.&lt;/p&gt;&lt;p&gt;Vil du fortsætte?&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Du har ikke tilsluttet en harddisk til den nye virtuelle maskine. Maskinen vil ikke kunne starte, medmindre du tilslutter en harddisk indeholdende et gæsteoperativsystem eller andet opstartsprogram enten via Maskin-indstillinger eller Første gang-guiden.&lt;/p&gt;&lt;p&gt;Vil du fortsætte?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to find license files in &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
@@ -4729,7 +5994,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Do you really want to reset the virtual machine?&lt;/p&gt;&lt;p&gt;This will cause any unsaved data in applications running inside it to be lost.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Er du sikker på at du vil nulstille den virtuelle maskine?&lt;/p&gt;&lt;p&gt;Når maskinen nulstilles, mistes alle ikke-gemte data i alle programmer, der kører i den.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Er du sikker på at du vil nulstille den virtuelle maskine?&lt;/p&gt;&lt;p&gt;Når maskinen nulstilles, mistes alle ikke-gemte data i alle programmer, der kører i den.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Reset</source>
@@ -4794,51 +6059,51 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Contents...</source>
-        <translation>Indhold...</translation>
+        <translation type="obsolete">Indhold...</translation>
     </message>
     <message>
         <source>Show the online help contents</source>
-        <translation>Vis indholdet af hjælp</translation>
+        <translation type="obsolete">Vis indholdet af hjælp</translation>
     </message>
     <message>
         <source>&amp;VirtualBox Web Site...</source>
-        <translation>&amp;VirtualBox&apos; hjemmeside...</translation>
+        <translation type="obsolete">&amp;VirtualBox&apos; hjemmeside...</translation>
     </message>
     <message>
         <source>Open the browser and go to the VirtualBox product web site</source>
-        <translation>Åbn en browser og gå til VirtualBox&apos; hjemmeside</translation>
+        <translation type="obsolete">Åbn en browser og gå til VirtualBox&apos; hjemmeside</translation>
     </message>
     <message>
         <source>&amp;Reset All Warnings</source>
-        <translation>Nulstil alle adva&amp;rsler</translation>
+        <translation type="obsolete">Nulstil alle adva&amp;rsler</translation>
     </message>
     <message>
         <source>Go back to showing all suppressed warnings and messages</source>
-        <translation>Vis alle undertrykte advarsler og beskeder igen</translation>
+        <translation type="obsolete">Vis alle undertrykte advarsler og beskeder igen</translation>
     </message>
     <message>
         <source>R&amp;egister VirtualBox...</source>
-        <translation>R&amp;egistrér VirtualBox...</translation>
+        <translation type="obsolete">R&amp;egistrér VirtualBox...</translation>
     </message>
     <message>
         <source>Open VirtualBox registration form</source>
-        <translation>Åbn VirtualBox&apos; registreringsformular</translation>
+        <translation type="obsolete">Åbn VirtualBox&apos; registreringsformular</translation>
     </message>
     <message>
         <source>C&amp;heck for Updates...</source>
-        <translation>Søg efter opdateringer...</translation>
+        <translation type="obsolete">Søg efter opdateringer...</translation>
     </message>
     <message>
         <source>Check for a new VirtualBox version</source>
-        <translation>Søg efter ny version af VirtualBox</translation>
+        <translation type="obsolete">Søg efter ny version af VirtualBox</translation>
     </message>
     <message>
         <source>&amp;About VirtualBox...</source>
-        <translation>Om Virtu&amp;alBox...</translation>
+        <translation type="obsolete">Om Virtu&amp;alBox...</translation>
     </message>
     <message>
         <source>Show a dialog with product information</source>
-        <translation>Vis vindue med produktinformation</translation>
+        <translation type="obsolete">Vis vindue med produktinformation</translation>
     </message>
     <message>
         <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
@@ -4938,7 +6203,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Unable to obtain the new version information due to the following error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Kunne ikke hente information om nye versioner på grund af følgende fejl:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Kunne ikke hente information om nye versioner på grund af følgende fejl:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;One or more virtual hard disks, CD/DVD or floppy media are not currently accessible. As a result, you will not be able to operate virtual machines that use these media until they become accessible later.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Check&lt;/b&gt; to open the Virtual Media Manager window and see what media are inaccessible, or press &lt;b&gt;Ignore&lt;/b&gt; to ignore this message.&lt;/p&gt;</source>
@@ -5110,7 +6375,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Failed to remove file.</source>
-        <translation>Kunne ikke pbne filer.</translation>
+        <translation>Kunne ikke fjerne filer.</translation>
     </message>
     <message>
         <source>You seem to have the USBFS filesystem mounted at /sys/bus/usb/drivers. We strongly recommend that you change this, as it is a severe mis-configuration of your system which could cause USB devices to fail in unexpected ways.</source>
@@ -5294,7 +6559,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Failed to download the VirtualBox User Manual from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Kunne ikke hente VirtualBox&apos; brugermanual fra &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Kunne ikke hente VirtualBox&apos; brugermanual fra &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
@@ -5314,11 +6579,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;You are about to remove the virtual machine &lt;b&gt;%1&lt;/b&gt; from the machine list.&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Du er ved at fjerne den virtuelle maskine &lt;b&gt;%1&lt;/b&gt; fra listen.&lt;/p&gt;&lt;p&gt;Skal filerne der indeholder den virtuelle maskine slettes fra harddisken?&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Du er ved at fjerne den virtuelle maskine &lt;b&gt;%1&lt;/b&gt; fra listen.&lt;/p&gt;&lt;p&gt;Skal filerne der indeholder den virtuelle maskine slettes fra harddisken?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You are about to remove the virtual machine &lt;b&gt;%1&lt;/b&gt; from the machine list.&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well? Doing this will also remove the files containing the machine&apos;s virtual hard disks if they are not in use by another machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Du er ved at fjerne den virtuelle maskine &lt;b&gt;%1&lt;/b&gt; fra listen.&lt;/p&gt;&lt;p&gt;Skal filerne der indeholder den virtuelle maskine slettes fra harddisken? Dette vil også fjerne de filer, der indeholder den virtuelle maskines harddisk(e), hvis de ikke bruges af en anden maskine.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Du er ved at fjerne den virtuelle maskine &lt;b&gt;%1&lt;/b&gt; fra listen.&lt;/p&gt;&lt;p&gt;Skal filerne der indeholder den virtuelle maskine slettes fra harddisken? Dette vil også fjerne de filer, der indeholder den virtuelle maskines harddisk(e), hvis de ikke bruges af en anden maskine.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Delete all files</source>
@@ -5330,7 +6595,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>You are about to remove the inaccessible virtual machine &lt;b&gt;%1&lt;/b&gt; from the machine list. Do you wish to proceed?</source>
-        <translation>Du er ved at fjerne den utilgængelige virtuelle maskine &lt;b&gt;%1&lt;/b&gt; fra listen. Vil du fortsætte?</translation>
+        <translation type="obsolete">Du er ved at fjerne den utilgængelige virtuelle maskine &lt;b&gt;%1&lt;/b&gt; fra listen. Vil du fortsætte?</translation>
     </message>
     <message>
         <source>Remove</source>
@@ -5386,7 +6651,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message numerus="yes">
         <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
-        <translation type="unfinished">
+        <translation type="obsolete">
             <numerusform>&lt;p&gt;De virtuelle maskiner &lt;b&gt;%1&lt;/b&gt; har gemte tilstande.&lt;/p&gt;&lt;p&gt;Hvis du fortsætter vil kørselstilstanden af de eksporterede maskiner blive kasseret. Bemærk at de nuværende maskiner ikke ændres.&lt;/p&gt;</numerusform>
             <numerusform></numerusform>
         </translation>
@@ -5547,7 +6812,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;You are about to restore snapshot &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;You can create a snapshot of the current state of the virtual machine first by checking the box below; if you do not do this the current state will be permanently lost. Do you wish to proceed?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Du er ved at indlæse øjebliksbilledet &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;For ikke at miste maskinens nuværende tilstand, kan du lave et øjebliksbillede af den ved at markere nedenstående afkrydsningsfelt. Vil du fortsætte?&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Du er ved at indlæse øjebliksbilledet &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;For ikke at miste maskinens nuværende tilstand, kan du lave et øjebliksbillede af den ved at markere nedenstående afkrydsningsfelt. Vil du fortsætte?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Create a snapshot of the current machine state</source>
@@ -5555,7 +6820,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to restore snapshot &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Bekræft at du vil indlæse øjebliksbillede &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Bekræft at du vil indlæse øjebliksbillede &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Error changing medium type from &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
@@ -5621,16 +6886,130 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Kunne ikke hente &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; fra &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Kunne ikke hente &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; fra &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You have version %1 of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;You should download and install version %3 of this extension pack from Oracle!&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Du har version %1 af &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installeret.&lt;/p&gt;&lt;p&gt;Du bør hente og installere version %3 af denne udvidelsespakke fra Oracle&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Ok</source>
         <comment>extension pack</comment>
-        <translation type="unfinished"></translation>
+        <translation>OK</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to initialize COM because the VirtualBox global configuration directory &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; is not accessible. Please check the permissions of this directory and of its parent directory.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Kunne ikke initialisere COM da VirtualBox globale konfigurationsmappe &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; ikke er tilgængelig. Kontroller rettighederne på denne mappe og overliggende mapper&lt;/p&gt;&lt;p&gt;Programmet afsluttes.&lt;/p&gt;</translation>
+    </message>
+    <message numerus="yes">
+        <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
+        <comment>This text is never used with n == 0.  Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many machines are in the list and doesn&apos;t need to be told).</comment>
+        <translation>
+            <numerusform>&lt;p&gt;Disse virtuelle maskiner &lt;b&gt;%1&lt;/b&gt; har gemte tilstande.&lt;/p&gt;&lt;p&gt;Hvis du fortsætter vil kørselstilstanden af de eksporterede maskiner blive kasseret. Øvrige maskiner påvirkes ikke.&lt;/p&gt;</numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to remove following virtual machine items from the machine list:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Do you wish to proceed?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Du er ved at fjerne følgende virtuelle maskiner fra listen: &lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Vil du fortsætte?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to remove following inaccessible virtual machines from the machine list:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Do you wish to proceed?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Du er ved at fjerne følgende utilgængelige virtuelle maskiner fra listen:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Vil du fortsætte?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to remove following virtual machines from the machine list:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well? Doing this will also remove the files containing the machine&apos;s virtual hard disks if they are not in use by another machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Du er ved at fjerne følgende virtuelle maskiner fra listen:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Skal filerne der indeholder den virtuelle maskine også slettes? Dette vil også fjerne de filer, der indeholder den virtuelle maskines harddisk(e), hvis de ikke bruges af en anden maskine.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to remove following virtual machines from the machine list:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Du er ved at fjerne følgende virtuelle maskiner fra listen:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Skal filerne der indeholder den virtuelle maskine også slettes?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Do you wish to cancel all current network operations?</source>
+        <translation>Vil du afbryde alle igangværende netværkshandlinger?</translation>
+    </message>
+    <message>
+        <source>ACPI Shutdown</source>
+        <comment>machine</comment>
+        <translation>ACPI-nedlukning</translation>
+    </message>
+    <message>
+        <source>Power Off</source>
+        <comment>machine</comment>
+        <translation>Sluk</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Cannot remove the machine folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please check that this folder really exists and that you have permissions to remove it.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Kan ikke fjerne mappen &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Kontroller at mappen eksisterer og at du har rettigheder til at fjerne den (skriveadgang til overliggende mappe).&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Cannot create the machine folder &lt;b&gt;%1&lt;/b&gt; in the parent folder &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;This folder already exists and possibly belongs to another machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Kan ikke oprette mappen &lt;b&gt;%1&lt;/b&gt; i mappen &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Mappen findes allerede og tilhører formentlig en anden maskine.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>You are about to create a new virtual machine without a hard drive. You will not be able to install an operating system on the machine until you add one. In the mean time you will only be able to start the machine using a virtual optical disk or from the network.</source>
+        <translation>Du er ved at oprette en ny virtuel maskine uden en harddisk. Du vil ikke kunne installere et operativsystem på maskinen før du tilføjer en harddisk. Indtil da kan du kun starte maskinen med en virtuel optisk disk eller fra netværket.</translation>
+    </message>
+    <message>
+        <source>Failed to drop data.</source>
+        <translation>Kunne ikke kassere data.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not find the VirtualBox Guest Additions CD image file.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this CD image from the Internet?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Kunne ikke finde VirtualBox Gæstetilføjelser CD-aftrykket &lt;nobr&gt;&lt;/p&gt;&lt;p&gt;Vil du hente det fra internettet?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to discard the saved state of the following virtual machines?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;This operation is equivalent to resetting or powering off the machine without doing a proper shutdown of the guest OS.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Er du sikker på at du vil kassere de gemte tilstande af følgende virtuelle maskiner?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Det svarer til at nulstille eller slukke for maskinen uden at lukke gæsteoperativsystemet korrekt ned først.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Do you really want to reset the following virtual machines?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;This will cause any unsaved data in applications running inside it to be lost.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Er du sikker på at du vil nulstille følgende virtuelle maskiner?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Du mister alle ikke-gemte data i alle programmer, der kører i den.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Do you really want to send an ACPI shutdown signal to the following virtual machines?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Er du sikker på at du vil sende signalet ACPI-nedlukning til følgende virtuelle maskiner?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Do you really want to power off the following virtual machines?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;This will cause any unsaved data in applications running inside it to be lost.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Er du sikker på at du vil slukke følgende virtuelle maskiner?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Du mister alle ikke-gemte data i alle programmer, der kører i den.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are trying to move machine &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; to group &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; which already have sub-group &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;Please resolve this name-conflict and try again.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Du forsøger at flytte maskinen &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; til gruppen &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; der allerede har undergruppen &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;Du skal løse navnekonflikten før du forsøger igen.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are trying to move group &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; to group &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; which already have another item with the same name.&lt;/p&gt;&lt;p&gt;Would you like to automatically rename it?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Du forsøger at flytte gruppen &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; til gruppen &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; som allerede har et element med samme navn.&lt;/p&gt;&lt;p&gt;Vil du omdøbe dette automatiskt?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Rename</source>
+        <translation>Omdøb</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to restore snapshot &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;You can create a snapshot of the current state of the virtual machine first by checking the box below; if you do not do this the current state will be permanently lost. Do you wish to proceed?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Du er ved at indlæse øjebliksbilledet &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;Du kan lave et øjebliksbillede af maskinens nuværende tilstand ved at sætte hak i feltet nedenfor. Gør du ikke det mister du den nuværende tilstand permanent. Vil du fortsætte?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to restore snapshot &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Er du sikker på at du vil indlæse øjebliksbilledet &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to set groups of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>Kunne ikke sætte grupperne for den virtuelle maskine &lt;b&gt;%1&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not start the machine &lt;b&gt;%1&lt;/b&gt; because the following physical network interfaces were not found:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/p&gt;&lt;p&gt;You can either change the machine&apos;s network settings or stop the machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Kunne ikke starte maskinen &lt;b&gt;%1&lt;/b&gt; da følgende fysiske netværkskort ikke blev fundet:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Du skal enten stoppe maskinen eller tilpasse dens netværksopsætning.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Change Network Settings</source>
+        <translation>Tilpas netværksopsætning</translation>
+    </message>
+    <message>
+        <source>Close Virtual Machine</source>
+        <translation>Stop virtuel maskine</translation>
     </message>
 </context>
 <context>
@@ -5656,37 +7035,37 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Cancel the VirtualBox User Manual download</source>
-        <translation>Afbryd hentningen af brugermanual til VirtualBox</translation>
+        <translation type="obsolete">Afbryd hentningen af brugermanual til VirtualBox</translation>
     </message>
     <message>
         <source>Downloading the VirtualBox User Manual</source>
-        <translation>Henter brugermanual til VirtualBox</translation>
+        <translation type="obsolete">Henter brugermanual til VirtualBox</translation>
     </message>
     <message>
         <source>Downloading the VirtualBox User Manual &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
-        <translation>Henter brugermanual til VirtualBox &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
+        <translation type="obsolete">Henter brugermanual til VirtualBox &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
     <name>UIMiniProgressWidgetAdditions</name>
     <message>
         <source>Cancel the VirtualBox Guest Additions CD image download</source>
-        <translation>Afbryd hentningen af CD&apos;en med VirtualBox Gæstetilføjelser</translation>
+        <translation type="obsolete">Afbryd hentningen af CD&apos;en med VirtualBox Gæstetilføjelser</translation>
     </message>
     <message>
         <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
-        <translation>Henter CD-aftrykket med VirtualBox Gæstetilføjelser fra &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
+        <translation type="obsolete">Henter CD-aftrykket med VirtualBox Gæstetilføjelser fra &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
     <name>UIMiniProgressWidgetExtension</name>
     <message>
         <source>Cancel the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; download</source>
-        <translation>Afbryd hentningen af &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">Afbryd hentningen af &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Downloading the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</source>
-        <translation>Henter &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; fra &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</translation>
+        <translation type="obsolete">Henter &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; fra &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
@@ -5701,10 +7080,92 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UINameAndSystemEditor</name>
+    <message>
+        <source>&amp;Name:</source>
+        <translation>&amp;Navn:</translation>
+    </message>
+    <message>
+        <source>Displays the name of the virtual machine.</source>
+        <translation>Viser navnet på den virtuelle maskine.</translation>
+    </message>
+    <message>
+        <source>&amp;Type:</source>
+        <translation>&amp;Type:</translation>
+    </message>
+    <message>
+        <source>Displays the operating system family that you plan to install into this virtual machine.</source>
+        <translation>Viser typen af operativsystem som du planlægger at installere i den virtuelle maskine.</translation>
+    </message>
+    <message>
+        <source>&amp;Version:</source>
+        <translation>&amp;Version:</translation>
+    </message>
+    <message>
+        <source>Displays the operating system type that you plan to install into this virtual machine (called a guest operating system).</source>
+        <translation>Viser typen af operativsystem som du planlægger at installere i denne virtuelle maskine (kaldet gæsteoperativsystemet).</translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkManagerDialog</name>
+    <message>
+        <source>Network Operations Manager</source>
+        <translation>Netværkshåndtering</translation>
+    </message>
+    <message>
+        <source>There are no active network operations.</source>
+        <translation>Der er ingen aktive forbindelser.</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel All</source>
+        <translation>Afbryd alle</translation>
+    </message>
+    <message>
+        <source>Cancel all active network operations</source>
+        <translation>Afbryd alle aktive forbindelser</translation>
+    </message>
+    <message>
+        <source>Error: %1.</source>
+        <translation>Fejl: %1.</translation>
+    </message>
+    <message>
+        <source>Network Operation</source>
+        <translation>Netværksændring</translation>
+    </message>
+    <message>
+        <source>Restart network operation</source>
+        <translation>Genoptag netværksændring</translation>
+    </message>
+    <message>
+        <source>Cancel network operation</source>
+        <translation>Annuller netværksændring</translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkManagerIndicator</name>
+    <message>
+        <source>Current network operations:</source>
+        <translation>Nuværende netværksændringer:</translation>
+    </message>
+    <message>
+        <source>failed</source>
+        <comment>network operation</comment>
+        <translation>Fejlet</translation>
+    </message>
+    <message>
+        <source>(%1 of %2)</source>
+        <translation>(%1 af %2)</translation>
+    </message>
+    <message>
+        <source>Double-click for more information.</source>
+        <translation>Dobbeltklik for mere information.</translation>
+    </message>
+</context>
+<context>
     <name>UINewHDWizard</name>
     <message>
         <source>Create New Virtual Disk</source>
-        <translation>Opret ny virtuel disk</translation>
+        <translation type="obsolete">Opret ny virtuel disk</translation>
     </message>
     <message>
         <source>Welcome to the Create New Virtual Disk Wizard!</source>
@@ -5716,7 +7177,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Summary</source>
-        <translation>Sammendrag</translation>
+        <translation type="obsolete">Sammendrag</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1 Bytes&lt;/nobr&gt;</source>
@@ -5728,7 +7189,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Select a file for the new hard disk image file</source>
-        <translation>Vælg et filnavn til det nye harddisk-aftryk</translation>
+        <translation type="obsolete">Vælg et filnavn til det nye harddisk-aftryk</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
@@ -5750,12 +7211,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Location</source>
         <comment>summary</comment>
-        <translation>Placering</translation>
+        <translation type="obsolete">Placering</translation>
     </message>
     <message>
         <source>Size</source>
         <comment>summary</comment>
-        <translation>Størrelse</translation>
+        <translation type="obsolete">Størrelse</translation>
     </message>
     <message>
         <source>Bytes</source>
@@ -5817,178 +7278,178 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>%1_copy</source>
         <comment>copied virtual disk name</comment>
-        <translation>%1_kopi</translation>
+        <translation type="obsolete">%1_kopi</translation>
     </message>
     <message>
         <source>Create</source>
-        <translation>Opret</translation>
+        <translation type="obsolete">Opret</translation>
     </message>
     <message>
         <source>Copy Virtual Disk</source>
-        <translation>Kopier virtuel disk</translation>
+        <translation type="obsolete">Kopier virtuel disk</translation>
     </message>
     <message>
         <source>Copy</source>
-        <translation>Kopier</translation>
+        <translation type="obsolete">Kopier</translation>
     </message>
     <message>
         <source>Welcome to the virtual disk copying wizard</source>
-        <translation>Velkommen til Virtuel disk kopi-guiden</translation>
+        <translation type="obsolete">Velkommen til Virtuel disk kopi-guiden</translation>
     </message>
     <message>
         <source>&lt;p&gt;This wizard will help you to copy a virtual disk.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Denne guide hjælper dig med at kopiere en virtuel disk&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Denne guide hjælper dig med at kopiere en virtuel disk&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Please select the virtual disk which you would like to copy if it is not already selected. You can either choose one from the list or use the folder icon beside the list to select a virtual disk file.</source>
-        <translation>Vælg den virtuelle disk du vil kopiere, hvis den ikke allerede er valgt. Du kan enten vælge fra listen eller bruge mappe-ikonet ved siden af listen til at vælge en virtuel disk-fil.</translation>
+        <translation type="obsolete">Vælg den virtuelle disk du vil kopiere, hvis den ikke allerede er valgt. Du kan enten vælge fra listen eller bruge mappe-ikonet ved siden af listen til at vælge en virtuel disk-fil.</translation>
     </message>
     <message>
         <source>&amp;VDI (VirtualBox Disk Image)</source>
-        <translation>&amp;VDI (VirtualBox diskaftryk)</translation>
+        <translation type="obsolete">&amp;VDI (VirtualBox diskaftryk)</translation>
     </message>
     <message>
         <source>V&amp;MDK (Virtual Machine Disk)</source>
-        <translation>V&amp;MDK (Virtual Machine Disk)</translation>
+        <translation type="obsolete">V&amp;MDK (Virtual Machine Disk)</translation>
     </message>
     <message>
         <source>V&amp;HD (Virtual Hard Disk)</source>
-        <translation>V&amp;HD (Virtual Hard Disk)</translation>
+        <translation type="obsolete">V&amp;HD (Virtual Hard Disk)</translation>
     </message>
     <message>
         <source>Welcome to the virtual disk creation wizard</source>
-        <translation>Velkommen til Oprettelse af virtuel disk-guiden</translation>
+        <translation type="obsolete">Velkommen til Oprettelse af virtuel disk-guiden</translation>
     </message>
     <message>
         <source>&lt;p&gt;This wizard will help you to create a new virtual disk for your virtual machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Denne guide hjælper dig med at oprette en ny virtuel disk til din virtuelle maskine.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Denne guide hjælper dig med at oprette en ny virtuel disk til din virtuelle maskine.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please choose the type of file that you would like to use for the new virtual disk. If you do not need to use it with other virtualization software you can leave this setting unchanged.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Vælg typen af fil, som du vil bruge til den nye virtuelle disk. Skal disken ikke bruges med andre virtualiseringsprogrammer behøver du ikke ændre denne indstilling&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Vælg typen af fil, som du vil bruge til den nye virtuelle disk. Skal disken ikke bruges med andre virtualiseringsprogrammer behøver du ikke ændre denne indstilling&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Virtual disk file type</source>
-        <translation>Virtuel disk filtype</translation>
+        <translation type="obsolete">Virtuel disk filtype</translation>
     </message>
     <message>
         <source>Please choose the type of file that you would like to use for the new virtual disk. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
-        <translation>Vælg typen af fil, som du vil bruge til den nye virtuelle disk. Skal disken ikke bruges med andre virtualiseringsprogrammer behøver du ikke ændre denne indstilling.</translation>
+        <translation type="obsolete">Vælg typen af fil, som du vil bruge til den nye virtuelle disk. Skal disken ikke bruges med andre virtualiseringsprogrammer behøver du ikke ændre denne indstilling.</translation>
     </message>
     <message>
         <source>Virtual disk storage details</source>
-        <translation>Virtuel disk lagerdetaljer</translation>
+        <translation type="obsolete">Virtuel disk lagerdetaljer</translation>
     </message>
     <message>
         <source>Please choose whether the new virtual disk file should be allocated as it is used or if it should be created fully allocated.</source>
-        <translation>Vælg om den nye virtuelle disk allokeres i takt med at den bruges eller om al pladsen allokeres med det samme.</translation>
+        <translation type="obsolete">Vælg om den nye virtuelle disk allokeres i takt med at den bruges eller om al pladsen allokeres med det samme.</translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; virtual disk file will only use space on your physical hard disk as it fills up, although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;En &lt;b&gt;dynamisk allokeret&lt;/b&gt; virtuel disk-fil bruger kun plads i takt med at den fyldes op - dog formindskes filen ikke, når der frigives plads på den virtuelle disk.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;En &lt;b&gt;dynamisk allokeret&lt;/b&gt; virtuel disk-fil bruger kun plads i takt med at den fyldes op - dog formindskes filen ikke, når der frigives plads på den virtuelle disk.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; virtual disk file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;En &lt;b&gt;fast allokeret&lt;/b&gt; virtuel disk-fil kan tage længere tid at oprette, men er ofte hurtigere ved brug.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;En &lt;b&gt;fast allokeret&lt;/b&gt; virtuel disk-fil kan tage længere tid at oprette, men er ofte hurtigere ved brug.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You can also choose to &lt;b&gt;split&lt;/b&gt; the virtual disk into several files of up to two gigabytes each. This is mainly useful if you wish to store the virtual machine on removable USB devices or old systems, some of which cannot handle very large files.</source>
-        <translation>&lt;p&gt;Du kan vælge at &lt;b&gt;sprede&lt;/b&gt; den virtuelle disk over flere filer på op til 2 GB hver. Det er særlig brugbart, hvis du vil gemme den virtuelle maskine på flytbare USB-enheder eller ældre systemer, som muligvis ikke understøtter filer større end 2 GB.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Du kan vælge at &lt;b&gt;sprede&lt;/b&gt; den virtuelle disk over flere filer på op til 2 GB hver. Det er særlig brugbart, hvis du vil gemme den virtuelle maskine på flytbare USB-enheder eller ældre systemer, som muligvis ikke understøtter filer større end 2 GB.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Dynamically allocated</source>
-        <translation>&amp;Dynamisk allokeret</translation>
+        <translation type="obsolete">&amp;Dynamisk allokeret</translation>
     </message>
     <message>
         <source>&amp;Fixed size</source>
-        <translation>&amp;Fast allokeret</translation>
+        <translation type="obsolete">&amp;Fast allokeret</translation>
     </message>
     <message>
         <source>&amp;Split into files of less than 2GB</source>
-        <translation>&amp;Spred over flere filer &lt;2 GB</translation>
+        <translation type="obsolete">&amp;Spred over flere filer &lt;2 GB</translation>
     </message>
     <message>
         <source>Virtual disk file location and size</source>
-        <translation>Placering og størrelse af disk-fil</translation>
+        <translation type="obsolete">Placering og størrelse af disk-fil</translation>
     </message>
     <message>
         <source>Select the size of the virtual disk in megabytes. This size will be reported to the Guest OS as the maximum size of this virtual disk.</source>
-        <translation>Fastsætter størrelsen på den virtuelle disk i MB. Størrelsen rapporteres til gæste-OS&apos;et som den maksimale størrelse af disken.</translation>
+        <translation type="obsolete">Fastsætter størrelsen på den virtuelle disk i MB. Størrelsen rapporteres til gæste-OS&apos;et som den maksimale størrelse af disken.</translation>
     </message>
     <message>
         <source>Virtual disk file location</source>
-        <translation>Placering af virtuel disk-fil</translation>
+        <translation type="obsolete">Placering af virtuel disk-fil</translation>
     </message>
     <message>
         <source>Please type the name of the new virtual disk file into the box below or click on the folder icon to select a different folder to create the file in.</source>
-        <translation>Indtast navnet på den nye virtuelle disk-fil i tekstfeltet eller tryk på mappe-ikonet for at vælge en anden mappe at oprette filen i.</translation>
+        <translation type="obsolete">Indtast navnet på den nye virtuelle disk-fil i tekstfeltet eller tryk på mappe-ikonet for at vælge en anden mappe at oprette filen i.</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
-        <translation>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>You are going to create a new virtual disk with the following parameters:</source>
-        <translation>Du er ved at oprette en ny virtuel disk med følgende egenskaber:</translation>
+        <translation type="obsolete">Du er ved at oprette en ny virtuel disk med følgende egenskaber:</translation>
     </message>
     <message>
         <source>You are going to create a copied virtual disk with the following parameters:</source>
-        <translation>Du er ved at oprette en kopi af en virtuel disk med følgende egenskaber:</translation>
+        <translation type="obsolete">Du er ved at oprette en kopi af en virtuel disk med følgende egenskaber:</translation>
     </message>
     <message>
         <source>If the above settings are correct, press the &lt;b&gt;%1&lt;/b&gt; button. Once you press it the new virtual disk file will be created.</source>
-        <translation>Tryk på &lt;b&gt;%1&lt;/b&gt;, hvis ovenstående indstillinger er korrekte. Herefter vil den nye virtuelle disk-fil blive oprettet.</translation>
+        <translation type="obsolete">Tryk på &lt;b&gt;%1&lt;/b&gt;, hvis ovenstående indstillinger er korrekte. Herefter vil den nye virtuelle disk-fil blive oprettet.</translation>
     </message>
     <message>
         <source>%1 B</source>
-        <translation>%1 B</translation>
+        <translation type="obsolete">%1 B</translation>
     </message>
     <message>
         <source>File type</source>
         <comment>summary</comment>
-        <translation>Filtype</translation>
+        <translation type="obsolete">Filtype</translation>
     </message>
     <message>
         <source>Details</source>
         <comment>summary</comment>
-        <translation>Detaljer</translation>
+        <translation type="obsolete">Detaljer</translation>
     </message>
     <message>
         <source>H&amp;DD (Parallels Hard Disk)</source>
-        <translation>H&amp;DD (Parallels Hard Disk)</translation>
+        <translation type="obsolete">H&amp;DD (Parallels Hard Disk)</translation>
     </message>
     <message>
         <source>Q&amp;ED (QEMU enhanced disk)</source>
-        <translation>Q&amp;ED (QEMU enhanced disk)</translation>
+        <translation type="obsolete">Q&amp;ED (QEMU enhanced disk)</translation>
     </message>
     <message>
         <source>&amp;QCOW (QEMU Copy-On-Write)</source>
-        <translation>&amp;QCOW (QEMU Copy-On-Write)</translation>
+        <translation type="obsolete">&amp;QCOW (QEMU Copy-On-Write)</translation>
     </message>
 </context>
 <context>
     <name>UINewHDWizardPageFormat</name>
     <message>
         <source>File type</source>
-        <translation>Filtype</translation>
+        <translation type="obsolete">Filtype</translation>
     </message>
 </context>
 <context>
     <name>UINewHDWizardPageOptions</name>
     <message>
         <source>&amp;Location</source>
-        <translation>P&amp;lacering</translation>
+        <translation type="obsolete">P&amp;lacering</translation>
     </message>
     <message>
         <source>&amp;Size</source>
-        <translation>&amp;Størrelse</translation>
+        <translation type="obsolete">&amp;Størrelse</translation>
     </message>
 </context>
 <context>
     <name>UINewHDWizardPageVariant</name>
     <message>
         <source>Storage details</source>
-        <translation>Lagerdetaljer</translation>
+        <translation type="obsolete">Lagerdetaljer</translation>
     </message>
 </context>
 <context>
@@ -6003,11 +7464,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Virtual disk to copy</source>
-        <translation>Virtuel disk, der skal kopieres</translation>
+        <translation type="obsolete">Virtuel disk, der skal kopieres</translation>
     </message>
     <message>
         <source>Choose a virtual hard disk file...</source>
-        <translation>Vælg en virtuel harddisk-fil...</translation>
+        <translation type="obsolete">Vælg en virtuel harddisk-fil...</translation>
     </message>
 </context>
 <context>
@@ -6106,7 +7567,7 @@ p, li { white-space: pre-wrap; }
     <name>UINewVMWzd</name>
     <message>
         <source>Create New Virtual Machine</source>
-        <translation>Opret ny virtuel maskine</translation>
+        <translation type="obsolete">Opret ny virtuel maskine</translation>
     </message>
     <message>
         <source>Welcome to the New Virtual Machine Wizard!</source>
@@ -6231,60 +7692,60 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Create</source>
-        <translation>Opret</translation>
+        <translation type="obsolete">Opret</translation>
     </message>
 </context>
 <context>
     <name>UINewVMWzdPage1</name>
     <message>
         <source>Welcome to the New Virtual Machine Wizard!</source>
-        <translation>Denne guide hjælper dig med at oprette en ny virtuel maskine!</translation>
+        <translation type="obsolete">Denne guide hjælper dig med at oprette en ny virtuel maskine!</translation>
     </message>
     <message>
         <source>&lt;p&gt;This wizard will guide you through the steps that are necessary to create a new virtual machine for VirtualBox.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Denne guide hjælper dig igennem de trin, der kræves for at oprette en ny virtuel maskine i VirtualBox.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Denne guide hjælper dig igennem de trin, der kræves for at oprette en ny virtuel maskine i VirtualBox.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
     <name>UINewVMWzdPage2</name>
     <message>
         <source>&lt;p&gt;Enter a name for the new virtual machine and select the type of the guest operating system you plan to install onto the virtual machine.&lt;/p&gt;&lt;p&gt;The name of the virtual machine usually indicates its software and hardware configuration. It will be used by all VirtualBox components to identify your virtual machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Indtast navnet på den nye virtuelle maskine og vælg typen af operativsystem du planlægger at installere på den.&lt;/p&gt;&lt;p&gt;Navnet på den virtuelle maskine bør indikere dens software- og hardware-konfiguration, da det vil blive brugt af alle VirtualBox&apos; komponenter til at identificere din virtuelle maskine.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Indtast navnet på den nye virtuelle maskine og vælg typen af operativsystem du planlægger at installere på den.&lt;/p&gt;&lt;p&gt;Navnet på den virtuelle maskine bør indikere dens software- og hardware-konfiguration, da det vil blive brugt af alle VirtualBox&apos; komponenter til at identificere din virtuelle maskine.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>N&amp;ame</source>
-        <translation>N&amp;avn</translation>
+        <translation type="obsolete">N&amp;avn</translation>
     </message>
     <message>
         <source>OS &amp;Type</source>
-        <translation>OS &amp;type</translation>
+        <translation type="obsolete">OS &amp;type</translation>
     </message>
     <message>
         <source>VM Name and OS Type</source>
-        <translation>VM-navn og OS-type</translation>
+        <translation type="obsolete">VM-navn og OS-type</translation>
     </message>
 </context>
 <context>
     <name>UINewVMWzdPage3</name>
     <message>
         <source>&lt;p&gt;Select the amount of base memory (RAM) in megabytes to be allocated to the virtual machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Vælg størrelsen af hukommelsen (RAM) i megabytes, der skal tildeles den virtuelle maskine.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Vælg størrelsen af hukommelsen (RAM) i megabytes, der skal tildeles den virtuelle maskine.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Base &amp;Memory Size</source>
-        <translation>Størrelse på huko&amp;mmelse</translation>
+        <translation type="obsolete">Størrelse på huko&amp;mmelse</translation>
     </message>
     <message>
         <source>MB</source>
-        <translation>MB</translation>
+        <translation type="obsolete">MB</translation>
     </message>
     <message>
         <source>Memory</source>
-        <translation>Hukommelse</translation>
+        <translation type="obsolete">Hukommelse</translation>
     </message>
     <message>
         <source>The recommended base memory size is &lt;b&gt;%1&lt;/b&gt; MB.</source>
-        <translation>Anbefalet størrelse på hukommelsen er &lt;b&gt;%1&lt;/b&gt; MB.</translation>
+        <translation type="obsolete">Anbefalet størrelse på hukommelsen er &lt;b&gt;%1&lt;/b&gt; MB.</translation>
     </message>
     <message>
         <source>MB</source>
@@ -6304,15 +7765,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Create new hard disk</source>
-        <translation>Opret ny harddisk</translation>
+        <translation type="obsolete">Opret ny harddisk</translation>
     </message>
     <message>
         <source>&amp;Use existing hard disk</source>
-        <translation>Br&amp;ug eksisterende harddisk</translation>
+        <translation type="obsolete">Br&amp;ug eksisterende harddisk</translation>
     </message>
     <message>
         <source>Virtual Hard Disk</source>
-        <translation>Virtuel harddisk</translation>
+        <translation type="obsolete">Virtuel harddisk</translation>
     </message>
     <message>
         <source>The recommended size of the start-up disk is &lt;b&gt;%1&lt;/b&gt; MB.</source>
@@ -6320,45 +7781,45 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Start-up &amp;Disk</source>
-        <translation>Opstarts&amp;disk</translation>
+        <translation type="obsolete">Opstarts&amp;disk</translation>
     </message>
     <message>
         <source>&lt;p&gt;If you wish you can now add a start-up disk to the new machine. You can either create a new virtual disk or select one from the list or from another location using the folder icon.&lt;/p&gt;&lt;p&gt;If you need a more complex virtual disk setup you can skip this step and make the changes to the machine settings once the machine is created.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Du kan nu tilføje en opstartsdisk til den nye maskine. Du kan enten oprette en ny virtuel disk, vælge en på listen eller åbne en anden placering ved hjælp af mappe-ikonet.&lt;/p&gt;&lt;p&gt;Har du brug for en mere avanceret virtuel disk-opsætning, kan du springe dette trin over og lave ændringerne i maskinens indstillinger, når den er oprettet.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Du kan nu tilføje en opstartsdisk til den nye maskine. Du kan enten oprette en ny virtuel disk, vælge en på listen eller åbne en anden placering ved hjælp af mappe-ikonet.&lt;/p&gt;&lt;p&gt;Har du brug for en mere avanceret virtuel disk-opsætning, kan du springe dette trin over og lave ændringerne i maskinens indstillinger, når den er oprettet.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Choose a virtual hard disk file...</source>
-        <translation>Vælg en virtuel harddisk-fil...</translation>
+        <translation type="obsolete">Vælg en virtuel harddisk-fil...</translation>
     </message>
     <message>
         <source>The recommended size of the start-up disk is &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Anbefalet størrelse på opstartsdisken er &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation type="obsolete">Anbefalet størrelse på opstartsdisken er &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
 </context>
 <context>
     <name>UINewVMWzdPage5</name>
     <message>
         <source>&lt;p&gt;You are going to create a new virtual machine with the following parameters:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Du er ved at oprette en ny virtuel maskine med følgende egenskaber:&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Du er ved at oprette en ny virtuel maskine med følgende egenskaber:&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Summary</source>
-        <translation>Oversigt</translation>
+        <translation type="obsolete">Oversigt</translation>
     </message>
     <message>
         <source>Name</source>
         <comment>summary</comment>
-        <translation>Navn</translation>
+        <translation type="obsolete">Navn</translation>
     </message>
     <message>
         <source>OS Type</source>
         <comment>summary</comment>
-        <translation>OS type</translation>
+        <translation type="obsolete">OS type</translation>
     </message>
     <message>
         <source>Base Memory</source>
         <comment>summary</comment>
-        <translation>Hukommelse</translation>
+        <translation type="obsolete">Hukommelse</translation>
     </message>
     <message>
         <source>MB</source>
@@ -6368,11 +7829,11 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Start-up Disk</source>
         <comment>summary</comment>
-        <translation>Opstartsdisk</translation>
+        <translation type="obsolete">Opstartsdisk</translation>
     </message>
     <message>
         <source>&lt;p&gt;If the above is correct press the &lt;b&gt;%1&lt;/b&gt; button. Once you press it, a new virtual machine will be created. &lt;/p&gt;&lt;p&gt;Note that you can alter these and all other setting of the created virtual machine at any time using the &lt;b&gt;Settings&lt;/b&gt; dialog accessible through the menu of the main window.&lt;/p&gt;</source>
-        <translation>Tryk &lt;b&gt;%1&lt;/b&gt;, hvis ovenstående er korrekt. Når du trykker vil en ny virtuel maskine blive oprettet. &lt;/p&gt;&lt;p&gt;Du kan altid ændre disse og alle øvrige indstillinger for den oprettede virtuelle maskine via menuen &lt;b&gt;Indstillinger&lt;/b&gt; i hovedvinduet.&lt;/p&gt;</translation>
+        <translation type="obsolete">Tryk &lt;b&gt;%1&lt;/b&gt;, hvis ovenstående er korrekt. Når du trykker vil en ny virtuel maskine blive oprettet. &lt;/p&gt;&lt;p&gt;Du kan altid ændre disse og alle øvrige indstillinger for den oprettede virtuelle maskine via menuen &lt;b&gt;Indstillinger&lt;/b&gt; i hovedvinduet.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -6488,10 +7949,42 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UISelectorWindow</name>
+    <message>
+        <source>Show Toolbar</source>
+        <translation>Vis værktøjslinje</translation>
+    </message>
+    <message>
+        <source>Show Statusbar</source>
+        <translation>Vis statuslinje</translation>
+    </message>
+    <message>
+        <source>Select a virtual machine file</source>
+        <translation>Vælg en virtuel maskine-fil</translation>
+    </message>
+    <message>
+        <source>Virtual machine files (%1)</source>
+        <translation>Virtuel maskine-filer (%1)</translation>
+    </message>
+    <message>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <translation>&lt;h3&gt;Velkommen til VirtualBox!&lt;/h3&gt;&lt;p&gt;Den venstre side af dette vindue viser alle virtuelle maskiner på din computer. Lige nu er listen tom, fordi du ikke har oprettet nogle virtuelle maskiner endnu.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;For at oprette en virtuel maskine, klik på knappen &lt;b&gt;Ny&lt;/b&gt; i værktøjslinjen øverst i vinduet.&lt;/p&gt;&lt;p&gt;Du kan også trykke &lt;b&gt;%1&lt;/b&gt; for at få hjælp eller besøge &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for seneste information og nyheder.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Manager</source>
+        <comment>Note: main window title which is pretended by the product name.</comment>
+        <translation>Håndtering</translation>
+    </message>
+</context>
+<context>
     <name>UISession</name>
     <message>
         <source>Install</source>
-        <translation>Installér</translation>
+        <translation type="obsolete">Installér</translation>
+    </message>
+    <message>
+        <source>Updating Guest Additions</source>
+        <translation>Opdaterer Gæstetilføjelser</translation>
     </message>
 </context>
 <context>
@@ -6555,6 +8048,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Proxy</source>
         <translation>Proxy</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <translation>Skærm</translation>
     </message>
 </context>
 <context>
@@ -6744,6 +8241,13 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UIUpdateStepVirtualBox</name>
+    <message>
+        <source>Checking for a new VirtualBox version...</source>
+        <translation>Søger efter en ny version af VirtualBox...</translation>
+    </message>
+</context>
+<context>
     <name>UIVMCloseDialog</name>
     <message>
         <source>Close Virtual Machine</source>
@@ -6851,6 +8355,73 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UIVMLogViewer</name>
+    <message>
+        <source>Close the search panel</source>
+        <translation>Luk søgevinduet</translation>
+    </message>
+    <message>
+        <source>&amp;Find</source>
+        <translation>&amp;Find</translation>
+    </message>
+    <message>
+        <source>Enter a search string here</source>
+        <translation>Indtast dit søgekriterie her</translation>
+    </message>
+    <message>
+        <source>&amp;Previous</source>
+        <translation>Forrige</translation>
+    </message>
+    <message>
+        <source>Search for the previous occurrence of the string</source>
+        <translation>Find forrige forekomst af strengen</translation>
+    </message>
+    <message>
+        <source>&amp;Next</source>
+        <translation>&amp;Næste</translation>
+    </message>
+    <message>
+        <source>Search for the next occurrence of the string</source>
+        <translation>Find næste forekomst af strengen</translation>
+    </message>
+    <message>
+        <source>C&amp;ase Sensitive</source>
+        <translation>Forskel på store/små bogst&amp;aver</translation>
+    </message>
+    <message>
+        <source>Perform case sensitive search (when checked)</source>
+        <translation>Søgning skelner mellem store og små bogstaver</translation>
+    </message>
+    <message>
+        <source>String not found</source>
+        <translation>Strengen blev ikke fundet</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;No log files found. Press the &lt;b&gt;Refresh&lt;/b&gt; button to rescan the log folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Ingen logfiler fundet. Tryk &lt;b&gt;Opdatér&lt;/b&gt; for at skanne mappen med logfiler igen &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Save VirtualBox Log As</source>
+        <translation>Gem VirtualBox-log som</translation>
+    </message>
+    <message>
+        <source>%1 - VirtualBox Log Viewer</source>
+        <translation>%1 - VirtualBox logfilsfremviser</translation>
+    </message>
+    <message>
+        <source>&amp;Refresh</source>
+        <translation>Opdaté&amp;r</translation>
+    </message>
+    <message>
+        <source>&amp;Save</source>
+        <translation>Gem</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Luk</translation>
+    </message>
+</context>
+<context>
     <name>UIVMPreviewWindow</name>
     <message>
         <source>Update Disabled</source>
@@ -6879,6 +8450,583 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>No Preview</source>
         <translation>Ingen forhåndsvisning</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizard</name>
+    <message>
+        <source>Hide Description</source>
+        <translation>Skjul beskrivelse</translation>
+    </message>
+    <message>
+        <source>Show Description</source>
+        <translation>Vis beskrivelse</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardCloneVD</name>
+    <message>
+        <source>Copy Virtual Hard Drive</source>
+        <translation>Kopier virtuel disk</translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation>Kopier</translation>
+    </message>
+    <message>
+        <source>Hard drive to copy</source>
+        <translation>Harddisk til kopiering</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please select the virtual hard drive file that you would like to copy if it is not already selected. You can either choose one from the list or use the folder icon beside the list to select one.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Vælg den virtuelle disk-fil du vil kopiere, hvis den ikke allerede er valgt. Du kan enten vælge en fra listen eller bruge mappe-ikonet ved siden af listen til at vælge en.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Choose a virtual hard drive file to copy...</source>
+        <translation>Vælg virtuel harddisk-fil til kopiering...</translation>
+    </message>
+    <message>
+        <source>Hard drive file type</source>
+        <translation>Harddisk-filtype</translation>
+    </message>
+    <message>
+        <source>Please choose the type of file that you would like to use for the new virtual hard drive. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
+        <translation>Vælg formatet af filen du vil bruge til den nye virtuelle harddisk-fil. Hvis du skal bruge den i andre virtualiseringsprogrammer bør du ændre denne indstilling.</translation>
+    </message>
+    <message>
+        <source>Storage on physical hard drive</source>
+        <translation>Lagring på fysisk harddisk</translation>
+    </message>
+    <message>
+        <source>Please choose whether the new virtual hard drive file should grow as it is used (dynamically allocated) or if it should be created at its maximum size (fixed size).</source>
+        <translation>Vælg om den nye virtuelle disk-fil allokeres i takt med at den bruges (dynamisk allokering) eller om al pladsen allokeres med det samme (fast allokering).</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; hard drive file will only use space on your physical hard drive as it fills up (up to a maximum &lt;b&gt;fixed size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;En &lt;b&gt;dynamisk allokeret&lt;/b&gt; virtuel disk-fil bruger kun fysisk plads i takt med at den fyldes op (op til den &lt;b&gt;faste størrelse&lt;/b&gt;), men filen formindskes ikke automatiskt, når der frigives plads på den virtuelle disk.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; hard drive file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;En &lt;b&gt;fast allokeret&lt;/b&gt; virtuel disk-fil kan tage længere tid at oprette, men er ofte hurtigere i brug.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You can also choose to &lt;b&gt;split&lt;/b&gt; the hard drive file into several files of up to two gigabytes each. This is mainly useful if you wish to store the virtual machine on removable USB devices or old systems, some of which cannot handle very large files.</source>
+        <translation>&lt;p&gt;Du kan også vælge at &lt;b&gt;opdele&lt;/b&gt; den virtuelle disk over flere filer på op til 2 GB hver. Det er særlig brugbart, hvis du vil gemme den virtuelle maskine på flytbare USB-enheder eller ældre systemer, som ikke understøtter meget store filer.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Dynamically allocated</source>
+        <translation>&amp;Dynamisk allokeret</translation>
+    </message>
+    <message>
+        <source>&amp;Fixed size</source>
+        <translation>&amp;Fast størrelse</translation>
+    </message>
+    <message>
+        <source>&amp;Split into files of less than 2GB</source>
+        <translation>&amp;Opdel i flere filer &lt;2 GB</translation>
+    </message>
+    <message>
+        <source>Please choose a location for new virtual hard drive file</source>
+        <translation>Angiv placeringen af den nye virtuelle disk-fil</translation>
+    </message>
+    <message>
+        <source>New hard drive to create</source>
+        <translation>Harddisk der skal oprettes</translation>
+    </message>
+    <message>
+        <source>Please type the name of the new virtual hard drive file into the box below or click on the folder icon to select a different folder to create the file in.</source>
+        <translation>Indtast navnet på den nye virtuelle disk-fil i tekstfeltet nedenfor eller tryk på mappe-ikonet for at vælge en anden mappe at oprette filen i.</translation>
+    </message>
+    <message>
+        <source>Choose a location for new virtual hard drive file...</source>
+        <translation>Angiv placeringen af den nye virtuelle disk-fil...</translation>
+    </message>
+    <message>
+        <source>%1_copy</source>
+        <comment>copied virtual hard drive name</comment>
+        <translation>%1_kopi</translation>
+    </message>
+    <message>
+        <source>Hard drive to &amp;copy</source>
+        <translation>Harddisk til kopiering</translation>
+    </message>
+    <message>
+        <source>&amp;New hard drive to create</source>
+        <translation>&amp;Ny harddisk der skal oprettes</translation>
+    </message>
+    <message>
+        <source>Hard drive file &amp;type</source>
+        <translation>Harddisk-filforma&amp;t</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardCloneVM</name>
+    <message>
+        <source>Linked Base for %1 and %2</source>
+        <translation>Fælles basis for %1 og %2</translation>
+    </message>
+    <message>
+        <source>Clone Virtual Machine</source>
+        <translation>Klon virtual maskine</translation>
+    </message>
+    <message>
+        <source>Clone</source>
+        <translation>Klon</translation>
+    </message>
+    <message>
+        <source>%1 Clone</source>
+        <translation>%1 Klon</translation>
+    </message>
+    <message>
+        <source>New machine name</source>
+        <translation>Navn på ny maskine</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose a name for the new virtual machine. The new machine will be a clone of the machine &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Angiv navnet på den nye virtuelle maskine. Den nye virtuelle maskine vil være en klon af &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>When checked a new unique MAC address will be assigned to all configured network cards.</source>
+        <translation>Hvis markeret, vil en ny unik MAC-adresse blive tildelt alle konfigurerede netværkskort.</translation>
+    </message>
+    <message>
+        <source>&amp;Reinitialize the MAC address of all network cards</source>
+        <translation>&amp;Reinitialisér MAC-adressen på alle netværkskort</translation>
+    </message>
+    <message>
+        <source>Clone type</source>
+        <translation>Klontype</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose the type of clone you wish to create.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Full clone&lt;/b&gt;, an exact copy (including all virtual hard drive files) of the original virtual machine will be created.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Linked clone&lt;/b&gt;, a new machine will be created, but the virtual hard drive files will be tied to the virtual hard drive files of original machine and you will not be able to move the new virtual machine to a different computer without moving the original as well.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Vælg typen af klon du vil oprette.&lt;/p&gt;&lt;p&gt;Vælger du &lt;b&gt;Fuld klon&lt;/b&gt; får du en nøjagtig kopi (inkl. alle virtuelle harddiske) af den originale virtuelle maskine.&lt;/p&gt;&lt;p&gt;Vælger du &lt;b&gt;Koblet klon&lt;/b&gt; vil en ny maskine blive lavet, men de virtuelle harddisk-filer deles stadig med den originale maskine og du vil ikke kunne flytte den nye virtuelle maskine til en anden computer uden at flytte originalen også &lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If you create a &lt;b&gt;Linked clone&lt;/b&gt; then a new snapshot will be created in the original virtual machine as part of the cloning process.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Hvis du laver en &lt;b&gt;Koblet klon&lt;/b&gt; vil et nyt øjebliksbillede blive oprettet i den originale virtuelle maskine som led i kloningen.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Full clone</source>
+        <translation>&amp;Fuld klon</translation>
+    </message>
+    <message>
+        <source>&amp;Linked clone</source>
+        <translation>Kob&amp;let klon</translation>
+    </message>
+    <message>
+        <source>Snapshots</source>
+        <translation>Øjebliksbilleder</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose which parts of the snapshot tree should be cloned with the machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Vælg hvilke dele af øjebliksbilledets træstruktur, der skal overføres til klonen.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If you choose &lt;b&gt;Current machine state&lt;/b&gt;, the new machine will reflect the current state of the original machine and will have no snapshots.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Vælger du &lt;b&gt;Nuværende maskintilstand&lt;/b&gt; vil klonen have den samme tilstand som originalmaskinen og ikke indeholde øjebliksbilleder.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If you choose &lt;b&gt;Current snapshot tree branch&lt;/b&gt;, the new machine will reflect the current state of the original machine and will have matching snapshots for all snapshots in the tree branch starting at the current state in the original machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Vælger du &lt;b&gt;Nuværende gren af øjebliksbilleder&lt;/b&gt; vil klonen have den samme tilstand som originalmaskinen og indeholde de samme øjebliksbilleder som originalen med udgangspunkt i den valgte del af træstrukturen&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If you choose &lt;b&gt;Everything&lt;/b&gt;, the new machine will reflect the current state of the original machine and will have matching snapshots for all snapshots in the original machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Vælger du &lt;b&gt;Alle&lt;/b&gt; vil klonen have den samme tilstand som originalmaskinen og indeholde samtlige øjebliksbilleder fra originalen.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Current &amp;machine state</source>
+        <translation>Nuværende &amp;maskintilstand</translation>
+    </message>
+    <message>
+        <source>Current &amp;snapshot tree branch</source>
+        <translation>Nuværende gren af øjeblik&amp;sbilleder</translation>
+    </message>
+    <message>
+        <source>&amp;Everything</source>
+        <translation>All&amp;e</translation>
+    </message>
+    <message>
+        <source>New machine &amp;name</source>
+        <translation>&amp;Navn på ny maskine</translation>
+    </message>
+    <message>
+        <source>&amp;Full Clone</source>
+        <translation>&amp;Fuld klon</translation>
+    </message>
+    <message>
+        <source>&amp;Linked Clone</source>
+        <translation>Kob&amp;let klon</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardExportApp</name>
+    <message>
+        <source>Checking files ...</source>
+        <translation>Kontrollerer filer ...</translation>
+    </message>
+    <message>
+        <source>Removing files ...</source>
+        <translation>Fjerner filer ...</translation>
+    </message>
+    <message>
+        <source>Exporting Appliance ...</source>
+        <translation>Eksporterer Prækonfigureret system ...</translation>
+    </message>
+    <message>
+        <source>Export Virtual Appliance</source>
+        <translation>Eksporter virtuelt Prækonfigureret system</translation>
+    </message>
+    <message>
+        <source>Restore Defaults</source>
+        <translation>Brug standardværdier</translation>
+    </message>
+    <message>
+        <source>Export</source>
+        <translation>Eksport</translation>
+    </message>
+    <message>
+        <source>Virtual machines to export</source>
+        <translation>Virtuelle maskiner til eksport</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please select the virtual machines that should be added to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Vælg de virtuelle maskiner, der skal tilføjes det prækonfigurerede system. Du kan vælge mere end en. Bemærk at de valgte maskiner skal være lukkede før de kan eksporteres.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Appliance settings</source>
+        <translation>Indstillinger for Prækonfigureret system</translation>
+    </message>
+    <message>
+        <source>Please choose where to create the virtual appliance. You can create it on your own computer, on the Sun Cloud service or on an S3 storage server.</source>
+        <translation>Vælg hvor det virtuelle prækonfigurerede system skal oprettes. Du kan lave det lokalt, på Sun Cloud tjenesten eller en S3 lagertjeneste.</translation>
+    </message>
+    <message>
+        <source>Create on</source>
+        <translation>Opret på</translation>
+    </message>
+    <message>
+        <source>&amp;This computer</source>
+        <translation>Denne compu&amp;ter</translation>
+    </message>
+    <message>
+        <source>Sun &amp;Cloud</source>
+        <translation>Sun &amp;Cloud</translation>
+    </message>
+    <message>
+        <source>&amp;Simple Storage System (S3)</source>
+        <translation>&amp;Simple Storage System (S3)</translation>
+    </message>
+    <message>
+        <source>Appliance</source>
+        <translation>Prækonfigureret system</translation>
+    </message>
+    <message>
+        <source>&amp;Username:</source>
+        <translation>Br&amp;ugernavn:</translation>
+    </message>
+    <message>
+        <source>&amp;Password:</source>
+        <translation>Kodeord:</translation>
+    </message>
+    <message>
+        <source>&amp;Hostname:</source>
+        <translation>Værtsnavn:</translation>
+    </message>
+    <message>
+        <source>&amp;Bucket:</source>
+        <translatorcomment>Amazon S3 lingo</translatorcomment>
+        <translation>&amp;Bucket:</translation>
+    </message>
+    <message>
+        <source>&amp;File:</source>
+        <translation>&amp;Fil:</translation>
+    </message>
+    <message>
+        <source>Please choose a virtual appliance file</source>
+        <translation>Vælg en prækonfigureret system-fil</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format Archive (%1)</source>
+        <translation>Open Virtualization Format arkiv (%1)</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format (%1)</source>
+        <translation>Open Virtualization Format (%1)</translation>
+    </message>
+    <message>
+        <source>Write in legacy OVF 0.9 format for compatibility with other virtualization products.</source>
+        <translation>Gem i OVF 0.9 format for kompatibilitet med andre virtualiseringsprogrammer.</translation>
+    </message>
+    <message>
+        <source>&amp;Write legacy OVF 0.9</source>
+        <translation>Gem i OVF 0.9 format</translation>
+    </message>
+    <message>
+        <source>Create a Manifest file for automatic data integrity checks on import.</source>
+        <translation>Opret en Manifest-fil for automatisk kontrol af dataintegritet ved import.</translation>
+    </message>
+    <message>
+        <source>Write &amp;Manifest file</source>
+        <translation>Gem &amp;Manifest-fil</translation>
+    </message>
+    <message>
+        <source>This is the descriptive information which will be added to the virtual appliance.  You can change it by double clicking on individual lines.</source>
+        <translation>Disse beskrivelser vil blive tilføjet det virtuelle prækonfigurerede system. Du kan ændre dem ved at dobbeltklikke på dem.</translation>
+    </message>
+    <message>
+        <source>Virtual &amp;machines to export</source>
+        <translation>Virtuelle &amp;maskiner til eksport</translation>
+    </message>
+    <message>
+        <source>Appliance &amp;settings</source>
+        <translation>Indstillinger for Prækonfigureret &amp;system</translation>
+    </message>
+    <message>
+        <source>&amp;Destination</source>
+        <translation>&amp;Destination</translation>
+    </message>
+    <message>
+        <source>&amp;Local Filesystem </source>
+        <translation>&amp;Lokalt filsystem</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardExportAppPageBasic3</name>
+    <message>
+        <source>&lt;p&gt;Please choose a filename to export the OVF/OVA to.&lt;/p&gt;&lt;p&gt;If you use an &lt;i&gt;ova&lt;/i&gt; extension, then all the files will be combined into one Open Virtualization Format Archive.&lt;/p&gt;&lt;p&gt;If you use an &lt;i&gt;ovf&lt;/i&gt; extension, several files will be written separately.&lt;/p&gt;&lt;p&gt;Other extensions are not allowed.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Angiv filnavnet OVF/OVA&apos;en skal eksporteres til.&lt;/p&gt;&lt;p&gt;Hvis du bruger fil-endelsen &lt;i&gt;ova&lt;/i&gt;, vil samtlige filer blive kombineret i ét Open Virtualization Format arkiv.&lt;/p&gt;&lt;p&gt;Hvis du bruger fil-endelsen &lt;i&gt;ovf&lt;/i&gt; vil filerne blive skrevet enkeltvis.&lt;/p&gt;&lt;p&gt;Andre fil-endelser er ikke tilladt.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
+        <translation>Udfyld de øvrige felter såsom brugernavn, kodeord og bucket. Angiv også filnavnet til OVF-eksporten.</translation>
+    </message>
+    <message>
+        <source>Please complete the additional fields like the username, password, hostname and the bucket, and provide a filename for the OVF target.</source>
+        <translation>Udfyld de øvrige felter såsom brugernavn, kodeord, værtsnavn og bucket. Angiv også filnavnet til OVF-eksporten.</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardFirstRun</name>
+    <message>
+        <source>Select start-up disk</source>
+        <translation>Vælg opstartsdisk</translation>
+    </message>
+    <message>
+        <source>Start</source>
+        <translation>Start</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please select a virtual optical disk file or a physical optical drive containing a disk to start your new virtual machine from.&lt;/p&gt;&lt;p&gt;The disk should be suitable for starting a computer from and should contain the operating system you wish to install on the virtual machine if you want to do that now. The disk will be ejected from the virtual drive automatically next time you switch the virtual machine off, but you can also do this yourself if needed using the Devices menu.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Vælg en virtuel optisk disk-fil eller et fysisk optisk drev med en disk at starte din nye virtuelle maskine fra.&lt;/p&gt;&lt;p&gt;Disken skal være en opstartsdisk og indeholde det operativsystem som du vil installere i den virtuelle maskine (hvis du vil gøre det nu). Disken vil blive skubbet ud automatisk, når du slukker den virtuelle maskine, men du kan også gøre det efter behov i menuen Enheder.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please select a virtual optical disk file or a physical optical drive containing a disk to start your new virtual machine from.&lt;/p&gt;&lt;p&gt;The disk should be suitable for starting a computer from. As this virtual machine has no hard drive you will not be able to install an operating system on it at the moment.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Vælg en virtuel optisk disk-fil eller et fysisk optisk drev med en disk at starte din nye virtuelle maskine fra.&lt;/p&gt;&lt;p&gt;Disken skal være en opstartsdisk, men da denne virtuelle maskine ikke har en harddisk kan du ikke installere et operativsystem på den for øjeblikket.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Choose a virtual optical disk file...</source>
+        <translation>Vælg en virtuel optisk disk-fil...</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardImportApp</name>
+    <message>
+        <source>Import Virtual Applicance</source>
+        <translation>Importer virtuelt Prækonfigureret system</translation>
+    </message>
+    <message>
+        <source>Restore Defaults</source>
+        <translation>Brug standardværdier</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>Import</translation>
+    </message>
+    <message>
+        <source>Appliance to import</source>
+        <translation>Prækonfigureret system til import</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Virtualbox understøtter import af prækonfigurerede systemer gemt i Open Virtualization Format (OVF). Vælg filen, der skal importeres.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Open appliance...</source>
+        <translation>Åbn prækonfigureret system...</translation>
+    </message>
+    <message>
+        <source>Select an appliance to import</source>
+        <translation>Vælg prækonfigureret system til import</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format (%1)</source>
+        <translation>Open Virtualization Format (%1)</translation>
+    </message>
+    <message>
+        <source>Appliance settings</source>
+        <translation>Indstillinger for prækonfigureret system</translation>
+    </message>
+    <message>
+        <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
+        <translation>Disse virtuelle maskiner og deres konfiguration er en del af det prækonfigurerede system og kan importeres til VirtualBox. Du kan ændre de fleste af de viste egenskaber ved at dobbeltklikke på værdierne og deaktivere andre ved hjælp af afkrydsningsfelterne.</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardNewVD</name>
+    <message>
+        <source>Create Virtual Hard Drive</source>
+        <translation>Opret virtuel harddisk</translation>
+    </message>
+    <message>
+        <source>Create</source>
+        <translation>Opret</translation>
+    </message>
+    <message>
+        <source>Hard drive file type</source>
+        <translation>Harddisk-filtype</translation>
+    </message>
+    <message>
+        <source>Please choose the type of file that you would like to use for the new virtual hard drive. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
+        <translation>Vælg formatet af filen du vil bruge til den nye virtuelle harddisk-fil. Hvis du skal bruge den i andre virtualiseringsprogrammer bør du ændre denne indstilling.</translation>
+    </message>
+    <message>
+        <source>Storage on physical hard drive</source>
+        <translation>Lagring på fysisk harddisk</translation>
+    </message>
+    <message>
+        <source>Please choose whether the new virtual hard drive file should grow as it is used (dynamically allocated) or if it should be created at its maximum size (fixed size).</source>
+        <translation>Vælg om den nye virtuelle disk-fil allokeres i takt med at den bruges (dynamisk allokering) eller om al pladsen allokeres med det samme (fast størrelse).</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; hard drive file will only use space on your physical hard drive as it fills up (up to a maximum &lt;b&gt;fixed size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;En &lt;b&gt;dynamisk allokeret&lt;/b&gt; virtuel disk-fil bruger kun fysisk plads i takt med at den fyldes op (op til den &lt;b&gt;faste størrelse&lt;/b&gt;), men filen formindskes ikke automatiskt, når der frigives plads på den virtuelle disk.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; hard drive file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;En &lt;b&gt;fast størrelse&lt;/b&gt; virtuel disk-fil kan tage længere tid at oprette, men er ofte hurtigere i brug.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You can also choose to &lt;b&gt;split&lt;/b&gt; the hard drive file into several files of up to two gigabytes each. This is mainly useful if you wish to store the virtual machine on removable USB devices or old systems, some of which cannot handle very large files.</source>
+        <translation>&lt;p&gt;Du kan også vælge at &lt;b&gt;opdele&lt;/b&gt; den virtuelle disk over flere filer på op til 2 GB hver. Det er særlig brugbart, hvis du vil gemme den virtuelle maskine på flytbare USB-enheder eller ældre systemer, som ikke understøtter meget store filer.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Dynamically allocated</source>
+        <translation>&amp;Dynamisk allokeret</translation>
+    </message>
+    <message>
+        <source>&amp;Fixed size</source>
+        <translation>&amp;Fast størrelse</translation>
+    </message>
+    <message>
+        <source>&amp;Split into files of less than 2GB</source>
+        <translation>&amp;Opdel i flere filer &lt;2 GB</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
+        <translation>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>File location and size</source>
+        <translation>Filplacering og størrelse</translation>
+    </message>
+    <message>
+        <source>Please type the name of the new virtual hard drive file into the box below or click on the folder icon to select a different folder to create the file in.</source>
+        <translation>Indtast navnet på den nye virtuelle disk-fil i tekstfeltet nedenfor eller tryk på mappe-ikonet for at vælge en anden mappe at oprette filen i.</translation>
+    </message>
+    <message>
+        <source>Choose a location for new virtual hard drive file...</source>
+        <translation>Angiv placeringen af den nye virtuelle disk-fil...</translation>
+    </message>
+    <message>
+        <source>Select the size of the virtual hard drive in megabytes. This size is the limit on the amount of file data that a virtual machine will be able to store on the hard drive.</source>
+        <translation>Vælg størrelsen af den virtuelle harddisk-fil i megabytes. Denne størrelse bestemmer mængden af data en virtuel maskine kan lagre på harddisken.</translation>
+    </message>
+    <message>
+        <source>File &amp;location</source>
+        <translation>Filp&amp;lacering</translation>
+    </message>
+    <message>
+        <source>File &amp;size</source>
+        <translation>Fil&amp;størrelse</translation>
+    </message>
+    <message>
+        <source>Hard drive file &amp;type</source>
+        <translation>Harddisk-filforma&amp;t</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardNewVM</name>
+    <message>
+        <source>Create Virtual Machine</source>
+        <translation>Opret virtuel maskine</translation>
+    </message>
+    <message>
+        <source>Create</source>
+        <translation>Opret</translation>
+    </message>
+    <message>
+        <source>IDE Controller</source>
+        <translation type="obsolete">IDE-styreenhed</translation>
+    </message>
+    <message>
+        <source>SATA Controller</source>
+        <translation type="obsolete">SATA-styreenhed</translation>
+    </message>
+    <message>
+        <source>SCSI Controller</source>
+        <translation type="obsolete">SCSI-styreenhed</translation>
+    </message>
+    <message>
+        <source>Floppy Controller</source>
+        <translation type="obsolete">Diskette-styreenhed</translation>
+    </message>
+    <message>
+        <source>SAS Controller</source>
+        <translation type="obsolete">SAS styreenhed</translation>
+    </message>
+    <message>
+        <source>Name and operating system</source>
+        <translation>Navn og operativsystem</translation>
+    </message>
+    <message>
+        <source>Please choose a descriptive name for the new virtual machine and select the type of operating system you intend to install on it. The name you choose will be used throughout VirtualBox to identify this machine.</source>
+        <translation>Vælg et beskrivende navn til den nye virtuelle maskine og vælg typen af operativsystem du planlægger at installere på den. Det valgte navn vil blive brugt overalt i Virtualbox som identifikation af maskinen.</translation>
+    </message>
+    <message>
+        <source>Memory size</source>
+        <translation>Hukommelsesstørrelse</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the amount of memory (RAM) in megabytes to be allocated to the virtual machine.&lt;/p&gt;&lt;p&gt;The recommended memory size is &lt;b&gt;%1&lt;/b&gt; MB.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Vælg mængden af hukommelse (RAM) i megabytes, der skal tildeles den virtuelle maskine.&lt;/p&gt;&lt;p&gt;Den anbefalede mængde er &lt;b&gt;%1&lt;/b&gt; MB.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Hard drive</source>
+        <translation>Harddisk</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If you wish you can add a virtual hard drive to the new machine. You can either create a new hard drive file or select one from the list or from another location using the folder icon.&lt;/p&gt;&lt;p&gt;If you need a more complex storage set-up you can skip this step and make the changes to the machine settings once the machine is created.&lt;/p&gt;&lt;p&gt;The recommended size of the hard drive is &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Du kan nu tilføje en virtuel harddisk til den nye maskine. Enten ved at oprette en ny harddisk-fil eller vælge en fra listen eller fra en anden placering ved hjælp af mappe-ikonet.&lt;/p&gt;&lt;p&gt;Hvis du har behov for en mere avanceret opsætning af lagerenheder kan du springe dette trin over og lave ændringerne, når maskinen er oprettet&lt;/p&gt;&lt;p&gt;Den anbefalede størrelse af harddisken er &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Choose a virtual hard drive file...</source>
+        <translation>Vælg en virtuel harddisk-fil...</translation>
+    </message>
+    <message>
+        <source>&amp;Memory size</source>
+        <translation>Huko&amp;mmelsesstørrelse</translation>
+    </message>
+    <message>
+        <source>&amp;Do not add a virtual hard drive</source>
+        <translation>Tilføj ikke en virtuel hard&amp;disk</translation>
+    </message>
+    <message>
+        <source>&amp;Create a virtual hard drive now</source>
+        <translation>Opret en virtuel harddisk nu</translation>
+    </message>
+    <message>
+        <source>&amp;Use an existing virtual hard drive file</source>
+        <translation>Br&amp;ug en eksisterende virtuel harddisk-fil</translation>
     </message>
 </context>
 <context>
@@ -7894,17 +10042,17 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Normal</source>
         <comment>DiskType</comment>
-        <translation>Normal</translation>
+        <translation type="obsolete">Normal</translation>
     </message>
     <message>
         <source>Immutable</source>
         <comment>DiskType</comment>
-        <translation>Skrivebeskyttet</translation>
+        <translation type="obsolete">Skrivebeskyttet</translation>
     </message>
     <message>
         <source>Writethrough</source>
         <comment>DiskType</comment>
-        <translation>Glem ændringer</translation>
+        <translation type="obsolete">Glem ændringer</translation>
     </message>
     <message>
         <source>Null</source>
@@ -7924,12 +10072,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Ignore</source>
         <comment>USBFilterActionType</comment>
-        <translation>Ignorer</translation>
+        <translation type="obsolete">Ignorer</translation>
     </message>
     <message>
         <source>Hold</source>
         <comment>USBFilterActionType</comment>
-        <translation>Hold</translation>
+        <translation type="obsolete">Hold</translation>
     </message>
     <message>
         <source>Null Audio Driver</source>
@@ -8165,27 +10313,27 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Primary</source>
         <comment>StorageBusChannel</comment>
-        <translation>Primær</translation>
+        <translation type="obsolete">Primær</translation>
     </message>
     <message>
         <source>Secondary</source>
         <comment>StorageBusChannel</comment>
-        <translation>Sekundær</translation>
+        <translation type="obsolete">Sekundær</translation>
     </message>
     <message>
         <source>Master</source>
         <comment>StorageBusDevice</comment>
-        <translation>Master</translation>
+        <translation type="obsolete">Master</translation>
     </message>
     <message>
         <source>Slave</source>
         <comment>StorageBusDevice</comment>
-        <translation>Slave</translation>
+        <translation type="obsolete">Slave</translation>
     </message>
     <message>
         <source>Port %1</source>
         <comment>StorageBusChannel</comment>
-        <translation>Port %1</translation>
+        <translation type="obsolete">Port %1</translation>
     </message>
     <message>
         <source>Solaris Audio</source>
@@ -8538,42 +10686,42 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Device %1</source>
         <comment>StorageBusDevice</comment>
-        <translation>Enhed %1</translation>
+        <translation type="obsolete">Enhed %1</translation>
     </message>
     <message>
         <source>IDE Primary Master</source>
         <comment>New Storage UI : Slot Name</comment>
-        <translation>Primær IDE-master</translation>
+        <translation type="obsolete">Primær IDE-master</translation>
     </message>
     <message>
         <source>IDE Primary Slave</source>
         <comment>New Storage UI : Slot Name</comment>
-        <translation>Primær IDE-slave</translation>
+        <translation type="obsolete">Primær IDE-slave</translation>
     </message>
     <message>
         <source>IDE Secondary Master</source>
         <comment>New Storage UI : Slot Name</comment>
-        <translation>Sekundær IDE-master</translation>
+        <translation type="obsolete">Sekundær IDE-master</translation>
     </message>
     <message>
         <source>IDE Secondary Slave</source>
         <comment>New Storage UI : Slot Name</comment>
-        <translation>Sekundær IDE-slave</translation>
+        <translation type="obsolete">Sekundær IDE-slave</translation>
     </message>
     <message>
         <source>SATA Port %1</source>
         <comment>New Storage UI : Slot Name</comment>
-        <translation>SATA port %1</translation>
+        <translation type="obsolete">SATA port %1</translation>
     </message>
     <message>
         <source>SCSI Port %1</source>
         <comment>New Storage UI : Slot Name</comment>
-        <translation>SCSI port %1</translation>
+        <translation type="obsolete">SCSI port %1</translation>
     </message>
     <message>
         <source>Floppy Device %1</source>
         <comment>New Storage UI : Slot Name</comment>
-        <translation>Diskettedrev %1</translation>
+        <translation type="obsolete">Diskettedrev %1</translation>
     </message>
     <message>
         <source>Paravirtualized Network (virtio-net)</source>
@@ -8777,7 +10925,7 @@ p, li { white-space: pre-wrap; }
         <source>Shareable</source>
         <comment>DiskType</comment>
         <translatorcomment>I tvivl om kontekst</translatorcomment>
-        <translation>Delt</translation>
+        <translation type="obsolete">Delt</translation>
     </message>
     <message>
         <source>Unknown device</source>
@@ -8787,7 +10935,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>SAS Port %1</source>
         <comment>New Storage UI : Slot Name</comment>
-        <translation>SAS port %1</translation>
+        <translation type="obsolete">SAS port %1</translation>
     </message>
     <message>
         <source>Remote Desktop Server Port</source>
@@ -8806,31 +10954,31 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Choose a virtual hard disk file</source>
-        <translation>Vælg en virtuel harddisk-fil</translation>
+        <translation type="obsolete">Vælg en virtuel harddisk-fil</translation>
     </message>
     <message>
         <source>hard disk</source>
-        <translation>harddisk</translation>
+        <translation type="obsolete">harddisk</translation>
     </message>
     <message>
         <source>Choose a virtual CD/DVD disk file</source>
-        <translation>Vælg en virtuel CD/DVD-fil</translation>
+        <translation type="obsolete">Vælg en virtuel CD/DVD-fil</translation>
     </message>
     <message>
         <source>CD/DVD-ROM disk</source>
-        <translation>CD/DVD-ROM disk</translation>
+        <translation type="obsolete">CD/DVD-ROM disk</translation>
     </message>
     <message>
         <source>Choose a virtual floppy disk file</source>
-        <translation>Vælg en virtuel diskette-fil</translation>
+        <translation type="obsolete">Vælg en virtuel diskette-fil</translation>
     </message>
     <message>
         <source>floppy disk</source>
-        <translation>Diskette</translation>
+        <translation type="obsolete">Diskette</translation>
     </message>
     <message>
         <source>All %1 images (%2)</source>
-        <translation>Alle %1 aftryk (%2)</translation>
+        <translation type="obsolete">Alle %1 aftryk (%2)</translation>
     </message>
     <message>
         <source>All files (*)</source>
@@ -8879,12 +11027,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>UDP</source>
         <comment>NATProtocolType</comment>
-        <translation>UDP</translation>
+        <translation type="obsolete">UDP</translation>
     </message>
     <message>
         <source>TCP</source>
         <comment>NATProtocolType</comment>
-        <translation>TCP</translation>
+        <translation type="obsolete">TCP</translation>
     </message>
     <message>
         <source>PIIX3</source>
@@ -8898,38 +11046,38 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>and</source>
-        <translation>og</translation>
+        <translation type="obsolete">og</translation>
     </message>
     <message>
         <source>MB</source>
         <comment>size suffix MBytes=1024KBytes</comment>
-        <translation>MB</translation>
+        <translation type="obsolete">MB</translation>
     </message>
     <message>
         <source>Readonly</source>
         <comment>DiskType</comment>
-        <translation>Skrivebeskyttet</translation>
+        <translation type="obsolete">Skrivebeskyttet</translation>
     </message>
     <message>
         <source>Multi-attach</source>
         <comment>DiskType</comment>
-        <translation>Multi-forbundet</translation>
+        <translation type="obsolete">Multi-forbundet</translation>
     </message>
     <message>
         <source>Dynamically allocated storage</source>
-        <translation>Dynamisk allokeret plads</translation>
+        <translation type="obsolete">Dynamisk allokeret plads</translation>
     </message>
     <message>
         <source>Fixed size storage</source>
-        <translation>Fast allokeret plads</translation>
+        <translation type="obsolete">Fast allokeret plads</translation>
     </message>
     <message>
         <source>Dynamically allocated storage split into files of less than 2GB</source>
-        <translation>Dynamisk allokeret plads spredt over filer under 2 GB</translation>
+        <translation type="obsolete">Dynamisk allokeret plads spredt over filer under 2 GB</translation>
     </message>
     <message>
         <source>Fixed size storage split into files of less than 2GB</source>
-        <translation>Fast allokeret plads spredt over filer under 2 GB</translation>
+        <translation type="obsolete">Fast allokeret plads spredt over filer under 2 GB</translation>
     </message>
     <message>
         <source>Execution Cap</source>
@@ -8954,21 +11102,308 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Deny</source>
         <comment>NetworkAdapterPromiscModePolicyType</comment>
-        <translation>Ikke tilladt</translation>
+        <translation type="obsolete">Ikke tilladt</translation>
     </message>
     <message>
         <source>Allow VMs</source>
         <comment>NetworkAdapterPromiscModePolicyType</comment>
-        <translation>Tillad VM&apos;ere</translation>
+        <translation type="obsolete">Tillad VM&apos;ere</translation>
     </message>
     <message>
         <source>Allow All</source>
         <comment>NetworkAdapterPromiscModePolicyType</comment>
-        <translation>Tillad alle</translation>
+        <translation type="obsolete">Tillad alle</translation>
     </message>
     <message>
         <source>Adapter %1</source>
         <translation>Netværkskort %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>DragAndDropType</comment>
+        <translation>Deaktiveret</translation>
+    </message>
+    <message>
+        <source>Host To Guest</source>
+        <comment>DragAndDropType</comment>
+        <translation>Vært til gæst</translation>
+    </message>
+    <message>
+        <source>Guest To Host</source>
+        <comment>DragAndDropType</comment>
+        <translation>Gæst til vært</translation>
+    </message>
+    <message>
+        <source>Bidirectional</source>
+        <comment>DragAndDropType</comment>
+        <translation>Begge veje</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>MediumType</comment>
+        <translation>Normal</translation>
+    </message>
+    <message>
+        <source>Immutable</source>
+        <comment>MediumType</comment>
+        <translation>Original beskyttet (immutable)</translation>
+    </message>
+    <message>
+        <source>Writethrough</source>
+        <comment>MediumType</comment>
+        <translation>Glem ændringer (writethrough)</translation>
+    </message>
+    <message>
+        <source>Shareable</source>
+        <comment>MediumType</comment>
+        <translation>Kan deles (shareable)</translation>
+    </message>
+    <message>
+        <source>Readonly</source>
+        <comment>MediumType</comment>
+        <translation>Skrivebeskyttet</translation>
+    </message>
+    <message>
+        <source>Multi-attach</source>
+        <comment>MediumType</comment>
+        <translation>Multi-forbundet</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated storage</source>
+        <comment>MediumVariant</comment>
+        <translation>Dynamisk allokeret lager</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated differencing storage</source>
+        <comment>MediumVariant</comment>
+        <translation>Dynamisk allokeret lager til ændringer</translation>
+    </message>
+    <message>
+        <source>Fixed size storage</source>
+        <comment>MediumVariant</comment>
+        <translation>Fast størrelse lager</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated storage split into files of less than 2GB</source>
+        <comment>MediumVariant</comment>
+        <translation>Dynamisk allokeret lager delt op på filer under 2 GB</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated differencing storage split into files of less than 2GB</source>
+        <comment>MediumVariant</comment>
+        <translation>Dynamisk allokeret lager til ændringer delt op på filer under 2 GB</translation>
+    </message>
+    <message>
+        <source>Fixed size storage split into files of less than 2GB</source>
+        <comment>MediumVariant</comment>
+        <translation>Fast størrelse lager delt op på filer under 2 GB</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated compressed storage</source>
+        <comment>MediumVariant</comment>
+        <translation>Dynamisk allokeret komprimeret lager</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated differencing compressed storage</source>
+        <comment>MediumVariant</comment>
+        <translation>Dynamisk allokeret komprimeret lager til ændringer</translation>
+    </message>
+    <message>
+        <source>Fixed size ESX storage</source>
+        <comment>MediumVariant</comment>
+        <translation>Fast størrelse ESX lager</translation>
+    </message>
+    <message>
+        <source>Fixed size storage on raw disk</source>
+        <comment>MediumVariant</comment>
+        <translation>Fast størrelse lager på rå disk</translation>
+    </message>
+    <message>
+        <source>Deny</source>
+        <comment>NetworkAdapterPromiscModePolicy</comment>
+        <translation>Ikke tilladt</translation>
+    </message>
+    <message>
+        <source>Allow VMs</source>
+        <comment>NetworkAdapterPromiscModePolicy</comment>
+        <translation>Kun VM&apos;er</translation>
+    </message>
+    <message>
+        <source>Allow All</source>
+        <comment>NetworkAdapterPromiscModePolicy</comment>
+        <translation>Tillad alle</translation>
+    </message>
+    <message>
+        <source>Ignore</source>
+        <comment>USBDeviceFilterAction</comment>
+        <translation>Ignorer</translation>
+    </message>
+    <message>
+        <source>Hold</source>
+        <comment>USBDeviceFilterAction</comment>
+        <translation>Hold</translation>
+    </message>
+    <message>
+        <source>UDP</source>
+        <comment>NATProtocol</comment>
+        <translation>UDP</translation>
+    </message>
+    <message>
+        <source>TCP</source>
+        <comment>NATProtocol</comment>
+        <translation>TCP</translation>
+    </message>
+    <message>
+        <source>IDE Primary Master</source>
+        <comment>StorageSlot</comment>
+        <translation>Primær IDE-master</translation>
+    </message>
+    <message>
+        <source>IDE Primary Slave</source>
+        <comment>StorageSlot</comment>
+        <translation>Primær IDE-slave</translation>
+    </message>
+    <message>
+        <source>IDE Secondary Master</source>
+        <comment>StorageSlot</comment>
+        <translation>Sekundær IDE-master</translation>
+    </message>
+    <message>
+        <source>IDE Secondary Slave</source>
+        <comment>StorageSlot</comment>
+        <translation>Sekundær IDE-slave</translation>
+    </message>
+    <message>
+        <source>SATA Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation>SATA port %1</translation>
+    </message>
+    <message>
+        <source>SCSI Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation>SCSI port %1</translation>
+    </message>
+    <message>
+        <source>SAS Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation>SAS port %1</translation>
+    </message>
+    <message>
+        <source>Floppy Device %1</source>
+        <comment>StorageSlot</comment>
+        <translation>Diskettedrev %1</translation>
+    </message>
+    <message>
+        <source>General</source>
+        <comment>DetailsElementType</comment>
+        <translation>Generelt</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <comment>DetailsElementType</comment>
+        <translation>Forhåndsvisning</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <comment>DetailsElementType</comment>
+        <translation>System</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>DetailsElementType</comment>
+        <translation>Skærm</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>DetailsElementType</comment>
+        <translation>Lagerenheder</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>DetailsElementType</comment>
+        <translation>Lydkort</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>DetailsElementType</comment>
+        <translation>Netværk</translation>
+    </message>
+    <message>
+        <source>Serial ports</source>
+        <comment>DetailsElementType</comment>
+        <translation>Serielle porte</translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
+        <comment>DetailsElementType</comment>
+        <translation>Parallelporte</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>DetailsElementType</comment>
+        <translation>USB</translation>
+    </message>
+    <message>
+        <source>Shared folders</source>
+        <comment>DetailsElementType</comment>
+        <translation>Delte mapper</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <comment>DetailsElementType</comment>
+        <translation>Beskrivelse</translation>
+    </message>
+    <message>
+        <source>Please choose a virtual hard drive file</source>
+        <translation>Vælg en virtuel harddisk-fil</translation>
+    </message>
+    <message>
+        <source>All virtual hard drive files (%1)</source>
+        <translation>Alle virtuelle harddisk-filer (%1)</translation>
+    </message>
+    <message>
+        <source>Please choose a virtual optical disk file</source>
+        <translation>Vælg en virtuel optisk disk-fil</translation>
+    </message>
+    <message>
+        <source>All virtual optical disk files (%1)</source>
+        <translation>Alle virtuelle optisk disk-filer (%1)</translation>
+    </message>
+    <message>
+        <source>Please choose a virtual floppy disk file</source>
+        <translation>Vælg en virtuel diskette-fil</translation>
+    </message>
+    <message>
+        <source>All virtual floppy disk files (%1)</source>
+        <translation>Alle virtuelle diskette-filer (%1)</translation>
+    </message>
+    <message>
+        <source>VDI (VirtualBox Disk Image)</source>
+        <translation>VDI (VirtualBox diskaftryk)</translation>
+    </message>
+    <message>
+        <source>VMDK (Virtual Machine Disk)</source>
+        <translation>VMDK (Virtual Machine Disk)</translation>
+    </message>
+    <message>
+        <source>VHD (Virtual Hard Disk)</source>
+        <translation>VHD (Virtual Hard Disk)</translation>
+    </message>
+    <message>
+        <source>HDD (Parallels Hard Disk)</source>
+        <translation>HDD (Parallels Hard Disk)</translation>
+    </message>
+    <message>
+        <source>QED (QEMU enhanced disk)</source>
+        <translation>QED (QEMU enhanced disk)</translation>
+    </message>
+    <message>
+        <source>QCOW (QEMU Copy-On-Write)</source>
+        <translation>QCOW (QEMU Copy-On-Write)</translation>
+    </message>
+    <message>
+        <source>Please choose a location for new virtual hard drive file</source>
+        <translation>Angiv placeringen af den nye virtuelle disk-fil</translation>
     </message>
 </context>
 <context>
@@ -9016,43 +11451,43 @@ p, li { white-space: pre-wrap; }
     <name>VBoxLogSearchPanel</name>
     <message>
         <source>Close the search panel</source>
-        <translation>Luk søgevinduet</translation>
+        <translation type="obsolete">Luk søgevinduet</translation>
     </message>
     <message>
         <source>Find </source>
-        <translation>Find </translation>
+        <translation type="obsolete">Find </translation>
     </message>
     <message>
         <source>Enter a search string here</source>
-        <translation>Indtast dit søgekriterie her</translation>
+        <translation type="obsolete">Indtast dit søgekriterie her</translation>
     </message>
     <message>
         <source>&amp;Previous</source>
-        <translation>Forrige</translation>
+        <translation type="obsolete">Forrige</translation>
     </message>
     <message>
         <source>Search for the previous occurrence of the string</source>
-        <translation>Søg baglæns efter forekomster af strengen</translation>
+        <translation type="obsolete">Søg baglæns efter forekomster af strengen</translation>
     </message>
     <message>
         <source>&amp;Next</source>
-        <translation>&amp;Næste</translation>
+        <translation type="obsolete">&amp;Næste</translation>
     </message>
     <message>
         <source>Search for the next occurrence of the string</source>
-        <translation>Søg forlæns efter forekomster af strengen</translation>
+        <translation type="obsolete">Søg forlæns efter forekomster af strengen</translation>
     </message>
     <message>
         <source>C&amp;ase Sensitive</source>
-        <translation>Forskel på store/små bogst&amp;aver</translation>
+        <translation type="obsolete">Forskel på store/små bogst&amp;aver</translation>
     </message>
     <message>
         <source>Perform case sensitive search (when checked)</source>
-        <translation>Søgning skelner mellem store og små bogstaver</translation>
+        <translation type="obsolete">Søgning skelner mellem store og små bogstaver</translation>
     </message>
     <message>
         <source>String not found</source>
-        <translation>Strengen blev ikke fundet</translation>
+        <translation type="obsolete">Strengen blev ikke fundet</translation>
     </message>
 </context>
 <context>
@@ -9094,7 +11529,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Create a new virtual hard disk</source>
-        <translation>Opret en ny virtuel harddisk</translation>
+        <translation type="obsolete">Opret en ny virtuel harddisk</translation>
     </message>
     <message>
         <source>Add an existing medium</source>
@@ -9130,7 +11565,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Select</source>
-        <translation>Vælg</translation>
+        <translation type="obsolete">Vælg</translation>
     </message>
     <message>
         <source>All hard disk images (%1)</source>
@@ -9142,7 +11577,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Select a hard disk image file</source>
-        <translation>Vælg et harddisk-aftryk</translation>
+        <translation type="obsolete">Vælg et harddisk-aftryk</translation>
     </message>
     <message>
         <source>CD/DVD-ROM images (*.iso);;All files (*)</source>
@@ -9150,7 +11585,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Select a CD/DVD-ROM disk image file</source>
-        <translation>Vælg et CD/DVD-aftryk</translation>
+        <translation type="obsolete">Vælg et CD/DVD-aftryk</translation>
     </message>
     <message>
         <source>Floppy images (*.img);;All files (*)</source>
@@ -9158,7 +11593,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Select a floppy disk image file</source>
-        <translation>Vælg et diskette-aftryk</translation>
+        <translation type="obsolete">Vælg et diskette-aftryk</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
@@ -9175,7 +11610,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Hard &amp;Disks</source>
-        <translation>Hard&amp;diske</translation>
+        <translation type="obsolete">Hard&amp;diske</translation>
     </message>
     <message>
         <source>Name</source>
@@ -9191,7 +11626,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;CD/DVD Images</source>
-        <translation>&amp;CD/DVD-aftryk</translation>
+        <translation type="obsolete">&amp;CD/DVD-aftryk</translation>
     </message>
     <message>
         <source>Size</source>
@@ -9199,7 +11634,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Floppy Images</source>
-        <translation>Diskette-a&amp;ftryk</translation>
+        <translation type="obsolete">Diskette-a&amp;ftryk</translation>
     </message>
     <message>
         <source>Attached to</source>
@@ -9218,19 +11653,19 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>CD/DVD-ROM disk</source>
-        <translation>CD/DVD-ROM disk</translation>
+        <translation type="obsolete">CD/DVD-ROM disk</translation>
     </message>
     <message>
         <source>hard disk</source>
-        <translation>harddisk</translation>
+        <translation type="obsolete">harddisk</translation>
     </message>
     <message>
         <source>floppy disk</source>
-        <translation>diskette</translation>
+        <translation type="obsolete">diskette</translation>
     </message>
     <message>
         <source>All %1 images (%2)</source>
-        <translation>Alle %1 aftryk (%2)</translation>
+        <translation type="obsolete">Alle %1 aftryk (%2)</translation>
     </message>
     <message>
         <source>Type:</source>
@@ -9270,7 +11705,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>C&amp;lose</source>
-        <translation>&amp;Luk</translation>
+        <translation type="obsolete">&amp;Luk</translation>
+    </message>
+    <message>
+        <source>Create a new virtual hard drive</source>
+        <translation>Opret en ny virtuel harddisk</translation>
     </message>
 </context>
 <context>
@@ -9303,19 +11742,19 @@ p, li { white-space: pre-wrap; }
     <name>VBoxOSTypeSelectorWidget</name>
     <message>
         <source>Operating &amp;System:</source>
-        <translation>Operativ&amp;system:</translation>
+        <translation type="obsolete">Operativ&amp;system:</translation>
     </message>
     <message>
         <source>Displays the operating system family that you plan to install into this virtual machine.</source>
-        <translation>Viser kategorien af operativsystem som du planlægger at installere i den virtuelle maskine.</translation>
+        <translation type="obsolete">Viser kategorien af operativsystem som du planlægger at installere i den virtuelle maskine.</translation>
     </message>
     <message>
         <source>Displays the operating system type that you plan to install into this virtual machine (called a guest operating system).</source>
-        <translation>Viser typen af operativsystem som du planlægger at installere i den virtuelle maskine (kaldt et gæsteoperativsystem).</translation>
+        <translation type="obsolete">Viser typen af operativsystem som du planlægger at installere i den virtuelle maskine (kaldt et gæsteoperativsystem).</translation>
     </message>
     <message>
         <source>&amp;Version:</source>
-        <translation>&amp;Version:</translation>
+        <translation type="obsolete">&amp;Version:</translation>
     </message>
 </context>
 <context>
@@ -9436,35 +11875,35 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&amp;Preferences...</source>
         <comment>global settings</comment>
-        <translation>Indstillinger...</translation>
+        <translation type="obsolete">Indstillinger...</translation>
     </message>
     <message>
         <source>Display the global settings dialog</source>
-        <translation>Vis globale indstillinger</translation>
+        <translation type="obsolete">Vis globale indstillinger</translation>
     </message>
     <message>
         <source>E&amp;xit</source>
-        <translation>Afslut</translation>
+        <translation type="obsolete">Afslut</translation>
     </message>
     <message>
         <source>Close application</source>
-        <translation>Luk applikationen</translation>
+        <translation type="obsolete">Luk applikationen</translation>
     </message>
     <message>
         <source>&amp;New...</source>
-        <translation>&amp;Ny...</translation>
+        <translation type="obsolete">&amp;Ny...</translation>
     </message>
     <message>
         <source>Create a new virtual machine</source>
-        <translation>Opret en ny virtuel maskine</translation>
+        <translation type="obsolete">Opret en ny virtuel maskine</translation>
     </message>
     <message>
         <source>&amp;Settings...</source>
-        <translation>Op&amp;sætning...</translation>
+        <translation type="obsolete">Op&amp;sætning...</translation>
     </message>
     <message>
         <source>Configure the selected virtual machine</source>
-        <translation>Tilpas den valgte virtuelle maskine</translation>
+        <translation type="obsolete">Tilpas den valgte virtuelle maskine</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
@@ -9480,11 +11919,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Discard the saved state of the selected virtual machine</source>
-        <translation>Dropper den gemte tilstand af den valgte virtuelle maskine</translation>
+        <translation type="obsolete">Dropper den gemte tilstand af den valgte virtuelle maskine</translation>
     </message>
     <message>
         <source>Refresh the accessibility state of the selected virtual machine</source>
-        <translation>Opdatér tilgængeligheden af den valgte virtuelle maskine</translation>
+        <translation type="obsolete">Opdatér tilgængeligheden af den valgte virtuelle maskine</translation>
     </message>
     <message>
         <source>&amp;File</source>
@@ -9508,31 +11947,31 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>S&amp;how</source>
-        <translation>Vis</translation>
+        <translation type="obsolete">Vis</translation>
     </message>
     <message>
         <source>Switch to the window of the selected virtual machine</source>
-        <translation>Skift til den valgte virtuelle maskines vindue</translation>
+        <translation type="obsolete">Skift til den valgte virtuelle maskines vindue</translation>
     </message>
     <message>
         <source>S&amp;tart</source>
-        <translation>S&amp;tart</translation>
+        <translation type="obsolete">S&amp;tart</translation>
     </message>
     <message>
         <source>Start the selected virtual machine</source>
-        <translation>Start den valgte virtuelle maskine</translation>
+        <translation type="obsolete">Start den valgte virtuelle maskine</translation>
     </message>
     <message>
         <source>&amp;Machine</source>
-        <translation>&amp;Maskine</translation>
+        <translation type="obsolete">&amp;Maskine</translation>
     </message>
     <message>
         <source>Show &amp;Log...</source>
-        <translation>Vis &amp;log...</translation>
+        <translation type="obsolete">Vis &amp;log...</translation>
     </message>
     <message>
         <source>Show the log files of the selected virtual machine</source>
-        <translation>Vis logfilerne fra den valgte virtuelle maskine</translation>
+        <translation type="obsolete">Vis logfilerne fra den valgte virtuelle maskine</translation>
     </message>
     <message>
         <source>R&amp;esume</source>
@@ -9540,32 +11979,32 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Resume the execution of the virtual machine</source>
-        <translation>Genoptag afviklingen af den virtuelle maskine</translation>
+        <translation type="obsolete">Genoptag afviklingen af den virtuelle maskine</translation>
     </message>
     <message>
         <source>&amp;Pause</source>
-        <translation>&amp;Pause</translation>
+        <translation type="obsolete">&amp;Pause</translation>
     </message>
     <message>
         <source>Suspend the execution of the virtual machine</source>
-        <translation>Suspendér afviklingen af den virtuelle maskine</translation>
+        <translation type="obsolete">Suspendér afviklingen af den virtuelle maskine</translation>
     </message>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Velkommen til VirtualBox!&lt;/h3&gt;&lt;p&gt;Den venstre side af dette vindue viser alle virtuelle maskiner på din computer. Lige nu er listen tom, fordi du ikke har oprettet nogle virtuelle maskiner endnu.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;For at oprette en virtuel maskine, klik på knappen &lt;b&gt;Ny&lt;/b&gt; i værktøjslinjen.&lt;/p&gt;&lt;p&gt;Du kan også trykke &lt;b&gt;%1&lt;/b&gt; for at få hjælp eller besøge &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for information og nyheder.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;h3&gt;Velkommen til VirtualBox!&lt;/h3&gt;&lt;p&gt;Den venstre side af dette vindue viser alle virtuelle maskiner på din computer. Lige nu er listen tom, fordi du ikke har oprettet nogle virtuelle maskiner endnu.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;For at oprette en virtuel maskine, klik på knappen &lt;b&gt;Ny&lt;/b&gt; i værktøjslinjen.&lt;/p&gt;&lt;p&gt;Du kan også trykke &lt;b&gt;%1&lt;/b&gt; for at få hjælp eller besøge &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for information og nyheder.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Virtual Media Manager...</source>
-        <translation>&amp;Virtuel diskhåndtering...</translation>
+        <translation type="obsolete">&amp;Virtuel diskhåndtering...</translation>
     </message>
     <message>
         <source>Display the Virtual Media Manager dialog</source>
-        <translation>Åbner Virtual diskhåndtering</translation>
+        <translation type="obsolete">Åbner Virtual diskhåndtering</translation>
     </message>
     <message>
         <source>Log</source>
         <comment>icon text</comment>
-        <translation>Log</translation>
+        <translation type="obsolete">Log</translation>
     </message>
     <message>
         <source>Sun VirtualBox</source>
@@ -9573,126 +12012,126 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Import Appliance...</source>
-        <translation>&amp;Importér Prækonfigureret system...</translation>
+        <translation type="obsolete">&amp;Importér Prækonfigureret system...</translation>
     </message>
     <message>
         <source>Import an appliance into VirtualBox</source>
-        <translation>Importerer et Prækonfigureret system til VirtualBox</translation>
+        <translation type="obsolete">Importerer et Prækonfigureret system til VirtualBox</translation>
     </message>
     <message>
         <source>&amp;Export Appliance...</source>
-        <translation>&amp;Eksportér Prækonfigureret system...</translation>
+        <translation type="obsolete">&amp;Eksportér Prækonfigureret system...</translation>
     </message>
     <message>
         <source>Export one or more VirtualBox virtual machines as an appliance</source>
-        <translation>Eksporterer et Prækonfigureret system fra VirtualBox</translation>
+        <translation type="obsolete">Eksporterer et Prækonfigureret system fra VirtualBox</translation>
     </message>
     <message>
         <source>Re&amp;fresh</source>
-        <translation>Genop&amp;frisk</translation>
+        <translation type="obsolete">Genop&amp;frisk</translation>
     </message>
     <message>
         <source>&amp;File</source>
         <comment>Mac OS X version</comment>
-        <translation>&amp;Fil</translation>
+        <translation type="obsolete">&amp;Fil</translation>
     </message>
     <message>
         <source>&amp;File</source>
         <comment>Non Mac OS X version</comment>
-        <translation>&amp;Fil</translation>
+        <translation type="obsolete">&amp;Fil</translation>
     </message>
     <message>
         <source>Select a virtual machine file</source>
-        <translation>Vælg en virtuel maskine-fil</translation>
+        <translation type="obsolete">Vælg en virtuel maskine-fil</translation>
     </message>
     <message>
         <source>Virtual machine files (%1)</source>
-        <translation>Virtuel maskine-filer (%1)</translation>
+        <translation type="obsolete">Virtuel maskine-filer (%1)</translation>
     </message>
     <message>
         <source>Manager</source>
         <comment>Note: main window title which is pretended by the product name.</comment>
-        <translation>Håndtering</translation>
+        <translation type="obsolete">Håndtering</translation>
     </message>
     <message>
         <source>&amp;Add...</source>
-        <translation>Tilføj...</translation>
+        <translation type="obsolete">Tilføj...</translation>
     </message>
     <message>
         <source>Add an existing virtual machine</source>
-        <translation>Tilføj en eksisterende virtuel maskine</translation>
+        <translation type="obsolete">Tilføj en eksisterende virtuel maskine</translation>
     </message>
     <message>
         <source>&amp;Remove</source>
-        <translation>Fje&amp;rn</translation>
+        <translation type="obsolete">Fje&amp;rn</translation>
     </message>
     <message>
         <source>Remove the selected virtual machine</source>
-        <translation>Fjern den valgte virtuelle maskine</translation>
+        <translation type="obsolete">Fjern den valgte virtuelle maskine</translation>
     </message>
     <message>
         <source>Show in Finder</source>
-        <translation>Vis i Finder</translation>
+        <translation type="obsolete">Vis i Finder</translation>
     </message>
     <message>
         <source>Show the VirtualBox Machine Definition file in Finder.</source>
-        <translation>Vis VirtualBox maskindefinitionsfil i Finder.</translation>
+        <translation type="obsolete">Vis VirtualBox maskindefinitionsfil i Finder.</translation>
     </message>
     <message>
         <source>Create Alias on Desktop</source>
-        <translation>Opret alias på skrivebordet</translation>
+        <translation type="obsolete">Opret alias på skrivebordet</translation>
     </message>
     <message>
         <source>Creates an Alias file to the VirtualBox Machine Definition file on your Desktop.</source>
-        <translation>Opretter et alias til VirtualBox maskindefinitionsfilen på dit skrivebord.</translation>
+        <translation type="obsolete">Opretter et alias til VirtualBox maskindefinitionsfilen på dit skrivebord.</translation>
     </message>
     <message>
         <source>Show in Explorer</source>
-        <translation>Vis i Filhåndtering</translation>
+        <translation type="obsolete">Vis i Filhåndtering</translation>
     </message>
     <message>
         <source>Show the VirtualBox Machine Definition file in Explorer.</source>
-        <translation>Vis VirtualBox maskindefinitionsfil i Filhåndtering.</translation>
+        <translation type="obsolete">Vis VirtualBox maskindefinitionsfil i Filhåndtering.</translation>
     </message>
     <message>
         <source>Create Shortcut on Desktop</source>
-        <translation>Opret genvej på skrivebordet</translation>
+        <translation type="obsolete">Opret genvej på skrivebordet</translation>
     </message>
     <message>
         <source>Creates an Shortcut file to the VirtualBox Machine Definition file on your Desktop.</source>
-        <translation>Opretter en genvej til VirtualBox maskindefinitionsfilen på dit skrivebord.</translation>
+        <translation type="obsolete">Opretter en genvej til VirtualBox maskindefinitionsfilen på dit skrivebord.</translation>
     </message>
     <message>
         <source>Show in File Manager</source>
-        <translation>Vis i Filhåndtering</translation>
+        <translation type="obsolete">Vis i Filhåndtering</translation>
     </message>
     <message>
         <source>Show the VirtualBox Machine Definition file in the File Manager</source>
-        <translation>Vis VirtualBox maskindefinitionsfil i Filhåndtering</translation>
+        <translation type="obsolete">Vis VirtualBox maskindefinitionsfil i Filhåndtering</translation>
     </message>
     <message>
         <source>Show Toolbar</source>
-        <translation>Vis værktøjslinje</translation>
+        <translation type="obsolete">Vis værktøjslinje</translation>
     </message>
     <message>
         <source>Show Statusbar</source>
-        <translation>Vis statusbar</translation>
+        <translation type="obsolete">Vis statusbar</translation>
     </message>
     <message>
         <source>Cl&amp;one...</source>
-        <translation>Kl&amp;on...</translation>
+        <translation type="obsolete">Kl&amp;on...</translation>
     </message>
     <message>
         <source>Clone the selected virtual machine</source>
-        <translation>Klon den valgte virtuelle maskine</translation>
+        <translation type="obsolete">Klon den valgte virtuelle maskine</translation>
     </message>
     <message>
         <source>Discard</source>
-        <translation>Kassér</translation>
+        <translation type="obsolete">Kassér</translation>
     </message>
     <message>
         <source>D&amp;iscard Saved State</source>
-        <translation>Kassér gemt t&amp;ilstand</translation>
+        <translation type="obsolete">Kassér gemt t&amp;ilstand</translation>
     </message>
 </context>
 <context>
@@ -9934,11 +12373,11 @@ p, li { white-space: pre-wrap; }
     <name>VBoxSwitchMenu</name>
     <message>
         <source>Disable</source>
-        <translation>Deaktivér</translation>
+        <translation type="obsolete">Deaktivér</translation>
     </message>
     <message>
         <source>Enable</source>
-        <translation>Aktivér</translation>
+        <translation type="obsolete">Aktivér</translation>
     </message>
 </context>
 <context>
@@ -10157,40 +12596,48 @@ p, li { white-space: pre-wrap; }
         <comment>details report (VRDE server port)</comment>
         <translation>Ikke tilgængelig</translation>
     </message>
+    <message>
+        <source>Clipboard Mode</source>
+        <translation>Udklipsholdertilstand</translation>
+    </message>
+    <message>
+        <source>Drag&apos;n&apos;Drop Mode</source>
+        <translation>Træk og slip-tilstand</translation>
+    </message>
 </context>
 <context>
     <name>VBoxVMLogViewer</name>
     <message>
         <source>Log Viewer</source>
-        <translation>Logfremviser</translation>
+        <translation type="obsolete">Logfremviser</translation>
     </message>
     <message>
         <source>&amp;Save</source>
-        <translation>Gem</translation>
+        <translation type="obsolete">Gem</translation>
     </message>
     <message>
         <source>&amp;Refresh</source>
-        <translation>Opdaté&amp;r</translation>
+        <translation type="obsolete">Opdaté&amp;r</translation>
     </message>
     <message>
         <source>%1 - VirtualBox Log Viewer</source>
-        <translation>%1 - VirtualBox logfremviser</translation>
+        <translation type="obsolete">%1 - VirtualBox logfremviser</translation>
     </message>
     <message>
         <source>&lt;p&gt;No log files found. Press the &lt;b&gt;Refresh&lt;/b&gt; button to rescan the log folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Ingen logfiler fundet. Klik på knappen &lt;b&gt;Opdatér&lt;/b&gt; for at genindlæse logkataloget &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Ingen logfiler fundet. Klik på knappen &lt;b&gt;Opdatér&lt;/b&gt; for at genindlæse logkataloget &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Save VirtualBox Log As</source>
-        <translation>Gem VirtualBox-log som</translation>
+        <translation type="obsolete">Gem VirtualBox-log som</translation>
     </message>
     <message>
         <source>&amp;Find</source>
-        <translation>&amp;Find</translation>
+        <translation type="obsolete">&amp;Find</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>Luk</translation>
+        <translation type="obsolete">Luk</translation>
     </message>
 </context>
 <context>

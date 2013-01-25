@@ -19,10 +19,15 @@
 #ifndef __UIConsoleEventHandler_h__
 #define __UIConsoleEventHandler_h__
 
-/* Local includes */
-#include "COMDefs.h"
+/* COM includes: */
+#include "COMEnums.h"
+#include "CVirtualBoxErrorInfo.h"
+#include "CEventListener.h"
+#include "CMediumAttachment.h"
+#include "CNetworkAdapter.h"
+#include "CUSBDevice.h"
 
-/* Local forward declarations */
+/* Forward declarations: */
 class UISession;
 
 class UIConsoleEventHandler: public QObject
@@ -50,6 +55,7 @@ signals:
     void sigShowWindow();
 #endif /* RT_OS_DARWIN */
     void sigCPUExecutionCapChange();
+    void sigGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
 
 private slots:
     void sltCanShowWindow(bool &fVeto, QString &strReason);

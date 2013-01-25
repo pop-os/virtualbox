@@ -494,5 +494,8 @@ DrvSetPixelFormat@8 = DrvSetPixelFormat"""
 print """crCreateContext
 crMakeCurrent
 crSwapBuffers
-crGetProcAddress"""
+crGetProcAddress
+VBoxCreateContext
+VBoxGetWindowId
+VBoxFlushToHost"""
 #print "DllMain"

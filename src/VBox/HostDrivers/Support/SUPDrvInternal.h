@@ -1,4 +1,4 @@
-/* $Revision: 71971 $ */
+/* $Revision: 80003 $ */
 /** @file
  * VirtualBox Support Driver - Internal header.
  */
@@ -33,8 +33,10 @@
 *******************************************************************************/
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
-#include <iprt/assert.h>
 #include <VBox/sup.h>
+
+#include <iprt/assert.h>
+#include <iprt/list.h>
 #include <iprt/memobj.h>
 #include <iprt/time.h>
 #include <iprt/timer.h>
@@ -76,7 +78,7 @@
 
 #elif defined(RT_OS_LINUX)
 #   include <linux/version.h>
-#   if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33)
+#   if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
 #    include <generated/autoconf.h>
 #   else
 #    ifndef AUTOCONF_INCLUDED
@@ -292,6 +294,8 @@ typedef struct SUPDRVLDRIMAGE
     uint32_t                        uState;
     /** Usage count. */
     uint32_t volatile               cUsage;
+    /** Pointer to the device extension. */
+    struct SUPDRVDEVEXT            *pDevExt;
 #ifdef RT_OS_WINDOWS
     /** The section object for the loaded image (fNative=true). */
     void                           *pvNtSectionObj;
@@ -431,6 +435,22 @@ typedef struct SUPDRVSESSION
     /** Which process this session is associated with.
      * This is NIL_RTR0PROCESS for kernel sessions and valid for user ones. */
     RTR0PROCESS                     R0Process;
+    /** Per session tracer specfic data. */
+    uintptr_t                       uTracerData;
+    /** The thread currently actively talking to the tracer. (One at the time!) */
+    RTNATIVETHREAD                  hTracerCaller;
+    /** List of tracepoint providers associated with the session
+     * (SUPDRVTPPROVIDER). */
+    RTLISTANCHOR                    TpProviders;
+    /** The number of providers in TpProviders. */
+    uint32_t                        cTpProviders;
+    /** The number of threads active in supdrvIOCtl_TracerUmodProbeFire or
+     *  SUPR0TracerUmodProbeFire. */
+    uint32_t volatile               cTpProbesFiring;
+    /** User tracepoint modules (PSUPDRVTRACKERUMOD). */
+    RTLISTANCHOR                    TpUmods;
+    /** The user tracepoint module lookup table. */
+    struct SUPDRVTRACERUMOD        *apTpLookupTable[32];
 #ifndef SUPDRV_AGNOSTIC
 # if defined(RT_OS_DARWIN)
     /** Pointer to the associated org_virtualbox_SupDrvClient object. */
@@ -490,6 +510,17 @@ typedef struct SUPDRVDEVEXT
     /** Linked list of loaded code. */
     PSUPDRVLDRIMAGE volatile        pLdrImages;
 
+    /** @name These members for detecting whether an API caller is in ModuleInit.
+     * Certain APIs are only permitted from ModuleInit, like for instance tracepoint
+     * registration.
+     * @{ */
+    /** The image currently executing its ModuleInit. */
+    PSUPDRVLDRIMAGE volatile        pLdrInitImage;
+    /** The thread currently executing a ModuleInit function. */
+    RTNATIVETHREAD volatile         hLdrInitThread;
+    /** @} */
+
+
     /** GIP mutex.
      * Any changes to any of the GIP members requires ownership of this mutex,
      * except on driver init and termination. */
@@ -498,6 +529,8 @@ typedef struct SUPDRVDEVEXT
 #else
     RTSEMFASTMUTEX                  mtxGip;
 #endif
+    /** GIP spinlock protecting GIP members during Mp events. */
+    RTSPINLOCK                      hGipSpinlock;
     /** Pointer to the Global Info Page (GIP). */
     PSUPGLOBALINFOPAGE              pGip;
     /** The physical address of the GIP. */
@@ -521,11 +554,37 @@ typedef struct SUPDRVDEVEXT
     /** The head of the list of registered component factories. */
     PSUPDRVFACTORYREG               pComponentFactoryHead;
 
+    /** Lock protecting The tracer members. */
+    RTSEMFASTMUTEX                  mtxTracer;
+    /** List of tracer providers (SUPDRVTPPROVIDER). */
+    RTLISTANCHOR                    TracerProviderList;
+    /** List of zombie tracer providers (SUPDRVTPPROVIDER). */
+    RTLISTANCHOR                    TracerProviderZombieList;
+    /** Pointer to the tracer registration record. */
+    PCSUPDRVTRACERREG               pTracerOps;
+    /** The ring-0 session of a native tracer provider. */
+    PSUPDRVSESSION                  pTracerSession;
+    /** The image containing the tracer. */
+    PSUPDRVLDRIMAGE                 pTracerImage;
+    /** The tracer helpers. */
+    SUPDRVTRACERHLP                 TracerHlp;
+    /** The number of session having opened the tracer currently. */
+    uint32_t                        cTracerOpens;
+    /** The number of threads currently calling into the tracer. */
+    uint32_t volatile               cTracerCallers;
+    /** Set if the tracer is being unloaded. */
+    bool                            fTracerUnloading;
+    /** Hash table for user tracer modules (SUPDRVVTGCOPY). */
+    RTLISTANCHOR                    aTrackerUmodHash[128];
+
+    /*
+     * Note! The non-agnostic bits must be a the very end of the structure!
+     */
 #ifndef SUPDRV_AGNOSTIC
 # ifdef RT_OS_WINDOWS
-    /* Callback object returned by ExCreateCallback. */
+    /** Callback object returned by ExCreateCallback. */
     PCALLBACK_OBJECT                pObjPowerCallback;
-    /* Callback handle returned by ExRegisterCallback. */
+    /** Callback handle returned by ExRegisterCallback. */
     PVOID                           hPowerCallback;
 # endif
 #endif
@@ -556,6 +615,16 @@ int  VBOXCALL   supdrvOSEnableVTx(bool fEnabled);
  *                              slashes on non-UNIX systems.
  */
 int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename);
+
+/**
+ * Notification call indicating that a image is being opened for the first time.
+ *
+ * Can be used to log the load address of the image.
+ *
+ * @param   pDevExt             The device globals.
+ * @param   pImage              The image handle.
+ */
+void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage);
 
 /**
  * Validates an entry point address.
@@ -606,6 +675,26 @@ void VBOXCALL   supdrvDeleteDevExt(PSUPDRVDEVEXT pDevExt);
 int  VBOXCALL   supdrvCreateSession(PSUPDRVDEVEXT pDevExt, bool fUser, PSUPDRVSESSION *ppSession);
 void VBOXCALL   supdrvCloseSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
 void VBOXCALL   supdrvCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
+
+int  VBOXCALL   supdrvTracerInit(PSUPDRVDEVEXT pDevExt);
+void VBOXCALL   supdrvTracerTerm(PSUPDRVDEVEXT pDevExt);
+void VBOXCALL   supdrvTracerModuleUnloading(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage);
+void VBOXCALL   supdrvTracerCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
+int  VBOXCALL   supdrvIOCtl_TracerUmodRegister(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession,
+                                               RTR3PTR R3PtrVtgHdr, RTUINTPTR uVtgHdrAddr,
+                                               RTR3PTR R3PtrStrTab, uint32_t cbStrTab,
+                                               const char *pszModName, uint32_t fFlags);
+int  VBOXCALL   supdrvIOCtl_TracerUmodDeregister(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, RTR3PTR R3PtrVtgHdr);
+void  VBOXCALL  supdrvIOCtl_TracerUmodProbeFire(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPDRVTRACERUSRCTX pCtx);
+int  VBOXCALL   supdrvIOCtl_TracerOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, uint32_t uCookie, uintptr_t uArg);
+int  VBOXCALL   supdrvIOCtl_TracerClose(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
+int  VBOXCALL   supdrvIOCtl_TracerIOCtl(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, uintptr_t uCmd, uintptr_t uArg, int32_t *piRetVal);
+extern PFNRT    g_pfnSupdrvProbeFireKernel;
+DECLASM(void)   supdrvTracerProbeFireStub(void);
+
+#ifdef VBOX_WITH_NATIVE_DTRACE
+const SUPDRVTRACERREG * VBOXCALL supdrvDTraceInit(void);
+#endif
 
 RT_C_DECLS_END
 

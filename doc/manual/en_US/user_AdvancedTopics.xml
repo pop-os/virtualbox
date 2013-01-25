@@ -168,11 +168,12 @@ VBoxManage controlvm "Windows 2000" savestate</screen></para>
         most likely not work correctly with 3rd party GINA modules.</para>
       </note>
 
-      <para>To manually install the VirtualBox credential provider module, extract the
-      Guest Additions (see <xref linkend="windows-guest-file-extraction" />)
-      and copy the file <computeroutput>VBoxCredProv.dll</computeroutput> to
-      the Windows <computeroutput>SYSTEM32</computeroutput> directory. Then,
-      in the registry, create the following keys:<screen>HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\
+      <para>To manually install the VirtualBox credential provider module,
+      extract the Guest Additions (see <xref
+      linkend="windows-guest-file-extraction" />) and copy the file
+      <computeroutput>VBoxCredProv.dll</computeroutput> to the Windows
+      <computeroutput>SYSTEM32</computeroutput> directory. Then, in the
+      registry, create the following keys:<screen>HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\
            Authentication\Credential Providers\{275D3BCC-22BB-4948-A7F6-3A3054EBA92B}
 
 HKEY_CLASSES_ROOT\CLSID\{275D3BCC-22BB-4948-A7F6-3A3054EBA92B}
@@ -228,11 +229,11 @@ HKEY_CLASSES_ROOT\CLSID\{275D3BCC-22BB-4948-A7F6-3A3054EBA92B}\InprocServer32</s
           </listitem>
 
           <listitem>
-            <para>Auto-logon handling of the built-in Windows Remote Desktop Service
-              (formerly known as Terminal Services) is disabled by default. To enable
-              it, create the registry key
-              <screen>HKEY_LOCAL_MACHINE\SOFTWARE\Oracle\VirtualBox Guest Additions\AutoLogon</screen>
-              with a <computeroutput>DWORD</computeroutput> value of <computeroutput>1</computeroutput>.</para>
+            <para>Auto-logon handling of the built-in Windows Remote Desktop
+            Service (formerly known as Terminal Services) is disabled by
+            default. To enable it, create the registry key <screen>HKEY_LOCAL_MACHINE\SOFTWARE\Oracle\VirtualBox Guest Additions\AutoLogon</screen>
+            with a <computeroutput>DWORD</computeroutput> value of
+            <computeroutput>1</computeroutput>.</para>
           </listitem>
         </orderedlist></para>
 
@@ -275,9 +276,10 @@ HKEY_CLASSES_ROOT\CLSID\{275D3BCC-22BB-4948-A7F6-3A3054EBA92B}\InprocServer32</s
       from
       <computeroutput>/opt/VBoxGuestAdditions-&lt;version&gt;/lib/VBoxGuestAdditions/</computeroutput>
       to the security modules directory, usually
-      <computeroutput>/lib/security/</computeroutput> on 32-bit guest Linuxes or
-      <computeroutput>/lib64/security/</computeroutput> on 64-bit ones. Please refer to your
-      guest OS documentation for the correct PAM module directory.</para>
+      <computeroutput>/lib/security/</computeroutput> on 32-bit guest Linuxes
+      or <computeroutput>/lib64/security/</computeroutput> on 64-bit ones.
+      Please refer to your guest OS documentation for the correct PAM module
+      directory.</para>
 
       <para>For example, to use <computeroutput>pam_vbox.so</computeroutput>
       with a Ubuntu Linux guest OS and GDM (the GNOME Desktop Manager) to
@@ -309,11 +311,11 @@ HKEY_CLASSES_ROOT\CLSID\{275D3BCC-22BB-4948-A7F6-3A3054EBA92B}\InprocServer32</s
           argument <computeroutput>try_first_pass</computeroutput> for
           <computeroutput>pam_unix.so</computeroutput> or
           <computeroutput>use_first_pass</computeroutput> for
-          <computeroutput>pam_unix2.so</computeroutput> is needed
-          in order to pass the credentials from the VirtualBox module to the
-          shadow database authentication module. For Ubuntu, this needs to be
-          added to <computeroutput>/etc/pam.d/common-auth</computeroutput>, to
-          the end of the line referencing
+          <computeroutput>pam_unix2.so</computeroutput> is needed in order to
+          pass the credentials from the VirtualBox module to the shadow
+          database authentication module. For Ubuntu, this needs to be added
+          to <computeroutput>/etc/pam.d/common-auth</computeroutput>, to the
+          end of the line referencing
           <computeroutput>pam_unix.so</computeroutput>. This argument tells
           the PAM module to use credentials already present in the stack, i.e.
           the ones provided by the VirtualBox PAM module.</para>
@@ -330,13 +332,79 @@ HKEY_CLASSES_ROOT\CLSID\{275D3BCC-22BB-4948-A7F6-3A3054EBA92B}\InprocServer32</s
       <computeroutput>pam_vbox.so</computeroutput> statement. Debug log output
       will then be recorded using syslog.</para>
 
-      <para><warning>
-          <para>At present, the GDM display manager only retrieves credentials
-          at startup so unless the credentials have been supplied to the guest
-          before GDM starts, automatic logon will not work. This limitation
-          needs to be addressed by the GDM developers or another display
-          manager must be used.</para>
-        </warning></para>
+      <para><note>
+          <para>By default, pam_vbox will not wait for credentials to arrive
+          from the host, in other words: When a login prompt is shown (for
+          example by GDM/KDM or the text console) and pam_vbox does not yet
+          have credentials it does not wait until they arrive. Instead the
+          next module in the PAM stack (depending on the PAM configuration)
+          will have the chance for authentication.</para>
+        </note></para>
+
+      <para>Starting with VirtualBox 4.1.4 pam_vbox supports various guest
+      property parameters which all reside in
+      <computeroutput>/VirtualBox/GuestAdd/PAM/</computeroutput>. These
+      parameters allow pam_vbox to wait for credentials to be provided by the
+      host and optionally can show a message while waiting for those. The
+      following guest properties can be set:</para>
+
+      <orderedlist>
+        <listitem>
+          <para><computeroutput>CredsWait</computeroutput>: Set to "1" if
+          pam_vbox should start waiting until credentials arrive from the
+          host. Until then no other authentication methods such as manually
+          logging in will be available. If this property is empty or get
+          deleted no waiting for credentials will be performed and pam_vbox
+          will act like before (see paragraph above). This property must be
+          set read-only for the guest
+          (<computeroutput>RDONLYGUEST</computeroutput>).</para>
+        </listitem>
+
+        <listitem>
+          <para><computeroutput>CredsWaitAbort</computeroutput>: Aborts waiting
+          for credentials when set to any value. Can be set from host and the
+          guest.</para>
+        </listitem>
+
+        <listitem>
+          <para><computeroutput>CredsWaitTimeout</computeroutput>: Timeout (in
+          seconds) to let pam_vbox wait for credentials to arrive. When no
+          credentials arrive within this timeout, authentication of pam_vbox
+          will be set to failed and the next PAM module in chain will be
+          asked. If this property is not specified, set to "0" or an invalid
+          value, an infinite timeout will be used. This property must be set
+          read-only for the guest
+          (<computeroutput>RDONLYGUEST</computeroutput>).</para>
+        </listitem>
+      </orderedlist>
+
+      <para>To customize pam_vbox further there are the following guest
+      properties:</para>
+
+      <orderedlist>
+        <listitem>
+          <para><computeroutput>CredsMsgWaiting</computeroutput>: Custom
+          message showed while pam_vbox is waiting for credentials from the
+          host. This property must be set read-only for the guest
+          (<computeroutput>RDONLYGUEST</computeroutput>).</para>
+        </listitem>
+
+        <listitem>
+          <para><computeroutput>CredsMsgWaitTimeout</computeroutput>: Custom
+          message showed when waiting for credentials by pam_vbox timed out,
+          e.g. did not arrive within time. This property must be set read-only
+          for the guest (<computeroutput>RDONLYGUEST</computeroutput>).</para>
+        </listitem>
+      </orderedlist>
+
+      <para><note>
+          <para>If a pam_vbox guest property does not have set the right flags
+          (<computeroutput>RDONLYGUEST</computeroutput>) this property will be
+          ignored then and - depending on the property - a default value will
+          be set. This can result in pam_vbox not waiting for credentials.
+          Consult the appropriate syslog file for more information and use the
+          <computeroutput>debug</computeroutput> option.</para>
+        </note></para>
     </sect2>
   </sect1>
 
@@ -388,96 +456,100 @@ HKEY_CLASSES_ROOT\CLSID\{275D3BCC-22BB-4948-A7F6-3A3054EBA92B}\InprocServer32</s
   <sect1>
     <title>Advanced configuration for Linux and Solaris guests</title>
 
-      <sect2>
-        <title>Manual setup of selected guest services on Linux</title>
+    <sect2>
+      <title>Manual setup of selected guest services on Linux</title>
 
-        <para>The VirtualBox Guest Additions contain several different
-        drivers. If for any reason you do not wish to set them all up, you can
-        install the Guest Additions using the following command:</para>
+      <para>The VirtualBox Guest Additions contain several different drivers.
+      If for any reason you do not wish to set them all up, you can install
+      the Guest Additions using the following command:</para>
 
-        <screen>  sh ./VBoxLinuxAdditions.run no_setup</screen>
+      <screen>  sh ./VBoxLinuxAdditions.run no_setup</screen>
 
-        <para>After this, you will need to at least compile the kernel modules
-        by running the command <screen>  /usr/lib/VBoxGuestAdditions/vboxadd setup</screen>
-        as root (you will need to replace <emphasis>lib</emphasis> by
-        <emphasis>lib64</emphasis> on some 64bit guests), and on older guests
-        without the udev service you will need to add the
-        <emphasis>vboxadd</emphasis> service to the default runlevel to ensure
-        that the modules get loaded.</para>
+      <para>After this, you will need to at least compile the kernel modules
+      by running the command <screen>  /usr/lib/VBoxGuestAdditions/vboxadd setup</screen>
+      as root (you will need to replace <emphasis>lib</emphasis> by
+      <emphasis>lib64</emphasis> on some 64bit guests), and on older guests
+      without the udev service you will need to add the
+      <emphasis>vboxadd</emphasis> service to the default runlevel to ensure
+      that the modules get loaded.</para>
 
-        <para>To setup the time synchronization service, run the command
-        <screen>  /usr/lib/VBoxGuestAdditions/vboxadd-service setup</screen>
-        and add the service vboxadd-service to the default runlevel. To set up
-        the X11 and OpenGL part of the Guest Additions, run the command
-        <screen>  /usr/lib/VBoxGuestAdditions/vboxadd-x11 setup</screen> (you
-        do not need to enable any services for this).</para>
+      <para>To setup the time synchronization service, run the command
+      <screen>  /usr/lib/VBoxGuestAdditions/vboxadd-service setup</screen> and
+      add the service vboxadd-service to the default runlevel. To set up the
+      X11 and OpenGL part of the Guest Additions, run the command <screen>  /usr/lib/VBoxGuestAdditions/vboxadd-x11 setup</screen>
+      (you do not need to enable any services for this).</para>
 
-        <para>To recompile the guest kernel modules, use this command:
-        <screen>  /usr/lib/VBoxGuestAdditions/vboxadd setup</screen> After
-        compilation you should reboot your guest to ensure that the new
-        modules are actually used.</para>
-      </sect2>
+      <para>To recompile the guest kernel modules, use this command: <screen>  /usr/lib/VBoxGuestAdditions/vboxadd setup</screen>
+      After compilation you should reboot your guest to ensure that the new
+      modules are actually used.</para>
+    </sect2>
 
     <sect2 id="guestxorgsetup">
       <title>Guest graphics and mouse driver setup in depth</title>
 
-        <para>This section assumes that you are familiar with configuring
-        the X.Org server using xorg.conf and optionally the newer mechanisms
-        using hal or udev and xorg.conf.d. If not you can learn about
-        them by studying the documentation which comes with X.Org.</para>
+      <para>This section assumes that you are familiar with configuring the
+      X.Org server using xorg.conf and optionally the newer mechanisms using
+      hal or udev and xorg.conf.d. If not you can learn about them by studying
+      the documentation which comes with X.Org.</para>
 
-        <para>The VirtualBox Guest Additions come with drivers for X.Org
-        versions
-          <itemizedlist>
-            <listitem>X11R6.8/X11R6.9 and XFree86 version 4.3
-            (vboxvideo_drv_68.o and vboxmouse_drv_68.o)</listitem>
-            <listitem>X11R7.0 (vboxvideo_drv_70.so and vboxmouse_drv_70.so)
-            </listitem>
-            <listitem>X11R7.1 (vboxvideo_drv_71.so and vboxmouse_drv_71.so)
-            </listitem>
-            <listitem>X.Org Server versions 1.3 and later (vboxvideo_drv_13.so
-            and vboxmouse_drv_13.so and so on).</listitem>
-          </itemizedlist>
-        By default these drivers can be found in the directory</para>
-        <para>
-        <computeroutput>/opt/VBoxGuestAdditions-&lt;version&gt;/lib/VBoxGuestAdditions</computeroutput>
-        </para>
-        <para>and the correct versions for the X server are symbolically linked
-        into the X.Org driver directories.</para>
+      <para>The VirtualBox Guest Additions come with drivers for X.Org
+      versions <itemizedlist>
+          <listitem>
+            X11R6.8/X11R6.9 and XFree86 version 4.3 (vboxvideo_drv_68.o and vboxmouse_drv_68.o)
+          </listitem>
 
-        <para>For graphics integration to work correctly, the X server must
-        load the vboxvideo driver (many recent X server versions look for it
-        automatically if they see that they are running in VirtualBox) and for
-        an optimal user experience the guest kernel drivers must be loaded and
-        the Guest Additions tool VBoxClient must be running as a client in the
-        X session. For mouse integration to work correctly, the guest kernel
-        drivers must be loaded and in addition, in X servers from X.Org X11R6.8
-        to X11R7.1 and in XFree86 version 4.3 the right vboxmouse driver must
-        be loaded and associated with /dev/mouse or /dev/psaux; in X.Org server
-        1.3 or later a driver for a PS/2 mouse must be loaded and the right
-        vboxmouse driver must be associated with /dev/vboxguest.</para>
+          <listitem>
+            X11R7.0 (vboxvideo_drv_70.so and vboxmouse_drv_70.so)
+          </listitem>
 
-        <para>The VirtualBox guest graphics driver can use any graphics
-        configuration for which the virtual resolution fits into the virtual
-        video memory allocated to the virtual machine (minus a small amount
-        used by the guest driver) as described in
-        <xref linkend="settings-display" />. The driver will offer a range of
-        standard modes at least up to the default guest resolution for all
-        active guest monitors.  In X.Org Server 1.3 and later the default mode
-        can be changed by setting the output property VBOX_MODE to
-        "&lt;width&gt;x&lt;height&gt;" for any guest monitor. When VBoxClient
-        and the kernel drivers are active this is done automatically when the
-        host requests a mode change. The driver for older versions can only
-        receive new modes by querying the host for requests at regular
-        intervals.</para>
+          <listitem>
+            X11R7.1 (vboxvideo_drv_71.so and vboxmouse_drv_71.so)
+          </listitem>
 
-        <para>With pre-1.3 X Servers you can also add your own modes to the X
-        server configuration file. You simply need to add them to the "Modes"
-        list in the "Display" subsection of the "Screen" section. For example,
-        the section shown here has a custom 2048x800 resolution mode added:
-        </para>
+          <listitem>
+            X.Org Server versions 1.3 and later (vboxvideo_drv_13.so and vboxmouse_drv_13.so and so on).
+          </listitem>
+        </itemizedlist> By default these drivers can be found in the
+      directory</para>
 
-        <screen>Section "Screen"
+      <para><computeroutput>/opt/VBoxGuestAdditions-&lt;version&gt;/lib/VBoxGuestAdditions</computeroutput></para>
+
+      <para>and the correct versions for the X server are symbolically linked
+      into the X.Org driver directories.</para>
+
+      <para>For graphics integration to work correctly, the X server must load
+      the vboxvideo driver (many recent X server versions look for it
+      automatically if they see that they are running in VirtualBox) and for
+      an optimal user experience the guest kernel drivers must be loaded and
+      the Guest Additions tool VBoxClient must be running as a client in the X
+      session. For mouse integration to work correctly, the guest kernel
+      drivers must be loaded and in addition, in X servers from X.Org X11R6.8
+      to X11R7.1 and in XFree86 version 4.3 the right vboxmouse driver must be
+      loaded and associated with /dev/mouse or /dev/psaux; in X.Org server 1.3
+      or later a driver for a PS/2 mouse must be loaded and the right
+      vboxmouse driver must be associated with /dev/vboxguest.</para>
+
+      <para>The VirtualBox guest graphics driver can use any graphics
+      configuration for which the virtual resolution fits into the virtual
+      video memory allocated to the virtual machine (minus a small amount used
+      by the guest driver) as described in <xref
+      linkend="settings-display" />. The driver will offer a range of standard
+      modes at least up to the default guest resolution for all active guest
+      monitors. In X.Org Server 1.3 and later the default mode can be changed
+      by setting the output property VBOX_MODE to
+      "&lt;width&gt;x&lt;height&gt;" for any guest monitor. When VBoxClient
+      and the kernel drivers are active this is done automatically when the
+      host requests a mode change. The driver for older versions can only
+      receive new modes by querying the host for requests at regular
+      intervals.</para>
+
+      <para>With pre-1.3 X Servers you can also add your own modes to the X
+      server configuration file. You simply need to add them to the "Modes"
+      list in the "Display" subsection of the "Screen" section. For example,
+      the section shown here has a custom 2048x800 resolution mode
+      added:</para>
+
+      <screen>Section "Screen"
         Identifier    "Default Screen"
         Device        "VirtualBox graphics card"
         Monitor       "Generic Monitor"
@@ -540,124 +612,123 @@ VBoxManage controlvm "VM name" unplugcpu 3</screen></para>
   <sect1 id="pcipassthrough">
     <title>PCI passthrough</title>
 
-    <para>When running on Linux hosts, with a recent enough kernel (at least version
-      <computeroutput>2.6.31</computeroutput>) experimental host PCI devices
-      passthrough is available.<footnote>
-        <para>Experimental support for PCI passthrough was introduced with VirtualBox
-        4.1.</para>
-    </footnote></para>
-    
-    <note><para>The PCI passthrough module is shipped as a VirtualBox extension
+    <para>When running on Linux hosts, with a recent enough kernel (at least
+    version <computeroutput>2.6.31</computeroutput>) experimental host PCI
+    devices passthrough is available.<footnote>
+        <para>Experimental support for PCI passthrough was introduced with
+        VirtualBox 4.1.</para>
+      </footnote></para>
+
+    <note>
+      <para>The PCI passthrough module is shipped as a VirtualBox extension
       package, which must be installed separately. See <xref
       linkend="intro-installing" /> for more information.</para>
-     </note>
+    </note>
 
-     <para>Essentially this feature allows to directly use physical PCI
-      devices on the host by the guest even if host doesn't have drivers for this
-      particular device. Both, regular PCI and some PCI Express cards, are
-      supported. AGP and certain PCI Express cards are not supported at the
-      moment if they rely on GART (Graphics Address Remapping Table) unit
-      programming for texture management as it does rather nontrivial
-      operations with pages remapping interfering with IOMMU.
-      This limitation may be lifted in future releases.</para>
+    <para>Essentially this feature allows to directly use physical PCI devices
+    on the host by the guest even if host doesn't have drivers for this
+    particular device. Both, regular PCI and some PCI Express cards, are
+    supported. AGP and certain PCI Express cards are not supported at the
+    moment if they rely on GART (Graphics Address Remapping Table) unit
+    programming for texture management as it does rather nontrivial operations
+    with pages remapping interfering with IOMMU. This limitation may be lifted
+    in future releases.</para>
 
-    <para>To be fully functional, PCI passthrough support in VirtualBox depends upon
-      an IOMMU hardware unit which is not yet too widely available. If the device uses
-      bus mastering (i.e. it performs DMA to the OS memory on its
-      own), then an IOMMU is required, otherwise such DMA transactions may write to
-      the wrong physical memory address as the device DMA engine is programmed using
-      a device-specific protocol to perform memory transactions. The IOMMU functions
-      as translation unit mapping physical memory access requests from the device
-      using knowledge of the guest physical address to host physical addresses translation
-      rules.</para>
+    <para>To be fully functional, PCI passthrough support in VirtualBox
+    depends upon an IOMMU hardware unit which is not yet too widely available.
+    If the device uses bus mastering (i.e. it performs DMA to the OS memory on
+    its own), then an IOMMU is required, otherwise such DMA transactions may
+    write to the wrong physical memory address as the device DMA engine is
+    programmed using a device-specific protocol to perform memory
+    transactions. The IOMMU functions as translation unit mapping physical
+    memory access requests from the device using knowledge of the guest
+    physical address to host physical addresses translation rules.</para>
 
-    <para>Intel's solution for IOMMU is marketed as "Intel Virtualization Technology for
-      Directed I/O" (VT-d), and AMD's one is called AMD-Vi. So please check if your
-      motherboard datasheet has appropriate technology.
-      Even if your hardware doesn't have a IOMMU, certain PCI cards may work
-      (such as serial PCI adapters), but the guest will show a warning on boot and
-      the VM execution will terminate if the guest driver will attempt to enable card
-      bus mastering.</para>
+    <para>Intel's solution for IOMMU is marketed as "Intel Virtualization
+    Technology for Directed I/O" (VT-d), and AMD's one is called AMD-Vi. So
+    please check if your motherboard datasheet has appropriate technology.
+    Even if your hardware doesn't have a IOMMU, certain PCI cards may work
+    (such as serial PCI adapters), but the guest will show a warning on boot
+    and the VM execution will terminate if the guest driver will attempt to
+    enable card bus mastering.</para>
 
-    <para>
-      It is very common that the BIOS or the host OS disables the IOMMU by default.
-      So before any attempt to use it please make sure that
-      <orderedlist>
+    <para>It is very common that the BIOS or the host OS disables the IOMMU by
+    default. So before any attempt to use it please make sure that
+    <orderedlist>
         <listitem>
           <para>Your motherboard has an IOMMU unit.</para>
         </listitem>
+
         <listitem>
           <para>Your CPU supports the IOMMU.</para>
         </listitem>
+
         <listitem>
           <para>The IOMMU is enabled in the BIOS.</para>
         </listitem>
+
         <listitem>
-          <para>The VM must run with VT-x/AMD-V and nested paging enabled.</para>
+          <para>The VM must run with VT-x/AMD-V and nested paging
+          enabled.</para>
         </listitem>
+
         <listitem>
-          <para>Your Linux kernel was compiled with IOMMU support (including DMA
-            remapping, see <computeroutput>CONFIG_DMAR</computeroutput> kernel
-            compilation option). The PCI stub driver
-            (<computeroutput>CONFIG_PCI_STUB</computeroutput>) is required
-            as well.</para>
+          <para>Your Linux kernel was compiled with IOMMU support (including
+          DMA remapping, see <computeroutput>CONFIG_DMAR</computeroutput>
+          kernel compilation option). The PCI stub driver
+          (<computeroutput>CONFIG_PCI_STUB</computeroutput>) is required as
+          well.</para>
         </listitem>
+
         <listitem>
           <para>Your Linux kernel recognizes and uses the IOMMU unit
-          (<computeroutput>intel_iommu=on</computeroutput>
-          boot option could be needed). Search for DMAR and PCI-DMA in kernel boot
-          log.</para>
+          (<computeroutput>intel_iommu=on</computeroutput> boot option could
+          be needed). Search for DMAR and PCI-DMA in kernel boot log.</para>
         </listitem>
-      </orderedlist>
-    </para>
+      </orderedlist></para>
 
-    <para>Once you made sure that the host kernel supports the IOMMU, the next step is
-      to select the PCI card and attach it to the guest. To figure out the list of
-      available PCI devices, use the <computeroutput>lspci</computeroutput> command.
-      The output will look like this
-      <screen>
+    <para>Once you made sure that the host kernel supports the IOMMU, the next
+    step is to select the PCI card and attach it to the guest. To figure out
+    the list of available PCI devices, use the
+    <computeroutput>lspci</computeroutput> command. The output will look like
+    this <screen>
         01:00.0 VGA compatible controller: ATI Technologies Inc Cedar PRO [Radeon HD 5450]
         01:00.1 Audio device: ATI Technologies Inc Manhattan HDMI Audio [Mobility Radeon HD 5000 Series]
         02:00.0 Ethernet controller: Realtek Semiconductor Co., Ltd. RTL8111/8168B PCI Express Gigabit Ethernet controller (rev 03)
         03:00.0 SATA controller: JMicron Technology Corp. JMB362/JMB363 Serial ATA Controller (rev 03)
         03:00.1 IDE interface: JMicron Technology Corp. JMB362/JMB363 Serial ATA Controller (rev 03)
         06:00.0 VGA compatible controller: nVidia Corporation G86 [GeForce 8500 GT] (rev a1)
-      </screen>
-      The first column is a PCI address (in format <computeroutput>bus:device.function</computeroutput>).
-      This address could be used to identify the device for further operations.
-      For example, to attach a PCI network controller on the system listed above
-      to the second PCI bus in the guest, as device 5, function 0, use the following command:
-      <screen>VBoxManage modifyvm "VM name" --pciattach 02:00.0@01:05.0</screen>
-      To detach same device, use
-      <screen>VBoxManage modifyvm "VM name" --pcidetach 02:00.0</screen>
-      Please note that both host and guest could freely assign a different PCI address to
-      the card attached during runtime, so those addresses only apply to the address of
-      the card at the moment of attachment (host), and during BIOS PCI init (guest).
-    </para>
+      </screen> The first column is a PCI address (in format
+    <computeroutput>bus:device.function</computeroutput>). This address could
+    be used to identify the device for further operations. For example, to
+    attach a PCI network controller on the system listed above to the second
+    PCI bus in the guest, as device 5, function 0, use the following command:
+    <screen>VBoxManage modifyvm "VM name" --pciattach 02:00.0@01:05.0</screen>
+    To detach same device, use <screen>VBoxManage modifyvm "VM name" --pcidetach 02:00.0</screen>
+    Please note that both host and guest could freely assign a different PCI
+    address to the card attached during runtime, so those addresses only apply
+    to the address of the card at the moment of attachment (host), and during
+    BIOS PCI init (guest).</para>
 
-    <para>If the virtual machine has a PCI device attached, certain limitations apply:
-      <orderedlist>
-         <listitem>
-          Only PCI cards with non-shared interrupts (such as using MSI on host) are
-          supported at the moment.
-        </listitem>
+    <para>If the virtual machine has a PCI device attached, certain
+    limitations apply: <orderedlist>
         <listitem>
-          No guest state can be reliably saved/restored (as the internal state of the PCI
-          card could not be retrieved).
+           Only PCI cards with non-shared interrupts (such as using MSI on host) are supported at the moment.
         </listitem>
-        <listitem>
-          Teleportation (live migration) doesn't work (for the same reason).
-        </listitem>
-        <listitem>
-          No lazy physical memory allocation. The host will preallocate the whole RAM
-          required for the VM on startup (as we cannot catch physical hardware accesses
-          to the physical memory).
-        </listitem>
-      </orderedlist>
-    </para>
 
+        <listitem>
+           No guest state can be reliably saved/restored (as the internal state of the PCI card could not be retrieved).
+        </listitem>
+
+        <listitem>
+           Teleportation (live migration) doesn't work (for the same reason).
+        </listitem>
+
+        <listitem>
+           No lazy physical memory allocation. The host will preallocate the whole RAM required for the VM on startup (as we cannot catch physical hardware accesses to the physical memory).
+        </listitem>
+      </orderedlist></para>
   </sect1>
-
 
   <sect1>
     <title>Advanced display configuration</title>
@@ -719,7 +790,6 @@ vga = 864</screen>
       <para>restores the default settings. Note that these settings apply
       globally to all guest systems, not just to a single machine.</para>
     </sect2>
-
   </sect1>
 
   <sect1>
@@ -873,8 +943,8 @@ vga = 864</screen>
       -rawdisk /dev/sda -partitions 1,5 -mbr winxp.mbr</screen>The modified
         MBR will be stored inside the image, not on the host disk.</para>
 
-        <para>The created image can be attached to a storage controller in
-        a VM configuration as usual.</para>
+        <para>The created image can be attached to a storage controller in a
+        VM configuration as usual.</para>
       </sect3>
     </sect2>
 
@@ -969,6 +1039,29 @@ VBoxManage setextradata "VM name" VBoxInternal/Devices/IntNetIP/0/LUN#0/Config/I
       200 seconds to detect this situation. The VM will fail to power
       up.</para>
     </sect2>
+  </sect1>
+
+  <sect1>
+    <title>Launching more than 128 VMs on Linux hosts</title>
+
+    <para>Linux hosts have a fixed number of IPC semaphores IDs per process
+    preventing users from starting substantially many VMs. The exact number
+    may vary with each Linux distribution. While trying to launch more VMs you
+    would be shown a "Cannot create IPC semaphore" error. In order to run more
+    VMs, you will need to increase the semaphore ID limit of the VBoxSVC
+    process. Find the current semaphore limits imposed by the kernel by
+    executing as root:<screen>#/sbin/sysctl kernel.sem
+kernel.sem = 250  32000  32  128</screen></para>
+
+    <para>The "kernel.sem" parameter bundles together 4 values, the one we are
+    interested in is called "SEMMNI", the maximum number of semaphore IDs
+    which is 128 in the above example. Increase this semaphore ID limit by
+    executing as root:<screen>echo "kernel.sem = 250 32000 32 2048" &gt;&gt; /etc/sysctl.conf
+/sbin/sysctl -p</screen></para>
+
+    <para>The above commands will add the new limits to the config file, thus
+    making the effect persistent across reboots, and will activate the new
+    limits into the currently running kernel.</para>
   </sect1>
 
   <sect1>
@@ -1173,6 +1266,41 @@ VBoxManage modifyvm "VM name" --nattftpfile1 /srv/tftp/boot/MyPXEBoot.pxe</scree
       the proxy mode just forwards DNS requests to the appropriate servers,
       the resolver mode will interpret the DNS requests and use the host's DNS
       API to query the information and return it to the guest.</para>
+
+        <sect3 id="nat_host_resolver_name_intercepting">
+          <title>User-defined host name resolving</title>
+          <para>In some cases it might be useful to intercept the name resolving mechanism,
+            providing a user-defined IP address on a particular DNS request. The intercepting
+            mechanism allows the user to map not only a single host but domains and even more
+            complex namings conventions if required.</para>
+            <para>
+              The following command sets a rule for mapping a name to a specified IP:</para>
+            <screen>VBoxManage setextradata "VM name" \
+      "VBoxInternal/Devices/{pcnet,e1000}/0/LUN#0/Config/HostResolverMappings/ \
+      &lt;uniq name of interception rule&gt;/HostIP" &lt;IPv4&gt;
+VBoxManage setextradata "VM name" \
+      "VBoxInternal/Devices/{pcnet,e1000}/0/LUN#0/Config/HostResolverMappings/ \
+      &lt;uniq name of interception rule&gt;/HostName" &lt;name of host&gt;</screen>
+    <para>The following command sets a rule for mapping a pattern name to a specified IP:</para>
+            <screen>VBoxManage setextradata "VM name" \
+      "VBoxInternal/Devices/{pcnet,e1000}/0/LUN#0/Config/HostResolverMappings/ \
+      &lt;uniq name of interception rule&gt;/HostIP" &lt;IPv4&gt;
+VBoxManage setextradata "VM name" \
+      "VBoxInternal/Devices/{pcnet,e1000}/0/LUN#0/Config/HostResolverMappings/ \
+      &lt;uniq name of interception rule&gt;/HostNamePattern" &lt;hostpattern&gt;</screen>
+    <para>The host pattern may include <computeroutput>"|", "?" and "*"</computeroutput>.</para>
+    <para>This example demonstrates how to instruct the host-resolver mechanism to resolve
+      all domain and probably some mirrors of www.blocked-site.info site with IP 127.0.0.1:</para>
+            <screen>VBoxManage setextradata "VM name" \
+      "VBoxInternal/Devices/e1000/0/LUN#0/Config/HostResolverMappings/ \
+      all_blocked_site/HostIP" 127.0.0.1
+VBoxManage setextradata "VM name" \
+      "VBoxInternal/Devices/e1000/0/LUN#0/Config/HostResolverMappings/ \
+      all_blocked_site/HostNamePattern" "*.blocked-site.*|*.fb.org"</screen>
+           <note><para>The host resolver mechanism should be enabled to use user-defined
+             mapping rules (please see
+             <xref linkend="nat_host_resolver_proxy" /> for more details).</para></note>
+        </sect3>
     </sect2>
 
     <sect2 id="nat-adv-alias">
@@ -1183,8 +1311,7 @@ VBoxManage modifyvm "VM name" --nattftpfile1 /srv/tftp/boot/MyPXEBoot.pxe</scree
       protocols like SSH, FTP and so on. Though some protocols might need a
       more transparent behavior or may depend on the real port number the
       packet was sent from. It is possible to change the NAT mode via the
-      VBoxManage frontend with the following commands:
-      <screen>VBoxManage modifyvm "VM name" --nataliasmode1 proxyonly</screen>
+      VBoxManage frontend with the following commands: <screen>VBoxManage modifyvm "VM name" --nataliasmode1 proxyonly</screen>
       and <screen>VBoxManage modifyvm "Linux Guest" --nataliasmode1 sameports</screen>
       The first example disables aliasing and switches NAT into transparent
       mode, the second example enforces preserving of port values. These modes
@@ -1199,7 +1326,9 @@ VBoxManage modifyvm "VM name" --nattftpfile1 /srv/tftp/boot/MyPXEBoot.pxe</scree
     specific VM. Use the following commands to configure the DMI BIOS
     information:</para>
 
-    <screen>VBoxManage setextradata "VM name"
+    <sect2>
+      <title>DMI BIOS information (type 0)</title>
+      <screen>VBoxManage setextradata "VM name"
       "VBoxInternal/Devices/pcbios/0/Config/DmiBIOSVendor"        "BIOS Vendor"
 VBoxManage setextradata "VM name"
       "VBoxInternal/Devices/pcbios/0/Config/DmiBIOSVersion"       "BIOS Version"
@@ -1212,8 +1341,11 @@ VBoxManage setextradata "VM name"
 VBoxManage setextradata "VM name"
       "VBoxInternal/Devices/pcbios/0/Config/DmiBIOSFirmwareMajor" 3
 VBoxManage setextradata "VM name"
-      "VBoxInternal/Devices/pcbios/0/Config/DmiBIOSFirmwareMinor" 4
-VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiBIOSFirmwareMinor" 4</screen>
+    </sect2>
+    <sect2>
+      <title>DMI system information (type 1)</title>
+      <screen>VBoxManage setextradata "VM name"
       "VBoxInternal/Devices/pcbios/0/Config/DmiSystemVendor"      "System Vendor"
 VBoxManage setextradata "VM name"
       "VBoxInternal/Devices/pcbios/0/Config/DmiSystemProduct"     "System Product"
@@ -1228,7 +1360,49 @@ VBoxManage setextradata "VM name"
 VBoxManage setextradata "VM name"
       "VBoxInternal/Devices/pcbios/0/Config/DmiSystemUuid"
                                                "9852bf98-b83c-49db-a8de-182c42c7226b"</screen>
-
+    </sect2>
+    <sect2>
+      <title>DMI board information (type 2)</title>
+      <screen>VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiBoardVendor"       "Board Vendor"
+VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiBoardProduct"      "Board Product"
+VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiBoardVersion"      "Board Version"
+VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiBoardSerial"       "Board Serial"
+VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiBoardAssetTag"     "Board Tag"
+VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiBoardLocInChass"   "Board Location"
+VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiBoardType"         10</screen>
+    </sect2>
+    <sect2>
+      <title>DMI system enclosure or chassis (type 3)</title>
+      <screen>VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiChassisVendor"     "Chassis Vendor"
+VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiChassisVersion"    "Chassis Version"
+VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiChassisSerial"     "Chassis Serial"
+VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiChassisAssetTag"   "Chassis Tag"</screen>
+    </sect2>
+    <sect2>
+      <title>DMI processor informatiion (type 4)</title>
+      <screen>VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiProcManufacturer"  "GenuineIntel"
+VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiProcVersion"       "Pentium(R) III"</screen>
+    </sect2>
+    <sect2>
+      <title>DMI OEM strings (type 11)</title>
+      <screen>VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiOEMVBoxVer"        "vboxVer_1.2.3"
+VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/pcbios/0/Config/DmiOEMVBoxRev"        "vboxRev_12345"</screen>
+    </sect2>
     <para>If a DMI string is not set, the default value of VirtualBox is used.
     To set an empty string use
     <computeroutput>"&lt;EMPTY&gt;"</computeroutput>.</para>
@@ -1247,6 +1421,21 @@ VBoxManage setextradata "VM name"
     new product key. On Linux hosts the DMI BIOS information can be obtained
     with <screen>dmidecode -t0</screen>and the DMI system information can be
     obtained with <screen>dmidecode -t1</screen></para>
+  </sect1>
+
+  <sect1 id="changeacpicust">
+    <title>Configuring the custom ACPI table</title>
+
+    <para>VirtualBox can be configured to present an custom ACPI table to
+    the guest. Use the following command to configure this:</para>
+
+    <screen>VBoxManage setextradata "VM name"
+      "VBoxInternal/Devices/acpi/0/Config/CustomTable" "/path/to/table.bin"</screen>
+
+    <para>Configuring a custom ACPI table can prevent Windows
+      Vista and Windows 7 from asking for a new product key. On Linux hosts,
+      one of the host tables can be read from
+    <filename>/sys/firmware/acpi/tables/</filename>.</para>
   </sect1>
 
   <sect1>
@@ -1278,7 +1467,7 @@ VBoxManage setextradata "VM name"
       operating system which is very strict about the consistency of time
       sources you may get a warning or error message about the timing
       inconsistency. It may also cause clocks to become unreliable with some
-      guest operating systems depending on they use the TSC.</para>
+      guest operating systems depending on how they use the TSC.</para>
     </sect2>
 
     <sect2 id="warpguest">
@@ -1316,7 +1505,7 @@ VBoxManage setextradata "VM name"
       can be tuned. The parameters can be set for a specific VM using the
       following command:</para>
 
-      <screen>VBoxManage guestproperty set VM_NAME "/VirtualBox/GuestAdd/VBoxService/PARAMETER" VALUE</screen>
+      <screen>VBoxManage guestproperty set "VM name" "/VirtualBox/GuestAdd/VBoxService/PARAMETER" VALUE</screen>
 
       <para>where <computeroutput>PARAMETER</computeroutput> is one of the
       following:</para>
@@ -1399,6 +1588,20 @@ VBoxManage setextradata "VM name"
       <para>All these parameters can be specified as command line parameters
       to VBoxService as well.</para>
     </sect2>
+
+    <sect2 id="disabletimesync">
+
+      <title>Disabling the Guest Additions time synchronization</title>
+
+      <para>Once installed and started, the VirtualBox Guest Additions will
+        try to synchronize the guest time with the host time. This can be
+        prevented by forbidding the guest service from reading the host
+        clock:</para>
+
+      <screen>VBoxManage setextradata "VM name" "VBoxInternal/Devices/VMMDev/0/Config/GetHostTimeDisabled" 1</screen>
+
+    </sect2>
+
   </sect1>
 
   <sect1 id="vboxbowsolaris11">
@@ -1411,13 +1614,13 @@ VBoxManage setextradata "VM name"
     has support for it.</para>
 
     <para>To force installation of the older STREAMS based network filter
-    driver, execute as root execute the below command before installing the
+    driver, execute as root the following command before installing the
     VirtualBox package:</para>
 
     <screen>touch /etc/vboxinst_vboxflt</screen>
 
-    <para>To force installation of the Crossbow based network filter
-    driver, execute as root the below command before installing the VirtualBox
+    <para>To force installation of the Crossbow based network filter driver,
+    execute as root the following command before installing the VirtualBox
     package:</para>
 
     <screen>touch /etc/vboxinst_vboxbow</screen>
@@ -1468,7 +1671,7 @@ vboxvnic_template0 nge0   1000   2:8:20:25:12:75   random              23
     VLAN 23 over the physical interface "nge0" can use the same VNIC template.
     This makes managing VMs on VLANs simpler and efficient, as the VLAN
     details are not stored as part of every VM's configuration but rather
-    picked up via the VNIC template which can be modified anytime using
+    picked from the VNIC template which can be modified anytime using
     <computeroutput>dladm</computeroutput>. Apart from the VLAN ID, VNIC
     templates can be created with additional properties such as bandwidth
     limits, CPU fanout etc. Refer to your Solaris network documentation on how
@@ -1519,9 +1722,9 @@ name="vboxnet" parent="pseudo" instance=2;</screen>Add as many of these lines
   <sect1 id="solariscodedumper">
     <title>Configuring the VirtualBox CoreDumper on Solaris hosts</title>
 
-    <para>VirtualBox is capable of producing its own core files when things go
-    wrong and for more extensive debugging. Currently this is only available
-    on Solaris hosts.</para>
+    <para>VirtualBox is capable of producing its own core files for extensive
+    debugging when things go wrong. Currently this is only available on
+    Solaris hosts.</para>
 
     <para>The VirtualBox CoreDumper can be enabled using the following
     command:</para>
@@ -1537,7 +1740,7 @@ name="vboxnet" parent="pseudo" instance=2;</screen>Add as many of these lines
     to this directory. If you skip this command and don't specify any core
     dump directory, the current directory of the VirtualBox executable will be
     used (which would most likely fail when writing cores as they are
-    protected with root permissions). It is recommended you explicity set a
+    protected with root permissions). It is recommended you explicitly set a
     core dump directory.</para>
 
     <para>You must specify when the VirtualBox CoreDumper should be triggered.
@@ -1554,16 +1757,16 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
     file.</para>
 
     <para>Setting <computeroutput>CoreDumpLive</computeroutput> sets up the VM
-    to produce cores whenever the VM receives a
+    to produce cores whenever the VM process receives a
     <computeroutput>SIGUSR2</computeroutput> signal. After producing the core
-    file, the VM will not be terminated and will continue to run. You can then
+    file, the VM will not be terminated and will continue to run. You can thus
     take cores of the VM process using:</para>
 
     <para><screen>kill -s SIGUSR2 &lt;VM-process-id&gt;</screen></para>
 
     <para>Core files produced by the VirtualBox CoreDumper are of the form
     <computeroutput>core.vb.&lt;ProcessName&gt;.&lt;ProcessID&gt;</computeroutput>,
-    e.g.<computeroutput>core.vb.VBoxHeadless.11321</computeroutput>.</para>
+    for example <computeroutput>core.vb.VBoxHeadless.11321</computeroutput>.</para>
   </sect1>
 
   <sect1 id="guitweaks">
@@ -1571,7 +1774,7 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
 
     <sect2>
       <title>GUI customization</title>
-  
+
       <para>There are several advanced customization settings for locking down
       the VirtualBox manager, that is, removing some features that the user
       should not see.</para>
@@ -1709,11 +1912,11 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
         <para>To disable the fullscreen mode as well as the seamless mode, use the following command:
           <screen>VBoxManage setextradata global GUI/Input/MachineShortcuts "FullscreenMode=None,SeamlessMode=None"</screen>
         </para>
-      
+
       </sect2>
       <sect2>
         <title>Action when terminating the VM</title>
-        
+
         <para>You can disallow certain actions when terminating a VM. To disallow specific actions, type:</para>
 
         <para><screen>VBoxManage setextradata "VM name" GUI/RestrictedCloseActions OPTION[,OPTION...]</screen></para>
@@ -1934,39 +2137,268 @@ svccfg -s svc:/application/virtualbox/webservice:default setprop config/user=roo
     </sect2>
   </sect1>
 
-  <sect1 id="vboxballoonctrl">
-    <title>Memory Ballooning Service</title>
+  <sect1 id="vboxwatchdog">
+    <title>VirtualBox Watchdog</title>
+    <para>Starting with VirtualBox 4.2 the memory ballooning service formerly
+    known as <computeroutput>VBoxBalloonCtrl</computeroutput> was renamed to
+    VBoxWatchdog, which now incorporates several host services that are meant
+    to be run in a server environment.</para>
 
-    <para>Starting with VirtualBox 4.0.8 a new host executable called
-      <computeroutput>VBoxBalloonCtrl</computeroutput> is available to
-      automatically take care of a VM's configured memory balloon
-      (see <xref linkend="guestadd-balloon" /> for an introduction to memory
-      ballooning). This is especially useful for server environments where
-      VMs may dynamically require more or less memory during runtime.</para>
+    <para>These services are: <itemizedlist>
+        <listitem>
+            <para>Memory ballooning control, which automatically takes care of
+            a VM's configured memory balloon (see <xref linkend="guestadd-balloon" />
+            for an introduction to memory ballooning). This especially is useful
+            for server environments where VMs may dynamically require more or
+            less memory during runtime.</para>
 
-    <para>VBoxBalloonCtrl periodically checks a VM's current memory balloon
-      and its free guest RAM and automatically adjusts the current memory
-      balloon by inflating or deflating it accordingly. This handling only
-      applies to running VMs having recent Guest Additions installed.</para>
+            <para>The service periodically checks a VM's current memory balloon
+            and its free guest RAM and automatically adjusts the current memory
+            balloon by inflating or deflating it accordingly. This handling only
+            applies to running VMs having recent Guest Additions installed.</para>
+        </listitem>
+        <listitem>
+            <para>Host isolation detection, which provides a way to detect whether
+            the host cannot reach the specific VirtualBox server instance anymore
+            and take appropriate actions, such as shutting down, saving the
+            current state or even powering down certain VMs.</para>
+        </listitem>
+    </itemizedlist></para>
 
-    <para>To set up VBoxBalloonCtrl and adjust the maximum ballooning size a
-      VM can reach the following parameters will be checked in the following
-      order:
-      <itemizedlist>
-        <listitem>specified via VBoxBalloonCtrl command line parameter 
-          <computeroutput>--balloon-max</computeroutput></listitem>
-        <listitem>per-VM parameter using
-          <screen>VBoxManage setextradata "VM-Name" VBoxInternal/Guest/BalloonSizeMax &lt;Size in MB&gt;</screen></listitem>
-        <listitem>global parameter for all VMs using
-          <screen>VBoxManage setextradata global VBoxInternal/Guest/BalloonSizeMax &lt;Size in MB&gt;</screen></listitem>
-      </itemizedlist>
-      <note>
-        <para>If no maximum ballooning size is specified by at least one of the
-          parameters above, no ballooning will be performed at all.</para>
-      </note>
+    <para>
+    All configuration values can be either specified via command line or global
+    extradata, whereas command line values always have a higher priority when set.
+    Some of the configuration values also be be specified on a per-VM basis. So
+    the overall lookup order is: command line, per-VM basis extradata (if available),
+    global extradata.
     </para>
 
-    <para>For more options and parameters check the built-in command line help
-      accessible with <computeroutput>--help</computeroutput>.</para>
+    <sect2 id="vboxwatchdog-ballonctrl">
+        <title>Memory ballooning control</title>
+        <para>The memory ballooning control inflates and deflates the memory balloon
+        of VMs based on the VMs free memory and the desired maximum balloon size.</para>
+
+        <para>To set up the memory ballooning control the maximum ballooning size a
+        VM can reach needs to be set. This can be specified via command line with
+        <screen>--balloon-max &lt;Size in MB&gt;</screen>, on a per-VM basis extradata value with
+        <screen>VBoxManage setextradata &lt;VM-Name&gt; VBoxInternal2/Watchdog/BalloonCtrl/BalloonSizeMax &lt;Size in MB&gt;</screen>
+        or using a global extradata value with
+        <screen>VBoxManage setextradata global VBoxInternal2/Watchdog/BalloonCtrl/BalloonSizeMax &lt;Size in MB&gt;</screen>
+        <note><para>If no maximum ballooning size is specified by at least one of
+            the parameters above, no ballooning will be performed at all.</para></note>
+        </para>
+
+        <para>Setting the ballooning increment in MB can be either done via
+        command line with
+        <screen>--balloon-inc &lt;Size in MB&gt;</screen> or using a global
+        extradata value with
+        <screen>VBoxManage setextradata global VBoxInternal2/Watchdog/BalloonCtrl/BalloonIncrementMB &lt;Size in MB&gt;</screen>
+        Default ballooning increment is 256 MB if not specified.</para>
+
+        <para>Same goes with the ballooning decrement: Via command line with
+        <screen>--balloon-dec &lt;Size in MB&gt;</screen> or using a global
+        extradata value with
+        <screen>VBoxManage setextradata global VBoxInternal2/Watchdog/BalloonCtrl/BalloonDecrementMB &lt;Size in MB&gt;</screen>
+        Default ballooning decrement is 128 MB if not specified.</para>
+
+        <para>To define the lower limit in MB a balloon can be the command line with
+        <screen>--balloon-lower-limit &lt;Size in MB&gt;</screen> can be used or using a global
+        extradata value with
+        <screen>VBoxManage setextradata global VBoxInternal2/Watchdog/BalloonCtrl/BalloonLowerLimitMB &lt;Size in MB&gt;</screen>
+        is available. Default lower limit is 128 if not specified.</para>
+    </sect2>
+
+    <sect2 id="vboxwatchdog-hostisln">
+        <title>Host isolation detection</title>
+        <para>To detect whether a host is being isolated, that is, the host cannot
+        reach the VirtualBox server instance anymore, the host needs to set an
+        alternating value to a global extradata value within a time period. If
+        this value is not set within that time period a timeout occurred and the
+        so-called host isolation response will be performed to the VMs handled.
+        Which VMs are handled can be controlled by defining VM groups and assigning
+        VMs to those groups. By default no groups are set, meaning that all VMs
+        on the server will be handled when no host response is received within
+        30 seconds.</para>
+
+        <para>To set the groups handled by the host isolation detection via
+        command line:
+        <screen>--apimon-groups=&lt;string[,stringN]&gt;</screen> or using a global
+        extradata value with
+        <screen>VBoxManage setextradata global VBoxInternal2/Watchdog/APIMonitor/Groups &lt;string[,stringN]&gt;</screen>
+        </para>
+
+        <para>To set the host isolation timeout via command line:
+        <screen>--apimon-isln-timeout=&lt;ms&gt;</screen> or using a global
+        extradata value with
+        <screen>VBoxManage setextradata global VBoxInternal2/Watchdog/APIMonitor/IsolationTimeoutMS &lt;ms&gt;</screen>
+        </para>
+
+        <para>To set the actual host isolation response via command line:
+        <screen>--apimon-isln-response=&lt;cmd&gt;</screen> or using a global
+        extradata value with
+        <screen>VBoxManage setextradata global VBoxInternal2/Watchdog/APIMonitor/IsolationResponse &lt;cmd&gt;</screen>
+        The following response commands are available:
+        <itemizedlist>
+            <listitem>
+                <para><computeroutput>none</computeroutput>, which does nothing.</para>
+            </listitem>
+            <listitem>
+                <para><computeroutput>pause</computeroutput>, which pauses the
+                execution of a VM.</para>
+            </listitem>
+            <listitem>
+                <para><computeroutput>poweroff</computeroutput>, which shuts down
+                the VM by pressing the virtual power button. The VM will not have
+                the chance of saving any data or veto the shutdown process.</para>
+            </listitem>
+            <listitem>
+                <para><computeroutput>save</computeroutput>, which saves the current
+                machine state and powers off the VM afterwards. If saving the machine
+                state fails the VM will be paused.</para>
+            </listitem>
+            <listitem>
+                <para><computeroutput>shutdown</computeroutput>, which shuts down
+                the VM in a gentle way by sending an <computeroutput>ACPI</computeroutput>
+                shutdown event to the VM's operating system. The OS then has the
+                chance of doing a clean shutdown.</para>
+            </listitem>
+        </itemizedlist>
+        </para>
+    </sect2>
+
+    <sect2 id="vboxwatchdog-moreinfo">
+        <title>More information</title>
+        <para>For more advanced options and parameters like verbose logging check
+        the built-in command line help accessible with
+        <computeroutput>--help</computeroutput>.</para>
+    </sect2>
+
+  </sect1>
+
+  <sect1 id="otherextpacks">
+    <title>Other extension packs</title>
+
+    <para>Starting with VirtualBox 4.2.0 there is another extension pack,
+    <code>VNC</code>, which is open source and replaces the previous
+    integration of the VNC remote access protocol. This is experimental code,
+    and will be initially available in the VirtualBox source code package only.
+    It is to a large portion code contributed by users, and is not supported
+    in any way by Oracle.</para>
+
+    <para>The keyboard handling is severely limited, and only the US keyboard
+    layout works. Other keyboard layouts will have at least some keys which
+    produce the wrong results (often quite surprising effects), and for layouts
+    which have significant differences to the US keyboard layout it is most
+    likely unusable.</para>
+
+    <para>It is possible to install both the Oracle VM VirtualBox Extension
+    Pack and VNC, but only one VRDE module can be active at any time. The
+    following command switches to the VNC VRDE module in
+    VNC:<screen>VBoxManage setproperty vrdeextpack VNC</screen></para>
+
+    <para>Configuring the remote access works very similarly to VRDP (see
+    <xref linkend="vrde" />), with some limitations: VNC does not
+    support specifying several port numbers, and the authentication is done
+    differently. VNC can only deal with password authentication, and there
+    is no option to use password hashes. This leaves no other choice than
+    having a clear-text password in the VM configuration, which can be set with
+    the following command:<screen>VBoxManage modifyvm VMNAME --vrdeproperty VNCPassword=secret</screen></para>
+
+    <para>The user is responsible for keeping this password secret, and it
+    should be removed when a VM configuration is passed to another person,
+    for whatever purpose. Some VNC servers claim to have "encrypted" passwords
+    in the configuration. This is not true encryption, it is only concealing
+    the passwords, which is exactly as secure as clear-text passwords.</para>
+
+    <para>The following command switches back to VRDP (if
+    installed):<screen>VBoxManage setproperty vrdeextpack "Oracle VM VirtualBox Extension Pack"</screen></para>
+  </sect1>
+
+  <sect1 id="autostart">
+    <title>Starting virtual machines during system boot</title>
+
+    <para>Starting with VirtualBox 4.2.0 it is possible to start VMs automatically during
+    system boot on Linux, Solaris and Mac OS X for all users. </para>
+
+    <sect2 id="autostart-linux">
+      <title>Linux: starting the autostart service via <computeroutput>init</computeroutput></title>
+
+      <para>On Linux, the autostart service is activated by setting two variables in
+      <computeroutput>/etc/default/virtualbox</computeroutput>.
+      The first one is <computeroutput>VBOXAUTOSTART_DB</computeroutput> which
+      contains an absolute path to the autostart database directory.
+      The directory should have write access for every user who should be able to
+      start virtual machines automatically. Furthermore the directory should have the
+      sticky bit set.
+      The second variable is <computeroutput>VBOXAUTOSTART_CONFIG</computeroutput>
+      which points the service to the autostart configuration file which is used
+      during boot to determine whether to allow individual users to start a VM
+      automatically and configure startup delays.
+      The config file can be placed in <computeroutput>/etc/vbox</computeroutput>
+      and contains several options. One is <computeroutput>default_policy</computeroutput>
+      which controls whether the autostart service allows or denies to start a VM
+      for users which are not in the exception list.
+      The exception list starts with <computeroutput>exception_list</computeroutput>
+      and contains a comma seperated list with usernames. Furthermore a separate
+      startup delay can be configured for every user to avoid overloading the host.
+      A sample configuration is given below:</para>
+
+      <para><screen>
+# Default policy is to deny starting a VM, the other option is "allow".
+default_policy = deny
+
+# Bob is allowed to start virtual machines but starting them
+# will be delayed for 10 seconds
+bob = {
+    allow = true
+    startup_delay = 10
+}
+
+# Alice is not allowed to start virtual machines, useful to exclude certain users
+# if the default policy is set to allow.
+alice = {
+    allow = false
+}
+      </screen></para>
+
+      <para>Every user who wants to enable autostart for individual machines
+      has to set the path to the autostart database directory with
+      <screen>VBoxManage setproperty autostartdbpath &lt;Autostart directory&gt;</screen>
+      </para>
+    </sect2>
+
+    <sect2 id="autostart-solaris">
+      <title>Solaris: starting the autostart service via SMF</title>
+
+      <para>On Solaris hosts, the VirtualBox autostart daemon is
+      integrated into the SMF framework. To enable it you have to point the service
+      to an existing configuration file which has the same format as on Linux (see <xref linkend="autostart-linux" />):
+      <screen>svccfg -s svc:/application/virtualbox/autostart:default setprop config/config=/etc/vbox/autostart.cfg</screen>
+      </para>
+
+      <para>When everything is configured correctly you can start the
+      VirtualBox autostart service with the following command:<screen>svcadm enable svc:/application/virtualbox/autostart:default</screen></para>
+
+      <para>For more information about SMF, please refer to the Solaris
+      documentation.</para>
+    </sect2>
+
+    <sect2 id="autostart-osx">
+      <title>Mac OS X: starting the autostart service via launchd</title>
+
+      <para>On Mac OS X, launchd is used to start the VirtualBox autostart service. An
+      example configuration file can be found in
+      <computeroutput>/Applications/VirtualBox.app/Contents/MacOS/org.virtualbox.vboxautostart.plist</computeroutput>.
+      To enable the service copy the file to <computeroutput>/Library/LaunchDaemons</computeroutput> and change the
+      <computeroutput>Disabled</computeroutput> key from
+      <computeroutput>true</computeroutput> to
+      <computeroutput>false</computeroutput>. Furthermore replace the second parameter
+      to an existing configuration file which has the same format as on Linux (see <xref linkend="autostart-linux" />).
+      To manually start the service use the following command:
+      <screen>launchctl load /Library/LaunchDaemons/org.virtualbox.vboxautostart.plist</screen>
+      For additional information on how launchd services could be
+      configured see <literal><ulink
+      url="http://developer.apple.com/mac/library/documentation/MacOSX/Conceptual/BPSystemStartup/BPSystemStartup.html">http://developer.apple.com/mac/library/documentation/MacOSX/Conceptual/BPSystemStartup/BPSystemStartup.html</ulink></literal>.</para>
+    </sect2>
   </sect1>
 </chapter>

@@ -1,5 +1,4 @@
 /** @file
- *
  * VirtualBox OpenGL Cocoa Window System implementation
  */
 
@@ -31,14 +30,14 @@ GLboolean renderspu_SystemInitVisual(VisualInfo *pVisInfo)
     return GL_TRUE;
 }
 
-GLboolean renderspu_SystemCreateContext(VisualInfo *pVisInfo, ContextInfo *pCtxInfo, ContextInfo *pShharedCtxInfo)
+GLboolean renderspu_SystemCreateContext(VisualInfo *pVisInfo, ContextInfo *pCtxInfo, ContextInfo *pSharedCtxInfo)
 {
     CRASSERT(pVisInfo);
     CRASSERT(pCtxInfo);
 
     pCtxInfo->currentWindow = NULL;
 
-    cocoaGLCtxCreate(&pCtxInfo->context, pVisInfo->visAttribs);
+    cocoaGLCtxCreate(&pCtxInfo->context, pVisInfo->visAttribs, pSharedCtxInfo ? pSharedCtxInfo->context : NULL);
 
     return GL_TRUE;
 }

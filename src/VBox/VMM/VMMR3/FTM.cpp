@@ -98,7 +98,7 @@ static DECLCALLBACK(int) ftmR3PageTreeDestroyCallback(PAVLGCPHYSNODECORE pBaseNo
  * Initializes the FTM.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3DECL(int) FTMR3Init(PVM pVM)
 {
@@ -154,7 +154,7 @@ VMMR3DECL(int) FTMR3Init(PVM pVM)
  * the VM itself is at this point powered off or suspended.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3DECL(int) FTMR3Term(PVM pVM)
 {
@@ -269,7 +269,7 @@ static int ftmR3TcpReadLine(PVM pVM, char *pszBuf, size_t cchBuf)
  * Reads an ACK or NACK.
  *
  * @returns VBox status code.
- * @param   pVM                 The VM to operate on.
+ * @param   pVM                 Pointer to the VM.
  * @param   pszWhich            Which ACK is this this?
  * @param   pszNAckMsg          Optional NACK message.
  */
@@ -325,7 +325,7 @@ static int ftmR3TcpReadACK(PVM pVM, const char *pszWhich, const char *pszNAckMsg
  *
  * @returns VBox status code.
  *
- * @param   pVM                 The VM to operate on.
+ * @param   pVM                 Pointer to the VM.
  * @param   pszCommand          The command.
  * @param   fWaitForAck         Whether to wait for the ACK.
  */
@@ -345,6 +345,7 @@ static int ftmR3TcpSubmitCommand(PVM pVM, const char *pszCommand, bool fWaitForA
 static DECLCALLBACK(int) ftmR3TcpOpWrite(void *pvUser, uint64_t offStream, const void *pvBuf, size_t cbToWrite)
 {
     PVM pVM = (PVM)pvUser;
+    NOREF(offStream);
 
     AssertReturn(cbToWrite > 0, VINF_SUCCESS);
     AssertReturn(cbToWrite < UINT32_MAX, VERR_OUT_OF_RANGE);
@@ -414,6 +415,7 @@ static DECLCALLBACK(int) ftmR3TcpOpRead(void *pvUser, uint64_t offStream, void *
 {
     PVM pVM = (PVM)pvUser;
     AssertReturn(!pVM->fFaultTolerantMaster, VERR_INVALID_HANDLE);
+    NOREF(offStream);
 
     for (;;)
     {
@@ -512,6 +514,7 @@ static DECLCALLBACK(int) ftmR3TcpOpRead(void *pvUser, uint64_t offStream, void *
  */
 static DECLCALLBACK(int) ftmR3TcpOpSeek(void *pvUser, int64_t offSeek, unsigned uMethod, uint64_t *poffActual)
 {
+    NOREF(pvUser); NOREF(offSeek); NOREF(uMethod); NOREF(poffActual);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -531,6 +534,7 @@ static DECLCALLBACK(uint64_t) ftmR3TcpOpTell(void *pvUser)
  */
 static DECLCALLBACK(int) ftmR3TcpOpSize(void *pvUser, uint64_t *pcb)
 {
+    NOREF(pvUser); NOREF(pcb);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -611,7 +615,7 @@ static SSMSTRMOPS const g_ftmR3TcpOps =
 /**
  * VMR3ReqCallWait callback
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  *
  */
 static DECLCALLBACK(void) ftmR3WriteProtectMemory(PVM pVM)
@@ -625,7 +629,7 @@ static DECLCALLBACK(void) ftmR3WriteProtectMemory(PVM pVM)
  * Sync the VM state
  *
  * @returns VBox status code.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  */
 static int ftmR3PerformFullSync(PVM pVM)
 {
@@ -671,7 +675,7 @@ static int ftmR3PerformFullSync(PVM pVM)
 /**
  * PGMR3PhysEnumDirtyFTPages callback for syncing dirty physical pages
  *
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   GCPhys          GC physical address
  * @param   pRange          HC virtual address of the page(s)
  * @param   cbRange         Size of the dirty range in bytes.
@@ -679,6 +683,7 @@ static int ftmR3PerformFullSync(PVM pVM)
  */
 static DECLCALLBACK(int) ftmR3SyncDirtyPage(PVM pVM, RTGCPHYS GCPhys, uint8_t *pRange, unsigned cbRange, void *pvUser)
 {
+    NOREF(pvUser);
     FTMTCPHDRMEM Hdr;
     Hdr.u32Magic    = FTMTCPHDR_MAGIC;
     Hdr.GCPhys      = GCPhys;
@@ -724,15 +729,16 @@ static DECLCALLBACK(int) ftmR3SyncDirtyPage(PVM pVM, RTGCPHYS GCPhys, uint8_t *p
 /**
  * Thread function which starts syncing process for this master VM
  *
- * @param   Thread      The thread id.
- * @param   pvUser      Not used
+ * @param   hThread     The thread handle.
+ * @param   pvUser      Pointer to the VM.
  * @return  VINF_SUCCESS (ignored).
  *
  */
-static DECLCALLBACK(int) ftmR3MasterThread(RTTHREAD Thread, void *pvUser)
+static DECLCALLBACK(int) ftmR3MasterThread(RTTHREAD hThread, void *pvUser)
 {
     int rc  = VINF_SUCCESS;
     PVM pVM = (PVM)pvUser;
+    NOREF(hThread);
 
     for (;;)
     {
@@ -841,7 +847,7 @@ static DECLCALLBACK(int) ftmR3MasterThread(RTTHREAD Thread, void *pvUser)
  * Syncs memory from the master VM
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  */
 static int ftmR3SyncMem(PVM pVM)
 {
@@ -881,7 +887,7 @@ static int ftmR3SyncMem(PVM pVM)
                 pNode->Core.Key = GCPhys;
                 pNode->pPage = (void *)(pNode + 1);
                 bool fRet = RTAvlGCPhysInsert(&pVM->ftm.s.standby.pPhysPageTree, &pNode->Core);
-                Assert(fRet);
+                Assert(fRet); NOREF(fRet);
             }
 
             /* Fetch the page. */
@@ -905,7 +911,7 @@ static int ftmR3SyncMem(PVM pVM)
  *
  * @returns 0 to continue, otherwise stop
  * @param   pBaseNode       Node to destroy
- * @param   pvUser          User parameter
+ * @param   pvUser          Pointer to the VM.
  */
 static DECLCALLBACK(int) ftmR3PageTreeDestroyCallback(PAVLGCPHYSNODECORE pBaseNode, void *pvUser)
 {
@@ -925,14 +931,15 @@ static DECLCALLBACK(int) ftmR3PageTreeDestroyCallback(PAVLGCPHYSNODECORE pBaseNo
 /**
  * Thread function which monitors the health of the master VM
  *
- * @param   Thread      The thread id.
- * @param   pvUser      Not used
+ * @param   hThread     The thread handle.
+ * @param   pvUser      Pointer to the VM.
  * @return  VINF_SUCCESS (ignored).
  *
  */
-static DECLCALLBACK(int) ftmR3StandbyThread(RTTHREAD Thread, void *pvUser)
+static DECLCALLBACK(int) ftmR3StandbyThread(RTTHREAD hThread, void *pvUser)
 {
     PVM pVM = (PVM)pvUser;
+    NOREF(hThread);
 
     for (;;)
     {
@@ -1017,7 +1024,7 @@ static DECLCALLBACK(int) ftmR3StandbyServeConnection(RTSOCKET Sock, void *pvUser
     if (RT_FAILURE(rc))
         return VINF_SUCCESS;
 
-    /** todo: verify VM config. */
+    /** @todo verify VM config. */
 
     /*
      * Stop the server.
@@ -1030,7 +1037,7 @@ static DECLCALLBACK(int) ftmR3StandbyServeConnection(RTSOCKET Sock, void *pvUser
     /*
      * Command processing loop.
      */
-    bool fDone = false;
+    //bool fDone = false;
     for (;;)
     {
         bool fFullSync = false;
@@ -1116,7 +1123,7 @@ static DECLCALLBACK(int) ftmR3StandbyServeConnection(RTSOCKET Sock, void *pvUser
  *
  * @returns VBox status code.
  *
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   fMaster     FT master or standby
  * @param   uInterval   FT sync interval
  * @param   pszAddress  Standby VM address
@@ -1205,7 +1212,7 @@ VMMR3DECL(int) FTMR3PowerOn(PVM pVM, bool fMaster, unsigned uInterval, const cha
  *
  * @returns VBox status code.
  *
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3DECL(int) FTMR3CancelStandby(PVM pVM)
 {
@@ -1223,22 +1230,24 @@ VMMR3DECL(int) FTMR3CancelStandby(PVM pVM)
  * it to complete this function.
  *
  * @returns VINF_SUCCESS (VBox strict status code).
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pVCpu       The VMCPU for the EMT we're being called on. Unused.
- * @param   pvUser      User parameter
+ * @param   pvUser      Not used.
  */
 static DECLCALLBACK(VBOXSTRICTRC) ftmR3SetCheckpointRendezvous(PVM pVM, PVMCPU pVCpu, void *pvUser)
 {
-    int rc = VINF_SUCCESS;
-    bool fSuspended = false;
+    int     rc         = VINF_SUCCESS;
+    bool    fSuspended = false;
+    NOREF(pVCpu);
+    NOREF(pvUser);
 
-    /** We don't call VMR3Suspend here to avoid the overhead of state changes and notifications. This
-     *  is only a short suspend.
+    /* We don't call VMR3Suspend here to avoid the overhead of state changes and notifications. This
+     * is only a short suspend.
      */
     STAM_PROFILE_START(&pVM->ftm.s.StatCheckpointPause, a);
     PDMR3Suspend(pVM);
 
-    /** Hack alert: as EM is responsible for dealing with the suspend state. We must do this here ourselves, but only for this EMT.*/
+    /* Hack alert: as EM is responsible for dealing with the suspend state. We must do this here ourselves, but only for this EMT.*/
     EMR3NotifySuspend(pVM);
     STAM_PROFILE_STOP(&pVM->ftm.s.StatCheckpointPause, a);
 
@@ -1270,14 +1279,14 @@ static DECLCALLBACK(VBOXSTRICTRC) ftmR3SetCheckpointRendezvous(PVM pVM, PVMCPU p
     rc = PGMR3PhysWriteProtectRAM(pVM);
     AssertRC(rc);
 
-    /** We don't call VMR3Resume here to avoid the overhead of state changes and notifications. This
-     *  is only a short suspend.
+    /* We don't call VMR3Resume here to avoid the overhead of state changes and notifications. This
+     * is only a short suspend.
      */
     STAM_PROFILE_START(&pVM->ftm.s.StatCheckpointResume, b);
     PGMR3ResetNoMorePhysWritesFlag(pVM);
     PDMR3Resume(pVM);
 
-    /** Hack alert as EM is responsible for dealing with the suspend state. We must do this here ourselves, but only for this EMT.*/
+    /* Hack alert as EM is responsible for dealing with the suspend state. We must do this here ourselves, but only for this EMT.*/
     EMR3NotifyResume(pVM);
     STAM_PROFILE_STOP(&pVM->ftm.s.StatCheckpointResume, b);
 
@@ -1289,7 +1298,7 @@ static DECLCALLBACK(VBOXSTRICTRC) ftmR3SetCheckpointRendezvous(PVM pVM, PVMCPU p
  *
  * @returns VBox status code.
  *
- * @param   pVM             The VM to operate on.
+ * @param   pVM             Pointer to the VM.
  * @param   enmCheckpoint   Checkpoint type
  */
 VMMR3DECL(int) FTMR3SetCheckpoint(PVM pVM, FTMCHECKPOINTTYPE enmCheckpoint)

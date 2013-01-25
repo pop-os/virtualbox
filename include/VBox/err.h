@@ -41,7 +41,8 @@
  */
 /** Failed to allocate VM memory. */
 #define VERR_NO_VM_MEMORY                   (-1000)
-/** GC is toasted and the VMM should be terminated at once, but no need to panic about it :-) */
+/** RC is toasted and the VMM should be terminated at once, but no need to
+ * panic about it :-) */
 #define VERR_DONT_PANIC                     (-1001)
 /** Unsupported CPU. */
 #define VERR_UNSUPPORTED_CPU                (-1002)
@@ -170,60 +171,60 @@
 /** Last scheduling related status code. (inclusive) */
 #define VINF_EM_LAST                        1120
 
-/** Reason for leaving GC: Guest trap which couldn't be handled in GC.
+/** Reason for leaving RC: Guest trap which couldn't be handled in RC.
  * The trap is generally forwarded to the REM and executed there. */
 #define VINF_EM_RAW_GUEST_TRAP              1121
-/** Reason for leaving GC: Interrupted by external interrupt.
+/** Reason for leaving RC: Interrupted by external interrupt.
  * The interrupt needed to be handled by the host OS. */
 #define VINF_EM_RAW_INTERRUPT               1122
-/** Reason for leaving GC: Interrupted by external interrupt while in hypervisor code.
- * The interrupt needed to be handled by the host OS and hypervisor execution must be
- * resumed. VM state is not complete at this point. */
+/** Reason for leaving RC: Interrupted by external interrupt while in hypervisor
+ * code. The interrupt needed to be handled by the host OS and hypervisor
+ * execution must be resumed. VM state is not complete at this point. */
 #define VINF_EM_RAW_INTERRUPT_HYPER         1123
-/** Reason for leaving GC: A Ring switch was attempted.
+/** Reason for leaving RC: A Ring switch was attempted.
  * Normal cause of action is to execute this in REM. */
 #define VINF_EM_RAW_RING_SWITCH             1124
-/** Reason for leaving GC: A Ring switch was attempted using software interrupt.
+/** Reason for leaving RC: A Ring switch was attempted using software interrupt.
  * Normal cause of action is to execute this in REM. */
 #define VINF_EM_RAW_RING_SWITCH_INT         1125
-/** Reason for leaving GC: A privileged instruction was attempted executed.
+/** Reason for leaving RC: A privileged instruction was attempted executed.
  * Normal cause of action is to execute this in REM. */
 #define VINF_EM_RAW_EXCEPTION_PRIVILEGED    1126
 
-/** Reason for leaving GC: Emulate instruction. */
+/** Reason for leaving RZ: Emulate instruction. */
 #define VINF_EM_RAW_EMULATE_INSTR           1127
-/** Reason for leaving GC: Unhandled TSS write.
+/** Reason for leaving RC: Unhandled TSS write.
  * Recompiler gets control. */
 #define VINF_EM_RAW_EMULATE_INSTR_TSS_FAULT 1128
-/** Reason for leaving GC: Unhandled LDT write.
+/** Reason for leaving RC: Unhandled LDT write.
  * Recompiler gets control. */
 #define VINF_EM_RAW_EMULATE_INSTR_LDT_FAULT 1129
-/** Reason for leaving GC: Unhandled IDT write.
+/** Reason for leaving RC: Unhandled IDT write.
  * Recompiler gets control. */
 #define VINF_EM_RAW_EMULATE_INSTR_IDT_FAULT 1130
-/** Reason for leaving GC: Unhandled GDT write.
+/** Reason for leaving RC: Unhandled GDT write.
  * Recompiler gets control. */
 #define VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT 1131
-/** Reason for leaving GC: Unhandled Page Directory write.
+/** Reason for leaving RC: Unhandled Page Directory write.
  * Recompiler gets control. */
 #define VINF_EM_RAW_EMULATE_INSTR_PD_FAULT  1132
-/** Reason for leaving GC: jump inside generated patch jump.
+/** Reason for leaving RC: jump inside generated patch jump.
  * Fatal error. */
 #define VERR_EM_RAW_PATCH_CONFLICT          (-1133)
-/** Reason for leaving GC: Hlt instruction.
+/** Reason for leaving RC: Hlt instruction.
  * Recompiler gets control. */
 #define VINF_EM_RAW_EMULATE_INSTR_HLT       1134
-/** Reason for leaving GC: Ring-3 operation pending. */
+/** Reason for leaving RZ: Ring-3 operation pending. */
 #define VINF_EM_RAW_TO_R3                   1135
-/** Reason for leaving GC: Timer pending. */
+/** Reason for leaving RZ: Timer pending. */
 #define VINF_EM_RAW_TIMER_PENDING           1136
-/** Reason for leaving GC: Interrupt pending (guest). */
+/** Reason for leaving RC: Interrupt pending (guest). */
 #define VINF_EM_RAW_INTERRUPT_PENDING       1137
-/** Reason for leaving GC: Encountered a stale selector. */
+/** Reason for leaving RC: Encountered a stale selector. */
 #define VINF_EM_RAW_STALE_SELECTOR          1138
-/** Reason for leaving GC: The IRET resuming guest code trapped. */
+/** Reason for leaving RC: The IRET resuming guest code trapped. */
 #define VINF_EM_RAW_IRET_TRAP               1139
-/** Reason for leaving GC: Emulate (MM)IO intensive code in the recompiler. */
+/** Reason for leaving RC: Emulate (MM)IO intensive code in the recompiler. */
 #define VINF_EM_RAW_EMULATE_IO_BLOCK        1140
 /** The interpreter was unable to deal with the instruction at hand. */
 #define VERR_EM_INTERPRETER                 (-1148)
@@ -295,6 +296,8 @@
 #define VERR_DBGF_STACK_IPE_1               (-1218)
 /** Internal processing error \#2 in the DBGF stack code. */
 #define VERR_DBGF_STACK_IPE_2               (-1219)
+/** No trace buffer available, please change the VM config. */
+#define VERR_DBGF_NO_TRACE_BUFFER           (-1220)
 /** @} */
 
 
@@ -322,28 +325,28 @@
 /** Patch was removed. */
 #define VWRN_PATCH_REMOVED                  1407
 
-/** Reason for leaving GC: \#GP with EIP pointing to patch code. */
+/** Reason for leaving RC: \#GP with EIP pointing to patch code. */
 #define VINF_PATM_PATCH_TRAP_GP             1408
-/** First leave GC code. */
-#define VINF_PATM_LEAVEGC_FIRST             VINF_PATM_PATCH_TRAP_GP
-/** Reason for leaving GC: \#PF with EIP pointing to patch code. */
+/** First leave RC code. */
+#define VINF_PATM_LEAVE_RC_FIRST             VINF_PATM_PATCH_TRAP_GP
+/** Reason for leaving RC: \#PF with EIP pointing to patch code. */
 #define VINF_PATM_PATCH_TRAP_PF             1409
-/** Reason for leaving GC: int3 with EIP pointing to patch code. */
+/** Reason for leaving RC: int3 with EIP pointing to patch code. */
 #define VINF_PATM_PATCH_INT3                1410
-/** Reason for leaving GC: \#PF for monitored patch page. */
+/** Reason for leaving RC: \#PF for monitored patch page. */
 #define VINF_PATM_CHECK_PATCH_PAGE          1411
-/** Reason for leaving GC: duplicate instruction called at current eip. */
+/** Reason for leaving RC: duplicate instruction called at current eip. */
 #define VINF_PATM_DUPLICATE_FUNCTION        1412
 /** Execute one instruction with the recompiler */
 #define VINF_PATCH_EMULATE_INSTR            1413
-/** Reason for leaving GC: attempt to patch MMIO write. */
+/** Reason for leaving RC: attempt to patch MMIO write. */
 #define VINF_PATM_HC_MMIO_PATCH_WRITE       1414
-/** Reason for leaving GC: attempt to patch MMIO read. */
+/** Reason for leaving RC: attempt to patch MMIO read. */
 #define VINF_PATM_HC_MMIO_PATCH_READ        1415
-/** Reason for leaving GC: pending irq after iret that sets IF. */
+/** Reason for leaving RC: pending irq after iret that sets IF. */
 #define VINF_PATM_PENDING_IRQ_AFTER_IRET    1416
-/** Last leave GC code. */
-#define VINF_PATM_LEAVEGC_LAST              VINF_PATM_PENDING_IRQ_AFTER_IRET
+/** Last leave RC code. */
+#define VINF_PATM_LEAVE_RC_LAST              VINF_PATM_PENDING_IRQ_AFTER_IRET
 
 /** No conflicts to resolve */
 #define VERR_PATCH_NO_CONFLICT              (-1425)
@@ -370,7 +373,7 @@
 #define VWRN_CSAM_INSTRUCTION_PATCHED       1501
 /** Page record not found */
 #define VWRN_CSAM_PAGE_NOT_FOUND            1502
-/** Reason for leaving GC: CSAM wants perform a task in ring-3. */
+/** Reason for leaving RC: CSAM wants perform a task in ring-3. */
 #define VINF_CSAM_PENDING_ACTION            1503
 /** @} */
 
@@ -411,19 +414,20 @@
 #define VERR_PGM_MAPPINGS_FIX_REJECTED      (-1611)
 /** Failed to fix mappings because the proposed memory area was to small. */
 #define VERR_PGM_MAPPINGS_FIX_TOO_SMALL     (-1612)
-/** Reason for leaving GC: The urge to syncing CR3. */
+/** Reason for leaving RZ: The urge to syncing CR3. */
 #define VINF_PGM_SYNC_CR3                   1613
 /** Page not marked for dirty bit tracking */
 #define VINF_PGM_NO_DIRTY_BIT_TRACKING      1614
 /** Page fault caused by dirty bit tracking; corrected */
 #define VINF_PGM_HANDLED_DIRTY_BIT_FAULT    1615
 /** Go ahead with the default Read/Write operation.
- * This is returned by a HC physical or virtual handler when it wants the PGMPhys[Read|Write]
- * routine do the reading/writing. */
+ * This is returned by a R3 physical or virtual handler when it wants the
+ * PGMPhys[Read|Write] routine do the reading/writing. */
 #define VINF_PGM_HANDLER_DO_DEFAULT         1616
 /** The paging mode of the host is not supported yet. */
 #define VERR_PGM_UNSUPPORTED_HOST_PAGING_MODE (-1617)
-/** The physical guest page is a reserved/mmio page and does not have any HC address. */
+/** The physical guest page is a reserved/MMIO page and does not have any HC
+ *  address. */
 #define VERR_PGM_PHYS_PAGE_RESERVED         (-1618)
 /** No page directory available for the hypervisor. */
 #define VERR_PGM_NO_HYPERVISOR_ADDRESS      (-1619)
@@ -441,10 +445,9 @@
  * when the shadow PTs could be updated because the guest page
  * aliased or/and mapped by multiple PTs. */
 #define VINF_PGM_GCPHYS_ALIASED             1623
-/** Reason for leaving GC: Paging mode changed.
- * PGMChangeMode() uses this to force a switch to HC so it can safely
- * deal with a mode switch.
- */
+/** Reason for leaving RC: Paging mode changed.
+ * PGMChangeMode() uses this to force a switch to R3 so it can safely deal with
+ * a mode switch. */
 #define VINF_PGM_CHANGE_MODE                1624
 /** SyncPage modified the PDE.
  * This is an internal status code used to communicate back to the \#PF handler
@@ -475,6 +478,8 @@
 #define VERR_PGM_PHYS_TLB_CATCH_ALL             (-1634)
 /** Catch write access and route it thru PGM. */
 #define VINF_PGM_PHYS_TLB_CATCH_WRITE           1635
+/** Catch write access and route it thru PGM. */
+#define VERR_PGM_PHYS_TLB_CATCH_WRITE           (-1635)
 /** No CR3 root shadow page table.. */
 #define VERR_PGM_NO_CR3_SHADOW_ROOT             (-1636)
 /** Trying to free a page with an invalid Page ID. */
@@ -588,6 +593,9 @@
 #define VERR_CPUM_RAISE_GP_0                    (-1750)
 /** Incompatible CPUM configuration. */
 #define VERR_CPUM_INCOMPATIBLE_CONFIG           (-1751)
+/** CPUMR3DisasmInstrCPU unexpectedly failed to determin the hidden
+ * parts of the CS register. */
+#define VERR_CPUM_HIDDEN_CS_LOAD_ERROR          (-1752)
 /** @} */
 
 
@@ -741,7 +749,9 @@
 #define VERR_SSM_IPE_2                          (-1877)
 /** Internal processing error \#3 in SSM code.  */
 #define VERR_SSM_IPE_3                          (-1878)
-
+/** A field contained an transformation that should only be used when loading
+ * old states. */
+#define VERR_SSM_FIELD_LOAD_ONLY_TRANSFORMATION (-1879)
 /** @} */
 
 
@@ -940,43 +950,43 @@
 #define VERR_TRPM_NO_ACTIVE_TRAP            (-2400)
 /** Active trap. Cannot assert a new trap when when one is already active. */
 #define VERR_TRPM_ACTIVE_TRAP               (-2401)
-/** Reason for leaving GC: Guest tried to write to our IDT - fatal.
+/** Reason for leaving RC: Guest tried to write to our IDT - fatal.
  * The VM will be terminated assuming the worst, i.e. that the
  * guest has read the idtr register. */
 #define VERR_TRPM_SHADOW_IDT_WRITE          (-2402)
-/** Reason for leaving GC: Fatal trap in hypervisor. */
+/** Reason for leaving RC: Fatal trap in hypervisor. */
 #define VERR_TRPM_DONT_PANIC                (-2403)
-/** Reason for leaving GC: Double Fault. */
+/** Reason for leaving RC: Double Fault. */
 #define VERR_TRPM_PANIC                     (-2404)
 /** The exception was dispatched for raw-mode execution. */
 #define VINF_TRPM_XCPT_DISPATCHED           2405
 /** Bad TRPM_TRAP_IN_OP. */
 #define VERR_TRPM_BAD_TRAP_IN_OP            (-2406)
 /** Internal processing error \#1 in TRPM. */
-#define VERR_TRPM_IPE_1                     (-2507)
+#define VERR_TRPM_IPE_1                     (-2407)
 /** Internal processing error \#2 in TRPM. */
-#define VERR_TRPM_IPE_2                     (-2508)
+#define VERR_TRPM_IPE_2                     (-2408)
 /** Internal processing error \#3 in TRPM. */
-#define VERR_TRPM_IPE_3                     (-2509)
+#define VERR_TRPM_IPE_3                     (-2409)
 /** @} */
 
 
 /** @name Selector Manager / Monitor (SELM) Status Code
  * @{
  */
-/** Reason for leaving GC: Guest tried to write to our GDT - fatal.
+/** Reason for leaving RC: Guest tried to write to our GDT - fatal.
  * The VM will be terminated assuming the worst, i.e. that the
  * guest has read the gdtr register. */
 #define VERR_SELM_SHADOW_GDT_WRITE          (-2500)
-/** Reason for leaving GC: Guest tried to write to our LDT - fatal.
+/** Reason for leaving RC: Guest tried to write to our LDT - fatal.
  * The VM will be terminated assuming the worst, i.e. that the
  * guest has read the ldtr register. */
 #define VERR_SELM_SHADOW_LDT_WRITE          (-2501)
-/** Reason for leaving GC: Guest tried to write to our TSS - fatal.
+/** Reason for leaving RC: Guest tried to write to our TSS - fatal.
  * The VM will be terminated assuming the worst, i.e. that the
  * guest has read the ltr register. */
 #define VERR_SELM_SHADOW_TSS_WRITE          (-2502)
-/** Reason for leaving GC: Sync the GDT table to solve a conflict. */
+/** Reason for leaving RC: Sync the GDT table to solve a conflict. */
 #define VINF_SELM_SYNC_GDT                  2503
 /** No valid TSS present. */
 #define VERR_SELM_NO_TSS                    (-2504)
@@ -984,6 +994,11 @@
 #define VERR_SELM_INVALID_LDT               (-2505)
 /** The guest LDT selector is out of bounds. */
 #define VERR_SELM_LDT_OUT_OF_BOUNDS         (-2506)
+/** Unknown error while reading the guest GDT during shadow table updating. */
+#define VERR_SELM_GDT_READ_ERROR            (-2507)
+/** The guest GDT so full that we cannot find free space for our own
+ * selectors. */
+#define VERR_SELM_GDT_TOO_FULL              (-2508)
 /** @} */
 
 
@@ -993,9 +1008,9 @@
 /** The specified I/O port range was invalid.
  * It was either empty or it was out of bounds. */
 #define VERR_IOM_INVALID_IOPORT_RANGE       (-2600)
-/** The specified GC I/O port range didn't have a corresponding HC range.
- * IOMIOPortRegisterHC() must be called before IOMIOPortRegisterGC(). */
-#define VERR_IOM_NO_HC_IOPORT_RANGE         (-2601)
+/** The specified R0 or RC I/O port range didn't have a corresponding R3 range.
+ * IOMR3IOPortRegisterR3() must be called first. */
+#define VERR_IOM_NO_R3_IOPORT_RANGE         (-2601)
 /** The specified I/O port range intruded on an existing range. There is
  * a I/O port conflict between two device, or a device tried to register
  * the same range twice. */
@@ -1003,17 +1018,17 @@
 /** The I/O port range specified for removal wasn't found or it wasn't contiguous. */
 #define VERR_IOM_IOPORT_RANGE_NOT_FOUND     (-2603)
 /** The specified I/O port range was owned by some other device(s). Both registration
- * and deregistration, but in the first case only GC ranges. */
+ * and deregistration, but in the first case only RC and R0 ranges. */
 #define VERR_IOM_NOT_IOPORT_RANGE_OWNER     (-2604)
 
 /** The specified MMIO range was invalid.
  * It was either empty or it was out of bounds. */
 #define VERR_IOM_INVALID_MMIO_RANGE         (-2605)
-/** The specified GC MMIO range didn't have a corresponding HC range.
- * IOMMMIORegisterHC() must be called before IOMMMIORegisterGC(). */
-#define VERR_IOM_NO_HC_MMIO_RANGE           (-2606)
+/** The specified R0 or RC MMIO range didn't have a corresponding R3 range.
+ * IOMR3MMIORegisterR3() must be called first. */
+#define VERR_IOM_NO_R3_MMIO_RANGE           (-2606)
 /** The specified MMIO range was owned by some other device(s). Both registration
- * and deregistration, but in the first case only GC ranges. */
+ * and deregistration, but in the first case only RC and R0 ranges. */
 #define VERR_IOM_NOT_MMIO_RANGE_OWNER       (-2607)
 /** The specified MMIO range intruded on an existing range. There is
  * a MMIO conflict between two device, or a device tried to register
@@ -1038,16 +1053,16 @@
 /** Unused MMIO register read, fill with FF. */
 #define VINF_IOM_MMIO_UNUSED_FF             2616
 
-/** Reason for leaving GC: I/O port read. */
-#define VINF_IOM_HC_IOPORT_READ             2620
-/** Reason for leaving GC: I/O port write. */
-#define VINF_IOM_HC_IOPORT_WRITE            2621
-/** Reason for leaving GC: MMIO write. */
-#define VINF_IOM_HC_MMIO_READ               2623
-/** Reason for leaving GC: MMIO read. */
-#define VINF_IOM_HC_MMIO_WRITE              2624
-/** Reason for leaving GC: MMIO read/write. */
-#define VINF_IOM_HC_MMIO_READ_WRITE         2625
+/** Reason for leaving RZ: I/O port read. */
+#define VINF_IOM_R3_IOPORT_READ             2620
+/** Reason for leaving RZ: I/O port write. */
+#define VINF_IOM_R3_IOPORT_WRITE            2621
+/** Reason for leaving RZ: MMIO write. */
+#define VINF_IOM_R3_MMIO_READ               2623
+/** Reason for leaving RZ: MMIO read. */
+#define VINF_IOM_R3_MMIO_WRITE              2624
+/** Reason for leaving RZ: MMIO read/write. */
+#define VINF_IOM_R3_MMIO_READ_WRITE         2625
 
 /** IOMGCIOPortHandler was given an unexpected opcode. */
 #define VERR_IOM_IOPORT_UNKNOWN_OPCODE      (-2630)
@@ -1098,6 +1113,10 @@
 #define VERR_VMM_UNKNOWN_RING3_CALL         (-2710)
 /** The ring-3 call didn't set an RC. */
 #define VERR_VMM_RING3_CALL_NO_RC           (-2711)
+/** Reason for leaving RC: Caller the tracer in ring-0. */
+#define VINF_VMM_CALL_TRACER                (2712)
+/** Internal processing error \#1 in the switcher code. */
+#define VERR_VMM_SWITCHER_IPE_1             (-2713)
 /** @} */
 
 
@@ -1205,9 +1224,13 @@
 /** No PCI Bus is available to register the device with. This is usually a
  * misconfiguration or in rare cases a buggy pci device. */
 #define VERR_PDM_NO_PCI_BUS                         (-2833)
+/** PCI physical read with bus mastering disabled. */
+#define VINF_PDM_PCI_PHYS_READ_BM_DISABLED          (2833)
 /** The device is not a registered PCI device and thus cannot
  * perform any PCI operations. The device forgot to register it self. */
 #define VERR_PDM_NOT_PCI_DEVICE                     (-2834)
+/** PCI physical write with bus mastering disabled. */
+#define VINF_PDM_PCI_PHYS_WRITE_BM_DISABLED         (2834)
 
 /** The version of the device registration structure is unknown
  * to this VBox version. Either mixing incompatible versions or
@@ -1494,6 +1517,8 @@
 #define VERR_VD_ISCSI_INVALID_STATE                 (-3253)
 /** iSCSI: Invalid device type (not a disk). */
 #define VERR_VD_ISCSI_INVALID_TYPE                  (-3254)
+/** iSCSI: Initiator secret not decrypted */
+#define VERR_VD_ISCSI_SECRET_ENCRYPTED              (-3255)
 /** VHD: Invalid image file header. */
 #define VERR_VD_VHD_INVALID_HEADER                  (-3260)
 /** Parallels HDD: Invalid image file header. */
@@ -1514,6 +1539,21 @@
 #define VERR_VD_CACHE_NOT_FOUND                     (-3275)
 /** The cache is not up to date with the image. */
 #define VERR_VD_CACHE_NOT_UP_TO_DATE                (-3276)
+/** The given range does not meet the required alignment. */
+#define VERR_VD_DISCARD_ALIGNMENT_NOT_MET           (-3277)
+/** The discard operation is not supported for this image. */
+#define VERR_VD_DISCARD_NOT_SUPPORTED               (-3278)
+/** The image is the correct format but is corrupted. */
+#define VERR_VD_IMAGE_CORRUPTED                     (-3279)
+/** Repairing the image is not supported. */
+#define VERR_VD_IMAGE_REPAIR_NOT_SUPPORTED          (-3280)
+/** Repairing the image is not possible because the corruption is to severe. */
+#define VERR_VD_IMAGE_REPAIR_IMPOSSIBLE             (-3281)
+/** Reading from the image was not possible because the offset is out of the image range.
+ * This usually indicates that there is a minor corruption in the image meta data. */
+#define VERR_VD_READ_OUT_OF_RANGE                   (-3282)
+/** Block read was marked as free in the image and returned as a zero block. */
+#define VINF_VD_NEW_ZEROED_BLOCK                    3283
 /** @} */
 
 
@@ -1600,6 +1640,75 @@
 #define VERR_SUPDRV_SERVICE_NOT_FOUND               (-3702)
 /** The host kernel is too old. */
 #define VERR_SUPDRV_KERNEL_TOO_OLD_FOR_VTX          (-3703)
+/** Bad VTG magic value.  */
+#define VERR_SUPDRV_VTG_MAGIC                       (-3704)
+/** Bad VTG bit count value.  */
+#define VERR_SUPDRV_VTG_BITS                        (-3705)
+/** Bad VTG header - misc.  */
+#define VERR_SUPDRV_VTG_BAD_HDR_MISC                (-3706)
+/** Bad VTG header - offset.  */
+#define VERR_SUPDRV_VTG_BAD_HDR_OFF                 (-3707)
+/** Bad VTG header - offset.  */
+#define VERR_SUPDRV_VTG_BAD_HDR_PTR                 (-3708)
+/** Bad VTG header - to low value.  */
+#define VERR_SUPDRV_VTG_BAD_HDR_TOO_FEW             (-3709)
+/** Bad VTG header - to high value.  */
+#define VERR_SUPDRV_VTG_BAD_HDR_TOO_MUCH            (-3710)
+/** Bad VTG header - size value is not a multiple of the structure size. */
+#define VERR_SUPDRV_VTG_BAD_HDR_NOT_MULTIPLE        (-3711)
+/** Bad VTG string table offset. */
+#define VERR_SUPDRV_VTG_STRTAB_OFF                  (-3712)
+/** Bad VTG string. */
+#define VERR_SUPDRV_VTG_BAD_STRING                  (-3713)
+/** VTG string is too long. */
+#define VERR_SUPDRV_VTG_STRING_TOO_LONG             (-3714)
+/** Bad VTG attribute value. */
+#define VERR_SUPDRV_VTG_BAD_ATTR                    (-3715)
+/** Bad VTG provider descriptor. */
+#define VERR_SUPDRV_VTG_BAD_PROVIDER                (-3716)
+/** Bad VTG probe descriptor. */
+#define VERR_SUPDRV_VTG_BAD_PROBE                   (-3717)
+/** Bad VTG argument list descriptor. */
+#define VERR_SUPDRV_VTG_BAD_ARGLIST                 (-3718)
+/** Bad VTG probe enabled data. */
+#define VERR_SUPDRV_VTG_BAD_PROBE_ENABLED           (-3719)
+/** Bad VTG probe location record. */
+#define VERR_SUPDRV_VTG_BAD_PROBE_LOC               (-3720)
+/** The VTG object for the session or image has already been registered. */
+#define VERR_SUPDRV_VTG_ALREADY_REGISTERED          (-3721)
+/** A driver may only register one VTG object per session. */
+#define VERR_SUPDRV_VTG_ONLY_ONCE_PER_SESSION       (-3722)
+/** A tracer has already been registered. */
+#define VERR_SUPDRV_TRACER_ALREADY_REGISTERED       (-3723)
+/** The session has no tracer associated with it. */
+#define VERR_SUPDRV_TRACER_NOT_REGISTERED           (-3724)
+/** The tracer has already been opened in this sesssion. */
+#define VERR_SUPDRV_TRACER_ALREADY_OPENED           (-3725)
+/** The tracer has not been opened. */
+#define VERR_SUPDRV_TRACER_NOT_OPENED               (-3726)
+/** There is no tracer present. */
+#define VERR_SUPDRV_TRACER_NOT_PRESENT              (-3727)
+/** The tracer is unloading. */
+#define VERR_SUPDRV_TRACER_UNLOADING                (-3728)
+/** Another thread in the session is talking to the tracer.  */
+#define VERR_SUPDRV_TRACER_SESSION_BUSY             (-3729)
+/** The tracer cannot open it self in the same session. */
+#define VERR_SUPDRV_TRACER_CANNOT_OPEN_SELF         (-3730)
+/** Bad argument flags. */
+#define VERR_SUPDRV_TRACER_BAD_ARG_FLAGS            (-3731)
+/** The session has reached the max number of (user mode) providers. */
+#define VERR_SUPDRV_TRACER_TOO_MANY_PROVIDERS       (-3732)
+/** The tracepoint provider object is too large. */
+#define VERR_SUPDRV_TRACER_TOO_LARGE                (-3733)
+/** The probe location array isn't adjacent to the probe enable array. */
+#define VERR_SUPDRV_TRACER_UMOD_NOT_ADJACENT        (-3734)
+/** The user mode tracepoint provider has too many probe locations and
+ * probes. */
+#define VERR_SUPDRV_TRACER_UMOD_TOO_MANY_PROBES     (-3735)
+/** The user mode tracepoint provider string table is too large. */
+#define VERR_SUPDRV_TRACER_UMOD_STRTAB_TOO_BIG      (-3736)
+/** The user mode tracepoint provider string table offset is bad. */
+#define VERR_SUPDRV_TRACER_UMOD_STRTAB_OFF_BAD      (-3737)
 /** @} */
 
 
@@ -1844,6 +1953,16 @@
 #define VERR_DIS_INVALID_OPCODE                     (-4200)
 /** Generic failure during disassembly. */
 #define VERR_DIS_GEN_FAILURE                        (-4201)
+/** No read callback. */
+#define VERR_DIS_NO_READ_CALLBACK                   (-4202)
+/** Invalid Mod/RM. */
+#define VERR_DIS_INVALID_MODRM                      (-4203)
+/** Invalid parameter index. */
+#define VERR_DIS_INVALID_PARAMETER                  (-4204)
+/** Reading opcode bytes failed. */
+#define VERR_DIS_MEM_READ                           (-4205)
+/** The instruction is too long. */
+#define VERR_DIS_TOO_LONG_INSTR                     (-4206)
 /** @} */
 
 
@@ -1994,6 +2113,101 @@
 /** @} */
 
 
+/** @name IEM Status Codes
+ * @{ */
+/** The instruction is not yet implemented by IEM. */
+#define VERR_IEM_INSTR_NOT_IMPLEMENTED              (-5300)
+/** This particular aspect of the instruction is not yet implemented by IEM. */
+#define VERR_IEM_ASPECT_NOT_IMPLEMENTED             (-5391)
+/** Internal processing error \#1 in the IEM code.. */
+#define VERR_IEM_IPE_1                              (-5392)
+/** Internal processing error \#2 in the IEM code.. */
+#define VERR_IEM_IPE_2                              (-5393)
+/** Internal processing error \#3 in the IEM code.. */
+#define VERR_IEM_IPE_3                              (-5394)
+/** Restart the current instruction. For testing only. */
+#define VERR_IEM_RESTART_INSTRUCTION                (-5395)
+/** @} */
+
+
+/** @name DBGC Status Codes
+ *  @{ */
+/** Status that causes DBGC to quit. */
+#define VERR_DBGC_QUIT                              (-5400)
+/** Async command pending. */
+#define VWRN_DBGC_CMD_PENDING                       5401
+/** The command has already been registered. */
+#define VWRN_DBGC_ALREADY_REGISTERED                5402
+/** The command cannot be deregistered because has not been registered.  */
+#define VERR_DBGC_COMMANDS_NOT_REGISTERED           (-5403)
+/** Unknown breakpoint.  */
+#define VERR_DBGC_BP_NOT_FOUND                      (-5404)
+/** The breakpoint already exists. */
+#define VERR_DBGC_BP_EXISTS                         (-5405)
+/** The breakpoint has no command. */
+#define VINF_DBGC_BP_NO_COMMAND                     5406
+/** Generic debugger command failure. */
+#define VERR_DBGC_COMMAND_FAILED                    (-5407)
+/** Logic bug in the DBGC code.. */
+#define VERR_DBGC_IPE                               (-5408)
+
+/** The lowest parse status code.   */
+#define VERR_DBGC_PARSE_LOWEST                      (-5499)
+/** Syntax error - too few arguments. */
+#define VERR_DBGC_PARSE_TOO_FEW_ARGUMENTS           (VERR_DBGC_PARSE_LOWEST + 0)
+/** Syntax error - too many arguments. */
+#define VERR_DBGC_PARSE_TOO_MANY_ARGUMENTS          (VERR_DBGC_PARSE_LOWEST + 1)
+/** Syntax error - too many arguments for static storage. */
+#define VERR_DBGC_PARSE_ARGUMENT_OVERFLOW           (VERR_DBGC_PARSE_LOWEST + 2)
+/** Syntax error - expected binary operator. */
+#define VERR_DBGC_PARSE_EXPECTED_BINARY_OP          (VERR_DBGC_PARSE_LOWEST + 3)
+
+/** Syntax error - the argument does not allow a range to be specified. */
+#define VERR_DBGC_PARSE_NO_RANGE_ALLOWED            (VERR_DBGC_PARSE_LOWEST + 5)
+/** Syntax error - unbalanced quotes. */
+#define VERR_DBGC_PARSE_UNBALANCED_QUOTE            (VERR_DBGC_PARSE_LOWEST + 6)
+/** Syntax error - unbalanced parenthesis. */
+#define VERR_DBGC_PARSE_UNBALANCED_PARENTHESIS      (VERR_DBGC_PARSE_LOWEST + 7)
+/** Syntax error - an argument or subargument contains nothing useful. */
+#define VERR_DBGC_PARSE_EMPTY_ARGUMENT              (VERR_DBGC_PARSE_LOWEST + 8)
+/** Syntax error - invalid operator usage. */
+#define VERR_DBGC_PARSE_UNEXPECTED_OPERATOR         (VERR_DBGC_PARSE_LOWEST + 9)
+/** Syntax error - invalid numeric value. */
+#define VERR_DBGC_PARSE_INVALID_NUMBER              (VERR_DBGC_PARSE_LOWEST + 10)
+/** Syntax error - numeric overflow. */
+#define VERR_DBGC_PARSE_NUMBER_TOO_BIG              (VERR_DBGC_PARSE_LOWEST + 11)
+/** Syntax error - invalid operation attempted. */
+#define VERR_DBGC_PARSE_INVALID_OPERATION           (VERR_DBGC_PARSE_LOWEST + 12)
+/** Syntax error - function not found. */
+#define VERR_DBGC_PARSE_FUNCTION_NOT_FOUND          (VERR_DBGC_PARSE_LOWEST + 13)
+/** Syntax error - the specified function is not a function. */
+#define VERR_DBGC_PARSE_NOT_A_FUNCTION              (VERR_DBGC_PARSE_LOWEST + 14)
+/** Syntax error - out of scratch memory. */
+#define VERR_DBGC_PARSE_NO_SCRATCH                  (VERR_DBGC_PARSE_LOWEST + 15)
+/** Syntax error - out of regular heap memory. */
+#define VERR_DBGC_PARSE_NO_MEMORY                   (VERR_DBGC_PARSE_LOWEST + 16)
+/** Syntax error - incorrect argument type. */
+#define VERR_DBGC_PARSE_INCORRECT_ARG_TYPE          (VERR_DBGC_PARSE_LOWEST + 17)
+/** Syntax error - an undefined variable was referenced. */
+#define VERR_DBGC_PARSE_VARIABLE_NOT_FOUND          (VERR_DBGC_PARSE_LOWEST + 18)
+/** Syntax error - a type conversion failed. */
+#define VERR_DBGC_PARSE_CONVERSION_FAILED           (VERR_DBGC_PARSE_LOWEST + 19)
+/** Syntax error - you hit a debugger feature which isn't implemented yet.
+ * (Feel free to help implement it.) */
+#define VERR_DBGC_PARSE_NOT_IMPLEMENTED             (VERR_DBGC_PARSE_LOWEST + 20)
+/** Syntax error - Couldn't staisfy a request for a sepcific result type. */
+#define VERR_DBGC_PARSE_BAD_RESULT_TYPE             (VERR_DBGC_PARSE_LOWEST + 21)
+/** Syntax error - Cannot read symbol value, it is a set-only symbol. */
+#define VERR_DBGC_PARSE_WRITEONLY_SYMBOL            (VERR_DBGC_PARSE_LOWEST + 22)
+/** Syntax error - Invalid command name. */
+#define VERR_DBGC_PARSE_INVALD_COMMAND_NAME         (VERR_DBGC_PARSE_LOWEST + 23)
+/** Syntax error - Command not found. */
+#define VERR_DBGC_PARSE_COMMAND_NOT_FOUND           (VERR_DBGC_PARSE_LOWEST + 24)
+/** Syntax error - buggy parser. */
+#define VERR_DBGC_PARSE_BUG                         (VERR_DBGC_PARSE_LOWEST + 25)
+
+
+/** @} */
 
 /** @name VBox Extension Pack Status Codes
  * @{

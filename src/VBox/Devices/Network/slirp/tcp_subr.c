@@ -61,7 +61,6 @@
  * terms and conditions of the copyright.
  */
 
-#define WANT_SYS_IOCTL_H
 #include <slirp.h>
 
 
@@ -227,6 +226,7 @@ tcp_newtcpcb(PNATState pData, struct socket *so)
     TCP_STATE_SWITCH_TO(tp, TCPS_CLOSED);
 
     so->so_tcpcb = tp;
+    so->so_type = IPPROTO_TCP;
 
     return (tp);
 }
@@ -243,9 +243,17 @@ struct tcpcb *tcp_drop(PNATState pData, struct tcpcb *tp, int err)
         int errno;
 {
 */
-    LogFlowFunc(("ENTER: tp = %R[tcpcb793], errno = %d\n", tp, errno));
+    int fUninitiolizedTemplate = 0;
+#ifndef LOG_ENABLED
+    NOREF(err);
+#endif
+    LogFlowFunc(("ENTER: tp = %R[tcpcb793], errno = %d\n", tp, err));
+    fUninitiolizedTemplate = RT_BOOL((   tp
+                                      && (  tp->t_template.ti_src.s_addr == INADDR_ANY
+                                         || tp->t_template.ti_dst.s_addr == INADDR_ANY)));
 
-    if (TCPS_HAVERCVDSYN(tp->t_state))
+    if (   TCPS_HAVERCVDSYN(tp->t_state)
+        && !fUninitiolizedTemplate)
     {
         TCP_STATE_SWITCH_TO(tp, TCPS_CLOSED);
         (void) tcp_output(pData, tp);
@@ -272,11 +280,9 @@ struct tcpcb *
 tcp_close(PNATState pData, register struct tcpcb *tp)
 {
     struct socket *so = tp->t_socket;
-    struct socket *so_next, *so_prev;
 
     struct tseg_qent *te = NULL;
     LogFlowFunc(("ENTER: tp = %R[tcpcb793]\n", tp));
-    so_next = so_prev = NULL;
     /*XXX: freeing the reassembly queue */
     while (!LIST_EMPTY(&tp->t_segq))
     {
@@ -292,7 +298,8 @@ tcp_close(PNATState pData, register struct tcpcb *tp)
     /* clobber input socket cache if we're closing the cached connection */
     if (so == tcp_last_so)
         tcp_last_so = &tcb;
-    closesocket(so->s);
+    if (so->s != -1)
+        closesocket(so->s);
     /* Avoid double free if the socket is listening and therefore doesn't have
      * any sbufs reserved. */
     if (!(so->so_state & SS_FACCEPTCONN))
@@ -598,6 +605,8 @@ tcp_connect(PNATState pData, struct socket *inso)
 int
 tcp_attach(PNATState pData, struct socket *so)
 {
+    /* We're attaching already attached socket??? */
+    Assert(so->so_type == 0);
     if ((so->so_tcpcb = tcp_newtcpcb(pData, so)) == NULL)
         return -1;
 

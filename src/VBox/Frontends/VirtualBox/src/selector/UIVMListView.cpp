@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,6 @@
 /* Local includes */
 #include "UIVMListView.h"
 #include "UIMessageCenter.h"
-#include "VBoxSelectorWnd.h"
 
 /* Global includes */
 #include <QScrollBar>
@@ -148,7 +147,7 @@ QStringList UIVMItemModel::idList() const
     return list;
 }
 
-void UIVMItemModel::sortByIdList(const QStringList &list)
+void UIVMItemModel::sortByIdList(const QStringList &list, Qt::SortOrder order /* = Qt::AscendingOrder */)
 {
     emit layoutAboutToBeChanged();
     QList<UIVMItem*> tmpVMItemList(m_VMItemList);
@@ -174,7 +173,7 @@ void UIVMItemModel::sortByIdList(const QStringList &list)
        old behavior of VBox is respected. */
     if (tmpVMItemList.count() > 0)
     {
-        qSort(tmpVMItemList.begin(), tmpVMItemList.end(), UIVMItemNameCompareLessThan);
+        qSort(tmpVMItemList.begin(), tmpVMItemList.end(), order == Qt::AscendingOrder ? UIVMItemNameCompareLessThan : UIVMItemNameCompareMoreThan);
         QListIterator<UIVMItem*> it(tmpVMItemList);
         while (it.hasNext())
             m_VMItemList << it.next();
@@ -292,6 +291,13 @@ bool UIVMItemModel::UIVMItemNameCompareLessThan(UIVMItem* aItem1, UIVMItem* aIte
     return aItem1->name().toLower() < aItem2->name().toLower();
 }
 
+bool UIVMItemModel::UIVMItemNameCompareMoreThan(UIVMItem* aItem1, UIVMItem* aItem2)
+{
+    Assert(aItem1);
+    Assert(aItem2);
+    return aItem1->name().toLower() > aItem2->name().toLower();
+}
+
 Qt::ItemFlags UIVMItemModel::flags(const QModelIndex &index) const
 {
     Qt::ItemFlags defaultFlags = QAbstractListModel::flags(index);
@@ -365,7 +371,7 @@ UIVMListView::UIVMListView(QAbstractListModel *pModel, QWidget *aParent /* = 0 *
 {
     /* For queued events Q_DECLARE_METATYPE isn't sufficient. */
     qRegisterMetaType< QList<QUrl> >("QList<QUrl>");
-    setSelectionMode(QAbstractItemView::SingleSelection);
+    setSelectionMode(QAbstractItemView::ExtendedSelection);
     setDragEnabled(true);
     setAcceptDrops(true);
     setDropIndicatorShown(true);
@@ -387,6 +393,7 @@ UIVMListView::UIVMListView(QAbstractListModel *pModel, QWidget *aParent /* = 0 *
 void UIVMListView::selectItemByRow(int row)
 {
     setCurrentIndex(model()->index(row, 0));
+    selectionModel()->select(currentIndex(), QItemSelectionModel::Current | QItemSelectionModel::ClearAndSelect);
 }
 
 void UIVMListView::selectItemById(const QString &aID)
@@ -399,25 +406,40 @@ void UIVMListView::selectItemById(const QString &aID)
     }
 }
 
-void UIVMListView::ensureSomeRowSelected(int aRowHint)
+void UIVMListView::ensureOneRowSelected(int aRowHint)
 {
-    UIVMItem *item = selectedItem();
-    if (!item)
-    {
-        aRowHint = qBound(0, aRowHint, model()->rowCount() - 1);
+    /* Calculate nearest index row: */
+    aRowHint = qBound(0, aRowHint, model()->rowCount() - 1);
+
+    /* Get current selection: */
+    QModelIndexList selectedIndexes = selectionModel()->selectedIndexes();
+
+    /* If there are less/more selected items than necessary
+     * or other than hinted row is selected: */
+    if (selectedIndexes.size() != 1 || selectedIndexes[0].row() != aRowHint)
         selectItemByRow(aRowHint);
-        item = selectedItem();
-        if (!item)
-            selectItemByRow(0);
-    }
 }
 
-UIVMItem *UIVMListView::selectedItem() const
+UIVMItem *UIVMListView::currentItem() const
 {
-    QModelIndexList indexes = selectedIndexes();
-    if (indexes.isEmpty())
-        return NULL;
-    return model()->data(indexes.first(), UIVMItemModel::UIVMItemPtrRole).value<UIVMItem*>();
+    /* Get current selection: */
+    QModelIndexList selectedIndexes = selectionModel()->selectedIndexes();
+    /* Return 1st of selected items or NULL if nothing selected: */
+    return selectedIndexes.isEmpty() ? 0 :
+           model()->data(selectedIndexes[0], UIVMItemModel::UIVMItemPtrRole).value<UIVMItem*>();
+}
+
+QList<UIVMItem*> UIVMListView::currentItems() const
+{
+    /* Prepare selected item list: */
+    QList<UIVMItem*> currentItems;
+    /* Get current selection: */
+    QModelIndexList selectedIndexes = selectionModel()->selectedIndexes();
+    /* For every item of the selection => add it into the selected item list: */
+    for (int i = 0; i < selectedIndexes.size(); ++i)
+        currentItems << model()->data(selectedIndexes[i], UIVMItemModel::UIVMItemPtrRole).value<UIVMItem*>();
+    /* Return selected item list: */
+    return currentItems;
 }
 
 void UIVMListView::ensureCurrentVisible()
@@ -427,25 +449,17 @@ void UIVMListView::ensureCurrentVisible()
 
 void UIVMListView::selectionChanged(const QItemSelection &aSelected, const QItemSelection &aDeselected)
 {
+    /* Call for the base-class paint event: */
     QListView::selectionChanged(aSelected, aDeselected);
-    selectCurrent();
-    ensureCurrentVisible();
-    emit currentChanged();
-}
 
-void UIVMListView::currentChanged(const QModelIndex &aCurrent, const QModelIndex &aPrevious)
-{
-    QListView::currentChanged(aCurrent, aPrevious);
-    selectCurrent();
-    ensureCurrentVisible();
-    emit currentChanged();
-}
+    /* If selection is empty => select 'current item': */
+    if (selectionModel()->selectedIndexes().isEmpty())
+        selectionModel()->select(currentIndex(), QItemSelectionModel::Current | QItemSelectionModel::ClearAndSelect);
 
-void UIVMListView::dataChanged(const QModelIndex &aTopLeft, const QModelIndex &aBottomRight)
-{
-    QListView::dataChanged(aTopLeft, aBottomRight);
-    selectCurrent();
-//    ensureCurrentVisible();
+    /* Ensure current index is visible: */
+    ensureCurrentVisible();
+
+    /* Notify listeners about current index was changed: */
     emit currentChanged();
 }
 
@@ -502,7 +516,7 @@ void UIVMListView::checkDragEvent(QDragMoveEvent *pEvent)
     {
         QList<QUrl> list = pEvent->mimeData()->urls();
         QString file = list.at(0).toLocalFile();
-        if (VBoxGlobal::hasAllowedExtension(file, VBoxDefs::VBoxFileExts))
+        if (VBoxGlobal::hasAllowedExtension(file, VBoxFileExts))
         {
             Qt::DropAction action = Qt::IgnoreAction;
             if (pEvent->possibleActions().testFlag(Qt::LinkAction))
@@ -514,12 +528,14 @@ void UIVMListView::checkDragEvent(QDragMoveEvent *pEvent)
                 pEvent->setDropAction(action);
                 pEvent->accept();
             }
-        }else if (   VBoxGlobal::hasAllowedExtension(file, VBoxDefs::OVFFileExts)
+        }
+        else if (   VBoxGlobal::hasAllowedExtension(file, OVFFileExts)
                   && pEvent->possibleActions().testFlag(Qt::CopyAction))
         {
             pEvent->setDropAction(Qt::CopyAction);
             pEvent->accept();
-        }else if (   VBoxGlobal::hasAllowedExtension(file, VBoxDefs::VBoxExtPackFileExts)
+        }
+        else if (   VBoxGlobal::hasAllowedExtension(file, VBoxExtPackFileExts)
                   && pEvent->possibleActions().testFlag(Qt::CopyAction))
         {
             pEvent->setDropAction(Qt::CopyAction);
@@ -919,7 +935,8 @@ QRect UIVMItemPainter::rect(const QStyleOptionViewItem &aOption,
             {
                 QFontMetrics fm(fontMetric(aIndex, UIVMItemModel::SnapShotFontRole));
                 return QRect(QPoint(0, 0), fm.size(0, QString("(%1)").arg(text)));
-            }else
+            }
+            else
                 return QRect();
             break;
         }

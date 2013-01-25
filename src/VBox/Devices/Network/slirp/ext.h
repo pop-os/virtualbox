@@ -63,7 +63,7 @@ static void vbox_slirp_printV(char *format, va_list args)
 }
 #endif
 
-#ifndef vbox_slirp_printf
+# ifndef vbox_slirp_printf
 static void vbox_slirp_printf(char *format, ...)
 {
     va_list args;
@@ -71,17 +71,21 @@ static void vbox_slirp_printf(char *format, ...)
     vbox_slirp_printV(format, args);
     va_end(args);
 }
-#endif
+# endif
 
-#ifndef vbox_slirp_fprintf
+# ifndef vbox_slirp_fprintf
 static void vbox_slirp_fprintf(void *ignored, char *format, ...)
 {
-# ifdef LOG_ENABLED
+#  ifdef LOG_ENABLED
     va_list args;
+    NOREF(ignored);
     va_start(args, format);
     vbox_slirp_printV(format, args);
     va_end(args);
-# endif
+#  else
+    NOREF(format);
+    NOREF(ignored);
+#  endif
 }
-#endif
+# endif
 #endif

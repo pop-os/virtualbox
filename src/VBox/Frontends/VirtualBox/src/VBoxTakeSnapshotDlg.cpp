@@ -20,10 +20,11 @@
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
 # include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-/* Global includes */
+
+/* Qt includes: */
 #include <QPushButton>
 
-/* Local includes */
+/* GUI includes: */
 #include "VBoxTakeSnapshotDlg.h"
 #include "UIMessageCenter.h"
 #include "VBoxUtils.h"
@@ -32,17 +33,24 @@
 # include "VBoxSnapshotsWgt.h"
 #endif /* Q_WS_MAC */
 
+/* COM includes: */
+#include "COMEnums.h"
+#include "CMachine.h"
+#include "CMedium.h"
+#include "CMediumAttachment.h"
+
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 VBoxTakeSnapshotDlg::VBoxTakeSnapshotDlg(QWidget *pParent, const CMachine &machine)
     : QIWithRetranslateUI<QIDialog>(pParent)
 {
 #ifdef Q_WS_MAC
-    /* No sheets in another mode than normal for now. Firstly it looks ugly and
-     * secondly in some cases it is broken. */
-    if (   vboxGlobal().isSheetWindowsAllowed(pParent)
-        || qobject_cast<VBoxSnapshotsWgt*>(pParent))
+    /* Check if Mac Sheet is allowed: */
+    if (vboxGlobal().isSheetWindowAllowed(pParent))
+    {
+        vboxGlobal().setSheetWindowUsed(pParent, true);
         setWindowFlags(Qt::Sheet);
+    }
 #endif /* Q_WS_MAC */
 
     /* Apply UI decorations */
@@ -88,6 +96,15 @@ VBoxTakeSnapshotDlg::VBoxTakeSnapshotDlg(QWidget *pParent, const CMachine &machi
     }
 
     retranslateUi();
+}
+
+VBoxTakeSnapshotDlg::~VBoxTakeSnapshotDlg()
+{
+#ifdef Q_WS_MAC
+    /* Check if Mac Sheet was used: */
+    if ((windowFlags() & Qt::Sheet) == Qt::Sheet)
+        vboxGlobal().setSheetWindowUsed(parentWidget(), false);
+#endif /* Q_WS_MAC */
 }
 
 void VBoxTakeSnapshotDlg::retranslateUi()

@@ -17,16 +17,32 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes */
-#include <iprt/time.h>
+/* Qt includes: */
 #include <QTimer>
 
-/* Local includes */
+/* GUI includes: */
 #include "UIIndicatorsPool.h"
 #include "VBoxGlobal.h"
-#include "COMDefs.h"
 #include "UIMachineDefs.h"
 #include "QIWithRetranslateUI.h"
+#include "UIConverter.h"
+
+/* COM includes: */
+#include "CConsole.h"
+#include "CMachine.h"
+#include "CSystemProperties.h"
+#include "CMachineDebugger.h"
+#include "CGuest.h"
+#include "CStorageController.h"
+#include "CMediumAttachment.h"
+#include "CNetworkAdapter.h"
+#include "CUSBController.h"
+#include "CUSBDevice.h"
+#include "CSharedFolder.h"
+#include "CVRDEServer.h"
+
+/* Other VBox includes: */
+#include <iprt/time.h>
 
 class UIIndicatorHardDisks : public QIWithRetranslateUI<QIStateIndicator>
 {
@@ -71,8 +87,8 @@ public:
                 if (attachment.GetType() != KDeviceType_HardDisk)
                     continue;
                 strAttData += QString("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
-                    .arg(vboxGlobal().toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
-                    .arg(VBoxMedium(attachment.GetMedium(), VBoxDefs::MediumType_HardDisk).location());
+                    .arg(gpConverter->toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
+                    .arg(UIMedium(attachment.GetMedium(), UIMediumType_HardDisk).location());
                 fAttachmentsPresent = true;
             }
             if (!strAttData.isNull())
@@ -138,9 +154,9 @@ public:
             {
                 if (attachment.GetType() != KDeviceType_DVD)
                     continue;
-                VBoxMedium vboxMedium(attachment.GetMedium(), VBoxDefs::MediumType_DVD);
+                UIMedium vboxMedium(attachment.GetMedium(), UIMediumType_DVD);
                 strAttData += QString("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
-                    .arg(vboxGlobal().toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
+                    .arg(gpConverter->toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
                     .arg(vboxMedium.isNull() || vboxMedium.isHostDrive() ? vboxMedium.name() : vboxMedium.location());
                 fAttachmentsPresent = true;
                 if (!vboxMedium.isNull())
@@ -209,9 +225,9 @@ public:
             {
                 if (attachment.GetType() != KDeviceType_Floppy)
                     continue;
-                VBoxMedium vboxMedium(attachment.GetMedium(), VBoxDefs::MediumType_Floppy);
+                UIMedium vboxMedium(attachment.GetMedium(), UIMediumType_Floppy);
                 strAttData += QString("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
-                    .arg(vboxGlobal().toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
+                    .arg(gpConverter->toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
                     .arg(vboxMedium.isNull() || vboxMedium.isHostDrive() ? vboxMedium.name() : vboxMedium.location());
                 fAttachmentsPresent = true;
                 if (!vboxMedium.isNull())
@@ -311,7 +327,7 @@ public:
                 strFullData += QApplication::translate("UIIndicatorsPool",
                                "<br><nobr><b>Adapter %1 (%2)</b>: %3 cable %4</nobr>", "Network adapters tooltip")
                     .arg(uSlot + 1)
-                    .arg(vboxGlobal().toString(adapter.GetAttachmentType()))
+                    .arg(gpConverter->toString(adapter.GetAttachmentType()))
                     .arg(strGuestIp.isEmpty() ? "" : "IP " + strGuestIp + ", ")
                     .arg(adapter.GetCableConnected() ?
                          QApplication::translate("UIIndicatorsPool", "connected", "Network adapters tooltip") :

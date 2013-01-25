@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,7 @@
 #include "MachineImpl.h"
 #include "MediumImpl.h"
 #include "MediumFormatImpl.h"
+#include "Global.h"
 #include "SystemPropertiesImpl.h"
 
 #include "AutoCaller.h"
@@ -453,10 +454,9 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IN_BSTR location, IVirtualS
         }
 
 //     <const name="NetworkAdapter" />
+        uint32_t maxNetworkAdapters = Global::getMaxNetworkAdapters(getChipsetType());
         size_t a;
-        for (a = 0;
-             a < SchemaDefs::NetworkAdapterCount;
-             ++a)
+        for (a = 0; a < maxNetworkAdapters; ++a)
         {
             ComPtr<INetworkAdapter> pNetworkAdapter;
             BOOL fEnabled;
@@ -557,9 +557,14 @@ STDMETHODIMP Appliance::Write(IN_BSTR format, BOOL fManifest, IN_BSTR path, IPro
         ovfF = OVF_0_9;
     else if (strFormat == "ovf-1.0")
         ovfF = OVF_1_0;
+    else if (strFormat == "ovf-2.0")
+        ovfF = OVF_2_0;
     else
         return setError(VBOX_E_FILE_ERROR,
                         tr("Invalid format \"%s\" specified"), strFormat.c_str());
+
+    /* as of OVF 2.0 we have to use SHA256 */
+    m->fSha256 = ovfF >= OVF_2_0;
 
     ComObjPtr<Progress> progress;
     HRESULT rc = S_OK;
@@ -657,7 +662,9 @@ void Appliance::buildXML(AutoWriteLockBase& writeLock,
 {
     xml::ElementNode *pelmRoot = doc.createRootElement("Envelope");
 
-    pelmRoot->setAttribute("ovf:version", (enFormat == OVF_1_0) ? "1.0" : "0.9");
+    pelmRoot->setAttribute("ovf:version", enFormat == OVF_2_0 ? "2.0"
+                                        : enFormat == OVF_1_0 ? "1.0"
+                                        :                       "0.9");
     pelmRoot->setAttribute("xml:lang", "en-US");
 
     Utf8Str strNamespace = (enFormat == OVF_0_9)
@@ -787,7 +794,7 @@ void Appliance::buildXML(AutoWriteLockBase& writeLock,
         ComPtr<IMedium> pSourceDisk;
 
         Log(("Finding source disk \"%ls\"\n", bstrSrcFilePath.raw()));
-        HRESULT rc = mVirtualBox->FindMedium(bstrSrcFilePath.raw(), DeviceType_HardDisk, pSourceDisk.asOutParam());
+        HRESULT rc = mVirtualBox->OpenMedium(bstrSrcFilePath.raw(), DeviceType_HardDisk, AccessMode_ReadWrite, FALSE /* fForceNewUuid */,  pSourceDisk.asOutParam());
         if (FAILED(rc)) throw rc;
 
         Bstr uuidSource;
@@ -1620,43 +1627,43 @@ HRESULT Appliance::writeFSOVF(TaskOVF *pTask, AutoWriteLockBase& writeLock)
 
     HRESULT rc = S_OK;
 
-    PVDINTERFACEIO pSha1Callbacks = 0;
-    PVDINTERFACEIO pFileCallbacks = 0;
+    PVDINTERFACEIO pShaIo = 0;
+    PVDINTERFACEIO pFileIo = 0;
     do
     {
-        pSha1Callbacks = Sha1CreateInterface();
-        if (!pSha1Callbacks)
+        pShaIo = ShaCreateInterface();
+        if (!pShaIo)
         {
             rc = E_OUTOFMEMORY;
             break;
         }
-        pFileCallbacks = FileCreateInterface();
-        if (!pFileCallbacks)
+        pFileIo = FileCreateInterface();
+        if (!pFileIo)
         {
             rc = E_OUTOFMEMORY;
             break;
         }
 
-        SHA1STORAGE storage;
+        SHASTORAGE storage;
         RT_ZERO(storage);
         storage.fCreateDigest = m->fManifest;
-        VDINTERFACE VDInterfaceIO;
-        int vrc = VDInterfaceAdd(&VDInterfaceIO, "Appliance::IOFile",
-                                 VDINTERFACETYPE_IO, pFileCallbacks,
-                                 0, &storage.pVDImageIfaces);
+        storage.fSha256 = m->fSha256;
+        int vrc = VDInterfaceAdd(&pFileIo->Core, "Appliance::IOFile",
+                                 VDINTERFACETYPE_IO, 0, sizeof(VDINTERFACEIO),
+                                 &storage.pVDImageIfaces);
         if (RT_FAILURE(vrc))
         {
             rc = E_FAIL;
             break;
         }
-        rc = writeFSImpl(pTask, writeLock, pSha1Callbacks, &storage);
+        rc = writeFSImpl(pTask, writeLock, pShaIo, &storage);
     }while(0);
 
     /* Cleanup */
-    if (pSha1Callbacks)
-        RTMemFree(pSha1Callbacks);
-    if (pFileCallbacks)
-        RTMemFree(pFileCallbacks);
+    if (pShaIo)
+        RTMemFree(pShaIo);
+    if (pFileIo)
+        RTMemFree(pFileIo);
 
     LogFlowFuncLeave();
     return rc;
@@ -1675,44 +1682,44 @@ HRESULT Appliance::writeFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock)
 
     HRESULT rc = S_OK;
 
-    PVDINTERFACEIO pSha1Callbacks = 0;
-    PVDINTERFACEIO pTarCallbacks = 0;
+    PVDINTERFACEIO pShaIo = 0;
+    PVDINTERFACEIO pTarIo = 0;
     do
     {
-        pSha1Callbacks = Sha1CreateInterface();
-        if (!pSha1Callbacks)
+        pShaIo = ShaCreateInterface();
+        if (!pShaIo)
         {
             rc = E_OUTOFMEMORY;
             break;
         }
-        pTarCallbacks = TarCreateInterface();
-        if (!pTarCallbacks)
+        pTarIo = TarCreateInterface();
+        if (!pTarIo)
         {
             rc = E_OUTOFMEMORY;
             break;
         }
-        VDINTERFACE VDInterfaceIO;
-        SHA1STORAGE storage;
+        SHASTORAGE storage;
         RT_ZERO(storage);
         storage.fCreateDigest = m->fManifest;
-        vrc = VDInterfaceAdd(&VDInterfaceIO, "Appliance::IOTar",
-                             VDINTERFACETYPE_IO, pTarCallbacks,
-                             tar, &storage.pVDImageIfaces);
+        storage.fSha256 = m->fSha256;
+        vrc = VDInterfaceAdd(&pTarIo->Core, "Appliance::IOTar",
+                             VDINTERFACETYPE_IO, tar, sizeof(VDINTERFACEIO),
+                             &storage.pVDImageIfaces);
         if (RT_FAILURE(vrc))
         {
             rc = E_FAIL;
             break;
         }
-        rc = writeFSImpl(pTask, writeLock, pSha1Callbacks, &storage);
+        rc = writeFSImpl(pTask, writeLock, pShaIo, &storage);
     }while(0);
 
     RTTarClose(tar);
 
     /* Cleanup */
-    if (pSha1Callbacks)
-        RTMemFree(pSha1Callbacks);
-    if (pTarCallbacks)
-        RTMemFree(pTarCallbacks);
+    if (pShaIo)
+        RTMemFree(pShaIo);
+    if (pTarIo)
+        RTMemFree(pTarIo);
 
     /* Delete ova file on error */
     if(FAILED(rc))
@@ -1722,7 +1729,7 @@ HRESULT Appliance::writeFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock)
     return rc;
 }
 
-HRESULT Appliance::writeFSImpl(TaskOVF *pTask, AutoWriteLockBase& writeLock, PVDINTERFACEIO pCallbacks, PSHA1STORAGE pStorage)
+HRESULT Appliance::writeFSImpl(TaskOVF *pTask, AutoWriteLockBase& writeLock, PVDINTERFACEIO pIfIo, PSHASTORAGE pStorage)
 {
     LogFlowFuncEnter();
 
@@ -1754,7 +1761,7 @@ HRESULT Appliance::writeFSImpl(TaskOVF *pTask, AutoWriteLockBase& writeLock, PVD
                                tr("Could not create OVF file '%s'"),
                                strOvfFile.c_str());
             /* Write the ovf file to disk. */
-            vrc = Sha1WriteBuf(strOvfFile.c_str(), pvBuf, cbSize, pCallbacks, pStorage);
+            vrc = ShaWriteBuf(strOvfFile.c_str(), pvBuf, cbSize, pIfIo, pStorage);
             if (RT_FAILURE(vrc))
                 throw setError(VBOX_E_FILE_ERROR,
                                tr("Could not create OVF file '%s' (%Rrc)"),
@@ -1824,7 +1831,7 @@ HRESULT Appliance::writeFSImpl(TaskOVF *pTask, AutoWriteLockBase& writeLock, PVD
                                                    pDiskEntry->ulSizeMB);     // operation's weight, as set up with the IProgress originally
 
                 // create a flat copy of the source disk image
-                rc = pSourceDisk->exportFile(strTargetFilePath.c_str(), format, MediumVariant_VmdkStreamOptimized, pCallbacks, pStorage, pProgress2);
+                rc = pSourceDisk->exportFile(strTargetFilePath.c_str(), format, MediumVariant_VmdkStreamOptimized, pIfIo, pStorage, pProgress2);
                 if (FAILED(rc)) throw rc;
 
                 ComPtr<IProgress> pProgress3(pProgress2);
@@ -1862,7 +1869,8 @@ HRESULT Appliance::writeFSImpl(TaskOVF *pTask, AutoWriteLockBase& writeLock, PVD
             }
             void *pvBuf;
             size_t cbSize;
-            vrc = RTManifestWriteFilesBuf(&pvBuf, &cbSize, paManifestFiles, fileList.size());
+            vrc = RTManifestWriteFilesBuf(&pvBuf, &cbSize, m->fSha256 ? RTDIGESTTYPE_SHA256 : RTDIGESTTYPE_SHA1,
+                                          paManifestFiles, fileList.size());
             RTMemFree(paManifestFiles);
             if (RT_FAILURE(vrc))
                 throw setError(VBOX_E_FILE_ERROR,
@@ -1871,7 +1879,7 @@ HRESULT Appliance::writeFSImpl(TaskOVF *pTask, AutoWriteLockBase& writeLock, PVD
             /* Disable digest creation for the manifest file. */
             pStorage->fCreateDigest = false;
             /* Write the manifest file to disk. */
-            vrc = Sha1WriteBuf(strMfFilePath.c_str(), pvBuf, cbSize, pCallbacks, pStorage);
+            vrc = ShaWriteBuf(strMfFilePath.c_str(), pvBuf, cbSize, pIfIo, pStorage);
             RTMemFree(pvBuf);
             if (RT_FAILURE(vrc))
                 throw setError(VBOX_E_FILE_ERROR,
@@ -1896,7 +1904,7 @@ HRESULT Appliance::writeFSImpl(TaskOVF *pTask, AutoWriteLockBase& writeLock, PVD
         for (it1 = fileList.begin();
              it1 != fileList.end();
              ++it1)
-             pCallbacks->pfnDelete(pStorage, (*it1).first.c_str());
+             pIfIo->pfnDelete(pStorage, (*it1).first.c_str());
     }
 
     LogFlowFunc(("rc=%Rhrc\n", rc));
@@ -1946,7 +1954,7 @@ HRESULT Appliance::writeS3(TaskOVF *pTask)
 
         /* We need a temporary directory which we can put the OVF file & all
          * disk images in */
-        vrc = RTDirCreateTemp(pszTmpDir);
+        vrc = RTDirCreateTemp(pszTmpDir, 0700);
         if (RT_FAILURE(vrc))
             throw setError(VBOX_E_FILE_ERROR,
                            tr("Cannot create temporary directory '%s' (%Rrc)"), pszTmpDir, vrc);

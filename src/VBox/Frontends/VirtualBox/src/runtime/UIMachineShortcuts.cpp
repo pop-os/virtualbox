@@ -27,6 +27,7 @@ UIMachineShortcuts::UIMachineShortcuts()
     /* Defaults */
     m_Shortcuts[SettingsDialogShortcut]        = UIKeySequence("SettingsDialog",        "S");
     m_Shortcuts[TakeSnapshotShortcut]          = UIKeySequence("TakeSnapshot",          "T");
+    m_Shortcuts[TakeScreenshotShortcut]        = UIKeySequence("TakeScreenshot",        "E");
     m_Shortcuts[InformationDialogShortcut]     = UIKeySequence("InformationDialog",     "N");
     m_Shortcuts[MouseIntegrationShortcut]      = UIKeySequence("MouseIntegration" ,     "I");
     m_Shortcuts[TypeCADShortcut]               = UIKeySequence("TypeCAD",               "Del");
@@ -56,6 +57,7 @@ UIMachineShortcuts::UIMachineShortcuts()
     m_Shortcuts[HelpShortcut]                  = UIKeySequence("Help");
     m_Shortcuts[WebShortcut]                   = UIKeySequence("Web");
     m_Shortcuts[ResetWarningsShortcut]         = UIKeySequence("ResetWarnings");
+    m_Shortcuts[NetworkAccessManager]          = UIKeySequence("NetworkAccessManager");
 #ifdef VBOX_WITH_REGISTRATION
     m_Shortcuts[RegisterShortcut]              = UIKeySequence("Register");
 #endif /* VBOX_WITH_REGISTRATION */
@@ -63,6 +65,6 @@ UIMachineShortcuts::UIMachineShortcuts()
     m_Shortcuts[AboutShortcut]                 = UIKeySequence("About");
     m_Shortcuts[PopupMenuShortcut]             = UIKeySequence("PopupMenu",             "Home");
     /* Overwrite the key sequences with the one in extra data. */
-    loadExtraData(VBoxDefs::GUI_Input_MachineShortcuts, EndShortcutType);
+    loadExtraData(GUI_Input_MachineShortcuts, EndShortcutType);
 }
 
