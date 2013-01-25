@@ -1,6 +1,7 @@
 virtualbox (4.2.26-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release.
+  * Switch to my @debian.org email address.
 
  -- Felix Geyer <fgeyer@debian.org>  Fri, 25 Jan 2013 18:14:24 +0100
 
