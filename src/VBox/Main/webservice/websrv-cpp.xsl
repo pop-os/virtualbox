@@ -11,15 +11,15 @@
         See webservice/Makefile.kmk for an overview of all the things
         generated for the webservice.
 
-     Copyright (C) 2006-2010 Oracle Corporation
+    Copyright (C) 2007-2012 Oracle Corporation
 
-     This file is part of VirtualBox Open Source Edition (OSE), as
-     available from http://www.virtualbox.org. This file is free software;
-     you can redistribute it and/or modify it under the terms of the GNU
-     General Public License (GPL) as published by the Free Software
-     Foundation, in version 2 as it comes in the "COPYING" file of the
-     VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-     hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+    This file is part of VirtualBox Open Source Edition (OSE), as
+    available from http://www.virtualbox.org. This file is free software;
+    you can redistribute it and/or modify it under the terms of the GNU
+    General Public License (GPL) as published by the Free Software
+    Foundation, in version 2 as it comes in the "COPYING" file of the
+    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 -->
 
 <xsl:stylesheet
@@ -67,7 +67,6 @@
 #include <VBox/com/errorprint.h>
 #include <VBox/com/EventQueue.h>
 #include <VBox/VBoxAuth.h>
-#include <VBox/version.h>
 
 #include <iprt/assert.h>
 #include <iprt/initterm.h>
@@ -245,7 +244,7 @@ const char *g_pcszIUnknown = "IUnknown";
     <xsl:call-template name="emitNewline" />
     <xsl:value-of select="concat('// COM interface ', $structname, ', which has wsmap=&quot;struct&quot;, to SOAP structures')" />
     <xsl:call-template name="emitNewline" />
-    <xsl:value-of select="concat('vbox__', $structname, '* ', $G_funcPrefixOutputEnumConverter, $structname, '(')" />
+    <xsl:value-of select="concat('vbox__', $structname, '* ', $G_funcPrefixOutputStructConverter, $structname, '(')" />
     <xsl:call-template name="emitNewline" />
     <xsl:value-of select="'    struct soap *soap,'" />
     <xsl:call-template name="emitNewline" />
@@ -265,6 +264,12 @@ const char *g_pcszIUnknown = "IUnknown";
 
     <xsl:value-of select="concat('        resp = soap_new_vbox__', $structname, '(soap, -1);')" />
     <xsl:call-template name="emitNewline" />
+    <xsl:text>        if (!in)&#10;</xsl:text>
+    <xsl:text>        {&#10;</xsl:text>
+    <xsl:text>            // @todo ambiguous. Problem is the MOR for the object converted to struct&#10;</xsl:text>
+    <xsl:text>            RaiseSoapInvalidObjectFault(soap, "");&#10;</xsl:text>
+    <xsl:text>            break;&#10;</xsl:text>
+    <xsl:text>        }&#10;</xsl:text>
     <xsl:call-template name="emitNewline" />
 
     <xsl:for-each select="//interface[@name=$structname]/attribute">
@@ -534,14 +539,14 @@ const char *g_pcszIUnknown = "IUnknown";
   <xsl:param name="type" />
   <xsl:param name="safearray" />
 
-  <xsl:value-of select="concat('        // convert input arg ', $name)" />
+  <xsl:value-of select="concat('        // convert input arg ', $name, '(safearray: ', $safearray, ')')" />
   <xsl:call-template name="emitNewlineIndent8" />
 
-  <xsl:choose>    
+  <xsl:choose>
      <xsl:when test="$safearray='yes' and $type='octet'">
        <xsl:value-of select="concat('com::SafeArray&lt;BYTE&gt; comcall_',$name, ';')" />
        <xsl:call-template name="emitNewlineIndent8" />
-       <xsl:value-of select="concat('Base64DecodeByteArray(',$structprefix,$name,', ComSafeArrayAsOutParam(comcall_',$name, '));')" />
+       <xsl:value-of select="concat('Base64DecodeByteArray(soap, ',$structprefix,$name,', ComSafeArrayAsOutParam(comcall_',$name, '));')" />
     </xsl:when>
 
     <xsl:when test="$safearray='yes'">
@@ -598,7 +603,7 @@ const char *g_pcszIUnknown = "IUnknown";
         <xsl:when test="//enum[@name=$type]">
           <xsl:call-template name="emitNewlineIndent8" />
           <xsl:value-of select="concat('    comcall_', $name, '[i] = ', $G_funcPrefixInputEnumConverter, $type, '(', $structprefix, $name, '[i]);')" />
-        </xsl:when>        
+        </xsl:when>
         <xsl:otherwise>
           <xsl:call-template name="fatalError">
             <xsl:with-param name="msg" select="concat('emitInputArgConverter Type &quot;', $type, '&quot; in arg &quot;', $name, '&quot; of method &quot;', $method, '&quot; is not yet supported in safearrays.')" />
@@ -630,9 +635,9 @@ const char *g_pcszIUnknown = "IUnknown";
           <xsl:call-template name="emitNewlineIndent8" />
           <xsl:text>    break</xsl:text>
         </xsl:when>
-        <xsl:when test="(//interface[@name=$type]) or (//collection[@name=$type])">
+        <xsl:when test="//interface[@name=$type]">
           <!-- the type is one of our own interfaces: then it must have a wsmap attr -->
-          <xsl:variable name="thatif" select="(//interface[@name=$type]) | (//collection[@name=$type])" />
+          <xsl:variable name="thatif" select="//interface[@name=$type]" />
           <xsl:variable name="wsmap" select="$thatif/@wsmap" />
           <xsl:variable name="thatifname" select="$thatif/@name" />
           <xsl:choose>
@@ -709,6 +714,30 @@ const char *g_pcszIUnknown = "IUnknown";
 </xsl:template>
 
 <!--
+    emitInParam:
+-->
+<xsl:template name="emitInParam">
+  <xsl:param name="name" />
+  <xsl:param name="type" />
+  <xsl:param name="safearray" />
+  <xsl:param name="varprefix" />      <!-- only with nested set-attribute calls -->
+
+  <xsl:variable name="varname" select="concat('comcall_', $varprefix, $name)" />
+
+  <xsl:choose>
+    <xsl:when test="@safearray='yes'">
+      <xsl:value-of select="concat('ComSafeArrayAsInParam(', $varname, ')')" />
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:value-of select="$varname" />
+      <xsl:if test="@type='wstring' or @type='uuid'">
+        <xsl:text>.raw()</xsl:text>
+      </xsl:if>
+    </xsl:otherwise>
+  </xsl:choose>
+</xsl:template>
+
+<!--
     emitOutParam:
 -->
 <xsl:template name="emitOutParam">
@@ -768,10 +797,12 @@ const char *g_pcszIUnknown = "IUnknown";
   <xsl:if test="$attrtype">
     <xsl:choose>
       <xsl:when test="$attrdir='in'">
-        <xsl:value-of select="concat('comcall_', $varprefix, @name)" />
-        <xsl:if test="$attrtype='wstring' or $attrtype='uuid'">
-          <xsl:text>.raw()</xsl:text>
-        </xsl:if>
+        <xsl:call-template name="emitInParam">
+          <xsl:with-param name="name" select="$attrname" />
+          <xsl:with-param name="type" select="$attrtype" />
+          <xsl:with-param name="safearray" select="$attrsafearray" />
+          <xsl:with-param name="varprefix" select="$varprefix" />
+        </xsl:call-template>
       </xsl:when>
       <xsl:when test="$attrdir='return'">
         <xsl:call-template name="emitOutParam">
@@ -794,17 +825,12 @@ const char *g_pcszIUnknown = "IUnknown";
     <xsl:text>                                   </xsl:text>
     <xsl:choose>
       <xsl:when test="@dir='in'">
-        <xsl:choose>
-          <xsl:when test="@safearray='yes'">
-            <xsl:value-of select="concat('ComSafeArrayAsInParam(comcall_', $varprefix, @name, ')')" />
-          </xsl:when>
-          <xsl:otherwise>
-            <xsl:value-of select="concat('comcall_', $varprefix, @name)" />
-            <xsl:if test="@type='wstring' or @type='uuid'">
-              <xsl:text>.raw()</xsl:text>
-            </xsl:if>
-          </xsl:otherwise>
-        </xsl:choose>
+        <xsl:call-template name="emitInParam">
+          <xsl:with-param name="name" select="@name" />
+          <xsl:with-param name="type" select="@type" />
+          <xsl:with-param name="safearray" select="@safearray" />
+          <xsl:with-param name="varprefix" select="$varprefix" />
+        </xsl:call-template>
       </xsl:when>
       <xsl:when test="@dir='out'">
         <xsl:call-template name="emitOutParam">
@@ -887,7 +913,7 @@ const char *g_pcszIUnknown = "IUnknown";
           <!-- prevent infinite recursion -->
           <!-- <xsl:call-template name="fatalError"><xsl:with-param name="msg" select="concat('emitOutputArgBackConverter2: attempted infinite recursion for type &quot;', $type, '&quot; in arg &quot;', $name, '&quot; of method &quot;', $ifname, '::', $method)" /></xsl:call-template> -->
           <xsl:if test="not($callerprefix)">
-            <xsl:value-of select="concat('/* convert COM interface to struct */ ', $G_funcPrefixOutputEnumConverter, $type, '(soap, idThis, rc, ', $varname, ')')" />
+            <xsl:value-of select="concat('/* convert COM interface to struct */ ', $G_funcPrefixOutputStructConverter, $type, '(soap, idThis, rc, ', $varname, ')')" />
           </xsl:if>
         </xsl:when>
         <xsl:otherwise>
@@ -896,49 +922,6 @@ const char *g_pcszIUnknown = "IUnknown";
           </xsl:call-template>
         </xsl:otherwise>
       </xsl:choose>
-    </xsl:when>
-    <xsl:when test="//collection[@name=$type]">
-      <!-- the type is a collection of our own types: then build an array from it -->
-      <xsl:variable name="collectiontype" select="//collection[@name=$type]/@type" />
-      <xsl:variable name="targetwsmap" select="//interface[@name=$collectiontype]/@wsmap" />
-      <xsl:value-of select="concat('soap_new_vbox__ArrayOf', $collectiontype, '(soap, -1);')" />
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:variable name="enumerator" select="concat('comcall_', $callerprefix, $name, '_enum')" />
-      <xsl:value-of select="concat('ComPtr&lt;', $collectiontype, 'Enumerator&gt; ', $enumerator, ';')" />
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="concat('CHECK_ERROR_BREAK( comcall_', $callerprefix, $name, ', Enumerate(', $enumerator, '.asOutParam()) );')" />
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="concat('BOOL comcall_', $callerprefix, $name, '_hasmore = FALSE;')" />
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="'do {'" />
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="concat('    CHECK_ERROR_BREAK( ', $enumerator, ', HasMore(&amp;comcall_', $callerprefix, $name, '_hasmore) );')" />
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="concat('    if (!comcall_', $callerprefix, $name, '_hasmore) break;')" />
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="concat('    ComPtr&lt;', $collectiontype, '&gt; arrayitem;')" />
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="concat('    CHECK_ERROR_BREAK( ', $enumerator, ', GetNext(arrayitem.asOutParam()) );')" />
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="concat('    // collection of &quot;', $collectiontype, '&quot;, target interface wsmap: &quot;', $targetwsmap, '&quot;')" />
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="concat('    ', $G_responseElementVarName, '-&gt;', $G_result)" />
-      <xsl:value-of select="'->array.push_back('" />
-      <xsl:choose>
-        <xsl:when test="($targetwsmap='managed')">
-          <xsl:value-of select="concat('createOrFindRefFromComPtr(idThis, g_pcsz', $collectiontype, ', arrayitem));')" />
-        </xsl:when>
-        <xsl:when test="$targetwsmap='struct'">
-          <xsl:value-of select="concat($G_funcPrefixOutputEnumConverter, $collectiontype, '(soap, idThis, rc, arrayitem));')" />
-        </xsl:when>
-        <xsl:otherwise>
-          <xsl:call-template name="fatalError">
-            <xsl:with-param name="msg" select="concat('emitOutputArgBackConverter2: Type &quot;', $collectiontype, '&quot; of collection &quot;', $type, '&quot;, used in method &quot;', $method, '&quot;, has unsupported wsmap &quot;', $targetwsmap, '&quot;.')" />
-          </xsl:call-template>
-        </xsl:otherwise>
-      </xsl:choose>
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="'} while (1)'" />
     </xsl:when>
     <xsl:otherwise>
       <xsl:call-template name="fatalError">
@@ -992,7 +975,7 @@ const char *g_pcszIUnknown = "IUnknown";
 
   <xsl:choose>
     <xsl:when test="$safearray='yes' and $type='octet'">
-      <xsl:value-of select="concat($receiverVariable, ' = Base64EncodeByteArray(ComSafeArrayAsInParam(', $varname,'));')" /> 
+      <xsl:value-of select="concat($receiverVariable, ' = Base64EncodeByteArray(ComSafeArrayAsInParam(', $varname,'));')" />
       <xsl:call-template name="emitNewlineIndent8" />
     </xsl:when>
 
@@ -1204,6 +1187,7 @@ const char *g_pcszIUnknown = "IUnknown";
   <xsl:param name="attrname" select="$attrname" />
   <xsl:param name="attrtype" select="$attrtype" />
   <xsl:param name="attrreadonly" select="$attrreadonly" />
+  <xsl:param name="attrsafearray" select="$attrsafearray" />
 
   <xsl:variable name="settername"><xsl:call-template name="makeSetterName"><xsl:with-param name="attrname" select="$attrname" /></xsl:call-template></xsl:variable>
 
@@ -1223,6 +1207,7 @@ const char *g_pcszIUnknown = "IUnknown";
   <xsl:text>{</xsl:text>
   <xsl:call-template name="emitNewline" />
   <xsl:value-of select="'    HRESULT rc = S_OK;'" />
+  <xsl:value-of select="concat(concat(' NOREF(', $G_responseElementVarName),');')" />
   <xsl:call-template name="emitNewline" />
   <xsl:call-template name="emitPrologue" />
 
@@ -1243,6 +1228,7 @@ const char *g_pcszIUnknown = "IUnknown";
         <xsl:with-param name="object" select='"pObj"' />
         <xsl:with-param name="attrname"><xsl:value-of select="$attrname" /></xsl:with-param>
         <xsl:with-param name="attrtype"><xsl:value-of select="$attrtype" /></xsl:with-param>
+        <xsl:with-param name="attrsafearray"><xsl:value-of select="$attrsafearray" /></xsl:with-param>
       </xsl:call-template>
     <!-- </xsl:otherwise>
   </xsl:choose> -->
@@ -1315,6 +1301,7 @@ const char *g_pcszIUnknown = "IUnknown";
               <xsl:with-param name="attrname" select="$attrname" />
               <xsl:with-param name="attrtype" select="$attrtype" />
               <xsl:with-param name="attrreadonly" select="$attrreadonly" />
+              <xsl:with-param name="attrsafearray" select="$attrsafearray" />
             </xsl:call-template>
           </xsl:if>
         </xsl:otherwise> <!-- not wsmap=suppress -->
@@ -1369,6 +1356,7 @@ const char *g_pcszIUnknown = "IUnknown";
           <xsl:text>{</xsl:text>
           <xsl:call-template name="emitNewline" />
           <xsl:value-of select="'    HRESULT rc = S_OK;'" />
+          <xsl:value-of select="concat(concat(' NOREF(', $G_responseElementVarName),');')" />
           <xsl:call-template name="emitNewline" />
           <xsl:call-template name="emitPrologue" />
 

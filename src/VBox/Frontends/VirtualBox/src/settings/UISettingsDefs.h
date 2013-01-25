@@ -23,8 +23,8 @@
 #include <QPair>
 #include <QMap>
 
-/* VBox includes: */
-#include "COMDefs.h"
+/* COM includes: */
+#include "COMEnums.h"
 
 /* Settings dialog namespace: */
 namespace UISettingsDefs
@@ -39,7 +39,7 @@ namespace UISettingsDefs
     };
 
     /* Machine state => Settings dialog type converter: */
-    SettingsDialogType machineStateToSettingsDialogType(KMachineState machineState);
+    SettingsDialogType determineSettingsDialogType(KSessionState sessionState, KMachineState machineState);
 }
 
 /* Template to operate settings cache item: */

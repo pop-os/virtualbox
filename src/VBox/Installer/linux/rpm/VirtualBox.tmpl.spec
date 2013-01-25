@@ -8,10 +8,10 @@
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
 # you can redistribute it and/or modify it under the terms of the GNU
-# General Public License as published by the Free Software Foundation,
-# in version 2 as it comes in the "COPYING" file of the VirtualBox OSE
-# distribution. VirtualBox OSE is distributed in the hope that it will
-# be useful, but WITHOUT ANY WARRANTY of any kind.
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 #
 
 %define %SPEC% 1
@@ -80,6 +80,9 @@ mv *.r0 $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv *.rel $RPM_BUILD_ROOT/usr/lib/virtualbox || true
 mv VBoxNetDHCP $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv VBoxNetAdpCtl $RPM_BUILD_ROOT/usr/lib/virtualbox
+if [ -f VBoxVolInfo ]; then
+  mv VBoxVolInfo $RPM_BUILD_ROOT/usr/lib/virtualbox
+fi
 mv VBoxXPCOMIPCD $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv components $RPM_BUILD_ROOT/usr/lib/virtualbox/components
 mv *.so $RPM_BUILD_ROOT/usr/lib/virtualbox
@@ -110,7 +113,7 @@ cd icons
 cd -
 rmdir icons
 mv virtualbox.xml $RPM_BUILD_ROOT/usr/share/mime/packages
-for i in VBoxManage VBoxSVC VBoxSDL VirtualBox VBoxHeadless VBoxExtPackHelperApp VBoxBalloonCtrl; do
+for i in VBoxManage VBoxSVC VBoxSDL VirtualBox VBoxHeadless VBoxExtPackHelperApp VBoxBalloonCtrl VBoxAutostart; do
   mv $i $RPM_BUILD_ROOT/usr/lib/virtualbox; done
 if %WEBSVC%; then
   for i in vboxwebsrv webtest; do
@@ -118,25 +121,35 @@ if %WEBSVC%; then
 fi
 for i in VBoxSDL VirtualBox VBoxHeadless VBoxNetDHCP VBoxNetAdpCtl; do
   chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/$i; done
+if [ -f $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxVolInfo ]; then
+  chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxVolInfo
+fi
+if [ -d ExtensionPacks/VNC ]; then
+  mv ExtensionPacks/VNC $RPM_BUILD_ROOT/usr/lib/virtualbox/ExtensionPacks
+fi
 mv VBoxTunctl $RPM_BUILD_ROOT/usr/bin
 %if %{?is_ose:0}%{!?is_ose:1}
 for d in /lib/modules/*; do
   if [ -L $d/build ]; then
     rm -f /tmp/vboxdrv-Module.symvers
-    ./src/vboxhost/vboxdrv/build_in_tmp \
+    ./src/vboxhost/build_in_tmp \
       --save-module-symvers /tmp/vboxdrv-Module.symvers \
+      --module-source `pwd`/src/vboxhost/vboxdrv \
       KBUILD_VERBOSE= KERN_DIR=$d/build MODULE_DIR=$RPM_BUILD_ROOT/$d/misc -j4 \
       %INSTMOD%
-    ./src/vboxhost/vboxnetflt/build_in_tmp \
+    ./src/vboxhost/build_in_tmp \
       --use-module-symvers /tmp/vboxdrv-Module.symvers \
+      --module-source `pwd`/src/vboxhost/vboxnetflt \
       KBUILD_VERBOSE= KERN_DIR=$d/build MODULE_DIR=$RPM_BUILD_ROOT/$d/misc -j4 \
       %INSTMOD%
-    ./src/vboxhost/vboxnetadp/build_in_tmp \
+    ./src/vboxhost/build_in_tmp \
       --use-module-symvers /tmp/vboxdrv-Module.symvers \
+      --module-source `pwd`/src/vboxhost/vboxnetadp \
       KBUILD_VERBOSE= KERN_DIR=$d/build MODULE_DIR=$RPM_BUILD_ROOT/$d/misc -j4 \
       %INSTMOD%
-    ./src/vboxhost/vboxpci/build_in_tmp \
+    ./src/vboxhost/build_in_tmp \
       --use-module-symvers /tmp/vboxdrv-Module.symvers \
+      --module-source `pwd`/src/vboxhost/vboxpci \
       KBUILD_VERBOSE= KERN_DIR=$d/build MODULE_DIR=$RPM_BUILD_ROOT/$d/misc -j4 \
       %INSTMOD%
   fi
@@ -158,9 +171,11 @@ install -D -m 755 vboxdrv.init $RPM_BUILD_ROOT%{_initrddir}/vboxdrv
 ln -sf ../etc/init.d/vboxdrv $RPM_BUILD_ROOT/sbin/rcvboxdrv
 %endif
 install -D -m 755 vboxballoonctrl-service.init $RPM_BUILD_ROOT%{_initrddir}/vboxballoonctrl-service
+install -D -m 755 vboxautostart-service.init $RPM_BUILD_ROOT%{_initrddir}/vboxautostart-service
 install -D -m 755 vboxweb-service.init $RPM_BUILD_ROOT%{_initrddir}/vboxweb-service
 %if %{?rpm_suse:1}%{!?rpm_suse:0}
 ln -sf ../etc/init.d/vboxballoonctrl-service $RPM_BUILD_ROOT/sbin/rcvboxballoonctrl-service
+ln -sf ../etc/init.d/vboxautostart-service $RPM_BUILD_ROOT/sbin/rcvboxautostart-service
 ln -sf ../etc/init.d/vboxweb-service $RPM_BUILD_ROOT/sbin/rcvboxweb-service
 %endif
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VirtualBox
@@ -174,6 +189,8 @@ ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxHeadless
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxheadless
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxBalloonCtrl
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxballoonctrl
+ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxAutostart
+ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxautostart
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxwebsrv
 ln -s /usr/share/virtualbox/src/vboxhost $RPM_BUILD_ROOT/usr/src/vboxhost-%VER%
 mv virtualbox.desktop $RPM_BUILD_ROOT/usr/share/applications/virtualbox.desktop
@@ -191,6 +208,10 @@ if [ -n "$VBOXSVC_PID" ]; then
   if [ -f /etc/init.d/vboxballoonctrl-service ]; then
     # try graceful termination; terminate the balloon control service first
     /etc/init.d/vboxballoonctrl-service stop 2>/dev/null || true
+  fi
+  if [ -f /etc/init.d/vboxautostart-service ]; then
+    # try graceful termination; terminate the autostart service first
+    /etc/init.d/vboxautostart-service stop 2>/dev/null || true
   fi
   if [ -f /etc/init.d/vboxweb-service ]; then
     # try graceful termination; terminate the webservice first
@@ -229,7 +250,7 @@ fi
 
 
 %post
-#include installer-utils.sh
+#include installer-common.sh
 
 LOG="/var/log/vbox-install.log"
 
@@ -249,19 +270,7 @@ rm -f /etc/vbox/module_not_compiled
 
 # XXX SELinux: allow text relocation entries
 %if %{?rpm_redhat:1}%{!?rpm_redhat:0}
-if [ -x /usr/bin/chcon ]; then
-  chcon -t texrel_shlib_t /usr/lib/virtualbox/*VBox* > /dev/null 2>&1
-  chcon -t texrel_shlib_t /usr/lib/virtualbox/VirtualBox.so > /dev/null 2>&1
-  chcon -t texrel_shlib_t /usr/lib/virtualbox/VBoxAuth.so > /dev/null 2>&1
-  chcon -t texrel_shlib_t /usr/lib/virtualbox/components/VBox*.so > /dev/null 2>&1
-  chcon -t java_exec_t    /usr/lib/virtualbox/VirtualBox > /dev/null 2>&1
-  chcon -t java_exec_t    /usr/lib/virtualbox/VBoxSDL > /dev/null 2>&1
-  chcon -t java_exec_t    /usr/lib/virtualbox/VBoxHeadless > /dev/null 2>&1
-  chcon -t java_exec_t    /usr/lib/virtualbox/VBoxExtPackHelperApp > /dev/null 2>&1
-  chcon -t java_exec_t    /usr/lib/virtualbox/VBoxBalloonCtrl > /dev/null 2>&1
-  chcon -t java_exec_t    /usr/lib/virtualbox/vboxwebsrv > /dev/null 2>&1
-  chcon -t bin_t          /usr/share/virtualbox/src/vboxhost/*/build_in_tmp > /dev/null 2>&1
-fi
+set_selinux_permissions /usr/lib/virtualbox /usr/share/virtualbox
 %endif
 
 # create users groups (disable with INSTALL_NO_GROUP=1 in /etc/default/virtualbox)
@@ -278,15 +287,17 @@ install_device_node_setup root 0600 /usr/share/virtualbox "${usb_group}"
 %if %{?rpm_redhat:1}%{!?rpm_redhat:0}
 /sbin/chkconfig --add vboxdrv
 /sbin/chkconfig --add vboxballoonctrl-service
+/sbin/chkconfig --add vboxautostart-service
 /sbin/chkconfig --add vboxweb-service
 %endif
 %if %{?rpm_suse:1}%{!?rpm_suse:0}
-%{fillup_and_insserv -f -y -Y vboxdrv vboxballoonctrl-service vboxweb-service}
+%{fillup_and_insserv -f -y -Y vboxdrv vboxballoonctrl-service vboxautostart-service vboxweb-service}
 %endif
 %if %{?rpm_mdv:1}%{!?rpm_mdv:0}
 /sbin/ldconfig
 %_post_service vboxdrv
 %_post_service vboxballoonctrl-service
+%_post_service vboxautostart-service
 %_post_service vboxweb-service
 %update_menus
 %endif
@@ -332,6 +343,7 @@ else
   /etc/init.d/vboxdrv start > /dev/null
 fi
 /etc/init.d/vboxballoonctrl-service start > /dev/null
+/etc/init.d/vboxautostart-service start > /dev/null
 /etc/init.d/vboxweb-service start > /dev/null
 
 
@@ -341,16 +353,20 @@ fi
 # $1>=2: upgrade
 %if %{?rpm_suse:1}%{!?rpm_suse:0}
 %stop_on_removal vboxballoonctrl-service
+%stop_on_removal vboxautostart-service
 %stop_on_removal vboxweb-service
 %endif
 %if %{?rpm_mdv:1}%{!?rpm_mdv:0}
 %_preun_service vboxballoonctrl-service
+%_preun_service vboxautostart-service
 %_preun_service vboxweb-service
 %endif
 %if %{?rpm_redhat:1}%{!?rpm_redhat:0}
 if [ "$1" = 0 ]; then
   /sbin/service vboxballoonctrl-service stop > /dev/null
   /sbin/chkconfig --del vboxballoonctrl-service
+  /sbin/service vboxautostart-service stop > /dev/null
+  /sbin/chkconfig --del vboxautostart-service
   /sbin/service vboxweb-service stop > /dev/null
   /sbin/chkconfig --del vboxweb-service
 fi
@@ -396,11 +412,12 @@ fi
 if [ "$1" -ge 1 ]; then
   /sbin/service vboxdrv restart > /dev/null 2>&1
   /sbin/service vboxballoonctrl-service restart > /dev/null 2>&1
+  /sbin/service vboxautostart-service restart > /dev/null 2>&1
   /sbin/service vboxweb-service restart > /dev/null 2>&1
 fi
 %endif
 %if %{?rpm_suse:1}%{!?rpm_suse:0}
-%restart_on_update vboxdrv vboxballoonctrl-service vboxweb-service
+%restart_on_update vboxdrv vboxballoonctrl-service vboxautostart-service vboxweb-service
 %insserv_cleanup
 %endif
 %if %{?rpm_mdv:1}%{!?rpm_mdv:0}
@@ -426,19 +443,21 @@ rm -rf $RPM_BUILD_ROOT
 %doc %{!?is_ose: VirtualBox*.chm}
 %{_initrddir}/vboxdrv
 %{_initrddir}/vboxballoonctrl-service
+%{_initrddir}/vboxautostart-service
 %{_initrddir}/vboxweb-service
 %{?rpm_suse: %{py_sitedir}/*}
 %{!?rpm_suse: %{python_sitelib}/*}
 %{?rpm_suse: /sbin/rcvboxdrv}
 %{?rpm_suse: /sbin/rcvboxballoonctrl-service}
+%{?rpm_suse: /sbin/rcvboxautostart-service}
 %{?rpm_suse: /sbin/rcvboxweb-service}
-/lib/modules
 /etc/vbox
-/usr/bin
+/usr/bin/*
 /usr/src/vbox*
 /usr/lib/virtualbox
-/usr/share/applications
-/usr/share/icons
-/usr/share/mime/packages
-/usr/share/pixmaps
+/usr/share/applications/*
+/usr/share/icons/hicolor/*/apps/*
+/usr/share/icons/hicolor/*/mimetypes/*
+/usr/share/mime/packages/*
+/usr/share/pixmaps/*
 /usr/share/virtualbox

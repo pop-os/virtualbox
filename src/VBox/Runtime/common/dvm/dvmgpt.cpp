@@ -34,6 +34,7 @@
 #include <iprt/dvm.h>
 #include <iprt/string.h>
 #include <iprt/uuid.h>
+#include <iprt/asm.h>
 #include "internal/dvm.h"
 
 
@@ -254,7 +255,7 @@ static DECLCALLBACK(int) rtDvmFmtGptOpen(PCRTDVMDISK pDisk, PRTDVMFMT phVolMgrFm
     PRTDVMFMTINTERNAL pThis = NULL;
 
     pThis = (PRTDVMFMTINTERNAL)RTMemAllocZ(sizeof(RTDVMFMTINTERNAL));
-    if (VALID_PTR(pThis))
+    if (pThis)
     {
         pThis->pDisk       = pDisk;
         pThis->cPartitions = 0;
@@ -279,7 +280,7 @@ static DECLCALLBACK(int) rtDvmFmtGptOpen(PCRTDVMDISK pDisk, PRTDVMFMT phVolMgrFm
             if (pThis->HdrRev1.cbPartitionEntry == sizeof(GptEntry))
             {
                 pThis->paGptEntries = (PGptEntry)RTMemAllocZ(pThis->HdrRev1.cPartitionEntries * pThis->HdrRev1.cbPartitionEntry);
-                if (VALID_PTR(pThis->paGptEntries))
+                if (pThis->paGptEntries)
                 {
                     rc = rtDvmDiskRead(pDisk, RTDVM_GPT_LBA2BYTE(pThis->HdrRev1.u64LbaPartitionEntries, pDisk),
                                      pThis->paGptEntries, pThis->HdrRev1.cPartitionEntries * pThis->HdrRev1.cbPartitionEntry);
@@ -324,6 +325,7 @@ static DECLCALLBACK(int) rtDvmFmtGptOpen(PCRTDVMDISK pDisk, PRTDVMFMT phVolMgrFm
 
 static DECLCALLBACK(int) rtDvmFmtGptInitialize(PCRTDVMDISK pDisk, PRTDVMFMT phVolMgrFmt)
 {
+    NOREF(pDisk); NOREF(phVolMgrFmt);
     return VERR_NOT_IMPLEMENTED;
 }
 
@@ -337,6 +339,22 @@ static DECLCALLBACK(void) rtDvmFmtGptClose(RTDVMFMT hVolMgrFmt)
 
     pThis->paGptEntries = NULL;
     RTMemFree(pThis);
+}
+
+static DECLCALLBACK(int) rtDvmFmtGptQueryRangeUse(RTDVMFMT hVolMgrFmt,
+                                                  uint64_t off, uint64_t cbRange,
+                                                  bool *pfUsed)
+{
+    PRTDVMFMTINTERNAL pThis = hVolMgrFmt;
+
+    NOREF(cbRange);
+
+    if (off < 33*pThis->pDisk->cbSector)
+        *pfUsed = true;
+    else
+        *pfUsed = false;
+
+    return VINF_SUCCESS;
 }
 
 static DECLCALLBACK(uint32_t) rtDvmFmtGptGetValidVolumes(RTDVMFMT hVolMgrFmt)
@@ -368,7 +386,7 @@ static int rtDvmFmtMbrVolumeCreate(PRTDVMFMTINTERNAL pThis, PGptEntry pGptEntry,
     int rc = VINF_SUCCESS;
     PRTDVMVOLUMEFMTINTERNAL pVol = (PRTDVMVOLUMEFMTINTERNAL)RTMemAllocZ(sizeof(RTDVMVOLUMEFMTINTERNAL));
 
-    if (VALID_PTR(pVol))
+    if (pVol)
     {
         pVol->pVolMgr    = pThis;
         pVol->idxEntry   = idx;
@@ -482,6 +500,24 @@ static DECLCALLBACK(uint64_t) rtDvmFmtGptVolumeGetFlags(RTDVMVOLUMEFMT hVolFmt)
     return 0;
 }
 
+DECLCALLBACK(bool) rtDvmFmtGptVolumeIsRangeIntersecting(RTDVMVOLUMEFMT hVolFmt,
+                                                        uint64_t offStart, size_t cbRange,
+                                                        uint64_t *poffVol,
+                                                        uint64_t *pcbIntersect)
+{
+    bool fIntersect = false;
+    PRTDVMVOLUMEFMTINTERNAL pVol = hVolFmt;
+
+    if (RTDVM_RANGE_IS_INTERSECTING(pVol->offStart, pVol->cbVolume, offStart))
+    {
+        fIntersect    = true;
+        *poffVol      = offStart - pVol->offStart;
+        *pcbIntersect = RT_MIN(cbRange, pVol->offStart + pVol->cbVolume - offStart);
+    }
+
+    return fIntersect;
+}
+
 static DECLCALLBACK(int) rtDvmFmtGptVolumeRead(RTDVMVOLUMEFMT hVolFmt, uint64_t off, void *pvBuf, size_t cbRead)
 {
     PRTDVMVOLUMEFMTINTERNAL pVol = hVolFmt;
@@ -510,6 +546,8 @@ RTDVMFMTOPS g_rtDvmFmtGpt =
     rtDvmFmtGptInitialize,
     /* pfnClose */
     rtDvmFmtGptClose,
+    /* pfnQueryRangeUse */
+    rtDvmFmtGptQueryRangeUse,
     /* pfnGetValidVolumes */
     rtDvmFmtGptGetValidVolumes,
     /* pfnGetMaxVolumes */
@@ -528,6 +566,8 @@ RTDVMFMTOPS g_rtDvmFmtGpt =
     rtDvmFmtGptVolumeGetType,
     /* pfnVolumeGetFlags */
     rtDvmFmtGptVolumeGetFlags,
+    /* pfnVolumeIsRangeIntersecting */
+    rtDvmFmtGptVolumeIsRangeIntersecting,
     /* pfnVolumeRead */
     rtDvmFmtGptVolumeRead,
     /* pfnVolumeWrite */

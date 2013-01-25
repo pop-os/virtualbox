@@ -52,24 +52,24 @@ using namespace com;
 
 #endif /* !VBOX_ONLY_DOCS */
 
-void usageGuestProperty(PRTSTREAM pStrm)
+void usageGuestProperty(PRTSTREAM pStrm, const char *pcszSep1, const char *pcszSep2)
 {
     RTStrmPrintf(pStrm,
-                 "VBoxManage guestproperty    get <vmname>|<uuid>\n"
+                       "%s guestproperty %s   get <vmname>|<uuid>\n"
                  "                            <property> [--verbose]\n"
-                 "\n");
+                 "\n", pcszSep1, pcszSep2);
     RTStrmPrintf(pStrm,
-                 "VBoxManage guestproperty    set <vmname>|<uuid>\n"
+                       "%s guestproperty %s   set <vmname>|<uuid>\n"
                  "                            <property> [<value> [--flags <flags>]]\n"
-                 "\n");
+                 "\n", pcszSep1, pcszSep2);
     RTStrmPrintf(pStrm,
-                 "VBoxManage guestproperty    enumerate <vmname>|<uuid>\n"
+                       "%s guestproperty %s   enumerate <vmname>|<uuid>\n"
                  "                            [--patterns <patterns>]\n"
-                 "\n");
+                 "\n", pcszSep1, pcszSep2);
     RTStrmPrintf(pStrm,
-                 "VBoxManage guestproperty    wait <vmname>|<uuid> <patterns>\n"
+                       "%s guestproperty %s   wait <vmname>|<uuid> <patterns>\n"
                  "                            [--timeout <msec>] [--fail-on-timeout]\n"
-                 "\n");
+                 "\n", pcszSep1, pcszSep2);
 }
 
 #ifndef VBOX_ONLY_DOCS
@@ -106,11 +106,11 @@ static int handleGetGuestProperty(HandlerArg *a)
         if (value.isEmpty())
             RTPrintf("No value set!\n");
         else
-            RTPrintf("Value: %lS\n", value.raw());
+            RTPrintf("Value: %ls\n", value.raw());
         if (!value.isEmpty() && verbose)
         {
             RTPrintf("Timestamp: %lld\n", i64Timestamp);
-            RTPrintf("Flags: %lS\n", flags.raw());
+            RTPrintf("Flags: %ls\n", flags.raw());
         }
     }
     return SUCCEEDED(rc) ? 0 : 1;
@@ -159,8 +159,7 @@ static int handleSetGuestProperty(HandlerArg *a)
         a->session->COMGETTER(Machine)(machine.asOutParam());
 
         if (!pszValue && !pszFlags)
-            CHECK_ERROR(machine, SetGuestPropertyValue(Bstr(pszName).raw(),
-                                                       Bstr().raw()));
+            CHECK_ERROR(machine, DeleteGuestProperty(Bstr(pszName).raw()));
         else if (!pszFlags)
             CHECK_ERROR(machine, SetGuestPropertyValue(Bstr(pszName).raw(),
                                                        Bstr(pszValue).raw()));
@@ -232,7 +231,7 @@ static int handleEnumGuestProperty(HandlerArg *a)
             if (names.size() == 0)
                 RTPrintf("No properties found.\n");
             for (unsigned i = 0; i < names.size(); ++i)
-                RTPrintf("Name: %lS, value: %lS, timestamp: %lld, flags: %lS\n",
+                RTPrintf("Name: %ls, value: %ls, timestamp: %lld, flags: %ls\n",
                          names[i], values[i], timestamps[i], flags[i]);
         }
     }
@@ -336,7 +335,7 @@ static int handleWaitGuestProperty(HandlerArg *a)
                         Bstr aNextValue, aNextFlags;
                         gpcev->COMGETTER(Value)(aNextValue.asOutParam());
                         gpcev->COMGETTER(Flags)(aNextFlags.asOutParam());
-                        RTPrintf("Name: %lS, value: %lS, flags: %lS\n",
+                        RTPrintf("Name: %ls, value: %ls, flags: %ls\n",
                                  aNextName.raw(), aNextValue.raw(), aNextFlags.raw());
                         fSignalled = true;
                     }

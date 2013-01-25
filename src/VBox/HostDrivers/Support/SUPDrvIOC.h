@@ -1,4 +1,4 @@
-/* $Revision: 72437 $ */
+/* $Revision: 78601 $ */
 /** @file
  * VirtualBox Support Driver - IOCtl definitions.
  */
@@ -31,6 +31,7 @@
  * Basic types.
  */
 #include <iprt/types.h>
+#include <VBox/sup.h>
 
 /*
  * IOCtl numbers.
@@ -175,7 +176,7 @@ typedef SUPREQHDR *PSUPREQHDR;
 #define SUPCOOKIE_INITIAL_COOKIE                        0x69726f74 /* 'tori' */
 
 /** Current interface version.
- * The upper 16-bit is the major version, the the lower the minor version.
+ * The upper 16-bit is the major version, the lower the minor version.
  * When incompatible changes are made, the upper major number has to be changed.
  *
  * Update rules:
@@ -190,9 +191,9 @@ typedef SUPREQHDR *PSUPREQHDR;
  *  -# When increment the major number, execute all pending work.
  *
  * @todo Pending work on next major version change:
- *          - None.
+ *          - Remove RTSpinlockReleaseNoInts.
  */
-#define SUPDRV_IOC_VERSION                              0x00190000
+#define SUPDRV_IOC_VERSION                              0x001a0004
 
 /** SUP_IOCTL_COOKIE. */
 typedef struct SUPCOOKIE
@@ -325,16 +326,19 @@ typedef struct SUPLDROPEN
  *
  * @returns 0 on success.
  * @returns Appropriate error code on failure.
+ * @param   hMod        Image handle for use in APIs.
  */
-typedef DECLCALLBACK(int) FNR0MODULEINIT(void);
+typedef DECLCALLBACK(int) FNR0MODULEINIT(void *hMod);
 /** Pointer to a FNR0MODULEINIT(). */
 typedef R0PTRTYPE(FNR0MODULEINIT *) PFNR0MODULEINIT;
 
 /**
  * Module termination callback function.
  * This is called once right before the module is being unloaded.
+ *
+ * @param   hMod        Image handle for use in APIs.
  */
-typedef DECLCALLBACK(void) FNR0MODULETERM(void);
+typedef DECLCALLBACK(void) FNR0MODULETERM(void *hMod);
 /** Pointer to a FNR0MODULETERM(). */
 typedef R0PTRTYPE(FNR0MODULETERM *) PFNR0MODULETERM;
 
@@ -1088,6 +1092,7 @@ typedef struct SUPSEMOP2
 #define SUPSEMOP2_CLOSE             5
 /** @} */
 
+
 /** @name SUP_IOCTL_SEM_OP3
  * Semaphore operations.
  * @{
@@ -1137,6 +1142,7 @@ typedef struct SUPSEMOP3
 #define SUPSEMOP3_GET_RESOLUTION    1
 /** @} */
 
+
 /** @name SUP_IOCTL_VT_CAPS
  * Get the VT-x/AMD-V capabilities.
  *
@@ -1163,6 +1169,168 @@ typedef struct SUPVTCAPS
     } u;
 } SUPVTCAPS, *PSUPVTCAPS;
 /** @} */
+
+
+/** @name SUP_IOCTL_TRACER_OPEN
+ * Open the tracer.
+ *
+ * Should be matched by an SUP_IOCTL_TRACER_CLOSE call.
+ *
+ * @{
+ */
+#define SUP_IOCTL_TRACER_OPEN                           SUP_CTL_CODE_SIZE(28, SUP_IOCTL_TRACER_OPEN_SIZE)
+#define SUP_IOCTL_TRACER_OPEN_SIZE                      sizeof(SUPTRACEROPEN)
+#define SUP_IOCTL_TRACER_OPEN_SIZE_IN                   sizeof(SUPTRACEROPEN)
+#define SUP_IOCTL_TRACER_OPEN_SIZE_OUT                  sizeof(SUPREQHDR)
+typedef struct SUPTRACEROPEN
+{
+    /** The header. */
+    SUPREQHDR               Hdr;
+    union
+    {
+        struct
+        {
+            /** Tracer cookie.  Used to make sure we only open a matching tracer. */
+            uint32_t        uCookie;
+            /** Tracer specific argument. */
+            RTHCUINTPTR     uArg;
+        } In;
+    } u;
+} SUPTRACEROPEN, *PSUPTRACEROPEN;
+/** @} */
+
+
+/** @name SUP_IOCTL_TRACER_CLOSE
+ * Close the tracer.
+ *
+ * Must match a SUP_IOCTL_TRACER_OPEN call.
+ *
+ * @{
+ */
+#define SUP_IOCTL_TRACER_CLOSE                          SUP_CTL_CODE_SIZE(29, SUP_IOCTL_TRACER_CLOSE_SIZE)
+#define SUP_IOCTL_TRACER_CLOSE_SIZE                     sizeof(SUPREQHDR)
+#define SUP_IOCTL_TRACER_CLOSE_SIZE_IN                  sizeof(SUPREQHDR)
+#define SUP_IOCTL_TRACER_CLOSE_SIZE_OUT                 sizeof(SUPREQHDR)
+/** @} */
+
+
+/** @name SUP_IOCTL_TRACER_IOCTL
+ * Speak UNIX ioctl() with the tracer.
+ *
+ * The session must have opened the tracer prior to issuing this request.
+ *
+ * @{
+ */
+#define SUP_IOCTL_TRACER_IOCTL                          SUP_CTL_CODE_SIZE(30, SUP_IOCTL_TRACER_IOCTL_SIZE)
+#define SUP_IOCTL_TRACER_IOCTL_SIZE                     sizeof(SUPTRACERIOCTL)
+#define SUP_IOCTL_TRACER_IOCTL_SIZE_IN                  sizeof(SUPTRACERIOCTL)
+#define SUP_IOCTL_TRACER_IOCTL_SIZE_OUT                 (RT_UOFFSETOF(SUPTRACERIOCTL, u.Out.iRetVal) + sizeof(int32_t))
+typedef struct SUPTRACERIOCTL
+{
+    /** The header. */
+    SUPREQHDR               Hdr;
+    union
+    {
+        struct
+        {
+            /** The command. */
+            RTHCUINTPTR     uCmd;
+            /** Argument to the command. */
+            RTHCUINTPTR     uArg;
+        } In;
+
+        struct
+        {
+            /** The return value. */
+            int32_t         iRetVal;
+        } Out;
+    } u;
+} SUPTRACERIOCTL, *PSUPTRACERIOCTL;
+/** @} */
+
+
+/** @name SUP_IOCTL_TRACER_UMOD_REG
+ * Registers tracepoints in a user mode module.
+ *
+ * @{
+ */
+#define SUP_IOCTL_TRACER_UMOD_REG                       SUP_CTL_CODE_SIZE(31, SUP_IOCTL_TRACER_UMOD_REG_SIZE)
+#define SUP_IOCTL_TRACER_UMOD_REG_SIZE                  sizeof(SUPTRACERUMODREG)
+#define SUP_IOCTL_TRACER_UMOD_REG_SIZE_IN               sizeof(SUPTRACERUMODREG)
+#define SUP_IOCTL_TRACER_UMOD_REG_SIZE_OUT              sizeof(SUPREQHDR)
+typedef struct SUPTRACERUMODREG
+{
+    /** The header. */
+    SUPREQHDR               Hdr;
+    union
+    {
+        struct
+        {
+            /** The address at which the VTG header actually resides.
+             * This will differ from R3PtrVtgHdr for raw-mode context
+             * modules. */
+            RTUINTPTR       uVtgHdrAddr;
+            /** The ring-3 pointer of the VTG header. */
+            RTR3PTR         R3PtrVtgHdr;
+            /** The ring-3 pointer of the probe location string table. */
+            RTR3PTR         R3PtrStrTab;
+            /** The size of the string table. */
+            uint32_t        cbStrTab;
+            /** Future flags, MBZ.  */
+            uint32_t        fFlags;
+            /** The module name. */
+            char            szName[64];
+        } In;
+    } u;
+} SUPTRACERUMODREG, *PSUPTRACERUMODREG;
+/** @} */
+
+
+/** @name SUP_IOCTL_TRACER_UMOD_DEREG
+ * Deregisters tracepoints in a user mode module.
+ *
+ * @{
+ */
+#define SUP_IOCTL_TRACER_UMOD_DEREG                     SUP_CTL_CODE_SIZE(32, SUP_IOCTL_TRACER_UMOD_DEREG_SIZE)
+#define SUP_IOCTL_TRACER_UMOD_DEREG_SIZE                sizeof(SUPTRACERUMODDEREG)
+#define SUP_IOCTL_TRACER_UMOD_DEREG_SIZE_IN             sizeof(SUPTRACERUMODDEREG)
+#define SUP_IOCTL_TRACER_UMOD_DEREG_SIZE_OUT            sizeof(SUPREQHDR)
+typedef struct SUPTRACERUMODDEREG
+{
+    /** The header. */
+    SUPREQHDR               Hdr;
+    union
+    {
+        struct
+        {
+            /** Pointer to the VTG header. */
+            RTR3PTR         pVtgHdr;
+        } In;
+    } u;
+} SUPTRACERUMODDEREG, *PSUPTRACERUMODDEREG;
+/** @} */
+
+
+/** @name SUP_IOCTL_TRACER_UMOD_FIRE_PROBE
+ * Fire a probe in a user tracepoint module.
+ *
+ * @{
+ */
+#define SUP_IOCTL_TRACER_UMOD_FIRE_PROBE            SUP_CTL_CODE_SIZE(33, SUP_IOCTL_TRACER_UMOD_FIRE_PROBE_SIZE)
+#define SUP_IOCTL_TRACER_UMOD_FIRE_PROBE_SIZE       sizeof(SUPTRACERUMODFIREPROBE)
+#define SUP_IOCTL_TRACER_UMOD_FIRE_PROBE_SIZE_IN    sizeof(SUPTRACERUMODFIREPROBE)
+#define SUP_IOCTL_TRACER_UMOD_FIRE_PROBE_SIZE_OUT   sizeof(SUPREQHDR)
+typedef struct SUPTRACERUMODFIREPROBE
+{
+    /** The header. */
+    SUPREQHDR               Hdr;
+    union
+    {
+        SUPDRVTRACERUSRCTX  In;
+    } u;
+} SUPTRACERUMODFIREPROBE, *PSUPTRACERUMODFIREPROBE;
+/** @} */
+
 
 #pragma pack()                          /* paranoia */
 

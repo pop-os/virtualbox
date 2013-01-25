@@ -108,14 +108,15 @@ DECLINLINE(bool)      msixIsPending(PPCIDEVICE pDev, uint32_t iVector)
 static void msixCheckPendingVector(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, uint32_t iVector)
 {
     if (msixIsPending(pDev, iVector) && !msixIsVectorMasked(pDev, iVector))
-        MsixNotify(pDevIns, pPciHlp, pDev, iVector, 1 /* iLevel */);
+        MsixNotify(pDevIns, pPciHlp, pDev, iVector, 1 /* iLevel */, 0 /*uTagSrc*/);
 }
 
 #ifdef IN_RING3
 
 PDMBOTHCBDECL(int) msixMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
 {
-    /// @todo: qword accesses?
+    /// @todo qword accesses?
+    NOREF(pDevIns);
     AssertMsgReturn(cb == 4,
                     ("MSI-X must be accessed with 4-byte reads"),
                     VERR_INTERNAL_ERROR);
@@ -152,6 +153,7 @@ static DECLCALLBACK(int) msixMap (PPCIDEVICE pPciDev, int iRegion,
                                   PCIADDRESSSPACE enmType)
 {
     Assert(enmType == PCI_ADDRESS_SPACE_MEM);
+    NOREF(iRegion); NOREF(enmType);
 
     int rc = PDMDevHlpMMIORegister(pPciDev->pDevIns, GCPhysAddress, cb, pPciDev,
                                    IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU,
@@ -236,7 +238,7 @@ bool     MsixIsEnabled(PPCIDEVICE pDev)
     return pciDevIsMsixCapable(pDev) && msixIsEnabled(pDev);
 }
 
-void MsixNotify(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, int iVector, int iLevel)
+void MsixNotify(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, int iVector, int iLevel, uint32_t uTagSrc)
 {
     AssertMsg(msixIsEnabled(pDev), ("Must be enabled to use that"));
 
@@ -262,7 +264,7 @@ void MsixNotify(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, int iV
     RTGCPHYS   GCAddr = msixGetMsiAddress(pDev, iVector);
     uint32_t   u32Value = msixGetMsiData(pDev, iVector);
 
-    pPciHlp->pfnIoApicSendMsi(pDevIns, GCAddr, u32Value);
+    pPciHlp->pfnIoApicSendMsi(pDevIns, GCAddr, u32Value, uTagSrc);
 }
 
 DECLINLINE(bool) msixBitJustCleared(uint32_t uOldValue,
@@ -323,9 +325,12 @@ void MsixPciConfigWrite(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev
     if (fJustEnabled)
         msixCheckPendingVectors(pDevIns, pPciHlp, pDev);
 }
-uint32_t MsixPciConfigRead (PPDMDEVINS pDevIns, PPCIDEVICE pDev, uint32_t u32Address, unsigned len)
+
+
+uint32_t MsixPciConfigRead(PPDMDEVINS pDevIns, PPCIDEVICE pDev, uint32_t u32Address, unsigned len)
 {
     int32_t iOff = u32Address - pDev->Int.s.u8MsixCapOffset;
+    NOREF(pDevIns);
 
     Assert(iOff >= 0 && (pciDevIsMsixCapable(pDev) && iOff < pDev->Int.s.u8MsixCapSize));
     uint32_t rv = 0;

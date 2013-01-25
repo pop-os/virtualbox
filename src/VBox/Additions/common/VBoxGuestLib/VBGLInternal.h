@@ -1,10 +1,10 @@
-/* $Revision: 73443 $ */
+/* Id: 73443 $ */
 /** @file
  * VBoxGuestLibR0 - Internal header.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -100,6 +100,17 @@ typedef struct _VBGLDATA
 
 #ifndef VBGL_VBOXGUEST
     /**
+     * Handle for the main driver instance.
+     * @{
+     */
+
+    RTSEMMUTEX mutexDriverInit;
+
+    VBGLDRIVER driver;
+
+    /** @} */
+
+    /**
      * Fast heap for HGCM handles data.
      * @{
      */
@@ -120,19 +131,29 @@ extern VBGLDATA g_vbgldata;
 #endif
 
 /**
- * Internal macro for checking whether we can pass phyical page lists to the
+ * Internal macro for checking whether we can pass physical page lists to the
  * host.
  *
  * ASSUMES that vbglR0Enter has been called already.
+ *
+ * @param   a_fLocked       For the windows shared folders workarounds.
+ *
+ * @remarks Disable the PageList feature for 64-bit Windows, because shared
+ *          folders do not work, if this is enabled. This should be reenabled
+ *          again when the problem is fixed.
+ * @remarks Disabled the PageList feature for 32-bit Windows, see xTracker
+ *          ticket 6096 and public ticket 10290. Hopefully this is the same
+ *          issue as on Windows/AMD64.
  */
-#if defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64)
-/* Disable the PageList feature for 64 bit Windows, because shared folders do not work,
- * if this is enabled. This should be reenabled again when the problem is fixed.
- */
-#define VBGLR0_CAN_USE_PHYS_PAGE_LIST() \
-    ( 0 )
+#if defined(RT_OS_WINDOWS)
+# ifdef RT_ARCH_AMD64
+#  define VBGLR0_CAN_USE_PHYS_PAGE_LIST(a_fLocked)  ( 0 )
+# else
+#  define VBGLR0_CAN_USE_PHYS_PAGE_LIST(a_fLocked) \
+     ( !(a_fLocked) && (g_vbgldata.hostVersion.features & VMMDEV_HVF_HGCM_PHYS_PAGE_LIST) )
+# endif
 #else
-#define VBGLR0_CAN_USE_PHYS_PAGE_LIST() \
+# define VBGLR0_CAN_USE_PHYS_PAGE_LIST(a_fLocked) \
     ( !!(g_vbgldata.hostVersion.features & VMMDEV_HVF_HGCM_PHYS_PAGE_LIST) )
 #endif
 
@@ -144,6 +165,14 @@ int vbglR0HGCMInit (void);
 int vbglR0HGCMTerminate (void);
 # endif
 #endif /* VBOX_WITH_HGCM */
+
+#ifndef VBGL_VBOXGUEST
+/**
+ * Get a handle to the main VBoxGuest driver.
+ * @returns VERR_TRY_AGAIN if the main driver has not yet been loaded.
+ */
+int vbglGetDriver(VBGLDRIVER **ppDriver);
+#endif
 
 #endif /* !___VBoxGuestLib_VBGLInternal_h */
 

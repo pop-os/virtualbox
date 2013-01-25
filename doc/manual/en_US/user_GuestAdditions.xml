@@ -216,6 +216,15 @@
         <listitem>
           <para>Microsoft Windows 7 (all editions)</para>
         </listitem>
+
+        <listitem>
+          <para>Microsoft Windows 8 (all editions)</para>
+        </listitem>
+        
+        <listitem>
+          <para>Microsoft Windows Server 2012</para>
+        </listitem>
+
       </itemizedlist>
 
       <sect3 id="mountingadditionsiso">
@@ -226,7 +235,8 @@
         which mounts the Guest Additions ISO file inside your virtual machine.
         A Windows guest should then automatically start the Guest Additions
         installer, which installs the Guest Additions into your Windows
-        guest.</para>
+        guest. Other guest operating systems (or if automatic start of
+        software on CD is disabled) need manual start of the installer.</para>
 
         <note>
           <para>For the basic Direct3D acceleration to work in a Windows Guest, you
@@ -786,15 +796,6 @@
         <listitem>
           <para>Solaris 10 (u5 and higher);</para>
         </listitem>
-
-        <listitem>
-          <para>Solaris Nevada/SXDE/SXCE (build 82 and higher);</para>
-        </listitem>
-
-        <listitem>
-          <para>OpenSolaris (Developer Preview 2 and higher; this includes
-          OpenSolaris 2008.05, 2008.11 and 2009.06);</para>
-        </listitem>
       </itemizedlist>
 
       <para>Other distributions may work if they are based on comparable
@@ -954,7 +955,8 @@
         </listitem>
 
         <listitem>
-          <para>Currently only Linux Guest Additions support symlinks.</para>
+          <para>Currently only Linux and Solaris Guest Additions support
+          symlinks.</para>
         </listitem>
       </orderedlist></para>
 

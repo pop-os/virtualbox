@@ -199,10 +199,9 @@ icmp_find_original_mbuf(PNATState pData, struct ip *ip)
     struct socket *head_socket = NULL;
     struct socket *last_socket = NULL;
     struct socket *so = NULL;
-    struct in_addr laddr, faddr;
+    struct in_addr faddr;
     u_short lport, fport;
 
-    laddr.s_addr = ~0;
     faddr.s_addr = ~0;
 
     lport = ~0;
@@ -258,7 +257,6 @@ icmp_find_original_mbuf(PNATState pData, struct ip *ip)
             udp = (struct udphdr *)((char *)ip + (ip->ip_hl << 2));
             faddr.s_addr = ip->ip_dst.s_addr;
             fport = udp->uh_dport;
-            laddr.s_addr = ip->ip_src.s_addr;
             lport = udp->uh_sport;
             last_socket = udp_last_so;
             /* fall through */
@@ -270,7 +268,6 @@ icmp_find_original_mbuf(PNATState pData, struct ip *ip)
                 head_socket = &tcb; /* head_socket could be initialized with udb*/
                 faddr.s_addr = ip->ip_dst.s_addr;
                 fport = tcp->th_dport;
-                laddr.s_addr = ip->ip_src.s_addr;
                 lport = tcp->th_sport;
                 last_socket = tcp_last_so;
             }
@@ -632,14 +629,12 @@ void icmp_error(PNATState pData, struct mbuf *msrc, u_char type, u_char code, in
         goto end_error;
 
     ip = mtod(msrc, struct ip *);
-#if DEBUG
-    {
-        char bufa[20], bufb[20];
-        strcpy(bufa, inet_ntoa(ip->ip_src));
-        strcpy(bufb, inet_ntoa(ip->ip_dst));
-        Log2((" %.16s to %.16s\n", bufa, bufb));
-    }
-#endif
+    LogFunc(("msrc: %RTnaipv4 -> %RTnaipv4\n", ip->ip_src, ip->ip_dst));
+
+    /* if source IP datagram hasn't got src address don't bother with sending ICMP error */
+    if (ip->ip_src.s_addr == INADDR_ANY)
+        goto end_error;
+
     if (   ip->ip_off & IP_OFFMASK
         && type != ICMP_SOURCEQUENCH)
         goto end_error;    /* Only reply to fragment 0 */
@@ -713,13 +708,13 @@ void icmp_error(PNATState pData, struct mbuf *msrc, u_char type, u_char code, in
     {
         /* DEBUG : append message to ICMP packet */
         int message_len;
-        char *cpnt;
         message_len = strlen(message);
         if (message_len > ICMP_MAXDATALEN)
             message_len = ICMP_MAXDATALEN;
-        cpnt = (char *)m->m_data+m->m_len;
         m_append(pData, m, message_len, message);
     }
+#else
+    NOREF(message);
 #endif
 
     icp->icmp_cksum = 0;
@@ -747,9 +742,6 @@ void icmp_error(PNATState pData, struct mbuf *msrc, u_char type, u_char code, in
     m_freem(pData, msrc);
     LogFlowFuncLeave();
     return;
-
-end_error_free_m:
-    m_freem(pData, m);
 
 end_error:
 
@@ -780,7 +772,6 @@ icmp_reflect(PNATState pData, struct mbuf *m)
 {
     register struct ip *ip = mtod(m, struct ip *);
     int hlen = ip->ip_hl << 2;
-    int optlen = hlen - sizeof(struct ip);
     register struct icmp *icp;
     LogFlowFunc(("ENTER: m:%p\n", m));
 

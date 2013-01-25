@@ -85,57 +85,15 @@ typedef struct RTLDRMODKLDRARGS
     union
     {
         PFNRT            pfn;
+        PFNRTLDRENUMDBG  pfnEnumDbgInfo;
         PFNRTLDRENUMSYMS pfnEnumSyms;
         PFNRTLDRIMPORT   pfnGetImport;
     }                   u;
     void               *pvUser;
     const void         *pvBits;
     PRTLDRMODKLDR       pMod;
+    int                 rc;
 } RTLDRMODKLDRARGS, *PRTLDRMODKLDRARGS;
-
-
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
-static int rtkldrConvertError(int krc);
-static int rtkldrConvertErrorFromIPRT(int rc);
-
-
-static int      rtkldrRdrCreate(  PPKRDR ppRdr, const char *pszFilename);
-static int      rtkldrRdrDestroy( PKRDR pRdr);
-static int      rtkldrRdrRead(    PKRDR pRdr, void *pvBuf, KSIZE cb, KFOFF off);
-static int      rtkldrRdrAllMap(  PKRDR pRdr, const void **ppvBits);
-static int      rtkldrRdrAllUnmap(PKRDR pRdr, const void *pvBits);
-static KFOFF rtkldrRdrSize(    PKRDR pRdr);
-static KFOFF rtkldrRdrTell(    PKRDR pRdr);
-static const char * rtkldrRdrName(PKRDR pRdr);
-static KIPTR    rtkldrRdrNativeFH(PKRDR pRdr);
-static KSIZE    rtkldrRdrPageSize(PKRDR pRdr);
-static int      rtkldrRdrMap(     PKRDR pRdr, void **ppvBase, KU32 cSegments, PCKLDRSEG paSegments, KBOOL fFixed);
-static int      rtkldrRdrRefresh( PKRDR pRdr, void *pvBase, KU32 cSegments, PCKLDRSEG paSegments);
-static int      rtkldrRdrProtect( PKRDR pRdr, void *pvBase, KU32 cSegments, PCKLDRSEG paSegments, KBOOL fUnprotectOrProtect);
-static int      rtkldrRdrUnmap(   PKRDR pRdr, void *pvBase, KU32 cSegments, PCKLDRSEG paSegments);
-static void     rtkldrRdrDone(    PKRDR pRdr);
-
-
-static DECLCALLBACK(int) rtkldrClose(PRTLDRMODINTERNAL pMod);
-static DECLCALLBACK(int) rtkldrDone(PRTLDRMODINTERNAL pMod);
-static DECLCALLBACK(int) rtkldrEnumSymbols(PRTLDRMODINTERNAL pMod, unsigned fFlags, const void *pvBits,
-                                           RTUINTPTR BaseAddress,PFNRTLDRENUMSYMS pfnCallback, void *pvUser);
-static int rtkldrEnumSymbolsWrapper(PKLDRMOD pMod, uint32_t iSymbol,
-                                    const char *pchSymbol, KSIZE cchSymbol, const char *pszVersion,
-                                    KLDRADDR uValue, uint32_t fKind, void *pvUser);
-static DECLCALLBACK(size_t) rtkldrGetImageSize(PRTLDRMODINTERNAL pMod);
-static DECLCALLBACK(int) rtkldrGetBits(PRTLDRMODINTERNAL pMod, void *pvBits, RTUINTPTR BaseAddress,
-                                       PFNRTLDRIMPORT pfnGetImport, void *pvUser);
-static DECLCALLBACK(int) rtkldrRelocate(PRTLDRMODINTERNAL pMod, void *pvBits, RTUINTPTR NewBaseAddress,
-                                        RTUINTPTR OldBaseAddress, PFNRTLDRIMPORT pfnGetImport, void *pvUser);
-static int rtkldrGetImportWrapper(PKLDRMOD pMod, uint32_t iImport, uint32_t iSymbol, const char *pchSymbol, KSIZE cchSymbol,
-                                  const char *pszVersion, PKLDRADDR puValue, uint32_t *pfKind, void *pvUser);
-
-static DECLCALLBACK(int) rtkldrGetSymbolEx(PRTLDRMODINTERNAL pMod, const void *pvBits, RTUINTPTR BaseAddress,
-                                           const char *pszSymbol, RTUINTPTR *pValue);
-
 
 
 /**
@@ -268,6 +226,141 @@ static int rtkldrConvertErrorFromIPRT(int rc)
 
 
 
+
+/** @copydoc KLDRRDROPS::pfnCreate
+ * @remark This is a dummy which isn't used. */
+static int      rtkldrRdr_Create(  PPKRDR ppRdr, const char *pszFilename)
+{
+    NOREF(ppRdr); NOREF(pszFilename);
+    AssertReleaseFailed();
+    return -1;
+}
+
+
+/** @copydoc KLDRRDROPS::pfnDestroy */
+static int      rtkldrRdr_Destroy( PKRDR pRdr)
+{
+    PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
+    int rc = pReader->pfnDestroy(pReader);
+    return rtkldrConvertErrorFromIPRT(rc);
+}
+
+
+/** @copydoc KLDRRDROPS::pfnRead */
+static int      rtkldrRdr_Read(    PKRDR pRdr, void *pvBuf, KSIZE cb, KFOFF off)
+{
+    PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
+    int rc = pReader->pfnRead(pReader, pvBuf, cb, off);
+    return rtkldrConvertErrorFromIPRT(rc);
+}
+
+
+/** @copydoc KLDRRDROPS::pfnAllMap */
+static int      rtkldrRdr_AllMap(  PKRDR pRdr, const void **ppvBits)
+{
+    PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
+    int rc = pReader->pfnMap(pReader, ppvBits);
+    return rtkldrConvertErrorFromIPRT(rc);
+}
+
+
+/** @copydoc KLDRRDROPS::pfnAllUnmap */
+static int      rtkldrRdr_AllUnmap(PKRDR pRdr, const void *pvBits)
+{
+    PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
+    int rc = pReader->pfnUnmap(pReader, pvBits);
+    return rtkldrConvertErrorFromIPRT(rc);
+}
+
+
+/** @copydoc KLDRRDROPS::pfnSize */
+static KFOFF rtkldrRdr_Size(    PKRDR pRdr)
+{
+    PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
+    return (KFOFF)pReader->pfnSize(pReader);
+}
+
+
+/** @copydoc KLDRRDROPS::pfnTell */
+static KFOFF rtkldrRdr_Tell(    PKRDR pRdr)
+{
+    PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
+    return (KFOFF)pReader->pfnTell(pReader);
+}
+
+
+/** @copydoc KLDRRDROPS::pfnName */
+static const char * rtkldrRdr_Name(PKRDR pRdr)
+{
+    PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
+    return pReader->pfnLogName(pReader);
+}
+
+
+/** @copydoc KLDRRDROPS::pfnNativeFH */
+static KIPTR rtkldrRdr_NativeFH(PKRDR pRdr)
+{
+    NOREF(pRdr);
+    AssertFailed();
+    return -1;
+}
+
+
+/** @copydoc KLDRRDROPS::pfnPageSize */
+static KSIZE rtkldrRdr_PageSize(PKRDR pRdr)
+{
+    NOREF(pRdr);
+    return PAGE_SIZE;
+}
+
+
+/** @copydoc KLDRRDROPS::pfnMap */
+static int      rtkldrRdr_Map(     PKRDR pRdr, void **ppvBase, KU32 cSegments, PCKLDRSEG paSegments, KBOOL fFixed)
+{
+    //PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
+    NOREF(pRdr); NOREF(ppvBase); NOREF(cSegments); NOREF(paSegments); NOREF(fFixed);
+    AssertFailed();
+    return -1;
+}
+
+
+/** @copydoc KLDRRDROPS::pfnRefresh */
+static int      rtkldrRdr_Refresh( PKRDR pRdr, void *pvBase, KU32 cSegments, PCKLDRSEG paSegments)
+{
+    //PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
+    NOREF(pRdr); NOREF(pvBase); NOREF(cSegments); NOREF(paSegments);
+    AssertFailed();
+    return -1;
+}
+
+
+/** @copydoc KLDRRDROPS::pfnProtect */
+static int      rtkldrRdr_Protect( PKRDR pRdr, void *pvBase, KU32 cSegments, PCKLDRSEG paSegments, KBOOL fUnprotectOrProtect)
+{
+    //PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
+    NOREF(pRdr); NOREF(pvBase); NOREF(cSegments); NOREF(paSegments); NOREF(fUnprotectOrProtect);
+    AssertFailed();
+    return -1;
+}
+
+
+/** @copydoc KLDRRDROPS::pfnUnmap */
+static int      rtkldrRdr_Unmap(   PKRDR pRdr, void *pvBase, KU32 cSegments, PCKLDRSEG paSegments)
+{
+    //PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
+    NOREF(pRdr); NOREF(pvBase); NOREF(cSegments); NOREF(paSegments);
+    AssertFailed();
+    return -1;
+}
+
+/** @copydoc KLDRRDROPS::pfnDone */
+static void     rtkldrRdr_Done(    PKRDR pRdr)
+{
+    NOREF(pRdr);
+    //PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
+}
+
+
 /**
  * The file reader operations.
  * We provide our own based on IPRT instead of using the kLdr ones.
@@ -277,176 +370,30 @@ extern "C" const KRDROPS g_kLdrRdrFileOps =
 {
     /* .pszName = */        "IPRT",
     /* .pNext = */          NULL,
-    /* .pfnCreate = */      rtkldrRdrCreate,
-    /* .pfnDestroy = */     rtkldrRdrDestroy,
-    /* .pfnRead = */        rtkldrRdrRead,
-    /* .pfnAllMap = */      rtkldrRdrAllMap,
-    /* .pfnAllUnmap = */    rtkldrRdrAllUnmap,
-    /* .pfnSize = */        rtkldrRdrSize,
-    /* .pfnTell = */        rtkldrRdrTell,
-    /* .pfnName = */        rtkldrRdrName,
-    /* .pfnNativeFH = */    rtkldrRdrNativeFH,
-    /* .pfnPageSize = */    rtkldrRdrPageSize,
-    /* .pfnMap = */         rtkldrRdrMap,
-    /* .pfnRefresh = */     rtkldrRdrRefresh,
-    /* .pfnProtect = */     rtkldrRdrProtect,
-    /* .pfnUnmap =  */      rtkldrRdrUnmap,
-    /* .pfnDone = */        rtkldrRdrDone,
+    /* .pfnCreate = */      rtkldrRdr_Create,
+    /* .pfnDestroy = */     rtkldrRdr_Destroy,
+    /* .pfnRead = */        rtkldrRdr_Read,
+    /* .pfnAllMap = */      rtkldrRdr_AllMap,
+    /* .pfnAllUnmap = */    rtkldrRdr_AllUnmap,
+    /* .pfnSize = */        rtkldrRdr_Size,
+    /* .pfnTell = */        rtkldrRdr_Tell,
+    /* .pfnName = */        rtkldrRdr_Name,
+    /* .pfnNativeFH = */    rtkldrRdr_NativeFH,
+    /* .pfnPageSize = */    rtkldrRdr_PageSize,
+    /* .pfnMap = */         rtkldrRdr_Map,
+    /* .pfnRefresh = */     rtkldrRdr_Refresh,
+    /* .pfnProtect = */     rtkldrRdr_Protect,
+    /* .pfnUnmap =  */      rtkldrRdr_Unmap,
+    /* .pfnDone = */        rtkldrRdr_Done,
     /* .u32Dummy = */       42
 };
 
 
-/** @copydoc KLDRRDROPS::pfnCreate
- * @remark This is a dummy which isn't used. */
-static int      rtkldrRdrCreate(  PPKRDR ppRdr, const char *pszFilename)
-{
-    AssertReleaseFailed();
-    return -1;
-}
 
-
-/** @copydoc KLDRRDROPS::pfnDestroy */
-static int      rtkldrRdrDestroy( PKRDR pRdr)
-{
-    PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
-    int rc = pReader->pfnDestroy(pReader);
-    return rtkldrConvertErrorFromIPRT(rc);
-}
-
-
-/** @copydoc KLDRRDROPS::pfnRead */
-static int      rtkldrRdrRead(    PKRDR pRdr, void *pvBuf, KSIZE cb, KFOFF off)
-{
-    PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
-    int rc = pReader->pfnRead(pReader, pvBuf, cb, off);
-    return rtkldrConvertErrorFromIPRT(rc);
-}
-
-
-/** @copydoc KLDRRDROPS::pfnAllMap */
-static int      rtkldrRdrAllMap(  PKRDR pRdr, const void **ppvBits)
-{
-    PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
-    int rc = pReader->pfnMap(pReader, ppvBits);
-    return rtkldrConvertErrorFromIPRT(rc);
-}
-
-
-/** @copydoc KLDRRDROPS::pfnAllUnmap */
-static int      rtkldrRdrAllUnmap(PKRDR pRdr, const void *pvBits)
-{
-    PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
-    int rc = pReader->pfnUnmap(pReader, pvBits);
-    return rtkldrConvertErrorFromIPRT(rc);
-}
-
-
-/** @copydoc KLDRRDROPS::pfnSize */
-static KFOFF rtkldrRdrSize(    PKRDR pRdr)
-{
-    PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
-    return (KFOFF)pReader->pfnSize(pReader);
-}
-
-
-/** @copydoc KLDRRDROPS::pfnTell */
-static KFOFF rtkldrRdrTell(    PKRDR pRdr)
-{
-    PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
-    return (KFOFF)pReader->pfnTell(pReader);
-}
-
-
-/** @copydoc KLDRRDROPS::pfnName */
-static const char * rtkldrRdrName(PKRDR pRdr)
-{
-    PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
-    return pReader->pfnLogName(pReader);
-}
-
-
-/** @copydoc KLDRRDROPS::pfnNativeFH */
-static KIPTR rtkldrRdrNativeFH(PKRDR pRdr)
-{
-    AssertFailed();
-    return -1;
-}
-
-
-/** @copydoc KLDRRDROPS::pfnPageSize */
-static KSIZE rtkldrRdrPageSize(PKRDR pRdr)
-{
-    return PAGE_SIZE;
-}
-
-
-/** @copydoc KLDRRDROPS::pfnMap */
-static int      rtkldrRdrMap(     PKRDR pRdr, void **ppvBase, KU32 cSegments, PCKLDRSEG paSegments, KBOOL fFixed)
-{
-    //PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
-    AssertFailed();
-    return -1;
-}
-
-
-/** @copydoc KLDRRDROPS::pfnRefresh */
-static int      rtkldrRdrRefresh( PKRDR pRdr, void *pvBase, KU32 cSegments, PCKLDRSEG paSegments)
-{
-    //PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
-    AssertFailed();
-    return -1;
-}
-
-
-/** @copydoc KLDRRDROPS::pfnProtect */
-static int      rtkldrRdrProtect( PKRDR pRdr, void *pvBase, KU32 cSegments, PCKLDRSEG paSegments, KBOOL fUnprotectOrProtect)
-{
-    //PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
-    AssertFailed();
-    return -1;
-}
-
-
-/** @copydoc KLDRRDROPS::pfnUnmap */
-static int      rtkldrRdrUnmap(   PKRDR pRdr, void *pvBase, KU32 cSegments, PCKLDRSEG paSegments)
-{
-    //PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
-    AssertFailed();
-    return -1;
-}
-
-/** @copydoc KLDRRDROPS::pfnDone */
-static void     rtkldrRdrDone(    PKRDR pRdr)
-{
-    //PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
-}
-
-
-
-
-
-
-/**
- * Operations for a kLdr module.
- */
-static const RTLDROPS g_rtkldrOps =
-{
-    "kLdr",
-    rtkldrClose,
-    NULL,
-    rtkldrDone,
-    rtkldrEnumSymbols,
-    /* ext */
-    rtkldrGetImageSize,
-    rtkldrGetBits,
-    rtkldrRelocate,
-    rtkldrGetSymbolEx,
-    42
-};
 
 
 /** @copydoc RTLDROPS::pfnClose */
-static DECLCALLBACK(int) rtkldrClose(PRTLDRMODINTERNAL pMod)
+static DECLCALLBACK(int) rtkldr_Close(PRTLDRMODINTERNAL pMod)
 {
     PKLDRMOD pModkLdr = ((PRTLDRMODKLDR)pMod)->pMod;
     int rc = kLdrModClose(pModkLdr);
@@ -455,27 +402,10 @@ static DECLCALLBACK(int) rtkldrClose(PRTLDRMODINTERNAL pMod)
 
 
 /** @copydoc RTLDROPS::pfnDone */
-static DECLCALLBACK(int) rtkldrDone(PRTLDRMODINTERNAL pMod)
+static DECLCALLBACK(int) rtkldr_Done(PRTLDRMODINTERNAL pMod)
 {
     PKLDRMOD pModkLdr = ((PRTLDRMODKLDR)pMod)->pMod;
     int rc = kLdrModMostlyDone(pModkLdr);
-    return rtkldrConvertError(rc);
-}
-
-
-/** @copydoc RTLDROPS::pfnEnumSymbols */
-static DECLCALLBACK(int) rtkldrEnumSymbols(PRTLDRMODINTERNAL pMod, unsigned fFlags, const void *pvBits, RTUINTPTR BaseAddress,
-                                           PFNRTLDRENUMSYMS pfnCallback, void *pvUser)
-{
-    PKLDRMOD pModkLdr = ((PRTLDRMODKLDR)pMod)->pMod;
-    RTLDRMODKLDRARGS Args;
-    Args.pvUser = pvUser;
-    Args.u.pfnEnumSyms = pfnCallback;
-    Args.pMod = (PRTLDRMODKLDR)pMod;
-    Args.pvBits = pvBits;
-    int rc = kLdrModEnumSymbols(pModkLdr, pvBits, BaseAddress,
-                                fFlags & RTLDR_ENUM_SYMBOL_FLAGS_ALL ? KLDRMOD_ENUM_SYMS_FLAGS_ALL : 0,
-                                rtkldrEnumSymbolsWrapper, &Args);
     return rtkldrConvertError(rc);
 }
 
@@ -486,12 +416,13 @@ static int rtkldrEnumSymbolsWrapper(PKLDRMOD pMod, uint32_t iSymbol,
                                     KLDRADDR uValue, uint32_t fKind, void *pvUser)
 {
     PRTLDRMODKLDRARGS pArgs = (PRTLDRMODKLDRARGS)pvUser;
+    NOREF(pMod); NOREF(pszVersion); NOREF(fKind);
 
     /* If not zero terminated we'll have to use a temporary buffer. */
     const char *pszSymbol = pchSymbol;
     if (pchSymbol && pchSymbol[cchSymbol])
     {
-        char *psz = (char *)alloca(cchSymbol) + 1;
+        char *psz = (char *)alloca(cchSymbol + 1);
         memcpy(psz, pchSymbol, cchSymbol);
         psz[cchSymbol] = '\0';
         pszSymbol = psz;
@@ -510,41 +441,33 @@ static int rtkldrEnumSymbolsWrapper(PKLDRMOD pMod, uint32_t iSymbol,
 }
 
 
+/** @copydoc RTLDROPS::pfnEnumSymbols */
+static DECLCALLBACK(int) rtkldr_EnumSymbols(PRTLDRMODINTERNAL pMod, unsigned fFlags, const void *pvBits, RTUINTPTR BaseAddress,
+                                            PFNRTLDRENUMSYMS pfnCallback, void *pvUser)
+{
+    PKLDRMOD            pModkLdr = ((PRTLDRMODKLDR)pMod)->pMod;
+    RTLDRMODKLDRARGS    Args;
+    Args.pvUser         = pvUser;
+    Args.u.pfnEnumSyms  = pfnCallback;
+    Args.pMod           = (PRTLDRMODKLDR)pMod;
+    Args.pvBits         = pvBits;
+    Args.rc             = VINF_SUCCESS;
+    int rc = kLdrModEnumSymbols(pModkLdr, pvBits, BaseAddress,
+                                fFlags & RTLDR_ENUM_SYMBOL_FLAGS_ALL ? KLDRMOD_ENUM_SYMS_FLAGS_ALL : 0,
+                                rtkldrEnumSymbolsWrapper, &Args);
+    if (Args.rc != VINF_SUCCESS)
+        rc = Args.rc;
+    else
+        rc = rtkldrConvertError(rc);
+    return rc;
+}
+
+
 /** @copydoc RTLDROPS::pfnGetImageSize */
-static DECLCALLBACK(size_t) rtkldrGetImageSize(PRTLDRMODINTERNAL pMod)
+static DECLCALLBACK(size_t) rtkldr_GetImageSize(PRTLDRMODINTERNAL pMod)
 {
     PKLDRMOD pModkLdr = ((PRTLDRMODKLDR)pMod)->pMod;
     return kLdrModSize(pModkLdr);
-}
-
-
-/** @copydoc RTLDROPS::pfnGetBits */
-static DECLCALLBACK(int) rtkldrGetBits(PRTLDRMODINTERNAL pMod, void *pvBits, RTUINTPTR BaseAddress,
-                                       PFNRTLDRIMPORT pfnGetImport, void *pvUser)
-{
-    PKLDRMOD pModkLdr = ((PRTLDRMODKLDR)pMod)->pMod;
-    RTLDRMODKLDRARGS Args;
-    Args.pvUser = pvUser;
-    Args.u.pfnGetImport = pfnGetImport;
-    Args.pMod = (PRTLDRMODKLDR)pMod;
-    Args.pvBits = pvBits;
-    int rc = kLdrModGetBits(pModkLdr, pvBits, BaseAddress, rtkldrGetImportWrapper, &Args);
-    return rtkldrConvertError(rc);
-}
-
-
-/** @copydoc RTLDROPS::pfnRelocate */
-static DECLCALLBACK(int) rtkldrRelocate(PRTLDRMODINTERNAL pMod, void *pvBits, RTUINTPTR NewBaseAddress,
-                                        RTUINTPTR OldBaseAddress, PFNRTLDRIMPORT pfnGetImport, void *pvUser)
-{
-    PKLDRMOD pModkLdr = ((PRTLDRMODKLDR)pMod)->pMod;
-    RTLDRMODKLDRARGS Args;
-    Args.pvUser = pvUser;
-    Args.u.pfnGetImport = pfnGetImport;
-    Args.pMod = (PRTLDRMODKLDR)pMod;
-    Args.pvBits = pvBits;
-    int rc = kLdrModRelocateBits(pModkLdr, pvBits, NewBaseAddress, OldBaseAddress, rtkldrGetImportWrapper, &Args);
-    return rtkldrConvertError(rc);
 }
 
 
@@ -553,12 +476,13 @@ static int rtkldrGetImportWrapper(PKLDRMOD pMod, uint32_t iImport, uint32_t iSym
                                   const char *pszVersion, PKLDRADDR puValue, uint32_t *pfKind, void *pvUser)
 {
     PRTLDRMODKLDRARGS pArgs = (PRTLDRMODKLDRARGS)pvUser;
+    NOREF(pMod); NOREF(pszVersion); NOREF(pfKind);
 
     /* If not zero terminated we'll have to use a temporary buffer. */
     const char *pszSymbol = pchSymbol;
     if (pchSymbol && pchSymbol[cchSymbol])
     {
-        char *psz = (char *)alloca(cchSymbol) + 1;
+        char *psz = (char *)alloca(cchSymbol + 1);
         memcpy(psz, pchSymbol, cchSymbol);
         psz[cchSymbol] = '\0';
         pszSymbol = psz;
@@ -593,10 +517,49 @@ static int rtkldrGetImportWrapper(PKLDRMOD pMod, uint32_t iImport, uint32_t iSym
 }
 
 
+/** @copydoc RTLDROPS::pfnGetBits */
+static DECLCALLBACK(int) rtkldr_GetBits(PRTLDRMODINTERNAL pMod, void *pvBits, RTUINTPTR BaseAddress,
+                                        PFNRTLDRIMPORT pfnGetImport, void *pvUser)
+{
+    PKLDRMOD            pModkLdr = ((PRTLDRMODKLDR)pMod)->pMod;
+    RTLDRMODKLDRARGS    Args;
+    Args.pvUser         = pvUser;
+    Args.u.pfnGetImport = pfnGetImport;
+    Args.pMod           = (PRTLDRMODKLDR)pMod;
+    Args.pvBits         = pvBits;
+    Args.rc             = VINF_SUCCESS;
+    int rc = kLdrModGetBits(pModkLdr, pvBits, BaseAddress, rtkldrGetImportWrapper, &Args);
+    if (Args.rc != VINF_SUCCESS)
+        rc = Args.rc;
+    else
+        rc = rtkldrConvertError(rc);
+    return rc;
+}
+
+
+/** @copydoc RTLDROPS::pfnRelocate */
+static DECLCALLBACK(int) rtkldr_Relocate(PRTLDRMODINTERNAL pMod, void *pvBits, RTUINTPTR NewBaseAddress,
+                                         RTUINTPTR OldBaseAddress, PFNRTLDRIMPORT pfnGetImport, void *pvUser)
+{
+    PKLDRMOD            pModkLdr = ((PRTLDRMODKLDR)pMod)->pMod;
+    RTLDRMODKLDRARGS    Args;
+    Args.pvUser         = pvUser;
+    Args.u.pfnGetImport = pfnGetImport;
+    Args.pMod           = (PRTLDRMODKLDR)pMod;
+    Args.pvBits         = pvBits;
+    Args.rc             = VINF_SUCCESS;
+    int rc = kLdrModRelocateBits(pModkLdr, pvBits, NewBaseAddress, OldBaseAddress, rtkldrGetImportWrapper, &Args);
+    if (Args.rc != VINF_SUCCESS)
+        rc = Args.rc;
+    else
+        rc = rtkldrConvertError(rc);
+    return rc;
+}
+
 
 /** @copydoc RTLDROPS::pfnGetSymbolEx */
-static DECLCALLBACK(int) rtkldrGetSymbolEx(PRTLDRMODINTERNAL pMod, const void *pvBits, RTUINTPTR BaseAddress,
-                                           const char *pszSymbol, RTUINTPTR *pValue)
+static DECLCALLBACK(int) rtkldr_GetSymbolEx(PRTLDRMODINTERNAL pMod, const void *pvBits, RTUINTPTR BaseAddress,
+                                            const char *pszSymbol, RTUINTPTR *pValue)
 {
     PKLDRMOD pModkLdr = ((PRTLDRMODKLDR)pMod)->pMod;
     KLDRADDR uValue;
@@ -627,6 +590,224 @@ static DECLCALLBACK(int) rtkldrGetSymbolEx(PRTLDRMODINTERNAL pMod, const void *p
 }
 
 
+/** @copydoc FNKLDRENUMDBG */
+static int rtkldrEnumDbgInfoWrapper(PKLDRMOD pMod, KU32 iDbgInfo, KLDRDBGINFOTYPE enmType, KI16 iMajorVer, KI16 iMinorVer,
+                                    const char *pszPartNm, KLDRFOFF offFile, KLDRADDR LinkAddress, KLDRSIZE cb,
+                                    const char *pszExtFile, void *pvUser)
+{
+    PRTLDRMODKLDRARGS pArgs = (PRTLDRMODKLDRARGS)pvUser;
+    NOREF(pMod);
+
+    RTLDRDBGINFOTYPE enmMyType;
+    switch (enmType)
+    {
+        case KLDRDBGINFOTYPE_UNKNOWN:   enmMyType = RTLDRDBGINFOTYPE_UNKNOWN;  break;
+        case KLDRDBGINFOTYPE_STABS:     enmMyType = RTLDRDBGINFOTYPE_STABS;    break;
+        case KLDRDBGINFOTYPE_DWARF:     enmMyType = RTLDRDBGINFOTYPE_DWARF;    break;
+        case KLDRDBGINFOTYPE_CODEVIEW:  enmMyType = RTLDRDBGINFOTYPE_CODEVIEW; break;
+        case KLDRDBGINFOTYPE_WATCOM:    enmMyType = RTLDRDBGINFOTYPE_WATCOM;   break;
+        case KLDRDBGINFOTYPE_HLL:       enmMyType = RTLDRDBGINFOTYPE_HLL;      break;
+        default:
+            AssertFailed();
+            enmMyType = RTLDRDBGINFOTYPE_UNKNOWN;
+            break;
+    }
+
+    int rc = pArgs->u.pfnEnumDbgInfo(&pArgs->pMod->Core, iDbgInfo, enmMyType, iMajorVer, iMinorVer, pszPartNm,
+                                     offFile, LinkAddress, cb, pszExtFile, pArgs->pvUser);
+    if (RT_FAILURE(rc))
+        return rc; /* don't bother converting. */
+    return 0;
+}
+
+
+/** @copydoc RTLDROPS::pfnEnumDbgInfo */
+static DECLCALLBACK(int) rtkldr_EnumDbgInfo(PRTLDRMODINTERNAL pMod, const void *pvBits,
+                                            PFNRTLDRENUMDBG pfnCallback, void *pvUser)
+{
+    PRTLDRMODKLDR       pThis = (PRTLDRMODKLDR)pMod;
+    RTLDRMODKLDRARGS    Args;
+    Args.pvUser             = pvUser;
+    Args.u.pfnEnumDbgInfo   = pfnCallback;
+    Args.pvBits             = pvBits;
+    Args.pMod               = pThis;
+    Args.rc                 = VINF_SUCCESS;
+    int rc = kLdrModEnumDbgInfo(pThis->pMod, pvBits, rtkldrEnumDbgInfoWrapper, &Args);
+    if (Args.rc != VINF_SUCCESS)
+        rc = Args.rc;
+    return rc;
+}
+
+
+/** @copydoc RTLDROPS::pfnEnumSegments. */
+static DECLCALLBACK(int) rtkldr_EnumSegments(PRTLDRMODINTERNAL pMod, PFNRTLDRENUMSEGS pfnCallback, void *pvUser)
+{
+    PRTLDRMODKLDR   pThis      = (PRTLDRMODKLDR)pMod;
+    uint32_t const  cSegments  = pThis->pMod->cSegments;
+    PCKLDRSEG       paSegments = &pThis->pMod->aSegments[0];
+
+    for (uint32_t iSeg = 0; iSeg < cSegments; iSeg++)
+    {
+        RTLDRSEG Seg;
+
+        Seg.pchName     = paSegments[iSeg].pchName;
+        Seg.cchName     = paSegments[iSeg].cchName;
+        Seg.SelFlat     = paSegments[iSeg].SelFlat;
+        Seg.Sel16bit    = paSegments[iSeg].Sel16bit;
+        Seg.fFlags      = paSegments[iSeg].fFlags;
+        AssertCompile(KLDRSEG_FLAG_16BIT          == RTLDRSEG_FLAG_16BIT      );
+        AssertCompile(KLDRSEG_FLAG_OS2_ALIAS16    == RTLDRSEG_FLAG_OS2_ALIAS16);
+        AssertCompile(KLDRSEG_FLAG_OS2_CONFORM    == RTLDRSEG_FLAG_OS2_CONFORM);
+        AssertCompile(KLDRSEG_FLAG_OS2_IOPL       == RTLDRSEG_FLAG_OS2_IOPL   );
+
+        switch (paSegments[iSeg].enmProt)
+        {
+            default:
+                AssertMsgFailed(("%d\n", paSegments[iSeg].enmProt));
+            case KPROT_NOACCESS:
+                Seg.fProt = 0;
+                break;
+
+            case KPROT_READONLY:            Seg.fProt = RTMEM_PROT_READ; break;
+            case KPROT_READWRITE:           Seg.fProt = RTMEM_PROT_READ | RTMEM_PROT_WRITE; break;
+            case KPROT_WRITECOPY:           Seg.fProt = RTMEM_PROT_WRITE; break;
+            case KPROT_EXECUTE:             Seg.fProt = RTMEM_PROT_EXEC; break;
+            case KPROT_EXECUTE_READ:        Seg.fProt = RTMEM_PROT_EXEC | RTMEM_PROT_READ; break;
+            case KPROT_EXECUTE_READWRITE:   Seg.fProt = RTMEM_PROT_EXEC | RTMEM_PROT_READ | RTMEM_PROT_WRITE; break;
+            case KPROT_EXECUTE_WRITECOPY:   Seg.fProt = RTMEM_PROT_EXEC | RTMEM_PROT_WRITE; break;
+        }
+        Seg.cb          = paSegments[iSeg].cb;
+        Seg.Alignment   = paSegments[iSeg].Alignment;
+        Seg.LinkAddress = paSegments[iSeg].LinkAddress;
+        Seg.offFile     = paSegments[iSeg].offFile;
+        Seg.cbFile      = paSegments[iSeg].cbFile;
+        Seg.RVA         = paSegments[iSeg].RVA;
+        Seg.cbMapped    = paSegments[iSeg].cbMapped;
+
+        int rc = pfnCallback(pMod, &Seg, pvUser);
+        if (rc != VINF_SUCCESS)
+            return rc;
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/** @copydoc RTLDROPS::pfnLinkAddressToSegOffset. */
+static DECLCALLBACK(int) rtkldr_LinkAddressToSegOffset(PRTLDRMODINTERNAL pMod, RTLDRADDR LinkAddress,
+                                                       uint32_t *piSeg, PRTLDRADDR poffSeg)
+{
+    PRTLDRMODKLDR   pThis      = (PRTLDRMODKLDR)pMod;
+    uint32_t const  cSegments  = pThis->pMod->cSegments;
+    PCKLDRSEG       paSegments = &pThis->pMod->aSegments[0];
+
+    for (uint32_t iSeg = 0; iSeg < cSegments; iSeg++)
+    {
+        KLDRADDR offSeg = LinkAddress - paSegments[iSeg].LinkAddress;
+        if (   offSeg < paSegments[iSeg].cbMapped
+            || offSeg < paSegments[iSeg].cb)
+        {
+            *piSeg = iSeg;
+            *poffSeg = offSeg;
+            return VINF_SUCCESS;
+        }
+    }
+
+    return VERR_LDR_INVALID_LINK_ADDRESS;
+}
+
+
+/** @copydoc RTLDROPS::pfnLinkAddressToRva. */
+static DECLCALLBACK(int) rtkldr_LinkAddressToRva(PRTLDRMODINTERNAL pMod, RTLDRADDR LinkAddress, PRTLDRADDR pRva)
+{
+    PRTLDRMODKLDR   pThis      = (PRTLDRMODKLDR)pMod;
+    uint32_t const  cSegments  = pThis->pMod->cSegments;
+    PCKLDRSEG       paSegments = &pThis->pMod->aSegments[0];
+
+    for (uint32_t iSeg = 0; iSeg < cSegments; iSeg++)
+    {
+        KLDRADDR offSeg = LinkAddress - paSegments[iSeg].LinkAddress;
+        if (   offSeg < paSegments[iSeg].cbMapped
+            || offSeg < paSegments[iSeg].cb)
+        {
+            *pRva = paSegments[iSeg].RVA + offSeg;
+            return VINF_SUCCESS;
+        }
+    }
+
+    return VERR_LDR_INVALID_RVA;
+}
+
+
+/** @copydoc RTLDROPS::pfnSegOffsetToRva. */
+static DECLCALLBACK(int) rtkldr_SegOffsetToRva(PRTLDRMODINTERNAL pMod, uint32_t iSeg, RTLDRADDR offSeg,
+                                               PRTLDRADDR pRva)
+{
+    PRTLDRMODKLDR pThis = (PRTLDRMODKLDR)pMod;
+
+    if (iSeg >= pThis->pMod->cSegments)
+        return VERR_LDR_INVALID_SEG_OFFSET;
+    PCKLDRSEG const pSegment = &pThis->pMod->aSegments[iSeg];
+
+    if (   offSeg > pSegment->cbMapped
+        && offSeg > pSegment->cb
+        && (    pSegment->cbFile < 0
+            ||  offSeg > (uint64_t)pSegment->cbFile))
+        return VERR_LDR_INVALID_SEG_OFFSET;
+
+    *pRva = pSegment->RVA + offSeg;
+    return VINF_SUCCESS;
+}
+
+
+/** @copydoc RTLDROPS::pfnRvaToSegOffset. */
+static DECLCALLBACK(int) rtkldr_RvaToSegOffset(PRTLDRMODINTERNAL pMod, RTLDRADDR Rva,
+                                               uint32_t *piSeg, PRTLDRADDR poffSeg)
+{
+    PRTLDRMODKLDR   pThis      = (PRTLDRMODKLDR)pMod;
+    uint32_t const  cSegments  = pThis->pMod->cSegments;
+    PCKLDRSEG       paSegments = &pThis->pMod->aSegments[0];
+
+    for (uint32_t iSeg = 0; iSeg < cSegments; iSeg++)
+    {
+        KLDRADDR offSeg = Rva - paSegments[iSeg].RVA;
+        if (   offSeg < paSegments[iSeg].cbMapped
+            || offSeg < paSegments[iSeg].cb)
+        {
+            *piSeg = iSeg;
+            *poffSeg = offSeg;
+            return VINF_SUCCESS;
+        }
+    }
+
+    return VERR_LDR_INVALID_RVA;
+}
+
+
+/**
+ * Operations for a kLdr module.
+ */
+static const RTLDROPS g_rtkldrOps =
+{
+    "kLdr",
+    rtkldr_Close,
+    NULL,
+    rtkldr_Done,
+    rtkldr_EnumSymbols,
+    /* ext */
+    rtkldr_GetImageSize,
+    rtkldr_GetBits,
+    rtkldr_Relocate,
+    rtkldr_GetSymbolEx,
+    rtkldr_EnumDbgInfo,
+    rtkldr_EnumSegments,
+    rtkldr_LinkAddressToSegOffset,
+    rtkldr_LinkAddressToRva,
+    rtkldr_SegOffsetToRva,
+    rtkldr_RvaToSegOffset,
+    42
+};
+
 
 /**
  * Open a image using kLdr.
@@ -656,7 +837,7 @@ int rtldrkLdrOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, PRTL
             return VERR_INVALID_PARAMETER;
     }
 
-    /* Create a rtkldrRdr instance. */
+    /* Create a rtkldrRdr_ instance. */
     PRTKLDRRDR pRdr = (PRTKLDRRDR)RTMemAllocZ(sizeof(*pRdr));
     if (!pRdr)
         return VERR_NO_MEMORY;

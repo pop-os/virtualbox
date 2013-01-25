@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -158,23 +158,18 @@ RTDECL(int) RTTimerDestroy(PRTTIMER pTimer)
         return VERR_INVALID_HANDLE;
 
     /*
-     * If the timer is active, we just flag it to self destruct on the next tick.
-     * If it's suspended we can safely set the destroy flag and signal it.
+     * If the timer is active, we stop and destruct it in one go, to avoid
+     * unnecessary waiting for the next tick. If it's suspended we can safely
+     * set the destroy flag and signal it.
      */
     RTTHREAD Thread = pTimer->Thread;
     if (!pTimer->fSuspended)
-    {
         ASMAtomicXchgU8(&pTimer->fSuspended, true);
-        ASMAtomicXchgU8(&pTimer->fDestroyed, true);
-    }
-    else
-    {
-        ASMAtomicXchgU8(&pTimer->fDestroyed, true);
-        int rc = RTSemEventSignal(pTimer->Event);
-        if (rc == VERR_ALREADY_POSTED)
-            rc = VINF_SUCCESS;
-        AssertRC(rc);
-    }
+    ASMAtomicXchgU8(&pTimer->fDestroyed, true);
+    int rc = RTSemEventSignal(pTimer->Event);
+    if (rc == VERR_ALREADY_POSTED)
+        rc = VINF_SUCCESS;
+    AssertRC(rc);
 
     RTThreadWait(Thread, 250, NULL);
     return VINF_SUCCESS;
@@ -230,14 +225,16 @@ RTDECL(int) RTTimerChangeInterval(PRTTIMER pTimer, uint64_t u64NanoInterval)
 {
     if (!rtTimerIsValid(pTimer))
         return VERR_INVALID_HANDLE;
+    NOREF(u64NanoInterval);
     return VERR_NOT_SUPPORTED;
 }
 RT_EXPORT_SYMBOL(RTTimerChangeInterval);
 
 
-static DECLCALLBACK(int) rtTimerThread(RTTHREAD Thread, void *pvUser)
+static DECLCALLBACK(int) rtTimerThread(RTTHREAD hThreadSelf, void *pvUser)
 {
     PRTTIMER pTimer = (PRTTIMER)pvUser;
+    NOREF(hThreadSelf);
 
     /*
      * The loop.
@@ -322,6 +319,7 @@ RT_EXPORT_SYMBOL(RTTimerGetSystemGranularity);
 
 RTDECL(int) RTTimerRequestSystemGranularity(uint32_t u32Request, uint32_t *pu32Granted)
 {
+    NOREF(u32Request); NOREF(pu32Granted);
     return VERR_NOT_SUPPORTED;
 }
 RT_EXPORT_SYMBOL(RTTimerRequestSystemGranularity);
@@ -329,6 +327,7 @@ RT_EXPORT_SYMBOL(RTTimerRequestSystemGranularity);
 
 RTDECL(int) RTTimerReleaseSystemGranularity(uint32_t u32Granted)
 {
+    NOREF(u32Granted);
     return VERR_NOT_SUPPORTED;
 }
 RT_EXPORT_SYMBOL(RTTimerReleaseSystemGranularity);

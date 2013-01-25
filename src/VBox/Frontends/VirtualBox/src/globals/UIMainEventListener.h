@@ -19,10 +19,14 @@
 #ifndef __UIMainEventListener_h__
 #define __UIMainEventListener_h__
 
-/* Local includes */
-#include "COMDefs.h"
+/* COM includes: */
+#include "COMEnums.h"
+#include "CVirtualBoxErrorInfo.h"
+#include "CMediumAttachment.h"
+#include "CNetworkAdapter.h"
+#include "CUSBDevice.h"
 
-/* VBox includes */
+/* Other VBox includes: */
 #include <VBox/com/listeners.h>
 
 /* Note: On a first look this may seems a little bit complicated.
@@ -75,6 +79,7 @@ signals:
     void sigCanShowWindow(bool &fVeto, QString &strReason); /* use Qt::DirectConnection */
     void sigShowWindow(LONG64 &winId); /* use Qt::DirectConnection */
     void sigCPUExecutionCapChange();
+    void sigGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
 };
 
 /* Wrap the IListener interface around our implementation class. */

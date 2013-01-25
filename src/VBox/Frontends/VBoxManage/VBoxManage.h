@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,7 @@
 #include <VBox/com/ptr.h>
 #include <VBox/com/VirtualBox.h>
 #include <VBox/com/string.h>
+#include <VBox/com/array.h>
 #endif /* !VBOX_ONLY_DOCS */
 
 #include <iprt/types.h>
@@ -67,7 +68,7 @@
 #define USAGE_SHAREDFOLDER_ADD      RT_BIT_64(25)
 #define USAGE_SHAREDFOLDER_REMOVE   RT_BIT_64(26)
 #define USAGE_LOADSYMS              RT_BIT_64(29)
-#define USAGE_UNLOADSYMS            RT_BIT_64(30)
+#define USAGE_LOADMAP               RT_BIT_64(30)
 #define USAGE_SETHDUUID             RT_BIT_64(31)
 #define USAGE_CONVERTFROMRAW        RT_BIT_64(32)
 #define USAGE_LISTPARTITIONS        RT_BIT_64(33)
@@ -99,6 +100,7 @@
 #define USAGE_EXTPACK               RT_BIT_64(55)
 #define USAGE_BANDWIDTHCONTROL      RT_BIT_64(56)
 #define USAGE_GUESTSTATS            RT_BIT_64(57)
+#define USAGE_REPAIRHD              RT_BIT_64(58)
 #define USAGE_ALL                   (~(uint64_t)0)
 /** @} */
 
@@ -159,6 +161,8 @@ HRESULT showProgress(ComPtr<IProgress> progress);
 void showLogo(PRTSTREAM pStrm);
 
 #ifndef VBOX_ONLY_DOCS
+RTEXITCODE readPasswordFile(const char *pszFilename, com::Utf8Str *pPasswd);
+
 int handleInternalCommands(HandlerArg *a);
 #endif /* !VBOX_ONLY_DOCS */
 
@@ -169,16 +173,19 @@ unsigned int getMaxNics(IVirtualBox* vbox, IMachine* mach);
 #endif
 
 /* VBoxManageModifyVM.cpp */
+#ifndef VBOX_ONLY_DOCS
+void parseGroups(const char *pcszGroups, com::SafeArray<BSTR> *pGroups);
+#endif
 int handleModifyVM(HandlerArg *a);
 
 /* VBoxManageDebugVM.cpp */
 int handleDebugVM(HandlerArg *a);
 
 /* VBoxManageGuestProp.cpp */
-extern void usageGuestProperty(PRTSTREAM pStrm);
+extern void usageGuestProperty(PRTSTREAM pStrm, const char *pcszSep1, const char *pcszSep2);
 
 /* VBoxManageGuestCtrl.cpp */
-extern void usageGuestControl(PRTSTREAM pStrm);
+extern void usageGuestControl(PRTSTREAM pStrm, const char *pcszSep1, const char *pcszSep2);
 
 #ifndef VBOX_ONLY_DOCS
 /* VBoxManageGuestProp.cpp */
@@ -191,7 +198,7 @@ extern int handleGuestControl(HandlerArg *a);
 HRESULT showSnapshots(ComPtr<ISnapshot> &rootSnapshot,
                       ComPtr<ISnapshot> &currentSnapshot,
                       VMINFO_DETAILS details,
-                      const com::Bstr &prefix = "",
+                      const com::Utf8Str &prefix = "",
                       int level = 0);
 int handleShowVMInfo(HandlerArg *a);
 HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
@@ -199,6 +206,8 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
                    VMINFO_DETAILS details = VMINFO_NONE,
                    ComPtr <IConsole> console = ComPtr<IConsole>());
 const char *machineStateToName(MachineState_T machineState, bool fShort);
+HRESULT showBandwidthGroups(ComPtr<IBandwidthControl> &bwCtrl,
+                            VMINFO_DETAILS details);
 
 /* VBoxManageList.cpp */
 int handleList(HandlerArg *a);
@@ -221,12 +230,10 @@ int handleSharedFolder(HandlerArg *a);
 int handleExtPack(HandlerArg *a);
 
 /* VBoxManageDisk.cpp */
-HRESULT findMedium(HandlerArg *a, const char *pszFilenameOrUuid,
-                   DeviceType_T enmDevType, bool fSilent,
-                   ComPtr<IMedium> &pMedium);
-HRESULT findOrOpenMedium(HandlerArg *a, const char *pszFilenameOrUuid,
-                         DeviceType_T enmDevType, ComPtr<IMedium> &pMedium,
-                         bool fForceNewUuidOnOpen, bool *pfWasUnknown);
+HRESULT openMedium(HandlerArg *a, const char *pszFilenameOrUuid,
+                   DeviceType_T enmDevType, AccessMode_T enmAccessMode,
+                   ComPtr<IMedium> &pMedium, bool fForceNewUuidOnOpen,
+                   bool fSilent);
 int handleCreateHardDisk(HandlerArg *a);
 int handleModifyHardDisk(HandlerArg *a);
 int handleCloneHardDisk(HandlerArg *a);
@@ -234,6 +241,7 @@ RTEXITCODE handleConvertFromRaw(int argc, char *argv[]);
 int handleShowHardDiskInfo(HandlerArg *a);
 int handleCloseMedium(HandlerArg *a);
 int parseDiskType(const char *psz, MediumType_T *pDiskType);
+int parseBool(const char *psz, bool *pb);
 
 /* VBoxManageStorageController.cpp */
 int handleStorageAttach(HandlerArg *a);

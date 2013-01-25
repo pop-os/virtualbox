@@ -1,4 +1,4 @@
-/* $Revision: 60692 $ */
+/* $Revision: 77449 $ */
 /** @file
  * VBoxGuestLibR0 - Physical memory heap.
  */
@@ -36,6 +36,6 @@ DECLR0VBGL(bool) VbglR0CanUsePhysPageList(void)
 {
     int rc = vbglR0Enter();
     return RT_SUCCESS(rc)
-        && VBGLR0_CAN_USE_PHYS_PAGE_LIST();
+        && VBGLR0_CAN_USE_PHYS_PAGE_LIST(/*a_fLocked =*/ false);
 }
 

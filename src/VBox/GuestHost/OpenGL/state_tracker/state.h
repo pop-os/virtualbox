@@ -9,6 +9,16 @@
 
 #include "cr_glstate.h"
 
+#define CRSTATE_CHECKERR_RET(expr, result, message, ret)         \
+    if (expr) {                                             \
+        crStateError(__LINE__, __FILE__, result, message);  \
+        return ret;                                             \
+    }
+
+#define CRSTATE_NO_RETURN
+
+#define CRSTATE_CHECKERR(expr, result, message) CRSTATE_CHECKERR_RET(expr, result, message, CRSTATE_NO_RETURN)
+
 typedef struct _crCheckIDHWID {
     GLuint id, hwid;
 } crCheckIDHWID_t;
@@ -32,6 +42,10 @@ extern CRtsd __contextTSD;
 extern CRContext *__currentContext;
 #define GetCurrentContext() __currentContext
 #endif
+
+extern GLboolean g_bVBoxEnableDiffOnMakeCurrent;
+
+extern CRContext *g_pAvailableContexts[CR_MAX_CONTEXTS];
 
 extern void crStateTextureInitTextureObj (CRContext *ctx, CRTextureObj *tobj, GLuint name, GLenum target);
 extern void crStateTextureInitTextureFormat( CRTextureLevel *tl, GLenum internalFormat );
@@ -61,4 +75,7 @@ void crStateGetTextureObjectAndImage(CRContext *g, GLenum texTarget, GLint level
 void crStateFreeBufferObject(void *data);
 void crStateFreeFBO(void *data);
 void crStateFreeRBO(void *data);
+
+void crStateGenNames(CRContext *g, CRHashTable *table, GLsizei n, GLuint *names);
+void crStateRegNames(CRContext *g, CRHashTable *table, GLsizei n, GLuint *names);
 #endif

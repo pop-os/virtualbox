@@ -68,6 +68,7 @@
 #include <iprt/env.h>
 #include <iprt/err.h>
 #include <iprt/file.h>
+#include <iprt/path.h>
 #include <iprt/pipe.h>
 #include <iprt/socket.h>
 #include <iprt/string.h>
@@ -84,7 +85,7 @@
  * @param    uid         where to store the UID of the user
  * @returns IPRT status code
  */
-static int rtCheckCredentials(const char *pszUser, const char *pszPasswd, gid_t *gid, uid_t *uid)
+static int rtCheckCredentials(const char *pszUser, const char *pszPasswd, gid_t *pGid, uid_t *pUid)
 {
 #if defined(RT_OS_LINUX)
     struct passwd *pw;
@@ -110,8 +111,8 @@ static int rtCheckCredentials(const char *pszUser, const char *pszPasswd, gid_t 
     if (!fCorrect)
         return VERR_PERMISSION_DENIED;
 
-    *gid = pw->pw_gid;
-    *uid = pw->pw_uid;
+    *pGid = pw->pw_gid;
+    *pUid = pw->pw_uid;
     return VINF_SUCCESS;
 
 #elif defined(RT_OS_SOLARIS)
@@ -134,11 +135,12 @@ static int rtCheckCredentials(const char *pszUser, const char *pszPasswd, gid_t 
     if (strcmp(pszEncPasswd, ppw->pw_passwd))
         return VERR_PERMISSION_DENIED;
 
-    *gid = ppw->pw_gid;
-    *uid = ppw->pw_uid;
+    *pGid = ppw->pw_gid;
+    *pUid = ppw->pw_uid;
     return VINF_SUCCESS;
 
 #else
+    NOREF(pszUser); NOREF(pszPasswd); NOREF(pGid); NOREF(pUid);
     return VERR_PERMISSION_DENIED;
 #endif
 }
@@ -254,6 +256,25 @@ RTR3DECL(int)   RTProcCreate(const char *pszExec, const char * const *papszArgs,
 }
 
 
+/**
+ * RTPathTraverseList callback used by RTProcCreateEx to locate the executable.
+ */
+static DECLCALLBACK(int) rtPathFindExec(char const *pchPath, size_t cchPath, void *pvUser1, void *pvUser2)
+{
+    const char *pszExec     = (const char *)pvUser1;
+    char       *pszRealExec = (char *)pvUser2;
+    int rc = RTPathJoinEx(pszRealExec, RTPATH_MAX, pchPath, cchPath, pszExec, RTSTR_MAX);
+    if (RT_FAILURE(rc))
+        return rc;
+    if (!access(pszRealExec, X_OK))
+        return VINF_SUCCESS;
+    if (   errno == EACCES
+        || errno == EPERM)
+        return RTErrConvertFromErrno(errno);
+    return VERR_TRY_AGAIN;
+}
+
+
 RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArgs, RTENV hEnv, uint32_t fFlags,
                                PCRTHANDLE phStdIn, PCRTHANDLE phStdOut, PCRTHANDLE phStdErr, const char *pszAsUser,
                                const char *pszPassword, PRTPROCESS phProcess)
@@ -265,7 +286,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
      */
     AssertPtrReturn(pszExec, VERR_INVALID_POINTER);
     AssertReturn(*pszExec, VERR_INVALID_PARAMETER);
-    AssertReturn(!(fFlags & ~(RTPROC_FLAGS_DETACHED | RTPROC_FLAGS_HIDDEN | RTPROC_FLAGS_SERVICE | RTPROC_FLAGS_SAME_CONTRACT | RTPROC_FLAGS_NO_PROFILE)), VERR_INVALID_PARAMETER);
+    AssertReturn(!(fFlags & ~(RTPROC_FLAGS_DETACHED | RTPROC_FLAGS_HIDDEN | RTPROC_FLAGS_SERVICE | RTPROC_FLAGS_SAME_CONTRACT | RTPROC_FLAGS_NO_PROFILE | RTPROC_FLAGS_SEARCH_PATH)), VERR_INVALID_PARAMETER);
     AssertReturn(!(fFlags & RTPROC_FLAGS_DETACHED) || !phProcess, VERR_INVALID_PARAMETER);
     AssertReturn(hEnv != NIL_RTENV, VERR_INVALID_PARAMETER);
     const char * const *papszEnv = RTEnvGetExecEnvP(hEnv);
@@ -338,8 +359,22 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
     /*
      * Check for execute access to the file.
      */
+    char szRealExec[RTPATH_MAX];
     if (access(pszExec, X_OK))
-        return RTErrConvertFromErrno(errno);
+    {
+        if (   !(fFlags & RTPROC_FLAGS_SEARCH_PATH)
+            || errno != ENOENT
+            || RTPathHavePath(pszExec) )
+            return RTErrConvertFromErrno(errno);
+
+        /* search */
+        char *pszPath = RTEnvDupEx(hEnv, "PATH");
+        rc = RTPathTraverseList(pszPath, ':', rtPathFindExec, (void *)pszExec, &szRealExec[0]);
+        RTStrFree(pszPath);
+        if (RT_FAILURE(rc))
+            return rc == VERR_END_OF_STRING ? VERR_FILE_NOT_FOUND : rc;
+        pszExec = szRealExec;
+    }
 
     pid_t pid = -1;
 
@@ -653,7 +688,11 @@ RTR3DECL(int)   RTProcDaemonizeUsingFork(bool fNoChDir, bool fNoClose, const cha
     /* First fork, to become independent process. */
     pid_t pid = fork();
     if (pid == -1)
+    {
+        if (fdPidfile != -1)
+            close(fdPidfile);
         return RTErrConvertFromErrno(errno);
+    }
     if (pid != 0)
     {
         /* Parent exits, no longer necessary. The child gets reparented
@@ -671,7 +710,11 @@ RTR3DECL(int)   RTProcDaemonizeUsingFork(bool fNoChDir, bool fNoClose, const cha
     if (rcSigAct != -1)
         sigaction(SIGHUP, &OldSigAct, NULL);
     if (newpgid == -1)
+    {
+        if (fdPidfile != -1)
+            close(fdPidfile);
         return RTErrConvertFromErrno(SavedErrno);
+    }
 
     if (!fNoClose)
     {
@@ -696,13 +739,18 @@ RTR3DECL(int)   RTProcDaemonizeUsingFork(bool fNoChDir, bool fNoClose, const cha
 
     if (!fNoChDir)
     {
-        int rcChdir = chdir("/");
+        int rcIgnored = chdir("/");
+        NOREF(rcIgnored);
     }
 
     /* Second fork to lose session leader status. */
     pid = fork();
     if (pid == -1)
+    {
+        if (fdPidfile != -1)
+            close(fdPidfile);
         return RTErrConvertFromErrno(errno);
+    }
 
     if (pid != 0)
     {
@@ -711,11 +759,14 @@ RTR3DECL(int)   RTProcDaemonizeUsingFork(bool fNoChDir, bool fNoClose, const cha
         {
             char szBuf[256];
             size_t cbPid = RTStrPrintf(szBuf, sizeof(szBuf), "%d\n", pid);
-            int rcWrite = write(fdPidfile, szBuf, cbPid);
+            ssize_t cbIgnored = write(fdPidfile, szBuf, cbPid); NOREF(cbIgnored);
             close(fdPidfile);
         }
         exit(0);
     }
+
+    if (fdPidfile != -1)
+        close(fdPidfile);
 
     return VINF_SUCCESS;
 }

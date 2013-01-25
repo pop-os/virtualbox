@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -409,8 +409,12 @@ HRESULT BandwidthControl::getBandwidthGroupByName(const Utf8Str &aName,
     return VBOX_E_OBJECT_NOT_FOUND;
 }
 
-STDMETHODIMP BandwidthControl::CreateBandwidthGroup(IN_BSTR aName, BandwidthGroupType_T aType, ULONG aMaxMbPerSec)
+STDMETHODIMP BandwidthControl::CreateBandwidthGroup(IN_BSTR aName, BandwidthGroupType_T aType, LONG64 aMaxBytesPerSec)
 {
+    if (aMaxBytesPerSec < 0)
+        return setError(E_INVALIDARG,
+                        tr("Bandwidth group limit cannot be negative"));
+
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
@@ -431,7 +435,7 @@ STDMETHODIMP BandwidthControl::CreateBandwidthGroup(IN_BSTR aName, BandwidthGrou
 
     group.createObject();
 
-    rc = group->init(this, aName, aType, aMaxMbPerSec);
+    rc = group->init(this, aName, aType, aMaxBytesPerSec);
     if (FAILED(rc)) return rc;
 
     m->pParent->setModified(Machine::IsModified_BandwidthControl);
@@ -471,7 +475,7 @@ STDMETHODIMP BandwidthControl::DeleteBandwidthGroup(IN_BSTR aName)
     m->llBandwidthGroups->remove(group);
 
     /* inform the direct session if any */
-    alock.leave();
+    alock.release();
     //onStorageControllerChange(); @todo
 
     return S_OK;
@@ -524,7 +528,7 @@ STDMETHODIMP BandwidthControl::GetAllBandwidthGroups(ComSafeArrayOut(IBandwidthG
     return S_OK;
 }
 
-HRESULT BandwidthControl::loadSettings(const settings::IoSettings &data)
+HRESULT BandwidthControl::loadSettings(const settings::IOSettings &data)
 {
     HRESULT rc = S_OK;
 
@@ -536,14 +540,14 @@ HRESULT BandwidthControl::loadSettings(const settings::IoSettings &data)
         ++it)
     {
         const settings::BandwidthGroup &gr = *it;
-        rc = CreateBandwidthGroup(Bstr(gr.strName).raw(), gr.enmType, gr.cMaxMbPerSec);
+        rc = CreateBandwidthGroup(Bstr(gr.strName).raw(), gr.enmType, gr.cMaxBytesPerSec);
         if (FAILED(rc)) break;
     }
 
     return rc;
 }
 
-HRESULT BandwidthControl::saveSettings(settings::IoSettings &data)
+HRESULT BandwidthControl::saveSettings(settings::IOSettings &data)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -561,7 +565,7 @@ HRESULT BandwidthControl::saveSettings(settings::IoSettings &data)
 
         group.strName      = (*it)->getName();
         group.enmType      = (*it)->getType();
-        group.cMaxMbPerSec = (*it)->getMaxMbPerSec();
+        group.cMaxBytesPerSec = (*it)->getMaxBytesPerSec();
 
         data.llBandwidthGroups.push_back(group);
     }

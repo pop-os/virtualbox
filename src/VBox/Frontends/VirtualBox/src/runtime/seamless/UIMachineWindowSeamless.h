@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,92 +19,87 @@
 #ifndef __UIMachineWindowSeamless_h__
 #define __UIMachineWindowSeamless_h__
 
-/* Global includes */
-#include <QMainWindow>
-
-/* Local includes */
-#include "QIWithRetranslateUI.h"
+/* Local includes: */
 #include "UIMachineWindow.h"
 
-/* Local forwards */
+/* Forward declarations: */
 class VBoxMiniToolBar;
 
-class UIMachineWindowSeamless : public QIWithRetranslateUI2<QMainWindow>, public UIMachineWindow
+/* Seamless machine-window implementation: */
+class UIMachineWindowSeamless : public UIMachineWindow
 {
     Q_OBJECT;
 
-public slots:
-
-    void sltPlaceOnScreen();
-
 protected:
 
-    /* Seamless machine window constructor/destructor: */
+    /* Constructor: */
     UIMachineWindowSeamless(UIMachineLogic *pMachineLogic, ulong uScreenId);
-    virtual ~UIMachineWindowSeamless();
 
 private slots:
 
-    /* Console callback handlers: */
+#ifndef Q_WS_MAC
+    /* Session event-handlers: */
     void sltMachineStateChanged();
+#endif /* !Q_WS_MAC */
+
+    /* Places window on screen: */
+    void sltPlaceOnScreen();
 
     /* Popup main menu: */
     void sltPopupMainMenu();
 
-#ifndef RT_OS_DARWIN /* Something is *really* broken in regards of the moc here */
+#ifndef RT_OS_DARWIN
+    /* Current Qt on MAC has something broken in moc generation,
+     * so we have to use RT_OS_DARWIN instead of Q_WS_MAC here. */
     /* Update mini tool-bar mask: */
     void sltUpdateMiniToolBarMask();
-#endif /* RT_OS_DARWIN */
-
-    /* Close window reimplementation: */
-    void sltTryClose();
+#endif /* !RT_OS_DARWIN */
 
 private:
 
-    /* Translate routine: */
-    void retranslateUi();
-
-    /* Event handlers: */
-#ifdef Q_WS_MAC
-    bool event(QEvent *pEvent);
-#endif /* Q_WS_MAC */
-#ifdef Q_WS_X11
-    bool x11Event(XEvent *pEvent);
-#endif /* Q_WS_X11 */
-    void closeEvent(QCloseEvent *pEvent);
-
     /* Prepare helpers: */
-    void prepareSeamless();
     void prepareMenu();
+    void prepareVisualState();
 #ifndef Q_WS_MAC
-    void prepareMiniToolBar();
-#endif /* Q_WS_MAC */
-    void prepareMachineView();
+    void prepareMiniToolbar();
+#endif /* !Q_WS_MAC */
 #ifdef Q_WS_MAC
-    void loadWindowSettings();
+    void loadSettings();
 #endif /* Q_WS_MAC */
 
     /* Cleanup helpers: */
-    void saveWindowSettings();
-    void cleanupMachineView();
-#ifndef Q_WS_MAC
-    void cleanupMiniToolBar();
+#ifdef Q_WS_MAC
+    //void saveSettings() {}
 #endif /* Q_WS_MAC */
+#ifndef Q_WS_MAC
+    void cleanupMiniToolbar();
+#endif /* !Q_WS_MAC */
+    void cleanupVisualState();
     void cleanupMenu();
-    //void cleanupSeamless() {}
 
+    /* Show stuff: */
+    void showInNecessaryMode();
+
+#ifndef Q_WS_MAC
     /* Update routines: */
     void updateAppearanceOf(int iElement);
+#endif /* !Q_WS_MAC */
 
-    /* Other members: */
-    void showSeamless();
+#ifdef Q_WS_MAC
+    /* Event handlers: */
+    bool event(QEvent *pEvent);
+#endif /* Q_WS_MAC */
+
+    /* Helpers: */
     void setMask(const QRegion &region);
 
-    /* Private variables: */
+    /* Widgets: */
     QMenu *m_pMainMenu;
 #ifndef Q_WS_MAC
     VBoxMiniToolBar *m_pMiniToolBar;
-#endif /* Q_WS_MAC */
+#endif /* !Q_WS_MAC */
+
+    /* Variables: */
 #ifdef Q_WS_WIN
     QRegion m_prevRegion;
 #endif /* Q_WS_WIN */

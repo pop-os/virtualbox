@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions kernel module init script ($Revision: 75651 $)
+# Linux Additions kernel module init script ($Revision: 81734 $)
 #
 
 #
@@ -28,18 +28,11 @@
 # Description:    VirtualBox Linux Additions kernel modules
 ### END INIT INFO
 
-. /var/lib/VBoxGuestAdditions/config
-export BUILD_TYPE
-export USERNAME
-
 PATH=$PATH:/bin:/sbin:/usr/sbin
 PACKAGE=VBoxGuestAdditions
-BUILDVBOXGUEST=`/bin/ls /usr/src/vboxguest*/vboxguest/build_in_tmp 2>/dev/null|cut -d' ' -f1`
-BUILDVBOXSF=`/bin/ls /usr/src/vboxguest*/vboxsf/build_in_tmp 2>/dev/null|cut -d' ' -f1`
-BUILDVBOXVIDEO=`/bin/ls /usr/src/vboxguest*/vboxvideo/build_in_tmp 2>/dev/null|cut -d' ' -f1`
-DODKMS=`/bin/ls /usr/src/vboxguest*/do_dkms 2>/dev/null|cut -d' ' -f1`
 LOG="/var/log/vboxadd-install.log"
 MODPROBE=/sbin/modprobe
+OLDMODULES="vboxguest vboxadd vboxsf vboxvfs vboxvideo"
 
 if $MODPROBE -c | grep -q '^allow_unsupported_modules  *0'; then
   MODPROBE="$MODPROBE --allow-unsupported-modules"
@@ -167,8 +160,24 @@ if [ "$system" = "other" ]; then
     }
 fi
 
+show_error()
+{
+    if [ "$system" = "gentoo" ]; then
+        eerror $1
+    fi
+    fail_msg
+    echo "($1)"
+}
+
+fail()
+{
+    show_error "$1"
+    exit 1
+}
+
 dev=/dev/vboxguest
 userdev=/dev/vboxuser
+config=/var/lib/VBoxGuestAdditions/config
 owner=vboxadd
 group=1
 
@@ -204,21 +213,6 @@ test_sane_kernel_dir()
     fi
 }
 
-show_error()
-{
-    if [ "$system" = "gentoo" ]; then
-        eerror $1
-    fi
-    fail_msg
-    echo "($1)"
-}
-
-fail()
-{
-    show_error "$1"
-    exit 1
-}
-
 running_vboxguest()
 {
     lsmod | grep -q "vboxguest[^_-]"
@@ -232,6 +226,11 @@ running_vboxadd()
 running_vboxsf()
 {
     lsmod | grep -q "vboxsf[^_-]"
+}
+
+running_vboxvideo()
+{
+    lsmod | grep -q "vboxvideo[^_-]"
 }
 
 do_vboxguest_non_udev()
@@ -308,19 +307,20 @@ start()
         do_vboxguest_non_udev;;
     esac
 
-    if [ -n "$BUILDVBOXSF" ]; then
-        running_vboxsf || {
-            $MODPROBE vboxsf > /dev/null 2>&1 || {
-                if dmesg | grep "vboxConnect failed" > /dev/null 2>&1; then
-                    fail_msg
-                    echo "Unable to start shared folders support.  Make sure that your VirtualBox build"
-                    echo "supports this feature."
-                    exit 1
-                fi
-                fail "modprobe vboxsf failed"
-            }
+    running_vboxsf || {
+        $MODPROBE vboxsf > /dev/null 2>&1 || {
+            if dmesg | grep "vboxConnect failed" > /dev/null 2>&1; then
+                fail_msg
+                echo "Unable to start shared folders support.  Make sure that your VirtualBox build"
+                echo "supports this feature."
+                exit 1
+            fi
+            fail "modprobe vboxsf failed"
         }
-    fi
+    }
+
+    # This is needed as X.Org Server 1.13 does not auto-load the module.
+    running_vboxvideo || $MODPROBE vboxvideo > /dev/null 2>&1
 
     # Mount all shared folders from /etc/fstab. Normally this is done by some
     # other startup script but this requires the vboxdrv kernel module loaded.
@@ -337,10 +337,8 @@ stop()
     if ! umount -a -t vboxsf 2>/dev/null; then
         fail "Cannot unmount vboxsf folders"
     fi
-    if [ -n "$BUILDVBOXSF" ]; then
-        if running_vboxsf; then
-            rmmod vboxsf 2>/dev/null || fail "Cannot unload module vboxsf"
-        fi
+    if running_vboxsf; then
+        rmmod vboxsf 2>/dev/null || fail "Cannot unload module vboxsf"
     fi
     if running_vboxguest; then
         rmmod vboxguest 2>/dev/null || fail "Cannot unload module vboxguest"
@@ -361,15 +359,15 @@ restart()
 # from the kernel as they may still be in use
 cleanup_modules()
 {
-    begin "Removing existing VirtualBox DKMS kernel modules"
-    $DODKMS uninstall > $LOG
-    succ_msg
+    if [ -n "$(which dkms 2>/dev/null)" ]; then
+        begin "Removing existing VirtualBox DKMS kernel modules"
+        $DODKMS uninstall $OLDMODULES > $LOG
+        succ_msg
+    fi
     begin "Removing existing VirtualBox non-DKMS kernel modules"
-    find /lib/modules -name vboxadd\* | xargs rm 2>/dev/null
-    find /lib/modules -name vboxguest\* | xargs rm 2>/dev/null
-    find /lib/modules -name vboxvfs\* | xargs rm 2>/dev/null
-    find /lib/modules -name vboxsf\* | xargs rm 2>/dev/null
-    find /lib/modules -name vboxvideo\* | xargs rm 2>/dev/null
+    for i in $OLDMODULES; do
+        find /lib/modules -name $i\* | xargs rm 2>/dev/null
+    done
     succ_msg
 }
 
@@ -380,13 +378,9 @@ setup_modules()
     cleanup_modules
     begin "Building the VirtualBox Guest Additions kernel modules"
 
-    chcon -t bin_t "$BUILDVBOXGUEST" > /dev/null 2>&1
-    chcon -t bin_t "$BUILDVBOXSF"    > /dev/null 2>&1
-    chcon -t bin_t "$BUILDVBOXVIDEO" > /dev/null 2>&1
-    chcon -t bin_t "$DODKMS"         > /dev/null 2>&1
-
     # Short cut out if a dkms build succeeds
-    if $DODKMS install >> $LOG 2>&1; then
+    if [ -n "$(which dkms 2>/dev/null)" ] &&
+       $DODKMS install vboxguest $INSTALL_VER >> $LOG 2>&1; then
         succ_msg
         return 0
     fi
@@ -395,35 +389,32 @@ setup_modules()
     test_sane_kernel_dir
 
     echo
+    begin "Building the main Guest Additions module"
+    if ! $BUILDINTMP \
+        --save-module-symvers /tmp/vboxguest-Module.symvers \
+        --module-source $MODULE_SRC/vboxguest \
+        --no-print-directory install >> $LOG 2>&1; then
+        show_error "Look at $LOG to find out what went wrong"
+        return 1
+    fi
+    succ_msg
+    begin "Building the shared folder support module"
+    if ! $BUILDINTMP \
+        --use-module-symvers /tmp/vboxguest-Module.symvers \
+        --module-source $MODULE_SRC/vboxsf \
+        --no-print-directory install >> $LOG 2>&1; then
+        show_error  "Look at $LOG to find out what went wrong"
+        return 1
+    fi
+    succ_msg
     if expr `uname -r` '<' '2.6.27' > /dev/null; then
         echo "Not building the VirtualBox advanced graphics driver as this Linux version is"
         echo "too old to use it."
-        BUILDVBOXVIDEO=
-    fi
-    if [ -n "$BUILDVBOXGUEST" ]; then
-        begin "Building the main Guest Additions module"
-        if ! $BUILDVBOXGUEST \
-            --save-module-symvers /tmp/vboxguest-Module.symvers \
-            --no-print-directory install >> $LOG 2>&1; then
-            show_error "Look at $LOG to find out what went wrong"
-            return 1
-        fi
-        succ_msg
-    fi
-    if [ -n "$BUILDVBOXSF" ]; then
-        begin "Building the shared folder support module"
-        if ! $BUILDVBOXSF \
-            --use-module-symvers /tmp/vboxguest-Module.symvers \
-            --no-print-directory install >> $LOG 2>&1; then
-            show_error  "Look at $LOG to find out what went wrong"
-            return 1
-        fi
-        succ_msg
-    fi
-    if [ -n "$BUILDVBOXVIDEO" ]; then
+    else
         begin "Building the OpenGL support module"
-        if ! $BUILDVBOXVIDEO \
+        if ! $BUILDINTMP \
             --use-module-symvers /tmp/vboxguest-Module.symvers \
+            --module-source $MODULE_SRC/vboxvideo \
             --no-print-directory install >> $LOG 2>&1; then
             show_error "Look at $LOG to find out what went wrong"
             return 1
@@ -500,6 +491,22 @@ extra_setup()
 # setup_script
 setup()
 {
+    if test -r $config; then
+      . $config
+    else
+      fail "Configuration file $config not found"
+    fi
+    test -n "$INSTALL_DIR" -a -n "$INSTALL_VER" ||
+      fail "Configuration file $config not complete"
+    export BUILD_TYPE
+    export USERNAME
+
+    MODULE_SRC="$INSTALL_DIR/src/vboxguest-$INSTALL_VER"
+    BUILDINTMP="$MODULE_SRC/build_in_tmp"
+    DODKMS="$MODULE_SRC/do_dkms"
+    chcon -t bin_t "$BUILDINTMP" > /dev/null 2>&1
+    chcon -t bin_t "$DODKMS"     > /dev/null 2>&1
+
     setup_modules
     mod_succ="$?"
     extra_setup
@@ -515,12 +522,25 @@ setup()
 # cleanup_script
 cleanup()
 {
+    if test -r $config; then
+      . $config
+      test -n "$INSTALL_DIR" -a -n "$INSTALL_VER" ||
+        fail "Configuration file $config not complete"
+      DODKMS="$INSTALL_DIR/src/vboxguest-$INSTALL_VER/do_dkms"
+    elif test -x ./do_dkms; then  # Executing as part of the installer...
+      DODKMS=./do_dkms
+    else
+      fail "Configuration file $config not found"
+    fi
+
     # Delete old versions of VBox modules.
     cleanup_modules
     depmod
 
     # Remove old module sources
-    rm -rf /usr/src/vboxadd-* /usr/src/vboxguest-* /usr/src/vboxvfs-* /usr/src/vboxsf-* /usr/src/vboxvideo-*
+    for i in $OLDMODULES; do
+      rm -rf /usr/src/$i-*
+    done
 
     # Remove other files
     rm /sbin/mount.vboxsf 2>/dev/null

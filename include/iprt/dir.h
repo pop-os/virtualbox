@@ -50,14 +50,22 @@ RT_C_DECLS_BEGIN
  */
 RTDECL(bool) RTDirExists(const char *pszPath);
 
+/** @name RTDirCreate  flags.
+ * @{ */
+/** Don't allow symbolic links as part of the path.
+ * @remarks this flag is currently not implemented and will be ignored. */
+#define RTDIRCREATE_FLAGS_NO_SYMLINKS  RT_BIT(0)
+/** @} */
+
 /**
  * Creates a directory.
  *
  * @returns iprt status code.
  * @param   pszPath     Path to the directory to create.
  * @param   fMode       The mode of the new directory.
+ * @param   fCreate     Create flags, RTDIRCREATE_FLAGS_*.
  */
-RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode);
+RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode, uint32_t fCreate);
 
 /**
  * Creates a directory including all parent directories in the path
@@ -82,13 +90,35 @@ RTDECL(int) RTDirCreateFullPath(const char *pszPath, RTFMODE fMode);
  * the following string only the last bunch of X'es will be modified:
  *          "/tmp/myprog-XXX-XXX.tmp"
  *
- * The directory is created with mode 0700.
- *
  * @returns iprt status code.
  * @param   pszTemplate     The directory name template on input. The actual
  *                          directory name on success. Empty string on failure.
+ * @param   fMode           The mode to create the directory with.  Use 0700
+ *                          unless you have reason not to.
  */
-RTDECL(int) RTDirCreateTemp(char *pszTemplate);
+RTDECL(int) RTDirCreateTemp(char *pszTemplate, RTFMODE fMode);
+
+/**
+ * Secure version of @a RTDirCreateTemp with a fixed mode of 0700.
+ *
+ * This function behaves in the same way as @a RTDirCreateTemp with two
+ * additional points.  Firstly the mode is fixed to 0700.  Secondly it will
+ * fail if it is not possible to perform the operation securely.  Possible
+ * reasons include that the directory could be removed by another unprivileged
+ * user before it is used (e.g. if is created in a non-sticky /tmp directory)
+ * or that the path contains symbolic links which another unprivileged user
+ * could manipulate; however the exact criteria will be specified on a
+ * platform-by-platform basis as platform support is added.
+ * @see RTPathIsSecure for the current list of criteria.
+ * @returns iprt status code.
+ * @returns VERR_NOT_SUPPORTED if the interface can not be supported on the
+ *                             current platform at this time.
+ * @returns VERR_INSECURE      if the directory could not be created securely.
+ * @param   pszTemplate        The directory name template on input. The
+ *                             actual directory name on success. Empty string
+ *                             on failure.
+ */
+RTDECL(int) RTDirCreateTempSecure(char *pszTemplate);
 
 /**
  * Creates a new directory with a unique name by appending a number.
@@ -294,6 +324,13 @@ typedef RTDIRENTRYEX *PRTDIRENTRYEX;
  */
 RTDECL(int) RTDirOpen(PRTDIR *ppDir, const char *pszPath);
 
+/** @name RTDirOpenFiltered  flags.
+ * @{ */
+/** Don't allow symbolic links as part of the path.
+ * @remarks this flag is currently not implemented and will be ignored. */
+#define RTDIROPEN_FLAGS_NO_SYMLINKS  RT_BIT(0)
+/** @} */
+
 /**
  * Opens a directory filtering the entries using dos style wildcards.
  *
@@ -302,8 +339,9 @@ RTDECL(int) RTDirOpen(PRTDIR *ppDir, const char *pszPath);
  * @param   pszPath     Path to the directory to search, this must include wildcards.
  * @param   enmFilter   The kind of filter to apply. Setting this to RTDIRFILTER_NONE makes
  *                      this function behave like RTDirOpen.
+ * @param   fOpen       Open flags, RTDIROPENFILTERED_FLAGS_*.
  */
-RTDECL(int) RTDirOpenFiltered(PRTDIR *ppDir, const char *pszPath, RTDIRFILTER enmFilter);
+RTDECL(int) RTDirOpenFiltered(PRTDIR *ppDir, const char *pszPath, RTDIRFILTER enmFilter, uint32_t fOpen);
 
 /**
  * Closes a directory.

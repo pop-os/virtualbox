@@ -30,6 +30,7 @@
 #include <iprt/ctype.h>
 #include <iprt/getopt.h>
 #include <iprt/initterm.h>
+#include <iprt/message.h>
 #include <iprt/semaphore.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
@@ -69,7 +70,7 @@ static DECLCALLBACK(void) tstTMDummyCallback(PVM pVM, PTMTIMER pTimer, void *pvU
  * This is called on each EMT and will beat TM.
  *
  * @returns VINF_SUCCESS, test failure is reported via RTTEST.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   hTest       The test handle.
  */
 DECLCALLBACK(int) tstTMWorker(PVM pVM, RTTEST hTest)
@@ -140,7 +141,7 @@ DECLCALLBACK(int) tstTMWorker(PVM pVM, RTTEST hTest)
 static DECLCALLBACK(int)
 tstVMMLdrEnum(PVM pVM, const char *pszFilename, const char *pszName, RTUINTPTR ImageBase, size_t cbImage, bool fGC, void *pvUser)
 {
-    NOREF(pVM); NOREF(pszFilename); NOREF(fGC); NOREF(pvUser);
+    NOREF(pVM); NOREF(pszFilename); NOREF(fGC); NOREF(pvUser); NOREF(cbImage);
     RTPrintf("tstVMM: %RTptr %s\n", ImageBase, pszName);
     return VINF_SUCCESS;
 }
@@ -148,6 +149,7 @@ tstVMMLdrEnum(PVM pVM, const char *pszFilename, const char *pszName, RTUINTPTR I
 static DECLCALLBACK(int)
 tstVMMConfigConstructor(PVM pVM, void *pvUser)
 {
+    NOREF(pvUser);
     int rc = CFGMR3ConstructDefaultTree(pVM);
     if (    RT_SUCCESS(rc)
         &&  g_cCpus > 1)
@@ -179,12 +181,9 @@ int main(int argc, char **argv)
     /*
      * Init runtime and the test environment.
      */
-    int rc = RTR3InitAndSUPLib();
+    int rc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
     if (RT_FAILURE(rc))
-    {
-        RTPrintf("tstVMM: RTR3InitAndSUPLib failed: %Rrc\n", rc);
-        return 1;
-    }
+        return RTMsgInitFailure(rc);
     RTTEST hTest;
     rc = RTTestCreate("tstVMM", &hTest);
     if (RT_FAILURE(rc))
@@ -207,7 +206,6 @@ int main(int argc, char **argv)
     } enmTestOpt = kTstVMMTest_VMM;
 
     int ch;
-    int i = 1;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions), 1, 0);
@@ -236,7 +234,7 @@ int main(int argc, char **argv)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: $\n");
+                RTPrintf("$Revision: 78835 $\n");
                 return 0;
 
             default:

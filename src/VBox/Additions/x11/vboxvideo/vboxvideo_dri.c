@@ -46,10 +46,15 @@
  *   Daryll Strauss <daryll@precisioninsight.com>
  */
 
+#include "xf86.h"
 #include "vboxvideo.h"
 #ifndef PCIACCESS
 # include "xf86Pci.h"
 #endif
+#include <dri.h>
+#include <GL/glxtokens.h>
+#include <GL/glxint.h>
+#include <drm.h>
 
 static Bool
 VBOXCreateContext(ScreenPtr pScreen, VisualPtr visual,
@@ -155,11 +160,10 @@ VBOXDoBlockHandler(int screenNum, pointer blockData, pointer pTimeout,
 }
 #endif
 
-Bool VBOXDRIScreenInit(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
+Bool VBOXDRIScreenInit(ScrnInfoPtr pScrn, ScreenPtr pScreen, VBOXPtr pVBox)
 {
     DRIInfoPtr pDRIInfo = NULL;
     Bool rc = TRUE;
-    ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
 
     TRACE_ENTRY();
     pVBox->drmFD = -1;

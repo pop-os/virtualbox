@@ -17,12 +17,34 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Local includes */
+/* GUI includes: */
 #include "UIMainEventListener.h"
 
-/* Global includes */
-//#include <iprt/thread.h>
-//#include <iprt/stream.h>
+/* COM includes: */
+#include "COMEnums.h"
+#include "CVirtualBoxErrorInfo.h"
+#include "CUSBDevice.h"
+#include "CEvent.h"
+#include "CMachineStateChangedEvent.h"
+#include "CMachineDataChangedEvent.h"
+#include "CExtraDataCanChangeEvent.h"
+#include "CExtraDataChangedEvent.h"
+#include "CMachineRegisteredEvent.h"
+#include "CSessionStateChangedEvent.h"
+#include "CSnapshotTakenEvent.h"
+#include "CSnapshotDeletedEvent.h"
+#include "CSnapshotChangedEvent.h"
+#include "CMousePointerShapeChangedEvent.h"
+#include "CMouseCapabilityChangedEvent.h"
+#include "CKeyboardLedsChangedEvent.h"
+#include "CStateChangedEvent.h"
+#include "CNetworkAdapterChangedEvent.h"
+#include "CMediumChangedEvent.h"
+#include "CUSBDeviceStateChangedEvent.h"
+#include "CRuntimeErrorEvent.h"
+#include "CCanShowWindowEvent.h"
+#include "CShowWindowEvent.h"
+#include "CGuestMonitorChangedEvent.h"
 
 UIMainEventListener::UIMainEventListener()
   : QObject()
@@ -38,6 +60,7 @@ UIMainEventListener::UIMainEventListener()
     qRegisterMetaType<CMediumAttachment>("CMediumAttachment");
     qRegisterMetaType<CUSBDevice>("CUSBDevice");
     qRegisterMetaType<CVirtualBoxErrorInfo>("CVirtualBoxErrorInfo");
+    qRegisterMetaType<KGuestMonitorChangedEventType>("KGuestMonitorChangedEventType");
 }
 
 HRESULT UIMainEventListener::init(QObject * /* pParent */)
@@ -106,10 +129,18 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T /* type */, IEvent
             emit sigSessionStateChange(es.GetMachineId(), es.GetState());
             break;
         }
-        /* Not used:
         case KVBoxEventType_OnSnapshotTaken:
+        {
+            CSnapshotTakenEvent es(pEvent);
+            emit sigSnapshotChange(es.GetMachineId(), es.GetSnapshotId());
+            break;
+        }
         case KVBoxEventType_OnSnapshotDeleted:
-         */
+        {
+            CSnapshotDeletedEvent es(pEvent);
+            emit sigSnapshotChange(es.GetMachineId(), es.GetSnapshotId());
+            break;
+        }
         case KVBoxEventType_OnSnapshotChanged:
         {
             CSnapshotChangedEvent es(pEvent);
@@ -222,6 +253,13 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T /* type */, IEvent
         case KVBoxEventType_OnCPUExecutionCapChanged:
         {
             emit sigCPUExecutionCapChange();
+            break;
+        }
+        case KVBoxEventType_OnGuestMonitorChanged:
+        {
+            CGuestMonitorChangedEvent es(pEvent);
+            emit sigGuestMonitorChange(es.GetChangeType(), es.GetScreenId(),
+                                       QRect(es.GetOriginX(), es.GetOriginY(), es.GetWidth(), es.GetHeight()));
             break;
         }
         default: break;

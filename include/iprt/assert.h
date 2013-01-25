@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -525,7 +525,7 @@ RT_C_DECLS_END
  * RTAssertShouldPanic returns true. If RT_STRICT isn't defined it won't do any
  * thing.
  */
-#ifdef RT_STRICT
+#if defined(RT_STRICT) && !defined(RTASSERT_DONT_PANIC)
 # define RTAssertPanic()        do { if (RTAssertShouldPanic()) RTAssertDoPanic(); } while (0)
 #else
 # define RTAssertPanic()        do { } while (0)
@@ -2155,7 +2155,7 @@ RT_C_DECLS_END
  * @param   rc  iprt status code.
  * @remark  rc is referenced multiple times. In release mode is NOREF()'ed.
  */
-#define AssertRCSuccess(rc)                 AssertMsg((rc) == VINF_SUCCESS, ("%Rra\n", (rc)))
+#define AssertRCSuccess(rc)                 do { AssertMsg((rc) == VINF_SUCCESS, ("%Rra\n", (rc))); NOREF(rc); } while (0)
 
 /** @def AssertRCSuccessReturn
  * Asserts that an iprt status code equals VINF_SUCCESS, bitch (RT_STRICT mode only) and return if it isn't.

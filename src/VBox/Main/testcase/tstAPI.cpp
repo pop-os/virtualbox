@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
      * Initialize the VBox runtime without loading
      * the support driver.
      */
-    RTR3Init();
+    RTR3InitExe(argc, &argv, 0);
 
     HRESULT rc;
 
@@ -1185,25 +1185,25 @@ int main(int argc, char *argv[])
             ComPtr<IHostNetworkInterface> networkInterface = hostNetworkInterfaces[0];
             Bstr interfaceName;
             networkInterface->COMGETTER(Name)(interfaceName.asOutParam());
-            RTPrintf("Found %d network interfaces, testing with %lS...\n", hostNetworkInterfaces.size(), interfaceName.raw());
-            Guid interfaceGuid;
+            RTPrintf("Found %d network interfaces, testing with %ls...\n", hostNetworkInterfaces.size(), interfaceName.raw());
+            Bstr interfaceGuid;
             networkInterface->COMGETTER(Id)(interfaceGuid.asOutParam());
             // Find the interface by its name
             networkInterface.setNull();
             CHECK_ERROR_BREAK(host,
-                              FindHostNetworkInterfaceByName(interfaceName, networkInterface.asOutParam()));
-            Guid interfaceGuid2;
+                              FindHostNetworkInterfaceByName(interfaceName.raw(), networkInterface.asOutParam()));
+            Bstr interfaceGuid2;
             networkInterface->COMGETTER(Id)(interfaceGuid2.asOutParam());
             if (interfaceGuid2 != interfaceGuid)
-                RTPrintf("Failed to retrieve an interface by name %lS.\n", interfaceName.raw());
+                RTPrintf("Failed to retrieve an interface by name %ls.\n", interfaceName.raw());
             // Find the interface by its guid
             networkInterface.setNull();
             CHECK_ERROR_BREAK(host,
-                              FindHostNetworkInterfaceById(interfaceGuid, networkInterface.asOutParam()));
+                              FindHostNetworkInterfaceById(interfaceGuid.raw(), networkInterface.asOutParam()));
             Bstr interfaceName2;
             networkInterface->COMGETTER(Name)(interfaceName2.asOutParam());
             if (interfaceName != interfaceName2)
-                RTPrintf("Failed to retrieve an interface by GUID %lS.\n", Bstr(interfaceGuid.toString()).raw());
+                RTPrintf("Failed to retrieve an interface by GUID %ls.\n", interfaceGuid.raw());
         }
         else
         {
@@ -1212,6 +1212,47 @@ int main(int argc, char *argv[])
     } while (0);
 #endif
 
+#if 0 && defined(VBOX_WITH_RESOURCE_USAGE_API)
+    do {
+        // Get collector
+        ComPtr<IPerformanceCollector> collector;
+        CHECK_ERROR_BREAK(virtualBox,
+                          COMGETTER(PerformanceCollector)(collector.asOutParam()));
+
+
+        // Fill base metrics array
+        Bstr baseMetricNames[] = { L"Net/eth0/Load" };
+        com::SafeArray<BSTR> baseMetrics(1);
+        baseMetricNames[0].cloneTo(&baseMetrics[0]);
+
+        // Get host
+        ComPtr<IHost> host;
+        CHECK_ERROR_BREAK(virtualBox, COMGETTER(Host)(host.asOutParam()));
+
+        // Get host network interfaces
+        // com::SafeIfaceArray<IHostNetworkInterface> hostNetworkInterfaces;
+        // CHECK_ERROR_BREAK(host,
+        //                   COMGETTER(NetworkInterfaces)(ComSafeArrayAsOutParam(hostNetworkInterfaces)));
+
+        // Setup base metrics
+        // Note that one needs to set up metrics after a session is open for a machine.
+        com::SafeIfaceArray<IPerformanceMetric> affectedMetrics;
+        com::SafeIfaceArray<IUnknown> objects(1);
+        host.queryInterfaceTo(&objects[0]);
+        CHECK_ERROR_BREAK(collector, SetupMetrics(ComSafeArrayAsInParam(baseMetrics),
+                                                   ComSafeArrayAsInParam(objects), 1u, 10u,
+                                                   ComSafeArrayAsOutParam(affectedMetrics)));
+        listAffectedMetrics(virtualBox,
+                            ComSafeArrayAsInParam(affectedMetrics));
+        affectedMetrics.setNull();
+
+        RTPrintf("Sleeping for 5 seconds...\n");
+        RTThreadSleep(5000); // Sleep for 5 seconds
+
+        RTPrintf("\nMetrics collected: --------------------\n");
+        queryMetrics(virtualBox, collector, ComSafeArrayAsInParam(objects));
+    } while (false);
+#endif /* VBOX_WITH_RESOURCE_USAGE_API */
 #if 0 && defined(VBOX_WITH_RESOURCE_USAGE_API)
     do {
         // Get collector
@@ -1413,15 +1454,100 @@ int main(int argc, char *argv[])
             {
                 com::ProgressErrorInfo info(progress);
                 if (info.isBasicAvailable())
-                    RTPrintf("Error: failed to import appliance. Error message: %lS\n", info.getText().raw());
+                    RTPrintf("Error: failed to import appliance. Error message: %ls\n", info.getText().raw());
                 else
                     RTPrintf("Error: failed to import appliance. No error message available!\n");
-            }else
+            }
+            else
                 RTPrintf("Successfully imported the appliance.\n");
         }
 
     }
     while (FALSE);
+    RTPrintf("\n");
+#endif
+#if 0
+    // check of network bandwidth control
+    ///////////////////////////////////////////////////////////////////////////
+    do
+    {
+        Bstr name = argc > 1 ? argv[1] : "ubuntu";
+        Bstr sessionType = argc > 2 ? argv[2] : "headless";
+        Bstr grpName = "tstAPI";
+        {
+            // Get machine
+            ComPtr<IMachine> machine;
+            ComPtr<IBandwidthControl> bwCtrl;
+            ComPtr<IBandwidthGroup> bwGroup;
+            ComPtr<INetworkAdapter> nic;
+            RTPrintf("Getting a machine object named '%ls'...\n", name.raw());
+            CHECK_ERROR_BREAK(virtualBox, FindMachine(name.raw(), machine.asOutParam()));
+            /* open a session for the VM (new or shared) */
+            CHECK_ERROR_BREAK(machine, LockMachine(session, LockType_Shared));
+            SessionType_T st;
+            CHECK_ERROR_BREAK(session, COMGETTER(Type)(&st));
+            bool fRunTime = (st == SessionType_Shared);
+            if (fRunTime)
+            {
+                RTPrintf("Machine %ls must not be running!\n");
+                break;
+            }
+            /* get the mutable session machine */
+            session->COMGETTER(Machine)(machine.asOutParam());
+            CHECK_ERROR_BREAK(machine, COMGETTER(BandwidthControl)(bwCtrl.asOutParam()));
+            
+            RTPrintf("Creating bandwidth group named '%ls'...\n", grpName.raw());
+            CHECK_ERROR_BREAK(bwCtrl, CreateBandwidthGroup(grpName.raw(), BandwidthGroupType_Network, 123));
+
+
+            CHECK_ERROR_BREAK(bwCtrl, GetBandwidthGroup(grpName.raw(), bwGroup.asOutParam()));
+            CHECK_ERROR_BREAK(machine, GetNetworkAdapter(0, nic.asOutParam()));
+            RTPrintf("Assigning the group to the first network adapter...\n");
+            CHECK_ERROR_BREAK(nic, COMSETTER(BandwidthGroup)(bwGroup));
+            CHECK_ERROR_BREAK(machine, SaveSettings());
+            RTPrintf("Press enter to close this session...");
+            getchar();
+            session->UnlockMachine();
+        }
+        {
+            // Get machine
+            ComPtr<IMachine> machine;
+            ComPtr<IBandwidthControl> bwCtrl;
+            ComPtr<IBandwidthGroup> bwGroup;
+            Bstr grpNameReadFromNic;
+            ComPtr<INetworkAdapter> nic;
+            RTPrintf("Getting a machine object named '%ls'...\n", name.raw());
+            CHECK_ERROR_BREAK(virtualBox, FindMachine(name.raw(), machine.asOutParam()));
+            /* open a session for the VM (new or shared) */
+            CHECK_ERROR_BREAK(machine, LockMachine(session, LockType_Shared));
+            /* get the mutable session machine */
+            session->COMGETTER(Machine)(machine.asOutParam());
+            CHECK_ERROR_BREAK(machine, COMGETTER(BandwidthControl)(bwCtrl.asOutParam()));
+            CHECK_ERROR_BREAK(machine, GetNetworkAdapter(0, nic.asOutParam()));
+
+            RTPrintf("Reading the group back from the first network adapter...\n");
+            CHECK_ERROR_BREAK(nic, COMGETTER(BandwidthGroup)(bwGroup.asOutParam()));
+            if (bwGroup.isNull())
+                RTPrintf("Error: Bandwidth group is null at the first network adapter!\n");
+            else
+            {
+                CHECK_ERROR_BREAK(bwGroup, COMGETTER(Name)(grpNameReadFromNic.asOutParam()));
+                if (grpName != grpNameReadFromNic)
+                    RTPrintf("Error: Bandwidth group names do not match (%ls != %ls)!\n", grpName.raw(), grpNameReadFromNic.raw());
+                else
+                    RTPrintf("Successfully retrieved bandwidth group attribute from NIC (name=%ls)\n", grpNameReadFromNic.raw());
+                ComPtr<IBandwidthGroup> bwGroupEmpty;
+                RTPrintf("Assigning an empty group to the first network adapter...\n");
+                CHECK_ERROR_BREAK(nic, COMSETTER(BandwidthGroup)(bwGroupEmpty));
+            }
+            RTPrintf("Removing bandwidth group named '%ls'...\n", grpName.raw());
+            CHECK_ERROR_BREAK(bwCtrl, DeleteBandwidthGroup(grpName.raw()));
+            CHECK_ERROR_BREAK(machine, SaveSettings());
+            RTPrintf("Press enter to close this session...");
+            getchar();
+            session->UnlockMachine();
+        }
+    } while (FALSE);
     RTPrintf("\n");
 #endif
 

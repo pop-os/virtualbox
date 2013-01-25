@@ -48,6 +48,9 @@ typedef struct {
     GLenum                  drawbuffer[1];
 #ifdef IN_GUEST
     GLenum                  status;
+#else
+    /* bitfield representing the object usage. 1 means the object is used by the context with the given bitid */
+    CRbitvalue             ctxUsage[CR_MAX_BITARRAY];
 #endif
 } CRFramebufferObject;
 
@@ -56,6 +59,10 @@ typedef struct {
     GLsizei  width, height;
     GLenum   internalformat;
     GLuint   redBits, greenBits, blueBits, alphaBits, depthBits, stencilBits;
+#ifndef IN_GUEST
+    /* bitfield representing the object usage. 1 means the object is used by the context with the given bitid */
+    CRbitvalue             ctxUsage[CR_MAX_BITARRAY];
+#endif
 } CRRenderbufferObject;
 
 typedef struct {
@@ -67,8 +74,8 @@ DECLEXPORT(void) STATE_APIENTRY crStateFramebufferObjectInit(CRContext *ctx);
 DECLEXPORT(void) STATE_APIENTRY crStateFramebufferObjectDestroy(CRContext *ctx);
 DECLEXPORT(void) STATE_APIENTRY crStateFramebufferObjectSwitch(CRContext *from, CRContext *to);
 
-DECLEXPORT(void) STATE_APIENTRY crStateFramebufferObjectDisableHW(CRContext *ctx);
-DECLEXPORT(void) STATE_APIENTRY crStateFramebufferObjectReenableHW(CRContext *fromCtx, CRContext *toCtx);
+DECLEXPORT(void) STATE_APIENTRY crStateFramebufferObjectDisableHW(CRContext *ctx, GLuint idFBO);
+DECLEXPORT(void) STATE_APIENTRY crStateFramebufferObjectReenableHW(CRContext *fromCtx, CRContext *toCtx, GLuint idFBO);
 
 DECLEXPORT(GLuint) STATE_APIENTRY crStateGetFramebufferHWID(GLuint id);
 DECLEXPORT(GLuint) STATE_APIENTRY crStateGetRenderbufferHWID(GLuint id);
@@ -88,6 +95,9 @@ DECLEXPORT(void) STATE_APIENTRY crStateGenerateMipmapEXT(GLenum target);
 
 DECLEXPORT(GLuint) STATE_APIENTRY crStateFBOHWIDtoID(GLuint hwid);
 DECLEXPORT(GLuint) STATE_APIENTRY crStateRBOHWIDtoID(GLuint hwid);
+
+DECLEXPORT(void) crStateRegFramebuffers(GLsizei n, GLuint *buffers);
+DECLEXPORT(void) crStateRegRenderbuffers(GLsizei n, GLuint *buffers);
 
 #ifdef IN_GUEST
 DECLEXPORT(GLenum) STATE_APIENTRY crStateCheckFramebufferStatusEXT(GLenum target);

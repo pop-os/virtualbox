@@ -664,6 +664,9 @@ RTDECL(bool) RTSemMutexIsOwned(RTSEMMUTEX hMutexSem);
  * they require no syscall if the fast mutex is not held (like critical
  * sections).  Unlike critical sections however, they are *not* recursive.
  *
+ * @remarks The fast mutexes has sideeffects on IRQL on Windows hosts.  So use
+ *          with care and test on windows with driver verifier.
+ *
  * @{ */
 
 /**
@@ -855,7 +858,7 @@ RTDECL(int)   RTSemRWCreateEx(PRTSEMRW phRWSem, uint32_t fFlags,
  *
  * @returns iprt status code.
  * @param   hRWSem              Handle to the read/write semaphore.  NIL is
- *                              quitly ignored (VINF_SUCCESS).
+ *                              quietly ignored (VINF_SUCCESS).
  */
 RTDECL(int)   RTSemRWDestroy(RTSEMRW hRWSem);
 

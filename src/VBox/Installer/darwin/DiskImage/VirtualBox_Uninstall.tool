@@ -70,6 +70,7 @@ test -f /usr/bin/VBoxVRDP                          && my_files="$my_files /usr/b
 test -f /usr/bin/VBoxHeadless                      && my_files="$my_files /usr/bin/VBoxHeadless"
 test -f /usr/bin/vboxwebsrv                        && my_files="$my_files /usr/bin/vboxwebsrv"
 test -f /usr/bin/VBoxBalloonCtrl                   && my_files="$my_files /usr/bin/VBoxBalloonCtrl"
+test -f /usr/bin/VBoxAutostart                     && my_files="$my_files /usr/bin/VBoxAutostart"
 test -f /usr/bin/vbox-img                          && my_files="$my_files /usr/bin/vbox-img"
 test -d /Library/Receipts/VirtualBoxCLI.pkg/       && my_directories="$my_directories /Library/Receipts/VirtualBoxCLI.pkg/"
 
@@ -81,7 +82,7 @@ test -d /Library/Receipts/VBoxDrv.pkg/             && my_directories="$my_direct
 test -d /Library/Receipts/VBoxUSB.pkg/             && my_directories="$my_directories /Library/Receipts/VBoxUSB.pkg/"
 
 # python stuff
-python_versions="2.3 2.5 2.6"
+python_versions="2.3 2.5 2.6 2.7"
 for p in $python_versions; do
     test -f /Library/Python/$p/site-packages/vboxapi/VirtualBox_constants.py  && my_files="$my_files /Library/Python/$p/site-packages/vboxapi/VirtualBox_constants.py"
     test -f /Library/Python/$p/site-packages/vboxapi/VirtualBox_constants.pyc && my_files="$my_files /Library/Python/$p/site-packages/vboxapi/VirtualBox_constants.pyc"

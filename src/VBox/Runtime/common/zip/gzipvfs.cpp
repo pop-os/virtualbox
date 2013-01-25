@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -357,6 +357,7 @@ static DECLCALLBACK(int) rtZipGzip_Read(void *pvThis, RTFOFF off, PCRTSGBUF pSgB
     PRTZIPGZIPSTREAM pThis = (PRTZIPGZIPSTREAM)pvThis;
     int              rc;
 
+    AssertReturn(off == -1, VERR_INVALID_PARAMETER);
     if (!pThis->fDecompress)
         return VERR_ACCESS_DENIED;
 
@@ -397,11 +398,13 @@ static DECLCALLBACK(int) rtZipGzip_Write(void *pvThis, RTFOFF off, PCRTSGBUF pSg
     PRTZIPGZIPSTREAM pThis = (PRTZIPGZIPSTREAM)pvThis;
     //int              rc;
 
+    AssertReturn(off == -1, VERR_INVALID_PARAMETER);
     NOREF(fBlocking);
     if (pThis->fDecompress)
         return VERR_ACCESS_DENIED;
 
     /** @todo implement compression. */
+    NOREF(pSgBuf); NOREF(pcbWritten);
     return VERR_NOT_IMPLEMENTED;
 }
 
@@ -527,7 +530,6 @@ RTDECL(int) RTZipGzipDecompressIoStream(RTVFSIOSTREAM hVfsIosIn, uint32_t fFlags
              *        prebuffer what we read in the input buffer so it can
              *        be handed on to zlib later on.
              */
-            size_t cbRead = 0;
             rc = RTVfsIoStrmRead(pThis->hVfsIos, pThis->abBuffer, sizeof(RTZIPGZIPHDR), true /*fBlocking*/, NULL /*pcbRead*/);
             if (RT_SUCCESS(rc))
             {

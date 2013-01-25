@@ -19,7 +19,7 @@
 #define ___EMHandleRCTmpl_h
 
 /**
- * Process a subset of the raw-mode return code.
+ * Process a subset of the raw-mode and hwaccm return codes.
  *
  * Since we have to share this with raw-mode single stepping, this inline
  * function has been created to avoid code duplication.
@@ -27,10 +27,10 @@
  * @returns VINF_SUCCESS if it's ok to continue raw mode.
  * @returns VBox status code to return to the EM main loop.
  *
- * @param   pVM     The VM handle
- * @param   pVCpu   The VMCPU handle
+ * @param   pVM     Pointer to the VM.
+ * @param   pVCpu   Pointer to the VMCPU.
  * @param   rc      The return code.
- * @param   pCtx    The guest cpu context.
+ * @param   pCtx    Pointer to the guest CPU context.
  */
 #ifdef EMHANDLERC_WITH_PATM
 int emR3RawHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
@@ -110,8 +110,9 @@ int emR3HwaccmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
          * Memory mapped I/O access - attempt to patch the instruction
          */
         case VINF_PATM_HC_MMIO_PATCH_READ:
-            rc = PATMR3InstallPatch(pVM, SELMToFlat(pVM, DIS_SELREG_CS, CPUMCTX2CORE(pCtx), pCtx->eip),
-                                    PATMFL_MMIO_ACCESS | ((SELMGetCpuModeFromSelector(pVM, pCtx->eflags, pCtx->cs, &pCtx->csHid) == CPUMODE_32BIT) ? PATMFL_CODE32 : 0));
+            rc = PATMR3InstallPatch(pVM, SELMToFlat(pVM, DISSELREG_CS, CPUMCTX2CORE(pCtx), pCtx->eip),
+                                      PATMFL_MMIO_ACCESS
+                                    | (CPUMGetGuestCodeBits(pVCpu) == 32 ? PATMFL_CODE32 : 0));
             if (RT_FAILURE(rc))
                 rc = emR3ExecuteInstruction(pVM, pVCpu, "MMIO");
             break;
@@ -144,7 +145,7 @@ int emR3HwaccmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
          * bird: Since the clearing is global and done via a rendezvous any CPU can do
          *       it. They would have to choose who to call VMMR3EmtRendezvous and send
          *       the rest to VMMR3EmtRendezvousFF ... Hmm ... that's not going to work
-         *       all that well since the the latter will race the setup done by the
+         *       all that well since the latter will race the setup done by the
          *       first.  Guess that means we need some new magic in that area for
          *       handling this case. :/
          */
@@ -203,17 +204,17 @@ int emR3HwaccmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
         /*
          * I/O Port access - emulate the instruction.
          */
-        case VINF_IOM_HC_IOPORT_READ:
-        case VINF_IOM_HC_IOPORT_WRITE:
+        case VINF_IOM_R3_IOPORT_READ:
+        case VINF_IOM_R3_IOPORT_WRITE:
             rc = emR3ExecuteIOInstruction(pVM, pVCpu);
             break;
 
         /*
          * Memory mapped I/O access - emulate the instruction.
          */
-        case VINF_IOM_HC_MMIO_READ:
-        case VINF_IOM_HC_MMIO_WRITE:
-        case VINF_IOM_HC_MMIO_READ_WRITE:
+        case VINF_IOM_R3_MMIO_READ:
+        case VINF_IOM_R3_MMIO_WRITE:
+        case VINF_IOM_R3_MMIO_READ_WRITE:
             rc = emR3ExecuteInstruction(pVM, pVCpu, "MMIO");
             break;
 
@@ -282,6 +283,15 @@ int emR3HwaccmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
             LogFlow(("emR3RawHandleRC: %Rrc -> %Rrc\n", rc, VINF_EM_RESCHEDULE_REM));
             rc = VINF_EM_RESCHEDULE_REM;
             break;
+
+        /*
+         * Conflict in GDT, resync and continue.
+         */
+        case VINF_SELM_SYNC_GDT:
+            AssertMsg(VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS),
+                      ("VINF_SELM_SYNC_GDT without VMCPU_FF_SELM_SYNC_GDT/LDT/TSS!\n"));
+            rc = VINF_SUCCESS;
+            break;
 #endif
 
         /*
@@ -319,6 +329,8 @@ int emR3HwaccmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
         case VERR_VMM_RING0_ASSERTION:
         case VERR_VMM_HYPER_CR3_MISMATCH:
         case VERR_VMM_RING3_CALL_DISABLED:
+        case VERR_IEM_INSTR_NOT_IMPLEMENTED:
+        case VERR_IEM_ASPECT_NOT_IMPLEMENTED:
             break;
 
 #ifdef EMHANDLERC_WITH_HWACCM

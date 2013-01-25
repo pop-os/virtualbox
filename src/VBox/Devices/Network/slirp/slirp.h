@@ -54,6 +54,7 @@ typedef int socklen_t;
 #include <iprt/string.h>
 #include <iprt/dir.h>
 #include <iprt/rand.h>
+#include <iprt/net.h>
 #include <VBox/types.h>
 
 #undef malloc
@@ -267,6 +268,7 @@ int inet_aton (const char *cp, struct in_addr *ia);
 #include "tftp.h"
 
 #include "slirp_state.h"
+#include "slirp_dns.h"
 
 #undef PVM /* XXX Mac OS X hack */
 
@@ -292,7 +294,7 @@ void if_start (PNATState);
 
 #define DEFAULT_BAUD 115200
 
-int get_dns_addr(PNATState pData, struct in_addr *pdns_addr);
+int get_dns_addr(PNATState pData);
 
 /* cksum.c */
 typedef uint16_t u_short;
@@ -476,6 +478,7 @@ static inline size_t slirp_size(PNATState pData)
 static inline bool slirpMbufTagService(PNATState pData, struct mbuf *m, uint8_t u8ServiceId)
 {
     struct m_tag * t = NULL;
+    NOREF(pData);
     /* if_encap assumes that all packets goes through aliased address(gw) */
     if (u8ServiceId == CTL_ALIAS)
         return true;
@@ -512,6 +515,16 @@ static inline struct mbuf *slirpTftpMbufAlloc(PNATState pData)
 static inline struct mbuf *slirpDnsMbufAlloc(PNATState pData)
 {
     return slirpServiceMbufAlloc(pData, CTL_DNS);
+}
+
+DECLINLINE(bool) slirpIsWideCasting(PNATState pData, uint32_t u32Addr)
+{
+    bool fWideCasting = false;
+    LogFlowFunc(("Enter: u32Addr:%RTnaipv4\n", u32Addr));
+    fWideCasting =  (   u32Addr == INADDR_BROADCAST
+                    || (u32Addr & RT_H2N_U32_C(~pData->netmask)) == RT_H2N_U32_C(~pData->netmask));
+    LogFlowFunc(("Leave: %RTbool\n", fWideCasting));
+    return fWideCasting;
 }
 #endif
 

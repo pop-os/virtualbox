@@ -130,7 +130,7 @@ static const DBGCCMD    g_aCmds[] =
  * Initializes the pool
  *
  * @returns VBox status code.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 int pgmR3PoolInit(PVM pVM)
 {
@@ -284,42 +284,35 @@ int pgmR3PoolInit(PVM pVM)
 
     /* The NIL entry. */
     Assert(NIL_PGMPOOL_IDX == 0);
-    pPool->aPages[NIL_PGMPOOL_IDX].enmKind = PGMPOOLKIND_INVALID;
+    pPool->aPages[NIL_PGMPOOL_IDX].enmKind          = PGMPOOLKIND_INVALID;
+    pPool->aPages[NIL_PGMPOOL_IDX].idx              = NIL_PGMPOOL_IDX;
 
     /* The Shadow 32-bit PD. (32 bits guest paging) */
-    pPool->aPages[PGMPOOL_IDX_PD].Core.Key  = NIL_RTHCPHYS;
-    pPool->aPages[PGMPOOL_IDX_PD].GCPhys    = NIL_RTGCPHYS;
-    pPool->aPages[PGMPOOL_IDX_PD].pvPageR3  = 0;
-    pPool->aPages[PGMPOOL_IDX_PD].enmKind   = PGMPOOLKIND_32BIT_PD;
-    pPool->aPages[PGMPOOL_IDX_PD].idx       = PGMPOOL_IDX_PD;
+    pPool->aPages[PGMPOOL_IDX_PD].enmKind           = PGMPOOLKIND_32BIT_PD;
+    pPool->aPages[PGMPOOL_IDX_PD].idx               = PGMPOOL_IDX_PD;
 
     /* The Shadow PDPT. */
-    pPool->aPages[PGMPOOL_IDX_PDPT].Core.Key  = NIL_RTHCPHYS;
-    pPool->aPages[PGMPOOL_IDX_PDPT].GCPhys    = NIL_RTGCPHYS;
-    pPool->aPages[PGMPOOL_IDX_PDPT].pvPageR3  = 0;
-    pPool->aPages[PGMPOOL_IDX_PDPT].enmKind   = PGMPOOLKIND_PAE_PDPT;
-    pPool->aPages[PGMPOOL_IDX_PDPT].idx       = PGMPOOL_IDX_PDPT;
+    pPool->aPages[PGMPOOL_IDX_PDPT].enmKind         = PGMPOOLKIND_PAE_PDPT;
+    pPool->aPages[PGMPOOL_IDX_PDPT].idx             = PGMPOOL_IDX_PDPT;
 
     /* The Shadow AMD64 CR3. */
-    pPool->aPages[PGMPOOL_IDX_AMD64_CR3].Core.Key  = NIL_RTHCPHYS;
-    pPool->aPages[PGMPOOL_IDX_AMD64_CR3].GCPhys    = NIL_RTGCPHYS;
-    pPool->aPages[PGMPOOL_IDX_AMD64_CR3].pvPageR3  = 0;
-    pPool->aPages[PGMPOOL_IDX_AMD64_CR3].enmKind   = PGMPOOLKIND_64BIT_PML4;
-    pPool->aPages[PGMPOOL_IDX_AMD64_CR3].idx       = PGMPOOL_IDX_AMD64_CR3;
+    pPool->aPages[PGMPOOL_IDX_AMD64_CR3].enmKind    = PGMPOOLKIND_64BIT_PML4;
+    pPool->aPages[PGMPOOL_IDX_AMD64_CR3].idx        = PGMPOOL_IDX_AMD64_CR3;
 
     /* The Nested Paging CR3. */
-    pPool->aPages[PGMPOOL_IDX_NESTED_ROOT].Core.Key  = NIL_RTHCPHYS;
-    pPool->aPages[PGMPOOL_IDX_NESTED_ROOT].GCPhys    = NIL_RTGCPHYS;
-    pPool->aPages[PGMPOOL_IDX_NESTED_ROOT].pvPageR3  = 0;
-    pPool->aPages[PGMPOOL_IDX_NESTED_ROOT].enmKind   = PGMPOOLKIND_ROOT_NESTED;
-    pPool->aPages[PGMPOOL_IDX_NESTED_ROOT].idx       = PGMPOOL_IDX_NESTED_ROOT;
+    pPool->aPages[PGMPOOL_IDX_NESTED_ROOT].enmKind  = PGMPOOLKIND_ROOT_NESTED;
+    pPool->aPages[PGMPOOL_IDX_NESTED_ROOT].idx      = PGMPOOL_IDX_NESTED_ROOT;
 
     /*
      * Set common stuff.
      */
-    for (unsigned iPage = 1; iPage < PGMPOOL_IDX_FIRST; iPage++)
+    for (unsigned iPage = 0; iPage < PGMPOOL_IDX_FIRST; iPage++)
     {
+        pPool->aPages[iPage].Core.Key       = NIL_RTHCPHYS;
+        pPool->aPages[iPage].GCPhys         = NIL_RTGCPHYS;
         pPool->aPages[iPage].iNext          = NIL_PGMPOOL_IDX;
+        /* pPool->aPages[iPage].cLocked        = INT32_MAX; - test this out... */
+        pPool->aPages[iPage].pvPageR3       = 0;
         pPool->aPages[iPage].iUserHead      = NIL_PGMPOOL_USER_INDEX;
         pPool->aPages[iPage].iModifiedNext  = NIL_PGMPOOL_IDX;
         pPool->aPages[iPage].iModifiedPrev  = NIL_PGMPOOL_IDX;
@@ -327,6 +320,7 @@ int pgmR3PoolInit(PVM pVM)
         pPool->aPages[iPage].iMonitoredNext = NIL_PGMPOOL_IDX;
         pPool->aPages[iPage].iAgeNext       = NIL_PGMPOOL_IDX;
         pPool->aPages[iPage].iAgePrev       = NIL_PGMPOOL_IDX;
+
         Assert(pPool->aPages[iPage].idx == iPage);
         Assert(pPool->aPages[iPage].GCPhys == NIL_RTGCPHYS);
         Assert(!pPool->aPages[iPage].fSeenNonGlobal);
@@ -428,7 +422,7 @@ int pgmR3PoolInit(PVM pVM)
 /**
  * Relocate the page pool data.
  *
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 void pgmR3PoolRelocate(PVM pVM)
 {
@@ -453,7 +447,7 @@ void pgmR3PoolRelocate(PVM pVM)
  * I.e. adds more pages to it, assuming that hasn't reached cMaxPages yet.
  *
  * @returns VBox status code.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 VMMR3DECL(int) PGMR3PoolGrow(PVM pVM)
 {
@@ -542,7 +536,7 @@ static DECLCALLBACK(void) pgmR3PoolFlushReusedPage(PPGMPOOL pPool, PPGMPOOLPAGE 
  *
  * @returns VINF_SUCCESS if the handler has carried out the operation.
  * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   GCPhys          The physical address the guest is writing to.
  * @param   pvPhys          The HC mapping of that address.
  * @param   pvBuf           What the guest is reading/writing.
@@ -550,15 +544,17 @@ static DECLCALLBACK(void) pgmR3PoolFlushReusedPage(PPGMPOOL pPool, PPGMPOOLPAGE 
  * @param   enmAccessType   The access type.
  * @param   pvUser          User argument.
  */
-static DECLCALLBACK(int) pgmR3PoolAccessHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser)
+static DECLCALLBACK(int) pgmR3PoolAccessHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
+                                                PGMACCESSTYPE enmAccessType, void *pvUser)
 {
     STAM_PROFILE_START(&pVM->pgm.s.pPoolR3->StatMonitorR3, a);
-    PPGMPOOL pPool = pVM->pgm.s.pPoolR3;
-    PPGMPOOLPAGE pPage = (PPGMPOOLPAGE)pvUser;
+    PPGMPOOL        pPool = pVM->pgm.s.pPoolR3;
+    PPGMPOOLPAGE    pPage = (PPGMPOOLPAGE)pvUser;
+    PVMCPU          pVCpu = VMMGetCpu(pVM);
     LogFlow(("pgmR3PoolAccessHandler: GCPhys=%RGp %p:{.Core=%RHp, .idx=%d, .GCPhys=%RGp, .enmType=%d}\n",
              GCPhys, pPage, pPage->Core.Key, pPage->idx, pPage->GCPhys, pPage->enmKind));
 
-    PVMCPU pVCpu = VMMGetCpu(pVM);
+    NOREF(pvBuf); NOREF(enmAccessType);
 
     /*
      * We don't have to be very sophisticated about this since there are relativly few calls here.
@@ -635,7 +631,7 @@ static DECLCALLBACK(int) pgmR3PoolAccessHandler(PVM pVM, RTGCPHYS GCPhys, void *
  * it to complete this function.
  *
  * @returns VINF_SUCCESS (VBox strict status code).
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  * @param   pVCpu   The VMCPU for the EMT we're being called on. Unused.
  * @param   fpvFlushRemTlb  When not NULL, we'll flush the REM TLB as well.
  *                          (This is the pvUser, so it has to be void *.)
@@ -645,6 +641,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
 {
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
     STAM_PROFILE_START(&pPool->StatClearAll, c);
+    NOREF(pVCpu);
 
     pgmLock(pVM);
     Log(("pgmR3PoolClearAllRendezvous: cUsedPages=%d fpvFlushRemTbl=%RTbool\n", pPool->cUsedPages, !!fpvFlushRemTbl));
@@ -861,7 +858,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
 
         /* First write protect the page again to catch all write accesses. (before checking for changes -> SMP) */
         int rc = PGMHandlerPhysicalReset(pVM, pPage->GCPhys & PAGE_BASE_GC_MASK);
-        Assert(rc == VINF_SUCCESS);
+        AssertRCSuccess(rc);
         pPage->fDirty = false;
 
         pPool->aDirtyPages[i].uIdx = NIL_PGMPOOL_IDX;
@@ -895,7 +892,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
 /**
  * Clears the shadow page pool.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   fFlushRemTlb    When set, the REM TLB is scheduled for flushing as
  *                          well.
  */
@@ -905,12 +902,13 @@ void pgmR3PoolClearAll(PVM pVM, bool fFlushRemTlb)
     AssertRC(rc);
 }
 
+
 /**
  * Protect all pgm pool page table entries to monitor writes
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  *
- * Remark: assumes the caller will flush all TLBs (!!)
+ * @remarks ASSUMES the caller will flush all TLBs!!
  */
 void pgmR3PoolWriteProtectPages(PVM pVM)
 {
@@ -993,6 +991,7 @@ static DECLCALLBACK(int) pgmR3PoolCmdCheck(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
     DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
     DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, -1, cArgs == 0);
     uint32_t cErrors = 0;
+    NOREF(paArgs);
 
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
     for (unsigned i = 0; i < pPool->cCurPages; i++)

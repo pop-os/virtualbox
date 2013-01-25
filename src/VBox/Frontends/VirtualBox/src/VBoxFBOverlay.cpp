@@ -19,31 +19,37 @@
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
 # include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 #define LOG_GROUP LOG_GROUP_GUI
 
-#include "VBoxFBOverlay.h"
+/* Qt includes: */
+#include <QGLWidget>
+#include <QFile>
+#include <QTextStream>
 
+/* GUI includes: */
+#include "VBoxFBOverlay.h"
 #include "UIMessageCenter.h"
 #include "VBoxGlobal.h"
 
-#include <VBox/VBoxGL2D.h>
+/* COM includes: */
+#include "CSession.h"
+#include "CConsole.h"
+#include "CMachine.h"
+#include "CDisplay.h"
 
-/* Qt includes */
-#include <QGLWidget>
-
+/* Other VBox includes: */
 #include <iprt/asm.h>
+#include <iprt/semaphore.h>
+#include <VBox/VBoxGL2D.h>
+#include <VBox/err.h>
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
 #include <VBox/VBoxVideo.h>
 #include <VBox/types.h>
 #include <VBox/vmm/ssm.h>
-#endif
-#include <iprt/semaphore.h>
+#endif /* VBOX_WITH_VIDEOHWACCEL */
 
-#include <VBox/err.h>
-
-#include <QFile>
-#include <QTextStream>
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 #ifdef VBOXQGL_PROF_BASE
@@ -203,7 +209,7 @@ class VBoxVHWACommandProcessEvent : public QEvent
 {
 public:
     VBoxVHWACommandProcessEvent ()
-        : QEvent ((QEvent::Type) VBoxDefs::VHWACommandProcessType)
+        : QEvent ((QEvent::Type) VHWACommandProcessType)
     {
 #ifdef DEBUG_misha
         g_EventCounter.inc();
@@ -5767,21 +5773,21 @@ VBoxVHWASettings::VBoxVHWASettings (CSession &session)
 {
     CMachine machine = session.GetMachine();
 
-    QString str = machine.GetExtraData (VBoxDefs::GUI_Accelerate2D_StretchLinear);
+    QString str = machine.GetExtraData (GUI_Accelerate2D_StretchLinear);
     mStretchLinearEnabled = str != "off";
 
     uint32_t aFourccs[VBOXVHWA_NUMFOURCC];
     int num = 0;
-    str = machine.GetExtraData (VBoxDefs::GUI_Accelerate2D_PixformatAYUV);
+    str = machine.GetExtraData (GUI_Accelerate2D_PixformatAYUV);
     if (str != "off")
         aFourccs[num++] = FOURCC_AYUV;
-    str = machine.GetExtraData (VBoxDefs::GUI_Accelerate2D_PixformatUYVY);
+    str = machine.GetExtraData (GUI_Accelerate2D_PixformatUYVY);
     if (str != "off")
         aFourccs[num++] = FOURCC_UYVY;
-    str = machine.GetExtraData (VBoxDefs::GUI_Accelerate2D_PixformatYUY2);
+    str = machine.GetExtraData (GUI_Accelerate2D_PixformatYUY2);
     if (str != "off")
         aFourccs[num++] = FOURCC_YUY2;
-    str = machine.GetExtraData (VBoxDefs::GUI_Accelerate2D_PixformatYV12);
+    str = machine.GetExtraData (GUI_Accelerate2D_PixformatYV12);
     if (str != "off")
         aFourccs[num++] = FOURCC_YV12;
 

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -645,6 +645,16 @@ DECLINLINE(uint16_t) PCIDevGetCommand(PPCIDEVICE pPciDev)
 }
 
 /**
+ * Checks if the given PCI device is a bus master.
+ * @returns true if the device is a bus master, false if not.
+ * @param   pPciDev         The PCI device.
+ */
+DECLINLINE(bool) PCIDevIsBusmaster(PPCIDEVICE pPciDev)
+{
+    return (PCIDevGetCommand(pPciDev) & VBOX_PCI_COMMAND_MASTER) != 0;
+}
+
+/**
  * Checks if INTx interrupts disabled in the command config register.
  * @returns true if disabled.
  * @param   pPciDev         The PCI device.
@@ -807,6 +817,15 @@ DECLINLINE(void) PCIDevSetBaseAddress(PPCIDEVICE pPciDev, uint8_t iReg, bool fIO
     PCIDevSetDWord(pPciDev, iReg, u32Addr);
 }
 
+/**
+ * Please document me. I don't seem to be getting as much as calculating
+ * the address of some PCI region.
+ */
+DECLINLINE(uint32_t) PCIDevGetRegionReg(uint32_t iRegion)
+{
+    return iRegion == VBOX_PCI_ROM_SLOT
+         ? VBOX_PCI_ROM_ADDRESS : (VBOX_PCI_BASE_ADDRESS_0 + iRegion * 4);
+}
 
 /**
  * Sets the sub-system vendor id config register.
@@ -1030,7 +1049,7 @@ DECLINLINE(bool) pciDevIsPassthrough(PPCIDEVICE pDev)
  *          if it's contained to ring-3 and that this is a one time exception
  *          which sets no precedent.
  */
-struct PciBusAddress
+struct PCIBusAddress
 {
     /** @todo: think if we'll need domain, which is higher
      *  word of the address. */
@@ -1038,23 +1057,23 @@ struct PciBusAddress
     int  miDevice;
     int  miFn;
 
-    PciBusAddress()
+    PCIBusAddress()
     {
         clear();
     }
 
-    PciBusAddress(int iBus, int iDevice, int iFn)
+    PCIBusAddress(int iBus, int iDevice, int iFn)
     {
         init(iBus, iDevice, iFn);
     }
 
-    PciBusAddress(int32_t iAddr)
+    PCIBusAddress(int32_t iAddr)
     {
         clear();
         fromLong(iAddr);
     }
 
-    PciBusAddress& clear()
+    PCIBusAddress& clear()
     {
         miBus = miDevice = miFn = -1;
         return *this;
@@ -1067,14 +1086,14 @@ struct PciBusAddress
         miFn     = iFn;
     }
 
-    void init(const PciBusAddress &a)
+    void init(const PCIBusAddress &a)
     {
         miBus    = a.miBus;
         miDevice = a.miDevice;
         miFn     = a.miFn;
     }
 
-    bool operator<(const PciBusAddress &a) const
+    bool operator<(const PCIBusAddress &a) const
     {
         if (miBus < a.miBus)
             return true;
@@ -1097,14 +1116,14 @@ struct PciBusAddress
         return false;
     }
 
-    bool operator==(const PciBusAddress &a) const
+    bool operator==(const PCIBusAddress &a) const
     {
         return     (miBus    == a.miBus)
                 && (miDevice == a.miDevice)
                 && (miFn     == a.miFn);
     }
 
-    bool operator!=(const PciBusAddress &a) const
+    bool operator!=(const PCIBusAddress &a) const
     {
         return     (miBus    != a.miBus)
                 || (miDevice != a.miDevice)
@@ -1124,7 +1143,7 @@ struct PciBusAddress
         return (miBus << 8) | (miDevice << 3) | miFn;
     }
 
-    PciBusAddress& fromLong(int32_t value)
+    PCIBusAddress& fromLong(int32_t value)
     {
         miBus = (value >> 8) & 0xff;
         miDevice = (value & 0xff) >> 3;

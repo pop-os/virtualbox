@@ -19,8 +19,7 @@ static void packspu_GetHostBufferSubDataARB( GLenum target, GLintptrARB offset, 
 
     packspuFlush((void *) thread);
 
-    while (writeback)
-        crNetRecv();
+    CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
 }
 
 void * PACKSPU_APIENTRY
@@ -130,4 +129,26 @@ packspu_BindBufferARB( GLenum target, GLuint buffer )
 {
     crStateBindBufferARB(target, buffer);
     crPackBindBufferARB(target, buffer);
+}
+
+void PACKSPU_APIENTRY packspu_GenBuffersARB( GLsizei n, GLuint * buffer )
+{
+    GET_THREAD(thread);
+    int writeback = 1;
+    if (!CRPACKSPU_IS_WDDM_CRHGSMI() && !(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))
+    {
+        crError( "packspu_GenBuffersARB doesn't work when there's no actual network involved!\nTry using the simplequery SPU in your chain!" );
+    }
+    if (pack_spu.swap)
+    {
+        crPackGenBuffersARBSWAP( n, buffer, &writeback );
+    }
+    else
+    {
+        crPackGenBuffersARB( n, buffer, &writeback );
+    }
+    packspuFlush( (void *) thread );
+    CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
+
+    crStateRegBuffers(n, buffer);
 }

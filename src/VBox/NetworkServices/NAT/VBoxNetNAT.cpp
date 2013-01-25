@@ -38,6 +38,7 @@
 #include <iprt/getopt.h>
 #include <iprt/string.h>
 #include <iprt/mem.h>
+#include <iprt/message.h>
 #include <iprt/req.h>
 #include <iprt/file.h>
 #include <iprt/semaphore.h>
@@ -70,6 +71,21 @@
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
+static RTGETOPTDEF g_aGetOptDef[] =
+{
+    { "--pf",           'p',   RTGETOPT_REQ_STRING }
+};
+
+typedef struct NATSEVICEPORTFORWARDRULE
+{
+    char            *pszPortForwardRuleName;
+    struct in_addr  IpV4HostAddr;
+    uint16_t        u16HostPort;
+    struct in_addr  IpV4GuestAddr;
+    uint16_t        u16GuestPort;
+    bool            fUdp;
+    char            *pszStrRaw;
+} NATSEVICEPORTFORWARDRULE, *PNATSEVICEPORTFORWARDRULE;
 
 class VBoxNetNAT : public VBoxNetBaseService
 {
@@ -78,7 +94,8 @@ public:
     virtual ~VBoxNetNAT();
     void usage(void);
     void run(void);
-    void init(void);
+    virtual int init(void);
+    virtual int parseOpt(int rc, const RTGETOPTUNION& getOptVal);
 
 public:
     PNATState m_pNATState;
@@ -99,12 +116,13 @@ public:
     /** event to wakeup the guest urgent receive thread */
     RTSEMEVENT              m_EventUrgSend;
 
-    PRTREQQUEUE             m_pReqQueue;
-    PRTREQQUEUE             m_pSendQueue;
-    PRTREQQUEUE             m_pUrgSendQueue;
+    RTREQQUEUE              m_hReqQueue;
+    RTREQQUEUE              m_hSendQueue;
+    RTREQQUEUE              m_hUrgSendQueue;
     volatile uint32_t       cUrgPkt;
     volatile uint32_t       cPkt;
     bool                    fIsRunning;
+    std::vector<PNATSEVICEPORTFORWARDRULE> m_vecPortForwardRuleFromCmdLine;
 };
 
 
@@ -149,24 +167,49 @@ VBoxNetNAT::VBoxNetNAT()
     m_MacAddress.au8[3]     = 0x40;
     m_MacAddress.au8[4]     = 0x41;
     m_MacAddress.au8[5]     = 0x42;
-    m_Ipv4Address.u         = RT_H2N_U32_C(RT_BSWAP_U32_C(RT_MAKE_U32_FROM_U8( 10,  0,  2,  1)));
-    m_Ipv4Netmask.u         = 0xffff0000;
+    m_Ipv4Address.u         = RT_H2N_U32_C(RT_BSWAP_U32_C(RT_MAKE_U32_FROM_U8( 10,  0,  2,  2)));
+    m_Ipv4Netmask.u         = RT_H2N_U32_C(0xffffff);
     cPkt = 0;
     cUrgPkt = 0;
+    VBoxNetBaseService::init();
+    for(unsigned int i = 0; i < RT_ELEMENTS(g_aGetOptDef); ++i)
+        m_vecOptionDefs.push_back(&g_aGetOptDef[i]);
 }
 
 VBoxNetNAT::~VBoxNetNAT() { }
-void VBoxNetNAT::init()
+int VBoxNetNAT::init()
 {
     int rc;
+#if 0
+    using namespace com;
+    HRESULT hrc = com::Initialize();
+    if (FAILED(hrc))
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to initialize COM!");
+#endif
 
     /*
      * Initialize slirp.
      */
-    rc = slirp_init(&m_pNATState, m_Ipv4Address.u, m_Ipv4Netmask.u, m_fPassDomain, false, 0, this);
+    rc = slirp_init(&m_pNATState, RT_H2N_U32_C(RT_BSWAP_U32_C(RT_MAKE_U32_FROM_U8( 10,  0,  2,  0))), m_Ipv4Netmask.u, m_fPassDomain, false, 0x40, 100, this);
     AssertReleaseRC(rc);
 
+    /* Why ? */
     slirp_set_ethaddr_and_activate_port_forwarding(m_pNATState, &m_MacAddress.au8[0], INADDR_ANY);
+#if 0
+    in_addr ipv4HostAddr;
+    in_addr ipv4GuestAddr;
+    ipv4GuestAddr.s_addr = RT_H2N_U32_C(RT_BSWAP_U32_C(RT_MAKE_U32_FROM_U8( 10,  0,  2,  15)));
+    ipv4HostAddr.s_addr = INADDR_ANY;
+    slirp_add_redirect(m_pNATState, false, ipv4HostAddr, 2022, ipv4GuestAddr , 22, NULL);
+#endif
+    std::vector<PNATSEVICEPORTFORWARDRULE>::iterator it;
+    for (it = m_vecPortForwardRuleFromCmdLine.begin(); it != m_vecPortForwardRuleFromCmdLine.end(); ++it)
+    {
+        slirp_add_redirect(m_pNATState, (*it)->fUdp, (*it)->IpV4HostAddr, (*it)->u16HostPort, (*it)->IpV4GuestAddr , (*it)->u16GuestPort, NULL);
+        RTStrFree((*it)->pszStrRaw);
+        RTMemFree((*it));
+    }
+    m_vecPortForwardRuleFromCmdLine.clear();
 #ifndef RT_OS_WINDOWS
     /*
      * Create the control pipe.
@@ -178,21 +221,23 @@ void VBoxNetNAT::init()
     AssertReleaseRC(m_hWakeupEvent != NULL);
     slirp_register_external_event(m_pNATState, m_hWakeupEvent, VBOX_WAKEUP_EVENT_INDEX);
 #endif
-    rc = RTReqCreateQueue(&m_pReqQueue);
+    rc = RTReqQueueCreate(&m_hReqQueue);
     AssertReleaseRC(rc);
 
-    rc = RTReqCreateQueue(&m_pSendQueue);
+    rc = RTReqQueueCreate(&m_hSendQueue);
     AssertReleaseRC(rc);
 
-    rc = RTReqCreateQueue(&m_pUrgSendQueue);
+    rc = RTReqQueueCreate(&m_hUrgSendQueue);
     AssertReleaseRC(rc);
 
+    g_pNAT->fIsRunning = true;
     rc = RTThreadCreate(&m_ThrNAT, AsyncIoThread, this, 128 * _1K, RTTHREADTYPE_DEFAULT, 0, "NAT");
     rc = RTThreadCreate(&m_ThrSndNAT, natSndThread, this, 128 * _1K, RTTHREADTYPE_DEFAULT, 0, "SndNAT");
     rc = RTThreadCreate(&m_ThrUrgSndNAT, natUrgSndThread, this, 128 * _1K, RTTHREADTYPE_DEFAULT, 0, "UrgSndNAT");
     rc = RTSemEventCreate(&m_EventSend);
     rc = RTSemEventCreate(&m_EventUrgSend);
     AssertReleaseRC(rc);
+    return VINF_SUCCESS;
 }
 
 /* Mandatory functions */
@@ -204,7 +249,7 @@ void VBoxNetNAT::run()
      */
     fIsRunning = true;
     PINTNETRINGBUF  pRingBuf = &m_pIfBuf->Recv;
-    //RTThreadSetType(RTThreadSelf(), RTTHREADTYPE_IO);
+    RTThreadSetType(RTThreadSelf(), RTTHREADTYPE_IO);
     for (;;)
     {
         /*
@@ -216,15 +261,18 @@ void VBoxNetNAT::run()
         WaitReq.pSession = m_pSession;
         WaitReq.hIf = m_hIf;
         WaitReq.cMillies = 2000; /* 2 secs - the sleep is for some reason uninterruptible... */  /** @todo fix interruptability in SrvIntNet! */
-#if 1
-        RTReqProcess(m_pSendQueue, 0);
-        RTReqProcess(m_pUrgSendQueue, 0);
+#if 0
+        RTReqProcess(m_hSendQueue, 0);
+        RTReqProcess(m_hUrgSendQueue, 0);
 #endif
         int rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_WAIT, 0, &WaitReq.Hdr);
         if (RT_FAILURE(rc))
         {
             if (rc == VERR_TIMEOUT || rc == VERR_INTERRUPTED)
+            {
+                natNotifyNATThread();
                 continue;
+            }
             LogRel(("VBoxNetNAT: VMMR0_DO_INTNET_IF_WAIT returned %Rrc\n", rc));
             return;
         }
@@ -236,15 +284,13 @@ void VBoxNetNAT::run()
         while ((pHdr = IntNetRingGetNextFrameToRead(pRingBuf)) != NULL)
         {
             uint16_t const u16Type = pHdr->u16Type;
-            if (RT_LIKELY(   u16Type == INTNETHDR_TYPE_FRAME
-                          || u16Type == INTNETHDR_TYPE_GSO))
+            size_t       cbFrame = pHdr->cbFrame;
+            size_t       cbIgnored;
+            void        *pvSlirpFrame;
+            struct mbuf *m;
+            switch (u16Type)
             {
-                size_t       cbFrame = pHdr->cbFrame;
-                size_t       cbIgnored;
-                void        *pvSlirpFrame;
-                struct mbuf *m;
-                if (u16Type == INTNETHDR_TYPE_FRAME)
-                {
+                case INTNETHDR_TYPE_FRAME:
                     m = slirp_ext_m_get(g_pNAT->m_pNATState, cbFrame, &pvSlirpFrame, &cbIgnored);
                     if (!m)
                     {
@@ -252,14 +298,18 @@ void VBoxNetNAT::run()
                         break;
                     }
                     memcpy(pvSlirpFrame, IntNetHdrGetFramePtr(pHdr, m_pIfBuf), cbFrame);
+#if 0
                     IntNetRingSkipFrame(&m_pIfBuf->Recv);
+#endif
 
                     /* don't wait, we may have to wakeup the NAT thread first */
-                    rc = RTReqCallEx(m_pReqQueue, NULL /*ppReq*/, 0 /*cMillies*/, RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
-                                     (PFNRT)SendWorker, 2, m, cbFrame);
+                    rc = RTReqQueueCallEx(m_hReqQueue, NULL /*ppReq*/, 0 /*cMillies*/, RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
+                                          (PFNRT)SendWorker, 2, m, cbFrame);
+                    natNotifyNATThread();
                     AssertReleaseRC(rc);
-                }
-                else
+                break;
+                case INTNETHDR_TYPE_GSO:
+#if 1
                 {
                     /** @todo pass these unmodified. */
                     PCPDMNETWORKGSO pGso  = IntNetHdrGetGsoContext(pHdr, m_pIfBuf);
@@ -271,53 +321,136 @@ void VBoxNetNAT::run()
                     }
 
                     uint8_t abHdrScratch[256];
-                    uint32_t const cSegs = PDMNetGsoCalcSegmentCount(pGso, cbFrame - sizeof(*pGso));
+                    cbFrame -= sizeof(PDMNETWORKGSO);
+                    uint32_t const cSegs = PDMNetGsoCalcSegmentCount(pGso, cbFrame);
                     for (uint32_t iSeg = 0; iSeg < cSegs; iSeg++)
                     {
                         uint32_t cbSegFrame;
                         void  *pvSegFrame = PDMNetGsoCarveSegmentQD(pGso, (uint8_t *)(pGso + 1), cbFrame, abHdrScratch,
                                                                     iSeg, cSegs, &cbSegFrame);
-                        m = slirp_ext_m_get(g_pNAT->m_pNATState, cbFrame, &pvSlirpFrame, &cbIgnored);
+                        m = slirp_ext_m_get(g_pNAT->m_pNATState, cbSegFrame, &pvSlirpFrame, &cbIgnored);
                         if (!m)
                         {
-                            LogRel(("NAT: Can't allocate send buffer cbSegFrame=%u seg=%u/%u\n", cbSegFrame, iSeg, cSegs));
+                            LogRel(("NAT: Can't allocate send buffer cbSegFrame=%u seg=%u/%u\n",
+                                    cbSegFrame, iSeg, cSegs));
                             break;
                         }
-                        memcpy(pvSlirpFrame, pvSegFrame, cbFrame);
+                        memcpy(pvSlirpFrame, pvSegFrame, cbSegFrame);
 
-                        rc = RTReqCallEx(m_pReqQueue, NULL /*ppReq*/, 0 /*cMillies*/, RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
-                                         (PFNRT)SendWorker, 2, m, cbSegFrame);
+                        rc = RTReqQueueCallEx(m_hReqQueue, NULL /*ppReq*/, 0 /*cMillies*/,
+                                              RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
+                                              (PFNRT)SendWorker, 2, m, cbSegFrame);
+                        natNotifyNATThread();
                         AssertReleaseRC(rc);
                     }
-                    IntNetRingSkipFrame(&m_pIfBuf->Recv);
+                }
+                break;
+#endif
+                case INTNETHDR_TYPE_PADDING:
+                break;
+                default:
+                    STAM_REL_COUNTER_INC(&m_pIfBuf->cStatBadFrames);
+                break;
                 }
 
-#ifndef RT_OS_WINDOWS
-                /* kick select() */
-                size_t cbIgnored;
-                rc = RTPipeWrite(m_hPipeWrite, "", 1, &cbIgnored);
-                AssertRC(rc);
-#else
-                /* kick WSAWaitForMultipleEvents */
-                rc = WSASetEvent(m_hWakeupEvent);
-                AssertRelease(rc == TRUE);
-#endif
-            }
-            else if (u16Type == INTNETHDR_TYPE_PADDING)
                 IntNetRingSkipFrame(&m_pIfBuf->Recv);
-            else
-            {
-                IntNetRingSkipFrame(&m_pIfBuf->Recv);
-                STAM_REL_COUNTER_INC(&m_pIfBuf->cStatBadFrames);
             }
-        }
-
     }
     fIsRunning = false;
 }
 
 void VBoxNetNAT::usage()
 {
+}
+
+int VBoxNetNAT::parseOpt(int rc, const RTGETOPTUNION& Val)
+{
+    switch (rc)
+    {
+        case 'p':
+        {
+#define ITERATE_TO_NEXT_TERM(ch, pRule, strRaw)                            \
+    do {                                                                   \
+        while (*ch != ',')                                                 \
+        {                                                                  \
+            if (*ch == 0)                                                  \
+            {                                                              \
+                if (pRule)                                                 \
+                    RTMemFree(pRule);                                      \
+                if(strRaw)                                                \
+                    RTStrFree(strRaw);                                     \
+                return VERR_INVALID_PARAMETER;                             \
+            }                                                              \
+            ch++;                                                          \
+        }                                                                  \
+        *ch = '\0';                                                        \
+        ch++;                                                              \
+    } while(0)
+            PNATSEVICEPORTFORWARDRULE pRule = (PNATSEVICEPORTFORWARDRULE)RTMemAlloc(sizeof(NATSEVICEPORTFORWARDRULE));
+            if (!pRule)
+                return VERR_NO_MEMORY;
+            char *strName;
+            char *strProto;
+            char *strHostIp;
+            char *strHostPort;
+            char *strGuestIp;
+            char *strGuestPort;
+            char *strRaw = RTStrDup(Val.psz);
+            char *ch = strRaw;
+            if (!strRaw)
+            {
+                RTMemFree(pRule);
+                return VERR_NO_MEMORY;
+            }
+
+            strName = RTStrStrip(ch);
+            ITERATE_TO_NEXT_TERM(ch, pRule, strRaw);
+            strProto = RTStrStrip(ch);
+            ITERATE_TO_NEXT_TERM(ch, pRule, strRaw);
+            strHostIp = RTStrStrip(ch);
+            ITERATE_TO_NEXT_TERM(ch, pRule, strRaw);
+            strHostPort = RTStrStrip(ch);
+            ITERATE_TO_NEXT_TERM(ch, pRule, strRaw);
+            strGuestIp = RTStrStrip(ch);
+            ITERATE_TO_NEXT_TERM(ch, pRule, strRaw);
+            strGuestPort = RTStrStrip(ch);
+            if (RTStrICmp(strProto, "udp") == 0)
+                pRule->fUdp = true;
+            else if (RTStrICmp(strProto, "tcp") == 0)
+                pRule->fUdp = false;
+            else
+            {
+                RTStrFree(strRaw);
+                RTMemFree(pRule);
+                return VERR_INVALID_PARAMETER;
+            }
+            if (    strHostIp == NULL
+                ||  inet_aton(strHostIp, &pRule->IpV4HostAddr) == 0)
+                pRule->IpV4HostAddr.s_addr = INADDR_ANY;
+            if (    strGuestIp == NULL
+                ||  inet_aton(strGuestIp, &pRule->IpV4GuestAddr) == 0)
+            {
+                RTMemFree(pRule);
+                RTMemFree(strRaw);
+                return VERR_INVALID_PARAMETER;
+            }
+            pRule->u16HostPort = RTStrToUInt16(strHostPort);
+            pRule->u16GuestPort = RTStrToUInt16(strGuestPort);
+            if (   !pRule->u16HostPort
+                || !pRule->u16GuestPort)
+            {
+                RTMemFree(pRule);
+                RTMemFree(strRaw);
+                return VERR_INVALID_PARAMETER;
+            }
+            pRule->pszStrRaw = strRaw;
+            m_vecPortForwardRuleFromCmdLine.push_back(pRule);
+            return VINF_SUCCESS;
+#undef ITERATE_TO_NEXT_TERM
+        }
+        default:;
+    }
+    return VERR_NOT_FOUND;
 }
 
 /**
@@ -327,12 +460,12 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
     Log2(("NAT: main\n"));
     g_pNAT = new VBoxNetNAT();
-    Log2(("NAT: parsing command line\n"));
+    Log2(("NAT: initialization\n"));
     int rc = g_pNAT->parseArgs(argc - 1, argv + 1);
     if (!rc)
     {
-        Log2(("NAT: initialization\n"));
         g_pNAT->init();
+        Log2(("NAT: parsing command line\n"));
         Log2(("NAT: try go online\n"));
         g_pNAT->tryGoOnline();
         Log2(("NAT: main loop\n"));
@@ -342,6 +475,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     return 0;
 }
 
+
 /** slirp's hooks */
 extern "C" int slirp_can_output(void * pvUser)
 {
@@ -350,20 +484,24 @@ extern "C" int slirp_can_output(void * pvUser)
 
 extern "C" void slirp_urg_output(void *pvUser, struct mbuf *m, const uint8_t *pu8Buf, int cb)
 {
-    int rc = RTReqCallEx(g_pNAT->m_pUrgSendQueue,  NULL /*ppReq*/, 0 /*cMillies*/, RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
-                         (PFNRT)IntNetSendWorker, 4, (uintptr_t)1, (uintptr_t)pu8Buf, (uintptr_t)cb, (uintptr_t)m);
+    LogFlowFunc(("ENTER: m:%p, pu8Buf:%p, cb:%d\n", m, pu8Buf, cb));
+    int rc = RTReqQueueCallEx(g_pNAT->m_hUrgSendQueue,  NULL /*ppReq*/, 0 /*cMillies*/, RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
+                              (PFNRT)IntNetSendWorker, 4, (uintptr_t)1, (uintptr_t)pu8Buf, (uintptr_t)cb, (uintptr_t)m);
     ASMAtomicIncU32(&g_pNAT->cUrgPkt);
     RTSemEventSignal(g_pNAT->m_EventUrgSend);
     AssertReleaseRC(rc);
+    LogFlowFuncLeave();
 }
 extern "C" void slirp_output(void *pvUser, struct mbuf *m, const uint8_t *pu8Buf, int cb)
 {
+    LogFlowFunc(("ENTER: m:%p, pu8Buf:%p, cb:%d\n", m, pu8Buf, cb));
     AssertRelease(g_pNAT == pvUser);
-    int rc = RTReqCallEx(g_pNAT->m_pSendQueue,  NULL /*ppReq*/, 0 /*cMillies*/, RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
-                         (PFNRT)IntNetSendWorker, 4, (uintptr_t)0, (uintptr_t)pu8Buf, (uintptr_t)cb, (uintptr_t)m);
+    int rc = RTReqQueueCallEx(g_pNAT->m_hSendQueue,  NULL /*ppReq*/, 0 /*cMillies*/, RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
+                              (PFNRT)IntNetSendWorker, 4, (uintptr_t)0, (uintptr_t)pu8Buf, (uintptr_t)cb, (uintptr_t)m);
     ASMAtomicIncU32(&g_pNAT->cPkt);
     RTSemEventSignal(g_pNAT->m_EventSend);
     AssertReleaseRC(rc);
+    LogFlowFuncLeave();
 }
 
 extern "C" void slirp_output_pending(void *pvUser)
@@ -377,19 +515,22 @@ extern "C" void slirp_output_pending(void *pvUser)
  */
 static void SendWorker(struct mbuf *m, size_t cb)
 {
+    LogFlowFunc(("ENTER: m:%p ,cb:%d\n", m, cb));
     slirp_input(g_pNAT->m_pNATState, m, cb);
+    LogFlowFuncLeave();
 }
 
-static void IntNetSendWorker(bool urg, void *pvFrame, size_t cbFrame, struct mbuf *m)
+static void IntNetSendWorker(bool fUrg, void *pvFrame, size_t cbFrame, struct mbuf *m)
 {
-    Log2(("VBoxNetNAT: going to send some bytes ... \n"));
     VBoxNetNAT         *pThis = g_pNAT;
     INTNETIFSENDREQ     SendReq;
     int rc;
 
-    if (!urg)
+    LogFlowFunc(("ENTER: urg:%RTbool ,pvFrame:%p, cbFrame:%d, m:%p\n", fUrg, pvFrame, cbFrame, m));
+    if (!fUrg)
     {
-        while (ASMAtomicReadU32(&g_pNAT->cUrgPkt) != 0
+        /* non-urgent datagramm sender */
+        while (   ASMAtomicReadU32(&g_pNAT->cUrgPkt) != 0
                || ASMAtomicReadU32(&g_pNAT->cPkt) == 0)
             rc = RTSemEventWait(g_pNAT->m_EventSend, RT_INDEFINITE_WAIT);
     }
@@ -418,10 +559,11 @@ static void IntNetSendWorker(bool urg, void *pvFrame, size_t cbFrame, struct mbu
         SendReq.hIf          = pThis->m_hIf;
         rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_SEND, 0, &SendReq.Hdr);
     }
+    AssertRC((rc));
     if (RT_FAILURE(rc))
         Log2(("VBoxNetNAT: Failed to send packet; rc=%Rrc\n", rc));
 
-    if (!urg)
+    if (!fUrg)
     {
         ASMAtomicDecU32(&g_pNAT->cPkt);
     }
@@ -429,8 +571,9 @@ static void IntNetSendWorker(bool urg, void *pvFrame, size_t cbFrame, struct mbu
         if (ASMAtomicDecU32(&g_pNAT->cUrgPkt) == 0)
             RTSemEventSignal(g_pNAT->m_EventSend);
     }
-    natNotifyNATThread();
     slirp_ext_m_free(pThis->m_pNATState, m, (uint8_t *)pvFrame);
+    natNotifyNATThread();
+    LogFlowFuncLeave();
 }
 
 static DECLCALLBACK(int) AsyncIoThread(RTTHREAD pThread, void *pvUser)
@@ -509,7 +652,7 @@ static DECLCALLBACK(int) AsyncIoThread(RTTHREAD pThread, void *pvUser)
             }
         }
         /* process _all_ outstanding requests but don't wait */
-        RTReqProcess(pThis->m_pReqQueue, 0);
+        RTReqQueueProcess(pThis->m_hReqQueue, 0);
         RTMemFree(polls);
 
 #else /* RT_OS_WINDOWS */
@@ -536,7 +679,7 @@ static DECLCALLBACK(int) AsyncIoThread(RTTHREAD pThread, void *pvUser)
         /* poll the sockets in any case */
         slirp_select_poll(pThis->m_pNATState, /* fTimeout=*/false, /* fIcmp=*/(dwEvent == WSA_WAIT_EVENT_0));
         /* process _all_ outstanding requests but don't wait */
-        RTReqProcess(pThis->m_pReqQueue, 0);
+        RTReqQueueProcess(pThis->m_hReqQueue, 0);
 #endif /* RT_OS_WINDOWS */
     }
 
@@ -546,13 +689,13 @@ static DECLCALLBACK(int) AsyncIoThread(RTTHREAD pThread, void *pvUser)
 static DECLCALLBACK(int) natSndThread(RTTHREAD pThread, void *pvUser)
 {
     while (g_pNAT->fIsRunning)
-        RTReqProcess(g_pNAT->m_pSendQueue, 0);
+        RTReqQueueProcess(g_pNAT->m_hSendQueue, 0);
     return VINF_SUCCESS;
 }
 static DECLCALLBACK(int) natUrgSndThread(RTTHREAD pThread, void *pvUser)
 {
     while (g_pNAT->fIsRunning)
-        RTReqProcess(g_pNAT->m_pUrgSendQueue, 0);
+        RTReqQueueProcess(g_pNAT->m_hUrgSendQueue, 0);
     return VINF_SUCCESS;
 }
 
@@ -560,12 +703,9 @@ static DECLCALLBACK(int) natUrgSndThread(RTTHREAD pThread, void *pvUser)
 
 int main(int argc, char **argv, char **envp)
 {
-    int rc = RTR3InitAndSUPLib();
+    int rc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
     if (RT_FAILURE(rc))
-    {
-        RTStrmPrintf(g_pStdErr, "VBoxNetDHCP: RTR3InitAndSupLib failed, rc=%Rrc\n", rc);
-        return 1;
-    }
+        return RTMsgInitFailure(rc);
 
     return TrustedMain(argc, argv, envp);
 }

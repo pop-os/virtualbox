@@ -47,6 +47,12 @@
 # include <mach/mach_init.h>
 # include <mach/mach_host.h>
 #endif
+#if defined(RT_OS_DARWIN) /*|| defined(RT_OS_FREEBSD) - later */ \
+ || (defined(RT_OS_LINUX) && !defined(IN_RT_STATIC) /* static + dlsym = trouble */) \
+ || defined(IPRT_MAY_HAVE_PTHREAD_SET_NAME_NP)
+# define IPRT_MAY_HAVE_PTHREAD_SET_NAME_NP
+# include <dlfcn.h>
+#endif
 
 #include <iprt/thread.h>
 #include <iprt/log.h>
@@ -76,6 +82,30 @@ static pthread_key_t    g_SelfKey;
  * This is set to -1 if no available signal was found. */
 static int              g_iSigPokeThread = -1;
 #endif
+
+#ifdef IPRT_MAY_HAVE_PTHREAD_SET_NAME_NP
+# if defined(RT_OS_DARWIN)
+/**
+ * The Mac OS X (10.6 and later) variant of pthread_setname_np.
+ *
+ * @returns errno.h
+ * @param   pszName         The new thread name.
+ */
+typedef int (*PFNPTHREADSETNAME)(const char *pszName);
+# else
+/**
+ * The variant of pthread_setname_np most other unix-like systems implement.
+ *
+ * @returns errno.h
+ * @param   hThread         The thread.
+ * @param   pszName         The new thread name.
+ */
+typedef int (*PFNPTHREADSETNAME)(pthread_t hThread, const char *pszName);
+# endif
+
+/** Pointer to pthread_setname_np if found. */
+static PFNPTHREADSETNAME g_pfnThreadSetName = NULL;
+#endif /* IPRT_MAY_HAVE_PTHREAD_SET_NAME_NP */
 
 
 /*******************************************************************************
@@ -142,6 +172,11 @@ DECLHIDDEN(int) rtThreadNativeInit(void)
             AssertMsgFailed(("rc=%Rrc errno=%d\n", RTErrConvertFromErrno(errno), errno));
     }
 #endif /* RTTHREAD_POSIX_WITH_POKE */
+
+#ifdef IPRT_MAY_HAVE_PTHREAD_SET_NAME_NP
+    if (RT_SUCCESS(rc))
+        g_pfnThreadSetName = (PFNPTHREADSETNAME)(uintptr_t)dlsym(RTLD_DEFAULT, "pthread_setname_np");
+#endif
     return rc;
 }
 
@@ -221,6 +256,8 @@ DECLHIDDEN(void) rtThreadNativeDestroy(PRTTHREADINT pThread)
 static void *rtThreadNativeMain(void *pvArgs)
 {
     PRTTHREADINT  pThread = (PRTTHREADINT)pvArgs;
+    pthread_t     Self    = pthread_self();
+    Assert((uintptr_t)Self == (RTNATIVETHREAD)Self && (uintptr_t)Self != NIL_RTNATIVETHREAD);
 
 #if defined(RT_OS_LINUX)
     /*
@@ -244,14 +281,24 @@ static void *rtThreadNativeMain(void *pvArgs)
         siginterrupt(g_iSigPokeThread, 1);
 #endif
 
+    /*
+     * Set the TLS entry and, if possible, the thread name.
+     */
     int rc = pthread_setspecific(g_SelfKey, pThread);
     AssertReleaseMsg(!rc, ("failed to set self TLS. rc=%d thread '%s'\n", rc, pThread->szName));
+
+#ifdef IPRT_MAY_HAVE_PTHREAD_SET_NAME_NP
+    if (g_pfnThreadSetName)
+# ifdef RT_OS_DARWIN
+        g_pfnThreadSetName(pThread->szName);
+# else
+        g_pfnThreadSetName(Self, pThread->szName);
+# endif
+#endif
 
     /*
      * Call common main.
      */
-    pthread_t Self = pthread_self();
-    Assert((uintptr_t)Self == (RTNATIVETHREAD)Self && (uintptr_t)Self != NIL_RTNATIVETHREAD);
     rc = rtThreadMain(pThread, (uintptr_t)Self, &pThread->szName[0]);
 
     pthread_setspecific(g_SelfKey, NULL);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -373,6 +373,15 @@ STDMETHODIMP VRDPConsoleListener::OnMousePointerShapeChange(BOOL visible,
         }
         else if (width != 0 && height != 0)
         {
+            uint8_t* shape = aShape.raw();
+
+            dumpPointer(shape, width, height, true);
+
+            if (m_server->MousePointer(alpha, xHot, yHot, width, height, shape) == VINF_SUCCESS)
+            {
+                return S_OK;
+            }
+
             /* Pointer consists of 1 bpp AND and 24 BPP XOR masks.
              * 'shape' AND mask followed by XOR mask.
              * XOR mask contains 32 bit (lsb)BGR0(msb) values.
@@ -389,9 +398,6 @@ STDMETHODIMP VRDPConsoleListener::OnMousePointerShapeChange(BOOL visible,
              * So set pointer size to 32x32. This can be done safely
              * because most pointers are 32x32.
              */
-            uint8_t* shape = aShape.raw();
-
-            dumpPointer(shape, width, height, true);
 
             int cbDstAndMask = (((width + 7) / 8) * height + 3) & ~3;
 
@@ -1258,7 +1264,9 @@ DECLCALLBACK(void) ConsoleVRDPServer::VRDPCallbackVideoModeHint(void *pvCallback
 {
     ConsoleVRDPServer *server = static_cast<ConsoleVRDPServer*>(pvCallback);
 
-    server->mConsole->getDisplay()->SetVideoModeHint(cWidth, cHeight, cBitsPerPixel, uScreenId);
+    server->mConsole->getDisplay()->SetVideoModeHint(uScreenId, TRUE /*=enabled*/,
+                                                     FALSE /*=changeOrigin*/, 0/*=OriginX*/, 0/*=OriginY*/,
+                                                     cWidth, cHeight, cBitsPerPixel);
 }
 
 DECLCALLBACK(void) ConsoleVRDPServer::VRDECallbackAudioIn(void *pvCallback,
@@ -1367,8 +1375,14 @@ ConsoleVRDPServer::ConsoleVRDPServer(Console *console)
     m_fInterfaceImage = false;
     memset(&m_interfaceImage, 0, sizeof (m_interfaceImage));
     memset(&m_interfaceCallbacksImage, 0, sizeof (m_interfaceCallbacksImage));
+    RT_ZERO(m_interfaceMousePtr);
     RT_ZERO(m_interfaceSCard);
     RT_ZERO(m_interfaceCallbacksSCard);
+    RT_ZERO(m_interfaceTSMF);
+    RT_ZERO(m_interfaceCallbacksTSMF);
+
+    rc = RTCritSectInit(&mTSMFLock);
+    AssertRC(rc);
 }
 
 ConsoleVRDPServer::~ConsoleVRDPServer()
@@ -1397,6 +1411,12 @@ ConsoleVRDPServer::~ConsoleVRDPServer()
     {
         RTCritSectDelete(&mCritSect);
         memset(&mCritSect, 0, sizeof(mCritSect));
+    }
+
+    if (RTCritSectIsInitialized(&mTSMFLock))
+    {
+        RTCritSectDelete(&mTSMFLock);
+        memset(&mTSMFLock, 0, sizeof(mTSMFLock));
     }
 }
 
@@ -1576,7 +1596,26 @@ int ConsoleVRDPServer::Launch(void)
                                                           this);
                     if (RT_SUCCESS(vrc))
                     {
+                        LogRel(("VRDE: [%s]\n", VRDE_IMAGE_INTERFACE_NAME));
                         m_fInterfaceImage = true;
+                    }
+
+                    /* Mouse pointer interface. */
+                    m_interfaceMousePtr.header.u64Version = 1;
+                    m_interfaceMousePtr.header.u64Size = sizeof(m_interfaceMousePtr);
+
+                    vrc = mpEntryPoints->VRDEGetInterface(mhServer,
+                                                          VRDE_MOUSEPTR_INTERFACE_NAME,
+                                                          &m_interfaceMousePtr.header,
+                                                          NULL,
+                                                          this);
+                    if (RT_SUCCESS(vrc))
+                    {
+                        LogRel(("VRDE: [%s]\n", VRDE_MOUSEPTR_INTERFACE_NAME));
+                    }
+                    else
+                    {
+                        RT_ZERO(m_interfaceMousePtr);
                     }
 
                     /* Smartcard interface. */
@@ -1600,6 +1639,28 @@ int ConsoleVRDPServer::Launch(void)
                     else
                     {
                         RT_ZERO(m_interfaceSCard);
+                    }
+
+                    /* Raw TSMF interface. */
+                    m_interfaceTSMF.header.u64Version = 1;
+                    m_interfaceTSMF.header.u64Size = sizeof(m_interfaceTSMF);
+
+                    m_interfaceCallbacksTSMF.header.u64Version = 1;
+                    m_interfaceCallbacksTSMF.header.u64Size = sizeof(m_interfaceCallbacksTSMF);
+                    m_interfaceCallbacksTSMF.VRDETSMFCbNotify = VRDETSMFCbNotify;
+
+                    vrc = mpEntryPoints->VRDEGetInterface(mhServer,
+                                                          VRDE_TSMF_INTERFACE_NAME,
+                                                          &m_interfaceTSMF.header,
+                                                          &m_interfaceCallbacksTSMF.header,
+                                                          this);
+                    if (RT_SUCCESS(vrc))
+                    {
+                        LogRel(("VRDE: [%s]\n", VRDE_TSMF_INTERFACE_NAME));
+                    }
+                    else
+                    {
+                        RT_ZERO(m_interfaceTSMF);
                     }
 
                     /* Since these interfaces are optional, it is always a success here. */
@@ -1745,6 +1806,22 @@ typedef struct H3DORInstance
                                                                   NULL,
                                                                   0,
                                                                   &fu32CompletionFlags);
+        if (RT_FAILURE(rc))
+        {
+            /* No support for a 3D + WINDOW. Try bitmap updates. */
+            fu32CompletionFlags = 0;
+            rc = p->pThis->m_interfaceImage.VRDEImageHandleCreate(p->pThis->mhServer,
+                                                                  &p->hImageBitmap,
+                                                                  p,
+                                                                  u32ScreenId,
+                                                                  0,
+                                                                  &rect,
+                                                                  VRDE_IMAGE_FMT_ID_BITMAP_BGRA8,
+                                                                  NULL,
+                                                                  0,
+                                                                  &fu32CompletionFlags);
+        }
+
         if (RT_SUCCESS(rc))
         {
             p->x = x;
@@ -2030,6 +2107,440 @@ int ConsoleVRDPServer::SCardRequest(void *pvUser, uint32_t u32Function, const vo
     return rc;
 }
 
+
+struct TSMFHOSTCHCTX;
+struct TSMFVRDPCTX;
+
+typedef struct TSMFHOSTCHCTX
+{
+    ConsoleVRDPServer *pThis;
+
+    struct TSMFVRDPCTX *pVRDPCtx; /* NULL if no corresponding host channel context. */
+
+    void *pvDataReceived;
+    uint32_t cbDataReceived;
+    uint32_t cbDataAllocated;
+} TSMFHOSTCHCTX;
+
+typedef struct TSMFVRDPCTX
+{
+    ConsoleVRDPServer *pThis;
+
+    VBOXHOSTCHANNELCALLBACKS *pCallbacks;
+    void *pvCallbacks;
+
+    TSMFHOSTCHCTX *pHostChCtx; /* NULL if no corresponding host channel context. */
+
+    uint32_t u32ChannelHandle;
+} TSMFVRDPCTX;
+
+static int tsmfContextsAlloc(TSMFHOSTCHCTX **ppHostChCtx, TSMFVRDPCTX **ppVRDPCtx)
+{
+    TSMFHOSTCHCTX *pHostChCtx = (TSMFHOSTCHCTX *)RTMemAllocZ(sizeof(TSMFHOSTCHCTX));
+    if (!pHostChCtx)
+    {
+        return VERR_NO_MEMORY;
+    }
+
+    TSMFVRDPCTX *pVRDPCtx = (TSMFVRDPCTX *)RTMemAllocZ(sizeof(TSMFVRDPCTX));
+    if (!pVRDPCtx)
+    {
+        RTMemFree(pHostChCtx);
+        return VERR_NO_MEMORY;
+    }
+
+    *ppHostChCtx = pHostChCtx;
+    *ppVRDPCtx = pVRDPCtx;
+    return VINF_SUCCESS;
+}
+
+int ConsoleVRDPServer::tsmfLock(void)
+{
+    int rc = RTCritSectEnter(&mTSMFLock);
+    AssertRC(rc);
+    return rc;
+}
+
+void ConsoleVRDPServer::tsmfUnlock(void)
+{
+    RTCritSectLeave(&mTSMFLock);
+}
+
+/* static */ DECLCALLBACK(int) ConsoleVRDPServer::tsmfHostChannelAttach(void *pvProvider,
+                                                                        void **ppvChannel,
+                                                                        uint32_t u32Flags,
+                                                                        VBOXHOSTCHANNELCALLBACKS *pCallbacks,
+                                                                        void *pvCallbacks)
+{
+    LogFlowFunc(("\n"));
+
+    ConsoleVRDPServer *pThis = static_cast<ConsoleVRDPServer*>(pvProvider);
+
+    /* Create 2 context structures: for the VRDP server and for the host service. */
+    TSMFHOSTCHCTX *pHostChCtx = NULL;
+    TSMFVRDPCTX *pVRDPCtx = NULL;
+
+    int rc = tsmfContextsAlloc(&pHostChCtx, &pVRDPCtx);
+    if (RT_FAILURE(rc))
+    {
+        return rc;
+    }
+
+    pHostChCtx->pThis = pThis;
+    pHostChCtx->pVRDPCtx = pVRDPCtx;
+
+    pVRDPCtx->pThis = pThis;
+    pVRDPCtx->pCallbacks = pCallbacks;
+    pVRDPCtx->pvCallbacks = pvCallbacks;
+    pVRDPCtx->pHostChCtx = pHostChCtx;
+
+    rc = pThis->m_interfaceTSMF.VRDETSMFChannelCreate(pThis->mhServer, pVRDPCtx, u32Flags);
+
+    if (RT_SUCCESS(rc))
+    {
+        /* @todo contexts should be in a list for accounting. */
+        *ppvChannel = pHostChCtx;
+    }
+    else
+    {
+        RTMemFree(pHostChCtx);
+        RTMemFree(pVRDPCtx);
+    }
+
+    return rc;
+}
+
+/* static */ DECLCALLBACK(void) ConsoleVRDPServer::tsmfHostChannelDetach(void *pvChannel)
+{
+    LogFlowFunc(("\n"));
+
+    TSMFHOSTCHCTX *pHostChCtx = (TSMFHOSTCHCTX *)pvChannel;
+    ConsoleVRDPServer *pThis = pHostChCtx->pThis;
+
+    int rc = pThis->tsmfLock();
+    if (RT_SUCCESS(rc))
+    {
+        bool fClose = false;
+        uint32_t u32ChannelHandle = 0;
+
+        if (pHostChCtx->pVRDPCtx)
+        {
+            /* There is still a VRDP context for this channel. */
+            pHostChCtx->pVRDPCtx->pHostChCtx = NULL;
+            u32ChannelHandle = pHostChCtx->pVRDPCtx->u32ChannelHandle;
+            fClose = true;
+        }
+
+        pThis->tsmfUnlock();
+
+        RTMemFree(pHostChCtx);
+
+        if (fClose)
+        {
+            LogFlowFunc(("Closing VRDE channel %d.\n", u32ChannelHandle));
+            pThis->m_interfaceTSMF.VRDETSMFChannelClose(pThis->mhServer, u32ChannelHandle);
+        }
+        else
+        {
+            LogFlowFunc(("No VRDE channel.\n"));
+        }
+    }
+}
+
+/* static */ DECLCALLBACK(int) ConsoleVRDPServer::tsmfHostChannelSend(void *pvChannel,
+                                                                      const void *pvData,
+                                                                      uint32_t cbData)
+{
+    LogFlowFunc(("cbData %d\n", cbData));
+
+    TSMFHOSTCHCTX *pHostChCtx = (TSMFHOSTCHCTX *)pvChannel;
+    ConsoleVRDPServer *pThis = pHostChCtx->pThis;
+
+    int rc = pThis->tsmfLock();
+    if (RT_SUCCESS(rc))
+    {
+        bool fSend = false;
+        uint32_t u32ChannelHandle = 0;
+
+        if (pHostChCtx->pVRDPCtx)
+        {
+            u32ChannelHandle = pHostChCtx->pVRDPCtx->u32ChannelHandle;
+            fSend = true;
+        }
+
+        pThis->tsmfUnlock();
+
+        if (fSend)
+        {
+            LogFlowFunc(("Send to VRDE channel %d.\n", u32ChannelHandle));
+            rc = pThis->m_interfaceTSMF.VRDETSMFChannelSend(pThis->mhServer, u32ChannelHandle,
+                                                            pvData, cbData);
+        }
+    }
+
+    return rc;
+}
+
+/* static */ DECLCALLBACK(int) ConsoleVRDPServer::tsmfHostChannelRecv(void *pvChannel,
+                                                                      void *pvData,
+                                                                      uint32_t cbData,
+                                                                      uint32_t *pcbReceived,
+                                                                      uint32_t *pcbRemaining)
+{
+    LogFlowFunc(("cbData %d\n", cbData));
+
+    TSMFHOSTCHCTX *pHostChCtx = (TSMFHOSTCHCTX *)pvChannel;
+    ConsoleVRDPServer *pThis = pHostChCtx->pThis;
+
+    int rc = pThis->tsmfLock();
+    if (RT_SUCCESS(rc))
+    {
+        uint32_t cbToCopy = RT_MIN(cbData, pHostChCtx->cbDataReceived);
+        uint32_t cbRemaining = pHostChCtx->cbDataReceived - cbToCopy;
+
+        LogFlowFunc(("cbToCopy %d, cbRemaining %d\n", cbToCopy, cbRemaining));
+
+        if (cbToCopy != 0)
+        {
+            memcpy(pvData, pHostChCtx->pvDataReceived, cbToCopy);
+
+            if (cbRemaining != 0)
+            {
+                memmove(pHostChCtx->pvDataReceived, (uint8_t *)pHostChCtx->pvDataReceived + cbToCopy, cbRemaining);
+            }
+
+            pHostChCtx->cbDataReceived = cbRemaining;
+        }
+
+        pThis->tsmfUnlock();
+
+        *pcbRemaining = cbRemaining;
+        *pcbReceived = cbToCopy;
+    }
+
+    return rc;
+}
+
+/* static */ DECLCALLBACK(int) ConsoleVRDPServer::tsmfHostChannelControl(void *pvChannel,
+                                                                         uint32_t u32Code,
+                                                                         const void *pvParm,
+                                                                         uint32_t cbParm,
+                                                                         const void *pvData,
+                                                                         uint32_t cbData,
+                                                                         uint32_t *pcbDataReturned)
+{
+    LogFlowFunc(("u32Code %u\n", u32Code));
+
+    if (!pvChannel)
+    {
+        /* Special case, the provider must answer rather than a channel instance. */
+        if (u32Code == VBOX_HOST_CHANNEL_CTRL_EXISTS)
+        {
+            *pcbDataReturned = 0;
+            return VINF_SUCCESS;
+        }
+
+        return VERR_NOT_IMPLEMENTED;
+    }
+
+    /* Channels do not support this. */
+    return VERR_NOT_IMPLEMENTED;
+}
+
+
+void ConsoleVRDPServer::setupTSMF(void)
+{
+    if (m_interfaceTSMF.header.u64Size == 0)
+    {
+        return;
+    }
+
+    /* Register with the host channel service. */
+    VBOXHOSTCHANNELINTERFACE hostChannelInterface =
+    {
+        this,
+        tsmfHostChannelAttach,
+        tsmfHostChannelDetach,
+        tsmfHostChannelSend,
+        tsmfHostChannelRecv,
+        tsmfHostChannelControl
+    };
+
+    VBoxHostChannelHostRegister parms;
+
+    static char szProviderName[] = "/vrde/tsmf";
+
+    parms.name.type = VBOX_HGCM_SVC_PARM_PTR;
+    parms.name.u.pointer.addr = &szProviderName[0];
+    parms.name.u.pointer.size = sizeof(szProviderName);
+
+    parms.iface.type = VBOX_HGCM_SVC_PARM_PTR;
+    parms.iface.u.pointer.addr = &hostChannelInterface;
+    parms.iface.u.pointer.size = sizeof(hostChannelInterface);
+
+    VMMDev *pVMMDev = mConsole->getVMMDev();
+
+    if (!pVMMDev)
+    {
+        AssertMsgFailed(("setupTSMF no vmmdev\n"));
+        return;
+    }
+
+    int rc = pVMMDev->hgcmHostCall("VBoxHostChannel",
+                                   VBOX_HOST_CHANNEL_HOST_FN_REGISTER,
+                                   2,
+                                   &parms.name);
+
+    if (!RT_SUCCESS(rc))
+    {
+        Log(("VBOX_HOST_CHANNEL_HOST_FN_REGISTER failed with %Rrc\n", rc));
+        return;
+    }
+
+    LogRel(("VRDE: Enabled TSMF channel.\n"));
+
+    return;
+}
+
+/* @todo these defines must be in a header, which is used by guest component as well. */
+#define VBOX_TSMF_HCH_CREATE_ACCEPTED (VBOX_HOST_CHANNEL_EVENT_USER + 0)
+#define VBOX_TSMF_HCH_CREATE_DECLINED (VBOX_HOST_CHANNEL_EVENT_USER + 1)
+#define VBOX_TSMF_HCH_DISCONNECTED    (VBOX_HOST_CHANNEL_EVENT_USER + 2)
+
+/* static */ DECLCALLBACK(void) ConsoleVRDPServer::VRDETSMFCbNotify(void *pvContext,
+                                                                    uint32_t u32Notification,
+                                                                    void *pvChannel,
+                                                                    const void *pvParm,
+                                                                    uint32_t cbParm)
+{
+    int rc = VINF_SUCCESS;
+
+    ConsoleVRDPServer *pThis = static_cast<ConsoleVRDPServer*>(pvContext);
+
+    TSMFVRDPCTX *pVRDPCtx = (TSMFVRDPCTX *)pvChannel;
+
+    Assert(pVRDPCtx->pThis == pThis);
+
+    if (pVRDPCtx->pCallbacks == NULL)
+    {
+        LogFlowFunc(("tsmfHostChannel: Channel disconnected. Skipping.\n"));
+        return;
+    }
+
+    switch (u32Notification)
+    {
+        case VRDE_TSMF_N_CREATE_ACCEPTED:
+        {
+            VRDETSMFNOTIFYCREATEACCEPTED *p = (VRDETSMFNOTIFYCREATEACCEPTED *)pvParm;
+            Assert(cbParm == sizeof(VRDETSMFNOTIFYCREATEACCEPTED));
+
+            LogFlowFunc(("tsmfHostChannel: VRDE_TSMF_N_CREATE_ACCEPTED(%p): p->u32ChannelHandle %d\n",
+                          pVRDPCtx, p->u32ChannelHandle));
+
+            pVRDPCtx->u32ChannelHandle = p->u32ChannelHandle;
+
+            pVRDPCtx->pCallbacks->HostChannelCallbackEvent(pVRDPCtx->pvCallbacks, pVRDPCtx->pHostChCtx,
+                                                           VBOX_TSMF_HCH_CREATE_ACCEPTED,
+                                                           NULL, 0);
+        } break;
+
+        case VRDE_TSMF_N_CREATE_DECLINED:
+        {
+            LogFlowFunc(("tsmfHostChannel: VRDE_TSMF_N_CREATE_DECLINED(%p)\n", pVRDPCtx));
+
+            pVRDPCtx->pCallbacks->HostChannelCallbackEvent(pVRDPCtx->pvCallbacks, pVRDPCtx->pHostChCtx,
+                                                           VBOX_TSMF_HCH_CREATE_DECLINED,
+                                                           NULL, 0);
+        } break;
+
+        case VRDE_TSMF_N_DATA:
+        {
+            /* Save the data in the intermediate buffer and send the event. */
+            VRDETSMFNOTIFYDATA *p = (VRDETSMFNOTIFYDATA *)pvParm;
+            Assert(cbParm == sizeof(VRDETSMFNOTIFYDATA));
+
+            LogFlowFunc(("tsmfHostChannel: VRDE_TSMF_N_DATA(%p): p->cbData %d\n", pVRDPCtx, p->cbData));
+
+            VBOXHOSTCHANNELEVENTRECV ev;
+            ev.u32SizeAvailable = 0;
+
+            rc = pThis->tsmfLock();
+
+            if (RT_SUCCESS(rc))
+            {
+                TSMFHOSTCHCTX *pHostChCtx = pVRDPCtx->pHostChCtx;
+
+                if (pHostChCtx)
+                {
+                    if (pHostChCtx->pvDataReceived)
+                    {
+                        uint32_t cbAlloc = p->cbData + pHostChCtx->cbDataReceived;
+                        pHostChCtx->pvDataReceived = RTMemRealloc(pHostChCtx->pvDataReceived, cbAlloc);
+                        memcpy((uint8_t *)pHostChCtx->pvDataReceived + pHostChCtx->cbDataReceived, p->pvData, p->cbData);
+
+                        pHostChCtx->cbDataReceived += p->cbData;
+                        pHostChCtx->cbDataAllocated = cbAlloc;
+                    }
+                    else
+                    {
+                        pHostChCtx->pvDataReceived = RTMemAlloc(p->cbData);
+                        memcpy(pHostChCtx->pvDataReceived, p->pvData, p->cbData);
+
+                        pHostChCtx->cbDataReceived = p->cbData;
+                        pHostChCtx->cbDataAllocated = p->cbData;
+                    }
+
+                    ev.u32SizeAvailable = p->cbData;
+                }
+                else
+                {
+                    LogFlowFunc(("tsmfHostChannel: VRDE_TSMF_N_DATA: no host channel. Skipping\n"));
+                }
+
+                pThis->tsmfUnlock();
+            }
+
+            pVRDPCtx->pCallbacks->HostChannelCallbackEvent(pVRDPCtx->pvCallbacks, pVRDPCtx->pHostChCtx,
+                                                           VBOX_HOST_CHANNEL_EVENT_RECV,
+                                                           &ev, sizeof(ev));
+        } break;
+
+        case VRDE_TSMF_N_DISCONNECTED:
+        {
+            LogFlowFunc(("tsmfHostChannel: VRDE_TSMF_N_DISCONNECTED(%p)\n", pVRDPCtx));
+
+            pVRDPCtx->pCallbacks->HostChannelCallbackEvent(pVRDPCtx->pvCallbacks, pVRDPCtx->pHostChCtx,
+                                                           VBOX_TSMF_HCH_DISCONNECTED,
+                                                           NULL, 0);
+
+            /* The callback context will not be used anymore. */
+            pVRDPCtx->pCallbacks->HostChannelCallbackDeleted(pVRDPCtx->pvCallbacks, pVRDPCtx->pHostChCtx);
+            pVRDPCtx->pCallbacks = NULL;
+            pVRDPCtx->pvCallbacks = NULL;
+
+            rc = pThis->tsmfLock();
+            if (RT_SUCCESS(rc))
+            {
+                if (pVRDPCtx->pHostChCtx)
+                {
+                    /* There is still a host channel context for this channel. */
+                    pVRDPCtx->pHostChCtx->pVRDPCtx = NULL;
+                }
+
+                pThis->tsmfUnlock();
+
+                memset(pVRDPCtx, 0, sizeof(*pVRDPCtx));
+                RTMemFree(pVRDPCtx);
+            }
+        } break;
+
+        default:
+        {
+            AssertFailed();
+        } break;
+    }
+}
+
 void ConsoleVRDPServer::EnableConnections(void)
 {
     if (mpEntryPoints && mhServer)
@@ -2038,6 +2549,9 @@ void ConsoleVRDPServer::EnableConnections(void)
 
         /* Redirect 3D output if it is enabled. */
         remote3DRedirect();
+
+        /* Setup the generic TSMF channel. */
+        setupTSMF();
     }
 }
 
@@ -2047,6 +2561,63 @@ void ConsoleVRDPServer::DisconnectClient(uint32_t u32ClientId, bool fReconnect)
     {
         mpEntryPoints->VRDEDisconnect(mhServer, u32ClientId, fReconnect);
     }
+}
+
+int ConsoleVRDPServer::MousePointer(BOOL alpha,
+                                    ULONG xHot,
+                                    ULONG yHot,
+                                    ULONG width,
+                                    ULONG height,
+                                    const uint8_t *pu8Shape)
+{
+    int rc = VINF_SUCCESS;
+
+    if (mhServer && mpEntryPoints && m_interfaceMousePtr.VRDEMousePtr)
+    {
+        size_t cbMask = (((width + 7) / 8) * height + 3) & ~3;
+        size_t cbData = width * height * 4;
+
+        size_t cbDstMask = alpha? 0: cbMask;
+
+        size_t cbPointer = sizeof(VRDEMOUSEPTRDATA) + cbDstMask + cbData;
+        uint8_t *pu8Pointer = (uint8_t *)RTMemAlloc(cbPointer);
+        if (pu8Pointer != NULL)
+        {
+            VRDEMOUSEPTRDATA *pPointer = (VRDEMOUSEPTRDATA *)pu8Pointer;
+
+            pPointer->u16HotX    = (uint16_t)xHot;
+            pPointer->u16HotY    = (uint16_t)yHot;
+            pPointer->u16Width   = (uint16_t)width;
+            pPointer->u16Height  = (uint16_t)height;
+            pPointer->u16MaskLen = (uint16_t)cbDstMask;
+            pPointer->u32DataLen = (uint32_t)cbData;
+
+            /* AND mask. */
+            uint8_t *pu8Mask = pu8Pointer + sizeof(VRDEMOUSEPTRDATA);
+            if (cbDstMask)
+            {
+                memcpy(pu8Mask, pu8Shape, cbDstMask);
+            }
+
+            /* XOR mask */
+            uint8_t *pu8Data = pu8Mask + pPointer->u16MaskLen;
+            memcpy(pu8Data, pu8Shape + cbMask, cbData);
+
+            m_interfaceMousePtr.VRDEMousePtr(mhServer, pPointer);
+
+            RTMemFree(pu8Pointer);
+        }
+        else
+        {
+            rc = VERR_NO_MEMORY;
+        }
+    }
+    else
+    {
+        rc = VERR_NOT_SUPPORTED;
+    }
+
+    return rc;
 }
 
 void ConsoleVRDPServer::MousePointerUpdate(const VRDECOLORPOINTER *pPointer)

@@ -55,8 +55,7 @@
 #define VBE_DISPI_INDEX_X_OFFSET        0x8
 #define VBE_DISPI_INDEX_Y_OFFSET        0x9
 #define VBE_DISPI_INDEX_VBOX_VIDEO      0xa
-#define VBE_DISPI_INDEX_NB_SAVED        0xb /* Number of saved registers (vbe_regs array) */
-#define VBE_DISPI_INDEX_NB              0xb /* Total number of VBE registers */
+#define VBE_DISPI_INDEX_FB_BASE_HI      0xb
 
 #define VBE_DISPI_ID0                   0xB0C0
 #define VBE_DISPI_ID1                   0xB0C1
@@ -78,10 +77,11 @@
 #define VBE_DISPI_LFB_ENABLED           0x40
 #define VBE_DISPI_NOCLEARMEM            0x80
 
-#define VBE_DISPI_LFB_PHYSICAL_ADDRESS  0xE0000000
-
 #define VGA_PORT_HGSMI_HOST             0x3b0
 #define VGA_PORT_HGSMI_GUEST            0x3d0
+
+/* this should be in sync with monitorCount <xsd:maxInclusive value="8"/> in src/VBox/Main/xml/VirtualBox-settings-common.xsd */
+#define VBOX_VIDEO_MAX_SCREENS 64
 
 #endif /* !___VBox_Hardware_VBoxVideoVBE_h */
 

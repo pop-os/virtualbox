@@ -7,6 +7,9 @@
 #ifndef CR_VERSION_H
 #define CR_VERSION_H
 
+#define SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS       28
+#define SHCROGL_SSM_VERSION_BEFORE_FRONT_DRAW_TRACKING 29
+#define SHCROGL_SSM_VERSION                            30
 
 /* These define the Chromium release number.
  * Alpha Release = 0.1.0, Beta Release = 0.2.0
@@ -107,7 +110,11 @@
 #define CR_NV_vertex_program 1
 #define CR_NV_vertex_program1_1 1
 #define CR_NV_vertex_program2 1
+#define CR_NV_vertex_program2_option 1
+#define CR_NV_vertex_program3 1
 #define CR_NV_fragment_program 1
+#define CR_NV_fragment_program_option 1
+#define CR_NV_fragment_program2 1
 
 #define CR_SGIS_texture_border_clamp 1
 #define CR_SGIS_texture_edge_clamp 1

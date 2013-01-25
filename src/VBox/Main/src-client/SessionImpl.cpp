@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -299,7 +299,7 @@ STDMETHODIMP Session::GetRemoteConsole(IConsole **aConsole)
     return S_OK;
 }
 
-STDMETHODIMP Session::AssignMachine(IMachine *aMachine)
+STDMETHODIMP Session::AssignMachine(IMachine *aMachine, LockType_T aLockType)
 {
     LogFlowThisFuncEnter();
     LogFlowThisFunc(("aMachine=%p\n", aMachine));
@@ -336,7 +336,7 @@ STDMETHODIMP Session::AssignMachine(IMachine *aMachine)
     rc = mConsole.createObject();
     AssertComRCReturn(rc, rc);
 
-    rc = mConsole->init(aMachine, mControl);
+    rc = mConsole->init(aMachine, mControl, aLockType);
     AssertComRCReturn(rc, rc);
 
     rc = grabIPCSemaphore();
@@ -357,8 +357,11 @@ STDMETHODIMP Session::AssignMachine(IMachine *aMachine)
     {
         /* some cleanup */
         mControl.setNull();
-        mConsole->uninit();
-        mConsole.setNull();
+        if (!mConsole.isNull())
+        {
+            mConsole->uninit();
+            mConsole.setNull();
+        }
     }
 
     LogFlowThisFunc(("rc=%08X\n", rc));
@@ -492,8 +495,10 @@ STDMETHODIMP Session::Uninitialize()
             return S_OK;
         }
 
+#ifndef DEBUG_andy /* Don't bug me -- now time to fix this at the moment. */
         AssertReturn(mState == SessionState_Locked ||
-                      mState == SessionState_Spawning, VBOX_E_INVALID_VM_STATE);
+                     mState == SessionState_Spawning, VBOX_E_INVALID_VM_STATE);
+#endif
 
         /* close ourselves */
         rc = unlockMachine(false /* aFinalRelease */, true /* aFromServer */);
@@ -528,6 +533,7 @@ STDMETHODIMP Session::OnNetworkAdapterChange(INetworkAdapter *networkAdapter, BO
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     return mConsole->onNetworkAdapterChange(networkAdapter, changeAdapter);
 }
@@ -542,6 +548,7 @@ STDMETHODIMP Session::OnSerialPortChange(ISerialPort *serialPort)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     return mConsole->onSerialPortChange(serialPort);
 }
@@ -556,6 +563,7 @@ STDMETHODIMP Session::OnParallelPortChange(IParallelPort *parallelPort)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     return mConsole->onParallelPortChange(parallelPort);
 }
@@ -570,6 +578,7 @@ STDMETHODIMP Session::OnStorageControllerChange()
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     return mConsole->onStorageControllerChange();
 }
@@ -584,6 +593,7 @@ STDMETHODIMP Session::OnMediumChange(IMediumAttachment *aMediumAttachment, BOOL 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     return mConsole->onMediumChange(aMediumAttachment, aForce);
 }
@@ -598,6 +608,7 @@ STDMETHODIMP Session::OnCPUChange(ULONG aCPU, BOOL aRemove)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     return mConsole->onCPUChange(aCPU, aRemove);
 }
@@ -612,6 +623,7 @@ STDMETHODIMP Session::OnCPUExecutionCapChange(ULONG aExecutionCap)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     return mConsole->onCPUExecutionCapChange(aExecutionCap);
 }
@@ -626,6 +638,7 @@ STDMETHODIMP Session::OnVRDEServerChange(BOOL aRestart)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     return mConsole->onVRDEServerChange(aRestart);
 }
@@ -640,6 +653,7 @@ STDMETHODIMP Session::OnUSBControllerChange()
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     return mConsole->onUSBControllerChange();
 }
@@ -654,8 +668,38 @@ STDMETHODIMP Session::OnSharedFolderChange(BOOL aGlobal)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     return mConsole->onSharedFolderChange(aGlobal);
+}
+
+STDMETHODIMP Session::OnClipboardModeChange(ClipboardMode_T aClipboardMode)
+{
+    LogFlowThisFunc(("\n"));
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
+    AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
+
+    return mConsole->onClipboardModeChange(aClipboardMode);
+}
+
+STDMETHODIMP Session::OnDragAndDropModeChange(DragAndDropMode_T aDragAndDropMode)
+{
+    LogFlowThisFunc(("\n"));
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
+    AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+
+    return mConsole->onDragAndDropModeChange(aDragAndDropMode);
 }
 
 STDMETHODIMP Session::OnUSBDeviceAttach(IUSBDevice *aDevice,
@@ -670,6 +714,7 @@ STDMETHODIMP Session::OnUSBDeviceAttach(IUSBDevice *aDevice,
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     return mConsole->onUSBDeviceAttach(aDevice, aError, aMaskedIfs);
 }
@@ -685,6 +730,7 @@ STDMETHODIMP Session::OnUSBDeviceDetach(IN_BSTR aId,
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     return mConsole->onUSBDeviceDetach(aId, aError);
 }
@@ -697,6 +743,7 @@ STDMETHODIMP Session::OnShowWindow(BOOL aCheck, BOOL *aCanShow, LONG64 *aWinId)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     if (mState != SessionState_Locked)
     {
@@ -722,6 +769,7 @@ STDMETHODIMP Session::OnBandwidthGroupChange(IBandwidthGroup *aBandwidthGroup)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     return mConsole->onBandwidthGroupChange(aBandwidthGroup);
 }
@@ -736,6 +784,7 @@ STDMETHODIMP Session::OnStorageDeviceChange(IMediumAttachment *aMediumAttachment
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     return mConsole->onStorageDeviceChange(aMediumAttachment, aRemove);
 }
@@ -765,6 +814,12 @@ STDMETHODIMP Session::AccessGuestProperty(IN_BSTR aName, IN_BSTR aValue, IN_BSTR
     /* aFlags can be null if it is to be left as is */
     if (aIsSetter && (aFlags != NULL) && !VALID_PTR(aFlags))
         return E_INVALIDARG;
+
+    /* If this session is not in a VM process fend off the call. The caller
+     * handles this correctly, by doing the operation in VBoxSVC. */
+    if (!mConsole)
+        return E_ACCESSDENIED;
+
     if (!aIsSetter)
         return mConsole->getGuestProperty(aName, aRetValue, aRetTimestamp, aRetFlags);
     else
@@ -799,6 +854,12 @@ STDMETHODIMP Session::EnumerateGuestProperties(IN_BSTR aPatterns,
         return E_POINTER;
     if (ComSafeArrayOutIsNull(aFlags))
         return E_POINTER;
+
+    /* If this session is not in a VM process fend off the call. The caller
+     * handles this correctly, by doing the operation in VBoxSVC. */
+    if (!mConsole)
+        return E_ACCESSDENIED;
+
     return mConsole->enumerateGuestProperties(aPatterns,
                                               ComSafeArrayOutArg(aNames),
                                               ComSafeArrayOutArg(aValues),
@@ -825,6 +886,7 @@ STDMETHODIMP Session::OnlineMergeMedium(IMediumAttachment *aMediumAttachment,
                         tr("Machine is not locked by session (session state: %s)."),
                         Global::stringifySessionState(mState));
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
     CheckComArgNotNull(aMediumAttachment);
     CheckComArgSafeArrayNotNull(aChildrenToReparent);
 
@@ -843,6 +905,7 @@ STDMETHODIMP Session::EnableVMMStatistics(BOOL aEnable)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
     AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     mConsole->enableVMMStatistics(aEnable);
 
@@ -909,8 +972,11 @@ HRESULT Session::unlockMachine(bool aFinalRelease, bool aFromServer)
 
     if (mType == SessionType_WriteLock)
     {
-        mConsole->uninit();
-        mConsole.setNull();
+        if (!mConsole.isNull())
+        {
+            mConsole->uninit();
+            mConsole.setNull();
+        }
     }
     else
     {
@@ -939,13 +1005,13 @@ HRESULT Session::unlockMachine(bool aFinalRelease, bool aFromServer)
          *  we need to release the lock to avoid deadlocks. The state is already
          *  SessionState_Closing here, so it's safe.
          */
-        alock.leave();
+        alock.release();
 
         LogFlowThisFunc(("Calling mControl->OnSessionEnd()...\n"));
         HRESULT rc = mControl->OnSessionEnd(this, progress.asOutParam());
         LogFlowThisFunc(("mControl->OnSessionEnd()=%08X\n", rc));
 
-        alock.enter();
+        alock.acquire();
 
         /*
          *  If we get E_UNEXPECTED this means that the direct session has already

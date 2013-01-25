@@ -41,7 +41,7 @@
  *    @code
  *    return VM_SET_ERROR(pVM, VERR_OF_YOUR_CHOICE, "descriptive message");
  *    @endcode
- * @param   pVM             VM handle. Must be non-NULL.
+ * @param   pVM             Pointer to the VM. Must be non-NULL.
  * @param   rc              VBox status code.
  * @param   RT_SRC_POS_DECL Use RT_SRC_POS.
  * @param   pszFormat       Error message format string.
@@ -65,7 +65,7 @@ VMMDECL(int) VMSetError(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat,
  *    @code
  *    return VM_SET_ERROR(pVM, VERR_OF_YOUR_CHOICE, "descriptive message");
  *    @endcode
- * @param   pVM             VM handle. Must be non-NULL.
+ * @param   pVM             Pointer to the VM. Must be non-NULL.
  * @param   rc              VBox status code.
  * @param   RT_SRC_POS_DECL Use RT_SRC_POS.
  * @param   pszFormat       Error message format string.
@@ -102,7 +102,7 @@ VMMDECL(int) VMSetErrorV(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat
  * memory accessible from ring-3. But it's just possible that we might add
  * APIs for retrieving the VMERROR copy later.
  *
- * @param   pVM             VM handle. Must be non-NULL.
+ * @param   pVM             Pointer to the VM. Must be non-NULL.
  * @param   rc              VBox status code.
  * @param   RT_SRC_POS_DECL Use RT_SRC_POS.
  * @param   pszFormat       Error message format string.
@@ -111,6 +111,7 @@ VMMDECL(int) VMSetErrorV(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat
  */
 void vmSetErrorCopy(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list args)
 {
+    NOREF(pVM); NOREF(rc); RT_SRC_POS_NOREF(); NOREF(pszFormat); NOREF(args);
 #if 0 /// @todo implement Ring-0 and GC VMSetError
     /*
      * Create the untranslated message copy.
@@ -183,7 +184,7 @@ void vmSetErrorCopy(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_
  * @returns VBox status code. For some flags the status code <b>must</b> be
  *          propagated up the stack.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  *
  * @param   fFlags          Flags indicating which actions to take.
  *                          See VMSETRTERR_FLAGS_* for details on each flag.
@@ -219,7 +220,7 @@ VMMDECL(int) VMSetRuntimeError(PVM pVM, uint32_t fFlags, const char *pszErrorId,
  * @returns VBox status code. For some flags the status code <b>must</b> be
  *          propagated up the stack.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   fFlags          Flags indicating which actions to take. See
  *                          VMSETRTERR_FLAGS_*.
  * @param   pszErrorId      Error ID string.
@@ -296,7 +297,7 @@ VMMDECL(int) VMSetRuntimeErrorV(PVM pVM, uint32_t fFlags, const char *pszErrorId
  * memory accessible from ring-3. But it's just possible that we might add
  * APIs for retrieving the VMRUNTIMEERROR copy later.
  *
- * @param   pVM             VM handle. Must be non-NULL.
+ * @param   pVM             Pointer to the VM. Must be non-NULL.
  * @param   fFlags          The error flags.
  * @param   pszErrorId      Error ID string.
  * @param   pszFormat       Error message format string.
@@ -306,6 +307,7 @@ VMMDECL(int) VMSetRuntimeErrorV(PVM pVM, uint32_t fFlags, const char *pszErrorId
  */
 void vmSetRuntimeErrorCopy(PVM pVM, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va)
 {
+    NOREF(pVM); NOREF(fFlags); NOREF(pszErrorId); NOREF(pszFormat); NOREF(va);
 #if 0 /// @todo implement Ring-0 and GC VMSetError
     /*
      * Create the untranslated message copy.

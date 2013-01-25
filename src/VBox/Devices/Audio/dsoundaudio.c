@@ -36,6 +36,7 @@
 #include "vl_vbox.h"
 #include "audio.h"
 #include <iprt/alloc.h>
+#include <iprt/uuid.h>
 #include <VBox/log.h>
 
 
@@ -53,6 +54,8 @@ static struct {
     int bufsize_out;
     audsettings_t settings;
     int latency_millis;
+    char *device_guid_out;
+    char *device_guid_in;
 } conf = {
     1,
     1,
@@ -65,7 +68,9 @@ static struct {
         2,
         AUD_FMT_S16
     },
-    10
+    10,
+    NULL,
+    NULL
 };
 
 typedef struct {
@@ -1016,6 +1021,8 @@ static void *dsound_audio_init (void)
     int err;
     HRESULT hr;
     dsound *s = &glob_dsound;
+    RTUUID devguid;
+    LPCGUID devguidp;
 
     hr = CoInitializeEx (NULL, COINIT_MULTITHREADED);
     if (FAILED (hr)) {
@@ -1046,7 +1053,16 @@ static void *dsound_audio_init (void)
         return NULL;
     }
 
-    hr = IDirectSound_Initialize (s->dsound, NULL);
+    if (conf.device_guid_out) {
+        hr = RTUuidFromStr(&devguid, conf.device_guid_out);
+        if (FAILED (hr)) {
+            LogRel(("DSound: Could not parse DirectSound output device GUID\n"));
+        }
+        devguidp = (LPCGUID)&devguid;
+    } else {
+        devguidp = NULL;
+    }
+    hr = IDirectSound_Initialize (s->dsound, devguidp);
     if (FAILED (hr)) {
 #ifndef VBOX
         dsound_logerr (hr, "Could not initialize DirectSound\n");
@@ -1080,7 +1096,16 @@ static void *dsound_audio_init (void)
 #endif
     }
     else {
-        hr = IDirectSoundCapture_Initialize (s->dsound_capture, NULL);
+        if (conf.device_guid_in) {
+            hr = RTUuidFromStr(&devguid, conf.device_guid_in);
+            if (FAILED (hr)) {
+                LogRel(("DSound: Could not parse DirectSound input device GUID\n"));
+            }
+            devguidp = (LPCGUID)&devguid;
+        } else {
+            devguidp = NULL;
+        }
+        hr = IDirectSoundCapture_Initialize (s->dsound_capture, devguidp);
         if (FAILED (hr)) {
 #ifndef VBOX
             dsound_logerr (hr, "Could not initialize DirectSoundCapture\n");
@@ -1108,26 +1133,30 @@ static void *dsound_audio_init (void)
 }
 
 static struct audio_option dsound_options[] = {
-    {"LOCK_RETRIES", AUD_OPT_INT, &conf.lock_retries,
+    {"LockRetries", AUD_OPT_INT, &conf.lock_retries,
      "Number of times to attempt locking the buffer", NULL, 0},
-    {"RESTOURE_RETRIES", AUD_OPT_INT, &conf.restore_retries,
+    {"RestoreRetries", AUD_OPT_INT, &conf.restore_retries,
      "Number of times to attempt restoring the buffer", NULL, 0},
-    {"GETSTATUS_RETRIES", AUD_OPT_INT, &conf.getstatus_retries,
+    {"GetStatusRetries", AUD_OPT_INT, &conf.getstatus_retries,
      "Number of times to attempt getting status of the buffer", NULL, 0},
-    {"SET_PRIMARY", AUD_OPT_BOOL, &conf.set_primary,
+    {"SetPrimary", AUD_OPT_BOOL, &conf.set_primary,
      "Set the parameters of primary buffer", NULL, 0},
-    {"LATENCY_MILLIS", AUD_OPT_INT, &conf.latency_millis,
+    {"LatencyMillis", AUD_OPT_INT, &conf.latency_millis,
      "(undocumented)", NULL, 0},
-    {"PRIMARY_FREQ", AUD_OPT_INT, &conf.settings.freq,
+    {"PrimaryFreq", AUD_OPT_INT, &conf.settings.freq,
      "Primary buffer frequency", NULL, 0},
-    {"PRIMARY_CHANNELS", AUD_OPT_INT, &conf.settings.nchannels,
+    {"PrimaryChannels", AUD_OPT_INT, &conf.settings.nchannels,
      "Primary buffer number of channels (1 - mono, 2 - stereo)", NULL, 0},
-    {"PRIMARY_FMT", AUD_OPT_FMT, &conf.settings.fmt,
+    {"PrimaryFmt", AUD_OPT_FMT, &conf.settings.fmt,
      "Primary buffer format", NULL, 0},
-    {"BUFSIZE_OUT", AUD_OPT_INT, &conf.bufsize_out,
+    {"BufsizeOut", AUD_OPT_INT, &conf.bufsize_out,
      "(undocumented)", NULL, 0},
-    {"BUFSIZE_IN", AUD_OPT_INT, &conf.bufsize_in,
+    {"BufsizeIn", AUD_OPT_INT, &conf.bufsize_in,
      "(undocumented)", NULL, 0},
+    {"DeviceGuidOut", AUD_OPT_STR, &conf.device_guid_out,
+     "DirectSound output device GUID", NULL, 0},
+    {"DeviceGuidIn", AUD_OPT_STR, &conf.device_guid_in,
+     "DirectSound input device GUID", NULL, 0},
     {NULL, 0, NULL, NULL, NULL, 0}
 };
 

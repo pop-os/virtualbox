@@ -1,12 +1,10 @@
 /* $Id: SystemPropertiesImpl.cpp $ */
-
 /** @file
- *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +24,7 @@
 #include "AutoCaller.h"
 #include "Global.h"
 #include "Logging.h"
+#include "AutostartDb.h"
 
 // generated header
 #include "SchemaDefs.h"
@@ -321,20 +320,10 @@ STDMETHODIMP SystemProperties::GetMaxNetworkAdapters(ChipsetType_T aChipset, ULO
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    ULONG uResult = 0;
-
     /* no need for locking, no state */
-    switch (aChipset)
-    {
-        case ChipsetType_PIIX3:
-            uResult = SchemaDefs::NetworkAdapterCount; /* == 8 */
-            break;
-        case ChipsetType_ICH9:
-            uResult = 36;
-            break;
-        default:
-            AssertMsgFailed(("Invalid chipset type %d\n", aChipset));
-    }
+    uint32_t uResult = Global::getMaxNetworkAdapters(aChipset);
+    if (uResult == 0)
+        AssertMsgFailed(("Invalid chipset type %d\n", aChipset));
 
     *count = uResult;
 
@@ -348,12 +337,11 @@ STDMETHODIMP SystemProperties::GetMaxNetworkAdaptersOfType(ChipsetType_T aChipse
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    ULONG uResult = 0;
-    HRESULT rc = GetMaxNetworkAdapters(aChipset, &uResult);
-    if (FAILED(rc))
-        return rc;
-
     /* no need for locking, no state */
+    uint32_t uResult = Global::getMaxNetworkAdapters(aChipset);
+    if (uResult == 0)
+        AssertMsgFailed(("Invalid chipset type %d\n", aChipset));
+
     switch (aType)
     {
         case NetworkAttachmentType_NAT:
@@ -364,7 +352,7 @@ STDMETHODIMP SystemProperties::GetMaxNetworkAdaptersOfType(ChipsetType_T aChipse
             /* Maybe use current host interface count here? */
             break;
         case NetworkAttachmentType_HostOnly:
-            uResult = 8;
+            uResult = RT_MIN(uResult, 8);
             break;
         default:
             AssertMsgFailed(("Unhandled attachment type %d\n", aType));
@@ -929,6 +917,86 @@ STDMETHODIMP SystemProperties::COMGETTER(DefaultAudioDriver)(AudioDriverType_T *
     return S_OK;
 }
 
+STDMETHODIMP SystemProperties::COMGETTER(AutostartDatabasePath)(BSTR *aAutostartDbPath)
+{
+    CheckComArgOutPointerValid(aAutostartDbPath);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    m->strAutostartDatabasePath.cloneTo(aAutostartDbPath);
+
+    return S_OK;
+}
+
+STDMETHODIMP SystemProperties::COMSETTER(AutostartDatabasePath)(IN_BSTR aAutostartDbPath)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = setAutostartDatabasePath(aAutostartDbPath);
+    alock.release();
+
+    if (SUCCEEDED(rc))
+    {
+        // VirtualBox::saveSettings() needs vbox write lock
+        AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
+        rc = mParent->saveSettings();
+    }
+
+    return rc;
+}
+
+STDMETHODIMP SystemProperties::COMGETTER(DefaultAdditionsISO)(BSTR *aDefaultAdditionsISO)
+{
+    CheckComArgOutPointerValid(aDefaultAdditionsISO);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (m->strDefaultAdditionsISO.isEmpty())
+    {
+        /* no guest additions, check if it showed up in the mean time */
+        alock.release();
+        {
+            AutoWriteLock wlock(this COMMA_LOCKVAL_SRC_POS);
+            ErrorInfoKeeper eik;
+            (void)setDefaultAdditionsISO("");
+        }
+        alock.acquire();
+    }
+    m->strDefaultAdditionsISO.cloneTo(aDefaultAdditionsISO);
+
+    return S_OK;
+}
+
+STDMETHODIMP SystemProperties::COMSETTER(DefaultAdditionsISO)(IN_BSTR aDefaultAdditionsISO)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /** @todo not yet implemented, settings handling is missing */
+    ReturnComNotImplemented();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = setDefaultAdditionsISO(aDefaultAdditionsISO);
+    alock.release();
+
+    if (SUCCEEDED(rc))
+    {
+        // VirtualBox::saveSettings() needs vbox write lock
+        AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
+        rc = mParent->saveSettings();
+    }
+
+    return rc;
+}
+
 // public methods only for internal purposes
 /////////////////////////////////////////////////////////////////////////////
 
@@ -957,6 +1025,16 @@ HRESULT SystemProperties::loadSettings(const settings::SystemProperties &data)
     if (FAILED(rc)) return rc;
 
     m->ulLogHistoryCount = data.ulLogHistoryCount;
+
+    rc = setAutostartDatabasePath(data.strAutostartDatabasePath);
+    if (FAILED(rc)) return rc;
+
+    {
+        /* must ignore errors signalled here, because the guest additions
+         * file may not exist, and in this case keep the empty string */
+        ErrorInfoKeeper eik;
+        (void)setDefaultAdditionsISO(data.strDefaultAdditionsISO);
+    }
 
     return S_OK;
 }
@@ -1132,6 +1210,81 @@ HRESULT SystemProperties::setWebServiceAuthLibrary(const Utf8Str &aPath)
 HRESULT SystemProperties::setDefaultVRDEExtPack(const Utf8Str &aExtPack)
 {
     m->strDefaultVRDEExtPack = aExtPack;
+
+    return S_OK;
+}
+
+HRESULT SystemProperties::setAutostartDatabasePath(const Utf8Str &aPath)
+{
+    HRESULT rc = S_OK;
+    AutostartDb *autostartDb = this->mParent->getAutostartDb();
+
+    if (!aPath.isEmpty())
+    {
+        /* Update path in the autostart database. */
+        int vrc = autostartDb->setAutostartDbPath(aPath.c_str());
+        if (RT_SUCCESS(vrc))
+            m->strAutostartDatabasePath = aPath;
+        else
+            rc = setError(E_FAIL,
+                          tr("Cannot set the autostart database path (%Rrc)"),
+                          vrc);
+    }
+    else
+    {
+        int vrc = autostartDb->setAutostartDbPath(NULL);
+        if (RT_SUCCESS(vrc) || vrc == VERR_NOT_SUPPORTED)
+            m->strAutostartDatabasePath = "";
+        else
+            rc = setError(E_FAIL,
+                          tr("Deleting the autostart database path failed (%Rrc)"),
+                          vrc);
+    }
+
+    return rc;
+}
+
+HRESULT SystemProperties::setDefaultAdditionsISO(const Utf8Str &aPath)
+{
+    Utf8Str path(aPath);
+    if (path.isEmpty())
+    {
+        char strTemp[RTPATH_MAX];
+        int vrc = RTPathAppPrivateNoArch(strTemp, sizeof(strTemp));
+        AssertRC(vrc);
+        Utf8Str strSrc1 = Utf8Str(strTemp).append("/VBoxGuestAdditions.iso");
+
+        vrc = RTPathExecDir(strTemp, sizeof(strTemp));
+        AssertRC(vrc);
+        Utf8Str strSrc2 = Utf8Str(strTemp).append("/additions/VBoxGuestAdditions.iso");
+
+        vrc = RTPathUserHome(strTemp, sizeof(strTemp));
+        AssertRC(vrc);
+        Utf8Str strSrc3 = Utf8StrFmt("%s/VBoxGuestAdditions_%ls.iso", strTemp, VirtualBox::getVersionNormalized().raw());
+
+        /* Check the standard image locations */
+        if (RTFileExists(strSrc1.c_str()))
+            path = strSrc1;
+        else if (RTFileExists(strSrc2.c_str()))
+            path = strSrc2;
+        else if (RTFileExists(strSrc3.c_str()))
+            path = strSrc3;
+        else
+            return setError(E_FAIL,
+                            tr("Cannot determine default Guest Additions ISO location. Most likely they are not available"));
+    }
+
+    if (!RTPathStartsWithRoot(path.c_str()))
+        return setError(E_INVALIDARG,
+                        tr("Given default machine Guest Additions ISO file '%s' is not fully qualified"),
+                        path.c_str());
+
+    if (!RTFileExists(path.c_str()))
+        return setError(E_INVALIDARG,
+                        tr("Given default machine Guest Additions ISO file '%s' does not exist"),
+                        path.c_str());
+
+    m->strDefaultAdditionsISO = path;
 
     return S_OK;
 }

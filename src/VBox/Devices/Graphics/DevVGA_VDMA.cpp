@@ -82,6 +82,9 @@ typedef struct VBOXVDMAHOST
 {
     PHGSMIINSTANCE pHgsmi;
     PVGASTATE pVGAState;
+#ifdef VBOX_VDMA_WITH_WATCHDOG
+    PTMTIMERR3 WatchDogTimer;
+#endif
 #ifdef VBOX_VDMA_WITH_WORKERTHREAD
     VBOXVDMAPIPE Pipe;
     HGSMILIST PendingList;
@@ -204,15 +207,16 @@ static int vboxVDMACrCtlPost(PVGASTATE pVGAState, PVBOXVDMACMD_CHROMIUM_CTL pCmd
 
 static int vboxVDMACrCtlHgsmiSetup(struct VBOXVDMAHOST *pVdma)
 {
-    PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP pCmd = (PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP)vboxVDMACrCtlCreate(
-            VBOXVDMACMD_CHROMIUM_CTL_TYPE_CRHGSMI_SETUP, sizeof (*pCmd));
+    PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP pCmd;
+    pCmd = (PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP) vboxVDMACrCtlCreate (VBOXVDMACMD_CHROMIUM_CTL_TYPE_CRHGSMI_SETUP,
+                                                                          sizeof (*pCmd));
     if (pCmd)
     {
         PVGASTATE pVGAState = pVdma->pVGAState;
         pCmd->pvVRamBase = pVGAState->vram_ptrR3;
         pCmd->cbVRam = pVGAState->vram_size;
         int rc = vboxVDMACrCtlPost(pVGAState, &pCmd->Hdr, sizeof (*pCmd));
-        AssertRC(rc);
+        Assert(RT_SUCCESS(rc) || rc == VERR_NOT_SUPPORTED);
         if (RT_SUCCESS(rc))
         {
             rc = vboxVDMACrCtlGetRc(&pCmd->Hdr);
@@ -233,6 +237,8 @@ static int vboxVDMACmdCheckCrCmd(struct VBOXVDMAHOST *pVdma, PVBOXVDMACBUF_DR pC
     uint8_t * pvRam = pVdma->pVGAState->vram_ptrR3;
     int rc = VINF_NOT_SUPPORTED;
 
+    cbDmaCmd = pCmdDr->cbBuf;
+
     if (pCmdDr->fFlags & VBOXVDMACBUF_FLAG_BUF_FOLLOWS_DR)
     {
         if (cbCmdDr < sizeof (*pCmdDr) + VBOXVDMACMD_HEADER_SIZE())
@@ -241,7 +247,6 @@ static int vboxVDMACmdCheckCrCmd(struct VBOXVDMAHOST *pVdma, PVBOXVDMACBUF_DR pC
             return VERR_INVALID_PARAMETER;
         }
 
-        cbDmaCmd = pCmdDr->cbBuf;
         if (cbDmaCmd < cbCmdDr - sizeof (*pCmdDr) - VBOXVDMACMD_HEADER_SIZE())
         {
             AssertMsgFailed(("invalid command buffer data!"));
@@ -249,6 +254,16 @@ static int vboxVDMACmdCheckCrCmd(struct VBOXVDMAHOST *pVdma, PVBOXVDMACBUF_DR pC
         }
 
         pDmaCmd = VBOXVDMACBUF_DR_TAIL(pCmdDr, VBOXVDMACMD);
+    }
+    else if (pCmdDr->fFlags & VBOXVDMACBUF_FLAG_BUF_VRAM_OFFSET)
+    {
+        VBOXVIDEOOFFSET offBuf = pCmdDr->Location.offVramBuf;
+        if (offBuf + cbDmaCmd > pVdma->pVGAState->vram_size)
+        {
+            AssertMsgFailed(("invalid command buffer data from offset!"));
+            return VERR_INVALID_PARAMETER;
+        }
+        pDmaCmd = (VBOXVDMACMD*)(pvRam + offBuf);
     }
 
     if (pDmaCmd)
@@ -1084,19 +1099,45 @@ static DECLCALLBACK(int) vboxVDMAWorkerThread(RTTHREAD ThreadSelf, void *pvUser)
 }
 #endif
 
+#ifdef VBOX_VDMA_WITH_WATCHDOG
+static DECLCALLBACK(void) vboxVDMAWatchDogTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
+{
+    VBOXVDMAHOST *pVdma = (VBOXVDMAHOST *)pvUser;
+    PVGASTATE pVGAState = pVdma->pVGAState;
+    VBVARaiseIrq(pVGAState, HGSMIHOSTFLAGS_WATCHDOG);
+}
+
+static int vboxVDMAWatchDogCtl(struct VBOXVDMAHOST *pVdma, uint32_t cMillis)
+{
+    PPDMDEVINS pDevIns = pVdma->pVGAState->pDevInsR3;
+    if (cMillis)
+        TMTimerSetMillies(pVdma->WatchDogTimer, cMillis);
+    else
+        TMTimerStop(pVdma->WatchDogTimer);
+    return VINF_SUCCESS;
+}
+#endif
+
 int vboxVDMAConstruct(PVGASTATE pVGAState, uint32_t cPipeElements)
 {
     int rc;
 #ifdef VBOX_VDMA_WITH_WORKERTHREAD
-    PVBOXVDMAHOST pVdma = (PVBOXVDMAHOST)RTMemAllocZ (RT_OFFSETOF(VBOXVDMAHOST, CmdPool.aCmds[cPipeElements]));
+    PVBOXVDMAHOST pVdma = (PVBOXVDMAHOST)RTMemAllocZ(RT_OFFSETOF(VBOXVDMAHOST, CmdPool.aCmds[cPipeElements]));
 #else
-    PVBOXVDMAHOST pVdma = (PVBOXVDMAHOST)RTMemAllocZ (sizeof (*pVdma));
+    PVBOXVDMAHOST pVdma = (PVBOXVDMAHOST)RTMemAllocZ(sizeof(*pVdma));
 #endif
     Assert(pVdma);
     if (pVdma)
     {
         pVdma->pHgsmi = pVGAState->pHGSMI;
         pVdma->pVGAState = pVGAState;
+
+#ifdef VBOX_VDMA_WITH_WATCHDOG
+        rc = PDMDevHlpTMTimerCreate(pVGAState->pDevInsR3, TMCLOCK_REAL, vboxVDMAWatchDogTimer,
+                                    pVdma, TMTIMER_FLAGS_NO_CRIT_SECT,
+                                    "VDMA WatchDog Timer", &pVdma->WatchDogTimer);
+        AssertRC(rc);
+#endif
 #ifdef VBOX_VDMA_WITH_WORKERTHREAD
         hgsmiListInit(&pVdma->PendingList);
         rc = vboxVDMAPipeConstruct(&pVdma->Pipe);
@@ -1119,7 +1160,7 @@ int vboxVDMAConstruct(PVGASTATE pVGAState, uint32_t cPipeElements)
 #endif
                 pVGAState->pVdma = pVdma;
 #ifdef VBOX_WITH_CRHGSMI
-                rc = vboxVDMACrCtlHgsmiSetup(pVdma);
+                int rcIgnored = vboxVDMACrCtlHgsmiSetup(pVdma); NOREF(rcIgnored); /** @todo is this ignoring intentional? */
 #endif
                 return VINF_SUCCESS;
 #ifdef VBOX_VDMA_WITH_WORKERTHREAD
@@ -1226,7 +1267,6 @@ int vboxVDMASaveStateExecDone(struct VBOXVDMAHOST *pVdma, PSSMHANDLE pSSM)
 #endif
 }
 
-
 void vboxVDMAControl(struct VBOXVDMAHOST *pVdma, PVBOXVDMA_CTL pCmd, uint32_t cbCmd)
 {
 #if 1
@@ -1243,6 +1283,11 @@ void vboxVDMAControl(struct VBOXVDMAHOST *pVdma, PVBOXVDMA_CTL pCmd, uint32_t cb
         case VBOXVDMA_CTL_TYPE_FLUSH:
             pCmd->i32Result = VINF_SUCCESS;
             break;
+#ifdef VBOX_VDMA_WITH_WATCHDOG
+        case VBOXVDMA_CTL_TYPE_WATCHDOG:
+            pCmd->i32Result = vboxVDMAWatchDogCtl(pVdma, pCmd->u32Offset);
+            break;
+#endif
         default:
             AssertBreakpoint();
             pCmd->i32Result = VERR_NOT_SUPPORTED;

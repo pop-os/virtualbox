@@ -48,7 +48,7 @@
  */
 typedef struct PGMR3DUMPHIERARCHYSTATE
 {
-    /** The VM handle. */
+    /** Pointer to the VM. */
     PVM             pVM;
     /** Output helpers. */
     PCDBGFINFOHLP   pHlp;
@@ -102,12 +102,13 @@ typedef PGMR3DUMPHIERARCHYSTATE *PPGMR3DUMPHIERARCHYSTATE;
  * @retval  VINF_SUCCESS on success, *pGCPhys is set.
  * @retval  VERR_INVALID_POINTER if the pointer is not within the GC physical memory.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   R3Ptr       The R3 pointer to convert.
  * @param   pGCPhys     Where to store the GC physical address on success.
  */
 VMMR3DECL(int) PGMR3DbgR3Ptr2GCPhys(PVM pVM, RTR3PTR R3Ptr, PRTGCPHYS pGCPhys)
 {
+    NOREF(pVM); NOREF(R3Ptr);
     *pGCPhys = NIL_RTGCPHYS;
     return VERR_NOT_IMPLEMENTED;
 }
@@ -123,12 +124,13 @@ VMMR3DECL(int) PGMR3DbgR3Ptr2GCPhys(PVM pVM, RTR3PTR R3Ptr, PRTGCPHYS pGCPhys)
  * @retval  VERR_PGM_PHYS_PAGE_RESERVED it it's a valid GC physical page but has no physical backing.
  * @retval  VERR_INVALID_POINTER if the pointer is not within the GC physical memory.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   R3Ptr       The R3 pointer to convert.
  * @param   pHCPhys     Where to store the HC physical address on success.
  */
 VMMR3DECL(int) PGMR3DbgR3Ptr2HCPhys(PVM pVM, RTR3PTR R3Ptr, PRTHCPHYS pHCPhys)
 {
+    NOREF(pVM); NOREF(R3Ptr);
     *pHCPhys = NIL_RTHCPHYS;
     return VERR_NOT_IMPLEMENTED;
 }
@@ -143,7 +145,7 @@ VMMR3DECL(int) PGMR3DbgR3Ptr2HCPhys(PVM pVM, RTR3PTR R3Ptr, PRTHCPHYS pHCPhys)
  * @retval  VINF_SUCCESS on success, *pGCPhys is set.
  * @retval  VERR_INVALID_POINTER if the HC physical address is not within the GC physical memory.
  *
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  * @param   HCPhys  The HC physical address to convert.
  * @param   pGCPhys Where to store the GC physical address on success.
  */
@@ -181,7 +183,7 @@ VMMR3DECL(int) PGMR3DbgHCPhys2GCPhys(PVM pVM, RTHCPHYS HCPhys, PRTGCPHYS pGCPhys
  *
  * @returns VBox status code.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pvDst       Where to store what's read.
  * @param   GCPhysDst   Where to start reading from.
  * @param   cb          The number of bytes to attempt reading.
@@ -203,7 +205,6 @@ VMMR3DECL(int) PGMR3DbgReadGCPhys(PVM pVM, void *pvDst, RTGCPHYS GCPhysSrc, size
 
     /* partial read that failed, chop it up in pages. */
     *pcbRead = 0;
-    size_t const cbReq = cb;
     rc = VINF_SUCCESS;
     while (cb > 0)
     {
@@ -233,7 +234,7 @@ VMMR3DECL(int) PGMR3DbgReadGCPhys(PVM pVM, void *pvDst, RTGCPHYS GCPhysSrc, size
  *
  * @returns VBox status code.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPhysDst   Where to start writing.
  * @param   pvSrc       What to write.
  * @param   cb          The number of bytes to attempt writing.
@@ -284,7 +285,7 @@ VMMR3DECL(int) PGMR3DbgWriteGCPhys(PVM pVM, RTGCPHYS GCPhysDst, const void *pvSr
  *
  * @returns VBox status code.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pvDst       Where to store what's read.
  * @param   GCPtrDst    Where to start reading from.
  * @param   cb          The number of bytes to attempt reading.
@@ -340,7 +341,7 @@ VMMR3DECL(int) PGMR3DbgReadGCPtr(PVM pVM, void *pvDst, RTGCPTR GCPtrSrc, size_t 
  *
  * @returns VBox status code.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPtrDst    Where to start writing.
  * @param   pvSrc       What to write.
  * @param   cb          The number of bytes to attempt writing.
@@ -559,7 +560,7 @@ static bool pgmR3DbgScanPage(const uint8_t *pbPage, int32_t *poff, uint32_t cb, 
  * @retval  VERR_INVALID_POINTER if any of the pointer arguments are invalid.
  * @retval  VERR_INVALID_ARGUMENT if any other arguments are invalid.
  *
- * @param   pVM             Pointer to the shared VM structure.
+ * @param   pVM             Pointer to the VM.
  * @param   GCPhys          Where to start searching.
  * @param   cbRange         The number of bytes to search.
  * @param   GCPhysAlign     The alignment of the needle. Must be a power of two
@@ -718,7 +719,7 @@ VMMR3DECL(int) PGMR3DbgScanPhysical(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cbRange, 
  * @retval  VERR_INVALID_POINTER if any of the pointer arguments are invalid.
  * @retval  VERR_INVALID_ARGUMENT if any other arguments are invalid.
  *
- * @param   pVM             Pointer to the shared VM structure.
+ * @param   pVM             Pointer to the VM.
  * @param   pVCpu           The CPU context to search in.
  * @param   GCPtr           Where to start searching.
  * @param   GCPtrAlign      The alignment of the needle. Must be a power of two
@@ -847,7 +848,7 @@ VMMR3DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RTGCPTR
  * Initializes the dumper state.
  *
  * @param   pState          The state to initialize.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   fFlags          The flags.
  * @param   u64FirstAddr    The first address.
  * @param   u64LastAddr     The last address.
@@ -1058,6 +1059,7 @@ static void pgmR3DumpHierarchyShwGuestPageInfo(PPGMR3DUMPHIERARCHYSTATE pState, 
         else
             pState->pHlp->pfnPrintf(pState->pHlp, " not found");
     }
+    NOREF(cbPage);
 }
 
 
@@ -1323,7 +1325,7 @@ static int  pgmR3DumpHierarchyShwPaePDPT(PPGMR3DUMPHIERARCHYSTATE pState, RTHCPH
  * Dumps a 32-bit shadow page table.
  *
  * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   HCPhys      The physical address of the table.
  * @param   cMaxDepth   The maximum depth.
  */
@@ -1400,7 +1402,7 @@ static int pgmR3DumpHierarchyShwPaePML4(PPGMR3DUMPHIERARCHYSTATE pState, RTHCPHY
  * Dumps a 32-bit shadow page table.
  *
  * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pPT         Pointer to the page table.
  * @param   fMapping    Set if it's a guest mapping.
  */
@@ -1465,7 +1467,7 @@ static int pgmR3DumpHierarchyShw32BitPD(PPGMR3DUMPHIERARCHYSTATE pState, RTHCPHY
     cMaxDepth--;
 
     uint32_t iFirst, iLast;
-    uint64_t u64BaseAddress = pgmR3DumpHierarchyCalcRange(pState, X86_PD_SHIFT, X86_PG_ENTRIES, &iFirst, &iLast);
+    pgmR3DumpHierarchyCalcRange(pState, X86_PD_SHIFT, X86_PG_ENTRIES, &iFirst, &iLast);
     for (uint32_t i = iFirst; i <= iLast; i++)
     {
         X86PDE Pde = pPD->a[i];
@@ -1627,7 +1629,7 @@ static int pgmR3DumpHierarchyShwDoIt(PPGMR3DUMPHIERARCHYSTATE pState, uint64_t c
  * dbgfR3PagingDumpEx worker.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   cr3             The CR3 register value.
  * @param   fFlags          The flags, DBGFPGDMP_FLAGS_XXX.
  * @param   u64FirstAddr    The start address.
@@ -1655,7 +1657,7 @@ VMMR3_INT_DECL(int) PGMR3DumpHierarchyShw(PVM pVM, uint64_t cr3, uint32_t fFlags
  * Dumps a page table hierarchy use only physical addresses and cr4/lm flags.
  *
  * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   cr3         The root of the hierarchy.
  * @param   cr4         The cr4, only PAE and PSE is currently used.
  * @param   fLongMode   Set if long mode, false if not long mode.
@@ -1725,6 +1727,7 @@ static void pgmR3DumpHierarchyGstPageInfo(PPGMR3DUMPHIERARCHYSTATE pState, RTGCP
         strcpy(szPage, " not found");
     pgmUnlock(pState->pVM);
     pState->pHlp->pfnPrintf(pState->pHlp, "%s", szPage);
+    NOREF(cbPage);
 }
 
 
@@ -1995,7 +1998,7 @@ static int  pgmR3DumpHierarchyGstPaePDPT(PPGMR3DUMPHIERARCHYSTATE pState, RTGCPH
  * Dumps a 32-bit shadow page table.
  *
  * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPhys      The physical address of the table.
  * @param   cMaxDepth   The maximum depth.
  */
@@ -2142,7 +2145,7 @@ static int pgmR3DumpHierarchyGst32BitPD(PPGMR3DUMPHIERARCHYSTATE pState, RTHCPHY
     cMaxDepth--;
 
     uint32_t iFirst, iLast;
-    uint64_t u64BaseAddress = pgmR3DumpHierarchyCalcRange(pState, X86_PD_SHIFT, X86_PG_ENTRIES, &iFirst, &iLast);
+    pgmR3DumpHierarchyCalcRange(pState, X86_PD_SHIFT, X86_PG_ENTRIES, &iFirst, &iLast);
     for (uint32_t i = iFirst; i <= iLast; i++)
     {
         X86PDE Pde = pPD->a[i];
@@ -2304,7 +2307,7 @@ static int pgmR3DumpHierarchyGstDoIt(PPGMR3DUMPHIERARCHYSTATE pState, uint64_t c
  * dbgfR3PagingDumpEx worker.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   cr3             The CR3 register value.
  * @param   fFlags          The flags, DBGFPGDMP_FLAGS_XXX.
  * @param   FirstAddr       The start address.

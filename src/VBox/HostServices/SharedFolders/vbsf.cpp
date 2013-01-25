@@ -1,7 +1,6 @@
+/* $Id: vbsf.cpp $ */
 /** @file
- *
- * Shared Folders:
- * VBox Shared Folders.
+ * Shared Folders - VBox Shared Folders.
  */
 
 /*
@@ -15,6 +14,10 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
+
+#ifdef UNITTEST
+# include "testcase/tstSharedFolderService.h"
+#endif
 
 #include "mappings.h"
 #include "vbsf.h"
@@ -31,11 +34,12 @@
 #include <iprt/uni.h>
 #include <iprt/stream.h>
 #ifdef RT_OS_DARWIN
-#include <Carbon/Carbon.h>
+# include <Carbon/Carbon.h>
 #endif
 
-#undef LogFlow
-#define LogFlow Log
+#ifdef UNITTEST
+# include "teststubs.h"
+#endif
 
 #define SHFL_RT_LINK(pClient) ((pClient)->fu32Flags & SHFL_CF_SYMLINKS ? RTPATH_F_ON_LINK : RTPATH_F_FOLLOW_LINK)
 
@@ -132,7 +136,7 @@ static int vbsfCorrectCasing(SHFLCLIENTDATA *pClient, char *pszFullPath, char *p
     szWildCard[2] = 0;
     strcat(pDirEntry->szName, szWildCard);
 
-    rc = RTDirOpenFiltered(&hSearch, pDirEntry->szName, RTDIRFILTER_WINNT);
+    rc = RTDirOpenFiltered(&hSearch, pDirEntry->szName, RTDIRFILTER_WINNT, 0);
     *(pszStartComponent-1) = RTPATH_DELIMITER;
     if (RT_FAILURE(rc))
         goto end;
@@ -178,13 +182,18 @@ end:
     return rc;
 }
 
+/**
+ * Do a simple path check given by pUtf8Path. Verify that the path is within
+ * the root directory of the mapping. Count '..' and other path components
+ * and check that we do not go over the root.
+ *
+ * @remarks This function assumes that the path will be appended to the root
+ * directory of the shared folder mapping. Keep that in mind when checking
+ * absolute pathes!
+ */
 static int vbsfPathCheck(const char *pUtf8Path, size_t cbPath)
 {
     int rc = VINF_SUCCESS;
-
-    /* The pUtf8Path is what the guest sent. Verify that the path is within the root.
-     * Count '..' and other path components and check that we do not go over the root.
-     */
 
     size_t i = 0;
     int cComponents = 0; /* How many normal path components. */
@@ -261,7 +270,6 @@ static int vbsfBuildFullPath(SHFLCLIENTDATA *pClient, SHFLROOT root, PSHFLSTRING
     {
         /* Verify that the path is under the root directory. */
         rc = vbsfPathCheck((const char *)&pPath->String.utf8[0], pPath->u16Length);
-
         if (RT_SUCCESS(rc))
         {
             size_t cbUtf8FullPath = cbRoot + 1 + pPath->u16Length + 1;
@@ -419,7 +427,8 @@ static int vbsfBuildFullPath(SHFLCLIENTDATA *pClient, SHFLROOT root, PSHFLSTRING
 
     if (RT_SUCCESS(rc))
     {
-        /* When the host file system is case sensitive and the guest expects a case insensitive fs, then problems can occur */
+        /* When the host file system is case sensitive and the guest expects
+         * a case insensitive fs, then problems can occur */
         if (     vbsfIsHostMappingCaseSensitive(root)
             &&  !vbsfIsGuestMappingCaseSensitive(root))
         {
@@ -428,7 +437,8 @@ static int vbsfBuildFullPath(SHFLCLIENTDATA *pClient, SHFLROOT root, PSHFLSTRING
 
             if (fWildCard || fPreserveLastComponent)
             {
-                /* strip off the last path component, that has to be preserved: contains the wildcard(s) or a 'rename' target. */
+                /* strip off the last path component, that has to be preserved:
+                 * contains the wildcard(s) or a 'rename' target. */
                 size_t cb = strlen(pszFullPath);
                 char *pszSrc = pszFullPath + cb - 1;
 
@@ -479,7 +489,7 @@ static int vbsfBuildFullPath(SHFLCLIENTDATA *pClient, SHFLROOT root, PSHFLSTRING
                         *pszSrc = 0;
                         rc = RTPathQueryInfoEx(pszFullPath, &info, RTFSOBJATTRADD_NOTHING, SHFL_RT_LINK(pClient));
                         *pszSrc = RTPATH_DELIMITER;
-                        if (rc == VINF_SUCCESS)
+                        if (RT_SUCCESS(rc))
                         {
 #ifdef DEBUG
                             *pszSrc = 0;
@@ -820,16 +830,16 @@ static int vbsfOpenFile(SHFLCLIENTDATA *pClient, const char *pszPath, SHFLCREATE
     int rc = vbsfConvertFileOpenFlags(pParms->CreateFlags, pParms->Info.Attr.fMode, pParms->Handle, &fOpen);
     if (RT_SUCCESS(rc))
     {
-        handle  = vbsfAllocFileHandle();
-    }
-    if (SHFL_HANDLE_NIL != handle)
-    {
-        rc = VERR_NO_MEMORY;  /* If this fails - rewritten immediately on success. */
-        pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(handle, SHFL_HF_TYPE_FILE);
-    }
-    if (0 != pHandle)
-    {
-        rc = RTFileOpen(&pHandle->file.Handle, pszPath, fOpen);
+        rc = VERR_NO_MEMORY;  /* Default error. */
+        handle  = vbsfAllocFileHandle(pClient);
+        if (handle != SHFL_HANDLE_NIL)
+        {
+            pHandle = vbsfQueryFileHandle(pClient, handle);
+            if (pHandle)
+            {
+                rc = RTFileOpen(&pHandle->file.Handle, pszPath, fOpen);
+            }
+        }
     }
     if (RT_FAILURE(rc))
     {
@@ -882,8 +892,7 @@ static int vbsfOpenFile(SHFLCLIENTDATA *pClient, const char *pszPath, SHFLCREATE
             pParms->Result = SHFL_NO_RESULT;
         }
     }
-
-    if (RT_SUCCESS(rc))
+    else
     {
         /** @note The shared folder status code is very approximate, as the runtime
           *       does not really provide this information. */
@@ -937,6 +946,7 @@ static int vbsfOpenFile(SHFLCLIENTDATA *pClient, const char *pszPath, SHFLCREATE
             vbfsCopyFsObjInfoFromIprt(&pParms->Info, &info);
         }
     }
+    /* Free resources if any part of the function has failed. */
     if (RT_FAILURE(rc))
     {
         if (   (0 != pHandle)
@@ -948,7 +958,7 @@ static int vbsfOpenFile(SHFLCLIENTDATA *pClient, const char *pszPath, SHFLCREATE
         }
         if (SHFL_HANDLE_NIL != handle)
         {
-            vbsfFreeFileHandle (handle);
+            vbsfFreeFileHandle(pClient, handle);
         }
         pParms->Handle = SHFL_HANDLE_NIL;
     }
@@ -978,14 +988,15 @@ static int vbsfOpenFile(SHFLCLIENTDATA *pClient, const char *pszPath, SHFLCREATE
  *
  * @note folders are created with fMode = 0777
  */
-static int vbsfOpenDir (const char *pszPath, SHFLCREATEPARMS *pParms)
+static int vbsfOpenDir(SHFLCLIENTDATA *pClient, const char *pszPath,
+                       SHFLCREATEPARMS *pParms)
 {
     LogFlow(("vbsfOpenDir: pszPath = %s, pParms = %p\n", pszPath, pParms));
     Log(("SHFL create flags %08x\n", pParms->CreateFlags));
 
     int rc = VERR_NO_MEMORY;
-    SHFLHANDLE      handle = vbsfAllocDirHandle();
-    SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(handle, SHFL_HF_TYPE_DIR);
+    SHFLHANDLE      handle = vbsfAllocDirHandle(pClient);
+    SHFLFILEHANDLE *pHandle = vbsfQueryDirHandle(pClient, handle);
     if (0 != pHandle)
     {
         rc = VINF_SUCCESS;
@@ -1003,7 +1014,7 @@ static int vbsfOpenDir (const char *pszPath, SHFLCREATEPARMS *pParms)
             RTFMODE fMode = 0777;
 
             pParms->Result = SHFL_FILE_CREATED;
-            rc = RTDirCreate(pszPath, fMode);
+            rc = RTDirCreate(pszPath, fMode, 0);
             if (RT_FAILURE(rc))
             {
                 switch (rc)
@@ -1023,7 +1034,7 @@ static int vbsfOpenDir (const char *pszPath, SHFLCREATEPARMS *pParms)
             || (SHFL_CF_ACT_OPEN_IF_EXISTS == BIT_FLAG(pParms->CreateFlags, SHFL_CF_ACT_MASK_IF_EXISTS)))
         {
             /* Open the directory now */
-            rc = RTDirOpen(&pHandle->dir.Handle, pszPath);
+            rc = RTDirOpenFiltered(&pHandle->dir.Handle, pszPath, RTDIRFILTER_NONE, 0);
             if (RT_SUCCESS(rc))
             {
                 RTFSOBJINFO info;
@@ -1063,7 +1074,7 @@ static int vbsfOpenDir (const char *pszPath, SHFLCREATEPARMS *pParms)
         }
         if (SHFL_HANDLE_NIL != handle)
         {
-            vbsfFreeFileHandle (handle);
+            vbsfFreeFileHandle(pClient, handle);
         }
         pParms->Handle = SHFL_HANDLE_NIL;
     }
@@ -1159,6 +1170,21 @@ static int vbsfLookupFile(SHFLCLIENTDATA *pClient, char *pszPath, SHFLCREATEPARM
     return rc;
 }
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_CREATE API.  Located here as a form of API
+ * documentation. */
+void testCreate(RTTEST hTest)
+{
+    /* Simple opening of an existing file. */
+    testCreateFileSimple(hTest);
+    /* Simple opening of an existing directory. */
+    /** @todo How do wildcards in the path name work? */
+    testCreateDirSimple(hTest);
+    /* If the number or types of parameters are wrong the API should fail. */
+    testCreateBadParameters(hTest);
+    /* Add tests as required... */
+}
+#endif
 /**
  * Create or open a file or folder.  Perform character set and case
  * conversion on the file name if necessary.
@@ -1200,7 +1226,6 @@ int vbsfCreate(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint32
     uint32_t cbFullPathRoot = 0;
 
     rc = vbsfBuildFullPath(pClient, root, pPath, cbPath, &pszFullPath, &cbFullPathRoot);
-
     if (RT_SUCCESS(rc))
     {
         /* Reset return value in case client forgot to do so.
@@ -1273,7 +1298,7 @@ int vbsfCreate(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint32
             {
                 if (BIT_FLAG(pParms->CreateFlags, SHFL_CF_DIRECTORY))
                 {
-                    rc = vbsfOpenDir (pszFullPath, pParms);
+                    rc = vbsfOpenDir(pClient, pszFullPath, pParms);
                 }
                 else
                 {
@@ -1295,6 +1320,16 @@ int vbsfCreate(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint32
     return rc;
 }
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_CLOSE API.  Located here as a form of API
+ * documentation. */
+void testClose(RTTEST hTest)
+{
+    /* If the API parameters are invalid the API should fail. */
+    testCloseBadParameters(hTest);
+    /* Add tests as required... */
+}
+#endif
 int vbsfClose(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle)
 {
     int rc = VINF_SUCCESS;
@@ -1302,37 +1337,46 @@ int vbsfClose(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle)
     LogFlow(("vbsfClose: pClient = %p, Handle = %RX64\n",
              pClient, Handle));
 
-    SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(Handle, SHFL_HF_TYPE_DIR|SHFL_HF_TYPE_FILE);
-    //Assert(pHandle);
-    if (!pHandle)
-        return VERR_INVALID_HANDLE;
+    uint32_t type = vbsfQueryHandleType(pClient, Handle);
+    Assert((type & ~(SHFL_HF_TYPE_DIR | SHFL_HF_TYPE_FILE)) == 0);
 
-    switch (ShflHandleType (&pHandle->Header))
+    switch (type & (SHFL_HF_TYPE_DIR | SHFL_HF_TYPE_FILE))
     {
         case SHFL_HF_TYPE_DIR:
         {
-            rc = vbsfCloseDir (pHandle);
+            rc = vbsfCloseDir(vbsfQueryDirHandle(pClient, Handle));
             break;
         }
         case SHFL_HF_TYPE_FILE:
         {
-            rc = vbsfCloseFile (pHandle);
+            rc = vbsfCloseFile(vbsfQueryFileHandle(pClient, Handle));
             break;
         }
         default:
-            AssertFailed();
-            break;
+            return VERR_INVALID_HANDLE;
     }
-    vbsfFreeFileHandle(Handle);
+    vbsfFreeFileHandle(pClient, Handle);
 
     Log(("vbsfClose: rc = %Rrc\n", rc));
 
     return rc;
 }
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_READ API.  Located here as a form of API
+ * documentation. */
+void testRead(RTTEST hTest)
+{
+    /* If the number or types of parameters are wrong the API should fail. */
+    testReadBadParameters(hTest);
+    /* Basic reading from a file. */
+    testReadFileSimple(hTest);
+    /* Add tests as required... */
+}
+#endif
 int vbsfRead  (SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint64_t offset, uint32_t *pcbBuffer, uint8_t *pBuffer)
 {
-    SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(Handle, SHFL_HF_TYPE_FILE);
+    SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, Handle);
     size_t count = 0;
     int rc;
 
@@ -1361,9 +1405,21 @@ int vbsfRead  (SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint64
     return rc;
 }
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_WRITE API.  Located here as a form of API
+ * documentation. */
+void testWrite(RTTEST hTest)
+{
+    /* If the number or types of parameters are wrong the API should fail. */
+    testWriteBadParameters(hTest);
+    /* Simple test of writing to a file. */
+    testWriteFileSimple(hTest);
+    /* Add tests as required... */
+}
+#endif
 int vbsfWrite(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint64_t offset, uint32_t *pcbBuffer, uint8_t *pBuffer)
 {
-    SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(Handle, SHFL_HF_TYPE_FILE);
+    SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, Handle);
     size_t count = 0;
     int rc;
 
@@ -1399,9 +1455,21 @@ int vbsfWrite(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint64_
 }
 
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_FLUSH API.  Located here as a form of API
+ * documentation. */
+void testFlush(RTTEST hTest)
+{
+    /* If the number or types of parameters are wrong the API should fail. */
+    testFlushBadParameters(hTest);
+    /* Simple opening and flushing of a file. */
+    testFlushFileSimple(hTest);
+    /* Add tests as required... */
+}
+#endif
 int vbsfFlush(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle)
 {
-    SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(Handle, SHFL_HF_TYPE_FILE);
+    SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, Handle);
     int rc = VINF_SUCCESS;
 
     if (pHandle == 0)
@@ -1416,10 +1484,22 @@ int vbsfFlush(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle)
     return rc;
 }
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_LIST API.  Located here as a form of API
+ * documentation. */
+void testDirList(RTTEST hTest)
+{
+    /* If the number or types of parameters are wrong the API should fail. */
+    testDirListBadParameters(hTest);
+    /* Test listing an empty directory (simple edge case). */
+    testDirListEmpty(hTest);
+    /* Add tests as required... */
+}
+#endif
 int vbsfDirList(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, SHFLSTRING *pPath, uint32_t flags,
                 uint32_t *pcbBuffer, uint8_t *pBuffer, uint32_t *pIndex, uint32_t *pcFiles)
 {
-    SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(Handle, SHFL_HF_TYPE_DIR);
+    SHFLFILEHANDLE *pHandle = vbsfQueryDirHandle(pClient, Handle);
     PRTDIRENTRYEX  pDirEntry = 0, pDirEntryOrg;
     uint32_t       cbDirEntry, cbBufferOrg;
     int            rc = VINF_SUCCESS;
@@ -1468,7 +1548,7 @@ int vbsfDirList(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, SHFLS
 
             if (RT_SUCCESS(rc))
             {
-                rc = RTDirOpenFiltered(&pHandle->dir.SearchHandle, pszFullPath, RTDIRFILTER_WINNT);
+                rc = RTDirOpenFiltered(&pHandle->dir.SearchHandle, pszFullPath, RTDIRFILTER_WINNT, 0);
 
                 /* free the path string */
                 vbsfFreeFullPath(pszFullPath);
@@ -1620,6 +1700,16 @@ end:
     return rc;
 }
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_READLINK API.  Located here as a form of API
+ * documentation. */
+void testReadLink(RTTEST hTest)
+{
+    /* If the number or types of parameters are wrong the API should fail. */
+    testReadLinkBadParameters(hTest);
+    /* Add tests as required... */
+}
+#endif
 int vbsfReadLink(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint32_t cbPath, uint8_t *pBuffer, uint32_t cbBuffer)
 {
     int rc = VINF_SUCCESS;
@@ -1641,7 +1731,7 @@ int vbsfReadLink(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint
 
     if (RT_SUCCESS(rc))
     {
-        rc = RTSymlinkRead(pszFullPath, (char *) pBuffer, cbBuffer);
+        rc = RTSymlinkRead(pszFullPath, (char *) pBuffer, cbBuffer, 0);
 
         /* free the path string */
         vbsfFreeFullPath(pszFullPath);
@@ -1652,13 +1742,16 @@ int vbsfReadLink(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint
 
 int vbsfQueryFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint32_t flags, uint32_t *pcbBuffer, uint8_t *pBuffer)
 {
-    SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(Handle, SHFL_HF_TYPE_DIR|SHFL_HF_TYPE_FILE);
+    uint32_t type = vbsfQueryHandleType(pClient, Handle);
     int            rc = VINF_SUCCESS;
     SHFLFSOBJINFO   *pObjInfo = (SHFLFSOBJINFO *)pBuffer;
     RTFSOBJINFO    fileinfo;
 
 
-    if (pHandle == 0 || pcbBuffer == 0 || pObjInfo == 0 || *pcbBuffer < sizeof(SHFLFSOBJINFO))
+    if (   !(type == SHFL_HF_TYPE_DIR || type == SHFL_HF_TYPE_FILE)
+        || pcbBuffer == 0
+        || pObjInfo == 0
+        || *pcbBuffer < sizeof(SHFLFSOBJINFO))
     {
         AssertFailed();
         return VERR_INVALID_PARAMETER;
@@ -1669,12 +1762,14 @@ int vbsfQueryFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle,
 
     *pcbBuffer  = 0;
 
-    if (pHandle->Header.u32Flags & SHFL_HF_TYPE_DIR)
+    if (type == SHFL_HF_TYPE_DIR)
     {
+        SHFLFILEHANDLE *pHandle = vbsfQueryDirHandle(pClient, Handle);
         rc = RTDirQueryInfo(pHandle->dir.Handle, &fileinfo, RTFSOBJATTRADD_NOTHING);
     }
     else
     {
+        SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, Handle);
         rc = RTFileQueryInfo(pHandle->file.Handle, &fileinfo, RTFSOBJATTRADD_NOTHING);
 #ifdef RT_OS_WINDOWS
         if (RT_SUCCESS(rc) && RTFS_IS_FILE(pObjInfo->Attr.fMode))
@@ -1694,11 +1789,14 @@ int vbsfQueryFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle,
 
 static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint32_t flags, uint32_t *pcbBuffer, uint8_t *pBuffer)
 {
-    SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(Handle, SHFL_HF_TYPE_DIR|SHFL_HF_TYPE_FILE);
+    uint32_t type = vbsfQueryHandleType(pClient, Handle);
     int             rc = VINF_SUCCESS;
     SHFLFSOBJINFO  *pSFDEntry;
 
-    if (pHandle == 0 || pcbBuffer == 0 || pBuffer == 0 || *pcbBuffer < sizeof(SHFLFSOBJINFO))
+    if (   !(type == SHFL_HF_TYPE_DIR || type == SHFL_HF_TYPE_FILE)
+        || pcbBuffer == 0
+        || pBuffer == 0
+        || *pcbBuffer < sizeof(SHFLFSOBJINFO))
     {
         AssertFailed();
         return VERR_INVALID_PARAMETER;
@@ -1710,8 +1808,9 @@ static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Ha
     Assert(flags == (SHFL_INFO_SET | SHFL_INFO_FILE));
 
     /* Change only the time values that are not zero */
-    if (pHandle->Header.u32Flags & SHFL_HF_TYPE_DIR)
+    if (type == SHFL_HF_TYPE_DIR)
     {
+        SHFLFILEHANDLE *pHandle = vbsfQueryDirHandle(pClient, Handle);
         rc = RTDirSetTimes(pHandle->dir.Handle,
                             (RTTimeSpecGetNano(&pSFDEntry->AccessTime)) ?       &pSFDEntry->AccessTime : NULL,
                             (RTTimeSpecGetNano(&pSFDEntry->ModificationTime)) ? &pSFDEntry->ModificationTime: NULL,
@@ -1721,6 +1820,7 @@ static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Ha
     }
     else
     {
+        SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, Handle);
         rc = RTFileSetTimes(pHandle->file.Handle,
                             (RTTimeSpecGetNano(&pSFDEntry->AccessTime)) ?       &pSFDEntry->AccessTime : NULL,
                             (RTTimeSpecGetNano(&pSFDEntry->ModificationTime)) ? &pSFDEntry->ModificationTime: NULL,
@@ -1739,8 +1839,9 @@ static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Ha
         rc = VINF_SUCCESS;
     }
 
-    if (pHandle->Header.u32Flags & SHFL_HF_TYPE_FILE)
+    if (type == SHFL_HF_TYPE_FILE)
     {
+        SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, Handle);
         /* Change file attributes if necessary */
         if (pSFDEntry->Attr.fMode)
         {
@@ -1753,7 +1854,7 @@ static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Ha
                 fMode |= RTFS_UNIX_IRUSR;
 #endif
 
-            rc = RTFileSetMode((RTFILE)pHandle->file.Handle, fMode);
+            rc = RTFileSetMode(pHandle->file.Handle, fMode);
             if (rc != VINF_SUCCESS)
             {
                 Log(("RTFileSetMode %x failed with %Rrc\n", fMode, rc));
@@ -1783,7 +1884,7 @@ static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Ha
 
 static int vbsfSetEndOfFile(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint32_t flags, uint32_t *pcbBuffer, uint8_t *pBuffer)
 {
-    SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(Handle, SHFL_HF_TYPE_FILE);
+    SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, Handle);
     int             rc = VINF_SUCCESS;
     SHFLFSOBJINFO  *pSFDEntry;
 
@@ -1893,11 +1994,30 @@ int vbsfQueryFSInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, u
     return VERR_INVALID_PARAMETER;
 }
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_INFORMATION API.  Located here as a form of API
+ * documentation. */
+void testFSInfo(RTTEST hTest)
+{
+    /* If the number or types of parameters are wrong the API should fail. */
+    testFSInfoBadParameters(hTest);
+    /* Basic get and set file size test. */
+    testFSInfoQuerySetFMode(hTest);
+    /* Basic get and set dir atime test. */
+    testFSInfoQuerySetDirATime(hTest);
+    /* Basic get and set file atime test. */
+    testFSInfoQuerySetFileATime(hTest);
+    /* Basic set end of file. */
+    testFSInfoQuerySetEndOfFile(hTest);
+    /* Add tests as required... */
+}
+#endif
 int vbsfSetFSInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint32_t flags, uint32_t *pcbBuffer, uint8_t *pBuffer)
 {
-    SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(Handle, SHFL_HF_TYPE_DIR|SHFL_HF_TYPE_FILE|SHFL_HF_TYPE_VOLUME);
+    uint32_t type =   vbsfQueryHandleType(pClient, Handle)
+                    & (SHFL_HF_TYPE_DIR|SHFL_HF_TYPE_FILE|SHFL_HF_TYPE_VOLUME);
 
-    if (pHandle == 0 || pcbBuffer == 0 || pBuffer == 0)
+    if (type == 0 || pcbBuffer == 0 || pBuffer == 0)
     {
         AssertFailed();
         return VERR_INVALID_PARAMETER;
@@ -1921,9 +2041,21 @@ int vbsfSetFSInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uin
     return VERR_INVALID_PARAMETER;
 }
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_LOCK API.  Located here as a form of API
+ * documentation. */
+void testLock(RTTEST hTest)
+{
+    /* If the number or types of parameters are wrong the API should fail. */
+    testLockBadParameters(hTest);
+    /* Simple file locking and unlocking test. */
+    testLockFileSimple(hTest);
+    /* Add tests as required... */
+}
+#endif
 int vbsfLock(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint64_t offset, uint64_t length, uint32_t flags)
 {
-    SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(Handle, SHFL_HF_TYPE_FILE);
+    SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, Handle);
     uint32_t        fRTLock = 0;
     int             rc;
 
@@ -1977,7 +2109,7 @@ int vbsfLock(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint64_t
 
 int vbsfUnlock(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint64_t offset, uint64_t length, uint32_t flags)
 {
-    SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(Handle, SHFL_HF_TYPE_FILE);
+    SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, Handle);
     int             rc;
 
     Assert((flags & SHFL_LOCK_MODE_MASK) == SHFL_LOCK_CANCEL);
@@ -2006,6 +2138,16 @@ int vbsfUnlock(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint64
 }
 
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_REMOVE API.  Located here as a form of API
+ * documentation. */
+void testRemove(RTTEST hTest)
+{
+    /* If the number or types of parameters are wrong the API should fail. */
+    testRemoveBadParameters(hTest);
+    /* Add tests as required... */
+}
+#endif
 int vbsfRemove(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint32_t cbPath, uint32_t flags)
 {
     int rc = VINF_SUCCESS;
@@ -2036,7 +2178,7 @@ int vbsfRemove(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint32
         if (RT_SUCCESS(rc))
         {
             if (flags & SHFL_REMOVE_SYMLINK)
-                rc = RTSymlinkDelete(pszFullPath);
+                rc = RTSymlinkDelete(pszFullPath, 0);
             else if (flags & SHFL_REMOVE_FILE)
                 rc = RTFileDelete(pszFullPath);
             else
@@ -2054,6 +2196,16 @@ int vbsfRemove(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint32
 }
 
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_RENAME API.  Located here as a form of API
+ * documentation. */
+void testRename(RTTEST hTest)
+{
+    /* If the number or types of parameters are wrong the API should fail. */
+    testRenameBadParameters(hTest);
+    /* Add tests as required... */
+}
+#endif
 int vbsfRename(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pSrc, SHFLSTRING *pDest, uint32_t flags)
 {
     int rc = VINF_SUCCESS;
@@ -2092,12 +2244,14 @@ int vbsfRename(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pSrc, SHFLSTR
         {
             if (flags & SHFL_RENAME_FILE)
             {
-                rc = RTFileMove(pszFullPathSrc, pszFullPathDest, (flags & SHFL_RENAME_REPLACE_IF_EXISTS) ? RTFILEMOVE_FLAGS_REPLACE : 0);
+                rc = RTFileMove(pszFullPathSrc, pszFullPathDest,
+                                  ((flags & SHFL_RENAME_REPLACE_IF_EXISTS) ? RTFILEMOVE_FLAGS_REPLACE : 0));
             }
             else
             {
                 /* NT ignores the REPLACE flag and simply return and already exists error. */
-                rc = RTDirRename(pszFullPathSrc, pszFullPathDest, (flags & SHFL_RENAME_REPLACE_IF_EXISTS) ? RTPATHRENAME_FLAGS_REPLACE : 0);
+                rc = RTDirRename(pszFullPathSrc, pszFullPathDest,
+                                   ((flags & SHFL_RENAME_REPLACE_IF_EXISTS) ? RTPATHRENAME_FLAGS_REPLACE : 0));
             }
         }
 
@@ -2112,12 +2266,22 @@ int vbsfRename(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pSrc, SHFLSTR
     return rc;
 }
 
+#ifdef UNITTEST
+/** Unit test the SHFL_FN_SYMLINK API.  Located here as a form of API
+ * documentation. */
+void testSymlink(RTTEST hTest)
+{
+    /* If the number or types of parameters are wrong the API should fail. */
+    testSymlinkBadParameters(hTest);
+    /* Add tests as required... */
+}
+#endif
 int vbsfSymlink(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pNewPath, SHFLSTRING *pOldPath, SHFLFSOBJINFO *pInfo)
 {
     int rc = VINF_SUCCESS;
 
     char *pszFullNewPath = NULL;
-    char *pszOldPath = NULL;
+    const char *pszOldPath = (const char *)pOldPath->String.utf8;
 
     /* XXX: no support for UCS2 at the moment. */
     if (!BIT_FLAG(pClient->fu32Flags, SHFL_CF_UTF8))
@@ -2130,10 +2294,10 @@ int vbsfSymlink(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pNewPath, SH
         return VERR_WRITE_PROTECT; /* XXX or VERR_TOO_MANY_SYMLINKS? */
 
     rc = vbsfBuildFullPath(pClient, root, pNewPath, pNewPath->u16Size, &pszFullNewPath, NULL);
-    if (rc != VINF_SUCCESS)
-        return rc;
+    AssertRCReturn(rc, rc);
 
-    rc = RTSymlinkCreate(pszFullNewPath, (const char *)pOldPath->String.utf8, RTSYMLINKTYPE_UNKNOWN);
+    rc = RTSymlinkCreate(pszFullNewPath, (const char *)pOldPath->String.utf8,
+                         RTSYMLINKTYPE_UNKNOWN, 0);
     if (RT_SUCCESS(rc))
     {
         RTFSOBJINFO info;
@@ -2155,9 +2319,8 @@ int vbsfDisconnect(SHFLCLIENTDATA *pClient)
 {
     for (int i=0; i<SHFLHANDLE_MAX; i++)
     {
-        SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(i, SHFL_HF_TYPE_MASK);
-
-        if (pHandle)
+        SHFLHANDLE Handle = (SHFLHANDLE)i;
+        if (vbsfQueryHandleType(pClient, Handle))
         {
             Log(("Open handle %08x\n", i));
             vbsfClose(pClient, SHFL_HANDLE_ROOT /* incorrect, but it's not important */, (SHFLHANDLE)i);

@@ -21,7 +21,6 @@
 
 /* VBox includes */
 #include "QIDialog.h"
-#include "QIArrowSplitter.h"
 
 /* Qt includes */
 #include <QCheckBox>
@@ -77,6 +76,7 @@ public:
     QIMessageBox (const QString &aCaption, const QString &aText,
                   Icon aIcon, int aButton0, int aButton1 = 0, int aButton2 = 0,
                   QWidget *aParent = 0, const char *aName = 0, bool aModal = TRUE);
+    ~QIMessageBox();
 
     QString buttonText (int aButton) const;
     void setButtonText (int aButton, const QString &aText);
@@ -103,6 +103,8 @@ private:
     void setDetailsShown (bool aShown);
 
 private slots:
+
+    void sltUpdateSize();
 
     void detailsBack();
     void detailsNext();

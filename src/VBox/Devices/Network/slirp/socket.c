@@ -24,7 +24,6 @@
  * terms and conditions of the copyright.
  */
 
-#define WANT_SYS_IOCTL_H
 #include <slirp.h>
 #include "ip_icmp.h"
 #include "main.h"
@@ -37,8 +36,93 @@
 #include <icmpapi.h>
 #endif
 
+#ifdef VBOX_WITH_NAT_UDP_SOCKET_CLONE
+/**
+ *
+ */
+struct socket * soCloneUDPSocketWithForegnAddr(PNATState pData, bool fBindSocket, struct socket *pSo, uint32_t u32ForeignAddr)
+{
+    struct socket *pNewSocket = NULL;
+    LogFlowFunc(("Enter: fBindSocket:%RTbool, so:%R[natsock], u32ForeignAddr:%RTnaipv4\n", fBindSocket, pSo, u32ForeignAddr));
+    pNewSocket = socreate();
+    if (!pNewSocket)
+    {
+        LogFunc(("Can't create socket\n"));
+        LogFlowFunc(("Leave: NULL\n"));
+        return NULL;
+    }
+    if (fBindSocket)
+    {
+        if (udp_attach(pData, pNewSocket, 0) <= 0)
+        {
+            sofree(pData, pNewSocket);
+            LogFunc(("Can't attach fresh created socket\n"));
+            return NULL;
+        }
+    }
+    else
+    {
+        pNewSocket->so_cloneOf = (struct socket *)pSo;
+        pNewSocket->s = pSo->s;
+        insque(pData, pNewSocket, &udb);
+    }
+    pNewSocket->so_laddr = pSo->so_laddr;
+    pNewSocket->so_lport = pSo->so_lport;
+    pNewSocket->so_faddr.s_addr = u32ForeignAddr;
+    pNewSocket->so_fport = pSo->so_fport;
+    pSo->so_cCloneCounter++;
+    LogFlowFunc(("Leave: %R[natsock]\n", pNewSocket));
+    return pNewSocket;
+}
 
-static void send_icmp_to_guest(PNATState, char *, size_t, struct socket *, const struct sockaddr_in *);
+struct socket *soLookUpClonedUDPSocket(PNATState pData, const struct socket *pcSo, uint32_t u32ForeignAddress)
+{
+    struct socket *pSoClone = NULL;
+    LogFlowFunc(("Enter: pcSo:%R[natsock], u32ForeignAddress:%RTnaipv4\n", pcSo, u32ForeignAddress));
+    for (pSoClone = udb.so_next; pSoClone != &udb; pSoClone = pSoClone->so_next)
+    {
+        if (   pSoClone->so_cloneOf
+            && pSoClone->so_cloneOf == pcSo
+            && pSoClone->so_lport == pcSo->so_lport
+            && pSoClone->so_fport == pcSo->so_fport
+            && pSoClone->so_laddr.s_addr == pcSo->so_laddr.s_addr
+            && pSoClone->so_faddr.s_addr == u32ForeignAddress)
+            goto done;
+    }
+    pSoClone = NULL;
+done:
+    LogFlowFunc(("Leave: pSoClone: %R[natsock]\n", pSoClone));
+    return pSoClone;
+}
+#endif
+
+#ifdef VBOX_WITH_NAT_SEND2HOME
+DECLINLINE(bool) slirpSend2Home(PNATState pData, struct socket *pSo, const void *pvBuf, uint32_t cbBuf, int iFlags)
+{
+    int idxAddr;
+    int ret = 0;
+    bool fSendDone = false;
+    LogFlowFunc(("Enter pSo:%R[natsock] pvBuf: %p, cbBuf: %d, iFlags: %d\n", pSo, pvBuf, cbBuf, iFlags));
+    for (idxAddr = 0; idxAddr < pData->cInHomeAddressSize; ++idxAddr)
+    {
+
+        struct socket *pNewSocket = soCloneUDPSocketWithForegnAddr(pData, pSo, pData->pInSockAddrHomeAddress[idxAddr].sin_addr);
+        AssertReturn((pNewSocket, false));
+        pData->pInSockAddrHomeAddress[idxAddr].sin_port = pSo->so_fport;
+        /* @todo: more verbose on errors,
+         * @note: we shouldn't care if this send fail or not (we're in broadcast).
+         */
+        LogFunc(("send %d bytes to %RTnaipv4 from %R[natsock]\n", cbBuf, pData->pInSockAddrHomeAddress[idxAddr].sin_addr.s_addr, pNewSocket));
+        ret = sendto(pNewSocket->s, pvBuf, cbBuf, iFlags, (struct sockaddr *)&pData->pInSockAddrHomeAddress[idxAddr], sizeof(struct sockaddr_in));
+        if (ret < 0)
+            LogFunc(("Failed to send %d bytes to %RTnaipv4\n", cbBuf, pData->pInSockAddrHomeAddress[idxAddr].sin_addr.s_addr));
+        fSendDone |= ret > 0;
+    }
+    LogFlowFunc(("Leave %RTbool\n", fSendDone));
+    return fSendDone;
+}
+#endif /* !VBOX_WITH_NAT_SEND2HOME */
+static void send_icmp_to_guest(PNATState, char *, size_t, const struct sockaddr_in *);
 #ifdef RT_OS_WINDOWS
 static void sorecvfrom_icmp_win(PNATState, struct socket *);
 #else /* RT_OS_WINDOWS */
@@ -92,8 +176,6 @@ socreate()
 
 /*
  * remque and free a socket, clobber cache
- * VBOX_WITH_SLIRP_MT: before sofree queue should be locked, because
- *      in sofree we don't know from which queue item beeing removed.
  */
 void
 sofree(PNATState pData, struct socket *so)
@@ -109,12 +191,14 @@ sofree(PNATState pData, struct socket *so)
         LogFlowFunc(("LEAVE:%R[natsock] postponed deletion\n", so));
         return;
     }
+    /**
+     * Check that we don't freeng socket with tcbcb
+     */
+    Assert(!sototcpcb(so));
     if (so == tcp_last_so)
         tcp_last_so = &tcb;
     else if (so == udp_last_so)
         udp_last_so = &udb;
-
-#ifndef VBOX_WITH_SLIRP_MT
 
     /* libalias notification */
     if (so->so_pvLnk)
@@ -133,19 +217,8 @@ sofree(PNATState pData, struct socket *so)
     }
 
     RTMemFree(so);
-#else
-    so->so_deleted = 1;
-#endif
     LogFlowFuncLeave();
 }
-
-#ifdef VBOX_WITH_SLIRP_MT
-void
-soread_queue(PNATState pData, struct socket *so, int *ret)
-{
-    *ret = soread(pData, so);
-}
-#endif
 
 /*
  * Read from so's socket into sb_snd, updating all relevant sbuf fields
@@ -261,9 +334,7 @@ soread(PNATState pData, struct socket *so)
             return 0;
         }
         if (   nn < 0
-            && (   errno == EINTR
-                || errno == EAGAIN
-                || errno == EWOULDBLOCK))
+            && soIgnorableErrorCode(errno))
         {
             SOCKET_UNLOCK(so);
             STAM_PROFILE_STOP(&pData->StatIOread, a);
@@ -271,11 +342,18 @@ soread(PNATState pData, struct socket *so)
         }
         else
         {
+            int fUninitiolizedTemplate = 0;
+            fUninitiolizedTemplate = RT_BOOL((   sototcpcb(so)
+                                              && (  sototcpcb(so)->t_template.ti_src.s_addr == INADDR_ANY
+                                                 || sototcpcb(so)->t_template.ti_dst.s_addr == INADDR_ANY)));
             /* nn == 0 means peer has performed an orderly shutdown */
             Log2(("%s: disconnected, nn = %d, errno = %d (%s)\n",
                   __PRETTY_FUNCTION__, nn, errno, strerror(errno)));
             sofcantrcvmore(so);
-            tcp_sockclosed(pData, sototcpcb(so));
+            if (!fUninitiolizedTemplate)
+                tcp_sockclosed(pData, sototcpcb(so));
+            else
+                tcp_drop(pData, sototcpcb(so), errno);
             SOCKET_UNLOCK(so);
             STAM_PROFILE_STOP(&pData->StatIOread, a);
             return -1;
@@ -387,9 +465,7 @@ soread(PNATState pData, struct socket *so)
             return 0;
         }
         if (   n < 0
-            && (   errno == EINTR
-                || errno == EAGAIN
-                || errno == EWOULDBLOCK))
+            && soIgnorableErrorCode(errno))
         {
             SOCKET_UNLOCK(so);
             STAM_PROFILE_STOP(&pData->StatIOread, a);
@@ -439,10 +515,13 @@ sorecvoob(PNATState pData, struct socket *so)
      * urgent data.
      */
     ret = soread(pData, so);
-    tp->snd_up = tp->snd_una + SBUF_LEN(&so->so_snd);
-    tp->t_force = 1;
-    tcp_output(pData, tp);
-    tp->t_force = 0;
+    if (RT_LIKELY(ret > 0))
+    {
+        tp->snd_up = tp->snd_una + SBUF_LEN(&so->so_snd);
+        tp->t_force = 1;
+        tcp_output(pData, tp);
+        tp->t_force = 0;
+    }
 }
 #ifndef VBOX_WITH_SLIRP_BSD_SBUF
 /*
@@ -603,9 +682,7 @@ sowrite(PNATState pData, struct socket *so)
     Log2(("%s: wrote(1) nn = %d bytes\n", __PRETTY_FUNCTION__, nn));
     /* This should never happen, but people tell me it does *shrug* */
     if (   nn < 0
-        && (   errno == EAGAIN
-            || errno == EINTR
-            || errno == EWOULDBLOCK))
+        && soIgnorableErrorCode(errno))
     {
         SOCKET_UNLOCK(so);
         STAM_PROFILE_STOP(&pData->StatIOwrite, a);
@@ -743,7 +820,6 @@ sorecvfrom(PNATState pData, struct socket *so)
         struct mbuf *m;
         ssize_t len;
         u_long n = 0;
-        int size;
         int rc = 0;
         static int signalled = 0;
         char *pchBuffer = NULL;
@@ -762,9 +838,7 @@ sorecvfrom(PNATState pData, struct socket *so)
         rc = ioctlsocket(so->s, FIONREAD, &n);
         if (rc == -1)
         {
-            if (  errno == EAGAIN
-               || errno == EWOULDBLOCK
-               || errno == EINPROGRESS
+            if (  soIgnorableErrorCode(errno)
                || errno == ENOTCONN)
                 return;
             else if (signalled == 0)
@@ -834,9 +908,7 @@ sorecvfrom(PNATState pData, struct socket *so)
                 code = ICMP_UNREACH_NET;
 
             m_freem(pData, m);
-            if (   errno == EAGAIN
-                || errno == EWOULDBLOCK
-                || errno == EINPROGRESS
+            if (   soIgnorableErrorCode(errno)
                 || errno == ENOTCONN)
             {
                 return;
@@ -876,6 +948,9 @@ sorecvfrom(PNATState pData, struct socket *so)
             }
 #endif
 
+            /* packets definetly will be fragmented, could confuse receiver peer. */
+            if (m_length(m, NULL) > if_mtu)
+                m->m_flags |= M_SKIP_FIREWALL;
             /*
              * If this packet was destined for CTL_ADDR,
              * make it look like that's where it came from, done by udp_output
@@ -965,6 +1040,12 @@ sosendto(PNATState pData, struct socket *so, struct mbuf *m)
     }
     ret = sendto(so->s, buf, mlen, 0,
                  (struct sockaddr *)&addr, sizeof (struct sockaddr));
+#ifdef VBOX_WITH_NAT_SEND2HOME
+    if (slirpIsWideCasting(pData, so->so_faddr.s_addr))
+    {
+        slirpSend2Home(pData, so, buf, mlen, 0);
+    }
+#endif
     if (buf)
         RTMemFree(buf);
     if (ret < 0)
@@ -1099,10 +1180,12 @@ no_sockopt:
  * Data is available in so_rcv
  * Just write() the data to the socket
  * XXX not yet...
+ * @todo do we really need this function, what it's intended to do?
  */
 void
 sorwakeup(struct socket *so)
 {
+    NOREF(so);
 #if 0
     sowrite(so);
     FD_CLR(so->s,&writefds);
@@ -1117,6 +1200,7 @@ sorwakeup(struct socket *so)
 void
 sowwakeup(struct socket *so)
 {
+    NOREF(so);
 }
 
 /*
@@ -1136,8 +1220,10 @@ soisfconnecting(struct socket *so)
 void
 soisfconnected(struct socket *so)
 {
+    LogFlowFunc(("ENTER: so:%R[natsock]\n", so));
     so->so_state &= ~(SS_ISFCONNECTING|SS_FWDRAIN|SS_NOFDREF);
     so->so_state |= SS_ISFCONNECTED; /* Clobber other states */
+    LogFlowFunc(("LEAVE: so:%R[natsock]\n", so));
 }
 
 void
@@ -1175,6 +1261,7 @@ sofcantsendmore(struct socket *so)
 void
 soisfdisconnected(struct socket *so)
 {
+    NOREF(so);
 #if 0
     so->so_state &= ~(SS_ISFCONNECTING|SS_ISFCONNECTED);
     close(so->s);
@@ -1199,7 +1286,7 @@ sofwdrain(struct socket *so)
 }
 
 static void
-send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, const struct sockaddr_in *addr)
+send_icmp_to_guest(PNATState pData, char *buff, size_t len, const struct sockaddr_in *addr)
 {
     struct ip *ip;
     uint32_t dst, src;
@@ -1529,9 +1616,7 @@ static void sorecvfrom_icmp_unix(PNATState pData, struct socket *so)
     len = recvfrom(so->s, &ip, sizeof(struct ip), MSG_PEEK,
                    (struct sockaddr *)&addr, &addrlen);
     if (   len < 0
-        && (   errno == EAGAIN
-            || errno == EWOULDBLOCK
-            || errno == EINPROGRESS
+        && (   soIgnorableErrorCode(errno)
             || errno == ENOTCONN))
     {
         Log(("sorecvfrom_icmp_unix: 1 - step can't read IP datagramm (would block)\n"));
@@ -1588,9 +1673,7 @@ static void sorecvfrom_icmp_unix(PNATState pData, struct socket *so)
     len = recvfrom(so->s, buff, len, 0,
                    (struct sockaddr *)&addr, &addrlen);
     if (   len < 0
-        && (   errno == EAGAIN
-            || errno == EWOULDBLOCK
-            || errno == EINPROGRESS
+        && (   soIgnorableErrorCode(errno)
             || errno == ENOTCONN))
     {
         Log(("sorecvfrom_icmp_unix: 2 - step can't read IP body (would block expected:%d)\n",
@@ -1607,7 +1690,7 @@ static void sorecvfrom_icmp_unix(PNATState pData, struct socket *so)
         return;
     }
     /* len is modified in 2nd read, when the rest of the datagramm was read */
-    send_icmp_to_guest(pData, buff, len, so, &addr);
+    send_icmp_to_guest(pData, buff, len, &addr);
     RTMemFree(buff);
 }
 #endif /* !RT_OS_WINDOWS */

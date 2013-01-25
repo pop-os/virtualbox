@@ -53,6 +53,9 @@ mv -f /etc/devlink.vbox /etc/devlink.tab
 if test -h "/dev/vboxguest" || test -f "/dev/vboxguest"; then
     rm -f /dev/vboxdrv
 fi
+if test -h "/dev/vboxms" || test -f "/dev/vboxms"; then
+    rm -f /dev/vboxms
+fi
 
 # Try and restore xorg.conf!
 echo "Restoring X.Org..."

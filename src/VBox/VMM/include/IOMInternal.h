@@ -402,16 +402,8 @@ typedef IOM *PIOM;
 typedef struct IOMCPU
 {
     /** For saving stack space, the disassembler state is allocated here instead of
-     * on the stack.
-     * @note The DISCPUSTATE structure is not R3/R0/RZ clean!  */
-    union
-    {
-        /** The disassembler scratch space. */
-        DISCPUSTATE                 DisState;
-        /** Padding. */
-        uint8_t                     abDisStatePadding[DISCPUSTATE_PADDING_SIZE];
-    };
-    uint8_t                         Dummy[16];
+     * on the stack. */
+    DISCPUSTATE                     DisState;
 } IOMCPU;
 /** Pointer to IOM per virtual CPU instance data. */
 typedef IOMCPU *PIOMCPU;
@@ -438,8 +430,8 @@ DECLCALLBACK(int)   IOMR3MMIOHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, voi
 
 
 /* Disassembly helpers used in IOMAll.cpp & IOMAllMMIO.cpp */
-bool    iomGetRegImmData(PDISCPUSTATE pCpu, PCOP_PARAMETER pParam, PCPUMCTXCORE pRegFrame, uint64_t *pu64Data, unsigned *pcbSize);
-bool    iomSaveDataToReg(PDISCPUSTATE pCpu, PCOP_PARAMETER pParam, PCPUMCTXCORE pRegFrame, uint64_t u32Data);
+bool    iomGetRegImmData(PDISCPUSTATE pCpu, PCDISOPPARAM pParam, PCPUMCTXCORE pRegFrame, uint64_t *pu64Data, unsigned *pcbSize);
+bool    iomSaveDataToReg(PDISCPUSTATE pCpu, PCDISOPPARAM pParam, PCPUMCTXCORE pRegFrame, uint64_t u32Data);
 
 RT_C_DECLS_END
 

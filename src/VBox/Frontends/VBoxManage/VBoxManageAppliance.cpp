@@ -303,14 +303,7 @@ int handleImportAppliance(HandlerArg *arg)
         RTStrFree(pszAbsFilePath);
 
         rc = showProgress(progressRead);
-
-        if (FAILED(rc))
-        {
-            com::ProgressErrorInfo info(progressRead);
-            com::GluePrintErrorInfo(info);
-            com::GluePrintErrorContext("ImportAppliance", __FILE__, __LINE__);
-            return 1;
-        }
+        CHECK_PROGRESS_ERROR_RET(progressRead, ("Appliance read failed"), RTEXITCODE_FAILURE);
 
         Bstr path; /* fetch the path, there is stuff like username/password removed if any */
         CHECK_ERROR_BREAK(pAppliance, COMGETTER(Path)(path.asOutParam()));
@@ -746,7 +739,7 @@ int handleImportAppliance(HandlerArg *arg)
                         case VirtualSystemDescriptionType_SoundCard:
                             if (fIgnoreThis)
                             {
-                                RTPrintf("%2u: Sound card \"%ls\" -- disabled\n",
+                               RTPrintf("%2u: Sound card \"%ls\" -- disabled\n",
                                          a,
                                          aOvfValues[a]);
                                 aEnabled[a] = false;
@@ -785,27 +778,24 @@ int handleImportAppliance(HandlerArg *arg)
                                   ImportMachines(ComSafeArrayAsInParam(options), progress.asOutParam()));
 
                 rc = showProgress(progress);
+                CHECK_PROGRESS_ERROR_RET(progress, ("Appliance import failed"), RTEXITCODE_FAILURE);
 
-                if (FAILED(rc))
-                {
-                    com::ProgressErrorInfo info(progress);
-                    com::GluePrintErrorInfo(info);
-                    com::GluePrintErrorContext("ImportAppliance", __FILE__, __LINE__);
-                    return 1;
-                }
-                else
+                if (SUCCEEDED(rc))
                     RTPrintf("Successfully imported the appliance.\n");
             }
         } // end if (aVirtualSystemDescriptions.size() > 0)
     } while (0);
 
-    return SUCCEEDED(rc) ? 0 : 1;
+    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 
 static const RTGETOPTDEF g_aExportOptions[]
     = {
         { "--output",             'o', RTGETOPT_REQ_STRING },
         { "--legacy09",           'l', RTGETOPT_REQ_NOTHING },
+        { "--ovf09",              'l', RTGETOPT_REQ_NOTHING },
+        { "--ovf10",              '1', RTGETOPT_REQ_NOTHING },
+        { "--ovf20",              '2', RTGETOPT_REQ_NOTHING },
         { "--manifest",           'm', RTGETOPT_REQ_NOTHING },
         { "--vsys",               's', RTGETOPT_REQ_UINT32 },
         { "--product",            'p', RTGETOPT_REQ_STRING },
@@ -849,61 +839,69 @@ int handleExportAppliance(HandlerArg *a)
                         return errorSyntax(USAGE_EXPORTAPPLIANCE, "You can only specify --output once.");
                     else
                         strOutputFile = ValueUnion.psz;
-                break;
+                    break;
 
-                case 'l':   // --legacy09
+                case 'l':   // --legacy09/--ovf09
                      strOvfFormat = "ovf-0.9";
-                break;
+                     break;
+
+                case '1':   // --ovf10
+                     strOvfFormat = "ovf-1.0";
+                     break;
+
+                case '2':   // --ovf20
+                     strOvfFormat = "ovf-2.0";
+                     break;
 
                 case 'm':   // --manifest
                      fManifest = true;
-                break;
+                     break;
 
                 case 's':   // --vsys
                      ulCurVsys = ValueUnion.u32;
-                break;
+                     break;
 
                 case 'p':   // --product
                      if (ulCurVsys == (uint32_t)-1)
                          return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
                      mapArgsMapsPerVsys[ulCurVsys]["product"] = ValueUnion.psz;
-                break;
+                     break;
 
                 case 'P':   // --producturl
                      if (ulCurVsys == (uint32_t)-1)
                          return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
                      mapArgsMapsPerVsys[ulCurVsys]["producturl"] = ValueUnion.psz;
-                break;
+                     break;
 
                 case 'd':   // --vendor
                      if (ulCurVsys == (uint32_t)-1)
                          return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
                      mapArgsMapsPerVsys[ulCurVsys]["vendor"] = ValueUnion.psz;
-                break;
+                     break;
 
                 case 'D':   // --vendorurl
                      if (ulCurVsys == (uint32_t)-1)
                          return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
                      mapArgsMapsPerVsys[ulCurVsys]["vendorurl"] = ValueUnion.psz;
-                break;
+                     break;
 
                 case 'v':   // --version
                      if (ulCurVsys == (uint32_t)-1)
                          return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
                      mapArgsMapsPerVsys[ulCurVsys]["version"] = ValueUnion.psz;
-                break;
+                     break;
 
                 case 'e':   // --eula
                      if (ulCurVsys == (uint32_t)-1)
                          return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
                      mapArgsMapsPerVsys[ulCurVsys]["eula"] = ValueUnion.psz;
-                break;
+                     break;
 
                 case 'E':   // --eulafile
                      if (ulCurVsys == (uint32_t)-1)
                          return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
                      mapArgsMapsPerVsys[ulCurVsys]["eulafile"] = ValueUnion.psz;
-                break;
+                     break;
 
                 case VINF_GETOPT_NOT_OPTION:
                 {
@@ -914,8 +912,8 @@ int handleExportAppliance(HandlerArg *a)
                                                                  machine.asOutParam()));
                     if (machine)
                         llMachines.push_back(machine);
+                    break;
                 }
-                break;
 
                 default:
                     if (c > 0)
@@ -1051,20 +1049,14 @@ int handleExportAppliance(HandlerArg *a)
         RTStrFree(pszAbsFilePath);
 
         rc = showProgress(progress);
+        CHECK_PROGRESS_ERROR_RET(progress, ("Appliance write failed"), RTEXITCODE_FAILURE);
 
-        if (FAILED(rc))
-        {
-            com::ProgressErrorInfo info(progress);
-            com::GluePrintErrorInfo(info);
-            com::GluePrintErrorContext("Write", __FILE__, __LINE__);
-            return 1;
-        }
-        else
+        if (SUCCEEDED(rc))
             RTPrintf("Successfully exported %d machine(s).\n", llMachines.size());
 
     } while (0);
 
-    return SUCCEEDED(rc) ? 0 : 1;
+    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 
 #endif /* !VBOX_ONLY_DOCS */

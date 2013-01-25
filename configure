@@ -3,7 +3,7 @@
 # libraries VBox OSE depends on.
 
 #
-# Copyright (C) 2006-2011 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -84,6 +84,7 @@ WITH_X11=1
 WITH_ALSA=1
 WITH_PULSE=1
 WITH_DBUS=1
+WITH_DEVMAPPER=1
 WITH_KMODS=1
 WITH_OPENGL=1
 WITH_HARDENING=1
@@ -102,10 +103,8 @@ CC64=""
 CXX="g++"
 CXX32=""
 CXX64=""
-BCC="bcc"
 YASM="yasm"
 IASL="iasl"
-AS86="as86"
 XSLTPROC="xsltproc"
 GENISOIMAGE="genisoimage"
 MKISOFS="mkisofs"
@@ -127,6 +126,8 @@ INCZ=""
 LIBZ="-lz"
 INCVNCSERVER=""
 LIBVNCSERVER="-lvncserver"
+INCDEVMAPPER=""
+LIBDEVMAPPER="-ldevmapper"
 CXX_FLAGS=""
 if [ "$OS" = "freebsd" ]; then
   INCCURL="-I/usr/local/include"
@@ -483,61 +484,59 @@ check_gcc()
 
 
 #
-# Check for the bcc compiler, needed for compiling the BIOS
+# Check for the OpenWatcom compiler, needed for compiling the BIOS
 #
-check_bcc()
+# If the system has Open Watcom installed, WATCOM will be set in the
+# environment.  If the user has her/his own Open Watcom install it will be
+# pointed to by on the command line, which will set the WATCOM variable.
+# The only exception is detecting OpenWatcom in tools/common/openwatcom.
+#
+check_open_watcom()
 {
-  test_header bcc
-  if check_avail "$BCC" BCC; then
-    bcc_ver=`$BCC -v 2>&1|grep version|sed 's+^bcc: version \(.*\)+\1+'`
-    if [ $? -ne 0 ]; then
-      log_failure "BCC not found"
-      fail
-    else
-      echo "compiling the following source file:" >> $LOG
-      cat > $ODIR.tmp_src.c << EOF
-int foo(a)
-  int a;
-{
-  return 0;
-}
-EOF
-      cat $ODIR.tmp_src.c >> $LOG
-      bcc_path=`which_wrapper $BCC`
-      bcc_dir="`dirname $bcc_path`/"
-      echo "using the following command line:" >> $LOG
-      echo "$BCC -B $bcc_dir -C-c -3 -S -o $ODIR.tmp_out $ODIR.tmp_src.c" >> $LOG
-      $BCC -B $bcc_dir -C-c -3 -S -o $ODIR.tmp_out $ODIR.tmp_src.c >> $LOG 2>&1
-      if [ $? -ne 0 ]; then
-        log_failure "BCC not working"
-        fail
-      else
-        log_success "found version $bcc_ver"
-        cnf_append "VBOX_BCC" "$bcc_path -B $bcc_dir"
-      fi
-      unset bcc_path
-      unset bcc_dir
+  test_header "Open Watcom"
+
+  if [ -z "$WATCOM" ]; then
+    WATCOM=`/bin/ls -rd1 $PWD/tools/common/openwatcom/* 2> /dev/null | head -1`
+    if [ -z "$WATCOM" ]; then
+      log_failure "Open Watcom was not found"
+      cnf_append "VBOX_WITH_OPEN_WATCOM" ""
+      return 0;
     fi
   fi
-}
 
+  case "$OS" in
+    "darwin")   wc_bin="binosx";;  # ??
+    "dos")      wc_bin="binw";;
+    "freebsd")  wc_bin="binfbsd";; # ??
+    "linux")    wc_bin="binl";;
+    "solaris")  wc_bin="binsol";;  # ??
+    "os2")      wc_bin="binp";;
+    "win")      wc_bin="binnt";;
+    *)          wc_bin="binl";;
+  esac
 
-#
-# Check for the as86 assembler, needed for compiling the BIOS
-#
-check_as86()
-{
-  test_header as86
-  if check_avail "$AS86" AS86; then
-    as86_ver=`$AS86 -v 2>&1|grep version|sed 's+^as86 version: \(.*\)+\1+'`
-    if [ $? -ne 0 ]; then
-      log_failure "as86 not found"
+  # Check that the tools we use are there.
+  for prog in wasm wcc wlink;
+  do
+    if [ ! -f "$WATCOM/$wc_bin/$prog" ]; then
+      log_failure "$WATCOM/$wc_bin/$prog does not exist or is not a regular file."
       fail
-    else
-      log_success "found version $as86_ver"
-      cnf_append "VBOX_AS86" "`which_wrapper $AS86`"
     fi
+  done
+
+  # Use WASM to get the version.
+  wasm_ver=`$WATCOM/$wc_bin/wasm -? 2>&1 | sed -e '1!d' -e 's/Open Watcom Assembler Version *//'`
+  if [ -z "$wasm_ver" ]; then
+    log_failure "$WATCOM/$wc_bin/wasm -? did not produce the expected response"
+    fail
   fi
+  log_success "found version $wasm_ver"
+  cnf_append "PATH_TOOL_OPENWATCOM" "$WATCOM"
+  cnf_append "VBOX_WITH_OPEN_WATCOM" "1"
+
+  unset wasm_ver
+  unset wc_wasm
+  unset wc_bin
 }
 
 
@@ -746,6 +745,58 @@ check_libidl()
 
 
 #
+# Check for libdevmapper, needed by the VBoxVolInfo
+#
+check_libdevmapper()
+{
+  test_header libdevmapper
+  cat > $ODIR.tmp_src.cc << EOF
+#include <cstdio>
+extern "C" {
+#define private
+#include <libdevmapper.h>
+int main()
+{
+  char version[80];
+
+  if (!dm_get_library_version(version, sizeof(version)))
+  {
+    printf("dm_get_library_version() failed.\n");
+    return 1;
+  }
+
+  const char* v=version;
+  unsigned int major = 0, minor = 0, micro = 0;
+
+  for (; *v !='.' && *v != '\0'; v++) major = major*10 + *v-'0';
+  if (*v == '.') v++;
+  for (; *v !='.' && *v != '\0'; v++) minor = minor*10 + *v-'0';
+  if (*v == '.') v++;
+  for (; *v !='.' && *v != '\0'; v++) micro = micro*10 + *v-'0';
+
+  printf("found version %s", version);
+  if (major*10000 + minor*100 + micro >= 10200)
+  {
+    printf(", OK.\n");
+    return 0;
+  }
+  else
+  {
+    printf(", expected version 1.02 or higher\n");
+    return 1;
+  }
+}
+}
+EOF
+  if test_compile "$LIBDEVMAPPER $INCDEVMAPPER" libdevmapper libdevmapper; then
+    if test_execute; then
+      cnf_append "VBOX_WITH_DEVMAPPER" "1"
+    fi
+  fi
+}
+
+
+#
 # Check for openssl, needed for RDP and S3
 #
 check_ssl()
@@ -914,7 +965,7 @@ extern "C" int main()
 EOF
   if test_compile "$LIBVNCSERVER $INCVNCSERVER" libvncserver libvncserver; then
     if test_execute; then
-      cnf_append "VBOX_WITH_VNC" "1"
+      cnf_append "VBOX_WITH_EXTPACK_VNC" "1"
     fi
   fi
 }
@@ -1423,18 +1474,18 @@ check_qt4()
       if which_wrapper pkg-config > /dev/null; then
         # this braindead path is necessary for mdv2008.1
         qt4_ver=`\
-            PKG_CONFIG_PATH=/usr/lib/qt4/lib/pkgconfig \
+            PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/lib/qt4/lib/pkgconfig \
             pkg-config QtCore --modversion 2>> $LOG`
         if [ $? -ne 0 ]; then
           log_failure "QtCore not found"
           fail
         else
           FLGQT4=`\
-              PKG_CONFIG_PATH=/usr/lib/qt4/lib/pkgconfig \
+              PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/lib/qt4/lib/pkgconfig \
               pkg-config QtCore --cflags`
           INCQT4=`strip_I "$FLGQT4"`
           LIBQT4=`\
-              PKG_CONFIG_PATH=/usr/lib/qt4/lib/pkgconfig \
+              PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/lib/qt4/lib/pkgconfig \
               PKG_CONFIG_ALLOW_SYSTEM_LIBS=1 \
               pkg-config QtCore --libs`
           foundqt4=1
@@ -1451,11 +1502,11 @@ check_qt4()
 extern "C" int main(void)
 {
   printf("found version %s", QT_VERSION_STR);
-#if QT_VERSION >= 0x040400
+#if QT_VERSION >= 0x040602
   printf(", OK.\n");
   return 0;
 #else
-  printf(", expected version 4.4.0 or higher\n");
+  printf(", expected version 4.6.2 or higher\n");
   return 1;
 #endif
 }
@@ -1484,11 +1535,11 @@ EOF
 extern "C" int main(void)
 {
   printf("found version %s", QT_VERSION_STR);
-#if QT_VERSION >= 0x040400
+#if QT_VERSION >= 0x040602
   printf(", OK.\n");
   return 0;
 #else
-  printf(", expected version 4.4.0 or higher\n");
+  printf(", expected version 4.6.2 or higher\n");
   return 1;
 #endif
 }
@@ -1619,7 +1670,8 @@ EOF
   cat $ODIR.tmp_src.c >> $LOG
   echo "using the following command line:" >> $LOG
   echo "$CC -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.c -nostdinc -I$LINUX/include" >> $LOG
-  $CC -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.c -nostdinc -I$LINUX/include >> $LOG 2>&1
+  $CC -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.c -nostdinc -I$LINUX/include \
+      -I$LINUX/include/generated/uapi >> $LOG 2>&1
   if [ $? -ne 0 ]; then
     echo
     echo "  Linux kernel headers not found at $LINUX"
@@ -1736,6 +1788,7 @@ check_libcap()
   cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <sys/types.h>
+#include <linux/types.h>
 #include <sys/capability.h>
 
 extern "C" int main(void)
@@ -2126,6 +2179,7 @@ EOF
 [ "$OS" = "linux" -o "$OS" = "freebsd" ] && echo "  --enable-vde             enable VDE networking"
 cat << EOF
   --disable-udptunnel      disable UDP tunnel networking
+  --disable-devmapper      disable device mapper library access
   --disable-hardening      don't be strict about /dev/vboxdrv access
   --build-libxml2          build libxml2 from sources
 EOF
@@ -2151,6 +2205,7 @@ EOF
 [ $WITH_GSOAP  -eq 1 ] && echo "  --with-gsoap-import=PATH directory for gSOAP import files (stlvector.h)"
 cat << EOF
   --with-openssl-dir=DIR   directory for OpenSSL headers/libraries
+  --with-ow-dir=DIR        directory where Open Watcom can be found [$WATCOM]
   --out-path=PATH          the folder to which configuration and build output
                            should go
 
@@ -2221,6 +2276,9 @@ for option in $*; do
       OPENSSLDIR=`echo $option | cut -d'=' -f2`
       INCCRYPTO="-I${OPENSSLDIR}/include"
       LIBCRYPTO="${OPENSSLDIR}/lib/libcrypto.a ${OPENSSLDIR}/lib/libssl.a"
+      ;;
+    --with-ow-dir=*)
+      WATCOM=`echo $option | cut -d'=' -f2`
       ;;
     --with-gsoap-dir=*)
       GSOAP=`echo $option | cut -d'=' -f2`
@@ -2308,6 +2366,9 @@ for option in $*; do
       ;;
     --enable-vde)
       WITH_VDE=1
+      ;;
+    --disable-devmapper)
+      WITH_DEVMAPPER=0
       ;;
     --build-debug|-d)
       BUILD_TYPE=debug
@@ -2476,6 +2537,7 @@ fi
 [ $WITH_SDL_TTF   -eq 0 ] && cnf_append "VBOX_WITH_SECURELABEL" ""
 [ $WITH_PYTHON    -eq 0 ] && cnf_append "VBOX_WITH_PYTHON" ""
 [ $WITH_JAVA      -eq 0 ] && cnf_append "VBOX_WITH_JXPCOM" ""
+[ $WITH_JAVA      -eq 0 ] && cnf_append "VBOX_WITH_JWS" ""
 [ $WITH_HARDENING -eq 0 ] && cnf_append "VBOX_WITHOUT_HARDENING" "1"
 [ $WITH_HARDENING -eq 2 ] && cnf_append "VBOX_WITH_HARDENING" "2"
 [ $WITH_VMMRAW    -eq 0 ] && cnf_append "VBOX_WITH_RAW_MODE" ""
@@ -2486,8 +2548,7 @@ if [ "$OS" = "darwin" ]; then
 fi
 # the tools
 check_gcc
-[ "$OS" != "darwin"  ] && check_as86
-[ "$OS" != "darwin"  ] && check_bcc
+check_open_watcom
 [ "$OS" != "darwin"  ] && check_iasl
 # don't check for yasm for the time beeing as 0.40 and 0.50 both have known bugs
 # [ "$OS" != "darwin" ] && check_yasm
@@ -2545,6 +2606,11 @@ if [ "$OS" = "linux" ]; then
   if [ $WITH_DBUS -eq 0 ]; then
     cnf_append "VBOX_WITH_DBUS" ""
   fi
+  if [ $WITH_DEVMAPPER -eq 1 ]; then
+    check_libdevmapper
+  else
+    cnf_append "VBOX_WITH_DEVMAPPER" ""
+  fi
   check_libcap
   check_compiler_h
   [ "$BUILD_MACHINE" = "amd64" -a $WITH_VMMRAW -eq 1 ] && check_32bit
@@ -2585,7 +2651,7 @@ if [ $OSE -ge 1 ]; then
   if [ $WITH_VNC = 1 ]; then
     check_vncserver
   else
-    cnf_append "VBOX_WITH_VNC" ""
+    cnf_append "VBOX_WITH_EXTPACK_VNC" ""
   fi
 fi
 

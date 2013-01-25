@@ -1,10 +1,10 @@
+/* $Id: renderspu_cocoa_helper.m $ */
 /** @file
- *
- * VirtualBox OpenGL Cocoa Window System Helper implementation
+ * VirtualBox OpenGL Cocoa Window System Helper Implementation.
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,8 @@
 #include <iprt/mem.h>
 #include <iprt/time.h>
 
-/*
+/** @page pg_opengl_cocoa  OpenGL - Cocoa Window System Helper
+ *
  * How this works:
  * In general it is not so easy like on the other platforms, cause Cocoa
  * doesn't support any clipping of already painted stuff. In Mac OS X there is
@@ -73,28 +74,28 @@
 /* Debug macros */
 #define FBO 1 /* Disable this to see how the output is without the FBO in the middle of the processing chain. */
 #if 0
-#define SHOW_WINDOW_BACKGROUND 1 /* Define this to see the window background even if the window is clipped */
-#define DEBUG_VERBOSE /* Define this to get some debug info about the messages flow. */
+# define SHOW_WINDOW_BACKGROUND 1 /* Define this to see the window background even if the window is clipped */
+# define DEBUG_VERBOSE /* Define this to get some debug info about the messages flow. */
 #endif
 
-#ifdef DEBUG_poetzsch
-#define DEBUG_MSG(text) \
+#ifdef DEBUG_misha
+# define DEBUG_MSG(text) \
     printf text
 #else
-#define DEBUG_MSG(text) \
+# define DEBUG_MSG(text) \
     do {} while (0)
 #endif
 
 #ifdef DEBUG_VERBOSE
-#define DEBUG_MSG_1(text) \
+# define DEBUG_MSG_1(text) \
     DEBUG_MSG(text)
 #else
-#define DEBUG_MSG_1(text) \
+# define DEBUG_MSG_1(text) \
     do {} while (0)
 #endif
 
 #ifdef DEBUG_poetzsch
-#define CHECK_GL_ERROR()\
+# define CHECK_GL_ERROR()\
     do \
     { \
         checkGLError(__FILE__, __LINE__); \
@@ -122,44 +123,46 @@
         }
     }
 #else
-#define CHECK_GL_ERROR()\
+# define CHECK_GL_ERROR()\
     do {} while (0)
 #endif
 
 #define GL_SAVE_STATE \
-do \
-{ \
-    glPushAttrib(GL_ALL_ATTRIB_BITS); \
-    glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS); \
-    glMatrixMode(GL_PROJECTION); \
-    glPushMatrix(); \
-    glMatrixMode(GL_TEXTURE); \
-    glPushMatrix(); \
-    glMatrixMode(GL_COLOR); \
-    glPushMatrix(); \
-    glMatrixMode(GL_MODELVIEW); \
-    glPushMatrix(); \
-} \
-while(0);
+    do \
+    { \
+        glPushAttrib(GL_ALL_ATTRIB_BITS); \
+        glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS); \
+        glMatrixMode(GL_PROJECTION); \
+        glPushMatrix(); \
+        glMatrixMode(GL_TEXTURE); \
+        glPushMatrix(); \
+        glMatrixMode(GL_COLOR); \
+        glPushMatrix(); \
+        glMatrixMode(GL_MODELVIEW); \
+        glPushMatrix(); \
+    } \
+    while(0);
 
 #define GL_RESTORE_STATE \
-do \
-{ \
-    glMatrixMode(GL_MODELVIEW); \
-    glPopMatrix(); \
-    glMatrixMode(GL_COLOR); \
-    glPopMatrix(); \
-    glMatrixMode(GL_TEXTURE); \
-    glPopMatrix(); \
-    glMatrixMode(GL_PROJECTION); \
-    glPopMatrix(); \
-    glPopClientAttrib(); \
-    glPopAttrib(); \
-} \
-while(0);
+    do \
+    { \
+        glMatrixMode(GL_MODELVIEW); \
+        glPopMatrix(); \
+        glMatrixMode(GL_COLOR); \
+        glPopMatrix(); \
+        glMatrixMode(GL_TEXTURE); \
+        glPopMatrix(); \
+        glMatrixMode(GL_PROJECTION); \
+        glPopMatrix(); \
+        glPopClientAttrib(); \
+        glPopAttrib(); \
+    } \
+    while(0);
 
-/* Custom OpenGL context class. This implementation doesn't allow to set a view
- * to the context, but save the view for later use. Also it saves a copy of the
+/** Custom OpenGL context class.
+ *
+ * This implementation doesn't allow to set a view to the
+ * context, but save the view for later use. Also it saves a copy of the
  * pixel format used to create that context for later use. */
 @interface OverlayOpenGLContext: NSOpenGLContext
 {
@@ -172,9 +175,10 @@ while(0);
 
 @class DockOverlayView;
 
-/* The custom view class. This is the main class of the cocoa OpenGL
- * implementation. It manages an frame buffer object for the rendering of the
- * guest applications. The guest applications render in this frame buffer which
+/** The custom view class.
+ * This is the main class of the cocoa OpenGL implementation. It
+ * manages an frame buffer object for the rendering of the guest
+ * applications. The guest applications render in this frame buffer which
  * is bind to an OpenGL texture. To display the guest content, an secondary
  * shared OpenGL context of the main OpenGL context is created. The secondary
  * context is marked as non opaque & the texture is displayed on an object
@@ -202,7 +206,7 @@ while(0);
     bool             m_fFrontDrawing;
 #endif
 
-    /* The corresponding dock tile view of this OpenGL view & all helper
+    /** The corresponding dock tile view of this OpenGL view & all helper
      * members. */
     DockOverlayView *m_DockTileView;
 
@@ -220,7 +224,7 @@ while(0);
     NSPoint          m_Pos;
     NSSize           m_Size;
 
-    /* This is necessary for clipping on the root window */
+    /** This is necessary for clipping on the root window */
     NSPoint          m_RootShift;
 }
 - (id)initWithFrame:(NSRect)frame thread:(RTTHREAD)aThread parentView:(NSView*)pParentView;
@@ -259,12 +263,16 @@ while(0);
 
 - (NSView*)dockTileScreen;
 - (void)reshapeDockTile;
+- (void)cleanupData;
 @end
 
-/* Helper view. This view is added as a sub view of the parent view to track
- * main window changes. Whenever the main window is changed (which happens on
- * fullscreen/seamless entry/exit) the overlay window is informed & can add
- * them self as a child window again. */
+/** Helper view.
+ *
+ * This view is added as a sub view of the parent view to track
+ * main window changes. Whenever the main window is changed
+ * (which happens on fullscreen/seamless entry/exit) the overlay
+ * window is informed & can add them self as a child window
+ * again. */
 @class OverlayWindow;
 @interface OverlayHelperView: NSView
 {
@@ -274,8 +282,10 @@ while(0);
 -(id)initWithOverlayWindow:(OverlayWindow*)pOverlayWindow;
 @end
 
-/* Custom window class. This is the overlay window which contains our custom
- * NSView. Its a direct child of the Qt Main window. It marks its background
+/** Custom window class.
+ *
+ * This is the overlay window which contains our custom NSView.
+ * Its a direct child of the Qt Main window. It marks its background
  * transparent & non opaque to make clipping possible. It also disable mouse
  * events and handle frame change events of the parent view. */
 @interface OverlayWindow: NSWindow
@@ -659,16 +669,16 @@ while(0);
     return self;
 }
 
-- (void)dealloc
+- (void)cleanupData
 {
-    DEBUG_MSG(("OVIW(%p): dealloc OverlayView\n", (void*)self));
-
     [self deleteFBO];
 
     if (m_pGLCtx)
     {
         if ([m_pGLCtx view] == self)
             [m_pGLCtx clearDrawable];
+
+        m_pGLCtx = nil;
     }
     if (m_pSharedGLCtx)
     {
@@ -676,9 +686,18 @@ while(0);
             [m_pSharedGLCtx clearDrawable];
 
         [m_pSharedGLCtx release];
+
+        m_pSharedGLCtx = nil;
     }
 
     [self clearVisibleRegions];
+}
+
+- (void)dealloc
+{
+    DEBUG_MSG(("OVIW(%p): dealloc OverlayView\n", (void*)self));
+
+    [self cleanupData];
 
     [super dealloc];
 }
@@ -691,6 +710,12 @@ while(0);
 - (void)setGLCtx:(NSOpenGLContext*)pCtx
 {
     DEBUG_MSG(("OVIW(%p): setGLCtx: new ctx: %p\n", (void*)self, (void*)pCtx));
+    if (m_pGLCtx == pCtx)
+        return;
+
+    /* ensure the context drawable is cleared to avoid holding a reference to inexistent view */
+    if (m_pGLCtx)
+        [m_pGLCtx clearDrawable];
 
     m_pGLCtx = pCtx;
 }
@@ -1206,7 +1231,8 @@ while(0);
             glDrawBuffer(m_FBOAttFrontId);
     }
 
-    [self tryDraw];
+    if (m_cClipRects)
+        [self tryDraw];
 #else
     [m_pGLCtx flushBuffer];
 #endif
@@ -1233,7 +1259,8 @@ while(0);
         if (!(   (GLuint)FBOId  == m_FBOId
               && (GLuint)drawId == m_FBOAttFrontId))
             m_fFrontDrawing = false;
-        [self tryDraw];
+        if (m_cClipRects)
+            [self tryDraw];
     }
 #endif
 }
@@ -1244,7 +1271,7 @@ while(0);
 
     glFinish();
 #ifdef FBO
-    if ([self isCurrentFBO])
+    if (m_cClipRects && [self isCurrentFBO])
         [self tryDraw];
 #endif
 }
@@ -1544,6 +1571,8 @@ while(0);
 
 - (void)setVisibleRegions:(GLint)cRects paRects:(GLint*)paRects
 {
+    GLint cOldRects = m_cClipRects;
+
     DEBUG_MSG_1(("OVIW(%p): setVisibleRegions: cRects=%d\n", (void*)self, cRects));
 
     [self clearVisibleRegions];
@@ -1560,7 +1589,7 @@ while(0);
         m_cClipRects = cRects;
         memcpy(m_paClipRects, paRects, sizeof(GLint) * 4 * cRects);
     }
-    else
+    else if (cOldRects)
         [self tryDraw];
 }
 
@@ -1607,7 +1636,7 @@ while(0);
 * OpenGL context management
 *
 ********************************************************************************/
-void cocoaGLCtxCreate(NativeNSOpenGLContextRef *ppCtx, GLbitfield fVisParams)
+void cocoaGLCtxCreate(NativeNSOpenGLContextRef *ppCtx, GLbitfield fVisParams, NativeNSOpenGLContextRef pSharedCtx)
 {
     NSOpenGLPixelFormat *pFmt = nil;
 
@@ -1678,7 +1707,7 @@ void cocoaGLCtxCreate(NativeNSOpenGLContextRef *ppCtx, GLbitfield fVisParams)
 
     if (pFmt)
     {
-        *ppCtx = [[OverlayOpenGLContext alloc] initWithFormat:pFmt shareContext:nil];
+        *ppCtx = [[OverlayOpenGLContext alloc] initWithFormat:pFmt shareContext:pSharedCtx];
 
         /* Enable multi threaded OpenGL engine */
         /*
@@ -1769,15 +1798,26 @@ void cocoaViewDestroy(NativeNSViewRef pView)
     [[NSNotificationCenter defaultCenter] removeObserver:pWin];
     [pWin setContentView: nil];
     [[pWin parentWindow] removeChildWindow: pWin];
+    
     /*
     a = [pWin retainCount];
     for (; a > 1; --a)
         [pWin performSelector:@selector(release)]
     */
-    [pWin performSelectorOnMainThread:@selector(release) withObject:nil waitUntilDone:YES];
+    /* We can NOT run synchronously with the main thread since this may lead to a deadlock,
+       caused by main thread waiting xpcom thread, xpcom thread waiting to main hgcm thread,
+       and main hgcm thread waiting for us, this is why use waitUntilDone:NO, 
+       which should cause no harm */ 
+    [pWin performSelectorOnMainThread:@selector(release) withObject:nil waitUntilDone:NO];
     /*
     [pWin release];
     */
+
+    /* We can NOT run synchronously with the main thread since this may lead to a deadlock,
+       caused by main thread waiting xpcom thread, xpcom thread waiting to main hgcm thread,
+       and main hgcm thread waiting for us, this is why use waitUntilDone:NO. 
+       We need to avoid concurrency though, so we cleanup some data right away via a cleanupData call */
+    [(OverlayView*)pView cleanupData];
 
     /* There seems to be a bug in the performSelector method which is called in
      * parentWindowChanged above. The object is retained but not released. This
@@ -1787,7 +1827,7 @@ void cocoaViewDestroy(NativeNSViewRef pView)
     a = [pView retainCount];
     for (; a > 1; --a)
     */
-    [pView performSelectorOnMainThread:@selector(release) withObject:nil waitUntilDone:YES];
+    [pView performSelectorOnMainThread:@selector(release) withObject:nil waitUntilDone:NO];
     /*
     [pView release];
     */

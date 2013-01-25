@@ -140,7 +140,7 @@ static DECLCALLBACK(int) rtDvmFmtMbrOpen(PCRTDVMDISK pDisk, PRTDVMFMT phVolMgrFm
     PRTDVMFMTINTERNAL pThis = NULL;
 
     pThis = (PRTDVMFMTINTERNAL)RTMemAllocZ(sizeof(RTDVMFMTINTERNAL));
-    if (VALID_PTR(pThis))
+    if (pThis)
     {
         pThis->pDisk       = pDisk;
         pThis->cPartitions = 0;
@@ -177,7 +177,7 @@ static DECLCALLBACK(int) rtDvmFmtMbrInitialize(PCRTDVMDISK pDisk, PRTDVMFMT phVo
     PRTDVMFMTINTERNAL pThis = NULL;
 
     pThis = (PRTDVMFMTINTERNAL)RTMemAllocZ(sizeof(RTDVMFMTINTERNAL));
-    if (VALID_PTR(pThis))
+    if (pThis)
     {
         /* Setup a new MBR and write it to the disk. */
         memset(&pThis->abMbr[0], 0, sizeof(pThis->abMbr));
@@ -211,6 +211,23 @@ static DECLCALLBACK(void) rtDvmFmtMbrClose(RTDVMFMT hVolMgrFmt)
     RTMemFree(pThis);
 }
 
+static DECLCALLBACK(int) rtDvmFmtMbrQueryRangeUse(RTDVMFMT hVolMgrFmt,
+                                                  uint64_t off, uint64_t cbRange,
+                                                  bool *pfUsed)
+{
+    PRTDVMFMTINTERNAL pThis = hVolMgrFmt;
+
+    NOREF(cbRange);
+
+    /* MBR uses the first sector only. */
+    if (off < 512)
+        *pfUsed = true;
+    else
+        *pfUsed = false;
+
+    return VINF_SUCCESS;
+}
+
 static DECLCALLBACK(uint32_t) rtDvmFmtMbrGetValidVolumes(RTDVMFMT hVolMgrFmt)
 {
     PRTDVMFMTINTERNAL pThis = hVolMgrFmt;
@@ -239,7 +256,7 @@ static int rtDvmFmtMbrVolumeCreate(PRTDVMFMTINTERNAL pThis, uint8_t *pbMbrEntry,
     int rc = VINF_SUCCESS;
     PRTDVMVOLUMEFMTINTERNAL pVol = (PRTDVMVOLUMEFMTINTERNAL)RTMemAllocZ(sizeof(RTDVMVOLUMEFMTINTERNAL));
 
-    if (VALID_PTR(pVol))
+    if (pVol)
     {
         pVol->pVolMgr    = pThis;
         pVol->idxEntry   = idx;
@@ -322,7 +339,7 @@ static DECLCALLBACK(uint64_t) rtDvmFmtMbrVolumeGetSize(RTDVMVOLUMEFMT hVolFmt)
 
 static DECLCALLBACK(int) rtDvmFmtMbrVolumeQueryName(RTDVMVOLUMEFMT hVolFmt, char **ppszVolName)
 {
-    NOREF(hVolFmt);
+    NOREF(hVolFmt); NOREF(ppszVolName);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -350,6 +367,24 @@ static DECLCALLBACK(uint64_t) rtDvmFmtMbrVolumeGetFlags(RTDVMVOLUMEFMT hVolFmt)
         fFlags |= DVMVOLUME_FLAGS_BOOTABLE | DVMVOLUME_FLAGS_ACTIVE;
 
     return fFlags;
+}
+
+DECLCALLBACK(bool) rtDvmFmtMbrVolumeIsRangeIntersecting(RTDVMVOLUMEFMT hVolFmt,
+                                                        uint64_t offStart, size_t cbRange,
+                                                        uint64_t *poffVol,
+                                                        uint64_t *pcbIntersect)
+{
+    bool fIntersect = false;
+    PRTDVMVOLUMEFMTINTERNAL pVol = hVolFmt;
+
+    if (RTDVM_RANGE_IS_INTERSECTING(pVol->offStart, pVol->cbVolume, offStart))
+    {
+        fIntersect    = true;
+        *poffVol      = offStart - pVol->offStart;
+        *pcbIntersect = RT_MIN(cbRange, pVol->offStart + pVol->cbVolume - offStart);
+    }
+
+    return fIntersect;
 }
 
 static DECLCALLBACK(int) rtDvmFmtMbrVolumeRead(RTDVMVOLUMEFMT hVolFmt, uint64_t off, void *pvBuf, size_t cbRead)
@@ -380,6 +415,8 @@ RTDVMFMTOPS g_rtDvmFmtMbr =
     rtDvmFmtMbrInitialize,
     /* pfnClose */
     rtDvmFmtMbrClose,
+    /* pfnQueryRangeUse */
+    rtDvmFmtMbrQueryRangeUse,
     /* pfnGetValidVolumes */
     rtDvmFmtMbrGetValidVolumes,
     /* pfnGetMaxVolumes */
@@ -398,6 +435,8 @@ RTDVMFMTOPS g_rtDvmFmtMbr =
     rtDvmFmtMbrVolumeGetType,
     /* pfnVolumeGetFlags */
     rtDvmFmtMbrVolumeGetFlags,
+    /* pfnVOlumeIsRangeIntersecting */
+    rtDvmFmtMbrVolumeIsRangeIntersecting,
     /* pfnVolumeRead */
     rtDvmFmtMbrVolumeRead,
     /* pfnVolumeWrite */

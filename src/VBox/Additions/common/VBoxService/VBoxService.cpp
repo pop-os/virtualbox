@@ -749,7 +749,7 @@ int main(int argc, char **argv)
     /*
      * Init globals and such.
      */
-    int rc = RTR3Init();
+    int rc = RTR3InitExe(argc, &argv, 0);
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
     g_pszProgName = RTPathFilename(argv[0]);

@@ -17,6 +17,9 @@
 
 /* tftp defines */
 
+#ifndef _SLIRP_TFTP_H_
+#define _SLIRP_TFTP_H_
+
 #define TFTP_SESSIONS_MAX 3
 
 #define TFTP_SERVER     69
@@ -30,25 +33,8 @@
 
 #define TFTP_FILENAME_MAX 512
 
-struct tftp_t
-{
-    struct ip ip;
-    struct udphdr udp;
-    u_int16_t tp_op;
-    union
-    {
-        struct
-        {
-            u_int16_t tp_block_nr;
-            u_int8_t  tp_buf[512];
-        } tp_data;
-        struct
-        {
-            u_int16_t tp_error_code;
-            u_int8_t  tp_msg[512];
-        } tp_error;
-        u_int8_t tp_buf[512 + 2];
-    } x;
-};
 
-void tftp_input(PNATState pData, struct mbuf *m);
+int  slirpTftpInput(PNATState pData, struct mbuf *m);
+int  slirpTftpInit(PNATState pData);
+void slirpTftpTerm(PNATState pData);
+#endif

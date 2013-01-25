@@ -237,7 +237,7 @@ VMMDECL(int) PATMAddBranchToLookupCache(PVM pVM, RTRCPTR pJumpTableGC, RTRCPTR p
  * @param   pVM         The VM handle.
  * @param   pCtxCore    The relevant core context.
  */
-VMMDECL(int) PATMHandleInt3PatchTrap(PVM pVM, PCPUMCTXCORE pRegFrame);
+VMMRCDECL(int) PATMRCHandleInt3PatchTrap(PVM pVM, PCPUMCTXCORE pRegFrame);
 
 /**
  * Checks if the int 3 was caused by a patched instruction
@@ -313,7 +313,7 @@ VMMRCDECL(int) PATMGCHandleWriteToPatchPage(PVM pVM, PCPUMCTXCORE pRegFrame, RTR
  * @param   pVM         The VM handle.
  * @param   pCtxCore    The relevant core context.
  */
-VMMDECL(int) PATMGCHandleIllegalInstrTrap(PVM pVM, PCPUMCTXCORE pRegFrame);
+VMMDECL(int) PATMRCHandleIllegalInstrTrap(PVM pVM, PCPUMCTXCORE pRegFrame);
 
 /** @} */
 
@@ -557,6 +557,7 @@ VMMR3DECL(RTRCPTR) PATMR3GuestGCPtrToPatchGCPtr(PVM pVM, RCPTRTYPE(uint8_t*) pIn
  *
  */
 VMMR3DECL(int) PATMR3QueryOpcode(PVM pVM, RTRCPTR pInstrGC, uint8_t *pByte);
+VMMR3DECL(int) PATMR3ReadOrgInstr(PVM pVM, RTGCPTR32 GCPtrInstr, uint8_t *pbDst, size_t cbToRead, size_t *pcbRead);
 
 /**
  * Disable patch for privileged instruction at specified location

@@ -356,7 +356,7 @@ static RTEXITCODE UnpackExtPackDir(const char *pszDstDirName, RTVFSOBJ hVfsObj)
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTVfsObjQueryInfo failed on '%s': %Rrc", pszDstDirName, rc);
     ObjInfo.Attr.fMode &= ~(RTFS_UNIX_IWOTH | RTFS_UNIX_IWGRP);
 
-    rc = RTDirCreate(pszDstDirName, ObjInfo.Attr.fMode);
+    rc = RTDirCreate(pszDstDirName, ObjInfo.Attr.fMode, 0);
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to create directory '%s': %Rrc", pszDstDirName, rc);
 
@@ -566,7 +566,7 @@ static RTEXITCODE UnpackExtPack(RTFILE hTarballFile, const char *pszDirDst, RTMA
             rc = RTManifestEqualsEx(hUnpackManifest, hValidManifest, NULL /*papszIgnoreEntries*/, NULL /*papszIgnoreAttr*/,
                                     0 /*fFlags*/, szError, sizeof(szError));
             if (RT_SUCCESS(rc))
-                rc = RTEXITCODE_SUCCESS;
+                rcExit = RTEXITCODE_SUCCESS;
             else if (rc == VERR_NOT_EQUAL && szError[0])
                 rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Manifest mismatch: %s", szError);
             else
@@ -707,7 +707,7 @@ static RTEXITCODE DoInstall2(const char *pszBaseDir, const char *pszCertDir, con
      * Create the temporary directory and prepare the extension pack within it.
      * If all checks out correctly, rename it to the final directory.
      */
-    RTDirCreate(pszBaseDir, 0755);
+    RTDirCreate(pszBaseDir, 0755, 0);
 #ifndef RT_OS_WINDOWS
     /*
      * Because of umask, we have to apply the mode again.
@@ -718,7 +718,7 @@ static RTEXITCODE DoInstall2(const char *pszBaseDir, const char *pszCertDir, con
 #else
     /** @todo Ownership tricks on windows? */
 #endif
-    rc = RTDirCreate(szTmpPath, 0700);
+    rc = RTDirCreate(szTmpPath, 0700, 0);
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to create temporary directory: %Rrc ('%s')", rc, szTmpPath);
 
@@ -1569,7 +1569,7 @@ static RTEXITCODE RelaunchElevated(int argc, char **argv, int iCmd, const char *
     rc = RTPathAppend(szTempDir, sizeof(szTempDir), "VBoxExtPackHelper-XXXXXX");
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTPathAppend failed: %Rrc", rc);
-    rc = RTDirCreateTemp(szTempDir);
+    rc = RTDirCreateTemp(szTempDir, 0700);
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTDirCreateTemp failed: %Rrc", rc);
 
@@ -1767,7 +1767,7 @@ int main(int argc, char **argv)
     /*
      * Initialize IPRT and check that we're correctly installed.
      */
-    int rc = RTR3Init();
+    int rc = RTR3InitExe(argc, &argv, 0);
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
 
@@ -1906,7 +1906,7 @@ extern "C" int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPST
     g_hInstance = hInstance;
     NOREF(hPrevInstance); NOREF(nShowCmd); NOREF(lpCmdLine);
 
-    int rc = RTR3Init();
+    int rc = RTR3InitExeNoArguments(0);
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
 

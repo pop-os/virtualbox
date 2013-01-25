@@ -5,7 +5,7 @@
 
 #
 #
-# Copyright (C) 2006-2007 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@
 
 KMOD = vboxdrv
 
-CFLAGS += -DRT_OS_FREEBSD -DIN_RING0 -DIN_RT_R0 -DIN_SUP_R0 -DVBOX -DRT_WITH_VBOX -Iinclude -I. -Ir0drv -w -DVBOX_WITH_HARDENING -DVBOX_WITH_64_BITS_GUESTS
+CFLAGS += -DRT_OS_FREEBSD -DIN_RING0 -DIN_RT_R0 -DIN_SUP_R0 -DSUPDRV_WITH_RELEASE_LOGGER -DVBOX -DRT_WITH_VBOX -Iinclude -I. -Ir0drv -w -DVBOX_WITH_HARDENING -DVBOX_WITH_64_BITS_GUESTS
 
 .if (${MACHINE_ARCH} == "i386")
  CFLAGS += -DRT_ARCH_X86
@@ -38,6 +38,7 @@ CFLAGS += -DRT_OS_FREEBSD -DIN_RING0 -DIN_RT_R0 -DIN_SUP_R0 -DVBOX -DRT_WITH_VBO
 SRCS = \
 	SUPDrv.c \
 	SUPDrvSem.c \
+	SUPDrvTracer.c \
 
 # Include needed interface headers so they are created during build
 SRCS += \
@@ -85,6 +86,7 @@ SRCS += \
 .PATH:	${.CURDIR}/common/string
 SRCS += \
 	RTStrNCmp.c \
+	RTStrNLen.c \
 	RTStrCopy.c \
 	RTStrCopyP.c \
 	strformat.c \

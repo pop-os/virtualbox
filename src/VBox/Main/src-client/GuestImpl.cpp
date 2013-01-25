@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,10 +16,14 @@
  */
 
 #include "GuestImpl.h"
+#include "GuestSessionImpl.h"
 
 #include "Global.h"
 #include "ConsoleImpl.h"
 #include "ProgressImpl.h"
+#ifdef VBOX_WITH_DRAG_AND_DROP
+# include "GuestDnDImpl.h"
+#endif
 #include "VMMDev.h"
 
 #include "AutoCaller.h"
@@ -27,11 +31,9 @@
 #include "Performance.h"
 
 #include <VBox/VMMDev.h>
-#ifdef VBOX_WITH_GUEST_CONTROL
-# include <VBox/com/array.h>
-# include <VBox/com/ErrorInfo.h>
-#endif
 #include <iprt/cpp/utils.h>
+#include <iprt/ctype.h>
+#include <iprt/stream.h>
 #include <iprt/timer.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/version.h>
@@ -42,7 +44,7 @@
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
 
-DEFINE_EMPTY_CTOR_DTOR (Guest)
+DEFINE_EMPTY_CTOR_DTOR(Guest)
 
 HRESULT Guest::FinalConstruct()
 {
@@ -51,7 +53,7 @@ HRESULT Guest::FinalConstruct()
 
 void Guest::FinalRelease()
 {
-    uninit ();
+    uninit();
     BaseFinalRelease();
 }
 
@@ -94,22 +96,28 @@ HRESULT Guest::init(Console *aParent)
     mCollectVMMStats = false;
 
     /* Clear statistics. */
+    mNetStatRx = mNetStatTx = 0;
+    mNetStatLastTs = RTTimeNanoTS();
     for (unsigned i = 0 ; i < GUESTSTATTYPE_MAX; i++)
         mCurrentGuestStat[i] = 0;
-    mGuestValidStats = pm::GUESTSTATMASK_NONE;
+    mVmValidStats = pm::VMSTATMASK_NONE;
 
     mMagic = GUEST_MAGIC;
-    int vrc = RTTimerLRCreate (&mStatTimer, 1000 /* ms */,
-                               &Guest::staticUpdateStats, this);
-    AssertMsgRC (vrc, ("Failed to create guest statistics "
-                       "update timer(%Rra)\n", vrc));
+    int vrc = RTTimerLRCreate(&mStatTimer, 1000 /* ms */,
+                              &Guest::staticUpdateStats, this);
+    AssertMsgRC(vrc, ("Failed to create guest statistics update timer(%Rra)\n", vrc));
 
-#ifdef VBOX_WITH_GUEST_CONTROL
-    /* Init the context ID counter at 1000. */
-    mNextContextID = 1000;
-    /* Init the host PID counter. */
-    mNextHostPID = 0;
+    try
+    {
+#ifdef VBOX_WITH_DRAG_AND_DROP
+        m_pGuestDnD = new GuestDnD(this);
+        AssertPtr(m_pGuestDnD);
 #endif
+    }
+    catch(std::bad_alloc &)
+    {
+        return E_OUTOFMEMORY;
+    }
 
     return S_OK;
 }
@@ -127,54 +135,97 @@ void Guest::uninit()
     if (autoUninitSpan.uninitDone())
         return;
 
-#ifdef VBOX_WITH_GUEST_CONTROL
-    /* Scope write lock as much as possible. */
-    {
-        /*
-         * Cleanup must be done *before* AutoUninitSpan to cancel all
-         * all outstanding waits in API functions (which hold AutoCaller
-         * ref counts).
-         */
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-        /* Notify left over callbacks that we are about to shutdown ... */
-        CallbackMapIter it;
-        for (it = mCallbackMap.begin(); it != mCallbackMap.end(); it++)
-        {
-            int rc2 = callbackNotifyEx(it->first, VERR_CANCELLED,
-                                       Guest::tr("VM is shutting down, canceling uncompleted guest requests ..."));
-            AssertRC(rc2);
-        }
-
-        /* Destroy left over callback data. */
-        for (it = mCallbackMap.begin(); it != mCallbackMap.end(); it++)
-            callbackDestroy(it->first);
-
-        /* Clear process map (remove all callbacks). */
-        mGuestProcessMap.clear();
-    }
-#endif
-
     /* Destroy stat update timer */
-    int vrc = RTTimerLRDestroy (mStatTimer);
-    AssertMsgRC (vrc, ("Failed to create guest statistics "
-                       "update timer(%Rra)\n", vrc));
+    int vrc = RTTimerLRDestroy(mStatTimer);
+    AssertMsgRC(vrc, ("Failed to create guest statistics update timer(%Rra)\n", vrc));
     mStatTimer = NULL;
     mMagic     = 0;
 
+#ifdef VBOX_WITH_GUEST_CONTROL
+    LogFlowThisFunc(("Closing sessions (%RU64 total)\n",
+                     mData.mGuestSessions.size()));
+    GuestSessions::iterator itSessions = mData.mGuestSessions.begin();
+    while (itSessions != mData.mGuestSessions.end())
+    {
+#ifdef DEBUG
+        ULONG cRefs = itSessions->second->AddRef();
+        LogFlowThisFunc(("pSession=%p, cRefs=%RU32\n", (GuestSession *)itSessions->second, cRefs > 0 ? cRefs - 1 : 0));
+        itSessions->second->Release();
+#endif
+        itSessions->second->uninit();
+        itSessions++;
+    }
+    mData.mGuestSessions.clear();
+#endif
+
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    if (m_pGuestDnD)
+    {
+        delete m_pGuestDnD;
+        m_pGuestDnD = NULL;
+    }
+#endif
+
     unconst(mParent) = NULL;
+
+    LogFlowFuncLeave();
 }
 
 /* static */
 void Guest::staticUpdateStats(RTTIMERLR hTimerLR, void *pvUser, uint64_t iTick)
 {
-    AssertReturnVoid (pvUser != NULL);
-    Guest *guest = static_cast <Guest *> (pvUser);
+    AssertReturnVoid(pvUser != NULL);
+    Guest *guest = static_cast<Guest *>(pvUser);
     Assert(guest->mMagic == GUEST_MAGIC);
     if (guest->mMagic == GUEST_MAGIC)
         guest->updateStats(iTick);
 
-    NOREF (hTimerLR);
+    NOREF(hTimerLR);
+}
+
+/* static */
+int Guest::staticEnumStatsCallback(const char *pszName, STAMTYPE enmType, void *pvSample, STAMUNIT enmUnit,
+                                          STAMVISIBILITY enmVisiblity, const char *pszDesc, void *pvUser)
+{
+    PSTAMCOUNTER pCnt = (PSTAMCOUNTER)pvSample;
+    char *pszEnd = strrchr((char*)pszName, '/');
+    if (pszEnd)
+    {
+        bool    fRx;
+        uint8_t uInstance = 0;
+
+        switch (pszEnd[1])
+        {
+            case 'R':
+                fRx = true;
+                break;
+            case 'T':
+                fRx = false;
+                break;
+            default:
+                LogRel(("Failed to parse the name of network stat counter (unknown counter): %s\n", pszName));
+                return VINF_SUCCESS;
+        }
+        do
+            --pszEnd;
+        while (pszEnd > pszName && RT_C_IS_DIGIT(*pszEnd));
+        if (RT_SUCCESS(RTStrToUInt8Ex(pszEnd + 1, NULL, 10, &uInstance)))
+        {
+            Guest *pGuest = (Guest *)pvUser;
+            LogFlowFunc(("%s i=%u d=%s %llu %s\n", pszName, uInstance, fRx ? "RX" : "TX",
+                         pCnt->c, STAMR3GetUnit(enmUnit)));
+            if (fRx)
+                pGuest->mNetStatRx += pCnt->c;
+            else
+                pGuest->mNetStatTx += pCnt->c;
+        }
+        else
+            LogRel(("Failed to extract the device instance from the name of network stat counter: %s\n", pszEnd));
+    }
+    else
+        LogRel(("Failed to parse the name of network stat counter (no slash): %s\n", pszName));
+
+    return VINF_SUCCESS;
 }
 
 void Guest::updateStats(uint64_t iTick)
@@ -184,13 +235,15 @@ void Guest::updateStats(uint64_t iTick)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
+    ULONG uNetStatRx = 0;
+    ULONG uNetStatTx = 0;
     ULONG aGuestStats[GUESTSTATTYPE_MAX];
     RT_ZERO(aGuestStats);
-    ULONG validStats = mGuestValidStats;
+    ULONG validStats = mVmValidStats;
     /* Check if we have anything to report */
     if (validStats)
     {
-        mGuestValidStats = pm::GUESTSTATMASK_NONE;
+        mVmValidStats = pm::VMSTATMASK_NONE;
         memcpy(aGuestStats, mCurrentGuestStat, sizeof(aGuestStats));
     }
     alock.release();
@@ -208,7 +261,7 @@ void Guest::updateStats(uint64_t iTick)
     uSharedMem      = 0;
     uZeroMem        = 0;
 
-    Console::SafeVMPtr pVM (mParent);
+    Console::SafeVMPtr pVM(mParent);
     if (pVM.isOk())
     {
         int rc;
@@ -223,7 +276,7 @@ void Guest::updateStats(uint64_t iTick)
             rc = PGMR3QueryMemoryStats(pVM.raw(), &uTotalMem, &uPrivateMem, &uSharedMem, &uZeroMem);
             if (rc == VINF_SUCCESS)
             {
-                validStats |= pm::GUESTSTATMASK_MEMSHARED;
+                validStats |= pm::VMSTATMASK_GUEST_MEMSHARED;
             }
         }
 
@@ -233,28 +286,43 @@ void Guest::updateStats(uint64_t iTick)
             AssertRC(rc);
             if (rc == VINF_SUCCESS)
             {
-                validStats |= pm::GUESTSTATMASK_ALLOCVMM|pm::GUESTSTATMASK_FREEVMM|
-                    pm::GUESTSTATMASK_BALOONVMM|pm::GUESTSTATMASK_SHAREDVMM;
+                validStats |=
+                    pm::VMSTATMASK_VMM_ALLOC  | pm::VMSTATMASK_VMM_FREE |
+                    pm::VMSTATMASK_VMM_BALOON | pm::VMSTATMASK_VMM_SHARED;
             }
         }
 
+        uint64_t uRxPrev = mNetStatRx;
+        uint64_t uTxPrev = mNetStatTx;
+        mNetStatRx = mNetStatTx = 0;
+        rc = STAMR3Enum(pVM, "*/ReceiveBytes|*/TransmitBytes", staticEnumStatsCallback, this);
+        uint64_t uTsNow = RTTimeNanoTS();
+        uint64_t uTimePassed = uTsNow - mNetStatLastTs;
+        mNetStatLastTs = uTsNow;
+        uNetStatRx = (ULONG)((mNetStatRx - uRxPrev) * 1000000 / (uTimePassed / 1000)); /* in bytes per second */
+        uNetStatTx = (ULONG)((mNetStatTx - uTxPrev) * 1000000 / (uTimePassed / 1000)); /* in bytes per second */
+        LogFlowThisFunc(("Net Rx=%llu Tx=%llu Ts=%llu Delta=%llu\n", mNetStatRx, mNetStatTx, uTsNow, uTimePassed));
+        AssertRC(rc);
+        validStats |= pm::VMSTATMASK_NET_RX | pm::VMSTATMASK_NET_TX;
     }
 
-    mParent->reportGuestStatistics(validStats,
-                                   aGuestStats[GUESTSTATTYPE_CPUUSER],
-                                   aGuestStats[GUESTSTATTYPE_CPUKERNEL],
-                                   aGuestStats[GUESTSTATTYPE_CPUIDLE],
-                                   /* Convert the units for RAM usage stats: page (4K) -> 1KB units */
-                                   mCurrentGuestStat[GUESTSTATTYPE_MEMTOTAL] * (_4K/_1K),
-                                   mCurrentGuestStat[GUESTSTATTYPE_MEMFREE] * (_4K/_1K),
-                                   mCurrentGuestStat[GUESTSTATTYPE_MEMBALLOON] * (_4K/_1K),
-                                   (ULONG)(uSharedMem / _1K), /* bytes -> KB */
-                                   mCurrentGuestStat[GUESTSTATTYPE_MEMCACHE] * (_4K/_1K),
-                                   mCurrentGuestStat[GUESTSTATTYPE_PAGETOTAL] * (_4K/_1K),
-                                   (ULONG)(uAllocTotal / _1K), /* bytes -> KB */
-                                   (ULONG)(uFreeTotal / _1K),
-                                   (ULONG)(uBalloonedTotal / _1K),
-                                   (ULONG)(uSharedTotal / _1K));
+    mParent->reportVmStatistics(validStats,
+                                aGuestStats[GUESTSTATTYPE_CPUUSER],
+                                aGuestStats[GUESTSTATTYPE_CPUKERNEL],
+                                aGuestStats[GUESTSTATTYPE_CPUIDLE],
+                                /* Convert the units for RAM usage stats: page (4K) -> 1KB units */
+                                mCurrentGuestStat[GUESTSTATTYPE_MEMTOTAL] * (_4K/_1K),
+                                mCurrentGuestStat[GUESTSTATTYPE_MEMFREE] * (_4K/_1K),
+                                mCurrentGuestStat[GUESTSTATTYPE_MEMBALLOON] * (_4K/_1K),
+                                (ULONG)(uSharedMem / _1K), /* bytes -> KB */
+                                mCurrentGuestStat[GUESTSTATTYPE_MEMCACHE] * (_4K/_1K),
+                                mCurrentGuestStat[GUESTSTATTYPE_PAGETOTAL] * (_4K/_1K),
+                                (ULONG)(uAllocTotal / _1K), /* bytes -> KB */
+                                (ULONG)(uFreeTotal / _1K),
+                                (ULONG)(uBalloonedTotal / _1K),
+                                (ULONG)(uSharedTotal / _1K),
+                                uNetStatRx,
+                                uNetStatTx);
 }
 
 // IGuest properties
@@ -282,7 +350,7 @@ STDMETHODIMP Guest::COMGETTER(OSTypeId)(BSTR *a_pbstrOSTypeId)
     return hrc;
 }
 
-STDMETHODIMP Guest::COMGETTER(AdditionsRunLevel) (AdditionsRunLevelType_T *aRunLevel)
+STDMETHODIMP Guest::COMGETTER(AdditionsRunLevel)(AdditionsRunLevelType_T *aRunLevel)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -307,16 +375,9 @@ STDMETHODIMP Guest::COMGETTER(AdditionsVersion)(BSTR *a_pbstrAdditionsVersion)
         /*
          * Return the ReportGuestInfo2 version info if available.
          */
-        if (!mData.mAdditionsVersionNew.isEmpty())
-        {
-            /* Since we don't have the API in 4.1 to return a separate revision, we
-             * need to ship the revision as part of the version string, separated with
-             * the "r" prefix. */
-            Bstr strVersion = mData.mAdditionsRevision
-                            ? BstrFmt("%lsr%u", mData.mAdditionsVersionNew.raw(), mData.mAdditionsRevision)
-                            : BstrFmt("%ls", mData.mAdditionsVersionNew.raw());
-            strVersion.cloneTo(a_pbstrAdditionsVersion);
-        }
+        if (   !mData.mAdditionsVersionNew.isEmpty()
+            || mData.mAdditionsRunLevel <= AdditionsRunLevelType_None)
+            mData.mAdditionsVersionNew.cloneTo(a_pbstrAdditionsVersion);
         else
         {
             /*
@@ -354,7 +415,65 @@ STDMETHODIMP Guest::COMGETTER(AdditionsVersion)(BSTR *a_pbstrAdditionsVersion)
     return hrc;
 }
 
-STDMETHODIMP Guest::COMGETTER(Facilities)(ComSafeArrayOut(IAdditionsFacility*, aFacilities))
+STDMETHODIMP Guest::COMGETTER(AdditionsRevision)(ULONG *a_puAdditionsRevision)
+{
+    CheckComArgOutPointerValid(a_puAdditionsRevision);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+        /*
+         * Return the ReportGuestInfo2 version info if available.
+         */
+        if (   !mData.mAdditionsVersionNew.isEmpty()
+            || mData.mAdditionsRunLevel <= AdditionsRunLevelType_None)
+            *a_puAdditionsRevision = mData.mAdditionsRevision;
+        else
+        {
+            /*
+             * If we're running older guest additions (< 3.2.0) try get it from
+             * the guest properties. Detected switched around Version and
+             * Revision in early 3.1.x releases (see r57115).
+             */
+            ComPtr<IMachine> ptrMachine = mParent->machine();
+            alock.release(); /* No need to hold this during the IPC fun. */
+
+            Bstr bstr;
+            hrc = ptrMachine->GetGuestPropertyValue(Bstr("/VirtualBox/GuestAdd/Revision").raw(), bstr.asOutParam());
+            if (SUCCEEDED(hrc))
+            {
+                Utf8Str str(bstr);
+                uint32_t uRevision;
+                int vrc = RTStrToUInt32Full(str.c_str(), 0, &uRevision);
+                if (vrc != VINF_SUCCESS && str.count('.') == 2)
+                {
+                    hrc = ptrMachine->GetGuestPropertyValue(Bstr("/VirtualBox/GuestAdd/Version").raw(), bstr.asOutParam());
+                    if (SUCCEEDED(hrc))
+                    {
+                        str = bstr;
+                        vrc = RTStrToUInt32Full(str.c_str(), 0, &uRevision);
+                    }
+                }
+                if (vrc == VINF_SUCCESS)
+                    *a_puAdditionsRevision = uRevision;
+                else
+                    hrc = VBOX_E_IPRT_ERROR;
+            }
+            if (FAILED(hrc))
+            {
+                /* Return 0 if we don't know. */
+                *a_puAdditionsRevision = 0;
+                hrc = S_OK;
+            }
+        }
+    }
+    return hrc;
+}
+
+STDMETHODIMP Guest::COMGETTER(Facilities)(ComSafeArrayOut(IAdditionsFacility *, aFacilities))
 {
     CheckComArgOutSafeArrayPointerValid(aFacilities);
 
@@ -365,6 +484,21 @@ STDMETHODIMP Guest::COMGETTER(Facilities)(ComSafeArrayOut(IAdditionsFacility*, a
 
     SafeIfaceArray<IAdditionsFacility> fac(mData.mFacilityMap);
     fac.detachTo(ComSafeArrayOutArg(aFacilities));
+
+    return S_OK;
+}
+
+STDMETHODIMP Guest::COMGETTER(Sessions)(ComSafeArrayOut(IGuestSession *, aSessions))
+{
+    CheckComArgOutSafeArrayPointerValid(aSessions);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    SafeIfaceArray<IGuestSession> collection(mData.mGuestSessions);
+    collection.detachTo(ComSafeArrayOutArg(aSessions));
 
     return S_OK;
 }
@@ -551,15 +685,15 @@ HRESULT Guest::setStatistic(ULONG aCpuId, GUESTSTATTYPE enmType, ULONG aVal)
 {
     static ULONG indexToPerfMask[] =
     {
-        pm::GUESTSTATMASK_CPUUSER,
-        pm::GUESTSTATMASK_CPUKERNEL,
-        pm::GUESTSTATMASK_CPUIDLE,
-        pm::GUESTSTATMASK_MEMTOTAL,
-        pm::GUESTSTATMASK_MEMFREE,
-        pm::GUESTSTATMASK_MEMBALLOON,
-        pm::GUESTSTATMASK_MEMCACHE,
-        pm::GUESTSTATMASK_PAGETOTAL,
-        pm::GUESTSTATMASK_NONE
+        pm::VMSTATMASK_GUEST_CPUUSER,
+        pm::VMSTATMASK_GUEST_CPUKERNEL,
+        pm::VMSTATMASK_GUEST_CPUIDLE,
+        pm::VMSTATMASK_GUEST_MEMTOTAL,
+        pm::VMSTATMASK_GUEST_MEMFREE,
+        pm::VMSTATMASK_GUEST_MEMBALLOON,
+        pm::VMSTATMASK_GUEST_MEMCACHE,
+        pm::VMSTATMASK_GUEST_PAGETOTAL,
+        pm::VMSTATMASK_NONE
     };
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -570,7 +704,7 @@ HRESULT Guest::setStatistic(ULONG aCpuId, GUESTSTATTYPE enmType, ULONG aVal)
         return E_INVALIDARG;
 
     mCurrentGuestStat[enmType] = aVal;
-    mGuestValidStats |= indexToPerfMask[enmType];
+    mVmValidStats |= indexToPerfMask[enmType];
     return S_OK;
 }
 
@@ -674,6 +808,135 @@ STDMETHODIMP Guest::SetCredentials(IN_BSTR aUserName, IN_BSTR aPassword,
                     tr("VMM device is not available (is the VM running?)"));
 }
 
+STDMETHODIMP Guest::DragHGEnter(ULONG uScreenId, ULONG uX, ULONG uY, DragAndDropAction_T defaultAction, ComSafeArrayIn(DragAndDropAction_T, allowedActions), ComSafeArrayIn(IN_BSTR, formats), DragAndDropAction_T *pResultAction)
+{
+    /* Input validation */
+    CheckComArgSafeArrayNotNull(allowedActions);
+    CheckComArgSafeArrayNotNull(formats);
+    CheckComArgOutPointerValid(pResultAction);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    return m_pGuestDnD->dragHGEnter(uScreenId, uX, uY, defaultAction, ComSafeArrayInArg(allowedActions), ComSafeArrayInArg(formats), pResultAction);
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
+}
+
+STDMETHODIMP Guest::DragHGMove(ULONG uScreenId, ULONG uX, ULONG uY, DragAndDropAction_T defaultAction, ComSafeArrayIn(DragAndDropAction_T, allowedActions), ComSafeArrayIn(IN_BSTR, formats), DragAndDropAction_T *pResultAction)
+{
+    /* Input validation */
+    CheckComArgSafeArrayNotNull(allowedActions);
+    CheckComArgSafeArrayNotNull(formats);
+    CheckComArgOutPointerValid(pResultAction);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    return m_pGuestDnD->dragHGMove(uScreenId, uX, uY, defaultAction, ComSafeArrayInArg(allowedActions), ComSafeArrayInArg(formats), pResultAction);
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
+}
+
+STDMETHODIMP Guest::DragHGLeave(ULONG uScreenId)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    return m_pGuestDnD->dragHGLeave(uScreenId);
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
+}
+
+STDMETHODIMP Guest::DragHGDrop(ULONG uScreenId, ULONG uX, ULONG uY, DragAndDropAction_T defaultAction, ComSafeArrayIn(DragAndDropAction_T, allowedActions), ComSafeArrayIn(IN_BSTR, formats), BSTR *pstrFormat, DragAndDropAction_T *pResultAction)
+{
+    /* Input validation */
+    CheckComArgSafeArrayNotNull(allowedActions);
+    CheckComArgSafeArrayNotNull(formats);
+    CheckComArgOutPointerValid(pstrFormat);
+    CheckComArgOutPointerValid(pResultAction);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    return m_pGuestDnD->dragHGDrop(uScreenId, uX, uY, defaultAction, ComSafeArrayInArg(allowedActions), ComSafeArrayInArg(formats), pstrFormat, pResultAction);
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
+}
+
+STDMETHODIMP Guest::DragHGPutData(ULONG uScreenId, IN_BSTR bstrFormat, ComSafeArrayIn(BYTE, data), IProgress **ppProgress)
+{
+    /* Input validation */
+    CheckComArgStrNotEmptyOrNull(bstrFormat);
+    CheckComArgSafeArrayNotNull(data);
+    CheckComArgOutPointerValid(ppProgress);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    return m_pGuestDnD->dragHGPutData(uScreenId, bstrFormat, ComSafeArrayInArg(data), ppProgress);
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
+}
+
+STDMETHODIMP Guest::DragGHPending(ULONG uScreenId, ComSafeArrayOut(BSTR, formats), ComSafeArrayOut(DragAndDropAction_T, allowedActions), DragAndDropAction_T *pDefaultAction)
+{
+    /* Input validation */
+    CheckComArgSafeArrayNotNull(formats);
+    CheckComArgSafeArrayNotNull(allowedActions);
+    CheckComArgOutPointerValid(pDefaultAction);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#if defined(VBOX_WITH_DRAG_AND_DROP) && defined(VBOX_WITH_DRAG_AND_DROP_GH)
+    return m_pGuestDnD->dragGHPending(uScreenId, ComSafeArrayOutArg(formats), ComSafeArrayOutArg(allowedActions), pDefaultAction);
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
+}
+
+STDMETHODIMP Guest::DragGHDropped(IN_BSTR bstrFormat, DragAndDropAction_T action, IProgress **ppProgress)
+{
+    /* Input validation */
+    CheckComArgStrNotEmptyOrNull(bstrFormat);
+    CheckComArgOutPointerValid(ppProgress);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#if defined(VBOX_WITH_DRAG_AND_DROP) && defined(VBOX_WITH_DRAG_AND_DROP_GH)
+    return m_pGuestDnD->dragGHDropped(bstrFormat, action, ppProgress);
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
+}
+
+STDMETHODIMP Guest::DragGHGetData(ComSafeArrayOut(BYTE, data))
+{
+    /* Input validation */
+    CheckComArgSafeArrayNotNull(data);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#if defined(VBOX_WITH_DRAG_AND_DROP) && defined(VBOX_WITH_DRAG_AND_DROP_GH)
+    return m_pGuestDnD->dragGHGetData(ComSafeArrayOutArg(data));
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
+}
+
 // public methods only for internal purposes
 /////////////////////////////////////////////////////////////////////////////
 
@@ -760,7 +1023,7 @@ void Guest::setAdditionsInfo(Bstr aInterfaceVersion, VBOXOSTYPE aOsType)
      * mSupportsGraphics here and disabling/enabling it later according to
      * its real status when using new(er) Guest Additions.
      */
-    mData.mOSTypeId = Global::OSTypeId (aOsType);
+    mData.mOSTypeId = Global::OSTypeId(aOsType);
 }
 
 /**
@@ -927,4 +1190,4 @@ void Guest::setSupportedFeatures(uint32_t aCaps)
                    aCaps & VMMDEV_GUEST_SUPPORTS_GRAPHICS ? VBoxGuestFacilityStatus_Active : VBoxGuestFacilityStatus_Inactive,
                    0 /*fFlags*/, &TimeSpecTS);
 }
-/* vi: set tabstop=4 shiftwidth=4 expandtab: */
+

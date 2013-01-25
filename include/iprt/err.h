@@ -756,6 +756,8 @@ RT_C_DECLS_END
 #define VWRN_NEGATIVE_UNSIGNED              57
 /** Error while characters translation (unicode and so). */
 #define VERR_NO_TRANSLATION                 (-58)
+/** Error while characters translation (unicode and so). */
+#define VWRN_NO_TRANSLATION                 58
 /** Encountered unicode code point which is reserved for use as endian indicator (0xffff or 0xfffe). */
 #define VERR_CODE_POINT_ENDIAN_INDICATOR    (-59)
 /** Encountered unicode code point in the surrogate range (0xd800 to 0xdfff). */
@@ -1236,6 +1238,8 @@ RT_C_DECLS_END
 #define VERR_NET_HOST_UNREACHABLE               (-465)
 /** Protocol error. */
 #define VERR_NET_PROTOCOL_ERROR                 (-466)
+/** Incomplete packet was submitted by guest. */
+#define VERR_NET_INCOMPLETE_TX_PACKET           (-467)
 /** @} */
 
 
@@ -1390,6 +1394,12 @@ RT_C_DECLS_END
 #define VERR_LDRELF_INVALID_RELOCATION_OFFSET   (-639)
 /** The ELF loader didn't find the symbol/string table for the image. */
 #define VERR_LDRELF_NO_SYMBOL_OR_NO_STRING_TABS (-640)
+/** Invalid link address. */
+#define VERR_LDR_INVALID_LINK_ADDRESS           (-647)
+/** Invalid image relative virtual address. */
+#define VERR_LDR_INVALID_RVA                    (-648)
+/** Invalid segment:offset address. */
+#define VERR_LDR_INVALID_SEG_OFFSET             (-649)
 /** @}*/
 
 /** @name Debug Info Reader Status Codes.
@@ -1441,6 +1451,28 @@ RT_C_DECLS_END
 #define VERR_DBG_NOT_LINUX_KALLSYMS             (-666)
 /** No debug module interpreter matching the debug info. */
 #define VERR_DBG_NO_MATCHING_INTERPRETER        (-667)
+/** Bad DWARF line number header. */
+#define VERR_DWARF_BAD_LINE_NUMBER_HEADER       (-668)
+/** Unexpected end of DWARF unit. */
+#define VERR_DWARF_UNEXPECTED_END               (-669)
+/** DWARF LEB value overflows the decoder type. */
+#define VERR_DWARF_LEB_OVERFLOW                 (-670)
+/** Bad DWARF extended line number opcode. */
+#define VERR_DWARF_BAD_LNE                      (-671)
+/** Bad DWARF string. */
+#define VERR_DWARF_BAD_STRING                   (-672)
+/** Bad DWARF position. */
+#define VERR_DWARF_BAD_POS                      (-673)
+/** Bad DWARF info. */
+#define VERR_DWARF_BAD_INFO                     (-674)
+/** Bad DWARF abbreviation data. */
+#define VERR_DWARF_BAD_ABBREV                   (-675)
+/** A DWARF abbreviation was not found. */
+#define VERR_DWARF_ABBREV_NOT_FOUND             (-676)
+/** Encountered an unknown attribute form. */
+#define VERR_DWARF_UNKNOWN_FORM                 (-677)
+/** Encountered an unexpected attribute form. */
+#define VERR_DWARF_UNEXPECTED_FORM              (-678)
 /** @} */
 
 /** @name Request Packet Status Codes.
@@ -1475,6 +1507,9 @@ RT_C_DECLS_END
 #define VERR_ENV_VAR_NOT_FOUND                  (-750)
 /** The specified environment variable was not found. (RTEnvUnsetEx) */
 #define VINF_ENV_VAR_NOT_FOUND                  (750)
+/** Unable to translate all the variables in the default environment due to
+ * codeset issues (LANG / LC_ALL / LC_CTYPE). */
+#define VWRN_ENV_NOT_FULLY_TRANSLATED           (751)
 /** @} */
 
 /** @name Multiprocessor Status Codes.
@@ -1664,11 +1699,31 @@ RT_C_DECLS_END
 #define VERR_DVM_MAP_NO_VOLUME                      (-22201)
 /** @} */
 
-/** @name RTDvm status codes
+/** @name Logger status codes
  * @{ */
 /** The internal logger revision did not match. */
 #define VERR_LOG_REVISION_MISMATCH                  (-22300)
 /** @} */
+
+/* see above, 22400..22499 is used for misc codes! */
+
+/** @name Logger status codes
+ * @{ */
+/** Power off is not supported by the hardware or the OS. */
+#define VERR_SYS_CANNOT_POWER_OFF                   (-22500)
+/** The halt action was requested, but the OS may actually power
+ * off the machine. */
+#define VINF_SYS_MAY_POWER_OFF                      (22501)
+/** Shutdown failed. */
+#define VERR_SYS_SHUTDOWN_FAILED                    (-22502)
+/** @} */
+
+/** @name Filesystem status codes
+ * @{ */
+/** Filesystem can't be opened because it is corrupt. */
+#define VERR_FILESYSTEM_CORRUPT                     (-22600)
+/** @} */
+
 
 /* SED-END */
 

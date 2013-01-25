@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,7 +43,6 @@ namespace guestControl {
 
 /**
  * Process status when executed in the guest.
- * Note: Has to match Main's ExecuteProcessStatus_*!
  */
 enum eProcessStatus
 {
@@ -72,12 +71,12 @@ enum eProcessStatus
  * handling flags on the guest side.
  * Note: Has to match Main's ProcessInputFlag_* flags!
  */
-#define INPUT_FLAG_NONE             0
-#define INPUT_FLAG_EOF              RT_BIT(0)
+#define INPUT_FLAG_NONE                     0x0
+#define INPUT_FLAG_EOF                      RT_BIT(0)
 
 /**
  * Execution flags.
- * Note: Has to match Main's ExecuteProcessFlag_* flags!
+ * Note: Has to match Main's ProcessCreateFlag_* flags!
  */
 #define EXECUTEPROCESSFLAG_NONE             0x0
 #define EXECUTEPROCESSFLAG_WAIT_START       RT_BIT(0)
@@ -86,6 +85,7 @@ enum eProcessStatus
 #define EXECUTEPROCESSFLAG_NO_PROFILE       RT_BIT(3)
 #define EXECUTEPROCESSFLAG_WAIT_STDOUT      RT_BIT(4)
 #define EXECUTEPROCESSFLAG_WAIT_STDERR      RT_BIT(5)
+#define EXECUTEPROCESSFLAG_EXPAND_ARGUMENTS RT_BIT(6)
 
 /**
  * Pipe handle IDs used internally for referencing to
@@ -110,7 +110,9 @@ enum eProcessStatus
  */
 #define VBOXSERVICE_TOOL_CAT        "vbox_cat"
 #define VBOXSERVICE_TOOL_LS         "vbox_ls"
+#define VBOXSERVICE_TOOL_RM         "vbox_rm"
 #define VBOXSERVICE_TOOL_MKDIR      "vbox_mkdir"
+#define VBOXSERVICE_TOOL_MKTEMP     "vbox_mktemp"
 #define VBOXSERVICE_TOOL_STAT       "vbox_stat"
 /** @} */
 
@@ -249,7 +251,41 @@ enum eHostFn
      * Gets the current status of a running process, e.g.
      * new data on stdout/stderr, process terminated etc.
      */
-    HOST_EXEC_GET_OUTPUT = 102
+    HOST_EXEC_GET_OUTPUT = 102,
+
+    /*
+     * Guest control 2.0 commands start in the 2xx number space.
+     */
+
+    /**
+     * Waits for a certain event to happen. This can be an input, output
+     * or status event.
+     */
+    HOST_EXEC_WAIT_FOR = 210,
+    /**
+     * Opens a guest file.
+     */
+    HOST_FILE_OPEN = 240,
+    /**
+     * Closes a guest file.
+     */
+    HOST_FILE_CLOSE = 241,
+    /**
+     * Reads from an opened guest file.
+     */
+    HOST_FILE_READ = 242,
+    /**
+     * Write to an opened guest file.
+     */
+    HOST_FILE_WRITE = 243,
+    /**
+     * Changes the read & write position of an opened guest file.
+     */
+    HOST_FILE_SEEK = 244,
+    /**
+     * Gets the current file position of an opened guest file.
+     */
+    HOST_FILE_TELL = 245
 };
 
 /**
@@ -277,6 +313,8 @@ enum eGuestFn
 
     /*
      * Process execution.
+     * The 1xx commands are legacy guest control commands and
+     * will be replaced by newer commands in the future.
      */
 
     /**
@@ -290,7 +328,37 @@ enum eGuestFn
     /**
      * Guests sends an input status notification to the host.
      */
-    GUEST_EXEC_SEND_INPUT_STATUS = 102
+    GUEST_EXEC_SEND_INPUT_STATUS = 102,
+
+    /*
+     * Guest control 2.0 commands start in the 2xx number space.
+     */
+
+    /**
+     * Guest notifies the host about some I/O event. This can be
+     * a stdout, stderr or a stdin event. The actual event only tells
+     * how many data is available / can be sent without actually
+     * transmitting the data.
+     */
+    GUEST_EXEC_IO_NOTIFY = 210,
+    /** Guest notifies the host about a file event, like opening,
+     *  closing, seeking etc.
+     */
+    GUEST_FILE_NOTIFY = 240
+};
+
+/**
+ * Guest file notification types.
+ */
+enum eGuestFileNotifyType
+{
+    GUESTFILENOTIFYTYPE_ERROR = 0,
+    GUESTFILENOTIFYTYPE_OPEN = 10,
+    GUESTFILENOTIFYTYPE_CLOSE = 20,
+    GUESTFILENOTIFYTYPE_READ = 30,
+    GUESTFILENOTIFYTYPE_WRITE = 40,
+    GUESTFILENOTIFYTYPE_SEEK = 50,
+    GUESTFILENOTIFYTYPE_TELL = 60
 };
 
 /*
@@ -331,7 +399,7 @@ typedef struct VBoxGuestCtrlHGCMMsgExecCmd
     HGCMFunctionParameter context;
     /** The command to execute on the guest. */
     HGCMFunctionParameter cmd;
-    /** Execution flags (see IGuest::ExecuteProcessFlag_*). */
+    /** Execution flags (see IGuest::ProcessCreateFlag_*). */
     HGCMFunctionParameter flags;
     /** Number of arguments. */
     HGCMFunctionParameter num_args;
@@ -350,7 +418,7 @@ typedef struct VBoxGuestCtrlHGCMMsgExecCmd
     /** Timeout (in msec) which either specifies the
      *  overall lifetime of the process or how long it
      *  can take to bring the process up and running -
-     *  (depends on the IGuest::ExecuteProcessFlag_*). */
+     *  (depends on the IGuest::ProcessCreateFlag_*). */
     HGCMFunctionParameter timeout;
 
 } VBoxGuestCtrlHGCMMsgExecCmd;
@@ -432,6 +500,135 @@ typedef struct VBoxGuestCtrlHGCMMsgExecStatusIn
     HGCMFunctionParameter written;
 
 } VBoxGuestCtrlHGCMMsgExecStatusIn;
+
+/*
+ * Guest control 2.0 messages.
+ */
+
+/**
+ * Reports back the currente I/O status of a guest process.
+ */
+typedef struct VBoxGuestCtrlHGCMMsgExecIONotify
+{
+    VBoxGuestHGCMCallInfo hdr;
+    /** Context ID. */
+    HGCMFunctionParameter context;
+    /** Data written. */
+    HGCMFunctionParameter written;
+
+} VBoxGuestCtrlHGCMMsgExecIONotify;
+
+/**
+ * Opens a guest file.
+ */
+typedef struct VBoxGuestCtrlHGCMMsgFileOpen
+{
+    VBoxGuestHGCMCallInfo hdr;
+    /** Context ID. */
+    HGCMFunctionParameter context;
+    /** File to open. */
+    HGCMFunctionParameter filename;
+    /** Open mode. */
+    HGCMFunctionParameter openmode;
+    /** Disposition. */
+    HGCMFunctionParameter disposition;
+    /** Creation mode. */
+    HGCMFunctionParameter creationmode;
+    /** Offset. */
+    HGCMFunctionParameter offset;
+
+} VBoxGuestCtrlHGCMMsgFileOpen;
+
+/**
+ * Closes a guest file.
+ */
+typedef struct VBoxGuestCtrlHGCMMsgFileClose
+{
+    VBoxGuestHGCMCallInfo hdr;
+    /** Context ID. */
+    HGCMFunctionParameter context;
+    /** File handle to close. */
+    HGCMFunctionParameter handle;
+
+} VBoxGuestCtrlHGCMMsgFileClose;
+
+/**
+ * Reads from a guest file.
+ */
+typedef struct VBoxGuestCtrlHGCMMsgFileRead
+{
+    VBoxGuestHGCMCallInfo hdr;
+    /** Context ID. */
+    HGCMFunctionParameter context;
+    /** File handle to read from. */
+    HGCMFunctionParameter handle;
+    /** Actual size of data (in bytes). */
+    HGCMFunctionParameter size;
+    /** Where to put the read data into. */
+    HGCMFunctionParameter data;
+
+} VBoxGuestCtrlHGCMMsgFileRead;
+
+/**
+ * Writes to a guest file.
+ */
+typedef struct VBoxGuestCtrlHGCMMsgFileWrite
+{
+    VBoxGuestHGCMCallInfo hdr;
+    /** Context ID. */
+    HGCMFunctionParameter context;
+    /** File handle to write to. */
+    HGCMFunctionParameter handle;
+    /** Actual size of data (in bytes). */
+    HGCMFunctionParameter size;
+    /** Data buffer to write to the file. */
+    HGCMFunctionParameter data;
+
+} VBoxGuestCtrlHGCMMsgFileWrite;
+
+/**
+ * Seeks the read/write position of a guest file.
+ */
+typedef struct VBoxGuestCtrlHGCMMsgFileSeek
+{
+    VBoxGuestHGCMCallInfo hdr;
+    /** Context ID. */
+    HGCMFunctionParameter context;
+    /** File handle to seek. */
+    HGCMFunctionParameter handle;
+    /** The seeking method. */
+    HGCMFunctionParameter method;
+    /** The seeking offset. */
+    HGCMFunctionParameter offset;
+
+} VBoxGuestCtrlHGCMMsgFileSeek;
+
+/**
+ * Tells the current read/write position of a guest file.
+ */
+typedef struct VBoxGuestCtrlHGCMMsgFileTell
+{
+    VBoxGuestHGCMCallInfo hdr;
+    /** Context ID. */
+    HGCMFunctionParameter context;
+    /** File handle to get the current position for. */
+    HGCMFunctionParameter handle;
+
+} VBoxGuestCtrlHGCMMsgFileTell;
+
+typedef struct VBoxGuestCtrlHGCMMsgFileNotify
+{
+    VBoxGuestHGCMCallInfo hdr;
+    /** Context ID. */
+    HGCMFunctionParameter context;
+    /** The file handle. */
+    HGCMFunctionParameter handle;
+    /** Notification type. */
+    HGCMFunctionParameter type;
+    /** Notification payload. */
+    HGCMFunctionParameter payload;
+
+} VBoxGuestCtrlHGCMMsgFileNotify;
 
 #pragma pack ()
 

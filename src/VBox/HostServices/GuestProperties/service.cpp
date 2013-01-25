@@ -51,6 +51,7 @@
 #include <iprt/string.h>
 #include <iprt/thread.h>
 #include <iprt/time.h>
+#include <VBox/vmm/dbgf.h>
 
 #include <memory>  /* for auto_ptr */
 #include <string>
@@ -132,6 +133,7 @@ typedef std::list <Property> PropertyList;
  */
 struct GuestCall
 {
+    uint32_t u32ClientId;
     /** The call handle */
     VBOXHGCMCALLHANDLE mHandle;
     /** The function that was requested */
@@ -142,11 +144,11 @@ struct GuestCall
     int mRc;
 
     /** The standard constructor */
-    GuestCall() : mFunction(0) {}
+    GuestCall() : u32ClientId(0), mFunction(0) {}
     /** The normal constructor */
-    GuestCall(VBOXHGCMCALLHANDLE aHandle, uint32_t aFunction,
+    GuestCall(uint32_t aClientId, VBOXHGCMCALLHANDLE aHandle, uint32_t aFunction,
               VBOXHGCMSVCPARM aParms[], int aRc)
-              : mHandle(aHandle), mFunction(aFunction), mParms(aParms),
+              : u32ClientId(aClientId), mHandle(aHandle), mFunction(aFunction), mParms(aParms),
                 mRc(aRc) {}
 };
 /** The guest call list type */
@@ -358,6 +360,7 @@ public:
         pSelf->mpvHostData = pvExtension;
         return VINF_SUCCESS;
     }
+
 private:
     static DECLCALLBACK(int) reqThreadFn(RTTHREAD ThreadSelf, void *pvUser);
     uint64_t getCurrentTimestamp(void);
@@ -368,7 +371,7 @@ private:
     int setProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGuest);
     int delProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGuest);
     int enumProps(uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
-    int getNotification(VBOXHGCMCALLHANDLE callHandle, uint32_t cParms,
+    int getNotification(uint32_t u32ClientId, VBOXHGCMCALLHANDLE callHandle, uint32_t cParms,
                         VBOXHGCMSVCPARM paParms[]);
     int getOldNotificationInternal(const char *pszPattern,
                                    uint64_t u64Timestamp, Property *pProp);
@@ -382,6 +385,8 @@ private:
               VBOXHGCMSVCPARM paParms[]);
     int hostCall(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
     int uninit();
+    void dbgInfoShow(PCDBGFINFOHLP pHlp);
+    static DECLCALLBACK(void) dbgInfo(void *pvUser, PCDBGFINFOHLP pHlp, const char *pszArgs);
 };
 
 
@@ -1009,7 +1014,7 @@ int Service::getNotificationWriteOut(VBOXHGCMSVCPARM paParms[], Property prop)
  * @thread  HGCM
  * @throws  can throw std::bad_alloc
  */
-int Service::getNotification(VBOXHGCMCALLHANDLE callHandle, uint32_t cParms,
+int Service::getNotification(uint32_t u32ClientId, VBOXHGCMCALLHANDLE callHandle, uint32_t cParms,
                              VBOXHGCMSVCPARM paParms[])
 {
     int rc = VINF_SUCCESS;
@@ -1042,7 +1047,31 @@ int Service::getNotification(VBOXHGCMCALLHANDLE callHandle, uint32_t cParms,
         rc = getOldNotification(pszPatterns, u64Timestamp, &prop);
     if (RT_SUCCESS(rc) && prop.isNull())
     {
-        mGuestWaiters.push_back(GuestCall(callHandle, GET_NOTIFICATION,
+        /*
+         * Check if the client already had the same request.
+         * Complete the old request with an error in this case.
+         * Protection against clients, which cancel and resubmits requests.
+         */
+        CallList::iterator it = mGuestWaiters.begin();
+        while (it != mGuestWaiters.end())
+        {
+            const char *pszPatternsExisting;
+            uint32_t cchPatternsExisting;
+            int rc3 = it->mParms[0].getString(&pszPatternsExisting, &cchPatternsExisting);
+
+            if (   RT_SUCCESS(rc3)
+                && u32ClientId == it->u32ClientId
+                && RTStrCmp(pszPatterns, pszPatternsExisting) == 0)
+            {
+                /* Complete the old request. */
+                mpHelpers->pfnCallComplete(it->mHandle, VERR_INTERRUPTED);
+                it = mGuestWaiters.erase(it);
+            }
+            else
+                ++it;
+        }
+
+        mGuestWaiters.push_back(GuestCall(u32ClientId, callHandle, GET_NOTIFICATION,
                                           paParms, rc));
         rc = VINF_HGCM_ASYNC_EXECUTE;
     }
@@ -1233,7 +1262,7 @@ void Service::call (VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID,
             /* The guest wishes to get the next property notification */
             case GET_NOTIFICATION:
                 LogFlowFunc(("GET_NOTIFICATION\n"));
-                rc = getNotification(callHandle, cParms, paParms);
+                rc = getNotification(u32ClientID, callHandle, cParms, paParms);
                 break;
 
             default:
@@ -1249,6 +1278,51 @@ void Service::call (VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID,
     {
         mpHelpers->pfnCallComplete (callHandle, rc);
     }
+}
+
+/**
+ * Enumeration data shared between dbgInfoCallback and Service::dbgInfoShow.
+ */
+typedef struct ENUMDBGINFO
+{
+    PCDBGFINFOHLP pHlp;
+} ENUMDBGINFO;
+
+static DECLCALLBACK(int) dbgInfoCallback(PRTSTRSPACECORE pStr, void *pvUser)
+{
+    Property *pProp = (Property *)pStr;
+    PCDBGFINFOHLP pHlp = ((ENUMDBGINFO*)pvUser)->pHlp;
+
+    char szFlags[MAX_FLAGS_LEN];
+    int rc = writeFlags(pProp->mFlags, szFlags);
+    if (RT_FAILURE(rc))
+        RTStrPrintf(szFlags, sizeof(szFlags), "???");
+
+    pHlp->pfnPrintf(pHlp, "%s: '%s', %RU64",
+                    pProp->mName.c_str(), pProp->mValue.c_str(), pProp->mTimestamp);
+    if (strlen(szFlags))
+        pHlp->pfnPrintf(pHlp, " (%s)", szFlags);
+    pHlp->pfnPrintf(pHlp, "\n");
+    return 0;
+}
+
+void Service::dbgInfoShow(PCDBGFINFOHLP pHlp)
+{
+    ENUMDBGINFO EnumData = { pHlp };
+    RTStrSpaceEnumerate(&mhProperties, dbgInfoCallback, &EnumData);
+}
+
+/**
+ * Handler for debug info.
+ *
+ * @param   pvUser      user pointer.
+ * @param   pHlp        The info helper functions.
+ * @param   pszArgs     Arguments, ignored.
+ */
+void Service::dbgInfo(void *pvUser, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    SELF *pSelf = reinterpret_cast<SELF *>(pvUser);
+    pSelf->dbgInfoShow(pHlp);
 }
 
 
@@ -1316,6 +1390,13 @@ int Service::hostCall (uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paPa
                 }
                 else
                     rc = VERR_INVALID_PARAMETER;
+                break;
+
+            case GET_DBGF_INFO_FN:
+                if (cParms != 2)
+                    return VERR_INVALID_PARAMETER;
+                paParms[0].u.pointer.addr = (void*)(uintptr_t)dbgInfo;
+                paParms[1].u.pointer.addr = (void*)this;
                 break;
 
             default:

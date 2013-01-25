@@ -96,8 +96,8 @@ enum VBoxControlUsage
 static void usage(enum VBoxControlUsage eWhich = USAGE_ALL)
 {
     RTPrintf("Usage:\n\n");
-    doUsage("print version number and exit", g_pszProgName, "[-v|-version]");
-    doUsage("suppress the logo", g_pszProgName, "-nologo ...");
+    doUsage("print version number and exit", g_pszProgName, "[-v|--version]");
+    doUsage("suppress the logo", g_pszProgName, "--nologo ...");
     RTPrintf("\n");
 
 /* Exclude the Windows bits from the test version.  Anyone who needs to test
@@ -119,12 +119,12 @@ static void usage(enum VBoxControlUsage eWhich = USAGE_ALL)
 #ifdef VBOX_WITH_GUEST_PROPS
     if (GUEST_PROP == eWhich || eWhich == USAGE_ALL)
     {
-        doUsage("get <property> [-verbose]", g_pszProgName, "guestproperty");
-        doUsage("set <property> [<value> [-flags <flags>]]", g_pszProgName, "guestproperty");
-        doUsage("enumerate [-patterns <patterns>]", g_pszProgName, "guestproperty");
+        doUsage("get <property> [--verbose]", g_pszProgName, "guestproperty");
+        doUsage("set <property> [<value> [--flags <flags>]]", g_pszProgName, "guestproperty");
+        doUsage("enumerate [--patterns <patterns>]", g_pszProgName, "guestproperty");
         doUsage("wait <patterns>", g_pszProgName, "guestproperty");
-        doUsage("[-timestamp <last timestamp>]");
-        doUsage("[-timeout <timeout in ms>");
+        doUsage("[--timestamp <last timestamp>]");
+        doUsage("[--timeout <timeout in ms>");
     }
 #endif
 #ifdef VBOX_WITH_SHARED_FOLDERS
@@ -1011,11 +1011,11 @@ static RTEXITCODE getGuestProperty(int argc, char **argv)
         RTPrintf("No value set!\n");
     else if (RT_SUCCESS(rc))
     {
-        RTPrintf("Value: %S\n", pszValue);
+        RTPrintf("Value: %s\n", pszValue);
         if (fVerbose)
         {
             RTPrintf("Timestamp: %lld ns\n", u64Timestamp);
-            RTPrintf("Flags: %S\n", pszFlags);
+            RTPrintf("Flags: %s\n", pszFlags);
         }
     }
 
@@ -1376,7 +1376,7 @@ static RTEXITCODE listSharedFolders(int argc, char **argv)
                     VBoxControlError("Error while getting the shared folder name for root node = %u, rc = %Rrc\n",
                                      paMappings[i].u32Root, rc);
             }
-            if (cMappings == 0)
+            if (!cMappings)
                 RTPrintf("No Shared Folders available.\n");
             VbglR3SharedFolderFreeMappings(paMappings);
         }
@@ -1486,6 +1486,39 @@ static RTEXITCODE handleHelp(int argc, char *argv[])
     return RTEXITCODE_SUCCESS;
 }
 
+#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
+#include "..\VBoxGuestLib\VBGLR3Internal.h"
+
+static RTEXITCODE handleDpc(int argc, char *argv[])
+{
+#ifndef VBOX_CONTROL_TEST
+    int rc = VINF_SUCCESS;
+    int i;
+    for (i = 0; i < 30; i++)
+    {
+        rc = vbglR3DoIOCtl(VBOXGUEST_IOCTL_DPC, NULL, 0);
+        if (RT_FAILURE(rc))
+        {
+            break;
+        }
+        RTPrintf("%d\n", i);
+    }
+#else
+    int rc = VERR_NOT_IMPLEMENTED;
+#endif
+    if (RT_SUCCESS(rc))
+    {
+        RTPrintf("Samples collection completed.\n");
+        return RTEXITCODE_SUCCESS;
+    }
+    else
+    {
+        VBoxControlError("Error. rc=%Rrc\n", rc);
+        return RTEXITCODE_FAILURE;
+    }
+}
+#endif /* VBOX_WITH_DPC_LATENCY_CHECKER */
+
 /** command handler type */
 typedef DECLCALLBACK(RTEXITCODE) FNVBOXCTRLCMDHANDLER(int argc, char *argv[]);
 typedef FNVBOXCTRLCMDHANDLER *PFNVBOXCTRLCMDHANDLER;
@@ -1522,6 +1555,9 @@ struct COMMANDHANDLER
     { "powerdown",              handlePowerOff },
     { "getversion",             handleVersion },
     { "version",                handleVersion },
+#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
+    { "dpc",                    handleDpc },
+#endif /* VBOX_WITH_DPC_LATENCY_CHECKER */
     { "help",                   handleHelp }
 };
 
@@ -1541,7 +1577,7 @@ int main(int argc, char **argv)
     /** Will we be executing a command or just printing information? */
     bool fOnlyInfo = false;
 
-    rrc = RTR3Init();
+    rrc = RTR3InitExe(argc, &argv, 0);
     if (RT_FAILURE(rrc))
         return RTMsgInitFailure(rrc);
 
@@ -1616,20 +1652,6 @@ int main(int argc, char **argv)
 
     if (!fOnlyInfo && rcExit == RTEXITCODE_SUCCESS)
     {
-        /*
-         * The input is in the guest OS'es codepage (NT guarantees ACP).
-         * For VBox we use UTF-8.  For simplicity, just convert the argv[] array
-         * here.
-         */
-        /** @todo this must be done before we start checking for --help and
-         *        stuff above. */
-        for (int i = iArg; i < argc; i++)
-        {
-            char *pszConverted;
-            RTStrCurrentCPToUtf8(&pszConverted, argv[i]);
-            argv[i] = pszConverted;
-        }
-
         if (argc > iArg)
         {
             /*
@@ -1654,12 +1676,6 @@ int main(int argc, char **argv)
             rcExit = RTEXITCODE_FAILURE;
             usage();
         }
-
-        /*
-         * Free converted argument vector
-         */
-        for (int i = iArg; i < argc; i++)
-            RTStrFree(argv[i]);
     }
 
     /*

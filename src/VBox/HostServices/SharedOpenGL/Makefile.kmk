@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2008-2010 Oracle Corporation
+# Copyright (C) 2008-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,7 +16,7 @@
 #
 
 SUB_DEPTH = ../../../..
-include	$(KBUILD_PATH)/subheader.kmk
+include $(KBUILD_PATH)/subheader.kmk
 
 
 #
@@ -148,7 +148,7 @@ VBoxOGLcrserverlib_DEFS += VBOXCR_LOGFPS
 endif
 ifdef VBOX_WITH_CRHGSMI
 VBoxOGLcrserverlib_DEFS += ifdef VBOX_WITH_CRHGSMI
-endif 
+endif
 
 #
 # Generate files for VBoxOGLcrserverlib
@@ -251,14 +251,10 @@ VBoxOGLrenderspu_SOURCES.win     = render/renderspu_wgl.c render/render.def
 VBoxOGLrenderspu_SOURCES.linux   = render/renderspu_glx.c
 VBoxOGLrenderspu_SOURCES.solaris = render/renderspu_glx.c
 VBoxOGLrenderspu_SOURCES.freebsd = render/renderspu_glx.c
-ifdef VBOX_WITH_COCOA_QT
- VBoxOGLrenderspu_OBJCFLAGS.darwin = -Wno-shadow
- VBoxOGLrenderspu_SOURCES.darwin = \
-    render/renderspu_cocoa.c \
-    render/renderspu_cocoa_helper.m
-else
- VBoxOGLrenderspu_SOURCES.darwin = render/renderspu_agl.c
-endif
+VBoxOGLrenderspu_OBJCFLAGS.darwin = -Wno-shadow
+VBoxOGLrenderspu_SOURCES.darwin  = \
+	render/renderspu_cocoa.c \
+	render/renderspu_cocoa_helper.m
 VBoxOGLrenderspu_LDFLAGS.darwin += -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxOGLrenderspu.dylib
 VBoxOGLrenderspu_LIBS = \
 	$(PATH_STAGE_LIB)/VBoxOGLhostspuload$(VBOX_SUFF_LIB) \
@@ -295,20 +291,20 @@ if (   defined(VBOX_WITH_QTGUI) \
   VBoxTestOGL_TEMPLATE = $(if $(VBOX_WITH_VIDEOHWACCEL),$(if $(VBOX_WITH_HARDENING),VBOXQT4GUI,VBOXQT4GUIEXE),VBOXMAINEXE)
   VBoxTestOGL_SOURCES = OpenGLTest/OpenGLTestApp.cpp
   VBoxTestOGL_LIBS = \
-    $(if $(VBOX_WITH_CROGL), \
-      $(PATH_STAGE_LIB)/VBoxOGLhostspuload$(VBOX_SUFF_LIB) \
-      $(VBOX_LIB_OGL_HOSTCRUTIL),) \
-    $(if $(VBOX_WITH_VIDEOHWACCEL), $(PATH_STAGE_LIB)/VBoxOGL2D$(VBOX_SUFF_LIB),) \
-    $(LIB_RUNTIME)
+  	$(if $(VBOX_WITH_CROGL), \
+  	    $(PATH_STAGE_LIB)/VBoxOGLhostspuload$(VBOX_SUFF_LIB) \
+  	    $(VBOX_LIB_OGL_HOSTCRUTIL),) \
+  	$(if $(VBOX_WITH_VIDEOHWACCEL), $(PATH_STAGE_LIB)/VBoxOGL2D$(VBOX_SUFF_LIB),) \
+  	$(LIB_RUNTIME)
   VBoxTestOGL_DEFS += \
+    VBOX_BUILD_TARGET=\"$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)\" \
     $(if $(VBOX_WITH_CROGL), VBOX_WITH_CROGL,) \
     $(if $(VBOX_WITH_VIDEOHWACCEL), VBOX_WITH_VIDEOHWACCEL,) \
-    VBOX_BUILD_TARGET=\"$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)\" \
     $(if $(VBOX_BLEEDING_EDGE),VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\",)
   ifdef VBOX_WITH_VIDEOHWACCEL
-   VBoxTestOGL_QT_MODULES += Core Gui OpenGL
+   VBoxTestOGL_QT_MODULES     += Core Gui OpenGL
    VBoxTestOGL_LDFLAGS.darwin += -framework OpenGL
-   VBoxTestOGL_LIBS.win += $(PATH_SDK_WINPSDK_LIB)/Opengl32.lib
+   VBoxTestOGL_LIBS.win       += $(PATH_SDK_$(VBOX_WINPSDK)_LIB)/Opengl32.lib
    if1of ($(KBUILD_TARGET), solaris linux freebsd)
     # must come after VBoxOGL2D, therefore don't set the arch-specific LIBS variable here!
     VBoxTestOGL_LIBS += GL
@@ -318,5 +314,5 @@ if (   defined(VBOX_WITH_QTGUI) \
  endif
 endif
 
-include	$(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

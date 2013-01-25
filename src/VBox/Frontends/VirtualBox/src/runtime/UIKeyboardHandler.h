@@ -19,23 +19,22 @@
 #ifndef ___UIKeyboardHandler_h___
 #define ___UIKeyboardHandler_h___
 
-/* Global includes */
+/* Qt includes: */
 #include <QObject>
 #include <QMap>
 
-/* Local includes */
+/* GUI includes: */
 #include "UIMachineDefs.h"
-#include "COMDefs.h"
-
 #ifdef Q_WS_MAC
 # include <CoreFoundation/CFBase.h>
 # include <Carbon/Carbon.h>
 #endif /* Q_WS_MAC */
 
-/* Global forwards */
-class QWidget;
+/* COM includes: */
+#include "CKeyboard.h"
 
-/* Local forwards */
+/* Forward declarations: */
+class QWidget;
 class CSession;
 class UISession;
 class UIMachineLogic;
@@ -75,6 +74,11 @@ public:
     bool isHostKeyAlone() const { return m_bIsHostComboAlone; }
     bool isKeyboardGrabbed() const { return m_fKeyboardGrabbed; }
 #endif /* Q_WS_MAC */
+
+#ifdef VBOX_WITH_DEBUGGER_GUI
+    /* For the debugger. */
+    void setDebuggerActive(bool aActive = true);
+#endif
 
     /* External event-filters: */
 #if defined(Q_WS_WIN)
@@ -167,6 +171,9 @@ protected:
     bool m_bIsHostComboAlone : 1;
     bool m_bIsHostComboProcessed : 1;
     bool m_fPassCAD : 1;
+    /** Whether the debugger is active.
+     * Currently only affects auto capturing. */
+    bool m_fDebuggerActive : 1;
 
 #if defined(Q_WS_WIN)
     /* Currently this is used in winLowKeyboardEvent() only: */

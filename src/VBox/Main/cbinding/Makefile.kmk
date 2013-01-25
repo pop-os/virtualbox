@@ -38,7 +38,7 @@ XpComCGlue_INST = \
 	$(INST_SDK)bindings/xpcom/cbinding/
 XpComCGlue_SOURCES = \
 	VBoxXPCOMCGlue.c \
-	VBoxXPCOMCGlue.h
+	$(XpComCHeaders_0_OUTDIR)/VBoxXPCOMCGlue.h
 
 INSTALLS += XpComCHeaders
 XpComCHeaders_MODE = a+r,u+rw
@@ -49,7 +49,17 @@ XpComCHeaders_SOURCES = \
 	VBoxCAPI_v3_1.h \
 	VBoxCAPI_v3_2.h \
 	VBoxCAPI_v4_0.h \
+	VBoxCAPI_v4_1.h \
 	$(XpComCHeaders_0_OUTDIR)/VBoxCAPI.h=>VBoxCAPI_v$(VBOX_API_VERSION).h
+
+$$(XpComCHeaders_0_OUTDIR)/VBoxXPCOMCGlue.h: \
+		$(PATH_SUB_CURRENT)/VBoxXPCOMCGlue.h.in \
+		$(MAKEFILE_CURRENT) \
+		| $$(dir $$@)
+	$(call MSG_GENERATE,,$@)
+	$(QUIET)$(SED) \
+		-e 's/@VBOX_API_VERSION@/$(VBOX_API_VERSION)/' \
+		<  $< >  $@
 
 $$(XpComCHeaders_0_OUTDIR)/VBoxCAPI.h: \
 		$(PATH_SUB_CURRENT)/xpcidl.xsl \
@@ -98,7 +108,8 @@ if !defined(VBOX_ONLY_SDK) && defined(VBOX_WITH_XPCOM)
   PROGRAMS += tstXPCOMCGlue
   tstXPCOMCGlue_TEMPLATE = VBOXR3EXE
   tstXPCOMCGlue_INCS = \
-  	$(VBOX_PATH_SDK)/bindings/xpcom/include
+  	$(VBOX_PATH_SDK)/bindings/xpcom/include \
+  	$(VBOX_PATH_SDK)/bindings/xpcom/cbinding
   tstXPCOMCGlue_INTERMEDIATES = \
  	$(VBOX_PATH_SDK)/bindings/xpcom/cbinding/VBoxXPCOMCGlue.h \
   	$(VBOX_PATH_SDK)/bindings/xpcom/include/VBoxCAPI_v$(VBOX_API_VERSION).h
@@ -127,5 +138,5 @@ if !defined(VBOX_ONLY_SDK) && defined(VBOX_WITH_XPCOM)
 endif # ! VBOX_ONLY_SDK
 
 # generate rules.
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

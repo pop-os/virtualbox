@@ -167,7 +167,7 @@ static int tstSyntax(const char *argv0)
 
 int main(int argc, char **argv)
 {
-    RTR3Init();
+    RTR3InitExe(argc, &argv, 0);
 
     /*
      * Show help if not arguments.
@@ -206,7 +206,7 @@ int main(int argc, char **argv)
             case 'h':
                 return tstSyntax(argv[0]);
             case 'V':
-                RTPrintf("$Revision: 65108 $\n");
+                RTPrintf("$Revision: 73843 $\n");
                 return 0;
 
             default:

@@ -23,7 +23,9 @@
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/dbgftrace.h>
 #ifdef IN_RING3
-# include <VBox/vmm/rem.h>
+# ifdef VBOX_WITH_REM
+#  include <VBox/vmm/rem.h>
+# endif
 # include <iprt/thread.h>
 #endif
 #include "TMInternal.h"
@@ -69,10 +71,13 @@ DECLEXPORT(void) tmVirtualNanoTSBad(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS,
  */
 DECLEXPORT(uint64_t) tmVirtualNanoTSRediscover(PRTTIMENANOTSDATA pData)
 {
+    NOREF(pData);
     //PVM pVM = (PVM)((uint8_t *)pData - RT_OFFSETOF(VM, CTXALLSUFF(s.tm.VirtualGetRawData)));
     PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
     AssertFatalMsgFailed(("pGip=%p u32Magic=%#x\n", pGip, VALID_PTR(pGip) ? pGip->u32Magic : 0));
+#ifndef _MSC_VER
     return 0; /* gcc false positive warning */
+#endif
 }
 
 
@@ -102,7 +107,7 @@ DECLINLINE(uint64_t) tmVirtualGetRawNanoTS(PVM pVM)
  * for the two globals which live in TM.
  *
  * @returns Nanosecond timestamp.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 static uint64_t tmVirtualGetRawNanoTS(PVM pVM)
 {
@@ -277,7 +282,7 @@ static uint64_t tmVirtualGetRawNanoTS(PVM pVM)
  * Get the time when we're not running at 100%
  *
  * @returns The timestamp.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 static uint64_t tmVirtualGetRawNonNormal(PVM pVM)
 {
@@ -305,7 +310,7 @@ static uint64_t tmVirtualGetRawNonNormal(PVM pVM)
  * Get the raw virtual time.
  *
  * @returns The current time stamp.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 DECLINLINE(uint64_t) tmVirtualGetRaw(PVM pVM)
 {
@@ -346,7 +351,9 @@ DECLINLINE(uint64_t) tmVirtualGet(PVM pVM, bool fCheckTimers)
                 Log5(("TMAllVirtual(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_ISPENDING(pVCpuDst, VMCPU_FF_TIMER)));
                 VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
 #ifdef IN_RING3
+# ifdef VBOX_WITH_REM
                 REMR3NotifyTimerPending(pVM, pVCpuDst);
+# endif
                 VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM);
 #endif
             }
@@ -362,7 +369,7 @@ DECLINLINE(uint64_t) tmVirtualGet(PVM pVM, bool fCheckTimers)
  * Gets the current TMCLOCK_VIRTUAL time
  *
  * @returns The timestamp.
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  *
  * @remark  While the flow of time will never go backwards, the speed of the
  *          progress varies due to inaccurate RTTimeNanoTS and TSC. The latter can be
@@ -382,7 +389,7 @@ VMM_INT_DECL(uint64_t) TMVirtualGet(PVM pVM)
  * Meaning, this has no side effect on FFs like TMVirtualGet may have.
  *
  * @returns The timestamp.
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  *
  * @remarks See TMVirtualGet.
  */
@@ -396,7 +403,7 @@ VMM_INT_DECL(uint64_t) TMVirtualGetNoCheck(PVM pVM)
  * Converts the dead line interval from TMCLOCK_VIRTUAL to host nano seconds.
  *
  * @returns Host nano second count.
- * @param   pVM                     The VM handle.
+ * @param   pVM                     Pointer to the VM.
  * @param   cVirtTicksToDeadline    The TMCLOCK_VIRTUAL interval.
  */
 DECLINLINE(uint64_t) tmVirtualVirtToNsDeadline(PVM pVM, uint64_t cVirtTicksToDeadline)
@@ -411,7 +418,7 @@ DECLINLINE(uint64_t) tmVirtualVirtToNsDeadline(PVM pVM, uint64_t cVirtTicksToDea
  * tmVirtualSyncGetLocked worker for handling catch-up when owning the lock.
  *
  * @returns The timestamp.
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   u64                 raw virtual time.
  * @param   off                 offVirtualSync.
  * @param   pcNsToDeadline      Where to return the number of nano seconds to
@@ -505,7 +512,9 @@ DECLINLINE(uint64_t) tmVirtualSyncGetHandleCatchUpLocked(PVM pVM, uint64_t u64, 
         if (pcNsToDeadline)
             *pcNsToDeadline = 0;
 #ifdef IN_RING3
+# ifdef VBOX_WITH_REM
         REMR3NotifyTimerPending(pVM, pVCpuDst);
+# endif
         VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM);
 #endif
         STAM_COUNTER_INC(&pVM->tm.s.StatVirtualSyncGetSetFF);
@@ -523,7 +532,7 @@ DECLINLINE(uint64_t) tmVirtualSyncGetHandleCatchUpLocked(PVM pVM, uint64_t u64, 
  * tmVirtualSyncGetEx worker for when we get the lock.
  *
  * @returns timesamp.
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   u64                 The virtual clock timestamp.
  * @param   pcNsToDeadline      Where to return the number of nano seconds to
  *                              the next virtual sync timer deadline.  Can be
@@ -589,7 +598,9 @@ DECLINLINE(uint64_t) tmVirtualSyncGetLocked(PVM pVM, uint64_t u64, uint64_t *pcN
         PDMCritSectLeave(&pVM->tm.s.VirtualSyncLock);
 
 #ifdef IN_RING3
+# ifdef VBOX_WITH_REM
         REMR3NotifyTimerPending(pVM, pVCpuDst);
+# endif
         VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM);
 #endif
         if (pcNsToDeadline)
@@ -608,7 +619,7 @@ DECLINLINE(uint64_t) tmVirtualSyncGetLocked(PVM pVM, uint64_t u64, uint64_t *pcN
  * Gets the current TMCLOCK_VIRTUAL_SYNC time.
  *
  * @returns The timestamp.
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   fCheckTimers        Check timers or not
  * @param   pcNsToDeadline      Where to return the number of nano seconds to
  *                              the next virtual sync timer deadline.  Can be
@@ -643,7 +654,9 @@ DECLINLINE(uint64_t) tmVirtualSyncGetEx(PVM pVM, bool fCheckTimers, uint64_t *pc
             Log5(("TMAllVirtual(%u): FF: 0 -> 1\n", __LINE__));
             VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
 #ifdef IN_RING3
+# ifdef VBOX_WITH_REM
             REMR3NotifyTimerPending(pVM, pVCpuDst);
+# endif
             VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM /** @todo |VMNOTIFYFF_FLAGS_POKE*/);
 #endif
             STAM_COUNTER_INC(&pVM->tm.s.StatVirtualSyncGetSetFF);
@@ -811,7 +824,9 @@ DECLINLINE(uint64_t) tmVirtualSyncGetEx(PVM pVM, bool fCheckTimers, uint64_t *pc
             VM_FF_SET(pVM, VM_FF_TM_VIRTUAL_SYNC); /* Hmm? */
             VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
 #ifdef IN_RING3
+# ifdef VBOX_WITH_REM
             REMR3NotifyTimerPending(pVM, pVCpuDst);
+# endif
             VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM);
 #endif
             STAM_COUNTER_INC(&pVM->tm.s.StatVirtualSyncGetSetFF);
@@ -842,7 +857,7 @@ DECLINLINE(uint64_t) tmVirtualSyncGetEx(PVM pVM, bool fCheckTimers, uint64_t *pc
  * Gets the current TMCLOCK_VIRTUAL_SYNC time.
  *
  * @returns The timestamp.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  * @thread  EMT.
  * @remarks May set the timer and virtual sync FFs.
  */
@@ -857,7 +872,7 @@ VMM_INT_DECL(uint64_t) TMVirtualSyncGet(PVM pVM)
  * TMCLOCK_VIRTUAL.
  *
  * @returns The timestamp.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  * @thread  EMT.
  * @remarks May set the timer and virtual sync FFs.
  */
@@ -871,7 +886,7 @@ VMM_INT_DECL(uint64_t) TMVirtualSyncGetNoCheck(PVM pVM)
  * Gets the current TMCLOCK_VIRTUAL_SYNC time.
  *
  * @returns The timestamp.
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  * @param   fCheckTimers    Check timers on the virtual clock or not.
  * @thread  EMT.
  * @remarks May set the timer and virtual sync FFs.
@@ -887,7 +902,7 @@ VMM_INT_DECL(uint64_t) TMVirtualSyncGetEx(PVM pVM, bool fCheckTimers)
  * without checking timers running on TMCLOCK_VIRTUAL.
  *
  * @returns The timestamp.
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pcNsToDeadline      Where to return the number of nano seconds to
  *                              the next virtual sync timer deadline.
  * @thread  EMT.
@@ -906,7 +921,7 @@ VMM_INT_DECL(uint64_t) TMVirtualSyncGetWithDeadlineNoCheck(PVM pVM, uint64_t *pc
  * Gets the number of nano seconds to the next virtual sync deadline.
  *
  * @returns The number of TMCLOCK_VIRTUAL ticks.
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @thread  EMT.
  * @remarks May set the timer and virtual sync FFs.
  */
@@ -922,7 +937,7 @@ VMM_INT_DECL(uint64_t) TMVirtualSyncGetNsToDeadline(PVM pVM)
  * Gets the current lag of the synchronous virtual clock (relative to the virtual clock).
  *
  * @return  The current lag.
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 VMM_INT_DECL(uint64_t) TMVirtualSyncGetLag(PVM pVM)
 {
@@ -934,7 +949,7 @@ VMM_INT_DECL(uint64_t) TMVirtualSyncGetLag(PVM pVM)
  * Get the current catch-up percent.
  *
  * @return  The current catch0up percent. 0 means running at the same speed as the virtual clock.
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 VMM_INT_DECL(uint32_t) TMVirtualSyncGetCatchUpPct(PVM pVM)
 {
@@ -948,10 +963,11 @@ VMM_INT_DECL(uint32_t) TMVirtualSyncGetCatchUpPct(PVM pVM)
  * Gets the current TMCLOCK_VIRTUAL frequency.
  *
  * @returns The frequency.
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 VMM_INT_DECL(uint64_t) TMVirtualGetFreq(PVM pVM)
 {
+    NOREF(pVM);
     return TMCLOCK_FREQ_VIRTUAL;
 }
 
@@ -960,7 +976,7 @@ VMM_INT_DECL(uint64_t) TMVirtualGetFreq(PVM pVM)
  * Worker for TMR3PauseClocks.
  *
  * @returns VINF_SUCCESS or VERR_TM_VIRTUAL_TICKING_IPE (asserted).
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 int tmVirtualPauseLocked(PVM pVM)
 {
@@ -980,7 +996,7 @@ int tmVirtualPauseLocked(PVM pVM)
  * Worker for TMR3ResumeClocks.
  *
  * @returns VINF_SUCCESS or VERR_TM_VIRTUAL_TICKING_IPE (asserted).
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 int tmVirtualResumeLocked(PVM pVM)
 {
@@ -1002,13 +1018,14 @@ int tmVirtualResumeLocked(PVM pVM)
  * Converts from virtual ticks to nanoseconds.
  *
  * @returns nanoseconds.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   u64VirtualTicks The virtual ticks to convert.
  * @remark  There could be rounding errors here. We just do a simple integer divide
  *          without any adjustments.
  */
 VMM_INT_DECL(uint64_t) TMVirtualToNano(PVM pVM, uint64_t u64VirtualTicks)
 {
+    NOREF(pVM);
     AssertCompile(TMCLOCK_FREQ_VIRTUAL == 1000000000);
     return u64VirtualTicks;
 }
@@ -1018,13 +1035,14 @@ VMM_INT_DECL(uint64_t) TMVirtualToNano(PVM pVM, uint64_t u64VirtualTicks)
  * Converts from virtual ticks to microseconds.
  *
  * @returns microseconds.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   u64VirtualTicks The virtual ticks to convert.
  * @remark  There could be rounding errors here. We just do a simple integer divide
  *          without any adjustments.
  */
 VMM_INT_DECL(uint64_t) TMVirtualToMicro(PVM pVM, uint64_t u64VirtualTicks)
 {
+    NOREF(pVM);
     AssertCompile(TMCLOCK_FREQ_VIRTUAL == 1000000000);
     return u64VirtualTicks / 1000;
 }
@@ -1034,13 +1052,14 @@ VMM_INT_DECL(uint64_t) TMVirtualToMicro(PVM pVM, uint64_t u64VirtualTicks)
  * Converts from virtual ticks to milliseconds.
  *
  * @returns milliseconds.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   u64VirtualTicks The virtual ticks to convert.
  * @remark  There could be rounding errors here. We just do a simple integer divide
  *          without any adjustments.
  */
 VMM_INT_DECL(uint64_t) TMVirtualToMilli(PVM pVM, uint64_t u64VirtualTicks)
 {
+    NOREF(pVM);
     AssertCompile(TMCLOCK_FREQ_VIRTUAL == 1000000000);
     return u64VirtualTicks / 1000000;
 }
@@ -1050,12 +1069,13 @@ VMM_INT_DECL(uint64_t) TMVirtualToMilli(PVM pVM, uint64_t u64VirtualTicks)
  * Converts from nanoseconds to virtual ticks.
  *
  * @returns virtual ticks.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   u64NanoTS       The nanosecond value ticks to convert.
  * @remark  There could be rounding and overflow errors here.
  */
 VMM_INT_DECL(uint64_t) TMVirtualFromNano(PVM pVM, uint64_t u64NanoTS)
 {
+    NOREF(pVM);
     AssertCompile(TMCLOCK_FREQ_VIRTUAL == 1000000000);
     return u64NanoTS;
 }
@@ -1065,12 +1085,13 @@ VMM_INT_DECL(uint64_t) TMVirtualFromNano(PVM pVM, uint64_t u64NanoTS)
  * Converts from microseconds to virtual ticks.
  *
  * @returns virtual ticks.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   u64MicroTS      The microsecond value ticks to convert.
  * @remark  There could be rounding and overflow errors here.
  */
 VMM_INT_DECL(uint64_t) TMVirtualFromMicro(PVM pVM, uint64_t u64MicroTS)
 {
+    NOREF(pVM);
     AssertCompile(TMCLOCK_FREQ_VIRTUAL == 1000000000);
     return u64MicroTS * 1000;
 }
@@ -1080,12 +1101,13 @@ VMM_INT_DECL(uint64_t) TMVirtualFromMicro(PVM pVM, uint64_t u64MicroTS)
  * Converts from milliseconds to virtual ticks.
  *
  * @returns virtual ticks.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   u64MilliTS      The millisecond value ticks to convert.
  * @remark  There could be rounding and overflow errors here.
  */
 VMM_INT_DECL(uint64_t) TMVirtualFromMilli(PVM pVM, uint64_t u64MilliTS)
 {
+    NOREF(pVM);
     AssertCompile(TMCLOCK_FREQ_VIRTUAL == 1000000000);
     return u64MilliTS * 1000000;
 }

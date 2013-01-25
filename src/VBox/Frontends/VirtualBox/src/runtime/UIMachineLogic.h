@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,60 +19,62 @@
 #ifndef __UIMachineLogic_h__
 #define __UIMachineLogic_h__
 
-/* Local includes */
+/* GUI includes: */
 #include "UIMachineDefs.h"
 #include <QIWithRetranslateUI.h>
 #ifdef VBOX_WITH_DEBUGGER_GUI
 # include <VBox/dbggui.h>
-#endif
+#endif /* VBOX_WITH_DEBUGGER_GUI */
 
-/* Global forwards */
+/* Forward declarations: */
 class QAction;
 class QActionGroup;
-
-/* Local forwards */
-class CSession;
-class CMachine;
-class CSnapshot;
-class CUSBDevice;
-class CVirtualBoxErrorInfo;
 class UISession;
 class UIKeyboardHandler;
 class UIMouseHandler;
 class UIMachineWindow;
 class UIMachineView;
 class UIDockIconPreview;
+class CSession;
+class CMachine;
+class CSnapshot;
+class CUSBDevice;
+class CVirtualBoxErrorInfo;
 
+/* Machine logic interface: */
 class UIMachineLogic : public QIWithRetranslateUI3<QObject>
 {
     Q_OBJECT;
 
 public:
 
-    /* Factory function to create required logic sub-child: */
-    static UIMachineLogic* create(QObject *pParent,
-                                  UISession *pSession,
-                                  UIVisualStateType visualStateType);
+    /* Factory functions to create/destroy required logic sub-child: */
+    static UIMachineLogic* create(QObject *pParent, UISession *pSession, UIVisualStateType visualStateType);
+    static void destroy(UIMachineLogic *pWhichLogic);
 
-    /* Check if this mode is available: */
-    virtual bool checkAvailability();
+    /* Check if this logic is available: */
+    virtual bool checkAvailability() = 0;
 
-    /* Do the real initialization of the object: */
-    virtual void initialize() = 0;
+    /* Prepare/cleanup the logic: */
+    virtual void prepare();
+    virtual void cleanup();
 
     /* Main getters/setters: */
     UISession* uisession() const { return m_pSession; }
-    CSession& session();
+    CSession& session() const;
     UIVisualStateType visualStateType() const { return m_visualStateType; }
     const QList<UIMachineWindow*>& machineWindows() const { return m_machineWindowsList; }
     UIKeyboardHandler* keyboardHandler() const { return m_pKeyboardHandler; }
     UIMouseHandler* mouseHandler() const { return m_pMouseHandler; }
     UIMachineWindow* mainMachineWindow() const;
-    UIMachineWindow* defaultMachineWindow() const;
+    UIMachineWindow* activeMachineWindow() const;
 
     /* Maintenance getters/setters: */
     bool isPreventAutoClose() const { return m_fIsPreventAutoClose; }
     void setPreventAutoClose(bool fIsPreventAutoClose) { m_fIsPreventAutoClose = fIsPreventAutoClose; }
+
+    /* Wrapper to open Machine settings / Network page: */
+    void openNetworkAdaptersDialog() { sltOpenNetworkAdaptersDialog(); }
 
 #ifdef Q_WS_MAC
     void updateDockIcon();
@@ -80,18 +82,22 @@ public:
     UIMachineView* dockPreviewView() const;
 #endif /* Q_WS_MAC */
 
-signals:
+protected slots:
 
-    /* Signal to notify listeners about additions downloader created: */
-    void sigDownloaderAdditionsCreated();
+    /* Console callback handlers: */
+    virtual void sltMachineStateChanged();
+    virtual void sltAdditionsStateChanged();
+    virtual void sltMouseCapabilityChanged();
+    virtual void sltUSBDeviceStateChange(const CUSBDevice &device, bool fIsAttached, const CVirtualBoxErrorInfo &error);
+    virtual void sltRuntimeError(bool fIsFatal, const QString &strErrorId, const QString &strMessage);
+#ifdef RT_OS_DARWIN
+    virtual void sltShowWindows();
+#endif /* RT_OS_DARWIN */
 
 protected:
 
-    /* Machine logic constructor/destructor: */
-    UIMachineLogic(QObject *pParent,
-                   UISession *pSession,
-                   UIVisualStateType visualStateType);
-    virtual ~UIMachineLogic();
+    /* Constructor: */
+    UIMachineLogic(QObject *pParent, UISession *pSession, UIVisualStateType visualStateType);
 
     /* Protected getters/setters: */
     bool isMachineWindowsCreated() const { return m_fIsWindowsCreated; }
@@ -109,61 +115,55 @@ protected:
 #endif /* Q_WS_MAC */
 
     /* Prepare helpers: */
+    virtual void prepareRequiredFeatures();
     virtual void prepareSessionConnections();
-    virtual void prepareActionConnections();
     virtual void prepareActionGroups();
+    virtual void prepareActionConnections();
     virtual void prepareHandlers();
+    virtual void prepareMachineWindows() = 0;
 #ifdef Q_WS_MAC
     virtual void prepareDock();
 #endif /* Q_WS_MAC */
-    virtual void prepareRequiredFeatures();
 #ifdef VBOX_WITH_DEBUGGER_GUI
     virtual void prepareDebugger();
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
     /* Cleanup helpers: */
-    //virtual void cleanupRequiredFeatures() {}
+#ifdef VBOX_WITH_DEBUGGER_GUI
+    virtual void cleanupDebugger();
+#endif /* VBOX_WITH_DEBUGGER_GUI */
 #ifdef Q_WS_MAC
     virtual void cleanupDock();
 #endif /* Q_WS_MAC */
+    virtual void cleanupMachineWindows() = 0;
     virtual void cleanupHandlers();
-    //virtual void cleanupActionGroups() {}
     //virtual void cleanupActionConnections() {}
+    virtual void cleanupActionGroups();
     //virtual void cleanupSessionConnections() {}
+    //virtual void cleanupRequiredFeatures() {}
 
-protected slots:
-
-    /* Console callback handlers: */
-    virtual void sltMachineStateChanged();
-    virtual void sltAdditionsStateChanged();
-    virtual void sltMouseCapabilityChanged();
-    virtual void sltUSBDeviceStateChange(const CUSBDevice &device, bool fIsAttached, const CVirtualBoxErrorInfo &error);
-    virtual void sltRuntimeError(bool fIsFatal, const QString &strErrorId, const QString &strMessage);
-#ifdef RT_OS_DARWIN
-    virtual void sltShowWindows();
-#endif /* RT_OS_DARWIN */
+private slots:
 
     /* Mode request watch dog: */
     void sltCheckRequestedModes();
 
-private slots:
-
-    /* "Machine" menu functionality */
+    /* "Machine" menu functionality: */
     void sltToggleGuestAutoresize(bool fEnabled);
     void sltAdjustWindow();
     void sltToggleMouseIntegration(bool fDisabled);
     void sltTypeCAD();
 #ifdef Q_WS_X11
     void sltTypeCABS();
-#endif
+#endif /* Q_WS_X11 */
     void sltTakeSnapshot();
+    void sltTakeScreenshot();
     void sltShowInformationDialog();
     void sltReset();
     void sltPause(bool fOn);
     void sltACPIShutdown();
     void sltClose();
 
-    /* "Device" menu functionality */
+    /* "Device" menu functionality: */
     void sltOpenVMSettingsDialog(const QString &strCategory = QString());
     void sltOpenNetworkAdaptersDialog();
     void sltOpenSharedFoldersDialog();
@@ -172,15 +172,21 @@ private slots:
     void sltMountRecentStorageMedium();
     void sltPrepareUSBMenu();
     void sltAttachUSBDevice();
+    void sltPrepareSharedClipboardMenu();
+    void sltChangeSharedClipboardType(QAction *pAction);
+    void sltPrepareDragAndDropMenu();
+    void sltChangeDragAndDropType(QAction *pAction);
     void sltSwitchVrde(bool fOn);
     void sltInstallGuestAdditions();
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
+    /* "Debug" menu functionality: */
     void sltPrepareDebugMenu();
     void sltShowDebugStatistics();
     void sltShowDebugCommandLine();
     void sltLoggingToggled(bool);
-#endif
+    void sltShowLogDialog();
+#endif /* VBOX_WITH_DEBUGGER_GUI */
 
 #ifdef RT_OS_DARWIN /* Something is *really* broken in regards of the moc here */
     void sltDockPreviewModeChanged(QAction *pAction);
@@ -190,10 +196,9 @@ private slots:
 
 private:
 
-    /* Utility functions: */
-    static int searchMaxSnapshotIndex(const CMachine &machine,
-                                      const CSnapshot &snapshot,
-                                      const QString &strNameTemplate);
+    /* Helpers: */
+    static int searchMaxSnapshotIndex(const CMachine &machine, const CSnapshot &snapshot, const QString &strNameTemplate);
+    void takeScreenshot(const QString &strFile, const QString &strFormat /* = "png" */) const;
 
     /* Private variables: */
     UISession *m_pSession;
@@ -204,6 +209,8 @@ private:
 
     QActionGroup *m_pRunningActions;
     QActionGroup *m_pRunningOrPausedActions;
+    QActionGroup *m_pSharedClipboardActions;
+    QActionGroup *m_pDragAndDropActions;
 
     bool m_fIsWindowsCreated : 1;
     bool m_fIsPreventAutoClose : 1;
@@ -217,7 +224,7 @@ private:
     PDBGGUI m_pDbgGui;
     /* The virtual method table for the debugger GUI: */
     PCDBGGUIVT m_pDbgGuiVT;
-#endif
+#endif /* VBOX_WITH_DEBUGGER_GUI */
 
 #ifdef Q_WS_MAC
     bool m_fIsDockIconEnabled;

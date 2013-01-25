@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2011 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -75,7 +75,8 @@ VBoxManage_DEFS      += \
 	$(if $(VBOX_WITH_VIDEOHWACCEL), VBOX_WITH_VIDEOHWACCEL) \
 	$(if $(VBOX_WITH_VIRTIO),VBOX_WITH_VIRTIO) \
 	$(if $(VBOX_WITH_USB_CARDREADER),VBOX_WITH_USB_CARDREADER) \
-	$(if $(VBOX_WITH_PCI_PASSTHROUGH),VBOX_WITH_PCI_PASSTHROUGH)
+	$(if $(VBOX_WITH_PCI_PASSTHROUGH),VBOX_WITH_PCI_PASSTHROUGH) \
+	$(if $(VBOX_WITH_VPX),VBOX_WITH_VPX)
 
 ifneq ($(KBUILD_TARGET),win)
  # Workaround for buggy gcc-4.3 compilers, see
@@ -89,4 +90,4 @@ ifneq ($(KBUILD_TARGET),win)
  VBoxManageHelp_CXXFLAGS.release = $(VBoxManage_CXXFLAGS.release)
 endif
 
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)

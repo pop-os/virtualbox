@@ -161,7 +161,8 @@ typedef struct RTLDROPS
      * @param   fFlags      Flags indicating what to return and such.
      * @param   pvBits      Pointer to the bits returned by RTLDROPS::pfnGetBits(), optional.
      * @param   BaseAddress The image base addressto use when calculating the symbol values.
-     * @param   pfnCallback The callback function which each symbol is to be feeded to.
+     * @param   pfnCallback The callback function which each symbol is to be
+     *                      fed to.
      * @param   pvUser      User argument to pass to the enumerator.
      * @remark  This is an optional entry point.
      */
@@ -223,6 +224,84 @@ typedef struct RTLDROPS
      * @remark  Extended loader feature.
      */
     DECLCALLBACKMEMBER(int, pfnGetSymbolEx)(PRTLDRMODINTERNAL pMod, const void *pvBits, RTUINTPTR BaseAddress, const char *pszSymbol, RTUINTPTR *pValue);
+
+    /**
+     * Enumerates the debug info contained in the module.
+     *
+     * @returns iprt status code, which might have been returned by pfnCallback.
+     * @param   pMod        Pointer to the loader module structure.
+     * @param   pvBits      Pointer to the bits returned by RTLDROPS::pfnGetBits(), optional.
+     * @param   pfnCallback The callback function which each debug info part is
+     *                      to be fed to.
+     * @param   pvUser      User argument to pass to the enumerator.
+     * @remark  This is an optional entry point that can be NULL.
+     */
+    DECLCALLBACKMEMBER(int, pfnEnumDbgInfo)(PRTLDRMODINTERNAL pMod, const void *pvBits,
+                                            PFNRTLDRENUMDBG pfnCallback, void *pvUser);
+
+    /**
+     * Enumerates the segments in the module.
+     *
+     * @returns iprt status code, which might have been returned by pfnCallback.
+     * @param   pMod        Pointer to the loader module structure.
+     * @param   pfnCallback The callback function which each debug info part is
+     *                      to be fed to.
+     * @param   pvUser      User argument to pass to the enumerator.
+     * @remark  This is an optional entry point that can be NULL.
+     */
+    DECLCALLBACKMEMBER(int, pfnEnumSegments)(PRTLDRMODINTERNAL pMod, PFNRTLDRENUMSEGS pfnCallback, void *pvUser);
+
+    /**
+     * Converts a link address to a segment:offset address.
+     *
+     * @returns IPRT status code.
+     *
+     * @param   pMod            Pointer to the loader module structure.
+     * @param   LinkAddress     The link address to convert.
+     * @param   piSeg           Where to return the segment index.
+     * @param   poffSeg         Where to return the segment offset.
+     * @remark  This is an optional entry point that can be NULL.
+     */
+    DECLCALLBACKMEMBER(int, pfnLinkAddressToSegOffset)(PRTLDRMODINTERNAL pMod, RTLDRADDR LinkAddress,
+                                                       uint32_t *piSeg, PRTLDRADDR poffSeg);
+
+    /**
+     * Converts a link address to a RVA.
+     *
+     * @returns IPRT status code.
+     *
+     * @param   pMod            Pointer to the loader module structure.
+     * @param   LinkAddress     The link address to convert.
+     * @param   pRva            Where to return the RVA.
+     * @remark  This is an optional entry point that can be NULL.
+     */
+    DECLCALLBACKMEMBER(int, pfnLinkAddressToRva)(PRTLDRMODINTERNAL pMod, RTLDRADDR LinkAddress, PRTLDRADDR pRva);
+
+    /**
+     * Converts a segment:offset to a RVA.
+     *
+     * @returns IPRT status code.
+     *
+     * @param   pMod            Pointer to the loader module structure.
+     * @param   iSeg            The segment index.
+     * @param   offSeg          The segment offset.
+     * @param   pRva            Where to return the RVA.
+     * @remark  This is an optional entry point that can be NULL.
+     */
+    DECLCALLBACKMEMBER(int, pfnSegOffsetToRva)(PRTLDRMODINTERNAL pMod, uint32_t iSeg, RTLDRADDR offSeg, PRTLDRADDR pRva);
+
+    /**
+     * Converts a RVA to a segment:offset.
+     *
+     * @returns IPRT status code.
+     *
+     * @param   pMod            Pointer to the loader module structure.
+     * @param   iSeg            The segment index.
+     * @param   offSeg          The segment offset.
+     * @param   pRva            Where to return the RVA.
+     * @remark  This is an optional entry point that can be NULL.
+     */
+    DECLCALLBACKMEMBER(int, pfnRvaToSegOffset)(PRTLDRMODINTERNAL pMod, RTLDRADDR Rva, uint32_t *piSeg, PRTLDRADDR poffSeg);
 
     /** Dummy entry to make sure we've initialized it all. */
     RTUINT uDummy;

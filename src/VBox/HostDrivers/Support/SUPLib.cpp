@@ -50,6 +50,7 @@
 #include <VBox/err.h>
 #include <VBox/param.h>
 #include <VBox/log.h>
+#include <VBox/VBoxTpG.h>
 
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
@@ -266,8 +267,8 @@ SUPR3DECL(int) SUPR3Init(PSUPDRVSESSION *ppSession)
         CookieReq.Hdr.rc = VERR_INTERNAL_ERROR;
         strcpy(CookieReq.u.In.szMagic, SUPCOOKIE_MAGIC);
         CookieReq.u.In.u32ReqVersion = SUPDRV_IOC_VERSION;
-        const uint32_t uMinVersion = (SUPDRV_IOC_VERSION & 0xffff0000) == 0x00170000
-                                   ? 0x00170002
+        const uint32_t uMinVersion = (SUPDRV_IOC_VERSION & 0xffff0000) == 0x00190000
+                                   ? 0x00190003
                                    : SUPDRV_IOC_VERSION & 0xffff0000;
         CookieReq.u.In.u32MinVersion = uMinVersion;
         rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_COOKIE, &CookieReq, SUP_IOCTL_COOKIE_SIZE);
@@ -579,13 +580,14 @@ SUPR3DECL(SUPPAGINGMODE) SUPR3GetPagingMode(void)
  */
 static int supCallVMMR0ExFake(PVMR0 pVMR0, unsigned uOperation, uint64_t u64Arg, PSUPVMMR0REQHDR pReqHdr)
 {
-    AssertMsgFailed(("%d\n", uOperation));
+    AssertMsgFailed(("%d\n", uOperation)); NOREF(pVMR0); NOREF(uOperation); NOREF(u64Arg); NOREF(pReqHdr);
     return VERR_NOT_SUPPORTED;
 }
 
 
 SUPR3DECL(int) SUPR3CallVMMR0Fast(PVMR0 pVMR0, unsigned uOperation, VMCPUID idCpu)
 {
+    NOREF(pVMR0);
     if (RT_LIKELY(uOperation == SUP_VMMR0_DO_RAW_RUN))
         return suplibOsIOCtlFast(&g_supLibData, SUP_IOCTL_FAST_DO_RAW_RUN, idCpu);
     if (RT_LIKELY(uOperation == SUP_VMMR0_DO_HWACC_RUN))
@@ -1039,6 +1041,7 @@ SUPR3DECL(int) SUPR3PageAllocEx(size_t cPages, uint32_t fFlags, void **ppvPages,
         *pR0Ptr = NIL_RTR0PTR;
     AssertPtrNullReturn(paPages, VERR_INVALID_POINTER);
     AssertMsgReturn(cPages > 0 && cPages <= VBOX_MAX_ALLOC_PAGE_COUNT, ("cPages=%zu\n", cPages), VERR_PAGE_COUNT_OUT_OF_RANGE);
+    AssertReturn(!fFlags, VERR_INVALID_PARAMETER);
 
     /* fake */
     if (RT_UNLIKELY(g_u32FakeMode))
@@ -1537,6 +1540,7 @@ SUPR3DECL(int) SUPR3HardenedVerifyDir(const char *pszDirPath, bool fRecursive, b
         LogRel(("supR3HardenedVerifyDir: Verification of \"%s\" failed, rc=%Rrc\n", pszDirPath, rc));
     return rc;
 #else
+    NOREF(pszDirPath); NOREF(fRecursive); NOREF(fCheckFiles);
     return VINF_SUCCESS;
 #endif
 }
@@ -1583,15 +1587,12 @@ SUPR3DECL(int) SUPR3LoadModule(const char *pszFilename, const char *pszModule, v
 SUPR3DECL(int) SUPR3LoadServiceModule(const char *pszFilename, const char *pszModule,
                                       const char *pszSrvReqHandler, void **ppvImageBase)
 {
-    int rc = VINF_SUCCESS;
     AssertPtrReturn(pszSrvReqHandler, VERR_INVALID_PARAMETER);
 
-#ifdef VBOX_WITH_HARDENING
     /*
      * Check that the module can be trusted.
      */
-    rc = supR3HardenedVerifyFixedFile(pszFilename, false /* fFatal */);
-#endif
+    int rc = SUPR3HardenedVerifyPlugIn(pszFilename, NULL /*pErrInfo*/);
     if (RT_SUCCESS(rc))
         rc = supLoadModule(pszFilename, pszModule, pszSrvReqHandler, ppvImageBase);
     else
@@ -1614,6 +1615,7 @@ SUPR3DECL(int) SUPR3LoadServiceModule(const char *pszFilename, const char *pszMo
 static DECLCALLBACK(int) supLoadModuleResolveImport(RTLDRMOD hLdrMod, const char *pszModule,
                                                     const char *pszSymbol, unsigned uSymbol, RTUINTPTR *pValue, void *pvUser)
 {
+    NOREF(hLdrMod); NOREF(pvUser); NOREF(uSymbol);
     AssertPtr(pValue);
     AssertPtr(pvUser);
 
@@ -1753,6 +1755,7 @@ static DECLCALLBACK(int) supLoadModuleCalcSizeCB(RTLDRMOD hLdrMod, const char *p
         pArgs->cSymbols++;
         pArgs->cbStrings += strlen(pszSymbol) + 1;
     }
+    NOREF(hLdrMod); NOREF(uSymbol);
     return VINF_SUCCESS;
 }
 
@@ -1785,6 +1788,7 @@ static DECLCALLBACK(int) supLoadModuleCreateTabsCB(RTLDRMOD hLdrMod, const char 
         memcpy(pArgs->psz, pszSymbol, cbCopy);
         pArgs->psz += cbCopy;
     }
+    NOREF(hLdrMod); NOREF(uSymbol);
     return VINF_SUCCESS;
 }
 
@@ -2231,8 +2235,6 @@ SUPR3DECL(int) SUPR3HardenedLdrLoadAppPriv(const char *pszFilename, PRTLDRMOD ph
 
 SUPR3DECL(int) SUPR3HardenedLdrLoadPlugIn(const char *pszFilename, PRTLDRMOD phLdrMod, PRTERRINFO pErrInfo)
 {
-    int rc;
-
     /*
      * Validate input.
      */
@@ -2246,7 +2248,7 @@ SUPR3DECL(int) SUPR3HardenedLdrLoadPlugIn(const char *pszFilename, PRTLDRMOD phL
     /*
      * Verify the image file.
      */
-    rc = supR3HardenedVerifyFile(pszFilename, RTHCUINTPTR_MAX, pErrInfo);
+    int rc = supR3HardenedVerifyFile(pszFilename, RTHCUINTPTR_MAX, pErrInfo);
     if (RT_FAILURE(rc))
     {
         if (!RTErrInfoIsSet(pErrInfo))
@@ -2301,5 +2303,401 @@ SUPR3DECL(int) SUPR3QueryVTCaps(uint32_t *pfCaps)
             *pfCaps = Req.u.Out.Caps;
     }
     return rc;
+}
+
+
+SUPR3DECL(int) SUPR3TracerOpen(uint32_t uCookie, uintptr_t uArg)
+{
+    /* fake */
+    if (RT_UNLIKELY(g_u32FakeMode))
+        return VINF_SUCCESS;
+
+    /*
+     * Issue IOCtl to the SUPDRV kernel module.
+     */
+    SUPTRACEROPEN Req;
+    Req.Hdr.u32Cookie       = g_u32Cookie;
+    Req.Hdr.u32SessionCookie= g_u32SessionCookie;
+    Req.Hdr.cbIn            = SUP_IOCTL_TRACER_OPEN_SIZE_IN;
+    Req.Hdr.cbOut           = SUP_IOCTL_TRACER_OPEN_SIZE_OUT;
+    Req.Hdr.fFlags          = SUPREQHDR_FLAGS_DEFAULT;
+    Req.Hdr.rc              = VERR_INTERNAL_ERROR;
+    Req.u.In.uCookie        = uCookie;
+    Req.u.In.uArg           = uArg;
+    int rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_TRACER_OPEN, &Req, SUP_IOCTL_TRACER_OPEN_SIZE);
+    if (RT_SUCCESS(rc))
+        rc = Req.Hdr.rc;
+    return rc;
+}
+
+
+SUPR3DECL(int) SUPR3TracerClose(void)
+{
+    /* fake */
+    if (RT_UNLIKELY(g_u32FakeMode))
+        return VINF_SUCCESS;
+
+    /*
+     * Issue IOCtl to the SUPDRV kernel module.
+     */
+    SUPREQHDR Req;
+    Req.u32Cookie       = g_u32Cookie;
+    Req.u32SessionCookie= g_u32SessionCookie;
+    Req.cbIn            = SUP_IOCTL_TRACER_OPEN_SIZE_IN;
+    Req.cbOut           = SUP_IOCTL_TRACER_OPEN_SIZE_OUT;
+    Req.fFlags          = SUPREQHDR_FLAGS_DEFAULT;
+    Req.rc              = VERR_INTERNAL_ERROR;
+    int rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_TRACER_CLOSE, &Req, SUP_IOCTL_TRACER_CLOSE_SIZE);
+    if (RT_SUCCESS(rc))
+        rc = Req.rc;
+    return rc;
+}
+
+
+SUPR3DECL(int) SUPR3TracerIoCtl(uintptr_t uCmd, uintptr_t uArg, int32_t *piRetVal)
+{
+    /* fake */
+    if (RT_UNLIKELY(g_u32FakeMode))
+    {
+        *piRetVal = -1;
+        return VERR_NOT_SUPPORTED;
+    }
+
+    /*
+     * Issue IOCtl to the SUPDRV kernel module.
+     */
+    SUPTRACERIOCTL Req;
+    Req.Hdr.u32Cookie       = g_u32Cookie;
+    Req.Hdr.u32SessionCookie= g_u32SessionCookie;
+    Req.Hdr.cbIn            = SUP_IOCTL_TRACER_IOCTL_SIZE_IN;
+    Req.Hdr.cbOut           = SUP_IOCTL_TRACER_IOCTL_SIZE_OUT;
+    Req.Hdr.fFlags          = SUPREQHDR_FLAGS_DEFAULT;
+    Req.Hdr.rc              = VERR_INTERNAL_ERROR;
+    Req.u.In.uCmd           = uCmd;
+    Req.u.In.uArg           = uArg;
+    int rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_TRACER_IOCTL, &Req, SUP_IOCTL_TRACER_IOCTL_SIZE);
+    if (RT_SUCCESS(rc))
+    {
+        rc = Req.Hdr.rc;
+        *piRetVal = Req.u.Out.iRetVal;
+    }
+    return rc;
+}
+
+
+
+typedef struct SUPDRVTRACERSTRTAB
+{
+    /** Pointer to the string table. */
+    char       *pchStrTab;
+    /** The actual string table size. */
+    uint32_t    cbStrTab;
+    /** The original string pointers. */
+    RTUINTPTR   apszOrgFunctions[1];
+} SUPDRVTRACERSTRTAB, *PSUPDRVTRACERSTRTAB;
+
+
+/**
+ * Destroys a string table, restoring the original pszFunction member valus.
+ *
+ * @param   pThis               The string table structure.
+ * @param   paProbLocs          The probe location array.
+ * @param   cProbLocs           The number of probe locations.
+ */
+static void supr3TracerDestroyStrTab(PSUPDRVTRACERSTRTAB pThis, PVTGPROBELOC32 paProbeLocs32, PVTGPROBELOC64 paProbeLocs64,
+                                     uint32_t cProbeLocs, bool f32Bit)
+{
+    /* Restore. */
+    size_t i = cProbeLocs;
+    if (f32Bit)
+        while (i--)
+            paProbeLocs32[i].pszFunction = (uint32_t)pThis->apszOrgFunctions[i];
+    else
+        while (i--)
+            paProbeLocs64[i].pszFunction = pThis->apszOrgFunctions[i];
+
+    /* Free. */
+    RTMemFree(pThis->pchStrTab);
+    RTMemFree(pThis);
+}
+
+
+/**
+ * Creates a string table for the pszFunction members in the probe location
+ * array.
+ *
+ * This will save and replace the pszFunction members with offsets.
+ *
+ * @returns Pointer to a string table structure.  NULL on failure.
+ * @param   paProbLocs          The probe location array.
+ * @param   cProbLocs           The number of elements in the array.
+ * @param   cBits
+ */
+static PSUPDRVTRACERSTRTAB supr3TracerCreateStrTab(PVTGPROBELOC32 paProbeLocs32,
+                                                   PVTGPROBELOC64 paProbeLocs64,
+                                                   uint32_t cProbeLocs,
+                                                   RTUINTPTR offDelta,
+                                                   bool f32Bit)
+{
+    if (cProbeLocs > _128K)
+        return NULL;
+
+    /*
+     * Allocate the string table structures.
+     */
+    size_t              cbThis    = RT_OFFSETOF(SUPDRVTRACERSTRTAB, apszOrgFunctions[cProbeLocs]);
+    PSUPDRVTRACERSTRTAB pThis     = (PSUPDRVTRACERSTRTAB)RTMemAlloc(cbThis);
+    if (!pThis)
+        return NULL;
+
+    uint32_t const      cHashBits = cProbeLocs * 2 - 1;
+    uint32_t           *pbmHash   = (uint32_t *)RTMemAllocZ(RT_ALIGN_32(cHashBits, 64) / 8 );
+    if (!pbmHash)
+    {
+        RTMemFree(pThis);
+        return NULL;
+    }
+
+    /*
+     * Calc the max string table size and save the orignal pointers so we can
+     * replace them later.
+     */
+    size_t cbMax = 1;
+    for (uint32_t i = 0; i < cProbeLocs; i++)
+    {
+        pThis->apszOrgFunctions[i] = f32Bit ? paProbeLocs32[i].pszFunction : paProbeLocs64[i].pszFunction;
+        const char *pszFunction = (const char *)(uintptr_t)(pThis->apszOrgFunctions[i] + offDelta);
+        size_t cch = strlen(pszFunction);
+        if (cch > _1K)
+        {
+            cbMax = 0;
+            break;
+        }
+        cbMax += cch + 1;
+    }
+
+    /* Alloc space for it. */
+    if (cbMax > 0)
+        pThis->pchStrTab = (char *)RTMemAlloc(cbMax);
+    else
+        pThis->pchStrTab = NULL;
+    if (!pThis->pchStrTab)
+    {
+        RTMemFree(pbmHash);
+        RTMemFree(pThis);
+        return NULL;
+    }
+
+    /*
+     * Create the string table.
+     */
+    uint32_t off = 0;
+    uint32_t offPrev = 0;
+
+    for (uint32_t i = 0; i < cProbeLocs; i++)
+    {
+        const char * const psz      = (const char *)(uintptr_t)(pThis->apszOrgFunctions[i] + offDelta);
+        size_t       const cch      = strlen(psz);
+        uint32_t     const iHashBit = RTStrHash1(psz) % cHashBits;
+        if (ASMBitTestAndSet(pbmHash, iHashBit))
+        {
+            /* Often it's the most recent string. */
+            if (   off - offPrev < cch + 1
+                || memcmp(&pThis->pchStrTab[offPrev], psz, cch + 1))
+            {
+                /* It wasn't, search the entire string table. (lazy bird) */
+                offPrev = 0;
+                while (offPrev < off)
+                {
+                    size_t cchCur = strlen(&pThis->pchStrTab[offPrev]);
+                    if (   cchCur == cch
+                        && !memcmp(&pThis->pchStrTab[offPrev], psz, cch + 1))
+                        break;
+                    offPrev += (uint32_t)cchCur + 1;
+                }
+            }
+        }
+        else
+            offPrev = off;
+
+        /* Add the string to the table. */
+        if (offPrev >= off)
+        {
+            memcpy(&pThis->pchStrTab[off], psz, cch + 1);
+            offPrev = off;
+            off += (uint32_t)cch + 1;
+        }
+
+        /* Update the entry */
+        if (f32Bit)
+            paProbeLocs32[i].pszFunction = offPrev;
+        else
+            paProbeLocs64[i].pszFunction = offPrev;
+    }
+
+    pThis->cbStrTab = off;
+    RTMemFree(pbmHash);
+    return pThis;
+}
+
+
+
+SUPR3DECL(int) SUPR3TracerRegisterModule(uintptr_t hModNative, const char *pszModule, struct VTGOBJHDR *pVtgHdr,
+                                         RTUINTPTR uVtgHdrAddr, uint32_t fFlags)
+{
+    /* Validate input. */
+    NOREF(hModNative);
+    AssertPtrReturn(pVtgHdr, VERR_INVALID_POINTER);
+    AssertReturn(!memcmp(pVtgHdr->szMagic, VTGOBJHDR_MAGIC, sizeof(pVtgHdr->szMagic)), VERR_SUPDRV_VTG_MAGIC);
+    AssertPtrReturn(pszModule, VERR_INVALID_POINTER);
+    size_t cchModule = strlen(pszModule);
+    AssertReturn(cchModule < RT_SIZEOFMEMB(SUPTRACERUMODREG, u.In.szName), VERR_FILENAME_TOO_LONG);
+    AssertReturn(!RTPathHavePath(pszModule), VERR_INVALID_PARAMETER);
+    AssertReturn(fFlags == SUP_TRACER_UMOD_FLAGS_EXE || fFlags == SUP_TRACER_UMOD_FLAGS_SHARED, VERR_INVALID_PARAMETER);
+
+    /*
+     * Set the probe location array offset and size members. If the size is
+     * zero, don't bother ring-0 with it.
+     */
+    if (!pVtgHdr->offProbeLocs)
+    {
+        uint64_t u64Tmp = pVtgHdr->uProbeLocsEnd.u64 - pVtgHdr->uProbeLocs.u64;
+        if (u64Tmp >= UINT32_MAX)
+            return VERR_SUPDRV_VTG_BAD_HDR_TOO_MUCH;
+        pVtgHdr->cbProbeLocs  = (uint32_t)u64Tmp;
+
+        u64Tmp = pVtgHdr->uProbeLocs.u64 - uVtgHdrAddr;
+        if ((int64_t)u64Tmp != (int32_t)u64Tmp)
+        {
+            LogRel(("SUPR3TracerRegisterModule: VERR_SUPDRV_VTG_BAD_HDR_PTR - u64Tmp=%#llx uProbeLocs=%#llx uVtgHdrAddr=%RTptr\n",
+                    u64Tmp, pVtgHdr->uProbeLocs.u64, uVtgHdrAddr));
+            return VERR_SUPDRV_VTG_BAD_HDR_PTR;
+        }
+        pVtgHdr->offProbeLocs = (int32_t)u64Tmp;
+    }
+
+    if (   !pVtgHdr->cbProbeLocs
+        || !pVtgHdr->cbProbes)
+        return VINF_SUCCESS;
+
+    /*
+     * Fake out.
+     */
+    if (RT_UNLIKELY(g_u32FakeMode))
+        return VINF_SUCCESS;
+
+    /*
+     * Create a string table for the function names in the location array.
+     * It's somewhat easier to do that here than from ring-0.
+     */
+    size_t const        cProbeLocs  = pVtgHdr->cbProbeLocs
+                                    / (pVtgHdr->cBits == 32 ? sizeof(VTGPROBELOC32) : sizeof(VTGPROBELOC64));
+    PVTGPROBELOC        paProbeLocs = (PVTGPROBELOC)((uintptr_t)pVtgHdr + pVtgHdr->offProbeLocs);
+    PSUPDRVTRACERSTRTAB pStrTab     = supr3TracerCreateStrTab((PVTGPROBELOC32)paProbeLocs,
+                                                              (PVTGPROBELOC64)paProbeLocs,
+                                                              cProbeLocs, (uintptr_t)pVtgHdr - uVtgHdrAddr,
+                                                              pVtgHdr->cBits == 32);
+    if (!pStrTab)
+        return VERR_NO_MEMORY;
+
+
+    /*
+     * Issue IOCtl to the SUPDRV kernel module.
+     */
+    SUPTRACERUMODREG Req;
+    Req.Hdr.u32Cookie       = g_u32Cookie;
+    Req.Hdr.u32SessionCookie= g_u32SessionCookie;
+    Req.Hdr.cbIn            = SUP_IOCTL_TRACER_UMOD_REG_SIZE_IN;
+    Req.Hdr.cbOut           = SUP_IOCTL_TRACER_UMOD_REG_SIZE_OUT;
+    Req.Hdr.fFlags          = SUPREQHDR_FLAGS_DEFAULT;
+    Req.Hdr.rc              = VERR_INTERNAL_ERROR;
+    Req.u.In.uVtgHdrAddr    = uVtgHdrAddr;
+    Req.u.In.R3PtrVtgHdr    = pVtgHdr;
+    Req.u.In.R3PtrStrTab    = pStrTab->pchStrTab;
+    Req.u.In.cbStrTab       = pStrTab->cbStrTab;
+    Req.u.In.fFlags         = fFlags;
+
+    memcpy(Req.u.In.szName, pszModule, cchModule + 1);
+    if (!RTPathHasExt(Req.u.In.szName))
+    {
+        /* Add the default suffix if none is given. */
+        switch (fFlags & SUP_TRACER_UMOD_FLAGS_TYPE_MASK)
+        {
+#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
+            case SUP_TRACER_UMOD_FLAGS_EXE:
+                if (cchModule + sizeof(".exe") <= sizeof(Req.u.In.szName))
+                    strcpy(&Req.u.In.szName[cchModule], ".exe");
+                break;
+#endif
+
+            case SUP_TRACER_UMOD_FLAGS_SHARED:
+            {
+                const char *pszSuff = RTLdrGetSuff();
+                size_t      cchSuff = strlen(pszSuff);
+                if (cchModule + cchSuff < sizeof(Req.u.In.szName))
+                    memcpy(&Req.u.In.szName[cchModule], pszSuff, cchSuff + 1);
+                break;
+            }
+        }
+    }
+
+    int rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_TRACER_UMOD_REG, &Req, SUP_IOCTL_TRACER_UMOD_REG_SIZE);
+    if (RT_SUCCESS(rc))
+        rc = Req.Hdr.rc;
+
+    supr3TracerDestroyStrTab(pStrTab, (PVTGPROBELOC32)paProbeLocs, (PVTGPROBELOC64)paProbeLocs,
+                             cProbeLocs,  pVtgHdr->cBits == 32);
+    return rc;
+}
+
+
+SUPR3DECL(int) SUPR3TracerDeregisterModule(struct VTGOBJHDR *pVtgHdr)
+{
+    /* Validate input. */
+    AssertPtrReturn(pVtgHdr, VERR_INVALID_POINTER);
+    AssertReturn(!memcmp(pVtgHdr->szMagic, VTGOBJHDR_MAGIC, sizeof(pVtgHdr->szMagic)), VERR_SUPDRV_VTG_MAGIC);
+
+    /*
+     * Don't bother if the object is empty.
+     */
+    if (   !pVtgHdr->cbProbeLocs
+        || !pVtgHdr->cbProbes)
+        return VINF_SUCCESS;
+
+    /*
+     * Fake out.
+     */
+    if (RT_UNLIKELY(g_u32FakeMode))
+        return VINF_SUCCESS;
+
+    /*
+     * Issue IOCtl to the SUPDRV kernel module.
+     */
+    SUPTRACERUMODDEREG Req;
+    Req.Hdr.u32Cookie       = g_u32Cookie;
+    Req.Hdr.u32SessionCookie= g_u32SessionCookie;
+    Req.Hdr.cbIn            = SUP_IOCTL_TRACER_UMOD_REG_SIZE_IN;
+    Req.Hdr.cbOut           = SUP_IOCTL_TRACER_UMOD_REG_SIZE_OUT;
+    Req.Hdr.fFlags          = SUPREQHDR_FLAGS_DEFAULT;
+    Req.Hdr.rc              = VERR_INTERNAL_ERROR;
+    Req.u.In.pVtgHdr        = pVtgHdr;
+
+    int rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_TRACER_UMOD_DEREG, &Req, SUP_IOCTL_TRACER_UMOD_DEREG_SIZE);
+    if (RT_SUCCESS(rc))
+        rc = Req.Hdr.rc;
+    return rc;
+}
+
+
+DECLASM(void) suplibTracerFireProbe(PVTGPROBELOC pProbeLoc, PSUPTRACERUMODFIREPROBE pReq)
+{
+    pReq->Hdr.u32Cookie         = g_u32Cookie;
+    pReq->Hdr.u32SessionCookie  = g_u32SessionCookie;
+    Assert(pReq->Hdr.cbIn  == SUP_IOCTL_TRACER_UMOD_FIRE_PROBE_SIZE_IN);
+    Assert(pReq->Hdr.cbOut == SUP_IOCTL_TRACER_UMOD_FIRE_PROBE_SIZE_OUT);
+    pReq->Hdr.fFlags            = SUPREQHDR_FLAGS_DEFAULT;
+    pReq->Hdr.rc                = VINF_SUCCESS;
+
+    suplibOsIOCtl(&g_supLibData, SUP_IOCTL_TRACER_UMOD_FIRE_PROBE, pReq, SUP_IOCTL_TRACER_UMOD_FIRE_PROBE_SIZE);
 }
 

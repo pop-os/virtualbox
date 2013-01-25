@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,10 +23,145 @@
 #include <VBox/vmm/vmm.h>
 #include "VMMInternal.h"
 #include <VBox/vmm/vm.h>
-#include <VBox/vmm/vmm.h>
+#include <VBox/vmm/vmcpuset.h>
 #include <VBox/param.h>
 #include <iprt/thread.h>
 #include <iprt/mp.h>
+
+
+/*******************************************************************************
+*   Global Variables                                                           *
+*******************************************************************************/
+/** User counter for the vmmInitFormatTypes function (pro forma). */
+static volatile uint32_t g_cFormatTypeUsers = 0;
+
+
+/**
+ * Helper that formats a decimal number in the range 0..9999.
+ *
+ * @returns The length of the formatted number.
+ * @param   pszBuf              Output buffer with sufficient space.
+ * @param   uNum                The number to format.
+ */
+static unsigned vmmFormatTypeShortNumber(char *pszBuf, uint32_t uNumber)
+{
+    unsigned  off = 0;
+    if (uNumber >= 10)
+    {
+        if (uNumber >= 100)
+        {
+            if (uNumber >= 1000)
+                pszBuf[off++] = ((uNumber / 1000) % 10) + '0';
+            pszBuf[off++] = ((uNumber / 100) % 10) + '0';
+        }
+        pszBuf[off++] = ((uNumber / 10) % 10) + '0';
+    }
+    pszBuf[off++] = (uNumber % 10) + '0';
+    pszBuf[off] = '\0';
+    return off;
+}
+
+
+/**
+ * @callback_method_impl{FNRTSTRFORMATTYPE, vmsetcpu}
+ */
+static DECLCALLBACK(size_t) vmmFormatTypeVmCpuSet(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
+                                                  const char *pszType, void const *pvValue,
+                                                  int cchWidth, int cchPrecision, unsigned fFlags,
+                                                  void *pvUser)
+{
+    PCVMCPUSET  pSet   = (PCVMCPUSET)pvValue;
+    uint32_t    cCpus  = 0;
+    uint32_t    iCpu   = RT_ELEMENTS(pSet->au32Bitmap) * 32;
+    while (iCpu--)
+        if (VMCPUSET_IS_PRESENT(pSet, iCpu))
+            cCpus++;
+
+    char szTmp[32];
+    AssertCompile(RT_ELEMENTS(pSet->au32Bitmap) * 32 < 999);
+    if (cCpus == 1)
+    {
+        iCpu = RT_ELEMENTS(pSet->au32Bitmap) * 32;
+        while (iCpu--)
+            if (VMCPUSET_IS_PRESENT(pSet, iCpu))
+            {
+                szTmp[0] = 'c';
+                szTmp[1] = 'p';
+                szTmp[2] = 'u';
+                return pfnOutput(pvArgOutput, szTmp, 3 + vmmFormatTypeShortNumber(&szTmp[3], iCpu));
+            }
+        cCpus = 0;
+    }
+    if (cCpus == 0)
+        return pfnOutput(pvArgOutput, "<empty>", sizeof("<empty>") - 1);
+    if (cCpus == RT_ELEMENTS(pSet->au32Bitmap) * 32)
+        return pfnOutput(pvArgOutput, "<full>", sizeof("<full>") - 1);
+
+    /*
+     * Print cpus that are present: {1,2,7,9 ... }
+     */
+    size_t cchRet = pfnOutput(pvArgOutput, "{", 1);
+
+    cCpus = 0;
+    iCpu  = 0;
+    while (iCpu < RT_ELEMENTS(pSet->au32Bitmap) * 32)
+    {
+        if (VMCPUSET_IS_PRESENT(pSet, iCpu))
+        {
+            /* Output the first cpu number. */
+            int off = 0;
+            if (cCpus != 0)
+                szTmp[off++] = ',';
+            off += vmmFormatTypeShortNumber(&szTmp[off], iCpu);
+
+            /* Check for sequence. */
+            uint32_t const iStart = ++iCpu;
+            while (   iCpu < RT_ELEMENTS(pSet->au32Bitmap) * 32
+                   && VMCPUSET_IS_PRESENT(pSet, iCpu))
+                iCpu++;
+            if (iCpu != iStart)
+            {
+                szTmp[off++] = '-';
+                off += vmmFormatTypeShortNumber(&szTmp[off], iCpu);
+            }
+
+            /* Terminate and output. */
+            szTmp[off] = '\0';
+            cchRet += pfnOutput(pvArgOutput, szTmp, off);
+        }
+        iCpu++;
+    }
+
+    cchRet += pfnOutput(pvArgOutput, "}", 1);
+    NOREF(pvUser);
+    return cchRet;
+}
+
+
+/**
+ * Registers the VMM wide format types.
+ *
+ * Called by VMMR3Init, VMMR0Init and VMMRCInit.
+ */
+int vmmInitFormatTypes(void)
+{
+    int rc = VINF_SUCCESS;
+    if (ASMAtomicIncU32(&g_cFormatTypeUsers) == 1)
+        rc = RTStrFormatTypeRegister("vmcpuset", vmmFormatTypeVmCpuSet, NULL);
+    return rc;
+}
+
+
+#ifndef IN_RC
+/**
+ * Counterpart to vmmInitFormatTypes, called by VMMR3Term and VMMR0Term.
+ */
+void vmmTermFormatTypes(void)
+{
+    if (ASMAtomicDecU32(&g_cFormatTypeUsers) == 0)
+        RTStrFormatTypeDeregister("vmcpuset");
+}
+#endif
 
 
 /**
@@ -36,7 +171,7 @@
  * by a push/ret/whatever does it become writable.)
  *
  * @returns bottom of the stack.
- * @param   pVCpu       The VMCPU handle.
+ * @param   pVCpu       Pointer to the VMCPU.
  */
 VMMDECL(RTRCPTR) VMMGetStackRC(PVMCPU pVCpu)
 {
@@ -45,11 +180,11 @@ VMMDECL(RTRCPTR) VMMGetStackRC(PVMCPU pVCpu)
 
 
 /**
- * Gets the ID virtual of the virtual CPU associated with the calling thread.
+ * Gets the ID of the virtual CPU associated with the calling thread.
  *
  * @returns The CPU ID. NIL_VMCPUID if the thread isn't an EMT.
  *
- * @param   pVM         Pointer to the shared VM handle.
+ * @param   pVM         Pointer to the VM.
  */
 VMMDECL(VMCPUID) VMMGetCpuId(PVM pVM)
 {
@@ -89,6 +224,7 @@ VMMDECL(VMCPUID) VMMGetCpuId(PVM pVM)
     return NIL_VMCPUID;
 
 #else /* RC: Always EMT(0) */
+    NOREF(pVM);
     return 0;
 #endif
 }
@@ -99,7 +235,7 @@ VMMDECL(VMCPUID) VMMGetCpuId(PVM pVM)
  *
  * @returns The VMCPU pointer. NULL if not an EMT.
  *
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMDECL(PVMCPU) VMMGetCpu(PVM pVM)
 {
@@ -153,7 +289,7 @@ VMMDECL(PVMCPU) VMMGetCpu(PVM pVM)
  * Returns the VMCPU of the first EMT thread.
  *
  * @returns The VMCPU pointer.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMDECL(PVMCPU) VMMGetCpu0(PVM pVM)
 {
@@ -167,7 +303,7 @@ VMMDECL(PVMCPU) VMMGetCpu0(PVM pVM)
  *
  * @returns The VMCPU pointer. NULL if idCpu is invalid.
  *
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   idCpu       The ID of the virtual CPU.
  */
 VMMDECL(PVMCPU) VMMGetCpuById(PVM pVM, RTCPUID idCpu)
@@ -195,9 +331,10 @@ VMMDECL(uint32_t) VMMGetSvnRev(void)
  * Queries the current switcher
  *
  * @returns active switcher
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  */
 VMMDECL(VMMSWITCHER) VMMGetSwitcher(PVM pVM)
 {
     return pVM->vmm.s.enmSwitcher;
 }
+

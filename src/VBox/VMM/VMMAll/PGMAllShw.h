@@ -186,7 +186,7 @@ RT_C_DECLS_END
  * Gets effective page information (from the VMM page directory).
  *
  * @returns VBox status.
- * @param   pVCpu       The VMCPU handle.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   GCPtr       Guest Context virtual address of the page.
  * @param   pfFlags     Where to store the flags. These are X86_PTE_*.
  * @param   pHCPhys     Where to store the HC physical address of the page.
@@ -196,6 +196,7 @@ RT_C_DECLS_END
 PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS pHCPhys)
 {
 #if PGM_SHW_TYPE == PGM_TYPE_NESTED
+    NOREF(pVCpu); NOREF(GCPtr); NOREF(pfFlags); NOREF(pHCPhys);
     return VERR_PAGE_TABLE_NOT_PRESENT;
 
 #else /* PGM_SHW_TYPE != PGM_TYPE_NESTED && PGM_SHW_TYPE != PGM_TYPE_EPT */
@@ -297,8 +298,10 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
     else /* mapping: */
     {
 # if    PGM_SHW_TYPE == PGM_TYPE_AMD64 \
-     || PGM_SHW_TYPE == PGM_TYPE_EPT
+     || PGM_SHW_TYPE == PGM_TYPE_EPT \
+     || defined(PGM_WITHOUT_MAPPINGS)
         AssertFailed(); /* can't happen */
+        pPT = NULL;     /* shut up MSC */
 # else
         Assert(pgmMapAreMappingsEnabled(pVM));
 
@@ -346,7 +349,7 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
  * The existing flags are ANDed with the fMask and ORed with the fFlags.
  *
  * @returns VBox status code.
- * @param   pVCpu       The VMCPU handle.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   GCPtr       Virtual address of the first page in the range. Page aligned!
  * @param   cb          Size (in bytes) of the range to apply the modification to. Page aligned!
  * @param   fFlags      The OR  mask - page flags X86_PTE_*, excluding the page mask of course.
@@ -358,6 +361,7 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
 PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask, uint32_t fOpFlags)
 {
 # if PGM_SHW_TYPE == PGM_TYPE_NESTED
+    NOREF(pVCpu); NOREF(GCPtr); NOREF(cb); NOREF(fFlags); NOREF(fMask); NOREF(fOpFlags);
     return VERR_PAGE_TABLE_NOT_PRESENT;
 
 # else /* PGM_SHW_TYPE != PGM_TYPE_NESTED && PGM_SHW_TYPE != PGM_TYPE_EPT */

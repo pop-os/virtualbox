@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,7 +47,6 @@
 #if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
 # define MAP_ANONYMOUS MAP_ANON
 #endif
-
 
 
 /*******************************************************************************
@@ -145,6 +144,52 @@ static RTHEAPPAGE   g_MemPagePosixHeap;
 static RTHEAPPAGE   g_MemExecPosixHeap;
 
 
+#ifdef RT_OS_OS2
+/*
+ * A quick mmap/munmap mockup for avoid duplicating lots of good code. 
+ */
+# define INCL_BASE
+# include <os2.h>
+# undef  MAP_PRIVATE    
+# define MAP_PRIVATE    0
+# undef  MAP_ANONYMOUS  
+# define MAP_ANONYMOUS  0
+# undef  MAP_FAILED
+# define MAP_FAILED  (void *)-1
+# undef mmap
+# define mmap   iprt_mmap  
+# undef munmap
+# define munmap iprt_munmap  
+
+static void *mmap(void *pvWhere, size_t cb, int fProt, int fFlags, int fd, off_t off)
+{
+    NOREF(pvWhere); NOREF(fd); NOREF(off);
+    void   *pv    = NULL;
+    ULONG  fAlloc = OBJ_ANY | PAG_COMMIT;
+    if (fProt & PROT_EXEC)
+        fAlloc |= PAG_EXECUTE;
+    if (fProt & PROT_READ)
+        fAlloc |= PAG_READ;
+    if (fProt & PROT_WRITE)
+        fAlloc |= PAG_WRITE;
+    APIRET rc = DosAllocMem(&pv, cb, fAlloc);
+    if (rc == NO_ERROR)
+        return pv;
+    errno = ENOMEM;
+    return MAP_FAILED;
+}
+
+static int munmap(void *pv, size_t cb)
+{
+    APIRET rc = DosFreeMem(pv);
+    if (rc == NO_ERROR)
+        return 0;
+    errno = EINVAL;
+    return -1;
+}
+
+#endif
+
 /**
  * Initializes the heap.
  *
@@ -174,13 +219,14 @@ int RTHeapPageInit(PRTHEAPPAGE pHeap, bool fExec)
 
 
 /**
- * Deletes the heap an all the memory it tracks.
+ * Deletes the heap and all the memory it tracks.
  *
  * @returns IPRT status code.
  * @param   pHeap           The page heap to delete.
  */
 int RTHeapPageDelete(PRTHEAPPAGE pHeap)
 {
+    NOREF(pHeap);
     return VERR_NOT_IMPLEMENTED;
 }
 
@@ -311,6 +357,7 @@ static DECLCALLBACK(int) rtHeapPageAllocCallback(PAVLRPVNODECORE pNode, void *pv
 static int rtHeapPageAllocLocked(PRTHEAPPAGE pHeap, size_t cPages, const char *pszTag, bool fZero, void **ppv)
 {
     int rc;
+    NOREF(pszTag);
 
     /*
      * Use the hints first.
@@ -563,6 +610,7 @@ int RTHeapPageFree(PRTHEAPPAGE pHeap, void *pv, size_t cPages)
  */
 static DECLCALLBACK(int) rtMemPagePosixInitOnce(void *pvUser1, void *pvUser2)
 {
+    NOREF(pvUser1); NOREF(pvUser2);
     int rc = RTHeapPageInit(&g_MemPagePosixHeap, false /*fExec*/);
     if (RT_SUCCESS(rc))
     {

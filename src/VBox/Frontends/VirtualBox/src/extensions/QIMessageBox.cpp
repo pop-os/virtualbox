@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,19 +17,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* VBox includes */
-#include "VBoxDefs.h"
-#include "VBoxGlobal.h"
-#include "QIArrowSplitter.h"
-#include "QIMessageBox.h"
-#include "QILabel.h"
-#include "QIDialogButtonBox.h"
-#include "UIIconPool.h"
-#ifdef Q_WS_MAC
-# include "VBoxSelectorWnd.h"
-#endif /* Q_WS_MAC */
-
-/* Qt includes */
+/* Qt includes: */
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -39,6 +27,13 @@
 #include <QKeyEvent>
 #include <QClipboard>
 
+/* GUI includes: */
+#include "VBoxGlobal.h"
+#include "QIArrowSplitter.h"
+#include "QIMessageBox.h"
+#include "QILabel.h"
+#include "QIDialogButtonBox.h"
+#include "UIIconPool.h"
 #ifdef Q_WS_MAC
 # include "UIMachineWindowFullscreen.h"
 # include "UIMachineWindowSeamless.h"
@@ -64,10 +59,12 @@ QIMessageBox::QIMessageBox (const QString &aCaption, const QString &aText,
     , mWasPolished (false)
 {
 #ifdef Q_WS_MAC
-    /* No sheets in another mode than normal for now. Firstly it looks ugly and
-     * secondly in some cases it is broken. */
-    if (vboxGlobal().isSheetWindowsAllowed(aParent))
+    /* Check if Mac Sheet is allowed: */
+    if (vboxGlobal().isSheetWindowAllowed(aParent))
+    {
+        vboxGlobal().setSheetWindowUsed(aParent, true);
         setWindowFlags(Qt::Sheet);
+    }
 #endif /* Q_WS_MAC */
 
     setWindowTitle (aCaption);
@@ -139,6 +136,7 @@ QIMessageBox::QIMessageBox (const QString &aCaption, const QString &aText,
     mDetailsSplitter = new QIArrowSplitter (mDetailsText);
     connect (mDetailsSplitter, SIGNAL (showBackDetails()), this, SLOT (detailsBack()));
     connect (mDetailsSplitter, SIGNAL (showNextDetails()), this, SLOT (detailsNext()));
+    connect (mDetailsSplitter, SIGNAL (sigSizeChanged()), this, SLOT (sltUpdateSize()));
     detailsVBoxLayout->addWidget (mDetailsSplitter);
 
     mFlagCB_Details = new QCheckBox();
@@ -175,6 +173,15 @@ QIMessageBox::QIMessageBox (const QString &aCaption, const QString &aText,
 
     /* this call is a must -- it initializes mFlagCB and mSpacer */
     setDetailsShown (false);
+}
+
+QIMessageBox::~QIMessageBox()
+{
+#ifdef Q_WS_MAC
+    /* Check if Mac Sheet was used: */
+    if ((windowFlags() & Qt::Sheet) == Qt::Sheet)
+        vboxGlobal().setSheetWindowUsed(parentWidget(), false);
+#endif /* Q_WS_MAC */
 }
 
 /**
@@ -353,7 +360,8 @@ QPixmap QIMessageBox::standardPixmap (QIMessageBox::Icon aIcon)
     {
         int size = style()->pixelMetric (QStyle::PM_MessageBoxIconSize, 0, this);
         return icon.pixmap (size, size);
-    }else
+    }
+    else
         return QPixmap();
 }
 
@@ -371,10 +379,8 @@ void QIMessageBox::showEvent (QShowEvent *e)
     {
         /* Polishing sub-widgets */
         resize (minimumSizeHint());
-        qApp->processEvents();
         mTextLabel->useSizeHintForWidth (mTextLabel->width());
         mTextLabel->updateGeometry();
-        qApp->processEvents();
         setFixedWidth (width());
         mDetailsSplitter->toggleWidget();
         mWasPolished = true;
@@ -436,6 +442,22 @@ void QIMessageBox::setDetailsShown (bool aShown)
         mFlagCB = mFlagCB_Main;
         mSpacer->changeSize (0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
     }
+}
+
+void QIMessageBox::sltUpdateSize()
+{
+    /* Update/activate all the layouts of the message-box: */
+    QList<QLayout*> layouts = findChildren<QLayout*>();
+    for (int i = 0; i < layouts.size(); ++i)
+    {
+        QLayout *pItem = layouts.at(i);
+        pItem->update();
+        pItem->activate();
+    }
+    QCoreApplication::sendPostedEvents(0, QEvent::LayoutRequest);
+
+    /* Now resize message-box to the minimum possible size: */
+    resize(minimumSizeHint());
 }
 
 void QIMessageBox::detailsBack()

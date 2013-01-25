@@ -1,10 +1,10 @@
-/* $Id: mach-o.h 32 2009-07-01 21:08:59Z bird $ */
+/* $Id: mach-o.h 50 2012-09-05 09:55:16Z bird $ */
 /** @file
  * Mach-0 structures, types and defines.
  */
 
 /*
- * Copyright (c) 2006-2007 Knut St. Osmundsen <bird-kStuff-spamix@anduin.net>
+ * Copyright (c) 2006-2012 Knut St. Osmundsen <bird-kStuff-spamix@anduin.net>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -169,7 +169,14 @@ typedef struct mach_header_64
 #define MH_WEAK_DEFINES             KU32_C(0x00008000) /**< The (finally) linked image has weak symbols. */
 #define MH_BINDS_TO_WEAK            KU32_C(0x00010000) /**< The (finally) linked image uses weak symbols. */
 #define MH_ALLOW_STACK_EXECUTION    KU32_C(0x00020000) /**< Task: allow stack execution. (MH_EXECUTE only) */
-#define MH_VALID_FLAGS              KU32_C(0x0003ffff) /**< Mask containing the defined flags. */
+#define MH_ROOT_SAFE                KU32_C(0x00040000) /**< Binary safe for root execution. */
+#define MH_SETUID_SAFE              KU32_C(0x00080000) /**< Binary safe for set-uid execution. */
+#define MH_NO_REEXPORTED_DYLIBS     KU32_C(0x00100000) /**< No reexported dylibs. */
+#define MH_PIE                      KU32_C(0x00200000) /**< Address space randomization. (MH_EXECUTE only) */
+#define MH_DEAD_STRIPPABLE_DYLIB    KU32_C(0x00400000) /**< Drop dylib dependency if not used. (MH_DYLIB only) */
+#define MH_HAS_TLV_DESCRIPTORS      KU32_C(0x00800000) /**< Has a S_TRHEAD_LOCAL_VARIABLES section.  TLS support. */
+#define MH_NO_HEAP_EXECUTION        KU32_C(0x01000000) /**< Task: no heap execution. (MH_EXECUTE only) */
+#define MH_VALID_FLAGS              KU32_C(0x01ffffff) /**< Mask containing the defined flags. */
 /** @} */
 
 
@@ -361,6 +368,19 @@ typedef struct load_command
 #define LC_SEGMENT_64       KU32_C(0x19)  /**< segment to be mapped (64-bit). See segment_command_32. */
 #define LC_ROUTINES_64      KU32_C(0x1a)  /**< Image routines (64-bit). See routines_command_32. */
 #define LC_UUID             KU32_C(0x1b)  /**< The UUID of the object module. See uuid_command.  */
+#define LC_RPATH            KU32_C(0x1c | LC_REQ_DYLD) /**< Runpth additions. See rpath_command. */
+#define LC_CODE_SIGNATURE   KU32_C(0x1d)  /**< Code signature location. See linkedit_data_command. */
+#define LC_SEGMENT_SPLIT_INFO KU32_C(0x1e)/**< Segment split info location. See linkedit_data_command. */
+#define LC_REEXPORT_DYLIB   KU32_C(0x1f | LC_REQ_DYLD)/**< Load and re-export the given dylib - DLL forwarding. See dylib_command. */
+#define LC_LAZY_LOAD_DYLIB  KU32_C(0x20)  /**< Delays loading of the given dylib until used. See dylib_command? */
+#define LC_ENCRYPTION_INFO  KU32_C(0x21)  /**< Segment encryption information. See encryption_info_command. */
+#define LC_DYLD_INFO        KU32_C(0x22)  /**< Compressed dylib relocation information, alternative present. See dyld_info_command. */
+#define LC_DYLD_INFO_ONLY   KU32_C(0x22 | LC_REQ_DYLD) /**< Compressed dylib relocation information, no alternative. See dyld_info_command. */
+#define LC_LOAD_UPWARD_DYLIB KU32_C(0x23) /**< ???? */
+#define LC_VERSION_MIN_MACOSX KU32_C(0x24)   /**< The image requires the given Mac OS X version. See version_min_command. */
+#define LC_VERSION_MIN_IPHONEOS KU32_C(0x25) /**< The image requires the given iOS version. See version_min_command. */
+#define LC_FUNCTION_STARTS  KU32_C(0x26)  /**< Where to find the compress function start addresses. See linkedit_data_command. */
+#define LC_DYLD_ENVIRONMENT KU32_C(0x26)  /**< Environment variable for the dynamic linker. See dylinker_command. */
 /** @} */
 
 
@@ -592,14 +612,15 @@ typedef struct section_64
 /** @todo fvmlib */
 /** @todo fvmlib_command (LC_IDFVMLIB or LC_LOADFVMLIB) */
 /** @todo dylib */
-/** @todo dylib_command (LC_ID_DYLIB, LC_LOAD_DYLIB, LC_LOAD_WEAK_DYLIB) */
+/** @todo dylib_command (LC_ID_DYLIB, LC_LOAD_DYLIB, LC_LOAD_WEAK_DYLIB,
+ *        LC_REEXPORT_DYLIB, LC_LAZY_LOAD_DYLIB) */
 /** @todo sub_framework_command (LC_SUB_FRAMEWORK) */
 /** @todo sub_client_command (LC_SUB_CLIENT) */
 /** @todo sub_umbrella_command (LC_SUB_UMBRELLA) */
 /** @todo sub_library_command (LC_SUB_LIBRARY) */
 /** @todo prebound_dylib_command (LC_PREBOUND_DYLIB) */
-/** @todo dylinker_command (LC_ID_DYLINKER or LC_LOAD_DYLINKER) */
-
+/** @todo dylinker_command (LC_ID_DYLINKER or LC_LOAD_DYLINKER,
+ *        LC_DYLD_ENVIRONMENT) */
 
 /**
  * Thread command.
@@ -663,6 +684,26 @@ typedef struct uuid_command
 /** @todo symseg_command (LC_SYMSEG) */
 /** @todo ident_command (LC_IDENT) */
 /** @todo fvmfile_command (LC_FVMFILE) */
+/** @todo rpath_command (LC_RPATH) */
+
+typedef struct linkedit_data_command 
+{
+    KU32            cmd;        /**< LC_CODE_SIGNATURE, LC_SEGMENT_SPLIT_INFO, LC_FUNCTION_STARTS */
+    KU32            cmdsize;    /**< size of this structure. */
+    KU32            dataoff;    /**< Offset into the file of the data. */
+    KU32            datasize;   /**< The size of the data. */
+} linkedit_data_command_t;
+
+/** @todo encryption_info_command (LC_ENCRYPTION_INFO) */
+/** @todo dyld_info_command (LC_DYLD_INFO, LC_DYLD_INFO_ONLY) */
+
+typedef struct version_min_command
+{
+    KU32            cmd;        /**< LC_VERSION_MIN_MACOSX, LC_VERSION_MIN_IPHONEOS */
+    KU32            cmdsize;    /**< size of this structure. */
+    KU32            version;    /**< 31..16=major, 15..8=minor, 7..0=patch. */
+    KU32            reserved;   /**< MBZ. */
+} version_min_command_t;
 
 /** @} */
 

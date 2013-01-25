@@ -601,7 +601,7 @@ int main(int argc, char **argv)
     /*
      * Init the runtime and parse the arguments.
      */
-    RTR3Init();
+    RTR3InitExe(argc, &argv, 0);
 
     static RTGETOPTDEF const s_aOptions[] =
     {
@@ -749,7 +749,7 @@ int main(int argc, char **argv)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 70854 $\n");
+                RTPrintf("$Revision: 78135 $\n");
                 return 0;
 
             default:
@@ -777,10 +777,20 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    rc = SUPR3LoadVMM(strcat(szPath, "/../VMMR0.r0"));
+    strcat(szPath, "/../VMMR0.r0");
+
+    char szAbsPath[RTPATH_MAX];
+    rc = RTPathAbs(szPath, szAbsPath, sizeof(szAbsPath));
     if (RT_FAILURE(rc))
     {
-        RTPrintf("tstIntNet-1: SUPR3LoadVMM(\"%s\") -> %Rrc\n", szPath, rc);
+        RTPrintf("tstIntNet-1: RTPathAbs -> %Rrc\n", rc);
+        return 1;
+    }
+
+    rc = SUPR3LoadVMM(szAbsPath);
+    if (RT_FAILURE(rc))
+    {
+        RTPrintf("tstIntNet-1: SUPR3LoadVMM(\"%s\") -> %Rrc\n", szAbsPath, rc);
         return 1;
     }
 

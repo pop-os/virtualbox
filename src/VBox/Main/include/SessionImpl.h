@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -80,7 +80,7 @@ public:
     // IInternalSessionControl methods
     STDMETHOD(GetPID)(ULONG *aPid);
     STDMETHOD(GetRemoteConsole)(IConsole **aConsole);
-    STDMETHOD(AssignMachine)(IMachine *aMachine);
+    STDMETHOD(AssignMachine)(IMachine *aMachine, LockType_T aLockType);
     STDMETHOD(AssignRemoteMachine)(IMachine *aMachine, IConsole *aConsole);
     STDMETHOD(UpdateMachineState)(MachineState_T aMachineState);
     STDMETHOD(Uninitialize)();
@@ -94,6 +94,8 @@ public:
     STDMETHOD(OnVRDEServerChange)(BOOL aRestart);
     STDMETHOD(OnUSBControllerChange)();
     STDMETHOD(OnSharedFolderChange)(BOOL aGlobal);
+    STDMETHOD(OnClipboardModeChange)(ClipboardMode_T aClipboardMode);
+    STDMETHOD(OnDragAndDropModeChange)(DragAndDropMode_T aDragAndDropMode);
     STDMETHOD(OnUSBDeviceAttach)(IUSBDevice *aDevice, IVirtualBoxErrorInfo *aError, ULONG aMaskedIfs);
     STDMETHOD(OnUSBDeviceDetach)(IN_BSTR aId, IVirtualBoxErrorInfo *aError);
     STDMETHOD(OnShowWindow)(BOOL aCheck, BOOL *aCanShow, LONG64 *aWinId);

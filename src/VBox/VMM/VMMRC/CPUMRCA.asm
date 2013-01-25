@@ -1,9 +1,9 @@
 ; $Id: CPUMRCA.asm $
 ;; @file
-; CPUM - Guest Context Assembly Routines.
+; CPUM - Raw-mode Context Assembly Routines.
 ;
 
-; Copyright (C) 2006-2007 Oracle Corporation
+; Copyright (C) 2006-2012 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,9 @@
 ;*******************************************************************************
 extern IMPNAME(g_CPUM)                 ; VMM GC Builtin import
 extern IMPNAME(g_VM)                   ; VMM GC Builtin import
-extern NAME(cpumGCHandleNPAndGP)       ; CPUMGC.cpp
+extern NAME(cpumRCHandleNPAndGP)       ; CPUMGC.cpp
+extern NAME(CPUMRCAssertPreExecutionSanity)
+
 
 ;
 ; Enables write protection of Hypervisor memory pages.
@@ -40,91 +42,6 @@ extern NAME(cpumGCHandleNPAndGP)       ; CPUMGC.cpp
 %define ENABLE_WRITE_PROTECTION 1
 
 BEGINCODE
-
-
-;;
-; Restores GC context before doing iret.
-;
-; @param    [esp + 4]   Pointer to interrupt stack frame, i.e. pointer
-;                       to the a struct with this layout:
-;                           00h eip
-;                           04h cs
-;                           08h eflags
-;                           0ch esp
-;                           10h ss
-;                           14h es (V86 only)
-;                           18h ds (V86 only)
-;                           1Ch fs (V86 only)
-;                           20h gs (V86 only)
-;
-; @uses     everything but cs, ss, esp, and eflags.
-;
-; @remark   Assumes we're restoring in Ring-0 a context which is not Ring-0.
-;           Further assumes flat stack and valid ds.
-
-BEGINPROC CPUMGCRestoreInt
-    ;
-    ; Update iret frame.
-    ;
-    mov     eax, [esp + 4]              ; get argument
-    mov     edx, IMP(g_CPUM)
-    ; Convert to CPUMCPU pointer
-    add     edx, [edx + CPUM.offCPUMCPU0]
-
-    mov     ecx, [edx + CPUMCPU.Guest.eip]
-    mov     [eax +  0h], ecx
-    mov     ecx, [edx + CPUMCPU.Guest.cs]
-    mov     [eax +  4h], ecx
-    mov     ecx, [edx + CPUMCPU.Guest.eflags]
-    mov     [eax +  8h], ecx
-    mov     ecx, [edx + CPUMCPU.Guest.esp]
-    mov     [eax + 0ch], ecx
-    mov     ecx, [edx + CPUMCPU.Guest.ss]
-    mov     [eax + 10h], ecx
-
-    test    dword [edx + CPUMCPU.Guest.eflags], X86_EFL_VM
-    jnz short CPUMGCRestoreInt_V86
-
-    ;
-    ; Load registers.
-    ;
-    ; todo: potential trouble loading invalid es,fs,gs,ds because
-    ;       of a VMM imposed exception?
-    mov     es,  [edx + CPUMCPU.Guest.es]
-    mov     fs,  [edx + CPUMCPU.Guest.fs]
-    mov     gs,  [edx + CPUMCPU.Guest.gs]
-    mov     esi, [edx + CPUMCPU.Guest.esi]
-    mov     edi, [edx + CPUMCPU.Guest.edi]
-    mov     ebp, [edx + CPUMCPU.Guest.ebp]
-    mov     ebx, [edx + CPUMCPU.Guest.ebx]
-    mov     ecx, [edx + CPUMCPU.Guest.ecx]
-    mov     eax, [edx + CPUMCPU.Guest.eax]
-    push    dword [edx + CPUMCPU.Guest.ds]
-    mov     edx, [edx + CPUMCPU.Guest.edx]
-    pop     ds
-
-    ret
-
-CPUMGCRestoreInt_V86:
-    ; iret restores ds, es, fs & gs
-    mov     ecx, [edx + CPUMCPU.Guest.es]
-    mov     [eax + 14h], ecx
-    mov     ecx, [edx + CPUMCPU.Guest.ds]
-    mov     [eax + 18h], ecx
-    mov     ecx, [edx + CPUMCPU.Guest.fs]
-    mov     [eax + 1Ch], ecx
-    mov     ecx, [edx + CPUMCPU.Guest.gs]
-    mov     [eax + 20h], ecx
-    mov     esi, [edx + CPUMCPU.Guest.esi]
-    mov     edi, [edx + CPUMCPU.Guest.edi]
-    mov     ebp, [edx + CPUMCPU.Guest.ebp]
-    mov     ebx, [edx + CPUMCPU.Guest.ebx]
-    mov     ecx, [edx + CPUMCPU.Guest.ecx]
-    mov     eax, [edx + CPUMCPU.Guest.eax]
-    mov     edx, [edx + CPUMCPU.Guest.edx]
-    ret
-
-ENDPROC CPUMGCRestoreInt
 
 
 ;;
@@ -170,19 +87,19 @@ BEGINPROC_EXPORTED CPUMGCCallGuestTrapHandler
     mov     edi, [ebp + CPUMCTXCORE.edi]
 
     ;; @todo  load segment registers *before* enabling WP.
-    TRPM_NP_GP_HANDLER NAME(cpumGCHandleNPAndGP), CPUM_HANDLER_GS | CPUM_HANDLER_CTXCORE_IN_EBP
-    mov     gs, [ebp + CPUMCTXCORE.gs]
-    TRPM_NP_GP_HANDLER NAME(cpumGCHandleNPAndGP), CPUM_HANDLER_FS | CPUM_HANDLER_CTXCORE_IN_EBP
-    mov     fs, [ebp + CPUMCTXCORE.fs]
-    TRPM_NP_GP_HANDLER NAME(cpumGCHandleNPAndGP), CPUM_HANDLER_ES | CPUM_HANDLER_CTXCORE_IN_EBP
-    mov     es, [ebp + CPUMCTXCORE.es]
-    TRPM_NP_GP_HANDLER NAME(cpumGCHandleNPAndGP), CPUM_HANDLER_DS | CPUM_HANDLER_CTXCORE_IN_EBP
-    mov     ds, [ebp + CPUMCTXCORE.ds]
+    TRPM_NP_GP_HANDLER NAME(cpumRCHandleNPAndGP), CPUM_HANDLER_GS | CPUM_HANDLER_CTXCORE_IN_EBP
+    mov     gs, [ebp + CPUMCTXCORE.gs.Sel]
+    TRPM_NP_GP_HANDLER NAME(cpumRCHandleNPAndGP), CPUM_HANDLER_FS | CPUM_HANDLER_CTXCORE_IN_EBP
+    mov     fs, [ebp + CPUMCTXCORE.fs.Sel]
+    TRPM_NP_GP_HANDLER NAME(cpumRCHandleNPAndGP), CPUM_HANDLER_ES | CPUM_HANDLER_CTXCORE_IN_EBP
+    mov     es, [ebp + CPUMCTXCORE.es.Sel]
+    TRPM_NP_GP_HANDLER NAME(cpumRCHandleNPAndGP), CPUM_HANDLER_DS | CPUM_HANDLER_CTXCORE_IN_EBP
+    mov     ds, [ebp + CPUMCTXCORE.ds.Sel]
 
     mov     eax, [ebp + CPUMCTXCORE.eax]
     mov     ebp, [ebp + CPUMCTXCORE.ebp]
 
-    TRPM_NP_GP_HANDLER NAME(cpumGCHandleNPAndGP), CPUM_HANDLER_IRET
+    TRPM_NP_GP_HANDLER NAME(cpumRCHandleNPAndGP), CPUM_HANDLER_IRET
     iret
 ENDPROC CPUMGCCallGuestTrapHandler
 
@@ -201,14 +118,14 @@ BEGINPROC CPUMGCCallV86Code
     mov     ebp, [esp + 4]                  ; pRegFrame
 
     ; construct iret stack frame
-    push    dword [ebp + CPUMCTXCORE.gs]
-    push    dword [ebp + CPUMCTXCORE.fs]
-    push    dword [ebp + CPUMCTXCORE.ds]
-    push    dword [ebp + CPUMCTXCORE.es]
-    push    dword [ebp + CPUMCTXCORE.ss]
+    push    dword [ebp + CPUMCTXCORE.gs.Sel]
+    push    dword [ebp + CPUMCTXCORE.fs.Sel]
+    push    dword [ebp + CPUMCTXCORE.ds.Sel]
+    push    dword [ebp + CPUMCTXCORE.es.Sel]
+    push    dword [ebp + CPUMCTXCORE.ss.Sel]
     push    dword [ebp + CPUMCTXCORE.esp]
     push    dword [ebp + CPUMCTXCORE.eflags]
-    push    dword [ebp + CPUMCTXCORE.cs]
+    push    dword [ebp + CPUMCTXCORE.cs.Sel]
     push    dword [ebp + CPUMCTXCORE.eip]
 
     ;
@@ -229,7 +146,7 @@ BEGINPROC CPUMGCCallV86Code
     mov     edi, [ebp + CPUMCTXCORE.edi]
     mov     ebp, [ebp + CPUMCTXCORE.ebp]
 
-    TRPM_NP_GP_HANDLER NAME(cpumGCHandleNPAndGP), CPUM_HANDLER_IRET
+    TRPM_NP_GP_HANDLER NAME(cpumRCHandleNPAndGP), CPUM_HANDLER_IRET
     iret
 ENDPROC CPUMGCCallV86Code
 
@@ -247,26 +164,36 @@ ENDPROC CPUMGCCallV86Code
 ;
 align 16
 BEGINPROC_EXPORTED CPUMGCResumeGuest
+%ifdef VBOX_STRICT
+    ; Call CPUM to check sanity.
+    push    edx
+    mov     edx, IMP(g_VM)
+    push    edx
+    call    NAME(CPUMRCAssertPreExecutionSanity)
+    add     esp, 4
+    pop     edx
+%endif
+
     ; Convert to CPUMCPU pointer
     add     edx, [edx + CPUM.offCPUMCPU0]
     ;
     ; Setup iretd
     ;
-    push    dword [edx + CPUMCPU.Guest.ss]
+    push    dword [edx + CPUMCPU.Guest.ss.Sel]
     push    dword [edx + CPUMCPU.Guest.esp]
     push    dword [edx + CPUMCPU.Guest.eflags]
-    push    dword [edx + CPUMCPU.Guest.cs]
+    push    dword [edx + CPUMCPU.Guest.cs.Sel]
     push    dword [edx + CPUMCPU.Guest.eip]
 
     ;
     ; Restore registers.
     ;
-    TRPM_NP_GP_HANDLER NAME(cpumGCHandleNPAndGP), CPUM_HANDLER_ES
-    mov     es,  [edx + CPUMCPU.Guest.es]
-    TRPM_NP_GP_HANDLER NAME(cpumGCHandleNPAndGP), CPUM_HANDLER_FS
-    mov     fs,  [edx + CPUMCPU.Guest.fs]
-    TRPM_NP_GP_HANDLER NAME(cpumGCHandleNPAndGP), CPUM_HANDLER_GS
-    mov     gs,  [edx + CPUMCPU.Guest.gs]
+    TRPM_NP_GP_HANDLER NAME(cpumRCHandleNPAndGP), CPUM_HANDLER_ES
+    mov     es,  [edx + CPUMCPU.Guest.es.Sel]
+    TRPM_NP_GP_HANDLER NAME(cpumRCHandleNPAndGP), CPUM_HANDLER_FS
+    mov     fs,  [edx + CPUMCPU.Guest.fs.Sel]
+    TRPM_NP_GP_HANDLER NAME(cpumRCHandleNPAndGP), CPUM_HANDLER_GS
+    mov     gs,  [edx + CPUMCPU.Guest.gs.Sel]
 
 %ifdef VBOX_WITH_STATISTICS
     ;
@@ -301,13 +228,13 @@ BEGINPROC_EXPORTED CPUMGCResumeGuest
     mov     ebx, [edx + CPUMCPU.Guest.ebx]
     mov     ecx, [edx + CPUMCPU.Guest.ecx]
     mov     eax, [edx + CPUMCPU.Guest.eax]
-    push    dword [edx + CPUMCPU.Guest.ds]
+    push    dword [edx + CPUMCPU.Guest.ds.Sel]
     mov     edx, [edx + CPUMCPU.Guest.edx]
-    TRPM_NP_GP_HANDLER NAME(cpumGCHandleNPAndGP), CPUM_HANDLER_DS
+    TRPM_NP_GP_HANDLER NAME(cpumRCHandleNPAndGP), CPUM_HANDLER_DS
     pop     ds
 
     ; restart execution.
-    TRPM_NP_GP_HANDLER NAME(cpumGCHandleNPAndGP), CPUM_HANDLER_IRET
+    TRPM_NP_GP_HANDLER NAME(cpumRCHandleNPAndGP), CPUM_HANDLER_IRET
     iretd
 ENDPROC     CPUMGCResumeGuest
 
@@ -325,21 +252,31 @@ ENDPROC     CPUMGCResumeGuest
 ;
 align 16
 BEGINPROC_EXPORTED CPUMGCResumeGuestV86
+%ifdef VBOX_STRICT
+    ; Call CPUM to check sanity.
+    push    edx
+    mov     edx, IMP(g_VM)
+    push    edx
+    call    NAME(CPUMRCAssertPreExecutionSanity)
+    add     esp, 4
+    pop     edx
+%endif
+
     ; Convert to CPUMCPU pointer
     add     edx, [edx + CPUM.offCPUMCPU0]
     ;
     ; Setup iretd
     ;
-    push    dword [edx + CPUMCPU.Guest.gs]
-    push    dword [edx + CPUMCPU.Guest.fs]
-    push    dword [edx + CPUMCPU.Guest.ds]
-    push    dword [edx + CPUMCPU.Guest.es]
+    push    dword [edx + CPUMCPU.Guest.gs.Sel]
+    push    dword [edx + CPUMCPU.Guest.fs.Sel]
+    push    dword [edx + CPUMCPU.Guest.ds.Sel]
+    push    dword [edx + CPUMCPU.Guest.es.Sel]
 
-    push    dword [edx + CPUMCPU.Guest.ss]
+    push    dword [edx + CPUMCPU.Guest.ss.Sel]
     push    dword [edx + CPUMCPU.Guest.esp]
 
     push    dword [edx + CPUMCPU.Guest.eflags]
-    push    dword [edx + CPUMCPU.Guest.cs]
+    push    dword [edx + CPUMCPU.Guest.cs.Sel]
     push    dword [edx + CPUMCPU.Guest.eip]
 
     ;
@@ -382,7 +319,7 @@ BEGINPROC_EXPORTED CPUMGCResumeGuestV86
     mov     edx, [edx + CPUMCPU.Guest.edx]
 
     ; restart execution.
-    TRPM_NP_GP_HANDLER NAME(cpumGCHandleNPAndGP), CPUM_HANDLER_IRET
+    TRPM_NP_GP_HANDLER NAME(cpumRCHandleNPAndGP), CPUM_HANDLER_IRET
     iretd
 ENDPROC     CPUMGCResumeGuestV86
 

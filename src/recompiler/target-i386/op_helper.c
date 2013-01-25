@@ -202,6 +202,23 @@ void helper_dump_state()
             (uint32_t)env->regs[R_ESI], (uint32_t)env->regs[R_EDI]));
 }
 
+/**
+ * Updates e2 with the DESC_A_MASK, writes it to the descriptor table, and
+ * returns the updated e2.
+ *
+ * @returns e2 with A set.
+ * @param   e2      The 2nd selector DWORD.
+ */
+static uint32_t set_segment_accessed(int selector, uint32_t e2)
+{
+    SegmentCache *dt = selector & X86_SEL_LDT ? &env->ldt : &env->gdt;
+    target_ulong ptr = dt->base + (selector & X86_SEL_MASK);
+
+    e2 |= DESC_A_MASK;
+    stl_kernel(ptr + 4, e2);
+    return e2;
+}
+
 #endif /* VBOX */
 
 /* return non zero if error */
@@ -253,6 +270,10 @@ static inline void load_seg_cache_raw_dt(SegmentCache *sc, uint32_t e1, uint32_t
     sc->base = get_seg_base(e1, e2);
     sc->limit = get_seg_limit(e1, e2);
     sc->flags = e2;
+#ifdef VBOX
+    sc->newselector = 0;
+    sc->fVBoxFlags  = CPUMSELREG_FLAGS_VALID;
+#endif
 }
 
 /* init the segment cache in vm86 mode. */
@@ -556,6 +577,10 @@ static void switch_tss(int tss_selector,
     env->tr.base = tss_base;
     env->tr.limit = tss_limit;
     env->tr.flags = e2 & ~DESC_TSS_BUSY_MASK;
+#ifdef VBOX
+    env->tr.fVBoxFlags  = CPUMSELREG_FLAGS_VALID;
+    env->tr.newselector = 0;
+#endif
 
     if ((type & 8) && (env->cr[0] & CR0_PG_MASK)) {
         cpu_x86_update_cr3(env, new_cr3);
@@ -595,6 +620,10 @@ static void switch_tss(int tss_selector,
     env->ldt.base = 0;
     env->ldt.limit = 0;
     env->ldt.flags = 0;
+#ifdef VBOX
+    env->ldt.fVBoxFlags  = CPUMSELREG_FLAGS_VALID;
+    env->ldt.newselector = 0;
+#endif
 
     /* load the LDT */
     if (new_ldt & 4)
@@ -872,6 +901,13 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
     type = (e2 >> DESC_TYPE_SHIFT) & 0x1f;
     switch(type) {
     case 5: /* task gate */
+#ifdef VBOX
+        dpl = (e2 >> DESC_DPL_SHIFT) & 3;
+        cpl = env->hflags & HF_CPL_MASK;
+        /* check privilege if software int */
+        if (is_int && dpl < cpl)
+            raise_exception_err(EXCP0D_GPF, intno * 8 + 2);
+#endif
         /* must do that check here to return the correct error code */
         if (!(e2 & DESC_P_MASK))
             raise_exception_err(EXCP0B_NOSEG, intno * 8 + 2);
@@ -1953,6 +1989,10 @@ void helper_rsm(void)
     env->ldt.base = ldq_phys(sm_state + 0x7e78);
     env->ldt.limit = ldl_phys(sm_state + 0x7e74);
     env->ldt.flags = (lduw_phys(sm_state + 0x7e72) & 0xf0ff) << 8;
+#ifdef VBOX
+    env->ldt.fVBoxFlags = CPUMSELREG_FLAGS_VALID;
+    env->ldt.newselector = 0;
+#endif
 
     env->idt.base = ldq_phys(sm_state + 0x7e88);
     env->idt.limit = ldl_phys(sm_state + 0x7e84);
@@ -1961,6 +2001,10 @@ void helper_rsm(void)
     env->tr.base = ldq_phys(sm_state + 0x7e98);
     env->tr.limit = ldl_phys(sm_state + 0x7e94);
     env->tr.flags = (lduw_phys(sm_state + 0x7e92) & 0xf0ff) << 8;
+#ifdef VBOX
+    env->tr.fVBoxFlags = CPUMSELREG_FLAGS_VALID;
+    env->tr.newselector = 0;
+#endif
 
     EAX = ldq_phys(sm_state + 0x7ff8);
     ECX = ldq_phys(sm_state + 0x7ff0);
@@ -2007,11 +2051,19 @@ void helper_rsm(void)
     env->tr.base = ldl_phys(sm_state + 0x7f64);
     env->tr.limit = ldl_phys(sm_state + 0x7f60);
     env->tr.flags = (ldl_phys(sm_state + 0x7f5c) & 0xf0ff) << 8;
+#ifdef VBOX
+    env->tr.fVBoxFlags  = CPUMSELREG_FLAGS_VALID;
+    env->tr.newselector = 0;
+#endif
 
     env->ldt.selector = ldl_phys(sm_state + 0x7fc0) & 0xffff;
     env->ldt.base = ldl_phys(sm_state + 0x7f80);
     env->ldt.limit = ldl_phys(sm_state + 0x7f7c);
     env->ldt.flags = (ldl_phys(sm_state + 0x7f78) & 0xf0ff) << 8;
+#ifdef VBOX
+    env->ldt.fVBoxFlags  = CPUMSELREG_FLAGS_VALID;
+    env->ldt.newselector = 0;
+#endif
 
     env->gdt.base = ldl_phys(sm_state + 0x7f74);
     env->gdt.limit = ldl_phys(sm_state + 0x7f70);
@@ -2447,6 +2499,10 @@ void helper_lldt(int selector)
         /* XXX: NULL selector case: invalid LDT */
         env->ldt.base = 0;
         env->ldt.limit = 0;
+#ifdef VBOX
+        env->ldt.fVBoxFlags = CPUMSELREG_FLAGS_VALID;
+        env->ldt.newselector = 0;
+#endif
     } else {
         if (selector & 0x4)
             raise_exception_err(EXCP0D_GPF, selector & 0xfffc);
@@ -2509,6 +2565,10 @@ void helper_ltr(int selector)
         env->tr.base = 0;
         env->tr.limit = 0;
         env->tr.flags = 0;
+#ifdef VBOX
+        env->tr.fVBoxFlags  = CPUMSELREG_FLAGS_VALID;
+        env->tr.newselector = 0;
+#endif
     } else {
         if (selector & 0x4)
             raise_exception_err(EXCP0D_GPF, selector & 0xfffc);
@@ -3197,6 +3257,10 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
     if (rpl == cpl && (!(env->hflags & HF_CS64_MASK) ||
                        ((env->hflags & HF_CS64_MASK) && !is_iret))) {
         /* return to same privilege level */
+#ifdef VBOX
+        if (!(e2 & DESC_A_MASK))
+            e2 = set_segment_accessed(new_cs, e2);
+#endif
         cpu_x86_load_seg_cache(env, R_CS, new_cs,
                        get_seg_base(e1, e2),
                        get_seg_limit(e1, e2),
@@ -3227,6 +3291,10 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
             /* NULL ss is allowed in long mode if cpl != 3*/
             /* XXX: test CS64 ? */
             if ((env->hflags & HF_LMA_MASK) && rpl != 3) {
+# ifdef VBOX
+                if (!(e2 & DESC_A_MASK))
+                    e2 = set_segment_accessed(new_cs, e2);
+# endif
                 cpu_x86_load_seg_cache(env, R_SS, new_ss,
                                        0, 0xffffffff,
                                        DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
@@ -3252,6 +3320,12 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
                 raise_exception_err(EXCP0D_GPF, new_ss & 0xfffc);
             if (!(ss_e2 & DESC_P_MASK))
                 raise_exception_err(EXCP0B_NOSEG, new_ss & 0xfffc);
+#ifdef VBOX
+            if (!(e2 & DESC_A_MASK))
+                e2 = set_segment_accessed(new_cs, e2);
+            if (!(ss_e2 & DESC_A_MASK))
+                ss_e2 = set_segment_accessed(new_ss, ss_e2);
+#endif
             cpu_x86_load_seg_cache(env, R_SS, new_ss,
                                    get_seg_base(ss_e1, ss_e2),
                                    get_seg_limit(ss_e1, ss_e2),
@@ -3896,9 +3970,11 @@ void helper_rdmsr(void)
     EDX = (uint32_t)(val >> 32);
 
 # ifdef VBOX_STRICT
-    if (cpu_rdmsr(env, (uint32_t)ECX, &val) != 0)
-        val = 0;
-    AssertMsg(val == RT_MAKE_U64(EAX, EDX), ("idMsr=%#x val=%#llx eax:edx=%#llx\n", (uint32_t)ECX, val, RT_MAKE_U64(EAX, EDX)));
+    if ((uint32_t)ECX != MSR_IA32_TSC) {
+        if (cpu_rdmsr(env, (uint32_t)ECX, &val) != 0)
+            val = 0;
+        AssertMsg(val == RT_MAKE_U64(EAX, EDX), ("idMsr=%#x val=%#llx eax:edx=%#llx\n", (uint32_t)ECX, val, RT_MAKE_U64(EAX, EDX)));
+    }
 # endif
 }
 #endif
@@ -5573,7 +5649,7 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 {
     TranslationBlock *tb;
     int ret;
-    unsigned long pc;
+    uintptr_t pc;
     CPUX86State *saved_env;
 
     /* XXX: hack to restore env in all cases, even if not called from
@@ -5585,7 +5661,7 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
     if (ret) {
         if (retaddr) {
             /* now we have a real cpu fault */
-            pc = (unsigned long)retaddr;
+            pc = (uintptr_t)retaddr;
             tb = tb_find_pc(pc);
             if (tb) {
                 /* the PC is inside the translated code. It means that we have
@@ -5723,7 +5799,7 @@ void sync_seg(CPUX86State *env1, int seg_reg, int selector)
         env = savedenv;
 
         /* Successful sync. */
-        env1->segs[seg_reg].newselector = 0;
+        Assert(env1->segs[seg_reg].newselector == 0);
     }
     else
     {
@@ -5740,9 +5816,9 @@ void sync_seg(CPUX86State *env1, int seg_reg, int selector)
                 e1 = e2 = 0;
                 load_segment(&e1, &e2, selector);
                 cpu_x86_load_seg_cache(env, R_CS, selector,
-                               get_seg_base(e1, e2),
-                               get_seg_limit(e1, e2),
-                               e2);
+                                       get_seg_base(e1, e2),
+                                       get_seg_limit(e1, e2),
+                                       e2);
             }
             else
                 helper_load_seg(seg_reg, selector);
@@ -5752,7 +5828,7 @@ void sync_seg(CPUX86State *env1, int seg_reg, int selector)
             env = savedenv;
 
             /* Successful sync. */
-            env1->segs[seg_reg].newselector = 0;
+            Assert(env1->segs[seg_reg].newselector == 0);
         }
         else
         {
@@ -5775,7 +5851,7 @@ void sync_seg(CPUX86State *env1, int seg_reg, int selector)
 
 DECLINLINE(void) tb_reset_jump(TranslationBlock *tb, int n)
 {
-    tb_set_jmp_target(tb, n, (unsigned long)(tb->tc_ptr + tb->tb_next_offset[n]));
+    tb_set_jmp_target(tb, n, (uintptr_t)(tb->tc_ptr + tb->tb_next_offset[n]));
 }
 
 
@@ -5946,12 +6022,31 @@ int get_ss_esp_from_tss_raw(CPUX86State *env1, uint32_t *ss_ptr,
 
 static inline CPU86_LDouble helper_fldt_raw(uint8_t *ptr)
 {
+#ifdef USE_X86LDOUBLE
+    CPU86_LDoubleU tmp;
+    tmp.l.lower = *(uint64_t const *)ptr;
+    tmp.l.upper = *(uint16_t const *)(ptr + 8);
+    return tmp.d;
+#else
+# error "Busted FPU saving/restoring!"
     return *(CPU86_LDouble *)ptr;
+#endif
 }
 
 static inline void helper_fstt_raw(CPU86_LDouble f, uint8_t *ptr)
 {
+#ifdef USE_X86LDOUBLE
+    CPU86_LDoubleU tmp;
+    tmp.d = f;
+    *(uint64_t *)(ptr +  0) = tmp.l.lower;
+    *(uint16_t *)(ptr +  8) = tmp.l.upper;
+    *(uint16_t *)(ptr + 10) = 0;
+    *(uint32_t *)(ptr + 12) = 0;
+    AssertCompile(sizeof(long double) > 8);
+#else
+# error "Busted FPU saving/restoring!"
     *(CPU86_LDouble *)ptr = f;
+#endif
 }
 
 #undef stw

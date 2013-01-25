@@ -28,6 +28,7 @@
 #include <linux/rtnetlink.h>
 #include <linux/miscdevice.h>
 #include <linux/ip.h>
+#include <linux/if_vlan.h>
 
 #include <VBox/log.h>
 #include <VBox/err.h>
@@ -49,14 +50,6 @@
 
 #define VBOXNETFLT_OS_SPECFIC 1
 #include "../VBoxNetFltInternal.h"
-
-#define VBOXNETFLT_WITH_FILTER_HOST2GUEST_SKBS_EXPERIMENT
-#ifdef CONFIG_NET_SCHED
-/*# define VBOXNETFLT_WITH_QDISC  Comment this out to disable qdisc support */
-# ifdef VBOXNETFLT_WITH_QDISC
-# include <net/pkt_sched.h>
-# endif /* VBOXNETFLT_WITH_QDISC */
-#endif
 
 
 /*******************************************************************************
@@ -93,18 +86,6 @@
 #  define qstats stats
 # endif
 #endif
-
-#ifdef VBOXNETFLT_WITH_QDISC
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 13)
-static inline int qdisc_drop(struct sk_buff *skb, struct Qdisc *sch)
-{
-    kfree_skb(skb);
-    sch->stats.drops++;
-
-    return NET_XMIT_DROP;
-}
-# endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 13) */
-#endif /* VBOXNETFLT_WITH_QDISC */
 
 #ifndef NET_IP_ALIGN
 # define NET_IP_ALIGN 2
@@ -195,548 +176,6 @@ unsigned dev_get_flags(const struct net_device *dev)
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 12) */
 
 
-#ifdef VBOXNETFLT_WITH_QDISC
-//#define QDISC_LOG(x) printk x
-# define QDISC_LOG(x) do { } while (0)
-
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-#  define QDISC_CREATE(dev, queue, ops, parent) qdisc_create_dflt(dev, ops)
-# elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27)
-#  define QDISC_CREATE(dev, queue, ops, parent) qdisc_create_dflt(dev, ops, parent)
-# elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-#  define QDISC_CREATE(dev, queue, ops, parent) qdisc_create_dflt(dev, queue, ops, parent)
-# else /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) */
-#  define QDISC_CREATE(dev, queue, ops, parent) qdisc_create_dflt(queue, ops, parent)
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) */
-
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27)
-#  define qdisc_dev(qdisc) (qdisc->dev)
-#  define qdisc_pkt_len(skb) (skb->len)
-#  define QDISC_GET(dev) (dev->qdisc_sleeping)
-# else
-#  define QDISC_GET(dev) (netdev_get_tx_queue(dev, 0)->qdisc_sleeping)
-# endif
-
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27)
-#  define QDISC_SAVED_NUM(dev) 1
-# elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
-#  define QDISC_SAVED_NUM(dev) dev->num_tx_queues
-# else
-#  define QDISC_SAVED_NUM(dev) dev->num_tx_queues+1
-# endif
-
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27)
-#  define QDISC_IS_BUSY(dev, qdisc)  test_bit(__LINK_STATE_SCHED, &dev->state)
-# elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-#  define QDISC_IS_BUSY(dev, qdisc) (test_bit(__QDISC_STATE_RUNNING, &qdisc->state) || \
-                                    test_bit(__QDISC_STATE_SCHED, &qdisc->state))
-# else /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) */
-#  define QDISC_IS_BUSY(dev, qdisc) (qdisc_is_running(qdisc) || \
-                                    test_bit(__QDISC_STATE_SCHED, &qdisc->state))
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) */
-
-struct VBoxNetQDiscPriv
-{
-    /** Pointer to the single child qdisc. */
-    struct Qdisc     *pChild;
-    /*
-     * Technically it is possible to have different qdiscs for different TX
-     * queues so we have to save them all.
-     */
-    /** Pointer to the array of saved qdiscs. */
-    struct Qdisc    **ppSaved;
-    /** Pointer to the net filter instance. */
-    PVBOXNETFLTINS    pVBoxNetFlt;
-};
-typedef struct VBoxNetQDiscPriv *PVBOXNETQDISCPRIV;
-
-//#define VBOXNETFLT_QDISC_ENQUEUE
-static int vboxNetFltQdiscEnqueue(struct sk_buff *skb, struct Qdisc *sch)
-{
-    PVBOXNETQDISCPRIV   pPriv = qdisc_priv(sch);
-    int                 rc;
-
-# ifdef VBOXNETFLT_QDISC_ENQUEUE
-    if (VALID_PTR(pPriv->pVBoxNetFlt))
-    {
-        uint8_t              abHdrBuf[sizeof(RTNETETHERHDR) + sizeof(uint32_t) + RTNETIPV4_MIN_LEN];
-        PCRTNETETHERHDR      pEtherHdr;
-        PINTNETTRUNKSWPORT   pSwitchPort;
-        uint32_t             cbHdrs = skb_headlen(skb);
-
-        cbHdrs = RT_MIN(cbHdrs, sizeof(abHdrBuf));
-        pEtherHdr = (PCRTNETETHERHDR)skb_header_pointer(skb, 0, cbHdrs, &abHdrBuf[0]);
-        if (   pEtherHdr
-            && (pSwitchPort = pPriv->pVBoxNetFlt->pSwitchPort) != NULL
-            && VALID_PTR(pSwitchPort)
-            && cbHdrs >= 6)
-        {
-            /** @todo consider reference counting, etc. */
-            INTNETSWDECISION enmDecision = pSwitchPort->pfnPreRecv(pSwitchPort, pEtherHdr, cbHdrs, INTNETTRUNKDIR_HOST);
-            if (enmDecision == INTNETSWDECISION_INTNET)
-            {
-                struct sk_buff *pBuf = skb_copy(skb, GFP_ATOMIC);
-                pBuf->pkt_type = PACKET_OUTGOING;
-                vboxNetFltLinuxForwardToIntNet(pPriv->pVBoxNetFlt, pBuf);
-                qdisc_drop(skb, sch);
-                ++sch->bstats.packets;
-                sch->bstats.bytes += qdisc_pkt_len(skb);
-                return NET_XMIT_SUCCESS;
-            }
-        }
-    }
-# endif /* VBOXNETFLT_QDISC_ENQUEUE */
-    rc = pPriv->pChild->enqueue(skb, pPriv->pChild);
-    if (rc == NET_XMIT_SUCCESS)
-    {
-        ++sch->q.qlen;
-        ++sch->bstats.packets;
-        sch->bstats.bytes += qdisc_pkt_len(skb);
-    }
-    else
-        ++sch->qstats.drops;
-    return rc;
-}
-
-static struct sk_buff *vboxNetFltQdiscDequeue(struct Qdisc *sch)
-{
-    PVBOXNETQDISCPRIV    pPriv = qdisc_priv(sch);
-# ifdef VBOXNETFLT_QDISC_ENQUEUE
-    --sch->q.qlen;
-    return pPriv->pChild->dequeue(pPriv->pChild);
-# else /*  VBOXNETFLT_QDISC_ENQUEUE */
-    uint8_t              abHdrBuf[sizeof(RTNETETHERHDR) + sizeof(uint32_t) + RTNETIPV4_MIN_LEN];
-    PCRTNETETHERHDR      pEtherHdr;
-    PINTNETTRUNKSWPORT   pSwitchPort;
-    struct sk_buff      *pSkb;
-
-    QDISC_LOG(("vboxNetFltDequeue: Enter pThis=%p\n", pPriv->pVBoxNetFlt));
-
-    while ((pSkb = pPriv->pChild->dequeue(pPriv->pChild)) != NULL)
-    {
-        struct sk_buff     *pBuf;
-        INTNETSWDECISION    enmDecision;
-        uint32_t            cbHdrs;
-
-        --sch->q.qlen;
-
-        if (!VALID_PTR(pPriv->pVBoxNetFlt))
-            break;
-
-        cbHdrs = skb_headlen(pSkb);
-        cbHdrs = RT_MIN(cbHdrs, sizeof(abHdrBuf));
-        pEtherHdr = (PCRTNETETHERHDR)skb_header_pointer(pSkb, 0, cbHdrs, &abHdrBuf[0]);
-        if (   !pEtherHdr
-            || (pSwitchPort = pPriv->pVBoxNetFlt->pSwitchPort) == NULL
-            || !VALID_PTR(pSwitchPort)
-            || cbHdrs < 6)
-            break;
-
-        /** @todo consider reference counting, etc. */
-        enmDecision = pSwitchPort->pfnPreRecv(pSwitchPort, pEtherHdr, cbHdrs, INTNETTRUNKDIR_HOST);
-        if (enmDecision != INTNETSWDECISION_INTNET)
-            break;
-
-        pBuf = skb_copy(pSkb, GFP_ATOMIC);
-        pBuf->pkt_type = PACKET_OUTGOING;
-        QDISC_LOG(("vboxNetFltDequeue: pThis=%p\n", pPriv->pVBoxNetFlt));
-        vboxNetFltLinuxForwardToIntNet(pPriv->pVBoxNetFlt, pBuf);
-        qdisc_drop(pSkb, sch);
-        QDISC_LOG(("VBoxNetFlt: Packet for %02x:%02x:%02x:%02x:%02x:%02x dropped\n",
-                   pSkb->data[0], pSkb->data[1], pSkb->data[2],
-                   pSkb->data[3], pSkb->data[4], pSkb->data[5]));
-    }
-
-    return pSkb;
-# endif /*  VBOXNETFLT_QDISC_ENQUEUE */
-}
-
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-static int vboxNetFltQdiscRequeue(struct sk_buff *skb, struct Qdisc *sch)
-{
-    int rc;
-    PVBOXNETQDISCPRIV pPriv = qdisc_priv(sch);
-
-    rc = pPriv->pChild->ops->requeue(skb, pPriv->pChild);
-    if (rc == 0)
-    {
-        sch->q.qlen++;
-#  if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 10)
-        sch->qstats.requeues++;
-#  endif
-    }
-
-    return rc;
-}
-# endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29) */
-
-static unsigned int vboxNetFltQdiscDrop(struct Qdisc *sch)
-{
-    PVBOXNETQDISCPRIV pPriv = qdisc_priv(sch);
-    unsigned int cbLen;
-
-    if (pPriv->pChild->ops->drop)
-    {
-        cbLen = pPriv->pChild->ops->drop(pPriv->pChild);
-        if (cbLen != 0)
-        {
-            ++sch->qstats.drops;
-            --sch->q.qlen;
-            return cbLen;
-        }
-    }
-
-    return 0;
-}
-
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-static int vboxNetFltQdiscInit(struct Qdisc *sch, struct rtattr *opt)
-# else /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25) */
-static int vboxNetFltQdiscInit(struct Qdisc *sch, struct nlattr *opt)
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25) */
-{
-    PVBOXNETQDISCPRIV pPriv = qdisc_priv(sch);
-    struct net_device *pDev = qdisc_dev(sch);
-
-    pPriv->pVBoxNetFlt = NULL;
-
-    pPriv->ppSaved = kcalloc(QDISC_SAVED_NUM(pDev), sizeof(pPriv->ppSaved[0]),
-                             GFP_KERNEL);
-    if (!pPriv->ppSaved)
-        return -ENOMEM;
-
-    pPriv->pChild = QDISC_CREATE(pDev, netdev_get_tx_queue(pDev, 0),
-                                 &pfifo_qdisc_ops,
-                                 TC_H_MAKE(TC_H_MAJ(sch->handle),
-                                           TC_H_MIN(1)));
-    if (!pPriv->pChild)
-    {
-        kfree(pPriv->ppSaved);
-        pPriv->ppSaved = NULL;
-        return -ENOMEM;
-    }
-
-    return 0;
-}
-
-static void vboxNetFltQdiscReset(struct Qdisc *sch)
-{
-    PVBOXNETQDISCPRIV pPriv = qdisc_priv(sch);
-
-    qdisc_reset(pPriv->pChild);
-    sch->q.qlen = 0;
-    sch->qstats.backlog = 0;
-}
-
-static void vboxNetFltQdiscDestroy(struct Qdisc* sch)
-{
-    PVBOXNETQDISCPRIV pPriv = qdisc_priv(sch);
-    struct net_device *pDev = qdisc_dev(sch);
-
-    qdisc_destroy(pPriv->pChild);
-    pPriv->pChild = NULL;
-
-    if (pPriv->ppSaved)
-    {
-        int i;
-        for (i = 0; i < QDISC_SAVED_NUM(pDev); i++)
-            if (pPriv->ppSaved[i])
-                qdisc_destroy(pPriv->ppSaved[i]);
-        kfree(pPriv->ppSaved);
-        pPriv->ppSaved = NULL;
-    }
-}
-
-static int vboxNetFltClassGraft(struct Qdisc *sch, unsigned long arg, struct Qdisc *pNew,
-                                struct Qdisc **ppOld)
-{
-    PVBOXNETQDISCPRIV pPriv = qdisc_priv(sch);
-
-    if (pNew == NULL)
-        pNew = &noop_qdisc;
-
-    sch_tree_lock(sch);
-    *ppOld = pPriv->pChild;
-    pPriv->pChild = pNew;
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-    sch->q.qlen = 0;
-# else /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) */
-    qdisc_tree_decrease_qlen(*ppOld, (*ppOld)->q.qlen);
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) */
-    qdisc_reset(*ppOld);
-    sch_tree_unlock(sch);
-
-    return 0;
-}
-
-static struct Qdisc *vboxNetFltClassLeaf(struct Qdisc *sch, unsigned long arg)
-{
-    PVBOXNETQDISCPRIV pPriv = qdisc_priv(sch);
-    return pPriv->pChild;
-}
-
-static unsigned long vboxNetFltClassGet(struct Qdisc *sch, u32 classid)
-{
-    return 1;
-}
-
-static void vboxNetFltClassPut(struct Qdisc *sch, unsigned long arg)
-{
-}
-
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-static int vboxNetFltClassChange(struct Qdisc *sch, u32 classid, u32 parentid,
-                                 struct rtattr **tca, unsigned long *arg)
-# else /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25) */
-static int vboxNetFltClassChange(struct Qdisc *sch, u32 classid, u32 parentid,
-                                 struct nlattr **tca, unsigned long *arg)
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25) */
-{
-    return -ENOSYS;
-}
-
-static int vboxNetFltClassDelete(struct Qdisc *sch, unsigned long arg)
-{
-    return -ENOSYS;
-}
-
-static void vboxNetFltClassWalk(struct Qdisc *sch, struct qdisc_walker *walker)
-{
-    if (!walker->stop) {
-        if (walker->count >= walker->skip)
-            if (walker->fn(sch, 1, walker) < 0) {
-                walker->stop = 1;
-                return;
-            }
-        walker->count++;
-    }
-}
-
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
-static struct tcf_proto **vboxNetFltClassFindTcf(struct Qdisc *sch, unsigned long cl)
-{
-    return NULL;
-}
-# endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32) */
-
-static int vboxNetFltClassDump(struct Qdisc *sch, unsigned long cl,
-                               struct sk_buff *skb, struct tcmsg *tcm)
-{
-    PVBOXNETQDISCPRIV pPriv = qdisc_priv(sch);
-
-    if (cl != 1)
-        return -ENOENT;
-
-    tcm->tcm_handle |= TC_H_MIN(1);
-    tcm->tcm_info = pPriv->pChild->handle;
-
-    return 0;
-}
-
-
-static struct Qdisc_class_ops g_VBoxNetFltClassOps =
-{
-    .graft     = vboxNetFltClassGraft,
-    .leaf      = vboxNetFltClassLeaf,
-    .get       = vboxNetFltClassGet,
-    .put       = vboxNetFltClassPut,
-    .change    = vboxNetFltClassChange,
-    .delete    = vboxNetFltClassDelete,
-    .walk      = vboxNetFltClassWalk,
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
-    .tcf_chain = vboxNetFltClassFindTcf,
-# endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32) */
-    .dump      = vboxNetFltClassDump,
-};
-
-
-static struct Qdisc_ops g_VBoxNetFltQDiscOps = {
-    .cl_ops    = &g_VBoxNetFltClassOps,
-    .id        = "vboxnetflt",
-    .priv_size = sizeof(struct VBoxNetQDiscPriv),
-    .enqueue   = vboxNetFltQdiscEnqueue,
-    .dequeue   = vboxNetFltQdiscDequeue,
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-    .requeue   = vboxNetFltQdiscRequeue,
-# else /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) */
-    .peek      = qdisc_peek_dequeued,
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) */
-    .drop      = vboxNetFltQdiscDrop,
-    .init      = vboxNetFltQdiscInit,
-    .reset     = vboxNetFltQdiscReset,
-    .destroy   = vboxNetFltQdiscDestroy,
-    .owner     = THIS_MODULE
-};
-
-/*
- * If our qdisc is already attached to the device (that means the user
- * installed it from command line with 'tc' command) we simply update
- * the pointer to vboxnetflt instance in qdisc's private structure.
- * Otherwise we need to take some additional steps:
- * - Create our qdisc;
- * - Save all references to qdiscs;
- * - Replace our child with the first qdisc reference;
- * - Replace all references so they point to our qdisc.
- */
-static void vboxNetFltLinuxQdiscInstall(PVBOXNETFLTINS pThis, struct net_device *pDev)
-{
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
-    int i;
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27) */
-    PVBOXNETQDISCPRIV pPriv;
-
-    struct Qdisc *pExisting = QDISC_GET(pDev);
-    /* Do not install our qdisc for devices with no TX queues */
-    if (!pExisting->enqueue)
-        return;
-    if (strcmp(pExisting->ops->id, "vboxnetflt"))
-    {
-        /* The existing qdisc is different from ours, let's create new one. */
-        struct Qdisc *pNew = QDISC_CREATE(pDev, netdev_get_tx_queue(pDev, 0),
-                                          &g_VBoxNetFltQDiscOps, TC_H_ROOT);
-        if (!pNew)
-            return; // TODO: Error?
-
-        if (!try_module_get(THIS_MODULE))
-        {
-            /*
-             * This may cause a memory leak but calling qdisc_destroy()
-             * is not an option as it will call module_put().
-             */
-            return;
-        }
-        pPriv = qdisc_priv(pNew);
-
-        qdisc_destroy(pPriv->pChild);
-        pPriv->pChild = QDISC_GET(pDev);
-        atomic_inc(&pPriv->pChild->refcnt);
-        /*
-         * There is no need in deactivating the device or acquiring any locks
-         * prior changing qdiscs since we do not destroy the old qdisc.
-         * Atomic replacement of pointers is enough.
-         */
-        /*
-         * No need to change reference counters here as we merely move
-         * the pointer and the reference counter of the newly allocated
-         * qdisc is already 1.
-         */
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27)
-        pPriv->ppSaved[0] = pDev->qdisc_sleeping;
-        ASMAtomicWritePtr(&pDev->qdisc_sleeping, pNew);
-        ASMAtomicWritePtr(&pDev->qdisc, pNew);
-# else /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27) */
-        for (i = 0; i < pDev->num_tx_queues; i++)
-        {
-            struct netdev_queue *pQueue = netdev_get_tx_queue(pDev, i);
-
-            pPriv->ppSaved[i] = pQueue->qdisc_sleeping;
-            ASMAtomicWritePtr(&pQueue->qdisc_sleeping, pNew);
-            ASMAtomicWritePtr(&pQueue->qdisc, pNew);
-            if (i)
-                atomic_inc(&pNew->refcnt);
-        }
-        /* Newer kernels store root qdisc in netdev structure as well. */
-#  if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
-        pPriv->ppSaved[pDev->num_tx_queues] = pDev->qdisc;
-        ASMAtomicWritePtr(&pDev->qdisc, pNew);
-        atomic_inc(&pNew->refcnt);
-#  endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) */
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27) */
-        /* Sync the queue len with our child */
-        pNew->q.qlen = pPriv->pChild->q.qlen;
-    }
-    else
-    {
-        /* We already have vboxnetflt qdisc, let's use it. */
-        pPriv = qdisc_priv(pExisting);
-    }
-    ASMAtomicWritePtr(&pPriv->pVBoxNetFlt, pThis);
-    QDISC_LOG(("vboxNetFltLinuxInstallQdisc: pThis=%p\n", pPriv->pVBoxNetFlt));
-}
-
-static void vboxNetFltLinuxQdiscRemove(PVBOXNETFLTINS pThis, struct net_device *pDev)
-{
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
-    int i;
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27) */
-    PVBOXNETQDISCPRIV pPriv;
-    struct Qdisc *pQdisc, *pChild;
-    if (!pDev)
-        pDev = ASMAtomicUoReadPtrT(&pThis->u.s.pDev, struct net_device *);
-    if (!VALID_PTR(pDev))
-    {
-        printk("VBoxNetFlt: Failed to detach qdisc, invalid device pointer: %p\n",
-               pDev);
-        return; // TODO: Consider returing an error
-    }
-
-
-    pQdisc = QDISC_GET(pDev);
-    if (strcmp(pQdisc->ops->id, "vboxnetflt"))
-    {
-        if (pQdisc->enqueue)
-        {
-            /* Looks like the user has replaced our qdisc manually. */
-            printk("VBoxNetFlt: Failed to detach qdisc, wrong qdisc: %s\n",
-                   pQdisc->ops->id);
-        }
-        return; // TODO: Consider returing an error
-    }
-
-    pPriv = qdisc_priv(pQdisc);
-    Assert(pPriv->pVBoxNetFlt == pThis);
-    ASMAtomicWriteNullPtr(&pPriv->pVBoxNetFlt);
-    pChild = ASMAtomicXchgPtrT(&pPriv->pChild, &noop_qdisc, struct Qdisc *);
-    qdisc_destroy(pChild); /* It won't be the last reference. */
-
-    QDISC_LOG(("vboxNetFltLinuxQdiscRemove: refcnt=%d num_tx_queues=%d\n",
-               atomic_read(&pQdisc->refcnt), pDev->num_tx_queues));
-# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27)
-    /* Play it safe, make sure the qdisc is not being used. */
-    if (pPriv->ppSaved[0])
-    {
-        ASMAtomicWritePtr(&pDev->qdisc_sleeping, pPriv->ppSaved[0]);
-        ASMAtomicWritePtr(&pDev->qdisc, pPriv->ppSaved[0]);
-        pPriv->ppSaved[0] = NULL;
-        while (QDISC_IS_BUSY(pDev, pQdisc))
-            yield();
-        qdisc_destroy(pQdisc); /* Destroy reference */
-    }
-# else /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27) */
-    for (i = 0; i < pDev->num_tx_queues; i++)
-    {
-        struct netdev_queue *pQueue = netdev_get_tx_queue(pDev, i);
-        if (pPriv->ppSaved[i])
-        {
-            Assert(pQueue->qdisc_sleeping == pQdisc);
-            ASMAtomicWritePtr(&pQueue->qdisc_sleeping, pPriv->ppSaved[i]);
-            ASMAtomicWritePtr(&pQueue->qdisc, pPriv->ppSaved[i]);
-            pPriv->ppSaved[i] = NULL;
-            while (QDISC_IS_BUSY(pDev, pQdisc))
-                yield();
-            qdisc_destroy(pQdisc); /* Destroy reference */
-        }
-    }
-    /* Newer kernels store root qdisc in netdev structure as well. */
-#  if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
-    ASMAtomicWritePtr(&pDev->qdisc, pPriv->ppSaved[pDev->num_tx_queues]);
-    pPriv->ppSaved[pDev->num_tx_queues] = NULL;
-    while (QDISC_IS_BUSY(pDev, pQdisc))
-        yield();
-    qdisc_destroy(pQdisc); /* Destroy reference */
-#  endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) */
-# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27) */
-
-    /*
-     * At this point all references to our qdisc should be gone
-     * unless the user had installed it manually.
-     */
-    QDISC_LOG(("vboxNetFltLinuxRemoveQdisc: pThis=%p\n", pPriv->pVBoxNetFlt));
-}
-
-#endif /* VBOXNETFLT_WITH_QDISC */
-
-
 /**
  * Initialize module.
  *
@@ -763,17 +202,6 @@ static int __init VBoxNetFltLinuxInit(void)
         rc = vboxNetFltInitGlobalsAndIdc(&g_VBoxNetFltGlobals);
         if (RT_SUCCESS(rc))
         {
-#ifdef VBOXNETFLT_WITH_QDISC
-            /*memcpy(&g_VBoxNetFltQDiscOps, &pfifo_qdisc_ops, sizeof(g_VBoxNetFltQDiscOps));
-            strcpy(g_VBoxNetFltQDiscOps.id, "vboxnetflt");
-            g_VBoxNetFltQDiscOps.owner = THIS_MODULE;*/
-            rc = register_qdisc(&g_VBoxNetFltQDiscOps);
-            if (rc)
-            {
-                LogRel(("VBoxNetFlt: Failed to registered qdisc: %d\n", rc));
-                return rc;
-            }
-#endif /* VBOXNETFLT_WITH_QDISC */
             LogRel(("VBoxNetFlt: Successfully started.\n"));
             return 0;
         }
@@ -800,9 +228,6 @@ static void __exit VBoxNetFltLinuxUnload(void)
     Log(("VBoxNetFltLinuxUnload\n"));
     Assert(vboxNetFltCanUnload(&g_VBoxNetFltGlobals));
 
-#ifdef VBOXNETFLT_WITH_QDISC
-    unregister_qdisc(&g_VBoxNetFltQDiscOps);
-#endif /* VBOXNETFLT_WITH_QDISC */
     /*
      * Undo the work done during start (in reverse order).
      */
@@ -818,17 +243,17 @@ static void __exit VBoxNetFltLinuxUnload(void)
 
 
 /**
- * Experiment where we filter traffic from the host to the internal network
+ * We filter traffic from the host to the internal network
  * before it reaches the NIC driver.
  *
- * The current code uses a very ugly hack and only works on kernels using the
- * net_device_ops (>= 2.6.29).  It has been shown to give us a
- * performance boost of 60-100% though.  So, we have to find some less hacky way
- * of getting this job done eventually.
- *
- * #define VBOXNETFLT_WITH_FILTER_HOST2GUEST_SKBS_EXPERIMENT
+ * The current code uses a very ugly hack overriding hard_start_xmit
+ * callback in the device structure, but it has been shown to give us a
+ * performance boost of 60-100% though. Eventually we have to find some
+ * less hacky way of getting this job done.
  */
-#ifdef VBOXNETFLT_WITH_FILTER_HOST2GUEST_SKBS_EXPERIMENT
+#define VBOXNETFLT_WITH_HOST2WIRE_FILTER
+
+#ifdef VBOXNETFLT_WITH_HOST2WIRE_FILTER
 
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 
@@ -956,9 +381,8 @@ static int vboxNetFltLinuxStartXmitFilter(struct sk_buff *pSkb, struct net_devic
 static void vboxNetFltLinuxHookDev(PVBOXNETFLTINS pThis, struct net_device *pDev)
 {
     PVBOXNETDEVICEOPSOVERRIDE   pOverride;
-    RTSPINLOCKTMP               Tmp = RTSPINLOCKTMP_INITIALIZER;
 
-    /* Cancel override if ethtool_ops is missing (host-only case, #5712) */
+    /* Cancel override if ethtool_ops is missing (host-only case, @bugref{5712}) */
     if (!VALID_PTR(pDev->OVR_OPS))
         return;
     pOverride = RTMemAlloc(sizeof(*pOverride));
@@ -976,12 +400,12 @@ static void vboxNetFltLinuxHookDev(PVBOXNETFLTINS pThis, struct net_device *pDev
     pOverride->cFiltered            = 0;
     pOverride->pVBoxNetFlt          = pThis;
 
-    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp); /* (this isn't necessary, but so what) */
+    RTSpinlockAcquire(pThis->hSpinlock); /* (this isn't necessary, but so what) */
     ASMAtomicWritePtr((void * volatile *)&pDev->OVR_OPS, pOverride);
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
     ASMAtomicXchgPtr((void * volatile *)&pDev->hard_start_xmit, vboxNetFltLinuxStartXmitFilter);
 # endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29) */
-    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 }
 
 /**
@@ -994,9 +418,8 @@ static void vboxNetFltLinuxHookDev(PVBOXNETFLTINS pThis, struct net_device *pDev
 static void vboxNetFltLinuxUnhookDev(PVBOXNETFLTINS pThis, struct net_device *pDev)
 {
     PVBOXNETDEVICEOPSOVERRIDE   pOverride;
-    RTSPINLOCKTMP               Tmp = RTSPINLOCKTMP_INITIALIZER;
 
-    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquire(pThis->hSpinlock);
     if (!pDev)
         pDev = ASMAtomicUoReadPtrT(&pThis->u.s.pDev, struct net_device *);
     if (VALID_PTR(pDev))
@@ -1018,7 +441,7 @@ static void vboxNetFltLinuxUnhookDev(PVBOXNETFLTINS pThis, struct net_device *pD
     }
     else
         pOverride = NULL;
-    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     if (pOverride)
     {
@@ -1027,7 +450,7 @@ static void vboxNetFltLinuxUnhookDev(PVBOXNETFLTINS pThis, struct net_device *pD
     }
 }
 
-#endif /* VBOXNETFLT_WITH_FILTER_HOST2GUEST_SKBS_EXPERIMENT */
+#endif /* VBOXNETFLT_WITH_HOST2WIRE_FILTER */
 
 
 /**
@@ -1039,14 +462,13 @@ static void vboxNetFltLinuxUnhookDev(PVBOXNETFLTINS pThis, struct net_device *pD
 DECLINLINE(struct net_device *) vboxNetFltLinuxRetainNetDev(PVBOXNETFLTINS pThis)
 {
 #if 0
-    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
     struct net_device *pDev = NULL;
 
     Log(("vboxNetFltLinuxRetainNetDev\n"));
     /*
      * Be careful here to avoid problems racing the detached callback.
      */
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquire(pThis->hSpinlock);
     if (!ASMAtomicUoReadBool(&pThis->fDisconnectedFromHost))
     {
         pDev = (struct net_device *)ASMAtomicUoReadPtr((void * volatile *)&pThis->u.s.pDev);
@@ -1063,7 +485,7 @@ DECLINLINE(struct net_device *) vboxNetFltLinuxRetainNetDev(PVBOXNETFLTINS pThis
                  ));
         }
     }
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockRelease(pThis->hSpinlock);
 
     Log(("vboxNetFltLinuxRetainNetDev - done\n"));
     return pDev;
@@ -1197,7 +619,7 @@ static struct sk_buff *vboxNetFltLinuxSkBufFromSG(PVBOXNETFLTINS pThis, PINTNETS
          * We need to set checksum fields even if the packet goes to the host
          * directly as it may be immediately forwarded by IP layer @bugref{5020}.
          */
-        Assert(skb_headlen(pPkt) >= pSG->GsoCtx.cbHdrs);
+        Assert(skb_headlen(pPkt) >= pSG->GsoCtx.cbHdrsTotal);
         pPkt->ip_summed  = CHECKSUM_PARTIAL;
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22)
         pPkt->csum_start = skb_headroom(pPkt) + pSG->GsoCtx.offHdr2;
@@ -1357,11 +779,23 @@ static int vboxNetFltLinuxPacketHandler(struct sk_buff *pBuf,
     if (!pBuf)
         return 0;
 
+    if (pBuf->pkt_type == PACKET_LOOPBACK)
+    {
+        /*
+         * We are not interested in loopbacked packets as they will always have
+         * another copy going to the wire.
+         */
+        Log2(("vboxNetFltLinuxPacketHandler: dropped loopback packet (cb=%u)\n", pBuf->len));
+        dev_kfree_skb(pBuf); /* We must 'consume' all packets we get (@bugref{6539})! */
+        return 0;
+    }
+
     pThis = VBOX_FLT_PT_TO_INST(pPacketType);
     pDev = ASMAtomicUoReadPtrT(&pThis->u.s.pDev, struct net_device *);
     if (pDev != pSkbDev)
     {
         Log(("vboxNetFltLinuxPacketHandler: Devices do not match, pThis may be wrong! pThis=%p\n", pThis));
+        dev_kfree_skb(pBuf);
         return 0;
     }
 
@@ -1378,6 +812,7 @@ static int vboxNetFltLinuxPacketHandler(struct sk_buff *pBuf,
         /*
          * Get rid of fragmented packets, they cause too much trouble.
          */
+        unsigned int uMacLen = pBuf->mac_len;
         struct sk_buff *pCopy = skb_copy(pBuf, GFP_ATOMIC);
         kfree_skb(pBuf);
         if (!pCopy)
@@ -1386,6 +821,26 @@ static int vboxNetFltLinuxPacketHandler(struct sk_buff *pBuf,
             return 0;
         }
         pBuf = pCopy;
+        /* Somehow skb_copy ignores mac_len */
+        pBuf->mac_len = uMacLen;
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+        /* Restore VLAN tag stripped by host hardware */
+        if (vlan_tx_tag_present(pBuf) && skb_headroom(pBuf) >= VLAN_ETH_HLEN)
+        {
+            uint8_t *pMac = (uint8_t*)skb_mac_header(pBuf);
+            struct vlan_ethhdr *pVHdr = (struct vlan_ethhdr *)(pMac - VLAN_HLEN);
+#  if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+            memmove(pVHdr, pMac, ETH_ALEN * 2);
+#  else
+            memmove(pVHdr, pMac, VLAN_ETH_ALEN * 2);
+#  endif
+            pVHdr->h_vlan_proto = RT_H2N_U16(ETH_P_8021Q);
+            pVHdr->h_vlan_TCI   = RT_H2N_U16(vlan_tx_tag_get(pBuf));
+            pBuf->mac_header   -= VLAN_HLEN;
+            pBuf->mac_len      += VLAN_HLEN;
+        }
+# endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27) */
+
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
         Log3(("vboxNetFltLinuxPacketHandler: skb copy len=%u data_len=%u truesize=%u next=%p nr_frags=%u gso_size=%u gso_seqs=%u gso_type=%x frag_list=%p pkt_type=%x\n",
               pBuf->len, pBuf->data_len, pBuf->truesize, pBuf->next, skb_shinfo(pBuf)->nr_frags, skb_shinfo(pBuf)->gso_size, skb_shinfo(pBuf)->gso_segs, skb_shinfo(pBuf)->gso_type, skb_shinfo(pBuf)->frag_list, pBuf->pkt_type));
@@ -1459,6 +914,7 @@ static void vboxNetFltLinuxDestroySG(PINTNETSG pSG)
  */
 static void vboxNetFltDumpPacket(PINTNETSG pSG, bool fEgress, const char *pszWhere, int iIncrement)
 {
+    int i, offSeg;
     uint8_t *pInt, *pExt;
     static int iPacketNo = 1;
     iPacketNo += iIncrement;
@@ -1478,7 +934,20 @@ static void vboxNetFltDumpPacket(PINTNETSG pSG, bool fEgress, const char *pszWhe
          fEgress ? "-->" : "<--", pszWhere,
          pExt[0], pExt[1], pExt[2], pExt[3], pExt[4], pExt[5],
          pSG->cbTotal, iPacketNo));
-    Log3(("%.*Rhxd\n", pSG->aSegs[0].cb, pSG->aSegs[0].pv));
+    if (pSG->cSegsUsed == 1)
+    {
+        Log3(("%.*Rhxd\n", pSG->aSegs[0].cb, pSG->aSegs[0].pv));
+    }
+    else
+    {
+        for (i = 0, offSeg = 0; i < pSG->cSegsUsed; i++)
+        {
+            Log3(("-- segment %d at 0x%x (%d bytes) --\n%.*Rhxd\n",
+                  i, offSeg, pSG->aSegs[i].cb, pSG->aSegs[i].cb, pSG->aSegs[i].pv));
+            offSeg += pSG->aSegs[i].cb;
+        }
+    }
+
 }
 #else
 # define vboxNetFltDumpPacket(a, b, c, d) do {} while (0)
@@ -1662,6 +1131,7 @@ static bool vboxNetFltLinuxCanForwardAsGso(PVBOXNETFLTINS pThis, struct sk_buff 
         }
 
         cbTransportHdr = pTcp->th_off * 4;
+        pGsoCtx->cbHdrsSeg = offTransport + cbTransportHdr;
         if (RT_UNLIKELY(   cbTransportHdr < RTNETTCP_MIN_LEN
                         || cbTransportHdr > cbTransport
                         || offTransport + cbTransportHdr >= UINT8_MAX
@@ -1676,6 +1146,7 @@ static bool vboxNetFltLinuxCanForwardAsGso(PVBOXNETFLTINS pThis, struct sk_buff 
     {
         Assert(uProtocol == RTNETIPV4_PROT_UDP);
         cbTransportHdr = sizeof(RTNETUDP);
+        pGsoCtx->cbHdrsSeg = offTransport; /* Exclude UDP header */
         if (RT_UNLIKELY(   offTransport + cbTransportHdr >= UINT8_MAX
                         || offTransport + cbTransportHdr >= pSkb->len ))
         {
@@ -1688,12 +1159,11 @@ static bool vboxNetFltLinuxCanForwardAsGso(PVBOXNETFLTINS pThis, struct sk_buff 
      * We're good, init the GSO context.
      */
     pGsoCtx->u8Type       = enmGsoType;
-    pGsoCtx->cbHdrs       = offTransport + cbTransportHdr;
+    pGsoCtx->cbHdrsTotal  = offTransport + cbTransportHdr;
     pGsoCtx->cbMaxSeg     = skb_shinfo(pSkb)->gso_size;
     pGsoCtx->offHdr1      = pSkb->mac_len;
     pGsoCtx->offHdr2      = offTransport;
-    pGsoCtx->au8Unused[0] = 0;
-    pGsoCtx->au8Unused[1] = 0;
+    pGsoCtx->u8Unused     = 0;
 
     return true;
 }
@@ -1764,9 +1234,9 @@ static int vboxNetFltLinuxForwardSegment(PVBOXNETFLTINS pThis, struct sk_buff *p
             {
                 /*
                  * The packet came from wire, ethernet header was removed by device driver.
-                 * Restore it.
+                 * Restore it using mac_len field. This takes into account VLAN headers too.
                  */
-                skb_push(pBuf, ETH_HLEN);
+                skb_push(pBuf, pBuf->mac_len);
             }
 
             vboxNetFltLinuxSkBufToSG(pThis, pBuf, pSG, cSegs, fSrc, NULL /*pGsoCtx*/);
@@ -1920,9 +1390,8 @@ static void vboxNetFltLinuxReportNicGsoCapabilities(PVBOXNETFLTINS pThis)
         struct net_device  *pDev;
         PINTNETTRUNKSWPORT  pSwitchPort;
         unsigned int        fFeatures;
-        RTSPINLOCKTMP       Tmp = RTSPINLOCKTMP_INITIALIZER;
 
-        RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
+        RTSpinlockAcquire(pThis->hSpinlock);
 
         pSwitchPort = pThis->pSwitchPort; /* this doesn't need to be here, but it doesn't harm. */
         pDev = ASMAtomicUoReadPtrT(&pThis->u.s.pDev, struct net_device *);
@@ -1931,7 +1400,7 @@ static void vboxNetFltLinuxReportNicGsoCapabilities(PVBOXNETFLTINS pThis)
         else
             fFeatures = 0;
 
-        RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
         if (pThis->pSwitchPort)
         {
@@ -1947,6 +1416,11 @@ static void vboxNetFltLinuxReportNicGsoCapabilities(PVBOXNETFLTINS pThis)
             if (fFeatures & NETIF_F_UFO)
                 fGsoCapabilites |= RT_BIT_32(PDMNETWORKGSOTYPE_IPV6_UDP);
 # endif
+            Log3(("vboxNetFltLinuxReportNicGsoCapabilities: reporting wire %s%s%s%s\n",
+                  (fGsoCapabilites & RT_BIT_32(PDMNETWORKGSOTYPE_IPV4_TCP)) ? "tso " : "",
+                  (fGsoCapabilites & RT_BIT_32(PDMNETWORKGSOTYPE_IPV6_TCP)) ? "tso6 " : "",
+                  (fGsoCapabilites & RT_BIT_32(PDMNETWORKGSOTYPE_IPV4_UDP)) ? "ufo " : "",
+                  (fGsoCapabilites & RT_BIT_32(PDMNETWORKGSOTYPE_IPV6_UDP)) ? "ufo6 " : ""));
             pThis->pSwitchPort->pfnReportGsoCapabilities(pThis->pSwitchPort, fGsoCapabilites, INTNETTRUNKDIR_WIRE);
         }
 
@@ -2031,7 +1505,6 @@ DECLINLINE(void) vboxNetFltSetTapLinkState(PVBOXNETFLTINS pThis, struct net_devi
  */
 static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_device *pDev)
 {
-    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
     LogFlow(("vboxNetFltLinuxAttachToInterface: pThis=%p (%s)\n", pThis, pThis->szName));
 
     /*
@@ -2039,9 +1512,9 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
      */
     dev_hold(pDev);
 
-    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquire(pThis->hSpinlock);
     ASMAtomicUoWritePtr(&pThis->u.s.pDev, pDev);
-    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     Log(("vboxNetFltLinuxAttachToInterface: Device %p(%s) retained. ref=%d\n",
           pDev, pDev->name,
@@ -2067,12 +1540,9 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
     ASMAtomicUoWriteBool(&pThis->u.s.fPacketHandler, true);
     Log(("vboxNetFltLinuxAttachToInterface: this=%p: Packet handler installed.\n", pThis));
 
-#ifdef VBOXNETFLT_WITH_FILTER_HOST2GUEST_SKBS_EXPERIMENT
+#ifdef VBOXNETFLT_WITH_HOST2WIRE_FILTER
     vboxNetFltLinuxHookDev(pThis, pDev);
 #endif
-#ifdef VBOXNETFLT_WITH_QDISC
-    vboxNetFltLinuxQdiscInstall(pThis, pDev);
-#endif /* VBOXNETFLT_WITH_QDISC */
 
     /*
      * If attaching to TAP interface we need to bring the link state up
@@ -2084,7 +1554,7 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
      * Set indicators that require the spinlock. Be abit paranoid about racing
      * the device notification handle.
      */
-    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquire(pThis->hSpinlock);
     pDev = ASMAtomicUoReadPtrT(&pThis->u.s.pDev, struct net_device *);
     if (pDev)
     {
@@ -2092,7 +1562,7 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
         ASMAtomicUoWriteBool(&pThis->u.s.fRegistered, true);
         pDev = NULL; /* don't dereference it */
     }
-    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     /*
      * If the above succeeded report GSO capabilities,  if not undo and
@@ -2112,15 +1582,12 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
     }
     else
     {
-#ifdef VBOXNETFLT_WITH_FILTER_HOST2GUEST_SKBS_EXPERIMENT
+#ifdef VBOXNETFLT_WITH_HOST2WIRE_FILTER
         vboxNetFltLinuxUnhookDev(pThis, pDev);
 #endif
-#ifdef VBOXNETFLT_WITH_QDISC
-        vboxNetFltLinuxQdiscRemove(pThis, pDev);
-#endif /* VBOXNETFLT_WITH_QDISC */
-        RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
+        RTSpinlockAcquire(pThis->hSpinlock);
         ASMAtomicUoWriteNullPtr(&pThis->u.s.pDev);
-        RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts(pThis->hSpinlock);
         dev_put(pDev);
         Log(("vboxNetFltLinuxAttachToInterface: Device %p(%s) released. ref=%d\n",
              pDev, pDev->name,
@@ -2139,17 +1606,12 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
 
 static int vboxNetFltLinuxUnregisterDevice(PVBOXNETFLTINS pThis, struct net_device *pDev)
 {
-    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
     bool fRegistered;
-
     Assert(!pThis->fDisconnectedFromHost);
 
-#ifdef VBOXNETFLT_WITH_FILTER_HOST2GUEST_SKBS_EXPERIMENT
+#ifdef VBOXNETFLT_WITH_HOST2WIRE_FILTER
     vboxNetFltLinuxUnhookDev(pThis, pDev);
 #endif
-#ifdef VBOXNETFLT_WITH_QDISC
-    vboxNetFltLinuxQdiscRemove(pThis, pDev);
-#endif /* VBOXNETFLT_WITH_QDISC */
 
     if (ASMAtomicCmpXchgBool(&pThis->u.s.fPacketHandler, false, true))
     {
@@ -2157,14 +1619,14 @@ static int vboxNetFltLinuxUnregisterDevice(PVBOXNETFLTINS pThis, struct net_devi
         Log(("vboxNetFltLinuxUnregisterDevice: this=%p: packet handler removed.\n", pThis));
     }
 
-    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquire(pThis->hSpinlock);
     fRegistered = ASMAtomicXchgBool(&pThis->u.s.fRegistered, false);
     if (fRegistered)
     {
         ASMAtomicWriteBool(&pThis->fDisconnectedFromHost, true);
         ASMAtomicUoWriteNullPtr(&pThis->u.s.pDev);
     }
-    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     if (fRegistered)
     {
@@ -2418,9 +1880,6 @@ void vboxNetFltPortOsSetActive(PVBOXNETFLTINS pThis, bool fActive)
 
 int vboxNetFltOsDisconnectIt(PVBOXNETFLTINS pThis)
 {
-#ifdef VBOXNETFLT_WITH_QDISC
-    vboxNetFltLinuxQdiscRemove(pThis, NULL);
-#endif /* VBOXNETFLT_WITH_QDISC */
     /*
      * Remove packet handler when we get disconnected from internal switch as
      * we don't want the handler to forward packets to disconnected switch.
@@ -2442,12 +1901,13 @@ int  vboxNetFltOsConnectIt(PVBOXNETFLTINS pThis)
      */
     /** @todo duplicate work here now? Attach */
 #if defined(VBOXNETFLT_WITH_GSO_XMIT_HOST)
+    Log3(("vboxNetFltOsConnectIt: reporting host tso tso6 ufo\n"));
     pThis->pSwitchPort->pfnReportGsoCapabilities(pThis->pSwitchPort,
                                                  0
                                                  | RT_BIT_32(PDMNETWORKGSOTYPE_IPV4_TCP)
                                                  | RT_BIT_32(PDMNETWORKGSOTYPE_IPV6_TCP)
-# if 0 /** @todo GSO: Test UDP offloading (UFO) on linux. */
                                                  | RT_BIT_32(PDMNETWORKGSOTYPE_IPV4_UDP)
+# if 0 /** @todo GSO: Test UDP offloading (UFO) on linux. */
                                                  | RT_BIT_32(PDMNETWORKGSOTYPE_IPV6_UDP)
 # endif
                                                  , INTNETTRUNKDIR_HOST);
@@ -2463,9 +1923,8 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
 {
     struct net_device  *pDev;
     bool                fRegistered;
-    RTSPINLOCKTMP       Tmp = RTSPINLOCKTMP_INITIALIZER;
 
-#ifdef VBOXNETFLT_WITH_FILTER_HOST2GUEST_SKBS_EXPERIMENT
+#ifdef VBOXNETFLT_WITH_HOST2WIRE_FILTER
     vboxNetFltLinuxUnhookDev(pThis, NULL);
 #endif
 
@@ -2474,10 +1933,10 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
      *        state (just reads it), it is likely to panic in some interesting
      *        ways. */
 
-    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquire(pThis->hSpinlock);
     pDev = ASMAtomicUoReadPtrT(&pThis->u.s.pDev, struct net_device *);
     fRegistered = ASMAtomicXchgBool(&pThis->u.s.fRegistered, false);
-    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     if (fRegistered)
     {
