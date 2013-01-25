@@ -2,6 +2,8 @@ virtualbox (4.2.26-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release.
   * Switch to my @debian.org email address.
+  * Move package to contrib as virtualbox 4.2 needs a non-free compiler to
+    build the BIOS.
 
  -- Felix Geyer <fgeyer@debian.org>  Fri, 25 Jan 2013 18:14:24 +0100
 

@@ -1,5 +1,5 @@
 Source: virtualbox
-Section: misc
+Section: contrib/misc
 Priority: optional
 Maintainer: Debian Virtualbox Team <pkg-virtualbox-devel@lists.alioth.debian.org>
 Uploaders: Michael Meskes <meskes@debian.org>,
