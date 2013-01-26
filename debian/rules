@@ -12,7 +12,6 @@ sxname:=virtualbox-qt
 gname:=virtualbox-guest
 uname:=virtualbox-guest-utils
 uxname:=virtualbox-guest-x11
-fname:=virtualbox-fuse
 
 INSTALL_PATH:=/usr/lib/virtualbox
 MAKE:=kmk
@@ -114,11 +113,6 @@ override_dh_auto_build:
 	    VBOX_WITH_REGISTRATION_REQUEST= \
 	    VBOX_WITH_UPDATE_REQUEST= \
 	    KBUILD_VERBOSE=2
-
-	mkdir -p out/vdfuse
-	gcc debian/vdfuse/vdfuse.c -o out/vdfuse/vdfuse -pipe -g -Wl,--as-needed -Wl,--rpath,$(INSTALL_PATH) -Wall \
-	    $(shell pkg-config --cflags --libs fuse) -Iinclude $(addprefix out/bin/, \
-	    VBoxDD.so VBoxDD2.so VBoxDDU.so VBoxVMM.so VBoxREM.so VBoxRT.so)
 
 	xsltproc --nonet --stringparam section.autolabel 1 \
 	    -o debian/README.Debian.html \
