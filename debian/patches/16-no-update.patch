@@ -5,19 +5,18 @@ Author: Daniel Hahler <ubuntu@thequod.de>, Felix Geyer <debfx-pkg@fobos.de>
 diff a/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp b/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
 --- a/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
 +++ b/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
-@@ -65,6 +65,8 @@ void UIUpdateManager::shutdown()
+@@ -465,6 +465,8 @@ void UIUpdateManager::shutdown()
  
  void UIUpdateManager::sltForceCheck()
  {
 +    return;
 +
      /* Force call for new version check: */
-     sltCheckIfUpdateIsNecessary(true);
+     sltCheckIfUpdateIsNecessary(true /* force call */);
  }
-diff -Nur virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp virtualbox-ose-4.0.0-dfsg/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
---- virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp	2010-12-17 16:14:24.000000000 +0100
-+++ virtualbox-ose-4.0.0-dfsg/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp	2011-01-02 00:03:55.120533579 +0100
-@@ -501,6 +501,10 @@
+--- a/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
++++ b/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
+@@ -550,6 +550,10 @@ bool UISettingsDialogGlobal::isPageAvail
  #endif /* !VBOX_WITH_NETFLT */
              break;
          }
@@ -28,60 +27,52 @@ diff -Nur virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Frontends/VirtualBox/src/setti
          default:
              break;
      }
-diff --git a/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp b/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
 --- a/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
 +++ b/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
-@@ -438,7 +438,6 @@ void UIActionPool::createActions()
- #ifdef VBOX_WITH_REGISTRATION
-     m_pool[UIActionIndex_Simple_Register] = new PerformRegisterAction(this);
- #endif /* VBOX_WITH_REGISTRATION */
--    m_pool[UIActionIndex_Simple_Update] = new PerformUpdateAction(this);
-     m_pool[UIActionIndex_Simple_About] = new ShowAboutAction(this);
+@@ -538,7 +538,6 @@ void UIActionPool::createActions()
+     m_pool[UIActionIndex_Simple_WebSite] = new UIActionSimpleWebSite(this);
+     m_pool[UIActionIndex_Simple_ResetWarnings] = new UIActionSimpleResetWarnings(this);
+     m_pool[UIActionIndex_Simple_NetworkAccessManager] = new UIActionSimpleNetworkAccessManager(this);
+-    m_pool[UIActionIndex_Simple_CheckForUpdates] = new UIActionSimpleCheckForUpdates(this);
+     m_pool[UIActionIndex_Simple_About] = new UIActionSimpleAbout(this);
  }
  
-@@ -472,9 +471,6 @@ void UIActionPool::createMenus()
-     m_pool[UIActionIndex_Simple_Update]->setVisible(false);
+@@ -570,9 +569,6 @@ void UIActionPool::createMenus()
+     m_pool[UIActionIndex_Simple_CheckForUpdates]->setVisible(false);
  #endif
  #if !(defined(Q_WS_MAC) && (QT_VERSION < 0x040700))
--    if (m_pool[UIActionIndex_Simple_Update])
--        delete m_pool[UIActionIndex_Simple_Update];
--    m_pool[UIActionIndex_Simple_Update] = new PerformUpdateAction(this);
+-    if (m_pool[UIActionIndex_Simple_CheckForUpdates])
+-        delete m_pool[UIActionIndex_Simple_CheckForUpdates];
+-    m_pool[UIActionIndex_Simple_CheckForUpdates] = new UIActionSimpleCheckForUpdates(this);
      if (m_pool[UIActionIndex_Simple_About])
          delete m_pool[UIActionIndex_Simple_About];
-     m_pool[UIActionIndex_Simple_About] = new ShowAboutAction(this);
-diff --git a/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.h b/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.h
+     m_pool[UIActionIndex_Simple_About] = new UIActionSimpleAbout(this);
 --- a/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.h
 +++ b/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.h
-@@ -45,7 +45,6 @@ enum UIActionIndex
- #ifdef VBOX_WITH_REGISTRATION
-     UIActionIndex_Simple_Register,
- #endif /* VBOX_WITH_REGISTRATION */
--    UIActionIndex_Simple_Update,
+@@ -47,7 +47,6 @@ enum UIActionIndex
+     UIActionIndex_Simple_WebSite,
+     UIActionIndex_Simple_ResetWarnings,
+     UIActionIndex_Simple_NetworkAccessManager,
+-    UIActionIndex_Simple_CheckForUpdates,
      UIActionIndex_Simple_About,
  
      /* Maximum index: */
-diff --git a/src/VBox/Frontends/VirtualBox/src/selector/VBoxSelectorWnd.cpp b/src/VBox/Frontends/VirtualBox/src/selector/VBoxSelectorWnd.cpp
---- a/src/VBox/Frontends/VirtualBox/src/selector/VBoxSelectorWnd.cpp
-+++ b/src/VBox/Frontends/VirtualBox/src/selector/VBoxSelectorWnd.cpp
-@@ -1747,12 +1747,6 @@ void VBoxSelectorWnd::prepareMenuHelp(QMenu *pMenu)
-     pMenu->addAction(gActionPool->action(UIActionIndex_Simple_Register));
+--- a/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp
++++ b/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp
+@@ -1300,8 +1300,6 @@ void UISelectorWindow::prepareMenuHelp(Q
+     m_pRegisterAction = gActionPool->action(UIActionIndex_Simple_Register);
+     pMenu->addAction(m_pRegisterAction);
  #endif /* VBOX_WITH_REGISTRATION */
- 
--    pMenu->addAction(gActionPool->action(UIActionIndex_Simple_Update));
--
--#ifndef Q_WS_MAC
--    pMenu->addSeparator();
--#endif /* !Q_WS_MAC */
--
-     pMenu->addAction(gActionPool->action(UIActionIndex_Simple_About));
- 
-     /* Configure connections: */
-@@ -1768,8 +1762,6 @@ void VBoxSelectorWnd::prepareMenuHelp(QMenu *pMenu)
-     VBoxGlobal::connect(gEDataEvents, SIGNAL(sigCanShowRegistrationDlg(bool)),
-                         gActionPool->action(UIActionIndex_Simple_Register), SLOT(setEnabled(bool)));
+-    m_pUpdateAction = gActionPool->action(UIActionIndex_Simple_CheckForUpdates);
+-    pMenu->addAction(m_pUpdateAction);
+ #ifndef Q_WS_MAC
+     pMenu->addSeparator();
+ #endif /* !Q_WS_MAC */
+@@ -1438,7 +1436,6 @@ void UISelectorWindow::prepareConnection
+     connect(m_pRegisterAction, SIGNAL(triggered()), &vboxGlobal(), SLOT(showRegistrationDialog()));
+     connect(gEDataEvents, SIGNAL(sigCanShowRegistrationDlg(bool)), m_pRegisterAction, SLOT(setEnabled(bool)));
  #endif /* VBOX_WITH_REGISTRATION */
--    VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_Update), SIGNAL(triggered()),
--                        gUpdateManager, SLOT(sltForceCheck()));
-     VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_About), SIGNAL(triggered()),
-                         &msgCenter(), SLOT(sltShowHelpAboutDialog()));
- }
+-    connect(m_pUpdateAction, SIGNAL(triggered()), gUpdateManager, SLOT(sltForceCheck()));
+     connect(m_pAboutAction, SIGNAL(triggered()), &msgCenter(), SLOT(sltShowHelpAboutDialog()));
+ 
+     /* Status-bar connections: */

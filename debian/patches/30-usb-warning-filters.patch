@@ -2,10 +2,17 @@ Description: Only display warnings about broken USB support when it's actually
  used (i.e. the machine has USB device filters).
 Author: Felix Geyer <debfx-pkg@fobos.de>
 
-diff --git a/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp b/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
 --- a/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
 +++ b/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
-@@ -1096,7 +1096,7 @@ bool UISettingsDialogMachine::isPageAvailable(int iPageId)
+@@ -55,6 +55,7 @@
+ 
+ /* COM includes: */
+ #include "CUSBController.h"
++#include "CUSBDeviceFilter.h"
+ 
+ #if 0 /* Global USB filters are DISABLED now: */
+ # define ENABLE_GLOBAL_USB
+@@ -1117,7 +1118,7 @@ bool UISettingsDialogMachine::isPageAvai
              /* Get the USB controller object: */
              CUSBController controller = m_machine.GetUSBController();
              /* Show the machine error message if any: */

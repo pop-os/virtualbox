@@ -2,10 +2,9 @@ Description: Silently enable the host I/O cache when the image is on an ext4/XFS
  No need to warn users about it.
 Author: Felix Geyer <debfx-pkg@fobos.de>
 
-diff -Nur virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Main/src-client/ConsoleImpl2.cpp virtualbox-ose-4.0.0-dfsg/src/VBox/Main/src-client/ConsoleImpl2.cpp
---- virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Main/src-client/ConsoleImpl2.cpp	2010-12-22 15:00:24.000000000 +0100
-+++ virtualbox-ose-4.0.0-dfsg/src/VBox/Main/src-client/ConsoleImpl2.cpp	2011-01-02 00:15:06.952597774 +0100
-@@ -2890,36 +2890,12 @@
+--- a/src/VBox/Main/src-client/ConsoleImpl2.cpp
++++ b/src/VBox/Main/src-client/ConsoleImpl2.cpp
+@@ -3300,36 +3300,12 @@ int Console::configMediumAttachment(PCFG
                      if (   enmFsTypeFile == RTFSTYPE_EXT4
                          || enmFsTypeFile == RTFSTYPE_XFS)
                      {

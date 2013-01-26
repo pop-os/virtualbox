@@ -1,7 +1,6 @@
 Description: Fix ARCH setting in modules Makefiles.
 Author: Michael Meskes <meskes@debian.org>
 
-diff --git a/src/VBox/HostDrivers/Support/linux/Makefile b/src/VBox/HostDrivers/Support/linux/Makefile
 --- a/src/VBox/HostDrivers/Support/linux/Makefile
 +++ b/src/VBox/HostDrivers/Support/linux/Makefile
 @@ -44,9 +44,21 @@ ifeq ($(BUILD_TARGET_ARCH),)
@@ -28,7 +27,6 @@ diff --git a/src/VBox/HostDrivers/Support/linux/Makefile b/src/VBox/HostDrivers/
    endif
   endif
  else
-diff --git a/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile b/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile
 --- a/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile
 +++ b/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile
 @@ -35,9 +35,21 @@ ifeq ($(BUILD_TARGET_ARCH),)
@@ -55,7 +53,6 @@ diff --git a/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile b/src/VBox/HostDrive
    endif
   endif
  else
-diff --git a/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile b/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile
 --- a/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile
 +++ b/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile
 @@ -35,9 +35,21 @@ ifeq ($(BUILD_TARGET_ARCH),)
@@ -82,7 +79,6 @@ diff --git a/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile b/src/VBox/HostDrive
    endif
   endif
  else
-diff --git a/src/VBox/HostDrivers/VBoxPci/linux/Makefile b/src/VBox/HostDrivers/VBoxPci/linux/Makefile
 --- a/src/VBox/HostDrivers/VBoxPci/linux/Makefile
 +++ b/src/VBox/HostDrivers/VBoxPci/linux/Makefile
 @@ -35,9 +35,21 @@ ifeq ($(BUILD_TARGET_ARCH),)
@@ -109,7 +105,6 @@ diff --git a/src/VBox/HostDrivers/VBoxPci/linux/Makefile b/src/VBox/HostDrivers/
    endif
   endif
  else
-diff --git a/src/VBox/Installer/linux/Makefile.include.header b/src/VBox/Installer/linux/Makefile.include.header
 --- a/src/VBox/Installer/linux/Makefile.include.header
 +++ b/src/VBox/Installer/linux/Makefile.include.header
 @@ -54,9 +54,21 @@ ifeq ($(BUILD_TARGET_ARCH),)

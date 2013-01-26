@@ -109,7 +109,7 @@ override_dh_auto_build:
 	    LOCALCFG=$(abspath debian/LocalConfig.kmk) \
 	    PATH_OUT=$(abspath out) \
 	    TOOL_YASM_AS=yasm \
-	    XSERVER_VERSION=$(XSERVER_VERSION) \
+	    VBOX_USE_SYSTEM_XORG_HEADERS=1 \
 	    VBOX_BUILD_PUBLISHER=_$(DIST_NAME) \
 	    VBOX_WITH_REGISTRATION_REQUEST= \
 	    VBOX_WITH_UPDATE_REQUEST= \
