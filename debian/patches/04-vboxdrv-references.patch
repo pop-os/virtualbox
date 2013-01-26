@@ -1,4 +1,4 @@
-Description: Change error messages for vboxdrv failure, according to virtualbox-ose-dkms.
+Description: Change error messages for vboxdrv failure, according to virtualbox-dkms.
 Author: Daniel Hahler <ubuntu@thequod.de>
 
 --- a/src/VBox/VMM/VMMR3/VM.cpp

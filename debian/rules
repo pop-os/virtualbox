@@ -19,7 +19,7 @@ MAKE:=kmk
 
 upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)-.\+/\1/p')
 
-pkgs_xzcompress = $(shell dh_listpackages | grep -v -e ose -e source)
+pkgs_xzcompress = $(shell dh_listpackages | grep -v -e source)
 
 DIST_NAME := $(shell lsb_release -si)
 DIST_RELEASE := $(DIST_NAME)/$(shell lsb_release -sc)

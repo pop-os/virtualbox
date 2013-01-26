@@ -15,9 +15,7 @@ Section: kernel
 Architecture: amd64 i386
 Depends: linux-modules-_KVERS_ | linux-image-_KVERS_
 Recommends: virtualbox
-Provides: virtualbox-modules, virtualbox-ose-guest-modules-_KVERS_
-Conflicts: virtualbox-ose-guest-modules-_KVERS_
-Replaces: virtualbox-ose-guest-modules-_KVERS_
+Provides: virtualbox-modules
 Description: VirtualBox modules for Linux (kernel _KVERS_)
  This package contains the set of loadable kernel modules for VirtualBox.
  .

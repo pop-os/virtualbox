@@ -12,9 +12,9 @@ Author: Daniel Baumann <daniel@debian.org>
 -                                  "running instances of VirtualBox and reinstalling the software.");
 +                    pszError = N_("The version of the VirtualBox kernel modules and the version of "
 +				  "VirtualBox application are not matching. You can correct this by "
-+				  "either installing the correct virtualbox-ose-modules package "
++				  "either installing the correct virtualbox-modules package "
 +				  "(if available) through apt-get or by building it manually with: "
-+				  "module-assistant auto-install virtualbox-ose");
++				  "module-assistant auto-install virtualbox");
                      break;
                  default:
                      pszError = N_("Unknown error initializing kernel driver");
