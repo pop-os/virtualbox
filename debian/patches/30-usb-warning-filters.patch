@@ -1,6 +1,6 @@
 Description: Only display warnings about broken USB support when it's actually
  used (i.e. the machine has USB device filters).
-Author: Felix Geyer <debfx-pkg@fobos.de>
+Author: Felix Geyer <fgeyer@debian.org>
 
 --- a/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
 +++ b/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp

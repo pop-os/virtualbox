@@ -1,5 +1,5 @@
 Description: Build the X.Org driver only for the selected system X Server version.
-Author: Michael Meskes <meskes@debian.org>, Felix Geyer <debfx-pkg@fobos.de>
+Author: Michael Meskes <meskes@debian.org>, Felix Geyer <fgeyer@debian.org>
 
 --- a/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk
 +++ b/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk

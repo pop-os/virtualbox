@@ -1,5 +1,5 @@
 Description: Disable notifications about outdated guest additions.
-Author: Felix Geyer <debfx-pkg@fobos.de>
+Author: Felix Geyer <fgeyer@debian.org>
 
 --- a/src/VBox/Additions/x11/VBoxClient/hostversion.cpp
 +++ b/src/VBox/Additions/x11/VBoxClient/hostversion.cpp

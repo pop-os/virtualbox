@@ -1,6 +1,6 @@
 Description: Silently enable the host I/O cache when the image is on an ext4/XFS partition.
  No need to warn users about it.
-Author: Felix Geyer <debfx-pkg@fobos.de>
+Author: Felix Geyer <fgeyer@debian.org>
 
 --- a/src/VBox/Main/src-client/ConsoleImpl2.cpp
 +++ b/src/VBox/Main/src-client/ConsoleImpl2.cpp

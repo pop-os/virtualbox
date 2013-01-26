@@ -1,5 +1,5 @@
 Description: Don't install the selinux-fedora modules.
-Author: Felix Geyer <debfx-pkg@fobos.de>
+Author: Felix Geyer <fgeyer@debian.org>
 
 --- a/src/VBox/Additions/linux/Makefile.kmk
 +++ b/src/VBox/Additions/linux/Makefile.kmk

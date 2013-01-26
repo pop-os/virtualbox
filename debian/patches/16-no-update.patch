@@ -1,6 +1,6 @@
 Description: Disable "Check for Updates" action.
 Bug-Ubuntu: https://bugs.launchpad.net/bugs/272212
-Author: Daniel Hahler <ubuntu@thequod.de>, Felix Geyer <debfx-pkg@fobos.de>
+Author: Daniel Hahler <ubuntu@thequod.de>, Felix Geyer <fgeyer@debian.org>
 
 diff a/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp b/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
 --- a/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp

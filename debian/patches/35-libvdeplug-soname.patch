@@ -1,6 +1,6 @@
 Description: Revert http://www.virtualbox.org/changeset/36310
  The libvdeplug.so symlink is only shipped in the -dev package.
-Author: Felix Geyer <debfx-pkg@fobos.de>
+Author: Felix Geyer <fgeyer@debian.org>
 
 --- a/include/VBox/VDEPlugSymDefs.h
 +++ b/include/VBox/VDEPlugSymDefs.h
