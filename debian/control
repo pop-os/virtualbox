@@ -107,7 +107,7 @@ Description: x86 virtualization solution - base binaries
  VirtualBox is provided by the package virtualbox-qt.
 
 Package: virtualbox-dbg
-Section: debug
+Section: contrib/debug
 Priority: extra
 Architecture: amd64 i386
 Pre-Depends: dpkg (>= 1.15.6~)
@@ -121,7 +121,7 @@ Description: x86 virtualization solution - debugging symbols
  This package provides the debugging symbols for VirtualBox.
 
 Package: virtualbox-dkms
-Section: kernel
+Section: contrib/kernel
 Architecture: all
 Pre-Depends: dpkg (>= 1.15.6~)
 Depends: ${misc:Depends}, virtualbox (>= ${source:Version})
@@ -135,7 +135,7 @@ Description: x86 virtualization solution - kernel module sources for dkms
  module.
 
 Package: virtualbox-source
-Section: kernel
+Section: contrib/kernel
 Architecture: all
 Depends: ${misc:Depends},
          build-essential,
@@ -153,7 +153,7 @@ Description: x86 virtualization solution - kernel module source
  modules. Kernel sources or headers are required to compile this module.
 
 Package: virtualbox-guest-dkms
-Section: kernel
+Section: contrib/kernel
 Architecture: all
 Pre-Depends: dpkg (>= 1.15.6~)
 Depends: ${misc:Depends},
@@ -169,7 +169,7 @@ Description: x86 virtualization solution - guest addition module source for dkms
  compile these modules.
 
 Package: virtualbox-guest-source
-Section: kernel
+Section: contrib/kernel
 Architecture: all
 Depends: ${misc:Depends}, 
          build-essential,
@@ -188,7 +188,7 @@ Description: x86 virtualization solution - guest addition module source
  these modules.
 
 Package: virtualbox-guest-x11
-Section: x11
+Section: contrib/x11
 Architecture: amd64 i386
 Pre-Depends: dpkg (>= 1.15.6~)
 Depends: ${shlibs:Depends},
