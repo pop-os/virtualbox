@@ -1,4 +1,4 @@
-virtualbox (4.2.26-dfsg-1) UNRELEASED; urgency=low
+virtualbox (4.2.6-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release.
   * Switch to my @debian.org email address.
