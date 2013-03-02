@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1203,6 +1203,11 @@ static int hwaccmR3InitFinalizeR0(PVM pVM)
                     CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SYSCALL);            /* 64 bits only on Intel CPUs */
                     CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_LAHF);
                     CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
+# if RT_ARCH_X86
+                    if (   !CPUMGetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE)
+                        || !(pVM->hwaccm.s.vmx.hostEFER & MSR_K6_EFER_NXE))
+                        LogRel(("NX is only supported for 64-bit guests!\n"));
+# endif
                 }
                 else
                 /* Turn on NXE if PAE has been enabled *and* the host has turned on NXE (we reuse the host EFER in the switcher) */
@@ -1210,6 +1215,8 @@ static int hwaccmR3InitFinalizeR0(PVM pVM)
                 if (    CPUMGetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE)
                     &&  (pVM->hwaccm.s.vmx.hostEFER & MSR_K6_EFER_NXE))
                     CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
+                else
+                    LogRel(("HM: NX not supported by the host\n"));
 
                 LogRel((pVM->hwaccm.s.fAllow64BitGuests
                         ? "HWACCM: 32-bit and 64-bit guests supported.\n"

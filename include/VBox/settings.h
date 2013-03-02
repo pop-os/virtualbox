@@ -17,7 +17,7 @@
  */
 
 /*
- * Copyright (C) 2007-2012 Oracle Corporation
+ * Copyright (C) 2007-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -788,6 +788,7 @@ struct Hardware
 
     ChipsetType_T       chipsetType;            // requires settings version 1.11 (VirtualBox 4.0)
 
+    bool                fEmulatedUSBWebcam;     // 1.13 (VirtualBox 4.2)
     bool                fEmulatedUSBCardReader; // 1.12 (VirtualBox 4.1)
 
     VRDESettings        vrdeSettings;

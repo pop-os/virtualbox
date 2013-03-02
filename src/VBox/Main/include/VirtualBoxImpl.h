@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -300,6 +300,8 @@ public:
     int  encryptSetting(const Utf8Str &aPlaintext, Utf8Str *aCiphertext);
     int  decryptSetting(Utf8Str *aPlaintext, const Utf8Str &aCiphertext);
     void storeSettingsKey(const Utf8Str &aKey);
+
+    bool isMediaUuidInUse(const Guid &aId, DeviceType_T deviceType);
 
 private:
 

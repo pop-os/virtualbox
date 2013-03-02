@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,7 +47,7 @@ UpdateIntervalMap CreateUpdateIntervalMap()
 UpdateIntervalMap UIGMachinePreview::m_intervals = CreateUpdateIntervalMap();
 
 UIGMachinePreview::UIGMachinePreview(QIGraphicsWidget *pParent)
-    : QIGraphicsWidget(pParent)
+    : QIWithRetranslateUI4<QIGraphicsWidget>(pParent)
     , m_machineState(KMachineState_Null)
     , m_pUpdateTimer(new QTimer(this))
     , m_pUpdateTimerMenu(0)

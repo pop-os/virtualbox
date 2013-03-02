@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1623,18 +1623,8 @@ static int VBoxServiceControlThreadProcessWorker(PVBOXSERVICECTRLTHREAD pThread)
                                  rc2, rc);
         }
 
-        VBoxServiceVerbose(3, "[PID %u]: Cancelling pending host requests (client ID=%u)\n",
-                           pThread->uPID, pThread->uClientID);
-        rc2 = VbglR3GuestCtrlCancelPendingWaits(pThread->uClientID);
-        if (RT_FAILURE(rc2))
-        {
-            VBoxServiceError("[PID %u]: Cancelling pending host requests failed; rc=%Rrc\n",
-                             pThread->uPID, rc2);
-            if (RT_SUCCESS(rc))
-                rc = rc2;
-        }
-
-        /* Disconnect from guest control service. */
+        /* Disconnect this client from the guest control service. This also cancels all
+         * outstanding host requests. */
         VBoxServiceVerbose(3, "[PID %u]: Disconnecting (client ID=%u) ...\n",
                            pThread->uPID, pThread->uClientID);
         VbglR3GuestCtrlDisconnect(pThread->uClientID);

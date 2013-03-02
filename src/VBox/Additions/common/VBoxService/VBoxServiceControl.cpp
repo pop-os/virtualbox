@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,6 +41,8 @@ using namespace guestControl;
 static uint32_t             g_uControlIntervalMS = 0;
 /** The semaphore we're blocking our main control thread on. */
 static RTSEMEVENTMULTI      g_hControlEvent = NIL_RTSEMEVENTMULTI;
+/** The VM session ID. Changes whenever the VM is restored or reset. */
+static uint64_t             g_idControlSession;
 /** The guest control service client ID. */
 static uint32_t             g_uControlSvcClientID = 0;
 /** How many started guest processes are kept into memory for supplying
@@ -69,17 +71,19 @@ static uint32_t             g_uControlFileCount = 0;
 *   Internal Functions                                                         *
 *******************************************************************************/
 /** @todo Shorten "VBoxServiceControl" to "gstsvcCntl". */
-static int VBoxServiceControlReapThreads(void);
-static int VBoxServiceControlStartAllowed(bool *pbAllowed);
-static int VBoxServiceControlHandleCmdStartProc(uint32_t u32ClientId, uint32_t uNumParms);
-static int VBoxServiceControlHandleCmdSetInput(uint32_t u32ClientId, uint32_t uNumParms, void *pvScratchBuf, size_t cbScratchBuf);
-static int VBoxServiceControlHandleCmdGetOutput(uint32_t u32ClientId, uint32_t uNumParms);
-static int VBoxServiceControlHandleFileOpen(uint32_t idClient, uint32_t cParms);
-static int VBoxServiceControlHandleFileClose(uint32_t idClient, uint32_t cParms);
-static int VBoxServiceControlHandleFileRead(uint32_t idClient, uint32_t cParms);
-static int VBoxServiceControlHandleFileWrite(uint32_t idClient, uint32_t cParms, void *pvScratchBuf, size_t cbScratchBuf);
-static int VBoxServiceControlHandleFileSeek(uint32_t idClient, uint32_t cParms);
-static int VBoxServiceControlHandleFileTell(uint32_t idClient, uint32_t cParms);
+static int  VBoxServiceControlHandleCmdStartProc(uint32_t u32ClientId, uint32_t uNumParms);
+static int  VBoxServiceControlHandleCmdSetInput(uint32_t u32ClientId, uint32_t uNumParms, void *pvScratchBuf, size_t cbScratchBuf);
+static int  VBoxServiceControlHandleCmdGetOutput(uint32_t u32ClientId, uint32_t uNumParms);
+static int  VBoxServiceControlHandleFileOpen(uint32_t idClient, uint32_t cParms);
+static int  VBoxServiceControlHandleFileClose(uint32_t idClient, uint32_t cParms);
+static int  VBoxServiceControlHandleFileRead(uint32_t idClient, uint32_t cParms);
+static int  VBoxServiceControlHandleFileWrite(uint32_t idClient, uint32_t cParms, void *pvScratchBuf, size_t cbScratchBuf);
+static int  VBoxServiceControlHandleFileSeek(uint32_t idClient, uint32_t cParms);
+static int  VBoxServiceControlHandleFileTell(uint32_t idClient, uint32_t cParms);
+static int  VBoxServiceControlReapThreads(void);
+static void VBoxServiceControlShutdown(void);
+static int  vboxServiceControlSessionCloseAll(void);
+static int  VBoxServiceControlStartAllowed(bool *pbAllowed);
 
 #ifdef DEBUG
 static int vboxServiceControlDump(const char *pszFileName, void *pvBuf, size_t cbBuf)
@@ -193,6 +197,9 @@ static DECLCALLBACK(int) VBoxServiceControlInit(void)
     int rc = RTSemEventMultiCreate(&g_hControlEvent);
     AssertRCReturn(rc, rc);
 
+    VbglR3GetSessionId(&g_idControlSession);
+    /* The status code is ignored as this information is not available with VBox < 3.2.10. */
+
     rc = VbglR3GuestCtrlConnect(&g_uControlSvcClientID);
     if (RT_SUCCESS(rc))
     {
@@ -265,10 +272,25 @@ DECLCALLBACK(int) VBoxServiceControlWorker(bool volatile *pfShutdown)
         if (RT_SUCCESS(rc))
         {
             VBoxServiceVerbose(3, "Msg=%u (%u parms) retrieved\n", uMsg, cParms);
+
+            uint64_t idNewSession = g_idControlSession;
+            int rc2 = VbglR3GetSessionId(&idNewSession);
+            if (   RT_SUCCESS(rc2)
+                && (idNewSession != g_idControlSession))
+            {
+                VBoxServiceVerbose(1, "The VM session ID changed\n");
+                g_idControlSession = idNewSession;
+
+                /* Close all opened guest sessions -- all context IDs, sessions etc.
+                 * are now invalid. */
+                rc2 = vboxServiceControlSessionCloseAll();
+                AssertRC(rc2);
+            }
+
             switch (uMsg)
             {
                 case HOST_CANCEL_PENDING_WAITS:
-                    VBoxServiceVerbose(3, "Host asked us to quit ...\n");
+                    VBoxServiceVerbose(1, "We were asked to quit ...\n");
                     break;
 
                 case HOST_EXEC_CMD:
@@ -320,13 +342,14 @@ DECLCALLBACK(int) VBoxServiceControlWorker(bool volatile *pfShutdown)
         if (   *pfShutdown
             || (RT_SUCCESS(rc) && uMsg == HOST_CANCEL_PENDING_WAITS))
         {
-            rc = VINF_SUCCESS;
             break;
         }
 
         /* Let's sleep for a bit and let others run ... */
         RTThreadYield();
     }
+
+    VBoxServiceVerbose(0, "Guest control service stopped\n");
 
     /* Delete scratch buffer. */
     if (pvScratchBuf)
@@ -1033,11 +1056,14 @@ static int VBoxServiceControlReapThreads(void)
 
 
 /**
- * Destroys all guest process threads which are still active.
+ * Closes a formerly opened guest session.
+ *
+ * @return  IPRT status code.
+ * @param   uSessionID              Guest session to close.
  */
-static void VBoxServiceControlShutdown(void)
+static int vboxServiceControlSessionClose(uint32_t uSessionID)
 {
-    VBoxServiceVerbose(2, "Shutting down ...\n");
+    /* Note: Sessions are not implemented yet, so just shutdown all started guest processes. */
 
     /* Signal all threads in the active list that we want to shutdown. */
     PVBOXSERVICECTRLTHREAD pThread;
@@ -1055,7 +1081,10 @@ static void VBoxServiceControlShutdown(void)
                                                30 * 1000 /* Wait 30 seconds max. */,
                                                NULL /* rc */);
         if (RT_FAILURE(rc2))
+        {
             VBoxServiceError("Guest process thread failed to stop; rc=%Rrc\n", rc2);
+            /* Keep going. */
+        }
 
         if (fLast)
             break;
@@ -1063,14 +1092,39 @@ static void VBoxServiceControlShutdown(void)
         pThread = pNext;
     }
 
-    int rc2 = VBoxServiceControlReapThreads();
-    if (RT_FAILURE(rc2))
-        VBoxServiceError("Reaping inactive threads failed with rc=%Rrc\n", rc2);
+    int rc = VBoxServiceControlReapThreads();
+    if (RT_FAILURE(rc))
+        VBoxServiceError("Reaping inactive threads failed with rc=%Rrc\n", rc);
 
     AssertMsg(RTListIsEmpty(&g_lstControlThreadsActive),
               ("Guest process active thread list still contains entries when it should not\n"));
     AssertMsg(RTListIsEmpty(&g_lstControlThreadsInactive),
               ("Guest process inactive thread list still contains entries when it should not\n"));
+
+    return rc;
+}
+
+
+/**
+ * Closes (shuts down) all opened guest sessions.
+ *
+ * @return  IPRT status code.
+ */
+static int vboxServiceControlSessionCloseAll(void)
+{
+    return vboxServiceControlSessionClose(0 /* Session ID, not used yet */);
+}
+
+
+/**
+ * Destroys all guest process threads which are still active.
+ */
+static void VBoxServiceControlShutdown(void)
+{
+    VBoxServiceVerbose(2, "Shutting down ...\n");
+
+    int rc2 = vboxServiceControlSessionCloseAll();
+    AssertRC(rc2);
 
     /* Destroy critical section. */
     RTCritSectDelete(&g_csControlThreads);

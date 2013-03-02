@@ -1270,17 +1270,17 @@
         <translation>構成</translation>
     </message>
     <message>
-        <location filename="../src/widgets/UIApplianceEditorWidget.ui" line="42"/>
+        <location filename="../src/widgets/UIApplianceEditorWidget.ui" line="48"/>
         <source>When checked a new unique MAC address will assigned to all configured network cards.</source>
         <translation>新しい一意のMACアドレスがすべての設定してあるネットワークカードに付与されます。</translation>
     </message>
     <message>
-        <location filename="../src/widgets/UIApplianceEditorWidget.ui" line="45"/>
+        <location filename="../src/widgets/UIApplianceEditorWidget.ui" line="51"/>
         <source>&amp;Reinitialize the MAC address of all network cards</source>
         <translation>すべてのネットワークカードのMACアドレスを再初期化(&amp;R)</translation>
     </message>
     <message>
-        <location filename="../src/widgets/UIApplianceEditorWidget.ui" line="67"/>
+        <location filename="../src/widgets/UIApplianceEditorWidget.ui" line="76"/>
         <source>Warnings:</source>
         <translation>警告:</translation>
     </message>
@@ -2556,13 +2556,13 @@ p, li { white-space: pre-wrap; }
 <context>
     <name>UIGChooserItemGroup</name>
     <message>
-        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="619"/>
+        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="654"/>
         <source>&lt;b&gt;%1&lt;/b&gt;</source>
         <comment>Group item tool-tip / Group name</comment>
         <translation>&lt;b&gt;%1&lt;/b&gt;</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="629"/>
+        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="664"/>
         <source>%n group(s)</source>
         <comment>Group item tool-tip / Group info</comment>
         <translation>
@@ -2570,13 +2570,13 @@ p, li { white-space: pre-wrap; }
         </translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="632"/>
+        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="667"/>
         <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
         <comment>Group item tool-tip / Group info wrapper</comment>
         <translation>&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="645"/>
+        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="680"/>
         <source>%n machine(s)</source>
         <comment>Group item tool-tip / Machine info</comment>
         <translation>
@@ -2584,7 +2584,7 @@ p, li { white-space: pre-wrap; }
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="646"/>
+        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="681"/>
         <source>(%n running)</source>
         <comment>Group item tool-tip / Running machine info</comment>
         <translation>
@@ -2592,34 +2592,34 @@ p, li { white-space: pre-wrap; }
         </translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="650"/>
+        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="685"/>
         <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
         <comment>Group item tool-tip / Machine info wrapper</comment>
         <translation>&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="651"/>
+        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="686"/>
         <source>&lt;nobr&gt;%1 %2&lt;/nobr&gt;</source>
         <comment>Group item tool-tip / Machine info wrapper, including running</comment>
         <translation>&lt;nobr&gt;%1&lt;/nobr&gt; {1 %2&lt;?}</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="666"/>
+        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="701"/>
         <source>Collapse group</source>
         <translation>グループをたたむ</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="666"/>
+        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="701"/>
         <source>Expand group</source>
         <translation>グループを広げる</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="676"/>
+        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="711"/>
         <source>Enter group</source>
         <translation>グループに入る</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="678"/>
+        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="713"/>
         <source>Exit group</source>
         <translation>グループを出る</translation>
     </message>
@@ -2647,68 +2647,68 @@ p, li { white-space: pre-wrap; }
         <translation>グループ</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="269"/>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="359"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="283"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="380"/>
         <source>%1 MB</source>
         <comment>details</comment>
         <translation>%1 MB</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="274"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="288"/>
         <source>Processors</source>
         <comment>details (system)</comment>
         <translation>プロセッサー</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="281"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="295"/>
         <source>%1%</source>
         <comment>details</comment>
         <translation>%1%</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="303"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="317"/>
         <source>VT-x/AMD-V</source>
         <comment>details (system)</comment>
         <translation>VT-x/AMD-V</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="310"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="324"/>
         <source>PAE/NX</source>
         <comment>details (system)</comment>
         <translation>PAE/NX</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="312"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="326"/>
         <source>Acceleration</source>
         <comment>details (system)</comment>
         <translation>アクセラレーション</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="364"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="385"/>
         <source>Screens</source>
         <comment>details (display)</comment>
         <translation>スクリーン</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="375"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="396"/>
         <source>3D</source>
         <comment>details (display)</comment>
         <translation>3D</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="377"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="398"/>
         <source>Acceleration</source>
         <comment>details (display)</comment>
         <translation>アクセラレーション</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="389"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="410"/>
         <source>Disabled</source>
         <comment>details (display/vrde/VRDE server)</comment>
         <translation>無効</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="457"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="485"/>
         <source>[CD/DVD]</source>
         <comment>details (storage)</comment>
         <translation>[CD/DVD]</translation>
@@ -2719,13 +2719,13 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">未割り当て</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="522"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="557"/>
         <source>Controller</source>
         <comment>details (audio)</comment>
         <translation>コントローラー</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="526"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="561"/>
         <source>Disabled</source>
         <comment>details (audio)</comment>
         <translation>無効</translation>
@@ -2753,184 +2753,184 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="139"/>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="316"/>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="393"/>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="474"/>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="530"/>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="625"/>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="703"/>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="761"/>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="823"/>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="871"/>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="919"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="330"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="414"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="502"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="565"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="667"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="752"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="817"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="886"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="941"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="996"/>
         <source>Information Inaccessible</source>
         <comment>details</comment>
         <translation>取得不可能な情報</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="268"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="282"/>
         <source>Base Memory</source>
         <comment>details (system)</comment>
         <translation>メインメモリー</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="280"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="294"/>
         <source>Execution Cap</source>
         <comment>details (system)</comment>
         <translation>使用率制限</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="294"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="308"/>
         <source>Boot Order</source>
         <comment>details (system)</comment>
         <translation>起動順序</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="306"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="320"/>
         <source>Nested Paging</source>
         <comment>details (system)</comment>
         <translation>ネステッドページング</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="358"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="379"/>
         <source>Video Memory</source>
         <comment>details (display)</comment>
         <translation>ビデオメモリー</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="371"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="392"/>
         <source>2D Video</source>
         <comment>details (display)</comment>
         <translation>2D ビデオ</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="385"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="406"/>
         <source>Remote Desktop Server Port</source>
         <comment>details (display/vrde)</comment>
         <translation>リモートデスクトップサーバーポート</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="388"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="409"/>
         <source>Remote Desktop Server</source>
         <comment>details (display/vrde)</comment>
         <translation>リモートデスクトップサーバー</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="471"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="499"/>
         <source>Not Attached</source>
         <comment>details (storage)</comment>
         <translation>未割り当て</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="518"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="553"/>
         <source>Host Driver</source>
         <comment>details (audio)</comment>
         <translation>ホストドライバー</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="586"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="628"/>
         <source>Bridged Adapter, %1</source>
         <comment>details (network)</comment>
         <translation>ブリッジアダプター, &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="592"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="634"/>
         <source>Internal Network, &apos;%1&apos;</source>
         <comment>details (network)</comment>
         <translation>内部ネットワーク, &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="598"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="640"/>
         <source>Host-only Adapter, &apos;%1&apos;</source>
         <comment>details (network)</comment>
         <translation>ホストオンリーアダプター, &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="606"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="648"/>
         <source>Generic Driver, &apos;%1&apos;</source>
         <comment>details (network)</comment>
         <translation>汎用ドライバー, &apos;%1&apos; </translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="607"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="649"/>
         <source>Generic Driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
         <comment>details (network)</comment>
         <translation>汎用ドライバー, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;} </translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="617"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="659"/>
         <source>Adapter %1</source>
         <comment>details (network)</comment>
         <translation>アダプター %1</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="622"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="664"/>
         <source>Disabled</source>
         <comment>details (network/adapter)</comment>
         <translation>無効</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="695"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="744"/>
         <source>Port %1</source>
         <comment>details (serial)</comment>
         <translation>ポート %1</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="700"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="749"/>
         <source>Disabled</source>
         <comment>details (serial)</comment>
         <translation>無効</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="753"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="809"/>
         <source>Port %1</source>
         <comment>details (parallel)</comment>
         <translation>ポート %1</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="758"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="814"/>
         <source>Disabled</source>
         <comment>details (parallel)</comment>
         <translation>無効</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="813"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="876"/>
         <source>Device Filters</source>
         <comment>details (usb)</comment>
         <translation>デバイスフィルター</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="820"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="883"/>
         <source>USB Controller Inaccessible</source>
         <comment>details (usb)</comment>
         <translation>USB コントローラーにアクセスできません</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="866"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="936"/>
         <source>Shared Folders</source>
         <comment>details (shared folders)</comment>
         <translation>共有フォルダー</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="814"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="877"/>
         <source>%1 (%2 active)</source>
         <comment>details (usb)</comment>
         <translation>%1 (%2 アクティブ)</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="817"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="880"/>
         <source>Disabled</source>
         <comment>details (usb)</comment>
         <translation>無効</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="868"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="938"/>
         <source>None</source>
         <comment>details (shared folders)</comment>
         <translation>なし</translation>
     </message>
     <message>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="916"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="993"/>
         <source>None</source>
         <comment>details (description)</comment>
         <translation>なし</translation>
@@ -4412,37 +4412,37 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">フロッピーデバイスのマウント解除</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1033"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1043"/>
         <source>Select a filename for the screenshot ...</source>
         <translation>スクリーンショットの名前を選択...</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1342"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1363"/>
         <source>No CD/DVD Devices Attached</source>
         <translation>CD/DVD デバイス 未割り当て</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1343"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1364"/>
         <source>No CD/DVD devices attached to that VM</source>
         <translation>CD/DVD デバイス 未割り当て</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1346"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1367"/>
         <source>No Floppy Devices Attached</source>
         <translation>フロッピーデバイス 未割り当て</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1347"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1368"/>
         <source>No floppy devices attached to that VM</source>
         <translation>フロッピーデバイス 未割り当て</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1526"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1547"/>
         <source>No USB Devices Connected</source>
         <translation>USB デバイス 未接続</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1527"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1548"/>
         <source>No supported devices connected to the host PC</source>
         <translation>ホストマシンに接続されたデバイスはサポートされていません</translation>
     </message>
@@ -6010,21 +6010,21 @@ p, li { white-space: pre-wrap; }
         <translation>仮想ハードディスクファイルの選択...</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1316"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1337"/>
         <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="2639"/>
         <source>Choose a virtual CD/DVD disk file...</source>
         <translation>仮想CD/DVDディスクファイルの選択...</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1317"/>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1323"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1338"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1344"/>
         <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="2646"/>
         <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="2663"/>
         <source>Remove disk from virtual drive</source>
         <translation>仮想ドライブからディスクを除去</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1322"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1343"/>
         <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="2656"/>
         <source>Choose a virtual floppy disk file...</source>
         <translation>仮想フロッピーディスクファイルの選択...</translation>
@@ -6210,7 +6210,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <location filename="../src/VBoxVMInformationDlg.cpp" line="546"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="1455"/>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="438"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="466"/>
         <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="543"/>
         <source>Controller: %1</source>
         <translation>コントローラー: %1</translation>
@@ -10389,17 +10389,17 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
 <context>
     <name>UIWizardCloneVM</name>
     <message>
-        <location filename="../src/wizards/clonevm/UIWizardCloneVM.cpp" line="81"/>
+        <location filename="../src/wizards/clonevm/UIWizardCloneVM.cpp" line="80"/>
         <source>Linked Base for %1 and %2</source>
         <translation>%1 と %2 を基準にリンクする</translation>
     </message>
     <message>
-        <location filename="../src/wizards/clonevm/UIWizardCloneVM.cpp" line="166"/>
+        <location filename="../src/wizards/clonevm/UIWizardCloneVM.cpp" line="165"/>
         <source>Clone Virtual Machine</source>
         <translation>仮想マシンのクローン</translation>
     </message>
     <message>
-        <location filename="../src/wizards/clonevm/UIWizardCloneVM.cpp" line="167"/>
+        <location filename="../src/wizards/clonevm/UIWizardCloneVM.cpp" line="166"/>
         <source>Clone</source>
         <translation>クローン</translation>
     </message>
@@ -13255,14 +13255,14 @@ Version %1</source>
         <translation type="obsolete">&lt;hr&gt;&lt;img src=%1/&gt;&amp;nbsp;このハードディスクの割り当ては、新規作成された差分ハードディスクの使用により、間接的に実行されます。</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMedium.cpp" line="453"/>
+        <location filename="../src/medium/UIMedium.cpp" line="460"/>
         <source>Checking...</source>
         <comment>medium</comment>
         <translation>確認中...</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMedium.cpp" line="457"/>
-        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="451"/>
+        <location filename="../src/medium/UIMedium.cpp" line="464"/>
+        <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="479"/>
         <source>Inaccessible</source>
         <comment>medium</comment>
         <translation>アクセスできません</translation>
@@ -14026,71 +14026,71 @@ Version %1</source>
         <translation>ホストドライブ %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMedium.cpp" line="255"/>
+        <location filename="../src/medium/UIMedium.cpp" line="262"/>
         <source>&lt;p style=white-space:pre&gt;Type (Format):  %1 (%2)&lt;/p&gt;</source>
         <comment>medium</comment>
         <translation>&lt;p style=white-space:pre&gt;タイプ (形式):  %1 (%2)&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMedium.cpp" line="259"/>
+        <location filename="../src/medium/UIMedium.cpp" line="266"/>
         <source>&lt;p&gt;Attached to:  %1&lt;/p&gt;</source>
         <comment>image</comment>
         <translation>&lt;p&gt;割り当て:  %1&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMedium.cpp" line="260"/>
+        <location filename="../src/medium/UIMedium.cpp" line="267"/>
         <source>&lt;i&gt;Not Attached&lt;/i&gt;</source>
         <comment>image</comment>
         <translation>&lt;i&gt;未割り当て&lt;/i&gt;</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMedium.cpp" line="266"/>
+        <location filename="../src/medium/UIMedium.cpp" line="273"/>
         <source>&lt;i&gt;Checking accessibility...&lt;/i&gt;</source>
         <comment>medium</comment>
         <translation>&lt;i&gt;アクセス可否を確認中...&lt;/i&gt;</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMedium.cpp" line="279"/>
+        <location filename="../src/medium/UIMedium.cpp" line="286"/>
         <source>Failed to check media accessibility.</source>
         <comment>medium</comment>
         <translation>メディアのアクセス可否の確認に失敗しました。</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMedium.cpp" line="324"/>
+        <location filename="../src/medium/UIMedium.cpp" line="331"/>
         <source>&lt;b&gt;No medium selected&lt;/b&gt;</source>
         <comment>medium</comment>
         <translation>&lt;b&gt;メディア 未選択&lt;/b&gt;</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMedium.cpp" line="325"/>
+        <location filename="../src/medium/UIMedium.cpp" line="332"/>
         <source>You can also change this while the machine is running.</source>
         <translation>仮想マシンの動作中、これを変更することができます。</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMedium.cpp" line="326"/>
+        <location filename="../src/medium/UIMedium.cpp" line="333"/>
         <source>&lt;b&gt;No media available&lt;/b&gt;</source>
         <comment>medium</comment>
         <translation>&lt;b&gt;メディア 利用不可&lt;/b&gt;</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMedium.cpp" line="327"/>
+        <location filename="../src/medium/UIMedium.cpp" line="334"/>
         <source>You can create media images using the virtual media manager.</source>
         <translation>仮想メディアマネージャーを使ってメディアのイメージを作成できます。</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMedium.cpp" line="337"/>
+        <location filename="../src/medium/UIMedium.cpp" line="344"/>
         <source>Attaching this hard disk will be performed indirectly using a newly created differencing hard disk.</source>
         <comment>medium</comment>
         <translation>このハードディスクの割り当ては、新規作成された差分ハードディスクの使用により、間接的に実行されます。</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMedium.cpp" line="492"/>
+        <location filename="../src/medium/UIMedium.cpp" line="499"/>
         <source>Some of the media in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these media.</source>
         <comment>medium</comment>
         <translation>ハードディスクチェーン中のいくつかのメディアにアクセスできません。仮想メディアマネージャーの&lt;b&gt;[差分ハードディスクを表示]&lt;/b&gt;を使用して、これらのメディアを確認してください。</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMedium.cpp" line="509"/>
+        <location filename="../src/medium/UIMedium.cpp" line="516"/>
         <source>This base hard disk is indirectly attached using the following differencing hard disk:</source>
         <comment>medium</comment>
         <translation>このベースハードディスクは以下の差分ハードディスクを使用して間接的に割り当てられます:</translation>

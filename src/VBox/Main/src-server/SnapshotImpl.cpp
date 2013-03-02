@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2449,7 +2449,6 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
                 // then do a backward merge, i.e. merge its only child onto the
                 // base disk. Here we need then to update the attachment that
                 // refers to the child and have it point to the parent instead
-                Assert(pHD->getParent().isNull());
                 Assert(pHD->getChildren().size() == 1);
 
                 ComObjPtr<Medium> pReplaceHD = pHD->getChildren().front();
@@ -2887,9 +2886,30 @@ HRESULT SessionMachine::prepareDeleteSnapshotMedium(const ComObjPtr<Medium> &aHD
     }
     else
     {
-        /* forward merge */
-        aSource = aHD;
-        aTarget = pChild;
+        /* Determine best merge direction. */
+        bool fMergeForward = true;
+
+        childLock.release();
+        alock.release();
+        HRESULT rc = aHD->queryPreferredMergeDirection(pChild, fMergeForward);
+        alock.acquire();
+        childLock.acquire();
+
+        if (FAILED(rc) && rc != E_FAIL)
+            return rc;
+
+        if (fMergeForward)
+        {
+            aSource = aHD;
+            aTarget = pChild;
+            LogFlowFunc(("Forward merging selected\n"));
+        }
+        else
+        {
+            aSource = pChild;
+            aTarget = aHD;
+            LogFlowFunc(("Backward merging selected\n"));
+        }
     }
 
     HRESULT rc;

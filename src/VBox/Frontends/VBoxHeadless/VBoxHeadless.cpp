@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1275,6 +1275,11 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             vboxListener = listener;
             com::SafeArray<VBoxEventType_T> eventTypes;
             eventTypes.push_back(VBoxEventType_OnGuestPropertyChanged);
+
+            /* Set the notification pattern to not cause too much load.
+             * Remove (or extend) this pattern when more guest properties need to be handled. */
+            CHECK_ERROR(machine, COMSETTER(GuestPropertyNotificationPatterns)(Bstr("/VirtualBox/GuestInfo/OS/*Logged*").raw()));
+
             CHECK_ERROR(es, RegisterListener(vboxListener, ComSafeArrayAsInParam(eventTypes), true));
         }
 

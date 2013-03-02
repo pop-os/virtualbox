@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,6 +57,7 @@
 #include <iprt/string.h>
 #include <iprt/once.h>
 #include <iprt/err.h>
+#include <iprt/initterm.h>
 #include <iprt/critsect.h>
 #include "internal/magics.h"
 
@@ -404,6 +405,13 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, uint32_
      * We don't support the fancy MP features.
      */
     if (fFlags & RTTIMER_FLAGS_CPU_SPECIFIC)
+        return VERR_NOT_SUPPORTED;
+
+    /*
+     * We need the signal masks to be set correctly, which they won't be in
+     * unobtrusive mode.
+     */
+    if (RTR3InitIsUnobtrusive())
         return VERR_NOT_SUPPORTED;
 
 #ifndef IPRT_WITH_POSIX_TIMERS

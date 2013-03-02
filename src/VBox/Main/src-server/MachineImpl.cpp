@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2012 Oracle Corporation
+ * Copyright (C) 2004-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -208,6 +208,7 @@ Machine::HWData::HWData()
     mKeyboardHIDType = KeyboardHIDType_PS2Keyboard;
     mPointingHIDType = PointingHIDType_PS2Mouse;
     mChipsetType = ChipsetType_PIIX3;
+    mEmulatedUSBWebcamEnabled = FALSE;
     mEmulatedUSBCardReaderEnabled = FALSE;
 
     for (size_t i = 0; i < RT_ELEMENTS(mCPUAttached); i++)
@@ -1622,14 +1623,42 @@ STDMETHODIMP Machine::COMSETTER(EmulatedUSBCardReaderEnabled)(BOOL enabled)
 
 STDMETHODIMP Machine::COMGETTER(EmulatedUSBWebcameraEnabled)(BOOL *enabled)
 {
+#ifdef VBOX_WITH_USB_VIDEO
+    CheckComArgOutPointerValid(enabled);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *enabled = mHWData->mEmulatedUSBWebcamEnabled;
+
+    return S_OK;
+#else
     NOREF(enabled);
     return E_NOTIMPL;
+#endif
 }
 
 STDMETHODIMP Machine::COMSETTER(EmulatedUSBWebcameraEnabled)(BOOL enabled)
 {
+#ifdef VBOX_WITH_USB_VIDEO
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    HRESULT rc = checkStateDependency(MutableStateDep);
+    if (FAILED(rc)) return rc;
+
+    setModified(IsModified_MachineData);
+    mHWData.backup();
+    mHWData->mEmulatedUSBWebcamEnabled = enabled;
+
+    return S_OK;
+#else
     NOREF(enabled);
     return E_NOTIMPL;
+#endif
 }
 
 STDMETHODIMP Machine::COMGETTER(HPETEnabled)(BOOL *enabled)
@@ -5441,21 +5470,18 @@ HRESULT Machine::getGuestPropertyFromService(IN_BSTR aName,
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     Utf8Str strName(aName);
-    HWData::GuestPropertyList::const_iterator it;
+    HWData::GuestPropertyMap::const_iterator it =
+        mHWData->mGuestProperties.find(strName);
 
-    for (it = mHWData->mGuestProperties.begin();
-         it != mHWData->mGuestProperties.end(); ++it)
+    if (it != mHWData->mGuestProperties.end())
     {
-        if (it->strName == strName)
-        {
-            char szFlags[MAX_FLAGS_LEN + 1];
-            it->strValue.cloneTo(aValue);
-            *aTimestamp = it->mTimestamp;
-            writeFlags(it->mFlags, szFlags);
-            Bstr(szFlags).cloneTo(aFlags);
-            break;
-        }
+        char szFlags[MAX_FLAGS_LEN + 1];
+        it->second.strValue.cloneTo(aValue);
+        *aTimestamp = it->second.mTimestamp;
+        writeFlags(it->second.mFlags, szFlags);
+        Bstr(szFlags).cloneTo(aFlags);
     }
+
     return S_OK;
 }
 
@@ -5538,7 +5564,6 @@ HRESULT Machine::setGuestPropertyToService(IN_BSTR aName, IN_BSTR aValue,
     HRESULT rc = S_OK;
     HWData::GuestProperty property;
     property.mFlags = NILFLAG;
-    bool found = false;
 
     rc = checkStateDependency(MutableStateDep);
     if (FAILED(rc)) return rc;
@@ -5548,64 +5573,62 @@ HRESULT Machine::setGuestPropertyToService(IN_BSTR aName, IN_BSTR aValue,
         Utf8Str utf8Name(aName);
         Utf8Str utf8Flags(aFlags);
         uint32_t fFlags = NILFLAG;
-        if (    (aFlags != NULL)
-             && RT_FAILURE(validateFlags(utf8Flags.c_str(), &fFlags))
+        if (   (aFlags != NULL)
+            && RT_FAILURE(validateFlags(utf8Flags.c_str(), &fFlags))
            )
             return setError(E_INVALIDARG,
-                            tr("Invalid flag values: '%ls'"),
+                            tr("Invalid guest property flag values: '%ls'"),
                             aFlags);
 
-        /** @todo r=bird: see efficiency rant in PushGuestProperty. (Yeah, I
-         *                know, this is simple and do an OK job atm.) */
-        HWData::GuestPropertyList::iterator it;
-        for (it = mHWData->mGuestProperties.begin();
-             it != mHWData->mGuestProperties.end(); ++it)
-            if (it->strName == utf8Name)
+        HWData::GuestPropertyMap::iterator it =
+            mHWData->mGuestProperties.find(utf8Name);
+
+        if (it == mHWData->mGuestProperties.end())
+        {
+            setModified(IsModified_MachineData);
+            mHWData.backupEx();
+
+            RTTIMESPEC time;
+            HWData::GuestProperty prop;
+            prop.strValue = aValue;
+            prop.mTimestamp = RTTimeSpecGetNano(RTTimeNow(&time));
+            prop.mFlags = fFlags;
+
+            mHWData->mGuestProperties[Utf8Str(aName)] = prop;
+        }
+        else
+        {
+            if (it->second.mFlags & (RDONLYHOST))
             {
-                property = *it;
-                if (it->mFlags & (RDONLYHOST))
-                    rc = setError(E_ACCESSDENIED,
-                                  tr("The property '%ls' cannot be changed by the host"),
-                                  aName);
+                rc = setError(E_ACCESSDENIED,
+                              tr("The property '%ls' cannot be changed by the host"),
+                              aName);
+            }
+            else
+            {
+                setModified(IsModified_MachineData);
+                mHWData.backupEx();
+
+                /* The backupEx() operation invalidates our iterator,
+                 * so get a new one. */
+                it = mHWData->mGuestProperties.find(utf8Name);
+                Assert(it != mHWData->mGuestProperties.end());
+
+                if (RT_VALID_PTR(aValue) && *(aValue) != '\0')
+                {
+                    RTTIMESPEC time;
+                    it->second.strValue = aValue;
+                    it->second.mTimestamp = RTTimeSpecGetNano(RTTimeNow(&time));
+                    if (aFlags != NULL)
+                        it->second.mFlags = fFlags;
+                }
                 else
                 {
-                    setModified(IsModified_MachineData);
-                    mHWData.backup();           // @todo r=dj backup in a loop?!?
-
-                    /* The backup() operation invalidates our iterator, so
-                    * get a new one. */
-                    for (it = mHWData->mGuestProperties.begin();
-                         it->strName != utf8Name;
-                         ++it)
-                        ;
                     mHWData->mGuestProperties.erase(it);
                 }
-                found = true;
-                break;
-            }
-        if (found && SUCCEEDED(rc))
-        {
-            if (aValue)
-            {
-                RTTIMESPEC time;
-                property.strValue = aValue;
-                property.mTimestamp = RTTimeSpecGetNano(RTTimeNow(&time));
-                if (aFlags != NULL)
-                    property.mFlags = fFlags;
-                mHWData->mGuestProperties.push_back(property);
             }
         }
-        else if (SUCCEEDED(rc) && aValue)
-        {
-            RTTIMESPEC time;
-            setModified(IsModified_MachineData);
-            mHWData.backup();
-            property.strName = aName;
-            property.strValue = aValue;
-            property.mTimestamp = RTTimeSpecGetNano(RTTimeNow(&time));
-            property.mFlags = fFlags;
-            mHWData->mGuestProperties.push_back(property);
-        }
+
         if (   SUCCEEDED(rc)
             && (   mHWData->mGuestPropertyNotificationPatterns.isEmpty()
                 || RTStrSimplePatternMultiMatch(mHWData->mGuestPropertyNotificationPatterns.c_str(),
@@ -5616,8 +5639,8 @@ HRESULT Machine::setGuestPropertyToService(IN_BSTR aName, IN_BSTR aValue,
                )
            )
         {
-            /** @todo r=bird: Why aren't we leaving the lock here?  The
-             *                same code in PushGuestProperty does... */
+            alock.release();
+
             mParent->onGuestPropertyChange(mData->mUuid, aName,
                                            aValue ? aValue : Bstr("").raw(),
                                            aFlags ? aFlags : Bstr("").raw());
@@ -5713,42 +5736,50 @@ HRESULT Machine::enumerateGuestPropertiesInService
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     Utf8Str strPatterns(aPatterns);
 
+    HWData::GuestPropertyMap propMap;
+
     /*
      * Look for matching patterns and build up a list.
      */
-    HWData::GuestPropertyList propList;
-    for (HWData::GuestPropertyList::iterator it = mHWData->mGuestProperties.begin();
-         it != mHWData->mGuestProperties.end();
-         ++it)
+    HWData::GuestPropertyMap::const_iterator it = mHWData->mGuestProperties.begin();
+    while (it != mHWData->mGuestProperties.end())
+    {
         if (   strPatterns.isEmpty()
             || RTStrSimplePatternMultiMatch(strPatterns.c_str(),
                                             RTSTR_MAX,
-                                            it->strName.c_str(),
+                                            it->first.c_str(),
                                             RTSTR_MAX,
                                             NULL)
            )
-            propList.push_back(*it);
+        {
+            propMap.insert(*it);
+        }
+
+        it++;
+    }
+
+    alock.release();
 
     /*
      * And build up the arrays for returning the property information.
      */
-    size_t cEntries = propList.size();
+    size_t cEntries = propMap.size();
     SafeArray<BSTR> names(cEntries);
     SafeArray<BSTR> values(cEntries);
     SafeArray<LONG64> timestamps(cEntries);
     SafeArray<BSTR> flags(cEntries);
     size_t iProp = 0;
-    for (HWData::GuestPropertyList::iterator it = propList.begin();
-         it != propList.end();
-         ++it)
+
+    it = propMap.begin();
+    while (it != propMap.end())
     {
          char szFlags[MAX_FLAGS_LEN + 1];
-         it->strName.cloneTo(&names[iProp]);
-         it->strValue.cloneTo(&values[iProp]);
-         timestamps[iProp] = it->mTimestamp;
-         writeFlags(it->mFlags, szFlags);
-         Bstr(szFlags).cloneTo(&flags[iProp]);
-         ++iProp;
+         it->first.cloneTo(&names[iProp]);
+         it->second.strValue.cloneTo(&values[iProp]);
+         timestamps[iProp] = it->second.mTimestamp;
+         writeFlags(it->second.mFlags, szFlags);
+         Bstr(szFlags).cloneTo(&flags[iProp++]);
+         it++;
     }
     names.detachTo(ComSafeArrayOutArg(aNames));
     values.detachTo(ComSafeArrayOutArg(aValues));
@@ -8530,6 +8561,7 @@ HRESULT Machine::loadHardware(const settings::Hardware &data, const settings::De
         mHWData->mPointingHIDType = data.pointingHIDType;
         mHWData->mKeyboardHIDType = data.keyboardHIDType;
         mHWData->mChipsetType = data.chipsetType;
+        mHWData->mEmulatedUSBWebcamEnabled = data.fEmulatedUSBWebcam;
         mHWData->mEmulatedUSBCardReaderEnabled = data.fEmulatedUSBCardReader;
         mHWData->mHPETEnabled = data.fHPETEnabled;
 
@@ -8671,8 +8703,8 @@ HRESULT Machine::loadHardware(const settings::Hardware &data, const settings::De
             const settings::GuestProperty &prop = *it;
             uint32_t fFlags = guestProp::NILFLAG;
             guestProp::validateFlags(prop.strFlags.c_str(), &fFlags);
-            HWData::GuestProperty property = { prop.strName, prop.strValue, (LONG64) prop.timestamp, fFlags };
-            mHWData->mGuestProperties.push_back(property);
+            HWData::GuestProperty property = { prop.strValue, (LONG64) prop.timestamp, fFlags };
+            mHWData->mGuestProperties[prop.strName] = property;
         }
 
         mHWData->mGuestPropertyNotificationPatterns = data.strNotificationPatterns;
@@ -9715,6 +9747,7 @@ HRESULT Machine::saveHardware(settings::Hardware &data, settings::Debugging *pDb
         // chipset
         data.chipsetType = mHWData->mChipsetType;
 
+        data.fEmulatedUSBWebcam     = !!mHWData->mEmulatedUSBWebcamEnabled;
         data.fEmulatedUSBCardReader = !!mHWData->mEmulatedUSBCardReaderEnabled;
 
         // HPET
@@ -9854,11 +9887,11 @@ HRESULT Machine::saveHardware(settings::Hardware &data, settings::Debugging *pDb
         // guest properties
         data.llGuestProperties.clear();
 #ifdef VBOX_WITH_GUEST_PROPS
-        for (HWData::GuestPropertyList::const_iterator it = mHWData->mGuestProperties.begin();
+        for (HWData::GuestPropertyMap::const_iterator it = mHWData->mGuestProperties.begin();
              it != mHWData->mGuestProperties.end();
              ++it)
         {
-            HWData::GuestProperty property = *it;
+            HWData::GuestProperty property = it->second;
 
             /* Remove transient guest properties at shutdown unless we
              * are saving state */
@@ -9869,7 +9902,7 @@ HRESULT Machine::saveHardware(settings::Hardware &data, settings::Debugging *pDb
                     || property.mFlags & guestProp::TRANSRESET))
                 continue;
             settings::GuestProperty prop;
-            prop.strName = property.strName;
+            prop.strName = it->first;
             prop.strValue = property.strValue;
             prop.timestamp = property.mTimestamp;
             char szFlags[guestProp::MAX_FLAGS_LEN + 1];
@@ -10371,6 +10404,30 @@ HRESULT Machine::deleteImplicitDiffs(bool aOnline)
 
     /* We absolutely must have backed up state. */
     AssertReturn(mMediaData.isBackedUp(), E_FAIL);
+
+    /* Check if there are any implicitly created diff images. */
+    bool fImplicitDiffs = false;
+    for (MediaData::AttachmentList::const_iterator it = mMediaData->mAttachments.begin();
+         it != mMediaData->mAttachments.end();
+         ++it)
+    {
+        const ComObjPtr<MediumAttachment> &pAtt = *it;
+        if (pAtt->isImplicit())
+        {
+            fImplicitDiffs = true;
+            break;
+        }
+    }
+    /* If there is nothing to do, leave early. This saves lots of image locking
+     * effort. It also avoids a MachineStateChanged event without real reason.
+     * This is important e.g. when loading a VM config, because there should be
+     * no events. Otherwise API clients can become thoroughly confused for
+     * inaccessible VMs (the code for loading VM configs uses this method for
+     * cleanup if the config makes no sense), as they take such events as an
+     * indication that the VM is alive, and they would force the VM config to
+     * be reread, leading to an endless loop. */
+    if (!fImplicitDiffs)
+        return S_OK;
 
     HRESULT rc = S_OK;
     MachineState_T oldState = mData->mMachineState;
@@ -12742,18 +12799,18 @@ STDMETHODIMP SessionMachine::PullGuestProperties(ComSafeArrayOut(BSTR, aNames),
     com::SafeArray<LONG64> timestamps(cEntries);
     com::SafeArray<BSTR> flags(cEntries);
     unsigned i = 0;
-    for (HWData::GuestPropertyList::iterator it = mHWData->mGuestProperties.begin();
+    for (HWData::GuestPropertyMap::iterator it = mHWData->mGuestProperties.begin();
          it != mHWData->mGuestProperties.end();
          ++it)
     {
         char szFlags[MAX_FLAGS_LEN + 1];
-        it->strName.cloneTo(&names[i]);
-        it->strValue.cloneTo(&values[i]);
-        timestamps[i] = it->mTimestamp;
+        it->first.cloneTo(&names[i]);
+        it->second.strValue.cloneTo(&values[i]);
+        timestamps[i] = it->second.mTimestamp;
         /* If it is NULL, keep it NULL. */
-        if (it->mFlags)
+        if (it->second.mFlags)
         {
-            writeFlags(it->mFlags, szFlags);
+            writeFlags(it->second.mFlags, szFlags);
             Bstr(szFlags).cloneTo(&flags[i]);
         }
         else
@@ -12830,29 +12887,18 @@ STDMETHODIMP SessionMachine::PushGuestProperty(IN_BSTR aName,
         setModified(IsModified_MachineData);
         mHWData.backup();
 
-        /** @todo r=bird: The careful memory handling doesn't work out here because
-         *  the catch block won't undo any damage we've done.  So, if push_back throws
-         *  bad_alloc then you've lost the value.
-         *
-         *  Another thing. Doing a linear search here isn't extremely efficient, esp.
-         *  since values that changes actually bubbles to the end of the list.  Using
-         *  something that has an efficient lookup and can tolerate a bit of updates
-         *  would be nice.  RTStrSpace is one suggestion (it's not perfect).  Some
-         *  combination of RTStrCache (for sharing names and getting uniqueness into
-         *  the bargain) and hash/tree is another. */
-        for (HWData::GuestPropertyList::iterator iter = mHWData->mGuestProperties.begin();
-             iter != mHWData->mGuestProperties.end();
-             ++iter)
-            if (utf8Name == iter->strName)
-            {
-                mHWData->mGuestProperties.erase(iter);
-                mData->mGuestPropertiesModified = TRUE;
-                break;
-            }
-        if (aValue != NULL)
+        HWData::GuestPropertyMap::iterator it = mHWData->mGuestProperties.find(utf8Name);
+        if (it != mHWData->mGuestProperties.end())
         {
-            HWData::GuestProperty property = { aName, aValue, aTimestamp, fFlags };
-            mHWData->mGuestProperties.push_back(property);
+            if (RT_VALID_PTR(aValue) && *(aValue) != '\0')
+            {
+                it->second.strValue   = aValue;
+                it->second.mFlags     = fFlags;
+                it->second.mTimestamp = aTimestamp;
+            }
+            else
+                mHWData->mGuestProperties.erase(it);
+
             mData->mGuestPropertiesModified = TRUE;
         }
 
@@ -13918,13 +13964,13 @@ HRESULT SessionMachine::setMachineState(MachineState_T aMachineState)
         /* Make sure any transient guest properties get removed from the
          * property store on shutdown. */
 
-        HWData::GuestPropertyList::iterator it;
+        HWData::GuestPropertyMap::const_iterator it;
         BOOL fNeedsSaving = mData->mGuestPropertiesModified;
         if (!fNeedsSaving)
             for (it = mHWData->mGuestProperties.begin();
                  it != mHWData->mGuestProperties.end(); ++it)
-                if (   (it->mFlags & guestProp::TRANSIENT)
-                    || (it->mFlags & guestProp::TRANSRESET))
+                if (   (it->second.mFlags & guestProp::TRANSIENT)
+                    || (it->second.mFlags & guestProp::TRANSRESET))
                 {
                     fNeedsSaving = true;
                     break;

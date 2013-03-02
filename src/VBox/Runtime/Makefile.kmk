@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -179,6 +179,7 @@ RuntimeWin64ASM_SOURCES = \
 	win/amd64/ASMGetDR7.asm \
 	common/asm/ASMAtomicCmpXchgU8.asm \
 	common/asm/ASMMultU64ByU32DivByU32.asm \
+	common/asm/ASMCpuId_Idx_ECX.asm \
 	common/asm/ASMNopPause.asm
 
 #
@@ -186,7 +187,8 @@ RuntimeWin64ASM_SOURCES = \
 #
 RuntimeWin32ASM_SOURCES = \
 	common/asm/ASMAtomicCmpXchgU8.asm \
-	common/asm/ASMMultU64ByU32DivByU32.asm
+	common/asm/ASMMultU64ByU32DivByU32.asm \
+	common/asm/ASMCpuId_Idx_ECX.asm
 
 #
 # NoCRT sources (minus math stuff).
@@ -343,6 +345,7 @@ RuntimeR3_SOURCES       = \
 	common/path/RTPathAbsExDup.cpp \
 	common/path/RTPathAppend.cpp \
 	common/path/RTPathAppendEx.cpp \
+	common/path/RTPathCalcRelative.cpp \
 	common/path/RTPathChangeToDosSlashes.cpp \
 	common/path/RTPathChangeToUnixSlashes.cpp \
 	common/path/RTPathCopyComponents.cpp \

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -93,6 +93,7 @@ RTDECL(int)  RTSpinlockCreate(PRTSPINLOCK pSpinlock, uint32_t fFlags, const char
     pThis->idCpuOwner   = NIL_RTCPUID;
     pThis->idAssertCpu  = NIL_RTCPUID;
 #endif
+
     spin_lock_init(&pThis->Spinlock);
 
     *pSpinlock = pThis;
@@ -129,6 +130,9 @@ RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock)
     AssertMsg(pThis && pThis->u32Magic == RTSPINLOCK_MAGIC,
               ("pThis=%p u32Magic=%08x\n", pThis, pThis ? (int)pThis->u32Magic : 0));
 
+#ifdef CONFIG_PROVE_LOCKING
+    lockdep_off();
+#endif
     if (pThis->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)
     {
         unsigned long fIntSaved;
@@ -137,6 +141,9 @@ RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock)
     }
     else
         spin_lock(&pThis->Spinlock);
+#ifdef CONFIG_PROVE_LOCKING
+    lockdep_on();
+#endif
 
     RT_ASSERT_PREEMPT_CPUID_SPIN_ACQUIRED(pThis);
 }
@@ -151,6 +158,9 @@ RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock)
               ("pThis=%p u32Magic=%08x\n", pThis, pThis ? (int)pThis->u32Magic : 0));
     RT_ASSERT_PREEMPT_CPUID_SPIN_RELEASE(pThis);
 
+#ifdef CONFIG_PROVE_LOCKING
+    lockdep_off();
+#endif
     if (pThis->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)
     {
         unsigned long fIntSaved = pThis->fIntSaved;
@@ -159,6 +169,9 @@ RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock)
     }
     else
         spin_unlock(&pThis->Spinlock);
+#ifdef CONFIG_PROVE_LOCKING
+    lockdep_on();
+#endif
 
     RT_ASSERT_PREEMPT_CPUID();
 }

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,6 +54,7 @@ RT_C_DECLS_BEGIN
 #define VUSB_DT_DEVICE_QUALIFIER        0x06
 #define VUSB_DT_OTHER_SPEED_CFG         0x07
 #define VUSB_DT_INTERFACE_POWER         0x08
+#define VUSB_DT_INTERFACE_ASSOCIATION   0x0B
 /** @} */
 
 /** @name USB Descriptor minimum sizes (from spec)
@@ -162,6 +163,26 @@ typedef const VUSBDESCCONFIG *PCVUSBDESCCONFIG;
 
 
 /**
+ * USB interface association descriptor (from USB ECN Interface Association Descriptors)
+ */
+typedef struct VUSBDESCIAD
+{
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint8_t bFirstInterface;
+    uint8_t bInterfaceCount;
+    uint8_t bFunctionClass;
+    uint8_t bFunctionSubClass;
+    uint8_t bFunctionProtocol;
+    uint8_t iFunction;
+} VUSBDESCIAD;
+/** Pointer to a USB interface association descriptor. */
+typedef VUSBDESCIAD *PVUSBDESCIAD;
+/** Pointer to a readonly USB interface association descriptor. */
+typedef const VUSBDESCIAD *PCVUSBDESCIAD;
+
+
+/**
  * USB interface descriptor (from spec)
  */
 typedef struct VUSBDESCINTERFACE
@@ -256,6 +277,11 @@ typedef struct VUSBDESCINTERFACEEX
     /** Pointer to an array of the endpoints referenced by the interface.
      * Core.bNumEndpoints in size. */
     const struct VUSBDESCENDPOINTEX *paEndpoints;
+    /** Interface association descriptor, which prepends a group of interfaces,
+     * starting with this interface. */
+    PCVUSBDESCIAD pIAD;
+    /** Size of interface association descriptor. */
+    uint16_t cbIAD;
 } VUSBDESCINTERFACEEX;
 /** Pointer to an prased USB interface descriptor. */
 typedef VUSBDESCINTERFACEEX *PVUSBDESCINTERFACEEX;

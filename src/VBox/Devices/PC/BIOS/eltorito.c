@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -145,11 +145,11 @@ void BIOSCALL int13_eltorito(disk_regs_t r)
     
     switch (GET_AH()) {
 
-    // FIXME ElTorito Various. Should be implemented
+    // FIXME ElTorito Various. Not implemented in many real BIOSes.
     case 0x4a: // ElTorito - Initiate disk emu
     case 0x4c: // ElTorito - Initiate disk emu and boot
     case 0x4d: // ElTorito - Return Boot catalog
-        BX_PANIC("%s: call with AX=%04x. Please report\n", __func__, AX);
+        BX_INFO("%s: call with AX=%04x not implemented.\n", __func__, AX);
         goto int13_fail;
         break;
 

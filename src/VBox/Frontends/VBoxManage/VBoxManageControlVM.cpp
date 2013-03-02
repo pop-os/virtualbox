@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -993,12 +993,18 @@ int handleControlVM(HandlerArg *a)
                 domain = a->argv[5];
             }
 
-            ComPtr<IGuest> guest;
-            CHECK_ERROR_BREAK(console, COMGETTER(Guest)(guest.asOutParam()));
-            CHECK_ERROR_BREAK(guest, SetCredentials(Bstr(a->argv[2]).raw(),
-                                                    Bstr(passwd).raw(),
-                                                    Bstr(domain).raw(),
-                                                    fAllowLocalLogon));
+            ComPtr<IGuest> pGuest;
+            CHECK_ERROR_BREAK(console, COMGETTER(Guest)(pGuest.asOutParam()));
+            if (!pGuest)
+            {
+                RTMsgError("Guest not running");
+                rc = E_FAIL;
+                break;
+            }
+            CHECK_ERROR_BREAK(pGuest, SetCredentials(Bstr(a->argv[2]).raw(),
+                                                     Bstr(passwd).raw(),
+                                                     Bstr(domain).raw(),
+                                                     fAllowLocalLogon));
         }
 #if 0 /* TODO: review & remove */
         else if (!strcmp(a->argv[1], "dvdattach"))
@@ -1232,6 +1238,12 @@ int handleControlVM(HandlerArg *a)
             }
             ComPtr<IDisplay> pDisplay;
             CHECK_ERROR_BREAK(console, COMGETTER(Display)(pDisplay.asOutParam()));
+            if (!pDisplay)
+            {
+                RTMsgError("Cannot take a screenshot without a display");
+                rc = E_FAIL;
+                break;
+            }
             ULONG width, height, bpp;
             CHECK_ERROR_BREAK(pDisplay, GetScreenResolution(displayIdx, &width, &height, &bpp));
             com::SafeArray<BYTE> saScreenshot;

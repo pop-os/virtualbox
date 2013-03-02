@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -472,6 +472,7 @@ namespace pm
         HostCpuLoadRaw(CollectorHAL *hal, ComPtr<IUnknown> object, SubMetric *user, SubMetric *kernel, SubMetric *idle)
         : HostCpuLoad(hal, object, user, kernel, idle), mUserPrev(0), mKernelPrev(0), mIdlePrev(0) {};
 
+        void init(ULONG period, ULONG length);
         void preCollect(CollectorHints& hints, uint64_t iTick);
         void collect();
     private:
@@ -521,11 +522,12 @@ namespace pm
     class HostNetworkSpeed : public BaseMetric
     {
     public:
-        HostNetworkSpeed(CollectorHAL *hal, ComPtr<IUnknown> object, com::Utf8Str name, com::Utf8Str /* shortname */, com::Utf8Str /* ifname */, uint32_t speed, SubMetric *linkspeed)
-        : BaseMetric(hal, name, object), mSpeed(speed), mLinkSpeed(linkspeed) {};
+        HostNetworkSpeed(CollectorHAL *hal, ComPtr<IUnknown> object, com::Utf8Str name, com::Utf8Str shortname, com::Utf8Str /* ifname */, uint32_t speed, SubMetric *linkspeed)
+        : BaseMetric(hal, name, object), mShortName(shortname), mSpeed(speed), mLinkSpeed(linkspeed) {};
         ~HostNetworkSpeed() { delete mLinkSpeed; };
 
-        void init(ULONG period, ULONG length) { mPeriod = period; mLength = length; mLinkSpeed->init(length); };
+        void init(ULONG period, ULONG length);
+
         void preCollect(CollectorHints& /* hints */, uint64_t /* iTick */) {};
         void collect() { if (mSpeed) mLinkSpeed->put(mSpeed); };
         const char *getUnit() { return "mbit/s"; };
@@ -533,8 +535,9 @@ namespace pm
         ULONG getMaxValue() { return INT32_MAX; };
         ULONG getScale() { return 1; }
     private:
-        ULONG mSpeed;
-        SubMetric *mLinkSpeed;
+        com::Utf8Str mShortName;
+        uint32_t     mSpeed;
+        SubMetric   *mLinkSpeed;
     };
 
     class HostNetworkLoadRaw : public BaseMetric

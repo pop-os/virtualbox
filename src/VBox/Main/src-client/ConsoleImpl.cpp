@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2012 Oracle Corporation
+ * Copyright (C) 2005-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -379,7 +379,7 @@ Console::Console()
     , mAudioSniffer(NULL)
     , mNvram(NULL)
 #ifdef VBOX_WITH_USB_VIDEO
-    , mUsbWebcamInterface(NULL)
+    , mEmWebcam(NULL)
 #endif
 #ifdef VBOX_WITH_USB_CARDREADER
     , mUsbCardReader(NULL)
@@ -549,8 +549,8 @@ HRESULT Console::init(IMachine *aMachine, IInternalMachineControl *aControl, Loc
         }
 
 #ifdef VBOX_WITH_USB_VIDEO
-        unconst(mUsbWebcamInterface) = new UsbWebcamInterface(this);
-        AssertReturn(mUsbWebcamInterface, E_FAIL);
+        unconst(mEmWebcam) = new EmWebcam(this);
+        AssertReturn(mEmWebcam, E_FAIL);
 #endif
 #ifdef VBOX_WITH_USB_CARDREADER
         unconst(mUsbCardReader) = new UsbCardReader(this);
@@ -650,10 +650,10 @@ void Console::uninit()
     }
 
 #ifdef VBOX_WITH_USB_VIDEO
-    if (mUsbWebcamInterface)
+    if (mEmWebcam)
     {
-        delete mUsbWebcamInterface;
-        unconst(mUsbWebcamInterface) = NULL;
+        delete mEmWebcam;
+        unconst(mEmWebcam) = NULL;
     }
 #endif
 
@@ -1697,8 +1697,8 @@ DECLCALLBACK(int) Console::doGuestPropNotification(void *pvExtension,
     PHOSTCALLBACKDATA   pCBData = reinterpret_cast<PHOSTCALLBACKDATA>(pvParms);
     AssertReturn(sizeof(HOSTCALLBACKDATA) == cbParms, VERR_INVALID_PARAMETER);
     AssertReturn(HOSTCALLBACKMAGIC == pCBData->u32Magic, VERR_INVALID_PARAMETER);
-    Log5(("Console::doGuestPropNotification: pCBData={.pcszName=%s, .pcszValue=%s, .pcszFlags=%s}\n",
-          pCBData->pcszName, pCBData->pcszValue, pCBData->pcszFlags));
+    LogFlow(("Console::doGuestPropNotification: pCBData={.pcszName=%s, .pcszValue=%s, .pcszFlags=%s}\n",
+             pCBData->pcszName, pCBData->pcszValue, pCBData->pcszFlags));
 
     int  rc;
     Bstr name(pCBData->pcszName);
@@ -1713,7 +1713,7 @@ DECLCALLBACK(int) Console::doGuestPropNotification(void *pvExtension,
         rc = VINF_SUCCESS;
     else
     {
-        LogFunc(("Console::doGuestPropNotification: hrc=%Rhrc pCBData={.pcszName=%s, .pcszValue=%s, .pcszFlags=%s}\n",
+        LogFlow(("Console::doGuestPropNotification: hrc=%Rhrc pCBData={.pcszName=%s, .pcszValue=%s, .pcszFlags=%s}\n",
                  hrc, pCBData->pcszName, pCBData->pcszValue, pCBData->pcszFlags));
         rc = Global::vboxStatusCodeFromCOM(hrc);
     }
@@ -5498,6 +5498,7 @@ HRESULT Console::setGuestProperty(IN_BSTR aName, IN_BSTR aValue, IN_BSTR aFlags)
         return E_INVALIDARG;
     if ((aFlags != NULL) && !VALID_PTR(aFlags))
         return E_INVALIDARG;
+    bool fDelete = (!aValue || !aValue[0]);
 
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
@@ -5521,7 +5522,7 @@ HRESULT Console::setGuestProperty(IN_BSTR aName, IN_BSTR aValue, IN_BSTR aFlags)
     /* The + 1 is the null terminator */
     parm[0].u.pointer.size = (uint32_t)Utf8Name.length() + 1;
     Utf8Str Utf8Value = aValue;
-    if (aValue != NULL)
+    if (!fDelete)
     {
         parm[1].type = VBOX_HGCM_SVC_PARM_PTR;
         parm[1].u.pointer.addr = (void*)Utf8Value.c_str();
@@ -5536,10 +5537,10 @@ HRESULT Console::setGuestProperty(IN_BSTR aName, IN_BSTR aValue, IN_BSTR aFlags)
         /* The + 1 is the null terminator */
         parm[2].u.pointer.size = (uint32_t)Utf8Flags.length() + 1;
     }
-    if ((aValue != NULL) && (aFlags != NULL))
+    if (!fDelete && (aFlags != NULL))
         vrc = m_pVMMDev->hgcmHostCall("VBoxGuestPropSvc", SET_PROP_HOST,
                                       3, &parm[0]);
-    else if (aValue != NULL)
+    else if (!fDelete)
         vrc = m_pVMMDev->hgcmHostCall("VBoxGuestPropSvc", SET_PROP_VALUE_HOST,
                                     2, &parm[0]);
     else

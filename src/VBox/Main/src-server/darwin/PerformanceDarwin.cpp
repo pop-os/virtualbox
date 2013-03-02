@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,7 @@
 #include <sys/errno.h>
 #include <iprt/err.h>
 #include <iprt/log.h>
+#include <iprt/mp.h>
 #include <iprt/param.h>
 #include "Performance.h"
 
@@ -64,6 +65,7 @@ public:
     virtual int getProcessMemoryUsage(RTPROCESS process, ULONG *used);
 private:
     ULONG totalRAM;
+    uint32_t nCpus;
 };
 
 CollectorHAL *createHAL()
@@ -86,6 +88,13 @@ CollectorDarwin::CollectorDarwin()
         hostMemory = 0;
     }
     totalRAM = (ULONG)(hostMemory / 1024);
+    nCpus = RTMpGetOnlineCount();
+    Assert(nCpus);
+    if (nCpus == 0)
+    {
+        /* It is rather unsual to have no CPUs, but the show must go on. */
+        nCpus = 1;
+    }
 }
 
 int CollectorDarwin::getRawHostCpuLoad(uint64_t *user, uint64_t *kernel, uint64_t *idle)
@@ -156,8 +165,12 @@ int CollectorDarwin::getRawProcessCpuLoad(RTPROCESS process, uint64_t *user, uin
     int rc = getProcessInfo(process, &tinfo);
     if (RT_SUCCESS(rc))
     {
-        *user = tinfo.pti_total_user;
-        *kernel = tinfo.pti_total_system;
+        /*
+         * Adjust user and kernel values so 100% is when ALL cores are fully
+         * utilized (see @bugref{6345}).
+         */
+        *user = tinfo.pti_total_user / nCpus;
+        *kernel = tinfo.pti_total_system / nCpus;
         *total = mach_absolute_time();
     }
     return rc;

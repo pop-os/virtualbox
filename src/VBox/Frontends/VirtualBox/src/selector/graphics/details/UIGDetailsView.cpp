@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,7 +23,6 @@
 
 /* GUI includes: */
 #include "UIGDetailsView.h"
-#include "UIGChooserModel.h"
 
 UIGDetailsView::UIGDetailsView(QWidget *pParent)
     : QGraphicsView(pParent)
@@ -84,8 +83,6 @@ void UIGDetailsView::preparePalette()
 
 void UIGDetailsView::resizeEvent(QResizeEvent*)
 {
-    /* Update scene-rect: */
-    updateSceneRect();
     /* Notify listeners: */
     emit sigResized();
 }

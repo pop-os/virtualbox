@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -894,6 +894,7 @@
 # define RTPathAppPrivateArch                           RT_MANGLER(RTPathAppPrivateArch)
 # define RTPathAppPrivateArchTop                        RT_MANGLER(RTPathAppPrivateArchTop)
 # define RTPathAppPrivateNoArch                         RT_MANGLER(RTPathAppPrivateNoArch)
+# define RTPathCalcRelative                             RT_MANGLER(RTPathCalcRelative)
 # define RTPathChangeToDosSlashes                       RT_MANGLER(RTPathChangeToDosSlashes)
 # define RTPathChangeToUnixSlashes                      RT_MANGLER(RTPathChangeToUnixSlashes)
 # define RTPathCompare                                  RT_MANGLER(RTPathCompare)
@@ -1018,6 +1019,7 @@
 # define RTR3InitExe                                    RT_MANGLER(RTR3InitExe)
 # define RTR3InitExeNoArguments                         RT_MANGLER(RTR3InitExeNoArguments)
 # define RTR3InitEx                                     RT_MANGLER(RTR3InitEx)
+# define RTR3InitIsUnobtrusive                          RT_MANGLER(RTR3InitIsUnobtrusive)
 # define rtR3MemAlloc                                   RT_MANGLER(rtR3MemAlloc)
 # define rtR3MemFree                                    RT_MANGLER(rtR3MemFree)
 # define rtR3MemRealloc                                 RT_MANGLER(rtR3MemRealloc)

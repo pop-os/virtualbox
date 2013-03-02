@@ -4,7 +4,7 @@
 <context>
     <name>UIGChooserItemGroup</name>
     <message numerus="yes">
-        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="629"/>
+        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="664"/>
         <source>%n group(s)</source>
         <comment>Group item tool-tip / Group info</comment>
         <translation>
@@ -13,7 +13,7 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="645"/>
+        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="680"/>
         <source>%n machine(s)</source>
         <comment>Group item tool-tip / Machine info</comment>
         <translation>
@@ -22,7 +22,7 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="646"/>
+        <location filename="../src/selector/graphics/chooser/UIGChooserItemGroup.cpp" line="681"/>
         <source>(%n running)</source>
         <comment>Group item tool-tip / Running machine info</comment>
         <translation type="unfinished">
