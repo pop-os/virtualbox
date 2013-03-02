@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -635,7 +635,6 @@ static int supdrvVtgValidate(PVTGOBJHDR pVtgHdr, RTUINTPTR uVtgHdrAddr, const ui
             MY_CHECK_RET(paProbeLocs[i].uLine < _1G, VERR_SUPDRV_VTG_BAD_PROBE_LOC);
             MY_CHECK_RET(paProbeLocs[i].fEnabled == false, VERR_SUPDRV_VTG_BAD_PROBE_LOC);
             MY_CHECK_RET(paProbeLocs[i].idProbe == 0, VERR_SUPDRV_VTG_BAD_PROBE_LOC);
-            MY_WITHIN_IMAGE(paProbeLocs[i].pszFunction, VERR_SUPDRV_VTG_BAD_PROBE_LOC);
             offTmp = (uintptr_t)paProbeLocs[i].pProbe - (uintptr_t)pVtgHdr->offProbes - (uintptr_t)pVtgHdr;
 #ifdef RT_OS_DARWIN /* See header validation code. */
             if (   offTmp >= pVtgHdr->cbProbes
@@ -645,12 +644,17 @@ static int supdrvVtgValidate(PVTGOBJHDR pVtgHdr, RTUINTPTR uVtgHdrAddr, const ui
                 && !fUmod )
             {
                 uint64_t offDelta = uVtgHdrAddr - pVtgHdr->u64VtgObjSectionStart;
+
                 paProbeLocs[i].pProbe = (PVTGDESCPROBE)((uintptr_t)paProbeLocs[i].pProbe + offDelta);
+                if ((uintptr_t)paProbeLocs[i].pszFunction < _4M)
+                    paProbeLocs[i].pszFunction = (const char *)((uintptr_t)paProbeLocs[i].pszFunction + offDelta);
+
                 offTmp += offDelta;
             }
 #endif
             MY_CHECK_RET(offTmp < pVtgHdr->cbProbes, VERR_SUPDRV_VTG_BAD_PROBE_LOC);
             MY_CHECK_RET(offTmp / sizeof(VTGDESCPROBE) * sizeof(VTGDESCPROBE) == offTmp, VERR_SUPDRV_VTG_BAD_PROBE_LOC);
+            MY_WITHIN_IMAGE(paProbeLocs[i].pszFunction, VERR_SUPDRV_VTG_BAD_PROBE_LOC);
         }
     }
 

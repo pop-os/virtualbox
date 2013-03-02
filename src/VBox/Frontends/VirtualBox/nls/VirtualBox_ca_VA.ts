@@ -5828,7 +5828,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enable USB 2.0 (E&amp;HCI) Controller</source>
-        <translation>Habilita el controlador USB &amp;2.0 (E&amp;HCI)</translation>
+        <translation>Habilita el controlador USB 2.0 (E&amp;HCI)</translation>
     </message>
     <message>
         <source>USB Device &amp;Filters</source>

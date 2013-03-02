@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2010 Oracle Corporation
+ * Copyright (C) 2007-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -378,7 +378,9 @@ static const VUSBDESCINTERFACEEX g_UsbHidMInterfaceDesc =
     /* .pvMore = */     NULL,
     /* .pvClass = */    &g_UsbHidMIfHidDesc,
     /* .cbClass = */    sizeof(g_UsbHidMIfHidDesc),
-    &g_aUsbHidMEndpointDescs[0]
+    &g_aUsbHidMEndpointDescs[0],
+    /* .pIAD = */ NULL,
+    /* .cbIAD = */ 0
 };
 
 static const VUSBDESCINTERFACEEX g_UsbHidTInterfaceDesc =
@@ -397,7 +399,9 @@ static const VUSBDESCINTERFACEEX g_UsbHidTInterfaceDesc =
     /* .pvMore = */     NULL,
     /* .pvClass = */    &g_UsbHidTIfHidDesc,
     /* .cbClass = */    sizeof(g_UsbHidTIfHidDesc),
-    &g_aUsbHidTEndpointDescs[0]
+    &g_aUsbHidTEndpointDescs[0],
+    /* .pIAD = */ NULL,
+    /* .cbIAD = */ 0
 };
 
 static const VUSBINTERFACE g_aUsbHidMInterfaces[] =

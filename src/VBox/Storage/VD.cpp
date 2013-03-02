@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -6652,7 +6652,11 @@ VBOXDDU_DECL(int) VDMerge(PVBOXHDD pDisk, unsigned nImageFrom,
         unsigned uOpenFlags = pImageTo->Backend->pfnGetOpenFlags(pImageTo->pBackendData);
         if (uOpenFlags & VD_OPEN_FLAGS_READONLY)
         {
-            uOpenFlags &= ~VD_OPEN_FLAGS_READONLY;
+            /*
+             * Clear skip consistency checks because the image is made writable now and
+             * skipping consistency checks is only possible for readonly images.
+             */
+            uOpenFlags &= ~(VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_SKIP_CONSISTENCY_CHECKS);
             rc = pImageTo->Backend->pfnSetOpenFlags(pImageTo->pBackendData,
                                                     uOpenFlags);
             if (RT_FAILURE(rc))
@@ -7604,6 +7608,8 @@ VBOXDDU_DECL(int) VDResize(PVBOXHDD pDisk, uint64_t cbSize,
     {
         if (pIfProgress && pIfProgress->pfnProgress)
             pIfProgress->pfnProgress(pIfProgress->Core.pvUser, 100);
+
+        pDisk->cbSize = cbSize;
     }
 
     LogFlowFunc(("returns %Rrc\n", rc));

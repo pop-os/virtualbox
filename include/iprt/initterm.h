@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,6 +46,8 @@ RT_C_DECLS_BEGIN
 #define RTR3INIT_FLAGS_SUPLIB       RT_BIT(0)
 /** Initializing IPRT from a DLL. */
 #define RTR3INIT_FLAGS_DLL          RT_BIT(1)
+/** We are sharing a process space, so we need to behave. */
+#define RTR3INIT_FLAGS_UNOBTRUSIVE  RT_BIT(2)
 /** @} */
 
 /** @name RTR3InitEx version
@@ -103,6 +105,10 @@ RTR3DECL(int) RTR3InitEx(uint32_t iVersion, uint32_t fFlags, int cArgs, char ***
  */
 RTR3DECL(void) RTR3Term(void);
 
+/**
+ * Are we running in unobtrusive mode?
+ */
+RTR3DECL(bool) RTR3InitIsUnobtrusive(void);
 #endif /* IN_RING3 */
 
 

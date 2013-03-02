@@ -6339,7 +6339,7 @@
     </message>
     <message>
         <source>&lt;p&gt;You are about to restore snapshot &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;You can create a snapshot of the current state of the virtual machine first by checking the box below; if you do not do this the current state will be permanently lost. Do you wish to proceed?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Vous êtes sur le point de restaurer l&apos;instantané &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt; Vous pouvez créer un instantané de l&apos;état actuel de la machine virtuelle en vérifiant d&apos;abord la boîte ci-dessous. Si vous ne le faites pas, l&apos;état actuel sera définitivement perdu. Souhaitez-vous procéder ?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Vous êtes sur le point de restaurer l&apos;instantané &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt; Vous pouvez créer un instantané de l&apos;état actuel de la machine virtuelle en cochant d&apos;abord la boîte ci-dessous. Si vous ne le faites pas, l&apos;état actuel sera définitivement perdu. Souhaitez-vous procéder ?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to restore snapshot &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;</source>

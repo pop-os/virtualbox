@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,9 @@ include $(KBUILD_PATH)/subheader.kmk
 #
 include $(PATH_SUB_CURRENT)/sharedfolders/Makefile.kmk
 include $(PATH_SUB_CURRENT)/drm/Makefile.kmk
+ifdef VBOX_WITH_LIGHTDM_GREETER
+ include $(PATH_SUB_CURRENT)/lightdm-greeter/Makefile.kmk
+endif
 
 #
 # Globals
@@ -122,7 +125,8 @@ VBOX_ADD_BIN.linux += \
 	VBoxClient-all
 
 VBOX_ADD_STRIP_SBIN += \
-	VBoxService
+	VBoxService \
+	$(if $(VBOX_WITH_LIGHTDM_GREETER),vbox-greeter)
 
 VBOX_ADD_STRIP_LIB += \
 	VBoxOGLarrayspu.so \
@@ -208,6 +212,11 @@ VBOX_LNX_ADD_DBG_FILES := \
 	$(addprefix $(VBOX_LNX_ADD_DBG_LIB_DIR),$(VBOX_LNX_ADD_STRIP_LIB)) \
 	$(addprefix $(VBOX_LNX_ADD_DBG_MOD_DIR),$(VBOX_LNX_ADD_STRIP_MOD))
 
+ifdef VBOX_WITH_LIGHTDM_GREETER_PACKING
+VBOX_LNX_ADD_INST_FILES += \
+	$(addprefix $(VBOX_LNX_ADD_INST_SBIN_DIR),vbox-greeter)
+endif
+
 # Cleanup of the the installer directory files
 OTHER_CLEAN += $(VBOX_LNX_ADD_INST_FILES) $(VBOX_LNX_ADD_DBG_FILES)
 
@@ -249,6 +258,13 @@ $(addprefix $(VBOX_LNX_ADD_INST_SBIN_DIR),$(VBOX_LNX_ADD_STRIP_SBIN)): \
 	$(call MSG_INST_FILE,$<,$@)
 	$(QUIET)$(INSTALL) -m 0755 $(if $(VBOX_DO_STRIP),-s,) $< $@
 	$(QUIET)objcopy --add-gnu-debuglink=$@ $@
+
+# pattern rule for stripping and copying vbox-greeter to the installation directory
+$(addprefix $(VBOX_LNX_ADD_INST_SBIN_DIR),vbox-greeter): \
+		$(VBOX_LNX_ADD_INST_SBIN_DIR)% : $(subst linux,linux2,$(PATH_STAGE_BIN))/additions/% \
+		| $$(dir $$@)
+	$(call MSG_INST_FILE,$<,$@)
+	$(QUIET)$(INSTALL) -m 0755 $< $@
 
 # pattern rule for stripping and copying the VBOX_LNX_ADD_STRIP_LIB files to the installation directory
 $(addprefix $(VBOX_LNX_ADD_INST_LIB_DIR),$(VBOX_LNX_ADD_STRIP_LIB)): \
@@ -320,7 +336,6 @@ $(addprefix $(VBOX_LNX_ADD_INST_MOD_DIR),$(VBOX_LNX_ADD_INIT)): \
 	$(QUIET)$(RM) -Rf $@
 	$(QUIET)$(CP) -RPf -- $< $@
 
-
 INSTALLS += GuestDrivers-src
 GuestDrivers-src_INST = $(INST_ADDITIONS)src/
 GuestDrivers-src_MODE = a+r,u+w
@@ -341,6 +356,7 @@ lnx_add_inst-noexec_INSTTYPE = stage
 lnx_add_inst-noexec_SOURCES  = \
 	$(VBOX_REL_X11_ADD_INST)vboxclient.desktop \
 	$(VBOX_REL_X11_ADD_INST)vboxvideo.ids \
+	$(if $(VBOX_WITH_LIGHTDM_GREETER_PACKING),lightdm-greeter/vbox-greeter.desktop,) \
 	selinux-fedora/vbox_x11.pp \
 	selinux-fedora/vbox_accel.pp
 
@@ -363,6 +379,7 @@ LnxAdd-scripts_SOURCES  = \
 LnxAdd-scripts_EXEC_SOURCES  = \
 	$(VBOX_REL_LNX_HOST_DRV)do_dkms \
 	$(VBOX_REL_LNX_INST_SRC)routines.sh \
+	$(VBOX_REL_LNX_ADD_INST)module-autologon.sh=>installer/module-autologon \
 	$(VBOX_REL_LNX_ADD_INST)vboxadd.sh=>vboxadd \
 	$(VBOX_REL_LNX_ADD_INST)vboxadd-service.sh=>vboxadd-service \
 	$(VBOX_REL_LNX_ADD_INST)vboxadd-x11.sh=>vboxadd-x11 \

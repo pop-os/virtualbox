@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2036,7 +2036,10 @@ static int vdiSetOpenFlags(void *pBackendData, unsigned uOpenFlags)
     const char *pszFilename;
 
     /* Image must be opened and the new flags must be valid. */
-    if (!pImage || (uOpenFlags & ~(VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO | VD_OPEN_FLAGS_ASYNC_IO | VD_OPEN_FLAGS_SHAREABLE | VD_OPEN_FLAGS_SEQUENTIAL | VD_OPEN_FLAGS_DISCARD)))
+    if (!pImage || (uOpenFlags & ~(  VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO
+                                   | VD_OPEN_FLAGS_ASYNC_IO | VD_OPEN_FLAGS_SHAREABLE
+                                   | VD_OPEN_FLAGS_SEQUENTIAL | VD_OPEN_FLAGS_DISCARD
+                                   | VD_OPEN_FLAGS_SKIP_CONSISTENCY_CHECKS)))
     {
         rc = VERR_INVALID_PARAMETER;
         goto out;
@@ -2931,8 +2934,6 @@ static int vdiResize(void *pBackendData, uint64_t cbSize,
             void *pvBuf = NULL, *pvZero = NULL;
             do
             {
-                VDIIMAGEBLOCKPOINTER uBlock = 0;
-
                 /* Allocate data buffer. */
                 pvBuf = RTMemAllocZ(pImage->cbTotalBlockData);
                 if (!pvBuf)
@@ -2954,7 +2955,7 @@ static int vdiResize(void *pBackendData, uint64_t cbSize,
                     /* Search the index in the block table. */
                     for (unsigned idxBlock = 0; idxBlock < cBlocksOld; idxBlock++)
                     {
-                        if (pImage->paBlocks[idxBlock] == uBlock)
+                        if (!pImage->paBlocks[idxBlock])
                         {
                             /* Read data and append to the end of the image. */
                             rc = vdIfIoIntFileReadSync(pImage->pIfIo, pImage->pStorage,
@@ -3006,7 +3007,6 @@ static int vdiResize(void *pBackendData, uint64_t cbSize,
                     if (RT_FAILURE(rc))
                         break;
 
-                    uBlock++;
                     offStartDataNew += pImage->cbTotalBlockData;
                 }
             } while (0);
@@ -3055,6 +3055,7 @@ static int vdiResize(void *pBackendData, uint64_t cbSize,
                 setImageBlocks(&pImage->Header, cBlocksNew);
                 /* Update geometry. */
                 pImage->PCHSGeometry = *pPCHSGeometry;
+                pImage->cbImage = cbSize;
 
                 PVDIDISKGEOMETRY pGeometry = getImageLCHSGeometry(&pImage->Header);
                 if (pGeometry)

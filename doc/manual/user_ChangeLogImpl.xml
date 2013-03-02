@@ -1,6 +1,174 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.2.8 (2013-02-20)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed guest crash with huge amount of guest RAM on
+          VT-x hosts (bug #11306)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed a layout bug in the Mac OS X clone VM dialog
+          (bug #10982)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: not all the translation tags were taken into account
+          during the language switch (bug #11342)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: take-guest-screenshot dialog sometimes had no keyboard
+          input available on Windows host</para>
+      </listitem>
+
+      <listitem>
+        <para>Main/Machine: fix generation of spurious event for inaccessible
+          VMs which triggered an endless event generation loop in cooperation
+          with the GUI which became unresponsive (4.2.6 regression, bug
+          #11323)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main/Display: fix for an access violation under certain
+          conditions in multi-monitor configurations (bug #10539)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main/Metrics: network metrics are now collected for
+          active (up) interfaces only, the state of an interface being evaluated
+          when the associated metric is enabled via setupMetrics</para>
+      </listitem>
+
+      <listitem>
+        <para>Snapshots: reduce the time for merging snapshots under
+          certain conditions</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed data corruption after resizing a VDI image under
+          certain circumstances (bug #11344)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed non working online merging of snapshots
+          (4.2.6 regression, bug #11359)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed crash when connecting to certain QNAP iSCSI
+          targets</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed incompatibility of VHD differencing images with
+          Hyper-V (bug #5990)</para>
+      </listitem>
+
+      <listitem>
+        <para>Bridged Networking: fixed TCP pseudo header checksum computation
+          for IPv6 (bug #9380)</para>
+      </listitem>
+
+      <listitem>
+        <para>3D support: fix Battlefield 1942 game crashes (bug #11369)</para>
+      </listitem>
+
+      <listitem>
+        <para>Settings: really sanitise the name of VM folders and settings
+          file, the code was disabled before (bug #10549)</para>
+      </listitem>
+
+      <listitem>
+        <para>Settings: allow to change VRDE settings for saved VMs</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: don't crash during <emphasis>screenshotpng</emphasis>
+          if there is no display (bug #11363)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: work around gcc bug 55940 which might lead to wrong
+          kernel module code if gcc 4.7 is used to compile the 32-bit Linux
+          host kernel (bug #11035)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fixed inconsistent lock state and deadlock warnings on module
+          load and VM startup when CONFIG_PROVE_LOCKING is enabled (bug #11318)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: made "]" key work again on Japanese keyboards</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: don't crash the kernel during dtrace if the VBox
+          kernel extensions are loaded (10.6 hosts only; bug #11273)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris / Mac OS X hosts: machine CPU load metrics now report 100%
+          when all cores are fully utilized (used to be a single core)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris 11 host installer: wait for any services left over from
+           a previous installation to be terminated to avoid confusing SMF.
+           </para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Additions: don't block signals for processes executed
+          via guest control</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Additions: fixed a small memory leak in VBoxService
+          (bug #10970)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed shared folder issue with
+          large reads/writes on 64 bit Windows guests (bug #11115)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: added auto-logon support for Linux guests using
+          LightDM as the display manager</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: Linux 3.8 compile fixes (bug #11036)</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 Additions: fixed blocked SIGALRM in 3D desktop sessions
+          (bug #10987)</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 Additions: fixed an unresolved reference in vboxvideo_drv
+          for X.org 6.8 guests and before (e.g. RHEL4; 4.2.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 Additions: fixed screen automatic resizing for guests with
+          X.org 1.3 or older (4.2.0 regression)</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
     <title>Version 4.2.6 (2012-12-19)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -36,7 +204,7 @@
       <listitem>
         <para>GUI: several minor fixes, including palette fixes (bug #11191)</para>
       </listitem>
-      
+
       <listitem>
         <para>GUI: fixed Windows 2012 OS type (bug #11206)</para>
       </listitem>
@@ -177,7 +345,7 @@
         <para>Solaris hosts: added a dependency to ensure that the user directories
           are reachable when starting VBox services</para>
       </listitem>
-      
+
       <listitem>
         <para>Windows host installer: integrated user-contributed translations,
           thanks to all contributors!</para>
@@ -191,9 +359,9 @@
         <para>Windows Additions: don't fail if the shared folders host service is not
           available</para>
       </listitem>
-      
+
       <listitem>
-        <para>Windows Additions: fixed Guest Additions startup on Windows 2000 
+        <para>Windows Additions: fixed Guest Additions startup on Windows 2000
           guests (bug #11253)</para>
       </listitem>
 

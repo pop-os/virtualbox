@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -276,7 +276,7 @@ RT_EXPORT_SYMBOL(RTMpNotificationDeregister);
 
 DECLHIDDEN(int) rtR0MpNotificationInit(void)
 {
-    int rc = RTSpinlockCreate((PRTSPINLOCK)&g_hRTMpNotifySpinLock, RTSPINLOCK_FLAGS_INTERRUPT_UNSAFE, "RTR0Mp");
+    int rc = RTSpinlockCreate((PRTSPINLOCK)&g_hRTMpNotifySpinLock, RTSPINLOCK_FLAGS_INTERRUPT_SAFE, "RTR0Mp");
     if (RT_SUCCESS(rc))
     {
         rc = rtR0MpNotificationNativeInit();

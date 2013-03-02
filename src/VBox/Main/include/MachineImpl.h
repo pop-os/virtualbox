@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -238,8 +238,6 @@ public:
          * Data structure to hold information about a guest property.
          */
         struct GuestProperty {
-            /** Property name */
-            Utf8Str strName;
             /** Property value */
             Utf8Str strValue;
             /** Property timestamp */
@@ -290,14 +288,15 @@ public:
         ClipboardMode_T      mClipboardMode;
         DragAndDropMode_T    mDragAndDropMode;
 
-        typedef std::list<GuestProperty> GuestPropertyList;
-        GuestPropertyList    mGuestProperties;
+        typedef std::map<Utf8Str, GuestProperty> GuestPropertyMap;
+        GuestPropertyMap     mGuestProperties;
         Utf8Str              mGuestPropertyNotificationPatterns;
 
         FirmwareType_T       mFirmwareType;
         KeyboardHIDType_T    mKeyboardHIDType;
         PointingHIDType_T    mPointingHIDType;
         ChipsetType_T        mChipsetType;
+        BOOL                 mEmulatedUSBWebcamEnabled;
         BOOL                 mEmulatedUSBCardReaderEnabled;
 
         BOOL                 mIOCacheEnabled;

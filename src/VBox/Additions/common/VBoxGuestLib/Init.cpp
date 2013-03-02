@@ -1,10 +1,10 @@
-/* $Revision: 79609 $ */
+/* $Revision: 83687 $ */
 /** @file
  * VBoxGuestLibR0 - Library initialization.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;

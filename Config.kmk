@@ -7,7 +7,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -196,7 +196,7 @@ VBOX_VERSION_MINOR = 2
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 6
+VBOX_VERSION_BUILD = 8
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -416,6 +416,8 @@ else ifdef VBOX_WITH_VDMA
 endif
 # Disable the Intel PXE ROM (uses Etherboot).
 VBOX_WITH_INTEL_PXE =
+# not yet!
+VBOX_WITHOUT_IPXE=1
 # Enable EFI support
 VBOX_WITH_EFI = 1
 # Enable EFI/Ovmf support
@@ -476,6 +478,8 @@ if1of ($(KBUILD_TARGET), darwin freebsd linux solaris win)
 endif
 # Emulated USB smart card reader
 VBOX_WITH_USB_CARDREADER = 1
+# Emulated USB webcam
+VBOX_WITH_USB_VIDEO = 1
 ## @}
 
 
@@ -1012,6 +1016,7 @@ ifdef VBOX_OSE
  VBOX_WITH_DOCS_TRANSLATIONS=1
  VBOX_WITH_TESTSUITE=
  VBOX_WITH_INTEL_PXE=
+ VBOX_WITH_DEVMAPPER=
  ## @todo remove once the iPXE code is in public tree
  VBOX_WITHOUT_IPXE=1
  VBOX_WITH_FFMPEG=
@@ -5196,7 +5201,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 82870 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 83876 $  )
  VBOX_SVN_DEP          := $(wildcard $(PATH_ROOT)/.svn/entries)
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=
@@ -5341,4 +5346,4 @@ st stat status:
 quick:
 	$(MAKE) VBOX_QUICK=1
 
- 
+

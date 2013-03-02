@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -230,6 +230,9 @@ public:
     HRESULT unmarkForDeletion();
     HRESULT markLockedForDeletion();
     HRESULT unmarkLockedForDeletion();
+
+    HRESULT queryPreferredMergeDirection(const ComObjPtr<Medium> &pOther,
+                                         bool &fMergeForward);
 
     HRESULT prepareMergeTo(const ComObjPtr<Medium> &pTarget,
                            const Guid *aMachineId,

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,7 @@
 
 /* GUI includes: */
 #include "UIGDetailsItem.h"
+#include "QIWithRetranslateUI.h"
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -50,7 +51,7 @@ enum UpdateInterval
 typedef QMap<UpdateInterval, QString> UpdateIntervalMap;
 
 /* Preview window class: */
-class UIGMachinePreview : public QIGraphicsWidget
+class UIGMachinePreview : public QIWithRetranslateUI4<QIGraphicsWidget>
 {
     Q_OBJECT;
 

@@ -1,4 +1,4 @@
-/* $Rev: 80789 $ */
+/* $Rev: 83687 $ */
 /** @file
  * VBoxGuest - Linux specifics.
  *
@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -196,7 +196,11 @@ static struct miscdevice        g_MiscDeviceUser =
 
 
 /** PCI hotplug structure. */
-static const struct pci_device_id __devinitdata g_VBoxGuestPciId[] =
+static const struct pci_device_id
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
+__devinitdata
+#endif
+g_VBoxGuestPciId[] =
 {
     {
         vendor:     VMMDEV_VENDORID,
