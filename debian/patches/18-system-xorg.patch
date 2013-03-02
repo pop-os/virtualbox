@@ -40,3 +40,15 @@ Author: Michael Meskes <meskes@debian.org>, Felix Geyer <fgeyer@debian.org>
   VBoxOGL_DEFS     += VBOX_NO_NATIVEGL
  endif
  
+@@ -203,11 +197,6 @@ VBoxOGL_LIBS = \
+ 	$(VBOX_LIB_OGL_CRUTIL) \
+ 	$(PATH_STAGE_LIB)/additions/VBoxOGLspuload$(VBOX_SUFF_LIB)
+ if1of ($(KBUILD_TARGET), linux solaris freebsd)
+- VBoxOGL_LIBS += \
+- 	$(PATH_STAGE_LIB)/libXcomposite.so \
+- 	$(PATH_STAGE_LIB)/libXdamage.so \
+- 	$(PATH_STAGE_LIB)/libXfixes.so \
+- 	$(PATH_STAGE_LIB)/libXext.so
+  ifdef VBoxOGL_FAKEDRI
+   VBoxOGL_LIBS += \
+   	dl
