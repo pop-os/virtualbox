@@ -1,14 +1,13 @@
 virtualbox (4.2.8-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release. (Closes: #691148)
-    - Fixes compatibility with kernel 3.6 and 3.7. (Closes: #691169, #698607)
   * Switch to my @debian.org email address.
   * Move package to contrib as virtualbox 4.2 needs a non-free compiler to
     build the BIOS.
   * Build-depend on libdevmapper-dev.
   * Refresh patches.
-    - Drop 36-fix-ftbfs-xserver-112.patch, cve-2012-3221.patch and
-      CVE-2013-0420.patch.
+    - Drop 36-fix-ftbfs-xserver-112.patch, cve-2012-3221.patch,
+      CVE-2013-0420.patch 37-kcompat-3.6.patch and 38-kcompat-3.7.patch.
   * Drop all virtualbox-ose transitional packages.
   * Drop the virtualbox-fuse package as vdfuse fails to build with
     virtualbox 4.2.
@@ -16,6 +15,15 @@ virtualbox (4.2.8-dfsg-1) UNRELEASED; urgency=low
   * Bump required kbuild version to 0.1.9998svn2577.
 
  -- Felix Geyer <fgeyer@debian.org>  Fri, 25 Jan 2013 18:14:24 +0100
+
+virtualbox (4.1.18-dfsg-2.1) experimental; urgency=low
+
+  [ Stefan Lippers-Hollmann ]
+  * Non-maintainer upload.
+  * fix kernel module compilation against v3.6 and v3.7
+    (closes: #691169, #696011, #696667, #696953, #698607)
+
+ -- Daniel Baumann <daniel.baumann@progress-technologies.net>  Sat, 26 Jan 2013 17:55:16 +0100
 
 virtualbox (4.1.18-dfsg-2) unstable; urgency=high
 
