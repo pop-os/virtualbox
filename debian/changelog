@@ -1,4 +1,4 @@
-virtualbox (4.2.6-dfsg-1) UNRELEASED; urgency=low
+virtualbox (4.2.8-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release. (Closes: #691148)
     - Fixes compatibility with kernel 3.6 and 3.7. (Closes: #691169, #698607)
