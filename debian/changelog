@@ -1,6 +1,7 @@
 virtualbox (4.2.8-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release. (Closes: #691148)
+    - Fixes compatibility with kernel 3.8. (Closes: #700823)
   * Switch to my @debian.org email address.
   * Move package to contrib as virtualbox 4.2 needs a non-free compiler to
     build the BIOS.
