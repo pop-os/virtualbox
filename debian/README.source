@@ -22,6 +22,7 @@ Generating manpages
 help2man --section=1 --name="x86 virtualization solution" --version-string="VERSION_STRING" --no-info VBoxHeadless | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_[a-zA-Z]+)//g' > VBoxHeadless.1
 help2man --section=1 --name="x86 virtualization solution" --version-string="VERSION_STRING" --no-info VBoxManage | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_[a-zA-Z]+)//g' > VBoxManage.1
 help2man --section=1 --name="x86 virtualization solution" --version-string="VERSION_STRING" --no-info VBoxSDL | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_[a-zA-Z]+)//g' > VBoxSDL.1
+help2man --section=1 --name="x86 virtualization solution" --version-string="VERSION_STRING" --no-info VBoxBalloonCtrl | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_[a-zA-Z]+)//g' > VBoxBalloonCtrl.1
 help2man --section=1 --name="x86 virtualization solution" --version-string="VERSION_STRING" --no-info --no-discard-stderr vboxwebsrv | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_[a-zA-Z]+)//g' > vboxwebsrv.1
 help2man --section=1 --name="x86 virtualization solution" --version-string="VERSION_STRING" --no-info VirtualBox | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_[a-zA-Z]+)//g' > VirtualBox.1
 
