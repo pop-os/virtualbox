@@ -17,7 +17,7 @@ virtualbox (4.2.8-dfsg-1) UNRELEASED; urgency=low
   * Fix path to VBoxCreateUSBNode.sh in virtualbox.postinst. (Closes: #700479)
   * Add an init script to virtuabox-guest-x11 which loads the vboxvideo
     kernel module. The X Server 1.13 doesn't load it anymore. (Closes: #686994)
-  * Update man pages.
+  * Update man pages. (Closes: #680053)
 
  -- Felix Geyer <fgeyer@debian.org>  Fri, 25 Jan 2013 18:14:24 +0100
 
