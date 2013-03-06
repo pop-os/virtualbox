@@ -18,6 +18,8 @@ virtualbox (4.2.8-dfsg-1) UNRELEASED; urgency=low
   * Add an init script to virtuabox-guest-x11 which loads the vboxvideo
     kernel module. The X Server 1.13 doesn't load it anymore. (Closes: #686994)
   * Update man pages. (Closes: #680053)
+  * Add 36-python-multiarch.patch from Rico Tzschichholz to fix detection of
+    python in multiarch paths using pkg-config.
 
  -- Felix Geyer <fgeyer@debian.org>  Fri, 25 Jan 2013 18:14:24 +0100
 

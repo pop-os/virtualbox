@@ -13,3 +13,4 @@
 30-usb-warning-filters.patch
 32-disable-guest-version-check.patch
 35-libvdeplug-soname.patch
+36-python-multiarch.patch
