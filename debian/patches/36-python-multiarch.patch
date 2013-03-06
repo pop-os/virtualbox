@@ -1,5 +1,5 @@
 Description: Fix detection of python in multiarch paths using pkg-config.
-Author: Rico Tzschichholz <ricotz@ubuntu.com>
+Author: Rico Tzschichholz <ricotz@ubuntu.com>, Felix Geyer <fgeyer@debian.org>
 
 --- a/configure
 +++ b/configure
@@ -41,10 +41,10 @@ Author: Rico Tzschichholz <ricotz@ubuntu.com>
        cnf_append "VBOX_WITH_PYTHON"     "1"
 -      cnf_append "VBOX_PATH_PYTHON_INC" "$p/include/$d"
 -      cnf_append "VBOX_LIB_PYTHON"      "$p/$b/lib$d.so"
-+      cnf_append "VBOX_PATH_PYTHON_INC" "$PYTHON_CXX_CFLAGS"
-+      cnf_append "VBOX_LIB_PYTHON"      "$PYTHON_CXX_LIBS"
-+      cnf_append "VBOX_PYTHON"$d"_INC"  "$PYTHON_CXX_CFLAGS"
-+      cnf_append "VBOX_PYTHON"$d"_LIBS" "$PYTHON_CXX_LIBS"
++      cnf_append "VBOX_PYTHONDEF_INC" "`strip_I $PYTHON_CXX_CFLAGS`"
++      cnf_append "VBOX_PYTHONDEF_LIBS"      "$PYTHON_CXX_LIBS"
++      cnf_append "VBOX_PYTHON`echo $d | sed 's/\.//'`_INC"  "`strip_I $PYTHON_CXX_CFLAGS`"
++      cnf_append "VBOX_PYTHON`echo $d | sed 's/\.//'`_LIBS" "$PYTHON_CXX_LIBS"
      else
        log_failure "Python not working"
        fail
