@@ -1,4 +1,4 @@
-virtualbox (4.2.8-dfsg-1) UNRELEASED; urgency=low
+virtualbox (4.2.8-dfsg-1) experimental; urgency=low
 
   * New upstream release. (Closes: #691148)
     - Fixes compatibility with kernel 3.8. (Closes: #700823; LP: #1101867)
@@ -21,7 +21,7 @@ virtualbox (4.2.8-dfsg-1) UNRELEASED; urgency=low
   * Add 36-python-multiarch.patch from Rico Tzschichholz to fix detection of
     python in multiarch paths using pkg-config.
 
- -- Felix Geyer <fgeyer@debian.org>  Fri, 25 Jan 2013 18:14:24 +0100
+ -- Felix Geyer <fgeyer@debian.org>  Thu, 07 Mar 2013 00:09:33 +0100
 
 virtualbox (4.1.18-dfsg-2.1) experimental; urgency=low
 
