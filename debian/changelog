@@ -1,4 +1,4 @@
-virtualbox (4.2.8-dfsg-1) experimental; urgency=low
+virtualbox (4.2.10-dfsg-1) experimental; urgency=low
 
   * New upstream release. (Closes: #691148)
     - Fixes compatibility with kernel 3.8. (Closes: #700823; LP: #1101867)
