@@ -24,7 +24,7 @@ virtualbox (4.2.10-dfsg-1) experimental; urgency=low
     subsystem from Linux 3.4. (Closes: #703358)
   * Drop build-dependency on bcc as it's not needed anymore.
 
- -- Felix Geyer <fgeyer@debian.org>  Thu, 07 Mar 2013 00:09:33 +0100
+ -- Felix Geyer <fgeyer@debian.org>  Sun, 31 Mar 2013 19:46:38 +0200
 
 virtualbox (4.1.18-dfsg-2.1) experimental; urgency=low
 
