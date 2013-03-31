@@ -1,9 +1,10 @@
-virtualbox (4.1.18-dfsg-2+deb7u1) UNRELEASED; urgency=low
+virtualbox (4.1.18-dfsg-2+deb7u1) unstable; urgency=high
 
   * Fix build failure with the Debian wheezy kernel which backports the drm
     subsystem from Linux 3.4. (Closes: #703358)
+  * Set urgency to high as it fixes an RC bug.
 
- -- Felix Geyer <fgeyer@debian.org>  Sun, 31 Mar 2013 20:34:20 +0200
+ -- Felix Geyer <fgeyer@debian.org>  Sun, 31 Mar 2013 20:45:16 +0200
 
 virtualbox (4.1.18-dfsg-2) unstable; urgency=high
 
