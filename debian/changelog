@@ -20,6 +20,8 @@ virtualbox (4.2.10-dfsg-1) experimental; urgency=low
   * Update man pages. (Closes: #680053)
   * Add 36-python-multiarch.patch from Rico Tzschichholz to fix detection of
     python in multiarch paths using pkg-config.
+  * Fix build failure with the Debian wheezy kernel which backports the drm
+    subsystem from Linux 3.4. (Closes: #703358)
 
  -- Felix Geyer <fgeyer@debian.org>  Thu, 07 Mar 2013 00:09:33 +0100
 
