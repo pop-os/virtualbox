@@ -2989,7 +2989,7 @@ static void lsilogicInitializeConfigurationPagesSpi(PLSILOGICSCSI pLsiLogic)
     LogFlowFunc(("pLsiLogic=%#p\n", pLsiLogic));
 
     /* Clear everything first. */
-    memset(pPages, 0, sizeof(PMptConfigurationPagesSpi));
+    memset(pPages, 0, sizeof(MptConfigurationPagesSpi));
 
     for (unsigned i = 0; i < RT_ELEMENTS(pPages->aPortPages); i++)
     {

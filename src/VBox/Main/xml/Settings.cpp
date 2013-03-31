@@ -3993,7 +3993,7 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
             if (nic.mode != NetworkAttachmentType_Bridged)
                 buildNetworkXML(NetworkAttachmentType_Bridged, *pelmDisabledNode, false, nic);
             if (nic.mode != NetworkAttachmentType_Internal)
-                buildNetworkXML(NetworkAttachmentType_HostOnly, *pelmDisabledNode, false, nic);
+                buildNetworkXML(NetworkAttachmentType_Internal, *pelmDisabledNode, false, nic);
             if (nic.mode != NetworkAttachmentType_HostOnly)
                 buildNetworkXML(NetworkAttachmentType_HostOnly, *pelmDisabledNode, false, nic);
             if (nic.mode != NetworkAttachmentType_Generic)
