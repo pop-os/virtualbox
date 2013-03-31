@@ -1,6 +1,64 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.2.10 (2013-03-05)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: fixed keyboard with XQuartz X server (bug #10664)</para> 
+      </listitem>
+
+      <listitem>
+        <para>Main/Display: fixed a crash with multi-monitors under certain
+          conditions (Mac OS X hosts only)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main/Properties: fixed a crash under certain conditions, for
+          example after wakeup from host hibernate (bug #11444)</para>
+      </listitem>
+
+      <listitem>
+        <para>Settings: don't lose the internal network settings if they are not
+          currently active</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: another incompatibility fix for VHD differencing images with
+          Hyper-V (bug #5990)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: don't read beyond the end of the file specified
+          with <emphasis>export --eulafile (bug #11528)</emphasis></para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / guests: Linux 3.9-rc0 compile fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed two warnings in the shared folders
+          guest kernel module (bug #11390)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: don't crash VBoxService if libdbus is
+          not available (bug #8638)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed upgrading MultiMedia Redirection (MMR) support</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 4.2.8 (2013-02-20)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -9,7 +67,7 @@
     <itemizedlist>
 
       <listitem>
-        <para>VMM: fixed guest crash with huge amount of guest RAM on
+        <para>VMM: fixed a guest crash with a huge amount of guest RAM on
           VT-x hosts (bug #11306)</para>
       </listitem>
 
@@ -24,14 +82,14 @@
       </listitem>
 
       <listitem>
-        <para>GUI: take-guest-screenshot dialog sometimes had no keyboard
-          input available on Windows host</para>
+        <para>GUI: the <emphasis>take guest screenshot</emphasis> dialog sometimes
+          had no keyboard input available on Windows host</para>
       </listitem>
 
       <listitem>
-        <para>Main/Machine: fix generation of spurious event for inaccessible
+        <para>Main/Machine: fix the generation of a spurious event for inaccessible
           VMs which triggered an endless event generation loop in cooperation
-          with the GUI which became unresponsive (4.2.6 regression, bug
+          with the GUI which became unresponsive (4.2.6 regression; bug
           #11323)</para>
       </listitem>
 
@@ -43,7 +101,7 @@
       <listitem>
         <para>Main/Metrics: network metrics are now collected for
           active (up) interfaces only, the state of an interface being evaluated
-          when the associated metric is enabled via setupMetrics</para>
+          when the associated metric is enabled via <emphasis>setupMetrics</emphasis></para>
       </listitem>
 
       <listitem>
@@ -138,11 +196,6 @@
       <listitem>
         <para>Windows Additions: fixed shared folder issue with
           large reads/writes on 64 bit Windows guests (bug #11115)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux Additions: added auto-logon support for Linux guests using
-          LightDM as the display manager</para>
       </listitem>
 
       <listitem>

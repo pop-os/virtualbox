@@ -5,7 +5,7 @@
 # This file gets included by all makefiles through the
 # include $(KBUILD_PATH)/header.kmk statement.
 #
-
+ 
 #
 # Copyright (C) 2006-2013 Oracle Corporation
 #
@@ -196,7 +196,7 @@ VBOX_VERSION_MINOR = 2
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 8
+VBOX_VERSION_BUILD = 10
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -5201,7 +5201,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 83876 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 84101 $  )
  VBOX_SVN_DEP          := $(wildcard $(PATH_ROOT)/.svn/entries)
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=
