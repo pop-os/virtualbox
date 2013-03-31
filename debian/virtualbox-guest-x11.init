@@ -4,10 +4,10 @@
 ### BEGIN INIT INFO
 # Provides:          virtualbox-guest-x11
 # Short-Description: VirtualBox Linux X11 Additions
-# Required-Start:    $remote_fs virtualbox-guest-utils
-# Required-Stop:     $remote_fs
-# Default-Start:     2 3 4 5
-# Default-Stop:      0 1 6
+# Required-Start:    $remote_fs
+# Required-Stop:
+# Default-Start:     S
+# Default-Stop:
 ### END INIT INFO
 
 PATH=$PATH:/bin:/sbin:/usr/sbin
