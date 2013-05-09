@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,13 +17,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Local includes: */
+/* GUI includes: */
 #include "QIWidgetValidator.h"
 #include "QIArrowButtonSwitch.h"
-#include "VBoxGlobal.h"
 #include "UIMachineSettingsNetwork.h"
 #include "QITabWidget.h"
+#include "VBoxGlobal.h"
+#include "UIConverter.h"
 
+/* COM includes: */
+#include "CNetworkAdapter.h"
+#include "CNATEngine.h"
+#include "CHostNetworkInterface.h"
+
+/* Other VBox includes: */
 #ifdef VBOX_WITH_VDE
 # include <iprt/ldr.h>
 # include <VBox/VDEPlug.h>
@@ -48,7 +55,7 @@ UIMachineSettingsNetwork::UIMachineSettingsNetwork(UIMachineSettingsNetworkPage 
 
     /* Setup widgets: */
     m_pAdapterNameCombo->setInsertPolicy(QComboBox::NoInsert);
-    m_pMACEditor->setValidator(new QRegExpValidator(QRegExp("[0-9A-Fa-f][02468ACEace][0-9A-Fa-f]{10}"), this));
+    m_pMACEditor->setValidator(new QRegExpValidator(QRegExp("[0-9A-Fa-f]{12}"), this));
     m_pMACEditor->setMinimumWidthByText(QString().fill('0', 12));
 
     /* Setup connections: */
@@ -156,6 +163,7 @@ void UIMachineSettingsNetwork::uploadAdapterCache(UICacheSettingsMachineNetworkA
 void UIMachineSettingsNetwork::setValidator(QIWidgetValidator *pValidator)
 {
     m_pValidator = pValidator;
+    connect(m_pMACEditor, SIGNAL(textEdited(const QString &)), m_pValidator, SLOT(revalidate()));
 }
 
 bool UIMachineSettingsNetwork::revalidate(QString &strWarning, QString &strTitle)
@@ -207,6 +215,25 @@ bool UIMachineSettingsNetwork::revalidate(QString &strWarning, QString &strTitle
         default:
             break;
     }
+
+    /* Validate MAC-address length: */
+    if (m_pMACEditor->text().size() < 12)
+    {
+        strWarning = tr("the MAC address must be 12 hexadecimal digits long.");
+        fValid = false;
+    }
+    /* Make sure MAC-address is unicast: */
+    if (m_pMACEditor->text().size() >= 2)
+    {
+        QRegExp validator("^[0-9A-Fa-f][02468ACEace]");
+        if (validator.indexIn(m_pMACEditor->text()) != 0)
+        {
+            strWarning = tr("the second digit in the MAC address may not be odd "
+                            "as only unicast addresses are allowed.");
+            fValid = false;
+        }
+    }
+
     if (!fValid)
         strTitle += ": " + vboxGlobal().removeAccelMark(tabTitle());
 
@@ -501,27 +528,27 @@ void UIMachineSettingsNetwork::populateComboboxes()
 
         /* Populate attachments: */
         int iAttachmentTypeIndex = 0;
-        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, vboxGlobal().toString(KNetworkAttachmentType_Null));
+        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, gpConverter->toString(KNetworkAttachmentType_Null));
         m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, KNetworkAttachmentType_Null);
         m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, m_pAttachmentTypeComboBox->itemText(iAttachmentTypeIndex), Qt::ToolTipRole);
         ++iAttachmentTypeIndex;
-        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, vboxGlobal().toString(KNetworkAttachmentType_NAT));
+        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, gpConverter->toString(KNetworkAttachmentType_NAT));
         m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, KNetworkAttachmentType_NAT);
         m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, m_pAttachmentTypeComboBox->itemText(iAttachmentTypeIndex), Qt::ToolTipRole);
         ++iAttachmentTypeIndex;
-        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, vboxGlobal().toString(KNetworkAttachmentType_Bridged));
+        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, gpConverter->toString(KNetworkAttachmentType_Bridged));
         m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, KNetworkAttachmentType_Bridged);
         m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, m_pAttachmentTypeComboBox->itemText(iAttachmentTypeIndex), Qt::ToolTipRole);
         ++iAttachmentTypeIndex;
-        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, vboxGlobal().toString(KNetworkAttachmentType_Internal));
+        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, gpConverter->toString(KNetworkAttachmentType_Internal));
         m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, KNetworkAttachmentType_Internal);
         m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, m_pAttachmentTypeComboBox->itemText(iAttachmentTypeIndex), Qt::ToolTipRole);
         ++iAttachmentTypeIndex;
-        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, vboxGlobal().toString(KNetworkAttachmentType_HostOnly));
+        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, gpConverter->toString(KNetworkAttachmentType_HostOnly));
         m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, KNetworkAttachmentType_HostOnly);
         m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, m_pAttachmentTypeComboBox->itemText(iAttachmentTypeIndex), Qt::ToolTipRole);
         ++iAttachmentTypeIndex;
-        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, vboxGlobal().toString(KNetworkAttachmentType_Generic));
+        m_pAttachmentTypeComboBox->insertItem(iAttachmentTypeIndex, gpConverter->toString(KNetworkAttachmentType_Generic));
         m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, KNetworkAttachmentType_Generic);
         m_pAttachmentTypeComboBox->setItemData(iAttachmentTypeIndex, m_pAttachmentTypeComboBox->itemText(iAttachmentTypeIndex), Qt::ToolTipRole);
         ++iAttachmentTypeIndex;
@@ -540,30 +567,30 @@ void UIMachineSettingsNetwork::populateComboboxes()
 
         /* Populate adapter types: */
         int iAdapterTypeIndex = 0;
-        m_pAdapterTypeCombo->insertItem(iAdapterTypeIndex, vboxGlobal().toString(KNetworkAdapterType_Am79C970A));
+        m_pAdapterTypeCombo->insertItem(iAdapterTypeIndex, gpConverter->toString(KNetworkAdapterType_Am79C970A));
         m_pAdapterTypeCombo->setItemData(iAdapterTypeIndex, KNetworkAdapterType_Am79C970A);
         m_pAdapterTypeCombo->setItemData(iAdapterTypeIndex, m_pAdapterTypeCombo->itemText(iAdapterTypeIndex), Qt::ToolTipRole);
         ++iAdapterTypeIndex;
-        m_pAdapterTypeCombo->insertItem(iAdapterTypeIndex, vboxGlobal().toString(KNetworkAdapterType_Am79C973));
+        m_pAdapterTypeCombo->insertItem(iAdapterTypeIndex, gpConverter->toString(KNetworkAdapterType_Am79C973));
         m_pAdapterTypeCombo->setItemData(iAdapterTypeIndex, KNetworkAdapterType_Am79C973);
         m_pAdapterTypeCombo->setItemData(iAdapterTypeIndex, m_pAdapterTypeCombo->itemText(iAdapterTypeIndex), Qt::ToolTipRole);
         ++iAdapterTypeIndex;
 #ifdef VBOX_WITH_E1000
-        m_pAdapterTypeCombo->insertItem(iAdapterTypeIndex, vboxGlobal().toString(KNetworkAdapterType_I82540EM));
+        m_pAdapterTypeCombo->insertItem(iAdapterTypeIndex, gpConverter->toString(KNetworkAdapterType_I82540EM));
         m_pAdapterTypeCombo->setItemData(iAdapterTypeIndex, KNetworkAdapterType_I82540EM);
         m_pAdapterTypeCombo->setItemData(iAdapterTypeIndex, m_pAdapterTypeCombo->itemText(iAdapterTypeIndex), Qt::ToolTipRole);
         ++iAdapterTypeIndex;
-        m_pAdapterTypeCombo->insertItem(iAdapterTypeIndex, vboxGlobal().toString(KNetworkAdapterType_I82543GC));
+        m_pAdapterTypeCombo->insertItem(iAdapterTypeIndex, gpConverter->toString(KNetworkAdapterType_I82543GC));
         m_pAdapterTypeCombo->setItemData(iAdapterTypeIndex, KNetworkAdapterType_I82543GC);
         m_pAdapterTypeCombo->setItemData(iAdapterTypeIndex, m_pAdapterTypeCombo->itemText(iAdapterTypeIndex), Qt::ToolTipRole);
         ++iAdapterTypeIndex;
-        m_pAdapterTypeCombo->insertItem(iAdapterTypeIndex, vboxGlobal().toString(KNetworkAdapterType_I82545EM));
+        m_pAdapterTypeCombo->insertItem(iAdapterTypeIndex, gpConverter->toString(KNetworkAdapterType_I82545EM));
         m_pAdapterTypeCombo->setItemData(iAdapterTypeIndex, KNetworkAdapterType_I82545EM);
         m_pAdapterTypeCombo->setItemData(iAdapterTypeIndex, m_pAdapterTypeCombo->itemText(iAdapterTypeIndex), Qt::ToolTipRole);
         ++iAdapterTypeIndex;
 #endif /* VBOX_WITH_E1000 */
 #ifdef VBOX_WITH_VIRTIO
-        m_pAdapterTypeCombo->insertItem(iAdapterTypeIndex, vboxGlobal().toString(KNetworkAdapterType_Virtio));
+        m_pAdapterTypeCombo->insertItem(iAdapterTypeIndex, gpConverter->toString(KNetworkAdapterType_Virtio));
         m_pAdapterTypeCombo->setItemData(iAdapterTypeIndex, KNetworkAdapterType_Virtio);
         m_pAdapterTypeCombo->setItemData(iAdapterTypeIndex, m_pAdapterTypeCombo->itemText(iAdapterTypeIndex), Qt::ToolTipRole);
         ++iAdapterTypeIndex;
@@ -583,15 +610,15 @@ void UIMachineSettingsNetwork::populateComboboxes()
 
         /* Populate promiscuous modes: */
         int iPromiscuousModeIndex = 0;
-        m_pPromiscuousModeCombo->insertItem(iPromiscuousModeIndex, vboxGlobal().toString(KNetworkAdapterPromiscModePolicy_Deny));
+        m_pPromiscuousModeCombo->insertItem(iPromiscuousModeIndex, gpConverter->toString(KNetworkAdapterPromiscModePolicy_Deny));
         m_pPromiscuousModeCombo->setItemData(iPromiscuousModeIndex, KNetworkAdapterPromiscModePolicy_Deny);
         m_pPromiscuousModeCombo->setItemData(iPromiscuousModeIndex, m_pPromiscuousModeCombo->itemText(iPromiscuousModeIndex), Qt::ToolTipRole);
         ++iPromiscuousModeIndex;
-        m_pPromiscuousModeCombo->insertItem(iPromiscuousModeIndex, vboxGlobal().toString(KNetworkAdapterPromiscModePolicy_AllowNetwork));
+        m_pPromiscuousModeCombo->insertItem(iPromiscuousModeIndex, gpConverter->toString(KNetworkAdapterPromiscModePolicy_AllowNetwork));
         m_pPromiscuousModeCombo->setItemData(iPromiscuousModeIndex, KNetworkAdapterPromiscModePolicy_AllowNetwork);
         m_pPromiscuousModeCombo->setItemData(iPromiscuousModeIndex, m_pPromiscuousModeCombo->itemText(iPromiscuousModeIndex), Qt::ToolTipRole);
         ++iPromiscuousModeIndex;
-        m_pPromiscuousModeCombo->insertItem(iPromiscuousModeIndex, vboxGlobal().toString(KNetworkAdapterPromiscModePolicy_AllowAll));
+        m_pPromiscuousModeCombo->insertItem(iPromiscuousModeIndex, gpConverter->toString(KNetworkAdapterPromiscModePolicy_AllowAll));
         m_pPromiscuousModeCombo->setItemData(iPromiscuousModeIndex, KNetworkAdapterPromiscModePolicy_AllowAll);
         m_pPromiscuousModeCombo->setItemData(iPromiscuousModeIndex, m_pPromiscuousModeCombo->itemText(iPromiscuousModeIndex), Qt::ToolTipRole);
         ++iPromiscuousModeIndex;
@@ -762,7 +789,7 @@ void UIMachineSettingsNetworkPage::loadToCacheFrom(QVariant &data)
             adapterData.m_fCableConnected = adapter.GetCableConnected();
 
             /* Gather redirect options: */
-            QVector<QString> redirects = adapter.GetNatDriver().GetRedirects();
+            QVector<QString> redirects = adapter.GetNATEngine().GetRedirects();
             for (int i = 0; i < redirects.size(); ++i)
             {
                 QStringList redirectData = redirects[i].split(',');
@@ -894,14 +921,14 @@ void UIMachineSettingsNetworkPage::saveFromCacheTo(QVariant &data)
                         /* Cable connected flag: */
                         adapter.SetCableConnected(adapterData.m_fCableConnected);
                         /* Redirect options: */
-                        QVector<QString> oldRedirects = adapter.GetNatDriver().GetRedirects();
+                        QVector<QString> oldRedirects = adapter.GetNATEngine().GetRedirects();
                         for (int i = 0; i < oldRedirects.size(); ++i)
-                            adapter.GetNatDriver().RemoveRedirect(oldRedirects[i].section(',', 0, 0));
+                            adapter.GetNATEngine().RemoveRedirect(oldRedirects[i].section(',', 0, 0));
                         UIPortForwardingDataList newRedirects = adapterData.m_redirects;
                         for (int i = 0; i < newRedirects.size(); ++i)
                         {
                             UIPortForwardingData newRedirect = newRedirects[i];
-                            adapter.GetNatDriver().AddRedirect(newRedirect.name, newRedirect.protocol,
+                            adapter.GetNATEngine().AddRedirect(newRedirect.name, newRedirect.protocol,
                                                                newRedirect.hostIp, newRedirect.hostPort.value(),
                                                                newRedirect.guestIp, newRedirect.guestPort.value());
                         }

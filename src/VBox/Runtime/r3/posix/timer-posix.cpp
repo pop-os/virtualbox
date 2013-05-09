@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,6 +57,7 @@
 #include <iprt/string.h>
 #include <iprt/once.h>
 #include <iprt/err.h>
+#include <iprt/initterm.h>
 #include <iprt/critsect.h>
 #include "internal/magics.h"
 
@@ -173,16 +174,18 @@ static DECLCALLBACK(int) rtTimerOnce(void *pvUser1, void *pvUser2)
 static void rttimerSignalIgnore(int iSignal)
 {
     //AssertBreakpoint();
+    NOREF(iSignal);
 }
 
 
 /**
  * RT_TIMER_SIGNAL wait thread.
  */
-static DECLCALLBACK(int) rttimerThread(RTTHREAD Thread, void *pvArg)
+static DECLCALLBACK(int) rttimerThread(RTTHREAD hThreadSelf, void *pvArg)
 {
+    NOREF(hThreadSelf); NOREF(pvArg);
 #ifndef IPRT_WITH_POSIX_TIMERS
-    PRTTIMER pTimer = (PRTTIMER)(void *)pvArg;
+    PRTTIMER pTimer = (PRTTIMER)pvArg;
     RTTIMER Timer = *pTimer;
     Assert(pTimer->u32Magic == RTTIMER_MAGIC);
 #endif /* !IPRT_WITH_POSIX_TIMERS */
@@ -230,7 +233,7 @@ static DECLCALLBACK(int) rttimerThread(RTTHREAD Thread, void *pvArg)
     /*
      * The work loop.
      */
-    RTThreadUserSignal(Thread);
+    RTThreadUserSignal(hThreadSelf);
 
 #ifndef IPRT_WITH_POSIX_TIMERS
     while (     !pTimer->fDestroyed
@@ -292,11 +295,11 @@ static DECLCALLBACK(int) rttimerThread(RTTHREAD Thread, void *pvArg)
         {
             ASMAtomicXchgU8(&pTimer->fSuspended, true);
             pTimer->iError = RTErrConvertFromErrno(errno);
-            RTThreadUserSignal(Thread);
+            RTThreadUserSignal(hThreadSelf);
             continue; /* back to suspended mode. */
         }
         pTimer->iError = 0;
-        RTThreadUserSignal(Thread);
+        RTThreadUserSignal(hThreadSelf);
 
         /*
          * Timer Service Loop.
@@ -350,7 +353,7 @@ static DECLCALLBACK(int) rttimerThread(RTTHREAD Thread, void *pvArg)
         if (!pTimer->fDestroyed)
         {
             pTimer->iError = 0;
-            RTThreadUserSignal(Thread);
+            RTThreadUserSignal(hThreadSelf);
         }
     }
 
@@ -358,7 +361,7 @@ static DECLCALLBACK(int) rttimerThread(RTTHREAD Thread, void *pvArg)
      * Exit.
      */
     pTimer->iError = 0;
-    RTThreadUserSignal(Thread);
+    RTThreadUserSignal(hThreadSelf);
 
 #else /* IPRT_WITH_POSIX_TIMERS */
 
@@ -402,6 +405,13 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, uint32_
      * We don't support the fancy MP features.
      */
     if (fFlags & RTTIMER_FLAGS_CPU_SPECIFIC)
+        return VERR_NOT_SUPPORTED;
+
+    /*
+     * We need the signal masks to be set correctly, which they won't be in
+     * unobtrusive mode.
+     */
+    if (RTR3InitIsUnobtrusive())
         return VERR_NOT_SUPPORTED;
 
 #ifndef IPRT_WITH_POSIX_TIMERS
@@ -815,6 +825,7 @@ RTDECL(int) RTTimerChangeInterval(PRTTIMER pTimer, uint64_t u64NanoInterval)
 {
     AssertPtrReturn(pTimer, VERR_INVALID_POINTER);
     AssertReturn(pTimer->u32Magic == RTTIMER_MAGIC, VERR_INVALID_MAGIC);
+    NOREF(u64NanoInterval);
     return VERR_NOT_SUPPORTED;
 }
 

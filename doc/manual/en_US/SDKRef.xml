@@ -307,7 +307,7 @@
       other words, if the web service is run under the user account of
       <computeroutput>user1</computeroutput>, it will see and manipulate the
       virtual machines and other data represented by the VirtualBox data of
-      that user (e.g., on a Linux machine, under
+      that user (for example, on a Linux machine, under
       <computeroutput>/home/user1/.VirtualBox</computeroutput>; see the
       VirtualBox User Manual for details on where this data is stored).</para>
 
@@ -789,8 +789,8 @@
             <para>See <ulink
             url="http://sourceforge.net/project/showfiles.php?group_id=78018">http://sourceforge.net/project/showfiles.php?group_id=78018</ulink>.</para>
           </footnote> is installed. Version of Python Win32 extensions earlier than 2.16 are known to have bugs,
-          leading to issues with VirtualBox Python bindings, and also some early builds of Python 2.5 for Windows have issues with 
-          reporting platform name on some Windows versions, so please make sure to use latest available Python 
+          leading to issues with VirtualBox Python bindings, and also some early builds of Python 2.5 for Windows have issues with
+          reporting platform name on some Windows versions, so please make sure to use latest available Python
           and Win32 extensions.</para>
 
         <para>The VirtualBox OOWS for Python relies on the Python ZSI SOAP
@@ -3525,6 +3525,320 @@ AuthResult AUTHCALL AuthEntry(
     existing client code.</para>
 
     <sect1>
+      <title>Incompatible API changes with version 4.2</title>
+
+      <itemizedlist>
+        <listitem>
+          <para>Guest control APIs for executing guest processes, working with
+          guest files or directories have been moved to the newly introduced
+          <xref linkend="IGuestSession" xreflabel="IGuestSession" /> interface which
+          can be created by calling <xref linkend="IGuest__createSession"
+          xreflabel="IGuest::createSession()" />.</para>
+
+          <para>A guest session will act as a
+          guest user's impersonation so that the guest credentials only have to
+          be provided when creating a new guest session. There can be up to 32
+          guest sessions at once per VM, each session serving up to 2048 guest
+          processes running or files opened.</para>
+
+          <para>Instead of working with process or directory handles before
+          version 4.2, there now are the dedicated interfaces
+          <xref linkend="IGuestProcess" xreflabel="IGuestProcess" />,
+          <xref linkend="IGuestDirectory" xreflabel="IGuestDirectory" /> and
+          <xref linkend="IGuestFile" xreflabel="IGuestFile" />. To retrieve more
+          information of a file system object the new interface
+          <xref linkend="IGuestFsObjInfo" xreflabel="IGuestFsObjInfo" /> has been
+          introduced.</para>
+
+          <para>Even though the guest control API was changed it is backwards
+          compatible so that it can be used with older installed Guest
+          Additions. However, to use upcoming features like process termination
+          or waiting for input / output new Guest Additions must be installed when
+          these features got implemented.</para>
+
+          <para>The following limitations apply:
+            <itemizedlist>
+              <listitem><para>The <xref linkend="IGuestFile" xreflabel="IGuestFile" />
+                interface is not fully implemented yet.</para>
+              </listitem>
+              <listitem><para>The symbolic link APIs
+                <xref linkend="IGuestSession__symlinkCreate"
+                xreflabel="IGuestSession::symlinkCreate()" />,
+                <xref linkend="IGuestSession__symlinkExists"
+                xreflabel="IGuestSession::symlinkExists()" />,
+                <xref linkend="IGuestSession__symlinkRead"
+                xreflabel="IGuestSession::symlinkRead()" />,
+                <xref linkend="IGuestSession__symlinkRemoveDirectory"
+                xreflabel="IGuestSession::symlinkRemoveDirectory()" /> and
+                <xref linkend="IGuestSession__symlinkRemoveFile"
+                xreflabel="IGuestSession::symlinkRemoveFile()" /> are not
+                implemented yet.</para>
+              </listitem>
+              <listitem><para>The directory APIs
+                <xref linkend="IGuestSession__directoryRemove"
+                xreflabel="IGuestSession::directoryRemove()" />,
+                <xref linkend="IGuestSession__directoryRemoveRecursive"
+                xreflabel="IGuestSession::directoryRemoveRecursive()" />,
+                <xref linkend="IGuestSession__directoryRename"
+                xreflabel="IGuestSession::directoryRename()" /> and
+                <xref linkend="IGuestSession__directorySetACL"
+                xreflabel="IGuestSession::directorySetACL()" /> are not
+                implemented yet.</para>
+              </listitem>
+              <listitem><para>The temporary file creation API
+                <xref linkend="IGuestSession__fileCreateTemp"
+                xreflabel="IGuestSession::fileCreateTemp()" /> is not
+                implemented yet.</para>
+              </listitem>
+              <listitem><para>Guest process termination via
+                <xref linkend="IProcess__terminate"
+                xreflabel="IProcess::terminate()" /> is not
+                implemented yet.</para>
+              </listitem>
+              <listitem><para>Waiting for guest process output via
+                <xref linkend="ProcessWaitForFlag__StdOut" xreflabel="ProcessWaitForFlag::StdOut" />
+                and <xref linkend="ProcessWaitForFlag__StdErr" xreflabel="ProcessWaitForFlag::StdErr" />
+                is not implemented yet.</para><para>To wait for process output, <xref linkend="IProcess__read"
+                xreflabel="IProcess::read()" /> with appropriate flags still can be used to periodically
+                check for new output data to arrive. Note that <xref linkend="ProcessCreateFlag__WaitForStdOut"
+                xreflabel="ProcessCreateFlag::WaitForStdOut" /> and / or
+                <xref linkend="ProcessCreateFlag__WaitForStdErr" xreflabel="ProcessCreateFlag::WaitForStdErr" />
+                need to be specified when creating a guest process via <xref linkend="IGuestSession__processCreate"
+                xreflabel="IGuestSession::processCreate()" /> or <xref linkend="IGuestSession__processCreateEx"
+                xreflabel="IGuestSession::processCreateEx()" />.</para>
+              </listitem>
+              <listitem>
+                <para>ACL (Access Control List) handling in general is not implemented yet.</para>
+              </listitem>
+            </itemizedlist>
+          </para>
+        </listitem>
+
+        <listitem>
+          <para>The <xref linkend="LockType" xreflabel="LockType" />
+          enumeration now has an additional value <computeroutput>VM</computeroutput>
+          which tells <xref linkend="IMachine__lockMachine"
+          xreflabel="IMachine::lockMachine()" /> to create a full-blown
+          object structure for running a VM. This was the previous behavior
+          with <computeroutput>Write</computeroutput>, which now only creates
+          the minimal object structure to save time and resources (at the
+          moment the Console object is still created, but all sub-objects
+          such as Display, Keyboard, Mouse, Guest are not.</para>
+        </listitem>
+
+        <listitem>
+          <para>Machines can be put in groups (actually an array of groups).
+          The primary group affects the default placement of files belonging
+          to a VM. <xref linkend="IVirtualBox__createMachine"
+          xreflabel="IVirtualBox::createMachine()"/> and
+          <xref linkend="IVirtualBox__composeMachineFilename"
+          xreflabel="IVirtualBox::composeMachineFilename()"/> have been
+          adjusted accordingly, the former taking an array of groups as an
+          additional parameter and the latter taking a group as an additional
+          parameter. The create option handling has been changed for those two
+          methods, too.</para>
+        </listitem>
+
+        <listitem>
+          <para>The method IVirtualBox::findMedium() has been removed, since
+          it provides a subset of the functionality of <xref linkend="IVirtualBox__openMedium"
+          xreflabel="IVirtualBox::openMedium()" />.</para>
+        </listitem>
+
+        <listitem>
+          <para>The use of acronyms in API enumeration, interface, attribute
+          and method names has been made much more consistent, previously they
+          sometimes were lowercase and sometimes mixed case. They are now
+          consistently all caps:<table>
+          <title>Renamed identifiers in VirtualBox 4.2</title>
+
+          <tgroup cols="2" style="verywide">
+            <tbody>
+              <row>
+                <entry><emphasis role="bold">Old name</emphasis></entry>
+
+                <entry><emphasis role="bold">New name</emphasis></entry>
+              </row>
+              <row>
+                <entry>PointingHidType</entry>
+                <entry><xref linkend="PointingHIDType" xreflabel="PointingHIDType"/></entry>
+              </row>
+              <row>
+                <entry>KeyboardHidType</entry>
+                <entry><xref linkend="KeyboardHIDType" xreflabel="KeyboardHIDType"/></entry>
+              </row>
+              <row>
+                <entry>IPciAddress</entry>
+                <entry><xref linkend="IPCIAddress" xreflabel="IPCIAddress"/></entry>
+              </row>
+              <row>
+                <entry>IPciDeviceAttachment</entry>
+                <entry><xref linkend="IPCIDeviceAttachment" xreflabel="IPCIDeviceAttachment"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::pointingHidType</entry>
+                <entry><xref linkend="IMachine__pointingHIDType" xreflabel="IMachine::pointingHIDType"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::keyboardHidType</entry>
+                <entry><xref linkend="IMachine__keyboardHIDType" xreflabel="IMachine::keyboardHIDType"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::hpetEnabled</entry>
+                <entry><xref linkend="IMachine__HPETEnabled" xreflabel="IMachine::HPETEnabled"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::sessionPid</entry>
+                <entry><xref linkend="IMachine__sessionPID" xreflabel="IMachine::sessionPID"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::ioCacheEnabled</entry>
+                <entry><xref linkend="IMachine__IOCacheEnabled" xreflabel="IMachine::IOCacheEnabled"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::ioCacheSize</entry>
+                <entry><xref linkend="IMachine__IOCacheSize" xreflabel="IMachine::IOCacheSize"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::pciDeviceAssignments</entry>
+                <entry><xref linkend="IMachine__PCIDeviceAssignments" xreflabel="IMachine::PCIDeviceAssignments"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::attachHostPciDevice()</entry>
+                <entry><xref linkend="IMachine__attachHostPCIDevice" xreflabel="IMachine::attachHostPCIDevice"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::detachHostPciDevice()</entry>
+                <entry><xref linkend="IMachine__detachHostPCIDevice" xreflabel="IMachine::detachHostPCIDevice()"/></entry>
+              </row>
+              <row>
+                <entry>IConsole::attachedPciDevices</entry>
+                <entry><xref linkend="IConsole__attachedPCIDevices" xreflabel="IConsole::attachedPCIDevices"/></entry>
+              </row>
+              <row>
+                <entry>IHostNetworkInterface::dhcpEnabled</entry>
+                <entry><xref linkend="IHostNetworkInterface__DHCPEnabled" xreflabel="IHostNetworkInterface::DHCPEnabled"/></entry>
+              </row>
+              <row>
+                <entry>IHostNetworkInterface::enableStaticIpConfig()</entry>
+                <entry><xref linkend="IHostNetworkInterface__enableStaticIPConfig" xreflabel="IHostNetworkInterface::enableStaticIPConfig()"/></entry>
+              </row>
+              <row>
+                <entry>IHostNetworkInterface::enableStaticIpConfigV6()</entry>
+                <entry><xref linkend="IHostNetworkInterface__enableStaticIPConfigV6" xreflabel="IHostNetworkInterface::enableStaticIPConfigV6()"/></entry>
+              </row>
+              <row>
+                <entry>IHostNetworkInterface::enableDynamicIpConfig()</entry>
+                <entry><xref linkend="IHostNetworkInterface__enableDynamicIPConfig" xreflabel="IHostNetworkInterface::enableDynamicIPConfig()"/></entry>
+              </row>
+              <row>
+                <entry>IHostNetworkInterface::dhcpRediscover()</entry>
+                <entry><xref linkend="IHostNetworkInterface__DHCPRediscover" xreflabel="IHostNetworkInterface::DHCPRediscover()"/></entry>
+              </row>
+              <row>
+                <entry>IHost::Acceleration3DAvailable</entry>
+                <entry><xref linkend="IHost__acceleration3DAvailable" xreflabel="IHost::acceleration3DAvailable"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedPae</entry>
+                <entry><xref linkend="IGuestOSType__recommendedPAE" xreflabel="IGuestOSType::recommendedPAE"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedDvdStorageController</entry>
+                <entry><xref linkend="IGuestOSType__recommendedDVDStorageController" xreflabel="IGuestOSType::recommendedDVDStorageController"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedDvdStorageBus</entry>
+                <entry><xref linkend="IGuestOSType__recommendedDVDStorageBus" xreflabel="IGuestOSType::recommendedDVDStorageBus"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedHdStorageController</entry>
+                <entry><xref linkend="IGuestOSType__recommendedHDStorageController" xreflabel="IGuestOSType::recommendedHDStorageController"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedHdStorageBus</entry>
+                <entry><xref linkend="IGuestOSType__recommendedHDStorageBus" xreflabel="IGuestOSType::recommendedHDStorageBus"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedUsbHid</entry>
+                <entry><xref linkend="IGuestOSType__recommendedUSBHID" xreflabel="IGuestOSType::recommendedUSBHID"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedHpet</entry>
+                <entry><xref linkend="IGuestOSType__recommendedHPET" xreflabel="IGuestOSType::recommendedHPET"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedUsbTablet</entry>
+                <entry><xref linkend="IGuestOSType__recommendedUSBTablet" xreflabel="IGuestOSType::recommendedUSBTablet"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedRtcUseUtc</entry>
+                <entry><xref linkend="IGuestOSType__recommendedRTCUseUTC" xreflabel="IGuestOSType::recommendedRTCUseUTC"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedUsb</entry>
+                <entry><xref linkend="IGuestOSType__recommendedUSB" xreflabel="IGuestOSType::recommendedUSB"/></entry>
+              </row>
+              <row>
+                <entry>INetworkAdapter::natDriver</entry>
+                <entry><xref linkend="INetworkAdapter__NATEngine" xreflabel="INetworkAdapter::NATEngine"/></entry>
+              </row>
+              <row>
+                <entry>IUSBController::enabledEhci</entry>
+                <entry><xref linkend="IUSBController__enabledEHCI" xreflabel="IUSBController::enabledEHCI"/></entry>
+              </row>
+              <row>
+                <entry>INATEngine::tftpPrefix</entry>
+                <entry><xref linkend="INATEngine__TFTPPrefix" xreflabel="INATEngine::TFTPPrefix"/></entry>
+              </row>
+              <row>
+                <entry>INATEngine::tftpBootFile</entry>
+                <entry><xref linkend="INATEngine__TFTPBootFile" xreflabel="INATEngine::TFTPBootFile"/></entry>
+              </row>
+              <row>
+                <entry>INATEngine::tftpNextServer</entry>
+                <entry><xref linkend="INATEngine__TFTPNextServer" xreflabel="INATEngine::TFTPNextServer"/></entry>
+              </row>
+              <row>
+                <entry>INATEngine::dnsPassDomain</entry>
+                <entry><xref linkend="INATEngine__DNSPassDomain" xreflabel="INATEngine::DNSPassDomain"/></entry>
+              </row>
+              <row>
+                <entry>INATEngine::dnsProxy</entry>
+                <entry><xref linkend="INATEngine__DNSProxy" xreflabel="INATEngine::DNSProxy"/></entry>
+              </row>
+              <row>
+                <entry>INATEngine::dnsUseHostResolver</entry>
+                <entry><xref linkend="INATEngine__DNSUseHostResolver" xreflabel="INATEngine::DNSUseHostResolver"/></entry>
+              </row>
+              <row>
+                <entry>VBoxEventType::OnHostPciDevicePlug</entry>
+                <entry><xref linkend="VBoxEventType__OnHostPCIDevicePlug" xreflabel="VBoxEventType::OnHostPCIDevicePlug"/></entry>
+              </row>
+              <row>
+                <entry>ICPUChangedEvent::cpu</entry>
+                <entry><xref linkend="ICPUChangedEvent__CPU" xreflabel="ICPUChangedEvent::CPU"/></entry>
+              </row>
+              <row>
+                <entry>INATRedirectEvent::hostIp</entry>
+                <entry><xref linkend="INATRedirectEvent__hostIP" xreflabel="INATRedirectEvent::hostIP"/></entry>
+              </row>
+              <row>
+                <entry>INATRedirectEvent::guestIp</entry>
+                <entry><xref linkend="INATRedirectEvent__guestIP" xreflabel="INATRedirectEvent::guestIP"/></entry>
+              </row>
+              <row>
+                <entry>IHostPciDevicePlugEvent</entry>
+                <entry><xref linkend="IHostPCIDevicePlugEvent" xreflabel="IHostPCIDevicePlugEvent"/></entry>
+              </row>
+            </tbody>
+          </tgroup></table></para>
+        </listitem>
+      </itemizedlist>
+    </sect1>
+
+
+    <sect1>
       <title>Incompatible API changes with version 4.1</title>
 
       <itemizedlist>
@@ -3719,8 +4033,7 @@ AuthResult AUTHCALL AuthEntry(
                 <para>To reduce code duplication, the APIs
                 IVirtualBox::findHardDisk(), getHardDisk(), findDVDImage(),
                 getDVDImage(), findFloppyImage() and getFloppyImage() have all
-                been merged into <xref linkend="IVirtualBox__findMedium"
-                xreflabel="IVirtualBox::findMedium()" />, and
+                been merged into IVirtualBox::findMedium(), and
                 IVirtualBox::openHardDisk(), openDVDImage() and
                 openFloppyImage() have all been merged into <xref
                 linkend="IVirtualBox__openMedium"
@@ -3731,8 +4044,7 @@ AuthResult AUTHCALL AuthEntry(
                 <para>The rare use case of changing the UUID and parent UUID
                 of a medium previously handled by
                 <computeroutput>openHardDisk()</computeroutput> is now in a
-                separate <xref linkend="IMedium__setIDs"
-                xreflabel="IMedium::setIDs" /> method.</para>
+                separate IMedium::setIDs method.</para>
               </listitem>
 
               <listitem>

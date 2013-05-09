@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -173,7 +173,7 @@ typedef DBGFR3REGNMQUERYALLARGS *PDBGFR3REGNMQUERYALLARGS;
  */
 typedef struct DBGFR3REGPRINTFARGS
 {
-    /** The VM handle. */
+    /** Pointer to the VM. */
     PVM         pVM;
     /** The target CPU. */
     VMCPUID     idCpu;
@@ -203,7 +203,7 @@ typedef DBGFR3REGPRINTFARGS *PDBGFR3REGPRINTFARGS;
  * Initializes the register database.
  *
  * @returns VBox status code.
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  */
 int dbgfR3RegInit(PVM pVM)
 {
@@ -220,7 +220,7 @@ int dbgfR3RegInit(PVM pVM)
 /**
  * Terminates the register database.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  */
 void dbgfR3RegTerm(PVM pVM)
 {
@@ -261,7 +261,7 @@ static bool dbgfR3RegIsNameValid(const char *pszName, char chDot)
  * Common worker for registering a register set.
  *
  * @returns VBox status code.
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   paRegisters         The register descriptors.
  * @param   enmType             The set type.
  * @param   pvUserArg           The user argument for the callbacks.
@@ -470,7 +470,7 @@ static int dbgfR3RegRegisterCommon(PVM pVM, PCDBGFREGDESC paRegisters, DBGFREGSE
             while (iLookupRec-- > 0)
             {
                 bool fInserted2 = RTStrSpaceInsert(&pVM->dbgf.s.RegSpace, &paLookupRecs[iLookupRec].Core);
-                AssertMsg(fInserted2, ("'%s'", paLookupRecs[iLookupRec].Core.pszString));
+                AssertMsg(fInserted2, ("'%s'", paLookupRecs[iLookupRec].Core.pszString)); NOREF(fInserted2);
             }
 
             DBGF_REG_DB_UNLOCK_WRITE(pVM);
@@ -496,8 +496,8 @@ static int dbgfR3RegRegisterCommon(PVM pVM, PCDBGFREGDESC paRegisters, DBGFREGSE
  * Registers a set of registers for a CPU.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
- * @param   pVCpu           The virtual CPU handle.
+ * @param   pVM             Pointer to the VM.
+ * @param   pVCpu           Pointer to the VMCPU.
  * @param   paRegisters     The register descriptors.
  * @param   fGuestRegs      Set if it's the guest registers, clear if
  *                          hypervisor registers.
@@ -781,7 +781,7 @@ static int dbgfR3RegValCast(PDBGFREGVAL pValue, DBGFREGVALTYPE enmFromType, DBGF
  * @retval  VINF_DBGF_TRUNCATED_REGISTER
  * @retval  VINF_DBGF_ZERO_EXTENDED_REGISTER
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idCpu               The virtual CPU ID.
  * @param   enmReg              The register to query.
  * @param   enmType             The desired return type.
@@ -847,7 +847,7 @@ static DECLCALLBACK(int) dbgfR3RegCpuQueryWorkerOnCpu(PVM pVM, VMCPUID idCpu, DB
  * @retval  VINF_DBGF_TRUNCATED_REGISTER
  * @retval  VINF_DBGF_ZERO_EXTENDED_REGISTER
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idCpu               The virtual CPU ID.  Can be OR'ed with
  *                              DBGFREG_HYPER_VMCPUID.
  * @param   enmReg              The register to query.
@@ -878,7 +878,7 @@ static int dbgfR3RegCpuQueryWorker(PVM pVM, VMCPUID idCpu, DBGFREG enmReg, DBGFR
  * @retval  VERR_DBGF_UNSUPPORTED_CAST
  * @retval  VINF_DBGF_TRUNCATED_REGISTER
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idCpu               The target CPU ID. Can be OR'ed with
  *                              DBGFREG_HYPER_VMCPUID.
  * @param   enmReg              The register that's being queried.
@@ -907,7 +907,7 @@ VMMR3DECL(int) DBGFR3RegCpuQueryU8(PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint8
  * @retval  VINF_DBGF_TRUNCATED_REGISTER
  * @retval  VINF_DBGF_ZERO_EXTENDED_REGISTER
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idCpu               The target CPU ID.  Can be OR'ed with
  *                              DBGFREG_HYPER_VMCPUID.
  * @param   enmReg              The register that's being queried.
@@ -936,7 +936,7 @@ VMMR3DECL(int) DBGFR3RegCpuQueryU16(PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint
  * @retval  VINF_DBGF_TRUNCATED_REGISTER
  * @retval  VINF_DBGF_ZERO_EXTENDED_REGISTER
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idCpu               The target CPU ID.  Can be OR'ed with
  *                              DBGFREG_HYPER_VMCPUID.
  * @param   enmReg              The register that's being queried.
@@ -965,7 +965,7 @@ VMMR3DECL(int) DBGFR3RegCpuQueryU32(PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint
  * @retval  VINF_DBGF_TRUNCATED_REGISTER
  * @retval  VINF_DBGF_ZERO_EXTENDED_REGISTER
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idCpu               The target CPU ID.  Can be OR'ed with
  *                              DBGFREG_HYPER_VMCPUID.
  * @param   enmReg              The register that's being queried.
@@ -1070,7 +1070,7 @@ static DECLCALLBACK(int) dbgfR3RegCpuQueryBatchWorker(PVM pVM, VMCPUID idCpu, PD
  * @retval  VERR_INVALID_CPU_ID
  * @retval  VERR_DBGF_REGISTER_NOT_FOUND
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idCpu               The target CPU ID.  Can be OR'ed with
  *                              DBGFREG_HYPER_VMCPUID.
  * @param   paRegs              Pointer to an array of @a cRegs elements.  On
@@ -1106,7 +1106,7 @@ VMMR3DECL(int) DBGFR3RegCpuQueryBatch(PVM pVM, VMCPUID idCpu, PDBGFREGENTRY paRe
  * @retval  VERR_INVALID_VM_HANDLE
  * @retval  VERR_INVALID_CPU_ID
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idCpu               The target CPU ID.  Can be OR'ed with
  *                              DBGFREG_HYPER_VMCPUID.
  * @param   paRegs              Pointer to an array of @a cRegs elements.
@@ -1152,7 +1152,7 @@ VMMR3DECL(int) DBGFR3RegCpuQueryAll(PVM pVM, VMCPUID idCpu, PDBGFREGENTRY paRegs
  * @returns Pointer to read-only register name (lower case).  NULL if the
  *          parameters are invalid.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   enmReg              The register identifier.
  * @param   enmType             The register type.  This is for sort out
  *                              aliases.  Pass DBGFREGVALTYPE_INVALID to get
@@ -1220,7 +1220,7 @@ static ssize_t dbgfR3RegCopyToLower(const char *pszSrc, size_t cchSrc, char *psz
  * Resolves the register name.
  *
  * @returns Lookup record.
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idDefCpu            The default CPU ID set.
  * @param   pszReg              The register name.
  * @param   fGuestRegs          Default to guest CPU registers if set, the
@@ -1257,12 +1257,43 @@ static PCDBGFREGLOOKUP dbgfR3RegResolve(PVM pVM, VMCPUID idDefCpu, const char *p
 
 
 /**
+ * Validates the register name.
+ *
+ * @returns VBox status code.
+ * @retval  VINF_SUCCESS if the register was found.
+ * @retval  VERR_DBGF_REGISTER_NOT_FOUND if not found.
+ *
+ * @param   pVM                 Pointer to the VM.
+ * @param   idDefCpu            The default CPU.
+ * @param   pszReg              The registe name.
+ */
+VMMR3DECL(int) DBGFR3RegNmValidate(PVM pVM, VMCPUID idDefCpu, const char *pszReg)
+{
+    /*
+     * Validate input.
+     */
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    AssertReturn((idDefCpu & ~DBGFREG_HYPER_VMCPUID) < pVM->cCpus || idDefCpu == VMCPUID_ANY, VERR_INVALID_CPU_ID);
+    AssertPtrReturn(pszReg, VERR_INVALID_POINTER);
+
+    /*
+     * Resolve the register.
+     */
+    bool const fGuestRegs = !(idDefCpu & DBGFREG_HYPER_VMCPUID) && idDefCpu != VMCPUID_ANY;
+    PCDBGFREGLOOKUP pLookupRec = dbgfR3RegResolve(pVM, idDefCpu, pszReg, fGuestRegs);
+    if (!pLookupRec)
+        return VERR_DBGF_REGISTER_NOT_FOUND;
+    return VINF_SUCCESS;
+}
+
+
+/**
  * On CPU worker for the register queries, used by dbgfR3RegNmQueryWorker and
  * dbgfR3RegPrintfCbFormatNormal.
  *
  * @returns VBox status code.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pLookupRec          The register lookup record.
  * @param   enmType             The desired return type.
  * @param   pValue              Where to return the register value.
@@ -1277,6 +1308,8 @@ static DECLCALLBACK(int) dbgfR3RegNmQueryWorkerOnCpu(PVM pVM, PCDBGFREGLOOKUP pL
     PCDBGFREGSUBFIELD   pSubField    = pLookupRec->pSubField;
     DBGFREGVALTYPE      enmValueType = pDesc->enmType;
     int                 rc;
+
+    NOREF(pVM);
 
     /*
      * Get the register or sub-field value.
@@ -1375,7 +1408,7 @@ static DECLCALLBACK(int) dbgfR3RegNmQueryWorkerOnCpu(PVM pVM, PCDBGFREGLOOKUP pL
  * @retval  VINF_DBGF_TRUNCATED_REGISTER
  * @retval  VINF_DBGF_ZERO_EXTENDED_REGISTER
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idDefCpu            The virtual CPU ID for the default CPU register
  *                              set.  Can be OR'ed with DBGFREG_HYPER_VMCPUID.
  * @param   pszReg              The register to query.
@@ -1422,7 +1455,7 @@ static int dbgfR3RegNmQueryWorker(PVM pVM, VMCPUID idDefCpu, const char *pszReg,
  * @retval  VERR_INVALID_CPU_ID
  * @retval  VERR_DBGF_REGISTER_NOT_FOUND
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idDefCpu            The default target CPU ID, VMCPUID_ANY if not
  *                              applicable. Can be OR'ed with
  *                              DBGFREG_HYPER_VMCPUID.
@@ -1448,7 +1481,7 @@ VMMR3DECL(int) DBGFR3RegNmQuery(PVM pVM, VMCPUID idDefCpu, const char *pszReg, P
  * @retval  VERR_DBGF_UNSUPPORTED_CAST
  * @retval  VINF_DBGF_TRUNCATED_REGISTER
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idDefCpu            The default target CPU ID, VMCPUID_ANY if not
  *                              applicable. Can be OR'ed with
  *                              DBGFREG_HYPER_VMCPUID.
@@ -1480,7 +1513,7 @@ VMMR3DECL(int) DBGFR3RegNmQueryU8(PVM pVM, VMCPUID idDefCpu, const char *pszReg,
  * @retval  VINF_DBGF_TRUNCATED_REGISTER
  * @retval  VINF_DBGF_ZERO_EXTENDED_REGISTER
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idDefCpu            The default target CPU ID, VMCPUID_ANY if not
  *                              applicable.  Can be OR'ed with
  *                              DBGFREG_HYPER_VMCPUID.
@@ -1512,7 +1545,7 @@ VMMR3DECL(int) DBGFR3RegNmQueryU16(PVM pVM, VMCPUID idDefCpu, const char *pszReg
  * @retval  VINF_DBGF_TRUNCATED_REGISTER
  * @retval  VINF_DBGF_ZERO_EXTENDED_REGISTER
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idDefCpu            The default target CPU ID, VMCPUID_ANY if not
  *                              applicable.  Can be OR'ed with
  *                              DBGFREG_HYPER_VMCPUID.
@@ -1544,7 +1577,7 @@ VMMR3DECL(int) DBGFR3RegNmQueryU32(PVM pVM, VMCPUID idDefCpu, const char *pszReg
  * @retval  VINF_DBGF_TRUNCATED_REGISTER
  * @retval  VINF_DBGF_ZERO_EXTENDED_REGISTER
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idDefCpu            The default target CPU ID, VMCPUID_ANY if not
  *                              applicable.  Can be OR'ed with
  *                              DBGFREG_HYPER_VMCPUID.
@@ -1576,7 +1609,7 @@ VMMR3DECL(int) DBGFR3RegNmQueryU64(PVM pVM, VMCPUID idDefCpu, const char *pszReg
  * @retval  VINF_DBGF_TRUNCATED_REGISTER
  * @retval  VINF_DBGF_ZERO_EXTENDED_REGISTER
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idDefCpu            The default target CPU ID, VMCPUID_ANY if not
  *                              applicable.  Can be OR'ed with
  *                              DBGFREG_HYPER_VMCPUID.
@@ -1609,7 +1642,7 @@ VMMR3DECL(int) DBGFR3RegNmQueryU128(PVM pVM, VMCPUID idDefCpu, const char *pszRe
  * @retval  VINF_DBGF_TRUNCATED_REGISTER
  * @retval  VINF_DBGF_ZERO_EXTENDED_REGISTER
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idDefCpu            The default target CPU ID, VMCPUID_ANY if not
  *                              applicable.  Can be OR'ed with
  *                              DBGFREG_HYPER_VMCPUID.
@@ -1642,7 +1675,7 @@ VMMR3DECL(int) DBGFR3RegNmQueryLrd(PVM pVM, VMCPUID idDefCpu, const char *pszReg
  * @retval  VINF_DBGF_TRUNCATED_REGISTER
  * @retval  VINF_DBGF_ZERO_EXTENDED_REGISTER
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idDefCpu            The default target CPU ID, VMCPUID_ANY if not
  *                              applicable.  Can be OR'ed with
  *                              DBGFREG_HYPER_VMCPUID.
@@ -1677,7 +1710,7 @@ VMMR3DECL(int) DBGFR3RegNmQueryXdtr(PVM pVM, VMCPUID idDefCpu, const char *pszRe
  * Gets the number of registers returned by DBGFR3RegNmQueryAll.
  *
  * @returns VBox status code.
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pcRegs              Where to return the register count.
  */
 VMMR3DECL(int) DBGFR3RegNmQueryAllCount(PVM pVM, size_t *pcRegs)
@@ -1724,8 +1757,6 @@ static void dbgfR3RegNmQueryAllPadEntries(PDBGFREGENTRYNM paRegs, size_t cRegs, 
  */
 static void dbgfR3RegNmQueryAllInSet(PCDBGFREGSET pSet, size_t cRegsToQuery, PDBGFREGENTRYNM paRegs, size_t cRegs)
 {
-    int rc = VINF_SUCCESS;
-
     if (cRegsToQuery > pSet->cDescs)
         cRegsToQuery = pSet->cDescs;
     if (cRegsToQuery > cRegs)
@@ -1817,7 +1848,7 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3RegNmQueryAllWorker(PVM pVM, PVMCPU pVCp
  * Queries all register.
  *
  * @returns VBox status code.
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   paRegs              The output register value array.  The register
  *                              name string is read only and shall not be freed
  *                              or modified.
@@ -1841,6 +1872,7 @@ VMMR3DECL(int) DBGFR3RegNmQueryAll(PVM pVM, PDBGFREGENTRYNM paRegs, size_t cRegs
 
 VMMR3DECL(int) DBGFR3RegNmSet(PVM pVM, VMCPUID idDefCpu, const char *pszReg, PCDBGFREGVAL pValue, DBGFREGVALTYPE enmType)
 {
+    NOREF(pVM); NOREF(idDefCpu); NOREF(pszReg); NOREF(pValue); NOREF(enmType);
     return VERR_NOT_IMPLEMENTED;
 }
 
@@ -1866,7 +1898,7 @@ DECLINLINE(ssize_t) dbgfR3RegFormatValueInt(char *pszTmp, size_t cbTmp, PCDBGFRE
         case DBGFREGVALTYPE_U128:
             return RTStrFormatU128(pszTmp, cbTmp, &pValue->u128, uBase, cchWidth, cchPrecision, fFlags);
         case DBGFREGVALTYPE_R80:
-            return RTStrFormatR80u2(pszTmp, cbTmp, &pValue->r80, cchWidth, cchPrecision, fFlags);
+            return RTStrFormatR80u2(pszTmp, cbTmp, &pValue->r80Ex, cchWidth, cchPrecision, fFlags);
         case DBGFREGVALTYPE_DTR:
         {
             ssize_t cch = RTStrFormatU64(pszTmp, cbTmp, pValue->dtr.u64Base,
@@ -1980,6 +2012,8 @@ dbgfR3RegPrintfCbFormatField(PDBGFR3REGPRINTFARGS pThis, PFNRTSTROUTPUT pfnOutpu
                              PCDBGFREGLOOKUP pLookupRec, int cchWidth, int cchPrecision, unsigned fFlags)
 {
     char szTmp[160];
+
+    NOREF(cchWidth); NOREF(cchPrecision); NOREF(fFlags);
 
     /*
      * Retrieve the register value.
@@ -2109,6 +2143,8 @@ dbgfR3RegPrintfCbFormat(void *pvArg, PFNRTSTROUTPUT pfnOutput, void *pvArgOutput
                         const char **ppszFormat, va_list *pArgs, int cchWidth,
                         int cchPrecision, unsigned fFlags, char chArgSize)
 {
+    NOREF(pArgs); NOREF(chArgSize);
+
     /*
      * Parse the format type and hand the job to the appropriate worker.
      */
@@ -2246,7 +2282,7 @@ static DECLCALLBACK(int) dbgfR3RegPrintfWorkerOnCpu(PDBGFR3REGPRINTFARGS pArgs)
  * This is restricted to registers from one CPU, that specified by @a idCpu.
  *
  * @returns VBox status code.
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idCpu               The CPU ID of any CPU registers that may be
  *                              printed, pass VMCPUID_ANY if not applicable.
  * @param   pszBuf              The output buffer.
@@ -2291,7 +2327,7 @@ VMMR3DECL(int) DBGFR3RegPrintfV(PVM pVM, VMCPUID idCpu, char *pszBuf, size_t cbB
  * This is restricted to registers from one CPU, that specified by @a idCpu.
  *
  * @returns VBox status code.
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   idCpu               The CPU ID of any CPU registers that may be
  *                              printed, pass VMCPUID_ANY if not applicable.
  * @param   pszBuf              The output buffer.

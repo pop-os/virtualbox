@@ -1,10 +1,9 @@
 /** @file
- *
  * VirtualBox OpenGL Cocoa Window System implementation
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,14 +30,14 @@ GLboolean renderspu_SystemInitVisual(VisualInfo *pVisInfo)
     return GL_TRUE;
 }
 
-GLboolean renderspu_SystemCreateContext(VisualInfo *pVisInfo, ContextInfo *pCtxInfo, ContextInfo *pShharedCtxInfo)
+GLboolean renderspu_SystemCreateContext(VisualInfo *pVisInfo, ContextInfo *pCtxInfo, ContextInfo *pSharedCtxInfo)
 {
     CRASSERT(pVisInfo);
     CRASSERT(pCtxInfo);
 
     pCtxInfo->currentWindow = NULL;
 
-    cocoaGLCtxCreate(&pCtxInfo->context, pVisInfo->visAttribs);
+    cocoaGLCtxCreate(&pCtxInfo->context, pVisInfo->visAttribs, pSharedCtxInfo ? pSharedCtxInfo->context : NULL);
 
     return GL_TRUE;
 }

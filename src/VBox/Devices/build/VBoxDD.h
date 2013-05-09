@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -110,6 +110,9 @@ extern const PDMDRVREG g_DrvVDE;
 extern const PDMDRVREG g_DrvIntNet;
 extern const PDMDRVREG g_DrvDedicatedNic;
 extern const PDMDRVREG g_DrvNAT;
+#ifdef VBOX_WITH_NETSHAPER
+extern const PDMDRVREG g_DrvNetShaper;
+#endif /* VBOX_WITH_NETSHAPER */
 extern const PDMDRVREG g_DrvNetSniffer;
 extern const PDMDRVREG g_DrvAUDIO;
 extern const PDMDRVREG g_DrvACPI;

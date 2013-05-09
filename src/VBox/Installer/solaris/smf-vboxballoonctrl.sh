@@ -1,7 +1,7 @@
 #!/sbin/sh
 # $Id: smf-vboxballoonctrl.sh $
 
-# Copyright (C) 2008-2011 Oracle Corporation
+# Copyright (C) 2008-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -45,6 +45,8 @@ case $VW_OPT in
         [ $? != 0 ] && VW_DECREMENT=
         VW_LOWERLIMIT=`/usr/bin/svcprop -p config/lowerlimit $SMF_FMRI 2>/dev/null`
         [ $? != 0 ] && VW_LOWERLIMIT=
+        VW_SAFETYMARGIN=`/usr/bin/svcprop -p config/safetymargin $SMF_FMRI 2>/dev/null`
+        [ $? != 0 ] && VW_SAFETYMARGIN=
         VW_ROTATE=`/usr/bin/svcprop -p config/logrotate $SMF_FMRI 2>/dev/null`
         [ $? != 0 ] && VW_ROTATE=
         VW_LOGSIZE=`/usr/bin/svcprop -p config/logsize $SMF_FMRI 2>/dev/null`
@@ -54,14 +56,19 @@ case $VW_OPT in
 
         # Provide sensible defaults
         [ -z "$VW_USER" ] && VW_USER=root
-        [ -z "$VW_INTERVAL" ] && VW_INTERVAL=10000
-        [ -z "$VW_INCREMENT" ] && VW_INCREMENT=256
-        [ -z "$VW_DECREMENT" ] && VW_DECREMENT=128
-        [ -z "$VW_LOWERLIMIT" ] && VW_LOWERLIMIT=64
-        [ -z "$VW_ROTATE" ] && VW_ROTATE=10
-        [ -z "$VW_LOGSIZE" ] && VW_LOGSIZE=104857600
-        [ -z "$VW_LOGINTERVAL" ] && VW_LOGINTERVAL=86400
-        exec su - "$VW_USER" -c "/opt/VirtualBox/VBoxBalloonCtrl --background --interval \"$VW_INTERVAL\" --balloon-inc \"$VW_INCREMENT\" --balloon-dec \"$VW_DECREMENT\" --balloon-lower-limit \"$VW_LOWERLIMIT\" --logrotate \"$VW_ROTATE\" --logsize \"$VW_LOGSIZE\" --loginterval \"$VW_LOGINTERVAL\""
+
+        # Assemble the parameter list
+        PARAMS="--background"
+        [ -n "$VW_INTERVAL" ]     && PARAMS="$PARAMS --balloon-interval \"$VW_INTERVAL\""
+        [ -n "$VW_INCREMENT" ]    && PARAMS="$PARAMS --balloon-inc \"$VW_INCREMENT\""
+        [ -n "$VW_DECREMENT" ]    && PARAMS="$PARAMS --balloon-dec \"$VW_DECREMENT\""
+        [ -n "$VW_LOWERLIMIT" ]   && PARAMS="$PARAMS --balloon-lower-limit \"$VW_LOWERLIMIT\""
+        [ -n "$VW_SAFETYMARGIN" ] && PARAMS="$PARAMS --balloon-safety-margin \"$VW_SAFETYMARGIN\""
+        [ -n "$VW_ROTATE" ]       && PARAMS="$PARAMS -R \"$VW_ROTATE\""
+        [ -n "$VW_LOGSIZE" ]      && PARAMS="$PARAMS -S \"$VW_LOGSIZE\""
+        [ -n "$VW_LOGINTERVAL" ]  && PARAMS="$PARAMS -I \"$VW_LOGINTERVAL\""
+
+        exec su - "$VW_USER" -c "/opt/VirtualBox/VBoxBalloonCtrl $PARAMS"
 
         VW_EXIT=$?
         if [ $VW_EXIT != 0 ]; then

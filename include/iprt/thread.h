@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -202,6 +202,22 @@ RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void);
 RTDECL(int) RTThreadSleep(RTMSINTERVAL cMillies);
 
 /**
+ * Millisecond granular sleep function, no logger calls.
+ *
+ * Same as RTThreadSleep, except it will never call into the IPRT logger.  It
+ * can therefore safely be used in places where the logger is off limits, like
+ * at termination or init time.  The electric fence heap is one consumer of
+ * this API.
+ *
+ * @returns VINF_SUCCESS on success.
+ * @returns VERR_INTERRUPTED if a signal or other asynchronous stuff happened
+ *          which interrupt the peaceful sleep.
+ * @param   cMillies    Number of milliseconds to sleep.
+ *                      0 milliseconds means yielding the timeslice - deprecated!
+ */
+RTDECL(int) RTThreadSleepNoLog(RTMSINTERVAL cMillies);
+
+/**
  * Yields the CPU.
  *
  * @returns true if we yielded.
@@ -227,9 +243,9 @@ typedef FNRTTHREAD *PFNRTTHREAD;
  */
 typedef enum RTTHREADFLAGS
 {
-    /**
-     * This flag is used to keep the thread structure around so it can
-     * be waited on after termination.
+    /** This flag is used to keep the thread structure around so it can
+     * be waited on after termination.  @sa RTThreadWait and
+     * RTThreadWaitNoResume.  Not required for RTThreadUserWait and friends!
      */
     RTTHREADFLAGS_WAITABLE = RT_BIT(0),
     /** The bit number corresponding to the RTTHREADFLAGS_WAITABLE mask. */

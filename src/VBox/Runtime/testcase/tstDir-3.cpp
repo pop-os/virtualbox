@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,7 +36,7 @@ static int tstDirOpenFiltered(const char *pszFilter, unsigned *pcFilesMatch, int
     int rcRet = 0;
     unsigned cFilesMatch = 0;
     PRTDIR pDir;
-    int rc = RTDirOpenFiltered(&pDir, pszFilter, RTDIRFILTER_WINNT);
+    int rc = RTDirOpenFiltered(&pDir, pszFilter, RTDIRFILTER_WINNT, 0);
     if (RT_SUCCESS(rc))
     {
         for (;;)
@@ -79,7 +79,7 @@ int main(int argc, char **argv)
     int rcRet2;
     int rc;
     unsigned cMatch;
-    RTR3Init();
+    RTR3InitExe(argc, &argv, 0);
 
     const char *pszTestDir = ".";
 

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,10 +19,11 @@
 #ifndef __UIMachineSettingsUSB_h__
 #define __UIMachineSettingsUSB_h__
 
+/* GUI includes: */
 #include "UISettingsPage.h"
 #include "UIMachineSettingsUSB.gen.h"
-#include "COMDefs.h"
 
+/* Forward declarations: */
 class VBoxUSBMenu;
 class UIToolBar;
 

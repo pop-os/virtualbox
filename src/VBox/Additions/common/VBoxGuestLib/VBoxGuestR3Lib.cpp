@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -346,6 +346,8 @@ int vbglR3DoIOCtl(unsigned iFunction, void *pvData, size_t cbData)
 #ifdef VBOX_VBGLR3_XFREE86
     int rc = xf86ioctl(g_File, iFunction, &Hdr);
 #else
+    if (g_File == NIL_RTFILE)
+        return VERR_INVALID_HANDLE;
     int rc = ioctl(RTFileToNative(g_File), iFunction, &Hdr);
 #endif
     if (rc == -1)

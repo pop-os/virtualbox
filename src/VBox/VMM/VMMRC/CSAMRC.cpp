@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,9 @@
 #include <VBox/vmm/mm.h>
 #include <VBox/sup.h>
 #include <VBox/vmm/mm.h>
-#include <VBox/vmm/rem.h>
+#ifdef VBOX_WITH_REM
+# include <VBox/vmm/rem.h>
+#endif
 #include <VBox/param.h>
 #include <iprt/avl.h>
 #include "CSAMInternal.h"
@@ -51,7 +53,7 @@
  * for ALL and WRITE handlers these will also trigger.
  *
  * @returns VBox status code (appropriate for GC return).
- * @param   pVM         VM Handle.
+ * @param   pVM         Pointer to the VM.
  * @param   uErrorCode   CPU Error code.
  * @param   pRegFrame   Trap register frame.
  * @param   pvFault     The fault address (cr2).
@@ -65,11 +67,14 @@ VMMRCDECL(int) CSAMGCCodePageWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
     bool         fPatchCode = PATMIsPatchGCAddr(pVM, pRegFrame->eip);
     int          rc;
     PVMCPU       pVCpu = VMMGetCpu0(pVM);
+    NOREF(uErrorCode);
 
     Assert(pVM->csam.s.cDirtyPages < CSAM_MAX_DIRTY_PAGES);
 
+#ifdef VBOX_WITH_REM
     /* Flush the recompilers translation block cache as the guest seems to be modifying instructions. */
     REMFlushTBs(pVM);
+#endif
 
     pPATMGCState = PATMQueryGCState(pVM);
     Assert(pPATMGCState);
@@ -96,7 +101,7 @@ VMMRCDECL(int) CSAMGCCodePageWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
     if (pRegFrame->eflags.Bits.u1VM)
         cpl = 3;
     else
-        cpl = (pRegFrame->ss & X86_SEL_RPL);
+        cpl = (pRegFrame->ss.Sel & X86_SEL_RPL);
 
     Log(("CSAMGCCodePageWriteHandler: code page write at %RGv original address %RGv (cpl=%d)\n", pvFault, (RTGCUINTPTR)pvRange + offRange, cpl));
 

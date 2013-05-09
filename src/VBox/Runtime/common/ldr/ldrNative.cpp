@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,9 +43,10 @@
 
 
 /** @copydoc RTLDROPS::pfnEnumSymbols */
-static DECLCALLBACK(int) rtldrNativeEnumSymbols(PRTLDRMODINTERNAL pMod, unsigned fFlags, const void *pvBits, RTUINTPTR BaseAddress,
-                                                PFNRTLDRENUMSYMS pfnCallback, void *pvUser)
+static DECLCALLBACK(int) rtldrNativeEnumSymbols(PRTLDRMODINTERNAL pMod, unsigned fFlags, const void *pvBits,
+                                                RTUINTPTR BaseAddress, PFNRTLDRENUMSYMS pfnCallback, void *pvUser)
 {
+    NOREF(pMod); NOREF(fFlags); NOREF(pvBits); NOREF(BaseAddress); NOREF(pfnCallback); NOREF(pvUser);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -53,6 +54,7 @@ static DECLCALLBACK(int) rtldrNativeEnumSymbols(PRTLDRMODINTERNAL pMod, unsigned
 /** @copydoc RTLDROPS::pfnDone */
 static DECLCALLBACK(int) rtldrNativeDone(PRTLDRMODINTERNAL pMod)
 {
+    NOREF(pMod);
     return VINF_SUCCESS;
 }
 
@@ -68,6 +70,12 @@ static const RTLDROPS s_rtldrNativeOps =
     rtldrNativeDone,
     rtldrNativeEnumSymbols,
     /* ext: */
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,7 @@ enum UIActionIndexRuntime
     UIActionIndexRuntime_Menu_Machine = UIActionIndex_Max + 1,
     UIActionIndexRuntime_Simple_SettingsDialog,
     UIActionIndexRuntime_Simple_TakeSnapshot,
+    UIActionIndexRuntime_Simple_TakeScreenshot,
     UIActionIndexRuntime_Simple_InformationDialog,
     UIActionIndexRuntime_Menu_MouseIntegration,
     UIActionIndexRuntime_Toggle_MouseIntegration,
@@ -54,6 +55,8 @@ enum UIActionIndexRuntime
     UIActionIndexRuntime_Menu_OpticalDevices,
     UIActionIndexRuntime_Menu_FloppyDevices,
     UIActionIndexRuntime_Menu_USBDevices,
+    UIActionIndexRuntime_Menu_SharedClipboard,
+    UIActionIndexRuntime_Menu_DragAndDrop,
     UIActionIndexRuntime_Menu_NetworkAdapters,
     UIActionIndexRuntime_Simple_NetworkAdaptersDialog,
     UIActionIndexRuntime_Menu_SharedFolders,

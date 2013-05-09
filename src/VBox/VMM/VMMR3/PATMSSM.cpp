@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,7 @@
 #define LOG_GROUP LOG_GROUP_PATM
 #include <VBox/vmm/patm.h>
 #include <VBox/vmm/cpum.h>
+#include <VBox/vmm/cpumctx-v1_6.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/ssm.h>
 #include <VBox/param.h>
@@ -48,7 +49,7 @@
  * the difference is the missing pTrampolinePatchesHead member
  * to avoid changing the saved state version for now (will come later).
  */
-typedef struct _PATCHINFOSSM
+typedef struct PATCHINFOSSM
 {
     uint32_t              uState;
     uint32_t              uOldState;
@@ -363,8 +364,8 @@ static SSMFIELD const g_aPatmRecPatchToGuest[] =
     SSMFIELD_ENTRY_TERM()
 };
 
-
 #ifdef VBOX_STRICT
+
 /**
  * Callback function for RTAvlPVDoWithAll
  *
@@ -376,6 +377,7 @@ static SSMFIELD const g_aPatmRecPatchToGuest[] =
  */
 static DECLCALLBACK(int) patmCountLeafPV(PAVLPVNODECORE pNode, void *pcPatches)
 {
+    NOREF(pNode);
     *(uint32_t *)pcPatches = *(uint32_t *)pcPatches + 1;
     return VINF_SUCCESS;
 }
@@ -391,9 +393,11 @@ static DECLCALLBACK(int) patmCountLeafPV(PAVLPVNODECORE pNode, void *pcPatches)
  */
 static DECLCALLBACK(int) patmCountLeaf(PAVLU32NODECORE pNode, void *pcPatches)
 {
+    NOREF(pNode);
     *(uint32_t *)pcPatches = *(uint32_t *)pcPatches + 1;
     return VINF_SUCCESS;
 }
+
 #endif /* VBOX_STRICT */
 
 /**
@@ -407,6 +411,7 @@ static DECLCALLBACK(int) patmCountLeaf(PAVLU32NODECORE pNode, void *pcPatches)
  */
 static DECLCALLBACK(int) patmCountPatch(PAVLOU32NODECORE pNode, void *pcPatches)
 {
+    NOREF(pNode);
     *(uint32_t *)pcPatches = *(uint32_t *)pcPatches + 1;
     return VINF_SUCCESS;
 }
@@ -418,7 +423,7 @@ static DECLCALLBACK(int) patmCountPatch(PAVLOU32NODECORE pNode, void *pcPatches)
  *
  * @returns VBox status code.
  * @param   pNode           Current node
- * @param   pVM1            VM Handle
+ * @param   pVM1            Pointer to the VM
  */
 static DECLCALLBACK(int) patmSaveP2GLookupRecords(PAVLU32NODECORE pNode, void *pVM1)
 {
@@ -440,7 +445,7 @@ static DECLCALLBACK(int) patmSaveP2GLookupRecords(PAVLU32NODECORE pNode, void *p
  *
  * @returns VBox status code.
  * @param   pNode           Current node
- * @param   pVM1            VM Handle
+ * @param   pVM1            Pointer to the VM
  */
 static DECLCALLBACK(int) patmSaveFixupRecords(PAVLPVNODECORE pNode, void *pVM1)
 {
@@ -576,7 +581,7 @@ static void patmR3PatchConvertMem2SSM(PPATMPATCHRECSSM pPatchSSM, PPATMPATCHREC 
  *
  * @returns VBox status code.
  * @param   pNode           Current node
- * @param   pVM1            VM Handle
+ * @param   pVM1            Pointer to the VM
  */
 static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pVM1)
 {
@@ -627,7 +632,7 @@ static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pVM1)
  * Execute state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pSSM            SSM operation handle.
  */
 DECLCALLBACK(int) patmR3Save(PVM pVM, PSSMHANDLE pSSM)
@@ -691,7 +696,7 @@ DECLCALLBACK(int) patmR3Save(PVM pVM, PSSMHANDLE pSSM)
  * Execute state load operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pSSM            SSM operation handle.
  * @param   uVersion        Data layout version.
  * @param   uPass           The data pass.
@@ -967,7 +972,7 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
  * Correct fixups to predefined hypervisor PATM regions. (their addresses might have changed)
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   ulSSMVersion    SSM version
  * @param   patmInfo        Saved PATM structure
  * @param   pPatch          Patch record

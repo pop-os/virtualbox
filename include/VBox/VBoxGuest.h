@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -311,9 +311,6 @@ AssertCompileSize(VBoxGuestChangeBalloonInfo, 16);
 /** IOCTL to VBoxGuest to write guest core. */
 #define VBOXGUEST_IOCTL_WRITE_CORE_DUMP             VBOXGUEST_IOCTL_CODE(9, sizeof(VBoxGuestWriteCoreDump))
 
-/** IOCTL to VBoxGuest to update the mouse status features. */
-# define VBOXGUEST_IOCTL_SET_MOUSE_STATUS         VBOXGUEST_IOCTL_CODE_(10, sizeof(uint32_t))
-
 /** Input and output buffer layout of the VBOXGUEST_IOCTL_WRITE_CORE
  *  request. */
 typedef struct VBoxGuestWriteCoreDump
@@ -323,6 +320,8 @@ typedef struct VBoxGuestWriteCoreDump
 } VBoxGuestWriteCoreDump;
 AssertCompileSize(VBoxGuestWriteCoreDump, 4);
 
+/** IOCTL to VBoxGuest to update the mouse status features. */
+# define VBOXGUEST_IOCTL_SET_MOUSE_STATUS         VBOXGUEST_IOCTL_CODE_(10, sizeof(uint32_t))
 
 #ifdef VBOX_WITH_HGCM
 /** IOCTL to VBoxGuest to connect to a HGCM service. */
@@ -354,6 +353,10 @@ AssertCompileSize(VBoxGuestWriteCoreDump, 4);
 /** @} */
 # endif /* RT_ARCH_AMD64 */
 
+#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
+#define VBOXGUEST_IOCTL_DPC VBOXGUEST_IOCTL_CODE(30, 0)
+#endif
+
 /** Get the pointer to the first HGCM parameter.  */
 # define VBOXGUEST_HGCM_CALL_PARMS(a)             ( (HGCMFunctionParameter   *)((uint8_t *)(a) + sizeof(VBoxGuestHGCMCallInfo)) )
 /** Get the pointer to the first HGCM parameter in a 32-bit request.  */
@@ -361,20 +364,25 @@ AssertCompileSize(VBoxGuestWriteCoreDump, 4);
 
 #endif /* VBOX_WITH_HGCM */
 
-#ifdef RT_OS_WINDOWS
-# ifdef IN_RING0
+/** IOCTL to for setting the mouse driver callback. (kernel only)  */
+#define VBOXGUEST_IOCTL_SET_MOUSE_NOTIFY_CALLBACK   VBOXGUEST_IOCTL_CODE_(31, sizeof(VBoxGuestMouseSetNotifyCallback))
 
-typedef DECLCALLBACK(void) FNVBOXMOUSENOTIFYCB(void *pvContext);
-typedef FNVBOXMOUSENOTIFYCB *PFNVBOXMOUSENOTIFYCB;
+typedef DECLCALLBACK(void) FNVBOXGUESTMOUSENOTIFY(void *pfnUser);
+typedef FNVBOXGUESTMOUSENOTIFY *PFNVBOXGUESTMOUSENOTIFY;
+
+/** Input buffer for VBOXGUEST_IOCTL_INTERNAL_SET_MOUSE_NOTIFY_CALLBACK. */
 typedef struct VBoxGuestMouseSetNotifyCallback
 {
-    PFNVBOXMOUSENOTIFYCB pfnNotify;
-    void *pvNotify;
+    /**
+     * Mouse notification callback.
+     *
+     * @param   pvUser      The callback argument.
+     */
+    PFNVBOXGUESTMOUSENOTIFY      pfnNotify;
+    /** The callback argument*/
+    void                       *pvUser;
 } VBoxGuestMouseSetNotifyCallback;
 
-#  define VBOXGUEST_IOCTL_INTERNAL_SET_MOUSE_NOTIFY_CALLBACK   VBOXGUEST_IOCTL_CODE_(31, sizeof(VBoxGuestMouseSetNotifyCallback))
-# endif
-#endif
 
 #ifdef RT_OS_OS2
 

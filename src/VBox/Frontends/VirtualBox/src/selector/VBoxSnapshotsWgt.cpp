@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,23 +20,29 @@
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
 # include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-/* Local includes */
-#include "UIIconPool.h"
-#include "UIMessageCenter.h"
-#include "VBoxSnapshotDetailsDlg.h"
-#include "VBoxSnapshotsWgt.h"
-#include "VBoxTakeSnapshotDlg.h"
-#include "UICloneVMWizard.h"
-#include "UIToolBar.h"
-#include "UIVirtualBoxEventHandler.h"
-#include "UISelectorShortcuts.h"
 
-/* Global includes */
+/* Qt includes: */
 #include <QDateTime>
 #include <QHeaderView>
 #include <QMenu>
 #include <QScrollBar>
 #include <QWindowsStyle>
+#include <QPointer>
+
+/* GUI includes: */
+#include "UIIconPool.h"
+#include "UIMessageCenter.h"
+#include "VBoxSnapshotDetailsDlg.h"
+#include "VBoxSnapshotsWgt.h"
+#include "VBoxTakeSnapshotDlg.h"
+#include "UIWizardCloneVM.h"
+#include "UIToolBar.h"
+#include "UIVirtualBoxEventHandler.h"
+#include "UISelectorShortcuts.h"
+#include "UIConverter.h"
+
+/* COM includes: */
+#include "CConsole.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -184,7 +190,7 @@ public:
         if (mMachine.isNull())
             return;
 
-        setIcon (0, vboxGlobal().toIcon (aState));
+        setIcon (0, gpConverter->toPixmap (aState));
         mMachineState = aState;
         mTimestamp.setTime_t (mMachine.GetLastStateChange() / 1000);
     }
@@ -271,7 +277,7 @@ private:
         else
         {
             dateTime = VBoxSnapshotsWgt::tr ("%1 since %2", "Current State (time or date + time)")
-                .arg (vboxGlobal().toString (mMachineState)).arg (dateTime);
+                .arg (gpConverter->toString (mMachineState)).arg (dateTime);
         }
 
         QString toolTip = QString ("<nobr><b>%1</b>%2</nobr><br><nobr>%3</nobr>")
@@ -578,40 +584,38 @@ void VBoxSnapshotsWgt::sltRestoreSnapshot()
 
     /* Ask the user if he really wants to restore the snapshot: */
     int iResultCode = msgCenter().askAboutSnapshotRestoring(snapshot.GetName(), mMachine.GetCurrentStateModified());
+    if (iResultCode & QIMessageBox::Cancel)
+        return;
 
-    /* If user confirmed other snapshot restoring: */
-    if (iResultCode & QIMessageBox::Ok)
+    /* If user also confirmed new snapshot creation: */
+    if (iResultCode & QIMessageBox::OptionChosen)
     {
-        /* If user also confirmed new snapshot creation: */
-        if (iResultCode & QIMessageBox::OptionChosen)
-        {
-            /* Take snapshot of changed current state: */
-            mTreeWidget->setCurrentItem(curStateItem());
-            if (!takeSnapshot())
-                return;
-        }
-
-        /* Open a direct session (this call will handle all errors): */
-        CSession session = vboxGlobal().openSession(mMachineId);
-        if (session.isNull())
+        /* Take snapshot of changed current state: */
+        mTreeWidget->setCurrentItem(curStateItem());
+        if (!takeSnapshot())
             return;
-
-        /* Restore chosen snapshot: */
-        CConsole console = session.GetConsole();
-        CProgress progress = console.RestoreSnapshot(snapshot);
-        if (console.isOk())
-        {
-            msgCenter().showModalProgressDialog(progress, mMachine.GetName(), ":/progress_snapshot_restore_90px.png",
-                                                  msgCenter().mainWindowShown(), true);
-            if (progress.GetResultCode() != 0)
-                msgCenter().cannotRestoreSnapshot(progress, snapshot.GetName());
-        }
-        else
-            msgCenter().cannotRestoreSnapshot(progress, snapshot.GetName());
-
-        /* Unlock machine finally: */
-        session.UnlockMachine();
     }
+
+    /* Open a direct session (this call will handle all errors): */
+    CSession session = vboxGlobal().openSession(mMachineId);
+    if (session.isNull())
+        return;
+
+    /* Restore chosen snapshot: */
+    CConsole console = session.GetConsole();
+    CProgress progress = console.RestoreSnapshot(snapshot);
+    if (console.isOk())
+    {
+        msgCenter().showModalProgressDialog(progress, mMachine.GetName(), ":/progress_snapshot_restore_90px.png",
+                                              msgCenter().mainWindowShown(), true);
+        if (progress.GetResultCode() != 0)
+            msgCenter().cannotRestoreSnapshot(progress, snapshot.GetName());
+    }
+    else
+        msgCenter().cannotRestoreSnapshot(progress, snapshot.GetName());
+
+    /* Unlock machine finally: */
+    session.UnlockMachine();
 }
 
 void VBoxSnapshotsWgt::sltDeleteSnapshot()
@@ -639,7 +643,11 @@ void VBoxSnapshotsWgt::sltDeleteSnapshot()
 
     /* Open a direct session (this call will handle all errors) */
     bool busy = mSessionState != KSessionState_Unlocked;
-    CSession session = vboxGlobal().openSession (mMachineId, busy /* aExisting */);
+    CSession session;
+    if (busy)
+        session = vboxGlobal().openExistingSession(mMachineId);
+    else
+        session = vboxGlobal().openSession(mMachineId);
     if (session.isNull())
         return;
 
@@ -696,8 +704,12 @@ void VBoxSnapshotsWgt::sltCloneSnapshot()
     }
     AssertReturn(!machine.isNull(), (void)0);
 
-    UICloneVMWizard wzd(this, machine, snapshot);
-    wzd.exec();
+    /* Show Clone VM wizard: */
+    UISafePointerWizard pWizard = new UIWizardCloneVM(this, machine, snapshot);
+    pWizard->prepare();
+    pWizard->exec();
+    if (pWizard)
+        delete pWizard;
 }
 
 void VBoxSnapshotsWgt::machineDataChanged(QString strId)
@@ -772,8 +784,11 @@ bool VBoxSnapshotsWgt::takeSnapshot()
     AssertReturn(pItem, (bool)0);
 
     /* Open a session to work with corresponding VM: */
-    CSession session = vboxGlobal().openSession(mMachineId,
-                                                mSessionState != KSessionState_Unlocked /* connect to existing */);
+    CSession session;
+    if (mSessionState != KSessionState_Unlocked)
+        session = vboxGlobal().openExistingSession(mMachineId);
+    else
+        session = vboxGlobal().openSession(mMachineId);
     fIsValid = !session.isNull();
 
     if (fIsValid)
@@ -798,12 +813,13 @@ bool VBoxSnapshotsWgt::takeSnapshot()
             }
         }
 
-        /* Create 'take new snapshot' dialog: */
         if (fIsValid)
         {
-            /* Prepare dialog: */
-            VBoxTakeSnapshotDlg dlg(this, mMachine);
-            dlg.mLbIcon->setPixmap(vboxGlobal().vmGuestOSTypeIcon(mMachine.GetOSTypeId()));
+            /* Create take-snapshot dialog: */
+            QPointer<VBoxTakeSnapshotDlg> pDlg = new VBoxTakeSnapshotDlg(this, mMachine);
+
+            /* Assign corresponding icon: */
+            pDlg->mLbIcon->setPixmap(vboxGlobal().vmGuestOSTypeIcon(mMachine.GetOSTypeId()));
 
             /* Search for the max available snapshot index: */
             int iMaxSnapShotIndex = 0;
@@ -818,30 +834,48 @@ bool VBoxSnapshotsWgt::takeSnapshot()
                     iMaxSnapShotIndex = regExp.cap(1).toInt() > iMaxSnapShotIndex ? regExp.cap(1).toInt() : iMaxSnapShotIndex;
                 ++iterator;
             }
-            dlg.mLeName->setText(snapShotName.arg(iMaxSnapShotIndex + 1));
+            pDlg->mLeName->setText(snapShotName.arg(iMaxSnapShotIndex + 1));
 
-            /* Show 'take new snapshot' dialog: */
-            if (dlg.exec() == QDialog::Accepted)
+            /* Exec the dialog: */
+            bool fDialogAccepted = pDlg->exec() == QDialog::Accepted;
+
+            /* Is the dialog still valid? */
+            if (pDlg)
             {
-                /* Take new snapshot: */
-                CProgress progress = console.TakeSnapshot(dlg.mLeName->text().trimmed(), dlg.mTeDescription->toPlainText());
-                if (console.isOk())
+                /* Acquire variables: */
+                QString strSnapshotName = pDlg->mLeName->text().trimmed();
+                QString strSnapshotDescription = pDlg->mTeDescription->toPlainText();
+
+                /* Destroy dialog early: */
+                delete pDlg;
+
+                /* Was the dialog accepted? */
+                if (fDialogAccepted)
                 {
-                    /* Show the progress dialog: */
-                    msgCenter().showModalProgressDialog(progress, mMachine.GetName(), ":/progress_snapshot_create_90px.png",
-                                                        msgCenter().mainWindowShown(), true);
-                    if (progress.GetResultCode() != 0)
+                    /* Prepare the take-snapshot progress: */
+                    CProgress progress = console.TakeSnapshot(strSnapshotName, strSnapshotDescription);
+                    if (console.isOk())
                     {
-                        msgCenter().cannotTakeSnapshot(progress);
+                        /* Show the take-snapshot progress: */
+                        msgCenter().showModalProgressDialog(progress, mMachine.GetName(), ":/progress_snapshot_create_90px.png",
+                                                            msgCenter().mainWindowShown(), true);
+                        if (progress.GetResultCode() != 0)
+                        {
+                            msgCenter().cannotTakeSnapshot(progress);
+                            fIsValid = false;
+                        }
+                    }
+                    else
+                    {
+                        msgCenter().cannotTakeSnapshot(console);
                         fIsValid = false;
                     }
                 }
                 else
-                {
-                    msgCenter().cannotTakeSnapshot(console);
                     fIsValid = false;
-                }
             }
+            else
+                fIsValid = false;
         }
 
         /* Resume VM if necessary: */

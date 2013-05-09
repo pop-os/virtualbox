@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -233,6 +233,7 @@ static int VBoxNetAdpLinuxOpen(struct inode *pInode, struct file *pFilp)
 {
     Log(("VBoxNetAdpLinuxOpen: pid=%d/%d %s\n", RTProcSelf(), current->pid, current->comm));
 
+#ifdef VBOX_WITH_HARDENING
     /*
      * Only root is allowed to access the device, enforce it!
      */
@@ -241,6 +242,7 @@ static int VBoxNetAdpLinuxOpen(struct inode *pInode, struct file *pFilp)
         Log(("VBoxNetAdpLinuxOpen: admin privileges required!\n"));
         return -EPERM;
     }
+#endif
 
     return 0;
 }
@@ -312,7 +314,7 @@ static long VBoxNetAdpLinuxIOCtlUnlocked(struct file *pFilp,
             if (RT_FAILURE(rc))
             {
                 Log(("VBoxNetAdpLinuxIOCtl: vboxNetAdpCreate -> %Rrc\n", rc));
-                return -EINVAL;
+                return -(rc == VERR_OUT_OF_RESOURCES ? ENOMEM : EINVAL);
             }
 
             Assert(strlen(pAdp->szName) < sizeof(Req.szName));

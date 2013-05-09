@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,7 @@ public:
     {
         SettingsDialogShortcut,
         TakeSnapshotShortcut,
+        TakeScreenshotShortcut,
         InformationDialogShortcut,
         MouseIntegrationShortcut,
         TypeCADShortcut,
@@ -54,6 +55,7 @@ public:
         HelpShortcut,
         WebShortcut,
         ResetWarningsShortcut,
+        NetworkAccessManager,
 #ifdef VBOX_WITH_REGISTRATION
         RegisterShortcut,
 #endif /* VBOX_WITH_REGISTRATION */

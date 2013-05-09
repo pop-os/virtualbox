@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -165,7 +165,13 @@ public:
         return *this;
     }
 
+#ifdef _MSC_VER
+# if _MSC_VER >= 1400
     RTMEMEF_NEW_AND_DELETE_OPERATORS();
+# endif
+#else
+    RTMEMEF_NEW_AND_DELETE_OPERATORS();
+#endif
 
     /** Case sensitivity selector. */
     enum CaseSensitivity
@@ -279,6 +285,8 @@ public:
      *
      *  If the member string is empty, this allocates an empty BSTR in *pstr
      *  (i.e. makes it point to a new buffer with a null byte).
+     *
+     *  @deprecated Use cloneToEx instead to avoid throwing exceptions.
      */
     void cloneTo(BSTR *pstr) const
     {
@@ -290,6 +298,19 @@ public:
                 throw std::bad_alloc();
 #endif
         }
+    }
+
+    /**
+     *  A version of cloneTo that does not throw any out of memory exceptions, but
+     *  returns E_OUTOFMEMORY intead.
+     *  @returns S_OK or E_OUTOFMEMORY.
+     */
+    HRESULT cloneToEx(BSTR *pstr) const
+    {
+        if (!pstr)
+            return S_OK;
+        *pstr = ::SysAllocString((const OLECHAR *)raw());       // raw() returns a pointer to "" if empty
+        return pstr ? S_OK : E_OUTOFMEMORY;
     }
 
     /**
@@ -310,7 +331,10 @@ public:
     void detachTo(BSTR *pbstrDst)
     {
         if (m_bstr)
+        {
             *pbstrDst = m_bstr;
+            m_bstr = NULL;
+        }
         else
         {
             // allocate null BSTR
@@ -320,7 +344,30 @@ public:
                 throw std::bad_alloc();
 #endif
         }
-        m_bstr = NULL;
+    }
+
+    /**
+     *  A version of detachTo that does not throw exceptions on out-of-memory
+     *  conditions, but instead returns E_OUTOFMEMORY.
+     *
+     * @param   pbstrDst        The BSTR variable to detach the string to.
+     * @returns S_OK or E_OUTOFMEMORY.
+     */
+    HRESULT detachToEx(BSTR *pbstrDst)
+    {
+        if (m_bstr)
+        {
+            *pbstrDst = m_bstr;
+            m_bstr = NULL;
+        }
+        else
+        {
+            // allocate null BSTR
+            *pbstrDst = ::SysAllocString((const OLECHAR *)g_bstrEmpty);
+            if (!*pbstrDst)
+                return E_OUTOFMEMORY;
+        }
+        return S_OK;
     }
 
     /**
@@ -463,6 +510,11 @@ public:
         copyFrom(that);
     }
 
+    Utf8Str(const char *a_pszSrc, size_t a_cchSrc)
+        : RTCString(a_pszSrc, a_cchSrc)
+    {
+    }
+
     /**
      * Constructs a new string given the format string and the list of the
      * arguments for the format string.
@@ -506,6 +558,62 @@ public:
 
     bool operator<(const RTCString &that) const { return RTCString::operator<(that); }
 
+    /**
+     * Extended assignment method that returns a COM status code instead of an
+     * exception on failure.
+     *
+     * @returns S_OK or E_OUTOFMEMORY.
+     * @param   a_rSrcStr   The source string
+     */
+    HRESULT assignEx(Utf8Str const &a_rSrcStr)
+    {
+        return copyFromExNComRC(a_rSrcStr.m_psz, a_rSrcStr.m_cch);
+    }
+
+    /**
+     * Extended assignment method that returns a COM status code instead of an
+     * exception on failure.
+     *
+     * @returns S_OK, E_OUTOFMEMORY or E_INVALIDARG.
+     * @param   a_pcszSrc   The source string
+     * @param   a_offSrc    The character (byte) offset of the substring.
+     * @param   a_cchSrc    The number of characters (bytes) to copy from the source
+     *                      string.
+     */
+    HRESULT assignEx(Utf8Str const &a_rSrcStr, size_t a_offSrc, size_t a_cchSrc)
+    {
+        if (   a_offSrc + a_cchSrc > a_rSrcStr.m_cch
+            || a_offSrc > a_rSrcStr.m_cch)
+            return E_INVALIDARG;
+        return copyFromExNComRC(a_rSrcStr.m_psz, a_rSrcStr.m_cch);
+    }
+
+    /**
+     * Extended assignment method that returns a COM status code instead of an
+     * exception on failure.
+     *
+     * @returns S_OK or E_OUTOFMEMORY.
+     * @param   a_pcszSrc   The source string
+     */
+    HRESULT assignEx(const char *a_pcszSrc)
+    {
+        return copyFromExNComRC(a_pcszSrc, a_pcszSrc ? strlen(a_pcszSrc) : 0);
+    }
+
+    /**
+     * Extended assignment method that returns a COM status code instead of an
+     * exception on failure.
+     *
+     * @returns S_OK or E_OUTOFMEMORY.
+     * @param   a_pcszSrc   The source string
+     * @param   a_cchSrc    The number of characters (bytes) to copy from the source
+     *                      string.
+     */
+    HRESULT assignEx(const char *a_pcszSrc, size_t a_cchSrc)
+    {
+        return copyFromExNComRC(a_pcszSrc, a_cchSrc);
+    }
+
     RTMEMEF_NEW_AND_DELETE_OPERATORS();
 
 #if defined(VBOX_WITH_XPCOM)
@@ -520,6 +628,13 @@ public:
      * like char* strings anyway.
      */
     void cloneTo(char **pstr) const;
+
+    /**
+     * A version of cloneTo that does not throw allocation errors but returns
+     * E_OUTOFMEMORY instead.
+     * @returns S_OK or E_OUTOFMEMORY (COM status codes).
+     */
+    HRESULT cloneToEx(char **pstr) const;
 #endif
 
     /**
@@ -534,6 +649,33 @@ public:
             Bstr bstr(*this);
             bstr.cloneTo(pstr);
         }
+    }
+
+    /**
+     * A version of cloneTo that does not throw allocation errors but returns
+     * E_OUTOFMEMORY instead.
+     *
+     * @param   pbstr Where to store a clone of the string.
+     * @returns S_OK or E_OUTOFMEMORY (COM status codes).
+     */
+    HRESULT cloneToEx(BSTR *pbstr) const
+    {
+        if (!pbstr)
+            return S_OK;
+        Bstr bstr(*this);
+        return bstr.detachToEx(pbstr);
+    }
+
+    /**
+     * Safe assignment from BSTR.
+     *
+     * @param   pbstrSrc    The source string.
+     * @returns S_OK or E_OUTOFMEMORY (COM status codes).
+     */
+    HRESULT cloneEx(CBSTR pbstrSrc)
+    {
+        cleanup();
+        return copyFromEx(pbstrSrc);
     }
 
     /**
@@ -567,6 +709,8 @@ public:
 protected:
 
     void copyFrom(CBSTR a_pbstr);
+    HRESULT copyFromEx(CBSTR a_pbstr);
+    HRESULT copyFromExNComRC(const char *a_pcszSrc, size_t a_cchSrc);
 
     friend class Bstr; /* to access our raw_copy() */
 };

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,6 +47,8 @@ public:
     void resizeEvent(UIResizeEvent *pEvent);
 
 private:
+
+    void goFallback();
 
     QPixmap m_PM;
     QImage m_img;

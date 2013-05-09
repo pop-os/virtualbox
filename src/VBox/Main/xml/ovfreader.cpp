@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -466,7 +466,8 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                         i.strPoolID = pelmItemChild->getValue();
                     else if (!strcmp(pcszItemChildName, "BusNumber"))       // seen in some old OVF, but it's not listed in the OVF specs
                         pelmItemChild->copyValue(i.ulBusNumber);
-                    else
+                    else if (   pelmItemChild->getPrefix() == NULL
+                             || strcmp(pelmItemChild->getPrefix(), "vmw"))
                         throw OVFLogicError(N_("Error reading \"%s\": unknown element \"%s\" under Item element, line %d"),
                                             m_strPath.c_str(),
                                             pcszItemChildName,

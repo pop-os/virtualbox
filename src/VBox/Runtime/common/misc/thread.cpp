@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,17 +57,15 @@
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
 #ifdef IN_RING0
-# define RT_THREAD_LOCK_TMP(Tmp)    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER
-# define RT_THREAD_LOCK_RW(Tmp)     RTSpinlockAcquireNoInts(g_ThreadSpinlock, &(Tmp))
-# define RT_THREAD_UNLOCK_RW(Tmp)   RTSpinlockReleaseNoInts(g_ThreadSpinlock, &(Tmp))
-# define RT_THREAD_LOCK_RD(Tmp)     RTSpinlockAcquireNoInts(g_ThreadSpinlock, &(Tmp))
-# define RT_THREAD_UNLOCK_RD(Tmp)   RTSpinlockReleaseNoInts(g_ThreadSpinlock, &(Tmp))
+# define RT_THREAD_LOCK_RW()        RTSpinlockAcquire(g_ThreadSpinlock)
+# define RT_THREAD_UNLOCK_RW()      RTSpinlockRelease(g_ThreadSpinlock)
+# define RT_THREAD_LOCK_RD()        RTSpinlockAcquire(g_ThreadSpinlock)
+# define RT_THREAD_UNLOCK_RD()      RTSpinlockRelease(g_ThreadSpinlock)
 #else
-# define RT_THREAD_LOCK_TMP(Tmp)
-# define RT_THREAD_LOCK_RW(Tmp)     rtThreadLockRW()
-# define RT_THREAD_UNLOCK_RW(Tmp)   rtThreadUnLockRW()
-# define RT_THREAD_LOCK_RD(Tmp)     rtThreadLockRD()
-# define RT_THREAD_UNLOCK_RD(Tmp)   rtThreadUnLockRD()
+# define RT_THREAD_LOCK_RW()        rtThreadLockRW()
+# define RT_THREAD_UNLOCK_RW()      rtThreadUnLockRW()
+# define RT_THREAD_LOCK_RD()        rtThreadLockRD()
+# define RT_THREAD_UNLOCK_RD()      rtThreadUnLockRD()
 #endif
 
 
@@ -106,7 +104,7 @@ static PRTTHREADINT rtThreadAlloc(RTTHREADTYPE enmType, unsigned fFlags, uint32_
  * Internally IPRT keeps track of threads by means of the RTTHREADINT structure.
  * All the RTTHREADINT structures are kept in a AVL tree which is protected by a
  * read/write lock for efficient access. A thread is inserted into the tree in
- * three places in the code. The main thread is 'adopted' by IPRT on RTR3Init()
+ * three places in the code. The main thread is 'adopted' by IPRT on rtR3Init()
  * by rtThreadAdopt(). When creating a new thread there the child and the parent
  * race inserting the thread, this is rtThreadMain() and RTThreadCreate.
  *
@@ -166,7 +164,7 @@ DECLHIDDEN(int) rtThreadInit(void)
      * Create the spinlock and to native init.
      */
     Assert(g_ThreadSpinlock == NIL_RTSPINLOCK);
-    rc = RTSpinlockCreate(&g_ThreadSpinlock);
+    rc = RTSpinlockCreate(&g_ThreadSpinlock, RTSPINLOCK_FLAGS_INTERRUPT_SAFE, "RTThread");
     if (RT_SUCCESS(rc))
     {
         rc = rtThreadNativeInit();
@@ -405,8 +403,7 @@ DECLHIDDEN(void) rtThreadInsert(PRTTHREADINT pThread, RTNATIVETHREAD NativeThrea
     Assert(pThread->u32Magic == RTTHREADINT_MAGIC);
 
     {
-        RT_THREAD_LOCK_TMP(Tmp);
-        RT_THREAD_LOCK_RW(Tmp);
+        RT_THREAD_LOCK_RW();
 
         /*
          * Do not insert a terminated thread.
@@ -449,7 +446,7 @@ DECLHIDDEN(void) rtThreadInsert(PRTTHREADINT pThread, RTNATIVETHREAD NativeThrea
             }
         }
 
-        RT_THREAD_UNLOCK_RW(Tmp);
+        RT_THREAD_UNLOCK_RW();
     }
 }
 
@@ -478,11 +475,10 @@ static void rtThreadRemoveLocked(PRTTHREADINT pThread)
  */
 static void rtThreadRemove(PRTTHREADINT pThread)
 {
-    RT_THREAD_LOCK_TMP(Tmp);
-    RT_THREAD_LOCK_RW(Tmp);
+    RT_THREAD_LOCK_RW();
     if (ASMAtomicBitTestAndClear(&pThread->fIntFlags, RTTHREADINT_FLAG_IN_TREE_BIT))
         rtThreadRemoveLocked(pThread);
-    RT_THREAD_UNLOCK_RW(Tmp);
+    RT_THREAD_UNLOCK_RW();
 }
 
 
@@ -511,10 +507,9 @@ DECLHIDDEN(PRTTHREADINT) rtThreadGetByNative(RTNATIVETHREAD NativeThread)
     /*
      * Simple tree lookup.
      */
-    RT_THREAD_LOCK_TMP(Tmp);
-    RT_THREAD_LOCK_RD(Tmp);
+    RT_THREAD_LOCK_RD();
     pThread = (PRTTHREADINT)RTAvlPVGet(&g_ThreadTree, (void *)NativeThread);
-    RT_THREAD_UNLOCK_RD(Tmp);
+    RT_THREAD_UNLOCK_RD();
     return pThread;
 }
 
@@ -676,7 +671,7 @@ DECLHIDDEN(void) rtThreadTerminate(PRTTHREADINT pThread, int rc)
  * @param   NativeThread    The native thread id.
  * @param   pszThreadName   The name of the thread (purely a dummy for backtrace).
  */
-DECLHIDDEN(int) rtThreadMain(PRTTHREADINT pThread, RTNATIVETHREAD NativeThread, const char *pszThreadName)
+DECLCALLBACK(DECLHIDDEN(int)) rtThreadMain(PRTTHREADINT pThread, RTNATIVETHREAD NativeThread, const char *pszThreadName)
 {
     int rc;
     NOREF(pszThreadName);
@@ -980,7 +975,7 @@ RT_EXPORT_SYMBOL(RTThreadSetName);
  *
  * @param   hThread     The thread handle.
  *
- * @remarks This function may not return the correct value when RTR3Init was
+ * @remarks This function may not return the correct value when rtR3Init was
  *          called on a thread of the than the main one.  This could for
  *          instance happen when the DLL/DYLIB/SO containing IPRT is dynamically
  *          loaded at run time by a different thread.
@@ -1240,12 +1235,11 @@ RTDECL(int) RTThreadSetType(RTTHREAD Thread, RTTHREADTYPE enmType)
                 /*
                  * Do the job.
                  */
-                RT_THREAD_LOCK_TMP(Tmp);
-                RT_THREAD_LOCK_RW(Tmp);
+                RT_THREAD_LOCK_RW();
                 rc = rtThreadNativeSetPriority(pThread, enmType);
                 if (RT_SUCCESS(rc))
                     ASMAtomicXchgSize(&pThread->enmType, enmType);
-                RT_THREAD_UNLOCK_RW(Tmp);
+                RT_THREAD_UNLOCK_RW();
                 if (RT_FAILURE(rc))
                     Log(("RTThreadSetType: failed on thread %p (%s), rc=%Rrc!!!\n", Thread, pThread->szName, rc));
             }
@@ -1301,10 +1295,9 @@ RT_EXPORT_SYMBOL(RTThreadGetType);
  */
 int rtThreadDoCalcDefaultPriority(RTTHREADTYPE enmType)
 {
-    RT_THREAD_LOCK_TMP(Tmp);
-    RT_THREAD_LOCK_RW(Tmp);
+    RT_THREAD_LOCK_RW();
     int rc = rtSchedNativeCalcDefaultPriority(enmType);
-    RT_THREAD_UNLOCK_RW(Tmp);
+    RT_THREAD_UNLOCK_RW();
     return rc;
 }
 
@@ -1325,6 +1318,7 @@ static DECLCALLBACK(int) rtThreadSetPriorityOne(PAVLPVNODECORE pNode, void *pvUs
     int rc = rtThreadNativeSetPriority(pThread, pThread->enmType);
     if (RT_SUCCESS(rc)) /* hide any warnings */
         return VINF_SUCCESS;
+    NOREF(pvUser);
     return rc;
 }
 
@@ -1348,8 +1342,7 @@ DECLHIDDEN(int) rtThreadDoSetProcPriority(RTPROCPRIORITY enmPriority)
      * First validate that we're allowed by the OS to use all the
      * scheduling attributes defined by the specified process priority.
      */
-    RT_THREAD_LOCK_TMP(Tmp);
-    RT_THREAD_LOCK_RW(Tmp);
+    RT_THREAD_LOCK_RW();
     int rc = rtProcNativeSetPriority(enmPriority);
     if (RT_SUCCESS(rc))
     {
@@ -1368,7 +1361,7 @@ DECLHIDDEN(int) rtThreadDoSetProcPriority(RTPROCPRIORITY enmPriority)
             RTAvlPVDoWithAll(&g_ThreadTree, true, rtThreadSetPriorityOne, NULL);
         }
     }
-    RT_THREAD_UNLOCK_RW(Tmp);
+    RT_THREAD_UNLOCK_RW();
     LogFlow(("rtThreadDoSetProcPriority: returns %Rrc\n", rc));
     return rc;
 }
@@ -1524,10 +1517,9 @@ static DECLCALLBACK(int) rtThreadClearTlsEntryCallback(PAVLPVNODECORE pNode, voi
  */
 DECLHIDDEN(void) rtThreadClearTlsEntry(RTTLS iTls)
 {
-    RT_THREAD_LOCK_TMP(Tmp);
-    RT_THREAD_LOCK_RD(Tmp);
+    RT_THREAD_LOCK_RD();
     RTAvlPVDoWithAll(&g_ThreadTree, true /* fFromLeft*/, rtThreadClearTlsEntryCallback, (void *)(uintptr_t)iTls);
-    RT_THREAD_UNLOCK_RD(Tmp);
+    RT_THREAD_UNLOCK_RD();
 }
 
 #endif /* IPRT_WITH_GENERIC_TLS */

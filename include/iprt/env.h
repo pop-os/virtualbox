@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,7 +54,15 @@ RTDECL(int) RTEnvCreate(PRTENV pEnv);
  * Creates an environment block and fill it with variables from the given
  * environment array.
  *
- * @returns IPRT status code. Typical error is VERR_NO_MEMORY.
+ * @returns IPRT status code.
+ * @retval  VWRN_ENV_NOT_FULLY_TRANSLATED may be returned when passing
+ *          RTENV_DEFAULT and one or more of the environment variables have
+ *          codeset incompatibilities.  The problematic variables will be
+ *          ignored and not included in the clone, thus the clone will have
+ *          fewer variables.
+ * @retval  VERR_NO_MEMORY
+ * @retval  VERR_NO_STR_MEMORY
+ * @retval  VERR_INVALID_HANDLE
  *
  * @param   pEnv        Where to store the handle of the new environment block.
  * @param   EnvToClone  The environment to clone.

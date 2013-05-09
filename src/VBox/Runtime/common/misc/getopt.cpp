@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2011 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -319,6 +319,38 @@ static int rtGetOptProcessValue(uint32_t fFlags, const char *pszValue, PRTGETOPT
     {
         case RTGETOPT_REQ_STRING:
             pValueUnion->psz = pszValue;
+            break;
+
+        case RTGETOPT_REQ_BOOL:
+            if (   !RTStrICmp(pszValue, "true")
+                || !RTStrICmp(pszValue, "t")
+                || !RTStrICmp(pszValue, "yes")
+                || !RTStrICmp(pszValue, "y")
+                || !RTStrICmp(pszValue, "enabled")
+                || !RTStrICmp(pszValue, "enable")
+                || !RTStrICmp(pszValue, "en")
+                || !RTStrICmp(pszValue, "e")
+                || !RTStrICmp(pszValue, "on")
+                || !RTStrCmp(pszValue, "1")
+                )
+                pValueUnion->f = true;
+            else if (   !RTStrICmp(pszValue, "false")
+                     || !RTStrICmp(pszValue, "f")
+                     || !RTStrICmp(pszValue, "no")
+                     || !RTStrICmp(pszValue, "n")
+                     || !RTStrICmp(pszValue, "disabled")
+                     || !RTStrICmp(pszValue, "disable")
+                     || !RTStrICmp(pszValue, "dis")
+                     || !RTStrICmp(pszValue, "d")
+                     || !RTStrICmp(pszValue, "off")
+                     || !RTStrCmp(pszValue, "0")
+                     )
+                pValueUnion->f = false;
+            else
+            {
+                pValueUnion->psz = pszValue;
+                return VERR_GETOPT_UNKNOWN_OPTION;
+            }
             break;
 
         case RTGETOPT_REQ_BOOL_ONOFF:
@@ -687,7 +719,6 @@ RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion)
                 return VERR_GETOPT_INDEX_MISSING;
 
             uint32_t uIndex;
-            char *pszRet = NULL;
             if (RTStrToUInt32Full(&pszArgThis[cchLong], 10, &uIndex) == VINF_SUCCESS)
                 pState->uIndex = uIndex;
             else
@@ -720,7 +751,6 @@ RTDECL(int) RTGetOptFetchValue(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion
      * Validate input.
      */
     PCRTGETOPTDEF pOpt = pState->pDef;
-    AssertReturn(pOpt, VERR_GETOPT_UNKNOWN_OPTION);
     AssertReturn(!(fFlags & ~RTGETOPT_VALID_MASK), VERR_INVALID_PARAMETER);
     AssertReturn((fFlags & RTGETOPT_REQ_MASK) != RTGETOPT_REQ_NOTHING, VERR_INVALID_PARAMETER);
 
@@ -760,6 +790,9 @@ RTDECL(RTEXITCODE) RTGetOptPrintError(int ch, PCRTGETOPTUNION pValueUnion)
     }
     else if (ch == VERR_GETOPT_UNKNOWN_OPTION)
         RTMsgError("Unknown option: '%s'", pValueUnion->psz);
+    else if (ch == VERR_GETOPT_INVALID_ARGUMENT_FORMAT)
+        /** @todo r=klaus not really ideal, as the option isn't available */
+        RTMsgError("Invalid argument format: '%s'", pValueUnion->psz);
     else if (pValueUnion->pDef)
         RTMsgError("%s: %Rrs\n", pValueUnion->pDef->pszLong, ch);
     else

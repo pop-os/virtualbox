@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -575,6 +575,12 @@ RTR3DECL(int) RTPathRename(const char *pszSrc, const char *pszDst, unsigned fRen
 
     LogFlow(("RTPathRename(%p:{%s}, %p:{%s}, %#x): returns %Rrc\n", pszSrc, pszSrc, pszDst, pszDst, fRename, rc));
     return rc;
+}
+
+
+RTR3DECL(int) RTPathUnlink(const char *pszPath, uint32_t fUnlink)
+{
+    return VERR_NOT_IMPLEMENTED;
 }
 
 

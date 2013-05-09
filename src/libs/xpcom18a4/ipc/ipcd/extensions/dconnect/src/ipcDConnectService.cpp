@@ -52,14 +52,19 @@
 #include "xptcall.h"
 
 #ifdef VBOX
-#include <map>
-#include <list>
+# include <map>
+# include <list>
+# include <iprt/err.h>
+# include <iprt/req.h>
+# include <iprt/mem.h>
 #endif /* VBOX */
 
 #if defined(DCONNECT_MULTITHREADED)
 
+#if !defined(DCONNECT_WITH_IPRT_REQ_POOL)
 #include "nsIThread.h"
 #include "nsIRunnable.h"
+#endif
 
 #if defined(DEBUG) && !defined(DCONNECT_STATS)
 #define DCONNECT_STATS
@@ -1822,8 +1827,8 @@ private:
   nsRefPtr<DConnectStub> mXcptStub;
 };
 
-NS_IMPL_ADDREF(ExceptionStub)
-NS_IMPL_RELEASE(ExceptionStub)
+NS_IMPL_THREADSAFE_ADDREF(ExceptionStub)
+NS_IMPL_THREADSAFE_RELEASE(ExceptionStub)
 
 NS_IMETHODIMP
 ExceptionStub::QueryInterface(const nsID &aIID, void **aInstancePtr)
@@ -2868,7 +2873,7 @@ SetupPeerInstance(PRUint32 aPeerID, DConnectSetup *aMsg, PRUint32 aMsgLen,
 
 //-----------------------------------------------------------------------------
 
-#if defined(DCONNECT_MULTITHREADED)
+#if defined(DCONNECT_MULTITHREADED)  && !defined(DCONNECT_WITH_IPRT_REQ_POOL)
 
 class DConnectWorker : public nsIRunnable
 {
@@ -2976,7 +2981,7 @@ ipcDConnectService::CreateWorker()
   return rv;
 }
 
-#endif // defined(DCONNECT_MULTITHREADED)
+#endif // defined(DCONNECT_MULTITHREADED) && !defined(DCONNECT_WITH_IPRT_REQ_POOL)
 
 //-----------------------------------------------------------------------------
 
@@ -2985,6 +2990,9 @@ ipcDConnectService::ipcDConnectService()
  , mStubLock(NULL)
  , mDisconnected(PR_TRUE)
  , mStubQILock(NULL)
+#if defined(DCONNECT_WITH_IPRT_REQ_POOL)
+ , mhReqPool(NIL_RTREQPOOL)
+#endif
 {
 }
 
@@ -3017,6 +3025,10 @@ ipcDConnectService::~ipcDConnectService()
   PR_DestroyLock(mStubQILock);
   PR_DestroyLock(mStubLock);
   PR_DestroyLock(mLock);
+#if defined(DCONNECT_WITH_IPRT_REQ_POOL)
+  RTReqPoolRelease(mhReqPool);
+  mhReqPool = NIL_RTREQPOOL;
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -3061,6 +3073,19 @@ ipcDConnectService::Init()
     return NS_ERROR_OUT_OF_MEMORY;
 
 #if defined(DCONNECT_MULTITHREADED)
+# if defined(DCONNECT_WITH_IPRT_REQ_POOL)
+  int vrc = RTReqPoolCreate(1024 /*cMaxThreads*/, 10*RT_MS_1SEC /*cMsMinIdle*/,
+                            8 /*cThreadsPushBackThreshold */, RT_MS_1SEC /* cMsMaxPushBack */,
+                            "DCon", &mhReqPool);
+  if (RT_FAILURE(vrc))
+  {
+    mhReqPool = NIL_RTREQPOOL;
+    return NS_ERROR_FAILURE;
+  }
+
+  mDisconnected = PR_FALSE;
+
+# else
 
   mPendingMon = nsAutoMonitor::NewMonitor("DConnect pendingQ monitor");
   if (!mPendingMon)
@@ -3085,6 +3110,7 @@ ipcDConnectService::Init()
     return rv;
   }
 
+# endif
 #else
 
   mDisconnected = PR_FALSE;
@@ -3108,6 +3134,27 @@ ipcDConnectService::Shutdown()
   }
 
 #if defined(DCONNECT_MULTITHREADED)
+# if defined(DCONNECT_WITH_IPRT_REQ_POOL)
+
+#  if defined(DCONNECT_STATS)
+  fprintf(stderr, "ipcDConnectService Stats\n");
+  fprintf(stderr,
+          " => number of worker threads:  %llu (created %llu)\n"
+          " => requests processed:        %llu\n"
+          " => avg requests process time: %llu ns\n"
+          " => avg requests waiting time: %llu ns\n",
+          RTReqPoolGetStat(mhReqPool, RTREQPOOLSTAT_THREADS),
+          RTReqPoolGetStat(mhReqPool, RTREQPOOLSTAT_THREADS_CREATED),
+          RTReqPoolGetStat(mhReqPool, RTREQPOOLSTAT_REQUESTS_PROCESSED),
+          RTReqPoolGetStat(mhReqPool, RTREQPOOLSTAT_NS_AVERAGE_REQ_PROCESSING),
+          RTReqPoolGetStat(mhReqPool, RTREQPOOLSTAT_NS_AVERAGE_REQ_QUEUED)
+          );
+#  endif
+
+  RTReqPoolRelease(mhReqPool);
+  mhReqPool = NIL_RTREQPOOL;
+
+# else
 
   {
     // remove all pending messages and wake up all workers.
@@ -3137,6 +3184,7 @@ ipcDConnectService::Shutdown()
   nsAutoMonitor::DestroyMonitor(mWaitingWorkersMon);
   nsAutoMonitor::DestroyMonitor(mPendingMon);
 
+# endif
 #endif
 
   // make sure we have released all instances
@@ -3409,6 +3457,17 @@ ipcDConnectService::OnMessageAvailable(PRUint32 aSenderID,
         aSenderID, op->opcode_major, op->request_index));
 
 #if defined(DCONNECT_MULTITHREADED)
+# if defined(DCONNECT_WITH_IPRT_REQ_POOL)
+
+  void *pvDataDup = RTMemDup(aData, aDataLen);
+  if (RT_UNLIKELY(!pvDataDup))
+    return NS_ERROR_OUT_OF_MEMORY;
+  int rc = RTReqPoolCallVoidNoWait(mhReqPool, (PFNRT)ProcessMessageOnWorkerThread, 4,
+                                   this, aSenderID, pvDataDup, aDataLen);
+  if (RT_FAILURE(rc))
+    return NS_ERROR_FAILURE;
+
+# else
 
   nsAutoMonitor mon(mPendingMon);
   mPendingQ.Append(new DConnectRequest(aSenderID, op, aDataLen));
@@ -3440,6 +3499,7 @@ ipcDConnectService::OnMessageAvailable(PRUint32 aSenderID,
     }
   }
 
+# endif
 #else
 
   OnIncomingRequest(aSenderID, op, aDataLen);
@@ -3542,6 +3602,20 @@ ipcDConnectService::OnClientStateChange(PRUint32 aClientID,
 }
 
 //-----------------------------------------------------------------------------
+
+#if defined(DCONNECT_WITH_IPRT_REQ_POOL)
+/**
+ * Function called by the request thread pool to process a incoming request in
+ * the context of a worker thread.
+ */
+/* static */ DECLCALLBACK(void)
+ipcDConnectService::ProcessMessageOnWorkerThread(ipcDConnectService *aThis, PRUint32 aSenderID, void *aData, PRUint32 aDataLen)
+{
+  if (!aThis->mDisconnected)
+    aThis->OnIncomingRequest(aSenderID, (const DConnectOp *)aData, aDataLen);
+  RTMemFree(aData);
+}
+#endif
 
 void
 ipcDConnectService::OnIncomingRequest(PRUint32 peer, const DConnectOp *op, PRUint32 opLen)

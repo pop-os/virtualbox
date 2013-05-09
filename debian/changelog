@@ -1,3 +1,42 @@
+virtualbox (4.2.10-dfsg-1) experimental; urgency=low
+
+  * New upstream release. (Closes: #691148)
+    - Fixes compatibility with kernel 3.8. (Closes: #700823; LP: #1101867)
+  * Switch to my @debian.org email address.
+  * Move package to contrib as virtualbox 4.2 needs a non-free compiler to
+    build the BIOS.
+  * Build-depend on libdevmapper-dev.
+  * Refresh patches.
+    - Drop 36-fix-ftbfs-xserver-112.patch, cve-2012-3221.patch,
+      CVE-2013-0420.patch 37-kcompat-3.6.patch and 38-kcompat-3.7.patch.
+  * Drop all virtualbox-ose transitional packages.
+  * Drop the virtualbox-fuse package as vdfuse fails to build with
+    virtualbox 4.2.
+  * Update install files and VBox.sh.
+  * Bump required kbuild version to 0.1.9998svn2577.
+  * Fix path to VBoxCreateUSBNode.sh in virtualbox.postinst. (Closes: #700479)
+  * Add an init script to virtuabox-guest-x11 which loads the vboxvideo
+    kernel module. The X Server 1.13 doesn't load it anymore. (Closes: #686994)
+  * Update man pages. (Closes: #680053)
+  * Add 36-python-multiarch.patch from Rico Tzschichholz to fix detection of
+    python in multiarch paths using pkg-config.
+  * Fix build failure with the Debian wheezy kernel which backports the drm
+    subsystem from Linux 3.4. (Closes: #703358)
+  * Drop build-dependency on bcc as it's not needed anymore.
+  * Link VBoxOGL against the X libraries it requires.
+    - Update 18-system-xorg.patch
+
+ -- Felix Geyer <fgeyer@debian.org>  Sun, 31 Mar 2013 19:46:38 +0200
+
+virtualbox (4.1.18-dfsg-2.1) experimental; urgency=low
+
+  [ Stefan Lippers-Hollmann ]
+  * Non-maintainer upload.
+  * fix kernel module compilation against v3.6 and v3.7
+    (closes: #691169, #696011, #696667, #696953, #698607)
+
+ -- Daniel Baumann <daniel.baumann@progress-technologies.net>  Sat, 26 Jan 2013 17:55:16 +0100
+
 virtualbox (4.1.18-dfsg-2+deb7u1) unstable; urgency=high
 
   * Fix build failure with the Debian wheezy kernel which backports the drm

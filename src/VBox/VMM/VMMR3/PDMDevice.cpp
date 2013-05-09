@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,9 @@
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/iom.h>
 #include <VBox/vmm/cfgm.h>
-#include <VBox/vmm/rem.h>
+#ifdef VBOX_WITH_REM
+# include <VBox/vmm/rem.h>
+#endif
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/vmm.h>
@@ -100,7 +102,7 @@ static int                  pdmR3DevLoad(PVM pVM, PPDMDEVREGCBINT pRegCB, const 
  * are called.
  *
  * @returns VBox status code.
- * @param   pVM     VM Handle.
+ * @param   pVM     Pointer to the VM.
  */
 int pdmR3DevInit(PVM pVM)
 {
@@ -312,6 +314,7 @@ int pdmR3DevInit(PVM pVM)
          * Initialize it.
          */
         pDevIns->u32Version                     = PDM_DEVINS_VERSION;
+        pDevIns->iInstance                      = paDevs[i].iInstance;
         //pDevIns->Internal.s.pNextR3             = NULL;
         //pDevIns->Internal.s.pPerDeviceNextR3    = NULL;
         pDevIns->Internal.s.pDevR3              = paDevs[i].pDev;
@@ -327,12 +330,15 @@ int pdmR3DevInit(PVM pVM)
         //pDevIns->Internal.s.pPciDeviceRC        = 0;
         //pDevIns->Internal.s.pPciBusRC           = 0;
         pDevIns->Internal.s.fIntFlags           = PDMDEVINSINT_FLAGS_SUSPENDED;
+        //pDevIns->Internal.s.uLastIrqTag         = 0;
         pDevIns->pHlpR3                         = fTrusted ? &g_pdmR3DevHlpTrusted : &g_pdmR3DevHlpUnTrusted;
         pDevIns->pHlpRC                         = pHlpRC;
         pDevIns->pHlpR0                         = pHlpR0;
         pDevIns->pReg                           = paDevs[i].pDev->pReg;
         pDevIns->pCfg                           = pConfigNode;
-        pDevIns->iInstance                      = paDevs[i].iInstance;
+        //pDevIns->IBase.pfnQueryInterface        = NULL;
+        //pDevIns->fTracing                       = 0;
+        pDevIns->idTracing                      = ++pVM->pdm.s.idTracingDev;
         pDevIns->pvInstanceDataR3               = &pDevIns->achInstanceData[0];
         pDevIns->pvInstanceDataRC               = pDevIns->pReg->fFlags & PDM_DEVREG_FLAGS_RC
                                                 ? MMHyperR3ToRC(pVM, pDevIns->pvInstanceDataR3) : NIL_RTRCPTR;
@@ -419,7 +425,9 @@ int pdmR3DevInit(PVM pVM)
     {
         if (pDevIns->pReg->pfnInitComplete)
         {
+            PDMCritSectEnter(pDevIns->pCritSectRoR3, VERR_IGNORED);
             rc = pDevIns->pReg->pfnInitComplete(pDevIns);
+            PDMCritSectLeave(pDevIns->pCritSectRoR3);
             if (RT_FAILURE(rc))
             {
                 AssertMsgFailed(("InitComplete on device '%s'/%d failed with rc=%Rrc\n",
@@ -460,7 +468,7 @@ PPDMDEV pdmR3DevLookup(PVM pVM, const char *pszName)
  * Loads the device modules.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the shared VM structure.
+ * @param   pVM     Pointer to the VM.
  */
 static int pdmR3DevLoadModules(PVM pVM)
 {
@@ -574,7 +582,7 @@ static int pdmR3DevLoadModules(PVM pVM)
  * Loads one device module and call the registration entry point.
  *
  * @returns VBox status code.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pRegCB          The registration callback stuff.
  * @param   pszFilename     Module filename.
  * @param   pszName         Module name.
@@ -715,7 +723,7 @@ static DECLCALLBACK(int) pdmR3DevReg_Register(PPDMDEVREGCB pCallbacks, PCPDMDEVR
  * Locates a LUN.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszDevice       Device name.
  * @param   iInstance       Device instance.
  * @param   iLun            The Logical Unit to obtain the interface of.
@@ -767,7 +775,7 @@ int pdmR3DevFindLun(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned
  * This is used to change drivers and suchlike at runtime.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszDevice       Device name.
  * @param   iInstance       Device instance.
  * @param   iLun            The Logical Unit to obtain the interface of.
@@ -796,7 +804,9 @@ VMMR3DECL(int) PDMR3DeviceAttach(PVM pVM, const char *pszDevice, unsigned iInsta
         {
             if (!pLun->pTop)
             {
+                PDMCritSectEnter(pDevIns->pCritSectRoR3, VERR_IGNORED);
                 rc = pDevIns->pReg->pfnAttach(pDevIns, iLun, fFlags);
+                PDMCritSectLeave(pDevIns->pCritSectRoR3);
             }
             else
                 rc = VERR_PDM_DRIVER_ALREADY_ATTACHED;
@@ -824,7 +834,7 @@ VMMR3DECL(int) PDMR3DeviceAttach(PVM pVM, const char *pszDevice, unsigned iInsta
  * This is used to change drivers and suchlike at runtime.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszDevice       Device name.
  * @param   iInstance       Device instance.
  * @param   iLun            The Logical Unit to obtain the interface of.
@@ -842,7 +852,7 @@ VMMR3DECL(int) PDMR3DeviceDetach(PVM pVM, const char *pszDevice, unsigned iInsta
  * timer or similar created by the device.
  *
  * @returns Pointer to the critical section.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pDevIns         The device instance in question.
  *
  * @internal
@@ -869,7 +879,7 @@ VMMR3_INT_DECL(PPDMCRITSECT) PDMR3DevGetCritSect(PVM pVM, PPDMDEVINS pDevIns)
  * below it.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszDevice       Device name.
  * @param   iInstance       Device instance.
  * @param   iLun            The Logical Unit to obtain the interface of.
@@ -904,9 +914,11 @@ VMMR3DECL(int) PDMR3DriverAttach(PVM pVM, const char *pszDevice, unsigned iInsta
             PPDMDEVINS pDevIns = pLun->pDevIns;
             if (pDevIns->pReg->pfnAttach)
             {
+                PDMCritSectEnter(pDevIns->pCritSectRoR3, VERR_IGNORED);
                 rc = pDevIns->pReg->pfnAttach(pDevIns, iLun, fFlags);
                 if (RT_SUCCESS(rc) && ppBase)
                     *ppBase = pLun->pTop ? &pLun->pTop->IBase : NULL;
+                PDMCritSectLeave(pDevIns->pCritSectRoR3);
             }
             else
                 rc = VERR_PDM_DEVICE_NO_RT_ATTACH;
@@ -949,7 +961,7 @@ VMMR3DECL(int) PDMR3DriverAttach(PVM pVM, const char *pszDevice, unsigned iInsta
  * pfnDetach callback (PDMDRVREG / PDMDEVREG).
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszDevice       Device name.
  * @param   iDevIns         Device instance.
  * @param   iLun            The Logical Unit in which to look for the driver.
@@ -1020,7 +1032,7 @@ VMMR3DECL(int) PDMR3DriverDetach(PVM pVM, const char *pszDevice, unsigned iDevIn
  * thread.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszDevice       Device name.
  * @param   iDevIns         Device instance.
  * @param   iLun            The Logical Unit in which to look for the driver.
@@ -1045,6 +1057,8 @@ VMMR3DECL(int)  PDMR3DriverReattach(PVM pVM, const char *pszDevice, unsigned iDe
                                     const char *pszDriver, unsigned iOccurance, uint32_t fFlags,
                                     PCFGMNODE pCfg, PPPDMIBASE ppBase)
 {
+    NOREF(pVM); NOREF(pszDevice); NOREF(iDevIns); NOREF(iLun); NOREF(pszDriver); NOREF(iOccurance);
+    NOREF(fFlags); NOREF(pCfg); NOREF(ppBase);
     return VERR_NOT_IMPLEMENTED;
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,7 +39,9 @@ public:
             LogRel(("VBoxClient: error initialising threads in X11, exiting.\n"));
             return VERR_NOT_SUPPORTED;
         }
-        mSeamless.init();
+        int rc = mSeamless.init();
+        if (RT_FAILURE(rc))
+            return rc;
         /* Stay running as long as X does... */
         Display *pDisplay = XOpenDisplay(NULL);
         XEvent ev;

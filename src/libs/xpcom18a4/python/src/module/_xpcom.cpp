@@ -54,7 +54,7 @@
 #include "nsIConsoleService.h"
 #include "nspr.h" // PR_fprintf
 #ifdef VBOX
-#include "nsEventQueueUtils.h"
+# include "nsEventQueueUtils.h"
 #endif
 
 #ifdef XP_WIN
@@ -318,6 +318,17 @@ PyXPCOMMethod_GetInterfaceCount(PyObject *self, PyObject *args)
 	// alive in your program (possibly in global variables).
 }
 
+#ifdef VBOX_DEBUG_LIFETIMES
+// @pymethod int|pythoncom|_DumpInterfaces|Dumps the interfaces still in existance to standard output
+static PyObject *
+PyXPCOMMethod_DumpInterfaces(PyObject *self, PyObject *args)
+{
+	if (!PyArg_ParseTuple(args, ":_DumpInterfaces"))
+		return NULL;
+	return PyInt_FromLong(_PyXPCOM_DumpInterfaces());
+}
+#endif
+
 // @pymethod int|pythoncom|_GetGatewayCount|Retrieves the number of gateway objects currently in existance
 static PyObject *
 PyXPCOMMethod_GetGatewayCount(PyObject *self, PyObject *args)
@@ -342,6 +353,10 @@ PyXPCOMMethod_NS_ShutdownXPCOM(PyObject *self, PyObject *args)
 	Py_BEGIN_ALLOW_THREADS;
 	nr = NS_ShutdownXPCOM(nsnull);
 	Py_END_ALLOW_THREADS;
+
+#ifdef VBOX_DEBUG_LIFETIME
+	Py_nsISupports::dumpList();
+#endif
 
 	// Dont raise an exception - as we are probably shutting down
 	// and dont really case - just return the status
@@ -498,28 +513,29 @@ PyObject *LogConsoleMessage(PyObject *self, PyObject *args)
 #  include <VBox/com/EventQueue.h>
 #  include <iprt/err.h>
 
-static PyObject*
+static PyObject *
 PyXPCOMMethod_WaitForEvents(PyObject *self, PyObject *args)
 {
-    PRInt32 aTimeout;
-
-    if (!PyArg_ParseTuple(args, "i", &aTimeout))
-    {
-        PyErr_SetString(PyExc_TypeError, "the timeout argument is not an integer");
+    long lTimeout;
+    if (!PyArg_ParseTuple(args, "l", &lTimeout))
         return NULL;
-    }
 
     int rc;
     com::EventQueue* aEventQ = com::EventQueue::getMainEventQueue();
     NS_WARN_IF_FALSE(aEventQ != nsnull, "Null main event queue");
     if (!aEventQ)
-	{
+    {
         PyErr_SetString(PyExc_TypeError, "the main event queue is NULL");
         return NULL;
-	}
+    }
 
     Py_BEGIN_ALLOW_THREADS
-    rc = aEventQ->processEventQueue(aTimeout < 0 ? RT_INDEFINITE_WAIT : (uint32_t)aTimeout);
+
+    RTMSINTERVAL cMsTimeout = (RTMSINTERVAL)lTimeout;
+    if (lTimeout < 0 || (long)cMsTimeout != lTimeout)
+        cMsTimeout = RT_INDEFINITE_WAIT;
+    rc = aEventQ->processEventQueue(cMsTimeout);
+
     Py_END_ALLOW_THREADS
     if (RT_SUCCESS(rc))
         return PyInt_FromLong(0);
@@ -529,10 +545,10 @@ PyXPCOMMethod_WaitForEvents(PyObject *self, PyObject *args)
         return PyInt_FromLong(1);
 
     if (rc == VERR_INVALID_CONTEXT)
-	{
+    {
         PyErr_SetString(PyExc_Exception, "wrong thread, use the main thread");
-		return NULL;
-	}
+        return NULL;
+    }
 
     return PyInt_FromLong(2);
 }
@@ -660,7 +676,11 @@ static struct PyMethodDef xpcom_methods[]=
         {"AttachThread",  PyXPCOMMethod_AttachThread, 1},
         {"DetachThread",  PyXPCOMMethod_DetachThread, 1},
 #endif
+#ifdef VBOX_DEBUG_LIFETIMES
+	{"_DumpInterfaces", PyXPCOMMethod_DumpInterfaces, 1},
+#endif
 	// These should no longer be used - just use the logging.getLogger('pyxpcom')...
+	/* bird: The above comment refers to LogWarning and LogError. Both now removed. */
 	{ NULL }
 };
 
@@ -780,7 +800,7 @@ initVBoxPython() {
     int rc = 0;
 
 #if defined(VBOX_PATH_APP_PRIVATE_ARCH) && defined(VBOX_PATH_SHARED_LIBS)
-    rc = RTR3Init();
+    rc = RTR3InitDll(0);
 #else
     const char *home = getenv("VBOX_PROGRAM_PATH");
     if (home) {
@@ -788,9 +808,9 @@ initVBoxPython() {
       char *exepath = (char *)alloca(len + 32);
       memcpy(exepath, home, len);
       memcpy(exepath + len, "/pythonfake", sizeof("/pythonfake"));
-      rc = RTR3InitWithProgramPath(exepath);
+      rc = RTR3InitEx(RTR3INIT_VER_CUR, RTR3INIT_FLAGS_DLL, 0, NULL, exepath);
     } else {
-      rc = RTR3Init();
+      rc = RTR3InitDll(0);
     }
 #endif
 

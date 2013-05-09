@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -172,6 +172,8 @@ static int runDisplay(Display *pDisplay)
         rc = VbglR3WaitEvent(  VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST
                              | VMMDEV_EVENT_MOUSE_CAPABILITIES_CHANGED,
                              RT_INDEFINITE_WAIT, &fEvents);
+        if (RT_FAILURE(rc) && rc != VERR_INTERRUPTED)  /* VERR_NO_MEMORY? */
+            return rc;
         /* Jiggle the mouse pointer to wake up the driver. */
         XGrabPointer(pDisplay,
                      DefaultRootWindow(pDisplay), true, 0, GrabModeAsync,

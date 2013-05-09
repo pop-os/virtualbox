@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1076,8 +1076,8 @@ static int PrintUpper(void)
     {
         /* figure how far off the next chunk is */
         unsigned iSameCase = i;
-        while (     g_aCPInfo[iSameCase].SimpleUpperCaseMapping == g_aCPInfo[iSameCase].CodePoint
-               &&   iSameCase < RT_ELEMENTS(g_aCPInfo)
+        while (     iSameCase < RT_ELEMENTS(g_aCPInfo)
+               &&   g_aCPInfo[iSameCase].SimpleUpperCaseMapping == g_aCPInfo[iSameCase].CodePoint
                &&   iSameCase >= 256)
             iSameCase++;
         if (iSameCase - i > 4096/sizeof(RTUNICP) || iSameCase == RT_ELEMENTS(g_aCPInfo))
@@ -1123,8 +1123,8 @@ static int PrintLower(void)
     {
         /* figure how far off the next chunk is */
         unsigned iSameCase = i;
-        while (     g_aCPInfo[iSameCase].SimpleLowerCaseMapping == g_aCPInfo[iSameCase].CodePoint
-               &&   iSameCase < RT_ELEMENTS(g_aCPInfo)
+        while (     iSameCase < RT_ELEMENTS(g_aCPInfo)
+               &&   g_aCPInfo[iSameCase].SimpleLowerCaseMapping == g_aCPInfo[iSameCase].CodePoint
                &&   iSameCase >= 256)
             iSameCase++;
         if (iSameCase - i > 4096/sizeof(RTUNICP) || iSameCase == RT_ELEMENTS(g_aCPInfo))

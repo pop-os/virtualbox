@@ -75,7 +75,7 @@ void PACKSPU_APIENTRY packspu_DrawBuffer(GLenum mode)
 void PACKSPU_APIENTRY packspu_Finish( void )
 {
     GET_THREAD(thread);
-    GLint writeback = pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network;
+    GLint writeback = CRPACKSPU_IS_WDDM_CRHGSMI() ? 1 : pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network;
 
     if (pack_spu.swap)
     {
@@ -97,8 +97,7 @@ void PACKSPU_APIENTRY packspu_Finish( void )
 
             packspuFlush( (void *) thread );
 
-            while (writeback)
-                crNetRecv();
+            CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
         }
     }
 }
@@ -116,8 +115,7 @@ void PACKSPU_APIENTRY packspu_Flush( void )
         {
             crPackWriteback(&writeback);
             packspuFlush( (void *) thread );
-            while (writeback)
-                crNetRecv();
+            CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
         }
     }
     else
@@ -157,18 +155,60 @@ void PACKSPU_APIENTRY packspu_Flush( void )
     }
 }
 
-GLint PACKSPU_APIENTRY packspu_WindowCreate( const char *dpyName, GLint visBits )
+void PACKSPU_APIENTRY packspu_VBoxWindowDestroy( GLint con, GLint window )
+{
+    if (CRPACKSPU_IS_WDDM_CRHGSMI())
+    {
+        GET_THREAD(thread);
+        if (con)
+        {
+            CRPackContext * curPacker = crPackGetContext();
+            CRASSERT(!thread || !thread->bInjectThread);
+            thread = GET_THREAD_VAL_ID(con);
+            crPackSetContext(thread->packer);
+            crPackWindowDestroy(window);
+            if (curPacker != thread->packer)
+                crPackSetContext(curPacker);
+            return;
+        }
+        CRASSERT(thread);
+        CRASSERT(thread->bInjectThread);
+    }
+    crPackWindowDestroy(window);
+}
+
+GLint PACKSPU_APIENTRY packspu_VBoxWindowCreate( GLint con, const char *dpyName, GLint visBits )
 {
     GET_THREAD(thread);
     static int num_calls = 0;
-    int writeback = pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network;
+    int writeback = CRPACKSPU_IS_WDDM_CRHGSMI() ? 1 : pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network;
     GLint return_val = (GLint) 0;
+    ThreadInfo *curThread = thread;
+    GLint retVal;
 
-    if (!thread) {
-        thread = packspuNewThread( crThreadID() );
+    if (CRPACKSPU_IS_WDDM_CRHGSMI())
+    {
+        if (!con)
+        {
+            crError("connection expected!");
+            return 0;
+        }
+        thread = GET_THREAD_VAL_ID(con);
+    }
+    else
+    {
+        CRASSERT(!con);
+        if (!thread) {
+            thread = packspuNewThread(
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                NULL
+#endif
+                );
+        }
     }
     CRASSERT(thread);
     CRASSERT(thread->packer);
+    CRASSERT(crPackGetContext() == (curThread ? curThread->packer : NULL));
 
     crPackSetContext(thread->packer);
 
@@ -183,21 +223,36 @@ GLint PACKSPU_APIENTRY packspu_WindowCreate( const char *dpyName, GLint visBits 
     packspuFlush(thread);
     if (!(thread->netServer.conn->actual_network))
     {
-        return num_calls++;
+        retVal = num_calls++;
     }
     else
     {
-        while (writeback)
-            crNetRecv();
+        CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
         if (pack_spu.swap)
         {
             return_val = (GLint) SWAP32(return_val);
         }
-        return return_val;
+        retVal = return_val;
     }
+
+    if (CRPACKSPU_IS_WDDM_CRHGSMI())
+    {
+        if (thread != curThread)
+        {
+            if (curThread)
+                crPackSetContext(curThread->packer);
+            else
+                crPackSetContext(NULL);
+        }
+    }
+
+    return retVal;
 }
 
-
+GLint PACKSPU_APIENTRY packspu_WindowCreate( const char *dpyName, GLint visBits )
+{
+    return packspu_VBoxWindowCreate( 0, dpyName, visBits );
+}
 
 GLboolean PACKSPU_APIENTRY
 packspu_AreTexturesResident( GLsizei n, const GLuint * textures,
@@ -208,7 +263,7 @@ packspu_AreTexturesResident( GLsizei n, const GLuint * textures,
     GLboolean return_val = GL_TRUE;
     GLsizei i;
 
-    if (!(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))
+    if (!CRPACKSPU_IS_WDDM_CRHGSMI() && !(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))
     {
         crError( "packspu_AreTexturesResident doesn't work when there's no actual network involved!\nTry using the simplequery SPU in your chain!" );
     }
@@ -223,8 +278,7 @@ packspu_AreTexturesResident( GLsizei n, const GLuint * textures,
     }
     packspuFlush( (void *) thread );
 
-    while (writeback)
-        crNetRecv();
+    CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
 
     /* Since the Chromium packer/unpacker can't return both 'residences'
      * and the function's return value, compute the return value here.
@@ -249,7 +303,7 @@ packspu_AreProgramsResidentNV( GLsizei n, const GLuint * ids,
     GLboolean return_val = GL_TRUE;
     GLsizei i;
 
-    if (!(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))
+    if (!CRPACKSPU_IS_WDDM_CRHGSMI() && !(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))
     {
         crError( "packspu_AreProgramsResidentNV doesn't work when there's no actual network involved!\nTry using the simplequery SPU in your chain!" );
     }
@@ -263,8 +317,7 @@ packspu_AreProgramsResidentNV( GLsizei n, const GLuint * ids,
     }
     packspuFlush( (void *) thread );
 
-    while (writeback)
-        crNetRecv();
+    CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
 
     /* Since the Chromium packer/unpacker can't return both 'residences'
      * and the function's return value, compute the return value here.
@@ -298,8 +351,7 @@ void PACKSPU_APIENTRY packspu_GetPolygonStipple( GLubyte * mask )
 #endif
     {
         packspuFlush( (void *) thread );
-        while (writeback)
-            crNetRecv();
+        CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
     }
 }
 
@@ -322,8 +374,7 @@ void PACKSPU_APIENTRY packspu_GetPixelMapfv( GLenum map, GLfloat * values )
 #endif
     {
         packspuFlush( (void *) thread );
-        while (writeback)
-            crNetRecv();
+        CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
     }
 }
 
@@ -346,8 +397,7 @@ void PACKSPU_APIENTRY packspu_GetPixelMapuiv( GLenum map, GLuint * values )
 #endif
     {
         packspuFlush( (void *) thread );
-        while (writeback)
-            crNetRecv();
+        CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
     }
 }
 
@@ -370,8 +420,7 @@ void PACKSPU_APIENTRY packspu_GetPixelMapusv( GLenum map, GLushort * values )
 #endif
     {
         packspuFlush( (void *) thread );
-        while (writeback)
-            crNetRecv();
+        CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
     }
 }
 
@@ -387,29 +436,38 @@ static void packspuFluchOnThreadSwitch(GLboolean fEnable)
 
 void PACKSPU_APIENTRY packspu_ChromiumParameteriCR(GLenum target, GLint value)
 {
-    if (GL_FLUSH_ON_THREAD_SWITCH_CR==target)
+    switch (target)
     {
-        /* this is a pure packspu state, don't propagate it any further */
-        packspuFluchOnThreadSwitch(value);
-        return;
-    }
-    if (GL_SHARE_CONTEXT_RESOURCES_CR==target)
-    {
-        crStateShareContext(value);
+        case GL_FLUSH_ON_THREAD_SWITCH_CR:
+            /* this is a pure packspu state, don't propagate it any further */
+            packspuFluchOnThreadSwitch(value);
+            return;
+        case GL_SHARE_CONTEXT_RESOURCES_CR:
+            crStateShareContext(value);
+            break;
+        case GL_RCUSAGE_TEXTURE_SET_CR:
+            crStateSetTextureUsed(value, GL_TRUE);
+            break;
+        case GL_RCUSAGE_TEXTURE_CLEAR_CR:
+            crStateSetTextureUsed(value, GL_FALSE);
+            break;
+        default:
+            break;
     }
     crPackChromiumParameteriCR(target, value);
 }
 
 #ifdef CHROMIUM_THREADSAFE
-void PACKSPU_APIENTRY packspu_VBoxPackSetInjectThread(void)
+GLint PACKSPU_APIENTRY packspu_VBoxPackSetInjectThread(struct VBOXUHGSMI *pHgsmi)
 {
+    GLint con = 0;
+    int i;
+    GET_THREAD(thread);
+    CRASSERT(!thread);
     crLockMutex(&_PackMutex);
     {
-        int i;
-        GET_THREAD(thread);
-        CRASSERT(!thread);
-        CRASSERT((pack_spu.numThreads>0) && (pack_spu.numThreads<MAX_THREADS));
-
+        CRASSERT(CRPACKSPU_IS_WDDM_CRHGSMI() || (pack_spu.numThreads>0));
+        CRASSERT(pack_spu.numThreads<MAX_THREADS);
         for (i=0; i<MAX_THREADS; ++i)
         {
             if (!pack_spu.thread[i].inUse)
@@ -421,14 +479,21 @@ void PACKSPU_APIENTRY packspu_VBoxPackSetInjectThread(void)
         CRASSERT(thread);
 
         thread->inUse = GL_TRUE;
-        thread->id = crThreadID();
+        if (!CRPACKSPU_IS_WDDM_CRHGSMI())
+            thread->id = crThreadID();
+        else
+            thread->id = THREAD_OFFSET_MAGIC + i;
         thread->currentContext = NULL;
         thread->bInjectThread = GL_TRUE;
 
         thread->netServer.name = crStrdup(pack_spu.name);
         thread->netServer.buffer_size = 64 * 1024;
 
-        crNetNewClient(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn, &(thread->netServer));
+        packspuConnectToServer(&(thread->netServer)
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , pHgsmi
+#endif
+        );
         CRASSERT(thread->netServer.conn);
 
         CRASSERT(thread->packer == NULL);
@@ -449,15 +514,37 @@ void PACKSPU_APIENTRY packspu_VBoxPackSetInjectThread(void)
         pack_spu.numThreads++;
     }
     crUnlockMutex(&_PackMutex);
+
+    if (CRPACKSPU_IS_WDDM_CRHGSMI())
+    {
+        CRASSERT(thread->id - THREAD_OFFSET_MAGIC < RT_ELEMENTS(pack_spu.thread)
+                && GET_THREAD_VAL_ID(thread->id) == thread);
+        con = thread->id;
+    }
+    return con;
 }
 
-GLuint PACKSPU_APIENTRY packspu_VBoxPackGetInjectID(void)
+GLuint PACKSPU_APIENTRY packspu_VBoxPackGetInjectID(GLint con)
 {
     GLuint ret;
 
     crLockMutex(&_PackMutex);
     {
-        GET_THREAD(thread);
+        ThreadInfo *thread = NULL;
+        if (CRPACKSPU_IS_WDDM_CRHGSMI())
+        {
+            if (!con)
+            {
+                crError("connection expected!");
+                return 0;
+            }
+            thread = GET_THREAD_VAL_ID(con);
+        }
+        else
+        {
+            CRASSERT(!con);
+            thread = GET_THREAD_VAL();
+        }
         CRASSERT(thread && thread->netServer.conn && thread->netServer.conn->type==CR_VBOXHGCM);
         ret = thread->netServer.conn->u32ClientID;
     }
@@ -500,64 +587,71 @@ void PACKSPU_APIENTRY packspu_VBoxAttachThread()
 
 void PACKSPU_APIENTRY packspu_VBoxDetachThread()
 {
-    int i;
-    GET_THREAD(thread);
-
-    if (thread)
+    if (CRPACKSPU_IS_WDDM_CRHGSMI())
     {
-        crLockMutex(&_PackMutex);
-
-        for (i=0; i<MAX_THREADS; ++i)
+        crPackSetContext(NULL);
+        crSetTSD(&_PackTSD, NULL);
+    }
+    else
+    {
+        int i;
+        GET_THREAD(thread);
+        if (thread)
         {
-            if (pack_spu.thread[i].inUse && thread==&pack_spu.thread[i]
-                && thread->id==crThreadID() && thread->netServer.conn)
+            crLockMutex(&_PackMutex);
+
+            for (i=0; i<MAX_THREADS; ++i)
             {
-                CRASSERT(pack_spu.numThreads>0);
-
-                packspuFlush((void *) thread);
-
-                if (pack_spu.thread[i].packer)
+                if (pack_spu.thread[i].inUse && thread==&pack_spu.thread[i]
+                    && thread->id==crThreadID() && thread->netServer.conn)
                 {
-                    CR_LOCK_PACKER_CONTEXT(thread->packer);
-                    crPackSetContext(NULL);
-                    CR_UNLOCK_PACKER_CONTEXT(thread->packer);
-                    crPackDeleteContext(pack_spu.thread[i].packer);
-                }
-                crNetFreeConnection(pack_spu.thread[i].netServer.conn);
+                    CRASSERT(pack_spu.numThreads>0);
 
-                pack_spu.numThreads--;
-                /*note can't shift the array here, because other threads have TLS references to array elements*/
-                crMemZero(&pack_spu.thread[i], sizeof(ThreadInfo));
+                    packspuFlush((void *) thread);
 
-                crSetTSD(&_PackTSD, NULL);
-
-                if (i==pack_spu.idxThreadInUse)
-                {
-                    for (i=0; i<MAX_THREADS; ++i)
+                    if (pack_spu.thread[i].packer)
                     {
-                        if (pack_spu.thread[i].inUse)
+                        CR_LOCK_PACKER_CONTEXT(thread->packer);
+                        crPackSetContext(NULL);
+                        CR_UNLOCK_PACKER_CONTEXT(thread->packer);
+                        crPackDeleteContext(pack_spu.thread[i].packer);
+                    }
+                    crNetFreeConnection(pack_spu.thread[i].netServer.conn);
+
+                    pack_spu.numThreads--;
+                    /*note can't shift the array here, because other threads have TLS references to array elements*/
+                    crMemZero(&pack_spu.thread[i], sizeof(ThreadInfo));
+
+                    crSetTSD(&_PackTSD, NULL);
+
+                    if (i==pack_spu.idxThreadInUse)
+                    {
+                        for (i=0; i<MAX_THREADS; ++i)
                         {
-                            pack_spu.idxThreadInUse=i;
-                            break;
+                            if (pack_spu.thread[i].inUse)
+                            {
+                                pack_spu.idxThreadInUse=i;
+                                break;
+                            }
                         }
                     }
+
+                    break;
                 }
-
-                break;
             }
-        }
 
-        for (i=0; i<CR_MAX_CONTEXTS; ++i)
-        {
-            ContextInfo *ctx = &pack_spu.context[i];
-            if (ctx->currentThread == thread)
+            for (i=0; i<CR_MAX_CONTEXTS; ++i)
             {
-                CRASSERT(ctx->fAutoFlush);
-                ctx->currentThread = NULL;
+                ContextInfo *ctx = &pack_spu.context[i];
+                if (ctx->currentThread == thread)
+                {
+                    CRASSERT(ctx->fAutoFlush);
+                    ctx->currentThread = NULL;
+                }
             }
-        }
 
-        crUnlockMutex(&_PackMutex);
+            crUnlockMutex(&_PackMutex);
+        }
     }
 
     crStateVBoxDetachThread();
@@ -596,11 +690,11 @@ BOOL WINAPI DllMain(HINSTANCE hDLLInst, DWORD fdwReason, LPVOID lpvReserved)
 #endif
 
 #else  /*ifdef CHROMIUM_THREADSAFE*/
-void PACKSPU_APIENTRY packspu_VBoxPackSetInjectThread(void)
+GLint PACKSPU_APIENTRY packspu_VBoxPackSetInjectThread(struct VBOXUHGSMI *pHgsmi)
 {
 }
 
-GLuint PACKSPU_APIENTRY packspu_VBoxPackGetInjectID(void)
+GLuint PACKSPU_APIENTRY packspu_VBoxPackGetInjectID(GLint con)
 {
     return 0;
 }

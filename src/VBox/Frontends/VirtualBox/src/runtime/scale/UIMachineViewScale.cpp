@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,7 +17,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Local includes */
+/* Qt includes: */
+#include <QDesktopWidget>
+#include <QMainWindow>
+#include <QTimer>
+
+/* GUI includes */
 #include "VBoxGlobal.h"
 #include "UISession.h"
 #include "UIMachineLogic.h"
@@ -29,10 +34,9 @@
 # include "UIFrameBufferQuartz2D.h"
 #endif /* VBOX_GUI_USE_QUARTZ2D */
 
-/* Global includes */
-#include <QDesktopWidget>
-#include <QMainWindow>
-#include <QTimer>
+/* COM includes: */
+#include "CConsole.h"
+#include "CDisplay.h"
 
 UIMachineViewScale::UIMachineViewScale(  UIMachineWindow *pMachineWindow
                                        , ulong uScreenId
@@ -48,35 +52,15 @@ UIMachineViewScale::UIMachineViewScale(  UIMachineWindow *pMachineWindow
                     )
     , m_pPauseImage(0)
 {
-    /* Load machine view settings: */
-    loadMachineViewSettings();
-
-    /* Prepare viewport: */
-    prepareViewport();
-
-    /* Prepare frame buffer: */
-    prepareFrameBuffer();
-
-    /* Prepare common things: */
-    prepareCommon();
-
-    /* Prepare event-filters: */
-    prepareFilters();
-
-    /* Prepare connections: */
-    prepareConnections();
-
-    /* Prepare console connections: */
-    prepareConsoleConnections();
-
-    /* Initialization: */
-    sltMachineStateChanged();
 }
 
 UIMachineViewScale::~UIMachineViewScale()
 {
     /* Save machine view settings: */
     saveMachineViewSettings();
+
+    /* Disable scaling: */
+    frameBuffer()->setScaledSize(QSize());
 
     /* Cleanup frame buffer: */
     cleanupFrameBuffer();
@@ -101,8 +85,9 @@ void UIMachineViewScale::takePauseShotSnapshot()
     QVector<BYTE> screenData = machine.ReadSavedScreenshotPNGToArray(0, width, height);
     if (screenData.size() != 0)
     {
-        ULONG guestWidth = 0, guestHeight = 0;
-        machine.QuerySavedGuestSize(0, guestWidth, guestHeight);
+        ULONG guestOriginX = 0, guestOriginY = 0, guestWidth = 0, guestHeight = 0;
+        BOOL fEnabled = true;
+        machine.QuerySavedGuestScreenInfo(0, guestOriginX, guestOriginY, guestWidth, guestHeight, fEnabled);
         QImage shot = QImage::fromData(screenData.data(), screenData.size(), "PNG").scaled(guestWidth > 0 ? QSize(guestWidth, guestHeight) : guestSizeHint());
         m_pPauseImage = new QImage(shot);
         scalePauseShot();
@@ -151,27 +136,16 @@ void UIMachineViewScale::sltPerformGuestScale()
     updateSliders();
 }
 
-void UIMachineViewScale::sltDesktopResized()
-{
-    /* If the desktop geometry is set automatically, this will update it: */
-    calculateDesktopGeometry();
-}
-
 bool UIMachineViewScale::event(QEvent *pEvent)
 {
     switch (pEvent->type())
     {
-        case VBoxDefs::ResizeEventType:
+        case ResizeEventType:
         {
             /* Some situations require framebuffer resize events to be ignored at all,
              * leaving machine-window, machine-view and framebuffer sizes preserved: */
             if (uisession()->isGuestResizeIgnored())
                 return true;
-
-            /* We are starting to perform machine-view resize,
-             * we should temporary ignore other if they are trying to be: */
-            bool fWasMachineWindowResizeIgnored = isMachineWindowResizeIgnored();
-            setMachineWindowResizeIgnored(true);
 
             /* Get guest resize-event: */
             UIResizeEvent *pResizeEvent = static_cast<UIResizeEvent*>(pEvent);
@@ -179,9 +153,6 @@ bool UIMachineViewScale::event(QEvent *pEvent)
             /* Perform framebuffer resize: */
             frameBuffer()->setScaledSize(size());
             frameBuffer()->resizeEvent(pResizeEvent);
-
-            /* Store the new size to prevent unwanted resize hints being sent back: */
-            storeConsoleSize(pResizeEvent->width(), pResizeEvent->height());
 
             /* Let our toplevel widget calculate its sizeHint properly: */
             QCoreApplication::sendPostedEvents(0, QEvent::LayoutRequest);
@@ -193,14 +164,6 @@ bool UIMachineViewScale::event(QEvent *pEvent)
             /* Report to the VM thread that we finished resizing: */
             session().GetConsole().GetDisplay().ResizeCompleted(screenId());
 
-            /* We are finishing to perform machine-view resize: */
-            setMachineWindowResizeIgnored(fWasMachineWindowResizeIgnored);
-
-            /* We also recalculate the desktop geometry if this is determined
-             * automatically.  In fact, we only need this on the first resize,
-             * but it is done every time to keep the code simpler. */
-            calculateDesktopGeometry();
-
             /* Emit a signal about guest was resized: */
             emit resizeHintDone();
 
@@ -208,7 +171,7 @@ bool UIMachineViewScale::event(QEvent *pEvent)
             return true;
         }
 
-        case VBoxDefs::RepaintEventType:
+        case RepaintEventType:
         {
             UIRepaintEvent *pPaintEvent = static_cast<UIRepaintEvent*>(pEvent);
             QSize scaledSize = frameBuffer()->scaledSize();
@@ -236,10 +199,6 @@ bool UIMachineViewScale::event(QEvent *pEvent)
 
 bool UIMachineViewScale::eventFilter(QObject *pWatched, QEvent *pEvent)
 {
-    /* Who are we watching? */
-    QMainWindow *pMainDialog = machineWindowWrapper() && machineWindowWrapper()->machineWindow() ?
-                               qobject_cast<QMainWindow*>(machineWindowWrapper()->machineWindow()) : 0;
-
     if (pWatched != 0 && pWatched == viewport())
     {
         switch (pEvent->type())
@@ -254,7 +213,7 @@ bool UIMachineViewScale::eventFilter(QObject *pWatched, QEvent *pEvent)
                 break;
         }
     }
-    else if (pWatched != 0 && pWatched == pMainDialog)
+    else if (pWatched != 0 && pWatched == machineWindow())
     {
         switch (pEvent->type())
         {
@@ -283,86 +242,9 @@ bool UIMachineViewScale::eventFilter(QObject *pWatched, QEvent *pEvent)
     return UIMachineView::eventFilter(pWatched, pEvent);
 }
 
-void UIMachineViewScale::prepareFrameBuffer()
-{
-    /* That method is partial copy-paste of UIMachineView::prepareFrameBuffer()
-     * and its temporary here just because not all of our frame-buffers are currently supports scale-mode;
-     * When all of our frame-buffers will be supporting scale-mode, method will be removed!
-     * Here we are processing only these frame-buffer types, which knows scale-mode! */
-
-    /* Prepare frame-buffer depending on render-mode: */
-    switch (vboxGlobal().vmRenderMode())
-    {
-#ifdef VBOX_GUI_USE_QUARTZ2D
-        case VBoxDefs::Quartz2DMode:
-            /* Indicate that we are doing all drawing stuff ourself: */
-            viewport()->setAttribute(Qt::WA_PaintOnScreen);
-            m_pFrameBuffer = new UIFrameBufferQuartz2D(this);
-            break;
-#endif /* VBOX_GUI_USE_QUARTZ2D */
-        default:
-#ifdef VBOX_GUI_USE_QIMAGE
-        case VBoxDefs::QImageMode:
-            m_pFrameBuffer = new UIFrameBufferQImage(this);
-            break;
-#endif /* VBOX_GUI_USE_QIMAGE */
-            AssertReleaseMsgFailed(("Scale-mode is currently NOT supporting that render-mode: %d\n", vboxGlobal().vmRenderMode()));
-            LogRel(("Scale-mode is currently NOT supporting that render-mode: %d\n", vboxGlobal().vmRenderMode()));
-            qApp->exit(1);
-            break;
-    }
-
-    /* If frame-buffer was prepared: */
-    if (m_pFrameBuffer)
-    {
-        /* Prepare display: */
-        CDisplay display = session().GetConsole().GetDisplay();
-        Assert(!display.isNull());
-        m_pFrameBuffer->AddRef();
-        display.SetFramebuffer(m_uScreenId, CFramebuffer(m_pFrameBuffer));
-    }
-
-    QSize size;
-#ifdef Q_WS_X11
-    /* Processing pseudo resize-event to synchronize frame-buffer with stored
-     * framebuffer size. On X11 this will be additional done when the machine
-     * state was 'saved'. */
-    if (session().GetMachine().GetState() == KMachineState_Saved)
-        size = guestSizeHint();
-#endif /* Q_WS_X11 */
-    /* If there is a preview image saved, we will resize the framebuffer to the
-     * size of that image. */
-    ULONG buffer = 0, width = 0, height = 0;
-    CMachine machine = session().GetMachine();
-    machine.QuerySavedScreenshotPNGSize(0, buffer, width, height);
-    if (buffer > 0)
-    {
-        /* Init with the screenshot size */
-        size = QSize(width, height);
-        /* Try to get the real guest dimensions from the save state */
-        ULONG guestWidth = 0, guestHeight = 0;
-        machine.QuerySavedGuestSize(0, guestWidth, guestHeight);
-        if (   guestWidth  > 0
-            && guestHeight > 0)
-            size = QSize(guestWidth, guestHeight);
-    }
-    /* If we have a valid size, resize the framebuffer. */
-    if (   size.width() > 0
-        && size.height() > 0)
-    {
-        UIResizeEvent event(FramebufferPixelFormat_Opaque, NULL, 0, 0, size.width(), size.height());
-        frameBuffer()->resizeEvent(&event);
-    }
-}
-
-void UIMachineViewScale::prepareConnections()
-{
-    connect(QApplication::desktop(), SIGNAL(resized(int)), this, SLOT(sltDesktopResized()));
-}
-
 void UIMachineViewScale::saveMachineViewSettings()
 {
-    /* Store guest size hint: */
+    /* Store guest size in case we are switching to fullscreen: */
     storeGuestSizeHint(QSize(frameBuffer()->width(), frameBuffer()->height()));
 }
 
@@ -373,30 +255,26 @@ QSize UIMachineViewScale::sizeHint() const
     return QSize();
 }
 
-QRect UIMachineViewScale::workingArea()
+QRect UIMachineViewScale::workingArea() const
 {
     return QApplication::desktop()->availableGeometry(this);
 }
 
-void UIMachineViewScale::calculateDesktopGeometry()
+QSize UIMachineViewScale::calculateMaxGuestSize() const
 {
-    /* This method should not get called until we have initially set up the desktop geometry type: */
-    Assert((desktopGeometryType() != DesktopGeo_Invalid));
-    /* If we are not doing automatic geometry calculation then there is nothing to do: */
-    if (desktopGeometryType() == DesktopGeo_Automatic)
-    {
-        /* The area taken up by the machine window on the desktop,
-         * including window frame, title, menu bar and status bar: */
-        QRect windowGeo = machineWindowWrapper()->machineWindow()->frameGeometry();
-        /* The area taken up by the machine central widget, so excluding all decorations: */
-        QRect centralWidgetGeo = static_cast<QMainWindow*>(machineWindowWrapper()->machineWindow())->centralWidget()->geometry();
-        /* To work out how big we can make the console window while still fitting on the desktop,
-         * we calculate workingArea() - (windowGeo - centralWidgetGeo).
-         * This works because the difference between machine window and machine central widget
-         * (or at least its width and height) is a constant. */
-        m_desktopGeometry = QSize(workingArea().width() - (windowGeo.width() - centralWidgetGeo.width()),
-                                  workingArea().height() - (windowGeo.height() - centralWidgetGeo.height()));
-    }
+    /* The area taken up by the machine window on the desktop,
+     * including window frame, title, menu bar and status bar: */
+    QRect windowGeo = machineWindow()->frameGeometry();
+    /* The area taken up by the machine central widget, so excluding all decorations: */
+    QRect centralWidgetGeo = machineWindow()->centralWidget()->geometry();
+    /* To work out how big we can make the console window while still fitting on the desktop,
+     * we calculate workingArea() - (windowGeo - centralWidgetGeo).
+     * This works because the difference between machine window and machine central widget
+     * (or at least its width and height) is a constant. */
+    return QSize(  workingArea().width()
+                 - (windowGeo.width() - centralWidgetGeo.width()),
+                   workingArea().height()
+                 - (windowGeo.height() - centralWidgetGeo.height()));
 }
 
 void UIMachineViewScale::updateSliders()

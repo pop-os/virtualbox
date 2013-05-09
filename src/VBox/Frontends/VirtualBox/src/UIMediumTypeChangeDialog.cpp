@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,18 +17,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes: */
+/* Qt includes: */
 #include <QVBoxLayout>
 #include <QGroupBox>
 #include <QRadioButton>
 #include <QPushButton>
 
-/* Local includes: */
+/* GUI includes: */
 #include "UIMediumTypeChangeDialog.h"
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
 #include "QILabel.h"
 #include "QIDialogButtonBox.h"
+#include "UIConverter.h"
 
 /* Constructor: */
 UIMediumTypeChangeDialog::UIMediumTypeChangeDialog(QWidget *pParent, const QString &strMediumId)
@@ -124,7 +125,7 @@ void UIMediumTypeChangeDialog::retranslateUi()
     /* Translate radio-buttons: */
     QList<QRadioButton*> buttons = findChildren<QRadioButton*>();
     for (int i = 0; i < buttons.size(); ++i)
-        buttons[i]->setText(vboxGlobal().toString(buttons[i]->property("mediumType").value<KMediumType>()));
+        buttons[i]->setText(gpConverter->toString(buttons[i]->property("mediumType").value<KMediumType>()));
 }
 
 void UIMediumTypeChangeDialog::sltValidate()

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,7 +36,7 @@
 *******************************************************************************/
 const void *g_apvVBoxDDDependencies[] =
 {
-#ifdef VBOX_WITH_EFI
+#if defined(VBOX_WITH_EFI) && !defined(VBOX_WITH_OVMF)
     &g_abEfiThunkBinary[0],
 #endif
     NULL,
@@ -256,6 +256,11 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvNetSniffer);
     if (RT_FAILURE(rc))
         return rc;
+#ifdef VBOX_WITH_NETSHAPER
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvNetShaper);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif /* VBOX_WITH_NETSHAPER */
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvAUDIO);
     if (RT_FAILURE(rc))
         return rc;
@@ -282,7 +287,7 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     if (RT_FAILURE(rc))
         return rc;
 
-#if defined(RT_OS_LINUX)
+#if defined(RT_OS_LINUX) || defined(VBOX_WITH_WIN_PARPORT_SUP)
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostParallel);
     if (RT_FAILURE(rc))
         return rc;

@@ -6,39 +6,42 @@
 #include <VBox/Hardware/VBoxVideoVBE.h>
 
 // DISPI helper function
-void dispi_set_enable(enable);
+//void dispi_set_enable(Boolean enable);
 
 /** VBE int10 API
  *
  *  See the function descriptions in vbe.c for more information
  */
-Boolean vbe_has_vbe_display();
-void vbe_biosfn_return_controller_information(AX, ES, DI);
-void vbe_biosfn_return_mode_information(AX, CX, ES, DI);
-void vbe_biosfn_set_mode(AX, BX, ES, DI);
-void vbe_biosfn_save_restore_state(AX, CX, DX, ES, BX);
-void vbe_biosfn_return_protected_mode_interface(AX);
+
+/* Far pointer for VBE info block usage. */
+typedef union vbe_ptr {
+    uint32_t    Ptr32;
+    void __far  *Ptr;
+    union {
+        uint16_t    Off;
+        uint16_t    Seg;
+    };
+} vbe_ptr;
 
 // The official VBE Information Block
 typedef struct VbeInfoBlock
 {
-   Bit8u  VbeSignature[4];
-   Bit16u VbeVersion;
-   Bit16u OemStringPtr_Off;
-   Bit16u OemStringPtr_Seg;
-   Bit8u  Capabilities[4];
-   Bit16u VideoModePtr_Off;
-   Bit16u VideoModePtr_Seg;
-   Bit16u TotalMemory;
-   Bit16u OemSoftwareRev;
-   Bit16u OemVendorNamePtr_Off;
-   Bit16u OemVendorNamePtr_Seg;
-   Bit16u OemProductNamePtr_Off;
-   Bit16u OemProductNamePtr_Seg;
-   Bit16u OemProductRevPtr_Off;
-   Bit16u OemProductRevPtr_Seg;
-   Bit16u  Reserved[111]; // used for dynamicly generated mode list
-   Bit8u  OemData[256];
+   union        {
+       uint8_t      SigChr[4];
+       uint32_t     Sig32;
+   }            VbeSignature;
+   uint16_t     VbeVersion;
+   vbe_ptr      OemString;
+   uint8_t      Capabilities[4];
+   uint16_t     VideoModePtr_Off;
+   uint16_t     VideoModePtr_Seg;
+   uint16_t     TotalMemory;
+   uint16_t     OemSoftwareRev;
+   vbe_ptr      OemVendorName;
+   vbe_ptr      OemProductName;
+   vbe_ptr      OemProductRev;
+   uint16_t     Reserved[111]; // used for dynamically generated mode list
+   uint8_t      OemData[256];
 } VbeInfoBlock;
 
 
@@ -47,114 +50,114 @@ typedef struct VbeInfoBlock
 typedef struct ModeInfoBlockCompact
 {
 // Mandatory information for all VBE revisions
-   Bit16u ModeAttributes;
-   Bit8u  WinAAttributes;
-   Bit8u  WinBAttributes;
-   Bit16u WinGranularity;
-   Bit16u WinSize;
-   Bit16u WinASegment;
-   Bit16u WinBSegment;
-   Bit32u WinFuncPtr;
-   Bit16u BytesPerScanLine;
+   uint16_t ModeAttributes;
+   uint8_t  WinAAttributes;
+   uint8_t  WinBAttributes;
+   uint16_t WinGranularity;
+   uint16_t WinSize;
+   uint16_t WinASegment;
+   uint16_t WinBSegment;
+   uint32_t WinFuncPtr;
+   uint16_t BytesPerScanLine;
 // Mandatory information for VBE 1.2 and above
-   Bit16u XResolution;
-   Bit16u YResolution;
-   Bit8u  XCharSize;
-   Bit8u  YCharSize;
-   Bit8u  NumberOfPlanes;
-   Bit8u  BitsPerPixel;
-   Bit8u  NumberOfBanks;
-   Bit8u  MemoryModel;
-   Bit8u  BankSize;
-   Bit8u  NumberOfImagePages;
-   Bit8u  Reserved_page;
+   uint16_t XResolution;
+   uint16_t YResolution;
+   uint8_t  XCharSize;
+   uint8_t  YCharSize;
+   uint8_t  NumberOfPlanes;
+   uint8_t  BitsPerPixel;
+   uint8_t  NumberOfBanks;
+   uint8_t  MemoryModel;
+   uint8_t  BankSize;
+   uint8_t  NumberOfImagePages;
+   uint8_t  Reserved_page;
 // Direct Color fields (required for direct/6 and YUV/7 memory models)
-   Bit8u  RedMaskSize;
-   Bit8u  RedFieldPosition;
-   Bit8u  GreenMaskSize;
-   Bit8u  GreenFieldPosition;
-   Bit8u  BlueMaskSize;
-   Bit8u  BlueFieldPosition;
-   Bit8u  RsvdMaskSize;
-   Bit8u  RsvdFieldPosition;
-   Bit8u  DirectColorModeInfo;
+   uint8_t  RedMaskSize;
+   uint8_t  RedFieldPosition;
+   uint8_t  GreenMaskSize;
+   uint8_t  GreenFieldPosition;
+   uint8_t  BlueMaskSize;
+   uint8_t  BlueFieldPosition;
+   uint8_t  RsvdMaskSize;
+   uint8_t  RsvdFieldPosition;
+   uint8_t  DirectColorModeInfo;
 // Mandatory information for VBE 2.0 and above
-   Bit32u PhysBasePtr;
-   Bit32u OffScreenMemOffset;
-   Bit16u OffScreenMemSize;
+   uint32_t PhysBasePtr;
+   uint32_t OffScreenMemOffset;
+   uint16_t OffScreenMemSize;
 // Mandatory information for VBE 3.0 and above
-   Bit16u LinBytesPerScanLine;
-   Bit8u  BnkNumberOfPages;
-   Bit8u  LinNumberOfPages;
-   Bit8u  LinRedMaskSize;
-   Bit8u  LinRedFieldPosition;
-   Bit8u  LinGreenMaskSize;
-   Bit8u  LinGreenFieldPosition;
-   Bit8u  LinBlueMaskSize;
-   Bit8u  LinBlueFieldPosition;
-   Bit8u  LinRsvdMaskSize;
-   Bit8u  LinRsvdFieldPosition;
-   Bit32u MaxPixelClock;
-//   Bit8u  Reserved[189]; // DO NOT PUT THIS IN HERE because of Compact Mode Info storage in bios
+   uint16_t LinBytesPerScanLine;
+   uint8_t  BnkNumberOfPages;
+   uint8_t  LinNumberOfPages;
+   uint8_t  LinRedMaskSize;
+   uint8_t  LinRedFieldPosition;
+   uint8_t  LinGreenMaskSize;
+   uint8_t  LinGreenFieldPosition;
+   uint8_t  LinBlueMaskSize;
+   uint8_t  LinBlueFieldPosition;
+   uint8_t  LinRsvdMaskSize;
+   uint8_t  LinRsvdFieldPosition;
+   uint32_t MaxPixelClock;
+//   uint8_t  Reserved[189]; // DO NOT PUT THIS IN HERE because of Compact Mode Info storage in bios
 } ModeInfoBlockCompact;
 
 typedef struct ModeInfoBlock
 {
 // Mandatory information for all VBE revisions
-   Bit16u ModeAttributes;
-   Bit8u  WinAAttributes;
-   Bit8u  WinBAttributes;
-   Bit16u WinGranularity;
-   Bit16u WinSize;
-   Bit16u WinASegment;
-   Bit16u WinBSegment;
-   Bit32u WinFuncPtr;
-   Bit16u BytesPerScanLine;
+   uint16_t ModeAttributes;
+   uint8_t  WinAAttributes;
+   uint8_t  WinBAttributes;
+   uint16_t WinGranularity;
+   uint16_t WinSize;
+   uint16_t WinASegment;
+   uint16_t WinBSegment;
+   uint32_t WinFuncPtr;
+   uint16_t BytesPerScanLine;
 // Mandatory information for VBE 1.2 and above
-   Bit16u XResolution;
-   Bit16u YResolution;
-   Bit8u  XCharSize;
-   Bit8u  YCharSize;
-   Bit8u  NumberOfPlanes;
-   Bit8u  BitsPerPixel;
-   Bit8u  NumberOfBanks;
-   Bit8u  MemoryModel;
-   Bit8u  BankSize;
-   Bit8u  NumberOfImagePages;
-   Bit8u  Reserved_page;
+   uint16_t XResolution;
+   uint16_t YResolution;
+   uint8_t  XCharSize;
+   uint8_t  YCharSize;
+   uint8_t  NumberOfPlanes;
+   uint8_t  BitsPerPixel;
+   uint8_t  NumberOfBanks;
+   uint8_t  MemoryModel;
+   uint8_t  BankSize;
+   uint8_t  NumberOfImagePages;
+   uint8_t  Reserved_page;
 // Direct Color fields (required for direct/6 and YUV/7 memory models)
-   Bit8u  RedMaskSize;
-   Bit8u  RedFieldPosition;
-   Bit8u  GreenMaskSize;
-   Bit8u  GreenFieldPosition;
-   Bit8u  BlueMaskSize;
-   Bit8u  BlueFieldPosition;
-   Bit8u  RsvdMaskSize;
-   Bit8u  RsvdFieldPosition;
-   Bit8u  DirectColorModeInfo;
+   uint8_t  RedMaskSize;
+   uint8_t  RedFieldPosition;
+   uint8_t  GreenMaskSize;
+   uint8_t  GreenFieldPosition;
+   uint8_t  BlueMaskSize;
+   uint8_t  BlueFieldPosition;
+   uint8_t  RsvdMaskSize;
+   uint8_t  RsvdFieldPosition;
+   uint8_t  DirectColorModeInfo;
 // Mandatory information for VBE 2.0 and above
-   Bit32u PhysBasePtr;
-   Bit32u OffScreenMemOffset;
-   Bit16u OffScreenMemSize;
+   uint32_t PhysBasePtr;
+   uint32_t OffScreenMemOffset;
+   uint16_t OffScreenMemSize;
 // Mandatory information for VBE 3.0 and above
-   Bit16u LinBytesPerScanLine;
-   Bit8u  BnkNumberOfPages;
-   Bit8u  LinNumberOfPages;
-   Bit8u  LinRedMaskSize;
-   Bit8u  LinRedFieldPosition;
-   Bit8u  LinGreenMaskSize;
-   Bit8u  LinGreenFieldPosition;
-   Bit8u  LinBlueMaskSize;
-   Bit8u  LinBlueFieldPosition;
-   Bit8u  LinRsvdMaskSize;
-   Bit8u  LinRsvdFieldPosition;
-   Bit32u MaxPixelClock;
-   Bit8u  Reserved[189];
+   uint16_t LinBytesPerScanLine;
+   uint8_t  BnkNumberOfPages;
+   uint8_t  LinNumberOfPages;
+   uint8_t  LinRedMaskSize;
+   uint8_t  LinRedFieldPosition;
+   uint8_t  LinGreenMaskSize;
+   uint8_t  LinGreenFieldPosition;
+   uint8_t  LinBlueMaskSize;
+   uint8_t  LinBlueFieldPosition;
+   uint8_t  LinRsvdMaskSize;
+   uint8_t  LinRsvdFieldPosition;
+   uint32_t MaxPixelClock;
+   uint8_t  Reserved[189];
 } ModeInfoBlock;
 
 typedef struct ModeInfoListItem
 {
-  Bit16u                mode;
+  uint16_t              mode;
   ModeInfoBlockCompact  info;
 } ModeInfoListItem;
 
@@ -277,9 +280,9 @@ typedef struct ModeInfoListItem
   typedef struct VBEHeader
   {
       /** Signature (VBEHEADER_MAGIC). */
-      Bit16u        u16Signature;
+      uint16_t      u16Signature;
       /** Data size. */
-      Bit16u        cbData;
+      uint16_t      cbData;
   } VBEHeader;
 
   /** The value of the VBEHEADER::u16Signature field.

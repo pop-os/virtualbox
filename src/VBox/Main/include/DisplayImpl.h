@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,7 @@
 #include <VBox/VBoxVideo.h>
 
 class Console;
+struct VIDEORECCONTEXT;
 
 enum {
     ResizeStatus_Void,
@@ -160,7 +161,7 @@ public:
     STDMETHOD(GetScreenResolution)(ULONG aScreenId, ULONG *aWidth, ULONG *aHeight, ULONG *aBitsPerPixel);
     STDMETHOD(SetFramebuffer)(ULONG aScreenId, IFramebuffer *aFramebuffer);
     STDMETHOD(GetFramebuffer)(ULONG aScreenId, IFramebuffer **aFramebuffer, LONG *aXOrigin, LONG *aYOrigin);
-    STDMETHOD(SetVideoModeHint)(ULONG width, ULONG height, ULONG bitsPerPixel, ULONG display);
+    STDMETHOD(SetVideoModeHint)(ULONG aDisplay, BOOL aEnabled, BOOL aChangeOrigin, LONG aOriginX, LONG aOriginY, ULONG aWidth, ULONG aHeight, ULONG aBitsPerPixel);
     STDMETHOD(TakeScreenShot)(ULONG aScreenId, BYTE *address, ULONG width, ULONG height);
     STDMETHOD(TakeScreenShotToArray)(ULONG aScreenId, ULONG width, ULONG height, ComSafeArrayOut(BYTE, aScreenData));
     STDMETHOD(TakeScreenShotPNGToArray)(ULONG aScreenId, ULONG width, ULONG height, ComSafeArrayOut(BYTE, aScreenData));
@@ -170,6 +171,8 @@ public:
     STDMETHOD(SetSeamlessMode)(BOOL enabled);
 
     STDMETHOD(CompleteVHWACommand)(BYTE *pCommand);
+
+    STDMETHOD(ViewportChanged)(ULONG aScreenId, ULONG x, ULONG y, ULONG width, ULONG height);
 
     static const PDMDRVREG  DrvReg;
 
@@ -279,7 +282,7 @@ public:
     static int displayTakeScreenshotEMT(Display *pDisplay, ULONG aScreenId, uint8_t **ppu8Data, size_t *pcbData, uint32_t *pu32Width, uint32_t *pu32Height);
 
 private:
-    static void InvalidateAndUpdateEMT(Display *pDisplay);
+    static void InvalidateAndUpdateEMT(Display *pDisplay, unsigned uId, bool fUpdateAll);
     static int drawToScreenEMT(Display *pDisplay, ULONG aScreenId, BYTE *address, ULONG x, ULONG y, ULONG width, ULONG height);
 
     int videoAccelRefreshProcess(void);
@@ -290,6 +293,10 @@ private:
 
 #ifdef VBOX_WITH_HGSMI
     volatile uint32_t mu32UpdateVBVAFlags;
+#endif
+
+#ifdef VBOX_WITH_VPX
+    VIDEORECCONTEXT *mpVideoRecContext;
 #endif
 };
 

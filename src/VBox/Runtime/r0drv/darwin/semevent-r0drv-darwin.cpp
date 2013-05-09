@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -80,7 +80,7 @@ typedef struct RTSEMEVENTINTERNAL
     /** Set if the event object is signaled. */
     bool volatile       fSignaled;
     /** List of waiting and woken up threads. */
-    RTLISTNODE          WaitList;
+    RTLISTANCHOR        WaitList;
     /** The spinlock protecting us. */
     lck_spin_t         *pSpinlock;
 } RTSEMEVENTINTERNAL, *PRTSEMEVENTINTERNAL;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -228,7 +228,7 @@ static void rtR0SemSolWaitTimeout(void *pvUser)
 {
     PRTR0SEMSOLWAIT pWait   = (PRTR0SEMSOLWAIT)pvUser;
     kthread_t      *pThread = pWait->pThread;
-    kmutex_t       *pMtx    = (kmutex_t *)ASMAtomicReadPtr(&pWait->pvMtx);
+    kmutex_t       *pMtx    = (kmutex_t *)ASMAtomicReadPtr((void * volatile *)&pWait->pvMtx);
     if (VALID_PTR(pMtx))
     {
         /* Enter the mutex here to make sure the thread has gone to sleep
@@ -444,7 +444,7 @@ DECLINLINE(void) rtR0SemSolWaitDelete(PRTR0SEMSOLWAIT pWait)
  * we're on an interrupt thread.
  *
  * The unpinning is done to prevent a deadlock, see s this could lead to a
- * deadlock (see #4259 for the full explanation)
+ * deadlock (see @bugref{4259} for the full explanation)
  *
  * @param   pMtx            The mutex to enter.
  */
@@ -486,4 +486,5 @@ DECLINLINE(uint32_t) rtR0SemSolWaitGetResolution(void)
          : cyclic_getres();
 }
 
-#endif
+#endif /* ___r0drv_solaris_semeventwait_r0drv_solaris_h */
+

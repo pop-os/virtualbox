@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -873,7 +873,9 @@ static int addIfDevice(const char *pcszDevicesRoot,
     unsigned bus = usbGetBusFromSysfsPath(pcszNode);
     if (!bus)
         return VINF_SUCCESS;
-    unsigned device = RTLinuxSysFsReadIntFile(10, "%s/devnum", pcszNode);
+    int device = RTLinuxSysFsReadIntFile(10, "%s/devnum", pcszNode);
+    if (device < 0)
+        return VINF_SUCCESS;
     dev_t devnum = usbMakeDevNum(bus, device);
     if (!devnum)
         return VINF_SUCCESS;

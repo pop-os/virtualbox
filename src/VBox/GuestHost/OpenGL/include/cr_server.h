@@ -25,18 +25,17 @@
 #ifdef VBOX_WITH_CRHGSMI
 # include <VBox/VBoxVideo.h>
 #endif
+#include <VBox/Hardware/VBoxVideoVBE.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define SHCROGL_SSM_VERSION 28
-
 #define CR_MAX_WINDOWS 100
 #define CR_MAX_CLIENTS 64
 
 /*@todo must match MaxGuestMonitors from SchemaDefs.h*/
-#define CR_MAX_GUEST_MONITORS 8
+#define CR_MAX_GUEST_MONITORS VBOX_VIDEO_MAX_SCREENS
 
 typedef DECLCALLBACKPTR(void, PFNCRSERVERPRESENTFBO) (void *data, int32_t screenId, int32_t x, int32_t y, uint32_t w, uint32_t h);
 
@@ -91,6 +90,7 @@ typedef struct {
 
     GLboolean bVisible;      /*guest window is visible*/
     GLboolean bUseFBO;       /*redirect to FBO instead of real host window*/
+    GLboolean bFbDraw;       /*GL_FRONT buffer is drawn to directly*/
 
     GLint       cVisibleRects;    /*count of visible rects*/
     GLint      *pVisibleRects;    /*visible rects left, top, right, bottom*/
@@ -103,6 +103,18 @@ typedef struct {
     void *pvOutputRedirectInstance;
 } CRMuralInfo;
 
+typedef struct {
+    char   *pszDpyName;
+    GLint   visualBits;
+    int32_t externalID;
+} CRCreateInfo_t;
+
+typedef struct {
+    CRContext *pContext;
+    int SpuContext;
+    CRCreateInfo_t CreateInfo;
+} CRContextInfo;
+
 /**
  * A client is basically an upstream Cr Node (connected via mothership)
  */
@@ -112,7 +124,7 @@ typedef struct _crclient {
     int number;        /**< a unique number for each client */
     uint64_t pid;      /*guest pid*/
     GLint currentContextNumber;
-    CRContext *currentCtx;
+    CRContextInfo *currentCtxInfo;
     GLint currentWindow;
     CRMuralInfo *currentMural;
     GLint windowList[CR_MAX_WINDOWS];
@@ -157,9 +169,16 @@ typedef struct {
 } CRScreenInfo;
 
 typedef struct {
+    int32_t    x, y;
+    uint32_t   w, h;
+} CRScreenViewportInfo;
+
+
+typedef struct {
     unsigned short tcpip_port;
 
     CRScreenInfo screen[CR_MAX_GUEST_MONITORS];
+    CRScreenViewportInfo screenVieport[CR_MAX_GUEST_MONITORS];
     int          screenCount;
 
     int numClients;
@@ -172,6 +191,8 @@ typedef struct {
     GLboolean firstCallMakeCurrent;
     GLboolean bIsInLoadingState; /* Indicates if we're in process of loading VM snapshot */
     GLboolean bIsInSavingState; /* Indicates if we're in process of saving VM snapshot */
+    GLboolean bForceMakeCurrentOnClientSwitch;
+    CRContextInfo *currentCtxInfo;
     GLint currentWindow;
     GLint currentNativeWindow;
 
@@ -194,13 +215,9 @@ typedef struct {
 
     CRLimitsState limits; /**< GL limits for any contexts we create */
 
-    int SpuContext; /**< Rendering context for the head SPU */
-    int SpuContextVisBits; /**< Context's visual attributes */
-    char *SpuContextDpyName; /**< Context's dpyName */
+    CRContextInfo MainContextInfo;
 
     CRHashTable *contextTable;  /**< hash table for rendering contexts */
-    CRHashTable *pContextCreateInfoTable; /**< hash table with contexts creation info */
-    CRContext *DummyContext;    /**< used when no other bound context */
 
     CRHashTable *programTable;  /**< for vertex programs */
     GLuint currentProgram;
@@ -266,6 +283,8 @@ typedef struct {
 
     GLboolean             bUseOutputRedirect;       /* Whether the output redirect was set. */
     CROutputRedirect      outputRedirect;
+
+    GLboolean             bUseMultipleContexts;
 } CRServer;
 
 
@@ -299,6 +318,8 @@ extern DECLEXPORT(void) crVBoxServerSetPresentFBOCB(PFNCRSERVERPRESENTFBO pfnPre
 extern DECLEXPORT(int32_t) crVBoxServerSetOffscreenRendering(GLboolean value);
 
 extern DECLEXPORT(int32_t) crVBoxServerOutputRedirectSet(const CROutputRedirect *pCallbacks);
+
+extern DECLEXPORT(int32_t) crVBoxServerSetScreenViewport(int sIndex, int32_t x, int32_t y, uint32_t w, uint32_t h);
 
 #ifdef VBOX_WITH_CRHGSMI
 /* We moved all CrHgsmi command processing to crserverlib to keep the logic of dealing with CrHgsmi commands in one place.

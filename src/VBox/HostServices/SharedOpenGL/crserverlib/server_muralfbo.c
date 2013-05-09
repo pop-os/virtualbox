@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -100,14 +100,18 @@ void crServerCheckMuralGeometry(CRMuralInfo *mural)
     int tlS, brS, trS, blS;
     int overlappingScreenCount, primaryS, i;
 
+    if (!mural->width || !mural->height)
+        return;
+
     if (cr_server.screenCount<2 && !cr_server.bForceOffscreenRendering)
     {
+        CRScreenViewportInfo *pVieport = &cr_server.screenVieport[mural->screenId];
         CRASSERT(cr_server.screenCount>0);
 
         mural->hX = mural->gX-cr_server.screen[0].x;
         mural->hY = mural->gY-cr_server.screen[0].y;
 
-        cr_server.head_spu->dispatch_table.WindowPosition(mural->spuWindow, mural->hX, mural->hY);
+        cr_server.head_spu->dispatch_table.WindowPosition(mural->spuWindow, mural->hX - pVieport->x, mural->hY - pVieport->y);
 
         return;
     }
@@ -156,34 +160,47 @@ void crServerCheckMuralGeometry(CRMuralInfo *mural)
 
     if (overlappingScreenCount<2 && !cr_server.bForceOffscreenRendering)
     {
+        CRScreenViewportInfo *pVieport = &cr_server.screenVieport[mural->screenId];
+
         if (mural->bUseFBO)
         {
             crServerRedirMuralFBO(mural, GL_FALSE);
             crServerDeleteMuralFBO(mural);
         }
 
-        cr_server.head_spu->dispatch_table.WindowPosition(mural->spuWindow, mural->hX, mural->hY);
+        cr_server.head_spu->dispatch_table.WindowPosition(mural->spuWindow, mural->hX - pVieport->x, mural->hY - pVieport->y);
     }
     else
     {
-        if (!mural->bUseFBO)
+        if (mural->spuWindow)
         {
-            crServerRedirMuralFBO(mural, GL_TRUE);
-        }
-        else
-        {
-            if (mural->width!=mural->fboWidth
-                || mural->height!=mural->height)
+            if (!mural->bUseFBO)
             {
-                crServerRedirMuralFBO(mural, GL_FALSE);
-                crServerDeleteMuralFBO(mural);
                 crServerRedirMuralFBO(mural, GL_TRUE);
             }
+            else
+            {
+                if (mural->width!=mural->fboWidth
+                    || mural->height!=mural->height)
+                {
+                    crServerRedirMuralFBO(mural, GL_FALSE);
+                    crServerDeleteMuralFBO(mural);
+                    crServerRedirMuralFBO(mural, GL_TRUE);
+                }
+            }
         }
+#ifdef DEBUG_misha
+        else
+        {
+            Assert(!mural->bUseFBO);
+        }
+#endif
 
         if (!mural->bUseFBO)
         {
-            cr_server.head_spu->dispatch_table.WindowPosition(mural->spuWindow, mural->hX, mural->hY);
+            CRScreenViewportInfo *pVieport = &cr_server.screenVieport[mural->screenId];
+
+            cr_server.head_spu->dispatch_table.WindowPosition(mural->spuWindow, mural->hX - pVieport->x, mural->hY - pVieport->y);
         }
     }
 
@@ -197,11 +214,18 @@ void crServerCheckMuralGeometry(CRMuralInfo *mural)
 
 GLboolean crServerSupportRedirMuralFBO(void)
 {
-    const GLubyte* pExt = cr_server.head_spu->dispatch_table.GetString(GL_REAL_EXTENSIONS);
+    static GLboolean fInited = GL_FALSE;
+    static GLboolean fSupported = GL_FALSE;
+    if (!fInited)
+    {
+        const GLubyte* pExt = cr_server.head_spu->dispatch_table.GetString(GL_REAL_EXTENSIONS);
 
-    return ( NULL!=crStrstr((const char*)pExt, "GL_ARB_framebuffer_object")
-             || NULL!=crStrstr((const char*)pExt, "GL_EXT_framebuffer_object"))
-           && NULL!=crStrstr((const char*)pExt, "GL_ARB_texture_non_power_of_two");
+        fSupported = ( NULL!=crStrstr((const char*)pExt, "GL_ARB_framebuffer_object")
+                 || NULL!=crStrstr((const char*)pExt, "GL_EXT_framebuffer_object"))
+               && NULL!=crStrstr((const char*)pExt, "GL_ARB_texture_non_power_of_two");
+        fInited = GL_TRUE;
+    }
+    return fSupported;
 }
 
 void crServerRedirMuralFBO(CRMuralInfo *mural, GLboolean redir)
@@ -230,8 +254,11 @@ void crServerRedirMuralFBO(CRMuralInfo *mural, GLboolean redir)
             cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_READ_FRAMEBUFFER, mural->idFBO);
         }
 
-        crStateGetCurrent()->buffer.width = 0;
-        crStateGetCurrent()->buffer.height = 0;
+        if (cr_server.curClient && cr_server.curClient->currentMural == mural)
+        {
+            crStateGetCurrent()->buffer.width = 0;
+            crStateGetCurrent()->buffer.height = 0;
+        }
     }
     else
     {
@@ -249,8 +276,11 @@ void crServerRedirMuralFBO(CRMuralInfo *mural, GLboolean redir)
             }
         }
 
-        crStateGetCurrent()->buffer.width = mural->width;
-        crStateGetCurrent()->buffer.height = mural->height;
+        if (cr_server.curClient && cr_server.curClient->currentMural == mural)
+        {
+            crStateGetCurrent()->buffer.width = mural->width;
+            crStateGetCurrent()->buffer.height = mural->height;
+        }
     }
 
     mural->bUseFBO = redir;
@@ -262,8 +292,22 @@ void crServerCreateMuralFBO(CRMuralInfo *mural)
     GLuint uid;
     GLenum status;
     SPUDispatchTable *gl = &cr_server.head_spu->dispatch_table;
+    CRContextInfo *pMuralContextInfo;
+    int RestoreSpuWindow = -1;
+    int RestoreSpuContext = -1;
 
     CRASSERT(mural->idFBO==0);
+
+    pMuralContextInfo = cr_server.currentCtxInfo;
+    if (!pMuralContextInfo)
+    {
+        /* happens on saved state load */
+        CRASSERT(cr_server.MainContextInfo.SpuContext);
+        pMuralContextInfo = &cr_server.MainContextInfo;
+        cr_server.head_spu->dispatch_table.MakeCurrent(mural->spuWindow, 0, cr_server.MainContextInfo.SpuContext);
+        RestoreSpuWindow = 0;
+        RestoreSpuContext = 0;
+    }
 
     /*Color texture*/
     gl->GenTextures(1, &mural->idColorTex);
@@ -335,6 +379,11 @@ void crServerCreateMuralFBO(CRMuralInfo *mural)
     if (crStateIsBufferBound(GL_PIXEL_UNPACK_BUFFER_ARB))
     {
         gl->BindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, ctx->bufferobject.unpackBuffer->hwid);
+    }
+
+    if (RestoreSpuWindow >= 0 && RestoreSpuContext >= 0)
+    {
+        cr_server.head_spu->dispatch_table.MakeCurrent(RestoreSpuWindow, 0, RestoreSpuContext);
     }
 }
 

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -126,14 +126,17 @@ RT_C_DECLS_BEGIN
 #define RTPATH_F_ON_LINK          RT_BIT_32(0)
 /** Last component: Follow if link. */
 #define RTPATH_F_FOLLOW_LINK      RT_BIT_32(1)
+/** Don't allow symbolic links as part of the path.
+ * @remarks this flag is currently not implemented and will be ignored. */
+#define RTPATH_F_NO_SYMLINKS      RT_BIT_32(2)
 /** @} */
 
 
 /** Validates a flags parameter containing RTPATH_F_*.
  * @remarks The parameters will be referenced multiple times. */
 #define RTPATH_F_IS_VALID(fFlags, fIgnore) \
-    (    ((fFlags) & ~(uint32_t)(fIgnore)) == RTPATH_F_ON_LINK \
-      || ((fFlags) & ~(uint32_t)(fIgnore)) == RTPATH_F_FOLLOW_LINK )
+    (    ((fFlags) & ~(uint32_t)((fIgnore)|RTPATH_F_NO_SYMLINKS)) == RTPATH_F_ON_LINK \
+      || ((fFlags) & ~(uint32_t)((fIgnore)|RTPATH_F_NO_SYMLINKS)) == RTPATH_F_FOLLOW_LINK )
 
 
 /**
@@ -328,13 +331,15 @@ RTDECL(char *) RTPathFilename(const char *pszPath);
 RTDECL(char *) RTPathExt(const char *pszPath);
 
 /**
- * Checks if a path have an extension.
+ * Checks if a path has an extension.
  *
  * @returns true if extension present.
  * @returns false if no extension.
  * @param   pszPath     Path to check.
  */
-RTDECL(bool) RTPathHaveExt(const char *pszPath);
+RTDECL(bool) RTPathHasExt(const char *pszPath);
+/** Misspelled, don't use.  */
+#define RTPathHaveExt   RTPathHasExt
 
 /**
  * Checks if a path includes more than a filename.
@@ -343,7 +348,9 @@ RTDECL(bool) RTPathHaveExt(const char *pszPath);
  * @returns false if no path.
  * @param   pszPath     Path to check.
  */
-RTDECL(bool) RTPathHavePath(const char *pszPath);
+RTDECL(bool) RTPathHasPath(const char *pszPath);
+/** Misspelled, don't use.  */
+#define RTPathHavePath  RTPathHasPath
 
 /**
  * Checks if the path starts with a root specifier or not.
@@ -554,7 +561,7 @@ RTDECL(int) RTPathJoinEx(char *pszPathDst, size_t cbPathDst,
 /**
  * Callback for RTPathTraverseList that's called for each element.
  *
- * @returns IPRT style status code. Return VINF_TRY_AGAIN to continue, any other
+ * @returns IPRT style status code. Return VERR_TRY_AGAIN to continue, any other
  *          value will abort the traversing and be returned to the caller.
  *
  * @param   pchPath         Pointer to the start of the current path. This is
@@ -572,7 +579,7 @@ typedef FNRTPATHTRAVERSER *PFNRTPATHTRAVERSER;
  * character.
  *
  * @returns IPRT style status code from the callback or VERR_END_OF_STRING if
- *          the callback returned VINF_TRY_AGAIN for all paths in the string.
+ *          the callback returned VERR_TRY_AGAIN for all paths in the string.
  *
  * @param   pszPathList     The string to traverse.
  * @param   chSep           The separator character.  Using the null terminator
@@ -584,6 +591,24 @@ typedef FNRTPATHTRAVERSER *PFNRTPATHTRAVERSER;
  * @param   pvUser2         Second user argument for the callback.
  */
 RTDECL(int) RTPathTraverseList(const char *pszPathList, char chSep, PFNRTPATHTRAVERSER pfnCallback, void *pvUser1, void *pvUser2);
+
+/**
+ * Calculate a relative path between the two given paths.
+ *
+ * @returns IPRT status code.
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_BUFFER_OVERFLOW if the result is too big to fit within
+ *          cbPathDst bytes.
+ * @retval  VERR_NOT_SUPPORTED if both paths start with different volume specifiers.
+ * @param   pszPathDst      Where to store the resulting path.
+ * @param   cbPathDst       The size of the buffer pszPathDst points to,
+ *                          terminator included.
+ * @param   pszPathFrom     The path to start from creating the relative path.
+ * @param   pszPathTo       The path to reach with the created relative path.
+ */
+RTDECL(int) RTPathCalcRelative(char *pszPathDst, size_t cbPathDst,
+                               const char *pszPathFrom,
+                               const char *pszPathTo);
 
 
 #ifdef IN_RING3
@@ -891,6 +916,9 @@ RTR3DECL(int) RTPathGetOwner(const char *pszPath, uint32_t *pUid, uint32_t *pGid
 #define RTPATHRENAME_FLAGS_NO_REPLACE   UINT32_C(0)
 /** This will replace attempt any target which isn't a directory. */
 #define RTPATHRENAME_FLAGS_REPLACE      RT_BIT(0)
+/** Don't allow symbolic links as part of the path.
+ * @remarks this flag is currently not implemented and will be ignored. */
+#define RTPATHRENAME_FLAGS_NO_SYMLINKS  RT_BIT(1)
 /** @} */
 
 /**
@@ -905,6 +933,22 @@ RTR3DECL(int) RTPathGetOwner(const char *pszPath, uint32_t *pUid, uint32_t *pGid
  * @param   fRename     Rename flags, RTPATHRENAME_FLAGS_*.
  */
 RTR3DECL(int) RTPathRename(const char *pszSrc,  const char *pszDst, unsigned fRename);
+
+/** @name RTPathUnlink flags.
+ * @{ */
+/** Don't allow symbolic links as part of the path.
+ * @remarks this flag is currently not implemented and will be ignored. */
+#define RTPATHUNLINK_FLAGS_NO_SYMLINKS  RT_BIT(0)
+/** @} */
+
+/**
+ * Removes the last component of the path.
+ *
+ * @returns IPRT status code.
+ * @param   pszPath     The path.
+ * @param   fUnlink     Unlink flags, RTPATHUNLINK_FLAGS_*.
+ */
+RTR3DECL(int) RTPathUnlink(const char *pszPath, uint32_t fUnlink);
 
 #endif /* IN_RING3 */
 

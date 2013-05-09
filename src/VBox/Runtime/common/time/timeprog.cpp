@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -79,7 +79,7 @@ RT_EXPORT_SYMBOL(RTTimeProgramMilliTS);
  */
 RTDECL(uint32_t)  RTTimeProgramSecTS(void)
 {
-    AssertMsg(g_u64ProgramStartMilliTS, ("RTR3Init hasn't been called!\n"));
+    AssertMsg(g_u64ProgramStartMilliTS, ("rtR3Init hasn't been called!\n"));
     return (uint32_t)(RTTimeProgramMilliTS() / 1000);
 }
 RT_EXPORT_SYMBOL(RTTimeProgramSecTS);

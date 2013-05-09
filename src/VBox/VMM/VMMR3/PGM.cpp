@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,8 +26,8 @@
  * @section         sec_pgm_modes           Paging Modes
  *
  * There are three memory contexts: Host Context (HC), Guest Context (GC)
- * and intermediate context. When talking about paging HC can also be referred to
- * as "host paging", and GC referred to as "shadow paging".
+ * and intermediate context.  When talking about paging HC can also be referred
+ * to as "host paging", and GC referred to as "shadow paging".
  *
  * We define three basic paging modes: 32-bit, PAE and AMD64. The host paging mode
  * is defined by the host operating system. The mode used in the shadow paging mode
@@ -94,6 +94,41 @@
  *
  *
  * @section         sec_pgm_misc            Misc
+ *
+ *
+ * @subsection      sec_pgm_misc_A20        The A20 Gate
+ *
+ * PGM implements the A20 gate masking when translating a virtual guest address
+ * into a physical address for CPU access, i.e. PGMGstGetPage (and friends) and
+ * the code reading the guest page table entries during shadowing.  The masking
+ * is done consistenly for all CPU modes, paged ones included.  Large pages are
+ * also masked correctly.  (On current CPUs, experiments indicates that AMD does
+ * not apply A20M in paged modes and intel only does it for the 2nd MB of
+ * memory.)
+ *
+ * The A20 gate implementation is per CPU core.  It can be configured on a per
+ * core basis via the keyboard device and PC architecture device.  This is
+ * probably not exactly how real CPUs do it, but SMP and A20 isn't a place where
+ * guest OSes try pushing things anyway, so who cares.  (On current real systems
+ * the A20M signal is probably only sent to the boot CPU and it affects all
+ * thread and probably all cores in that package.)
+ *
+ * The keyboard device and the PC architecture device doesn't OR their A20
+ * config bits together, rather they are currently implemented such that they
+ * mirror the CPU state.  So, flipping the bit in either of them will change the
+ * A20 state.  (On real hardware the bits of the two devices should probably be
+ * ORed together to indicate enabled, i.e. both needs to be cleared to disable
+ * A20 masking.)
+ *
+ * The A20 state will change immediately, transmeta fashion.  There is no delays
+ * due to buses, wiring or other physical stuff.  (On real hardware there are
+ * normally delays, the delays differs between the two devices and probably also
+ * between chipsets and CPU generations. Note that it's said that transmeta CPUs
+ * does the change immediately like us, they apparently intercept/handles the
+ * port accesses in microcode. Neat.)
+ *
+ * @sa http://en.wikipedia.org/wiki/A20_line#The_80286_and_the_high_memory_area
+ *
  *
  * @subsection      subsec_pgm_misc_diff    Differences Between Legacy PAE and Long Mode PAE
  *
@@ -581,7 +616,9 @@
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/stam.h>
-#include <VBox/vmm/rem.h>
+#ifdef VBOX_WITH_REM
+# include <VBox/vmm/rem.h>
+#endif
 #include <VBox/vmm/selm.h>
 #include <VBox/vmm/ssm.h>
 #include <VBox/vmm/hwaccm.h>
@@ -1248,6 +1285,7 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
         }
 
         pPGM->fA20Enabled      = true;
+        pPGM->GCPhysA20Mask    = ~((RTGCPHYS)!pPGM->fA20Enabled << 20);
     }
 
     pVM->pgm.s.enmHostMode      = SUPPAGINGMODE_INVALID;
@@ -1467,7 +1505,7 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
  * been initialized.
  *
  * @returns VBox status code.
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  */
 static int pgmR3InitPaging(PVM pVM)
 {
@@ -1816,6 +1854,7 @@ static int pgmR3InitStats(PVM pVM)
     AssertRC(rc);
 
         PGM_REG_COUNTER(&pPgmCpu->cGuestModeChanges, "/PGM/CPU%u/cGuestModeChanges",  "Number of guest mode changes.");
+        PGM_REG_COUNTER(&pPgmCpu->cA20Changes, "/PGM/CPU%u/cA20Changes",  "Number of A20 gate changes.");
 
 #ifdef VBOX_WITH_STATISTICS
         PGMCPUSTATS *pCpuStats = pVM->aCpus[idCpu].pgm.s.pStatsR3;
@@ -2040,7 +2079,7 @@ static int pgmR3InitStats(PVM pVM)
  * page table entries with the dummy page.
  *
  * @returns VBox status code.
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 VMMR3DECL(int) PGMR3InitDynMap(PVM pVM)
 {
@@ -2074,7 +2113,7 @@ VMMR3DECL(int) PGMR3InitDynMap(PVM pVM)
  * Ring-3 init finalizing.
  *
  * @returns VBox status code.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3DECL(int) PGMR3InitFinalize(PVM pVM)
 {
@@ -2191,7 +2230,7 @@ VMMR3DECL(int) PGMR3InitFinalize(PVM pVM)
  * Init phase completed callback.
  *
  * @returns VBox status code.
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   enmWhat             What has been completed.
  * @thread  EMT(0)
  */
@@ -2428,8 +2467,8 @@ static DECLCALLBACK(int) pgmR3RelocateHyperVirtHandler(PAVLROGCPTRNODECORE pNode
 /**
  * Resets a virtual CPU when unplugged.
  *
- * @param   pVM                 The VM handle.
- * @param   pVCpu               The virtual CPU handle.
+ * @param   pVM                 Pointer to the VM.
+ * @param   pVCpu               Pointer to the VMCPU.
  */
 VMMR3DECL(void) PGMR3ResetUnpluggedCpu(PVM pVM, PVMCPU pVCpu)
 {
@@ -2447,6 +2486,7 @@ VMMR3DECL(void) PGMR3ResetUnpluggedCpu(PVM pVM, PVMCPU pVCpu)
      * Re-init other members.
      */
     pVCpu->pgm.s.fA20Enabled = true;
+    pVCpu->pgm.s.GCPhysA20Mask = ~((RTGCPHYS)!pVCpu->pgm.s.fA20Enabled << 20);
 
     /*
      * Clear the FFs PGM owns.
@@ -2462,7 +2502,7 @@ VMMR3DECL(void) PGMR3ResetUnpluggedCpu(PVM pVM, PVMCPU pVCpu)
  * For the PGM component this means that any PD write monitors
  * needs to be removed.
  *
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 VMMR3DECL(void) PGMR3Reset(PVM pVM)
 {
@@ -2508,6 +2548,7 @@ VMMR3DECL(void) PGMR3Reset(PVM pVM)
         AssertRC(rc);
 
         STAM_REL_COUNTER_RESET(&pVCpu->pgm.s.cGuestModeChanges);
+        STAM_REL_COUNTER_RESET(&pVCpu->pgm.s.cA20Changes);
     }
 
     /*
@@ -2522,12 +2563,23 @@ VMMR3DECL(void) PGMR3Reset(PVM pVM)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
-        pVCpu->pgm.s.fA20Enabled = true;
         pVCpu->pgm.s.fGst32BitPageSizeExtension = false;
         PGMNotifyNxeChanged(pVCpu, false);
 
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL);
+
+        if (!pVCpu->pgm.s.fA20Enabled)
+        {
+            pVCpu->pgm.s.fA20Enabled = true;
+            pVCpu->pgm.s.GCPhysA20Mask = ~((RTGCPHYS)!pVCpu->pgm.s.fA20Enabled << 20);
+#ifdef PGM_WITH_A20
+            pVCpu->pgm.s.fSyncFlags |= PGM_SYNC_UPDATE_PAGE_BIT_VIRTUAL;
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
+            pgmR3RefreshShadowModeAfterA20Change(pVCpu);
+            HWACCMFlushTLB(pVCpu);
+#endif
+        }
     }
 
     /*
@@ -2553,6 +2605,7 @@ static DECLCALLBACK(void) pgmR3ResetNoMorePhysWritesFlag(PVM pVM, VMSTATE enmSta
     if (   enmState == VMSTATE_RUNNING
         || enmState == VMSTATE_RESUMING)
         pVM->pgm.s.fNoMorePhysWrites = false;
+    NOREF(enmOldState); NOREF(pvUser);
 }
 #endif
 
@@ -2586,7 +2639,7 @@ VMMR3DECL(int) PGMR3Term(PVM pVM)
 /**
  * Show paging mode.
  *
- * @param   pVM         VM Handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     "all" (default), "guest", "shadow" or "host".
  */
@@ -2612,9 +2665,9 @@ static DECLCALLBACK(void) pgmR3InfoMode(PVM pVM, PCDBGFINFOHLP pHlp, const char 
     /** @todo SMP support! */
     /* print info. */
     if (fGuest)
-        pHlp->pfnPrintf(pHlp, "Guest paging mode:  %s, changed %RU64 times, A20 %s\n",
+        pHlp->pfnPrintf(pHlp, "Guest paging mode:  %s (changed %RU64 times), A20 %s (changed %RU64 times)\n",
                         PGMGetModeName(pVM->aCpus[0].pgm.s.enmGuestMode), pVM->aCpus[0].pgm.s.cGuestModeChanges.c,
-                        pVM->aCpus[0].pgm.s.fA20Enabled ? "enabled" : "disabled");
+                        pVM->aCpus[0].pgm.s.fA20Enabled ? "enabled" : "disabled", pVM->aCpus[0].pgm.s.cA20Changes.c);
     if (fShadow)
         pHlp->pfnPrintf(pHlp, "Shadow paging mode: %s\n", PGMGetModeName(pVM->aCpus[0].pgm.s.enmShadowMode));
     if (fHost)
@@ -2643,7 +2696,7 @@ static DECLCALLBACK(void) pgmR3InfoMode(PVM pVM, PCDBGFINFOHLP pHlp, const char 
 /**
  * Dump registered MMIO ranges to the log.
  *
- * @param   pVM         VM Handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -2669,7 +2722,7 @@ static DECLCALLBACK(void) pgmR3PhysInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char 
 /**
  * Dump the page directory to the log.
  *
- * @param   pVM         VM Handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -2724,7 +2777,7 @@ static DECLCALLBACK(void) pgmR3InfoCr3(PVM pVM, PCDBGFINFOHLP pHlp, const char *
  * Service a VMMCALLRING3_PGM_LOCK call.
  *
  * @returns VBox status code.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 VMMR3DECL(int) PGMR3LockCall(PVM pVM)
 {
@@ -2803,7 +2856,7 @@ DECLINLINE(unsigned) pgmModeDataMaxIndex(void)
 /**
  * Initializes the paging mode data kept in PGM::paModeData.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   fResolveGCAndR0 Indicate whether or not GC and Ring-0 symbols can be resolved now.
  *                          This is used early in the init process to avoid trouble with PDM
  *                          not being initialized yet.
@@ -3015,10 +3068,10 @@ static int pgmR3ModeDataInit(PVM pVM, bool fResolveGCAndR0)
 /**
  * Switch to different (or relocated in the relocate case) mode data.
  *
- * @param   pVM         The VM handle.
- * @param   pVCpu       The VMCPU to operate on.
- * @param   enmShw      The the shadow paging mode.
- * @param   enmGst      The the guest paging mode.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
+ * @param   enmShw      The shadow paging mode.
+ * @param   enmGst      The guest paging mode.
  */
 static void pgmR3ModeDataSwitch(PVM pVM, PVMCPU pVCpu, PGMMODE enmShw, PGMMODE enmGst)
 {
@@ -3096,7 +3149,7 @@ static void pgmR3ModeDataSwitch(PVM pVM, PVMCPU pVCpu, PGMMODE enmShw, PGMMODE e
  * Calculates the shadow paging mode.
  *
  * @returns The shadow paging mode.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   enmGuestMode    The guest mode.
  * @param   enmHostMode     The host mode.
  * @param   enmShadowMode   The current shadow mode.
@@ -3290,14 +3343,16 @@ static PGMMODE pgmR3CalcShadowMode(PVM pVM, PGMMODE enmGuestMode, SUPPAGINGMODE 
  * @returns VBox status code. May suspend or power off the VM on error, but this
  *          will trigger using FFs and not status codes.
  *
- * @param   pVM             VM handle.
- * @param   pVCpu           The VMCPU to operate on.
+ * @param   pVM             Pointer to the VM.
+ * @param   pVCpu           Pointer to the VMCPU.
  * @param   enmGuestMode    The new guest mode. This is assumed to be different from
  *                          the current mode.
  */
 VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
 {
+#if HC_ARCH_BITS == 32
     bool fIsOldGuestPagingMode64Bits = (pVCpu->pgm.s.enmGuestMode >= PGMMODE_AMD64);
+#endif
     bool fIsNewGuestPagingMode64Bits = (enmGuestMode >= PGMMODE_AMD64);
 
     Log(("PGMR3ChangeMode: Guest mode: %s -> %s\n", PGMGetModeName(pVCpu->pgm.s.enmGuestMode), PGMGetModeName(enmGuestMode)));
@@ -3583,10 +3638,9 @@ VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
  * Called by pgmPoolFlushAllInt prior to flushing the pool.
  *
  * @returns VBox status code, fully asserted.
- * @param   pVM     The VM handle.
- * @param   pVCpu   The VMCPU to operate on.
+ * @param   pVCpu   Pointer to the VMCPU.
  */
-int pgmR3ExitShadowModeBeforePoolFlush(PVM pVM, PVMCPU pVCpu)
+int pgmR3ExitShadowModeBeforePoolFlush(PVMCPU pVCpu)
 {
     /* Unmap the old CR3 value before flushing everything. */
     int rc = PGM_BTH_PFN(UnmapCR3, pVCpu)(pVCpu);
@@ -3604,8 +3658,8 @@ int pgmR3ExitShadowModeBeforePoolFlush(PVM pVM, PVMCPU pVCpu)
  * Called by pgmPoolFlushAllInt after flushing the pool.
  *
  * @returns VBox status code, fully asserted.
- * @param   pVM     The VM handle.
- * @param   pVCpu   The VMCPU to operate on.
+ * @param   pVM     Pointer to the VM.
+ * @param   pVCpu   Pointer to the VMCPU.
  */
 int pgmR3ReEnterShadowModeAfterPoolFlush(PVM pVM, PVMCPU pVCpu)
 {
@@ -3621,6 +3675,22 @@ int pgmR3ReEnterShadowModeAfterPoolFlush(PVM pVM, PVMCPU pVCpu)
               ("%RHp != %RHp %s\n", (RTHCPHYS)CPUMGetHyperCR3(pVCpu), PGMGetHyperCR3(pVCpu), PGMGetModeName(pVCpu->pgm.s.enmShadowMode)));
     return rc;
 }
+
+
+/**
+ * Called by PGMR3PhysSetA20 after changing the A20 state.
+ *
+ * @param   pVCpu   Pointer to the VMCPU.
+ */
+void pgmR3RefreshShadowModeAfterA20Change(PVMCPU pVCpu)
+{
+    /** @todo Probably doing a bit too much here. */
+    int rc = pgmR3ExitShadowModeBeforePoolFlush(pVCpu);
+    AssertReleaseRC(rc);
+    rc = pgmR3ReEnterShadowModeAfterPoolFlush(pVCpu->CTX_SUFF(pVM), pVCpu);
+    AssertReleaseRC(rc);
+}
+
 
 #ifdef VBOX_WITH_DEBUGGER
 
@@ -3639,6 +3709,7 @@ static DECLCALLBACK(int) pgmR3CmdRam(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pV
     /*
      * Validate input.
      */
+    NOREF(pCmd); NOREF(paArgs); NOREF(cArgs);
     if (!pVM)
         return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: The command requires a VM to be selected.\n");
     if (!pVM->pgm.s.pRamRangesXR3)
@@ -3725,6 +3796,7 @@ static DECLCALLBACK(int) pgmR3CmdSync(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM p
     /*
      * Validate input.
      */
+    NOREF(pCmd); NOREF(paArgs); NOREF(cArgs);
     if (!pVM)
         return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: The command requires a VM to be selected.\n");
 
@@ -3761,6 +3833,7 @@ static DECLCALLBACK(int) pgmR3CmdAssertCR3(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
     /*
      * Validate input.
      */
+    NOREF(pCmd); NOREF(paArgs); NOREF(cArgs);
     if (!pVM)
         return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: The command requires a VM to be selected.\n");
 
@@ -3795,6 +3868,7 @@ static DECLCALLBACK(int) pgmR3CmdSyncAlways(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp,
     /*
      * Validate input.
      */
+    NOREF(pCmd); NOREF(paArgs); NOREF(cArgs);
     if (!pVM)
         return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: The command requires a VM to be selected.\n");
 
@@ -3830,6 +3904,7 @@ static DECLCALLBACK(int) pgmR3CmdPhysToFile(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp,
     /*
      * Validate input.
      */
+    NOREF(pCmd);
     if (!pVM)
         return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: The command requires a VM to be selected.\n");
     if (    cArgs < 1
@@ -4082,7 +4157,7 @@ static DECLCALLBACK(int) pgmR3CheckIntegrityPhysToVirtHandlerNode(PAVLROGCPHYSNO
  *
  * @returns VINF_SUCCESS if everything is fine.
  * @returns VBox error status after asserting on integrity breach.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 VMMR3DECL(int) PGMR3CheckIntegrity(PVM pVM)
 {

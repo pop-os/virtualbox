@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,9 @@
 #define NEED_XF86_TYPES
 #include <iprt/string.h>
 #include "compiler.h"
+
+/* ShadowFB support */
+#include "shadowfb.h"
 
 #include "vboxvideo.h"
 
@@ -52,17 +55,18 @@ vboxHandleDirtyRect(ScrnInfoPtr pScrn, int iRects, BoxPtr aRects)
     unsigned j;
 
     pVBox = pScrn->driverPrivate;
-    if (pVBox->fHaveHGSMI == FALSE || pVBox->vtSwitch)
+    if (pVBox->fHaveHGSMI == FALSE || !pScrn->vtSema)
         return;
 
-    for (i = 0; i < iRects; ++i)
-        for (j = 0; j < pVBox->cScreens; ++j)
+    for (j = 0; j < pVBox->cScreens; ++j)
+    {
+        /* Just continue quietly if VBVA is not currently active. */
+        struct VBVABUFFER *pVBVA = pVBox->aVbvaCtx[j].pVBVA;
+        if (   !pVBVA
+            || !(pVBVA->hostFlags.u32HostEvents & VBVA_F_MODE_ENABLED))
+            continue;
+        for (i = 0; i < iRects; ++i)
         {
-            /* Just continue quietly if VBVA is not currently active. */
-            struct VBVABUFFER *pVBVA = pVBox->aVbvaCtx[j].pVBVA;
-            if (   !pVBVA
-                || !(pVBVA->hostFlags.u32HostEvents & VBVA_F_MODE_ENABLED))
-                continue;
             if (   aRects[i].x1 >   pVBox->aScreenLocation[j].x
                                   + pVBox->aScreenLocation[j].cx
                 || aRects[i].y1 >   pVBox->aScreenLocation[j].y
@@ -88,6 +92,7 @@ vboxHandleDirtyRect(ScrnInfoPtr pScrn, int iRects, BoxPtr aRects)
                 VBoxVBVABufferEndUpdate(&pVBox->aVbvaCtx[j]);
             }
         }
+    }
 }
 
 /** Callback to fill in the view structures */
@@ -117,6 +122,8 @@ vboxInitVbva(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     int rc = VINF_SUCCESS;
 
+    /* Why is this here?  In case things break before we have found the real
+     * count? */
     pVBox->cScreens = 1;
     if (!VBoxHGSMIIsSupported())
     {

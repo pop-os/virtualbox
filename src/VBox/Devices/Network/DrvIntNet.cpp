@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -768,9 +768,9 @@ static int drvR3IntNetRecvRun(PDRVINTNET pThis)
                                     LogFlow(("drvR3IntNetRecvRun: %-4d bytes at %llu ns  deltas: r=%llu t=%llu; GSO - %u segs\n",
                                              cbFrame, u64Now, u64Now - pThis->u64LastReceiveTS, u64Now - pThis->u64LastTransferTS, cSegs));
                                     pThis->u64LastReceiveTS = u64Now;
-                                    Log2(("drvR3IntNetRecvRun: cbFrame=%#x type=%d cbHdrs=%#x Hdr1=%#x Hdr2=%#x MMS=%#x\n"
+                                    Log2(("drvR3IntNetRecvRun: cbFrame=%#x type=%d cbHdrsTotal=%#x cbHdrsSeg=%#x Hdr1=%#x Hdr2=%#x MMS=%#x\n"
                                           "%.*Rhxd\n",
-                                          cbFrame, pGso->u8Type, pGso->cbHdrs, pGso->offHdr1, pGso->offHdr2, pGso->cbMaxSeg,
+                                          cbFrame, pGso->u8Type, pGso->cbHdrsTotal, pGso->cbHdrsSeg, pGso->offHdr1, pGso->offHdr2, pGso->cbMaxSeg,
                                           cbFrame - sizeof(*pGso), pGso + 1));
                                 }
 #endif
@@ -792,8 +792,8 @@ static int drvR3IntNetRecvRun(PDRVINTNET pThis)
                         }
                         else
                         {
-                            AssertMsgFailed(("cbFrame=%#x type=%d cbHdrs=%#x Hdr1=%#x Hdr2=%#x MMS=%#x\n",
-                                             cbFrame, pGso->u8Type, pGso->cbHdrs, pGso->offHdr1, pGso->offHdr2, pGso->cbMaxSeg));
+                            AssertMsgFailed(("cbFrame=%#x type=%d cbHdrsTotal=%#x cbHdrsSeg=%#x Hdr1=%#x Hdr2=%#x MMS=%#x\n",
+                                             cbFrame, pGso->u8Type, pGso->cbHdrsTotal, pGso->cbHdrsSeg, pGso->offHdr1, pGso->offHdr2, pGso->cbMaxSeg));
                             STAM_REL_COUNTER_INC(&pBuf->cStatBadFrames);
                         }
 
@@ -1454,6 +1454,30 @@ static DECLCALLBACK(int) drvR3IntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"RestrictAccess\" value"));
 
+    /** @cfgm{RequireExactPolicyMatch, boolean, false}
+     * Whether to require that the current security and promiscuous policies of
+     * the network is exactly as the ones specified in this open network
+     * request.  Use this with RequireAsRestrictivePolicy to prevent
+     * restrictions from being lifted.  If no further policy changes are
+     * desired, apply the relevant fixed flags. */
+    rc = CFGMR3QueryBoolDef(pCfg, "RequireExactPolicyMatch", &f, false);
+    if (RT_FAILURE(rc))
+        return PDMDRV_SET_ERROR(pDrvIns, rc,
+                                N_("Configuration error: Failed to get the \"RequireExactPolicyMatch\" value"));
+    if (f)
+        OpenReq.fFlags |= INTNET_OPEN_FLAGS_REQUIRE_EXACT;
+
+    /** @cfgm{RequireAsRestrictivePolicy, boolean, false}
+     * Whether to require that the security and promiscuous policies of the
+     * network is at least as restrictive as specified this request specifies
+     * and prevent them  being lifted later on.
+     */
+    rc = CFGMR3QueryBoolDef(pCfg, "RequireAsRestrictivePolicy", &f, false);
+    if (RT_FAILURE(rc))
+        return PDMDRV_SET_ERROR(pDrvIns, rc,
+                                N_("Configuration error: Failed to get the \"RequireAsRestrictivePolicy\" value"));
+    if (f)
+        OpenReq.fFlags |= INTNET_OPEN_FLAGS_REQUIRE_AS_RESTRICTIVE_POLICIES;
 
     /** @cfgm{AccessPolicy, string, "none"}
      * The access policy of the network:

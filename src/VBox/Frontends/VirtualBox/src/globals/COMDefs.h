@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -106,9 +106,6 @@ class XPCOMEventQSocketListener;
 #else /* !defined (VBOX_WITH_XPCOM) */
     #include <VirtualBox_XPCOM.h>
 #endif /* !defined (VBOX_WITH_XPCOM) */
-
-#include "VBoxDefs.h"
-
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -897,19 +894,6 @@ public:
         return *this;
     }
 };
-
-/////////////////////////////////////////////////////////////////////////////
-
-/* Include the generated header containing wrapper definitions: */
-#include "COMWrappers.h"
-
-/* Declare metatypes for particular wrappers: */
-Q_DECLARE_METATYPE(CProgress);
-Q_DECLARE_METATYPE(CHost);
-Q_DECLARE_METATYPE(CMachine);
-Q_DECLARE_METATYPE(CConsole);
-Q_DECLARE_METATYPE(CHostNetworkInterface);
-Q_DECLARE_METATYPE(CMediumFormat);
 
 /** @} */
 

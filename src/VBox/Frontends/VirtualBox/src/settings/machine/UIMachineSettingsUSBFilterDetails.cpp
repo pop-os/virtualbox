@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,8 +17,9 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/* GUI includes: */
 #include "UIMachineSettingsUSBFilterDetails.h"
-#include "VBoxGlobal.h"
+#include "UIConverter.h"
 
 UIMachineSettingsUSBFilterDetails::UIMachineSettingsUSBFilterDetails(UISettingsPageType type, QWidget *pParent /* = 0 */)
     : QIWithRetranslateUI2<QIDialog>(pParent, Qt::Sheet)
@@ -61,8 +62,8 @@ void UIMachineSettingsUSBFilterDetails::retranslateUi()
     mCbRemote->setItemText (UIMachineSettingsUSB::ModeOff, tr ("No",  "remote"));
 
     mCbAction->setItemText (0,
-        vboxGlobal().toString (KUSBDeviceFilterAction_Ignore));
+        gpConverter->toString (KUSBDeviceFilterAction_Ignore));
     mCbAction->setItemText (1,
-        vboxGlobal().toString (KUSBDeviceFilterAction_Hold));
+        gpConverter->toString (KUSBDeviceFilterAction_Hold));
 }
 

@@ -1,4 +1,4 @@
-/* $Id: kDbgBase.h 29 2009-07-01 20:30:29Z bird $ */
+/* $Id: kDbgBase.h 40 2010-02-02 16:02:15Z bird $ */
 /** @file
  * kDbg - The Debug Info Reader, Base Definitions and Typedefs.
  */
@@ -92,7 +92,7 @@
 # define KDBG_CALL
 #endif
 
-#ifdef __DOXYGEN__
+#ifdef DOXYGEN_RUNNING
 /** @def KDBG_BUILDING
  * Define KDBG_BUILDING to indicate that kDbg is being built.
  */
@@ -180,7 +180,7 @@ typedef const KDBGADDR *PCKDBGADDR;
 #if !defined(KDBG_LITTLE_ENDIAN) && !defined(KDBG_BIG_ENDIAN)
 # define KDBG_LITTLE_ENDIAN
 #endif
-#ifdef __DOXYGEN__
+#ifdef DOXYGEN_RUNNING
 # define KDBG_BIG_ENDIAN
 #endif
 

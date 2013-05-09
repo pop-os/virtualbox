@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,7 +50,11 @@ RT_C_DECLS_BEGIN
  *
  * @note This alignment is not forced if the electric fence is active!
  */
-#define RTMEM_ALIGNMENT    8
+#if defined(RT_OS_OS2)
+# define RTMEM_ALIGNMENT    4
+#else
+# define RTMEM_ALIGNMENT    8
+#endif
 
 /** @def RTMEM_TAG
  * The default allocation tag used by the RTMem allocation APIs.
@@ -402,23 +406,6 @@ RTDECL(void)    RTMemExecFree(void *pv, size_t cb) RT_NO_THROW;
  * @param   cb          The size of the memory block.
  */
 RTR0DECL(int) RTR0MemExecDonate(void *pvMemory, size_t cb) RT_NO_THROW;
-
-/**
- * Allocate read+write+execute memory to the exec heap.
- *
- * This API is specific to AMD64 and Linux/GNU. A kernel module that desires to
- * use RTMemExecAlloc on AMD64 Linux/GNU will have to initialize some allocated
- * memory in the module range if it wishes for GCC generated code to work. GCC
- * can only generate modules that work in the address range ~2GB to ~0 currently.
- * As RTR0MemExecDonate() does not work if CONFIG_DEBUG_SET_MODULE_RONX is
- * enabled, use a different approach (only very recent Linux kernels).
- *
- * The API only accept one single initialization.
- *
- * @returns IPRT status code.
- * @param   cb          The size of the memory block.
- */
-RTR0DECL(int) RTR0MemExecInit(size_t cb) RT_NO_THROW;
 #endif /* R0+AMD64+LINUX */
 
 /**
@@ -590,6 +577,34 @@ RTR0DECL(bool) RTR0MemKernelIsValidAddr(void *pv);
  */
 RTR0DECL(bool) RTR0MemAreKrnlAndUsrDifferent(void);
 
+/**
+ * Copy memory from an potentially unsafe kernel mode location and into a safe
+ * (kernel) buffer.
+ *
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_ACCESS_DENIED on error.
+ * @retval  VERR_NOT_SUPPORTED if not (yet) supported.
+ *
+ * @param   pvDst       The destination address (safe).
+ * @param   pvSrc       The source address (potentially unsafe).
+ * @param   cb          The number of bytes to copy.
+ */
+RTR0DECL(int) RTR0MemKernelCopyFrom(void *pvDst, void const *pvSrc, size_t cb);
+
+/**
+ * Copy from a safe (kernel) buffer and to a potentially unsafe kenrel mode
+ * location.
+ *
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_ACCESS_DENIED on error.
+ * @retval  VERR_NOT_SUPPORTED if not (yet) supported.
+ *
+ * @param   pvDst       The destination address (potentially unsafe).
+ * @param   pvSrc       The source address (safe).
+ * @param   cb          The number of bytes to copy.
+ */
+RTR0DECL(int) RTR0MemKernelCopyTo(void *pvDst, void const *pvSrc, size_t cb);
+
 #endif /* IN_RING0 */
 
 
@@ -717,45 +732,45 @@ RTDECL(void *) RTMemEfDupEx(const void *pvSrc, size_t cbSrc, size_t cbExtra, con
 #if defined(RTMEM_WRAP_SOME_NEW_AND_DELETE_TO_EF) && !defined(RTMEM_NO_WRAP_SOME_NEW_AND_DELETE_TO_EF)
 # if defined(RT_EXCEPTIONS_ENABLED)
 #  define RTMEMEF_NEW_AND_DELETE_OPERATORS() \
-        void *operator new(size_t cb) throw(std::bad_alloc) \
+        void *operator new(size_t cb) RT_THROW(std::bad_alloc) \
         { \
             void *pv = RTMemEfAlloc(cb, RTMEM_TAG, RT_SRC_POS); \
             if (RT_UNLIKELY(!pv)) \
                 throw std::bad_alloc(); \
             return pv; \
         } \
-        void *operator new(size_t cb, const std::nothrow_t &nothrow_constant) throw() \
+        void *operator new(size_t cb, const std::nothrow_t &nothrow_constant) RT_NO_THROW \
         { \
             NOREF(nothrow_constant); \
             return RTMemEfAlloc(cb, RTMEM_TAG, RT_SRC_POS); \
         } \
-        void *operator new[](size_t cb) throw(std::bad_alloc) \
+        void *operator new[](size_t cb) RT_THROW(std::bad_alloc) \
         { \
             void *pv = RTMemEfAlloc(cb, RTMEM_TAG, RT_SRC_POS); \
             if (RT_UNLIKELY(!pv)) \
                 throw std::bad_alloc(); \
             return pv; \
         } \
-        void *operator new[](size_t cb, const std::nothrow_t &nothrow_constant) throw() \
+        void *operator new[](size_t cb, const std::nothrow_t &nothrow_constant) RT_NO_THROW \
         { \
             NOREF(nothrow_constant); \
             return RTMemEfAlloc(cb, RTMEM_TAG, RT_SRC_POS); \
         } \
         \
-        void operator delete(void *pv) throw() \
+        void operator delete(void *pv) RT_NO_THROW \
         { \
             RTMemEfFree(pv, RT_SRC_POS); \
         } \
-        void operator delete(void *pv, const std::nothrow_t &nothrow_constant) throw() \
+        void operator delete(void *pv, const std::nothrow_t &nothrow_constant) RT_NO_THROW \
         { \
             NOREF(nothrow_constant); \
             RTMemEfFree(pv, RT_SRC_POS); \
         } \
-        void operator delete[](void *pv) throw() \
+        void operator delete[](void *pv) RT_NO_THROW \
         { \
             RTMemEfFree(pv, RT_SRC_POS); \
         } \
-        void operator delete[](void *pv, const std::nothrow_t &nothrow_constant) throw() \
+        void operator delete[](void *pv, const std::nothrow_t &nothrow_constant) RT_NO_THROW \
         { \
             NOREF(nothrow_constant); \
             RTMemEfFree(pv, RT_SRC_POS); \

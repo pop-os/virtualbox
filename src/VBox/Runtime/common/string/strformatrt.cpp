@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,6 +48,7 @@
 #include <iprt/time.h>
 #include <iprt/net.h>
 #include <iprt/path.h>
+#include <iprt/asm.h>
 #define STRFORMAT_WITH_X86
 #ifdef STRFORMAT_WITH_X86
 # include <iprt/x86.h>
@@ -516,9 +517,9 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                             /* cannot call RTUuidToStr because of GC/R0. */
                             return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
                                                "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-                                               u.pUuid->Gen.u32TimeLow,
-                                               u.pUuid->Gen.u16TimeMid,
-                                               u.pUuid->Gen.u16TimeHiAndVersion,
+                                               RT_H2LE_U32(u.pUuid->Gen.u32TimeLow),
+                                               RT_H2LE_U16(u.pUuid->Gen.u16TimeMid),
+                                               RT_H2LE_U16(u.pUuid->Gen.u16TimeHiAndVersion),
                                                u.pUuid->Gen.u8ClockSeqHiAndReserved,
                                                u.pUuid->Gen.u8ClockSeqLow,
                                                u.pUuid->Gen.au8Node[0],

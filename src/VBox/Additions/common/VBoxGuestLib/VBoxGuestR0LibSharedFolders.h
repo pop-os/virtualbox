@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,12 +54,17 @@
 # endif
 #endif
 
-#if defined(RT_OS_LINUX) || defined(RT_OS_WINDOWS)
+#if defined(RT_OS_WINDOWS) && 0
 /** @todo remove this legacy and use VBox/log.h and/or iprt/log.h. */
+/* => Done.  The next person who needs logging in Windows guests will have the
+ *    honour of making it work. */
 # ifdef DEBUG
 #  define LOG_ENABLED
 # endif
 # include "VBoxGuestLog.h"
+#endif
+#if defined(RT_OS_WINDOWS)
+# include <VBox/log.h>
 #endif
 
 #include <iprt/assert.h>
@@ -167,8 +172,14 @@ DECLVBGL(int) vboxCallRename (PVBSFCLIENT pClient, PVBSFMAP pMap, PSHFLSTRING pS
 DECLVBGL(int) vboxCallFlush (PVBSFCLIENT pClient, PVBSFMAP pMap, SHFLHANDLE hFile);
 
 DECLVBGL(int) vboxCallRead (PVBSFCLIENT pClient, PVBSFMAP pMap, SHFLHANDLE hFile, uint64_t offset, uint32_t *pcbBuffer, uint8_t *pBuffer, bool fLocked);
+DECLVBGL(int) VbglR0SharedFolderReadPageList(PVBSFCLIENT pClient, PVBSFMAP pMap, SHFLHANDLE hFile,
+                                             uint64_t offset, uint32_t *pcbBuffer,
+                                             uint16_t offFirstPage, uint16_t cPages, RTGCPHYS64 *paPages);
 DECLVBGL(int) vboxCallWrite (PVBSFCLIENT pClient, PVBSFMAP pMap, SHFLHANDLE hFile, uint64_t offset, uint32_t *pcbBuffer, uint8_t *pBuffer, bool fLocked);
 DECLVBGL(int) VbglR0SfWritePhysCont(PVBSFCLIENT pClient, PVBSFMAP pMap, SHFLHANDLE hFile, uint64_t offset, uint32_t *pcbBuffer, RTCCPHYS PhysBuffer);
+DECLVBGL(int) VbglR0SharedFolderWritePageList(PVBSFCLIENT pClient, PVBSFMAP pMap, SHFLHANDLE hFile,
+                                              uint64_t offset, uint32_t *pcbBuffer,
+                                              uint16_t offFirstPage, uint16_t cPages, RTGCPHYS64 *paPages);
 
 DECLVBGL(int) vboxCallLock (PVBSFCLIENT pClient, PVBSFMAP pMap, SHFLHANDLE hFile, uint64_t offset, uint64_t cbSize, uint32_t fLock);
 

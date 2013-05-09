@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -80,32 +80,32 @@ typedef struct SYSFSCPUPATH
 const SYSFSCPUPATHCOMP g_aAcpiCpuPathLvl1[] =
 {
     /** LNXSYSTEM:<id> */
-    {true, "LNXSYSTM:"}
+    {true, "LNXSYSTM:*"}
 };
 
 /** Possible combinations of all path components for level 2. */
 const SYSFSCPUPATHCOMP g_aAcpiCpuPathLvl2[] =
 {
     /** device:<id> */
-    {true, "device:"},
+    {true, "device:*"},
     /** LNXSYBUS:<id> */
-    {true, "LNXSYBUS:"}
+    {true, "LNXSYBUS:*"}
 };
 
 /** Possible combinations of all path components for level 3 */
 const SYSFSCPUPATHCOMP g_aAcpiCpuPathLvl3[] =
 {
     /** ACPI0004:<id> */
-    {true, "ACPI0004:"}
+    {true, "ACPI0004:*"}
 };
 
 /** Possible combinations of all path components for level 4 */
 const SYSFSCPUPATHCOMP g_aAcpiCpuPathLvl4[] =
 {
     /** LNXCPU:<id> */
-    {true, "LNXCPU:"},
+    {true, "LNXCPU:*"},
     /** ACPI_CPU:<id> */
-    {true, "ACPI_CPU:"}
+    {true, "ACPI_CPU:*"}
 };
 
 /** All possible combinations. */
@@ -160,7 +160,7 @@ static int VBoxServiceCpuHotPlugProbePath(void)
                 char *pszPathTmp = RTPathJoinA(pszPath, pPathComponent->pcszName);
                 if (pszPathTmp)
                 {
-                    rc = RTDirOpenFiltered(&pDirCurr, pszPathTmp, RTDIRFILTER_WINNT);
+                    rc = RTDirOpenFiltered(&pDirCurr, pszPathTmp, RTDIRFILTER_WINNT, 0);
                     RTStrFree(pszPathTmp);
                 }
                 else
@@ -172,6 +172,11 @@ static int VBoxServiceCpuHotPlugProbePath(void)
                 size_t cchName = strlen(pPathComponent->pcszName);
                 RTDIRENTRY DirFolderContent;
                 bool fFound = false;
+
+                /* Get rid of the * filter which is in the path component. */
+                if (pPathComponent->fNumberedSuffix)
+                    cchName--;
+
                 while (RT_SUCCESS(RTDirRead(pDirCurr, &DirFolderContent, NULL))) /* Assumption that szName has always enough space */
                 {
                     if (   DirFolderContent.cbName >= cchName
@@ -247,7 +252,7 @@ static int VBoxServiceCpuHotPlugGetACPIDevicePath(char **ppszPath, uint32_t idCp
         }
 
         /* Open the directory */
-        rc = RTDirOpenFiltered(&pAcpiCpuPathLvl->pDir, pszPath, RTDIRFILTER_WINNT);
+        rc = RTDirOpenFiltered(&pAcpiCpuPathLvl->pDir, pszPath, RTDIRFILTER_WINNT, 0);
         if (RT_SUCCESS(rc))
         {
             RTStrFree(pszPath);
@@ -318,7 +323,7 @@ static int VBoxServiceCpuHotPlugGetACPIDevicePath(char **ppszPath, uint32_t idCp
                         VBoxServiceVerbose(3, "New path %s\n", pszPathDir);
 
                         /* Open the directory */
-                        rc = RTDirOpenFiltered(&pAcpiCpuPathLvl->pDir, pszPathDir, RTDIRFILTER_WINNT);
+                        rc = RTDirOpenFiltered(&pAcpiCpuPathLvl->pDir, pszPathDir, RTDIRFILTER_WINNT, 0);
                         if (RT_FAILURE(rc))
                             break;
                     }

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -91,6 +91,9 @@ public:
                  const GUID &aIID,
                  const char *pcszComponent,
                  const Utf8Str &strText,
+                 IVirtualBoxErrorInfo *aNext = NULL);
+
+    HRESULT init(const com::ErrorInfo &ei,
                  IVirtualBoxErrorInfo *aNext = NULL);
 
     // IVirtualBoxErrorInfo properties

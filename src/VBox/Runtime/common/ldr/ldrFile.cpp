@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -175,6 +175,7 @@ static DECLCALLBACK(int) rtldrFileUnmap(PRTLDRREADER pReader, const void *pvBits
         pFileReader->pvMapping = NULL;
     }
 
+    NOREF(pvBits);
     return VINF_SUCCESS;
 }
 

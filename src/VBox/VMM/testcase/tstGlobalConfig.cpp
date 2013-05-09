@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,7 +40,7 @@ static int Usage(void)
 
 int main(int argc, char **argv)
 {
-    RTR3Init();
+    RTR3InitExe(argc, &argv, 0);
 
     /*
      * Parse args, building the request as we do so.

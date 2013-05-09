@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,7 @@
 
 #include <iprt/types.h>
 #include <iprt/critsect.h>
+#include <iprt/ldr.h> /* for PFNRTLDRENUMDBG */
 #include "internal/magics.h"
 
 RT_C_DECLS_BEGIN
@@ -49,9 +50,8 @@ typedef struct RTDBGMODVTIMG
 {
     /** Magic number (RTDBGMODVTIMG_MAGIC). */
     uint32_t    u32Magic;
-    /** Mask of supported executable image types, see grp_rt_exe_img_type.
-     * Used to speed up the search for a suitable interpreter. */
-    uint32_t    fSupports;
+    /** Reserved. */
+    uint32_t    fReserved;
     /** The name of the interpreter. */
     const char *pszName;
 
@@ -73,7 +73,7 @@ typedef struct RTDBGMODVTIMG
      *                      around.
      *
      *                      Upon successful return the method is expected to
-     *                      initialize pDbgOps and pvDbgPriv.
+     *                      initialize pImgOps and pvImgPriv.
      */
     DECLCALLBACKMEMBER(int, pfnTryOpen)(PRTDBGMODINT pMod);
 
@@ -87,6 +87,85 @@ typedef struct RTDBGMODVTIMG
      */
     DECLCALLBACKMEMBER(int, pfnClose)(PRTDBGMODINT pMod);
 
+    /**
+     * Enumerate the debug info contained in the executable image.
+     *
+     * Identical to RTLdrEnumDbgInfo.
+     *
+     * @returns IPRT status code or whatever pfnCallback returns.
+     *
+     * @param   pMod            Pointer to the module structure.
+     * @param   pfnCallback     The callback function.  Ignore the module
+     *                          handle argument!
+     * @param   pvUser          The user argument.
+     */
+    DECLCALLBACKMEMBER(int, pfnEnumDbgInfo)(PRTDBGMODINT pMod, PFNRTLDRENUMDBG pfnCallback, void *pvUser);
+
+    /**
+     * Enumerate the segments in the executable image.
+     *
+     * Identical to RTLdrEnumSegments.
+     *
+     * @returns IPRT status code or whatever pfnCallback returns.
+     *
+     * @param   pMod            Pointer to the module structure.
+     * @param   pfnCallback     The callback function.  Ignore the module
+     *                          handle argument!
+     * @param   pvUser          The user argument.
+     */
+    DECLCALLBACKMEMBER(int, pfnEnumSegments)(PRTDBGMODINT pMod, PFNRTLDRENUMSEGS pfnCallback, void *pvUser);
+
+    /**
+     * Gets the size of the loaded image.
+     *
+     * Identical to RTLdrSize.
+     *
+     * @returns The size in bytes, RTUINTPTR_MAX on failure.
+     *
+     * @param   pMod            Pointer to the module structure.
+     */
+    DECLCALLBACKMEMBER(RTUINTPTR, pfnImageSize)(PRTDBGMODINT pMod);
+
+    /**
+     * Converts a link address to a segment:offset address (RVA included).
+     *
+     * @returns IPRT status code.
+     *
+     * @param   pMod            Pointer to the module structure.
+     * @param   LinkAddress     The link address to convert.
+     * @param   piSeg           The segment index.
+     * @param   poffSeg         Where to return the segment offset.
+     */
+    DECLCALLBACKMEMBER(int, pfnLinkAddressToSegOffset)(PRTDBGMODINT pMod, RTLDRADDR LinkAddress,
+                                                       PRTDBGSEGIDX piSeg, PRTLDRADDR poffSeg);
+
+    /**
+     * Creates a read-only mapping of a part of the image file.
+     *
+     * @returns IPRT status code and *ppvMap set on success.
+     *
+     * @param   pMod            Pointer to the module structure.
+     * @param   off             The offset into the image file.
+     * @param   cb              The number of bytes to map.
+     * @param   ppvMap          Where to return the mapping address on success.
+     */
+    DECLCALLBACKMEMBER(int, pfnMapPart)(PRTDBGMODINT pMod, RTFOFF off, size_t cb, void const **ppvMap);
+
+    /**
+     * Unmaps memory previously mapped by pfnMapPart.
+     *
+     * @returns IPRT status code, *ppvMap set to NULL on success.
+     *
+     * @param   pMod            Pointer to the module structure.
+     * @param   cb              The size of the mapping.
+     * @param   ppvMap          The mapping address on input, NULL on
+     *                          successful return.
+     */
+    DECLCALLBACKMEMBER(int, pfnUnmapPart)(PRTDBGMODINT pMod, size_t cb, void const **ppvMap);
+
+
+    /** For catching initialization errors (RTDBGMODVTIMG_MAGIC). */
+    uint32_t    u32EndMagic;
 } RTDBGMODVTIMG;
 /** Pointer to a const RTDBGMODVTIMG. */
 typedef RTDBGMODVTIMG const *PCRTDBGMODVTIMG;
@@ -284,11 +363,13 @@ typedef struct RTDBGMODVTDBG
      * @param   pMod        Pointer to the module structure.
      * @param   iSeg        The segment number (0-based) or RTDBGSEGIDX_ABS.
      * @param   off         The offset into the segment.
+     * @param   fFlags      Symbol search flags, see RTDBGSYMADDR_FLAGS_XXX.
      * @param   poffDisp    Where to store the distance between the specified address
      *                      and the returned symbol. Optional.
      * @param   pSymInfo    Where to store the symbol information.
      */
-    DECLCALLBACKMEMBER(int, pfnSymbolByAddr)(PRTDBGMODINT pMod, uint32_t iSeg, RTUINTPTR off, PRTINTPTR poffDisp, PRTDBGSYMBOL pSymInfo);
+    DECLCALLBACKMEMBER(int, pfnSymbolByAddr)(PRTDBGMODINT pMod, uint32_t iSeg, RTUINTPTR off, uint32_t fFlags,
+                                             PRTINTPTR poffDisp, PRTDBGSYMBOL pSymInfo);
 
 
 
@@ -399,7 +480,9 @@ typedef RTDBGMODINT *PRTDBGMODINT;
 
 
 extern DECLHIDDEN(RTSTRCACHE)           g_hDbgModStrCache;
+extern DECLHIDDEN(RTDBGMODVTDBG const)  g_rtDbgModVtDbgDwarf;
 extern DECLHIDDEN(RTDBGMODVTDBG const)  g_rtDbgModVtDbgNm;
+extern DECLHIDDEN(RTDBGMODVTIMG const)  g_rtDbgModVtImgLdr;
 
 int rtDbgModContainerCreate(PRTDBGMODINT pMod, RTUINTPTR cbSeg);
 

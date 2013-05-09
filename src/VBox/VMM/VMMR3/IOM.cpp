@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,8 +32,8 @@
  * IOPL is 0 regardless of what the guest IOPL is. The \#GP handler use the
  * disassembler (DIS) to figure which instruction caused it (there are a number
  * of instructions in addition to the I/O ones) and if it's an I/O port access
- * it will hand it to IOMGCIOPortHandler (via EMInterpretPortIO).
- * IOMGCIOPortHandler will lookup the port in the AVL tree of registered
+ * it will hand it to IOMRCIOPortHandler (via EMInterpretPortIO).
+ * IOMRCIOPortHandler will lookup the port in the AVL tree of registered
  * handlers. If found, the handler will be called otherwise default action is
  * taken. (Default action is to write into the void and read all set bits.)
  *
@@ -137,7 +137,7 @@ static const char *iomR3IOPortGetStandardName(RTIOPORT Port);
  * Initializes the IOM.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3_INT_DECL(int) IOMR3Init(PVM pVM)
 {
@@ -259,7 +259,7 @@ static void iomR3FlushCache(PVM pVM)
 /**
  * The VM is being reset.
  *
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 VMMR3_INT_DECL(void) IOMR3Reset(PVM pVM)
 {
@@ -373,7 +373,7 @@ static DECLCALLBACK(int) iomR3RelocateMMIOCallback(PAVLROGCPHYSNODECORE pNode, v
  * the VM it self is at this point powered off or suspended.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3_INT_DECL(int) IOMR3Term(PVM pVM)
 {
@@ -381,6 +381,7 @@ VMMR3_INT_DECL(int) IOMR3Term(PVM pVM)
      * IOM is not owning anything but automatically freed resources,
      * so there's nothing to do here.
      */
+    NOREF(pVM);
     return VINF_SUCCESS;
 }
 
@@ -391,7 +392,7 @@ VMMR3_INT_DECL(int) IOMR3Term(PVM pVM)
  *
  * @returns Pointer to new stats node.
  *
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   Port        Port.
  * @param   pszDesc     Description.
  */
@@ -444,7 +445,7 @@ PIOMIOPORTSTATS iomR3IOPortStatsCreate(PVM pVM, RTIOPORT Port, const char *pszDe
  *
  * @returns Pointer to new stats node.
  *
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPhys      The address.
  * @param   pszDesc     Description.
  */
@@ -496,7 +497,7 @@ PIOMMMIOSTATS iomR3MMIOStatsCreate(PVM pVM, RTGCPHYS GCPhys, const char *pszDesc
  *
  * @returns VBox status code.
  *
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pDevIns             PDM device instance owning the port range.
  * @param   PortStart           First port number in the range.
  * @param   cPorts              Number of ports to register.
@@ -594,7 +595,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterR3(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
  *
  * @returns VBox status code.
  *
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pDevIns             PDM device instance owning the port range.
  * @param   PortStart           First port number in the range.
  * @param   cPorts              Number of ports to register.
@@ -609,7 +610,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
                                           RCPTRTYPE(PFNIOMIOPORTOUT) pfnOutCallback, RCPTRTYPE(PFNIOMIOPORTIN) pfnInCallback,
                                           RCPTRTYPE(PFNIOMIOPORTOUTSTRING) pfnOutStrCallback, RCPTRTYPE(PFNIOMIOPORTINSTRING) pfnInStrCallback, const char *pszDesc)
 {
-    LogFlow(("IOMR3IOPortRegisterRC: pDevIns=%p PortStart=%#x cPorts=%#x pvUser=%RRv pfnOutCallback=%RRv pfnInCallback=%RRv pfnOutStrCallback=%RRv  pfnInStrCallback=%RRv pszDesc=%s\n",
+    LogFlow(("IOMR3IOPortRegisterRC: pDevIns=%p PortStart=%#x cPorts=%#x pvUser=%RRv pfnOutCallback=%RRv pfnInCallback=%RRv pfnOutStrCallback=%RRv pfnInStrCallback=%RRv pszDesc=%s\n",
              pDevIns, PortStart, cPorts, pvUser, pfnOutCallback, pfnInCallback, pfnOutStrCallback, pfnInStrCallback, pszDesc));
 
     /*
@@ -641,7 +642,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
         {
             AssertMsgFailed(("No R3! Port=#x %#x-%#x! (%s)\n", Port, PortStart, (unsigned)PortStart + cPorts - 1, pszDesc));
             IOM_UNLOCK(pVM);
-            return VERR_IOM_NO_HC_IOPORT_RANGE;
+            return VERR_IOM_NO_R3_IOPORT_RANGE;
         }
 #ifndef IOM_NO_PDMINS_CHECKS
 # ifndef IN_RC
@@ -708,7 +709,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
  *
  * @returns VBox status code.
  *
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pDevIns             PDM device instance owning the port range.
  * @param   PortStart           First port number in the range.
  * @param   cPorts              Number of ports to register.
@@ -755,7 +756,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterR0(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
         {
             AssertMsgFailed(("No R3! Port=#x %#x-%#x! (%s)\n", Port, PortStart, (unsigned)PortStart + cPorts - 1, pszDesc));
             IOM_UNLOCK(pVM);
-            return VERR_IOM_NO_HC_IOPORT_RANGE;
+            return VERR_IOM_NO_R3_IOPORT_RANGE;
         }
 #ifndef IOM_NO_PDMINS_CHECKS
 # ifndef IN_RC
@@ -1143,6 +1144,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortDeregister(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
  */
 static DECLCALLBACK(int) iomR3IOPortDummyIn(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
+    NOREF(pDevIns); NOREF(pvUser); NOREF(Port);
     switch (cb)
     {
         case 1: *pu32 = 0xff; break;
@@ -1168,8 +1170,10 @@ static DECLCALLBACK(int) iomR3IOPortDummyIn(PPDMDEVINS pDevIns, void *pvUser, RT
  * @param   pcTransfer  Pointer to the number of transfer units to read, on return remaining transfer units.
  * @param   cb          Size of the transfer unit (1, 2 or 4 bytes).
  */
-static DECLCALLBACK(int) iomR3IOPortDummyInStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrDst, PRTGCUINTREG pcTransfer, unsigned cb)
+static DECLCALLBACK(int) iomR3IOPortDummyInStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrDst,
+                                               PRTGCUINTREG pcTransfer, unsigned cb)
 {
+    NOREF(pDevIns); NOREF(pvUser); NOREF(Port); NOREF(pGCPtrDst); NOREF(pcTransfer); NOREF(cb);
     return VINF_SUCCESS;
 }
 
@@ -1187,6 +1191,7 @@ static DECLCALLBACK(int) iomR3IOPortDummyInStr(PPDMDEVINS pDevIns, void *pvUser,
  */
 static DECLCALLBACK(int) iomR3IOPortDummyOut(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
+    NOREF(pDevIns); NOREF(pvUser); NOREF(Port); NOREF(u32); NOREF(cb);
     return VINF_SUCCESS;
 }
 
@@ -1203,8 +1208,10 @@ static DECLCALLBACK(int) iomR3IOPortDummyOut(PPDMDEVINS pDevIns, void *pvUser, R
  * @param   pcTransfer  Pointer to the number of transfer units to write, on return remaining transfer units.
  * @param   cb          Size of the transfer unit (1, 2 or 4 bytes).
  */
-static DECLCALLBACK(int) iomR3IOPortDummyOutStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrSrc, PRTGCUINTREG pcTransfer, unsigned cb)
+static DECLCALLBACK(int) iomR3IOPortDummyOutStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrSrc,
+                                                PRTGCUINTREG pcTransfer, unsigned cb)
 {
+    NOREF(pDevIns); NOREF(pvUser); NOREF(Port); NOREF(pGCPtrSrc); NOREF(pcTransfer); NOREF(cb);
     return VINF_SUCCESS;
 }
 
@@ -1260,7 +1267,7 @@ static DECLCALLBACK(int) iomR3IOPortInfoOneRC(PAVLROIOPORTNODECORE pNode, void *
 /**
  * Display all registered I/O port ranges.
  *
- * @param   pVM         VM Handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -1385,7 +1392,7 @@ static DECLCALLBACK(void) iomR3IOPortInfo(PVM pVM, PCDBGFINFOHLP pHlp, const cha
  *
  * @returns VBox status code.
  *
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pDevIns             PDM device instance owning the MMIO range.
  * @param   GCPhysStart         First physical address in the range.
  * @param   cbRange             The size of the range (in bytes).
@@ -1503,7 +1510,7 @@ IOMR3MmioRegisterR3(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t 
  *
  * @returns VBox status code.
  *
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pDevIns             PDM device instance owning the MMIO range.
  * @param   GCPhysStart         First physical address in the range.
  * @param   cbRange             The size of the range (in bytes).
@@ -1559,7 +1566,7 @@ IOMR3MmioRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t 
  *
  * @returns VBox status code.
  *
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pDevIns             PDM device instance owning the MMIO range.
  * @param   GCPhysStart         First physical address in the range.
  * @param   cbRange             The size of the range (in bytes).
@@ -1742,7 +1749,7 @@ static DECLCALLBACK(int) iomR3MMIOInfoOne(PAVLROGCPHYSNODECORE pNode, void *pvUs
 /**
  * Display registered MMIO ranges to the log.
  *
- * @param   pVM         VM Handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */

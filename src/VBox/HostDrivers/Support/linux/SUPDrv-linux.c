@@ -1,10 +1,10 @@
-/* $Rev: 74561 $ */
+/* $Rev: 83687 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -308,13 +308,9 @@ static int __init VBoxDrvLinuxInit(void)
         rc = RTR0Init(0);
         if (RT_SUCCESS(rc))
         {
-#ifdef RT_ARCH_AMD64
-# ifdef CONFIG_DEBUG_SET_MODULE_RONX
-            rc = RTR0MemExecInit(1572864 /* 1.5MB */);
-# else
+#if defined(RT_ARCH_AMD64) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
             rc = RTR0MemExecDonate(&g_abExecMemory[0], sizeof(g_abExecMemory));
             printk(KERN_DEBUG "VBoxDrv: dbg - g_abExecMemory=%p\n", (void *)&g_abExecMemory[0]);
-# endif
 #endif
             Log(("VBoxDrv::ModuleInit\n"));
 
@@ -734,6 +730,12 @@ int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 {
     NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
     return VERR_NOT_SUPPORTED;
+}
+
+
+void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
+{
+    NOREF(pDevExt); NOREF(pImage);
 }
 
 

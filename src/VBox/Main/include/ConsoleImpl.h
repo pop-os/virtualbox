@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2005-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,6 @@
 #define ____H_CONSOLEIMPL
 
 #include "VirtualBoxBase.h"
-#include "SchemaDefs.h"
 #include "VBox/com/array.h"
 #include "EventImpl.h"
 
@@ -34,8 +33,9 @@ class RemoteUSBDevice;
 class SharedFolder;
 class VRDEServerInfo;
 class AudioSniffer;
+class Nvram;
 #ifdef VBOX_WITH_USB_VIDEO
-class UsbWebcamInterface;
+class EmWebcam;
 #endif
 #ifdef VBOX_WITH_USB_CARDREADER
 class UsbCardReader;
@@ -63,6 +63,7 @@ struct VUSBIRHCONFIG;
 typedef struct VUSBIRHCONFIG *PVUSBIRHCONFIG;
 
 #include <list>
+#include <vector>
 
 // defines
 ///////////////////////////////////////////////////////////////////////////////
@@ -113,7 +114,7 @@ public:
     void FinalRelease();
 
     // public initializers/uninitializers for internal purposes only
-    HRESULT init(IMachine *aMachine, IInternalMachineControl *aControl);
+    HRESULT init(IMachine *aMachine, IInternalMachineControl *aControl, LockType_T aLockType);
     void uninit();
 
     // IConsole properties
@@ -129,7 +130,7 @@ public:
     STDMETHOD(COMGETTER(VRDEServerInfo))(IVRDEServerInfo **aVRDEServerInfo);
     STDMETHOD(COMGETTER(SharedFolders))(ComSafeArrayOut(ISharedFolder *, aSharedFolders));
     STDMETHOD(COMGETTER(EventSource)) (IEventSource ** aEventSource);
-    STDMETHOD(COMGETTER(AttachedPciDevices))(ComSafeArrayOut(IPciDeviceAttachment *, aAttachments));
+    STDMETHOD(COMGETTER(AttachedPCIDevices))(ComSafeArrayOut(IPCIDeviceAttachment *, aAttachments));
     STDMETHOD(COMGETTER(UseHostClipboard))(BOOL *aUseHostClipboard);
     STDMETHOD(COMSETTER(UseHostClipboard))(BOOL aUseHostClipboard);
 
@@ -196,6 +197,8 @@ public:
     HRESULT onMediumChange(IMediumAttachment *aMediumAttachment, BOOL aForce);
     HRESULT onCPUChange(ULONG aCPU, BOOL aRemove);
     HRESULT onCPUExecutionCapChange(ULONG aExecutionCap);
+    HRESULT onClipboardModeChange(ClipboardMode_T aClipboardMode);
+    HRESULT onDragAndDropModeChange(DragAndDropMode_T aDragAndDropMode);
     HRESULT onVRDEServerChange(BOOL aRestart);
     HRESULT onUSBControllerChange();
     HRESULT onSharedFolderChange(BOOL aGlobal);
@@ -225,6 +228,9 @@ public:
 #ifdef VBOX_WITH_USB_CARDREADER
     UsbCardReader *getUsbCardReader() { return mUsbCardReader; }
 #endif
+#ifdef VBOX_WITH_USB_VIDEO
+    EmWebcam *getEmWebcam() { return mEmWebcam; }
+#endif
 
     int VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const char *pszPassword, const char *pszDomain);
     void VRDPClientStatusChange(uint32_t u32ClientId, const char *pszStatus);
@@ -235,18 +241,19 @@ public:
     void VRDPInterceptClipboard(uint32_t u32ClientId);
 
     void processRemoteUSBDevices(uint32_t u32ClientId, VRDEUSBDEVICEDESC *pDevList, uint32_t cbDevList, bool fDescExt);
-    void reportGuestStatistics(ULONG aValidStats, ULONG aCpuUser,
+    void reportVmStatistics(ULONG aValidStats, ULONG aCpuUser,
                                ULONG aCpuKernel, ULONG aCpuIdle,
                                ULONG aMemTotal, ULONG aMemFree,
                                ULONG aMemBalloon, ULONG aMemShared,
                                ULONG aMemCache, ULONG aPageTotal,
                                ULONG aAllocVMM, ULONG aFreeVMM,
-                               ULONG aBalloonedVMM, ULONG aSharedVMM)
+                               ULONG aBalloonedVMM, ULONG aSharedVMM,
+                               ULONG aVmNetRx, ULONG aVmNetTx)
     {
-        mControl->ReportGuestStatistics(aValidStats, aCpuUser, aCpuKernel, aCpuIdle,
-                                        aMemTotal, aMemFree, aMemBalloon, aMemShared,
-                                        aMemCache, aPageTotal, aAllocVMM, aFreeVMM,
-                                        aBalloonedVMM, aSharedVMM);
+        mControl->ReportVmStatistics(aValidStats, aCpuUser, aCpuKernel, aCpuIdle,
+                                     aMemTotal, aMemFree, aMemBalloon, aMemShared,
+                                     aMemCache, aPageTotal, aAllocVMM, aFreeVMM,
+                                     aBalloonedVMM, aSharedVMM, aVmNetRx, aVmNetTx);
     }
     void enableVMMStatistics(BOOL aEnable);
 
@@ -271,8 +278,6 @@ public:
 
     static HRESULT setErrorStatic(HRESULT aResultCode, const char *pcsz, ...);
     HRESULT setInvalidMachineStateError();
-
-    static HRESULT handleUnexpectedExceptions(RT_SRC_POS_DECL);
 
     static const char *convertControllerTypeToDev(StorageControllerType_T enmCtrlType);
     static HRESULT convertBusPortDeviceToLun(StorageBus_T enmBus, LONG port, LONG device, unsigned &uLun);
@@ -521,6 +526,7 @@ private:
     static DECLCALLBACK(int) configConstructor(PVM pVM, void *pvConsole);
     int configConstructorInner(PVM pVM, AutoWriteLock *pAlock);
     int configCfgmOverlay(PVM pVM, IVirtualBox *pVirtualBox, IMachine *pMachine);
+    int configDumpAPISettingsTweaks(IVirtualBox *pVirtualBox, IMachine *pMachine);
 
     int configMediumAttachment(PCFGMNODE pCtlInst,
                                const char *pcszDevice,
@@ -548,6 +554,7 @@ private:
                      unsigned uMergeSource,
                      unsigned uMergeTarget,
                      const char *pcszBwGroup,
+                     bool fDiscard,
                      IMedium *pMedium,
                      MachineState_T aMachineState,
                      HRESULT *phrc);
@@ -573,7 +580,7 @@ private:
                                                    IMediumAttachment *aMediumAtt,
                                                    bool fForce);
 
-    HRESULT attachRawPciDevices(PVM pVM, BusAssignmentManager *BusMgr, PCFGMNODE pDevices);
+    HRESULT attachRawPCIDevices(PVM pVM, BusAssignmentManager *BusMgr, PCFGMNODE pDevices);
     void attachStatusDriver(PCFGMNODE pCtlInst, PPDMLED *papLeds,
                             uint64_t uFirst, uint64_t uLast,
                             Console::MediumAttachmentMap *pmapMediumAttachments,
@@ -584,7 +591,7 @@ private:
                       PCFGMNODE pLunL0, PCFGMNODE pInst,
                       bool fAttachDetach, bool fIgnoreConnectFailure);
 
-    static DECLCALLBACK(int) configGuestProperties(void *pvConsole);
+    static DECLCALLBACK(int) configGuestProperties(void *pvConsole, PVM pVM);
     static DECLCALLBACK(int) configGuestControl(void *pvConsole);
     static DECLCALLBACK(void) vmstateChangeCallback(PVM aVM, VMSTATE aState,
                                                     VMSTATE aOldState, void *aUser);
@@ -600,13 +607,16 @@ private:
                                                      unsigned uInstance, unsigned uLun,
                                                      INetworkAdapter *aNetworkAdapter);
 
+    void changeClipboardMode(ClipboardMode_T aClipboardMode);
+    void changeDragAndDropMode(DragAndDropMode_T aDragAndDropMode);
+
 #ifdef VBOX_WITH_USB
     HRESULT attachUSBDevice(IUSBDevice *aHostDevice, ULONG aMaskedIfs);
-    HRESULT detachUSBDevice(USBDeviceList::iterator &aIt);
+    HRESULT detachUSBDevice(const ComObjPtr<OUSBDevice> &aHostDevice);
 
     static DECLCALLBACK(int) usbAttachCallback(Console *that, PVM pVM, IUSBDevice *aHostDevice, PCRTUUID aUuid,
-                       bool aRemote, const char *aAddress, ULONG aMaskedIfs);
-    static DECLCALLBACK(int) usbDetachCallback(Console *that, PVM pVM, USBDeviceList::iterator *aIt, PCRTUUID aUuid);
+                       bool aRemote, const char *aAddress, void *pvRemoteBackend, USHORT aPortVersion, ULONG aMaskedIfs);
+    static DECLCALLBACK(int) usbDetachCallback(Console *that, PVM pVM, PCRTUUID aUuid);
 #endif
 
     static DECLCALLBACK(int) attachStorageDevice(Console *pThis,
@@ -684,6 +694,9 @@ private:
     void guestPropertiesVRDPUpdateActiveClient(uint32_t u32ClientId);
     void guestPropertiesVRDPUpdateClientAttach(uint32_t u32ClientId, bool fAttached);
     void guestPropertiesVRDPUpdateNameChange(uint32_t u32ClientId, const char *pszName);
+    void guestPropertiesVRDPUpdateIPAddrChange(uint32_t u32ClientId, const char *pszIPAddr);
+    void guestPropertiesVRDPUpdateLocationChange(uint32_t u32ClientId, const char *pszLocation);
+    void guestPropertiesVRDPUpdateOtherInfoChange(uint32_t u32ClientId, const char *pszOtherInfo);
     void guestPropertiesVRDPUpdateDisconnect(uint32_t u32ClientId);
 #endif
 
@@ -713,6 +726,9 @@ private:
     const ComObjPtr<Display> mDisplay;
     const ComObjPtr<MachineDebugger> mDebugger;
     const ComObjPtr<VRDEServerInfo> mVRDEServerInfo;
+    /** This can safely be used without holding any locks.
+     * An AutoCaller suffices to prevent it being destroy while in use and
+     * internally there is a lock providing the necessary serialization. */
     const ComObjPtr<EventSource> mEventSource;
 #ifdef VBOX_WITH_EXTPACK
     const ComObjPtr<ExtPackManager> mptrExtPackManager;
@@ -755,12 +771,14 @@ private:
      * NetworkAdapter. This is needed to change the network attachment
      * dynamically.
      */
-    NetworkAttachmentType_T meAttachmentType[SchemaDefs::NetworkAdapterCount];
+    typedef std::vector<NetworkAttachmentType_T> NetworkAttachmentTypeVector;
+    NetworkAttachmentTypeVector meAttachmentType;
 
     VMMDev * m_pVMMDev;
     AudioSniffer * const mAudioSniffer;
+    Nvram   * const mNvram;
 #ifdef VBOX_WITH_USB_VIDEO
-    UsbWebcamInterface * const mUsbWebcamInterface;
+    EmWebcam * const mEmWebcam;
 #endif
 #ifdef VBOX_WITH_USB_CARDREADER
     UsbCardReader * const mUsbCardReader;
@@ -783,7 +801,7 @@ private:
     };
     DeviceType_T maStorageDevType[cLedStorage];
     PPDMLED      mapStorageLeds[cLedStorage];
-    PPDMLED      mapNetworkLeds[SchemaDefs::NetworkAdapterCount];
+    PPDMLED      mapNetworkLeds[36];    /**< @todo adapt this to the maximum network card count */
     PPDMLED      mapSharedFolderLed;
     PPDMLED      mapUSBLed[2];
 
@@ -811,6 +829,10 @@ private:
      * operation before starting. */
     ComObjPtr<Progress> mptrCancelableProgress;
 
+    /* The purpose of caching of some events is probably in order to
+       automatically fire them at new event listeners.  However, there is no
+       (longer?) any code making use of this... */
+#ifdef CONSOLE_WITH_EVENT_CACHE
     struct
     {
         /** OnMousePointerShapeChange() cache */
@@ -824,8 +846,7 @@ private:
             uint32_t width;
             uint32_t height;
             com::SafeArray<BYTE> shape;
-        }
-        mpsc;
+        } mpsc;
 
         /** OnMouseCapabilityChange() cache */
         struct
@@ -834,8 +855,7 @@ private:
             BOOL supportsAbsolute;
             BOOL supportsRelative;
             BOOL needsHostCursor;
-        }
-        mcc;
+        } mcc;
 
         /** OnKeyboardLedsChange() cache */
         struct
@@ -844,20 +864,20 @@ private:
             bool numLock;
             bool capsLock;
             bool scrollLock;
-        }
-        klc;
+        } klc;
 
         void clear()
         {
-            /* We cannot do memset() on mpsc to avoid cleaning shape's vtable */
+            RT_ZERO(mcc);
+            RT_ZERO(klc);
+
+            /* We cannot RT_ZERO mpsc because of shape's vtable. */
             mpsc.shape.setNull();
             mpsc.valid = mpsc.visible = mpsc.alpha = false;
             mpsc.xHot = mpsc.yHot = mpsc.width = mpsc.height = 0;
-            ::memset(&mcc, 0, sizeof mcc);
-            ::memset(&klc, 0, sizeof klc);
         }
-    }
-    mCallbackData;
+    } mCallbackData;
+#endif
     ComPtr<IEventListener> mVmListener;
 
     friend struct VMTask;

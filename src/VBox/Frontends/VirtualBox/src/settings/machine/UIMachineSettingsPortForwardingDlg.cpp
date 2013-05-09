@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,7 +17,9 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes */
+/* Qt includes: */
+#include <QHBoxLayout>
+#include <QMenu>
 #include <QAction>
 #include <QHeaderView>
 #include <QPushButton>
@@ -28,15 +30,19 @@
 #include <QSpinBox>
 #include <QTimer>
 
-/* Local includes */
+/* GUI includes: */
 #include "UIMachineSettingsPortForwardingDlg.h"
-#include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
 #include "UIToolBar.h"
 #include "QITableView.h"
 #include "QIDialogButtonBox.h"
 #include "UIIconPool.h"
+#include "UIConverter.h"
+
+/* Other VBox includes: */
 #include <iprt/cidr.h>
+
+/* External includes: */
 #include <math.h>
 
 /* IP validator: */
@@ -104,8 +110,8 @@ public:
 
     ProtocolEditor(QWidget *pParent = 0) : QComboBox(pParent)
     {
-        addItem(vboxGlobal().toString(KNATProtocol_UDP), QVariant::fromValue(KNATProtocol_UDP));
-        addItem(vboxGlobal().toString(KNATProtocol_TCP), QVariant::fromValue(KNATProtocol_TCP));
+        addItem(gpConverter->toString(KNATProtocol_UDP), QVariant::fromValue(KNATProtocol_UDP));
+        addItem(gpConverter->toString(KNATProtocol_TCP), QVariant::fromValue(KNATProtocol_TCP));
     }
 
 private:
@@ -277,7 +283,7 @@ public:
                 switch (index.column())
                 {
                     case UIPortForwardingDataType_Name: return m_dataList[index.row()].name;
-                    case UIPortForwardingDataType_Protocol: return vboxGlobal().toString(m_dataList[index.row()].protocol);
+                    case UIPortForwardingDataType_Protocol: return gpConverter->toString(m_dataList[index.row()].protocol);
                     case UIPortForwardingDataType_HostIp: return m_dataList[index.row()].hostIp;
                     case UIPortForwardingDataType_HostPort: return m_dataList[index.row()].hostPort.value();
                     case UIPortForwardingDataType_GuestIp: return m_dataList[index.row()].guestIp;
@@ -436,7 +442,7 @@ UIMachineSettingsPortForwardingDlg::UIMachineSettingsPortForwardingDlg(QWidget *
     m_pTableView = new QITableView(this);
     m_pTableView->setTabKeyNavigation(false);
     m_pTableView->verticalHeader()->hide();
-    m_pTableView->verticalHeader()->setDefaultSectionSize((int)m_pTableView->verticalHeader()->minimumSectionSize() * 1.33);
+    m_pTableView->verticalHeader()->setDefaultSectionSize((int)(m_pTableView->verticalHeader()->minimumSectionSize() * 1.33));
     m_pTableView->setSelectionMode(QAbstractItemView::SingleSelection);
     m_pTableView->setContextMenuPolicy(Qt::CustomContextMenu);
     m_pTableView->installEventFilter(this);

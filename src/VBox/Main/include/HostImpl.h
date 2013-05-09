@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -144,8 +144,11 @@ private:
     bool validateDevice(const char *deviceNode, bool isCDROM);
 #endif
 
+    HRESULT updateNetIfList();
+
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
     void registerMetrics(PerformanceCollector *aCollector);
+    void registerDiskMetrics(PerformanceCollector *aCollector);
     void unregisterMetrics(PerformanceCollector *aCollector);
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
 

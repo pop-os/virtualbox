@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -109,6 +109,16 @@ struct VBOXTLSREFDATA_DUMMY
     } while (0)
 
 #define VBoxTlsRefGetCurrent(_t, _Tsd) ((_t*) VBoxTlsRefGetImpl((_Tsd)))
+
+#define VBoxTlsRefGetCurrentFunctional(_val, _t, _Tsd) do { \
+       _t * cur = VBoxTlsRefGetCurrent(_t, _Tsd); \
+       if (!cur || VBoxTlsRefIsFunctional(cur)) { \
+           (_val) = cur; \
+       } else { \
+           VBoxTlsRefSetCurrent(_t, _Tsd, NULL); \
+           (_val) = NULL; \
+       } \
+   } while (0)
 
 #define VBoxTlsRefSetCurrent(_t, _Tsd, _p) do { \
         _t * oldCur = VBoxTlsRefGetCurrent(_t, _Tsd); \

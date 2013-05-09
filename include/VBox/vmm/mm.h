@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -100,6 +100,9 @@ typedef enum MMTAG
     MM_TAG_PDM_USB_DESC,
     MM_TAG_PDM_USB_USER,
     MM_TAG_PDM_LUN,
+#ifdef VBOX_WITH_NETSHAPER
+    MM_TAG_PDM_NET_SHAPER,
+#endif /* VBOX_WITH_NETSHAPER */
     MM_TAG_PDM_QUEUE,
     MM_TAG_PDM_THREAD,
 
@@ -246,7 +249,6 @@ VMMR3DECL(int)      MMR3InitPaging(PVM pVM);
 VMMR3DECL(int)      MMR3HyperInitFinalize(PVM pVM);
 VMMR3DECL(int)      MMR3Term(PVM pVM);
 VMMR3DECL(void)     MMR3TermUVM(PUVM pUVM);
-VMMR3DECL(void)     MMR3Reset(PVM pVM);
 VMMR3DECL(int)      MMR3ReserveHandyPages(PVM pVM, uint32_t cHandyPages);
 VMMR3DECL(int)      MMR3IncreaseBaseReservation(PVM pVM, uint64_t cAddBasePages);
 VMMR3DECL(int)      MMR3AdjustFixedReservation(PVM pVM, int32_t cDeltaFixedPages, const char *pszDesc);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,7 +45,7 @@ RTR3DECL(int) RTProcDaemonize(const char * const *papszArgs, const char *pszDaem
 {
     /*
      * Get the executable name.
-     * If this asserts, it's probably because RTR3Init hasn't been called.
+     * If this asserts, it's probably because rtR3Init hasn't been called.
      */
     char szExecPath[RTPATH_MAX];
     AssertReturn(RTProcGetExecutablePath(szExecPath, sizeof(szExecPath)) == szExecPath, VERR_WRONG_ORDER);

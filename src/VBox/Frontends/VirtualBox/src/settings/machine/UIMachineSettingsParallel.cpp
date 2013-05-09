@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,12 +17,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/* Qt includes: */
+#include <QDir>
+
+/* GUI includes: */
 #include "UIMachineSettingsParallel.h"
 #include "QIWidgetValidator.h"
 #include "VBoxGlobal.h"
 #include "QITabWidget.h"
 
-#include <QDir>
+/* COM includes: */
+#include "CParallelPort.h"
 
 /* UIMachineSettingsParallel stuff */
 UIMachineSettingsParallel::UIMachineSettingsParallel(UIMachineSettingsParallelPage *pParent)

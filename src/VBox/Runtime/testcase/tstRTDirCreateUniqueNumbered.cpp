@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,7 +54,7 @@ static void tst1(size_t cTest, size_t cchDigits, char chSep)
     char **papszNames = (char **)RTMemTmpAllocZ(cTimes * sizeof(char *));
     RTTESTI_CHECK_RETV(papszNames != NULL);
 
-    int rc;
+    int rc = VERR_INTERNAL_ERROR;
     /* The test loop. */
     size_t i;
     for (i = 0; i < cTimes; i++)

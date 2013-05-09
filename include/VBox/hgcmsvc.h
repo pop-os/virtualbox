@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -210,11 +210,11 @@ typedef struct VBOXHGCMSVCPARM
     }
 
     /** Extract a constant string value from an HGCM parameter structure */
-    int getString (const char **ppcch, uint32_t *pcb)
+    int getString (const char **ppch, uint32_t *pcb)
     {
         char *pch = NULL;
         int rc = getString(&pch, pcb);
-        *ppcch = pch;
+        *ppch = pch;
         return rc;
     }
 

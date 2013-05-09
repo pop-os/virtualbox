@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,7 @@
 #include "VMMDevHGCM.h"
 
 #ifdef VBOX_WITH_DTRACE
-# include "VBoxDD-dtrace.h"
+# include "dtrace/VBoxDD.h"
 #else
 # define VBOXDD_HGCMCALL_ENTER(a,b,c,d)             do { } while (0)
 # define VBOXDD_HGCMCALL_COMPLETED_REQ(a,b)         do { } while (0)

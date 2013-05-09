@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -193,7 +193,7 @@ DECLHIDDEN(void) rtThreadNativeDetach(void);
 
 
 /* thread.cpp */
-DECLHIDDEN(int)          rtThreadMain(PRTTHREADINT pThread, RTNATIVETHREAD NativeThread, const char *pszThreadName);
+DECLCALLBACK(DECLHIDDEN(int)) rtThreadMain(PRTTHREADINT pThread, RTNATIVETHREAD NativeThread, const char *pszThreadName);
 DECLHIDDEN(uint32_t)     rtThreadRelease(PRTTHREADINT pThread);
 DECLHIDDEN(void)         rtThreadTerminate(PRTTHREADINT pThread, int rc);
 DECLHIDDEN(PRTTHREADINT) rtThreadGetByNative(RTNATIVETHREAD NativeThread);

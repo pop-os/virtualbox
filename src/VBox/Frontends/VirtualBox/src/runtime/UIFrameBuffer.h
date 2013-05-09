@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,14 +19,20 @@
 #ifndef ___UIFrameBuffer_h___
 #define ___UIFrameBuffer_h___
 
-/* Global includes */
+/* Qt includes: */
 #include <QRegion>
 #include <QPaintEvent>
 
-/* Local includes */
-#include "COMDefs.h"
+/* GUI includes: */
+#include "UIDefs.h"
+
+/* COM includes: */
+#include "CFramebuffer.h"
+
+/* Other VBox includes: */
 #include <iprt/critsect.h>
 
+/* Forward declarations: */
 class UIMachineView;
 
 /**
@@ -39,7 +45,7 @@ public:
     UIResizeEvent(ulong uPixelFormat, uchar *pVRAM,
                   ulong uBitsPerPixel, ulong uBytesPerLine,
                   ulong uWidth, ulong uHeight)
-        : QEvent((QEvent::Type)VBoxDefs::ResizeEventType)
+        : QEvent((QEvent::Type)ResizeEventType)
         , m_uPixelFormat(uPixelFormat), m_pVRAM(pVRAM), m_uBitsPerPixel(uBitsPerPixel)
         , m_uBytesPerLine(uBytesPerLine), m_uWidth(uWidth), m_uHeight(uHeight) {}
     ulong pixelFormat() { return m_uPixelFormat; }
@@ -67,7 +73,7 @@ class UIRepaintEvent : public QEvent
 public:
 
     UIRepaintEvent(int iX, int iY, int iW, int iH)
-        : QEvent((QEvent::Type)VBoxDefs::RepaintEventType)
+        : QEvent((QEvent::Type)RepaintEventType)
         , m_iX(iX), m_iY(iY), m_iW(iW), m_iH(iH) {}
     int x() { return m_iX; }
     int y() { return m_iY; }
@@ -87,7 +93,7 @@ class UISetRegionEvent : public QEvent
 public:
 
     UISetRegionEvent(const QRegion &region)
-        : QEvent((QEvent::Type)VBoxDefs::SetRegionEventType)
+        : QEvent((QEvent::Type)SetRegionEventType)
         , m_region(region) {}
     QRegion region() { return m_region; }
 
@@ -176,6 +182,11 @@ public:
     ulong width() { return m_width; }
     ulong height() { return m_height; }
 
+    inline int convertGuestXTo(int x) const { return m_scaledSize.isValid() ? qRound((double)m_scaledSize.width() / m_width * x) : x; }
+    inline int convertGuestYTo(int y) const { return m_scaledSize.isValid() ? qRound((double)m_scaledSize.height() / m_height * y) : y; }
+    inline int convertHostXTo(int x) const  { return m_scaledSize.isValid() ? qRound((double)m_width / m_scaledSize.width() * x) : x; }
+    inline int convertHostYTo(int y) const  { return m_scaledSize.isValid() ? qRound((double)m_height / m_scaledSize.height() * y) : y; }
+
     virtual QSize scaledSize() const { return m_scaledSize; }
     virtual void setScaledSize(const QSize &size = QSize()) { m_scaledSize = size; }
 
@@ -227,9 +238,9 @@ public:
     virtual void viewportResized(QResizeEvent * /* pEvent */) {}
 
     virtual void viewportScrolled(int /* iX */, int /* iY */) {}
+#endif
 
     virtual void setView(UIMachineView * pView);
-#endif
 
 protected:
 

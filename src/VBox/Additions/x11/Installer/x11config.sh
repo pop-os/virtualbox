@@ -2,7 +2,7 @@
 #
 # Guest Additions X11 config update script
 #
-# Copyright (C) 2006-2010 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -102,7 +102,7 @@ Section "InputDevice"
   Driver       "mouse"
   Identifier   "Mouse[1]"
   Option       "Buttons" "9"
-  Option       "Device" "/dev/input/mice"
+  Option       "Device" "$old_mouse_dev"
   Option       "Name" "VirtualBox Mouse Buttons"
   Option       "Protocol" "explorerps/2"
   Option       "Vendor" "Oracle Corporation"

@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2007 Oracle Corporation
+; Copyright (C) 2006-2012 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,7 @@
 %include "VBox/vmm/cpum.mac"
 %include "VBox/vmm/stam.mac"
 %include "VBox/vmm/vm.mac"
+%include "VBox/err.mac"
 %include "CPUMInternal.mac"
 %include "VMMSwitcher.mac"
 
@@ -56,7 +57,7 @@ GLOBALNAME Start
 ;;
 ; The C interface.
 ;
-BEGINPROC vmmR0HostToGuest
+BEGINPROC vmmR0ToRawMode
 
 %ifdef DEBUG_STUFF
     COM_S_NEWLINE
@@ -78,7 +79,7 @@ BEGINPROC vmmR0HostToGuest
     FIXUP FIX_HC_CPUM_OFF, 1, 0
     mov     edx, 0ffffffffh
     push    cs                          ; allow for far return and restore cs correctly.
-    call    NAME(vmmR0HostToGuestAsm)
+    call    NAME(vmmR0ToRawModeAsm)
 
 %ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
     CPUM_FROM_CPUMCPU(edx)
@@ -114,12 +115,12 @@ gth_notherm:
 %endif
 
     ret
-ENDPROC vmmR0HostToGuest
+ENDPROC vmmR0ToRawMode
 
 
 
 ; *****************************************************************************
-; vmmR0HostToGuestAsm
+; vmmR0ToRawModeAsm
 ;
 ; Phase one of the switch from host to guest context (host MMU context)
 ;
@@ -134,7 +135,7 @@ ENDPROC vmmR0HostToGuest
 ;
 ; *****************************************************************************
 ALIGNCODE(16)
-BEGINPROC vmmR0HostToGuestAsm
+BEGINPROC vmmR0ToRawModeAsm
     ;;
     ;; Save CPU host context
     ;;      Skip eax, edx and ecx as these are not preserved over calls.
@@ -255,8 +256,7 @@ htg_no_syscall:
 
     ; debug registers.
     test    esi, CPUM_USE_DEBUG_REGS | CPUM_USE_DEBUG_REGS_HOST
-    jz      htg_debug_regs_no
-    jmp     htg_debug_regs_save_dr7and6
+    jnz     htg_debug_regs_save_dr7and6
 htg_debug_regs_no:
 
     ; control registers.
@@ -384,22 +384,22 @@ GLOBALNAME FarJmpGCTarget
     mov     gs, eax
     mov     fs, eax
 
-    ; Setup stack; use the lss_esp, ss pair for lss
+    ; Setup stack.
     DEBUG_CHAR('3')
-    mov     eax, [edx + CPUMCPU.Hyper.esp]
-    mov     [edx + CPUMCPU.Hyper.lss_esp], eax
-    lss     esp, [edx + CPUMCPU.Hyper.lss_esp]
+    mov     eax, [edx + CPUMCPU.Hyper.ss.Sel]
+    mov     ss, ax
+    mov     esp, [edx + CPUMCPU.Hyper.esp]
 
     ; Restore TSS selector; must mark it as not busy before using ltr (!)
     DEBUG_CHAR('4')
     FIXUP FIX_GC_TSS_GDTE_DW2, 2
     and     dword [0ffffffffh], ~0200h      ; clear busy flag (2nd type2 bit)
     DEBUG_CHAR('5')
-    ltr     word [edx + CPUMCPU.Hyper.tr]
+    ltr     word [edx + CPUMCPU.Hyper.tr.Sel]
     DEBUG_CHAR('6')
 
     ; Activate the ldt (now we can safely crash).
-    lldt    [edx + CPUMCPU.Hyper.ldtr]
+    lldt    [edx + CPUMCPU.Hyper.ldtr.Sel]
     DEBUG_CHAR('7')
 
     ;; use flags.
@@ -407,9 +407,8 @@ GLOBALNAME FarJmpGCTarget
 
     ; debug registers
     test    esi, CPUM_USE_DEBUG_REGS
-    jz      htg_debug_regs_guest_no
-    jmp     htg_debug_regs_guest
-htg_debug_regs_guest_no:
+    jnz     htg_debug_regs_guest
+htg_debug_regs_guest_done:
     DEBUG_CHAR('9')
 
 %ifdef VBOX_WITH_NMI
@@ -450,37 +449,41 @@ htg_debug_regs_guest_no:
     mov     edx, esi
 %endif
 
-    ; General registers.
+    ; General registers (sans edx).
+    mov     eax, [edx + CPUMCPU.Hyper.eax]
     mov     ebx, [edx + CPUMCPU.Hyper.ebx]
+    mov     ecx, [edx + CPUMCPU.Hyper.ecx]
     mov     ebp, [edx + CPUMCPU.Hyper.ebp]
     mov     esi, [edx + CPUMCPU.Hyper.esi]
     mov     edi, [edx + CPUMCPU.Hyper.edi]
-    push    dword [edx + CPUMCPU.Hyper.eflags]
-    popfd
-    DEBUG_CHAR('!')
+    DEBUG_S_CHAR('!')
 
     ;;
     ;; Return to the VMM code which either called the switcher or
     ;; the code set up to run by HC.
     ;;
+    push    dword [edx + CPUMCPU.Hyper.eflags]
+    push    cs
+    push    dword [edx + CPUMCPU.Hyper.eip]
+    mov     edx, [edx + CPUMCPU.Hyper.edx]      ; !! edx is no longer pointing to CPUMCPU here !!
+
 %ifdef DEBUG_STUFF
     COM_S_PRINT ';eip='
-    mov     eax, [edx + CPUMCPU.Hyper.eip]
+    push    eax
+    mov     eax, [esp + 8]
     COM_S_DWORD_REG eax
+    pop     eax
     COM_S_CHAR ';'
 %endif
-    mov     eax, [edx + CPUMCPU.Hyper.eip]
-    ; callees expect CPUM ptr
-    CPUM_FROM_CPUMCPU(edx)
-
 %ifdef VBOX_WITH_STATISTICS
+    push    edx
     FIXUP FIX_GC_VM_OFF, 1, VM.StatSwitcherToGC
     mov     edx, 0ffffffffh
     STAM_PROFILE_ADV_STOP edx
-    FIXUP FIX_GC_CPUM_OFF, 1, 0
-    mov     edx, 0ffffffffh
+    pop     edx
 %endif
-    jmp     eax
+
+    iret                                ; Use iret to make debugging and TF/RF work.
 
 ;;
 ; Detour for saving the host DR7 and DR6.
@@ -526,9 +529,9 @@ htg_debug_regs_guest:
     mov     dr6, ecx
     mov     eax, [edx + CPUMCPU.Hyper.dr + 8*7]
     mov     dr7, eax
-    jmp     htg_debug_regs_guest_no
+    jmp     htg_debug_regs_guest_done
 
-ENDPROC vmmR0HostToGuestAsm
+ENDPROC vmmR0ToRawModeAsm
 
 
 ;;
@@ -541,7 +544,7 @@ ENDPROC vmmR0HostToGuestAsm
 ;
 ;
 ALIGNCODE(16)
-BEGINPROC vmmGCCallTrampoline
+BEGINPROC vmmRCCallTrampoline
 %ifdef DEBUG_STUFF
     COM_S_CHAR 'c'
     COM_S_CHAR 't'
@@ -550,7 +553,6 @@ BEGINPROC vmmGCCallTrampoline
 
     ; call routine
     pop     eax                         ; call address
-    mov     esi, edx                    ; save edx
     pop     edi                         ; argument count.
 %ifdef DEBUG_STUFF
     COM_S_PRINT ';eax='
@@ -561,14 +563,14 @@ BEGINPROC vmmGCCallTrampoline
     add     esp, edi                    ; cleanup stack
 
     ; return to the host context.
-    push    byte 0                      ; eip
-    mov     edx, esi                    ; CPUM pointer
-
 %ifdef DEBUG_STUFF
     COM_S_CHAR '`'
 %endif
-    jmp     NAME(VMMGCGuestToHostAsm)   ; eax = returncode.
-ENDPROC vmmGCCallTrampoline
+.to_host_again:
+    call    NAME(vmmRCToHostAsm)
+    mov     eax, VERR_VMM_SWITCHER_IPE_1
+    jmp     .to_host_again
+ENDPROC vmmRCCallTrampoline
 
 
 
@@ -576,7 +578,7 @@ ENDPROC vmmGCCallTrampoline
 ; The C interface.
 ;
 ALIGNCODE(16)
-BEGINPROC vmmGCGuestToHost
+BEGINPROC vmmRCToHost
 %ifdef DEBUG_STUFF
     push    esi
     COM_NEWLINE
@@ -589,188 +591,61 @@ BEGINPROC vmmGCGuestToHost
     pop     esi
 %endif
     mov     eax, [esp + 4]
-    jmp     NAME(VMMGCGuestToHostAsm)
-ENDPROC vmmGCGuestToHost
+    jmp     NAME(vmmRCToHostAsm)
+ENDPROC vmmRCToHost
 
 
 ;;
-; VMMGCGuestToHostAsmGuestCtx
+; vmmRCToHostAsmNoReturn
 ;
-; Switches from Guest Context to Host Context.
-; Of course it's only called from within the GC.
+; This is an entry point used by TRPM when dealing with raw-mode traps,
+; i.e. traps in the hypervisor code.  This will not return and saves no
+; state, because the caller has already saved the state.
 ;
 ; @param    eax     Return code.
-; @param    esp + 4 Pointer to CPUMCTXCORE.
-;
-; @remark   ASSUMES interrupts disabled.
 ;
 ALIGNCODE(16)
-BEGINPROC VMMGCGuestToHostAsmGuestCtx
-    DEBUG_CHAR('~')
+BEGINPROC vmmRCToHostAsmNoReturn
+    DEBUG_S_CHAR('%')
 
 %ifdef VBOX_WITH_STATISTICS
     FIXUP FIX_GC_VM_OFF, 1, VM.StatTotalInGC
     mov     edx, 0ffffffffh
-    STAM_PROFILE_ADV_STOP edx
+    STAM32_PROFILE_ADV_STOP edx
 
     FIXUP FIX_GC_VM_OFF, 1, VM.StatTotalGCToQemu
     mov     edx, 0ffffffffh
-    STAM_PROFILE_ADV_START edx
+    STAM32_PROFILE_ADV_START edx
 
     FIXUP FIX_GC_VM_OFF, 1, VM.StatSwitcherToHC
     mov     edx, 0ffffffffh
-    STAM_PROFILE_ADV_START edx
+    STAM32_PROFILE_ADV_START edx
 %endif
 
-    ;
-    ; Load the CPUMCPU pointer.
-    ;
     FIXUP FIX_GC_CPUMCPU_OFF, 1, 0
     mov     edx, 0ffffffffh
 
-    ; Skip return address (assumes called!)
-    lea     esp, [esp + 4]
-
-    ;
-    ; Guest Context (assumes esp now points to CPUMCTXCORE structure).
-    ;
-    ; general purpose registers.
-    push    eax
-
-    mov     eax, [esp + 4 + CPUMCTXCORE.eax]
-    mov     [edx + CPUMCPU.Guest.eax], eax
-    mov     eax, [esp + 4 + CPUMCTXCORE.ecx]
-    mov     [edx + CPUMCPU.Guest.ecx], eax
-    mov     eax, [esp + 4 + CPUMCTXCORE.edx]
-    mov     [edx + CPUMCPU.Guest.edx], eax
-    mov     eax, [esp + 4 + CPUMCTXCORE.ebx]
-    mov     [edx + CPUMCPU.Guest.ebx], eax
-    mov     eax, [esp + 4 + CPUMCTXCORE.esp]
-    mov     [edx + CPUMCPU.Guest.esp], eax
-    mov     eax, [esp + 4 + CPUMCTXCORE.ebp]
-    mov     [edx + CPUMCPU.Guest.ebp], eax
-    mov     eax, [esp + 4 + CPUMCTXCORE.esi]
-    mov     [edx + CPUMCPU.Guest.esi], eax
-    mov     eax, [esp + 4 + CPUMCTXCORE.edi]
-    mov     [edx + CPUMCPU.Guest.edi], eax
-    mov     eax, dword [esp + 4 + CPUMCTXCORE.es]
-    mov     dword [edx + CPUMCPU.Guest.es], eax
-    mov     eax, dword [esp + 4 + CPUMCTXCORE.cs]
-    mov     dword [edx + CPUMCPU.Guest.cs], eax
-    mov     eax, dword [esp + 4 + CPUMCTXCORE.ss]
-    mov     dword [edx + CPUMCPU.Guest.ss], eax
-    mov     eax, dword [esp + 4 + CPUMCTXCORE.ds]
-    mov     dword [edx + CPUMCPU.Guest.ds], eax
-    mov     eax, dword [esp + 4 + CPUMCTXCORE.fs]
-    mov     dword [edx + CPUMCPU.Guest.fs], eax
-    mov     eax, dword [esp + 4 + CPUMCTXCORE.gs]
-    mov     dword [edx + CPUMCPU.Guest.gs], eax
-    mov     eax, [esp + 4 + CPUMCTXCORE.eflags]
-    mov     dword [edx + CPUMCPU.Guest.eflags], eax
-    mov     eax, [esp + 4 + CPUMCTXCORE.eip]
-    mov     dword [edx + CPUMCPU.Guest.eip], eax
-    pop     eax
-
-    add     esp, CPUMCTXCORE_size      ; skip CPUMCTXCORE structure
-
-    jmp     vmmGCGuestToHostAsm_EIPDone
-ENDPROC VMMGCGuestToHostAsmGuestCtx
+    jmp     vmmRCToHostAsm_SaveNoGeneralRegs
+ENDPROC vmmRCToHostAsmNoReturn
 
 
 ;;
-; VMMGCGuestToHostAsmHyperCtx
+; vmmRCToHostAsm
 ;
-; This is an alternative entry point which we'll be using
-; when the we have the hypervisor context and need to save
-; that before going to the host.
+; This is an entry point used by TRPM to return to host context when an
+; interrupt occured or an guest trap needs handling in host context.  It
+; is also used by the C interface above.
 ;
-; This is typically useful when abandoning the hypervisor
-; because of a trap and want the trap state to be saved.
-;
-; @param    eax     Return code.
-; @param    ecx     Points to CPUMCTXCORE.
-; @uses     eax,edx,ecx
-ALIGNCODE(16)
-BEGINPROC VMMGCGuestToHostAsmHyperCtx
-    DEBUG_CHAR('#')
-
-%ifdef VBOX_WITH_STATISTICS
-    FIXUP FIX_GC_VM_OFF, 1, VM.StatTotalInGC
-    mov     edx, 0ffffffffh
-    STAM_PROFILE_ADV_STOP edx
-
-    FIXUP FIX_GC_VM_OFF, 1, VM.StatTotalGCToQemu
-    mov     edx, 0ffffffffh
-    STAM_PROFILE_ADV_START edx
-
-    FIXUP FIX_GC_VM_OFF, 1, VM.StatSwitcherToHC
-    mov     edx, 0ffffffffh
-    STAM_PROFILE_ADV_START edx
-%endif
-
-    ;
-    ; Load the CPUM pointer.
-    ;
-    FIXUP FIX_GC_CPUMCPU_OFF, 1, 0
-    mov     edx, 0ffffffffh
-
-    push    eax                         ; save return code.
-    ; general purpose registers
-    mov     eax, [ecx + CPUMCTXCORE.edi]
-    mov     [edx + CPUMCPU.Hyper.edi], eax
-    mov     eax, [ecx + CPUMCTXCORE.esi]
-    mov     [edx + CPUMCPU.Hyper.esi], eax
-    mov     eax, [ecx + CPUMCTXCORE.ebp]
-    mov     [edx + CPUMCPU.Hyper.ebp], eax
-    mov     eax, [ecx + CPUMCTXCORE.eax]
-    mov     [edx + CPUMCPU.Hyper.eax], eax
-    mov     eax, [ecx + CPUMCTXCORE.ebx]
-    mov     [edx + CPUMCPU.Hyper.ebx], eax
-    mov     eax, [ecx + CPUMCTXCORE.edx]
-    mov     [edx + CPUMCPU.Hyper.edx], eax
-    mov     eax, [ecx + CPUMCTXCORE.ecx]
-    mov     [edx + CPUMCPU.Hyper.ecx], eax
-    mov     eax, [ecx + CPUMCTXCORE.esp]
-    mov     [edx + CPUMCPU.Hyper.esp], eax
-    ; selectors
-    mov     eax, [ecx + CPUMCTXCORE.ss]
-    mov     [edx + CPUMCPU.Hyper.ss], eax
-    mov     eax, [ecx + CPUMCTXCORE.gs]
-    mov     [edx + CPUMCPU.Hyper.gs], eax
-    mov     eax, [ecx + CPUMCTXCORE.fs]
-    mov     [edx + CPUMCPU.Hyper.fs], eax
-    mov     eax, [ecx + CPUMCTXCORE.es]
-    mov     [edx + CPUMCPU.Hyper.es], eax
-    mov     eax, [ecx + CPUMCTXCORE.ds]
-    mov     [edx + CPUMCPU.Hyper.ds], eax
-    mov     eax, [ecx + CPUMCTXCORE.cs]
-    mov     [edx + CPUMCPU.Hyper.cs], eax
-    ; flags
-    mov     eax, [ecx + CPUMCTXCORE.eflags]
-    mov     [edx + CPUMCPU.Hyper.eflags], eax
-    ; eip
-    mov     eax, [ecx + CPUMCTXCORE.eip]
-    mov     [edx + CPUMCPU.Hyper.eip], eax
-    ; jump to common worker code.
-    pop     eax                         ; restore return code.
-    jmp     vmmGCGuestToHostAsm_SkipHyperRegs
-
-ENDPROC VMMGCGuestToHostAsmHyperCtx
-
-
-;;
-; VMMGCGuestToHostAsm
-;
-; This is an alternative entry point which we'll be using
-; when the we have saved the guest state already or we haven't
-; been messing with the guest at all.
+; The hypervisor context is saved and it will return to the caller if
+; host context so desires.
 ;
 ; @param    eax     Return code.
 ; @uses     eax, edx, ecx (or it may use them in the future)
 ;
 ALIGNCODE(16)
-BEGINPROC VMMGCGuestToHostAsm
-    DEBUG_CHAR('%')
+BEGINPROC vmmRCToHostAsm
+    DEBUG_S_CHAR('%')
+    push    edx
 
 %ifdef VBOX_WITH_STATISTICS
     FIXUP FIX_GC_VM_OFF, 1, VM.StatTotalInGC
@@ -792,22 +667,21 @@ BEGINPROC VMMGCGuestToHostAsm
     FIXUP FIX_GC_CPUMCPU_OFF, 1, 0
     mov     edx, 0ffffffffh
 
+    ; Save register context.
+    pop     dword [edx + CPUMCPU.Hyper.edx]
     pop     dword [edx + CPUMCPU.Hyper.eip] ; call return from stack
-    jmp short vmmGCGuestToHostAsm_EIPDone
-
-ALIGNCODE(16)
-vmmGCGuestToHostAsm_EIPDone:
-    ; general registers which we care about.
+    mov     dword [edx + CPUMCPU.Hyper.esp], esp
+    mov     dword [edx + CPUMCPU.Hyper.eax], eax
     mov     dword [edx + CPUMCPU.Hyper.ebx], ebx
+    mov     dword [edx + CPUMCPU.Hyper.ecx], ecx
     mov     dword [edx + CPUMCPU.Hyper.esi], esi
     mov     dword [edx + CPUMCPU.Hyper.edi], edi
     mov     dword [edx + CPUMCPU.Hyper.ebp], ebp
-    mov     dword [edx + CPUMCPU.Hyper.esp], esp
 
     ; special registers which may change.
-vmmGCGuestToHostAsm_SkipHyperRegs:
+vmmRCToHostAsm_SaveNoGeneralRegs:
     ; str     [edx + CPUMCPU.Hyper.tr] - double fault only, and it won't be right then either.
-    sldt    [edx + CPUMCPU.Hyper.ldtr]
+    sldt    [edx + CPUMCPU.Hyper.ldtr.Sel]
 
     ; No need to save CRx here. They are set dynamically according to Guest/Host requirements.
     ; FPU context is saved before restore of host saving (another) branch.
@@ -1056,7 +930,7 @@ gth_debug_regs_dr7:
     mov     dr7, ecx
     jmp     gth_debug_regs_no
 
-ENDPROC VMMGCGuestToHostAsm
+ENDPROC vmmRCToHostAsm
 
 
 GLOBALNAME End
@@ -1087,12 +961,11 @@ GLOBALNAME Def
         at VMMSWITCHERDEF.pfnRelocate,                  RTCCPTR_DEF NAME(Relocate)
         at VMMSWITCHERDEF.enmType,                      dd SWITCHER_TYPE
         at VMMSWITCHERDEF.cbCode,                       dd NAME(End)                        - NAME(Start)
-        at VMMSWITCHERDEF.offR0HostToGuest,             dd NAME(vmmR0HostToGuest)           - NAME(Start)
-        at VMMSWITCHERDEF.offGCGuestToHost,             dd NAME(vmmGCGuestToHost)           - NAME(Start)
-        at VMMSWITCHERDEF.offGCCallTrampoline,          dd NAME(vmmGCCallTrampoline)        - NAME(Start)
-        at VMMSWITCHERDEF.offGCGuestToHostAsm,          dd NAME(VMMGCGuestToHostAsm)        - NAME(Start)
-        at VMMSWITCHERDEF.offGCGuestToHostAsmHyperCtx,  dd NAME(VMMGCGuestToHostAsmHyperCtx)- NAME(Start)
-        at VMMSWITCHERDEF.offGCGuestToHostAsmGuestCtx,  dd NAME(VMMGCGuestToHostAsmGuestCtx)- NAME(Start)
+        at VMMSWITCHERDEF.offR0ToRawMode,               dd NAME(vmmR0ToRawMode)             - NAME(Start)
+        at VMMSWITCHERDEF.offRCToHost,                  dd NAME(vmmRCToHost)                - NAME(Start)
+        at VMMSWITCHERDEF.offRCCallTrampoline,          dd NAME(vmmRCCallTrampoline)        - NAME(Start)
+        at VMMSWITCHERDEF.offRCToHostAsm,               dd NAME(vmmRCToHostAsm)             - NAME(Start)
+        at VMMSWITCHERDEF.offRCToHostAsmNoReturn,       dd NAME(vmmRCToHostAsmNoReturn)     - NAME(Start)
         ; disasm help
         at VMMSWITCHERDEF.offHCCode0,                   dd 0
 %ifdef NEED_ID

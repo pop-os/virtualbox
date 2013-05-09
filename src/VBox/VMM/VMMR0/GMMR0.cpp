@@ -498,7 +498,7 @@ typedef struct GMM
     uint32_t            cShareableModules;
 
     /** The chunk list.  For simplifying the cleanup process. */
-    RTLISTNODE          ChunkList;
+    RTLISTANCHOR        ChunkList;
 
     /** The maximum number of pages we're allowed to allocate.
      * @gcfgm   64-bit GMM/MaxPages Direct.
@@ -673,7 +673,7 @@ static PGMM g_pGMM = NULL;
  * @returns true if sane, false if not.
  * @param   pGMM    The name of the pGMM variable.
  */
-#if defined(VBOX_STRICT) && 0
+#if defined(VBOX_STRICT) && defined(GMMR0_WITH_SANITY_CHECK) && 0
 # define GMM_CHECK_SANITY_UPON_ENTERING(pGMM)   (gmmR0SanityCheck((pGMM), __PRETTY_FUNCTION__, __LINE__) == 0)
 #else
 # define GMM_CHECK_SANITY_UPON_ENTERING(pGMM)   (true)
@@ -687,7 +687,7 @@ static PGMM g_pGMM = NULL;
  * @returns true if sane, false if not.
  * @param   pGMM    The name of the pGMM variable.
  */
-#if defined(VBOX_STRICT) && 0
+#if defined(VBOX_STRICT) && defined(GMMR0_WITH_SANITY_CHECK) && 0
 # define GMM_CHECK_SANITY_UPON_LEAVING(pGMM)    (gmmR0SanityCheck((pGMM), __PRETTY_FUNCTION__, __LINE__) == 0)
 #else
 # define GMM_CHECK_SANITY_UPON_LEAVING(pGMM)    (true)
@@ -701,7 +701,7 @@ static PGMM g_pGMM = NULL;
  * @returns true if sane, false if not.
  * @param   pGMM    The name of the pGMM variable.
  */
-#if defined(VBOX_STRICT) && 0
+#if defined(VBOX_STRICT) && defined(GMMR0_WITH_SANITY_CHECK) && 0
 # define GMM_CHECK_SANITY_IN_LOOPS(pGMM)        (gmmR0SanityCheck((pGMM), __PRETTY_FUNCTION__, __LINE__) == 0)
 #else
 # define GMM_CHECK_SANITY_IN_LOOPS(pGMM)        (true)
@@ -716,7 +716,9 @@ static bool                 gmmR0CleanupVMScanChunk(PGMM pGMM, PGVM pGVM, PGMMCH
 DECLINLINE(void)            gmmR0UnlinkChunk(PGMMCHUNK pChunk);
 DECLINLINE(void)            gmmR0LinkChunk(PGMMCHUNK pChunk, PGMMCHUNKFREESET pSet);
 DECLINLINE(void)            gmmR0SelectSetAndLinkChunk(PGMM pGMM, PGVM pGVM, PGMMCHUNK pChunk);
+#ifdef GMMR0_WITH_SANITY_CHECK
 static uint32_t             gmmR0SanityCheck(PGMM pGMM, const char *pszFunction, unsigned uLineNo);
+#endif
 static bool                 gmmR0FreeChunk(PGMM pGMM, PGVM pGVM, PGMMCHUNK pChunk, bool fRelaxedSem);
 DECLINLINE(void)            gmmR0FreePrivatePage(PGMM pGMM, PGVM pGVM, uint32_t idPage, PGMMPAGE pPage);
 DECLINLINE(void)            gmmR0FreeSharedPage(PGMM pGMM, PGVM pGVM, uint32_t idPage, PGMMPAGE pPage);
@@ -770,7 +772,7 @@ GMMR0DECL(int) GMMR0Init(void)
             /*
              * Check and see if RTR0MemObjAllocPhysNC works.
              */
-#if 0 /* later, see #3170. */
+#if 0 /* later, see @bufref{3170}. */
             RTR0MEMOBJ MemObj;
             rc = RTR0MemObjAllocPhysNC(&MemObj, _64K, NIL_RTHCPHYS);
             if (RT_SUCCESS(rc))
@@ -1212,6 +1214,7 @@ GMMR0DECL(void) GMMR0CleanupVM(PGVM pGVM)
          * and leftover mappings.  (This'll only catch private pages,
          * shared pages will be 'left behind'.)
          */
+        /** @todo r=bird: This scanning+freeing could be optimized in bound mode! */
         uint64_t    cPrivatePages = pGVM->gmm.s.Stats.cPrivatePages; /* save */
 
         unsigned    iCountDown = 64;
@@ -1223,7 +1226,9 @@ GMMR0DECL(void) GMMR0CleanupVM(PGVM pGVM)
             RTListForEachReverse(&pGMM->ChunkList, pChunk, GMMCHUNK, ListNode)
             {
                 uint32_t const cFreeChunksOld = pGMM->cFreedChunks;
-                if (gmmR0CleanupVMScanChunk(pGMM, pGVM, pChunk))
+                if (   (   !pGMM->fBoundMemoryMode
+                        || pChunk->hGVM == pGVM->hSelf)
+                    && gmmR0CleanupVMScanChunk(pGMM, pGVM, pChunk))
                 {
                     /* We left the giant mutex, so reset the yield counters. */
                     uLockNanoTS = RTTimeSystemNanoTS();
@@ -1238,7 +1243,10 @@ GMMR0DECL(void) GMMR0CleanupVM(PGVM pGVM)
                         iCountDown--;
                 }
                 if (pGMM->cFreedChunks != cFreeChunksOld)
+                {
+                    fRedoFromStart = true;
                     break;
+                }
             }
         } while (fRedoFromStart);
 
@@ -1336,7 +1344,7 @@ GMMR0DECL(void) GMMR0CleanupVM(PGVM pGVM)
 /**
  * Scan one chunk for private pages belonging to the specified VM.
  *
- * @note    This function may drop the gian mutex!
+ * @note    This function may drop the giant mutex!
  *
  * @returns @c true if we've temporarily dropped the giant mutex, @c false if
  *          we didn't.
@@ -1346,6 +1354,8 @@ GMMR0DECL(void) GMMR0CleanupVM(PGVM pGVM)
  */
 static bool gmmR0CleanupVMScanChunk(PGMM pGMM, PGVM pGVM, PGMMCHUNK pChunk)
 {
+    Assert(!pGMM->fBoundMemoryMode || pChunk->hGVM == pGVM->hSelf);
+
     /*
      * Look for pages belonging to the VM.
      * (Perform some internal checks while we're scanning.)
@@ -1481,8 +1491,8 @@ static bool gmmR0CleanupVMScanChunk(PGMM pGMM, PGVM pGVM, PGMMCHUNK pChunk)
  * @retval  VERR_GMM_MEMORY_RESERVATION_DECLINED
  * @retval  VERR_GMM_
  *
- * @param   pVM             Pointer to the shared VM structure.
- * @param   idCpu           VCPU id
+ * @param   pVM             Pointer to the VM.
+ * @param   idCpu           The VCPU id.
  * @param   cBasePages      The number of pages that may be allocated for the base RAM and ROMs.
  *                          This does not include MMIO2 and similar.
  * @param   cShadowPages    The number of pages that may be allocated for shadow paging structures.
@@ -1558,9 +1568,9 @@ GMMR0DECL(int) GMMR0InitialReservation(PVM pVM, VMCPUID idCpu, uint64_t cBasePag
  * VMMR0 request wrapper for GMMR0InitialReservation.
  *
  * @returns see GMMR0InitialReservation.
- * @param   pVM             Pointer to the shared VM structure.
- * @param   idCpu           VCPU id
- * @param   pReq            The request packet.
+ * @param   pVM             Pointer to the VM.
+ * @param   idCpu           The VCPU id.
+ * @param   pReq            Pointer to the request packet.
  */
 GMMR0DECL(int) GMMR0InitialReservationReq(PVM pVM, VMCPUID idCpu, PGMMINITIALRESERVATIONREQ pReq)
 {
@@ -1581,8 +1591,8 @@ GMMR0DECL(int) GMMR0InitialReservationReq(PVM pVM, VMCPUID idCpu, PGMMINITIALRES
  * @returns VBox status code.
  * @retval  VERR_GMM_MEMORY_RESERVATION_DECLINED
  *
- * @param   pVM             Pointer to the shared VM structure.
- * @param   idCpu           VCPU id
+ * @param   pVM             Pointer to the VM.
+ * @param   idCpu           The VCPU id.
  * @param   cBasePages      The number of pages that may be allocated for the base RAM and ROMs.
  *                          This does not include MMIO2 and similar.
  * @param   cShadowPages    The number of pages that may be allocated for shadow paging structures.
@@ -1652,9 +1662,9 @@ GMMR0DECL(int) GMMR0UpdateReservation(PVM pVM, VMCPUID idCpu, uint64_t cBasePage
  * VMMR0 request wrapper for GMMR0UpdateReservation.
  *
  * @returns see GMMR0UpdateReservation.
- * @param   pVM             Pointer to the shared VM structure.
- * @param   idCpu           VCPU id
- * @param   pReq            The request packet.
+ * @param   pVM             Pointer to the VM.
+ * @param   idCpu           The VCPU id.
+ * @param   pReq            Pointer to the request packet.
  */
 GMMR0DECL(int) GMMR0UpdateReservationReq(PVM pVM, VMCPUID idCpu, PGMMUPDATERESERVATIONREQ pReq)
 {
@@ -1668,6 +1678,7 @@ GMMR0DECL(int) GMMR0UpdateReservationReq(PVM pVM, VMCPUID idCpu, PGMMUPDATERESER
     return GMMR0UpdateReservation(pVM, idCpu, pReq->cBasePages, pReq->cShadowPages, pReq->cFixedPages);
 }
 
+#ifdef GMMR0_WITH_SANITY_CHECK
 
 /**
  * Performs sanity checks on a free set.
@@ -1728,6 +1739,7 @@ static uint32_t gmmR0SanityCheck(PGMM pGMM, const char *pszFunction, unsigned uL
     return cErrors;
 }
 
+#endif /* GMMR0_WITH_SANITY_CHECK */
 
 /**
  * Looks up a chunk in the tree and fill in the TLB entry for it.
@@ -1972,12 +1984,11 @@ static uint32_t gmmR0AllocateChunkId(PGMM pGMM)
  *
  * Worker for gmmR0AllocatePages.
  *
- * @param   pGMM        Pointer to the GMM instance data.
- * @param   hGVM        The GVM handle of the VM requesting memory.
  * @param   pChunk      The chunk to allocate it from.
+ * @param   hGVM        The GVM handle of the VM requesting memory.
  * @param   pPageDesc   The page descriptor.
  */
-static void gmmR0AllocatePage(PGMM pGMM, uint32_t hGVM, PGMMCHUNK pChunk, PGMMPAGEDESC pPageDesc)
+static void gmmR0AllocatePage(PGMMCHUNK pChunk, uint32_t hGVM, PGMMPAGEDESC pPageDesc)
 {
     /* update the chunk stats. */
     if (pChunk->hGVM == NIL_GVM_HANDLE)
@@ -2020,20 +2031,20 @@ static void gmmR0AllocatePage(PGMM pGMM, uint32_t hGVM, PGMMCHUNK pChunk, PGMMPA
  *
  * @returns The new page descriptor table index.
  * @param   pGMM                Pointer to the GMM instance data.
- * @param   hGVM                The VM handle.
+ * @param   hGVM                The global VM handle.
  * @param   pChunk              The chunk.
  * @param   iPage               The current page descriptor table index.
  * @param   cPages              The total number of pages to allocate.
  * @param   paPages             The page descriptor table (input + ouput).
  */
-static uint32_t gmmR0AllocatePagesFromChunk(PGMM pGMM, uint16_t const hGVM, PGMMCHUNK pChunk, uint32_t iPage, uint32_t cPages,
+static uint32_t gmmR0AllocatePagesFromChunk(PGMMCHUNK pChunk, uint16_t const hGVM, uint32_t iPage, uint32_t cPages,
                                             PGMMPAGEDESC paPages)
 {
     PGMMCHUNKFREESET pSet = pChunk->pSet; Assert(pSet);
     gmmR0UnlinkChunk(pChunk);
 
     for (; pChunk->cFree && iPage < cPages; iPage++)
-        gmmR0AllocatePage(pGMM, hGVM, pChunk, &paPages[iPage]);
+        gmmR0AllocatePage(pChunk, hGVM, &paPages[iPage]);
 
     gmmR0LinkChunk(pChunk, pSet);
     return iPage;
@@ -2160,7 +2171,7 @@ static int gmmR0AllocateChunkNew(PGMM pGMM, PGVM pGVM, PGMMCHUNKFREESET pSet, ui
         rc = gmmR0RegisterChunk(pGMM, pSet, hMemObj, pGVM->hSelf, 0 /*fChunkFlags*/, &pChunk);
         if (RT_SUCCESS(rc))
         {
-            *piPage = gmmR0AllocatePagesFromChunk(pGMM, pGVM->hSelf, pChunk, *piPage, cPages, paPages);
+            *piPage = gmmR0AllocatePagesFromChunk(pChunk, pGVM->hSelf, *piPage, cPages, paPages);
             return VINF_SUCCESS;
         }
 
@@ -2179,14 +2190,13 @@ static int gmmR0AllocateChunkNew(PGMM pGMM, PGVM pGVM, PGMMCHUNKFREESET pSet, ui
  * As a last restort we'll pick any page we can get.
  *
  * @returns The new page descriptor table index.
- * @param   pGMM                Pointer to the GMM instance data.
- * @param   pGVM                Pointer to the global VM structure.
  * @param   pSet                The set to pick from.
+ * @param   pGVM                Pointer to the global VM structure.
  * @param   iPage               The current page descriptor table index.
  * @param   cPages              The total number of pages to allocate.
  * @param   paPages             The page descriptor table (input + ouput).
  */
-static uint32_t gmmR0AllocatePagesIndiscriminately(PGMM pGMM, PGVM pGVM, PGMMCHUNKFREESET pSet,
+static uint32_t gmmR0AllocatePagesIndiscriminately(PGMMCHUNKFREESET pSet, PGVM pGVM,
                                                    uint32_t iPage, uint32_t cPages, PGMMPAGEDESC paPages)
 {
     unsigned iList = RT_ELEMENTS(pSet->apLists);
@@ -2197,7 +2207,7 @@ static uint32_t gmmR0AllocatePagesIndiscriminately(PGMM pGMM, PGVM pGVM, PGMMCHU
         {
             PGMMCHUNK pNext = pChunk->pFreeNext;
 
-            iPage = gmmR0AllocatePagesFromChunk(pGMM, pGVM->hSelf, pChunk, iPage, cPages, paPages);
+            iPage = gmmR0AllocatePagesFromChunk(pChunk, pGVM->hSelf, iPage, cPages, paPages);
             if (iPage >= cPages)
                 return iPage;
 
@@ -2212,14 +2222,13 @@ static uint32_t gmmR0AllocatePagesIndiscriminately(PGMM pGMM, PGVM pGVM, PGMMCHU
  * Pick pages from empty chunks on the same NUMA node.
  *
  * @returns The new page descriptor table index.
- * @param   pGMM                Pointer to the GMM instance data.
- * @param   pGVM                Pointer to the global VM structure.
  * @param   pSet                The set to pick from.
+ * @param   pGVM                Pointer to the global VM structure.
  * @param   iPage               The current page descriptor table index.
  * @param   cPages              The total number of pages to allocate.
  * @param   paPages             The page descriptor table (input + ouput).
  */
-static uint32_t gmmR0AllocatePagesFromEmptyChunksOnSameNode(PGMM pGMM, PGVM pGVM, PGMMCHUNKFREESET pSet,
+static uint32_t gmmR0AllocatePagesFromEmptyChunksOnSameNode(PGMMCHUNKFREESET pSet, PGVM pGVM,
                                                             uint32_t iPage, uint32_t cPages, PGMMPAGEDESC paPages)
 {
     PGMMCHUNK pChunk = pSet->apLists[GMM_CHUNK_FREE_SET_UNUSED_LIST];
@@ -2233,7 +2242,7 @@ static uint32_t gmmR0AllocatePagesFromEmptyChunksOnSameNode(PGMM pGMM, PGVM pGVM
             if (pChunk->idNumaNode == idNumaNode)
             {
                 pChunk->hGVM = pGVM->hSelf;
-                iPage = gmmR0AllocatePagesFromChunk(pGMM, pGVM->hSelf, pChunk, iPage, cPages, paPages);
+                iPage = gmmR0AllocatePagesFromChunk(pChunk, pGVM->hSelf, iPage, cPages, paPages);
                 if (iPage >= cPages)
                 {
                     pGVM->gmm.s.idLastChunkHint = pChunk->cFree ? pChunk->Core.Key : NIL_GMM_CHUNKID;
@@ -2252,14 +2261,13 @@ static uint32_t gmmR0AllocatePagesFromEmptyChunksOnSameNode(PGMM pGMM, PGVM pGVM
  * Pick pages from non-empty chunks on the same NUMA node.
  *
  * @returns The new page descriptor table index.
- * @param   pGMM                Pointer to the GMM instance data.
- * @param   pGVM                Pointer to the global VM structure.
  * @param   pSet                The set to pick from.
+ * @param   pGVM                Pointer to the global VM structure.
  * @param   iPage               The current page descriptor table index.
  * @param   cPages              The total number of pages to allocate.
  * @param   paPages             The page descriptor table (input + ouput).
  */
-static uint32_t gmmR0AllocatePagesFromSameNode(PGMM pGMM, PGVM pGVM, PGMMCHUNKFREESET pSet,
+static uint32_t gmmR0AllocatePagesFromSameNode(PGMMCHUNKFREESET pSet, PGVM pGVM,
                                                uint32_t iPage, uint32_t cPages, PGMMPAGEDESC paPages)
 {
     /** @todo start by picking from chunks with about the right size first?  */
@@ -2274,7 +2282,7 @@ static uint32_t gmmR0AllocatePagesFromSameNode(PGMM pGMM, PGVM pGVM, PGMMCHUNKFR
 
             if (pChunk->idNumaNode == idNumaNode)
             {
-                iPage = gmmR0AllocatePagesFromChunk(pGMM, pGVM->hSelf, pChunk, iPage, cPages, paPages);
+                iPage = gmmR0AllocatePagesFromChunk(pChunk, pGVM->hSelf, iPage, cPages, paPages);
                 if (iPage >= cPages)
                 {
                     pGVM->gmm.s.idLastChunkHint = pChunk->cFree ? pChunk->Core.Key : NIL_GMM_CHUNKID;
@@ -2311,7 +2319,7 @@ static uint32_t gmmR0AllocatePagesAssociatedWithVM(PGMM pGMM, PGVM pGVM, PGMMCHU
         PGMMCHUNK pChunk = gmmR0GetChunk(pGMM, pGVM->gmm.s.idLastChunkHint);
         if (pChunk && pChunk->cFree)
         {
-            iPage = gmmR0AllocatePagesFromChunk(pGMM, hGVM, pChunk, iPage, cPages, paPages);
+            iPage = gmmR0AllocatePagesFromChunk(pChunk, hGVM, iPage, cPages, paPages);
             if (iPage >= cPages)
                 return iPage;
         }
@@ -2327,7 +2335,7 @@ static uint32_t gmmR0AllocatePagesAssociatedWithVM(PGMM pGMM, PGVM pGVM, PGMMCHU
 
             if (pChunk->hGVM == hGVM)
             {
-                iPage = gmmR0AllocatePagesFromChunk(pGMM, hGVM, pChunk, iPage, cPages, paPages);
+                iPage = gmmR0AllocatePagesFromChunk(pChunk, hGVM, iPage, cPages, paPages);
                 if (iPage >= cPages)
                 {
                     pGVM->gmm.s.idLastChunkHint = pChunk->cFree ? pChunk->Core.Key : NIL_GMM_CHUNKID;
@@ -2347,13 +2355,12 @@ static uint32_t gmmR0AllocatePagesAssociatedWithVM(PGMM pGMM, PGVM pGVM, PGMMCHU
  * Pick pages in bound memory mode.
  *
  * @returns The new page descriptor table index.
- * @param   pGMM                Pointer to the GMM instance data.
  * @param   pGVM                Pointer to the global VM structure.
  * @param   iPage               The current page descriptor table index.
  * @param   cPages              The total number of pages to allocate.
  * @param   paPages             The page descriptor table (input + ouput).
  */
-static uint32_t gmmR0AllocatePagesInBoundMode(PGMM pGMM, PGVM pGVM, uint32_t iPage, uint32_t cPages, PGMMPAGEDESC paPages)
+static uint32_t gmmR0AllocatePagesInBoundMode(PGVM pGVM, uint32_t iPage, uint32_t cPages, PGMMPAGEDESC paPages)
 {
     for (unsigned iList = 0; iList < RT_ELEMENTS(pGVM->gmm.s.Private.apLists); iList++)
     {
@@ -2362,7 +2369,7 @@ static uint32_t gmmR0AllocatePagesInBoundMode(PGMM pGMM, PGVM pGVM, uint32_t iPa
         {
             Assert(pChunk->hGVM == pGVM->hSelf);
             PGMMCHUNK pNext = pChunk->pFreeNext;
-            iPage = gmmR0AllocatePagesFromChunk(pGMM, pGVM->hSelf, pChunk, iPage, cPages, paPages);
+            iPage = gmmR0AllocatePagesFromChunk(pChunk, pGVM->hSelf, iPage, cPages, paPages);
             if (iPage >= cPages)
                 return iPage;
             pChunk = pNext;
@@ -2373,12 +2380,13 @@ static uint32_t gmmR0AllocatePagesInBoundMode(PGMM pGMM, PGVM pGVM, uint32_t iPa
 
 
 /**
- * Checks if we should start picking pages from chunks of other VMs.
+ * Checks if we should start picking pages from chunks of other VMs because
+ * we're getting close to the system memory or reserved limit.
  *
  * @returns @c true if we should, @c false if we should first try allocate more
  *          chunks.
  */
-static bool gmmR0ShouldAllocatePagesInOtherChunks(PGVM pGVM)
+static bool gmmR0ShouldAllocatePagesInOtherChunksBecauseOfLimits(PGVM pGVM)
 {
     /*
      * Don't allocate a new chunk if we're
@@ -2406,6 +2414,24 @@ static bool gmmR0ShouldAllocatePagesInOtherChunks(PGVM pGVM)
 
 
 /**
+ * Checks if we should start picking pages from chunks of other VMs because
+ * there is a lot of free pages around.
+ *
+ * @returns @c true if we should, @c false if we should first try allocate more
+ *          chunks.
+ */
+static bool gmmR0ShouldAllocatePagesInOtherChunksBecauseOfLotsFree(PGMM pGMM)
+{
+    /*
+     * Setting the limit at 16 chunks (32 MB) at the moment.
+     */
+    if (pGMM->PrivateX.cFreePages >= GMM_CHUNK_NUM_PAGES * 16)
+        return true;
+    return false;
+}
+
+
+/**
  * Common worker for GMMR0AllocateHandyPages and GMMR0AllocatePages.
  *
  * @returns VBox status code:
@@ -2417,7 +2443,7 @@ static bool gmmR0ShouldAllocatePagesInOtherChunks(PGVM pGVM)
  *          that is we're trying to allocate more than we've reserved.
  *
  * @param   pGMM                Pointer to the GMM instance data.
- * @param   pGVM                Pointer to the shared VM structure.
+ * @param   pGVM                Pointer to the VM.
  * @param   cPages              The number of pages to allocate.
  * @param   paPages             Pointer to the page descriptors.
  *                              See GMMPAGEDESC for details on what is expected on input.
@@ -2499,7 +2525,7 @@ static int gmmR0AllocatePagesNew(PGMM pGMM, PGVM pGVM, uint32_t cPages, PGMMPAGE
     uint32_t iPage = 0;
     if (pGMM->fLegacyAllocationMode)
     {
-        iPage = gmmR0AllocatePagesInBoundMode(pGMM, pGVM, iPage, cPages, paPages);
+        iPage = gmmR0AllocatePagesInBoundMode(pGVM, iPage, cPages, paPages);
         AssertReleaseReturn(iPage == cPages, VERR_GMM_ALLOC_PAGES_IPE);
         return VINF_SUCCESS;
     }
@@ -2510,7 +2536,7 @@ static int gmmR0AllocatePagesNew(PGMM pGMM, PGVM pGVM, uint32_t cPages, PGMMPAGE
     int rc = VINF_SUCCESS;
     if (pGMM->fBoundMemoryMode)
     {
-        iPage = gmmR0AllocatePagesInBoundMode(pGMM, pGVM, iPage, cPages, paPages);
+        iPage = gmmR0AllocatePagesInBoundMode(pGVM, iPage, cPages, paPages);
         if (iPage < cPages)
             do
                 rc = gmmR0AllocateChunkNew(pGMM, pGVM, &pGVM->gmm.s.Private, cPages, paPages, &iPage);
@@ -2529,16 +2555,30 @@ static int gmmR0AllocatePagesNew(PGMM pGMM, PGVM pGVM, uint32_t cPages, PGMMPAGE
         {
             /* Maybe we should try getting pages from chunks "belonging" to
                other VMs before allocating more chunks? */
-            if (gmmR0ShouldAllocatePagesInOtherChunks(pGVM))
-                iPage = gmmR0AllocatePagesFromSameNode(pGMM, pGVM, &pGMM->PrivateX, iPage, cPages, paPages);
+            bool fTriedOnSameAlready = false;
+            if (gmmR0ShouldAllocatePagesInOtherChunksBecauseOfLimits(pGVM))
+            {
+                iPage = gmmR0AllocatePagesFromSameNode(&pGMM->PrivateX, pGVM, iPage, cPages, paPages);
+                fTriedOnSameAlready = true;
+            }
 
             /* Allocate memory from empty chunks. */
             if (iPage < cPages)
-                iPage = gmmR0AllocatePagesFromEmptyChunksOnSameNode(pGMM, pGVM, &pGMM->PrivateX, iPage, cPages, paPages);
+                iPage = gmmR0AllocatePagesFromEmptyChunksOnSameNode(&pGMM->PrivateX, pGVM, iPage, cPages, paPages);
 
             /* Grab empty shared chunks. */
             if (iPage < cPages)
-                iPage = gmmR0AllocatePagesFromEmptyChunksOnSameNode(pGMM, pGVM, &pGMM->Shared, iPage, cPages, paPages);
+                iPage = gmmR0AllocatePagesFromEmptyChunksOnSameNode(&pGMM->Shared, pGVM, iPage, cPages, paPages);
+
+            /* If there is a lof of free pages spread around, try not waste
+               system memory on more chunks. (Should trigger defragmentation.) */
+            if (   !fTriedOnSameAlready
+                && gmmR0ShouldAllocatePagesInOtherChunksBecauseOfLotsFree(pGMM))
+            {
+                iPage = gmmR0AllocatePagesFromSameNode(&pGMM->PrivateX, pGVM, iPage, cPages, paPages);
+                if (iPage < cPages)
+                    iPage = gmmR0AllocatePagesIndiscriminately(&pGMM->PrivateX, pGVM, iPage, cPages, paPages);
+            }
 
             /*
              * Ok, try allocate new chunks.
@@ -2550,12 +2590,12 @@ static int gmmR0AllocatePagesNew(PGMM pGMM, PGVM pGVM, uint32_t cPages, PGMMPAGE
                 while (iPage < cPages && RT_SUCCESS(rc));
 
                 /* If the host is out of memory, take whatever we can get. */
-                if (   rc == VERR_NO_MEMORY
+                if (   (rc == VERR_NO_MEMORY || rc == VERR_NO_PHYS_MEMORY)
                     && pGMM->PrivateX.cFreePages + pGMM->Shared.cFreePages >= cPages - iPage)
                 {
-                    iPage = gmmR0AllocatePagesIndiscriminately(pGMM, pGVM, &pGMM->PrivateX, iPage, cPages, paPages);
+                    iPage = gmmR0AllocatePagesIndiscriminately(&pGMM->PrivateX, pGVM, iPage, cPages, paPages);
                     if (iPage < cPages)
-                        iPage = gmmR0AllocatePagesIndiscriminately(pGMM, pGVM, &pGMM->Shared, iPage, cPages, paPages);
+                        iPage = gmmR0AllocatePagesIndiscriminately(&pGMM->Shared, pGVM, iPage, cPages, paPages);
                     AssertRelease(iPage == cPages);
                     rc = VINF_SUCCESS;
                 }
@@ -2630,8 +2670,8 @@ static int gmmR0AllocatePagesNew(PGMM pGMM, PGVM pGVM, uint32_t cPages, PGMMPAGE
  * @retval  VERR_GMM_HIT_VM_ACCOUNT_LIMIT if we've hit the VM account limit,
  *          that is we're trying to allocate more than we've reserved.
  *
- * @param   pVM                 Pointer to the shared VM structure.
- * @param   idCpu               VCPU id
+ * @param   pVM                 Pointer to the VM.
+ * @param   idCpu               The VCPU id.
  * @param   cPagesToUpdate      The number of pages to update (starting from the head).
  * @param   cPagesToAlloc       The number of pages to allocate (starting from the head).
  * @param   paPages             The array of page descriptors.
@@ -2781,7 +2821,7 @@ GMMR0DECL(int) GMMR0AllocateHandyPages(PVM pVM, VMCPUID idCpu, uint32_t cPagesTo
                 }
             } /* for each page to update */
 
-            if (RT_SUCCESS(rc))
+            if (RT_SUCCESS(rc) && cPagesToAlloc > 0)
             {
 #if defined(VBOX_STRICT) && 0 /** @todo re-test this later. Appeared to be a PGM init bug. */
                 for (iPage = 0; iPage < cPagesToAlloc; iPage++)
@@ -2815,7 +2855,7 @@ GMMR0DECL(int) GMMR0AllocateHandyPages(PVM pVM, VMCPUID idCpu, uint32_t cPagesTo
  * Allocate one or more pages.
  *
  * This is typically used for ROMs and MMIO2 (VRAM) during VM creation.
- * The allocated pages are not cleared and will contains random garbage.
+ * The allocated pages are not cleared and will contain random garbage.
  *
  * @returns VBox status code:
  * @retval  VINF_SUCCESS on success.
@@ -2825,8 +2865,8 @@ GMMR0DECL(int) GMMR0AllocateHandyPages(PVM pVM, VMCPUID idCpu, uint32_t cPagesTo
  * @retval  VERR_GMM_HIT_VM_ACCOUNT_LIMIT if we've hit the VM account limit,
  *          that is we're trying to allocate more than we've reserved.
  *
- * @param   pVM                 Pointer to the shared VM structure.
- * @param   idCpu               VCPU id
+ * @param   pVM                 Pointer to the VM.
+ * @param   idCpu               The VCPU id.
  * @param   cPages              The number of pages to allocate.
  * @param   paPages             Pointer to the page descriptors.
  *                              See GMMPAGEDESC for details on what is expected on input.
@@ -2890,9 +2930,9 @@ GMMR0DECL(int) GMMR0AllocatePages(PVM pVM, VMCPUID idCpu, uint32_t cPages, PGMMP
  * VMMR0 request wrapper for GMMR0AllocatePages.
  *
  * @returns see GMMR0AllocatePages.
- * @param   pVM             Pointer to the shared VM structure.
- * @param   idCpu           VCPU id
- * @param   pReq            The request packet.
+ * @param   pVM             Pointer to the VM.
+ * @param   idCpu           The VCPU id.
+ * @param   pReq            Pointer to the request packet.
  */
 GMMR0DECL(int) GMMR0AllocatePagesReq(PVM pVM, VMCPUID idCpu, PGMMALLOCATEPAGESREQ pReq)
 {
@@ -2925,9 +2965,9 @@ GMMR0DECL(int) GMMR0AllocatePagesReq(PVM pVM, VMCPUID idCpu, PGMMALLOCATEPAGESRE
  * @retval  VERR_GMM_HIT_VM_ACCOUNT_LIMIT if we've hit the VM account limit,
  *          that is we're trying to allocate more than we've reserved.
  * @returns see GMMR0AllocatePages.
- * @param   pVM             Pointer to the shared VM structure.
- * @param   idCpu           VCPU id
- * @param   cbPage          Large page size
+ * @param   pVM             Pointer to the VM.
+ * @param   idCpu           The VCPU id.
+ * @param   cbPage          Large page size.
  */
 GMMR0DECL(int)  GMMR0AllocateLargePage(PVM pVM, VMCPUID idCpu, uint32_t cbPage, uint32_t *pIdPage, RTHCPHYS *pHCPhys)
 {
@@ -2994,14 +3034,14 @@ GMMR0DECL(int)  GMMR0AllocateLargePage(PVM pVM, VMCPUID idCpu, uint32_t cbPage, 
                 /** @todo rewrite this to skip the looping. */
                 /* Allocate all pages. */
                 GMMPAGEDESC PageDesc;
-                gmmR0AllocatePage(pGMM, pGVM->hSelf, pChunk, &PageDesc);
+                gmmR0AllocatePage(pChunk, pGVM->hSelf, &PageDesc);
 
                 /* Return the first page as we'll use the whole chunk as one big page. */
                 *pIdPage = PageDesc.idPage;
                 *pHCPhys = PageDesc.HCPhysGCPhys;
 
                 for (unsigned i = 1; i < cPages; i++)
-                    gmmR0AllocatePage(pGMM, pGVM->hSelf, pChunk, &PageDesc);
+                    gmmR0AllocatePage(pChunk, pGVM->hSelf, &PageDesc);
 
                 /* Update accounting. */
                 pGVM->gmm.s.Stats.Allocated.cBasePages += cPages;
@@ -3027,12 +3067,12 @@ GMMR0DECL(int)  GMMR0AllocateLargePage(PVM pVM, VMCPUID idCpu, uint32_t cbPage, 
 
 
 /**
- * Free a large page
+ * Free a large page.
  *
  * @returns VBox status code:
- * @param   pVM             Pointer to the shared VM structure.
- * @param   idCpu           VCPU id
- * @param   idPage          Large page id
+ * @param   pVM             Pointer to the VM.
+ * @param   idCpu           The VCPU id.
+ * @param   idPage          The large page id.
  */
 GMMR0DECL(int)  GMMR0FreeLargePage(PVM pVM, VMCPUID idCpu, uint32_t idPage)
 {
@@ -3097,9 +3137,9 @@ GMMR0DECL(int)  GMMR0FreeLargePage(PVM pVM, VMCPUID idCpu, uint32_t idPage)
  * VMMR0 request wrapper for GMMR0FreeLargePage.
  *
  * @returns see GMMR0FreeLargePage.
- * @param   pVM             Pointer to the shared VM structure.
- * @param   idCpu           VCPU id
- * @param   pReq            The request packet.
+ * @param   pVM             Pointer to the VM.
+ * @param   idCpu           The VCPU id.
+ * @param   pReq            Pointer to the request packet.
  */
 GMMR0DECL(int) GMMR0FreeLargePageReq(PVM pVM, VMCPUID idCpu, PGMMFREELARGEPAGEREQ pReq)
 {
@@ -3276,7 +3316,7 @@ static void gmmR0FreePageWorker(PGMM pGMM, PGVM pGVM, PGMMCHUNK pChunk, uint32_t
  *
  * @param   pGMM        Pointer to the GMM instance.
  * @param   pGVM        Pointer to the GVM instance.
- * @param   idPage      The Page ID
+ * @param   idPage      The page id.
  * @param   pPage       The page structure.
  */
 DECLINLINE(void) gmmR0FreeSharedPage(PGMM pGMM, PGVM pGVM, uint32_t idPage, PGMMPAGE pPage)
@@ -3288,15 +3328,6 @@ DECLINLINE(void) gmmR0FreeSharedPage(PGMM pGMM, PGVM pGVM, uint32_t idPage, PGMM
     Assert(pGMM->cSharedPages > 0);
     Assert(pGMM->cAllocatedPages > 0);
     Assert(!pPage->Shared.cRefs);
-#if defined(VBOX_WITH_PAGE_SHARING) && defined(VBOX_STRICT) && HC_ARCH_BITS == 64
-    if (pPage->Shared.u14Checksum)
-    {
-        uint32_t uChecksum = gmmR0StrictPageChecksum(pGMM, pGVM, idPage);
-        uChecksum &= UINT32_C(0x00003fff);
-        AssertMsg(!uChecksum || uChecksum == pPage->Shared.u14Checksum,
-                  ("%#x vs %#x - idPage=%#\n", uChecksum, pPage->Shared.u14Checksum, idPage));
-    }
-#endif
 
     pChunk->cShared--;
     pGMM->cAllocatedPages--;
@@ -3310,7 +3341,7 @@ DECLINLINE(void) gmmR0FreeSharedPage(PGMM pGMM, PGVM pGVM, uint32_t idPage, PGMM
  *
  * @param   pGMM        Pointer to the GMM instance.
  * @param   pGVM        Pointer to the GVM instance.
- * @param   idPage      The Page ID
+ * @param   idPage      The page id.
  * @param   pPage       The page structure.
  */
 DECLINLINE(void) gmmR0FreePrivatePage(PGMM pGMM, PGVM pGVM, uint32_t idPage, PGMMPAGE pPage)
@@ -3334,7 +3365,7 @@ DECLINLINE(void) gmmR0FreePrivatePage(PGMM pGMM, PGVM pGVM, uint32_t idPage, PGM
  * @retval  xxx
  *
  * @param   pGMM                Pointer to the GMM instance data.
- * @param   pGVM                Pointer to the shared VM structure.
+ * @param   pGVM                Pointer to the VM.
  * @param   cPages              The number of pages to free.
  * @param   paPages             Pointer to the page descriptors.
  * @param   enmAccount          The account this relates to.
@@ -3404,8 +3435,17 @@ static int gmmR0FreePages(PGMM pGMM, PGVM pGVM, uint32_t cPages, PGMMFREEPAGEDES
             else if (RT_LIKELY(GMM_PAGE_IS_SHARED(pPage)))
             {
                 Assert(pGVM->gmm.s.Stats.cSharedPages);
-                pGVM->gmm.s.Stats.cSharedPages--;
                 Assert(pPage->Shared.cRefs);
+#if defined(VBOX_WITH_PAGE_SHARING) && defined(VBOX_STRICT) && HC_ARCH_BITS == 64
+                if (pPage->Shared.u14Checksum)
+                {
+                    uint32_t uChecksum = gmmR0StrictPageChecksum(pGMM, pGVM, idPage);
+                    uChecksum &= UINT32_C(0x00003fff);
+                    AssertMsg(!uChecksum || uChecksum == pPage->Shared.u14Checksum,
+                              ("%#x vs %#x - idPage=%#x\n", uChecksum, pPage->Shared.u14Checksum, idPage));
+                }
+#endif
+                pGVM->gmm.s.Stats.cSharedPages--;
                 if (!--pPage->Shared.cRefs)
                     gmmR0FreeSharedPage(pGMM, pGVM, idPage, pPage);
                 else
@@ -3458,8 +3498,8 @@ static int gmmR0FreePages(PGMM pGMM, PGVM pGVM, uint32_t cPages, PGMMFREEPAGEDES
  * @returns VBox status code:
  * @retval  xxx
  *
- * @param   pVM                 Pointer to the shared VM structure.
- * @param   idCpu               VCPU id
+ * @param   pVM                 Pointer to the VM.
+ * @param   idCpu               The VCPU id.
  * @param   cPages              The number of pages to allocate.
  * @param   paPages             Pointer to the page descriptors containing the Page IDs for each page.
  * @param   enmAccount          The account this relates to.
@@ -3509,9 +3549,9 @@ GMMR0DECL(int) GMMR0FreePages(PVM pVM, VMCPUID idCpu, uint32_t cPages, PGMMFREEP
  * VMMR0 request wrapper for GMMR0FreePages.
  *
  * @returns see GMMR0FreePages.
- * @param   pVM             Pointer to the shared VM structure.
- * @param   idCpu           VCPU id
- * @param   pReq            The request packet.
+ * @param   pVM             Pointer to the VM.
+ * @param   idCpu           The VCPU id.
+ * @param   pReq            Pointer to the request packet.
  */
 GMMR0DECL(int) GMMR0FreePagesReq(PVM pVM, VMCPUID idCpu, PGMMFREEPAGESREQ pReq)
 {
@@ -3547,9 +3587,9 @@ GMMR0DECL(int) GMMR0FreePagesReq(PVM pVM, VMCPUID idCpu, PGMMFREEPAGESREQ pReq)
  *          balloon some other VM).  (For standard deflate we have little choice
  *          but to hope the VM won't use the memory that was returned to it.)
  *
- * @param   pVM                 Pointer to the shared VM structure.
- * @param   idCpu               VCPU id
- * @param   enmAction           Inflate/deflate/reset
+ * @param   pVM                 Pointer to the VM.
+ * @param   idCpu               The VCPU id.
+ * @param   enmAction           Inflate/deflate/reset.
  * @param   cBalloonedPages     The number of pages that was ballooned.
  *
  * @thread  EMT.
@@ -3679,9 +3719,9 @@ GMMR0DECL(int) GMMR0BalloonedPages(PVM pVM, VMCPUID idCpu, GMMBALLOONACTION enmA
  * VMMR0 request wrapper for GMMR0BalloonedPages.
  *
  * @returns see GMMR0BalloonedPages.
- * @param   pVM             Pointer to the shared VM structure.
- * @param   idCpu           VCPU id
- * @param   pReq            The request packet.
+ * @param   pVM             Pointer to the VM.
+ * @param   idCpu           The VCPU id.
+ * @param   pReq            Pointer to the request packet.
  */
 GMMR0DECL(int) GMMR0BalloonedPagesReq(PVM pVM, VMCPUID idCpu, PGMMBALLOONEDPAGESREQ pReq)
 {
@@ -3701,8 +3741,8 @@ GMMR0DECL(int) GMMR0BalloonedPagesReq(PVM pVM, VMCPUID idCpu, PGMMBALLOONEDPAGES
  * Return memory statistics for the hypervisor
  *
  * @returns VBox status code:
- * @param   pVM             Pointer to the shared VM structure.
- * @param   pReq            The request packet.
+ * @param   pVM             Pointer to the VM.
+ * @param   pReq            Pointer to the request packet.
  */
 GMMR0DECL(int) GMMR0QueryHypervisorMemoryStatsReq(PVM pVM, PGMMMEMSTATSREQ pReq)
 {
@@ -3734,9 +3774,9 @@ GMMR0DECL(int) GMMR0QueryHypervisorMemoryStatsReq(PVM pVM, PGMMMEMSTATSREQ pReq)
  * Return memory statistics for the VM
  *
  * @returns VBox status code:
- * @param   pVM             Pointer to the shared VM structure.
+ * @param   pVM             Pointer to the VM.
  * @parma   idCpu           Cpu id.
- * @param   pReq            The request packet.
+ * @param   pReq            Pointer to the request packet.
  */
 GMMR0DECL(int)  GMMR0QueryMemoryStatsReq(PVM pVM, VMCPUID idCpu, PGMMMEMSTATSREQ pReq)
 {
@@ -3983,6 +4023,7 @@ static int gmmR0MapChunk(PGMM pGMM, PGVM pGVM, PGMMCHUNK pChunk, bool fRelaxedSe
 
 
 
+#if defined(VBOX_WITH_PAGE_SHARING) || (defined(VBOX_STRICT) && HC_ARCH_BITS == 64)
 /**
  * Check if a chunk is mapped into the specified VM
  *
@@ -4010,6 +4051,7 @@ static bool gmmR0IsChunkMapped(PGMM pGMM, PGVM pGVM, PGMMCHUNK pChunk, PRTR3PTR 
     gmmR0ChunkMutexRelease(&MtxState, pChunk);
     return false;
 }
+#endif /* VBOX_WITH_PAGE_SHARING || (VBOX_STRICT && 64-BIT) */
 
 
 /**
@@ -4113,8 +4155,8 @@ GMMR0DECL(int) GMMR0MapUnmapChunk(PVM pVM, uint32_t idChunkMap, uint32_t idChunk
  * VMMR0 request wrapper for GMMR0MapUnmapChunk.
  *
  * @returns see GMMR0MapUnmapChunk.
- * @param   pVM             Pointer to the shared VM structure.
- * @param   pReq            The request packet.
+ * @param   pVM             Pointer to the VM.
+ * @param   pReq            Pointer to the request packet.
  */
 GMMR0DECL(int)  GMMR0MapUnmapChunkReq(PVM pVM, PGMMMAPUNMAPCHUNKREQ pReq)
 {
@@ -4136,8 +4178,8 @@ GMMR0DECL(int)  GMMR0MapUnmapChunkReq(PVM pVM, PGMMMAPUNMAPCHUNKREQ pReq)
  * will be locked down and used by the GMM when the GM asks for pages.
  *
  * @returns VBox status code.
- * @param   pVM             The VM.
- * @param   idCpu           VCPU id
+ * @param   pVM             Pointer to the VM.
+ * @param   idCpu           The VCPU id.
  * @param   pvR3            Pointer to the chunk size memory block to lock down.
  */
 GMMR0DECL(int) GMMR0SeedChunk(PVM pVM, VMCPUID idCpu, RTR3PTR pvR3)
@@ -4417,15 +4459,15 @@ static void gmmR0ShModDeletePerVM(PGMM pGMM, PGVM pGVM, PGMMSHAREDMODULEPERVM pR
  * Registers a new shared module for the VM.
  *
  * @returns VBox status code.
- * @param   pVM                 VM handle
- * @param   idCpu               VCPU id
- * @param   enmGuestOS          Guest OS type
- * @param   pszModuleName       Module name
- * @param   pszVersion          Module version
- * @param   GCPtrModBase        Module base address
- * @param   cbModule            Module size
- * @param   cRegions            Number of shared region descriptors
- * @param   paRegions           Shared region(s)
+ * @param   pVM                 Pointer to the VM.
+ * @param   idCpu               The VCPU id.
+ * @param   enmGuestOS          The guest OS type.
+ * @param   pszModuleName       The module name.
+ * @param   pszVersion          The module version.
+ * @param   GCPtrModBase        The module base address.
+ * @param   cbModule            The module size.
+ * @param   cRegions            The mumber of shared region descriptors.
+ * @param   paRegions           Pointer to an array of shared region(s).
  */
 GMMR0DECL(int) GMMR0RegisterSharedModule(PVM pVM, VMCPUID idCpu, VBOXOSFAMILY enmGuestOS, char *pszModuleName,
                                          char *pszVersion, RTGCPTR GCPtrModBase, uint32_t cbModule,
@@ -4564,9 +4606,9 @@ GMMR0DECL(int) GMMR0RegisterSharedModule(PVM pVM, VMCPUID idCpu, VBOXOSFAMILY en
  * VMMR0 request wrapper for GMMR0RegisterSharedModule.
  *
  * @returns see GMMR0RegisterSharedModule.
- * @param   pVM             Pointer to the shared VM structure.
- * @param   idCpu           VCPU id
- * @param   pReq            The request packet.
+ * @param   pVM             Pointer to the VM.
+ * @param   idCpu           The VCPU id.
+ * @param   pReq            Pointer to the request packet.
  */
 GMMR0DECL(int)  GMMR0RegisterSharedModuleReq(PVM pVM, VMCPUID idCpu, PGMMREGISTERSHAREDMODULEREQ pReq)
 {
@@ -4588,12 +4630,12 @@ GMMR0DECL(int)  GMMR0RegisterSharedModuleReq(PVM pVM, VMCPUID idCpu, PGMMREGISTE
  * Unregisters a shared module for the VM
  *
  * @returns VBox status code.
- * @param   pVM                 VM handle
- * @param   idCpu               VCPU id
- * @param   pszModuleName       Module name
- * @param   pszVersion          Module version
- * @param   GCPtrModBase        Module base address
- * @param   cbModule            Module size
+ * @param   pVM                 Pointer to the VM.
+ * @param   idCpu               The VCPU id.
+ * @param   pszModuleName       The module name.
+ * @param   pszVersion          The module version.
+ * @param   GCPtrModBase        The module base address.
+ * @param   cbModule            The module size.
  */
 GMMR0DECL(int) GMMR0UnregisterSharedModule(PVM pVM, VMCPUID idCpu, char *pszModuleName, char *pszVersion,
                                            RTGCPTR GCPtrModBase, uint32_t cbModule)
@@ -4657,9 +4699,9 @@ GMMR0DECL(int) GMMR0UnregisterSharedModule(PVM pVM, VMCPUID idCpu, char *pszModu
  * VMMR0 request wrapper for GMMR0UnregisterSharedModule.
  *
  * @returns see GMMR0UnregisterSharedModule.
- * @param   pVM             Pointer to the shared VM structure.
- * @param   idCpu           VCPU id
- * @param   pReq            The request packet.
+ * @param   pVM             Pointer to the VM.
+ * @param   idCpu           The VCPU id.
+ * @param   pReq            Pointer to the request packet.
  */
 GMMR0DECL(int)  GMMR0UnregisterSharedModuleReq(PVM pVM, VMCPUID idCpu, PGMMUNREGISTERSHAREDMODULEREQ pReq)
 {
@@ -4704,7 +4746,8 @@ DECLINLINE(void) gmmR0UseSharedPage(PGMM pGMM, PGVM pGVM, PGMMPAGE pPage)
  * @param   idPage      The Page ID
  * @param   pPage       The page structure.
  */
-DECLINLINE(void) gmmR0ConvertToSharedPage(PGMM pGMM, PGVM pGVM, RTHCPHYS HCPhys, uint32_t idPage, PGMMPAGE pPage)
+DECLINLINE(void) gmmR0ConvertToSharedPage(PGMM pGMM, PGVM pGVM, RTHCPHYS HCPhys, uint32_t idPage, PGMMPAGE pPage,
+                                          PGMMSHAREDPAGEDESC pPageDesc)
 {
     PGMMCHUNK pChunk = gmmR0GetChunk(pGMM, idPage >> GMM_CHUNKID_SHIFT);
     Assert(pChunk);
@@ -4723,7 +4766,8 @@ DECLINLINE(void) gmmR0ConvertToSharedPage(PGMM pGMM, PGVM pGVM, RTHCPHYS HCPhys,
     pPage->Shared.pfn         = (uint32_t)(uint64_t)(HCPhys >> PAGE_SHIFT);
     pPage->Shared.cRefs       = 1;
 #ifdef VBOX_STRICT
-    pPage->Shared.u14Checksum = gmmR0StrictPageChecksum(pGMM, pGVM, idPage);
+    pPageDesc->u32StrictChecksum = gmmR0StrictPageChecksum(pGMM, pGVM, idPage);
+    pPage->Shared.u14Checksum = pPageDesc->u32StrictChecksum;
 #else
     pPage->Shared.u14Checksum = 0;
 #endif
@@ -4743,7 +4787,7 @@ static int gmmR0SharedModuleCheckPageFirstTime(PGMM pGMM, PGVM pGVM, PGMMSHAREDM
 
     AssertMsg(pPageDesc->GCPhys == (pPage->Private.pfn << 12), ("desc %RGp gmm %RGp\n", pPageDesc->HCPhys, (pPage->Private.pfn << 12)));
 
-    gmmR0ConvertToSharedPage(pGMM, pGVM, pPageDesc->HCPhys, pPageDesc->idPage, pPage);
+    gmmR0ConvertToSharedPage(pGMM, pGVM, pPageDesc->HCPhys, pPageDesc->idPage, pPage, pPageDesc);
 
     /* Keep track of these references. */
     pGlobalRegion->paidPages[idxPage] = pPageDesc->idPage;
@@ -4777,6 +4821,7 @@ GMMR0DECL(int) GMMR0SharedModuleCheckPage(PGVM pGVM, PGMMSHAREDMODULE pModule, u
     int     rc;
     PGMM    pGMM;
     GMM_GET_VALID_INSTANCE(pGMM, VERR_GMM_INSTANCE);
+    pPageDesc->u32StrictChecksum = 0;
 
     AssertMsgReturn(idxRegion < pModule->cRegions,
                     ("idxRegion=%#x cRegions=%#x %s %s\n", idxRegion, pModule->cRegions, pModule->szName, pModule->szVersion),
@@ -4871,14 +4916,13 @@ GMMR0DECL(int) GMMR0SharedModuleCheckPage(PGVM pGVM, PGMMSHAREDMODULE pModule, u
         AssertRCReturn(rc, rc);
     }
     uint8_t *pbSharedPage = pbChunk + ((pGlobalRegion->paidPages[idxPage] & GMM_PAGEID_IDX_MASK) << PAGE_SHIFT);
+
 #ifdef VBOX_STRICT
-    if (pPage->Shared.u14Checksum)
-    {
-        uint32_t uChecksum = RTCrc32(pbSharedPage, PAGE_SIZE) & UINT32_C(0x00003fff);
-        AssertMsg(!uChecksum || uChecksum == pPage->Shared.u14Checksum,
-                  ("%#x vs %#x - idPage=%# - %s %s\n", uChecksum, pPage->Shared.u14Checksum,
-                   pGlobalRegion->paidPages[idxPage], pModule->szName, pModule->szVersion));
-    }
+    pPageDesc->u32StrictChecksum = RTCrc32(pbSharedPage, PAGE_SIZE);
+    uint32_t uChecksum = pPageDesc->u32StrictChecksum & UINT32_C(0x00003fff);
+    AssertMsg(!uChecksum || uChecksum == pPage->Shared.u14Checksum || !pPage->Shared.u14Checksum,
+              ("%#x vs %#x - idPage=%# - %s %s\n", uChecksum, pPage->Shared.u14Checksum,
+               pGlobalRegion->paidPages[idxPage], pModule->szName, pModule->szVersion));
 #endif
 
     /** @todo write ASMMemComparePage. */
@@ -4946,7 +4990,7 @@ static void gmmR0SharedModuleCleanup(PGMM pGMM, PGVM pGVM)
     Args.pGMM = pGMM;
     RTAvlGCPtrDestroy(&pGVM->gmm.s.pSharedModuleTree, gmmR0CleanupSharedModule, &Args);
 
-    Assert(pGVM->gmm.s.Stats.cShareableModules == 0);
+    AssertMsg(pGVM->gmm.s.Stats.cShareableModules == 0, ("%d\n", pGVM->gmm.s.Stats.cShareableModules));
     pGVM->gmm.s.Stats.cShareableModules = 0;
 
     gmmR0MutexRelease(pGMM);
@@ -4958,8 +5002,8 @@ static void gmmR0SharedModuleCleanup(PGMM pGMM, PGVM pGVM)
  * Removes all shared modules for the specified VM
  *
  * @returns VBox status code.
- * @param   pVM                 VM handle
- * @param   idCpu               VCPU id
+ * @param   pVM                 Pointer to the VM.
+ * @param   idCpu               The VCPU id.
  */
 GMMR0DECL(int) GMMR0ResetSharedModules(PVM pVM, VMCPUID idCpu)
 {
@@ -5028,7 +5072,7 @@ static DECLCALLBACK(int) gmmR0CheckSharedModule(PAVLGCPTRNODECORE pNode, void *p
  * Setup for a GMMR0CheckSharedModules call (to allow log flush jumps back to ring 3)
  *
  * @returns VBox status code.
- * @param   pVM                 VM handle
+ * @param   pVM                 Pointer to the VM.
  */
 GMMR0DECL(int) GMMR0CheckSharedModulesStart(PVM pVM)
 {
@@ -5054,7 +5098,7 @@ GMMR0DECL(int) GMMR0CheckSharedModulesStart(PVM pVM)
  * Clean up after a GMMR0CheckSharedModules call (to allow log flush jumps back to ring 3)
  *
  * @returns VBox status code.
- * @param   pVM                 VM handle
+ * @param   pVM                 Pointer to the VM.
  */
 GMMR0DECL(int) GMMR0CheckSharedModulesEnd(PVM pVM)
 {
@@ -5074,8 +5118,8 @@ GMMR0DECL(int) GMMR0CheckSharedModulesEnd(PVM pVM)
  * Check all shared modules for the specified VM.
  *
  * @returns VBox status code.
- * @param   pVM                 VM handle
- * @param   pVCpu               VMCPU handle
+ * @param   pVM                 Pointer to the VM.
+ * @param   pVCpu               Pointer to the VMCPU.
  */
 GMMR0DECL(int) GMMR0CheckSharedModules(PVM pVM, PVMCPU pVCpu)
 {
@@ -5175,8 +5219,8 @@ static DECLCALLBACK(int) gmmR0FindDupPageInChunk(PAVLU32NODECORE pNode, void *pv
  * Find a duplicate of the specified page in other active VMs
  *
  * @returns VBox status code.
- * @param   pVM                 VM handle
- * @param   pReq                Request packet
+ * @param   pVM                 Pointer to the VM.
+ * @param   pReq                Pointer to the request packet.
  */
 GMMR0DECL(int) GMMR0FindDuplicatePageReq(PVM pVM, PGMMFINDDUPLICATEPAGEREQ pReq)
 {
@@ -5249,7 +5293,7 @@ GMMR0DECL(int) GMMR0FindDuplicatePageReq(PVM pVM, PGMMFINDDUPLICATEPAGEREQ pReq)
  *
  * @param   pStats      Where to put the statistics.
  * @param   pSession    The current session.
- * @param   pVM         The VM to obtain statistics for. Optional.
+ * @param   pVM         Pointer to the VM to obtain statistics for. Optional.
  */
 GMMR0DECL(int) GMMR0QueryStatistics(PGMMSTATS pStats, PSUPDRVSESSION pSession, PVM pVM)
 {
@@ -5316,8 +5360,8 @@ GMMR0DECL(int) GMMR0QueryStatistics(PGMMSTATS pStats, PSUPDRVSESSION pSession, P
  * VMMR0 request wrapper for GMMR0QueryStatistics.
  *
  * @returns see GMMR0QueryStatistics.
- * @param   pVM             Pointer to the shared VM structure. Optional.
- * @param   pReq            The request packet.
+ * @param   pVM             Pointer to the VM. Optional.
+ * @param   pReq            Pointer to the request packet.
  */
 GMMR0DECL(int) GMMR0QueryStatisticsReq(PVM pVM, PGMMQUERYSTATISTICSSREQ pReq)
 {
@@ -5352,8 +5396,8 @@ GMMR0DECL(int) GMMR0ResetStatistics(PCGMMSTATS pStats, PSUPDRVSESSION pSession, 
  * VMMR0 request wrapper for GMMR0ResetStatistics.
  *
  * @returns see GMMR0ResetStatistics.
- * @param   pVM             Pointer to the shared VM structure. Optional.
- * @param   pReq            The request packet.
+ * @param   pVM             Pointer to the VM. Optional.
+ * @param   pReq            Pointer to the request packet.
  */
 GMMR0DECL(int) GMMR0ResetStatisticsReq(PVM pVM, PGMMRESETSTATISTICSSREQ pReq)
 {

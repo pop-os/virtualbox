@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,7 @@
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/mm.h>
+#include <VBox/vmm/trpm.h>
 #include <VBox/vmm/vmm.h>
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/uvm.h>
@@ -31,6 +32,7 @@
 #include <VBox/param.h>
 #include <VBox/err.h>
 #include <VBox/vmm/hwaccm.h>
+#include <VBox/VBoxTpG.h>
 
 #include <VBox/log.h>
 #include <iprt/assert.h>
@@ -111,7 +113,7 @@ int pdmR3LdrInitU(PUVM pUVM)
  *
  * This will unload and free all modules.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  *
  * @remarks This is normally called twice during termination.
  */
@@ -167,10 +169,10 @@ void pdmR3LdrTermU(PUVM pUVM)
 
 
 /**
- * Applies relocations to GC modules.
+ * Applies relocations to RC modules.
  *
  * This must be done very early in the relocation
- * process so that components can resolve GC symbols during relocation.
+ * process so that components can resolve RC symbols during relocation.
  *
  * @param   pUVM        Pointer to the user mode VM structure.
  * @param   offDelta    Relocation delta relative to old location.
@@ -181,7 +183,7 @@ VMMR3DECL(void) PDMR3LdrRelocateU(PUVM pUVM, RTGCINTPTR offDelta)
     LogFlow(("PDMR3LdrRelocate: offDelta=%RGv\n", offDelta));
 
     /*
-     * GC Modules.
+     * RC Modules.
      */
     RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
     if (pUVM->pdm.s.pModules)
@@ -330,10 +332,12 @@ int pdmR3LoadR3U(PUVM pUVM, const char *pszFilename, const char *pszName)
  * @param   pValue          Where to store the symbol value (address).
  * @param   pvUser          User argument.
  */
-static DECLCALLBACK(int) pdmR3GetImportRC(RTLDRMOD hLdrMod, const char *pszModule, const char *pszSymbol, unsigned uSymbol, RTUINTPTR *pValue, void *pvUser)
+static DECLCALLBACK(int) pdmR3GetImportRC(RTLDRMOD hLdrMod, const char *pszModule, const char *pszSymbol, unsigned uSymbol,
+                                          RTUINTPTR *pValue, void *pvUser)
 {
     PVM         pVM     = ((PPDMGETIMPORTARGS)pvUser)->pVM;
     PPDMMOD     pModule = ((PPDMGETIMPORTARGS)pvUser)->pModule;
+    NOREF(hLdrMod); NOREF(uSymbol);
 
     /*
      * Adjust input.
@@ -351,10 +355,15 @@ static DECLCALLBACK(int) pdmR3GetImportRC(RTLDRMOD hLdrMod, const char *pszModul
             *pValue = pVM->pVMRC;
         else if (!strcmp(pszSymbol, "g_CPUM"))
             *pValue = VM_RC_ADDR(pVM, &pVM->cpum);
-        else if (!strcmp(pszSymbol, "g_TRPM"))
-            *pValue = VM_RC_ADDR(pVM, &pVM->trpm);
-        else if (!strcmp(pszSymbol, "g_TRPMCPU"))
-            *pValue = VM_RC_ADDR(pVM, &pVM->aCpus[0].trpm);
+        else if (   !strncmp(pszSymbol, "g_TRPM", 6)
+                 || !strncmp(pszSymbol, "g_trpm", 6)
+                 || !strncmp(pszSymbol, "TRPM", 4))
+        {
+            RTRCPTR RCPtr = 0;
+            rc = TRPMR3GetImportRC(pVM, pszSymbol, &RCPtr);
+            if (RT_SUCCESS(rc))
+                *pValue = RCPtr;
+        }
         else if (   !strncmp(pszSymbol, "VMM", 3)
                  || !strcmp(pszSymbol, "g_Logger")
                  || !strcmp(pszSymbol, "g_RelLogger"))
@@ -428,7 +437,8 @@ static DECLCALLBACK(int) pdmR3GetImportRC(RTLDRMOD hLdrMod, const char *pszModul
 
 
 /**
- * Loads a module into the guest context (i.e. into the Hypervisor memory region).
+ * Loads a module into the raw-mode context (i.e. into the Hypervisor memory
+ * region).
  *
  * @returns VBox status code.
  * @param   pVM             The VM to load it into.
@@ -525,6 +535,27 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
                         rc = RTLdrGetBits(pModule->hLdrMod, pModule->pvBits, pModule->ImageBase, pdmR3GetImportRC, &Args);
                         if (RT_SUCCESS(rc))
                         {
+#ifdef VBOX_WITH_DTRACE_RC
+                            /*
+                             * Register the tracer bits if present.
+                             */
+                            RTLDRADDR uValue;
+                            rc = RTLdrGetSymbolEx(pModule->hLdrMod, pModule->pvBits, pModule->ImageBase,
+                                                  "g_VTGObjHeader", &uValue);
+                            if (RT_SUCCESS(rc))
+                            {
+                                PVTGOBJHDR pVtgHdr = (PVTGOBJHDR)MMHyperRCToCC(pVM, (RTRCPTR)uValue);
+                                if (   pVtgHdr
+                                    && !memcmp(pVtgHdr->szMagic, VTGOBJHDR_MAGIC, sizeof(pVtgHdr->szMagic)))
+                                    rc = SUPR3TracerRegisterModule(~(uintptr_t)0, pModule->szName, pVtgHdr, uValue,
+                                                                   SUP_TRACER_UMOD_FLAGS_SHARED);
+                                else
+                                    rc = pVtgHdr ? VERR_INVALID_MAGIC : VERR_INVALID_POINTER;
+                                if (RT_FAILURE(rc))
+                                    LogRel(("PDM: Failed to register tracepoints for '%s': %Rrc\n", pModule->szName, rc));
+                            }
+#endif
+
                             /*
                              * Insert the module.
                              */
@@ -539,9 +570,11 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
                             else
                                 pUVM->pdm.s.pModules = pModule; /* (pNext is zeroed by alloc) */
                             Log(("PDM: RC Module at %RRv %s (%s)\n", (RTRCPTR)pModule->ImageBase, pszName, pszFilename));
+
                             RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
                             RTMemTmpFree(pszFile);
                             RTMemTmpFree(paPages);
+
                             return VINF_SUCCESS;
                         }
                     }
@@ -680,7 +713,7 @@ static int pdmR3LoadR0U(PUVM pUVM, const char *pszFilename, const char *pszName,
  * Get the address of a symbol in a given HC ring 3 module.
  *
  * @returns VBox status code.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszModule       Module name.
  * @param   pszSymbol       Symbol name. If it's value is less than 64k it's treated like a
  *                          ordinal value rather than a string pointer.
@@ -734,7 +767,7 @@ VMMR3DECL(int) PDMR3LdrGetSymbolR3(PVM pVM, const char *pszModule, const char *p
  * Get the address of a symbol in a given HC ring 0 module.
  *
  * @returns VBox status code.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszModule       Module name. If NULL the main R0 module (VMMR0.r0) is assumes.
  * @param   pszSymbol       Symbol name. If it's value is less than 64k it's treated like a
  *                          ordinal value rather than a string pointer.
@@ -789,7 +822,7 @@ VMMR3DECL(int) PDMR3LdrGetSymbolR0(PVM pVM, const char *pszModule, const char *p
  * Same as PDMR3LdrGetSymbolR0 except that the module will be attempted loaded if not found.
  *
  * @returns VBox status code.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszModule       Module name. If NULL the main R0 module (VMMR0.r0) is assumed.
  * @param   pszSearchPath   List of directories to search if @a pszFile is
  *                          not qualified with a path.  Can be NULL, in which
@@ -841,7 +874,7 @@ VMMR3DECL(int) PDMR3LdrGetSymbolR0Lazy(PVM pVM, const char *pszModule, const cha
  * Get the address of a symbol in a given RC module.
  *
  * @returns VBox status code.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszModule       Module name. If NULL the main R0 module (VMMGC.gc) is assumes.
  * @param   pszSymbol       Symbol name. If it's value is less than 64k it's treated like a
  *                          ordinal value rather than a string pointer.
@@ -904,7 +937,7 @@ VMMR3DECL(int) PDMR3LdrGetSymbolRC(PVM pVM, const char *pszModule, const char *p
  * Same as PDMR3LdrGetSymbolRC except that the module will be attempted loaded if not found.
  *
  * @returns VBox status code.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszModule       Module name. If NULL the main R0 module (VMMGC.gc) is assumes.
  * @param   pszSearchPath   List of directories to search if @a pszFile is
  *                          not qualified with a path.  Can be NULL, in which
@@ -1168,9 +1201,11 @@ typedef struct QMFEIPARG
  * @param   Value           Symbol value.
  * @param   pvUser          The user argument specified to RTLdrEnumSymbols().
  */
-static DECLCALLBACK(int) pdmR3QueryModFromEIPEnumSymbols(RTLDRMOD hLdrMod, const char *pszSymbol, unsigned uSymbol, RTUINTPTR Value, void *pvUser)
+static DECLCALLBACK(int) pdmR3QueryModFromEIPEnumSymbols(RTLDRMOD hLdrMod, const char *pszSymbol, unsigned uSymbol,
+                                                         RTUINTPTR Value, void *pvUser)
 {
     PQMFEIPARG pArgs = (PQMFEIPARG)pvUser;
+    NOREF(hLdrMod);
 
     RTINTPTR off = Value - pArgs->uPC;
     if (off <= 0)   /* near1 is before or at same location. */
@@ -1221,7 +1256,7 @@ static DECLCALLBACK(int) pdmR3QueryModFromEIPEnumSymbols(RTLDRMOD hLdrMod, const
  *
  * @returns VBox status code.
  *
- * @param   pVM         VM handle
+ * @param   pVM         Pointer to the VM
  * @param   uPC         The program counter (eip/rip) to locate the module for.
  * @param   enmType     The module type.
  * @param   pszModName  Where to store the module name.
@@ -1311,7 +1346,7 @@ static int pdmR3LdrQueryModFromPC(PVM pVM, RTUINTPTR uPC, PDMMODTYPE enmType,
  *
  * @returns VBox status code.
  *
- * @param   pVM         VM handle
+ * @param   pVM         Pointer to the VM
  * @param   uPC         The program counter (eip/rip) to locate the module for.
  * @param   pszModName  Where to store the module name.
  * @param   cchModName  Size of the module name buffer.
@@ -1355,7 +1390,7 @@ VMMR3DECL(int) PDMR3LdrQueryRCModFromPC(PVM pVM, RTRCPTR uPC,
  *
  * @returns VBox status code.
  *
- * @param   pVM         VM handle
+ * @param   pVM         Pointer to the VM
  * @param   uPC         The program counter (eip/rip) to locate the module for.
  * @param   pszModName  Where to store the module name.
  * @param   cchModName  Size of the module name buffer.
@@ -1396,7 +1431,7 @@ VMMR3DECL(int) PDMR3LdrQueryR0ModFromPC(PVM pVM, RTR0PTR uPC,
  * Enumerate all PDM modules.
  *
  * @returns VBox status.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pfnCallback     Function to call back for each of the modules.
  * @param   pvArg           User argument.
  */
@@ -1483,7 +1518,7 @@ static PPDMMOD pdmR3LdrFindModule(PUVM pUVM, const char *pszModule, PDMMODTYPE e
  * Resolves a ring-0 or raw-mode context interface.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pvInterface     Pointer to the interface structure.  The symbol list
  *                          describes the layout.
  * @param   cbInterface     The size of the structure pvInterface is pointing

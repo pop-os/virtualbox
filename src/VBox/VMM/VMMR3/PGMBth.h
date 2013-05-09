@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,7 +39,7 @@ RT_C_DECLS_END
  * Initializes the both bit of the paging mode data.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   fResolveGCAndR0 Indicate whether or not GC and Ring-0 symbols can be resolved now.
  *                          This is used early in the init process to avoid trouble with PDM
  *                          not being initialized yet.
@@ -114,8 +114,8 @@ PGM_BTH_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR
  * Enters the shadow+guest mode.
  *
  * @returns VBox status code.
- * @param   pVM         VM handle.
- * @param   pVCpu       The VMCPU to operate on.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   GCPhysCR3   The physical address from the CR3 register.
  */
 PGM_BTH_DECL(int, Enter)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3)
@@ -147,8 +147,10 @@ PGM_BTH_DECL(int, Enter)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3)
         /* Mark the page as unlocked; allow flushing again. */
         pgmPoolUnlockPage(pPool, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
 
+# ifndef PGM_WITHOUT_MAPPINGS
         /* Remove the hypervisor mappings from the shadow page table. */
         pgmMapDeactivateCR3(pVM, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
+# endif
 
         pgmPoolFreeByPage(pPool, pVCpu->pgm.s.pShwPageCR3R3, pVCpu->pgm.s.iShwUser, pVCpu->pgm.s.iShwUserTable);
         pVCpu->pgm.s.pShwPageCR3R3 = 0;
@@ -162,7 +164,8 @@ PGM_BTH_DECL(int, Enter)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3)
     GCPhysCR3 = RT_BIT_64(63);
     pVCpu->pgm.s.iShwUser      = SHW_POOL_ROOT_IDX;
     pVCpu->pgm.s.iShwUserTable = GCPhysCR3 >> PAGE_SHIFT;
-    int rc = pgmPoolAlloc(pVM, GCPhysCR3, BTH_PGMPOOLKIND_ROOT, pVCpu->pgm.s.iShwUser, pVCpu->pgm.s.iShwUserTable,
+    int rc = pgmPoolAlloc(pVM, GCPhysCR3, BTH_PGMPOOLKIND_ROOT, PGMPOOLACCESS_DONTCARE, PGM_A20_IS_ENABLED(pVCpu),
+                          pVCpu->pgm.s.iShwUser, pVCpu->pgm.s.iShwUserTable, false /*fLockPage*/,
                           &pVCpu->pgm.s.pShwPageCR3R3);
     if (rc == VERR_PGM_POOL_FLUSHED)
     {
@@ -182,11 +185,15 @@ PGM_BTH_DECL(int, Enter)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3)
     /* Set the current hypervisor CR3. */
     CPUMSetHyperCR3(pVCpu, PGMGetHyperCR3(pVCpu));
 
+# ifndef PGM_WITHOUT_MAPPINGS
     /* Apply all hypervisor mappings to the new CR3. */
     rc = pgmMapActivateCR3(pVM, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
+# endif
+
     pgmUnlock(pVM);
     return rc;
 #else
+    NOREF(pVCpu); NOREF(GCPhysCR3);
     return VINF_SUCCESS;
 #endif
 }
@@ -196,13 +203,14 @@ PGM_BTH_DECL(int, Enter)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3)
  * Relocate any GC pointers related to shadow mode paging.
  *
  * @returns VBox status code.
- * @param   pVM         The VM handle.
- * @param   pVCpu       The VMCPU to operate on.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   offDelta    The relocation offset.
  */
 PGM_BTH_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta)
 {
     /* nothing special to do here - InitData does the job. */
+    NOREF(pVCpu); NOREF(offDelta);
     return VINF_SUCCESS;
 }
 

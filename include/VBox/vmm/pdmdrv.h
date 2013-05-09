@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,9 @@
 #include <VBox/vmm/pdmins.h>
 #include <VBox/vmm/pdmcommon.h>
 #include <VBox/vmm/pdmasynccompletion.h>
+#ifdef VBOX_WITH_NETSHAPER
+#include <VBox/vmm/pdmnetshaper.h>
+#endif /* VBOX_WITH_NETSHAPER */
 #include <VBox/vmm/pdmblkcache.h>
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/ssm.h>
@@ -382,8 +385,15 @@ typedef struct PDMDRVINS
     /** The base interface of the driver.
      * The driver constructor initializes this. */
     PDMIBASE                    IBase;
+
+    /** Tracing indicator. */
+    uint32_t                    fTracing;
+    /** The tracing ID of this device.  */
+    uint32_t                    idTracing;
+#if HC_ARCH_BITS == 32
     /** Align the internal data more naturally. */
-    RTR3PTR                     R3PtrPadding;
+    uint32_t                    au32Padding[HC_ARCH_BITS == 32 ? 7 : 0];
+#endif
 
     /** Internal data. */
     union
@@ -400,7 +410,7 @@ typedef struct PDMDRVINS
 } PDMDRVINS;
 
 /** Current DRVREG version number. */
-#define PDM_DRVINS_VERSION                      PDM_VERSION_MAKE(0xf0fe, 1, 0)
+#define PDM_DRVINS_VERSION                      PDM_VERSION_MAKE(0xf0fe, 2, 0)
 
 /** Converts a pointer to the PDMDRVINS::IBase to a pointer to PDMDRVINS. */
 #define PDMIBASE_2_PDMDRV(pInterface)   ( (PPDMDRVINS)((char *)(pInterface) - RT_OFFSETOF(PDMDRVINS, IBase)) )
@@ -1159,6 +1169,29 @@ typedef struct PDMDRVHLPR3
                                                                 PFNPDMASYNCCOMPLETEDRV pfnCompleted, void *pvTemplateUser,
                                                                 const char *pszDesc));
 
+#ifdef VBOX_WITH_NETSHAPER
+    /**
+     * Attaches network filter driver to a bandwidth group.
+     *
+     * @returns VBox status code.
+     * @param   pDrvIns         The driver instance.
+     * @param   pcszBwGroup     Name of the bandwidth group to attach to.
+     * @param   pFilter         Pointer to the filter we attach.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnNetShaperAttach,(PPDMDRVINS pDrvIns, const char *pszBwGroup,
+                                                  PPDMNSFILTER pFilter));
+
+
+    /**
+     * Detaches network filter driver to a bandwidth group.
+     *
+     * @returns VBox status code.
+     * @param   pDrvIns         The driver instance.
+     * @param   pFilter         Pointer to the filter we attach.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnNetShaperDetach,(PPDMDRVINS pDrvIns, PPDMNSFILTER pFilter));
+#endif /* VBOX_WITH_NETSHAPER */
+
 
     /**
      * Resolves the symbol for a raw-mode context interface.
@@ -1262,6 +1295,7 @@ typedef struct PDMDRVHLPR3
     DECLR3CALLBACKMEMBER(int, pfnBlkCacheRetain, (PPDMDRVINS pDrvIns, PPPDMBLKCACHE ppBlkCache,
                                                   PFNPDMBLKCACHEXFERCOMPLETEDRV pfnXferComplete,
                                                   PFNPDMBLKCACHEXFERENQUEUEDRV pfnXferEnqueue,
+                                                  PFNPDMBLKCACHEXFERENQUEUEDISCARDDRV pfnXferEnqueueDiscard,
                                                   const char *pcszId));
 
     /** Just a safety precaution. */
@@ -1697,6 +1731,24 @@ DECLINLINE(int) PDMDrvHlpAsyncCompletionTemplateCreate(PPDMDRVINS pDrvIns, PPPDM
 }
 # endif
 
+# ifdef VBOX_WITH_NETSHAPER
+/**
+ * @copydoc PDMDRVHLP::pfnNetShaperAttach
+ */
+DECLINLINE(int) PDMDrvHlpNetShaperAttach(PPDMDRVINS pDrvIns, const char *pcszBwGroup, PPDMNSFILTER pFilter)
+{
+    return pDrvIns->pHlpR3->pfnNetShaperAttach(pDrvIns, pcszBwGroup, pFilter);
+}
+
+/**
+ * @copydoc PDMDRVHLP::pfnNetShaperDetach
+ */
+DECLINLINE(int) PDMDrvHlpNetShaperDetach(PPDMDRVINS pDrvIns, PPDMNSFILTER pFilter)
+{
+    return pDrvIns->pHlpR3->pfnNetShaperDetach(pDrvIns, pFilter);
+}
+# endif
+
 /**
  * @copydoc PDMDRVHLP::pfnCritSectInit
  */
@@ -1719,9 +1771,10 @@ DECLINLINE(int) PDMDrvHlpCallR0(PPDMDRVINS pDrvIns, uint32_t uOperation, uint64_
 DECLINLINE(int) PDMDrvHlpBlkCacheRetain(PPDMDRVINS pDrvIns, PPPDMBLKCACHE ppBlkCache,
                                         PFNPDMBLKCACHEXFERCOMPLETEDRV pfnXferComplete,
                                         PFNPDMBLKCACHEXFERENQUEUEDRV pfnXferEnqueue,
+                                        PFNPDMBLKCACHEXFERENQUEUEDISCARDDRV pfnXferEnqueueDiscard,
                                         const char *pcszId)
 {
-    return pDrvIns->pHlpR3->pfnBlkCacheRetain(pDrvIns, ppBlkCache, pfnXferComplete, pfnXferEnqueue, pcszId);
+    return pDrvIns->pHlpR3->pfnBlkCacheRetain(pDrvIns, ppBlkCache, pfnXferComplete, pfnXferEnqueue, pfnXferEnqueueDiscard, pcszId);
 }
 
 /** Pointer to callbacks provided to the VBoxDriverRegister() call. */

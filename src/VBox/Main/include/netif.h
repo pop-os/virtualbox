@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -71,6 +71,7 @@ typedef struct NETIFINFO
     RTMAC          MACAddress;
     NETIFTYPE      enmMediumType;
     NETIFSTATUS    enmStatus;
+    uint32_t       uSpeedMbits;
     RTUUID         Uuid;
     char           szShortName[VBOXNET_MAX_SHORT_NAME];
     char           szName[1];
@@ -91,6 +92,7 @@ int NetIfRemoveHostOnlyNetworkInterface (VirtualBox *pVbox, IN_GUID aId, IProgre
 int NetIfGetConfig(HostNetworkInterface * pIf, NETIFINFO *);
 int NetIfGetConfigByName(PNETIFINFO pInfo);
 int NetIfDhcpRediscover(VirtualBox *pVbox, HostNetworkInterface * pIf);
+int NetIfAdpCtlOut(const char * pcszName, const char * pcszCmd, char *pszBuffer, size_t cBufSize);
 
 DECLINLINE(Bstr) composeIPv6Address(PRTNETADDRIPV6 aAddrPtr)
 {

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -225,8 +225,8 @@ RTDECL(int) RTMemCacheCreate(PRTMEMCACHE phMemCache, size_t cbObject, size_t cbA
      * tried optimizing the code with the ASMAtomicCmpXchgExPtr function to
      * avoid some reads - no change. Inserting pause instructions did nothing
      * (as expected).  The only thing which seems to make a difference is
-     * reading the pFreeTop pointer twice in the the free code... This is weird
-     * or I'm overlooking something..
+     * reading the pFreeTop pointer twice in the free code... This is weird or I'm
+     * overlooking something..
      *
      * No time to figure it out, so I'm disabling the broken code paths for
      * now. */

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,7 +20,6 @@
 #define _H_FFMPEGFB
 
 #include <VBox/com/VirtualBox.h>
-
 #include <iprt/uuid.h>
 
 #include <VBox/com/com.h>
@@ -29,16 +28,32 @@
 #include <iprt/initterm.h>
 #include <iprt/critsect.h>
 
-#ifdef DEBUG
-# define VBOX_DEBUG_FF DEBUG
-# include <avcodec.h>
-# include <avformat.h>
-# undef  DEBUG
-# define DEBUG VBOX_DEBUG_FF
-#else /* DEBUG not defined */
-# include <avcodec.h>
-# include <avformat.h>
-#endif /* DEBUG not defined */
+#ifdef VBOX_WITH_VPX
+#include "EbmlWriter.h"
+#include "EncodeAndWrite.h"
+#include <stdarg.h>
+#include <string.h>
+#define VPX_CODEC_DISABLE_COMPAT 1
+#include <vp8cx.h>
+#include <vpx_image.h>
+#include <vpx_mem.h>
+#define interface (vpx_codec_vp8_cx())
+#else
+# ifdef DEBUG
+#  define VBOX_DEBUG_FF DEBUG
+#  include <avcodec.h>
+#  include <avformat.h>
+#  undef  DEBUG
+#  define DEBUG VBOX_DEBUG_FF
+# else /* DEBUG not defined */
+#  include <avcodec.h>
+#  include <avformat.h>
+# endif /* DEBUG not defined */
+#endif
+
+#ifdef VBOX_WITH_VPX
+PVIDEORECCONTEXT pVideoRecContext;
+#endif
 
 class FFmpegFB : VBOX_SCRIPTABLE_IMPL(IFramebuffer)
 {
@@ -88,8 +103,28 @@ public:
     STDMETHOD(SetVisibleRegion)(BYTE *rectangles, ULONG count);
 
     STDMETHOD(ProcessVHWACommand)(BYTE *pCommand);
-
+public:
 private:
+#ifdef VBOX_WITH_VPX
+    EbmlGlobal ebml;
+    vpx_codec_ctx_t      mVpxCodec;
+    vpx_codec_enc_cfg_t  mVpxConfig;
+    FILE * mOutputFile;
+    unsigned long mDuration;
+    uint32_t  mFrameCount;
+
+#else
+    /** Pointer to ffmpeg's format information context */
+    AVFormatContext *mpFormatContext;
+    /** ffmpeg context containing information about the stream */
+    AVStream *mpStream;
+    /** Information for ffmpeg describing the current frame */
+    AVFrame *mFrame;
+
+    HRESULT setup_library();
+    HRESULT setup_output_format();
+    HRESULT list_formats();
+#endif
     /** true if url_fopen actually succeeded */
     bool mfUrlOpen;
     /** Guest framebuffer width */
@@ -130,12 +165,6 @@ private:
     RTFILE mFile;
     /** time at which the last "real" frame was created */
     int64_t mLastTime;
-    /** Pointer to ffmpeg's format information context */
-    AVFormatContext *mpFormatContext;
-    /** ffmpeg context containing information about the stream */
-    AVStream *mpStream;
-    /** Information for ffmpeg describing the current frame */
-    AVFrame *mFrame;
     /** ffmpeg pixel format of guest framebuffer */
     int mFFMPEGPixelFormat;
     /** Since we are building without exception support, we use this
@@ -146,9 +175,7 @@ private:
         pixel every frame. */
     bool mToggle;
 
-    HRESULT setup_library();
-    HRESULT setup_output_format();
-    HRESULT list_formats();
+
     HRESULT open_codec();
     HRESULT open_output_file();
     void copy_to_intermediate_buffer(ULONG x, ULONG y, ULONG w, ULONG h);

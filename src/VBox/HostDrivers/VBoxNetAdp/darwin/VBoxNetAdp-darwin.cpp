@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -404,7 +404,7 @@ static int VBoxNetAdpDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFla
                                   pReq->szName[0] && RTStrEnd(pReq->szName, RT_MIN(cbReq, sizeof(pReq->szName))) ?
                                   pReq->szName : NULL);
             if (RT_FAILURE(rc))
-                return EINVAL;
+                return rc == VERR_OUT_OF_RESOURCES ? ENOMEM : EINVAL;
 
             Assert(strlen(pReq->szName) < sizeof(pReq->szName));
             strncpy(pReq->szName, pNew->szName, sizeof(pReq->szName) - 1);

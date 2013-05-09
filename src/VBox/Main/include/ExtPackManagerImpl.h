@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,6 +54,7 @@ public:
     STDMETHOD(COMGETTER(Description))(BSTR *a_pbstrDescription);
     STDMETHOD(COMGETTER(Version))(BSTR *a_pbstrVersion);
     STDMETHOD(COMGETTER(Revision))(ULONG *a_puRevision);
+    STDMETHOD(COMGETTER(Edition))(BSTR *a_pbstrEdition);
     STDMETHOD(COMGETTER(VRDEModule))(BSTR *a_pbstrVrdeModule);
     STDMETHOD(COMGETTER(PlugIns))(ComSafeArrayOut(IExtPackPlugIn *, a_paPlugIns));
     STDMETHOD(COMGETTER(Usable))(BOOL *a_pfUsable);
@@ -117,6 +118,7 @@ public:
     STDMETHOD(COMGETTER(Description))(BSTR *a_pbstrDescription);
     STDMETHOD(COMGETTER(Version))(BSTR *a_pbstrVersion);
     STDMETHOD(COMGETTER(Revision))(ULONG *a_puRevision);
+    STDMETHOD(COMGETTER(Edition))(BSTR *a_pbstrEdition);
     STDMETHOD(COMGETTER(VRDEModule))(BSTR *a_pbstrVrdeModule);
     STDMETHOD(COMGETTER(PlugIns))(ComSafeArrayOut(IExtPackPlugIn *, a_paPlugIns));
     STDMETHOD(COMGETTER(Usable))(BOOL *a_pfUsable);

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -61,10 +61,254 @@ static int32_t crStateAllocAndSSMR3GetMem(PSSMHANDLE pSSM, void **pBuffer, size_
     return SSMR3GetMem(pSSM, *pBuffer, cbBuffer);
 }
 
+#define SHCROGL_GET_STRUCT_PART(_pPtr, _type, _from, _to) do { \
+            rc = SSMR3GetMem(pSSM, &(_pPtr)->_from, RT_OFFSETOF(_type, _to) - RT_OFFSETOF(_type, _from)); \
+            AssertRCReturn(rc, rc); \
+        } while (0)
+
+#define SHCROGL_GET_STRUCT_TAIL(_pPtr, _type, _from) do { \
+            rc = SSMR3GetMem(pSSM, &(_pPtr)->_from, sizeof (_type) - RT_OFFSETOF(_type, _from)); \
+            AssertRCReturn(rc, rc); \
+        } while (0)
+
+#define SHCROGL_GET_STRUCT_HEAD(_pPtr, _type, _to) do { \
+            rc = SSMR3GetMem(pSSM, (_pPtr), RT_OFFSETOF(_type, _to)); \
+            AssertRCReturn(rc, rc); \
+        } while (0)
+
+#define SHCROGL_CUT_FIELD_ALIGNMENT_SIZE(_type, _prevField, _field) (RT_OFFSETOF(_type, _field) - RT_OFFSETOF(_type, _prevField) - RT_SIZEOFMEMB(_type, _prevField))
+#define SHCROGL_CUT_FIELD_ALIGNMENT(_type, _prevField, _field) do { \
+            const int32_t cbAlignment = SHCROGL_CUT_FIELD_ALIGNMENT_SIZE(_type, _prevField, _field) ; \
+            /*AssertCompile(SHCROGL_CUT_FIELD_ALIGNMENT_SIZE(_type, _prevField, _field) >= 0 && SHCROGL_CUT_FIELD_ALIGNMENT_SIZE(_type, _prevField, _field) < sizeof (void*));*/ \
+            if (cbAlignment) { \
+                rc = SSMR3Skip(pSSM, cbAlignment); \
+            } \
+        } while (0)
+
+#define SHCROGL_CUT_TAIL_ALIGNMENT_SIZE(_type, _lastField) (sizeof (_type) - RT_OFFSETOF(_type, _lastField) - RT_SIZEOFMEMB(_type, _lastField))
+#define SHCROGL_CUT_TAIL_ALIGNMENT(_type, _lastField) do { \
+            const int32_t cbAlignment = SHCROGL_CUT_TAIL_ALIGNMENT_SIZE(_type, _lastField); \
+            /*AssertCompile(SHCROGL_CUT_TAIL_ALIGNMENT_SIZE(_type, _lastField) >= 0 && SHCROGL_CUT_TAIL_ALIGNMENT_SIZE(_type, _lastField) < sizeof (void*));*/ \
+            if (cbAlignment) { \
+                rc = SSMR3Skip(pSSM, cbAlignment); \
+            } \
+        } while (0)
+
+static int32_t crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(CRTextureObj *pTexture, PSSMHANDLE pSSM)
+{
+    int32_t rc;
+    uint32_t cbObj = RT_OFFSETOF(CRTextureObj, ctxUsage);
+    cbObj = ((cbObj + sizeof (void*) - 1) & ~(sizeof (void*) - 1));
+    rc = SSMR3GetMem(pSSM, pTexture, cbObj);
+    AssertRCReturn(rc, rc);
+    /* just make all bits are used so that we fall back to the pre-ctxUsage behavior,
+     * i.e. all shared resources will be destructed on last shared context termination */
+    FILLDIRTY(pTexture->ctxUsage);
+    return rc;
+}
+
+static int32_t crStateLoadTextureUnit_v_BEFORE_CTXUSAGE_BITS(CRTextureUnit *t, PSSMHANDLE pSSM)
+{
+    int32_t rc;
+    SHCROGL_GET_STRUCT_HEAD(t, CRTextureUnit, Saved1D);
+    rc = crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(&t->Saved1D, pSSM);
+    AssertRCReturn(rc, rc);
+    SHCROGL_CUT_FIELD_ALIGNMENT(CRTextureUnit, Saved1D, Saved2D);
+    rc = crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(&t->Saved2D, pSSM);
+    AssertRCReturn(rc, rc);
+    SHCROGL_CUT_FIELD_ALIGNMENT(CRTextureUnit, Saved2D, Saved3D);
+    rc = crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(&t->Saved3D, pSSM);
+    AssertRCReturn(rc, rc);
+#ifdef CR_ARB_texture_cube_map
+    SHCROGL_CUT_FIELD_ALIGNMENT(CRTextureUnit, Saved3D, SavedCubeMap);
+    rc = crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(&t->SavedCubeMap, pSSM);
+    AssertRCReturn(rc, rc);
+# define SHCROGL_INTERNAL_LAST_FIELD SavedCubeMap
+#else
+# define SHCROGL_INTERNAL_LAST_FIELD Saved3D
+#endif
+#ifdef CR_NV_texture_rectangle
+    SHCROGL_CUT_FIELD_ALIGNMENT(CRTextureUnit, SHCROGL_INTERNAL_LAST_FIELD, SavedRect);
+    rc = crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(&t->SavedRect, pSSM);
+    AssertRCReturn(rc, rc);
+# undef SHCROGL_INTERNAL_LAST_FIELD
+# define SHCROGL_INTERNAL_LAST_FIELD SavedRect
+#endif
+    SHCROGL_CUT_TAIL_ALIGNMENT(CRTextureUnit, SHCROGL_INTERNAL_LAST_FIELD);
+#undef SHCROGL_INTERNAL_LAST_FIELD
+    return rc;
+}
+
+static int32_t crStateLoadTextureState_v_BEFORE_CTXUSAGE_BITS(CRTextureState *t, PSSMHANDLE pSSM)
+{
+    GLint i;
+    int32_t rc = crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(&t->base1D, pSSM);
+    AssertRCReturn(rc, rc);
+    SHCROGL_CUT_FIELD_ALIGNMENT(CRTextureState, base1D, base2D);
+    rc = crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(&t->base2D, pSSM);
+    AssertRCReturn(rc, rc);
+    rc = crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(&t->base3D, pSSM);
+    SHCROGL_CUT_FIELD_ALIGNMENT(CRTextureState, base2D, base3D);
+    AssertRCReturn(rc, rc);
+#ifdef CR_ARB_texture_cube_map
+    SHCROGL_CUT_FIELD_ALIGNMENT(CRTextureState, base3D, baseCubeMap);
+    rc = crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(&t->baseCubeMap, pSSM);
+    AssertRCReturn(rc, rc);
+# define SHCROGL_INTERNAL_LAST_FIELD baseCubeMap
+#else
+# define SHCROGL_INTERNAL_LAST_FIELD base3D
+#endif
+#ifdef CR_NV_texture_rectangle
+    SHCROGL_CUT_FIELD_ALIGNMENT(CRTextureState, SHCROGL_INTERNAL_LAST_FIELD, baseRect);
+    rc = crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(&t->baseRect, pSSM);
+    AssertRCReturn(rc, rc);
+# undef SHCROGL_INTERNAL_LAST_FIELD
+# define SHCROGL_INTERNAL_LAST_FIELD baseRect
+#endif
+    SHCROGL_CUT_FIELD_ALIGNMENT(CRTextureState, SHCROGL_INTERNAL_LAST_FIELD, proxy1D);
+    rc = crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(&t->proxy1D, pSSM);
+    AssertRCReturn(rc, rc);
+#undef SHCROGL_INTERNAL_LAST_FIELD
+    SHCROGL_CUT_FIELD_ALIGNMENT(CRTextureState, proxy1D, proxy2D);
+    rc = crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(&t->proxy2D, pSSM);
+    AssertRCReturn(rc, rc);
+    SHCROGL_CUT_FIELD_ALIGNMENT(CRTextureState, proxy2D, proxy3D);
+    rc = crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(&t->proxy3D, pSSM);
+    AssertRCReturn(rc, rc);
+#ifdef CR_ARB_texture_cube_map
+    SHCROGL_CUT_FIELD_ALIGNMENT(CRTextureState, proxy3D, proxyCubeMap);
+    rc = crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(&t->proxyCubeMap, pSSM);
+    AssertRCReturn(rc, rc);
+# define SHCROGL_INTERNAL_LAST_FIELD proxyCubeMap
+#else
+# define SHCROGL_INTERNAL_LAST_FIELD proxy3D
+#endif
+#ifdef CR_NV_texture_rectangle
+    SHCROGL_CUT_FIELD_ALIGNMENT(CRTextureState, SHCROGL_INTERNAL_LAST_FIELD, proxyRect);
+    rc = crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(&t->proxyRect, pSSM);
+    AssertRCReturn(rc, rc);
+# undef SHCROGL_INTERNAL_LAST_FIELD
+# define SHCROGL_INTERNAL_LAST_FIELD proxyRect
+#endif
+    SHCROGL_CUT_FIELD_ALIGNMENT(CRTextureState, SHCROGL_INTERNAL_LAST_FIELD, curTextureUnit);
+# undef SHCROGL_INTERNAL_LAST_FIELD
+    SHCROGL_GET_STRUCT_PART(t, CRTextureState, curTextureUnit, unit);
+
+    for (i = 0; i < CR_MAX_TEXTURE_UNITS; ++i)
+    {
+        rc = crStateLoadTextureUnit_v_BEFORE_CTXUSAGE_BITS(&t->unit[i], pSSM);
+        AssertRCReturn(rc, rc);
+    }
+
+    SHCROGL_CUT_TAIL_ALIGNMENT(CRTextureState, unit);
+
+    return rc;
+}
+
+static int32_t crStateLoadTextureStack_v_BEFORE_CTXUSAGE_BITS(CRTextureStack *t, PSSMHANDLE pSSM)
+{
+    int32_t i, rc;
+    SHCROGL_GET_STRUCT_HEAD(t, CRTextureStack, unit);
+    for (i = 0; i < CR_MAX_TEXTURE_UNITS; ++i)
+    {
+        rc = crStateLoadTextureUnit_v_BEFORE_CTXUSAGE_BITS(&t->unit[i], pSSM);
+        AssertRCReturn(rc, rc);
+    }
+    SHCROGL_CUT_TAIL_ALIGNMENT(CRTextureStack, unit);
+    return rc;
+}
+
+static int32_t crStateLoadAttribState_v_BEFORE_CTXUSAGE_BITS(CRAttribState *t, PSSMHANDLE pSSM)
+{
+    int32_t i, rc;
+    SHCROGL_GET_STRUCT_HEAD(t, CRAttribState, textureStack);
+    for (i = 0; i < CR_MAX_ATTRIB_STACK_DEPTH; ++i)
+    {
+        rc = crStateLoadTextureStack_v_BEFORE_CTXUSAGE_BITS(&t->textureStack[i], pSSM);
+        AssertRCReturn(rc, rc);
+    }
+    SHCROGL_GET_STRUCT_TAIL(t, CRAttribState, transformStackDepth);
+    return rc;
+}
+
+
+static int32_t crStateLoadTextureObj(CRTextureObj *pTexture, PSSMHANDLE pSSM, uint32_t u32Version)
+{
+    int32_t rc;
+    if (u32Version == SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS)
+        return crStateLoadTextureObj_v_BEFORE_CTXUSAGE_BITS(pTexture, pSSM);
+    rc = SSMR3GetMem(pSSM, pTexture, sizeof (*pTexture));
+    AssertRCReturn(rc, rc);
+    return rc;
+}
+
+static int32_t crStateLoadBufferObject(CRBufferObject *pBufferObj, PSSMHANDLE pSSM, uint32_t u32Version)
+{
+    int32_t rc;
+    if (u32Version == SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS)
+    {
+        uint32_t cbObj = RT_OFFSETOF(CRBufferObject, ctxUsage);
+        cbObj = ((cbObj + sizeof (void*) - 1) & ~(sizeof (void*) - 1));
+        rc = SSMR3GetMem(pSSM, pBufferObj, cbObj);
+        AssertRCReturn(rc, rc);
+        /* just make all bits are used so that we fall back to the pre-ctxUsage behavior,
+         * i.e. all shared resources will be destructed on last shared context termination */
+        FILLDIRTY(pBufferObj->ctxUsage);
+    }
+    else
+    {
+        rc = SSMR3GetMem(pSSM, pBufferObj, sizeof(*pBufferObj));
+        AssertRCReturn(rc, rc);
+    }
+    return rc;
+}
+
+static int32_t crStateLoadFramebufferObject(CRFramebufferObject *pFBO, PSSMHANDLE pSSM, uint32_t u32Version)
+{
+    int32_t rc;
+    if (u32Version == SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS)
+    {
+        uint32_t cbObj = RT_OFFSETOF(CRFramebufferObject, ctxUsage);
+        cbObj = ((cbObj + sizeof (void*) - 1) & ~(sizeof (void*) - 1));
+        rc = SSMR3GetMem(pSSM, pFBO, cbObj);
+        AssertRCReturn(rc, rc);
+        /* just make all bits are used so that we fall back to the pre-ctxUsage behavior,
+         * i.e. all shared resources will be destructed on last shared context termination */
+        FILLDIRTY(pFBO->ctxUsage);
+    }
+    else
+    {
+        rc = SSMR3GetMem(pSSM, pFBO, sizeof(*pFBO));
+        AssertRCReturn(rc, rc);
+    }
+    return rc;
+}
+
+static int32_t crStateLoadRenderbufferObject(CRRenderbufferObject *pRBO, PSSMHANDLE pSSM, uint32_t u32Version)
+{
+    int32_t rc;
+    if (u32Version == SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS)
+    {
+        uint32_t cbObj = RT_OFFSETOF(CRRenderbufferObject, ctxUsage);
+        cbObj = ((cbObj + sizeof (void*) - 1) & ~(sizeof (void*) - 1));
+        rc = SSMR3GetMem(pSSM, pRBO, cbObj);
+        AssertRCReturn(rc, rc);
+        /* just make all bits are used so that we fall back to the pre-ctxUsage behavior,
+         * i.e. all shared resources will be destructed on last shared context termination */
+        FILLDIRTY(pRBO->ctxUsage);
+    }
+    else
+    {
+        rc = SSMR3GetMem(pSSM, pRBO, sizeof(*pRBO));
+        AssertRCReturn(rc, rc);
+    }
+    return rc;
+}
+
 static int32_t crStateSaveTextureObjData(CRTextureObj *pTexture, PSSMHANDLE pSSM)
 {
     int32_t rc, face, i;
-    GLboolean bound = GL_FALSE;
+    GLint bound = 0;
     
     CRASSERT(pTexture && pSSM);
 
@@ -97,8 +341,52 @@ static int32_t crStateSaveTextureObjData(CRTextureObj *pTexture, PSSMHANDLE pSSM
 
                 if (!bound)
                 {
+                    GLenum getEnum;
                     diff_api.BindTexture(pTexture->target, pTexture->hwid);
-                    bound = GL_TRUE;
+                    bound = 1;
+
+                    /* osx nvidia drivers seem to have a bug that 1x1 TEXTURE_2D texture becmes inaccessible for some reason
+                     * saw that for 1x1 dummy textures generated by wine
+                     * to avoid crashes we skip texture data save if that is the case */
+                    switch (pTexture->target)
+                    {
+                        case GL_TEXTURE_1D:
+                            getEnum = GL_TEXTURE_BINDING_1D;
+                            break;
+                        case GL_TEXTURE_2D:
+                            getEnum = GL_TEXTURE_BINDING_2D;
+                            break;
+                        case GL_TEXTURE_3D:
+                            getEnum = GL_TEXTURE_BINDING_3D;
+                            break;
+                        case GL_TEXTURE_RECTANGLE_ARB:
+                            getEnum = GL_TEXTURE_BINDING_RECTANGLE_ARB;
+                            break;
+                        case GL_TEXTURE_CUBE_MAP_ARB:
+                            getEnum = GL_TEXTURE_BINDING_CUBE_MAP_ARB;
+                            break;
+                        default:
+                            crWarning("unknown texture target: 0x%x", pTexture->target);
+                            getEnum = 0;
+                            break;
+                    }
+
+                    if (getEnum)
+                    {
+                        GLint curTex;
+                        diff_api.GetIntegerv(getEnum, &curTex);
+                        if (curTex != pTexture->hwid)
+                        {
+                            crWarning("texture not bound properly: expected %d, but was %d. Texture state data: target(0x%x), id(%d), w(%d), h(%d)",
+                                    pTexture->hwid, curTex,
+                                    pTexture->target,
+                                    pTexture->id,
+                                    ptl->width,
+                                    ptl->height);
+                            bound = -1;
+                        }
+                    }
+
                 }
 
                 if (pTexture->target!=GL_TEXTURE_CUBE_MAP_ARB)
@@ -118,34 +406,43 @@ static int32_t crStateSaveTextureObjData(CRTextureObj *pTexture, PSSMHANDLE pSSM
                 if (!pImg) return VERR_NO_MEMORY;
 
 #ifdef DEBUG
+                *(int*)((char*)pImg+ptl->bytes) = 0xDEADDEAD;
+#endif
+                if (bound > 0)
                 {
-                    GLint w,h=0;
-                    *(int*)((char*)pImg+ptl->bytes) = 0xDEADDEAD;
-                    crDebug("get image: compressed %i, face %i, level %i, width %i, height %i, bytes %i",
-                            ptl->compressed, face, i, ptl->width, ptl->height, ptl->bytes);
-                    diff_api.GetTexLevelParameteriv(target, i, GL_TEXTURE_WIDTH, &w);
-                    diff_api.GetTexLevelParameteriv(target, i, GL_TEXTURE_HEIGHT, &h);
-                    if (w!=ptl->width || h!=ptl->height)
+#ifdef DEBUG
                     {
-                        crWarning("!!!tex size mismatch %i, %i!!!", w, h);
+                        GLint w,h=0;
+                        crDebug("get image: compressed %i, face %i, level %i, width %i, height %i, bytes %i",
+                                ptl->compressed, face, i, ptl->width, ptl->height, ptl->bytes);
+                        diff_api.GetTexLevelParameteriv(target, i, GL_TEXTURE_WIDTH, &w);
+                        diff_api.GetTexLevelParameteriv(target, i, GL_TEXTURE_HEIGHT, &h);
+                        if (w!=ptl->width || h!=ptl->height)
+                        {
+                            crWarning("!!!tex size mismatch %i, %i!!!", w, h);
+                        }
                     }
-                }
 #endif
 
-                /*@todo: ugly workaround for crashes inside ati driver,
-                 *       they overwrite their own allocated memory in cases where texlevel >=4
-                         and width or height <=2.
-                 */
-                if (i<4 || (ptl->width>2 && ptl->height>2))
+                    /*@todo: ugly workaround for crashes inside ati driver,
+                     *       they overwrite their own allocated memory in cases where texlevel >=4
+                             and width or height <=2.
+                     */
+                    if (i<4 || (ptl->width>2 && ptl->height>2))
+                    {
+                        if (!ptl->compressed)
+                        {
+                            diff_api.GetTexImage(target, i, ptl->format, ptl->type, pImg);
+                        }
+                        else
+                        {
+                            diff_api.GetCompressedTexImageARB(target, i, pImg);
+                        }
+                    }
+                }
+                else
                 {
-                    if (!ptl->compressed)
-                    {
-                        diff_api.GetTexImage(target, i, ptl->format, ptl->type, pImg);
-                    }
-                    else
-                    {
-                        diff_api.GetCompressedTexImageARB(target, i, pImg);
-                    }
+                    crMemset(pImg, 0, ptl->bytes);
                 }
 
 #ifdef DEBUG
@@ -851,7 +1148,11 @@ static int32_t crStateSaveClientPointer(CRVertexArrays *pArrays, int32_t index, 
 
     cp = crStateGetClientPointerByIndex(index, pArrays);
 
-    rc = SSMR3PutU32(pSSM, cp->buffer->id);
+    if (cp->buffer)
+        rc = SSMR3PutU32(pSSM, cp->buffer->id);
+    else
+        rc = SSMR3PutU32(pSSM, 0);
+
     AssertRCReturn(rc, rc);
 
 #ifdef CR_EXT_compiled_vertex_array
@@ -1380,13 +1681,14 @@ int32_t crStateSaveContext(CRContext *pContext, PSSMHANDLE pSSM)
 }
 
 typedef struct _crFindSharedCtxParms {
+    PFNCRSTATE_CONTEXT_GET pfnCtxGet;
     CRContext *pSrcCtx, *pDstCtx;
 } crFindSharedCtxParms_t;
 
 static void crStateFindSharedCB(unsigned long key, void *data1, void *data2)
 {
-    CRContext *pContext = (CRContext *) data1;
     crFindSharedCtxParms_t *pParms = (crFindSharedCtxParms_t *) data2;
+    CRContext *pContext = pParms->pfnCtxGet(data1);
     (void) key;
 
     if (pContext!=pParms->pSrcCtx && pContext->shared->id==pParms->pSrcCtx->shared->id)
@@ -1402,7 +1704,7 @@ AssertCompile(VBOXTLSREFDATA_SIZE() <= CR_MAX_BITARRAY);
 AssertCompile(VBOXTLSREFDATA_STATE_INITIALIZED != 0);
 AssertCompile(RT_OFFSETOF(CRContext, shared) >= VBOXTLSREFDATA_OFFSET(CRContext) + VBOXTLSREFDATA_SIZE() + RT_SIZEOFMEMB(CRContext, bitid) + RT_SIZEOFMEMB(CRContext, neg_bitid));
 
-int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PSSMHANDLE pSSM)
+int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PFNCRSTATE_CONTEXT_GET pfnCtxGet, PSSMHANDLE pSSM, uint32_t u32Version)
 {
     CRContext* pTmpContext;
     int32_t rc, i, j;
@@ -1472,8 +1774,22 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PSSMHAN
      * for simplicity store the VBOXTLSREFDATA from the pContext to pTmpContext */
     VBOXTLSREFDATA_COPY(pTmpContext, pContext);
 
-    rc = SSMR3GetMem(pSSM, &pTmpContext->shared, sizeof (CRContext) - RT_OFFSETOF(CRContext, shared));
-    AssertRCReturn(rc, rc);
+    if (u32Version == SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS)
+    {
+        SHCROGL_GET_STRUCT_PART(pTmpContext, CRContext, shared, attrib);
+        rc = crStateLoadAttribState_v_BEFORE_CTXUSAGE_BITS(&pTmpContext->attrib, pSSM);
+        AssertRCReturn(rc, rc);
+        SHCROGL_CUT_FIELD_ALIGNMENT(CRContext, attrib, buffer);
+        SHCROGL_GET_STRUCT_PART(pTmpContext, CRContext, buffer, texture);
+        rc = crStateLoadTextureState_v_BEFORE_CTXUSAGE_BITS(&pTmpContext->texture, pSSM);
+        AssertRCReturn(rc, rc);
+        SHCROGL_CUT_FIELD_ALIGNMENT(CRContext, texture, transform);
+        SHCROGL_GET_STRUCT_TAIL(pTmpContext, CRContext, transform);
+    }
+    else
+    {
+        SHCROGL_GET_STRUCT_TAIL(pTmpContext, CRContext, shared);
+    }
 
     /* Deal with shared state */
     {
@@ -1487,6 +1803,7 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PSSMHAN
         AssertRCReturn(rc, rc);
 
         pTmpContext->shared = NULL;
+        parms.pfnCtxGet = pfnCtxGet;
         parms.pSrcCtx = pContext;
         parms.pDstCtx = pTmpContext;
         crHashtableWalk(pCtxTable, crStateFindSharedCB, &parms);
@@ -1495,7 +1812,7 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PSSMHAN
         {
             CRASSERT(pContext->shared->refCount==1);
             bLoadShared = GL_FALSE;
-            crStateFreeShared(pContext->shared);
+            crStateFreeShared(pContext, pContext->shared);
             pContext->shared = NULL;
             pTmpContext->shared->refCount++;
         }
@@ -1717,7 +2034,7 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PSSMHAN
             pTexture = (CRTextureObj *) crCalloc(sizeof(CRTextureObj));
             if (!pTexture) return VERR_NO_MEMORY;
 
-            rc = SSMR3GetMem(pSSM, pTexture, sizeof(*pTexture));
+            rc = crStateLoadTextureObj(pTexture, pSSM, u32Version);
             AssertRCReturn(rc, rc);
 
             pTexture->hwid = 0;
@@ -1828,7 +2145,7 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PSSMHAN
             if (!pBufferObj) return VERR_NO_MEMORY;
         }
 
-        rc = SSMR3GetMem(pSSM, pBufferObj, sizeof(*pBufferObj));
+        rc = crStateLoadBufferObject(pBufferObj, pSSM, u32Version);
         AssertRCReturn(rc, rc);
 
         pBufferObj->hwid = 0;
@@ -1940,7 +2257,7 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PSSMHAN
             rc = SSMR3GetMem(pSSM, &key, sizeof(key));
             AssertRCReturn(rc, rc);
 
-            rc = SSMR3GetMem(pSSM, pFBO, sizeof(*pFBO));
+            rc = crStateLoadFramebufferObject(pFBO, pSSM, u32Version);
             AssertRCReturn(rc, rc);
 
             crHashtableAdd(pContext->shared->fbTable, key, pFBO);
@@ -1957,7 +2274,7 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PSSMHAN
             rc = SSMR3GetMem(pSSM, &key, sizeof(key));
             AssertRCReturn(rc, rc);
 
-            rc = SSMR3GetMem(pSSM, pRBO, sizeof(*pRBO));
+            rc = crStateLoadRenderbufferObject(pRBO, pSSM, u32Version);
             AssertRCReturn(rc, rc);
 
             crHashtableAdd(pContext->shared->rbTable, key, pRBO);

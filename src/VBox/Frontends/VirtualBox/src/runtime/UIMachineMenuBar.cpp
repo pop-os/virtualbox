@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,7 +17,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Local includes */
+/* Qt includes: */
+#include <QMenuBar>
+#include <QPainter>
+#include <QPaintEvent>
+#include <QPixmapCache>
+
+/* GUI includes: */
 #include "UIMachineMenuBar.h"
 #include "UISession.h"
 #include "UIActionPoolRuntime.h"
@@ -25,22 +31,20 @@
 #include "UIMessageCenter.h"
 #include "UIExtraDataEventHandler.h"
 #include "UIImageTools.h"
+#include "UINetworkManager.h"
 
-/* Global includes */
-#include <QMenuBar>
-#include <QPainter>
-#include <QPaintEvent>
-#include <QPixmapCache>
+/* COM includes: */
+#include "CMachine.h"
 
 /* Helper QMenu reimplementation which allows
  * to highlight first menu item for popped up menu: */
-class UIMenu : public QMenu
+class QIMenu : public QMenu
 {
     Q_OBJECT;
 
 public:
 
-    UIMenu() : QMenu(0) {}
+    QIMenu() : QMenu(0) {}
 
 private slots:
 
@@ -103,7 +107,7 @@ UIMachineMenuBar::UIMachineMenuBar()
 QMenu* UIMachineMenuBar::createMenu(UIMainMenuType fOptions /* = UIMainMenuType_All */)
 {
     /* Create empty menu: */
-    QMenu *pMenu = new UIMenu;
+    QMenu *pMenu = new QIMenu;
 
     /* Fill menu with prepared items: */
     foreach (QMenu *pSubMenu, prepareSubMenus(fOptions))
@@ -191,6 +195,7 @@ void UIMachineMenuBar::prepareMenuMachine(QMenu *pMenu)
     /* Machine submenu: */
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_SettingsDialog));
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_TakeSnapshot));
+    pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_TakeScreenshot));
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_InformationDialog));
     pMenu->addSeparator();
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_MouseIntegration));
@@ -234,6 +239,8 @@ void UIMachineMenuBar::prepareMenuDevices(QMenu *pMenu)
     pMenu->addMenu(gActionPool->action(UIActionIndexRuntime_Menu_OpticalDevices)->menu());
     pMenu->addMenu(gActionPool->action(UIActionIndexRuntime_Menu_FloppyDevices)->menu());
     pMenu->addMenu(gActionPool->action(UIActionIndexRuntime_Menu_USBDevices)->menu());
+    pMenu->addMenu(gActionPool->action(UIActionIndexRuntime_Menu_SharedClipboard)->menu());
+    pMenu->addMenu(gActionPool->action(UIActionIndexRuntime_Menu_DragAndDrop)->menu());
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_NetworkAdaptersDialog));
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_SharedFoldersDialog));
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_VRDEServer));
@@ -252,6 +259,7 @@ void UIMachineMenuBar::prepareMenuDebug(QMenu *pMenu)
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_Statistics));
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_CommandLine));
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_Logging));
+    pMenu->addAction(gActionPool->action(UIActionIndex_Simple_LogDialog));
 }
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
@@ -262,12 +270,13 @@ void UIMachineMenuBar::prepareMenuHelp(QMenu *pMenu)
         return;
 
     /* Help submenu: */
-    pMenu->addAction(gActionPool->action(UIActionIndex_Simple_Help));
-    pMenu->addAction(gActionPool->action(UIActionIndex_Simple_Web));
+    pMenu->addAction(gActionPool->action(UIActionIndex_Simple_Contents));
+    pMenu->addAction(gActionPool->action(UIActionIndex_Simple_WebSite));
     pMenu->addSeparator();
     pMenu->addAction(gActionPool->action(UIActionIndex_Simple_ResetWarnings));
     pMenu->addSeparator();
 
+    pMenu->addAction(gActionPool->action(UIActionIndex_Simple_NetworkAccessManager));
 #ifdef VBOX_WITH_REGISTRATION
     pMenu->addAction(gActionPool->action(UIActionIndex_Simple_Register));
 #endif
@@ -292,12 +301,14 @@ void UIMachineMenuBar::prepareMenuHelp(QMenu *pMenu)
     }
 #endif
 
-    VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_Help), SIGNAL(triggered()),
+    VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_Contents), SIGNAL(triggered()),
                         &msgCenter(), SLOT(sltShowHelpHelpDialog()));
-    VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_Web), SIGNAL(triggered()),
+    VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_WebSite), SIGNAL(triggered()),
                         &msgCenter(), SLOT(sltShowHelpWebDialog()));
     VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_ResetWarnings), SIGNAL(triggered()),
                         &msgCenter(), SLOT(sltResetSuppressedMessages()));
+    VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_NetworkAccessManager), SIGNAL(triggered()),
+                        gNetworkManager, SLOT(show()));
 #ifdef VBOX_WITH_REGISTRATION
     VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_Register), SIGNAL(triggered()),
                         &vboxGlobal(), SLOT(showRegistrationDialog()));

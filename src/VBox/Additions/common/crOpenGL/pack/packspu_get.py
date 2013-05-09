@@ -92,7 +92,7 @@ for func_name in keys:
             params.append( ("&return_val", "foo", 0) )
         if (func_name in easy_swaps.keys() and easy_swaps[func_name] != '0') or func_name in simple_funcs or func_name in hard_funcs.keys():
             print '\tunsigned int i;'
-        print '\tif (!(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))'
+        print '\tif (!CRPACKSPU_IS_WDDM_CRHGSMI() && !(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))'
         print '\t{'
         print '\t\tcrError( "packspu_%s doesn\'t work when there\'s no actual network involved!\\nTry using the simplequery SPU in your chain!" );' % func_name
         print '\t}'
@@ -131,8 +131,7 @@ for func_name in keys:
                 crState%s(pname, localparams);
                 crPack%s(%s, &writeback);
                 packspuFlush( (void *) thread );
-                while (writeback)
-                    crNetRecv();
+                CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
                 for (i=0; i<__numValues(pname); ++i)
                 {
                     if (localparams[i] != params[i])
@@ -163,8 +162,7 @@ for func_name in keys:
         print '\t\tcrPack%s( %s );' % (func_name, apiutil.MakeCallString( params ) )
         print '\t}'
         print '\tpackspuFlush( (void *) thread );'
-        print '\twhile (writeback)'
-        print '\t\tcrNetRecv();'
+        print '\tCRPACKSPU_WRITEBACK_WAIT(thread, writeback);'
 
 
 

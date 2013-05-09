@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -393,22 +393,22 @@ STDMETHODIMP ExtPackFile::COMGETTER(Version)(BSTR *a_pbstrVersion)
     HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        /* HACK ALERT: This is for easing backporting to 4.1. The edition stuff
-           will be changed into a separate */
-        if (m->Desc.strEdition.isEmpty())
-        {
-            Bstr str(m->Desc.strVersion);
-            str.cloneTo(a_pbstrVersion);
-        }
-        else
-        {
-            RTCString strHack(m->Desc.strVersion);
-            strHack.append('-');
-            strHack.append(m->Desc.strEdition);
+        Bstr str(m->Desc.strVersion);
+        str.cloneTo(a_pbstrVersion);
+    }
+    return hrc;
+}
 
-            Bstr str(strHack);
-            str.cloneTo(a_pbstrVersion);
-        }
+STDMETHODIMP ExtPackFile::COMGETTER(Edition)(BSTR *a_pbstrEdition)
+{
+    CheckComArgOutPointerValid(a_pbstrEdition);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        Bstr str(m->Desc.strEdition);
+        str.cloneTo(a_pbstrEdition);
     }
     return hrc;
 }
@@ -1627,22 +1627,8 @@ STDMETHODIMP ExtPack::COMGETTER(Version)(BSTR *a_pbstrVersion)
     HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        /* HACK ALERT: This is for easing backporting to 4.1. The edition stuff
-           will be changed into a separate */
-        if (m->Desc.strEdition.isEmpty())
-        {
-            Bstr str(m->Desc.strVersion);
-            str.cloneTo(a_pbstrVersion);
-        }
-        else
-        {
-            RTCString strHack(m->Desc.strVersion);
-            strHack.append('-');
-            strHack.append(m->Desc.strEdition);
-
-            Bstr str(strHack);
-            str.cloneTo(a_pbstrVersion);
-        }
+        Bstr str(m->Desc.strVersion);
+        str.cloneTo(a_pbstrVersion);
     }
     return hrc;
 }
@@ -1655,6 +1641,20 @@ STDMETHODIMP ExtPack::COMGETTER(Revision)(ULONG *a_puRevision)
     HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
         *a_puRevision = m->Desc.uRevision;
+    return hrc;
+}
+
+STDMETHODIMP ExtPack::COMGETTER(Edition)(BSTR *a_pbstrEdition)
+{
+    CheckComArgOutPointerValid(a_pbstrEdition);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        Bstr str(m->Desc.strEdition);
+        str.cloneTo(a_pbstrEdition);
+    }
     return hrc;
 }
 

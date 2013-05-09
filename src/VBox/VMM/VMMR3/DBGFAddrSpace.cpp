@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -133,7 +133,7 @@ typedef FNDBGFR3ASSEARCHOPEN *PFNDBGFR3ASSEARCHOPEN;
  * Initializes the address space parts of DBGF.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  */
 int dbgfR3AsInit(PVM pVM)
 {
@@ -206,7 +206,7 @@ static DECLCALLBACK(int) dbgfR3AsTermDestroyNode(PAVLPVNODECORE pNode, void *pvI
 /**
  * Terminates the address space parts of DBGF.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  */
 void dbgfR3AsTerm(PVM pVM)
 {
@@ -232,12 +232,13 @@ void dbgfR3AsTerm(PVM pVM)
 /**
  * Relocates the RC address space.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   offDelta        The relocation delta.
  */
 void dbgfR3AsRelocate(PVM pVM, RTGCUINTPTR offDelta)
 {
     /** @todo */
+    NOREF(pVM); NOREF(offDelta);
 }
 
 
@@ -245,7 +246,7 @@ void dbgfR3AsRelocate(PVM pVM, RTGCUINTPTR offDelta)
  * Adds the address space to the database.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   hDbgAs          The address space handle. The reference of the
  *                          caller will NOT be consumed.
  * @param   ProcId          The process id or NIL_RTPROCESS.
@@ -270,8 +271,8 @@ VMMR3DECL(int) DBGFR3AsAdd(PVM pVM, RTDBGAS hDbgAs, RTPROCESS ProcId)
     PDBGFASDBNODE pDbNode = (PDBGFASDBNODE)MMR3HeapAlloc(pVM, MM_TAG_DBGF_AS, sizeof(*pDbNode));
     if (pDbNode)
     {
-        pDbNode->HandleCore.Key = hDbgAs;
-        pDbNode->PidCore.Key = NIL_RTPROCESS;
+        pDbNode->HandleCore.Key     = hDbgAs;
+        pDbNode->PidCore.Key        = ProcId;
         pDbNode->NameCore.pszString = pszName;
         pDbNode->NameCore.cchString = strlen(pszName);
         DBGF_AS_DB_LOCK_WRITE(pVM);
@@ -303,7 +304,7 @@ VMMR3DECL(int) DBGFR3AsAdd(PVM pVM, RTDBGAS hDbgAs, RTPROCESS ProcId)
  * @retval  VERR_SHARING_VIOLATION if in use as an alias.
  * @retval  VERR_NOT_FOUND if not found in the address space database.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   hDbgAs          The address space handle. Aliases are not allowed.
  */
 VMMR3DECL(int) DBGFR3AsDelete(PVM pVM, RTDBGAS hDbgAs)
@@ -364,7 +365,7 @@ VMMR3DECL(int) DBGFR3AsDelete(PVM pVM, RTDBGAS hDbgAs)
  * and DBGF_AS_KERNEL.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   hAlias          The alias to change.
  * @param   hAliasFor       The address space hAlias should be an alias for.
  *                          This can be an alias. The caller's reference to
@@ -378,7 +379,7 @@ VMMR3DECL(int) DBGFR3AsSetAlias(PVM pVM, RTDBGAS hAlias, RTDBGAS hAliasFor)
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     AssertMsgReturn(DBGF_AS_IS_ALIAS(hAlias), ("%p\n", hAlias), VERR_INVALID_PARAMETER);
     AssertMsgReturn(!DBGF_AS_IS_FIXED_ALIAS(hAlias), ("%p\n", hAlias), VERR_INVALID_PARAMETER);
-    RTDBGAS hRealAliasFor = DBGFR3AsResolveAndRetain(pVM, hAlias);
+    RTDBGAS hRealAliasFor = DBGFR3AsResolveAndRetain(pVM, hAliasFor);
     if (hRealAliasFor == NIL_RTDBGAS)
         return VERR_INVALID_HANDLE;
 
@@ -395,8 +396,7 @@ VMMR3DECL(int) DBGFR3AsSetAlias(PVM pVM, RTDBGAS hAlias, RTDBGAS hAliasFor)
         RTDBGAS hAsOld;
         ASMAtomicXchgHandle(&pVM->dbgf.s.ahAsAliases[DBGF_AS_ALIAS_2_INDEX(hAlias)], hRealAliasFor, &hAsOld);
         uint32_t cRefs = RTDbgAsRelease(hAsOld);
-        Assert(cRefs > 0);
-        Assert(cRefs != UINT32_MAX);
+        Assert(cRefs > 0); Assert(cRefs != UINT32_MAX); NOREF(cRefs);
         rc = VINF_SUCCESS;
     }
     DBGF_AS_DB_UNLOCK_WRITE(pVM);
@@ -411,6 +411,8 @@ VMMR3DECL(int) DBGFR3AsSetAlias(PVM pVM, RTDBGAS hAlias, RTDBGAS hAliasFor)
 static DECLCALLBACK(int) dbgfR3AsLazyPopulateR0Callback(PVM pVM, const char *pszFilename, const char *pszName,
                                                         RTUINTPTR ImageBase, size_t cbImage, bool fRC, void *pvArg)
 {
+    NOREF(pVM); NOREF(cbImage);
+
     /* Only ring-0 modules. */
     if (!fRC)
     {
@@ -434,7 +436,7 @@ static DECLCALLBACK(int) dbgfR3AsLazyPopulateR0Callback(PVM pVM, const char *psz
 /**
  * Lazily populates the specified address space.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   hAlias              The alias.
  */
 static void dbgfR3AsLazyPopulate(PVM pVM, RTDBGAS hAlias)
@@ -459,7 +461,7 @@ static void dbgfR3AsLazyPopulate(PVM pVM, RTDBGAS hAlias)
  *
  * @returns Real address space handle. NIL_RTDBGAS if invalid handle.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   hAlias          The possibly address space alias.
  *
  * @remarks Doesn't take any locks.
@@ -482,7 +484,7 @@ VMMR3DECL(RTDBGAS) DBGFR3AsResolve(PVM pVM, RTDBGAS hAlias)
  *
  * @returns Real address space handle. NIL_RTDBGAS if invalid handle.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   hAlias          The possibly address space alias.
  */
 VMMR3DECL(RTDBGAS) DBGFR3AsResolveAndRetain(PVM pVM, RTDBGAS hAlias)
@@ -526,7 +528,7 @@ VMMR3DECL(RTDBGAS) DBGFR3AsResolveAndRetain(PVM pVM, RTDBGAS hAlias)
  *
  * @returns Retained address space handle if found, NIL_RTDBGAS if not.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pszName     The name.
  */
 VMMR3DECL(RTDBGAS) DBGFR3AsQueryByName(PVM pVM, const char *pszName)
@@ -564,7 +566,7 @@ VMMR3DECL(RTDBGAS) DBGFR3AsQueryByName(PVM pVM, const char *pszName)
  *
  * @returns Retained address space handle if found, NIL_RTDBGAS if not.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   ProcId      The process ID.
  */
 VMMR3DECL(RTDBGAS) DBGFR3AsQueryByPid(PVM pVM, RTPROCESS ProcId)
@@ -683,7 +685,8 @@ static int dbgfR3AsSearchPath(const char *pszFilename, const char *pszPath, PFND
 /**
  * Same as dbgfR3AsSearchEnv, except that the path is taken from the environment.
  *
- * It the environment variable doesn't exist, the current directory is searched instead.
+ * If the environment variable doesn't exist, the current directory is searched
+ * instead.
  *
  * @returns VBox status code.
  * @param   pszFilename     The filename.
@@ -702,6 +705,32 @@ static int dbgfR3AsSearchEnvPath(const char *pszFilename, const char *pszEnvVar,
     }
     else
         rc = dbgfR3AsSearchPath(pszFilename, ".", pfnOpen, pvUser);
+    return rc;
+}
+
+
+/**
+ * Same as dbgfR3AsSearchEnv, except that the path is taken from the DBGF config
+ * (CFGM).
+ *
+ * Nothing is done if the CFGM variable isn't set.
+ *
+ * @returns VBox status code.
+ * @param   pszFilename     The filename.
+ * @param   pszCfgValue     The name of the config variable (under /DBGF/).
+ * @param   pfnOpen         The open callback function.
+ * @param   pvUser          User argument for the callback.
+ */
+static int dbgfR3AsSearchCfgPath(PVM pVM, const char *pszFilename, const char *pszCfgValue, PFNDBGFR3ASSEARCHOPEN pfnOpen, void *pvUser)
+{
+    char *pszPath;
+    int rc = CFGMR3QueryStringAllocDef(CFGMR3GetChild(CFGMR3GetRoot(pVM), "/DBGF"), pszCfgValue, &pszPath, NULL);
+    if (RT_FAILURE(rc))
+        return rc;
+    if (!pszPath)
+        return VERR_FILE_NOT_FOUND;
+    rc = dbgfR3AsSearchPath(pszFilename, pszPath, pfnOpen, pvUser);
+    MMR3HeapFree(pszPath);
     return rc;
 }
 
@@ -728,7 +757,7 @@ static DECLCALLBACK(int) dbgfR3AsLoadImageOpen(const char *pszFilename, void *pv
  *
  * @returns VBox status code.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   hDbgAs          The address space.
  * @param   pszFilename     The filename of the executable module.
  * @param   pszModName      The module name. If NULL, then then the file name
@@ -759,7 +788,11 @@ VMMR3DECL(int) DBGFR3AsLoadImage(PVM pVM, RTDBGAS hDbgAs, const char *pszFilenam
     Data.uSubtrahend = 0;
     Data.fFlags = 0;
     Data.hMod = NIL_RTDBGMOD;
-    int rc = dbgfR3AsSearchEnvPath(pszFilename, "VBOXDBG_IMAGE_PATH", dbgfR3AsLoadImageOpen, &Data);
+    int rc = dbgfR3AsSearchCfgPath(pVM, pszFilename, "ImagePath", dbgfR3AsLoadImageOpen, &Data);
+    if (RT_FAILURE(rc))
+        rc = dbgfR3AsSearchEnvPath(pszFilename, "VBOXDBG_IMAGE_PATH", dbgfR3AsLoadImageOpen, &Data);
+    if (RT_FAILURE(rc))
+        rc = dbgfR3AsSearchCfgPath(pVM, pszFilename, "Path", dbgfR3AsLoadImageOpen, &Data);
     if (RT_FAILURE(rc))
         rc = dbgfR3AsSearchEnvPath(pszFilename, "VBOXDBG_PATH", dbgfR3AsLoadImageOpen, &Data);
     if (RT_SUCCESS(rc))
@@ -796,7 +829,7 @@ static DECLCALLBACK(int) dbgfR3AsLoadMapOpen(const char *pszFilename, void *pvUs
  *
  * @returns VBox status code.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   hDbgAs          The address space.
  * @param   pszFilename     The map file.
  * @param   pszModName      The module name. If NULL, then then the file name
@@ -831,7 +864,11 @@ VMMR3DECL(int) DBGFR3AsLoadMap(PVM pVM, RTDBGAS hDbgAs, const char *pszFilename,
     Data.uSubtrahend = uSubtrahend;
     Data.fFlags = 0;
     Data.hMod = NIL_RTDBGMOD;
-    int rc = dbgfR3AsSearchEnvPath(pszFilename, "VBOXDBG_MAP_PATH", dbgfR3AsLoadMapOpen, &Data);
+    int rc = dbgfR3AsSearchCfgPath(pVM, pszFilename, "MapPath", dbgfR3AsLoadMapOpen, &Data);
+    if (RT_FAILURE(rc))
+        rc = dbgfR3AsSearchEnvPath(pszFilename, "VBOXDBG_MAP_PATH", dbgfR3AsLoadMapOpen, &Data);
+    if (RT_FAILURE(rc))
+        rc = dbgfR3AsSearchCfgPath(pVM, pszFilename, "Path", dbgfR3AsLoadMapOpen, &Data);
     if (RT_FAILURE(rc))
         rc = dbgfR3AsSearchEnvPath(pszFilename, "VBOXDBG_PATH", dbgfR3AsLoadMapOpen, &Data);
     if (RT_SUCCESS(rc))
@@ -850,7 +887,7 @@ VMMR3DECL(int) DBGFR3AsLoadMap(PVM pVM, RTDBGAS hDbgAs, const char *pszFilename,
  * Wrapper around RTDbgAsModuleLink, RTDbgAsModuleLinkSeg and DBGFR3AsResolve.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   hDbgAs          The address space handle.
  * @param   hMod            The module handle.
  * @param   pModAddress     The link address.
@@ -929,7 +966,7 @@ static void dbgfR3AsSymbolConvert(PRTDBGSYMBOL pSymbol, PCDBGFSYMBOL pDbgfSym)
  *
  * @returns VBox status code. See RTDbgAsSymbolByAddr.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   hDbgAs              The address space handle.
  * @param   pAddress            The address to lookup.
  * @param   poffDisp            Where to return the distance between the
@@ -973,7 +1010,7 @@ VMMR3DECL(int) DBGFR3AsSymbolByAddr(PVM pVM, RTDBGAS hDbgAs, PCDBGFADDRESS pAddr
      * Do the lookup.
      */
     RTDBGMOD hMod;
-    int rc = RTDbgAsSymbolByAddr(hRealAS, pAddress->FlatPtr, poffDisp, pSymbol, &hMod);
+    int rc = RTDbgAsSymbolByAddr(hRealAS, pAddress->FlatPtr, RTDBGSYMADDR_FLAGS_LESS_OR_EQUAL, poffDisp, pSymbol, &hMod);
     if (RT_SUCCESS(rc))
     {
         dbgfR3AsSymbolJoinNames(pSymbol, hMod);
@@ -1028,7 +1065,7 @@ VMMR3DECL(int) DBGFR3AsSymbolByAddr(PVM pVM, RTDBGAS hDbgAs, PCDBGFADDRESS pAddr
  *          RTDbgSymbolFree(). NULL is returned if not found or any error
  *          occurs.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   hDbgAs              See DBGFR3AsSymbolByAddr.
  * @param   pAddress            See DBGFR3AsSymbolByAddr.
  * @param   poffDisp            See DBGFR3AsSymbolByAddr.
@@ -1053,7 +1090,7 @@ VMMR3DECL(PRTDBGSYMBOL) DBGFR3AsSymbolByAddrA(PVM pVM, RTDBGAS hDbgAs, PCDBGFADD
  *
  * @returns VBox status code. See RTDbgAsSymbolByAddr.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   hDbgAs              The address space handle.
  * @param   pszSymbol           The symbol to search for, maybe prefixed by a
  *                              module pattern.

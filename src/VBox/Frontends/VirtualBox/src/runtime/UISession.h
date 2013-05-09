@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,15 +19,18 @@
 #ifndef ___UIConsole_h___
 #define ___UIConsole_h___
 
-/* Global includes */
+/* Qt includes: */
 #include <QObject>
 #include <QCursor>
+#include <QEvent>
 
-/* Local includes */
-#include "COMDefs.h"
+/* GUI includes: */
 #include "UIMachineDefs.h"
 
-/* Global forwards */
+/* COM includes: */
+#include "COMEnums.h"
+
+/* Forward declarations: */
 class QMenu;
 class QMenuBar;
 #ifdef VBOX_GUI_WITH_KEYS_RESET_HANDLER
@@ -39,12 +42,14 @@ struct siginfo;
 typedef struct siginfo siginfo_t;
 # endif /* !Q_WS_MAC */
 #endif /* VBOX_GUI_WITH_KEYS_RESET_HANDLER */
-
-/* Local forwards */
 class UIFrameBuffer;
 class UIMachine;
 class UIMachineLogic;
 class UIMachineMenuBar;
+class CSession;
+class CUSBDevice;
+class CNetworkAdapter;
+class CMediumAttachment;
 
 /* CConsole callback event types: */
 enum UIConsoleEventType
@@ -87,8 +92,8 @@ public:
     /* Common getters: */
     CSession& session() { return m_session; }
     KMachineState machineState() const { return m_machineState; }
-    QWidget* mainMachineWindow() const;
     UIMachineLogic* machineLogic() const;
+    QWidget* mainMachineWindow() const;
     QMenu* newMenu(UIMainMenuType fOptions = UIMainMenuType_All);
     QMenuBar* newMenuBar(UIMainMenuType fOptions = UIMainMenuType_All);
     QCursor cursor() const { return m_cursor; }
@@ -146,14 +151,17 @@ public:
     void setMouseCaptured(bool fIsMouseCaptured) { m_fIsMouseCaptured = fIsMouseCaptured; }
     void setMouseIntegrated(bool fIsMouseIntegrated) { m_fIsMouseIntegrated = fIsMouseIntegrated; }
 
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    /* return a persisted framebuffer for the given screen
-     * see comment below for the m_FrameBufferVector field */
-    UIFrameBuffer* frameBuffer(ulong screenId) const;
-    /* @return VINF_SUCCESS - on success
-     * VERR_INVALID_PARAMETER - if screenId is invalid */
-    int setFrameBuffer(ulong screenId, UIFrameBuffer* pFrameBuffer);
-#endif
+    /* Screen visibility status: */
+    bool isScreenVisible(ulong uScreenId) const;
+    void setScreenVisible(ulong uScreenId, bool fIsMonitorVisible);
+    int countOfVisibleWindows();
+
+    /* Returns existing framebuffer for the given screen-number;
+     * Returns 0 (asserts) if screen-number attribute is out of bounds: */
+    UIFrameBuffer* frameBuffer(ulong uScreenId) const;
+    /* Sets framebuffer for the given screen-number;
+     * Ignores (asserts) if screen-number attribute is out of bounds: */
+    void setFrameBuffer(ulong uScreenId, UIFrameBuffer* pFrameBuffer);
 
 signals:
 
@@ -174,6 +182,7 @@ signals:
     void sigShowWindows();
 #endif /* RT_OS_DARWIN */
     void sigCPUExecutionCapChange();
+    void sigGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
 
     /* Session signals: */
     void sigMachineStarted();
@@ -201,18 +210,24 @@ private:
     UIMachine* uimachine() const { return m_pMachine; }
 
     /* Prepare helpers: */
+    void prepareConsoleEventHandlers();
+    void prepareScreens();
+    void prepareFramebuffers();
     void prepareMenuPool();
     void loadSessionSettings();
 
     /* Cleanup helpers: */
     void saveSessionSettings();
     void cleanupMenuPool();
+    void cleanupFramebuffers();
+    //void cleanupSession() {}
+    void cleanupConsoleEventHandlers();
 
     /* Common helpers: */
     WId winId() const;
     void setPointerShape(const uchar *pShapeData, bool fHasAlpha, uint uXHot, uint uYHot, uint uWidth, uint uHeight);
     void reinitMenuPool();
-    void preparePowerUp();
+    bool preparePowerUp();
 
 #ifdef VBOX_GUI_WITH_KEYS_RESET_HANDLER
     static void signalHandlerSIGUSR1(int sig, siginfo_t *pInfo, void *pSecret);
@@ -224,13 +239,11 @@ private:
 
     UIMachineMenuBar *m_pMenuPool;
 
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    /* When 2D is enabled we do not re-create Framebuffers. This is done
-     * 1. to avoid 2D command loss during the time slot when no framebuffer is
-     *    assigned to the display
-     * 2. to make it easier to preserve the current 2D state */
-    QVector<UIFrameBuffer*> m_FrameBufferVector;
-#endif
+    /* Screen visibility vector: */
+    QVector<bool> m_monitorVisibilityVector;
+
+    /* Frame-buffers vector: */
+    QVector<UIFrameBuffer*> m_frameBufferVector;
 
     /* Common variables: */
     KMachineState m_machineState;

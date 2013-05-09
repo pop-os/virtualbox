@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,7 +40,7 @@ using namespace com;
 int main (int argc, char **argv)
 {
     // initialize VBox Runtime
-    RTR3Init();
+    RTR3InitExe(argc, &argv, 0);
 
     // the below cannot be Bstr because on Linux Bstr doesn't work
     // until XPCOM (nsMemory) is initialized

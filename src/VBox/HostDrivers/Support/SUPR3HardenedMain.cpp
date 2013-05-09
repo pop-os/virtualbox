@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -79,6 +79,7 @@
 #include <VBox/sup.h>
 #include <VBox/err.h>
 #include <iprt/string.h>
+#include <iprt/initterm.h>
 #include <iprt/param.h>
 
 #include "SUPLibInternal.h"
@@ -110,7 +111,8 @@
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
 /** @see RTR3InitEx */
-typedef DECLCALLBACK(int) FNRTR3INITEX(uint32_t iVersion, const char *pszProgramPath, bool fInitSUPLib);
+typedef DECLCALLBACK(int) FNRTR3INITEX(uint32_t iVersion, uint32_t fFlags, int cArgs,
+                                       char **papszArgs, const char *pszProgramPath);
 typedef FNRTR3INITEX *PFNRTR3INITEX;
 
 
@@ -826,7 +828,7 @@ static void supR3HardenedMainDropPrivileges(void)
 
 /**
  * Loads the VBoxRT DLL/SO/DYLIB, hands it the open driver,
- * and calls RTR3Init.
+ * and calls RTR3InitEx.
  *
  * @param   fFlags      The SUPR3HardenedMain fFlags argument, passed to supR3PreInit.
  *
@@ -896,10 +898,12 @@ static void supR3HardenedMainInitRuntime(uint32_t fFlags)
     if (!supR3HardenedMainIsProcSelfExeAccssible())
         pszExePath = g_szSupLibHardenedExePath;
 #endif
-    rc = pfnRTInitEx(0, pszExePath, !(fFlags & SUPSECMAIN_FLAGS_DONT_OPEN_DEV));
+    rc = pfnRTInitEx(RTR3INIT_VER_1,
+                     fFlags & SUPSECMAIN_FLAGS_DONT_OPEN_DEV ? 0 : RTR3INIT_FLAGS_SUPLIB,
+                     0 /*cArgs*/, NULL /*papszArgs*/, pszExePath);
     if (RT_FAILURE(rc))
         supR3HardenedFatalMsg("supR3HardenedMainInitRuntime", kSupInitOp_IPRT, rc,
-                              "RTR3Init failed with rc=%d", rc);
+                              "RTR3InitEx failed with rc=%d", rc);
 }
 
 
@@ -1085,7 +1089,7 @@ DECLHIDDEN(int) SUPR3HardenedMain(const char *pszProgName, uint32_t fFlags, int 
 
     /*
      * Load the IPRT, hand the SUPLib part the open driver and
-     * call RTR3Init.
+     * call RTR3InitEx.
      */
     supR3HardenedMainInitRuntime(fFlags);
 

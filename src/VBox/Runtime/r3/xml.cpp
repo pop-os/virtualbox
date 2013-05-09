@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2011 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -516,6 +516,16 @@ void Node::buildChildren(const ElementNode &elmRoot)       // private
 const char* Node::getName() const
 {
     return m_pcszName;
+}
+
+/**
+ * Returns the name of the node, which is either the element name or
+ * the attribute name. For other node types it probably returns NULL.
+ * @return
+ */
+const char* Node::getPrefix() const
+{
+    return m_pcszNamespacePrefix;
 }
 
 /**
@@ -1659,6 +1669,7 @@ int XmlFileParser::ReadCallback(void *aCtxt, char *aBuf, int aLen)
 int XmlFileParser::CloseCallback(void *aCtxt)
 {
     /// @todo to be written
+    NOREF(aCtxt);
 
     return -1;
 }
@@ -1784,6 +1795,7 @@ int XmlFileWriter::WriteCallback(void *aCtxt, const char *aBuf, int aLen)
 int XmlFileWriter::CloseCallback(void *aCtxt)
 {
     /// @todo to be written
+    NOREF(aCtxt);
 
     return -1;
 }

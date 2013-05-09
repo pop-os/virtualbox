@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,16 @@ VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromFlat(PVM pVM, PDBGFADDRESS pAddress, RTGCU
 
 VMMR3DECL(int) DBGFR3AddrFromSelOff(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, RTSEL Sel, RTUINTPTR off)
 {
-    return VERR_INTERNAL_ERROR;
+    /* bad:bad -> provke error during parsing. */
+    if (Sel == 0xbad && off == 0xbad)
+        return VERR_OUT_OF_SELECTOR_BOUNDS;
+
+    /* real mode conversion. */
+    pAddress->FlatPtr = (uint32_t)(Sel << 4) | off;
+    pAddress->fFlags |= DBGFADDRESS_FLAGS_FLAT;
+    pAddress->Sel     = DBGF_SEL_FLAT;
+    pAddress->off     = pAddress->FlatPtr;
+    return VINF_SUCCESS;
 }
 
 VMMR3DECL(int)  DBGFR3AddrToPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, PRTGCPHYS pGCPhys)
@@ -194,6 +203,15 @@ VMMDECL(int) DBGFR3PagingDumpEx(PVM pVM, VMCPUID idCpu, uint32_t fFlags, uint64_
 {
     return VERR_INTERNAL_ERROR;
 }
+VMMR3DECL(int) DBGFR3RegNmValidate(PVM pVM, VMCPUID idDefCpu, const char *pszReg)
+{
+    if (   !strcmp(pszReg, "ah")
+        || !strcmp(pszReg, "ax")
+        || !strcmp(pszReg, "eax")
+        || !strcmp(pszReg, "rax"))
+        return VINF_SUCCESS;
+    return VERR_DBGF_REGISTER_NOT_FOUND;
+}
 VMMR3DECL(int) DBGFR3RegCpuQueryU8(  PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint8_t     *pu8)
 {
     return VERR_INTERNAL_ERROR;
@@ -239,7 +257,7 @@ VMMR3DECL(int) DBGFR3RegNmQuery(PVM pVM, VMCPUID idDefCpu, const char *pszReg, P
             return VINF_SUCCESS;
         }
     }
-    return VERR_INTERNAL_ERROR;
+    return VERR_DBGF_REGISTER_NOT_FOUND;
 }
 VMMR3DECL(int) DBGFR3RegPrintf(PVM pVM, VMCPUID idCpu, char *pszBuf, size_t cbBuf, const char *pszFormat, ...)
 {
@@ -283,6 +301,11 @@ VMMR3DECL(int) DBGFR3OSQueryNameAndVersion(PVM pVM, char *pszName, size_t cchNam
 VMMR3DECL(int) DBGFR3SelQueryInfo(PVM pVM, VMCPUID idCpu, RTSEL Sel, uint32_t fFlags, PDBGFSELINFO pSelInfo)
 {
     return VERR_INTERNAL_ERROR;
+}
+
+VMMR3DECL(CPUMMODE) DBGFR3CpuGetMode(PVM pVM, VMCPUID idCpu)
+{
+    return CPUMMODE_INVALID;
 }
 
 VMMR3DECL(int) DBGFR3CoreWrite(PVM pVM, const char *pszFilename, bool fReplaceFile)
@@ -342,11 +365,6 @@ VMMDECL(RTSEL) CPUMGetHyperCS(PVMCPU pVCpu)
     return 0xfff8;
 }
 
-VMMDECL(PCCPUMCTXCORE) CPUMGetHyperCtxCore(PVMCPU pVCpu)
-{
-    return NULL;
-}
-
 VMMDECL(uint32_t) CPUMGetHyperEIP(PVMCPU pVCpu)
 {
     return 0;
@@ -357,11 +375,10 @@ VMMDECL(PCPUMCTX) CPUMQueryGuestCtxPtr(PVMCPU pVCpu)
     return NULL;
 }
 
-VMMDECL(int) CPUMQueryHyperCtxPtr(PVMCPU pVCpu, PCPUMCTX *ppCtx)
+VMMDECL(bool) CPUMIsGuestIn64BitCode(PVMCPU pVCpu)
 {
-    return VERR_INTERNAL_ERROR;
+    return false;
 }
-
 
 
 #include <VBox/vmm/mm.h>

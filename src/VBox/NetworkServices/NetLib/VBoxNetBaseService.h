@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,8 @@ public:
     void                shutdown(void);
     virtual void        usage(void) = 0;
     virtual void        run(void) = 0;
+    virtual int         init(void);
+    virtual int         parseOpt(int rc, const RTGETOPTUNION& getOptVal) = 0;
 
     inline void         debugPrint( int32_t iMinLevel, bool fMsg,  const char *pszFmt, ...) const;
     void                debugPrintV(int32_t iMinLevel, bool fMsg,  const char *pszFmt, va_list va) const;
@@ -47,10 +49,13 @@ public:
     uint32_t            m_cbRecvBuf;
     INTNETIFHANDLE      m_hIf;          /**< The handle to the network interface. */
     PINTNETBUF          m_pIfBuf;       /**< Interface buffer. */
+    std::vector<PRTGETOPTDEF> m_vecOptionDefs;
     /** @} */
     /** @name Debug stuff
      * @{  */
     int32_t             m_cVerbosity;
+private:
+    PRTGETOPTDEF getOptionsPtr();
     /** @} */
 };
 #endif

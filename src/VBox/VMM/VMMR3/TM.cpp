@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -127,7 +127,9 @@
 #include <VBox/vmm/ssm.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/dbgftrace.h>
-#include <VBox/vmm/rem.h>
+#ifdef VBOX_WITH_REM
+# include <VBox/vmm/rem.h>
+#endif
 #include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/iom.h>
 #include "TMInternal.h"
@@ -181,7 +183,7 @@ static DECLCALLBACK(void)   tmR3InfoClocks(PVM pVM, PCDBGFINFOHLP pHlp, const ch
  * Initializes the TM.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMM_INT_DECL(int) TMR3Init(PVM pVM)
 {
@@ -804,6 +806,26 @@ static bool tmR3HasFixedTSC(PVM pVM)
                 ||  (uFamily == 0x06 /*P2/P3*/  && uModel >= 0x0e))
                 return true;
         }
+        else if (CPUMGetHostCpuVendor(pVM) == CPUMCPUVENDOR_VIA)
+        {
+            /*
+             * CentaurHauls - Check the model, family and stepping.
+             *
+             * This only checks for VIA CPU models Nano X2, Nano X3,
+             * Eden X2 and QuadCore.
+             */
+            ASMCpuId(1, &uEAX, &uEBX, &uECX, &uEDX);
+            unsigned uStepping = (uEAX & 0x0f);
+            unsigned uModel    = (uEAX >> 4) & 0x0f;
+            unsigned uFamily   = (uEAX >> 8) & 0x0f;
+            if (   uFamily   == 0x06
+                && uModel    == 0x0f
+                && uStepping >= 0x0c
+                && uStepping <= 0x0f)
+            {
+                return true;
+            }
+        }
     }
     return false;
 }
@@ -899,7 +921,7 @@ static uint64_t tmR3CalibrateTSC(PVM pVM)
  * Finalizes the TM initialization.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMM_INT_DECL(int) TMR3InitFinalize(PVM pVM)
 {
@@ -966,6 +988,7 @@ VMM_INT_DECL(void) TMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 {
     int rc;
     LogFlow(("TMR3Relocate\n"));
+    NOREF(offDelta);
 
     pVM->tm.s.pvGIPRC = MMHyperR3ToRC(pVM, pVM->tm.s.pvGIPR3);
     pVM->tm.s.paTimerQueuesRC = MMHyperR3ToRC(pVM, pVM->tm.s.paTimerQueuesR3);
@@ -1008,7 +1031,7 @@ VMM_INT_DECL(void) TMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
  * the VM it self is at this point powered off or suspended.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMM_INT_DECL(int) TMR3Term(PVM pVM)
 {
@@ -1031,7 +1054,7 @@ VMM_INT_DECL(int) TMR3Term(PVM pVM)
  * the FF is cleared and but without running the queues. We'll have to
  * check if this makes sense or not, but it seems like a good idea now....
  *
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 VMM_INT_DECL(void) TMR3Reset(PVM pVM)
 {
@@ -1081,7 +1104,7 @@ VMM_INT_DECL(void) TMR3Reset(PVM pVM)
  * Called by PDM when loading or relocating GC modules.
  *
  * @returns VBox status
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszSymbol       Symbol to resolve.
  * @param   pRCPtrValue     Where to store the symbol value.
  * @remark  This has to     work before TMR3Relocate() is called.
@@ -1101,7 +1124,7 @@ VMM_INT_DECL(int) TMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPt
  * Execute state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pSSM            SSM operation handle.
  */
 static DECLCALLBACK(int) tmR3Save(PVM pVM, PSSMHANDLE pSSM)
@@ -1148,7 +1171,7 @@ static DECLCALLBACK(int) tmR3Save(PVM pVM, PSSMHANDLE pSSM)
  * Execute state load operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pSSM            SSM operation handle.
  * @param   uVersion        Data layout version.
  * @param   uPass           The data pass.
@@ -1256,7 +1279,7 @@ static DECLCALLBACK(int) tmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, u
  * Internal TMR3TimerCreate worker.
  *
  * @returns VBox status code.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   enmClock    The timer clock.
  * @param   pszDesc     The timer description.
  * @param   ppTimer     Where to store the timer pointer on success.
@@ -1536,8 +1559,7 @@ VMMR3DECL(int) TMR3TimerDestroy(PTMTIMER pTimer)
         /*
          * Change to the DESTROY state.
          */
-        TMTIMERSTATE enmState    = pTimer->enmState;
-        TMTIMERSTATE enmNewState = enmState;
+        TMTIMERSTATE const enmState = pTimer->enmState;
         Log2(("TMTimerDestroy: %p:{.enmState=%s, .pszDesc='%s'} cRetries=%d\n",
               pTimer, tmTimerState(enmState), R3STRING(pTimer->pszDesc), cRetries));
         switch (enmState)
@@ -1669,7 +1691,7 @@ VMMR3DECL(int) TMR3TimerDestroy(PTMTIMER pTimer)
  * Destroy all timers owned by a device.
  *
  * @returns VBox status.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pDevIns         Device which timers should be destroyed.
  */
 VMM_INT_DECL(int) TMR3TimerDestroyDevice(PVM pVM, PPDMDEVINS pDevIns)
@@ -1702,7 +1724,7 @@ VMM_INT_DECL(int) TMR3TimerDestroyDevice(PVM pVM, PPDMDEVINS pDevIns)
  * Destroy all timers owned by a USB device.
  *
  * @returns VBox status.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pUsbIns         USB device which timers should be destroyed.
  */
 VMM_INT_DECL(int) TMR3TimerDestroyUsb(PVM pVM, PPDMUSBINS pUsbIns)
@@ -1735,7 +1757,7 @@ VMM_INT_DECL(int) TMR3TimerDestroyUsb(PVM pVM, PPDMUSBINS pUsbIns)
  * Destroy all timers owned by a driver.
  *
  * @returns VBox status.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pDrvIns         Driver which timers should be destroyed.
  */
 VMM_INT_DECL(int) TMR3TimerDestroyDriver(PVM pVM, PPDMDRVINS pDrvIns)
@@ -1768,7 +1790,7 @@ VMM_INT_DECL(int) TMR3TimerDestroyDriver(PVM pVM, PPDMDRVINS pDrvIns)
  * Internal function for getting the clock time.
  *
  * @returns clock time.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   enmClock    The clock.
  */
 DECLINLINE(uint64_t) tmClock(PVM pVM, TMCLOCK enmClock)
@@ -1791,7 +1813,7 @@ DECLINLINE(uint64_t) tmClock(PVM pVM, TMCLOCK enmClock)
  *
  * @returns true / false.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   enmClock    The queue.
  */
 DECLINLINE(bool) tmR3HasExpiredTimer(PVM pVM, TMCLOCK enmClock)
@@ -1805,7 +1827,7 @@ DECLINLINE(bool) tmR3HasExpiredTimer(PVM pVM, TMCLOCK enmClock)
  * Checks for expired timers in all the queues.
  *
  * @returns true / false.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  */
 DECLINLINE(bool) tmR3AnyExpiredTimers(PVM pVM)
 {
@@ -1837,7 +1859,7 @@ DECLINLINE(bool) tmR3AnyExpiredTimers(PVM pVM)
  * Schedule timer callback.
  *
  * @param   pTimer      Timer handle.
- * @param   pvUser      VM handle.
+ * @param   pvUser      Pointer to the VM.
  * @thread  Timer thread.
  *
  * @remark  We cannot do the scheduling and queues running from a timer handler
@@ -1849,6 +1871,7 @@ static DECLCALLBACK(void) tmR3TimerCallback(PRTTIMER pTimer, void *pvUser, uint6
 {
     PVM     pVM      = (PVM)pvUser;
     PVMCPU  pVCpuDst = &pVM->aCpus[pVM->tm.s.idTimerCpu];
+    NOREF(pTimer);
 
     AssertCompile(TMCLOCK_MAX == 4);
 #ifdef DEBUG_Sander /* very annoying, keep it private. */
@@ -1868,7 +1891,9 @@ static DECLCALLBACK(void) tmR3TimerCallback(PRTTIMER pTimer, void *pvUser, uint6
     {
         Log5(("TM(%u): FF: 0 -> 1\n", __LINE__));
         VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
+#ifdef VBOX_WITH_REM
         REMR3NotifyTimerPending(pVM, pVCpuDst);
+#endif
         VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM /** @todo | VMNOTIFYFF_FLAGS_POKE ?*/);
         STAM_COUNTER_INC(&pVM->tm.s.StatTimerCallbackSetFF);
     }
@@ -2127,11 +2152,11 @@ static void tmR3TimerQueueRunVirtualSync(PVM pVM)
         }
 
         /* Check if stopped by expired timer. */
-        uint64_t u64Expire = pNext->u64Expire;
-        if (u64Now >= pNext->u64Expire)
+        uint64_t const u64Expire = pNext->u64Expire;
+        if (u64Now >= u64Expire)
         {
             STAM_COUNTER_INC(&pVM->tm.s.StatVirtualSyncRunStop);
-            u64Now = pNext->u64Expire;
+            u64Now = u64Expire;
             ASMAtomicWriteU64(&pVM->tm.s.u64VirtualSync, u64Now);
             ASMAtomicWriteBool(&pVM->tm.s.fVirtualSyncTicking, false);
             Log4(("TM: %'RU64/-%'8RU64: exp tmr [tmR3TimerQueueRunVirtualSync]\n", u64Now, u64VirtualNow - u64Now - offSyncGivenUp));
@@ -2603,9 +2628,9 @@ VMMR3_INT_DECL(PRTTIMESPEC) TMR3UtcNow(PVM pVM, PRTTIMESPEC pTime)
  * Pauses all clocks except TMCLOCK_REAL.
  *
  * @returns VBox status code, all errors are asserted.
- * @param   pVM         The VM handle.
- * @param   pVCpu       The virtual CPU handle.
- * @thread  EMT corresponding to the virtual CPU handle.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
+ * @thread  EMT corresponding to Pointer to the VMCPU.
  */
 VMMR3DECL(int) TMR3NotifySuspend(PVM pVM, PVMCPU pVCpu)
 {
@@ -2624,7 +2649,7 @@ VMMR3DECL(int) TMR3NotifySuspend(PVM pVM, PVMCPU pVCpu)
      * Pause the TSC last since it is normally linked to the virtual
      * sync clock, so the above code may actually stop both clock.
      */
-    rc = tmCpuTickPause(pVM, pVCpu);
+    rc = tmCpuTickPause(pVCpu);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -2646,9 +2671,9 @@ VMMR3DECL(int) TMR3NotifySuspend(PVM pVM, PVMCPU pVCpu)
  * Resumes all clocks except TMCLOCK_REAL.
  *
  * @returns VBox status code, all errors are asserted.
- * @param   pVM         The VM handle.
- * @param   pVCpu       The virtual CPU handle.
- * @thread  EMT corresponding to the virtual CPU handle.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
+ * @thread  EMT corresponding to Pointer to the VMCPU.
  */
 VMMR3DECL(int) TMR3NotifyResume(PVM pVM, PVMCPU pVCpu)
 {
@@ -2690,7 +2715,7 @@ VMMR3DECL(int) TMR3NotifyResume(PVM pVM, PVMCPU pVCpu)
  * Sets the warp drive percent of the virtual time.
  *
  * @returns VBox status code.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   u32Percent  The new percentage. 100 means normal operation.
  */
 VMMDECL(int) TMR3SetWarpDrive(PVM pVM, uint32_t u32Percent)
@@ -2703,7 +2728,7 @@ VMMDECL(int) TMR3SetWarpDrive(PVM pVM, uint32_t u32Percent)
  * EMT worker for TMR3SetWarpDrive.
  *
  * @returns VBox status code.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   u32Percent  See TMR3SetWarpDrive().
  * @internal
  */
@@ -2753,7 +2778,7 @@ static DECLCALLBACK(int) tmR3SetWarpDrive(PVM pVM, uint32_t u32Percent)
  * @retval  VERR_INVALID_STATE if the VM handle is bad.
  * @retval  VERR_INVALID_PARAMETER if idCpu is out of range.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   idCpu           The ID of the virtual CPU which times to get.
  * @param   pcNsTotal       Where to store the total run time (nano seconds) of
  *                          the CPU, i.e. the sum of the three other returns.
@@ -2864,7 +2889,7 @@ DECLINLINE(void) tmR3CpuLoadTimerMakeUpdate(PTMCPULOADSTATE pState,
  * Timer callback that calculates the CPU load since the last time it was
  * called.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pTimer              The timer.
  * @param   pvUser              NULL, unused.
  */
@@ -2947,7 +2972,7 @@ DECLINLINE(const char *) tmR3Get5CharClockName(TMCLOCK enmClock)
 /**
  * Display all timers.
  *
- * @param   pVM         VM Handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -2989,7 +3014,7 @@ static DECLCALLBACK(void) tmR3TimerInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char 
 /**
  * Display all active timers.
  *
- * @param   pVM         VM Handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -3036,7 +3061,7 @@ static DECLCALLBACK(void) tmR3TimerInfoActive(PVM pVM, PCDBGFINFOHLP pHlp, const
 /**
  * Display all clocks.
  *
- * @param   pVM         VM Handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */

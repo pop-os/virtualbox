@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,7 @@
 # include "UIMachineView.h"
 # include "UIMessageCenter.h"
 # include "VBoxGlobal.h"
+# include "UISession.h"
 
 /* Global includes */
 # include <QPainter>
@@ -63,10 +64,22 @@ STDMETHODIMP UIFrameBufferQImage::NotifyUpdate(ULONG uX, ULONG uY, ULONG uW, ULO
 
 void UIFrameBufferQImage::paintEvent(QPaintEvent *pEvent)
 {
+    /* on mode switch the paint event may come while the view is null (before the new view gets set)
+     * this is seen on Windows hosts with 3D enabled,
+     * ignore paint events in that case */
+    if (!m_pMachineView)
+        return;
+    /* If the machine is NOT in 'running' state,
+     * the link between framebuffer and video memory
+     * is broken, we should go fallback now... */
+    if (m_bUsesGuestVRAM &&
+        !m_pMachineView->uisession()->isRunning() &&
+        /* Online snapshotting: */
+        m_pMachineView->uisession()->machineState() != KMachineState_Saving)
+        goFallback();
+
     /* Scaled image by default is empty: */
     QImage scaledImage;
-
-
     /* If scaled-factor is set and current image is NOT null: */
     if (m_scaledSize.isValid() && !m_img.isNull())
     {
@@ -76,13 +89,11 @@ void UIFrameBufferQImage::paintEvent(QPaintEvent *pEvent)
         /* Scale image to scaled-factor: */
         scaledImage = scaledImage.scaled(m_scaledSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     }
-
     /* Choose required image: */
     QImage *pSourceImage = scaledImage.isNull() ? &m_img : &scaledImage;
 
     /* Apply image-size restriction: */
     const QRect &r = pEvent->rect().intersected(pSourceImage->rect());
-
     /* Some outdated rectangle during processing UIResizeEvent */
     if (r.isEmpty())
         return;
@@ -92,8 +103,6 @@ void UIFrameBufferQImage::paintEvent(QPaintEvent *pEvent)
 #endif
 
     QPainter painter(m_pMachineView->viewport());
-
-
     if ((ulong)r.width() < m_width * 2 / 3)
     {
         /* This method is faster for narrow updates */
@@ -184,16 +193,22 @@ void UIFrameBufferQImage::resizeEvent(UIResizeEvent *pEvent)
 
     if (bFallback)
     {
-        /* we don't support either the pixel format or the color depth,
-         * bFallback to a self-provided 32bpp RGB buffer */
-        m_img = QImage (m_width, m_height, QImage::Format_RGB32);
-        m_img.fill(0);
-        m_uPixelFormat = FramebufferPixelFormat_FOURCC_RGB;
-        m_bUsesGuestVRAM = false;
+        goFallback();
     }
 
     if (bRemind)
         msgCenter().remindAboutWrongColorDepth(pEvent->bitsPerPixel(), 32);
+}
+
+void UIFrameBufferQImage::goFallback()
+{
+    /* We don't support either the pixel format or the color depth;
+     * or the machine is in the state which breaks link between
+     * the framebuffer and the actual video-memory: */
+    m_img = QImage(m_width, m_height, QImage::Format_RGB32);
+    m_img.fill(0);
+    m_uPixelFormat = FramebufferPixelFormat_FOURCC_RGB;
+    m_bUsesGuestVRAM = false;
 }
 
 #endif /* VBOX_GUI_USE_QIMAGE */

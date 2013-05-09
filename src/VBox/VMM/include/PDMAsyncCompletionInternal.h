@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -169,7 +169,7 @@ typedef struct PDMACBWMGR *PPDMACBWMGR;
  */
 typedef struct PDMASYNCCOMPLETIONEPCLASS
 {
-    /** Pointer to the shared VM structure. */
+    /** Pointer to the VM. */
     PVM                                         pVM;
     /** Critical section protecting the lists below. */
     RTCRITSECT                                  CritSect;
@@ -210,7 +210,7 @@ typedef struct PDMASYNCCOMPLETIONENDPOINT
 #ifdef VBOX_WITH_STATISTICS
     uint32_t                                    u32Alignment;
     STAMCOUNTER                                 StatTaskRunTimesNs[10];
-    STAMCOUNTER                                 StatTaskRunTimesMicroSec[10];
+    STAMCOUNTER                                 StatTaskRunTimesUs[10];
     STAMCOUNTER                                 StatTaskRunTimesMs[10];
     STAMCOUNTER                                 StatTaskRunTimesSec[10];
     STAMCOUNTER                                 StatTaskRunOver100Sec;

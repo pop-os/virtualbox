@@ -3,7 +3,7 @@
 # Sub-Makefile for the X11 Guest Additions.
 #
 
-# Copyright (C) 2006-2007 Oracle Corporation
+# Copyright (C) 2006-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -21,9 +21,13 @@ include $(KBUILD_PATH)/subheader.kmk
 if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd solaris)
  include $(PATH_SUB_CURRENT)/VBoxClient/Makefile.kmk
  include $(PATH_SUB_CURRENT)/vboxvideo/Makefile.kmk
- include $(PATH_SUB_CURRENT)/vboxmouse/Makefile.kmk
- include $(PATH_SUB_CURRENT)/x11stubs/Makefile.kmk
+ ifneq ($(KBUILD_TARGET), solaris)
+  include $(PATH_SUB_CURRENT)/vboxmouse/Makefile.kmk
+ endif
+ ifndef VBOX_USE_SYSTEM_XORG_HEADERS
+  include $(PATH_SUB_CURRENT)/x11stubs/Makefile.kmk
+ endif
 endif
 
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

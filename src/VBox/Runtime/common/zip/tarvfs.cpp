@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1058,6 +1058,7 @@ static DECLCALLBACK(int) rtZipTarFssIos_Read(void *pvThis, RTFOFF off, PCRTSGBUF
 {
     PRTZIPTARIOSTREAM pThis = (PRTZIPTARIOSTREAM)pvThis;
     int               rc;
+    AssertReturn(off == -1, VERR_INVALID_PARAMETER);
 
     if (pSgBuf->cSegs == 1)
         rc = rtZipTarFssIos_ReadOneSeg(pThis, pSgBuf->paSegs[0].pvSeg, pSgBuf->paSegs[0].cbSeg, fBlocking, pcbRead);

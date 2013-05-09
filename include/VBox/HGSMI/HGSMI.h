@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -294,6 +294,12 @@ void HGSMIHeapSetupUnitialized (HGSMIHEAP *pHeap);
 bool HGSMIHeapIsItialized (HGSMIHEAP *pHeap);
 
 void HGSMIHeapDestroy (HGSMIHEAP *pHeap);
+
+void* HGSMIHeapBufferAlloc (HGSMIHEAP *pHeap,
+        HGSMISIZE cbBuffer);
+
+void HGSMIHeapBufferFree(HGSMIHEAP *pHeap,
+                    void *pvBuf);
 
 void *HGSMIHeapAlloc (HGSMIHEAP *pHeap,
                       HGSMISIZE cbData,

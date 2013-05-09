@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -112,6 +112,7 @@ static DECLCALLBACK(int) svcDisconnect (void *, uint32_t u32ClientID, void *pvCl
  */
 static DECLCALLBACK(int) svcSaveState(void *, uint32_t u32ClientID, void *pvClient, PSSMHANDLE pSSM)
 {
+#ifndef UNITTEST  /* Read this as not yet tested */
     SHFLCLIENTDATA *pClient = (SHFLCLIENTDATA *)pvClient;
 
     Log(("SharedFolders host service: saving state, u32ClientID = %u\n", u32ClientID));
@@ -167,11 +168,13 @@ static DECLCALLBACK(int) svcSaveState(void *, uint32_t u32ClientID, void *pvClie
         }
     }
 
+#endif
     return VINF_SUCCESS;
 }
 
 static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClient, PSSMHANDLE pSSM)
 {
+#ifndef UNITTEST  /* Read this as not yet tested */
     uint32_t        nrMappings;
     SHFLCLIENTDATA *pClient = (SHFLCLIENTDATA *)pvClient;
     uint32_t        len, version;
@@ -277,6 +280,7 @@ static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClie
         }
     }
     Log(("SharedFolders host service: successfully loaded state\n"));
+#endif
     return VINF_SUCCESS;
 }
 
@@ -893,10 +897,10 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
         {
             Log(("SharedFolders host service: svcCall: SHFL_FN_MAP_FOLDER\n"));
             if (BIT_FLAG(pClient->fu32Flags, SHFL_CF_UTF8))
-                Log(("SharedFolders host service: request to map folder '%S'\n",
+                Log(("SharedFolders host service: request to map folder '%s'\n",
                      ((PSHFLSTRING)paParms[0].u.pointer.addr)->String.utf8));
             else
-                Log(("SharedFolders host service: request to map folder '%lS'\n",
+                Log(("SharedFolders host service: request to map folder '%ls'\n",
                      ((PSHFLSTRING)paParms[0].u.pointer.addr)->String.ucs2));
 
             /* Verify parameter count and types. */
@@ -1309,18 +1313,20 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
             }
             else
             {
-                LogRel(("    Host path '%ls', map name '%ls', %s, automount=%s, create_symlinks=%s\n",
+                LogRel(("    Host path '%ls', map name '%ls', %s, automount=%s, create_symlinks=%s, missing=%s\n",
                         ((SHFLSTRING *)paParms[0].u.pointer.addr)->String.ucs2,
                         ((SHFLSTRING *)paParms[1].u.pointer.addr)->String.ucs2,
                         RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_WRITABLE) ? "writable" : "read-only",
                         RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_AUTOMOUNT) ? "true" : "false",
-                        RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_CREATE_SYMLINKS) ? "true" : "false"));
+                        RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_CREATE_SYMLINKS) ? "true" : "false",
+                        RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_MISSING) ? "true" : "false"));
 
                 /* Execute the function. */
                 rc = vbsfMappingsAdd(pFolderName, pMapName,
                                      RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_WRITABLE),
                                      RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_AUTOMOUNT),
-                                     RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_CREATE_SYMLINKS));
+                                     RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_CREATE_SYMLINKS),
+                                     RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_MISSING));
                 if (RT_SUCCESS(rc))
                 {
                     /* Update parameters.*/
@@ -1336,7 +1342,7 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
     case SHFL_FN_REMOVE_MAPPING:
     {
         Log(("SharedFolders host service: svcCall: SHFL_FN_REMOVE_MAPPING\n"));
-        LogRel(("SharedFolders host service: removing host mapping '%lS'\n",
+        LogRel(("SharedFolders host service: removing host mapping '%ls'\n",
                 ((SHFLSTRING *)paParms[0].u.pointer.addr)->String.ucs2));
 
         /* Verify parameter count and types. */

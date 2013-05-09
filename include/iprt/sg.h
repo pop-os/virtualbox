@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -101,6 +101,21 @@ RTDECL(void) RTSgBufReset(PRTSGBUF pSgBuf);
  *       same segment array.
  */
 RTDECL(void) RTSgBufClone(PRTSGBUF pSgBufNew, PCRTSGBUF pSgBufOld);
+
+/**
+ * Returns the next segment in the S/G buffer or NULL if no segment is left.
+ *
+ * @returns Pointer to the next segment in the S/G buffer.
+ * @param   pSgBuf       The S/G buffer.
+ * @param   pcbSeg       Where to store the size of the returned segment.
+ *                       Holds the number of bytes requested initially or 0 to
+ *                       indicate that the size doesn't matter.
+ *                       This may contain fewer bytes on success if the current segment
+ *                       is smaller than the amount of bytes requested.
+ *
+ * @note This operation advances the internal buffer pointer of both S/G buffers.
+ */
+RTDECL(void *) RTSgBufGetNextSegment(PRTSGBUF pSgBuf, size_t *pcbSeg);
 
 /**
  * Copy data between two S/G buffers.

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,9 +18,15 @@
 #ifndef ___CPUMInternal_h
 #define ___CPUMInternal_h
 
-#include <VBox/cdefs.h>
-#include <VBox/types.h>
-#include <iprt/x86.h>
+#ifndef VBOX_FOR_DTRACE_LIB
+# include <VBox/cdefs.h>
+# include <VBox/types.h>
+# include <iprt/x86.h>
+#else
+# pragma D depends_on library x86.d
+# pragma D depends_on library cpumctx.d
+#endif
+
 
 
 
@@ -76,8 +82,10 @@
 /** @} */
 
 /* Sanity check. */
+#ifndef VBOX_FOR_DTRACE_LIB
 #if defined(VBOX_WITH_HYBRID_32BIT_KERNEL) && (HC_ARCH_BITS != 32 || R0_ARCH_BITS != 32)
 # error "VBOX_WITH_HYBRID_32BIT_KERNEL is only for 32 bit builds."
+#endif
 #endif
 
 
@@ -98,36 +106,36 @@ typedef struct CPUMHOSTCTX
 #if HC_ARCH_BITS == 64 || defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
     /** General purpose register ++
      * { */
-    //uint64_t        rax; - scratch
+    /*uint64_t        rax; - scratch*/
     uint64_t        rbx;
-    //uint64_t        rcx; - scratch
-    //uint64_t        rdx; - scratch
+    /*uint64_t        rcx; - scratch*/
+    /*uint64_t        rdx; - scratch*/
     uint64_t        rdi;
     uint64_t        rsi;
     uint64_t        rbp;
     uint64_t        rsp;
-    //uint64_t        r8; - scratch
-    //uint64_t        r9; - scratch
+    /*uint64_t        r8; - scratch*/
+    /*uint64_t        r9; - scratch*/
     uint64_t        r10;
     uint64_t        r11;
     uint64_t        r12;
     uint64_t        r13;
     uint64_t        r14;
     uint64_t        r15;
-    //uint64_t        rip; - scratch
+    /*uint64_t        rip; - scratch*/
     uint64_t        rflags;
 #endif
 
 #if HC_ARCH_BITS == 32
-    //uint32_t        eax; - scratch
+    /*uint32_t        eax; - scratch*/
     uint32_t        ebx;
-    //uint32_t        ecx; - scratch
-    //uint32_t        edx; - scratch
+    /*uint32_t        ecx; - scratch*/
+    /*uint32_t        edx; - scratch*/
     uint32_t        edi;
     uint32_t        esi;
     uint32_t        ebp;
     X86EFLAGS       eflags;
-    //uint32_t        eip; - scratch
+    /*uint32_t        eip; - scratch*/
     /* lss pair! */
     uint32_t        esp;
 #endif
@@ -153,7 +161,7 @@ typedef struct CPUMHOSTCTX
     /** Control registers.
      * @{ */
     uint32_t        cr0;
-    //uint32_t        cr2; - scratch
+    /*uint32_t        cr2; - scratch*/
     uint32_t        cr3;
     uint32_t        cr4;
     /** @} */
@@ -199,7 +207,7 @@ typedef struct CPUMHOSTCTX
     /** Control registers.
      * @{ */
     uint64_t        cr0;
-    //uint64_t        cr2; - scratch
+    /*uint64_t        cr2; - scratch*/
     uint64_t        cr3;
     uint64_t        cr4;
     uint64_t        cr8;
@@ -302,13 +310,15 @@ typedef struct CPUM
     bool                    fPendingRestore;
     uint8_t                 abPadding[HC_ARCH_BITS == 64 ? 5 : 1];
 
-    /** The standard set of CpuId leafs. */
+    /** The standard set of CpuId leaves. */
     CPUMCPUID               aGuestCpuIdStd[6];
-    /** The extended set of CpuId leafs. */
+    /** The extended set of CpuId leaves. */
     CPUMCPUID               aGuestCpuIdExt[10];
-    /** The centaur set of CpuId leafs. */
+    /** The centaur set of CpuId leaves. */
     CPUMCPUID               aGuestCpuIdCentaur[4];
-    /** The default set of CpuId leafs. */
+    /** The hypervisor specific set of CpuId leaves. */
+    CPUMCPUID               aGuestCpuIdHyper[4];
+    /** The default set of CpuId leaves. */
     CPUMCPUID               GuestCpuIdDef;
 
 #if HC_ARCH_BITS == 32
@@ -318,14 +328,8 @@ typedef struct CPUM
 #ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
     RTHCPTR                 pvApicBase;
     uint32_t                fApicDisVectors;
-    uint8_t                 abPadding3[HC_ARCH_BITS == 32 ? 56 : 52];
+    uint8_t                 abPadding3[4];
 #endif
-
-    /**
-     * Guest context on raw mode entry. 64-byte aligned!
-     * This a debug feature, see CPUMR3SaveEntryCtx.
-     */
-    CPUMCTX                 GuestEntry;
 } CPUM;
 /** Pointer to the CPUM instance data residing in the shared VM structure. */
 typedef CPUM *PCPUM;
@@ -362,14 +366,7 @@ typedef struct CPUMCPU
      * Guest context - misc MSRs
      * Aligned on a 64-byte boundary.
      */
-    CPUMCTXMSR              GuestMsr;
-
-    /** Pointer to the current hypervisor core context - R3Ptr. */
-    R3PTRTYPE(PCPUMCTXCORE) pHyperCoreR3;
-    /** Pointer to the current hypervisor core context - R0Ptr. */
-    R0PTRTYPE(PCPUMCTXCORE) pHyperCoreR0;
-    /** Pointer to the current hypervisor core context - RCPtr. */
-    RCPTRTYPE(PCPUMCTXCORE) pHyperCoreRC;
+    CPUMCTXMSRS             GuestMsrs;
 
     /** Use flags.
      * These flags indicates both what is to be used and what has been used.
@@ -396,11 +393,12 @@ typedef struct CPUMCPU
     bool                    fRemEntered;
 
     /** Align the structure on a 64-byte boundary. */
-    uint8_t                 abPadding2[HC_ARCH_BITS == 32 ? 34 : 26];
-} CPUMCPU, *PCPUMCPU;
+    uint8_t                 abPadding2[64 - 16 - 2];
+} CPUMCPU;
 /** Pointer to the CPUMCPU instance data residing in the shared VMCPU structure. */
 typedef CPUMCPU *PCPUMCPU;
 
+#ifndef VBOX_FOR_DTRACE_LIB
 RT_C_DECLS_BEGIN
 
 #ifdef IN_RING3
@@ -427,6 +425,7 @@ DECLASM(void)       cpumR0SaveDRx(uint64_t *pa4Regs);
 #endif
 
 RT_C_DECLS_END
+#endif /* !VBOX_FOR_DTRACE_LIB */
 
 /** @} */
 

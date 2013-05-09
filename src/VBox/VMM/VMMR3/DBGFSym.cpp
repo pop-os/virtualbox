@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -241,7 +241,7 @@ static char *dbgfR3Strip(char *psz)
  * which needs loading.
  *
  * @returns VBox status code.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 int dbgfR3SymInit(PVM pVM)
 {
@@ -260,6 +260,8 @@ int dbgfR3SymInit(PVM pVM)
         return rc;
     pVM->dbgf.s.fSymInited = true;
 #endif
+
+    /** @todo symbol search path setup. */
 
     /*
      * Check if there are 'loadsyms' commands in the configuration.
@@ -328,6 +330,62 @@ int dbgfR3SymInit(PVM pVM)
     }
 
     /*
+     * Check if there are 'loadmap' commands in the configuration.
+     */
+    pNode = CFGMR3GetChild(CFGMR3GetRoot(pVM), "/DBGF/loadmap/");
+    if (pNode)
+    {
+        /*
+         * Enumerate the commands.
+         */
+        for (PCFGMNODE pCmdNode = CFGMR3GetFirstChild(pNode);
+             pCmdNode;
+             pCmdNode = CFGMR3GetNextChild(pCmdNode))
+        {
+            char szCmdName[128];
+            CFGMR3GetName(pCmdNode, &szCmdName[0], sizeof(szCmdName));
+
+            /* File */
+            char *pszFilename;
+            rc = CFGMR3QueryStringAlloc(pCmdNode, "Filename", &pszFilename);
+            AssertMsgRCReturn(rc, ("rc=%Rrc querying the 'File' attribute of '/DBGF/loadsyms/%s'!\n", rc, szCmdName), rc);
+
+            /* Address. */
+            RTGCPTR GCPtrAddr;
+            rc = CFGMR3QueryGCPtrUDef(pNode, "Address", &GCPtrAddr, 0);
+            AssertMsgRCReturn(rc, ("rc=%Rrc querying the 'Address' attribute of '/DBGF/loadsyms/%s'!\n", rc, szCmdName), rc);
+            DBGFADDRESS ModAddr;
+            DBGFR3AddrFromFlat(pVM, &ModAddr, GCPtrAddr);
+
+            /* Name (optional) */
+            char *pszModName;
+            rc = CFGMR3QueryStringAllocDef(pCmdNode, "Name", &pszModName, NULL);
+            AssertMsgRCReturn(rc, ("rc=%Rrc querying the 'Name' attribute of '/DBGF/loadsyms/%s'!\n", rc, szCmdName), rc);
+
+            /* Subtrahend (optional) */
+            RTGCPTR offSubtrahend;
+            rc = CFGMR3QueryGCPtrDef(pNode, "Subtrahend", &offSubtrahend, 0);
+            AssertMsgRCReturn(rc, ("rc=%Rrc querying the 'Subtrahend' attribute of '/DBGF/loadsyms/%s'!\n", rc, szCmdName), rc);
+
+            /* Segment (optional) */
+            uint32_t iSeg;
+            rc = CFGMR3QueryU32Def(pNode, "Segment", &iSeg, UINT32_MAX);
+            AssertMsgRCReturn(rc, ("rc=%Rrc querying the 'Segment' attribute of '/DBGF/loadsyms/%s'!\n", rc, szCmdName), rc);
+
+            /*
+             * Execute the command.
+             */
+            rc = DBGFR3AsLoadMap(pVM, DBGF_AS_GLOBAL, pszFilename, pszModName, &ModAddr,
+                                 iSeg == UINT32_MAX ? NIL_RTDBGSEGIDX : iSeg, offSubtrahend, 0 /*fFlags*/);
+            AssertMsgRCReturn(rc, ("pszFilename=%s pszModName=%s ModAddr=%RGv offSubtrahend=%#x iSeg=%#x\n",
+                                   pszFilename, pszModName, ModAddr.FlatPtr, offSubtrahend, iSeg), rc);
+
+            MMR3HeapFree(pszModName);
+            MMR3HeapFree(pszFilename);
+        }
+    }
+
+    /*
      * Check if there are any 'symadd' commands in the configuration.
      */
 
@@ -369,7 +427,7 @@ int dbgfR3SymLazyInit(PVM pVM)
  * @returns VBox status.
  *          Failure will stop the search and return the return code.
  *          Warnings will be ignored and not returned.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszFilename     Module filename.
  * @param   pszName         Module name. (short and unique)
  * @param   ImageBase       Address where to executable image is loaded.
@@ -396,7 +454,7 @@ static DECLCALLBACK(int) dbgfR3EnumModules(PVM pVM, const char *pszFilename, con
  * Terminate the debug info repository for the specified VM.
  *
  * @returns VBox status.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  */
 int dbgfR3SymTerm(PVM pVM)
 {
@@ -551,7 +609,7 @@ static int dbgfR3LoadLinuxSystemMap(PVM pVM, FILE *pFile, RTGCUINTPTR ModuleAddr
  * VBOXDBG_IMAGE_PATH in the environment. It uses semicolon as separator everywhere.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszFilename     The name of the file to locate and open.
  * @param   pszFound        Where to return the actual filename.
  * @param   cchFound        The buffer size.
@@ -559,6 +617,8 @@ static int dbgfR3LoadLinuxSystemMap(PVM pVM, FILE *pFile, RTGCUINTPTR ModuleAddr
  */
 int dbgfR3ModuleLocateAndOpen(PVM pVM, const char *pszFilename, char *pszFound, size_t cchFound, FILE **ppFile)
 {
+    NOREF(pVM);
+
     /* Check the filename length. */
     size_t const    cchFilename = strlen(pszFilename);
     if (cchFilename >= cchFound)
@@ -629,7 +689,7 @@ int dbgfR3ModuleLocateAndOpen(PVM pVM, const char *pszFilename, char *pszFound, 
  * Load debug info, optionally related to a specific module.
  *
  * @returns VBox status.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszFilename     Path to the file containing the symbol information.
  *                          This can be the executable image, a flat symbol file of some kind or stripped debug info.
  * @param   AddressDelta    The value to add to the loaded symbols.
@@ -639,8 +699,11 @@ int dbgfR3ModuleLocateAndOpen(PVM pVM, const char *pszFilename, char *pszFound, 
  * @param   cbImage         Size of the image.
  *                          Ignored when pszName is NULL.
  */
-VMMR3DECL(int) DBGFR3ModuleLoad(PVM pVM, const char *pszFilename, RTGCUINTPTR AddressDelta, const char *pszName, RTGCUINTPTR ModuleAddress, unsigned cbImage)
+VMMR3DECL(int) DBGFR3ModuleLoad(PVM pVM, const char *pszFilename, RTGCUINTPTR AddressDelta, const char *pszName,
+                                RTGCUINTPTR ModuleAddress, unsigned cbImage)
 {
+    NOREF(cbImage);
+
     /*
      * Lazy init.
      */
@@ -736,7 +799,7 @@ VMMR3DECL(int) DBGFR3ModuleLoad(PVM pVM, const char *pszFilename, RTGCUINTPTR Ad
 /**
  * Interface used by PDMR3LdrRelocate for telling us that a GC module has been relocated.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   OldImageBase    The old image base.
  * @param   NewImageBase    The new image base.
  * @param   cbImage         The image size.
@@ -760,7 +823,7 @@ VMMR3DECL(void) DBGFR3ModuleRelocate(PVM pVM, RTGCUINTPTR OldImageBase, RTGCUINT
             Log(("Reloaded debuginfo for %s - %s %llx\n", pszName, pszFilename, LoadedImageBase));
     }
 #else
-
+    NOREF(pVM); NOREF(OldImageBase); NOREF(NewImageBase); NOREF(cbImage); NOREF(pszFilename); NOREF(pszName);
 #endif
 }
 
@@ -769,13 +832,14 @@ VMMR3DECL(void) DBGFR3ModuleRelocate(PVM pVM, RTGCUINTPTR OldImageBase, RTGCUINT
  * Adds a symbol to the debug info manager.
  *
  * @returns VBox status.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   ModuleAddress   Module address. Use 0 if no module.
  * @param   SymbolAddress   Symbol address
  * @param   cbSymbol        Size of the symbol. Use 0 if info not available.
  * @param   pszSymbol       Symbol name.
  */
-VMMR3DECL(int) DBGFR3SymbolAdd(PVM pVM, RTGCUINTPTR ModuleAddress, RTGCUINTPTR SymbolAddress, RTUINT cbSymbol, const char *pszSymbol)
+VMMR3DECL(int) DBGFR3SymbolAdd(PVM pVM, RTGCUINTPTR ModuleAddress, RTGCUINTPTR SymbolAddress, RTUINT cbSymbol,
+                               const char *pszSymbol)
 {
     /*
      * Validate.
@@ -801,7 +865,7 @@ VMMR3DECL(int) DBGFR3SymbolAdd(PVM pVM, RTGCUINTPTR ModuleAddress, RTGCUINTPTR S
         return VINF_SUCCESS;
     return win32Error(pVM);
 #else
-    /** @todo module lookup. */
+    NOREF(ModuleAddress); /** @todo module lookup. */
     return dbgfR3SymbolInsert(pVM, pszSymbol, SymbolAddress, cbSymbol, NULL);
 #endif
 }
@@ -811,7 +875,7 @@ VMMR3DECL(int) DBGFR3SymbolAdd(PVM pVM, RTGCUINTPTR ModuleAddress, RTGCUINTPTR S
  * Find symbol by address (nearest).
  *
  * @returns VBox status.
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   Address             Address.
  * @param   poffDisplacement    Where to store the symbol displacement from Address.
  * @param   pSymbol             Where to store the symbol info.
@@ -900,7 +964,7 @@ VMMR3DECL(int) DBGFR3SymbolByAddr(PVM pVM, RTGCUINTPTR Address, PRTGCINTPTR poff
  * Find symbol by name (first).
  *
  * @returns VBox status.
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pszSymbol           Symbol name.
  * @param   pSymbol             Where to store the symbol info.
  */
@@ -956,7 +1020,7 @@ VMMR3DECL(int) DBGFR3SymbolByName(PVM pVM, const char *pszSymbol, PDBGFSYMBOL pS
  * Find line by address (nearest).
  *
  * @returns VBox status.
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   Address             Address.
  * @param   poffDisplacement    Where to store the line displacement from Address.
  * @param   pLine               Where to store the line info.
@@ -992,6 +1056,7 @@ VMMR3DECL(int) DBGFR3LineByAddr(PVM pVM, RTGCUINTPTR Address, PRTGCINTPTR poffDi
     }
     return win32Error(pVM);
 #else
+    NOREF(pVM); NOREF(Address); NOREF(poffDisplacement); NOREF(pLine);
     return VERR_NOT_IMPLEMENTED;
 #endif
 }
@@ -1001,7 +1066,7 @@ VMMR3DECL(int) DBGFR3LineByAddr(PVM pVM, RTGCUINTPTR Address, PRTGCINTPTR poffDi
  * Duplicates a line.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pLine           The line to duplicate.
  */
 static PDBGFLINE dbgfR3LineDup(PVM pVM, PCDBGFLINE pLine)
@@ -1019,7 +1084,7 @@ static PDBGFLINE dbgfR3LineDup(PVM pVM, PCDBGFLINE pLine)
  *
  * @returns Pointer to the line. Must be freed using DBGFR3LineFree().
  * @returns NULL if the line was not found or if we're out of memory.
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   Address             Address.
  * @param   poffDisplacement    Where to store the line displacement from Address.
  */

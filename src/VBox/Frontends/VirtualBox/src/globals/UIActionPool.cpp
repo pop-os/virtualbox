@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,7 @@ class ActivateActionEvent : public QEvent
 public:
 
     ActivateActionEvent(QAction *pAction)
-        : QEvent((QEvent::Type)VBoxDefs::ActivateActionEventType)
+        : QEvent((QEvent::Type)ActivateActionEventType)
         , m_pAction(pAction) {}
     QAction* action() const { return m_pAction; }
 
@@ -43,8 +43,8 @@ private:
     QAction *m_pAction;
 };
 
-/* UIActionInterface stuff: */
-UIActionInterface::UIActionInterface(QObject *pParent, UIActionType type)
+/* UIAction stuff: */
+UIAction::UIAction(QObject *pParent, UIActionType type)
     : QIWithRetranslateUI3<QAction>(pParent)
     , m_type(type)
 {
@@ -53,13 +53,38 @@ UIActionInterface::UIActionInterface(QObject *pParent, UIActionType type)
     setMenuRole(QAction::NoRole);
 }
 
-/* UIMenuInterface stuff: */
-UIMenuInterface::UIMenuInterface()
+void UIAction::setShortcut(const QKeySequence &shortcut)
+{
+    /* Call to base-class: */
+    QAction::setShortcut(shortcut);
+    /* Remember shortcut: */
+    m_shortcut = shortcut;
+}
+
+void UIAction::showShortcut()
+{
+    if (!m_shortcut.isEmpty())
+        QAction::setShortcut(m_shortcut);
+}
+
+void UIAction::hideShortcut()
+{
+    if (!shortcut().isEmpty())
+        QAction::setShortcut(QKeySequence());
+}
+
+QString UIAction::menuText(const QString &strText)
+{
+    return vboxGlobal().isVMConsoleProcess() ? VBoxGlobal::removeAccelMark(strText) : strText;
+}
+
+/* UIMenu stuff: */
+UIMenu::UIMenu()
     : m_fShowToolTips(false)
 {
 }
 
-bool UIMenuInterface::event(QEvent *pEvent)
+bool UIMenu::event(QEvent *pEvent)
 {
     /* Handle particular event-types: */
     switch (pEvent->type())
@@ -83,83 +108,161 @@ bool UIMenuInterface::event(QEvent *pEvent)
     return QMenu::event(pEvent);
 }
 
-/* UISimpleAction stuff: */
-UISimpleAction::UISimpleAction(QObject *pParent, const QString &strIcon, const QString &strIconDis)
-    : UIActionInterface(pParent, UIActionType_Simple)
+/* UIActionSimple stuff: */
+UIActionSimple::UIActionSimple(QObject *pParent, const QString &strIcon, const QString &strIconDis)
+    : UIAction(pParent, UIActionType_Simple)
 {
     if (!strIcon.isNull())
         setIcon(UIIconPool::iconSet(strIcon, strIconDis));
 }
 
-UISimpleAction::UISimpleAction(QObject *pParent, const QIcon& icon)
-    : UIActionInterface(pParent, UIActionType_Simple)
+UIActionSimple::UIActionSimple(QObject *pParent,
+                               const QSize &normalSize, const QSize &smallSize,
+                               const QString &strNormalIcon, const QString &strSmallIcon,
+                               const QString &strNormalIconDis, const QString &strSmallIconDis)
+    : UIAction(pParent, UIActionType_Simple)
+{
+    setIcon(UIIconPool::iconSetFull(normalSize, smallSize, strNormalIcon, strSmallIcon, strNormalIconDis, strSmallIconDis));
+}
+
+UIActionSimple::UIActionSimple(QObject *pParent, const QIcon& icon)
+    : UIAction(pParent, UIActionType_Simple)
 {
     if (!icon.isNull())
         setIcon(icon);
 }
 
-/* UIToggleAction stuff: */
-UIToggleAction::UIToggleAction(QObject *pParent, const QString &strIcon, const QString &strIconDis)
-    : UIActionInterface(pParent, UIActionType_Toggle)
+/* UIActionState stuff: */
+UIActionState::UIActionState(QObject *pParent, const QString &strIcon, const QString &strIconDis)
+    : UIAction(pParent, UIActionType_State)
+    , m_iState(0)
+{
+    if (!strIcon.isNull())
+        setIcon(UIIconPool::iconSet(strIcon, strIconDis));
+}
+
+UIActionState::UIActionState(QObject *pParent,
+                             const QSize &normalSize, const QSize &smallSize,
+                             const QString &strNormalIcon, const QString &strSmallIcon,
+                             const QString &strNormalIconDis, const QString &strSmallIconDis)
+    : UIAction(pParent, UIActionType_State)
+    , m_iState(0)
+{
+    setIcon(UIIconPool::iconSetFull(normalSize, smallSize, strNormalIcon, strSmallIcon, strNormalIconDis, strSmallIconDis));
+}
+
+UIActionState::UIActionState(QObject *pParent, const QIcon& icon)
+    : UIAction(pParent, UIActionType_State)
+    , m_iState(0)
+{
+    if (!icon.isNull())
+        setIcon(icon);
+}
+
+/* UIActionToggle stuff: */
+UIActionToggle::UIActionToggle(QObject *pParent, const QString &strIcon, const QString &strIconDis)
+    : UIAction(pParent, UIActionType_Toggle)
 {
     if (!strIcon.isNull())
         setIcon(UIIconPool::iconSet(strIcon, strIconDis));
     init();
 }
 
-UIToggleAction::UIToggleAction(QObject *pParent,
+UIActionToggle::UIActionToggle(QObject *pParent,
+                               const QSize &normalSize, const QSize &smallSize,
+                               const QString &strNormalIcon, const QString &strSmallIcon,
+                               const QString &strNormalIconDis, const QString &strSmallIconDis)
+    : UIAction(pParent, UIActionType_Toggle)
+{
+    setIcon(UIIconPool::iconSetFull(normalSize, smallSize, strNormalIcon, strSmallIcon, strNormalIconDis, strSmallIconDis));
+    init();
+}
+
+UIActionToggle::UIActionToggle(QObject *pParent,
                const QString &strIconOn, const QString &strIconOff,
                const QString &strIconOnDis, const QString &strIconOffDis)
-    : UIActionInterface(pParent, UIActionType_Toggle)
+    : UIAction(pParent, UIActionType_Toggle)
 {
     setIcon(UIIconPool::iconSetOnOff(strIconOn, strIconOff, strIconOnDis, strIconOffDis));
     init();
 }
 
-UIToggleAction::UIToggleAction(QObject *pParent, const QIcon &icon)
-    : UIActionInterface(pParent, UIActionType_Toggle)
+UIActionToggle::UIActionToggle(QObject *pParent, const QIcon &icon)
+    : UIAction(pParent, UIActionType_Toggle)
 {
     if (!icon.isNull())
         setIcon(icon);
     init();
 }
 
-void UIToggleAction::sltUpdateAppearance()
+void UIActionToggle::sltUpdateAppearance()
 {
     retranslateUi();
 }
 
-void UIToggleAction::init()
+void UIActionToggle::init()
 {
     setCheckable(true);
     connect(this, SIGNAL(toggled(bool)), this, SLOT(sltUpdateAppearance()));
 }
 
-/* UIMenuAction stuff: */
-UIMenuAction::UIMenuAction(QObject *pParent, const QString &strIcon, const QString &strIconDis)
-    : UIActionInterface(pParent, UIActionType_Menu)
+/* UIActionMenu stuff: */
+UIActionMenu::UIActionMenu(QObject *pParent, const QString &strIcon, const QString &strIconDis)
+    : UIAction(pParent, UIActionType_Menu)
 {
     if (!strIcon.isNull())
         setIcon(UIIconPool::iconSet(strIcon, strIconDis));
-    setMenu(new UIMenuInterface);
+    setMenu(new UIMenu);
 }
 
-UIMenuAction::UIMenuAction(QObject *pParent, const QIcon &icon)
-    : UIActionInterface(pParent, UIActionType_Menu)
+UIActionMenu::UIActionMenu(QObject *pParent, const QIcon &icon)
+    : UIAction(pParent, UIActionType_Menu)
 {
     if (!icon.isNull())
         setIcon(icon);
-    setMenu(new UIMenuInterface);
+    setMenu(new UIMenu);
 }
 
-class MenuHelpAction : public UIMenuAction
+
+class UIActionSimpleLogDialog : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
-    MenuHelpAction(QObject *pParent)
-        : UIMenuAction(pParent)
+    UIActionSimpleLogDialog(QObject *pParent)
+        : UIActionSimple(pParent, QSize(32, 32), QSize(16, 16),
+                         ":/vm_show_logs_32px.png", ":/show_logs_16px.png",
+                         ":/vm_show_logs_disabled_32px.png", ":/show_logs_disabled_16px.png")
+    {
+        switch (gActionPool->type())
+        {
+            case UIActionPoolType_Selector:
+                setShortcut(gSS->keySequence(UISelectorShortcuts::ShowVMLogShortcut));
+                break;
+            case UIActionPoolType_Runtime:
+                break;
+        }
+        retranslateUi();
+    }
+
+protected:
+
+    void retranslateUi()
+    {
+        setText(QApplication::translate("UIActionPool", "Show &Log..."));
+        setStatusTip(QApplication::translate("UIActionPool", "Show the log files of the selected virtual machine"));
+    }
+};
+
+class UIActionMenuHelp : public UIActionMenu
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionMenuHelp(QObject *pParent)
+        : UIActionMenu(pParent)
     {
         retranslateUi();
     }
@@ -168,22 +271,22 @@ protected:
 
     void retranslateUi()
     {
-        setText(QApplication::translate("UIActionPool", "&Help"));
+        setText(menuText(QApplication::translate("UIActionPool", "&Help")));
     }
 };
 
-class ShowHelpAction : public UISimpleAction
+class UIActionSimpleContents : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
-    ShowHelpAction(QObject *pParent)
-        : UISimpleAction(pParent, UIIconPool::defaultIcon(UIIconPool::DialogHelpIcon))
+    UIActionSimpleContents(QObject *pParent)
+        : UIActionSimple(pParent, UIIconPool::defaultIcon(UIIconPool::DialogHelpIcon))
     {
         switch (gActionPool->type())
         {
-            case UIActionPoolType_Offline:
+            case UIActionPoolType_Selector:
                 setShortcut(gSS->keySequence(UISelectorShortcuts::HelpShortcut));
                 break;
             case UIActionPoolType_Runtime:
@@ -197,23 +300,23 @@ protected:
 
     void retranslateUi()
     {
-        setText(QApplication::translate("UIMessageCenter", "&Contents..."));
-        setStatusTip(QApplication::translate("UIMessageCenter", "Show the online help contents"));
+        setText(menuText(QApplication::translate("UIActionPool", "&Contents...")));
+        setStatusTip(QApplication::translate("UIActionPool", "Show help contents"));
     }
 };
 
-class ShowWebAction : public UISimpleAction
+class UIActionSimpleWebSite : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
-    ShowWebAction(QObject *pParent)
-        : UISimpleAction(pParent, ":/site_16px.png")
+    UIActionSimpleWebSite(QObject *pParent)
+        : UIActionSimple(pParent, ":/site_16px.png")
     {
         switch (gActionPool->type())
         {
-            case UIActionPoolType_Offline:
+            case UIActionPoolType_Selector:
                 setShortcut(gSS->keySequence(UISelectorShortcuts::WebShortcut));
                 break;
             case UIActionPoolType_Runtime:
@@ -227,23 +330,23 @@ protected:
 
     void retranslateUi()
     {
-        setText(vboxGlobal().insertKeyToActionText(QApplication::translate("UIMessageCenter", "&VirtualBox Web Site..."), gMS->shortcut(UIMachineShortcuts::WebShortcut)));
-        setStatusTip(QApplication::translate("UIMessageCenter", "Open the browser and go to the VirtualBox product web site"));
+        setText(vboxGlobal().insertKeyToActionText(menuText(QApplication::translate("UIActionPool", "&VirtualBox Web Site...")), gMS->shortcut(UIMachineShortcuts::WebShortcut)));
+        setStatusTip(QApplication::translate("UIActionPool", "Open the browser and go to the VirtualBox product web site"));
     }
 };
 
-class PerformResetWarningsAction : public UISimpleAction
+class UIActionSimpleResetWarnings : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
-    PerformResetWarningsAction(QObject *pParent)
-        : UISimpleAction(pParent, ":/reset_16px.png")
+    UIActionSimpleResetWarnings(QObject *pParent)
+        : UIActionSimple(pParent, ":/reset_16px.png")
     {
         switch (gActionPool->type())
         {
-            case UIActionPoolType_Offline:
+            case UIActionPoolType_Selector:
                 setShortcut(gSS->keySequence(UISelectorShortcuts::ResetWarningsShortcut));
                 break;
             case UIActionPoolType_Runtime:
@@ -257,30 +360,27 @@ protected:
 
     void retranslateUi()
     {
-        setText(vboxGlobal().insertKeyToActionText(QApplication::translate("UIMessageCenter", "&Reset All Warnings"), gMS->shortcut(UIMachineShortcuts::ResetWarningsShortcut)));
-        setStatusTip(QApplication::translate("UIMessageCenter", "Go back to showing all suppressed warnings and messages"));
+        setText(vboxGlobal().insertKeyToActionText(menuText(QApplication::translate("UIActionPool", "&Reset All Warnings")), gMS->shortcut(UIMachineShortcuts::ResetWarningsShortcut)));
+        setStatusTip(QApplication::translate("UIActionPool", "Go back to showing all suppressed warnings and messages"));
     }
 };
 
-#ifdef VBOX_WITH_REGISTRATION
-class PerformRegisterAction : public UISimpleAction
+class UIActionSimpleNetworkAccessManager : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
-    PerformRegisterAction(QObject *pParent)
-        : UISimpleAction(pParent, ":/register_16px.png", ":/register_disabled_16px.png")
+    UIActionSimpleNetworkAccessManager(QObject *pParent)
+        : UIActionSimple(pParent, ":/nw_16px.png", ":/nw_disabled_16px.png")
     {
-        setEnabled(vboxGlobal().virtualBox().
-                   GetExtraData(VBoxDefs::GUI_RegistrationDlgWinID).isEmpty());
         switch (gActionPool->type())
         {
-            case UIActionPoolType_Offline:
-                setShortcut(gSS->keySequence(UISelectorShortcuts::RegisterShortcut));
+            case UIActionPoolType_Selector:
+                setShortcut(gSS->keySequence(UISelectorShortcuts::NetworkAccessManager));
                 break;
             case UIActionPoolType_Runtime:
-                setShortcut(gMS->keySequence(UIMachineShortcuts::RegisterShortcut));
+                setShortcut(gMS->keySequence(UIMachineShortcuts::NetworkAccessManager));
                 break;
         }
         retranslateUi();
@@ -290,25 +390,24 @@ protected:
 
     void retranslateUi()
     {
-        setText(vboxGlobal().insertKeyToActionText(QApplication::translate("UIMessageCenter", "R&egister VirtualBox..."), gMS->shortcut(UIMachineShortcuts::RegisterShortcut)));
-        setStatusTip(QApplication::translate("UIMessageCenter", "Open VirtualBox registration form"));
+        setText(vboxGlobal().insertKeyToActionText(menuText(QApplication::translate("UIActionPool", "&Network Operations Manager...")), gMS->shortcut(UIMachineShortcuts::NetworkAccessManager)));
+        setStatusTip(QApplication::translate("UIActionPool", "Show Network Operations Manager"));
     }
 };
-#endif /* VBOX_WITH_REGISTRATION */
 
-class PerformUpdateAction : public UISimpleAction
+class UIActionSimpleCheckForUpdates : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
-    PerformUpdateAction(QObject *pParent)
-        : UISimpleAction(pParent, ":/refresh_16px.png", ":/refresh_disabled_16px.png")
+    UIActionSimpleCheckForUpdates(QObject *pParent)
+        : UIActionSimple(pParent, ":/refresh_16px.png", ":/refresh_disabled_16px.png")
     {
         setMenuRole(QAction::ApplicationSpecificRole);
         switch (gActionPool->type())
         {
-            case UIActionPoolType_Offline:
+            case UIActionPoolType_Selector:
                 setShortcut(gSS->keySequence(UISelectorShortcuts::UpdateShortcut));
                 break;
             case UIActionPoolType_Runtime:
@@ -322,24 +421,24 @@ protected:
 
     void retranslateUi()
     {
-        setText(vboxGlobal().insertKeyToActionText(QApplication::translate("UIMessageCenter", "C&heck for Updates..."), gMS->shortcut(UIMachineShortcuts::UpdateShortcut)));
-        setStatusTip(QApplication::translate("UIMessageCenter", "Check for a new VirtualBox version"));
+        setText(vboxGlobal().insertKeyToActionText(menuText(QApplication::translate("UIActionPool", "C&heck for Updates...")), gMS->shortcut(UIMachineShortcuts::UpdateShortcut)));
+        setStatusTip(QApplication::translate("UIActionPool", "Check for a new VirtualBox version"));
     }
 };
 
-class ShowAboutAction : public UISimpleAction
+class UIActionSimpleAbout : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
-    ShowAboutAction(QObject *pParent)
-        : UISimpleAction(pParent, ":/about_16px.png")
+    UIActionSimpleAbout(QObject *pParent)
+        : UIActionSimple(pParent, ":/about_16px.png")
     {
         setMenuRole(QAction::AboutRole);
         switch (gActionPool->type())
         {
-            case UIActionPoolType_Offline:
+            case UIActionPoolType_Selector:
                 setShortcut(gSS->keySequence(UISelectorShortcuts::AboutShortcut));
                 break;
             case UIActionPoolType_Runtime:
@@ -353,10 +452,11 @@ protected:
 
     void retranslateUi()
     {
-        setText(vboxGlobal().insertKeyToActionText(QApplication::translate("UIMessageCenter", "&About VirtualBox..."), gMS->shortcut(UIMachineShortcuts::AboutShortcut)));
-        setStatusTip(QApplication::translate("UIMessageCenter", "Show a dialog with product information"));
+        setText(vboxGlobal().insertKeyToActionText(menuText(QApplication::translate("UIActionPool", "&About VirtualBox...")), gMS->shortcut(UIMachineShortcuts::AboutShortcut)));
+        setStatusTip(QApplication::translate("UIActionPool", "Show a dialog with product information"));
     }
 };
+
 
 /* UIActionPool stuff: */
 UIActionPool* UIActionPool::m_pInstance = 0;
@@ -404,7 +504,7 @@ bool UIActionPool::processHotKey(const QKeySequence &key)
     for (int i = 0; i < keys.size(); ++i)
     {
         /* Get current action: */
-        UIActionInterface *pAction = m_pool[keys[i]];
+        UIAction *pAction = m_pool[keys[i]];
         /* Skip menus/separators: */
         if (pAction->type() == UIActionType_Menu)
             continue;
@@ -431,15 +531,15 @@ bool UIActionPool::processHotKey(const QKeySequence &key)
 
 void UIActionPool::createActions()
 {
+    /* Various dialog actions: */
+    m_pool[UIActionIndex_Simple_LogDialog] = new UIActionSimpleLogDialog(this);
     /* 'Help' actions: */
-    m_pool[UIActionIndex_Simple_Help] = new ShowHelpAction(this);
-    m_pool[UIActionIndex_Simple_Web] = new ShowWebAction(this);
-    m_pool[UIActionIndex_Simple_ResetWarnings] = new PerformResetWarningsAction(this);
-#ifdef VBOX_WITH_REGISTRATION
-    m_pool[UIActionIndex_Simple_Register] = new PerformRegisterAction(this);
-#endif /* VBOX_WITH_REGISTRATION */
-    m_pool[UIActionIndex_Simple_Update] = new PerformUpdateAction(this);
-    m_pool[UIActionIndex_Simple_About] = new ShowAboutAction(this);
+    m_pool[UIActionIndex_Simple_Contents] = new UIActionSimpleContents(this);
+    m_pool[UIActionIndex_Simple_WebSite] = new UIActionSimpleWebSite(this);
+    m_pool[UIActionIndex_Simple_ResetWarnings] = new UIActionSimpleResetWarnings(this);
+    m_pool[UIActionIndex_Simple_NetworkAccessManager] = new UIActionSimpleNetworkAccessManager(this);
+    m_pool[UIActionIndex_Simple_CheckForUpdates] = new UIActionSimpleCheckForUpdates(this);
+    m_pool[UIActionIndex_Simple_About] = new UIActionSimpleAbout(this);
 }
 
 void UIActionPool::createMenus()
@@ -450,40 +550,38 @@ void UIActionPool::createMenus()
 
     /* Recreate 'help' menu items as well.
      * This makes sure they are removed also from the Application menu: */
-    if (m_pool[UIActionIndex_Simple_Help])
-        delete m_pool[UIActionIndex_Simple_Help];
-    m_pool[UIActionIndex_Simple_Help] = new ShowHelpAction(this);
-    if (m_pool[UIActionIndex_Simple_Web])
-        delete m_pool[UIActionIndex_Simple_Web];
-    m_pool[UIActionIndex_Simple_Web] = new ShowWebAction(this);
+    if (m_pool[UIActionIndex_Simple_Contents])
+        delete m_pool[UIActionIndex_Simple_Contents];
+    m_pool[UIActionIndex_Simple_Contents] = new UIActionSimpleContents(this);
+    if (m_pool[UIActionIndex_Simple_WebSite])
+        delete m_pool[UIActionIndex_Simple_WebSite];
+    m_pool[UIActionIndex_Simple_WebSite] = new UIActionSimpleWebSite(this);
     if (m_pool[UIActionIndex_Simple_ResetWarnings])
         delete m_pool[UIActionIndex_Simple_ResetWarnings];
-    m_pool[UIActionIndex_Simple_ResetWarnings] = new PerformResetWarningsAction(this);
-#ifdef VBOX_WITH_REGISTRATION
-    if (m_pool[UIActionIndex_Simple_Register])
-        delete m_pool[UIActionIndex_Simple_Register]
-    m_pool[UIActionIndex_Simple_Register] = new PerformRegisterAction(this);
-#endif /* VBOX_WITH_REGISTRATION */
+    m_pool[UIActionIndex_Simple_ResetWarnings] = new UIActionSimpleResetWarnings(this);
+    if (m_pool[UIActionIndex_Simple_NetworkAccessManager])
+        delete m_pool[UIActionIndex_Simple_NetworkAccessManager];
+    m_pool[UIActionIndex_Simple_NetworkAccessManager] = new UIActionSimpleNetworkAccessManager(this);
 #if defined(Q_WS_MAC) && (QT_VERSION >= 0x040700)
     /* For whatever reason, Qt doesn't fully remove items with a
      * ApplicationSpecificRole from the application menu. Although the QAction
      * itself is deleted, a dummy entry is leaved back in the menu.
      * Hiding before deletion helps. */
-    m_pool[UIActionIndex_Simple_Update]->setVisible(false);
+    m_pool[UIActionIndex_Simple_CheckForUpdates]->setVisible(false);
 #endif
 #if !(defined(Q_WS_MAC) && (QT_VERSION < 0x040700))
-    if (m_pool[UIActionIndex_Simple_Update])
-        delete m_pool[UIActionIndex_Simple_Update];
-    m_pool[UIActionIndex_Simple_Update] = new PerformUpdateAction(this);
+    if (m_pool[UIActionIndex_Simple_CheckForUpdates])
+        delete m_pool[UIActionIndex_Simple_CheckForUpdates];
+    m_pool[UIActionIndex_Simple_CheckForUpdates] = new UIActionSimpleCheckForUpdates(this);
     if (m_pool[UIActionIndex_Simple_About])
         delete m_pool[UIActionIndex_Simple_About];
-    m_pool[UIActionIndex_Simple_About] = new ShowAboutAction(this);
+    m_pool[UIActionIndex_Simple_About] = new UIActionSimpleAbout(this);
 #endif
 
     /* 'Help' menu itself: */
     if (m_pool[UIActionIndex_Menu_Help])
         delete m_pool[UIActionIndex_Menu_Help];
-    m_pool[UIActionIndex_Menu_Help] = new MenuHelpAction(this);
+    m_pool[UIActionIndex_Menu_Help] = new UIActionMenuHelp(this);
 }
 
 void UIActionPool::destroyPool()
@@ -500,7 +598,7 @@ bool UIActionPool::event(QEvent *pEvent)
     /* Depending on event-type: */
     switch (pEvent->type())
     {
-        case VBoxDefs::ActivateActionEventType:
+        case ActivateActionEventType:
         {
             /* Process specific event: */
             ActivateActionEvent *pActionEvent = static_cast<ActivateActionEvent*>(pEvent);

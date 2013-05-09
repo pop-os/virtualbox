@@ -1,10 +1,10 @@
 #! /bin/sh
 #
-# Linux Additions X11 setup init script ($Revision: 77057 $)
+# Linux Additions X11 setup init script ($Revision: 83687 $)
 #
 
 #
-# Copyright (C) 2006-2010 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -291,7 +291,9 @@ setup()
     automouse="--autoMouse"
     # We need to tell our xorg.conf hacking script whether /dev/psaux exists
     nopsaux="--nopsaux"
-    test -c /dev/psaux && nopsaux=""
+    case "`uname -r`" in 2.4.*)
+        test -c /dev/psaux && nopsaux="";;
+    esac
     # The video driver to install for X.Org 6.9+
     vboxvideo_src=
     # The mouse driver to install for X.Org 6.9+
@@ -326,6 +328,11 @@ setup()
             echo "installing the X.Org drivers."
             dox11config=""
             ;;
+        1.13.* )
+            xserver_version="X.Org Server 1.13"
+            vboxvideo_src=vboxvideo_drv_113.so
+            test "$system" = "redhat" || setupxorgconf=""
+            ;;
         1.12.* )
             xserver_version="X.Org Server 1.12"
             vboxvideo_src=vboxvideo_drv_112.so
@@ -334,20 +341,18 @@ setup()
         1.11.* )
             xserver_version="X.Org Server 1.11"
             vboxvideo_src=vboxvideo_drv_111.so
-            # Does Fedora still ship without vboxvideo detection?
-            # test "$system" = "redhat" || setupxorgconf=""
+            test "$system" = "redhat" || setupxorgconf=""
             ;;
         1.10.* )
             xserver_version="X.Org Server 1.10"
             vboxvideo_src=vboxvideo_drv_110.so
-            # Does Fedora still ship without vboxvideo detection?
-            # test "$system" = "redhat" || setupxorgconf=""
+            test "$system" = "redhat" || setupxorgconf=""
             ;;
         1.9.* )
             xserver_version="X.Org Server 1.9"
             vboxvideo_src=vboxvideo_drv_19.so
-            # Fedora 14 looks likely to ship without vboxvideo detection
-            # test "$system" = "redhat" || setupxorgconf=""
+            # Fedora 14 and later patched out vboxvideo detection
+            test "$system" = "redhat" || setupxorgconf=""
             ;;
         1.8.* )
             xserver_version="X.Org Server 1.8"
@@ -399,14 +404,12 @@ setup()
             vboxvideo_src=vboxvideo_drv_71.so
             vboxmouse_src=vboxmouse_drv_71.so
             automouse=""
-            newmouse=""
             ;;
         6.9.* | 7.0.* )
             xserver_version="X.Org 6.9/7.0"
             vboxvideo_src=vboxvideo_drv_70.so
             vboxmouse_src=vboxmouse_drv_70.so
             automouse=""
-            newmouse=""
             ;;
         6.7* | 6.8.* | 4.2.* | 4.3.* )
             # Assume X.Org post-fork or XFree86
@@ -415,7 +418,6 @@ setup()
             vboxvideo_src=vboxvideo_drv.o
             vboxmouse_src=vboxmouse_drv.o
             automouse=""
-            newmouse=""
             ;;
         * )
             echo "Warning: unknown version of the X Window System installed.  Not installing"

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -146,7 +146,7 @@ int main()
      */
     RTTEST hTest;
     int rc;
-    if (    RT_FAILURE(rc = RTR3Init())
+    if (    RT_FAILURE(rc = RTR3InitExeNoArguments(0))
         ||  RT_FAILURE(rc = RTTestCreate("tstVMMR0CallHost-1", &hTest)))
     {
         RTStrmPrintf(g_pStdErr, "tstVMMR0CallHost-1: Fatal error during init: %Rrc\n", rc);

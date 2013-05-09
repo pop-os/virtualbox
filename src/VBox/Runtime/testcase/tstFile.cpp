@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,7 +39,7 @@ int main()
 {
     int         cErrors = 0;
     RTPrintf("tstFile: TESTING\n");
-    RTR3Init();
+    RTR3InitExeNoArguments(0);
 
     RTFILE    File;
     int rc = RTFileOpen(&File, "tstFile#1.tst", RTFILE_O_READWRITE | RTFILE_O_CREATE_REPLACE | RTFILE_O_DENY_NONE);

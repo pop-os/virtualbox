@@ -5,7 +5,7 @@ Author: Felix Geyer <fgeyer@debian.org>
 diff --git a/src/VBox/Additions/linux/drm/vboxvideo_drm.c b/src/VBox/Additions/linux/drm/vboxvideo_drm.c
 --- a/src/VBox/Additions/linux/drm/vboxvideo_drm.c
 +++ b/src/VBox/Additions/linux/drm/vboxvideo_drm.c
-@@ -73,6 +73,12 @@
+@@ -76,6 +76,12 @@
  #include "drm/drmP.h"
  #include "vboxvideo_drm.h"
  
@@ -18,30 +18,30 @@ diff --git a/src/VBox/Additions/linux/drm/vboxvideo_drm.c b/src/VBox/Additions/l
  static struct pci_device_id pciidlist[] = {
          vboxvideo_PCI_IDS
  };
-@@ -85,7 +91,7 @@ int vboxvideo_driver_load(struct drm_device * dev, unsigned long flags)
+@@ -88,7 +94,7 @@ int vboxvideo_driver_load(struct drm_device * dev, unsigned long flags)
      return 0;
  #endif
  }
--#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0)
-+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0) || defined(DRM_DEBIAN70)
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0) || defined(DRM_RHEL63)
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0) || defined(DRM_RHEL63) || defined(DRM_DEBIAN70)
  /* since linux-3.3.0-rc1 drm_driver::fops is pointer */
  static struct file_operations driver_fops =
  {
-@@ -109,7 +115,7 @@ static struct drm_driver driver =
+@@ -114,7 +120,7 @@ static struct drm_driver driver =
      .get_map_ofs = drm_core_get_map_ofs,
      .get_reg_ofs = drm_core_get_reg_ofs,
  #endif
--# if LINUX_VERSION_CODE < KERNEL_VERSION(3,3,0)
-+# if LINUX_VERSION_CODE < KERNEL_VERSION(3,3,0) && !defined(DRM_DEBIAN70)
+-# if LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0) && !defined(DRM_RHEL63)
++# if LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0) && !defined(DRM_RHEL63) && !defined(DRM_DEBIAN70)
      .fops =
      {
          .owner = THIS_MODULE,
-@@ -126,7 +132,7 @@ static struct drm_driver driver =
+@@ -131,7 +137,7 @@ static struct drm_driver driver =
          .poll = drm_poll,
          .fasync = drm_fasync,
      },
--#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0) */
-+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3,3,0) || defined(DRM_DEBIAN70) */
+-#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0) || defined(DRM_RHEL63) */
++#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0) || defined(DRM_RHEL63) || defined(DRM_DEBIAN70) */
      .fops = &driver_fops,
  #endif
- #if LINUX_VERSION_CODE < KERNEL_VERSION (2, 6, 39) && !defined(DRM_RHEL61)
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39) && !defined(DRM_RHEL61)

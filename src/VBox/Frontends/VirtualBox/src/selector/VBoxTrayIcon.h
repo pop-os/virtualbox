@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,7 @@
 #include <QSystemTrayIcon>
 
 /* Local forward declarations */
-class VBoxSelectorWnd;
+class UISelectorWindow;
 class UIVMItem;
 class UIVMItemModel;
 
@@ -39,7 +39,7 @@ class VBoxTrayIcon : public QSystemTrayIcon
 
 public:
 
-    VBoxTrayIcon (VBoxSelectorWnd* aParent, UIVMItemModel* aVMModel);
+    VBoxTrayIcon (UISelectorWindow* aParent, UIVMItemModel* aVMModel);
     virtual ~VBoxTrayIcon ();
 
     void refresh ();
@@ -73,7 +73,7 @@ private:
     /* The vm list model */
     UIVMItemModel *mVMModel;
 
-    VBoxSelectorWnd* mParent;
+    UISelectorWindow* mParent;
     QMenu *mTrayIconMenu;
 
     QAction *mShowSelectorAction;

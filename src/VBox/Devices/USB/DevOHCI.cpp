@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2405,7 +2405,7 @@ static void ohciRhXferCompleteGeneralURB(POHCI pOhci, PVUSBURB pUrb, POHCIED pEd
          * The reason for this is that while we can have more than one TD in a URB, real
          * OHCI hardware will only deal with one TD at the time and it's therefore incorrect
          * to retire TDs after the endpoint has been halted. Win2k will crash or enter infinite
-         * kernel loop if we don't behave correctly. (See #1646.)
+         * kernel loop if we don't behave correctly. (See @bugref{1646}.)
          */
         if (pEd->HeadP & ED_HEAD_HALTED)
             break;
@@ -3871,8 +3871,8 @@ static int HcControl_w(POHCI pOhci, uint32_t iReg, uint32_t val)
 #else /* !IN_RING3 */
     if ( new_state != old_state )
     {
-        Log2(("HcControl_w: state changed -> VINF_IOM_HC_MMIO_WRITE\n"));
-        return VINF_IOM_HC_MMIO_WRITE;
+        Log2(("HcControl_w: state changed -> VINF_IOM_R3_MMIO_WRITE\n"));
+        return VINF_IOM_R3_MMIO_WRITE;
     }
     pOhci->ctl = val;
 #endif /* !IN_RING3 */
@@ -3923,8 +3923,8 @@ static int HcCommandStatus_w(POHCI pOhci, uint32_t iReg, uint32_t val)
 #else
     if ((pOhci->status | val) & OHCI_STATUS_HCR)
     {
-        LogFlow(("HcCommandStatus_w: reset -> VINF_IOM_HC_MMIO_WRITE\n"));
-        return VINF_IOM_HC_MMIO_WRITE;
+        LogFlow(("HcCommandStatus_w: reset -> VINF_IOM_R3_MMIO_WRITE\n"));
+        return VINF_IOM_R3_MMIO_WRITE;
     }
     pOhci->status |= val;
 #endif
@@ -4202,7 +4202,7 @@ static int HcDoneHead_r(PCOHCI pOhci, uint32_t iReg, uint32_t *pu32Value)
 static int HcDoneHead_w(POHCI pOhci, uint32_t iReg, uint32_t val)
 {
     Log2(("HcDoneHead_w(0x%#08x) - denied!!!\n", val));
-    AssertMsgFailed(("Illegal operation!!! val=%#010x\n", val));
+    /*AssertMsgFailed(("Illegal operation!!! val=%#010x\n", val)); - OS/2 does this */
     return VINF_SUCCESS;
 }
 
@@ -4504,7 +4504,7 @@ static int HcRhStatus_w(POHCI pOhci, uint32_t iReg, uint32_t val)
           (chg >> 31) & 1 ? "*" : "", (val >> 31) & 1));
     return VINF_SUCCESS;
 #else  /* !IN_RING3 */
-    return VINF_IOM_HC_MMIO_WRITE;
+    return VINF_IOM_R3_MMIO_WRITE;
 #endif /* !IN_RING3 */
 }
 
@@ -4520,8 +4520,8 @@ static int HcRhPortStatus_r(PCOHCI pOhci, uint32_t iReg, uint32_t *pu32Value)
 #ifdef IN_RING3
         RTThreadYield();
 #else
-        Log2(("HcRhPortStatus_r: yield -> VINF_IOM_HC_MMIO_READ\n"));
-        return VINF_IOM_HC_MMIO_READ;
+        Log2(("HcRhPortStatus_r: yield -> VINF_IOM_R3_MMIO_READ\n"));
+        return VINF_IOM_R3_MMIO_READ;
 #endif
     }
     if (val & (OHCI_PORT_R_RESET_STATUS | OHCI_PORT_CSC | OHCI_PORT_PESC | OHCI_PORT_PSSC | OHCI_PORT_OCIC | OHCI_PORT_PRSC))
@@ -4554,7 +4554,7 @@ static DECLCALLBACK(void) uchi_port_reset_done(PVUSBIDEVICE pDev, int rc, void *
         }
     if (!pPort)
     {
-        Assert(pPort); /* sometimes happens because of #1510 */
+        Assert(pPort); /* sometimes happens because of @bugref{1510} */
         return;
     }
 
@@ -4735,7 +4735,7 @@ static int HcRhPortStatus_w(POHCI pOhci, uint32_t iReg, uint32_t val)
     }
     return VINF_SUCCESS;
 #else /* !IN_RING3 */
-    return VINF_IOM_HC_MMIO_WRITE;
+    return VINF_IOM_R3_MMIO_WRITE;
 #endif /* !IN_RING3 */
 }
 
@@ -4980,7 +4980,7 @@ static DECLCALLBACK(int) ohciR3SaveDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     POHCIROOTHUB pRh = &pOhci->RootHub;
     OHCIROOTHUB Rh;
     unsigned i;
-    LogFlow(("ohciR3SavePrep: \n"));
+    LogFlow(("ohciR3SaveDone: \n"));
 
     /*
      * NULL the dev pointers.

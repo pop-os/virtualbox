@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -164,9 +164,9 @@ RTR3DECL(int) RTFsQueryProperties(const char *pszFsPath, PRTFSPROPERTIES pProper
         rtPathFreeNative(pszNativeFsPath, pszFsPath);
     }
 
-    LogFlow(("RTFsQueryProperties(%p:{%s}, %p:{.cbMaxComponent=%u, .fCaseSensitive=%RTbool}): returns %Rrc\n",
-             pszFsPath, pszFsPath, pProperties, pProperties->cbMaxComponent, pProperties->fReadOnly));
-    return VINF_SUCCESS;
+    LogFlow(("RTFsQueryProperties(%p:{%s}, %p:{.cbMaxComponent=%u, .fReadOnly=%RTbool}): returns %Rrc\n",
+             pszFsPath, pszFsPath, pProperties, pProperties->cbMaxComponent, pProperties->fReadOnly, rc));
+    return rc;
 }
 
 
@@ -241,6 +241,8 @@ RTR3DECL(int) RTFsQueryType(const char *pszFsPath, PRTFSTYPE penmType)
                                 *penmType = RTFSTYPE_NFS;
                             else if (!strcmp("nfs4", mntEnt.mnt_type))
                                 *penmType = RTFSTYPE_NFS;
+                            else if (!strcmp("ocfs2", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_OCFS2;
                             else if (!strcmp("sysfs", mntEnt.mnt_type))
                                 *penmType = RTFSTYPE_SYSFS;
                             else if (!strcmp("proc", mntEnt.mnt_type))

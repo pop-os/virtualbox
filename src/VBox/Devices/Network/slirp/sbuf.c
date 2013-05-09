@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -73,6 +73,7 @@ sbdrop(struct sbuf *sb, int num)
 void
 sbreserve(PNATState pData, struct sbuf *sb, int size)
 {
+    NOREF(pData);
     if (sb->sb_data)
     {
         /* Already alloced, realloc if necessary */
@@ -201,6 +202,9 @@ void
 sbappendsb(PNATState pData, struct sbuf *sb, struct mbuf *m)
 {
     int len, n,  nn;
+#ifndef VBOX_WITH_STATISTICS
+    NOREF(pData);
+#endif
 
     len = m_length(m, NULL);
 

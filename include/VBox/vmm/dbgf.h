@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -336,7 +336,7 @@ typedef struct DBGFBP
      * (PC register value if REM type?) */
     RTGCUINTPTR     GCPtr;
     /** The breakpoint id. */
-    RTUINT          iBp;
+    uint32_t        iBp;
     /** The breakpoint status - enabled or disabled. */
     bool            fEnabled;
 
@@ -872,9 +872,6 @@ VMMR3DECL(void)             DBGFR3StackWalkEnd(PCDBGFSTACKFRAME pFirstFrame);
 #define DBGF_DISAS_FLAGS_NO_BYTES           RT_BIT(4)
 /** No address in the output. */
 #define DBGF_DISAS_FLAGS_NO_ADDRESS         RT_BIT(5)
-/** Set if the hidden selector registers are known to be valid. (REM hack to
- *  avoid assertions.) */
-#define DBGF_DISAS_FLAGS_HID_SEL_REGS_VALID RT_BIT(6)
 /** Disassemble in the default mode of the specific context. */
 #define DBGF_DISAS_FLAGS_DEFAULT_MODE       UINT32_C(0x00000000)
 /** Disassemble in 16-bit mode. */
@@ -913,7 +910,7 @@ VMMR3DECL(int) DBGFR3DisasInstrCurrentLogInternal(PVMCPU pVCpu, const char *pszP
 # define DBGFR3DisasInstrCurrentLog(pVCpu, pszPrefix) do { } while (0)
 #endif
 
-VMMR3DECL(int) DBGFR3DisasInstrLogInternal(PVMCPU pVCpu, RTSEL Sel, RTGCPTR GCPtr);
+VMMR3DECL(int) DBGFR3DisasInstrLogInternal(PVMCPU pVCpu, RTSEL Sel, RTGCPTR GCPtr, const char *pszPrefix);
 
 /** @def DBGFR3DisasInstrLog
  * Disassembles the specified guest context instruction and writes it to the log.
@@ -921,13 +918,13 @@ VMMR3DECL(int) DBGFR3DisasInstrLogInternal(PVMCPU pVCpu, RTSEL Sel, RTGCPTR GCPt
  * @thread Any EMT.
  */
 # ifdef LOG_ENABLED
-#  define DBGFR3DisasInstrLog(pVCpu, Sel, GCPtr) \
+#  define DBGFR3DisasInstrLog(pVCpu, Sel, GCPtr, pszPrefix) \
     do { \
         if (LogIsEnabled()) \
-            DBGFR3DisasInstrLogInternal(pVCpu, Sel, GCPtr); \
+            DBGFR3DisasInstrLogInternal(pVCpu, Sel, GCPtr, pszPrefix); \
     } while (0)
 # else
-#  define DBGFR3DisasInstrLog(pVCpu, Sel, GCPtr) do { } while (0)
+#  define DBGFR3DisasInstrLog(pVCpu, Sel, GCPtr, pszPrefix) do { } while (0)
 # endif
 #endif
 
@@ -1277,7 +1274,8 @@ typedef union DBGFREGVAL
     uint32_t    u32;            /**< The 32-bit view. */
     uint64_t    u64;            /**< The 64-bit view. */
     RTUINT128U  u128;           /**< The 128-bit view. */
-    RTFLOAT80U2 r80;            /**< The 80-bit floating point view. */
+    RTFLOAT80U  r80;            /**< The 80-bit floating point view. */
+    RTFLOAT80U2 r80Ex;          /**< The 80-bit floating point view v2. */
     /** GDTR or LDTR (DBGFREGVALTYPE_DTR). */
     struct
     {
@@ -1473,6 +1471,8 @@ typedef struct DBGFREGENTRYNM
 typedef DBGFREGENTRYNM *PDBGFREGENTRYNM;
 /** Pointer to a const named register entry in a batch operation. */
 typedef DBGFREGENTRYNM const *PCDBGFREGENTRYNM;
+
+VMMR3DECL(int) DBGFR3RegNmValidate( PVM pVM, VMCPUID idDefCpu, const char *pszReg);
 
 VMMR3DECL(int) DBGFR3RegNmQuery(    PVM pVM, VMCPUID idDefCpu, const char *pszReg, PDBGFREGVAL pValue, PDBGFREGVALTYPE penmType);
 VMMR3DECL(int) DBGFR3RegNmQueryU8(  PVM pVM, VMCPUID idDefCpu, const char *pszReg, uint8_t     *pu8);

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,9 +19,12 @@
 #ifndef __UIMachineSettingsDisplay_h__
 #define __UIMachineSettingsDisplay_h__
 
-#include "COMDefs.h"
+/* GUI includes: */
 #include "UISettingsPage.h"
 #include "UIMachineSettingsDisplay.gen.h"
+
+/* COM includes: */
+#include "CGuestOSType.h"
 
 /* Machine settings / Display page / Data: */
 struct UIDataSettingsMachineDisplay

@@ -273,7 +273,7 @@ have libgstreamer-plugins-base installed.</source>
     </message>
     <message>
         <source>Inaccessible</source>
-        <translation>無法存取</translation>
+        <translation>不可存取</translation>
     </message>
     <message>
         <source>Symlink to File</source>
@@ -3384,7 +3384,7 @@ Please choose a different file name.</source>
     <name>QShortcut</name>
     <message>
         <source>Space</source>
-        <translation>Space</translation>
+        <translation>空格</translation>
     </message>
     <message>
         <source>Esc</source>
@@ -3524,11 +3524,11 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Treble Up</source>
-        <translation>Treble Up</translation>
+        <translation>增加高音</translation>
     </message>
     <message>
         <source>Treble Down</source>
-        <translation>Treble Down</translation>
+        <translation>降低高音</translation>
     </message>
     <message>
         <source>Media Play</source>
@@ -4026,7 +4026,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>RLO Start of right-to-left override</source>
-        <translation>RLO 開始的從右到左覆寫</translation>
+        <translation>RLO 開始的從右到左重疊</translation>
     </message>
     <message>
         <source>PDF Pop directional formatting</source>
@@ -4713,7 +4713,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Time 24:%1:%2.%3 is invalid. Hour is 24, but minutes, seconds, and milliseconds are not all 0; </source>
-        <translation>時間 24:%1:%2。 %3 無效。 小時是 24，但分鐘、 秒和毫秒非全為 0;</translation>
+        <translation>時間 24:%1:%2。 %3 無效。 小時是 24，但分鐘、 秒和毫秒非全為 0; </translation>
     </message>
     <message>
         <source>Time %1:%2:%3.%4 is invalid.</source>

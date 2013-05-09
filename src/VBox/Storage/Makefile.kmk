@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2007 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -21,6 +21,7 @@ include $(KBUILD_PATH)/subheader.kmk
 VBOX_PATH_STORAGE_SRC := $(PATH_SUB_CURRENT)
 
 include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
+include $(PATH_SUB_CURRENT)/Debug/Makefile.kmk
 
 ifndef VBOX_OSE
  include $(PATH_SUB_CURRENT)/VDFormats/Makefile.kmk
@@ -35,6 +36,7 @@ StorageLib_TEMPLATE = VBOXR3
 StorageLib_DEFS     = IN_VBOXDDU
 StorageLib_SOURCES  = \
 	VD.cpp \
+	VDVfs.cpp \
 	VDI.cpp \
 	VMDK.cpp \
 	VHD.cpp \
@@ -42,6 +44,9 @@ StorageLib_SOURCES  = \
 	Parallels.cpp \
 	ISCSI.cpp \
 	RAW.cpp \
+	QED.cpp \
+	QCOW.cpp \
+	VHDX.cpp \
 	VCICache.cpp
 
 #StorageLibNoDB_TEMPLATE = VBOXR3
@@ -50,5 +55,5 @@ StorageLib_SOURCES  = \
 #	$(StorageLib_SOURCES)
 
 # generate rules
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

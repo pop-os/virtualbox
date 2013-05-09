@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2004-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,6 +37,7 @@
 #include <iprt/uni.h>
 #include <iprt/path.h>
 #include <iprt/getopt.h>
+#include <iprt/message.h>
 
 #include <atlbase.h>
 #include <atlcom.h>
@@ -158,7 +159,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
 {
     LPCTSTR lpCmdLine = GetCommandLine(); /* this line necessary for _ATL_MIN_CRT */
 
-    /* Need to parse the command line before initializing the VBox runtime. */
+    /*
+     * Need to parse the command line before initializing the VBox runtime.
+     */
     TCHAR szTokens[] = _T("-/");
     LPCTSTR lpszToken = FindOneOf(lpCmdLine, szTokens);
     while (lpszToken != NULL)
@@ -187,7 +190,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
      * Initialize the VBox runtime without loading
      * the support driver.
      */
-    RTR3Init();
+    int    argc = __argc;
+    char **argv = __argv;
+    RTR3InitExe(argc, &argv, 0);
 
     /* Note that all options are given lowercase/camel case/uppercase to
      * approximate case insensitive matching, which RTGetOpt doesn't offer. */
@@ -232,7 +237,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
     uint64_t        uHistoryFileSize = 100 * _1M;   // max 100MB per file
 
     RTGETOPTSTATE   GetOptState;
-    int vrc = RTGetOptInit(&GetOptState, __argc, __argv, &s_aOptions[0], RT_ELEMENTS(s_aOptions), 1, 0 /*fFlags*/);
+    int vrc = RTGetOptInit(&GetOptState, argc, argv, &s_aOptions[0], RT_ELEMENTS(s_aOptions), 1, 0 /*fFlags*/);
     AssertRC(vrc);
 
     RTGETOPTUNION   ValueUnion;
@@ -331,7 +336,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPSTR /*lpC
             if (RT_SUCCESS(vrc))
                 pszLogFile = RTStrDup(szLogFile);
         }
-        VBoxSVCLogRelCreate(pszLogFile, cHistory, uHistoryFileTime, uHistoryFileSize);
+        char szError[RTPATH_MAX + 128];
+        vrc = com::VBoxLogRelCreate("COM Server", pszLogFile,
+                                    RTLOGFLAGS_PREFIX_THREAD | RTLOGFLAGS_PREFIX_TIME_PROG,
+                                    "all", "VBOXSVC_RELEASE_LOG",
+                                    RTLOGDEST_FILE, UINT32_MAX /* cMaxEntriesPerGroup */,
+                                    cHistory, uHistoryFileTime, uHistoryFileSize,
+                                    szError, sizeof(szError));
+        if (RT_FAILURE(vrc))
+            return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to open release log (%s, %Rrc)", szError, vrc);
     }
 
     int nRet = 0;

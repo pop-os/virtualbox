@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -151,10 +151,11 @@ static int pdmacFileAioMgrFailsafeProcessEndpoint(PPDMACEPFILEMGR pAioMgr,
  * A fallback method in case something goes wrong with the normal
  * I/O manager.
  */
-int pdmacFileAioMgrFailsafe(RTTHREAD ThreadSelf, void *pvUser)
+DECLCALLBACK(int) pdmacFileAioMgrFailsafe(RTTHREAD hThreadSelf, void *pvUser)
 {
-    int rc = VINF_SUCCESS;
+    int             rc      = VINF_SUCCESS;
     PPDMACEPFILEMGR pAioMgr = (PPDMACEPFILEMGR)pvUser;
+    NOREF(hThreadSelf);
 
     while (   (pAioMgr->enmState == PDMACEPFILEMGRSTATE_RUNNING)
            || (pAioMgr->enmState == PDMACEPFILEMGRSTATE_SUSPENDING))

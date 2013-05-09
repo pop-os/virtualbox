@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,7 +53,7 @@ RT_C_DECLS_BEGIN
 # define RTFILE_NATIVE_STDIN 0
 #endif
 
-/** Platform specific native standard outt "handle". */
+/** Platform specific native standard out "handle". */
 #ifdef RT_OS_WINDOWS
 # define RTFILE_NATIVE_STDOUT ((uint32_t)-11)
 #else
@@ -212,6 +212,10 @@ RTDECL(int) RTFileQuerySize(const char *pszPath, uint64_t *pcbFile);
  */
 #define RTFILE_O_NO_CACHE               UINT32_C(0x00080000)
 
+/** Don't allow symbolic links as part of the path.
+ * @remarks this flag is currently not implemented and will be ignored. */
+#define RTFILE_O_NO_SYMLINKS            UINT32_C(0x20000000)
+
 /** Unix file mode mask for use when creating files. */
 #define RTFILE_O_CREATE_MODE_MASK       UINT32_C(0x1ff00000)
 /** The number of bits to shift to get the file mode mask.
@@ -219,14 +223,13 @@ RTDECL(int) RTFileQuerySize(const char *pszPath, uint64_t *pcbFile);
  */
 #define RTFILE_O_CREATE_MODE_SHIFT      20
 
-                                      /*UINT32_C(0x20000000),
-                                        UINT32_C(0x40000000)
-                                    and UINT32_C(0x80000000) are unused atm. */
+                                      /* UINT32_C(0x40000000)
+                                     and UINT32_C(0x80000000) are unused atm. */
 
 /** Mask of all valid flags.
  * @remark  This doesn't validate the access mode properly.
  */
-#define RTFILE_O_VALID_MASK             UINT32_C(0x1ffffff7)
+#define RTFILE_O_VALID_MASK             UINT32_C(0x3ffffff7)
 
 /** @} */
 
@@ -561,7 +564,10 @@ RTDECL(int) RTFileRename(const char *pszSrc, const char *pszDst, unsigned fRenam
 /** @name RTFileMove flags (bit masks).
  * @{ */
 /** Replace destination file if present. */
-#define RTFILEMOVE_FLAGS_REPLACE    0x1
+#define RTFILEMOVE_FLAGS_REPLACE      0x1
+/** Don't allow symbolic links as part of the path.
+ * @remarks this flag is currently not implemented and will be ignored. */
+#define RTFILEMOVE_FLAGS_NO_SYMLINKS  0x2
 /** @} */
 
 /**
@@ -578,6 +584,50 @@ RTDECL(int) RTFileRename(const char *pszSrc, const char *pszDst, unsigned fRenam
  * @param   fMove       A combination of the RTFILEMOVE_* flags.
  */
 RTDECL(int) RTFileMove(const char *pszSrc, const char *pszDst, unsigned fMove);
+
+
+/**
+ * Creates a new file with a unique name using the given template.
+ *
+ * One or more trailing X'es in the template will be replaced by random alpha
+ * numeric characters until a RTFileOpen with RTFILE_O_CREATE succeeds or we
+ * run out of patience.
+ * For instance:
+ *          "/tmp/myprog-XXXXXX"
+ *
+ * As an alternative to trailing X'es, it is possible to put 3 or more X'es
+ * somewhere inside the file name. In the following string only the last
+ * bunch of X'es will be modified:
+ *          "/tmp/myprog-XXX-XXX.tmp"
+ *
+ * @returns iprt status code.
+ * @param   pszTemplate     The file name template on input. The actual file
+ *                          name on success. Empty string on failure.
+ * @param   fMode           The mode to create the file with.  Use 0600 unless
+ *                          you have reason not to.
+ */
+RTDECL(int) RTFileCreateTemp(char *pszTemplate, RTFMODE fMode);
+
+/**
+ * Secure version of @a RTFileCreateTemp with a fixed mode of 0600.
+ *
+ * This function behaves in the same way as @a RTFileCreateTemp with two
+ * additional points.  Firstly the mode is fixed to 0600.  Secondly it will
+ * fail if it is not possible to perform the operation securely.  Possible
+ * reasons include that the file could be removed by another unprivileged
+ * user before it is used (e.g. if is created in a non-sticky /tmp directory)
+ * or that the path contains symbolic links which another unprivileged user
+ * could manipulate; however the exact criteria will be specified on a
+ * platform-by-platform basis as platform support is added.
+ * @see RTPathIsSecure for the current list of criteria.
+ * @returns iprt status code.
+ * @returns VERR_NOT_SUPPORTED if the interface can not be supported on the
+ *                             current platform at this time.
+ * @returns VERR_INSECURE      if the file could not be created securely.
+ * @param   pszTemplate        The file name template on input. The actual
+ *                             file name on success. Empty string on failure.
+ */
+RTDECL(int) RTFileCreateTempSecure(char *pszTemplate);
 
 
 /** @page   pg_rt_filelock      RT File locking API description

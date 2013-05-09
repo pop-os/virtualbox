@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1018,9 +1018,20 @@ typedef struct PDMIBLOCK
      * @thread  Any thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnGetUuid,(PPDMIBLOCK pInterface, PRTUUID pUuid));
+
+    /**
+     * Discards the given range.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   paRanges        Array of ranges to discard.
+     * @param   cRanges         Number of entries in the array.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnDiscard,(PPDMIBLOCK pInterface, PCRTRANGE paRanges, unsigned cRanges));
 } PDMIBLOCK;
 /** PDMIBLOCK interface ID. */
-#define PDMIBLOCK_IID                           "0a5f3156-8b21-4cf5-83fd-e097281d2900"
+#define PDMIBLOCK_IID                           "5e7123dd-8cdf-4a6e-97a5-ab0c68d7e850"
 
 
 /** Pointer to a mount interface. */
@@ -1173,7 +1184,8 @@ typedef struct PDMIMEDIAPORT
 typedef struct PDMIMEDIA *PPDMIMEDIA;
 /**
  * Media interface (up).
- * Makes up the foundation for PDMIBLOCK and PDMIBLOCKBIOS.  No interface pair.
+ * Makes up the foundation for PDMIBLOCK and PDMIBLOCKBIOS.
+ * Pairs with PDMIMEDIAPORT.
  */
 typedef struct PDMIMEDIA
 {
@@ -1306,9 +1318,20 @@ typedef struct PDMIMEDIA
      */
     DECLR3CALLBACKMEMBER(int, pfnGetUuid,(PPDMIMEDIA pInterface, PRTUUID pUuid));
 
+    /**
+     * Discards the given range.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   paRanges        Array of ranges to discard.
+     * @param   cRanges         Number of entries in the array.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnDiscard,(PPDMIMEDIA pInterface, PCRTRANGE paRanges, unsigned cRanges));
+
 } PDMIMEDIA;
 /** PDMIMEDIA interface ID. */
-#define PDMIMEDIA_IID                           "f5bb07c9-2843-46f8-a56f-cc090b6e5bac"
+#define PDMIMEDIA_IID                           "ec385d21-7aa9-42ca-8cfb-e1388297fa52"
 
 
 /** Pointer to a block BIOS interface. */
@@ -1488,9 +1511,21 @@ typedef struct PDMIBLOCKASYNC
      */
     DECLR3CALLBACKMEMBER(int, pfnStartFlush,(PPDMIBLOCKASYNC pInterface, void *pvUser));
 
+    /**
+     * Discards the given range.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   paRanges        Array of ranges to discard.
+     * @param   cRanges         Number of entries in the array.
+     * @param   pvUser          User argument which is returned in completion callback.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStartDiscard,(PPDMIBLOCKASYNC pInterface, PCRTRANGE paRanges, unsigned cRanges, void *pvUser));
+
 } PDMIBLOCKASYNC;
 /** PDMIBLOCKASYNC interface ID. */
-#define PDMIBLOCKASYNC_IID                      "78302d0d-4978-498c-be3c-8989cb5ff5c8"
+#define PDMIBLOCKASYNC_IID                      "a921dd96-1748-4ecd-941e-d5f3cd4c8fe4"
 
 
 /** Pointer to an asynchronous notification interface. */
@@ -1562,9 +1597,21 @@ typedef struct PDMIMEDIAASYNC
      */
     DECLR3CALLBACKMEMBER(int, pfnStartFlush,(PPDMIMEDIAASYNC pInterface, void *pvUser));
 
+    /**
+     * Discards the given range.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   paRanges        Array of ranges to discard.
+     * @param   cRanges         Number of entries in the array.
+     * @param   pvUser          User argument which is returned in completion callback.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStartDiscard,(PPDMIMEDIAASYNC pInterface, PCRTRANGE paRanges, unsigned cRanges, void *pvUser));
+
 } PDMIMEDIAASYNC;
 /** PDMIMEDIAASYNC interface ID. */
-#define PDMIMEDIAASYNC_IID                      "3553227d-714d-4d28-b993-59f4e671588e"
+#define PDMIMEDIAASYNC_IID                      "4be209d3-ccb5-4297-82fe-7d8018bc6ab4"
 
 
 /** Pointer to a char port interface. */
@@ -1721,9 +1768,18 @@ typedef struct PDMISTREAM
 /** Mode of the parallel port */
 typedef enum PDMPARALLELPORTMODE
 {
-    PDM_PARALLEL_PORT_MODE_COMPAT,
-    PDM_PARALLEL_PORT_MODE_EPP,
-    PDM_PARALLEL_PORT_MODE_ECP
+    /** First invalid mode. */
+    PDM_PARALLEL_PORT_MODE_INVALID = 0,
+    /** SPP (Compatibility mode). */
+    PDM_PARALLEL_PORT_MODE_SPP,
+    /** EPP Data mode. */
+    PDM_PARALLEL_PORT_MODE_EPP_DATA,
+    /** EPP Address mode. */
+    PDM_PARALLEL_PORT_MODE_EPP_ADDR,
+    /** ECP mode (not implemented yet). */
+    PDM_PARALLEL_PORT_MODE_ECP,
+    /** 32bit hack. */
+    PDM_PARALLEL_PORT_MODE_32BIT_HACK = 0x7fffffff
 } PDMPARALLELPORTMODE;
 
 /** Pointer to a host parallel port interface. */
@@ -1735,17 +1791,6 @@ typedef struct PDMIHOSTPARALLELPORT *PPDMIHOSTPARALLELPORT;
 typedef struct PDMIHOSTPARALLELPORT
 {
     /**
-     * Deliver data read to the device/driver.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pvBuf           Where the read bits are stored.
-     * @param   pcbRead         Number of bytes available for reading/having been read.
-     * @thread  Any thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnNotifyRead,(PPDMIHOSTPARALLELPORT pInterface, const void *pvBuf, size_t *pcbRead));
-
-    /**
      * Notify device/driver that an interrupt has occurred.
      *
      * @returns VBox status code.
@@ -1755,7 +1800,7 @@ typedef struct PDMIHOSTPARALLELPORT
     DECLR3CALLBACKMEMBER(int, pfnNotifyInterrupt,(PPDMIHOSTPARALLELPORT pInterface));
 } PDMIHOSTPARALLELPORT;
 /** PDMIHOSTPARALLELPORT interface ID. */
-#define PDMIHOSTPARALLELPORT_IID                "ac13e437-cd30-47ac-a271-6120571f3a22"
+#define PDMIHOSTPARALLELPORT_IID                "f24b8668-e7f6-4eaa-a14c-4aa2a5f7048e"
 
 
 
@@ -1773,10 +1818,13 @@ typedef struct PDMIHOSTPARALLELCONNECTOR
      * @returns VBox status code.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
      * @param   pvBuf           Where to store the write bits.
-     * @param   pcbWrite        Number of bytes to write/bytes actually written.
+     * @param   cbWrite         Number of bytes to write.
+     * @param   enmMode         Mode to write the data.
      * @thread  Any thread.
+     * @todo r=klaus cbWrite only defines buffer length, method needs a way top return actually written amount of data.
      */
-    DECLR3CALLBACKMEMBER(int, pfnWrite,(PPDMIHOSTPARALLELCONNECTOR pInterface, const void *pvBuf, size_t *pcbWrite));
+    DECLR3CALLBACKMEMBER(int, pfnWrite,(PPDMIHOSTPARALLELCONNECTOR pInterface, const void *pvBuf,
+                                        size_t cbWrite, PDMPARALLELPORTMODE enmMode));
 
     /**
      * Read bits.
@@ -1784,10 +1832,23 @@ typedef struct PDMIHOSTPARALLELCONNECTOR
      * @returns VBox status code.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
      * @param   pvBuf           Where to store the read bits.
-     * @param   pcbRead         Number of bytes to read/bytes actually read.
+     * @param   cbRead          Number of bytes to read.
+     * @param   enmMode         Mode to read the data.
+     * @thread  Any thread.
+     * @todo r=klaus cbRead only defines buffer length, method needs a way top return actually read amount of data.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnRead,(PPDMIHOSTPARALLELCONNECTOR pInterface, void *pvBuf,
+                                       size_t cbRead, PDMPARALLELPORTMODE enmMode));
+
+    /**
+     * Set data direction of the port (forward/reverse).
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   fForward        Flag whether to indicate whether the port is operated in forward or reverse mode.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnRead,(PPDMIHOSTPARALLELCONNECTOR pInterface, void *pvBuf, size_t *pcbRead));
+    DECLR3CALLBACKMEMBER(int, pfnSetPortDirection,(PPDMIHOSTPARALLELCONNECTOR pInterface, bool fForward));
 
     /**
      * Write control register bits.
@@ -1819,18 +1880,9 @@ typedef struct PDMIHOSTPARALLELCONNECTOR
      */
     DECLR3CALLBACKMEMBER(int, pfnReadStatus,(PPDMIHOSTPARALLELCONNECTOR pInterface, uint8_t *pfReg));
 
-    /**
-     * Set mode of the host parallel port.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   enmMode         The mode of the host parallel port.
-     * @thread  Any thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnSetMode,(PPDMIHOSTPARALLELCONNECTOR pInterface, PDMPARALLELPORTMODE enmMode));
 } PDMIHOSTPARALLELCONNECTOR;
 /** PDMIHOSTPARALLELCONNECTOR interface ID. */
-#define PDMIHOSTPARALLELCONNECTOR_IID           "a03567ca-b29e-4a1b-b2f3-a12435fa2982"
+#define PDMIHOSTPARALLELCONNECTOR_IID           "7c532602-7438-4fbc-9265-349d9f0415f9"
 
 
 /** ACPI power source identifier */

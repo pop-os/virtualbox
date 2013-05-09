@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -189,12 +189,17 @@ static RTEXITCODE handleSnapshotList(HandlerArg *pArgs, ComPtr<IMachine> &rptrMa
 
     /* See showVMInfo. */
     ComPtr<ISnapshot> ptrSnapshot;
-    CHECK_ERROR2_RET(rptrMachine, FindSnapshot(Bstr().raw(), ptrSnapshot.asOutParam()), RTEXITCODE_FAILURE);
+    HRESULT hrc = rptrMachine->FindSnapshot(Bstr().raw(), ptrSnapshot.asOutParam());
+    if (FAILED(hrc))
+    {
+        RTPrintf("This machine does not have any snapshots\n");
+        return RTEXITCODE_FAILURE;
+    }
     if (ptrSnapshot)
     {
         ComPtr<ISnapshot> ptrCurrentSnapshot;
         CHECK_ERROR2_RET(rptrMachine,COMGETTER(CurrentSnapshot)(ptrCurrentSnapshot.asOutParam()), RTEXITCODE_FAILURE);
-        HRESULT hrc = showSnapshots(ptrSnapshot, ptrCurrentSnapshot, enmDetails);
+        hrc = showSnapshots(ptrSnapshot, ptrCurrentSnapshot, enmDetails);
         if (FAILED(hrc))
             return RTEXITCODE_FAILURE;
     }
@@ -336,7 +341,12 @@ int handleSnapshot(HandlerArg *a)
             if (FAILED(rc))
                 break;
 
+#if 0
+            /*
+             * XXX for now, do ALWAYS pause as live snapshots are still broken
+             */
             if (fPause)
+#endif
             {
                 MachineState_T machineState;
                 CHECK_ERROR_BREAK(console, COMGETTER(State)(&machineState));
@@ -351,14 +361,7 @@ int handleSnapshot(HandlerArg *a)
                                                     progress.asOutParam()));
 
             rc = showProgress(progress);
-            if (FAILED(rc))
-            {
-                com::ProgressErrorInfo info(progress);
-                if (info.isBasicAvailable())
-                    RTMsgError("Failed to take snapshot. Error message: %lS", info.getText().raw());
-                else
-                    RTMsgError("Failed to take snapshot. No error message available!");
-            }
+            CHECK_PROGRESS_ERROR(progress, ("Failed to take snapshot"));
 
             if (fPause)
             {
@@ -425,14 +428,7 @@ int handleSnapshot(HandlerArg *a)
             }
 
             rc = showProgress(pProgress);
-            if (FAILED(rc))
-            {
-                com::ProgressErrorInfo info(pProgress);
-                if (info.isBasicAvailable())
-                    RTMsgError("Snapshot operation failed. Error message: %lS", info.getText().raw());
-                else
-                    RTMsgError("Snapshot operation failed. No error message available!");
-            }
+            CHECK_PROGRESS_ERROR(pProgress, ("Snapshot operation failed"));
         }
         else if (!strcmp(a->argv[1], "edit"))
         {

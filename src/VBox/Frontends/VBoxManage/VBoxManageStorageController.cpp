@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,6 +53,7 @@ static const RTGETOPTDEF g_aStorageAttachOptions[] =
     { "--passthrough",      'h', RTGETOPT_REQ_STRING },
     { "--tempeject",        'e', RTGETOPT_REQ_STRING },
     { "--nonrotational",    'n', RTGETOPT_REQ_STRING },
+    { "--discard",          'u', RTGETOPT_REQ_STRING },
     { "--bandwidthgroup",   'b', RTGETOPT_REQ_STRING },
     { "--forceunmount",     'f', RTGETOPT_REQ_NOTHING },
     { "--comment",          'C', RTGETOPT_REQ_STRING },
@@ -66,6 +67,7 @@ static const RTGETOPTDEF g_aStorageAttachOptions[] =
     { "--encodedlun",       'E', RTGETOPT_REQ_STRING },
     { "--username",         'U', RTGETOPT_REQ_STRING },
     { "--password",         'W', RTGETOPT_REQ_STRING },
+    { "--initiator",        'N', RTGETOPT_REQ_STRING },
     { "--intnet",           'I', RTGETOPT_REQ_NOTHING },
 };
 
@@ -87,6 +89,7 @@ int handleStorageAttach(HandlerArg *a)
     const char *pszPassThrough = NULL;
     const char *pszTempEject = NULL;
     const char *pszNonRotational = NULL;
+    const char *pszDiscard = NULL;
     const char *pszBandwidthGroup = NULL;
     Bstr bstrNewUuid;
     Bstr bstrNewParentUuid;
@@ -97,6 +100,9 @@ int handleStorageAttach(HandlerArg *a)
     Bstr bstrLun;
     Bstr bstrUsername;
     Bstr bstrPassword;
+    Bstr bstrInitiator;
+    Bstr bstrIso;
+    Utf8Str strIso;
     bool fIntNet = false;
 
     RTGETOPTUNION ValueUnion;
@@ -134,7 +140,7 @@ int handleStorageAttach(HandlerArg *a)
                 break;
             }
 
-            case 'm':   // medium <none|emptydrive|uuid|filename|host:<drive>|iSCSI>
+            case 'm':   // medium <none|emptydrive|additions|uuid|filename|host:<drive>|iSCSI>
             {
                 if (ValueUnion.psz)
                     pszMedium = ValueUnion.psz;
@@ -183,6 +189,15 @@ int handleStorageAttach(HandlerArg *a)
             {
                 if (ValueUnion.psz)
                     pszNonRotational = ValueUnion.psz;
+                else
+                    rc = E_FAIL;
+                break;
+            }
+
+            case 'u':   // nonrotational <on|off>
+            {
+                if (ValueUnion.psz)
+                    pszDiscard = ValueUnion.psz;
                 else
                     rc = E_FAIL;
                 break;
@@ -256,6 +271,10 @@ int handleStorageAttach(HandlerArg *a)
 
             case 'W':   // --password
                 bstrPassword = ValueUnion.psz;
+                break;
+
+            case 'N':   // --initiator
+                bstrInitiator = ValueUnion.psz;
                 break;
 
             case 'M':   // --type
@@ -377,11 +396,10 @@ int handleStorageAttach(HandlerArg *a)
                         || (deviceType == DeviceType_Floppy))
                     {
                         /* just unmount the floppy/dvd */
-                        CHECK_ERROR(machine, MountMedium(Bstr(pszCtl).raw(),
-                                                         port,
-                                                         device,
-                                                         NULL,
-                                                         fForceUnmount));
+                        CHECK_ERROR(machine, UnmountMedium(Bstr(pszCtl).raw(),
+                                                           port,
+                                                           device,
+                                                           fForceUnmount));
                     }
                 }
                 else if (devTypeRequested == DeviceType_DVD)
@@ -390,8 +408,8 @@ int handleStorageAttach(HandlerArg *a)
                      * Try to attach an empty DVD drive as a hotplug operation.
                      * Main will complain if the controller doesn't support hotplugging.
                      */
-                    CHECK_ERROR(machine, AttachDevice(Bstr(pszCtl).raw(), port, device,
-                                                      devTypeRequested, NULL));
+                    CHECK_ERROR(machine, AttachDeviceWithoutMedium(Bstr(pszCtl).raw(), port, device,
+                                                                   devTypeRequested));
                     deviceType = DeviceType_DVD; /* To avoid the error message below. */
                 }
 
@@ -428,8 +446,8 @@ int handleStorageAttach(HandlerArg *a)
 
                 /* attach a empty floppy/dvd drive after removing previous attachment */
                 machine->DetachDevice(Bstr(pszCtl).raw(), port, device);
-                CHECK_ERROR(machine, AttachDevice(Bstr(pszCtl).raw(), port, device,
-                                                  deviceType, NULL));
+                CHECK_ERROR(machine, AttachDeviceWithoutMedium(Bstr(pszCtl).raw(), port, device,
+                                                            deviceType));
             }
         } // end if (!RTStrICmp(pszMedium, "emptydrive"))
         else
@@ -466,9 +484,25 @@ int handleStorageAttach(HandlerArg *a)
 
                         if (pszMedium)
                         {
+                            if (!RTStrICmp(pszMedium, "additions"))
+                            {
+                                ComPtr<ISystemProperties> pProperties;
+                                CHECK_ERROR(a->virtualBox,
+                                            COMGETTER(SystemProperties)(pProperties.asOutParam()));
+                                CHECK_ERROR(pProperties, COMGETTER(DefaultAdditionsISO)(bstrIso.asOutParam()));
+                                strIso = Utf8Str(bstrIso);
+                                if (strIso.isEmpty())
+                                    throw Utf8Str("Cannot find the Guest Additions ISO image\n");
+                                pszMedium = strIso.c_str();
+                                if (devTypeRequested == DeviceType_Null)
+                                    devTypeRequested = DeviceType_DVD;
+                            }
                             ComPtr<IMedium> pExistingMedium;
-                            rc = findMedium(a, pszMedium, deviceType, true /* fSilent */,
-                                            pExistingMedium);
+                            rc = openMedium(a, pszMedium, deviceType,
+                                            AccessMode_ReadWrite,
+                                            pExistingMedium,
+                                            false /* fForceNewUuidOnOpen */,
+                                            true /* fSilent */);
                             if (SUCCEEDED(rc) && pExistingMedium)
                             {
                                 if (    (deviceType == DeviceType_DVD)
@@ -585,13 +619,11 @@ int handleStorageAttach(HandlerArg *a)
                     Bstr("InitiatorSecret").detachTo(names.appendedRaw());
                     bstrPassword.detachTo(values.appendedRaw());
                 }
-
-                /// @todo add --initiator option - until that happens rely on the
-                // defaults of the iSCSI initiator code. Setting it to a constant
-                // value does more harm than good, as the initiator name is supposed
-                // to identify a particular initiator uniquely.
-        //        Bstr("InitiatorName").detachTo(names.appendedRaw());
-        //        Bstr("iqn.2008-04.com.sun.virtualbox.initiator").detachTo(values.appendedRaw());
+                if (!bstrInitiator.isEmpty())
+                {
+                    Bstr("InitiatorName").detachTo(names.appendedRaw());
+                    bstrInitiator.detachTo(values.appendedRaw());
+                }
 
                 /// @todo add --targetName and --targetPassword options
 
@@ -623,8 +655,9 @@ int handleStorageAttach(HandlerArg *a)
                 else
                 {
                     Bstr bstrMedium(pszMedium);
-                    rc = findOrOpenMedium(a, pszMedium, devTypeRequested,
-                                          pMedium2Mount, fSetNewUuid, NULL);
+                    rc = openMedium(a, pszMedium, devTypeRequested,
+                                    AccessMode_ReadWrite, pMedium2Mount,
+                                    fSetNewUuid, false /* fSilent */);
                     if (FAILED(rc) || !pMedium2Mount)
                         throw Utf8StrFmt("Invalid UUID or filename \"%s\"", pszMedium);
                 }
@@ -633,7 +666,7 @@ int handleStorageAttach(HandlerArg *a)
             // set medium/parent medium UUID, if so desired
             if (pMedium2Mount && (fSetNewUuid || fSetNewParentUuid))
             {
-                CHECK_ERROR(pMedium2Mount, SetIDs(fSetNewUuid, bstrNewUuid.raw(),
+                CHECK_ERROR(pMedium2Mount, SetIds(fSetNewUuid, bstrNewUuid.raw(),
                                                   fSetNewParentUuid, bstrNewParentUuid.raw()));
                 if (FAILED(rc))
                     throw  Utf8Str("Failed to set the medium/parent medium UUID");
@@ -674,20 +707,18 @@ int handleStorageAttach(HandlerArg *a)
                                 if (deviceType != devTypeRequested)
                                 {
                                     machine->DetachDevice(Bstr(pszCtl).raw(), port, device);
-                                    rc = machine->AttachDevice(Bstr(pszCtl).raw(),
-                                                               port,
-                                                               device,
-                                                               devTypeRequested,    // DeviceType_DVD or DeviceType_Floppy
-                                                               NULL);
+                                    rc = machine->AttachDeviceWithoutMedium(Bstr(pszCtl).raw(),
+                                                                            port,
+                                                                            device,
+                                                                            devTypeRequested);    // DeviceType_DVD or DeviceType_Floppy
                                 }
                             }
                             else
                             {
-                                rc = machine->AttachDevice(Bstr(pszCtl).raw(),
-                                                           port,
-                                                           device,
-                                                           devTypeRequested,    // DeviceType_DVD or DeviceType_Floppy
-                                                           NULL);
+                                rc = machine->AttachDeviceWithoutMedium(Bstr(pszCtl).raw(),
+                                                                        port,
+                                                                        device,
+                                                                        devTypeRequested);    // DeviceType_DVD or DeviceType_Floppy
                             }
                         }
 
@@ -795,6 +826,33 @@ int handleStorageAttach(HandlerArg *a)
                 throw Utf8StrFmt("Couldn't find the controller attachment for the controller '%s'\n", pszCtl);
         }
 
+        if (   pszDiscard
+            && (SUCCEEDED(rc)))
+        {
+            ComPtr<IMediumAttachment> mattach;
+            CHECK_ERROR(machine, GetMediumAttachment(Bstr(pszCtl).raw(), port,
+                                                     device, mattach.asOutParam()));
+
+            if (SUCCEEDED(rc))
+            {
+                if (!RTStrICmp(pszDiscard, "on"))
+                {
+                    CHECK_ERROR(machine, SetAutoDiscardForDevice(Bstr(pszCtl).raw(),
+                                                                 port, device, TRUE));
+                }
+                else if (!RTStrICmp(pszDiscard, "off"))
+                {
+                    CHECK_ERROR(machine, SetAutoDiscardForDevice(Bstr(pszCtl).raw(),
+                                                                 port, device, FALSE));
+                }
+                else
+                    throw Utf8StrFmt("Invalid --discard argument '%s'", pszDiscard);
+            }
+            else
+                throw Utf8StrFmt("Couldn't find the controller attachment for the controller '%s'\n", pszCtl);
+        }
+
+
         if (   pszBandwidthGroup
             && !fRunTime
             && SUCCEEDED(rc))
@@ -803,8 +861,8 @@ int handleStorageAttach(HandlerArg *a)
             if (!RTStrICmp(pszBandwidthGroup, "none"))
             {
                 /* Just remove the bandwidth gorup. */
-                CHECK_ERROR(machine, SetBandwidthGroupForDevice(Bstr(pszCtl).raw(),
-                                                                port, device, NULL));
+                CHECK_ERROR(machine, SetNoBandwidthGroupForDevice(Bstr(pszCtl).raw(),
+                                                                  port, device));
             }
             else
             {
@@ -848,7 +906,6 @@ static const RTGETOPTDEF g_aStorageControllerOptions[] =
     { "--name",             'n', RTGETOPT_REQ_STRING },
     { "--add",              'a', RTGETOPT_REQ_STRING },
     { "--controller",       'c', RTGETOPT_REQ_STRING },
-    { "--sataideemulation", 'e', RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_INDEX },
     { "--sataportcount",    'p', RTGETOPT_REQ_UINT32 },
     { "--remove",           'r', RTGETOPT_REQ_NOTHING },
     { "--hostiocache",      'i', RTGETOPT_REQ_STRING },
@@ -910,13 +967,6 @@ int handleStorageController(HandlerArg *a)
                 break;
             }
 
-            case 'e':   // sataideemulation
-            {
-                satabootdev = GetState.uIndex;
-                sataidedev = ValueUnion.u32;
-                break;
-            }
-
             case 'p':   // sataportcount
             {
                 sataportcount = ValueUnion.u32;
@@ -973,27 +1023,7 @@ int handleStorageController(HandlerArg *a)
 
     if (fRemoveCtl)
     {
-        com::SafeIfaceArray<IMediumAttachment> mediumAttachments;
-
-        CHECK_ERROR(machine,
-                     GetMediumAttachmentsOfController(Bstr(pszCtl).raw(),
-                                                      ComSafeArrayAsOutParam(mediumAttachments)));
-        for (size_t i = 0; i < mediumAttachments.size(); ++ i)
-        {
-            ComPtr<IMediumAttachment> mediumAttach = mediumAttachments[i];
-            LONG port = 0;
-            LONG device = 0;
-
-            CHECK_ERROR(mediumAttach, COMGETTER(Port)(&port));
-            CHECK_ERROR(mediumAttach, COMGETTER(Device)(&device));
-            CHECK_ERROR(machine, DetachDevice(Bstr(pszCtl).raw(), port, device));
-        }
-
-        if (SUCCEEDED(rc))
-            CHECK_ERROR(machine, RemoveStorageController(Bstr(pszCtl).raw()));
-        else
-            errorArgument("Can't detach the devices connected to '%s' Controller\n"
-                          "and thus its removal failed.", pszCtl);
+        CHECK_ERROR(machine, RemoveStorageController(Bstr(pszCtl).raw()));
     }
     else
     {
@@ -1104,26 +1134,6 @@ int handleStorageController(HandlerArg *a)
             if (SUCCEEDED(rc))
             {
                 CHECK_ERROR(ctl, COMSETTER(PortCount)(sataportcount));
-            }
-            else
-            {
-                errorArgument("Couldn't find the controller with the name: '%s'\n", pszCtl);
-                rc = E_FAIL;
-            }
-        }
-
-        if (   (sataidedev != ~0U)
-            && (satabootdev != ~0U)
-            && SUCCEEDED(rc))
-        {
-            ComPtr<IStorageController> ctl;
-
-            CHECK_ERROR(machine, GetStorageControllerByName(Bstr(pszCtl).raw(),
-                                                            ctl.asOutParam()));
-
-            if (SUCCEEDED(rc))
-            {
-                CHECK_ERROR(ctl, SetIDEEmulationPort(satabootdev, sataidedev));
             }
             else
             {

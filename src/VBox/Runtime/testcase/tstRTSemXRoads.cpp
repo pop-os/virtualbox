@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -124,13 +124,13 @@ static void tstTraffic(unsigned cThreads, unsigned cSecs)
     int rc = VINF_SUCCESS;
     for (unsigned i = 0; i < cThreads && RT_SUCCESS(rc); i++)
     {
-        rc = RTThreadCreateF(&ahThreadsX[i], tstTrafficNSThread, (void *)i, 0, RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "NS-%u", i);
+        rc = RTThreadCreateF(&ahThreadsX[i], tstTrafficNSThread, (void *)(uintptr_t)i, 0, RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "NS-%u", i);
         RTTEST_CHECK_RC_OK(g_hTest, rc);
     }
 
     for (unsigned i = 0; i < cThreads && RT_SUCCESS(rc); i++)
     {
-        rc = RTThreadCreateF(&ahThreadsX[i], tstTrafficEWThread, (void *)i, 0, RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "NS-%u", i);
+        rc = RTThreadCreateF(&ahThreadsX[i], tstTrafficEWThread, (void *)(uintptr_t)i, 0, RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "NS-%u", i);
         RTTEST_CHECK_RC_OK(g_hTest, rc);
     }
 

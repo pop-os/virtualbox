@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -84,6 +84,16 @@ void Utf8Str::cloneTo(char **pstr) const
     if (RT_UNLIKELY(!*pstr))
         throw std::bad_alloc();
     memcpy(*pstr, c_str(), cb);
+}
+
+HRESULT Utf8Str::cloneToEx(char **pstr) const
+{
+    size_t cb = length() + 1;
+    *pstr = (char*)nsMemory::Alloc(cb);
+    if (RT_UNLIKELY(!*pstr))
+        return E_OUTOFMEMORY;
+    memcpy(*pstr, c_str(), cb);
+    return S_OK;
 }
 #endif
 
@@ -185,6 +195,90 @@ void Utf8Str::copyFrom(CBSTR a_pbstr)
         m_cbAllocated = 0;
         m_psz = NULL;
     }
+}
+
+/**
+ * A variant of Utf8Str::copyFrom that does not throw any exceptions but returns
+ * E_OUTOFMEMORY instead.
+ *
+ * @param   a_pbstr         The source string.
+ * @returns S_OK or E_OUTOFMEMORY.
+ */
+HRESULT Utf8Str::copyFromEx(CBSTR a_pbstr)
+{
+    if (a_pbstr && *a_pbstr)
+    {
+        int vrc = RTUtf16ToUtf8Ex((PCRTUTF16)a_pbstr,
+                                  RTSTR_MAX,        // size_t cwcString: translate entire string
+                                  &m_psz,           // char **ppsz: output buffer
+                                  0,                // size_t cch: if 0, func allocates buffer in *ppsz
+                                  &m_cch);          // size_t *pcch: receives the size of the output string, excluding the terminator.
+        if (RT_SUCCESS(vrc))
+            m_cbAllocated = m_cch + 1;
+        else
+        {
+            if (   vrc != VERR_NO_STR_MEMORY
+                && vrc != VERR_NO_MEMORY)
+            {
+                /* ASSUME: input is valid Utf-16. Fake out of memory error. */
+                AssertLogRelMsgFailed(("%Rrc %.*Rhxs\n", vrc, RTUtf16Len(a_pbstr) * sizeof(RTUTF16), a_pbstr));
+            }
+
+            m_cch = 0;
+            m_cbAllocated = 0;
+            m_psz = NULL;
+
+            return E_OUTOFMEMORY;
+        }
+    }
+    else
+    {
+        m_cch = 0;
+        m_cbAllocated = 0;
+        m_psz = NULL;
+    }
+    return S_OK;
+}
+
+
+/**
+ * A variant of Utf8Str::copyFromN that does not throw any exceptions but
+ * returns E_OUTOFMEMORY instead.
+ *
+ * @param   a_pcszSrc   The source string.
+ * @param   a_cchSrc    The source string.
+ * @returns S_OK or E_OUTOFMEMORY.
+ *
+ * @remarks This calls cleanup() first, so the caller doesn't have to. (Saves
+ *          code space.)
+ */
+HRESULT Utf8Str::copyFromExNComRC(const char *a_pcszSrc, size_t a_cchSrc)
+{
+    cleanup();
+    if (a_cchSrc)
+    {
+        m_psz = RTStrAlloc(a_cchSrc + 1);
+        if (RT_LIKELY(m_psz))
+        {
+            m_cch = a_cchSrc;
+            m_cbAllocated = a_cchSrc + 1;
+            memcpy(m_psz, a_pcszSrc, a_cchSrc);
+            m_psz[a_cchSrc] = '\0';
+        }
+        else
+        {
+            m_cch = 0;
+            m_cbAllocated = 0;
+            return E_OUTOFMEMORY;
+        }
+    }
+    else
+    {
+        m_cch = 0;
+        m_cbAllocated = 0;
+        m_psz = NULL;
+    }
+    return S_OK;
 }
 
 } /* namespace com */

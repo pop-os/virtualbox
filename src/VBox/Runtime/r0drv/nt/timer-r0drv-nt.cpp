@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -102,7 +102,7 @@ typedef struct RTTIMER
  * Timer callback function for the non-omni timers.
  *
  * @returns HRTIMER_NORESTART or HRTIMER_RESTART depending on whether it's a one-shot or interval timer.
- * @param   pDpc                Pointer to the the DPC.
+ * @param   pDpc                Pointer to the DPC.
  * @param   pvUser              Pointer to our internal timer structure.
  * @param   SystemArgument1     Some system argument.
  * @param   SystemArgument2     Some system argument.

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,7 +54,7 @@ static bool HasHelpOption(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-    RTR3Init();
+    RTR3InitExe(argc, &argv, 0);
 
     /*
      * Arguments or any -? or --help?

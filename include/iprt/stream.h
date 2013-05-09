@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -113,6 +113,19 @@ RTR3DECL(int) RTStrmError(PRTSTREAM pStream);
 RTR3DECL(int) RTStrmClearError(PRTSTREAM pStream);
 
 /**
+ * Changes the stream mode.
+ *
+ * @returns iprt status code.
+ * @param   pStream         The stream.
+ * @param   fBinary         The desired binary (@c true) / text mode (@c false).
+ *                          Pass -1 to leave it unchanged.
+ * @param   fCurrentCodeSet Whether converting the stream from UTF-8 to the
+ *                          current code set is desired (@c true) or not (@c
+ *                          false).  Pass -1 to leave this property unchanged.
+ */
+RTR3DECL(int) RTStrmSetMode(PRTSTREAM pStream, int fBinary, int fCurrentCodeSet);
+
+/**
  * Rewinds the stream.
  *
  * Stream errors will be reset on success.
@@ -209,16 +222,21 @@ RTR3DECL(int) RTStrmPutStr(PRTSTREAM pStream, const char *pszString);
 
 /**
  * Reads a line from a file stream.
- * A line ends with a '\\n', '\\0' or the end of the file.
+ *
+ * A line ends with a '\\n', '\\r\\n', '\\0' or the end of the file.
  *
  * @returns iprt status code.
- * @returns VINF_BUFFER_OVERFLOW if the buffer wasn't big enough to read an entire line.
+ * @retval  VINF_BUFFER_OVERFLOW if the buffer wasn't big enough to read an
+ *          entire line.
+ * @retval  VERR_BUFFER_OVERFLOW if a lone '\\r' was encountered at the end of
+ *          the buffer and we ended up dropping the following character.
+ *
  * @param   pStream         The stream.
  * @param   pszString       Where to store the line.
  *                          The line will *NOT* contain any '\\n'.
- * @param   cchString       The size of the string buffer.
+ * @param   cbString        The size of the string buffer.
  */
-RTR3DECL(int) RTStrmGetLine(PRTSTREAM pStream, char *pszString, size_t cchString);
+RTR3DECL(int) RTStrmGetLine(PRTSTREAM pStream, char *pszString, size_t cbString);
 
 /**
  * Flushes a stream.

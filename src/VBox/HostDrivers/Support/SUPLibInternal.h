@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -276,7 +276,7 @@ int     suplibOsQueryVTxSupported(void);
  * Performs the pre-initialization of the support library.
  *
  * This is dynamically resolved and invoked by the static library before it
- * calls RTR3Init and thereby SUPR3Init.
+ * calls RTR3InitEx and thereby SUPR3Init.
  *
  * @returns IPRT status code.
  * @param   pPreInitData    The pre init data.

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,7 @@
 
 /* Local includes */
 #include "UIBootTable.h"
-#include "VBoxGlobal.h"
+#include "UIConverter.h"
 
 UIBootTableItem::UIBootTableItem(KDeviceType type)
   : m_type(type)
@@ -61,7 +61,7 @@ KDeviceType UIBootTableItem::type() const
 
 void UIBootTableItem::retranslateUi()
 {
-    setText(vboxGlobal().toString(m_type));
+    setText(gpConverter->toString(m_type));
 }
 
 UIBootTable::UIBootTable(QWidget *pParent /* = 0 */)

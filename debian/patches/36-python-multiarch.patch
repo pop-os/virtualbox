@@ -1,0 +1,66 @@
+Description: Fix detection of python in multiarch paths using pkg-config.
+Author: Rico Tzschichholz <ricotz@ubuntu.com>, Felix Geyer <fgeyer@debian.org>
+
+--- a/configure
++++ b/configure
+@@ -1884,32 +1884,32 @@
+   found=
+ # For Solaris we use libpython2.4 for compatibility with Solaris 10 and passing IPS pkg audit
+   if [ "$OS" != "solaris" ]; then
+-    SUPPYTHONLIBS="python2.7 python2.6 python2.5 python2.4 python2.3"
++    SUPPYTHONLIBS="2.7 2.6 2.5 2.4 2.3"
+   else
+-    SUPPYTHONLIBS="python2.4"
++    SUPPYTHONLIBS="2.4"
+   fi
+-  for p in $PYTHONDIR; do
++  PYTHON_CXX_LIBS=""
++  PYTHON_CXX_CFLAGS=""
+     for d in $SUPPYTHONLIBS; do
+-      for b in lib64 lib/64 lib; do
+         echo "compiling the following source file:" >> $LOG
+         cat $ODIR.tmp_src.cc >> $LOG
+         echo "using the following command line:" >> $LOG
+-        echo "$CXX -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.cc -I$p/include/$d $p/$b/lib$d.so" >> $LOG
+-        $CXX -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.cc -I$p/include/$d $p/$b/lib$d.so >> $LOG 2>&1
++        PYTHON_CXX_LIBS=`pkg-config python-$d --libs`
++        PYTHON_CXX_CFLAGS=`pkg-config python-$d --cflags`
++        echo "$CXX -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.cc $PYTHON_CXX_CFLAGS $PYTHON_CXX_LIBS" >> $LOG
++        $CXX -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.cc $PYTHON_CXX_CFLAGS $PYTHON_CXX_LIBS >> $LOG 2>&1
+         if [ $? -eq 0 ]; then
+           found=1
+           break
+         fi
+-      done
+-      if [ -n "$found" ]; then break; fi
+     done
+-    if [ -n "$found" ]; then break; fi
+-  done
+   if [ -n "$found" ]; then
+     if test_execute; then
+       cnf_append "VBOX_WITH_PYTHON"     "1"
+-      cnf_append "VBOX_PATH_PYTHON_INC" "$p/include/$d"
+-      cnf_append "VBOX_LIB_PYTHON"      "$p/$b/lib$d.so"
++      cnf_append "VBOX_PYTHONDEF_INC" "`strip_I $PYTHON_CXX_CFLAGS`"
++      cnf_append "VBOX_PYTHONDEF_LIBS"      "$PYTHON_CXX_LIBS"
++      cnf_append "VBOX_PYTHON`echo $d | sed 's/\.//'`_INC"  "`strip_I $PYTHON_CXX_CFLAGS`"
++      cnf_append "VBOX_PYTHON`echo $d | sed 's/\.//'`_LIBS" "$PYTHON_CXX_LIBS"
+     else
+       log_failure "Python not working"
+       fail
+--- a/src/libs/xpcom18a4/python/Makefile.kmk
++++ b/src/libs/xpcom18a4/python/Makefile.kmk
+@@ -46,13 +46,6 @@
+   VBOX_PYTHON27_LIB = $(VBOX_PATH_MACOSX_SDK_10_7)/usr/lib/libpython2.7.dylib
+  endif
+ 
+-else
+- # Use the script.
+- $(eval $(subst |,$(NL),$(shell $(VBOX_BLD_PYTHON) \
+-	$(PATH_SUB_CURRENT)/gen_python_deps.py \
+-	    $(KBUILD_TARGET) \
+-	    $(KBUILD_TARGET_ARCH) \
+-	    $(VBOX_MULTIPYTHON) )))
+ endif
+ 
+ ifndef VBOX_ONLY_SDK

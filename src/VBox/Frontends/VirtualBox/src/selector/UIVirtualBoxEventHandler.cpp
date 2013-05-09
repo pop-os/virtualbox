@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,14 +17,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Local includes */
+/* GUI includes: */
 #include "UIVirtualBoxEventHandler.h"
 #include "UIMainEventListener.h"
 #include "VBoxGlobal.h"
 
-/* Global includes */
-//#include <iprt/thread.h>
-//#include <iprt/stream.h>
+/* COM includes: */
+#include "CEventSource.h"
 
 /* static */
 UIVirtualBoxEventHandler *UIVirtualBoxEventHandler::m_pInstance = 0;
@@ -61,6 +60,8 @@ UIVirtualBoxEventHandler::UIVirtualBoxEventHandler()
         << KVBoxEventType_OnMachineDataChanged
         << KVBoxEventType_OnMachineRegistered
         << KVBoxEventType_OnSessionStateChanged
+        << KVBoxEventType_OnSnapshotTaken
+        << KVBoxEventType_OnSnapshotDeleted
         << KVBoxEventType_OnSnapshotChanged;
 
     vbox.GetEventSource().RegisterListener(m_mainEventListener, events, TRUE);

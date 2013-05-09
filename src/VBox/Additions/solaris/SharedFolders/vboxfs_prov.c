@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,6 +54,8 @@ static int sfprov_vbox2errno(int rc)
 {
 	if (rc == VERR_ACCESS_DENIED)
 		return (EACCES);
+	if (rc == VERR_INVALID_NAME)
+	    return (ENOENT);
 	return (RTErrConvertToErrno(rc));
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -200,10 +200,6 @@ static int testLdrOne(const char *pszFilename)
         unsigned iRel = 0;
         for (;;)
         {
-            /* adjust load address and announce our intentions */
-            if (g_cBits == 32)
-                aRels[iRel] &= UINT32_C(0xffffffff);
-
             /* Compare all which are at the same address. */
             for (i = 0; i < RT_ELEMENTS(aLoads) - 1; i++)
             {
@@ -273,6 +269,10 @@ static int testLdrOne(const char *pszFilename)
             if (iRel >= RT_ELEMENTS(aRels))
                 break;
 
+            /* adjust load address and announce our intentions */
+            if (g_cBits == 32)
+                aRels[iRel] &= UINT32_C(0xffffffff);
+
             /* relocate it stuff. */
             RTPrintf("tstLdr: Relocating image 2 from %RTptr to %RTptr\n", aLoads[2].Addr, aRels[iRel]);
             int rc = RTLdrRelocate(aLoads[2].hLdrMod, aLoads[2].pvBits, aRels[iRel], aLoads[2].Addr, testGetImport, &aRels[iRel]);
@@ -315,7 +315,7 @@ static int testLdrOne(const char *pszFilename)
 
 int main(int argc, char **argv)
 {
-    RTR3Init();
+    RTR3InitExe(argc, &argv, 0);
 
     int rcRet = 0;
     if (argc <= 1)

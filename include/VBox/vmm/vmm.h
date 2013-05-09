@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -364,6 +364,8 @@ typedef enum VMMR0OPERATION
 
     /** Call PGMR0PhysAllocateHandyPages(). */
     VMMR0_DO_PGM_ALLOCATE_HANDY_PAGES,
+    /** Call PGMR0PhysFlushHandyPages(). */
+    VMMR0_DO_PGM_FLUSH_HANDY_PAGES,
     /** Call PGMR0AllocateLargePage(). */
     VMMR0_DO_PGM_ALLOCATE_LARGE_HANDY_PAGE,
     /** Call PGMR0PhysSetupIommu(). */

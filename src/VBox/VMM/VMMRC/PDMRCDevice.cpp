@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,6 +34,9 @@
 #include <iprt/assert.h>
 #include <iprt/string.h>
 
+#include "dtrace/VBoxVMM.h"
+#include "PDMInline.h"
+
 
 /*******************************************************************************
 *   Global Variables                                                           *
@@ -51,15 +54,67 @@ RT_C_DECLS_END
 
 
 /*******************************************************************************
+*   Prototypes                                                                 *
+*******************************************************************************/
+static int pdmRCDevHlp_PhysRead(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, void *pvBuf, size_t cbRead);
+static int pdmRCDevHlp_PhysWrite(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, const void *pvBuf, size_t cbWrite);
+
+
+/*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-static void pdmRCIsaSetIrq(PVM pVM, int iIrq, int iLevel);
-static void pdmRCIoApicSetIrq(PVM pVM, int iIrq, int iLevel);
-static void pdmRCIoApicSendMsi(PVM pVM, RTGCPHYS GCAddr, uint32_t uValue);
+static bool pdmRCIsaSetIrq(PVM pVM, int iIrq, int iLevel, uint32_t uTagSrc);
+
 
 /** @name Raw-Mode Context Device Helpers
  * @{
  */
+
+/** @interface_method_impl{PDMDEVHLPRC,pfnPCIPhysRead} */
+static DECLCALLBACK(int) pdmRCDevHlp_PCIPhysRead(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, void *pvBuf, size_t cbRead)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlow(("pdmRCDevHlp_PCIPhysRead: caller=%p/%d: GCPhys=%RGp pvBuf=%p cbRead=%#x\n",
+             pDevIns, pDevIns->iInstance, GCPhys, pvBuf, cbRead));
+
+    PCIDevice *pPciDev = pDevIns->Internal.s.pPciDeviceRC;
+    AssertPtrReturn(pPciDev, VERR_INVALID_POINTER);
+
+    if (!PCIDevIsBusmaster(pPciDev))
+    {
+#ifdef DEBUG
+        LogFlow(("%s: %RU16:%RU16: No bus master (anymore), skipping read %p (%z)\n", __FUNCTION__,
+                 PCIDevGetVendorId(pPciDev), PCIDevGetDeviceId(pPciDev), pvBuf, cbRead));
+#endif
+        return VINF_PDM_PCI_PHYS_READ_BM_DISABLED;
+    }
+
+    return pdmRCDevHlp_PhysRead(pDevIns, GCPhys, pvBuf, cbRead);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPRC,pfnPCIPhysRead} */
+static DECLCALLBACK(int) pdmRCDevHlp_PCIPhysWrite(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, const void *pvBuf, size_t cbWrite)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlow(("pdmRCDevHlp_PCIPhysWrite: caller=%p/%d: GCPhys=%RGp pvBuf=%p cbWrite=%#x\n",
+             pDevIns, pDevIns->iInstance, GCPhys, pvBuf, cbWrite));
+
+    PCIDevice *pPciDev = pDevIns->Internal.s.pPciDeviceRC;
+    AssertPtrReturn(pPciDev, VERR_INVALID_POINTER);
+
+    if (!PCIDevIsBusmaster(pPciDev))
+    {
+#ifdef DEBUG
+        LogFlow(("%s: %RU16:%RU16: No bus master (anymore), skipping write %p (%z)\n", __FUNCTION__,
+                 PCIDevGetVendorId(pPciDev), PCIDevGetDeviceId(pPciDev), pvBuf, cbWrite));
+#endif
+        return VINF_PDM_PCI_PHYS_WRITE_BM_DISABLED;
+    }
+
+    return pdmRCDevHlp_PhysWrite(pDevIns, GCPhys, pvBuf, cbWrite);
+}
+
 
 /** @interface_method_impl{PDMDEVHLPRC,pfnPCISetIrq} */
 static DECLCALLBACK(void) pdmRCDevHlp_PCISetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel)
@@ -70,32 +125,49 @@ static DECLCALLBACK(void) pdmRCDevHlp_PCISetIrq(PPDMDEVINS pDevIns, int iIrq, in
     PVM         pVM     = pDevIns->Internal.s.pVMRC;
     PPCIDEVICE  pPciDev = pDevIns->Internal.s.pPciDeviceRC;
     PPDMPCIBUS  pPciBus = pDevIns->Internal.s.pPciBusRC;
+
+    pdmLock(pVM);
+    uint32_t uTagSrc;
+    if (iLevel & PDM_IRQ_LEVEL_HIGH)
+    {
+        pDevIns->Internal.s.uLastIrqTag = uTagSrc = pdmCalcIrqTag(pVM, pDevIns->idTracing);
+        if (iLevel == PDM_IRQ_LEVEL_HIGH)
+            VBOXVMM_PDM_IRQ_HIGH(VMMGetCpu(pVM), RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc));
+        else
+            VBOXVMM_PDM_IRQ_HILO(VMMGetCpu(pVM), RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc));
+    }
+    else
+        uTagSrc = pDevIns->Internal.s.uLastIrqTag;
+
     if (    pPciDev
         &&  pPciBus
         &&  pPciBus->pDevInsRC)
     {
-        pdmLock(pVM);
-        pPciBus->pfnSetIrqRC(pPciBus->pDevInsRC, pPciDev, iIrq, iLevel);
+        pPciBus->pfnSetIrqRC(pPciBus->pDevInsRC, pPciDev, iIrq, iLevel, uTagSrc);
+
         pdmUnlock(pVM);
+
+        if (iLevel == PDM_IRQ_LEVEL_LOW)
+            VBOXVMM_PDM_IRQ_LOW(VMMGetCpu(pVM), RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc));
     }
     else
     {
+        pdmUnlock(pVM);
+
         /* queue for ring-3 execution. */
         PPDMDEVHLPTASK pTask = (PPDMDEVHLPTASK)PDMQueueAlloc(pVM->pdm.s.pDevHlpQueueRC);
-        if (pTask)
-        {
-            pTask->enmOp = PDMDEVHLPTASKOP_PCI_SET_IRQ;
-            pTask->pDevInsR3 = PDMDEVINS_2_R3PTR(pDevIns);
-            pTask->u.SetIRQ.iIrq = iIrq;
-            pTask->u.SetIRQ.iLevel = iLevel;
+        AssertReturnVoid(pTask);
 
-            PDMQueueInsertEx(pVM->pdm.s.pDevHlpQueueRC, &pTask->Core, 0);
-        }
-        else
-            AssertMsgFailed(("We're out of devhlp queue items!!!\n"));
+        pTask->enmOp = PDMDEVHLPTASKOP_PCI_SET_IRQ;
+        pTask->pDevInsR3 = PDMDEVINS_2_R3PTR(pDevIns);
+        pTask->u.SetIRQ.iIrq = iIrq;
+        pTask->u.SetIRQ.iLevel = iLevel;
+        pTask->u.SetIRQ.uTagSrc = uTagSrc;
+
+        PDMQueueInsertEx(pVM->pdm.s.pDevHlpQueueRC, &pTask->Core, 0);
     }
 
-    LogFlow(("pdmRCDevHlp_PCISetIrq: caller=%p/%d: returns void\n", pDevIns, pDevIns->iInstance));
+    LogFlow(("pdmRCDevHlp_PCISetIrq: caller=%p/%d: returns void; uTagSrc=%#x\n", pDevIns, pDevIns->iInstance, uTagSrc));
 }
 
 
@@ -104,10 +176,27 @@ static DECLCALLBACK(void) pdmRCDevHlp_ISASetIrq(PPDMDEVINS pDevIns, int iIrq, in
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     LogFlow(("pdmRCDevHlp_ISASetIrq: caller=%p/%d: iIrq=%d iLevel=%d\n", pDevIns, pDevIns->iInstance, iIrq, iLevel));
+    PVM pVM = pDevIns->Internal.s.pVMRC;
 
-    pdmRCIsaSetIrq(pDevIns->Internal.s.pVMRC, iIrq, iLevel);
+    pdmLock(pVM);
+    uint32_t uTagSrc;
+    if (iLevel & PDM_IRQ_LEVEL_HIGH)
+    {
+        pDevIns->Internal.s.uLastIrqTag = uTagSrc = pdmCalcIrqTag(pVM, pDevIns->idTracing);
+        if (iLevel == PDM_IRQ_LEVEL_HIGH)
+            VBOXVMM_PDM_IRQ_HIGH(VMMGetCpu(pVM), RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc));
+        else
+            VBOXVMM_PDM_IRQ_HILO(VMMGetCpu(pVM), RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc));
+    }
+    else
+        uTagSrc = pDevIns->Internal.s.uLastIrqTag;
 
-    LogFlow(("pdmRCDevHlp_ISASetIrq: caller=%p/%d: returns void\n", pDevIns, pDevIns->iInstance));
+    bool fRc = pdmRCIsaSetIrq(pVM, iIrq, iLevel, uTagSrc);
+
+    if (iLevel == PDM_IRQ_LEVEL_LOW && fRc)
+        VBOXVMM_PDM_IRQ_LOW(VMMGetCpu(pVM), RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc));
+    pdmUnlock(pVM);
+    LogFlow(("pdmRCDevHlp_ISASetIrq: caller=%p/%d: returns void; uTagSrc=%#x\n", pDevIns, pDevIns->iInstance, uTagSrc));
 }
 
 
@@ -279,6 +368,8 @@ static DECLCALLBACK(RTTRACEBUF) pdmRCDevHlp_DBGFTraceBuf(PPDMDEVINS pDevIns)
 extern DECLEXPORT(const PDMDEVHLPRC) g_pdmRCDevHlp =
 {
     PDM_DEVHLPRC_VERSION,
+    pdmRCDevHlp_PCIPhysRead,
+    pdmRCDevHlp_PCIPhysWrite,
     pdmRCDevHlp_PCISetIrq,
     pdmRCDevHlp_ISASetIrq,
     pdmRCDevHlp_PhysRead,
@@ -455,6 +546,28 @@ static DECLCALLBACK(void) pdmRCApicHlp_ClearInterruptFF(PPDMDEVINS pDevIns, PDMA
 }
 
 
+/** @interface_method_impl{PDMAPICHLPRC,pfnCalcIrqTag} */
+static DECLCALLBACK(uint32_t) pdmRCApicHlp_CalcIrqTag(PPDMDEVINS pDevIns, uint8_t u8Level)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    PVM pVM = pDevIns->Internal.s.pVMRC;
+
+    pdmLock(pVM);
+
+    uint32_t uTagSrc = pdmCalcIrqTag(pVM, pDevIns->idTracing);
+    if (u8Level == PDM_IRQ_LEVEL_HIGH)
+        VBOXVMM_PDM_IRQ_HIGH(VMMGetCpu(pVM), RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc));
+    else
+        VBOXVMM_PDM_IRQ_HILO(VMMGetCpu(pVM), RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc));
+
+
+    pdmUnlock(pVM);
+    LogFlow(("pdmRCApicHlp_CalcIrqTag: caller=%p/%d: returns %#x (u8Level=%d)\n",
+             pDevIns, pDevIns->iInstance, uTagSrc, u8Level));
+    return uTagSrc;
+}
+
+
 /** @interface_method_impl{PDMAPICHLPRC,pfnChangeFeature} */
 static DECLCALLBACK(void) pdmRCApicHlp_ChangeFeature(PPDMDEVINS pDevIns, PDMAPICVERSION enmVersion)
 {
@@ -512,6 +625,7 @@ extern DECLEXPORT(const PDMAPICHLPRC) g_pdmRCApicHlp =
     PDM_APICHLPRC_VERSION,
     pdmRCApicHlp_SetInterruptFF,
     pdmRCApicHlp_ClearInterruptFF,
+    pdmRCApicHlp_CalcIrqTag,
     pdmRCApicHlp_ChangeFeature,
     pdmRCApicHlp_Lock,
     pdmRCApicHlp_Unlock,
@@ -530,14 +644,16 @@ extern DECLEXPORT(const PDMAPICHLPRC) g_pdmRCApicHlp =
 
 /** @interface_method_impl{PDMIOAPICHLPRC,pfnApicBusDeliver} */
 static DECLCALLBACK(int) pdmRCIoApicHlp_ApicBusDeliver(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
-                                                       uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode)
+                                                       uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     PVM pVM = pDevIns->Internal.s.pVMRC;
-    LogFlow(("pdmRCIoApicHlp_ApicBusDeliver: caller=%p/%d: u8Dest=%RX8 u8DestMode=%RX8 u8DeliveryMode=%RX8 iVector=%RX8 u8Polarity=%RX8 u8TriggerMode=%RX8\n",
-             pDevIns, pDevIns->iInstance, u8Dest, u8DestMode, u8DeliveryMode, iVector, u8Polarity, u8TriggerMode));
+    LogFlow(("pdmRCIoApicHlp_ApicBusDeliver: caller=%p/%d: u8Dest=%RX8 u8DestMode=%RX8 u8DeliveryMode=%RX8 iVector=%RX8 u8Polarity=%RX8 u8TriggerMode=%RX8 uTagSrc=%#x\n",
+             pDevIns, pDevIns->iInstance, u8Dest, u8DestMode, u8DeliveryMode, iVector, u8Polarity, u8TriggerMode, uTagSrc));
+    Assert(pVM->pdm.s.Apic.pDevInsRC);
     if (pVM->pdm.s.Apic.pfnBusDeliverRC)
-        return pVM->pdm.s.Apic.pfnBusDeliverRC(pVM->pdm.s.Apic.pDevInsRC, u8Dest, u8DestMode, u8DeliveryMode, iVector, u8Polarity, u8TriggerMode);
+        return pVM->pdm.s.Apic.pfnBusDeliverRC(pVM->pdm.s.Apic.pDevInsRC, u8Dest, u8DestMode, u8DeliveryMode, iVector,
+                                               u8Polarity, u8TriggerMode, uTagSrc);
     return VINF_SUCCESS;
 }
 
@@ -580,28 +696,68 @@ extern DECLEXPORT(const PDMIOAPICHLPRC) g_pdmRCIoApicHlp =
  */
 
 /** @interface_method_impl{PDMPCIHLPRC,pfnIsaSetIrq} */
-static DECLCALLBACK(void) pdmRCPciHlp_IsaSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel)
+static DECLCALLBACK(void) pdmRCPciHlp_IsaSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel, uint32_t uTagSrc)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    Log4(("pdmRCPciHlp_IsaSetIrq: iIrq=%d iLevel=%d\n", iIrq, iLevel));
-    pdmRCIsaSetIrq(pDevIns->Internal.s.pVMRC, iIrq, iLevel);
+    Log4(("pdmRCPciHlp_IsaSetIrq: iIrq=%d iLevel=%d uTagSrc=%#x\n", iIrq, iLevel, uTagSrc));
+    PVM pVM = pDevIns->Internal.s.pVMRC;
+
+    pdmLock(pVM);
+    pdmRCIsaSetIrq(pDevIns->Internal.s.pVMRC, iIrq, iLevel, uTagSrc);
+    pdmUnlock(pVM);
 }
 
 
 /** @interface_method_impl{PDMPCIHLPRC,pfnIoApicSetIrq} */
-static DECLCALLBACK(void) pdmRCPciHlp_IoApicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel)
+static DECLCALLBACK(void) pdmRCPciHlp_IoApicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel, uint32_t uTagSrc)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    Log4(("pdmRCPciHlp_IoApicSetIrq: iIrq=%d iLevel=%d\n", iIrq, iLevel));
-    pdmRCIoApicSetIrq(pDevIns->Internal.s.pVMRC, iIrq, iLevel);
+    Log4(("pdmRCPciHlp_IoApicSetIrq: iIrq=%d iLevel=%d uTagSrc=%#x\n", iIrq, iLevel, uTagSrc));
+    PVM pVM = pDevIns->Internal.s.pVMRC;
+
+    if (pVM->pdm.s.IoApic.pDevInsRC)
+    {
+        pdmLock(pVM);
+        pVM->pdm.s.IoApic.pfnSetIrqRC(pVM->pdm.s.IoApic.pDevInsRC, iIrq, iLevel, uTagSrc);
+        pdmUnlock(pVM);
+    }
+    else if (pVM->pdm.s.IoApic.pDevInsR3)
+    {
+        /* queue for ring-3 execution. */
+        PPDMDEVHLPTASK pTask = (PPDMDEVHLPTASK)PDMQueueAlloc(pVM->pdm.s.pDevHlpQueueRC);
+        if (pTask)
+        {
+            pTask->enmOp = PDMDEVHLPTASKOP_IOAPIC_SET_IRQ;
+            pTask->pDevInsR3 = NIL_RTR3PTR; /* not required */
+            pTask->u.SetIRQ.iIrq = iIrq;
+            pTask->u.SetIRQ.iLevel = iLevel;
+            pTask->u.SetIRQ.uTagSrc = uTagSrc;
+
+            PDMQueueInsertEx(pVM->pdm.s.pDevHlpQueueRC, &pTask->Core, 0);
+        }
+        else
+            AssertMsgFailed(("We're out of devhlp queue items!!!\n"));
+    }
 }
 
+
 /** @interface_method_impl{PDMPCIHLPRC,pfnIoApicSendMsi} */
-static DECLCALLBACK(void) pdmRCPciHlp_IoApicSendMsi(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue)
+static DECLCALLBACK(void) pdmRCPciHlp_IoApicSendMsi(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, uint32_t uValue, uint32_t uTagSrc)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    Log4(("pdmRCPciHlp_IoApicSendMsi: Address=%p Value=%d\n", GCAddr, uValue));
-    pdmRCIoApicSendMsi(pDevIns->Internal.s.pVMRC, GCAddr, uValue);
+    Log4(("pdmRCPciHlp_IoApicSendMsi: GCPhys=%p uValue=%d uTagSrc=%#x\n", GCPhys, uValue, uTagSrc));
+    PVM pVM = pDevIns->Internal.s.pVMRC;
+
+    if (pVM->pdm.s.IoApic.pDevInsRC)
+    {
+        pdmLock(pVM);
+        pVM->pdm.s.IoApic.pfnSendMsiRC(pVM->pdm.s.IoApic.pDevInsRC, GCPhys, uValue, uTagSrc);
+        pdmUnlock(pVM);
+    }
+    else
+    {
+        AssertFatalMsgFailed(("Lazy bastarts!"));
+    }
 }
 
 
@@ -763,92 +919,41 @@ extern DECLEXPORT(const PDMDRVHLPRC) g_pdmRCDrvHlp =
 
 
 /**
- * Sets an irq on the I/O APIC.
+ * Sets an irq on the PIC and I/O APIC.
  *
- * @param   pVM     The VM handle.
- * @param   iIrq    The irq.
- * @param   iLevel  The new level.
+ * @returns true if     delivered, false if postponed.
+ * @param   pVM         Pointer to the VM.
+ * @param   iIrq        The irq.
+ * @param   iLevel      The new level.
+ * @param   uTagSrc     The IRQ tag and source.
+ *
+ * @remarks The caller holds the PDM lock.
  */
-static void pdmRCIsaSetIrq(PVM pVM, int iIrq, int iLevel)
+static bool pdmRCIsaSetIrq(PVM pVM, int iIrq, int iLevel, uint32_t uTagSrc)
 {
-    if (    (   pVM->pdm.s.IoApic.pDevInsRC
-             || !pVM->pdm.s.IoApic.pDevInsR3)
-        &&  (   pVM->pdm.s.Pic.pDevInsRC
-             || !pVM->pdm.s.Pic.pDevInsR3))
+    if (RT_LIKELY(    (   pVM->pdm.s.IoApic.pDevInsRC
+                       || !pVM->pdm.s.IoApic.pDevInsR3)
+                  &&  (   pVM->pdm.s.Pic.pDevInsRC
+                       || !pVM->pdm.s.Pic.pDevInsR3)))
     {
-        pdmLock(pVM);
         if (pVM->pdm.s.Pic.pDevInsRC)
-            pVM->pdm.s.Pic.pfnSetIrqRC(pVM->pdm.s.Pic.pDevInsRC, iIrq, iLevel);
+            pVM->pdm.s.Pic.pfnSetIrqRC(pVM->pdm.s.Pic.pDevInsRC, iIrq, iLevel, uTagSrc);
         if (pVM->pdm.s.IoApic.pDevInsRC)
-            pVM->pdm.s.IoApic.pfnSetIrqRC(pVM->pdm.s.IoApic.pDevInsRC, iIrq, iLevel);
-        pdmUnlock(pVM);
+            pVM->pdm.s.IoApic.pfnSetIrqRC(pVM->pdm.s.IoApic.pDevInsRC, iIrq, iLevel, uTagSrc);
+        return true;
     }
-    else
-    {
-        /* queue for ring-3 execution. */
-        PPDMDEVHLPTASK pTask = (PPDMDEVHLPTASK)PDMQueueAlloc(pVM->pdm.s.pDevHlpQueueRC);
-        if (pTask)
-        {
-            pTask->enmOp = PDMDEVHLPTASKOP_ISA_SET_IRQ;
-            pTask->pDevInsR3 = NIL_RTR3PTR; /* not required */
-            pTask->u.SetIRQ.iIrq = iIrq;
-            pTask->u.SetIRQ.iLevel = iLevel;
 
-            PDMQueueInsertEx(pVM->pdm.s.pDevHlpQueueRC, &pTask->Core, 0);
-        }
-        else
-            AssertMsgFailed(("We're out of devhlp queue items!!!\n"));
-    }
+    /* queue for ring-3 execution. */
+    PPDMDEVHLPTASK pTask = (PPDMDEVHLPTASK)PDMQueueAlloc(pVM->pdm.s.pDevHlpQueueRC);
+    AssertReturn(pTask, false);
+
+    pTask->enmOp = PDMDEVHLPTASKOP_ISA_SET_IRQ;
+    pTask->pDevInsR3 = NIL_RTR3PTR; /* not required */
+    pTask->u.SetIRQ.iIrq = iIrq;
+    pTask->u.SetIRQ.iLevel = iLevel;
+    pTask->u.SetIRQ.uTagSrc = uTagSrc;
+
+    PDMQueueInsertEx(pVM->pdm.s.pDevHlpQueueRC, &pTask->Core, 0);
+    return false;
 }
 
-
-/**
- * Sets an irq on the I/O APIC.
- *
- * @param   pVM     The VM handle.
- * @param   iIrq    The irq.
- * @param   iLevel  The new level.
- */
-static void pdmRCIoApicSetIrq(PVM pVM, int iIrq, int iLevel)
-{
-    if (pVM->pdm.s.IoApic.pDevInsRC)
-    {
-        pdmLock(pVM);
-        pVM->pdm.s.IoApic.pfnSetIrqRC(pVM->pdm.s.IoApic.pDevInsRC, iIrq, iLevel);
-        pdmUnlock(pVM);
-    }
-    else if (pVM->pdm.s.IoApic.pDevInsR3)
-    {
-        /* queue for ring-3 execution. */
-        PPDMDEVHLPTASK pTask = (PPDMDEVHLPTASK)PDMQueueAlloc(pVM->pdm.s.pDevHlpQueueRC);
-        if (pTask)
-        {
-            pTask->enmOp = PDMDEVHLPTASKOP_IOAPIC_SET_IRQ;
-            pTask->pDevInsR3 = NIL_RTR3PTR; /* not required */
-            pTask->u.SetIRQ.iIrq = iIrq;
-            pTask->u.SetIRQ.iLevel = iLevel;
-
-            PDMQueueInsertEx(pVM->pdm.s.pDevHlpQueueRC, &pTask->Core, 0);
-        }
-        else
-            AssertMsgFailed(("We're out of devhlp queue items!!!\n"));
-    }
-}
-
-
-/**
- * Sends an MSI to I/O APIC.
- *
- * @param   pVM     The VM handle.
- * @param   GCAddr  Address of the message.
- * @param   uValue  Value of the message.
- */
-static void pdmRCIoApicSendMsi(PVM pVM, RTGCPHYS GCAddr, uint32_t uValue)
-{
-    if (pVM->pdm.s.IoApic.pDevInsRC)
-    {
-        pdmLock(pVM);
-        pVM->pdm.s.IoApic.pfnSendMsiRC(pVM->pdm.s.IoApic.pDevInsRC, GCAddr, uValue);
-        pdmUnlock(pVM);
-    }
-}

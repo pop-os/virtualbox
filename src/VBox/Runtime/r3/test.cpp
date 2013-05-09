@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -370,10 +370,10 @@ RTR3DECL(int) RTTestCreate(const char *pszTest, PRTTEST phTest)
 
 RTR3DECL(RTEXITCODE) RTTestInitAndCreate(const char *pszTest, PRTTEST phTest)
 {
-    int rc = RTR3Init();
+    int rc = RTR3InitExeNoArguments(0);
     if (RT_FAILURE(rc))
     {
-        RTStrmPrintf(g_pStdErr, "%s: fatal error: RTR3Init failed with rc=%Rrc\n", pszTest, rc);
+        RTStrmPrintf(g_pStdErr, "%s: fatal error: RTR3InitExeNoArguments failed with rc=%Rrc\n", pszTest, rc);
         return RTEXITCODE_INIT;
     }
     rc = RTTestCreate(pszTest, phTest);
@@ -625,7 +625,7 @@ RTR3DECL(int) RTTestGuardedFree(RTTEST hTest, void *pv)
     }
     RTCritSectLeave(&pTest->Lock);
 
-    return VINF_SUCCESS;
+    return rc;
 }
 
 

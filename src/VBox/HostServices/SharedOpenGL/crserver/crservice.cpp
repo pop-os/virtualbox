@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -357,13 +357,6 @@ static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClie
     AssertRCReturn(rc, rc);
 
     /* The state itself */
-#if SHCROGL_SSM_VERSION==24
-    if (ui32==23)
-    {
-        rc = crVBoxServerLoadState(pSSM, 24);
-    }
-    else
-#endif
     rc = crVBoxServerLoadState(pSSM, ui32);
 
     if (rc==VERR_SSM_DATA_UNIT_FORMAT_CHANGED && ui32!=SHCROGL_SSM_VERSION)
@@ -479,7 +472,7 @@ static CRVBOXSVCBUFFER_t* svcGetBuffer(uint32_t iBuffer, uint32_t cbBufferSize)
         {
             if (pBuffer->uiId == iBuffer)
             {
-                if (pBuffer->uiSize!=cbBufferSize)
+                if (cbBufferSize && pBuffer->uiSize!=cbBufferSize)
                 {
                     static int shown=0;
 
@@ -1139,6 +1132,47 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
 
                 rc = VINF_SUCCESS;
             }
+            break;
+        }
+        case SHCRGL_HOST_FN_VIEWPORT_CHANGED:
+        {
+            Log(("svcCall: SHCRGL_HOST_FN_VIEWPORT_CHANGED\n"));
+
+            /* Verify parameter count and types. */
+            if (cParms != SHCRGL_CPARMS_VIEWPORT_CHANGED)
+            {
+                LogRel(("SHCRGL_HOST_FN_VIEWPORT_CHANGED: cParms invalid - %d", cParms));
+                rc = VERR_INVALID_PARAMETER;
+                break;
+            }
+
+            for (int i = 0; i < SHCRGL_CPARMS_VIEWPORT_CHANGED; ++i)
+            {
+                if (paParms[i].type != VBOX_HGCM_SVC_PARM_32BIT)
+                {
+                    LogRel(("SHCRGL_HOST_FN_VIEWPORT_CHANGED: param[%d] type invalid - %d", i, paParms[i].type));
+                    rc = VERR_INVALID_PARAMETER;
+                    break;
+                }
+            }
+
+            if (!RT_SUCCESS(rc))
+            {
+                LogRel(("SHCRGL_HOST_FN_VIEWPORT_CHANGED: param validation failed, returning.."));
+                break;
+            }
+
+            rc = crVBoxServerSetScreenViewport((int)paParms[0].u.uint32,
+                    paParms[1].u.uint32, /* x */
+                    paParms[2].u.uint32, /* y */
+                    paParms[3].u.uint32, /* w */
+                    paParms[4].u.uint32  /* h */);
+            if (!RT_SUCCESS(rc))
+            {
+                LogRel(("SHCRGL_HOST_FN_VIEWPORT_CHANGED: crVBoxServerSetScreenViewport failed, rc %d", rc));
+                break;
+            }
+
             break;
         }
         case SHCRGL_HOST_FN_SET_OUTPUT_REDIRECT:

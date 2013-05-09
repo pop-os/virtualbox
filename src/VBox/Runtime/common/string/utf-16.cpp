@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -247,6 +247,38 @@ RTDECL(PRTUTF16) RTUtf16ToUpper(PRTUTF16 pwsz)
     return pwsz;
 }
 RT_EXPORT_SYMBOL(RTUtf16ToUpper);
+
+
+RTDECL(ssize_t) RTUtf16PurgeComplementSet(PRTUTF16 pwsz, PCRTUNICP puszValidSet, char chReplacement)
+{
+    size_t cReplacements = 0;
+    AssertReturn(chReplacement && (unsigned)chReplacement < 128, -1);
+    /* Validate the encoding. */
+    for (;;)
+    {
+        RTUNICP Cp;
+        PCRTUNICP pCp;
+        PRTUTF16 pwszOld = pwsz;
+        if (RT_FAILURE(RTUtf16GetCpEx((PCRTUTF16 *)&pwsz, &Cp)))
+            return -1;
+        if (!Cp)
+            break;
+        for (pCp = puszValidSet; *pCp; pCp += 2)
+        {
+            AssertReturn(*(pCp + 1), -1);
+            if (*pCp <= Cp && *(pCp + 1) >= Cp) /* No, I won't do * and ++. */
+                break;
+        }
+        if (!*pCp)
+        {
+            for (; pwszOld != pwsz; ++pwszOld)
+                *pwszOld = chReplacement;
+            ++cReplacements;
+        }
+    }
+    return cReplacements;
+}
+RT_EXPORT_SYMBOL(RTUtf16PurgeComplementSet);
 
 
 /**

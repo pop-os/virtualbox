@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
 #ifndef __UIMachineSettingsStorage_h__
 #define __UIMachineSettingsStorage_h__
 
-/* Global includes */
+/* Qt includes: */
 #include <QtGlobal> /* for Q_WS_MAC */
 #ifdef Q_WS_MAC
 /* Somewhere Carbon.h includes AssertMacros.h which defines the macro "check".
@@ -30,12 +30,11 @@
 #include <QItemDelegate>
 #include <QPointer>
 
-/* Local includes */
+/* GUI includes: */
 #include "UISettingsPage.h"
 #include "UIMachineSettingsStorage.gen.h"
-#include "COMDefs.h"
 
-/* Local forwards */
+/* Forward declarations: */
 class AttachmentItem;
 class ControllerItem;
 class UIMediumIDHolder;
@@ -682,8 +681,8 @@ protected:
 
 private slots:
 
-    void mediumUpdated (const VBoxMedium &aMedium);
-    void mediumRemoved (VBoxDefs::MediumType aType, const QString &aMediumId);
+    void mediumUpdated (const UIMedium &aMedium);
+    void mediumRemoved (UIMediumType aType, const QString &aMediumId);
 
     void addController();
     void addIDEController();
@@ -738,7 +737,7 @@ private:
 
     void addChooseExistingMediumAction(QMenu *pOpenMediumMenu, const QString &strActionName);
     void addChooseHostDriveActions(QMenu *pOpenMediumMenu);
-    void addRecentMediumActions(QMenu *pOpenMediumMenu, VBoxDefs::MediumType recentMediumType);
+    void addRecentMediumActions(QMenu *pOpenMediumMenu, UIMediumType recentMediumType);
 
     bool updateStorageData();
     bool removeStorageController(const UICacheSettingsMachineStorageController &controllerCache);

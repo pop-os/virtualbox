@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1427,7 +1427,7 @@ BdsLibBootNext (
   Return the bootable media handle.
   First, check the device is connected
   Second, check whether the device path point to a device which support SimpleFileSystemProtocol,
-  Third, detect the the default boot file in the Media, and return the removable Media handle.
+  Third, detect the default boot file in the Media, and return the removable Media handle.
 
   @param  DevicePath  Device Path to a  bootable device
 
@@ -1502,7 +1502,7 @@ BdsLibGetBootableHandle (
   }
 
   //
-  // Detect the the default boot file from removable Media
+  // Detect the default boot file from removable Media
   //
 
   //

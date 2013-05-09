@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2011 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,7 +16,7 @@
 #
 
 SUB_DEPTH = ../../../../..
-include	$(KBUILD_PATH)/subheader.kmk
+include $(KBUILD_PATH)/subheader.kmk
 
 INSTALLS += tstInstallerLinux
 TESTING += tstInstallerLinux
@@ -27,15 +27,27 @@ tstInstallerLinux_CLEAN   = $(tstInstallerLinux_0_OUTDIR)/tstInstallerLinux.sh
 
 $$(tstInstallerLinux_0_OUTDIR)/tstInstallerLinux.sh: \
 		$(PATH_SUB_CURRENT)/tstInstallerLinux.sh \
-		$(PATH_SUB_CURRENT)/../installer-utils.sh \
+		$(PATH_SUB_CURRENT)/../installer-common.sh \
 		| $$(dir $$@)
 	$(QUIET)$(SED) \
-		-e '/#include installer-utils.sh/ {' \
-		-e "r $(PATH_ROOT)/src/VBox/Installer/linux/installer-utils.sh" \
+		-e '/#include installer-common.sh/ {' \
+		-e "r $(PATH_ROOT)/src/VBox/Installer/linux/installer-common.sh" \
 		-e 'd' \
 		-e '}' \
 		--output $@ \
 		$<
 	$(QUIET)$(CHMOD) a+rx,u+w $@
 
-include	$(KBUILD_PATH)/subfooter.kmk
+INSTALLS += tstHeadlessXOrg
+TESTING += tstHeadlessXOrg
+tstHeadlessXOrg_INST    = $(INST_TESTCASE)
+tstHeadlessXOrg_MODE    = a+rx,u+w
+tstHeadlessXOrg_SOURCES = tstHeadlessXOrg.sh
+
+INSTALLS += tstInstallInit
+TESTING += tstInstallInit
+tstInstallInit_INST    = $(INST_TESTCASE)
+tstInstallInit_MODE    = a+rx,u+w
+tstInstallInit_SOURCES = tstInstallInit.sh
+
+include $(FILE_KBUILD_SUB_FOOTER)

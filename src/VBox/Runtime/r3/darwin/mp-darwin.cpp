@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -90,7 +90,7 @@ RTDECL(bool) RTMpIsCpuOnline(RTCPUID idCpu)
 #if 0
     return RTMpIsCpuPossible(idCpu);
 #else
-    /** @todo proper ring-3 support on darwin, see #3014. */
+    /** @todo proper ring-3 support on darwin, see @bugref{3014}. */
     natural_t nCpus;
     processor_basic_info_t pinfo;
     mach_msg_type_number_t count;
@@ -160,6 +160,7 @@ RTDECL(RTCPUID) RTMpGetOnlineCount(void)
 RTDECL(uint32_t) RTMpGetCurFrequency(RTCPUID idCpu)
 {
     /** @todo figure out how to get the current cpu speed on darwin. Have to check what powermanagement does. */
+    NOREF(idCpu);
     return 0;
 }
 

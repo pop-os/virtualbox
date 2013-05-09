@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,10 +17,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes */
+/* Qt includes: */
 #include <QKeyEvent>
+#ifdef Q_WS_X11
+# include <QX11Info>
+#endif /* Q_WS_X11 */
 
-/* Local includes */
+/* GUI includes: */
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
 #include "UIActionPool.h"
@@ -35,8 +38,8 @@
 #include "UIMachineView.h"
 #include "UIHotKeyEditor.h"
 
+/* Other VBox includes: */
 #ifdef Q_WS_X11
-# include <QX11Info>
 # include <X11/XKBlib.h>
 # include <X11/keysym.h>
 # ifdef KeyPress
@@ -58,6 +61,9 @@ const int XKeyRelease = KeyRelease;
 # include "UICocoaApplication.h"
 # include <Carbon/Carbon.h>
 #endif /* Q_WS_MAC */
+
+/* COM includes: */
+#include "CConsole.h"
 
 /* Enums representing different keyboard-states: */
 enum { KeyExtended = 0x01, KeyPressed = 0x02, KeyPause = 0x04, KeyPrint = 0x08 };
@@ -119,7 +125,7 @@ void UIKeyboardHandler::prepareListener(ulong uIndex, UIMachineWindow *pMachineW
         /* Add window: */
         m_windows.insert(uIndex, pMachineWindow);
         /* Install event-filter for window: */
-        m_windows[uIndex]->machineWindow()->installEventFilter(this);
+        m_windows[uIndex]->installEventFilter(this);
     }
 
     /* If that view is NOT registered yet: */
@@ -183,7 +189,7 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
             case UIVisualStateType_Normal:
             case UIVisualStateType_Scale:
             {
-                XGrabKey(QX11Info::display(), AnyKey, AnyModifier, m_windows[m_iKeyboardCaptureViewIndex]->machineWindow()->winId(), False, GrabModeAsync, GrabModeAsync);
+                XGrabKey(QX11Info::display(), AnyKey, AnyModifier, m_windows[m_iKeyboardCaptureViewIndex]->winId(), False, GrabModeAsync, GrabModeAsync);
                 break;
             }
             /* If window is NOT moveable we are making active keyboard grab: */
@@ -194,7 +200,7 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
                  * We can't be sure this shortcut will be released at all, so we will retry to grab keyboard for 50 times,
                  * and after we will just ignore that issue: */
                 int cTriesLeft = 50;
-                while (cTriesLeft && XGrabKeyboard(QX11Info::display(), m_windows[m_iKeyboardCaptureViewIndex]->machineWindow()->winId(), False, GrabModeAsync, GrabModeAsync, CurrentTime)) { --cTriesLeft; }
+                while (cTriesLeft && XGrabKeyboard(QX11Info::display(), m_windows[m_iKeyboardCaptureViewIndex]->winId(), False, GrabModeAsync, GrabModeAsync, CurrentTime)) { --cTriesLeft; }
                 break;
             }
             /* Should we try to grab keyboard in default case? I think - NO. */
@@ -241,7 +247,7 @@ void UIKeyboardHandler::releaseKeyboard()
             case UIVisualStateType_Normal:
             case UIVisualStateType_Scale:
             {
-                XUngrabKey(QX11Info::display(), AnyKey, AnyModifier, m_windows[m_iKeyboardCaptureViewIndex]->machineWindow()->winId());
+                XUngrabKey(QX11Info::display(), AnyKey, AnyModifier, m_windows[m_iKeyboardCaptureViewIndex]->winId());
                 break;
             }
             /* If window is NOT moveable we are making active keyboard ungrab: */
@@ -332,6 +338,20 @@ int UIKeyboardHandler::keyboardState() const
     return (m_fIsKeyboardCaptured ? UIViewStateType_KeyboardCaptured : 0) |
            (m_bIsHostComboPressed ? UIViewStateType_HostKeyPressed : 0);
 }
+
+#ifdef VBOX_WITH_DEBUGGER_GUI
+void UIKeyboardHandler::setDebuggerActive(bool aActive /*= true*/)
+{
+    if (aActive)
+    {
+        m_fDebuggerActive = true;
+        releaseKeyboard();
+    }
+    else
+        m_fDebuggerActive = false;
+}
+
+#endif /* VBOX_WITH_DEBUGGER_GUI */
 
 #if defined(Q_WS_WIN)
 
@@ -641,6 +661,7 @@ UIKeyboardHandler::UIKeyboardHandler(UIMachineLogic *pMachineLogic)
     , m_bIsHostComboAlone(false)
     , m_bIsHostComboProcessed(false)
     , m_fPassCAD(false)
+    , m_fDebuggerActive(false)
 #if defined(Q_WS_WIN)
     , m_bIsHostkeyInCapture(false)
     , m_iKeyboardHookViewIndex(-1)
@@ -687,7 +708,7 @@ void UIKeyboardHandler::loadSettings()
     /* Extra data settings: */
     {
         /* CAD settings: */
-        QString passCAD = session().GetConsole().GetMachine().GetExtraData(VBoxDefs::GUI_PassCAD);
+        QString passCAD = session().GetConsole().GetMachine().GetExtraData(GUI_PassCAD);
         if (!passCAD.isEmpty() && passCAD != "false" && passCAD != "no")
             m_fPassCAD = true;
     }
@@ -918,6 +939,24 @@ bool UIKeyboardHandler::winLowKeyboardEvent(UINT msg, const KBDLLHOOKSTRUCT &eve
     if (!m_views.contains(m_iKeyboardHookViewIndex))
         return false;
 
+    /* It's possible that a key has been pressed while the keyboard was not
+     * captured, but is being released under the capture. Detect this situation
+     * and return false to let Windows process the message normally and update
+     * its key state table (to avoid the stuck key effect). */
+    /** @todo Is there any reason why we can't generally return "false" for
+     * key releases, even if we do process them?  It would let us drop this
+     * hard-to-read logic. */
+    uint8_t what_pressed =      (event.flags & 0x01)
+                             && (event.vkCode != VK_RSHIFT)
+                           ? IsExtKeyPressed : IsKeyPressed;
+    if (   (event.flags & 0x80) /* released */
+        && (   (   UIHotKeyCombination::toKeyCodeList(m_globalSettings.hostCombo()).contains(event.vkCode)
+                && !m_bIsHostkeyInCapture)
+            ||    (  m_pressedKeys[event.scanCode]
+                   & (IsKbdCaptured | what_pressed))
+               == what_pressed))
+        return false;
+
     /* Sometimes it happens that Win inserts additional events on some key
      * press/release. For example, it prepends ALT_GR in German layout with
      * the VK_LCONTROL vkey with curious 0x21D scan code (seems to be necessary
@@ -942,16 +981,6 @@ bool UIKeyboardHandler::winLowKeyboardEvent(UINT msg, const KBDLLHOOKSTRUCT &eve
      *        hint that that filtering should be done somewhere else,
      *        and not in the keyboard capture handler. */
     if (!m_fIsKeyboardCaptured)
-        return false;
-
-    /* It's possible that a key has been pressed while the keyboard was not
-     * captured, but is being released under the capture. Detect this situation
-     * and return false to let Windows process the message normally and update
-     * its key state table (to avoid the stuck key effect). */
-    uint8_t what_pressed = (event.flags & 0x01) && (event.vkCode != VK_RSHIFT) ? IsExtKeyPressed : IsKeyPressed;
-    if ((event.flags & 0x80) /* released */ &&
-        ((UIHotKeyCombination::toKeyCodeList(m_globalSettings.hostCombo()).contains(event.vkCode) && !m_bIsHostkeyInCapture) ||
-         (m_pressedKeys[event.scanCode] & (IsKbdCaptured | what_pressed)) == what_pressed))
         return false;
 
     MSG message;
@@ -1506,20 +1535,15 @@ void UIKeyboardHandler::fixModifierState(LONG *piCodes, uint *puCount)
     Window   wDummy1, wDummy2;
     int      iDummy3, iDummy4, iDummy5, iDummy6;
     unsigned uMask;
-    unsigned uKeyMaskNum = 0, uKeyMaskCaps = 0, uKeyMaskScroll = 0;
+    unsigned uKeyMaskNum = 0, uKeyMaskCaps = 0;
 
     uKeyMaskCaps          = LockMask;
     XModifierKeymap* map  = XGetModifierMapping(QX11Info::display());
     KeyCode keyCodeNum    = XKeysymToKeycode(QX11Info::display(), XK_Num_Lock);
-    KeyCode keyCodeScroll = XKeysymToKeycode(QX11Info::display(), XK_Scroll_Lock);
 
     for (int i = 0; i < 8; ++ i)
-    {
         if (keyCodeNum != NoSymbol && map->modifiermap[map->max_keypermod * i] == keyCodeNum)
             uKeyMaskNum = 1 << i;
-        else if (keyCodeScroll != NoSymbol && map->modifiermap[map->max_keypermod * i] == keyCodeScroll)
-            uKeyMaskScroll = 1 << i;
-    }
     XQueryPointer(QX11Info::display(), DefaultRootWindow(QX11Info::display()), &wDummy1, &wDummy2,
                   &iDummy3, &iDummy4, &iDummy5, &iDummy6, &uMask);
     XFreeModifiermap(map);
@@ -1629,7 +1653,7 @@ void UIKeyboardHandler::setAutoCaptureDisabled(bool fIsAutoCaptureDisabled)
 
 bool UIKeyboardHandler::autoCaptureSetGlobally()
 {
-    return m_globalSettings.autoCapture();
+    return m_globalSettings.autoCapture() && !m_fDebuggerActive;
 }
 
 bool UIKeyboardHandler::viewHasFocus(ulong uScreenId)
@@ -1649,7 +1673,7 @@ UIMachineWindow* UIKeyboardHandler::isItListenedWindow(QObject *pWatchedObject) 
     while (!pResultWindow && i != m_windows.constEnd())
     {
         UIMachineWindow *pIteratedWindow = i.value();
-        if (pIteratedWindow->machineWindow() == pWatchedObject)
+        if (pIteratedWindow == pWatchedObject)
         {
             pResultWindow = pIteratedWindow;
             continue;

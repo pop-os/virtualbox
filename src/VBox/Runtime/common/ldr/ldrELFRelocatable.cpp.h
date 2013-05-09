@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -140,8 +140,10 @@ static int RTLDRELF_NAME(MapBits)(PRTLDRMODELF pModElf, bool fNeedsBits)
     if (RT_SUCCESS(rc))
     {
         const uint8_t *pu8 = (const uint8_t *)pModElf->pvBits;
-        pModElf->paSyms = (const Elf_Sym *)(pu8 + pModElf->paShdrs[pModElf->iSymSh].sh_offset);
-        pModElf->pStr   =    (const char *)(pu8 + pModElf->paShdrs[pModElf->iStrSh].sh_offset);
+        if (pModElf->iSymSh != ~0U)
+            pModElf->paSyms = (const Elf_Sym *)(pu8 + pModElf->paShdrs[pModElf->iSymSh].sh_offset);
+        if (pModElf->iStrSh != ~0U)
+            pModElf->pStr   =    (const char *)(pu8 + pModElf->paShdrs[pModElf->iStrSh].sh_offset);
     }
     return rc;
 }
@@ -263,6 +265,10 @@ static int RTLDRELF_NAME(RelocateSection)(PRTLDRMODELF pModElf, Elf_Addr BaseAdd
                                           const Elf_Addr SecAddr, Elf_Size cbSec, const uint8_t *pu8SecBaseR, uint8_t *pu8SecBaseW,
                                           const void *pvRelocs, Elf_Size cbRelocs)
 {
+#if ELF_MODE != 32
+    NOREF(pu8SecBaseR);
+#endif
+
     /*
      * Iterate the relocations.
      * The relocations are stored in an array of Elf32_Rel records and covers the entire relocation section.
@@ -275,7 +281,7 @@ static int RTLDRELF_NAME(RelocateSection)(PRTLDRMODELF pModElf, Elf_Addr BaseAdd
         /*
          * Get the symbol.
          */
-        const Elf_Sym  *pSym = NULL;
+        const Elf_Sym  *pSym = NULL; /* shut up gcc */
         Elf_Addr        SymValue = 0; /* shut up gcc-4 */
         int rc = RTLDRELF_NAME(Symbol)(pModElf, BaseAddr, pfnGetImport, pvUser, ELF_R_SYM(paRels[iRel].r_info), &pSym, &SymValue);
         if (RT_FAILURE(rc))
@@ -422,7 +428,7 @@ static DECLCALLBACK(int) RTLDRELF_NAME(Close)(PRTLDRMODINTERNAL pMod)
 /** @copydoc RTLDROPS::Done */
 static DECLCALLBACK(int) RTLDRELF_NAME(Done)(PRTLDRMODINTERNAL pMod)
 {
-    //PRTLDRMODELF pModElf = (PRTLDRMODELF)pMod;
+    NOREF(pMod); /*PRTLDRMODELF pModElf = (PRTLDRMODELF)pMod;*/
     /** @todo  Have to think more about this .... */
     return -1;
 }
@@ -433,6 +439,7 @@ static DECLCALLBACK(int) RTLDRELF_NAME(EnumSymbols)(PRTLDRMODINTERNAL pMod, unsi
                                                     PFNRTLDRENUMSYMS pfnCallback, void *pvUser)
 {
     PRTLDRMODELF pModElf = (PRTLDRMODELF)pMod;
+    NOREF(pvBits);
 
     /*
      * Validate the input.
@@ -507,7 +514,23 @@ static DECLCALLBACK(size_t) RTLDRELF_NAME(GetImageSize)(PRTLDRMODINTERNAL pMod)
 /** @copydoc RTLDROPS::GetBits */
 static DECLCALLBACK(int) RTLDRELF_NAME(GetBits)(PRTLDRMODINTERNAL pMod, void *pvBits, RTUINTPTR BaseAddress, PFNRTLDRIMPORT pfnGetImport, void *pvUser)
 {
-    PRTLDRMODELF pModElf = (PRTLDRMODELF)pMod;
+    PRTLDRMODELF    pModElf = (PRTLDRMODELF)pMod;
+
+    /*
+     * This operation is currently only available on relocatable images.
+     */
+    switch (pModElf->Ehdr.e_type)
+    {
+        case ET_REL:
+            break;
+        case ET_EXEC:
+            Log(("RTLdrELF: %s: Executable images are not supported yet!\n", pModElf->pReader->pfnLogName(pModElf->pReader)));
+            return VERR_LDRELF_EXEC;
+        case ET_DYN:
+            Log(("RTLdrELF: %s: Dynamic images are not supported yet!\n", pModElf->pReader->pfnLogName(pModElf->pReader)));
+            return VERR_LDRELF_DYN;
+        default: AssertFailedReturn(VERR_BAD_EXE_FORMAT);
+    }
 
     /*
      * Load the bits into pvBits.
@@ -549,9 +572,30 @@ static DECLCALLBACK(int) RTLDRELF_NAME(GetBits)(PRTLDRMODINTERNAL pMod, void *pv
 
 
 /** @copydoc RTLDROPS::Relocate */
-static DECLCALLBACK(int) RTLDRELF_NAME(Relocate)(PRTLDRMODINTERNAL pMod, void *pvBits, RTUINTPTR NewBaseAddress, RTUINTPTR OldBaseAddress, PFNRTLDRIMPORT pfnGetImport, void *pvUser)
+static DECLCALLBACK(int) RTLDRELF_NAME(Relocate)(PRTLDRMODINTERNAL pMod, void *pvBits, RTUINTPTR NewBaseAddress,
+                                                 RTUINTPTR OldBaseAddress, PFNRTLDRIMPORT pfnGetImport, void *pvUser)
 {
-    PRTLDRMODELF pModElf = (PRTLDRMODELF)pMod;
+    PRTLDRMODELF    pModElf = (PRTLDRMODELF)pMod;
+#ifdef LOG_ENABLED
+    const char     *pszLogName = pModElf->pReader->pfnLogName(pModElf->pReader);
+#endif
+    NOREF(OldBaseAddress);
+
+    /*
+     * This operation is currently only available on relocatable images.
+     */
+    switch (pModElf->Ehdr.e_type)
+    {
+        case ET_REL:
+            break;
+        case ET_EXEC:
+            Log(("RTLdrELF: %s: Executable images are not supported yet!\n", pszLogName));
+            return VERR_LDRELF_EXEC;
+        case ET_DYN:
+            Log(("RTLdrELF: %s: Dynamic images are not supported yet!\n", pszLogName));
+            return VERR_LDRELF_DYN;
+        default: AssertFailedReturn(VERR_BAD_EXE_FORMAT);
+    }
 
     /*
      * Validate the input.
@@ -572,10 +616,7 @@ static DECLCALLBACK(int) RTLDRELF_NAME(Relocate)(PRTLDRMODINTERNAL pMod, void *p
      * for in the sh_info member.
      */
     const Elf_Shdr *paShdrs = pModElf->paShdrs;
-#ifdef LOG_ENABLED
-    const char     *pszLogName = pModElf->pReader->pfnLogName(pModElf->pReader);
     Log2(("rtLdrElf: %s: Fixing up image\n", pszLogName));
-#endif
     for (unsigned iShdr = 0; iShdr < pModElf->Ehdr.e_shnum; iShdr++)
     {
         const Elf_Shdr *pShdrRel = &paShdrs[iShdr];
@@ -640,7 +681,7 @@ static DECLCALLBACK(int) RTLDRELF_NAME(GetSymbolEx)(PRTLDRMODINTERNAL pMod, cons
      * Calc all kinds of pointers before we start iterating the symbol table.
      */
     const char         *pStr  = pModElf->pStr;
-    const Elf_Sym    *paSyms = pModElf->paSyms;
+    const Elf_Sym     *paSyms = pModElf->paSyms;
     unsigned            cSyms = pModElf->cSyms;
     for (unsigned iSym = 1; iSym < cSyms; iSym++)
     {
@@ -684,6 +725,65 @@ static DECLCALLBACK(int) RTLDRELF_NAME(GetSymbolEx)(PRTLDRMODINTERNAL pMod, cons
 }
 
 
+/** @copydoc RTLDROPS::pfnEnumDbgInfo */
+static DECLCALLBACK(int) RTLDRELF_NAME(EnumDbgInfo)(PRTLDRMODINTERNAL pMod, const void *pvBits,
+                                                    PFNRTLDRENUMDBG pfnCallback, void *pvUser)
+{
+    PRTLDRMODELF pModElf = (PRTLDRMODELF)pMod;
+    NOREF(pvBits);
+
+    return VERR_NOT_IMPLEMENTED; NOREF(pModElf); NOREF(pfnCallback); NOREF(pvUser);
+}
+
+
+/** @copydoc RTLDROPS::pfnEnumSegments. */
+static DECLCALLBACK(int) RTLDRELF_NAME(EnumSegments)(PRTLDRMODINTERNAL pMod, PFNRTLDRENUMSEGS pfnCallback, void *pvUser)
+{
+    PRTLDRMODELF pModElf = (PRTLDRMODELF)pMod;
+
+    return VERR_NOT_IMPLEMENTED; NOREF(pModElf); NOREF(pfnCallback); NOREF(pvUser);
+}
+
+
+/** @copydoc RTLDROPS::pfnLinkAddressToSegOffset. */
+static DECLCALLBACK(int) RTLDRELF_NAME(LinkAddressToSegOffset)(PRTLDRMODINTERNAL pMod, RTLDRADDR LinkAddress,
+                                                               uint32_t *piSeg, PRTLDRADDR poffSeg)
+{
+    PRTLDRMODELF pModElf = (PRTLDRMODELF)pMod;
+
+    return VERR_NOT_IMPLEMENTED; NOREF(pModElf); NOREF(LinkAddress); NOREF(piSeg); NOREF(poffSeg);
+}
+
+
+/** @copydoc RTLDROPS::pfnLinkAddressToRva. */
+static DECLCALLBACK(int) RTLDRELF_NAME(LinkAddressToRva)(PRTLDRMODINTERNAL pMod, RTLDRADDR LinkAddress, PRTLDRADDR pRva)
+{
+    PRTLDRMODELF pModElf = (PRTLDRMODELF)pMod;
+
+    return VERR_NOT_IMPLEMENTED; NOREF(pModElf); NOREF(LinkAddress); NOREF(pRva);
+}
+
+
+/** @copydoc RTLDROPS::pfnSegOffsetToRva. */
+static DECLCALLBACK(int) RTLDRELF_NAME(SegOffsetToRva)(PRTLDRMODINTERNAL pMod, uint32_t iSeg, RTLDRADDR offSeg,
+                                                       PRTLDRADDR pRva)
+{
+    PRTLDRMODELF pModElf = (PRTLDRMODELF)pMod;
+
+    return VERR_NOT_IMPLEMENTED; NOREF(pModElf); NOREF(iSeg); NOREF(offSeg); NOREF(pRva);
+}
+
+
+/** @copydoc RTLDROPS::pfnRvaToSegOffset. */
+static DECLCALLBACK(int) RTLDRELF_NAME(RvaToSegOffset)(PRTLDRMODINTERNAL pMod, RTLDRADDR Rva,
+                                                       uint32_t *piSeg, PRTLDRADDR poffSeg)
+{
+    PRTLDRMODELF pModElf = (PRTLDRMODELF)pMod;
+
+    return VERR_NOT_IMPLEMENTED; NOREF(pModElf); NOREF(Rva); NOREF(piSeg); NOREF(poffSeg);
+}
+
+
 
 /**
  * The ELF module operations.
@@ -704,7 +804,13 @@ static RTLDROPS RTLDRELF_MID(s_rtldrElf,Ops) =
     RTLDRELF_NAME(GetBits),
     RTLDRELF_NAME(Relocate),
     RTLDRELF_NAME(GetSymbolEx),
-    0
+    RTLDRELF_NAME(EnumDbgInfo),
+    RTLDRELF_NAME(EnumSegments),
+    RTLDRELF_NAME(LinkAddressToSegOffset),
+    RTLDRELF_NAME(LinkAddressToRva),
+    RTLDRELF_NAME(SegOffsetToRva),
+    RTLDRELF_NAME(RvaToSegOffset),
+    42
 };
 
 
@@ -717,7 +823,8 @@ static RTLDROPS RTLDRELF_MID(s_rtldrElf,Ops) =
  * @param   pszLogName  The log name.
  * @param   cbRawImage  The size of the raw image.
  */
-static int RTLDRELF_NAME(ValidateElfHeader)(const Elf_Ehdr *pEhdr, const char *pszLogName, uint64_t cbRawImage, PRTLDRARCH penmArch)
+static int RTLDRELF_NAME(ValidateElfHeader)(const Elf_Ehdr *pEhdr, const char *pszLogName, uint64_t cbRawImage,
+                                            PRTLDRARCH penmArch)
 {
     Log3(("RTLdrELF:     e_ident: %.*Rhxs\n"
           "RTLdrELF:      e_type: " FMT_ELF_HALF "\n"
@@ -742,7 +849,7 @@ static int RTLDRELF_NAME(ValidateElfHeader)(const Elf_Ehdr *pEhdr, const char *p
         ||  pEhdr->e_ident[EI_MAG3] != ELFMAG3
        )
     {
-        Log(("RTLdrELF: %s: Invalid ELF magic (%.*Rhxs)\n", pszLogName, sizeof(pEhdr->e_ident), pEhdr->e_ident));
+        Log(("RTLdrELF: %s: Invalid ELF magic (%.*Rhxs)\n", pszLogName, sizeof(pEhdr->e_ident), pEhdr->e_ident)); NOREF(pszLogName);
         return VERR_BAD_EXE_FORMAT;
     }
     if (pEhdr->e_ident[EI_CLASS] != RTLDRELF_SUFF(ELFCLASS))
@@ -785,13 +892,9 @@ static int RTLDRELF_NAME(ValidateElfHeader)(const Elf_Ehdr *pEhdr, const char *p
     switch (pEhdr->e_type)
     {
         case ET_REL:
-            break;
         case ET_EXEC:
-            Log(("RTLdrELF: %s: Executable images are not supported yet!\n", pszLogName));
-            return VERR_LDRELF_EXEC;
         case ET_DYN:
-            Log(("RTLdrELF: %s: Dynamic images are not supported yet!\n", pszLogName));
-            return VERR_LDRELF_DYN;
+            break;
         default:
             Log(("RTLdrELF: %s: image type %#x is not supported!\n", pszLogName, pEhdr->e_type));
             return VERR_BAD_EXE_FORMAT;
@@ -916,7 +1019,7 @@ static int RTLDRELF_NAME(ValidateSectionHeader)(PRTLDRMODELF pModElf, unsigned i
     if (pShdr->sh_link >= pModElf->Ehdr.e_shnum)
     {
         Log(("RTLdrELF: %s: Shdr #%d: sh_link (%d) is beyond the end of the section table (%d)!\n",
-             pszLogName, iShdr, pShdr->sh_link, pModElf->Ehdr.e_shnum));
+             pszLogName, iShdr, pShdr->sh_link, pModElf->Ehdr.e_shnum)); NOREF(pszLogName);
         return VERR_BAD_EXE_FORMAT;
     }
 
@@ -993,6 +1096,7 @@ static int RTLDRELF_NAME(Open)(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH 
 {
     const char *pszLogName = pReader->pfnLogName(pReader);
     RTFOFF      cbRawImage = pReader->pfnSize(pReader);
+    AssertReturn(!fFlags, VERR_INVALID_PARAMETER);
 
     /*
      * Create the loader module instance.
@@ -1086,7 +1190,7 @@ static int RTLDRELF_NAME(Open)(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH 
 
                 Log2(("RTLdrElf: iSymSh=%u cSyms=%u iStrSh=%u cbStr=%u rc=%Rrc cbImage=%#zx\n",
                       pModElf->iSymSh, pModElf->cSyms, pModElf->iStrSh, pModElf->cbStr, rc, pModElf->cbImage));
-
+#if 0
                 /*
                  * Are the section headers fine?
                  * We require there to be symbol & string tables (at least for the time being).
@@ -1094,6 +1198,7 @@ static int RTLDRELF_NAME(Open)(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH 
                 if (    pModElf->iSymSh == ~0U
                     ||  pModElf->iStrSh == ~0U)
                     rc = VERR_LDRELF_NO_SYMBOL_OR_NO_STRING_TABS;
+#endif
                 if (RT_SUCCESS(rc))
                 {
                     pModElf->Core.pOps      = &RTLDRELF_MID(s_rtldrElf,Ops);

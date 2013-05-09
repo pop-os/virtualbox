@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,31 +32,31 @@
 #include <iprt/stdarg.h>
 #include <iprt/err.h> /* for VINF_SUCCESS */
 #if defined(RT_OS_LINUX) && defined(__KERNEL__)
-RT_C_DECLS_BEGIN
+  RT_C_DECLS_BEGIN
 # include <linux/string.h>
-RT_C_DECLS_END
+  RT_C_DECLS_END
 
 #elif defined(IN_XF86_MODULE) && !defined(NO_ANSIC)
-RT_C_DECLS_BEGIN
+  RT_C_DECLS_BEGIN
 # include "xf86_ansic.h"
-RT_C_DECLS_END
+  RT_C_DECLS_END
 
 #elif defined(RT_OS_FREEBSD) && defined(_KERNEL)
-RT_C_DECLS_BEGIN
-/** @todo
- * XXX: Very ugly hack to get things build on recent FreeBSD builds. They have
- * memchr now and we need to include param.h to get __FreeBSD_version and make
- * memchr available based on the version below or we can't compile the kernel
- * module on older versions anymore.
- *
- * But including param.h here opens Pandora's box because we clash with a few
- * defines namely PVM and PAGE_SIZE. We can safely undefine PVM here but not
- * PAGE_SIZE because this results in build errors sooner or later. Luckily this
- * define is in a header included by param.h (machine/param.h). We define the
- * guards here to prevent inclusion of it if PAGE_SIZE was defined already.
- *
- * @todo aeichner: Search for an elegant solution and cleanup this mess ASAP!
- */
+  RT_C_DECLS_BEGIN
+  /** @todo
+   * XXX: Very ugly hack to get things build on recent FreeBSD builds. They have
+   * memchr now and we need to include param.h to get __FreeBSD_version and make
+   * memchr available based on the version below or we can't compile the kernel
+   * module on older versions anymore.
+   *
+   * But including param.h here opens Pandora's box because we clash with a few
+   * defines namely PVM and PAGE_SIZE. We can safely undefine PVM here but not
+   * PAGE_SIZE because this results in build errors sooner or later. Luckily this
+   * define is in a header included by param.h (machine/param.h). We define the
+   * guards here to prevent inclusion of it if PAGE_SIZE was defined already.
+   *
+   * @todo aeichner: Search for an elegant solution and cleanup this mess ASAP!
+   */
 # ifdef PAGE_SIZE
 #  define _AMD64_INCLUDE_PARAM_H_
 #  define _I386_INCLUDE_PARAM_H_
@@ -70,7 +70,7 @@ RT_C_DECLS_BEGIN
    * Defining a macro using bcopy here
    */
 # define memmove(dst, src, size) bcopy(src, dst, size)
-RT_C_DECLS_END
+  RT_C_DECLS_END
 
 #elif defined(RT_OS_SOLARIS) && defined(_KERNEL)
   /*
@@ -703,6 +703,22 @@ RTDECL(bool) RTStrIsValidEncoding(const char *psz);
  * @param   psz         The string to purge.
  */
 RTDECL(size_t) RTStrPurgeEncoding(char *psz);
+
+/**
+ * Sanitise a (valid) UTF-8 string by replacing all characters outside a white
+ * list in-place by an ASCII replacement character.  Multi-byte characters will
+ * be replaced byte by byte.
+ *
+ * @returns The number of code points replaced, or a negative value if the
+ *          string is not correctly encoded.  In this last case the string
+ *          may be partially processed.
+ * @param   psz            The string to sanitise.
+ * @param   puszValidSets  A zero-terminated array of pairs of Unicode points.
+ *                         Each pair is the start and end point of a range,
+ *                         and the union of these ranges forms the white list.
+ * @param   chReplacement  The ASCII replacement character.
+ */
+RTDECL(ssize_t) RTStrPurgeComplementSet(char *psz, PCRTUNICP puszValidSet, char chReplacement);
 
 /**
  * Gets the number of code points the string is made up of, excluding
@@ -1450,13 +1466,10 @@ DECLINLINE(char *) RTLatin1PrevCp(const char *psz)
  *                length restriction (precision).
  *      - \%ls  - Same as \%s except that the input is UTF-16 (output UTF-8).
  *      - \%Ls  - Same as \%s except that the input is UCS-32 (output UTF-8).
- *      - \%S   - R3: Same as \%s except it is printed in the current codeset
- *                instead of UTF-8 (source is still UTF-8).
- *                Other contexts: Same as \%s.
- *      - \%lS  - Same as \%S except that the input is UTF-16 (output current
- *                codeset).
- *      - \%LS  - Same as \%S except that the input is UCS-32 (output current
- *                codeset).
+ *      - \%S   - Same as \%s, used to convert to current codeset but this is
+ *                now done by the streams code.  Deprecated, use \%s.
+ *      - \%lS  - Ditto. Deprecated, use \%ls.
+ *      - \%LS  - Ditto. Deprecated, use \%Ls.
  *      - \%c   - Takes a char and prints it.
  *      - \%d   - Takes a signed integer and prints it as decimal. Thousand
  *                separator (\'), zero padding (0), adjustment (-+), width,
@@ -3044,7 +3057,7 @@ RTDECL(bool) RTStrSpaceInsert(PRTSTRSPACE pStrSpace, PRTSTRSPACECORE pStr);
  *
  * @returns Pointer to the removed string node.
  * @returns NULL if the string was not found in the string space.
- * @param   pStrSpace       The space to insert it into.
+ * @param   pStrSpace       The space to remove it from.
  * @param   pszString       The string to remove.
  */
 RTDECL(PRTSTRSPACECORE) RTStrSpaceRemove(PRTSTRSPACE pStrSpace, const char *pszString);
@@ -3054,7 +3067,7 @@ RTDECL(PRTSTRSPACECORE) RTStrSpaceRemove(PRTSTRSPACE pStrSpace, const char *pszS
  *
  * @returns Pointer to the string node.
  * @returns NULL if the string was not found in the string space.
- * @param   pStrSpace       The space to insert it into.
+ * @param   pStrSpace       The space to get it from.
  * @param   pszString       The string to get.
  */
 RTDECL(PRTSTRSPACECORE) RTStrSpaceGet(PRTSTRSPACE pStrSpace, const char *pszString);
@@ -3064,7 +3077,7 @@ RTDECL(PRTSTRSPACECORE) RTStrSpaceGet(PRTSTRSPACE pStrSpace, const char *pszStri
  *
  * @returns Pointer to the string node.
  * @returns NULL if the string was not found in the string space.
- * @param   pStrSpace       The space to insert it into.
+ * @param   pStrSpace       The space to get it from.
  * @param   pszString       The string to get.
  * @param   cchMax          The max string length to evaluate.  Passing
  *                          RTSTR_MAX is ok and makes it behave just like
@@ -3092,7 +3105,7 @@ typedef FNRTSTRSPACECALLBACK *PFNRTSTRSPACECALLBACK;
  *
  * @returns 0 or what ever non-zero return value pfnCallback returned
  *          when aborting the destruction.
- * @param   pStrSpace       The space to insert it into.
+ * @param   pStrSpace       The space to destroy.
  * @param   pfnCallback     The callback.
  * @param   pvUser          The user argument.
  */
@@ -3105,7 +3118,7 @@ RTDECL(int) RTStrSpaceDestroy(PRTSTRSPACE pStrSpace, PFNRTSTRSPACECALLBACK pfnCa
  *
  * @returns 0 or what ever non-zero return value pfnCallback returned
  *          when aborting the destruction.
- * @param   pStrSpace       The space to insert it into.
+ * @param   pStrSpace       The space to enumerate.
  * @param   pfnCallback     The callback.
  * @param   pvUser          The user argument.
  */
@@ -3305,6 +3318,22 @@ RTDECL(PRTUTF16) RTUtf16ToLower(PRTUTF16 pwsz);
  * @param   pwsz        The string to fold.
  */
 RTDECL(PRTUTF16) RTUtf16ToUpper(PRTUTF16 pwsz);
+
+/**
+ * Sanitise a (valid) UTF-16 string by replacing all characters outside a white
+ * list in-place by an ASCII replacement character.  Multi-byte characters will
+ * be replaced byte by byte.
+ *
+ * @returns The number of code points replaced, or a negative value if the
+ *          string is not correctly encoded.  In this last case the string
+ *          may be partially processed.
+ * @param   pwsz           The string to sanitise.
+ * @param   puszValidSets  A zero-terminated array of pairs of Unicode points.
+ *                         Each pair is the start and end point of a range,
+ *                         and the union of these ranges forms the white list.
+ * @param   chReplacement  The ASCII replacement character.
+ */
+RTDECL(ssize_t) RTUtf16PurgeComplementSet(PRTUTF16 pwsz, PCRTUNICP puszValidSet, char chReplacement);
 
 /**
  * Translate a UTF-16 string into a UTF-8 allocating the result buffer (default

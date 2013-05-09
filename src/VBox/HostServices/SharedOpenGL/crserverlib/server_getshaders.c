@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -254,18 +254,18 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGetUniformiv(GLuint program, GLint
 
 GLuint SERVER_DISPATCH_APIENTRY crServerDispatchCreateShader(GLenum type)
 {
-    GLuint retval;
-    retval = cr_server.head_spu->dispatch_table.CreateShader(type);
-    crStateCreateShader(retval, type);
+    GLuint retval, hwVal;
+    hwVal = cr_server.head_spu->dispatch_table.CreateShader(type);
+    retval = crStateCreateShader(hwVal, type);
     crServerReturnValue(&retval, sizeof(retval));
     return retval; /* ignored */
 }
 
 GLuint SERVER_DISPATCH_APIENTRY crServerDispatchCreateProgram(void)
 {
-    GLuint retval;
-    retval = cr_server.head_spu->dispatch_table.CreateProgram();
-    crStateCreateProgram(retval);
+    GLuint retval, hwVal;
+    hwVal = cr_server.head_spu->dispatch_table.CreateProgram();
+    retval = crStateCreateProgram(hwVal);
     crServerReturnValue(&retval, sizeof(retval));
     return retval; /* ignored */
 }

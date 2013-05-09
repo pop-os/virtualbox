@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -140,7 +140,7 @@ VMMR3DECL(int) CFGMR3Init(PVM pVM, PFNCFGMCONSTRUCTOR pfnCFGMConstructor, void *
  * Terminates the configuration manager.
  *
  * @returns VBox status code.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  */
 VMMR3DECL(int) CFGMR3Term(PVM pVM)
 {
@@ -154,7 +154,7 @@ VMMR3DECL(int) CFGMR3Term(PVM pVM)
  * Gets the root node for the VM.
  *
  * @returns Pointer to root node.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  */
 VMMR3DECL(PCFGMNODE) CFGMR3GetRoot(PVM pVM)
 {
@@ -819,7 +819,7 @@ VMMR3DECL(int) CFGMR3ValidateConfig(PCFGMNODE pNode, const char *pszNode,
  * need to do very small adjustments to the config.
  *
  * @returns VBox status code.
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 VMMR3DECL(int) CFGMR3ConstructDefaultTree(PVM pVM)
 {
@@ -1180,7 +1180,7 @@ static int cfgmR3ResolveLeaf(PCFGMNODE pNode, const char *pszName, PCFGMLEAF *pp
  * correct location.
  *
  * @returns Pointer to the root node.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3DECL(PCFGMNODE) CFGMR3CreateTree(PVM pVM)
 {
@@ -2921,7 +2921,10 @@ VMMR3DECL(int) CFGMR3QueryStringAlloc(PCFGMNODE pNode, const char *pszName, char
  * buffer allocated from the MM heap.
  *
  * @returns VBox status code.
- * @param   pNode           Which node to search for pszName in.
+ * @param   pNode           Which node to search for pszName in.  This cannot be
+ *                          NULL if @a pszDef is not NULL, because we need
+ *                          somewhere way to get to the VM in order to call
+ *                          MMR3HeapStrDup.
  * @param   pszName         Value name. This value must be of zero terminated character string type.
  * @param   ppszString      Where to store the string pointer. Not set on failure.
  *                          Free this using MMR3HeapFree().
@@ -2929,6 +2932,8 @@ VMMR3DECL(int) CFGMR3QueryStringAlloc(PCFGMNODE pNode, const char *pszName, char
  */
 VMMR3DECL(int) CFGMR3QueryStringAllocDef(PCFGMNODE pNode, const char *pszName, char **ppszString, const char *pszDef)
 {
+    Assert(pNode || !pszDef); /* We need pVM if we need to duplicate the string later. */
+
     /*
      * (Don't call CFGMR3QuerySize and CFGMR3QueryStringDef here as the latter
      * cannot handle pszDef being NULL.)
@@ -2973,18 +2978,18 @@ VMMR3DECL(int) CFGMR3QueryStringAllocDef(PCFGMNODE pNode, const char *pszName, c
  */
 VMMR3DECL(void) CFGMR3Dump(PCFGMNODE pRoot)
 {
-    LogRel(("************************* CFGM dump *************************\n"));
     bool fOldBuffered = RTLogRelSetBuffering(true /*fBuffered*/);
+    LogRel(("************************* CFGM dump *************************\n"));
     cfgmR3Dump(pRoot, 0, DBGFR3InfoLogRelHlp());
-    RTLogRelSetBuffering(fOldBuffered);
     LogRel(("********************* End of CFGM dump **********************\n"));
+    RTLogRelSetBuffering(fOldBuffered);
 }
 
 
 /**
  * Info handler, internal version.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pHlp        Callback functions for doing output.
  * @param   pszArgs     Argument string. Optional and specific to the handler.
  */

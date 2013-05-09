@@ -1,10 +1,10 @@
-/* $Revision: 73339 $ */
+/* $Id: SUPDrv.c $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Common code.
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -62,14 +62,13 @@
 #include <VBox/vmm/hwacc_svm.h>
 #include <VBox/vmm/hwacc_vmx.h>
 
-#ifdef VBOX_WITH_DTRACE
-# include "SUPDrv-dtrace.h"
+#if defined(RT_OS_SOLARIS) || defined(RT_OS_DARWIN)
+# include "dtrace/SUPDrv.h"
 #else
-# define VBOXDRV_SUPDRV_SESSION_CREATE(pvSession, fUser) do { } while (0)
-# define VBOXDRV_SUPDRV_SESSION_CLOSE(pvSession) do { } while (0)
-# define VBOXDRV_SUPDRV_IOCCLOSE(pvSession) do { } while (0)
-# define VBOXDRV_SUPDRV_IOCTL_ENTRY(pvSession, uIOCtl, pvReqHdr) do { } while (0)
-# define VBOXDRV_SUPDRV_IOCTL_RETURN(pvSession, uIOCtl, pvReqHdr, rcRet, rcReq) do { } while (0)
+# define VBOXDRV_SESSION_CREATE(pvSession, fUser) do { } while (0)
+# define VBOXDRV_SESSION_CLOSE(pvSession) do { } while (0)
+# define VBOXDRV_IOCTL_ENTRY(pvSession, uIOCtl, pvReqHdr) do { } while (0)
+# define VBOXDRV_IOCTL_RETURN(pvSession, uIOCtl, pvReqHdr, rcRet, rcReq) do { } while (0)
 #endif
 
 /*
@@ -134,9 +133,10 @@ static void                 supdrvGipInit(PSUPDRVDEVEXT pDevExt, PSUPGLOBALINFOP
                                           uint64_t u64NanoTS, unsigned uUpdateHz, unsigned cCpus);
 static DECLCALLBACK(void)   supdrvGipInitOnCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2);
 static void                 supdrvGipTerm(PSUPGLOBALINFOPAGE pGip);
-static void                 supdrvGipUpdate(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, uint64_t u64TSC, RTCPUID idCpu, uint64_t iTick);
-static void                 supdrvGipUpdatePerCpu(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, uint64_t u64TSC,
+static void                 supdrvGipUpdate(PSUPDRVDEVEXT pDevExt, uint64_t u64NanoTS, uint64_t u64TSC, RTCPUID idCpu, uint64_t iTick);
+static void                 supdrvGipUpdatePerCpu(PSUPDRVDEVEXT pDevExt, uint64_t u64NanoTS, uint64_t u64TSC,
                                                   RTCPUID idCpu, uint8_t idApic, uint64_t iTick);
+static void                 supdrvGipInitCpu(PSUPGLOBALINFOPAGE pGip, PSUPGIPCPU pCpu, uint64_t u64NanoTS);
 
 
 /*******************************************************************************
@@ -149,6 +149,7 @@ DECLEXPORT(PSUPGLOBALINFOPAGE) g_pSUPGlobalInfoPage = NULL;
  */
 static SUPFUNC g_aFunctions[] =
 {
+/* SED: START */
     /* name                                     function */
         /* Entries with absolute addresses determined at runtime, fixup
            code makes ugly ASSUMPTIONS about the order here: */
@@ -163,200 +164,107 @@ static SUPFUNC g_aFunctions[] =
     { "SUPR0AbsKernelFS",                       (void *)0 },
     { "SUPR0AbsKernelGS",                       (void *)0 },
         /* Normal function pointers: */
-    { "SUPR0ComponentRegisterFactory",          (void *)SUPR0ComponentRegisterFactory },
+    { "g_pSUPGlobalInfoPage",                   (void *)&g_pSUPGlobalInfoPage },            /* SED: DATA */
+    { "SUPGetGIP",                              (void *)SUPGetGIP },
     { "SUPR0ComponentDeregisterFactory",        (void *)SUPR0ComponentDeregisterFactory },
     { "SUPR0ComponentQueryFactory",             (void *)SUPR0ComponentQueryFactory },
-    { "SUPR0ObjRegister",                       (void *)SUPR0ObjRegister },
-    { "SUPR0ObjAddRef",                         (void *)SUPR0ObjAddRef },
-    { "SUPR0ObjAddRefEx",                       (void *)SUPR0ObjAddRefEx },
-    { "SUPR0ObjRelease",                        (void *)SUPR0ObjRelease },
-    { "SUPR0ObjVerifyAccess",                   (void *)SUPR0ObjVerifyAccess },
-    { "SUPR0LockMem",                           (void *)SUPR0LockMem },
-    { "SUPR0UnlockMem",                         (void *)SUPR0UnlockMem },
+    { "SUPR0ComponentRegisterFactory",          (void *)SUPR0ComponentRegisterFactory },
     { "SUPR0ContAlloc",                         (void *)SUPR0ContAlloc },
     { "SUPR0ContFree",                          (void *)SUPR0ContFree },
+    { "SUPR0EnableVTx",                         (void *)SUPR0EnableVTx },
+    { "SUPR0GetPagingMode",                     (void *)SUPR0GetPagingMode },
+    { "SUPR0LockMem",                           (void *)SUPR0LockMem },
     { "SUPR0LowAlloc",                          (void *)SUPR0LowAlloc },
     { "SUPR0LowFree",                           (void *)SUPR0LowFree },
     { "SUPR0MemAlloc",                          (void *)SUPR0MemAlloc },
-    { "SUPR0MemGetPhys",                        (void *)SUPR0MemGetPhys },
     { "SUPR0MemFree",                           (void *)SUPR0MemFree },
+    { "SUPR0MemGetPhys",                        (void *)SUPR0MemGetPhys },
+    { "SUPR0ObjAddRef",                         (void *)SUPR0ObjAddRef },
+    { "SUPR0ObjAddRefEx",                       (void *)SUPR0ObjAddRefEx },
+    { "SUPR0ObjRegister",                       (void *)SUPR0ObjRegister },
+    { "SUPR0ObjRelease",                        (void *)SUPR0ObjRelease },
+    { "SUPR0ObjVerifyAccess",                   (void *)SUPR0ObjVerifyAccess },
     { "SUPR0PageAllocEx",                       (void *)SUPR0PageAllocEx },
     { "SUPR0PageFree",                          (void *)SUPR0PageFree },
-    { "SUPR0Printf",                            (void *)SUPR0Printf }, /** @todo needs wrapping? */
-    { "SUPSemEventCreate",                      (void *)SUPSemEventCreate },
+    { "SUPR0Printf",                            (void *)SUPR0Printf },
+    { "SUPR0TracerDeregisterDrv",               (void *)SUPR0TracerDeregisterDrv },
+    { "SUPR0TracerDeregisterImpl",              (void *)SUPR0TracerDeregisterImpl },
+    { "SUPR0TracerFireProbe",                   (void *)SUPR0TracerFireProbe },
+    { "SUPR0TracerRegisterDrv",                 (void *)SUPR0TracerRegisterDrv },
+    { "SUPR0TracerRegisterImpl",                (void *)SUPR0TracerRegisterImpl },
+    { "SUPR0TracerRegisterModule",              (void *)SUPR0TracerRegisterModule },
+    { "SUPR0TracerUmodProbeFire",               (void *)SUPR0TracerUmodProbeFire },
+    { "SUPR0UnlockMem",                         (void *)SUPR0UnlockMem },
     { "SUPSemEventClose",                       (void *)SUPSemEventClose },
+    { "SUPSemEventCreate",                      (void *)SUPSemEventCreate },
+    { "SUPSemEventGetResolution",               (void *)SUPSemEventGetResolution },
+    { "SUPSemEventMultiClose",                  (void *)SUPSemEventMultiClose },
+    { "SUPSemEventMultiCreate",                 (void *)SUPSemEventMultiCreate },
+    { "SUPSemEventMultiGetResolution",          (void *)SUPSemEventMultiGetResolution },
+    { "SUPSemEventMultiReset",                  (void *)SUPSemEventMultiReset },
+    { "SUPSemEventMultiSignal",                 (void *)SUPSemEventMultiSignal },
+    { "SUPSemEventMultiWait",                   (void *)SUPSemEventMultiWait },
+    { "SUPSemEventMultiWaitNoResume",           (void *)SUPSemEventMultiWaitNoResume },
+    { "SUPSemEventMultiWaitNsAbsIntr",          (void *)SUPSemEventMultiWaitNsAbsIntr },
+    { "SUPSemEventMultiWaitNsRelIntr",          (void *)SUPSemEventMultiWaitNsRelIntr },
     { "SUPSemEventSignal",                      (void *)SUPSemEventSignal },
     { "SUPSemEventWait",                        (void *)SUPSemEventWait },
     { "SUPSemEventWaitNoResume",                (void *)SUPSemEventWaitNoResume },
     { "SUPSemEventWaitNsAbsIntr",               (void *)SUPSemEventWaitNsAbsIntr },
     { "SUPSemEventWaitNsRelIntr",               (void *)SUPSemEventWaitNsRelIntr },
-    { "SUPSemEventGetResolution",               (void *)SUPSemEventGetResolution },
-    { "SUPSemEventMultiCreate",                 (void *)SUPSemEventMultiCreate },
-    { "SUPSemEventMultiClose",                  (void *)SUPSemEventMultiClose },
-    { "SUPSemEventMultiSignal",                 (void *)SUPSemEventMultiSignal },
-    { "SUPSemEventMultiReset",                  (void *)SUPSemEventMultiReset },
-    { "SUPSemEventMultiWait",                   (void *)SUPSemEventMultiWait },
-    { "SUPSemEventMultiWaitNoResume",           (void *)SUPSemEventMultiWaitNoResume },
-    { "SUPSemEventMultiWaitNsAbsIntr",          (void *)SUPSemEventMultiWaitNsAbsIntr },
-    { "SUPSemEventMultiWaitNsRelIntr",          (void *)SUPSemEventMultiWaitNsRelIntr },
-    { "SUPSemEventMultiGetResolution",          (void *)SUPSemEventMultiGetResolution },
-    { "SUPR0GetPagingMode",                     (void *)SUPR0GetPagingMode },
-    { "SUPR0EnableVTx",                         (void *)SUPR0EnableVTx },
-    { "SUPGetGIP",                              (void *)SUPGetGIP },
-    { "g_pSUPGlobalInfoPage",                   (void *)&g_pSUPGlobalInfoPage },
-    { "RTMemAllocTag",                          (void *)RTMemAllocTag },
-    { "RTMemAllocZTag",                         (void *)RTMemAllocZTag },
-    { "RTMemAllocVarTag",                       (void *)RTMemAllocVarTag },
-    { "RTMemAllocZVarTag",                      (void *)RTMemAllocZVarTag },
-    { "RTMemFree",                              (void *)RTMemFree },
-    { "RTMemDupTag",                            (void *)RTMemDupTag },
-    { "RTMemDupExTag",                          (void *)RTMemDupExTag },
-    { "RTMemReallocTag",                        (void *)RTMemReallocTag },
-    { "RTR0MemObjAllocLowTag",                  (void *)RTR0MemObjAllocLowTag },
-    { "RTR0MemObjAllocPageTag",                 (void *)RTR0MemObjAllocPageTag },
-    { "RTR0MemObjAllocPhysTag",                 (void *)RTR0MemObjAllocPhysTag },
-    { "RTR0MemObjAllocPhysExTag",               (void *)RTR0MemObjAllocPhysExTag },
-    { "RTR0MemObjAllocPhysNCTag",               (void *)RTR0MemObjAllocPhysNCTag },
-    { "RTR0MemObjAllocContTag",                 (void *)RTR0MemObjAllocContTag },
-    { "RTR0MemObjEnterPhysTag",                 (void *)RTR0MemObjEnterPhysTag },
-    { "RTR0MemObjLockUserTag",                  (void *)RTR0MemObjLockUserTag },
-    { "RTR0MemObjMapKernelTag",                 (void *)RTR0MemObjMapKernelTag },
-    { "RTR0MemObjMapKernelExTag",               (void *)RTR0MemObjMapKernelExTag },
-    { "RTR0MemObjMapUserTag",                   (void *)RTR0MemObjMapUserTag },
-    { "RTR0MemObjProtect",                      (void *)RTR0MemObjProtect },
-    { "RTR0MemObjAddress",                      (void *)RTR0MemObjAddress },
-    { "RTR0MemObjAddressR3",                    (void *)RTR0MemObjAddressR3 },
-    { "RTR0MemObjSize",                         (void *)RTR0MemObjSize },
-    { "RTR0MemObjIsMapping",                    (void *)RTR0MemObjIsMapping },
-    { "RTR0MemObjGetPagePhysAddr",              (void *)RTR0MemObjGetPagePhysAddr },
-    { "RTR0MemObjFree",                         (void *)RTR0MemObjFree },
-    { "RTR0MemUserCopyFrom",                    (void *)RTR0MemUserCopyFrom },
-    { "RTR0MemUserCopyTo",                      (void *)RTR0MemUserCopyTo },
-    { "RTR0MemUserIsValidAddr",                 (void *)RTR0MemUserIsValidAddr },
-    { "RTR0MemKernelIsValidAddr",               (void *)RTR0MemKernelIsValidAddr },
-    { "RTR0MemAreKrnlAndUsrDifferent",          (void *)RTR0MemAreKrnlAndUsrDifferent },
-    { "RTSemMutexCreate",                       (void *)RTSemMutexCreate },
-    { "RTSemMutexRequest",                      (void *)RTSemMutexRequest },
-    { "RTSemMutexRequestDebug",                 (void *)RTSemMutexRequestDebug },
-    { "RTSemMutexRequestNoResume",              (void *)RTSemMutexRequestNoResume },
-    { "RTSemMutexRequestNoResumeDebug",         (void *)RTSemMutexRequestNoResumeDebug },
-    { "RTSemMutexRelease",                      (void *)RTSemMutexRelease },
-    { "RTSemMutexDestroy",                      (void *)RTSemMutexDestroy },
-    { "RTProcSelf",                             (void *)RTProcSelf },
-    { "RTR0ProcHandleSelf",                     (void *)RTR0ProcHandleSelf },
-    { "RTSemFastMutexCreate",                   (void *)RTSemFastMutexCreate },
-    { "RTSemFastMutexDestroy",                  (void *)RTSemFastMutexDestroy },
-    { "RTSemFastMutexRequest",                  (void *)RTSemFastMutexRequest },
-    { "RTSemFastMutexRelease",                  (void *)RTSemFastMutexRelease },
-    { "RTSemEventCreate",                       (void *)RTSemEventCreate },
-    { "RTSemEventSignal",                       (void *)RTSemEventSignal },
-    { "RTSemEventWait",                         (void *)RTSemEventWait },
-    { "RTSemEventWaitNoResume",                 (void *)RTSemEventWaitNoResume },
-    { "RTSemEventWaitEx",                       (void *)RTSemEventWaitEx },
-    { "RTSemEventWaitExDebug",                  (void *)RTSemEventWaitExDebug },
-    { "RTSemEventGetResolution",                (void *)RTSemEventGetResolution },
-    { "RTSemEventDestroy",                      (void *)RTSemEventDestroy },
-    { "RTSemEventMultiCreate",                  (void *)RTSemEventMultiCreate },
-    { "RTSemEventMultiSignal",                  (void *)RTSemEventMultiSignal },
-    { "RTSemEventMultiReset",                   (void *)RTSemEventMultiReset },
-    { "RTSemEventMultiWait",                    (void *)RTSemEventMultiWait },
-    { "RTSemEventMultiWaitNoResume",            (void *)RTSemEventMultiWaitNoResume },
-    { "RTSemEventMultiWaitEx",                  (void *)RTSemEventMultiWaitEx },
-    { "RTSemEventMultiWaitExDebug",             (void *)RTSemEventMultiWaitExDebug },
-    { "RTSemEventMultiGetResolution",           (void *)RTSemEventMultiGetResolution },
-    { "RTSemEventMultiDestroy",                 (void *)RTSemEventMultiDestroy },
-    { "RTSpinlockCreate",                       (void *)RTSpinlockCreate },
-    { "RTSpinlockDestroy",                      (void *)RTSpinlockDestroy },
-    { "RTSpinlockAcquire",                      (void *)RTSpinlockAcquire },
-    { "RTSpinlockRelease",                      (void *)RTSpinlockRelease },
-    { "RTSpinlockAcquireNoInts",                (void *)RTSpinlockAcquireNoInts },
-    { "RTSpinlockReleaseNoInts",                (void *)RTSpinlockReleaseNoInts },
-    { "RTTimeNanoTS",                           (void *)RTTimeNanoTS },
-    { "RTTimeMilliTS",                          (void *)RTTimeMilliTS },
-    { "RTTimeSystemNanoTS",                     (void *)RTTimeSystemNanoTS },
-    { "RTTimeSystemMilliTS",                    (void *)RTTimeSystemMilliTS },
-    { "RTThreadNativeSelf",                     (void *)RTThreadNativeSelf },
-    { "RTThreadSleep",                          (void *)RTThreadSleep },
-    { "RTThreadYield",                          (void *)RTThreadYield },
-    { "RTThreadSelf",                           (void *)RTThreadSelf },
-    { "RTThreadCreate",                         (void *)RTThreadCreate },
-    { "RTThreadGetNative",                      (void *)RTThreadGetNative },
-    { "RTThreadWait",                           (void *)RTThreadWait },
-    { "RTThreadWaitNoResume",                   (void *)RTThreadWaitNoResume },
-    { "RTThreadGetName",                        (void *)RTThreadGetName },
-    { "RTThreadSelfName",                       (void *)RTThreadSelfName },
-    { "RTThreadGetType",                        (void *)RTThreadGetType },
-    { "RTThreadUserSignal",                     (void *)RTThreadUserSignal },
-    { "RTThreadUserReset",                      (void *)RTThreadUserReset },
-    { "RTThreadUserWait",                       (void *)RTThreadUserWait },
-    { "RTThreadUserWaitNoResume",               (void *)RTThreadUserWaitNoResume },
-    { "RTThreadPreemptIsEnabled",               (void *)RTThreadPreemptIsEnabled },
-    { "RTThreadPreemptIsPending",               (void *)RTThreadPreemptIsPending },
-    { "RTThreadPreemptIsPendingTrusty",         (void *)RTThreadPreemptIsPendingTrusty },
-    { "RTThreadPreemptIsPossible",              (void *)RTThreadPreemptIsPossible },
-    { "RTThreadPreemptDisable",                 (void *)RTThreadPreemptDisable },
-    { "RTThreadPreemptRestore",                 (void *)RTThreadPreemptRestore },
-    { "RTThreadIsInInterrupt",                  (void *)RTThreadIsInInterrupt },
-    { "RTTimerCreate",                          (void *)RTTimerCreate },
-    { "RTTimerCreateEx",                        (void *)RTTimerCreateEx },
-    { "RTTimerDestroy",                         (void *)RTTimerDestroy },
-    { "RTTimerStart",                           (void *)RTTimerStart },
-    { "RTTimerStop",                            (void *)RTTimerStop },
-    { "RTTimerChangeInterval",                  (void *)RTTimerChangeInterval },
-    { "RTTimerGetSystemGranularity",            (void *)RTTimerGetSystemGranularity },
-    { "RTTimerRequestSystemGranularity",        (void *)RTTimerRequestSystemGranularity },
-    { "RTTimerReleaseSystemGranularity",        (void *)RTTimerReleaseSystemGranularity },
-    { "RTTimerCanDoHighResolution",             (void *)RTTimerCanDoHighResolution },
 
-    { "RTLogDefaultInstance",                   (void *)RTLogDefaultInstance },
-    { "RTMpCpuId",                              (void *)RTMpCpuId },
-    { "RTMpCpuIdFromSetIndex",                  (void *)RTMpCpuIdFromSetIndex },
-    { "RTMpCpuIdToSetIndex",                    (void *)RTMpCpuIdToSetIndex },
-    { "RTMpGetArraySize",                       (void *)RTMpGetArraySize },
-    { "RTMpIsCpuPossible",                      (void *)RTMpIsCpuPossible },
-    { "RTMpGetCount",                           (void *)RTMpGetCount },
-    { "RTMpGetMaxCpuId",                        (void *)RTMpGetMaxCpuId },
-    { "RTMpGetOnlineCount",                     (void *)RTMpGetOnlineCount },
-    { "RTMpGetOnlineSet",                       (void *)RTMpGetOnlineSet },
-    { "RTMpGetSet",                             (void *)RTMpGetSet },
-    { "RTMpIsCpuOnline",                        (void *)RTMpIsCpuOnline },
-    { "RTMpIsCpuWorkPending",                   (void *)RTMpIsCpuWorkPending },
-    { "RTMpNotificationRegister",               (void *)RTMpNotificationRegister },
-    { "RTMpNotificationDeregister",             (void *)RTMpNotificationDeregister },
-    { "RTMpOnAll",                              (void *)RTMpOnAll },
-    { "RTMpOnOthers",                           (void *)RTMpOnOthers },
-    { "RTMpOnSpecific",                         (void *)RTMpOnSpecific },
-    { "RTMpPokeCpu",                            (void *)RTMpPokeCpu },
-    { "RTPowerNotificationRegister",            (void *)RTPowerNotificationRegister },
-    { "RTPowerNotificationDeregister",          (void *)RTPowerNotificationDeregister },
-    { "RTLogRelDefaultInstance",                (void *)RTLogRelDefaultInstance },
-    { "RTLogSetDefaultInstanceThread",          (void *)RTLogSetDefaultInstanceThread },
-    { "RTLogLoggerExV",                         (void *)RTLogLoggerExV },
-    { "RTLogPrintfV",                           (void *)RTLogPrintfV },
-    { "RTR0AssertPanicSystem",                  (void *)RTR0AssertPanicSystem },
-    { "RTAssertMsg1",                           (void *)RTAssertMsg1 },
-    { "RTAssertMsg2V",                          (void *)RTAssertMsg2V },
-    { "RTAssertMsg2AddV",                       (void *)RTAssertMsg2AddV },
-    { "RTAssertSetQuiet",                       (void *)RTAssertSetQuiet },
-    { "RTAssertMayPanic",                       (void *)RTAssertMayPanic },
-    { "RTAssertSetMayPanic",                    (void *)RTAssertSetMayPanic },
     { "RTAssertAreQuiet",                       (void *)RTAssertAreQuiet },
-    { "RTStrFormat",                            (void *)RTStrFormat },
-    { "RTStrFormatNumber",                      (void *)RTStrFormatNumber },
-    { "RTStrFormatTypeDeregister",              (void *)RTStrFormatTypeDeregister },
-    { "RTStrFormatTypeRegister",                (void *)RTStrFormatTypeRegister },
-    { "RTStrFormatTypeSetUser",                 (void *)RTStrFormatTypeSetUser },
-    { "RTStrFormatV",                           (void *)RTStrFormatV },
-    { "RTStrPrintf",                            (void *)RTStrPrintf },
-    { "RTStrPrintfEx",                          (void *)RTStrPrintfEx },
-    { "RTStrPrintfExV",                         (void *)RTStrPrintfExV },
-    { "RTStrPrintfV",                           (void *)RTStrPrintfV },
+    { "RTAssertMayPanic",                       (void *)RTAssertMayPanic },
+    { "RTAssertMsg1",                           (void *)RTAssertMsg1 },
+    { "RTAssertMsg2AddV",                       (void *)RTAssertMsg2AddV },
+    { "RTAssertMsg2V",                          (void *)RTAssertMsg2V },
+    { "RTAssertSetMayPanic",                    (void *)RTAssertSetMayPanic },
+    { "RTAssertSetQuiet",                       (void *)RTAssertSetQuiet },
+    { "RTCrc32",                                (void *)RTCrc32 },
+    { "RTCrc32Finish",                          (void *)RTCrc32Finish },
+    { "RTCrc32Process",                         (void *)RTCrc32Process },
+    { "RTCrc32Start",                           (void *)RTCrc32Start },
+    { "RTErrConvertFromErrno",                  (void *)RTErrConvertFromErrno },
+    { "RTErrConvertToErrno",                    (void *)RTErrConvertToErrno },
     { "RTHandleTableAllocWithCtx",              (void *)RTHandleTableAllocWithCtx },
     { "RTHandleTableCreate",                    (void *)RTHandleTableCreate },
     { "RTHandleTableCreateEx",                  (void *)RTHandleTableCreateEx },
     { "RTHandleTableDestroy",                   (void *)RTHandleTableDestroy },
     { "RTHandleTableFreeWithCtx",               (void *)RTHandleTableFreeWithCtx },
     { "RTHandleTableLookupWithCtx",             (void *)RTHandleTableLookupWithCtx },
+    { "RTLogDefaultInstance",                   (void *)RTLogDefaultInstance },
+    { "RTLogLoggerExV",                         (void *)RTLogLoggerExV },
+    { "RTLogPrintfV",                           (void *)RTLogPrintfV },
+    { "RTLogRelDefaultInstance",                (void *)RTLogRelDefaultInstance },
+    { "RTLogSetDefaultInstanceThread",          (void *)RTLogSetDefaultInstanceThread },
+    { "RTMemAllocExTag",                        (void *)RTMemAllocExTag },
+    { "RTMemAllocTag",                          (void *)RTMemAllocTag },
+    { "RTMemAllocVarTag",                       (void *)RTMemAllocVarTag },
+    { "RTMemAllocZTag",                         (void *)RTMemAllocZTag },
+    { "RTMemAllocZVarTag",                      (void *)RTMemAllocZVarTag },
+    { "RTMemDupExTag",                          (void *)RTMemDupExTag },
+    { "RTMemDupTag",                            (void *)RTMemDupTag },
+    { "RTMemFree",                              (void *)RTMemFree },
+    { "RTMemFreeEx",                            (void *)RTMemFreeEx },
+    { "RTMemReallocTag",                        (void *)RTMemReallocTag },
+    { "RTMpCpuId",                              (void *)RTMpCpuId },
+    { "RTMpCpuIdFromSetIndex",                  (void *)RTMpCpuIdFromSetIndex },
+    { "RTMpCpuIdToSetIndex",                    (void *)RTMpCpuIdToSetIndex },
+    { "RTMpGetArraySize",                       (void *)RTMpGetArraySize },
+    { "RTMpGetCount",                           (void *)RTMpGetCount },
+    { "RTMpGetMaxCpuId",                        (void *)RTMpGetMaxCpuId },
+    { "RTMpGetOnlineCount",                     (void *)RTMpGetOnlineCount },
+    { "RTMpGetOnlineSet",                       (void *)RTMpGetOnlineSet },
+    { "RTMpGetSet",                             (void *)RTMpGetSet },
+    { "RTMpIsCpuOnline",                        (void *)RTMpIsCpuOnline },
+    { "RTMpIsCpuPossible",                      (void *)RTMpIsCpuPossible },
+    { "RTMpIsCpuWorkPending",                   (void *)RTMpIsCpuWorkPending },
+    { "RTMpNotificationDeregister",             (void *)RTMpNotificationDeregister },
+    { "RTMpNotificationRegister",               (void *)RTMpNotificationRegister },
+    { "RTMpOnAll",                              (void *)RTMpOnAll },
+    { "RTMpOnOthers",                           (void *)RTMpOnOthers },
+    { "RTMpOnSpecific",                         (void *)RTMpOnSpecific },
+    { "RTMpPokeCpu",                            (void *)RTMpPokeCpu },
     { "RTNetIPv4AddDataChecksum",               (void *)RTNetIPv4AddDataChecksum },
     { "RTNetIPv4AddTCPChecksum",                (void *)RTNetIPv4AddTCPChecksum },
     { "RTNetIPv4AddUDPChecksum",                (void *)RTNetIPv4AddUDPChecksum },
@@ -377,10 +285,124 @@ static SUPFUNC g_aFunctions[] =
     { "RTNetIPv6PseudoChecksumEx",              (void *)RTNetIPv6PseudoChecksumEx },
     { "RTNetTCPChecksum",                       (void *)RTNetTCPChecksum },
     { "RTNetUDPChecksum",                       (void *)RTNetUDPChecksum },
-    { "RTCrc32",                                (void *)RTCrc32 },
-    { "RTCrc32Finish",                          (void *)RTCrc32Finish },
-    { "RTCrc32Process",                         (void *)RTCrc32Process },
-    { "RTCrc32Start",                           (void *)RTCrc32Start },
+    { "RTPowerNotificationDeregister",          (void *)RTPowerNotificationDeregister },
+    { "RTPowerNotificationRegister",            (void *)RTPowerNotificationRegister },
+    { "RTProcSelf",                             (void *)RTProcSelf },
+    { "RTR0AssertPanicSystem",                  (void *)RTR0AssertPanicSystem },
+    { "RTR0MemAreKrnlAndUsrDifferent",          (void *)RTR0MemAreKrnlAndUsrDifferent },
+    { "RTR0MemKernelIsValidAddr",               (void *)RTR0MemKernelIsValidAddr },
+    { "RTR0MemKernelCopyFrom",                  (void *)RTR0MemKernelCopyFrom },
+    { "RTR0MemKernelCopyTo",                    (void *)RTR0MemKernelCopyTo },
+    { "RTR0MemObjAddress",                      (void *)RTR0MemObjAddress },
+    { "RTR0MemObjAddressR3",                    (void *)RTR0MemObjAddressR3 },
+    { "RTR0MemObjAllocContTag",                 (void *)RTR0MemObjAllocContTag },
+    { "RTR0MemObjAllocLowTag",                  (void *)RTR0MemObjAllocLowTag },
+    { "RTR0MemObjAllocPageTag",                 (void *)RTR0MemObjAllocPageTag },
+    { "RTR0MemObjAllocPhysExTag",               (void *)RTR0MemObjAllocPhysExTag },
+    { "RTR0MemObjAllocPhysNCTag",               (void *)RTR0MemObjAllocPhysNCTag },
+    { "RTR0MemObjAllocPhysTag",                 (void *)RTR0MemObjAllocPhysTag },
+    { "RTR0MemObjEnterPhysTag",                 (void *)RTR0MemObjEnterPhysTag },
+    { "RTR0MemObjFree",                         (void *)RTR0MemObjFree },
+    { "RTR0MemObjGetPagePhysAddr",              (void *)RTR0MemObjGetPagePhysAddr },
+    { "RTR0MemObjIsMapping",                    (void *)RTR0MemObjIsMapping },
+    { "RTR0MemObjLockUserTag",                  (void *)RTR0MemObjLockUserTag },
+    { "RTR0MemObjMapKernelExTag",               (void *)RTR0MemObjMapKernelExTag },
+    { "RTR0MemObjMapKernelTag",                 (void *)RTR0MemObjMapKernelTag },
+    { "RTR0MemObjMapUserTag",                   (void *)RTR0MemObjMapUserTag },
+    { "RTR0MemObjProtect",                      (void *)RTR0MemObjProtect },
+    { "RTR0MemObjSize",                         (void *)RTR0MemObjSize },
+    { "RTR0MemUserCopyFrom",                    (void *)RTR0MemUserCopyFrom },
+    { "RTR0MemUserCopyTo",                      (void *)RTR0MemUserCopyTo },
+    { "RTR0MemUserIsValidAddr",                 (void *)RTR0MemUserIsValidAddr },
+    { "RTR0ProcHandleSelf",                     (void *)RTR0ProcHandleSelf },
+    { "RTSemEventCreate",                       (void *)RTSemEventCreate },
+    { "RTSemEventDestroy",                      (void *)RTSemEventDestroy },
+    { "RTSemEventGetResolution",                (void *)RTSemEventGetResolution },
+    { "RTSemEventMultiCreate",                  (void *)RTSemEventMultiCreate },
+    { "RTSemEventMultiDestroy",                 (void *)RTSemEventMultiDestroy },
+    { "RTSemEventMultiGetResolution",           (void *)RTSemEventMultiGetResolution },
+    { "RTSemEventMultiReset",                   (void *)RTSemEventMultiReset },
+    { "RTSemEventMultiSignal",                  (void *)RTSemEventMultiSignal },
+    { "RTSemEventMultiWait",                    (void *)RTSemEventMultiWait },
+    { "RTSemEventMultiWaitEx",                  (void *)RTSemEventMultiWaitEx },
+    { "RTSemEventMultiWaitExDebug",             (void *)RTSemEventMultiWaitExDebug },
+    { "RTSemEventMultiWaitNoResume",            (void *)RTSemEventMultiWaitNoResume },
+    { "RTSemEventSignal",                       (void *)RTSemEventSignal },
+    { "RTSemEventWait",                         (void *)RTSemEventWait },
+    { "RTSemEventWaitEx",                       (void *)RTSemEventWaitEx },
+    { "RTSemEventWaitExDebug",                  (void *)RTSemEventWaitExDebug },
+    { "RTSemEventWaitNoResume",                 (void *)RTSemEventWaitNoResume },
+    { "RTSemFastMutexCreate",                   (void *)RTSemFastMutexCreate },
+    { "RTSemFastMutexDestroy",                  (void *)RTSemFastMutexDestroy },
+    { "RTSemFastMutexRelease",                  (void *)RTSemFastMutexRelease },
+    { "RTSemFastMutexRequest",                  (void *)RTSemFastMutexRequest },
+    { "RTSemMutexCreate",                       (void *)RTSemMutexCreate },
+    { "RTSemMutexDestroy",                      (void *)RTSemMutexDestroy },
+    { "RTSemMutexRelease",                      (void *)RTSemMutexRelease },
+    { "RTSemMutexRequest",                      (void *)RTSemMutexRequest },
+    { "RTSemMutexRequestDebug",                 (void *)RTSemMutexRequestDebug },
+    { "RTSemMutexRequestNoResume",              (void *)RTSemMutexRequestNoResume },
+    { "RTSemMutexRequestNoResumeDebug",         (void *)RTSemMutexRequestNoResumeDebug },
+    { "RTSpinlockAcquire",                      (void *)RTSpinlockAcquire },
+    { "RTSpinlockCreate",                       (void *)RTSpinlockCreate },
+    { "RTSpinlockDestroy",                      (void *)RTSpinlockDestroy },
+    { "RTSpinlockRelease",                      (void *)RTSpinlockRelease },
+    { "RTSpinlockReleaseNoInts",                (void *)RTSpinlockReleaseNoInts },
+    { "RTStrCopy",                              (void *)RTStrCopy },
+    { "RTStrDupTag",                            (void *)RTStrDupTag },
+    { "RTStrFormat",                            (void *)RTStrFormat },
+    { "RTStrFormatNumber",                      (void *)RTStrFormatNumber },
+    { "RTStrFormatTypeDeregister",              (void *)RTStrFormatTypeDeregister },
+    { "RTStrFormatTypeRegister",                (void *)RTStrFormatTypeRegister },
+    { "RTStrFormatTypeSetUser",                 (void *)RTStrFormatTypeSetUser },
+    { "RTStrFormatV",                           (void *)RTStrFormatV },
+    { "RTStrFree",                              (void *)RTStrFree },
+    { "RTStrNCmp",                              (void *)RTStrNCmp },
+    { "RTStrPrintf",                            (void *)RTStrPrintf },
+    { "RTStrPrintfEx",                          (void *)RTStrPrintfEx },
+    { "RTStrPrintfExV",                         (void *)RTStrPrintfExV },
+    { "RTStrPrintfV",                           (void *)RTStrPrintfV },
+    { "RTThreadCreate",                         (void *)RTThreadCreate },
+    { "RTThreadGetName",                        (void *)RTThreadGetName },
+    { "RTThreadGetNative",                      (void *)RTThreadGetNative },
+    { "RTThreadGetType",                        (void *)RTThreadGetType },
+    { "RTThreadIsInInterrupt",                  (void *)RTThreadIsInInterrupt },
+    { "RTThreadNativeSelf",                     (void *)RTThreadNativeSelf },
+    { "RTThreadPreemptDisable",                 (void *)RTThreadPreemptDisable },
+    { "RTThreadPreemptIsEnabled",               (void *)RTThreadPreemptIsEnabled },
+    { "RTThreadPreemptIsPending",               (void *)RTThreadPreemptIsPending },
+    { "RTThreadPreemptIsPendingTrusty",         (void *)RTThreadPreemptIsPendingTrusty },
+    { "RTThreadPreemptIsPossible",              (void *)RTThreadPreemptIsPossible },
+    { "RTThreadPreemptRestore",                 (void *)RTThreadPreemptRestore },
+    { "RTThreadSelf",                           (void *)RTThreadSelf },
+    { "RTThreadSelfName",                       (void *)RTThreadSelfName },
+    { "RTThreadSleep",                          (void *)RTThreadSleep },
+    { "RTThreadUserReset",                      (void *)RTThreadUserReset },
+    { "RTThreadUserSignal",                     (void *)RTThreadUserSignal },
+    { "RTThreadUserWait",                       (void *)RTThreadUserWait },
+    { "RTThreadUserWaitNoResume",               (void *)RTThreadUserWaitNoResume },
+    { "RTThreadWait",                           (void *)RTThreadWait },
+    { "RTThreadWaitNoResume",                   (void *)RTThreadWaitNoResume },
+    { "RTThreadYield",                          (void *)RTThreadYield },
+    { "RTTimeMilliTS",                          (void *)RTTimeMilliTS },
+    { "RTTimeNanoTS",                           (void *)RTTimeNanoTS },
+    { "RTTimeNow",                              (void *)RTTimeNow },
+    { "RTTimerCanDoHighResolution",             (void *)RTTimerCanDoHighResolution },
+    { "RTTimerChangeInterval",                  (void *)RTTimerChangeInterval },
+    { "RTTimerCreate",                          (void *)RTTimerCreate },
+    { "RTTimerCreateEx",                        (void *)RTTimerCreateEx },
+    { "RTTimerDestroy",                         (void *)RTTimerDestroy },
+    { "RTTimerGetSystemGranularity",            (void *)RTTimerGetSystemGranularity },
+    { "RTTimerReleaseSystemGranularity",        (void *)RTTimerReleaseSystemGranularity },
+    { "RTTimerRequestSystemGranularity",        (void *)RTTimerRequestSystemGranularity },
+    { "RTTimerStart",                           (void *)RTTimerStart },
+    { "RTTimerStop",                            (void *)RTTimerStop },
+    { "RTTimeSystemMilliTS",                    (void *)RTTimeSystemMilliTS },
+    { "RTTimeSystemNanoTS",                     (void *)RTTimeSystemNanoTS },
+    { "RTUuidCompare",                          (void *)RTUuidCompare },
+    { "RTUuidCompareStr",                       (void *)RTUuidCompareStr },
+    { "RTUuidFromStr",                          (void *)RTUuidFromStr },
+/* SED: END */
 };
 
 #if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
@@ -390,15 +412,6 @@ static SUPFUNC g_aFunctions[] =
  */
 PFNRT g_apfnVBoxDrvIPRTDeps[] =
 {
-    /* VBoxNetFlt */
-    (PFNRT)RTErrConvertFromErrno,
-    (PFNRT)RTUuidCompare,
-    (PFNRT)RTUuidCompareStr,
-    (PFNRT)RTUuidFromStr,
-    (PFNRT)RTStrDupTag,
-    (PFNRT)RTStrFree,
-    (PFNRT)RTStrCopy,
-    (PFNRT)RTStrNCmp,
     /* VBoxNetAdp */
     (PFNRT)RTRandBytes,
     /* VBoxUSB */
@@ -440,105 +453,119 @@ int VBOXCALL supdrvInitDevExt(PSUPDRVDEVEXT pDevExt, size_t cbSession)
      * Initialize it.
      */
     memset(pDevExt, 0, sizeof(*pDevExt));
-    rc = RTSpinlockCreate(&pDevExt->Spinlock);
+    rc = RTSpinlockCreate(&pDevExt->Spinlock, RTSPINLOCK_FLAGS_INTERRUPT_UNSAFE, "SUPDrvDevExt");
     if (RT_SUCCESS(rc))
     {
-#ifdef SUPDRV_USE_MUTEX_FOR_LDR
-        rc = RTSemMutexCreate(&pDevExt->mtxLdr);
-#else
-        rc = RTSemFastMutexCreate(&pDevExt->mtxLdr);
-#endif
+        rc = RTSpinlockCreate(&pDevExt->hGipSpinlock, RTSPINLOCK_FLAGS_INTERRUPT_SAFE, "SUPDrvGip");
         if (RT_SUCCESS(rc))
         {
-            rc = RTSemFastMutexCreate(&pDevExt->mtxComponentFactory);
+#ifdef SUPDRV_USE_MUTEX_FOR_LDR
+            rc = RTSemMutexCreate(&pDevExt->mtxLdr);
+#else
+            rc = RTSemFastMutexCreate(&pDevExt->mtxLdr);
+#endif
             if (RT_SUCCESS(rc))
             {
-#ifdef SUPDRV_USE_MUTEX_FOR_LDR
-                rc = RTSemMutexCreate(&pDevExt->mtxGip);
-#else
-                rc = RTSemFastMutexCreate(&pDevExt->mtxGip);
-#endif
+                rc = RTSemFastMutexCreate(&pDevExt->mtxComponentFactory);
                 if (RT_SUCCESS(rc))
                 {
-                    rc = supdrvGipCreate(pDevExt);
+#ifdef SUPDRV_USE_MUTEX_FOR_LDR
+                    rc = RTSemMutexCreate(&pDevExt->mtxGip);
+#else
+                    rc = RTSemFastMutexCreate(&pDevExt->mtxGip);
+#endif
                     if (RT_SUCCESS(rc))
                     {
-                        pDevExt->u32Cookie = BIRD;  /** @todo make this random? */
-                        pDevExt->cbSession = (uint32_t)cbSession;
+                        rc = supdrvGipCreate(pDevExt);
+                        if (RT_SUCCESS(rc))
+                        {
+                            rc = supdrvTracerInit(pDevExt);
+                            if (RT_SUCCESS(rc))
+                            {
+                                pDevExt->pLdrInitImage  = NULL;
+                                pDevExt->hLdrInitThread = NIL_RTNATIVETHREAD;
+                                pDevExt->u32Cookie      = BIRD;  /** @todo make this random? */
+                                pDevExt->cbSession      = (uint32_t)cbSession;
 
-                        /*
-                         * Fixup the absolute symbols.
-                         *
-                         * Because of the table indexing assumptions we'll have a little #ifdef orgy
-                         * here rather than distributing this to OS specific files. At least for now.
-                         */
+                                /*
+                                 * Fixup the absolute symbols.
+                                 *
+                                 * Because of the table indexing assumptions we'll have a little #ifdef orgy
+                                 * here rather than distributing this to OS specific files. At least for now.
+                                 */
 #ifdef RT_OS_DARWIN
 # if ARCH_BITS == 32
-                        if (SUPR0GetPagingMode() >= SUPPAGINGMODE_AMD64)
-                        {
-                            g_aFunctions[0].pfn = (void *)1;                    /* SUPR0AbsIs64bit */
-                            g_aFunctions[1].pfn = (void *)0x80;                 /* SUPR0Abs64bitKernelCS - KERNEL64_CS, seg.h */
-                            g_aFunctions[2].pfn = (void *)0x88;                 /* SUPR0Abs64bitKernelSS - KERNEL64_SS, seg.h */
-                            g_aFunctions[3].pfn = (void *)0x88;                 /* SUPR0Abs64bitKernelDS - KERNEL64_SS, seg.h */
-                        }
-                        else
-                            g_aFunctions[0].pfn = g_aFunctions[1].pfn = g_aFunctions[2].pfn = g_aFunctions[4].pfn = (void *)0;
-                        g_aFunctions[4].pfn = (void *)0x08;                     /* SUPR0AbsKernelCS - KERNEL_CS, seg.h */
-                        g_aFunctions[5].pfn = (void *)0x10;                     /* SUPR0AbsKernelSS - KERNEL_DS, seg.h */
-                        g_aFunctions[6].pfn = (void *)0x10;                     /* SUPR0AbsKernelDS - KERNEL_DS, seg.h */
-                        g_aFunctions[7].pfn = (void *)0x10;                     /* SUPR0AbsKernelES - KERNEL_DS, seg.h */
-                        g_aFunctions[8].pfn = (void *)0x10;                     /* SUPR0AbsKernelFS - KERNEL_DS, seg.h */
-                        g_aFunctions[9].pfn = (void *)0x48;                     /* SUPR0AbsKernelGS - CPU_DATA_GS, seg.h */
+                                if (SUPR0GetPagingMode() >= SUPPAGINGMODE_AMD64)
+                                {
+                                    g_aFunctions[0].pfn = (void *)1;                    /* SUPR0AbsIs64bit */
+                                    g_aFunctions[1].pfn = (void *)0x80;                 /* SUPR0Abs64bitKernelCS - KERNEL64_CS, seg.h */
+                                    g_aFunctions[2].pfn = (void *)0x88;                 /* SUPR0Abs64bitKernelSS - KERNEL64_SS, seg.h */
+                                    g_aFunctions[3].pfn = (void *)0x88;                 /* SUPR0Abs64bitKernelDS - KERNEL64_SS, seg.h */
+                                }
+                                else
+                                    g_aFunctions[0].pfn = g_aFunctions[1].pfn = g_aFunctions[2].pfn = g_aFunctions[4].pfn = (void *)0;
+                                g_aFunctions[4].pfn = (void *)0x08;                     /* SUPR0AbsKernelCS - KERNEL_CS, seg.h */
+                                g_aFunctions[5].pfn = (void *)0x10;                     /* SUPR0AbsKernelSS - KERNEL_DS, seg.h */
+                                g_aFunctions[6].pfn = (void *)0x10;                     /* SUPR0AbsKernelDS - KERNEL_DS, seg.h */
+                                g_aFunctions[7].pfn = (void *)0x10;                     /* SUPR0AbsKernelES - KERNEL_DS, seg.h */
+                                g_aFunctions[8].pfn = (void *)0x10;                     /* SUPR0AbsKernelFS - KERNEL_DS, seg.h */
+                                g_aFunctions[9].pfn = (void *)0x48;                     /* SUPR0AbsKernelGS - CPU_DATA_GS, seg.h */
 # else /* 64-bit darwin: */
-                        g_aFunctions[0].pfn = (void *)1;                        /* SUPR0AbsIs64bit */
-                        g_aFunctions[1].pfn = (void *)(uintptr_t)ASMGetCS();    /* SUPR0Abs64bitKernelCS */
-                        g_aFunctions[2].pfn = (void *)(uintptr_t)ASMGetSS();    /* SUPR0Abs64bitKernelSS */
-                        g_aFunctions[3].pfn = (void *)0;                        /* SUPR0Abs64bitKernelDS */
-                        g_aFunctions[4].pfn = (void *)(uintptr_t)ASMGetCS();    /* SUPR0AbsKernelCS */
-                        g_aFunctions[5].pfn = (void *)(uintptr_t)ASMGetSS();    /* SUPR0AbsKernelSS */
-                        g_aFunctions[6].pfn = (void *)0;                        /* SUPR0AbsKernelDS */
-                        g_aFunctions[7].pfn = (void *)0;                        /* SUPR0AbsKernelES */
-                        g_aFunctions[8].pfn = (void *)0;                        /* SUPR0AbsKernelFS */
-                        g_aFunctions[9].pfn = (void *)0;                        /* SUPR0AbsKernelGS */
+                                g_aFunctions[0].pfn = (void *)1;                        /* SUPR0AbsIs64bit */
+                                g_aFunctions[1].pfn = (void *)(uintptr_t)ASMGetCS();    /* SUPR0Abs64bitKernelCS */
+                                g_aFunctions[2].pfn = (void *)(uintptr_t)ASMGetSS();    /* SUPR0Abs64bitKernelSS */
+                                g_aFunctions[3].pfn = (void *)0;                        /* SUPR0Abs64bitKernelDS */
+                                g_aFunctions[4].pfn = (void *)(uintptr_t)ASMGetCS();    /* SUPR0AbsKernelCS */
+                                g_aFunctions[5].pfn = (void *)(uintptr_t)ASMGetSS();    /* SUPR0AbsKernelSS */
+                                g_aFunctions[6].pfn = (void *)0;                        /* SUPR0AbsKernelDS */
+                                g_aFunctions[7].pfn = (void *)0;                        /* SUPR0AbsKernelES */
+                                g_aFunctions[8].pfn = (void *)0;                        /* SUPR0AbsKernelFS */
+                                g_aFunctions[9].pfn = (void *)0;                        /* SUPR0AbsKernelGS */
 
 # endif
 #else  /* !RT_OS_DARWIN */
 # if ARCH_BITS == 64
-                        g_aFunctions[0].pfn = (void *)1;                        /* SUPR0AbsIs64bit */
-                        g_aFunctions[1].pfn = (void *)(uintptr_t)ASMGetCS();    /* SUPR0Abs64bitKernelCS */
-                        g_aFunctions[2].pfn = (void *)(uintptr_t)ASMGetSS();    /* SUPR0Abs64bitKernelSS */
-                        g_aFunctions[3].pfn = (void *)(uintptr_t)ASMGetDS();    /* SUPR0Abs64bitKernelDS */
+                                g_aFunctions[0].pfn = (void *)1;                        /* SUPR0AbsIs64bit */
+                                g_aFunctions[1].pfn = (void *)(uintptr_t)ASMGetCS();    /* SUPR0Abs64bitKernelCS */
+                                g_aFunctions[2].pfn = (void *)(uintptr_t)ASMGetSS();    /* SUPR0Abs64bitKernelSS */
+                                g_aFunctions[3].pfn = (void *)(uintptr_t)ASMGetDS();    /* SUPR0Abs64bitKernelDS */
 # else
-                        g_aFunctions[0].pfn = g_aFunctions[1].pfn = g_aFunctions[2].pfn = g_aFunctions[4].pfn = (void *)0;
+                                g_aFunctions[0].pfn = g_aFunctions[1].pfn = g_aFunctions[2].pfn = g_aFunctions[4].pfn = (void *)0;
 # endif
-                        g_aFunctions[4].pfn = (void *)(uintptr_t)ASMGetCS();    /* SUPR0AbsKernelCS */
-                        g_aFunctions[5].pfn = (void *)(uintptr_t)ASMGetSS();    /* SUPR0AbsKernelSS */
-                        g_aFunctions[6].pfn = (void *)(uintptr_t)ASMGetDS();    /* SUPR0AbsKernelDS */
-                        g_aFunctions[7].pfn = (void *)(uintptr_t)ASMGetES();    /* SUPR0AbsKernelES */
-                        g_aFunctions[8].pfn = (void *)(uintptr_t)ASMGetFS();    /* SUPR0AbsKernelFS */
-                        g_aFunctions[9].pfn = (void *)(uintptr_t)ASMGetGS();    /* SUPR0AbsKernelGS */
+                                g_aFunctions[4].pfn = (void *)(uintptr_t)ASMGetCS();    /* SUPR0AbsKernelCS */
+                                g_aFunctions[5].pfn = (void *)(uintptr_t)ASMGetSS();    /* SUPR0AbsKernelSS */
+                                g_aFunctions[6].pfn = (void *)(uintptr_t)ASMGetDS();    /* SUPR0AbsKernelDS */
+                                g_aFunctions[7].pfn = (void *)(uintptr_t)ASMGetES();    /* SUPR0AbsKernelES */
+                                g_aFunctions[8].pfn = (void *)(uintptr_t)ASMGetFS();    /* SUPR0AbsKernelFS */
+                                g_aFunctions[9].pfn = (void *)(uintptr_t)ASMGetGS();    /* SUPR0AbsKernelGS */
 #endif /* !RT_OS_DARWIN */
-                        return VINF_SUCCESS;
-                    }
+                                return VINF_SUCCESS;
+                            }
+
+                            supdrvGipDestroy(pDevExt);
+                        }
 
 #ifdef SUPDRV_USE_MUTEX_FOR_GIP
-                    RTSemMutexDestroy(pDevExt->mtxGip);
-                    pDevExt->mtxGip = NIL_RTSEMMUTEX;
+                        RTSemMutexDestroy(pDevExt->mtxGip);
+                        pDevExt->mtxGip = NIL_RTSEMMUTEX;
 #else
-                    RTSemFastMutexDestroy(pDevExt->mtxGip);
-                    pDevExt->mtxGip = NIL_RTSEMFASTMUTEX;
+                        RTSemFastMutexDestroy(pDevExt->mtxGip);
+                        pDevExt->mtxGip = NIL_RTSEMFASTMUTEX;
 #endif
+                    }
+                    RTSemFastMutexDestroy(pDevExt->mtxComponentFactory);
+                    pDevExt->mtxComponentFactory = NIL_RTSEMFASTMUTEX;
                 }
-                RTSemFastMutexDestroy(pDevExt->mtxComponentFactory);
-                pDevExt->mtxComponentFactory = NIL_RTSEMFASTMUTEX;
-            }
 #ifdef SUPDRV_USE_MUTEX_FOR_LDR
-            RTSemMutexDestroy(pDevExt->mtxLdr);
-            pDevExt->mtxLdr = NIL_RTSEMMUTEX;
+                RTSemMutexDestroy(pDevExt->mtxLdr);
+                pDevExt->mtxLdr = NIL_RTSEMMUTEX;
 #else
-            RTSemFastMutexDestroy(pDevExt->mtxLdr);
-            pDevExt->mtxLdr = NIL_RTSEMFASTMUTEX;
+                RTSemFastMutexDestroy(pDevExt->mtxLdr);
+                pDevExt->mtxLdr = NIL_RTSEMFASTMUTEX;
 #endif
+            }
+            RTSpinlockDestroy(pDevExt->hGipSpinlock);
+            pDevExt->hGipSpinlock = NIL_RTSPINLOCK;
         }
         RTSpinlockDestroy(pDevExt->Spinlock);
         pDevExt->Spinlock = NIL_RTSPINLOCK;
@@ -610,6 +637,10 @@ void VBOXCALL supdrvDeleteDevExt(PSUPDRVDEVEXT pDevExt)
 
     /* kill the GIP. */
     supdrvGipDestroy(pDevExt);
+    RTSpinlockDestroy(pDevExt->hGipSpinlock);
+    pDevExt->hGipSpinlock = NIL_RTSPINLOCK;
+
+    supdrvTracerTerm(pDevExt);
 
 #ifdef SUPDRV_WITH_RELEASE_LOGGER
     /* destroy the loggers. */
@@ -637,7 +668,7 @@ int VBOXCALL supdrvCreateSession(PSUPDRVDEVEXT pDevExt, bool fUser, PSUPDRVSESSI
     if (pSession)
     {
         /* Initialize session data. */
-        rc = RTSpinlockCreate(&pSession->Spinlock);
+        rc = RTSpinlockCreate(&pSession->Spinlock, RTSPINLOCK_FLAGS_INTERRUPT_UNSAFE, "SUPDrvSession");
         if (!rc)
         {
             rc = RTHandleTableCreateEx(&pSession->hHandleTable,
@@ -666,8 +697,15 @@ int VBOXCALL supdrvCreateSession(PSUPDRVDEVEXT pDevExt, bool fUser, PSUPDRVSESSI
                     pSession->Process       = NIL_RTPROCESS;
                     pSession->R0Process     = NIL_RTR0PROCESS;
                 }
+                /*pSession->uTracerData       = 0;*/
+                pSession->hTracerCaller     = NIL_RTNATIVETHREAD;
+                RTListInit(&pSession->TpProviders);
+                /*pSession->cTpProviders      = 0;*/
+                /*pSession->cTpProbesFiring   = 0;*/
+                RTListInit(&pSession->TpUmods);
+                /*RT_ZERO(pSession->apTpLookupTable);*/
 
-                VBOXDRV_SUPDRV_SESSION_CREATE(pSession, fUser);
+                VBOXDRV_SESSION_CREATE(pSession, fUser);
                 LogFlow(("Created session %p initial cookie=%#x\n", pSession, pSession->u32Cookie));
                 return VINF_SUCCESS;
             }
@@ -694,7 +732,7 @@ int VBOXCALL supdrvCreateSession(PSUPDRVDEVEXT pDevExt, bool fUser, PSUPDRVSESSI
  */
 void VBOXCALL supdrvCloseSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
 {
-    VBOXDRV_SUPDRV_SESSION_CLOSE(pSession);
+    VBOXDRV_SESSION_CLOSE(pSession);
 
     /*
      * Cleanup the session first.
@@ -747,9 +785,8 @@ void VBOXCALL supdrvCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSessio
     Log2(("release objects - start\n"));
     if (pSession->pUsage)
     {
-        RTSPINLOCKTMP   SpinlockTmp = RTSPINLOCKTMP_INITIALIZER;
         PSUPDRVUSAGE    pUsage;
-        RTSpinlockAcquire(pDevExt->Spinlock, &SpinlockTmp);
+        RTSpinlockAcquire(pDevExt->Spinlock);
 
         while ((pUsage = pSession->pUsage) != NULL)
         {
@@ -760,7 +797,7 @@ void VBOXCALL supdrvCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSessio
             if (pUsage->cUsage < pObj->cUsage)
             {
                 pObj->cUsage -= pUsage->cUsage;
-                RTSpinlockRelease(pDevExt->Spinlock, &SpinlockTmp);
+                RTSpinlockRelease(pDevExt->Spinlock);
             }
             else
             {
@@ -778,7 +815,7 @@ void VBOXCALL supdrvCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSessio
                         }
                     Assert(pObjPrev);
                 }
-                RTSpinlockRelease(pDevExt->Spinlock, &SpinlockTmp);
+                RTSpinlockRelease(pDevExt->Spinlock);
 
                 Log(("supdrvCleanupSession: destroying %p/%d (%p/%p) cpid=%RTproc pid=%RTproc dtor=%p\n",
                      pObj, pObj->enmType, pObj->pvUser1, pObj->pvUser2, pObj->CreatorProcess, RTProcSelf(), pObj->pfnDestructor));
@@ -790,13 +827,20 @@ void VBOXCALL supdrvCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSessio
             /* free it and continue. */
             RTMemFree(pUsage);
 
-            RTSpinlockAcquire(pDevExt->Spinlock, &SpinlockTmp);
+            RTSpinlockAcquire(pDevExt->Spinlock);
         }
 
-        RTSpinlockRelease(pDevExt->Spinlock, &SpinlockTmp);
+        RTSpinlockRelease(pDevExt->Spinlock);
         AssertMsg(!pSession->pUsage, ("Some buster reregistered an object during desturction!\n"));
     }
     Log2(("release objects - done\n"));
+
+    /*
+     * Do tracer cleanups related to this session.
+     */
+    Log2(("release tracer stuff - start\n"));
+    supdrvTracerCleanupSession(pDevExt, pSession);
+    Log2(("release tracer stuff - end\n"));
 
     /*
      * Release memory allocated in the session.
@@ -973,8 +1017,8 @@ int VBOXCALL supdrvIOCtlFast(uintptr_t uIOCtl, VMCPUID idCpu, PSUPDRVDEVEXT pDev
     /*
      * We check the two prereqs after doing this only to allow the compiler to optimize things better.
      */
-    if (RT_LIKELY(   RT_VALID_PTR(pSession) 
-                  && pSession->pVM 
+    if (RT_LIKELY(   RT_VALID_PTR(pSession)
+                  && pSession->pVM
                   && pDevExt->pfnVMMR0EntryFast))
     {
         switch (uIOCtl)
@@ -1022,8 +1066,9 @@ static int supdrvCheckInvalidChar(const char *pszStr, const char *pszChars)
 }
 
 
+
 /**
- * I/O Control worker.
+ * I/O Control inner worker (tracing reasons).
  *
  * @returns IPRT status code.
  * @retval  VERR_INVALID_PARAMETER if the request is invalid.
@@ -1033,57 +1078,18 @@ static int supdrvCheckInvalidChar(const char *pszStr, const char *pszChars)
  * @param   pSession    Session data.
  * @param   pReqHdr     The request header.
  */
-int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPREQHDR pReqHdr)
+static int supdrvIOCtlInner(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPREQHDR pReqHdr)
 {
-    VBOXDRV_SUPDRV_IOCTL_ENTRY(pSession, uIOCtl, pReqHdr);
-
     /*
-     * Validate the request.
+     * Validation macros
      */
-    /* this first check could probably be omitted as its also done by the OS specific code... */
-    if (RT_UNLIKELY(    (pReqHdr->fFlags & SUPREQHDR_FLAGS_MAGIC_MASK) != SUPREQHDR_FLAGS_MAGIC
-                    ||  pReqHdr->cbIn < sizeof(*pReqHdr)
-                    ||  pReqHdr->cbOut < sizeof(*pReqHdr)))
-    {
-        OSDBGPRINT(("vboxdrv: Bad ioctl request header; cbIn=%#lx cbOut=%#lx fFlags=%#lx\n",
-                    (long)pReqHdr->cbIn, (long)pReqHdr->cbOut, (long)pReqHdr->fFlags));
-        VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VINF_SUCCESS);
-        return VERR_INVALID_PARAMETER;
-    }
-    if (RT_UNLIKELY(!RT_VALID_PTR(pSession)))
-    {
-        OSDBGPRINT(("vboxdrv: Invalid pSession valud %p (ioctl=%p)\n", pSession, (void *)uIOCtl));
-        VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VINF_SUCCESS);
-        return VERR_INVALID_PARAMETER;
-    }
-    if (RT_UNLIKELY(uIOCtl == SUP_IOCTL_COOKIE))
-    {
-        if (pReqHdr->u32Cookie != SUPCOOKIE_INITIAL_COOKIE)
-        {
-            OSDBGPRINT(("SUP_IOCTL_COOKIE: bad cookie %#lx\n", (long)pReqHdr->u32Cookie));
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VINF_SUCCESS);
-            return VERR_INVALID_PARAMETER;
-        }
-    }
-    else if (RT_UNLIKELY(    pReqHdr->u32Cookie != pDevExt->u32Cookie
-                         ||  pReqHdr->u32SessionCookie != pSession->u32Cookie))
-    {
-        OSDBGPRINT(("vboxdrv: bad cookie %#lx / %#lx.\n", (long)pReqHdr->u32Cookie, (long)pReqHdr->u32SessionCookie));
-        VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VINF_SUCCESS);
-        return VERR_INVALID_PARAMETER;
-    }
-
-/*
- * Validation macros
- */
 #define REQ_CHECK_SIZES_EX(Name, cbInExpect, cbOutExpect) \
     do { \
         if (RT_UNLIKELY(pReqHdr->cbIn != (cbInExpect) || pReqHdr->cbOut != (cbOutExpect))) \
         { \
             OSDBGPRINT(( #Name ": Invalid input/output sizes. cbIn=%ld expected %ld. cbOut=%ld expected %ld.\n", \
-                        (long)pReq->Hdr.cbIn, (long)(cbInExpect), (long)pReq->Hdr.cbOut, (long)(cbOutExpect))); \
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VERR_INVALID_PARAMETER); \
-            return pReq->Hdr.rc = VERR_INVALID_PARAMETER; \
+                        (long)pReqHdr->cbIn, (long)(cbInExpect), (long)pReqHdr->cbOut, (long)(cbOutExpect))); \
+            return pReqHdr->rc = VERR_INVALID_PARAMETER; \
         } \
     } while (0)
 
@@ -1094,9 +1100,8 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
         if (RT_UNLIKELY(pReqHdr->cbIn != (cbInExpect))) \
         { \
             OSDBGPRINT(( #Name ": Invalid input/output sizes. cbIn=%ld expected %ld.\n", \
-                        (long)pReq->Hdr.cbIn, (long)(cbInExpect))); \
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VERR_INVALID_PARAMETER); \
-            return pReq->Hdr.rc = VERR_INVALID_PARAMETER; \
+                        (long)pReqHdr->cbIn, (long)(cbInExpect))); \
+            return pReqHdr->rc = VERR_INVALID_PARAMETER; \
         } \
     } while (0)
 
@@ -1105,9 +1110,8 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
         if (RT_UNLIKELY(pReqHdr->cbOut != (cbOutExpect))) \
         { \
             OSDBGPRINT(( #Name ": Invalid input/output sizes. cbOut=%ld expected %ld.\n", \
-                        (long)pReq->Hdr.cbOut, (long)(cbOutExpect))); \
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VERR_INVALID_PARAMETER); \
-            return pReq->Hdr.rc = VERR_INVALID_PARAMETER; \
+                        (long)pReqHdr->cbOut, (long)(cbOutExpect))); \
+            return pReqHdr->rc = VERR_INVALID_PARAMETER; \
         } \
     } while (0)
 
@@ -1116,8 +1120,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
         if (RT_UNLIKELY(!(expr))) \
         { \
             OSDBGPRINT(( #Name ": %s\n", #expr)); \
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VERR_INVALID_PARAMETER); \
-            return pReq->Hdr.rc = VERR_INVALID_PARAMETER; \
+            return pReqHdr->rc = VERR_INVALID_PARAMETER; \
         } \
     } while (0)
 
@@ -1126,11 +1129,9 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
         if (RT_UNLIKELY(!(expr))) \
         { \
             OSDBGPRINT( fmt ); \
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VERR_INVALID_PARAMETER); \
-            return pReq->Hdr.rc = VERR_INVALID_PARAMETER; \
+            return pReqHdr->rc = VERR_INVALID_PARAMETER; \
         } \
     } while (0)
-
 
     /*
      * The switch.
@@ -1145,7 +1146,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             {
                 OSDBGPRINT(("SUP_IOCTL_COOKIE: invalid magic %.16s\n", pReq->u.In.szMagic));
                 pReq->Hdr.rc = VERR_INVALID_MAGIC;
-                VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, VERR_INVALID_MAGIC);
                 return 0;
             }
 
@@ -1163,7 +1163,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                 pReq->u.Out.pSession          = NULL;
                 pReq->u.Out.cFunctions        = 0;
                 pReq->Hdr.rc = VERR_PERMISSION_DENIED;
-                VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, VERR_PERMISSION_DENIED);
                 return 0;
             }
 #endif
@@ -1184,7 +1183,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                 pReq->u.Out.pSession          = NULL;
                 pReq->u.Out.cFunctions        = 0;
                 pReq->Hdr.rc = VERR_VERSION_MISMATCH;
-                VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
                 return 0;
             }
 
@@ -1201,7 +1199,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             pReq->u.Out.pSession          = pSession;
             pReq->u.Out.cFunctions        = sizeof(g_aFunctions) / sizeof(g_aFunctions[0]);
             pReq->Hdr.rc = VINF_SUCCESS;
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1215,7 +1212,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             pReq->u.Out.cFunctions = RT_ELEMENTS(g_aFunctions);
             memcpy(&pReq->u.Out.aFunctions[0], g_aFunctions, sizeof(g_aFunctions));
             pReq->Hdr.rc = VINF_SUCCESS;
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1232,7 +1228,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             pReq->Hdr.rc = SUPR0LockMem(pSession, pReq->u.In.pvR3, pReq->u.In.cPages, &pReq->u.Out.aPages[0]);
             if (RT_FAILURE(pReq->Hdr.rc))
                 pReq->Hdr.cbOut = sizeof(pReq->Hdr);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1244,7 +1239,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = SUPR0UnlockMem(pSession, pReq->u.In.pvR3);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1258,7 +1252,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             pReq->Hdr.rc = SUPR0ContAlloc(pSession, pReq->u.In.cPages, &pReq->u.Out.pvR0, &pReq->u.Out.pvR3, &pReq->u.Out.HCPhys);
             if (RT_FAILURE(pReq->Hdr.rc))
                 pReq->Hdr.cbOut = sizeof(pReq->Hdr);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1270,7 +1263,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = SUPR0ContFree(pSession, (RTHCUINTPTR)pReq->u.In.pvR3);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1291,7 +1283,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = supdrvIOCtl_LdrOpen(pDevExt, pSession, pReq);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1332,7 +1323,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = supdrvIOCtl_LdrLoad(pDevExt, pSession, pReq);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1344,7 +1334,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = supdrvIOCtl_LdrFree(pDevExt, pSession, pReq);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1357,7 +1346,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = supdrvIOCtl_LdrGetSymbol(pDevExt, pSession, pReq);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1401,7 +1389,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             else
                 Log4(("SUP_IOCTL_CALL_VMMR0: rc=%Rrc op=%u out=%u arg=%RX64 p/t=%RTproc/%RTthrd\n",
                       pReq->Hdr.rc, pReq->u.In.uOperation, pReq->Hdr.cbOut, pReq->u.In.u64Arg, RTProcSelf(), RTThreadNativeSelf()));
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1433,7 +1420,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             else
                 Log4(("SUP_IOCTL_CALL_VMMR0_BIG: rc=%Rrc op=%u out=%u arg=%RX64 p/t=%RTproc/%RTthrd\n",
                       pReq->Hdr.rc, pReq->u.In.uOperation, pReq->Hdr.cbOut, pReq->u.In.u64Arg, RTProcSelf(), RTThreadNativeSelf()));
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1446,7 +1432,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             /* execute */
             pReq->Hdr.rc = VINF_SUCCESS;
             pReq->u.Out.enmMode = SUPR0GetPagingMode();
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1461,7 +1446,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             pReq->Hdr.rc = SUPR0LowAlloc(pSession, pReq->u.In.cPages, &pReq->u.Out.pvR0, &pReq->u.Out.pvR3, &pReq->u.Out.aPages[0]);
             if (RT_FAILURE(pReq->Hdr.rc))
                 pReq->Hdr.cbOut = sizeof(pReq->Hdr);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1473,7 +1457,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = SUPR0LowFree(pSession, (RTHCUINTPTR)pReq->u.In.pvR3);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1487,7 +1470,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             pReq->Hdr.rc = SUPR0GipMap(pSession, &pReq->u.Out.pGipR3, &pReq->u.Out.HCPhysGip);
             if (RT_SUCCESS(pReq->Hdr.rc))
                 pReq->u.Out.pGipR0 = pDevExt->pGip;
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1499,7 +1481,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = SUPR0GipUnmap(pSession);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1515,7 +1496,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             /* execute */
             pSession->pVM = pReq->u.In.pVMR0;
             pReq->Hdr.rc = VINF_SUCCESS;
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1539,7 +1519,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                                             &pReq->u.Out.aPages[0]);
             if (RT_FAILURE(pReq->Hdr.rc))
                 pReq->Hdr.cbOut = sizeof(pReq->Hdr);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1558,7 +1537,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                                               pReq->u.In.fFlags, &pReq->u.Out.pvR0);
             if (RT_FAILURE(pReq->Hdr.rc))
                 pReq->Hdr.cbOut = sizeof(pReq->Hdr);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1575,7 +1553,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = SUPR0PageProtect(pSession, pReq->u.In.pvR3, pReq->u.In.pvR0, pReq->u.In.offSub, pReq->u.In.cbSub, pReq->u.In.fProt);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1587,7 +1564,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = SUPR0PageFree(pSession, pReq->u.In.pvR3);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1612,7 +1588,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = supdrvIOCtl_CallServiceModule(pDevExt, pSession, pReq);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1635,7 +1610,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = supdrvIOCtl_LoggerSettings(pDevExt, pSession, pReq);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1787,7 +1761,76 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             pReq->Hdr.rc = SUPR0QueryVTCaps(pSession, &pReq->u.Out.Caps);
             if (RT_FAILURE(pReq->Hdr.rc))
                 pReq->Hdr.cbOut = sizeof(pReq->Hdr);
-            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
+            return 0;
+        }
+
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_TRACER_OPEN):
+        {
+            /* validate */
+            PSUPTRACEROPEN pReq = (PSUPTRACEROPEN)pReqHdr;
+            REQ_CHECK_SIZES(SUP_IOCTL_TRACER_OPEN);
+
+            /* execute */
+            pReq->Hdr.rc = supdrvIOCtl_TracerOpen(pDevExt, pSession, pReq->u.In.uCookie, pReq->u.In.uArg);
+            return 0;
+        }
+
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_TRACER_CLOSE):
+        {
+            /* validate */
+            REQ_CHECK_SIZES(SUP_IOCTL_TRACER_CLOSE);
+
+            /* execute */
+            pReqHdr->rc = supdrvIOCtl_TracerClose(pDevExt, pSession);
+            return 0;
+        }
+
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_TRACER_IOCTL):
+        {
+            /* validate */
+            PSUPTRACERIOCTL pReq = (PSUPTRACERIOCTL)pReqHdr;
+            REQ_CHECK_SIZES(SUP_IOCTL_TRACER_IOCTL);
+
+            /* execute */
+            pReqHdr->rc = supdrvIOCtl_TracerIOCtl(pDevExt, pSession, pReq->u.In.uCmd, pReq->u.In.uArg, &pReq->u.Out.iRetVal);
+            return 0;
+        }
+
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_TRACER_UMOD_REG):
+        {
+            /* validate */
+            PSUPTRACERUMODREG pReq = (PSUPTRACERUMODREG)pReqHdr;
+            REQ_CHECK_SIZES(SUP_IOCTL_TRACER_UMOD_REG);
+            if (!RTStrEnd(pReq->u.In.szName, sizeof(pReq->u.In.szName)))
+                return VERR_INVALID_PARAMETER;
+
+            /* execute */
+            pReqHdr->rc = supdrvIOCtl_TracerUmodRegister(pDevExt, pSession,
+                                                         pReq->u.In.R3PtrVtgHdr, pReq->u.In.uVtgHdrAddr,
+                                                         pReq->u.In.R3PtrStrTab, pReq->u.In.cbStrTab,
+                                                         pReq->u.In.szName, pReq->u.In.fFlags);
+            return 0;
+        }
+
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_TRACER_UMOD_DEREG):
+        {
+            /* validate */
+            PSUPTRACERUMODDEREG pReq = (PSUPTRACERUMODDEREG)pReqHdr;
+            REQ_CHECK_SIZES(SUP_IOCTL_TRACER_UMOD_DEREG);
+
+            /* execute */
+            pReqHdr->rc = supdrvIOCtl_TracerUmodDeregister(pDevExt, pSession, pReq->u.In.pVtgHdr);
+            return 0;
+        }
+
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_TRACER_UMOD_FIRE_PROBE):
+        {
+            /* validate */
+            PSUPTRACERUMODFIREPROBE pReq = (PSUPTRACERUMODFIREPROBE)pReqHdr;
+            REQ_CHECK_SIZES(SUP_IOCTL_TRACER_UMOD_FIRE_PROBE);
+
+            supdrvIOCtl_TracerUmodProbeFire(pDevExt, pSession, &pReq->u.In);
+            pReqHdr->rc = VINF_SUCCESS;
             return 0;
         }
 
@@ -1795,8 +1838,69 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             Log(("Unknown IOCTL %#lx\n", (long)uIOCtl));
             break;
     }
-    VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_GENERAL_FAILURE, VERR_GENERAL_FAILURE);
     return VERR_GENERAL_FAILURE;
+}
+
+
+/**
+ * I/O Control worker.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_INVALID_PARAMETER if the request is invalid.
+ *
+ * @param   uIOCtl      Function number.
+ * @param   pDevExt     Device extention.
+ * @param   pSession    Session data.
+ * @param   pReqHdr     The request header.
+ */
+int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPREQHDR pReqHdr)
+{
+    int rc;
+    VBOXDRV_IOCTL_ENTRY(pSession, uIOCtl, pReqHdr);
+
+    /*
+     * Validate the request.
+     */
+    /* this first check could probably be omitted as its also done by the OS specific code... */
+    if (RT_UNLIKELY(   (pReqHdr->fFlags & SUPREQHDR_FLAGS_MAGIC_MASK) != SUPREQHDR_FLAGS_MAGIC
+                    || pReqHdr->cbIn < sizeof(*pReqHdr)
+                    || pReqHdr->cbOut < sizeof(*pReqHdr)))
+    {
+        OSDBGPRINT(("vboxdrv: Bad ioctl request header; cbIn=%#lx cbOut=%#lx fFlags=%#lx\n",
+                    (long)pReqHdr->cbIn, (long)pReqHdr->cbOut, (long)pReqHdr->fFlags));
+        VBOXDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VINF_SUCCESS);
+        return VERR_INVALID_PARAMETER;
+    }
+    if (RT_UNLIKELY(!RT_VALID_PTR(pSession)))
+    {
+        OSDBGPRINT(("vboxdrv: Invalid pSession valud %p (ioctl=%p)\n", pSession, (void *)uIOCtl));
+        VBOXDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VINF_SUCCESS);
+        return VERR_INVALID_PARAMETER;
+    }
+    if (RT_UNLIKELY(uIOCtl == SUP_IOCTL_COOKIE))
+    {
+        if (pReqHdr->u32Cookie != SUPCOOKIE_INITIAL_COOKIE)
+        {
+            OSDBGPRINT(("SUP_IOCTL_COOKIE: bad cookie %#lx\n", (long)pReqHdr->u32Cookie));
+            VBOXDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VINF_SUCCESS);
+            return VERR_INVALID_PARAMETER;
+        }
+    }
+    else if (RT_UNLIKELY(    pReqHdr->u32Cookie != pDevExt->u32Cookie
+                         ||  pReqHdr->u32SessionCookie != pSession->u32Cookie))
+    {
+        OSDBGPRINT(("vboxdrv: bad cookie %#lx / %#lx.\n", (long)pReqHdr->u32Cookie, (long)pReqHdr->u32SessionCookie));
+        VBOXDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VINF_SUCCESS);
+        return VERR_INVALID_PARAMETER;
+    }
+
+    /*
+     * Hand it to an inner function to avoid lots of unnecessary return tracepoints
+     */
+    rc = supdrvIOCtlInner(uIOCtl, pDevExt, pSession, pReqHdr);
+
+    VBOXDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, pReqHdr->rc, rc);
+    return rc;
 }
 
 
@@ -1966,7 +2070,6 @@ int VBOXCALL supdrvIDC(uintptr_t uReq, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSe
  */
 SUPR0DECL(void *) SUPR0ObjRegister(PSUPDRVSESSION pSession, SUPDRVOBJTYPE enmType, PFNSUPDRVDESTRUCTOR pfnDestructor, void *pvUser1, void *pvUser2)
 {
-    RTSPINLOCKTMP   SpinlockTmp = RTSPINLOCKTMP_INITIALIZER;
     PSUPDRVDEVEXT   pDevExt     = pSession->pDevExt;
     PSUPDRVOBJ      pObj;
     PSUPDRVUSAGE    pUsage;
@@ -2000,21 +2103,21 @@ SUPR0DECL(void *) SUPR0ObjRegister(PSUPDRVSESSION pSession, SUPDRVOBJTYPE enmTyp
      * Allocate the usage record.
      * (We keep freed usage records around to simplify SUPR0ObjAddRefEx().)
      */
-    RTSpinlockAcquire(pDevExt->Spinlock, &SpinlockTmp);
+    RTSpinlockAcquire(pDevExt->Spinlock);
 
     pUsage = pDevExt->pUsageFree;
     if (pUsage)
         pDevExt->pUsageFree = pUsage->pNext;
     else
     {
-        RTSpinlockRelease(pDevExt->Spinlock, &SpinlockTmp);
+        RTSpinlockRelease(pDevExt->Spinlock);
         pUsage = (PSUPDRVUSAGE)RTMemAlloc(sizeof(*pUsage));
         if (!pUsage)
         {
             RTMemFree(pObj);
             return NULL;
         }
-        RTSpinlockAcquire(pDevExt->Spinlock, &SpinlockTmp);
+        RTSpinlockAcquire(pDevExt->Spinlock);
     }
 
     /*
@@ -2031,7 +2134,7 @@ SUPR0DECL(void *) SUPR0ObjRegister(PSUPDRVSESSION pSession, SUPDRVOBJTYPE enmTyp
     /* Log2(("SUPR0ObjRegister: pUsage=%p:{.pObj=%p, .pNext=%p}\n", pUsage, pUsage->pObj, pUsage->pNext)); */
     pSession->pUsage    = pUsage;
 
-    RTSpinlockRelease(pDevExt->Spinlock, &SpinlockTmp);
+    RTSpinlockRelease(pDevExt->Spinlock);
 
     Log(("SUPR0ObjRegister: returns %p (pvUser1=%p, pvUser=%p)\n", pObj, pvUser1, pvUser2));
     return pObj;
@@ -2077,7 +2180,6 @@ SUPR0DECL(int) SUPR0ObjAddRef(void *pvObj, PSUPDRVSESSION pSession)
  */
 SUPR0DECL(int) SUPR0ObjAddRefEx(void *pvObj, PSUPDRVSESSION pSession, bool fNoBlocking)
 {
-    RTSPINLOCKTMP   SpinlockTmp = RTSPINLOCKTMP_INITIALIZER;
     PSUPDRVDEVEXT   pDevExt     = pSession->pDevExt;
     PSUPDRVOBJ      pObj        = (PSUPDRVOBJ)pvObj;
     int             rc          = VINF_SUCCESS;
@@ -2095,11 +2197,11 @@ SUPR0DECL(int) SUPR0ObjAddRefEx(void *pvObj, PSUPDRVSESSION pSession, bool fNoBl
                     ("Invalid pvObj=%p magic=%#x (expected %#x or %#x)\n", pvObj, pObj->u32Magic, SUPDRVOBJ_MAGIC, SUPDRVOBJ_MAGIC_DEAD),
                     VERR_INVALID_PARAMETER);
 
-    RTSpinlockAcquire(pDevExt->Spinlock, &SpinlockTmp);
+    RTSpinlockAcquire(pDevExt->Spinlock);
 
     if (RT_UNLIKELY(pObj->u32Magic != SUPDRVOBJ_MAGIC))
     {
-        RTSpinlockRelease(pDevExt->Spinlock, &SpinlockTmp);
+        RTSpinlockRelease(pDevExt->Spinlock);
 
         AssertMsgFailed(("pvObj=%p magic=%#x\n", pvObj, pObj->u32Magic));
         return VERR_WRONG_ORDER;
@@ -2113,15 +2215,15 @@ SUPR0DECL(int) SUPR0ObjAddRefEx(void *pvObj, PSUPDRVSESSION pSession, bool fNoBl
         pDevExt->pUsageFree = pUsagePre->pNext;
     else if (!fNoBlocking)
     {
-        RTSpinlockRelease(pDevExt->Spinlock, &SpinlockTmp);
+        RTSpinlockRelease(pDevExt->Spinlock);
         pUsagePre = (PSUPDRVUSAGE)RTMemAlloc(sizeof(*pUsagePre));
         if (!pUsagePre)
             return VERR_NO_MEMORY;
 
-        RTSpinlockAcquire(pDevExt->Spinlock, &SpinlockTmp);
+        RTSpinlockAcquire(pDevExt->Spinlock);
         if (RT_UNLIKELY(pObj->u32Magic != SUPDRVOBJ_MAGIC))
         {
-            RTSpinlockRelease(pDevExt->Spinlock, &SpinlockTmp);
+            RTSpinlockRelease(pDevExt->Spinlock);
 
             AssertMsgFailed(("pvObj=%p magic=%#x\n", pvObj, pObj->u32Magic));
             return VERR_WRONG_ORDER;
@@ -2170,7 +2272,7 @@ SUPR0DECL(int) SUPR0ObjAddRefEx(void *pvObj, PSUPDRVSESSION pSession, bool fNoBl
         pDevExt->pUsageFree = pUsagePre;
     }
 
-    RTSpinlockRelease(pDevExt->Spinlock, &SpinlockTmp);
+    RTSpinlockRelease(pDevExt->Spinlock);
 
     return rc;
 }
@@ -2192,7 +2294,6 @@ SUPR0DECL(int) SUPR0ObjAddRefEx(void *pvObj, PSUPDRVSESSION pSession, bool fNoBl
  */
 SUPR0DECL(int) SUPR0ObjRelease(void *pvObj, PSUPDRVSESSION pSession)
 {
-    RTSPINLOCKTMP       SpinlockTmp = RTSPINLOCKTMP_INITIALIZER;
     PSUPDRVDEVEXT       pDevExt     = pSession->pDevExt;
     PSUPDRVOBJ          pObj        = (PSUPDRVOBJ)pvObj;
     int                 rc          = VERR_INVALID_PARAMETER;
@@ -2210,7 +2311,7 @@ SUPR0DECL(int) SUPR0ObjRelease(void *pvObj, PSUPDRVSESSION pSession)
     /*
      * Acquire the spinlock and look for the usage record.
      */
-    RTSpinlockAcquire(pDevExt->Spinlock, &SpinlockTmp);
+    RTSpinlockAcquire(pDevExt->Spinlock);
 
     for (pUsagePrev = NULL, pUsage = pSession->pUsage;
          pUsage;
@@ -2267,7 +2368,7 @@ SUPR0DECL(int) SUPR0ObjRelease(void *pvObj, PSUPDRVSESSION pSession)
         }
     }
 
-    RTSpinlockRelease(pDevExt->Spinlock, &SpinlockTmp);
+    RTSpinlockRelease(pDevExt->Spinlock);
 
     /*
      * Call the destructor and free the object if required.
@@ -2650,7 +2751,6 @@ SUPR0DECL(int) SUPR0MemAlloc(PSUPDRVSESSION pSession, uint32_t cb, PRTR0PTR ppvR
 SUPR0DECL(int) SUPR0MemGetPhys(PSUPDRVSESSION pSession, RTHCUINTPTR uPtr, PSUPPAGE paPages) /** @todo switch this bugger to RTHCPHYS */
 {
     PSUPDRVBUNDLE pBundle;
-    RTSPINLOCKTMP SpinlockTmp = RTSPINLOCKTMP_INITIALIZER;
     LogFlow(("SUPR0MemGetPhys: pSession=%p uPtr=%p paPages=%p\n", pSession, (void *)uPtr, paPages));
 
     /*
@@ -2663,7 +2763,7 @@ SUPR0DECL(int) SUPR0MemGetPhys(PSUPDRVSESSION pSession, RTHCUINTPTR uPtr, PSUPPA
     /*
      * Search for the address.
      */
-    RTSpinlockAcquire(pSession->Spinlock, &SpinlockTmp);
+    RTSpinlockAcquire(pSession->Spinlock);
     for (pBundle = &pSession->Bundle; pBundle; pBundle = pBundle->pNext)
     {
         if (pBundle->cUsed > 0)
@@ -2686,13 +2786,13 @@ SUPR0DECL(int) SUPR0MemGetPhys(PSUPDRVSESSION pSession, RTHCUINTPTR uPtr, PSUPPA
                         paPages[iPage].Phys = RTR0MemObjGetPagePhysAddr(pBundle->aMem[i].MemObj, iPage);
                         paPages[iPage].uReserved = 0;
                     }
-                    RTSpinlockRelease(pSession->Spinlock, &SpinlockTmp);
+                    RTSpinlockRelease(pSession->Spinlock);
                     return VINF_SUCCESS;
                 }
             }
         }
     }
-    RTSpinlockRelease(pSession->Spinlock, &SpinlockTmp);
+    RTSpinlockRelease(pSession->Spinlock);
     Log(("Failed to find %p!!!\n", (void *)uPtr));
     return VERR_INVALID_PARAMETER;
 }
@@ -2815,7 +2915,6 @@ SUPR0DECL(int) SUPR0PageMapKernel(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_
 {
     int             rc;
     PSUPDRVBUNDLE   pBundle;
-    RTSPINLOCKTMP   SpinlockTmp = RTSPINLOCKTMP_INITIALIZER;
     RTR0MEMOBJ      hMemObj = NIL_RTR0MEMOBJ;
     LogFlow(("SUPR0PageMapKernel: pSession=%p pvR3=%p offSub=%#x cbSub=%#x\n", pSession, pvR3, offSub, cbSub));
 
@@ -2832,7 +2931,7 @@ SUPR0DECL(int) SUPR0PageMapKernel(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_
     /*
      * Find the memory object.
      */
-    RTSpinlockAcquire(pSession->Spinlock, &SpinlockTmp);
+    RTSpinlockAcquire(pSession->Spinlock);
     for (pBundle = &pSession->Bundle; pBundle; pBundle = pBundle->pNext)
     {
         if (pBundle->cUsed > 0)
@@ -2855,7 +2954,7 @@ SUPR0DECL(int) SUPR0PageMapKernel(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_
             }
         }
     }
-    RTSpinlockRelease(pSession->Spinlock, &SpinlockTmp);
+    RTSpinlockRelease(pSession->Spinlock);
 
     rc = VERR_INVALID_PARAMETER;
     if (hMemObj != NIL_RTR0MEMOBJ)
@@ -2901,7 +3000,6 @@ SUPR0DECL(int) SUPR0PageProtect(PSUPDRVSESSION pSession, RTR3PTR pvR3, RTR0PTR p
 {
     int             rc;
     PSUPDRVBUNDLE   pBundle;
-    RTSPINLOCKTMP   SpinlockTmp = RTSPINLOCKTMP_INITIALIZER;
     RTR0MEMOBJ      hMemObjR0 = NIL_RTR0MEMOBJ;
     RTR0MEMOBJ      hMemObjR3 = NIL_RTR0MEMOBJ;
     LogFlow(("SUPR0PageProtect: pSession=%p pvR3=%p pvR0=%p offSub=%#x cbSub=%#x fProt-%#x\n", pSession, pvR3, pvR0, offSub, cbSub, fProt));
@@ -2918,7 +3016,7 @@ SUPR0DECL(int) SUPR0PageProtect(PSUPDRVSESSION pSession, RTR3PTR pvR3, RTR0PTR p
     /*
      * Find the memory object.
      */
-    RTSpinlockAcquire(pSession->Spinlock, &SpinlockTmp);
+    RTSpinlockAcquire(pSession->Spinlock);
     for (pBundle = &pSession->Bundle; pBundle; pBundle = pBundle->pNext)
     {
         if (pBundle->cUsed > 0)
@@ -2944,7 +3042,7 @@ SUPR0DECL(int) SUPR0PageProtect(PSUPDRVSESSION pSession, RTR3PTR pvR3, RTR0PTR p
             }
         }
     }
-    RTSpinlockRelease(pSession->Spinlock, &SpinlockTmp);
+    RTSpinlockRelease(pSession->Spinlock);
 
     rc = VERR_INVALID_PARAMETER;
     if (    hMemObjR0 != NIL_RTR0MEMOBJ
@@ -3007,13 +3105,13 @@ SUPR0DECL(SUPPAGINGMODE) SUPR0GetPagingMode(void)
         uint32_t fNXEPlusLMA = 0;
         if (cr4 & X86_CR4_PAE)
         {
-            uint32_t fAmdFeatures = ASMCpuId_EDX(0x80000001);
-            if (fAmdFeatures & (X86_CPUID_AMD_FEATURE_EDX_NX | X86_CPUID_AMD_FEATURE_EDX_LONG_MODE))
+            uint32_t fExtFeatures = ASMCpuId_EDX(0x80000001);
+            if (fExtFeatures & (X86_CPUID_EXT_FEATURE_EDX_NX | X86_CPUID_EXT_FEATURE_EDX_LONG_MODE))
             {
                 uint64_t efer = ASMRdMsr(MSR_K6_EFER);
-                if ((fAmdFeatures & X86_CPUID_AMD_FEATURE_EDX_NX)        && (efer & MSR_K6_EFER_NXE))
+                if ((fExtFeatures & X86_CPUID_EXT_FEATURE_EDX_NX)        && (efer & MSR_K6_EFER_NXE))
                     fNXEPlusLMA |= RT_BIT(0);
-                if ((fAmdFeatures & X86_CPUID_AMD_FEATURE_EDX_LONG_MODE) && (efer & MSR_K6_EFER_LMA))
+                if ((fExtFeatures & X86_CPUID_EXT_FEATURE_EDX_LONG_MODE) && (efer & MSR_K6_EFER_LMA))
                     fNXEPlusLMA |= RT_BIT(1);
             }
         }
@@ -3660,12 +3758,11 @@ SUPR0DECL(int) SUPR0ComponentQueryFactory(PSUPDRVSESSION pSession, const char *p
 static int supdrvMemAdd(PSUPDRVMEMREF pMem, PSUPDRVSESSION pSession)
 {
     PSUPDRVBUNDLE pBundle;
-    RTSPINLOCKTMP SpinlockTmp = RTSPINLOCKTMP_INITIALIZER;
 
     /*
      * Find free entry and record the allocation.
      */
-    RTSpinlockAcquire(pSession->Spinlock, &SpinlockTmp);
+    RTSpinlockAcquire(pSession->Spinlock);
     for (pBundle = &pSession->Bundle; pBundle; pBundle = pBundle->pNext)
     {
         if (pBundle->cUsed < RT_ELEMENTS(pBundle->aMem))
@@ -3677,14 +3774,14 @@ static int supdrvMemAdd(PSUPDRVMEMREF pMem, PSUPDRVSESSION pSession)
                 {
                     pBundle->cUsed++;
                     pBundle->aMem[i] = *pMem;
-                    RTSpinlockRelease(pSession->Spinlock, &SpinlockTmp);
+                    RTSpinlockRelease(pSession->Spinlock);
                     return VINF_SUCCESS;
                 }
             }
             AssertFailed();             /* !!this can't be happening!!! */
         }
     }
-    RTSpinlockRelease(pSession->Spinlock, &SpinlockTmp);
+    RTSpinlockRelease(pSession->Spinlock);
 
     /*
      * Need to allocate a new bundle.
@@ -3699,10 +3796,10 @@ static int supdrvMemAdd(PSUPDRVMEMREF pMem, PSUPDRVSESSION pSession)
     pBundle->aMem[RT_ELEMENTS(pBundle->aMem) - 1] = *pMem;
 
     /* insert into list. */
-    RTSpinlockAcquire(pSession->Spinlock, &SpinlockTmp);
+    RTSpinlockAcquire(pSession->Spinlock);
     pBundle->pNext = pSession->Bundle.pNext;
     pSession->Bundle.pNext = pBundle;
-    RTSpinlockRelease(pSession->Spinlock, &SpinlockTmp);
+    RTSpinlockRelease(pSession->Spinlock);
 
     return VINF_SUCCESS;
 }
@@ -3719,7 +3816,6 @@ static int supdrvMemAdd(PSUPDRVMEMREF pMem, PSUPDRVSESSION pSession)
 static int supdrvMemRelease(PSUPDRVSESSION pSession, RTHCUINTPTR uPtr, SUPDRVMEMREFTYPE eType)
 {
     PSUPDRVBUNDLE pBundle;
-    RTSPINLOCKTMP SpinlockTmp = RTSPINLOCKTMP_INITIALIZER;
 
     /*
      * Validate input.
@@ -3733,7 +3829,7 @@ static int supdrvMemRelease(PSUPDRVSESSION pSession, RTHCUINTPTR uPtr, SUPDRVMEM
     /*
      * Search for the address.
      */
-    RTSpinlockAcquire(pSession->Spinlock, &SpinlockTmp);
+    RTSpinlockAcquire(pSession->Spinlock);
     for (pBundle = &pSession->Bundle; pBundle; pBundle = pBundle->pNext)
     {
         if (pBundle->cUsed > 0)
@@ -3753,7 +3849,7 @@ static int supdrvMemRelease(PSUPDRVSESSION pSession, RTHCUINTPTR uPtr, SUPDRVMEM
                     pBundle->aMem[i].eType = MEMREF_TYPE_UNUSED;
                     pBundle->aMem[i].MemObj = NIL_RTR0MEMOBJ;
                     pBundle->aMem[i].MapObjR3 = NIL_RTR0MEMOBJ;
-                    RTSpinlockRelease(pSession->Spinlock, &SpinlockTmp);
+                    RTSpinlockRelease(pSession->Spinlock);
 
                     if (Mem.MapObjR3 != NIL_RTR0MEMOBJ)
                     {
@@ -3770,7 +3866,7 @@ static int supdrvMemRelease(PSUPDRVSESSION pSession, RTHCUINTPTR uPtr, SUPDRVMEM
             }
         }
     }
-    RTSpinlockRelease(pSession->Spinlock, &SpinlockTmp);
+    RTSpinlockRelease(pSession->Spinlock);
     Log(("Failed to find %p!!! (eType=%d)\n", (void *)uPtr, eType));
     return VERR_INVALID_PARAMETER;
 }
@@ -3819,7 +3915,8 @@ static int supdrvIOCtl_LdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
     /*
      * Allocate memory.
      */
-    pv = RTMemAlloc(RT_OFFSETOF(SUPDRVLDRIMAGE, szName[cchName + 1]));
+    Assert(cchName < sizeof(pImage->szName));
+    pv = RTMemAlloc(sizeof(SUPDRVLDRIMAGE));
     if (!pv)
     {
         supdrvLdrUnlock(pDevExt);
@@ -3844,6 +3941,7 @@ static int supdrvIOCtl_LdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
     pImage->pfnServiceReqHandler = NULL;
     pImage->uState          = SUP_IOCTL_LDR_OPEN;
     pImage->cUsage          = 1;
+    pImage->pDevExt         = pDevExt;
     memcpy(pImage->szName, pReq->u.In.szName, cchName + 1);
 
     /*
@@ -3879,11 +3977,9 @@ static int supdrvIOCtl_LdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
     pReq->u.Out.pvImageBase   = pImage->pvImage;
     pReq->u.Out.fNeedsLoading = true;
     pReq->u.Out.fNativeLoader = pImage->fNative;
-    supdrvLdrUnlock(pDevExt);
+    supdrvOSLdrNotifyOpened(pDevExt, pImage);
 
-#if defined(RT_OS_WINDOWS) && defined(DEBUG)
-    SUPR0Printf("VBoxDrv: windbg> .reload /f %s=%#p\n", pImage->szName, pImage->pvImage);
-#endif
+    supdrvLdrUnlock(pDevExt);
     return VINF_SUCCESS;
 }
 
@@ -4066,7 +4162,10 @@ static int supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
         if (pImage->fNative)
             rc = supdrvOSLdrLoad(pDevExt, pImage, pReq->u.In.abImage, pReq);
         else
+        {
             memcpy(pImage->pvImage, &pReq->u.In.abImage[0], pImage->cbImageBits);
+            Log(("vboxdrv: Loaded '%s' at %p\n", pImage->szName, pImage->pvImage));
+        }
     }
 
     /*
@@ -4098,13 +4197,20 @@ static int supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
     if (RT_SUCCESS(rc) && pImage->pfnModuleInit)
     {
         Log(("supdrvIOCtl_LdrLoad: calling pfnModuleInit=%p\n", pImage->pfnModuleInit));
-        rc = pImage->pfnModuleInit();
-        if (rc && pDevExt->pvVMMR0 == pImage->pvImage)
+        pDevExt->pLdrInitImage  = pImage;
+        pDevExt->hLdrInitThread = RTThreadNativeSelf();
+        rc = pImage->pfnModuleInit(pImage);
+        pDevExt->pLdrInitImage  = NULL;
+        pDevExt->hLdrInitThread = NIL_RTNATIVETHREAD;
+        if (RT_FAILURE(rc) && pDevExt->pvVMMR0 == pImage->pvImage)
             supdrvLdrUnsetVMMR0EPs(pDevExt);
     }
 
     if (RT_FAILURE(rc))
     {
+        /* Inform the tracing component in case ModuleInit registered TPs. */
+        supdrvTracerModuleUnloading(pDevExt, pImage);
+
         pImage->uState              = SUP_IOCTL_LDR_OPEN;
         pImage->pfnModuleInit       = NULL;
         pImage->pfnModuleTerm       = NULL;
@@ -4168,8 +4274,7 @@ static int supdrvIOCtl_LdrFree(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
          * so leave it for the session cleanup routine so we get a chance to
          * clean things up in the right order and not leave them all dangling.
          */
-        RTSPINLOCKTMP   SpinlockTmp = RTSPINLOCKTMP_INITIALIZER;
-        RTSpinlockAcquire(pDevExt->Spinlock, &SpinlockTmp);
+        RTSpinlockAcquire(pDevExt->Spinlock);
         if (pImage->cUsage <= 1)
         {
             PSUPDRVOBJ pObj;
@@ -4190,7 +4295,7 @@ static int supdrvIOCtl_LdrFree(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
                     break;
                 }
         }
-        RTSpinlockRelease(pDevExt->Spinlock, &SpinlockTmp);
+        RTSpinlockRelease(pDevExt->Spinlock);
         if (rc == VINF_SUCCESS)
         {
             /* unlink it */
@@ -4528,15 +4633,14 @@ static void supdrvLdrFree(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
     {
         unsigned        cObjs = 0;
         PSUPDRVOBJ      pObj;
-        RTSPINLOCKTMP   SpinlockTmp = RTSPINLOCKTMP_INITIALIZER;
-        RTSpinlockAcquire(pDevExt->Spinlock, &SpinlockTmp);
+        RTSpinlockAcquire(pDevExt->Spinlock);
         for (pObj = pDevExt->pObjs; pObj; pObj = pObj->pNext)
             if (RT_UNLIKELY((uintptr_t)pObj->pfnDestructor - (uintptr_t)pImage->pvImage < pImage->cbImageBits))
             {
                 pObj->pfnDestructor = NULL;
                 cObjs++;
             }
-        RTSpinlockRelease(pDevExt->Spinlock, &SpinlockTmp);
+        RTSpinlockRelease(pDevExt->Spinlock);
         if (cObjs)
             OSDBGPRINT(("supdrvLdrFree: Image '%s' has %d dangling objects!\n", pImage->szName, cObjs));
     }
@@ -4546,17 +4650,21 @@ static void supdrvLdrFree(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
         &&  pImage->uState == SUP_IOCTL_LDR_LOAD)
     {
         LogFlow(("supdrvIOCtl_LdrLoad: calling pfnModuleTerm=%p\n", pImage->pfnModuleTerm));
-        pImage->pfnModuleTerm();
+        pImage->pfnModuleTerm(pImage);
     }
+
+    /* Inform the tracing component. */
+    supdrvTracerModuleUnloading(pDevExt, pImage);
 
     /* do native unload if appropriate. */
     if (pImage->fNative)
         supdrvOSLdrUnload(pDevExt, pImage);
 
     /* free the image */
-    pImage->cUsage = 0;
-    pImage->pNext  = 0;
-    pImage->uState = SUP_IOCTL_LDR_FREE;
+    pImage->cUsage  = 0;
+    pImage->pDevExt = NULL;
+    pImage->pNext   = NULL;
+    pImage->uState  = SUP_IOCTL_LDR_FREE;
     RTMemExecFree(pImage->pvImageAlloc, pImage->cbImageBits + 31);
     pImage->pvImageAlloc = NULL;
     RTMemFree(pImage->pachStrTab);
@@ -4962,7 +5070,7 @@ static DECLCALLBACK(void) supdrvGipSyncTimer(PRTTIMER pTimer, void *pvUser, uint
     uint64_t        u64TSC    = ASMReadTSC();
     uint64_t        NanoTS    = RTTimeSystemNanoTS();
 
-    supdrvGipUpdate(pDevExt->pGip, NanoTS, u64TSC, NIL_RTCPUID, iTick);
+    supdrvGipUpdate(pDevExt, NanoTS, u64TSC, NIL_RTCPUID, iTick);
 
     ASMSetFlags(fOldFlags);
 }
@@ -4983,9 +5091,9 @@ static DECLCALLBACK(void) supdrvGipAsyncTimer(PRTTIMER pTimer, void *pvUser, uin
 
     /** @todo reset the transaction number and whatnot when iTick == 1. */
     if (pDevExt->idGipMaster == idCpu)
-        supdrvGipUpdate(pDevExt->pGip, NanoTS, u64TSC, idCpu, iTick);
+        supdrvGipUpdate(pDevExt, NanoTS, u64TSC, idCpu, iTick);
     else
-        supdrvGipUpdatePerCpu(pDevExt->pGip, NanoTS, u64TSC, idCpu, ASMGetApicId(), iTick);
+        supdrvGipUpdatePerCpu(pDevExt, NanoTS, u64TSC, idCpu, ASMGetApicId(), iTick);
 
     ASMSetFlags(fOldFlags);
 }
@@ -5030,17 +5138,26 @@ static uint32_t supdrvGipCpuIndexFromCpuId(PSUPGLOBALINFOPAGE pGip, RTCPUID idCp
  *
  * This is used by supdrvGipMpEvent as well as the supdrvGipCreate.
  *
- * @param   pGip                The GIP.
+ * @param   pDevExt             The device extension.
  * @param   idCpu               The CPU ID.
  */
-static void supdrvGipMpEventOnline(PSUPGLOBALINFOPAGE pGip, RTCPUID idCpu)
+static void supdrvGipMpEventOnline(PSUPDRVDEVEXT pDevExt, RTCPUID idCpu)
 {
     int         iCpuSet = 0;
     uint16_t    idApic = UINT16_MAX;
     uint32_t    i = 0;
+    uint64_t    u64NanoTS = 0;
+    PSUPGLOBALINFOPAGE pGip = pDevExt->pGip;
 
+    AssertPtrReturnVoid(pGip);
     AssertRelease(idCpu == RTMpCpuId());
     Assert(pGip->cPossibleCpus == RTMpGetCount());
+
+    /*
+     * Do this behind a spinlock with interrupts disabled as this can fire
+     * on all CPUs simultaneously, see @bugref{6110}.
+     */
+    RTSpinlockAcquire(pDevExt->hGipSpinlock);
 
     /*
      * Update the globals.
@@ -5058,11 +5175,13 @@ static void supdrvGipMpEventOnline(PSUPGLOBALINFOPAGE pGip, RTCPUID idCpu)
     /*
      * Update the entry.
      */
+    u64NanoTS = RTTimeSystemNanoTS() - pGip->u32UpdateIntervalNS;
     i = supdrvGipCpuIndexFromCpuId(pGip, idCpu);
+    supdrvGipInitCpu(pGip, &pGip->aCPUs[i], u64NanoTS);
     idApic = ASMGetApicId();
-    ASMAtomicUoWriteU16(&pGip->aCPUs[i].idApic,  idApic);
-    ASMAtomicUoWriteS16(&pGip->aCPUs[i].iCpuSet, (int16_t)iCpuSet);
-    ASMAtomicUoWriteSize(&pGip->aCPUs[i].idCpu,  idCpu);
+    ASMAtomicWriteU16(&pGip->aCPUs[i].idApic,  idApic);
+    ASMAtomicWriteS16(&pGip->aCPUs[i].iCpuSet, (int16_t)iCpuSet);
+    ASMAtomicWriteSize(&pGip->aCPUs[i].idCpu,  idCpu);
 
     /*
      * Update the APIC ID and CPU set index mappings.
@@ -5072,6 +5191,8 @@ static void supdrvGipMpEventOnline(PSUPGLOBALINFOPAGE pGip, RTCPUID idCpu)
 
     /* commit it */
     ASMAtomicWriteSize(&pGip->aCPUs[i].enmState, SUPGIPCPUSTATE_ONLINE);
+
+    RTSpinlockReleaseNoInts(pDevExt->hGipSpinlock);
 }
 
 
@@ -5080,13 +5201,18 @@ static void supdrvGipMpEventOnline(PSUPGLOBALINFOPAGE pGip, RTCPUID idCpu)
  *
  * This is used by supdrvGipMpEvent.
  *
- * @param   pGip                The GIP.
+ * @param   pDevExt             The device extension.
  * @param   idCpu               The CPU ID.
  */
-static void supdrvGipMpEventOffline(PSUPGLOBALINFOPAGE pGip, RTCPUID idCpu)
+static void supdrvGipMpEventOffline(PSUPDRVDEVEXT pDevExt, RTCPUID idCpu)
 {
     int         iCpuSet;
     unsigned    i;
+
+    PSUPGLOBALINFOPAGE pGip   = pDevExt->pGip;
+
+    AssertPtrReturnVoid(pGip);
+    RTSpinlockAcquire(pDevExt->hGipSpinlock);
 
     iCpuSet = RTMpCpuIdToSetIndex(idCpu);
     AssertReturnVoid(iCpuSet >= 0);
@@ -5100,6 +5226,8 @@ static void supdrvGipMpEventOffline(PSUPGLOBALINFOPAGE pGip, RTCPUID idCpu)
 
     /* commit it */
     ASMAtomicWriteSize(&pGip->aCPUs[i].enmState, SUPGIPCPUSTATE_OFFLINE);
+
+    RTSpinlockReleaseNoInts(pDevExt->hGipSpinlock);
 }
 
 
@@ -5112,13 +5240,16 @@ static void supdrvGipMpEventOffline(PSUPGLOBALINFOPAGE pGip, RTCPUID idCpu)
  * @param   enmEvent    The event.
  * @param   idCpu       The cpu it applies to.
  * @param   pvUser      Pointer to the device extension.
+ *
+ * @remarks This function -must- fire on the newly online'd CPU for the
+ *          RTMPEVENT_ONLINE case and can fire on any CPU for the
+ *          RTMPEVENT_OFFLINE case.
  */
 static DECLCALLBACK(void) supdrvGipMpEvent(RTMPEVENT enmEvent, RTCPUID idCpu, void *pvUser)
 {
     PSUPDRVDEVEXT       pDevExt = (PSUPDRVDEVEXT)pvUser;
     PSUPGLOBALINFOPAGE  pGip    = pDevExt->pGip;
 
-    AssertRelease(idCpu == RTMpCpuId());
     AssertRelease(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
 
     /*
@@ -5129,10 +5260,11 @@ static DECLCALLBACK(void) supdrvGipMpEvent(RTMPEVENT enmEvent, RTCPUID idCpu, vo
         switch (enmEvent)
         {
             case RTMPEVENT_ONLINE:
-                supdrvGipMpEventOnline(pGip, idCpu);
+                AssertRelease(idCpu == RTMpCpuId());
+                supdrvGipMpEventOnline(pDevExt, idCpu);
                 break;
             case RTMPEVENT_OFFLINE:
-                supdrvGipMpEventOffline(pGip, idCpu);
+                supdrvGipMpEventOffline(pDevExt, idCpu);
                 break;
 
         }
@@ -5328,6 +5460,42 @@ static SUPGIPMODE supdrvGipDeterminTscMode(PSUPDRVDEVEXT pDevExt)
 }
 
 
+/**
+ * Initializes per-CPU GIP information.
+ *
+ * @param   pGip        Pointer to the read-write kernel mapping of the GIP.
+ * @param   pCpu        Pointer to which GIP CPU to initalize.
+ * @param   u64NanoTS   The current nanosecond timestamp.
+ */
+static void supdrvGipInitCpu(PSUPGLOBALINFOPAGE pGip, PSUPGIPCPU pCpu, uint64_t u64NanoTS)
+{
+    pCpu->u32TransactionId   = 2;
+    pCpu->u64NanoTS          = u64NanoTS;
+    pCpu->u64TSC             = ASMReadTSC();
+
+    ASMAtomicWriteSize(&pCpu->enmState, SUPGIPCPUSTATE_INVALID);
+    ASMAtomicWriteSize(&pCpu->idCpu,    NIL_RTCPUID);
+    ASMAtomicWriteS16(&pCpu->iCpuSet,   -1);
+    ASMAtomicWriteU16(&pCpu->idApic,    UINT16_MAX);
+
+    /*
+     * We don't know the following values until we've executed updates.
+     * So, we'll just pretend it's a 4 GHz CPU and adjust the history it on
+     * the 2nd timer callout.
+     */
+    pCpu->u64CpuHz          = _4G + 1; /* tstGIP-2 depends on this. */
+    pCpu->u32UpdateIntervalTSC
+        = pCpu->au32TSCHistory[0]
+        = pCpu->au32TSCHistory[1]
+        = pCpu->au32TSCHistory[2]
+        = pCpu->au32TSCHistory[3]
+        = pCpu->au32TSCHistory[4]
+        = pCpu->au32TSCHistory[5]
+        = pCpu->au32TSCHistory[6]
+        = pCpu->au32TSCHistory[7]
+        = (uint32_t)(_4G / pGip->u32UpdateHz);
+}
+
 
 /**
  * Initializes the GIP data.
@@ -5375,33 +5543,7 @@ static void supdrvGipInit(PSUPDRVDEVEXT pDevExt, PSUPGLOBALINFOPAGE pGip, RTHCPH
         pGip->aiCpuFromCpuSetIdx[i] = UINT16_MAX;
 
     for (i = 0; i < cCpus; i++)
-    {
-        pGip->aCPUs[i].u32TransactionId  = 2;
-        pGip->aCPUs[i].u64NanoTS         = u64NanoTS;
-        pGip->aCPUs[i].u64TSC            = ASMReadTSC();
-
-        pGip->aCPUs[i].enmState          = SUPGIPCPUSTATE_INVALID;
-        pGip->aCPUs[i].idCpu             = NIL_RTCPUID;
-        pGip->aCPUs[i].iCpuSet           = -1;
-        pGip->aCPUs[i].idApic            = UINT16_MAX;
-
-        /*
-         * We don't know the following values until we've executed updates.
-         * So, we'll just pretend it's a 4 GHz CPU and adjust the history it on
-         * the 2nd timer callout.
-         */
-        pGip->aCPUs[i].u64CpuHz          = _4G + 1; /* tstGIP-2 depends on this. */
-        pGip->aCPUs[i].u32UpdateIntervalTSC
-            = pGip->aCPUs[i].au32TSCHistory[0]
-            = pGip->aCPUs[i].au32TSCHistory[1]
-            = pGip->aCPUs[i].au32TSCHistory[2]
-            = pGip->aCPUs[i].au32TSCHistory[3]
-            = pGip->aCPUs[i].au32TSCHistory[4]
-            = pGip->aCPUs[i].au32TSCHistory[5]
-            = pGip->aCPUs[i].au32TSCHistory[6]
-            = pGip->aCPUs[i].au32TSCHistory[7]
-            = /*pGip->aCPUs[i].u64CpuHz*/ (uint32_t)(_4G / uUpdateHz);
-    }
+        supdrvGipInitCpu(pGip, &pGip->aCPUs[i], u64NanoTS);
 
     /*
      * Link it to the device extension.
@@ -5423,7 +5565,7 @@ static DECLCALLBACK(void) supdrvGipInitOnCpu(RTCPUID idCpu, void *pvUser1, void 
 {
     /* This is good enough, even though it will update some of the globals a
        bit to much. */
-    supdrvGipMpEventOnline((PSUPGLOBALINFOPAGE)pvUser2, idCpu);
+    supdrvGipMpEventOnline((PSUPDRVDEVEXT)pvUser1, idCpu);
 }
 
 
@@ -5449,13 +5591,13 @@ static void supdrvGipTerm(PSUPGLOBALINFOPAGE pGip)
  * Worker routine for supdrvGipUpdate and supdrvGipUpdatePerCpu that
  * updates all the per cpu data except the transaction id.
  *
- * @param   pGip            The GIP.
+ * @param   pDevExt         The device extension.
  * @param   pGipCpu         Pointer to the per cpu data.
  * @param   u64NanoTS       The current time stamp.
  * @param   u64TSC          The current TSC.
  * @param   iTick           The current timer tick.
  */
-static void supdrvGipDoUpdateCpu(PSUPGLOBALINFOPAGE pGip, PSUPGIPCPU pGipCpu, uint64_t u64NanoTS, uint64_t u64TSC, uint64_t iTick)
+static void supdrvGipDoUpdateCpu(PSUPDRVDEVEXT pDevExt, PSUPGIPCPU pGipCpu, uint64_t u64NanoTS, uint64_t u64TSC, uint64_t iTick)
 {
     uint64_t    u64TSCDelta;
     uint32_t    u32UpdateIntervalTSC;
@@ -5463,6 +5605,9 @@ static void supdrvGipDoUpdateCpu(PSUPGLOBALINFOPAGE pGip, PSUPGIPCPU pGipCpu, ui
     unsigned    iTSCHistoryHead;
     uint64_t    u64CpuHz;
     uint32_t    u32TransactionId;
+
+    PSUPGLOBALINFOPAGE pGip = pDevExt->pGip;
+    AssertPtrReturnVoid(pGip);
 
     /* Delta between this and the previous update. */
     ASMAtomicUoWriteU32(&pGipCpu->u32PrevUpdateIntervalNS, (uint32_t)(u64NanoTS - pGipCpu->u64NanoTS));
@@ -5561,18 +5706,21 @@ static void supdrvGipDoUpdateCpu(PSUPGLOBALINFOPAGE pGip, PSUPGIPCPU pGipCpu, ui
 /**
  * Updates the GIP.
  *
- * @param   pGip            Pointer to the GIP.
+ * @param   pDevExt         The device extension.
  * @param   u64NanoTS       The current nanosecond timesamp.
  * @param   u64TSC          The current TSC timesamp.
  * @param   idCpu           The CPU ID.
  * @param   iTick           The current timer tick.
  */
-static void supdrvGipUpdate(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, uint64_t u64TSC, RTCPUID idCpu, uint64_t iTick)
+static void supdrvGipUpdate(PSUPDRVDEVEXT pDevExt, uint64_t u64NanoTS, uint64_t u64TSC, RTCPUID idCpu, uint64_t iTick)
 {
     /*
      * Determine the relevant CPU data.
      */
     PSUPGIPCPU pGipCpu;
+    PSUPGLOBALINFOPAGE pGip = pDevExt->pGip;
+    AssertPtrReturnVoid(pGip);
+
     if (pGip->u32Mode != SUPGIPMODE_ASYNC_TSC)
         pGipCpu = &pGip->aCPUs[0];
     else
@@ -5620,7 +5768,7 @@ static void supdrvGipUpdate(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, uint64_
     /*
      * Update the data.
      */
-    supdrvGipDoUpdateCpu(pGip, pGipCpu, u64NanoTS, u64TSC, iTick);
+    supdrvGipDoUpdateCpu(pDevExt, pGipCpu, u64NanoTS, u64TSC, iTick);
 
     /*
      * Complete transaction.
@@ -5632,17 +5780,18 @@ static void supdrvGipUpdate(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, uint64_
 /**
  * Updates the per cpu GIP data for the calling cpu.
  *
- * @param   pGip            Pointer to the GIP.
+ * @param   pDevExt         The device extension.
  * @param   u64NanoTS       The current nanosecond timesamp.
  * @param   u64TSC          The current TSC timesamp.
  * @param   idCpu           The CPU ID.
  * @param   idApic          The APIC id for the CPU index.
  * @param   iTick           The current timer tick.
  */
-static void supdrvGipUpdatePerCpu(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, uint64_t u64TSC,
+static void supdrvGipUpdatePerCpu(PSUPDRVDEVEXT pDevExt, uint64_t u64NanoTS, uint64_t u64TSC,
                                   RTCPUID idCpu, uint8_t idApic, uint64_t iTick)
 {
     uint32_t iCpu;
+    PSUPGLOBALINFOPAGE pGip = pDevExt->pGip;
 
     /*
      * Avoid a potential race when a CPU online notification doesn't fire on
@@ -5653,7 +5802,7 @@ static void supdrvGipUpdatePerCpu(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, u
     {
         iCpu = supdrvGipCpuIndexFromCpuId(pGip, idCpu);
         if (pGip->aCPUs[iCpu].enmState == SUPGIPCPUSTATE_OFFLINE)
-            supdrvGipMpEventOnline(pGip, idCpu);
+            supdrvGipMpEventOnline(pDevExt, idCpu);
     }
 
     iCpu = pGip->aiCpuFromApicId[idApic];
@@ -5676,7 +5825,7 @@ static void supdrvGipUpdatePerCpu(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, u
             /*
              * Update the data.
              */
-            supdrvGipDoUpdateCpu(pGip, pGipCpu, u64NanoTS, u64TSC, iTick);
+            supdrvGipDoUpdateCpu(pDevExt, pGipCpu, u64NanoTS, u64TSC, iTick);
 
             /*
              * Complete transaction.

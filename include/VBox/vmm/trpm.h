@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -81,7 +81,7 @@ VMMDECL(bool)       TRPMHasTrap(PVMCPU pVCpu);
 VMMDECL(int)        TRPMQueryTrapAll(PVMCPU pVCpu, uint8_t *pu8TrapNo, PTRPMEVENT pEnmType, PRTGCUINT puErrorCode, PRTGCUINTPTR puCR2);
 VMMDECL(void)       TRPMSaveTrap(PVMCPU pVCpu);
 VMMDECL(void)       TRPMRestoreTrap(PVMCPU pVCpu);
-VMMDECL(int)        TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGate, uint32_t opsize, TRPMERRORCODE enmError, TRPMEVENT enmType, int32_t iOrgTrap);
+VMMDECL(int)        TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGate, uint32_t cbInstr, TRPMERRORCODE enmError, TRPMEVENT enmType, int32_t iOrgTrap);
 VMMDECL(int)        TRPMRaiseXcpt(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86XCPT enmXcpt);
 VMMDECL(int)        TRPMRaiseXcptErr(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86XCPT enmXcpt, uint32_t uErr);
 VMMDECL(int)        TRPMRaiseXcptErrCR2(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86XCPT enmXcpt, uint32_t uErr, RTGCUINTPTR uCR2);
@@ -96,6 +96,7 @@ VMMR3DECL(int)      TRPMR3Init(PVM pVM);
 VMMR3DECL(void)     TRPMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
 VMMR3DECL(void)     TRPMR3ResetCpu(PVMCPU pVCpu);
 VMMR3DECL(void)     TRPMR3Reset(PVM pVM);
+VMMR3_INT_DECL(int) TRPMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue);
 VMMR3DECL(int)      TRPMR3Term(PVM pVM);
 VMMR3DECL(int)      TRPMR3EnableGuestTrapHandler(PVM pVM, unsigned iTrap);
 VMMR3DECL(int)      TRPMR3SetGuestTrapHandler(PVM pVM, unsigned iTrap, RTRCPTR pHandler);

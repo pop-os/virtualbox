@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -198,7 +198,7 @@ DECLINLINE(void) rtR0SemBsdWaitDoIt(PRTR0SEMBSDSLEEP pWait)
     if (pWait->fInterruptible)
         fSleepqFlags |= SLEEPQ_INTERRUPTIBLE;
 
-    sleepq_add(pWait->pvWaitChan, NULL, "IPRT Semaphore", fSleepqFlags, 0);
+    sleepq_add(pWait->pvWaitChan, NULL, "VBoxIS", fSleepqFlags, 0);
 
     if (!pWait->fIndefinite)
     {

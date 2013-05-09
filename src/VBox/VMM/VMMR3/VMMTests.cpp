@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,12 +42,21 @@
 #include <iprt/string.h>
 #include <iprt/x86.h>
 
+static void vmmR3TestClearStack(PVMCPU pVCpu)
+{
+    /* We leave the first 64 bytes of the stack alone because of strict
+       ring-0 long jump code uses it. */
+    memset(pVCpu->vmm.s.pbEMTStackR3 + 64, 0xaa, VMM_STACK_SIZE - 64);
+}
+
+
+#ifdef VBOX_WITH_RAW_MODE
 
 /**
  * Performs a testcase.
  *
  * @returns return value from the test.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   enmTestcase The testcase operation to perform.
  * @param   uVariation  The testcase variation id.
  */
@@ -60,15 +69,13 @@ static int vmmR3DoGCTest(PVM pVM, VMMGCOPERATION enmTestcase, unsigned uVariatio
     if (RT_FAILURE(rc))
         return rc;
 
-    CPUMHyperSetCtxCore(pVCpu, NULL);
-    memset(pVCpu->vmm.s.pbEMTStackR3, 0xaa, VMM_STACK_SIZE);
-    CPUMSetHyperESP(pVCpu, pVCpu->vmm.s.pbEMTStackBottomRC); /* Clear the stack. */
+    CPUMSetHyperState(pVCpu, pVM->vmm.s.pfnCallTrampolineRC, pVCpu->vmm.s.pbEMTStackBottomRC, 0, 0);
+    vmmR3TestClearStack(pVCpu);
     CPUMPushHyper(pVCpu, uVariation);
     CPUMPushHyper(pVCpu, enmTestcase);
     CPUMPushHyper(pVCpu, pVM->pVMRC);
     CPUMPushHyper(pVCpu, 3 * sizeof(RTRCPTR));    /* stack frame size */
     CPUMPushHyper(pVCpu, RCPtrEP);                /* what to call */
-    CPUMSetHyperEIP(pVCpu, pVM->vmm.s.pfnCallTrampolineRC);
     Assert(CPUMGetHyperCR3(pVCpu) && CPUMGetHyperCR3(pVCpu) == PGMGetHyperCR3(pVCpu));
     rc = SUPR3CallVMMR0Fast(pVM->pVMR0, VMMR0_DO_RAW_RUN, 0);
     if (RT_LIKELY(rc == VINF_SUCCESS))
@@ -81,7 +88,7 @@ static int vmmR3DoGCTest(PVM pVM, VMMGCOPERATION enmTestcase, unsigned uVariatio
  * Performs a trap test.
  *
  * @returns Return value from the trap test.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   u8Trap      The trap number to test.
  * @param   uVariation  The testcase variation.
  * @param   rcExpect    The expected result.
@@ -100,15 +107,13 @@ static int vmmR3DoTrapTest(PVM pVM, uint8_t u8Trap, unsigned uVariation, int rcE
     if (RT_FAILURE(rc))
         return rc;
 
-    CPUMHyperSetCtxCore(pVCpu, NULL);
-    memset(pVCpu->vmm.s.pbEMTStackR3, 0xaa, VMM_STACK_SIZE);
-    CPUMSetHyperESP(pVCpu, pVCpu->vmm.s.pbEMTStackBottomRC); /* Clear the stack. */
+    CPUMSetHyperState(pVCpu, pVM->vmm.s.pfnCallTrampolineRC, pVCpu->vmm.s.pbEMTStackBottomRC, 0, 0);
+    vmmR3TestClearStack(pVCpu);
     CPUMPushHyper(pVCpu, uVariation);
     CPUMPushHyper(pVCpu, u8Trap + VMMGC_DO_TESTCASE_TRAP_FIRST);
     CPUMPushHyper(pVCpu, pVM->pVMRC);
     CPUMPushHyper(pVCpu, 3 * sizeof(RTRCPTR));    /* stack frame size */
     CPUMPushHyper(pVCpu, RCPtrEP);                /* what to call */
-    CPUMSetHyperEIP(pVCpu, pVM->vmm.s.pfnCallTrampolineRC);
     Assert(CPUMGetHyperCR3(pVCpu) && CPUMGetHyperCR3(pVCpu) == PGMGetHyperCR3(pVCpu));
     rc = SUPR3CallVMMR0Fast(pVM->pVMR0, VMMR0_DO_RAW_RUN, 0);
     if (RT_LIKELY(rc == VINF_SUCCESS))
@@ -173,23 +178,27 @@ static int vmmR3DoTrapTest(PVM pVM, uint8_t u8Trap, unsigned uVariation, int rcE
     return rc;
 }
 
+#endif /* VBOX_WITH_RAW_MODE */
+
 
 /* execute the switch. */
 VMMR3DECL(int) VMMDoTest(PVM pVM)
 {
-#if 1
+    int rc = VINF_SUCCESS;
+
+#ifdef VBOX_WITH_RAW_MODE
     PVMCPU pVCpu = &pVM->aCpus[0];
 
-#ifdef NO_SUPCALLR0VMM
+# ifdef NO_SUPCALLR0VMM
     RTPrintf("NO_SUPCALLR0VMM\n");
-    return VINF_SUCCESS;
-#endif
+    return rc;
+# endif
 
     /*
      * Setup stack for calling VMMGCEntry().
      */
     RTRCPTR RCPtrEP;
-    int rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "VMMGCEntry", &RCPtrEP);
+    rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "VMMGCEntry", &RCPtrEP);
     if (RT_SUCCESS(rc))
     {
         RTPrintf("VMM: VMMGCEntry=%RRv\n", RCPtrEP);
@@ -200,20 +209,20 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
         vmmR3DoTrapTest(pVM, 0x3, 0, VINF_EM_DBG_HYPER_ASSERTION,  0xf0f0f0f0, "vmmGCTestTrap3_FaultEIP", "int3");
         vmmR3DoTrapTest(pVM, 0x3, 1, VINF_EM_DBG_HYPER_ASSERTION,  0xf0f0f0f0, "vmmGCTestTrap3_FaultEIP", "int3 WP");
 
-#if defined(DEBUG_bird) /* guess most people would like to skip these since they write to com1. */
+# if defined(DEBUG_bird) /* guess most people would like to skip these since they write to com1. */
         vmmR3DoTrapTest(pVM, 0x8, 0, VERR_TRPM_PANIC,       0x00000000, "vmmGCTestTrap8_FaultEIP", "#DF [#PG]");
         SELMR3Relocate(pVM); /* this resets the busy flag of the Trap 08 TSS */
         bool f;
         rc = CFGMR3QueryBool(CFGMR3GetRoot(pVM), "DoubleFault", &f);
-#if !defined(DEBUG_bird)
+# if !defined(DEBUG_bird)
         if (RT_SUCCESS(rc) && f)
-#endif
+# endif
         {
             /* see triple fault warnings in SELM and VMMGC.cpp. */
             vmmR3DoTrapTest(pVM, 0x8, 1, VERR_TRPM_PANIC,       0x00000000, "vmmGCTestTrap8_FaultEIP", "#DF [#PG] WP");
             SELMR3Relocate(pVM); /* this resets the busy flag of the Trap 08 TSS */
         }
-#endif
+# endif
 
         vmmR3DoTrapTest(pVM, 0xd, 0, VERR_TRPM_DONT_PANIC,  0xf0f0f0f0, "vmmGCTestTrap0d_FaultEIP", "ltr #GP");
         ///@todo find a better \#GP case, on intel ltr will \#PF (busy update?) and not \#GP.
@@ -222,7 +231,11 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
         vmmR3DoTrapTest(pVM, 0xe, 0, VERR_TRPM_DONT_PANIC,  0x00000000, "vmmGCTestTrap0e_FaultEIP", "#PF (NULL)");
         vmmR3DoTrapTest(pVM, 0xe, 1, VERR_TRPM_DONT_PANIC,  0x00000000, "vmmGCTestTrap0e_FaultEIP", "#PF (NULL) WP");
         vmmR3DoTrapTest(pVM, 0xe, 2, VINF_SUCCESS,          0x00000000, NULL,                       "#PF w/Tmp Handler");
+        /* This test is no longer relevant as fs and gs are loaded with NULL
+           selectors and we will always return to HC if a #GP occurs while
+           returning to guest code.
         vmmR3DoTrapTest(pVM, 0xe, 4, VINF_SUCCESS,          0x00000000, NULL,                       "#PF w/Tmp Handler and bad fs");
+        */
 
         /*
          * Set a debug register and perform a context switch.
@@ -267,7 +280,7 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
         rc = VMMR3ResumeHyper(pVM, pVCpu);
         if (rc != VINF_SUCCESS)
         {
-            RTPrintf("VMM: failed to resume on hyper breakpoint, rc=%Rrc\n", rc);
+            RTPrintf("VMM: failed to resume on hyper breakpoint, rc=%Rrc = KNOWN BUG\n", rc); /** @todo fix VMMR3ResumeHyper */
             return rc;
         }
 
@@ -338,14 +351,12 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
         /*
          * Interrupt forwarding.
          */
-        CPUMHyperSetCtxCore(pVCpu, NULL);
-        CPUMSetHyperESP(pVCpu, pVCpu->vmm.s.pbEMTStackBottomRC); /* Clear the stack. */
+        CPUMSetHyperState(pVCpu, pVM->vmm.s.pfnCallTrampolineRC, pVCpu->vmm.s.pbEMTStackBottomRC, 0, 0);
         CPUMPushHyper(pVCpu, 0);
         CPUMPushHyper(pVCpu, VMMGC_DO_TESTCASE_HYPER_INTERRUPT);
         CPUMPushHyper(pVCpu, pVM->pVMRC);
         CPUMPushHyper(pVCpu, 3 * sizeof(RTRCPTR));    /* stack frame size */
         CPUMPushHyper(pVCpu, RCPtrEP);                /* what to call */
-        CPUMSetHyperEIP(pVCpu, pVM->vmm.s.pfnCallTrampolineRC);
         Log(("trampoline=%x\n", pVM->vmm.s.pfnCallTrampolineRC));
 
         /*
@@ -402,14 +413,12 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
         Assert(CPUMGetHyperCR3(pVCpu) && CPUMGetHyperCR3(pVCpu) == PGMGetHyperCR3(pVCpu));
         for (i = 0; i < 1000000; i++)
         {
-            CPUMHyperSetCtxCore(pVCpu, NULL);
-            CPUMSetHyperESP(pVCpu, pVCpu->vmm.s.pbEMTStackBottomRC); /* Clear the stack. */
+            CPUMSetHyperState(pVCpu, pVM->vmm.s.pfnCallTrampolineRC, pVCpu->vmm.s.pbEMTStackBottomRC, 0, 0);
             CPUMPushHyper(pVCpu, 0);
             CPUMPushHyper(pVCpu, VMMGC_DO_TESTCASE_NOP);
             CPUMPushHyper(pVCpu, pVM->pVMRC);
             CPUMPushHyper(pVCpu, 3 * sizeof(RTRCPTR));    /* stack frame size */
             CPUMPushHyper(pVCpu, RCPtrEP);                /* what to call */
-            CPUMSetHyperEIP(pVCpu, pVM->vmm.s.pfnCallTrampolineRC);
 
             uint64_t TickThisStart = ASMReadTSC();
             rc = SUPR3CallVMMR0Fast(pVM->pVMR0, VMMR0_DO_RAW_RUN, 0);
@@ -447,21 +456,21 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
 }
 
 #define SYNC_SEL(pHyperCtx, reg)                                                        \
-        if (pHyperCtx->reg)                                                             \
+        if (pHyperCtx->reg.Sel)                                                         \
         {                                                                               \
             DBGFSELINFO selInfo;                                                        \
-            int rc2 = SELMR3GetShadowSelectorInfo(pVM, pHyperCtx->reg, &selInfo);       \
+            int rc2 = SELMR3GetShadowSelectorInfo(pVM, pHyperCtx->reg.Sel, &selInfo);   \
             AssertRC(rc2);                                                              \
                                                                                         \
-            pHyperCtx->reg##Hid.u64Base              = selInfo.GCPtrBase;               \
-            pHyperCtx->reg##Hid.u32Limit             = selInfo.cbLimit;                 \
-            pHyperCtx->reg##Hid.Attr.n.u1Present     = selInfo.u.Raw.Gen.u1Present;     \
-            pHyperCtx->reg##Hid.Attr.n.u1DefBig      = selInfo.u.Raw.Gen.u1DefBig;      \
-            pHyperCtx->reg##Hid.Attr.n.u1Granularity = selInfo.u.Raw.Gen.u1Granularity; \
-            pHyperCtx->reg##Hid.Attr.n.u4Type        = selInfo.u.Raw.Gen.u4Type;        \
-            pHyperCtx->reg##Hid.Attr.n.u2Dpl         = selInfo.u.Raw.Gen.u2Dpl;         \
-            pHyperCtx->reg##Hid.Attr.n.u1DescType    = selInfo.u.Raw.Gen.u1DescType;    \
-            pHyperCtx->reg##Hid.Attr.n.u1Long        = selInfo.u.Raw.Gen.u1Long;        \
+            pHyperCtx->reg.u64Base              = selInfo.GCPtrBase;                    \
+            pHyperCtx->reg.u32Limit             = selInfo.cbLimit;                      \
+            pHyperCtx->reg.Attr.n.u1Present     = selInfo.u.Raw.Gen.u1Present;          \
+            pHyperCtx->reg.Attr.n.u1DefBig      = selInfo.u.Raw.Gen.u1DefBig;           \
+            pHyperCtx->reg.Attr.n.u1Granularity = selInfo.u.Raw.Gen.u1Granularity;      \
+            pHyperCtx->reg.Attr.n.u4Type        = selInfo.u.Raw.Gen.u4Type;             \
+            pHyperCtx->reg.Attr.n.u2Dpl         = selInfo.u.Raw.Gen.u2Dpl;              \
+            pHyperCtx->reg.Attr.n.u1DescType    = selInfo.u.Raw.Gen.u1DescType;         \
+            pHyperCtx->reg.Attr.n.u1Long        = selInfo.u.Raw.Gen.u1Long;             \
         }
 
 /* execute the switch. */
@@ -494,7 +503,7 @@ VMMR3DECL(int) VMMDoHwAccmTest(PVM pVM)
     rc = PGMR3MappingsFix(pVM, MM_HYPER_AREA_ADDRESS, cb);
     AssertRCReturn(rc, rc);
 
-    CPUMQueryHyperCtxPtr(pVCpu, &pHyperCtx);
+    pHyperCtx = CPUMGetHyperCtxPtr(pVCpu);
 
     pHyperCtx->cr0 = X86_CR0_PE | X86_CR0_WP | X86_CR0_PG | X86_CR0_TS | X86_CR0_ET | X86_CR0_NE | X86_CR0_MP;
     pHyperCtx->cr4 = X86_CR4_PGE | X86_CR4_OSFSXR | X86_CR4_OSXMMEEXCPT;
@@ -515,7 +524,7 @@ VMMR3DECL(int) VMMDoHwAccmTest(PVM pVM)
     {
         RTPrintf("VMM: VMMGCEntry=%RRv\n", RCPtrEP);
 
-        CPUMQueryHyperCtxPtr(pVCpu, &pHyperCtx);
+        pHyperCtx = CPUMGetHyperCtxPtr(pVCpu);
 
         /* Fill in hidden selector registers for the hypervisor state. */
         SYNC_SEL(pHyperCtx, cs);
@@ -536,17 +545,14 @@ VMMR3DECL(int) VMMDoHwAccmTest(PVM pVM)
         uint64_t TickStart = ASMReadTSC();
         for (i = 0; i < 1000000; i++)
         {
-            CPUMHyperSetCtxCore(pVCpu, NULL);
-
-            CPUMSetHyperESP(pVCpu, pVCpu->vmm.s.pbEMTStackBottomRC); /* Clear the stack. */
+            CPUMSetHyperState(pVCpu, pVM->vmm.s.pfnCallTrampolineRC, pVCpu->vmm.s.pbEMTStackBottomRC, 0, 0);
             CPUMPushHyper(pVCpu, 0);
             CPUMPushHyper(pVCpu, VMMGC_DO_TESTCASE_HWACCM_NOP);
             CPUMPushHyper(pVCpu, pVM->pVMRC);
             CPUMPushHyper(pVCpu, 3 * sizeof(RTRCPTR));    /* stack frame size */
             CPUMPushHyper(pVCpu, RCPtrEP);                /* what to call */
-            CPUMSetHyperEIP(pVCpu, pVM->vmm.s.pfnCallTrampolineRC);
 
-            CPUMQueryHyperCtxPtr(pVCpu, &pHyperCtx);
+            pHyperCtx = CPUMGetHyperCtxPtr(pVCpu);
             pGuestCtx = CPUMQueryGuestCtxPtr(pVCpu);
 
             /* Copy the hypervisor context to make sure we have a valid guest context. */

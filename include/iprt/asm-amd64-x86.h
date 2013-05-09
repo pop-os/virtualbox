@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -474,7 +474,7 @@ DECLINLINE(void) ASMCpuId(uint32_t uOperator, void *pvEAX, void *pvEBX, void *pv
                             "=b" (uRBX),
                             "=c" (uRCX),
                             "=d" (uRDX)
-             : "0" (uOperator));
+             : "0" (uOperator), "2" (0));
     *(uint32_t *)pvEAX = (uint32_t)uRAX;
     *(uint32_t *)pvEBX = (uint32_t)uRBX;
     *(uint32_t *)pvECX = (uint32_t)uRCX;
@@ -487,7 +487,7 @@ DECLINLINE(void) ASMCpuId(uint32_t uOperator, void *pvEAX, void *pvEBX, void *pv
                            "=r" (*(uint32_t *)pvEBX),
                            "=c" (*(uint32_t *)pvECX),
                            "=d" (*(uint32_t *)pvEDX)
-                         : "0" (uOperator));
+                         : "0" (uOperator), "2" (0));
 #  endif
 
 # elif RT_INLINE_ASM_USES_INTRIN
@@ -524,8 +524,8 @@ DECLINLINE(void) ASMCpuId(uint32_t uOperator, void *pvEAX, void *pvEBX, void *pv
 
 
 /**
- * Performs the cpuid instruction returning all registers.
- * Some subfunctions of cpuid take ECX as additional parameter (currently known for EAX=4)
+ * Performs the CPUID instruction with EAX and ECX input returning ALL output
+ * registers.
  *
  * @param   uOperator   CPUID operation (eax).
  * @param   uIdxECX     ecx index
@@ -535,7 +535,7 @@ DECLINLINE(void) ASMCpuId(uint32_t uOperator, void *pvEAX, void *pvEBX, void *pv
  * @param   pvEDX       Where to store edx.
  * @remark  We're using void pointers to ease the use of special bitfield structures and such.
  */
-#if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
+#if RT_INLINE_ASM_EXTERNAL || RT_INLINE_ASM_USES_INTRIN
 DECLASM(void) ASMCpuId_Idx_ECX(uint32_t uOperator, uint32_t uIdxECX, void *pvEAX, void *pvEBX, void *pvECX, void *pvEDX);
 #else
 DECLINLINE(void) ASMCpuId_Idx_ECX(uint32_t uOperator, uint32_t uIdxECX, void *pvEAX, void *pvEBX, void *pvECX, void *pvEDX)
@@ -568,8 +568,7 @@ DECLINLINE(void) ASMCpuId_Idx_ECX(uint32_t uOperator, uint32_t uIdxECX, void *pv
 
 # elif RT_INLINE_ASM_USES_INTRIN
     int aInfo[4];
-    /* ??? another intrinsic ??? */
-    __cpuid(aInfo, uOperator);
+    __cpuidex(aInfo, uOperator, uIdxECX);
     *(uint32_t *)pvEAX = aInfo[0];
     *(uint32_t *)pvEBX = aInfo[1];
     *(uint32_t *)pvECX = aInfo[2];

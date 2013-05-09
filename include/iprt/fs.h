@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -215,6 +215,7 @@ typedef enum RTFSTYPE
     RTFSTYPE_TMPFS,
     RTFSTYPE_SYSFS,
     RTFSTYPE_PROC,
+    RTFSTYPE_OCFS2,
 
     /* Windows: */
     /** New Technology File System. */

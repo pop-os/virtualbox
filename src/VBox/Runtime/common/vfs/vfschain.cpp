@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,8 +55,8 @@
 static RTONCE       g_rtVfsChainElementInitOnce;
 /** Critical section protecting g_rtVfsChainElementProviderList. */
 static RTCRITSECT   g_rtVfsChainElementCritSect;
-/** List of VFS chain element providers. */
-static RTLISTNODE   g_rtVfsChainElementProviderList;
+/** List of VFS chain element providers (RTVFSCHAINELEMENTREG). */
+static RTLISTANCHOR g_rtVfsChainElementProviderList;
 
 
 /**
@@ -505,9 +505,12 @@ RTDECL(int)     RTVfsChainSpecParse(const char *pszSpec, uint32_t fFlags, RTVFSC
     }
 
     /*
-     * Cleanup and set the error indicator on failure.
+     * Return the chain on success; Cleanup and set the error indicator on
+     * failure.
      */
-    if (RT_FAILURE(rc))
+    if (RT_SUCCESS(rc))
+        *ppSpec = pSpec;
+    else
     {
         if (ppszError)
             *ppszError = pszSrc;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,8 @@
 #include <slirp.h>
 #include <iprt/string.h>
 #include <iprt/stream.h>
+#include <iprt/critsect.h>
+#include "zone.h"
 
 #ifdef DEBUG
 void dump_packet(void *, int);
@@ -51,6 +53,36 @@ static char *g_apszTcpStates[TCP_NSTATES] =
     STRINGIFY(TCPS_LAST_ACK),
     STRINGIFY(TCPS_FIN_WAIT_2),
     STRINGIFY(TCPS_TIME_WAIT)
+};
+
+typedef struct DEBUGSTRSOCKETSTATE
+{
+    uint32_t u32SocketState;
+    const char *pcszSocketStateName;
+} DEBUGSTRSOCKETSTATE;
+
+#define DEBUGSTRSOCKETSTATE_HELPER(x) {(x), #x}
+
+static DEBUGSTRSOCKETSTATE g_apszSocketStates[8] =
+{
+    DEBUGSTRSOCKETSTATE_HELPER(SS_NOFDREF),
+    DEBUGSTRSOCKETSTATE_HELPER(SS_ISFCONNECTING),
+    DEBUGSTRSOCKETSTATE_HELPER(SS_ISFCONNECTED),
+    DEBUGSTRSOCKETSTATE_HELPER(SS_FCANTRCVMORE),
+    DEBUGSTRSOCKETSTATE_HELPER(SS_FCANTSENDMORE),
+    DEBUGSTRSOCKETSTATE_HELPER(SS_FWDRAIN),
+    DEBUGSTRSOCKETSTATE_HELPER(SS_FACCEPTCONN),
+    DEBUGSTRSOCKETSTATE_HELPER(SS_FACCEPTONCE),
+};
+
+static DEBUGSTRSOCKETSTATE g_aTcpFlags[] =
+{
+    DEBUGSTRSOCKETSTATE_HELPER(TH_FIN),
+    DEBUGSTRSOCKETSTATE_HELPER(TH_SYN),
+    DEBUGSTRSOCKETSTATE_HELPER(TH_RST),
+    DEBUGSTRSOCKETSTATE_HELPER(TH_PUSH),
+    DEBUGSTRSOCKETSTATE_HELPER(TH_ACK),
+    DEBUGSTRSOCKETSTATE_HELPER(TH_URG),
 };
 
 /*
@@ -199,6 +231,7 @@ mbufstats(PNATState pData)
      * (vvl) this static code can't work with mbuf zone anymore
      * @todo: make statistic correct
      */
+    NOREF(pData);
 }
 
 void
@@ -244,46 +277,92 @@ sockstats(PNATState pData)
 #endif
 
 static DECLCALLBACK(size_t)
-print_socket(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
+printSocket(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
              const char *pszType, void const *pvValue,
              int cchWidth, int cchPrecision, unsigned fFlags,
              void *pvUser)
 {
     struct socket *so = (struct socket*)pvValue;
-    uint32_t ip;
     struct sockaddr addr;
     struct sockaddr_in *in_addr;
     socklen_t socklen = sizeof(struct sockaddr);
+    PNATState pData = (PNATState)pvUser;
     int status = 0;
+    NOREF(cchWidth);
+    NOREF(cchPrecision);
+    NOREF(fFlags);
+    Assert(pData);
 
     AssertReturn(strcmp(pszType, "natsock") == 0, 0);
     if (so == NULL)
         return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
                 "socket is null");
-    if (so->so_state == SS_NOFDREF || so->s == -1)
+    if (so->s == -1)
         return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
-                "socket(%d) SS_NOFDREF", so->s);
+                "socket(%d)", so->s);
 
     status = getsockname(so->s, &addr, &socklen);
     if(status != 0 || addr.sa_family != AF_INET)
     {
         return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
-                "socket(%d) is invalid(probably closed)", so->s);
+                "socket(%d) is invalid(%s)", so->s, strerror(errno));
     }
 
     in_addr = (struct sockaddr_in *)&addr;
-    return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "socket %d:(proto:%u) "
-            "state=%04x "
+    return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "socket %d:(proto:%u) exp. in %d "
+            "state=%R[natsockstate] "
+            "fUnderPolling:%RTbool "
+            "fShouldBeRemoved:%RTbool "
             "f_(addr:port)=%RTnaipv4:%d "
             "l_(addr:port)=%RTnaipv4:%d "
             "name=%RTnaipv4:%d",
-            so->s, so->so_type, so->so_state,
+            so->s, so->so_type,
+            so->so_expire ? so->so_expire - curtime : 0,
+            so->so_state,
+            so->fUnderPolling,
+            so->fShouldBeRemoved,
             so->so_faddr.s_addr,
             RT_N2H_U16(so->so_fport),
             so->so_laddr.s_addr,
             RT_N2H_U16(so->so_lport),
             in_addr->sin_addr.s_addr,
             RT_N2H_U16(in_addr->sin_port));
+}
+
+static DECLCALLBACK(size_t)
+printNATSocketState(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
+             const char *pszType, void const *pvValue,
+             int cchWidth, int cchPrecision, unsigned fFlags,
+             void *pvUser)
+{
+    uint32_t u32SocketState = (uint32_t)(uintptr_t)pvValue;
+    int idxNATState = 0;
+    bool fFirst = true;
+    size_t cbReturn = 0;
+    NOREF(cchWidth);
+    NOREF(cchPrecision);
+    NOREF(fFlags);
+    NOREF(pvUser);
+    AssertReturn(strcmp(pszType, "natsockstate") == 0, 0);
+
+    for (idxNATState = 0; idxNATState < RT_ELEMENTS(g_apszSocketStates); ++idxNATState)
+    {
+        if (u32SocketState & g_apszSocketStates[idxNATState].u32SocketState)
+        {
+            if (fFirst)
+            {
+                cbReturn += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, g_apszSocketStates[idxNATState].pcszSocketStateName);
+                fFirst = false;
+            }
+            else
+                cbReturn += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "|%s", g_apszSocketStates[idxNATState].pcszSocketStateName);
+        }
+    }
+
+    if (!cbReturn)
+        return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "[unknown state %RX32]", u32SocketState);
+
+    return cbReturn;
 }
 
 /**
@@ -297,6 +376,10 @@ printTcpcbRfc793(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
 {
     size_t cb = 0;
     const struct tcpcb *tp = (const struct tcpcb *)pvValue;
+    NOREF(cchWidth);
+    NOREF(cchPrecision);
+    NOREF(fFlags);
+    NOREF(pvUser);
     AssertReturn(RTStrCmp(pszType, "tcpcb793") == 0, 0);
     if (tp)
     {
@@ -321,6 +404,10 @@ printTcpSegmentRfc793(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
 {
     size_t cb = 0;
     const struct tcpiphdr *ti = (const struct tcpiphdr *)pvValue;
+    NOREF(cchWidth);
+    NOREF(cchPrecision);
+    NOREF(fFlags);
+    NOREF(pvUser);
     AssertReturn(RTStrCmp(pszType, "tcpseg793") == 0 && ti, 0);
     cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "SEG[ACK: %x, SEQ: %x, LEN: %x, WND: %x, UP: %x]",
                       ti->ti_ack, ti->ti_seq, ti->ti_len, ti->ti_win, ti->ti_urp);
@@ -339,9 +426,58 @@ printTcpState(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
     size_t cb = 0;
     const int idxTcpState = (int)(uintptr_t)pvValue;
     char *pszTcpStateName = (idxTcpState >= 0 && idxTcpState < TCP_NSTATES) ? g_apszTcpStates[idxTcpState] : "TCPS_INVALIDE_STATE";
+    NOREF(cchWidth);
+    NOREF(cchPrecision);
+    NOREF(fFlags);
+    NOREF(pvUser);
     AssertReturn(RTStrCmp(pszType, "tcpstate") == 0, 0);
     cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "%s", pszTcpStateName);
     return cb;
+}
+
+/*
+ * Prints TCP flags
+ */
+static DECLCALLBACK(size_t)
+printTcpFlags(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
+                 const char *pszType, void const *pvValue,
+                 int cchWidth, int cchPrecision, unsigned fFlags,
+                 void *pvUser)
+{
+    size_t cbPrint = 0;
+    uint32_t u32TcpFlags = (uint32_t)(uintptr_t)pvValue;
+    bool fSingleValue = true;
+    int idxTcpFlags = 0;
+    NOREF(cchWidth);
+    NOREF(cchPrecision);
+    NOREF(fFlags);
+    NOREF(pvUser);
+    AssertReturn(RTStrCmp(pszType, "tcpflags") == 0, 0);
+    cbPrint += RTStrFormat(pfnOutput,
+                           pvArgOutput,
+                           NULL,
+                           0,
+                           "tcpflags: %RX8 [", (uint8_t)u32TcpFlags);
+    for (idxTcpFlags = 0; idxTcpFlags < RT_ELEMENTS(g_aTcpFlags); ++idxTcpFlags)
+    {
+        if (u32TcpFlags & g_aTcpFlags[idxTcpFlags].u32SocketState)
+        {
+            cbPrint += RTStrFormat(pfnOutput,
+                                   pvArgOutput,
+                                   NULL,
+                                   0,
+                                   fSingleValue ? "%s(%RX8)" : "|%s(%RX8)",
+                                   g_aTcpFlags[idxTcpFlags].pcszSocketStateName,
+                                   (uint8_t)g_aTcpFlags[idxTcpFlags].u32SocketState);
+            fSingleValue = false;
+        }
+    }
+    cbPrint += RTStrFormat(pfnOutput,
+                           pvArgOutput,
+                           NULL,
+                           0,
+                           "]");
+    return cbPrint;
 }
 
 /*
@@ -355,9 +491,61 @@ printSbuf(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
 {
     size_t cb = 0;
     const struct sbuf *sb = (struct sbuf *)pvValue;
+    NOREF(cchWidth);
+    NOREF(cchPrecision);
+    NOREF(fFlags);
+    NOREF(pvUser);
     AssertReturn(RTStrCmp(pszType, "sbuf") == 0, 0);
     cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "[sbuf:%p cc:%d, datalen:%d, wprt:%p, rptr:%p data:%p]",
                       sb, sb->sb_cc, sb->sb_datalen, sb->sb_wptr, sb->sb_rptr, sb->sb_data);
+    return cb;
+}
+
+/*
+ * Prints zone state
+ */
+static DECLCALLBACK(size_t)
+printMbufZone(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
+                 const char *pszType, void const *pvValue,
+                 int cchWidth, int cchPrecision, unsigned fFlags,
+                 void *pvUser)
+{
+    size_t cb = 0;
+    const uma_zone_t zone = (const uma_zone_t)pvValue;
+    NOREF(cchWidth);
+    NOREF(cchPrecision);
+    NOREF(fFlags);
+    NOREF(pvUser);
+    AssertReturn(RTStrCmp(pszType, "mzone") == 0, 0);
+    if (!zone)
+        cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "[zone:NULL]");
+    else
+        cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "[zone:%p name:%s, master_zone:%R[mzone]]",
+                          zone, zone->name, zone->master_zone);
+    return cb;
+}
+
+/*
+ * Prints zone's item state
+ */
+static DECLCALLBACK(size_t)
+printMbufZoneItem(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
+                 const char *pszType, void const *pvValue,
+                 int cchWidth, int cchPrecision, unsigned fFlags,
+                 void *pvUser)
+{
+    size_t cb = 0;
+    const struct item *it = (const struct item *)pvValue;
+    NOREF(cchWidth);
+    NOREF(cchPrecision);
+    NOREF(fFlags);
+    NOREF(pvUser);
+    AssertReturn(RTStrCmp(pszType, "mzoneitem") == 0, 0);
+    if (!it)
+        cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "[item:NULL]");
+    else
+        cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "[iptem:%p ref_count:%d, zone:%R[mzone]]",
+                          it, it->ref_count, it->zone);
     return cb;
 }
 
@@ -371,7 +559,14 @@ print_networkevents(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
 #ifdef RT_OS_WINDOWS
     WSANETWORKEVENTS *pNetworkEvents = (WSANETWORKEVENTS*)pvValue;
     bool fDelim = false;
+#endif
 
+    NOREF(cchWidth);
+    NOREF(cchPrecision);
+    NOREF(fFlags);
+    NOREF(pvUser);
+
+#ifdef RT_OS_WINDOWS
     AssertReturn(strcmp(pszType, "natwinnetevents") == 0, 0);
 
     cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "events=%02x (",
@@ -393,6 +588,11 @@ print_networkevents(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
     DO_BIT(QOS);
 # undef DO_BIT
     cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, ")");
+#else
+    NOREF(pfnOutput);
+    NOREF(pvArgOutput);
+    NOREF(pszType);
+    NOREF(pvValue);
 #endif
     return cb;
 }
@@ -410,7 +610,7 @@ int errno_func(const char *file, int line)
 #endif
 
 int
-debug_init()
+debug_init(PNATState pData)
 {
     int rc = VINF_SUCCESS;
 
@@ -419,19 +619,17 @@ debug_init()
     if (!g_fFormatRegistered)
     {
 
-        rc = RTStrFormatTypeRegister("natsock", print_socket, NULL);
-        AssertRC(rc);
+        rc = RTStrFormatTypeRegister("natsock", printSocket, pData);            AssertRC(rc);
+        rc = RTStrFormatTypeRegister("natsockstate", printNATSocketState, NULL);            AssertRC(rc);
         rc = RTStrFormatTypeRegister("natwinnetevents",
-                                     print_networkevents, NULL);
-        AssertRC(rc);
-        rc = RTStrFormatTypeRegister("tcpcb793", printTcpcbRfc793, NULL);
-        AssertRC(rc);
-        rc = RTStrFormatTypeRegister("tcpseg793", printTcpSegmentRfc793, NULL);
-        AssertRC(rc);
-        rc = RTStrFormatTypeRegister("tcpstate", printTcpState, NULL);
-        AssertRC(rc);
-        rc = RTStrFormatTypeRegister("sbuf", printSbuf, NULL);
-        AssertRC(rc);
+                                     print_networkevents, NULL);                AssertRC(rc);
+        rc = RTStrFormatTypeRegister("tcpcb793", printTcpcbRfc793, NULL);       AssertRC(rc);
+        rc = RTStrFormatTypeRegister("tcpseg793", printTcpSegmentRfc793, NULL); AssertRC(rc);
+        rc = RTStrFormatTypeRegister("tcpstate", printTcpState, NULL);          AssertRC(rc);
+        rc = RTStrFormatTypeRegister("tcpflags", printTcpFlags, NULL);          AssertRC(rc);
+        rc = RTStrFormatTypeRegister("sbuf", printSbuf, NULL);                  AssertRC(rc);
+        rc = RTStrFormatTypeRegister("mzone", printMbufZone, NULL);             AssertRC(rc);
+        rc = RTStrFormatTypeRegister("mzoneitem", printMbufZoneItem, NULL);     AssertRC(rc);
         g_fFormatRegistered = 1;
     }
 

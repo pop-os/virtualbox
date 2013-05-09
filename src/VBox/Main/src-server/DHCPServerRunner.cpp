@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -103,7 +103,9 @@ int DHCPServerRunner::start()
     {
         if (mOptionEnabled[i])
         {
-            const ARGDEF * pArgDef = getArgDef((DHCPCFG)i);
+            const ARGDEF *pArgDef = getArgDef((DHCPCFG)i);
+            if (!pArgDef)
+                continue;
             args[index++] = pArgDef->Name;      // e.g. "--network"
 
             /* value can be null for e.g. --begin-config has no value

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -62,6 +62,8 @@
 /* The name of the PAM library */
 # ifdef RT_OS_SOLARIS
 #  define PAM_LIB_NAME "libpam.so.1"
+# elif defined(RT_OS_FREEBSD)
+#  define PAM_LIB_NAME "libpam.so"
 # else
 #  define PAM_LIB_NAME "libpam.so.0"
 # endif

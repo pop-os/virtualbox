@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,9 @@
 #include <VBox/sup.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/em.h>
-#include <VBox/vmm/rem.h>
+#ifdef VBOX_WITH_REM
+# include <VBox/vmm/rem.h>
+#endif
 #include <VBox/vmm/selm.h>
 #include <VBox/vmm/trpm.h>
 #include <VBox/vmm/cfgm.h>
@@ -209,7 +211,7 @@ static const SSMFIELD g_aCsamPageRecFields[] =
  * Initializes the CSAM.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3DECL(int) CSAMR3Init(PVM pVM)
 {
@@ -385,7 +387,7 @@ VMMR3DECL(void) CSAMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
  * the VM it self is at this point powered off or suspended.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3DECL(int) CSAMR3Term(PVM pVM)
 {
@@ -454,6 +456,7 @@ VMMR3DECL(int) CSAMR3Reset(PVM pVM)
  */
 static DECLCALLBACK(int) CountRecord(PAVLPVNODECORE pNode, void *pcPatches)
 {
+    NOREF(pNode);
     *(uint32_t *)pcPatches = *(uint32_t *)pcPatches + 1;
     return VINF_SUCCESS;
 }
@@ -465,7 +468,7 @@ static DECLCALLBACK(int) CountRecord(PAVLPVNODECORE pNode, void *pcPatches)
  *
  * @returns VBox status code.
  * @param   pNode           Current node
- * @param   pVM1            VM Handle
+ * @param   pVM1            Pointer to the VM
  */
 static DECLCALLBACK(int) SavePageState(PAVLPVNODECORE pNode, void *pVM1)
 {
@@ -492,7 +495,7 @@ static DECLCALLBACK(int) SavePageState(PAVLPVNODECORE pNode, void *pVM1)
  * Execute state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pSSM            SSM operation handle.
  */
 static DECLCALLBACK(int) csamr3Save(PVM pVM, PSSMHANDLE pSSM)
@@ -541,7 +544,7 @@ static DECLCALLBACK(int) csamr3Save(PVM pVM, PSSMHANDLE pSSM)
  * Execute state load operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pSSM            SSM operation handle.
  * @param   uVersion        Data layout version.
  * @param   uPass           The data pass.
@@ -669,7 +672,7 @@ static DECLCALLBACK(int) csamr3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion,
  * Convert guest context address to host context pointer
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pCacheRec   Address conversion cache record
  * @param   pGCPtr      Guest context pointer
  * @returns             Host context pointer or NULL in case of an error
@@ -719,71 +722,92 @@ static R3PTRTYPE(void *) CSAMGCVirtToHCVirt(PVM pVM, PCSAMP2GLOOKUPREC pCacheRec
     return pHCPtr;
 }
 
-/**
- * Read callback for disassembly function; supports reading bytes that cross a page boundary
- *
- * @returns VBox status code.
- * @param   pSrc        GC source pointer
- * @param   pDest       HC destination pointer
- * @param   size        Number of bytes to read
- * @param   dwUserdata  Callback specific user data (pCpu)
- *
- */
-static DECLCALLBACK(int) CSAMR3ReadBytes(RTUINTPTR pSrc, uint8_t *pDest, unsigned size, void *pvUserdata)
+
+/** For csamR3ReadBytes. */
+typedef struct CSAMDISINFO
 {
-    DISCPUSTATE  *pCpu     = (DISCPUSTATE *)pvUserdata;
-    PVM           pVM      = (PVM)pCpu->apvUserData[0];
-    RTHCUINTPTR   pInstrHC = (RTHCUINTPTR)pCpu->apvUserData[1];
-    RTGCUINTPTR32 pInstrGC = (uintptr_t)pCpu->apvUserData[2];
-    int           orgsize  = size;
-    Assert(pVM->cCpus == 1);
-    PVMCPU        pVCpu = VMMGetCpu0(pVM);
+    PVM             pVM;
+    uint8_t const  *pbSrcInstr; /* aka pInstHC */
+} CSAMDISINFO, *PCSAMDISINFO;
 
-    /* We are not interested in patched instructions, so read the original opcode bytes. */
-    /** @note single instruction patches (int3) are checked in CSAMR3AnalyseCallback */
-    for (int i=0;i<orgsize;i++)
+
+/**
+ * @callback_method_impl{FNDISREADBYTES}
+ */
+static DECLCALLBACK(int) csamR3ReadBytes(PDISCPUSTATE pDis, uint8_t offInstr, uint8_t cbMinRead, uint8_t cbMaxRead)
+{
+    PCSAMDISINFO pDisInfo = (PCSAMDISINFO)pDis->pvUser;
+
+    /*
+     * We are not interested in patched instructions, so read the original opcode bytes.
+     *
+     * Note! single instruction patches (int3) are checked in CSAMR3AnalyseCallback
+     *
+     * Since we're decoding one instruction at the time, we don't need to be
+     * concerned about any patched instructions following the first one.  We
+     * could in fact probably skip this PATM call for offInstr != 0.
+     */
+    size_t      cbRead   = cbMaxRead;
+    RTUINTPTR   uSrcAddr = pDis->uInstrAddr + offInstr;
+    int rc = PATMR3ReadOrgInstr(pDisInfo->pVM, pDis->uInstrAddr + offInstr, &pDis->abInstr[offInstr], cbRead, &cbRead);
+    if (RT_SUCCESS(rc))
     {
-        int rc = PATMR3QueryOpcode(pVM, (RTRCPTR)pSrc, pDest);
-        if (RT_SUCCESS(rc))
+        if (cbRead >= cbMinRead)
         {
-            pSrc++;
-            pDest++;
-            size--;
+            pDis->cbCachedInstr = offInstr + (uint8_t)cbRead;
+            return rc;
         }
-        else
-            break;
-    }
-    if (size == 0)
-        return VINF_SUCCESS;
 
-    if (PAGE_ADDRESS(pInstrGC) != PAGE_ADDRESS(pSrc + size - 1) && !PATMIsPatchGCAddr(pVM, pSrc))
+        cbMinRead -= (uint8_t)cbRead;
+        cbMaxRead -= (uint8_t)cbRead;
+        offInstr  += (uint8_t)cbRead;
+        uSrcAddr  += cbRead;
+    }
+
+    /*
+     * The current byte isn't a patch instruction byte.
+     */
+    AssertPtr(pDisInfo->pbSrcInstr);
+    if ((pDis->uInstrAddr >> PAGE_SHIFT) == ((uSrcAddr + cbMaxRead - 1) >> PAGE_SHIFT))
     {
-        return PGMPhysSimpleReadGCPtr(pVCpu, pDest, pSrc, size);
+        memcpy(&pDis->abInstr[offInstr], &pDisInfo->pbSrcInstr[offInstr], cbMaxRead);
+        offInstr += cbMaxRead;
+        rc = VINF_SUCCESS;
+    }
+    else if (   (pDis->uInstrAddr >> PAGE_SHIFT) == ((uSrcAddr + cbMinRead - 1) >> PAGE_SHIFT)
+             || PATMIsPatchGCAddr(pDisInfo->pVM, uSrcAddr) /** @todo does CSAM actually analyze patch code, or is this just a copy&past check? */
+            )
+    {
+        memcpy(&pDis->abInstr[offInstr], &pDisInfo->pbSrcInstr[offInstr], cbMinRead);
+        offInstr += cbMinRead;
+        rc = VINF_SUCCESS;
     }
     else
     {
-        Assert(pInstrHC);
-
-        /* pInstrHC is the base address; adjust according to the GC pointer. */
-        pInstrHC = pInstrHC + (pSrc - pInstrGC);
-
-        memcpy(pDest, (void *)pInstrHC, size);
+        /* Crossed page boundrary, pbSrcInstr is no good... */
+        rc = PGMPhysSimpleReadGCPtr(VMMGetCpu0(pDisInfo->pVM), &pDis->abInstr[offInstr], uSrcAddr, cbMinRead);
+        offInstr += cbMinRead;
     }
 
-    return VINF_SUCCESS;
+    pDis->cbCachedInstr = offInstr;
+    return rc;
 }
 
-inline int CSAMR3DISInstr(PVM pVM, DISCPUSTATE *pCpu, RTRCPTR InstrGC, uint8_t *InstrHC, uint32_t *pOpsize, char *pszOutput)
+DECLINLINE(int) csamR3DISInstr(PVM pVM, RTRCPTR InstrGC, uint8_t *InstrHC, DISCPUMODE enmCpuMode,
+                               PDISCPUSTATE pCpu, uint32_t *pcbInstr, char *pszOutput, size_t cbOutput)
 {
-    (pCpu)->pfnReadBytes  = CSAMR3ReadBytes;
-    (pCpu)->apvUserData[0] = pVM;
-    (pCpu)->apvUserData[1] = InstrHC;
-    (pCpu)->apvUserData[2] = (void *)(uintptr_t)InstrGC; Assert(sizeof(InstrGC) <= sizeof(pCpu->apvUserData[0]));
+    CSAMDISINFO DisInfo = { pVM, InstrHC };
 #ifdef DEBUG
-    return DISInstrEx(pCpu, InstrGC, 0, pOpsize, pszOutput, OPTYPE_ALL);
+    return DISInstrToStrEx(InstrGC, enmCpuMode, csamR3ReadBytes, &DisInfo, DISOPTYPE_ALL,
+                           pCpu, pcbInstr, pszOutput, cbOutput);
 #else
     /* We are interested in everything except harmless stuff */
-    return DISInstrEx(pCpu, InstrGC, 0, pOpsize, pszOutput, ~(OPTYPE_INVALID | OPTYPE_HARMLESS | OPTYPE_RRM_MASK));
+    if (pszOutput)
+        return DISInstrToStrEx(InstrGC, enmCpuMode, csamR3ReadBytes, &DisInfo,
+                               ~(DISOPTYPE_INVALID | DISOPTYPE_HARMLESS | DISOPTYPE_RRM_MASK),
+                               pCpu, pcbInstr, pszOutput, cbOutput);
+    return DISInstrEx(InstrGC, enmCpuMode, ~(DISOPTYPE_INVALID | DISOPTYPE_HARMLESS | DISOPTYPE_RRM_MASK),
+                      csamR3ReadBytes, &DisInfo, pCpu, pcbInstr);
 #endif
 }
 
@@ -791,7 +815,7 @@ inline int CSAMR3DISInstr(PVM pVM, DISCPUSTATE *pCpu, RTRCPTR InstrGC, uint8_t *
  * Analyses the instructions following the cli for compliance with our heuristics for cli
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pCpu        CPU disassembly state
  * @param   pInstrGC    Guest context pointer to privileged instruction
  * @param   pCurInstrGC Guest context pointer to the current instruction
@@ -804,12 +828,13 @@ static int CSAMR3AnalyseCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *
 {
     PCSAMPAGE pPage = (PCSAMPAGE)pUserData;
     int rc;
+    NOREF(pInstrGC);
 
-    switch(pCpu->pCurInstr->opcode)
+    switch (pCpu->pCurInstr->uOpcode)
     {
     case OP_INT:
-        Assert(pCpu->param1.flags & USE_IMMEDIATE8);
-        if (pCpu->param1.parval == 3)
+        Assert(pCpu->Param1.fUse & DISUSE_IMMEDIATE8);
+        if (pCpu->Param1.uValue == 3)
         {
             //two byte int 3
             return VINF_SUCCESS;
@@ -829,7 +854,7 @@ static int CSAMR3AnalyseCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *
     }
 
     // Check for exit points
-    switch (pCpu->pCurInstr->opcode)
+    switch (pCpu->pCurInstr->uOpcode)
     {
     /* It's not a good idea to patch pushf instructions:
      * - increases the chance of conflicts (code jumping to the next instruction)
@@ -843,9 +868,9 @@ static int CSAMR3AnalyseCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *
 
     case OP_CLI:
     {
-        uint32_t     cbInstr = 0;
-        uint32_t     opsize  = pCpu->opsize;
-        bool         fCode32 = pPage->fCode32;
+        uint32_t     cbInstrs   = 0;
+        uint32_t     cbCurInstr = pCpu->cbInstr;
+        bool         fCode32    = pPage->fCode32;
 
         Assert(fCode32);
 
@@ -856,17 +881,18 @@ static int CSAMR3AnalyseCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *
         {
             DISCPUSTATE  cpu;
 
-            if (cbInstr + opsize >= SIZEOF_NEARJUMP32)
+            if (cbInstrs + cbCurInstr >= SIZEOF_NEARJUMP32)
                 break;
 
-            if (csamIsCodeScanned(pVM, pCurInstrGC + opsize, &pPage) == true)
+            if (csamIsCodeScanned(pVM, pCurInstrGC + cbCurInstr, &pPage) == true)
             {
-                /* We've scanned the next instruction(s) already. This means we've followed a branch that ended up there before -> dangerous!! */
-                PATMR3DetectConflict(pVM, pCurInstrGC, pCurInstrGC + opsize);
+                /* We've scanned the next instruction(s) already. This means we've
+                   followed a branch that ended up there before -> dangerous!! */
+                PATMR3DetectConflict(pVM, pCurInstrGC, pCurInstrGC + cbCurInstr);
                 break;
             }
-            pCurInstrGC += opsize;
-            cbInstr     += opsize;
+            pCurInstrGC += cbCurInstr;
+            cbInstrs    += cbCurInstr;
 
             {   /* Force pCurInstrHC out of scope after we stop using it (page lock!) */
                 uint8_t       *pCurInstrHC = 0;
@@ -878,8 +904,8 @@ static int CSAMR3AnalyseCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *
                 }
                 Assert(VALID_PTR(pCurInstrHC));
 
-                cpu.mode = (fCode32) ? CPUMODE_32BIT : CPUMODE_16BIT;
-                rc = CSAMR3DISInstr(pVM, &cpu, pCurInstrGC, pCurInstrHC, &opsize, NULL);
+                rc = csamR3DISInstr(pVM, pCurInstrGC, pCurInstrHC, (fCode32) ? DISCPUMODE_32BIT : DISCPUMODE_16BIT,
+                                    &cpu, &cbCurInstr, NULL, 0);
             }
             AssertRC(rc);
             if (RT_FAILURE(rc))
@@ -889,7 +915,7 @@ static int CSAMR3AnalyseCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *
     }
 
     case OP_PUSH:
-        if (pCpu->pCurInstr->param1 != OP_PARM_REG_CS)
+        if (pCpu->pCurInstr->fParam1 != OP_PARM_REG_CS)
             break;
 
         /* no break */
@@ -905,7 +931,7 @@ static int CSAMR3AnalyseCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *
     case OP_CPUID:
     case OP_IRET:
 #ifdef DEBUG
-        switch(pCpu->pCurInstr->opcode)
+        switch(pCpu->pCurInstr->uOpcode)
         {
         case OP_STR:
             Log(("Privileged instruction at %RRv: str!!\n", pCurInstrGC));
@@ -955,7 +981,7 @@ static int CSAMR3AnalyseCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *
                 return VWRN_CONTINUE_ANALYSIS;
             }
         }
-        if (pCpu->pCurInstr->opcode == OP_IRET)
+        if (pCpu->pCurInstr->uOpcode == OP_IRET)
             return VINF_SUCCESS;    /* Look no further in this branch. */
 
         return VWRN_CONTINUE_ANALYSIS;
@@ -964,10 +990,10 @@ static int CSAMR3AnalyseCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *
     case OP_CALL:
     {
         // return or jump/call through a jump table
-        if (OP_PARM_VTYPE(pCpu->pCurInstr->param1) != OP_PARM_J)
+        if (OP_PARM_VTYPE(pCpu->pCurInstr->fParam1) != OP_PARM_J)
         {
 #ifdef DEBUG
-            switch(pCpu->pCurInstr->opcode)
+            switch(pCpu->pCurInstr->uOpcode)
             {
             case OP_JMP:
                 Log(("Control Flow instruction at %RRv: jmp!!\n", pCurInstrGC));
@@ -992,7 +1018,7 @@ static int CSAMR3AnalyseCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *
  * Wrapper for csamAnalyseCodeStream for call instructions.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pInstrGC    Guest context pointer to privileged instruction
  * @param   pCurInstrGC Guest context pointer to the current instruction
  * @param   fCode32     16 or 32 bits code
@@ -1026,7 +1052,7 @@ static int csamAnalyseCallCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCP
         if (csamIsCodeScanned(pVM, pCurInstrGC, &pPage) == false)
         {
             DISCPUSTATE  cpu;
-            uint32_t     opsize;
+            uint32_t     cbInstr;
             int          rc2;
 #ifdef DEBUG
             char szOutput[256];
@@ -1049,7 +1075,7 @@ static int csamAnalyseCallCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCP
              *   - lea genregX, [genregX (+ 0)]
              * - push ebp after the filler (can extend this later); aligned at at least a 4 byte boundary
              */
-            for (int j=0;j<16;j++)
+            for (int j = 0; j < 16; j++)
             {
                 uint8_t *pCurInstrHC = (uint8_t *)CSAMGCVirtToHCVirt(pVM, pCacheRec, pCurInstrGC);
                 if (pCurInstrHC == NULL)
@@ -1059,13 +1085,14 @@ static int csamAnalyseCallCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCP
                 }
                 Assert(VALID_PTR(pCurInstrHC));
 
-                cpu.mode = (fCode32) ? CPUMODE_32BIT : CPUMODE_16BIT;
                 STAM_PROFILE_START(&pVM->csam.s.StatTimeDisasm, a);
 #ifdef DEBUG
-                rc2 = CSAMR3DISInstr(pVM, &cpu, pCurInstrGC, pCurInstrHC, &opsize, szOutput);
+                rc2 = csamR3DISInstr(pVM, pCurInstrGC, pCurInstrHC, (fCode32) ? DISCPUMODE_32BIT : DISCPUMODE_16BIT,
+                                     &cpu, &cbInstr, szOutput, sizeof(szOutput));
                 if (RT_SUCCESS(rc2)) Log(("CSAM Call Analysis: %s", szOutput));
 #else
-                rc2 = CSAMR3DISInstr(pVM, &cpu, pCurInstrGC, pCurInstrHC, &opsize, NULL);
+                rc2 = csamR3DISInstr(pVM, pCurInstrGC, pCurInstrHC, (fCode32) ? DISCPUMODE_32BIT : DISCPUMODE_16BIT,
+                                     &cpu, &cbInstr, NULL, 0);
 #endif
                 STAM_PROFILE_STOP(&pVM->csam.s.StatTimeDisasm, a);
                 if (RT_FAILURE(rc2))
@@ -1074,24 +1101,24 @@ static int csamAnalyseCallCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCP
                     goto done;
                 }
 
-                STAM_COUNTER_ADD(&pVM->csam.s.StatNrBytesRead, opsize);
+                STAM_COUNTER_ADD(&pVM->csam.s.StatNrBytesRead, cbInstr);
 
                 RCPTRTYPE(uint8_t *) addr = 0;
                 PCSAMPAGE pJmpPage = NULL;
 
-                if (PAGE_ADDRESS(pCurInstrGC) != PAGE_ADDRESS(pCurInstrGC + opsize - 1))
+                if (PAGE_ADDRESS(pCurInstrGC) != PAGE_ADDRESS(pCurInstrGC + cbInstr - 1))
                 {
-                    if (!PGMGstIsPagePresent(pVM, pCurInstrGC + opsize - 1))
+                    if (!PGMGstIsPagePresent(pVM, pCurInstrGC + cbInstr - 1))
                     {
                         /// @todo fault in the page
                         Log(("Page for current instruction %RRv is not present!!\n", pCurInstrGC));
                         goto done;
                     }
                     //all is fine, let's continue
-                    csamR3CheckPageRecord(pVM, pCurInstrGC + opsize - 1);
+                    csamR3CheckPageRecord(pVM, pCurInstrGC + cbInstr - 1);
                 }
 
-                switch (cpu.pCurInstr->opcode)
+                switch (cpu.pCurInstr->uOpcode)
                 {
                 case OP_NOP:
                 case OP_INT3:
@@ -1104,14 +1131,14 @@ static int csamAnalyseCallCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCP
                      * lea esi, [esi+0]
                      * Any register is allowed as long as source and destination are identical.
                      */
-                    if (    cpu.param1.flags != USE_REG_GEN32
-                        ||  (   cpu.param2.flags != USE_REG_GEN32
-                             && (   !(cpu.param2.flags & USE_REG_GEN32)
-                                 || !(cpu.param2.flags & (USE_DISPLACEMENT8|USE_DISPLACEMENT16|USE_DISPLACEMENT32))
-                                 ||  cpu.param2.parval != 0
+                    if (    cpu.Param1.fUse != DISUSE_REG_GEN32
+                        ||  (   cpu.Param2.flags != DISUSE_REG_GEN32
+                             && (   !(cpu.Param2.flags & DISUSE_REG_GEN32)
+                                 || !(cpu.Param2.flags & (DISUSE_DISPLACEMENT8|DISUSE_DISPLACEMENT16|DISUSE_DISPLACEMENT32))
+                                 ||  cpu.Param2.uValue != 0
                                 )
                             )
-                        ||  cpu.param1.base.reg_gen32 != cpu.param2.base.reg_gen32
+                        ||  cpu.Param1.base.reg_gen32 != cpu.Param2.base.reg_gen32
                        )
                     {
                        STAM_COUNTER_INC(&pVM->csam.s.StatScanNextFunctionFailed);
@@ -1122,8 +1149,8 @@ static int csamAnalyseCallCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCP
                 case OP_PUSH:
                 {
                     if (    (pCurInstrGC & 0x3) != 0
-                        ||  cpu.param1.flags != USE_REG_GEN32
-                        ||  cpu.param1.base.reg_gen32 != USE_REG_EBP
+                        ||  cpu.Param1.fUse != DISUSE_REG_GEN32
+                        ||  cpu.Param1.base.reg_gen32 != USE_REG_EBP
                        )
                     {
                        STAM_COUNTER_INC(&pVM->csam.s.StatScanNextFunctionFailed);
@@ -1148,8 +1175,8 @@ static int csamAnalyseCallCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCP
                 case OP_SUB:
                 {
                     if (    (pCurInstrGC & 0x3) != 0
-                        ||  cpu.param1.flags != USE_REG_GEN32
-                        ||  cpu.param1.base.reg_gen32 != USE_REG_ESP
+                        ||  cpu.Param1.fUse != DISUSE_REG_GEN32
+                        ||  cpu.Param1.base.reg_gen32 != USE_REG_ESP
                        )
                     {
                        STAM_COUNTER_INC(&pVM->csam.s.StatScanNextFunctionFailed);
@@ -1176,8 +1203,8 @@ static int csamAnalyseCallCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCP
                    goto next_function;
                 }
                 /* Mark it as scanned. */
-                csamMarkCode(pVM, pPage, pCurInstrGC, opsize, true);
-                pCurInstrGC += opsize;
+                csamMarkCode(pVM, pPage, pCurInstrGC, cbInstr, true);
+                pCurInstrGC += cbInstr;
             } /* for at most 16 instructions */
 next_function:
             ; /* MSVC complains otherwise */
@@ -1195,7 +1222,7 @@ done:
  * Disassembles the code stream until the callback function detects a failure or decides everything is acceptable
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pInstrGC    Guest context pointer to privileged instruction
  * @param   pCurInstrGC Guest context pointer to the current instruction
  * @param   fCode32     16 or 32 bits code
@@ -1209,7 +1236,7 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
     DISCPUSTATE cpu;
     PCSAMPAGE pPage = (PCSAMPAGE)pUserData;
     int rc = VWRN_CONTINUE_ANALYSIS;
-    uint32_t opsize;
+    uint32_t cbInstr;
     int rc2;
     Assert(pVM->cCpus == 1);
     PVMCPU pVCpu = VMMGetCpu0(pVM);
@@ -1271,13 +1298,14 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
             }
             Assert(VALID_PTR(pCurInstrHC));
 
-            cpu.mode = (fCode32) ? CPUMODE_32BIT : CPUMODE_16BIT;
             STAM_PROFILE_START(&pVM->csam.s.StatTimeDisasm, a);
 #ifdef DEBUG
-            rc2 = CSAMR3DISInstr(pVM, &cpu, pCurInstrGC, pCurInstrHC, &opsize, szOutput);
+            rc2 = csamR3DISInstr(pVM, pCurInstrGC, pCurInstrHC, fCode32 ? DISCPUMODE_32BIT : DISCPUMODE_16BIT,
+                                 &cpu, &cbInstr, szOutput, sizeof(szOutput));
             if (RT_SUCCESS(rc2)) Log(("CSAM Analysis: %s", szOutput));
 #else
-            rc2 = CSAMR3DISInstr(pVM, &cpu, pCurInstrGC, pCurInstrHC, &opsize, NULL);
+            rc2 = csamR3DISInstr(pVM, pCurInstrGC, pCurInstrHC, fCode32 ? DISCPUMODE_32BIT : DISCPUMODE_16BIT,
+                                 &cpu, &cbInstr, NULL, 0);
 #endif
             STAM_PROFILE_STOP(&pVM->csam.s.StatTimeDisasm, a);
         }
@@ -1288,16 +1316,16 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
             goto done;
         }
 
-        STAM_COUNTER_ADD(&pVM->csam.s.StatNrBytesRead, opsize);
+        STAM_COUNTER_ADD(&pVM->csam.s.StatNrBytesRead, cbInstr);
 
-        csamMarkCode(pVM, pPage, pCurInstrGC, opsize, true);
+        csamMarkCode(pVM, pPage, pCurInstrGC, cbInstr, true);
 
         RCPTRTYPE(uint8_t *) addr = 0;
         PCSAMPAGE pJmpPage = NULL;
 
-        if (PAGE_ADDRESS(pCurInstrGC) != PAGE_ADDRESS(pCurInstrGC + opsize - 1))
+        if (PAGE_ADDRESS(pCurInstrGC) != PAGE_ADDRESS(pCurInstrGC + cbInstr - 1))
         {
-            if (!PGMGstIsPagePresent(pVCpu, pCurInstrGC + opsize - 1))
+            if (!PGMGstIsPagePresent(pVCpu, pCurInstrGC + cbInstr - 1))
             {
                 /// @todo fault in the page
                 Log(("Page for current instruction %RRv is not present!!\n", pCurInstrGC));
@@ -1305,12 +1333,12 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
                 goto next_please;
             }
             //all is fine, let's continue
-            csamR3CheckPageRecord(pVM, pCurInstrGC + opsize - 1);
+            csamR3CheckPageRecord(pVM, pCurInstrGC + cbInstr - 1);
         }
         /*
          * If it's harmless, then don't bother checking it (the disasm tables had better be accurate!)
          */
-        if ((cpu.pCurInstr->optype & ~OPTYPE_RRM_MASK) == OPTYPE_HARMLESS)
+        if ((cpu.pCurInstr->fOpType & ~DISOPTYPE_RRM_MASK) == DISOPTYPE_HARMLESS)
         {
             AssertMsg(pfnCSAMR3Analyse(pVM, &cpu, pInstrGC, pCurInstrGC, pCacheRec, (void *)pPage) == VWRN_CONTINUE_ANALYSIS, ("Instruction incorrectly marked harmless?!?!?\n"));
             rc = VWRN_CONTINUE_ANALYSIS;
@@ -1320,10 +1348,10 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
 #ifdef CSAM_ANALYSE_BEYOND_RET
         /* Remember the address of the instruction following the ret in case the parent instruction was a call. */
         if (    pCacheRec->pCallExitRec
-            &&  cpu.pCurInstr->opcode == OP_RETN
+            &&  cpu.pCurInstr->uOpcode == OP_RETN
             &&  pCacheRec->pCallExitRec->cInstrAfterRet < CSAM_MAX_CALLEXIT_RET)
         {
-            pCacheRec->pCallExitRec->pInstrAfterRetGC[pCacheRec->pCallExitRec->cInstrAfterRet] = pCurInstrGC + opsize;
+            pCacheRec->pCallExitRec->pInstrAfterRetGC[pCacheRec->pCallExitRec->cInstrAfterRet] = pCurInstrGC + cbInstr;
             pCacheRec->pCallExitRec->cInstrAfterRet++;
         }
 #endif
@@ -1333,22 +1361,22 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
             goto done;
 
         // For our first attempt, we'll handle only simple relative jumps and calls (immediate offset coded in instruction)
-        if (    ((cpu.pCurInstr->optype & OPTYPE_CONTROLFLOW) && (OP_PARM_VTYPE(cpu.pCurInstr->param1) == OP_PARM_J))
-            ||  (cpu.pCurInstr->opcode == OP_CALL && cpu.param1.flags == USE_DISPLACEMENT32))  /* simple indirect call (call dword ptr [address]) */
+        if (    ((cpu.pCurInstr->fOpType & DISOPTYPE_CONTROLFLOW) && (OP_PARM_VTYPE(cpu.pCurInstr->fParam1) == OP_PARM_J))
+            ||  (cpu.pCurInstr->uOpcode == OP_CALL && cpu.Param1.fUse == DISUSE_DISPLACEMENT32))  /* simple indirect call (call dword ptr [address]) */
         {
             /* We need to parse 'call dword ptr [address]' type of calls to catch cpuid instructions in some recent Linux distributions (e.g. OpenSuse 10.3) */
-            if (    cpu.pCurInstr->opcode == OP_CALL
-                &&  cpu.param1.flags == USE_DISPLACEMENT32)
+            if (    cpu.pCurInstr->uOpcode == OP_CALL
+                &&  cpu.Param1.fUse == DISUSE_DISPLACEMENT32)
             {
                 addr = 0;
-                PGMPhysSimpleReadGCPtr(pVCpu, &addr, (RTRCUINTPTR)cpu.param1.disp32, sizeof(addr));
+                PGMPhysSimpleReadGCPtr(pVCpu, &addr, (RTRCUINTPTR)cpu.Param1.uDisp.i32, sizeof(addr));
             }
             else
                 addr = CSAMResolveBranch(&cpu, pCurInstrGC);
 
             if (addr == 0)
             {
-                Log(("We don't support far jumps here!! (%08X)\n", cpu.param1.flags));
+                Log(("We don't support far jumps here!! (%08X)\n", cpu.Param1.fUse));
                 rc = VINF_SUCCESS;
                 break;
             }
@@ -1385,7 +1413,7 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
                     }
                     Assert(pPage);
                 }
-                if (cpu.pCurInstr->opcode == OP_CALL)
+                if (cpu.pCurInstr->uOpcode == OP_CALL)
                     rc = csamAnalyseCallCodeStream(pVM, pInstrGC, addr, fCode32, pfnCSAMR3Analyse, (void *)pJmpPage, pCacheRec);
                 else
                     rc = csamAnalyseCodeStream(pVM, pInstrGC, addr, fCode32, pfnCSAMR3Analyse, (void *)pJmpPage, pCacheRec);
@@ -1394,21 +1422,21 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
                     goto done;
                 }
             }
-            if (cpu.pCurInstr->opcode == OP_JMP)
+            if (cpu.pCurInstr->uOpcode == OP_JMP)
             {//unconditional jump; return to caller
                 rc = VINF_SUCCESS;
                 goto done;
             }
 
             rc = VWRN_CONTINUE_ANALYSIS;
-        } //if ((cpu.pCurInstr->optype & OPTYPE_CONTROLFLOW) && (OP_PARM_VTYPE(cpu.pCurInstr->param1) == OP_PARM_J))
+        } //if ((cpu.pCurInstr->fOpType & DISOPTYPE_CONTROLFLOW) && (OP_PARM_VTYPE(cpu.pCurInstr->fParam1) == OP_PARM_J))
 #ifdef CSAM_SCAN_JUMP_TABLE
         else
-        if (    cpu.pCurInstr->opcode == OP_JMP
-            &&  (cpu.param1.flags & (USE_DISPLACEMENT32|USE_INDEX|USE_SCALE)) == (USE_DISPLACEMENT32|USE_INDEX|USE_SCALE)
+        if (    cpu.pCurInstr->uOpcode == OP_JMP
+            &&  (cpu.Param1.fUse & (DISUSE_DISPLACEMENT32|DISUSE_INDEX|DISUSE_SCALE)) == (DISUSE_DISPLACEMENT32|DISUSE_INDEX|DISUSE_SCALE)
            )
         {
-            RTRCPTR  pJumpTableGC = (RTRCPTR)cpu.param1.disp32;
+            RTRCPTR  pJumpTableGC = (RTRCPTR)cpu.Param1.disp32;
             uint8_t *pJumpTableHC;
             int      rc2;
 
@@ -1421,12 +1449,12 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
                 {
                     uint64_t fFlags;
 
-                    addr = pJumpTableGC + cpu.param1.scale * i;
+                    addr = pJumpTableGC + cpu.Param1.scale * i;
                     /* Same page? */
                     if (PAGE_ADDRESS(addr) != PAGE_ADDRESS(pJumpTableGC))
                         break;
 
-                    addr = *(RTRCPTR *)(pJumpTableHC + cpu.param1.scale * i);
+                    addr = *(RTRCPTR *)(pJumpTableHC + cpu.Param1.scale * i);
 
                     rc2 = PGMGstGetPage(pVCpu, addr, &fFlags, NULL);
                     if (    rc2 != VINF_SUCCESS
@@ -1464,12 +1492,12 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
             break; //done!
         }
 next_please:
-        if (cpu.pCurInstr->opcode == OP_JMP)
+        if (cpu.pCurInstr->uOpcode == OP_JMP)
         {
             rc = VINF_SUCCESS;
             goto done;
         }
-        pCurInstrGC += opsize;
+        pCurInstrGC += cbInstr;
     }
 done:
     pCacheRec->depth--;
@@ -1481,7 +1509,7 @@ done:
  * Calculates the 64 bits hash value for the current page
  *
  * @returns hash value
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pInstr      Page address
  */
 uint64_t csamR3CalcPageHash(PVM pVM, RTRCPTR pInstr)
@@ -1547,7 +1575,7 @@ uint64_t csamR3CalcPageHash(PVM pVM, RTRCPTR pInstr)
  * Notify CSAM of a page flush
  *
  * @returns VBox status code
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   addr        GC address of the page to flush
  * @param   fRemovePage Page removal flag
  */
@@ -1658,7 +1686,7 @@ static int csamFlushPage(PVM pVM, RTRCPTR addr, bool fRemovePage)
  * Notify CSAM of a page flush
  *
  * @returns VBox status code
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   addr        GC address of the page to flush
  */
 VMMR3DECL(int) CSAMR3FlushPage(PVM pVM, RTRCPTR addr)
@@ -1670,7 +1698,7 @@ VMMR3DECL(int) CSAMR3FlushPage(PVM pVM, RTRCPTR addr)
  * Remove a CSAM monitored page. Use with care!
  *
  * @returns VBox status code
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   addr        GC address of the page to flush
  */
 VMMR3DECL(int) CSAMR3RemovePage(PVM pVM, RTRCPTR addr)
@@ -1695,7 +1723,7 @@ VMMR3DECL(int) CSAMR3RemovePage(PVM pVM, RTRCPTR addr)
  * Check a page record in case a page has been changed
  *
  * @returns VBox status code. (trap handled or not)
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pInstrGC    GC instruction pointer
  */
 int csamR3CheckPageRecord(PVM pVM, RTRCPTR pInstrGC)
@@ -1739,7 +1767,7 @@ const char *csamGetMonitorDescription(CSAMTAG enmTag)
  * Adds page record to our lookup tree
  *
  * @returns CSAMPAGE ptr or NULL if failure
- * @param   pVM                     The VM to operate on.
+ * @param   pVM                     Pointer to the VM.
  * @param   GCPtr                   Page address
  * @param   enmTag                  Owner tag
  * @param   fCode32                 16 or 32 bits code
@@ -1844,7 +1872,7 @@ static PCSAMPAGE csamCreatePageRecord(PVM pVM, RTRCPTR GCPtr, CSAMTAG enmTag, bo
  * Monitors a code page (if not already monitored)
  *
  * @returns VBox status code
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pPageAddrGC The page to monitor
  * @param   enmTag      Monitor tag
  */
@@ -1968,7 +1996,7 @@ VMMR3DECL(int) CSAMR3MonitorPage(PVM pVM, RTRCPTR pPageAddrGC, CSAMTAG enmTag)
  * Unmonitors a code page
  *
  * @returns VBox status code
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pPageAddrGC The page to monitor
  * @param   enmTag      Monitor tag
  */
@@ -1993,7 +2021,7 @@ VMMR3DECL(int) CSAMR3UnmonitorPage(PVM pVM, RTRCPTR pPageAddrGC, CSAMTAG enmTag)
  * Removes a page record from our lookup tree
  *
  * @returns VBox status code
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPtr       Page address
  */
 static int csamRemovePageRecord(PVM pVM, RTRCPTR GCPtr)
@@ -2056,7 +2084,7 @@ static int csamRemovePageRecord(PVM pVM, RTRCPTR GCPtr)
 /**
  * Callback for delayed writes from non-EMT threads
  *
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   GCPtr           The virtual address the guest is writing to. (not correct if it's an alias!)
  * @param   cbBuf           How much it's reading/writing.
  */
@@ -2074,7 +2102,7 @@ static DECLCALLBACK(void) CSAMDelayedWriteHandler(PVM pVM, RTRCPTR GCPtr, size_t
  *
  * @returns VINF_SUCCESS if the handler have carried out the operation.
  * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   GCPtr           The virtual address the guest is writing to. (not correct if it's an alias!)
  * @param   pvPtr           The HC mapping of that address.
  * @param   pvBuf           What the guest is reading/writing.
@@ -2086,8 +2114,9 @@ static DECLCALLBACK(int) CSAMCodePageWriteHandler(PVM pVM, RTGCPTR GCPtr, void *
 {
     int rc;
 
-    Assert(enmAccessType == PGMACCESSTYPE_WRITE);
+    Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
     Log(("CSAMCodePageWriteHandler: write to %RGv size=%zu\n", GCPtr, cbBuf));
+    NOREF(pvUser);
 
     if (    PAGE_ADDRESS(pvPtr) == PAGE_ADDRESS((uintptr_t)pvPtr + cbBuf - 1)
          && !memcmp(pvPtr, pvBuf, cbBuf))
@@ -2097,9 +2126,7 @@ static DECLCALLBACK(int) CSAMCodePageWriteHandler(PVM pVM, RTGCPTR GCPtr, void *
     }
 
     if (VM_IS_EMT(pVM))
-    {
         rc = PATMR3PatchWrite(pVM, GCPtr, (uint32_t)cbBuf);
-    }
     else
     {
         /* Queue the write instead otherwise we'll get concurrency issues. */
@@ -2118,7 +2145,7 @@ static DECLCALLBACK(int) CSAMCodePageWriteHandler(PVM pVM, RTGCPTR GCPtr, void *
 /**
  * \#PF Handler callback for invalidation of virtual access handler ranges.
  *
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   GCPtr           The virtual address the guest has changed.
  */
 static DECLCALLBACK(int) CSAMCodePageInvalidate(PVM pVM, RTGCPTR GCPtr)
@@ -2135,7 +2162,7 @@ static DECLCALLBACK(int) CSAMCodePageInvalidate(PVM pVM, RTGCPTR GCPtr)
  * Check if the current instruction has already been checked before
  *
  * @returns VBox status code. (trap handled or not)
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pInstr      Instruction pointer
  * @param   pPage       CSAM patch structure pointer
  */
@@ -2185,15 +2212,15 @@ bool csamIsCodeScanned(PVM pVM, RTRCPTR pInstr, PCSAMPAGE *pPage)
 /**
  * Mark an instruction in a page as scanned/not scanned
  *
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pPage       Patch structure pointer
  * @param   pInstr      Instruction pointer
- * @param   opsize      Instruction size
+ * @param   cbInstr      Instruction size
  * @param   fScanned    Mark as scanned or not
  */
-static void csamMarkCode(PVM pVM, PCSAMPAGE pPage, RTRCPTR pInstr, uint32_t opsize, bool fScanned)
+static void csamMarkCode(PVM pVM, PCSAMPAGE pPage, RTRCPTR pInstr, uint32_t cbInstr, bool fScanned)
 {
-    LogFlow(("csamMarkCodeAsScanned %RRv opsize=%d\n", pInstr, opsize));
+    LogFlow(("csamMarkCodeAsScanned %RRv cbInstr=%d\n", pInstr, cbInstr));
     CSAMMarkPage(pVM, pInstr, fScanned);
 
     /** @todo should recreate empty bitmap if !fScanned */
@@ -2205,7 +2232,7 @@ static void csamMarkCode(PVM pVM, PCSAMPAGE pPage, RTRCPTR pInstr, uint32_t opsi
         // retn instructions can be scanned more than once
         if (ASMBitTest(pPage->pBitmap, pInstr & PAGE_OFFSET_MASK) == 0)
         {
-            pPage->uSize += opsize;
+            pPage->uSize += cbInstr;
             STAM_COUNTER_ADD(&pVM->csam.s.StatNrInstr, 1);
         }
         if (pPage->uSize >= PAGE_SIZE)
@@ -2225,12 +2252,12 @@ static void csamMarkCode(PVM pVM, PCSAMPAGE pPage, RTRCPTR pInstr, uint32_t opsi
  * Mark an instruction in a page as scanned/not scanned
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pInstr      Instruction pointer
- * @param   opsize      Instruction size
+ * @param   cbInstr      Instruction size
  * @param   fScanned    Mark as scanned or not
  */
-VMMR3DECL(int) CSAMR3MarkCode(PVM pVM, RTRCPTR pInstr, uint32_t opsize, bool fScanned)
+VMMR3DECL(int) CSAMR3MarkCode(PVM pVM, RTRCPTR pInstr, uint32_t cbInstr, bool fScanned)
 {
     PCSAMPAGE pPage = 0;
 
@@ -2243,8 +2270,8 @@ VMMR3DECL(int) CSAMR3MarkCode(PVM pVM, RTRCPTR pInstr, uint32_t opsize, bool fSc
         return VINF_SUCCESS;
     }
 
-    Log(("CSAMR3MarkCode: %RRv size=%d fScanned=%d\n", pInstr, opsize, fScanned));
-    csamMarkCode(pVM, pPage, pInstr, opsize, fScanned);
+    Log(("CSAMR3MarkCode: %RRv size=%d fScanned=%d\n", pInstr, cbInstr, fScanned));
+    csamMarkCode(pVM, pPage, pInstr, cbInstr, fScanned);
     return VINF_SUCCESS;
 }
 
@@ -2253,7 +2280,7 @@ VMMR3DECL(int) CSAMR3MarkCode(PVM pVM, RTRCPTR pInstr, uint32_t opsize, bool fSc
  * Scan and analyse code
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pCtxCore    CPU context
  * @param   pInstrGC    Instruction pointer
  */
@@ -2268,9 +2295,9 @@ VMMR3DECL(int) CSAMR3CheckCodeEx(PVM pVM, PCPUMCTXCORE pCtxCore, RTRCPTR pInstrG
     if (CSAMIsEnabled(pVM))
     {
         /* Assuming 32 bits code for now. */
-        Assert(SELMGetCpuModeFromSelector(pVM, pCtxCore->eflags, pCtxCore->cs, &pCtxCore->csHid) == CPUMODE_32BIT);
+        Assert(CPUMGetGuestCodeBits(VMMGetCpu0(pVM)) == 32);
 
-        pInstrGC = SELMToFlat(pVM, DIS_SELREG_CS, pCtxCore, pInstrGC);
+        pInstrGC = SELMToFlat(pVM, DISSELREG_CS, pCtxCore, pInstrGC);
         return CSAMR3CheckCode(pVM, pInstrGC);
     }
     return VINF_SUCCESS;
@@ -2280,7 +2307,7 @@ VMMR3DECL(int) CSAMR3CheckCodeEx(PVM pVM, PCPUMCTXCORE pCtxCore, RTRCPTR pInstrG
  * Scan and analyse code
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pInstrGC    Instruction pointer (0:32 virtual address)
  */
 VMMR3DECL(int) CSAMR3CheckCode(PVM pVM, RTRCPTR pInstrGC)
@@ -2320,7 +2347,7 @@ VMMR3DECL(int) CSAMR3CheckCode(PVM pVM, RTRCPTR pInstrGC)
  * Flush dirty code pages
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 static int csamR3FlushDirtyPages(PVM pVM)
 {
@@ -2337,8 +2364,10 @@ static int csamR3FlushDirtyPages(PVM pVM)
 
         GCPtr = GCPtr & PAGE_BASE_GC_MASK;
 
-        /* Notify the recompiler that this page has been changed. */
+#ifdef VBOX_WITH_REM
+         /* Notify the recompiler that this page has been changed. */
         REMR3NotifyCodePageChanged(pVM, pVCpu, GCPtr);
+#endif
 
         /* Enable write protection again. (use the fault address as it might be an alias) */
         rc = PGMShwMakePageReadonly(pVCpu, pVM->csam.s.pvDirtyFaultPage[i], 0 /*fFlags*/);
@@ -2371,7 +2400,7 @@ static int csamR3FlushDirtyPages(PVM pVM)
  * Flush potential new code pages
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 static int csamR3FlushCodePages(PVM pVM)
 {
@@ -2397,8 +2426,8 @@ static int csamR3FlushCodePages(PVM pVM)
  * Perform any pending actions
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
- * @param   pVCpu       The VMCPU to operate on.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
  */
 VMMR3DECL(int) CSAMR3DoPendingAction(PVM pVM, PVMCPU pVCpu)
 {
@@ -2413,12 +2442,13 @@ VMMR3DECL(int) CSAMR3DoPendingAction(PVM pVM, PVMCPU pVCpu)
  * Analyse interrupt and trap gates
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   iGate       Start gate
  * @param   cGates      Number of gates to check
  */
 VMMR3DECL(int) CSAMR3CheckGates(PVM pVM, uint32_t iGate, uint32_t cGates)
 {
+#ifdef VBOX_WITH_RAW_MODE
     Assert(pVM->cCpus == 1);
     PVMCPU      pVCpu = VMMGetCpu0(pVM);
     uint16_t    cbIDT;
@@ -2571,8 +2601,8 @@ VMMR3DECL(int) CSAMR3CheckGates(PVM pVM, uint32_t iGate, uint32_t cGates)
                 {
                     rc = CPUMR3DisasmInstrCPU(pVM, pVCpu, pCtx, pHandler - aOpenBsdPushCSOffset[i], &cpu, NULL);
                     if (    rc == VINF_SUCCESS
-                        &&  cpu.pCurInstr->opcode == OP_PUSH
-                        &&  cpu.pCurInstr->param1 == OP_PARM_REG_CS)
+                        &&  cpu.pCurInstr->uOpcode == OP_PUSH
+                        &&  cpu.pCurInstr->fParam1 == OP_PARM_REG_CS)
                     {
                         rc = PATMR3InstallPatch(pVM, pHandler - aOpenBsdPushCSOffset[i], PATMFL_CODE32 | PATMFL_GUEST_SPECIFIC);
                         if (RT_SUCCESS(rc))
@@ -2622,6 +2652,7 @@ VMMR3DECL(int) CSAMR3CheckGates(PVM pVM, uint32_t iGate, uint32_t cGates)
         }
     } /* for */
     STAM_PROFILE_STOP(&pVM->csam.s.StatCheckGates, a);
+#endif /* VBOX_WITH_RAW_MODE */
     return VINF_SUCCESS;
 }
 
@@ -2629,7 +2660,7 @@ VMMR3DECL(int) CSAMR3CheckGates(PVM pVM, uint32_t iGate, uint32_t cGates)
  * Record previous call instruction addresses
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPtrCall   Call address
  */
 VMMR3DECL(int) CSAMR3RecordCallAddress(PVM pVM, RTRCPTR GCPtrCall)
@@ -2654,7 +2685,7 @@ VMMR3DECL(int) CSAMR3RecordCallAddress(PVM pVM, RTRCPTR GCPtrCall)
  * Query CSAM state (enabled/disabled)
  *
  * @returns 0 - disabled, 1 - enabled
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3DECL(int) CSAMR3IsEnabled(PVM pVM)
 {
@@ -2676,6 +2707,7 @@ VMMR3DECL(int) CSAMR3IsEnabled(PVM pVM)
 static DECLCALLBACK(int) csamr3CmdOff(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
+    NOREF(cArgs); NOREF(paArgs);
 
     int rc = CSAMDisableScanning(pVM);
     if (RT_FAILURE(rc))
@@ -2696,6 +2728,7 @@ static DECLCALLBACK(int) csamr3CmdOff(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM p
 static DECLCALLBACK(int) csamr3CmdOn(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
+    NOREF(cArgs); NOREF(paArgs);
 
     int rc = CSAMEnableScanning(pVM);
     if (RT_FAILURE(rc))

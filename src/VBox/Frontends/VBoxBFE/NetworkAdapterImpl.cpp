@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -186,13 +186,8 @@ NetworkAdapter::COMSETTER(TAPFileDescriptor)(LONG tapFileDescriptor)
     {
         AssertMsgFailed(("Invalid file descriptor: %ld.\n", tapFileDescriptor));
 
-        //    setError  VirtualBoxSupportErrorInfoImplBase which
-        //       is a parent class of NetworAdapter in the COM flavored version
-        //    return setError (E_INVALIDARG,
-        //        tr ("Invalid file descriptor: %ld"), tapFileDescriptor);
-
-        return S_OK;
-
+        return setError (E_INVALIDARG,
+                tr ("Invalid file descriptor: %ld"), tapFileDescriptor);
     }
 
     AutoLock alock(this);

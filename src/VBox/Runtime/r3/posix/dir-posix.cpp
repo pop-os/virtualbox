@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -77,7 +77,7 @@ RTDECL(bool) RTDirExists(const char *pszPath)
 }
 
 
-RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode)
+RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode, uint32_t fCreate)
 {
     int rc;
     fMode = rtFsModeNormalize(fMode, pszPath, 0);
@@ -195,6 +195,8 @@ RTDECL(int) RTDirFlush(const char *pszPath)
 
 int rtDirNativeOpen(PRTDIR pDir, char *pszPathBuf)
 {
+    NOREF(pszPathBuf); /* only used on windows */
+
     /*
      * Convert to a native path and try opendir.
      */

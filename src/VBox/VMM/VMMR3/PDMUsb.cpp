@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -100,7 +100,7 @@ AssertCompile(sizeof(PDMUSBINSINT) <= RT_SIZEOFMEMB(PDMUSBINS, Internal.padding)
  * Registers a USB hub driver.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pDrvIns         The driver instance of the hub.
  * @param   fVersions       Indicates the kinds of USB devices that can be attached to this HUB.
  * @param   cPorts          The number of ports.
@@ -167,7 +167,7 @@ int pdmR3UsbRegisterHub(PVM pVM, PPDMDRVINS pDrvIns, uint32_t fVersions, uint32_
  * Loads one device module and call the registration entry point.
  *
  * @returns VBox status code.
- * @param   pVM             VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pRegCB          The registration callback stuff.
  * @param   pszFilename     Module filename.
  * @param   pszName         Module name.
@@ -275,7 +275,7 @@ static DECLCALLBACK(int) pdmR3UsbReg_Register(PCPDMUSBREGCB pCallbacks, PCPDMUSB
  * This is called by pdmR3DevInit() after it has loaded it's device modules.
  *
  * @returns VBox status code.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  */
 int pdmR3UsbLoadModules(PVM pVM)
 {
@@ -385,7 +385,7 @@ int pdmR3UsbLoadModules(PVM pVM)
  * This is called from pdmR3DevInit() after it has do its notification round.
  *
  * @returns VBox status code.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  */
 int pdmR3UsbVMInitComplete(PVM pVM)
 {
@@ -426,7 +426,7 @@ PPDMUSB pdmR3UsbLookup(PVM pVM, const char *pszName)
  *
  * @returns VINF_SUCCESS and *ppHub on success.
  *          VERR_PDM_NO_USB_HUBS or VERR_PDM_NO_USB_PORTS on failure.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   iUsbVersion     The USB device version.
  * @param   ppHub           Where to store the pointer to the USB hub.
  */
@@ -455,7 +455,7 @@ static int pdmR3UsbFindHub(PVM pVM, uint32_t iUsbVersion, PPDMUSBHUB *ppHub)
  * Creates the device.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pUsbDev         The USB device emulation.
  * @param   iInstance       -1 if not called by pdmR3UsbInstantiateDevices().
  * @param   pUuid           The UUID for this device.
@@ -468,10 +468,12 @@ static int pdmR3UsbFindHub(PVM pVM, uint32_t iUsbVersion, PPDMUSBHUB *ppHub)
  *
  * @parma   iUsbVersion     The USB version preferred by the device.
  */
-static int pdmR3UsbCreateDevice(PVM pVM, PPDMUSBHUB pHub, PPDMUSB pUsbDev, int iInstance, PCRTUUID pUuid, PCFGMNODE pInstanceNode, PCFGMNODE *ppConfig, uint32_t iUsbVersion)
+static int pdmR3UsbCreateDevice(PVM pVM, PPDMUSBHUB pHub, PPDMUSB pUsbDev, int iInstance, PCRTUUID pUuid,
+                                PCFGMNODE pInstanceNode, PCFGMNODE *ppConfig, uint32_t iUsbVersion)
 {
     const bool fAtRuntime = pInstanceNode == NULL;
     int rc;
+    NOREF(iUsbVersion);
 
     /*
      * If not called by pdmR3UsbInstantiateDevices(), we'll have to fix
@@ -574,6 +576,8 @@ static int pdmR3UsbCreateDevice(PVM pVM, PPDMUSBHUB pHub, PPDMUSB pUsbDev, int i
     pUsbIns->iInstance                      = iInstance;
     pUsbIns->pvInstanceDataR3               = &pUsbIns->achInstanceData[0];
     pUsbIns->pszName                        = RTStrDup(pUsbDev->pReg->szName);
+    //pUsbIns->fTracing                       = 0;
+    pUsbIns->idTracing                      = ++pVM->pdm.s.idTracingOther;
 
     /*
      * Link it into all the lists.
@@ -833,7 +837,7 @@ int pdmR3UsbInstantiateDevices(PVM pVM)
  * and try instantiate the proxy device.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pUuid           The UUID to be associated with the device.
  * @param   fRemote         Whether it's a remove or local device.
  * @param   pszAddress      The address string.
@@ -913,7 +917,7 @@ VMMR3DECL(int) PDMR3USBCreateProxyDevice(PVM pVM, PCRTUUID pUuid, bool fRemote, 
  *
  * The device must be detached from the HUB at this point.
  *
- * @param   pVM             Pointer to the shared VM structure.
+ * @param   pVM             Pointer to the VM.
  * @param   pUsbIns         The USB device instance to destroy.
  * @thread  EMT
  */
@@ -1005,7 +1009,7 @@ static void pdmR3UsbDestroyDevice(PVM pVM, PPDMUSBINS pUsbIns)
  * Detaches and destroys a USB device.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pUuid           The UUID associated with the device to detach.
  * @thread  EMT
  */
@@ -1060,7 +1064,7 @@ VMMR3DECL(int) PDMR3USBDetachDevice(PVM pVM, PCRTUUID pUuid)
  * Checks if there are any USB hubs attached.
  *
  * @returns true / false accordingly.
- * @param   pVM     Pointer to the shared VM structure.
+ * @param   pVM     Pointer to the VM.
  */
 VMMR3DECL(bool) PDMR3USBHasHub(PVM pVM)
 {
@@ -1073,7 +1077,8 @@ VMMR3DECL(bool) PDMR3USBHasHub(PVM pVM)
  */
 
 /** @interface_method_impl{PDMUSBHLPR3,pfnDriverAttach} */
-static DECLCALLBACK(int) pdmR3UsbHlp_DriverAttach(PPDMUSBINS pUsbIns, RTUINT iLun, PPDMIBASE pBaseInterface, PPDMIBASE *ppBaseInterface, const char *pszDesc)
+static DECLCALLBACK(int) pdmR3UsbHlp_DriverAttach(PPDMUSBINS pUsbIns, RTUINT iLun, PPDMIBASE pBaseInterface,
+                                                  PPDMIBASE *ppBaseInterface, const char *pszDesc)
 {
     PDMUSB_ASSERT_USBINS(pUsbIns);
     PVM pVM = pUsbIns->Internal.s.pVM;
@@ -1210,7 +1215,7 @@ static DECLCALLBACK(int) pdmR3UsbHlp_DBGFInfoRegister(PPDMUSBINS pUsbIns, const 
 
     PVM pVM = pUsbIns->Internal.s.pVM;
     VM_ASSERT_EMT(pVM);
-    /** @todo int rc = DBGFR3InfoRegisterUsb(pVM, pszName, pszDesc, pfnHandler, pUsbIns); */
+    NOREF(pVM); /** @todo int rc = DBGFR3InfoRegisterUsb(pVM, pszName, pszDesc, pfnHandler, pUsbIns); */
     int rc = VERR_NOT_IMPLEMENTED; AssertFailed();
 
     LogFlow(("pdmR3UsbHlp_DBGFInfoRegister: caller='%s'/%d: returns %Rrc\n", pUsbIns->pReg->szName, pUsbIns->iInstance, rc));

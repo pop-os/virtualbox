@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2011 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -58,9 +58,6 @@ endif
 VBoxBFE_DEFS.freebsd = VBOXBFE_WITH_X11
 VBoxBFE_DEFS.linux = _GNU_SOURCE VBOXBFE_WITH_X11
 VBoxBFE_DEFS.solaris = VBOXBFE_WITH_X11
-ifdef VBOX_WITH_CROSSBOW
- VBoxBFE_DEFS.solaris += VBOX_WITH_CROSSBOW
-endif
 VBoxBFE_DEFS.win.x86 = _WIN32_WINNT=0x0500
 
 VBoxBFE_SOURCES = \
@@ -169,5 +166,5 @@ endif # !VBOX_ONLY_SDK
 
 
 endif # !VBOX_WITH_HARDENING || !darwin
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

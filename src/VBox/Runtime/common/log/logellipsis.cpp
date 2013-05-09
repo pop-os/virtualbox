@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,6 +56,7 @@ RTDECL(void) RTLogLogger(PRTLOGGER pLogger, void *pvCallerRet, const char *pszFo
     RTLogLoggerExV(pLogger, 0, ~0U, pszFormat, args);
 #endif
     va_end(args);
+    NOREF(pvCallerRet);
 }
 RT_EXPORT_SYMBOL(RTLogLogger);
 

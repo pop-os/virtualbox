@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,6 +53,7 @@
 #ifndef RT_OS_WINDOWS
 # include <sys/ioctl.h>
 # include <poll.h>
+# include <netinet/in.h>
 #else
 # include <Winnls.h>
 # define _WINSOCK2API_
@@ -112,8 +113,6 @@
        && (   N_(fdset ## _poll) == POLLNVAL                        \
            || !(polls[(so)->so_poll_index].revents & POLLNVAL)))
 
-  /* specific for Unix API */
-# define DO_UNIX_CHECK_FD_SET(so, events, fdset) DO_CHECK_FD_SET((so), (events), fdset)
   /* specific for Windows Winsock API */
 # define DO_WIN_CHECK_FD_SET(so, events, fdset) 0
 
@@ -127,8 +126,10 @@
 # define xfds_poll       (POLLPRI)
 # define closefds_poll   (POLLHUP)
 # define rderr_poll      (POLLERR)
-# define rdhup_poll      (POLLHUP)
-# define nval_poll       (POLLNVAL)
+# if 0 /* unused yet */
+#  define rdhup_poll      (POLLHUP)
+#  define nval_poll       (POLLNVAL)
+# endif
 
 # define ICMP_ENGAGE_EVENT(so, fdset)              \
    do {                                            \
@@ -163,13 +164,14 @@
 # define DO_ENGAGE_EVENT2(so, fdset1, fdset2, label) \
     DO_ENGAGE_EVENT1((so), (fdset1), label)
 
-# define DO_POLL_EVENTS(rc, error, so, events, label)                       \
-    (rc) = WSAEnumNetworkEvents((so)->s, VBOX_SOCKET_EVENT, (events));      \
-    if ((rc) == SOCKET_ERROR)                                               \
-    {                                                                       \
-        (error) = WSAGetLastError();                                        \
-        LogRel(("WSAEnumNetworkEvents " #label " error %d\n", (error)));    \
-        CONTINUE(label);                                                    \
+# define DO_POLL_EVENTS(rc, error, so, events, label)                                           \
+    (rc) = WSAEnumNetworkEvents((so)->s, VBOX_SOCKET_EVENT, (events));                          \
+    if ((rc) == SOCKET_ERROR)                                                                   \
+    {                                                                                           \
+        (error) = WSAGetLastError();                                                            \
+        LogRel(("WSAEnumNetworkEvents %R[natsock] " #label " error %d\n", (so), (error)));      \
+        LogFunc(("WSAEnumNetworkEvents %R[natsock] " #label " error %d\n", (so), (error)));     \
+        CONTINUE(label);                                                                        \
     }
 
 # define acceptds_win     FD_ACCEPT
@@ -204,8 +206,6 @@
 
 #ifdef RT_OS_WINDOWS
 # define WIN_TCP_ENGAGE_EVENT2(so, fdset, fdset2) TCP_ENGAGE_EVENT2(so, fdset1, fdset2)
-#else
-# define WIN_TCP_ENGAGE_EVENT2(so, fdset, fdset2) do{}while(0)
 #endif
 
 #define UDP_ENGAGE_EVENT(so, fdset) \
@@ -222,9 +222,6 @@
 
 #define WIN_CHECK_FD_SET(so, events, set) \
     (DO_WIN_CHECK_FD_SET((so), (events), set))
-
-#define UNIX_CHECK_FD_SET(so, events, set) \
-    (DO_UNIX_CHECK_FD_SET(so, events, set))
 
 /*
  * Loging macros
@@ -285,328 +282,16 @@ static int slirpVerifyAndFreeSocket(PNATState pData, struct socket *pSocket)
     {
         pSocket->fUnderPolling = 0;
         sofree(pData, pSocket);
-        /* so is PHANTOM, now */
+        /* pSocket is PHANTOM, now */
         return 1;
     }
     return 0;
-}
-
-#ifdef RT_OS_WINDOWS
-static int get_dns_addr_domain(PNATState pData, bool fVerbose,
-                               struct in_addr *pdns_addr,
-                               const char **ppszDomain)
-{
-    ULONG flags = GAA_FLAG_INCLUDE_PREFIX; /*GAA_FLAG_INCLUDE_ALL_INTERFACES;*/ /* all interfaces registered in NDIS */
-    PIP_ADAPTER_ADDRESSES pAdapterAddr = NULL;
-    PIP_ADAPTER_ADDRESSES pAddr = NULL;
-    PIP_ADAPTER_DNS_SERVER_ADDRESS pDnsAddr = NULL;
-    ULONG size;
-    int wlen = 0;
-    char *pszSuffix;
-    struct dns_domain_entry *pDomain = NULL;
-    ULONG ret = ERROR_SUCCESS;
-
-    /* @todo add SKIPing flags to get only required information */
-
-    /* determine size of buffer */
-    size = 0;
-    ret = pData->pfGetAdaptersAddresses(AF_INET, 0, NULL /* reserved */, pAdapterAddr, &size);
-    if (ret != ERROR_BUFFER_OVERFLOW)
-    {
-        Log(("NAT: error %lu occurred on capacity detection operation\n", ret));
-        return -1;
-    }
-    if (size == 0)
-    {
-        Log(("NAT: Win socket API returns non capacity\n"));
-        return -1;
-    }
-
-    pAdapterAddr = RTMemAllocZ(size);
-    if (!pAdapterAddr)
-    {
-        Log(("NAT: No memory available\n"));
-        return -1;
-    }
-    ret = pData->pfGetAdaptersAddresses(AF_INET, 0, NULL /* reserved */, pAdapterAddr, &size);
-    if (ret != ERROR_SUCCESS)
-    {
-        Log(("NAT: error %lu occurred on fetching adapters info\n", ret));
-        RTMemFree(pAdapterAddr);
-        return -1;
-    }
-
-    for (pAddr = pAdapterAddr; pAddr != NULL; pAddr = pAddr->Next)
-    {
-        int found;
-        if (pAddr->OperStatus != IfOperStatusUp)
-            continue;
-
-        for (pDnsAddr = pAddr->FirstDnsServerAddress; pDnsAddr != NULL; pDnsAddr = pDnsAddr->Next)
-        {
-            struct sockaddr *SockAddr = pDnsAddr->Address.lpSockaddr;
-            struct in_addr  InAddr;
-            struct dns_entry *pDns;
-
-            if (SockAddr->sa_family != AF_INET)
-                continue;
-
-            InAddr = ((struct sockaddr_in *)SockAddr)->sin_addr;
-
-            /* add dns server to list */
-            pDns = RTMemAllocZ(sizeof(struct dns_entry));
-            if (!pDns)
-            {
-                Log(("NAT: Can't allocate buffer for DNS entry\n"));
-                RTMemFree(pAdapterAddr);
-                return VERR_NO_MEMORY;
-            }
-
-            Log(("NAT: adding %RTnaipv4 to DNS server list\n", InAddr));
-            if ((InAddr.s_addr & RT_H2N_U32_C(IN_CLASSA_NET)) == RT_N2H_U32_C(INADDR_LOOPBACK & IN_CLASSA_NET))
-                pDns->de_addr.s_addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_ALIAS);
-            else
-                pDns->de_addr.s_addr = InAddr.s_addr;
-
-            TAILQ_INSERT_HEAD(&pData->pDnsList, pDns, de_list);
-
-            if (pAddr->DnsSuffix == NULL)
-                continue;
-
-            /* uniq */
-            RTUtf16ToUtf8(pAddr->DnsSuffix, &pszSuffix);
-            if (!pszSuffix || strlen(pszSuffix) == 0)
-            {
-                RTStrFree(pszSuffix);
-                continue;
-            }
-
-            found = 0;
-            LIST_FOREACH(pDomain, &pData->pDomainList, dd_list)
-            {
-                if (   pDomain->dd_pszDomain != NULL
-                    && strcmp(pDomain->dd_pszDomain, pszSuffix) == 0)
-                {
-                    found = 1;
-                    RTStrFree(pszSuffix);
-                    break;
-                }
-            }
-            if (!found)
-            {
-                pDomain = RTMemAllocZ(sizeof(struct dns_domain_entry));
-                if (!pDomain)
-                {
-                    Log(("NAT: not enough memory\n"));
-                    RTStrFree(pszSuffix);
-                    RTMemFree(pAdapterAddr);
-                    return VERR_NO_MEMORY;
-                }
-                pDomain->dd_pszDomain = pszSuffix;
-                Log(("NAT: adding domain name %s to search list\n", pDomain->dd_pszDomain));
-                LIST_INSERT_HEAD(&pData->pDomainList, pDomain, dd_list);
-            }
-        }
-    }
-    RTMemFree(pAdapterAddr);
-    return 0;
-}
-
-#else /* !RT_OS_WINDOWS */
-
-static int RTFileGets(RTFILE File, void *pvBuf, size_t cbBufSize, size_t *pcbRead)
-{
-    size_t cbRead;
-    char bTest;
-    int rc = VERR_NO_MEMORY;
-    char *pu8Buf = (char *)pvBuf;
-    *pcbRead = 0;
-
-    while (   RT_SUCCESS(rc = RTFileRead(File, &bTest, 1, &cbRead))
-           && (pu8Buf - (char *)pvBuf) < cbBufSize)
-    {
-        if (cbRead == 0)
-            return VERR_EOF;
-
-        if (bTest == '\r' || bTest == '\n')
-        {
-            *pu8Buf = 0;
-            return VINF_SUCCESS;
-        }
-        *pu8Buf = bTest;
-         pu8Buf++;
-        (*pcbRead)++;
-    }
-    return rc;
-}
-
-static int get_dns_addr_domain(PNATState pData, bool fVerbose,
-                               struct in_addr *pdns_addr,
-                               const char **ppszDomain)
-{
-    char buff[512];
-    char buff2[256];
-    RTFILE f;
-    int cNameserversFound = 0;
-    bool fWarnTooManyDnsServers = false;
-    struct in_addr tmp_addr;
-    int rc;
-    size_t bytes;
-
-# ifdef RT_OS_OS2
-    /* Try various locations. */
-    char *etc = getenv("ETC");
-    if (etc)
-    {
-        RTStrmPrintf(buff, sizeof(buff), "%s/RESOLV2", etc);
-        rc = RTFileOpen(&f, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-    }
-    if (RT_FAILURE(rc))
-    {
-        RTStrmPrintf(buff, sizeof(buff), "%s/RESOLV2", _PATH_ETC);
-        rc = RTFileOpen(&f, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-    }
-    if (RT_FAILURE(rc))
-    {
-        RTStrmPrintf(buff, sizeof(buff), "%s/resolv.conf", _PATH_ETC);
-        rc = RTFileOpen(&f, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-    }
-# else /* !RT_OS_OS2 */
-#  ifndef DEBUG_vvl
-    rc = RTFileOpen(&f, "/etc/resolv.conf", RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-#  else
-    char *home = getenv("HOME");
-    RTStrPrintf(buff, sizeof(buff), "%s/resolv.conf", home);
-    rc = RTFileOpen(&f, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-    if (RT_SUCCESS(rc))
-    {
-        Log(("NAT: DNS we're using %s\n", buff));
-    }
-    else
-    {
-        rc = RTFileOpen(&f, "/etc/resolv.conf", RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-        Log(("NAT: DNS we're using %s\n", buff));
-    }
-#  endif
-# endif /* !RT_OS_OS2 */
-    if (RT_FAILURE(rc))
-        return -1;
-
-    if (ppszDomain)
-        *ppszDomain = NULL;
-
-    Log(("NAT: DNS Servers:\n"));
-    while (    RT_SUCCESS(rc = RTFileGets(f, buff, sizeof(buff), &bytes))
-            && rc != VERR_EOF)
-    {
-        struct dns_entry *pDns = NULL;
-        if (   cNameserversFound == 4
-            && !fWarnTooManyDnsServers
-            && sscanf(buff, "nameserver%*[ \t]%255s", buff2) == 1)
-        {
-            fWarnTooManyDnsServers = true;
-            LogRel(("NAT: too many nameservers registered.\n"));
-        }
-        if (   sscanf(buff, "nameserver%*[ \t]%255s", buff2) == 1
-            && cNameserversFound < 4) /* Unix doesn't accept more than 4 name servers*/
-        {
-            if (!inet_aton(buff2, &tmp_addr))
-                continue;
-
-            /* localhost mask */
-            pDns = RTMemAllocZ(sizeof (struct dns_entry));
-            if (!pDns)
-            {
-                Log(("can't alloc memory for DNS entry\n"));
-                return -1;
-            }
-
-            /* check */
-            pDns->de_addr.s_addr = tmp_addr.s_addr;
-            if ((pDns->de_addr.s_addr & RT_H2N_U32_C(IN_CLASSA_NET)) == RT_N2H_U32_C(INADDR_LOOPBACK & IN_CLASSA_NET))
-            {
-                pDns->de_addr.s_addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_ALIAS);
-            }
-            TAILQ_INSERT_HEAD(&pData->pDnsList, pDns, de_list);
-            cNameserversFound++;
-        }
-        if ((!strncmp(buff, "domain", 6) || !strncmp(buff, "search", 6)))
-        {
-            char *tok;
-            char *saveptr;
-            struct dns_domain_entry *pDomain = NULL;
-            int fFoundDomain = 0;
-            tok = strtok_r(&buff[6], " \t\n", &saveptr);
-            LIST_FOREACH(pDomain, &pData->pDomainList, dd_list)
-            {
-                if (   tok != NULL
-                    && strcmp(tok, pDomain->dd_pszDomain) == 0)
-                {
-                    fFoundDomain = 1;
-                    break;
-                }
-            }
-            if (tok != NULL && !fFoundDomain)
-            {
-                pDomain = RTMemAllocZ(sizeof(struct dns_domain_entry));
-                if (!pDomain)
-                {
-                    Log(("NAT: not enought memory to add domain list\n"));
-                    return VERR_NO_MEMORY;
-                }
-                pDomain->dd_pszDomain = RTStrDup(tok);
-                Log(("NAT: adding domain name %s to search list\n", pDomain->dd_pszDomain));
-                LIST_INSERT_HEAD(&pData->pDomainList, pDomain, dd_list);
-            }
-        }
-    }
-    RTFileClose(f);
-    if (!cNameserversFound)
-        return -1;
-    return 0;
-}
-
-#endif /* !RT_OS_WINDOWS */
-
-int slirp_init_dns_list(PNATState pData)
-{
-    TAILQ_INIT(&pData->pDnsList);
-    LIST_INIT(&pData->pDomainList);
-    return get_dns_addr_domain(pData, true, NULL, NULL);
-}
-
-void slirp_release_dns_list(PNATState pData)
-{
-    struct dns_entry *pDns = NULL;
-    struct dns_domain_entry *pDomain = NULL;
-
-    while (!TAILQ_EMPTY(&pData->pDnsList))
-    {
-        pDns = TAILQ_FIRST(&pData->pDnsList);
-        TAILQ_REMOVE(&pData->pDnsList, pDns, de_list);
-        RTMemFree(pDns);
-    }
-
-    while (!LIST_EMPTY(&pData->pDomainList))
-    {
-        pDomain = LIST_FIRST(&pData->pDomainList);
-        LIST_REMOVE(pDomain, dd_list);
-        if (pDomain->dd_pszDomain != NULL)
-            RTStrFree(pDomain->dd_pszDomain);
-        RTMemFree(pDomain);
-    }
-}
-
-int get_dns_addr(PNATState pData, struct in_addr *pdns_addr)
-{
-    return get_dns_addr_domain(pData, false, pdns_addr, NULL);
 }
 
 int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
                bool fPassDomain, bool fUseHostResolver, int i32AliasMode,
                int iIcmpCacheLimit, void *pvUser)
 {
-    int fNATfailed = 0;
     int rc;
     PNATState pData;
     if (u32Netmask & 0x1f)
@@ -626,11 +311,10 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
     pData->socket_snd = 64 * _1K;
     tcp_sndspace = 64 * _1K;
     tcp_rcvspace = 64 * _1K;
-    /**
-     * Assignment here has only meaning, to avoid additional noise in release log.
-     * The value's assigned from DrvNAT in function slirp_set_somaxconi by reading value of CFGM key
-     * "VBoxInternal/Devices/<adapter name>/0/LUN#0/Config/SoMaxConnection" or to
-     * default value 10 (xTracker/5983) in case value for the key wasn't found.
+
+    /*
+     * Use the same default here as in DevNAT.cpp (SoMaxConnection CFGM value)
+     * to avoid release log noise.
      */
     pData->soMaxConn = 10;
 
@@ -640,12 +324,6 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
         WSAStartup(MAKEWORD(2, 0), &Data);
     }
     pData->phEvents[VBOX_SOCKET_EVENT_INDEX] = CreateEvent(NULL, FALSE, FALSE, NULL);
-#endif
-#ifdef VBOX_WITH_SLIRP_MT
-    QSOCKET_LOCK_CREATE(tcb);
-    QSOCKET_LOCK_CREATE(udb);
-    rc = RTReqCreateQueue(&pData->pReqQueue);
-    AssertReleaseRC(rc);
 #endif
 
     link_up = 1;
@@ -658,7 +336,7 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
         *ppData = NULL;
         return rc;
     }
-    debug_init();
+    debug_init(pData);
     if_init(pData);
     ip_init(pData);
     icmp_init(pData, iIcmpCacheLimit);
@@ -673,13 +351,11 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
 
     /* set default addresses */
     inet_aton("127.0.0.1", &loopback_addr);
-    if (!pData->fUseHostResolver)
-    {
-        if (slirp_init_dns_list(pData) < 0)
-            fNATfailed = 1;
+    rc = slirpInitializeDnsSettings(pData);
+    AssertRCReturn(rc, VINF_NAT_DNS);
+    rc = slirpTftpInit(pData);
+    AssertRCReturn(rc, VINF_NAT_DNS);
 
-        dnsproxy_init(pData);
-    }
     if (i32AliasMode & ~(PKT_ALIAS_LOG|PKT_ALIAS_SAME_PORTS|PKT_ALIAS_PROXY_ONLY))
     {
         Log(("NAT: alias mode %x is ignored\n", i32AliasMode));
@@ -709,7 +385,17 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
         if (pData->fUseHostResolver)
             dns_alias_load(pData);
     }
-    return fNATfailed ? VINF_NAT_DNS : VINF_SUCCESS;
+#ifdef VBOX_WITH_NAT_SEND2HOME
+    /* @todo: we should know all interfaces available on host. */
+    pData->pInSockAddrHomeAddress = RTMemAllocZ(sizeof(struct sockaddr));
+    pData->cInHomeAddressSize = 1;
+    inet_aton("192.168.1.25", &pData->pInSockAddrHomeAddress[0].sin_addr);
+    pData->pInSockAddrHomeAddress[0].sin_family = AF_INET;
+# ifdef RT_OS_DARWIN
+    pData->pInSockAddrHomeAddress[0].sin_len = sizeof(struct sockaddr_in);
+# endif
+#endif
+    return VINF_SUCCESS;
 }
 
 /**
@@ -725,7 +411,10 @@ void slirp_register_statistics(PNATState pData, PPDMDRVINS pDrvIns)
 /** @todo register statistics for the variables dumped by:
  *  ipstats(pData); tcpstats(pData); udpstats(pData); icmpstats(pData);
  *  mbufstats(pData); sockstats(pData); */
-#endif /* VBOX_WITH_STATISTICS */
+#else /* VBOX_WITH_STATISTICS */
+    NOREF(pData);
+    NOREF(pDrvIns);
+#endif /* !VBOX_WITH_STATISTICS */
 }
 
 /**
@@ -739,7 +428,10 @@ void slirp_deregister_statistics(PNATState pData, PPDMDRVINS pDrvIns)
 # define PROFILE_COUNTER(name, dsc)     DEREGISTER_COUNTER(name, pData)
 # define COUNTING_COUNTER(name, dsc)    DEREGISTER_COUNTER(name, pData)
 # include "counters.h"
-#endif /* VBOX_WITH_STATISTICS */
+#else /* VBOX_WITH_STATISTICS */
+    NOREF(pData);
+    NOREF(pDrvIns);
+#endif /* !VBOX_WITH_STATISTICS */
 }
 
 /**
@@ -769,10 +461,13 @@ void slirp_link_down(PNATState pData)
 
     while ((so = tcb.so_next) != &tcb)
     {
-        if (so->so_state & SS_NOFDREF || so->s == -1)
-            sofree(pData, so);
+        /* Don't miss TCB releasing */
+        if (   !sototcpcb(so)
+            && (   so->so_state & SS_NOFDREF
+                || so->s == -1))
+             sofree(pData, so);
         else
-            tcp_drop(pData, sototcpcb(so), 0);
+            tcp_close(pData, sototcpcb(so));
     }
 
     while ((so = udb.so_next) != &udb)
@@ -801,7 +496,7 @@ void slirp_term(PNATState pData)
     icmp_finit(pData);
 
     slirp_link_down(pData);
-    slirp_release_dns_list(pData);
+    slirpReleaseDnsSettings(pData);
     ftp_alias_unload(pData);
     nbt_alias_unload(pData);
     if (pData->fUseHostResolver)
@@ -829,6 +524,7 @@ void slirp_term(PNATState pData)
         LIST_REMOVE(ac, list);
         RTMemFree(ac);
     }
+    slirpTftpTerm(pData);
     bootp_dhcp_fini(pData);
     m_fini(pData);
 #ifdef RT_OS_WINDOWS
@@ -937,11 +633,15 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
 
     QSOCKET_FOREACH(so, so_next, tcp)
     /* { */
+        Assert(so->so_type == IPPROTO_TCP);
 #if !defined(RT_OS_WINDOWS)
         so->so_poll_index = -1;
 #endif
         STAM_COUNTER_INC(&pData->StatTCP);
-
+#ifdef VBOX_WITH_NAT_UDP_SOCKET_CLONE
+        /* TCP socket can't be cloned */
+        Assert((!so->so_cloneOf));
+#endif
         /*
          * See if we need a tcp_fasttimo
          */
@@ -1020,6 +720,7 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
     QSOCKET_FOREACH(so, so_next, udp)
     /* { */
 
+        Assert(so->so_type == IPPROTO_UDP);
         STAM_COUNTER_INC(&pData->StatUDP);
 #if !defined(RT_OS_WINDOWS)
         so->so_poll_index = -1;
@@ -1037,14 +738,14 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
                 {
                     so->so_timeout(pData, so, so->so_timeout_arg);
                 }
-#ifdef VBOX_WITH_SLIRP_MT
-                    /* we need so_next for continue our cycle*/
-                so_next = so->so_next;
-#endif
                 UDP_DETACH(pData, so, so_next);
                 CONTINUE_NO_UNLOCK(udp);
             }
         }
+#ifdef VBOX_WITH_NAT_UDP_SOCKET_CLONE
+        if (so->so_cloneOf)
+                CONTINUE_NO_UNLOCK(udp);
+#endif
 
         /*
          * When UDP packets are received from over the link, they're
@@ -1076,6 +777,11 @@ done:
 }
 
 
+/**
+ * This function do Connection or sending tcp sequence to.
+ * @returns if true operation completed
+ * @note: functions call tcp_input that potentially could lead to tcp_drop
+ */
 static bool slirpConnectOrWrite(PNATState pData, struct socket *so, bool fConnectOnly)
 {
     int ret;
@@ -1100,12 +806,10 @@ static bool slirpConnectOrWrite(PNATState pData, struct socket *so, bool fConnec
     if (ret < 0)
     {
         /* XXXXX Must fix, zero bytes is a NOP */
-        if (   errno == EAGAIN
-            || errno == EWOULDBLOCK
-            || errno == EINPROGRESS
+        if (   soIgnorableErrorCode(errno)
             || errno == ENOTCONN)
         {
-            LogFlowFunc(("LEAVE: true"));
+            LogFlowFunc(("LEAVE: false\n"));
             return false;
         }
 
@@ -1128,7 +832,7 @@ static bool slirpConnectOrWrite(PNATState pData, struct socket *so, bool fConnec
      * for a window update. In the worst case, the remote will send
      * a window probe to get things going again.
      */
-    LogFlowFunc(("LEAVE: true"));
+    LogFlowFunc(("LEAVE: true\n"));
     return true;
 }
 
@@ -1144,8 +848,6 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
     WSANETWORKEVENTS NetworkEvents;
     int rc;
     int error;
-#else
-    int poll_index = 0;
 #endif
 
     STAM_PROFILE_START(&pData->StatPoll, a);
@@ -1200,46 +902,24 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
      */
     QSOCKET_FOREACH(so, so_next, tcp)
     /* { */
-
-#ifdef VBOX_WITH_SLIRP_MT
-        if (   so->so_state & SS_NOFDREF
-            && so->so_deleted == 1)
-        {
-            struct socket *son, *sop = NULL;
-            QSOCKET_LOCK(tcb);
-            if (so->so_next != NULL)
-            {
-                if (so->so_next != &tcb)
-                    SOCKET_LOCK(so->so_next);
-                son = so->so_next;
-            }
-            if (    so->so_prev != &tcb
-                && so->so_prev != NULL)
-            {
-                SOCKET_LOCK(so->so_prev);
-                sop = so->so_prev;
-            }
-            QSOCKET_UNLOCK(tcb);
-            remque(pData, so);
-            NSOCK_DEC();
-            SOCKET_UNLOCK(so);
-            SOCKET_LOCK_DESTROY(so);
-            RTMemFree(so);
-            so_next = son;
-            if (sop != NULL)
-                SOCKET_UNLOCK(sop);
-            CONTINUE_NO_UNLOCK(tcp);
-        }
+        /* TCP socket can't be cloned */
+#ifdef VBOX_WITH_NAT_UDP_SOCKET_CLONE
+        Assert((!so->so_cloneOf));
 #endif
+        Assert(!so->fUnderPolling);
+        so->fUnderPolling = 1;
+        if (slirpVerifyAndFreeSocket(pData, so))
+            CONTINUE(tcp);
         /*
          * FD_ISSET is meaningless on these sockets
          * (and they can crash the program)
          */
         if (so->so_state & SS_NOFDREF || so->s == -1)
+        {
+            so->fUnderPolling = 0;
             CONTINUE(tcp);
+        }
 
-        Assert(!so->fUnderPolling);
-        so->fUnderPolling = 1;
         POLL_TCP_EVENTS(rc, error, so, &NetworkEvents);
 
         LOG_NAT_SOCK(so, TCP, &NetworkEvents, readfds, writefds, xfds);
@@ -1368,12 +1048,18 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
 #endif
             )
         {
-            if(!slirpConnectOrWrite(pData, so, false))
+            int fConnectOrWriteSuccess = slirpConnectOrWrite(pData, so, false);
+            /* slirpConnectOrWrite could return true even if tcp_input called tcp_drop,
+             * so we should be ready to such situations.
+             */
+            if (slirpVerifyAndFreeSocket(pData, so))
+                CONTINUE(tcp);
+            else if (!fConnectOrWriteSuccess)
             {
-                if (!slirpVerifyAndFreeSocket(pData, so))
-                    so->fUnderPolling = 0;
+                so->fUnderPolling = 0;
                 CONTINUE(tcp);
             }
+            /* slirpConnectionOrWrite succeeded and socket wasn't dropped */
         }
 
         /*
@@ -1388,9 +1074,7 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
             if (ret < 0)
             {
                 /* XXX */
-                if (   errno == EAGAIN
-                    || errno == EWOULDBLOCK
-                    || errno == EINPROGRESS
+                if (   soIgnorableErrorCode(errno)
                     || errno == ENOTCONN)
                 {
                     CONTINUE(tcp); /* Still connecting, continue */
@@ -1407,9 +1091,7 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
                 if (ret < 0)
                 {
                     /* XXX */
-                    if (   errno == EAGAIN
-                        || errno == EWOULDBLOCK
-                        || errno == EINPROGRESS
+                    if (   soIgnorableErrorCode(errno)
                         || errno == ENOTCONN)
                     {
                         CONTINUE(tcp);
@@ -1436,36 +1118,17 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
      */
      QSOCKET_FOREACH(so, so_next, udp)
      /* { */
-#ifdef VBOX_WITH_SLIRP_MT
-        if (   so->so_state & SS_NOFDREF
-            && so->so_deleted == 1)
-        {
-            struct socket *son, *sop = NULL;
-            QSOCKET_LOCK(udb);
-            if (so->so_next != NULL)
-            {
-                if (so->so_next != &udb)
-                    SOCKET_LOCK(so->so_next);
-                son = so->so_next;
-            }
-            if (   so->so_prev != &udb
-                && so->so_prev != NULL)
-            {
-                SOCKET_LOCK(so->so_prev);
-                sop = so->so_prev;
-            }
-            QSOCKET_UNLOCK(udb);
-            remque(pData, so);
-            NSOCK_DEC();
-            SOCKET_UNLOCK(so);
-            SOCKET_LOCK_DESTROY(so);
-            RTMemFree(so);
-            so_next = son;
-            if (sop != NULL)
-                SOCKET_UNLOCK(sop);
+#ifdef VBOX_WITH_NAT_UDP_SOCKET_CLONE
+        if (so->so_cloneOf)
             CONTINUE_NO_UNLOCK(udp);
-        }
 #endif
+#if 0
+        so->fUnderPolling = 1;
+        if(slirpVerifyAndFreeSocket(pData, so));
+            CONTINUE(udp);
+        so->fUnderPolling = 0;
+#endif
+
         POLL_UDP_EVENTS(rc, error, so, &NetworkEvents);
 
         LOG_NAT_SOCK(so, UDP, &NetworkEvents, readfds, writefds, xfds);
@@ -1501,87 +1164,80 @@ struct arphdr
 };
 AssertCompileSize(struct arphdr, 28);
 
+static void arp_output(PNATState pData, const uint8_t *pcu8EtherSource, const struct arphdr *pcARPHeaderSource, uint32_t ip4TargetAddress)
+{
+    struct ethhdr *pEtherHeaderResponse;
+    struct arphdr *pARPHeaderResponse;
+    uint32_t ip4TargetAddressInHostFormat;
+    struct mbuf *pMbufResponse;
+
+    Assert((pcu8EtherSource));
+    if (!pcu8EtherSource)
+        return;
+    ip4TargetAddressInHostFormat = RT_N2H_U32(ip4TargetAddress);
+
+    pMbufResponse = m_getcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR);
+    if (!pMbufResponse)
+        return;
+    pEtherHeaderResponse = mtod(pMbufResponse, struct ethhdr *);
+    /* @note: if_encap will swap src and dst*/
+    memcpy(pEtherHeaderResponse->h_source, pcu8EtherSource, ETH_ALEN);
+    pMbufResponse->m_data += ETH_HLEN;
+    pARPHeaderResponse = mtod(pMbufResponse, struct arphdr *);
+    pMbufResponse->m_len = sizeof(struct arphdr);
+
+    pARPHeaderResponse->ar_hrd = RT_H2N_U16_C(1);
+    pARPHeaderResponse->ar_pro = RT_H2N_U16_C(ETH_P_IP);
+    pARPHeaderResponse->ar_hln = ETH_ALEN;
+    pARPHeaderResponse->ar_pln = 4;
+    pARPHeaderResponse->ar_op = RT_H2N_U16_C(ARPOP_REPLY);
+    memcpy(pARPHeaderResponse->ar_sha, special_ethaddr, ETH_ALEN);
+
+    if (!slirpMbufTagService(pData, pMbufResponse, (uint8_t)(ip4TargetAddressInHostFormat & ~pData->netmask)))
+    {
+        static bool fTagErrorReported;
+        if (!fTagErrorReported)
+        {
+            LogRel(("NAT: couldn't add the tag(PACKET_SERVICE:%d)\n",
+                        (uint8_t)(ip4TargetAddressInHostFormat & ~pData->netmask)));
+            fTagErrorReported = true;
+        }
+    }
+    pARPHeaderResponse->ar_sha[5] = (uint8_t)(ip4TargetAddressInHostFormat & ~pData->netmask);
+
+    memcpy(pARPHeaderResponse->ar_sip, pcARPHeaderSource->ar_tip, 4);
+    memcpy(pARPHeaderResponse->ar_tha, pcARPHeaderSource->ar_sha, ETH_ALEN);
+    memcpy(pARPHeaderResponse->ar_tip, pcARPHeaderSource->ar_sip, 4);
+    if_encap(pData, ETH_P_ARP, pMbufResponse, ETH_ENCAP_URG);
+}
 /**
  * @note This function will free m!
  */
 static void arp_input(PNATState pData, struct mbuf *m)
 {
-    struct ethhdr *eh;
-    struct ethhdr *reh;
-    struct arphdr *ah;
-    struct arphdr *rah;
-    int ar_op;
-    uint32_t htip;
-    uint32_t tip;
-    struct mbuf *mr;
-    eh = mtod(m, struct ethhdr *);
-    ah = (struct arphdr *)&eh[1];
-    htip = RT_N2H_U32(*(uint32_t*)ah->ar_tip);
-    tip = *(uint32_t*)ah->ar_tip;
+    struct ethhdr *pEtherHeader;
+    struct arphdr *pARPHeader;
+    uint32_t ip4TargetAddress;
 
-    ar_op = RT_N2H_U16(ah->ar_op);
+    int ar_op;
+    pEtherHeader = mtod(m, struct ethhdr *);
+    pARPHeader = (struct arphdr *)&pEtherHeader[1];
+
+    ar_op = RT_N2H_U16(pARPHeader->ar_op);
+    ip4TargetAddress = *(uint32_t*)pARPHeader->ar_tip;
 
     switch (ar_op)
     {
         case ARPOP_REQUEST:
-            mr = m_getcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR);
-            if (!mr)
-                break;
-            reh = mtod(mr, struct ethhdr *);
-            mr->m_data += ETH_HLEN;
-            rah = mtod(mr, struct arphdr *);
-            mr->m_len = sizeof(struct arphdr);
-            memcpy(reh->h_source, eh->h_source, ETH_ALEN); /* XXX: if_encap will swap src and dst*/
-            if (   0
-#ifdef VBOX_WITH_NAT_SERVICE
-                || (tip == pData->special_addr.s_addr)
-#endif
-                || (   ((htip & pData->netmask) == RT_N2H_U32(pData->special_addr.s_addr))
-                    && (   CTL_CHECK(htip, CTL_DNS)
-                        || CTL_CHECK(htip, CTL_ALIAS)
-                        || CTL_CHECK(htip, CTL_TFTP))
-                    )
-                )
-            {
-                rah->ar_hrd = RT_H2N_U16_C(1);
-                rah->ar_pro = RT_H2N_U16_C(ETH_P_IP);
-                rah->ar_hln = ETH_ALEN;
-                rah->ar_pln = 4;
-                rah->ar_op = RT_H2N_U16_C(ARPOP_REPLY);
-                memcpy(rah->ar_sha, special_ethaddr, ETH_ALEN);
-
-                switch (htip & ~pData->netmask)
-                {
-                    case CTL_DNS:
-                    case CTL_ALIAS:
-                    case CTL_TFTP:
-                        if (!slirpMbufTagService(pData, mr, (uint8_t)(htip & ~pData->netmask)))
-                        {
-                            static bool fTagErrorReported;
-                            if (!fTagErrorReported)
-                            {
-                                LogRel(("NAT: couldn't add the tag(PACKET_SERVICE:%d) to mbuf:%p\n",
-                                            (uint8_t)(htip & ~pData->netmask), m));
-                                fTagErrorReported = true;
-                            }
-                        }
-                        rah->ar_sha[5] = (uint8_t)(htip & ~pData->netmask);
-                        break;
-                    default:;
-                }
-
-                memcpy(rah->ar_sip, ah->ar_tip, 4);
-                memcpy(rah->ar_tha, ah->ar_sha, ETH_ALEN);
-                memcpy(rah->ar_tip, ah->ar_sip, 4);
-                if_encap(pData, ETH_P_ARP, mr, ETH_ENCAP_URG);
-            }
-            else
-                m_freem(pData, mr);
+            if (   CTL_CHECK(ip4TargetAddress, CTL_DNS)
+                || CTL_CHECK(ip4TargetAddress, CTL_ALIAS)
+                || CTL_CHECK(ip4TargetAddress, CTL_TFTP))
+                arp_output(pData, pEtherHeader->h_source, pARPHeader, ip4TargetAddress);
 
             /* Gratuitous ARP */
-            if (  *(uint32_t *)ah->ar_sip == *(uint32_t *)ah->ar_tip
-                && memcmp(ah->ar_tha, broadcast_ethaddr, ETH_ALEN) == 0
-                && memcmp(eh->h_dest, broadcast_ethaddr, ETH_ALEN) == 0)
+            if (  *(uint32_t *)pARPHeader->ar_sip == *(uint32_t *)pARPHeader->ar_tip
+                && memcmp(pARPHeader->ar_tha, broadcast_ethaddr, ETH_ALEN) == 0
+                && memcmp(pEtherHeader->h_dest, broadcast_ethaddr, ETH_ALEN) == 0)
             {
                 /* We've received an announce about address assignment,
                  * let's do an ARP cache update
@@ -1590,15 +1246,15 @@ static void arp_input(PNATState pData, struct mbuf *m)
                 if (!fGratuitousArpReported)
                 {
                     LogRel(("NAT: Gratuitous ARP [IP:%RTnaipv4, ether:%RTmac]\n",
-                            ah->ar_sip, ah->ar_sha));
+                            pARPHeader->ar_sip, pARPHeader->ar_sha));
                     fGratuitousArpReported = true;
                 }
-                slirp_arp_cache_update_or_add(pData, *(uint32_t *)ah->ar_sip, &ah->ar_sha[0]);
+                slirp_arp_cache_update_or_add(pData, *(uint32_t *)pARPHeader->ar_sip, &pARPHeader->ar_sha[0]);
             }
             break;
 
         case ARPOP_REPLY:
-            slirp_arp_cache_update_or_add(pData, *(uint32_t *)ah->ar_sip, &ah->ar_sha[0]);
+            slirp_arp_cache_update_or_add(pData, *(uint32_t *)pARPHeader->ar_sip, &pARPHeader->ar_sha[0]);
             break;
 
         default:
@@ -1676,7 +1332,6 @@ void slirp_input(PNATState pData, struct mbuf *m, size_t cbBuf)
 void if_encap(PNATState pData, uint16_t eth_proto, struct mbuf *m, int flags)
 {
     struct ethhdr *eh;
-    uint8_t *buf = NULL;
     uint8_t *mbuf = NULL;
     size_t mlen = 0;
     STAM_PROFILE_START(&pData->StatIF_encap, a);
@@ -1766,6 +1421,7 @@ static uint32_t find_guest_ip(PNATState pData, const uint8_t *eth_addr)
 static void activate_port_forwarding(PNATState pData, const uint8_t *h_source)
 {
     struct port_forward_rule *rule, *tmp;
+    const uint8_t *pu8EthSource = h_source;
 
     /* check mac here */
     LIST_FOREACH_SAFE(rule, &pData->port_forward_rule_head, list, tmp)
@@ -1785,16 +1441,14 @@ static void activate_port_forwarding(PNATState pData, const uint8_t *h_source)
             continue;
 
 #ifdef VBOX_WITH_NAT_SERVICE
-        if (memcmp(rule->mac_address, h_source, ETH_ALEN) != 0)
-            continue; /*not right mac, @todo: it'd be better do the list port forwarding per mac */
-        guest_addr = find_guest_ip(pData, h_source);
-#else
-#if 0
-        if (memcmp(client_ethaddr, h_source, ETH_ALEN) != 0)
-            continue;
-#endif
-        guest_addr = find_guest_ip(pData, h_source);
-#endif
+        /**
+         * case when guest ip is INADDR_ANY shouldn't appear in NAT service
+         */
+        Assert((rule->guest_addr.s_addr != INADDR_ANY));
+        guest_addr = rule->guest_addr.s_addr;
+#else /* VBOX_WITH_NAT_SERVICE */
+        guest_addr = find_guest_ip(pData, pu8EthSource);
+#endif /* !VBOX_WITH_NAT_SERVICE */
         if (guest_addr == INADDR_ANY)
         {
             /* the address wasn't granted */
@@ -1879,7 +1533,6 @@ int slirp_add_redirect(PNATState pData, int is_udp, struct in_addr host_addr, in
                 struct in_addr guest_addr, int guest_port, const uint8_t *ethaddr)
 {
     struct port_forward_rule *rule = NULL;
-    Assert(ethaddr);
     LIST_FOREACH(rule, &pData->port_forward_rule_head, list)
     {
         if (   rule->proto == (is_udp ? IPPROTO_UDP : IPPROTO_TCP)
@@ -1888,7 +1541,7 @@ int slirp_add_redirect(PNATState pData, int is_udp, struct in_addr host_addr, in
             && rule->guest_port == guest_port
             && rule->guest_addr.s_addr == guest_addr.s_addr
             )
-                return 0; /* rule has been already registered */
+            return 0; /* rule has been already registered */
     }
 
     rule = RTMemAllocZ(sizeof(struct port_forward_rule));
@@ -1900,12 +1553,14 @@ int slirp_add_redirect(PNATState pData, int is_udp, struct in_addr host_addr, in
     rule->guest_port = guest_port;
     rule->guest_addr.s_addr = guest_addr.s_addr;
     rule->bind_ip.s_addr = host_addr.s_addr;
-    memcpy(rule->mac_address, ethaddr, ETH_ALEN);
+    if (ethaddr != NULL)
+        memcpy(rule->mac_address, ethaddr, ETH_ALEN);
     /* @todo add mac address */
     LIST_INSERT_HEAD(&pData->port_forward_rule_head, rule, list);
     pData->cRedirectionsStored++;
     /* activate port-forwarding if guest has already got assigned IP */
-    if (memcmp(ethaddr, zerro_ethaddr, ETH_ALEN))
+    if (   ethaddr
+        && memcmp(ethaddr, zerro_ethaddr, ETH_ALEN))
         activate_port_forwarding(pData, ethaddr);
     return 0;
 }
@@ -1988,21 +1643,9 @@ int slirp_get_nsock(PNATState pData)
  */
 void slirp_post_sent(PNATState pData, void *pvArg)
 {
-    struct socket *so = 0;
-    struct tcpcb *tp = 0;
     struct mbuf *m = (struct mbuf *)pvArg;
     m_freem(pData, m);
 }
-#ifdef VBOX_WITH_SLIRP_MT
-void slirp_process_queue(PNATState pData)
-{
-     RTReqProcess(pData->pReqQueue, RT_INDEFINITE_WAIT);
-}
-void *slirp_get_queue(PNATState pData)
-{
-    return pData->pReqQueue;
-}
-#endif
 
 void slirp_set_dhcp_TFTP_prefix(PNATState pData, const char *tftpPrefix)
 {
@@ -2042,7 +1685,7 @@ void slirp_set_dhcp_dns_proxy(PNATState pData, bool fDNSProxy)
         Log2(("NAT: DNS proxy switched %s\n", (fDNSProxy ? "on" : "off")));
         pData->fUseDnsProxy = fDNSProxy;
     }
-    else
+    else if (fDNSProxy)
         LogRel(("NAT: Host Resolver conflicts with DNS proxy, the last one was forcely ignored\n"));
 }
 
@@ -2065,7 +1708,7 @@ void slirp_set_somaxconn(PNATState pData, int iSoMaxConn)
     if (iSoMaxConn > SOMAXCONN)
     {
         LogRel(("NAT: value of somaxconn(%d) bigger than SOMAXCONN(%d)\n", iSoMaxConn, SOMAXCONN));
-        pData->soMaxConn = SOMAXCONN;
+        iSoMaxConn = SOMAXCONN;
     }
 
     if (iSoMaxConn < 1)
@@ -2163,7 +1806,25 @@ void slirp_arp_who_has(PNATState pData, uint32_t dst)
     struct mbuf *m;
     struct ethhdr *ehdr;
     struct arphdr *ahdr;
+    static bool   fWarned = false;
     LogFlowFunc(("ENTER: %RTnaipv4\n", dst));
+
+    /* ARP request WHO HAS 0.0.0.0 is one of the signals
+     * that something has been broken at Slirp. Investigating
+     * pcap dumps it's easy to miss warning ARP requests being
+     * focused on investigation of other protocols flow.
+     */
+#ifdef DEBUG_vvl
+    Assert((dst != INADDR_ANY));
+    NOREF(fWarned);
+#else
+    if (   dst == INADDR_ANY
+        && !fWarned)
+    {
+        LogRel(("NAT:ARP: \"WHO HAS INADDR_ANY\" request has been detected\n"));
+        fWarned = true;
+    }
+#endif /* !DEBUG_vvl */
 
     m = m_getcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR);
     if (m == NULL)
@@ -2226,6 +1887,9 @@ void  slirp_add_host_resolver_mapping(PNATState pData, const char *pszHostName, 
             return;
         }
         LIST_INSERT_HEAD(&pData->DNSMapHead, pDnsMapping, MapList);
+        LogRel(("NAT: user-defined mapping %s: %RTnaipv4 is registered\n",
+                pDnsMapping->pszCName ? pDnsMapping->pszCName : pDnsMapping->pszPattern,
+                pDnsMapping->u32IpAddress));
     }
     LogFlowFuncLeave();
 }
@@ -2251,11 +1915,11 @@ static inline int slirp_arp_cache_update(PNATState pData, uint32_t dst, const ui
     }
     return 1;
 }
+
 /**
  * add entry to the arp cache
  * @note: this is helper function, slirp_arp_cache_update_or_add should be used.
  */
-
 static inline void slirp_arp_cache_add(PNATState pData, uint32_t ip, const uint8_t *ether)
 {
     struct arp_cache_entry *ac = NULL;
@@ -2317,6 +1981,7 @@ void slirp_info(PNATState pData, PCDBGFINFOHLP pHlp, const char *pszArgs)
     struct socket *so, *so_next;
     struct arp_cache_entry *ac;
     struct port_forward_rule *rule;
+    NOREF(pszArgs);
 
     pHlp->pfnPrintf(pHlp, "NAT parameters: MTU=%d\n", if_mtu);
     pHlp->pfnPrintf(pHlp, "NAT TCP ports:\n");

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -239,16 +239,22 @@ RTDECL(int) RTEnvClone(PRTENV pEnv, RTENV EnvToClone)
         if (EnvToClone == RTENV_DEFAULT)
         {
             /* ASSUMES the default environment is in the current codepage. */
-            for (size_t iVar = 0; iVar < cVars; iVar++)
+            size_t  iDst = 0;
+            for (size_t iSrc = 0; iSrc < cVars; iSrc++)
             {
-                int rc2 = RTStrCurrentCPToUtf8(&pIntEnv->papszEnv[iVar], papszEnv[iVar]);
-                if (RT_FAILURE(rc2))
+                int rc2 = RTStrCurrentCPToUtf8(&pIntEnv->papszEnv[iDst], papszEnv[iSrc]);
+                if (RT_SUCCESS(rc2))
+                    iDst++;
+                else if (rc2 == VERR_NO_TRANSLATION)
+                    rc = VWRN_ENV_NOT_FULLY_TRANSLATED;
+                else
                 {
-                    pIntEnv->cVars = iVar;
+                    pIntEnv->cVars = iDst;
                     RTEnvDestroy(pIntEnv);
                     return rc2;
                 }
             }
+            pIntEnv->cVars = iDst;
         }
         else
         {

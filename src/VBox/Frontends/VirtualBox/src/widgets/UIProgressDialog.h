@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,16 +19,14 @@
 #ifndef __UIProgressDialog_h__
 #define __UIProgressDialog_h__
 
-/* Qt includes */
+/* Qt includes: */
 #include "QIDialog.h"
 
-/* VBox forward declarations */
-class CProgress;
+/* Forward declarations: */
+class QProgressBar;
 class QILabel;
 class UIMiniCancelButton;
-
-/* Qt forward declarations */
-class QProgressBar;
+class CProgress;
 
 /**
  * A QProgressDialog enhancement that allows to:
@@ -52,6 +50,7 @@ public:
     UIProgressDialog(CProgress &progress, const QString &strTitle,
                      QPixmap *pImage = 0, bool fSheetOnDarwin = false,
                      int cMinDuration = 2000, QWidget *pParent = 0);
+    ~UIProgressDialog();
 
     int run(int aRefreshInterval);
     bool cancelEnabled() const { return m_fCancelEnabled; }

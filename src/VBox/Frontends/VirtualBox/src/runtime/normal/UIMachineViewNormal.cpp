@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,31 +47,9 @@ UIMachineViewNormal::UIMachineViewNormal(  UIMachineWindow *pMachineWindow
 #endif
                     )
     , m_bIsGuestAutoresizeEnabled(gActionPool->action(UIActionIndexRuntime_Toggle_GuestAutoresize)->isChecked())
-    , m_fShouldWeDoResize(false)
 {
-    /* Load machine view settings: */
-    loadMachineViewSettings();
-
-    /* Prepare viewport: */
-    prepareViewport();
-
-    /* Prepare frame buffer: */
-    prepareFrameBuffer();
-
-    /* Prepare common things: */
-    prepareCommon();
-
-    /* Prepare event-filters: */
-    prepareFilters();
-
-    /* Prepare connections: */
-    prepareConnections();
-
-    /* Prepare console connections: */
-    prepareConsoleConnections();
 
     /* Initialization: */
-    sltMachineStateChanged();
     sltAdditionsStateChanged();
 }
 
@@ -84,117 +62,25 @@ UIMachineViewNormal::~UIMachineViewNormal()
     cleanupFrameBuffer();
 }
 
-void UIMachineViewNormal::sltPerformGuestResize(const QSize &toSize)
-{
-    if (m_bIsGuestAutoresizeEnabled && uisession()->isGuestSupportsGraphics())
-    {
-        /* Get machine window: */
-        QMainWindow *pMachineWindow = machineWindowWrapper() && machineWindowWrapper()->machineWindow() ?
-                                      qobject_cast<QMainWindow*>(machineWindowWrapper()->machineWindow()) : 0;
-
-        /* If this slot is invoked directly then use the passed size otherwise get
-         * the available size for the guest display. We assume here that centralWidget()
-         * contains this view only and gives it all available space: */
-        QSize newSize(toSize.isValid() ? toSize : pMachineWindow ? pMachineWindow->centralWidget()->size() : QSize());
-        AssertMsg(newSize.isValid(), ("Size should be valid!\n"));
-
-        /* Do not send the same hints as we already have: */
-        if ((newSize.width() == storedConsoleSize().width()) && (newSize.height() == storedConsoleSize().height()))
-            return;
-
-        /* We only actually send the hint if either an explicit new size was given
-         * (e.g. if the request was triggered directly by a console resize event) or
-         * if no explicit size was specified but a resize is flagged as being needed
-         * (e.g. the autoresize was just enabled and the console was resized while it was disabled). */
-        if (toSize.isValid() || m_fShouldWeDoResize)
-        {
-            /* Remember the new size: */
-            storeConsoleSize(newSize.width(), newSize.height());
-
-            /* Send new size-hint to the guest: */
-            session().GetConsole().GetDisplay().SetVideoModeHint(newSize.width(), newSize.height(), 0, screenId());
-        }
-
-        /* We had requested resize now, rejecting other accident requests: */
-        m_fShouldWeDoResize = false;
-    }
-}
-
 void UIMachineViewNormal::sltAdditionsStateChanged()
 {
     /* Check if we should restrict minimum size: */
     maybeRestrictMinimumSize();
-}
 
-void UIMachineViewNormal::sltDesktopResized()
-{
-    /* If the desktop geometry is set automatically, this will update it: */
-    calculateDesktopGeometry();
+    /* Resend the last resize hint if there was a fullscreen or
+     * seamless transition previously.  If we were not in graphical
+     * mode initially after the transition this happens when we
+     * switch. */
+    maybeResendResizeHint();
 }
 
 bool UIMachineViewNormal::event(QEvent *pEvent)
 {
     switch (pEvent->type())
     {
-        case VBoxDefs::ResizeEventType:
+        case ResizeEventType:
         {
-            /* Some situations require framebuffer resize events to be ignored at all,
-             * leaving machine-window, machine-view and framebuffer sizes preserved: */
-            if (uisession()->isGuestResizeIgnored())
-                return true;
-
-            /* We are starting to perform machine-view resize,
-             * we should temporary ignore other if they are trying to be: */
-            bool fWasMachineWindowResizeIgnored = isMachineWindowResizeIgnored();
-            setMachineWindowResizeIgnored(true);
-
-            /* Get guest resize-event: */
-            UIResizeEvent *pResizeEvent = static_cast<UIResizeEvent*>(pEvent);
-
-            /* Perform framebuffer resize: */
-            frameBuffer()->resizeEvent(pResizeEvent);
-
-            /* Reapply maximum size restriction for machine-view: */
-            setMaximumSize(sizeHint());
-
-            /* Store the new size to prevent unwanted resize hints being sent back: */
-            storeConsoleSize(pResizeEvent->width(), pResizeEvent->height());
-
-            /* Perform machine-view resize: */
-            resize(pResizeEvent->width(), pResizeEvent->height());
-
-            /* May be we have to restrict minimum size? */
-            maybeRestrictMinimumSize();
-
-            /* Let our toplevel widget calculate its sizeHint properly: */
-            QCoreApplication::sendPostedEvents(0, QEvent::LayoutRequest);
-
-#ifdef Q_WS_MAC
-            machineLogic()->updateDockIconSize(screenId(), pResizeEvent->width(), pResizeEvent->height());
-#endif /* Q_WS_MAC */
-
-            /* Update machine-view sliders: */
-            updateSliders();
-
-            /* Normalize machine-window geometry: */
-            normalizeGeometry(true /* Adjust Position? */);
-
-            /* Report to the VM thread that we finished resizing: */
-            session().GetConsole().GetDisplay().ResizeCompleted(screenId());
-
-            /* We are finishing to perform machine-view resize: */
-            setMachineWindowResizeIgnored(fWasMachineWindowResizeIgnored);
-
-            /* We also recalculate the desktop geometry if this is determined
-             * automatically. In fact, we only need this on the first resize,
-             * but it is done every time to keep the code simpler. */
-            calculateDesktopGeometry();
-
-            /* Emit a signal about guest was resized: */
-            emit resizeHintDone();
-
-            pEvent->accept();
-            return true;
+            return guestResizeEvent(pEvent, false);
         }
 
         default:
@@ -205,23 +91,21 @@ bool UIMachineViewNormal::event(QEvent *pEvent)
 
 bool UIMachineViewNormal::eventFilter(QObject *pWatched, QEvent *pEvent)
 {
-    /* Who are we watching? */
-    QMainWindow *pMainDialog = machineWindowWrapper() && machineWindowWrapper()->machineWindow() ?
-                               qobject_cast<QMainWindow*>(machineWindowWrapper()->machineWindow()) : 0;
-#ifdef Q_WS_WIN
-    QMenuBar *pMenuBar = pMainDialog ? pMainDialog->menuBar() : 0;
-#endif /* Q_WS_WIN */
-
-    if (pWatched != 0 && pWatched == pMainDialog)
+    if (pWatched != 0 && pWatched == machineWindow())
     {
         switch (pEvent->type())
         {
             case QEvent::Resize:
             {
-                /* Set the "guest needs to resize" hint.
-                 * This hint is acted upon when (and only when) the autoresize property is "true": */
-                m_fShouldWeDoResize = uisession()->isGuestSupportsGraphics();
-                if (!isMachineWindowResizeIgnored() && m_bIsGuestAutoresizeEnabled && uisession()->isGuestSupportsGraphics())
+                /* We call this on every resize as:
+                 *   * Window frame geometry can change on resize.
+                 *   * On X11 we set information here which becomes available
+                 *     asynchronously at an unknown time after window
+                 *     creation.  As long as the information is not available
+                 *     we make a best guess.
+                 */
+                setMaxGuestSize();
+                if (pEvent->spontaneous() && m_bIsGuestAutoresizeEnabled && uisession()->isGuestSupportsGraphics())
                     QTimer::singleShot(300, this, SLOT(sltPerformGuestResize()));
                 break;
             }
@@ -243,7 +127,7 @@ bool UIMachineViewNormal::eventFilter(QObject *pWatched, QEvent *pEvent)
     }
 
 #ifdef Q_WS_WIN
-    else if (pWatched != 0 && pWatched == pMenuBar)
+    else if (pWatched != 0 && pWatched == machineWindow()->menuBar())
     {
         /* Due to windows host uses separate 'focus set' to let menubar to
          * operate while popped up (see UIMachineViewNormal::event() for details),
@@ -282,12 +166,7 @@ void UIMachineViewNormal::prepareFilters()
     UIMachineView::prepareFilters();
 
     /* Menu bar filters: */
-    qobject_cast<QMainWindow*>(machineWindowWrapper()->machineWindow())->menuBar()->installEventFilter(this);
-}
-
-void UIMachineViewNormal::prepareConnections()
-{
-    connect(QApplication::desktop(), SIGNAL(resized(int)), this, SLOT(sltDesktopResized()));
+    machineWindow()->menuBar()->installEventFilter(this);
 }
 
 void UIMachineViewNormal::prepareConsoleConnections()
@@ -299,9 +178,33 @@ void UIMachineViewNormal::prepareConsoleConnections()
     connect(uisession(), SIGNAL(sigAdditionsStateChange()), this, SLOT(sltAdditionsStateChanged()));
 }
 
+void UIMachineViewNormal::maybeResendResizeHint()
+{
+    if (m_bIsGuestAutoresizeEnabled && uisession()->isGuestSupportsGraphics())
+    {
+        /* Get the current machine: */
+        CMachine machine = session().GetMachine();
+
+        /* We send a guest size hint if needed to reverse a transition
+         * to fullscreen or seamless. */
+        QString strKey = makeExtraDataKeyPerMonitor(GUI_LastGuestSizeHintWasFullscreen);
+        QString strHintSent = machine.GetExtraData(strKey);
+        if (!strHintSent.isEmpty())
+        {
+            QSize hint = guestSizeHint();
+            /* Temporarily restrict the size to prevent a brief resize to the
+             * framebuffer dimensions (see @a UIMachineView::sizeHint()) before
+             * the following resize() is acted upon. */
+            setMaximumSize(hint);
+            m_sizeHintOverride = hint;
+            sltPerformGuestResize(hint);
+        }
+    }
+}
+
 void UIMachineViewNormal::saveMachineViewSettings()
 {
-    /* Store guest size hint: */
+    /* Store guest size in case we are switching to fullscreen: */
     storeGuestSizeHint(QSize(frameBuffer()->width(), frameBuffer()->height()));
 }
 
@@ -355,7 +258,7 @@ void UIMachineViewNormal::normalizeGeometry(bool bAdjustPosition)
             /* Get just a simple available rectangle */
             availableGeo = dwt->availableGeometry(pTopLevelWidget->pos());
 
-        frameGeo = VBoxGlobal::normalizeGeometry(frameGeo, availableGeo, vboxGlobal().vmRenderMode() != VBoxDefs::SDLMode /* can resize? */);
+        frameGeo = VBoxGlobal::normalizeGeometry(frameGeo, availableGeo, vboxGlobal().vmRenderMode() != SDLMode /* can resize? */);
     }
 
 #if 0
@@ -371,30 +274,29 @@ void UIMachineViewNormal::normalizeGeometry(bool bAdjustPosition)
 #endif /* VBOX_GUI_WITH_CUSTOMIZATIONS1 */
 }
 
-QRect UIMachineViewNormal::workingArea()
+QRect UIMachineViewNormal::workingArea() const
 {
     return QApplication::desktop()->availableGeometry(this);
 }
 
-void UIMachineViewNormal::calculateDesktopGeometry()
+QSize UIMachineViewNormal::calculateMaxGuestSize() const
 {
-    /* This method should not get called until we have initially set up the desktop geometry type: */
-    Assert((desktopGeometryType() != DesktopGeo_Invalid));
-    /* If we are not doing automatic geometry calculation then there is nothing to do: */
-    if (desktopGeometryType() == DesktopGeo_Automatic)
-    {
-        /* The area taken up by the machine window on the desktop,
-         * including window frame, title, menu bar and status bar: */
-        QRect windowGeo = machineWindowWrapper()->machineWindow()->frameGeometry();
-        /* The area taken up by the machine central widget, so excluding all decorations: */
-        QRect centralWidgetGeo = static_cast<QMainWindow*>(machineWindowWrapper()->machineWindow())->centralWidget()->geometry();
-        /* To work out how big we can make the console window while still fitting on the desktop,
-         * we calculate workingArea() - (windowGeo - centralWidgetGeo).
-         * This works because the difference between machine window and machine central widget
-         * (or at least its width and height) is a constant. */
-        m_desktopGeometry = QSize(workingArea().width() - (windowGeo.width() - centralWidgetGeo.width()),
-                                  workingArea().height() - (windowGeo.height() - centralWidgetGeo.height()));
-    }
+    /* The area taken up by the machine window on the desktop, including window
+     * frame, title, menu bar and status bar. */
+    QSize windowSize = machineWindow()->frameGeometry().size();
+    /* The window shouldn't be allowed to expand beyond the working area
+     * unless it already does.  In that case the guest shouldn't expand it
+     * any further though. */
+    QSize maximumSize = workingArea().size().expandedTo(windowSize);
+    /* The current size of the machine display. */
+    QSize centralWidgetSize = machineWindow()->centralWidget()->size();
+    /* To work out how big the guest display can get without the window going
+     * over the maximum size we calculated above, we work out how much space
+     * the other parts of the window (frame, menu bar, status bar and so on)
+     * take up and subtract that space from the maximum window size. The 
+     * central widget shouldn't be bigger than the window, but we bound it for
+     * sanity (or insanity) reasons. */
+    return maximumSize - (windowSize - centralWidgetSize.boundedTo(windowSize));
 }
 
 void UIMachineViewNormal::maybeRestrictMinimumSize()
@@ -403,7 +305,7 @@ void UIMachineViewNormal::maybeRestrictMinimumSize()
      * Currently, the restriction is set only in SDL mode and only when the auto-resize feature is inactive.
      * We need to do that because we cannot correctly draw in a scrolled window in SDL mode.
      * In all other modes, or when auto-resize is in force, this function does nothing. */
-    if (vboxGlobal().vmRenderMode() == VBoxDefs::SDLMode)
+    if (vboxGlobal().vmRenderMode() == SDLMode)
     {
         if (!uisession()->isGuestSupportsGraphics() || !m_bIsGuestAutoresizeEnabled)
             setMinimumSize(sizeHint());

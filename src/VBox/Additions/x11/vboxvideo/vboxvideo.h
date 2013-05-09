@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,7 +54,6 @@
 
 #include <VBox/VBoxVideoGuest.h>
 #include <VBox/VBoxVideo.h>
-
 #include <iprt/asm-math.h>
 
 #ifdef DEBUG
@@ -101,37 +100,10 @@ if (!(expr)) \
 #include <VBox/Hardware/VBoxVideoVBE.h>
 #include <VBox/VMMDev.h>
 
-/* All drivers should typically include these */
-#include "xf86.h"
-#include "xf86_OSproc.h"
-#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
-# include "xf86Resources.h"
-#endif
-
-#include <iprt/string.h>
-#include "compiler.h"
-
-#ifndef PCIACCESS
-/* Drivers for PCI hardware need this */
-# include "xf86PciInfo.h"
-/* Drivers that need to access the PCI config space directly need this */
-# include "xf86Pci.h"
-#endif
-
-/* ShadowFB support */
-#include "shadowfb.h"
-
-/* Dga definitions */
-#include "dgaproc.h"
-
-#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
-# include "xf86RAC.h"
-#endif
-
-#include "fb.h"
+#include "xf86str.h"
+#include "xf86Cursor.h"
 
 #define VBOX_VERSION		4000  /* Why? */
-#include "xf86Cursor.h"
 #define VBOX_NAME		      "VBoxVideo"
 #define VBOX_DRIVER_NAME	  "vboxvideo"
 
@@ -146,7 +118,6 @@ enum drm_bo_type { DRM_BO_TYPE };
 #undef u_int64_t
 #include "sarea.h"
 #include "GL/glxint.h"
-#include "GL/glxtokens.h"
 
 /* For some reason this is not in the header files. */
 extern void GlxSetVisualConfigs(int nconfigs, __GLXvisualConfig *configs,
@@ -188,8 +159,6 @@ typedef struct VBOXRec
     CloseScreenProcPtr CloseScreen;
     /** Default X server procedure for enabling and disabling framebuffer access */
     xf86EnableDisableFBAccessProc *EnableDisableFBAccess;
-    /** Is access to the framebuffer currently allowed? */
-    Bool accessEnabled;
     OptionInfoPtr Options;
     /** @todo we never actually free this */
     xf86CursorInfoPtr pCurs;
@@ -197,9 +166,6 @@ typedef struct VBOXRec
     Bool forceSWCursor;
     /** Do we know that the guest can handle absolute co-ordinates? */
     Bool guestCanAbsolute;
-    /** Are we currently switched to a virtual terminal?  If so, it is not
-     * safe to touch the hardware. */
-    Bool vtSwitch;
     /** Does this host support sending graphics commands using HGSMI? */
     Bool fHaveHGSMI;
     /** Number of screens attached */
@@ -207,6 +173,8 @@ typedef struct VBOXRec
     /** Position information for each virtual screen for the purposes of
      * sending dirty rectangle information to the right one. */
     RTRECT2 aScreenLocation[VBOX_VIDEO_MAX_SCREENS];
+    /** The last requested framebuffer size. */
+    RTRECTSIZE FBSize;
     /** Has this screen been disabled by the guest? */
     Bool afDisabled[VBOX_VIDEO_MAX_SCREENS];
 #ifdef VBOXVIDEO_13
@@ -263,7 +231,8 @@ extern void vboxAddModes(ScrnInfoPtr pScrn, uint32_t cxInit,
                          uint32_t cyInit);
 
 /* DRI stuff */
-extern Bool VBOXDRIScreenInit(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox);
+extern Bool VBOXDRIScreenInit(ScrnInfoPtr pScrn, ScreenPtr pScreen,
+                              VBOXPtr pVBox);
 extern Bool VBOXDRIFinishScreenInit(ScreenPtr pScreen);
 extern void VBOXDRIUpdateStride(ScrnInfoPtr pScrn, VBOXPtr pVBox);
 extern void VBOXDRICloseScreen(ScreenPtr pScreen, VBOXPtr pVBox);
@@ -277,11 +246,6 @@ extern Bool VBOXEDIDSet(struct _xf86Output *output, DisplayModePtr pmode);
 
 static inline VBOXPtr VBOXGetRec(ScrnInfoPtr pScrn)
 {
-    if (!pScrn->driverPrivate)
-    {
-        pScrn->driverPrivate = calloc(sizeof(VBOXRec), 1);
-    }
-
     return ((VBOXPtr)pScrn->driverPrivate);
 }
 
@@ -301,6 +265,7 @@ static inline int32_t vboxLineLength(ScrnInfoPtr pScrn, int32_t cDisplayWidth)
 /** Calculate the display pitch from the scan line length */
 static inline int32_t vboxDisplayPitch(ScrnInfoPtr pScrn, int32_t cbLine)
 {
+    /* take care to reference __udivdi3! */
     return ASMDivU64ByU32RetU32((uint64_t)cbLine * 8, vboxBPP(pScrn));
 }
 

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -158,9 +158,22 @@ STDMETHODIMP UIFrameBuffer::RequestResize(ULONG uScreenId, ULONG uPixelFormat,
         return E_FAIL;
 
     NOREF(uScreenId);
-    QApplication::postEvent (m_pMachineView,
-                             new UIResizeEvent(uPixelFormat, pVRAM, uBitsPerPixel,
-                                               uBytesPerLine, uWidth, uHeight));
+    /* A resize event can happen while we are switching machine view classes,
+     * but we synchronise afterwards so that shouldn't be a problem.  We must
+     * temporarily remove the framebuffer in Display though while switching
+     * to respect the thread synchronisation logic (see UIFrameBuffer.h). */
+    if (m_pMachineView)
+        QApplication::postEvent(m_pMachineView,
+                                new UIResizeEvent(uPixelFormat, pVRAM,
+                                                  uBitsPerPixel, uBytesPerLine,
+                                                  uWidth, uHeight));
+    else
+    {
+        /* Report to the VM thread that we finished resizing and rely on the
+         * synchronisation when the new view is attached. */
+        *pbFinished = TRUE;
+        return S_OK;
+    }
 
     *pbFinished = FALSE;
     return S_OK;
@@ -168,6 +181,8 @@ STDMETHODIMP UIFrameBuffer::RequestResize(ULONG uScreenId, ULONG uPixelFormat,
 
 /**
  * Returns whether we like the given video mode.
+ * @note We always like a mode smaller than the current framebuffer
+ *       size.
  *
  * @returns COM status code
  * @param   width     video mode width in pixels
@@ -183,10 +198,14 @@ STDMETHODIMP UIFrameBuffer::VideoModeSupported(ULONG uWidth, ULONG uHeight, ULON
     if (!pbSupported)
         return E_POINTER;
     *pbSupported = TRUE;
-    QSize screen = m_pMachineView->desktopGeometry();
-    if ((screen.width() != 0) && (uWidth > (ULONG)screen.width()))
+    QSize screen = m_pMachineView->maxGuestSize();
+    if (   (screen.width() != 0)
+        && (uWidth > (ULONG)screen.width())
+        && (uWidth > (ULONG)width()))
         *pbSupported = FALSE;
-    if ((screen.height() != 0) && (uHeight > (ULONG)screen.height()))
+    if (   (screen.height() != 0)
+        && (uHeight > (ULONG)screen.height())
+        && (uHeight > (ULONG)height()))
         *pbSupported = FALSE;
     LogFlowThisFunc(("screenW=%lu, screenH=%lu -> aSupported=%s\n",
                     screen.width(), screen.height(), *pbSupported ? "TRUE" : "FALSE"));
@@ -243,10 +262,10 @@ void UIFrameBuffer::doProcessVHWACommand(QEvent *pEvent)
     /* should never be here */
     AssertBreakpoint();
 }
+#endif
 
 void UIFrameBuffer::setView(UIMachineView * pView)
 {
     m_pMachineView = pView;
     m_WinId = (m_pMachineView && m_pMachineView->viewport()) ? (LONG64)m_pMachineView->viewport()->winId() : 0;
 }
-#endif

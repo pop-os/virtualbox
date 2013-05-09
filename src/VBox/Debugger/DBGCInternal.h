@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,47 +24,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <VBox/dbg.h>
-
-
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
-/* to err.h! */
-#define VERR_DBGC_QUIT                          (-11999)
-#define VERR_PARSE_FIRST                        (-11000)
-#define VERR_PARSE_TOO_FEW_ARGUMENTS            (VERR_PARSE_FIRST - 0)
-#define VERR_PARSE_TOO_MANY_ARGUMENTS           (VERR_PARSE_FIRST - 1)
-#define VERR_PARSE_ARGUMENT_OVERFLOW            (VERR_PARSE_FIRST - 2)
-#define VERR_PARSE_ARGUMENT_TYPE_MISMATCH       (VERR_PARSE_FIRST - 3)
-#define VERR_PARSE_NO_RANGE_ALLOWED             (VERR_PARSE_FIRST - 4)
-#define VERR_PARSE_UNBALANCED_QUOTE             (VERR_PARSE_FIRST - 5)
-#define VERR_PARSE_UNBALANCED_PARENTHESIS       (VERR_PARSE_FIRST - 6)
-#define VERR_PARSE_EMPTY_ARGUMENT               (VERR_PARSE_FIRST - 7)
-#define VERR_PARSE_UNEXPECTED_OPERATOR          (VERR_PARSE_FIRST - 8)
-#define VERR_PARSE_INVALID_NUMBER               (VERR_PARSE_FIRST - 9)
-#define VERR_PARSE_NUMBER_TOO_BIG               (VERR_PARSE_FIRST - 10)
-#define VERR_PARSE_INVALID_OPERATION            (VERR_PARSE_FIRST - 11)
-#define VERR_PARSE_FUNCTION_NOT_FOUND           (VERR_PARSE_FIRST - 12)
-#define VERR_PARSE_NOT_A_FUNCTION               (VERR_PARSE_FIRST - 13)
-#define VERR_PARSE_NO_MEMORY                    (VERR_PARSE_FIRST - 14)
-#define VERR_PARSE_INCORRECT_ARG_TYPE           (VERR_PARSE_FIRST - 15)
-#define VERR_PARSE_VARIABLE_NOT_FOUND           (VERR_PARSE_FIRST - 16)
-#define VERR_PARSE_CONVERSION_FAILED            (VERR_PARSE_FIRST - 17)
-#define VERR_PARSE_NOT_IMPLEMENTED              (VERR_PARSE_FIRST - 18)
-#define VERR_PARSE_BAD_RESULT_TYPE              (VERR_PARSE_FIRST - 19)
-#define VERR_PARSE_WRITEONLY_SYMBOL             (VERR_PARSE_FIRST - 20)
-#define VERR_PARSE_NO_ARGUMENT_MATCH            (VERR_PARSE_FIRST - 21)
-#define VINF_PARSE_COMMAND_NOT_FOUND            (VERR_PARSE_FIRST - 22)
-#define VINF_PARSE_INVALD_COMMAND_NAME          (VERR_PARSE_FIRST - 23)
-#define VERR_PARSE_LAST                         (VERR_PARSE_FIRST - 30)
-
-#define VWRN_DBGC_CMD_PENDING                   12000
-#define VWRN_DBGC_ALREADY_REGISTERED            12001
-#define VERR_DBGC_COMMANDS_NOT_REGISTERED       (-12002)
-#define VERR_DBGC_BP_NOT_FOUND                  (-12003)
-#define VERR_DBGC_BP_EXISTS                     (-12004)
-#define VINF_DBGC_BP_NO_COMMAND                 12005
-#define VERR_DBGC_COMMAND_FAILED                (-12006)
+#include <VBox/err.h>
 
 
 /*******************************************************************************
@@ -157,10 +117,14 @@ typedef struct DBGC
     RTDBGAS             hDbgAs;
     /** The current debugger emulation. */
     const char         *pszEmulation;
-    /** Pointer to the command and functions for the current debugger emulation. */
+    /** Pointer to the commands for the current debugger emulation. */
     PCDBGCCMD           paEmulationCmds;
     /** The number of commands paEmulationCmds points to. */
     unsigned            cEmulationCmds;
+    /** Pointer to the functions for the current debugger emulation. */
+    PCDBGCFUNC          paEmulationFuncs;
+    /** The number of functions paEmulationFuncs points to. */
+    uint32_t            cEmulationFuncs;
     /** Log indicator. (If set we're writing the log to the console.) */
     bool                fLog;
 
@@ -268,6 +232,22 @@ typedef struct DBGCEXTCMDS
 typedef DBGCEXTCMDS *PDBGCEXTCMDS;
 
 
+/**
+ * Chunk of external functions.
+ */
+typedef struct DBGCEXTFUNCS
+{
+    /** Number of functions descriptors. */
+    uint32_t            cFuncs;
+    /** Pointer to array of functions descriptors. */
+    PCDBGCFUNC          paFuncs;
+    /** Pointer to the next chunk. */
+    struct DBGCEXTFUNCS *pNext;
+} DBGCEXTFUNCS;
+/** Pointer to chunk of external functions. */
+typedef DBGCEXTFUNCS *PDBGCEXTFUNCS;
+
+
 
 /**
  * Unary operator handler function.
@@ -277,9 +257,10 @@ typedef DBGCEXTCMDS *PDBGCEXTCMDS;
  *          The caller does the bitching.
  * @param   pDbgc       Debugger console instance data.
  * @param   pArg        The argument.
+ * @param   enmCat      The desired result category. Can be ignored.
  * @param   pResult     Where to store the result.
  */
-typedef DECLCALLBACK(int) FNDBGCOPUNARY(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
+typedef DECLCALLBACK(int) FNDBGCOPUNARY(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult);
 /** Pointer to a unary operator handler function. */
 typedef FNDBGCOPUNARY *PFNDBGCOPUNARY;
 
@@ -401,13 +382,14 @@ int     dbgcEvalCommand(PDBGC pDbgc, char *pszCmd, size_t cchCmd, bool fNoExecut
 int     dbgcSymbolGet(PDBGC pDbgc, const char *pszSymbol, DBGCVARTYPE enmType, PDBGCVAR pResult);
 PCDBGCSYM   dbgcLookupRegisterSymbol(PDBGC pDbgc, const char *pszSymbol);
 PCDBGCOP    dbgcOperatorLookup(PDBGC pDbgc, const char *pszExpr, bool fPreferBinary, char chPrev);
-PCDBGCCMD   dbgcRoutineLookup(PDBGC pDbgc, const char *pachName, size_t cchName, bool fExternal);
+PCDBGCCMD   dbgcCommandLookup(PDBGC pDbgc, const char *pachName, size_t cchName, bool fExternal);
+PCDBGCFUNC  dbgcFunctionLookup(PDBGC pDbgc, const char *pachName, size_t cchName, bool fExternal);
 
-DECLCALLBACK(int) dbgcOpRegister(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
-DECLCALLBACK(int) dbgcOpAddrFlat(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
-DECLCALLBACK(int) dbgcOpAddrHost(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
-DECLCALLBACK(int) dbgcOpAddrPhys(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
-DECLCALLBACK(int) dbgcOpAddrHostPhys(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
+DECLCALLBACK(int) dbgcOpRegister(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult);
+DECLCALLBACK(int) dbgcOpAddrFlat(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult);
+DECLCALLBACK(int) dbgcOpAddrHost(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult);
+DECLCALLBACK(int) dbgcOpAddrPhys(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult);
+DECLCALLBACK(int) dbgcOpAddrHostPhys(PDBGC pDbgc, PCDBGCVAR pArg, DBGCVARCAT enmCat, PDBGCVAR pResult);
 
 void    dbgcInitCmdHlp(PDBGC pDbgc);
 
@@ -424,12 +406,30 @@ void    dbgcDestroy(PDBGC pDbgc);
 /*******************************************************************************
 *   Global Variables                                                           *
 *******************************************************************************/
-extern const DBGCCMD    g_aCmds[];
-extern const unsigned   g_cCmds;
+extern const DBGCCMD    g_aDbgcCmds[];
+extern const uint32_t   g_cDbgcCmds;
+extern const DBGCFUNC   g_aDbgcFuncs[];
+extern const uint32_t   g_cDbgcFuncs;
 extern const DBGCCMD    g_aCmdsCodeView[];
-extern const unsigned   g_cCmdsCodeView;
-extern const DBGCOP     g_aOps[];
-extern const unsigned   g_cOps;
+extern const uint32_t   g_cCmdsCodeView;
+extern const DBGCFUNC   g_aFuncsCodeView[];
+extern const uint32_t   g_cFuncsCodeView;
+extern const DBGCOP     g_aDbgcOps[];
+extern const uint32_t   g_cDbgcOps;
+
+
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
+/** Locks the g_pExtCmdsHead and g_pExtFuncsHead lists for reading. */
+#define DBGCEXTLISTS_LOCK_RD()      do { } while (0)
+/** Locks the g_pExtCmdsHead and g_pExtFuncsHead lists for writing. */
+#define DBGCEXTLISTS_LOCK_WR()      do { } while (0)
+/** UnLocks the g_pExtCmdsHead and g_pExtFuncsHead lists after reading. */
+#define DBGCEXTLISTS_UNLOCK_RD()    do { } while (0)
+/** UnLocks the g_pExtCmdsHead and g_pExtFuncsHead lists after writing. */
+#define DBGCEXTLISTS_UNLOCK_WR()    do { } while (0)
+
 
 
 #endif

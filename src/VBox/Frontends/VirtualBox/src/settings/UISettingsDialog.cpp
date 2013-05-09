@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -601,14 +601,6 @@ void UISettingsDialog::showEvent(QShowEvent *pEvent)
         s.setWidth(iMinWidth);
     resize(s);
 #endif /* Q_WS_MAC */
-}
-
-void UISettingsDialog::closeEvent(QCloseEvent *pEvent)
-{
-    if (m_fLoaded)
-        QIMainDialog::closeEvent(pEvent);
-    else
-        pEvent->ignore();
 }
 
 void UISettingsDialog::assignValidator(UISettingsPage *pPage)

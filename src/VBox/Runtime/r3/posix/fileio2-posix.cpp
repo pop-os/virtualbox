@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -134,6 +134,8 @@ RTR3DECL(int) RTFileQueryInfo(RTFILE hFile, PRTFSOBJINFO pObjInfo, RTFSOBJATTRAD
 RTR3DECL(int) RTFileSetTimes(RTFILE hFile, PCRTTIMESPEC pAccessTime, PCRTTIMESPEC pModificationTime,
                              PCRTTIMESPEC pChangeTime, PCRTTIMESPEC pBirthTime)
 {
+    NOREF(pChangeTime); NOREF(pBirthTime);
+
     /*
      * We can only set AccessTime and ModificationTime, so if neither
      * are specified we can return immediately.
@@ -161,6 +163,8 @@ RTR3DECL(int) RTFileSetTimes(RTFILE hFile, PCRTTIMESPEC pAccessTime, PCRTTIMESPE
         RTTimeSpecGetTimeval(pModificationTime  ? pModificationTime : &ObjInfo.ModificationTime, &aTimevals[1]);
     }
 
+    /* XXX this falls back to utimes("/proc/self/fd/...",...) for older kernels/glibcs and this
+     * will not work for hardened builds where this directory is owned by root.root and mode 0500 */
     if (futimes(RTFileToNative(hFile), aTimevals))
     {
         int rc = RTErrConvertFromErrno(errno);

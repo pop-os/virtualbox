@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -310,6 +310,15 @@ typedef enum PDMASYNCCOMPLETIONENDPOINTFILESTATE
     PDMASYNCCOMPLETIONENDPOINTFILESTATE_32BIT_HACK = 0x7fffffff
 } PDMASYNCCOMPLETIONENDPOINTFILESTATE;
 
+typedef enum PDMACFILEREQTYPEDELAY
+{
+    PDMACFILEREQTYPEDELAY_ANY = 0,
+    PDMACFILEREQTYPEDELAY_READ,
+    PDMACFILEREQTYPEDELAY_WRITE,
+    PDMACFILEREQTYPEDELAY_FLUSH,
+    PDMACFILEREQTYPEDELAY_32BIT_HACK = 0x7fffffff
+} PDMACFILEREQTYPEDELAY;
+
 /**
  * Data for the file endpoint.
  */
@@ -327,10 +336,7 @@ typedef struct PDMASYNCCOMPLETIONENDPOINTFILE
     unsigned                               fFlags;
     /** File handle. */
     RTFILE                                 hFile;
-    /**
-     * Real size of the file. Only updated if
-     * data is appended.
-     */
+    /** Real size of the file. Only updated if data is appended. */
     volatile uint64_t                      cbFile;
     /** List of new tasks. */
     R3PTRTYPE(volatile PPDMACTASKFILE)     pTasksNewHead;
@@ -373,10 +379,12 @@ typedef struct PDMASYNCCOMPLETIONENDPOINTFILE
 #ifdef PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
     /** Request delay. */
     volatile uint32_t                      msDelay;
+    /** Number of requests to delay. */
+    volatile uint32_t                      cReqsDelay;
+    /** Task type to delay. */
+    PDMACFILEREQTYPEDELAY                  enmTypeDelay;
     /** The current task which gets delayed. */
-    PPDMASYNCCOMPLETIONTASKFILE            pReqDelayed;
-    /** Timestamp when the delay expires. */
-    uint64_t                               tsDelayEnd;
+    PPDMASYNCCOMPLETIONTASKFILE            pDelayedHead;
 #endif
     /** Flag whether a blocking event is pending and needs
      * processing by the I/O manager. */
@@ -500,10 +508,15 @@ typedef struct PDMASYNCCOMPLETIONTASKFILE
     volatile bool         fCompleted;
     /** Return code. */
     volatile int          rc;
+#ifdef PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
+    volatile PPDMASYNCCOMPLETIONTASKFILE pDelayedNext;
+    /** Timestamp when the delay expires. */
+    uint64_t                             tsDelayEnd;
+#endif
 } PDMASYNCCOMPLETIONTASKFILE;
 
-int pdmacFileAioMgrFailsafe(RTTHREAD ThreadSelf, void *pvUser);
-int pdmacFileAioMgrNormal(RTTHREAD ThreadSelf, void *pvUser);
+DECLCALLBACK(int) pdmacFileAioMgrFailsafe(RTTHREAD hThreadSelf, void *pvUser);
+DECLCALLBACK(int) pdmacFileAioMgrNormal(RTTHREAD hThreadSelf, void *pvUser);
 
 int pdmacFileAioMgrNormalInit(PPDMACEPFILEMGR pAioMgr);
 void pdmacFileAioMgrNormalDestroy(PPDMACEPFILEMGR pAioMgr);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -71,7 +71,7 @@
 #define FSW_FSTYPE_TABLE_NAME(t) FSW_CONCAT3(fsw_,t,_table)
 
 /** Indicates that the block cache entry is empty. */
-#define FSW_INVALID_BNO (~0UL)
+#define FSW_INVALID_BNO (~0U)
 
 
 //

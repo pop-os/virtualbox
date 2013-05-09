@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,7 @@
 
 #include <iprt/err.h>
 #include <iprt/ctype.h>
+#include <iprt/path.h>
 #include <list>
 
 #include "Logging.h"
@@ -46,8 +47,78 @@
 #include <net/if_arp.h>
 #include <net/if.h>
 #include <sys/types.h>
+#include <kstat.h>
 
 #include "DynLoadLibSolaris.h"
+
+static uint32_t getInstance(const char *pszIfaceName, char *pszDevName)
+{
+    /*
+     * Get the instance number from the interface name, then clip it off.
+     */
+    int cbInstance = 0;
+    int cbIface = strlen(pszIfaceName);
+    const char *pszEnd = pszIfaceName + cbIface - 1;
+    for (int i = 0; i < cbIface - 1; i++)
+    {
+        if (!RT_C_IS_DIGIT(*pszEnd))
+            break;
+        cbInstance++;
+        pszEnd--;
+    }
+
+    uint32_t uInstance = RTStrToUInt32(pszEnd + 1);
+    strncpy(pszDevName, pszIfaceName, cbIface - cbInstance);
+    pszDevName[cbIface - cbInstance] = '\0';
+    return uInstance;
+}
+
+static uint32_t kstatGet(const char *name)
+{
+    kstat_ctl_t *kc;
+    uint32_t uSpeed = 0;
+
+    if ((kc = kstat_open()) == 0)
+    {
+        LogRel(("kstat_open() -> %d\n", errno));
+        return 0;
+    }
+
+    kstat_t *ksAdapter = kstat_lookup(kc, "link", -1, (char *)name);
+    if (ksAdapter == 0)
+    {
+        char szModule[KSTAT_STRLEN];
+        uint32_t uInstance = getInstance(name, szModule);
+        ksAdapter = kstat_lookup(kc, szModule, uInstance, "phys");
+        if (ksAdapter == 0)
+            ksAdapter = kstat_lookup(kc, szModule, uInstance, name);
+    }
+    if (ksAdapter == 0)
+        LogRel(("Failed to get network statistics for %s\n", name));
+    else if (kstat_read(kc, ksAdapter, 0) == -1)
+        LogRel(("kstat_read(%s) -> %d\n", name, errno));
+    else
+    {
+        kstat_named_t *kn;
+        if ((kn = (kstat_named_t *)kstat_data_lookup(ksAdapter, (char *)"ifspeed")) == 0)
+            LogRel(("kstat_data_lookup(ifspeed) -> %d, name=%s\n", errno, name));
+        else
+            uSpeed = kn->value.ul / 1000000; /* bits -> Mbits */
+    }
+    kstat_close(kc);
+    LogFlow(("kstatGet(%s) -> %u Mbit/s\n", name, uSpeed));
+    return uSpeed;
+}
+
+static void queryIfaceSpeed(PNETIFINFO pInfo)
+{
+    /* Don't query interface speed for inactive interfaces (see @bugref{6345}). */
+    if (pInfo->enmStatus == NETIF_S_UP)
+        pInfo->uSpeedMbits =  kstatGet(pInfo->szShortName);
+    else
+        pInfo->uSpeedMbits = 0;
+    LogFlow(("queryIfaceSpeed(%s) -> %u\n", pInfo->szShortName, pInfo->uSpeedMbits));
+}
 
 static void vboxSolarisAddHostIface(char *pszIface, int Instance, void *pvHostNetworkInterfaceList)
 {
@@ -81,10 +152,14 @@ static void vboxSolarisAddHostIface(char *pszIface, int Instance, void *pvHostNe
         SolarisNICMap.insert(NICPair("igb", "Intel 82575 PCI-E Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("ipge", "PCI-E Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("iprb", "Intel 82557/58/59 Ethernet"));
+        SolarisNICMap.insert(NICPair("ixgb", "Intel 82597ex 10 Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("ixgbe", "Intel 10 Gigabit PCI-E Ethernet"));
+        SolarisNICMap.insert(NICPair("mcxe", "Mellanox ConnectX-2 10 Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("mxfe", "Macronix 98715 Fast Ethernet"));
         SolarisNICMap.insert(NICPair("nfo", "Nvidia Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("nge", "Nvidia Gigabit Ethernet"));
+        SolarisNICMap.insert(NICPair("ntxn", "NetXen 10/1 Gigabit Ethernet"));
+        SolarisNICMap.insert(NICPair("nxge", "Sun 10/1 Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("pcelx", "3COM EtherLink III PCMCIA Ethernet"));
         SolarisNICMap.insert(NICPair("pcn", "AMD PCnet Ethernet"));
         SolarisNICMap.insert(NICPair("qfe", "SUNW,qfe Quad Fast-Ethernet"));
@@ -197,12 +272,14 @@ static void vboxSolarisAddHostIface(char *pszIface, int Instance, void *pvHostNe
     Uuid.Gen.au8Node[5] = Info.MACAddress.au8[5];
     Info.Uuid = Uuid;
     Info.enmMediumType = NETIF_T_ETHERNET;
+    strncpy(Info.szShortName, szNICInstance, sizeof(Info.szShortName) - 1);
 
     HostNetworkInterfaceType_T enmType;
     if (strncmp("vboxnet", szNICInstance, 7))
         enmType = HostNetworkInterfaceType_Bridged;
     else
         enmType = HostNetworkInterfaceType_HostOnly;
+    queryIfaceSpeed(&Info);
     ComObjPtr<HostNetworkInterface> IfObj;
     IfObj.createObject();
     if (SUCCEEDED(IfObj->init(Bstr(szNICDesc), enmType, &Info)))

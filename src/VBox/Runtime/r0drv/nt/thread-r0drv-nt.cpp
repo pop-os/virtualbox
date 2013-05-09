@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,7 +51,7 @@ RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void)
 }
 
 
-RTDECL(int)   RTThreadSleep(RTMSINTERVAL cMillies)
+static int rtR0ThreadNtSleepCommon(RTMSINTERVAL cMillies)
 {
     LARGE_INTEGER Interval;
     Interval.QuadPart = -(int64_t)cMillies * 10000;
@@ -66,6 +66,18 @@ RTDECL(int)   RTThreadSleep(RTMSINTERVAL cMillies)
         default:
             return RTErrConvertFromNtStatus(rcNt);
     }
+}
+
+
+RTDECL(int)   RTThreadSleep(RTMSINTERVAL cMillies)
+{
+    return rtR0ThreadNtSleepCommon(cMillies);
+}
+
+
+RTDECL(int)   RTThreadSleepCommon(RTMSINTERVAL cMillies)
+{
+    return rtR0ThreadNtSleepCommon(cMillies);
 }
 
 

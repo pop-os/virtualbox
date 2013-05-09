@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,11 +65,13 @@
 #include "ip_icmp.h"
 
 
-#define TCP_PAWS_IDLE   (24 * 24 * 60 * 60 * PR_SLOWHZ)
+#if 0 /* code using this macroses is commented out */
+# define TCP_PAWS_IDLE   (24 * 24 * 60 * 60 * PR_SLOWHZ)
 
 /* for modulo comparisons of timestamps */
-#define TSTMP_LT(a, b)   ((int)((a)-(b)) < 0)
-#define TSTMP_GEQ(a, b)  ((int)((a)-(b)) >= 0)
+# define TSTMP_LT(a, b)   ((int)((a)-(b)) < 0)
+# define TSTMP_GEQ(a, b)  ((int)((a)-(b)) >= 0)
+#endif
 
 #ifndef TCP_ACK_HACK
 #define DELAY_ACK(tp, ti)                           \
@@ -302,8 +304,8 @@ tcp_input(PNATState pData, register struct mbuf *m, int iphlen, struct socket *i
 /*  int ts_present = 0; */
     STAM_PROFILE_START(&pData->StatTCP_input, counter_input);
 
-    LogFlow(("tcp_input: m = %8lx, iphlen = %2d, inso = %lx\n",
-             (long)m, iphlen, (long)inso));
+    LogFlow(("tcp_input: m = %8lx, iphlen = %2d, inso = %R[natsock]\n",
+             (long)m, iphlen, inso));
 
     if (inso != NULL)
     {
@@ -457,32 +459,10 @@ findso:
         || so->so_laddr.s_addr != ti->ti_src.s_addr
         || so->so_faddr.s_addr != ti->ti_dst.s_addr)
     {
-#ifdef VBOX_WITH_SLIRP_MT
-        struct socket *sonxt;
-#endif
         QSOCKET_UNLOCK(tcb);
         /* @todo fix SOLOOKUP macrodefinition to be usable here */
-#ifndef VBOX_WITH_SLIRP_MT
         so = solookup(&tcb, ti->ti_src, ti->ti_sport,
                       ti->ti_dst, ti->ti_dport);
-#else
-        so = NULL;
-        QSOCKET_FOREACH(so, sonxt, tcp)
-        /* { */
-            if (   so->so_lport        == ti->ti_sport
-                && so->so_laddr.s_addr == ti->ti_src.s_addr
-                && so->so_faddr.s_addr == ti->ti_dst.s_addr
-                && so->so_fport        == ti->ti_dport
-                && so->so_deleted != 1)
-            {
-                break; /* so is locked here */
-            }
-        LOOP_LABEL(tcp, so, sonxt);
-        }
-        if (so == &tcb) {
-            so = NULL;
-        }
-#endif
         if (so)
         {
             tcp_last_so = so;
@@ -856,8 +836,7 @@ cont_conn:
                 LogFlowFunc(("%d -> dropwithreset\n", __LINE__));
                 goto dropwithreset;
             }
-cont_input:
-            LogFlowFunc(("cont_input:\n"));
+
             tcp_template(tp);
 
             if (optp)
@@ -1215,6 +1194,7 @@ close:
          * send an RST.  una<=ack<=max
          */
         case TCPS_SYN_RECEIVED:
+            LogFlowFunc(("%d -> TCPS_SYN_RECEIVED\n", __LINE__));
             if (   SEQ_GT(tp->snd_una, ti->ti_ack)
                 || SEQ_GT(ti->ti_ack, tp->snd_max))
                 goto dropwithreset;
@@ -1261,6 +1241,8 @@ close:
         case TCPS_CLOSING:
         case TCPS_LAST_ACK:
         case TCPS_TIME_WAIT:
+            LogFlowFunc(("%d -> TCPS_ESTABLISHED|TCPS_FIN_WAIT_1|TCPS_FIN_WAIT_2|TCPS_CLOSE_WAIT|"
+                         "TCPS_CLOSING|TCPS_LAST_ACK|TCPS_TIME_WAIT\n", __LINE__));
             if (SEQ_LEQ(ti->ti_ack, tp->snd_una))
             {
                 if (ti->ti_len == 0 && tiwin == tp->snd_wnd)

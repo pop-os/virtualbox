@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,7 +48,7 @@ int main(int argc, char* argv[])
     /*
      * Initialize the runtime.
      */
-    RTR3InitAndSUPLib();
+    RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
 
 #ifndef AUTO_TEST_ARGS
     if (argc < 2)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,15 +53,15 @@
 static volatile uint32_t    g_BlocksLock;
 /** Tree tracking the allocations. */
 static AVLPVTREE            g_BlocksTree;
-#ifdef RTALLOC_EFENCE_FREE_DELAYED
+# ifdef RTALLOC_EFENCE_FREE_DELAYED
 /** Tail of the delayed blocks. */
 static volatile PRTMEMBLOCK g_pBlocksDelayHead;
 /** Tail of the delayed blocks. */
 static volatile PRTMEMBLOCK g_pBlocksDelayTail;
 /** Number of bytes in the delay list (includes fences). */
 static volatile size_t      g_cbBlocksDelay;
-#endif
-#endif
+# endif /* RTALLOC_EFENCE_FREE_DELAYED */
+#endif /* RTALLOC_EFENCE_TRACE */
 /** Array of pointers free watches for. */
 void   *gapvRTMemFreeWatch[4] = {NULL, NULL, NULL, NULL};
 /** Enable logging of all freed memory. */
@@ -95,6 +95,8 @@ DECLINLINE(void) rtmemLog(const char *pszOp, const char *pszFormat, ...)
     va_start(args, pszFormat);
     vfprintf(stderr, pszFormat, args);
     va_end(args);
+#else
+    NOREF(pszOp); NOREF(pszFormat);
 #endif
 }
 
@@ -108,7 +110,7 @@ DECLINLINE(void) rtmemBlockLock(void)
 {
     unsigned c = 0;
     while (!ASMAtomicCmpXchgU32(&g_BlocksLock, 1, 0))
-        RTThreadSleep(((++c) >> 2) & 31);
+        RTThreadSleepNoLog(((++c) >> 2) & 31);
 }
 
 
@@ -199,6 +201,7 @@ static DECLCALLBACK(int) RTMemDumpOne(PAVLPVNODECORE pNode, void *pvUser)
             (unsigned long)pBlock->cbUnaligned,
             (unsigned long)(pBlock->cbAligned - pBlock->cbUnaligned),
             pBlock->pvCaller);
+    NOREF(pvUser);
     return 0;
 }
 
@@ -213,8 +216,8 @@ void RTMemDump(void)
     RTAvlPVDoWithAll(&g_BlocksTree, true, RTMemDumpOne, NULL);
 }
 
+# ifdef RTALLOC_EFENCE_FREE_DELAYED
 
-#ifdef RTALLOC_EFENCE_FREE_DELAYED
 /**
  * Insert a delayed block.
  */
@@ -263,8 +266,7 @@ DECLINLINE(PRTMEMBLOCK) rtmemBlockDelayRemove(void)
     return pBlock;
 }
 
-
-#endif  /* DELAY */
+# endif  /* RTALLOC_EFENCE_FREE_DELAYED */
 
 #endif /* RTALLOC_EFENCE_TRACE */
 
@@ -376,6 +378,8 @@ RTDECL(void *) rtR3MemAlloc(const char *pszOp, RTMEMTYPE enmType, size_t cbUnali
  */
 RTDECL(void) rtR3MemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, void *pvCaller, RT_SRC_POS_DECL)
 {
+    NOREF(enmType); RT_SRC_POS_NOREF();
+
     /*
      * Simple case.
      */

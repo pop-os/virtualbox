@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -125,11 +125,6 @@ UIMiniCancelButton::UIMiniCancelButton(QWidget *pParent /* = 0 */)
     setFocusPolicy(Qt::TabFocus);
     setShortcut(QKeySequence(Qt::Key_Escape));
     setIcon(UIIconPool::defaultIcon(UIIconPool::DialogCancelIcon));
-}
-
-void UIMiniCancelButton::removeBorder()
-{
-    setStyleSheet("QToolButton { border: 0px }");
 }
 
 /********************************************************************************

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,7 +33,7 @@ DECLEXPORT(int) DBGCPlugInEntry(DBGCPLUGINOP enmOperation, PVM pVM, uintptr_t uA
     {
         //&g_DBGDiggerFreeBSD,
         &g_DBGDiggerLinux,
-        //&g_DBGDiggerOS2,
+        &g_DBGDiggerOS2,
         &g_DBGDiggerSolaris,
         &g_DBGDiggerWinNt
     };

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,14 +40,8 @@ protected:
 
 private slots:
 
-    /* Slot to perform guest resize: */
-    void sltPerformGuestResize(const QSize &size = QSize());
-
     /* Console callback handlers: */
     void sltAdditionsStateChanged();
-
-    /* Watch dog for desktop resizes: */
-    void sltDesktopResized();
 
 #ifdef Q_WS_X11
     /* Slot to perform synchronized geometry normalization.
@@ -64,14 +58,17 @@ private:
     /* Prepare helpers: */
     void prepareCommon();
     void prepareFilters();
-    void prepareConnections();
     void prepareConsoleConnections();
     //void loadMachineViewSettings();
+    /** If the last guest size hint was sent to switch to fullscreen or
+     * seamless mode then send one to restore the old view size.
+     * @note This method also does some hacks to suppress intermediary resizes
+     *        to the old fullscreen size. */
+    void maybeResendResizeHint();
 
     /* Cleanup helpers: */
     void saveMachineViewSettings();
     //void cleanupConsoleConnections() {}
-    //void prepareConnections() {}
     //void cleanupFilters() {}
     //void cleanupCommon() {}
 
@@ -80,13 +77,12 @@ private:
 
     /* Private helpers: */
     void normalizeGeometry(bool fAdjustPosition);
-    QRect workingArea();
-    void calculateDesktopGeometry();
+    QRect workingArea() const;
+    QSize calculateMaxGuestSize() const;
     void maybeRestrictMinimumSize();
 
     /* Private members: */
     bool m_bIsGuestAutoresizeEnabled : 1;
-    bool m_fShouldWeDoResize : 1;
 
     /* Friend classes: */
     friend class UIMachineView;

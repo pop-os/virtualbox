@@ -2,7 +2,7 @@
  * vboxweb.h:
  *      header file for "real" web server code.
  *
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -98,7 +98,7 @@ std::string ConvertComString(const com::Guid &bstr);
 
 std::string Base64EncodeByteArray(ComSafeArrayIn(BYTE, aData));
 
-void Base64DecodeByteArray(std::string& aStr, ComSafeArrayOut(BYTE, aData));
+void Base64DecodeByteArray(struct soap *soap, std::string& aStr, ComSafeArrayOut(BYTE, aData));
 /****************************************************************************
  *
  * managed object reference classes

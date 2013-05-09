@@ -2,7 +2,7 @@
 <!--
     VirtualBox Windows Installation Script (WiX)
 
-    Copyright (C) 2006-2011 Oracle Corporation
+    Copyright (C) 2006-2012 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -58,7 +58,9 @@
 
     <!-- Note: GUIDs in WiX *must* be uppercase! -->
     <!-- Always include an upgrade ID or otherwise upgrade installation will not be possible. When doing
-         a major upgrade (more than just fixing a few files) change the product GUID. -->
+         a major upgrade (more than just fixing a few files) change the product GUID. We always do a major
+         upgrade even for minor VBox updates. For that only change the product ID and the product version.
+         The upgrade code *never* must be changed! -->
 
     <!-- Update / Upgrade policies:
          Update Type    Package Code    Product Version     Product Code    Upgrade Code
@@ -77,7 +79,6 @@
              Version="$(var.Property_Version)"
              Manufacturer="$(env.VBOX_VENDOR)">
 
-        <!-- Package GUIDs must be different for each package. The "???" directs WiX to create one. -->
         <Package Id="*" Keywords="Installer"
                  Description="$(env.VBOX_PRODUCT) $(var.Property_VersionExt) installation package"
                  Comments="$(env.VBOX_PRODUCT) installation package"
@@ -178,10 +179,14 @@
                       DllEntry="UninstallTAPInstances" Execute="deferred" Return="check" Impersonate="no"/>
 
 <?if $(env.VBOX_WITH_NETFLT) = "yes" ?>
-        <CustomAction Id="ca_CreateHostOnlyInterface"  BinaryKey="VBoxInstallHelper"  DllEntry="CreateHostOnlyInterface" Execute="deferred" Return="check" Impersonate="no"/>
+        <CustomAction Id="ca_CreateHostOnlyInterface" BinaryKey="VBoxInstallHelper"  DllEntry="CreateHostOnlyInterface" Execute="deferred" Return="check" Impersonate="no"/>
         <CustomAction Id="ca_CreateHostOnlyInterfaceArgs" Property="ca_CreateHostOnlyInterface" Value="[INSTALLDIR]" Execute="immediate"/>
 
         <CustomAction Id="ca_RemoveHostOnlyInterfaces" BinaryKey="VBoxInstallHelper"  DllEntry="RemoveHostOnlyInterfaces" Execute="deferred" Return="check" Impersonate="no"/>
+        <CustomAction Id="ca_StopHostOnlyInterfaces" BinaryKey="VBoxInstallHelper"  DllEntry="StopHostOnlyInterfaces" Execute="deferred" Return="check" Impersonate="no"/>
+
+        <CustomAction Id="ca_UpdateHostOnlyInterfaces" BinaryKey="VBoxInstallHelper"  DllEntry="UpdateHostOnlyInterfaces" Execute="deferred" Return="check" Impersonate="no"/>
+        <CustomAction Id="ca_UpdateHostOnlyInterfacesArgs" Property="ca_UpdateHostOnlyInterfaces" Value="[INSTALLDIR]" Execute="immediate"/>
 
         <CustomAction Id="ca_InstallNetFlt" BinaryKey="VBoxInstallHelper" DllEntry="InstallNetFlt" Execute="deferred" Return="check" Impersonate="no"/>
         <CustomAction Id="ca_InstallNetFltArgs" Property="ca_InstallNetFlt" Value="[INSTALLDIR]" Execute="immediate"/>
@@ -444,10 +449,7 @@
                               Source="$(env.PATH_OUT)\bin\VBoxRT.dll" />
                         <File Id="file_VBoxREM.dll" Name="VBoxREM.dll"
                               Source="$(env.PATH_OUT)\bin\VBoxREM.dll" />
-<?if $(env.BUILD_TARGET_ARCH) = "amd64" ?>
-                        <File Id="file_VBoxREM2.rel" Name="VBoxREM2.rel"
-                              Source="$(env.PATH_OUT)\bin\VBoxREM2.rel" />
-<?else ?>
+<?if $(env.BUILD_TARGET_ARCH) = "x86" ?>
                         <File Id="file_VBoxREM32.dll" Name="VBoxREM32.dll"
                               Source="$(env.PATH_OUT)\bin\VBoxREM32.dll" />
                         <File Id="file_VBoxREM64.dll" Name="VBoxREM64.dll"
@@ -463,6 +465,10 @@
                               Source="$(env.PATH_OUT)\bin\VBoxSharedFolders.dll" />
                         <File Id="file_VBoxSharedClipboard.dll" Name="VBoxSharedClipboard.dll"
                               Source="$(env.PATH_OUT)\bin\VBoxSharedClipboard.dll" />
+<?if $(env.VBOX_WITH_DRAG_AND_DROP)= "yes" ?>
+                        <File Id="file_VBoxDragAndDropSvc.dll" Name="VBoxDragAndDropSvc.dll"
+                              Source="$(env.PATH_OUT)\bin\VBoxDragAndDropSvc.dll" />
+<?endif ?>
 <?if $(env.VBOX_WITH_GUEST_PROPS) = "yes" ?>
                         <File Id="file_VBoxGuestPropSvc.dll" Name="VBoxGuestPropSvc.dll"
                               Source="$(env.PATH_OUT)\bin\VBoxGuestPropSvc.dll" />
@@ -471,6 +477,8 @@
                         <File Id="file_VBoxGuestControlSvc.dll" Name="VBoxGuestControlSvc.dll"
                               Source="$(env.PATH_OUT)\bin\VBoxGuestControlSvc.dll" />
 <?endif ?>
+                        <File Id="file_VBoxHostChannel.dll" Name="VBoxHostChannel.dll"
+                              Source="$(env.PATH_OUT)\bin\VBoxHostChannel.dll" />
                         <File Id="file_VBoxAuth.dll" Name="VBoxAuth.dll"
                               Source="$(env.PATH_OUT)\bin\VBoxAuth.dll" />
                         <File Id="file_VBoxAuthSimple.dll" Name="VBoxAuthSimple.dll"
@@ -517,27 +525,21 @@
                               Source="$(env.PATH_OUT)\bin\QtOpenGLVBox4.dll" />
 <?endif?>
 
-<?if $(env.VBOX_USE_VCC80) = "yes" ?>
-                        <!-- MS v8 Runtime DLL files (private assembly) -->
-                        <File Id="file_Microsoft.VC80.CRT.manifest" Name="Microsoft.VC80.CRT.manifest"
-                              Source="$(env.PATH_OUT)\bin\Microsoft.VC80.CRT\Microsoft.VC80.CRT.manifest" />
-                        <File Id="file_msvcr80.dll" Name="msvcr80.dll"
-                              Source="$(env.PATH_OUT)\bin\Microsoft.VC80.CRT\msvcr80.dll" />
-                        <File Id="file_msvcp80.dll" Name="msvcp80.dll"
-                              Source="$(env.PATH_OUT)\bin\Microsoft.VC80.CRT\msvcp80.dll" />
+<?if $(env.VBOX_VCC_TOOL_STEM) = "VCC100" ?>
+                        <!-- MS C/C++ v10.0 Runtime DLL files. -->
+                        <File Id="file_msvcr100.dll" Name="msvcr100.dll"
+                              Source="$(env.PATH_OUT)\bin\msvcr100.dll" />
+                        <File Id="file_msvcp100.dll" Name="msvcp100.dll"
+                              Source="$(env.PATH_OUT)\bin\msvcp100.dll" />
+<?endif?>
+<?if $(env.VBOX_VCC_TOOL_STEM) = "VCC110" ?>
+                        <!-- MS C/C++ v11.0 Runtime DLL files. -->
+                        <File Id="file_msvcr110.dll" Name="msvcr110.dll"
+                              Source="$(env.PATH_OUT)\bin\msvcr110.dll" />
+                        <File Id="file_msvcp110.dll" Name="msvcp110.dll"
+                              Source="$(env.PATH_OUT)\bin\msvcp110.dll" />
 <?endif?>
 
-                        <!-- MS v7 Runtime DLL files -->
-<?if $(env.VBOX_USE_VCC80) != "yes" ?>
-                        <File Id="file_msvcp71.dll" Name="msvcp71.dll"
-                              Source="$(env.PATH_OUT)\bin\msvcp71.dll" />
-                        <File Id="file_msvcrt.dll" Name="msvcrt.dll"
-                              Source="$(env.PATH_OUT)\bin\msvcrt.dll" />
-<?endif?>
-<?if $(env.BUILD_TARGET_ARCH) != "amd64" ?>
-                        <File Id="msvcrdll" Name="msvcr71.dll"
-                              Source="$(env.PATH_OUT)\bin\msvcr71.dll" />
-<?endif?>
                         <!-- EFI firmware -->
 <?if $(env.VBOX_WITH_EFIFW_PACKING) = "yes" ?>
                         <File Id="file_VBoxEFI32.fd" Name="VBoxEFI32.fd" DiskId="$(var.Property_DiskIdCommon)"
@@ -681,7 +683,7 @@
         <Feature Id="VBoxApplication" Title="VirtualBox Application" Level="1"
                  Description="!(loc.VB_App)"
                  ConfigurableDirectory="INSTALLDIR" TypicalDefault="install" Display="expand"
-                 Absent="disallow">
+                 Absent="disallow" AllowAdvertise="no" >
 
             <ComponentRef Id="cp_StartMenuVBox" />
             <ComponentRef Id="cp_DesktopShortcut" />
@@ -712,7 +714,8 @@
 
             <Feature Id="VBoxUSB" Title="VirtualBox USB Support" Level="1"
                      Description="!(loc.VB_USBDriver)"
-                     ConfigurableDirectory="INSTALLDIR" TypicalDefault="install" Display="expand" >
+                     ConfigurableDirectory="INSTALLDIR" TypicalDefault="install" Display="expand"
+                     Absent="allow" AllowAdvertise="no" >
                 <ComponentRef Id="cp_USBFilterDriver" />
                 <ComponentRef Id="cp_USBDeviceDriver" />
             </Feature>
@@ -720,24 +723,28 @@
 <?if $(env.VBOX_WITH_NETFLT) = "yes" ?>
             <Feature Id="VBoxNetwork" Title="VirtualBox Networking" Level="1"
                      Description="!(loc.VB_Network)"
-                     ConfigurableDirectory="INSTALLDIR" TypicalDefault="install" Display="expand" >
-                 <Feature Id="VBoxNetworkFlt" Title="VirtualBox Bridged Networking" Level="1"
-                          Description="!(loc.VB_NetFltDriver)"
-                          ConfigurableDirectory="INSTALLDIR" TypicalDefault="install" Display="expand" >
-                     <ComponentRef Id="cp_NetFltDriver" />
-                 </Feature>
-                 <Feature Id="VBoxNetworkAdp" Title="VirtualBox Host-Only Networking" Level="1"
-                          Description="!(loc.VB_NetAdpDriver)"
-                          ConfigurableDirectory="INSTALLDIR" TypicalDefault="install" Display="expand" >
-                     <ComponentRef Id="cp_NetAdpDriver" />
-                 </Feature>
+                     ConfigurableDirectory="INSTALLDIR" TypicalDefault="install" Display="expand"
+                     Absent="allow" AllowAdvertise="no" >
+                <Feature Id="VBoxNetworkFlt" Title="VirtualBox Bridged Networking" Level="1"
+                         Description="!(loc.VB_NetFltDriver)"
+                         ConfigurableDirectory="INSTALLDIR" TypicalDefault="install" Display="expand"
+                         Absent="allow" AllowAdvertise="no" >
+                    <ComponentRef Id="cp_NetFltDriver" />
+                </Feature>
+                <Feature Id="VBoxNetworkAdp" Title="VirtualBox Host-Only Networking" Level="1"
+                         Description="!(loc.VB_NetAdpDriver)"
+                         ConfigurableDirectory="INSTALLDIR" TypicalDefault="install" Display="expand"
+                         Absent="allow" AllowAdvertise="no" >
+                    <ComponentRef Id="cp_NetAdpDriver" />
+                </Feature>
             </Feature>
 <?endif?>
 
 <?if $(env.VBOX_WITH_PYTHON) = "yes" ?>
             <Feature Id="VBoxPython" Title="VirtualBox Python 2.x Support" Level="1"
                     Description="!(loc.VB_Python)"
-                    ConfigurableDirectory="INSTALLDIR" TypicalDefault="install" Display="expand" >
+                    ConfigurableDirectory="INSTALLDIR" TypicalDefault="install" Display="expand"
+                    Absent="allow" AllowAdvertise="no" >
                 <ComponentRef Id="cp_VBoxPythonBinding" />
             </Feature>
 <?endif?>
@@ -749,19 +756,60 @@
 
         <InstallExecuteSequence>
 
+            <!--
+                To debug the action sequences, do: "msiexec /i <VBox.msi> /lar <Logfile>"
+
+                InstallUISequence (client side) is:
+                    AppSearch
+                    LaunchConditions
+                    ValidateProductID
+                    CostInitialize
+                    FileCost
+                    CostFinalize
+                    ExecuteAction -> will pass control over to "InstallExecuteSequence"
+
+                The first six actions above will be repeated but skipped on the server
+                side if already run on the client side.
+
+                InstallExecuteSequence (server side) is:
+                    <First six action from InstallUISequence>
+                    .
+                    InstallInitialize
+                    .
+                    InstallFinalize
+
+                The actions between InstallInitialize and InstallFinalize will be gone through twice:
+                - The first time the installer creates an installation script containing all actions in the right
+                  sequence which need to get executed in a batch later. At this point the launch conditions for
+                  custom actions must be met already!
+                - The second time the generated installation script will be run as-is.
+
+                Also, the InstallUISequence and InstallExecuteSequence tables run in different sessions which
+                need public properties (that is, UPPERCASE properties).
+            -->
+
             <!-- AppSearch must be done before "RemoveExistingProducts" and before "FindRelatedProducts". -->
             <AppSearch Sequence="1"></AppSearch>
             <LaunchConditions After="AppSearch" />
-            <RemoveExistingProducts After="InstallValidate"><![CDATA[NEWERVERSIONDETECTED OR PREVIOUSVERSIONSINSTALLED]]></RemoveExistingProducts>
+
+            <!-- First install the new version and then remove the old version. This is more efficient. -->
+            <RemoveExistingProducts Before="InstallValidate" />
 
             <Custom Action="ca_OriginalTargetDir" After="FileCost"><![CDATA[(NOT INSTALLDIR) AND (NOT EXISTINGINSTALLDIR)]]></Custom>
             <Custom Action="ca_DefaultTargetDir" Before="FileCost" ><![CDATA[NOT Installed AND (NOT INSTALLDIR) AND EXISTINGINSTALLDIR]]></Custom>
 
             <Custom Action="ca_UninstallTAPInstances" Before="InstallFiles" >1</Custom>
 <?if $(env.VBOX_WITH_NETFLT) = "yes" ?>
+            <!-- Create host-only interfaces on first-time install. -->
             <Custom Action="ca_CreateHostOnlyInterfaceArgs" Before="ca_CreateHostOnlyInterface" ><![CDATA[&VBoxNetworkAdp=3]]></Custom>
-            <Custom Action="ca_CreateHostOnlyInterface" Before="InstallFinalize" ><![CDATA[&VBoxNetworkAdp=3]]></Custom>
-            <Custom Action="ca_RemoveHostOnlyInterfaces" After="ca_UninstallNetFlt" ></Custom>
+            <Custom Action="ca_CreateHostOnlyInterface" Before="InstallFinalize" ><![CDATA[&VBoxNetworkAdp=3]]></Custom>            
+            <!-- Don't remove the host-only interfaces on update, only on uninstall. -->
+            <Custom Action="ca_RemoveHostOnlyInterfaces" After="ca_UninstallNetFlt" ><![CDATA[(NOT UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")]]></Custom>
+            <!-- First stop the existing host-only interfaces on update ... -->
+            <Custom Action="ca_StopHostOnlyInterfaces" Before="ca_UpdateHostOnlyInterfaces" ><![CDATA[UPGRADINGPRODUCTCODE]]></Custom>
+            <!-- ... then do the actual driver update. -->
+            <Custom Action="ca_UpdateHostOnlyInterfacesArgs" Before="ca_UpdateHostOnlyInterfaces" ><![CDATA[Installed AND UPGRADINGPRODUCTCODE]]></Custom>
+            <Custom Action="ca_UpdateHostOnlyInterfaces" Before="InstallFiles" ><![CDATA[Installed AND UPGRADINGPRODUCTCODE]]></Custom>
 
             <Custom Action="ca_RollbackInstallNetFltArgs" Before="ca_RollbackInstallNetFlt" ><![CDATA[&VBoxNetworkFlt=3]]></Custom>
             <Custom Action="ca_RollbackInstallNetFlt" Before="ca_InstallNetFlt" ><![CDATA[&VBoxNetworkFlt=3]]></Custom>
@@ -779,8 +827,9 @@
             <Custom Action="ca_InstallBrandingArgs" Before="ca_InstallBranding" ><![CDATA[NOT REMOVE]]></Custom>
             <Custom Action="ca_InstallBranding" Before="InstallFinalize" ><![CDATA[NOT REMOVE]]></Custom>
 
-            <Custom Action="ca_UninstallBrandingArgs" Before="ca_UninstallBranding" ><![CDATA[REMOVE]]></Custom>
-            <Custom Action="ca_UninstallBranding" Before="InstallFinalize" ><![CDATA[REMOVE]]></Custom>
+            <!-- Uninstall branding on complete uninstall, not on update. -->
+            <Custom Action="ca_UninstallBrandingArgs" Before="ca_UninstallBranding" ><![CDATA[(NOT UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")]]></Custom>
+            <Custom Action="ca_UninstallBranding" Before="InstallFinalize" ><![CDATA[(NOT UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")]]></Custom>
 
         </InstallExecuteSequence>
 

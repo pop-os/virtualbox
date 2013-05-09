@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,41 +29,18 @@ RT_C_DECLS_BEGIN
 #if 0
 /* enable this in case we include this in a dll*/
 # ifdef IN_VBOXCRHGSMI
-#  define VBOXCRHGSMI_DECL(a_Type) DECLEXPORT(a_Type)
+#  define VBOXCRHGSMI_DECL(a_Type) DECLEXPORT(a_Type) RTCALL
 # else
-#  define VBOXCRHGSMI_DECL(a_Type) DECLIMPORT(a_Type)
+#  define VBOXCRHGSMI_DECL(a_Type) DECLIMPORT(a_Type) RTCALL
 # endif
 #else
 /*enable this in case we include this in a static lib*/
-# define VBOXCRHGSMI_DECL(a_Type) a_Type
+# define VBOXCRHGSMI_DECL(a_Type) a_Type RTCALL
 #endif
 
-#ifdef VBOX_CRHGSMI_WITH_D3DDEV
-typedef void * HVBOXCRHGSMI_CLIENT;
-
-typedef DECLCALLBACK(HVBOXCRHGSMI_CLIENT) FNVBOXCRHGSMI_CLIENT_CREATE(PVBOXUHGSMI pHgsmi);
-typedef FNVBOXCRHGSMI_CLIENT_CREATE *PFNVBOXCRHGSMI_CLIENT_CREATE;
-
-typedef DECLCALLBACK(void) FNVBOXCRHGSMI_CLIENT_DESTROY(HVBOXCRHGSMI_CLIENT hClient);
-typedef FNVBOXCRHGSMI_CLIENT_DESTROY *PFNVBOXCRHGSMI_CLIENT_DESTROY;
-
-typedef struct VBOXCRHGSMI_CALLBACKS
-{
-    PFNVBOXCRHGSMI_CLIENT_CREATE pfnClientCreate;
-    PFNVBOXCRHGSMI_CLIENT_DESTROY pfnClientDestroy;
-} VBOXCRHGSMI_CALLBACKS, *PVBOXCRHGSMI_CALLBACKS;
-
-VBOXCRHGSMI_DECL(int) VBoxCrHgsmiInit(PVBOXCRHGSMI_CALLBACKS pCallbacks);
-VBOXCRHGSMI_DECL(HVBOXCRHGSMI_CLIENT) VBoxCrHgsmiQueryClient();
-#else
-VBOXCRHGSMI_DECL(int) VBoxCrHgsmiInit(uint32_t crVersionMajor, uint32_t crVersionMinor);
+VBOXCRHGSMI_DECL(int) VBoxCrHgsmiInit();
 VBOXCRHGSMI_DECL(PVBOXUHGSMI) VBoxCrHgsmiCreate(void);
 VBOXCRHGSMI_DECL(void) VBoxCrHgsmiDestroy(PVBOXUHGSMI pHgsmi);
-#endif
-VBOXCRHGSMI_DECL(int) VBoxCrHgsmiTerm(void);
-
-VBOXCRHGSMI_DECL(void) VBoxCrHgsmiLog(char * szString);
-
 VBOXCRHGSMI_DECL(int) VBoxCrHgsmiTerm(void);
 
 VBOXCRHGSMI_DECL(int) VBoxCrHgsmiCtlConGetClientID(PVBOXUHGSMI pHgsmi, uint32_t *pu32ClientID);

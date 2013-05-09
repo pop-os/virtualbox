@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -116,7 +116,7 @@ VMMDECL(int) PGMMap(PVM pVM, RTGCUINTPTR GCPtr, RTHCPHYS HCPhys, uint32_t cbPage
  * Sets (replaces) the page flags for a range of pages in a mapping.
  *
  * @returns VBox status.
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPtr       Virtual address of the first page in the range.
  * @param   cb          Size (in bytes) of the range to apply the modification to.
  * @param   fFlags      Page flags X86_PTE_*, excluding the page mask of course.
@@ -133,7 +133,7 @@ VMMDECL(int) PGMMapSetPage(PVM pVM, RTGCPTR GCPtr, uint64_t cb, uint64_t fFlags)
  * The existing flags are ANDed with the fMask and ORed with the fFlags.
  *
  * @returns VBox status code.
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPtr       Virtual address of the first page in the range.
  * @param   cb          Size (in bytes) of the range to apply the modification to.
  * @param   fFlags      The OR  mask - page flags X86_PTE_*, excluding the page mask of course.
@@ -216,7 +216,7 @@ VMMDECL(int)  PGMMapModifyPage(PVM pVM, RTGCPTR GCPtr, size_t cb, uint64_t fFlag
  * the page table to calculate the flags.
  *
  * @returns VINF_SUCCESS, VERR_PAGE_NOT_PRESENT or VERR_NOT_FOUND.
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   GCPtr               The page address.
  * @param   pfFlags             Where to return the flags.  Optional.
  * @param   pHCPhys             Where to return the address.  Optional.
@@ -259,12 +259,11 @@ VMMDECL(int) PGMMapGetPage(PVM pVM, RTGCPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS 
 }
 
 
-
-#ifndef IN_RING0
+#ifdef VBOX_WITH_RAW_MODE_NOT_R0
 /**
  * Sets all PDEs involved with the mapping in the shadow page table.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pMap        Pointer to the mapping in question.
  * @param   iNewPDE     The index of the 32-bit PDE corresponding to the base of the mapping.
  */
@@ -416,7 +415,7 @@ void pgmMapSetShadowPDEs(PVM pVM, PPGMMAPPING pMap, unsigned iNewPDE)
 /**
  * Clears all PDEs involved with the mapping in the shadow page table.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pShwPageCR3     CR3 root page
  * @param   pMap            Pointer to the mapping in question.
  * @param   iOldPDE         The index of the 32-bit PDE corresponding to the base of the mapping.
@@ -540,14 +539,14 @@ void pgmMapClearShadowPDEs(PVM pVM, PPGMPOOLPAGE pShwPageCR3, PPGMMAPPING pMap, 
 
     PGM_DYNMAP_UNUSED_HINT_VM(pVM, pCurrentShwPdpt);
 }
-#endif /* !IN_RING0 */
+#endif /* VBOX_WITH_RAW_MODE_NOT_R0 */
 
 #if defined(VBOX_STRICT) && !defined(IN_RING0)
 /**
  * Clears all PDEs involved with the mapping in the shadow page table.
  *
- * @param   pVM         The VM handle.
- * @param   pVCpu       The VMCPU handle.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   pShwPageCR3 CR3 root page
  * @param   pMap        Pointer to the mapping in question.
  * @param   iPDE        The index of the 32-bit PDE corresponding to the base of the mapping.
@@ -651,7 +650,7 @@ VMMDECL(void) PGMMapCheck(PVM pVM)
 }
 #endif /* defined(VBOX_STRICT) && !defined(IN_RING0) */
 
-#ifndef IN_RING0
+#ifdef VBOX_WITH_RAW_MODE_NOT_R0
 
 /**
  * Apply the hypervisor mappings to the active CR3.
@@ -925,5 +924,5 @@ int pgmMapResolveConflicts(PVM pVM)
     return VINF_SUCCESS;
 }
 
-#endif /* IN_RING0 */
+#endif /* VBOX_WITH_RAW_MODE_NOT_R0 */
 

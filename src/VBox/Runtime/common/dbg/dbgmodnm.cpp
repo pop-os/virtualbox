@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -85,23 +85,26 @@ static DECLCALLBACK(int) rtDbgModNm_LineAdd(PRTDBGMODINT pMod, const char *pszFi
                                             uint32_t iSeg, RTUINTPTR off, uint32_t *piOrdinal)
 {
     PRTDBGMODNM pThis = (PRTDBGMODNM)pMod->pvDbgPriv;
+    Assert(!pszFile[cchFile]); NOREF(cchFile);
     return RTDbgModLineAdd(pThis->hCnt, pszFile, uLineNo, iSeg, off, piOrdinal);
 }
 
 
 /** @interface_method_impl{RTDBGMODVTDBG,pfnSymbolByAddr} */
-static DECLCALLBACK(int) rtDbgModNm_SymbolByAddr(PRTDBGMODINT pMod, RTDBGSEGIDX iSeg, RTUINTPTR off,
+static DECLCALLBACK(int) rtDbgModNm_SymbolByAddr(PRTDBGMODINT pMod, RTDBGSEGIDX iSeg, RTUINTPTR off, uint32_t fFlags,
                                                  PRTINTPTR poffDisp, PRTDBGSYMBOL pSymInfo)
 {
     PRTDBGMODNM pThis = (PRTDBGMODNM)pMod->pvDbgPriv;
-    return RTDbgModSymbolByAddr(pThis->hCnt, iSeg, off, poffDisp, pSymInfo);
+    return RTDbgModSymbolByAddr(pThis->hCnt, iSeg, off, fFlags, poffDisp, pSymInfo);
 }
 
 
 /** @interface_method_impl{RTDBGMODVTDBG,pfnSymbolByName} */
-static DECLCALLBACK(int) rtDbgModNm_SymbolByName(PRTDBGMODINT pMod, const char *pszSymbol, size_t cchSymbol, PRTDBGSYMBOL pSymInfo)
+static DECLCALLBACK(int) rtDbgModNm_SymbolByName(PRTDBGMODINT pMod, const char *pszSymbol, size_t cchSymbol,
+                                                 PRTDBGSYMBOL pSymInfo)
 {
     PRTDBGMODNM pThis = (PRTDBGMODNM)pMod->pvDbgPriv;
+    Assert(!pszSymbol[cchSymbol]); NOREF(cchSymbol);
     return RTDbgModSymbolByName(pThis->hCnt, pszSymbol, pSymInfo);
 }
 
@@ -128,6 +131,7 @@ static DECLCALLBACK(int) rtDbgModNm_SymbolAdd(PRTDBGMODINT pMod, const char *psz
                                               uint32_t *piOrdinal)
 {
     PRTDBGMODNM pThis = (PRTDBGMODNM)pMod->pvDbgPriv;
+    Assert(!pszSymbol[cchSymbol]); NOREF(cchSymbol);
     return RTDbgModSymbolAdd(pThis->hCnt, pszSymbol, iSeg, off, cb, fFlags, piOrdinal);
 }
 
@@ -149,10 +153,11 @@ static DECLCALLBACK(RTDBGSEGIDX) rtDbgModNm_SegmentCount(PRTDBGMODINT pMod)
 
 
 /** @interface_method_impl{RTDBGMODVTDBG,pfnSegmentAdd} */
-static DECLCALLBACK(int) rtDbgModNm_SegmentAdd(PRTDBGMODINT pMod, RTUINTPTR uRva, RTUINTPTR cb, const char *pszName, size_t cchName,
-                                               uint32_t fFlags, PRTDBGSEGIDX piSeg)
+static DECLCALLBACK(int) rtDbgModNm_SegmentAdd(PRTDBGMODINT pMod, RTUINTPTR uRva, RTUINTPTR cb, const char *pszName,
+                                               size_t cchName, uint32_t fFlags, PRTDBGSEGIDX piSeg)
 {
     PRTDBGMODNM pThis = (PRTDBGMODNM)pMod->pvDbgPriv;
+    Assert(!pszName[cchName]); NOREF(cchName);
     return RTDbgModSegmentAdd(pThis->hCnt, uRva, cb, pszName, fFlags, piSeg);
 }
 
@@ -201,11 +206,12 @@ static int rtDbgModNmScanFile(PRTDBGMODNM pThis, PRTSTREAM pStrm, bool fAddSymbo
      */
     RTUINTPTR   SegZeroRva = fAddSymbols ? RTDbgModSegmentRva(pThis->hCnt, 0/*iSeg*/) : 0;
     char        szSym[RTDBG_SYMBOL_NAME_LENGTH] = "";
-    size_t      cchMod  = 0;
-    size_t      offSym  = 0;
-    unsigned    cchAddr = 0;
-    uint64_t    u64Low  = UINT64_MAX;
-    uint64_t    u64High = 0;
+    size_t      cchMod    = 0;
+    size_t      offSym    = 0;
+    unsigned    cchAddr   = 0;
+    uint64_t    u64Low    = UINT64_MAX;
+    uint64_t    u64High   = 0;
+    int         fWithType = -1;
     char        szLine[512];
     int         rc;
     while (RT_SUCCESS(rc = RTStrmGetLine(pStrm, szLine, sizeof(szLine))))
@@ -216,7 +222,7 @@ static int rtDbgModNmScanFile(PRTDBGMODNM pThis, PRTSTREAM pStrm, bool fAddSymbo
             /*
              * This is really what C was made for, string parsing.
              */
-            /* The the symbol value (address). */
+            /* The symbol value (address). */
             uint64_t u64Addr;
             char    *psz;
             rc = RTStrToUInt64Ex(szLine, &psz, 16, &u64Addr);
@@ -230,14 +236,25 @@ static int rtDbgModNmScanFile(PRTDBGMODNM pThis, PRTSTREAM pStrm, bool fAddSymbo
                 return VERR_DBG_NOT_NM_MAP_FILE;
 
             /* Get the type and check for single space before symbol. */
-            chType = szLine[cchAddr + 1];
-            if (    RT_C_IS_BLANK(chType)
-                ||  !RT_C_IS_BLANK(szLine[cchAddr + 2])
-                ||  RT_C_IS_BLANK(szLine[cchAddr + 3]))
-                return VERR_DBG_NOT_NM_MAP_FILE;
+            char *pszName;
+            if (fWithType < 0)
+                fWithType = RT_C_IS_BLANK(szLine[cchAddr + 2]) ? 1 : 0; /* have type? Linux 2.4 /proc/ksyms doesn't. */
+            if (fWithType)
+            {
+                chType  = szLine[cchAddr + 1];
+                pszName = &szLine[cchAddr + 3];
+                if (    RT_C_IS_BLANK(chType)
+                    ||  !RT_C_IS_BLANK(szLine[cchAddr + 2])
+                    ||  RT_C_IS_BLANK(szLine[cchAddr + 3]))
+                    return VERR_DBG_NOT_NM_MAP_FILE;
+            }
+            else
+            {
+                chType = 'T';
+                pszName = &szLine[cchAddr + 1];
+            }
 
             /* Find the end of the symbol name. */
-            char *pszName    = &szLine[cchAddr + 3];
             char *pszNameEnd = pszName;
             char ch;
             while ((ch = *pszNameEnd) != '\0' && !RT_C_IS_SPACE(ch))
@@ -462,6 +479,13 @@ static int rtDbgModNmScanFile(PRTDBGMODNM pThis, PRTSTREAM pStrm, bool fAddSymbo
 /** @interface_method_impl{RTDBGMODVTDBG,pfnTryOpen} */
 static DECLCALLBACK(int) rtDbgModNm_TryOpen(PRTDBGMODINT pMod)
 {
+    /*
+     * Fend off images.
+     */
+    if (   !pMod->pszDbgFile
+        || pMod->pImgVt)
+        return VERR_DBG_NO_MATCHING_INTERPRETER;
+
     /*
      * Try open the file and create an instance.
      */

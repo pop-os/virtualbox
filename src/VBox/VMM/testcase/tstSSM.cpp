@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -104,6 +104,7 @@ void initBigMem(void)
 DECLCALLBACK(int) Item01Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
     uint64_t u64Start = RTTimeNanoTS();
+    NOREF(pDevIns);
 
     /*
      * Test writing some memory block.
@@ -187,6 +188,7 @@ DECLCALLBACK(int) Item01Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  */
 DECLCALLBACK(int) Item01Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
+    NOREF(pDevIns); NOREF(uPass);
     if (uVersion != 0)
     {
         RTPrintf("Item01: uVersion=%#x, expected 0\n", uVersion);
@@ -280,6 +282,7 @@ DECLCALLBACK(int) Item01Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVers
  */
 DECLCALLBACK(int) Item02Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    NOREF(pDevIns);
     uint64_t u64Start = RTTimeNanoTS();
 
     /*
@@ -343,6 +346,7 @@ DECLCALLBACK(int) Item02Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  */
 DECLCALLBACK(int) Item02Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
+    NOREF(pDevIns); NOREF(uPass);
     if (uVersion != 0)
     {
         RTPrintf("Item02: uVersion=%#x, expected 0\n", uVersion);
@@ -408,6 +412,7 @@ DECLCALLBACK(int) Item02Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVers
  */
 DECLCALLBACK(int) Item03Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    NOREF(pDevIns);
     uint64_t u64Start = RTTimeNanoTS();
 
     /*
@@ -457,6 +462,7 @@ DECLCALLBACK(int) Item03Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  */
 DECLCALLBACK(int) Item03Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
+    NOREF(pDevIns); NOREF(uPass);
     if (uVersion != 123)
     {
         RTPrintf("Item03: uVersion=%#x, expected 123\n", uVersion);
@@ -518,6 +524,7 @@ DECLCALLBACK(int) Item03Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVers
  */
 DECLCALLBACK(int) Item04Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
+    NOREF(pDevIns);
     uint64_t u64Start = RTTimeNanoTS();
 
     /*
@@ -563,6 +570,7 @@ DECLCALLBACK(int) Item04Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  */
 DECLCALLBACK(int) Item04Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
+    NOREF(pDevIns); NOREF(uPass);
     if (uVersion != 42)
     {
         RTPrintf("Item04: uVersion=%#x, expected 42\n", uVersion);
@@ -615,7 +623,7 @@ DECLCALLBACK(int) Item04Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVers
  * Creates a mockup VM structure for testing SSM.
  *
  * @returns 0 on success, 1 on failure.
- * @param   ppVM    Where to store the VM handle.
+ * @param   ppVM    Where to store Pointer to the VM.
  *
  * @todo    Move this to VMM/VM since it's stuff done by several testcases.
  */
@@ -680,7 +688,7 @@ int main(int argc, char **argv)
     /*
      * Init runtime and static data.
      */
-    RTR3InitAndSUPLib();
+    RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
     RTPrintf("tstSSM: TESTING...\n");
     initBigMem();
     const char *pszFilename = "SSMTestSave#1";

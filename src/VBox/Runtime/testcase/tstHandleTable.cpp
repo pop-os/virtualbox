@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -448,7 +448,7 @@ int main(int argc, char **argv)
     /*
      * Init the runtime and parse the arguments.
      */
-    RTR3Init();
+    RTR3InitExe(argc, &argv, 0);
 
     static RTGETOPTDEF const s_aOptions[] =
     {

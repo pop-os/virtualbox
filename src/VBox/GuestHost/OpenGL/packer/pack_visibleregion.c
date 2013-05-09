@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,7 @@
 #include <windows.h>
 #endif
 
-void PACK_APIENTRY crPackWindowVisibleRegion( GLint window, GLint cRects, GLint * pRects )
+void PACK_APIENTRY crPackWindowVisibleRegion( CR_PACKER_CONTEXT_ARGDECL GLint window, GLint cRects, GLint * pRects )
 {
     GLint i, size, cnt;
 
@@ -49,7 +49,7 @@ void PACK_APIENTRY crPackWindowVisibleRegion( GLint window, GLint cRects, GLint 
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
 
-void PACK_APIENTRY crPackWindowVisibleRegionSWAP( GLint window, GLint cRects, GLint * pRects )
+void PACK_APIENTRY crPackWindowVisibleRegionSWAP( CR_PACKER_CONTEXT_ARGDECL  GLint window, GLint cRects, GLint * pRects )
 {
     crError( "crPackWindowVisibleRegionSWAP unimplemented and shouldn't be called" );
 }

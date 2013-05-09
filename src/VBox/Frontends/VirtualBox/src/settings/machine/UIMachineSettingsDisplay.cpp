@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,12 +17,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/* Qt includes: */
+#include <QDesktopWidget>
+
+/* GUI includes: */
 #include "QIWidgetValidator.h"
 #include "UIMachineSettingsDisplay.h"
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
+#include "UIConverter.h"
 
-#include <QDesktopWidget>
+/* COM includes: */
+#include "CVRDEServer.h"
 
 /**
  *  Calculates a suitable page step size for the given max value. The returned
@@ -215,7 +221,7 @@ void UIMachineSettingsDisplay::getFromCache()
     {
         mCbVRDE->setChecked(displayData.m_fVRDEServerEnabled);
         mLeVRDEPort->setText(displayData.m_strVRDEPort);
-        mCbVRDEMethod->setCurrentIndex(mCbVRDEMethod->findText(vboxGlobal().toString(displayData.m_VRDEAuthType)));
+        mCbVRDEMethod->setCurrentIndex(mCbVRDEMethod->findText(gpConverter->toString(displayData.m_VRDEAuthType)));
         mLeVRDETimeout->setText(QString::number(displayData.m_uVRDETimeout));
         mCbMultipleConn->setChecked(displayData.m_fMultipleConnectionsAllowed);
     }
@@ -246,7 +252,7 @@ void UIMachineSettingsDisplay::putToCache()
     {
         displayData.m_fVRDEServerEnabled = mCbVRDE->isChecked();
         displayData.m_strVRDEPort = mLeVRDEPort->text();
-        displayData.m_VRDEAuthType = vboxGlobal().toAuthType(mCbVRDEMethod->currentText());
+        displayData.m_VRDEAuthType = gpConverter->fromString<KAuthType>(mCbVRDEMethod->currentText());
         displayData.m_uVRDETimeout = mLeVRDETimeout->text().toULong();
         displayData.m_fMultipleConnectionsAllowed = mCbMultipleConn->isChecked();
     }
@@ -343,7 +349,7 @@ bool UIMachineSettingsDisplay::revalidate(QString &strWarning, QString & /* strT
             strWarning = tr("you have assigned less than <b>%1</b> of video memory which is "
                             "the minimum amount required to switch the virtual machine to "
                             "fullscreen or seamless mode.")
-                            .arg(vboxGlobal().formatSize(uNeedBytes, 0, VBoxDefs::FormatSize_RoundUp));
+                            .arg(vboxGlobal().formatSize(uNeedBytes, 0, FormatSize_RoundUp));
             return true;
         }
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -355,7 +361,7 @@ bool UIMachineSettingsDisplay::revalidate(QString &strWarning, QString & /* strT
             {
                 strWarning = tr("you have assigned less than <b>%1</b> of video memory which is "
                                 "the minimum amount required for HD Video to be played efficiently.")
-                                .arg(vboxGlobal().formatSize(uNeedBytes, 0, VBoxDefs::FormatSize_RoundUp));
+                                .arg(vboxGlobal().formatSize(uNeedBytes, 0, FormatSize_RoundUp));
                 return true;
             }
         }
@@ -372,7 +378,7 @@ bool UIMachineSettingsDisplay::revalidate(QString &strWarning, QString & /* strT
             {
                 strWarning = tr("you have 3D Acceleration enabled for a operation system which uses the WDDM video driver. "
                                 "For maximal performance set the guest VRAM to at least <b>%1</b>.")
-                                .arg(vboxGlobal().formatSize(uNeedBytes, 0, VBoxDefs::FormatSize_RoundUp));
+                                .arg(vboxGlobal().formatSize(uNeedBytes, 0, FormatSize_RoundUp));
                 return true;
             }
         }
@@ -429,11 +435,11 @@ void UIMachineSettingsDisplay::retranslateUi()
     mLbMonitorsMax->setText (tr ("<qt>%1</qt>").arg (sys.GetMaxGuestMonitors()));
 
     mCbVRDEMethod->setItemText (0,
-        vboxGlobal().toString (KAuthType_Null));
+        gpConverter->toString (KAuthType_Null));
     mCbVRDEMethod->setItemText (1,
-        vboxGlobal().toString (KAuthType_External));
+        gpConverter->toString (KAuthType_External));
     mCbVRDEMethod->setItemText (2,
-        vboxGlobal().toString (KAuthType_Guest));
+        gpConverter->toString (KAuthType_Guest));
 }
 
 void UIMachineSettingsDisplay::valueChangedVRAM (int aVal)

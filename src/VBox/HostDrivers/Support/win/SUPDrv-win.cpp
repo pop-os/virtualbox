@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -249,10 +249,10 @@ NTSTATUS _stdcall VBoxDrvNtCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp)
     }
 
     /*
-     * Don't create a session for kernel clients, they'll close the handle 
-     * immediately and work with the file object via 
-     * VBoxDrvNtInternalDeviceControl.  The first request will there be one 
-     * to create a session. 
+     * Don't create a session for kernel clients, they'll close the handle
+     * immediately and work with the file object via
+     * VBoxDrvNtInternalDeviceControl.  The first request will there be one
+     * to create a session.
      */
     NTSTATUS rcNt;
     if (pIrp->RequestorMode == KernelMode)
@@ -502,9 +502,9 @@ NTSTATUS _stdcall VBoxDrvNtInternalDeviceControl(PDEVICE_OBJECT pDevObj, PIRP pI
                 &&  pStack->Parameters.DeviceIoControl.OutputBufferLength == pHdr->cb)
             {
                 /*
-                 * Call the generic code. 
-                 *  
-                 * Note! Connect and disconnect requires some extra attention 
+                 * Call the generic code.
+                 *
+                 * Note! Connect and disconnect requires some extra attention
                  *       in order to get the session handling right.
                  */
                 if (pStack->Parameters.DeviceIoControl.IoControlCode == SUPDRV_IDC_REQ_DISCONNECT)
@@ -760,7 +760,7 @@ int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
                     rc = VERR_LDR_IMAGE_HASH;
                     break;
                 case    0xC000010E /* STATUS_IMAGE_ALREADY_LOADED */ :
-                    Log(("WARNING: see #4853 for cause of this failure on Windows 7 x64\n"));
+                    Log(("WARNING: see @bugref{4853} for cause of this failure on Windows 7 x64\n"));
                     rc = VERR_ALREADY_LOADED;
                     break;
                 default:
@@ -776,6 +776,12 @@ int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
     NOREF(pDevExt);
     return rc;
 #endif
+}
+
+
+void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
+{
+    NOREF(pDevExt); NOREF(pImage);
 }
 
 

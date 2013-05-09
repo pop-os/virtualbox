@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -424,6 +424,7 @@ DECLHIDDEN(size_t) rtstrFormatType(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, 
     char const *pszType;
     char        ch;
     void       *pvValue = va_arg(*pArgs, void *);
+    NOREF(chArgSize);
 
     /*
      * Parse out the type.

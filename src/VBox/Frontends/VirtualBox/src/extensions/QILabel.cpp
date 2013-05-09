@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -236,12 +236,6 @@ void QILabel::paintEvent (QPaintEvent *aEvent)
         option.initFrom (this);
         style()->drawPrimitive (QStyle::PE_FrameFocusRect, &option, &painter, this);
     }
-}
-
-void QILabel::showEvent(QShowEvent *pEvent)
-{
-    QLabel::showEvent(pEvent);
-    emit shown();
 }
 
 void QILabel::init()

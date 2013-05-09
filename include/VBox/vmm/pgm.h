@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -147,6 +147,8 @@ typedef enum PGMACCESSTYPE
  * @param   cbBuf           How much it's reading/writing.
  * @param   enmAccessType   The access type.
  * @param   pvUser          User argument.
+ *
+ * @todo    Add pVCpu, possibly replacing pVM.
  */
 typedef DECLCALLBACK(int) FNPGMR3PHYSHANDLER(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
 /** Pointer to PGM access callback. */
@@ -182,6 +184,7 @@ typedef enum PGMVIRTHANDLERTYPE
  * @param   pvRange     The base address of the handled virtual range.
  * @param   offRange    The offset of the access into this range.
  *                      (If it's a EIP range this is the EIP, if not it's pvFault.)
+ * @todo    Add pVCpu, possibly replacing pVM.
  */
 typedef DECLCALLBACK(int) FNPGMRCVIRTHANDLER(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
 /** Pointer to PGM access callback. */
@@ -202,6 +205,7 @@ typedef FNPGMRCVIRTHANDLER *PFNPGMRCVIRTHANDLER;
  * @param   cbBuf           How much it's reading/writing.
  * @param   enmAccessType   The access type.
  * @param   pvUser          User argument.
+ * @todo    Add pVCpu, possibly replacing pVM.
  */
 typedef DECLCALLBACK(int) FNPGMR3VIRTHANDLER(PVM pVM, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
 /** Pointer to PGM access callback. */
@@ -379,6 +383,7 @@ VMMDECL(int)        PGMPhysSimpleDirtyWriteGCPtr(PVMCPU pVCpu, RTGCPTR GCPtrDst,
 VMMDECL(int)        PGMPhysInterpretedRead(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, void *pvDst, RTGCPTR GCPtrSrc, size_t cb);
 VMMDECL(int)        PGMPhysInterpretedReadNoHandlers(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, void *pvDst, RTGCUINTPTR GCPtrSrc, size_t cb, bool fRaiseTrap);
 VMMDECL(int)        PGMPhysInterpretedWriteNoHandlers(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, RTGCPTR GCPtrDst, void const *pvSrc, size_t cb, bool fRaiseTrap);
+VMM_INT_DECL(int)   PGMPhysIemGCPhys2Ptr(PVM pVM, RTGCPHYS GCPhys, bool fWritable, bool fByPassHandlers, void **ppv, PPGMPAGEMAPLOCK pLock);
 #ifdef VBOX_STRICT
 VMMDECL(unsigned)   PGMAssertHandlerAndFlagsInSync(PVM pVM);
 VMMDECL(unsigned)   PGMAssertNoMappingConflicts(PVM pVM);
@@ -419,8 +424,9 @@ VMMRCDECL(int)      PGMRCDynMapInit(PVM pVM);
  * @ingroup grp_pgm
  * @{
  */
-VMMR0DECL(int)      PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu);
-VMMR0DECL(int)      PGMR0PhysAllocateLargeHandyPage(PVM pVM, PVMCPU pVCpu);
+VMMR0_INT_DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu);
+VMMR0_INT_DECL(int) PGMR0PhysFlushHandyPages(PVM pVM, PVMCPU pVCpu);
+VMMR0_INT_DECL(int) PGMR0PhysAllocateLargeHandyPage(PVM pVM, PVMCPU pVCpu);
 VMMR0_INT_DECL(int) PGMR0PhysSetupIommu(PVM pVM);
 VMMR0DECL(int)      PGMR0SharedModuleCheck(PVM pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHAREDMODULE pModule, PCRTGCPTR64 paRegionsGCPtrs);
 VMMR0DECL(int)      PGMR0Trap0eHandlerNestedPaging(PVM pVM, PVMCPU pVCpu, PGMMODE enmShwPagingMode, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPHYS pvFault);
@@ -506,7 +512,9 @@ VMMR3DECL(int)      PGMR3MappingsSize(PVM pVM, uint32_t *pcb);
 VMMR3DECL(int)      PGMR3MappingsFix(PVM pVM, RTGCPTR GCPtrBase, uint32_t cb);
 VMMR3DECL(int)      PGMR3MappingsUnfix(PVM pVM);
 VMMR3DECL(bool)     PGMR3MappingsNeedReFixing(PVM pVM);
+#ifdef VBOX_WITH_RAW_MODE
 VMMR3DECL(int)      PGMR3MapIntermediate(PVM pVM, RTUINTPTR Addr, RTHCPHYS HCPhys, unsigned cbPages);
+#endif
 VMMR3DECL(int)      PGMR3MapRead(PVM pVM, void *pvDst, RTGCPTR GCPtrSrc, size_t cb);
 
 VMMR3DECL(int)      PGMR3HandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS GCPhysLast,
@@ -567,7 +575,7 @@ VMMR3DECL(int)     PGMR3SharedModuleRegister(PVM pVM, VBOXOSFAMILY enmGuestOS, c
 VMMR3DECL(int)     PGMR3SharedModuleUnregister(PVM pVM, char *pszModuleName, char *pszVersion,
                                                RTGCPTR GCBaseAddr, uint32_t cbModule);
 VMMR3DECL(int)     PGMR3SharedModuleCheckAll(PVM pVM);
-VMMR3DECL(int)     PGMR3SharedModuleGetPageState(PVM pVM, RTGCPTR GCPtrPage, bool *pfShared, uint64_t *puPageFlags);
+VMMR3DECL(int)     PGMR3SharedModuleGetPageState(PVM pVM, RTGCPTR GCPtrPage, bool *pfShared, uint64_t *pfPageFlags);
 /** @} */
 
 /** @} */

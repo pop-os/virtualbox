@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -106,7 +106,7 @@
  * world switch overhead, so let's sync more.
  */
 # ifdef IN_RING0
-/* Chose 32 based on the compile test in #4219; 64 shows worse stats.
+/* Chose 32 based on the compile test in @bugref{4219}; 64 shows worse stats.
  * 32 again shows better results than 16; slightly more overhead in the \#PF handler,
  * but ~5% fewer faults.
  */
@@ -220,7 +220,7 @@
  * Maps a HC physical page pool address to a virtual address.
  *
  * @returns VBox status code.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pVCpu       The current CPU.
  * @param   HCPhys      The HC physical address to map to a virtual one.
  * @param   ppv         Where to store the virtual address. No need to cast
@@ -242,7 +242,7 @@
  * Maps a GC physical page address to a virtual address.
  *
  * @returns VBox status code.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  * @param   pVCpu   The current CPU.
  * @param   GCPhys  The GC physical address to map to a virtual one.
  * @param   ppv     Where to store the virtual address. No need to cast this.
@@ -263,7 +263,7 @@
  * Maps a GC physical page address to a virtual address.
  *
  * @returns VBox status code.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  * @param   GCPhys  The GC physical address to map to a virtual one.
  * @param   ppv     Where to store the virtual address. No need to cast this.
  *
@@ -291,7 +291,7 @@
  * Maps a unaligned GC physical page address to a virtual address.
  *
  * @returns VBox status code.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  * @param   GCPhys  The GC physical address to map to a virtual one.
  * @param   ppv     Where to store the virtual address. No need to cast this.
  *
@@ -332,7 +332,7 @@
  *
  * For best effect only apply this to the page that was mapped most recently.
  *
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  * @param   pvPage  The pool page.
  */
 #define PGM_DYNMAP_UNUSED_HINT_VM(pVM, pvPage)  PGM_DYNMAP_UNUSED_HINT(VMMGetCpu(pVM), pvPage)
@@ -341,7 +341,7 @@
 /** @def PGM_INVL_PG
  * Invalidates a page.
  *
- * @param   pVCpu       The VMCPU handle.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   GCVirt      The virtual address of the page to invalidate.
  */
 #ifdef IN_RC
@@ -355,7 +355,7 @@
 /** @def PGM_INVL_PG_ALL_VCPU
  * Invalidates a page on all VCPUs
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   GCVirt      The virtual address of the page to invalidate.
  */
 #ifdef IN_RC
@@ -369,7 +369,7 @@
 /** @def PGM_INVL_BIG_PG
  * Invalidates a 4MB page directory entry.
  *
- * @param   pVCpu       The VMCPU handle.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   GCVirt      The virtual address within the page directory to invalidate.
  */
 #ifdef IN_RC
@@ -383,7 +383,7 @@
 /** @def PGM_INVL_VCPU_TLBS()
  * Invalidates the TLBs of the specified VCPU
  *
- * @param   pVCpu       The VMCPU handle.
+ * @param   pVCpu       Pointer to the VMCPU.
  */
 #ifdef IN_RC
 # define PGM_INVL_VCPU_TLBS(pVCpu)             ASMReloadCR3()
@@ -396,7 +396,7 @@
 /** @def PGM_INVL_ALL_VCPU_TLBS()
  * Invalidates the TLBs of all VCPUs
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  */
 #ifdef IN_RC
 # define PGM_INVL_ALL_VCPU_TLBS(pVM)            ASMReloadCR3()
@@ -2065,7 +2065,7 @@ typedef enum PGMPOOLKIND
     /** Shw: 64-bit page directory table;           Gst: 64-bit page directory table. */
     PGMPOOLKIND_64BIT_PD_FOR_64BIT_PD,
     /** Shw: 64-bit page directory table;           Gst: no paging  */
-    PGMPOOLKIND_64BIT_PD_FOR_PHYS, /* 22 */
+    PGMPOOLKIND_64BIT_PD_FOR_PHYS, /* 24 */
 
     /** Shw: 64-bit PML4;                           Gst: 64-bit PML4. */
     PGMPOOLKIND_64BIT_PML4,
@@ -2105,7 +2105,7 @@ typedef enum
  */
 typedef struct PGMPOOLPAGE
 {
-    /** AVL node code with the (R3) physical address of this page. */
+    /** AVL node code with the (HC) physical address of this page. */
     AVLOHCPHYSNODECORE  Core;
     /** Pointer to the R3 mapping of the page. */
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
@@ -2113,21 +2113,36 @@ typedef struct PGMPOOLPAGE
 #else
     R3R0PTRTYPE(void *) pvPageR3;
 #endif
-    /** The guest physical address. */
 #if HC_ARCH_BITS == 32 && GC_ARCH_BITS == 64
     uint32_t            Alignment0;
 #endif
+    /** The guest physical address. */
     RTGCPHYS            GCPhys;
-
-    /** Access handler statistics to determine whether the guest is (re)initializing a page table. */
-    RTGCPTR             pvLastAccessHandlerRip;
-    RTGCPTR             pvLastAccessHandlerFault;
-    uint64_t            cLastAccessHandlerCount;
-
     /** The kind of page we're shadowing. (This is really a PGMPOOLKIND enum.) */
     uint8_t             enmKind;
     /** The subkind of page we're shadowing. (This is really a PGMPOOLACCESS enum.) */
     uint8_t             enmAccess;
+    /** This supplements enmKind and enmAccess */
+    bool                fA20Enabled : 1;
+
+    /** Used to indicate that the page is zeroed. */
+    bool                fZeroed : 1;
+    /** Used to indicate that a PT has non-global entries. */
+    bool                fSeenNonGlobal : 1;
+    /** Used to indicate that we're monitoring writes to the guest page. */
+    bool                fMonitored : 1;
+    /** Used to indicate that the page is in the cache (e.g. in the GCPhys hash).
+     * (All pages are in the age list.) */
+    bool                fCached : 1;
+    /** This is used by the R3 access handlers when invoked by an async thread.
+     * It's a hack required because of REMR3NotifyHandlerPhysicalDeregister. */
+    bool volatile       fReusedFlushPending : 1;
+    /** Used to mark the page as dirty (write monitoring is temporarily
+     *  off). */
+    bool                fDirty : 1;
+    bool                fPadding1 : 1;
+    bool                fPadding2;
+
     /** The index of this page. */
     uint16_t            idx;
     /** The next entry in the list this page currently resides in.
@@ -2153,29 +2168,31 @@ typedef struct PGMPOOLPAGE
     uint16_t            iAgeNext;
     /** The previous page in the age list. */
     uint16_t            iAgePrev;
-    /** Used to indicate that the page is zeroed. */
-    bool                fZeroed;
-    /** Used to indicate that a PT has non-global entries. */
-    bool                fSeenNonGlobal;
-    /** Used to indicate that we're monitoring writes to the guest page. */
-    bool                fMonitored;
-    /** Used to indicate that the page is in the cache (e.g. in the GCPhys hash).
-     * (All pages are in the age list.) */
-    bool                fCached;
-    /** This is used by the R3 access handlers when invoked by an async thread.
-     * It's a hack required because of REMR3NotifyHandlerPhysicalDeregister. */
-    bool volatile       fReusedFlushPending;
-    /** Used to mark the page as dirty (write monitoring is temporarily
-     *  off). */
-    bool                fDirty;
+    /** Index into PGMPOOL::aDirtyPages if fDirty is set. */
+    uint8_t             idxDirtyEntry;
 
-    /** Used to indicate that this page can't be flushed. Important for cr3 root pages or shadow pae pd pages). */
-    uint32_t            cLocked;
-    uint32_t            idxDirty;
-    RTGCPTR             pvDirtyFault;
-} PGMPOOLPAGE, *PPGMPOOLPAGE, **PPPGMPOOLPAGE;
+    /** @name Access handler statistics to determine whether the guest is
+     *        (re)initializing a page table.
+     * @{ */
+    RTGCPTR             GCPtrLastAccessHandlerRip;
+    RTGCPTR             GCPtrLastAccessHandlerFault;
+    uint64_t            cLastAccessHandler;
+    /** @}  */
+    /** Used to indicate that this page can't be flushed. Important for cr3 root pages or shadow pae pd pages. */
+    uint32_t volatile   cLocked;
+#if GC_ARCH_BITS == 64
+    uint32_t            u32Alignment3;
+#endif
+# ifdef VBOX_STRICT
+    RTGCPTR             GCPtrDirtyFault;
+# endif
+} PGMPOOLPAGE;
+/** Pointer to a pool page. */
+typedef PGMPOOLPAGE *PPGMPOOLPAGE;
 /** Pointer to a const pool page. */
 typedef PGMPOOLPAGE const *PCPGMPOOLPAGE;
+/** Pointer to a pool page pointer. */
+typedef PGMPOOLPAGE **PPPGMPOOLPAGE;
 
 
 /** The hash table size. */
@@ -2255,11 +2272,11 @@ typedef struct PGMPOOL
     /** Alignment padding. */
     uint32_t                    u32Padding2;
 # endif
-    /* Next available slot. */
+    /** Next available slot (in aDirtyPages). */
     uint32_t                    idxFreeDirtyPage;
-    /* Number of active dirty pages. */
+    /** Number of active dirty pages. */
     uint32_t                    cDirtyPages;
-    /* Array of current dirty pgm pool page indices. */
+    /** Array of current dirty pgm pool page indices. */
     struct
     {
         uint16_t                    uIdx;
@@ -2418,7 +2435,7 @@ AssertCompileMemberAlignment(PGMPOOL, aPages, 8);
  * Maps a pool page pool into the current context.
  *
  * @returns VBox status code.
- * @param   a_pVM       The VM handle.
+ * @param   a_pVM       Pointer to the VM.
  * @param   a_pPage     The pool page.
  *
  * @remark  In RC this uses PGMGCDynMapHCPage(), so it will consume of the
@@ -2427,11 +2444,12 @@ AssertCompileMemberAlignment(PGMPOOL, aPages, 8);
  */
 #if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0)
 # define PGMPOOL_PAGE_2_PTR(a_pVM, a_pPage)     pgmPoolMapPageInlined((a_pVM), (a_pPage) RTLOG_COMMA_SRC_POS)
-#elif defined(VBOX_STRICT)
-# define PGMPOOL_PAGE_2_PTR(a_pVM, a_pPage)     pgmPoolMapPageStrict(a_pPage)
-DECLINLINE(void *) pgmPoolMapPageStrict(PPGMPOOLPAGE a_pPage)
+#elif defined(VBOX_STRICT) || 1 /* temporarily going strict here */
+# define PGMPOOL_PAGE_2_PTR(a_pVM, a_pPage)     pgmPoolMapPageStrict(a_pPage, __FUNCTION__)
+DECLINLINE(void *) pgmPoolMapPageStrict(PPGMPOOLPAGE a_pPage, const char *pszCaller)
 {
-    Assert(a_pPage && a_pPage->pvPageR3);
+    AssertPtr(a_pPage);
+    AssertReleaseMsg(RT_VALID_PTR(a_pPage->pvPageR3), ("enmKind=%d idx=%#x HCPhys=%RHp GCPhys=%RGp caller=%s\n", a_pPage->enmKind, a_pPage->idx, a_pPage->Core.Key, a_pPage->GCPhys, pszCaller));
     return a_pPage->pvPageR3;
 }
 #else
@@ -2443,7 +2461,7 @@ DECLINLINE(void *) pgmPoolMapPageStrict(PPGMPOOLPAGE a_pPage)
  * Maps a pool page pool into the current context, taking both VM and VMCPU.
  *
  * @returns VBox status code.
- * @param   a_pVM       The VM handle.
+ * @param   a_pVM       Pointer to the VM.
  * @param   a_pVCpu     The current CPU.
  * @param   a_pPage     The pool page.
  *
@@ -2516,6 +2534,25 @@ DECLINLINE(void *) pgmPoolMapPageStrict(PPGMPOOLPAGE a_pPage)
  * @returns The @a idx field
  * @param   u16         The tracking data word. */
 #define PGMPOOL_TD_GET_IDX(u16)         ( ((u16) >> PGMPOOL_TD_IDX_SHIFT)   & PGMPOOL_TD_IDX_MASK   )
+/** @} */
+
+
+
+/** @name A20 gate macros
+ * @{ */
+#define PGM_WITH_A20
+#ifdef PGM_WITH_A20
+# define PGM_A20_IS_ENABLED(a_pVCpu)                        ((a_pVCpu)->pgm.s.fA20Enabled)
+# define PGM_A20_APPLY(a_pVCpu, a_GCPhys)                   ((a_GCPhys) & (a_pVCpu)->pgm.s.GCPhysA20Mask)
+# define PGM_A20_APPLY_TO_VAR(a_pVCpu, a_GCPhysVar)         \
+    do { a_GCPhysVar &= (a_pVCpu)->pgm.s.GCPhysA20Mask; } while (0)
+# define PGM_A20_ASSERT_MASKED(pVCpu, a_GCPhys)             Assert(PGM_A20_APPLY(pVCpu, a_GCPhys) == (a_GCPhys))
+#else
+# define PGM_A20_IS_ENABLED(a_pVCpu)                        (true)
+# define PGM_A20_APPLY(a_pVCpu, a_GCPhys)                   (a_GCPhys)
+# define PGM_A20_APPLY_TO_VAR(a_pVCpu, a_GCPhysVar)         do { } while (0)
+# define PGM_A20_ASSERT_MASKED(pVCpu, a_GCPhys)             do { } while (0)
+#endif
 /** @} */
 
 
@@ -3712,9 +3749,11 @@ typedef struct PGMCPU
     R0PTRTYPE(PPGMPOOLPAGE)         pShwPageCR3R0;
     /** Pointer to the page of the current active CR3 - RC Ptr. */
     RCPTRTYPE(PPGMPOOLPAGE)         pShwPageCR3RC;
-    /* The shadow page pool index of the user table as specified during allocation; useful for freeing root pages */
+    /** The shadow page pool index of the user table as specified during
+     * allocation; useful for freeing root pages. */
     uint32_t                        iShwUser;
-    /* The index into the user table (shadowed) as specified during allocation; useful for freeing root pages. */
+    /** The index into the user table (shadowed) as specified during allocation;
+     * useful for freeing root pages. */
     uint32_t                        iShwUserTable;
 # if HC_ARCH_BITS == 64
     RTRCPTR                         alignment6; /**< structure size alignment. */
@@ -3793,15 +3832,8 @@ typedef struct PGMCPU
     /** @} */
 
     /** For saving stack space, the disassembler state is allocated here instead of
-     * on the stack.
-     * @note The DISCPUSTATE structure is not R3/R0/RZ clean!  */
-    union
-    {
-        /** The disassembler scratch space. */
-        DISCPUSTATE                 DisState;
-        /** Padding. */
-        uint8_t                     abDisStatePadding[DISCPUSTATE_PADDING_SIZE];
-    };
+     * on the stack. */
+    DISCPUSTATE                     DisState;
 
     /** Count the number of pgm pool access handler calls. */
     uint64_t                        cPoolAccessHandler;
@@ -3810,6 +3842,8 @@ typedef struct PGMCPU
      * @{ */
     /** The number of times the guest has switched mode since last reset or statistics reset. */
     STAMCOUNTER                     cGuestModeChanges;
+    /** The number of times the guest has switched mode since last reset or statistics reset. */
+    STAMCOUNTER                     cA20Changes;
     /** @} */
 
 #ifdef VBOX_WITH_STATISTICS /** @todo move this chunk to the heap.  */
@@ -3859,22 +3893,24 @@ void            pgmUnlock(PVM pVM);
 /**
  * Asserts that the caller owns the PDM lock.
  * This is the internal variant of PGMIsLockOwner.
- * @param   a_pVM           The VM handle.
+ * @param   a_pVM           Pointer to the VM.
  */
 #define PGM_LOCK_ASSERT_OWNER(a_pVM)    Assert(PDMCritSectIsOwner(&(a_pVM)->pgm.s.CritSectX))
 /**
  * Asserts that the caller owns the PDM lock.
  * This is the internal variant of PGMIsLockOwner.
- * @param   a_pVM           The VM handle.
+ * @param   a_pVM           Pointer to the VM.
  * @param   a_pVCpu         The current CPU handle.
  */
 #define PGM_LOCK_ASSERT_OWNER_EX(a_pVM, a_pVCpu)  Assert(PDMCritSectIsOwnerEx(&(a_pVM)->pgm.s.CritSectX, pVCpu))
 
+#ifndef PGM_WITHOUT_MAPPINGS
 int             pgmR3MappingsFixInternal(PVM pVM, RTGCPTR GCPtrBase, uint32_t cb);
 int             pgmR3SyncPTResolveConflict(PVM pVM, PPGMMAPPING pMapping, PX86PD pPDSrc, RTGCPTR GCPtrOldMapping);
 int             pgmR3SyncPTResolveConflictPAE(PVM pVM, PPGMMAPPING pMapping, RTGCPTR GCPtrOldMapping);
-PPGMMAPPING     pgmGetMapping(PVM pVM, RTGCPTR GCPtr);
 int             pgmMapResolveConflicts(PVM pVM);
+#endif /* !PGM_WITHOUT_MAPPINGS */
+PPGMMAPPING     pgmGetMapping(PVM pVM, RTGCPTR GCPtr);
 DECLCALLBACK(void) pgmR3MapInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 
 void            pgmR3HandlerPhysicalUpdateAll(PVM pVM);
@@ -3902,6 +3938,7 @@ int             pgmPhysPageMap(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void **
 int             pgmPhysPageMapReadOnly(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void const **ppv);
 int             pgmPhysPageMapByPageID(PVM pVM, uint32_t idPage, RTHCPHYS HCPhys, void **ppv);
 int             pgmPhysGCPhys2R3Ptr(PVM pVM, RTGCPHYS GCPhys, PRTR3PTR pR3Ptr);
+int             pgmPhysCr3ToHCPtr(PVM pVM, RTGCPHYS GCPhys, PRTR3PTR pR3Ptr);
 int             pgmPhysGCPhys2CCPtrInternalDepr(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void **ppv);
 int             pgmPhysGCPhys2CCPtrInternal(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void **ppv, PPGMPAGEMAPLOCK pLock);
 int             pgmPhysGCPhys2CCPtrInternalReadOnly(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, const void **ppv, PPGMPAGEMAPLOCK pLock);
@@ -3926,6 +3963,7 @@ int             pgmR3PhysRomReset(PVM pVM);
 int             pgmR3PhysChunkMap(PVM pVM, uint32_t idChunk, PPPGMCHUNKR3MAP ppChunk);
 int             pgmR3PhysRamTerm(PVM pVM);
 void            pgmR3PhysRomTerm(PVM pVM);
+void            pgmR3PhysAssertSharedPageChecksums(PVM pVM);
 
 int             pgmR3PoolInit(PVM pVM);
 void            pgmR3PoolRelocate(PVM pVM);
@@ -3945,15 +3983,8 @@ void            pgmRZDynMapUnusedHint(PVMCPU pVCpu, void *pvHint, RT_SRC_POS_DEC
 void            pgmRZDynMapUnusedHint(PVMCPU pVCpu, void *pvHint);
 # endif
 #endif
-int             pgmPoolAllocEx(PVM pVM, RTGCPHYS GCPhys, PGMPOOLKIND enmKind, PGMPOOLACCESS enmAccess, uint16_t iUser,
-                               uint32_t iUserTable, bool fLockPage, PPPGMPOOLPAGE ppPage);
-
-DECLINLINE(int) pgmPoolAlloc(PVM pVM, RTGCPHYS GCPhys, PGMPOOLKIND enmKind, uint16_t iUser, uint32_t iUserTable,
-                             PPPGMPOOLPAGE ppPage)
-{
-    return pgmPoolAllocEx(pVM, GCPhys, enmKind, PGMPOOLACCESS_DONTCARE, iUser, iUserTable, false, ppPage);
-}
-
+int             pgmPoolAlloc(PVM pVM, RTGCPHYS GCPhys, PGMPOOLKIND enmKind, PGMPOOLACCESS enmAccess, bool fA20Enabled,
+                             uint16_t iUser, uint32_t iUserTable, bool fLockPage, PPPGMPOOLPAGE ppPage);
 void            pgmPoolFree(PVM pVM, RTHCPHYS HCPhys, uint16_t iUser, uint32_t iUserTable);
 void            pgmPoolFreeByPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage, uint16_t iUser, uint32_t iUserTable);
 int             pgmPoolFlushPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage, bool fFlush = true /* DO NOT USE false UNLESS YOU KNOWN WHAT YOU'RE DOING!! */);
@@ -3975,8 +4006,9 @@ void            pgmPoolAddDirtyPage(PVM pVM, PPGMPOOL pPool, PPGMPOOLPAGE pPage)
 void            pgmPoolResetDirtyPages(PVM pVM);
 void            pgmPoolResetDirtyPage(PVM pVM, RTGCPTR GCPtrPage);
 
-int             pgmR3ExitShadowModeBeforePoolFlush(PVM pVM, PVMCPU pVCpu);
+int             pgmR3ExitShadowModeBeforePoolFlush(PVMCPU pVCpu);
 int             pgmR3ReEnterShadowModeAfterPoolFlush(PVM pVM, PVMCPU pVCpu);
+void            pgmR3RefreshShadowModeAfterA20Change(PVMCPU pVCpu);
 
 void            pgmMapSetShadowPDEs(PVM pVM, PPGMMAPPING pMap, unsigned iNewPDE);
 void            pgmMapClearShadowPDEs(PVM pVM, PPGMPOOLPAGE pShwPageCR3, PPGMMAPPING pMap, unsigned iOldPDE, bool fDeactivateCR3);

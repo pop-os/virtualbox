@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,7 +42,7 @@
  * This function is called from CPUMRawEnter(). It doesn't have to update the
  * IF and IOPL eflags bits, the caller will enforce those to set and 0 respectively.
  *
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pCtxCore    The cpu context core.
  * @see     pg_raw
  */
@@ -112,7 +112,7 @@ VMMDECL(void) PATMRawEnter(PVM pVM, PCPUMCTXCORE pCtxCore)
  *
  ** @note Only here we are allowed to switch back to guest code (without a special reason such as a trap in patch code)!!
  *
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pCtxCore    The cpu context core.
  * @param   rawRC       Raw mode return code
  * @see     @ref pg_raw
@@ -136,8 +136,8 @@ VMMDECL(void) PATMRawLeave(PVM pVM, PCPUMCTXCORE pCtxCore, int rawRC)
         &&  fPatchCode
        )
     {
-        if (    rawRC < VINF_PATM_LEAVEGC_FIRST
-            ||  rawRC > VINF_PATM_LEAVEGC_LAST)
+        if (    rawRC < VINF_PATM_LEAVE_RC_FIRST
+            ||  rawRC > VINF_PATM_LEAVE_RC_LAST)
         {
             /*
              * Golden rules:
@@ -206,7 +206,7 @@ VMMDECL(void) PATMRawLeave(PVM pVM, PCPUMCTXCORE pCtxCore, int rawRC)
  * This is a worker for CPUMRawGetEFlags().
  *
  * @returns The eflags.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pCtxCore    The context core.
  */
 VMMDECL(uint32_t) PATMRawGetEFlags(PVM pVM, PCCPUMCTXCORE pCtxCore)
@@ -221,7 +221,7 @@ VMMDECL(uint32_t) PATMRawGetEFlags(PVM pVM, PCCPUMCTXCORE pCtxCore)
  * Updates the EFLAGS.
  * This is a worker for CPUMRawSetEFlags().
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pCtxCore    The context core.
  * @param   efl         The new EFLAGS value.
  */
@@ -236,7 +236,7 @@ VMMDECL(void) PATMRawSetEFlags(PVM pVM, PCPUMCTXCORE pCtxCore, uint32_t efl)
 /**
  * Check if we must use raw mode (patch code being executed)
  *
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pAddrGC     Guest context address
  */
 VMMDECL(bool) PATMShouldUseRawMode(PVM pVM, RTRCPTR pAddrGC)
@@ -249,7 +249,7 @@ VMMDECL(bool) PATMShouldUseRawMode(PVM pVM, RTRCPTR pAddrGC)
  * Returns the guest context pointer and size of the GC context structure
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMDECL(RCPTRTYPE(PPATMGCSTATE)) PATMQueryGCState(PVM pVM)
 {
@@ -260,7 +260,7 @@ VMMDECL(RCPTRTYPE(PPATMGCSTATE)) PATMQueryGCState(PVM pVM)
  * Checks whether the GC address is part of our patch region
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pAddrGC     Guest context address
  */
 VMMDECL(bool) PATMIsPatchGCAddr(PVM pVM, RTRCUINTPTR pAddrGC)
@@ -290,7 +290,7 @@ VMMDECL(int) PATMSetMMIOPatchInfo(PVM pVM, RTGCPHYS GCPhys, RTRCPTR pCachedData)
  * @returns true if it's enabled.
  * @returns false if it's disabled.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  */
 VMMDECL(bool) PATMAreInterruptsEnabled(PVM pVM)
 {
@@ -305,7 +305,7 @@ VMMDECL(bool) PATMAreInterruptsEnabled(PVM pVM)
  * @returns true if it's enabled.
  * @returns false if it's disabled.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pCtxCore    CPU context
  */
 VMMDECL(bool) PATMAreInterruptsEnabledByCtxCore(PVM pVM, PCPUMCTXCORE pCtxCore)
@@ -322,7 +322,7 @@ VMMDECL(bool) PATMAreInterruptsEnabledByCtxCore(PVM pVM, PCPUMCTXCORE pCtxCore)
  * Check if the instruction is patched as a duplicated function
  *
  * @returns patch record
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pInstrGC    Guest context point to the instruction
  *
  */
@@ -345,7 +345,7 @@ VMMDECL(PPATMPATCHREC) PATMQueryFunctionPatch(PVM pVM, RTRCPTR pInstrGC)
  *
  * @returns VBox status
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pInstrGC    Instruction pointer
  * @param   pOpcode     Original instruction opcode (out, optional)
  * @param   pSize       Original instruction size (out, optional)
@@ -372,7 +372,7 @@ VMMDECL(bool) PATMIsInt3Patch(PVM pVM, RTRCPTR pInstrGC, uint32_t *pOpcode, uint
  *
  * @returns VBox status
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pCtxCore    The relevant core context.
  * @param   pCpu        Disassembly context
  */
@@ -380,11 +380,11 @@ VMMDECL(int) PATMSysCall(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu)
 {
     PCPUMCTX pCtx = CPUMQueryGuestCtxPtr(VMMGetCpu0(pVM));
 
-    if (pCpu->pCurInstr->opcode == OP_SYSENTER)
+    if (pCpu->pCurInstr->uOpcode == OP_SYSENTER)
     {
         if (    pCtx->SysEnter.cs == 0
             ||  pRegFrame->eflags.Bits.u1VM
-            ||  (pRegFrame->cs & X86_SEL_RPL) != 3
+            ||  (pRegFrame->cs.Sel & X86_SEL_RPL) != 3
             ||  pVM->patm.s.pfnSysEnterPatchGC == 0
             ||  pVM->patm.s.pfnSysEnterGC != (RTRCPTR)(RTRCUINTPTR)pCtx->SysEnter.eip
             ||  !(PATMRawGetEFlags(pVM, pRegFrame) & X86_EFL_IF))
@@ -393,11 +393,11 @@ VMMDECL(int) PATMSysCall(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu)
         Log2(("PATMSysCall: sysenter from %RRv to %RRv\n", pRegFrame->eip, pVM->patm.s.pfnSysEnterPatchGC));
         /** @todo the base and limit are forced to 0 & 4G-1 resp. We assume the selector is wide open here. */
         /** @note The Intel manual suggests that the OS is responsible for this. */
-        pRegFrame->cs          = (pCtx->SysEnter.cs & ~X86_SEL_RPL) | 1;
+        pRegFrame->cs.Sel      = (pCtx->SysEnter.cs & ~X86_SEL_RPL) | 1;
         pRegFrame->eip         = /** @todo ugly conversion! */(uint32_t)pVM->patm.s.pfnSysEnterPatchGC;
-        pRegFrame->ss          = pRegFrame->cs + 8;     /* SysEnter.cs + 8 */
+        pRegFrame->ss.Sel      = pRegFrame->cs.Sel + 8;     /* SysEnter.cs + 8 */
         pRegFrame->esp         = pCtx->SysEnter.esp;
-        pRegFrame->eflags.u32 &= ~(X86_EFL_VM|X86_EFL_RF);
+        pRegFrame->eflags.u32 &= ~(X86_EFL_VM | X86_EFL_RF);
         pRegFrame->eflags.u32 |= X86_EFL_IF;
 
         /* Turn off interrupts. */
@@ -407,33 +407,31 @@ VMMDECL(int) PATMSysCall(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu)
 
         return VINF_SUCCESS;
     }
-    else
-    if (pCpu->pCurInstr->opcode == OP_SYSEXIT)
+    if (pCpu->pCurInstr->uOpcode == OP_SYSEXIT)
     {
         if (    pCtx->SysEnter.cs == 0
-            ||  (pRegFrame->cs & X86_SEL_RPL) != 1
+            ||  (pRegFrame->cs.Sel & X86_SEL_RPL) != 1
             ||  pRegFrame->eflags.Bits.u1VM
             ||  !(PATMRawGetEFlags(pVM, pRegFrame) & X86_EFL_IF))
             goto end;
 
         Log2(("PATMSysCall: sysexit from %RRv to %RRv\n", pRegFrame->eip, pRegFrame->edx));
 
-        pRegFrame->cs          = ((pCtx->SysEnter.cs + 16) & ~X86_SEL_RPL) | 3;
+        pRegFrame->cs.Sel      = ((pCtx->SysEnter.cs + 16) & ~X86_SEL_RPL) | 3;
         pRegFrame->eip         = pRegFrame->edx;
-        pRegFrame->ss          = pRegFrame->cs + 8;  /* SysEnter.cs + 24 */
+        pRegFrame->ss.Sel      = pRegFrame->cs.Sel + 8;  /* SysEnter.cs + 24 */
         pRegFrame->esp         = pRegFrame->ecx;
 
         STAM_COUNTER_INC(&pVM->patm.s.StatSysExit);
 
         return VINF_SUCCESS;
     }
-    else
-    if (pCpu->pCurInstr->opcode == OP_SYSCALL)
+    if (pCpu->pCurInstr->uOpcode == OP_SYSCALL)
     {
         /** @todo implement syscall */
     }
     else
-    if (pCpu->pCurInstr->opcode == OP_SYSRET)
+    if (pCpu->pCurInstr->uOpcode == OP_SYSRET)
     {
         /** @todo implement sysret */
     }
@@ -446,7 +444,7 @@ end:
  * Adds branch pair to the lookup cache of the particular branch instruction
  *
  * @returns VBox status
- * @param   pVM                 The VM to operate on.
+ * @param   pVM                 Pointer to the VM.
  * @param   pJumpTableGC        Pointer to branch instruction lookup cache
  * @param   pBranchTarget       Original branch target
  * @param   pRelBranchPatch     Relative duplicated function address

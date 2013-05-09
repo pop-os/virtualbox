@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2011 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -82,6 +82,9 @@ RT_C_DECLS_BEGIN
 #define RTGETOPT_REQ_UUID                       15
 /** The value must be a string with value as "on" or "off". */
 #define RTGETOPT_REQ_BOOL_ONOFF                 16
+/** Boolean option accepting a wide range of typical ways of
+ * expression true and false. */
+#define RTGETOPT_REQ_BOOL                       17
 /** The mask of the valid required types. */
 #define RTGETOPT_REQ_MASK                       31
 /** Treat the value as hexadecimal - only applicable with the RTGETOPT_REQ_*INT*. */
@@ -333,10 +336,12 @@ int main(int argc, char **argv)
 RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion);
 
 /**
- * Fetch an additional value.
+ * Fetch a value.
  *
- * This is used for special cases where an option have more than one value.
- *
+ * Used to retrive a value argument in a manner similar to what RTGetOpt does
+ * (@a fFlags -> @a pValueUnion).  This can be used when handling
+ * VINF_GETOPT_NOT_OPTION, but is equally useful for decoding options that
+ * takes more than one value.
  *
  * @returns VINF_SUCCESS on success.
  * @returns IPRT error status on parse error.
@@ -344,8 +349,8 @@ RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion);
  * @returns VERR_GETOPT_UNKNOWN_OPTION when pState->pDef is null.
  * @returns VERR_GETOPT_REQUIRED_ARGUMENT_MISSING if there are no more
  *          available arguments. pValueUnion->pDef is NULL.
- * @returns VERR_GETOPT_INVALID_ARGUMENT_FORMAT and pValueUnion->pDef if
- *          value conversion failed.
+ * @returns VERR_GETOPT_INVALID_ARGUMENT_FORMAT and pValueUnion->pDef is
+ *          unchanged if value conversion failed.
  *
  * @param   pState      The state previously initialized with RTGetOptInit.
  * @param   pValueUnion Union with value; in the event of an error, psz member

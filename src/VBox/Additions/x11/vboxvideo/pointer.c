@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,8 +27,13 @@
 #include <iprt/string.h>
 #include "compiler.h"
 #include "cursorstr.h"
+#include "servermd.h"
 
 #include "vboxvideo.h"
+
+#ifdef XORG_7X
+# include <stdlib.h>
+#endif
 
 #define VBOX_MAX_CURSOR_WIDTH 64
 #define VBOX_MAX_CURSOR_HEIGHT 64

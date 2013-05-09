@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,6 +55,16 @@ typedef struct RTLISTNODE
 typedef RTLISTNODE *PRTLISTNODE;
 /** Pointer to a list node pointer. */
 typedef PRTLISTNODE *PPRTLISTNODE;
+
+/** The anchor (head/tail) of a doubly linked list.
+ *
+ * @remarks Please use this instead of RTLISTNODE to indicate a list
+ *          head/tail.  It makes the code so much easier to read.  Also,
+ *          always mention the actual list node type(s) in the comment.  */
+typedef RTLISTNODE RTLISTANCHOR;
+/** Pointer to a doubly linked list anchor. */
+typedef RTLISTANCHOR *PRTLISTANCHOR;
+
 
 /**
  * Initialize a list.

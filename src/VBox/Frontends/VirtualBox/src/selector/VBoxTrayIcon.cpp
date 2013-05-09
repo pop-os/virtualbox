@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,7 +18,7 @@
 
 /* Local includes */
 #include "VBoxTrayIcon.h"
-#include "VBoxSelectorWnd.h"
+#include "UISelectorWindow.h"
 #include "UIIconPool.h"
 #include "UIVMItem.h"
 #include "UIVMListView.h"
@@ -27,7 +27,7 @@
 #include <QMenu>
 #include <QAction>
 
-VBoxTrayIcon::VBoxTrayIcon (VBoxSelectorWnd* aParent, UIVMItemModel* aVMModel)
+VBoxTrayIcon::VBoxTrayIcon (UISelectorWindow* aParent, UIVMItemModel* aVMModel)
 {
     mParent = aParent;
     mVMModel = aVMModel;
@@ -86,8 +86,7 @@ VBoxTrayIcon::~VBoxTrayIcon ()
     /* Erase dialog handle in config file. */
     if (mActive)
     {
-        vboxGlobal().virtualBox().SetExtraData (VBoxDefs::GUI_TrayIconWinID,
-                                                QString::null);
+        vboxGlobal().virtualBox().SetExtraData(GUI_TrayIconWinID, QString::null);
         hide();
     }
 }

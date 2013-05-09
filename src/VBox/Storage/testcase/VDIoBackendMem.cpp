@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -68,7 +68,7 @@ typedef struct VDIOBACKENDMEM
     unsigned    cReqsRing;
     /** Event semaphore the thread waits on for more work. */
     RTSEMEVENT  EventSem;
-    /** Flag whether the the server should be still running. */
+    /** Flag whether the server should be still running. */
     volatile bool fRunning;
     /** Number of requests waiting in the request buffer. */
     volatile uint32_t cReqsWaiting;

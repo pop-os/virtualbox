@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -252,9 +252,8 @@ static DECLCALLBACK(int) rtVfsStdFile_Flush(void *pvThis)
 static DECLCALLBACK(int) rtVfsStdFile_PollOne(void *pvThis, uint32_t fEvents, RTMSINTERVAL cMillies, bool fIntr,
                                               uint32_t *pfRetEvents)
 {
-    PRTVFSSTDFILE pThis = (PRTVFSSTDFILE)pvThis;
-    int           rc;
-
+    NOREF(pvThis);
+    int rc;
     if (fEvents != RTPOLL_EVT_ERROR)
     {
         *pfRetEvents = fEvents & ~RTPOLL_EVT_ERROR;
@@ -344,10 +343,11 @@ static DECLCALLBACK(int) rtVfsStdFile_SetTimes(void *pvThis, PCRTTIMESPEC pAcces
  */
 static DECLCALLBACK(int) rtVfsStdFile_SetOwner(void *pvThis, RTUID uid, RTGID gid)
 {
-    PRTVFSSTDFILE pThis = (PRTVFSSTDFILE)pvThis;
 #if 0
+    PRTVFSSTDFILE pThis = (PRTVFSSTDFILE)pvThis;
     return RTFileSetOwner(pThis->hFile, uid, gid);
 #else
+    NOREF(pvThis); NOREF(uid); NOREF(gid);
     return VERR_NOT_IMPLEMENTED;
 #endif
 }

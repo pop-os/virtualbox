@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -635,7 +635,7 @@ RTDECL(int) RTPipeSelectOne(RTPIPE hPipe, RTMSINTERVAL cMillies)
     else
         timeout = cMillies;
 
-    int rc = poll(&PollFd, 1, 0);
+    int rc = poll(&PollFd, 1, timeout);
     if (rc == -1)
         return RTErrConvertFromErrno(errno);
     return rc > 0 ? VINF_SUCCESS : VERR_TIMEOUT;

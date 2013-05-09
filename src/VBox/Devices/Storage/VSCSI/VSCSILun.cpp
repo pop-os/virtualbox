@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,14 +27,15 @@
 /** SBC descriptor */
 extern VSCSILUNDESC g_VScsiLunTypeSbc;
 /** MMC descriptor */
-//extern PVSCSILUNDESC g_pVScsiLunTypeMmc;
+extern VSCSILUNDESC g_VScsiLunTypeMmc;
 
 /**
  * Array of supported SCSI LUN types.
  */
 static PVSCSILUNDESC g_aVScsiLunTypesSupported[] =
 {
-    &g_VScsiLunTypeSbc
+    &g_VScsiLunTypeSbc,
+    &g_VScsiLunTypeMmc,
 };
 
 VBOXDDU_DECL(int) VSCSILunCreate(PVSCSILUN phVScsiLun, VSCSILUNTYPE enmLunType,
@@ -70,12 +71,15 @@ VBOXDDU_DECL(int) VSCSILunCreate(PVSCSILUN phVScsiLun, VSCSILUNTYPE enmLunType,
     pVScsiLun->pVScsiLunIoCallbacks = pVScsiLunIoCallbacks;
     pVScsiLun->pVScsiLunDesc        = pVScsiLunDesc;
 
-    int rc = pVScsiLunDesc->pfnVScsiLunInit(pVScsiLun);
+    int rc = vscsiLunGetFeatureFlags(pVScsiLun, &pVScsiLun->fFeatures);
     if (RT_SUCCESS(rc))
     {
-        /** @todo Init other stuff */
-        *phVScsiLun = pVScsiLun;
-        return VINF_SUCCESS;
+        rc = pVScsiLunDesc->pfnVScsiLunInit(pVScsiLun);
+        if (RT_SUCCESS(rc))
+        {
+            *phVScsiLun = pVScsiLun;
+            return VINF_SUCCESS;
+        }
     }
 
     RTMemFree(pVScsiLun);

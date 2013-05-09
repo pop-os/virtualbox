@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -345,7 +345,7 @@ int WINAPI WinMain(HINSTANCE  hInstance,
     }
 
     /* Init IPRT. */
-    int vrc = RTR3Init();
+    int vrc = RTR3InitExe(argc, &argv, 0);
     if (RT_FAILURE(vrc))
         return vrc;
 
@@ -474,7 +474,7 @@ int WINAPI WinMain(HINSTANCE  hInstance,
         }
         if (!RTDirExists(szExtractPath))
         {
-            vrc = RTDirCreate(szExtractPath, 0700);
+            vrc = RTDirCreate(szExtractPath, 0700, 0);
             AssertMsgRCBreak(vrc, ("Could not create temp directory!\n"));
         }
 

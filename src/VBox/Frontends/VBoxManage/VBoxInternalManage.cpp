@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -91,6 +91,7 @@ using namespace com;
 
 typedef struct HOSTPARTITION
 {
+    /** partition number */
     unsigned        uIndex;
     /** partition type */
     unsigned        uType;
@@ -119,6 +120,8 @@ typedef struct HOSTPARTITION
 
 typedef struct HOSTPARTITIONS
 {
+    /** partitioning type - MBR or GPT */
+    PARTITIONING_TYPE uPartitioningType;
     unsigned        cPartitions;
     HOSTPARTITION   aPartitions[HOSTPARTITION_MAX];
 } HOSTPARTITIONS, *PHOSTPARTITIONS;
@@ -141,16 +144,16 @@ void printUsageInternal(USAGECATEGORY u64Cmd, PRTSTREAM pStrm)
         "         problems. It is completely unsupported and will change in\n"
         "         incompatible ways without warning.\n",
 
-        (u64Cmd & USAGE_LOADSYMS)
-        ? "  loadsyms <vmname>|<uuid> <symfile> [delta] [module] [module address]\n"
-          "      This will instruct DBGF to load the given symbolfile\n"
-          "      during initialization.\n"
+        (u64Cmd & USAGE_LOADMAP)
+        ? "  loadmap <vmname>|<uuid> <symfile> <address> [module] [subtrahend] [segment]\n"
+          "      This will instruct DBGF to load the given map file\n"
+          "      during initialization.  (See also loadmap in the debugger.)\n"
           "\n"
         : "",
-        (u64Cmd & USAGE_UNLOADSYMS)
-        ? "  unloadsyms <vmname>|<uuid> <symfile>\n"
-          "      Removes <symfile> from the list of symbol files that\n"
-          "      should be loaded during DBF initialization.\n"
+        (u64Cmd & USAGE_LOADSYMS)
+        ? "  loadsyms <vmname>|<uuid> <symfile> [delta] [module] [module address]\n"
+          "      This will instruct DBGF to load the given symbol file\n"
+          "      during initialization.\n"
           "\n"
         : "",
         (u64Cmd & USAGE_SETHDUUID)
@@ -215,6 +218,13 @@ void printUsageInternal(USAGECATEGORY u64Cmd, PRTSTREAM pStrm)
           "            [-dstformat VDI|VMDK|VHD|RAW]\n"
           "            <inputfile> <outputfile>\n"
           "       converts hard disk images between formats\n"
+          "\n"
+        : "",
+        (u64Cmd & USAGE_REPAIRHD)
+        ? "  repairhd [-dry-run]\n"
+          "           [-format VDI|VMDK|VHD|...]\n"
+          "           <filename>\n"
+          "       Tries to repair corrupted disk images\n"
           "\n"
         : "",
 #ifdef RT_OS_WINDOWS
@@ -510,6 +520,81 @@ static int CmdLoadSyms(int argc, char **argv, ComPtr<IVirtualBox> aVirtualBox, C
 }
 
 
+/**
+ * Identical to the 'loadmap' command.
+ */
+static int CmdLoadMap(int argc, char **argv, ComPtr<IVirtualBox> aVirtualBox, ComPtr<ISession> aSession)
+{
+    HRESULT rc;
+
+    /*
+     * Get the VM
+     */
+    ComPtr<IMachine> machine;
+    CHECK_ERROR_RET(aVirtualBox, FindMachine(Bstr(argv[0]).raw(),
+                                             machine.asOutParam()), 1);
+
+    /*
+     * Parse the command.
+     */
+    const char *pszFilename;
+    uint64_t    ModuleAddress = UINT64_MAX;
+    const char *pszModule = NULL;
+    uint64_t    offSubtrahend = 0;
+    uint32_t    iSeg = UINT32_MAX;
+
+    /* filename */
+    if (argc < 2)
+        return errorArgument("Missing the filename argument!\n");
+    pszFilename = argv[1];
+
+    /* address */
+    if (argc < 3)
+        return errorArgument("Missing the module address argument!\n");
+    int irc = RTStrToUInt64Ex(argv[2], NULL, 0, &ModuleAddress);
+    if (RT_FAILURE(irc))
+        return errorArgument(argv[0], "Failed to read module address '%s', rc=%Rrc\n", argv[2], rc);
+
+    /* name (optional) */
+    if (argc > 3)
+        pszModule = argv[3];
+
+    /* subtrahend (optional) */
+    if (argc > 4)
+    {
+        irc = RTStrToUInt64Ex(argv[4], NULL, 0, &offSubtrahend);
+        if (RT_FAILURE(irc))
+            return errorArgument(argv[0], "Failed to read subtrahend '%s', rc=%Rrc\n", argv[4], rc);
+    }
+
+    /* segment (optional) */
+    if (argc > 5)
+    {
+        irc = RTStrToUInt32Ex(argv[5], NULL, 0, &iSeg);
+        if (RT_FAILURE(irc))
+            return errorArgument(argv[0], "Failed to read segment number '%s', rc=%Rrc\n", argv[5], rc);
+    }
+
+    /*
+     * Add extra data.
+     */
+    Utf8Str KeyStr;
+    HRESULT hrc = NewUniqueKey(machine, "VBoxInternal/DBGF/loadmap", KeyStr);
+    if (SUCCEEDED(hrc))
+        hrc = SetString(machine, "VBoxInternal/DBGF/loadmap", KeyStr.c_str(), "Filename", pszFilename);
+    if (SUCCEEDED(hrc))
+        hrc = SetUInt64(machine, "VBoxInternal/DBGF/loadmap", KeyStr.c_str(), "Address", ModuleAddress);
+    if (SUCCEEDED(hrc) && pszModule != NULL)
+        hrc = SetString(machine, "VBoxInternal/DBGF/loadmap", KeyStr.c_str(), "Name", pszModule);
+    if (SUCCEEDED(hrc) && offSubtrahend != 0)
+        hrc = SetUInt64(machine, "VBoxInternal/DBGF/loadmap", KeyStr.c_str(), "Subtrahend", offSubtrahend);
+    if (SUCCEEDED(hrc) && iSeg != UINT32_MAX)
+        hrc = SetUInt64(machine, "VBoxInternal/DBGF/loadmap", KeyStr.c_str(), "Segment", iSeg);
+
+    return FAILED(hrc);
+}
+
+
 static DECLCALLBACK(void) handleVDError(void *pvUser, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list va)
 {
     RTMsgErrorV(pszFormat, va);
@@ -571,15 +656,12 @@ static int CmdSetHDUUID(int argc, char **argv, ComPtr<IVirtualBox> aVirtualBox, 
     PVBOXHDD pDisk = NULL;
 
     PVDINTERFACE     pVDIfs = NULL;
-    VDINTERFACE      vdInterfaceError;
-    VDINTERFACEERROR vdInterfaceErrorCallbacks;
-    vdInterfaceErrorCallbacks.cbSize       = sizeof(VDINTERFACEERROR);
-    vdInterfaceErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
-    vdInterfaceErrorCallbacks.pfnError     = handleVDError;
-    vdInterfaceErrorCallbacks.pfnMessage   = handleVDMessage;
+    VDINTERFACEERROR vdInterfaceError;
+    vdInterfaceError.pfnError     = handleVDError;
+    vdInterfaceError.pfnMessage   = handleVDMessage;
 
-    rc = VDInterfaceAdd(&vdInterfaceError, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
-                        &vdInterfaceErrorCallbacks, NULL, &pVDIfs);
+    rc = VDInterfaceAdd(&vdInterfaceError.Core, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
+                        NULL, sizeof(VDINTERFACEERROR), &pVDIfs);
     AssertRC(rc);
 
     rc = VDCreate(pVDIfs, enmType, &pDisk);
@@ -634,15 +716,12 @@ static int CmdDumpHDInfo(int argc, char **argv, ComPtr<IVirtualBox> aVirtualBox,
     PVBOXHDD pDisk = NULL;
 
     PVDINTERFACE     pVDIfs = NULL;
-    VDINTERFACE      vdInterfaceError;
-    VDINTERFACEERROR vdInterfaceErrorCallbacks;
-    vdInterfaceErrorCallbacks.cbSize       = sizeof(VDINTERFACEERROR);
-    vdInterfaceErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
-    vdInterfaceErrorCallbacks.pfnError     = handleVDError;
-    vdInterfaceErrorCallbacks.pfnMessage   = handleVDMessage;
+    VDINTERFACEERROR vdInterfaceError;
+    vdInterfaceError.pfnError     = handleVDError;
+    vdInterfaceError.pfnMessage   = handleVDMessage;
 
-    rc = VDInterfaceAdd(&vdInterfaceError, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
-                        &vdInterfaceErrorCallbacks, NULL, &pVDIfs);
+    rc = VDInterfaceAdd(&vdInterfaceError.Core, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
+                        NULL, sizeof(VDINTERFACEERROR), &pVDIfs);
     AssertRC(rc);
 
     rc = VDCreate(pVDIfs, enmType, &pDisk);
@@ -653,7 +732,7 @@ static int CmdDumpHDInfo(int argc, char **argv, ComPtr<IVirtualBox> aVirtualBox,
     }
 
     /* Open the image */
-    rc = VDOpen(pDisk, pszFormat, argv[0], VD_OPEN_FLAGS_INFO, NULL);
+    rc = VDOpen(pDisk, pszFormat, argv[0], VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO, NULL);
     if (RT_FAILURE(rc))
     {
         RTMsgError("Cannot open the image: %Rrc", rc);
@@ -670,81 +749,139 @@ static int CmdDumpHDInfo(int argc, char **argv, ComPtr<IVirtualBox> aVirtualBox,
 static int partRead(RTFILE File, PHOSTPARTITIONS pPart)
 {
     uint8_t aBuffer[512];
+    uint8_t partitionTableHeader[512];
+    uint32_t sector_size = 512;
+    uint64_t lastUsableLBA = 0;
     int rc;
+
+    PARTITIONING_TYPE partitioningType;
 
     pPart->cPartitions = 0;
     memset(pPart->aPartitions, '\0', sizeof(pPart->aPartitions));
+
     rc = RTFileReadAt(File, 0, &aBuffer, sizeof(aBuffer), NULL);
+
     if (RT_FAILURE(rc))
         return rc;
-    if (aBuffer[510] != 0x55 || aBuffer[511] != 0xaa)
-        return VERR_INVALID_PARAMETER;
 
-    unsigned uExtended = (unsigned)-1;
-
-    for (unsigned i = 0; i < 4; i++)
+    if (aBuffer[450] == 0xEE)/* check the sign of the GPT disk*/
     {
-        uint8_t *p = &aBuffer[0x1be + i * 16];
-        if (p[4] == 0)
-            continue;
-        PHOSTPARTITION pCP = &pPart->aPartitions[pPart->cPartitions++];
-        pCP->uIndex = i + 1;
-        pCP->uType = p[4];
-        pCP->uStartCylinder = (uint32_t)p[3] + ((uint32_t)(p[2] & 0xc0) << 2);
-        pCP->uStartHead = p[1];
-        pCP->uStartSector = p[2] & 0x3f;
-        pCP->uEndCylinder = (uint32_t)p[7] + ((uint32_t)(p[6] & 0xc0) << 2);
-        pCP->uEndHead = p[5];
-        pCP->uEndSector = p[6] & 0x3f;
-        pCP->uStart = RT_MAKE_U32_FROM_U8(p[8], p[9], p[10], p[11]);
-        pCP->uSize = RT_MAKE_U32_FROM_U8(p[12], p[13], p[14], p[15]);
-        pCP->uPartDataStart = 0;    /* will be filled out later properly. */
-        pCP->cPartDataSectors = 0;
+        partitioningType = GPT;
+        pPart->uPartitioningType = GPT;//partitioningType;
 
-        if (PARTTYPE_IS_EXTENDED(p[4]))
+        if (aBuffer[510] != 0x55 || aBuffer[511] != 0xaa)
+            return VERR_INVALID_PARAMETER;
+
+        rc = RTFileReadAt(File, sector_size, &partitionTableHeader, sector_size, NULL);
+        if (RT_SUCCESS(rc))
         {
-            if (uExtended == (unsigned)-1)
-                uExtended = (unsigned)(pCP - pPart->aPartitions);
-            else
-            {
-                RTMsgError("More than one extended partition");
+            const char* l_ppth = (char*)partitionTableHeader;
+            rc = strncmp(l_ppth, "EFI PART", 8);
+            if (RT_FAILURE(rc))
                 return VERR_INVALID_PARAMETER;
+
+            /** @todo check GPT Version */
+
+            uint64_t firstUsableLBA = RT_MAKE_U64_FROM_U8(partitionTableHeader[40],
+                                                          partitionTableHeader[41],
+                                                          partitionTableHeader[42],
+                                                          partitionTableHeader[43],
+                                                          partitionTableHeader[44],
+                                                          partitionTableHeader[45],
+                                                          partitionTableHeader[46],
+                                                          partitionTableHeader[47]
+                                                          );
+            lastUsableLBA = RT_MAKE_U64_FROM_U8( partitionTableHeader[48],
+                                                          partitionTableHeader[49],
+                                                          partitionTableHeader[50],
+                                                          partitionTableHeader[51],
+                                                          partitionTableHeader[52],
+                                                          partitionTableHeader[53],
+                                                          partitionTableHeader[54],
+                                                          partitionTableHeader[55]
+                                                          );
+            uint32_t partitionsNumber = RT_MAKE_U32_FROM_U8( partitionTableHeader[80],
+                                                          partitionTableHeader[81],
+                                                          partitionTableHeader[82],
+                                                          partitionTableHeader[83]
+                                                          );
+            uint32_t partitionEntrySize = RT_MAKE_U32_FROM_U8( partitionTableHeader[84],
+                                                          partitionTableHeader[85],
+                                                          partitionTableHeader[86],
+                                                          partitionTableHeader[87]
+                                                          );
+
+            uint32_t currentEntry = 0;
+            while(currentEntry<partitionsNumber)
+            {
+                uint8_t partitionEntry[128];
+
+                /*partition entries begin from LBA2*/
+                rc = RTFileReadAt(File, 1024 + currentEntry*partitionEntrySize, &partitionEntry, partitionEntrySize, NULL);
+
+                uint64_t start = RT_MAKE_U64_FROM_U8( partitionEntry[32],
+                                                          partitionEntry[33],
+                                                          partitionEntry[34],
+                                                          partitionEntry[35],
+                                                          partitionEntry[36],
+                                                          partitionEntry[37],
+                                                          partitionEntry[38],
+                                                          partitionEntry[39]
+                                                          );
+                uint64_t end = RT_MAKE_U64_FROM_U8( partitionEntry[40],
+                                                          partitionEntry[41],
+                                                          partitionEntry[42],
+                                                          partitionEntry[43],
+                                                          partitionEntry[44],
+                                                          partitionEntry[45],
+                                                          partitionEntry[46],
+                                                          partitionEntry[47]
+                                                          );
+
+                PHOSTPARTITION pCP = &pPart->aPartitions[pPart->cPartitions++];
+                pCP->uIndex = currentEntry + 1;
+                pCP->uType = 0;
+                pCP->uStartCylinder = 0;
+                pCP->uStartHead = 0;
+                pCP->uStartSector = 0;
+                pCP->uEndCylinder = 0;
+                pCP->uEndHead = 0;
+                pCP->uEndSector = 0;
+                pCP->uPartDataStart = 0;    /* will be filled out later properly. */
+                pCP->cPartDataSectors = 0;
+                if (start==0 || end==0)
+                {
+                    pCP->uIndex = 0;
+                    --pPart->cPartitions;
+                    break;
+                }
+                else
+                {
+                    pCP->uStart = start;
+                    pCP->uSize = (end +1) - start;/*+1 LBA because the last address is included*/
+                }
+
+                ++currentEntry;
             }
         }
     }
-
-    if (uExtended != (unsigned)-1)
+    else
     {
-        unsigned uIndex = 5;
-        uint64_t uStart = pPart->aPartitions[uExtended].uStart;
-        uint64_t uOffset = 0;
-        if (!uStart)
-        {
-            RTMsgError("Inconsistency for logical partition start");
+        partitioningType = MBR;
+        pPart->uPartitioningType = MBR;//partitioningType;
+
+        if (aBuffer[510] != 0x55 || aBuffer[511] != 0xaa)
             return VERR_INVALID_PARAMETER;
-        }
 
-        do
+        unsigned uExtended = (unsigned)-1;
+
+        for (unsigned i = 0; i < 4; i++)
         {
-            rc = RTFileReadAt(File, (uStart + uOffset) * 512, &aBuffer, sizeof(aBuffer), NULL);
-            if (RT_FAILURE(rc))
-                return rc;
-
-            if (aBuffer[510] != 0x55 || aBuffer[511] != 0xaa)
-            {
-                RTMsgError("Logical partition without magic");
-                return VERR_INVALID_PARAMETER;
-            }
-            uint8_t *p = &aBuffer[0x1be];
-
+            uint8_t *p = &aBuffer[0x1be + i * 16];
             if (p[4] == 0)
-            {
-                RTMsgError("Logical partition with type 0 encountered");
-                return VERR_INVALID_PARAMETER;
-            }
-
+                continue;
             PHOSTPARTITION pCP = &pPart->aPartitions[pPart->cPartitions++];
-            pCP->uIndex = uIndex;
+            pCP->uIndex = i + 1;
             pCP->uType = p[4];
             pCP->uStartCylinder = (uint32_t)p[3] + ((uint32_t)(p[2] & 0xc0) << 2);
             pCP->uStartHead = p[1];
@@ -752,32 +889,90 @@ static int partRead(RTFILE File, PHOSTPARTITIONS pPart)
             pCP->uEndCylinder = (uint32_t)p[7] + ((uint32_t)(p[6] & 0xc0) << 2);
             pCP->uEndHead = p[5];
             pCP->uEndSector = p[6] & 0x3f;
-            uint32_t uStartOffset = RT_MAKE_U32_FROM_U8(p[8], p[9], p[10], p[11]);
-            if (!uStartOffset)
-            {
-                RTMsgError("Invalid partition start offset");
-                return VERR_INVALID_PARAMETER;
-            }
-            pCP->uStart = uStart + uOffset + uStartOffset;
+            pCP->uStart = RT_MAKE_U32_FROM_U8(p[8], p[9], p[10], p[11]);
             pCP->uSize = RT_MAKE_U32_FROM_U8(p[12], p[13], p[14], p[15]);
-            /* Fill out partitioning location info for EBR. */
-            pCP->uPartDataStart = uStart + uOffset;
-            pCP->cPartDataSectors = uStartOffset;
-            p += 16;
-            if (p[4] == 0)
-                uExtended = (unsigned)-1;
-            else if (PARTTYPE_IS_EXTENDED(p[4]))
+            pCP->uPartDataStart = 0;    /* will be filled out later properly. */
+            pCP->cPartDataSectors = 0;
+
+            if (PARTTYPE_IS_EXTENDED(p[4]))
             {
-                uExtended = uIndex++;
-                uOffset = RT_MAKE_U32_FROM_U8(p[8], p[9], p[10], p[11]);
+                if (uExtended == (unsigned)-1)
+                    uExtended = (unsigned)(pCP - pPart->aPartitions);
+                else
+                {
+                    RTMsgError("More than one extended partition");
+                    return VERR_INVALID_PARAMETER;
+                }
             }
-            else
+        }
+
+        if (uExtended != (unsigned)-1)
+        {
+            unsigned uIndex = 5;
+            uint64_t uStart = pPart->aPartitions[uExtended].uStart;
+            uint64_t uOffset = 0;
+            if (!uStart)
             {
-                RTMsgError("Logical partition chain broken");
+                RTMsgError("Inconsistency for logical partition start");
                 return VERR_INVALID_PARAMETER;
             }
-        } while (uExtended != (unsigned)-1);
+
+            do
+            {
+                rc = RTFileReadAt(File, (uStart + uOffset) * 512, &aBuffer, sizeof(aBuffer), NULL);
+                if (RT_FAILURE(rc))
+                    return rc;
+
+                if (aBuffer[510] != 0x55 || aBuffer[511] != 0xaa)
+                {
+                    RTMsgError("Logical partition without magic");
+                    return VERR_INVALID_PARAMETER;
+                }
+                uint8_t *p = &aBuffer[0x1be];
+
+                if (p[4] == 0)
+                {
+                    RTMsgError("Logical partition with type 0 encountered");
+                    return VERR_INVALID_PARAMETER;
+                }
+
+                PHOSTPARTITION pCP = &pPart->aPartitions[pPart->cPartitions++];
+                pCP->uIndex = uIndex;
+                pCP->uType = p[4];
+                pCP->uStartCylinder = (uint32_t)p[3] + ((uint32_t)(p[2] & 0xc0) << 2);
+                pCP->uStartHead = p[1];
+                pCP->uStartSector = p[2] & 0x3f;
+                pCP->uEndCylinder = (uint32_t)p[7] + ((uint32_t)(p[6] & 0xc0) << 2);
+                pCP->uEndHead = p[5];
+                pCP->uEndSector = p[6] & 0x3f;
+                uint32_t uStartOffset = RT_MAKE_U32_FROM_U8(p[8], p[9], p[10], p[11]);
+                if (!uStartOffset)
+                {
+                    RTMsgError("Invalid partition start offset");
+                    return VERR_INVALID_PARAMETER;
+                }
+                pCP->uStart = uStart + uOffset + uStartOffset;
+                pCP->uSize = RT_MAKE_U32_FROM_U8(p[12], p[13], p[14], p[15]);
+                /* Fill out partitioning location info for EBR. */
+                pCP->uPartDataStart = uStart + uOffset;
+                pCP->cPartDataSectors = uStartOffset;
+                p += 16;
+                if (p[4] == 0)
+                    uExtended = (unsigned)-1;
+                else if (PARTTYPE_IS_EXTENDED(p[4]))
+                {
+                    uExtended = uIndex++;
+                    uOffset = RT_MAKE_U32_FROM_U8(p[8], p[9], p[10], p[11]);
+                }
+                else
+                {
+                    RTMsgError("Logical partition chain broken");
+                    return VERR_INVALID_PARAMETER;
+                }
+            } while (uExtended != (unsigned)-1);
+        }
     }
+
 
     /* Sort partitions in ascending order of start sector, plus a trivial
      * bit of consistency checking. */
@@ -815,24 +1010,48 @@ static int partRead(RTFILE File, PHOSTPARTITIONS pPart)
         }
     }
 
-    /* Fill out partitioning location info for MBR. */
+    /* Fill out partitioning location info for MBR or GPT. */
     pPart->aPartitions[0].uPartDataStart = 0;
     pPart->aPartitions[0].cPartDataSectors = pPart->aPartitions[0].uStart;
 
-    /* Now do a some partition table consistency checking, to reject the most
-     * obvious garbage which can lead to trouble later. */
-    uint64_t uPrevEnd = 0;
-    for (unsigned i = 0; i < pPart->cPartitions-1; i++)
+    /* Fill out partitioning location info for backup GPT. */
+    if (partitioningType == GPT)
     {
-        if (pPart->aPartitions[i].cPartDataSectors)
-            uPrevEnd = pPart->aPartitions[i].uPartDataStart + pPart->aPartitions[i].cPartDataSectors;
-        if (pPart->aPartitions[i].uStart < uPrevEnd)
+        pPart->aPartitions[pPart->cPartitions-1].uPartDataStart = lastUsableLBA+1;
+        pPart->aPartitions[pPart->cPartitions-1].cPartDataSectors = 33;
+
+        /* Now do a some partition table consistency checking, to reject the most
+         * obvious garbage which can lead to trouble later. */
+        uint64_t uPrevEnd = 0;
+        for (unsigned i = 0; i < pPart->cPartitions; i++)
         {
-            RTMsgError("Overlapping partitions");
-            return VERR_INVALID_PARAMETER;
+            if (pPart->aPartitions[i].cPartDataSectors)
+                uPrevEnd = pPart->aPartitions[i].uPartDataStart + pPart->aPartitions[i].cPartDataSectors;
+            if (pPart->aPartitions[i].uStart < uPrevEnd &&
+                pPart->cPartitions-1 != i)
+            {
+                RTMsgError("Overlapping GPT partitions");
+                return VERR_INVALID_PARAMETER;
+            }
         }
-        if (!PARTTYPE_IS_EXTENDED(pPart->aPartitions[i].uType))
-            uPrevEnd = pPart->aPartitions[i].uStart + pPart->aPartitions[i].uSize;
+    }
+    else
+    {
+        /* Now do a some partition table consistency checking, to reject the most
+         * obvious garbage which can lead to trouble later. */
+        uint64_t uPrevEnd = 0;
+        for (unsigned i = 0; i < pPart->cPartitions; i++)
+        {
+            if (pPart->aPartitions[i].cPartDataSectors)
+                uPrevEnd = pPart->aPartitions[i].uPartDataStart + pPart->aPartitions[i].cPartDataSectors;
+            if (pPart->aPartitions[i].uStart < uPrevEnd)
+            {
+                RTMsgError("Overlapping MBR partitions");
+                return VERR_INVALID_PARAMETER;
+            }
+            if (!PARTTYPE_IS_EXTENDED(pPart->aPartitions[i].uType))
+                uPrevEnd = pPart->aPartitions[i].uStart + pPart->aPartitions[i].uSize;
+        }
     }
 
     return VINF_SUCCESS;
@@ -1038,32 +1257,137 @@ static int CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aVirtualB
     }
     else
     {
+        /*
+         * Could be raw image, remember error code and try to get the size first
+         * before failing.
+         */
         vrc = RTErrConvertFromWin32(GetLastError());
-        RTMsgError("Cannot get the geometry of the raw disk '%s': %Rrc", rawdisk.c_str(), vrc);
-        goto out;
+        if (RT_FAILURE(RTFileGetSize(hRawFile, &cbSize)))
+        {
+            RTMsgError("Cannot get the geometry of the raw disk '%s': %Rrc", rawdisk.c_str(), vrc);
+            goto out;
+        }
+        else
+            vrc = VINF_SUCCESS;
     }
 #elif defined(RT_OS_LINUX)
     struct stat DevStat;
-    if (!fstat(RTFileToNative(hRawFile), &DevStat) && S_ISBLK(DevStat.st_mode))
+    if(!fstat(RTFileToNative(hRawFile), &DevStat))
     {
+        if (S_ISBLK(DevStat.st_mode))
+        {
 #ifdef BLKGETSIZE64
-        /* BLKGETSIZE64 is broken up to 2.4.17 and in many 2.5.x. In 2.6.0
-         * it works without problems. */
-        struct utsname utsname;
-        if (    uname(&utsname) == 0
-            &&  (   (strncmp(utsname.release, "2.5.", 4) == 0 && atoi(&utsname.release[4]) >= 18)
-                 || (strncmp(utsname.release, "2.", 2) == 0 && atoi(&utsname.release[2]) >= 6)))
-        {
-            uint64_t cbBlk;
-            if (!ioctl(RTFileToNative(hRawFile), BLKGETSIZE64, &cbBlk))
-                cbSize = cbBlk;
-        }
+            /* BLKGETSIZE64 is broken up to 2.4.17 and in many 2.5.x. In 2.6.0
+             * it works without problems. */
+            struct utsname utsname;
+            if (    uname(&utsname) == 0
+                &&  (   (strncmp(utsname.release, "2.5.", 4) == 0 && atoi(&utsname.release[4]) >= 18)
+                     || (strncmp(utsname.release, "2.", 2) == 0 && atoi(&utsname.release[2]) >= 6)))
+            {
+                uint64_t cbBlk;
+                if (!ioctl(RTFileToNative(hRawFile), BLKGETSIZE64, &cbBlk))
+                    cbSize = cbBlk;
+            }
 #endif /* BLKGETSIZE64 */
-        if (!cbSize)
+            if (!cbSize)
+            {
+                long cBlocks;
+                if (!ioctl(RTFileToNative(hRawFile), BLKGETSIZE, &cBlocks))
+                    cbSize = (uint64_t)cBlocks << 9;
+                else
+                {
+                    vrc = RTErrConvertFromErrno(errno);
+                    RTMsgError("Cannot get the size of the raw disk '%s': %Rrc", rawdisk.c_str(), vrc);
+                    goto out;
+                }
+            }
+        }
+        else if (S_ISREG(DevStat.st_mode))
         {
-            long cBlocks;
-            if (!ioctl(RTFileToNative(hRawFile), BLKGETSIZE, &cBlocks))
-                cbSize = (uint64_t)cBlocks << 9;
+            vrc = RTFileGetSize(hRawFile, &cbSize);
+            if (RT_FAILURE(vrc))
+            {
+                RTMsgError("Failed to get size of file '%s': %Rrc", rawdisk.c_str(), vrc);
+                goto out;
+            }
+            else if (fRelative)
+            {
+                RTMsgError("The -relative parameter is invalid for raw images");
+                vrc = VERR_INVALID_PARAMETER;
+                goto out;
+            }
+        }
+        else
+        {
+            RTMsgError("File '%s' is no block device", rawdisk.c_str());
+            vrc = VERR_INVALID_PARAMETER;
+            goto out;
+        }
+    }
+    else
+    {
+        vrc = RTErrConvertFromErrno(errno);
+        RTMsgError("Failed to get file informtation for raw disk '%s': %Rrc",
+                   rawdisk.c_str(), vrc);
+    }
+#elif defined(RT_OS_DARWIN)
+    struct stat DevStat;
+    if (!fstat(RTFileToNative(hRawFile), &DevStat))
+    {
+        if (S_ISBLK(DevStat.st_mode))
+        {
+            uint64_t cBlocks;
+            uint32_t cbBlock;
+            if (!ioctl(RTFileToNative(hRawFile), DKIOCGETBLOCKCOUNT, &cBlocks))
+            {
+                if (!ioctl(RTFileToNative(hRawFile), DKIOCGETBLOCKSIZE, &cbBlock))
+                    cbSize = cBlocks * cbBlock;
+                else
+                {
+                    RTMsgError("Cannot get the block size for file '%s': %Rrc", rawdisk.c_str(), vrc);
+                    vrc = RTErrConvertFromErrno(errno);
+                    goto out;
+                }
+            }
+            else
+            {
+                vrc = RTErrConvertFromErrno(errno);
+                RTMsgError("Cannot get the block count for file '%s': %Rrc", rawdisk.c_str(), vrc);
+                goto out;
+            }
+        }
+        else if (S_ISREG(DevStat.st_mode))
+        {
+            fRelative = false; /* Must be false for raw image files. */
+            vrc = RTFileGetSize(hRawFile, &cbSize);
+            if (RT_FAILURE(vrc))
+            {
+                RTMsgError("Failed to get size of file '%s': %Rrc", rawdisk.c_str(), vrc);
+                goto out;
+            }
+        }
+        else
+        {
+            RTMsgError("File '%s' is neither block device nor regular file", rawdisk.c_str());
+            vrc = VERR_INVALID_PARAMETER;
+            goto out;
+        }
+    }
+    else
+    {
+        vrc = RTErrConvertFromErrno(errno);
+        RTMsgError("Failed to get file informtation for raw disk '%s': %Rrc",
+                   rawdisk.c_str(), vrc);
+    }
+#elif defined(RT_OS_SOLARIS)
+    struct stat DevStat;
+    if (!fstat(RTFileToNative(hRawFile), &DevStat))
+    {
+        if (S_ISBLK(DevStat.st_mode) || S_ISCHR(DevStat.st_mode))
+        {
+            struct dk_minfo mediainfo;
+            if (!ioctl(RTFileToNative(hRawFile), DKIOCGMEDIAINFO, &mediainfo))
+                cbSize = mediainfo.dki_capacity * mediainfo.dki_lbsize;
             else
             {
                 vrc = RTErrConvertFromErrno(errno);
@@ -1071,85 +1395,66 @@ static int CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aVirtualB
                 goto out;
             }
         }
-    }
-    else
-    {
-        RTMsgError("File '%s' is no block device", rawdisk.c_str());
-        vrc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
-#elif defined(RT_OS_DARWIN)
-    struct stat DevStat;
-    if (!fstat(RTFileToNative(hRawFile), &DevStat) && S_ISBLK(DevStat.st_mode))
-    {
-        uint64_t cBlocks;
-        uint32_t cbBlock;
-        if (!ioctl(RTFileToNative(hRawFile), DKIOCGETBLOCKCOUNT, &cBlocks))
+        else if (S_ISREG(DevStat.st_mode))
         {
-            if (!ioctl(RTFileToNative(hRawFile), DKIOCGETBLOCKSIZE, &cbBlock))
-                cbSize = cBlocks * cbBlock;
-            else
+            vrc = RTFileGetSize(hRawFile, &cbSize);
+            if (RT_FAILURE(vrc))
             {
-                RTMsgError("Cannot get the block size for file '%s': %Rrc", rawdisk.c_str(), vrc);
-                vrc = RTErrConvertFromErrno(errno);
+                RTMsgError("Failed to get size of file '%s': %Rrc", rawdisk.c_str(), vrc);
                 goto out;
             }
         }
         else
         {
-            vrc = RTErrConvertFromErrno(errno);
-            RTMsgError("Cannot get the block count for file '%s': %Rrc", rawdisk.c_str(), vrc);
+            RTMsgError("File '%s' is no block or char device", rawdisk.c_str());
+            vrc = VERR_INVALID_PARAMETER;
             goto out;
         }
     }
     else
     {
-        RTMsgError("File '%s' is no block device", rawdisk.c_str());
-        vrc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
-#elif defined(RT_OS_SOLARIS)
-    struct stat DevStat;
-    if (!fstat(RTFileToNative(hRawFile), &DevStat) && (   S_ISBLK(DevStat.st_mode)
-                                      || S_ISCHR(DevStat.st_mode)))
-    {
-        struct dk_minfo mediainfo;
-        if (!ioctl(RTFileToNative(hRawFile), DKIOCGMEDIAINFO, &mediainfo))
-            cbSize = mediainfo.dki_capacity * mediainfo.dki_lbsize;
-        else
-        {
-            vrc = RTErrConvertFromErrno(errno);
-            RTMsgError("Cannot get the size of the raw disk '%s': %Rrc", rawdisk.c_str(), vrc);
-            goto out;
-        }
-    }
-    else
-    {
-        RTMsgError("File '%s' is no block or char device", rawdisk.c_str());
-        vrc = VERR_INVALID_PARAMETER;
-        goto out;
+        vrc = RTErrConvertFromErrno(errno);
+        RTMsgError("Failed to get file informtation for raw disk '%s': %Rrc",
+                   rawdisk.c_str(), vrc);
     }
 #elif defined(RT_OS_FREEBSD)
     struct stat DevStat;
-    if (!fstat(RTFileToNative(hRawFile), &DevStat) && S_ISCHR(DevStat.st_mode))
+    if (!fstat(RTFileToNative(hRawFile), &DevStat))
     {
-        off_t cbMedia = 0;
-        if (!ioctl(RTFileToNative(hRawFile), DIOCGMEDIASIZE, &cbMedia))
+        if (S_ISCHR(DevStat.st_mode))
         {
-            cbSize = cbMedia;
+            off_t cbMedia = 0;
+            if (!ioctl(RTFileToNative(hRawFile), DIOCGMEDIASIZE, &cbMedia))
+                cbSize = cbMedia;
+            else
+            {
+                vrc = RTErrConvertFromErrno(errno);
+                RTMsgError("Cannot get the block count for file '%s': %Rrc", rawdisk.c_str(), vrc);
+                goto out;
+            }
+        }
+        else if (S_ISREG(DevStat.st_mode))
+        {
+            if (fRelative)
+            {
+                RTMsgError("The -relative parameter is invalid for raw images");
+                vrc = VERR_INVALID_PARAMETER;
+                goto out;
+            }
+            cbSize = DevStat.st_size;
         }
         else
         {
-            vrc = RTErrConvertFromErrno(errno);
-            RTMsgError("Cannot get the block count for file '%s': %Rrc", rawdisk.c_str(), vrc);
+            RTMsgError("File '%s' is neither character device nor regular file", rawdisk.c_str());
+            vrc = VERR_INVALID_PARAMETER;
             goto out;
         }
     }
     else
     {
-        RTMsgError("File '%s' is no character device", rawdisk.c_str());
-        vrc = VERR_INVALID_PARAMETER;
-        goto out;
+        vrc = RTErrConvertFromErrno(errno);
+        RTMsgError("Failed to get file informtation for raw disk '%s': %Rrc",
+                   rawdisk.c_str(), vrc);
     }
 #else /* all unrecognized OSes */
     /* Hopefully this works on all other hosts. If it doesn't, it'll just fail
@@ -1218,6 +1523,8 @@ static int CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aVirtualB
             RTMsgError("Cannot read the partition information from '%s'", rawdisk.c_str());
             goto out;
         }
+
+        RawDescriptor.uPartitioningType = partitions.uPartitioningType;
 
         for (unsigned i = 0; i < partitions.cPartitions; i++)
         {
@@ -1397,18 +1704,31 @@ static int CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aVirtualB
             }
         }
 
-        /* Have a second go at MBR/EPT area clipping. Now that the data areas
+        /* Have a second go at MBR/EPT, GPT area clipping. Now that the data areas
          * are sorted this is much easier to get 100% right. */
-        for (unsigned i = 0; i < RawDescriptor.cPartDescs-1; i++)
+        //for (unsigned i = 0; i < RawDescriptor.cPartDescs-1; i++)
+        for (unsigned i = 0; i < RawDescriptor.cPartDescs; i++)
         {
             if (RawDescriptor.pPartDescs[i].pvPartitionData)
             {
                 RawDescriptor.pPartDescs[i].cbData = RT_MIN(RawDescriptor.pPartDescs[i+1].uStart - RawDescriptor.pPartDescs[i].uStart, RawDescriptor.pPartDescs[i].cbData);
                 if (!RawDescriptor.pPartDescs[i].cbData)
                 {
-                    RTMsgError("MBR/EPT overlaps with data area");
-                    vrc = VERR_INVALID_PARAMETER;
-                    goto out;
+                    if(RawDescriptor.uPartitioningType == MBR)
+                    {
+                        RTMsgError("MBR/EPT overlaps with data area");
+                        vrc = VERR_INVALID_PARAMETER;
+                        goto out;
+                    }
+                    else
+                    {
+                        if(RawDescriptor.cPartDescs != i+1)
+                        {
+                            RTMsgError("GPT overlaps with data area");
+                            vrc = VERR_INVALID_PARAMETER;
+                            goto out;
+                        }
+                    }
                 }
             }
         }
@@ -1417,27 +1737,27 @@ static int CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aVirtualB
     RTFileClose(hRawFile);
 
 #ifdef DEBUG_klaus
-    RTPrintf("#            start         length    startoffset  partdataptr  device\n");
-    for (unsigned i = 0; i < RawDescriptor.cPartDescs; i++)
+    if (!RawDescriptor.fRawDisk)
     {
-        RTPrintf("%2u  %14RU64 %14RU64 %14RU64 %#18p %s\n", i,
-                 RawDescriptor.pPartDescs[i].uStart,
-                 RawDescriptor.pPartDescs[i].cbData,
-                 RawDescriptor.pPartDescs[i].uStartOffset,
-                 RawDescriptor.pPartDescs[i].pvPartitionData,
-                 RawDescriptor.pPartDescs[i].pszRawDevice);
+        RTPrintf("#            start         length    startoffset  partdataptr  device\n");
+        for (unsigned i = 0; i < RawDescriptor.cPartDescs; i++)
+        {
+            RTPrintf("%2u  %14RU64 %14RU64 %14RU64 %#18p %s\n", i,
+                     RawDescriptor.pPartDescs[i].uStart,
+                     RawDescriptor.pPartDescs[i].cbData,
+                     RawDescriptor.pPartDescs[i].uStartOffset,
+                     RawDescriptor.pPartDescs[i].pvPartitionData,
+                     RawDescriptor.pPartDescs[i].pszRawDevice);
+        }
     }
 #endif
 
-    VDINTERFACE      vdInterfaceError;
-    VDINTERFACEERROR vdInterfaceErrorCallbacks;
-    vdInterfaceErrorCallbacks.cbSize       = sizeof(VDINTERFACEERROR);
-    vdInterfaceErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
-    vdInterfaceErrorCallbacks.pfnError     = handleVDError;
-    vdInterfaceErrorCallbacks.pfnMessage   = handleVDMessage;
+    VDINTERFACEERROR vdInterfaceError;
+    vdInterfaceError.pfnError     = handleVDError;
+    vdInterfaceError.pfnMessage   = handleVDMessage;
 
-    vrc = VDInterfaceAdd(&vdInterfaceError, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
-                         &vdInterfaceErrorCallbacks, NULL, &pVDIfs);
+    rc = VDInterfaceAdd(&vdInterfaceError.Core, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
+                        NULL, sizeof(VDINTERFACEERROR), &pVDIfs);
     AssertRC(vrc);
 
     vrc = VDCreate(pVDIfs, VDTYPE_HDD, &pDisk); /* Raw VMDK's are harddisk only. */
@@ -1530,15 +1850,12 @@ static int CmdRenameVMDK(int argc, char **argv, ComPtr<IVirtualBox> aVirtualBox,
     PVBOXHDD pDisk = NULL;
 
     PVDINTERFACE     pVDIfs = NULL;
-    VDINTERFACE      vdInterfaceError;
-    VDINTERFACEERROR vdInterfaceErrorCallbacks;
-    vdInterfaceErrorCallbacks.cbSize       = sizeof(VDINTERFACEERROR);
-    vdInterfaceErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
-    vdInterfaceErrorCallbacks.pfnError     = handleVDError;
-    vdInterfaceErrorCallbacks.pfnMessage   = handleVDMessage;
+    VDINTERFACEERROR vdInterfaceError;
+    vdInterfaceError.pfnError     = handleVDError;
+    vdInterfaceError.pfnMessage   = handleVDMessage;
 
-    int vrc = VDInterfaceAdd(&vdInterfaceError, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
-                             &vdInterfaceErrorCallbacks, NULL, &pVDIfs);
+    int vrc = VDInterfaceAdd(&vdInterfaceError.Core, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
+                             NULL, sizeof(VDINTERFACEERROR), &pVDIfs);
     AssertRC(vrc);
 
     vrc = VDCreate(pVDIfs, VDTYPE_HDD, &pDisk);
@@ -1614,15 +1931,12 @@ static int CmdConvertToRaw(int argc, char **argv, ComPtr<IVirtualBox> aVirtualBo
     PVBOXHDD pDisk = NULL;
 
     PVDINTERFACE     pVDIfs = NULL;
-    VDINTERFACE      vdInterfaceError;
-    VDINTERFACEERROR vdInterfaceErrorCallbacks;
-    vdInterfaceErrorCallbacks.cbSize       = sizeof(VDINTERFACEERROR);
-    vdInterfaceErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
-    vdInterfaceErrorCallbacks.pfnError     = handleVDError;
-    vdInterfaceErrorCallbacks.pfnMessage   = handleVDMessage;
+    VDINTERFACEERROR vdInterfaceError;
+    vdInterfaceError.pfnError     = handleVDError;
+    vdInterfaceError.pfnMessage   = handleVDMessage;
 
-    int vrc = VDInterfaceAdd(&vdInterfaceError, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
-                             &vdInterfaceErrorCallbacks, NULL, &pVDIfs);
+    int vrc = VDInterfaceAdd(&vdInterfaceError.Core, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
+                             NULL, sizeof(VDINTERFACEERROR), &pVDIfs);
     AssertRC(vrc);
 
     /** @todo: Support convert to raw for floppy and DVD images too. */
@@ -1786,15 +2100,12 @@ static int CmdConvertHardDisk(int argc, char **argv, ComPtr<IVirtualBox> aVirtua
 
 
     PVDINTERFACE     pVDIfs = NULL;
-    VDINTERFACE      vdInterfaceError;
-    VDINTERFACEERROR vdInterfaceErrorCallbacks;
-    vdInterfaceErrorCallbacks.cbSize       = sizeof(VDINTERFACEERROR);
-    vdInterfaceErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
-    vdInterfaceErrorCallbacks.pfnError     = handleVDError;
-    vdInterfaceErrorCallbacks.pfnMessage   = handleVDMessage;
+    VDINTERFACEERROR vdInterfaceError;
+    vdInterfaceError.pfnError     = handleVDError;
+    vdInterfaceError.pfnMessage   = handleVDMessage;
 
-    vrc = VDInterfaceAdd(&vdInterfaceError, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
-                         &vdInterfaceErrorCallbacks, NULL, &pVDIfs);
+    vrc = VDInterfaceAdd(&vdInterfaceError.Core, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
+                         NULL, sizeof(VDINTERFACEERROR), &pVDIfs);
     AssertRC(vrc);
 
     do
@@ -1858,6 +2169,87 @@ static int CmdConvertHardDisk(int argc, char **argv, ComPtr<IVirtualBox> aVirtua
         VDCloseAll(pDstDisk);
     if (pSrcDisk)
         VDCloseAll(pSrcDisk);
+
+    return RT_SUCCESS(vrc) ? 0 : 1;
+}
+
+/**
+ * Tries to repair a corrupted hard disk image.
+ *
+ * @returns VBox status code
+ */
+static int CmdRepairHardDisk(int argc, char **argv, ComPtr<IVirtualBox> aVirtualBox, ComPtr<ISession> aSession)
+{
+    Utf8Str image;
+    Utf8Str format;
+    int vrc;
+    bool fDryRun = false;
+    PVBOXHDD pDisk = NULL;
+
+    /* Parse the arguments. */
+    for (int i = 0; i < argc; i++)
+    {
+        if (strcmp(argv[i], "-dry-run") == 0)
+        {
+            fDryRun = true;
+        }
+        else if (strcmp(argv[i], "-format") == 0)
+        {
+            if (argc <= i + 1)
+            {
+                return errorArgument("Missing argument to '%s'", argv[i]);
+            }
+            i++;
+            format = argv[i];
+        }
+        else if (image.isEmpty())
+        {
+            image = argv[i];
+        }
+        else
+        {
+            return errorSyntax(USAGE_REPAIRHD, "Invalid parameter '%s'", argv[i]);
+        }
+    }
+
+    if (image.isEmpty())
+        return errorSyntax(USAGE_REPAIRHD, "Mandatory input image parameter missing");
+
+    PVDINTERFACE     pVDIfs = NULL;
+    VDINTERFACEERROR vdInterfaceError;
+    vdInterfaceError.pfnError     = handleVDError;
+    vdInterfaceError.pfnMessage   = handleVDMessage;
+
+    vrc = VDInterfaceAdd(&vdInterfaceError.Core, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
+                         NULL, sizeof(VDINTERFACEERROR), &pVDIfs);
+    AssertRC(vrc);
+
+    do
+    {
+        /* Try to determine input image format */
+        if (format.isEmpty())
+        {
+            char *pszFormat = NULL;
+            VDTYPE enmSrcType = VDTYPE_INVALID;
+
+            vrc = VDGetFormat(NULL /* pVDIfsDisk */, NULL /* pVDIfsImage */,
+                              image.c_str(), &pszFormat, &enmSrcType);
+            if (RT_FAILURE(vrc) && (vrc != VERR_VD_IMAGE_CORRUPTED))
+            {
+                RTMsgError("No file format specified and autodetect failed - please specify format: %Rrc", vrc);
+                break;
+            }
+            format = pszFormat;
+            RTStrFree(pszFormat);
+        }
+
+        uint32_t fFlags = 0;
+        if (fDryRun)
+            fFlags |= VD_REPAIR_DRY_RUN;
+
+        vrc = VDRepair(pVDIfs, NULL, image.c_str(), format.c_str(), fFlags);
+    }
+    while (0);
 
     return RT_SUCCESS(vrc) ? 0 : 1;
 }
@@ -2125,6 +2517,8 @@ int handleInternalCommands(HandlerArg *a)
      * The 'string switch' on command name.
      */
     const char *pszCmd = a->argv[0];
+    if (!strcmp(pszCmd, "loadmap"))
+        return CmdLoadMap(a->argc - 1, &a->argv[1], a->virtualBox, a->session);
     if (!strcmp(pszCmd, "loadsyms"))
         return CmdLoadSyms(a->argc - 1, &a->argv[1], a->virtualBox, a->session);
     //if (!strcmp(pszCmd, "unloadsyms"))
@@ -2153,6 +2547,8 @@ int handleInternalCommands(HandlerArg *a)
         return CmdGeneratePasswordHash(a->argc - 1, &a->argv[1], a->virtualBox, a->session);
     if (!strcmp(pszCmd, "gueststats"))
         return CmdGuestStats(a->argc - 1, &a->argv[1], a->virtualBox, a->session);
+    if (!strcmp(pszCmd, "repairhd"))
+        return CmdRepairHardDisk(a->argc - 1, &a->argv[1], a->virtualBox, a->session);
 
     /* default: */
     return errorSyntax(USAGE_ALL, "Invalid command '%s'", a->argv[0]);

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009-2011 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,10 +17,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* VBox includes */
+/* GUI includes: */
 #include "UIApplianceImportEditorWidget.h"
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
+
+/* COM includes: */
+#include "CAppliance.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // ImportSortProxyModel

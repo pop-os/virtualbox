@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -97,8 +97,8 @@ DECLEXPORT(GLuint) STATE_APIENTRY crStateGLSLShaderHWIDtoID(GLuint hwid);
 DECLEXPORT(GLint) STATE_APIENTRY crStateGetUniformSize(GLenum type);
 DECLEXPORT(GLboolean) STATE_APIENTRY crStateIsIntUniform(GLenum type);
 
-DECLEXPORT(void) STATE_APIENTRY crStateCreateShader(GLuint id, GLenum type);
-DECLEXPORT(void) STATE_APIENTRY crStateCreateProgram(GLuint id);
+DECLEXPORT(GLuint) STATE_APIENTRY crStateCreateShader(GLuint id, GLenum type);
+DECLEXPORT(GLuint) STATE_APIENTRY crStateCreateProgram(GLuint id);
 
 DECLEXPORT(GLboolean) STATE_APIENTRY crStateIsProgramUniformsCached(GLuint program);
 

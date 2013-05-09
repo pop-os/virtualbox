@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,9 +38,9 @@
 int main(int argc, char **argv)
 {
     int cErrors = 0;
-    int rc = 0;
-    RTR3InitAndSUPLib();
-    rc = SUPR3Init(NULL);
+
+    RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
+    int rc = SUPR3Init(NULL);
     cErrors += rc != 0;
     if (!rc)
     {
@@ -53,10 +53,10 @@ int main(int argc, char **argv)
             rc = SUPR3PageFree(pv, 1);
             cErrors += rc != 0;
             if (rc)
-                RTPrintf("tstPage: SUPR3PageFree() failed rc=%d\n", rc);
+                RTPrintf("tstPage: SUPR3PageFree() failed rc=%Rrc\n", rc);
         }
         else
-            RTPrintf("tstPage: SUPR3PageAlloc(1,) failed rc=%d\n", rc);
+            RTPrintf("tstPage: SUPR3PageAlloc(1,) failed rc=%Rrc\n", rc);
 
         /*
          * Big chunk.
@@ -69,19 +69,19 @@ int main(int argc, char **argv)
             rc = SUPR3PageFree(pv, 1023);
             cErrors += rc != 0;
             if (rc)
-                RTPrintf("tstPage: SUPR3PageFree() failed rc=%d\n", rc);
+                RTPrintf("tstPage: SUPR3PageFree() failed rc=%Rrc\n", rc);
         }
         else
-            RTPrintf("tstPage: SUPR3PageAlloc(1,) failed rc=%d\n", rc);
+            RTPrintf("tstPage: SUPR3PageAlloc(1,) failed rc=%Rrc\n", rc);
 
 
         //rc = SUPR3Term();
         cErrors += rc != 0;
         if (rc)
-            RTPrintf("tstPage: SUPR3Term failed rc=%d\n", rc);
+            RTPrintf("tstPage: SUPR3Term failed rc=%Rrc\n", rc);
     }
     else
-        RTPrintf("tstPage: SUPR3Init failed rc=%d\n", rc);
+        RTPrintf("tstPage: SUPR3Init failed rc=%Rrc\n", rc);
 
     if (!cErrors)
         RTPrintf("tstPage: SUCCESS\n");

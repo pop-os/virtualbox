@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,9 @@
 #include <VBox/vmm/stam.h>
 #include <VBox/vusb.h>
 #include <VBox/vmm/pdmasynccompletion.h>
+#ifdef VBOX_WITH_NETSHAPER
+#include <VBox/vmm/pdmnetshaper.h>
+#endif /* VBOX_WITH_NETSHAPER */
 #include <VBox/vmm/pdmblkcache.h>
 #include <VBox/vmm/pdmcommon.h>
 #include <iprt/assert.h>
@@ -145,6 +148,10 @@ typedef struct PDMDEVINSINT
 
     /** Flags, see PDMDEVINSINT_FLAGS_XXX. */
     uint32_t                        fIntFlags;
+    /** The last IRQ tag (for tracing it thru clearing). */
+    uint32_t                        uLastIrqTag;
+    /** Size padding. */
+    uint32_t                        u32Padding;
 } PDMDEVINSINT;
 
 /** @name PDMDEVINSINT::fIntFlags
@@ -450,23 +457,23 @@ typedef struct PDMPIC
     /** Pointer to the PIC device instance - R3. */
     PPDMDEVINSR3                    pDevInsR3;
     /** @copydoc PDMPICREG::pfnSetIrqR3 */
-    DECLR3CALLBACKMEMBER(void,      pfnSetIrqR3,(PPDMDEVINS pDevIns, int iIrq, int iLevel));
+    DECLR3CALLBACKMEMBER(void,      pfnSetIrqR3,(PPDMDEVINS pDevIns, int iIrq, int iLevel, uint32_t uTagSrc));
     /** @copydoc PDMPICREG::pfnGetInterruptR3 */
-    DECLR3CALLBACKMEMBER(int,       pfnGetInterruptR3,(PPDMDEVINS pDevIns));
+    DECLR3CALLBACKMEMBER(int,       pfnGetInterruptR3,(PPDMDEVINS pDevIns, uint32_t *puTagSrc));
 
     /** Pointer to the PIC device instance - R0. */
     PPDMDEVINSR0                    pDevInsR0;
     /** @copydoc PDMPICREG::pfnSetIrqR3 */
-    DECLR0CALLBACKMEMBER(void,      pfnSetIrqR0,(PPDMDEVINS pDevIns, int iIrq, int iLevel));
+    DECLR0CALLBACKMEMBER(void,      pfnSetIrqR0,(PPDMDEVINS pDevIns, int iIrq, int iLevel, uint32_t uTagSrc));
     /** @copydoc PDMPICREG::pfnGetInterruptR3 */
-    DECLR0CALLBACKMEMBER(int,       pfnGetInterruptR0,(PPDMDEVINS pDevIns));
+    DECLR0CALLBACKMEMBER(int,       pfnGetInterruptR0,(PPDMDEVINS pDevIns, uint32_t *puTagSrc));
 
     /** Pointer to the PIC device instance - RC. */
     PPDMDEVINSRC                    pDevInsRC;
     /** @copydoc PDMPICREG::pfnSetIrqR3 */
-    DECLRCCALLBACKMEMBER(void,      pfnSetIrqRC,(PPDMDEVINS pDevIns, int iIrq, int iLevel));
+    DECLRCCALLBACKMEMBER(void,      pfnSetIrqRC,(PPDMDEVINS pDevIns, int iIrq, int iLevel, uint32_t uTagSrc));
     /** @copydoc PDMPICREG::pfnGetInterruptR3 */
-    DECLRCCALLBACKMEMBER(int,       pfnGetInterruptRC,(PPDMDEVINS pDevIns));
+    DECLRCCALLBACKMEMBER(int,       pfnGetInterruptRC,(PPDMDEVINS pDevIns, uint32_t *puTagSrc));
     /** Alignment padding. */
     RTRCPTR                         RCPtrPadding;
 } PDMPIC;
@@ -480,7 +487,7 @@ typedef struct PDMAPIC
     /** Pointer to the APIC device instance - R3 Ptr. */
     PPDMDEVINSR3                    pDevInsR3;
     /** @copydoc PDMAPICREG::pfnGetInterruptR3 */
-    DECLR3CALLBACKMEMBER(int,       pfnGetInterruptR3,(PPDMDEVINS pDevIns));
+    DECLR3CALLBACKMEMBER(int,       pfnGetInterruptR3,(PPDMDEVINS pDevIns, uint32_t *puTagSrc));
     /** @copydoc PDMAPICREG::pfnHasPendingIrqR3 */
     DECLR3CALLBACKMEMBER(bool,      pfnHasPendingIrqR3,(PPDMDEVINS pDevIns));
     /** @copydoc PDMAPICREG::pfnSetBaseR3 */
@@ -497,14 +504,14 @@ typedef struct PDMAPIC
     DECLR3CALLBACKMEMBER(int,       pfnReadMSRR3, (PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Reg, uint64_t *pu64Value));
     /** @copydoc PDMAPICREG::pfnBusDeliverR3 */
     DECLR3CALLBACKMEMBER(int,       pfnBusDeliverR3,(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
-                                                     uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode));
+                                                     uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
     /** @copydoc PDMAPICREG::pfnLocalInterruptR3 */
     DECLR3CALLBACKMEMBER(int,       pfnLocalInterruptR3,(PPDMDEVINS pDevIns, uint8_t u8Pin, uint8_t u8Level));
 
     /** Pointer to the APIC device instance - R0 Ptr. */
     PPDMDEVINSR0                    pDevInsR0;
     /** @copydoc PDMAPICREG::pfnGetInterruptR3 */
-    DECLR0CALLBACKMEMBER(int,       pfnGetInterruptR0,(PPDMDEVINS pDevIns));
+    DECLR0CALLBACKMEMBER(int,       pfnGetInterruptR0,(PPDMDEVINS pDevIns, uint32_t *puTagSrc));
     /** @copydoc PDMAPICREG::pfnHasPendingIrqR3 */
     DECLR0CALLBACKMEMBER(bool,      pfnHasPendingIrqR0,(PPDMDEVINS pDevIns));
     /** @copydoc PDMAPICREG::pfnSetBaseR3 */
@@ -521,14 +528,14 @@ typedef struct PDMAPIC
     DECLR0CALLBACKMEMBER(uint32_t,  pfnReadMSRR0, (PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Reg, uint64_t *pu64Value));
     /** @copydoc PDMAPICREG::pfnBusDeliverR3 */
     DECLR0CALLBACKMEMBER(int,       pfnBusDeliverR0,(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
-                                                     uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode));
+                                                     uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
     /** @copydoc PDMAPICREG::pfnLocalInterruptR3 */
     DECLR0CALLBACKMEMBER(int,       pfnLocalInterruptR0,(PPDMDEVINS pDevIns, uint8_t u8Pin, uint8_t u8Level));
 
     /** Pointer to the APIC device instance - RC Ptr. */
     PPDMDEVINSRC                    pDevInsRC;
     /** @copydoc PDMAPICREG::pfnGetInterruptR3 */
-    DECLRCCALLBACKMEMBER(int,       pfnGetInterruptRC,(PPDMDEVINS pDevIns));
+    DECLRCCALLBACKMEMBER(int,       pfnGetInterruptRC,(PPDMDEVINS pDevIns, uint32_t *puTagSrc));
     /** @copydoc PDMAPICREG::pfnHasPendingIrqR3 */
     DECLRCCALLBACKMEMBER(bool,      pfnHasPendingIrqRC,(PPDMDEVINS pDevIns));
     /** @copydoc PDMAPICREG::pfnSetBaseR3 */
@@ -545,7 +552,7 @@ typedef struct PDMAPIC
     DECLRCCALLBACKMEMBER(uint32_t,  pfnReadMSRRC, (PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Reg, uint64_t *pu64Value));
     /** @copydoc PDMAPICREG::pfnBusDeliverR3 */
     DECLRCCALLBACKMEMBER(int,       pfnBusDeliverRC,(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
-                                                     uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode));
+                                                     uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
     /** @copydoc PDMAPICREG::pfnLocalInterruptR3 */
     DECLRCCALLBACKMEMBER(int,       pfnLocalInterruptRC,(PPDMDEVINS pDevIns, uint8_t u8Pin, uint8_t u8Level));
     RTRCPTR                         RCPtrAlignment;
@@ -561,23 +568,23 @@ typedef struct PDMIOAPIC
     /** Pointer to the APIC device instance - R3 Ptr. */
     PPDMDEVINSR3                    pDevInsR3;
     /** @copydoc PDMIOAPICREG::pfnSetIrqR3 */
-    DECLR3CALLBACKMEMBER(void,      pfnSetIrqR3,(PPDMDEVINS pDevIns, int iIrq, int iLevel));
+    DECLR3CALLBACKMEMBER(void,      pfnSetIrqR3,(PPDMDEVINS pDevIns, int iIrq, int iLevel, uint32_t uTagSrc));
     /** @copydoc PDMIOAPICREG::pfnSendMsiR3 */
-    DECLR3CALLBACKMEMBER(void,      pfnSendMsiR3,(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue));
+    DECLR3CALLBACKMEMBER(void,      pfnSendMsiR3,(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue, uint32_t uTagSrc));
 
     /** Pointer to the PIC device instance - R0. */
     PPDMDEVINSR0                    pDevInsR0;
     /** @copydoc PDMIOAPICREG::pfnSetIrqR3 */
-    DECLR0CALLBACKMEMBER(void,      pfnSetIrqR0,(PPDMDEVINS pDevIns, int iIrq, int iLevel));
+    DECLR0CALLBACKMEMBER(void,      pfnSetIrqR0,(PPDMDEVINS pDevIns, int iIrq, int iLevel, uint32_t uTagSrc));
     /** @copydoc PDMIOAPICREG::pfnSendMsiR3 */
-    DECLR0CALLBACKMEMBER(void,      pfnSendMsiR0,(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue));
+    DECLR0CALLBACKMEMBER(void,      pfnSendMsiR0,(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue, uint32_t uTagSrc));
 
     /** Pointer to the APIC device instance - RC Ptr. */
     PPDMDEVINSRC                    pDevInsRC;
     /** @copydoc PDMIOAPICREG::pfnSetIrqR3 */
-    DECLRCCALLBACKMEMBER(void,      pfnSetIrqRC,(PPDMDEVINS pDevIns, int iIrq, int iLevel));
+    DECLRCCALLBACKMEMBER(void,      pfnSetIrqRC,(PPDMDEVINS pDevIns, int iIrq, int iLevel, uint32_t uTagSrc));
      /** @copydoc PDMIOAPICREG::pfnSendMsiR3 */
-    DECLRCCALLBACKMEMBER(void,      pfnSendMsiRC,(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue));
+    DECLRCCALLBACKMEMBER(void,      pfnSendMsiRC,(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue, uint32_t uTagSrc));
 
     uint8_t                         Alignment[4];
 } PDMIOAPIC;
@@ -597,7 +604,7 @@ typedef struct PDMPCIBUS
     /** Pointer to PCI Bus device instance. */
     PPDMDEVINSR3                    pDevInsR3;
     /** @copydoc PDMPCIBUSREG::pfnSetIrqR3 */
-    DECLR3CALLBACKMEMBER(void,      pfnSetIrqR3,(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iIrq, int iLevel));
+    DECLR3CALLBACKMEMBER(void,      pfnSetIrqR3,(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iIrq, int iLevel, uint32_t uTagSrc));
     /** @copydoc PDMPCIBUSREG::pfnRegisterR3 */
     DECLR3CALLBACKMEMBER(int,       pfnRegisterR3,(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, const char *pszName, int iDev));
     /** @copydoc PDMPCIBUSREG::pfnPCIRegisterMsiR3 */
@@ -618,12 +625,12 @@ typedef struct PDMPCIBUS
     /** Pointer to the PIC device instance - R0. */
     R0PTRTYPE(PPDMDEVINS)           pDevInsR0;
     /** @copydoc PDMPCIBUSREG::pfnSetIrqR3 */
-    DECLR0CALLBACKMEMBER(void,      pfnSetIrqR0,(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iIrq, int iLevel));
+    DECLR0CALLBACKMEMBER(void,      pfnSetIrqR0,(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iIrq, int iLevel, uint32_t uTagSrc));
 
     /** Pointer to PCI Bus device instance. */
     PPDMDEVINSRC                    pDevInsRC;
     /** @copydoc PDMPCIBUSREG::pfnSetIrqR3 */
-    DECLRCCALLBACKMEMBER(void,      pfnSetIrqRC,(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iIrq, int iLevel));
+    DECLRCCALLBACKMEMBER(void,      pfnSetIrqRC,(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iIrq, int iLevel, uint32_t uTagSrc));
 } PDMPCIBUS;
 
 
@@ -888,7 +895,12 @@ typedef struct PDMDEVHLPTASK
             int                     iIrq;
             /** The new level. */
             int                     iLevel;
+            /** The IRQ tag and source. */
+            uint32_t                uTagSrc;
         } SetIRQ;
+
+        /** Expanding the structure.. */
+        uint64_t    au64[2];
     } u;
 } PDMDEVHLPTASK;
 /** Pointer to a queued Device Helper Task. */
@@ -1002,8 +1014,21 @@ typedef struct PDM
     /** Bitmask controlling the queue flushing.
      * See PDM_QUEUE_FLUSH_FLAG_ACTIVE and PDM_QUEUE_FLUSH_FLAG_PENDING. */
     uint32_t volatile               fQueueFlushing;
-    /** Alignment padding. */
-    uint32_t                        u32Padding2;
+
+    /** The current IRQ tag (tracing purposes). */
+    uint32_t volatile               uIrqTag;
+
+    /** The tracing ID of the next device instance.
+     *
+     * @remarks We keep the device tracing ID seperate from the rest as these are
+     *          then more likely to end up with the same ID from one run to
+     *          another, making analysis somewhat easier.  Drivers and USB devices
+     *          are more volatile and can be changed at runtime, thus these are much
+     *          less likely to remain stable, so just heap them all together. */
+    uint32_t                        idTracingDev;
+    /** The tracing ID of the next driver instance, USB device instance or other
+     * PDM entity requiring an ID. */
+    uint32_t                        idTracingOther;
 
     /** @name   VMM device heap
      * @{ */
@@ -1060,6 +1085,10 @@ typedef struct PDMUSERPERVM
     /** Head of the templates. Singly linked, protected by ListCritSect. */
     R3PTRTYPE(PPDMASYNCCOMPLETIONTEMPLATE) pAsyncCompletionTemplates;
     /** @} */
+#ifdef VBOX_WITH_NETSHAPER
+    /** Pointer to network shaper instance. */
+    R3PTRTYPE(PPDMNETSHAPER)        pNetShaper;
+#endif /* VBOX_WITH_NETSHAPER */
 
     R3PTRTYPE(PPDMBLKCACHEGLOBAL)   pBlkCacheGlobal;
 
@@ -1177,6 +1206,11 @@ int         pdmR3ThreadSuspendAll(PVM pVM);
 int         pdmR3AsyncCompletionInit(PVM pVM);
 int         pdmR3AsyncCompletionTerm(PVM pVM);
 void        pdmR3AsyncCompletionResume(PVM pVM);
+#endif
+
+#ifdef VBOX_WITH_NETSHAPER
+int         pdmR3NetShaperInit(PVM pVM);
+int         pdmR3NetShaperTerm(PVM pVM);
 #endif
 
 int         pdmR3BlkCacheInit(PVM pVM);

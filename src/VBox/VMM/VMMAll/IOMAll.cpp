@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,7 +43,7 @@
  * Check if this VCPU currently owns the IOM lock.
  *
  * @returns bool owner/not owner
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMDECL(bool) IOMIsLockOwner(PVM pVM)
 {
@@ -64,9 +64,10 @@ VMMDECL(bool) IOMIsLockOwner(PVM pVM)
  * @param   pu64Data            Where to store retrieved data.
  * @param   pcbSize             Where to store the size of data (1, 2, 4, 8).
  */
-bool iomGetRegImmData(PDISCPUSTATE pCpu, PCOP_PARAMETER pParam, PCPUMCTXCORE pRegFrame, uint64_t *pu64Data, unsigned *pcbSize)
+bool iomGetRegImmData(PDISCPUSTATE pCpu, PCDISOPPARAM pParam, PCPUMCTXCORE pRegFrame, uint64_t *pu64Data, unsigned *pcbSize)
 {
-    if (pParam->flags & (USE_BASE | USE_INDEX | USE_SCALE | USE_DISPLACEMENT8 | USE_DISPLACEMENT16 | USE_DISPLACEMENT32))
+    NOREF(pCpu);
+    if (pParam->fUse & (DISUSE_BASE | DISUSE_INDEX | DISUSE_SCALE | DISUSE_DISPLACEMENT8 | DISUSE_DISPLACEMENT16 | DISUSE_DISPLACEMENT32))
     {
         *pcbSize  = 0;
         *pu64Data = 0;
@@ -74,68 +75,68 @@ bool iomGetRegImmData(PDISCPUSTATE pCpu, PCOP_PARAMETER pParam, PCPUMCTXCORE pRe
     }
 
     /* divide and conquer */
-    if (pParam->flags & (USE_REG_GEN64 | USE_REG_GEN32 | USE_REG_GEN16 | USE_REG_GEN8))
+    if (pParam->fUse & (DISUSE_REG_GEN64 | DISUSE_REG_GEN32 | DISUSE_REG_GEN16 | DISUSE_REG_GEN8))
     {
-        if (pParam->flags & USE_REG_GEN32)
+        if (pParam->fUse & DISUSE_REG_GEN32)
         {
             *pcbSize  = 4;
-            DISFetchReg32(pRegFrame, pParam->base.reg_gen, (uint32_t *)pu64Data);
+            DISFetchReg32(pRegFrame, pParam->Base.idxGenReg, (uint32_t *)pu64Data);
             return true;
         }
 
-        if (pParam->flags & USE_REG_GEN16)
+        if (pParam->fUse & DISUSE_REG_GEN16)
         {
             *pcbSize  = 2;
-            DISFetchReg16(pRegFrame, pParam->base.reg_gen, (uint16_t *)pu64Data);
+            DISFetchReg16(pRegFrame, pParam->Base.idxGenReg, (uint16_t *)pu64Data);
             return true;
         }
 
-        if (pParam->flags & USE_REG_GEN8)
+        if (pParam->fUse & DISUSE_REG_GEN8)
         {
             *pcbSize  = 1;
-            DISFetchReg8(pRegFrame, pParam->base.reg_gen, (uint8_t *)pu64Data);
+            DISFetchReg8(pRegFrame, pParam->Base.idxGenReg, (uint8_t *)pu64Data);
             return true;
         }
 
-        Assert(pParam->flags & USE_REG_GEN64);
+        Assert(pParam->fUse & DISUSE_REG_GEN64);
         *pcbSize  = 8;
-        DISFetchReg64(pRegFrame, pParam->base.reg_gen, pu64Data);
+        DISFetchReg64(pRegFrame, pParam->Base.idxGenReg, pu64Data);
         return true;
     }
     else
     {
-        if (pParam->flags & (USE_IMMEDIATE64 | USE_IMMEDIATE64_SX8))
+        if (pParam->fUse & (DISUSE_IMMEDIATE64 | DISUSE_IMMEDIATE64_SX8))
         {
             *pcbSize  = 8;
-            *pu64Data = pParam->parval;
+            *pu64Data = pParam->uValue;
             return true;
         }
 
-        if (pParam->flags & (USE_IMMEDIATE32 | USE_IMMEDIATE32_SX8))
+        if (pParam->fUse & (DISUSE_IMMEDIATE32 | DISUSE_IMMEDIATE32_SX8))
         {
             *pcbSize  = 4;
-            *pu64Data = (uint32_t)pParam->parval;
+            *pu64Data = (uint32_t)pParam->uValue;
             return true;
         }
 
-        if (pParam->flags & (USE_IMMEDIATE16 | USE_IMMEDIATE16_SX8))
+        if (pParam->fUse & (DISUSE_IMMEDIATE16 | DISUSE_IMMEDIATE16_SX8))
         {
             *pcbSize  = 2;
-            *pu64Data = (uint16_t)pParam->parval;
+            *pu64Data = (uint16_t)pParam->uValue;
             return true;
         }
 
-        if (pParam->flags & USE_IMMEDIATE8)
+        if (pParam->fUse & DISUSE_IMMEDIATE8)
         {
             *pcbSize  = 1;
-            *pu64Data = (uint8_t)pParam->parval;
+            *pu64Data = (uint8_t)pParam->uValue;
             return true;
         }
 
-        if (pParam->flags & USE_REG_SEG)
+        if (pParam->fUse & DISUSE_REG_SEG)
         {
             *pcbSize  = 2;
-            DISFetchRegSeg(pRegFrame, pParam->base.reg_seg, (RTSEL *)pu64Data);
+            DISFetchRegSeg(pRegFrame, (DISSELREG)pParam->Base.idxSegReg, (RTSEL *)pu64Data);
             return true;
         } /* Else - error. */
 
@@ -157,40 +158,41 @@ bool iomGetRegImmData(PDISCPUSTATE pCpu, PCOP_PARAMETER pParam, PCPUMCTXCORE pRe
  * @param   pRegFrame           Pointer to CPUMCTXCORE guest structure.
  * @param   u64Data             8/16/32/64 bit data to store.
  */
-bool iomSaveDataToReg(PDISCPUSTATE pCpu, PCOP_PARAMETER pParam, PCPUMCTXCORE pRegFrame, uint64_t u64Data)
+bool iomSaveDataToReg(PDISCPUSTATE pCpu, PCDISOPPARAM pParam, PCPUMCTXCORE pRegFrame, uint64_t u64Data)
 {
-    if (pParam->flags & (USE_BASE | USE_INDEX | USE_SCALE | USE_DISPLACEMENT8 | USE_DISPLACEMENT16 | USE_DISPLACEMENT32 | USE_DISPLACEMENT64 | USE_IMMEDIATE8 | USE_IMMEDIATE16 | USE_IMMEDIATE32 | USE_IMMEDIATE32_SX8 | USE_IMMEDIATE16_SX8))
+    NOREF(pCpu);
+    if (pParam->fUse & (DISUSE_BASE | DISUSE_INDEX | DISUSE_SCALE | DISUSE_DISPLACEMENT8 | DISUSE_DISPLACEMENT16 | DISUSE_DISPLACEMENT32 | DISUSE_DISPLACEMENT64 | DISUSE_IMMEDIATE8 | DISUSE_IMMEDIATE16 | DISUSE_IMMEDIATE32 | DISUSE_IMMEDIATE32_SX8 | DISUSE_IMMEDIATE16_SX8))
     {
         return false;
     }
 
-    if (pParam->flags & USE_REG_GEN32)
+    if (pParam->fUse & DISUSE_REG_GEN32)
     {
-        DISWriteReg32(pRegFrame, pParam->base.reg_gen, (uint32_t)u64Data);
+        DISWriteReg32(pRegFrame, pParam->Base.idxGenReg, (uint32_t)u64Data);
         return true;
     }
 
-    if (pParam->flags & USE_REG_GEN64)
+    if (pParam->fUse & DISUSE_REG_GEN64)
     {
-        DISWriteReg64(pRegFrame, pParam->base.reg_gen, u64Data);
+        DISWriteReg64(pRegFrame, pParam->Base.idxGenReg, u64Data);
         return true;
     }
 
-    if (pParam->flags & USE_REG_GEN16)
+    if (pParam->fUse & DISUSE_REG_GEN16)
     {
-        DISWriteReg16(pRegFrame, pParam->base.reg_gen, (uint16_t)u64Data);
+        DISWriteReg16(pRegFrame, pParam->Base.idxGenReg, (uint16_t)u64Data);
         return true;
     }
 
-    if (pParam->flags & USE_REG_GEN8)
+    if (pParam->fUse & DISUSE_REG_GEN8)
     {
-        DISWriteReg8(pRegFrame, pParam->base.reg_gen, (uint8_t)u64Data);
+        DISWriteReg8(pRegFrame, pParam->Base.idxGenReg, (uint8_t)u64Data);
         return true;
     }
 
-    if (pParam->flags & USE_REG_SEG)
+    if (pParam->fUse & DISUSE_REG_SEG)
     {
-        DISWriteRegSeg(pRegFrame, pParam->base.reg_seg, (RTSEL)u64Data);
+        DISWriteRegSeg(pRegFrame, (DISSELREG)pParam->Base.idxSegReg, (RTSEL)u64Data);
         return true;
     }
 
@@ -210,9 +212,9 @@ bool iomSaveDataToReg(PDISCPUSTATE pCpu, PCOP_PARAMETER pParam, PCPUMCTXCORE pRe
  * @retval  VINF_SUCCESS                Success.
  * @retval  VINF_EM_FIRST-VINF_EM_LAST  Success with some exceptions (see IOM_SUCCESS()), the
  *                                      status code must be passed on to EM.
- * @retval  VINF_IOM_HC_IOPORT_READ     Defer the read to ring-3. (R0/GC only)
+ * @retval  VINF_IOM_R3_IOPORT_READ     Defer the read to ring-3. (R0/GC only)
  *
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   Port        The port to read.
  * @param   pu32Value   Where to store the value read.
  * @param   cbValue     The size of the register to read in bytes. 1, 2 or 4 bytes.
@@ -225,7 +227,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value,
     int rc2 = IOM_LOCK(pVM);
 #ifndef IN_RING3
     if (rc2 == VERR_SEM_BUSY)
-        return VINF_IOM_HC_IOPORT_READ;
+        return VINF_IOM_R3_IOPORT_READ;
 #endif
     AssertRC(rc2);
 #if defined(IEM_VERIFICATION_MODE) && defined(IN_RING3)
@@ -268,7 +270,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value,
         {
             STAM_STATS({ if (pStats) STAM_COUNTER_INC(&pStats->InRZToR3); });
             IOM_UNLOCK(pVM);
-            return VINF_IOM_HC_IOPORT_READ;
+            return VINF_IOM_R3_IOPORT_READ;
         }
 #endif
         void           *pvUser    = pRange->pvUser;
@@ -278,7 +280,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value,
         /*
          * Call the device.
          */
-        VBOXSTRICTRC rcStrict = PDMCritSectEnter(pDevIns->CTX_SUFF(pCritSectRo), VINF_IOM_HC_IOPORT_READ);
+        VBOXSTRICTRC rcStrict = PDMCritSectEnter(pDevIns->CTX_SUFF(pCritSectRo), VINF_IOM_R3_IOPORT_READ);
         if (rcStrict != VINF_SUCCESS)
         {
             STAM_STATS({ if (pStats) STAM_COUNTER_INC(&pStats->InRZToR3); });
@@ -300,7 +302,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value,
         if (rcStrict == VINF_SUCCESS && pStats)
             STAM_COUNTER_INC(&pStats->CTX_SUFF_Z(In));
 # ifndef IN_RING3
-        else if (rcStrict == VINF_IOM_HC_IOPORT_READ && pStats)
+        else if (rcStrict == VINF_IOM_R3_IOPORT_READ && pStats)
             STAM_COUNTER_INC(&pStats->InRZToR3);
 # endif
 #endif
@@ -334,7 +336,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value,
             STAM_COUNTER_INC(&pStats->InRZToR3);
 # endif
         IOM_UNLOCK(pVM);
-        return VINF_IOM_HC_IOPORT_READ;
+        return VINF_IOM_R3_IOPORT_READ;
     }
 #endif
 
@@ -349,7 +351,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value,
 # ifndef IN_RING3
         /* Ring-3 will have to create the statistics record. */
         IOM_UNLOCK(pVM);
-        return VINF_IOM_HC_IOPORT_READ;
+        return VINF_IOM_R3_IOPORT_READ;
 # else
         pStats = iomR3IOPortStatsCreate(pVM, Port, NULL);
         if (pStats)
@@ -383,9 +385,9 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value,
  * @retval  VINF_SUCCESS                Success.
  * @retval  VINF_EM_FIRST-VINF_EM_LAST  Success with some exceptions (see IOM_SUCCESS()), the
  *                                      status code must be passed on to EM.
- * @retval  VINF_IOM_HC_IOPORT_READ     Defer the read to ring-3. (R0/GC only)
+ * @retval  VINF_IOM_R3_IOPORT_READ     Defer the read to ring-3. (R0/GC only)
  *
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   Port        The port to read.
  * @param   pGCPtrDst   Pointer to the destination buffer (GC, incremented appropriately).
  * @param   pcTransfers Pointer to the number of transfer units to read, on return remaining transfer units.
@@ -397,7 +399,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortReadString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPt
     int rc2 = IOM_LOCK(pVM);
 #ifndef IN_RING3
     if (rc2 == VERR_SEM_BUSY)
-        return VINF_IOM_HC_IOPORT_READ;
+        return VINF_IOM_R3_IOPORT_READ;
 #endif
     AssertRC(rc2);
 #if defined(IEM_VERIFICATION_MODE) && defined(IN_RING3)
@@ -443,7 +445,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortReadString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPt
         {
             STAM_STATS({ if (pStats) STAM_COUNTER_INC(&pStats->InRZToR3); });
             IOM_UNLOCK(pVM);
-            return VINF_IOM_HC_IOPORT_READ;
+            return VINF_IOM_R3_IOPORT_READ;
         }
 #endif
         void           *pvUser    = pRange->pvUser;
@@ -453,7 +455,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortReadString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPt
         /*
          * Call the device.
          */
-        VBOXSTRICTRC rcStrict = PDMCritSectEnter(pDevIns->CTX_SUFF(pCritSectRo), VINF_IOM_HC_IOPORT_READ);
+        VBOXSTRICTRC rcStrict = PDMCritSectEnter(pDevIns->CTX_SUFF(pCritSectRo), VINF_IOM_R3_IOPORT_READ);
         if (rcStrict != VINF_SUCCESS)
         {
             STAM_STATS({ if (pStats) STAM_COUNTER_INC(&pStats->InRZToR3); });
@@ -475,7 +477,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortReadString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPt
         if (rcStrict == VINF_SUCCESS && pStats)
             STAM_COUNTER_INC(&pStats->CTX_SUFF_Z(In));
 # ifndef IN_RING3
-        else if (rcStrict == VINF_IOM_HC_IOPORT_READ && pStats)
+        else if (rcStrict == VINF_IOM_R3_IOPORT_READ && pStats)
             STAM_COUNTER_INC(&pStats->InRZToR3);
 # endif
 #endif
@@ -496,7 +498,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortReadString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPt
             STAM_COUNTER_INC(&pStats->InRZToR3);
 # endif
         IOM_UNLOCK(pVM);
-        return VINF_IOM_HC_IOPORT_READ;
+        return VINF_IOM_R3_IOPORT_READ;
     }
 #endif
 
@@ -511,7 +513,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortReadString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPt
 # ifndef IN_RING3
         /* Ring-3 will have to create the statistics record. */
         IOM_UNLOCK(pVM);
-        return VINF_IOM_HC_IOPORT_READ;
+        return VINF_IOM_R3_IOPORT_READ;
 # else
         pStats = iomR3IOPortStatsCreate(pVM, Port, NULL);
         if (pStats)
@@ -535,9 +537,9 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortReadString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPt
  * @retval  VINF_SUCCESS                Success.
  * @retval  VINF_EM_FIRST-VINF_EM_LAST  Success with some exceptions (see IOM_SUCCESS()), the
  *                                      status code must be passed on to EM.
- * @retval  VINF_IOM_HC_IOPORT_WRITE    Defer the write to ring-3. (R0/GC only)
+ * @retval  VINF_IOM_R3_IOPORT_WRITE    Defer the write to ring-3. (R0/GC only)
  *
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   Port        The port to write to.
  * @param   u32Value    The value to write.
  * @param   cbValue     The size of the register to read in bytes. 1, 2 or 4 bytes.
@@ -548,7 +550,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, 
     int rc2 = IOM_LOCK(pVM);
 #ifndef IN_RING3
     if (rc2 == VERR_SEM_BUSY)
-        return VINF_IOM_HC_IOPORT_WRITE;
+        return VINF_IOM_R3_IOPORT_WRITE;
 #endif
     AssertRC(rc2);
 #if defined(IEM_VERIFICATION_MODE) && defined(IN_RING3)
@@ -593,7 +595,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, 
         {
             STAM_STATS({ if (pStats) STAM_COUNTER_INC(&pStats->OutRZToR3); });
             IOM_UNLOCK(pVM);
-            return VINF_IOM_HC_IOPORT_WRITE;
+            return VINF_IOM_R3_IOPORT_WRITE;
         }
 #endif
         void           *pvUser    = pRange->pvUser;
@@ -603,7 +605,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, 
         /*
          * Call the device.
          */
-        VBOXSTRICTRC rcStrict = PDMCritSectEnter(pDevIns->CTX_SUFF(pCritSectRo), VINF_IOM_HC_IOPORT_WRITE);
+        VBOXSTRICTRC rcStrict = PDMCritSectEnter(pDevIns->CTX_SUFF(pCritSectRo), VINF_IOM_R3_IOPORT_WRITE);
         if (rcStrict != VINF_SUCCESS)
         {
             STAM_STATS({ if (pStats) STAM_COUNTER_INC(&pStats->OutRZToR3); });
@@ -625,7 +627,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, 
         if (rcStrict == VINF_SUCCESS && pStats)
             STAM_COUNTER_INC(&pStats->CTX_SUFF_Z(Out));
 # ifndef IN_RING3
-        else if (rcStrict == VINF_IOM_HC_IOPORT_WRITE && pStats)
+        else if (rcStrict == VINF_IOM_R3_IOPORT_WRITE && pStats)
             STAM_COUNTER_INC(&pStats->OutRZToR3);
 # endif
 #endif
@@ -645,7 +647,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, 
             STAM_COUNTER_INC(&pStats->OutRZToR3);
 # endif
         IOM_UNLOCK(pVM);
-        return VINF_IOM_HC_IOPORT_WRITE;
+        return VINF_IOM_R3_IOPORT_WRITE;
     }
 #endif
 
@@ -661,7 +663,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, 
 # ifndef IN_RING3
         /* R3 will have to create the statistics record. */
         IOM_UNLOCK(pVM);
-        return VINF_IOM_HC_IOPORT_WRITE;
+        return VINF_IOM_R3_IOPORT_WRITE;
 # else
         pStats = iomR3IOPortStatsCreate(pVM, Port, NULL);
         if (pStats)
@@ -683,9 +685,9 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, 
  * @retval  VINF_SUCCESS                Success.
  * @retval  VINF_EM_FIRST-VINF_EM_LAST  Success with some exceptions (see IOM_SUCCESS()), the
  *                                      status code must be passed on to EM.
- * @retval  VINF_IOM_HC_IOPORT_WRITE    Defer the write to ring-3. (R0/GC only)
+ * @retval  VINF_IOM_R3_IOPORT_WRITE    Defer the write to ring-3. (R0/GC only)
  *
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   Port        The port to write.
  * @param   pGCPtrSrc   Pointer to the source buffer (GC, incremented appropriately).
  * @param   pcTransfers Pointer to the number of transfer units to write, on return remaining transfer units.
@@ -697,7 +699,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWriteString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCP
     int rc2 = IOM_LOCK(pVM);
 #ifndef IN_RING3
     if (rc2 == VERR_SEM_BUSY)
-        return VINF_IOM_HC_IOPORT_WRITE;
+        return VINF_IOM_R3_IOPORT_WRITE;
 #endif
     AssertRC(rc2);
 #if defined(IEM_VERIFICATION_MODE) && defined(IN_RING3)
@@ -743,7 +745,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWriteString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCP
         {
             STAM_STATS({ if (pStats) STAM_COUNTER_INC(&pStats->OutRZToR3); });
             IOM_UNLOCK(pVM);
-            return VINF_IOM_HC_IOPORT_WRITE;
+            return VINF_IOM_R3_IOPORT_WRITE;
         }
 #endif
         void           *pvUser    = pRange->pvUser;
@@ -753,7 +755,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWriteString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCP
         /*
          * Call the device.
          */
-        VBOXSTRICTRC rcStrict = PDMCritSectEnter(pDevIns->CTX_SUFF(pCritSectRo), VINF_IOM_HC_IOPORT_WRITE);
+        VBOXSTRICTRC rcStrict = PDMCritSectEnter(pDevIns->CTX_SUFF(pCritSectRo), VINF_IOM_R3_IOPORT_WRITE);
         if (rcStrict != VINF_SUCCESS)
         {
             STAM_STATS({ if (pStats) STAM_COUNTER_INC(&pStats->OutRZToR3); });
@@ -775,7 +777,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWriteString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCP
         if (rcStrict == VINF_SUCCESS && pStats)
             STAM_COUNTER_INC(&pStats->CTX_SUFF_Z(Out));
 # ifndef IN_RING3
-        else if (rcStrict == VINF_IOM_HC_IOPORT_WRITE && pStats)
+        else if (rcStrict == VINF_IOM_R3_IOPORT_WRITE && pStats)
             STAM_COUNTER_INC(&pStats->OutRZToR3);
 # endif
 #endif
@@ -796,7 +798,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWriteString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCP
             STAM_COUNTER_INC(&pStats->OutRZToR3);
 # endif
         IOM_UNLOCK(pVM);
-        return VINF_IOM_HC_IOPORT_WRITE;
+        return VINF_IOM_R3_IOPORT_WRITE;
     }
 #endif
 
@@ -811,7 +813,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWriteString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCP
 # ifndef IN_RING3
         /* Ring-3 will have to create the statistics record. */
         IOM_UNLOCK(pVM);
-        return VINF_IOM_HC_IOPORT_WRITE;
+        return VINF_IOM_R3_IOPORT_WRITE;
 # else
         pStats = iomR3IOPortStatsCreate(pVM, Port, NULL);
         if (pStats)
@@ -838,7 +840,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWriteString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCP
  * @retval  VINF_TRPM_XCPT_DISPATCHED   The exception was raised and dispatched for raw-mode execution. (TRPMRaiseXcptErr)
  * @retval  VINF_EM_RESCHEDULE_REM      The exception was dispatched and cannot be executed in raw-mode. (TRPMRaiseXcptErr)
  *
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pCtxCore    Pointer to register frame.
  * @param   Port        The I/O port number.
  * @param   cb          The access size.
@@ -850,8 +852,8 @@ VMMDECL(VBOXSTRICTRC) IOMInterpretCheckPortIOAccess(PVM pVM, PCPUMCTXCORE pCtxCo
     /*
      * If this isn't ring-0, we have to check for I/O privileges.
      */
-    uint32_t efl = CPUMRawGetEFlags(pVCpu, pCtxCore);
-    uint32_t cpl = CPUMGetGuestCPL(pVCpu, pCtxCore);
+    uint32_t efl = CPUMRawGetEFlags(pVCpu);
+    uint32_t cpl = CPUMGetGuestCPL(pVCpu);
 
     if (    (    cpl > 0
              &&  X86_EFL_GET_IOPL(efl) < cpl)
@@ -934,7 +936,7 @@ VMMDECL(VBOXSTRICTRC) IOMInterpretCheckPortIOAccess(PVM pVM, PCPUMCTXCORE pCtxCo
  * @retval  VINF_SUCCESS                Success.
  * @retval  VINF_EM_FIRST-VINF_EM_LAST  Success with some exceptions (see IOM_SUCCESS()), the
  *                                      status code must be passed on to EM.
- * @retval  VINF_IOM_HC_IOPORT_READ     Defer the read to ring-3. (R0/GC only)
+ * @retval  VINF_IOM_R3_IOPORT_READ     Defer the read to ring-3. (R0/GC only)
  * @retval  VINF_EM_RAW_GUEST_TRAP      The exception was left pending. (TRPMRaiseXcptErr)
  * @retval  VINF_TRPM_XCPT_DISPATCHED   The exception was raised and dispatched for raw-mode execution. (TRPMRaiseXcptErr)
  * @retval  VINF_EM_RESCHEDULE_REM      The exception was dispatched and cannot be executed in raw-mode. (TRPMRaiseXcptErr)
@@ -955,10 +957,10 @@ VMMDECL(VBOXSTRICTRC) IOMInterpretIN(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTA
      */
     uint64_t    uPort = 0;
     unsigned    cbSize = 0;
-    bool fRc = iomGetRegImmData(pCpu, &pCpu->param2, pRegFrame, &uPort, &cbSize);
+    bool fRc = iomGetRegImmData(pCpu, &pCpu->Param2, pRegFrame, &uPort, &cbSize);
     AssertMsg(fRc, ("Failed to get reg/imm port number!\n")); NOREF(fRc);
 
-    cbSize = DISGetParamSize(pCpu, &pCpu->param1);
+    cbSize = DISGetParamSize(pCpu, &pCpu->Param1);
     Assert(cbSize > 0);
     VBOXSTRICTRC rcStrict = IOMInterpretCheckPortIOAccess(pVM, pRegFrame, uPort, cbSize);
     if (rcStrict == VINF_SUCCESS)
@@ -973,11 +975,11 @@ VMMDECL(VBOXSTRICTRC) IOMInterpretIN(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTA
             /*
              * Store the result in the AL|AX|EAX register.
              */
-            fRc = iomSaveDataToReg(pCpu, &pCpu->param1, pRegFrame, u32Data);
+            fRc = iomSaveDataToReg(pCpu, &pCpu->Param1, pRegFrame, u32Data);
             AssertMsg(fRc, ("Failed to store register value!\n")); NOREF(fRc);
         }
         else
-            AssertMsg(rcStrict == VINF_IOM_HC_IOPORT_READ || RT_FAILURE(rcStrict), ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+            AssertMsg(rcStrict == VINF_IOM_R3_IOPORT_READ || RT_FAILURE(rcStrict), ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
     }
     else
         AssertMsg(rcStrict == VINF_EM_RAW_GUEST_TRAP || rcStrict == VINF_TRPM_XCPT_DISPATCHED || rcStrict == VINF_TRPM_XCPT_DISPATCHED || RT_FAILURE(rcStrict), ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
@@ -994,7 +996,7 @@ VMMDECL(VBOXSTRICTRC) IOMInterpretIN(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTA
  * @retval  VINF_SUCCESS                Success.
  * @retval  VINF_EM_FIRST-VINF_EM_LAST  Success with some exceptions (see IOM_SUCCESS()), the
  *                                      status code must be passed on to EM.
- * @retval  VINF_IOM_HC_IOPORT_WRITE    Defer the write to ring-3. (R0/GC only)
+ * @retval  VINF_IOM_R3_IOPORT_WRITE    Defer the write to ring-3. (R0/GC only)
  * @retval  VINF_EM_RAW_GUEST_TRAP      The exception was left pending. (TRPMRaiseXcptErr)
  * @retval  VINF_TRPM_XCPT_DISPATCHED   The exception was raised and dispatched for raw-mode execution. (TRPMRaiseXcptErr)
  * @retval  VINF_EM_RESCHEDULE_REM      The exception was dispatched and cannot be executed in raw-mode. (TRPMRaiseXcptErr)
@@ -1015,21 +1017,21 @@ VMMDECL(VBOXSTRICTRC) IOMInterpretOUT(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUST
      */
     uint64_t    uPort = 0;
     unsigned    cbSize = 0;
-    bool fRc = iomGetRegImmData(pCpu, &pCpu->param1, pRegFrame, &uPort, &cbSize);
+    bool fRc = iomGetRegImmData(pCpu, &pCpu->Param1, pRegFrame, &uPort, &cbSize);
     AssertMsg(fRc, ("Failed to get reg/imm port number!\n")); NOREF(fRc);
 
     VBOXSTRICTRC rcStrict = IOMInterpretCheckPortIOAccess(pVM, pRegFrame, uPort, cbSize);
     if (rcStrict == VINF_SUCCESS)
     {
         uint64_t u64Data = 0;
-        fRc = iomGetRegImmData(pCpu, &pCpu->param2, pRegFrame, &u64Data, &cbSize);
+        fRc = iomGetRegImmData(pCpu, &pCpu->Param2, pRegFrame, &u64Data, &cbSize);
         AssertMsg(fRc, ("Failed to get reg value!\n")); NOREF(fRc);
 
         /*
          * Attempt to write to the port.
          */
         rcStrict = IOMIOPortWrite(pVM, uPort, u64Data, cbSize);
-        AssertMsg(rcStrict == VINF_SUCCESS || rcStrict == VINF_IOM_HC_IOPORT_WRITE || (rcStrict >= VINF_EM_FIRST && rcStrict <= VINF_EM_LAST) || RT_FAILURE(rcStrict), ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+        AssertMsg(rcStrict == VINF_SUCCESS || rcStrict == VINF_IOM_R3_IOPORT_WRITE || (rcStrict >= VINF_EM_FIRST && rcStrict <= VINF_EM_LAST) || RT_FAILURE(rcStrict), ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
     }
     else
         AssertMsg(rcStrict == VINF_EM_RAW_GUEST_TRAP || rcStrict == VINF_TRPM_XCPT_DISPATCHED || rcStrict == VINF_TRPM_XCPT_DISPATCHED || RT_FAILURE(rcStrict), ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
@@ -1040,7 +1042,7 @@ VMMDECL(VBOXSTRICTRC) IOMInterpretOUT(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUST
 /**
  * Fress an MMIO range after the reference counter has become zero.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pRange              The range to free.
  */
 void iomMmioFreeRange(PVM pVM, PIOMMMIORANGE pRange)

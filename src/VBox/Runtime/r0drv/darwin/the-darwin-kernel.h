@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -59,8 +59,10 @@
 #endif
 #include <libkern/libkern.h>
 #include <libkern/sysctl.h>
+#include <libkern/version.h>
 #include <mach/thread_act.h>
 #include <mach/vm_map.h>
+#include <mach/vm_region.h>
 #include <pexpert/pexpert.h>
 #include <sys/conf.h>
 #include <sys/errno.h>
@@ -141,6 +143,8 @@ extern int cpu_number(void);
 
 /* osfmk/vm/vm_user.c */
 extern kern_return_t vm_protect(vm_map_t, vm_offset_t, vm_size_t, boolean_t, vm_prot_t);
+/*extern kern_return_t vm_region(vm_map_t, vm_address_t *, vm_size_t *, vm_region_flavor_t, vm_region_info_t,
+                               mach_msg_type_number_t *, mach_port_t *);*/
 
 /* i386/machine_routines.h */
 extern int ml_get_max_cpus(void);

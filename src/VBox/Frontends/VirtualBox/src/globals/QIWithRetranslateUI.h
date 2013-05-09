@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,7 @@
 #include <QApplication>
 #include <QEvent>
 #include <QObject>
+#include <QGraphicsWidget>
 
 template <class Base>
 class QIWithRetranslateUI: public Base
@@ -87,6 +88,37 @@ class QIWithRetranslateUI3: public Base
 public:
 
     QIWithRetranslateUI3(QObject *pParent = 0)
+        : Base(pParent)
+    {
+        qApp->installEventFilter(this);
+    }
+
+protected:
+
+    virtual bool eventFilter(QObject *pObject, QEvent *pEvent)
+    {
+        switch (pEvent->type())
+        {
+            case QEvent::LanguageChange:
+            {
+                retranslateUi();
+                break;
+            }
+            default:
+                break;
+        }
+        return Base::eventFilter(pObject, pEvent);
+    }
+
+    virtual void retranslateUi() = 0;
+};
+
+template <class Base>
+class QIWithRetranslateUI4: public Base
+{
+public:
+
+    QIWithRetranslateUI4(QGraphicsWidget *pParent = 0)
         : Base(pParent)
     {
         qApp->installEventFilter(this);

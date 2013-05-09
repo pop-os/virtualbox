@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -79,7 +79,7 @@ RTDECL(int) RTPathReal(const char *pszPath, char *pszRealPath, size_t cchRealPat
     }
 
     LogFlow(("RTPathReal(%p:{%s}, %p:{%s}, %u): returns %Rrc\n", pszPath, pszPath,
-             pszRealPath, RT_SUCCESS(rc) ? pszRealPath : "<failed>",  cchRealPath));
+             pszRealPath, RT_SUCCESS(rc) ? pszRealPath : "<failed>",  cchRealPath, rc));
     return rc;
 }
 
@@ -519,6 +519,12 @@ RTR3DECL(int) RTPathRename(const char *pszSrc, const char *pszDst, unsigned fRen
 
     Log(("RTPathRename(%p:{%s}, %p:{%s}, %#x): returns %Rrc\n", pszSrc, pszSrc, pszDst, pszDst, fRename, rc));
     return rc;
+}
+
+
+RTR3DECL(int) RTPathUnlink(const char *pszPath, uint32_t fUnlink)
+{
+    return VERR_NOT_IMPLEMENTED;
 }
 
 

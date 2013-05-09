@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,8 +17,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/* GUI includes: */
 #include "UIMachineSettingsAudio.h"
-#include "VBoxGlobal.h"
+#include "UIConverter.h"
+
+/* COM includes: */
+#include "CAudioAdapter.h"
 
 UIMachineSettingsAudio::UIMachineSettingsAudio()
 {
@@ -67,8 +71,8 @@ void UIMachineSettingsAudio::getFromCache()
 
     /* Load audio data to page: */
     mGbAudio->setChecked(audioData.m_fAudioEnabled);
-    mCbAudioDriver->setCurrentIndex(mCbAudioDriver->findText(vboxGlobal().toString(audioData.m_audioDriverType)));
-    mCbAudioController->setCurrentIndex(mCbAudioController->findText(vboxGlobal().toString(audioData.m_audioControllerType)));
+    mCbAudioDriver->setCurrentIndex(mCbAudioDriver->findText(gpConverter->toString(audioData.m_audioDriverType)));
+    mCbAudioController->setCurrentIndex(mCbAudioController->findText(gpConverter->toString(audioData.m_audioControllerType)));
 
     /* Polish page finally: */
     polishPage();
@@ -83,8 +87,8 @@ void UIMachineSettingsAudio::putToCache()
 
     /* Gather audio data: */
     audioData.m_fAudioEnabled = mGbAudio->isChecked();
-    audioData.m_audioDriverType = vboxGlobal().toAudioDriverType(mCbAudioDriver->currentText());
-    audioData.m_audioControllerType = vboxGlobal().toAudioControllerType(mCbAudioController->currentText());
+    audioData.m_audioDriverType = gpConverter->fromString<KAudioDriverType>(mCbAudioDriver->currentText());
+    audioData.m_audioControllerType = gpConverter->fromString<KAudioControllerType>(mCbAudioController->currentText());
 
     /* Cache audio data: */
     m_cache.cacheCurrentData(audioData);
@@ -143,32 +147,32 @@ void UIMachineSettingsAudio::prepareComboboxes()
     /* Clear the driver box */
     mCbAudioDriver->clear();
     /* Refill them */
-    mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_Null));
+    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_Null));
 #if defined Q_WS_WIN32
-    mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_DirectSound));
+    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_DirectSound));
 # ifdef VBOX_WITH_WINMM
-    mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_WinMM));
+    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_WinMM));
 # endif
 #endif
 #if defined Q_OS_SOLARIS
-    mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_SolAudio));
+    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_SolAudio));
 # if defined VBOX_WITH_SOLARIS_OSS
-    mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_OSS));
+    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_OSS));
 #endif
 #endif
 #if defined Q_OS_LINUX || defined Q_OS_FREEBSD
-    mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_OSS));
+    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_OSS));
 # ifdef VBOX_WITH_PULSE
-    mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_Pulse));
+    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_Pulse));
 # endif
 #endif
 #if defined Q_OS_LINUX
 # ifdef VBOX_WITH_ALSA
-    mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_ALSA));
+    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_ALSA));
 # endif
 #endif
 #if defined Q_OS_MACX
-    mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_CoreAudio));
+    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_CoreAudio));
 #endif
     /* Set the old value */
     mCbAudioDriver->setCurrentIndex (currentDriver);
@@ -179,11 +183,11 @@ void UIMachineSettingsAudio::prepareComboboxes()
     mCbAudioController->clear();
     /* Refill them */
     mCbAudioController->insertItem (mCbAudioController->count(),
-        vboxGlobal().toString (KAudioControllerType_HDA));
+        gpConverter->toString (KAudioControllerType_HDA));
     mCbAudioController->insertItem (mCbAudioController->count(),
-        vboxGlobal().toString (KAudioControllerType_AC97));
+        gpConverter->toString (KAudioControllerType_AC97));
     mCbAudioController->insertItem (mCbAudioController->count(),
-        vboxGlobal().toString (KAudioControllerType_SB16));
+        gpConverter->toString (KAudioControllerType_SB16));
     /* Set the old value */
     mCbAudioController->setCurrentIndex (currentController);
 }

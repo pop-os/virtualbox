@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -405,6 +405,7 @@ static void *rtSchedNativeSubProberThread(void *pvUser)
  */
 static void *rtSchedNativeProberThread(void *pvUser)
 {
+    NOREF(pvUser);
     SAVEDPRIORITY SavedPriority;
     rtSchedNativeSave(&SavedPriority);
 

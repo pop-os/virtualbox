@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -73,10 +73,6 @@ public:
     STDMETHOD(COMSETTER(UseHostIOCache)) (BOOL fUseHostIOCache);
     STDMETHOD(COMGETTER(Bootable)) (BOOL *fBootable);
 
-    // StorageController methods
-    STDMETHOD(GetIDEEmulationPort) (LONG DevicePosition, LONG *aPortNumber);
-    STDMETHOD(SetIDEEmulationPort) (LONG DevicePosition, LONG aPortNumber);
-
     // public methods only for internal purposes
 
     const Utf8Str &getName() const;
@@ -92,6 +88,8 @@ public:
 
     void rollback();
     void commit();
+    HRESULT getIDEEmulationPort (LONG DevicePosition, LONG *aPortNumber);
+    HRESULT setIDEEmulationPort (LONG DevicePosition, LONG aPortNumber);
 
     // public methods for internal purposes only
     // (ensure there is a caller and a read lock before calling them!)

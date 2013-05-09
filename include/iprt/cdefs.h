@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -79,6 +79,7 @@
 # define IN_RT_R3
 # define IN_RT_STATIC
 # define RT_STRICT
+# define RT_NO_STRICT
 # define RT_LOCK_STRICT
 # define RT_LOCK_NO_STRICT
 # define RT_LOCK_STRICT_ORDER
@@ -108,7 +109,11 @@
 /** @def RT_ARCH_SPARC64
  * Indicates that we're compiling for the SPARC V9 architecture (64-bit).
  */
-#if !defined(RT_ARCH_X86) && !defined(RT_ARCH_AMD64) && !defined(RT_ARCH_SPARC) && !defined(RT_ARCH_SPARC64)
+#if !defined(RT_ARCH_X86) \
+ && !defined(RT_ARCH_AMD64) \
+ && !defined(RT_ARCH_SPARC) \
+ && !defined(RT_ARCH_SPARC64) \
+ && !defined(RT_ARCH_ARM)
 # if defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || defined(__AMD64__)
 #  define RT_ARCH_AMD64
 # elif defined(__i386__) || defined(_M_IX86) || defined(__X86__)
@@ -117,6 +122,8 @@
 #  define RT_ARCH_SPARC64
 # elif defined(__sparc__)
 #  define RT_ARCH_SPARC
+# elif defined(__arm__) || defined(__arm32__)
+#  define RT_ARCH_ARM
 # else /* PORTME: append test for new archs. */
 #  error "Check what predefined macros your compiler uses to indicate architecture."
 # endif
@@ -133,6 +140,14 @@
 # error "Both RT_ARCH_AMD64 and RT_ARCH_SPARC64 cannot be defined at the same time!"
 #elif defined(RT_ARCH_SPARC) && defined(RT_ARCH_SPARC64)
 # error "Both RT_ARCH_SPARC and RT_ARCH_SPARC64 cannot be defined at the same time!"
+#elif defined(RT_ARCH_ARM) && defined(RT_ARCH_AMD64)
+# error "Both RT_ARCH_ARM and RT_ARCH_AMD64 cannot be defined at the same time!"
+#elif defined(RT_ARCH_ARM) && defined(RT_ARCH_X86)
+# error "Both RT_ARCH_ARM and RT_ARCH_X86 cannot be defined at the same time!"
+#elif defined(RT_ARCH_ARM) && defined(RT_ARCH_SPARC64)
+# error "Both RT_ARCH_ARM and RT_ARCH_SPARC64 cannot be defined at the same time!"
+#elif defined(RT_ARCH_ARM) && defined(RT_ARCH_SPARC)
+# error "Both RT_ARCH_ARM and RT_ARCH_SPARC cannot be defined at the same time!"
 #endif
 
 
@@ -145,7 +160,7 @@
  * Indicates that we're compiling for the AMD64 architecture.
  * @deprecated
  */
-#if !defined(__X86__) && !defined(__AMD64__) && !defined(RT_ARCH_SPARC) && !defined(RT_ARCH_SPARC64)
+#if !defined(__X86__) && !defined(__AMD64__) && (defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86))
 # if defined(RT_ARCH_AMD64)
 #  define __AMD64__
 # elif defined(RT_ARCH_X86)
@@ -156,16 +171,16 @@
 #elif defined(__X86__) && defined(__AMD64__)
 # error "Both __X86__ and __AMD64__ cannot be defined at the same time!"
 #elif defined(__X86__) && !defined(RT_ARCH_X86)
-# error "Both __X86__ without RT_ARCH_X86!"
+# error "__X86__ without RT_ARCH_X86!"
 #elif defined(__AMD64__) && !defined(RT_ARCH_AMD64)
-# error "Both __AMD64__ without RT_ARCH_AMD64!"
+# error "__AMD64__ without RT_ARCH_AMD64!"
 #endif
 
 /** @def RT_BIG_ENDIAN
  * Defined if the architecture is big endian.  */
 /** @def RT_LITTLE_ENDIAN
  * Defined if the architecture is little endian.  */
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) || defined(RT_ARCH_ARM)
 # define RT_LITTLE_ENDIAN
 #elif defined(RT_ARCH_SPARC) || defined(RT_ARCH_SPARC64)
 # define RT_BIG_ENDIAN
@@ -584,7 +599,7 @@
  */
 #ifdef RT_EXCEPTIONS_ENABLED
 # ifdef _MSC_VER
-#  if _MSC_VER >= 1400
+#  if _MSC_VER >= 1310
 #   define RT_THROW(type)
 #  else
 #   define RT_THROW(type)       throw(type)
@@ -611,9 +626,8 @@
 # define RTCALL     __cdecl
 #elif defined(RT_OS_OS2)
 # define RTCALL     __cdecl
-#elif defined(__GNUC__) && defined(IN_RING0) \
-  && !(defined(RT_ARCH_AMD64) || defined(RT_ARCH_SPARC) || defined(RT_ARCH_SPARC64)) /* the latter is kernel/gcc */
-# define RTCALL     __attribute__((cdecl,regparm(0)))
+#elif defined(__GNUC__) && defined(IN_RING0) && defined(RT_ARCH_X86) /** @todo consider dropping IN_RING0 here. */
+# define RTCALL     __attribute__((cdecl,regparm(0))) /* regparm(0) deals with -mregparm=x use in the linux kernel. */
 #else
 # define RTCALL
 #endif
@@ -681,7 +695,7 @@
  * @param   type    The return type of the function declaration.
  */
 #ifdef __cplusplus
-# ifdef _MSC_VER
+# if defined(_MSC_VER) || defined(RT_OS_OS2)
 #  define DECLASM(type)          extern "C" type __cdecl
 # elif defined(__GNUC__) && defined(RT_ARCH_X86)
 #  define DECLASM(type)          extern "C" type __attribute__((cdecl,regparm(0)))
@@ -689,7 +703,7 @@
 #  define DECLASM(type)          extern "C" type
 # endif
 #else
-# ifdef _MSC_VER
+# if defined(_MSC_VER) || defined(RT_OS_OS2)
 #  define DECLASM(type)          type __cdecl
 # elif defined(__GNUC__) && defined(RT_ARCH_X86)
 #  define DECLASM(type)          type __attribute__((cdecl,regparm(0)))
@@ -702,7 +716,7 @@
  * How to declare an internal assembly function type.
  * @param   type    The return type of the function.
  */
-#ifdef _MSC_VER
+# if defined(_MSC_VER) || defined(RT_OS_OS2)
 # define DECLASMTYPE(type)      type __cdecl
 #else
 # define DECLASMTYPE(type)      type
@@ -721,6 +735,20 @@
 # define DECLNORETURN(type)     __attribute__((noreturn)) type
 #else
 # define DECLNORETURN(type)     type
+#endif
+
+/** @def DECLWEAK
+ * How to declare a variable which is not necessarily resolved at
+ * runtime.
+ * @note: This macro can be combined with other macros, for example
+ * @code
+ *   EMR3DECL(DECLWEAK(int)) foo;
+ * @endcode
+ */
+#if defined(__GNUC__)
+# define DECLWEAK(type)         type __attribute__((weak))
+#else
+# define DECLWEAK(type)         type
 #endif
 
 /** @def DECLCALLBACK
@@ -1056,6 +1084,13 @@
 #define RT_CONCAT4(a,b,c,d)         RT_CONCAT4_HLP(a,b,c,d)
 /** RT_CONCAT4 helper, don't use.  */
 #define RT_CONCAT4_HLP(a,b,c,d)     a##b##c##d
+
+/**
+ * String constant tuple - string constant, strlen(string constant).
+ *
+ * @param   a_szConst   String constant.
+ */
+#define RT_STR_TUPLE(a_szConst)  a_szConst, (sizeof(a_szConst) - 1)
 
 
 /** @def RT_BIT
@@ -1883,6 +1918,59 @@
 #define _2E             0x2000000000000000ULL
 /** @} */
 
+/** @defgroup grp_rt_cdefs_decimal_grouping   Decimal Constant Grouping Macros
+ * @{ */
+#define RT_D1(g1)                                   g1
+#define RT_D2(g1, g2)                               g1#g2
+#define RT_D3(g1, g2, g3)                           g1#g2#g3
+#define RT_D4(g1, g2, g3, g4)                       g1#g2#g3#g4
+#define RT_D5(g1, g2, g3, g4, g5)                   g1#g2#g3#g4#g5
+#define RT_D6(g1, g2, g3, g4, g5, g6)               g1#g2#g3#g4#g5#g6
+#define RT_D7(g1, g2, g3, g4, g5, g6, g7)           g1#g2#g3#g4#g5#g6#g7
+
+#define RT_D1_U(g1)                                 UINT32_C(g1)
+#define RT_D2_U(g1, g2)                             UINT32_C(g1#g2)
+#define RT_D3_U(g1, g2, g3)                         UINT32_C(g1#g2#g3)
+#define RT_D4_U(g1, g2, g3, g4)                     UINT64_C(g1#g2#g3#g4)
+#define RT_D5_U(g1, g2, g3, g4, g5)                 UINT64_C(g1#g2#g3#g4#g5)
+#define RT_D6_U(g1, g2, g3, g4, g5, g6)             UINT64_C(g1#g2#g3#g4#g5#g6)
+#define RT_D7_U(g1, g2, g3, g4, g5, g6, g7)         UINT64_C(g1#g2#g3#g4#g5#g6#g7)
+
+#define RT_D1_S(g1)                                 INT32_C(g1)
+#define RT_D2_S(g1, g2)                             INT32_C(g1#g2)
+#define RT_D3_S(g1, g2, g3)                         INT32_C(g1#g2#g3)
+#define RT_D4_S(g1, g2, g3, g4)                     INT64_C(g1#g2#g3#g4)
+#define RT_D5_S(g1, g2, g3, g4, g5)                 INT64_C(g1#g2#g3#g4#g5)
+#define RT_D6_S(g1, g2, g3, g4, g5, g6)             INT64_C(g1#g2#g3#g4#g5#g6)
+#define RT_D7_S(g1, g2, g3, g4, g5, g6, g7)         INT64_C(g1#g2#g3#g4#g5#g6#g7)
+
+#define RT_D1_U32(g1)                               UINT32_C(g1)
+#define RT_D2_U32(g1, g2)                           UINT32_C(g1#g2)
+#define RT_D3_U32(g1, g2, g3)                       UINT32_C(g1#g2#g3)
+#define RT_D4_U32(g1, g2, g3, g4)                   UINT32_C(g1#g2#g3#g4)
+
+#define RT_D1_S32(g1)                               INT32_C(g1)
+#define RT_D2_S32(g1, g2)                           INT32_C(g1#g2)
+#define RT_D3_S32(g1, g2, g3)                       INT32_C(g1#g2#g3)
+#define RT_D4_S32(g1, g2, g3, g4)                   INT32_C(g1#g2#g3#g4)
+
+#define RT_D1_U64(g1)                               UINT64_C(g1)
+#define RT_D2_U64(g1, g2)                           UINT64_C(g1#g2)
+#define RT_D3_U64(g1, g2, g3)                       UINT64_C(g1#g2#g3)
+#define RT_D4_U64(g1, g2, g3, g4)                   UINT64_C(g1#g2#g3#g4)
+#define RT_D5_U64(g1, g2, g3, g4, g5)               UINT64_C(g1#g2#g3#g4#g5)
+#define RT_D6_U64(g1, g2, g3, g4, g5, g6)           UINT64_C(g1#g2#g3#g4#g5#g6)
+#define RT_D7_U64(g1, g2, g3, g4, g5, g6, g7)       UINT64_C(g1#g2#g3#g4#g5#g6#g7)
+
+#define RT_D1_S64(g1)                               INT64_C(g1)
+#define RT_D2_S64(g1, g2)                           INT64_C(g1#g2)
+#define RT_D3_S64(g1, g2, g3)                       INT64_C(g1#g2#g3)
+#define RT_D4_S64(g1, g2, g3, g4)                   INT64_C(g1#g2#g3#g4)
+#define RT_D5_S64(g1, g2, g3, g4, g5)               INT64_C(g1#g2#g3#g4#g5)
+#define RT_D6_S64(g1, g2, g3, g4, g5, g6)           INT64_C(g1#g2#g3#g4#g5#g6)
+#define RT_D7_S64(g1, g2, g3, g4, g5, g6, g7)       INT64_C(g1#g2#g3#g4#g5#g6#g7)
+/** @}  */
+
 
 /** @defgroup grp_rt_cdefs_time     Time Constants
  * @{
@@ -1891,6 +1979,16 @@
 #define RT_NS_1HOUR             UINT64_C(3600000000000)
 /** 1 minute expressed in nanoseconds (64-bit). */
 #define RT_NS_1MIN              UINT64_C(60000000000)
+/** 45 second expressed in nanoseconds. */
+#define RT_NS_45SEC             UINT64_C(45000000000)
+/** 30 second expressed in nanoseconds. */
+#define RT_NS_30SEC             UINT64_C(30000000000)
+/** 20 second expressed in nanoseconds. */
+#define RT_NS_20SEC             UINT64_C(20000000000)
+/** 15 second expressed in nanoseconds. */
+#define RT_NS_15SEC             UINT64_C(15000000000)
+/** 10 second expressed in nanoseconds. */
+#define RT_NS_10SEC             UINT64_C(10000000000)
 /** 1 second expressed in nanoseconds. */
 #define RT_NS_1SEC              UINT32_C(1000000000)
 /** 100 millsecond expressed in nanoseconds. */
@@ -2089,6 +2187,10 @@
 #  endif
 # endif /* !IN_RING3 */
 
+#elif defined(RT_ARCH_ARM)
+/* ASSUMES that at least the last and first 4K are out of bounds. */
+# define RT_VALID_PTR(ptr)      ( (uintptr_t)(ptr) + 0x1000U >= 0x2000U )
+
 #else
 # error "Architecture identifier missing / not implemented."
 #endif
@@ -2136,19 +2238,27 @@
  *  for the other compilers.
  */
 #if !defined(__GNUC__) && !defined(__PRETTY_FUNCTION__)
-# define __PRETTY_FUNCTION__    __FUNCTION__
+# ifdef _MSC_VER
+#  define __PRETTY_FUNCTION__    __FUNCSIG__
+# else
+#  define __PRETTY_FUNCTION__    __FUNCTION__
+# endif
 #endif
 
 
 /** @def RT_STRICT
  * The \#define RT_STRICT controls whether or not assertions and other runtime
- * checks should be compiled in or not.
+ * checks should be compiled in or not.  This is defined when DEBUG is defined.
+ * If RT_NO_STRICT is defined, it will unconditionally be undefined.
  *
  * If you want assertions which are not subject to compile time options use
  * the AssertRelease*() flavors.
  */
 #if !defined(RT_STRICT) && defined(DEBUG)
 # define RT_STRICT
+#endif
+#ifdef RT_NO_STRICT
+# undef RT_STRICT
 #endif
 
 /** @todo remove this: */

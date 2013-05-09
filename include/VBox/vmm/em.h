@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -80,7 +80,7 @@ typedef enum EMSTATE
 
 
 /**
- * EMInterpretInstructionCPUEx execution modes.
+ * EMInterpretInstructionCPU execution modes.
  */
 typedef enum
 {
@@ -142,8 +142,8 @@ typedef FNEMULATELOCKPARAM3    *PFNEMULATELOCKPARAM3;
 #define EMIsHwVirtExecutionEnabled(pVM) (!(pVM)->fRecompileSupervisor && !(pVM)->fRecompileUser)
 
 /**
- * Checks if execution of supervisor code should be done in the 
- * recompiler or not. 
+ * Checks if execution of supervisor code should be done in the
+ * recompiler or not.
  *
  * @returns true if enabled.
  * @returns false if disabled.
@@ -153,17 +153,22 @@ typedef FNEMULATELOCKPARAM3    *PFNEMULATELOCKPARAM3;
 
 VMMDECL(void)           EMSetInhibitInterruptsPC(PVMCPU pVCpu, RTGCUINTPTR PC);
 VMMDECL(RTGCUINTPTR)    EMGetInhibitInterruptsPC(PVMCPU pVCpu);
-VMMDECL(int)            EMInterpretDisasOne(PVM pVM, PVMCPU pVCpu, PCCPUMCTXCORE pCtxCore, PDISCPUSTATE pCpu, unsigned *pcbInstr);
+VMMDECL(int)            EMInterpretDisasCurrent(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pCpu, unsigned *pcbInstr);
 VMMDECL(int)            EMInterpretDisasOneEx(PVM pVM, PVMCPU pVCpu, RTGCUINTPTR GCPtrInstr, PCCPUMCTXCORE pCtxCore,
                                               PDISCPUSTATE pDISState, unsigned *pcbInstr);
-VMMDECL(VBOXSTRICTRC)   EMInterpretInstruction(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize);
-VMMDECL(VBOXSTRICTRC)   EMInterpretInstructionCPU(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDISState, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, EMCODETYPE enmCodeType, uint32_t *pcbSize);
+VMMDECL(VBOXSTRICTRC)   EMInterpretInstruction(PVMCPU pVCpu, PCPUMCTXCORE pCoreCtx, RTGCPTR pvFault);
+VMMDECL(VBOXSTRICTRC)   EMInterpretInstructionEx(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbWritten);
+VMMDECL(VBOXSTRICTRC)   EMInterpretInstructionDisasState(PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pCoreCtx, RTGCPTR pvFault, EMCODETYPE enmCodeType);
+
+#ifdef IN_RC
+VMMDECL(int)            EMInterpretIretV86ForPatm(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
+#endif
+
 VMMDECL(int)            EMInterpretCpuId(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 VMMDECL(int)            EMInterpretRdtsc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 VMMDECL(int)            EMInterpretRdpmc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 VMMDECL(int)            EMInterpretRdtscp(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
 VMMDECL(VBOXSTRICTRC)   EMInterpretInvlpg(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pAddrGC);
-VMMDECL(int)            EMInterpretIret(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 VMMDECL(VBOXSTRICTRC)   EMInterpretMWait(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 VMMDECL(int)            EMInterpretMonitor(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 VMMDECL(int)            EMInterpretDRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegDrx, uint32_t SrcRegGen);
@@ -172,10 +177,13 @@ VMMDECL(int)            EMInterpretCRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE 
 VMMDECL(int)            EMInterpretCRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegGen, uint32_t SrcRegCrx);
 VMMDECL(int)            EMInterpretLMSW(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint16_t u16Data);
 VMMDECL(int)            EMInterpretCLTS(PVM pVM, PVMCPU pVCpu);
-VMMDECL(VBOXSTRICTRC)   EMInterpretPortIO(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, PDISCPUSTATE pCpu, uint32_t cbOp);
+#ifndef VBOX_WITH_IEM
 VMMDECL(int)            EMInterpretRdmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 VMMDECL(int)            EMInterpretWrmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
-VMMDECL(bool)           EMShouldContinueAfterHalt(PVMCPU pVCpu, PCPUMCTX pCtx);
+#endif /* !VBOX_WITH_IEM */
+VMM_INT_DECL(bool)      EMShouldContinueAfterHalt(PVMCPU pVCpu, PCPUMCTX pCtx);
+VMM_INT_DECL(int)       EMMonitorWaitPrepare(PVMCPU pVCpu, uint64_t rax, uint64_t rcx, uint64_t rdx);
+VMM_INT_DECL(int)       EMMonitorWaitPerform(PVMCPU pVCpu, uint64_t rax, uint64_t rcx);
 
 /** @name Assembly routines
  * @{ */

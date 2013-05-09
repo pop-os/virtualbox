@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -146,31 +146,37 @@ static DECLCALLBACK(void) vmmR3FatalDumpInfoHlp_pfnPrintfV(PCDBGFINFOHLP pHlp, c
  */
 static void vmmR3FatalDumpInfoHlpInit(PVMMR3FATALDUMPINFOHLP pHlp)
 {
-    memset(pHlp, 0, sizeof(*pHlp));
+    RT_BZERO(pHlp, sizeof(*pHlp));
 
-    pHlp->Core.pfnPrintf = vmmR3FatalDumpInfoHlp_pfnPrintf;
+    pHlp->Core.pfnPrintf  = vmmR3FatalDumpInfoHlp_pfnPrintf;
     pHlp->Core.pfnPrintfV = vmmR3FatalDumpInfoHlp_pfnPrintfV;
 
     /*
      * The loggers.
      */
-    pHlp->pRelLogger = RTLogRelDefaultInstance();
-#ifndef LOG_ENABLED
-    if (!pHlp->pRelLogger)
-#endif
+    pHlp->pRelLogger  = RTLogRelDefaultInstance();
+#ifdef LOG_ENABLED
+    pHlp->pLogger     = RTLogDefaultInstance();
+#else
+    if (pHlp->pRelLogger)
+        pHlp->pLogger = RTLogGetDefaultInstance();
+    else
         pHlp->pLogger = RTLogDefaultInstance();
+#endif
 
     if (pHlp->pRelLogger)
     {
         pHlp->fRelLoggerFlags = pHlp->pRelLogger->fFlags;
-        pHlp->pRelLogger->fFlags &= ~(RTLOGFLAGS_BUFFERED | RTLOGFLAGS_DISABLED);
+        pHlp->pRelLogger->fFlags &= ~RTLOGFLAGS_DISABLED;
+        pHlp->pRelLogger->fFlags |= RTLOGFLAGS_BUFFERED;
     }
 
     if (pHlp->pLogger)
     {
         pHlp->fLoggerFlags     = pHlp->pLogger->fFlags;
         pHlp->fLoggerDestFlags = pHlp->pLogger->fDestFlags;
-        pHlp->pLogger->fFlags     &= ~(RTLOGFLAGS_BUFFERED | RTLOGFLAGS_DISABLED);
+        pHlp->pLogger->fFlags     &= ~RTLOGFLAGS_DISABLED;
+        pHlp->pLogger->fFlags     |= RTLOGFLAGS_BUFFERED;
 #ifndef DEBUG_sandervl
         pHlp->pLogger->fDestFlags |= RTLOGDEST_DEBUGGER;
 #endif
@@ -180,7 +186,7 @@ static void vmmR3FatalDumpInfoHlpInit(PVMMR3FATALDUMPINFOHLP pHlp)
      * Check if we need write to stderr.
      */
     pHlp->fStdErr = (!pHlp->pRelLogger || !(pHlp->pRelLogger->fDestFlags & (RTLOGDEST_STDOUT | RTLOGDEST_STDERR)))
-                 && (!pHlp->pLogger || !(pHlp->pLogger->fDestFlags & (RTLOGDEST_STDOUT | RTLOGDEST_STDERR)));
+                 && (!pHlp->pLogger    || !(pHlp->pLogger->fDestFlags    & (RTLOGDEST_STDOUT | RTLOGDEST_STDERR)));
 #ifdef DEBUG_sandervl
     pHlp->fStdErr = false; /* takes too long to display here */
 #endif
@@ -219,8 +225,8 @@ static void vmmR3FatalDumpInfoHlpDelete(PVMMR3FATALDUMPINFOHLP pHlp)
 /**
  * Dumps the VM state on a fatal error.
  *
- * @param   pVM         VM Handle.
- * @param   pVCpu       VMCPU Handle.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   rcErr       VBox status code.
  */
 VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
@@ -586,6 +592,14 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
                                 pVCpu->vmm.s.pbEMTStackRC, pVCpu->vmm.s.pbEMTStackBottomRC,
                                 VMM_STACK_SIZE, pVCpu->vmm.s.pbEMTStackR3);
             } /* !HWACCMIsEnabled */
+            break;
+        }
+
+        case VERR_IEM_INSTR_NOT_IMPLEMENTED:
+        case VERR_IEM_ASPECT_NOT_IMPLEMENTED:
+        {
+            DBGFR3Info(pVM, "cpumguest", NULL, pHlp);
+            DBGFR3Info(pVM, "cpumguestinstr", NULL, pHlp);
             break;
         }
 

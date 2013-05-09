@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,17 +19,18 @@
 #ifndef __UIMachine_h__
 #define __UIMachine_h__
 
-/* Global includes */
+/* Qt includes: */
 #include <QObject>
 
-/* Local includes */
-#include "COMDefs.h"
+/* GUI includes:  */
 #include "UIMachineDefs.h"
 
-/* Global forwards: */
-class QWidget;
+/* COM includes: */
+#include "COMEnums.h"
+#include "CSession.h"
 
-/* Local forwards */
+/* Forward declarations: */
+class QWidget;
 class UISession;
 class UIVisualState;
 class UIMachineLogic;

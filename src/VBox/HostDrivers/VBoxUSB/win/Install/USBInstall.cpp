@@ -4,7 +4,7 @@
  *
  * Installation code
  *
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -58,7 +58,7 @@ int usblibOsCreateService(void);
 
 int __cdecl main(int argc, char **argv)
 {
-    if (RTR3Init() != VINF_SUCCESS)
+    if (RTR3InitExe(argc, &argv, 0) != VINF_SUCCESS)
     {
         printf("Could not init IPRT!\n");
         return 1;

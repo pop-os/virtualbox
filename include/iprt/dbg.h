@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,6 +32,8 @@
 
 RT_C_DECLS_BEGIN
 
+# ifdef IN_RING3
+
 /** @defgroup grp_rt_dbg    RTDbg - Debugging Routines
  * @ingroup grp_rt
  * @{
@@ -57,6 +59,18 @@ typedef RTDBGSEGIDX const  *PCRTDBGSEGIDX;
 #define RTDBGSEGIDX_SPECIAL_LAST    RTDBGSEGIDX_ABS
 /** The last valid special segment index. */
 #define RTDBGSEGIDX_SPECIAL_FIRST   (RTDBGSEGIDX_LAST + 1U)
+
+
+/** @name RTDBGSYMADDR_FLAGS_XXX
+ * Flags used when looking up a symbol by address.
+ * @{ */
+/** Less or equal address. (default) */
+#define RTDBGSYMADDR_FLAGS_LESS_OR_EQUAL    UINT32_C(0)
+/** Greater or equal address.  */
+#define RTDBGSYMADDR_FLAGS_GREATER_OR_EQUAL UINT32_C(1)
+/** Mask of valid flags. */
+#define RTDBGSYMADDR_FLAGS_VALID_MASK       UINT32_C(1)
+/** @} */
 
 
 /** Max length (including '\\0') of a segment name. */
@@ -502,15 +516,18 @@ RTDECL(int) RTDbgAsSymbolAdd(RTDBGAS hDbgAs, const char *pszSymbol, RTUINTPTR Ad
  * @returns IPRT status code. See RTDbgModSymbolAddr for more specific ones.
  * @retval  VERR_INVALID_HANDLE if hDbgAs is invalid.
  * @retval  VERR_NOT_FOUND if the address couldn't be mapped to a module.
+ * @retval  VERR_INVALID_PARAMETER if incorrect flags.
  *
  * @param   hDbgAs          The address space handle.
  * @param   Addr            The address which closest symbol is requested.
+ * @param   fFlags              Symbol search flags, see RTDBGSYMADDR_FLAGS_XXX.
  * @param   poffDisp        Where to return the distance between the symbol
  *                          and address. Optional.
  * @param   pSymbol         Where to return the symbol info.
  * @param   phMod           Where to return the module handle. Optional.
  */
-RTDECL(int) RTDbgAsSymbolByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGSYMBOL pSymbol, PRTDBGMOD phMod);
+RTDECL(int) RTDbgAsSymbolByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr, uint32_t fFlags,
+                                PRTINTPTR poffDisp, PRTDBGSYMBOL pSymbol, PRTDBGMOD phMod);
 
 /**
  * Query a symbol by address.
@@ -518,16 +535,19 @@ RTDECL(int) RTDbgAsSymbolByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDi
  * @returns IPRT status code. See RTDbgModSymbolAddrA for more specific ones.
  * @retval  VERR_INVALID_HANDLE if hDbgAs is invalid.
  * @retval  VERR_NOT_FOUND if the address couldn't be mapped to a module.
+ * @retval  VERR_INVALID_PARAMETER if incorrect flags.
  *
  * @param   hDbgAs          The address space handle.
  * @param   Addr            The address which closest symbol is requested.
+ * @param   fFlags              Symbol search flags, see RTDBGSYMADDR_FLAGS_XXX.
  * @param   poffDisp        Where to return the distance between the symbol
  *                          and address. Optional.
  * @param   ppSymInfo       Where to return the pointer to the allocated symbol
  *                          info. Always set. Free with RTDbgSymbolFree.
  * @param   phMod           Where to return the module handle. Optional.
  */
-RTDECL(int) RTDbgAsSymbolByAddrA(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGSYMBOL *ppSymInfo, PRTDBGMOD phMod);
+RTDECL(int) RTDbgAsSymbolByAddrA(RTDBGAS hDbgAs, RTUINTPTR Addr, uint32_t fFlags,
+                                 PRTINTPTR poffDisp, PRTDBGSYMBOL *ppSymInfo, PRTDBGMOD phMod);
 
 /**
  * Query a symbol by name.
@@ -933,16 +953,19 @@ RTDECL(int)         RTDbgModSymbolByOrdinalA(RTDBGMOD hDbgMod, uint32_t iOrdinal
  * @retval  VERR_DBG_INVALID_SEGMENT_INDEX if the segment index isn't valid.
  * @retval  VERR_DBG_INVALID_SEGMENT_OFFSET if the segment offset is beyond the
  *          end of the segment.
+ * @retval  VERR_INVALID_PARAMETER if incorrect flags.
  *
  * @param   hDbgMod             The module handle.
  * @param   iSeg                The segment number.
  * @param   off                 The offset into the segment.
+ * @param   fFlags              Symbol search flags, see RTDBGSYMADDR_FLAGS_XXX.
  * @param   poffDisp            Where to store the distance between the
  *                              specified address and the returned symbol.
  *                              Optional.
  * @param   pSymInfo            Where to store the symbol information.
  */
-RTDECL(int)         RTDbgModSymbolByAddr(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUINTPTR off, PRTINTPTR poffDisp, PRTDBGSYMBOL pSymInfo);
+RTDECL(int)         RTDbgModSymbolByAddr(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUINTPTR off, uint32_t fFlags,
+                                         PRTINTPTR poffDisp, PRTDBGSYMBOL pSymInfo);
 
 /**
  * Queries symbol information by address.
@@ -961,17 +984,20 @@ RTDECL(int)         RTDbgModSymbolByAddr(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTU
  * @retval  VERR_DBG_INVALID_SEGMENT_OFFSET if the segment offset is beyond the
  *          end of the segment.
  * @retval  VERR_NO_MEMORY if RTDbgSymbolAlloc fails.
+ * @retval  VERR_INVALID_PARAMETER if incorrect flags.
  *
  * @param   hDbgMod             The module handle.
  * @param   iSeg                The segment index.
  * @param   off                 The offset into the segment.
+ * @param   fFlags              Symbol search flags, see RTDBGSYMADDR_FLAGS_XXX.
  * @param   poffDisp            Where to store the distance between the
  *                              specified address and the returned symbol. Optional.
  * @param   ppSymInfo           Where to store the pointer to the returned
  *                              symbol information. Always set. Free with
  *                              RTDbgSymbolFree.
  */
-RTDECL(int)         RTDbgModSymbolByAddrA(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUINTPTR off, PRTINTPTR poffDisp, PRTDBGSYMBOL *ppSymInfo);
+RTDECL(int)         RTDbgModSymbolByAddrA(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUINTPTR off, uint32_t fFlags,
+                                          PRTINTPTR poffDisp, PRTDBGSYMBOL *ppSymInfo);
 
 /**
  * Queries symbol information by symbol name.
@@ -1144,6 +1170,99 @@ RTDECL(int)         RTDbgModLineByAddr(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUIN
  *                              RTDbgLineFree.
  */
 RTDECL(int)         RTDbgModLineByAddrA(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUINTPTR off, PRTINTPTR poffDisp, PRTDBGLINE *ppLineInfo);
+/** @} */
+
+# endif /* IN_RING3 */
+
+
+/** @name Kernel Debug Info API
+ *
+ * This is a specialized API for obtaining symbols and structure information
+ * about the running kernel.  It is relatively OS specific.  Its purpose and
+ * operation is doesn't map all that well onto RTDbgMod, so a few dedicated
+ * functions was created for it.
+ *
+ * @{ */
+
+/** Handle to the kernel debug info. */
+typedef struct RTDBGKRNLINFOINT *RTDBGKRNLINFO;
+/** Pointer to a kernel debug info handle. */
+typedef RTDBGKRNLINFO           *PRTDBGKRNLINFO;
+/** Nil kernel debug info handle. */
+#define NIL_RTDBGKRNLINFO       ((RTDBGKRNLINFO)0)
+
+/**
+ * Opens the kernel debug info.
+ *
+ * @returns IPRT status code.  Can fail for any number of reasons.
+ *
+ * @param   phKrnlInfo      Where to return the kernel debug info handle on
+ *                          success.
+ * @param   fFlags          Flags reserved for future use. Must be zero.
+ */
+RTR0DECL(int)       RTR0DbgKrnlInfoOpen(PRTDBGKRNLINFO phKrnlInfo, uint32_t fFlags);
+
+/**
+ * Retains a reference to the kernel debug info handle.
+ *
+ * @returns New reference count, UINT32_MAX on invalid handle (asserted).
+ * @param   hKrnlInfo       The kernel info handle.
+ */
+RTR0DECL(uint32_t)  RTR0DbgKrnlInfoRetain(RTDBGKRNLINFO hKrnlInfo);
+
+
+/**
+ * Releases a reference to the kernel debug info handle, destroying it when the
+ * counter reaches zero.
+ *
+ * @returns New reference count, UINT32_MAX on invalid handle (asserted).
+ * @param   hKrnlInfo       The kernel info handle. NIL_RTDBGKRNLINFO is
+ *                          quietly ignored.
+ */
+RTR0DECL(uint32_t)  RTR0DbgKrnlInfoRelease(RTDBGKRNLINFO hKrnlInfo);
+
+/**
+ * Queries the offset (in bytes) of a member of a kernel structure.
+ *
+ * @returns IPRT status code.
+ * @retval  VINF_SUCCESS and offset at @a poffMember.
+ * @retval  VERR_NOT_FOUND if the structure or the member was not found.
+ * @retval  VERR_INVALID_HANDLE if hKrnlInfo is bad.
+ * @retval  VERR_INVALID_POINTER if any of the pointers are bad.
+ *
+ * @param   hKrnlInfo       The kernel info handle.
+ * @param   pszStructure    The structure name.
+ * @param   pszMember       The member name.
+ * @param   poffMember      Where to return the offset.
+ */
+RTR0DECL(int)       RTR0DbgKrnlInfoQueryMember(RTDBGKRNLINFO hKrnlInfo, const char *pszStructure,
+                                               const char *pszMember, size_t *poffMember);
+
+
+/**
+ * Queries the value (usually the address) of a kernel symbol.
+ *
+ * This may go looking for the symbol in other modules, in which case it will
+ * always check the kernel symbol table first.
+ *
+ * @returns IPRT status code.
+ * @retval  VINF_SUCCESS and value at @a ppvSymbol.
+ * @retval  VERR_SYMBOL_NOT_FOUND
+ * @retval  VERR_INVALID_HANDLE if hKrnlInfo is bad.
+ * @retval  VERR_INVALID_POINTER if any of the pointers are bad.
+ *
+ * @param   hKrnlInfo       The kernel info handle.
+ * @param   pszModule       Reserved for future extensions. Pass NULL.
+ * @param   pszSymbol       The C name of the symbol.
+ * @param   ppvSymbol       Where to return the symbol value, passing NULL is
+ *                          OK. This may be modified even on failure, in
+ *                          particular, it will be set to NULL when
+ *                          VERR_SYMBOL_NOT_FOUND is returned.
+ *
+ * @sa      RTLdrGetSymbol.
+ */
+RTR0DECL(int)       RTR0DbgKrnlInfoQuerySymbol(RTDBGKRNLINFO hKrnlInfo, const char *pszModule,
+                                               const char *pszSymbol, void **ppvSymbol);
 /** @} */
 
 /** @} */

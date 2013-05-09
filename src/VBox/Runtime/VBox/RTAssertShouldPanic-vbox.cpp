@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -144,7 +144,7 @@ static bool rtAssertShouldPanicWorker(void)
 RTDECL(bool) RTAssertShouldPanic(void)
 {
     /*
-     * Check if panicing is excluded by the the RTAssert settings first.
+     * Check if panicing is excluded by the RTAssert settings first.
      */
     if (!RTAssertMayPanic())
         return false;

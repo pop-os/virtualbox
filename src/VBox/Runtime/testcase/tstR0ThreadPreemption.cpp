@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,6 +49,7 @@
 DECLEXPORT(int) TSTR0ThreadPreemptionSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOperation,
                                                    uint64_t u64Arg, PSUPR0SERVICEREQHDR pReqHdr)
 {
+    NOREF(pSession);
     if (u64Arg)
         return VERR_INVALID_PARAMETER;
     if (!VALID_PTR(pReqHdr))

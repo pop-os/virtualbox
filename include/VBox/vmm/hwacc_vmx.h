@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -363,21 +363,42 @@ typedef EPTPT *PEPTPT;
 typedef const EPTPT *PCEPTPT;
 
 /**
- * VPID and EPT flush types
+ * VPID flush types.
  */
 typedef enum
 {
-    /* Invalidate a specific page. */
-    VMX_FLUSH_PAGE                              = 0,
-    /* Invalidate one context (VPID or EPT) */
-    VMX_FLUSH_SINGLE_CONTEXT                    = 1,
-    /* Invalidate all contexts (VPIDs or EPTs) */
-    VMX_FLUSH_ALL_CONTEXTS                      = 2,
-    /* Invalidate a single VPID context retaining global mappings. */
-    VMX_FLUSH_SINGLE_CONTEXT_WITHOUT_GLOBAL     = 3,
+    /** Invalidate a specific page. */
+    VMX_FLUSH_VPID_INDIV_ADDR                    = 0,
+    /** Invalidate one context (specific VPID). */
+    VMX_FLUSH_VPID_SINGLE_CONTEXT                = 1,
+    /** Invalidate all contexts (all VPIDs). */
+    VMX_FLUSH_VPID_ALL_CONTEXTS                  = 2,
+    /** Invalidate a single VPID context retaining global mappings. */
+    VMX_FLUSH_VPID_SINGLE_CONTEXT_RETAIN_GLOBALS = 3,
+    /** Unsupported by VirtualBox. */
+    VMX_FLUSH_VPID_NOT_SUPPORTED                 = 0xbad,
+    /** Unsupported by CPU. */
+    VMX_FLUSH_VPID_NONE                          = 0xb00,
     /** 32bit hackishness. */
-    VMX_FLUSH_32BIT_HACK                        = 0x7fffffff
-} VMX_FLUSH;
+    VMX_FLUSH_VPID_32BIT_HACK                    = 0x7fffffff
+} VMX_FLUSH_VPID;
+
+/**
+ * EPT flush types.
+ */
+typedef enum
+{
+    /** Invalidate one context (specific EPT). */
+    VMX_FLUSH_EPT_SINGLE_CONTEXT                = 1,
+    /* Invalidate all contexts (all EPTs) */
+    VMX_FLUSH_EPT_ALL_CONTEXTS                  = 2,
+    /** Unsupported by VirtualBox.   */
+    VMX_FLUSH_EPT_NOT_SUPPORTED                 = 0xbad,
+    /** Unsupported by CPU. */
+    VMX_FLUSH_EPT_NONE                          = 0xb00,
+    /** 32bit hackishness. */
+    VMX_FLUSH_EPT_32BIT_HACK                    = 0x7fffffff
+} VMX_FLUSH_EPT;
 /** @} */
 
 /** @name MSR load/store elements
@@ -453,8 +474,8 @@ typedef union
 #define VMX_EXIT_HLT                12
 /** 13 Guest software attempted to execute INVD. */
 #define VMX_EXIT_INVD               13
-/** 14 Guest software attempted to execute INVPG. */
-#define VMX_EXIT_INVPG              14
+/** 14 Guest software attempted to execute INVLPG. */
+#define VMX_EXIT_INVLPG             14
 /** 15 Guest software attempted to execute RDPMC. */
 #define VMX_EXIT_RDPMC              15
 /** 16 Guest software attempted to execute RDTSC. */
@@ -497,6 +518,8 @@ typedef union
 #define VMX_EXIT_ERR_MSR_LOAD       34
 /** 36 Guest software executed MWAIT. */
 #define VMX_EXIT_MWAIT              36
+/** 37 VM exit due to monitor trap flag. */
+#define VMX_EXIT_MTF                37
 /** 39 Guest software attempted to execute MONITOR. */
 #define VMX_EXIT_MONITOR            39
 /** 40 Guest software attempted to execute PAUSE. */
@@ -517,6 +540,8 @@ typedef union
 #define VMX_EXIT_EPT_MISCONFIG      49
 /** 50 INVEPT. Guest software attempted to execute INVEPT. */
 #define VMX_EXIT_INVEPT             50
+/** 51 RDTSCP. Guest software attempted to execute RDTSCP. */
+#define VMX_EXIT_RDTSCP             51
 /** 52 VMX-preemption timer expired. The preemption timer counted down to zero. */
 #define VMX_EXIT_PREEMPTION_TIMER   52
 /** 53 INVVPID. Guest software attempted to execute INVVPID. */
@@ -633,32 +658,31 @@ typedef union
 /** @name MSR_IA32_VMX_EPT_CAPS; EPT capabilities MSR
  * @{
  */
-#define MSR_IA32_VMX_EPT_CAPS_RWX_X_ONLY                     RT_BIT_64(0)
-#define MSR_IA32_VMX_EPT_CAPS_RWX_W_ONLY                     RT_BIT_64(1)
-#define MSR_IA32_VMX_EPT_CAPS_RWX_WX_ONLY                    RT_BIT_64(2)
-#define MSR_IA32_VMX_EPT_CAPS_GAW_21_BITS                    RT_BIT_64(3)
-#define MSR_IA32_VMX_EPT_CAPS_GAW_30_BITS                    RT_BIT_64(4)
-#define MSR_IA32_VMX_EPT_CAPS_GAW_39_BITS                    RT_BIT_64(5)
-#define MSR_IA32_VMX_EPT_CAPS_GAW_48_BITS                    RT_BIT_64(6)
-#define MSR_IA32_VMX_EPT_CAPS_GAW_57_BITS                    RT_BIT_64(7)
-#define MSR_IA32_VMX_EPT_CAPS_EMT_UC                         RT_BIT_64(8)
-#define MSR_IA32_VMX_EPT_CAPS_EMT_WC                         RT_BIT_64(9)
-#define MSR_IA32_VMX_EPT_CAPS_EMT_WT                         RT_BIT_64(12)
-#define MSR_IA32_VMX_EPT_CAPS_EMT_WP                         RT_BIT_64(13)
-#define MSR_IA32_VMX_EPT_CAPS_EMT_WB                         RT_BIT_64(14)
-#define MSR_IA32_VMX_EPT_CAPS_SP_21_BITS                     RT_BIT_64(16)
-#define MSR_IA32_VMX_EPT_CAPS_SP_30_BITS                     RT_BIT_64(17)
-#define MSR_IA32_VMX_EPT_CAPS_SP_39_BITS                     RT_BIT_64(18)
-#define MSR_IA32_VMX_EPT_CAPS_SP_48_BITS                     RT_BIT_64(19)
-#define MSR_IA32_VMX_EPT_CAPS_INVEPT                         RT_BIT_64(20)
-#define MSR_IA32_VMX_EPT_CAPS_INVEPT_CAPS_INDIV              RT_BIT_64(24)
-#define MSR_IA32_VMX_EPT_CAPS_INVEPT_CAPS_CONTEXT            RT_BIT_64(25)
-#define MSR_IA32_VMX_EPT_CAPS_INVEPT_CAPS_ALL                RT_BIT_64(26)
-#define MSR_IA32_VMX_EPT_CAPS_INVVPID                        RT_BIT_64(32)
-#define MSR_IA32_VMX_EPT_CAPS_INVVPID_CAPS_INDIV             RT_BIT_64(40)
-#define MSR_IA32_VMX_EPT_CAPS_INVVPID_CAPS_CONTEXT           RT_BIT_64(41)
-#define MSR_IA32_VMX_EPT_CAPS_INVVPID_CAPS_ALL               RT_BIT_64(42)
-#define MSR_IA32_VMX_EPT_CAPS_INVVPID_CAPS_CONTEXT_GLOBAL    RT_BIT_64(43)
+#define MSR_IA32_VMX_EPT_CAPS_RWX_X_ONLY                                    RT_BIT_64(0)
+#define MSR_IA32_VMX_EPT_CAPS_RWX_W_ONLY                                    RT_BIT_64(1)
+#define MSR_IA32_VMX_EPT_CAPS_RWX_WX_ONLY                                   RT_BIT_64(2)
+#define MSR_IA32_VMX_EPT_CAPS_GAW_21_BITS                                   RT_BIT_64(3)
+#define MSR_IA32_VMX_EPT_CAPS_GAW_30_BITS                                   RT_BIT_64(4)
+#define MSR_IA32_VMX_EPT_CAPS_GAW_39_BITS                                   RT_BIT_64(5)
+#define MSR_IA32_VMX_EPT_CAPS_GAW_48_BITS                                   RT_BIT_64(6)
+#define MSR_IA32_VMX_EPT_CAPS_GAW_57_BITS                                   RT_BIT_64(7)
+#define MSR_IA32_VMX_EPT_CAPS_EMT_UC                                        RT_BIT_64(8)
+#define MSR_IA32_VMX_EPT_CAPS_EMT_WC                                        RT_BIT_64(9)
+#define MSR_IA32_VMX_EPT_CAPS_EMT_WT                                        RT_BIT_64(12)
+#define MSR_IA32_VMX_EPT_CAPS_EMT_WP                                        RT_BIT_64(13)
+#define MSR_IA32_VMX_EPT_CAPS_EMT_WB                                        RT_BIT_64(14)
+#define MSR_IA32_VMX_EPT_CAPS_SP_21_BITS                                    RT_BIT_64(16)
+#define MSR_IA32_VMX_EPT_CAPS_SP_30_BITS                                    RT_BIT_64(17)
+#define MSR_IA32_VMX_EPT_CAPS_SP_39_BITS                                    RT_BIT_64(18)
+#define MSR_IA32_VMX_EPT_CAPS_SP_48_BITS                                    RT_BIT_64(19)
+#define MSR_IA32_VMX_EPT_CAPS_INVEPT                                        RT_BIT_64(20)
+#define MSR_IA32_VMX_EPT_CAPS_INVEPT_CAPS_SINGLE_CONTEXT                    RT_BIT_64(25)
+#define MSR_IA32_VMX_EPT_CAPS_INVEPT_CAPS_ALL_CONTEXTS                      RT_BIT_64(26)
+#define MSR_IA32_VMX_EPT_CAPS_INVVPID                                       RT_BIT_64(32)
+#define MSR_IA32_VMX_EPT_CAPS_INVVPID_CAPS_INDIV_ADDR                       RT_BIT_64(40)
+#define MSR_IA32_VMX_EPT_CAPS_INVVPID_CAPS_SINGLE_CONTEXT                   RT_BIT_64(41)
+#define MSR_IA32_VMX_EPT_CAPS_INVVPID_CAPS_ALL_CONTEXTS                     RT_BIT_64(42)
+#define MSR_IA32_VMX_EPT_CAPS_INVVPID_CAPS_SINGLE_CONTEXT_RETAIN_GLOBALS    RT_BIT_64(43)
 
 /** @} */
 
@@ -837,7 +861,7 @@ typedef union
 #define VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_MWAIT_EXIT             RT_BIT(10)
 /** VM Exit when executing the RDPMC instruction. */
 #define VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDPMC_EXIT             RT_BIT(11)
-/** VM Exit when executing the RDTSC instruction. */
+/** VM Exit when executing the RDTSC/RDTSCP instruction. */
 #define VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT             RT_BIT(12)
 /** VM Exit when executing the MOV to CR3 instruction. (forced to 1 on the 'first' VT-x capable CPUs; this actually includes the newest Nehalem CPUs) */
 #define VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_CR3_LOAD_EXIT          RT_BIT(15)
@@ -878,8 +902,8 @@ typedef union
 #define VMX_VMCS_CTRL_PROC_EXEC2_EPT                            RT_BIT(1)
 /** Descriptor table instructions cause VM-exits. */
 #define VMX_VMCS_CTRL_PROC_EXEC2_DESCRIPTOR_INSTR_EXIT          RT_BIT(2)
-/** RDTSCP causes a VM-exit. */
-#define VMX_VMCS_CTRL_PROC_EXEC2_RDTSCP_EXIT                    RT_BIT(3)
+/** RDTSCP supported/enabled. */
+#define VMX_VMCS_CTRL_PROC_EXEC2_RDTSCP                         RT_BIT(3)
 /** Virtualize x2APIC mode. */
 #define VMX_VMCS_CTRL_PROC_EXEC2_X2APIC                         RT_BIT(4)
 /** VPID supported/enabled. */
@@ -1558,7 +1582,7 @@ VMMR0DECL(int) VMXWriteVMCS64Ex(PVMCPU pVCpu, uint32_t idxField, uint64_t u64Val
  * @param   enmFlush    Type of flush
  * @param   pDescriptor Descriptor
  */
-DECLASM(int) VMXR0InvEPT(VMX_FLUSH enmFlush, uint64_t *pDescriptor);
+DECLASM(int) VMXR0InvEPT(VMX_FLUSH_EPT enmFlush, uint64_t *pDescriptor);
 
 /**
  * Invalidate a page using invvpid
@@ -1566,7 +1590,7 @@ DECLASM(int) VMXR0InvEPT(VMX_FLUSH enmFlush, uint64_t *pDescriptor);
  * @param   enmFlush    Type of flush
  * @param   pDescriptor Descriptor
  */
-DECLASM(int) VMXR0InvVPID(VMX_FLUSH enmFlush, uint64_t *pDescriptor);
+DECLASM(int) VMXR0InvVPID(VMX_FLUSH_VPID enmFlush, uint64_t *pDescriptor);
 
 /**
  * Executes VMREAD

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2011 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,7 +16,7 @@
 #
 
 SUB_DEPTH = ../../../../..
-include	$(KBUILD_PATH)/subheader.kmk
+include $(KBUILD_PATH)/subheader.kmk
 
 #
 # Populate FILES_VBOXVIDEO_DRM_NOBIN
@@ -32,20 +32,7 @@ vboxvideo_drm-mod_SOURCES      = \
 	$(subst $(DQUOTE),,$(FILES_VBOXVIDEO_DRM_NOBIN))
 vboxvideo_drm-mod_EXEC_SOURCES = \
 	$(subst $(DQUOTE),,$(FILES_VBOXVIDEO_DRM_BIN)) \
-	$(vboxvideo_drm-mod_0_OUTDIR)/build_in_tmp \
 	$(PATH_ROOT)/src/VBox/HostDrivers/linux/do_Module.symvers
-vboxvideo_drm-mod_CLEAN       += $(vboxvideo_drm-mod_0_OUTDIR)/build_in_tmp
-
-# Script needed for building the kernel module.
-$$(vboxvideo_drm-mod_0_OUTDIR)/build_in_tmp: \
-		$(PATH_ROOT)/src/VBox/HostDrivers/linux/build_in_tmp \
-		$(VBOX_VERSION_STAMP) \
-		| $$(dir $$@)
-	$(call MSG_TOOL,Creating,,$@)
-	$(QUIET)$(RM) -f -- $@
-	$(QUIET)$(SED) -e "s;_VERSION_;${VBOX_VERSION_STRING};g; s;_MODULE_;vboxvideo;g; s;_BUILDTYPE_;${KBUILD_TYPE};g" \
-		--output=$@ $<
-	$(QUIET)$(CHMOD) 0755 $@
 
 
 #
@@ -59,7 +46,6 @@ if defined(VBOX_WITH_ADDITION_DRIVERS) \
   && "$(strip $(foreach inc,$(VBOX_LINUX_INCS),$(wildcard $(inc)/drm/drmP.h)))" != ""
  SYSMODS += vboxvideo_drm
  vboxvideo_drm_TEMPLATE        = VBOXGUESTR0
- vboxvideo_drm_NOINST          = 1
  vboxvideo_drm_CFLAGS          = -fshort-wchar
  vboxvideo_drm_DEFS            = \
  	MODULE IN_RT_R0 VBOXGUEST VBOX_WITH_HGCM \
@@ -81,15 +67,19 @@ if defined(VBOX_WITH_ADDITION_DRIVERS) \
  if !defined(VBOX_WITH_GUEST_KMS_DRIVER)
   vboxvideo_drm_SOURCES         = vboxvideo_drm.c
  else
+  vboxvideo_drm_INCS           += ../../../Runtime/r0drv/linux
   vboxvideo_drm_SOURCES         = \
-     ../../common/VBoxVideo/Modesetting.cpp \
+    ../../common/VBoxVideo/Modesetting.cpp \
+  	vboxvideo_crtc.c \
+  	vboxvideo_dac.c \
   	vboxvideo_device.c \
   	vboxvideo_display.c \
   	vboxvideo_drv.c \
-  	vboxvideo_kms.c
+  	vboxvideo_kms.c \
+  	vboxvideo_vga.c
  endif
 
 endif
 
-include	$(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

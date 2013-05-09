@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -789,12 +789,15 @@ int HGCMService::instanceCreate (const char *pszServiceLibrary, const char *pszS
     LogFlowFunc(("name %s, lib %s\n", pszServiceName, pszServiceLibrary));
 
     /* The maximum length of the thread name, allowed by the RT is 15. */
-    char achThreadName[16];
+    char szThreadName[16];
+    if (!strncmp (pszServiceName, "VBoxShared", 10))
+        RTStrPrintf (szThreadName, sizeof (szThreadName), "Sh%s", pszServiceName + 10);
+    else if (!strncmp (pszServiceName, "VBox", 4))
+        RTStrCopy (szThreadName, sizeof (szThreadName), pszServiceName + 4);
+    else
+        RTStrCopy (szThreadName, sizeof (szThreadName), pszServiceName);
 
-    strncpy (achThreadName, pszServiceName, 15);
-    achThreadName[15] = 0;
-
-    int rc = hgcmThreadCreate (&m_thread, achThreadName, hgcmServiceThread, this);
+    int rc = hgcmThreadCreate (&m_thread, szThreadName, hgcmServiceThread, this);
 
     if (RT_SUCCESS(rc))
     {

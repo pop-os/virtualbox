@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,321 +23,635 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_disasm_h
-#define ___VBox_disasm_h
+#ifndef ___VBox_dis_h
+#define ___VBox_dis_h
 
-#include <VBox/cdefs.h>
 #include <VBox/types.h>
 #include <VBox/disopcode.h>
+#include <iprt/assert.h>
 
-#if defined(__L4ENV__)
-# include <setjmp.h>
-#endif
 
 RT_C_DECLS_BEGIN
 
 
-/** CPU mode flags (DISCPUSTATE::mode).
+/** @name Prefix byte flags (DISSTATE::fPrefix).
  * @{
  */
-typedef enum
-{
-    CPUMODE_16BIT = 1,
-    CPUMODE_32BIT = 2,
-    CPUMODE_64BIT = 3,
-    /** hack forcing the size of the enum to 32-bits. */
-    CPUMODE_MAKE_32BIT_HACK = 0x7fffffff
-} DISCPUMODE;
-/** @} */
-
-/** Prefix byte flags
- * @{
- */
-#define PREFIX_NONE                     0
+#define DISPREFIX_NONE                  UINT8_C(0x00)
 /** non-default address size. */
-#define PREFIX_ADDRSIZE                 RT_BIT(0)
+#define DISPREFIX_ADDRSIZE              UINT8_C(0x01)
 /** non-default operand size. */
-#define PREFIX_OPSIZE                   RT_BIT(1)
+#define DISPREFIX_OPSIZE                UINT8_C(0x02)
 /** lock prefix. */
-#define PREFIX_LOCK                     RT_BIT(2)
+#define DISPREFIX_LOCK                  UINT8_C(0x04)
 /** segment prefix. */
-#define PREFIX_SEG                      RT_BIT(3)
+#define DISPREFIX_SEG                   UINT8_C(0x08)
 /** rep(e) prefix (not a prefix, but we'll treat is as one). */
-#define PREFIX_REP                      RT_BIT(4)
+#define DISPREFIX_REP                   UINT8_C(0x10)
 /** rep(e) prefix (not a prefix, but we'll treat is as one). */
-#define PREFIX_REPNE                    RT_BIT(5)
+#define DISPREFIX_REPNE                 UINT8_C(0x20)
 /** REX prefix (64 bits) */
-#define PREFIX_REX                      RT_BIT(6)
+#define DISPREFIX_REX                   UINT8_C(0x40)
 /** @} */
 
-/** 64 bits prefix byte flags
+/** @name 64 bits prefix byte flags (DISSTATE::fRexPrefix).
+ * Requires VBox/disopcode.h.
  * @{
  */
-#define PREFIX_REX_OP_2_FLAGS(a)        (a - OP_PARM_REX_START)
-#define PREFIX_REX_FLAGS                PREFIX_REX_OP_2_FLAGS(OP_PARM_REX)
-#define PREFIX_REX_FLAGS_B              PREFIX_REX_OP_2_FLAGS(OP_PARM_REX_B)
-#define PREFIX_REX_FLAGS_X              PREFIX_REX_OP_2_FLAGS(OP_PARM_REX_X)
-#define PREFIX_REX_FLAGS_XB             PREFIX_REX_OP_2_FLAGS(OP_PARM_REX_XB)
-#define PREFIX_REX_FLAGS_R              PREFIX_REX_OP_2_FLAGS(OP_PARM_REX_R)
-#define PREFIX_REX_FLAGS_RB             PREFIX_REX_OP_2_FLAGS(OP_PARM_REX_RB)
-#define PREFIX_REX_FLAGS_RX             PREFIX_REX_OP_2_FLAGS(OP_PARM_REX_RX)
-#define PREFIX_REX_FLAGS_RXB            PREFIX_REX_OP_2_FLAGS(OP_PARM_REX_RXB)
-#define PREFIX_REX_FLAGS_W              PREFIX_REX_OP_2_FLAGS(OP_PARM_REX_W)
-#define PREFIX_REX_FLAGS_WB             PREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WB)
-#define PREFIX_REX_FLAGS_WX             PREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WX)
-#define PREFIX_REX_FLAGS_WXB            PREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WXB)
-#define PREFIX_REX_FLAGS_WR             PREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WR)
-#define PREFIX_REX_FLAGS_WRB            PREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WRB)
-#define PREFIX_REX_FLAGS_WRX            PREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WRX)
-#define PREFIX_REX_FLAGS_WRXB           PREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WRXB)
+#define DISPREFIX_REX_OP_2_FLAGS(a)     (a - OP_PARM_REX_START)
+#define DISPREFIX_REX_FLAGS             DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX)
+#define DISPREFIX_REX_FLAGS_B           DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_B)
+#define DISPREFIX_REX_FLAGS_X           DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_X)
+#define DISPREFIX_REX_FLAGS_XB          DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_XB)
+#define DISPREFIX_REX_FLAGS_R           DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_R)
+#define DISPREFIX_REX_FLAGS_RB          DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_RB)
+#define DISPREFIX_REX_FLAGS_RX          DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_RX)
+#define DISPREFIX_REX_FLAGS_RXB         DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_RXB)
+#define DISPREFIX_REX_FLAGS_W           DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_W)
+#define DISPREFIX_REX_FLAGS_WB          DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WB)
+#define DISPREFIX_REX_FLAGS_WX          DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WX)
+#define DISPREFIX_REX_FLAGS_WXB         DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WXB)
+#define DISPREFIX_REX_FLAGS_WR          DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WR)
+#define DISPREFIX_REX_FLAGS_WRB         DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WRB)
+#define DISPREFIX_REX_FLAGS_WRX         DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WRX)
+#define DISPREFIX_REX_FLAGS_WRXB        DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WRXB)
 /** @} */
 
-/**
- * Operand type.
- */
-#define OPTYPE_INVALID                  RT_BIT(0)
-#define OPTYPE_HARMLESS                 RT_BIT(1)
-#define OPTYPE_CONTROLFLOW              RT_BIT(2)
-#define OPTYPE_POTENTIALLY_DANGEROUS    RT_BIT(3)
-#define OPTYPE_DANGEROUS                RT_BIT(4)
-#define OPTYPE_PORTIO                   RT_BIT(5)
-#define OPTYPE_PRIVILEGED               RT_BIT(6)
-#define OPTYPE_PRIVILEGED_NOTRAP        RT_BIT(7)
-#define OPTYPE_UNCOND_CONTROLFLOW       RT_BIT(8)
-#define OPTYPE_RELATIVE_CONTROLFLOW     RT_BIT(9)
-#define OPTYPE_COND_CONTROLFLOW         RT_BIT(10)
-#define OPTYPE_INTERRUPT                RT_BIT(11)
-#define OPTYPE_ILLEGAL                  RT_BIT(12)
-#define OPTYPE_RRM_DANGEROUS            RT_BIT(14)  /**< Some additional dangerous ones when recompiling raw r0. */
-#define OPTYPE_RRM_DANGEROUS_16         RT_BIT(15)  /**< Some additional dangerous ones when recompiling 16-bit raw r0. */
-#define OPTYPE_RRM_MASK                 (OPTYPE_RRM_DANGEROUS | OPTYPE_RRM_DANGEROUS_16)
-#define OPTYPE_INHIBIT_IRQS             RT_BIT(16)  /**< Will or can inhibit irqs (sti, pop ss, mov ss) */
-#define OPTYPE_PORTIO_READ              RT_BIT(17)
-#define OPTYPE_PORTIO_WRITE             RT_BIT(18)
-#define OPTYPE_INVALID_64               RT_BIT(19)  /**< Invalid in 64 bits mode */
-#define OPTYPE_ONLY_64                  RT_BIT(20)  /**< Only valid in 64 bits mode */
-#define OPTYPE_DEFAULT_64_OP_SIZE       RT_BIT(21)  /**< Default 64 bits operand size */
-#define OPTYPE_FORCED_64_OP_SIZE        RT_BIT(22)  /**< Forced 64 bits operand size; regardless of prefix bytes */
-#define OPTYPE_REXB_EXTENDS_OPREG       RT_BIT(23)  /**< REX.B extends the register field in the opcode byte */
-#define OPTYPE_MOD_FIXED_11             RT_BIT(24)  /**< modrm.mod is always 11b */
-#define OPTYPE_FORCED_32_OP_SIZE_X86    RT_BIT(25)  /**< Forced 32 bits operand size; regardless of prefix bytes (only in 16 & 32 bits mode!) */
-#define OPTYPE_ALL                      (0xffffffff)
-
-/** Parameter usage flags.
+/** @name Operand type (DISOPCODE::fOpType).
  * @{
  */
-#define USE_BASE                        RT_BIT_64(0)
-#define USE_INDEX                       RT_BIT_64(1)
-#define USE_SCALE                       RT_BIT_64(2)
-#define USE_REG_GEN8                    RT_BIT_64(3)
-#define USE_REG_GEN16                   RT_BIT_64(4)
-#define USE_REG_GEN32                   RT_BIT_64(5)
-#define USE_REG_GEN64                   RT_BIT_64(6)
-#define USE_REG_FP                      RT_BIT_64(7)
-#define USE_REG_MMX                     RT_BIT_64(8)
-#define USE_REG_XMM                     RT_BIT_64(9)
-#define USE_REG_CR                      RT_BIT_64(10)
-#define USE_REG_DBG                     RT_BIT_64(11)
-#define USE_REG_SEG                     RT_BIT_64(12)
-#define USE_REG_TEST                    RT_BIT_64(13)
-#define USE_DISPLACEMENT8               RT_BIT_64(14)
-#define USE_DISPLACEMENT16              RT_BIT_64(15)
-#define USE_DISPLACEMENT32              RT_BIT_64(16)
-#define USE_DISPLACEMENT64              RT_BIT_64(17)
-#define USE_RIPDISPLACEMENT32           RT_BIT_64(18)
-#define USE_IMMEDIATE8                  RT_BIT_64(19)
-#define USE_IMMEDIATE8_REL              RT_BIT_64(20)
-#define USE_IMMEDIATE16                 RT_BIT_64(21)
-#define USE_IMMEDIATE16_REL             RT_BIT_64(22)
-#define USE_IMMEDIATE32                 RT_BIT_64(23)
-#define USE_IMMEDIATE32_REL             RT_BIT_64(24)
-#define USE_IMMEDIATE64                 RT_BIT_64(25)
-#define USE_IMMEDIATE64_REL             RT_BIT_64(26)
-#define USE_IMMEDIATE_ADDR_0_32         RT_BIT_64(27)
-#define USE_IMMEDIATE_ADDR_16_32        RT_BIT_64(28)
-#define USE_IMMEDIATE_ADDR_0_16         RT_BIT_64(29)
-#define USE_IMMEDIATE_ADDR_16_16        RT_BIT_64(30)
+#define DISOPTYPE_INVALID                  RT_BIT_32(0)
+#define DISOPTYPE_HARMLESS                 RT_BIT_32(1)
+#define DISOPTYPE_CONTROLFLOW              RT_BIT_32(2)
+#define DISOPTYPE_POTENTIALLY_DANGEROUS    RT_BIT_32(3)
+#define DISOPTYPE_DANGEROUS                RT_BIT_32(4)
+#define DISOPTYPE_PORTIO                   RT_BIT_32(5)
+#define DISOPTYPE_PRIVILEGED               RT_BIT_32(6)
+#define DISOPTYPE_PRIVILEGED_NOTRAP        RT_BIT_32(7)
+#define DISOPTYPE_UNCOND_CONTROLFLOW       RT_BIT_32(8)
+#define DISOPTYPE_RELATIVE_CONTROLFLOW     RT_BIT_32(9)
+#define DISOPTYPE_COND_CONTROLFLOW         RT_BIT_32(10)
+#define DISOPTYPE_INTERRUPT                RT_BIT_32(11)
+#define DISOPTYPE_ILLEGAL                  RT_BIT_32(12)
+#define DISOPTYPE_RRM_DANGEROUS            RT_BIT_32(14)  /**< Some additional dangerous ones when recompiling raw r0. */
+#define DISOPTYPE_RRM_DANGEROUS_16         RT_BIT_32(15)  /**< Some additional dangerous ones when recompiling 16-bit raw r0. */
+#define DISOPTYPE_RRM_MASK                 (DISOPTYPE_RRM_DANGEROUS | DISOPTYPE_RRM_DANGEROUS_16)
+#define DISOPTYPE_INHIBIT_IRQS             RT_BIT_32(16)  /**< Will or can inhibit irqs (sti, pop ss, mov ss) */
+#define DISOPTYPE_PORTIO_READ              RT_BIT_32(17)
+#define DISOPTYPE_PORTIO_WRITE             RT_BIT_32(18)
+#define DISOPTYPE_INVALID_64               RT_BIT_32(19)  /**< Invalid in 64 bits mode */
+#define DISOPTYPE_ONLY_64                  RT_BIT_32(20)  /**< Only valid in 64 bits mode */
+#define DISOPTYPE_DEFAULT_64_OP_SIZE       RT_BIT_32(21)  /**< Default 64 bits operand size */
+#define DISOPTYPE_FORCED_64_OP_SIZE        RT_BIT_32(22)  /**< Forced 64 bits operand size; regardless of prefix bytes */
+#define DISOPTYPE_REXB_EXTENDS_OPREG       RT_BIT_32(23)  /**< REX.B extends the register field in the opcode byte */
+#define DISOPTYPE_MOD_FIXED_11             RT_BIT_32(24)  /**< modrm.mod is always 11b */
+#define DISOPTYPE_FORCED_32_OP_SIZE_X86    RT_BIT_32(25)  /**< Forced 32 bits operand size; regardless of prefix bytes (only in 16 & 32 bits mode!) */
+#define DISOPTYPE_ALL                      UINT32_C(0xffffffff)
+/** @}  */
+
+/** @name Parameter usage flags.
+ * @{
+ */
+#define DISUSE_BASE                        RT_BIT_64(0)
+#define DISUSE_INDEX                       RT_BIT_64(1)
+#define DISUSE_SCALE                       RT_BIT_64(2)
+#define DISUSE_REG_GEN8                    RT_BIT_64(3)
+#define DISUSE_REG_GEN16                   RT_BIT_64(4)
+#define DISUSE_REG_GEN32                   RT_BIT_64(5)
+#define DISUSE_REG_GEN64                   RT_BIT_64(6)
+#define DISUSE_REG_FP                      RT_BIT_64(7)
+#define DISUSE_REG_MMX                     RT_BIT_64(8)
+#define DISUSE_REG_XMM                     RT_BIT_64(9)
+#define DISUSE_REG_CR                      RT_BIT_64(10)
+#define DISUSE_REG_DBG                     RT_BIT_64(11)
+#define DISUSE_REG_SEG                     RT_BIT_64(12)
+#define DISUSE_REG_TEST                    RT_BIT_64(13)
+#define DISUSE_DISPLACEMENT8               RT_BIT_64(14)
+#define DISUSE_DISPLACEMENT16              RT_BIT_64(15)
+#define DISUSE_DISPLACEMENT32              RT_BIT_64(16)
+#define DISUSE_DISPLACEMENT64              RT_BIT_64(17)
+#define DISUSE_RIPDISPLACEMENT32           RT_BIT_64(18)
+#define DISUSE_IMMEDIATE8                  RT_BIT_64(19)
+#define DISUSE_IMMEDIATE8_REL              RT_BIT_64(20)
+#define DISUSE_IMMEDIATE16                 RT_BIT_64(21)
+#define DISUSE_IMMEDIATE16_REL             RT_BIT_64(22)
+#define DISUSE_IMMEDIATE32                 RT_BIT_64(23)
+#define DISUSE_IMMEDIATE32_REL             RT_BIT_64(24)
+#define DISUSE_IMMEDIATE64                 RT_BIT_64(25)
+#define DISUSE_IMMEDIATE64_REL             RT_BIT_64(26)
+#define DISUSE_IMMEDIATE_ADDR_0_32         RT_BIT_64(27)
+#define DISUSE_IMMEDIATE_ADDR_16_32        RT_BIT_64(28)
+#define DISUSE_IMMEDIATE_ADDR_0_16         RT_BIT_64(29)
+#define DISUSE_IMMEDIATE_ADDR_16_16        RT_BIT_64(30)
 /** DS:ESI */
-#define USE_POINTER_DS_BASED            RT_BIT_64(31)
+#define DISUSE_POINTER_DS_BASED            RT_BIT_64(31)
 /** ES:EDI */
-#define USE_POINTER_ES_BASED            RT_BIT_64(32)
-#define USE_IMMEDIATE16_SX8             RT_BIT_64(33)
-#define USE_IMMEDIATE32_SX8             RT_BIT_64(34)
-#define USE_IMMEDIATE64_SX8             RT_BIT_64(36)
+#define DISUSE_POINTER_ES_BASED            RT_BIT_64(32)
+#define DISUSE_IMMEDIATE16_SX8             RT_BIT_64(33)
+#define DISUSE_IMMEDIATE32_SX8             RT_BIT_64(34)
+#define DISUSE_IMMEDIATE64_SX8             RT_BIT_64(36)
 
-#define USE_IMMEDIATE                   (USE_IMMEDIATE8|USE_IMMEDIATE16|USE_IMMEDIATE32|USE_IMMEDIATE64|USE_IMMEDIATE8_REL|USE_IMMEDIATE16_REL|USE_IMMEDIATE32_REL|USE_IMMEDIATE64_REL|USE_IMMEDIATE_ADDR_0_32|USE_IMMEDIATE_ADDR_16_32|USE_IMMEDIATE_ADDR_0_16|USE_IMMEDIATE_ADDR_16_16|USE_IMMEDIATE16_SX8|USE_IMMEDIATE32_SX8|USE_IMMEDIATE64_SX8)
-
-#define DIS_IS_EFFECTIVE_ADDR(flags)    !!((flags) & (USE_BASE|USE_INDEX|USE_DISPLACEMENT32|USE_DISPLACEMENT64|USE_DISPLACEMENT16|USE_DISPLACEMENT8|USE_RIPDISPLACEMENT32))
+/** Mask of immediate use flags. */
+#define DISUSE_IMMEDIATE                   ( DISUSE_IMMEDIATE8 \
+                                           | DISUSE_IMMEDIATE16 \
+                                           | DISUSE_IMMEDIATE32 \
+                                           | DISUSE_IMMEDIATE64 \
+                                           | DISUSE_IMMEDIATE8_REL \
+                                           | DISUSE_IMMEDIATE16_REL \
+                                           | DISUSE_IMMEDIATE32_REL \
+                                           | DISUSE_IMMEDIATE64_REL \
+                                           | DISUSE_IMMEDIATE_ADDR_0_32 \
+                                           | DISUSE_IMMEDIATE_ADDR_16_32 \
+                                           | DISUSE_IMMEDIATE_ADDR_0_16 \
+                                           | DISUSE_IMMEDIATE_ADDR_16_16 \
+                                           | DISUSE_IMMEDIATE16_SX8 \
+                                           | DISUSE_IMMEDIATE32_SX8 \
+                                           | DISUSE_IMMEDIATE64_SX8)
+/** Check if the use flags indicates an effective address. */
+#define DISUSE_IS_EFFECTIVE_ADDR(a_fUseFlags) (!!(  (a_fUseFlags) \
+                                                  & (  DISUSE_BASE  \
+                                                     | DISUSE_INDEX \
+                                                     | DISUSE_DISPLACEMENT32 \
+                                                     | DISUSE_DISPLACEMENT64 \
+                                                     | DISUSE_DISPLACEMENT16 \
+                                                     | DISUSE_DISPLACEMENT8 \
+                                                     | DISUSE_RIPDISPLACEMENT32) ))
 /** @} */
 
-/** index in {"RAX", "RCX", "RDX", "RBX", "RSP", "RBP", "RSI", "RDI", "R8", "R9", "R10", "R11", "R12", "R13", "R14", "R15"}
+/** @name 64-bit general register indexes.
+ * This matches the AMD64 register encoding.  It is found used in
+ * DISOPPARAM::Base.idxGenReg and DISOPPARAM::Index.idxGenReg.
+ * @note  Safe to assume same values as the 16-bit and 32-bit general registers.
  * @{
  */
-#define USE_REG_RAX                     0
-#define USE_REG_RCX                     1
-#define USE_REG_RDX                     2
-#define USE_REG_RBX                     3
-#define USE_REG_RSP                     4
-#define USE_REG_RBP                     5
-#define USE_REG_RSI                     6
-#define USE_REG_RDI                     7
-#define USE_REG_R8                      8
-#define USE_REG_R9                      9
-#define USE_REG_R10                     10
-#define USE_REG_R11                     11
-#define USE_REG_R12                     12
-#define USE_REG_R13                     13
-#define USE_REG_R14                     14
-#define USE_REG_R15                     15
+#define DISGREG_RAX                     UINT8_C(0)
+#define DISGREG_RCX                     UINT8_C(1)
+#define DISGREG_RDX                     UINT8_C(2)
+#define DISGREG_RBX                     UINT8_C(3)
+#define DISGREG_RSP                     UINT8_C(4)
+#define DISGREG_RBP                     UINT8_C(5)
+#define DISGREG_RSI                     UINT8_C(6)
+#define DISGREG_RDI                     UINT8_C(7)
+#define DISGREG_R8                      UINT8_C(8)
+#define DISGREG_R9                      UINT8_C(9)
+#define DISGREG_R10                     UINT8_C(10)
+#define DISGREG_R11                     UINT8_C(11)
+#define DISGREG_R12                     UINT8_C(12)
+#define DISGREG_R13                     UINT8_C(13)
+#define DISGREG_R14                     UINT8_C(14)
+#define DISGREG_R15                     UINT8_C(15)
 /** @} */
 
-/** index in {"EAX", "ECX", "EDX", "EBX", "ESP", "EBP", "ESI", "EDI", "R8D", "R9D", "R10D", "R11D", "R12D", "R13D", "R14D", "R15D"}
+/** @name 32-bit general register indexes.
+ * This matches the AMD64 register encoding.  It is found used in
+ * DISOPPARAM::Base.idxGenReg and DISOPPARAM::Index.idxGenReg.
+ * @note  Safe to assume same values as the 16-bit and 64-bit general registers.
  * @{
  */
-#define USE_REG_EAX                     0
-#define USE_REG_ECX                     1
-#define USE_REG_EDX                     2
-#define USE_REG_EBX                     3
-#define USE_REG_ESP                     4
-#define USE_REG_EBP                     5
-#define USE_REG_ESI                     6
-#define USE_REG_EDI                     7
-#define USE_REG_R8D                     8
-#define USE_REG_R9D                     9
-#define USE_REG_R10D                    10
-#define USE_REG_R11D                    11
-#define USE_REG_R12D                    12
-#define USE_REG_R13D                    13
-#define USE_REG_R14D                    14
-#define USE_REG_R15D                    15
-
+#define DISGREG_EAX                     UINT8_C(0)
+#define DISGREG_ECX                     UINT8_C(1)
+#define DISGREG_EDX                     UINT8_C(2)
+#define DISGREG_EBX                     UINT8_C(3)
+#define DISGREG_ESP                     UINT8_C(4)
+#define DISGREG_EBP                     UINT8_C(5)
+#define DISGREG_ESI                     UINT8_C(6)
+#define DISGREG_EDI                     UINT8_C(7)
+#define DISGREG_R8D                     UINT8_C(8)
+#define DISGREG_R9D                     UINT8_C(9)
+#define DISGREG_R10D                    UINT8_C(10)
+#define DISGREG_R11D                    UINT8_C(11)
+#define DISGREG_R12D                    UINT8_C(12)
+#define DISGREG_R13D                    UINT8_C(13)
+#define DISGREG_R14D                    UINT8_C(14)
+#define DISGREG_R15D                    UINT8_C(15)
 /** @} */
-/** index in {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI", "R8W", "R9W", "R10W", "R11W", "R12W", "R13W", "R14W", "R15W"}
+
+/** @name 16-bit general register indexes.
+ * This matches the AMD64 register encoding.  It is found used in
+ * DISOPPARAM::Base.idxGenReg and DISOPPARAM::Index.idxGenReg.
+ * @note  Safe to assume same values as the 32-bit and 64-bit general registers.
  * @{
  */
-#define USE_REG_AX                      0
-#define USE_REG_CX                      1
-#define USE_REG_DX                      2
-#define USE_REG_BX                      3
-#define USE_REG_SP                      4
-#define USE_REG_BP                      5
-#define USE_REG_SI                      6
-#define USE_REG_DI                      7
-#define USE_REG_R8W                     8
-#define USE_REG_R9W                     9
-#define USE_REG_R10W                    10
-#define USE_REG_R11W                    11
-#define USE_REG_R12W                    12
-#define USE_REG_R13W                    13
-#define USE_REG_R14W                    14
-#define USE_REG_R15W                    15
+#define DISGREG_AX                      UINT8_C(0)
+#define DISGREG_CX                      UINT8_C(1)
+#define DISGREG_DX                      UINT8_C(2)
+#define DISGREG_BX                      UINT8_C(3)
+#define DISGREG_SP                      UINT8_C(4)
+#define DISGREG_BP                      UINT8_C(5)
+#define DISGREG_SI                      UINT8_C(6)
+#define DISGREG_DI                      UINT8_C(7)
+#define DISGREG_R8W                     UINT8_C(8)
+#define DISGREG_R9W                     UINT8_C(9)
+#define DISGREG_R10W                    UINT8_C(10)
+#define DISGREG_R11W                    UINT8_C(11)
+#define DISGREG_R12W                    UINT8_C(12)
+#define DISGREG_R13W                    UINT8_C(13)
+#define DISGREG_R14W                    UINT8_C(14)
+#define DISGREG_R15W                    UINT8_C(15)
 /** @} */
 
-/** index in {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH", "R8B", "R9B", "R10B", "R11B", "R12B", "R13B", "R14B", "R15B", "SPL", "BPL", "SIL", "DIL"}
+/** @name 8-bit general register indexes.
+ * This mostly (?) matches the AMD64 register encoding.  It is found used in
+ * DISOPPARAM::Base.idxGenReg and DISOPPARAM::Index.idxGenReg.
  * @{
  */
-#define USE_REG_AL                      0
-#define USE_REG_CL                      1
-#define USE_REG_DL                      2
-#define USE_REG_BL                      3
-#define USE_REG_AH                      4
-#define USE_REG_CH                      5
-#define USE_REG_DH                      6
-#define USE_REG_BH                      7
-#define USE_REG_R8B                     8
-#define USE_REG_R9B                     9
-#define USE_REG_R10B                    10
-#define USE_REG_R11B                    11
-#define USE_REG_R12B                    12
-#define USE_REG_R13B                    13
-#define USE_REG_R14B                    14
-#define USE_REG_R15B                    15
-#define USE_REG_SPL                     16
-#define USE_REG_BPL                     17
-#define USE_REG_SIL                     18
-#define USE_REG_DIL                     19
-
+#define DISGREG_AL                      UINT8_C(0)
+#define DISGREG_CL                      UINT8_C(1)
+#define DISGREG_DL                      UINT8_C(2)
+#define DISGREG_BL                      UINT8_C(3)
+#define DISGREG_AH                      UINT8_C(4)
+#define DISGREG_CH                      UINT8_C(5)
+#define DISGREG_DH                      UINT8_C(6)
+#define DISGREG_BH                      UINT8_C(7)
+#define DISGREG_R8B                     UINT8_C(8)
+#define DISGREG_R9B                     UINT8_C(9)
+#define DISGREG_R10B                    UINT8_C(10)
+#define DISGREG_R11B                    UINT8_C(11)
+#define DISGREG_R12B                    UINT8_C(12)
+#define DISGREG_R13B                    UINT8_C(13)
+#define DISGREG_R14B                    UINT8_C(14)
+#define DISGREG_R15B                    UINT8_C(15)
+#define DISGREG_SPL                     UINT8_C(16)
+#define DISGREG_BPL                     UINT8_C(17)
+#define DISGREG_SIL                     UINT8_C(18)
+#define DISGREG_DIL                     UINT8_C(19)
 /** @} */
 
-/** index in {ES, CS, SS, DS, FS, GS}
+/** @name Segment registerindexes.
+ * This matches the AMD64 register encoding.  It is found used in
+ * DISOPPARAM::Base.idxSegReg.
  * @{
  */
 typedef enum
 {
-    DIS_SELREG_ES = 0,
-    DIS_SELREG_CS = 1,
-    DIS_SELREG_SS = 2,
-    DIS_SELREG_DS = 3,
-    DIS_SELREG_FS = 4,
-    DIS_SELREG_GS = 5,
+    DISSELREG_ES = 0,
+    DISSELREG_CS = 1,
+    DISSELREG_SS = 2,
+    DISSELREG_DS = 3,
+    DISSELREG_FS = 4,
+    DISSELREG_GS = 5,
+    /** End of the valid register index values. */
+    DISSELREG_END,
     /** The usual 32-bit paranoia. */
     DIS_SEGREG_32BIT_HACK = 0x7fffffff
-} DIS_SELREG;
+} DISSELREG;
 /** @} */
 
-#define USE_REG_FP0                     0
-#define USE_REG_FP1                     1
-#define USE_REG_FP2                     2
-#define USE_REG_FP3                     3
-#define USE_REG_FP4                     4
-#define USE_REG_FP5                     5
-#define USE_REG_FP6                     6
-#define USE_REG_FP7                     7
-
-#define USE_REG_CR0                     0
-#define USE_REG_CR1                     1
-#define USE_REG_CR2                     2
-#define USE_REG_CR3                     3
-#define USE_REG_CR4                     4
-#define USE_REG_CR8                     8
-
-#define USE_REG_DR0                     0
-#define USE_REG_DR1                     1
-#define USE_REG_DR2                     2
-#define USE_REG_DR3                     3
-#define USE_REG_DR4                     4
-#define USE_REG_DR5                     5
-#define USE_REG_DR6                     6
-#define USE_REG_DR7                     7
-
-#define USE_REG_MMX0                    0
-#define USE_REG_MMX1                    1
-#define USE_REG_MMX2                    2
-#define USE_REG_MMX3                    3
-#define USE_REG_MMX4                    4
-#define USE_REG_MMX5                    5
-#define USE_REG_MMX6                    6
-#define USE_REG_MMX7                    7
-
-#define USE_REG_XMM0                    0
-#define USE_REG_XMM1                    1
-#define USE_REG_XMM2                    2
-#define USE_REG_XMM3                    3
-#define USE_REG_XMM4                    4
-#define USE_REG_XMM5                    5
-#define USE_REG_XMM6                    6
-#define USE_REG_XMM7                    7
-
-/** Used by DISQueryParamVal & EMIQueryParamVal
+/** @name FPU register indexes.
+ * This matches the AMD64 register encoding.  It is found used in
+ * DISOPPARAM::Base.idxFpuReg.
  * @{
  */
-#define PARAM_VAL8             RT_BIT(0)
-#define PARAM_VAL16            RT_BIT(1)
-#define PARAM_VAL32            RT_BIT(2)
-#define PARAM_VAL64            RT_BIT(3)
-#define PARAM_VALFARPTR16      RT_BIT(4)
-#define PARAM_VALFARPTR32      RT_BIT(5)
+#define DISFPREG_ST0                    UINT8_C(0)
+#define DISFPREG_ST1                    UINT8_C(1)
+#define DISFPREG_ST2                    UINT8_C(2)
+#define DISFPREG_ST3                    UINT8_C(3)
+#define DISFPREG_ST4                    UINT8_C(4)
+#define DISFPREG_ST5                    UINT8_C(5)
+#define DISFPREG_ST6                    UINT8_C(6)
+#define DISFPREG_ST7                    UINT8_C(7)
+/** @}  */
 
-#define PARMTYPE_REGISTER      1
-#define PARMTYPE_ADDRESS       2
-#define PARMTYPE_IMMEDIATE     3
+/** @name Control register indexes.
+ * This matches the AMD64 register encoding.  It is found used in
+ * DISOPPARAM::Base.idxCtrlReg.
+ * @{
+ */
+#define DISCREG_CR0                     UINT8_C(0)
+#define DISCREG_CR1                     UINT8_C(1)
+#define DISCREG_CR2                     UINT8_C(2)
+#define DISCREG_CR3                     UINT8_C(3)
+#define DISCREG_CR4                     UINT8_C(4)
+#define DISCREG_CR8                     UINT8_C(8)
+/** @}  */
+
+/** @name Debug register indexes.
+ * This matches the AMD64 register encoding.  It is found used in
+ * DISOPPARAM::Base.idxDbgReg.
+ * @{
+ */
+#define DISDREG_DR0                     UINT8_C(0)
+#define DISDREG_DR1                     UINT8_C(1)
+#define DISDREG_DR2                     UINT8_C(2)
+#define DISDREG_DR3                     UINT8_C(3)
+#define DISDREG_DR4                     UINT8_C(4)
+#define DISDREG_DR5                     UINT8_C(5)
+#define DISDREG_DR6                     UINT8_C(6)
+#define DISDREG_DR7                     UINT8_C(7)
+/** @}  */
+
+/** @name MMX register indexes.
+ * This matches the AMD64 register encoding.  It is found used in
+ * DISOPPARAM::Base.idxMmxReg.
+ * @{
+ */
+#define DISMREG_MMX0                    UINT8_C(0)
+#define DISMREG_MMX1                    UINT8_C(1)
+#define DISMREG_MMX2                    UINT8_C(2)
+#define DISMREG_MMX3                    UINT8_C(3)
+#define DISMREG_MMX4                    UINT8_C(4)
+#define DISMREG_MMX5                    UINT8_C(5)
+#define DISMREG_MMX6                    UINT8_C(6)
+#define DISMREG_MMX7                    UINT8_C(7)
+/** @}  */
+
+/** @name SSE register indexes.
+ * This matches the AMD64 register encoding.  It is found used in
+ * DISOPPARAM::Base.idxXmmReg.
+ * @{
+ */
+#define DISXREG_XMM0                    UINT8_C(0)
+#define DISXREG_XMM1                    UINT8_C(1)
+#define DISXREG_XMM2                    UINT8_C(2)
+#define DISXREG_XMM3                    UINT8_C(3)
+#define DISXREG_XMM4                    UINT8_C(4)
+#define DISXREG_XMM5                    UINT8_C(5)
+#define DISXREG_XMM6                    UINT8_C(6)
+#define DISXREG_XMM7                    UINT8_C(7)
+/** @} */
+
+
+/**
+ * Opcode parameter (operand) details.
+ */
+typedef struct DISOPPARAM
+{
+    /** A combination of DISUSE_XXX. */
+    uint64_t        fUse;
+    /** Immediate value or address, applicable if any of the flags included in
+     * DISUSE_IMMEDIATE are set in fUse. */
+    uint64_t        uValue;
+    /** Disposition.  */
+    union
+    {
+        /** 64-bit displacement, applicable if DISUSE_DISPLACEMENT64 is set in fUse.  */
+        int64_t     i64;
+        uint64_t    u64;
+        /** 32-bit displacement, applicable if DISUSE_DISPLACEMENT32 or
+         * DISUSE_RIPDISPLACEMENT32  is set in fUse. */
+        int32_t     i32;
+        uint32_t    u32;
+        /** 16-bit displacement, applicable if DISUSE_DISPLACEMENT16 is set in fUse.  */
+        int32_t     i16;
+        uint32_t    u16;
+        /** 8-bit displacement, applicable if DISUSE_DISPLACEMENT8 is set in fUse.  */
+        int32_t     i8;
+        uint32_t    u8;
+    } uDisp;
+    /** The base register from ModR/M or SIB, applicable if DISUSE_BASE is
+     * set in fUse. */
+    union
+    {
+        /** General register index (DISGREG_XXX), applicable if DISUSE_REG_GEN8,
+         * DISUSE_REG_GEN16, DISUSE_REG_GEN32 or DISUSE_REG_GEN64 is set in fUse. */
+        uint8_t     idxGenReg;
+        /** FPU stack register index (DISFPREG_XXX), applicable if DISUSE_REG_FP is
+         * set in fUse.  1:1 indexes. */
+        uint8_t     idxFpuReg;
+        /** MMX register index (DISMREG_XXX), applicable if DISUSE_REG_MMX is
+         * set in fUse.  1:1 indexes. */
+        uint8_t     idxMmxReg;
+        /** SSE register index (DISXREG_XXX), applicable if DISUSE_REG_XMM is
+         * set in fUse.  1:1 indexes. */
+        uint8_t     idxXmmReg;
+        /** Segment register index (DISSELREG_XXX), applicable if DISUSE_REG_SEG is
+         * set in fUse. */
+        uint8_t     idxSegReg;
+        /** Test register, TR0-TR7, present on early IA32 CPUs, applicable if
+         * DISUSE_REG_TEST is set in fUse.  No index defines for these. */
+        uint8_t     idxTestReg;
+        /** Control register index (DISCREG_XXX), applicable if DISUSE_REG_CR is
+         * set in fUse.  1:1 indexes. */
+        uint8_t     idxCtrlReg;
+        /** Debug register index (DISDREG_XXX), applicable if DISUSE_REG_DBG is
+         * set in fUse.  1:1 indexes. */
+        uint8_t     idxDbgReg;
+    } Base;
+    /** The SIB index register meaning, applicable if DISUSE_INDEX is
+     * set in fUse. */
+    union
+    {
+        /** General register index (DISGREG_XXX), applicable if DISUSE_REG_GEN8,
+         * DISUSE_REG_GEN16, DISUSE_REG_GEN32 or DISUSE_REG_GEN64 is set in fUse. */
+        uint8_t     idxGenReg;
+    } Index;
+    /** 2, 4 or 8, if DISUSE_SCALE is set in fUse. */
+    uint8_t         uScale;
+    /** Parameter size. */
+    uint8_t         cb;
+    /** Copy of the corresponding DISOPCODE::fParam1 / DISOPCODE::fParam2 /
+     * DISOPCODE::fParam3. */
+    uint32_t        fParam;
+} DISOPPARAM;
+AssertCompileSize(DISOPPARAM, 32);
+/** Pointer to opcode parameter. */
+typedef DISOPPARAM *PDISOPPARAM;
+/** Pointer to opcode parameter. */
+typedef const DISOPPARAM *PCDISOPPARAM;
+
+
+/**
+ * Opcode descriptor.
+ */
+typedef struct DISOPCODE
+{
+#ifndef DIS_CORE_ONLY
+    const char  *pszOpcode;
+#endif
+    /** Parameter \#1 parser index. */
+    uint8_t     idxParse1;
+    /** Parameter \#2 parser index. */
+    uint8_t     idxParse2;
+    /** Parameter \#3 parser index. */
+    uint8_t     idxParse3;
+    /** Unused padding.  */
+    uint8_t     uUnused;
+    /** The opcode identifier. This DIS specific, @see grp_dis_opcodes and
+     * VBox/disopcode.h. */
+    uint16_t    uOpcode;
+    /** Parameter \#1 info, @see grp_dis_opparam. */
+    uint16_t    fParam1;
+    /** Parameter \#2 info, @see grp_dis_opparam. */
+    uint16_t    fParam2;
+    /** Parameter \#3 info, @see grp_dis_opparam. */
+    uint16_t    fParam3;
+    /** Operand type flags, DISOPTYPE_XXX. */
+    uint32_t    fOpType;
+} DISOPCODE;
+/** Pointer to const opcode. */
+typedef const struct DISOPCODE *PCDISOPCODE;
+
+
+/**
+ * Callback for reading instruction bytes.
+ *
+ * @returns VBox status code, bytes in DISSTATE::abInstr and byte count in
+ *          DISSTATE::cbCachedInstr.
+ * @param   pDis            Pointer to the disassembler state.  The user
+ *                          argument can be found in DISSTATE::pvUser if needed.
+ * @param   offInstr        The offset relative to the start of the instruction.
+ *
+ *                          To get the source address, add this to
+ *                          DISSTATE::uInstrAddr.
+ *
+ *                          To calculate the destination buffer address, use it
+ *                          as an index into DISSTATE::abInstr.
+ *
+ * @param   cbMinRead       The minimum number of bytes to read.
+ * @param   cbMaxRead       The maximum number of bytes that may be read.
+ */
+typedef DECLCALLBACK(int) FNDISREADBYTES(PDISSTATE pDis, uint8_t offInstr, uint8_t cbMinRead, uint8_t cbMaxRead);
+/** Pointer to a opcode byte reader. */
+typedef FNDISREADBYTES *PFNDISREADBYTES;
+
+/** Parser callback.
+ * @remark no DECLCALLBACK() here because it's considered to be internal and
+ *         there is no point in enforcing CDECL. */
+typedef size_t FNDISPARSE(size_t offInstr, PCDISOPCODE pOp, PDISSTATE pDis, PDISOPPARAM pParam);
+/** Pointer to a disassembler parser function. */
+typedef FNDISPARSE *PFNDISPARSE;
+/** Pointer to a const disassembler parser function pointer. */
+typedef PFNDISPARSE const *PCPFNDISPARSE;
+
+/**
+ * The diassembler state and result.
+ */
+typedef struct DISSTATE
+{
+    /** The number of valid bytes in abInstr. */
+    uint8_t         cbCachedInstr;
+    /** SIB fields. */
+    union
+    {
+        /** Bitfield view */
+        struct
+        {
+            uint8_t     Base;
+            uint8_t     Index;
+            uint8_t     Scale;
+        } Bits;
+    } SIB;
+    /** ModRM fields. */
+    union
+    {
+        /** Bitfield view */
+        struct
+        {
+            uint8_t     Rm;
+            uint8_t     Reg;
+            uint8_t     Mod;
+        } Bits;
+    } ModRM;
+    /** The CPU mode (DISCPUMODE). */
+    uint8_t         uCpuMode;
+    /** The addressing mode (DISCPUMODE). */
+    uint8_t         uAddrMode;
+    /** The operand mode (DISCPUMODE). */
+    uint8_t         uOpMode;
+    /** Per instruction prefix settings. */
+    uint8_t         fPrefix;
+    /** REX prefix value (64 bits only). */
+    uint8_t         fRexPrefix;
+    /** Segment prefix value (DISSELREG). */
+    uint8_t         idxSegPrefix;
+    /** Last prefix byte (for SSE2 extension tables). */
+    uint8_t         bLastPrefix;
+    /** Last significan opcode byte of instruction. */
+    uint8_t         bOpCode;
+    /** The size of the prefix bytes. */
+    uint8_t         cbPrefix;
+    /** The instruction size. */
+    uint8_t         cbInstr;
+    /** Unused bytes. */
+    uint8_t         abUnused[3];
+    /** Internal: instruction filter */
+    uint32_t        fFilter;
+    /** Internal: pointer to disassembly function table */
+    PCPFNDISPARSE   pfnDisasmFnTable;
+#if ARCH_BITS == 32
+    uint32_t        uPtrPadding1;
+#endif
+    /** Pointer to the current instruction. */
+    PCDISOPCODE     pCurInstr;
+#if ARCH_BITS == 32
+    uint32_t        uPtrPadding2;
+#endif
+    /** The instruction bytes. */
+    uint8_t         abInstr[16];
+    /** SIB displacment. */
+    int32_t         i32SibDisp;
+
+    /** Return code set by a worker function like the opcode bytes readers. */
+    int32_t         rc;
+    /** The address of the instruction. */
+    RTUINTPTR       uInstrAddr;
+    /** Optional read function */
+    PFNDISREADBYTES pfnReadBytes;
+#if ARCH_BITS == 32
+    uint32_t        uPadding3;
+#endif
+    /** User data supplied as an argument to the APIs. */
+    void           *pvUser;
+#if ARCH_BITS == 32
+    uint32_t        uPadding4;
+#endif
+    /** Parameters.  */
+    DISOPPARAM      Param1;
+    DISOPPARAM      Param2;
+    DISOPPARAM      Param3;
+} DISSTATE;
+AssertCompileSize(DISSTATE, 0xb8);
+
+/** @deprecated  Use DISSTATE and change Cpu and DisState to Dis. */
+typedef DISSTATE DISCPUSTATE;
+
+
+
+DISDECL(int) DISInstrToStr(void const *pvInstr, DISCPUMODE enmCpuMode,
+                           PDISSTATE pDis, uint32_t *pcbInstr, char *pszOutput, size_t cbOutput);
+DISDECL(int) DISInstrToStrWithReader(RTUINTPTR uInstrAddr, DISCPUMODE enmCpuMode, PFNDISREADBYTES pfnReadBytes, void *pvUser,
+                                     PDISSTATE pDis, uint32_t *pcbInstr, char *pszOutput, size_t cbOutput);
+DISDECL(int) DISInstrToStrEx(RTUINTPTR uInstrAddr, DISCPUMODE enmCpuMode,
+                             PFNDISREADBYTES pfnReadBytes, void *pvUser, uint32_t uFilter,
+                             PDISSTATE pDis, uint32_t *pcbInstr, char *pszOutput, size_t cbOutput);
+
+DISDECL(int) DISInstr(void const *pvInstr, DISCPUMODE enmCpuMode, PDISSTATE pDis, uint32_t *pcbInstr);
+DISDECL(int) DISInstrWithReader(RTUINTPTR uInstrAddr, DISCPUMODE enmCpuMode, PFNDISREADBYTES pfnReadBytes, void *pvUser,
+                                PDISSTATE pDis, uint32_t *pcbInstr);
+DISDECL(int) DISInstrEx(RTUINTPTR uInstrAddr, DISCPUMODE enmCpuMode, uint32_t uFilter,
+                        PFNDISREADBYTES pfnReadBytes, void *pvUser,
+                        PDISSTATE pDis, uint32_t *pcbInstr);
+DISDECL(int) DISInstrWithPrefetchedBytes(RTUINTPTR uInstrAddr, DISCPUMODE enmCpuMode, uint32_t fFilter,
+                                         void const *pvPrefetched, size_t cbPretched,
+                                         PFNDISREADBYTES pfnReadBytes, void *pvUser,
+                                         PDISSTATE pDis, uint32_t *pcbInstr);
+
+DISDECL(int)        DISGetParamSize(PCDISSTATE pDis, PCDISOPPARAM pParam);
+DISDECL(DISSELREG)  DISDetectSegReg(PCDISSTATE pDis, PCDISOPPARAM pParam);
+DISDECL(uint8_t)    DISQuerySegPrefixByte(PCDISSTATE pDis);
+
+
+
+/** @name Flags returned by DISQueryParamVal (DISQPVPARAMVAL::flags).
+ * @{
+ */
+#define DISQPV_FLAG_8                   UINT8_C(0x01)
+#define DISQPV_FLAG_16                  UINT8_C(0x02)
+#define DISQPV_FLAG_32                  UINT8_C(0x04)
+#define DISQPV_FLAG_64                  UINT8_C(0x08)
+#define DISQPV_FLAG_FARPTR16            UINT8_C(0x10)
+#define DISQPV_FLAG_FARPTR32            UINT8_C(0x20)
+/** @}  */
+
+/** @name Types returned by DISQueryParamVal (DISQPVPARAMVAL::flags).
+ * @{ */
+#define DISQPV_TYPE_REGISTER            UINT8_C(1)
+#define DISQPV_TYPE_ADDRESS             UINT8_C(2)
+#define DISQPV_TYPE_IMMEDIATE           UINT8_C(3)
+/** @}  */
 
 typedef struct
 {
-    uint32_t        type;
-    uint32_t        size;
-    uint64_t        flags;
-
     union
     {
         uint8_t     val8;
@@ -352,301 +666,34 @@ typedef struct
         } farptr;
     } val;
 
-} OP_PARAMVAL;
+    uint8_t         type;
+    uint8_t         size;
+    uint8_t         flags;
+} DISQPVPARAMVAL;
 /** Pointer to opcode parameter value. */
-typedef OP_PARAMVAL *POP_PARAMVAL;
+typedef DISQPVPARAMVAL *PDISQPVPARAMVAL;
 
-typedef enum
+/** Indicates which parameter DISQueryParamVal should operate on. */
+typedef enum DISQPVWHICH
 {
-    PARAM_DEST,
-    PARAM_SOURCE
-} PARAM_TYPE;
-
-/** @} */
-
-/**
- * Operand Parameter.
- */
-typedef struct OP_PARAMETER
-{
-    /** @todo switch param and parval and move disp64 and flags up here with the other 64-bit vars to get more natural alignment and save space. */
-    int             param;
-    uint64_t        parval;
-#ifndef DIS_SEPARATE_FORMATTER
-    char            szParam[32];
-#endif
-
-    int32_t         disp8, disp16, disp32;
-    uint32_t        size;
-
-    int64_t         disp64;
-    uint64_t        flags;
-
-    union
-    {
-        uint32_t    reg_gen;
-        /** ST(0) - ST(7) */
-        uint32_t    reg_fp;
-        /** MMX0 - MMX7 */
-        uint32_t    reg_mmx;
-        /** XMM0 - XMM7 */
-        uint32_t    reg_xmm;
-        /** {ES, CS, SS, DS, FS, GS} */
-        DIS_SELREG  reg_seg;
-        /** TR0-TR7 (?) */
-        uint32_t    reg_test;
-        /** CR0-CR4 */
-        uint32_t    reg_ctrl;
-        /** DR0-DR7 */
-        uint32_t    reg_dbg;
-    } base;
-    union
-    {
-        uint32_t    reg_gen;
-    } index;
-
-    /** 2, 4 or 8. */
-    uint32_t scale;
-
-} OP_PARAMETER;
-/** Pointer to opcode parameter. */
-typedef OP_PARAMETER *POP_PARAMETER;
-/** Pointer to opcode parameter. */
-typedef const OP_PARAMETER *PCOP_PARAMETER;
-
-
-/** Pointer to opcode. */
-typedef struct OPCODE *POPCODE;
-/** Pointer to const opcode. */
-typedef const struct OPCODE *PCOPCODE;
-
-typedef DECLCALLBACK(int) FN_DIS_READBYTES(RTUINTPTR pSrc, uint8_t *pDest, unsigned size, void *pvUserdata);
-typedef FN_DIS_READBYTES *PFN_DIS_READBYTES;
-
-/** Parser callback.
- * @remark no DECLCALLBACK() here because it's considered to be internal (really, I'm too lazy to update all the functions). */
-typedef unsigned FNDISPARSE(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-typedef FNDISPARSE *PFNDISPARSE;
-
-typedef struct DISCPUSTATE
-{
-    /* Global setting */
-    DISCPUMODE      mode;
-
-    /* Per instruction prefix settings */
-    uint32_t        prefix;
-    /** segment prefix value. */
-    DIS_SELREG      enmPrefixSeg;
-    /** rex prefix value (64 bits only */
-    uint32_t        prefix_rex;
-    /** addressing mode (16 or 32 bits). (CPUMODE_*) */
-    DISCPUMODE      addrmode;
-    /** operand mode (16 or 32 bits). (CPUMODE_*) */
-    DISCPUMODE      opmode;
-
-    OP_PARAMETER    param1;
-    OP_PARAMETER    param2;
-    OP_PARAMETER    param3;
-
-    /** ModRM fields. */
-    union
-    {
-        /* Bitfield view */
-        struct
-        {
-            unsigned        Rm  : 4;
-            unsigned        Reg : 4;
-            unsigned        Mod : 2;
-        } Bits;
-        /* unsigned view */
-        unsigned            u;
-    } ModRM;
-
-    /** SIB fields. */
-    union
-    {
-        /* Bitfield view */
-        struct
-        {
-            unsigned        Base  : 4;
-            unsigned        Index : 4;
-            unsigned        Scale : 2;
-        } Bits;
-        /* unsigned view */
-        unsigned            u;
-    } SIB;
-
-    int32_t         disp;
-
-    /** First opcode byte of instruction. */
-    uint8_t         opcode;
-    /** Last prefix byte (for SSE2 extension tables) */
-    uint8_t         lastprefix;
-    RTUINTPTR       opaddr;
-    uint32_t        opsize;
-#ifndef DIS_CORE_ONLY
-    /** Opcode format string for current instruction. */
-    const char      *pszOpcode;
-#endif
-
-    /** Internal: pointer to disassembly function table */
-    PFNDISPARSE    *pfnDisasmFnTable;
-    /** Internal: instruction filter */
-    uint32_t        uFilter;
-
-    /** Pointer to the current instruction. */
-    PCOPCODE        pCurInstr;
-
-    void           *apvUserData[3];
-
-    /** Optional read function */
-    PFN_DIS_READBYTES pfnReadBytes;
-#ifdef __L4ENV__
-    jmp_buf *pJumpBuffer;
-#endif /* __L4ENV__ */
-} DISCPUSTATE;
-
-/** The storage padding sufficient to hold the largest DISCPUSTATE in all
- * contexts (R3, R0 and RC). Used various places in the VMM internals.   */
-#define DISCPUSTATE_PADDING_SIZE    (HC_ARCH_BITS == 64 ? 0x1a0 : 0x180)
-
-/** Opcode. */
-#pragma pack(4)
-typedef struct OPCODE
-{
-#ifndef DIS_CORE_ONLY
-    const char  *pszOpcode;
-#endif
-    uint8_t     idxParse1;
-    uint8_t     idxParse2;
-    uint8_t     idxParse3;
-    uint16_t    opcode;
-    uint16_t    param1;
-    uint16_t    param2;
-    uint16_t    param3;
-
-    unsigned    optype;
-} OPCODE;
-#pragma pack()
-
-
-/**
- * Disassembles a code block.
- *
- * @returns VBox error code
- * @param   pCpu            Pointer to cpu structure which have DISCPUSTATE::mode
- *                          set correctly.
- * @param   pvCodeBlock     Pointer to the structure to disassemble.
- * @param   cbMax           Maximum number of bytes to disassemble.
- * @param   pcbSize         Where to store the size of the instruction.
- *                          NULL is allowed.
- *
- *
- * @todo    Define output callback.
- * @todo    Using signed integers as sizes is a bit odd. There are still
- *          some GCC warnings about mixing signed and unsigned integers.
- * @todo    Need to extend this interface to include a code address so we
- *          can disassemble GC code. Perhaps a new function is better...
- * @remark  cbMax isn't respected as a boundary. DISInstr() will read beyond cbMax.
- *          This means *pcbSize >= cbMax sometimes.
- */
-DISDECL(int) DISBlock(PDISCPUSTATE pCpu, RTUINTPTR pvCodeBlock, unsigned cbMax, unsigned *pSize);
-
-/**
- * Disassembles one instruction
- *
- * @returns VBox error code
- * @param   pCpu            Pointer to cpu structure which have DISCPUSTATE::mode
- *                          set correctly.
- * @param   pu8Instruction  Pointer to the instrunction to disassemble.
- * @param   u32EipOffset    Offset to add to instruction address to get the real virtual address
- * @param   pcbSize         Where to store the size of the instruction.
- *                          NULL is allowed.
- * @param   pszOutput       Storage for disassembled instruction
- *
- * @todo    Define output callback.
- */
-DISDECL(int) DISInstr(PDISCPUSTATE pCpu, RTUINTPTR pu8Instruction, unsigned u32EipOffset, unsigned *pcbSize, char *pszOutput);
-
-/**
- * Disassembles one instruction
- *
- * @returns VBox error code
- * @param   pCpu            Pointer to cpu structure which have DISCPUSTATE::mode
- *                          set correctly.
- * @param   pu8Instruction  Pointer to the structure to disassemble.
- * @param   u32EipOffset    Offset to add to instruction address to get the real virtual address
- * @param   pcbSize         Where to store the size of the instruction.
- *                          NULL is allowed.
- * @param   pszOutput       Storage for disassembled instruction
- * @param   uFilter         Instruction type filter
- *
- * @todo    Define output callback.
- */
-DISDECL(int) DISInstrEx(PDISCPUSTATE pCpu, RTUINTPTR pu8Instruction, uint32_t u32EipOffset, uint32_t *pcbSize,
-                         char *pszOutput, unsigned uFilter);
-
-/**
- * Parses one instruction.
- * The result is found in pCpu.
- *
- * @returns VBox error code
- * @param   pCpu            Pointer to cpu structure which has DISCPUSTATE::mode set correctly.
- * @param   InstructionAddr Pointer to the instruction to parse.
- * @param   pcbInstruction  Where to store the size of the instruction.
- *                          NULL is allowed.
- */
-DISDECL(int) DISCoreOne(PDISCPUSTATE pCpu, RTUINTPTR InstructionAddr, unsigned *pcbInstruction);
-
-/**
- * Parses one guest instruction.
- * The result is found in pCpu and pcbInstruction.
- *
- * @returns VBox status code.
- * @param   InstructionAddr Address of the instruction to decode. What this means
- *                          is left to the pfnReadBytes function.
- * @param   enmCpuMode      The CPU mode. CPUMODE_32BIT, CPUMODE_16BIT, or CPUMODE_64BIT.
- * @param   pfnReadBytes    Callback for reading instruction bytes.
- * @param   pvUser          User argument for the instruction reader. (Ends up in apvUserData[0].)
- * @param   pCpu            Pointer to cpu structure. Will be initialized.
- * @param   pcbInstruction  Where to store the size of the instruction.
- *                          NULL is allowed.
- */
-DISDECL(int) DISCoreOneEx(RTUINTPTR InstructionAddr, DISCPUMODE enmCpuMode, PFN_DIS_READBYTES pfnReadBytes, void *pvUser,
-                          PDISCPUSTATE pCpu, unsigned *pcbInstruction);
-
-DISDECL(int)        DISGetParamSize(PDISCPUSTATE pCpu, POP_PARAMETER pParam);
-DISDECL(DIS_SELREG) DISDetectSegReg(PDISCPUSTATE pCpu, POP_PARAMETER pParam);
-DISDECL(uint8_t)    DISQuerySegPrefixByte(PDISCPUSTATE pCpu);
-
-/**
- * Returns the value of the parameter in pParam
- *
- * @returns VBox error code
- * @param   pCtx            Exception structure pointer
- * @param   pCpu            Pointer to cpu structure which have DISCPUSTATE::mode
- *                          set correctly.
- * @param   pParam          Pointer to the parameter to parse
- * @param   pParamVal       Pointer to parameter value (OUT)
- * @param   parmtype        Parameter type
- *
- * @note    Currently doesn't handle FPU/XMM/MMX/3DNow! parameters correctly!!
- *
- */
-DISDECL(int) DISQueryParamVal(PCPUMCTXCORE pCtx, PDISCPUSTATE pCpu, POP_PARAMETER pParam, POP_PARAMVAL pParamVal, PARAM_TYPE parmtype);
-DISDECL(int) DISQueryParamRegPtr(PCPUMCTXCORE pCtx, PDISCPUSTATE pCpu, POP_PARAMETER pParam, void **ppReg, size_t *pcbSize);
+    DISQPVWHICH_DST = 1,
+    DISQPVWHICH_SRC,
+    DISQPVWHAT_32_BIT_HACK = 0x7fffffff
+} DISQPVWHICH;
+DISDECL(int) DISQueryParamVal(PCPUMCTXCORE pCtx, PCDISSTATE pDis, PCDISOPPARAM pParam, PDISQPVPARAMVAL pParamVal, DISQPVWHICH parmtype);
+DISDECL(int) DISQueryParamRegPtr(PCPUMCTXCORE pCtx, PCDISSTATE pDis, PCDISOPPARAM pParam, void **ppReg, size_t *pcbSize);
 
 DISDECL(int) DISFetchReg8(PCCPUMCTXCORE pCtx, unsigned reg8, uint8_t *pVal);
 DISDECL(int) DISFetchReg16(PCCPUMCTXCORE pCtx, unsigned reg16, uint16_t *pVal);
 DISDECL(int) DISFetchReg32(PCCPUMCTXCORE pCtx, unsigned reg32, uint32_t *pVal);
 DISDECL(int) DISFetchReg64(PCCPUMCTXCORE pCtx, unsigned reg64, uint64_t *pVal);
-DISDECL(int) DISFetchRegSeg(PCCPUMCTXCORE pCtx, DIS_SELREG sel, RTSEL *pVal);
-DISDECL(int) DISFetchRegSegEx(PCCPUMCTXCORE pCtx, DIS_SELREG sel, RTSEL *pVal, PCPUMSELREGHID *ppSelHidReg);
+DISDECL(int) DISFetchRegSeg(PCCPUMCTXCORE pCtx, DISSELREG sel, RTSEL *pVal);
+DISDECL(int) DISFetchRegSegEx(PCPUMCTXCORE pCtx, DISSELREG sel, PCPUMSELREG *ppSelReg);
 DISDECL(int) DISWriteReg8(PCPUMCTXCORE pRegFrame, unsigned reg8, uint8_t val8);
 DISDECL(int) DISWriteReg16(PCPUMCTXCORE pRegFrame, unsigned reg32, uint16_t val16);
 DISDECL(int) DISWriteReg32(PCPUMCTXCORE pRegFrame, unsigned reg32, uint32_t val32);
 DISDECL(int) DISWriteReg64(PCPUMCTXCORE pRegFrame, unsigned reg64, uint64_t val64);
-DISDECL(int) DISWriteRegSeg(PCPUMCTXCORE pCtx, DIS_SELREG sel, RTSEL val);
+DISDECL(int) DISWriteRegSeg(PCPUMCTXCORE pCtx, DISSELREG sel, RTSEL val);
 DISDECL(int) DISPtrReg8(PCPUMCTXCORE pCtx, unsigned reg8, uint8_t **ppReg);
 DISDECL(int) DISPtrReg16(PCPUMCTXCORE pCtx, unsigned reg16, uint16_t **ppReg);
 DISDECL(int) DISPtrReg32(PCPUMCTXCORE pCtx, unsigned reg32, uint32_t **ppReg);
@@ -664,7 +711,7 @@ DISDECL(int) DISPtrReg64(PCPUMCTXCORE pCtx, unsigned reg64, uint64_t **ppReg);
  *          content of pszBuf is truncated and zero terminated.
  * @retval  VERR_SYMBOL_NOT_FOUND if no matching symbol was found for the address.
  *
- * @param   pCpu        Pointer to the disassembler CPU state.
+ * @param   pDis        Pointer to the disassembler CPU state.
  * @param   u32Sel      The selector value. Use DIS_FMT_SEL_IS_REG, DIS_FMT_SEL_GET_VALUE,
  *                      DIS_FMT_SEL_GET_REG to access this.
  * @param   uAddress    The segment address.
@@ -674,7 +721,7 @@ DISDECL(int) DISPtrReg64(PCPUMCTXCORE pCtx, unsigned reg64, uint64_t **ppReg);
  *                      symbol to the specified address is returned.
  * @param   pvUser      The user argument.
  */
-typedef DECLCALLBACK(int) FNDISGETSYMBOL(PCDISCPUSTATE pCpu, uint32_t u32Sel, RTUINTPTR uAddress, char *pszBuf, size_t cchBuf, RTINTPTR *poff, void *pvUser);
+typedef DECLCALLBACK(int) FNDISGETSYMBOL(PCDISSTATE pDis, uint32_t u32Sel, RTUINTPTR uAddress, char *pszBuf, size_t cchBuf, RTINTPTR *poff, void *pvUser);
 /** Pointer to a FNDISGETSYMBOL(). */
 typedef FNDISGETSYMBOL *PFNDISGETSYMBOL;
 
@@ -741,14 +788,17 @@ typedef FNDISGETSYMBOL *PFNDISGETSYMBOL;
     )
 /** @} */
 
-DISDECL(size_t) DISFormatYasm(  PCDISCPUSTATE pCpu, char *pszBuf, size_t cchBuf);
-DISDECL(size_t) DISFormatYasmEx(PCDISCPUSTATE pCpu, char *pszBuf, size_t cchBuf, uint32_t fFlags, PFNDISGETSYMBOL pfnGetSymbol, void *pvUser);
-DISDECL(size_t) DISFormatMasm(  PCDISCPUSTATE pCpu, char *pszBuf, size_t cchBuf);
-DISDECL(size_t) DISFormatMasmEx(PCDISCPUSTATE pCpu, char *pszBuf, size_t cchBuf, uint32_t fFlags, PFNDISGETSYMBOL pfnGetSymbol, void *pvUser);
-DISDECL(size_t) DISFormatGas(   PCDISCPUSTATE pCpu, char *pszBuf, size_t cchBuf);
-DISDECL(size_t) DISFormatGasEx( PCDISCPUSTATE pCpu, char *pszBuf, size_t cchBuf, uint32_t fFlags, PFNDISGETSYMBOL pfnGetSymbol, void *pvUser);
+DISDECL(size_t) DISFormatYasm(  PCDISSTATE pDis, char *pszBuf, size_t cchBuf);
+DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, uint32_t fFlags, PFNDISGETSYMBOL pfnGetSymbol, void *pvUser);
+DISDECL(size_t) DISFormatMasm(  PCDISSTATE pDis, char *pszBuf, size_t cchBuf);
+DISDECL(size_t) DISFormatMasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, uint32_t fFlags, PFNDISGETSYMBOL pfnGetSymbol, void *pvUser);
+DISDECL(size_t) DISFormatGas(   PCDISSTATE pDis, char *pszBuf, size_t cchBuf);
+DISDECL(size_t) DISFormatGasEx( PCDISSTATE pDis, char *pszBuf, size_t cchBuf, uint32_t fFlags, PFNDISGETSYMBOL pfnGetSymbol, void *pvUser);
 
-/** @todo DISAnnotate(PCDISCPUSTATE pCpu, char *pszBuf, size_t cchBuf, register reader, memory reader); */
+/** @todo DISAnnotate(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, register
+ *        reader, memory reader); */
+
+DISDECL(bool)   DISFormatYasmIsOddEncoding(PDISSTATE pDis);
 
 
 RT_C_DECLS_END

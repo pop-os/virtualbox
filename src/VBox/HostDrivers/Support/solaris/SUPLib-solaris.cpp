@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -78,7 +78,7 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
         return VINF_SUCCESS;
 
     /*
-     * Open dummy files to preallocate file descriptors, see #4650.
+     * Open dummy files to preallocate file descriptors, see @bugref{4650}.
      */
     for (int i = 0; i < SUPLIB_FLT_DUMMYFILES; i++)
     {

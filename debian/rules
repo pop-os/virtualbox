@@ -12,14 +12,13 @@ sxname:=virtualbox-qt
 gname:=virtualbox-guest
 uname:=virtualbox-guest-utils
 uxname:=virtualbox-guest-x11
-fname:=virtualbox-fuse
 
 INSTALL_PATH:=/usr/lib/virtualbox
 MAKE:=kmk
 
 upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)-.\+/\1/p')
 
-pkgs_xzcompress = $(shell dh_listpackages | grep -v -e ose -e source)
+pkgs_xzcompress = $(shell dh_listpackages | grep -v -e source)
 
 DIST_NAME := $(shell lsb_release -si)
 DIST_RELEASE := $(DIST_NAME)/$(shell lsb_release -sc)
@@ -109,16 +108,11 @@ override_dh_auto_build:
 	    LOCALCFG=$(abspath debian/LocalConfig.kmk) \
 	    PATH_OUT=$(abspath out) \
 	    TOOL_YASM_AS=yasm \
-	    XSERVER_VERSION=$(XSERVER_VERSION) \
+	    VBOX_USE_SYSTEM_XORG_HEADERS=1 \
 	    VBOX_BUILD_PUBLISHER=_$(DIST_NAME) \
 	    VBOX_WITH_REGISTRATION_REQUEST= \
 	    VBOX_WITH_UPDATE_REQUEST= \
 	    KBUILD_VERBOSE=2
-
-	mkdir -p out/vdfuse
-	gcc debian/vdfuse/vdfuse.c -o out/vdfuse/vdfuse -pipe -g -Wl,--as-needed -Wl,--rpath,$(INSTALL_PATH) -Wall \
-	    $(shell pkg-config --cflags --libs fuse) -Iinclude $(addprefix out/bin/, \
-	    VBoxDD.so VBoxDD2.so VBoxDDU.so VBoxVMM.so VBoxREM.so VBoxRT.so)
 
 	xsltproc --nonet --stringparam section.autolabel 1 \
 	    -o debian/README.Debian.html \
@@ -156,6 +150,8 @@ override_dh_install:
 	dh_install -p$(sname) -X out/bin/VBoxDbg.so
 	dh_install --remaining-packages
 
+	install -m 644 -p -D out/bin/additions/vboxvideo_drv_system.so \
+	    debian/$(uxname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
 	convert debian/$(sxname)/usr/share/icons/hicolor/32x32/apps/virtualbox.png \
 	    debian/$(sxname)/usr/share/pixmaps/virtualbox.xpm
 
@@ -210,7 +206,8 @@ ifneq (,$(filter $(psource), $(shell dh_listpackages)))
 endif
 
 override_dh_installinit:
-	dh_installinit --no-start
+	dh_installinit -p$(uxname) --no-start --update-rcd-params="start 45 S ."
+	dh_installinit --remaining-packages --no-start
 
 override_dh_dkms:
 	dh_dkms -V $(upstreamversion)

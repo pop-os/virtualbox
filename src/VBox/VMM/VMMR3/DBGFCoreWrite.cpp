@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -70,10 +70,6 @@
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-#ifdef DEBUG_ramshankar
-# undef Log
-# define Log LogRel
-#endif
 #define DBGFLOG_NAME           "DBGFCoreWrite"
 
 
@@ -222,7 +218,7 @@ static int Elf64WriteNoteHdr(RTFILE hFile, uint16_t Type, const char *pszName, c
 
     /*
      * Yell loudly and bail if we are going to be writing a core file that is not compatible with
-     * both Solaris and the 64-bit ELF spec. which dictates 8-byte alignment. See #5211 comment 3.
+     * both Solaris and the 64-bit ELF spec. which dictates 8-byte alignment. See @bugref{5211} comment 3.
      */
     if (cchNameAlign - cchName > 3)
     {
@@ -243,7 +239,7 @@ static int Elf64WriteNoteHdr(RTFILE hFile, uint16_t Type, const char *pszName, c
 
     Elf64_Nhdr ElfNoteHdr;
     RT_ZERO(ElfNoteHdr);
-    ElfNoteHdr.n_namesz = (Elf64_Word)cchName - 1; /* Again a discrepancy between ELF-64 and Solaris (#5211 comment 3), we will follow ELF-64 */
+    ElfNoteHdr.n_namesz = (Elf64_Word)cchName - 1; /* Again a discrepancy between ELF-64 and Solaris (@bugref{5211} comment 3), we will follow ELF-64 */
     ElfNoteHdr.n_type   = Type;
     ElfNoteHdr.n_descsz = (Elf64_Word)cbDataAlign;
 
@@ -300,7 +296,7 @@ static int Elf64WriteNoteHdr(RTFILE hFile, uint16_t Type, const char *pszName, c
  * offset. Instead we dump the memory in ranges. A memory range is a contiguous
  * memory area suitable for dumping to a core file.
  *
- * @param pVM               The VM handle.
+ * @param pVM               Pointer to the VM.
  *
  * @return Number of memory ranges
  */
@@ -314,7 +310,7 @@ static uint32_t dbgfR3GetRamRangeCount(PVM pVM)
  * Worker function for dbgfR3CoreWrite which does the writing.
  *
  * @returns VBox status code
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   hFile               The file to write to.  Caller closes this.
  */
 static int dbgfR3CoreWriteWorker(PVM pVM, RTFILE hFile)
@@ -496,7 +492,7 @@ static int dbgfR3CoreWriteWorker(PVM pVM, RTFILE hFile)
 /**
  * EMT Rendezvous worker function for DBGFR3CoreWrite.
  *
- * @param   pVM              The VM handle.
+ * @param   pVM              Pointer to the VM.
  * @param   pVCpu            The handle of the calling VCPU.
  * @param   pvData           Opaque data.
  *
@@ -537,7 +533,7 @@ static DECLCALLBACK(VBOXSTRICTRC) dbgfR3CoreWriteRendezvous(PVM pVM, PVMCPU pVCp
  * Write core dump of the guest.
  *
  * @returns VBox status code.
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pszFilename         The name of the file to which the guest core
  *                              dump should be written.
  * @param   fReplaceFile        Whether to replace the file or not.

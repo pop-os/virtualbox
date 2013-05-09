@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,19 +39,14 @@
 
 #define VMX_USE_CACHED_VMCS_ACCESSES
 #define HWACCM_VMX_EMULATE_REALMODE
-#define HWACCM_VTX_WITH_EPT
-#define HWACCM_VTX_WITH_VPID
 
-
-#if 0
-/* Seeing somewhat random behaviour on my Nehalem system with auto-save of guest MSRs;
- * for some strange reason the CPU doesn't save the MSRs during the VM-exit.
- * Clearly visible with a dual VCPU configured OpenSolaris 200906 live cd VM.
+/* The MSR auto load/store does not work for KERNEL_GS_BASE MSR, thus we
+ * handle this MSR manually. See @bugref{6208}. This is clearly visible while
+ * booting Solaris 11 (11.1 b19) VMs with 2 Cpus.
  *
- * Note: change the assembly files when enabling this! (remove the manual auto load/save)
+ * Note: don't forget to update the assembly files while modifying this!
  */
-#define VBOX_WITH_AUTO_MSR_LOAD_RESTORE
-#endif
+# define VBOX_WITH_AUTO_MSR_LOAD_RESTORE
 
 RT_C_DECLS_BEGIN
 
@@ -113,22 +108,6 @@ RT_C_DECLS_BEGIN
 
 /** @} */
 
-/** @name Intercepted traps
- *  Traps that need to be intercepted so we can correctly dispatch them to the guest if required.
- *  Currently #NM and #PF only
- */
-#ifdef VBOX_STRICT
-#define HWACCM_VMX_TRAP_MASK                RT_BIT(X86_XCPT_BP) | RT_BIT(X86_XCPT_DB) | RT_BIT(X86_XCPT_DE) | RT_BIT(X86_XCPT_NM) | RT_BIT(X86_XCPT_PF) | RT_BIT(X86_XCPT_UD) | RT_BIT(X86_XCPT_NP) | RT_BIT(X86_XCPT_SS) | RT_BIT(X86_XCPT_GP) | RT_BIT(X86_XCPT_MF)
-#define HWACCM_SVM_TRAP_MASK                HWACCM_VMX_TRAP_MASK
-#else
-#define HWACCM_VMX_TRAP_MASK                RT_BIT(X86_XCPT_DB) | RT_BIT(X86_XCPT_NM) | RT_BIT(X86_XCPT_PF)
-#define HWACCM_SVM_TRAP_MASK                RT_BIT(X86_XCPT_NM) | RT_BIT(X86_XCPT_PF)
-#endif
-/* All exceptions have to be intercept in emulated real-mode (minus NM & PF as they are always intercepted. */
-#define HWACCM_VMX_TRAP_MASK_REALMODE       RT_BIT(X86_XCPT_DE) | RT_BIT(X86_XCPT_DB) | RT_BIT(X86_XCPT_NMI) | RT_BIT(X86_XCPT_BP) | RT_BIT(X86_XCPT_OF) | RT_BIT(X86_XCPT_BR) | RT_BIT(X86_XCPT_UD) | RT_BIT(X86_XCPT_DF) | RT_BIT(X86_XCPT_CO_SEG_OVERRUN) | RT_BIT(X86_XCPT_TS) | RT_BIT(X86_XCPT_NP) | RT_BIT(X86_XCPT_SS) | RT_BIT(X86_XCPT_GP) | RT_BIT(X86_XCPT_MF) | RT_BIT(X86_XCPT_AC) | RT_BIT(X86_XCPT_MC) | RT_BIT(X86_XCPT_XF)
-/** @} */
-
-
 /** Maximum number of page flushes we are willing to remember before considering a full TLB flush. */
 #define HWACCM_MAX_TLB_SHOOTDOWN_PAGES      8
 
@@ -166,16 +145,12 @@ typedef struct HMGLOBLCPUINFO
     uint32_t            uCurrentASID;
     /** TLB flush count. */
     uint32_t            cTLBFlushes;
-
-    /** Set the first time a cpu is used to make sure we start with a clean TLB. */
-    bool                fFlushTLB;
-
+    /** Whether to flush each new ASID/VPID before use. */
+    bool                fFlushASIDBeforeUse;
     /** Configured for VT-x or AMD-V. */
     bool                fConfigured;
-
     /** Set if the VBOX_HWVIRTEX_IGNORE_SVM_IN_USE hack is active. */
     bool                fIgnoreAMDVInUseError;
-
     /** In use by our code. (for power suspend) */
     volatile bool       fInUse;
 } HMGLOBLCPUINFO;
@@ -235,7 +210,7 @@ typedef HWACCMTPRPATCH *PHWACCMTPRPATCH;
 /**
  * Switcher function, HC to RC.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   uOffsetVMCPU    VMCPU offset from pVM
  * @returns Return code indicating the action to take.
  */
@@ -245,7 +220,7 @@ typedef FNHWACCMSWITCHERHC *PFNHWACCMSWITCHERHC;
 
 /**
  * HWACCM VM Instance data.
- * Changes to this must checked against the padding of the cfgm union in VM!
+ * Changes to this must checked against the padding of the hwaccm union in VM!
  */
 typedef struct HWACCM
 {
@@ -418,8 +393,8 @@ typedef struct HWACCM
         } msr;
 
         /** Flush types for invept & invvpid; they depend on capabilities. */
-        VMX_FLUSH                   enmFlushPage;
-        VMX_FLUSH                   enmFlushContext;
+        VMX_FLUSH_EPT               enmFlushEPT;
+        VMX_FLUSH_VPID              enmFlushVPID;
     } vmx;
 
     struct
@@ -589,6 +564,9 @@ typedef struct HWACCMCPU
 
     uint32_t                    u32Alignment;
 
+    /* Host's TSC_AUX MSR (used when RDTSCP doesn't cause VM-exits). */
+    uint64_t                    u64HostTSCAux;
+
     struct
     {
         /** Physical address of the VM control structure (VMCS). */
@@ -647,11 +625,11 @@ typedef struct HWACCMCPU
         RTR0MEMOBJ                  pMemObjHostMSR;
         /** Virtual address of the MSR load area (1 page). */
         R0PTRTYPE(uint8_t *)        pHostMSR;
-#endif /* VBOX_WITH_AUTO_MSR_LOAD_RESTORE */
 
-        /* Number of automatically loaded/restored MSRs. */
+        /* Number of automatically loaded/restored guest MSRs during the world switch. */
         uint32_t                    cCachedMSRs;
-        uint32_t                    uAlignement;
+        uint32_t                    uAlignment;
+#endif /* VBOX_WITH_AUTO_MSR_LOAD_RESTORE */
 
         /* Last use TSC offset value. (cached) */
         uint64_t                    u64TSCOffset;
@@ -766,15 +744,8 @@ typedef struct HWACCMCPU
     } TlbShootdown;
 
     /** For saving stack space, the disassembler state is allocated here instead of
-     * on the stack.
-     * @note The DISCPUSTATE structure is not R3/R0/RZ clean!  */
-    union
-    {
-        /** The disassembler scratch space. */
-        DISCPUSTATE         DisState;
-        /** Padding. */
-        uint8_t             abDisStatePadding[DISCPUSTATE_PADDING_SIZE];
-    };
+     * on the stack. */
+    DISCPUSTATE             DisState;
 
     uint32_t                padding2[1];
 
@@ -800,6 +771,7 @@ typedef struct HWACCMCPU
     STAMCOUNTER             StatExitShadowNM;
     STAMCOUNTER             StatExitGuestNM;
     STAMCOUNTER             StatExitShadowPF;
+    STAMCOUNTER             StatExitShadowPFEM;
     STAMCOUNTER             StatExitGuestPF;
     STAMCOUNTER             StatExitGuestUD;
     STAMCOUNTER             StatExitGuestSS;
@@ -808,10 +780,14 @@ typedef struct HWACCMCPU
     STAMCOUNTER             StatExitGuestDE;
     STAMCOUNTER             StatExitGuestDB;
     STAMCOUNTER             StatExitGuestMF;
-    STAMCOUNTER             StatExitInvpg;
+    STAMCOUNTER             StatExitGuestBP;
+    STAMCOUNTER             StatExitGuestXF;
+    STAMCOUNTER             StatExitGuestXcpUnk;
+    STAMCOUNTER             StatExitInvlpg;
     STAMCOUNTER             StatExitInvd;
     STAMCOUNTER             StatExitCpuid;
     STAMCOUNTER             StatExitRdtsc;
+    STAMCOUNTER             StatExitRdtscp;
     STAMCOUNTER             StatExitRdpmc;
     STAMCOUNTER             StatExitCli;
     STAMCOUNTER             StatExitSti;
@@ -837,6 +813,7 @@ typedef struct HWACCMCPU
     STAMCOUNTER             StatExitIrqWindow;
     STAMCOUNTER             StatExitMaxResume;
     STAMCOUNTER             StatExitPreemptPending;
+    STAMCOUNTER             StatExitMTF;
     STAMCOUNTER             StatIntReinject;
     STAMCOUNTER             StatPendingHostIrq;
 

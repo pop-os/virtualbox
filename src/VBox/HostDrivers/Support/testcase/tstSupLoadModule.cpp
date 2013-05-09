@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,20 +44,20 @@ int main(int argc, char **argv)
     /*
      * Init.
      */
-    int rc = RTR3InitAndSUPLib();
+    int rc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
     if (RT_FAILURE(rc))
-    {
-        RTMsgError("RTR3InitAndSUPLib failed with rc=%Rrc\n", rc);
-        return 1;
-    }
+        return RTMsgInitFailure(rc);
 
     /*
      * Process arguments.
      */
     static const RTGETOPTDEF s_aOptions[] =
     {
-        { "--help",             'h', RTGETOPT_REQ_NOTHING } /* (dummy entry) */
+        { "--keep",             'k', RTGETOPT_REQ_NOTHING },
+        { "--no-keep",          'n', RTGETOPT_REQ_NOTHING },
     };
+
+    bool fKeepLoaded = false;
 
     int ch;
     RTGETOPTUNION ValueUnion;
@@ -80,21 +80,32 @@ int main(int argc, char **argv)
                 }
                 RTPrintf("Loaded '%s' at %p\n", ValueUnion.psz, pvImageBase);
 
-                rc = SUPR3FreeModule(pvImageBase);
-                if (RT_FAILURE(rc))
+                if (!fKeepLoaded)
                 {
-                    RTMsgError("%Rrc when attempting to load '%s'\n", rc, ValueUnion.psz);
-                    return 1;
+                    rc = SUPR3FreeModule(pvImageBase);
+                    if (RT_FAILURE(rc))
+                    {
+                        RTMsgError("%Rrc when attempting to load '%s'\n", rc, ValueUnion.psz);
+                        return 1;
+                    }
                 }
                 break;
             }
+
+            case 'k':
+                fKeepLoaded = true;
+                break;
+
+            case 'n':
+                fKeepLoaded = false;
+                break;
 
             case 'h':
                 RTPrintf("%s [mod1 [mod2...]]\n");
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 69027 $\n");
+                RTPrintf("$Revision: 83687 $\n");
                 return 0;
 
             default:

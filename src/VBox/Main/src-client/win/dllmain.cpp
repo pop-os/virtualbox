@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,7 +45,7 @@ BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID /*lpReserved*/)
         DisableThreadLibraryCalls(hInstance);
 
         // idempotent, so doesn't harm, and needed for COM embedding scenario
-        RTR3Init();
+        RTR3InitDll(0);
     }
     else if (dwReason == DLL_PROCESS_DETACH)
     {
