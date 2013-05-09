@@ -25,6 +25,7 @@ virtualbox (4.2.10-dfsg-1) experimental; urgency=low
   * Drop build-dependency on bcc as it's not needed anymore.
   * Link VBoxOGL against the X libraries it requires.
     - Update 18-system-xorg.patch
+  * Use canonical URIs for Vcs-* fields.
 
  -- Felix Geyer <fgeyer@debian.org>  Sun, 31 Mar 2013 19:46:38 +0200
 
