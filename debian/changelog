@@ -26,6 +26,7 @@ virtualbox (4.2.10-dfsg-1) experimental; urgency=low
   * Link VBoxOGL against the X libraries it requires.
     - Update 18-system-xorg.patch
   * Use canonical URIs for Vcs-* fields.
+  * Bump Standards-Version to 3.9.4, no changes needed.
 
  -- Felix Geyer <fgeyer@debian.org>  Sun, 31 Mar 2013 19:46:38 +0200
 
