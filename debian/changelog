@@ -1,4 +1,4 @@
-virtualbox (4.2.10-dfsg-1) experimental; urgency=low
+virtualbox (4.2.10-dfsg-1) unstable; urgency=low
 
   * New upstream release. (Closes: #691148)
     - Fixes compatibility with kernel 3.8. (Closes: #700823; LP: #1101867)
@@ -28,7 +28,7 @@ virtualbox (4.2.10-dfsg-1) experimental; urgency=low
   * Use canonical URIs for Vcs-* fields.
   * Bump Standards-Version to 3.9.4, no changes needed.
 
- -- Felix Geyer <fgeyer@debian.org>  Sun, 31 Mar 2013 19:46:38 +0200
+ -- Felix Geyer <fgeyer@debian.org>  Thu, 09 May 2013 11:30:42 +0200
 
 virtualbox (4.1.18-dfsg-2.1) experimental; urgency=low
 
