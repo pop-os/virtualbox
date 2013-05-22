@@ -1,3 +1,10 @@
+virtualbox (4.2.10-dfsg-2) UNRELEASED; urgency=low
+
+  * Allow building virtualbox with gcc 4.8.
+    - Add 38-allow-gcc-4.8.patch, cherry-picked from upstream
+
+ -- Felix Geyer <fgeyer@debian.org>  Wed, 22 May 2013 21:10:36 +0200
+
 virtualbox (4.2.10-dfsg-1) unstable; urgency=low
 
   * New upstream release. (Closes: #691148)
