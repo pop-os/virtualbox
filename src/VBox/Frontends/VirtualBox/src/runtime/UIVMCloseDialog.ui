@@ -90,7 +90,7 @@
             <string/>
            </property>
            <property name="pixmap" >
-            <pixmap resource="../VirtualBox1.qrc" >:/state_saved_16px.png</pixmap>
+            <pixmap resource="../VirtualBox1.qrc" >:/save_state_16px.png</pixmap>
            </property>
           </widget>
          </item>

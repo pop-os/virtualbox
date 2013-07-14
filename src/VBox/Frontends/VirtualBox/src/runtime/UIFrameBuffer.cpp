@@ -158,24 +158,19 @@ STDMETHODIMP UIFrameBuffer::RequestResize(ULONG uScreenId, ULONG uPixelFormat,
         return E_FAIL;
 
     NOREF(uScreenId);
-    /* A resize event can happen while we are switching machine view classes,
-     * but we synchronise afterwards so that shouldn't be a problem.  We must
-     * temporarily remove the framebuffer in Display though while switching
-     * to respect the thread synchronisation logic (see UIFrameBuffer.h). */
+    *pbFinished = FALSE;
+    lock();  /* See comment in setView(). */
     if (m_pMachineView)
         QApplication::postEvent(m_pMachineView,
                                 new UIResizeEvent(uPixelFormat, pVRAM,
                                                   uBitsPerPixel, uBytesPerLine,
                                                   uWidth, uHeight));
     else
-    {
         /* Report to the VM thread that we finished resizing and rely on the
          * synchronisation when the new view is attached. */
         *pbFinished = TRUE;
-        return S_OK;
-    }
+    unlock();
 
-    *pbFinished = FALSE;
     return S_OK;
 }
 
@@ -195,10 +190,16 @@ STDMETHODIMP UIFrameBuffer::VideoModeSupported(ULONG uWidth, ULONG uHeight, ULON
     NOREF(uBPP);
     LogFlowThisFunc(("width=%lu, height=%lu, BPP=%lu\n",
                     (unsigned long)uWidth, (unsigned long)uHeight, (unsigned long)uBPP));
+
     if (!pbSupported)
         return E_POINTER;
     *pbSupported = TRUE;
-    QSize screen = m_pMachineView->maxGuestSize();
+
+    lock();  /* See comment in setView(). */
+    QSize screen;
+    if (m_pMachineView)
+        screen = m_pMachineView->maxGuestSize();
+    unlock();
     if (   (screen.width() != 0)
         && (uWidth > (ULONG)screen.width())
         && (uWidth > (ULONG)width()))
@@ -209,6 +210,7 @@ STDMETHODIMP UIFrameBuffer::VideoModeSupported(ULONG uWidth, ULONG uHeight, ULON
         *pbSupported = FALSE;
     LogFlowThisFunc(("screenW=%lu, screenH=%lu -> aSupported=%s\n",
                     screen.width(), screen.height(), *pbSupported ? "TRUE" : "FALSE"));
+
     return S_OK;
 }
 
@@ -244,7 +246,10 @@ STDMETHODIMP UIFrameBuffer::SetVisibleRegion(BYTE *pRectangles, ULONG uCount)
         reg += rect;
         ++ rects;
     }
-    QApplication::postEvent(m_pMachineView, new UISetRegionEvent(reg));
+    lock();  /* See comment in setView(). */
+    if (m_pMachineView)
+        QApplication::postEvent(m_pMachineView, new UISetRegionEvent(reg));
+    unlock();
 
     return S_OK;
 }
@@ -266,6 +271,12 @@ void UIFrameBuffer::doProcessVHWACommand(QEvent *pEvent)
 
 void UIFrameBuffer::setView(UIMachineView * pView)
 {
+    /* We are not supposed to use locking for things which are done
+     * on the GUI thread.  Unfortunately I am not clever enough to
+     * understand the original author's wise synchronisation logic
+     * so I will do it anyway. */
+    lock();
     m_pMachineView = pView;
     m_WinId = (m_pMachineView && m_pMachineView->viewport()) ? (LONG64)m_pMachineView->viewport()->winId() : 0;
+    unlock();
 }

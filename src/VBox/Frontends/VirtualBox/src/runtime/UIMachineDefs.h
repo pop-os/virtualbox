@@ -44,7 +44,7 @@ enum UIVisualElement
     UIVisualElement_USBStuff              = RT_BIT(7),
     UIVisualElement_VRDPStuff             = RT_BIT(8),
     UIVisualElement_SharedFolderStuff     = RT_BIT(9),
-    UIVisualElement_VirtualizationStuff   = RT_BIT(10),
+    UIVisualElement_FeaturesStuff         = RT_BIT(10),
     UIVisualElement_MiniToolBar           = RT_BIT(11),
     UIVisualElement_AllStuff              = 0xFFFF
 };
@@ -63,17 +63,6 @@ enum UIViewStateType
 {
     UIViewStateType_KeyboardCaptured = RT_BIT(0),
     UIViewStateType_HostKeyPressed   = RT_BIT(1)
-};
-
-/* Main menu enum: */
-enum UIMainMenuType
-{
-    UIMainMenuType_Machine = RT_BIT(0),
-    UIMainMenuType_Devices = RT_BIT(1),
-    UIMainMenuType_View    = RT_BIT(2),
-    UIMainMenuType_Debug   = RT_BIT(3),
-    UIMainMenuType_Help    = RT_BIT(4),
-    UIMainMenuType_All     = 0xFF
 };
 
 #endif // __UIMachineDefs_h__

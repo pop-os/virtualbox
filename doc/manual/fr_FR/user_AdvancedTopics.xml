@@ -124,8 +124,8 @@ VBoxManage controlvm "Windows 2000" savestate</screen></para>
     </sect2>
   </sect1>
 
-  <sect1>
-    <title id="autologon">Automated guest logons</title>
+  <sect1 id="autologon">
+    <title>Automated guest logons</title>
 
     <para>VirtualBox provides Guest Addition modules for Windows, Linux and
     Solaris to enable automated logons on the guest.</para>
@@ -928,8 +928,8 @@ VBoxManage setextradata "VM name"
       desired SATA hard disk port.</para>
     </sect2>
 
-    <sect2>
-      <title id="iscsi-intnet">Accès à des cibles iSCSI à travers le réseau interne</title>
+    <sect2 id="iscsi-intnet">
+      <title>Accès à des cibles iSCSI à travers le réseau interne</title>
 
       <para>En tant que fonctionnalité expérimentale, VirtualBox permet l'accès
       à une cible iSCSI en exécutant dans une machine virtuelle ce qui est 

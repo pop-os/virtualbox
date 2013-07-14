@@ -367,6 +367,48 @@ AssertCompileSize(VBoxGuestWriteCoreDump, 4);
 /** IOCTL to for setting the mouse driver callback. (kernel only)  */
 #define VBOXGUEST_IOCTL_SET_MOUSE_NOTIFY_CALLBACK   VBOXGUEST_IOCTL_CODE_(31, sizeof(VBoxGuestMouseSetNotifyCallback))
 
+typedef enum VBOXGUESTCAPSACQUIRE_FLAGS
+{
+    VBOXGUESTCAPSACQUIRE_FLAGS_NONE = 0,
+    /* configures VBoxGuest to use the specified caps in Acquire mode, w/o making any caps acquisition/release.
+     * so far it is only possible to set acquire mode for caps, but not clear it,
+     * so u32NotMask is ignored for this request */
+    VBOXGUESTCAPSACQUIRE_FLAGS_CONFIG_ACQUIRE_MODE,
+    /* to ensure enum is 32bit*/
+    VBOXGUESTCAPSACQUIRE_FLAGS_32bit = 0x7fffffff
+} VBOXGUESTCAPSACQUIRE_FLAGS;
+
+typedef struct VBoxGuestCapsAquire
+{
+    /* result status
+     * VINF_SUCCESS - on success
+     * VERR_RESOURCE_BUSY    - some caps in the u32OrMask are acquired by some other VBoxGuest connection.
+     *                         NOTE: no u32NotMask caps are cleaned in this case, i.e. no modifications are done on failure
+     * VER_INVALID_PARAMETER - invalid Caps are specified with either u32OrMask or u32NotMask. No modifications are done on failure.
+     */
+    int32_t rc;
+    /* Acquire command */
+    VBOXGUESTCAPSACQUIRE_FLAGS enmFlags;
+    /* caps to acquire, OR-ed VMMDEV_GUEST_SUPPORTS_XXX flags */
+    uint32_t u32OrMask;
+    /* caps to release, OR-ed VMMDEV_GUEST_SUPPORTS_XXX flags */
+    uint32_t u32NotMask;
+} VBoxGuestCapsAquire;
+
+/** IOCTL to for Acquiring/Releasing Guest Caps
+ * This is used for multiple purposes:
+ * 1. By doing Acquire r3 client application (e.g. VBoxTray) claims it will use
+ *    the given connection for performing operations like Seamles or Auto-resize,
+ *    thus, if the application terminates, the driver will automatically cleanup the caps reported to host,
+ *    so that host knows guest does not support them anymore
+ * 2. In a multy-user environment this will not allow r3 applications (like VBoxTray)
+ *    running in different user sessions simultaneously to interfere with each other.
+ *    An r3 client application (like VBoxTray) is responsible for Acquiring/Releasing caps properly as needed.
+ **/
+#define VBOXGUEST_IOCTL_GUEST_CAPS_ACQUIRE          VBOXGUEST_IOCTL_CODE(32, sizeof(VBoxGuestCapsAquire))
+
+
+
 typedef DECLCALLBACK(void) FNVBOXGUESTMOUSENOTIFY(void *pfnUser);
 typedef FNVBOXGUESTMOUSENOTIFY *PFNVBOXGUESTMOUSENOTIFY;
 

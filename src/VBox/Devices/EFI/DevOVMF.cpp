@@ -285,23 +285,25 @@ static int nvramLoad(PDEVEFI pThis)
 
 static int nvramStore(PDEVEFI pThis)
 {
-    int rc = VINF_SUCCESS;
-    PEFIVAR pEfiVar = NULL;
-    int idxVar = 0;
-    pThis->Lun0.pNvramDown->pfnFlushNvramStorage(pThis->Lun0.pNvramDown);
-
-    RTListForEach((PRTLISTNODE)&pThis->NVRAM.NvramVariableList.List, pEfiVar, EFIVAR, List)
+    if (pThis->Lun0.pNvramDown)
     {
-        pThis->Lun0.pNvramDown->pfnStoreNvramValue(pThis->Lun0.pNvramDown,
-                                                   idxVar,
-                                                   &pEfiVar->uuid,
-                                                   pEfiVar->szVariableName,
-                                                   pEfiVar->cbVariableName,
-                                                   pEfiVar->au8Value,
-                                                   pEfiVar->cbValue);
-        idxVar++;
+        pThis->Lun0.pNvramDown->pfnFlushNvramStorage(pThis->Lun0.pNvramDown);
+
+        PEFIVAR pEfiVar = NULL;
+        int idxVar = 0;
+        RTListForEach((PRTLISTNODE)&pThis->NVRAM.NvramVariableList.List, pEfiVar, EFIVAR, List)
+        {
+            pThis->Lun0.pNvramDown->pfnStoreNvramValue(pThis->Lun0.pNvramDown,
+                                                       idxVar,
+                                                       &pEfiVar->uuid,
+                                                       pEfiVar->szVariableName,
+                                                       pEfiVar->cbVariableName,
+                                                       pEfiVar->au8Value,
+                                                       pEfiVar->cbValue);
+            idxVar++;
+        }
+        Assert((pThis->NVRAM.cNvramVariables == idxVar));
     }
-    Assert((pThis->NVRAM.cNvramVariables == idxVar));
     return VINF_SUCCESS;
 }
 

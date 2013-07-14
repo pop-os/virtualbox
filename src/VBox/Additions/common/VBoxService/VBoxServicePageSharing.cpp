@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,14 +19,22 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#ifdef RT_OS_WINDOWS
+ #include <Ntstatus.h>
+#endif
+
 #include <iprt/assert.h>
 #include <iprt/avl.h>
 #include <iprt/asm.h>
-#include <iprt/mem.h>
-#include <iprt/process.h>
 #include <iprt/env.h>
-#include <iprt/stream.h>
 #include <iprt/file.h>
+#include <iprt/getopt.h>
+#include <iprt/ldr.h>
+#include <iprt/mem.h>
+#include <iprt/message.h>
+#include <iprt/path.h>
+#include <iprt/process.h>
+#include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/semaphore.h>
 #include <iprt/system.h>
@@ -38,11 +46,25 @@
 
 
 /*******************************************************************************
+*   Externals                                                                  *
+*******************************************************************************/
+extern int                  VBoxServiceLogCreate(const char *pszLogFile);
+extern void                 VBoxServiceLogDestroy(void);
+
+
+/*******************************************************************************
 *   Global Variables                                                           *
 *******************************************************************************/
 
 /** The semaphore we're blocking on. */
 static RTSEMEVENTMULTI  g_PageSharingEvent = NIL_RTSEMEVENTMULTI;
+
+/** Generic option indices for page sharing fork arguments. */
+enum
+{
+    VBOXSERVICEPAGESHARINGOPT_FORK = 1000,
+    VBOXSERVICEPAGESHARINGOPT_LOG_FILE
+};
 
 #if defined(RT_OS_WINDOWS) && !defined(TARGET_NT4)
 #include <tlhelp32.h>
@@ -70,7 +92,7 @@ typedef struct _RTL_PROCESS_MODULE_INFORMATION
     USHORT InitOrderIndex;
     USHORT LoadCount;
     USHORT OffsetToFileName;
-    CHAR FullPathName[256];
+    CHAR FullPathName[RTPATH_MAX];
 } RTL_PROCESS_MODULE_INFORMATION, *PRTL_PROCESS_MODULE_INFORMATION;
 
 typedef struct _RTL_PROCESS_MODULES
@@ -80,84 +102,129 @@ typedef struct _RTL_PROCESS_MODULES
 } RTL_PROCESS_MODULES, *PRTL_PROCESS_MODULES;
 
 typedef NTSTATUS (WINAPI *PFNZWQUERYSYSTEMINFORMATION)(ULONG, PVOID, ULONG, PULONG);
-static PFNZWQUERYSYSTEMINFORMATION ZwQuerySystemInformation = NULL;
-static HMODULE hNtdll = 0;
-
+static PFNZWQUERYSYSTEMINFORMATION g_pfnZwQuerySystemInformation = NULL;
 
 static DECLCALLBACK(int) VBoxServicePageSharingEmptyTreeCallback(PAVLPVNODECORE pNode, void *pvUser);
 
 static PAVLPVNODECORE   g_pKnownModuleTree = NULL;
 static uint64_t         g_idSession = 0;
 
+static int vboxServicePageSharingRetrieveFileVersion(PKNOWN_MODULE pModule)
+{
+    DWORD dwHandleIgnored;
+    DWORD cbVersionSize = GetFileVersionInfoSize(pModule->Info.szExePath,
+                                                 &dwHandleIgnored);
+    if (!cbVersionSize)
+    {
+        DWORD dwErr = GetLastError();
+        VBoxServiceError("VBoxServicePageSharingRegisterModule: GetFileVersionInfoSize for \"%s\" failed with %ld\n",
+                         pModule->Info.szExePath, dwErr);
+        return RTErrConvertFromWin32(dwErr);
+    }
+
+    BYTE *pVersionInfo = (BYTE *)RTMemAlloc(cbVersionSize);
+    if (!pVersionInfo)
+        return VERR_NO_MEMORY;
+
+    int rc = VINF_SUCCESS;
+
+    do
+    {
+        if (!GetFileVersionInfo(pModule->Info.szExePath, 0,
+                                cbVersionSize, pVersionInfo))
+        {
+            DWORD dwErr = GetLastError();
+            VBoxServiceError("VBoxServicePageSharingRegisterModule: GetFileVersionInfo for \"%s\" failed with %ld\n",
+                             pModule->Info.szExePath, dwErr);
+
+            rc = RTErrConvertFromWin32(dwErr);
+            break;
+        }
+
+        /* Fetch default code page. */
+        struct LANGANDCODEPAGE {
+            WORD wLanguage;
+            WORD wCodePage;
+        } *lpTranslate;
+
+        UINT cbTranslate = 0;
+        BOOL fRet = VerQueryValue(pVersionInfo, TEXT("\\VarFileInfo\\Translation"),
+                                 (LPVOID *)&lpTranslate, &cbTranslate);
+        if (    !fRet
+            ||  cbTranslate < 4)
+        {
+            DWORD dwErr = GetLastError();
+            VBoxServiceError("VBoxServicePageSharingRegisterModule: VerQueryValue for \"%s\" failed with %ld (cbTranslate=%ld)\n",
+                             pModule->Info.szExePath, dwErr, cbTranslate);
+
+            rc = RTErrConvertFromWin32(dwErr);
+            break;
+        }
+
+        UINT     cbFileVersion;
+        char    *lpszFileVersion;
+        unsigned cTranslationBlocks = cbTranslate / sizeof(struct LANGANDCODEPAGE);
+
+        unsigned i = 0;
+        for(i; i < cTranslationBlocks; i++)
+        {
+            /* Fetch file version string. */
+            char szFileVersionLocation[RTPATH_MAX];
+
+            if (!RTStrPrintf(szFileVersionLocation, sizeof(szFileVersionLocation),
+                             TEXT("\\StringFileInfo\\%04x%04x\\FileVersion"), lpTranslate[i].wLanguage, lpTranslate[i].wCodePage))
+            {
+                VBoxServiceError("VBoxServicePageSharingRegisterModule: Getting file version for \"%s\" failed\n",
+                                 pModule->Info.szExePath);
+                rc = VERR_NO_MEMORY;
+                break;
+            }
+            fRet = VerQueryValue(pVersionInfo, szFileVersionLocation, (LPVOID *)&lpszFileVersion, &cbFileVersion);
+            if (fRet) /* Value found? */
+                break;
+        }
+
+        if (RT_FAILURE(rc))
+            break;
+
+        if (i == cTranslationBlocks)
+        {
+            VBoxServiceVerbose(3, "VBoxServicePageSharingRegisterModule: No file version found!\n");
+            break;
+        }
+
+        if (!RTStrPrintf(pModule->szFileVersion, sizeof(pModule->szFileVersion), "%s", lpszFileVersion))
+        {
+            VBoxServiceError("VBoxServicePageSharingRegisterModule: Storing file version for \"%s\" failed\n",
+                             pModule->Info.szExePath);
+            rc = VERR_NO_MEMORY;
+            break;
+        }
+        pModule->szFileVersion[RT_ELEMENTS(pModule->szFileVersion) - 1] = 0;
+
+    } while (0);
+
+    RTMemFree(pVersionInfo);
+
+    return rc;
+}
+
 /**
  * Registers a new module with the VMM
  * @param   pModule         Module ptr
  * @param   fValidateMemory Validate/touch memory pages or not
  */
-void VBoxServicePageSharingRegisterModule(PKNOWN_MODULE pModule, bool fValidateMemory)
+static int vboxServicePageSharingRegisterModule(PKNOWN_MODULE pModule, bool fValidateMemory)
 {
+    AssertPtrReturn(pModule, VERR_INVALID_POINTER);
+
     VMMDEVSHAREDREGIONDESC   aRegions[VMMDEVSHAREDREGIONDESC_MAX];
     DWORD                    dwModuleSize = pModule->Info.modBaseSize;
     BYTE                    *pBaseAddress = pModule->Info.modBaseAddr;
-    DWORD                    cbVersionSize, dummy;
-    BYTE                    *pVersionInfo;
 
-    VBoxServiceVerbose(3, "VBoxServicePageSharingRegisterModule\n");
-
-    cbVersionSize = GetFileVersionInfoSize(pModule->Info.szExePath, &dummy);
-    if (!cbVersionSize)
-    {
-        VBoxServiceVerbose(3, "VBoxServicePageSharingRegisterModule: GetFileVersionInfoSize failed with %d\n", GetLastError());
-        return;
-    }
-    pVersionInfo = (BYTE *)RTMemAlloc(cbVersionSize);
-    if (!pVersionInfo)
-        return;
-
-    if (!GetFileVersionInfo(pModule->Info.szExePath, 0, cbVersionSize, pVersionInfo))
-    {
-        VBoxServiceVerbose(3, "VBoxServicePageSharingRegisterModule: GetFileVersionInfo failed with %d\n", GetLastError());
-        goto end;
-    }
-
-    /* Fetch default code page. */
-    struct LANGANDCODEPAGE {
-        WORD wLanguage;
-        WORD wCodePage;
-    } *lpTranslate;
-
-    UINT   cbTranslate;
-    BOOL ret = VerQueryValue(pVersionInfo, TEXT("\\VarFileInfo\\Translation"), (LPVOID *)&lpTranslate, &cbTranslate);
-    if (    !ret
-        ||  cbTranslate < 4)
-    {
-        VBoxServiceVerbose(3, "VBoxServicePageSharingRegisterModule: VerQueryValue failed with %d (cb=%d)\n", GetLastError(), cbTranslate);
-        goto end;
-    }
-
-    unsigned i;
-    UINT     cbFileVersion;
-    char    *lpszFileVersion;
-    unsigned cTranslationBlocks = cbTranslate/sizeof(struct LANGANDCODEPAGE);
-
-    for(i = 0; i < cTranslationBlocks; i++)
-    {
-        /* Fetch file version string. */
-        char   szFileVersionLocation[256];
-
-        sprintf(szFileVersionLocation, TEXT("\\StringFileInfo\\%04x%04x\\FileVersion"), lpTranslate[i].wLanguage, lpTranslate[i].wCodePage);
-        ret = VerQueryValue(pVersionInfo, szFileVersionLocation, (LPVOID *)&lpszFileVersion, &cbFileVersion);
-        if (ret)
-            break;
-    }
-    if (i == cTranslationBlocks)
-    {
-        VBoxServiceVerbose(3, "VBoxServicePageSharingRegisterModule: no file version found!\n");
-        goto end;
-    }
-
-    _snprintf(pModule->szFileVersion, sizeof(pModule->szFileVersion), "%s", lpszFileVersion);
-    pModule->szFileVersion[RT_ELEMENTS(pModule->szFileVersion) - 1] = 0;
+    int rc = vboxServicePageSharingRetrieveFileVersion(pModule);
+    if (RT_FAILURE(rc))
+        return rc;
 
     unsigned idxRegion = 0;
 
@@ -166,25 +233,30 @@ void VBoxServicePageSharingRegisterModule(PKNOWN_MODULE pModule, bool fValidateM
         do
         {
             MEMORY_BASIC_INFORMATION MemInfo;
-
-            SIZE_T ret = VirtualQuery(pBaseAddress, &MemInfo, sizeof(MemInfo));
-            Assert(ret);
-            if (!ret)
+            RT_ZERO(MemInfo);
+            SIZE_T cbRet = VirtualQuery(pBaseAddress, &MemInfo, sizeof(MemInfo));
+            Assert(cbRet);
+            if (!cbRet)
             {
-                VBoxServiceVerbose(3, "VBoxServicePageSharingRegisterModule: VirtualQueryEx failed with %d\n", GetLastError());
+                DWORD dwErr = GetLastError();
+                VBoxServiceError("VBoxServicePageSharingRegisterModule: VirtualQueryEx failed with error %ld\n",
+                                 dwErr);
+                rc = RTErrConvertFromWin32(dwErr);
                 break;
             }
 
             if (    MemInfo.State == MEM_COMMIT
-                &&  MemInfo.Type == MEM_IMAGE)
+                &&  MemInfo.Type  == MEM_IMAGE)
             {
                 switch (MemInfo.Protect)
                 {
+
                 case PAGE_EXECUTE:
                 case PAGE_EXECUTE_READ:
                 case PAGE_READONLY:
                 {
                     char *pRegion = (char *)MemInfo.BaseAddress;
+                    AssertPtr(pRegion);
 
                     /* Skip the first region as it only contains the image file header. */
                     if (pRegion != (char *)pModule->Info.modBaseAddr)
@@ -225,7 +297,10 @@ void VBoxServicePageSharingRegisterModule(PKNOWN_MODULE pModule, bool fValidateM
             }
 
             if (idxRegion >= RT_ELEMENTS(aRegions))
-                break;  /* out of room */
+            {
+                rc = VERR_BUFFER_OVERFLOW;
+                break;  /* Out of room. */
+            }
         }
         while (dwModuleSize);
     }
@@ -240,92 +315,134 @@ void VBoxServicePageSharingRegisterModule(PKNOWN_MODULE pModule, bool fValidateM
         aRegions[idxRegion].cbRegion     = dwModuleSize;
         idxRegion++;
     }
-    VBoxServiceVerbose(3, "VBoxServicePageSharingRegisterModule: VbglR3RegisterSharedModule %s %s base=%p size=%x cregions=%d\n", pModule->Info.szModule, pModule->szFileVersion, pModule->Info.modBaseAddr, pModule->Info.modBaseSize, idxRegion);
-    int rc = VbglR3RegisterSharedModule(pModule->Info.szModule, pModule->szFileVersion, (uintptr_t)pModule->Info.modBaseAddr,
-                                        pModule->Info.modBaseSize, idxRegion, aRegions);
-    if (RT_FAILURE(rc))
-        VBoxServiceVerbose(3, "VBoxServicePageSharingRegisterModule: VbglR3RegisterSharedModule failed with %Rrc\n", rc);
 
-end:
-    RTMemFree(pVersionInfo);
-    return;
+    VBoxServiceVerbose(3, "VBoxServicePageSharingRegisterModule: VbglR3RegisterSharedModule \"%s\" v%s pBase=0x%p cbSize=%x cntRegions=%u\n",
+                       pModule->Info.szModule, pModule->szFileVersion, pModule->Info.modBaseAddr, pModule->Info.modBaseSize, idxRegion);
+    /*int rc2 = VbglR3RegisterSharedModule(pModule->Info.szModule, pModule->szFileVersion, (uintptr_t)pModule->Info.modBaseAddr,
+                                         pModule->Info.modBaseSize, idxRegion, aRegions);*/
+    int rc2 = VINF_SUCCESS;
+    if (RT_FAILURE(rc2))
+    {
+        VBoxServiceVerbose(3, "VBoxServicePageSharingRegisterModule: VbglR3RegisterSharedModule failed with rc=%Rrc\n", rc2);
+        if (RT_SUCCESS(rc))
+            rc = rc2;
+    }
+
+    return rc;
 }
 
 /**
  * Inspect all loaded modules for the specified process
- * @param   dwProcessId     Process id
+ * @param   dwProcessID     Process ID.
+ * @param   ppNewTree       Tree where to put new module information into.
+ *
  */
-void VBoxServicePageSharingInspectModules(DWORD dwProcessId, PAVLPVNODECORE *ppNewTree)
+int VBoxServicePageSharingInspectModules(DWORD dwProcessID, PAVLPVNODECORE *ppNewTree)
 {
-    HANDLE hProcess, hSnapshot;
-
     /* Get a list of all the modules in this process. */
-    hProcess = OpenProcess(PROCESS_QUERY_INFORMATION,
-                           FALSE /* no child process handle inheritance */, dwProcessId);
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION,
+                                  FALSE /* no child process handle inheritance */, dwProcessID);
     if (hProcess == NULL)
     {
-        VBoxServiceVerbose(3, "VBoxServicePageSharingInspectModules: OpenProcess %x failed with %d\n", dwProcessId, GetLastError());
-        return;
+        DWORD dwErr = GetLastError();
+        VBoxServiceError("VBoxServicePageSharingInspectModules: OpenProcess %ld failed with %ld\n",
+                         dwProcessID, dwErr);
+        return RTErrConvertFromWin32(dwErr);
     }
 
-    hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, dwProcessId);
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, dwProcessID);
     if (hSnapshot == INVALID_HANDLE_VALUE)
     {
-        VBoxServiceVerbose(3, "VBoxServicePageSharingInspectModules: CreateToolhelp32Snapshot failed with %d\n", GetLastError());
+        DWORD dwErr = GetLastError();
+        VBoxServiceError("VBoxServicePageSharingInspectModules: CreateToolhelp32Snapshot failed with %ld\n", dwErr);
         CloseHandle(hProcess);
-        return;
+        return RTErrConvertFromWin32(dwErr);
     }
 
-    VBoxServiceVerbose(3, "VBoxServicePageSharingInspectModules\n");
+    int rc = VINF_SUCCESS;
 
     MODULEENTRY32 ModuleInfo;
-    BOOL          bRet;
-
+    RT_ZERO(ModuleInfo);
     ModuleInfo.dwSize = sizeof(ModuleInfo);
-    bRet = Module32First(hSnapshot, &ModuleInfo);
-    do
-    {
-        /** @todo when changing this make sure VBoxService.exe is excluded! */
-        char *pszDot = strrchr(ModuleInfo.szModule, '.');
-        if (    pszDot
-            &&  (pszDot[1] == 'e' || pszDot[1] == 'E'))
-            continue;   /* ignore executables for now. */
 
-        /* Found it before? */
-        PAVLPVNODECORE pRec = RTAvlPVGet(ppNewTree, ModuleInfo.modBaseAddr);
-        if (!pRec)
+    BOOL fRet = Module32First(hSnapshot, &ModuleInfo);
+    if (fRet)
+    {
+        do
         {
-            pRec = RTAvlPVRemove(&g_pKnownModuleTree, ModuleInfo.modBaseAddr);
+            bool fSkip = false; /* Skip current module? */
+
+            char *pszExt = RTPathExt(ModuleInfo.szModule);
+            if (pszExt)
+            {
+                /** @todo When changing this make sure VBoxService.exe is excluded! */
+                if (   !RTStrICmp(pszExt, ".exe")
+                    || !RTStrICmp(pszExt, ".com"))
+                {
+                    fSkip = true; /* Ignore executables for now. */
+                }
+            }
+
+            VBoxServiceVerbose(4, "VBoxServicePageSharingInspectModules: Module: %s, pszExt=%s, fSkip=%RTbool\n",
+                               ModuleInfo.szModule, pszExt ? pszExt : "<None>", fSkip);
+
+            if (fSkip)
+                continue;
+
+            /* Found it before? */
+            PAVLPVNODECORE pRec = RTAvlPVGet(ppNewTree, ModuleInfo.modBaseAddr);
             if (!pRec)
             {
-                /* New module; register it. */
-                PKNOWN_MODULE pModule = (PKNOWN_MODULE)RTMemAllocZ(sizeof(*pModule));
-                Assert(pModule);
-                if (!pModule)
-                    break;
+                pRec = RTAvlPVRemove(&g_pKnownModuleTree, ModuleInfo.modBaseAddr);
+                if (!pRec)
+                {
+                    /* New module; register it. */
+                    PKNOWN_MODULE pModule = (PKNOWN_MODULE)RTMemAllocZ(sizeof(KNOWN_MODULE));
+                    AssertPtr(pModule);
+                    if (!pModule)
+                    {
+                        rc = VERR_NO_MEMORY;
+                        break;
+                    }
 
-                pModule->Info     = ModuleInfo;
-                pModule->Core.Key = ModuleInfo.modBaseAddr;
-                pModule->hModule  = LoadLibraryEx(ModuleInfo.szExePath, 0, DONT_RESOLVE_DLL_REFERENCES);
-                if (pModule->hModule)
-                    VBoxServicePageSharingRegisterModule(pModule, true /* validate pages */);
+                    VBoxServiceVerbose(3, "\n\n     MODULE NAME:     %s",           ModuleInfo.szModule );
+                    VBoxServiceVerbose(3, "\n     executable     = %s",             ModuleInfo.szExePath );
+                    VBoxServiceVerbose(3, "\n     process ID     = 0x%08X",         ModuleInfo.th32ProcessID );
+                    VBoxServiceVerbose(3, "\n     base address   = 0x%08X", (DWORD) ModuleInfo.modBaseAddr );
+                    VBoxServiceVerbose(3, "\n     base size      = %ld",            ModuleInfo.modBaseSize );
 
-                VBoxServiceVerbose(3, "\n\n     MODULE NAME:     %s",           ModuleInfo.szModule );
-                VBoxServiceVerbose(3, "\n     executable     = %s",             ModuleInfo.szExePath );
-                VBoxServiceVerbose(3, "\n     process ID     = 0x%08X",         ModuleInfo.th32ProcessID );
-                VBoxServiceVerbose(3, "\n     base address   = 0x%08X", (DWORD) ModuleInfo.modBaseAddr );
-                VBoxServiceVerbose(3, "\n     base size      = %d",             ModuleInfo.modBaseSize );
+                    pModule->Info     = ModuleInfo;
+                    pModule->Core.Key = ModuleInfo.modBaseAddr;
+                    pModule->hModule  = LoadLibraryEx(ModuleInfo.szExePath, 0 /* hFile, reserved */,
+                                                      DONT_RESOLVE_DLL_REFERENCES);
+                    if (pModule->hModule)
+                    {
+                        rc = vboxServicePageSharingRegisterModule(pModule, true /* Validate pages */);
+                        if (RT_FAILURE(rc))
+                            VBoxServiceError("VBoxServicePageSharingInspectModules: Failed to register module \"%s\" (Path: %s)",
+                                             ModuleInfo.szModule, ModuleInfo.szExePath);
+                    }
 
-                pRec = &pModule->Core;
+                    if (RT_SUCCESS(rc))
+                        pRec = &pModule->Core;
+                    else
+                        RTMemFree(pModule);
+                }
+
+                if (RT_SUCCESS(rc))
+                {
+                    fRet = RTAvlPVInsert(ppNewTree, pRec);
+                    Assert(fRet); NOREF(fRet);
+                }
             }
-            bool ret = RTAvlPVInsert(ppNewTree, pRec);
-            Assert(ret); NOREF(ret);
         }
+        while (Module32Next(hSnapshot, &ModuleInfo));
     }
-    while (Module32Next(hSnapshot, &ModuleInfo));
 
     CloseHandle(hSnapshot);
     CloseHandle(hProcess);
+
+    return rc;
 }
 
 /**
@@ -333,145 +450,252 @@ void VBoxServicePageSharingInspectModules(DWORD dwProcessId, PAVLPVNODECORE *ppN
  * with other VMs.
  *
  */
-void VBoxServicePageSharingInspectGuest()
+int VBoxServicePageSharingInspectGuest(void)
 {
-    HANDLE hSnapshot;
     PAVLPVNODECORE pNewTree = NULL;
-    DWORD dwProcessId = GetCurrentProcessId();
+    DWORD dwProcessID = GetCurrentProcessId();
 
-    VBoxServiceVerbose(3, "VBoxServicePageSharingInspectGuest\n");
-
-    hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (hSnapshot == INVALID_HANDLE_VALUE)
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hSnapshot != INVALID_HANDLE_VALUE)
     {
-        VBoxServiceVerbose(3, "VBoxServicePageSharingInspectGuest: CreateToolhelp32Snapshot failed with %d\n", GetLastError());
-        return;
+        /* Check loaded modules for all running processes. */
+        PROCESSENTRY32 ProcessInfo;
+        RT_ZERO(ProcessInfo);
+        ProcessInfo.dwSize = sizeof(PROCESSENTRY32);
+        BOOL fRc = Process32First(hSnapshot, &ProcessInfo);
+        if (fRc)
+        {
+            do
+            {
+                /* Skip our own process. */
+                if (ProcessInfo.th32ProcessID != dwProcessID)
+                    VBoxServicePageSharingInspectModules(ProcessInfo.th32ProcessID, &pNewTree);
+            }
+            while (Process32Next(hSnapshot, &ProcessInfo));
+        }
+
+        CloseHandle(hSnapshot);
+    }
+    else
+    {
+        static int s_iBitchedAboutCreateToolhelp32Snapshot = 0;
+        if (s_iBitchedAboutCreateToolhelp32Snapshot++ < 10)
+            VBoxServiceError("VBoxServicePageSharingInspectGuest: CreateToolhelp32Snapshot failed with error %ld\n",
+                             GetLastError());
+        /* Continue getting kernel modules information. */
     }
 
-    /* Check loaded modules for all running processes. */
-    PROCESSENTRY32 ProcessInfo;
-
-    ProcessInfo.dwSize = sizeof(ProcessInfo);
-    Process32First(hSnapshot, &ProcessInfo);
-
-    do
-    {
-        /* Skip our own process. */
-        if (ProcessInfo.th32ProcessID != dwProcessId)
-            VBoxServicePageSharingInspectModules(ProcessInfo.th32ProcessID, &pNewTree);
-    }
-    while (Process32Next(hSnapshot, &ProcessInfo));
-
-    CloseHandle(hSnapshot);
+    int rc = VINF_SUCCESS;
 
     /* Check all loaded kernel modules. */
-    if (ZwQuerySystemInformation)
+    if (g_pfnZwQuerySystemInformation)
     {
-        ULONG                cbBuffer = 0;
-        PVOID                pBuffer = NULL;
-        PRTL_PROCESS_MODULES pSystemModules;
+        ULONG cbBuffer = 0;
+        PVOID pBuffer = NULL;
 
-        NTSTATUS ret = ZwQuerySystemInformation(SystemModuleInformation, (PVOID)&cbBuffer, 0, &cbBuffer);
-        if (!cbBuffer)
+        do
         {
-            VBoxServiceVerbose(1, "ZwQuerySystemInformation returned length 0\n");
-            goto skipkernelmodules;
-        }
-
-        pBuffer = RTMemAllocZ(cbBuffer);
-        if (!pBuffer)
-            goto skipkernelmodules;
-
-        ret = ZwQuerySystemInformation(SystemModuleInformation, pBuffer, cbBuffer, &cbBuffer);
-        if (ret != STATUS_SUCCESS)
-        {
-            VBoxServiceVerbose(1, "ZwQuerySystemInformation returned %x (1)\n", ret);
-            goto skipkernelmodules;
-        }
-
-        pSystemModules = (PRTL_PROCESS_MODULES)pBuffer;
-        for (unsigned i = 0; i < pSystemModules->NumberOfModules; i++)
-        {
-            VBoxServiceVerbose(4, "\n\n   KERNEL  MODULE NAME:     %s",     pSystemModules->Modules[i].FullPathName[pSystemModules->Modules[i].OffsetToFileName] );
-            VBoxServiceVerbose(4, "\n     executable     = %s",             pSystemModules->Modules[i].FullPathName );
-            VBoxServiceVerbose(4, "\n     flags          = 0x%08X\n",       pSystemModules->Modules[i].Flags);
-
-            /* User-mode modules seem to have no flags set; skip them as we detected them above. */
-            if (pSystemModules->Modules[i].Flags == 0)
-                continue;
-
-            /* Found it before? */
-            PAVLPVNODECORE pRec = RTAvlPVGet(&pNewTree, pSystemModules->Modules[i].ImageBase);
-            if (!pRec)
+            NTSTATUS ntRc = g_pfnZwQuerySystemInformation(SystemModuleInformation, (PVOID)&cbBuffer, 0, &cbBuffer);
+            if (NT_ERROR(ntRc))
             {
-                pRec = RTAvlPVRemove(&g_pKnownModuleTree, pSystemModules->Modules[i].ImageBase);
-                if (!pRec)
+                switch (ntRc)
                 {
-                    /* New module; register it. */
-                    char          szFullFilePath[512];
-                    PKNOWN_MODULE pModule = (PKNOWN_MODULE)RTMemAllocZ(sizeof(*pModule));
-                    Assert(pModule);
-                    if (!pModule)
+                    case STATUS_INFO_LENGTH_MISMATCH:
+                        if (!cbBuffer)
+                        {
+                            VBoxServiceError("VBoxServicePageSharingInspectGuest: ZwQuerySystemInformation returned length 0\n");
+                            return VERR_NO_MEMORY;
+                        }
                         break;
 
-                    strcpy(pModule->Info.szModule, &pSystemModules->Modules[i].FullPathName[pSystemModules->Modules[i].OffsetToFileName]);
-                    GetSystemDirectoryA(szFullFilePath, sizeof(szFullFilePath));
-
-                    /* skip \Systemroot\system32 */
-                    char *lpPath = strchr(&pSystemModules->Modules[i].FullPathName[1], '\\');
-                    if (!lpPath)
-                    {
-                        /* Seen just file names in XP; try to locate the file in the system32 and system32\drivers directories. */
-                        strcat(szFullFilePath, "\\");
-                        strcat(szFullFilePath, pSystemModules->Modules[i].FullPathName);
-                        VBoxServiceVerbose(3, "Unexpected kernel module name try %s\n", szFullFilePath);
-                        if (RTFileExists(szFullFilePath) == false)
-                        {
-                            GetSystemDirectoryA(szFullFilePath, sizeof(szFullFilePath));
-                            strcat(szFullFilePath, "\\drivers\\");
-                            strcat(szFullFilePath, pSystemModules->Modules[i].FullPathName);
-                            VBoxServiceVerbose(3, "Unexpected kernel module name try %s\n", szFullFilePath);
-                            if (RTFileExists(szFullFilePath) == false)
-                            {
-                                VBoxServiceVerbose(1, "Unexpected kernel module name %s\n", pSystemModules->Modules[i].FullPathName);
-                                RTMemFree(pModule);
-                                continue;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        lpPath = strchr(lpPath+1, '\\');
-                        if (!lpPath)
-                        {
-                            VBoxServiceVerbose(1, "Unexpected kernel module name %s (2)\n", pSystemModules->Modules[i].FullPathName);
-                            RTMemFree(pModule);
-                            continue;
-                        }
-
-                        strcat(szFullFilePath, lpPath);
-                    }
-
-                    strcpy(pModule->Info.szExePath, szFullFilePath);
-                    pModule->Info.modBaseAddr = (BYTE *)pSystemModules->Modules[i].ImageBase;
-                    pModule->Info.modBaseSize = pSystemModules->Modules[i].ImageSize;
-
-                    pModule->Core.Key = pSystemModules->Modules[i].ImageBase;
-                    VBoxServicePageSharingRegisterModule(pModule, false /* don't check memory pages */);
-
-                    VBoxServiceVerbose(3, "\n\n   KERNEL  MODULE NAME:     %s",     pModule->Info.szModule );
-                    VBoxServiceVerbose(3, "\n     executable     = %s",             pModule->Info.szExePath );
-                    VBoxServiceVerbose(3, "\n     base address   = 0x%08X", (DWORD) pModule->Info.modBaseAddr );
-                    VBoxServiceVerbose(3, "\n     flags          = 0x%08X",         pSystemModules->Modules[i].Flags);
-                    VBoxServiceVerbose(3, "\n     base size      = %d",             pModule->Info.modBaseSize );
-
-                    pRec = &pModule->Core;
+                    default:
+                        VBoxServiceError("VBoxServicePageSharingInspectGuest: ZwQuerySystemInformation returned length %u, error %x\n",
+                                         cbBuffer, ntRc);
+                        rc = RTErrConvertFromNtStatus(ntRc);
+                        break;
                 }
-                bool ret = RTAvlPVInsert(&pNewTree, pRec);
-                Assert(ret); NOREF(ret);
             }
-        }
-skipkernelmodules:
+
+            pBuffer = RTMemAllocZ(cbBuffer);
+            if (!pBuffer)
+            {
+                rc = VERR_NO_MEMORY;
+                break;
+            }
+
+            ntRc = g_pfnZwQuerySystemInformation(SystemModuleInformation, pBuffer,
+                                                 cbBuffer, &cbBuffer);
+            if (NT_ERROR(ntRc))
+            {
+                VBoxServiceError("VBoxServicePageSharingInspectGuest: ZwQuerySystemInformation returned %x (1)\n", ntRc);
+                rc = RTErrConvertFromNtStatus(ntRc);
+                break;
+            }
+
+            char szSystemDir[RTPATH_MAX];
+            if (!GetSystemDirectoryA(szSystemDir, sizeof(szSystemDir)))
+            {
+                DWORD dwErr = GetLastError();
+                VBoxServiceError("VBoxServicePageSharingInspectGuest: Unable to retrieve system directory, error %ld\n", dwErr);
+                rc = RTErrConvertFromWin32(dwErr);
+                break;
+            }
+
+            PRTL_PROCESS_MODULES pSystemModules = (PRTL_PROCESS_MODULES)pBuffer;
+            AssertPtr(pSystemModules);
+            for (unsigned i = 0; i < pSystemModules->NumberOfModules; i++)
+            {
+                VBoxServiceVerbose(4, "\n\n   KERNEL  MODULE NAME:     %s",     pSystemModules->Modules[i].FullPathName[pSystemModules->Modules[i].OffsetToFileName] );
+                VBoxServiceVerbose(4, "\n     executable     = %s",             pSystemModules->Modules[i].FullPathName );
+                VBoxServiceVerbose(4, "\n     flags          = 0x%08X\n",       pSystemModules->Modules[i].Flags);
+
+                /* User-mode modules seem to have no flags set; skip them as we detected them above. */
+                if (pSystemModules->Modules[i].Flags == 0)
+                    continue;
+
+                /* Found it before? */
+                PAVLPVNODECORE pRec = RTAvlPVGet(&pNewTree, pSystemModules->Modules[i].ImageBase);
+                if (!pRec)
+                {
+                    pRec = RTAvlPVRemove(&g_pKnownModuleTree, pSystemModules->Modules[i].ImageBase);
+                    if (!pRec)
+                    {
+                        /* New module; register it. */
+                        PKNOWN_MODULE pModule = (PKNOWN_MODULE)RTMemAllocZ(sizeof(KNOWN_MODULE));
+                        AssertPtr(pModule);
+                        if (!pModule)
+                        {
+                            rc = VERR_NO_MEMORY;
+                            break;
+                        }
+
+                        do
+                        {
+                            const char *pszModule = &pSystemModules->Modules[i].FullPathName[pSystemModules->Modules[i].OffsetToFileName];
+                            AssertPtr(pszModule);
+                            if (!RTStrPrintf(pModule->Info.szModule, sizeof(pModule->Info.szModule),
+                                             "%s", pszModule))
+                            {
+                                pszModule = pSystemModules->Modules[i].FullPathName;
+                                if (!RTStrPrintf(pModule->Info.szModule, sizeof(pModule->Info.szModule),
+                                             "%s", pszModule))
+                                {
+                                    VBoxServiceError("VBoxServicePageSharingInspectGuest: Unable to copy module name of \"%s\" into module info\n",
+                                                     pszModule);
+                                    rc = VERR_NOT_FOUND;
+                                    break;
+                                }
+                            }
+
+                            /* Skip \SystemRoot\system32 if applicable. */
+                            const char *pszCurrentFile = RTStrIStr(pszModule, "\SystemRoot\system32");
+                            if (!pszCurrentFile)
+                                pszCurrentFile = pszModule; /* ... else use the original file name. */
+#ifdef DEBUG
+                            VBoxServiceVerbose(3, "VBoxServicePageSharingInspectGuest: pszModule=%s, pszCurrentFile=%s\n",
+                                               pszModule, pszCurrentFile ? pszCurrentFile : "<None>");
+#endif
+                            char szFullFilePath[RTPATH_MAX];
+                            if (!RTPathHasPath(pszCurrentFile))
+                            {
+                                if (!RTStrPrintf(szFullFilePath, sizeof(szFullFilePath), "%s", szSystemDir))
+                                {
+                                    rc = VERR_NO_MEMORY;
+                                    break;
+                                }
+
+                                /* Seen just file names in XP; try to locate the file in the system32 and system32\drivers directories. */
+                                rc = RTPathAppend(szFullFilePath, sizeof(szFullFilePath), pszCurrentFile);
+                                if (RT_FAILURE(rc))
+                                    break;
+
+                                VBoxServiceVerbose(3, "Unexpected kernel module name, now trying: %s\n", szFullFilePath);
+                                if (!RTFileExists(szFullFilePath)) /* Not in system32, try system32\drivers. */
+                                {
+                                    if (!RTStrPrintf(szFullFilePath, sizeof(szFullFilePath), "%s", szSystemDir))
+                                    {
+                                        rc = VERR_NO_MEMORY;
+                                        break;
+                                    }
+
+                                    rc = RTPathAppend(szFullFilePath, sizeof(szFullFilePath), "drivers");
+                                    if (RT_FAILURE(rc))
+                                        break;
+
+                                    rc = RTPathAppend(szFullFilePath, sizeof(szFullFilePath), pszCurrentFile);
+                                    if (RT_FAILURE(rc))
+                                        break;
+
+                                    VBoxServiceVerbose(3, "Unexpected kernel module name, trying: %s\n", szFullFilePath);
+                                    if (!RTFileExists(szFullFilePath))
+                                    {
+                                        VBoxServiceError("Unexpected kernel module name: %s\n",
+                                                         pSystemModules->Modules[i].FullPathName);
+                                        break;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                pszCurrentFile = strlen(pszCurrentFile) ? (pszCurrentFile[1], "\\") : NULL;
+                                if (!pszCurrentFile)
+                                {
+                                    VBoxServiceError("Unexpected kernel module name %s (2)\n",
+                                                     pSystemModules->Modules[i].FullPathName);
+                                    rc = VERR_FILE_NOT_FOUND;
+                                    break;
+                                }
+
+                                if (!RTStrPrintf(szFullFilePath, sizeof(szFullFilePath), "%s", szSystemDir))
+                                {
+                                    rc = VERR_NO_MEMORY;
+                                    break;
+                                }
+
+                                rc = RTPathAppend(szFullFilePath, sizeof(szFullFilePath), pszCurrentFile);
+                                if (RT_FAILURE(rc))
+                                    break;
+                            }
+
+                            if (RTStrPrintf(pModule->Info.szExePath, sizeof(pModule->Info.szExePath),
+                                            szFullFilePath))
+                            {
+                                pModule->Info.modBaseAddr = (BYTE *)pSystemModules->Modules[i].ImageBase;
+                                pModule->Info.modBaseSize = pSystemModules->Modules[i].ImageSize;
+
+                                pModule->Core.Key = pSystemModules->Modules[i].ImageBase;
+
+                                VBoxServiceVerbose(3, "\n\n   KERNEL  MODULE NAME:     %s",     pModule->Info.szModule);
+                                VBoxServiceVerbose(3, "\n     executable     = %s",             pModule->Info.szExePath);
+                                VBoxServiceVerbose(3, "\n     base address   = 0x%08X", (DWORD) pModule->Info.modBaseAddr);
+                                VBoxServiceVerbose(3, "\n     flags          = 0x%08X",         pSystemModules->Modules[i].Flags);
+                                VBoxServiceVerbose(3, "\n     base size      = %d",             pModule->Info.modBaseSize);
+
+                                rc = vboxServicePageSharingRegisterModule(pModule, false /* Don't check memory pages */);
+                            }
+                            else
+                                rc = VERR_NO_MEMORY;
+
+                        } while (0);
+
+                        if (RT_SUCCESS(rc))
+                        {
+                            pRec = &pModule->Core;
+                        }
+                        else if (pModule)
+                            RTMemFree(pModule);
+                    }
+
+                    if (RT_SUCCESS(rc))
+                    {
+                        bool fRet= RTAvlPVInsert(&pNewTree, pRec);
+                        Assert(fRet); NOREF(fRet);
+                    }
+                }
+            }
+
+        } while (0);
+
         if (pBuffer)
             RTMemFree(pBuffer);
     }
@@ -484,6 +708,8 @@ skipkernelmodules:
 
     /* Activate new module tree. */
     g_pKnownModuleTree = pNewTree;
+
+    return VINF_SUCCESS;
 }
 
 /**
@@ -513,14 +739,14 @@ static DECLCALLBACK(int) VBoxServicePageSharingEmptyTreeCallback(PAVLPVNODECORE 
 
 
 #elif TARGET_NT4
-void VBoxServicePageSharingInspectGuest()
+int VBoxServicePageSharingInspectGuest(void)
 {
-    /* not implemented */
+    return VERR_NOT_IMPLEMENTED;
 }
 #else
-void VBoxServicePageSharingInspectGuest()
+int VBoxServicePageSharingInspectGuest(void)
 {
-    /* @todo other platforms */
+    return VERR_NOT_IMPLEMENTED;
 }
 #endif
 
@@ -552,12 +778,9 @@ static DECLCALLBACK(int) VBoxServicePageSharingInit(void)
     AssertRCReturn(rc, rc);
 
 #if defined(RT_OS_WINDOWS) && !defined(TARGET_NT4)
-    hNtdll = LoadLibrary("ntdll.dll");
+    g_pfnZwQuerySystemInformation = (PFNZWQUERYSYSTEMINFORMATION)RTLdrGetSystemSymbol("ntdll.dll", "ZwQuerySystemInformation");
 
-    if (hNtdll)
-        ZwQuerySystemInformation = (PFNZWQUERYSYSTEMINFORMATION)GetProcAddress(hNtdll, "ZwQuerySystemInformation");
-
-    rc =  VbglR3GetSessionId(&g_idSession);
+    rc = VbglR3GetSessionId(&g_idSession);
     if (RT_FAILURE(rc))
     {
         if (rc == VERR_IO_GEN_FAILURE)
@@ -590,9 +813,8 @@ DECLCALLBACK(int) VBoxServicePageSharingWorker(bool volatile *pfShutdown)
      */
     for (;;)
     {
-        BOOL fEnabled = VbglR3PageSharingIsEnabled();
-
-        VBoxServiceVerbose(3, "VBoxServicePageSharingWorker: enabled=%d\n", fEnabled);
+        bool fEnabled = VbglR3PageSharingIsEnabled();
+        VBoxServiceVerbose(3, "VBoxServicePageSharingWorker: Enabled=%RTbool\n", fEnabled);
 
         if (fEnabled)
             VBoxServicePageSharingInspectGuest();
@@ -650,14 +872,62 @@ DECLCALLBACK(int) VBoxServicePageSharingWorker(bool volatile *pfShutdown)
  * @remarks It won't normally return since the parent drops the shutdown hint
  *          via RTProcTerminate().
  */
-RTEXITCODE VBoxServicePageSharingInitFork(void)
+RTEXITCODE VBoxServicePageSharingInitFork(int argc, char **argv)
 {
-    VBoxServiceVerbose(3, "VBoxServicePageSharingInitFork\n");
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "--pagefusionfork",  VBOXSERVICEPAGESHARINGOPT_FORK,        RTGETOPT_REQ_NOTHING },
+        { "--logfile",         VBOXSERVICEPAGESHARINGOPT_LOG_FILE,    RTGETOPT_REQ_STRING },
+        { "--verbose",         'v',                                   RTGETOPT_REQ_NOTHING }
+    };
+
+    int ch;
+    RTGETOPTUNION ValueUnion;
+    RTGETOPTSTATE GetState;
+    RTGetOptInit(&GetState, argc, argv,
+                 s_aOptions, RT_ELEMENTS(s_aOptions),
+                 1 /*iFirst*/, RTGETOPTINIT_FLAGS_OPTS_FIRST);
+
+    int rc = VINF_SUCCESS;
+
+    while (   (ch = RTGetOpt(&GetState, &ValueUnion))
+           && RT_SUCCESS(rc))
+    {
+        /* For options that require an argument, ValueUnion has received the value. */
+        switch (ch)
+        {
+            case VBOXSERVICEPAGESHARINGOPT_FORK:
+                break;
+
+            case VBOXSERVICEPAGESHARINGOPT_LOG_FILE:
+                if (!RTStrPrintf(g_szLogFile, sizeof(g_szLogFile), "%s", ValueUnion.psz))
+                    return RTMsgErrorExit(RTEXITCODE_FAILURE, "Unable to set logfile name to '%s'",
+                                          ValueUnion.psz);
+                break;
+
+            case 'v':
+                g_cVerbosity++;
+                break;
+
+            default:
+                return RTMsgErrorExit(RTEXITCODE_SYNTAX, "Unknown command '%s'", ValueUnion.psz);
+                break; /* Never reached. */
+        }
+    }
+
+    if (RT_FAILURE(rc))
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Initialization failed with rc=%Rrc", rc);
+
+    rc = VBoxServiceLogCreate(strlen(g_szLogFile) ? g_szLogFile : NULL);
+    if (RT_FAILURE(rc))
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to create release log (%s, %Rrc)",
+                              strlen(g_szLogFile) ? g_szLogFile : "<None>", rc);
 
     bool fShutdown = false;
     VBoxServicePageSharingInit();
     VBoxServicePageSharingWorker(&fShutdown);
 
+    VBoxServiceLogDestroy();
     return RTEXITCODE_SUCCESS;
 }
 
@@ -678,8 +948,8 @@ DECLCALLBACK(int) VBoxServicePageSharingWorkerProcess(bool volatile *pfShutdown)
      */
     for (;;)
     {
-        BOOL fEnabled = VbglR3PageSharingIsEnabled();
-        VBoxServiceVerbose(3, "VBoxServicePageSharingWorkerProcess: enabled=%d\n", fEnabled);
+        bool fEnabled = VbglR3PageSharingIsEnabled();
+        VBoxServiceVerbose(3, "VBoxServicePageSharingWorkerProcess: Enabled=%RTbool\n", fEnabled);
 
         /*
          * Start a 2nd VBoxService process to deal with page fusion as we do
@@ -693,10 +963,70 @@ DECLCALLBACK(int) VBoxServicePageSharingWorkerProcess(bool volatile *pfShutdown)
             char *pszExeName = RTProcGetExecutablePath(szExeName, sizeof(szExeName));
             if (pszExeName)
             {
-                char const *papszArgs[3];
-                papszArgs[0] = pszExeName;
-                papszArgs[1] = "--pagefusionfork";
-                papszArgs[2] = NULL;
+                int iOptIdx = 0;
+                char const *papszArgs[8];
+                papszArgs[iOptIdx++] = pszExeName;
+                papszArgs[iOptIdx++] = "--pagefusionfork";
+
+                /* Add same verbose flags as parent process. */
+                int rc2 = VINF_SUCCESS;
+                char szParmVerbose[32] = { 0 };
+                for (int i = 0; i < g_cVerbosity && RT_SUCCESS(rc2); i++)
+                {
+                    if (i == 0)
+                        rc2 = RTStrCat(szParmVerbose, sizeof(szParmVerbose), "-");
+                    if (RT_FAILURE(rc2))
+                        break;
+                    rc2 = RTStrCat(szParmVerbose, sizeof(szParmVerbose), "v");
+                }
+                if (RT_SUCCESS(rc2))
+                    papszArgs[iOptIdx++] = szParmVerbose;
+
+                /* Add log file handling. */
+                char szParmLogFile[RTPATH_MAX];
+                if (   RT_SUCCESS(rc2)
+                    && strlen(g_szLogFile))
+                {
+                    char *pszLogFile = RTStrDup(g_szLogFile);
+                    if (pszLogFile)
+                    {
+                        char *pszLogExt = NULL;
+                        if (RTPathHasExt(pszLogFile))
+                            pszLogExt = RTStrDup(RTPathExt(pszLogFile));
+                        RTPathStripExt(pszLogFile);
+                        char *pszLogSuffix;
+                        if (RTStrAPrintf(&pszLogSuffix, "-pagesharing") < 0)
+                        {
+                            rc2 = VERR_NO_MEMORY;
+                        }
+                        else
+                        {
+                            rc2 = RTStrAAppend(&pszLogFile, pszLogSuffix);
+                            if (RT_SUCCESS(rc2) && pszLogExt)
+                                rc2 = RTStrAAppend(&pszLogFile, pszLogExt);
+                            if (RT_SUCCESS(rc2))
+                            {
+                                if (!RTStrPrintf(szParmLogFile, sizeof(szParmLogFile),
+                                                 "--logfile=%s", pszLogFile))
+                                {
+                                    rc2 = VERR_BUFFER_OVERFLOW;
+                                }
+                            }
+                            RTStrFree(pszLogSuffix);
+                        }
+                        if (RT_FAILURE(rc2))
+                            VBoxServiceError("Error building logfile string for page sharing fork, rc=%Rrc\n", rc2);
+                        if (pszLogExt)
+                            RTStrFree(pszLogExt);
+                        RTStrFree(pszLogFile);
+                    }
+                    if (RT_SUCCESS(rc2))
+                        papszArgs[iOptIdx++] = szParmLogFile;
+                    papszArgs[iOptIdx++] = NULL;
+                }
+                else
+                    papszArgs[iOptIdx++] = NULL;
+
                 rc = RTProcCreate(pszExeName, papszArgs, RTENV_DEFAULT, 0 /* normal child */, &hProcess);
                 if (RT_FAILURE(rc))
                     VBoxServiceError("VBoxServicePageSharingWorkerProcess: RTProcCreate %s failed; rc=%Rrc\n", pszExeName, rc);
@@ -737,12 +1067,6 @@ DECLCALLBACK(int) VBoxServicePageSharingWorkerProcess(bool volatile *pfShutdown)
 static DECLCALLBACK(void) VBoxServicePageSharingTerm(void)
 {
     VBoxServiceVerbose(3, "VBoxServicePageSharingTerm\n");
-
-#if defined(RT_OS_WINDOWS) && !defined(TARGET_NT4)
-    if (hNtdll)
-        FreeLibrary(hNtdll);
-#endif
-    return;
 }
 
 

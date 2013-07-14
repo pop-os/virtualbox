@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2012 Oracle Corporation
+ * Copyright (C) 2007-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,6 +65,7 @@
 char                *g_pszProgName =  (char *)"";
 /** The current verbosity level. */
 int                  g_cVerbosity = 0;
+char                 g_szLogFile[RTPATH_MAX + 128] = "";
 /** Logging parameters. */
 /** @todo Make this configurable later. */
 static PRTLOGGER     g_pLoggerRelease = NULL;
@@ -215,7 +216,7 @@ static void VBoxServiceLogHeaderFooter(PRTLOGGER pLoggerRelease, RTLOGPHASE enmP
  * @return  IPRT status code.
  * @param   pszLogFile              Filename for log output.  Optional.
  */
-static int VBoxServiceLogCreate(const char *pszLogFile)
+int VBoxServiceLogCreate(const char *pszLogFile)
 {
     /* Create release logger (stdout + file). */
     static const char * const s_apszGroups[] = VBOX_LOGGROUP_NAMES;
@@ -241,7 +242,7 @@ static int VBoxServiceLogCreate(const char *pszLogFile)
     return rc;
 }
 
-static void VBoxServiceLogDestroy(void)
+void VBoxServiceLogDestroy(void)
 {
     RTLogDestroy(RTLogRelSetDefaultInstance(NULL));
 }
@@ -790,12 +791,10 @@ int main(int argc, char **argv)
      * Check if we're the specially spawned VBoxService.exe process that
      * handles page fusion.  This saves an extra executable.
      */
-    if (    argc == 2
+    if (    argc >= 2
         &&  !strcmp(argv[1], "--pagefusionfork"))
-        return VBoxServicePageSharingInitFork();
+        return VBoxServicePageSharingInitFork(argc, argv);
 #endif
-
-    char szLogFile[RTPATH_MAX + 128] = "";
 
     /*
      * Parse the arguments.
@@ -925,7 +924,7 @@ int main(int argc, char **argv)
                 case 'l':
                 {
                     rc = VBoxServiceArgString(argc, argv, psz + 1, &i,
-                                              szLogFile, sizeof(szLogFile));
+                                              g_szLogFile, sizeof(g_szLogFile));
                     if (rc)
                         return rc;
                     psz = NULL;
@@ -960,10 +959,10 @@ int main(int argc, char **argv)
     if (vboxServiceCountEnabledServices() == 0)
         return RTMsgErrorExit(RTEXITCODE_SYNTAX, "At least one service must be enabled\n");
 
-    rc = VBoxServiceLogCreate(strlen(szLogFile) ? szLogFile : NULL);
+    rc = VBoxServiceLogCreate(strlen(g_szLogFile) ? g_szLogFile : NULL);
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to create release log (%s, %Rrc)",
-                              strlen(szLogFile) ? szLogFile : "<None>", rc);
+                              strlen(g_szLogFile) ? g_szLogFile : "<None>", rc);
 
     /* Call pre-init if we didn't do it already. */
     rcExit = vboxServiceLazyPreInit();

@@ -460,6 +460,12 @@ DECLASM(void)           CPUMGCCallGuestTrapHandler(PCPUMCTXCORE pRegFrame, uint3
  */
 DECLASM(void)           CPUMGCCallV86Code(PCPUMCTXCORE pRegFrame);
 
+
+VMMDECL(uint32_t)       CPUMRCGetGuestCPL(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
+#ifdef VBOX_WITH_RAW_RING1
+VMMDECL(void)           CPUMRCRecheckRawState(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore);
+#endif
+
 /** @} */
 #endif /* IN_RC */
 

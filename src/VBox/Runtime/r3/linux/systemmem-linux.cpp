@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,7 +33,9 @@
 
 #include <iprt/err.h>
 #include <iprt/assert.h>
+#include <iprt/string.h>
 
+#include <stdio.h>
 #include <errno.h>
 
 /* Satisfy compiller warning */
@@ -50,7 +52,7 @@ RTDECL(int) RTSystemQueryTotalRam(uint64_t *pcb)
     int rc = sysinfo(&info);
     if (rc == 0)
     {
-        *pcb = (uint64_t)(info.totalram * (unsigned long)info.mem_unit);
+        *pcb = (uint64_t)info.totalram * info.mem_unit;
         return VINF_SUCCESS;
     }
     return RTErrConvertFromErrno(errno);
@@ -61,11 +63,45 @@ RTDECL(int) RTSystemQueryAvailableRam(uint64_t *pcb)
 {
     AssertPtrReturn(pcb, VERR_INVALID_POINTER);
 
+    FILE *pFile = fopen("/proc/meminfo", "r");
+    if (pFile)
+    {
+        int rc = VERR_NOT_FOUND;
+        uint64_t cbTotal = 0;
+        uint64_t cbFree = 0;
+        uint64_t cbBuffers = 0;
+        uint64_t cbCached = 0;
+        char sz[256];
+        while (fgets(sz, sizeof(sz), pFile))
+        {
+            if (!strncmp(sz, RT_STR_TUPLE("MemTotal:")))
+                rc = RTStrToUInt64Ex(RTStrStripL(&sz[sizeof("MemTotal:")]), NULL, 0, &cbTotal);
+            else if (!strncmp(sz, RT_STR_TUPLE("MemFree:")))
+                rc = RTStrToUInt64Ex(RTStrStripL(&sz[sizeof("MemFree:")]), NULL, 0, &cbFree);
+            else if (!strncmp(sz, RT_STR_TUPLE("Buffers:")))
+                rc = RTStrToUInt64Ex(RTStrStripL(&sz[sizeof("Buffers:")]), NULL, 0, &cbBuffers);
+            else if (!strncmp(sz, RT_STR_TUPLE("Cached:")))
+                rc = RTStrToUInt64Ex(RTStrStripL(&sz[sizeof("Cached:")]), NULL, 0, &cbCached);
+            if (RT_FAILURE(rc))
+                break;
+        }
+        fclose(pFile);
+        if (RT_SUCCESS(rc))
+        {
+            *pcb = (cbFree + cbBuffers + cbCached) * _1K;
+            return VINF_SUCCESS;
+        }
+    }
+    /*
+     * Fallback (e.g. /proc not mapped) to sysinfo. Less accurat because there
+     * is no information about the cached memory. 'Cached:' from above is only
+     * accessible through proc :-(
+     */
     struct sysinfo info;
     int rc = sysinfo(&info);
     if (rc == 0)
     {
-        *pcb = (uint64_t)(info.freeram * (unsigned long)info.mem_unit);
+        *pcb = ((uint64_t)info.freeram + info.bufferram) * info.mem_unit;
         return VINF_SUCCESS;
     }
     return RTErrConvertFromErrno(errno);

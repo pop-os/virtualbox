@@ -19,6 +19,7 @@
 
 /* Qt includes: */
 #include <QApplication>
+#include <QDesktopWidget>
 #include <QWidget>
 #include <QTimer>
 
@@ -65,6 +66,7 @@
 #include "CHostNetworkInterface.h"
 #include "CVRDEServer.h"
 #include "CUSBController.h"
+#include "CSnapshot.h"
 
 UISession::UISession(UIMachine *pMachine, CSession &sessionReference)
     : QObject(pMachine)
@@ -83,6 +85,7 @@ UISession::UISession(UIMachine *pMachine, CSession &sessionReference)
     , m_fIsGuestResizeIgnored(false)
     , m_fIsSeamlessModeRequested(false)
     , m_fIsAutoCaptureDisabled(false)
+    , m_fReconfigurable(false)
     /* Guest additions flags: */
     , m_ulGuestAdditionsRunLevel(0)
     , m_fIsGuestSupportsGraphics(false)
@@ -102,6 +105,9 @@ UISession::UISession(UIMachine *pMachine, CSession &sessionReference)
     , m_fIsValidPointerShapePresent(false)
     , m_fIsHidingHostPointer(true)
 {
+    /* Prepare connections: */
+    prepareConnections();
+
     /* Prepare console event-handlers: */
     prepareConsoleEventHandlers();
 
@@ -284,6 +290,107 @@ void UISession::powerUp()
     emit sigMachineStarted();
 }
 
+bool UISession::save()
+{
+    /* Prepare the save-state progress: */
+    CMachine machine = m_session.GetMachine();
+    CConsole console = m_session.GetConsole();
+    CProgress progress = console.SaveState();
+    if (console.isOk())
+    {
+        /* Show the save-state progress: */
+        msgCenter().showModalProgressDialog(progress, machine.GetName(), ":/progress_state_save_90px.png", mainMachineWindow(), true);
+        if (!progress.isOk() || progress.GetResultCode() != 0)
+        {
+            /* Failed in progress: */
+            msgCenter().cannotSaveMachineState(progress);
+            return false;
+        }
+    }
+    else
+    {
+        /* Failed in console: */
+        msgCenter().cannotSaveMachineState(console);
+        return false;
+    }
+    /* Passed: */
+    return true;
+}
+
+bool UISession::shutdown()
+{
+    /* Send ACPI shutdown signal if possible: */
+    CConsole console = m_session.GetConsole();
+    console.PowerButton();
+    if (!console.isOk())
+    {
+        /* Failed in console: */
+        msgCenter().cannotACPIShutdownMachine(console);
+        return false;
+    }
+    /* Passed: */
+    return true;
+}
+
+bool UISession::powerOff(bool fDiscardState, bool &fServerCrashed)
+{
+    /* Prepare the power-off progress: */
+    CMachine machine = m_session.GetMachine();
+    CConsole console = m_session.GetConsole();
+    CProgress progress = console.PowerDown();
+    if (console.isOk())
+    {
+        /* Show the power-off progress: */
+        msgCenter().showModalProgressDialog(progress, machine.GetName(), ":/progress_poweroff_90px.png", mainMachineWindow(), true);
+        if (progress.isOk() && progress.GetResultCode() == 0)
+        {
+            /* Discard the current state if requested: */
+            if (fDiscardState)
+            {
+                /* Prepare the discard-state progress: */
+                CSnapshot snapshot = machine.GetCurrentSnapshot();
+                CProgress progress = console.RestoreSnapshot(snapshot);
+                if (console.isOk())
+                {
+                    /* Show the discard-state progress: */
+                    msgCenter().showModalProgressDialog(progress, machine.GetName(), ":/progress_snapshot_discard_90px.png", mainMachineWindow(), true);
+                    if (!progress.isOk() || progress.GetResultCode() != 0)
+                    {
+                        /* Failed in progress: */
+                        msgCenter().cannotRestoreSnapshot(progress, snapshot.GetName());
+                        return false;
+                    }
+                }
+                else
+                {
+                    /* Failed in console: */
+                    msgCenter().cannotRestoreSnapshot(console, snapshot.GetName());
+                    return false;
+                }
+            }
+        }
+        else
+        {
+            /* Failed in progress: */
+            msgCenter().cannotStopMachine(progress);
+            return false;
+        }
+    }
+    else
+    {
+        /* Failed in console: */
+        COMResult res(console);
+        /* This can happen if VBoxSVC is not running: */
+        if (FAILED_DEAD_INTERFACE(res.rc()))
+            fServerCrashed = true;
+        else
+            msgCenter().cannotStopMachine(console);
+        return false;
+    }
+    /* Passed: */
+    return true;
+}
+
 UIMachineLogic* UISession::machineLogic() const
 {
     return uimachine()->machineLogic();
@@ -294,7 +401,7 @@ QWidget* UISession::mainMachineWindow() const
     return machineLogic()->mainMachineWindow();
 }
 
-QMenu* UISession::newMenu(UIMainMenuType fOptions /* = UIMainMenuType_ALL */)
+QMenu* UISession::newMenu(RuntimeMenuType fOptions /* = RuntimeMenuType_ALL */)
 {
     /* Create new menu: */
     QMenu *pMenu = m_pMenuPool->createMenu(fOptions);
@@ -306,7 +413,7 @@ QMenu* UISession::newMenu(UIMainMenuType fOptions /* = UIMainMenuType_ALL */)
     return pMenu;
 }
 
-QMenuBar* UISession::newMenuBar(UIMainMenuType fOptions /* = UIMainMenuType_ALL */)
+QMenuBar* UISession::newMenuBar(RuntimeMenuType fOptions /* = RuntimeMenuType_ALL */)
 {
     /* Create new menubar: */
     QMenuBar *pMenuBar = m_pMenuPool->createMenuBar(fOptions);
@@ -570,6 +677,9 @@ void UISession::sltStateChange(KMachineState state)
         /* Store new data: */
         m_machineState = state;
 
+        /* Update session settings: */
+        updateSessionSettings();
+
         /* Notify listeners about machine state changed: */
         emit sigMachineStateChange();
     }
@@ -589,6 +699,31 @@ void UISession::sltVRDEChange()
         gActionPool->action(UIActionIndexRuntime_Toggle_VRDEServer)->setChecked(server.GetEnabled());
     /* Notify listeners about VRDE change: */
     emit sigVRDEChange();
+}
+
+void UISession::sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo)
+{
+    /* Ignore KGuestMonitorChangedEventType_NewOrigin change event: */
+    if (changeType == KGuestMonitorChangedEventType_NewOrigin)
+        return;
+    /* Ignore KGuestMonitorChangedEventType_Disabled event if there is only one window visible: */
+    AssertMsg(countOfVisibleWindows() > 0, ("All machine windows are hidden!"));
+    if (   changeType == KGuestMonitorChangedEventType_Disabled
+        && countOfVisibleWindows() == 1
+        && isScreenVisible(uScreenId))
+        return;
+
+    /* Process KGuestMonitorChangedEventType_Enabled change event: */
+    if (   !isScreenVisible(uScreenId)
+        && changeType == KGuestMonitorChangedEventType_Enabled)
+        setScreenVisible(uScreenId, true);
+    /* Process KGuestMonitorChangedEventType_Disabled change event: */
+    else if (   isScreenVisible(uScreenId)
+             && changeType == KGuestMonitorChangedEventType_Disabled)
+        setScreenVisible(uScreenId, false);
+
+    /* Notify listeners about the change: */
+    emit sigGuestMonitorChange(changeType, uScreenId, screenGeo);
 }
 
 void UISession::sltAdditionsChange()
@@ -669,7 +804,13 @@ void UISession::prepareConsoleEventHandlers()
             this, SIGNAL(sigCPUExecutionCapChange()));
 
     connect(gConsoleEvents, SIGNAL(sigGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)),
-            this, SIGNAL(sigGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)));
+            this, SLOT(sltGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)));
+}
+
+void UISession::prepareConnections()
+{
+    connect(QApplication::desktop(), SIGNAL(screenCountChanged(int)),
+            this, SIGNAL(sigHostScreenCountChanged(int)));
 }
 
 void UISession::prepareScreens()
@@ -707,7 +848,7 @@ void UISession::prepareFramebuffers()
 
 void UISession::prepareMenuPool()
 {
-    m_pMenuPool = new UIMachineMenuBar;
+    m_pMenuPool = new UIMachineMenuBar(session().GetMachine());
 }
 
 void UISession::loadSessionSettings()
@@ -734,6 +875,10 @@ void UISession::loadSessionSettings()
         strSettings = machine.GetExtraData(GUI_AutoresizeGuest);
         QAction *pGuestAutoresizeSwitch = gActionPool->action(UIActionIndexRuntime_Toggle_GuestAutoresize);
         pGuestAutoresizeSwitch->setChecked(strSettings != "off");
+
+        /* Should we allow reconfiguration? */
+        m_fReconfigurable = VBoxGlobal::shouldWeAllowMachineReconfiguration(machine);
+        updateSessionSettings();
 
 #if 0 /* Disabled for now! */
 # ifdef Q_WS_WIN
@@ -799,6 +944,14 @@ void UISession::cleanupConsoleEventHandlers()
 {
     /* Destroy console event-handler: */
     UIConsoleEventHandler::destroy();
+}
+
+void UISession::updateSessionSettings()
+{
+    bool fAllowReconfiguration = m_machineState != KMachineState_Stuck && m_fReconfigurable;
+    gActionPool->action(UIActionIndexRuntime_Simple_SettingsDialog)->setEnabled(fAllowReconfiguration);
+    gActionPool->action(UIActionIndexRuntime_Simple_SharedFoldersDialog)->setEnabled(fAllowReconfiguration);
+    gActionPool->action(UIActionIndexRuntime_Simple_NetworkAdaptersDialog)->setEnabled(fAllowReconfiguration);
 }
 
 WId UISession::winId() const

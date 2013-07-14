@@ -337,7 +337,6 @@ extern void RENDER_APIENTRY renderspuSwapBuffers( GLint window, GLint flags );
 extern "C" {
 #endif
 DECLEXPORT(void) renderspuSetWindowId(uint64_t winId);
-DECLEXPORT(void) renderspuSetRootVisibleRegion(GLint cRects, GLint *pRects);
 DECLEXPORT(void) renderspuReparentWindow(GLint window);
 #ifdef __cplusplus
 }

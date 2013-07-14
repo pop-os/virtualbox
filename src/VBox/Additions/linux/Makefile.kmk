@@ -87,10 +87,10 @@ VBOX_LNX_ADD_INST_DEP_ON_MAKEFILE := $(MAKEFILE_CURRENT)
 # Targets
 #
 VBOX_SELINUX_CMPLD := $(PATH_SUB_CURRENT)/selinux-fedora/vbox_x11.pp
-VBOX_LNX_ADD_ARCHIVE.x86   := $(PATH_OUT_BASE)/linux.x86/$(KBUILD_TYPE)/bin/additions/VBoxGuestAdditions-x86-r$(VBOX_SVN_REV).tar.bz2
-VBOX_LNX_ADD_ARCHIVE.amd64 := $(PATH_OUT_BASE)/linux.amd64/$(KBUILD_TYPE)/bin/additions/VBoxGuestAdditions-amd64-r$(VBOX_SVN_REV).tar.bz2
+VBOX_LNX_ADD_ARCHIVE.x86   := $(PATH_OUT_BASE)/linux.x86/$(KBUILD_TYPE)/bin/additions/VBoxGuestAdditions-x86.tar.bz2
+VBOX_LNX_ADD_ARCHIVE.amd64 := $(PATH_OUT_BASE)/linux.amd64/$(KBUILD_TYPE)/bin/additions/VBoxGuestAdditions-amd64.tar.bz2
 ifndef VBOX_WITH_COMBINED_LINUX_GUEST_PACKAGE
- VBOX_LNX_ADD_ARCHIVES := $(PATH_STAGE_BIN)/additions/VBoxGuestAdditions-$(KBUILD_TARGET_ARCH)-r$(VBOX_SVN_REV).tar.bz2
+ VBOX_LNX_ADD_ARCHIVES := $(PATH_STAGE_BIN)/additions/VBoxGuestAdditions-$(KBUILD_TARGET_ARCH).tar.bz2
 else
  VBOX_LNX_ADD_ARCHIVES := \
 	$(VBOX_LNX_ADD_ARCHIVE.x86) \
@@ -144,19 +144,7 @@ VBOX_ADD_STRIP_MOD.linux = \
 	vboxmouse_drv_14.so \
 	vboxmouse_drv_15.so \
 	vboxmouse_drv_16.so \
-	vboxvideo_drv_70.so \
-	vboxvideo_drv_71.so \
-	vboxvideo_drv_13.so \
-	vboxvideo_drv_14.so \
-	vboxvideo_drv_15.so \
-	vboxvideo_drv_16.so \
-	vboxvideo_drv_17.so \
-	vboxvideo_drv_18.so \
-	vboxvideo_drv_19.so \
-	vboxvideo_drv_110.so \
-	vboxvideo_drv_111.so \
-	vboxvideo_drv_112.so \
-	vboxvideo_drv_113.so \
+	$(addsuffix .so,$(filter vboxvideo_drv_%,$(DLLS))) \
 	$(if $(VBOX_WITH_PAM),pam_vbox.so,) \
 	mount.vboxsf
 
@@ -251,7 +239,8 @@ $(addprefix $(VBOX_LNX_ADD_INST_BIN_DIR),$(VBOX_LNX_ADD_STRIP_BIN)): \
 	$(QUIET)objcopy --add-gnu-debuglink=$@ $@
 
 # pattern rule for stripping and copying the VBOX_LNX_ADD_STRIP_SBIN files to the installation directory
-$(addprefix $(VBOX_LNX_ADD_INST_SBIN_DIR),$(VBOX_LNX_ADD_STRIP_SBIN)): \
+$(addprefix $(VBOX_LNX_ADD_INST_SBIN_DIR),\
+		$(filter-out vbox-greeter,$(VBOX_LNX_ADD_STRIP_SBIN))): \
 		$(VBOX_LNX_ADD_INST_SBIN_DIR)% : $(PATH_STAGE_BIN)/additions/% \
 		$(VBOX_LNX_ADD_DBG_SBIN_DIR)% \
 		| $$(dir $$@)

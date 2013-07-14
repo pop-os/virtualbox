@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,6 +50,7 @@ bool UIMachineLogicSeamless::checkAvailability()
     /* Temporary get a machine object: */
     const CMachine &machine = uisession()->session().GetMachine();
 
+#if 0
     /* Check that there are enough physical screens are connected: */
     int cHostScreens = m_pScreenLayout->hostScreenCount();
     int cGuestScreens = m_pScreenLayout->guestScreenCount();
@@ -58,6 +59,7 @@ bool UIMachineLogicSeamless::checkAvailability()
         msgCenter().cannotEnterSeamlessMode();
         return false;
     }
+#endif
 
     /* Check if there is enough physical memory to enter seamless: */
     if (uisession()->isGuestAdditionsActive())
@@ -86,9 +88,38 @@ bool UIMachineLogicSeamless::checkAvailability()
     return true;
 }
 
-int UIMachineLogicSeamless::hostScreenForGuestScreen(int screenId) const
+int UIMachineLogicSeamless::hostScreenForGuestScreen(int iScreenId) const
 {
-    return m_pScreenLayout->hostScreenForGuestScreen(screenId);
+    return m_pScreenLayout->hostScreenForGuestScreen(iScreenId);
+}
+
+bool UIMachineLogicSeamless::hasHostScreenForGuestScreen(int iScreenId) const
+{
+    return m_pScreenLayout->hasHostScreenForGuestScreen(iScreenId);
+}
+
+void UIMachineLogicSeamless::sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo)
+{
+    LogRelFlow(("UIMachineLogicSeamless::GuestScreenCountChanged.\n"));
+
+    /* Update multi-screen layout before any window update: */
+    if (changeType == KGuestMonitorChangedEventType_Enabled ||
+        changeType == KGuestMonitorChangedEventType_Disabled)
+        m_pScreenLayout->rebuild();
+
+    /* Call to base-class: */
+    UIMachineLogic::sltGuestMonitorChange(changeType, uScreenId, screenGeo);
+}
+
+void UIMachineLogicSeamless::sltHostScreenCountChanged(int cScreenCount)
+{
+    LogRelFlow(("UIMachineLogicSeamless::HostScreenCountChanged.\n"));
+
+    /* Update multi-screen layout before any window update: */
+    m_pScreenLayout->rebuild();
+
+    /* Call to base-class: */
+    UIMachineLogic::sltHostScreenCountChanged(cScreenCount);
 }
 
 void UIMachineLogicSeamless::prepareActionGroups()
@@ -104,11 +135,6 @@ void UIMachineLogicSeamless::prepareActionGroups()
 
     /* Disable mouse-integration isn't allowed in seamless: */
     gActionPool->action(UIActionIndexRuntime_Toggle_MouseIntegration)->setVisible(false);
-
-    /* Add the view menu: */
-    QMenu *pMenu = gActionPool->action(UIActionIndexRuntime_Menu_View)->menu();
-    m_pScreenLayout->initialize(pMenu);
-    pMenu->setVisible(true);
 }
 
 void UIMachineLogicSeamless::prepareMachineWindows()
@@ -127,16 +153,25 @@ void UIMachineLogicSeamless::prepareMachineWindows()
     m_pScreenLayout->update();
 
     /* Create machine window(s): */
-    for (int cScreenId = 0; cScreenId < m_pScreenLayout->guestScreenCount(); ++cScreenId)
+    for (uint cScreenId = 0; cScreenId < session().GetMachine().GetMonitorCount(); ++cScreenId)
         addMachineWindow(UIMachineWindow::create(this, cScreenId));
 
     /* Connect screen-layout change handler: */
     for (int i = 0; i < machineWindows().size(); ++i)
-        connect(m_pScreenLayout, SIGNAL(screenLayoutChanged()),
-                static_cast<UIMachineWindowSeamless*>(machineWindows()[i]), SLOT(sltPlaceOnScreen()));
+        connect(m_pScreenLayout, SIGNAL(sigScreenLayoutChanged()),
+                static_cast<UIMachineWindowSeamless*>(machineWindows()[i]), SLOT(sltShowInNecessaryMode()));
 
     /* Remember what machine window(s) created: */
     setMachineWindowsCreated(true);
+}
+
+void UIMachineLogicSeamless::prepareMenu()
+{
+    /* Call to base-class: */
+    UIMachineLogic::prepareMenu();
+
+    /* Finally update view-menu: */
+    m_pScreenLayout->setViewMenu(gActionPool->action(UIActionIndexRuntime_Menu_View)->menu());
 }
 
 void UIMachineLogicSeamless::cleanupMachineWindows()

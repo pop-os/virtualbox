@@ -107,7 +107,6 @@ typedef struct VBOXGUESTMEMBALLOON
 /** Pointer to a memory balloon. */
 typedef VBOXGUESTMEMBALLOON *PVBOXGUESTMEMBALLOON;
 
-
 /**
  * VBox guest device (data) extension.
  */
@@ -180,6 +179,12 @@ typedef struct VBOXGUESTDEVEXT
     uint32_t volatile           cISR;
     /** Callback and user data for a kernel mouse handler. */
     VBoxGuestMouseSetNotifyCallback MouseNotifyCallback;
+    /* list of caps used in acquire mode */
+    uint32_t                    u32AcquireModeGuestCaps;
+    /* list of caps used in set mode */
+    uint32_t                    u32SetModeGuestCaps;
+    /* currently acquired (and reported) guest caps */
+    uint32_t                    u32GuestCaps;
 
     /** Windows part. */
     union
@@ -190,7 +195,6 @@ typedef struct VBOXGUESTDEVEXT
         uint32_t                    dummy;
 #endif
     } win;
-
 } VBOXGUESTDEVEXT;
 /** Pointer to the VBoxGuest driver data. */
 typedef VBOXGUESTDEVEXT *PVBOXGUESTDEVEXT;
@@ -235,6 +239,8 @@ typedef struct VBOXGUESTSESSION
      * be enabled for the host. */
     uint32_t volatile           fMouseStatus;
 
+    /* Guest Caps Acquired & Reported by this session */
+    uint32_t                    u32AquiredGuestCaps;
 } VBOXGUESTSESSION;
 
 RT_C_DECLS_BEGIN

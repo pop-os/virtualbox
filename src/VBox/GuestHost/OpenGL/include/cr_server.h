@@ -13,6 +13,7 @@
 #include "cr_protocol.h"
 #include "cr_glstate.h"
 #include "spu_dispatch_table.h"
+#include "cr_vreg.h"
 
 #include "state/cr_currentpointers.h"
 
@@ -101,6 +102,11 @@ typedef struct {
     GLuint idPBO;
 
     void *pvOutputRedirectInstance;
+
+    GLboolean fRootVrOn;
+    /* if root Visible regions are set, these two contain actual regions being passed to render spu */
+    VBOXVR_SCR_COMPOSITOR_ENTRY RootVrCEntry;
+    VBOXVR_SCR_COMPOSITOR RootVrCompositor;
 } CRMuralInfo;
 
 typedef struct {
@@ -222,6 +228,13 @@ typedef struct {
     CRHashTable *programTable;  /**< for vertex programs */
     GLuint currentProgram;
 
+    GLboolean fRootVrOn;
+    VBOXVR_LIST RootVr;
+    /* we need to translate Root Vr to each window coords, this one cpecifies the current translation point
+     * note that since window attributes modifications is performed in HGCM thread only and thus is serialized,
+     * we deal with the global RootVr data directly */
+    RTPOINT RootVrCurPoint;
+
     /** configuration options */
     /*@{*/
     int useL2;
@@ -311,7 +324,7 @@ extern DECLEXPORT(int32_t) crVBoxServerSetScreenCount(int sCount);
 extern DECLEXPORT(int32_t) crVBoxServerUnmapScreen(int sIndex);
 extern DECLEXPORT(int32_t) crVBoxServerMapScreen(int sIndex, int32_t x, int32_t y, uint32_t w, uint32_t h, uint64_t winID);
 
-extern DECLEXPORT(int32_t) crVBoxServerSetRootVisibleRegion(GLint cRects, GLint *pRects);
+extern DECLEXPORT(int32_t) crVBoxServerSetRootVisibleRegion(GLint cRects, const RTRECT *pRects);
 
 extern DECLEXPORT(void) crVBoxServerSetPresentFBOCB(PFNCRSERVERPRESENTFBO pfnPresentFBO);
 

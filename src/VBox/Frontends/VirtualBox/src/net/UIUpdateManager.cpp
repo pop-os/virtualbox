@@ -277,7 +277,16 @@ private:
 
         QString strDistributiveInfo;
         if (iMajor == 6)
-            strDistributiveInfo = QString("Windows Vista %1");
+        {
+            if (iMinor >= 3)
+                strDistributiveInfo = QString("Windows 8.1 %1");
+            else if (iMinor == 2)
+                strDistributiveInfo = QString("Windows 8 %1");
+            else if (iMinor == 1)
+                strDistributiveInfo = QString("Windows 7 %1");
+            else
+                strDistributiveInfo = QString("Windows Vista %1");
+        }
         else if (iMajor == 5)
         {
             if (iMinor == 2)
@@ -483,7 +492,9 @@ UIUpdateManager::UIUpdateManager()
 
 #ifdef VBOX_WITH_UPDATE_REQUEST
     /* Ask updater to check for the first time: */
-    if (!vboxGlobal().isVMConsoleProcess())
+    CVirtualBox vbox = vboxGlobal().virtualBox();
+    if (VBoxGlobal::shouldWeAllowApplicationUpdate(vbox) &&
+        !vboxGlobal().isVMConsoleProcess())
         QTimer::singleShot(0, this, SLOT(sltCheckIfUpdateIsNecessary()));
 #endif /* VBOX_WITH_UPDATE_REQUEST */
 }

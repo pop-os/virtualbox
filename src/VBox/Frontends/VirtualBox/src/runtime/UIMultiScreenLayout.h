@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,49 +19,72 @@
 #ifndef __UIMultiScreenLayout_h__
 #define __UIMultiScreenLayout_h__
 
-/* Global includes */
+/* Qt includes: */
 #include <QObject>
+#include <QMap>
 
+/* Forward declarations: */
 class UIMachineLogic;
-
 class QMenu;
 class QAction;
-template <class Key, class T> class QMap;
 
+/* Multi-screen layout manager: */
 class UIMultiScreenLayout : public QObject
 {
     Q_OBJECT;
 
+signals:
+
+    /* Notifier: Layout change stuff: */
+    void sigScreenLayoutChanged();
+
 public:
+
+    /* Constructor/destructor: */
     UIMultiScreenLayout(UIMachineLogic *pMachineLogic);
     ~UIMultiScreenLayout();
 
-    void initialize(QMenu *pMenu);
+    /* API: View-menu stuff: */
+    void setViewMenu(QMenu *pViewMenu);
+
+    /* API: Update stuff: */
     void update();
+    void rebuild();
+
+    /* API: Getters: */
     int hostScreenCount() const;
     int guestScreenCount() const;
-    int hostScreenForGuestScreen(int screenId) const;
+    int hostScreenForGuestScreen(int iScreenId) const;
+    bool hasHostScreenForGuestScreen(int iScreenId) const;
     quint64 memoryRequirements() const;
     bool isHostTaskbarCovert() const;
 
-signals:
-    void screenLayoutChanged();
-
 private slots:
 
+    /* Handler: Screen change stuff: */
     void sltScreenLayoutChanged(QAction *pAction);
 
 private:
 
-    quint64 memoryRequirements(const QMap<int, int> *pScreenLayout) const;
+    /* Helpers: Prepare stuff: */
+    void calculateHostMonitorCount();
+    void calculateGuestScreenCount();
+    void prepareViewMenu();
 
-    /* Private member vars */
+    /* Helper: Cleanup stuff: */
+    void cleanupViewMenu();
+
+    /* Other helpers: */
+    void updateMenuActions(bool fWithSave);
+    quint64 memoryRequirements(const QMap<int, int> &screenLayout) const;
+
+    /* Variables: */
     UIMachineLogic *m_pMachineLogic;
-
-    int m_cGuestScreens;
+    QList<int> m_guestScreens;
+    QList<int> m_disabledGuestScreens;
     int m_cHostScreens;
-
-    QMap<int, int> *m_pScreenMap;
+    QMap<int, int> m_screenMap;
+    QMenu *m_pViewMenu;
     QList<QMenu*> m_screenMenuList;
 };
 

@@ -159,7 +159,7 @@ int emR3RawStep(PVM pVM, PVMCPU pVCpu)
     int         rc;
     PCPUMCTX    pCtx   = pVCpu->em.s.pCtx;
     bool        fGuest = pVCpu->em.s.enmState != EMSTATE_DEBUG_HYPER;
-#ifndef DEBUG_sandervl
+#ifndef DEBUG_sander
     Log(("emR3RawStep: cs:eip=%RTsel:%RGr efl=%RGr\n", fGuest ? CPUMGetGuestCS(pVCpu) : CPUMGetHyperCS(pVCpu),
          fGuest ? CPUMGetGuestEIP(pVCpu) : CPUMGetHyperEIP(pVCpu), fGuest ? CPUMGetGuestEFlags(pVCpu) : CPUMGetHyperEFlags(pVCpu)));
 #endif
@@ -196,7 +196,7 @@ int emR3RawStep(PVM pVM, PVMCPU pVCpu)
             rc = VMMR3ResumeHyper(pVM, pVCpu);
         else
             rc = VMMR3RawRunGC(pVM, pVCpu);
-#ifndef DEBUG_sandervl
+#ifndef DEBUG_sander
         Log(("emR3RawStep: cs:eip=%RTsel:%RGr efl=%RGr - GC rc %Rrc\n", fGuest ? CPUMGetGuestCS(pVCpu) : CPUMGetHyperCS(pVCpu),
              fGuest ? CPUMGetGuestEIP(pVCpu) : CPUMGetHyperEIP(pVCpu), fGuest ? CPUMGetGuestEFlags(pVCpu) : CPUMGetHyperEFlags(pVCpu), rc));
 #endif
@@ -237,9 +237,10 @@ int emR3SingleStepExecRaw(PVM pVM, PVMCPU pVCpu, uint32_t cIterations)
     for (uint32_t i = 0; i < cIterations; i++)
     {
         DBGFR3PrgStep(pVCpu);
-        DBGFR3DisasInstrCurrentLog(pVCpu, "RSS: ");
+        DBGFR3DisasInstrCurrentLog(pVCpu, "RSS");
         rc = emR3RawStep(pVM, pVCpu);
-        if (rc != VINF_SUCCESS)
+        if (   rc != VINF_SUCCESS
+            && rc != VINF_EM_DBG_STEPPED)
             break;
     }
     Log(("Single step END: rc=%Rrc\n", rc));
@@ -950,7 +951,7 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
     if (!PATMIsPatchGCAddr(pVM, pCtx->eip))
     {
         DBGFR3InfoLog(pVM, "cpumguest", "PRIV");
-        DBGFR3DisasInstrCurrentLog(pVCpu, "Privileged instr: ");
+        DBGFR3DisasInstrCurrentLog(pVCpu, "Privileged instr");
     }
 #endif
 
@@ -1090,7 +1091,7 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
                     if (PATMIsPatchGCAddr(pVM, pCtx->eip))
                     {
                         DBGFR3InfoLog(pVM, "cpumguest", "PRIV");
-                        DBGFR3DisasInstrCurrentLog(pVCpu, "Privileged instr: ");
+                        DBGFR3DisasInstrCurrentLog(pVCpu, "Privileged instr");
                     }
 #endif
 
@@ -1361,7 +1362,8 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
 # ifdef VBOX_WITH_REM
         Assert(REMR3QueryPendingInterrupt(pVM, pVCpu) == REM_NO_PENDING_IRQ);
 # endif
-        Assert(pCtx->eflags.Bits.u1VM || (pCtx->ss.Sel & X86_SEL_RPL) == 3 || (pCtx->ss.Sel & X86_SEL_RPL) == 0);
+        Assert(pCtx->eflags.Bits.u1VM || (pCtx->ss.Sel & X86_SEL_RPL) == 3 || (pCtx->ss.Sel & X86_SEL_RPL) == 0
+               || (EMIsRawRing1Enabled(pVM) && (pCtx->ss.Sel & X86_SEL_RPL) == 1));
         AssertMsg(   (pCtx->eflags.u32 & X86_EFL_IF)
                   || PATMShouldUseRawMode(pVM, (RTGCPTR)pCtx->eip),
                   ("Tried to execute code with IF at EIP=%08x!\n", pCtx->eip));
@@ -1429,11 +1431,15 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
         if (pCtx->eflags.Bits.u1VM)
             Log(("RV86: %04x:%08x IF=%d VMFlags=%x\n", pCtx->cs.Sel, pCtx->eip, pCtx->eflags.Bits.u1IF, pGCState->uVMFlags));
         else if ((pCtx->ss.Sel & X86_SEL_RPL) == 1)
-            Log(("RR0: %08x ESP=%08x EFL=%x IF=%d/%d VMFlags=%x PIF=%d CPL=%d (Scanned=%d)\n",
-                 pCtx->eip, pCtx->esp, CPUMRawGetEFlags(pVCpu), !!(pGCState->uVMFlags & X86_EFL_IF), pCtx->eflags.Bits.u1IF,
+            Log(("RR0: %x:%08x ESP=%x:%08x EFL=%x IF=%d/%d VMFlags=%x PIF=%d CPL=%d (Scanned=%d)\n",
+                 pCtx->cs.Sel, pCtx->eip, pCtx->ss.Sel, pCtx->esp, CPUMRawGetEFlags(pVCpu), !!(pGCState->uVMFlags & X86_EFL_IF), pCtx->eflags.Bits.u1IF,
                  pGCState->uVMFlags, pGCState->fPIF, (pCtx->ss.Sel & X86_SEL_RPL), CSAMIsPageScanned(pVM, (RTGCPTR)pCtx->eip)));
+# ifdef VBOX_WITH_RAW_RING1
+        else if ((pCtx->ss.Sel & X86_SEL_RPL) == 2)
+            Log(("RR1: %x:%08x ESP=%x:%08x IF=%d VMFlags=%x CPL=%x\n", pCtx->cs.Sel, pCtx->eip, pCtx->ss.Sel, pCtx->esp, pCtx->eflags.Bits.u1IF, pGCState->uVMFlags, (pCtx->ss.Sel & X86_SEL_RPL)));
+# endif
         else if ((pCtx->ss.Sel & X86_SEL_RPL) == 3)
-            Log(("RR3: %08x ESP=%08x IF=%d VMFlags=%x\n", pCtx->eip, pCtx->esp, pCtx->eflags.Bits.u1IF, pGCState->uVMFlags));
+            Log(("RR3: %x:%08x ESP=%x:%08x IF=%d VMFlags=%x\n", pCtx->cs.Sel, pCtx->eip, pCtx->ss.Sel, pCtx->esp, pCtx->eflags.Bits.u1IF, pGCState->uVMFlags));
 #endif /* LOG_ENABLED */
 
 
@@ -1543,7 +1549,7 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
         if (    VM_FF_ISPENDING(pVM, ~VM_FF_HIGH_PRIORITY_PRE_RAW_MASK | VM_FF_PGM_NO_MEMORY)
             ||  VMCPU_FF_ISPENDING(pVCpu, ~VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK))
         {
-            Assert(pCtx->eflags.Bits.u1VM || (pCtx->ss.Sel & X86_SEL_RPL) != 1);
+            Assert(pCtx->eflags.Bits.u1VM || (pCtx->ss.Sel & X86_SEL_RPL) != (EMIsRawRing1Enabled(pVM) ? 2 : 1));
 
             STAM_REL_PROFILE_ADV_SUSPEND(&pVCpu->em.s.StatRAWTotal, a);
             rc = emR3ForcedActions(pVM, pVCpu, rc);

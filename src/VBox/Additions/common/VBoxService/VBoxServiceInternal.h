@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2012 Oracle Corporation
+ * Copyright (C) 2007-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -358,6 +358,7 @@ RT_C_DECLS_BEGIN
 
 extern char        *g_pszProgName;
 extern int          g_cVerbosity;
+extern char         g_szLogFile[RTPATH_MAX + 128];
 extern uint32_t     g_DefaultInterval;
 extern VBOXSERVICE  g_TimeSync;
 extern VBOXSERVICE  g_Clipboard;
@@ -436,7 +437,7 @@ extern void                     VBoxServiceControlThreadRequestFree(PVBOXSERVICE
 extern uint32_t                 VBoxServiceBalloonQueryPages(uint32_t cbPage);
 #endif
 #if defined(VBOX_WITH_PAGE_SHARING) && defined(RT_OS_WINDOWS)
-extern RTEXITCODE               VBoxServicePageSharingInitFork(void);
+extern RTEXITCODE               VBoxServicePageSharingInitFork(int argc, char **argv);
 #endif
 extern int                      VBoxServiceVMInfoSignal(void);
 

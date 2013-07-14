@@ -55,7 +55,12 @@ template<class X> X fromInternalString(const QString & /* strData */) { Assert(0
 
 /* Declare global canConvert specializations: */
 template<> bool canConvert<StorageSlot>();
+template<> bool canConvert<RuntimeMenuType>();
 template<> bool canConvert<DetailsElementType>();
+template<> bool canConvert<GlobalSettingsPageType>();
+template<> bool canConvert<MachineSettingsPageType>();
+template<> bool canConvert<IndicatorType>();
+template<> bool canConvert<MachineCloseAction>();
 
 /* Declare COM canConvert specializations: */
 template<> bool canConvert<KMachineState>();
@@ -82,10 +87,20 @@ template<> bool canConvert<KNATProtocol>();
 /* Declare global conversion specializations: */
 template<> QString toString(const StorageSlot &storageSlot);
 template<> StorageSlot fromString<StorageSlot>(const QString &strStorageSlot);
+template<> QString toInternalString(const RuntimeMenuType &runtimeMenuType);
+template<> RuntimeMenuType fromInternalString<RuntimeMenuType>(const QString &strRuntimeMenuType);
 template<> QString toString(const DetailsElementType &detailsElementType);
 template<> DetailsElementType fromString<DetailsElementType>(const QString &strDetailsElementType);
 template<> QString toInternalString(const DetailsElementType &detailsElementType);
 template<> DetailsElementType fromInternalString<DetailsElementType>(const QString &strDetailsElementType);
+template<> QString toInternalString(const GlobalSettingsPageType &globalSettingsPageType);
+template<> GlobalSettingsPageType fromInternalString<GlobalSettingsPageType>(const QString &strGlobalSettingsPageType);
+template<> QString toInternalString(const MachineSettingsPageType &machineSettingsPageType);
+template<> MachineSettingsPageType fromInternalString<MachineSettingsPageType>(const QString &strMachineSettingsPageType);
+template<> QString toInternalString(const IndicatorType &indicatorType);
+template<> IndicatorType fromInternalString<IndicatorType>(const QString &strIndicatorType);
+template<> QString toInternalString(const MachineCloseAction &machineCloseAction);
+template<> MachineCloseAction fromInternalString<MachineCloseAction>(const QString &strMachineCloseAction);
 
 /* Declare COM conversion specializations: */
 template<> QColor toColor(const KMachineState &state);

@@ -4664,10 +4664,13 @@ static void vdIOIntIoCtxCompleted(void *pvUser, PVDIOCTX pIoCtx, int rcReq,
     pIoCtx->fBlocked = false;
     ASMAtomicSubU32(&pIoCtx->Req.Io.cbTransferLeft, cbCompleted);
 
-    /* Clear the pointer to next transfer function in case we have nothing to transfer anymore.
-     * @todo: Find a better way to prevent vdIoCtxContinue from calling the read/write helper again. */
+    /* Set next transfer function if the current one finished.
+     * @todo: Find a better way to prevent vdIoCtxContinue from calling the current helper again. */
     if (!pIoCtx->Req.Io.cbTransferLeft)
-        pIoCtx->pfnIoCtxTransfer = NULL;
+    {
+        pIoCtx->pfnIoCtxTransfer = pIoCtx->pfnIoCtxTransferNext;
+        pIoCtx->pfnIoCtxTransferNext = NULL;
+    }
 
     vdIoCtxContinue(pIoCtx, rcReq);
 

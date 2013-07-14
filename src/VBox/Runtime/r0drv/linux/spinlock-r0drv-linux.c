@@ -43,6 +43,9 @@
 #include <iprt/thread.h>
 #include "internal/magics.h"
 
+/* Enable spinlock checker when CONFIG_PROVE_LOCKING is
+ * enabled (checker is disabled by default in release build, but enabled in debug one) */
+
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *

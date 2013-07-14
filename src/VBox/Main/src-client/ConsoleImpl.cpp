@@ -2719,7 +2719,9 @@ STDMETHODIMP Console::SleepButton()
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mMachineState != MachineState_Running) /** @todo Live Migration: ??? */
+    if (   mMachineState != MachineState_Running
+        && mMachineState != MachineState_Teleporting
+        && mMachineState != MachineState_LiveSnapshotting)
         return setInvalidMachineStateError();
 
     /* get the VM handle. */
@@ -3914,10 +3916,11 @@ DECLCALLBACK(int) Console::changeRemovableMedium(Console *pConsole,
  *
  * @param aMediumAttachment The medium attachment which is added.
  * @param pVM               Safe VM handle.
+ * @param fSilent           Flag whether to notify the guest about the attached device.
  *
  * @note Locks this object for writing.
  */
-HRESULT Console::doStorageDeviceAttach(IMediumAttachment *aMediumAttachment, PVM pVM)
+HRESULT Console::doStorageDeviceAttach(IMediumAttachment *aMediumAttachment, PVM pVM, bool fSilent)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
@@ -3987,14 +3990,15 @@ HRESULT Console::doStorageDeviceAttach(IMediumAttachment *aMediumAttachment, PVM
                           0 /* no wait! */,
                           VMREQFLAGS_VBOX_STATUS,
                           (PFNRT)Console::attachStorageDevice,
-                          7,
+                          8,
                           this,
                           pVM,
                           pszDevice,
                           uInstance,
                           enmBus,
                           fUseHostIOCache,
-                          aMediumAttachment);
+                          aMediumAttachment,
+                          fSilent);
 
     /* release the lock before waiting for a result (EMT will call us back!) */
     alock.release();
@@ -4034,6 +4038,7 @@ HRESULT Console::doStorageDeviceAttach(IMediumAttachment *aMediumAttachment, PVM
  * @param   pVM             The VM handle.
  * @param   pcszDevice      The PDM device name.
  * @param   uInstance       The PDM device instance.
+ * @param   fSilent         Flag whether to inform the guest about the attached device.
  *
  * @thread  EMT
  */
@@ -4043,7 +4048,8 @@ DECLCALLBACK(int) Console::attachStorageDevice(Console *pConsole,
                                                unsigned uInstance,
                                                StorageBus_T enmBus,
                                                bool fUseHostIOCache,
-                                               IMediumAttachment *aMediumAtt)
+                                               IMediumAttachment *aMediumAtt,
+                                               bool fSilent)
 {
     LogFlowFunc(("pConsole=%p uInstance=%u pszDevice=%p:{%s} enmBus=%u, aMediumAtt=%p\n",
                  pConsole, uInstance, pcszDevice, pcszDevice, enmBus, aMediumAtt));
@@ -4117,7 +4123,7 @@ DECLCALLBACK(int) Console::attachStorageDevice(Console *pConsole,
                                              NULL /* phrc */,
                                              true /* fAttachDetach */,
                                              false /* fForceUnmount */,
-                                             true   /* fHotplug */,
+                                             !fSilent /* fHotplug */,
                                              pVM,
                                              NULL /* paLedDevType */);
     /** @todo this dumps everything attached to this device instance, which
@@ -4159,10 +4165,11 @@ DECLCALLBACK(int) Console::attachStorageDevice(Console *pConsole,
  *
  * @param aMediumAttachment The medium attachment which is added.
  * @param pVM               Safe VM handle.
+ * @param   fSilent         Flag whether to inform the guest about the attached device.
  *
  * @note Locks this object for writing.
  */
-HRESULT Console::doStorageDeviceDetach(IMediumAttachment *aMediumAttachment, PVM pVM)
+HRESULT Console::doStorageDeviceDetach(IMediumAttachment *aMediumAttachment, PVM pVM, bool fSilent)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
@@ -4229,13 +4236,14 @@ HRESULT Console::doStorageDeviceDetach(IMediumAttachment *aMediumAttachment, PVM
                           0 /* no wait! */,
                           VMREQFLAGS_VBOX_STATUS,
                           (PFNRT)Console::detachStorageDevice,
-                          6,
+                          7,
                           this,
                           pVM,
                           pszDevice,
                           uInstance,
                           enmBus,
-                          aMediumAttachment);
+                          aMediumAttachment,
+                          fSilent);
 
     /* release the lock before waiting for a result (EMT will call us back!) */
     alock.release();
@@ -4274,6 +4282,7 @@ HRESULT Console::doStorageDeviceDetach(IMediumAttachment *aMediumAttachment, PVM
  * @param   pVM             The VM handle.
  * @param   pcszDevice      The PDM device name.
  * @param   uInstance       The PDM device instance.
+ * @param   fSilent         Flag whether to inform the guest about the attached device.
  *
  * @thread  EMT
  */
@@ -4282,7 +4291,8 @@ DECLCALLBACK(int) Console::detachStorageDevice(Console *pConsole,
                                                const char *pcszDevice,
                                                unsigned uInstance,
                                                StorageBus_T enmBus,
-                                               IMediumAttachment *pMediumAtt)
+                                               IMediumAttachment *pMediumAtt,
+                                               bool fSilent)
 {
     LogFlowFunc(("pConsole=%p uInstance=%u pszDevice=%p:{%s} enmBus=%u, pMediumAtt=%p\n",
                  pConsole, uInstance, pcszDevice, pcszDevice, enmBus, pMediumAtt));
@@ -4362,7 +4372,12 @@ DECLCALLBACK(int) Console::detachStorageDevice(Console *pConsole,
     pLunL0 = CFGMR3GetChildF(pCtlInst, "LUN#%u", uLUN);
     if (pLunL0)
     {
-        rc = PDMR3DeviceDetach(pVM, pcszDevice, uInstance, uLUN, 0);
+        uint32_t fFlags = 0;
+
+        if (fSilent)
+            fFlags |= PDM_TACH_FLAGS_NOT_HOT_PLUG;
+
+        rc = PDMR3DeviceDetach(pVM, pcszDevice, uInstance, uLUN, fFlags);
         if (rc == VERR_PDM_NO_DRIVER_ATTACHED_TO_LUN)
             rc = VINF_SUCCESS;
         AssertRCReturn(rc, rc);
@@ -4423,7 +4438,7 @@ HRESULT Console::onNetworkAdapterChange(INetworkAdapter *aNetworkAdapter, BOOL c
 
     HRESULT rc = S_OK;
 
-    /* don't trigger network change if the VM isn't running */
+    /* don't trigger network changes if the VM isn't running */
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
     {
@@ -4536,7 +4551,7 @@ HRESULT Console::onNATRedirectRuleChange(ULONG ulInstance, BOOL aNatRuleRemove,
 
     HRESULT rc = S_OK;
 
-    /* don't trigger nat engine change if the VM isn't running */
+    /* don't trigger NAT engine changes if the VM isn't running */
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
     {
@@ -4850,7 +4865,7 @@ HRESULT Console::onMediumChange(IMediumAttachment *aMediumAttachment, BOOL aForc
 
     HRESULT rc = S_OK;
 
-    /* don't trigger medium change if the VM isn't running */
+    /* don't trigger medium changes if the VM isn't running */
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
     {
@@ -4880,7 +4895,7 @@ HRESULT Console::onCPUChange(ULONG aCPU, BOOL aRemove)
 
     HRESULT rc = S_OK;
 
-    /* don't trigger CPU change if the VM isn't running */
+    /* don't trigger CPU changes if the VM isn't running */
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
     {
@@ -4959,7 +4974,7 @@ HRESULT Console::onClipboardModeChange(ClipboardMode_T aClipboardMode)
 
     HRESULT rc = S_OK;
 
-    /* don't trigger the Clipboard mode change if the VM isn't running */
+    /* don't trigger the clipboard mode change if the VM isn't running */
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
     {
@@ -4999,7 +5014,7 @@ HRESULT Console::onDragAndDropModeChange(DragAndDropMode_T aDragAndDropMode)
 
     HRESULT rc = S_OK;
 
-    /* don't trigger the Drag'n'drop mode change if the VM isn't running */
+    /* don't trigger the drag'n'drop mode change if the VM isn't running */
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
     {
@@ -5037,42 +5052,49 @@ HRESULT Console::onVRDEServerChange(BOOL aRestart)
 
     HRESULT rc = S_OK;
 
-    if (    mVRDEServer
-        &&  (   mMachineState == MachineState_Running
-             || mMachineState == MachineState_Teleporting
-             || mMachineState == MachineState_LiveSnapshotting
-            )
-       )
+    /* don't trigger VRDE server changes if the VM isn't running */
+    SafeVMPtrQuiet ptrVM(this);
+    if (ptrVM.isOk())
     {
-        BOOL vrdpEnabled = FALSE;
-
-        rc = mVRDEServer->COMGETTER(Enabled)(&vrdpEnabled);
-        ComAssertComRCRetRC(rc);
-
-        if (aRestart)
+        if (    mVRDEServer
+            &&  (   mMachineState == MachineState_Running
+                 || mMachineState == MachineState_Teleporting
+                 || mMachineState == MachineState_LiveSnapshotting
+                 || mMachineState == MachineState_Paused
+                 )
+           )
         {
-            /* VRDP server may call this Console object back from other threads (VRDP INPUT or OUTPUT). */
-            alock.release();
+            BOOL vrdpEnabled = FALSE;
 
-            if (vrdpEnabled)
+            rc = mVRDEServer->COMGETTER(Enabled)(&vrdpEnabled);
+            ComAssertComRCRetRC(rc);
+
+            if (aRestart)
             {
-                // If there was no VRDP server started the 'stop' will do nothing.
-                // However if a server was started and this notification was called,
-                // we have to restart the server.
-                mConsoleVRDPServer->Stop();
+                /* VRDP server may call this Console object back from other threads (VRDP INPUT or OUTPUT). */
+                alock.release();
 
-                if (RT_FAILURE(mConsoleVRDPServer->Launch()))
-                    rc = E_FAIL;
+                if (vrdpEnabled)
+                {
+                    // If there was no VRDP server started the 'stop' will do nothing.
+                    // However if a server was started and this notification was called,
+                    // we have to restart the server.
+                    mConsoleVRDPServer->Stop();
+
+                    if (RT_FAILURE(mConsoleVRDPServer->Launch()))
+                        rc = E_FAIL;
+                    else
+                        mConsoleVRDPServer->EnableConnections();
+                }
                 else
-                    mConsoleVRDPServer->EnableConnections();
-            }
-            else
-            {
-                mConsoleVRDPServer->Stop();
-            }
+                    mConsoleVRDPServer->Stop();
 
-            alock.acquire();
+                alock.acquire();
+            }
         }
+        else
+            rc = setInvalidMachineStateError();
+        ptrVM.release();
     }
 
     /* notify console callbacks on success */
@@ -5318,7 +5340,7 @@ HRESULT Console::onBandwidthGroupChange(IBandwidthGroup *aBandwidthGroup)
 
     HRESULT rc = S_OK;
 
-    /* don't trigger the CPU priority change if the VM isn't running */
+    /* don't trigger bandwidth group changes if the VM isn't running */
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
     {
@@ -5374,7 +5396,7 @@ HRESULT Console::onBandwidthGroupChange(IBandwidthGroup *aBandwidthGroup)
  *
  * @note Locks this object for writing.
  */
-HRESULT Console::onStorageDeviceChange(IMediumAttachment *aMediumAttachment, BOOL aRemove)
+HRESULT Console::onStorageDeviceChange(IMediumAttachment *aMediumAttachment, BOOL aRemove, BOOL aSilent)
 {
     LogFlowThisFunc(("\n"));
 
@@ -5383,14 +5405,14 @@ HRESULT Console::onStorageDeviceChange(IMediumAttachment *aMediumAttachment, BOO
 
     HRESULT rc = S_OK;
 
-    /* don't trigger medium change if the VM isn't running */
+    /* don't trigger medium changes if the VM isn't running */
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
     {
         if (aRemove)
-            rc = doStorageDeviceDetach(aMediumAttachment, ptrVM);
+            rc = doStorageDeviceDetach(aMediumAttachment, ptrVM, aSilent);
         else
-            rc = doStorageDeviceAttach(aMediumAttachment, ptrVM);
+            rc = doStorageDeviceAttach(aMediumAttachment, ptrVM, aSilent);
         ptrVM.release();
     }
 

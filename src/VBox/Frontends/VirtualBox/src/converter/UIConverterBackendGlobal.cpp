@@ -31,7 +31,12 @@
 /* Determines if <Object of type X> can be converted to object of other type.
  * These functions returns 'true' for all allowed conversions. */
 template<> bool canConvert<StorageSlot>() { return true; }
+template<> bool canConvert<RuntimeMenuType>() { return true; }
 template<> bool canConvert<DetailsElementType>() { return true; }
+template<> bool canConvert<GlobalSettingsPageType>() { return true; }
+template<> bool canConvert<MachineSettingsPageType>() { return true; }
+template<> bool canConvert<IndicatorType>() { return true; }
+template<> bool canConvert<MachineCloseAction>() { return true; }
 
 /* QString <= StorageSlot: */
 template<> QString toString(const StorageSlot &storageSlot)
@@ -261,6 +266,46 @@ template<> StorageSlot fromString<StorageSlot>(const QString &strStorageSlot)
     return result;
 }
 
+/* QString <= RuntimeMenuType: */
+template<> QString toInternalString(const RuntimeMenuType &runtimeMenuType)
+{
+    QString strResult;
+    switch (runtimeMenuType)
+    {
+        case RuntimeMenuType_Machine: strResult = "Machine"; break;
+        case RuntimeMenuType_View:    strResult = "View"; break;
+        case RuntimeMenuType_Devices: strResult = "Devices"; break;
+        case RuntimeMenuType_Debug:   strResult = "Debug"; break;
+        case RuntimeMenuType_Help:    strResult = "Help"; break;
+        case RuntimeMenuType_All:     strResult = "All"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for indicator type=%d", runtimeMenuType));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* RuntimeMenuType <= QString: */
+template<> RuntimeMenuType fromInternalString<RuntimeMenuType>(const QString &strRuntimeMenuType)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;  QList<RuntimeMenuType> values;
+    keys << "Machine"; values << RuntimeMenuType_Machine;
+    keys << "View";    values << RuntimeMenuType_View;
+    keys << "Devices"; values << RuntimeMenuType_Devices;
+    keys << "Debug";   values << RuntimeMenuType_Debug;
+    keys << "Help";    values << RuntimeMenuType_Help;
+    keys << "All";     values << RuntimeMenuType_All;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strRuntimeMenuType, Qt::CaseInsensitive))
+        return RuntimeMenuType_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strRuntimeMenuType, Qt::CaseInsensitive)));
+}
+
 /* QString <= DetailsElementType: */
 template<> QString toString(const DetailsElementType &detailsElementType)
 {
@@ -367,5 +412,184 @@ template<> DetailsElementType fromInternalString<DetailsElementType>(const QStri
         AssertMsgFailed(("No value for '%s'", strDetailsElementType.toAscii().constData()));
     }
     return list.value(strDetailsElementType);
+}
+
+/* QString <= GlobalSettingsPageType: */
+template<> QString toInternalString(const GlobalSettingsPageType &globalSettingsPageType)
+{
+    QString strResult;
+    switch (globalSettingsPageType)
+    {
+        case GlobalSettingsPageType_General:    strResult = "General"; break;
+        case GlobalSettingsPageType_Input:      strResult = "Input"; break;
+        case GlobalSettingsPageType_Update:     strResult = "Update"; break;
+        case GlobalSettingsPageType_Language:   strResult = "Language"; break;
+        case GlobalSettingsPageType_Display:    strResult = "Display"; break;
+        case GlobalSettingsPageType_USB:        strResult = "USB"; break;
+        case GlobalSettingsPageType_Network:    strResult = "Network"; break;
+        case GlobalSettingsPageType_Extensions: strResult = "Extensions"; break;
+        case GlobalSettingsPageType_Proxy:      strResult = "Proxy"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for settings page type=%d", globalSettingsPageType));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* GlobalSettingsPageType <= QString: */
+template<> GlobalSettingsPageType fromInternalString<GlobalSettingsPageType>(const QString &strGlobalSettingsPageType)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;    QList<GlobalSettingsPageType> values;
+    keys << "General";    values << GlobalSettingsPageType_General;
+    keys << "Input";      values << GlobalSettingsPageType_Input;
+    keys << "Update";     values << GlobalSettingsPageType_Update;
+    keys << "Language";   values << GlobalSettingsPageType_Language;
+    keys << "Display";    values << GlobalSettingsPageType_Display;
+    keys << "USB";        values << GlobalSettingsPageType_USB;
+    keys << "Network";    values << GlobalSettingsPageType_Network;
+    keys << "Extensions"; values << GlobalSettingsPageType_Extensions;
+    keys << "Proxy";      values << GlobalSettingsPageType_Proxy;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strGlobalSettingsPageType, Qt::CaseInsensitive))
+        return GlobalSettingsPageType_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strGlobalSettingsPageType, Qt::CaseInsensitive)));
+}
+
+/* QString <= MachineSettingsPageType: */
+template<> QString toInternalString(const MachineSettingsPageType &machineSettingsPageType)
+{
+    QString strResult;
+    switch (machineSettingsPageType)
+    {
+        case MachineSettingsPageType_General:  strResult = "General"; break;
+        case MachineSettingsPageType_System:   strResult = "System"; break;
+        case MachineSettingsPageType_Display:  strResult = "Display"; break;
+        case MachineSettingsPageType_Storage:  strResult = "Storage"; break;
+        case MachineSettingsPageType_Audio:    strResult = "Audio"; break;
+        case MachineSettingsPageType_Network:  strResult = "Network"; break;
+        case MachineSettingsPageType_Ports:    strResult = "Ports"; break;
+        case MachineSettingsPageType_Serial:   strResult = "Serial"; break;
+        case MachineSettingsPageType_Parallel: strResult = "Parallel"; break;
+        case MachineSettingsPageType_USB:      strResult = "USB"; break;
+        case MachineSettingsPageType_SF:       strResult = "SharedFolders"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for settings page type=%d", machineSettingsPageType));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* MachineSettingsPageType <= QString: */
+template<> MachineSettingsPageType fromInternalString<MachineSettingsPageType>(const QString &strMachineSettingsPageType)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;        QList<MachineSettingsPageType> values;
+    keys << "General";       values << MachineSettingsPageType_General;
+    keys << "System";        values << MachineSettingsPageType_System;
+    keys << "Display";       values << MachineSettingsPageType_Display;
+    keys << "Storage";       values << MachineSettingsPageType_Storage;
+    keys << "Audio";         values << MachineSettingsPageType_Audio;
+    keys << "Network";       values << MachineSettingsPageType_Network;
+    keys << "Ports";         values << MachineSettingsPageType_Ports;
+    keys << "Serial";        values << MachineSettingsPageType_Serial;
+    keys << "Parallel";      values << MachineSettingsPageType_Parallel;
+    keys << "USB";           values << MachineSettingsPageType_USB;
+    keys << "SharedFolders"; values << MachineSettingsPageType_SF;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strMachineSettingsPageType, Qt::CaseInsensitive))
+        return MachineSettingsPageType_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strMachineSettingsPageType, Qt::CaseInsensitive)));
+}
+
+/* QString <= IndicatorType: */
+template<> QString toInternalString(const IndicatorType &indicatorType)
+{
+    QString strResult;
+    switch (indicatorType)
+    {
+        case IndicatorType_HardDisks:     strResult = "HardDisks"; break;
+        case IndicatorType_OpticalDisks:  strResult = "OpticalDisks"; break;
+        case IndicatorType_FloppyDisks:   strResult = "FloppyDisks"; break;
+        case IndicatorType_Network:       strResult = "Network"; break;
+        case IndicatorType_USB:           strResult = "USB"; break;
+        case IndicatorType_SharedFolders: strResult = "SharedFolders"; break;
+        case IndicatorType_VideoCapture:  strResult = "VideoCapture"; break;
+        case IndicatorType_Features:      strResult = "Features"; break;
+        case IndicatorType_Mouse:         strResult = "Mouse"; break;
+        case IndicatorType_Keyboard:      strResult = "Keyboard"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for indicator type=%d", indicatorType));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* IndicatorType <= QString: */
+template<> IndicatorType fromInternalString<IndicatorType>(const QString &strIndicatorType)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;        QList<IndicatorType> values;
+    keys << "HardDisks";     values << IndicatorType_HardDisks;
+    keys << "OpticalDisks";  values << IndicatorType_OpticalDisks;
+    keys << "FloppyDisks";   values << IndicatorType_FloppyDisks;
+    keys << "Network";       values << IndicatorType_Network;
+    keys << "USB";           values << IndicatorType_USB;
+    keys << "SharedFolders"; values << IndicatorType_SharedFolders;
+    keys << "Features";      values << IndicatorType_Features;
+    keys << "Mouse";         values << IndicatorType_Mouse;
+    keys << "Keyboard";      values << IndicatorType_Keyboard;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strIndicatorType, Qt::CaseInsensitive))
+        return IndicatorType_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strIndicatorType, Qt::CaseInsensitive)));
+}
+
+/* QString <= MachineCloseAction: */
+template<> QString toInternalString(const MachineCloseAction &machineCloseAction)
+{
+    QString strResult;
+    switch (machineCloseAction)
+    {
+        case MachineCloseAction_SaveState:                  strResult = "SaveState"; break;
+        case MachineCloseAction_Shutdown:                   strResult = "Shutdown"; break;
+        case MachineCloseAction_PowerOff:                   strResult = "PowerOff"; break;
+        case MachineCloseAction_PowerOff_RestoringSnapshot: strResult = "PowerOffRestoringSnapshot"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for indicator type=%d", machineCloseAction));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* MachineCloseAction <= QString: */
+template<> MachineCloseAction fromInternalString<MachineCloseAction>(const QString &strMachineCloseAction)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;                    QList<MachineCloseAction> values;
+    keys << "SaveState";                 values << MachineCloseAction_SaveState;
+    keys << "Shutdown";                  values << MachineCloseAction_Shutdown;
+    keys << "PowerOff";                  values << MachineCloseAction_PowerOff;
+    keys << "PowerOffRestoringSnapshot"; values << MachineCloseAction_PowerOff_RestoringSnapshot;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strMachineCloseAction, Qt::CaseInsensitive))
+        return MachineCloseAction_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strMachineCloseAction, Qt::CaseInsensitive)));
 }
 

@@ -201,7 +201,8 @@ struct RTCState {
     int32_t CurLogPeriod;
     /** The current/previous hinted timer period. */
     int32_t CurHintPeriod;
-    uint32_t u32AlignmentPadding;
+    /** How many consecutive times the UIP has been seen. */
+    int32_t cUipSeen;
 
     /** HPET legacy mode notification interface. */
     PDMIHPETLEGACYNOTIFY  IHpetLegacyNotify;
@@ -337,6 +338,15 @@ PDMBOTHCBDECL(int) rtcIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port
                 break;
 
             case RTC_REG_A:
+                if (pThis->cmos_data[RTC_REG_A] & REG_A_UIP)
+                    ++pThis->cUipSeen;
+                else
+                    pThis->cUipSeen = 0;
+                if (pThis->cUipSeen >= 250)
+                {
+                    pThis->cmos_data[pThis->cmos_index[0]] &= ~REG_A_UIP;
+                    pThis->cUipSeen = 0;
+                }
                 *pu32 = pThis->cmos_data[pThis->cmos_index[0]];
                 break;
 

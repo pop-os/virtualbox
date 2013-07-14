@@ -3403,6 +3403,9 @@ void Medium::markRegistriesModified()
         llRegistryIDs = m->llRegistryIDs;
     }
 
+    /* Save the error information now, the implicit restore when this goes
+     * out of scope will throw away spurious additional errors created below. */
+    ErrorInfoKeeper eik;
     for (GuidList::const_iterator it = llRegistryIDs.begin();
          it != llRegistryIDs.end();
          ++it)
@@ -6919,7 +6922,7 @@ HRESULT Medium::taskCreateDiffHandler(Medium::CreateDiffTask &task)
                 vrc = VDOpen(hdd,
                              pMedium->m->strFormat.c_str(),
                              pMedium->m->strLocationFull.c_str(),
-                             VD_OPEN_FLAGS_READONLY | m->uOpenFlagsDef,
+                             VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO | m->uOpenFlagsDef,
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
                     throw setError(VBOX_E_FILE_ERROR,

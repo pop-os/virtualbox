@@ -1229,6 +1229,9 @@ VMMR3_INT_DECL(int) VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu)
         if (RT_UNLIKELY(!CPUMGetHyperCR3(pVCpu) || CPUMGetHyperCR3(pVCpu) != PGMGetHyperCR3(pVCpu)))
             EMR3FatalError(pVCpu, VERR_VMM_HYPER_CR3_MISMATCH);
         PGMMapCheck(pVM);
+# ifdef VBOX_WITH_SAFE_STR
+        SELMR3CheckShadowTR(pVM);
+# endif
 #endif
         int rc;
         do
@@ -1362,7 +1365,10 @@ DECLCALLBACK(int) vmmR3SendInitIpi(PVM pVM, VMCPUID idCpu)
     VMCPU_ASSERT_EMT(pVCpu);
 
     Log(("vmmR3SendInitIpi for VCPU %d\n", idCpu));
+
+    PGMR3ResetCpu(pVM, pVCpu);
     CPUMR3ResetCpu(pVCpu);
+
     return VINF_EM_WAIT_SIPI;
 }
 

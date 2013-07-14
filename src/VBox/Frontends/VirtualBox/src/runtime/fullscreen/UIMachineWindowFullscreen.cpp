@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,15 +26,14 @@
 #endif /* Q_WS_MAC */
 
 /* GUI includes: */
-#include "UIDefs.h"
-#include "VBoxMiniToolBar.h"
+#include "VBoxGlobal.h"
 #include "UISession.h"
 #include "UIActionPoolRuntime.h"
 #include "UIMachineLogicFullscreen.h"
 #include "UIMachineWindowFullscreen.h"
+#include "VBoxMiniToolBar.h"
 
 /* COM includes: */
-#include "CMachine.h"
 #include "CSnapshot.h"
 
 UIMachineWindowFullscreen::UIMachineWindowFullscreen(UIMachineLogic *pMachineLogic, ulong uScreenId)
@@ -53,20 +52,6 @@ void UIMachineWindowFullscreen::sltMachineStateChanged()
     updateAppearanceOf(UIVisualElement_MiniToolBar);
 }
 
-void UIMachineWindowFullscreen::sltPlaceOnScreen()
-{
-    /* Get corresponding screen: */
-    int iScreen = qobject_cast<UIMachineLogicFullscreen*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId);
-    /* Calculate working area: */
-    QRect workingArea = QApplication::desktop()->screenGeometry(iScreen);
-    /* Move to the appropriate position: */
-    move(workingArea.topLeft());
-    /* Resize to the appropriate size: */
-    resize(workingArea.size());
-    /* Process pending move & resize events: */
-    qApp->processEvents();
-}
-
 void UIMachineWindowFullscreen::sltPopupMainMenu()
 {
     /* Popup main-menu if present: */
@@ -83,10 +68,10 @@ void UIMachineWindowFullscreen::prepareMenu()
     UIMachineWindow::prepareMenu();
 
     /* Prepare menu: */
-#ifdef Q_WS_MAC
-    setMenuBar(uisession()->newMenuBar());
-#endif /* Q_WS_MAC */
-    m_pMainMenu = uisession()->newMenu();
+    CMachine machine = session().GetMachine();
+    RuntimeMenuType restrictedMenus = VBoxGlobal::restrictedRuntimeMenuTypes(machine);
+    RuntimeMenuType allowedMenus = static_cast<RuntimeMenuType>(RuntimeMenuType_All ^ restrictedMenus);
+    m_pMainMenu = uisession()->newMenu(allowedMenus);
 }
 
 void UIMachineWindowFullscreen::prepareVisualState()
@@ -124,7 +109,9 @@ void UIMachineWindowFullscreen::prepareMiniToolbar()
                                          true, fIsAutoHide);
     m_pMiniToolBar->updateDisplay(true, true);
     QList<QMenu*> menus;
-    QList<QAction*> actions = uisession()->newMenu()->actions();
+    RuntimeMenuType restrictedMenus = VBoxGlobal::restrictedRuntimeMenuTypes(m);
+    RuntimeMenuType allowedMenus = static_cast<RuntimeMenuType>(RuntimeMenuType_All ^ restrictedMenus);
+    QList<QAction*> actions = uisession()->newMenu(allowedMenus)->actions();
     for (int i=0; i < actions.size(); ++i)
         menus << actions.at(i)->menu();
     *m_pMiniToolBar << menus;
@@ -167,40 +154,65 @@ void UIMachineWindowFullscreen::cleanupMenu()
     UIMachineWindow::cleanupMenu();
 }
 
+void UIMachineWindowFullscreen::placeOnScreen()
+{
+    /* Get corresponding screen: */
+    int iScreen = qobject_cast<UIMachineLogicFullscreen*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId);
+    /* Calculate working area: */
+    QRect workingArea = QApplication::desktop()->screenGeometry(iScreen);
+    /* Move to the appropriate position: */
+    move(workingArea.topLeft());
+    /* Resize to the appropriate size: */
+    resize(workingArea.size());
+    /* Process pending move & resize events: */
+    qApp->processEvents();
+}
+
 void UIMachineWindowFullscreen::showInNecessaryMode()
 {
-    /* Show window if we have to: */
+    /* Should we show window?: */
     if (uisession()->isScreenVisible(m_uScreenId))
     {
-        /* Make sure the window is placed on valid screen
-         * before we are show fullscreen window: */
-        sltPlaceOnScreen();
+        /* Do we have the seamless logic? */
+        if (UIMachineLogicFullscreen *pFullscreenLogic = qobject_cast<UIMachineLogicFullscreen*>(machineLogic()))
+        {
+            /* Is this guest screen has own host screen? */
+            if (pFullscreenLogic->hasHostScreenForGuestScreen(m_uScreenId))
+            {
+                /* Make sure the window is placed on valid screen
+                 * before we are show fullscreen window: */
+                placeOnScreen();
 
 #ifdef Q_WS_WIN
-        /* On Windows we should activate main window first,
-         * because entering fullscreen there doesn't means window will be auto-activated,
-         * so no window-activation event will be received
-         * and no keyboard-hook created otherwise... */
-        if (m_uScreenId == 0)
-            setWindowState(windowState() | Qt::WindowActive);
+                /* On Windows we should activate main window first,
+                 * because entering fullscreen there doesn't means window will be auto-activated,
+                 * so no window-activation event will be received
+                 * and no keyboard-hook created otherwise... */
+                if (m_uScreenId == 0)
+                    setWindowState(windowState() | Qt::WindowActive);
 #endif /* Q_WS_WIN */
 
-        /* Show window fullscreen: */
-        showFullScreen();
+                /* Show window fullscreen: */
+                showFullScreen();
 
-        /* Make sure the window is placed on valid screen again
-         * after window is shown & window's decorations applied.
-         * That is required due to X11 Window Geometry Rules. */
-        sltPlaceOnScreen();
+                /* Make sure the window is placed on valid screen again
+                 * after window is shown & window's decorations applied.
+                 * That is required due to X11 Window Geometry Rules. */
+                placeOnScreen();
 
 #ifdef Q_WS_MAC
-        /* Make sure it is really on the right place (especially on the Mac): */
-        QRect r = QApplication::desktop()->screenGeometry(qobject_cast<UIMachineLogicFullscreen*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId));
-        move(r.topLeft());
+                /* Make sure it is really on the right place (especially on the Mac): */
+                QRect r = QApplication::desktop()->screenGeometry(qobject_cast<UIMachineLogicFullscreen*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId));
+                move(r.topLeft());
 #endif /* Q_WS_MAC */
+
+                /* Return early: */
+                return;
+            }
+        }
     }
-    /* Else hide window: */
-    else hide();
+    /* Hide in other cases: */
+    hide();
 }
 
 void UIMachineWindowFullscreen::updateAppearanceOf(int iElement)

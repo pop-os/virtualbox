@@ -119,6 +119,17 @@ RT_EXPORT_SYMBOL(RTLdrGetSymbol);
  * @returns iprt status code.
  * @param   hLdrMod         The loader module handle.
  */
+RTDECL(PFNRT) RTLdrGetFunction(RTLDRMOD hLdrMod, const char *pszSymbol)
+{
+    PFNRT pfn;
+    int rc = RTLdrGetSymbol(hLdrMod, pszSymbol, (void **)&pfn);
+    if (RT_SUCCESS(rc))
+        return pfn;
+    return NULL;
+}
+RT_EXPORT_SYMBOL(RTLdrGetFunction);
+
+
 RTDECL(int) RTLdrClose(RTLDRMOD hLdrMod)
 {
     LogFlow(("RTLdrClose: hLdrMod=%RTldrm\n", hLdrMod));

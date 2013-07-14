@@ -225,13 +225,6 @@ static RenderMode vboxGetRenderMode (const char *aModeStr)
 
 #if defined (Q_WS_MAC) && defined (VBOX_GUI_USE_QUARTZ2D)
     mode = Quartz2DMode;
-# ifdef RT_ARCH_X86
-    /* Quartz2DMode doesn't refresh correctly on 32-bit Snow Leopard, use image mode. */
-//    char szRelease[80];
-//    if (    RT_SUCCESS (RTSystemQueryOSInfo (RTSYSOSINFO_RELEASE, szRelease, sizeof (szRelease)))
-//        &&  !strncmp (szRelease, "10.", 3))
-//        mode = QImageMode;
-# endif
 #elif (defined (Q_WS_WIN32) || defined (Q_WS_PM) || defined (Q_WS_X11)) && defined (VBOX_GUI_USE_QIMAGE)
     mode = QImageMode;
 #elif defined (Q_WS_X11) && defined (VBOX_GUI_USE_SDL)
@@ -3850,6 +3843,7 @@ bool VBoxGlobal::isWddmCompatibleOsType(const QString &strGuestOSTypeId)
     return    strGuestOSTypeId.startsWith("WindowsVista")
            || strGuestOSTypeId.startsWith("Windows7")
            || strGuestOSTypeId.startsWith("Windows8")
+           || strGuestOSTypeId.startsWith("Windows81")
            || strGuestOSTypeId.startsWith("Windows2008")
            || strGuestOSTypeId.startsWith("Windows2012");
 }
@@ -3922,6 +3916,251 @@ QString VBoxGlobal::fullMediumFormatName(const QString &strBaseMediumFormatName)
     else if (strBaseMediumFormatName == "QCOW")
         return tr("QCOW (QEMU Copy-On-Write)");
     return strBaseMediumFormatName;
+}
+
+/* static */
+bool VBoxGlobal::isApprovedByExtraData(CVirtualBox &vbox, const QString &strExtraDataKey)
+{
+    /* Load corresponding extra-data value: */
+    QString strExtraDataValue(vbox.GetExtraData(strExtraDataKey));
+
+    /* 'false' if value was not set: */
+    if (strExtraDataValue.isEmpty())
+        return false;
+
+    /* Handle particular values: */
+    return    strExtraDataValue.compare("true", Qt::CaseInsensitive) == 0
+           || strExtraDataValue.compare("yes", Qt::CaseInsensitive) == 0
+           || strExtraDataValue.compare("on", Qt::CaseInsensitive) == 0
+           || strExtraDataValue == "1";
+}
+
+/* static */
+bool VBoxGlobal::isApprovedByExtraData(CMachine &machine, const QString &strExtraDataKey)
+{
+    /* Load corresponding extra-data value: */
+    QString strExtraDataValue(machine.GetExtraData(strExtraDataKey));
+
+    /* 'false' if value was not set: */
+    if (strExtraDataValue.isEmpty())
+        return false;
+
+    /* Handle particular values: */
+    return    strExtraDataValue.compare("true", Qt::CaseInsensitive) == 0
+           || strExtraDataValue.compare("yes", Qt::CaseInsensitive) == 0
+           || strExtraDataValue.compare("on", Qt::CaseInsensitive) == 0
+           || strExtraDataValue == "1";
+}
+
+/* static */
+bool VBoxGlobal::shouldWeAllowApplicationUpdate(CVirtualBox &vbox)
+{
+    /* 'true' if disabling is not approved by the extra-data: */
+    return !isApprovedByExtraData(vbox, GUI_PreventApplicationUpdate);
+}
+
+/* static */
+bool VBoxGlobal::shouldWeShowMachine(CMachine &machine)
+{
+    /* 'false' for null machines: */
+    if (machine.isNull())
+        return false;
+
+    /* 'true' for inaccessible machines,
+     * because we can't verify anything in that case: */
+    if (!machine.GetAccessible())
+        return true;
+
+    /* 'true' if hiding is not approved by the extra-data: */
+    return !isApprovedByExtraData(machine, GUI_HideFromManager);
+}
+
+/* static */
+bool VBoxGlobal::shouldWeAllowMachineReconfiguration(CMachine &machine,
+                                                     bool fIncludingMachineGeneralCheck /*= false*/,
+                                                     bool fIncludingMachineStateCheck /*= false*/)
+{
+    /* Should we perform machine general check? */
+    if (fIncludingMachineGeneralCheck)
+    {
+        /* 'false' for null machines: */
+        if (machine.isNull())
+            return false;
+
+        /* 'false' for inaccessible machines,
+         * because we can't configure anything in that case: */
+        if (!machine.GetAccessible())
+            return true;
+    }
+
+    /* Should we perform machine state check? */
+    if (fIncludingMachineStateCheck)
+    {
+        /* 'false' for machines in [stuck] state: */
+        if (machine.GetState() == KMachineState_Stuck)
+            return false;
+    }
+
+    /* 'true' if reconfiguration is not restricted by the extra-data: */
+    return !isApprovedByExtraData(machine, GUI_PreventReconfiguration);
+}
+
+/* static */
+bool VBoxGlobal::shouldWeShowDetails(CMachine &machine,
+                                     bool fIncludingMachineGeneralCheck /*= false*/)
+{
+    /* Should we perform machine general check? */
+    if (fIncludingMachineGeneralCheck)
+    {
+        /* 'false' for null machines: */
+        if (machine.isNull())
+            return false;
+
+        /* 'true' for inaccessible machines,
+         * because we can't verify anything in that case: */
+        if (!machine.GetAccessible())
+            return true;
+    }
+
+    /* 'true' if hiding is not approved by the extra-data: */
+    return !isApprovedByExtraData(machine, GUI_HideDetails);
+}
+
+/* static */
+bool VBoxGlobal::shouldWeAutoMountGuestScreens(CMachine &machine,
+                                               bool fIncludingSanityCheck /*= true*/)
+{
+    if (fIncludingSanityCheck)
+    {
+        /* 'false' for null machines,
+         * there is nothing to start anyway: */
+        if (machine.isNull())
+            return false;
+
+        /* 'false' for inaccessible machines,
+         * we can't start them anyway: */
+        if (!machine.GetAccessible())
+            return false;
+    }
+
+    /* 'true' if guest-screen auto-mounting approved by the extra-data: */
+    return isApprovedByExtraData(machine, GUI_AutomountGuestScreens);
+}
+
+/* static */
+bool VBoxGlobal::shouldWeAllowSnapshotOperations(CMachine &machine,
+                                                 bool fIncludingSanityCheck /*= true*/)
+{
+    if (fIncludingSanityCheck)
+    {
+        /* 'false' for null machines,
+         * we can't operate snapshot in that case: */
+        if (machine.isNull())
+            return false;
+
+        /* 'false' for inaccessible machines,
+         * we can't operate snapshot in that case: */
+        if (!machine.GetAccessible())
+            return false;
+    }
+
+    /* 'true' if snapshot operations are not restricted by the extra-data: */
+    return !isApprovedByExtraData(machine, GUI_PreventSnapshotOperations);
+}
+
+/* static */
+RuntimeMenuType VBoxGlobal::restrictedRuntimeMenuTypes(CMachine &machine)
+{
+    /* Prepare result: */
+    RuntimeMenuType result = RuntimeMenuType_Invalid;
+    /* Load restricted runtime-menu-types: */
+    QString strList(machine.GetExtraData(GUI_RestrictedRuntimeMenus));
+    QStringList list = strList.split(',');
+    /* Convert list into appropriate values: */
+    foreach (const QString &strValue, list)
+    {
+        RuntimeMenuType value = gpConverter->fromInternalString<RuntimeMenuType>(strValue);
+        if (value != RuntimeMenuType_Invalid)
+            result = static_cast<RuntimeMenuType>(result | value);
+    }
+    /* Return result: */
+    return result;
+}
+
+/* static */
+QList<IndicatorType> VBoxGlobal::restrictedStatusBarIndicators(CMachine &machine)
+{
+    /* Prepare result: */
+    QList<IndicatorType> result;
+    /* Load restricted status-bar-indicators: */
+    QString strList(machine.GetExtraData(GUI_RestrictedStatusBarIndicators));
+    QStringList list = strList.split(',');
+    /* Convert list into appropriate values: */
+    foreach (const QString &strValue, list)
+    {
+        IndicatorType value = gpConverter->fromInternalString<IndicatorType>(strValue);
+        if (value != IndicatorType_Invalid)
+            result << value;
+    }
+    /* Return result: */
+    return result;
+}
+
+/* static */
+QList<MachineCloseAction> VBoxGlobal::restrictedMachineCloseActions(CMachine &machine)
+{
+    /* Prepare result: */
+    QList<MachineCloseAction> result;
+    /* Load restricted machine-close-actions: */
+    QString strList(machine.GetExtraData(GUI_RestrictedCloseActions));
+    QStringList list = strList.split(',');
+    /* Convert list into appropriate values: */
+    foreach (const QString &strValue, list)
+    {
+        MachineCloseAction value = gpConverter->fromInternalString<MachineCloseAction>(strValue);
+        if (value != MachineCloseAction_Invalid)
+            result << value;
+    }
+    /* Return result: */
+    return result;
+}
+
+/* static */
+QList<GlobalSettingsPageType> VBoxGlobal::restrictedGlobalSettingsPages(CVirtualBox &vbox)
+{
+    /* Prepare result: */
+    QList<GlobalSettingsPageType> result;
+    /* Load restricted global-settings-pages: */
+    QString strList(vbox.GetExtraData(GUI_RestrictedGlobalSettingsPages));
+    QStringList list = strList.split(',');
+    /* Convert list into appropriate values: */
+    foreach (const QString &strValue, list)
+    {
+        GlobalSettingsPageType value = gpConverter->fromInternalString<GlobalSettingsPageType>(strValue);
+        if (value != GlobalSettingsPageType_Invalid)
+            result << value;
+    }
+    /* Return result: */
+    return result;
+}
+
+/* static */
+QList<MachineSettingsPageType> VBoxGlobal::restrictedMachineSettingsPages(CMachine &machine)
+{
+    /* Prepare result: */
+    QList<MachineSettingsPageType> result;
+    /* Load restricted machine-settings-pages: */
+    QString strList(machine.GetExtraData(GUI_RestrictedMachineSettingsPages));
+    QStringList list = strList.split(',');
+    /* Convert list into appropriate values: */
+    foreach (const QString &strValue, list)
+    {
+        MachineSettingsPageType value = gpConverter->fromInternalString<MachineSettingsPageType>(strValue);
+        if (value != MachineSettingsPageType_Invalid)
+            result << value;
+    }
+    /* Return result: */
+    return result;
 }
 
 // Public slots
@@ -4329,6 +4568,8 @@ void VBoxGlobal::init()
         {"Windows7_64",     ":/os_win7_64.png"},
         {"Windows8",        ":/os_win8.png"},
         {"Windows8_64",     ":/os_win8_64.png"},
+        {"Windows81",       ":/os_win8.png"},
+        {"Windows81_64",    ":/os_win8_64.png"},
         {"Windows2012_64",  ":/os_win2k12_64.png"},
         {"WindowsNT",       ":/os_win_other.png"},
         {"OS2Warp3",        ":/os_os2warp3.png"},

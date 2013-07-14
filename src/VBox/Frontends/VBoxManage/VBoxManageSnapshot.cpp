@@ -341,12 +341,11 @@ int handleSnapshot(HandlerArg *a)
             if (FAILED(rc))
                 break;
 
-#if 0
             /*
              * XXX for now, do ALWAYS pause as live snapshots are still broken
              */
+            fPause = true;
             if (fPause)
-#endif
             {
                 MachineState_T machineState;
                 CHECK_ERROR_BREAK(console, COMGETTER(State)(&machineState));

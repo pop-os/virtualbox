@@ -9,6 +9,10 @@
 
 #define SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS       28
 #define SHCROGL_SSM_VERSION_BEFORE_FRONT_DRAW_TRACKING 29
+/* VBox 4.2.12 had a bug that incorrectly CRMuralInfo data
+ * in a different format without changing the state version,
+ * i.e. 30 version can have both "correct" and "incorrect" CRMuralInfo data */
+#define SHCROGL_SSM_VERSION_WITH_BUGGY_MURAL_INFO      30
 #define SHCROGL_SSM_VERSION                            30
 
 /* These define the Chromium release number.

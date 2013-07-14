@@ -34,11 +34,13 @@ UIMachineShortcuts::UIMachineShortcuts()
     m_Shortcuts[TypeCABSShortcut]              = UIKeySequence("TypeCABS",              "Backspace");
     m_Shortcuts[PauseShortcut]                 = UIKeySequence("Pause",                 "P");
     m_Shortcuts[ResetShortcut]                 = UIKeySequence("Reset",                 "R");
+    m_Shortcuts[SaveShortcut]                  = UIKeySequence("Save");
 #ifdef Q_WS_MAC
     m_Shortcuts[ShutdownShortcut]              = UIKeySequence("Shutdown",              "U");
 #else /* Q_WS_MAC */
     m_Shortcuts[ShutdownShortcut]              = UIKeySequence("Shutdown",              "H");
 #endif /* Q_WS_MAC */
+    m_Shortcuts[PowerOffShortcut]              = UIKeySequence("PowerOff");
     m_Shortcuts[CloseShortcut]                 = UIKeySequence("Close",                 "Q");
     m_Shortcuts[FullscreenModeShortcut]        = UIKeySequence("FullscreenMode",        "F");
     m_Shortcuts[SeamlessModeShortcut]          = UIKeySequence("SeamlessMode",          "L");

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,7 @@ bool UIMachineLogicFullscreen::checkAvailability()
     /* Temporary get a machine object: */
     const CMachine &machine = uisession()->session().GetMachine();
 
+#if 0
     /* Check that there are enough physical screens are connected: */
     int cHostScreens = m_pScreenLayout->hostScreenCount();
     int cGuestScreens = m_pScreenLayout->guestScreenCount();
@@ -60,6 +61,7 @@ bool UIMachineLogicFullscreen::checkAvailability()
         msgCenter().cannotEnterFullscreenMode();
         return false;
     }
+#endif
 
     /* Check if there is enough physical memory to enter fullscreen: */
     if (uisession()->isGuestAdditionsActive())
@@ -89,30 +91,51 @@ bool UIMachineLogicFullscreen::checkAvailability()
     return true;
 }
 
-void UIMachineLogicFullscreen::prepare()
+int UIMachineLogicFullscreen::hostScreenForGuestScreen(int iScreenId) const
 {
+    return m_pScreenLayout->hostScreenForGuestScreen(iScreenId);
+}
+
+bool UIMachineLogicFullscreen::hasHostScreenForGuestScreen(int iScreenId) const
+{
+    return m_pScreenLayout->hasHostScreenForGuestScreen(iScreenId);
+}
+
+#ifdef Q_WS_MAC
+void UIMachineLogicFullscreen::sltChangePresentationMode(bool /* fEnabled */)
+{
+    setPresentationModeEnabled(true);
+}
+
+void UIMachineLogicFullscreen::sltScreenLayoutChanged()
+{
+    setPresentationModeEnabled(true);
+}
+#endif /* Q_WS_MAC */
+
+void UIMachineLogicFullscreen::sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo)
+{
+    LogRelFlow(("UIMachineLogicFullscreen::GuestScreenCountChanged.\n"));
+
+    /* Update multi-screen layout before any window update: */
+    if (changeType == KGuestMonitorChangedEventType_Enabled ||
+        changeType == KGuestMonitorChangedEventType_Disabled)
+        m_pScreenLayout->rebuild();
+
     /* Call to base-class: */
-    UIMachineLogic::prepare();
-
-#ifdef Q_WS_MAC
-    /* Prepare fullscreen connections: */
-    prepareFullscreenConnections();
-#endif /* Q_WS_MAC */
+    UIMachineLogic::sltGuestMonitorChange(changeType, uScreenId, screenGeo);
 }
 
-int UIMachineLogicFullscreen::hostScreenForGuestScreen(int screenId) const
+void UIMachineLogicFullscreen::sltHostScreenCountChanged(int cScreenCount)
 {
-    return m_pScreenLayout->hostScreenForGuestScreen(screenId);
-}
+    LogRelFlow(("UIMachineLogicFullscreen::HostScreenCountChanged.\n"));
 
-#ifdef Q_WS_MAC
-void UIMachineLogicFullscreen::prepareFullscreenConnections()
-{
-    /* Presentation mode connection: */
-    connect(gEDataEvents, SIGNAL(sigPresentationModeChange(bool)),
-            this, SLOT(sltChangePresentationMode(bool)));
+    /* Update multi-screen layout before any window update: */
+    m_pScreenLayout->rebuild();
+
+    /* Call to base-class: */
+    UIMachineLogic::sltHostScreenCountChanged(cScreenCount);
 }
-#endif /* Q_WS_MAC */
 
 void UIMachineLogicFullscreen::prepareActionGroups()
 {
@@ -121,12 +144,16 @@ void UIMachineLogicFullscreen::prepareActionGroups()
 
     /* Adjust-window action isn't allowed in fullscreen: */
     gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(false);
-
-    /* Add the view menu: */
-    QMenu *pMenu = gActionPool->action(UIActionIndexRuntime_Menu_View)->menu();
-    m_pScreenLayout->initialize(pMenu);
-    pMenu->setVisible(true);
 }
+
+#ifdef Q_WS_MAC
+void UIMachineLogicFullscreen::prepareOtherConnections()
+{
+    /* Presentation mode connection: */
+    connect(gEDataEvents, SIGNAL(sigPresentationModeChange(bool)),
+            this, SLOT(sltChangePresentationMode(bool)));
+}
+#endif /* Q_WS_MAC */
 
 void UIMachineLogicFullscreen::prepareMachineWindows()
 {
@@ -144,18 +171,18 @@ void UIMachineLogicFullscreen::prepareMachineWindows()
     m_pScreenLayout->update();
 
     /* Create machine window(s): */
-    for (int cScreenId = 0; cScreenId < m_pScreenLayout->guestScreenCount(); ++cScreenId)
+    for (uint cScreenId = 0; cScreenId < session().GetMachine().GetMonitorCount(); ++cScreenId)
         addMachineWindow(UIMachineWindow::create(this, cScreenId));
 
     /* Connect screen-layout change handler: */
     for (int i = 0; i < machineWindows().size(); ++i)
-        connect(m_pScreenLayout, SIGNAL(screenLayoutChanged()),
-                static_cast<UIMachineWindowFullscreen*>(machineWindows()[i]), SLOT(sltPlaceOnScreen()));
+        connect(m_pScreenLayout, SIGNAL(sigScreenLayoutChanged()),
+                static_cast<UIMachineWindowFullscreen*>(machineWindows()[i]), SLOT(sltShowInNecessaryMode()));
 
 #ifdef Q_WS_MAC
     /* If the user change the screen, we have to decide again if the
      * presentation mode should be changed. */
-    connect(m_pScreenLayout, SIGNAL(screenLayoutChanged()),
+    connect(m_pScreenLayout, SIGNAL(sigScreenLayoutChanged()),
             this, SLOT(sltScreenLayoutChanged()));
     /* Note: Presentation mode has to be set *after* the windows are created. */
     setPresentationModeEnabled(true);
@@ -163,6 +190,15 @@ void UIMachineLogicFullscreen::prepareMachineWindows()
 
     /* Remember what machine window(s) created: */
     setMachineWindowsCreated(true);
+}
+
+void UIMachineLogicFullscreen::prepareMenu()
+{
+    /* Call to base-class: */
+    UIMachineLogic::prepareMenu();
+
+    /* Finally update view-menu: */
+    m_pScreenLayout->setViewMenu(gActionPool->action(UIActionIndexRuntime_Menu_View)->menu());
 }
 
 void UIMachineLogicFullscreen::cleanupMachineWindows()
@@ -190,16 +226,6 @@ void UIMachineLogicFullscreen::cleanupActionGroups()
 }
 
 #ifdef Q_WS_MAC
-void UIMachineLogicFullscreen::sltChangePresentationMode(bool /* fEnabled */)
-{
-    setPresentationModeEnabled(true);
-}
-
-void UIMachineLogicFullscreen::sltScreenLayoutChanged()
-{
-    setPresentationModeEnabled(true);
-}
-
 void UIMachineLogicFullscreen::setPresentationModeEnabled(bool fEnabled)
 {
     /* First check if we are on a screen which contains the Dock or the

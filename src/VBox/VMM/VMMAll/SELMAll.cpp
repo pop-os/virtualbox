@@ -22,6 +22,7 @@
 #define LOG_GROUP LOG_GROUP_SELM
 #include <VBox/vmm/selm.h>
 #include <VBox/vmm/stam.h>
+#include <VBox/vmm/em.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/hwaccm.h>
@@ -32,6 +33,8 @@
 #include <iprt/assert.h>
 #include <VBox/vmm/vmm.h>
 #include <iprt/x86.h>
+
+#include "SELMInline.h"
 
 
 /*******************************************************************************
@@ -838,6 +841,23 @@ void selmSetRing1Stack(PVM pVM, uint32_t ss, RTGCPTR32 esp)
 }
 
 
+#ifdef VBOX_WITH_RAW_RING1
+/**
+ * Sets ss:esp for ring1 in main Hypervisor's TSS.
+ *
+ * @param   pVM     Pointer to the VM.
+ * @param   ss      Ring2 SS register value. Pass 0 if invalid.
+ * @param   esp     Ring2 ESP register value.
+ */
+void selmSetRing2Stack(PVM pVM, uint32_t ss, RTGCPTR32 esp)
+{
+    Assert((ss & 3) == 2 || esp == 0);
+    pVM->selm.s.Tss.ss2  = ss;
+    pVM->selm.s.Tss.esp2 = (uint32_t)esp;
+}
+#endif
+
+
 #ifdef VBOX_WITH_RAW_MODE_NOT_R0
 /**
  * Gets ss:esp for ring1 in main Hypervisor's TSS.
@@ -854,8 +874,10 @@ VMMDECL(int) SELMGetRing1Stack(PVM pVM, uint32_t *pSS, PRTGCPTR32 pEsp)
     Assert(pVM->cCpus == 1);
     PVMCPU pVCpu = &pVM->aCpus[0];
 
+#ifdef SELM_TRACK_GUEST_TSS_CHANGES
     if (pVM->selm.s.fSyncTSSRing0Stack)
     {
+#endif
         RTGCPTR GCPtrTss = pVM->selm.s.GCPtrGuestTss;
         int     rc;
         VBOXTSS tss;
@@ -912,7 +934,9 @@ l_tryagain:
         /* Update our TSS structure for the guest's ring 1 stack */
         selmSetRing1Stack(pVM, tss.ss0 | 1, (RTGCPTR32)tss.esp0);
         pVM->selm.s.fSyncTSSRing0Stack = false;
+#ifdef SELM_TRACK_GUEST_TSS_CHANGES
     }
+#endif
 
     *pSS  = pVM->selm.s.Tss.ss1;
     *pEsp = (RTGCPTR32)pVM->selm.s.Tss.esp1;

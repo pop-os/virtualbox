@@ -65,8 +65,8 @@ RT_C_DECLS_END
 #endif /* VBOX_DEVICE_STRUCT_TESTCASE */
 
 
-#define VNET_TX_DELAY           150   /* 150 microseconds */
-#define VNET_MAX_FRAME_SIZE     65536  // TODO: Is it the right limit?
+#define VNET_TX_DELAY           150   /**< 150 microseconds */
+#define VNET_MAX_FRAME_SIZE     65535 + 18  /**< Max IP packet size + Ethernet header with VLAN tag */
 #define VNET_MAC_FILTER_LEN     32
 #define VNET_MAX_VID            (1 << 12)
 
@@ -380,6 +380,7 @@ PDMBOTHCBDECL(uint32_t) vnetGetHostFeatures(void *pvState)
         | VNET_F_HOST_TSO4
         | VNET_F_HOST_TSO6
         | VNET_F_HOST_UFO
+        | VNET_F_GUEST_CSUM   /* We expect the guest to accept partial TCP checksums (see @bugref{4796}) */
         | VNET_F_GUEST_TSO4
         | VNET_F_GUEST_TSO6
         | VNET_F_GUEST_UFO
@@ -1166,6 +1167,8 @@ static void vnetTransmitPendingPackets(PVNETSTATE pState, PVQUEUE pQueue, bool f
             /* Compute total frame size. */
             for (unsigned int i = 1; i < elem.nOut; i++)
                 uSize += elem.aSegsOut[i].cb;
+            Log5(("%s vnetTransmitPendingPackets: complete frame is %u bytes.\n",
+                  INSTANCE(pState), uSize));
             Assert(uSize <= VNET_MAX_FRAME_SIZE);
             if (pState->pDrv)
             {
@@ -1222,7 +1225,7 @@ static void vnetTransmitPendingPackets(PVNETSTATE pState, PVQUEUE pQueue, bool f
                             }
                             /* Update GSO structure embedded into the frame */
                             ((PPDMNETWORKGSO)pSgBuf->pvUser)->cbHdrsTotal = pGso->cbHdrsTotal;
-                            ((PPDMNETWORKGSO)pSgBuf->pvUser)->cbHdrsSeg   = pGso->cbHdrsTotal;
+                            ((PPDMNETWORKGSO)pSgBuf->pvUser)->cbHdrsSeg   = pGso->cbHdrsSeg;
                             Log4(("%s vnetTransmitPendingPackets: adjusted HdrLen to %d.\n",
                                   INSTANCE(pState), pGso->cbHdrsTotal));
                         }
