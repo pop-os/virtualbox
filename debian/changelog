@@ -1,3 +1,10 @@
+virtualbox (4.2.16-dfsg-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+    - Fixes CVE-2013-3792: virtio-net host DoS (Closes: #715327)
+
+ -- Felix Geyer <fgeyer@debian.org>  Sun, 14 Jul 2013 17:52:45 +0200
+
 virtualbox (4.2.10-dfsg-1) unstable; urgency=low
 
   * New upstream release. (Closes: #691148)
