@@ -1187,6 +1187,7 @@ static int VBoxServiceControlThreadAllocateArgv(const char *pszArgv0,
                                                 const char * const *papszArgs,
                                                 bool fExpandArgs, char ***ppapszArgv)
 {
+    AssertPtrReturn(pszArgv0, VERR_INVALID_POINTER);
     AssertPtrReturn(ppapszArgv, VERR_INVALID_POINTER);
 
     VBoxServiceVerbose(3, "VBoxServiceControlThreadPrepareArgv: pszArgv0=%p, papszArgs=%p, fExpandArgs=%RTbool, ppapszArgv=%p\n",
@@ -1261,6 +1262,9 @@ static int VBoxServiceControlThreadAllocateArgv(const char *pszArgv0,
         RTMemFree(papszNewArgv);
     }
 
+#ifdef DEBUG
+    VBoxServiceVerbose(3, "VBoxServiceControlThreadPrepareArgv: returned rc=%Rrc\n", rc);
+#endif
     return rc;
 }
 
@@ -1317,22 +1321,45 @@ static int VBoxServiceControlThreadCreateProcess(const char *pszExec, const char
     {
         /* Use a predefined sysprep path as default. */
         char szSysprepCmd[RTPATH_MAX] = "C:\\sysprep\\sysprep.exe";
+        /** @todo Check digital signature of file above before executing it? */
 
         /*
-         * On Windows Vista (and up) sysprep is located in "system32\\sysprep\\sysprep.exe",
+         * On Windows Vista (and up) sysprep is located in "system32\\Sysprep\\sysprep.exe",
          * so detect the OS and use a different path.
          */
         OSVERSIONINFOEX OSInfoEx;
         RT_ZERO(OSInfoEx);
         OSInfoEx.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
-        if (    GetVersionEx((LPOSVERSIONINFO) &OSInfoEx)
+        BOOL fRet = GetVersionEx((LPOSVERSIONINFO) &OSInfoEx);
+        if (    fRet
             &&  OSInfoEx.dwPlatformId == VER_PLATFORM_WIN32_NT
             &&  OSInfoEx.dwMajorVersion >= 6 /* Vista or later */)
         {
             rc = RTEnvGetEx(RTENV_DEFAULT, "windir", szSysprepCmd, sizeof(szSysprepCmd), NULL);
+#ifndef RT_ARCH_AMD64
+            /* Don't execute 64-bit sysprep from a 32-bit service host! */
+            char szSysWow64[RTPATH_MAX];
+            if (RTStrPrintf(szSysWow64, sizeof(szSysWow64), "%s", szSysprepCmd))
+            {
+                rc = RTPathAppend(szSysWow64, sizeof(szSysWow64), "SysWow64");
+                AssertRC(rc);
+            }
+            if (   RT_SUCCESS(rc)
+                && RTPathExists(szSysWow64))
+                VBoxServiceVerbose(0, "Warning: This service is 32-bit; could not execute sysprep on 64-bit OS!\n");
+#endif
             if (RT_SUCCESS(rc))
-                rc = RTPathAppend(szSysprepCmd, sizeof(szSysprepCmd), "system32\\sysprep\\sysprep.exe");
+                rc = RTPathAppend(szSysprepCmd, sizeof(szSysprepCmd), "system32\\Sysprep\\sysprep.exe");
+            if (RT_SUCCESS(rc))
+                RTPathChangeToDosSlashes(szSysprepCmd, false /* No forcing necessary */);
+
+            if (RT_FAILURE(rc))
+                VBoxServiceError("Failed to detect sysrep location, rc=%Rrc\n", rc);
         }
+        else if (!fRet)
+            VBoxServiceError("Failed to retrieve OS information, last error=%ld\n", GetLastError());
+
+        VBoxServiceVerbose(3, "Sysprep executable is: %s\n", szSysprepCmd);
 
         if (RT_SUCCESS(rc))
         {
@@ -1341,6 +1368,9 @@ static int VBoxServiceControlThreadCreateProcess(const char *pszExec, const char
                                                       fExpandArgs, &papszArgsExp);
             if (RT_SUCCESS(rc))
             {
+                /* As we don't specify credentials for the sysprep process, it will
+                 * run under behalf of the account VBoxService was started under, most
+                 * likely local system. */
                 rc = RTProcCreateEx(szSysprepCmd, papszArgsExp, hEnv, 0 /* fFlags */,
                                     phStdIn, phStdOut, phStdErr, NULL /* pszAsUser */,
                                     NULL /* pszPassword */, phProcess);

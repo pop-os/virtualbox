@@ -380,8 +380,8 @@ Statistics update:  disabled
       </orderedlist></para>
   </sect1>
 
-  <sect1>
-    <title id="vboxmanage-createvm">VBoxManage createvm</title>
+  <sect1 id="vboxmanage-createvm">
+    <title>VBoxManage createvm</title>
 
     <para>This command creates a new XML virtual machine definition
     file.</para>
@@ -1558,8 +1558,8 @@ Virtual system 0:
     become unregistered in any case.</para>
   </sect1>
 
-  <sect1>
-    <title id="vboxmanage-storageattach">VBoxManage storageattach</title>
+  <sect1 id="vboxmanage-storageattach">
+    <title>VBoxManage storageattach</title>
 
     <para>This command attaches/modifies/removes a storage medium connected to
     a storage controller that was previously added with the
@@ -2996,7 +2996,7 @@ Value: 2006.01.01</screen>
 
     <para>The "debugvm" commands are for experts who want to tinker with the
     exact details of virtual machine execution. Like the VM debugger described
-    in <xref linkend="debugger" />, these commands are only useful if you are
+    in <xref linkend="ts_debugger" />, these commands are only useful if you are
     very familiar with the details of the PC architecture and how to debug
     software.</para>
 
@@ -3101,8 +3101,8 @@ Value: 2006.01.01</screen>
       </itemizedlist></para>
   </sect1>
 
-  <sect1>
-    <title id="metrics">VBoxManage metrics</title>
+  <sect1 id="metrics">
+    <title>VBoxManage metrics</title>
 
     <para>This command supports monitoring the usage of system resources.
     Resources are represented by various metrics associated with the host

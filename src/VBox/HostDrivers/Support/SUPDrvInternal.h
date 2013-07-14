@@ -1,4 +1,4 @@
-/* $Revision: 83687 $ */
+/* $Revision: 86251 $ */
 /** @file
  * VirtualBox Support Driver - Internal header.
  */
@@ -600,6 +600,8 @@ void VBOXCALL   supdrvOSObjInitCreator(PSUPDRVOBJ pObj, PSUPDRVSESSION pSession)
 bool VBOXCALL   supdrvOSObjCanAccess(PSUPDRVOBJ pObj, PSUPDRVSESSION pSession, const char *pszObjName, int *prc);
 bool VBOXCALL   supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt);
 int  VBOXCALL   supdrvOSEnableVTx(bool fEnabled);
+bool VBOXCALL   supdrvOSSuspendVTxOnCpu(void);
+void VBOXCALL   supdrvOSResumeVTxOnCpu(bool fSuspended);
 
 /**
  * Try open the image using the native loader.

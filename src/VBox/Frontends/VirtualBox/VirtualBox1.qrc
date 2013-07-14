@@ -242,5 +242,7 @@
         <file alias="minimize_16px.png">images/minimize_16px.png</file>
         <file alias="restore_16px.png">images/restore_16px.png</file>
         <file alias="close_16px.png">images/close_16px.png</file>
+        <file alias="save_state_16px.png">images/save_state_16px.png</file>
+        <file alias="save_state_disabled_16px.png">images/save_state_disabled_16px.png</file>
     </qresource>
 </RCC>

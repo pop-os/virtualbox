@@ -196,7 +196,7 @@ VBOX_VERSION_MINOR = 2
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 10
+VBOX_VERSION_BUILD = 16
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -342,6 +342,10 @@ endif
 ## @{
 # Enable the tradition raw-mode virtualization.
 VBOX_WITH_RAW_MODE = 1
+# Enable the ring-1 compression option (mainly for QNX).
+VBOX_WITH_RAW_RING1 = 1
+# Enable safe STR (store task register) emulation for raw-mode.
+VBOX_WITH_SAFE_STR = 1
 # Enable support for 64-bit guests.
 VBOX_WITH_64_BITS_GUESTS = 1
 # Enable multi-core VCPUs.
@@ -1480,7 +1484,7 @@ USES += dtrace
 #
 # Compiler optimization flags.
 #
-VBOX_GCC_WARN     ?= -Wall $(VBOX_GCC_Wextra) $(VBOX_GCC_Wno-missing-field-initializers) -Wno-unused -Wno-trigraphs $(VBOX_GCC_fdiagnostics-show-option)
+VBOX_GCC_WARN     ?= -Wall $(VBOX_GCC_Wextra) $(VBOX_GCC_Wno-missing-field-initializers) -Wno-unused -Wno-trigraphs $(VBOX_GCC_fdiagnostics-show-option) $(VBOX_GCC_Wno-unused-parameter)
 VBOX_GCC_WARN_PEDANTIC = -Wshadow $(VBOX_GCC_WARN) -Wno-long-long
 ifdef VBOX_WITH_MASOCHISTIC_WARNINGS
  VBOX_GCC_WARN_PEDANTIC += -Wunused-variable -Wunused-function -Wunused-label -Wunused-parameter
@@ -2228,6 +2232,7 @@ $(PATH_OUT)/GCCConfig.kmk: \
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-missing-field-initializers ?= $(call VBOX_GCC_CHECK_CC,-Wno-missing-field-initializers,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-pointer-to-int-cast        ?= $(call VBOX_GCC_CHECK_CC,-Wno-pointer-to-int-cast,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-variadic-macros   ?= $(call VBOX_GCC_CHECK_CXX,-Wno-variadic-macros,)'
+	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-vla               ?= $(call VBOX_GCC_CHECK_CXX,-Wno-vla,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_fno-stack-protector   ?= $(call VBOX_GCC_CHECK_CC,-fno-stack-protector,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_fno-dwarf2-cfi-asm    ?= $(call VBOX_GCC_CHECK_CC,-fno-dwarf2-cfi-asm,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_fdiagnostics-show-option ?= $(call VBOX_GCC_CHECK_CC,-fdiagnostics-show-option,)'
@@ -2255,6 +2260,12 @@ ifneq ($(KBUILD_TARGET),l4)
 	$(QUIET)$(APPEND) '$@' ' endif'
 	$(QUIET)$(APPEND) '$@' 'endif'
 endif
+# Prevent warnings about unused parameters as of gcc-4.8 as this warning is now very verbose
+	$(QUIET)$(APPEND) '$@' 'ifneq ($$(VBOX_GCC_VERSION_CXX),)'
+	$(QUIET)$(APPEND) '$@' ' ifneq ($$(int-ge $$(VBOX_GCC_VERSION_CXX),40800),)'
+	$(QUIET)$(APPEND) '$@' '  VBOX_GCC_Wno-unused-parameter ?= -Wno-unused-parameter'
+	$(QUIET)$(APPEND) '$@' ' endif'
+	$(QUIET)$(APPEND) '$@' 'endif'
 ifeq ($(KBUILD_TARGET),solaris)
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_msave-args            ?= $(call VBOX_GCC_CHECK_CXX,-msave-args,)'
 # Detect the solaris assembler. It is used by the the 4.x gcc compilers,
@@ -2626,10 +2637,6 @@ SDK_VBOX_OPENSSL_ORDERDEPS ?= $(crypto-headers_1_TARGET)
 SDK_VBOX_OPENSSL_LIBS ?= \
 	$(PATH_STAGE_LIB)/VBox-libssl$(VBOX_SUFF_LIB) \
 	$(PATH_STAGE_LIB)/VBox-libcrypto$(VBOX_SUFF_LIB)
-# Build entire openssl library, not just the minimal subset.
-ifn1of ($(KBUILD_TARGET), win) ## @todo elimiate this stuff, not worth saving 5 seconds of build time.
- VBOX_OPENSSL_ALL = 1
-endif
 
 SDK_VBOX_OPENSSL2      = What you should be using.
 SDK_VBOX_OPENSSL2_EXTENDS = VBOX_OPENSSL
@@ -5201,7 +5208,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 84101 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 86992 $  )
  VBOX_SVN_DEP          := $(wildcard $(PATH_ROOT)/.svn/entries)
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=
@@ -5286,6 +5293,12 @@ else
 	$(PATH_DEVTOOLS)/linux.x86/jdk1.6.0_27 \
 	/usr/lib/jvm/java-6-sun  \
 	/usr/lib/jvm/java-6-openjdk \
+	/usr/lib/jvm/java-6-openjdk-i386 \
+	/usr/lib/jvm/java-6-openjdk-amd64 \
+	/usr/lib/jvm/java-7-openjdk-i386 \
+	/usr/lib/jvm/java-7-openjdk-amd64 \
+	/usr/lib/jvm/default-java \
+	/usr/lib/jvm/java \
 	\
 	/usr/lib/jvm/sun-jdk-1.6 \
 	) /usr/lib/jvm/java-6-sun)

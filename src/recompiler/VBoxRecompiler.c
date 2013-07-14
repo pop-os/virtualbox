@@ -1369,7 +1369,7 @@ REMR3DECL(int) REMR3Run(PVM pVM, PVMCPU pVCpu)
          * Switch to RAW-mode.
          */
         case EXCP_EXECUTE_RAW:
-            Log2(("REMR3Run: cpu_exec -> EXCP_EXECUTE_RAW\n"));
+            Log2(("REMR3Run: cpu_exec -> EXCP_EXECUTE_RAW pc=%RGv\n", pVM->rem.s.Env.eip));
             rc = VINF_EM_RESCHEDULE_RAW;
             break;
 
@@ -1631,8 +1631,17 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
             return false;
         }
 
-        // Only R0
-        if (((fFlags >> HF_CPL_SHIFT) & 3) != 0)
+        if (EMIsRawRing1Enabled(env->pVM))
+        {
+            /* Only ring 0 and 1 supervisor code. */
+            if (((fFlags >> HF_CPL_SHIFT) & 3) == 2) /* ring 1 code is moved into ring 2, so we can't support ring-2 in that case. */
+            {
+                Log2(("raw r0 mode refused: CPL %d\n", (fFlags >> HF_CPL_SHIFT) & 3));
+                return false;
+            }
+        }
+        /* Only R0. */
+        else if (((fFlags >> HF_CPL_SHIFT) & 3) != 0)
         {
             STAM_COUNTER_INC(&gStatRefuseRing1or2);
             Log2(("raw r0 mode refused: CPL %d\n", ((fFlags >> HF_CPL_SHIFT) & 3) ));
@@ -1663,6 +1672,13 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
         }
 #endif
 
+#ifndef VBOX_WITH_RAW_RING1
+        if (((env->eflags >> IOPL_SHIFT) & 3) != 0)
+        {
+            Log2(("raw r0 mode refused: IOPL %d\n", ((env->eflags >> IOPL_SHIFT) & 3)));
+            return false;
+        }
+#endif
         env->state |= CPU_RAW_RING0;
     }
 
@@ -1762,7 +1778,7 @@ void remR3FlushPage(CPUX86State *env, RTGCPTR GCPtr)
      */
     if (pVM->rem.s.fIgnoreInvlPg || pVM->rem.s.cIgnoreAll)
         return;
-    Log(("remR3FlushPage: GCPtr=%RGv\n", GCPtr));
+    LogFlow(("remR3FlushPage: GCPtr=%RGv\n", GCPtr));
     Assert(pVM->rem.s.fInREM || pVM->rem.s.fInStateSync);
 
     //RAWEx_ProfileStop(env, STATS_QEMU_TOTAL);

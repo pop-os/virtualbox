@@ -106,6 +106,8 @@ int crServerGetCurrentEye(void);
 
 GLboolean crServerClientInBeginEnd(const CRClient *client);
 
+int crServerMuralSynchRootVr(CRMuralInfo *mural, uint32_t *pcRects, const RTRECT **ppRects);
+
 GLint crServerDispatchCreateContextEx(const char *dpyName, GLint visualBits, GLint shareCtx, GLint preloadCtxID, int32_t internalID);
 GLint crServerDispatchWindowCreateEx(const char *dpyName, GLint visBits, GLint preloadWinID);
 

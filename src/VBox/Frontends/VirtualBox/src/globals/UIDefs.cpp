@@ -31,6 +31,7 @@ const char* UIDefs::GUI_RecentFolderFD = "GUI/RecentFolderFD";
 const char* UIDefs::GUI_RecentListHD = "GUI/RecentListHD";
 const char* UIDefs::GUI_RecentListCD = "GUI/RecentListCD";
 const char* UIDefs::GUI_RecentListFD = "GUI/RecentListFD";
+const char* UIDefs::GUI_PreventApplicationUpdate = "GUI/PreventApplicationUpdate";
 
 /* Selector-window definitions: */
 const char* UIDefs::GUI_Input_SelectorShortcuts = "GUI/Input/SelectorShortcuts";
@@ -44,8 +45,13 @@ const char* UIDefs::GUI_SelectorVMPositions = "GUI/SelectorVMPositions";
 const char* UIDefs::GUI_LastVMSelected = "GUI/LastVMSelected";
 const char* UIDefs::GUI_LastItemSelected = "GUI/LastItemSelected";
 const char* UIDefs::GUI_GroupDefinitions = "GUI/GroupDefinitions";
+const char* UIDefs::GUI_HideFromManager = "GUI/HideFromManager";
+const char* UIDefs::GUI_PreventReconfiguration = "GUI/PreventReconfiguration";
+const char* UIDefs::GUI_PreventSnapshotOperations = "GUI/PreventSnapshotOperations";
+const char* UIDefs::GUI_HideDetails = "GUI/HideDetails";
 
 /* Machine-window definitions: */
+const char* UIDefs::GUI_RestrictedRuntimeMenus = "GUI/RestrictedRuntimeMenus";
 const char* UIDefs::GUI_Input_MachineShortcuts = "GUI/Input/MachineShortcuts";
 const char* UIDefs::GUI_LastNormalWindowPosition = "GUI/LastNormalWindowPosition";
 const char* UIDefs::GUI_LastScaleWindowPosition = "GUI/LastScaleWindowPosition";
@@ -57,8 +63,15 @@ const char* UIDefs::GUI_Seamless = "GUI/Seamless";
 const char* UIDefs::GUI_Scale = "GUI/Scale";
 const char* UIDefs::GUI_VirtualScreenToHostScreen = "GUI/VirtualScreenToHostScreen";
 const char* UIDefs::GUI_AutoresizeGuest = "GUI/AutoresizeGuest";
+const char* UIDefs::GUI_AutomountGuestScreens = "GUI/AutomountGuestScreens";
 const char* UIDefs::GUI_SaveMountedAtRuntime = "GUI/SaveMountedAtRuntime";
 const char* UIDefs::GUI_PassCAD = "GUI/PassCAD";
+const char* UIDefs::GUI_DefaultCloseAction = "GUI/DefaultCloseAction";
+const char* UIDefs::GUI_RestrictedStatusBarIndicators = "GUI/RestrictedStatusBarIndicators";
+
+/* Settings dialogs stuff: */
+const char* UIDefs::GUI_RestrictedGlobalSettingsPages = "GUI/RestrictedGlobalSettingsPages";
+const char* UIDefs::GUI_RestrictedMachineSettingsPages = "GUI/RestrictedMachineSettingsPages";
 
 /* Mini tool-bar definitions: */
 const char* UIDefs::GUI_ShowMiniToolBar = "GUI/ShowMiniToolBar";

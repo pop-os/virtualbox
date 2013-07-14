@@ -324,9 +324,8 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IN_BSTR location, IVirtualS
             Utf8Str strLocation;
             LONG64  llSize = 0;
 
-            if (    deviceType == DeviceType_HardDisk
-                 && pMedium
-               )
+            if (   deviceType == DeviceType_HardDisk
+                && pMedium)
             {
                 Bstr bstrLocation;
                 rc = pMedium->COMGETTER(Location)(bstrLocation.asOutParam());
@@ -349,6 +348,9 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IN_BSTR location, IVirtualS
 
                 Utf8Str strTargetName = Utf8Str(locInfo.strPath).stripPath().stripExt();
                 strTargetVmdkName = Utf8StrFmt("%s-disk%d.vmdk", strTargetName.c_str(), ++pAppliance->m->cDisks);
+                if (strTargetVmdkName.length() > RTTAR_NAME_MAX)
+                    throw setError(VBOX_E_NOT_SUPPORTED,
+                                tr("Cannot attach disk '%s' -- file name too long"), strTargetVmdkName.c_str());
 
                 // force reading state, or else size will be returned as 0
                 MediumState_T ms;

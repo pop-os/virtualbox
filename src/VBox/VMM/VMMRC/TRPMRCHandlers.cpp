@@ -444,8 +444,9 @@ DECLASM(int) TRPMGCTrap03Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     /*
      * PATM is using INT3s, let them have a go first.
      */
-    if (    (pRegFrame->ss.Sel & X86_SEL_RPL) == 1
-        &&  !pRegFrame->eflags.Bits.u1VM)
+    if (   (   (pRegFrame->ss.Sel & X86_SEL_RPL) == 1
+            || (EMIsRawRing1Enabled(pVM) && (pRegFrame->ss.Sel & X86_SEL_RPL) == 2) )
+        && !pRegFrame->eflags.Bits.u1VM)
     {
         rc = PATMRCHandleInt3PatchTrap(pVM, pRegFrame);
         if (   rc == VINF_SUCCESS
@@ -522,7 +523,7 @@ DECLASM(int) TRPMGCTrap06Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     TRPM_ENTER_DBG_HOOK(6);
     PGMRZDynMapStartAutoSet(pVCpu);
 
-    if (CPUMGetGuestCPL(pVCpu) == 0)
+    if (CPUMGetGuestCPL(pVCpu) <= (EMIsRawRing1Enabled(pVM) ? 1U : 0U))
     {
         /*
          * Decode the instruction.
@@ -948,13 +949,14 @@ static int trpmGCTrap0dHandlerRing3(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
         case OP_CLI:
         {
             uint32_t efl = CPUMRawGetEFlags(pVCpu);
-            if (X86_EFL_GET_IOPL(efl) >= (unsigned)(pRegFrame->ss.Sel & X86_SEL_RPL))
+            uint32_t cpl = CPUMRCGetGuestCPL(pVCpu, pRegFrame);
+            if (X86_EFL_GET_IOPL(efl) >= cpl)
             {
                 LogFlow(("trpmGCTrap0dHandlerRing3: CLI/STI -> REM\n"));
                 TRPM_EXIT_DBG_HOOK(0xd);
                 return trpmGCExitTrap(pVM, pVCpu, VINF_EM_RESCHEDULE_REM, pRegFrame);
             }
-            LogFlow(("trpmGCTrap0dHandlerRing3: CLI/STI -> #GP(0)\n"));
+            LogFlow(("trpmGCTrap0dHandlerRing3: CLI/STI -> #GP(0) iopl=%x, cpl=%x\n", X86_EFL_GET_IOPL(efl), cpl));
             break;
         }
     }
@@ -1095,7 +1097,7 @@ static int trpmGCTrap0dHandler(PVM pVM, PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFram
     Log3(("TRPM #GP V86: cs:eip=%04x:%08x IOPL=%d efl=%08x\n", pRegFrame->cs.Sel, pRegFrame->eip, eflags.Bits.u2IOPL, eflags.u));
     if (eflags.Bits.u2IOPL != 3)
     {
-        Assert(eflags.Bits.u2IOPL == 0);
+        Assert(EMIsRawRing1Enabled(pVM) || eflags.Bits.u2IOPL == 0);
 
         rc = TRPMForwardTrap(pVCpu, pRegFrame, 0xD, 0, TRPM_TRAP_HAS_ERRORCODE, TRPM_TRAP, 0xd);
         Assert(rc == VINF_EM_RAW_GUEST_TRAP);

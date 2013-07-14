@@ -25,7 +25,7 @@
 #include <QEvent>
 
 /* GUI includes: */
-#include "UIMachineDefs.h"
+#include "UIDefs.h"
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -88,14 +88,17 @@ public:
 
     /* Common members: */
     void powerUp();
+    bool save();
+    bool shutdown();
+    bool powerOff(bool fDiscardState, bool &fServerCrashed);
 
     /* Common getters: */
     CSession& session() { return m_session; }
     KMachineState machineState() const { return m_machineState; }
     UIMachineLogic* machineLogic() const;
     QWidget* mainMachineWindow() const;
-    QMenu* newMenu(UIMainMenuType fOptions = UIMainMenuType_All);
-    QMenuBar* newMenuBar(UIMainMenuType fOptions = UIMainMenuType_All);
+    QMenu* newMenu(RuntimeMenuType fOptions = RuntimeMenuType_All);
+    QMenuBar* newMenuBar(RuntimeMenuType fOptions = RuntimeMenuType_All);
     QCursor cursor() const { return m_cursor; }
 
     bool isSaved() const { return machineState() == KMachineState_Saved; }
@@ -108,6 +111,7 @@ public:
     bool isRunning() const { return machineState() == KMachineState_Running ||
                                     machineState() == KMachineState_Teleporting ||
                                     machineState() == KMachineState_LiveSnapshotting; }
+    bool isStuck() const { return machineState() == KMachineState_Stuck; }
     bool isFirstTimeStarted() const { return m_fIsFirstTimeStarted; }
     bool isIgnoreRuntimeMediumsChanging() const { return m_fIsIgnoreRuntimeMediumsChanging; }
     bool isGuestResizeIgnored() const { return m_fIsGuestResizeIgnored; }
@@ -154,7 +158,6 @@ public:
     /* Screen visibility status: */
     bool isScreenVisible(ulong uScreenId) const;
     void setScreenVisible(ulong uScreenId, bool fIsMonitorVisible);
-    int countOfVisibleWindows();
 
     /* Returns existing framebuffer for the given screen-number;
      * Returns 0 (asserts) if screen-number attribute is out of bounds: */
@@ -184,6 +187,9 @@ signals:
     void sigCPUExecutionCapChange();
     void sigGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
 
+    /* Qt callback signal: */
+    void sigHostScreenCountChanged(int cHostScreenCount);
+
     /* Session signals: */
     void sigMachineStarted();
 
@@ -203,6 +209,7 @@ private slots:
     void sltStateChange(KMachineState state);
     void sltAdditionsChange();
     void sltVRDEChange();
+    void sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
 
 private:
 
@@ -210,6 +217,7 @@ private:
     UIMachine* uimachine() const { return m_pMachine; }
 
     /* Prepare helpers: */
+    void prepareConnections();
     void prepareConsoleEventHandlers();
     void prepareScreens();
     void prepareFramebuffers();
@@ -220,14 +228,19 @@ private:
     void saveSessionSettings();
     void cleanupMenuPool();
     void cleanupFramebuffers();
-    //void cleanupSession() {}
+    //void cleanupScreens() {}
     void cleanupConsoleEventHandlers();
+    //void cleanupConnections() {}
+
+    /* Update helpers: */
+    void updateSessionSettings();
 
     /* Common helpers: */
     WId winId() const;
     void setPointerShape(const uchar *pShapeData, bool fHasAlpha, uint uXHot, uint uYHot, uint uWidth, uint uHeight);
     void reinitMenuPool();
     bool preparePowerUp();
+    int countOfVisibleWindows();
 
 #ifdef VBOX_GUI_WITH_KEYS_RESET_HANDLER
     static void signalHandlerSIGUSR1(int sig, siginfo_t *pInfo, void *pSecret);
@@ -258,6 +271,7 @@ private:
     bool m_fIsGuestResizeIgnored : 1;
     bool m_fIsSeamlessModeRequested : 1;
     bool m_fIsAutoCaptureDisabled : 1;
+    bool m_fReconfigurable : 1;
 
     /* Guest additions flags: */
     ULONG m_ulGuestAdditionsRunLevel;

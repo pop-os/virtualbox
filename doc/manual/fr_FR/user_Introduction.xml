@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.4//EN"
   "http://www.oasis-open.org/docbook/xml/4.4/docbookx.dtd">
-<chapter>
-  <title id="Introduction">Premières étapes</title>
+<chapter id="Introduction">
+  <title>Premières étapes</title>
 
   <para>Bienvenu sur $VBOX_PRODUCT!</para>
 
@@ -126,8 +126,8 @@
     </itemizedlist>
   </sect1>
 
-  <sect1>
-    <title id="virtintro">Un peu de terminologie</title>
+  <sect1 id="virtintro">
+    <title>Un peu de terminologie</title>
 
     <para>Quand on parle de virtualisation (et aussi pour comprendre les 
     chapitres suivants de cette documentation), il est utile de se familiariser
@@ -424,8 +424,8 @@
     </itemizedlist>
   </sect1>
 
-  <sect1>
-    <title id="hostossupport">Systèmes d'exploitation hôtes supportés</title>
+  <sect1 id="hostossupport">
+    <title>Systèmes d'exploitation hôtes supportés</title>
 
     <para>Actuellement, VirtualBox se lance sur les systèmes d'exploitation hôtes
     suivants&nbsp;:</para>
@@ -841,8 +841,8 @@
     <sect2>
       <title>Support du clavier et de la souris dans les machines virtuelles</title>
 
-      <sect3>
-        <title id="keyb_mouse_normal">1.7.1.1 Capturer et utiliser le clavier et
+      <sect3 id="keyb_mouse_normal">
+        <title>1.7.1.1 Capturer et utiliser le clavier et
         la souris</title>
 
         <para>À partir de la version 3.2. VirtualBox fournit un périphérique USB
@@ -1030,7 +1030,7 @@
       </sect3>
     </sect2>
 
-    <sect2>
+    <sect2 id="specialcharacters">
       <title>Changer de média amovible</title>
 
       <para>Pendant qu'une machine virtuelle est en fonction, vous pouvez changer
@@ -1352,8 +1352,8 @@
       </itemizedlist></para>
   </sect1>
 
-  <sect1>
-    <title id="configbasics">Configuration de la machine virtuelle</title>
+  <sect1 id="configbasics">
+    <title>Configuration de la machine virtuelle</title>
 
     <para>Quand vous sélectionnez une machine virtuelle à partir de la liste  
     dans la fenêtre principale de VirtualBox, vous verrez un résumé des paramètres 

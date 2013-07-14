@@ -253,13 +253,13 @@ protected:
     CSession &m_session;
 };
 
-class UIIndicatorNetworkAdapters : public QIWithRetranslateUI<QIStateIndicator>
+class UIIndicatorNetwork : public QIWithRetranslateUI<QIStateIndicator>
 {
     Q_OBJECT;
 
 public:
 
-    UIIndicatorNetworkAdapters(CSession &session)
+    UIIndicatorNetwork(CSession &session)
       : QIWithRetranslateUI<QIStateIndicator>()
       , m_session(session)
       , m_pUpdateTimer(new QTimer(this))
@@ -360,13 +360,13 @@ protected:
     QTimer *m_pUpdateTimer;
 };
 
-class UIIndicatorUSBDevices : public QIWithRetranslateUI<QIStateIndicator>
+class UIIndicatorUSB : public QIWithRetranslateUI<QIStateIndicator>
 {
     Q_OBJECT;
 
 public:
 
-    UIIndicatorUSBDevices(CSession &session)
+    UIIndicatorUSB(CSession &session)
       : QIWithRetranslateUI<QIStateIndicator>()
       , m_session(session)
     {
@@ -540,13 +540,13 @@ protected:
     CSession &m_session;
 };
 
-class UIIndicatorVirtualization : public QIWithRetranslateUI<QIStateIndicator>
+class UIIndicatorFeatures : public QIWithRetranslateUI<QIStateIndicator>
 {
     Q_OBJECT;
 
 public:
 
-    UIIndicatorVirtualization(CSession &session)
+    UIIndicatorFeatures(CSession &session)
       : QIWithRetranslateUI<QIStateIndicator>()
       , m_session(session)
     {
@@ -661,13 +661,13 @@ protected:
     CSession &m_session;
 };
 
-class UIIndicatorHostkey : public QIWithRetranslateUI<QIStateIndicator>
+class UIIndicatorKeyboard : public QIWithRetranslateUI<QIStateIndicator>
 {
     Q_OBJECT;
 
 public:
 
-    UIIndicatorHostkey(CSession &session)
+    UIIndicatorKeyboard(CSession &session)
       : QIWithRetranslateUI<QIStateIndicator>()
       , m_session(session)
     {
@@ -694,58 +694,64 @@ protected:
 UIIndicatorsPool::UIIndicatorsPool(CSession &session, QObject *pParent)
     : QObject(pParent)
     , m_session(session)
-    , m_IndicatorsPool(UIIndicatorIndex_End, 0)
+    , m_pool(IndicatorType_Max)
 {
+    /* Prepare: */
+    prepare();
 }
 
 UIIndicatorsPool::~UIIndicatorsPool()
 {
-    for (int i = 0; i < m_IndicatorsPool.size(); ++i)
-    {
-        delete m_IndicatorsPool[i];
-        m_IndicatorsPool[i] = 0;
-    }
-    m_IndicatorsPool.clear();
+    /* Cleanup: */
+    cleanup();
 }
 
-QIStateIndicator* UIIndicatorsPool::indicator(UIIndicatorIndex index)
+QIStateIndicator* UIIndicatorsPool::indicator(IndicatorType index)
 {
-    if (!m_IndicatorsPool.at(index))
+    /* Just return what already exists: */
+    return m_pool[index];
+}
+
+void UIIndicatorsPool::prepare()
+{
+    /* Get the list of restricted indicators: */
+    CMachine machine = m_session.GetMachine();
+    QList<IndicatorType> restrictedIndicators = vboxGlobal().restrictedStatusBarIndicators(machine);
+
+    /* Populate indicator-pool: */
+    for (int iIndex = 0; iIndex < IndicatorType_Max; ++iIndex)
     {
+        /* Make sure indicator presence is permitted: */
+        IndicatorType index = static_cast<IndicatorType>(iIndex);
+        if (restrictedIndicators.contains(index))
+            continue;
+
+        /* Prepare indicator: */
         switch (index)
         {
-            case UIIndicatorIndex_HardDisks:
-                m_IndicatorsPool[index] = new UIIndicatorHardDisks(m_session);
-                break;
-            case UIIndicatorIndex_OpticalDisks:
-                m_IndicatorsPool[index] = new UIIndicatorOpticalDisks(m_session);
-                break;
-            case UIIndicatorIndex_FloppyDisks:
-                m_IndicatorsPool[index] = new UIIndicatorFloppyDisks(m_session);
-                break;
-            case UIIndicatorIndex_NetworkAdapters:
-                m_IndicatorsPool[index] = new UIIndicatorNetworkAdapters(m_session);
-                break;
-            case UIIndicatorIndex_USBDevices:
-                m_IndicatorsPool[index] = new UIIndicatorUSBDevices(m_session);
-                break;
-            case UIIndicatorIndex_SharedFolders:
-                m_IndicatorsPool[index] = new UIIndicatorSharedFolders(m_session);
-                break;
-            case UIIndicatorIndex_Virtualization:
-                m_IndicatorsPool[index] = new UIIndicatorVirtualization(m_session);
-                break;
-            case UIIndicatorIndex_Mouse:
-                m_IndicatorsPool[index] = new UIIndicatorMouse(m_session);
-                break;
-            case UIIndicatorIndex_Hostkey:
-                m_IndicatorsPool[index] = new UIIndicatorHostkey(m_session);
-                break;
-            default:
-                break;
+            case IndicatorType_HardDisks:     m_pool[index] = new UIIndicatorHardDisks(m_session); break;
+            case IndicatorType_OpticalDisks:  m_pool[index] = new UIIndicatorOpticalDisks(m_session); break;
+            case IndicatorType_FloppyDisks:   m_pool[index] = new UIIndicatorFloppyDisks(m_session); break;
+            case IndicatorType_Network:       m_pool[index] = new UIIndicatorNetwork(m_session); break;
+            case IndicatorType_USB:           m_pool[index] = new UIIndicatorUSB(m_session); break;
+            case IndicatorType_SharedFolders: m_pool[index] = new UIIndicatorSharedFolders(m_session); break;
+            case IndicatorType_Features:      m_pool[index] = new UIIndicatorFeatures(m_session); break;
+            case IndicatorType_Mouse:         m_pool[index] = new UIIndicatorMouse(m_session); break;
+            case IndicatorType_Keyboard:      m_pool[index] = new UIIndicatorKeyboard(m_session); break;
+            default: break;
         }
     }
-    return m_IndicatorsPool.at(index);
+}
+
+void UIIndicatorsPool::cleanup()
+{
+    /* Wipe-out indicator-pool: */
+    for (int iIndex = 0; iIndex < IndicatorType_Max; ++iIndex)
+    {
+        /* Wipe-out indicator: */
+        delete m_pool[iIndex];
+        m_pool[iIndex] = 0;
+    }
 }
 
 #include "UIIndicatorsPool.moc"

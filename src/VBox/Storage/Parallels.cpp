@@ -182,6 +182,7 @@ static int parallelsOpenImage(PPARALLELSIMAGE pImage, unsigned uOpenFlags)
 
     pImage->pIfError = VDIfErrorGet(pImage->pVDIfsDisk);
     pImage->pIfIo = VDIfIoIntGet(pImage->pVDIfsImage);
+    pImage->uOpenFlags = uOpenFlags;
     AssertPtrReturn(pImage->pIfIo, VERR_INVALID_PARAMETER);
 
     rc = vdIfIoIntFileOpen(pImage->pIfIo, pImage->pszFilename,

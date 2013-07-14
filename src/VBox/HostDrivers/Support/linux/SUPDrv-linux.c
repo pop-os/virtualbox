@@ -1,4 +1,4 @@
-/* $Rev: 83687 $ */
+/* $Rev: 84704 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
@@ -223,7 +223,11 @@ static struct platform_device gPlatformDevice =
 DECLINLINE(RTUID) vboxdrvLinuxUid(void)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+    return from_kuid(current_user_ns(), current->cred->uid);
+# else
     return current->cred->uid;
+# endif
 #else
     return current->uid;
 #endif
@@ -232,7 +236,11 @@ DECLINLINE(RTUID) vboxdrvLinuxUid(void)
 DECLINLINE(RTGID) vboxdrvLinuxGid(void)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+    return from_kgid(current_user_ns(), current->cred->gid);
+# else
     return current->cred->gid;
+# endif
 #else
     return current->gid;
 #endif
@@ -241,7 +249,11 @@ DECLINLINE(RTGID) vboxdrvLinuxGid(void)
 DECLINLINE(RTUID) vboxdrvLinuxEuid(void)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+    return from_kuid(current_user_ns(), current->cred->euid);
+# else
     return current->cred->euid;
+# endif
 #else
     return current->euid;
 #endif

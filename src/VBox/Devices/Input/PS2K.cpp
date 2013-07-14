@@ -1352,6 +1352,9 @@ int PS2KLoadState(PSSMHANDLE pSSM, PPS2K pThis, uint32_t uVersion)
         rc = TMR3TimerLoad(pThis->CTX_SUFF(pKbdDelayTimer), pSSM);
         if (RT_FAILURE(rc)) break;
 
+        /* Recalculate the typematic delay/rate. */
+        PS2KSetupTypematic(pThis, pThis->u8Typematic);
+
         /* Fake key up events for keys that were held down at the time the state was saved. */
         rc = SSMR3GetU32(pSSM, &cPressed);
         if (RT_FAILURE(rc)) break;

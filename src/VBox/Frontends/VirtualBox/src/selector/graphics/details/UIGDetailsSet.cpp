@@ -31,6 +31,8 @@
 
 UIGDetailsSet::UIGDetailsSet(UIGDetailsItem *pParent)
     : UIGDetailsItem(pParent)
+    , m_fElementNameHoverable(false)
+    , m_fHasDetails(false)
     , m_fFullSet(true)
     , m_pBuildStep(0)
     , m_iLastStepNumber(-1)
@@ -54,18 +56,22 @@ UIGDetailsSet::~UIGDetailsSet()
     parentItem()->removeItem(this);
 }
 
-void UIGDetailsSet::buildSet(const CMachine &machine, bool fFullSet, const QStringList &settings)
+void UIGDetailsSet::buildSet(UIVMItem *pMachineItem, bool fFullSet, const QStringList &settings)
 {
     /* Remember passed arguments: */
-    m_machine = machine;
+    m_machine = pMachineItem->machine();
+    m_fElementNameHoverable = pMachineItem->reconfigurable();
+    m_fHasDetails = pMachineItem->hasDetails();
     m_fFullSet = fFullSet;
     m_settings = settings;
 
     /* Cleanup superfluous items: */
-    if (!m_fFullSet)
+    if (!m_fFullSet || !m_fHasDetails)
     {
+        int iFirstItem = m_fHasDetails ? DetailsElementType_Display : DetailsElementType_General;
+        int iLastItem = DetailsElementType_Description;
         bool fCleanupPerformed = false;
-        for (int i = DetailsElementType_Display; i <= DetailsElementType_Description; ++i)
+        for (int i = iFirstItem; i <= iLastItem; ++i)
             if (m_elements.contains(i))
             {
                 delete m_elements[i];
@@ -73,6 +79,16 @@ void UIGDetailsSet::buildSet(const CMachine &machine, bool fFullSet, const QStri
             }
         if (fCleanupPerformed)
             updateGeometry();
+    }
+
+    /* Make sure we have details: */
+    if (!m_fHasDetails)
+    {
+        /* Reset last-step number: */
+        m_iLastStepNumber = -1;
+        /* Notify parent group we are built: */
+        emit sigBuildDone();
+        return;
     }
 
     /* Choose last-step number: */
@@ -184,10 +200,6 @@ void UIGDetailsSet::sltMachineStateChange(QString strId)
     /* Is this our VM changed? */
     if (m_machine.GetId() != strId)
         return;
-
-    /* Update hover accessibility: */
-    foreach (UIGDetailsItem *pItem, items())
-        pItem->toElement()->updateHoverAccessibility();
 
     /* Update appearance: */
     rebuildSet();
@@ -338,6 +350,10 @@ void UIGDetailsSet::prepareConnections()
 
 int UIGDetailsSet::minimumWidthHint() const
 {
+    /* Zero if has no details: */
+    if (!hasDetails())
+        return 0;
+
     /* Prepare variables: */
     int iMargin = data(SetData_Margin).toInt();
     int iSpacing = data(SetData_Spacing).toInt();
@@ -393,6 +409,10 @@ int UIGDetailsSet::minimumWidthHint() const
 
 int UIGDetailsSet::minimumHeightHint() const
 {
+    /* Zero if has no details: */
+    if (!hasDetails())
+        return 0;
+
     /* Prepare variables: */
     int iMargin = data(SetData_Margin).toInt();
     int iSpacing = data(SetData_Spacing).toInt();
@@ -529,6 +549,10 @@ void UIGDetailsSet::updateLayout()
 
 void UIGDetailsSet::rebuildSet()
 {
+    /* Make sure we have details: */
+    if (!m_fHasDetails)
+        return;
+
     /* Cleanup build-step: */
     delete m_pBuildStep;
     m_pBuildStep = 0;

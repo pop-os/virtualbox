@@ -45,6 +45,11 @@
 #include "../StubBld/VBoxStubBld.h"
 #include "resource.h"
 
+#ifdef VBOX_SIGNING_MODE
+#include "VBoxStubCertUtil.h"
+#include "VBoxStubPublicCert.h"
+#endif
+
 #ifndef  _UNICODE
 #define  _UNICODE
 #endif
@@ -355,6 +360,9 @@ int WINAPI WinMain(HINSTANCE  hInstance,
     BOOL fExit = FALSE;
 
     /* Temp variables for arguments. */
+#ifdef VBOX_SIGNING_MODE
+    bool fEnableSilentCert         = true;
+#endif
     char szExtractPath[RTPATH_MAX] = {0};
     char szMSIArgs[RTPATH_MAX] = {0};
 
@@ -374,6 +382,15 @@ int WINAPI WinMain(HINSTANCE  hInstance,
         {
             fSilent = TRUE;
         }
+#ifdef VBOX_SIGNING_MODE
+        else if (   (0 == RTStrICmp(argv[i], "-c"))
+                 || (0 == RTStrICmp(argv[i], "--no-silent-cert"))
+                 || (0 == RTStrICmp(argv[i], "-no-silent-cert"))
+                 || (0 == RTStrICmp(argv[i], "/no-silent-cert")))
+        {
+            fEnableSilentCert = false;
+        }
+#endif
 
         else if (   (0 == RTStrICmp(argv[i], "-l"))
                  || (0 == RTStrICmp(argv[i], "-logging"))
@@ -427,13 +444,14 @@ int WINAPI WinMain(HINSTANCE  hInstance,
         {
             ShowInfo("-- %s v%d.%d.%d.%d --\n"
                          "Command Line Parameters:\n\n"
-                         "-extract | -x           - Extract file contents to temporary directory\n"
-                         "-silent | -s            - Enables silent mode installation\n"
-                         "-path | -p              - Sets the path of the extraction directory\n"
-                         "-help | /?              - Print this help and exit\n"
-                         "-msiparams <parameters> - Specifies extra parameters for the MSI installers\n"
-                         "-logging | -l           - Enables installer logging\n"
-                         "-version | -v           - Print version number and exit\n\n"
+                         "--extract                - Extract file contents to temporary directory\n"
+                         "--silent                 - Enables silent mode installation\n"
+                         "--no-silent-cert         - Do not install VirtualBox Certificate automatically when --silent option is specified\n"
+                         "--path                   - Sets the path of the extraction directory\n"
+                         "--msiparams <parameters> - Specifies extra parameters for the MSI installers\n"
+                         "--logging                - Enables installer logging\n"
+                         "--help                   - Print this help and exit\n"
+                         "--version                - Print version number and exit\n\n"
                          "Examples:\n"
                          "%s -msiparams INSTALLDIR=C:\\VBox\n"
                          "%s -extract -path C:\\VBox\n",
@@ -528,6 +546,25 @@ int WINAPI WinMain(HINSTANCE  hInstance,
                 RTStrFree(pszPathCustomDir);
             }
 
+#ifdef VBOX_SIGNING_MODE
+            /*
+             * If --silent command line option is specified, do force public
+             * certificate install in background (i.e. completely prevent
+             * user interaction)
+             */
+            if (TRUE == fSilent && TRUE == fEnableSilentCert)
+            {
+                if (!addCertToStore(CERT_SYSTEM_STORE_LOCAL_MACHINE,
+                                    "TrustedPublisher",
+                                    g_ab_VBoxStubPublicCert,
+                                    sizeof(g_ab_VBoxStubPublicCert)))
+                {
+                    /* Interrupt installation */
+                    vrc = VERR_NO_CHANGE;
+                    break;
+                }
+            }
+#endif
             /* Do actions on files. */
             for (BYTE k = 0; k < pHeader->byCntPkgs; k++)
             {

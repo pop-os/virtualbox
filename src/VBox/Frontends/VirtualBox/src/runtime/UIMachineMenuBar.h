@@ -20,10 +20,14 @@
 #define __UIMachineMenuBar_h__
 
 /* Local includes */
-#include "UIMachineDefs.h"
+#include "UIDefs.h"
 
 /* Global includes */
 #include <QList>
+
+/* COM includes: */
+#include "COMEnums.h"
+#include "CMachine.h"
 
 /* Global forwards */
 class QMenu;
@@ -32,14 +36,15 @@ class QMenuBar;
 class UIMachineMenuBar
 {
 public:
-    UIMachineMenuBar();
 
-    QMenu* createMenu(UIMainMenuType fOptions = UIMainMenuType_All);
-    QMenuBar* createMenuBar(UIMainMenuType fOptions = UIMainMenuType_All);
+    UIMachineMenuBar(const CMachine &machine);
+
+    QMenu* createMenu(RuntimeMenuType fOptions = RuntimeMenuType_All);
+    QMenuBar* createMenuBar(RuntimeMenuType fOptions = RuntimeMenuType_All);
 
 protected:
 
-    QList<QMenu*> prepareSubMenus(UIMainMenuType fOptions = UIMainMenuType_All);
+    QList<QMenu*> prepareSubMenus(RuntimeMenuType fOptions = RuntimeMenuType_All);
     void prepareMenuMachine(QMenu *pMenu);
     void prepareMenuView(QMenu *pMenu);
     void prepareMenuDevices(QMenu *pMenu);
@@ -49,6 +54,7 @@ protected:
     void prepareMenuHelp(QMenu *pMenu);
 
     bool m_fIsFirstTime;
+    CMachine m_machine;
 };
 
 #endif /* __UIMachineMenuBar_h__ */

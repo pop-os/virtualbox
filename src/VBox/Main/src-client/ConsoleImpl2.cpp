@@ -799,6 +799,15 @@ int Console::configConstructorInner(PVM pVM, AutoWriteLock *pAlock)
         InsertConfigInteger(pRoot, "PATMEnabled",          1);     /* boolean */
         InsertConfigInteger(pRoot, "CSAMEnabled",          1);     /* boolean */
 #endif
+
+#ifdef VBOX_WITH_RAW_RING1
+        if (osTypeId == "QNX")
+        {
+            /* QNX needs special treatment in raw mode due to its use of ring-1. */
+            InsertConfigInteger(pRoot, "RawR1Enabled",     1);     /* boolean */
+        }
+#endif
+
         /* Not necessary, but to make sure these two settings end up in the release log. */
         BOOL fPageFusion = FALSE;
         hrc = pMachine->COMGETTER(PageFusionEnabled)(&fPageFusion);                         H();
@@ -843,6 +852,14 @@ int Console::configConstructorInner(PVM pVM, AutoWriteLock *pAlock)
         {
             LogRel(("Limiting CPUID leaf count for NT4 guests\n"));
             InsertConfigInteger(pCPUM, "NT4LeafLimit", true);
+        }
+
+        /* Expose CMPXCHG16B. Currently a hack. */
+        if (   osTypeId == "Windows81_64"
+            || osTypeId == "Windows2012_64")
+        {
+            LogRel(("Enabling CMPXCHG16B for Windows 8.1 / 2k12 guests\n"));
+            InsertConfigInteger(pCPUM, "CMPXCHG16B", true);
         }
 
         /* Expose extended MWAIT features to Mac OS X guests. */
@@ -1517,7 +1534,7 @@ int Console::configConstructorInner(PVM pVM, AutoWriteLock *pAlock)
             InsertConfigNode(pInst,    "LUN#0", &pLunL0);
             InsertConfigString(pLunL0, "Driver", "NvramStorage");
             InsertConfigNode(pLunL0,   "Config", &pCfg);
-            InsertConfigInteger(pCfg,  "Object", (uint64_t)mNvram);
+            InsertConfigInteger(pCfg,  "Object", (uintptr_t)mNvram);
 #ifdef DEBUG_vvl
             InsertConfigInteger(pCfg,  "PermanentSave", 1);
 #endif
@@ -4030,7 +4047,7 @@ int Console::configNetwork(const char *pszDevice,
                 hrc = aNetworkAdapter->COMGETTER(BridgedInterface)(BridgedIfName.asOutParam());
                 if (FAILED(hrc))
                 {
-                    LogRel(("NetworkAttachmentType_Bridged: COMGETTER(BridgedInterface) failed, hrc (0x%x)", hrc));
+                    LogRel(("NetworkAttachmentType_Bridged: COMGETTER(BridgedInterface) failed, hrc (0x%x)\n", hrc));
                     H();
                 }
 
@@ -4097,7 +4114,7 @@ int Console::configNetwork(const char *pszDevice,
                 hrc = hostInterface->COMGETTER(InterfaceType)(&eIfType);
                 if (FAILED(hrc))
                 {
-                    LogRel(("NetworkAttachmentType_Bridged: COMGETTER(InterfaceType) failed, hrc (0x%x)", hrc));
+                    LogRel(("NetworkAttachmentType_Bridged: COMGETTER(InterfaceType) failed, hrc (0x%x)\n", hrc));
                     H();
                 }
 
@@ -4111,7 +4128,7 @@ int Console::configNetwork(const char *pszDevice,
                 hrc = hostInterface->COMGETTER(Id)(bstr.asOutParam());
                 if (FAILED(hrc))
                 {
-                    LogRel(("NetworkAttachmentType_Bridged: COMGETTER(Id) failed, hrc (0x%x)", hrc));
+                    LogRel(("NetworkAttachmentType_Bridged: COMGETTER(Id) failed, hrc (0x%x)\n", hrc));
                     H();
                 }
                 Guid hostIFGuid(bstr);
@@ -4133,7 +4150,7 @@ int Console::configNetwork(const char *pszDevice,
                 if (hrc != S_OK)
                 {
                     VBoxNetCfgWinReleaseINetCfg(pNc, FALSE /*fHasWriteLock*/);
-                    LogRel(("NetworkAttachmentType_Bridged: VBoxNetCfgWinGetComponentByGuid failed, hrc (0x%x)", hrc));
+                    LogRel(("NetworkAttachmentType_Bridged: VBoxNetCfgWinGetComponentByGuid failed, hrc (0x%x)\n", hrc));
                     H();
                 }
 #define VBOX_WIN_BINDNAME_PREFIX "\\DEVICE\\"
@@ -4712,7 +4729,7 @@ int Console::configNetwork(const char *pszDevice,
                             hrc = dhcpServer->COMGETTER(Enabled)(&fEnabledDhcp);
                             if (FAILED(hrc))
                             {
-                                LogRel(("DHCP svr: COMGETTER(Enabled) failed, hrc (%Rhrc)", hrc));
+                                LogRel(("DHCP svr: COMGETTER(Enabled) failed, hrc (%Rhrc)\n", hrc));
                                 H();
                             }
 

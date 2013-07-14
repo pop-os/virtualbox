@@ -195,6 +195,9 @@ sofree(PNATState pData, struct socket *so)
      * Check that we don't freeng socket with tcbcb
      */
     Assert(!sototcpcb(so));
+    /* udp checks */
+    Assert(!so->so_timeout);
+    Assert(!so->so_timeout_arg);
     if (so == tcp_last_so)
         tcp_last_so = &tcb;
     else if (so == udp_last_so)
@@ -1474,7 +1477,7 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
     int out_len;
     int size;
 
-    len = pData->pfIcmpParseReplies(pData->pvIcmpBuffer, pData->szIcmpBuffer);
+    len = pData->pfIcmpParseReplies(pData->pvIcmpBuffer, pData->cbIcmpBuffer);
     if (len < 0)
     {
         LogRel(("NAT: Error (%d) occurred on ICMP receiving\n", GetLastError()));

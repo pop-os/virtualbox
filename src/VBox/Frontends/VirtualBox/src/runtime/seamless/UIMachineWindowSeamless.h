@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,8 +42,8 @@ private slots:
     void sltMachineStateChanged();
 #endif /* !Q_WS_MAC */
 
-    /* Places window on screen: */
-    void sltPlaceOnScreen();
+    /* Show in necessary mode: */
+    void sltShowInNecessaryMode() { showInNecessaryMode(); }
 
     /* Popup main menu: */
     void sltPopupMainMenu();
@@ -63,14 +63,8 @@ private:
 #ifndef Q_WS_MAC
     void prepareMiniToolbar();
 #endif /* !Q_WS_MAC */
-#ifdef Q_WS_MAC
-    void loadSettings();
-#endif /* Q_WS_MAC */
 
     /* Cleanup helpers: */
-#ifdef Q_WS_MAC
-    //void saveSettings() {}
-#endif /* Q_WS_MAC */
 #ifndef Q_WS_MAC
     void cleanupMiniToolbar();
 #endif /* !Q_WS_MAC */
@@ -78,6 +72,7 @@ private:
     void cleanupMenu();
 
     /* Show stuff: */
+    void placeOnScreen();
     void showInNecessaryMode();
 
 #ifndef Q_WS_MAC

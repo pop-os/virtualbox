@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -62,20 +62,6 @@ void UIMachineWindowSeamless::sltMachineStateChanged()
 }
 #endif /* !Q_WS_MAC */
 
-void UIMachineWindowSeamless::sltPlaceOnScreen()
-{
-    /* Get corresponding screen: */
-    int iScreen = qobject_cast<UIMachineLogicSeamless*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId);
-    /* Calculate working area: */
-    QRect workingArea = vboxGlobal().availableGeometry(iScreen);
-    /* Move to the appropriate position: */
-    move(workingArea.topLeft());
-    /* Resize to the appropriate size: */
-    resize(workingArea.size());
-    /* Process pending move & resize events: */
-    qApp->processEvents();
-}
-
 void UIMachineWindowSeamless::sltPopupMainMenu()
 {
     /* Popup main-menu if present: */
@@ -100,10 +86,10 @@ void UIMachineWindowSeamless::prepareMenu()
     UIMachineWindow::prepareMenu();
 
     /* Prepare menu: */
-#ifdef Q_WS_MAC
-    setMenuBar(uisession()->newMenuBar());
-#endif /* Q_WS_MAC */
-    m_pMainMenu = uisession()->newMenu();
+    CMachine machine = session().GetMachine();
+    RuntimeMenuType restrictedMenus = VBoxGlobal::restrictedRuntimeMenuTypes(machine);
+    RuntimeMenuType allowedMenus = static_cast<RuntimeMenuType>(RuntimeMenuType_All ^ restrictedMenus);
+    m_pMainMenu = uisession()->newMenu(allowedMenus);
 }
 
 void UIMachineWindowSeamless::prepareVisualState()
@@ -156,7 +142,9 @@ void UIMachineWindowSeamless::prepareMiniToolbar()
     m_pMiniToolBar->setSeamlessMode(true);
     m_pMiniToolBar->updateDisplay(true, true);
     QList<QMenu*> menus;
-    QList<QAction*> actions = uisession()->newMenu()->actions();
+    RuntimeMenuType restrictedMenus = VBoxGlobal::restrictedRuntimeMenuTypes(m);
+    RuntimeMenuType allowedMenus = static_cast<RuntimeMenuType>(RuntimeMenuType_All ^ restrictedMenus);
+    QList<QAction*> actions = uisession()->newMenu(allowedMenus)->actions();
     for (int i=0; i < actions.size(); ++i)
         menus << actions.at(i)->menu();
     *m_pMiniToolBar << menus;
@@ -168,20 +156,6 @@ void UIMachineWindowSeamless::prepareMiniToolbar()
     connect(m_pMiniToolBar, SIGNAL(geometryUpdated()), this, SLOT(sltUpdateMiniToolBarMask()));
 }
 #endif /* !Q_WS_MAC */
-
-#ifdef Q_WS_MAC
-void UIMachineWindowSeamless::loadSettings()
-{
-    /* Call to base-class: */
-    UIMachineWindow::loadSettings();
-
-    /* Load global settings: */
-    {
-        VBoxGlobalSettings settings = vboxGlobal().settings();
-        menuBar()->setHidden(settings.isFeatureActive("noMenuBar"));
-    }
-}
-#endif /* Q_WS_MAC */
 
 #ifndef Q_WS_MAC
 void UIMachineWindowSeamless::cleanupMiniToolbar()
@@ -219,26 +193,50 @@ void UIMachineWindowSeamless::cleanupMenu()
     UIMachineWindow::cleanupMenu();
 }
 
+void UIMachineWindowSeamless::placeOnScreen()
+{
+    /* Get corresponding screen: */
+    int iScreen = qobject_cast<UIMachineLogicSeamless*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId);
+    /* Calculate working area: */
+    QRect workingArea = vboxGlobal().availableGeometry(iScreen);
+    /* Move to the appropriate position: */
+    move(workingArea.topLeft());
+    /* Resize to the appropriate size: */
+    resize(workingArea.size());
+    /* Process pending move & resize events: */
+    qApp->processEvents();
+}
+
 void UIMachineWindowSeamless::showInNecessaryMode()
 {
-    /* Show window if we have to: */
+    /* Should we show window?: */
     if (uisession()->isScreenVisible(m_uScreenId))
     {
-        /* Show manually maximized window: */
-        sltPlaceOnScreen();
+        /* Do we have the seamless logic? */
+        if (UIMachineLogicSeamless *pSeamlessLogic = qobject_cast<UIMachineLogicSeamless*>(machineLogic()))
+        {
+            /* Is this guest screen has own host screen? */
+            if (pSeamlessLogic->hasHostScreenForGuestScreen(m_uScreenId))
+            {
+                /* Show manually maximized window: */
+                placeOnScreen();
 
-        /* Show normal window: */
-        show();
+                /* Show normal window: */
+                show();
 
 #ifdef Q_WS_MAC
-        /* Make sure it is really on the right place (especially on the Mac): */
-        int iScreen = qobject_cast<UIMachineLogicSeamless*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId);
-        QRect r = vboxGlobal().availableGeometry(iScreen);
-        move(r.topLeft());
+                /* Make sure it is really on the right place (especially on the Mac): */
+                QRect r = vboxGlobal().availableGeometry(qobject_cast<UIMachineLogicSeamless*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId));
+                move(r.topLeft());
 #endif /* Q_WS_MAC */
+
+                /* Return early: */
+                return;
+            }
+        }
     }
-    /* Else hide window: */
-    else hide();
+    /* Hide in other cases: */
+    hide();
 }
 
 #ifndef Q_WS_MAC
@@ -288,41 +286,30 @@ bool UIMachineWindowSeamless::event(QEvent *pEvent)
 
 void UIMachineWindowSeamless::setMask(const QRegion &constRegion)
 {
+    /* Could be unused under Mac: */
+    Q_UNUSED(constRegion);
+
+#ifndef Q_WS_MAC
+    /* Copy mask: */
     QRegion region = constRegion;
 
     /* Shift region if left spacer width is NOT zero or top spacer height is NOT zero: */
     if (m_pLeftSpacer->geometry().width() || m_pTopSpacer->geometry().height())
         region.translate(m_pLeftSpacer->geometry().width(), m_pTopSpacer->geometry().height());
 
-#if 0 // TODO: Is it really needed now?
-    /* The global mask shift cause of toolbars and such things. */
-    region.translate(mMaskShift.width(), mMaskShift.height());
-#endif
-
-    /* Mini tool-bar: */
-#ifndef Q_WS_MAC
+    /* Take into account mini tool-bar region: */
     if (m_pMiniToolBar)
     {
-        /* Get mini-toolbar mask: */
+        /* Move mini-toolbar region to mini-toolbar position: */
         QRegion toolBarRegion(m_pMiniToolBar->rect());
-
-        /* Move mini-toolbar mask to mini-toolbar position: */
         toolBarRegion.translate(QPoint(m_pMiniToolBar->x(), m_pMiniToolBar->y()));
-
-        /* Including mini-toolbar mask: */
+        /* Include mini-toolbar region into common one: */
         region += toolBarRegion;
     }
 #endif /* !Q_WS_MAC */
 
-#if 0 // TODO: Is it really needed now?
-    /* Restrict the drawing to the available space on the screen.
-     * (The &operator is better than the previous used -operator,
-     * because this excludes space around the real screen also.
-     * This is necessary for the mac.) */
-    region &= mStrictedRegion;
-#endif
-
-#ifdef Q_WS_WIN
+#if defined (Q_WS_WIN)
+# if 0 /* This code is disabled for a long time already, need analisys... */
     QRegion difference = m_prevRegion.subtract(region);
 
     /* Region offset calculation */
@@ -345,38 +332,37 @@ void UIMachineWindowSeamless::setMask(const QRegion &constRegion)
         RedrawWindow(machineView()->viewport()->winId(), 0, 0, RDW_INVALIDATE);
 
     m_prevRegion = region;
+# endif /* This code is disabled for a long time already, need analisys... */
+    UIMachineWindow::setMask(region);
 #elif defined (Q_WS_MAC)
 # if defined (VBOX_GUI_USE_QUARTZ2D)
     if (vboxGlobal().vmRenderMode() == Quartz2DMode)
     {
-        /* If we are using the Quartz2D backend we have to trigger
-         * an repaint only. All the magic clipping stuff is done
-         * in the paint engine. */
+        /* If we are using the Quartz2D backend we have to trigger a repaint only.
+         * All the magic clipping stuff is done in the paint engine. */
         ::darwinWindowInvalidateShape(m_pMachineView->viewport());
     }
-    else
-# endif
-    {
-        /* This is necessary to avoid the flicker by an mask update.
-         * See http://lists.apple.com/archives/Carbon-development/2001/Apr/msg01651.html
-         * for the hint.
-         * There *must* be a better solution. */
-        if (!region.isEmpty())
-            region |= QRect (0, 0, 1, 1);
-        // /* Save the current region for later processing in the darwin event handler. */
-        // mCurrRegion = region;
-        // /* We repaint the screen before the ReshapeCustomWindow command. Unfortunately
-        //  * this command flushes a copy of the backbuffer to the screen after the new
-        //  * mask is set. This leads into a misplaced drawing of the content. Currently
-        //  * no alternative to this and also this is not 100% perfect. */
-        // repaint();
-        // qApp->processEvents();
-        // /* Now force the reshaping of the window. This is definitely necessary. */
-        // ReshapeCustomWindow (reinterpret_cast <WindowPtr> (winId()));
-        UIMachineWindow::setMask(region);
-        // HIWindowInvalidateShadow (::darwinToWindowRef (mConsole->viewport()));
-    }
-#else
+# endif /* VBOX_GUI_USE_QUARTZ2D */
+# if 0 /* This code is disabled for a long time already, need analisys... */
+    /* This is necessary to avoid the flicker by an mask update.
+     * See http://lists.apple.com/archives/Carbon-development/2001/Apr/msg01651.html for the hint.
+     * There *must* be a better solution. */
+    // if (!region.isEmpty())
+    //     region |= QRect(0, 0, 1, 1);
+    // /* Save the current region for later processing in the darwin event handler. */
+    // mCurrRegion = region;
+    // /* We repaint the screen before the ReshapeCustomWindow command. Unfortunately
+    //  * this command flushes a copy of the backbuffer to the screen after the new
+    //  * mask is set. This leads into a misplaced drawing of the content. Currently
+    //  * no alternative to this and also this is not 100% perfect. */
+    // repaint();
+    // qApp->processEvents();
+    // /* Now force the reshaping of the window. This is definitely necessary. */
+    // ReshapeCustomWindow(reinterpret_cast<WindowPtr>(winId()));
+    // UIMachineWindow::setMask(region);
+    // HIWindowInvalidateShadow(::darwinToWindowRef(mConsole->viewport()));
+# endif /* This code is disabled for a long time already, need analisys... */
+#else /* !Q_WS_MAC */
     UIMachineWindow::setMask(region);
 #endif
 }

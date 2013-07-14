@@ -394,6 +394,24 @@ public:
     /* Returns full medium-format name for the given base medium-format name: */
     static QString fullMediumFormatName(const QString &strBaseMediumFormatName);
 
+    /* Extra-data settings stuff: */
+    static bool isApprovedByExtraData(CVirtualBox &vbox, const QString &strExtraDataKey);
+    static bool isApprovedByExtraData(CMachine &machine, const QString &strExtraDataKey);
+    static bool shouldWeAllowApplicationUpdate(CVirtualBox &vbox);
+    static bool shouldWeShowMachine(CMachine &machine);
+    static bool shouldWeAllowMachineReconfiguration(CMachine &machine,
+                                                    bool fIncludingMachineGeneralCheck = false,
+                                                    bool fIncludingMachineStateCheck = false);
+    static bool shouldWeShowDetails(CMachine &machine,
+                                    bool fIncludingMachineGeneralCheck = false);
+    static bool shouldWeAutoMountGuestScreens(CMachine &machine, bool fIncludingSanityCheck = true);
+    static bool shouldWeAllowSnapshotOperations(CMachine &machine, bool fIncludingSanityCheck = true);
+    static RuntimeMenuType restrictedRuntimeMenuTypes(CMachine &machine);
+    static QList<IndicatorType> restrictedStatusBarIndicators(CMachine &machine);
+    static QList<MachineCloseAction> restrictedMachineCloseActions(CMachine &machine);
+    static QList<GlobalSettingsPageType> restrictedGlobalSettingsPages(CVirtualBox &vbox);
+    static QList<MachineSettingsPageType> restrictedMachineSettingsPages(CMachine &machine);
+
 signals:
 
     /**

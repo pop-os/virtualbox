@@ -2321,11 +2321,8 @@ bool UIMessageCenter::confirmGoingScale(const QString &strHotKey)
 /**
  *  Returns @c true if the user has selected to power off the machine.
  */
-bool UIMessageCenter::remindAboutGuruMeditation(const CConsole &console,
-                                                const QString &strLogFolder)
+bool UIMessageCenter::remindAboutGuruMeditation(const QString &strLogFolder)
 {
-    Q_UNUSED(console);
-
     int rc = message(mainMachineWindowShown(), GuruMeditation,
         tr("<p>A critical error has occurred while running the virtual "
            "machine and the machine execution has been stopped.</p>"

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -61,11 +61,13 @@ public:
     CSession& session() const;
     CMachine machine() const;
 
+    /* Virtual caller for base class setMask: */
+    virtual void setMask(const QRegion &region);
+
 protected slots:
 
     /* Session event-handlers: */
     virtual void sltMachineStateChanged();
-    virtual void sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
 
 protected:
 
@@ -104,6 +106,9 @@ protected:
     virtual void cleanupMainLayout() {}
     virtual void cleanupSessionConnections() {}
 
+    /* Visibility stuff: */
+    void handleScreenCountChange();
+
     /* Update stuff: */
     virtual void updateAppearanceOf(int iElement);
 #ifdef VBOX_WITH_DEBUGGER_GUI
@@ -128,6 +133,8 @@ protected:
 
     /* Friend classes: */
     friend class UIMachineLogic;
+    friend class UIMachineLogicFullscreen;
+    friend class UIMachineLogicSeamless;
 };
 
 #endif // __UIMachineWindow_h__

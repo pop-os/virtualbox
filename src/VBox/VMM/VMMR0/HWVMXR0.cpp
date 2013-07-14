@@ -136,10 +136,16 @@ VMMR0DECL(int) VMXR0EnableCpu(PHMGLOBLCPUINFO pCpu, PVM pVM, void *pvCpuPage, RT
          * (which can have very bad consequences!!!)
          */
 
-        if (ASMGetCR4() & X86_CR4_VMXE)
-            return VERR_VMX_IN_VMX_ROOT_MODE;
-
-        ASMSetCR4(ASMGetCR4() | X86_CR4_VMXE);    /* Make sure the VMX instructions don't cause #UD faults. */
+        /** @todo r=bird: Why is this code different than the probing code earlier
+         *        on? It just sets VMXE if needed and doesn't check that it isn't
+         *        set.  Mac OS X host_vmxoff may leave this set and we'll fail here
+         *        and debug-assert in the calling code.  This is what caused the
+         *        "regression" after backing out the SUPR0EnableVTx code hours before
+         *        4.2.0GA (reboot fixed the issue).  I've changed here to do the same
+         *        as the init code. */
+        uint64_t uCr4 = ASMGetCR4();
+        if (!(uCr4 & X86_CR4_VMXE))
+            ASMSetCR4(ASMGetCR4() | X86_CR4_VMXE);    /* Make sure the VMX instructions don't cause #UD faults. */
 
         /*
          * Enter VM root mode.
@@ -147,25 +153,34 @@ VMMR0DECL(int) VMXR0EnableCpu(PHMGLOBLCPUINFO pCpu, PVM pVM, void *pvCpuPage, RT
         int rc = VMXEnable(HCPhysCpuPage);
         if (RT_FAILURE(rc))
         {
-            ASMSetCR4(ASMGetCR4() & ~X86_CR4_VMXE);
+            ASMSetCR4(uCr4);
             return VERR_VMX_VMXON_FAILED;
         }
     }
 
     /*
-     * Flush all VPIDs (in case we or any other hypervisor have been using VPIDs) so that
+     * Flush all EPTP tagged-TLB entries (in case any other hypervisor have been using EPTPs) so that
      * we can avoid an explicit flush while using new VPIDs. We would still need to flush
      * each time while reusing a VPID after hitting the MaxASID limit once.
      */
     if (   pVM
-        && pVM->hwaccm.s.vmx.fVPID
-        && (pVM->hwaccm.s.vmx.msr.vmx_eptcaps & MSR_IA32_VMX_EPT_CAPS_INVVPID_CAPS_ALL_CONTEXTS))
+        && pVM->hwaccm.s.fNestedPaging)
     {
-        hmR0VmxFlushVPID(pVM, NULL /* pvCpu */, VMX_FLUSH_VPID_ALL_CONTEXTS, 0 /* GCPtr */);
+        /* We require ALL_CONTEXT flush-type to be available on the CPU. See VMXR0SetupVM(). */
+        Assert(pVM->hwaccm.s.vmx.msr.vmx_eptcaps & MSR_IA32_VMX_EPT_CAPS_INVEPT_CAPS_ALL_CONTEXTS);
+        hmR0VmxFlushEPT(pVM, NULL /* pVCpu */, VMX_FLUSH_EPT_ALL_CONTEXTS);
         pCpu->fFlushASIDBeforeUse = false;
     }
     else
+    {
+        /** @todo This is still not perfect. If on host resume (pVM is NULL or a VM
+         *        without NestedPaging triggered this function) we still have the risk
+         *        of potentially running with stale TLB-entries from other hypervisors
+         *        when later we use a VM with NestedPaging. To fix this properly we will
+         *        have to pass '&g_HvmR0' (see HMR0.cpp) to this function and read
+         *        'vmx_eptcaps' from it. Sigh. */
         pCpu->fFlushASIDBeforeUse = true;
+    }
 
     /*
      * Ensure each VCPU scheduled on this CPU gets a new VPID on resume. See @bugref{6255}.
@@ -1355,6 +1370,7 @@ VMMR0DECL(int) VMXR0SaveHostState(PVM pVM, PVMCPU pVCpu)
         uint32_t u32HostExtFeatures = ASMCpuId_EDX(0x80000001);
         if (u32HostExtFeatures & (X86_CPUID_EXT_FEATURE_EDX_NX | X86_CPUID_EXT_FEATURE_EDX_LONG_MODE))
         {
+#if 0
             pMsr->u32IndexMSR = MSR_K6_EFER;
             pMsr->u32Reserved = 0;
 # if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
@@ -1367,6 +1383,7 @@ VMMR0DECL(int) VMXR0SaveHostState(PVM pVM, PVMCPU pVCpu)
 # endif
                 pMsr->u64Value    = ASMRdMsr(MSR_K6_EFER);
             pMsr++; idxMsr++;
+#endif
         }
 
 # if HC_ARCH_BITS == 64 || defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
@@ -1594,6 +1611,77 @@ VMMR0DECL(void) VMXR0LoadMinimalGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     AssertRC(rc);
 }
 
+
+/**
+ * Sets up TSC offsetting and VMX preemption, if supported/configured/available.
+ *
+ * NOTE: This function reads the host TSC value. Therefore it must be executed very
+ * shortly before a VM entry and execution MUST NOT be rescheduled between a call to
+ * this function and a VM entry without calling this function again.
+ *
+ * @returns VBox status code.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
+ */
+VMMR0DECL(int) VMXR0SetupTscOffsetAndPreemption(PVM pVM, PVMCPU pVCpu)
+{
+    int     rc = VINF_SUCCESS;
+    bool    fOffsettedTsc;
+
+    if (pVM->hwaccm.s.vmx.fUsePreemptTimer)
+    {
+        uint64_t cTicksToDeadline = TMCpuTickGetDeadlineAndTscOffset(pVCpu, &fOffsettedTsc, &pVCpu->hwaccm.s.vmx.u64TSCOffset);
+
+        /* Make sure the returned values have sane upper and lower boundaries. */
+        uint64_t u64CpuHz = SUPGetCpuHzFromGIP(g_pSUPGlobalInfoPage);
+
+        cTicksToDeadline = RT_MIN(cTicksToDeadline, u64CpuHz / 64);   /* 1/64 of a second */
+        cTicksToDeadline = RT_MAX(cTicksToDeadline, u64CpuHz / 2048); /* 1/2048th of a second */
+
+        cTicksToDeadline >>= pVM->hwaccm.s.vmx.cPreemptTimerShift;
+        uint32_t cPreemptionTickCount = (uint32_t)RT_MIN(cTicksToDeadline, UINT32_MAX - 16);
+        rc = VMXWriteVMCS(VMX_VMCS32_GUEST_PREEMPTION_TIMER_VALUE, cPreemptionTickCount);
+        AssertRC(rc);
+    }
+    else
+        fOffsettedTsc = TMCpuTickCanUseRealTSC(pVCpu, &pVCpu->hwaccm.s.vmx.u64TSCOffset);
+
+    if (fOffsettedTsc)
+    {
+        uint64_t u64CurTSC = ASMReadTSC();
+        if (u64CurTSC + pVCpu->hwaccm.s.vmx.u64TSCOffset > TMCpuTickGetLastSeen(pVCpu))
+        {
+            /* Note: VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT takes precedence over TSC_OFFSET, applies to RDTSCP too. */
+            rc = VMXWriteVMCS64(VMX_VMCS_CTRL_TSC_OFFSET_FULL, pVCpu->hwaccm.s.vmx.u64TSCOffset);
+            AssertRC(rc);
+
+            pVCpu->hwaccm.s.vmx.proc_ctls &= ~VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT;
+            rc = VMXWriteVMCS(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, pVCpu->hwaccm.s.vmx.proc_ctls);
+            AssertRC(rc);
+            STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTSCOffset);
+        }
+        else
+        {
+            /* Fall back to rdtsc, rdtscp emulation as we would otherwise pass decreasing tsc values to the guest. */
+            LogFlow(("TSC %RX64 offset %RX64 time=%RX64 last=%RX64 (diff=%RX64, virt_tsc=%RX64)\n", u64CurTSC,
+                     pVCpu->hwaccm.s.vmx.u64TSCOffset, u64CurTSC + pVCpu->hwaccm.s.vmx.u64TSCOffset,
+                     TMCpuTickGetLastSeen(pVCpu), TMCpuTickGetLastSeen(pVCpu) - u64CurTSC - pVCpu->hwaccm.s.vmx.u64TSCOffset,
+                     TMCpuTickGet(pVCpu)));
+            pVCpu->hwaccm.s.vmx.proc_ctls |= VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT;
+            rc = VMXWriteVMCS(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, pVCpu->hwaccm.s.vmx.proc_ctls);
+            AssertRC(rc);
+            STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTSCInterceptOverFlow);
+        }
+    }
+    else
+    {
+        pVCpu->hwaccm.s.vmx.proc_ctls |= VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT;
+        rc = VMXWriteVMCS(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, pVCpu->hwaccm.s.vmx.proc_ctls);
+        AssertRC(rc);
+        STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTSCIntercept);
+    }
+    return rc;
+}
 
 /**
  * Loads the guest state.
@@ -2152,6 +2240,7 @@ VMMR0DECL(int) VMXR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 
     if (u32GstExtFeatures & (X86_CPUID_EXT_FEATURE_EDX_NX | X86_CPUID_EXT_FEATURE_EDX_LONG_MODE))
     {
+#if 0
         pMsr->u32IndexMSR = MSR_K6_EFER;
         pMsr->u32Reserved = 0;
         pMsr->u64Value    = pCtx->msrEFER;
@@ -2159,6 +2248,7 @@ VMMR0DECL(int) VMXR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
         if (!CPUMIsGuestInLongModeEx(pCtx))
             pMsr->u64Value &= ~(MSR_K6_EFER_LMA | MSR_K6_EFER_LME);
         pMsr++; idxMsr++;
+#endif
 
         if (u32GstExtFeatures & X86_CPUID_EXT_FEATURE_EDX_LONG_MODE)
         {
@@ -2203,60 +2293,6 @@ VMMR0DECL(int) VMXR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     rc = VMXWriteVMCS(VMX_VMCS_CTRL_EXIT_MSR_STORE_COUNT, idxMsr);
     AssertRC(rc);
 #endif /* VBOX_WITH_AUTO_MSR_LOAD_RESTORE */
-
-    bool fOffsettedTsc;
-    if (pVM->hwaccm.s.vmx.fUsePreemptTimer)
-    {
-        uint64_t cTicksToDeadline = TMCpuTickGetDeadlineAndTscOffset(pVCpu, &fOffsettedTsc, &pVCpu->hwaccm.s.vmx.u64TSCOffset);
-
-        /* Make sure the returned values have sane upper and lower boundaries. */
-        uint64_t u64CpuHz = SUPGetCpuHzFromGIP(g_pSUPGlobalInfoPage);
-
-        cTicksToDeadline = RT_MIN(cTicksToDeadline, u64CpuHz / 64);   /* 1/64 of a second */
-        cTicksToDeadline = RT_MAX(cTicksToDeadline, u64CpuHz / 2048); /* 1/2048th of a second */
-
-        cTicksToDeadline >>= pVM->hwaccm.s.vmx.cPreemptTimerShift;
-        uint32_t cPreemptionTickCount = (uint32_t)RT_MIN(cTicksToDeadline, UINT32_MAX - 16);
-        rc = VMXWriteVMCS(VMX_VMCS32_GUEST_PREEMPTION_TIMER_VALUE, cPreemptionTickCount);
-        AssertRC(rc);
-    }
-    else
-        fOffsettedTsc = TMCpuTickCanUseRealTSC(pVCpu, &pVCpu->hwaccm.s.vmx.u64TSCOffset);
-
-    if (fOffsettedTsc)
-    {
-        uint64_t u64CurTSC = ASMReadTSC();
-        if (u64CurTSC + pVCpu->hwaccm.s.vmx.u64TSCOffset >= TMCpuTickGetLastSeen(pVCpu))
-        {
-            /* Note: VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT takes precedence over TSC_OFFSET, applies to RDTSCP too. */
-            rc = VMXWriteVMCS64(VMX_VMCS_CTRL_TSC_OFFSET_FULL, pVCpu->hwaccm.s.vmx.u64TSCOffset);
-            AssertRC(rc);
-
-            pVCpu->hwaccm.s.vmx.proc_ctls &= ~VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT;
-            rc = VMXWriteVMCS(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, pVCpu->hwaccm.s.vmx.proc_ctls);
-            AssertRC(rc);
-            STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTSCOffset);
-        }
-        else
-        {
-            /* Fall back to rdtsc, rdtscp emulation as we would otherwise pass decreasing tsc values to the guest. */
-            LogFlow(("TSC %RX64 offset %RX64 time=%RX64 last=%RX64 (diff=%RX64, virt_tsc=%RX64)\n", u64CurTSC,
-                     pVCpu->hwaccm.s.vmx.u64TSCOffset, u64CurTSC + pVCpu->hwaccm.s.vmx.u64TSCOffset,
-                     TMCpuTickGetLastSeen(pVCpu), TMCpuTickGetLastSeen(pVCpu) - u64CurTSC - pVCpu->hwaccm.s.vmx.u64TSCOffset,
-                     TMCpuTickGet(pVCpu)));
-            pVCpu->hwaccm.s.vmx.proc_ctls |= VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT;
-            rc = VMXWriteVMCS(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, pVCpu->hwaccm.s.vmx.proc_ctls);
-            AssertRC(rc);
-            STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTSCInterceptOverFlow);
-        }
-    }
-    else
-    {
-        pVCpu->hwaccm.s.vmx.proc_ctls |= VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT;
-        rc = VMXWriteVMCS(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, pVCpu->hwaccm.s.vmx.proc_ctls);
-        AssertRC(rc);
-        STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTSCIntercept);
-    }
 
     /* Done with the major changes */
     pVCpu->hwaccm.s.fContextUseFlags &= ~HWACCM_CHANGED_ALL_GUEST;
@@ -2420,10 +2456,12 @@ DECLINLINE(int) VMXR0SaveGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
                 CPUMSetGuestMsr(pVCpu, MSR_K8_TSC_AUX, pMsr->u64Value);
                 break;
 
+#if 0
             case MSR_K6_EFER:
                 /* EFER can't be changed without causing a VM-exit. */
                 /* Assert(pCtx->msrEFER == pMsr->u64Value); */
                 break;
+#endif
 
             default:
                 AssertFailed();
@@ -2501,20 +2539,26 @@ static DECLCALLBACK(void) hmR0VmxSetupTLBBoth(PVM pVM, PVMCPU pVCpu)
             }
 
             pVCpu->hwaccm.s.uCurrentASID = pCpu->uCurrentASID;
-            if (pCpu->fFlushASIDBeforeUse)
-            {
-                hmR0VmxFlushVPID(pVM, pVCpu, pVM->hwaccm.s.vmx.enmFlushVPID, 0 /* GCPtr */);
+
+            /*
+             * Flush by EPT when we get rescheduled to a new host CPU to ensure EPT-only tagged mappings are also
+             * invalidated. We don't need to flush-by-VPID here as flushing by EPT covers it. See @bugref{6568}.
+             */
+            hmR0VmxFlushEPT(pVM, pVCpu, pVM->hwaccm.s.vmx.enmFlushEPT);
 #ifdef VBOX_WITH_STATISTICS
-                STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatFlushASID);
+            STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatFlushASID);
 #endif
-            }
         }
         else
         {
-            if (pVM->hwaccm.s.vmx.msr.vmx_eptcaps & MSR_IA32_VMX_EPT_CAPS_INVVPID_CAPS_SINGLE_CONTEXT)
-                hmR0VmxFlushVPID(pVM, pVCpu, VMX_FLUSH_VPID_SINGLE_CONTEXT, 0 /* GCPtr */);
-            else
-                hmR0VmxFlushEPT(pVM, pVCpu, pVM->hwaccm.s.vmx.enmFlushEPT);
+            /*
+             * Changes to the EPT paging structure by VMM requires flushing by EPT as the CPU creates
+             * guest-physical (only EPT-tagged) mappings while traversing the EPT tables when EPT is in use.
+             * Flushing by VPID will only flush linear (only VPID-tagged) and combined (EPT+VPID tagged) mappings
+             * but not guest-physical mappings.
+             * See Intel spec. 28.3.2 "Creating and Using Cached Translation Information". See @bugref{6568}.
+             */
+            hmR0VmxFlushEPT(pVM, pVCpu, pVM->hwaccm.s.vmx.enmFlushEPT);
 
 #ifdef VBOX_WITH_STATISTICS
             /*
@@ -2766,6 +2810,7 @@ VMMR0DECL(int) VMXR0RunGuestCode(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     RTGCUINTPTR intInfo = 0; /* shut up buggy gcc 4 */
     RTGCUINTPTR errCode, instrInfo;
     bool        fSetupTPRCaching = false;
+    bool        fNeedTscSetup = true;
     uint64_t    u64OldLSTAR = 0;
     uint8_t     u8LastTPR = 0;
     RTCCUINTREG uOldEFlags = ~(RTCCUINTREG)0;
@@ -2796,7 +2841,7 @@ VMMR0DECL(int) VMXR0RunGuestCode(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     Log2(("\nE"));
 
     /* This is not ideal, but if we don't clear the event injection in the VMCS right here,
-     * we may end up injecting some stale event into a VM, including injecting an event that 
+     * we may end up injecting some stale event into a VM, including injecting an event that
      * originated before a VM reset *after* the VM has been reset. See @bugref{6220}.
      */
     VMXWriteVMCS(VMX_VMCS_CTRL_ENTRY_IRQ_INFO, 0);
@@ -3125,6 +3170,11 @@ ResumeExecution:
     {
         VMXR0LoadMinimalGuestState(pVM, pVCpu, pCtx);
         STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatLoadMinimal);
+        if (fNeedTscSetup)
+        {
+            VMXR0SetupTscOffsetAndPreemption(pVM, pVCpu);
+            fNeedTscSetup = false;
+        }
     }
     else
     {
@@ -3135,6 +3185,7 @@ ResumeExecution:
             goto end;
         }
         STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatLoadFull);
+        VMXR0SetupTscOffsetAndPreemption(pVM, pVCpu);
     }
 
 #ifndef VBOX_WITH_VMMR0_DISABLE_PREEMPTION
@@ -4162,6 +4213,7 @@ ResumeExecution:
             /* Update EIP and continue execution. */
             Assert(cbInstr == 2);
             pCtx->rip += cbInstr;
+            fNeedTscSetup = true;   /* See @bugref{6634}. */
             goto ResumeExecution;
         }
         rc = VINF_EM_RAW_EMULATE_INSTR;
@@ -4178,6 +4230,7 @@ ResumeExecution:
             /* Update EIP and continue execution. */
             Assert(cbInstr == 3);
             pCtx->rip += cbInstr;
+            fNeedTscSetup = true;   /* See @bugref{6634}. */
             goto ResumeExecution;
         }
         rc = VINF_EM_RAW_EMULATE_INSTR;
@@ -4987,19 +5040,30 @@ VMMR0DECL(int) VMXR0Leave(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
  *
  * @returns VBox status code.
  * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       Pointer to the VMCPU (can be NULL depending on @a
+ *                      enmFlush).
  * @param   enmFlush    Type of flush.
  */
 static void hmR0VmxFlushEPT(PVM pVM, PVMCPU pVCpu, VMX_FLUSH_EPT enmFlush)
 {
-    uint64_t descriptor[2];
+    AssertPtr(pVM);
+    Assert(pVM->hwaccm.s.fNestedPaging);
 
     LogFlow(("hmR0VmxFlushEPT %d\n", enmFlush));
-    Assert(pVM->hwaccm.s.fNestedPaging);
-    descriptor[0] = pVCpu->hwaccm.s.vmx.GCPhysEPTP;
-    descriptor[1] = 0; /* MBZ. Intel spec. 33.3 VMX Instructions */
+
+    uint64_t descriptor[2];
+    if (enmFlush == VMX_FLUSH_EPT_ALL_CONTEXTS)
+        descriptor[0] = 0;
+    else
+    {
+        Assert(pVCpu);
+        descriptor[0] = pVCpu->hwaccm.s.vmx.GCPhysEPTP;
+    }
+    descriptor[1] = 0;                           /* MBZ. Intel spec. 33.3 "VMX Instructions" */
+
     int rc = VMXR0InvEPT(enmFlush, &descriptor[0]);
-    AssertMsg(rc == VINF_SUCCESS, ("VMXR0InvEPT %x %RGv failed with %d\n", enmFlush, pVCpu->hwaccm.s.vmx.GCPhysEPTP, rc));
+    AssertMsg(rc == VINF_SUCCESS, ("VMXR0InvEPT %x %RGv failed with %d\n", enmFlush, pVCpu ? pVCpu->hwaccm.s.vmx.GCPhysEPTP : 0,
+                                   rc));
 }
 
 

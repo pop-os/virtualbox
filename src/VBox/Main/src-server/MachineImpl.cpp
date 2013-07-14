@@ -3754,9 +3754,20 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
                         tr("Could not get type of controller '%ls'"),
                         aControllerName);
 
+    bool fSilent = false;
+    Utf8Str strReconfig;
+
+    /* Check whether the flag to allow silent storage attachment reconfiguration is set. */
+    strReconfig = getExtraData(Utf8Str("VBoxInternal2/SilentReconfigureWhilePaused"));
+    if (FAILED(rc))
+        return rc;
+    if (   mData->mMachineState == MachineState_Paused
+        && strReconfig == "1")
+        fSilent = true;
+
     /* Check that the controller can do hotplugging if we detach the device while the VM is running. */
     bool fHotplug = false;
-    if (Global::IsOnlineOrTransient(mData->mMachineState))
+    if (!fSilent && Global::IsOnlineOrTransient(mData->mMachineState))
         fHotplug = true;
 
     if (fHotplug && !isControllerHotplugCapable(ctrlType))
@@ -3863,6 +3874,46 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
                     /* the simplest case: restore the whole attachment
                      * and return, nothing else to do */
                     mMediaData->mAttachments.push_back(pAttachTemp);
+
+                    /* Reattach the medium to the VM. */
+                    if (fHotplug || fSilent)
+                    {
+                        mediumLock.release();
+                        treeLock.release();
+                        alock.release();
+
+                        MediumLockList *pMediumLockList(new MediumLockList());
+
+                        rc = medium->createMediumLockList(true /* fFailIfInaccessible */,
+                                                          true /* fMediumLockWrite */,
+                                                          NULL,
+                                                          *pMediumLockList);
+                        alock.acquire();
+                        if (FAILED(rc))
+                            delete pMediumLockList;
+                        else
+                        {
+                            mData->mSession.mLockedMedia.Unlock();
+                            alock.release();
+                            rc = mData->mSession.mLockedMedia.Insert(pAttachTemp, pMediumLockList);
+                            mData->mSession.mLockedMedia.Lock();
+                            alock.acquire();
+                        }
+                        alock.release();
+
+                        if (SUCCEEDED(rc))
+                        {
+                            rc = onStorageDeviceChange(pAttachTemp, FALSE /* aRemove */, fSilent);
+                            /* Remove lock list in case of error. */
+                            if (FAILED(rc))
+                            {
+                                mData->mSession.mLockedMedia.Unlock();
+                                mData->mSession.mLockedMedia.Remove(pAttachTemp);
+                                mData->mSession.mLockedMedia.Lock();
+                            }
+                        }
+                    }
+
                     return S_OK;
                 }
 
@@ -3922,6 +3973,46 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
                             /* the simplest case: restore the whole attachment
                              * and return, nothing else to do */
                             mMediaData->mAttachments.push_back(*it);
+
+                            /* Reattach the medium to the VM. */
+                            if (fHotplug || fSilent)
+                            {
+                                mediumLock.release();
+                                treeLock.release();
+                                alock.release();
+
+                                MediumLockList *pMediumLockList(new MediumLockList());
+
+                                rc = medium->createMediumLockList(true /* fFailIfInaccessible */,
+                                                                  true /* fMediumLockWrite */,
+                                                                  NULL,
+                                                                  *pMediumLockList);
+                                alock.acquire();
+                                if (FAILED(rc))
+                                    delete pMediumLockList;
+                                else
+                                {
+                                    mData->mSession.mLockedMedia.Unlock();
+                                    alock.release();
+                                    rc = mData->mSession.mLockedMedia.Insert(pAttachTemp, pMediumLockList);
+                                    mData->mSession.mLockedMedia.Lock();
+                                    alock.acquire();
+                                }
+                                alock.release();
+
+                                if (SUCCEEDED(rc))
+                                {
+                                    rc = onStorageDeviceChange(pAttachTemp, FALSE /* aRemove */, fSilent);
+                                    /* Remove lock list in case of error. */
+                                    if (FAILED(rc))
+                                    {
+                                        mData->mSession.mLockedMedia.Unlock();
+                                        mData->mSession.mLockedMedia.Remove(pAttachTemp);
+                                        mData->mSession.mLockedMedia.Lock();
+                                    }
+                                }
+                            }
+
                             return S_OK;
                         }
                         else if (    foundIt == oldAtts.end()
@@ -4155,8 +4246,42 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
     treeLock.release();
     alock.release();
 
-    if (fHotplug)
-        rc = onStorageDeviceChange(attachment, FALSE /* aRemove */);
+    if (fHotplug || fSilent)
+    {
+        if (!medium.isNull())
+        {
+            MediumLockList *pMediumLockList(new MediumLockList());
+
+            rc = medium->createMediumLockList(true /* fFailIfInaccessible */,
+                                              true /* fMediumLockWrite */,
+                                              NULL,
+                                              *pMediumLockList);
+            alock.acquire();
+            if (FAILED(rc))
+                delete pMediumLockList;
+            else
+            {
+                mData->mSession.mLockedMedia.Unlock();
+                alock.release();
+                rc = mData->mSession.mLockedMedia.Insert(attachment, pMediumLockList);
+                mData->mSession.mLockedMedia.Lock();
+                alock.acquire();
+            }
+            alock.release();
+        }
+
+        if (SUCCEEDED(rc))
+        {
+            rc = onStorageDeviceChange(attachment, FALSE /* aRemove */, fSilent);
+            /* Remove lock list in case of error. */
+            if (FAILED(rc))
+            {
+                mData->mSession.mLockedMedia.Unlock();
+                mData->mSession.mLockedMedia.Remove(attachment);
+                mData->mSession.mLockedMedia.Lock();
+            }
+        }
+    }
 
     mParent->saveModifiedRegistries();
 
@@ -4193,9 +4318,20 @@ STDMETHODIMP Machine::DetachDevice(IN_BSTR aControllerName, LONG aControllerPort
                         tr("Could not get type of controller '%ls'"),
                         aControllerName);
 
+    bool fSilent = false;
+    Utf8Str strReconfig;
+
+    /* Check whether the flag to allow silent storage attachment reconfiguration is set. */
+    strReconfig = getExtraData(Utf8Str("VBoxInternal2/SilentReconfigureWhilePaused"));
+    if (FAILED(rc))
+        return rc;
+    if (   mData->mMachineState == MachineState_Paused
+        && strReconfig == "1")
+        fSilent = true;
+
     /* Check that the controller can do hotplugging if we detach the device while the VM is running. */
     bool fHotplug = false;
-    if (Global::IsOnlineOrTransient(mData->mMachineState))
+    if (!fSilent && Global::IsOnlineOrTransient(mData->mMachineState))
         fHotplug = true;
 
     if (fHotplug && !isControllerHotplugCapable(ctrlType))
@@ -4216,10 +4352,10 @@ STDMETHODIMP Machine::DetachDevice(IN_BSTR aControllerName, LONG aControllerPort
      * The VM has to detach the device before we delete any implicit diffs.
      * If this fails we can roll back without loosing data.
      */
-    if (fHotplug)
+    if (fHotplug || fSilent)
     {
         alock.release();
-        rc = onStorageDeviceChange(pAttach, TRUE /* aRemove */);
+        rc = onStorageDeviceChange(pAttach, TRUE /* aRemove */, fSilent);
         alock.acquire();
     }
     if (FAILED(rc)) return rc;
@@ -5470,8 +5606,7 @@ HRESULT Machine::getGuestPropertyFromService(IN_BSTR aName,
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     Utf8Str strName(aName);
-    HWData::GuestPropertyMap::const_iterator it =
-        mHWData->mGuestProperties.find(strName);
+    HWData::GuestPropertyMap::const_iterator it = mHWData->mGuestProperties.find(strName);
 
     if (it != mHWData->mGuestProperties.end())
     {
@@ -5562,8 +5697,6 @@ HRESULT Machine::setGuestPropertyToService(IN_BSTR aName, IN_BSTR aValue,
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     HRESULT rc = S_OK;
-    HWData::GuestProperty property;
-    property.mFlags = NILFLAG;
 
     rc = checkStateDependency(MutableStateDep);
     if (FAILED(rc)) return rc;
@@ -5573,28 +5706,28 @@ HRESULT Machine::setGuestPropertyToService(IN_BSTR aName, IN_BSTR aValue,
         Utf8Str utf8Name(aName);
         Utf8Str utf8Flags(aFlags);
         uint32_t fFlags = NILFLAG;
-        if (   (aFlags != NULL)
-            && RT_FAILURE(validateFlags(utf8Flags.c_str(), &fFlags))
-           )
+        if (   aFlags != NULL
+            && RT_FAILURE(validateFlags(utf8Flags.c_str(), &fFlags)))
             return setError(E_INVALIDARG,
                             tr("Invalid guest property flag values: '%ls'"),
                             aFlags);
 
-        HWData::GuestPropertyMap::iterator it =
-            mHWData->mGuestProperties.find(utf8Name);
-
+        bool fDelete = !RT_VALID_PTR(aValue) || *(aValue) == '\0';
+        HWData::GuestPropertyMap::iterator it = mHWData->mGuestProperties.find(utf8Name);
         if (it == mHWData->mGuestProperties.end())
         {
-            setModified(IsModified_MachineData);
-            mHWData.backupEx();
+            if (!fDelete)
+            {
+                setModified(IsModified_MachineData);
+                mHWData.backupEx();
 
-            RTTIMESPEC time;
-            HWData::GuestProperty prop;
-            prop.strValue = aValue;
-            prop.mTimestamp = RTTimeSpecGetNano(RTTimeNow(&time));
-            prop.mFlags = fFlags;
-
-            mHWData->mGuestProperties[Utf8Str(aName)] = prop;
+                RTTIMESPEC time;
+                HWData::GuestProperty prop;
+                prop.strValue   = aValue;
+                prop.mTimestamp = RTTimeSpecGetNano(RTTimeNow(&time));
+                prop.mFlags     = fFlags;
+                mHWData->mGuestProperties[Utf8Str(aName)] = prop;
+            }
         }
         else
         {
@@ -5614,18 +5747,15 @@ HRESULT Machine::setGuestPropertyToService(IN_BSTR aName, IN_BSTR aValue,
                 it = mHWData->mGuestProperties.find(utf8Name);
                 Assert(it != mHWData->mGuestProperties.end());
 
-                if (RT_VALID_PTR(aValue) && *(aValue) != '\0')
+                if (!fDelete)
                 {
                     RTTIMESPEC time;
-                    it->second.strValue = aValue;
+                    it->second.strValue   = aValue;
                     it->second.mTimestamp = RTTimeSpecGetNano(RTTimeNow(&time));
-                    if (aFlags != NULL)
-                        it->second.mFlags = fFlags;
+                    it->second.mFlags     = fFlags;
                 }
                 else
-                {
                     mHWData->mGuestProperties.erase(it);
-                }
             }
         }
 
@@ -7800,6 +7930,21 @@ void Machine::releaseStateDependency()
             RTSemEventMultiSignal (mData->mMachineStateDepsSem);
         }
     }
+}
+
+Utf8Str Machine::getExtraData(const Utf8Str &strKey)
+{
+    /* start with nothing found */
+    Utf8Str strResult("");
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    settings::StringsMap::const_iterator it = mData->pMachineConfigFile->mapExtraDataItems.find(strKey);
+    if (it != mData->pMachineConfigFile->mapExtraDataItems.end())
+        // found:
+        strResult = it->second; // source is a Utf8Str
+
+    return strResult;
 }
 
 // protected methods
@@ -12846,8 +12991,8 @@ STDMETHODIMP SessionMachine::PushGuestProperty(IN_BSTR aName,
         /*
          * Convert input up front.
          */
-        Utf8Str     utf8Name(aName);
-        uint32_t    fFlags = NILFLAG;
+        Utf8Str  utf8Name(aName);
+        uint32_t fFlags = NILFLAG;
         if (aFlags)
         {
             Utf8Str utf8Flags(aFlags);
@@ -12887,18 +13032,29 @@ STDMETHODIMP SessionMachine::PushGuestProperty(IN_BSTR aName,
         setModified(IsModified_MachineData);
         mHWData.backup();
 
+        bool fDelete = !RT_VALID_PTR(aValue) || *(aValue) == '\0';
         HWData::GuestPropertyMap::iterator it = mHWData->mGuestProperties.find(utf8Name);
         if (it != mHWData->mGuestProperties.end())
         {
-            if (RT_VALID_PTR(aValue) && *(aValue) != '\0')
+            if (!fDelete)
             {
                 it->second.strValue   = aValue;
-                it->second.mFlags     = fFlags;
                 it->second.mTimestamp = aTimestamp;
+                it->second.mFlags     = fFlags;
             }
             else
                 mHWData->mGuestProperties.erase(it);
 
+            mData->mGuestPropertiesModified = TRUE;
+        }
+        else if (!fDelete)
+        {
+            HWData::GuestProperty prop;
+            prop.strValue   = aValue;
+            prop.mTimestamp = aTimestamp;
+            prop.mFlags     = fFlags;
+
+            mHWData->mGuestProperties[utf8Name] = prop;
             mData->mGuestPropertiesModified = TRUE;
         }
 
@@ -13448,7 +13604,7 @@ HRESULT SessionMachine::onBandwidthGroupChange(IBandwidthGroup *aBandwidthGroup)
 /**
  *  @note Locks this object for reading.
  */
-HRESULT SessionMachine::onStorageDeviceChange(IMediumAttachment *aAttachment, BOOL aRemove)
+HRESULT SessionMachine::onStorageDeviceChange(IMediumAttachment *aAttachment, BOOL aRemove, BOOL aSilent)
 {
     LogFlowThisFunc(("\n"));
 
@@ -13465,7 +13621,7 @@ HRESULT SessionMachine::onStorageDeviceChange(IMediumAttachment *aAttachment, BO
     if (!directControl)
         return S_OK;
 
-    return directControl->OnStorageDeviceChange(aAttachment, aRemove);
+    return directControl->OnStorageDeviceChange(aAttachment, aRemove, aSilent);
 }
 
 /**

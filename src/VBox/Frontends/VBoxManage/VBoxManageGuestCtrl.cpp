@@ -508,10 +508,11 @@ static int ctrlInitVM(HandlerArg *pArg, const char *pszNameOrId, ComPtr<IGuest> 
  * @return  IPRT status code.
  * @param   pProcess        Pointer to appropriate process object.
  * @param   pStrmOutput     Where to write the data.
- * @param   hStream         Where to read the data from.
+ * @param   uHandle         Handle where to read the data from.
+ * @param   uTimeoutMS      Timeout (in ms) to wait for the operation to complete.
  */
 static int ctrlExecPrintOutput(IProcess *pProcess, PRTSTREAM pStrmOutput,
-                               ULONG uHandle)
+                               ULONG uHandle, ULONG uTimeoutMS)
 {
     AssertPtrReturn(pProcess, VERR_INVALID_POINTER);
     AssertPtrReturn(pStrmOutput, VERR_INVALID_POINTER);
@@ -519,16 +520,58 @@ static int ctrlExecPrintOutput(IProcess *pProcess, PRTSTREAM pStrmOutput,
     int vrc = VINF_SUCCESS;
 
     SafeArray<BYTE> aOutputData;
-    HRESULT rc = pProcess->Read(uHandle, _64K, 30 * 1000 /* 30s timeout. */,
+    HRESULT rc = pProcess->Read(uHandle, _64K, uTimeoutMS,
                                 ComSafeArrayAsOutParam(aOutputData));
     if (FAILED(rc))
         vrc = ctrlPrintError(pProcess, COM_IIDOF(IProcess));
     else
     {
-        /** @todo implement the dos2unix/unix2dos conversions */
-        vrc = RTStrmWrite(pStrmOutput, aOutputData.raw(), aOutputData.size());
-        if (RT_FAILURE(vrc))
-            RTMsgError("Unable to write output, rc=%Rrc\n", vrc);
+        size_t cbOutputData = aOutputData.size();
+        if (cbOutputData > 0)
+        {
+            BYTE *pBuf = aOutputData.raw();
+            AssertPtr(pBuf);
+            pBuf[cbOutputData - 1] = 0; /* Properly terminate buffer. */
+
+            /** @todo implement the dos2unix/unix2dos conversions */
+
+            /*
+             * If aOutputData is text data from the guest process' stdout or stderr,
+             * it has a platform dependent line ending. So standardize on
+             * Unix style, as RTStrmWrite does the LF -> CR/LF replacement on
+             * Windows. Otherwise we end up with CR/CR/LF on Windows.
+             */
+
+            char *pszBufUTF8;
+            vrc = RTStrCurrentCPToUtf8(&pszBufUTF8, (const char*)aOutputData.raw());
+            if (RT_SUCCESS(vrc))
+            {
+                cbOutputData = strlen(pszBufUTF8);
+
+                ULONG cbOutputDataPrint = cbOutputData;
+                for (char *s = pszBufUTF8, *d = s;
+                     s - pszBufUTF8 < (ssize_t)cbOutputData;
+                     s++, d++)
+                {
+                    if (*s == '\r')
+                    {
+                        /* skip over CR, adjust destination */
+                        d--;
+                        cbOutputDataPrint--;
+                    }
+                    else if (s != d)
+                        *d = *s;
+                }
+
+                vrc = RTStrmWrite(pStrmOutput, pszBufUTF8, cbOutputDataPrint);
+                if (RT_FAILURE(vrc))
+                    RTMsgError("Unable to write output, rc=%Rrc\n", vrc);
+
+                RTStrFree(pszBufUTF8);
+            }
+            else
+                RTMsgError("Unable to convert output, rc=%Rrc\n", vrc);
+        }
     }
 
     return vrc;
@@ -837,7 +880,7 @@ static int handleCtrlExecProgram(ComPtr<IGuest> pGuest, HandlerArg *pArg)
                 case ProcessWaitResult_StdOut:
                     fReadStdOut = true;
                     break;
-               case ProcessWaitResult_StdErr:
+                case ProcessWaitResult_StdErr:
                     fReadStdErr = true;
                     break;
                 case ProcessWaitResult_Terminate:
@@ -861,13 +904,21 @@ static int handleCtrlExecProgram(ComPtr<IGuest> pGuest, HandlerArg *pArg)
 
             if (fReadStdOut) /* Do we need to fetch stdout data? */
             {
-                vrc = ctrlExecPrintOutput(pProcess, g_pStdOut, 1 /* StdOut */);
+                cMsTimeLeft = ctrlExecGetRemainingTime(u64StartMS, cMsTimeout);
+                int rc2 = ctrlExecPrintOutput(pProcess, g_pStdOut,
+                                              1 /* StdOut */, cMsTimeLeft);
+                if (RT_SUCCESS(vrc))
+                    vrc = rc2;
                 fReadStdOut = false;
             }
 
             if (fReadStdErr) /* Do we need to fetch stdout data? */
             {
-                vrc = ctrlExecPrintOutput(pProcess, g_pStdErr, 2 /* StdErr */);
+                cMsTimeLeft = ctrlExecGetRemainingTime(u64StartMS, cMsTimeout);
+                int rc2 = ctrlExecPrintOutput(pProcess, g_pStdErr,
+                                              2 /* StdErr */, cMsTimeLeft);
+                if (RT_SUCCESS(vrc))
+                    vrc = rc2;
                 fReadStdErr = false;
             }
 

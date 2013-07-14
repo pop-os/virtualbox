@@ -354,8 +354,7 @@ public:
     bool confirmGoingSeamless(const QString &strHotKey);
     bool confirmGoingScale(const QString &strHotKey);
 
-    bool remindAboutGuruMeditation(const CConsole &console,
-                                   const QString &strLogFolder);
+    bool remindAboutGuruMeditation(const QString &strLogFolder);
 
     bool confirmVMReset(const QString &strNames);
     bool confirmVMACPIShutdown(const QString &strNames);
