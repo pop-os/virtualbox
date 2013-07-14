@@ -2,6 +2,8 @@ virtualbox (4.2.16-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release.
     - Fixes CVE-2013-3792: virtio-net host DoS (Closes: #715327)
+  * Drop 36-python-multiarch.patch and 37-wheezy-kernel-drm.patch,
+    fixed upstream.
 
  -- Felix Geyer <fgeyer@debian.org>  Sun, 14 Jul 2013 17:52:45 +0200
 
