@@ -5,7 +5,7 @@ Author: Daniel Hahler <ubuntu@thequod.de>, Felix Geyer <fgeyer@debian.org>
 diff a/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp b/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
 --- a/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
 +++ b/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
-@@ -465,6 +465,8 @@ void UIUpdateManager::shutdown()
+@@ -474,6 +474,8 @@ void UIUpdateManager::shutdown()
  
  void UIUpdateManager::sltForceCheck()
  {
@@ -16,7 +16,7 @@ diff a/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp b/src/VBox/Fron
  }
 --- a/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
 +++ b/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
-@@ -550,6 +550,10 @@ bool UISettingsDialogGlobal::isPageAvail
+@@ -557,6 +557,10 @@ bool UISettingsDialogGlobal::isPageAvail
  #endif /* !VBOX_WITH_NETFLT */
              break;
          }
@@ -59,16 +59,20 @@ diff a/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp b/src/VBox/Fron
      /* Maximum index: */
 --- a/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp
 +++ b/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp
-@@ -1300,8 +1300,6 @@ void UISelectorWindow::prepareMenuHelp(Q
+@@ -1301,12 +1301,6 @@ void UISelectorWindow::prepareMenuHelp(Q
      m_pRegisterAction = gActionPool->action(UIActionIndex_Simple_Register);
      pMenu->addAction(m_pRegisterAction);
  #endif /* VBOX_WITH_REGISTRATION */
 -    m_pUpdateAction = gActionPool->action(UIActionIndex_Simple_CheckForUpdates);
--    pMenu->addAction(m_pUpdateAction);
+-    CVirtualBox vbox = vboxGlobal().virtualBox();
+-    if (VBoxGlobal::shouldWeAllowApplicationUpdate(vbox))
+-        pMenu->addAction(m_pUpdateAction);
+-    else
+-        m_pUpdateAction->setEnabled(false);
  #ifndef Q_WS_MAC
      pMenu->addSeparator();
  #endif /* !Q_WS_MAC */
-@@ -1438,7 +1436,6 @@ void UISelectorWindow::prepareConnection
+@@ -1443,7 +1437,6 @@ void UISelectorWindow::prepareConnection
      connect(m_pRegisterAction, SIGNAL(triggered()), &vboxGlobal(), SLOT(showRegistrationDialog()));
      connect(gEDataEvents, SIGNAL(sigCanShowRegistrationDlg(bool)), m_pRegisterAction, SLOT(setEnabled(bool)));
  #endif /* VBOX_WITH_REGISTRATION */

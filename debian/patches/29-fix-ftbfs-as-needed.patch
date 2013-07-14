@@ -3,7 +3,7 @@ Origin: vendor, http://sources.gentoo.org/cgi-bin/viewvc.cgi/gentoo-x86/app-emul
 
 --- a/Config.kmk
 +++ b/Config.kmk
-@@ -4511,7 +4511,7 @@ TEMPLATE_VBOXBLDPROG_LDFLAGS.sparc32
+@@ -4523,7 +4523,7 @@ TEMPLATE_VBOXBLDPROG_LDFLAGS.sparc32
  TEMPLATE_VBOXBLDPROG_LDFLAGS.amd64       = -m64
  TEMPLATE_VBOXBLDPROG_LDFLAGS.sparc64     = -m64
   ifeq ($(KBUILD_HOST),linux)

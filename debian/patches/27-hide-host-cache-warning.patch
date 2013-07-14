@@ -4,7 +4,7 @@ Author: Felix Geyer <fgeyer@debian.org>
 
 --- a/src/VBox/Main/src-client/ConsoleImpl2.cpp
 +++ b/src/VBox/Main/src-client/ConsoleImpl2.cpp
-@@ -3300,36 +3300,12 @@ int Console::configMediumAttachment(PCFG
+@@ -3319,36 +3319,12 @@ int Console::configMediumAttachment(PCFG
                      if (   enmFsTypeFile == RTFSTYPE_EXT4
                          || enmFsTypeFile == RTFSTYPE_XFS)
                      {

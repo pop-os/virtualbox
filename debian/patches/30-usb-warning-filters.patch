@@ -12,7 +12,7 @@ Author: Felix Geyer <fgeyer@debian.org>
  
  #if 0 /* Global USB filters are DISABLED now: */
  # define ENABLE_GLOBAL_USB
-@@ -1117,7 +1118,7 @@ bool UISettingsDialogMachine::isPageAvai
+@@ -1137,7 +1138,7 @@ bool UISettingsDialogMachine::isPageAvai
              /* Get the USB controller object: */
              CUSBController controller = m_machine.GetUSBController();
              /* Show the machine error message if any: */
