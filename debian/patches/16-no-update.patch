@@ -14,19 +14,6 @@ diff a/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp b/src/VBox/Fron
      /* Force call for new version check: */
      sltCheckIfUpdateIsNecessary(true /* force call */);
  }
---- a/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
-+++ b/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
-@@ -557,6 +557,10 @@ bool UISettingsDialogGlobal::isPageAvail
- #endif /* !VBOX_WITH_NETFLT */
-             break;
-         }
-+        case GLSettingsPage_Update:
-+        {
-+            return false;
-+        }
-         default:
-             break;
-     }
 --- a/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
 +++ b/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
 @@ -538,7 +538,6 @@ void UIActionPool::createActions()
