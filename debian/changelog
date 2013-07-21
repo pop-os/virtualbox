@@ -5,6 +5,9 @@ virtualbox (4.2.16-dfsg-1) UNRELEASED; urgency=low
     - Fixes CVE-2013-3792: virtio-net host DoS (Closes: #715327)
   * Drop 36-python-multiarch.patch and 37-wheezy-kernel-drm.patch,
     fixed upstream.
+  * Explicity load the vboxguest and vboxsf kernel modules in the
+    virtualbox-guest-utils init script.
+    This makes sure that shared folders can be mounted. (Closes: #712438)
 
   [ Gianfranco Costamagna ]
   * Patch refresh.
