@@ -67,3 +67,17 @@ diff a/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp b/src/VBox/Fron
      connect(m_pAboutAction, SIGNAL(triggered()), &msgCenter(), SLOT(sltShowHelpAboutDialog()));
  
      /* Status-bar connections: */
+diff a/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp b/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
+--- a/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
++++ b/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
+@@ -557,6 +557,10 @@ bool UISettingsDialogGlobal::isPageAvailable(int iPageId)
+ #endif /* !VBOX_WITH_NETFLT */
+             break;
+         }
++        case GlobalSettingsPageType_Update:
++        {
++            return false;
++        }
+         default:
+             break;
+     }
