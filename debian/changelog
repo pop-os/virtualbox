@@ -1,8 +1,8 @@
-virtualbox (4.2.16-dfsg-1) UNRELEASED; urgency=low
+virtualbox (4.2.16-dfsg-1) unstable; urgency=high
 
   [ Felix Geyer ]
   * New upstream release.
-    - Fixes CVE-2013-3792: virtio-net host DoS (Closes: #715327)
+    - Fixes CVE-2013-3792: virtio-net host DoS vulnerability. (Closes: #715327)
   * Drop 36-python-multiarch.patch and 37-wheezy-kernel-drm.patch,
     fixed upstream.
   * Explicity load the vboxguest and vboxsf kernel modules in the
@@ -12,7 +12,7 @@ virtualbox (4.2.16-dfsg-1) UNRELEASED; urgency=low
   [ Gianfranco Costamagna ]
   * Patch refresh.
 
- -- Felix Geyer <fgeyer@debian.org>  Sun, 14 Jul 2013 17:52:45 +0200
+ -- Felix Geyer <fgeyer@debian.org>  Sun, 21 Jul 2013 23:25:44 +0200
 
 virtualbox (4.2.10-dfsg-1) unstable; urgency=low
 
