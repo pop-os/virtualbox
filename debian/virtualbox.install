@@ -1,6 +1,7 @@
 debian/virtualbox.files/*.sh /usr/share/virtualbox
 
 out/bin/components /usr/lib/virtualbox
+out/bin/ExtensionPacks /usr/lib/virtualbox
 out/bin/VBoxREM.so /usr/lib/virtualbox
 out/bin/VBox*.so /usr/lib/virtualbox
 out/bin/VBox*.gc /usr/lib/virtualbox
