@@ -4,6 +4,10 @@ virtualbox (4.2.16-dfsg-2) UNRELEASED; urgency=low
   * Add VNC plugin module.
     - debian/patches/36-fix-vnc-version-string.patch: fix version string.
 
+  [ Felix Geyer ]
+  * Fix compilation of guest additions with linux 3.11.
+    - Add 37-linux-3.11.patch.
+
  -- Felix Geyer <fgeyer@debian.org>  Fri, 23 Aug 2013 23:57:37 +0200
 
 virtualbox (4.2.16-dfsg-1) unstable; urgency=high
