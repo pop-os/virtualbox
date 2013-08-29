@@ -1,4 +1,4 @@
-virtualbox (4.2.16-dfsg-2) UNRELEASED; urgency=low
+virtualbox (4.2.16-dfsg-2) unstable; urgency=low
 
   [ Whoopie ]
   * Add VNC plugin module.
@@ -8,7 +8,7 @@ virtualbox (4.2.16-dfsg-2) UNRELEASED; urgency=low
   * Fix compilation of guest additions with linux 3.11.
     - Add 37-linux-3.11.patch.
 
- -- Felix Geyer <fgeyer@debian.org>  Fri, 23 Aug 2013 23:57:37 +0200
+ -- Felix Geyer <fgeyer@debian.org>  Wed, 28 Aug 2013 22:15:25 +0200
 
 virtualbox (4.2.16-dfsg-1) unstable; urgency=high
 
