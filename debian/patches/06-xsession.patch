@@ -1,9 +1,11 @@
 Description: Make Xsession.d script ignore errors.
 Author: Michael Meskes <meskes@debian.org>
 
---- a/src/VBox/Additions/x11/Installer/98vboxadd-xclient
-+++ b/src/VBox/Additions/x11/Installer/98vboxadd-xclient
-@@ -42,11 +42,11 @@ then
+Index: virtualbox/src/VBox/Additions/x11/Installer/98vboxadd-xclient
+===================================================================
+--- virtualbox.orig/src/VBox/Additions/x11/Installer/98vboxadd-xclient	2013-11-19 03:40:59.137475714 -0500
++++ virtualbox/src/VBox/Additions/x11/Installer/98vboxadd-xclient	2013-11-19 03:40:59.133475714 -0500
+@@ -42,11 +42,11 @@
      no_display=1
  fi
  

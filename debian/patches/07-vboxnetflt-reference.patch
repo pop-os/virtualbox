@@ -1,9 +1,11 @@
 Description: Made error message tell about missing vboxnetflt module.
 Author: Michael Meskes <meskes@debian.org>
 
---- a/src/VBox/Devices/Network/DrvIntNet.cpp
-+++ b/src/VBox/Devices/Network/DrvIntNet.cpp
-@@ -1716,7 +1716,7 @@ static DECLCALLBACK(int) drvR3IntNetCons
+Index: virtualbox/src/VBox/Devices/Network/DrvIntNet.cpp
+===================================================================
+--- virtualbox.orig/src/VBox/Devices/Network/DrvIntNet.cpp	2013-11-19 03:41:03.413475913 -0500
++++ virtualbox/src/VBox/Devices/Network/DrvIntNet.cpp	2013-11-19 03:41:03.409475913 -0500
+@@ -1750,7 +1750,7 @@
              return VERR_PDM_NO_ATTACHED_DRIVER;
          }
          return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,

@@ -1,9 +1,11 @@
 Description: Fix FTBFS with ld --as-needed.
 Origin: vendor, http://sources.gentoo.org/cgi-bin/viewvc.cgi/gentoo-x86/app-emulation/virtualbox/files/virtualbox-4.1.4-asneeded.patch?revision=1.2&view=markup
 
---- a/Config.kmk
-+++ b/Config.kmk
-@@ -4523,7 +4523,7 @@ TEMPLATE_VBOXBLDPROG_LDFLAGS.sparc32
+Index: virtualbox/Config.kmk
+===================================================================
+--- virtualbox.orig/Config.kmk	2013-11-19 04:39:48.053639615 -0500
++++ virtualbox/Config.kmk	2013-11-19 04:39:48.049639615 -0500
+@@ -4826,7 +4826,7 @@
  TEMPLATE_VBOXBLDPROG_LDFLAGS.amd64       = -m64
  TEMPLATE_VBOXBLDPROG_LDFLAGS.sparc64     = -m64
   ifeq ($(KBUILD_HOST),linux)
