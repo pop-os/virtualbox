@@ -271,6 +271,27 @@ STDMETHODIMP Keyboard::COMGETTER(EventSource)(IEventSource ** aEventSource)
 // private methods
 //
 
+DECLCALLBACK(void) Keyboard::keyboardLedStatusChange(PPDMIKEYBOARDCONNECTOR pInterface, PDMKEYBLEDS enmLeds)
+{
+    PDRVMAINKEYBOARD pDrv = PPDMIKEYBOARDCONNECTOR_2_MAINKEYBOARD(pInterface);
+    pDrv->pKeyboard->getParent()->onKeyboardLedsChange(RT_BOOL(enmLeds & PDMKEYBLEDS_NUMLOCK),
+                                                       RT_BOOL(enmLeds & PDMKEYBLEDS_CAPSLOCK),
+                                                       RT_BOOL(enmLeds & PDMKEYBLEDS_SCROLLLOCK));
+}
+
+/**
+ * @interface_method_impl{PDMIKEYBOARDCONNECTOR,pfnSetActive}
+ */
+DECLCALLBACK(void) Keyboard::keyboardSetActive(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive)
+{
+    PDRVMAINKEYBOARD pDrv = PPDMIKEYBOARDCONNECTOR_2_MAINKEYBOARD(pInterface);
+    if (fActive)
+        pDrv->u32DevCaps |= KEYBOARD_DEVCAP_ENABLED;
+    else
+        pDrv->u32DevCaps &= ~KEYBOARD_DEVCAP_ENABLED;
+}
+
+
 /**
  * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
@@ -293,42 +314,21 @@ DECLCALLBACK(void *) Keyboard::drvQueryInterface(PPDMIBASE pInterface, const cha
  */
 DECLCALLBACK(void) Keyboard::drvDestruct(PPDMDRVINS pDrvIns)
 {
-    PDRVMAINKEYBOARD pData = PDMINS_2_DATA(pDrvIns, PDRVMAINKEYBOARD);
-    LogFlow(("Keyboard::drvDestruct: iInstance=%d\n", pDrvIns->iInstance));
     PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
+    PDRVMAINKEYBOARD pThis = PDMINS_2_DATA(pDrvIns, PDRVMAINKEYBOARD);
+    LogFlow(("Keyboard::drvDestruct: iInstance=%d\n", pDrvIns->iInstance));
 
-    if (pData->pKeyboard)
+    if (pThis->pKeyboard)
     {
-        AutoWriteLock kbdLock(pData->pKeyboard COMMA_LOCKVAL_SRC_POS);
+        AutoWriteLock kbdLock(pThis->pKeyboard COMMA_LOCKVAL_SRC_POS);
         for (unsigned cDev = 0; cDev < KEYBOARD_MAX_DEVICES; ++cDev)
-            if (pData->pKeyboard->mpDrv[cDev] == pData)
+            if (pThis->pKeyboard->mpDrv[cDev] == pThis)
             {
-                pData->pKeyboard->mpDrv[cDev] = NULL;
+                pThis->pKeyboard->mpDrv[cDev] = NULL;
                 break;
             }
-        pData->pKeyboard->mpVMMDev = NULL;
+        pThis->pKeyboard->mpVMMDev = NULL;
     }
-}
-
-DECLCALLBACK(void) keyboardLedStatusChange(PPDMIKEYBOARDCONNECTOR pInterface,
-                                           PDMKEYBLEDS enmLeds)
-{
-    PDRVMAINKEYBOARD pDrv = PPDMIKEYBOARDCONNECTOR_2_MAINKEYBOARD(pInterface);
-    pDrv->pKeyboard->getParent()->onKeyboardLedsChange(!!(enmLeds & PDMKEYBLEDS_NUMLOCK),
-                                                       !!(enmLeds & PDMKEYBLEDS_CAPSLOCK),
-                                                       !!(enmLeds & PDMKEYBLEDS_SCROLLLOCK));
-}
-
-/**
- * @interface_method_impl{PDMIKEYBOARDCONNECTOR,pfnSetActive}
- */
-DECLCALLBACK(void) Keyboard::keyboardSetActive(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive)
-{
-    PDRVMAINKEYBOARD pDrv = PPDMIKEYBOARDCONNECTOR_2_MAINKEYBOARD(pInterface);
-    if (fActive)
-        pDrv->u32DevCaps |= KEYBOARD_DEVCAP_ENABLED;
-    else
-        pDrv->u32DevCaps &= ~KEYBOARD_DEVCAP_ENABLED;
 }
 
 /**
@@ -336,12 +336,11 @@ DECLCALLBACK(void) Keyboard::keyboardSetActive(PPDMIKEYBOARDCONNECTOR pInterface
  *
  * @copydoc FNPDMDRVCONSTRUCT
  */
-DECLCALLBACK(int) Keyboard::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg,
-                                         uint32_t fFlags)
+DECLCALLBACK(int) Keyboard::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
-    PDRVMAINKEYBOARD pData = PDMINS_2_DATA(pDrvIns, PDRVMAINKEYBOARD);
-    LogFlow(("Keyboard::drvConstruct: iInstance=%d\n", pDrvIns->iInstance));
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+    PDRVMAINKEYBOARD pThis = PDMINS_2_DATA(pDrvIns, PDRVMAINKEYBOARD);
+    LogFlow(("Keyboard::drvConstruct: iInstance=%d\n", pDrvIns->iInstance));
 
     /*
      * Validate configuration.
@@ -357,14 +356,14 @@ DECLCALLBACK(int) Keyboard::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg,
      */
     pDrvIns->IBase.pfnQueryInterface        = Keyboard::drvQueryInterface;
 
-    pData->IConnector.pfnLedStatusChange    = keyboardLedStatusChange;
-    pData->IConnector.pfnSetActive          = keyboardSetActive;
+    pThis->IConnector.pfnLedStatusChange    = keyboardLedStatusChange;
+    pThis->IConnector.pfnSetActive          = Keyboard::keyboardSetActive;
 
     /*
      * Get the IKeyboardPort interface of the above driver/device.
      */
-    pData->pUpPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIKEYBOARDPORT);
-    if (!pData->pUpPort)
+    pThis->pUpPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIKEYBOARDPORT);
+    if (!pThis->pUpPort)
     {
         AssertMsgFailed(("Configuration error: No keyboard port interface above!\n"));
         return VERR_PDM_MISSING_INTERFACE_ABOVE;
@@ -380,12 +379,12 @@ DECLCALLBACK(int) Keyboard::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg,
         AssertMsgFailed(("Configuration error: No/bad \"Object\" value! rc=%Rrc\n", rc));
         return rc;
     }
-    pData->pKeyboard = (Keyboard *)pv;        /** @todo Check this cast! */
+    pThis->pKeyboard = (Keyboard *)pv;        /** @todo Check this cast! */
     unsigned cDev;
     for (cDev = 0; cDev < KEYBOARD_MAX_DEVICES; ++cDev)
-        if (!pData->pKeyboard->mpDrv[cDev])
+        if (!pThis->pKeyboard->mpDrv[cDev])
         {
-            pData->pKeyboard->mpDrv[cDev] = pData;
+            pThis->pKeyboard->mpDrv[cDev] = pThis;
             break;
         }
     if (cDev == KEYBOARD_MAX_DEVICES)

@@ -603,6 +603,10 @@ crStateTextureObjectDiff(CRContext *fromCtx,
     CRTextureState *from = &(fromCtx->texture);
     glAble able[2];
     int u = 0; /* always use texture unit 0 for diff'ing */
+    GLuint hwid = crStateGetTextureObjHWID(tobj);
+
+    if (!hwid)
+        return;
 
     able[0] = diff_api.Disable;
     able[1] = diff_api.Enable;
@@ -619,7 +623,7 @@ crStateTextureObjectDiff(CRContext *fromCtx,
     }
 #endif
 
-    diff_api.BindTexture(tobj->target, crStateGetTextureObjHWID(tobj));
+    diff_api.BindTexture(tobj->target, hwid);
 
     if (alwaysDirty || CHECKDIRTY(tobj->paramsBit[u], bitID)) 
     {
@@ -1448,7 +1452,7 @@ crStateDiffAllTextureObjects( CRContext *g, CRbitvalue *bitID, GLboolean bForceU
 #endif
 
     /* restore bindings */
-    diff_api.ActiveTextureARB(GL_TEXTURE0_ARB + origUnit);
+    /* first restore unit 0 bindings the unit 0 is active currently */
     diff_api.BindTexture(GL_TEXTURE_1D, orig1D);
     diff_api.BindTexture(GL_TEXTURE_2D, orig2D);
     diff_api.BindTexture(GL_TEXTURE_3D, orig3D);
@@ -1458,4 +1462,6 @@ crStateDiffAllTextureObjects( CRContext *g, CRbitvalue *bitID, GLboolean bForceU
 #ifdef CR_NV_texture_rectangle
     diff_api.BindTexture(GL_TEXTURE_RECTANGLE_NV, origRect);
 #endif
+    /* now restore the proper active unit */
+    diff_api.ActiveTextureARB(GL_TEXTURE0_ARB + origUnit);
 }

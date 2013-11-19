@@ -35,7 +35,9 @@
 #include <iprt/assert.h>
 
 
+#pragma pack(4) /* force structure dword packing here. */
 RT_C_DECLS_BEGIN
+
 
 /** @defgroup grp_vmmdev    VMM Device
  *
@@ -138,6 +140,7 @@ typedef enum
     VMMDevReq_ReportGuestInfo            = 50,
     VMMDevReq_ReportGuestInfo2           = 58, /* since version 3.2.0 */
     VMMDevReq_ReportGuestStatus          = 59, /* since version 3.2.8 */
+    VMMDevReq_ReportGuestUserState       = 74, /* since version 4.3 */
     /**
      * Retrieve a display resize request sent by the host using
      * @a IDisplay:setVideoModeHint.  Deprecated.
@@ -232,7 +235,6 @@ typedef enum
 /** Version of VMMDevRequestHeader structure. */
 #define VMMDEV_REQUEST_HEADER_VERSION (0x10001)
 
-#pragma pack(4) /* force structure dword packing here. */
 
 /**
  * Generic VMMDev request header.
@@ -287,8 +289,7 @@ AssertCompileSize(VMMDevReqMouseStatus, 24+12);
  * cursor itself, the guest installs a hardware mouse driver. Don't ask the
  * guest to switch to a software cursor then. */
 #define VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR                RT_BIT(2)
-/** The host does NOT provide support for drawing the cursor itself.
- * This is for instance the case for the L4 console. */
+/** The host does NOT provide support for drawing the cursor itself. */
 #define VMMDEV_MOUSE_HOST_CANNOT_HWPOINTER                  RT_BIT(3)
 /** The guest can read VMMDev events to find out about pointer movement */
 #define VMMDEV_MOUSE_NEW_PROTOCOL                           RT_BIT(4)
@@ -801,6 +802,73 @@ AssertCompileSize(VMMDevReportGuestStatus, 24+12);
 
 
 /**
+ * The current status of specific guest user.
+ * This needs to be kept in sync with GuestUserState of the Main API!
+ */
+typedef enum VBoxGuestUserState
+{
+    VBoxGuestUserState_Unknown            = 0,
+    VBoxGuestUserState_LoggedIn           = 1,
+    VBoxGuestUserState_LoggedOut          = 2,
+    VBoxGuestUserState_Locked             = 3,
+    VBoxGuestUserState_Unlocked           = 4,
+    VBoxGuestUserState_Disabled           = 5,
+    VBoxGuestUserState_Idle               = 6,
+    VBoxGuestUserState_InUse              = 7,
+    VBoxGuestUserState_Created            = 8,
+    VBoxGuestUserState_Deleted            = 9,
+    VBoxGuestUserState_SessionChanged     = 10,
+    VBoxGuestUserState_CredentialsChanged = 11,
+    VBoxGuestUserState_RoleChanged        = 12,
+    VBoxGuestUserState_GroupAdded         = 13,
+    VBoxGuestUserState_GroupRemoved       = 14,
+    VBoxGuestUserState_Elevated           = 15,
+    VBoxGuestUserState_SizeHack           = 0x7fffffff
+} VBoxGuestUserState;
+AssertCompileSize(VBoxGuestUserState, 4);
+
+
+/**
+ * Guest user status updates.
+ */
+typedef struct VBoxGuestUserStatus
+{
+    /** The guest user state to send. */
+    VBoxGuestUserState  state;
+    /** Size (in bytes) of szUser. */
+    uint32_t            cbUser;
+    /** Size (in bytes) of szDomain. */
+    uint32_t            cbDomain;
+    /** Size (in bytes) of aDetails. */
+    uint32_t            cbDetails;
+    /** Note: Here begins the dynamically
+     *        allocated region. */
+    /** Guest user to report state for. */
+    char                szUser[1];
+    /** Domain the guest user is bound to. */
+    char                szDomain[1];
+    /** Optional details of the state. */
+    uint8_t             aDetails[1];
+} VBoxGuestUserStatus;
+AssertCompileSize(VBoxGuestUserStatus, 20);
+
+
+/**
+ * Guest user status structure.
+ *
+ * Used by VMMDevReq_ReportGuestUserStatus.
+ */
+typedef struct
+{
+    /** Header. */
+    VMMDevRequestHeader header;
+    /** Guest user status. */
+    VBoxGuestUserStatus status;
+} VMMDevReportGuestUserState;
+AssertCompileSize(VMMDevReportGuestUserState, 24+20);
+
+
+/**
  * Guest statistics structure.
  *
  * Used by VMMDevReportGuestStats and PDMIVMMDEVCONNECTOR::pfnReportStatistics.
@@ -960,7 +1028,6 @@ AssertCompileSize(VMMDevGetStatisticsChangeRequest, 24+8);
  *
  * Used by VMMDevReq_QueryCredentials.
  */
-#pragma pack(4)
 typedef struct
 {
     /** Header. */
@@ -975,7 +1042,6 @@ typedef struct
     char szDomain[VMMDEV_CREDENTIALS_SZ_SIZE];
 } VMMDevCredentials;
 AssertCompileSize(VMMDevCredentials, 24+4+3*128);
-#pragma pack()
 
 /** @name Credentials request flag (VMMDevCredentials::u32Flags)
  * @{ */
@@ -1423,8 +1489,6 @@ typedef struct
 AssertCompileSize(VMMDevReqWriteCoreDump, 24+4);
 
 
-#pragma pack()
-
 
 #ifdef VBOX_WITH_HGCM
 
@@ -1435,8 +1499,6 @@ AssertCompileSize(VMMDevReqWriteCoreDump, 24+4);
 # define VBOX_HGCM_REQ_DONE_BIT  0
 # define VBOX_HGCM_REQ_CANCELLED (0x2)
 /** @} */
-
-# pragma pack(4)
 
 /**
  * HGCM request header.
@@ -1780,7 +1842,6 @@ typedef struct
 } HGCMPageListInfo;
 AssertCompileSize(HGCMPageListInfo, 4+2+2+8);
 
-# pragma pack()
 
 /** Get the pointer to the first parmater of a HGCM call request.  */
 # define VMMDEV_HGCM_CALL_PARMS(a)   ((HGCMFunctionParameter *)((uint8_t *)(a) + sizeof (VMMDevHGCMCall)))
@@ -1835,6 +1896,7 @@ AssertCompileSize(VMMDevHGCMCancel2, 24+4);
 
 /**
  * Inline helper to determine the request size for the given operation.
+ * Returns 0 if the given operation is not handled and/or supported.
  *
  * @returns Size.
  * @param   requestType     The VMMDev request type.
@@ -1870,6 +1932,8 @@ DECLINLINE(size_t) vmmdevGetRequestSize(VMMDevRequestType requestType)
             return sizeof(VMMDevReportGuestInfo2);
         case VMMDevReq_ReportGuestStatus:
             return sizeof(VMMDevReportGuestStatus);
+        case VMMDevReq_ReportGuestUserState:
+            return sizeof(VMMDevReportGuestUserState);
         case VMMDevReq_GetDisplayChangeRequest:
             return sizeof(VMMDevDisplayChangeRequest);
         case VMMDevReq_GetDisplayChangeRequest2:
@@ -1944,8 +2008,10 @@ DECLINLINE(size_t) vmmdevGetRequestSize(VMMDevRequestType requestType)
         case VMMDevReq_GetSessionId:
             return sizeof(VMMDevReqSessionId);
         default:
-            return 0;
+            break;
     }
+
+    return 0;
 }
 
 
@@ -1981,7 +2047,6 @@ DECLINLINE(int) vmmdevInitRequest(VMMDevRequestHeader *req, VMMDevRequestType ty
  *
  * @todo Where does this fit in?
  */
-#pragma pack(1) /* unnecessary */
 typedef struct VBVACMDHDR
 {
    /** Coordinates of affected rectangle. */
@@ -1990,7 +2055,7 @@ typedef struct VBVACMDHDR
    uint16_t w;
    uint16_t h;
 } VBVACMDHDR;
-#pragma pack()
+AssertCompileSize(VBVACMDHDR, 8);
 
 /** @name VBVA ring defines.
  *
@@ -2039,7 +2104,6 @@ AssertCompileSize(VBVARECORD, 4);
  *
  * This is a subsection of the VMMDevMemory structure.
  */
-#pragma pack(1) /* paranoia */
 typedef struct VBVAMEMORY
 {
     /** VBVA_F_MODE_*. */
@@ -2066,14 +2130,12 @@ typedef struct VBVAMEMORY
     uint32_t fu32SupportedOrders;
 
 } VBVAMEMORY;
-#pragma pack()
 AssertCompileSize(VBVAMEMORY, 12 + (_4M-_1K) + 4*64 + 12);
 
 
 /**
  * The layout of VMMDEV RAM region that contains information for guest.
  */
-#pragma pack(1) /* paranoia */
 typedef struct VMMDevMemory
 {
     /** The size of this structure. */
@@ -2102,13 +2164,15 @@ typedef struct VMMDevMemory
 
 } VMMDevMemory;
 AssertCompileSize(VMMDevMemory, 8+8 + (12 + (_4M-_1K) + 4*64 + 12) );
-#pragma pack()
+AssertCompileMemberOffset(VMMDevMemory, vbvaMemory, 16);
 
 /** Version of VMMDevMemory structure (VMMDevMemory::u32Version). */
 #define VMMDEV_MEMORY_VERSION   (1)
 
 /** @} */
+
 RT_C_DECLS_END
+#pragma pack()
 
 #endif
 

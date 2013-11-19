@@ -30,13 +30,53 @@
 
 /* Determines if <Object of type X> can be converted to object of other type.
  * These functions returns 'true' for all allowed conversions. */
+template<> bool canConvert<SizeSuffix>() { return true; }
 template<> bool canConvert<StorageSlot>() { return true; }
 template<> bool canConvert<RuntimeMenuType>() { return true; }
+template<> bool canConvert<UIVisualStateType>() { return true; }
 template<> bool canConvert<DetailsElementType>() { return true; }
 template<> bool canConvert<GlobalSettingsPageType>() { return true; }
 template<> bool canConvert<MachineSettingsPageType>() { return true; }
 template<> bool canConvert<IndicatorType>() { return true; }
 template<> bool canConvert<MachineCloseAction>() { return true; }
+
+/* QString <= SizeSuffix: */
+template<> QString toString(const SizeSuffix &sizeSuffix)
+{
+    QString strResult;
+    switch (sizeSuffix)
+    {
+        case SizeSuffix_Byte:     strResult = QApplication::translate("VBoxGlobal", "B", "size suffix Bytes"); break;
+        case SizeSuffix_KiloByte: strResult = QApplication::translate("VBoxGlobal", "KB", "size suffix KBytes=1024 Bytes"); break;
+        case SizeSuffix_MegaByte: strResult = QApplication::translate("VBoxGlobal", "MB", "size suffix MBytes=1024 KBytes"); break;
+        case SizeSuffix_GigaByte: strResult = QApplication::translate("VBoxGlobal", "GB", "size suffix GBytes=1024 MBytes"); break;
+        case SizeSuffix_TeraByte: strResult = QApplication::translate("VBoxGlobal", "TB", "size suffix TBytes=1024 GBytes"); break;
+        case SizeSuffix_PetaByte: strResult = QApplication::translate("VBoxGlobal", "PB", "size suffix PBytes=1024 TBytes"); break;
+        default:
+        {
+            AssertMsgFailed(("No text for size suffix=%d", sizeSuffix));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* SizeSuffix <= QString: */
+template<> SizeSuffix fromString<SizeSuffix>(const QString &strSizeSuffix)
+{
+    QHash<QString, SizeSuffix> list;
+    list.insert(QApplication::translate("VBoxGlobal", "B", "size suffix Bytes"),               SizeSuffix_Byte);
+    list.insert(QApplication::translate("VBoxGlobal", "KB", "size suffix KBytes=1024 Bytes"),  SizeSuffix_KiloByte);
+    list.insert(QApplication::translate("VBoxGlobal", "MB", "size suffix MBytes=1024 KBytes"), SizeSuffix_MegaByte);
+    list.insert(QApplication::translate("VBoxGlobal", "GB", "size suffix GBytes=1024 MBytes"), SizeSuffix_GigaByte);
+    list.insert(QApplication::translate("VBoxGlobal", "TB", "size suffix TBytes=1024 GBytes"), SizeSuffix_TeraByte);
+    list.insert(QApplication::translate("VBoxGlobal", "PB", "size suffix PBytes=1024 TBytes"), SizeSuffix_PetaByte);
+    if (!list.contains(strSizeSuffix))
+    {
+        AssertMsgFailed(("No value for '%s'", strSizeSuffix.toAscii().constData()));
+    }
+    return list.value(strSizeSuffix);
+}
 
 /* QString <= StorageSlot: */
 template<> QString toString(const StorageSlot &storageSlot)
@@ -134,7 +174,7 @@ template<> QString toString(const StorageSlot &storageSlot)
         }
         default:
         {
-            AssertMsgFailed(("No text for bus=%d & port=% & device=%d", storageSlot.bus, storageSlot.port, storageSlot.device));
+            AssertMsgFailed(("No text for bus=%d & port=%d & device=%d", storageSlot.bus, storageSlot.port, storageSlot.device));
             break;
         }
     }
@@ -306,6 +346,44 @@ template<> RuntimeMenuType fromInternalString<RuntimeMenuType>(const QString &st
     return values.at(keys.indexOf(QRegExp(strRuntimeMenuType, Qt::CaseInsensitive)));
 }
 
+/* QString <= UIVisualStateType: */
+template<> QString toInternalString(const UIVisualStateType &visualStateType)
+{
+    QString strResult;
+    switch (visualStateType)
+    {
+        case UIVisualStateType_Normal:     strResult = "Normal"; break;
+        case UIVisualStateType_Fullscreen: strResult = "Fullscreen"; break;
+        case UIVisualStateType_Seamless:   strResult = "Seamless"; break;
+        case UIVisualStateType_Scale:      strResult = "Scale"; break;
+        case UIVisualStateType_All:        strResult = "All"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for visual state type=%d", visualStateType));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* UIVisualStateType <= QString: */
+template<> UIVisualStateType fromInternalString<UIVisualStateType>(const QString &strVisualStateType)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;     QList<UIVisualStateType> values;
+    keys << "Normal";     values << UIVisualStateType_Normal;
+    keys << "Fullscreen"; values << UIVisualStateType_Fullscreen;
+    keys << "Seamless";   values << UIVisualStateType_Seamless;
+    keys << "Scale";      values << UIVisualStateType_Scale;
+    keys << "All";        values << UIVisualStateType_All;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strVisualStateType, Qt::CaseInsensitive))
+        return UIVisualStateType_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strVisualStateType, Qt::CaseInsensitive)));
+}
+
 /* QString <= DetailsElementType: */
 template<> QString toString(const DetailsElementType &detailsElementType)
 {
@@ -425,7 +503,6 @@ template<> QString toInternalString(const GlobalSettingsPageType &globalSettings
         case GlobalSettingsPageType_Update:     strResult = "Update"; break;
         case GlobalSettingsPageType_Language:   strResult = "Language"; break;
         case GlobalSettingsPageType_Display:    strResult = "Display"; break;
-        case GlobalSettingsPageType_USB:        strResult = "USB"; break;
         case GlobalSettingsPageType_Network:    strResult = "Network"; break;
         case GlobalSettingsPageType_Extensions: strResult = "Extensions"; break;
         case GlobalSettingsPageType_Proxy:      strResult = "Proxy"; break;
@@ -449,7 +526,6 @@ template<> GlobalSettingsPageType fromInternalString<GlobalSettingsPageType>(con
     keys << "Update";     values << GlobalSettingsPageType_Update;
     keys << "Language";   values << GlobalSettingsPageType_Language;
     keys << "Display";    values << GlobalSettingsPageType_Display;
-    keys << "USB";        values << GlobalSettingsPageType_USB;
     keys << "Network";    values << GlobalSettingsPageType_Network;
     keys << "Extensions"; values << GlobalSettingsPageType_Extensions;
     keys << "Proxy";      values << GlobalSettingsPageType_Proxy;
@@ -458,6 +534,24 @@ template<> GlobalSettingsPageType fromInternalString<GlobalSettingsPageType>(con
         return GlobalSettingsPageType_Invalid;
     /* Corresponding type for known words: */
     return values.at(keys.indexOf(QRegExp(strGlobalSettingsPageType, Qt::CaseInsensitive)));
+}
+
+/* QPixmap <= GlobalSettingsPageType: */
+template<> QPixmap toWarningPixmap(const GlobalSettingsPageType &type)
+{
+    switch (type)
+    {
+        case GlobalSettingsPageType_General:    return QPixmap(":/machine_warning_16px.png");
+        case GlobalSettingsPageType_Input:      return QPixmap(":/hostkey_warning_16px.png");
+        case GlobalSettingsPageType_Update:     return QPixmap(":/refresh_warning_16px.png");
+        case GlobalSettingsPageType_Language:   return QPixmap(":/site_warning_16px.png");
+        case GlobalSettingsPageType_Display:    return QPixmap(":/vrdp_warning_16px.png");
+        case GlobalSettingsPageType_Network:    return QPixmap(":/nw_warning_16px.png");
+        case GlobalSettingsPageType_Extensions: return QPixmap(":/extension_pack_warning_16px.png");
+        case GlobalSettingsPageType_Proxy:      return QPixmap(":/proxy_warning_16px.png");
+        default: AssertMsgFailed(("No pixmap for %d", type)); break;
+    }
+    return QPixmap();
 }
 
 /* QString <= MachineSettingsPageType: */
@@ -510,6 +604,27 @@ template<> MachineSettingsPageType fromInternalString<MachineSettingsPageType>(c
     return values.at(keys.indexOf(QRegExp(strMachineSettingsPageType, Qt::CaseInsensitive)));
 }
 
+/* QPixmap <= MachineSettingsPageType: */
+template<> QPixmap toWarningPixmap(const MachineSettingsPageType &type)
+{
+    switch (type)
+    {
+        case MachineSettingsPageType_General:  return QPixmap(":/machine_warning_16px.png");
+        case MachineSettingsPageType_System:   return QPixmap(":/chipset_warning_16px.png");
+        case MachineSettingsPageType_Display:  return QPixmap(":/vrdp_warning_16px.png");
+        case MachineSettingsPageType_Storage:  return QPixmap(":/hd_warning_16px.png");
+        case MachineSettingsPageType_Audio:    return QPixmap(":/sound_warning_16px.png");
+        case MachineSettingsPageType_Network:  return QPixmap(":/nw_warning_16px.png");
+        case MachineSettingsPageType_Ports:    return QPixmap(":/serial_port_warning_16px.png");
+        case MachineSettingsPageType_Serial:   return QPixmap(":/serial_port_warning_16px.png");
+        case MachineSettingsPageType_Parallel: return QPixmap(":/parallel_port_warning_16px.png");
+        case MachineSettingsPageType_USB:      return QPixmap(":/usb_warning_16px.png");
+        case MachineSettingsPageType_SF:       return QPixmap(":/sf_warning_16px.png");
+        default: AssertMsgFailed(("No pixmap for %d", type)); break;
+    }
+    return QPixmap();
+}
+
 /* QString <= IndicatorType: */
 template<> QString toInternalString(const IndicatorType &indicatorType)
 {
@@ -547,6 +662,7 @@ template<> IndicatorType fromInternalString<IndicatorType>(const QString &strInd
     keys << "Network";       values << IndicatorType_Network;
     keys << "USB";           values << IndicatorType_USB;
     keys << "SharedFolders"; values << IndicatorType_SharedFolders;
+    keys << "VideoCapture";  values << IndicatorType_VideoCapture;
     keys << "Features";      values << IndicatorType_Features;
     keys << "Mouse";         values << IndicatorType_Mouse;
     keys << "Keyboard";      values << IndicatorType_Keyboard;

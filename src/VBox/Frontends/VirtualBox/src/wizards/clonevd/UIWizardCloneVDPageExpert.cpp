@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,6 +44,7 @@ UIWizardCloneVDPageExpert::UIWizardCloneVDPageExpert(const CMedium &sourceVirtua
     QGridLayout *pMainLayout = new QGridLayout(this);
     {
         pMainLayout->setContentsMargins(8, 6, 8, 6);
+        pMainLayout->setSpacing(10);
         m_pSourceDiskCnt = new QGroupBox(this);
         {
             m_pSourceDiskCnt->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
@@ -59,7 +60,7 @@ UIWizardCloneVDPageExpert::UIWizardCloneVDPageExpert(const CMedium &sourceVirtua
                 m_pSourceDiskOpenButton = new QIToolButton(m_pSourceDiskCnt);
                 {
                     m_pSourceDiskOpenButton->setAutoRaise(true);
-                    m_pSourceDiskOpenButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png", ":/select_file_dis_16px.png"));
+                    m_pSourceDiskOpenButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png", ":/select_file_disabled_16px.png"));
                 }
                 pSourceDiskCntLayout->addWidget(m_pSourceDiskSelector);
                 pSourceDiskCntLayout->addWidget(m_pSourceDiskOpenButton);
@@ -74,7 +75,7 @@ UIWizardCloneVDPageExpert::UIWizardCloneVDPageExpert(const CMedium &sourceVirtua
                 m_pDestinationDiskOpenButton = new QIToolButton(m_pDestinationCnt);
                 {
                     m_pDestinationDiskOpenButton->setAutoRaise(true);
-                    m_pDestinationDiskOpenButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png", "select_file_dis_16px.png"));
+                    m_pDestinationDiskOpenButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png", "select_file_disabled_16px.png"));
                 }
             }
             pLocationCntLayout->addWidget(m_pDestinationDiskEditor);
@@ -101,8 +102,11 @@ UIWizardCloneVDPageExpert::UIWizardCloneVDPageExpert(const CMedium &sourceVirtua
                         if (medFormat.GetName() != "VDI")
                             addFormatButton(m_pFormatCnt, pFormatCntLayout, medFormat);
                     }
-                    m_pFormatButtonGroup->button(0)->click();
-                    m_pFormatButtonGroup->button(0)->setFocus();
+                    if (!m_pFormatButtonGroup->buttons().isEmpty())
+                    {
+                        m_pFormatButtonGroup->button(0)->click();
+                        m_pFormatButtonGroup->button(0)->setFocus();
+                    }
                 }
             }
         }
@@ -184,9 +188,19 @@ void UIWizardCloneVDPageExpert::sltMediumFormatChanged()
 {
     /* Get medium format: */
     CMediumFormat mf = mediumFormat();
+    if (mf.isNull())
+    {
+        AssertMsgFailed(("No medium format set!"));
+        return;
+    }
 
     /* Enable/disable widgets: */
-    ULONG uCapabilities = mf.GetCapabilities();
+    ULONG uCapabilities = 0;
+    QVector<KMediumFormatCapabilities> capabilities;
+    capabilities = mf.GetCapabilities();
+    for (int i = 0; i < capabilities.size(); i++)
+        uCapabilities |= capabilities[i];
+
     bool fIsCreateDynamicPossible = uCapabilities & KMediumFormatCapabilities_CreateDynamic;
     bool fIsCreateFixedPossible = uCapabilities & KMediumFormatCapabilities_CreateFixed;
     bool fIsCreateSplitPossible = uCapabilities & KMediumFormatCapabilities_CreateSplit2G;
@@ -256,7 +270,7 @@ bool UIWizardCloneVDPageExpert::validatePage()
     QString strMediumPath(mediumPath());
     fResult = !QFileInfo(strMediumPath).exists();
     if (!fResult)
-        msgCenter().sayCannotOverwriteHardDiskStorage(this, strMediumPath);
+        msgCenter().cannotOverwriteHardDiskStorage(strMediumPath, this);
 
     /* Try to copy virtual-disk: */
     if (fResult)

@@ -308,7 +308,7 @@
       <computeroutput>user1</computeroutput>, it will see and manipulate the
       virtual machines and other data represented by the VirtualBox data of
       that user (for example, on a Linux machine, under
-      <computeroutput>/home/user1/.VirtualBox</computeroutput>; see the
+      <computeroutput>/home/user1/.config/VirtualBox</computeroutput>; see the
       VirtualBox User Manual for details on where this data is stored).</para>
 
       <sect2 id="vboxwebsrv-ref">
@@ -1542,7 +1542,7 @@ for m in mgr.getArray(vbox, 'machines'):
 print "Machine '%s' logs in '%s'" %(m.name, m.logFolder)
         </screen>
 
-        <para>Code above demonstartes cross-platform access to array properties
+        <para>Code above demonstrates cross-platform access to array properties
         (certain limitations prevent one from using
         <computeroutput>vbox.machines</computeroutput> to access a list of
         available virtual machines in case of XPCOM), and a mechanism of
@@ -1840,8 +1840,7 @@ rc = vbox-&gt;vtbl-&gt;LaunchVMProcess(
     sessionType,   /* arg 2 */
     env,           /* arg 3 */
     &amp;progress      /* Out   */
-);
-</screen>
+);</screen>
         </sect3>
 
         <sect3 id="c-attributes">
@@ -1867,8 +1866,7 @@ rc = vbox-&gt;vtbl-&gt;GetRevision(vbox, &amp;rev);
 if (NS_SUCCEEDED(rc))
 {
     printf("Revision: %u\n", (unsigned)rev);
-}
-</screen>
+}</screen>
 
           <para>All objects with their methods and attributes are documented
           in <xref linkend="sdkref_classes" />.</para>
@@ -1893,8 +1891,7 @@ if (NS_SUCCEEDED(rc))
             <title>Conversion of UTF-16 to and from UTF-8</title>
 
             <screen>int (*pfnUtf16ToUtf8)(const PRUnichar *pwszString, char **ppszString);
-int (*pfnUtf8ToUtf16)(const char *pszString, PRUnichar **ppwszString);
-</screen>
+int (*pfnUtf8ToUtf16)(const char *pszString, PRUnichar **ppwszString);</screen>
           </sect4>
 
           <sect4>
@@ -1933,8 +1930,7 @@ int (*pfnUtf8ToUtf16)(const char *pszString, PRUnichar **ppwszString);
 if (atexit(g_pVBoxFuncs-&gt;pfnComUninitialize()) != 0) {
     fprintf(stderr, "failed to register g_pVBoxFuncs-&gt;pfnComUninitialize()\n");
     exit(EXIT_FAILURE);
-}
-</screen></para>
+}</screen></para>
 
           <para>Another idea would be to write your own <computeroutput>void
           myexit(int status)</computeroutput> function, calling
@@ -2216,8 +2212,8 @@ es.unregisterListener(listener); </screen></para>
     three COM/XPCOM/WS styles of the API.</para>
 
     <para>You can easily extend this shell with your own commands. Create a
-    subdirectory named <computeroutput>.VirtualBox/shexts</computeroutput>
-    below your home directory and put a Python file implementing your shell
+    subdirectory named <computeroutput>.config/VirtualBox/shexts</computeroutput>
+    below your home directory (respectively <computeroutput>.VirtualBox/shexts</computeroutput> on a Windows system and <computeroutput>Library/VirtualBox/shexts</computeroutput> on OS X) and put a Python file implementing your shell
     extension commands in this directory. This file must contain an array
     named <computeroutput>commands</computeroutput> containing your command
     definitions: <screen>
@@ -2245,7 +2241,7 @@ es.unregisterListener(listener); </screen></para>
         # Call VirtualBox API, using context's fields
         hdd = ctx['vb'].createHardDisk(format, loc)
         # Access constants using ctx['global'].constants
-        progress = hdd.createBaseStorage(size, ctx['global'].constants.HardDiskVariant_Standard)
+        progress = hdd.createBaseStorage(size, (ctx['global'].constants.MediumVariant_Standard, ))
         # use standard progress bar mechanism
         ctx['progressBar'](progress)
 
@@ -2266,7 +2262,7 @@ es.unregisterListener(listener); </screen></para>
         }
       </screen> Just store the above text in the file
     <computeroutput>createHdd</computeroutput> (or any other meaningful name)
-    in <computeroutput>.VirtualBox/shexts/</computeroutput>. Start the
+    in <computeroutput>.config/VirtualBox/shexts/</computeroutput>. Start the
     VirtualBox shell, or just issue the
     <computeroutput>reloadExts</computeroutput> command, if the shell is
     already running. Your new command will now be available.</para>
@@ -3447,7 +3443,7 @@ AuthResult AUTHCALL AuthEntry(
       setup phase (see <computeroutput>ws</computeroutput> variable). In the
       SOAP case it's possible to create several VirtualBoxManager instances to
       communicate with multiple VirtualBox hosts. <programlisting>
-          import org.virtualbox_3_3.*;
+          import org.virtualbox_4_3.*;
           ....
           VirtualBoxManager mgr = VirtualBoxManager.createInstance(null);
           boolean ws = false; // or true, if we need the SOAP version
@@ -3472,7 +3468,8 @@ AuthResult AUTHCALL AuthEntry(
           mgr.cleanup();
         </programlisting> For more a complete example, see
       <computeroutput>TestVBox.java</computeroutput>, shipped with the
-      SDK.</para>
+      SDK. It contains exception handling and error printing code, which
+      is important for reliable larger scale projects.</para>
     </sect1>
   </chapter>
 
@@ -3523,6 +3520,194 @@ AuthResult AUTHCALL AuthEntry(
     interfaces and similar). In other words, the list does not contain new
     interfaces, methods or attributes or other changes that do not affect
     existing client code.</para>
+
+    <sect1>
+      <title>Incompatible API changes with version 4.3</title>
+
+      <itemizedlist>
+        <listitem>
+          <para>The explicit medium locking methods 
+            <xref linkend="IMedium__lockRead" xreflabel="IMedium::lockRead()" />
+            and <xref linkend="IMedium__lockWrite" xreflabel="IMedium::lockWrite()" />
+            have been redesigned. They return a lock token object reference
+            now, and calling the <xref linkend="IToken__abandon"
+              xreflabel="IToken::abandon()" /> method (or letting the reference
+            count to this object drop to 0) will unlock it. This eliminates
+            the rather common problem that an API client crash left behind
+            locks, and also improves the safety (API clients can't release
+            locks they didn't obtain).</para>
+        </listitem>
+
+        <listitem>
+          <para>The parameter list of <xref linkend="IAppliance__write"
+          xreflabel="IAppliance::write()" /> has been changed slightly, to
+          allow multiple flags to be passed.</para>
+        </listitem>
+
+        <listitem>
+          <para><computeroutput>IMachine::delete</computeroutput>
+          has been renamed to <xref linkend="IMachine__deleteConfig"
+          xreflabel="IMachine::deleteConfig()" />, to improve API client
+          binding compatibility.</para>
+        </listitem>
+
+        <listitem>
+          <para><computeroutput>IMachine::export</computeroutput>
+          has been renamed to <xref linkend="IMachine__exportTo"
+          xreflabel="IMachine::exportTo()" />, to improve API client binding
+          compatibility.</para>
+        </listitem>
+
+        <listitem>
+          <para>For <xref linkend="IMachine__launchVMProcess"
+          xreflabel="IMachine::launchVMProcess()"/> the meaning of the
+          <computeroutput>type</computeroutput> parameter has changed slightly.
+          Empty string now means that the per-VM or global default frontend
+          is launched. Most callers of this method should use the empty string
+          now, unless they really want to override the default and launch a
+          particular frontend.</para>
+        </listitem>
+
+        <listitem>
+          <para>Medium management APIs were changed as follows:<itemizedlist>
+
+            <listitem>
+              <para>The type of attribute
+              <xref linkend="IMedium__variant" xreflabel="IMedium::variant()"/>
+              changed from <computeroutput>unsigned long</computeroutput>
+              to <computeroutput>safe-array MediumVariant</computeroutput>.
+              It is an array of flags instead of a set of flags which were stored inside one variable.
+              </para>
+            </listitem>
+
+            <listitem>
+              <para>The parameter list for <xref
+              linkend="IMedium__cloneTo"
+              xreflabel="IMedium::cloneTo()" /> was modified.</para>
+              The type of parameter variant was changed from unsigned long to safe-array MediumVariant.
+            </listitem>
+
+            <listitem>
+              <para>The parameter list for <xref
+              linkend="IMedium__createBaseStorage"
+              xreflabel="IMedium::createBaseStorage()" /> was modified.</para>
+              The type of parameter variant was changed from unsigned long to safe-array MediumVariant.
+            </listitem>
+
+            <listitem>
+              <para>The parameter list for <xref
+              linkend="IMedium__createDiffStorage"
+              xreflabel="IMedium::createDiffStorage()" /> was modified.</para>
+              The type of parameter variant was changed from unsigned long to safe-array MediumVariant.
+            </listitem>
+
+            <listitem>
+              <para>The parameter list for <xref
+              linkend="IMedium__cloneToBase"
+              xreflabel="IMedium::cloneToBase()" /> was modified.</para>
+              The type of parameter variant was changed from unsigned long to safe-array MediumVariant.
+            </listitem>
+          </itemizedlist></para>
+        </listitem>
+
+        <listitem>
+          <para>The type of attribute
+          <xref linkend="IMediumFormat__capabilities"
+          xreflabel="IMediumFormat::capabilities()"/>
+          changed from <computeroutput>unsigned long</computeroutput>
+          to <computeroutput>safe-array MediumFormatCapabilities</computeroutput>.
+          It is an array of flags instead of a set of flags which were stored inside one variable.
+          </para>
+        </listitem>
+
+        <listitem>
+          <para>The attribute <xref linkend="IMedium__logicalSize"
+          xreflabel="IMedium::logicalSize()" /> now returns the logical
+          size of exactly this medium object (whether it is a base or diff
+          image). The old behavior was no longer acceptable, as each image
+          can have a different capacity.</para>
+        </listitem>
+
+        <listitem>
+          <para>Guest control APIs - such as <xref linkend="IGuest"
+            xreflabel="IGuest" />, <xref linkend="IGuestSession"
+            xreflabel="IGuestSession" />, <xref linkend="IGuestProcess"
+            xreflabel="IGuestProcess" /> and so on - now emit own events to provide
+            clients much finer control and the ability to write own frontends for
+            guest operations. The event <xref linkend="IGuestSessionEvent"
+            xreflabel="IGuestSessionEvent" /> acts as an abstract base class
+            for all guest control events. Certain guest events contain a
+            <xref linkend="IVirtualBoxErrorInfo" xreflabel="IVirtualBoxErrorInfo" /> member
+            to provide more information in case of an error happened on the
+            guest side.</para>
+        </listitem>
+
+        <listitem>
+          <para>Guest control sessions on the guest started by <xref
+            linkend="IGuest__createSession" xreflabel="IGuest::createSession()" />
+            now are dedicated guest processes to provide more safety and performance
+            for certain operations. Also, the <xref linkend="IGuest__createSession"
+            xreflabel="IGuest::createSession()" /> call does not wait for the
+            guest session being created anymore due to the dedicated guest session
+            processes just mentioned. This also will enable webservice clients to
+            handle guest session creation more gracefully. To wait for a guest
+            session being started, use the newly added attribute <xref
+            linkend="IGuestSession__status" xreflabel="IGuestSession::status()" />
+            to query the current guest session status.</para>
+        </listitem>
+
+        <listitem>
+          <para>The <xref linkend="IGuestFile" xreflabel="IGuestFile" />
+            APIs are now implemented to provide native guest file access from
+            the host.</para>
+        </listitem>
+
+        <listitem>
+          <para>The parameter list for <xref
+          linkend="IGuest__updateGuestAdditions"
+          xreflabel="IMedium::updateGuestAdditions()" /> was modified.</para>
+          It now supports specifying optional command line arguments for the
+          Guest Additions installer performing the actual update on the guest.
+        </listitem>
+
+        <listitem>
+          <para>A new event <xref linkend="IGuestUserStateChangedEvent"
+          xreflabel="IGuestUserStateChangedEvent" /> was introduced to provide
+          guest user status updates to the host via event listeners. To use this
+          event there needs to be at least the 4.3 Guest Additions installed on
+          the guest. At the moment only the states "Idle" and "InUse" of the
+          <xref linkend="GuestUserState"
+          xreflabel="GuestUserState" /> enum are supported on
+          Windows guests, starting at Windows 2000 SP2.</para>
+        </listitem>
+
+        <listitem>
+          <para>
+            The attribute <xref linkend="IGuestSession__protocolVersion"
+            xreflabel="IGuestSession::protocolVersion"/> was added to provide a
+            convenient way to lookup the guest session's protocol version it
+            uses to communicate with the installed Guest Additions on the guest.
+            Older Guest Additions will set the protocol version to 1, whereas
+            Guest Additions 4.3 will set the protocol version to 2. This might
+            change in the future as new features arise.</para>
+        </listitem>
+
+        <listitem>
+          <para><computeroutput>IDisplay::getScreenResolution</computeroutput>
+          has been extended to return the display position in the guest.</para>
+        </listitem>
+
+        <listitem>
+          <para>
+            The <xref linkend="IUSBController" xreflabel="IUSBController"/>
+            class is not a singleton of <xref linkend="IMachine" xreflabel="IMachine"/>
+            anymore but <xref linkend="IMachine" xreflabel="IMachine"/> contains
+            a list of USB controllers present in the VM. The USB device filter
+            handling was moved to <xref linkend="IUSBDeviceFilters" xreflabel="IUSBDeviceFilters"/>.
+          </para>
+        </listitem>
+      </itemizedlist>
+    </sect1>
 
     <sect1>
       <title>Incompatible API changes with version 4.2</title>
@@ -3785,7 +3970,7 @@ AuthResult AUTHCALL AuthEntry(
               </row>
               <row>
                 <entry>IUSBController::enabledEhci</entry>
-                <entry><xref linkend="IUSBController__enabledEHCI" xreflabel="IUSBController::enabledEHCI"/></entry>
+                <entry>IUSBController::enabledEHCI"</entry>
               </row>
               <row>
                 <entry>INATEngine::tftpPrefix</entry>
@@ -3836,7 +4021,6 @@ AuthResult AUTHCALL AuthEntry(
         </listitem>
       </itemizedlist>
     </sect1>
-
 
     <sect1>
       <title>Incompatible API changes with version 4.1</title>
@@ -4156,8 +4340,8 @@ AuthResult AUTHCALL AuthEntry(
           <para>The appliance (OVF) APIs were enhanced as
           follows:<itemizedlist>
               <listitem>
-                <para><xref linkend="IMachine__export"
-                xreflabel="IMachine::export()" /> received an extra parameter
+                <para><computeroutput>IMachine::export</computeroutput>
+                received an extra parameter
                 <computeroutput>location</computeroutput>, which is used to
                 decide for the disk naming.</para>
               </listitem>
@@ -4466,7 +4650,7 @@ AuthResult AUTHCALL AuthEntry(
 
         <listitem>
           <para>Reading the <xref linkend="IMedium__state"
-          xreflabel="IMedium::state" xrefstyle="" /> attribute no longer
+          xreflabel="IMedium::state" /> attribute no longer
           automatically performs an accessibility check; a new method <xref
           linkend="IMedium__refreshState"
           xreflabel="IMedium::refreshState()" /> does this. The attribute only

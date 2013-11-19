@@ -30,8 +30,14 @@
 /** @name Magic Numbers.
  * @{ */
 
+/** Magic number for RTAIOMGRINT::u32Magic. (Emil Erich Kaestner) */
+#define RTAIOMGR_MAGIC                  UINT32_C(0x18990223)
+/** Magic number for RTAIOMGRINTFILE::u32Magic. (Ephraim Kishon) */
+#define RTAIOMGRFILE_MAGIC              UINT32_C(0x19240823)
 /** Magic number for RTDBGMODINT::u32Magic. (Charles Lloyd) */
 #define RTDBGAS_MAGIC                   UINT32_C(0x19380315)
+/** Magic number for RTDBGCFGINT::u32Magic. (McCoy Tyner) */
+#define RTDBGCFG_MAGIC                  UINT32_C(0x19381211)
 /** Magic number for RTDBGMODINT::u32Magic. (Keith Jarrett) */
 #define RTDBGMOD_MAGIC                  UINT32_C(0x19450508)
 /** Magic number for RTDBGMODVTIMG::u32Magic. (Jack DeJohnette) */
@@ -68,6 +74,10 @@
 #define RTHEAPOFFSET_MAGIC              UINT32_C(0x19591031)
 /** Magic number for RTHEAPSIMPLEINTERNAL::uMagic. (Kyoichi Katayama) */
 #define RTHEAPSIMPLE_MAGIC              UINT32_C(0x19590105)
+/** The magic value for RTHTTPINTERNAL::u32Magic. (Karl May) */
+#define RTHTTP_MAGIC                    UINT32_C(0x18420225)
+/** The value of RTHTTPINTERNAL::u32Magic after close. */
+#define RTHTTP_MAGIC_DEAD               UINT32_C(0x19120330)
 /** The magic value for RTLDRMODINTERNAL::u32Magic. (Alan Moore) */
 #define RTLDRMOD_MAGIC                  UINT32_C(0x19531118)
 /** The magic value for RTLOCALIPCSERVER::u32Magic. (Naoki Yamamoto) */
@@ -104,6 +114,8 @@
 #define RTMEMPOOL_MAGIC_DEAD            UINT32_C(0x18170718)
 /** The magic value for heap blocks. (Edgar Allan Poe) */
 #define RTMEMHDR_MAGIC                  UINT32_C(0x18090119)
+/** The magic value for heap blocks after freeing. */
+#define RTMEMHDR_MAGIC_DEAD             UINT32_C(0x18491007)
 /** The value of RTPIPEINTERNAL::u32Magic. (Frank Schaetzing) */
 #define RTPIPE_MAGIC                    UINT32_C(0x19570528)
 /** The value of RTPOLLSETINTERNAL::u32Magic. (Ai Yazawa) */
@@ -178,6 +190,8 @@
 #define RTTARFILE_MAGIC_DEAD            UINT32_C(0x19120420)
 /** RTTESTINT::u32Magic value. (Daniel Kehlmann) */
 #define RTTESTINT_MAGIC                 UINT32_C(0x19750113)
+/** RTTHREADCTXINT::u32Magic value. (Dennis MacAlistair Ritchie) */
+#define RTTHREADCTXINT_MAGIC            UINT32_C(0x19410909)
 /** RTTHREADINT::u32Magic value. (Gilbert Keith Chesterton) */
 #define RTTHREADINT_MAGIC               UINT32_C(0x18740529)
 /** RTTHREADINT::u32Magic value for a dead thread. */

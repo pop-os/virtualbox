@@ -258,6 +258,21 @@ DECLEXPORT(GLuint) STATE_APIENTRY crStateGLSLProgramHWIDtoID(GLuint hwid)
     return parms.id;
 }
 
+DECLEXPORT(GLuint) STATE_APIENTRY crStateDeleteObjectARB( GLhandleARB obj )
+{
+    GLuint hwId = crStateGetProgramHWID(obj);
+    if (hwId)
+    {
+        crStateDeleteProgram(obj);
+    }
+    else
+    {
+        hwId = crStateGetShaderHWID(obj);
+        crStateDeleteShader(obj);
+    }
+    return hwId;
+}
+
 DECLEXPORT(GLuint) STATE_APIENTRY crStateCreateShader(GLuint hwid, GLenum type)
 {
     CRGLSLShader *pShader;
@@ -267,13 +282,17 @@ DECLEXPORT(GLuint) STATE_APIENTRY crStateCreateShader(GLuint hwid, GLenum type)
 #ifdef IN_GUEST
     CRASSERT(!crStateGetShaderObj(stateId));
 #else
-    /* the id may not necesserily be hwid after save state restoration */
-    while ((pShader = crStateGetShaderObj(stateId)) != NULL)
+    /* the proogram and shader names must not intersect because DeleteObjectARB must distinguish between them
+     * see crStateDeleteObjectARB
+     * this is why use programs table for shader keys allocation */
+    stateId = crHashtableAllocKeys(g->glsl.programs, 1);
+    if (!stateId)
     {
-        GLuint newStateId = stateId + 7;
-        crDebug("Shader object %d already exists, generating a new one, %d", stateId, newStateId);
-        stateId = newStateId;
+        crWarning("failed to allocate program key");
+        return 0;
     }
+
+    Assert((pShader = crStateGetShaderObj(stateId)) == NULL);
 #endif
 
     pShader = (CRGLSLShader *) crAlloc(sizeof(*pShader));
@@ -311,19 +330,18 @@ DECLEXPORT(GLuint) STATE_APIENTRY crStateCreateProgram(GLuint hwid)
         CRASSERT(!crStateGetProgramObj(stateId));
     }
 #else
-    /* the id may not necesserily be hwid after save state restoration */
-    while ((pProgram = crStateGetProgramObj(stateId)) != NULL)
+    stateId = crHashtableAllocKeys(g->glsl.programs, 1);
+    if (!stateId)
     {
-        GLuint newStateId = stateId + 7;
-        crDebug("Program object %d already exists, generating a new one, %d", stateId, newStateId);
-        stateId = newStateId;
+        crWarning("failed to allocate program key");
+        return 0;
     }
 #endif
 
     pProgram = (CRGLSLProgram *) crAlloc(sizeof(*pProgram));
     if (!pProgram)
     {
-        crWarning("crStateCreateShader: Out of memory!");
+        crWarning("crStateCreateProgram: Out of memory!");
         return 0;
     }
 
@@ -363,6 +381,11 @@ DECLEXPORT(void) STATE_APIENTRY crStateCompileShader(GLuint shader)
     pShader->compiled = GL_TRUE;
 }
 
+static void crStateDbgCheckNoProgramOfId(void *data)
+{
+    crError("Unexpected Program id");
+}
+
 DECLEXPORT(void) STATE_APIENTRY crStateDeleteShader(GLuint shader)
 {
     CRGLSLShader *pShader = crStateGetShaderObj(shader);
@@ -378,6 +401,10 @@ DECLEXPORT(void) STATE_APIENTRY crStateDeleteShader(GLuint shader)
     {
         CRContext *g = GetCurrentContext();
         crHashtableDelete(g->glsl.shaders, shader, crStateFreeGLSLShader);
+        /* since we use programs table for key allocation key allocation, we need to
+         * free the key in the programs table.
+         * See comment in crStateCreateShader */
+        crHashtableDelete(g->glsl.programs, shader, crStateDbgCheckNoProgramOfId);
     }
 }
 
@@ -598,8 +625,7 @@ DECLEXPORT(void) STATE_APIENTRY crStateBindAttribLocation(GLuint program, GLuint
     {
         if (!crStrcmp(pProgram->currentState.pAttribs[i].name, name))
         {
-            crFree(pProgram->currentState.pAttribs[i].name);
-            pProgram->currentState.pAttribs[i].name = crStrdup(name);
+            pProgram->currentState.pAttribs[i].index = index;
             return;
         }
     }
@@ -1186,6 +1212,7 @@ static void crStateGLSLCreateProgramCB(unsigned long key, void *data1, void *dat
 
 DECLEXPORT(void) STATE_APIENTRY crStateGLSLSwitch(CRContext *from, CRContext *to)
 {
+    GLboolean fForceUseProgramSet = GL_FALSE;
     if (to->glsl.bResyncNeeded)
     {
         to->glsl.bResyncNeeded = GL_FALSE;
@@ -1194,10 +1221,13 @@ DECLEXPORT(void) STATE_APIENTRY crStateGLSLSwitch(CRContext *from, CRContext *to
 
         crHashtableWalk(to->glsl.programs, crStateGLSLCreateProgramCB, to);
 
+        /* crStateGLSLCreateProgramCB changes the current program, ensure we have the proper program re-sored */
+        fForceUseProgramSet = GL_TRUE;
+
         crHashtableWalk(to->glsl.shaders, crStateGLSLSyncShadersCB, NULL);
     }
 
-    if (to->glsl.activeProgram != from->glsl.activeProgram)
+    if (to->glsl.activeProgram != from->glsl.activeProgram || fForceUseProgramSet)
     {
         diff_api.UseProgram(to->glsl.activeProgram ? to->glsl.activeProgram->hwid : 0);
     }

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,8 +20,11 @@
  *   Header Files                                                             *
  ******************************************************************************/
 #include "GuestCtrlImplPrivate.h"
+#include "GuestSessionImpl.h"
+#include "VMMDev.h"
 
 #include <iprt/asm.h>
+#include <iprt/cpp/utils.h> /* For unconst(). */
 #include <iprt/ctype.h>
 #ifdef DEBUG
 # include <iprt/file.h>
@@ -36,306 +39,6 @@
 /******************************************************************************
  *   Structures and Typedefs                                                  *
  ******************************************************************************/
-
-GuestCtrlEvent::GuestCtrlEvent(void)
-    : fCanceled(false),
-      fCompleted(false),
-      hEventSem(NIL_RTSEMEVENT),
-      mRC(VINF_SUCCESS)
-{
-}
-
-GuestCtrlEvent::~GuestCtrlEvent(void)
-{
-    Destroy();
-}
-
-int GuestCtrlEvent::Cancel(void)
-{
-    int rc = VINF_SUCCESS;
-    if (!ASMAtomicReadBool(&fCompleted))
-    {
-        if (!ASMAtomicReadBool(&fCanceled))
-        {
-            ASMAtomicXchgBool(&fCanceled, true);
-
-            LogFlowThisFunc(("Cancelling event ...\n"));
-            rc = hEventSem != NIL_RTSEMEVENT
-               ? RTSemEventSignal(hEventSem) : VINF_SUCCESS;
-        }
-    }
-
-    return rc;
-}
-
-bool GuestCtrlEvent::Canceled(void)
-{
-    return ASMAtomicReadBool(&fCanceled);
-}
-
-void GuestCtrlEvent::Destroy(void)
-{
-    int rc = Cancel();
-    AssertRC(rc);
-
-    if (hEventSem != NIL_RTSEMEVENT)
-    {
-        RTSemEventDestroy(hEventSem);
-        hEventSem = NIL_RTSEMEVENT;
-    }
-}
-
-int GuestCtrlEvent::Init(void)
-{
-    return RTSemEventCreate(&hEventSem);
-}
-
-int GuestCtrlEvent::Signal(int rc /*= VINF_SUCCESS*/)
-{
-    AssertReturn(hEventSem != NIL_RTSEMEVENT, VERR_CANCELLED);
-
-    mRC = rc;
-
-    return RTSemEventSignal(hEventSem);
-}
-
-int GuestCtrlEvent::Wait(ULONG uTimeoutMS)
-{
-    LogFlowThisFuncEnter();
-
-    AssertReturn(hEventSem != NIL_RTSEMEVENT, VERR_CANCELLED);
-
-    RTMSINTERVAL msInterval = uTimeoutMS;
-    if (!uTimeoutMS)
-        msInterval = RT_INDEFINITE_WAIT;
-    int rc = RTSemEventWait(hEventSem, msInterval);
-    if (RT_SUCCESS(rc))
-        ASMAtomicWriteBool(&fCompleted, true);
-
-    LogFlowFuncLeaveRC(rc);
-    return rc;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
-GuestCtrlCallback::GuestCtrlCallback(void)
-    : pvData(NULL),
-      cbData(0),
-      mType(VBOXGUESTCTRLCALLBACKTYPE_UNKNOWN),
-      uFlags(0),
-      pvPayload(NULL),
-      cbPayload(0)
-{
-}
-
-GuestCtrlCallback::GuestCtrlCallback(eVBoxGuestCtrlCallbackType enmType)
-    : pvData(NULL),
-      cbData(0),
-      mType(VBOXGUESTCTRLCALLBACKTYPE_UNKNOWN),
-      uFlags(0),
-      pvPayload(NULL),
-      cbPayload(0)
-{
-    int rc = Init(enmType);
-    AssertRC(rc);
-}
-
-GuestCtrlCallback::~GuestCtrlCallback(void)
-{
-    Destroy();
-}
-
-int GuestCtrlCallback::Init(eVBoxGuestCtrlCallbackType enmType)
-{
-    AssertReturn(enmType > VBOXGUESTCTRLCALLBACKTYPE_UNKNOWN, VERR_INVALID_PARAMETER);
-    Assert((pvData == NULL) && !cbData);
-
-    switch (enmType)
-    {
-        case VBOXGUESTCTRLCALLBACKTYPE_EXEC_START:
-        {
-            pvData = (PCALLBACKDATAEXECSTATUS)RTMemAlloc(sizeof(CALLBACKDATAEXECSTATUS));
-            AssertPtrReturn(pvData, VERR_NO_MEMORY);
-            RT_BZERO(pvData, sizeof(CALLBACKDATAEXECSTATUS));
-            cbData = sizeof(CALLBACKDATAEXECSTATUS);
-            break;
-        }
-
-        case VBOXGUESTCTRLCALLBACKTYPE_EXEC_OUTPUT:
-        {
-            pvData = (PCALLBACKDATAEXECOUT)RTMemAlloc(sizeof(CALLBACKDATAEXECOUT));
-            AssertPtrReturn(pvData, VERR_NO_MEMORY);
-            RT_BZERO(pvData, sizeof(CALLBACKDATAEXECOUT));
-            cbData = sizeof(CALLBACKDATAEXECOUT);
-            break;
-        }
-
-        case VBOXGUESTCTRLCALLBACKTYPE_EXEC_INPUT_STATUS:
-        {
-            pvData = (PCALLBACKDATAEXECINSTATUS)RTMemAlloc(sizeof(CALLBACKDATAEXECINSTATUS));
-            AssertPtrReturn(pvData, VERR_NO_MEMORY);
-            RT_BZERO(pvData, sizeof(CALLBACKDATAEXECINSTATUS));
-            cbData = sizeof(CALLBACKDATAEXECINSTATUS);
-            break;
-        }
-
-        default:
-            AssertMsgFailed(("Unknown callback type specified (%d)\n", enmType));
-            break;
-    }
-
-    int rc = GuestCtrlEvent::Init();
-    if (RT_SUCCESS(rc))
-        mType  = enmType;
-
-    return rc;
-}
-
-void GuestCtrlCallback::Destroy(void)
-{
-    GuestCtrlEvent::Destroy();
-
-    switch (mType)
-    {
-        case VBOXGUESTCTRLCALLBACKTYPE_EXEC_OUTPUT:
-        {
-            PCALLBACKDATAEXECOUT pThis = (PCALLBACKDATAEXECOUT)pvData;
-            AssertPtr(pThis);
-            if (pThis->pvData)
-                RTMemFree(pThis->pvData);
-        }
-
-        default:
-           break;
-    }
-
-    mType = VBOXGUESTCTRLCALLBACKTYPE_UNKNOWN;
-    if (pvData)
-    {
-        RTMemFree(pvData);
-        pvData = NULL;
-    }
-    cbData = 0;
-
-    if (pvPayload)
-    {
-        RTMemFree(pvPayload);
-        pvPayload = NULL;
-    }
-    cbPayload = 0;
-}
-
-int GuestCtrlCallback::SetData(const void *pvCallback, size_t cbCallback)
-{
-    if (!cbCallback)
-        return VINF_SUCCESS;
-    AssertPtr(pvCallback);
-
-    switch (mType)
-    {
-        case VBOXGUESTCTRLCALLBACKTYPE_EXEC_START:
-        {
-            PCALLBACKDATAEXECSTATUS pThis = (PCALLBACKDATAEXECSTATUS)pvData;
-            PCALLBACKDATAEXECSTATUS pCB   = (PCALLBACKDATAEXECSTATUS)pvCallback;
-            Assert(cbCallback == sizeof(CALLBACKDATAEXECSTATUS));
-
-            pThis->u32Flags  = pCB->u32Flags;
-            pThis->u32PID    = pCB->u32PID;
-            pThis->u32Status = pCB->u32Status;
-            break;
-        }
-
-        case VBOXGUESTCTRLCALLBACKTYPE_EXEC_OUTPUT:
-        {
-            PCALLBACKDATAEXECOUT pThis = (PCALLBACKDATAEXECOUT)pvData;
-            PCALLBACKDATAEXECOUT pCB   = (PCALLBACKDATAEXECOUT)pvCallback;
-            Assert(cbCallback == sizeof(CALLBACKDATAEXECOUT));
-
-            pThis->cbData   = pCB->cbData;
-            if (pThis->cbData)
-            {
-                pThis->pvData   = RTMemAlloc(pCB->cbData);
-                AssertPtrReturn(pThis->pvData, VERR_NO_MEMORY);
-                memcpy(pThis->pvData, pCB->pvData, pCB->cbData);
-            }
-            pThis->u32Flags = pCB->u32Flags;
-            pThis->u32PID   = pCB->u32PID;
-            break;
-        }
-
-        case VBOXGUESTCTRLCALLBACKTYPE_EXEC_INPUT_STATUS:
-        {
-            PCALLBACKDATAEXECINSTATUS pThis = (PCALLBACKDATAEXECINSTATUS)pvData;
-            PCALLBACKDATAEXECINSTATUS pCB   = (PCALLBACKDATAEXECINSTATUS)pvCallback;
-            Assert(cbCallback == sizeof(CALLBACKDATAEXECINSTATUS));
-
-            pThis->cbProcessed = pCB->cbProcessed;
-            pThis->u32Flags    = pCB->u32Flags;
-            pThis->u32PID      = pCB->u32PID;
-            pThis->u32Status   = pCB->u32Status;
-            break;
-        }
-
-        default:
-            AssertMsgFailed(("Callback type not handled (%d)\n", mType));
-            break;
-    }
-
-    return VINF_SUCCESS;
-}
-
-int GuestCtrlCallback::SetPayload(const void *pvToWrite, size_t cbToWrite)
-{
-    if (!cbToWrite)
-        return VINF_SUCCESS;
-    AssertPtr(pvToWrite);
-
-    Assert(pvPayload == NULL); /* Can't reuse callbacks! */
-    pvPayload = RTMemAlloc(cbToWrite);
-    if (!pvPayload)
-        return VERR_NO_MEMORY;
-
-    memcpy(pvPayload, pvToWrite, cbToWrite);
-    cbPayload = cbToWrite;
-
-    return VINF_SUCCESS;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
-GuestProcessWaitEvent::GuestProcessWaitEvent(void)
-    : mFlags(0),
-      mResult(ProcessWaitResult_None)
-{
-}
-
-GuestProcessWaitEvent::GuestProcessWaitEvent(uint32_t uWaitFlags)
-    : mFlags(uWaitFlags)
-{
-    int rc = GuestCtrlEvent::Init();
-    AssertRC(rc);
-}
-
-GuestProcessWaitEvent::~GuestProcessWaitEvent(void)
-{
-    Destroy();
-}
-
-void GuestProcessWaitEvent::Destroy(void)
-{
-    GuestCtrlEvent::Destroy();
-
-    mFlags = ProcessWaitForFlag_None;
-}
-
-int GuestProcessWaitEvent::Signal(ProcessWaitResult_T enmResult, int rc /*= VINF_SUCCESS*/)
-{
-    mResult = enmResult;
-
-    return GuestCtrlEvent::Signal(rc);
-}
-
-///////////////////////////////////////////////////////////////////////////////
 
 int GuestEnvironment::BuildEnvironmentBlock(void **ppvEnv, size_t *pcbEnv, uint32_t *pcEnvVars)
 {
@@ -473,7 +176,7 @@ int GuestEnvironment::Set(const Utf8Str &strPair)
 
     int rc = VINF_SUCCESS;
     size_t p = 0;
-    while(p < listPair.size() && RT_SUCCESS(rc))
+    while (p < listPair.size() && RT_SUCCESS(rc))
     {
         Utf8Str strKey = listPair.at(p++);
         if (   strKey.isEmpty()
@@ -676,10 +379,10 @@ GuestProcessStreamBlock::GuestProcessStreamBlock(void)
 /*
 GuestProcessStreamBlock::GuestProcessStreamBlock(const GuestProcessStreamBlock &otherBlock)
 {
-    for (GuestCtrlStreamPairsIter it = otherBlock.m_mapPairs.begin();
+    for (GuestCtrlStreamPairsIter it = otherBlock.mPairs.begin();
          it != otherBlock.end(); it++)
     {
-        m_mapPairs[it->first] = new
+        mPairs[it->first] = new
         if (it->second.pszValue)
         {
             RTMemFree(it->second.pszValue);
@@ -700,17 +403,17 @@ GuestProcessStreamBlock::~GuestProcessStreamBlock()
  */
 void GuestProcessStreamBlock::Clear(void)
 {
-    m_mapPairs.clear();
+    mPairs.clear();
 }
 
 #ifdef DEBUG
 void GuestProcessStreamBlock::DumpToLog(void) const
 {
     LogFlowFunc(("Dumping contents of stream block=0x%p (%ld items):\n",
-                 this, m_mapPairs.size()));
+                 this, mPairs.size()));
 
-    for (GuestCtrlStreamPairMapIterConst it = m_mapPairs.begin();
-         it != m_mapPairs.end(); it++)
+    for (GuestCtrlStreamPairMapIterConst it = mPairs.begin();
+         it != mPairs.end(); it++)
     {
         LogFlowFunc(("\t%s=%s\n", it->first.c_str(), it->second.mValue.c_str()));
     }
@@ -758,7 +461,7 @@ int64_t GuestProcessStreamBlock::GetInt64(const char *pszKey) const
  */
 size_t GuestProcessStreamBlock::GetCount(void) const
 {
-    return m_mapPairs.size();
+    return mPairs.size();
 }
 
 /**
@@ -773,8 +476,8 @@ const char* GuestProcessStreamBlock::GetString(const char *pszKey) const
 
     try
     {
-        GuestCtrlStreamPairMapIterConst itPairs = m_mapPairs.find(Utf8Str(pszKey));
-        if (itPairs != m_mapPairs.end())
+        GuestCtrlStreamPairMapIterConst itPairs = mPairs.find(Utf8Str(pszKey));
+        if (itPairs != mPairs.end())
             return itPairs->second.mValue.c_str();
     }
     catch (const std::exception &ex)
@@ -836,17 +539,17 @@ int GuestProcessStreamBlock::SetValue(const char *pszKey, const char *pszValue)
 
         /* Take a shortcut and prevent crashes on some funny versions
          * of STL if map is empty initially. */
-        if (!m_mapPairs.empty())
+        if (!mPairs.empty())
         {
-            GuestCtrlStreamPairMapIter it = m_mapPairs.find(Utf8Key);
-            if (it != m_mapPairs.end())
-                 m_mapPairs.erase(it);
+            GuestCtrlStreamPairMapIter it = mPairs.find(Utf8Key);
+            if (it != mPairs.end())
+                 mPairs.erase(it);
         }
 
         if (pszValue)
         {
             GuestProcessStreamValue val(pszValue);
-            m_mapPairs[Utf8Key] = val;
+            mPairs[Utf8Key] = val;
         }
     }
     catch (const std::exception &ex)
@@ -976,22 +679,6 @@ void GuestProcessStream::Dump(const char *pszFile)
 #endif
 
 /**
- * Returns the current offset of the parser within
- * the internal data buffer.
- *
- * @return  uint32_t            Parser offset.
- */
-uint32_t GuestProcessStream::GetOffset()
-{
-    return m_cbOffset;
-}
-
-uint32_t GuestProcessStream::GetSize()
-{
-    return m_cbSize;
-}
-
-/**
  * Tries to parse the next upcoming pair block within the internal
  * buffer.
  *
@@ -1073,5 +760,549 @@ int GuestProcessStream::ParseBlock(GuestProcessStreamBlock &streamBlock)
     m_cbOffset += uDistance;
 
     return rc;
+}
+
+GuestBase::GuestBase(void)
+    : mConsole(NULL),
+      mNextContextID(0)
+{
+}
+
+GuestBase::~GuestBase(void)
+{
+}
+
+int GuestBase::baseInit(void)
+{
+    int rc = RTCritSectInit(&mWaitEventCritSect);
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
+}
+
+void GuestBase::baseUninit(void)
+{
+    LogFlowThisFuncEnter();
+
+    int rc = RTCritSectDelete(&mWaitEventCritSect);
+
+    LogFlowFuncLeaveRC(rc);
+    /* No return value. */
+}
+
+int GuestBase::cancelWaitEvents(void)
+{
+    LogFlowThisFuncEnter();
+
+    int rc = RTCritSectEnter(&mWaitEventCritSect);
+    if (RT_SUCCESS(rc))
+    {
+        GuestEventGroup::iterator itEventGroups = mWaitEventGroups.begin();
+        while (itEventGroups != mWaitEventGroups.end())
+        {
+            GuestWaitEvents::iterator itEvents = itEventGroups->second.begin();
+            while (itEvents != itEventGroups->second.end())
+            {
+                GuestWaitEvent *pEvent = itEvents->second;
+                AssertPtr(pEvent);
+
+                /*
+                 * Just cancel the event, but don't remove it from the
+                 * wait events map. Don't delete it though, this (hopefully)
+                 * is done by the caller using unregisterWaitEvent().
+                 */
+                int rc2 = pEvent->Cancel();
+                AssertRC(rc2);
+
+                itEvents++;
+            }
+
+            itEventGroups++;
+        }
+
+        int rc2 = RTCritSectLeave(&mWaitEventCritSect);
+        if (RT_SUCCESS(rc))
+            rc = rc2;
+    }
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
+}
+
+int GuestBase::dispatchGeneric(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
+{
+    LogFlowFunc(("pCtxCb=%p, pSvcCb=%p\n", pCtxCb, pSvcCb));
+
+    AssertPtrReturn(pCtxCb, VERR_INVALID_POINTER);
+    AssertPtrReturn(pSvcCb, VERR_INVALID_POINTER);
+
+    int vrc = VINF_SUCCESS;
+
+    try
+    {
+        LogFlowFunc(("uFunc=%RU32, cParms=%RU32\n",
+                     pCtxCb->uFunction, pSvcCb->mParms));
+
+        switch (pCtxCb->uFunction)
+        {
+            case GUEST_MSG_PROGRESS_UPDATE:
+                break;
+
+            case GUEST_MSG_REPLY:
+            {
+                if (pSvcCb->mParms >= 3)
+                {
+                    int idx = 1; /* Current parameter index. */
+                    CALLBACKDATA_MSG_REPLY dataCb;
+                    /* pSvcCb->mpaParms[0] always contains the context ID. */
+                    vrc = pSvcCb->mpaParms[idx++].getUInt32(&dataCb.uType);
+                    AssertRCReturn(vrc, vrc);
+                    vrc = pSvcCb->mpaParms[idx++].getUInt32(&dataCb.rc);
+                    AssertRCReturn(vrc, vrc);
+                    vrc = pSvcCb->mpaParms[idx++].getPointer(&dataCb.pvPayload, &dataCb.cbPayload);
+                    AssertRCReturn(vrc, vrc);
+
+                    GuestWaitEventPayload evPayload(dataCb.uType, dataCb.pvPayload, dataCb.cbPayload);
+                    int rc2 = signalWaitEventInternal(pCtxCb, dataCb.rc, &evPayload);
+                    AssertRC(rc2);
+                }
+                else
+                    vrc = VERR_INVALID_PARAMETER;
+                break;
+            }
+
+            default:
+                vrc = VERR_NOT_SUPPORTED;
+                break;
+        }
+    }
+    catch (std::bad_alloc)
+    {
+        vrc = VERR_NO_MEMORY;
+    }
+    catch (int rc)
+    {
+        vrc = rc;
+    }
+
+    LogFlowFuncLeaveRC(vrc);
+    return vrc;
+}
+
+int GuestBase::generateContextID(uint32_t uSessionID, uint32_t uObjectID, uint32_t *puContextID)
+{
+    AssertPtrReturn(puContextID, VERR_INVALID_POINTER);
+
+    if (   uSessionID >= VBOX_GUESTCTRL_MAX_SESSIONS
+        || uObjectID  >= VBOX_GUESTCTRL_MAX_OBJECTS)
+        return VERR_INVALID_PARAMETER;
+
+    uint32_t uCount = ASMAtomicIncU32(&mNextContextID);
+    if (uCount == VBOX_GUESTCTRL_MAX_CONTEXTS)
+        uCount = 0;
+
+    uint32_t uNewContextID =
+        VBOX_GUESTCTRL_CONTEXTID_MAKE(uSessionID, uObjectID, uCount);
+
+    *puContextID = uNewContextID;
+
+    LogFlowThisFunc(("mNextContextID=%RU32, uSessionID=%RU32, uObjectID=%RU32, uCount=%RU32, uNewContextID=%RU32\n",
+                     mNextContextID, uSessionID, uObjectID, uCount, uNewContextID));
+    return VINF_SUCCESS;
+}
+
+int GuestBase::registerWaitEvent(uint32_t uSessionID, uint32_t uObjectID,
+                                 GuestWaitEvent **ppEvent)
+{
+    GuestEventTypes eventTypesEmpty;
+    return registerWaitEvent(uSessionID, uObjectID, eventTypesEmpty, ppEvent);
+}
+
+int GuestBase::registerWaitEvent(uint32_t uSessionID, uint32_t uObjectID,
+                                 const GuestEventTypes &lstEvents,
+                                 GuestWaitEvent **ppEvent)
+{
+    AssertPtrReturn(ppEvent, VERR_INVALID_POINTER);
+
+    uint32_t uContextID;
+    int rc = generateContextID(uSessionID, uObjectID, &uContextID);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    rc = RTCritSectEnter(&mWaitEventCritSect);
+    if (RT_SUCCESS(rc))
+    {
+        try
+        {
+            GuestWaitEvent *pEvent = new GuestWaitEvent(uContextID, lstEvents);
+            AssertPtr(pEvent);
+
+            /* Insert event into matching event group. This is for faster per-group
+             * lookup of all events later. */
+            for (GuestEventTypes::const_iterator itEvents = lstEvents.begin();
+                 itEvents != lstEvents.end(); itEvents++)
+            {
+                mWaitEventGroups[(*itEvents)].insert(
+                   std::pair<uint32_t, GuestWaitEvent*>(uContextID, pEvent));
+                /** @todo Check for key collision. */
+            }
+
+            /* Register event in regular event list. */
+            /** @todo Check for key collisions. */
+            mWaitEvents[uContextID] = pEvent;
+
+            *ppEvent = pEvent;
+        }
+        catch(std::bad_alloc &)
+        {
+            rc = VERR_NO_MEMORY;
+        }
+
+        int rc2 = RTCritSectLeave(&mWaitEventCritSect);
+        if (RT_SUCCESS(rc))
+            rc = rc2;
+    }
+
+    return rc;
+}
+
+int GuestBase::signalWaitEvent(VBoxEventType_T aType, IEvent *aEvent)
+{
+    int rc = RTCritSectEnter(&mWaitEventCritSect);
+#ifdef DEBUG
+    uint32_t cEvents = 0;
+#endif
+    if (RT_SUCCESS(rc))
+    {
+        GuestEventGroup::iterator itGroups = mWaitEventGroups.find(aType);
+        if (itGroups != mWaitEventGroups.end())
+        {
+            for (GuestWaitEvents::iterator itEvents = itGroups->second.begin();
+                 itEvents != itGroups->second.end(); itEvents++)
+            {
+#ifdef DEBUG
+                LogFlowThisFunc(("Signalling event=%p, type=%ld (CID %RU32: Sesion=%RU32, Object=%RU32, Count=%RU32) ...\n",
+                                 itEvents->second, aType, itEvents->first,
+                                 VBOX_GUESTCTRL_CONTEXTID_GET_SESSION(itEvents->first),
+                                 VBOX_GUESTCTRL_CONTEXTID_GET_OBJECT(itEvents->first),
+                                 VBOX_GUESTCTRL_CONTEXTID_GET_COUNT(itEvents->first)));
+#endif
+                ComPtr<IEvent> pThisEvent = aEvent;
+                Assert(!pThisEvent.isNull());
+                int rc2 = itEvents->second->SignalExternal(aEvent);
+                if (RT_SUCCESS(rc))
+                    rc = rc2;
+#ifdef DEBUG
+                cEvents++;
+#endif
+            }
+        }
+
+        int rc2 = RTCritSectLeave(&mWaitEventCritSect);
+        if (RT_SUCCESS(rc))
+            rc = rc2;
+    }
+
+#ifdef DEBUG
+    LogFlowThisFunc(("Signalled %RU32 events, rc=%Rrc\n", cEvents, rc));
+#endif
+    return rc;
+}
+
+int GuestBase::signalWaitEventInternal(PVBOXGUESTCTRLHOSTCBCTX pCbCtx,
+                                       int guestRc, const GuestWaitEventPayload *pPayload)
+{
+    if (RT_SUCCESS(guestRc))
+        return signalWaitEventInternalEx(pCbCtx, VINF_SUCCESS,
+                                         0 /* Guest rc */, pPayload);
+
+    return signalWaitEventInternalEx(pCbCtx, VERR_GSTCTL_GUEST_ERROR,
+                                     guestRc, pPayload);
+}
+
+int GuestBase::signalWaitEventInternalEx(PVBOXGUESTCTRLHOSTCBCTX pCbCtx,
+                                         int rc, int guestRc,
+                                         const GuestWaitEventPayload *pPayload)
+{
+    AssertPtrReturn(pCbCtx, VERR_INVALID_POINTER);
+    /* pPayload is optional. */
+
+    int rc2;
+    GuestWaitEvents::iterator itEvent = mWaitEvents.find(pCbCtx->uContextID);
+    if (itEvent != mWaitEvents.end())
+    {
+        LogFlowThisFunc(("Signalling event=%p (CID %RU32, rc=%Rrc, guestRc=%Rrc, pPayload=%p) ...\n",
+                         itEvent->second, itEvent->first, rc, guestRc, pPayload));
+        GuestWaitEvent *pEvent = itEvent->second;
+        AssertPtr(pEvent);
+        rc2 = pEvent->SignalInternal(rc, guestRc, pPayload);
+    }
+    else
+        rc2 = VERR_NOT_FOUND;
+
+    return rc2;
+}
+
+void GuestBase::unregisterWaitEvent(GuestWaitEvent *pEvent)
+{
+    if (!pEvent) /* Nothing to unregister. */
+        return;
+
+    int rc = RTCritSectEnter(&mWaitEventCritSect);
+    if (RT_SUCCESS(rc))
+    {
+        const GuestEventTypes lstTypes = pEvent->Types();
+        for (GuestEventTypes::const_iterator itEvents = lstTypes.begin();
+             itEvents != lstTypes.end(); itEvents++)
+        {
+            /** @todo Slow O(n) lookup. Optimize this. */
+            GuestWaitEvents::iterator itCurEvent = mWaitEventGroups[(*itEvents)].begin();
+            while (itCurEvent != mWaitEventGroups[(*itEvents)].end())
+            {
+                if (itCurEvent->second == pEvent)
+                {
+                    mWaitEventGroups[(*itEvents)].erase(itCurEvent);
+                    break;
+                }
+                else
+                    itCurEvent++;
+            }
+        }
+
+        delete pEvent;
+        pEvent = NULL;
+
+        int rc2 = RTCritSectLeave(&mWaitEventCritSect);
+        if (RT_SUCCESS(rc))
+            rc = rc2;
+    }
+}
+
+/**
+ * Waits for a formerly registered guest event.
+ *
+ * @return  IPRT status code.
+ * @param   pEvent                  Pointer to event to wait for.
+ * @param   uTimeoutMS              Timeout (in ms) for waiting.
+ * @param   pType                   Event type of following IEvent.
+ *                                  Optional.
+ * @param   ppEvent                 Pointer to IEvent which got triggered
+ *                                  for this event. Optional.
+ */
+int GuestBase::waitForEvent(GuestWaitEvent *pEvent, uint32_t uTimeoutMS,
+                            VBoxEventType_T *pType, IEvent **ppEvent)
+{
+    AssertPtrReturn(pEvent, VERR_INVALID_POINTER);
+    /* pType is optional. */
+    /* ppEvent is optional. */
+
+    int vrc = pEvent->Wait(uTimeoutMS);
+    if (RT_SUCCESS(vrc))
+    {
+        const ComPtr<IEvent> pThisEvent = pEvent->Event();
+        if (!pThisEvent.isNull()) /* Having a VBoxEventType_ event is optional. */
+        {
+            if (pType)
+            {
+                HRESULT hr = pThisEvent->COMGETTER(Type)(pType);
+                if (FAILED(hr))
+                    vrc = VERR_COM_UNEXPECTED;
+            }
+            if (   RT_SUCCESS(vrc)
+                && ppEvent)
+                pThisEvent.queryInterfaceTo(ppEvent);
+
+            unconst(pThisEvent).setNull();
+        }
+    }
+
+    return vrc;
+}
+
+GuestObject::GuestObject(void)
+    : mSession(NULL),
+      mObjectID(0)
+{
+}
+
+GuestObject::~GuestObject(void)
+{
+}
+
+int GuestObject::bindToSession(Console *pConsole, GuestSession *pSession, uint32_t uObjectID)
+{
+    AssertPtrReturn(pConsole, VERR_INVALID_POINTER);
+    AssertPtrReturn(pSession, VERR_INVALID_POINTER);
+
+    mConsole  = pConsole;
+    mSession  = pSession;
+    mObjectID = uObjectID;
+
+    return VINF_SUCCESS;
+}
+
+int GuestObject::registerWaitEvent(const GuestEventTypes &lstEvents,
+                                   GuestWaitEvent **ppEvent)
+{
+    AssertPtr(mSession);
+    return GuestBase::registerWaitEvent(mSession->getId(), mObjectID, lstEvents, ppEvent);
+}
+
+int GuestObject::sendCommand(uint32_t uFunction,
+                             uint32_t uParms, PVBOXHGCMSVCPARM paParms)
+{
+#ifndef VBOX_GUESTCTRL_TEST_CASE
+    ComObjPtr<Console> pConsole = mConsole;
+    Assert(!pConsole.isNull());
+
+    int vrc = VERR_HGCM_SERVICE_NOT_FOUND;
+
+    /* Forward the information to the VMM device. */
+    VMMDev *pVMMDev = pConsole->getVMMDev();
+    if (pVMMDev)
+    {
+        LogFlowThisFunc(("uFunction=%RU32, uParms=%RU32\n", uFunction, uParms));
+        vrc = pVMMDev->hgcmHostCall(HGCMSERVICE_NAME, uFunction, uParms, paParms);
+        if (RT_FAILURE(vrc))
+        {
+            /** @todo What to do here? */
+        }
+    }
+#else
+    LogFlowThisFuncEnter();
+
+    /* Not needed within testcases. */
+    int vrc = VINF_SUCCESS;
+#endif
+    return vrc;
+}
+
+GuestWaitEventBase::GuestWaitEventBase(void)
+    : mfAborted(false),
+      mCID(0),
+      mEventSem(NIL_RTSEMEVENT),
+      mRc(VINF_SUCCESS),
+      mGuestRc(VINF_SUCCESS)
+{
+}
+
+GuestWaitEventBase::~GuestWaitEventBase(void)
+{
+}
+
+int GuestWaitEventBase::Init(uint32_t uCID)
+{
+    mCID = uCID;
+
+    return RTSemEventCreate(&mEventSem);
+}
+
+int GuestWaitEventBase::SignalInternal(int rc, int guestRc,
+                                       const GuestWaitEventPayload *pPayload)
+{
+    AssertReturn(!mfAborted, VERR_CANCELLED);
+
+#ifdef VBOX_STRICT
+    if (rc == VERR_GSTCTL_GUEST_ERROR)
+        AssertMsg(RT_FAILURE(guestRc), ("Guest error indicated but no actual guest error set (%Rrc)\n", guestRc));
+    else
+        AssertMsg(RT_SUCCESS(guestRc), ("No guest error indicated but actual guest error set (%Rrc)\n", guestRc));
+#endif
+
+    int rc2;
+    if (pPayload)
+        rc2 = mPayload.CopyFromDeep(*pPayload);
+    else
+        rc2 = VINF_SUCCESS;
+    if (RT_SUCCESS(rc2))
+    {
+        mRc = rc;
+        mGuestRc = guestRc;
+
+        rc2 = RTSemEventSignal(mEventSem);
+    }
+
+    return rc2;
+}
+
+int GuestWaitEventBase::Wait(RTMSINTERVAL uTimeoutMS)
+{
+    int rc = VINF_SUCCESS;
+
+    if (ASMAtomicReadBool(&mfAborted))
+        rc = VERR_CANCELLED;
+
+    if (RT_SUCCESS(rc))
+    {
+        AssertReturn(mEventSem != NIL_RTSEMEVENT, VERR_CANCELLED);
+
+        RTMSINTERVAL msInterval = uTimeoutMS;
+        if (!uTimeoutMS)
+            msInterval = RT_INDEFINITE_WAIT;
+        rc = RTSemEventWait(mEventSem, msInterval);
+        if (ASMAtomicReadBool(&mfAborted))
+            rc = VERR_CANCELLED;
+        if (RT_SUCCESS(rc))
+        {
+            /* If waiting succeeded, return the overall
+             * result code. */
+            rc = mRc;
+        }
+    }
+
+    return rc;
+}
+
+GuestWaitEvent::GuestWaitEvent(uint32_t uCID,
+                               const GuestEventTypes &lstEvents)
+{
+    int rc2 = Init(uCID);
+    AssertRC(rc2); /** @todo Throw exception here. */
+
+    mEventTypes = lstEvents;
+}
+
+GuestWaitEvent::GuestWaitEvent(uint32_t uCID)
+{
+    int rc2 = Init(uCID);
+    AssertRC(rc2); /** @todo Throw exception here. */
+}
+
+GuestWaitEvent::~GuestWaitEvent(void)
+{
+
+}
+
+/**
+ * Cancels the event.
+ */
+int GuestWaitEvent::Cancel(void)
+{
+    AssertReturn(!mfAborted, VERR_CANCELLED);
+    ASMAtomicWriteBool(&mfAborted, true);
+
+    return RTSemEventSignal(mEventSem);
+}
+
+int GuestWaitEvent::Init(uint32_t uCID)
+{
+    return GuestWaitEventBase::Init(uCID);
+}
+
+/**
+ * Signals the event.
+ *
+ * @return  IPRT status code.
+ * @param   pEvent              Public IEvent to associate.
+ *                              Optional.
+ */
+int GuestWaitEvent::SignalExternal(IEvent *pEvent)
+{
+    AssertReturn(mEventSem != NIL_RTSEMEVENT, VERR_CANCELLED);
+
+    if (pEvent)
+        mEvent = pEvent;
+
+    return RTSemEventSignal(mEventSem);
 }
 

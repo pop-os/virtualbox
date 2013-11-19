@@ -22,9 +22,7 @@ static CRBufferObject *AllocBufferObject(GLuint name)
         b->usage = GL_STATIC_DRAW_ARB;
         b->access = GL_READ_WRITE_ARB;
         b->bResyncOnRead = GL_FALSE;
-#ifndef IN_GUEST
         CR_STATE_SHAREDOBJ_USAGE_INIT(b);
-#endif
     }
     return b;
 }
@@ -41,9 +39,8 @@ void crStateRegBuffers(GLsizei n, GLuint *buffers)
     crStateRegNames(g, g->shared->buffersTable, n, buffers);
 }
 
-GLboolean crStateIsBufferBound(GLenum target)
+GLboolean crStateIsBufferBoundForCtx(CRContext *g, GLenum target)
 {
-    CRContext *g = GetCurrentContext();
     CRBufferObjectState *b = &(g->bufferobject);
 
     switch (target)
@@ -61,6 +58,12 @@ GLboolean crStateIsBufferBound(GLenum target)
         default:
             return GL_FALSE;
     }
+}
+
+GLboolean crStateIsBufferBound(GLenum target)
+{
+    CRContext *g = GetCurrentContext();
+    return crStateIsBufferBoundForCtx(g, target);
 }
 
 CRBufferObject *crStateGetBoundBufferObject(GLenum target, CRBufferObjectState *b)
@@ -226,9 +229,7 @@ crStateBindBufferARB (GLenum target, GLuint buffer)
             crHashtableAdd( g->shared->buffersTable, buffer, newObj );
         }
 
-#ifndef IN_GUEST
         CR_STATE_SHAREDOBJ_USAGE_SET(newObj, g);
-#endif
     }
 
     newObj->refCount++;
@@ -341,9 +342,7 @@ static void ctStateBuffersRefsCleanup(CRContext *ctx, CRBufferObject *obj, CRbit
     }
 #endif
 
-#ifndef IN_GUEST
     CR_STATE_SHAREDOBJ_USAGE_CLEAR(obj, ctx);
-#endif
 }
 
 void STATE_APIENTRY

@@ -21,6 +21,15 @@
 #include <iprt/env.h>
 #include <iprt/path.h>
 #include <iprt/param.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <net/if.h>
+#include <errno.h>
+#include <unistd.h>
+
+#if defined(RT_OS_SOLARIS)
+# include <sys/sockio.h>
+#endif
 
 #if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN)
 # include <cstdio>
@@ -218,6 +227,11 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox,
                 char szBuf[128]; /* We are not interested in long error messages. */
                 if (fgets(szBuf, sizeof(szBuf), fp))
                 {
+                    /* Remove trailing new line characters. */
+                    char *pLast = szBuf + strlen(szBuf) - 1;
+                    if (pLast >= szBuf && *pLast == '\n')
+                        *pLast = 0;
+
                     if (!strncmp(VBOXNETADPCTL_NAME ":", szBuf, sizeof(VBOXNETADPCTL_NAME)))
                     {
                         progress->notifyComplete(E_FAIL,
@@ -227,9 +241,6 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox,
                         pclose(fp);
                         return E_FAIL;
                     }
-                    char *pLast = szBuf + strlen(szBuf) - 1;
-                    if (pLast >= szBuf && *pLast == '\n')
-                        *pLast = 0;
 
                     size_t cbNameLen = strlen(szBuf) + 1;
                     PNETIFINFO pInfo = (PNETIFINFO)RTMemAllocZ(RT_OFFSETOF(NETIFINFO, szName[cbNameLen]));
@@ -307,7 +318,7 @@ int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVBox, IN_GUID aId,
     ComPtr<IHost> host;
     int rc = VINF_SUCCESS;
     HRESULT hr = pVBox->COMGETTER(Host)(host.asOutParam());
-    if(SUCCEEDED(hr))
+    if (SUCCEEDED(hr))
     {
         Bstr ifname;
         ComPtr<IHostNetworkInterface> iface;
@@ -320,7 +331,7 @@ int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVBox, IN_GUID aId,
         rc = progress->init(pVBox, host,
                             Bstr("Removing host network interface").raw(),
                             FALSE /* aCancelable */);
-        if(SUCCEEDED(rc))
+        if (SUCCEEDED(rc))
         {
             progress.queryInterfaceTo(aProgress);
             rc = NetIfAdpCtl(Utf8Str(ifname).c_str(), "remove", NULL, NULL);
@@ -357,3 +368,29 @@ int NetIfDhcpRediscover(VirtualBox * /* pVbox */, HostNetworkInterface * /* pIf 
     return VERR_NOT_IMPLEMENTED;
 }
 
+/**
+ * Obtain the current state of the interface.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pcszIfName  Interface name.
+ * @param   penmState   Where to store the retrieved state.
+ */
+int NetIfGetState(const char *pcszIfName, NETIFSTATUS *penmState)
+{
+    int sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
+    if (sock < 0)
+        return VERR_OUT_OF_RESOURCES;
+    struct ifreq Req;
+    RT_ZERO(Req);
+    RTStrCopy(Req.ifr_name, sizeof(Req.ifr_name), pcszIfName);
+    if (ioctl(sock, SIOCGIFFLAGS, &Req) < 0)
+    {
+        Log(("NetIfGetState: ioctl(SIOCGIFFLAGS) -> %d\n", errno));
+        *penmState = NETIF_S_UNKNOWN;
+    }
+    else
+        *penmState = (Req.ifr_flags & IFF_UP) ? NETIF_S_UP : NETIF_S_DOWN;
+    close(sock);
+    return VINF_SUCCESS;
+}

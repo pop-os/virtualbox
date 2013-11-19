@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -137,13 +137,13 @@
 #  include <sys/user.h>
 #  include <stdlib.h>
 #  include <unistd.h>
+# elif defined(RT_OS_HAIKU)
+#  include <OS.h>
 # elif defined(RT_OS_SOLARIS)
 #  define _STRUCTURED_PROC 1
 #  undef _FILE_OFFSET_BITS /* procfs doesn't like this */
 #  include <sys/procfs.h>
 #  include <unistd.h>
-# elif defined(RT_OS_L4)
-#  include <l4/vboxserver/vboxserver.h>
 # elif defined(RT_OS_OS2)
 #  include <stdlib.h>
 # endif
@@ -161,6 +161,10 @@
 # include <iprt/string.h>
 # include <iprt/mem.h>
 # include <stdio.h>
+#endif
+#if defined(IN_RING0) && defined(RT_OS_DARWIN)
+# include <iprt/asm-amd64-x86.h>
+# include <iprt/thread.h>
 #endif
 
 
@@ -251,7 +255,7 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
     ASSERT_LOG_GROUP(EM);
     ASSERT_LOG_GROUP(GUI);
     ASSERT_LOG_GROUP(HGCM);
-    ASSERT_LOG_GROUP(HWACCM);
+    ASSERT_LOG_GROUP(HM);
     ASSERT_LOG_GROUP(IOM);
     ASSERT_LOG_GROUP(MAIN);
     ASSERT_LOG_GROUP(MM);
@@ -368,6 +372,14 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
             fclose(pFile);
         }
 
+#  elif defined(RT_OS_HAIKU)
+        team_info info;
+        if (get_team_info(0, &info) == B_OK)
+        {
+            /* there is an info.argc, but no way to know arg boundaries */
+            RTLogLoggerEx(pLogger, 0, ~0U, "Commandline: %.64s\n", info.args);
+        }
+
 #  elif defined(RT_OS_FREEBSD)
         /* Retrieve the required length first */
         int aiName[4];
@@ -402,7 +414,7 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
             }
         }
 
-#  elif defined(RT_OS_L4) || defined(RT_OS_OS2) || defined(RT_OS_DARWIN)
+#  elif defined(RT_OS_OS2) || defined(RT_OS_DARWIN)
         /* commandline? */
 #  else
 #   error needs porting.
@@ -415,6 +427,15 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
 # endif /* IN_GUEST */
 
 #else /* IN_RING0 */
+
+    /* Some platforms has trouble allocating memory with interrupts and/or
+       preemption disabled. Check and fail before we panic. */
+# if defined(RT_OS_DARWIN)
+    if (   !ASMIntAreEnabled()
+        || !RTThreadPreemptIsEnabled(NIL_RTTHREAD))
+        return NULL;
+# endif
+
 # ifndef IN_GUEST
     rc = RTLogCreate(&pLogger, 0, NULL, "VBOX_LOG", RT_ELEMENTS(g_apszGroups), &g_apszGroups[0], RTLOGDEST_FILE, "VBox-ring0.log");
 # else  /* IN_GUEST */
@@ -461,8 +482,8 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
         RTLogFlags(pLogger, "enabled unbuffered");
         pLogger->fDestFlags |= RTLOGDEST_DEBUGGER;
 # endif
-# if defined(DEBUG_leo) /* Guest ring-0 as well */
-        RTLogGroupSettings(pLogger, "+drv_mouse.e.l.f+drv_miniport.e.l.f+drv_display.e.l.f");
+# if defined(DEBUG_michael) && defined(IN_GUEST)
+        RTLogGroupSettings(pLogger, "+all.e.l.f");
         RTLogFlags(pLogger, "enabled unbuffered");
         pLogger->fDestFlags |= RTLOGDEST_DEBUGGER;
 # endif

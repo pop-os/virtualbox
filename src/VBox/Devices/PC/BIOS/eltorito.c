@@ -93,11 +93,48 @@ typedef struct {
 
 ct_assert(sizeof(cdb_atapi) == 12);
 
+/* Generic ATAPI/SCSI CD-ROM access routine signature. */
+typedef uint16_t (* cd_pkt_func)(uint16_t device_id, uint8_t cmdlen, char __far *cmdbuf,
+                                 uint16_t header, uint32_t length, uint8_t inout, char __far *buffer);
+
+/* Pointers to HW specific CD-ROM access routines. */
+cd_pkt_func     pktacc[DSKTYP_CNT] = {
+    [DSK_TYPE_ATAPI]  = { ata_cmd_packet },
+#ifdef VBOX_WITH_AHCI
+    [DSK_TYPE_AHCI]   = { ahci_cmd_packet },
+#endif
+#ifdef VBOX_WITH_SCSI
+    [DSK_TYPE_SCSI]   = { scsi_cmd_packet },
+#endif
+};
+
+#if defined(VBOX_WITH_AHCI) || defined(VBOX_WITH_SCSI)
+uint16_t dummy_soft_reset(uint16_t device_id)
+{
+    return 0;
+}
+#endif
+
+/* Generic reset routine signature. */
+typedef uint16_t (* cd_rst_func)(uint16_t device_id);
+
+/* Pointers to HW specific CD-ROM reset routines. */
+cd_rst_func     softrst[DSKTYP_CNT] = {
+    [DSK_TYPE_ATAPI]  = { ata_soft_reset },
+#ifdef VBOX_WITH_AHCI
+    [DSK_TYPE_AHCI]   = { dummy_soft_reset },
+#endif
+#ifdef VBOX_WITH_SCSI
+    [DSK_TYPE_SCSI]   = { dummy_soft_reset },
+#endif
+};
+
+
 // ---------------------------------------------------------------------------
 // Start of El-Torito boot functions
 // ---------------------------------------------------------------------------
 
-// !! TODO !! convert EBDA accesses to far pointers 
+// !! TODO !! convert EBDA accesses to far pointers
 
 extern  int     diskette_param_table;
 
@@ -106,7 +143,7 @@ void BIOSCALL cdemu_init(void)
 {
     // @TODO: a macro or a function for getting the EBDA segment
     uint16_t    ebda_seg = read_word(0x0040,0x000E);
-    
+
     // the only important data is this one for now
     write_byte(ebda_seg,(uint16_t)&EbdaData->cdemu.active, 0x00);
 }
@@ -115,7 +152,7 @@ uint8_t BIOSCALL cdemu_isactive(void)
 {
     // @TODO: a macro or a function for getting the EBDA segment
     uint16_t    ebda_seg = read_word(0x0040,0x000E);
-    
+
     return read_byte(ebda_seg,(uint16_t)&EbdaData->cdemu.active);
 }
 
@@ -123,7 +160,7 @@ uint8_t BIOSCALL cdemu_emulated_drive(void)
 {
     // @TODO: a macro or a function for getting the EBDA segment
     uint16_t    ebda_seg = read_word(0x0040,0x000E);
-    
+
     return read_byte(ebda_seg,(uint16_t)&EbdaData->cdemu.emulated_drive);
 }
 
@@ -139,10 +176,10 @@ void BIOSCALL int13_eltorito(disk_regs_t r)
 
     cdemu = ebda_seg :> &EbdaData->cdemu;
 
-    
+
     BX_DEBUG_INT13_ET("%s: AX=%04x BX=%04x CX=%04x DX=%04x ES=%04x\n", __func__, AX, BX, CX, DX, ES);
     // BX_DEBUG_INT13_ET("%s: SS=%04x DS=%04x ES=%04x DI=%04x SI=%04x\n", __func__, get_SS(), DS, ES, DI, SI);
-    
+
     switch (GET_AH()) {
 
     // FIXME ElTorito Various. Not implemented in many real BIOSes.
@@ -168,7 +205,7 @@ void BIOSCALL int13_eltorito(disk_regs_t r)
         write_byte(DS,SI+0x10,cdemu->vdevice.cylinders);
         write_byte(DS,SI+0x11,cdemu->vdevice.spt);
         write_byte(DS,SI+0x12,cdemu->vdevice.heads);
-        
+
         // If we have to terminate emulation
         if(GET_AL() == 0x00) {
             // FIXME ElTorito Various. Should be handled accordingly to spec
@@ -206,18 +243,18 @@ int13_success:
 static uint16_t device_is_cdrom(uint8_t device)
 {
     bio_dsk_t __far *bios_dsk;
-    
+
     bios_dsk = read_word(0x0040, 0x000E) :> &EbdaData->bdisk;
-    
+
     if (device >= BX_MAX_STORAGE_DEVICES)
         return 0;
-    
+
 //    if (bios_dsk->devices[device].type != DSK_TYPE_ATAPI)
 //        return 0;
-    
+
     if (bios_dsk->devices[device].device != DSK_DEVICE_CDROM)
         return 0;
-    
+
     return 1;
 }
 
@@ -266,11 +303,7 @@ uint16_t cdrom_boot(void)
 
     for (read_try = 0; read_try <= 4; ++read_try)
     {
-        //@todo: Use indirect calls instead?
-        if (device > BX_MAX_ATA_DEVICES)
-            error = ahci_cmd_packet(device, 12, (char __far *)&atapicmd, 0, 2048L, ATA_DATA_IN, &buffer);
-        else
-            error = ata_cmd_packet(device, 12, (char __far *)&atapicmd, 0, 2048L, ATA_DATA_IN, &buffer);
+        error = pktacc[bios_dsk->devices[device].type](device, 12, (char __far *)&atapicmd, 0, 2048L, ATA_DATA_IN, &buffer);
         if (!error)
             break;
     }
@@ -303,11 +336,7 @@ uint16_t cdrom_boot(void)
     bios_dsk->drqp.sect_sz = 512;
 #endif
 
-    if (device > BX_MAX_ATA_DEVICES)
-        error = ahci_cmd_packet(device, 12, (char __far *)&atapicmd, 0, 2048L, ATA_DATA_IN, &buffer);
-    else
-        error = ata_cmd_packet(device, 12, (char __far *)&atapicmd, 0, 2048L, ATA_DATA_IN, &buffer);
-
+    error = pktacc[bios_dsk->devices[device].type](device, 12, (char __far *)&atapicmd, 0, 2048L, ATA_DATA_IN, &buffer);
     if (error != 0)
         return 7;
 
@@ -351,10 +380,16 @@ uint16_t cdrom_boot(void)
     nbsectors = ((uint16_t *)buffer)[0x26 / 2];
     cdemu->sector_count = nbsectors;
 
+    /* Sanity check the sector count. In incorrectly mastered CDs, it might
+     * be zero. If it's more than 512K, reject it as well.
+     */
+    if (nbsectors == 0 || nbsectors > 1024)
+        return 12;
+
     lba = *((uint32_t *)&buffer[0x28]);
     cdemu->ilba = lba;
 
-    BX_DEBUG_ELTORITO("Emulate drive %02x, type %02x, LBA %lu\n", 
+    BX_DEBUG_ELTORITO("Emulate drive %02x, type %02x, LBA %lu\n",
                       cdemu->emulated_drive, cdemu->media, cdemu->ilba);
 
     /* Read the disk image's boot sector into memory. */
@@ -365,19 +400,16 @@ uint16_t cdrom_boot(void)
     bios_dsk->drqp.nsect   = 1 + (nbsectors - 1) / 4;
     bios_dsk->drqp.sect_sz = 512;
 
-    bios_dsk->drqp.skip_a = 2048 - nbsectors * 512UL % 2048;
+    bios_dsk->drqp.skip_a = (2048 - nbsectors * 512) % 2048;
 
-    if (device > BX_MAX_ATA_DEVICES)
-        error = ahci_cmd_packet(device, 12, (char __far *)&atapicmd, 0, nbsectors*512L, ATA_DATA_IN, MK_FP(boot_segment,0));
-    else
-        error = ata_cmd_packet(device, 12, (char __far *)&atapicmd, 0, nbsectors*512L, ATA_DATA_IN, MK_FP(boot_segment,0));
+    error = pktacc[bios_dsk->devices[device].type](device, 12, (char __far *)&atapicmd, 0, nbsectors*512L, ATA_DATA_IN, MK_FP(boot_segment,0));
 
     bios_dsk->drqp.skip_a = 0;
 
     if (error != 0)
-        return 12;
+        return 13;
 
-    BX_DEBUG_ELTORITO("Emulate drive %02x, type %02x, LBA %lu\n", 
+    BX_DEBUG_ELTORITO("Emulate drive %02x, type %02x, LBA %lu\n",
                       cdemu->emulated_drive, cdemu->media, cdemu->ilba);
     /* Set up emulated drive geometry based on the media type. */
     switch (cdemu->media) {
@@ -448,23 +480,29 @@ void BIOSCALL int13_cdemu(disk_regs_t r)
     BX_DEBUG_INT13_ET("%s: AX=%04x BX=%04x CX=%04x DX=%04x ES=%04x\n", __func__, AX, BX, CX, DX, ES);
 
     /* at this point, we are emulating a floppy/harddisk */
-    
+
     // Recompute the device number
     device  = cdemu->controller_index * 2;
     device += cdemu->device_spec;
-    
+
     SET_DISK_RET_STATUS(0x00);
-    
+
     /* basic checks : emulation should be active, dl should equal the emulated drive */
     if (!cdemu->active || (cdemu->emulated_drive != GET_DL())) {
         BX_INFO("%s: function %02x, emulation not active for DL= %02x\n", __func__, GET_AH(), GET_DL());
         goto int13_fail;
     }
-    
+
     switch (GET_AH()) {
 
-    // all those functions return SUCCESS
     case 0x00: /* disk controller reset */
+        if (pktacc[bios_dsk->devices[device].type])
+        {
+            status = softrst[bios_dsk->devices[device].type](device);
+        }
+        goto int13_success;
+        break;
+    // all those functions return SUCCESS
     case 0x09: /* initialize drive parameters */
     case 0x0c: /* seek to specified cylinder */
     case 0x0d: /* alternate disk reset */  // FIXME ElTorito Various. should really reset ?
@@ -486,7 +524,7 @@ void BIOSCALL int13_cdemu(disk_regs_t r)
         status=read_byte(0x0040, 0x0074);
         SET_AH(status);
         SET_DISK_RET_STATUS(0);
-        
+
         /* set CF if error status read */
         if (status)
             goto int13_fail_nostatus;
@@ -500,7 +538,7 @@ void BIOSCALL int13_cdemu(disk_regs_t r)
         vcylinders = cdemu->vdevice.cylinders;
         vheads     = cdemu->vdevice.heads;
         ilba       = cdemu->ilba;
-        
+
         sector    = GET_CL() & 0x003f;
         cylinder  = (GET_CL() & 0x00c0) << 2 | GET_CH();
         head      = GET_DH();
@@ -514,31 +552,31 @@ void BIOSCALL int13_cdemu(disk_regs_t r)
         // no sector to read ?
         if(nbsectors==0)
             goto int13_success;
-        
+
         // sanity checks sco openserver needs this!
         if ((sector   >  vspt)
           || (cylinder >= vcylinders)
           || (head     >= vheads)) {
             goto int13_fail;
         }
-        
+
         // After validating the input, verify does nothing
         if (GET_AH() == 0x04)
             goto int13_success;
-        
+
         segment = ES+(BX / 16);
         offset  = BX % 16;
-        
+
         // calculate the virtual lba inside the image
         vlba=((((uint32_t)cylinder*(uint32_t)vheads)+(uint32_t)head)*(uint32_t)vspt)+((uint32_t)(sector-1));
-        
+
         // In advance so we don't lose the count
         SET_AL(nbsectors);
-        
+
         // start lba on cd
         slba   = (uint32_t)vlba / 4;
         before = (uint32_t)vlba % 4;
-        
+
         // end lba on cd
         elba = (uint32_t)(vlba + nbsectors - 1) / 4;
 
@@ -547,16 +585,13 @@ void BIOSCALL int13_cdemu(disk_regs_t r)
         atapicmd.lba     = swap_32(ilba + slba);
         atapicmd.nsect   = swap_16(elba - slba + 1);
 
-        bios_dsk->drqp.nsect   = elba - slba + 1;
+        bios_dsk->drqp.nsect   = nbsectors;
         bios_dsk->drqp.sect_sz = 512;
 
         bios_dsk->drqp.skip_b = before * 512;
-        bios_dsk->drqp.skip_a = 2048 - nbsectors * 512UL % 2048 - bios_dsk->drqp.skip_b;
+        bios_dsk->drqp.skip_a = ((4 - nbsectors % 4 - before) * 512) % 2048;
 
-        if (device > BX_MAX_ATA_DEVICES)
-            status = ahci_cmd_packet(device, 12, (char __far *)&atapicmd, before*512, nbsectors*512L, ATA_DATA_IN, MK_FP(segment,offset));
-        else
-            status = ata_cmd_packet(device, 12, (char __far *)&atapicmd, before*512, nbsectors*512L, ATA_DATA_IN, MK_FP(segment,offset));
+        status = pktacc[bios_dsk->devices[device].type](device, 12, (char __far *)&atapicmd, before*512, nbsectors*512L, ATA_DATA_IN, MK_FP(segment,offset));
 
         bios_dsk->drqp.skip_b = 0;
         bios_dsk->drqp.skip_a = 0;
@@ -567,7 +602,7 @@ void BIOSCALL int13_cdemu(disk_regs_t r)
             SET_AL(0);
             goto int13_fail_noah;
         }
-        
+
         goto int13_success;
         break;
 
@@ -575,7 +610,7 @@ void BIOSCALL int13_cdemu(disk_regs_t r)
         vspt       = cdemu->vdevice.spt;
         vcylinders = cdemu->vdevice.cylinders - 1;
         vheads     = cdemu->vdevice.heads - 1;
-        
+
         SET_AL( 0x00 );
         SET_BL( 0x00 );
         SET_CH( vcylinders & 0xff );
@@ -658,20 +693,20 @@ void BIOSCALL int13_cdrom(uint16_t EHBX, disk_regs_t r)
     dpt_t __far         *dpt;
 
     bios_dsk = ebda_seg :> &EbdaData->bdisk;
-    
+
     BX_DEBUG_INT13_CD("%s: AX=%04x BX=%04x CX=%04x DX=%04x ES=%04x\n", __func__, AX, BX, CX, DX, ES);
-    
+
     SET_DISK_RET_STATUS(0x00);
-    
+
     /* basic check : device should be 0xE0+ */
     if( (GET_ELDL() < 0xE0) || (GET_ELDL() >= 0xE0 + BX_MAX_STORAGE_DEVICES) ) {
         BX_DEBUG("%s: function %02x, ELDL out of range %02x\n", __func__, GET_AH(), GET_ELDL());
         goto int13_fail;
     }
-    
+
     // Get the ata channel
     device = bios_dsk->cdidmap[GET_ELDL()-0xE0];
-    
+
     /* basic check : device has to be valid  */
     if (device >= BX_MAX_STORAGE_DEVICES) {
         BX_DEBUG("%s: function %02x, unmapped device for ELDL=%02x\n", __func__, GET_AH(), GET_ELDL());
@@ -760,10 +795,7 @@ void BIOSCALL int13_cdrom(uint16_t EHBX, disk_regs_t r)
         bios_dsk->drqp.nsect   = count;
         bios_dsk->drqp.sect_sz = 2048;
 
-        if (device > BX_MAX_ATA_DEVICES)
-            status = ahci_cmd_packet(device, 12, (char __far *)&atapicmd, 0, count*2048L, ATA_DATA_IN, MK_FP(segment,offset));
-        else
-            status = ata_cmd_packet(device, 12, (char __far *)&atapicmd, 0, count*2048L, ATA_DATA_IN, MK_FP(segment,offset));
+        status = pktacc[bios_dsk->devices[device].type](device, 12, (char __far *)&atapicmd, 0, count*2048L, ATA_DATA_IN, MK_FP(segment,offset));
 
         count = (uint16_t)(bios_dsk->drqp.trsfbytes >> 11);
         i13x->count = count;

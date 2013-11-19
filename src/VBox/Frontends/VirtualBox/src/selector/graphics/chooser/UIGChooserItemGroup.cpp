@@ -392,8 +392,8 @@ void UIGChooserItemGroup::prepare()
     m_nameFont = font();
     m_nameFont.setWeight(QFont::Bold);
     m_infoFont = font();
-    m_groupsPixmap = QPixmap(":/nw_16px.png");
-    m_machinesPixmap = QPixmap(":/machine_16px.png");
+    m_groupsPixmap = QPixmap(":/group_abstract_16px.png");
+    m_machinesPixmap = QPixmap(":/machine_abstract_16px.png");
     m_pixmapSizeGroups = m_groupsPixmap.size();
     m_pixmapSizeMachines = m_machinesPixmap.size();
     m_minimumHeaderSize = QSize(0, 0);
@@ -408,7 +408,7 @@ void UIGChooserItemGroup::prepare()
         m_pToggleButton->hide();
 
         /* Setup enter-button: */
-        m_pEnterButton = new UIGraphicsButton(this, UIGraphicsButtonType_DirectArrow);
+        m_pEnterButton = new UIGraphicsButton(this, UIIconPool::iconSet(":/next_16px.png"));
         connect(m_pEnterButton, SIGNAL(sigButtonClicked()), this, SLOT(sltIndentRoot()));
         m_pEnterButton->hide();
 
@@ -424,11 +424,10 @@ void UIGChooserItemGroup::prepare()
     if (!isMainRoot())
     {
         /* Setup exit-button: */
-        m_pExitButton = new UIGraphicsButton(this, UIGraphicsButtonType_DirectArrow);
+        m_pExitButton = new UIGraphicsButton(this, UIIconPool::iconSet(":/previous_16px.png"));
         connect(m_pExitButton, SIGNAL(sigButtonClicked()), this, SLOT(sltUnindentRoot()));
         QSizeF sh = m_pExitButton->minimumSizeHint();
         m_pExitButton->setTransformOriginPoint(sh.width() / 2, sh.height() / 2);
-        m_pExitButton->setRotation(180);
         m_pExitButton->hide();
     }
 
@@ -474,7 +473,7 @@ void UIGChooserItemGroup::updateVisibleName()
     int iMachinePixmapWidth = m_pixmapSizeMachines.width();
     int iGroupCountTextWidth = m_infoSizeGroups.width();
     int iMachineCountTextWidth = m_infoSizeMachines.width();
-    int iMaximumWidth = geometry().width();
+    int iMaximumWidth = (int)geometry().width();
 
     /* Left margin: */
     if (isRoot())
@@ -1042,7 +1041,7 @@ void UIGChooserItemGroup::updateLayout()
         if (m_pEnterButton)
         {
             /* Prepare variables: */
-            int iFullWidth = geometry().width();
+            int iFullWidth = (int)geometry().width();
             int iEnterButtonWidth = m_enterButtonSize.width();
             int iEnterButtonHeight = m_enterButtonSize.height();
             /* Layout enter-button: */
@@ -1062,7 +1061,7 @@ void UIGChooserItemGroup::updateLayout()
             int iNameEditorX = iHorizontalMargin + iToggleButtonWidth + iMajorSpacing;
             int iNameEditorY = 1;
             m_pNameEditor->setPos(iNameEditorX, iNameEditorY);
-            m_pNameEditorWidget->resize(geometry().width() - iNameEditorX - iHorizontalMargin, m_pNameEditorWidget->height());
+            m_pNameEditorWidget->resize((int)(geometry().width() - iNameEditorX - iHorizontalMargin), m_pNameEditorWidget->height());
         }
 
         /* Prepare body indent: */
@@ -1788,7 +1787,7 @@ void UIGChooserItemGroup::updateAnimationParameters()
     /* Recalculate animation parameters: */
     QSizeF openedSize = minimumSizeHint(true);
     QSizeF closedSize = minimumSizeHint(false);
-    int iAdditionalHeight = openedSize.height() - closedSize.height();
+    int iAdditionalHeight = (int)(openedSize.height() - closedSize.height());
     m_pToggleButton->setAnimationRange(0, iAdditionalHeight);
 }
 

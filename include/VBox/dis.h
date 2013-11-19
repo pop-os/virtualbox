@@ -59,7 +59,7 @@ RT_C_DECLS_BEGIN
  * @{
  */
 #define DISPREFIX_REX_OP_2_FLAGS(a)     (a - OP_PARM_REX_START)
-#define DISPREFIX_REX_FLAGS             DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX)
+/*#define DISPREFIX_REX_FLAGS             DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX) - 0, which is no flag */
 #define DISPREFIX_REX_FLAGS_B           DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_B)
 #define DISPREFIX_REX_FLAGS_X           DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_X)
 #define DISPREFIX_REX_FLAGS_XB          DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_XB)
@@ -76,6 +76,10 @@ RT_C_DECLS_BEGIN
 #define DISPREFIX_REX_FLAGS_WRX         DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WRX)
 #define DISPREFIX_REX_FLAGS_WRXB        DISPREFIX_REX_OP_2_FLAGS(OP_PARM_REX_WRXB)
 /** @} */
+AssertCompile(RT_IS_POWER_OF_TWO(DISPREFIX_REX_FLAGS_B));
+AssertCompile(RT_IS_POWER_OF_TWO(DISPREFIX_REX_FLAGS_X));
+AssertCompile(RT_IS_POWER_OF_TWO(DISPREFIX_REX_FLAGS_W));
+AssertCompile(RT_IS_POWER_OF_TWO(DISPREFIX_REX_FLAGS_R));
 
 /** @name Operand type (DISOPCODE::fOpType).
  * @{
@@ -106,6 +110,9 @@ RT_C_DECLS_BEGIN
 #define DISOPTYPE_REXB_EXTENDS_OPREG       RT_BIT_32(23)  /**< REX.B extends the register field in the opcode byte */
 #define DISOPTYPE_MOD_FIXED_11             RT_BIT_32(24)  /**< modrm.mod is always 11b */
 #define DISOPTYPE_FORCED_32_OP_SIZE_X86    RT_BIT_32(25)  /**< Forced 32 bits operand size; regardless of prefix bytes (only in 16 & 32 bits mode!) */
+#define DISOPTYPE_SSE                      RT_BIT_32(29)  /**< SSE,SSE2,SSE3,AVX,++ instruction. Not implemented yet! */
+#define DISOPTYPE_MMX                      RT_BIT_32(30)  /**< MMX,MMXExt,3DNow,++ instruction. Not implemented yet! */
+#define DISOPTYPE_FPU                      RT_BIT_32(31)  /**< FPU instruction. Not implemented yet! */
 #define DISOPTYPE_ALL                      UINT32_C(0xffffffff)
 /** @}  */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,8 +38,13 @@
 #include <iprt/list.h>
 #include <iprt/log.h>
 #include <iprt/mem.h>
+#define RTDBGMODDWARF_WITH_MEM_CACHE
+#ifdef RTDBGMODDWARF_WITH_MEM_CACHE
+# include <iprt/memcache.h>
+#endif
 #include <iprt/path.h>
 #include <iprt/string.h>
+#include <iprt/strcache.h>
 #include "internal/dbgmod.h"
 
 
@@ -136,6 +141,8 @@
 #define DW_TAG_rvalue_reference_type        UINT16_C(0x0042)
 #define DW_TAG_template_alias               UINT16_C(0x0043)
 #define DW_TAG_lo_user                      UINT16_C(0x4080)
+#define DW_TAG_GNU_call_site                UINT16_C(0x4109)
+#define DW_TAG_GNU_call_site_parameter      UINT16_C(0x410a)
 #define DW_TAG_hi_user                      UINT16_C(0xffff)
 /** @} */
 
@@ -235,6 +242,8 @@
 #define DW_AT_enum_class                    UINT16_C(0x006d)
 #define DW_AT_linkage_name                  UINT16_C(0x006e)
 #define DW_AT_lo_user                       UINT16_C(0x2000)
+/** Used by GCC and others, same as DW_AT_linkage_name. See http://wiki.dwarfstd.org/index.php?title=DW_AT_linkage_name*/
+#define DW_AT_MIPS_linkage_name             UINT16_C(0x2007)
 #define DW_AT_hi_user                       UINT16_C(0x3fff)
 /** @} */
 
@@ -279,6 +288,68 @@
 /** @}  */
 
 
+/** @name Location Expression Opcodes
+ * @{ */
+#define DW_OP_addr              UINT8_C(0x03) /**< 1 operand, a constant address (size target specific). */
+#define DW_OP_deref             UINT8_C(0x06) /**< 0 operands. */
+#define DW_OP_const1u           UINT8_C(0x08) /**< 1 operand, a 1-byte constant. */
+#define DW_OP_const1s           UINT8_C(0x09) /**< 1 operand, a 1-byte constant. */
+#define DW_OP_const2u           UINT8_C(0x0a) /**< 1 operand, a 2-byte constant. */
+#define DW_OP_const2s           UINT8_C(0x0b) /**< 1 operand, a 2-byte constant. */
+#define DW_OP_const4u           UINT8_C(0x0c) /**< 1 operand, a 4-byte constant. */
+#define DW_OP_const4s           UINT8_C(0x0d) /**< 1 operand, a 4-byte constant. */
+#define DW_OP_const8u           UINT8_C(0x0e) /**< 1 operand, a 8-byte constant. */
+#define DW_OP_const8s           UINT8_C(0x0f) /**< 1 operand, a 8-byte constant. */
+#define DW_OP_constu            UINT8_C(0x10) /**< 1 operand, a ULEB128 constant. */
+#define DW_OP_consts            UINT8_C(0x11) /**< 1 operand, a SLEB128 constant. */
+#define DW_OP_dup               UINT8_C(0x12) /**< 0 operands. */
+#define DW_OP_drop              UINT8_C(0x13) /**< 0 operands. */
+#define DW_OP_over              UINT8_C(0x14) /**< 0 operands. */
+#define DW_OP_pick              UINT8_C(0x15) /**< 1 operands, a 1-byte stack index. */
+#define DW_OP_swap              UINT8_C(0x16) /**< 0 operands. */
+#define DW_OP_rot               UINT8_C(0x17) /**< 0 operands. */
+#define DW_OP_xderef            UINT8_C(0x18) /**< 0 operands. */
+#define DW_OP_abs               UINT8_C(0x19) /**< 0 operands. */
+#define DW_OP_and               UINT8_C(0x1a) /**< 0 operands. */
+#define DW_OP_div               UINT8_C(0x1b) /**< 0 operands. */
+#define DW_OP_minus             UINT8_C(0x1c) /**< 0 operands. */
+#define DW_OP_mod               UINT8_C(0x1d) /**< 0 operands. */
+#define DW_OP_mul               UINT8_C(0x1e) /**< 0 operands. */
+#define DW_OP_neg               UINT8_C(0x1f) /**< 0 operands. */
+#define DW_OP_not               UINT8_C(0x20) /**< 0 operands. */
+#define DW_OP_or                UINT8_C(0x21) /**< 0 operands. */
+#define DW_OP_plus              UINT8_C(0x22) /**< 0 operands. */
+#define DW_OP_plus_uconst       UINT8_C(0x23) /**< 1 operands, a ULEB128 addend. */
+#define DW_OP_shl               UINT8_C(0x24) /**< 0 operands. */
+#define DW_OP_shr               UINT8_C(0x25) /**< 0 operands. */
+#define DW_OP_shra              UINT8_C(0x26) /**< 0 operands. */
+#define DW_OP_xor               UINT8_C(0x27) /**< 0 operands. */
+#define DW_OP_skip              UINT8_C(0x2f) /**< 1 signed 2-byte constant. */
+#define DW_OP_bra               UINT8_C(0x28) /**< 1 signed 2-byte constant. */
+#define DW_OP_eq                UINT8_C(0x29) /**< 0 operands. */
+#define DW_OP_ge                UINT8_C(0x2a) /**< 0 operands. */
+#define DW_OP_gt                UINT8_C(0x2b) /**< 0 operands. */
+#define DW_OP_le                UINT8_C(0x2c) /**< 0 operands. */
+#define DW_OP_lt                UINT8_C(0x2d) /**< 0 operands. */
+#define DW_OP_ne                UINT8_C(0x2e) /**< 0 operands. */
+#define DW_OP_lit0              UINT8_C(0x30) /**< 0 operands - literals 0..31 */
+#define DW_OP_lit31             UINT8_C(0x4f) /**< last litteral. */
+#define DW_OP_reg0              UINT8_C(0x50) /**< 0 operands - reg 0..31. */
+#define DW_OP_reg31             UINT8_C(0x6f) /**< last register. */
+#define DW_OP_breg0             UINT8_C(0x70) /**< 1 operand, a SLEB128 offset. */
+#define DW_OP_breg31            UINT8_C(0x8f) /**< last branch register. */
+#define DW_OP_regx              UINT8_C(0x90) /**< 1 operand, a ULEB128 register. */
+#define DW_OP_fbreg             UINT8_C(0x91) /**< 1 operand, a SLEB128 offset. */
+#define DW_OP_bregx             UINT8_C(0x92) /**< 2 operands, a ULEB128 register followed by a SLEB128 offset. */
+#define DW_OP_piece             UINT8_C(0x93) /**< 1 operand, a ULEB128 size of piece addressed. */
+#define DW_OP_deref_size        UINT8_C(0x94) /**< 1 operand, a 1-byte size of data retrieved. */
+#define DW_OP_xderef_size       UINT8_C(0x95) /**< 1 operand, a 1-byte size of data retrieved. */
+#define DW_OP_nop               UINT8_C(0x96) /**< 0 operands. */
+#define DW_OP_lo_user           UINT8_C(0xe0) /**< First user opcode */
+#define DW_OP_hi_user           UINT8_C(0xff) /**< Last user opcode. */
+/** @} */
+
+
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
@@ -318,19 +389,37 @@ typedef enum krtDbgModDwarfSect
  */
 typedef struct RTDWARFABBREV
 {
-    /** Whether this entry is filled in or not. */
-    bool                fFilled;
     /** Whether there are children or not. */
     bool                fChildren;
     /** The tag.  */
     uint16_t            uTag;
     /** Offset into the abbrev section of the specification pairs. */
     uint32_t            offSpec;
+    /** The abbreviation table offset this is entry is valid for.
+     * UINT32_MAX if not valid. */
+    uint32_t            offAbbrev;
 } RTDWARFABBREV;
 /** Pointer to an abbreviation cache entry. */
 typedef RTDWARFABBREV *PRTDWARFABBREV;
 /** Pointer to a const abbreviation cache entry. */
 typedef RTDWARFABBREV const *PCRTDWARFABBREV;
+
+/**
+ * Structure for gathering segment info.
+ */
+typedef struct RTDBGDWARFSEG
+{
+    /** The highest offset in the segment. */
+    uint64_t            offHighest;
+    /** Calculated base address. */
+    uint64_t            uBaseAddr;
+    /** Estimated The segment size. */
+    uint64_t            cbSegment;
+    /** Segment number (RTLDRSEG::Sel16bit). */
+    RTSEL               uSegment;
+} RTDBGDWARFSEG;
+/** Pointer to segment info. */
+typedef RTDBGDWARFSEG *PRTDBGDWARFSEG;
 
 
 /**
@@ -340,8 +429,12 @@ typedef struct RTDBGMODDWARF
 {
     /** The debug container containing doing the real work. */
     RTDBGMOD                hCnt;
-    /** Pointer to back to the debug info module (no reference ofc). */
-    PRTDBGMODINT            pMod;
+    /** The image module (no reference). */
+    PRTDBGMODINT            pImgMod;
+    /** The debug info module (no reference). */
+    PRTDBGMODINT            pDbgInfoMod;
+    /** Nested image module (with reference ofc). */
+    PRTDBGMODINT            pNestedMod;
 
     /** DWARF debug info sections. */
     struct
@@ -354,14 +447,14 @@ typedef struct RTDBGMODDWARF
         void const         *pv;
         /** Set if present. */
         bool                fPresent;
+        /** The debug info ordinal number in the image file. */
+        uint32_t            iDbgInfo;
     } aSections[krtDbgModDwarfSect_End];
 
     /** The offset into the abbreviation section of the current cache. */
     uint32_t                offCachedAbbrev;
     /** The number of cached abbreviations we've allocated space for. */
     uint32_t                cCachedAbbrevsAlloced;
-    /** Used for range checking cache lookups. */
-    uint32_t                cCachedAbbrevs;
     /** Array of cached abbreviations, indexed by code. */
     PRTDWARFABBREV          paCachedAbbrevs;
     /** Used by rtDwarfAbbrev_Lookup when the result is uncachable. */
@@ -369,6 +462,34 @@ typedef struct RTDBGMODDWARF
 
     /** The list of compilation units (RTDWARFDIE).   */
     RTLISTANCHOR            CompileUnitList;
+
+    /** Set if we have to use link addresses because the module does not have
+     *  fixups (mach_kernel). */
+    bool                    fUseLinkAddress;
+    /** This is set to -1 if we're doing everything in one pass.
+     * Otherwise it's 1 or 2:
+     *      - In pass 1, we collect segment info.
+     *      - In pass 2, we add debug info to the container.
+     * The two pass parsing is necessary for watcom generated symbol files as
+     * these contains no information about the code and data segments in the
+     * image.  So we have to figure out some approximate stuff based on the
+     * segments and offsets we encounter in the debug info. */
+    int8_t                  iWatcomPass;
+    /** Segment index hint. */
+    uint16_t                iSegHint;
+    /** The number of segments in paSegs.
+     * (During segment copying, this is abused to count useful segments.) */
+    uint32_t                cSegs;
+    /** Pointer to segments if iWatcomPass isn't -1. */
+    PRTDBGDWARFSEG          paSegs;
+#ifdef RTDBGMODDWARF_WITH_MEM_CACHE
+    /** DIE allocators.  */
+    struct
+    {
+        RTMEMCACHE          hMemCache;
+        uint32_t            cbMax;
+    } aDieAllocators[2];
+#endif
 } RTDBGMODDWARF;
 /** Pointer to instance data of the DWARF reader. */
 typedef RTDBGMODDWARF *PRTDBGMODDWARF;
@@ -424,6 +545,7 @@ typedef struct RTDWARFLINESTATE
         bool            fEpilogueBegin;
         uint32_t        uIsa;
         uint32_t        uDiscriminator;
+        RTSEL           uSegment;
     } Regs;
     /** @} */
 
@@ -481,11 +603,12 @@ typedef FNRTDWARFATTRDECODER *PFNRTDWARFATTRDECODER;
 typedef struct RTDWARFATTRDESC
 {
     /** The attribute. */
-    uint8_t                 uAttr;
-    /** The data member size and initialization method. */
-    uint8_t                 cbInit;
+    uint16_t                uAttr;
     /** The data member offset. */
     uint16_t                off;
+    /** The data member size and initialization method. */
+    uint8_t                 cbInit;
+    uint8_t                 bPadding[3]; /**< Alignment padding. */
     /** The decoder function. */
     PFNRTDWARFATTRDECODER   pfnDecoder;
 } RTDWARFATTRDESC;
@@ -494,8 +617,9 @@ typedef struct RTDWARFATTRDESC
 #define ATTR_ENTRY(a_uAttr, a_Struct, a_Member, a_Init, a_pfnDecoder) \
     { \
         a_uAttr, \
-        a_Init | ((uint8_t)RT_SIZEOFMEMB(a_Struct, a_Member) & ATTR_SIZE_MASK), \
         (uint16_t)RT_OFFSETOF(a_Struct, a_Member), \
+        a_Init | ((uint8_t)RT_SIZEOFMEMB(a_Struct, a_Member) & ATTR_SIZE_MASK), \
+        { 0, 0, 0 }, \
         a_pfnDecoder\
     }
 
@@ -541,7 +665,11 @@ typedef struct RTDWARFDIE
     uint8_t             cDecodedAttrs;
     /** The number of unknown or otherwise unhandled attributes. */
     uint8_t             cUnhandledAttrs;
-    /** The date tag, indicating which union structure to use. */
+#ifdef RTDBGMODDWARF_WITH_MEM_CACHE
+    /** The allocator index. */
+    uint8_t             iAllocator;
+#endif
+    /** The die tag, indicating which union structure to use. */
     uint16_t            uTag;
     /** Offset of the abbreviation specification (within debug_abbrev). */
     uint32_t            offSpec;
@@ -571,6 +699,7 @@ typedef struct RTDWARFADDRRANGE
     uint8_t             cAttrs           : 2;
     uint8_t             fHaveLowAddress  : 1;
     uint8_t             fHaveHighAddress : 1;
+    uint8_t             fHaveHighIsAddress : 1;
     uint8_t             fHaveRanges      : 1;
 } RTDWARFADDRRANGE;
 typedef RTDWARFADDRRANGE *PRTDWARFADDRRANGE;
@@ -602,6 +731,22 @@ typedef RTDWARFREF *PRTDWARFREF;
 typedef RTDWARFREF const *PCRTDWARFREF;
 
 
+/**
+ * DWARF Location state.
+ */
+typedef struct RTDWARFLOCST
+{
+    /** The input cursor. */
+    RTDWARFCURSOR   Cursor;
+    /** Points to the current top of the stack. Initial value -1. */
+    int32_t         iTop;
+    /** The value stack.  */
+    uint64_t        auStack[64];
+} RTDWARFLOCST;
+/** Pointer to location state. */
+typedef RTDWARFLOCST *PRTDWARFLOCST;
+
+
 
 /*******************************************************************************
 *   Internal Functions                                                         *
@@ -614,6 +759,7 @@ static FNRTDWARFATTRDECODER rtDwarfDecode_Reference;
 static FNRTDWARFATTRDECODER rtDwarfDecode_SectOff;
 static FNRTDWARFATTRDECODER rtDwarfDecode_String;
 static FNRTDWARFATTRDECODER rtDwarfDecode_UnsignedInt;
+static FNRTDWARFATTRDECODER rtDwarfDecode_SegmentLoc;
 
 
 /*******************************************************************************
@@ -635,7 +781,7 @@ typedef struct RTDWARFDIECOMPILEUNIT
     /** The address range of the code belonging to this unit. */
     RTDWARFADDRRANGE    PcRange;
     /** The language name. */
-    uint8_t             uLanguage;
+    uint16_t            uLanguage;
     /** The identifier case. */
     uint8_t             uIdentifierCase;
     /** String are UTF-8 encoded.  If not set, the encoding is
@@ -708,6 +854,10 @@ typedef struct RTDWARFDIESUBPROGRAM
     RTDWARFADDRRANGE    PcRange;
     /** The first instruction in the function. */
     RTDWARFADDR         EntryPc;
+    /** Segment number (watcom). */
+    RTSEL               uSegment;
+    /** Reference to the specification. */
+    RTDWARFREF          SpecRef;
 } RTDWARFDIESUBPROGRAM;
 /** Pointer to a DW_TAG_subprogram DIE.  */
 typedef RTDWARFDIESUBPROGRAM *PRTDWARFDIESUBPROGRAM;
@@ -720,14 +870,64 @@ static const RTDWARFATTRDESC g_aSubProgramAttrs[] =
 {
     ATTR_ENTRY(DW_AT_name,              RTDWARFDIESUBPROGRAM, pszName,        ATTR_INIT_ZERO, rtDwarfDecode_String),
     ATTR_ENTRY(DW_AT_linkage_name,      RTDWARFDIESUBPROGRAM, pszLinkageName, ATTR_INIT_ZERO, rtDwarfDecode_String),
+    ATTR_ENTRY(DW_AT_MIPS_linkage_name, RTDWARFDIESUBPROGRAM, pszLinkageName, ATTR_INIT_ZERO, rtDwarfDecode_String),
     ATTR_ENTRY(DW_AT_low_pc,            RTDWARFDIESUBPROGRAM, PcRange,        ATTR_INIT_ZERO, rtDwarfDecode_LowHighPc),
     ATTR_ENTRY(DW_AT_high_pc,           RTDWARFDIESUBPROGRAM, PcRange,        ATTR_INIT_ZERO, rtDwarfDecode_LowHighPc),
     ATTR_ENTRY(DW_AT_ranges,            RTDWARFDIESUBPROGRAM, PcRange,        ATTR_INIT_ZERO, rtDwarfDecode_Ranges),
     ATTR_ENTRY(DW_AT_entry_pc,          RTDWARFDIESUBPROGRAM, EntryPc,        ATTR_INIT_ZERO, rtDwarfDecode_Address),
+    ATTR_ENTRY(DW_AT_segment,           RTDWARFDIESUBPROGRAM, uSegment,       ATTR_INIT_ZERO, rtDwarfDecode_SegmentLoc),
+    ATTR_ENTRY(DW_AT_specification,     RTDWARFDIESUBPROGRAM, SpecRef,        ATTR_INIT_ZERO, rtDwarfDecode_Reference)
 };
 
 /** RTDWARFDIESUBPROGRAM description. */
 static const RTDWARFDIEDESC g_SubProgramDesc = DIE_DESC_INIT(RTDWARFDIESUBPROGRAM, g_aSubProgramAttrs);
+
+
+/** RTDWARFDIESUBPROGRAM attributes for the specification hack. */
+static const RTDWARFATTRDESC g_aSubProgramSpecHackAttrs[] =
+{
+    ATTR_ENTRY(DW_AT_name,              RTDWARFDIESUBPROGRAM, pszName,        ATTR_INIT_ZERO, rtDwarfDecode_String),
+    ATTR_ENTRY(DW_AT_linkage_name,      RTDWARFDIESUBPROGRAM, pszLinkageName, ATTR_INIT_ZERO, rtDwarfDecode_String),
+    ATTR_ENTRY(DW_AT_MIPS_linkage_name, RTDWARFDIESUBPROGRAM, pszLinkageName, ATTR_INIT_ZERO, rtDwarfDecode_String),
+};
+
+/** RTDWARFDIESUBPROGRAM description for the specification hack. */
+static const RTDWARFDIEDESC g_SubProgramSpecHackDesc = DIE_DESC_INIT(RTDWARFDIESUBPROGRAM, g_aSubProgramSpecHackAttrs);
+
+
+/**
+ * DW_TAG_label.
+ */
+typedef struct RTDWARFDIELABEL
+{
+    /** The DIE core structure. */
+    RTDWARFDIE          Core;
+    /** The name. */
+    const char         *pszName;
+    /** The address of the first instruction. */
+    RTDWARFADDR         Address;
+    /** Segment number (watcom). */
+    RTSEL               uSegment;
+    /** Externally visible? */
+    bool                fExternal;
+} RTDWARFDIELABEL;
+/** Pointer to a DW_TAG_label DIE.  */
+typedef RTDWARFDIELABEL *PRTDWARFDIELABEL;
+/** Pointer to a const DW_TAG_label DIE.  */
+typedef RTDWARFDIELABEL const *PCRTDWARFDIELABEL;
+
+
+/** RTDWARFDIESUBPROGRAM attributes. */
+static const RTDWARFATTRDESC g_aLabelAttrs[] =
+{
+    ATTR_ENTRY(DW_AT_name,              RTDWARFDIELABEL, pszName,               ATTR_INIT_ZERO, rtDwarfDecode_String),
+    ATTR_ENTRY(DW_AT_low_pc,            RTDWARFDIELABEL, Address,               ATTR_INIT_ZERO, rtDwarfDecode_Address),
+    ATTR_ENTRY(DW_AT_segment,           RTDWARFDIELABEL, uSegment,              ATTR_INIT_ZERO, rtDwarfDecode_SegmentLoc),
+    ATTR_ENTRY(DW_AT_external,          RTDWARFDIELABEL, fExternal,             ATTR_INIT_ZERO, rtDwarfDecode_Bool)
+};
+
+/** RTDWARFDIESUBPROGRAM description. */
+static const RTDWARFDIEDESC g_LabelDesc = DIE_DESC_INIT(RTDWARFDIELABEL, g_aLabelAttrs);
 
 
 /**
@@ -756,7 +956,7 @@ static const struct RTDWARFTAGDESC
     TAGDESC_EMPTY(),
     TAGDESC_CORE(TAG_imported_declaration),     /* 0x08 */
     TAGDESC_EMPTY(),
-    TAGDESC_CORE(TAG_label),
+    TAGDESC(TAG_label, &g_LabelDesc),
     TAGDESC_CORE(TAG_lexical_block),
     TAGDESC_EMPTY(),                            /* 0x0c */
     TAGDESC_CORE(TAG_member),
@@ -820,19 +1020,226 @@ static const struct RTDWARFTAGDESC
 };
 
 
-/** @callback_method_impl{FNRTLDRENUMSEGS} */
-static DECLCALLBACK(int) rtDbgModHlpAddSegmentCallback(RTLDRMOD hLdrMod, PCRTLDRSEG pSeg, void *pvUser)
+/*******************************************************************************
+*   Internal Functions                                                         *
+*******************************************************************************/
+static int rtDwarfInfo_ParseDie(PRTDBGMODDWARF pThis, PRTDWARFDIE pDie, PCRTDWARFDIEDESC pDieDesc,
+                                PRTDWARFCURSOR pCursor, PCRTDWARFABBREV pAbbrev, bool fInitDie);
+
+
+
+#if defined(LOG_ENABLED) || defined(RT_STRICT)
+
+/**
+ * Turns a tag value into a string for logging purposes.
+ *
+ * @returns String name.
+ * @param   uTag            The tag.
+ */
+static const char *rtDwarfLog_GetTagName(uint32_t uTag)
 {
-    PRTDBGMODINT pMod = (PRTDBGMODINT)pvUser;
+    if (uTag < RT_ELEMENTS(g_aTagDescs))
+    {
+        const char *pszTag = g_aTagDescs[uTag].pszName;
+        if (pszTag)
+            return pszTag;
+    }
+
+    static char s_szStatic[32];
+    RTStrPrintf(s_szStatic, sizeof(s_szStatic),"DW_TAG_%#x", uTag);
+    return s_szStatic;
+}
+
+
+/**
+ * Turns an attributevalue into a string for logging purposes.
+ *
+ * @returns String name.
+ * @param   uAttr               The attribute.
+ */
+static const char *rtDwarfLog_AttrName(uint32_t uAttr)
+{
+    switch (uAttr)
+    {
+        RT_CASE_RET_STR(DW_AT_sibling);
+        RT_CASE_RET_STR(DW_AT_location);
+        RT_CASE_RET_STR(DW_AT_name);
+        RT_CASE_RET_STR(DW_AT_ordering);
+        RT_CASE_RET_STR(DW_AT_byte_size);
+        RT_CASE_RET_STR(DW_AT_bit_offset);
+        RT_CASE_RET_STR(DW_AT_bit_size);
+        RT_CASE_RET_STR(DW_AT_stmt_list);
+        RT_CASE_RET_STR(DW_AT_low_pc);
+        RT_CASE_RET_STR(DW_AT_high_pc);
+        RT_CASE_RET_STR(DW_AT_language);
+        RT_CASE_RET_STR(DW_AT_discr);
+        RT_CASE_RET_STR(DW_AT_discr_value);
+        RT_CASE_RET_STR(DW_AT_visibility);
+        RT_CASE_RET_STR(DW_AT_import);
+        RT_CASE_RET_STR(DW_AT_string_length);
+        RT_CASE_RET_STR(DW_AT_common_reference);
+        RT_CASE_RET_STR(DW_AT_comp_dir);
+        RT_CASE_RET_STR(DW_AT_const_value);
+        RT_CASE_RET_STR(DW_AT_containing_type);
+        RT_CASE_RET_STR(DW_AT_default_value);
+        RT_CASE_RET_STR(DW_AT_inline);
+        RT_CASE_RET_STR(DW_AT_is_optional);
+        RT_CASE_RET_STR(DW_AT_lower_bound);
+        RT_CASE_RET_STR(DW_AT_producer);
+        RT_CASE_RET_STR(DW_AT_prototyped);
+        RT_CASE_RET_STR(DW_AT_return_addr);
+        RT_CASE_RET_STR(DW_AT_start_scope);
+        RT_CASE_RET_STR(DW_AT_bit_stride);
+        RT_CASE_RET_STR(DW_AT_upper_bound);
+        RT_CASE_RET_STR(DW_AT_abstract_origin);
+        RT_CASE_RET_STR(DW_AT_accessibility);
+        RT_CASE_RET_STR(DW_AT_address_class);
+        RT_CASE_RET_STR(DW_AT_artificial);
+        RT_CASE_RET_STR(DW_AT_base_types);
+        RT_CASE_RET_STR(DW_AT_calling_convention);
+        RT_CASE_RET_STR(DW_AT_count);
+        RT_CASE_RET_STR(DW_AT_data_member_location);
+        RT_CASE_RET_STR(DW_AT_decl_column);
+        RT_CASE_RET_STR(DW_AT_decl_file);
+        RT_CASE_RET_STR(DW_AT_decl_line);
+        RT_CASE_RET_STR(DW_AT_declaration);
+        RT_CASE_RET_STR(DW_AT_discr_list);
+        RT_CASE_RET_STR(DW_AT_encoding);
+        RT_CASE_RET_STR(DW_AT_external);
+        RT_CASE_RET_STR(DW_AT_frame_base);
+        RT_CASE_RET_STR(DW_AT_friend);
+        RT_CASE_RET_STR(DW_AT_identifier_case);
+        RT_CASE_RET_STR(DW_AT_macro_info);
+        RT_CASE_RET_STR(DW_AT_namelist_item);
+        RT_CASE_RET_STR(DW_AT_priority);
+        RT_CASE_RET_STR(DW_AT_segment);
+        RT_CASE_RET_STR(DW_AT_specification);
+        RT_CASE_RET_STR(DW_AT_static_link);
+        RT_CASE_RET_STR(DW_AT_type);
+        RT_CASE_RET_STR(DW_AT_use_location);
+        RT_CASE_RET_STR(DW_AT_variable_parameter);
+        RT_CASE_RET_STR(DW_AT_virtuality);
+        RT_CASE_RET_STR(DW_AT_vtable_elem_location);
+        RT_CASE_RET_STR(DW_AT_allocated);
+        RT_CASE_RET_STR(DW_AT_associated);
+        RT_CASE_RET_STR(DW_AT_data_location);
+        RT_CASE_RET_STR(DW_AT_byte_stride);
+        RT_CASE_RET_STR(DW_AT_entry_pc);
+        RT_CASE_RET_STR(DW_AT_use_UTF8);
+        RT_CASE_RET_STR(DW_AT_extension);
+        RT_CASE_RET_STR(DW_AT_ranges);
+        RT_CASE_RET_STR(DW_AT_trampoline);
+        RT_CASE_RET_STR(DW_AT_call_column);
+        RT_CASE_RET_STR(DW_AT_call_file);
+        RT_CASE_RET_STR(DW_AT_call_line);
+        RT_CASE_RET_STR(DW_AT_description);
+        RT_CASE_RET_STR(DW_AT_binary_scale);
+        RT_CASE_RET_STR(DW_AT_decimal_scale);
+        RT_CASE_RET_STR(DW_AT_small);
+        RT_CASE_RET_STR(DW_AT_decimal_sign);
+        RT_CASE_RET_STR(DW_AT_digit_count);
+        RT_CASE_RET_STR(DW_AT_picture_string);
+        RT_CASE_RET_STR(DW_AT_mutable);
+        RT_CASE_RET_STR(DW_AT_threads_scaled);
+        RT_CASE_RET_STR(DW_AT_explicit);
+        RT_CASE_RET_STR(DW_AT_object_pointer);
+        RT_CASE_RET_STR(DW_AT_endianity);
+        RT_CASE_RET_STR(DW_AT_elemental);
+        RT_CASE_RET_STR(DW_AT_pure);
+        RT_CASE_RET_STR(DW_AT_recursive);
+        RT_CASE_RET_STR(DW_AT_signature);
+        RT_CASE_RET_STR(DW_AT_main_subprogram);
+        RT_CASE_RET_STR(DW_AT_data_bit_offset);
+        RT_CASE_RET_STR(DW_AT_const_expr);
+        RT_CASE_RET_STR(DW_AT_enum_class);
+        RT_CASE_RET_STR(DW_AT_linkage_name);
+        RT_CASE_RET_STR(DW_AT_MIPS_linkage_name);
+    }
+    static char s_szStatic[32];
+    RTStrPrintf(s_szStatic, sizeof(s_szStatic),"DW_AT_%#x", uAttr);
+    return s_szStatic;
+}
+
+
+/**
+ * Turns a form value into a string for logging purposes.
+ *
+ * @returns String name.
+ * @param   uForm               The form.
+ */
+static const char *rtDwarfLog_FormName(uint32_t uForm)
+{
+    switch (uForm)
+    {
+        RT_CASE_RET_STR(DW_FORM_addr);
+        RT_CASE_RET_STR(DW_FORM_block2);
+        RT_CASE_RET_STR(DW_FORM_block4);
+        RT_CASE_RET_STR(DW_FORM_data2);
+        RT_CASE_RET_STR(DW_FORM_data4);
+        RT_CASE_RET_STR(DW_FORM_data8);
+        RT_CASE_RET_STR(DW_FORM_string);
+        RT_CASE_RET_STR(DW_FORM_block);
+        RT_CASE_RET_STR(DW_FORM_block1);
+        RT_CASE_RET_STR(DW_FORM_data1);
+        RT_CASE_RET_STR(DW_FORM_flag);
+        RT_CASE_RET_STR(DW_FORM_sdata);
+        RT_CASE_RET_STR(DW_FORM_strp);
+        RT_CASE_RET_STR(DW_FORM_udata);
+        RT_CASE_RET_STR(DW_FORM_ref_addr);
+        RT_CASE_RET_STR(DW_FORM_ref1);
+        RT_CASE_RET_STR(DW_FORM_ref2);
+        RT_CASE_RET_STR(DW_FORM_ref4);
+        RT_CASE_RET_STR(DW_FORM_ref8);
+        RT_CASE_RET_STR(DW_FORM_ref_udata);
+        RT_CASE_RET_STR(DW_FORM_indirect);
+        RT_CASE_RET_STR(DW_FORM_sec_offset);
+        RT_CASE_RET_STR(DW_FORM_exprloc);
+        RT_CASE_RET_STR(DW_FORM_flag_present);
+        RT_CASE_RET_STR(DW_FORM_ref_sig8);
+    }
+    static char s_szStatic[32];
+    RTStrPrintf(s_szStatic, sizeof(s_szStatic),"DW_FORM_%#x", uForm);
+    return s_szStatic;
+}
+
+#endif /* LOG_ENABLED || RT_STRICT */
+
+
+
+/** @callback_method_impl{FNRTLDRENUMSEGS} */
+static DECLCALLBACK(int) rtDbgModDwarfScanSegmentsCallback(RTLDRMOD hLdrMod, PCRTLDRSEG pSeg, void *pvUser)
+{
+    PRTDBGMODDWARF pThis = (PRTDBGMODDWARF)pvUser;
     Log(("Segment %.*s: LinkAddress=%#llx RVA=%#llx cb=%#llx\n",
-         pSeg->cchName, pSeg->pchName, (uint64_t)pSeg->LinkAddress, (uint64_t)pSeg->RVA, pSeg->cb));
+         pSeg->cchName, pSeg->pszName, (uint64_t)pSeg->LinkAddress, (uint64_t)pSeg->RVA, pSeg->cb));
     NOREF(hLdrMod);
+
+    /* Count relevant segments. */
+    if (pSeg->RVA != NIL_RTLDRADDR)
+        pThis->cSegs++;
+
+    return VINF_SUCCESS;
+}
+
+
+/** @callback_method_impl{FNRTLDRENUMSEGS} */
+static DECLCALLBACK(int) rtDbgModDwarfAddSegmentsCallback(RTLDRMOD hLdrMod, PCRTLDRSEG pSeg, void *pvUser)
+{
+    PRTDBGMODDWARF pThis = (PRTDBGMODDWARF)pvUser;
+    Log(("Segment %.*s: LinkAddress=%#llx RVA=%#llx cb=%#llx cbMapped=%#llx\n",
+         pSeg->cchName, pSeg->pszName, (uint64_t)pSeg->LinkAddress, (uint64_t)pSeg->RVA, pSeg->cb, pSeg->cbMapped));
+    NOREF(hLdrMod);
+    Assert(pSeg->cchName > 0);
+    Assert(!pSeg->pszName[pSeg->cchName]);
+
+    /* If the segment doesn't have a mapping, just add a dummy so the indexing
+       works out correctly (same as for the image). */
+    if (pSeg->RVA == NIL_RTLDRADDR)
+        return RTDbgModSegmentAdd(pThis->hCnt, 0, 0, pSeg->pszName, 0 /*fFlags*/, NULL);
+
+    /* The link address is 0 for all segments in a relocatable ELF image. */
     RTLDRADDR cb = RT_MAX(pSeg->cb, pSeg->cbMapped);
-#if 1
-    return pMod->pDbgVt->pfnSegmentAdd(pMod, pSeg->RVA, cb, pSeg->pchName, pSeg->cchName, 0 /*fFlags*/, NULL);
-#else
-    return pMod->pDbgVt->pfnSegmentAdd(pMod, pSeg->LinkAddress, cb, pSeg->pchName, pSeg->cchName, 0 /*fFlags*/, NULL);
-#endif
+    return RTDbgModSegmentAdd(pThis->hCnt, pSeg->RVA, cb, pSeg->pszName, 0 /*fFlags*/, NULL);
 }
 
 
@@ -840,15 +1247,158 @@ static DECLCALLBACK(int) rtDbgModHlpAddSegmentCallback(RTLDRMOD hLdrMod, PCRTLDR
  * Calls pfnSegmentAdd for each segment in the executable image.
  *
  * @returns IPRT status code.
- * @param   pMod                The debug module.
+ * @param   pThis               The DWARF instance.
  */
-DECLHIDDEN(int) rtDbgModHlpAddSegmentsFromImage(PRTDBGMODINT pMod)
+static int rtDbgModDwarfAddSegmentsFromImage(PRTDBGMODDWARF pThis)
 {
-    AssertReturn(pMod->pImgVt, VERR_INTERNAL_ERROR_2);
-    return pMod->pImgVt->pfnEnumSegments(pMod, rtDbgModHlpAddSegmentCallback, pMod);
+    AssertReturn(pThis->pImgMod && pThis->pImgMod->pImgVt, VERR_INTERNAL_ERROR_2);
+    Assert(!pThis->cSegs);
+    int rc = pThis->pImgMod->pImgVt->pfnEnumSegments(pThis->pImgMod, rtDbgModDwarfScanSegmentsCallback, pThis);
+    if (RT_SUCCESS(rc))
+    {
+        if (pThis->cSegs == 0)
+            pThis->iWatcomPass = 1;
+        else
+        {
+            pThis->cSegs = 0;
+            pThis->iWatcomPass = -1;
+            rc = pThis->pImgMod->pImgVt->pfnEnumSegments(pThis->pImgMod, rtDbgModDwarfAddSegmentsCallback, pThis);
+        }
+    }
+
+    return rc;
 }
 
 
+/**
+ * Looks up a segment.
+ *
+ * @returns Pointer to the segment on success, NULL if not found.
+ * @param   pThis               The DWARF instance.
+ * @param   uSeg                The segment number / selector.
+ */
+static PRTDBGDWARFSEG rtDbgModDwarfFindSegment(PRTDBGMODDWARF pThis, RTSEL uSeg)
+{
+    uint32_t        cSegs  = pThis->cSegs;
+    uint32_t        iSeg   = pThis->iSegHint;
+    PRTDBGDWARFSEG  paSegs = pThis->paSegs;
+    if (   iSeg < cSegs
+        && paSegs[iSeg].uSegment == uSeg)
+        return &paSegs[iSeg];
+
+    for (iSeg = 0; iSeg < cSegs; iSeg++)
+        if (uSeg == paSegs[iSeg].uSegment)
+        {
+            pThis->iSegHint = iSeg;
+            return &paSegs[iSeg];
+        }
+
+    AssertFailed();
+    return NULL;
+}
+
+
+/**
+ * Record a segment:offset during pass 1.
+ *
+ * @returns IPRT status code.
+ * @param   pThis               The DWARF instance.
+ * @param   uSeg                The segment number / selector.
+ * @param   offSeg              The segment offset.
+ */
+static int rtDbgModDwarfRecordSegOffset(PRTDBGMODDWARF pThis, RTSEL uSeg, uint64_t offSeg)
+{
+    /* Look up the segment. */
+    uint32_t        cSegs  = pThis->cSegs;
+    uint32_t        iSeg   = pThis->iSegHint;
+    PRTDBGDWARFSEG  paSegs = pThis->paSegs;
+    if (   iSeg >= cSegs
+        || paSegs[iSeg].uSegment != uSeg)
+    {
+        for (iSeg = 0; iSeg < cSegs; iSeg++)
+            if (uSeg <= paSegs[iSeg].uSegment)
+                break;
+        if (   iSeg >= cSegs
+            || paSegs[iSeg].uSegment != uSeg)
+        {
+            /* Add */
+            void *pvNew = RTMemRealloc(paSegs, (pThis->cSegs + 1) * sizeof(paSegs[0]));
+            if (!pvNew)
+                return VERR_NO_MEMORY;
+            pThis->paSegs = paSegs = (PRTDBGDWARFSEG)pvNew;
+            if (iSeg != cSegs)
+                memmove(&paSegs[iSeg + 1], &paSegs[iSeg], (cSegs - iSeg) * sizeof(paSegs[0]));
+            paSegs[iSeg].offHighest = offSeg;
+            paSegs[iSeg].uBaseAddr  = 0;
+            paSegs[iSeg].cbSegment  = 0;
+            paSegs[iSeg].uSegment   = uSeg;
+            pThis->cSegs++;
+        }
+
+        pThis->iSegHint = iSeg;
+    }
+
+    /* Increase it's range? */
+    if (paSegs[iSeg].offHighest < offSeg)
+    {
+        Log3(("rtDbgModDwarfRecordSegOffset: iSeg=%d uSeg=%#06x offSeg=%#llx\n", iSeg, uSeg, offSeg));
+        paSegs[iSeg].offHighest = offSeg;
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Calls pfnSegmentAdd for each segment in the executable image.
+ *
+ * @returns IPRT status code.
+ * @param   pThis               The DWARF instance.
+ */
+static int rtDbgModDwarfAddSegmentsFromPass1(PRTDBGMODDWARF pThis)
+{
+    AssertReturn(pThis->cSegs, VERR_DWARF_BAD_INFO);
+    uint32_t const  cSegs   = pThis->cSegs;
+    PRTDBGDWARFSEG  paSegs  = pThis->paSegs;
+
+    /*
+     * Are the segments assigned more or less in numerical order?
+     */
+    if (   paSegs[0].uSegment < 16U
+        && paSegs[cSegs - 1].uSegment - paSegs[0].uSegment + 1U <= cSegs + 16U)
+    {
+        /** @todo heuristics, plase. */
+        AssertFailedReturn(VERR_DWARF_TODO);
+
+    }
+    /*
+     * Assume DOS segmentation.
+     */
+    else
+    {
+        for (uint32_t iSeg = 0; iSeg < cSegs; iSeg++)
+            paSegs[iSeg].uBaseAddr = (uint32_t)paSegs[iSeg].uSegment << 16;
+        for (uint32_t iSeg = 0; iSeg < cSegs; iSeg++)
+            paSegs[iSeg].cbSegment = paSegs[iSeg].offHighest;
+    }
+
+    /*
+     * Add them.
+     */
+    for (uint32_t iSeg = 0; iSeg < cSegs; iSeg++)
+    {
+        Log3(("rtDbgModDwarfAddSegmentsFromPass1: Seg#%u: %#010llx LB %#llx uSegment=%#x\n",
+              iSeg, paSegs[iSeg].uBaseAddr, paSegs[iSeg].cbSegment, paSegs[iSeg].uSegment));
+        char szName[32];
+        RTStrPrintf(szName, sizeof(szName), "seg-%#04xh", paSegs[iSeg].uSegment);
+        int rc = RTDbgModSegmentAdd(pThis->hCnt, paSegs[iSeg].uBaseAddr, paSegs[iSeg].cbSegment,
+                                    szName, 0 /*fFlags*/, NULL);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    return VINF_SUCCESS;
+}
 
 
 /**
@@ -887,8 +1437,11 @@ static int rtDbgModDwarfLoadSection(PRTDBGMODDWARF pThis, krtDbgModDwarfSect enm
     /*
      * Do the job.
      */
-    return pThis->pMod->pImgVt->pfnMapPart(pThis->pMod, pThis->aSections[enmSect].offFile, pThis->aSections[enmSect].cb,
-                                           &pThis->aSections[enmSect].pv);
+    return pThis->pDbgInfoMod->pImgVt->pfnMapPart(pThis->pDbgInfoMod,
+                                                  pThis->aSections[enmSect].iDbgInfo,
+                                                  pThis->aSections[enmSect].offFile,
+                                                  pThis->aSections[enmSect].cb,
+                                                  &pThis->aSections[enmSect].pv);
 }
 
 
@@ -905,7 +1458,7 @@ static int rtDbgModDwarfUnloadSection(PRTDBGMODDWARF pThis, krtDbgModDwarfSect e
     if (!pThis->aSections[enmSect].pv)
         return VINF_SUCCESS;
 
-    int rc = pThis->pMod->pImgVt->pfnUnmapPart(pThis->pMod, pThis->aSections[enmSect].cb, &pThis->aSections[enmSect].pv);
+    int rc = pThis->pDbgInfoMod->pImgVt->pfnUnmapPart(pThis->pDbgInfoMod, pThis->aSections[enmSect].cb, &pThis->aSections[enmSect].pv);
     AssertRC(rc);
     return rc;
 }
@@ -934,14 +1487,28 @@ static int rtDbgModDwarfStringToUtf8(PRTDBGMODDWARF pThis, char **ppsz)
  *
  * @returns IPRT status code.
  * @param   pThis           The DWARF instance.
+ * @param   uSegment        The segment, 0 if not applicable.
  * @param   LinkAddress     The address to convert..
  * @param   piSeg           The segment index.
  * @param   poffSeg         Where to return the segment offset.
  */
-static int rtDbgModDwarfLinkAddressToSegOffset(PRTDBGMODDWARF pThis, uint64_t LinkAddress,
+static int rtDbgModDwarfLinkAddressToSegOffset(PRTDBGMODDWARF pThis, RTSEL uSegment, uint64_t LinkAddress,
                                                PRTDBGSEGIDX piSeg, PRTLDRADDR poffSeg)
 {
-    return pThis->pMod->pImgVt->pfnLinkAddressToSegOffset(pThis->pMod, LinkAddress, piSeg, poffSeg);
+    if (pThis->paSegs)
+    {
+        PRTDBGDWARFSEG pSeg = rtDbgModDwarfFindSegment(pThis, uSegment);
+        if (pSeg)
+        {
+            *piSeg   = pSeg - pThis->paSegs;
+            *poffSeg = LinkAddress;
+            return VINF_SUCCESS;
+        }
+    }
+
+    if (pThis->fUseLinkAddress)
+        return pThis->pImgMod->pImgVt->pfnLinkAddressToSegOffset(pThis->pImgMod, LinkAddress, piSeg, poffSeg);
+    return pThis->pImgMod->pImgVt->pfnRvaToSegOffset(pThis->pImgMod, LinkAddress, piSeg, poffSeg);
 }
 
 
@@ -1348,6 +1915,32 @@ static uint64_t rtDwarfCursor_GetVarSizedU(PRTDWARFCURSOR pCursor, size_t cbValu
 }
 
 
+#if 0 /* unused */
+/**
+ * Gets the pointer to a variable size block and advances the cursor.
+ *
+ * @returns Pointer to the block at the current cursor location. On error
+ *          RTDWARFCURSOR::rc is set and NULL returned.
+ * @param   pCursor             The cursor.
+ * @param   cbBlock             The block size.
+ */
+static const uint8_t *rtDwarfCursor_GetBlock(PRTDWARFCURSOR pCursor, uint32_t cbBlock)
+{
+    if (cbBlock > pCursor->cbUnitLeft)
+    {
+        pCursor->rc = VERR_DWARF_UNEXPECTED_END;
+        return NULL;
+    }
+
+    uint8_t const *pb = &pCursor->pb[0];
+    pCursor->pb         += cbBlock;
+    pCursor->cbUnitLeft -= cbBlock;
+    pCursor->cbLeft     -= cbBlock;
+    return pb;
+}
+#endif
+
+
 /**
  * Reads an unsigned DWARF half number.
  *
@@ -1477,6 +2070,7 @@ static uint32_t rtDwarfCursor_CalcSectOffsetU32(PRTDWARFCURSOR pCursor)
     uint32_t offRet = (uint32_t)off;
     if (offRet != off)
     {
+        AssertFailed();
         pCursor->rc = VERR_OUT_OF_RANGE;
         offRet = UINT32_MAX;
     }
@@ -1644,6 +2238,39 @@ static int rtDwarfCursor_InitWithOffset(PRTDWARFCURSOR pCursor, PRTDBGMODDWARF p
 
 
 /**
+ * Initialize a cursor for a block (subsection) retrieved from the given cursor.
+ *
+ * The parent cursor will be advanced past the block.
+ *
+ * @returns IPRT status code.
+ * @param   pCursor             The cursor.
+ * @param   pParent             The parent cursor. Will be moved by @a cbBlock.
+ * @param   cbBlock             The size of the block the new cursor should
+ *                              cover.
+ */
+static int rtDwarfCursor_InitForBlock(PRTDWARFCURSOR pCursor, PRTDWARFCURSOR pParent, uint32_t cbBlock)
+{
+    if (RT_FAILURE(pParent->rc))
+        return pParent->rc;
+    if (pParent->cbUnitLeft < cbBlock)
+    {
+        Log(("rtDwarfCursor_InitForBlock: cbUnitLeft=%#x < cbBlock=%#x \n", pParent->cbUnitLeft, cbBlock));
+        return VERR_DWARF_BAD_POS;
+    }
+
+    *pCursor = *pParent;
+    pCursor->cbLeft     = cbBlock;
+    pCursor->cbUnitLeft = cbBlock;
+
+    pParent->pb         += cbBlock;
+    pParent->cbLeft     -= cbBlock;
+    pParent->cbUnitLeft -= cbBlock;
+
+    return VINF_SUCCESS;
+}
+
+
+/**
  * Deletes a section reader initialized by rtDwarfCursor_Init.
  *
  * @returns @a rcOther or RTDWARCURSOR::rc.
@@ -1730,22 +2357,32 @@ static int rtDwarfLine_DefineFileName(PRTDWARFLINESTATE pLnState, const char *ps
  */
 static int rtDwarfLine_AddLine(PRTDWARFLINESTATE pLnState, uint32_t offOpCode)
 {
-    const char *pszFile = pLnState->Regs.iFile < pLnState->cFileNames
-                        ? pLnState->papszFileNames[pLnState->Regs.iFile]
-                        : "<bad file name index>";
-    NOREF(offOpCode);
-
-    RTDBGSEGIDX iSeg;
-    RTUINTPTR   offSeg;
-    int rc = rtDbgModDwarfLinkAddressToSegOffset(pLnState->pDwarfMod, pLnState->Regs.uAddress, &iSeg, &offSeg);
-    if (RT_SUCCESS(rc))
+    PRTDBGMODDWARF  pThis = pLnState->pDwarfMod;
+    int             rc;
+    if (pThis->iWatcomPass == 1)
+        rc = rtDbgModDwarfRecordSegOffset(pThis, pLnState->Regs.uSegment, pLnState->Regs.uAddress + 1);
+    else
     {
-        Log2(("rtDwarfLine_AddLine: %x:%08llx (%#llx) %s(%d) [offOpCode=%08x]\n", iSeg, offSeg, pLnState->Regs.uAddress, pszFile, pLnState->Regs.uLine, offOpCode));
-        rc = RTDbgModLineAdd(pLnState->pDwarfMod->hCnt, pszFile, pLnState->Regs.uLine, iSeg, offSeg, NULL);
+        const char *pszFile = pLnState->Regs.iFile < pLnState->cFileNames
+                            ? pLnState->papszFileNames[pLnState->Regs.iFile]
+                            : "<bad file name index>";
+        NOREF(offOpCode);
 
-        /* Ignore address conflicts for now. */
-        if (rc == VERR_DBG_ADDRESS_CONFLICT)
-            rc = VINF_SUCCESS;
+        RTDBGSEGIDX iSeg;
+        RTUINTPTR   offSeg;
+        rc = rtDbgModDwarfLinkAddressToSegOffset(pLnState->pDwarfMod, pLnState->Regs.uSegment, pLnState->Regs.uAddress,
+                                                 &iSeg, &offSeg); /*AssertRC(rc);*/
+        if (RT_SUCCESS(rc))
+        {
+            Log2(("rtDwarfLine_AddLine: %x:%08llx (%#llx) %s(%d) [offOpCode=%08x]\n", iSeg, offSeg, pLnState->Regs.uAddress, pszFile, pLnState->Regs.uLine, offOpCode));
+            rc = RTDbgModLineAdd(pLnState->pDwarfMod->hCnt, pszFile, pLnState->Regs.uLine, iSeg, offSeg, NULL);
+
+            /* Ignore address conflicts for now. */
+            if (rc == VERR_DBG_ADDRESS_CONFLICT)
+                rc = VINF_SUCCESS;
+        }
+        else
+            rc = VINF_SUCCESS; /* ignore failure */
     }
 
     pLnState->Regs.fBasicBlock    = false;
@@ -1775,6 +2412,7 @@ static void rtDwarfLine_ResetState(PRTDWARFLINESTATE pLnState)
     pLnState->Regs.fEpilogueBegin   = false;
     pLnState->Regs.uIsa             = 0;
     pLnState->Regs.uDiscriminator   = 0;
+    pLnState->Regs.uSegment         = 0;
 }
 
 
@@ -1811,7 +2449,7 @@ static int rtDwarfLine_RunProgram(PRTDWARFLINESTATE pLnState, PRTDWARFCURSOR pCu
             int32_t const cLineDelta = bOpCode % pLnState->Hdr.u8LineRange + (int32_t)pLnState->Hdr.s8LineBase;
             bOpCode /= pLnState->Hdr.u8LineRange;
 
-            uint64_t uTmp = bOpCode + pLnState->Regs.idxOp + bOpCode;
+            uint64_t uTmp = bOpCode + pLnState->Regs.idxOp;
             uint64_t const cAddressDelta = uTmp / pLnState->Hdr.cMaxOpsPerInstr * pLnState->Hdr.cbMinInstr;
             uint64_t const cOpIndexDelta = uTmp % pLnState->Hdr.cMaxOpsPerInstr;
 
@@ -1954,6 +2592,7 @@ static int rtDwarfLine_RunProgram(PRTDWARFLINESTATE pLnState, PRTDWARFCURSOR pCu
                             rc = rtDwarfCursor_AdvanceToPos(pCursor, pbEndOfInstr);
                             if (RT_SUCCESS(rc))
                                 rc = rtDwarfLine_DefineFileName(pLnState, pszFilename, idxInc);
+                            break;
                         }
 
                         /*
@@ -1971,9 +2610,9 @@ static int rtDwarfLine_RunProgram(PRTDWARFLINESTATE pLnState, PRTDWARFCURSOR pCu
                             else
                             {
                                 uint64_t uSeg = rtDwarfCursor_GetVarSizedU(pCursor, cbInstr - 1, UINT64_MAX);
-                                Log2(("%08x: DW_LNE_set_segment: %ll#x - Watcom Extension\n", offOpCode, uSeg));
-                                NOREF(uSeg);
-                                /** @todo make use of this? */
+                                Log2(("%08x: DW_LNE_set_segment: %#llx, cbInstr=%#x - Watcom Extension\n", offOpCode, uSeg, cbInstr));
+                                pLnState->Regs.uSegment = (RTSEL)uSeg;
+                                AssertStmt(pLnState->Regs.uSegment == uSeg, rc = VERR_DWARF_BAD_INFO);
                             }
                             break;
 
@@ -2205,7 +2844,7 @@ static PCRTDWARFABBREV rtDwarfAbbrev_LookupMiss(PRTDBGMODDWARF pThis, uint32_t u
     bool fFillCache = true;
     if (pThis->cCachedAbbrevsAlloced < uCode)
     {
-        if (uCode > _64K)
+        if (uCode >= _64K)
             fFillCache = false;
         else
         {
@@ -2215,8 +2854,11 @@ static PCRTDWARFABBREV rtDwarfAbbrev_LookupMiss(PRTDBGMODDWARF pThis, uint32_t u
                 fFillCache = false;
             else
             {
-                pThis->cCachedAbbrevsAlloced = cNew;
+                Log(("rtDwarfAbbrev_LookupMiss: Growing from %u to %u...\n", pThis->cCachedAbbrevsAlloced, cNew));
                 pThis->paCachedAbbrevs       = (PRTDWARFABBREV)pv;
+                for (uint32_t i = pThis->cCachedAbbrevsAlloced; i < cNew; i++)
+                    pThis->paCachedAbbrevs[i].offAbbrev = UINT32_MAX;
+                pThis->cCachedAbbrevsAlloced = cNew;
             }
         }
     }
@@ -2234,52 +2876,61 @@ static PCRTDWARFABBREV rtDwarfAbbrev_LookupMiss(PRTDBGMODDWARF pThis, uint32_t u
     {
         /*
          * Search for the entry and fill the cache while doing so.
+         * We assume that abbreviation codes for a unit will stop when we see
+         * zero code or when the code value drops.
          */
+        uint32_t uPrevCode = 0;
         for (;;)
         {
-            /* Read the 'header'. */
-            uint32_t const uCurCode  = rtDwarfCursor_GetULeb128AsU32(&Cursor, 0);
-            uint32_t const uCurTag   = rtDwarfCursor_GetULeb128AsU32(&Cursor, 0);
-            uint8_t  const uChildren = rtDwarfCursor_GetU8(&Cursor, 0);
-            if (RT_FAILURE(Cursor.rc))
-                break;
-            if (   uCurTag > 0xffff
-                || uChildren > 1)
+            /* Read the 'header'. Skipping zero code bytes. */
+            uint32_t const uCurCode = rtDwarfCursor_GetULeb128AsU32(&Cursor, 0);
+            if (pRet && (uCurCode == 0 || uCurCode < uPrevCode))
+                break; /* probably end of unit. */
+            if (uCurCode != 0)
             {
-                Cursor.rc = VERR_DWARF_BAD_ABBREV;
-                break;
-            }
-
-            /* Cache it? */
-            if (uCurCode <= pThis->cCachedAbbrevsAlloced)
-            {
-                PRTDWARFABBREV pEntry = &pThis->paCachedAbbrevs[uCurCode - 1];
-                while (pThis->cCachedAbbrevs < uCurCode)
+                uint32_t const uCurTag   = rtDwarfCursor_GetULeb128AsU32(&Cursor, 0);
+                uint8_t  const uChildren = rtDwarfCursor_GetU8(&Cursor, 0);
+                if (RT_FAILURE(Cursor.rc))
+                    break;
+                if (   uCurTag > 0xffff
+                    || uChildren > 1)
                 {
-                    pThis->paCachedAbbrevs[pThis->cCachedAbbrevs].fFilled = false;
-                    pThis->cCachedAbbrevs++;
+                    Cursor.rc = VERR_DWARF_BAD_ABBREV;
+                    break;
                 }
 
-                pEntry->fFilled   = true;
-                pEntry->fChildren = RT_BOOL(uChildren);
-                pEntry->uTag      = uCurTag;
-                pEntry->offSpec   = rtDwarfCursor_CalcSectOffsetU32(&Cursor);
-
-                if (uCurCode == uCode)
+                /* Cache it? */
+                if (uCurCode <= pThis->cCachedAbbrevsAlloced)
                 {
-                    pRet = pEntry;
-                    if (uCurCode == pThis->cCachedAbbrevsAlloced)
-                        break;
-                }
-            }
+                    PRTDWARFABBREV pEntry = &pThis->paCachedAbbrevs[uCurCode - 1];
+                    if (pEntry->offAbbrev != pThis->offCachedAbbrev)
+                    {
+                        pEntry->offAbbrev = pThis->offCachedAbbrev;
+                        pEntry->fChildren = RT_BOOL(uChildren);
+                        pEntry->uTag      = uCurTag;
+                        pEntry->offSpec   = rtDwarfCursor_CalcSectOffsetU32(&Cursor);
 
-            /* Skip the specification. */
-            uint32_t uAttr, uForm;
-            do
-            {
-                uAttr = rtDwarfCursor_GetULeb128AsU32(&Cursor, 0);
-                uForm = rtDwarfCursor_GetULeb128AsU32(&Cursor, 0);
-            } while (uAttr != 0);
+                        if (uCurCode == uCode)
+                        {
+                            Assert(!pRet);
+                            pRet = pEntry;
+                            if (uCurCode == pThis->cCachedAbbrevsAlloced)
+                                break;
+                        }
+                    }
+                    else if (pRet)
+                        break; /* Next unit, don't cache more. */
+                    /* else: We're growing the cache and re-reading old data. */
+                }
+
+                /* Skip the specification. */
+                uint32_t uAttr, uForm;
+                do
+                {
+                    uAttr = rtDwarfCursor_GetULeb128AsU32(&Cursor, 0);
+                    uForm = rtDwarfCursor_GetULeb128AsU32(&Cursor, 0);
+                } while (uAttr != 0);
+            }
             if (RT_FAILURE(Cursor.rc))
                 break;
 
@@ -2313,10 +2964,10 @@ static PCRTDWARFABBREV rtDwarfAbbrev_LookupMiss(PRTDBGMODDWARF pThis, uint32_t u
             if (uCurCode == uCode)
             {
                 pRet = &pThis->LookupAbbrev;
-                pRet->fFilled   = true;
                 pRet->fChildren = RT_BOOL(uChildren);
                 pRet->uTag      = uCurTag;
                 pRet->offSpec   = rtDwarfCursor_CalcSectOffsetU32(&Cursor);
+                pRet->offAbbrev = pThis->offCachedAbbrev;
                 break;
             }
 
@@ -2347,8 +2998,8 @@ static PCRTDWARFABBREV rtDwarfAbbrev_LookupMiss(PRTDBGMODDWARF pThis, uint32_t u
  */
 static PCRTDWARFABBREV rtDwarfAbbrev_Lookup(PRTDBGMODDWARF pThis, uint32_t uCode)
 {
-    if (   uCode - 1 >= pThis->cCachedAbbrevs
-        || !pThis->paCachedAbbrevs[uCode - 1].fFilled)
+    if (   uCode - 1 >= pThis->cCachedAbbrevsAlloced
+        || pThis->paCachedAbbrevs[uCode - 1].offAbbrev != pThis->offCachedAbbrev)
         return rtDwarfAbbrev_LookupMiss(pThis, uCode);
     return &pThis->paCachedAbbrevs[uCode - 1];
 }
@@ -2357,19 +3008,12 @@ static PCRTDWARFABBREV rtDwarfAbbrev_Lookup(PRTDBGMODDWARF pThis, uint32_t uCode
 /**
  * Sets the abbreviation offset of the current unit.
  *
- * This will flush the cached abbreviation entries if the offset differs from
- * the previous unit.
- *
  * @param   pThis               The DWARF instance.
  * @param   offAbbrev           The offset into the abbreviation section.
  */
 static void rtDwarfAbbrev_SetUnitOffset(PRTDBGMODDWARF pThis, uint32_t offAbbrev)
 {
-    if (pThis->offCachedAbbrev != offAbbrev)
-    {
-        pThis->offCachedAbbrev = offAbbrev;
-        pThis->cCachedAbbrevs  = 0;
-    }
+    pThis->offCachedAbbrev = offAbbrev;
 }
 
 
@@ -2408,7 +3052,7 @@ static PRTDWARFDIECOMPILEUNIT rtDwarfDie_GetCompileUnit(PRTDWARFDIE pDie)
  * @param   pszErrValue         What to return on failure (@a
  *                              pCursor->rc is set).
  */
-static const char *rtDwarfDecode_GetStrp(PRTDBGMODDWARF pThis, PRTDWARFCURSOR pCursor, const char *pszErrValue)
+static const char *rtDwarfDecodeHlp_GetStrp(PRTDBGMODDWARF pThis, PRTDWARFCURSOR pCursor, const char *pszErrValue)
 {
     uint64_t offDebugStr = rtDwarfCursor_GetUOff(pCursor, UINT64_MAX);
     if (RT_FAILURE(pCursor->rc))
@@ -2453,7 +3097,7 @@ static DECLCALLBACK(int) rtDwarfDecode_Address(PRTDWARFDIE pDie, uint8_t *pbMemb
         case DW_FORM_data8: uAddr = rtDwarfCursor_GetU64(pCursor, 0); break;
         case DW_FORM_udata: uAddr = rtDwarfCursor_GetULeb128(pCursor, 0); break;
         default:
-            AssertMsgFailedReturn(("%#x\n", uForm), VERR_DWARF_UNEXPECTED_FORM);
+            AssertMsgFailedReturn(("%#x (%s)\n", uForm, rtDwarfLog_FormName(uForm)), VERR_DWARF_UNEXPECTED_FORM);
     }
     if (RT_FAILURE(pCursor->rc))
         return pCursor->rc;
@@ -2461,6 +3105,7 @@ static DECLCALLBACK(int) rtDwarfDecode_Address(PRTDWARFDIE pDie, uint8_t *pbMemb
     PRTDWARFADDR pAddr = (PRTDWARFADDR)pbMember;
     pAddr->uAddress = uAddr;
 
+    Log4(("          %-20s  %#010llx  [%s]\n", rtDwarfLog_AttrName(pDesc->uAttr), uAddr, rtDwarfLog_FormName(uForm)));
     return VINF_SUCCESS;
 }
 
@@ -2479,7 +3124,10 @@ static DECLCALLBACK(int) rtDwarfDecode_Bool(PRTDWARFDIE pDie, uint8_t *pbMember,
         {
             uint8_t b = rtDwarfCursor_GetU8(pCursor, UINT8_MAX);
             if (b > 1)
+            {
+                Log(("Unexpected boolean value %#x\n", b));
                 return RT_FAILURE(pCursor->rc) ? pCursor->rc : pCursor->rc = VERR_DWARF_BAD_INFO;
+            }
             *pfMember = RT_BOOL(b);
             break;
         }
@@ -2492,6 +3140,7 @@ static DECLCALLBACK(int) rtDwarfDecode_Bool(PRTDWARFDIE pDie, uint8_t *pbMember,
             AssertMsgFailedReturn(("%#x\n", uForm), VERR_DWARF_UNEXPECTED_FORM);
     }
 
+    Log4(("          %-20s  %RTbool  [%s]\n", rtDwarfLog_AttrName(pDesc->uAttr), *pfMember, rtDwarfLog_FormName(uForm)));
     return VINF_SUCCESS;
 }
 
@@ -2538,10 +3187,19 @@ static DECLCALLBACK(int) rtDwarfDecode_LowHighPc(PRTDWARFDIE pDie, uint8_t *pbMe
             return pCursor->rc = VERR_DWARF_BAD_INFO;
         }
         pRange->fHaveHighAddress = true;
-        pRange->uHighAddress     = uAddr;
+        pRange->fHaveHighIsAddress = uForm == DW_FORM_addr;
+        if (!pRange->fHaveHighIsAddress && pRange->fHaveLowAddress)
+        {
+            pRange->fHaveHighIsAddress = true;
+            pRange->uHighAddress     = uAddr + pRange->uLowAddress;
+        }
+        else
+            pRange->uHighAddress     = uAddr;
+
     }
     pRange->cAttrs++;
 
+    Log4(("          %-20s  %#010llx  [%s]\n", rtDwarfLog_AttrName(pDesc->uAttr), uAddr, rtDwarfLog_FormName(uForm)));
     return VINF_SUCCESS;
 }
 
@@ -2551,16 +3209,17 @@ static DECLCALLBACK(int) rtDwarfDecode_Ranges(PRTDWARFDIE pDie, uint8_t *pbMembe
                                               uint32_t uForm, PRTDWARFCURSOR pCursor)
 {
     AssertReturn(ATTR_GET_SIZE(pDesc) == sizeof(RTDWARFADDRRANGE), VERR_INTERNAL_ERROR_3);
-    AssertReturn(pDesc->uAttr == DW_AT_low_pc || pDesc->uAttr == DW_AT_high_pc, VERR_INTERNAL_ERROR_3);
+    AssertReturn(pDesc->uAttr == DW_AT_ranges, VERR_INTERNAL_ERROR_3);
     NOREF(pDie);
 
     /* Decode it. */
     uint64_t off;
     switch (uForm)
     {
-        case DW_FORM_addr:  off = rtDwarfCursor_GetNativeUOff(pCursor, 0); break;
-        case DW_FORM_data4: off = rtDwarfCursor_GetU32(pCursor, 0); break;
-        case DW_FORM_data8: off = rtDwarfCursor_GetU64(pCursor, 0); break;
+        case DW_FORM_addr:          off = rtDwarfCursor_GetNativeUOff(pCursor, 0); break;
+        case DW_FORM_data4:         off = rtDwarfCursor_GetU32(pCursor, 0); break;
+        case DW_FORM_data8:         off = rtDwarfCursor_GetU64(pCursor, 0); break;
+        case DW_FORM_sec_offset:    off = rtDwarfCursor_GetUOff(pCursor, 0); break;
         default:
             AssertMsgFailedReturn(("%#x\n", uForm), VERR_DWARF_UNEXPECTED_FORM);
     }
@@ -2593,6 +3252,7 @@ static DECLCALLBACK(int) rtDwarfDecode_Ranges(PRTDWARFDIE pDie, uint8_t *pbMembe
     pRange->cAttrs++;
     pRange->pbRanges    = (uint8_t const *)pThis->aSections[krtDbgModDwarfSect_ranges].pv + (size_t)off;
 
+    Log4(("          %-20s  TODO  [%s]\n", rtDwarfLog_AttrName(pDesc->uAttr), rtDwarfLog_FormName(uForm)));
     return VINF_SUCCESS;
 }
 
@@ -2605,7 +3265,7 @@ static DECLCALLBACK(int) rtDwarfDecode_Reference(PRTDWARFDIE pDie, uint8_t *pbMe
 
     /* Decode it. */
     uint64_t        off;
-    krtDwarfRef     enmWrt = krtDwarfRef_InfoSection;
+    krtDwarfRef     enmWrt = krtDwarfRef_SameUnit;
     switch (uForm)
     {
         case DW_FORM_ref1:          off = rtDwarfCursor_GetU8(pCursor, 0); break;
@@ -2657,6 +3317,7 @@ static DECLCALLBACK(int) rtDwarfDecode_Reference(PRTDWARFDIE pDie, uint8_t *pbMe
     pRef->enmWrt = enmWrt;
     pRef->off    = off;
 
+    Log4(("          %-20s  %d:%#010llx  [%s]\n", rtDwarfLog_AttrName(pDesc->uAttr), enmWrt, off, rtDwarfLog_FormName(uForm)));
     return VINF_SUCCESS;
 }
 
@@ -2675,7 +3336,7 @@ static DECLCALLBACK(int) rtDwarfDecode_SectOff(PRTDWARFDIE pDie, uint8_t *pbMemb
         case DW_FORM_data8:      off = rtDwarfCursor_GetU64(pCursor, 0);  break;
         case DW_FORM_sec_offset: off = rtDwarfCursor_GetUOff(pCursor, 0); break;
         default:
-            AssertMsgFailedReturn(("%#x\n", uForm), VERR_DWARF_UNEXPECTED_FORM);
+            AssertMsgFailedReturn(("%#x (%s)\n", uForm, rtDwarfLog_FormName(uForm)), VERR_DWARF_UNEXPECTED_FORM);
     }
     if (RT_FAILURE(pCursor->rc))
         return pCursor->rc;
@@ -2687,18 +3348,24 @@ static DECLCALLBACK(int) rtDwarfDecode_SectOff(PRTDWARFDIE pDie, uint8_t *pbMemb
         case DW_AT_stmt_list:   enmSect = krtDbgModDwarfSect_line;    enmWrt = krtDwarfRef_LineSection;    break;
         case DW_AT_macro_info:  enmSect = krtDbgModDwarfSect_loc;     enmWrt = krtDwarfRef_LocSection;     break;
         case DW_AT_ranges:      enmSect = krtDbgModDwarfSect_ranges;  enmWrt = krtDwarfRef_RangesSection;  break;
-        default:                AssertMsgFailedReturn(("%u\n", pDesc->uAttr), VERR_INTERNAL_ERROR_4);
+        default:
+            AssertMsgFailedReturn(("%u (%s)\n", pDesc->uAttr, rtDwarfLog_AttrName(pDesc->uAttr)), VERR_INTERNAL_ERROR_4);
     }
-    if (off >= pCursor->pDwarfMod->aSections[enmSect].cb)
+    size_t cbSect = pCursor->pDwarfMod->aSections[enmSect].cb;
+    if (off >= cbSect)
     {
-        Log(("rtDwarfDecode_SectOff: bad off=%#llx, attr %#x\n", off, pDesc->uAttr));
-        return pCursor->rc = VERR_DWARF_BAD_POS;
+        /* Watcom generates offset past the end of the section, increasing the
+           offset by one for each compile unit. So, just fudge it. */
+        Log(("rtDwarfDecode_SectOff: bad off=%#llx, attr %#x (%s), enmSect=%d cb=%#llx; Assuming watcom/gcc.\n", off,
+             pDesc->uAttr, rtDwarfLog_AttrName(pDesc->uAttr), enmSect, cbSect));
+        off = cbSect;
     }
 
     PRTDWARFREF pRef = (PRTDWARFREF)pbMember;
     pRef->enmWrt = enmWrt;
     pRef->off    = off;
 
+    Log4(("          %-20s  %d:%#010llx  [%s]\n", rtDwarfLog_AttrName(pDesc->uAttr), enmWrt, off, rtDwarfLog_FormName(uForm)));
     return VINF_SUCCESS;
 }
 
@@ -2710,20 +3377,23 @@ static DECLCALLBACK(int) rtDwarfDecode_String(PRTDWARFDIE pDie, uint8_t *pbMembe
     AssertReturn(ATTR_GET_SIZE(pDesc) == sizeof(const char *), VERR_INTERNAL_ERROR_3);
     NOREF(pDie);
 
+    const char *psz;
     switch (uForm)
     {
         case DW_FORM_string:
-            *(const char **)pbMember = rtDwarfCursor_GetSZ(pCursor, NULL);
+            psz = rtDwarfCursor_GetSZ(pCursor, NULL);
             break;
 
         case DW_FORM_strp:
-            *(const char **)pbMember = rtDwarfDecode_GetStrp(pCursor->pDwarfMod, pCursor, NULL);
+            psz = rtDwarfDecodeHlp_GetStrp(pCursor->pDwarfMod, pCursor, NULL);
             break;
 
         default:
             AssertMsgFailedReturn(("%#x\n", uForm), VERR_DWARF_UNEXPECTED_FORM);
     }
 
+    *(const char **)pbMember = psz;
+    Log4(("          %-20s  '%s'  [%s]\n", rtDwarfLog_AttrName(pDesc->uAttr), psz, rtDwarfLog_FormName(uForm)));
     return pCursor->rc;
 }
 
@@ -2752,25 +3422,37 @@ static DECLCALLBACK(int) rtDwarfDecode_UnsignedInt(PRTDWARFDIE pDie, uint8_t *pb
         case 1:
             *pbMember = (uint8_t)u64Val;
             if (*pbMember != u64Val)
+            {
+                AssertFailed();
                 return VERR_OUT_OF_RANGE;
+            }
             break;
 
         case 2:
             *(uint16_t *)pbMember = (uint16_t)u64Val;
             if (*(uint16_t *)pbMember != u64Val)
+            {
+                AssertFailed();
                 return VERR_OUT_OF_RANGE;
+            }
             break;
 
         case 4:
             *(uint32_t *)pbMember = (uint32_t)u64Val;
             if (*(uint32_t *)pbMember != u64Val)
+            {
+                AssertFailed();
                 return VERR_OUT_OF_RANGE;
+            }
             break;
 
         case 8:
             *(uint64_t *)pbMember = (uint64_t)u64Val;
             if (*(uint64_t *)pbMember != u64Val)
+            {
+                AssertFailed();
                 return VERR_OUT_OF_RANGE;
+            }
             break;
 
         default:
@@ -2780,6 +3462,256 @@ static DECLCALLBACK(int) rtDwarfDecode_UnsignedInt(PRTDWARFDIE pDie, uint8_t *pb
 }
 
 
+/**
+ * Initialize location interpreter state from cursor & form.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_FOUND if no location information (i.e. there is source but
+ *          it resulted in no byte code).
+ * @param   pLoc                The location state structure to initialize.
+ * @param   pCursor             The cursor to read from.
+ * @param   uForm               The attribute form.
+ */
+static int rtDwarfLoc_Init(PRTDWARFLOCST pLoc, PRTDWARFCURSOR pCursor, uint32_t uForm)
+{
+    uint32_t cbBlock;
+    switch (uForm)
+    {
+        case DW_FORM_block1:
+            cbBlock = rtDwarfCursor_GetU8(pCursor, 0);
+            break;
+
+        case DW_FORM_block2:
+            cbBlock = rtDwarfCursor_GetU16(pCursor, 0);
+            break;
+
+        case DW_FORM_block4:
+            cbBlock = rtDwarfCursor_GetU32(pCursor, 0);
+            break;
+
+        case DW_FORM_block:
+            cbBlock = rtDwarfCursor_GetULeb128(pCursor, 0);
+            break;
+
+        default:
+            AssertMsgFailedReturn(("uForm=%#x\n", uForm), VERR_DWARF_UNEXPECTED_FORM);
+    }
+    if (!cbBlock)
+        return VERR_NOT_FOUND;
+
+    int rc = rtDwarfCursor_InitForBlock(&pLoc->Cursor, pCursor, cbBlock);
+    if (RT_FAILURE(rc))
+        return rc;
+    pLoc->iTop = -1;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Pushes a value onto the stack.
+ *
+ * @returns VINF_SUCCESS or VERR_DWARF_STACK_OVERFLOW.
+ * @param   pLoc                The state.
+ * @param   uValue              The value to push.
+ */
+static int rtDwarfLoc_Push(PRTDWARFLOCST pLoc, uint64_t uValue)
+{
+    int iTop = pLoc->iTop + 1;
+    AssertReturn((unsigned)iTop < RT_ELEMENTS(pLoc->auStack), VERR_DWARF_STACK_OVERFLOW);
+    pLoc->auStack[iTop] = uValue;
+    pLoc->iTop = iTop;
+    return VINF_SUCCESS;
+}
+
+
+static int rtDwarfLoc_Evaluate(PRTDWARFLOCST pLoc, void *pvLater, void *pvUser)
+{
+    while (!rtDwarfCursor_IsAtEndOfUnit(&pLoc->Cursor))
+    {
+        /* Read the next opcode.*/
+        uint8_t const bOpcode = rtDwarfCursor_GetU8(&pLoc->Cursor, 0);
+
+        /* Get its operands. */
+        uint64_t uOperand1 = 0;
+        uint64_t uOperand2 = 0;
+        switch (bOpcode)
+        {
+            case DW_OP_addr:
+                uOperand1 = rtDwarfCursor_GetNativeUOff(&pLoc->Cursor, 0);
+                break;
+            case DW_OP_pick:
+            case DW_OP_const1u:
+            case DW_OP_deref_size:
+            case DW_OP_xderef_size:
+                uOperand1 = rtDwarfCursor_GetU8(&pLoc->Cursor, 0);
+                break;
+            case DW_OP_const1s:
+                uOperand1 = (int8_t)rtDwarfCursor_GetU8(&pLoc->Cursor, 0);
+                break;
+            case DW_OP_const2u:
+                uOperand1 = rtDwarfCursor_GetU16(&pLoc->Cursor, 0);
+                break;
+            case DW_OP_skip:
+            case DW_OP_bra:
+            case DW_OP_const2s:
+                uOperand1 = (int16_t)rtDwarfCursor_GetU16(&pLoc->Cursor, 0);
+                break;
+            case DW_OP_const4u:
+                uOperand1 = rtDwarfCursor_GetU32(&pLoc->Cursor, 0);
+                break;
+            case DW_OP_const4s:
+                uOperand1 = (int32_t)rtDwarfCursor_GetU32(&pLoc->Cursor, 0);
+                break;
+            case DW_OP_const8u:
+                uOperand1 = rtDwarfCursor_GetU64(&pLoc->Cursor, 0);
+                break;
+            case DW_OP_const8s:
+                uOperand1 = rtDwarfCursor_GetU64(&pLoc->Cursor, 0);
+                break;
+            case DW_OP_regx:
+            case DW_OP_piece:
+            case DW_OP_plus_uconst:
+            case DW_OP_constu:
+                uOperand1 = rtDwarfCursor_GetULeb128(&pLoc->Cursor, 0);
+                break;
+            case DW_OP_consts:
+            case DW_OP_fbreg:
+            case DW_OP_breg0+0: case DW_OP_breg0+1: case DW_OP_breg0+2: case DW_OP_breg0+3:
+            case DW_OP_breg0+4: case DW_OP_breg0+5: case DW_OP_breg0+6: case DW_OP_breg0+7:
+            case DW_OP_breg0+8: case DW_OP_breg0+9: case DW_OP_breg0+10: case DW_OP_breg0+11:
+            case DW_OP_breg0+12: case DW_OP_breg0+13: case DW_OP_breg0+14: case DW_OP_breg0+15:
+            case DW_OP_breg0+16: case DW_OP_breg0+17: case DW_OP_breg0+18: case DW_OP_breg0+19:
+            case DW_OP_breg0+20: case DW_OP_breg0+21: case DW_OP_breg0+22: case DW_OP_breg0+23:
+            case DW_OP_breg0+24: case DW_OP_breg0+25: case DW_OP_breg0+26: case DW_OP_breg0+27:
+            case DW_OP_breg0+28: case DW_OP_breg0+29: case DW_OP_breg0+30: case DW_OP_breg0+31:
+                uOperand1 = rtDwarfCursor_GetSLeb128(&pLoc->Cursor, 0);
+                break;
+            case DW_OP_bregx:
+                uOperand1 = rtDwarfCursor_GetULeb128(&pLoc->Cursor, 0);
+                uOperand2 = rtDwarfCursor_GetSLeb128(&pLoc->Cursor, 0);
+                break;
+        }
+        if (RT_FAILURE(pLoc->Cursor.rc))
+            break;
+
+        /* Interpret the opcode. */
+        int rc;
+        switch (bOpcode)
+        {
+            case DW_OP_const1u:
+            case DW_OP_const1s:
+            case DW_OP_const2u:
+            case DW_OP_const2s:
+            case DW_OP_const4u:
+            case DW_OP_const4s:
+            case DW_OP_const8u:
+            case DW_OP_const8s:
+            case DW_OP_constu:
+            case DW_OP_consts:
+            case DW_OP_addr:
+                rc = rtDwarfLoc_Push(pLoc, uOperand1);
+                break;
+            case DW_OP_lit0 +  0: case DW_OP_lit0 +  1: case DW_OP_lit0 +  2: case DW_OP_lit0 +  3:
+            case DW_OP_lit0 +  4: case DW_OP_lit0 +  5: case DW_OP_lit0 +  6: case DW_OP_lit0 +  7:
+            case DW_OP_lit0 +  8: case DW_OP_lit0 +  9: case DW_OP_lit0 + 10: case DW_OP_lit0 + 11:
+            case DW_OP_lit0 + 12: case DW_OP_lit0 + 13: case DW_OP_lit0 + 14: case DW_OP_lit0 + 15:
+            case DW_OP_lit0 + 16: case DW_OP_lit0 + 17: case DW_OP_lit0 + 18: case DW_OP_lit0 + 19:
+            case DW_OP_lit0 + 20: case DW_OP_lit0 + 21: case DW_OP_lit0 + 22: case DW_OP_lit0 + 23:
+            case DW_OP_lit0 + 24: case DW_OP_lit0 + 25: case DW_OP_lit0 + 26: case DW_OP_lit0 + 27:
+            case DW_OP_lit0 + 28: case DW_OP_lit0 + 29: case DW_OP_lit0 + 30: case DW_OP_lit0 + 31:
+                rc = rtDwarfLoc_Push(pLoc, bOpcode - DW_OP_lit0);
+                break;
+            case DW_OP_nop:
+                break;
+            case DW_OP_dup:               /** @todo 0 operands. */
+            case DW_OP_drop:              /** @todo 0 operands. */
+            case DW_OP_over:              /** @todo 0 operands. */
+            case DW_OP_pick:              /** @todo 1 operands, a 1-byte stack index. */
+            case DW_OP_swap:              /** @todo 0 operands. */
+            case DW_OP_rot:               /** @todo 0 operands. */
+            case DW_OP_abs:               /** @todo 0 operands. */
+            case DW_OP_and:               /** @todo 0 operands. */
+            case DW_OP_div:               /** @todo 0 operands. */
+            case DW_OP_minus:             /** @todo 0 operands. */
+            case DW_OP_mod:               /** @todo 0 operands. */
+            case DW_OP_mul:               /** @todo 0 operands. */
+            case DW_OP_neg:               /** @todo 0 operands. */
+            case DW_OP_not:               /** @todo 0 operands. */
+            case DW_OP_or:                /** @todo 0 operands. */
+            case DW_OP_plus:              /** @todo 0 operands. */
+            case DW_OP_plus_uconst:       /** @todo 1 operands, a ULEB128 addend. */
+            case DW_OP_shl:               /** @todo 0 operands. */
+            case DW_OP_shr:               /** @todo 0 operands. */
+            case DW_OP_shra:              /** @todo 0 operands. */
+            case DW_OP_xor:               /** @todo 0 operands. */
+            case DW_OP_skip:              /** @todo 1 signed 2-byte constant. */
+            case DW_OP_bra:               /** @todo 1 signed 2-byte constant. */
+            case DW_OP_eq:                /** @todo 0 operands. */
+            case DW_OP_ge:                /** @todo 0 operands. */
+            case DW_OP_gt:                /** @todo 0 operands. */
+            case DW_OP_le:                /** @todo 0 operands. */
+            case DW_OP_lt:                /** @todo 0 operands. */
+            case DW_OP_ne:                /** @todo 0 operands. */
+            case DW_OP_reg0 +  0: case DW_OP_reg0 +  1: case DW_OP_reg0 +  2: case DW_OP_reg0 +  3: /** @todo 0 operands - reg 0..31. */
+            case DW_OP_reg0 +  4: case DW_OP_reg0 +  5: case DW_OP_reg0 +  6: case DW_OP_reg0 +  7:
+            case DW_OP_reg0 +  8: case DW_OP_reg0 +  9: case DW_OP_reg0 + 10: case DW_OP_reg0 + 11:
+            case DW_OP_reg0 + 12: case DW_OP_reg0 + 13: case DW_OP_reg0 + 14: case DW_OP_reg0 + 15:
+            case DW_OP_reg0 + 16: case DW_OP_reg0 + 17: case DW_OP_reg0 + 18: case DW_OP_reg0 + 19:
+            case DW_OP_reg0 + 20: case DW_OP_reg0 + 21: case DW_OP_reg0 + 22: case DW_OP_reg0 + 23:
+            case DW_OP_reg0 + 24: case DW_OP_reg0 + 25: case DW_OP_reg0 + 26: case DW_OP_reg0 + 27:
+            case DW_OP_reg0 + 28: case DW_OP_reg0 + 29: case DW_OP_reg0 + 30: case DW_OP_reg0 + 31:
+            case DW_OP_breg0+  0: case DW_OP_breg0+  1: case DW_OP_breg0+  2: case DW_OP_breg0+  3: /** @todo 1 operand, a SLEB128 offset. */
+            case DW_OP_breg0+  4: case DW_OP_breg0+  5: case DW_OP_breg0+  6: case DW_OP_breg0+  7:
+            case DW_OP_breg0+  8: case DW_OP_breg0+  9: case DW_OP_breg0+ 10: case DW_OP_breg0+ 11:
+            case DW_OP_breg0+ 12: case DW_OP_breg0+ 13: case DW_OP_breg0+ 14: case DW_OP_breg0+ 15:
+            case DW_OP_breg0+ 16: case DW_OP_breg0+ 17: case DW_OP_breg0+ 18: case DW_OP_breg0+ 19:
+            case DW_OP_breg0+ 20: case DW_OP_breg0+ 21: case DW_OP_breg0+ 22: case DW_OP_breg0+ 23:
+            case DW_OP_breg0+ 24: case DW_OP_breg0+ 25: case DW_OP_breg0+ 26: case DW_OP_breg0+ 27:
+            case DW_OP_breg0+ 28: case DW_OP_breg0+ 29: case DW_OP_breg0+ 30: case DW_OP_breg0+ 31:
+            case DW_OP_piece:             /** @todo 1 operand, a ULEB128 size of piece addressed. */
+            case DW_OP_regx:              /** @todo 1 operand, a ULEB128 register. */
+            case DW_OP_fbreg:             /** @todo 1 operand, a SLEB128 offset. */
+            case DW_OP_bregx:             /** @todo 2 operands, a ULEB128 register followed by a SLEB128 offset. */
+            case DW_OP_deref:             /** @todo 0 operands. */
+            case DW_OP_deref_size:        /** @todo 1 operand, a 1-byte size of data retrieved. */
+            case DW_OP_xderef:            /** @todo 0 operands. */
+            case DW_OP_xderef_size:        /** @todo 1 operand, a 1-byte size of data retrieved. */
+                AssertMsgFailedReturn(("bOpcode=%#x\n", bOpcode), VERR_DWARF_TODO);
+            default:
+                AssertMsgFailedReturn(("bOpcode=%#x\n", bOpcode), VERR_DWARF_UNKNOWN_LOC_OPCODE);
+        }
+    }
+
+    return pLoc->Cursor.rc;
+}
+
+
+/** @callback_method_impl{FNRTDWARFATTRDECODER} */
+static DECLCALLBACK(int) rtDwarfDecode_SegmentLoc(PRTDWARFDIE pDie, uint8_t *pbMember, PCRTDWARFATTRDESC pDesc,
+                                                  uint32_t uForm, PRTDWARFCURSOR pCursor)
+{
+    NOREF(pDie);
+    AssertReturn(ATTR_GET_SIZE(pDesc) == 2, VERR_DWARF_IPE);
+
+    RTDWARFLOCST LocSt;
+    int rc = rtDwarfLoc_Init(&LocSt, pCursor, uForm);
+    if (RT_SUCCESS(rc))
+    {
+        rc = rtDwarfLoc_Evaluate(&LocSt, NULL, NULL);
+        if (RT_SUCCESS(rc))
+        {
+            if (LocSt.iTop >= 0)
+            {
+                *(uint16_t *)pbMember = LocSt.auStack[LocSt.iTop];
+                Log4(("          %-20s  %#06llx  [%s]\n", rtDwarfLog_AttrName(pDesc->uAttr),
+                      LocSt.auStack[LocSt.iTop],  rtDwarfLog_FormName(uForm)));
+                return VINF_SUCCESS;
+            }
+            rc = VERR_DWARF_STACK_UNDERFLOW;
+        }
+    }
+    return rc;
+}
 
 /*
  *
@@ -2788,6 +3720,87 @@ static DECLCALLBACK(int) rtDwarfDecode_UnsignedInt(PRTDWARFDIE pDie, uint8_t *pb
  * DWARF debug_info parser
  *
  */
+
+
+/**
+ * Special hack to get the name and/or linkage name for a subprogram via a
+ * specification reference.
+ *
+ * Since this is a hack, we ignore failure.
+ *
+ * If we want to really make use of DWARF info, we'll have to create some kind
+ * of lookup tree for handling this. But currently we don't, so a hack will
+ * suffice.
+ *
+ * @param   pThis               The DWARF instance.
+ * @param   pSubProgram         The subprogram which is short on names.
+ */
+static void rtDwarfInfo_TryGetSubProgramNameFromSpecRef(PRTDBGMODDWARF pThis, PRTDWARFDIESUBPROGRAM pSubProgram)
+{
+    /*
+     * Must have a spec ref, and it must be in the info section.
+     */
+    if (pSubProgram->SpecRef.enmWrt != krtDwarfRef_InfoSection)
+        return;
+
+    /*
+     * Create a cursor for reading the info and then the abbrivation code
+     * starting the off the DIE.
+     */
+    RTDWARFCURSOR InfoCursor;
+    int rc = rtDwarfCursor_InitWithOffset(&InfoCursor, pThis, krtDbgModDwarfSect_info, pSubProgram->SpecRef.off);
+    if (RT_FAILURE(rc))
+        return;
+
+    uint32_t uAbbrCode = rtDwarfCursor_GetULeb128AsU32(&InfoCursor, UINT32_MAX);
+    if (uAbbrCode)
+    {
+        /* Only references to subprogram tags are interesting here. */
+        PCRTDWARFABBREV pAbbrev = rtDwarfAbbrev_Lookup(pThis, uAbbrCode);
+        if (   pAbbrev
+            && pAbbrev->uTag == DW_TAG_subprogram)
+        {
+            /*
+             * Use rtDwarfInfo_ParseDie to do the parsing, but with a different
+             * attribute spec than usual.
+             */
+            rtDwarfInfo_ParseDie(pThis, &pSubProgram->Core, &g_SubProgramSpecHackDesc, &InfoCursor,
+                                 pAbbrev, false /*fInitDie*/);
+        }
+    }
+
+    rtDwarfCursor_Delete(&InfoCursor, VINF_SUCCESS);
+}
+
+
+/**
+ * Select which name to use.
+ *
+ * @returns One of the names.
+ * @param   pszName             The DWARF name, may exclude namespace and class.
+ *                              Can also be NULL.
+ * @param   pszLinkageName      The linkage name. Can be NULL.
+ */
+static const char *rtDwarfInfo_SelectName(const char *pszName,  const char *pszLinkageName)
+{
+    if (!pszName || !pszLinkageName)
+        return pszName ? pszName : pszLinkageName;
+
+    /*
+     * Some heuristics for selecting the link name if the normal name is missing
+     * namespace or class prefixes.
+     */
+    size_t cchName = strlen(pszName);
+    size_t cchLinkageName = strlen(pszLinkageName);
+    if (cchLinkageName <= cchName + 1)
+        return pszName;
+
+    const char *psz = strstr(pszLinkageName, pszName);
+    if (!psz || psz - pszLinkageName < 4)
+        return pszName;
+
+    return pszLinkageName;
+}
 
 
 /**
@@ -2804,7 +3817,13 @@ static int rtDwarfInfo_SnoopSymbols(PRTDBGMODDWARF pThis, PRTDWARFDIE pDie)
     {
         case DW_TAG_subprogram:
         {
-            PCRTDWARFDIESUBPROGRAM pSubProgram = (PCRTDWARFDIESUBPROGRAM)pDie;
+            PRTDWARFDIESUBPROGRAM pSubProgram = (PRTDWARFDIESUBPROGRAM)pDie;
+
+            /* Obtain referenced specification there is only partial info. */
+            if (   pSubProgram->PcRange.cAttrs
+                && !pSubProgram->pszName)
+                rtDwarfInfo_TryGetSubProgramNameFromSpecRef(pThis, pSubProgram);
+
             if (pSubProgram->PcRange.cAttrs)
             {
                 if (pSubProgram->PcRange.fHaveRanges)
@@ -2814,24 +3833,84 @@ static int rtDwarfInfo_SnoopSymbols(PRTDBGMODDWARF pThis, PRTDWARFDIE pDie)
                     Log5(("subprogram %s (%s) %#llx-%#llx%s\n", pSubProgram->pszName, pSubProgram->pszLinkageName,
                           pSubProgram->PcRange.uLowAddress, pSubProgram->PcRange.uHighAddress,
                           pSubProgram->PcRange.cAttrs == 2 ? "" : " !bad!"));
-                    if (   pSubProgram->pszName
+                    if (   ( pSubProgram->pszName || pSubProgram->pszLinkageName)
                         && pSubProgram->PcRange.cAttrs == 2)
                     {
-                        RTDBGSEGIDX iSeg;
-                        RTUINTPTR   offSeg;
-                        rc = rtDbgModDwarfLinkAddressToSegOffset(pThis, pSubProgram->PcRange.uLowAddress,
-                                                                 &iSeg, &offSeg);
-                        if (RT_SUCCESS(rc))
-                            rc = RTDbgModSymbolAdd(pThis->hCnt, pSubProgram->pszName, iSeg, offSeg,
-                                                   pSubProgram->PcRange.uHighAddress - pSubProgram->PcRange.uLowAddress,
-                                                   0 /*fFlags*/, NULL /*piOrdinal*/);
+                        if (pThis->iWatcomPass == 1)
+                            rc = rtDbgModDwarfRecordSegOffset(pThis, pSubProgram->uSegment, pSubProgram->PcRange.uHighAddress);
                         else
-                            Log5(("rtDbgModDwarfLinkAddressToSegOffset failed: %Rrc\n", rc));
+                        {
+                            RTDBGSEGIDX iSeg;
+                            RTUINTPTR   offSeg;
+                            rc = rtDbgModDwarfLinkAddressToSegOffset(pThis, pSubProgram->uSegment,
+                                                                     pSubProgram->PcRange.uLowAddress,
+                                                                     &iSeg, &offSeg);
+                            if (RT_SUCCESS(rc))
+                            {
+                                uint64_t cb;
+                                if (pSubProgram->PcRange.uHighAddress >= pSubProgram->PcRange.uLowAddress)
+                                    cb = pSubProgram->PcRange.uHighAddress - pSubProgram->PcRange.uLowAddress;
+                               else
+                                    cb = 1;
+                                rc = RTDbgModSymbolAdd(pThis->hCnt,
+                                                       rtDwarfInfo_SelectName(pSubProgram->pszName, pSubProgram->pszLinkageName),
+                                                       iSeg, offSeg, cb, 0 /*fFlags*/, NULL /*piOrdinal*/);
+                                if (RT_FAILURE(rc))
+                                {
+                                    if (   rc == VERR_DBG_DUPLICATE_SYMBOL
+                                        || rc == VERR_DBG_ADDRESS_CONFLICT /** @todo figure why this happens with 10.6.8 mach_kernel, 32-bit. */
+                                        )
+                                        rc = VINF_SUCCESS;
+                                    else
+                                        AssertMsgFailed(("%Rrc\n", rc));
+                                }
+                            }
+                            else if (   pSubProgram->PcRange.uLowAddress  == 0 /* see with vmlinux */
+                                     && pSubProgram->PcRange.uHighAddress == 0)
+                            {
+                                Log5(("rtDbgModDwarfLinkAddressToSegOffset: Ignoring empty range.\n"));
+                                rc = VINF_SUCCESS; /* ignore */
+                            }
+                            else
+                            {
+                                AssertRC(rc);
+                                Log5(("rtDbgModDwarfLinkAddressToSegOffset failed: %Rrc\n", rc));
+                            }
+                        }
                     }
                 }
             }
             else
                 Log5(("subprogram %s (%s) external\n", pSubProgram->pszName, pSubProgram->pszLinkageName));
+            break;
+        }
+
+        case DW_TAG_label:
+        {
+            PCRTDWARFDIELABEL pLabel = (PCRTDWARFDIELABEL)pDie;
+            if (pLabel->fExternal)
+            {
+                Log5(("label %s %#x:%#llx\n", pLabel->pszName, pLabel->uSegment, pLabel->Address.uAddress));
+                if (pThis->iWatcomPass == 1)
+                    rc = rtDbgModDwarfRecordSegOffset(pThis, pLabel->uSegment, pLabel->Address.uAddress);
+                else
+                {
+                    RTDBGSEGIDX iSeg;
+                    RTUINTPTR   offSeg;
+                    rc = rtDbgModDwarfLinkAddressToSegOffset(pThis, pLabel->uSegment, pLabel->Address.uAddress,
+                                                             &iSeg, &offSeg);
+                    AssertRC(rc);
+                    if (RT_SUCCESS(rc))
+                    {
+                        rc = RTDbgModSymbolAdd(pThis->hCnt, pLabel->pszName, iSeg, offSeg, 0 /*cb*/,
+                                               0 /*fFlags*/, NULL /*piOrdinal*/);
+                        AssertRC(rc);
+                    }
+                    else
+                        Log5(("rtDbgModDwarfLinkAddressToSegOffset failed: %Rrc\n", rc));
+                }
+
+            }
             break;
         }
 
@@ -2901,9 +3980,19 @@ static PRTDWARFDIE rtDwarfInfo_NewDie(PRTDBGMODDWARF pThis, PCRTDWARFDIEDESC pDi
 {
     NOREF(pThis);
     Assert(pDieDesc->cbDie >= sizeof(RTDWARFDIE));
+#ifdef RTDBGMODDWARF_WITH_MEM_CACHE
+    uint32_t iAllocator = pDieDesc->cbDie > pThis->aDieAllocators[0].cbMax;
+    Assert(pDieDesc->cbDie <= pThis->aDieAllocators[iAllocator].cbMax);
+    PRTDWARFDIE pDie = (PRTDWARFDIE)RTMemCacheAlloc(pThis->aDieAllocators[iAllocator].hMemCache);
+#else
     PRTDWARFDIE pDie = (PRTDWARFDIE)RTMemAllocZ(pDieDesc->cbDie);
+#endif
     if (pDie)
     {
+#ifdef RTDBGMODDWARF_WITH_MEM_CACHE
+        RT_BZERO(pDie, pDieDesc->cbDie);
+        pDie->iAllocator   = iAllocator;
+#endif
         rtDwarfInfo_InitDie(pDie, pDieDesc);
 
         pDie->uTag         = pAbbrev->uTag;
@@ -2917,6 +4006,47 @@ static PRTDWARFDIE rtDwarfInfo_NewDie(PRTDBGMODDWARF pThis, PCRTDWARFDIEDESC pDi
 
     }
     return pDie;
+}
+
+
+/**
+ * Free all children of a DIE.
+ *
+ * @param   pThis               The DWARF instance.
+ * @param   pParent             The parent DIE.
+ */
+static void rtDwarfInfo_FreeChildren(PRTDBGMODDWARF pThis, PRTDWARFDIE pParentDie)
+{
+    PRTDWARFDIE pChild, pNextChild;
+    RTListForEachSafe(&pParentDie->ChildList, pChild, pNextChild, RTDWARFDIE, SiblingNode)
+    {
+        if (!RTListIsEmpty(&pChild->ChildList))
+            rtDwarfInfo_FreeChildren(pThis, pChild);
+        RTListNodeRemove(&pChild->SiblingNode);
+#ifdef RTDBGMODDWARF_WITH_MEM_CACHE
+        RTMemCacheFree(pThis->aDieAllocators[pChild->iAllocator].hMemCache, pChild);
+#else
+        RTMemFree(pChild);
+#endif
+    }
+}
+
+
+/**
+ * Free a DIE an all its children.
+ *
+ * @param   pThis               The DWARF instance.
+ * @param   pDie                The DIE to free.
+ */
+static void rtDwarfInfo_FreeDie(PRTDBGMODDWARF pThis, PRTDWARFDIE pDie)
+{
+    rtDwarfInfo_FreeChildren(pThis, pDie);
+    RTListNodeRemove(&pDie->SiblingNode);
+#ifdef RTDBGMODDWARF_WITH_MEM_CACHE
+    RTMemCacheFree(pThis->aDieAllocators[pDie->iAllocator].hMemCache, pDie);
+#else
+    RTMemFree(pChild);
+#endif
 }
 
 
@@ -3026,16 +4156,21 @@ static int rtDwarfInfo_SkipDie(PRTDWARFCURSOR pCursor, PRTDWARFCURSOR pAbbrevCur
  * @param   pDieDesc            The DIE descriptor.
  * @param   pCursor             The debug_info cursor.
  * @param   pAbbrev             The abbreviation cache entry.
+ * @param   fInitDie            Whether to initialize the DIE first.  If not (@c
+ *                              false) it's safe to assume we're following a
+ *                              DW_AT_specification or DW_AT_abstract_origin,
+ *                              and that we shouldn't be snooping any symbols.
  */
 static int rtDwarfInfo_ParseDie(PRTDBGMODDWARF pThis, PRTDWARFDIE pDie, PCRTDWARFDIEDESC pDieDesc,
-                                PRTDWARFCURSOR pCursor, PCRTDWARFABBREV pAbbrev)
+                                PRTDWARFCURSOR pCursor, PCRTDWARFABBREV pAbbrev, bool fInitDie)
 {
     RTDWARFCURSOR AbbrevCursor;
     int rc = rtDwarfCursor_InitWithOffset(&AbbrevCursor, pThis, krtDbgModDwarfSect_abbrev, pAbbrev->offSpec);
     if (RT_FAILURE(rc))
         return rc;
 
-    rtDwarfInfo_InitDie(pDie, pDieDesc);
+    if (fInitDie)
+        rtDwarfInfo_InitDie(pDie, pDieDesc);
     for (;;)
     {
         uint32_t uAttr = rtDwarfCursor_GetULeb128AsU32(&AbbrevCursor, 0);
@@ -3063,6 +4198,7 @@ static int rtDwarfInfo_ParseDie(PRTDBGMODDWARF pThis, PRTDWARFDIE pDie, PCRTDWAR
         {
             pDie->cUnhandledAttrs++;
             rc = rtDwarfInfo_SkipForm(pCursor, uForm);
+            Log4(("          %-20s    [%s]\n", rtDwarfLog_AttrName(uAttr), rtDwarfLog_FormName(uForm)));
         }
         if (RT_FAILURE(rc))
             break;
@@ -3073,9 +4209,9 @@ static int rtDwarfInfo_ParseDie(PRTDBGMODDWARF pThis, PRTDWARFDIE pDie, PCRTDWAR
         rc = pCursor->rc;
 
     /*
-     * Snoope up symbols on the way out.
+     * Snoop up symbols on the way out.
      */
-    if (RT_SUCCESS(rc))
+    if (RT_SUCCESS(rc) && fInitDie)
     {
         rc = rtDwarfInfo_SnoopSymbols(pThis, pDie);
         /* Ignore duplicates, get work done instead. */
@@ -3121,7 +4257,10 @@ static int rtDwarfInfo_LoadUnit(PRTDBGMODDWARF pThis, PRTDWARFCURSOR pCursor, bo
      * Set up the abbreviation cache and store the native address size in the cursor.
      */
     if (offAbbrev > UINT32_MAX)
+    {
+        Log(("Unexpected abbrviation code offset of %#llx\n", offAbbrev));
         return VERR_DWARF_BAD_INFO;
+    }
     rtDwarfAbbrev_SetUnitOffset(pThis, (uint32_t)offAbbrev);
     pCursor->cbNativeAddr = cbNativeAddr;
 
@@ -3130,7 +4269,10 @@ static int rtDwarfInfo_LoadUnit(PRTDBGMODDWARF pThis, PRTDWARFCURSOR pCursor, bo
      */
     uint32_t uAbbrCode = rtDwarfCursor_GetULeb128AsU32(pCursor, UINT32_MAX);
     if (!uAbbrCode)
+    {
+        Log(("Unexpected abbrviation code of zero\n"));
         return VERR_DWARF_BAD_INFO;
+    }
     PCRTDWARFABBREV pAbbrev = rtDwarfAbbrev_Lookup(pThis, uAbbrCode);
     if (!pAbbrev)
         return VERR_DWARF_ABBREV_NOT_FOUND;
@@ -3152,7 +4294,7 @@ static int rtDwarfInfo_LoadUnit(PRTDBGMODDWARF pThis, PRTDWARFCURSOR pCursor, bo
     pUnit->uDwarfVer    = (uint8_t)uVer;
     RTListAppend(&pThis->CompileUnitList, &pUnit->Core.SiblingNode);
 
-    int rc = rtDwarfInfo_ParseDie(pThis, &pUnit->Core, &g_CompileUnitDesc, pCursor, pAbbrev);
+    int rc = rtDwarfInfo_ParseDie(pThis, &pUnit->Core, &g_CompileUnitDesc, pCursor, pAbbrev, true /*fInitDie*/);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -3163,28 +4305,19 @@ static int rtDwarfInfo_LoadUnit(PRTDBGMODDWARF pThis, PRTDWARFCURSOR pCursor, bo
     PRTDWARFDIE pParentDie = &pUnit->Core;
     while (!rtDwarfCursor_IsAtEndOfUnit(pCursor))
     {
+#ifdef LOG_ENABLED
+        uint32_t offLog = rtDwarfCursor_CalcSectOffsetU32(pCursor);
+#endif
         uAbbrCode = rtDwarfCursor_GetULeb128AsU32(pCursor, UINT32_MAX);
         if (!uAbbrCode)
         {
-            /* End of siblings, up one level. */
-            pParentDie = pParentDie->pParent;
-            if (!pParentDie)
+            /* End of siblings, up one level. (Is this correct?) */
+            if (pParentDie->pParent)
             {
-                if (!rtDwarfCursor_IsAtEndOfUnit(pCursor))
-                    return VERR_DWARF_BAD_INFO;
-                break;
-            }
-            cDepth--;
-
-            /* Unlink and free child DIEs if told to do so. */
-            if (!fKeepDies && pParentDie->pParent)
-            {
-                PRTDWARFDIE pChild, pNextChild;
-                RTListForEachSafe(&pParentDie->ChildList, pChild, pNextChild, RTDWARFDIE, SiblingNode)
-                {
-                    RTListNodeRemove(&pChild->SiblingNode);
-                    RTMemFree(pChild);
-                }
+                pParentDie = pParentDie->pParent;
+                cDepth--;
+                if (!fKeepDies && pParentDie->pParent)
+                    rtDwarfInfo_FreeChildren(pThis, pParentDie);
             }
         }
         else
@@ -3207,10 +4340,10 @@ static int rtDwarfInfo_LoadUnit(PRTDBGMODDWARF pThis, PRTDWARFCURSOR pCursor, bo
             else
             {
                 pszName  = "<unknown>";
-                pDieDesc = g_aTagDescs[0].pDesc;
+                pDieDesc = &g_CoreDieDesc;
             }
-            Log4((" %*stag=%s (%#x)%s\n", cDepth * 2, "", pszName,
-                  pAbbrev->uTag, pAbbrev->fChildren ? " has children" : ""));
+            Log4(("%08x: %*stag=%s (%#x, abbrev %u)%s\n", offLog, cDepth * 2, "", pszName,
+                  pAbbrev->uTag, uAbbrCode, pAbbrev->fChildren ? " has children" : ""));
 
             /*
              * Create a new internal DIE structure and parse the
@@ -3226,11 +4359,19 @@ static int rtDwarfInfo_LoadUnit(PRTDBGMODDWARF pThis, PRTDWARFCURSOR pCursor, bo
                 cDepth++;
             }
 
-            rc = rtDwarfInfo_ParseDie(pThis, pNewDie, pDieDesc, pCursor, pAbbrev);
+            rc = rtDwarfInfo_ParseDie(pThis, pNewDie, pDieDesc, pCursor, pAbbrev, true /*fInitDie*/);
             if (RT_FAILURE(rc))
                 return rc;
+
+            if (!fKeepDies && !pAbbrev->fChildren)
+                rtDwarfInfo_FreeDie(pThis, pNewDie);
         }
     } /* while more DIEs */
+
+
+    /* Unlink and free child DIEs if told to do so. */
+    if (!fKeepDies)
+        rtDwarfInfo_FreeChildren(pThis, &pUnit->Core);
 
     return RT_SUCCESS(rc) ? pCursor->rc : rc;
 }
@@ -3248,14 +4389,15 @@ static int rtDwarfInfo_LoadAll(PRTDBGMODDWARF pThis)
 {
     RTDWARFCURSOR Cursor;
     int rc = rtDwarfCursor_Init(&Cursor, pThis, krtDbgModDwarfSect_info);
-    if (RT_FAILURE(rc))
-        return rc;
+    if (RT_SUCCESS(rc))
+    {
+        while (   !rtDwarfCursor_IsAtEnd(&Cursor)
+               && RT_SUCCESS(rc))
+            rc = rtDwarfInfo_LoadUnit(pThis, &Cursor, false /* fKeepDies */);
 
-    while (   !rtDwarfCursor_IsAtEnd(&Cursor)
-           && RT_SUCCESS(rc))
-        rc = rtDwarfInfo_LoadUnit(pThis, &Cursor, false /* fKeepDies */);
-
-    return rtDwarfCursor_Delete(&Cursor, rc);
+        rc = rtDwarfCursor_Delete(&Cursor, rc);
+    }
+    return rc;
 }
 
 
@@ -3382,7 +4524,7 @@ static DECLCALLBACK(RTUINTPTR) rtDbgModDwarf_ImageSize(PRTDBGMODINT pMod)
 {
     PRTDBGMODDWARF pThis = (PRTDBGMODDWARF)pMod->pvDbgPriv;
     RTUINTPTR cb1 = RTDbgModImageSize(pThis->hCnt);
-    RTUINTPTR cb2 = pMod->pImgVt->pfnImageSize(pMod);
+    RTUINTPTR cb2 = pThis->pImgMod->pImgVt->pfnImageSize(pMod);
     return RT_MAX(cb1, cb2);
 }
 
@@ -3402,10 +4544,28 @@ static DECLCALLBACK(int) rtDbgModDwarf_Close(PRTDBGMODINT pMod)
 
     for (unsigned iSect = 0; iSect < RT_ELEMENTS(pThis->aSections); iSect++)
         if (pThis->aSections[iSect].pv)
-            pThis->pMod->pImgVt->pfnUnmapPart(pThis->pMod, pThis->aSections[iSect].cb, &pThis->aSections[iSect].pv);
+            pThis->pDbgInfoMod->pImgVt->pfnUnmapPart(pThis->pDbgInfoMod, pThis->aSections[iSect].cb, &pThis->aSections[iSect].pv);
 
     RTDbgModRelease(pThis->hCnt);
     RTMemFree(pThis->paCachedAbbrevs);
+    if (pThis->pNestedMod)
+    {
+        pThis->pNestedMod->pImgVt->pfnClose(pThis->pNestedMod);
+        RTStrCacheRelease(g_hDbgModStrCache, pThis->pNestedMod->pszName);
+        RTStrCacheRelease(g_hDbgModStrCache, pThis->pNestedMod->pszDbgFile);
+        RTMemFree(pThis->pNestedMod);
+        pThis->pNestedMod = NULL;
+    }
+
+#ifdef RTDBGMODDWARF_WITH_MEM_CACHE
+    uint32_t i = RT_ELEMENTS(pThis->aDieAllocators);
+    while (i-- > 0)
+    {
+        RTMemCacheDestroy(pThis->aDieAllocators[i].hMemCache);
+        pThis->aDieAllocators[i].hMemCache = NIL_RTMEMCACHE;
+    }
+#endif
+
     RTMemFree(pThis);
 
     return VINF_SUCCESS;
@@ -3413,38 +4573,42 @@ static DECLCALLBACK(int) rtDbgModDwarf_Close(PRTDBGMODINT pMod)
 
 
 /** @callback_method_impl{FNRTLDRENUMDBG} */
-static DECLCALLBACK(int) rtDbgModDwarfEnumCallback(RTLDRMOD hLdrMod, uint32_t iDbgInfo, RTLDRDBGINFOTYPE enmType,
-                                                   uint16_t iMajorVer, uint16_t iMinorVer, const char *pszPartNm,
-                                                   RTFOFF offFile, RTLDRADDR LinkAddress, RTLDRADDR cb,
-                                                   const char *pszExtFile, void *pvUser)
+static DECLCALLBACK(int) rtDbgModDwarfEnumCallback(RTLDRMOD hLdrMod, PCRTLDRDBGINFO pDbgInfo, void *pvUser)
 {
-    NOREF(hLdrMod); NOREF(iDbgInfo); NOREF(iMajorVer); NOREF(iMinorVer); NOREF(LinkAddress);
-
     /*
      * Skip stuff we can't handle.
      */
-    if (   enmType != RTLDRDBGINFOTYPE_DWARF
-        || !pszPartNm
-        || pszExtFile)
+    if (pDbgInfo->enmType != RTLDRDBGINFOTYPE_DWARF)
         return VINF_SUCCESS;
+    const char *pszSection = pDbgInfo->u.Dwarf.pszSection;
+    if (!pszSection || !*pszSection)
+        return VINF_SUCCESS;
+    Assert(!pDbgInfo->pszExtFile);
 
     /*
      * Must have a part name starting with debug_ and possibly prefixed by dots
      * or underscores.
      */
-    if (!strncmp(pszPartNm, ".debug_", sizeof(".debug_") - 1))        /* ELF */
-        pszPartNm += sizeof(".debug_") - 1;
-    else if (!strncmp(pszPartNm, "__debug_", sizeof("__debug_") - 1)) /* Mach-O */
-        pszPartNm += sizeof("__debug_") - 1;
+    if (!strncmp(pszSection, RT_STR_TUPLE(".debug_")))       /* ELF */
+        pszSection += sizeof(".debug_") - 1;
+    else if (!strncmp(pszSection, RT_STR_TUPLE("__debug_"))) /* Mach-O */
+        pszSection += sizeof("__debug_") - 1;
+    else if (!strcmp(pszSection, ".WATCOM_references"))
+        return VINF_SUCCESS; /* Ignore special watcom section for now.*/
+    else if (   !strcmp(pszSection, "__apple_types")
+             || !strcmp(pszSection, "__apple_namespac")
+             || !strcmp(pszSection, "__apple_objc")
+             || !strcmp(pszSection, "__apple_names"))
+        return VINF_SUCCESS; /* Ignore special apple sections for now. */
     else
-        AssertMsgFailedReturn(("%s\n", pszPartNm), VINF_SUCCESS /*ignore*/);
+        AssertMsgFailedReturn(("%s\n", pszSection), VINF_SUCCESS /*ignore*/);
 
     /*
      * Figure out which part we're talking about.
      */
     krtDbgModDwarfSect enmSect;
     if (0) { /* dummy */ }
-#define ELSE_IF_STRCMP_SET(a_Name) else if (!strcmp(pszPartNm, #a_Name))  enmSect = krtDbgModDwarfSect_ ## a_Name
+#define ELSE_IF_STRCMP_SET(a_Name) else if (!strcmp(pszSection, #a_Name))  enmSect = krtDbgModDwarfSect_ ## a_Name
     ELSE_IF_STRCMP_SET(abbrev);
     ELSE_IF_STRCMP_SET(aranges);
     ELSE_IF_STRCMP_SET(frame);
@@ -3461,7 +4625,7 @@ static DECLCALLBACK(int) rtDbgModDwarfEnumCallback(RTLDRMOD hLdrMod, uint32_t iD
 #undef ELSE_IF_STRCMP_SET
     else
     {
-        AssertMsgFailed(("%s\n", pszPartNm));
+        AssertMsgFailed(("%s\n", pszSection));
         return VINF_SUCCESS;
     }
 
@@ -3469,21 +4633,66 @@ static DECLCALLBACK(int) rtDbgModDwarfEnumCallback(RTLDRMOD hLdrMod, uint32_t iD
      * Record the section.
      */
     PRTDBGMODDWARF pThis = (PRTDBGMODDWARF)pvUser;
-    AssertMsgReturn(!pThis->aSections[enmSect].fPresent, ("duplicate %s\n", pszPartNm), VINF_SUCCESS /*ignore*/);
+    AssertMsgReturn(!pThis->aSections[enmSect].fPresent, ("duplicate %s\n", pszSection), VINF_SUCCESS /*ignore*/);
 
     pThis->aSections[enmSect].fPresent  = true;
-    pThis->aSections[enmSect].offFile   = offFile;
+    pThis->aSections[enmSect].offFile   = pDbgInfo->offFile;
     pThis->aSections[enmSect].pv        = NULL;
-    pThis->aSections[enmSect].cb        = (size_t)cb;
-    if (pThis->aSections[enmSect].cb != cb)
+    pThis->aSections[enmSect].cb        = (size_t)pDbgInfo->cb;
+    pThis->aSections[enmSect].iDbgInfo  = pDbgInfo->iDbgInfo;
+    if (pThis->aSections[enmSect].cb != pDbgInfo->cb)
         pThis->aSections[enmSect].cb    = ~(size_t)0;
 
     return VINF_SUCCESS;
 }
 
 
+static int rtDbgModDwarfTryOpenDbgFile(PRTDBGMODINT pDbgMod, PRTDBGMODDWARF pThis, RTLDRARCH enmArch)
+{
+    if (   !pDbgMod->pszDbgFile
+        || RTPathIsSame(pDbgMod->pszDbgFile, pDbgMod->pszImgFile) == (int)true /* returns VERR too */)
+        return VERR_DBG_NO_MATCHING_INTERPRETER;
+
+    /*
+     * Only open the image.
+     */
+    PRTDBGMODINT pDbgInfoMod = (PRTDBGMODINT)RTMemAllocZ(sizeof(*pDbgInfoMod));
+    if (!pDbgInfoMod)
+        return VERR_NO_MEMORY;
+
+    int rc;
+    pDbgInfoMod->u32Magic     = RTDBGMOD_MAGIC;
+    pDbgInfoMod->cRefs        = 1;
+    if (RTStrCacheRetain(pDbgMod->pszDbgFile) != UINT32_MAX)
+    {
+        pDbgInfoMod->pszImgFile = pDbgMod->pszDbgFile;
+        if (RTStrCacheRetain(pDbgMod->pszName) != UINT32_MAX)
+        {
+            pDbgInfoMod->pszName = pDbgMod->pszName;
+            pDbgInfoMod->pImgVt  = &g_rtDbgModVtImgLdr;
+            rc = pDbgInfoMod->pImgVt->pfnTryOpen(pDbgInfoMod, enmArch);
+            if (RT_SUCCESS(rc))
+            {
+                pThis->pDbgInfoMod = pDbgInfoMod;
+                pThis->pNestedMod  = pDbgInfoMod;
+                return VINF_SUCCESS;
+            }
+
+            RTStrCacheRelease(g_hDbgModStrCache, pDbgInfoMod->pszName);
+        }
+        else
+            rc = VERR_NO_STR_MEMORY;
+        RTStrCacheRelease(g_hDbgModStrCache,  pDbgInfoMod->pszImgFile);
+    }
+    else
+        rc = VERR_NO_STR_MEMORY;
+    RTMemFree(pDbgInfoMod);
+    return rc;
+}
+
+
 /** @interface_method_impl{RTDBGMODVTDBG,pfnTryOpen} */
-static DECLCALLBACK(int) rtDbgModDwarf_TryOpen(PRTDBGMODINT pMod)
+static DECLCALLBACK(int) rtDbgModDwarf_TryOpen(PRTDBGMODINT pMod, RTLDRARCH enmArch)
 {
     /*
      * DWARF is only supported when part of an image.
@@ -3492,15 +4701,54 @@ static DECLCALLBACK(int) rtDbgModDwarf_TryOpen(PRTDBGMODINT pMod)
         return VERR_DBG_NO_MATCHING_INTERPRETER;
 
     /*
-     * Enumerate the debug info in the module, looking for DWARF bits.
+     * Create the module instance data.
      */
     PRTDBGMODDWARF pThis = (PRTDBGMODDWARF)RTMemAllocZ(sizeof(*pThis));
     if (!pThis)
         return VERR_NO_MEMORY;
-    pThis->pMod = pMod;
+    pThis->pDbgInfoMod = pMod;
+    pThis->pImgMod     = pMod;
     RTListInit(&pThis->CompileUnitList);
+    /** @todo better fUseLinkAddress heuristics! */
+    if (   (pMod->pszDbgFile && strstr(pMod->pszDbgFile, "mach_kernel"))
+        || (pMod->pszImgFile && strstr(pMod->pszImgFile, "mach_kernel")) )
+        pThis->fUseLinkAddress = true;
 
-    int rc = pMod->pImgVt->pfnEnumDbgInfo(pMod, rtDbgModDwarfEnumCallback, pThis);
+#ifdef RTDBGMODDWARF_WITH_MEM_CACHE
+    AssertCompile(RT_ELEMENTS(pThis->aDieAllocators) == 2);
+    pThis->aDieAllocators[0].cbMax = sizeof(RTDWARFDIE);
+    pThis->aDieAllocators[1].cbMax = sizeof(RTDWARFDIECOMPILEUNIT);
+    for (uint32_t i = 0; i < RT_ELEMENTS(g_aTagDescs); i++)
+        if (g_aTagDescs[i].pDesc && g_aTagDescs[i].pDesc->cbDie > pThis->aDieAllocators[1].cbMax)
+            pThis->aDieAllocators[1].cbMax = (uint32_t)g_aTagDescs[i].pDesc->cbDie;
+    pThis->aDieAllocators[1].cbMax = RT_ALIGN_32(pThis->aDieAllocators[1].cbMax, sizeof(uint64_t));
+
+    for (uint32_t i = 0; i < RT_ELEMENTS(pThis->aDieAllocators); i++)
+    {
+        int rc = RTMemCacheCreate(&pThis->aDieAllocators[i].hMemCache, pThis->aDieAllocators[i].cbMax, sizeof(uint64_t),
+                                  UINT32_MAX, NULL /*pfnCtor*/, NULL /*pfnDtor*/, NULL /*pvUser*/, 0 /*fFlags*/);
+        if (RT_FAILURE(rc))
+        {
+            while (i-- > 0)
+                RTMemCacheDestroy(pThis->aDieAllocators[i].hMemCache);
+            RTMemFree(pThis);
+            return rc;
+        }
+    }
+#endif
+
+    /*
+     * If the debug file name is set, let's see if it's an ELF image with DWARF
+     * inside it. In that case we'll have to deal with two image modules, one
+     * for segments and address translation and one for the debug information.
+     */
+    if (pMod->pszDbgFile != NULL)
+        rtDbgModDwarfTryOpenDbgFile(pMod, pThis, enmArch);
+
+    /*
+     * Enumerate the debug info in the module, looking for DWARF bits.
+     */
+    int rc = pThis->pDbgInfoMod->pImgVt->pfnEnumDbgInfo(pThis->pDbgInfoMod, rtDbgModDwarfEnumCallback, pThis);
     if (RT_SUCCESS(rc))
     {
         if (pThis->aSections[krtDbgModDwarfSect_info].fPresent)
@@ -3514,25 +4762,35 @@ static DECLCALLBACK(int) rtDbgModDwarf_TryOpen(PRTDBGMODINT pMod)
             {
                 pMod->pvDbgPriv = pThis;
 
-                rc = rtDbgModHlpAddSegmentsFromImage(pMod);
+                rc = rtDbgModDwarfAddSegmentsFromImage(pThis);
                 if (RT_SUCCESS(rc))
                     rc = rtDwarfInfo_LoadAll(pThis);
                 if (RT_SUCCESS(rc))
                     rc = rtDwarfLine_ExplodeAll(pThis);
+                if (RT_SUCCESS(rc) && pThis->iWatcomPass == 1)
+                {
+                    rc = rtDbgModDwarfAddSegmentsFromPass1(pThis);
+                    pThis->iWatcomPass = 2;
+                    if (RT_SUCCESS(rc))
+                        rc = rtDwarfInfo_LoadAll(pThis);
+                    if (RT_SUCCESS(rc))
+                        rc = rtDwarfLine_ExplodeAll(pThis);
+                }
                 if (RT_SUCCESS(rc))
                 {
                     /*
                      * Free the cached abbreviations and unload all sections.
                      */
-                    pThis->cCachedAbbrevs = pThis->cCachedAbbrevsAlloced = 0;
+                    pThis->cCachedAbbrevsAlloced = 0;
                     RTMemFree(pThis->paCachedAbbrevs);
+                    pThis->paCachedAbbrevs = NULL;
 
                     for (unsigned iSect = 0; iSect < RT_ELEMENTS(pThis->aSections); iSect++)
                         if (pThis->aSections[iSect].pv)
-                            pThis->pMod->pImgVt->pfnUnmapPart(pThis->pMod, pThis->aSections[iSect].cb,
-                                                              &pThis->aSections[iSect].pv);
+                            pThis->pDbgInfoMod->pImgVt->pfnUnmapPart(pThis->pDbgInfoMod, pThis->aSections[iSect].cb,
+                                                                     &pThis->aSections[iSect].pv);
 
-
+                    /** @todo Kill pThis->CompileUnitList and the alloc caches. */
                     return VINF_SUCCESS;
                 }
 
@@ -3544,7 +4802,18 @@ static DECLCALLBACK(int) rtDbgModDwarf_TryOpen(PRTDBGMODINT pMod)
         else
             rc = VERR_DBG_NO_MATCHING_INTERPRETER;
     }
+
     RTMemFree(pThis->paCachedAbbrevs);
+
+#ifdef RTDBGMODDWARF_WITH_MEM_CACHE
+    uint32_t i = RT_ELEMENTS(pThis->aDieAllocators);
+    while (i-- > 0)
+    {
+        RTMemCacheDestroy(pThis->aDieAllocators[i].hMemCache);
+        pThis->aDieAllocators[i].hMemCache = NIL_RTMEMCACHE;
+    }
+#endif
+
     RTMemFree(pThis);
 
     return rc;

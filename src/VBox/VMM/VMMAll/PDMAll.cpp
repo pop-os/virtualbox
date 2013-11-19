@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,13 +51,13 @@ VMMDECL(int) PDMGetInterrupt(PVMCPU pVCpu, uint8_t *pu8Interrupt)
     /*
      * The local APIC has a higher priority than the PIC.
      */
-    if (VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC))
+    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC))
     {
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_APIC);
         Assert(pVM->pdm.s.Apic.CTX_SUFF(pDevIns));
         Assert(pVM->pdm.s.Apic.CTX_SUFF(pfnGetInterrupt));
         uint32_t uTagSrc;
-        int i = pVM->pdm.s.Apic.CTX_SUFF(pfnGetInterrupt)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), &uTagSrc);
+        int i = pVM->pdm.s.Apic.CTX_SUFF(pfnGetInterrupt)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu->idCpu, &uTagSrc);
         AssertMsg(i <= 255 && i >= 0, ("i=%d\n", i));
         if (i >= 0)
         {
@@ -71,7 +71,7 @@ VMMDECL(int) PDMGetInterrupt(PVMCPU pVCpu, uint8_t *pu8Interrupt)
     /*
      * Check the PIC.
      */
-    if (VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC))
+    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC))
     {
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_PIC);
         Assert(pVM->pdm.s.Pic.CTX_SUFF(pDevIns));
@@ -204,7 +204,7 @@ VMM_INT_DECL(int) PDMIoApicSendMsi(PVM pVM, RTGCPHYS GCAddr, uint32_t uValue, ui
  * @returns VBox true if IO-APIC is present
  * @param   pVM             Pointer to the VM.
  */
-VMMDECL(bool) PDMHasIoApic(PVM pVM)
+VMM_INT_DECL(bool) PDMHasIoApic(PVM pVM)
 {
     return pVM->pdm.s.IoApic.CTX_SUFF(pDevIns) != NULL;
 }
@@ -214,16 +214,23 @@ VMMDECL(bool) PDMHasIoApic(PVM pVM)
  * Set the APIC base.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             Pointer to the VMCPU.
  * @param   u64Base         The new base.
  */
-VMMDECL(int) PDMApicSetBase(PVM pVM, uint64_t u64Base)
+VMMDECL(int) PDMApicSetBase(PVMCPU pVCpu, uint64_t u64Base)
 {
+    PVM pVM = pVCpu->CTX_SUFF(pVM);
     if (pVM->pdm.s.Apic.CTX_SUFF(pDevIns))
     {
         Assert(pVM->pdm.s.Apic.CTX_SUFF(pfnSetBase));
         pdmLock(pVM);
-        pVM->pdm.s.Apic.CTX_SUFF(pfnSetBase)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), u64Base);
+        pVM->pdm.s.Apic.CTX_SUFF(pfnSetBase)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu->idCpu, u64Base);
+
+        /* Update CPUM's copy of the APIC base. */
+        PCPUMCTX pCtx = CPUMQueryGuestCtxPtr(pVCpu);
+        Assert(pCtx);
+        pCtx->msrApicBase = pVM->pdm.s.Apic.CTX_SUFF(pfnGetBase)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu->idCpu);
+
         pdmUnlock(pVM);
         return VINF_SUCCESS;
     }
@@ -232,19 +239,23 @@ VMMDECL(int) PDMApicSetBase(PVM pVM, uint64_t u64Base)
 
 
 /**
- * Get the APIC base.
+ * Get the APIC base from the APIC device. This is slow and involves
+ * taking the PDM lock, this is currently only used by CPUM to cache the APIC
+ * base once (during init./load state), all other callers should use
+ * PDMApicGetBase() and not this function.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             Pointer to the VMCPU.
  * @param   pu64Base        Where to store the APIC base.
  */
-VMMDECL(int) PDMApicGetBase(PVM pVM, uint64_t *pu64Base)
+VMMDECL(int) PDMApicGetBase(PVMCPU pVCpu, uint64_t *pu64Base)
 {
+    PVM pVM = pVCpu->CTX_SUFF(pVM);
     if (pVM->pdm.s.Apic.CTX_SUFF(pDevIns))
     {
         Assert(pVM->pdm.s.Apic.CTX_SUFF(pfnGetBase));
         pdmLock(pVM);
-        *pu64Base = pVM->pdm.s.Apic.CTX_SUFF(pfnGetBase)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns));
+        *pu64Base = pVM->pdm.s.Apic.CTX_SUFF(pfnGetBase)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu->idCpu);
         pdmUnlock(pVM);
         return VINF_SUCCESS;
     }
@@ -257,16 +268,18 @@ VMMDECL(int) PDMApicGetBase(PVM pVM, uint64_t *pu64Base)
  * Check if the APIC has a pending interrupt/if a TPR change would active one.
  *
  * @returns VINF_SUCCESS or VERR_PDM_NO_APIC_INSTANCE.
- * @param   pDevIns         Device instance of the APIC.
+ * @param   pVCpu           Pointer to the VMCPU.
  * @param   pfPending       Pending state (out).
  */
-VMMDECL(int) PDMApicHasPendingIrq(PVM pVM, bool *pfPending)
+VMM_INT_DECL(int) PDMApicHasPendingIrq(PVMCPU pVCpu, bool *pfPending)
 {
+    PVM pVM = pVCpu->CTX_SUFF(pVM);
     if (pVM->pdm.s.Apic.CTX_SUFF(pDevIns))
     {
         Assert(pVM->pdm.s.Apic.CTX_SUFF(pfnSetTPR));
         pdmLock(pVM);
-        *pfPending = pVM->pdm.s.Apic.CTX_SUFF(pfnHasPendingIrq)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns));
+        *pfPending = pVM->pdm.s.Apic.CTX_SUFF(pfnHasPendingIrq)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu->idCpu,
+                                                                NULL /* pu8PendingIrq */);
         pdmUnlock(pVM);
         return VINF_SUCCESS;
     }
@@ -299,23 +312,30 @@ VMMDECL(int) PDMApicSetTPR(PVMCPU pVCpu, uint8_t u8TPR)
 /**
  * Get the TPR (task priority register).
  *
- * @returns The current TPR.
+ * @returns VINF_SUCCESS or VERR_PDM_NO_APIC_INSTANCE.
  * @param   pVCpu           Pointer to the VMCPU.
  * @param   pu8TPR          Where to store the TRP.
- * @param   pfPending       Pending interrupt state (out).
-*/
-VMMDECL(int) PDMApicGetTPR(PVMCPU pVCpu, uint8_t *pu8TPR, bool *pfPending)
+ * @param   pfPending       Pending interrupt state (out, optional).
+ * @param   pu8PendingIrq   Where to store the highest-priority pending IRQ
+ *                          (out, optional).
+ *
+ * @remarks No-long-jump zone!!!
+ */
+VMMDECL(int) PDMApicGetTPR(PVMCPU pVCpu, uint8_t *pu8TPR, bool *pfPending, uint8_t *pu8PendingIrq)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
-    if (pVM->pdm.s.Apic.CTX_SUFF(pDevIns))
+    PVM     pVM      = pVCpu->CTX_SUFF(pVM);
+    PPDMDEVINS pApicIns = pVM->pdm.s.Apic.CTX_SUFF(pDevIns);
+    if (pApicIns)
     {
-        Assert(pVM->pdm.s.Apic.CTX_SUFF(pfnGetTPR));
-        /* We don't acquire the PDM lock here as we're just reading information. Doing so causes massive
-         * contention as this function is called very often by each and every VCPU.
+        /*
+         * Note! We don't acquire the PDM lock here as we're just reading
+         *       information. Doing so causes massive contention as this
+         *       function is called very often by each and every VCPU.
          */
-        *pu8TPR = pVM->pdm.s.Apic.CTX_SUFF(pfnGetTPR)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu->idCpu);
+        Assert(pVM->pdm.s.Apic.CTX_SUFF(pfnGetTPR));
+        *pu8TPR = pVM->pdm.s.Apic.CTX_SUFF(pfnGetTPR)(pApicIns, pVCpu->idCpu);
         if (pfPending)
-            *pfPending = pVM->pdm.s.Apic.CTX_SUFF(pfnHasPendingIrq)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns));
+            *pfPending = pVM->pdm.s.Apic.CTX_SUFF(pfnHasPendingIrq)(pApicIns, pVCpu->idCpu, pu8PendingIrq);
         return VINF_SUCCESS;
     }
     *pu8TPR = 0;
@@ -332,7 +352,7 @@ VMMDECL(int) PDMApicGetTPR(PVMCPU pVCpu, uint8_t *pu8TPR, bool *pfPending)
  * @param   u32Reg          MSR to write.
  * @param   u64Value        Value to write.
  */
-VMMDECL(int) PDMApicWriteMSR(PVM pVM, VMCPUID iCpu, uint32_t u32Reg, uint64_t u64Value)
+VMM_INT_DECL(int) PDMApicWriteMSR(PVM pVM, VMCPUID iCpu, uint32_t u32Reg, uint64_t u64Value)
 {
     if (pVM->pdm.s.Apic.CTX_SUFF(pDevIns))
     {
@@ -352,7 +372,7 @@ VMMDECL(int) PDMApicWriteMSR(PVM pVM, VMCPUID iCpu, uint32_t u32Reg, uint64_t u6
  * @param   u32Reg          MSR to read.
  * @param   pu64Value       Value read.
  */
-VMMDECL(int) PDMApicReadMSR(PVM pVM, VMCPUID iCpu, uint32_t u32Reg, uint64_t *pu64Value)
+VMM_INT_DECL(int) PDMApicReadMSR(PVM pVM, VMCPUID iCpu, uint32_t u32Reg, uint64_t *pu64Value)
 {
     if (pVM->pdm.s.Apic.CTX_SUFF(pDevIns))
     {
@@ -416,12 +436,12 @@ void pdmUnlock(PVM pVM)
  * @param   pv              Ring-3 pointer.
  * @param   pGCPhys         GC phys address (out).
  */
-VMMDECL(int) PDMVMMDevHeapR3ToGCPhys(PVM pVM, RTR3PTR pv, RTGCPHYS *pGCPhys)
+VMM_INT_DECL(int) PDMVmmDevHeapR3ToGCPhys(PVM pVM, RTR3PTR pv, RTGCPHYS *pGCPhys)
 {
     /* Don't assert here as this is called before we can catch ring-0 assertions. */
     if (RT_UNLIKELY((RTR3UINTPTR)pv - (RTR3UINTPTR)pVM->pdm.s.pvVMMDevHeap >= pVM->pdm.s.cbVMMDevHeap))
     {
-        Log(("PDMVMMDevHeapR3ToGCPhys: pv=%p pvVMMDevHeap=%p cbVMMDevHeap=%#x\n",
+        Log(("PDMVmmDevHeapR3ToGCPhys: pv=%p pvVMMDevHeap=%p cbVMMDevHeap=%#x\n",
              pv, pVM->pdm.s.pvVMMDevHeap, pVM->pdm.s.cbVMMDevHeap));
         return VERR_PDM_DEV_HEAP_R3_TO_GCPHYS;
     }
@@ -436,7 +456,7 @@ VMMDECL(int) PDMVMMDevHeapR3ToGCPhys(PVM pVM, RTR3PTR pv, RTGCPHYS *pGCPhys)
  * @returns dev heap enabled status (true/false)
  * @param   pVM             Pointer to the VM.
  */
-VMMDECL(bool)   PDMVMMDevHeapIsEnabled(PVM pVM)
+VMM_INT_DECL(bool) PDMVmmDevHeapIsEnabled(PVM pVM)
 {
     return (pVM->pdm.s.pvVMMDevHeap != NULL);
 }

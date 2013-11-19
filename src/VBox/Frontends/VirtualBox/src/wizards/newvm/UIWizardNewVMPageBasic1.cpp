@@ -54,14 +54,14 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp("(Wi.*NT)|(NT4)", Qt::CaseInsensitive), "WindowsNT4" },
     { QRegExp("((Wi.*XP)|(\\bXP\\b)).*64", Qt::CaseInsensitive), "WindowsXP_64" },
     { QRegExp("(Wi.*XP)|(\\bXP\\b)", Qt::CaseInsensitive), "WindowsXP" },
-    { QRegExp("((Wi.*2003)|(W2K3)).*64", Qt::CaseInsensitive), "Windows2003_64" },
-    { QRegExp("(Wi.*2003)|(W2K3)", Qt::CaseInsensitive), "Windows2003" },
+    { QRegExp("((Wi.*2003)|(W2K3)|(Win2K3)).*64", Qt::CaseInsensitive), "Windows2003_64" },
+    { QRegExp("(Wi.*2003)|(W2K3)|(Win2K3)", Qt::CaseInsensitive), "Windows2003" },
     { QRegExp("((Wi.*V)|(Vista)).*64", Qt::CaseInsensitive), "WindowsVista_64" },
     { QRegExp("(Wi.*V)|(Vista)", Qt::CaseInsensitive), "WindowsVista" },
-    { QRegExp("(Wi.*2012)|(W2K12)", Qt::CaseInsensitive), "Windows2012_64" },
-    { QRegExp("((Wi.*2008)|(W2K8)).*64", Qt::CaseInsensitive), "Windows2008_64" },
-    { QRegExp("(Wi.*2008)|(W2K8)", Qt::CaseInsensitive), "Windows2008" },
-    { QRegExp("(Wi.*2000)|(W2K)", Qt::CaseInsensitive), "Windows2000" },
+    { QRegExp("(Wi.*2012)|(W2K12)|(Win2K12)", Qt::CaseInsensitive), "Windows2012_64" },
+    { QRegExp("((Wi.*2008)|(W2K8)|(Win2k8)).*64", Qt::CaseInsensitive), "Windows2008_64" },
+    { QRegExp("(Wi.*2008)|(W2K8)|(Win2K8)", Qt::CaseInsensitive), "Windows2008" },
+    { QRegExp("(Wi.*2000)|(W2K)|(Win2K)", Qt::CaseInsensitive), "Windows2000" },
     { QRegExp("(Wi.*7.*64)|(W7.*64)", Qt::CaseInsensitive), "Windows7_64" },
     { QRegExp("(Wi.*7)|(W7)", Qt::CaseInsensitive), "Windows7" },
     { QRegExp("(Wi.*8.*1.*64)|(W8.*64)", Qt::CaseInsensitive), "Windows81_64" },
@@ -84,6 +84,22 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp("OS[/|!-]{,1}2.*W", Qt::CaseInsensitive), "OS2Warp3" },
     { QRegExp("(OS[/|!-]{,1}2.*e)|(eCS.*)", Qt::CaseInsensitive), "OS2eCS" },
     { QRegExp("OS[/|!-]{,1}2", Qt::CaseInsensitive), "OS2" },
+
+    /* Other: must come before Ubuntu/Maverick and before Linux ??? */
+    { QRegExp("QN", Qt::CaseInsensitive), "QNX" },
+
+    /* Mac OS X: must come before Ubuntu/Maverick and before Linux */
+    { QRegExp("((mac.*10[.,]{0,1}4)|(os.*x.*10[.,]{0,1}4)|(mac.*ti)|(os.*x.*ti)|(Tig)).64",     Qt::CaseInsensitive), "MacOS_64" },
+    { QRegExp( "(mac.*10[.,]{0,1}4)|(os.*x.*10[.,]{0,1}4)|(mac.*ti)|(os.*x.*ti)|(Tig)",         Qt::CaseInsensitive), "MacOS" },
+    { QRegExp("((mac.*10[.,]{0,1}5)|(os.*x.*10[.,]{0,1}5)|(mac.*leo)|(os.*x.*leo)|(Leop)).*64", Qt::CaseInsensitive), "MacOS_64" },
+    { QRegExp( "(mac.*10[.,]{0,1}5)|(os.*x.*10[.,]{0,1}5)|(mac.*leo)|(os.*x.*leo)|(Leop)",      Qt::CaseInsensitive), "MacOS" },
+    { QRegExp("((mac.*10[.,]{0,1}6)|(os.*x.*10[.,]{0,1}6)|(mac.*SL)|(os.*x.*SL)|(Snow L)).*64", Qt::CaseInsensitive), "MacOS106_64" },
+    { QRegExp( "(mac.*10[.,]{0,1}6)|(os.*x.*10[.,]{0,1}6)|(mac.*SL)|(os.*x.*SL)|(Snow L)",      Qt::CaseInsensitive), "MacOS106" },
+    { QRegExp( "(mac.*10[.,]{0,1}7)|(os.*x.*10[.,]{0,1}7)|(mac.*ML)|(os.*x.*ML)|(Mount)",       Qt::CaseInsensitive), "MacOS108_64" },
+    { QRegExp( "(mac.*10[.,]{0,1}8)|(os.*x.*10[.,]{0,1}8)|(Lion)",                              Qt::CaseInsensitive), "MacOS107_64" },
+    { QRegExp( "(mac.*10[.,]{0,1}9)|(os.*x.*10[.,]{0,1}9)|(mac.*mav)|(os.*x.*mav)|(Mavericks)", Qt::CaseInsensitive), "MacOS109_64" },
+    { QRegExp("((Mac)|(Tig)|(Leop)|(os[ ]*x)).*64", Qt::CaseInsensitive), "MacOS_64" },
+    { QRegExp("(Mac)|(Tig)|(Leop)|(os[ ]*x)", Qt::CaseInsensitive), "MacOS" },
 
     /* Code names for Linux distributions: */
     { QRegExp("((edgy)|(feisty)|(gutsy)|(hardy)|(intrepid)|(jaunty)|(karmic)|(lucid)|(maverick)|(natty)|(oneiric)|(precise)|(quantal)|(raring)).*64", Qt::CaseInsensitive), "Ubuntu_64" },
@@ -118,13 +134,13 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp("(Or)|(oel)", Qt::CaseInsensitive), "Oracle" },
     { QRegExp("Knoppix", Qt::CaseInsensitive), "Linux26" },
     { QRegExp("Dsl", Qt::CaseInsensitive), "Linux24" },
-    { QRegExp("((Li)|(lnx)).*2.?2", Qt::CaseInsensitive), "Linux22" },
-    { QRegExp("((Li)|(lnx)).*2.?4.*64", Qt::CaseInsensitive), "Linux24_64" },
-    { QRegExp("((Li)|(lnx)).*2.?4", Qt::CaseInsensitive), "Linux24" },
-    { QRegExp("((((Li)|(lnx)).*2.?6)|(LFS)).*64", Qt::CaseInsensitive), "Linux26_64" },
-    { QRegExp("(((Li)|(lnx)).*2.?6)|(LFS)", Qt::CaseInsensitive), "Linux26" },
-    { QRegExp("((Li)|(lnx)).*64", Qt::CaseInsensitive), "Linux26_64" },
-    { QRegExp("(Li)|(lnx)", Qt::CaseInsensitive), "Linux26" },
+    { QRegExp("((Lin)|(lnx)).*2.?2", Qt::CaseInsensitive), "Linux22" },
+    { QRegExp("((Lin)|(lnx)).*2.?4.*64", Qt::CaseInsensitive), "Linux24_64" },
+    { QRegExp("((Lin)|(lnx)).*2.?4", Qt::CaseInsensitive), "Linux24" },
+    { QRegExp("((((Lin)|(lnx)).*2.?6)|(LFS)).*64", Qt::CaseInsensitive), "Linux26_64" },
+    { QRegExp("(((Lin)|(lnx)).*2.?6)|(LFS)", Qt::CaseInsensitive), "Linux26" },
+    { QRegExp("((Lin)|(lnx)).*64", Qt::CaseInsensitive), "Linux26_64" },
+    { QRegExp("(Lin)|(lnx)", Qt::CaseInsensitive), "Linux26" },
 
     /* Other: */
     { QRegExp("L4", Qt::CaseInsensitive), "L4" },
@@ -134,9 +150,6 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp("Op.*B", Qt::CaseInsensitive), "OpenBSD" },
     { QRegExp("Ne.*B.*64", Qt::CaseInsensitive), "NetBSD_64" },
     { QRegExp("Ne.*B", Qt::CaseInsensitive), "NetBSD" },
-    { QRegExp("QN", Qt::CaseInsensitive), "QNX" },
-    { QRegExp("((Mac)|(Tig)|(Leop)|(osx)).*64", Qt::CaseInsensitive), "MacOS_64" },
-    { QRegExp("(Mac)|(Tig)|(Leop)|(osx)", Qt::CaseInsensitive), "MacOS" },
     { QRegExp("Net", Qt::CaseInsensitive), "Netware" },
     { QRegExp("Rocki", Qt::CaseInsensitive), "JRockitVE" },
     { QRegExp("Ot", Qt::CaseInsensitive), "Other" },
@@ -177,7 +190,7 @@ bool UIWizardNewVMPage1::createMachineFolder()
     /* Cleanup previosly created folder if any: */
     if (machineFolderCreated() && !cleanupMachineFolder())
     {
-        msgCenter().warnAboutCannotRemoveMachineFolder(thisImp(), m_strMachineFolder);
+        msgCenter().cannotRemoveMachineFolder(m_strMachineFolder, thisImp());
         return false;
     }
 
@@ -195,7 +208,7 @@ bool UIWizardNewVMPage1::createMachineFolder()
     /* Make sure that folder doesn't exists: */
     if (QDir(strMachineFolder).exists())
     {
-        msgCenter().warnAboutCannotRewriteMachineFolder(thisImp(), strMachineFolder);
+        msgCenter().cannotRewriteMachineFolder(strMachineFolder, thisImp());
         return false;
     }
 
@@ -203,7 +216,7 @@ bool UIWizardNewVMPage1::createMachineFolder()
     bool fMachineFolderCreated = QDir().mkpath(strMachineFolder);
     if (!fMachineFolderCreated)
     {
-        msgCenter().warnAboutCannotCreateMachineFolder(thisImp(), strMachineFolder);
+        msgCenter().cannotCreateMachineFolder(strMachineFolder, thisImp());
         return false;
     }
 

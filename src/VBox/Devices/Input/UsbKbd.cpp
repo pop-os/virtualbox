@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2013 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,6 +67,10 @@
 /** The size of an array needed to store all USB usage codes */
 #define VBOX_USB_USAGE_ARRAY_SIZE   (VBOX_USB_MAX_USAGE_CODE + 1)
 #define USBHID_USAGE_ROLL_OVER      1
+/** The usage code of the first modifier key. */
+#define USBHID_MODIFIER_FIRST       0xE0
+/** The usage code of the last modifier key. */
+#define USBHID_MODIFIER_LAST        0xE7
 /** @} */
 
 /*******************************************************************************
@@ -381,7 +385,7 @@ static uint8_t aScancode2Hid[] =
     0xe2, 0x2c, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, /* 38-3F */
     0x3f, 0x40, 0x41, 0x42, 0x43, 0x53, 0x47, 0x5f, /* 40-47 */
     0x60, 0x61, 0x56, 0x5c, 0x5d, 0x5e, 0x57, 0x59, /* 48-4F */
-    0x5a, 0x5b, 0x62, 0x63, 0x00, 0x00, 0x64, 0x44, /* 50-57 */
+    0x5a, 0x5b, 0x62, 0x63, 0x46, 0x00, 0x64, 0x44, /* 50-57 */
     0x45, 0x67, 0x00, 0x00, 0x8c, 0x00, 0x00, 0x00, /* 58-5F */
                /* Sun keys: Props Undo  Front Copy */
     0x00, 0x00, 0x00, 0x00, 0x76, 0x7a, 0x77, 0x7c, /* 60-67 */
@@ -687,7 +691,7 @@ static void usbHidComputePressed(PUSBHIDK_REPORT pReport, char* pszBuf, unsigned
  */
 static bool usbHidUsageCodeIsModifier(uint8_t u8Usage)
 {
-    return u8Usage >= 0xe0 && u8Usage <= 0xe7;
+    return u8Usage >= USBHID_MODIFIER_FIRST && u8Usage <= USBHID_MODIFIER_LAST;
 }
 
 /**
@@ -742,6 +746,12 @@ static int usbHidFillReport(PUSBHIDK_REPORT pReport,
                 if (iKey == 0x90 || iKey == 0x91)
                     rc = true;
             }
+            /* Avoid "hanging" keys: If a key is unreported but no longer
+             * depressed, we'll need to report the key-up state, too.
+             */
+            if (pabUnreportedKeys[iKey] && !pabDepressedKeys[iKey])
+                rc = true;
+
             pabUnreportedKeys[iKey] = 0;
         }
     }
@@ -850,6 +860,34 @@ static testUsbHidFillReport gsTestUsbHidFillReport;
 #endif
 
 /**
+ * Handles a SET_REPORT request sent to the default control pipe. Note
+ * that unrecognized requests are ignored without reporting an error.
+ */
+static void usbHidSetReport(PUSBHID pThis, PVUSBURB pUrb)
+{
+    PVUSBSETUP pSetup = (PVUSBSETUP)&pUrb->abData[0];
+    Assert(pSetup->bRequest == HID_REQ_SET_REPORT);
+
+    /* The LED report is the 3rd report, ID 0 (-> wValue 0x200). */
+    if (pSetup->wIndex == 0 && pSetup->wLength == 1 && pSetup->wValue == 0x200)
+    {
+        PDMKEYBLEDS enmLeds = PDMKEYBLEDS_NONE;
+        uint8_t     u8LEDs = pUrb->abData[sizeof(*pSetup)];
+        LogFlowFunc(("Setting keybooard LEDs to u8LEDs=%02X\n", u8LEDs));
+
+        /* Translate LED state to PDM format and send upstream. */
+        if (u8LEDs & 0x01)
+            enmLeds = (PDMKEYBLEDS)(enmLeds | PDMKEYBLEDS_NUMLOCK);
+        if (u8LEDs & 0x02)
+            enmLeds = (PDMKEYBLEDS)(enmLeds | PDMKEYBLEDS_CAPSLOCK);
+        if (u8LEDs & 0x04)
+            enmLeds = (PDMKEYBLEDS)(enmLeds | PDMKEYBLEDS_SCROLLLOCK);
+
+        pThis->Lun0.pDrv->pfnLedStatusChange(pThis->Lun0.pDrv, enmLeds);
+    }
+}
+
+/**
  * Sends a state report to the host if there is a pending URB.
  */
 static int usbHidSendReport(PUSBHID pThis)
@@ -920,7 +958,25 @@ static DECLCALLBACK(int) usbHidKeyboardPutEvent(PPDMIKEYBOARDPORT pInterface, ui
             /* Due to host key repeat, we can get key events for keys which are
              * already depressed. */
             if (!pThis->abDepressedKeys[u8HidCode])
+            {
                 pThis->abUnreportedKeys[u8HidCode] = 1;
+
+                /* If a non-modifier key is being marked as unreported, also set
+                 * all currently depressed modifer keys as unreported. This avoids
+                 * problems where a simulated key sequence is sent too fast and
+                 * by the time the key is reported, some previously reported
+                 * modifiers are already released. This helps ensure that the guest
+                 * sees the entire modifier(s)+key sequence in a single report.
+                 */
+                if (!usbHidUsageCodeIsModifier(u8HidCode))
+                {
+                    int     iModKey;
+
+                    for (iModKey = USBHID_MODIFIER_FIRST; iModKey <= USBHID_MODIFIER_LAST; ++iModKey)
+                        if (pThis->abDepressedKeys[iModKey])
+                            pThis->abUnreportedKeys[iModKey] = 1;
+                }
+            }
             else
                 fHaveEvent = false;
             pThis->abDepressedKeys[u8HidCode] = 1;
@@ -1040,7 +1096,7 @@ static int usbHidHandleIntrDevToHost(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb
 
         case USBHIDREQSTATE_READY:
             usbHidQueueAddTail(&pThis->ToHostQueue, pUrb);
-            /* If device was not set idle, sent the current report right away. */
+            /* If device was not set idle, send the current report right away. */
             if (pThis->bIdle != 0 || pThis->fHasPendingChanges)
                 usbHidSendReport(pThis);
             LogFlow(("usbHidHandleIntrDevToHost: Sent report via %p:%s\n", pUrb, pUrb->pszDesc));
@@ -1226,6 +1282,20 @@ static int usbHidHandleDefaultPipe(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
                         Log(("usbHid: GET_IDLE wValue=%#x wIndex=%#x, returning %#x\n", pSetup->wValue, pSetup->wIndex, pThis->bIdle));
                         pUrb->abData[sizeof(*pSetup)] = pThis->bIdle;
                         return usbHidCompleteOk(pThis, pUrb, 1);
+                    }
+                    break;
+                }
+                break;
+            }
+            case HID_REQ_SET_REPORT:
+            {
+                switch (pSetup->bmRequestType)
+                {
+                    case VUSB_TO_INTERFACE | VUSB_REQ_CLASS | VUSB_DIR_TO_DEVICE:
+                    {
+                        Log(("usbHid: SET_REPORT wValue=%#x wIndex=%#x wLength=%#x\n", pSetup->wValue, pSetup->wIndex, pSetup->wLength));
+                        usbHidSetReport(pThis, pUrb);
+                        return usbHidCompleteOk(pThis, pUrb, 0);
                     }
                     break;
                 }

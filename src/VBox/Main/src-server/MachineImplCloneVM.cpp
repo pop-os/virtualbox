@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -174,11 +174,11 @@ void MachineCloneVMPrivate::updateProgressStats(MEDIUMTASKCHAIN &mtc, bool fAtta
          * it. Adding the biggest size in the chain should balance this a
          * little bit more, i.e. the weight is the sum of the data which
          * needs to be read and written. */
-        uint64_t uMaxSize = 0;
+        ULONG uMaxWeight = 0;
         for (size_t e = mtc.chain.size(); e > 0; --e)
         {
             MEDIUMTASK &mt = mtc.chain.at(e - 1);
-            mt.uWeight += uMaxSize;
+            mt.uWeight += uMaxWeight;
 
             /* Calculate progress data */
             ++uCount;
@@ -186,7 +186,7 @@ void MachineCloneVMPrivate::updateProgressStats(MEDIUMTASKCHAIN &mtc, bool fAtta
 
             /* Save the max size for better weighting of diff image
              * creation. */
-            uMaxSize = RT_MAX(uMaxSize, mt.uWeight);
+            uMaxWeight = RT_MAX(uMaxWeight, mt.uWeight);
         }
     }
 }
@@ -207,7 +207,7 @@ HRESULT MachineCloneVMPrivate::addSaveState(const ComObjPtr<Machine> &machine, U
             return p->setError(VBOX_E_IPRT_ERROR, p->tr("Could not query file size of '%s' (%Rrc)"), sst.strSaveStateFile.c_str(), vrc);
         /* same rule as above: count both the data which needs to
          * be read and written */
-        sst.uWeight = 2 * (cbSize + _1M - 1) / _1M;
+        sst.uWeight = (ULONG)(2 * (cbSize + _1M - 1) / _1M);
         llSaveStateFiles.append(sst);
         ++uCount;
         uTotalWeight += sst.uWeight;
@@ -289,7 +289,7 @@ HRESULT MachineCloneVMPrivate::queryMediasForMachineState(const RTCList<ComObjPt
             if (fAttachLinked)
                 mt.uWeight = 0; /* dummy */
             else
-                mt.uWeight = (lSize + _1M - 1) / _1M;
+                mt.uWeight = (ULONG)((lSize + _1M - 1) / _1M);
             mtc.chain.append(mt);
 
             /* Update the progress info. */
@@ -389,7 +389,7 @@ HRESULT MachineCloneVMPrivate::queryMediasForMachineAndChildStates(const RTCList
                 MEDIUMTASK mt;
                 mt.uIdx    = UINT32_MAX;
                 mt.pMedium = pSrcMedium;
-                mt.uWeight = (lSize + _1M - 1) / _1M;
+                mt.uWeight = (ULONG)((lSize + _1M - 1) / _1M);
                 mtc.chain.append(mt);
 
                 /* Query next parent. */
@@ -523,7 +523,7 @@ HRESULT MachineCloneVMPrivate::queryMediasForAllStates(const RTCList<ComObjPtr<M
                 MEDIUMTASK mt;
                 mt.uIdx    = UINT32_MAX;
                 mt.pMedium = pSrcMedium;
-                mt.uWeight = (lSize + _1M - 1) / _1M;
+                mt.uWeight = (ULONG)((lSize + _1M - 1) / _1M);
                 mtc.chain.append(mt);
 
                 /* Query next parent. */
@@ -950,7 +950,8 @@ HRESULT MachineCloneVM::run()
         /* If we got a valid snapshot id, replace the hardware/storage section
          * with the stuff from the snapshot. */
         settings::Snapshot sn;
-        if (!d->snapshotId.isEmpty())
+
+        if (d->snapshotId.isValid() && !d->snapshotId.isZero())
             if (!d->findSnapshot(trgMCF.llFirstSnapshot, d->snapshotId, sn))
                 throw p->setError(E_FAIL,
                                   p->tr("Could not find data to snapshots '%s'"), d->snapshotId.toString().c_str());
@@ -959,7 +960,7 @@ HRESULT MachineCloneVM::run()
 
         if (d->mode == CloneMode_MachineState)
         {
-            if (!sn.uuid.isEmpty())
+            if (sn.uuid.isValid() && !sn.uuid.isZero())
             {
                 trgMCF.hardwareMachine = sn.hardware;
                 trgMCF.storageMachine  = sn.storage;
@@ -970,7 +971,8 @@ HRESULT MachineCloneVM::run()
             trgMCF.uuidCurrentSnapshot.clear();
         }
         else if (   d->mode == CloneMode_MachineAndChildStates
-                 && !sn.uuid.isEmpty())
+                    && sn.uuid.isValid()
+                    && !sn.uuid.isZero())
         {
             if (!d->pOldMachineState.isNull())
             {
@@ -1087,14 +1089,24 @@ HRESULT MachineCloneVM::run()
                         ComPtr<IMediumFormat> pSrcFormat;
                         rc = pMedium->COMGETTER(MediumFormat)(pSrcFormat.asOutParam());
                         ULONG uSrcCaps = 0;
-                        rc = pSrcFormat->COMGETTER(Capabilities)(&uSrcCaps);
+                        com::SafeArray <MediumFormatCapabilities_T> mediumFormatCap;
+                        rc = pSrcFormat->COMGETTER(Capabilities)(ComSafeArrayAsOutParam(mediumFormatCap));
+
                         if (FAILED(rc)) throw rc;
+                        else
+                        {
+                            for (ULONG j = 0; j < mediumFormatCap.size(); j++)
+                                uSrcCaps |= mediumFormatCap[j];
+                        }
 
                         /* Default format? */
                         Utf8Str strDefaultFormat;
                         p->mParent->getDefaultHardDiskFormat(strDefaultFormat);
                         Bstr bstrSrcFormat(strDefaultFormat);
+
                         ULONG srcVar = MediumVariant_Standard;
+                        com::SafeArray <MediumVariant_T> mediumVariant;
+
                         /* Is the source file based? */
                         if ((uSrcCaps & MediumFormatCapabilities_File) == MediumFormatCapabilities_File)
                         {
@@ -1102,8 +1114,14 @@ HRESULT MachineCloneVM::run()
                              * will be used. */
                             rc = pMedium->COMGETTER(Format)(bstrSrcFormat.asOutParam());
                             if (FAILED(rc)) throw rc;
-                            rc = pMedium->COMGETTER(Variant)(&srcVar);
+
+                            rc = pMedium->COMGETTER(Variant)(ComSafeArrayAsOutParam(mediumVariant));
                             if (FAILED(rc)) throw rc;
+                            else
+                            {
+                                for (size_t j = 0; j < mediumVariant.size(); j++)
+                                    srcVar |= mediumVariant[j];
+                            }
                         }
 
                         Guid newId;
@@ -1128,7 +1146,9 @@ HRESULT MachineCloneVM::run()
                                      && strSrcTest.endsWith("}"))
                             {
                                 strSrcTest = strSrcTest.substr(1, strSrcTest.length() - 2);
-                                if (isValidGuid(strSrcTest))
+
+                                Guid temp_guid(strSrcTest);
+                                if (temp_guid.isValid() && !temp_guid.isZero())
                                     strNewName = Utf8StrFmt("%s%s", newId.toStringCurly().c_str(), RTPathExt(strNewName.c_str()));
                             }
                             else
@@ -1322,7 +1342,7 @@ HRESULT MachineCloneVM::run()
             }
             /* Update the path in the configuration either for the current
              * machine state or the snapshots. */
-            if (sst.snapshotUuid.isEmpty())
+            if (!sst.snapshotUuid.isValid() || sst.snapshotUuid.isZero())
                 trgMCF.strStateFile = strTrgSaveState;
             else
                 d->updateStateFile(trgMCF.llFirstSnapshot, sst.snapshotUuid, strTrgSaveState);

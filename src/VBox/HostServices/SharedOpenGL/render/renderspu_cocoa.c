@@ -82,7 +82,7 @@ GLboolean renderspu_SystemVBoxCreateWindow(VisualInfo *pVisInfo, GLboolean fShow
     NativeNSViewRef pParentWin = (NativeNSViewRef)(uint32_t)render_spu_parent_window_id;
 #endif /* __LP64__ */
 
-    cocoaViewCreate(&pWinInfo->window, pParentWin, pVisInfo->visAttribs);
+    cocoaViewCreate(&pWinInfo->window, pWinInfo, pParentWin, pVisInfo->visAttribs);
 
     if (fShowIt)
         renderspu_SystemShowWindow(pWinInfo, fShowIt);
@@ -151,15 +151,22 @@ void renderspu_SystemShowWindow(WindowInfo *pWinInfo, GLboolean fShowIt)
     cocoaViewShow(pWinInfo->window, fShowIt);
 }
 
+void renderspu_SystemVBoxPresentComposition( WindowInfo *window, struct VBOXVR_SCR_COMPOSITOR_ENTRY *pChangedEntry )
+{
+    cocoaViewPresentComposition(window->window, pChangedEntry);
+}
+
 void renderspu_SystemMakeCurrent(WindowInfo *pWinInfo, GLint nativeWindow, ContextInfo *pCtxInfo)
 {
-    CRASSERT(pWinInfo);
-    CRASSERT(pCtxInfo);
-
 /*    if(pWinInfo->visual != pCtxInfo->visual)*/
 /*        printf ("visual mismatch .....................\n");*/
 
-    cocoaViewMakeCurrentContext(pWinInfo->window, pCtxInfo->context);
+    nativeWindow = 0;
+
+    if (pWinInfo && pCtxInfo)
+        cocoaViewMakeCurrentContext(pWinInfo->window, pCtxInfo->context);
+    else
+        cocoaViewMakeCurrentContext(NULL, NULL);
 }
 
 void renderspu_SystemSwapBuffers(WindowInfo *pWinInfo, GLint flags)
@@ -169,53 +176,116 @@ void renderspu_SystemSwapBuffers(WindowInfo *pWinInfo, GLint flags)
     cocoaViewDisplay(pWinInfo->window);
 }
 
-void renderspu_SystemWindowVisibleRegion(WindowInfo *pWinInfo, GLint cRects, GLint* paRects)
+void renderspu_SystemWindowVisibleRegion(WindowInfo *pWinInfo, GLint cRects, const GLint* paRects)
 {
     CRASSERT(pWinInfo);
 
     cocoaViewSetVisibleRegion(pWinInfo->window, cRects, paRects);
 }
 
-void renderspu_SystemSetRootVisibleRegion(GLint cRects, GLint *paRects)
-{
-}
-
 void renderspu_SystemWindowApplyVisibleRegion(WindowInfo *pWinInfo)
 {
 }
 
-void renderspu_SystemFlush()
+int renderspu_SystemInit()
 {
-    cocoaFlush();
+    return VINF_SUCCESS;
 }
 
-void renderspu_SystemFinish()
+int renderspu_SystemTerm()
 {
-    cocoaFinish();
+    CrGlslTerm(&render_spu.GlobalShaders);
+    return VINF_SUCCESS;
 }
 
-void renderspu_SystemBindFramebufferEXT(GLenum target, GLuint framebuffer)
+typedef struct CR_RENDER_CTX_INFO
 {
-    cocoaBindFramebufferEXT(target, framebuffer);
+    ContextInfo * pContext;
+    WindowInfo * pWindow;
+} CR_RENDER_CTX_INFO;
+
+void renderspuCtxInfoInitCurrent(CR_RENDER_CTX_INFO *pInfo)
+{
+    GET_CONTEXT(pCurCtx);
+    pInfo->pContext = pCurCtx;
+    pInfo->pWindow = pCurCtx->currentWindow;
 }
 
-void renderspu_SystemCopyPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum type)
+void renderspuCtxInfoRestoreCurrent(CR_RENDER_CTX_INFO *pInfo)
 {
-    cocoaCopyPixels(x, y, width, height, type);
+    GET_CONTEXT(pCurCtx);
+    if (pCurCtx == pInfo->pContext && (!pCurCtx || pCurCtx->currentWindow == pInfo->pWindow))
+        return;
+    renderspuPerformMakeCurrent(pInfo->pWindow, 0, pInfo->pContext);
 }
 
-void renderspu_SystemGetIntegerv(GLenum pname, GLint * params)
+GLboolean renderspuCtxSetCurrentWithAnyWindow(ContextInfo * pContext, CR_RENDER_CTX_INFO *pInfo)
 {
-    cocoaGetIntegerv(pname, params);
+    WindowInfo * window;
+    renderspuCtxInfoInitCurrent(pInfo);
+
+    if (pInfo->pContext == pContext)
+        return GL_TRUE;
+
+    window = pContext->currentWindow;
+    if (!window)
+    {
+        window = renderspuGetDummyWindow(pContext->BltInfo.Base.visualBits);
+        if (!window)
+        {
+            crWarning("renderspuGetDummyWindow failed");
+            return GL_FALSE;
+        }
+    }
+
+    Assert(window);
+
+    renderspuPerformMakeCurrent(window, 0, pContext);
+    return GL_TRUE;
 }
 
-void renderspu_SystemReadBuffer(GLenum mode)
+void renderspu_SystemDefaultSharedContextChanged(ContextInfo *fromContext, ContextInfo *toContext)
 {
-    cocoaReadBuffer(mode);
-}
+    CRASSERT(fromContext != toContext);
 
-void renderspu_SystemDrawBuffer(GLenum mode)
-{
-    cocoaDrawBuffer(mode);
-}
+    if (!CrGlslIsInited(&render_spu.GlobalShaders))
+    {
+        CrGlslInit(&render_spu.GlobalShaders, render_spu.blitterDispatch);
+    }
 
+    if (fromContext)
+    {
+        if (CrGlslNeedsCleanup(&render_spu.GlobalShaders))
+        {
+            CR_RENDER_CTX_INFO Info;
+            if (renderspuCtxSetCurrentWithAnyWindow(fromContext, &Info))
+            {
+                CrGlslCleanup(&render_spu.GlobalShaders);
+                renderspuCtxInfoRestoreCurrent(&Info);
+            }
+            else
+                crWarning("renderspuCtxSetCurrentWithAnyWindow failed!");
+        }
+    }
+    else
+    {
+        CRASSERT(!CrGlslNeedsCleanup(&render_spu.GlobalShaders));
+    }
+
+    CRASSERT(!CrGlslNeedsCleanup(&render_spu.GlobalShaders));
+
+    if (toContext)
+    {
+        CR_RENDER_CTX_INFO Info;
+        if (renderspuCtxSetCurrentWithAnyWindow(toContext, &Info))
+        {
+            int rc = CrGlslProgGenAllNoAlpha(&render_spu.GlobalShaders);
+            if (!RT_SUCCESS(rc))
+                crWarning("CrGlslProgGenAllNoAlpha failed, rc %d", rc);
+
+            renderspuCtxInfoRestoreCurrent(&Info);
+        }
+        else
+            crWarning("renderspuCtxSetCurrentWithAnyWindow failed!");
+    }
+}

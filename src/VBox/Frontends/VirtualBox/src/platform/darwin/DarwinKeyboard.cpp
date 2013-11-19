@@ -2,11 +2,11 @@
 /** @file
  * Common GUI Library - Darwin Keyboard routines.
  *
- * @todo Move this up somewhere so that the two SDL GUIs can use parts of this code too (-HID crap).
+ * @todo Move this up somewhere so that the two SDL GUIs can use parts of this code too (-HID stuff).
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,13 +21,24 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_GUI
+
+#define VBOX_WITH_KBD_LEDS_SYNC
+//#define VBOX_WITH_KBD_SCROLL_LED_SYNC
+//#define VBOX_WITHOUT_KBD_LEDS_SYNC_FILTERING
+
 #include "DarwinKeyboard.h"
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/time.h>
+#include <iprt/mem.h>
 #include <VBox/log.h>
 #ifdef DEBUG_PRINTF
 # include <iprt/stream.h>
+#endif
+
+#ifdef VBOX_WITH_KBD_LEDS_SYNC
+# include <iprt/err.h>
+# include <iprt/semaphore.h>
 #endif
 
 #ifdef USE_HID_FOR_MODIFIERS
@@ -35,11 +46,11 @@
 # include <mach/mach_error.h>
 # include <IOKit/IOKitLib.h>
 # include <IOKit/IOCFPlugIn.h>
-# include <IOKit/hid/IOHIDLib.h>
 # include <IOKit/hid/IOHIDUsageTables.h>
-# include <IOKit/usb/USB.h>
 # include <CoreFoundation/CoreFoundation.h>
 #endif
+# include <IOKit/usb/USB.h>
+#include <IOKit/hid/IOHIDLib.h>
 #include <ApplicationServices/ApplicationServices.h>
 #include <Carbon/Carbon.h>
 
@@ -286,6 +297,47 @@ static uint32_t     g_fOldHIDModifierMask;
 
 #endif /* USE_HID_FOR_MODIFIERS */
 
+#ifdef VBOX_WITH_KBD_LEDS_SYNC
+
+#define VBOX_BOOL_TO_STR_STATE(x) (x) ? "ON" : "OFF"
+/* HID LEDs synchronization data: LED states. */
+typedef struct VBoxLedState_t {
+    bool fNumLockOn;                        /** A state of NUM LOCK */
+    bool fCapsLockOn;                       /** A state of CAPS LOCK */
+    bool fScrollLockOn;                     /** A state of SCROLL LOCK */
+} VBoxLedState_t;
+
+/* HID LEDs synchronization data: keyboard states. */
+typedef struct VBoxKbdState_t {
+    IOHIDDeviceRef    pDevice;              /** A reference to IOKit HID device */
+    VBoxLedState_t    LED;                  /** LED states */
+    void             *pParentContainer;     /** A pointer to a VBoxHidsState_t instance where VBoxKbdState_t instance is stored */
+    CFIndex           idxPosition;          /** Position in global storage (used to simplify CFArray navigation when removing detached device) */
+    uint64_t          cCapsLockTimeout;     /** KBD CAPS LOCK key hold timeout (some Apple keyboards only) */
+} VBoxKbdState_t;
+
+/* A struct that used to pass input event info from IOKit callback to a Carbon one */
+typedef struct VBoxKbdEvent_t {
+    VBoxKbdState_t *pKbd;
+    uint32_t        iKeyCode;
+    uint64_t        tsKeyDown;
+    uint64_t        tsKeyUp;
+} VBoxKbdEvent_t;
+
+/* HID LEDs synchronization data: IOKit specific data. */
+typedef struct VBoxHidsState_t {
+    IOHIDManagerRef     hidManagerRef;      /** IOKit HID manager reference */
+    CFMutableArrayRef   pDeviceCollection;  /** This array consists of VBoxKbdState_t elements */
+    VBoxLedState_t      guestState;         /** LED states that were stored during last broadcast and reflect a guest LED states */
+
+    CFMutableArrayRef   pFifoEventQueue;    /** This queue will be appended in IOKit input callback. Carbon input callback will extract data from it */
+    RTSEMMUTEX          fifoEventQueueLock; /** Lock for pFifoEventQueue */
+
+    /* Carbon events data */
+    CFMachPortRef       pTapRef;
+    CFRunLoopSourceRef  pLoopSourceRef;
+} VBoxHidsState_t;
+#endif /* !VBOX_WITH_KBD_LEDS_SYNC */
 
 /*******************************************************************************
 *   Internal Functions                                                         *
@@ -1131,3 +1183,882 @@ void     DarwinReleaseKeyboard(void)
 #endif /* USE_HID_FOR_MODIFIERS */
 }
 
+#ifdef VBOX_WITH_KBD_LEDS_SYNC
+/** Prepare dictionary that will be used to match HID LED device(s) while discovering. */
+static CFDictionaryRef darwinQueryLedDeviceMatchingDictionary()
+{
+    CFDictionaryRef deviceMatchingDictRef;
+
+    /* Use two (key, value) pairs:
+     *      - (kIOHIDDeviceUsagePageKey, kHIDPage_GenericDesktop),
+     *      - (kIOHIDDeviceUsageKey,     kHIDUsage_GD_Keyboard). */
+
+    CFNumberRef usagePageKeyCFNumberRef; int usagePageKeyCFNumberValue = kHIDPage_GenericDesktop;
+    CFNumberRef usageKeyCFNumberRef;     int usageKeyCFNumberValue     = kHIDUsage_GD_Keyboard;
+
+    usagePageKeyCFNumberRef = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &usagePageKeyCFNumberValue);
+    if (usagePageKeyCFNumberRef)
+    {
+        usageKeyCFNumberRef = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &usageKeyCFNumberValue);
+        if (usageKeyCFNumberRef)
+        {
+            CFStringRef dictionaryKeys[2] = { CFSTR(kIOHIDDeviceUsagePageKey), CFSTR(kIOHIDDeviceUsageKey) };
+            CFNumberRef dictionaryVals[2] = { usagePageKeyCFNumberRef,         usageKeyCFNumberRef         };
+
+            deviceMatchingDictRef = CFDictionaryCreate(kCFAllocatorDefault,
+                                                       (const void **)dictionaryKeys,
+                                                       (const void **)dictionaryVals,
+                                                       2, /** two (key, value) pairs */
+                                                       &kCFTypeDictionaryKeyCallBacks,
+                                                       &kCFTypeDictionaryValueCallBacks);
+
+            if (deviceMatchingDictRef)
+            {
+                CFRelease(usageKeyCFNumberRef);
+                CFRelease(usagePageKeyCFNumberRef);
+
+                return deviceMatchingDictRef;
+            }
+
+            CFRelease(usageKeyCFNumberRef);
+        }
+
+        CFRelease(usagePageKeyCFNumberRef);
+    }
+
+    return NULL;
+}
+
+/** Prepare dictionary that will be used to match HID LED device element(s) while discovering. */
+static CFDictionaryRef darwinQueryLedElementMatchingDictionary()
+{
+    CFDictionaryRef elementMatchingDictRef;
+
+    /* Use only one (key, value) pair to match LED device element:
+     *      - (kIOHIDElementUsagePageKey, kHIDPage_LEDs).  */
+
+    CFNumberRef usagePageKeyCFNumberRef; int usagePageKeyCFNumberValue = kHIDPage_LEDs;
+
+    usagePageKeyCFNumberRef = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &usagePageKeyCFNumberValue);
+    if (usagePageKeyCFNumberRef)
+    {
+        CFStringRef dictionaryKeys[1] = { CFSTR(kIOHIDElementUsagePageKey), };
+        CFNumberRef dictionaryVals[1] = { usagePageKeyCFNumberRef,          };
+
+        elementMatchingDictRef = CFDictionaryCreate(kCFAllocatorDefault,
+                                                    (const void **)dictionaryKeys,
+                                                    (const void **)dictionaryVals,
+                                                    1, /** one (key, value) pair */
+                                                    &kCFTypeDictionaryKeyCallBacks,
+                                                    &kCFTypeDictionaryValueCallBacks);
+
+        if (elementMatchingDictRef)
+        {
+            CFRelease(usagePageKeyCFNumberRef);
+            return elementMatchingDictRef;
+        }
+
+        CFRelease(usagePageKeyCFNumberRef);
+    }
+
+    return NULL;
+}
+
+/** Turn ON or OFF a particular LED. */
+static int darwinLedElementSetValue(IOHIDDeviceRef hidDevice, IOHIDElementRef element, bool fEnabled)
+{
+    IOHIDValueRef valueRef;
+    IOReturn      rc = kIOReturnError;
+
+    valueRef = IOHIDValueCreateWithIntegerValue(kCFAllocatorDefault, element, 0, (fEnabled) ? 1 : 0);
+    if (valueRef)
+    {
+        rc = IOHIDDeviceSetValue(hidDevice, element, valueRef);
+        if (rc != kIOReturnSuccess)
+            LogRel2(("Warning! Something went wrong in attempt to turn %s HID device led (error %d)!\n", ((fEnabled) ? "on" : "off"), rc));
+        else
+            LogRel2(("Led (%d) is turned %s\n", (int)IOHIDElementGetUsage(element), ((fEnabled) ? "on" : "off")));
+
+        CFRelease(valueRef);
+    }
+
+    return rc;
+}
+
+/** Get state of a particular led. */
+static int darwinLedElementGetValue(IOHIDDeviceRef hidDevice, IOHIDElementRef element, bool *fEnabled)
+{
+    IOHIDValueRef valueRef;
+    IOReturn      rc;
+    CFIndex       integerValue;
+
+    rc = IOHIDDeviceGetValue(hidDevice, element, &valueRef);
+    if (rc == kIOReturnSuccess)
+    {
+        integerValue = IOHIDValueGetIntegerValue(valueRef);
+        switch (integerValue)
+        {
+            case 0:
+                *fEnabled = false;
+                break;
+            case 1:
+                *fEnabled = true;
+                break;
+            default:
+                rc = kIOReturnError;
+        }
+
+        CFRelease(valueRef);
+    }
+
+    return rc;
+}
+
+/** Set corresponding states from NumLock, CapsLock and ScrollLock leds. */
+static int darwinSetDeviceLedsState(IOHIDDeviceRef hidDevice, CFDictionaryRef elementMatchingDict,
+                                    bool fNumLockOn, bool fCapsLockOn, bool fScrollLockOn)
+{
+    CFArrayRef matchingElementsArrayRef;
+    int        rc2 = 0;
+
+    matchingElementsArrayRef = IOHIDDeviceCopyMatchingElements(hidDevice, elementMatchingDict, kIOHIDOptionsTypeNone);
+    if (matchingElementsArrayRef)
+    {
+        CFIndex cElements = CFArrayGetCount(matchingElementsArrayRef);
+
+        /* Cycle though all the elements we found */
+        for (CFIndex i = 0; i < cElements; i++)
+        {
+            IOHIDElementRef element = (IOHIDElementRef)CFArrayGetValueAtIndex(matchingElementsArrayRef, i);
+            uint32_t        usage   = IOHIDElementGetUsage(element);
+            int             rc = 0;
+
+            switch (usage)
+            {
+                case kHIDUsage_LED_NumLock:
+                    rc = darwinLedElementSetValue(hidDevice, element, fNumLockOn);
+                    break;
+
+                case kHIDUsage_LED_CapsLock:
+                    rc = darwinLedElementSetValue(hidDevice, element, fCapsLockOn);
+                    break;
+#ifdef VBOX_WITH_KBD_SCROLL_LED_SYNC
+                case kHIDUsage_LED_ScrollLock:
+                    rc = darwinLedElementSetValue(hidDevice, element, fScrollLockOn);
+                    break;
+#endif
+            }
+            if (rc != 0)
+            {
+                LogRel2(("Failed to set led (%d) state\n", (int)IOHIDElementGetUsage(element)));
+                rc2 = kIOReturnError;
+            }
+        }
+
+        CFRelease(matchingElementsArrayRef);
+    }
+
+    return rc2;
+}
+
+/** Get corresponding states for NumLock, CapsLock and ScrollLock leds. */
+static int darwinGetDeviceLedsState(IOHIDDeviceRef hidDevice, CFDictionaryRef elementMatchingDict,
+                                    bool *fNumLockOn, bool *fCapsLockOn, bool *fScrollLockOn)
+{
+    CFArrayRef matchingElementsArrayRef;
+    int        rc2 = 0;
+
+    matchingElementsArrayRef = IOHIDDeviceCopyMatchingElements(hidDevice, elementMatchingDict, kIOHIDOptionsTypeNone);
+    if (matchingElementsArrayRef)
+    {
+        CFIndex cElements = CFArrayGetCount(matchingElementsArrayRef);
+
+        /* Cycle though all the elements we found */
+        for (CFIndex i = 0; i < cElements; i++)
+        {
+            IOHIDElementRef element = (IOHIDElementRef)CFArrayGetValueAtIndex(matchingElementsArrayRef, i);
+            uint32_t        usage   = IOHIDElementGetUsage(element);
+            int             rc = 0;
+
+            switch (usage)
+            {
+                case kHIDUsage_LED_NumLock:
+                    rc = darwinLedElementGetValue(hidDevice, element, fNumLockOn);
+                    break;
+
+                case kHIDUsage_LED_CapsLock:
+                    rc = darwinLedElementGetValue(hidDevice, element, fCapsLockOn);
+                    break;
+#ifdef VBOX_WITH_KBD_SCROLL_LED_SYNC
+                case kHIDUsage_LED_ScrollLock:
+                    rc = darwinLedElementGetValue(hidDevice, element, fScrollLockOn);
+                    break;
+#endif
+            }
+            if (rc != 0)
+            {
+                LogRel2(("Failed to get led (%d) state\n", (int)IOHIDElementGetUsage(element)));
+                rc2 = kIOReturnError;
+            }
+        }
+
+        CFRelease(matchingElementsArrayRef);
+    }
+
+    return rc2;
+}
+
+/** Get integer property of HID device */
+static uint32_t darwinQueryIntProperty(IOHIDDeviceRef pHidDeviceRef, CFStringRef pProperty)
+{
+    CFTypeRef pNumberRef;
+    uint32_t  value = 0;
+
+    AssertReturn(pHidDeviceRef, 0);
+    AssertReturn(pProperty, 0);
+
+    pNumberRef = IOHIDDeviceGetProperty(pHidDeviceRef, pProperty);
+    if (pNumberRef)
+    {
+        if (CFGetTypeID(pNumberRef) == CFNumberGetTypeID())
+        {
+            if (CFNumberGetValue((CFNumberRef)pNumberRef, kCFNumberSInt32Type, &value))
+                return value;
+        }
+    }
+
+    return 0;
+}
+
+/** Get HID Vendor ID */
+static uint32_t darwinHidVendorId(IOHIDDeviceRef pHidDeviceRef)
+{
+    return darwinQueryIntProperty(pHidDeviceRef, CFSTR(kIOHIDVendorIDKey));
+}
+
+/** Get HID Product ID */
+static uint32_t darwinHidProductId(IOHIDDeviceRef pHidDeviceRef)
+{
+    return darwinQueryIntProperty(pHidDeviceRef, CFSTR(kIOHIDProductIDKey));
+}
+
+/** Some keyboard devices might freeze after LEDs manipulation. We filter out such devices here.
+ * In the list below, devices that known to have such issues. If you want to add new device,
+ * then add it here. Currently, we only filter devices by Vendor ID.
+ * In future it might make sense to take Product ID into account as well. */
+static bool darwinHidDeviceSupported(IOHIDDeviceRef pHidDeviceRef)
+{
+#ifndef VBOX_WITHOUT_KBD_LEDS_SYNC_FILTERING
+    bool     fSupported = true;
+    uint32_t vendorId = darwinHidVendorId(pHidDeviceRef);
+    uint32_t productId = darwinHidProductId(pHidDeviceRef);
+
+    if (vendorId == 0x05D5)      /* Genius */
+    {
+        if (productId == 0x8001) /* GK-04008/C keyboard */
+            fSupported = false;
+    }
+    else if (vendorId == 0x05AC) /* Apple */
+    {
+        if (productId == 0x0263) /* Apple Internal Keyboard */
+            fSupported = false;
+    }
+
+    LogRel2(("HID device [VendorID=0x%X, ProductId=0x%X] %s in the list of supported devices.\n", vendorId, productId, (fSupported ? "is" : "is not")));
+
+    return fSupported;
+#else /* !VBOX_WITH_KBD_LEDS_SYNC_FILTERING */
+    return true;
+#endif
+}
+
+/** IOKit key press callback. Triggered before Carbon callback. We remember which keyboard produced a keypress here. */
+static void darwinHidInputCallback(void *pData, IOReturn unused, void *unused1, IOHIDValueRef pValueRef)
+{
+    (void)unused;
+    (void)unused1;
+
+    AssertReturnVoid(pValueRef);
+
+    IOHIDElementRef pElementRef = IOHIDValueGetElement(pValueRef);
+    AssertReturnVoid(pElementRef);
+
+    uint32_t usage = IOHIDElementGetUsage(pElementRef);
+
+    if (IOHIDElementGetUsagePage(pElementRef) == kHIDPage_KeyboardOrKeypad)    /* Keyboard or keypad event */
+        if (usage == kHIDUsage_KeyboardCapsLock ||                             /* CapsLock key has been pressed */
+            usage == kHIDUsage_KeypadNumLock)                                  /* ... or NumLock key has been pressed */
+        {
+            VBoxKbdState_t *pKbd = (VBoxKbdState_t *)pData;
+
+            if (pKbd && pKbd->pParentContainer)
+            {
+                bool fKeyDown = (IOHIDValueGetIntegerValue(pValueRef) == 1);
+
+                VBoxHidsState_t *pHidState = (VBoxHidsState_t *)pKbd->pParentContainer;
+                VBoxKbdEvent_t  *pEvent = NULL;;
+                CFIndex          iQueue = 0;
+
+                AssertReturnVoid(pHidState);
+
+                if (RT_FAILURE(RTSemMutexRequest(pHidState->fifoEventQueueLock, RT_INDEFINITE_WAIT)))
+                    return ;
+
+                /* Allocate new event data on Key-Down, find a cached one on Key-Up */
+                if (fKeyDown)
+                    pEvent = (VBoxKbdEvent_t *)malloc(sizeof(VBoxKbdEvent_t));
+                else
+                {
+                    for (CFIndex i = 0; i < CFArrayGetCount(pHidState->pFifoEventQueue); i++)
+                    {
+                        VBoxKbdEvent_t *pCachedEvent = (VBoxKbdEvent_t *)CFArrayGetValueAtIndex(pHidState->pFifoEventQueue, i);
+                        if (pCachedEvent && pCachedEvent->pKbd == pKbd && pCachedEvent->iKeyCode == usage)
+                        {
+                            pEvent = pCachedEvent;
+                            iQueue = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (pEvent)
+                {
+                    if (usage == kHIDUsage_KeyboardCapsLock && pKbd->cCapsLockTimeout)
+                    {
+                        if (fKeyDown)
+                            pEvent->tsKeyDown = RTTimeSystemMilliTS();
+                        else
+                            pEvent->tsKeyUp = RTTimeSystemMilliTS();
+                    }
+
+                    if (fKeyDown)
+                    {
+                        LogRel2(("IOHID: KBD %d: Modifier Key-Down\n", (int)pKbd->idxPosition));
+
+                        pEvent->pKbd = pKbd;
+                        pEvent->iKeyCode = usage;
+                        pEvent->tsKeyUp = 0;
+
+                        /* Append FIFO event queue */
+                        CFArrayAppendValue(pHidState->pFifoEventQueue, (void *)pEvent);
+                    }
+                    else
+                    {
+                        uint64_t tsDiff = pEvent->tsKeyUp - pEvent->tsKeyDown;
+                        if (tsDiff < pKbd->cCapsLockTimeout)
+                        {
+                            free(pEvent);
+                            CFArrayRemoveValueAtIndex(pHidState->pFifoEventQueue, iQueue);
+                            LogRel2(("IOHID: KBD %d: Modifier Key-Up (Key-Down %llu ms ago). Apple keyboard, removed from queue\n", (int)pKbd->idxPosition, tsDiff));
+                        }
+                        else
+                            LogRel2(("IOHID: KBD %d: Modifier Key-Up (Key-Down %llu ms ago)\n", (int)pKbd->idxPosition, tsDiff));
+                    }
+                }
+                else
+                {
+                    if (fKeyDown)
+                        LogRel2(("IOHID: unable to find memory to queue KBD %d event\n", (int)pKbd->idxPosition));
+                    else
+                        LogRel2(("IOHID: unable to find KBD %d event in queue\n", (int)pKbd->idxPosition));
+                }
+
+                RTSemMutexRelease(pHidState->fifoEventQueueLock);
+            }
+            else
+                LogRel2(("IOHID: No KBD: A modifier key has been pressed\n"));
+        }
+}
+
+/** Carbon key press callback. Triggered after IOKit callback. We update keyboard (catched in darwinHidInputCallback()) internal state here. */
+static CGEventRef darwinCarbonGlobalKeyPressCallback(CGEventTapProxy unused, CGEventType unused1, CGEventRef pEventRef, void *pData)
+{
+    (void)unused;
+    (void)unused1;
+
+    CGEventFlags fMask = CGEventGetFlags(pEventRef);
+    bool         fCaps = (bool)(fMask & NX_ALPHASHIFTMASK);
+    bool         fNum  = (bool)(fMask & NX_NUMERICPADMASK);
+    CGKeyCode    key   = CGEventGetIntegerValueField(pEventRef, kCGKeyboardEventKeycode);
+
+    VBoxHidsState_t *pHidState = (VBoxHidsState_t *)pData; AssertReturn(pHidState, pEventRef);
+    AssertReturn(pHidState, pEventRef);
+
+    if (RT_FAILURE(RTSemMutexRequest(pHidState->fifoEventQueueLock, RT_INDEFINITE_WAIT)))
+        return pEventRef;
+
+    if (key == kHIDUsage_KeyboardCapsLock ||
+        key == kHIDUsage_KeypadNumLock)
+    {
+        /* Extract last touched state from FIFO event queue */
+        VBoxKbdEvent_t *pEvent = NULL;
+        CFIndex         iEvent = 0;
+
+        /* Find last occured KBD event in queue (ignoring those events which not match CAPS LOCK timeout criteria). */
+        for (CFIndex i = 0; i < CFArrayGetCount(pHidState->pFifoEventQueue); i++)
+        {
+            pEvent = (VBoxKbdEvent_t *)CFArrayGetValueAtIndex(pHidState->pFifoEventQueue, i);
+            if (!pEvent) continue;
+            if (!pEvent->pKbd) continue;
+
+            if (pEvent->iKeyCode == kHIDUsage_KeypadNumLock
+             || pEvent->iKeyCode == kHIDUsage_KeyboardCapsLock)
+            {
+                /* Found one. Keep its index in queue in order to remove it later. */
+                iEvent = i;
+                LogRel2(("CARBON: Found event in queue: %d (KBD %d, tsKeyDown=%llu, pressed %llu ms ago)\n", (int)i, (int)pEvent->pKbd->idxPosition, pEvent->tsKeyDown, RTTimeSystemMilliTS() - pEvent->tsKeyDown));
+                break;
+            }
+            else
+                LogRel2(("CARBON: skip CAPS LOCK event %d (KBD %d) (tsKeyDown=%llu, pressed %llu ms ago)\n", (int)i, (int)pEvent->pKbd->idxPosition, pEvent->tsKeyDown, RTTimeSystemMilliTS() - pEvent->tsKeyDown));
+
+            pEvent = NULL;
+        }
+
+        if (pEvent)
+        {
+            VBoxKbdState_t *pKbd = pEvent->pKbd;
+
+            LogRel2(("CARBON: KBD %d: caps=%s, num=%s. tsKeyDown=%llu, tsKeyUp=%llu [tsDiff=%llu ms]. %d events in queue.\n",
+                (int)pKbd->idxPosition, VBOX_BOOL_TO_STR_STATE(fCaps), VBOX_BOOL_TO_STR_STATE(fNum),
+                pEvent->tsKeyDown, pEvent->tsKeyUp, pEvent->tsKeyUp - pEvent->tsKeyDown,
+                CFArrayGetCount(pHidState->pFifoEventQueue)));
+
+            pKbd->LED.fCapsLockOn = fCaps;
+            pKbd->LED.fNumLockOn  = fNum;
+
+            /* Silently resync last touched KBD device */
+            if (pHidState)
+            {
+                CFDictionaryRef elementMatchingDict = darwinQueryLedElementMatchingDictionary();
+                if (elementMatchingDict)
+                {
+                    (void)darwinSetDeviceLedsState(pKbd->pDevice, elementMatchingDict, pHidState->guestState.fNumLockOn,
+                        pHidState->guestState.fCapsLockOn, pHidState->guestState.fScrollLockOn);
+
+                    CFRelease(elementMatchingDict);
+                }
+            }
+
+            /* Forget event */
+            CFArrayRemoveValueAtIndex(pHidState->pFifoEventQueue, iEvent);
+            free(pEvent);
+        }
+        else
+            LogRel2(("CARBON: No KBD to take care when modifier key has been pressed: caps=%s, num=%s\n", VBOX_BOOL_TO_STR_STATE(fCaps), VBOX_BOOL_TO_STR_STATE(fNum)));
+    }
+
+    RTSemMutexRelease(pHidState->fifoEventQueueLock);
+
+    return pEventRef;
+}
+
+/** This callback is called when user physically removes HID device. We remove device from cache here. */
+static void darwinHidRemovalCallback(void *pData, IOReturn unused, void *unused1)
+{
+    (void)unused;
+    (void)unused1;
+
+    VBoxKbdState_t  *pKbd      = (VBoxKbdState_t  *)pData;                  AssertReturnVoid(pKbd);
+    VBoxHidsState_t *pHidState = (VBoxHidsState_t *)pKbd->pParentContainer; AssertReturnVoid(pHidState);
+
+    AssertReturnVoid(pHidState->pDeviceCollection);
+
+    LogRel2(("Forget KBD %d\n", (int)pKbd->idxPosition));
+
+    //if (RT_FAILURE(RTSemMutexRequest(pHidState->fifoEventQueueLock, RT_INDEFINITE_WAIT)))
+    //    return ;
+
+    CFArrayRemoveValueAtIndex(pHidState->pDeviceCollection, pKbd->idxPosition);
+    free(pKbd);
+
+    //RTSemMutexRelease(pHidState->fifoEventQueueLock);
+}
+
+/* Check if we already cached given device */
+static bool darwinIsDeviceInCache(VBoxHidsState_t *pState, IOHIDDeviceRef pDevice)
+{
+    AssertReturn(pState, false);
+    AssertReturn(pState->pDeviceCollection, false);
+
+    for (CFIndex i = 0; i < CFArrayGetCount(pState->pDeviceCollection); i++)
+    {
+        VBoxKbdState_t *pKbd = (VBoxKbdState_t *)CFArrayGetValueAtIndex(pState->pDeviceCollection, i);
+        if (pKbd && pKbd->pDevice == pDevice)
+            return true;
+    }
+
+    return false;
+}
+
+/** Add device to cache. */
+static void darwinHidAddDevice(VBoxHidsState_t *pHidState, IOHIDDeviceRef pDevice, bool fApplyLedState)
+{
+    int rc;
+
+    if (!darwinIsDeviceInCache(pHidState, pDevice))
+    {
+        if (IOHIDDeviceConformsTo(pDevice, kHIDPage_GenericDesktop, kHIDUsage_GD_Keyboard)
+         && darwinHidDeviceSupported(pDevice))
+        {
+            VBoxKbdState_t *pKbd = (VBoxKbdState_t *)malloc(sizeof(VBoxKbdState_t));
+            if (pKbd)
+            {
+                pKbd->pDevice = pDevice;
+                pKbd->pParentContainer = (void *)pHidState;
+                pKbd->idxPosition = CFArrayGetCount(pHidState->pDeviceCollection);
+
+                /* Some Apple keyboards have CAPS LOCK key timeout. According to corresponding
+                 * kext plist files, it is equals to 75 ms. For such devices we only add info into our FIFO event
+                 * queue if the time between Key-Down and Key-Up events >= 75 ms. */
+                pKbd->cCapsLockTimeout = (darwinHidVendorId(pKbd->pDevice) == kIOUSBVendorIDAppleComputer) ? 75 : 0;
+
+                CFDictionaryRef elementMatchingDict = darwinQueryLedElementMatchingDictionary();
+                if (elementMatchingDict)
+                {
+                    rc = darwinGetDeviceLedsState(pKbd->pDevice,
+                                                  elementMatchingDict,
+                                                  &pKbd->LED.fNumLockOn,
+                                                  &pKbd->LED.fCapsLockOn,
+                                                  &pKbd->LED.fScrollLockOn);
+
+                    /* This should never happen, but if happened -- mark all the leds of current
+                     * device as turned OFF. */
+                    if (rc != 0)
+                    {
+                        LogRel2(("Unable to get leds state for device %d. Mark leds as turned off\n", (int)(pKbd->idxPosition)));
+                        pKbd->LED.fNumLockOn    =
+                        pKbd->LED.fCapsLockOn   =
+                        pKbd->LED.fScrollLockOn = false;
+                    }
+
+                    /* Register per-device removal callback */
+                    IOHIDDeviceRegisterRemovalCallback(pKbd->pDevice, darwinHidRemovalCallback, (void *)pKbd);
+
+                    /* Register per-device input callback */
+                    IOHIDDeviceRegisterInputValueCallback(pKbd->pDevice, darwinHidInputCallback, (void *)pKbd);
+                    IOHIDDeviceScheduleWithRunLoop(pKbd->pDevice, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+
+                    CFArrayAppendValue(pHidState->pDeviceCollection, (void *)pKbd);
+
+                    LogRel2(("Saved LEDs for KBD %d (%p): fNumLockOn=%s, fCapsLockOn=%s, fScrollLockOn=%s\n",
+                         (int)pKbd->idxPosition, pKbd, VBOX_BOOL_TO_STR_STATE(pKbd->LED.fNumLockOn), VBOX_BOOL_TO_STR_STATE(pKbd->LED.fCapsLockOn),
+                         VBOX_BOOL_TO_STR_STATE(pKbd->LED.fScrollLockOn)));
+                    if (fApplyLedState)
+                    {
+                        rc = darwinSetDeviceLedsState(pKbd->pDevice, elementMatchingDict, pHidState->guestState.fNumLockOn,
+                                                      pHidState->guestState.fCapsLockOn, pHidState->guestState.fScrollLockOn);
+                        if (rc != 0)
+                            LogRel2(("Unable to apply guest state to newly attached device\n"));
+                    }
+
+                    CFRelease(elementMatchingDict);
+                    return;
+                }
+
+                free(pKbd);
+            }
+        }
+    }
+}
+
+/** This callback is called when new HID device discovered by IOHIDManager. We add devices to cache here and only here! */
+static void darwinHidMatchingCallback(void *pData, IOReturn unused, void *unused1, IOHIDDeviceRef pDevice)
+{
+    (void)unused;
+    (void)unused1;
+
+    VBoxHidsState_t *pHidState = (VBoxHidsState_t *)pData;
+
+    AssertReturnVoid(pHidState);
+    AssertReturnVoid(pHidState->pDeviceCollection);
+    AssertReturnVoid(pDevice);
+
+    darwinHidAddDevice(pHidState, pDevice, true);
+}
+
+/** Register Carbon key press callback. */
+static int darwinAddCarbonGlobalKeyPressHandler(VBoxHidsState_t *pHidState)
+{
+    CFMachPortRef pTapRef;
+    CGEventMask   fMask = CGEventMaskBit(kCGEventFlagsChanged);
+
+    AssertReturn(pHidState, kIOReturnError);
+
+    /* Create FIFO event queue for keyboard events */
+    pHidState->pFifoEventQueue = CFArrayCreateMutable(kCFAllocatorDefault, 0, NULL);
+    AssertReturn(pHidState->pFifoEventQueue, kIOReturnError);
+
+    /* Create Lock for FIFO event queue */
+    if (RT_FAILURE(RTSemMutexCreate(&pHidState->fifoEventQueueLock)))
+    {
+        LogRel2(("Unable to create Lock for FIFO event queue\n"));
+        CFRelease(pHidState->pFifoEventQueue);
+        pHidState->pFifoEventQueue = NULL;
+        return kIOReturnError;
+    }
+
+    pTapRef = CGEventTapCreate(kCGSessionEventTap, kCGTailAppendEventTap, 0, fMask, darwinCarbonGlobalKeyPressCallback, (void *)pHidState);
+    if (pTapRef)
+    {
+        CFRunLoopSourceRef pLoopSourceRef;
+        pLoopSourceRef = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, pTapRef, 0);
+        if (pLoopSourceRef)
+        {
+            CFRunLoopAddSource(CFRunLoopGetCurrent(), pLoopSourceRef, kCFRunLoopDefaultMode);
+            CGEventTapEnable(pTapRef, true);
+
+            pHidState->pTapRef = pTapRef;
+            pHidState->pLoopSourceRef = pLoopSourceRef;
+
+            return 0;
+        }
+        else
+            LogRel2(("Unable to create a loop source\n"));
+
+        CFRelease(pTapRef);
+    }
+    else
+        LogRel2(("Unable to create an event tap\n"));
+
+    return kIOReturnError;
+}
+
+/** Remove Carbon key press callback. */
+static void darwinRemoveCarbonGlobalKeyPressHandler(VBoxHidsState_t *pHidState)
+{
+    AssertReturnVoid(pHidState);
+    AssertReturnVoid(pHidState->pTapRef);
+    AssertReturnVoid(pHidState->pLoopSourceRef);
+    AssertReturnVoid(pHidState->pFifoEventQueue);
+
+    CGEventTapEnable(pHidState->pTapRef, false);
+    CFRunLoopRemoveSource(CFRunLoopGetCurrent(), pHidState->pLoopSourceRef, kCFRunLoopDefaultMode);
+    CFRelease(pHidState->pLoopSourceRef);
+    CFRelease(pHidState->pTapRef);
+
+    RTSemMutexRequest(pHidState->fifoEventQueueLock, RT_INDEFINITE_WAIT);
+    CFRelease(pHidState->pFifoEventQueue);
+    pHidState->pFifoEventQueue = NULL;
+    RTSemMutexRelease(pHidState->fifoEventQueueLock);
+
+    RTSemMutexDestroy(pHidState->fifoEventQueueLock);
+}
+#endif /* !VBOX_WITH_KBD_LEDS_SYNC */
+
+/** Save the states of leds for all HID devices attached to the system and return it. */
+void * DarwinHidDevicesKeepLedsState(void)
+{
+#ifdef VBOX_WITH_KBD_LEDS_SYNC
+    IOReturn         rc;
+    VBoxHidsState_t *pHidState;
+
+    pHidState = (VBoxHidsState_t *)malloc(sizeof(VBoxHidsState_t));
+    AssertReturn(pHidState, NULL);
+
+    pHidState->hidManagerRef = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
+    if (pHidState->hidManagerRef)
+    {
+        CFDictionaryRef deviceMatchingDictRef = darwinQueryLedDeviceMatchingDictionary();
+        if (deviceMatchingDictRef)
+        {
+            IOHIDManagerScheduleWithRunLoop(pHidState->hidManagerRef, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+            IOHIDManagerSetDeviceMatching(pHidState->hidManagerRef, deviceMatchingDictRef);
+
+            rc = IOHIDManagerOpen(pHidState->hidManagerRef, kIOHIDOptionsTypeNone);
+            if (rc == kIOReturnSuccess)
+            {
+                pHidState->pDeviceCollection = CFArrayCreateMutable(kCFAllocatorDefault, 0, NULL);
+                if (pHidState->pDeviceCollection)
+                {
+                    if (darwinAddCarbonGlobalKeyPressHandler(pHidState) == 0)
+                    {
+                        /* Populate cache with HID devices */
+                        CFSetRef pDevicesSet = IOHIDManagerCopyDevices(pHidState->hidManagerRef);
+                        if (pDevicesSet)
+                        {
+                            CFIndex cDevices = CFSetGetCount(pDevicesSet);
+
+                            IOHIDDeviceRef *ppDevices = (IOHIDDeviceRef *)malloc((size_t)cDevices * sizeof(IOHIDDeviceRef));
+                            if (ppDevices)
+                            {
+                                CFSetGetValues(pDevicesSet, (const void **)ppDevices);
+                                for (CFIndex i= 0; i < cDevices; i++)
+                                    darwinHidAddDevice(pHidState, (IOHIDDeviceRef)ppDevices[i], false);
+
+                                free(ppDevices);
+                            }
+
+                            CFRelease(pDevicesSet);
+                        }
+
+                        IOHIDManagerRegisterDeviceMatchingCallback(pHidState->hidManagerRef, darwinHidMatchingCallback, (void *)pHidState);
+
+                        CFRelease(deviceMatchingDictRef);
+
+                        /* This states should be set on broadcast */
+                        pHidState->guestState.fNumLockOn =
+                        pHidState->guestState.fCapsLockOn =
+                        pHidState->guestState.fScrollLockOn = false;
+
+                        return pHidState;
+                    }
+                }
+
+                rc = IOHIDManagerClose(pHidState->hidManagerRef, 0);
+                if (rc != kIOReturnSuccess)
+                    LogRel2(("Warning! Something went wrong in attempt to close HID device manager!\n"));
+            }
+
+            CFRelease(deviceMatchingDictRef);
+        }
+
+        CFRelease(pHidState->hidManagerRef);
+    }
+
+    free(pHidState);
+
+    return NULL;
+#else /* !VBOX_WITH_KBD_LEDS_SYNC */
+    return NULL;
+#endif
+}
+
+/**
+ * Apply LEDs state stored in *pState and release resources aquired by *pState.
+ *
+ * @param pState            Pointer to saved LEDs state
+ *
+ * @return 0 on success, error code otherwise.
+ */
+int DarwinHidDevicesApplyAndReleaseLedsState(void *pState)
+{
+#ifdef VBOX_WITH_KBD_LEDS_SYNC
+    VBoxHidsState_t *pHidState = (VBoxHidsState_t *)pState;
+    IOReturn         rc, rc2 = 0;
+
+    AssertReturn(pHidState, kIOReturnError);
+
+    /* Need to unregister Carbon stuff first */
+    darwinRemoveCarbonGlobalKeyPressHandler(pHidState);
+
+    CFDictionaryRef elementMatchingDict = darwinQueryLedElementMatchingDictionary();
+    if (elementMatchingDict)
+    {
+        /* Restore LEDs */
+        for (CFIndex i = 0; i < CFArrayGetCount(pHidState->pDeviceCollection); i++)
+        {
+            /* Cycle through supported devices only. */
+            VBoxKbdState_t *pKbd;
+            pKbd = (VBoxKbdState_t *)CFArrayGetValueAtIndex(pHidState->pDeviceCollection, i);
+
+            if (pKbd)
+            {
+                rc = darwinSetDeviceLedsState(pKbd->pDevice,
+                                              elementMatchingDict,
+                                              pKbd->LED.fNumLockOn,
+                                              pKbd->LED.fCapsLockOn,
+                                              pKbd->LED.fScrollLockOn);
+                if (rc != 0)
+                {
+                    LogRel2(("Unable to restore led states for device (%d)!\n", (int)i));
+                    rc2 = kIOReturnError;
+                }
+
+                IOHIDDeviceUnscheduleFromRunLoop(pKbd->pDevice, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+
+                LogRel2(("Restored LEDs for KBD %d (%p): fNumLockOn=%s, fCapsLockOn=%s, fScrollLockOn=%s\n",
+                     (int)i, pKbd, VBOX_BOOL_TO_STR_STATE(pKbd->LED.fNumLockOn), VBOX_BOOL_TO_STR_STATE(pKbd->LED.fCapsLockOn),
+                     VBOX_BOOL_TO_STR_STATE(pKbd->LED.fScrollLockOn)));
+
+                free(pKbd);
+            }
+        }
+
+        CFRelease(elementMatchingDict);
+    }
+
+    /* Free resources */
+    CFRelease(pHidState->pDeviceCollection);
+
+    rc = IOHIDManagerClose(pHidState->hidManagerRef, 0);
+    if (rc != kIOReturnSuccess)
+    {
+        LogRel2(("Warning! Something went wrong in attempt to close HID device manager!\n"));
+        rc2 = kIOReturnError;
+    }
+
+    IOHIDManagerUnscheduleFromRunLoop(pHidState->hidManagerRef, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+
+    CFRelease(pHidState->hidManagerRef);
+
+    free(pHidState);
+
+    return rc2;
+#else /* !VBOX_WITH_KBD_LEDS_SYNC */
+    (void)pState;
+    return 0;
+#endif
+}
+
+/**
+ * Set states for host keyboard LEDs.
+ *
+ * NOTE: This function will set led values for all
+ * keyboard devices attached to the system.
+ *
+ * @param pState            Pointer to saved LEDs state
+ * @param fNumLockOn        Turn on NumLock led if TRUE, turn off otherwise
+ * @param fCapsLockOn       Turn on CapsLock led if TRUE, turn off otherwise
+ * @param fScrollLockOn     Turn on ScrollLock led if TRUE, turn off otherwise
+ */
+void DarwinHidDevicesBroadcastLeds(void *pState, bool fNumLockOn, bool fCapsLockOn, bool fScrollLockOn)
+{
+/* Temporary disabled */
+#ifdef VBOX_WITH_KBD_LEDS_SYNC
+    VBoxHidsState_t *pHidState = (VBoxHidsState_t *)pState;
+    IOReturn         rc;
+
+    AssertReturnVoid(pHidState);
+    AssertReturnVoid(pHidState->pDeviceCollection);
+
+    CFDictionaryRef elementMatchingDict = darwinQueryLedElementMatchingDictionary();
+    if (elementMatchingDict)
+    {
+        LogRel2(("Start LEDs broadcast: fNumLockOn=%s, fCapsLockOn=%s, fScrollLockOn=%s\n",
+            VBOX_BOOL_TO_STR_STATE(fNumLockOn), VBOX_BOOL_TO_STR_STATE(fCapsLockOn), VBOX_BOOL_TO_STR_STATE(fScrollLockOn)));
+
+        for (CFIndex i = 0; i < CFArrayGetCount(pHidState->pDeviceCollection); i++)
+        {
+            /* Cycle through supported devices only. */
+            VBoxKbdState_t *pKbd;
+            pKbd = (VBoxKbdState_t *)CFArrayGetValueAtIndex(pHidState->pDeviceCollection, i);
+
+            if (pKbd && darwinHidDeviceSupported(pKbd->pDevice))
+            {
+                rc = darwinSetDeviceLedsState(pKbd->pDevice,
+                                              elementMatchingDict,
+                                              fNumLockOn,
+                                              fCapsLockOn,
+                                              fScrollLockOn);
+                if (rc != 0)
+                    LogRel2(("Unable to restore led states for device (%d)!\n", (int)i));
+            }
+        }
+
+        LogRel2(("LEDs broadcast completed\n"));
+
+        CFRelease(elementMatchingDict);
+    }
+
+    /* Dynamically attached device will use these states */
+    pHidState->guestState.fNumLockOn    = fNumLockOn;
+    pHidState->guestState.fCapsLockOn   = fCapsLockOn;
+    pHidState->guestState.fScrollLockOn = fScrollLockOn;
+
+#else /* !VBOX_WITH_KBD_LEDS_SYNC */
+    (void)fNumLockOn;
+    (void)fCapsLockOn;
+    (void)fScrollLockOn;
+#endif
+}

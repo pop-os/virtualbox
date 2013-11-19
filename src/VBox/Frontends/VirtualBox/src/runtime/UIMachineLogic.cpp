@@ -24,6 +24,7 @@
 #include <QImageWriter>
 #include <QPainter>
 #include <QTimer>
+#include <QDateTime>
 #ifdef Q_WS_MAC
 # include <QMenuBar>
 #endif /* Q_WS_MAC */
@@ -46,11 +47,14 @@
 #include "UISession.h"
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
+#include "UIPopupCenter.h"
 #include "VBoxTakeSnapshotDlg.h"
 #include "VBoxVMInformationDlg.h"
 #include "UISettingsDialogSpecific.h"
 #include "UIVMLogViewer.h"
 #include "UIConverter.h"
+#include "UIModalWindowManager.h"
+#include "UIMedium.h"
 #ifdef Q_WS_MAC
 # include "DockIconPreview.h"
 # include "UIExtraDataEventHandler.h"
@@ -67,6 +71,8 @@
 #include "CUSBDevice.h"
 #include "CVRDEServer.h"
 #include "CSystemProperties.h"
+#include "CHostVideoInputDevice.h"
+#include "CEmulatedUSB.h"
 #ifdef Q_WS_MAC
 # include "CGuest.h"
 #endif /* Q_WS_MAC */
@@ -76,6 +82,9 @@
 #ifdef VBOX_WITH_DEBUGGER_GUI
 # include <iprt/ldr.h>
 #endif /* VBOX_WITH_DEBUGGER_GUI */
+#ifdef Q_WS_MAC
+# include "DarwinKeyboard.h"
+#endif
 
 /* External includes: */
 #ifdef Q_WS_X11
@@ -122,6 +131,18 @@ struct USBTarget
     QString id;
 };
 Q_DECLARE_METATYPE(USBTarget);
+
+/** Describes enumerated webcam item. */
+struct WebCamTarget
+{
+    WebCamTarget() : attach(false), name(QString()), path(QString()) {}
+    WebCamTarget(bool fAttach, const QString &strName, const QString &strPath)
+        : attach(fAttach), name(strName), path(strPath) {}
+    bool attach;
+    QString name;
+    QString path;
+};
+Q_DECLARE_METATYPE(WebCamTarget);
 
 /* static */
 UIMachineLogic* UIMachineLogic::create(QObject *pParent,
@@ -192,6 +213,7 @@ void UIMachineLogic::prepare()
     sltMachineStateChanged();
     sltAdditionsStateChanged();
     sltMouseCapabilityChanged();
+    sltSwitchKeyboardLedsToGuestLeds();
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
     /* Prepare debugger: */
@@ -204,6 +226,9 @@ void UIMachineLogic::prepare()
 
 void UIMachineLogic::cleanup()
 {
+    /* Deinitialization: */
+    sltSwitchKeyboardLedsToPreviousLeds();
+
 #ifdef VBOX_WITH_DEBUGGER_GUI
     /* Cleanup debugger: */
     cleanupDebugger();
@@ -234,12 +259,11 @@ CSession& UIMachineLogic::session() const
 
 UIMachineWindow* UIMachineLogic::mainMachineWindow() const
 {
-    /* Return null if windows are not created yet: */
+    /* Null if machine-window(s) not yet created: */
     if (!isMachineWindowsCreated())
         return 0;
-
-    /* Otherwise return first of windows: */
-    return machineWindows()[0];
+    /* First machine-window otherwise: */
+    return machineWindows().first();
 }
 
 UIMachineWindow* UIMachineLogic::activeMachineWindow() const
@@ -258,6 +282,13 @@ UIMachineWindow* UIMachineLogic::activeMachineWindow() const
 
     /* Return main machine window: */
     return mainMachineWindow();
+}
+
+/** Adjusts guest screen size for each the machine-window we have. */
+void UIMachineLogic::maybeAdjustGuestScreenSize()
+{
+    foreach(UIMachineWindow *pMachineWindow, machineWindows())
+        pMachineWindow->machineView()->maybeAdjustGuestScreenSize();
 }
 
 #ifdef Q_WS_MAC
@@ -296,7 +327,7 @@ UIMachineView* UIMachineLogic::dockPreviewView() const
 }
 #endif /* Q_WS_MAC */
 
-void UIMachineLogic::save()
+void UIMachineLogic::saveState()
 {
     /* Prevent auto-closure: */
     setPreventAutoClose(true);
@@ -309,14 +340,14 @@ void UIMachineLogic::save()
         fSuccess = uisession()->pause();
     /* Save-state: */
     if (fSuccess)
-        fSuccess = uisession()->save();
+        fSuccess = uisession()->saveState();
 
     /* Allow auto-closure: */
     setPreventAutoClose(false);
 
     /* Manually close Runtime UI: */
     if (fSuccess)
-        QTimer::singleShot(0, uisession(), SLOT(sltCloseVirtualSession()));
+        uisession()->closeRuntimeUI();
 }
 
 void UIMachineLogic::shutdown()
@@ -324,7 +355,7 @@ void UIMachineLogic::shutdown()
     /* Warn the user about ACPI is not available if so: */
     CConsole console = session().GetConsole();
     if (!console.GetGuestEnteredACPIMode())
-        return msgCenter().cannotSendACPIToMachine();
+        return popupCenter().cannotSendACPIToMachine(activeMachineWindow());
 
     /* Shutdown: */
     uisession()->shutdown();
@@ -346,7 +377,19 @@ void UIMachineLogic::powerOff(bool fDiscardingState)
 
     /* Manually close Runtime UI: */
     if (fSuccess)
-        QTimer::singleShot(0, uisession(), SLOT(sltCloseVirtualSession()));
+        uisession()->closeRuntimeUI();
+}
+
+void UIMachineLogic::notifyAbout3DOverlayVisibilityChange(bool fVisible)
+{
+    /* If active machine-window is defined now: */
+    if (activeMachineWindow())
+    {
+        /* Reinstall corresponding popup-stack according 3D overlay visibility status: */
+        popupCenter().hidePopupStack(activeMachineWindow());
+        popupCenter().setPopupStackType(activeMachineWindow(), fVisible ? UIPopupStackType_Separate : UIPopupStackType_Embedded);
+        popupCenter().showPopupStack(activeMachineWindow());
+    }
 }
 
 void UIMachineLogic::sltMachineStateChanged()
@@ -357,7 +400,7 @@ void UIMachineLogic::sltMachineStateChanged()
     /* Update action groups: */
     m_pRunningActions->setEnabled(uisession()->isRunning());
     m_pRunningOrPausedActions->setEnabled(uisession()->isRunning() || uisession()->isPaused());
-    m_pRunningOrPausedOrStuckActions->setEnabled(uisession()->isRunning() || uisession()->isPaused() || uisession()->isStuck());
+    m_pRunningOrPausedOrStackedActions->setEnabled(uisession()->isRunning() || uisession()->isPaused() || uisession()->isStuck());
 
     switch (state)
     {
@@ -406,12 +449,12 @@ void UIMachineLogic::sltMachineStateChanged()
         case KMachineState_Teleported:
         case KMachineState_Aborted:
         {
-            /* Close VM if it was turned off and closure allowed: */
+            /* Is it allowed to close Runtime UI? */
             if (!isPreventAutoClose())
             {
-                /* VM has been powered off, saved or aborted, no matter
-                 * internally or externally. We must *safely* close VM window(s): */
-                QTimer::singleShot(0, uisession(), SLOT(sltCloseVirtualSession()));
+                /* VM has been powered off, saved, teleported or aborted.
+                 * We must close Runtime UI: */
+                uisession()->closeRuntimeUI();
             }
             break;
         }
@@ -440,7 +483,7 @@ void UIMachineLogic::sltAdditionsStateChanged()
 {
     /* Update action states: */
     gActionPool->action(UIActionIndexRuntime_Toggle_GuestAutoresize)->setEnabled(uisession()->isGuestSupportsGraphics());
-    gActionPool->action(UIActionIndexRuntime_Toggle_Seamless)->setEnabled(uisession()->isGuestSupportsSeamless());
+    gActionPool->action(UIActionIndexRuntime_Toggle_Seamless)->setEnabled(uisession()->isVisualStateAllowedSeamless() && uisession()->isGuestSupportsSeamless());
 }
 
 void UIMachineLogic::sltMouseCapabilityChanged()
@@ -448,7 +491,11 @@ void UIMachineLogic::sltMouseCapabilityChanged()
     /* Variable falgs: */
     bool fIsMouseSupportsAbsolute = uisession()->isMouseSupportsAbsolute();
     bool fIsMouseSupportsRelative = uisession()->isMouseSupportsRelative();
+    bool fIsMouseSupportsMultiTouch = uisession()->isMouseSupportsMultiTouch();
     bool fIsMouseHostCursorNeeded = uisession()->isMouseHostCursorNeeded();
+
+    /* For now MT stuff is not important for MI action: */
+    Q_UNUSED(fIsMouseSupportsMultiTouch);
 
     /* Update action state: */
     QAction *pAction = gActionPool->action(UIActionIndexRuntime_Toggle_MouseIntegration);
@@ -457,15 +504,25 @@ void UIMachineLogic::sltMouseCapabilityChanged()
         pAction->setChecked(false);
 }
 
+void UIMachineLogic::sltKeyboardLedsChanged()
+{
+    /* Here we have to update host LED lock states using values provided by UISession:
+     * [bool] uisession() -> isNumLock(), isCapsLock(), isScrollLock() can be used for that. */
+    LogRelFlow(("UIMachineLogic::sltKeyboardLedsChanged: Updating host LED lock states (NOT IMPLEMENTED).\n"));
+#ifdef Q_WS_MAC
+    DarwinHidDevicesBroadcastLeds(m_pHostLedsState, uisession()->isNumLock(), uisession()->isCapsLock(), uisession()->isScrollLock());
+#endif
+}
+
 void UIMachineLogic::sltUSBDeviceStateChange(const CUSBDevice &device, bool fIsAttached, const CVirtualBoxErrorInfo &error)
 {
     /* Check if USB device have anything to tell us: */
     if (!error.isNull())
     {
         if (fIsAttached)
-            msgCenter().cannotAttachUSBDevice(session().GetConsole(), vboxGlobal().details(device), error);
+            msgCenter().cannotAttachUSBDevice(error, vboxGlobal().details(device), session().GetMachine().GetName());
         else
-            msgCenter().cannotDetachUSBDevice(session().GetConsole(), vboxGlobal().details(device), error);
+            msgCenter().cannotDetachUSBDevice(error, vboxGlobal().details(device), session().GetMachine().GetName());
     }
 }
 
@@ -500,11 +557,20 @@ void UIMachineLogic::sltGuestMonitorChange(KGuestMonitorChangedEventType, ulong,
         pMachineWindow->handleScreenCountChange();
 }
 
-void UIMachineLogic::sltHostScreenCountChanged(int /*cHostScreenCount*/)
+void UIMachineLogic::sltHostScreenCountChanged()
 {
     /* Deliver event to all machine-windows: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
         pMachineWindow->handleScreenCountChange();
+}
+
+void UIMachineLogic::sltHostScreenGeometryChanged()
+{
+    LogRelFlow(("UIMachineLogic: Host-screen geometry changed.\n"));
+
+    /* Deliver event to all machine-windows: */
+    foreach (UIMachineWindow *pMachineWindow, machineWindows())
+        pMachineWindow->handleScreenGeometryChange();
 }
 
 UIMachineLogic::UIMachineLogic(QObject *pParent, UISession *pSession, UIVisualStateType visualStateType)
@@ -515,6 +581,7 @@ UIMachineLogic::UIMachineLogic(QObject *pParent, UISession *pSession, UIVisualSt
     , m_pMouseHandler(0)
     , m_pRunningActions(0)
     , m_pRunningOrPausedActions(0)
+    , m_pRunningOrPausedOrStackedActions(0)
     , m_pSharedClipboardActions(0)
     , m_pDragAndDropActions(0)
     , m_fIsWindowsCreated(false)
@@ -529,8 +596,38 @@ UIMachineLogic::UIMachineLogic(QObject *pParent, UISession *pSession, UIVisualSt
     , m_pDockIconPreview(0)
     , m_pDockPreviewSelectMonitorGroup(0)
     , m_DockIconPreviewMonitor(0)
+    , m_pHostLedsState(NULL)
 #endif /* Q_WS_MAC */
 {
+}
+
+void UIMachineLogic::setMachineWindowsCreated(bool fIsWindowsCreated)
+{
+    /* Make sure something changed: */
+    if (m_fIsWindowsCreated == fIsWindowsCreated)
+        return;
+
+    /* Special handling for 'destroyed' case: */
+    if (!fIsWindowsCreated)
+    {
+        /* We ask popup-center to hide corresponding popup-stack *before* the remembering new value
+         * because we want UIMachineLogic::activeMachineWindow() to be yet alive. */
+        popupCenter().hidePopupStack(activeMachineWindow());
+    }
+
+    /* Remember new value: */
+    m_fIsWindowsCreated = fIsWindowsCreated;
+
+    /* Special handling for 'created' case: */
+    if (fIsWindowsCreated)
+    {
+        /* We ask popup-center to show corresponding popup-stack *after* the remembering new value
+         * because we want UIMachineLogic::activeMachineWindow() to be already alive. */
+        popupCenter().setPopupStackType(activeMachineWindow(),
+                                        visualStateType() == UIVisualStateType_Seamless ?
+                                        UIPopupStackType_Separate : UIPopupStackType_Embedded);
+        popupCenter().showPopupStack(activeMachineWindow());
+    }
 }
 
 void UIMachineLogic::addMachineWindow(UIMachineWindow *pMachineWindow)
@@ -623,6 +720,9 @@ void UIMachineLogic::prepareSessionConnections()
     /* Mouse capability state-change updater: */
     connect(uisession(), SIGNAL(sigMouseCapabilityChange()), this, SLOT(sltMouseCapabilityChanged()));
 
+    /* Keyboard LEDs state-change updater: */
+    connect(uisession(), SIGNAL(sigKeyboardLedsChange()), this, SLOT(sltKeyboardLedsChanged()));
+
     /* USB devices state-change updater: */
     connect(uisession(), SIGNAL(sigUSBDeviceStateChange(const CUSBDevice &, bool, const CVirtualBoxErrorInfo &)),
             this, SLOT(sltUSBDeviceStateChange(const CUSBDevice &, bool, const CVirtualBoxErrorInfo &)));
@@ -640,9 +740,11 @@ void UIMachineLogic::prepareSessionConnections()
     connect(uisession(), SIGNAL(sigGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)),
             this, SLOT(sltGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)));
 
-    /* Host-screen-change updater: */
-    connect(uisession(), SIGNAL(sigHostScreenCountChanged(int)),
-            this, SLOT(sltHostScreenCountChanged(int)));
+    /* Host-screen-change updaters: */
+    connect(uisession(), SIGNAL(sigHostScreenCountChanged()),
+            this, SLOT(sltHostScreenCountChanged()));
+    connect(uisession(), SIGNAL(sigHostScreenGeometryChanged()),
+            this, SLOT(sltHostScreenGeometryChanged()));
 }
 
 void UIMachineLogic::prepareActionGroups()
@@ -666,11 +768,11 @@ void UIMachineLogic::prepareActionGroups()
     m_pRunningOrPausedActions = new QActionGroup(this);
     m_pRunningOrPausedActions->setExclusive(false);
 
-    /* Create group for all actions that are enabled when the VM is running or paused or stuck.
+    /* Create group for all actions that are enabled when the VM is running or paused or stucked.
      * Note that only actions whose enabled state depends exclusively on the
      * execution state of the VM are added to this group. */
-    m_pRunningOrPausedOrStuckActions = new QActionGroup(this);
-    m_pRunningOrPausedOrStuckActions->setExclusive(false);
+    m_pRunningOrPausedOrStackedActions = new QActionGroup(this);
+    m_pRunningOrPausedOrStackedActions->setExclusive(false);
 
     /* Move actions into running actions group: */
     m_pRunningActions->addAction(gActionPool->action(UIActionIndexRuntime_Simple_TypeCAD));
@@ -697,17 +799,21 @@ void UIMachineLogic::prepareActionGroups()
     m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Menu_OpticalDevices));
     m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Menu_FloppyDevices));
     m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Menu_USBDevices));
+    m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Menu_WebCams));
     m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Menu_SharedClipboard));
     m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Menu_DragAndDrop));
-    m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Menu_NetworkAdapters));
-    m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Simple_NetworkAdaptersDialog));
+    m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Menu_Network));
+    m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Simple_NetworkSettings));
     m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Menu_SharedFolders));
-    m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Simple_SharedFoldersDialog));
+    m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Simple_SharedFoldersSettings));
     m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_VRDEServer));
+    m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Menu_VideoCapture));
+    m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_VideoCapture));
+    m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Simple_VideoCaptureSettings));
     m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Simple_InstallGuestTools));
 
-    /* Move actions into running-n-paused-n-stuck actions group: */
-    m_pRunningOrPausedOrStuckActions->addAction(gActionPool->action(UIActionIndexRuntime_Simple_PowerOff));
+    /* Move actions into running-n-paused-n-stucked actions group: */
+    m_pRunningOrPausedOrStackedActions->addAction(gActionPool->action(UIActionIndexRuntime_Simple_PowerOff));
 }
 
 void UIMachineLogic::prepareActionConnections()
@@ -734,7 +840,7 @@ void UIMachineLogic::prepareActionConnections()
     connect(gActionPool->action(UIActionIndexRuntime_Simple_Reset), SIGNAL(triggered()),
             this, SLOT(sltReset()));
     connect(gActionPool->action(UIActionIndexRuntime_Simple_Save), SIGNAL(triggered()),
-            this, SLOT(sltSave()));
+            this, SLOT(sltSaveState()));
     connect(gActionPool->action(UIActionIndexRuntime_Simple_Shutdown), SIGNAL(triggered()),
             this, SLOT(sltShutdown()));
     connect(gActionPool->action(UIActionIndexRuntime_Simple_PowerOff), SIGNAL(triggered()),
@@ -755,16 +861,22 @@ void UIMachineLogic::prepareActionConnections()
             this, SLOT(sltPrepareStorageMenu()));
     connect(gActionPool->action(UIActionIndexRuntime_Menu_USBDevices)->menu(), SIGNAL(aboutToShow()),
             this, SLOT(sltPrepareUSBMenu()));
+    connect(gActionPool->action(UIActionIndexRuntime_Menu_WebCams)->menu(), SIGNAL(aboutToShow()),
+            this, SLOT(sltPrepareWebCamMenu()));
     connect(gActionPool->action(UIActionIndexRuntime_Menu_SharedClipboard)->menu(), SIGNAL(aboutToShow()),
             this, SLOT(sltPrepareSharedClipboardMenu()));
     connect(gActionPool->action(UIActionIndexRuntime_Menu_DragAndDrop)->menu(), SIGNAL(aboutToShow()),
             this, SLOT(sltPrepareDragAndDropMenu()));
-    connect(gActionPool->action(UIActionIndexRuntime_Simple_NetworkAdaptersDialog), SIGNAL(triggered()),
+    connect(gActionPool->action(UIActionIndexRuntime_Simple_NetworkSettings), SIGNAL(triggered()),
             this, SLOT(sltOpenNetworkAdaptersDialog()));
-    connect(gActionPool->action(UIActionIndexRuntime_Simple_SharedFoldersDialog), SIGNAL(triggered()),
+    connect(gActionPool->action(UIActionIndexRuntime_Simple_SharedFoldersSettings), SIGNAL(triggered()),
             this, SLOT(sltOpenSharedFoldersDialog()));
     connect(gActionPool->action(UIActionIndexRuntime_Toggle_VRDEServer), SIGNAL(toggled(bool)),
-            this, SLOT(sltSwitchVrde(bool)));
+            this, SLOT(sltToggleVRDE(bool)));
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_VideoCapture), SIGNAL(toggled(bool)),
+            this, SLOT(sltToggleVideoCapture(bool)));
+    connect(gActionPool->action(UIActionIndexRuntime_Simple_VideoCaptureSettings), SIGNAL(triggered()),
+            this, SLOT(sltOpenVideoCaptureOptions()));
     connect(gActionPool->action(UIActionIndexRuntime_Simple_InstallGuestTools), SIGNAL(triggered()),
             this, SLOT(sltInstallGuestAdditions()));
 
@@ -940,6 +1052,45 @@ void UIMachineLogic::cleanupActionGroups()
 {
 }
 
+bool UIMachineLogic::eventFilter(QObject *pWatched, QEvent *pEvent)
+{
+    /* Handle machine-window events: */
+    if (UIMachineWindow *pMachineWindow = qobject_cast<UIMachineWindow*>(pWatched))
+    {
+        /* Make sure this window still registered: */
+        if (isMachineWindowsCreated() && m_machineWindowsList.contains(pMachineWindow))
+        {
+            switch (pEvent->type())
+            {
+                /* Handle *window activated* event: */
+                case QEvent::WindowActivate:
+                {
+                    /* We should save current lock states as *previous* and
+                     * set current lock states to guest values we have,
+                     * As we have no ipc between threads of different VMs
+                     * we are using 300ms timer as lazy sync timout: */
+                    //QTimer::singleShot(300, this, SLOT(sltSwitchKeyboardLedsToGuestLeds()));
+
+                    /* Trigger callback synchronously for now! */
+                    sltSwitchKeyboardLedsToGuestLeds();
+                    break;
+                }
+                /* Handle *window deactivated* event: */
+                case QEvent::WindowDeactivate:
+                {
+                    /* We should restore lock states to *previous* known: */
+                    sltSwitchKeyboardLedsToPreviousLeds();
+                    break;
+                }
+                /* Default: */
+                default: break;
+            }
+        }
+    }
+    /* Call to base-class: */
+    return QIWithRetranslateUI3<QObject>::eventFilter(pWatched, pEvent);
+}
+
 void UIMachineLogic::sltCheckRequestedModes()
 {
     /* Do not try to enter extended mode if machine was not started yet: */
@@ -992,8 +1143,8 @@ void UIMachineLogic::sltAdjustWindow()
         if (pMachineWindow->isMaximized())
             pMachineWindow->showNormal();
 
-        /* Normalize view's geometry: */
-        pMachineWindow->machineView()->normalizeGeometry(true);
+        /* Normalize window geometry: */
+        pMachineWindow->normalizeGeometry(true);
     }
 }
 
@@ -1052,7 +1203,9 @@ void UIMachineLogic::sltTakeSnapshot()
     CMachine machine = session().GetMachine();
 
     /* Create take-snapshot dialog: */
-    QPointer<VBoxTakeSnapshotDlg> pDlg = new VBoxTakeSnapshotDlg(activeMachineWindow(), machine);
+    QWidget *pDlgParent = windowManager().realParentWindow(activeMachineWindow());
+    QPointer<VBoxTakeSnapshotDlg> pDlg = new VBoxTakeSnapshotDlg(pDlgParent, machine);
+    windowManager().registerNewParent(pDlg, pDlgParent);
 
     /* Assign corresponding icon: */
     QString strTypeId = machine.GetOSTypeId();
@@ -1085,12 +1238,12 @@ void UIMachineLogic::sltTakeSnapshot()
             if (console.isOk())
             {
                 /* Show the take-snapshot progress: */
-                msgCenter().showModalProgressDialog(progress, machine.GetName(), ":/progress_snapshot_create_90px.png", 0, true);
-                if (progress.GetResultCode() != 0)
-                    msgCenter().cannotTakeSnapshot(progress);
+                msgCenter().showModalProgressDialog(progress, machine.GetName(), ":/progress_snapshot_create_90px.png");
+                if (!progress.isOk() || progress.GetResultCode() != 0)
+                    msgCenter().cannotTakeSnapshot(progress, machine.GetName());
             }
             else
-                msgCenter().cannotTakeSnapshot(console);
+                msgCenter().cannotTakeSnapshot(console, machine.GetName());
         }
     }
 
@@ -1186,12 +1339,13 @@ void UIMachineLogic::sltShowInformationDialog()
 void UIMachineLogic::sltReset()
 {
     /* Confirm/Reset current console: */
-    if (msgCenter().confirmVMReset(0))
+    CMachine machine = session().GetMachine();
+    if (msgCenter().confirmResetMachine(machine.GetName()))
         session().GetConsole().Reset();
 
     /* TODO_NEW_CORE: On reset the additional screens didn't get a display
        update. Emulate this for now until it get fixed. */
-    ulong uMonitorCount = session().GetMachine().GetMonitorCount();
+    ulong uMonitorCount = machine.GetMonitorCount();
     for (ulong uScreenId = 1; uScreenId < uMonitorCount; ++uScreenId)
         machineWindows().at(uScreenId)->update();
 }
@@ -1201,7 +1355,7 @@ void UIMachineLogic::sltPause(bool fOn)
     uisession()->setPause(fOn);
 }
 
-void UIMachineLogic::sltSave()
+void UIMachineLogic::sltSaveState()
 {
     /* Make sure machine is in one of the allowed states: */
     if (!uisession()->isRunning() && !uisession()->isPaused())
@@ -1210,7 +1364,7 @@ void UIMachineLogic::sltSave()
         return;
     }
 
-    save();
+    saveState();
 }
 
 void UIMachineLogic::sltShutdown()
@@ -1267,18 +1421,19 @@ void UIMachineLogic::sltClose()
     activeMachineWindow()->close();
 }
 
-void UIMachineLogic::sltOpenVMSettingsDialog(const QString &strCategory /* = QString() */)
+void UIMachineLogic::sltOpenVMSettingsDialog(const QString &strCategory /* = QString() */,
+                                             const QString &strControl /* = QString()*/)
 {
     /* Do not process if window(s) missed! */
     if (!isMachineWindowsCreated())
         return;
 
-    /* Create VM settings dialog on the heap!
+    /* Create VM settings window on the heap!
      * Its necessary to allow QObject hierarchy cleanup to delete this dialog if necessary: */
     QPointer<UISettingsDialogMachine> pDialog = new UISettingsDialogMachine(activeMachineWindow(),
                                                                             session().GetMachine().GetId(),
-                                                                            strCategory, QString());
-    /* Executing VM settings dialog.
+                                                                            strCategory, strControl);
+    /* Executing VM settings window.
      * This blocking function calls for the internal event-loop to process all further events,
      * including event which can delete the dialog itself. */
     pDialog->execute();
@@ -1297,7 +1452,7 @@ void UIMachineLogic::sltOpenSharedFoldersDialog()
 {
     /* Do not process if additions are not loaded! */
     if (!uisession()->isGuestAdditionsActive())
-        msgCenter().remindAboutGuestAdditionsAreNotActive(activeMachineWindow());
+        msgCenter().remindAboutGuestAdditionsAreNotActive();
 
     /* Open VM settings : Shared folders page: */
     sltOpenVMSettingsDialog("#sharedFolders");
@@ -1485,29 +1640,6 @@ void UIMachineLogic::sltPrepareStorageMenu()
             }
         }
     }
-
-    if (pMenu->menuAction()->data().toInt() == 0)
-    {
-        /* Empty menu item */
-        Assert(pMenu->isEmpty());
-        QAction *pEmptyMenuAction = new QAction(pMenu);
-        pEmptyMenuAction->setEnabled(false);
-        switch (mediumType)
-        {
-            case UIMediumType_DVD:
-                pEmptyMenuAction->setText(QApplication::translate("UIMachineLogic", "No CD/DVD Devices Attached"));
-                pEmptyMenuAction->setToolTip(QApplication::translate("UIMachineLogic", "No CD/DVD devices attached to that VM"));
-                break;
-            case UIMediumType_Floppy:
-                pEmptyMenuAction->setText(QApplication::translate("UIMachineLogic", "No Floppy Devices Attached"));
-                pEmptyMenuAction->setToolTip(QApplication::translate("UIMachineLogic", "No floppy devices attached to that VM"));
-                break;
-            default:
-                break;
-        }
-        pEmptyMenuAction->setIcon(UIIconPool::iconSet(":/delete_16px.png", ":/delete_dis_16px.png"));
-        pMenu->addAction(pEmptyMenuAction);
-    }
 }
 
 void UIMachineLogic::sltMountStorageMedium()
@@ -1563,7 +1695,7 @@ void UIMachineLogic::sltMountStorageMedium()
 
     bool fMount = !newId.isEmpty();
 
-    UIMedium vmedium = vboxGlobal().findMedium(newId);
+    UIMedium vmedium = vboxGlobal().medium(newId);
     CMedium medium = vmedium.medium();              // @todo r=dj can this be cached somewhere?
 
     /* Remount medium to the predefined port/device: */
@@ -1574,14 +1706,16 @@ void UIMachineLogic::sltMountStorageMedium()
     else
     {
         /* Ask for force remounting: */
-        if (msgCenter().cannotRemountMedium(0, machine, vboxGlobal().findMedium (fMount ? newId : currentId), fMount, true /* retry? */) == QIMessageBox::Ok)
+        if (msgCenter().cannotRemountMedium(machine, vboxGlobal().medium(fMount ? newId : currentId),
+                                            fMount, true /* retry? */, activeMachineWindow()))
         {
             /* Force remount medium to the predefined port/device: */
             machine.MountMedium(target.name, target.port, target.device, medium, true /* force */);
             if (machine.isOk())
                 fWasMounted = true;
             else
-                msgCenter().cannotRemountMedium(0, machine, vboxGlobal().findMedium (fMount ? newId : currentId), fMount, false /* retry? */);
+                msgCenter().cannotRemountMedium(machine, vboxGlobal().medium(fMount ? newId : currentId),
+                                                fMount, false /* retry? */, activeMachineWindow());
         }
     }
 
@@ -1590,7 +1724,7 @@ void UIMachineLogic::sltMountStorageMedium()
     {
         machine.SaveSettings();
         if (!machine.isOk())
-            msgCenter().cannotSaveMachineSettings(machine);
+            msgCenter().cannotSaveMachineSettings(machine, activeMachineWindow());
     }
 }
 
@@ -1620,7 +1754,7 @@ void UIMachineLogic::sltMountRecentStorageMedium()
         bool fMount = strNewId != strCurrentId;
 
         /* Prepare target medium: */
-        const UIMedium &vboxMedium = fMount ? vboxGlobal().findMedium(strNewId) : UIMedium();
+        const UIMedium &vboxMedium = fMount ? vboxGlobal().medium(strNewId) : UIMedium();
         const CMedium &comMedium = fMount ? vboxMedium.medium() : CMedium();
 
         /* 'Mounted' flag: */
@@ -1633,14 +1767,16 @@ void UIMachineLogic::sltMountRecentStorageMedium()
         else
         {
             /* Ask for force remounting: */
-            if (msgCenter().cannotRemountMedium(0, machine, vboxGlobal().findMedium(fMount ? strNewId : strCurrentId), fMount, true /* retry? */) == QIMessageBox::Ok)
+            if (msgCenter().cannotRemountMedium(machine, vboxGlobal().medium(fMount ? strNewId : strCurrentId),
+                                                fMount, true /* retry? */, activeMachineWindow()))
             {
                 /* Force remount medium to the predefined port/device: */
                 machine.MountMedium(target.name, target.port, target.device, comMedium, true /* force? */);
                 if (machine.isOk())
                     fWasMounted = true;
                 else
-                    msgCenter().cannotRemountMedium(0, machine, vboxGlobal().findMedium(fMount ? strNewId : strCurrentId), fMount, false /* retry? */);
+                    msgCenter().cannotRemountMedium(machine, vboxGlobal().medium(fMount ? strNewId : strCurrentId),
+                                                    fMount, false /* retry? */, activeMachineWindow());
             }
         }
 
@@ -1649,7 +1785,7 @@ void UIMachineLogic::sltMountRecentStorageMedium()
         {
             machine.SaveSettings();
             if (!machine.isOk())
-                msgCenter().cannotSaveMachineSettings(machine);
+                msgCenter().cannotSaveMachineSettings(machine, activeMachineWindow());
         }
     }
 }
@@ -1681,7 +1817,7 @@ void UIMachineLogic::sltPrepareUSBMenu()
         pEmptyMenuAction->setEnabled(false);
         pEmptyMenuAction->setText(tr("No USB Devices Connected"));
         pEmptyMenuAction->setToolTip(tr("No supported devices connected to the host PC"));
-        pEmptyMenuAction->setIcon(UIIconPool::iconSet(":/delete_16px.png", ":/delete_dis_16px.png"));
+        pEmptyMenuAction->setIcon(UIIconPool::iconSet(":/vm_delete_16px.png", ":/vm_delete_disabled_16px.png")); // TODO: Change icon!
         pMenu->addAction(pEmptyMenuAction);
     }
     /* If device list is NOT empty: */
@@ -1710,6 +1846,65 @@ void UIMachineLogic::sltPrepareUSBMenu()
             /* Set USB attach data: */
             pAttachUSBAction->setData(QVariant::fromValue(USBTarget(!pAttachUSBAction->isChecked(), device.GetId())));
             pAttachUSBAction->setToolTip(vboxGlobal().toolTip(device));
+        }
+    }
+}
+
+/**
+ * Prepares menu content when user hovers <b>Webcam</b> submenu of the <b>Devices</b> menu.
+ * @note If host currently have no webcams attached there will be just one dummy action
+ *       called <i>No Webcams Connected</i>. Otherwise there will be actions corresponding
+ *       to existing webcams allowing user to attach/detach them within the guest.
+ * @note In order to enumerate webcams GUI assigns #WebCamTarget object as internal data
+ *       for each the enumerated webcam menu action. Corresponding #sltAttachWebCamDevice
+ *       slot will be called on action triggering. It will parse assigned #WebCamTarget data.
+ */
+void UIMachineLogic::sltPrepareWebCamMenu()
+{
+    /* Get and check the sender menu object: */
+    QMenu *pMenu = qobject_cast<QMenu*>(sender());
+    QMenu *pWebCamMenu = gActionPool->action(UIActionIndexRuntime_Menu_WebCams)->menu();
+    AssertReturnVoid(pMenu == pWebCamMenu); Q_UNUSED(pWebCamMenu);
+
+    /* Clear menu initially: */
+    pMenu->clear();
+
+    /* Get current host: */
+    const CHost &host = vboxGlobal().host();
+
+    /* Get host webcams list: */
+    const CHostVideoInputDeviceVector &webcams = host.GetVideoInputDevices();
+
+    /* If webcam list is empty: */
+    if (webcams.isEmpty())
+    {
+        /* Add only one - "empty" action: */
+        QAction *pEmptyMenuAction = new QAction(pMenu);
+        pEmptyMenuAction->setEnabled(false);
+        pEmptyMenuAction->setText(tr("No Webcams Connected"));
+        pEmptyMenuAction->setToolTip(tr("No supported webcams connected to the host PC"));
+        pEmptyMenuAction->setIcon(UIIconPool::iconSet(":/vm_delete_16px.png", ":/vm_delete_disabled_16px.png")); // TODO: Change icon!
+        pMenu->addAction(pEmptyMenuAction);
+    }
+    /* If webcam list is NOT empty: */
+    else
+    {
+        /* Populate menu with host webcams: */
+        const QVector<QString> &attachedWebcamPaths = session().GetConsole().GetEmulatedUSB().GetWebcams();
+        foreach (const CHostVideoInputDevice &webcam, webcams)
+        {
+            /* Get webcam data: */
+            const QString &strWebcamName = webcam.GetName();
+            const QString &strWebcamPath = webcam.GetPath();
+
+            /* Create/configure webcam action: */
+            QAction *pAttachWebcamAction = new QAction(strWebcamName, pMenu);
+            pAttachWebcamAction->setToolTip(vboxGlobal().toolTip(webcam));
+            pAttachWebcamAction->setCheckable(true);
+            pAttachWebcamAction->setChecked(attachedWebcamPaths.contains(strWebcamPath));
+            pAttachWebcamAction->setData(QVariant::fromValue(WebCamTarget(!pAttachWebcamAction->isChecked(), strWebcamName, strWebcamPath)));
+            connect(pAttachWebcamAction, SIGNAL(triggered(bool)), this, SLOT(sltAttachWebCamDevice()));
+            pMenu->addAction(pAttachWebcamAction);
         }
     }
 }
@@ -1757,6 +1952,45 @@ void UIMachineLogic::sltAttachUSBDevice()
             /* Show a message about procedure failure: */
             msgCenter().cannotDetachUSBDevice(console, vboxGlobal().details(device));
         }
+    }
+}
+
+/**
+ * Attaches/detaches webcam within the guest.
+ * @note In order to attach/detach webcams #sltPrepareWebCamMenu assigns #WebCamTarget object
+ *       as internal data for each the enumerated webcam menu action. Corresponding data
+ *       will be parsed here resulting in device attaching/detaching.
+ */
+void UIMachineLogic::sltAttachWebCamDevice()
+{
+    /* Get and check sender action object: */
+    QAction *pAction = qobject_cast<QAction*>(sender());
+    AssertReturnVoid(pAction);
+
+    /* Get operation target: */
+    WebCamTarget target = pAction->data().value<WebCamTarget>();
+
+    /* Get current emulated USB: */
+    const CConsole &console = session().GetConsole();
+    CEmulatedUSB dispatcher = console.GetEmulatedUSB();
+
+    /* Attach webcam device: */
+    if (target.attach)
+    {
+        /* Try to attach corresponding device: */
+        dispatcher.WebcamAttach(target.path, "");
+        /* Check if dispatcher is OK: */
+        if (!dispatcher.isOk())
+            msgCenter().cannotAttachWebCam(dispatcher, target.name, console.GetMachine().GetName());
+    }
+    /* Detach webcam device: */
+    else
+    {
+        /* Try to detach corresponding device: */
+        dispatcher.WebcamDetach(target.path);
+        /* Check if dispatcher is OK: */
+        if (!dispatcher.isOk())
+            msgCenter().cannotDetachWebCam(dispatcher, target.name, console.GetMachine().GetName());
     }
 }
 
@@ -1836,12 +2070,99 @@ void UIMachineLogic::sltChangeDragAndDropType(QAction *pAction)
     session().GetMachine().SetDragAndDropMode(mode);
 }
 
-void UIMachineLogic::sltSwitchVrde(bool fOn)
+void UIMachineLogic::sltToggleVRDE(bool fEnabled)
 {
-    /* Enable VRDE server if possible: */
-    CVRDEServer server = session().GetMachine().GetVRDEServer();
-    AssertMsg(!server.isNull(), ("VRDE server should not be null!\n"));
-    server.SetEnabled(fOn);
+    /* Do not process if window(s) missed! */
+    if (!isMachineWindowsCreated())
+        return;
+
+    /* Access VRDE server: */
+    CMachine machine = session().GetMachine();
+    CVRDEServer server = machine.GetVRDEServer();
+    AssertMsg(!server.isNull(), ("VRDE server should NOT be null!\n"));
+    if (!machine.isOk() || server.isNull())
+        return;
+
+    /* Make sure something had changed: */
+    if (server.GetEnabled() == static_cast<BOOL>(fEnabled))
+        return;
+
+    /* Server is OK? */
+    if (server.isOk())
+    {
+        /* Update VRDE server state: */
+        server.SetEnabled(fEnabled);
+        /* Server still OK? */
+        if (server.isOk())
+        {
+            /* Save machine-settings: */
+            machine.SaveSettings();
+            /* Machine still OK? */
+            if (!machine.isOk())
+            {
+                /* Notify about the error: */
+                msgCenter().cannotSaveMachineSettings(machine);
+                /* Make sure action is updated! */
+                uisession()->updateStatusVRDE();
+            }
+        }
+        else
+        {
+            /* Notify about the error: */
+            msgCenter().cannotToggleVRDEServer(server, machine.GetName(), fEnabled);
+            /* Make sure action is updated! */
+            uisession()->updateStatusVRDE();
+        }
+    }
+}
+
+void UIMachineLogic::sltToggleVideoCapture(bool fEnabled)
+{
+    /* Do not process if window(s) missed! */
+    if (!isMachineWindowsCreated())
+        return;
+
+    /* Access machine: */
+    CMachine machine = session().GetMachine();
+    AssertMsg(!machine.isNull(), ("Machine should NOT be null!\n"));
+    if (machine.isNull())
+        return;
+
+    /* Make sure something had changed: */
+    if (machine.GetVideoCaptureEnabled() == static_cast<BOOL>(fEnabled))
+        return;
+
+    /* Update Video Capture state: */
+    AssertMsg(machine.isOk(), ("Machine should be OK!\n"));
+    machine.SetVideoCaptureEnabled(fEnabled);
+    /* Machine is not OK? */
+    if (!machine.isOk())
+    {
+        /* Notify about the error: */
+        msgCenter().cannotToggleVideoCapture(machine, fEnabled);
+        /* Make sure action is updated! */
+        uisession()->updateStatusVideoCapture();
+    }
+    /* Machine is OK? */
+    else
+    {
+        /* Save machine-settings: */
+        machine.SaveSettings();
+        /* Machine is not OK? */
+        if (!machine.isOk())
+        {
+            /* Notify about the error: */
+            msgCenter().cannotSaveMachineSettings(machine);
+            /* Make sure action is updated! */
+            uisession()->updateStatusVideoCapture();
+        }
+    }
+}
+
+void UIMachineLogic::sltOpenVideoCaptureOptions()
+{
+    /* Open VM settings : Display page : Video Capture tab: */
+    sltOpenVMSettingsDialog("#display", "m_pCheckboxVideoCapture");
 }
 
 void UIMachineLogic::sltInstallGuestAdditions()
@@ -1993,6 +2314,47 @@ void UIMachineLogic::sltChangeDockIconUpdate(bool fEnabled)
 }
 #endif /* Q_WS_MAC */
 
+void UIMachineLogic::sltSwitchKeyboardLedsToGuestLeds()
+{
+//    /* Log statement (printf): */
+//    QString strDt = QDateTime::currentDateTime().toString("HH:mm:ss:zzz");
+//    printf("%s: UIMachineLogic: sltSwitchKeyboardLedsToGuestLeds called, machine name is {%s}\n",
+//           strDt.toAscii().constData(),
+//           session().GetMachine().GetName().toAscii().constData());
+
+    /* Here we have to store host LED lock states. */
+
+    /* Here we have to update host LED lock states using values provided by UISession registry.
+     * [bool] uisession() -> isNumLock(), isCapsLock(), isScrollLock() can be used for that. */
+
+    LogRelFlow(("UIMachineLogic::sltSwitchKeyboardLedsToGuestLeds: keep host LED lock states and broadcast guest's ones (NOT IMPLEMENTED).\n"));
+#ifdef Q_WS_MAC
+    if (m_pHostLedsState == NULL)
+        m_pHostLedsState = DarwinHidDevicesKeepLedsState();
+    DarwinHidDevicesBroadcastLeds(m_pHostLedsState, uisession()->isNumLock(), uisession()->isCapsLock(), uisession()->isScrollLock());
+#endif /* Q_WS_MAC */
+}
+
+void UIMachineLogic::sltSwitchKeyboardLedsToPreviousLeds()
+{
+//    /* Log statement (printf): */
+//    QString strDt = QDateTime::currentDateTime().toString("HH:mm:ss:zzz");
+//    printf("%s: UIMachineLogic: sltSwitchKeyboardLedsToPreviousLeds called, machine name is {%s}\n",
+//           strDt.toAscii().constData(),
+//           session().GetMachine().GetName().toAscii().constData());
+
+    LogRelFlow(("UIMachineLogic::sltSwitchKeyboardLedsToPreviousLeds: restore host LED lock states (NOT IMPLEMENTED).\n"));
+
+    /* Here we have to restore host LED lock states. */
+#ifdef Q_WS_MAC
+    if (m_pHostLedsState)
+    {
+        DarwinHidDevicesApplyAndReleaseLedsState(m_pHostLedsState);
+        m_pHostLedsState = NULL;
+    }
+#endif /* Q_WS_MAC */
+}
+
 int UIMachineLogic::searchMaxSnapshotIndex(const CMachine &machine,
                                            const CSnapshot &snapshot,
                                            const QString &strNameTemplate)
@@ -2032,7 +2394,9 @@ void UIMachineLogic::takeScreenshot(const QString &strFile, const QString &strFo
         ULONG width  = 0;
         ULONG height = 0;
         ULONG bpp    = 0;
-        display.GetScreenResolution(i, width, height, bpp);
+        LONG xOrigin = 0;
+        LONG yOrigin = 0;
+        display.GetScreenResolution(i, width, height, bpp, xOrigin, yOrigin);
         uMaxWidth  += width;
         uMaxHeight  = RT_MAX(uMaxHeight, height);
         QImage shot = QImage(width, height, QImage::Format_RGB32);

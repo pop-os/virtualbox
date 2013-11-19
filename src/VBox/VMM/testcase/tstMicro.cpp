@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -254,7 +254,7 @@ static DECLCALLBACK(int) doit(PVM pVM)
         RTPrintf(TESTCASE ": PGMMapModifyPage -> rc=%Rra\n", rc);
         return rc;
     }
-    DBGFR3PagingDumpEx(pVM, 0 /*idCpu*/, DBGFPGDMP_FLAGS_CURRENT_CR3 | DBGFPGDMP_FLAGS_CURRENT_MODE
+    DBGFR3PagingDumpEx(pVM->pUVM, 0 /*idCpu*/, DBGFPGDMP_FLAGS_CURRENT_CR3 | DBGFPGDMP_FLAGS_CURRENT_MODE
                        | DBGFPGDMP_FLAGS_SHADOW | DBGFPGDMP_FLAGS_HEADER | DBGFPGDMP_FLAGS_PRINT_CR3,
                        0 /*cr3*/, 0 /*u64FirstAddr*/, UINT64_MAX /*u64LastAddr*/, 99 /*cMaxDepth*/, NULL);
 
@@ -279,6 +279,7 @@ static DECLCALLBACK(int) doit(PVM pVM)
     }
 #endif
 
+#ifdef VBOX_WITH_RAW_MODE
     /*
      * Do the profiling.
      */
@@ -316,8 +317,10 @@ static DECLCALLBACK(int) doit(PVM pVM)
         if (enmTest == TSTMICROTEST_OVERHEAD)
             pTst->u64Overhead = cMin;
     }
+#endif
 
 
+#ifdef VBOX_WITH_RAW_MODE
     /* execute the trap/cycle profiling tests. */
     RTPrintf("\n");
     PrintHeaderTraps();
@@ -329,7 +332,7 @@ static DECLCALLBACK(int) doit(PVM pVM)
         rc = VMMR3CallRC(pVM, RCPtrEntry, 2, pTst->RCPtr, enmTest);
         PrintResultTrap(pTst, enmTest, rc);
     }
-
+#endif
 
     RTPrintf(TESTCASE ": done!\n");
     return VINF_SUCCESS;
@@ -346,31 +349,33 @@ int main(int argc, char **argv)
      * Create empty VM.
      */
     PVM pVM;
-    int rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM);
+    PUVM pUVM;
+    int rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM, &pUVM);
     if (RT_SUCCESS(rc))
     {
         /*
          * Do testing.
          */
-        rc = VMR3ReqCallVoidWait(pVM, VMCPUID_ANY, (PFNRT)doit, 1, pVM);
+        rc = VMR3ReqCallVoidWaitU(pUVM, VMCPUID_ANY, (PFNRT)doit, 1, pVM);
         AssertRC(rc);
-        STAMR3Dump(pVM, "*");
+        STAMR3Dump(pUVM, "*");
 
         /*
          * Cleanup.
          */
-        rc = VMR3PowerOff(pVM);
+        rc = VMR3PowerOff(pUVM);
         if (!RT_SUCCESS(rc))
         {
             RTPrintf(TESTCASE ": error: failed to power off vm! rc=%Rrc\n", rc);
             rcRet++;
         }
-        rc = VMR3Destroy(pVM);
+        rc = VMR3Destroy(pUVM);
         if (!RT_SUCCESS(rc))
         {
             RTPrintf(TESTCASE ": error: failed to destroy vm! rc=%Rrc\n", rc);
             rcRet++;
         }
+        VMR3ReleaseUVM(pUVM);
     }
     else
     {

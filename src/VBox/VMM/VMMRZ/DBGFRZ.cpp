@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,12 +37,13 @@
  *          VINF_SUCCESS means we completely handled this trap,
  *          other codes are passed execution to host context.
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
- * @param   pRegFrame   Pointer to the register frame for the trap.
- * @param   uDr6        The DR6 register value.
+ * @param   pVM             Pointer to the VM.
+ * @param   pVCpu           Pointer to the VMCPU.
+ * @param   pRegFrame       Pointer to the register frame for the trap.
+ * @param   uDr6            The DR6 hypervisor register value.
+ * @param   fAltStepping    Alternative stepping indicator.
  */
-VMMRZDECL(int) DBGFRZTrap01Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCUINTREG uDr6)
+VMMRZ_INT_DECL(int) DBGFRZTrap01Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCUINTREG uDr6, bool fAltStepping)
 {
 #ifdef IN_RC
     const bool fInHyper = !(pRegFrame->ss.Sel & X86_SEL_RPL) && !pRegFrame->eflags.Bits.u1VM;
@@ -77,24 +78,25 @@ VMMRZDECL(int) DBGFRZTrap01Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame
      * Are we single stepping or is it the guest?
      */
     if (    (uDr6 & X86_DR6_BS)
-        &&  (fInHyper || pVCpu->dbgf.s.fSingleSteppingRaw))
+        &&  (fInHyper || pVCpu->dbgf.s.fSingleSteppingRaw || fAltStepping))
     {
         pVCpu->dbgf.s.fSingleSteppingRaw = false;
         LogFlow(("DBGFRZTrap01Handler: single step at %04x:%RGv\n", pRegFrame->cs.Sel, pRegFrame->rip));
         return fInHyper ? VINF_EM_DBG_HYPER_STEPPED : VINF_EM_DBG_STEPPED;
     }
 
-#ifdef IN_RC
     /*
-     * Currently we only implement single stepping in the guest,
-     * so we'll bitch if this is not a BS event.
+     * Either an ICEBP in hypervisor code or a guest related debug exception
+     * of sorts.
      */
-    AssertMsg(uDr6 & X86_DR6_BS, ("hey! we're not doing guest BPs yet! dr6=%RTreg %04x:%RGv\n",
-                                  uDr6, pRegFrame->cs.Sel, pRegFrame->rip));
-#endif
+    if (RT_UNLIKELY(fInHyper))
+    {
+        LogFlow(("DBGFRZTrap01Handler: unabled bp at %04x:%RGv\n", pRegFrame->cs.Sel, pRegFrame->rip));
+        return VERR_DBGF_HYPER_DB_XCPT;
+    }
 
-    LogFlow(("DBGFRZTrap01Handler: guest debug event %RTreg at %04x:%RGv!\n", uDr6, pRegFrame->cs.Sel, pRegFrame->rip));
-    return fInHyper ? VERR_DBGF_HYPER_DB_XCPT : VINF_EM_RAW_GUEST_TRAP;
+    LogFlow(("DBGFRZTrap01Handler: guest debug event %#x at %04x:%RGv!\n", (uint32_t)uDr6, pRegFrame->cs.Sel, pRegFrame->rip));
+    return VINF_EM_RAW_GUEST_TRAP;
 }
 
 
@@ -109,7 +111,7 @@ VMMRZDECL(int) DBGFRZTrap01Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame
  * @param   pVCpu       Pointer to the VMCPU.
  * @param   pRegFrame   Pointer to the register frame for the trap.
  */
-VMMRZDECL(int) DBGFRZTrap03Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
+VMMRZ_INT_DECL(int) DBGFRZTrap03Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
 {
 #ifdef IN_RC
     const bool fInHyper = !(pRegFrame->ss.Sel & X86_SEL_RPL) && !pRegFrame->eflags.Bits.u1VM;

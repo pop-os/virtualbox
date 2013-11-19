@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,12 +20,12 @@
 /* Global includes: */
 #include <QFileInfo>
 #include <QVBoxLayout>
+#include <QGroupBox>
 
 /* Local includes: */
 #include "UIWizardImportAppPageExpert.h"
 #include "UIWizardImportApp.h"
 #include "VBoxGlobal.h"
-#include "QILabelSeparator.h"
 #include "VBoxFilePathSelectorWidget.h"
 #include "UIApplianceImportEditorWidget.h"
 
@@ -35,21 +35,36 @@ UIWizardImportAppPageExpert::UIWizardImportAppPageExpert(const QString &strFileN
     QVBoxLayout *pMainLayout = new QVBoxLayout(this);
     {
         pMainLayout->setContentsMargins(8, 6, 8, 6);
-        m_pVMApplianceLabel = new QILabelSeparator(this);
-        m_pFileSelector = new VBoxEmptyFileSelector(this);
+        pMainLayout->setSpacing(10);
+        m_pApplianceCnt = new QGroupBox(this);
         {
-            m_pFileSelector->setMode(VBoxFilePathSelectorWidget::Mode_File_Open);
-            m_pFileSelector->setHomeDir(vboxGlobal().documentsPath());
+            QVBoxLayout *pApplianceCntLayout = new QVBoxLayout(m_pApplianceCnt);
+            {
+                m_pFileSelector = new VBoxEmptyFileSelector(m_pApplianceCnt);
+                {
+                    m_pFileSelector->setHomeDir(vboxGlobal().documentsPath());
+                    m_pFileSelector->setMode(VBoxFilePathSelectorWidget::Mode_File_Open);
+                    m_pFileSelector->setButtonPosition(VBoxEmptyFileSelector::RightPosition);
+                    m_pFileSelector->setEditable(true);
+                }
+                pApplianceCntLayout->addWidget(m_pFileSelector);
+            }
         }
-        m_pApplianceWidget = new UIApplianceImportEditorWidget(this);
+        m_pSettingsCnt = new QGroupBox(this);
         {
-            m_pApplianceWidget->setMinimumHeight(300);
-            m_pApplianceWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
-            m_pApplianceWidget->setFile(strFileName);
+            QVBoxLayout *pSettingsCntLayout = new QVBoxLayout(m_pSettingsCnt);
+            {
+                m_pApplianceWidget = new UIApplianceImportEditorWidget(m_pSettingsCnt);
+                {
+                    m_pApplianceWidget->setMinimumHeight(300);
+                    m_pApplianceWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
+                    m_pApplianceWidget->setFile(strFileName);
+                }
+                pSettingsCntLayout->addWidget(m_pApplianceWidget);
+            }
         }
-        pMainLayout->addWidget(m_pVMApplianceLabel);
-        pMainLayout->addWidget(m_pFileSelector);
-        pMainLayout->addWidget(m_pApplianceWidget);
+        pMainLayout->addWidget(m_pApplianceCnt);
+        pMainLayout->addWidget(m_pSettingsCnt);
         m_pFileSelector->setPath(strFileName);
     }
 
@@ -65,7 +80,8 @@ UIWizardImportAppPageExpert::UIWizardImportAppPageExpert(const QString &strFileN
 void UIWizardImportAppPageExpert::sltFilePathChangeHandler()
 {
     /* Check if set file contains valid appliance: */
-    if (m_pApplianceWidget->setFile(m_pFileSelector->path()))
+    if (QFile::exists(m_pFileSelector->path()) &&
+        m_pApplianceWidget->setFile(m_pFileSelector->path()))
     {
         /* Reset the modified bit if file was correctly set: */
         m_pFileSelector->resetModified();
@@ -77,10 +93,11 @@ void UIWizardImportAppPageExpert::sltFilePathChangeHandler()
 void UIWizardImportAppPageExpert::retranslateUi()
 {
     /* Translate widgets: */
-    m_pVMApplianceLabel->setText(UIWizardImportApp::tr("Appliance to import"));
-    m_pFileSelector->setChooseButtonText(UIWizardImportApp::tr("Open appliance..."));
-    m_pFileSelector->setFileDialogTitle(UIWizardImportApp::tr("Select an appliance to import"));
+    m_pApplianceCnt->setTitle(UIWizardImportApp::tr("Appliance to import"));
+    m_pFileSelector->setChooseButtonToolTip(UIWizardImportApp::tr("Choose a virtual appliance file to import..."));
+    m_pFileSelector->setFileDialogTitle(UIWizardImportApp::tr("Please choose a virtual appliance file to import"));
     m_pFileSelector->setFileFilters(UIWizardImportApp::tr("Open Virtualization Format (%1)").arg("*.ova *.ovf"));
+    m_pSettingsCnt->setTitle(UIWizardImportApp::tr("Appliance settings"));
 }
 
 void UIWizardImportAppPageExpert::initializePage()
@@ -93,7 +110,7 @@ bool UIWizardImportAppPageExpert::isComplete() const
 {
     /* Make sure appliance file has allowed extension and exists and appliance widget is valid: */
     return VBoxGlobal::hasAllowedExtension(m_pFileSelector->path().toLower(), OVFFileExts) &&
-           QFileInfo(m_pFileSelector->path()).exists() &&
+           QFile::exists(m_pFileSelector->path()) &&
            m_pApplianceWidget->isValid();
 }
 

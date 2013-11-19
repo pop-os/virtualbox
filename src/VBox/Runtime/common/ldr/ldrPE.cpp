@@ -35,8 +35,10 @@
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
 #include <iprt/log.h>
+#include <iprt/path.h>
 #include <iprt/string.h>
 #include <iprt/err.h>
+#include <iprt/formats/codeview.h>
 #include "internal/ldrPE.h"
 #include "internal/ldr.h"
 
@@ -62,13 +64,13 @@ typedef struct RTLDRMODPE
 {
     /** Core module structure. */
     RTLDRMODINTERNAL        Core;
-    /** Pointer to the reader instance. */
-    PRTLDRREADER            pReader;
     /** Pointer to internal copy of image bits.
      * @todo the reader should take care of this. */
     void                   *pvBits;
     /** The offset of the NT headers. */
     RTFOFF                  offNtHdrs;
+    /** The offset of the first byte after the section table. */
+    RTFOFF                  offEndOfHdrs;
 
     /** The machine type (IMAGE_FILE_HEADER::Machine). */
     uint16_t                u16Machine;
@@ -87,12 +89,16 @@ typedef struct RTLDRMODPE
     uint32_t                cbImage;
     /** Size of the header (IMAGE_OPTIONAL_HEADER32::SizeOfHeaders). */
     uint32_t                cbHeaders;
+    /** The image timestamp. */
+    uint32_t                uTimestamp;
     /** The import data directory entry. */
     IMAGE_DATA_DIRECTORY    ImportDir;
     /** The base relocation data directory entry. */
     IMAGE_DATA_DIRECTORY    RelocDir;
     /** The export data directory entry. */
     IMAGE_DATA_DIRECTORY    ExportDir;
+    /** The debug directory entry. */
+    IMAGE_DATA_DIRECTORY    DebugDir;
 } RTLDRMODPE, *PRTLDRMODPE;
 
 /**
@@ -130,7 +136,227 @@ typedef struct RTLDROPSPE
 *******************************************************************************/
 static void rtldrPEConvert32BitOptionalHeaderTo64Bit(PIMAGE_OPTIONAL_HEADER64 pOptHdr);
 static void rtldrPEConvert32BitLoadConfigTo64Bit(PIMAGE_LOAD_CONFIG_DIRECTORY64 pLoadCfg);
-static int rtldrPEApplyFixups(PRTLDRMODPE pModPe, const void *pvBitsR, void *pvBitsW, RTUINTPTR BaseAddress, RTUINTPTR OldBaseAddress);
+static int  rtldrPEApplyFixups(PRTLDRMODPE pModPe, const void *pvBitsR, void *pvBitsW, RTUINTPTR BaseAddress, RTUINTPTR OldBaseAddress);
+
+
+
+/**
+ * Reads a section of a PE image given by RVA + size, using mapped bits if
+ * available or allocating heap memory and reading from the file.
+ *
+ * @returns IPRT status code.
+ * @param   pThis               Pointer to the PE loader module structure.
+ * @param   pvBits              Read only bits if available. NULL if not.
+ * @param   uRva                The RVA to read at.
+ * @param   cbMem               The number of bytes to read.
+ * @param   ppvMem              Where to return the memory on success (heap or
+ *                              inside pvBits).
+ */
+static int rtldrPEReadPartByRva(PRTLDRMODPE pThis, const void *pvBits, uint32_t uRva, uint32_t cbMem, void const **ppvMem)
+{
+    *ppvMem = NULL;
+    if (!cbMem)
+        return VINF_SUCCESS;
+
+    /*
+     * Use bits if we've got some.
+     */
+    if (pvBits)
+    {
+        *ppvMem = (uint8_t const *)pvBits + uRva;
+        return VINF_SUCCESS;
+    }
+    if (pThis->pvBits)
+    {
+        *ppvMem = (uint8_t const *)pThis->pvBits + uRva;
+        return VINF_SUCCESS;
+    }
+
+    /*
+     * Allocate a buffer and read the bits from the file (or whatever).
+     */
+    if (!pThis->Core.pReader)
+        return VERR_ACCESS_DENIED;
+
+    uint8_t *pbMem = (uint8_t *)RTMemAllocZ(cbMem);
+    if (!pbMem)
+        return VERR_NO_MEMORY;
+    *ppvMem = pbMem;
+
+    /* Do the reading on a per section base. */
+    RTFOFF const cbFile = pThis->Core.pReader->pfnSize(pThis->Core.pReader);
+    for (;;)
+    {
+        /* Translate the RVA into a file offset. */
+        uint32_t offFile  = uRva;
+        uint32_t cbToRead = cbMem;
+        uint32_t cbToAdv  = cbMem;
+
+        if (uRva < pThis->paSections[0].VirtualAddress)
+        {
+            /* Special header section. */
+            cbToRead = pThis->paSections[0].VirtualAddress - uRva;
+            if (cbToRead > cbMem)
+                cbToRead = cbMem;
+            cbToAdv = cbToRead;
+
+            /* The following capping is an approximation. */
+            uint32_t offFirstRawData = RT_ALIGN(pThis->cbHeaders, _4K);
+            if (   pThis->paSections[0].PointerToRawData > 0
+                && pThis->paSections[0].SizeOfRawData > 0)
+                offFirstRawData = pThis->paSections[0].PointerToRawData;
+            if (offFile > offFirstRawData)
+                cbToRead = 0;
+            else if (offFile + cbToRead > offFirstRawData)
+                cbToRead = offFile + cbToRead - offFirstRawData;
+        }
+        else
+        {
+            /* Find the matching section and its mapping size. */
+            uint32_t j         = 0;
+            uint32_t cbMapping = 0;
+            while (j < pThis->cSections)
+            {
+                cbMapping = (j + 1 < pThis->cSections ? pThis->paSections[j + 1].VirtualAddress : pThis->cbImage)
+                          - pThis->paSections[j].VirtualAddress;
+                if (uRva - pThis->paSections[j].VirtualAddress < cbMapping)
+                    break;
+                j++;
+            }
+            if (j >= cbMapping)
+                break; /* This shouldn't happen, just return zeros if it does. */
+
+            /* Adjust the sizes and calc the file offset. */
+            if (cbToAdv > cbMapping)
+                cbToAdv = cbToRead = cbMapping;
+            if (   pThis->paSections[j].PointerToRawData > 0
+                && pThis->paSections[j].SizeOfRawData > 0)
+            {
+                offFile = uRva - pThis->paSections[j].VirtualAddress;
+                if (offFile + cbToRead > pThis->paSections[j].SizeOfRawData)
+                    cbToRead = pThis->paSections[j].SizeOfRawData - offFile;
+                offFile += pThis->paSections[j].PointerToRawData;
+            }
+            else
+            {
+                offFile  = UINT32_MAX;
+                cbToRead = 0;
+            }
+        }
+
+        /* Perform the read after adjusting a little (paranoia). */
+        if (offFile > cbFile)
+            cbToRead = 0;
+        if (cbToRead)
+        {
+            if ((RTFOFF)offFile + cbToRead > cbFile)
+                cbToRead = cbFile - (RTFOFF)offFile;
+            int rc = pThis->Core.pReader->pfnRead(pThis->Core.pReader, pbMem, cbToRead, offFile);
+            if (RT_FAILURE(rc))
+            {
+                RTMemFree((void *)*ppvMem);
+                *ppvMem = NULL;
+                return rc;
+            }
+        }
+
+        /* Advance */
+        if (cbMem == cbToRead)
+            break;
+        cbMem -= cbToRead;
+        pbMem += cbToRead;
+        uRva  += cbToRead;
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Reads a part of a PE file from the file and into a heap block.
+ *
+ * @returns IRPT status code.
+ * @param   pThis               Pointer to the PE loader module structure..
+ * @param   offFile             The file offset.
+ * @param   cbMem               The number of bytes to read.
+ * @param   ppvMem              Where to return the heap block with the bytes on
+ *                              success.
+ */
+static int rtldrPEReadPartFromFile(PRTLDRMODPE pThis, uint32_t offFile, uint32_t cbMem, void const **ppvMem)
+{
+    *ppvMem = NULL;
+    if (!cbMem)
+        return VINF_SUCCESS;
+
+    /*
+     * Allocate a buffer and read the bits from the file (or whatever).
+     */
+    if (!pThis->Core.pReader)
+        return VERR_ACCESS_DENIED;
+
+    uint8_t *pbMem = (uint8_t *)RTMemAlloc(cbMem);
+    if (!pbMem)
+        return VERR_NO_MEMORY;
+
+    int rc = pThis->Core.pReader->pfnRead(pThis->Core.pReader, pbMem, cbMem, offFile);
+    if (RT_FAILURE(rc))
+    {
+        RTMemFree((void *)*ppvMem);
+        return rc;
+    }
+
+    *ppvMem = pbMem;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Reads a part of a PE image into memory one way or another.
+ *
+ * Either the RVA or the offFile must be valid.  We'll prefer the RVA if
+ * possible.
+ *
+ * @returns IPRT status code.
+ * @param   pThis               Pointer to the PE loader module structure.
+ * @param   pvBits              Read only bits if available. NULL if not.
+ * @param   uRva                The RVA to read at.
+ * @param   offFile             The file offset.
+ * @param   cbMem               The number of bytes to read.
+ * @param   ppvMem              Where to return the memory on success (heap or
+ *                              inside pvBits).
+ */
+static int rtldrPEReadPart(PRTLDRMODPE pThis, const void *pvBits, RTFOFF offFile, RTLDRADDR uRva,
+                           uint32_t cbMem, void const **ppvMem)
+{
+    if (uRva == NIL_RTLDRADDR || uRva > pThis->cbImage)
+    {
+        if (offFile < 0)
+            return VERR_INVALID_PARAMETER;
+        return rtldrPEReadPartFromFile(pThis, offFile, cbMem, ppvMem);
+    }
+    return rtldrPEReadPartByRva(pThis, pvBits, uRva, cbMem, ppvMem);
+}
+
+
+/**
+ * Frees up memory returned by rtldrPEReadPart*.
+ *
+ * @param   pThis               Pointer to the PE loader module structure..
+ * @param   pvBits              Read only bits if available. NULL if not..
+ * @param   pvMem               The memory we were given by the reader method.
+ */
+static void rtldrPEFreePart(PRTLDRMODPE pThis, const void *pvBits, void const *pvMem)
+{
+    if (!pvMem)
+        return;
+
+    if (pvBits        && (uintptr_t)pvBits        - (uintptr_t)pvMem < pThis->cbImage)
+        return;
+    if (pThis->pvBits && (uintptr_t)pThis->pvBits - (uintptr_t)pvMem < pThis->cbImage)
+        return;
+
+    RTMemFree((void *)pvMem);
+}
 
 
 /** @copydoc RTLDROPS::pfnGetImageSize */
@@ -153,7 +379,7 @@ static int rtldrPEGetBitsNoImportsNorFixups(PRTLDRMODPE pModPe, void *pvBits)
     /*
      * Both these checks are related to pfnDone().
      */
-    PRTLDRREADER pReader = pModPe->pReader;
+    PRTLDRREADER pReader = pModPe->Core.pReader;
     if (!pReader)
     {
         AssertMsgFailed(("You've called done!\n"));
@@ -666,6 +892,140 @@ static DECLCALLBACK(int) rtldrPEGetSymbolEx(PRTLDRMODINTERNAL pMod, const void *
 }
 
 
+/**
+ * Slow version of rtldrPEEnumSymbols that'll work without all of the image
+ * being accessible.
+ *
+ * This is mainly for use in debuggers and similar.
+ */
+static int rtldrPEEnumSymbolsSlow(PRTLDRMODPE pThis, unsigned fFlags, RTUINTPTR BaseAddress,
+                                  PFNRTLDRENUMSYMS pfnCallback, void *pvUser)
+{
+    /*
+     * We enumerates by ordinal, which means using a slow linear search for
+     * getting any name
+     */
+    PCIMAGE_EXPORT_DIRECTORY pExpDir = NULL;
+    int rc = rtldrPEReadPartByRva(pThis, NULL, pThis->ExportDir.VirtualAddress, pThis->ExportDir.Size,
+                                  (void const **)&pExpDir);
+    if (RT_FAILURE(rc))
+        return rc;
+    uint32_t const cOrdinals = RT_MAX(pExpDir->NumberOfNames, pExpDir->NumberOfFunctions);
+
+    uint32_t const *paAddress  = NULL;
+    rc = rtldrPEReadPartByRva(pThis, NULL, pExpDir->AddressOfFunctions, cOrdinals * sizeof(uint32_t),
+                              (void const **)&paAddress);
+    uint32_t const *paRVANames = NULL;
+    if (RT_SUCCESS(rc) && pExpDir->NumberOfNames)
+        rc = rtldrPEReadPartByRva(pThis, NULL, pExpDir->AddressOfNames, pExpDir->NumberOfNames * sizeof(uint32_t),
+                                  (void const **)&paRVANames);
+    uint16_t const *paOrdinals = NULL;
+    if (RT_SUCCESS(rc) && pExpDir->NumberOfNames)
+        rc = rtldrPEReadPartByRva(pThis, NULL, pExpDir->AddressOfNameOrdinals, pExpDir->NumberOfNames * sizeof(uint16_t),
+                                  (void const **)&paOrdinals);
+    if (RT_SUCCESS(rc))
+    {
+        uintptr_t   uNamePrev = 0;
+        for (uint32_t uOrdinal = 0; uOrdinal < cOrdinals; uOrdinal++)
+        {
+            if (paAddress[uOrdinal] /* needed? */)
+            {
+                /*
+                 * Look for name.
+                 */
+                uint32_t    uRvaName = UINT32_MAX;
+                /* Search from previous + 1 to the end.  */
+                unsigned    uName = uNamePrev + 1;
+                while (uName < pExpDir->NumberOfNames)
+                {
+                    if (paOrdinals[uName] == uOrdinal)
+                    {
+                        uRvaName = paRVANames[uName];
+                        uNamePrev = uName;
+                        break;
+                    }
+                    uName++;
+                }
+                if (uRvaName == UINT32_MAX)
+                {
+                    /* Search from start to the previous. */
+                    uName = 0;
+                    for (uName = 0 ; uName <= uNamePrev; uName++)
+                    {
+                        if (paOrdinals[uName] == uOrdinal)
+                        {
+                            uRvaName = paRVANames[uName];
+                            uNamePrev = uName;
+                            break;
+                        }
+                    }
+                }
+
+                /*
+                 * Get address.
+                 */
+                uintptr_t   uRVAExport = paAddress[uOrdinal];
+                RTUINTPTR Value;
+                if (  uRVAExport - (uintptr_t)pThis->ExportDir.VirtualAddress
+                    < pThis->ExportDir.Size)
+                {
+                    if (!(fFlags & RTLDR_ENUM_SYMBOL_FLAGS_NO_FWD))
+                    {
+                        /* Resolve forwarder. */
+                        AssertMsgFailed(("Forwarders are not supported!\n"));
+                    }
+                    continue;
+                }
+
+                /* Get plain export address */
+                Value = PE_RVA2TYPE(BaseAddress, uRVAExport, RTUINTPTR);
+
+                /* Read in the name if found one. */
+                char szAltName[32];
+                const char *pszName = NULL;
+                if (uRvaName != UINT32_MAX)
+                {
+                    uint32_t cbName = 0x1000 - (uRvaName & 0xfff);
+                    if (cbName < 10 || cbName > 512)
+                        cbName = 128;
+                    rc = rtldrPEReadPartByRva(pThis, NULL, uRvaName, cbName, (void const **)&pszName);
+                    while (RT_SUCCESS(rc) && RTStrNLen(pszName, cbName) == cbName)
+                    {
+                        rtldrPEFreePart(pThis, NULL, pszName);
+                        pszName = NULL;
+                        if (cbName >= _4K)
+                            break;
+                        cbName += 128;
+                        rc = rtldrPEReadPartByRva(pThis, NULL, uRvaName, cbName, (void const **)&pszName);
+                    }
+                }
+                if (!pszName)
+                {
+                    RTStrPrintf(szAltName, sizeof(szAltName), "Ordinal%#x", uOrdinal);
+                    pszName = szAltName;
+                }
+
+                /*
+                 * Call back.
+                 */
+                rc = pfnCallback(&pThis->Core, pszName, uOrdinal + pExpDir->Base, Value, pvUser);
+                if (pszName != szAltName && pszName)
+                    rtldrPEFreePart(pThis, NULL, pszName);
+                if (rc)
+                    break;
+            }
+        }
+    }
+
+    rtldrPEFreePart(pThis, NULL, paOrdinals);
+    rtldrPEFreePart(pThis, NULL, paRVANames);
+    rtldrPEFreePart(pThis, NULL, paAddress);
+    rtldrPEFreePart(pThis, NULL, pExpDir);
+    return rc;
+
+}
+
+
 /** @copydoc RTLDROPS::pfnEnumSymbols */
 static DECLCALLBACK(int) rtldrPEEnumSymbols(PRTLDRMODINTERNAL pMod, unsigned fFlags, const void *pvBits, RTUINTPTR BaseAddress,
                                             PFNRTLDRENUMSYMS pfnCallback, void *pvUser)
@@ -689,7 +1049,7 @@ static DECLCALLBACK(int) rtldrPEEnumSymbols(PRTLDRMODINTERNAL pMod, unsigned fFl
         {
             int rc = rtldrPEReadBits(pModPe);
             if (RT_FAILURE(rc))
-                return rc;
+                return rtldrPEEnumSymbolsSlow(pModPe, fFlags, BaseAddress, pfnCallback, pvUser);
         }
         pvBits = pModPe->pvBits;
     }
@@ -744,16 +1104,19 @@ static DECLCALLBACK(int) rtldrPEEnumSymbols(PRTLDRMODINTERNAL pMod, unsigned fFl
              */
             uintptr_t   uRVAExport = paAddress[uOrdinal];
             RTUINTPTR Value;
-            if (    uRVAExport - (uintptr_t)pModPe->ExportDir.VirtualAddress
-                <   pModPe->ExportDir.Size)
+            if (  uRVAExport - (uintptr_t)pModPe->ExportDir.VirtualAddress
+                < pModPe->ExportDir.Size)
             {
-                /* Resolve forwarder. */
-                AssertMsgFailed(("Forwarders are not supported!\n"));
+                if (!(fFlags & RTLDR_ENUM_SYMBOL_FLAGS_NO_FWD))
+                {
+                    /* Resolve forwarder. */
+                    AssertMsgFailed(("Forwarders are not supported!\n"));
+                }
                 continue;
             }
-            else
-                /* Get plain export address */
-                Value = PE_RVA2TYPE(BaseAddress, uRVAExport, RTUINTPTR);
+
+            /* Get plain export address */
+            Value = PE_RVA2TYPE(BaseAddress, uRVAExport, RTUINTPTR);
 
             /*
              * Call back.
@@ -772,16 +1135,271 @@ static DECLCALLBACK(int) rtldrPEEnumSymbols(PRTLDRMODINTERNAL pMod, unsigned fFl
 static DECLCALLBACK(int) rtldrPE_EnumDbgInfo(PRTLDRMODINTERNAL pMod, const void *pvBits,
                                              PFNRTLDRENUMDBG pfnCallback, void *pvUser)
 {
-    NOREF(pMod); NOREF(pvBits); NOREF(pfnCallback); NOREF(pvUser);
-    return VINF_NOT_SUPPORTED;
+    PRTLDRMODPE pModPe = (PRTLDRMODPE)pMod;
+    int rc;
+
+    /*
+     * Debug info directory empty?
+     */
+    if (   !pModPe->DebugDir.VirtualAddress
+        || !pModPe->DebugDir.Size)
+        return VINF_SUCCESS;
+
+    /*
+     * Get the debug directory.
+     */
+    if (!pvBits)
+        pvBits = pModPe->pvBits;
+
+    PCIMAGE_DEBUG_DIRECTORY paDbgDir;
+    int rcRet = rtldrPEReadPartByRva(pModPe, pvBits, pModPe->DebugDir.VirtualAddress, pModPe->DebugDir.Size,
+                                     (void const **)&paDbgDir);
+    if (RT_FAILURE(rcRet))
+        return rcRet;
+
+    /*
+     * Enumerate the debug directory.
+     */
+    uint32_t const cEntries = pModPe->DebugDir.Size / sizeof(paDbgDir[0]);
+    for (uint32_t i = 0; i < cEntries; i++)
+    {
+        if (paDbgDir[i].PointerToRawData < pModPe->offEndOfHdrs)
+            continue;
+        if (paDbgDir[i].SizeOfData < 4)
+            continue;
+
+        void const     *pvPart = NULL;
+        char            szPath[RTPATH_MAX];
+        RTLDRDBGINFO    DbgInfo;
+        RT_ZERO(DbgInfo.u);
+        DbgInfo.iDbgInfo    = i;
+        DbgInfo.offFile     = paDbgDir[i].PointerToRawData;
+        DbgInfo.LinkAddress =    paDbgDir[i].AddressOfRawData < pModPe->cbImage
+                              && paDbgDir[i].AddressOfRawData >= pModPe->offEndOfHdrs
+                            ? paDbgDir[i].AddressOfRawData : NIL_RTLDRADDR;
+        DbgInfo.cb          = paDbgDir[i].SizeOfData;
+        DbgInfo.pszExtFile  = NULL;
+
+        rc = VINF_SUCCESS;
+        switch (paDbgDir[i].Type)
+        {
+            case IMAGE_DEBUG_TYPE_CODEVIEW:
+                DbgInfo.enmType = RTLDRDBGINFOTYPE_CODEVIEW;
+                DbgInfo.u.Cv.cbImage    = pModPe->cbImage;
+                DbgInfo.u.Cv.uMajorVer  = paDbgDir[i].MajorVersion;
+                DbgInfo.u.Cv.uMinorVer  = paDbgDir[i].MinorVersion;
+                DbgInfo.u.Cv.uTimestamp = paDbgDir[i].TimeDateStamp;
+                if (   paDbgDir[i].SizeOfData < sizeof(szPath)
+                    && paDbgDir[i].SizeOfData > 16
+                    && (   DbgInfo.LinkAddress != NIL_RTLDRADDR
+                        || DbgInfo.offFile > 0)
+                    )
+                {
+                    rc = rtldrPEReadPart(pModPe, pvBits, DbgInfo.offFile, DbgInfo.LinkAddress, paDbgDir[i].SizeOfData, &pvPart);
+                    if (RT_SUCCESS(rc))
+                    {
+                        PCCVPDB20INFO pCv20 = (PCCVPDB20INFO)pvPart;
+                        if (   pCv20->u32Magic   == CVPDB20INFO_MAGIC
+                            && pCv20->offDbgInfo == 0
+                            && paDbgDir[i].SizeOfData > RT_UOFFSETOF(CVPDB20INFO, szPdbFilename) )
+                        {
+                            DbgInfo.enmType             = RTLDRDBGINFOTYPE_CODEVIEW_PDB20;
+                            DbgInfo.u.Pdb20.cbImage     = pModPe->cbImage;
+                            DbgInfo.u.Pdb20.uTimestamp  = pCv20->uTimestamp;
+                            DbgInfo.u.Pdb20.uAge        = pCv20->uAge;
+                            DbgInfo.pszExtFile          = (const char *)&pCv20->szPdbFilename[0];
+                        }
+                        else if (   pCv20->u32Magic == CVPDB70INFO_MAGIC
+                                 && paDbgDir[i].SizeOfData > RT_UOFFSETOF(CVPDB70INFO, szPdbFilename) )
+                        {
+                            PCCVPDB70INFO pCv70 = (PCCVPDB70INFO)pCv20;
+                            DbgInfo.enmType             = RTLDRDBGINFOTYPE_CODEVIEW_PDB70;
+                            DbgInfo.u.Pdb70.cbImage     = pModPe->cbImage;
+                            DbgInfo.u.Pdb70.Uuid        = pCv70->PdbUuid;
+                            DbgInfo.u.Pdb70.uAge        = pCv70->uAge;
+                            DbgInfo.pszExtFile          = (const char *)&pCv70->szPdbFilename[0];
+                        }
+                    }
+                    else
+                        rcRet = rc;
+                }
+                break;
+
+            case IMAGE_DEBUG_TYPE_MISC:
+                DbgInfo.enmType = RTLDRDBGINFOTYPE_UNKNOWN;
+                if (   paDbgDir[i].SizeOfData < sizeof(szPath)
+                    && paDbgDir[i].SizeOfData > RT_UOFFSETOF(IMAGE_DEBUG_MISC, Data))
+                {
+                    DbgInfo.enmType             = RTLDRDBGINFOTYPE_CODEVIEW_DBG;
+                    DbgInfo.u.Dbg.cbImage       = pModPe->cbImage;
+                    if (DbgInfo.LinkAddress != NIL_RTLDRADDR)
+                        DbgInfo.u.Dbg.uTimestamp = paDbgDir[i].TimeDateStamp;
+                    else
+                        DbgInfo.u.Dbg.uTimestamp = pModPe->uTimestamp; /* NT4 SP1 ntfs.sys hack. Generic? */
+
+                    rc = rtldrPEReadPart(pModPe, pvBits, DbgInfo.offFile, DbgInfo.LinkAddress, paDbgDir[i].SizeOfData, &pvPart);
+                    if (RT_SUCCESS(rc))
+                    {
+                        PCIMAGE_DEBUG_MISC pMisc = (PCIMAGE_DEBUG_MISC)pvPart;
+                        if (   pMisc->DataType == IMAGE_DEBUG_MISC_EXENAME
+                            && pMisc->Length   == paDbgDir[i].SizeOfData)
+                        {
+                            if (!pMisc->Unicode)
+                                DbgInfo.pszExtFile      = (const char *)&pMisc->Data[0];
+                            else
+                            {
+                                char *pszPath = szPath;
+                                rc = RTUtf16ToUtf8Ex((PCRTUTF16)&pMisc->Data[0],
+                                                     (pMisc->Length - RT_OFFSETOF(IMAGE_DEBUG_MISC, Data)) / sizeof(RTUTF16),
+                                                     &pszPath, sizeof(szPath), NULL);
+                                if (RT_SUCCESS(rc))
+                                    DbgInfo.pszExtFile = szPath;
+                                else
+                                    rcRet = rc; /* continue without a filename. */
+                            }
+                        }
+                    }
+                    else
+                        rcRet = rc; /* continue without a filename. */
+                }
+                break;
+
+            case IMAGE_DEBUG_TYPE_COFF:
+                DbgInfo.enmType = RTLDRDBGINFOTYPE_COFF;
+                DbgInfo.u.Coff.cbImage    = pModPe->cbImage;
+                DbgInfo.u.Coff.uMajorVer  = paDbgDir[i].MajorVersion;
+                DbgInfo.u.Coff.uMinorVer  = paDbgDir[i].MinorVersion;
+                DbgInfo.u.Coff.uTimestamp = paDbgDir[i].TimeDateStamp;
+                break;
+
+            default:
+                DbgInfo.enmType = RTLDRDBGINFOTYPE_UNKNOWN;
+                break;
+        }
+
+        /* Fix (hack) the file name encoding.  We don't have Windows-1252 handy,
+           so we'll be using Latin-1 as a reasonable approximation.
+           (I don't think we know exactly which encoding this is anyway, as
+           it's probably the current ANSI/Windows code page for the process
+           generating the image anyways.) */
+        if (DbgInfo.pszExtFile && DbgInfo.pszExtFile != szPath)
+        {
+            char *pszPath = szPath;
+            rc = RTLatin1ToUtf8Ex(DbgInfo.pszExtFile,
+                                  paDbgDir[i].SizeOfData - ((uintptr_t)DbgInfo.pszExtFile - (uintptr_t)pvBits),
+                                  &pszPath, sizeof(szPath), NULL);
+            if (RT_FAILURE(rc))
+            {
+                rcRet = rc;
+                DbgInfo.pszExtFile = NULL;
+            }
+        }
+        if (DbgInfo.pszExtFile)
+            RTPathChangeToUnixSlashes(szPath, true /*fForce*/);
+
+        rc = pfnCallback(pMod, &DbgInfo, pvUser);
+        rtldrPEFreePart(pModPe, pvBits, pvPart);
+        if (rc != VINF_SUCCESS)
+        {
+            rcRet = rc;
+            break;
+        }
+    }
+
+    rtldrPEFreePart(pModPe, pvBits, paDbgDir);
+    return rcRet;
 }
 
 
 /** @copydoc RTLDROPS::pfnEnumSegments. */
 static DECLCALLBACK(int) rtldrPE_EnumSegments(PRTLDRMODINTERNAL pMod, PFNRTLDRENUMSEGS pfnCallback, void *pvUser)
 {
-    NOREF(pMod); NOREF(pfnCallback); NOREF(pvUser);
-    return VINF_NOT_SUPPORTED;
+    PRTLDRMODPE pModPe = (PRTLDRMODPE)pMod;
+    RTLDRSEG    SegInfo;
+
+    /*
+     * The first section is a fake one covering the headers.
+     */
+    SegInfo.pszName     = "NtHdrs";
+    SegInfo.cchName     = 6;
+    SegInfo.SelFlat     = 0;
+    SegInfo.Sel16bit    = 0;
+    SegInfo.fFlags      = 0;
+    SegInfo.fProt       = RTMEM_PROT_READ;
+    SegInfo.Alignment   = 1;
+    SegInfo.LinkAddress = pModPe->uImageBase;
+    SegInfo.RVA         = 0;
+    SegInfo.offFile     = 0;
+    SegInfo.cb          = pModPe->cbHeaders;
+    SegInfo.cbFile      = pModPe->cbHeaders;
+    SegInfo.cbMapped    = pModPe->cbHeaders;
+    if ((pModPe->paSections[0].Characteristics & IMAGE_SCN_TYPE_NOLOAD))
+        SegInfo.cbMapped = pModPe->paSections[0].VirtualAddress;
+    int rc = pfnCallback(pMod, &SegInfo, pvUser);
+
+    /*
+     * Then all the normal sections.
+     */
+    PCIMAGE_SECTION_HEADER pSh = pModPe->paSections;
+    for (uint32_t i = 0; i < pModPe->cSections && rc == VINF_SUCCESS; i++, pSh++)
+    {
+        char szName[32];
+        SegInfo.pszName         = (const char *)&pSh->Name[0];
+        SegInfo.cchName         = (uint32_t)RTStrNLen(SegInfo.pszName, sizeof(pSh->Name));
+        if (SegInfo.cchName >= sizeof(pSh->Name))
+        {
+            memcpy(szName, &pSh->Name[0], sizeof(pSh->Name));
+            szName[sizeof(sizeof(pSh->Name))] = '\0';
+            SegInfo.pszName = szName;
+        }
+        else if (SegInfo.cchName == 0)
+        {
+            SegInfo.pszName = szName;
+            SegInfo.cchName = (uint32_t)RTStrPrintf(szName, sizeof(szName), "UnamedSect%02u", i);
+        }
+        SegInfo.SelFlat         = 0;
+        SegInfo.Sel16bit        = 0;
+        SegInfo.fFlags          = 0;
+        SegInfo.fProt           = RTMEM_PROT_NONE;
+        if (pSh->Characteristics & IMAGE_SCN_MEM_READ)
+            SegInfo.fProt       |= RTMEM_PROT_READ;
+        if (pSh->Characteristics & IMAGE_SCN_MEM_WRITE)
+            SegInfo.fProt       |= RTMEM_PROT_WRITE;
+        if (pSh->Characteristics & IMAGE_SCN_MEM_EXECUTE)
+            SegInfo.fProt       |= RTMEM_PROT_EXEC;
+        SegInfo.Alignment       = (pSh->Characteristics & IMAGE_SCN_ALIGN_MASK) >> IMAGE_SCN_ALIGN_SHIFT;
+        if (SegInfo.Alignment > 0)
+            SegInfo.Alignment   = RT_BIT_64(SegInfo.Alignment - 1);
+        if (pSh->Characteristics & IMAGE_SCN_TYPE_NOLOAD)
+        {
+            SegInfo.LinkAddress = NIL_RTLDRADDR;
+            SegInfo.RVA         = NIL_RTLDRADDR;
+            SegInfo.cbMapped    = pSh->Misc.VirtualSize;
+        }
+        else
+        {
+            SegInfo.LinkAddress = pSh->VirtualAddress + pModPe->uImageBase ;
+            SegInfo.RVA         = pSh->VirtualAddress;
+            SegInfo.cbMapped    = RT_ALIGN(SegInfo.cb, SegInfo.Alignment);
+            if (i + 1 < pModPe->cSections && !(pSh[1].Characteristics & IMAGE_SCN_TYPE_NOLOAD))
+                SegInfo.cbMapped = pSh[1].VirtualAddress - pSh->VirtualAddress;
+        }
+        SegInfo.cb              = pSh->Misc.VirtualSize;
+        if (pSh->PointerToRawData == 0 || pSh->SizeOfRawData == 0)
+        {
+            SegInfo.offFile     = -1;
+            SegInfo.cbFile      = 0;
+        }
+        else
+        {
+            SegInfo.offFile     = pSh->PointerToRawData;
+            SegInfo.cbFile      = pSh->SizeOfRawData;
+        }
+
+        rc = pfnCallback(pMod, &SegInfo, pvUser);
+    }
+
+    return rc;
 }
 
 
@@ -789,16 +1407,53 @@ static DECLCALLBACK(int) rtldrPE_EnumSegments(PRTLDRMODINTERNAL pMod, PFNRTLDREN
 static DECLCALLBACK(int) rtldrPE_LinkAddressToSegOffset(PRTLDRMODINTERNAL pMod, RTLDRADDR LinkAddress,
                                                         uint32_t *piSeg, PRTLDRADDR poffSeg)
 {
-    NOREF(pMod); NOREF(LinkAddress); NOREF(piSeg); NOREF(poffSeg);
-    return VERR_NOT_IMPLEMENTED;
+    PRTLDRMODPE pModPe = (PRTLDRMODPE)pMod;
+
+    LinkAddress -= pModPe->uImageBase;
+
+    /* Special header segment. */
+    if (LinkAddress < pModPe->paSections[0].VirtualAddress)
+    {
+        *piSeg   = 0;
+        *poffSeg = LinkAddress;
+        return VINF_SUCCESS;
+    }
+
+    /*
+     * Search the normal sections. (Could do this in binary fashion, they're
+     * sorted, but too much bother right now.)
+     */
+    if (LinkAddress > pModPe->cbImage)
+        return VERR_LDR_INVALID_LINK_ADDRESS;
+    uint32_t                i       = pModPe->cSections;
+    PCIMAGE_SECTION_HEADER  paShs   = pModPe->paSections;
+    while (i-- > 0)
+        if (!(paShs[i].Characteristics & IMAGE_SCN_TYPE_NOLOAD))
+        {
+            uint32_t uAddr = paShs[i].VirtualAddress;
+            if (LinkAddress >= uAddr)
+            {
+                *poffSeg = LinkAddress - uAddr;
+                *piSeg   = i + 1;
+                return VINF_SUCCESS;
+            }
+        }
+
+    return VERR_LDR_INVALID_LINK_ADDRESS;
 }
 
 
 /** @copydoc RTLDROPS::pfnLinkAddressToRva. */
 static DECLCALLBACK(int) rtldrPE_LinkAddressToRva(PRTLDRMODINTERNAL pMod, RTLDRADDR LinkAddress, PRTLDRADDR pRva)
 {
-    NOREF(pMod); NOREF(LinkAddress); NOREF(pRva);
-    return VERR_NOT_IMPLEMENTED;
+    PRTLDRMODPE pModPe = (PRTLDRMODPE)pMod;
+
+    LinkAddress -= pModPe->uImageBase;
+    if (LinkAddress > pModPe->cbImage)
+        return VERR_LDR_INVALID_LINK_ADDRESS;
+    *pRva = LinkAddress;
+
+    return VINF_SUCCESS;
 }
 
 
@@ -806,8 +1461,19 @@ static DECLCALLBACK(int) rtldrPE_LinkAddressToRva(PRTLDRMODINTERNAL pMod, RTLDRA
 static DECLCALLBACK(int) rtldrPE_SegOffsetToRva(PRTLDRMODINTERNAL pMod, uint32_t iSeg, RTLDRADDR offSeg,
                                                 PRTLDRADDR pRva)
 {
-    NOREF(pMod); NOREF(iSeg); NOREF(offSeg); NOREF(pRva);
-    return VERR_NOT_IMPLEMENTED;
+    PRTLDRMODPE pModPe = (PRTLDRMODPE)pMod;
+
+    if (iSeg > pModPe->cSections)
+        return VERR_LDR_INVALID_SEG_OFFSET;
+
+    /** @todo should validate offSeg here... too lazy right now. */
+    if (iSeg == 0)
+        *pRva = offSeg;
+    else if (pModPe->paSections[iSeg].Characteristics & IMAGE_SCN_TYPE_NOLOAD)
+        return VERR_LDR_INVALID_SEG_OFFSET;
+    else
+        *pRva = offSeg + pModPe->paSections[iSeg].VirtualAddress;
+    return VINF_SUCCESS;
 }
 
 
@@ -815,8 +1481,11 @@ static DECLCALLBACK(int) rtldrPE_SegOffsetToRva(PRTLDRMODINTERNAL pMod, uint32_t
 static DECLCALLBACK(int) rtldrPE_RvaToSegOffset(PRTLDRMODINTERNAL pMod, RTLDRADDR Rva,
                                                 uint32_t *piSeg, PRTLDRADDR poffSeg)
 {
-    NOREF(pMod); NOREF(Rva); NOREF(piSeg); NOREF(poffSeg);
-    return VERR_NOT_IMPLEMENTED;
+    PRTLDRMODPE pModPe = (PRTLDRMODPE)pMod;
+    int rc = rtldrPE_LinkAddressToSegOffset(pMod, Rva + pModPe->uImageBase, piSeg, poffSeg);
+    if (RT_FAILURE(rc))
+        rc = VERR_LDR_INVALID_RVA;
+    return rc;
 }
 
 
@@ -828,12 +1497,6 @@ static DECLCALLBACK(int) rtldrPEDone(PRTLDRMODINTERNAL pMod)
     {
         RTMemFree(pModPe->pvBits);
         pModPe->pvBits = NULL;
-    }
-    if (pModPe->pReader)
-    {
-        int rc = pModPe->pReader->pfnDestroy(pModPe->pReader);
-        AssertRC(rc);
-        pModPe->pReader = NULL;
     }
     return VINF_SUCCESS;
 }
@@ -851,12 +1514,6 @@ static DECLCALLBACK(int) rtldrPEClose(PRTLDRMODINTERNAL pMod)
     {
         RTMemFree(pModPe->pvBits);
         pModPe->pvBits = NULL;
-    }
-    if (pModPe->pReader)
-    {
-        int rc = pModPe->pReader->pfnDestroy(pModPe->pReader);
-        AssertRC(rc);
-        pModPe->pReader = NULL;
     }
     return VINF_SUCCESS;
 }
@@ -884,6 +1541,7 @@ static const RTLDROPSPE s_rtldrPE32Ops =
         rtldrPE_LinkAddressToRva,
         rtldrPE_SegOffsetToRva,
         rtldrPE_RvaToSegOffset,
+        NULL,
         42
     },
     rtldrPEResolveImports32,
@@ -913,6 +1571,7 @@ static const RTLDROPSPE s_rtldrPE64Ops =
         rtldrPE_LinkAddressToRva,
         rtldrPE_SegOffsetToRva,
         rtldrPE_RvaToSegOffset,
+        NULL,
         42
     },
     rtldrPEResolveImports64,
@@ -1004,10 +1663,11 @@ static void rtldrPEConvert32BitLoadConfigTo64Bit(PIMAGE_LOAD_CONFIG_DIRECTORY64 
  *
  * @returns iprt status code.
  * @param   pFileHdr    Pointer to the file header that needs validating.
+ * @param   fFlags      Valid RTLDR_O_XXX combination.
  * @param   pszLogName  The log name to  prefix the errors with.
  * @param   penmArch    Where to store the CPU architecture.
  */
-int rtldrPEValidateFileHeader(PIMAGE_FILE_HEADER pFileHdr, const char *pszLogName, PRTLDRARCH penmArch)
+static int rtldrPEValidateFileHeader(PIMAGE_FILE_HEADER pFileHdr, uint32_t fFlags, const char *pszLogName, PRTLDRARCH penmArch)
 {
     size_t cbOptionalHeader;
     switch (pFileHdr->Machine)
@@ -1034,7 +1694,8 @@ int rtldrPEValidateFileHeader(PIMAGE_FILE_HEADER pFileHdr, const char *pszLogNam
         return VERR_BAD_EXE_FORMAT;
     }
     /* This restriction needs to be implemented elsewhere. */
-    if (pFileHdr->Characteristics & IMAGE_FILE_RELOCS_STRIPPED)
+    if (   (pFileHdr->Characteristics & IMAGE_FILE_RELOCS_STRIPPED)
+        && !(fFlags & RTLDR_O_FOR_DEBUG))
     {
         Log(("rtldrPEOpen: %s: IMAGE_FILE_RELOCS_STRIPPED\n", pszLogName));
         return VERR_BAD_EXE_FORMAT;
@@ -1064,9 +1725,10 @@ int rtldrPEValidateFileHeader(PIMAGE_FILE_HEADER pFileHdr, const char *pszLogNam
  * @param   offNtHdrs   The offset of the NT headers from the start of the file.
  * @param   pFileHdr    Pointer to the file header (valid).
  * @param   cbRawImage  The raw image size.
+ * @param   fFlags      Loader flags, RTLDR_O_XXX.
  */
 static int rtldrPEValidateOptionalHeader(const IMAGE_OPTIONAL_HEADER64 *pOptHdr, const char *pszLogName, RTFOFF offNtHdrs,
-                                         const IMAGE_FILE_HEADER *pFileHdr, RTFOFF cbRawImage)
+                                         const IMAGE_FILE_HEADER *pFileHdr, RTFOFF cbRawImage, uint32_t fFlags)
 {
     const uint16_t CorrectMagic = pFileHdr->SizeOfOptionalHeader == sizeof(IMAGE_OPTIONAL_HEADER32)
                                 ? IMAGE_NT_OPTIONAL_HDR32_MAGIC : IMAGE_NT_OPTIONAL_HDR64_MAGIC;
@@ -1193,6 +1855,12 @@ static int rtldrPEValidateOptionalHeader(const IMAGE_OPTIONAL_HEADER64 *pOptHdr,
                     Log(("rtldrPEOpen: %s: Security directory is misaligned: %#x\n", pszLogName, i, pDir->VirtualAddress));
                     return VERR_LDRPE_CERT_MALFORMED;
                 }
+                /* When using the in-memory reader with a debugger, we may get
+                   into trouble here since we might not have access to the whole
+                   physical file.  So skip the tests below. Makes VBoxGuest.sys
+                   load and check out just fine, for instance. */
+                if (fFlags & RTLDR_O_FOR_DEBUG)
+                    continue;
                 break;
 
             case IMAGE_DIRECTORY_ENTRY_GLOBALPTR:     // 8   /* (MIPS GP) */
@@ -1241,9 +1909,10 @@ static int rtldrPEValidateOptionalHeader(const IMAGE_OPTIONAL_HEADER64 *pOptHdr,
  * @param   pszLogName  The log name to  prefix the errors with.
  * @param   pOptHdr     Pointer to the optional header (valid).
  * @param   cbRawImage  The raw image size.
+ * @param   fFlags      Loader flags, RTLDR_O_XXX.
  */
-int rtldrPEValidateSectionHeaders(const IMAGE_SECTION_HEADER *paSections, unsigned cSections, const char *pszLogName,
-                                  const IMAGE_OPTIONAL_HEADER64 *pOptHdr, RTFOFF cbRawImage)
+static int rtldrPEValidateSectionHeaders(const IMAGE_SECTION_HEADER *paSections, unsigned cSections, const char *pszLogName,
+                                         const IMAGE_OPTIONAL_HEADER64 *pOptHdr, RTFOFF cbRawImage, uint32_t fFlags)
 {
     const uint32_t              cbImage  = pOptHdr->SizeOfImage;
     const IMAGE_SECTION_HEADER *pSH      = &paSections[0];
@@ -1262,7 +1931,10 @@ int rtldrPEValidateSectionHeaders(const IMAGE_SECTION_HEADER *paSections, unsign
               pSH->PointerToRawData, pSH->SizeOfRawData,
               pSH->PointerToRelocations, pSH->NumberOfRelocations,
               pSH->PointerToLinenumbers, pSH->NumberOfLinenumbers));
-        if (pSH->Characteristics & (IMAGE_SCN_MEM_16BIT | IMAGE_SCN_MEM_FARDATA | IMAGE_SCN_MEM_PURGEABLE | IMAGE_SCN_MEM_PRELOAD))
+
+        AssertCompile(IMAGE_SCN_MEM_16BIT == IMAGE_SCN_MEM_PURGEABLE);
+        if (  (  pSH->Characteristics & (IMAGE_SCN_MEM_PURGEABLE | IMAGE_SCN_MEM_PRELOAD | IMAGE_SCN_MEM_FARDATA) )
+            && !(fFlags & RTLDR_O_FOR_DEBUG)) /* purgable/16-bit seen on w2ksp0 hal.dll, ignore the bunch. */
         {
             Log(("rtldrPEOpen: %s: Unsupported section flag(s) %#x section #%d '%.*s'!!!\n",
                  pszLogName, pSH->Characteristics, iSH, sizeof(pSH->Name), pSH->Name));
@@ -1344,7 +2016,7 @@ int rtldrPEValidateSectionHeaders(const IMAGE_SECTION_HEADER *paSections, unsign
 static int rtldrPEReadRVA(PRTLDRMODPE pModPe, void *pvBuf, uint32_t cb, uint32_t RVA)
 {
     const IMAGE_SECTION_HEADER *pSH = pModPe->paSections;
-    PRTLDRREADER                pReader = pModPe->pReader;
+    PRTLDRREADER                pReader = pModPe->Core.pReader;
     uint32_t                    cbRead;
     int                         rc;
 
@@ -1421,10 +2093,11 @@ static int rtldrPEReadRVA(PRTLDRMODPE pModPe, void *pvBuf, uint32_t cb, uint32_t
  * @returns iprt status code.
  * @param   pModPe      The PE module instance.
  * @param   pOptHdr     Pointer to the optional header (valid).
+ * @param   fFlags      Loader flags, RTLDR_O_XXX.
  */
-int rtldrPEValidateDirectories(PRTLDRMODPE pModPe, const IMAGE_OPTIONAL_HEADER64 *pOptHdr)
+static int rtldrPEValidateDirectories(PRTLDRMODPE pModPe, const IMAGE_OPTIONAL_HEADER64 *pOptHdr, uint32_t fFlags)
 {
-    const char *pszLogName = pModPe->pReader->pfnLogName(pModPe->pReader); NOREF(pszLogName);
+    const char *pszLogName = pModPe->Core.pReader->pfnLogName(pModPe->Core.pReader); NOREF(pszLogName);
     union /* combine stuff we're reading to help reduce stack usage. */
     {
         IMAGE_LOAD_CONFIG_DIRECTORY64   Cfg64;
@@ -1490,15 +2163,16 @@ int rtldrPEValidateDirectories(PRTLDRMODPE pModPe, const IMAGE_OPTIONAL_HEADER64
     }
 
     /*
-     * If the image is signed, take a look at the signature.
+     * If the image is signed and we're not doing this for debug purposes,
+     * take a look at the signature.
      */
     Dir = pOptHdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_SECURITY];
-    if (Dir.Size)
+    if (Dir.Size && !(fFlags & RTLDR_O_FOR_DEBUG))
     {
         PWIN_CERTIFICATE pFirst = (PWIN_CERTIFICATE)RTMemTmpAlloc(Dir.Size);
         if (!pFirst)
             return VERR_NO_TMP_MEMORY;
-        int rc = pModPe->pReader->pfnRead(pModPe->pReader, pFirst, Dir.Size, Dir.VirtualAddress);
+        int rc = pModPe->Core.pReader->pfnRead(pModPe->Core.pReader, pFirst, Dir.Size, Dir.VirtualAddress);
         if (RT_SUCCESS(rc))
         {
             uint32_t         off  = 0;
@@ -1556,15 +2230,13 @@ int rtldrPEValidateDirectories(PRTLDRMODPE pModPe, const IMAGE_OPTIONAL_HEADER64
  *
  * @returns iprt status code.
  * @param   pReader     The loader reader instance which will provide the raw image bits.
- * @param   fFlags      Reserved, MBZ.
+ * @param   fFlags      Loader flags, RTLDR_O_XXX.
  * @param   enmArch     Architecture specifier.
  * @param   offNtHdrs   The offset of the NT headers (where you find "PE\0\0").
  * @param   phLdrMod    Where to store the handle.
  */
 int rtldrPEOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, RTFOFF offNtHdrs, PRTLDRMOD phLdrMod)
 {
-    AssertReturn(!fFlags, VERR_INVALID_PARAMETER);
-
     /*
      * Read and validate the file header.
      */
@@ -1574,7 +2246,7 @@ int rtldrPEOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, RTFOFF
         return rc;
     RTLDRARCH enmArchImage;
     const char *pszLogName = pReader->pfnLogName(pReader);
-    rc = rtldrPEValidateFileHeader(&FileHdr, pszLogName, &enmArchImage);
+    rc = rtldrPEValidateFileHeader(&FileHdr, fFlags, pszLogName, &enmArchImage);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -1594,7 +2266,7 @@ int rtldrPEOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, RTFOFF
         return rc;
     if (FileHdr.SizeOfOptionalHeader != sizeof(OptHdr))
         rtldrPEConvert32BitOptionalHeaderTo64Bit(&OptHdr);
-    rc = rtldrPEValidateOptionalHeader(&OptHdr, pszLogName, offNtHdrs, &FileHdr, pReader->pfnSize(pReader));
+    rc = rtldrPEValidateOptionalHeader(&OptHdr, pszLogName, offNtHdrs, &FileHdr, pReader->pfnSize(pReader), fFlags);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -1605,11 +2277,12 @@ int rtldrPEOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, RTFOFF
     PIMAGE_SECTION_HEADER paSections = (PIMAGE_SECTION_HEADER)RTMemAlloc(cbSections);
     if (!paSections)
         return VERR_NO_MEMORY;
-    rc = pReader->pfnRead(pReader, paSections, cbSections, offNtHdrs + 4 + sizeof(IMAGE_FILE_HEADER) + FileHdr.SizeOfOptionalHeader);
+    rc = pReader->pfnRead(pReader, paSections, cbSections,
+                          offNtHdrs + 4 + sizeof(IMAGE_FILE_HEADER) + FileHdr.SizeOfOptionalHeader);
     if (RT_SUCCESS(rc))
     {
         rc = rtldrPEValidateSectionHeaders(paSections, FileHdr.NumberOfSections, pszLogName,
-                                           &OptHdr, pReader->pfnSize(pReader));
+                                           &OptHdr, pReader->pfnSize(pReader), fFlags);
         if (RT_SUCCESS(rc))
         {
             /*
@@ -1624,9 +2297,24 @@ int rtldrPEOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, RTFOFF
                     pModPe->Core.pOps = &s_rtldrPE64Ops.Core;
                 else
                     pModPe->Core.pOps = &s_rtldrPE32Ops.Core;
-                pModPe->pReader       = pReader;
+                pModPe->Core.pReader  = pReader;
+                pModPe->Core.enmFormat= RTLDRFMT_PE;
+                pModPe->Core.enmType  = FileHdr.Characteristics & IMAGE_FILE_DLL
+                                      ? FileHdr.Characteristics & IMAGE_FILE_RELOCS_STRIPPED
+                                        ? RTLDRTYPE_EXECUTABLE_FIXED
+                                        : RTLDRTYPE_EXECUTABLE_RELOCATABLE
+                                      : FileHdr.Characteristics & IMAGE_FILE_RELOCS_STRIPPED
+                                        ? RTLDRTYPE_SHARED_LIBRARY_FIXED
+                                        : RTLDRTYPE_SHARED_LIBRARY_RELOCATABLE;
+                pModPe->Core.enmEndian= RTLDRENDIAN_LITTLE;
+                pModPe->Core.enmArch  = FileHdr.Machine == IMAGE_FILE_MACHINE_I386
+                                      ? RTLDRARCH_X86_32
+                                      : FileHdr.Machine == IMAGE_FILE_MACHINE_AMD64
+                                      ? RTLDRARCH_AMD64
+                                      : RTLDRARCH_WHATEVER;
                 pModPe->pvBits        = NULL;
                 pModPe->offNtHdrs     = offNtHdrs;
+                pModPe->offEndOfHdrs  = offNtHdrs + 4 + sizeof(IMAGE_FILE_HEADER) + FileHdr.SizeOfOptionalHeader + cbSections;
                 pModPe->u16Machine    = FileHdr.Machine;
                 pModPe->fFile         = FileHdr.Characteristics;
                 pModPe->cSections     = FileHdr.NumberOfSections;
@@ -1635,15 +2323,17 @@ int rtldrPEOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, RTFOFF
                 pModPe->uImageBase    = (RTUINTPTR)OptHdr.ImageBase;
                 pModPe->cbImage       = OptHdr.SizeOfImage;
                 pModPe->cbHeaders     = OptHdr.SizeOfHeaders;
+                pModPe->uTimestamp    = FileHdr.TimeDateStamp;
                 pModPe->ImportDir     = OptHdr.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
                 pModPe->RelocDir      = OptHdr.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
                 pModPe->ExportDir     = OptHdr.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+                pModPe->DebugDir      = OptHdr.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG];
 
                 /*
                  * Perform validation of some selected data directories which requires
                  * inspection of the actual data.
                  */
-                rc = rtldrPEValidateDirectories(pModPe, &OptHdr);
+                rc = rtldrPEValidateDirectories(pModPe, &OptHdr, fFlags);
                 if (RT_SUCCESS(rc))
                 {
                     *phLdrMod = &pModPe->Core;

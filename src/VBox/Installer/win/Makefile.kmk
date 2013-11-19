@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -202,7 +202,7 @@ $(VBOX_WIN_INST_OUT_DIR)/NLS/License_$(lang).wxl: $(license_file) $(MAKEFILE_CUR
 	$(APPEND) -t $$@ '<?xml version="1.0" encoding="utf-8"?>'
 	$(APPEND) $$@ '<WixLocalization xmlns="http://schemas.microsoft.com/wix/2006/localization" Codepage="$(VBOX_BRAND_$(lang)_LANGUAGE_CODEPAGE)" Culture="$(lang)">'
 
-	$(REDIRECT) -a+to $$@ -- $(ECHO_EXT) -n '<String Id=\"LicenseText\">'
+	$(REDIRECT) -a+to $$@ -- $(ECHO_EXT) -n '<String Id="LicenseText">'
 	$(REDIRECT) -a+to $$@ -- $(SED) -e "s|<|\&lt;|g" -e "s|>|\&gt;|g" $(license_file)
 	$(APPEND) $$@ '</String>'
 
@@ -229,22 +229,24 @@ $(VBOX_WIN_INST_OUT_DIR)/Files_Main.wxi: $(MAKEFILE_CURRENT) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$<)
 	$(APPEND) -t $@ '<?xml version="1.0" ?>'
 	$(APPEND) $@ '<Include xmlns="http://schemas.microsoft.com/wix/2006/wi">'
-  ifdef VBOX_WITH_DOCS_CHM
-		$(APPEND) $@ '	<File Id="file_VirtualBox.chm" Name="VirtualBox.chm" DiskId="$(VBOX_INSTALLER_COMMON_DISKID)" Vital="yes" Source="$(PATH_STAGE_BIN)/VirtualBox.chm"></File>'
-		$(APPEND) -n $@ $(foreach lang,$(VBOX_MANUAL_ADD_LANGUAGES), \
-		             '	<File Id="file_VirtualBox_$(lang).chm" Name="VirtualBox_$(lang).chm" DiskId="$(VBOX_INSTALLER_COMMON_DISKID)" Vital="yes" Source="$(PATH_STAGE_BIN)/VirtualBox_$(lang).chm"></File>')
-  endif
+ifdef VBOX_WITH_DOCS_PACKING
+	$(APPEND) $@ '	<File Id="file_VirtualBox.chm" Name="VirtualBox.chm" DiskId="$(VBOX_INSTALLER_COMMON_DISKID)" Vital="yes" Source="$(PATH_STAGE_BIN)/VirtualBox.chm"></File>'
+	$(APPEND) -n $@ $(foreach lang,$(VBOX_MANUAL_ADD_LANGUAGES), \
+		     '	<File Id="file_VirtualBox_$(lang).chm" Name="VirtualBox_$(lang).chm" DiskId="$(VBOX_INSTALLER_COMMON_DISKID)" Vital="yes" Source="$(PATH_STAGE_BIN)/VirtualBox_$(lang).chm"></File>')
+endif
 	$(APPEND) $@ '</Include>'
 
-$(VBOX_WIN_INST_OUT_DIR)/Files_Doc.wxi:	$(MAKEFILE_CURRENT) | $$(dir $$@)
+$(VBOX_WIN_INST_OUT_DIR)/Files_Doc.wxi: $(MAKEFILE_CURRENT) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$<)
 	$(APPEND) -t $@ '<?xml version="1.0" ?>'
 	$(APPEND) $@ '<Include xmlns="http://schemas.microsoft.com/wix/2006/wi">'
+ifdef VBOX_WITH_DOCS_PACKING
 	$(APPEND) $@ '	<File Id="file_UserManual.pdf" Name="UserManual.pdf" DiskId="$(VBOX_INSTALLER_COMMON_DISKID)" Vital="yes" Source="$(PATH_STAGE_BIN)/UserManual.pdf">'
 	$(APPEND) $@ '	</File>'
 	$(APPEND) -n $@ $(foreach lang,$(VBOX_MANUAL_ADD_LANGUAGES), \
 	             '	<File Id="file_UserManual_$(lang).pdf" Name="UserManual_$(lang).pdf" DiskId="$(VBOX_INSTALLER_COMMON_DISKID)" Vital="yes" Source="$(PATH_STAGE_BIN)/UserManual_$(lang).pdf">' \
 	             '	</File>')
+endif
 	$(APPEND) $@ '</Include>'
 
 $(VBOX_WIN_INST_OUT_DIR)/Files_License.wxi: $(MAKEFILE_CURRENT) | $$(dir $$@)
@@ -265,13 +267,13 @@ $(VBOX_WIN_INST_OUT_DIR)/Shortcuts_StartMenu.wxi: $(MAKEFILE_CURRENT) | $$(dir $
 	#
 	# Documentation (PDF/CHM)
 	#
-  ifdef VBOX_WITH_DOCS_CHM
+ifdef VBOX_WITH_DOCS_PACKING
 	$(APPEND) $@ '	<Shortcut Id="sc_StartMenu_ManualCHM_en_US" Directory="dir_StartMenuVBox" Name="!(loc.StartMenu_UserManual) (CHM, English)" Description="!(loc.StartMenu_UserManual)"' \
 	             '            Target="[INSTALLDIR]\VirtualBox.chm" WorkingDirectory="dir_Documents" Advertise="no"/>'
 	$(APPEND) -n $@ $(foreach lang,$(VBOX_MANUAL_ADD_LANGUAGES), \
 	             '	<Shortcut Id="sc_StartMenu_ManualCHM_$(lang)" Directory="dir_StartMenuVBox" Name="$!(loc.StartMenu_UserManual) (CHM, $(VBOX_BRAND_$(lang)_LANG_NAME))"' \
 		     '            Description="$!(loc.StartMenu_UserManual) ($(VBOX_BRAND_$(lang)_LANG_NAME))" Target="[INSTALLDIR]\VirtualBox_$(lang).chm" WorkingDirectory="dir_Documents"/>')
-  endif
+endif
 	$(APPEND) $@ '	<Shortcut Id="sc_StartMenu_ManualPDF_en_US" Directory="dir_StartMenuVBox" Name="!(loc.StartMenu_UserManual) (PDF, English)" Description="!(loc.StartMenu_UserManual)"' \
 	             '            Target="[INSTALLDIR]\doc\UserManual.pdf" WorkingDirectory="dir_Documents" Advertise="no"/>'
 	$(APPEND) -n $@ $(foreach lang,$(VBOX_MANUAL_ADD_LANGUAGES), \
@@ -413,8 +415,10 @@ endif
 define def_vbox_compile_wixobj
 $(VBOX_WIN_INST_OUT_DIR)/VirtualBox_$(lang).wixobj: \
 			$(PATH_SUB_CURRENT)/VirtualBox.wxs \
+			$(VBOX_WIN_INST_OUT_DIR)/Shortcuts_StartMenu.wxi \
 			$(PATH_SUB_CURRENT)/UserInterface.wxi \
 			$(VBOX_WIN_INST_OUT_DIR)/VirtualBox_TypeLib.wxi \
+			$(if $(VBOX_WITH_32_ON_64_MAIN_API),$(VBOX_WIN_INST_OUT_DIR)/VirtualBox_TypeLib_x86.wxi,) \
 			$(VBOX_WIN_INST_OUT_DIR)/VBoxKey.wxi \
 			$(VBOX_WIN_INST_OUT_DIR)/VBoxGuiNLS.wxi \
 			$(VBOX_MSI_DEPENDENCIES) \
@@ -443,6 +447,7 @@ $(VBOX_WIN_INST_OUT_DIR)/VirtualBox_$(lang).wixobj: \
 		-E 'VBOX_VERSION_MINOR_INST=$(VBOX_VERSION_MINOR)' \
 		-E 'VBOX_SIGNING_MODE=$(strip $(if $(VBOX_SIGNING_MODE),$(VBOX_SIGNING_MODE),none))' \
 		-E 'VBOX_GUI_USE_QGL=$(if $(VBOX_GUI_USE_QGL),yes,no)' \
+		-E 'VBOX_WITH_32_ON_64_MAIN_API=$(if $(VBOX_WITH_32_ON_64_MAIN_API),yes,no)' \
 		-E 'VBOX_WITH_ADDITIONS_PACKING=$(if $(VBOX_WITH_ADDITIONS_PACKING),yes,no)' \
 		-E 'VBOX_WITH_COMBINED_PACKAGE=$(if $(VBOX_WITH_COMBINED_PACKAGE),yes,no)' \
 		-E 'VBOX_WITH_CROGL=$(if $(VBOX_WITH_CROGL),yes,no)' \
@@ -496,6 +501,15 @@ $(VBOX_WIN_INST_OUT_DIR)/VirtualBox_TypeLib.wxi: \
 		$(VBOX_XIDL_FILE) \
 		| $$(dir $$@)
 	$(VBOX_XSLTPROC) -o $@ $< $(VBOX_XIDL_FILE)
+
+$(VBOX_WIN_INST_OUT_DIR)/VirtualBox_TypeLib_x86.wxi: \
+		$(PATH_SUB_CURRENT)/VirtualBox_TypeLib.xsl \
+		$(VBOX_XIDL_FILE) \
+		| $$(dir $$@)
+	$(VBOX_XSLTPROC) --stringparam "a_sTarget" "VBoxClient-x86"  -o $@.tmp $< $(VBOX_XIDL_FILE)
+	$(SED) -e 's/VBoxC/VBoxClient_x86/g' --output $@ $@.tmp
+	$(RM) -f $@.tmp
+
 
 #
 # Construct the list of GUI translations.
@@ -582,11 +596,13 @@ if defined(VBOX_WITH_COMBINED_PACKAGE) && "$(KBUILD_TARGET_ARCH)" == "x86"
 #
 $(PATH_STAGE_BIN)/$(PACKAGE_NAME_MULTIARCH_FINAL): \
 		$(PATH_MULTIARCH_TEMP)/$(PACKAGE_NAME_MULTIARCH.x86) \
-		$(PATH_MULTIARCH_TEMP)/$(PACKAGE_NAME_MULTIARCH.amd64)
+		$(PATH_MULTIARCH_TEMP)/$(PACKAGE_NAME_MULTIARCH.amd64) \
+		$(PATH_STAGE_BIN)/VBoxStub.exe \
+		$$(VBoxStubBld_1_TARGET)
 	$(call MSG_L1,Building Windows combined package)
 	$(call VBOX_SIGN_FILE_FN,$(VBOX_WIN_INST_OUT_DIR)/$(PACKAGE_NAME_MULTIARCH_COMMONCAB))
 	$(REDIRECT) -C $(@D) -- \
-		VBoxStubBld -out $@ \
+		$(VBoxStubBld_1_TARGET) -out $@ \
 			-target-x86 $(PATH_MULTIARCH_TEMP)/$(PACKAGE_NAME_MULTIARCH.x86) \
 			-target-amd64 $(PATH_MULTIARCH_TEMP)/$(PACKAGE_NAME_MULTIARCH.amd64) \
 			-target-all $(VBOX_WIN_INST_OUT_DIR)/$(PACKAGE_NAME_MULTIARCH_COMMONCAB) \

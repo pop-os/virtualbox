@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,8 +53,8 @@ public:
      * This differs from QTextEdit::append() in that it won't start on a new paragraph
      * unless the previous char was a newline ('\n').
      *
-     * @param   rStr        The text string to append. 
-     * @param   fClearSelection     Whether to clear selected text before appending. 
+     * @param   rStr        The text string to append.
+     * @param   fClearSelection     Whether to clear selected text before appending.
      *                              If @c false the selection and window position
      *                              are preserved.
      */
@@ -117,8 +117,6 @@ private slots:
     void returnPressed();
 
 protected:
-    /** The current blank entry. */
-    int m_iBlankItem;
     /** The handle to the GUI thread. */
     RTNATIVETHREAD m_hGUIThread;
 };

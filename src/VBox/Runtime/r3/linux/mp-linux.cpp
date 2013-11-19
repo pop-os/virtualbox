@@ -33,6 +33,9 @@
 #include <errno.h>
 
 #include <iprt/mp.h>
+#include "internal/iprt.h"
+
+#include <iprt/alloca.h>
 #include <iprt/cpuset.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
@@ -82,7 +85,7 @@ static uint32_t rtMpLinuxGetFrequency(RTCPUID idCpu)
     while (fgets(sz, sizeof(sz), pFile))
     {
         char *psz;
-        if (   !strncmp(sz, "processor", 9)
+        if (   !strncmp(sz, RT_STR_TUPLE("processor"))
             && (sz[10] == ' ' || sz[10] == '\t' || sz[10] == ':')
             && (psz = strchr(sz, ':')))
         {
@@ -93,7 +96,7 @@ static uint32_t rtMpLinuxGetFrequency(RTCPUID idCpu)
                 idCpuFound = iCpu;
         }
         else if (   idCpu == idCpuFound
-                 && !strncmp(sz, "cpu MHz", 7)
+                 && !strncmp(sz, RT_STR_TUPLE("cpu MHz"))
                  && (sz[10] == ' ' || sz[10] == '\t' || sz[10] == ':')
                  && (psz = strchr(sz, ':')))
         {
@@ -177,6 +180,29 @@ RTDECL(RTCPUID) RTMpGetCount(void)
 }
 
 
+RTDECL(RTCPUID) RTMpGetCoreCount(void)
+{
+    RTCPUID     cMax      = rtMpLinuxMaxCpus();
+    uint32_t   *paidCores = (uint32_t *)alloca(sizeof(paidCores[0]) * (cMax + 1));
+    uint32_t    cCores    = 0;
+    for (RTCPUID idCpu = 0; idCpu < cMax; idCpu++)
+    {
+        if (RTMpIsCpuPossible(idCpu))
+        {
+            uint32_t idCore = (uint32_t)RTLinuxSysFsReadIntFile(0, "devices/system/cpu/cpu%d/topology/core_id", (int)idCpu);
+            uint32_t i;
+            for (i = 0; i < cCores; i++)
+                if (paidCores[i] == idCore)
+                    break;
+            if (i >= cCores)
+                paidCores[cCores++] = idCore;
+        }
+    }
+    Assert(cCores > 0);
+    return cCores;
+}
+
+
 RTDECL(PRTCPUSET) RTMpGetOnlineSet(PRTCPUSET pSet)
 {
     RTCpuSetEmpty(pSet);
@@ -194,6 +220,30 @@ RTDECL(RTCPUID) RTMpGetOnlineCount(void)
     RTMpGetOnlineSet(&Set);
     return RTCpuSetCount(&Set);
 }
+
+
+RTDECL(RTCPUID) RTMpGetOnlineCoreCount(void)
+{
+    RTCPUID     cMax      = rtMpLinuxMaxCpus();
+    uint32_t   *paidCores = (uint32_t *)alloca(sizeof(paidCores[0]) * (cMax + 1));
+    uint32_t    cCores    = 0;
+    for (RTCPUID idCpu = 0; idCpu < cMax; idCpu++)
+    {
+        if (RTMpIsCpuOnline(idCpu))
+        {
+            uint32_t idCore = (uint32_t)RTLinuxSysFsReadIntFile(0, "devices/system/cpu/cpu%d/topology/core_id", (int)idCpu);
+            uint32_t i;
+            for (i = 0; i < cCores; i++)
+                if (paidCores[i] == idCore)
+                    break;
+            if (i >= cCores)
+                paidCores[cCores++] = idCore;
+        }
+    }
+    Assert(cCores > 0);
+    return cCores;
+}
+
 
 
 RTDECL(uint32_t) RTMpGetCurFrequency(RTCPUID idCpu)

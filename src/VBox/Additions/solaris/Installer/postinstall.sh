@@ -1,8 +1,11 @@
 #!/bin/sh
+# $Id: postinstall.sh $
+## @file
+# VirtualBox postinstall script for Solaris Guest Additions.
 #
-# VirtualBox postinstall script for Solaris.
+
 #
-# Copyright (C) 2008-2012 Oracle Corporation
+# Copyright (C) 2008-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -48,26 +51,12 @@ uncompress_file()
     uncompress -f "$1/$2.Z" > /dev/null 2>&1
 }
 
+# uncompress_files(directory_with_*.Z_files)
 uncompress_files()
 {
-    # VBox guest files
-    uncompress_file "$1" "VBoxClient"
-    uncompress_file "$1" "VBoxService"
-    uncompress_file "$1" "VBoxControl"
-
-    # VBox Xorg Video drivers
-    uncompress_file "$1" "vboxvideo_drv_13.so"
-    uncompress_file "$1" "vboxvideo_drv_14.so"
-    uncompress_file "$1" "vboxvideo_drv_15.so"
-    uncompress_file "$1" "vboxvideo_drv_16.so"
-    uncompress_file "$1" "vboxvideo_drv_17.so"
-    uncompress_file "$1" "vboxvideo_drv_18.so"
-    uncompress_file "$1" "vboxvideo_drv_19.so"
-    uncompress_file "$1" "vboxvideo_drv_110.so"
-    uncompress_file "$1" "vboxvideo_drv_111.so"
-    uncompress_file "$1" "vboxvideo_drv_112.so"
-    uncompress_file "$1" "vboxvideo_drv_70.so"
-    uncompress_file "$1" "vboxvideo_drv_71.so"
+    for i in "${1}/"*.Z; do
+        uncompress_file "${1}" "`basename \"${i}\" .Z`"
+    done
 }
 
 solaris64dir="amd64"
@@ -143,43 +132,20 @@ if test ! -z "$xorgbin"; then
         xorgversion=`/usr/bin/expr "${xorgversion_long}" : 'X.Org X Server \([^ ]*\)'`
     fi
 
-    vboxvideo_src=""
+    # "X.Y.Z" - strip off all numerics after the 2nd '.' character, e.g. "1.11.3" -> "1.11"
+    # Then the next sed, strips of all '.' characters, "1.11" -> "111".
+    fileversion=`echo $xorgversion | sed "s/\.[0-9]*//2" | sed "s/\.//"`
+    vboxvideo_src="vboxvideo_drv_$fileversion.so"
 
+    # Handle exceptions now where the X.org version does not exactly match the file-version.
     case "$xorgversion" in
-        1.3.* )
-            vboxvideo_src="vboxvideo_drv_13.so"
-            ;;
-        1.4.* )
-            vboxvideo_src="vboxvideo_drv_14.so"
-            ;;
-        1.5.99 | 1.6.* )
+        1.5.99 )
             vboxvideo_src="vboxvideo_drv_16.so"
             ;;
-        1.5.* )
-            vboxvideo_src="vboxvideo_drv_15.so"
-            ;;
-        1.7.*)
-            vboxvideo_src="vboxvideo_drv_17.so"
-            ;;
-        1.8.*)
-            vboxvideo_src="vboxvideo_drv_18.so"
-            ;;
-        1.9.*)
-            vboxvideo_src="vboxvideo_drv_19.so"
-            ;;
-        1.10.*)
-            vboxvideo_src="vboxvideo_drv_110.so"
-            ;;
-        1.11.*)
-            vboxvideo_src="vboxvideo_drv_111.so"
-            ;;
-        1.12.*)
-            vboxvideo_src="vboxvideo_drv_112.so"
-            ;;
-        7.1.* | *7.2.* )
+        7.2.* )
             vboxvideo_src="vboxvideo_drv_71.so"
             ;;
-        6.9.* | 7.0.* )
+        6.9.* )
             vboxvideo_src="vboxvideo_drv_70.so"
             ;;
     esac
@@ -188,6 +154,12 @@ if test ! -z "$xorgbin"; then
     if test -z "$vboxvideo_src"; then
         echo "*** Unknown version of the X Window System installed."
         echo "*** Failed to install the VirtualBox X Window System drivers."
+
+        # Exit as partially failed installation
+        retval=2
+    elif test ! -f "$vboxadditions32_path/$vboxvideo_src" && test ! -f "$vboxadditions64_path/$vboxvideo_src"; then
+        echo "*** $vboxadditions32_path/$vboxvideo_src or $vboxadditions64_path/$vboxvideo_src not found!"
+        echo "*** Failed to install the VirtualBox X.org drivers."
 
         # Exit as partially failed installation
         retval=2
@@ -378,9 +350,8 @@ if test "$currentzone" = "global"; then
     # take a while to complete, using disable/enable -s doesn't work either. So we restart it, and poll in
     # 1 second intervals to see if our service has been successfully imported and timeout after 'cmax' seconds.
     /usr/sbin/svcadm restart svc:system/manifest-import:default
-    ## @todo why do we redirect to /dev/null and then save the output?
-    is_import=`/usr/bin/svcs virtualbox/vboxservice >/dev/null 2>&1 && /usr/bin/svcs virtualbox/vboxmslnk >/dev/null 2>&1`
-    while test $? -ne 0;
+    /usr/bin/svcs virtualbox/vboxservice virtualbox/vboxmslnk >/dev/null 2>&1
+    while test "$?" -ne 0;
     do
         sleep 1
         cslept=`expr $cslept + 1`
@@ -388,7 +359,7 @@ if test "$currentzone" = "global"; then
             success=1
             break
         fi
-        is_import=`/usr/bin/svcs virtualbox/vboxservice >/dev/null 2>&1 && /usr/bin/svcs virtualbox/vboxmslnk >/dev/null 2>&1`
+        /usr/bin/svcs virtualbox/vboxservice virtualbox/vboxmslnk >/dev/null 2>&1
     done
     if test "$success" -eq 0; then
         echo "Enabling services..."

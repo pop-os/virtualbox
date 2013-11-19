@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,6 +22,7 @@
 #include "Global.h"
 #include "ConsoleImpl.h"
 #include "ProgressImpl.h"
+#include "VBoxEvents.h"
 #include "VMMDev.h"
 
 #include "AutoCaller.h"
@@ -64,8 +65,8 @@
 /* static */
 DECLCALLBACK(int) Guest::notifyCtrlDispatcher(void    *pvExtension,
                                               uint32_t u32Function,
-                                              void    *pvParms,
-                                              uint32_t cbParms)
+                                              void    *pvData,
+                                              uint32_t cbData)
 {
     using namespace guestControl;
 
@@ -74,7 +75,7 @@ DECLCALLBACK(int) Guest::notifyCtrlDispatcher(void    *pvExtension,
      * changes to the object state.
      */
     LogFlowFunc(("pvExtension=%p, u32Function=%RU32, pvParms=%p, cbParms=%RU32\n",
-                 pvExtension, u32Function, pvParms, cbParms));
+                 pvExtension, u32Function, pvData, cbData));
     ComObjPtr<Guest> pGuest = reinterpret_cast<Guest *>(pvExtension);
     Assert(!pGuest.isNull());
 
@@ -85,58 +86,35 @@ DECLCALLBACK(int) Guest::notifyCtrlDispatcher(void    *pvExtension,
      * - Extract the session ID out of the context ID
      * - Dispatch the whole stuff to the appropriate session (if still exists)
      */
+    if (cbData != sizeof(VBOXGUESTCTRLHOSTCALLBACK))
+        return VERR_NOT_SUPPORTED;
+    PVBOXGUESTCTRLHOSTCALLBACK pSvcCb = (PVBOXGUESTCTRLHOSTCALLBACK)pvData;
+    AssertPtr(pSvcCb);
 
-    PCALLBACKHEADER pHeader = (PCALLBACKHEADER)pvParms;
-    AssertPtr(pHeader);
+    if (!pSvcCb->mParms) /* At least context ID must be present. */
+        return VERR_INVALID_PARAMETER;
 
+    uint32_t uContextID;
+    int rc = pSvcCb->mpaParms[0].getUInt32(&uContextID);
+    AssertMsgRCReturn(rc, ("Unable to extract callback context ID, pvData=%p\n", pSvcCb), rc);
 #ifdef DEBUG
     LogFlowFunc(("CID=%RU32, uSession=%RU32, uObject=%RU32, uCount=%RU32\n",
-                 pHeader->u32ContextID,
-                 VBOX_GUESTCTRL_CONTEXTID_GET_SESSION(pHeader->u32ContextID),
-                 VBOX_GUESTCTRL_CONTEXTID_GET_OBJECT(pHeader->u32ContextID),
-                 VBOX_GUESTCTRL_CONTEXTID_GET_COUNT(pHeader->u32ContextID)));
+                 uContextID,
+                 VBOX_GUESTCTRL_CONTEXTID_GET_SESSION(uContextID),
+                 VBOX_GUESTCTRL_CONTEXTID_GET_OBJECT(uContextID),
+                 VBOX_GUESTCTRL_CONTEXTID_GET_COUNT(uContextID)));
 #endif
 
-    bool fDispatch = true;
-#ifdef DEBUG
-    /*
-     * Pre-check: If we got a status message with an error and VERR_TOO_MUCH_DATA
-     *            it means that that guest could not handle the entire message
-     *            because of its exceeding size. This should not happen on daily
-     *            use but testcases might try this. It then makes no sense to dispatch
-     *            this further because we don't have a valid context ID.
-     */
-    if (u32Function == GUEST_EXEC_SEND_STATUS)
-    {
-        PCALLBACKDATAEXECSTATUS pCallbackData = reinterpret_cast<PCALLBACKDATAEXECSTATUS>(pvParms);
-        AssertPtr(pCallbackData);
-        AssertReturn(sizeof(CALLBACKDATAEXECSTATUS) == cbParms, VERR_INVALID_PARAMETER);
-        AssertReturn(CALLBACKDATAMAGIC_EXEC_STATUS == pCallbackData->hdr.u32Magic, VERR_INVALID_PARAMETER);
+    VBOXGUESTCTRLHOSTCBCTX ctxCb = { u32Function, uContextID };
+    rc = pGuest->dispatchToSession(&ctxCb, pSvcCb);
 
-        if (   pCallbackData->u32Status == PROC_STS_ERROR
-            && ((int)pCallbackData->u32Flags)  == VERR_TOO_MUCH_DATA)
-        {
-            LogFlowFunc(("Requested command with too much data, skipping dispatching ...\n"));
-
-            Assert(pCallbackData->u32PID == 0);
-            fDispatch = false;
-        }
-    }
-#endif
-    int rc = VINF_SUCCESS;
-    if (fDispatch)
-    {
-        rc = pGuest->dispatchToSession(pHeader->u32ContextID, u32Function, pvParms, cbParms);
-        if (RT_SUCCESS(rc))
-            return rc;
-    }
-
-    LogFlowFuncLeaveRC(rc);
+    LogFlowFunc(("Returning rc=%Rrc\n", rc));
     return rc;
 }
 #endif /* VBOX_WITH_GUEST_CONTROL */
 
-STDMETHODIMP Guest::UpdateGuestAdditions(IN_BSTR aSource, ComSafeArrayIn(AdditionsUpdateFlag_T, aFlags), IProgress **aProgress)
+STDMETHODIMP Guest::UpdateGuestAdditions(IN_BSTR aSource, ComSafeArrayIn(IN_BSTR, aArguments),
+                                         ComSafeArrayIn(AdditionsUpdateFlag_T, aFlags), IProgress **aProgress)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
@@ -162,19 +140,44 @@ STDMETHODIMP Guest::UpdateGuestAdditions(IN_BSTR aSource, ComSafeArrayIn(Additio
             return setError(E_INVALIDARG, tr("Unknown flags (%#x)"), aFlags);
     }
 
+    int rc = VINF_SUCCESS;
+
+    ProcessArguments aArgs;
+    if (aArguments)
+    {
+        try
+        {
+            com::SafeArray<IN_BSTR> arguments(ComSafeArrayInArg(aArguments));
+            for (size_t i = 0; i < arguments.size(); i++)
+                aArgs.push_back(Utf8Str(arguments[i]));
+        }
+        catch(std::bad_alloc &)
+        {
+            rc = VERR_NO_MEMORY;
+        }
+    }
+
     HRESULT hr = S_OK;
 
-    /* Create an anonymous session. This is required to run the Guest Additions
-     * update process with administrative rights. */
+    /*
+     * Create an anonymous session. This is required to run the Guest Additions
+     * update process with administrative rights.
+     */
+    GuestSessionStartupInfo startupInfo;
+    startupInfo.mName = "Updating Guest Additions";
+
+    GuestCredentials guestCreds;
+    RT_ZERO(guestCreds);
+
     ComObjPtr<GuestSession> pSession;
-    int rc = sessionCreate("" /* User */, "" /* Password */, "" /* Domain */,
-                           "Updating Guest Additions" /* Name */, pSession);
+    if (RT_SUCCESS(rc))
+        rc = sessionCreate(startupInfo, guestCreds, pSession);
     if (RT_FAILURE(rc))
     {
         switch (rc)
         {
             case VERR_MAX_PROCS_REACHED:
-                hr = setError(VBOX_E_IPRT_ERROR, tr("Maximum number of guest sessions (%ld) reached"),
+                hr = setError(VBOX_E_IPRT_ERROR, tr("Maximum number of concurrent guest sessions (%ld) reached"),
                               VBOX_GUESTCTRL_MAX_SESSIONS);
                 break;
 
@@ -188,10 +191,13 @@ STDMETHODIMP Guest::UpdateGuestAdditions(IN_BSTR aSource, ComSafeArrayIn(Additio
     else
     {
         Assert(!pSession.isNull());
-        rc = pSession->queryInfo();
+        int guestRc;
+        rc = pSession->startSessionInternal(&guestRc);
         if (RT_FAILURE(rc))
         {
-            hr = setError(VBOX_E_IPRT_ERROR, tr("Could not query guest session information: %Rrc"), rc);
+            /** @todo Handle guestRc! */
+
+            hr = setError(VBOX_E_IPRT_ERROR, tr("Could not open guest session: %Rrc"), rc);
         }
         else
         {
@@ -199,7 +205,7 @@ STDMETHODIMP Guest::UpdateGuestAdditions(IN_BSTR aSource, ComSafeArrayIn(Additio
             {
                 ComObjPtr<Progress> pProgress;
                 SessionTaskUpdateAdditions *pTask = new SessionTaskUpdateAdditions(pSession /* GuestSession */,
-                                                                                   Utf8Str(aSource), fFlags);
+                                                                                   Utf8Str(aSource), aArgs, fFlags);
                 rc = pSession->startTaskAsync(tr("Updating Guest Additions"), pTask, pProgress);
                 if (RT_SUCCESS(rc))
                 {
@@ -223,27 +229,105 @@ STDMETHODIMP Guest::UpdateGuestAdditions(IN_BSTR aSource, ComSafeArrayIn(Additio
 // private methods
 /////////////////////////////////////////////////////////////////////////////
 
-int Guest::dispatchToSession(uint32_t uContextID, uint32_t uFunction, void *pvData, size_t cbData)
+int Guest::dispatchToSession(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
 {
-    LogFlowFuncEnter();
+    LogFlowFunc(("pCtxCb=%p, pSvcCb=%p\n", pCtxCb, pSvcCb));
+
+    AssertPtrReturn(pCtxCb, VERR_INVALID_POINTER);
+    AssertPtrReturn(pSvcCb, VERR_INVALID_POINTER);
+
+    LogFlowFunc(("uFunction=%RU32, uContextID=%RU32, uProtocol=%RU32\n",
+                  pCtxCb->uFunction, pCtxCb->uContextID, pCtxCb->uProtocol));
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    uint32_t uSessionID = VBOX_GUESTCTRL_CONTEXTID_GET_SESSION(uContextID);
+    uint32_t uSessionID = VBOX_GUESTCTRL_CONTEXTID_GET_SESSION(pCtxCb->uContextID);
 #ifdef DEBUG
-    LogFlowFunc(("uSessionID=%RU32 (%RU32 total)\n",
+    LogFlowFunc(("uSessionID=%RU32 (%zu total)\n",
                  uSessionID, mData.mGuestSessions.size()));
 #endif
-    int rc;
     GuestSessions::const_iterator itSession
         = mData.mGuestSessions.find(uSessionID);
+
+    int rc;
     if (itSession != mData.mGuestSessions.end())
     {
         ComObjPtr<GuestSession> pSession(itSession->second);
         Assert(!pSession.isNull());
 
         alock.release();
-        rc = pSession->dispatchToProcess(uContextID, uFunction, pvData, cbData);
+
+        bool fDispatch = true;
+#ifdef DEBUG
+        /*
+         * Pre-check: If we got a status message with an error and VERR_TOO_MUCH_DATA
+         *            it means that that guest could not handle the entire message
+         *            because of its exceeding size. This should not happen on daily
+         *            use but testcases might try this. It then makes no sense to dispatch
+         *            this further because we don't have a valid context ID.
+         */
+        if (   pCtxCb->uFunction == GUEST_EXEC_STATUS
+            && pSvcCb->mParms    >= 5)
+        {
+            CALLBACKDATA_PROC_STATUS dataCb;
+            /* pSvcCb->mpaParms[0] always contains the context ID. */
+            pSvcCb->mpaParms[1].getUInt32(&dataCb.uPID);
+            pSvcCb->mpaParms[2].getUInt32(&dataCb.uStatus);
+            pSvcCb->mpaParms[3].getUInt32(&dataCb.uFlags);
+            pSvcCb->mpaParms[4].getPointer(&dataCb.pvData, &dataCb.cbData);
+
+            if (   (         dataCb.uStatus == PROC_STS_ERROR)
+                   /** @todo Note: Due to legacy reasons we cannot change uFlags to
+                    *              int32_t, so just cast it for now. */
+                && ((int32_t)dataCb.uFlags  == VERR_TOO_MUCH_DATA))
+            {
+                LogFlowFunc(("Requested command with too much data, skipping dispatching ...\n"));
+
+                Assert(dataCb.uPID == 0);
+                fDispatch = false;
+            }
+        }
+#endif
+        if (fDispatch)
+        {
+            switch (pCtxCb->uFunction)
+            {
+                case GUEST_DISCONNECTED:
+                    rc = pSession->dispatchToThis(pCtxCb, pSvcCb);
+                    break;
+
+                case GUEST_EXEC_STATUS:
+                case GUEST_EXEC_OUTPUT:
+                case GUEST_EXEC_INPUT_STATUS:
+                case GUEST_EXEC_IO_NOTIFY:
+                    rc = pSession->dispatchToProcess(pCtxCb, pSvcCb);
+                    break;
+
+                case GUEST_FILE_NOTIFY:
+                    rc = pSession->dispatchToFile(pCtxCb, pSvcCb);
+                    break;
+
+                case GUEST_SESSION_NOTIFY:
+                    rc = pSession->dispatchToThis(pCtxCb, pSvcCb);
+                    break;
+
+                default:
+                    rc = pSession->dispatchToObject(pCtxCb, pSvcCb);
+                    if (rc == VERR_NOT_FOUND)
+                    {
+                        alock.acquire();
+
+                        rc = pSession->dispatchGeneric(pCtxCb, pSvcCb);
+                    }
+#ifndef DEBUG_andy
+                    if (rc == VERR_NOT_IMPLEMENTED)
+                        AssertMsgFailed(("Received not handled function %RU32\n", pCtxCb->uFunction));
+#endif
+                    break;
+            }
+        }
+        else
+            rc = VERR_NOT_FOUND;
     }
     else
         rc = VERR_NOT_FOUND;
@@ -254,6 +338,8 @@ int Guest::dispatchToSession(uint32_t uContextID, uint32_t uFunction, void *pvDa
 
 int Guest::sessionRemove(GuestSession *pSession)
 {
+    AssertPtrReturn(pSession, VERR_INVALID_POINTER);
+
     LogFlowThisFuncEnter();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -262,27 +348,39 @@ int Guest::sessionRemove(GuestSession *pSession)
 
     LogFlowFunc(("Closing session (ID=%RU32) ...\n", pSession->getId()));
 
-    for (GuestSessions::iterator itSessions = mData.mGuestSessions.begin();
-         itSessions != mData.mGuestSessions.end(); ++itSessions)
+    GuestSessions::iterator itSessions = mData.mGuestSessions.begin();
+    while (itSessions != mData.mGuestSessions.end())
     {
         if (pSession == itSessions->second)
         {
+            /* Make sure to consume the pointer before the one of the
+             * iterator gets released. */
+            ComObjPtr<GuestSession> pCurSession = pSession;
+
             LogFlowFunc(("Removing session (pSession=%p, ID=%RU32) (now total %ld sessions)\n",
-                         (GuestSession *)itSessions->second, itSessions->second->getId(), mData.mGuestSessions.size() - 1));
+                         pSession, pSession->getId(), mData.mGuestSessions.size() - 1));
+
+            itSessions->second->Release();
 
             mData.mGuestSessions.erase(itSessions);
 
+            alock.release(); /* Release lock before firing off event. */
+
+            fireGuestSessionRegisteredEvent(mEventSource, pCurSession,
+                                            false /* Unregistered */);
             rc = VINF_SUCCESS;
             break;
         }
+
+        itSessions++;
     }
 
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
-int Guest::sessionCreate(const Utf8Str &strUser, const Utf8Str &strPassword, const Utf8Str &strDomain,
-                         const Utf8Str &strSessionName, ComObjPtr<GuestSession> &pGuestSession)
+int Guest::sessionCreate(const GuestSessionStartupInfo &ssInfo,
+                         const GuestCredentials &guestCreds, ComObjPtr<GuestSession> &pGuestSession)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -293,7 +391,7 @@ int Guest::sessionCreate(const Utf8Str &strUser, const Utf8Str &strPassword, con
     try
     {
         /* Create a new session ID and assign it. */
-        uint32_t uNewSessionID = 0;
+        uint32_t uNewSessionID = VBOX_GUESTCTRL_SESSION_ID_BASE;
         uint32_t uTries = 0;
 
         for (;;)
@@ -306,9 +404,9 @@ int Guest::sessionCreate(const Utf8Str &strUser, const Utf8Str &strPassword, con
             }
             uNewSessionID++;
             if (uNewSessionID >= VBOX_GUESTCTRL_MAX_SESSIONS)
-                uNewSessionID = 0;
+                uNewSessionID = VBOX_GUESTCTRL_SESSION_ID_BASE;
 
-            if (++uTries == UINT32_MAX)
+            if (++uTries == VBOX_GUESTCTRL_MAX_SESSIONS)
                 break; /* Don't try too hard. */
         }
         if (RT_FAILURE(rc)) throw rc;
@@ -317,20 +415,48 @@ int Guest::sessionCreate(const Utf8Str &strUser, const Utf8Str &strPassword, con
         HRESULT hr = pGuestSession.createObject();
         if (FAILED(hr)) throw VERR_COM_UNEXPECTED;
 
-        rc = pGuestSession->init(this, uNewSessionID,
-                                 strUser, strPassword, strDomain, strSessionName);
+        /** @todo Use an overloaded copy operator. Later. */
+        GuestSessionStartupInfo startupInfo;
+        startupInfo.mID = uNewSessionID; /* Assign new session ID. */
+        startupInfo.mName = ssInfo.mName;
+        startupInfo.mOpenFlags = ssInfo.mOpenFlags;
+        startupInfo.mOpenTimeoutMS = ssInfo.mOpenTimeoutMS;
+
+        GuestCredentials guestCredentials;
+        if (!guestCreds.mUser.isEmpty())
+        {
+            /** @todo Use an overloaded copy operator. Later. */
+            guestCredentials.mUser = guestCreds.mUser;
+            guestCredentials.mPassword = guestCreds.mPassword;
+            guestCredentials.mDomain = guestCreds.mDomain;
+        }
+        else
+        {
+            /* Internal (annonymous) session. */
+            startupInfo.mIsInternal = true;
+        }
+
+        rc = pGuestSession->init(this, startupInfo, guestCredentials);
         if (RT_FAILURE(rc)) throw rc;
 
+        /*
+         * Add session object to our session map. This is necessary
+         * before calling openSession because the guest calls back
+         * with the creation result of this session.
+         */
         mData.mGuestSessions[uNewSessionID] = pGuestSession;
 
-        LogFlowFunc(("Added new session (pSession=%p, ID=%RU32), now %ld sessions total\n",
-                     (GuestSession *)pGuestSession, uNewSessionID, mData.mGuestSessions.size()));
+        alock.release(); /* Release lock before firing off event. */
+
+        fireGuestSessionRegisteredEvent(mEventSource, pGuestSession,
+                                        true /* Registered */);
     }
     catch (int rc2)
     {
         rc = rc2;
     }
 
+    LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
@@ -343,7 +469,8 @@ inline bool Guest::sessionExists(uint32_t uSessionID)
 // implementation of public methods
 /////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP Guest::CreateSession(IN_BSTR aUser, IN_BSTR aPassword, IN_BSTR aDomain, IN_BSTR aSessionName, IGuestSession **aGuestSession)
+STDMETHODIMP Guest::CreateSession(IN_BSTR aUser, IN_BSTR aPassword, IN_BSTR aDomain,
+                                  IN_BSTR aSessionName, IGuestSession **aGuestSession)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
@@ -351,48 +478,62 @@ STDMETHODIMP Guest::CreateSession(IN_BSTR aUser, IN_BSTR aPassword, IN_BSTR aDom
 
     LogFlowFuncEnter();
 
-    /* Do not allow anonymous sessions (with system rights) with official API. */
+    /* Do not allow anonymous sessions (with system rights) with public API. */
     if (RT_UNLIKELY((aUser) == NULL || *(aUser) == '\0'))
         return setError(E_INVALIDARG, tr("No user name specified"));
+    if (RT_UNLIKELY((aPassword) == NULL || *(aPassword) == '\0'))
+        return setError(E_INVALIDARG, tr("No password specified"));
     CheckComArgOutPointerValid(aGuestSession);
     /* Rest is optional. */
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    HRESULT hr = S_OK;
+    GuestSessionStartupInfo startupInfo;
+    startupInfo.mName = aSessionName;
+
+    GuestCredentials guestCreds;
+    guestCreds.mUser = aUser;
+    guestCreds.mPassword = aPassword;
+    guestCreds.mDomain = aDomain;
 
     ComObjPtr<GuestSession> pSession;
-    int rc = sessionCreate(aUser, aPassword, aDomain, aSessionName, pSession);
+    int rc = sessionCreate(startupInfo, guestCreds, pSession);
     if (RT_SUCCESS(rc))
     {
         /* Return guest session to the caller. */
         HRESULT hr2 = pSession.queryInterfaceTo(aGuestSession);
         if (FAILED(hr2))
             rc = VERR_COM_OBJECT_NOT_FOUND;
-
-        if (RT_SUCCESS(rc))
-            rc = pSession->queryInfo();
     }
+
+    if (RT_SUCCESS(rc))
+    {
+        /* Start (fork) the session asynchronously
+         * on the guest. */
+        rc = pSession->startSessionAsync();
+    }
+
+    HRESULT hr = S_OK;
 
     if (RT_FAILURE(rc))
     {
         switch (rc)
         {
             case VERR_MAX_PROCS_REACHED:
-                hr = setError(VBOX_E_IPRT_ERROR, tr("Maximum number of guest sessions (%ld) reached"),
+                hr = setError(VBOX_E_IPRT_ERROR, tr("Maximum number of concurrent guest sessions (%ld) reached"),
                               VBOX_GUESTCTRL_MAX_SESSIONS);
                 break;
 
             /** @todo Add more errors here. */
 
-           default:
-                hr = setError(VBOX_E_IPRT_ERROR, tr("Could not create guest session, rc=%Rrc"), rc);
+            default:
+                hr = setError(VBOX_E_IPRT_ERROR, tr("Could not create guest session: %Rrc"), rc);
                 break;
         }
     }
 
-    LogFlowFuncLeaveRC(rc);
+    LogFlowThisFunc(("Returning rc=%Rhrc\n", hr));
     return hr;
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }

@@ -141,7 +141,7 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                     { STRMEM("Gx"),      sizeof(RTGCUINT),       16, RTSF_INT,   0 },
                     { STRMEM("Hi"),      sizeof(RTHCINT),        10, RTSF_INT,   RTSTR_F_VALSIGNED },
                     { STRMEM("Hp"),      sizeof(RTHCPHYS),       16, RTSF_INTW,  0 },
-                    { STRMEM("Hr"),      sizeof(RTGCUINTREG),    16, RTSF_INTW,  0 },
+                    { STRMEM("Hr"),      sizeof(RTHCUINTREG),    16, RTSF_INTW,  0 },
                     { STRMEM("Hu"),      sizeof(RTHCUINT),       10, RTSF_INT,   0 },
                     { STRMEM("Hv"),      sizeof(RTHCPTR),        16, RTSF_INTW,  0 },
                     { STRMEM("Hx"),      sizeof(RTHCUINT),       16, RTSF_INT,   0 },
@@ -558,7 +558,7 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                         const char *pszLastSep;
                         const char *psz = pszLastSep = va_arg(*pArgs, const char *);
                         if (!VALID_PTR(psz))
-                            return pfnOutput(pvArgOutput, "<null>", sizeof("<null>") - 1);
+                            return pfnOutput(pvArgOutput, RT_STR_TUPLE("<null>"));
 
                         while ((ch = *psz) != '\0')
                         {
@@ -602,7 +602,7 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                         const char *pszStart;
                         const char *psz = pszStart = va_arg(*pArgs, const char *);
                         if (!VALID_PTR(psz))
-                            return pfnOutput(pvArgOutput, "<null>", sizeof("<null>") - 1);
+                            return pfnOutput(pvArgOutput, RT_STR_TUPLE("<null>"));
 
                         while ((ch = *psz) != '\0' && ch != '(')
                         {
@@ -664,7 +664,7 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                                     while (off < cchPrecision)
                                     {
                                         int i;
-                                        cch += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "%s%0*x %04x:", off ? "\n" : "", sizeof(pu8) * 2, (uintptr_t)pu8, off);
+                                        cch += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "%s%0*p %04x:", off ? "\n" : "", sizeof(pu8) * 2, (uintptr_t)pu8, off);
                                         for (i = 0; i < cchWidth && off + i < cchPrecision ; i++)
                                             cch += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
                                                                off + i < cchPrecision ? !(i & 7) && i ? "-%02x" : " %02x" : "   ", pu8[i]);
@@ -707,7 +707,7 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                             }
                         }
                         else
-                            return pfnOutput(pvArgOutput, "<null>", sizeof("<null>") - 1);
+                            return pfnOutput(pvArgOutput, RT_STR_TUPLE("<null>"));
                         break;
                     }
 
@@ -903,7 +903,7 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                  * If it's a pointer, we'll check if it's valid before going on.
                  */
                 if ((s_aTypes[i].fFlags & RTST_FLAGS_POINTER) && !VALID_PTR(u.pv))
-                    return pfnOutput(pvArgOutput, "<null>", sizeof("<null>") - 1);
+                    return pfnOutput(pvArgOutput, RT_STR_TUPLE("<null>"));
 
                 /*
                  * Format the output.
@@ -1098,7 +1098,7 @@ DECLHIDDEN(size_t) rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, co
                         REG_OUT_BIT(cr4, X86_CR4_SMXE, "SMXE");
                         REG_OUT_BIT(cr4, X86_CR4_PCIDE, "PCIDE");
                         REG_OUT_BIT(cr4, X86_CR4_OSXSAVE, "OSXSAVE");
-                        REG_OUT_BIT(cr4, X86_CR4_SMEP, "SMPE");
+                        REG_OUT_BIT(cr4, X86_CR4_SMEP, "SMEP");
                         REG_OUT_CLOSE(cr4);
                     }
                     else

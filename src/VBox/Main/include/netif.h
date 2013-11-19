@@ -91,6 +91,8 @@ int NetIfCreateHostOnlyNetworkInterface (VirtualBox *pVbox, IHostNetworkInterfac
 int NetIfRemoveHostOnlyNetworkInterface (VirtualBox *pVbox, IN_GUID aId, IProgress **aProgress);
 int NetIfGetConfig(HostNetworkInterface * pIf, NETIFINFO *);
 int NetIfGetConfigByName(PNETIFINFO pInfo);
+int NetIfGetState(const char *pcszIfName, NETIFSTATUS *penmState);
+int NetIfGetLinkSpeed(const char *pcszIfName, uint32_t *puMbits);
 int NetIfDhcpRediscover(VirtualBox *pVbox, HostNetworkInterface * pIf);
 int NetIfAdpCtlOut(const char * pcszName, const char * pcszCmd, char *pszBuffer, size_t cBufSize);
 
@@ -121,12 +123,12 @@ DECLINLINE(ULONG) composeIPv6PrefixLenghFromAddress(PRTNETADDRIPV6 aAddrPtr)
 
 DECLINLINE(int) prefixLength2IPv6Address(ULONG cPrefix, PRTNETADDRIPV6 aAddrPtr)
 {
-    if(cPrefix > 128)
+    if (cPrefix > 128)
         return VERR_INVALID_PARAMETER;
-    if(!aAddrPtr)
+    if (!aAddrPtr)
         return VERR_INVALID_PARAMETER;
 
-    memset(aAddrPtr, 0, sizeof(RTNETADDRIPV6));
+    RT_ZERO(*aAddrPtr);
 
     ASMBitSetRange(aAddrPtr, 0, cPrefix);
 
@@ -150,7 +152,8 @@ DECLINLINE(Bstr) getDefaultIPv4Address(Bstr bstrIfName)
     /* Get the index from the name */
     Utf8Str strTmp = bstrIfName;
     const char *pszIfName = strTmp.c_str();
-    int iInstance = 0, iPos = strcspn(pszIfName, "0123456789");
+    int iInstance = 0;
+    size_t iPos = strcspn(pszIfName, "0123456789");
     if (pszIfName[iPos])
         iInstance = RTStrToUInt32(pszIfName + iPos);
 

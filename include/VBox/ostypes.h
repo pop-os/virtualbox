@@ -43,6 +43,7 @@ RT_C_DECLS_BEGIN
 typedef enum VBOXOSTYPE
 {
     VBOXOSTYPE_Unknown          = 0,
+    VBOXOSTYPE_Unknown_x64      = 0x00100,
     VBOXOSTYPE_DOS              = 0x10000,
     VBOXOSTYPE_Win31            = 0x15000,
     VBOXOSTYPE_Win9x            = 0x20000,
@@ -50,6 +51,7 @@ typedef enum VBOXOSTYPE
     VBOXOSTYPE_Win98            = 0x22000,
     VBOXOSTYPE_WinMe            = 0x23000,
     VBOXOSTYPE_WinNT            = 0x30000,
+    VBOXOSTYPE_WinNT_x64        = 0x30100,
     VBOXOSTYPE_WinNT4           = 0x31000,
     VBOXOSTYPE_Win2k            = 0x32000,
     VBOXOSTYPE_WinXP            = 0x33000,
@@ -117,7 +119,14 @@ typedef enum VBOXOSTYPE
     VBOXOSTYPE_QNX              = 0xA0000,
     VBOXOSTYPE_MacOS            = 0xB0000,
     VBOXOSTYPE_MacOS_x64        = 0xB0100,
+    VBOXOSTYPE_MacOS106         = 0xB2000,
+    VBOXOSTYPE_MacOS106_x64     = 0xB2100,
+    VBOXOSTYPE_MacOS107_x64     = 0xB3100,
+    VBOXOSTYPE_MacOS108_x64     = 0xB4100,
+    VBOXOSTYPE_MacOS109_x64     = 0xB5100,
     VBOXOSTYPE_JRockitVE        = 0xC0000,
+    VBOXOSTYPE_Haiku            = 0xD0000,
+    VBOXOSTYPE_Haiku_x64        = 0xD0100,
 /** The bit number which indicates 64-bit or 32-bit. */
 #define VBOXOSTYPE_x64_BIT       8
     /** The mask which indicates 64-bit. */

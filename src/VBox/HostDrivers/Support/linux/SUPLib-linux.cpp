@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,7 @@
 #define LOG_GROUP LOG_GROUP_SUP
 #ifdef IN_SUP_HARDENED_R3
 # undef DEBUG /* Warning: disables RT_STRICT */
+# undef RT_STRICT
 # define LOG_DISABLED
   /** @todo RTLOGREL_DISABLED */
 # include <iprt/log.h>
@@ -61,8 +62,10 @@
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-/** Unix Device name. */
-#define DEVICE_NAME     "/dev/vboxdrv"
+/** System device name. */
+#define DEVICE_NAME_SYS     "/dev/vboxdrv"
+/** User device name. */
+#define DEVICE_NAME_USR     "/dev/vboxdrvu"
 
 /* define MADV_DONTFORK if it's missing from the system headers. */
 #ifndef MADV_DONTFORK
@@ -71,7 +74,7 @@
 
 
 
-int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
+int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted)
 {
     /*
      * Nothing to do if pre-inited.
@@ -92,13 +95,14 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
     /*
      * Try open the device.
      */
-    int hDevice = open(DEVICE_NAME, O_RDWR, 0);
+    const char *pszDeviceNm = fUnrestricted ? DEVICE_NAME_SYS : DEVICE_NAME_USR;
+    int hDevice = open(pszDeviceNm, O_RDWR, 0);
     if (hDevice < 0)
     {
         /*
          * Try load the device.
          */
-        hDevice = open(DEVICE_NAME, O_RDWR, 0);
+        hDevice = open(pszDeviceNm, O_RDWR, 0);
         if (hDevice < 0)
         {
             int rc;
@@ -111,7 +115,7 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
                 case ENOENT:    rc = VERR_VM_DRIVER_NOT_INSTALLED; break;
                 default:        rc = VERR_VM_DRIVER_OPEN_ERROR; break;
             }
-            LogRel(("Failed to open \"%s\", errno=%d, rc=%Rrc\n", DEVICE_NAME, errno, rc));
+            LogRel(("Failed to open \"%s\", errno=%d, rc=%Rrc\n", pszDeviceNm, errno, rc));
             return rc;
         }
     }
@@ -132,7 +136,8 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
     /*
      * We're done.
      */
-    pThis->hDevice = hDevice;
+    pThis->hDevice       = hDevice;
+    pThis->fUnrestricted = fUnrestricted;
     return VINF_SUCCESS;
 }
 

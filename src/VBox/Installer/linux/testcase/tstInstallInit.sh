@@ -1,9 +1,11 @@
 #!/bin/sh
 # $Id: tstInstallInit.sh $
-#
+## @file
 # VirtualBox init file creator unit test.
 #
-# Copyright (C) 2012 Oracle Corporation
+
+#
+# Copyright (C) 2012-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +21,9 @@
 
 tab="	"
 tmpbase="/tmp/tstInstallInit 99"  # Space in the name for a little stress...
+if [ -n "${TESTBOX_PATH_SCRATCH}" ]; then
+    tmpbase="${TESTBOX_PATH_SCRATCH}/tstInstallInit 99"
+fi
 
 ## The function definition at the start of every non-trivial shell script!
 abort()
@@ -60,16 +65,32 @@ test_service()
 {
     cat > "${1}/${2}" << EOF
 #!/bin/sh
-trap "touch \"${1}/stopped\"; exit" TERM 
+trap "touch \"${1}/stopped\"; exit" TERM
 echo "1: \${1} 2: \${2} 3: \${3}" > "${1}/started"
 while true; do true; done
 EOF
 chmod u+x "${1}/${2}"
 }
 
+# Create a trivial test command in temporary directory $1 with name $2.
+test_oneshot()
+{
+    cat > "${1}/${2}" << EOF
+#!/bin/sh
+if test "\${1}" = start; then
+    touch "${1}/started"
+else
+    rm "${1}/started"
+fi
+exit 0
+EOF
+chmod u+x "${1}/${2}"
+}
+
 # Test some dodgy input values against generate_service_file.
+# Make sure there is a substitution pattern at the end too.
 print_line "generation of shell script from template."
-input='TEST1%DESCRIPTION%%%%SERVICE_NAME% TST2 TEST  %ARGUMENTS%%COMMAND%'
+input='TEST1%DESCRIPTION%%%%SERVICE_NAME%%STOP_COMMAND% TST2 TEST  %ARGUMENTS%%COMMAND%'
 out=`echo "${input}" |
     helpers/generate_service_file --command '/usr/bin
 aries/hello
@@ -81,7 +102,38 @@ world TST2 TEST  '\''p
 aries/hello
 world'\'
 case "${out}" in ${expected})
-echo "SUCCESS";;
+echo "SUCCESS (1)";;
+*)
+cat << EOF
+FAILED: expected
+${expected}
+but got
+${out}
+EOF
+esac
+input='TEST%HAVE_STOP_COMMAND%%SERVICE_NAME%%STOP_COMMAND% TST2
+ TEST  %COMMAND%'
+out=`echo "${input}" |
+    helpers/generate_service_file --command '/usr/bin/hello' --format shell --description ''`
+expected='TEST TEST  '\''/usr/bin/hello'\'''
+case "${out}" in ${expected})
+echo "SUCCESS (2)";;
+*)
+cat << EOF
+FAILED: expected
+${expected}
+but got
+${out}
+EOF
+esac
+input='TEST%HAVE_STOP_COMMAND%%SERVICE_NAME%%STOP_COMMAND% %STOP_ARGUMENTS% TST2
+ TEST  %COMMAND%'
+out=`echo "${input}" |
+    helpers/generate_service_file --command '/usr/bin/hello' --format shell --description '' --stop-command /usr/bin/stop --stop-arguments hello`
+expected='TESThello'\''/usr/bin/stop'\'' '\''hello'\'' TST2
+ TEST  '\''/usr/bin/hello'\'''
+case "${out}" in ${expected})
+echo "SUCCESS (3)";;
 *)
 cat << EOF
 FAILED: expected
@@ -114,7 +166,7 @@ create_simulated_init_tree "${tmpdir}"
 # Create the service binary.
 test_service "${tmpdir}" "service"
 # And install it.
-scripts/install_service --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" --prefix "${tmpdir}" --enable ||
+scripts/install_service  --prefix "${tmpdir}" --enable -- --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" ||
     fail_msg "\"scripts/install_service\" failed."
 # Check that the main service file was created as specified.
 if test -x "${tmpdir}/init.d/service"; then
@@ -158,6 +210,43 @@ else
     echo SUCCESS
 fi
 
+# Test an one shot init script installation.
+print_line "installing a one shot init script."
+failed=""
+# Create a simulated init system layout.
+tmpdir="${tmpbase}0"
+create_simulated_init_tree "${tmpdir}"
+# Create the command binary.
+test_oneshot "${tmpdir}" "command"
+# And install the script.
+scripts/install_service --prefix "${tmpdir}" --enable -- --command "${tmpdir}/command" --arguments "start" --description "My description" --stop-command "${tmpdir}/command" --stop-arguments "stop" --one-shot ||
+    fail_msg "\"scripts/install_service\" failed."
+# Sanity test.
+test -f "${tmpdir}/started" &&
+    fail_msg "\"${tmpdir}/started\" already exists!"
+# Try to start the service using the symbolic links which should have been
+# created.
+if "${tmpdir}/rc3.d/S20command" --prefix "${tmpdir}" --lsb-functions "" start >/dev/null 2>&1; then
+    test -f "${tmpdir}/started" ||
+        fail_msg "\"${tmpdir}/rc3.d/S20command\" did not start correctly."
+else
+    fail_msg "could not start \"${tmpdir}/rc3.d/S20command\"."
+fi
+# Try to stop the service using the symbolic links which should have been
+# created.
+if "${tmpdir}/rc.d/rc6.d/K80command" --prefix "${tmpdir}" --lsb-functions "" stop >/dev/null 2>&1; then
+    test -f "${tmpdir}/started" &&
+        echo "\"${tmpdir}/rc.d/rc6.d/K80command\" did not stop correctly."
+else
+    fail_msg "could not stop \"${tmpdir}/rc.d/rc6.d/K80command\"."
+fi
+# Final summary.
+if test -n "${failed}"; then
+    echo "${failed}"
+else
+    echo SUCCESS
+fi
+
 # Test an init script removal.
 print_line "removing an init script."
 failed=""
@@ -167,10 +256,10 @@ create_simulated_init_tree "${tmpdir}"
 # Create the service binary.
 test_service "${tmpdir}" "service"
 # Install it.
-scripts/install_service --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" --prefix "${tmpdir}" --enable ||
+scripts/install_service --prefix "${tmpdir}" --enable -- --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" ||
     fail_msg "\"scripts/install_service\" failed."
 # And remove it again.
-scripts/install_service --command "${tmpdir}/service" --prefix "${tmpdir}" --remove ||
+scripts/install_service --prefix "${tmpdir}" --remove -- --command "${tmpdir}/service" ||
     fail_msg "\"scripts/install_service\" failed."
 # After uninstallation this should be the only file left in the init tree.
 rm "${tmpdir}/service"
@@ -192,10 +281,10 @@ create_simulated_init_tree "${tmpdir}"
 # Create the service binary.
 test_service "${tmpdir}" "service"
 # Install it.
-scripts/install_service --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" --prefix "${tmpdir}" --enable ||
+scripts/install_service --prefix "${tmpdir}" --enable -- --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" ||
     fail_msg "\"scripts/install_service\" failed."
 # Install it disabled without forcing.
-scripts/install_service --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" --prefix "${tmpdir}" --disable ||
+scripts/install_service --prefix "${tmpdir}" --disable -- --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" ||
     fail_msg "\"scripts/install_service\" failed."
 test "x`find "${tmpdir}"/rc*.d "${tmpdir}/runlevel" -type l | wc -l`" = "x15" ||
     fail_msg "links were removed on non-forced disable."
@@ -215,10 +304,10 @@ create_simulated_init_tree "${tmpdir}"
 # Create the service binary.
 test_service "${tmpdir}" "service"
 # Install it.
-scripts/install_service --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" --prefix "${tmpdir}" --disable ||
+scripts/install_service --prefix "${tmpdir}" --disable -- --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" ||
     fail_msg "\"scripts/install_service\" failed."
 # Install it disabled without forcing.
-scripts/install_service --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" --prefix "${tmpdir}" --enable ||
+scripts/install_service --prefix "${tmpdir}" --enable -- --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" ||
     fail_msg "\"scripts/install_service\" failed."
 test "x`find "${tmpdir}"/rc*.d "${tmpdir}/runlevel" -type l`" = "x" ||
     fail_msg "files were installed on non-forced enable."
@@ -238,10 +327,10 @@ create_simulated_init_tree "${tmpdir}"
 # Create the service binary.
 test_service "${tmpdir}" "service"
 # Install it.
-scripts/install_service --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" --prefix "${tmpdir}" --enable ||
+scripts/install_service --prefix "${tmpdir}" --enable -- --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" ||
     fail_msg "\"scripts/install_service\" failed."
 # Install it disabled without forcing.
-scripts/install_service --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" --prefix "${tmpdir}" --force-disable ||
+scripts/install_service --prefix "${tmpdir}" --force-disable -- --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" ||
     fail_msg "\"scripts/install_service\" failed."
 test "x`find "${tmpdir}"/rc*.d "${tmpdir}/runlevel" -type l`" = "x" ||
     fail_msg "links were not removed on forced disable."
@@ -261,10 +350,10 @@ create_simulated_init_tree "${tmpdir}"
 # Create the service binary.
 test_service "${tmpdir}" "service"
 # Install it.
-scripts/install_service --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" --prefix "${tmpdir}" --disable ||
+scripts/install_service --prefix "${tmpdir}" --disable -- --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" ||
     fail_msg "\"scripts/install_service\" failed."
 # Install it disabled without forcing.
-scripts/install_service --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" --prefix "${tmpdir}" --force-enable ||
+scripts/install_service --prefix "${tmpdir}" --force-enable -- --command "${tmpdir}/service" --arguments "test of my\ arguments" --description "My description" ||
     fail_msg "\"scripts/install_service\" failed."
 test "x`find "${tmpdir}"/rc*.d "${tmpdir}/runlevel" -type l | wc -l`" = "x15" ||
     fail_msg "files were not installed on forced enable."

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,18 +74,6 @@
 
 
 /**
- * Gets the current warp drive percent.
- *
- * @returns The warp drive percent.
- * @param   pVM         Pointer to the VM.
- */
-VMMDECL(uint32_t) TMGetWarpDrive(PVM pVM)
-{
-    return pVM->tm.s.u32VirtualWarpDrivePercentage;
-}
-
-
-/**
  * Notification that execution is about to start.
  *
  * This call must always be paired with a TMNotifyEndOfExecution call.
@@ -108,7 +96,7 @@ VMMDECL(void) TMNotifyStartOfExecution(PVMCPU pVCpu)
 
 
 /**
- * Notification that execution is about to start.
+ * Notification that execution has ended.
  *
  * This call must always be paired with a TMNotifyStartOfExecution call.
  *
@@ -230,7 +218,7 @@ VMM_INT_DECL(void) TMNotifyEndOfHalt(PVMCPU pVCpu)
 DECLINLINE(void) tmScheduleNotify(PVM pVM)
 {
     PVMCPU pVCpuDst = &pVM->aCpus[pVM->tm.s.idTimerCpu];
-    if (!VMCPU_FF_ISSET(pVCpuDst, VMCPU_FF_TIMER))
+    if (!VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
     {
         Log5(("TMAll(%u): FF: 0 -> 1\n", __LINE__));
         VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
@@ -754,7 +742,7 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
     /*
      * Return straight away if the timer FF is already set ...
      */
-    if (VMCPU_FF_ISSET(pVCpuDst, VMCPU_FF_TIMER))
+    if (VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
         return tmTimerPollReturnHit(pVM, pVCpu, pVCpuDst, u64Now, pu64Delta, &pVM->tm.s.StatPollAlreadySet);
 
     /*
@@ -773,9 +761,9 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
     const int64_t   i64Delta1  = u64Expire1 - u64Now;
     if (i64Delta1 <= 0)
     {
-        if (!VMCPU_FF_ISSET(pVCpuDst, VMCPU_FF_TIMER))
+        if (!VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
         {
-            Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_ISPENDING(pVCpuDst, VMCPU_FF_TIMER)));
+            Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_PENDING(pVCpuDst, VMCPU_FF_TIMER)));
             VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
 #if defined(IN_RING3) && defined(VBOX_WITH_REM)
             REMR3NotifyTimerPending(pVM, pVCpuDst);
@@ -819,9 +807,9 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
                 }
 
                 if (    !pVM->tm.s.fRunningQueues
-                    &&  !VMCPU_FF_ISSET(pVCpuDst, VMCPU_FF_TIMER))
+                    &&  !VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
                 {
-                    Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_ISPENDING(pVCpuDst, VMCPU_FF_TIMER)));
+                    Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_PENDING(pVCpuDst, VMCPU_FF_TIMER)));
                     VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
 #if defined(IN_RING3) && defined(VBOX_WITH_REM)
                     REMR3NotifyTimerPending(pVM, pVCpuDst);
@@ -894,7 +882,7 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
             break; /* Got an consistent offset */
 
         /* Repeat the initial checks before iterating. */
-        if (VMCPU_FF_ISSET(pVCpuDst, VMCPU_FF_TIMER))
+        if (VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
             return tmTimerPollReturnHit(pVM, pVCpu, pVCpuDst, u64Now, pu64Delta, &pVM->tm.s.StatPollAlreadySet);
         if (ASMAtomicUoReadBool(&pVM->tm.s.fRunningQueues))
         {
@@ -918,9 +906,9 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
     if (i64Delta2 <= 0)
     {
         if (    !pVM->tm.s.fRunningQueues
-            &&  !VMCPU_FF_ISSET(pVCpuDst, VMCPU_FF_TIMER))
+            &&  !VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
         {
-            Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_ISPENDING(pVCpuDst, VMCPU_FF_TIMER)));
+            Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_PENDING(pVCpuDst, VMCPU_FF_TIMER)));
             VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
 #if defined(IN_RING3) && defined(VBOX_WITH_REM)
             REMR3NotifyTimerPending(pVM, pVCpuDst);

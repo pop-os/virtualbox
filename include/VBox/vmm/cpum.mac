@@ -193,7 +193,8 @@ struc CPUMCTX
     .msrCSTAR           resb    8
     .msrSFMASK          resb    8
     .msrKERNELGSBASE    resb    8
-    .au32SizePadding    resb    32
+    .msrApicBase        resb    8
+    .au32SizePadding    resb    24
 endstruc
 
 
@@ -205,3 +206,4 @@ endstruc
 
 
 %endif
+

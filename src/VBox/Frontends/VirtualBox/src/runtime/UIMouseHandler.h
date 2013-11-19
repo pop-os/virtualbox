@@ -26,10 +26,11 @@
 #include <QRect>
 
 /* GUI includes: */
-#include "UIMachineDefs.h"
+#include "UIDefs.h"
 
 /* Forward declarations: */
 class QWidget;
+class QTouchEvent;
 class UISession;
 class UIMachineLogic;
 class UIMachineWindow;
@@ -103,6 +104,9 @@ protected:
                     const QPoint &relativePos, const QPoint &globalPos,
                     Qt::MouseButtons mouseButtons,
                     int wheelDelta, Qt::Orientation wheelDirection);
+
+    /* Separate function to handle incoming multi-touch events: */
+    bool multiTouchEvent(QTouchEvent *pTouchEvent, ulong uScreenId);
 
 #ifdef Q_WS_WIN
     /* This method is actually required only because under win-host

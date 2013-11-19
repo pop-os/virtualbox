@@ -136,65 +136,23 @@ void UIMachineViewScale::sltPerformGuestScale()
     updateSliders();
 }
 
-bool UIMachineViewScale::event(QEvent *pEvent)
+void UIMachineViewScale::sltHandleNotifyUpdate(int iX, int iY, int iW, int iH)
 {
-    switch (pEvent->type())
-    {
-        case ResizeEventType:
-        {
-            /* Some situations require framebuffer resize events to be ignored at all,
-             * leaving machine-window, machine-view and framebuffer sizes preserved: */
-            if (uisession()->isGuestResizeIgnored())
-                return true;
+    /* Initialize variables for scale mode: */
+    QSize scaledSize = frameBuffer()->scaledSize();
+    double xRatio = (double)scaledSize.width() / frameBuffer()->width();
+    double yRatio = (double)scaledSize.height() / frameBuffer()->height();
+    AssertMsg(contentsX() == 0, ("This can't be, else notify Dsen!\n"));
+    AssertMsg(contentsY() == 0, ("This can't be, else notify Dsen!\n"));
 
-            /* Get guest resize-event: */
-            UIResizeEvent *pResizeEvent = static_cast<UIResizeEvent*>(pEvent);
-
-            /* Perform framebuffer resize: */
-            frameBuffer()->setScaledSize(size());
-            frameBuffer()->resizeEvent(pResizeEvent);
-
-            /* Let our toplevel widget calculate its sizeHint properly: */
-            QCoreApplication::sendPostedEvents(0, QEvent::LayoutRequest);
-
-#ifdef Q_WS_MAC
-            machineLogic()->updateDockIconSize(screenId(), pResizeEvent->width(), pResizeEvent->height());
-#endif /* Q_WS_MAC */
-
-            /* Report to the VM thread that we finished resizing: */
-            session().GetConsole().GetDisplay().ResizeCompleted(screenId());
-
-            /* Emit a signal about guest was resized: */
-            emit resizeHintDone();
-
-            pEvent->accept();
-            return true;
-        }
-
-        case RepaintEventType:
-        {
-            UIRepaintEvent *pPaintEvent = static_cast<UIRepaintEvent*>(pEvent);
-            QSize scaledSize = frameBuffer()->scaledSize();
-            double xRatio = (double)scaledSize.width() / frameBuffer()->width();
-            double yRatio = (double)scaledSize.height() / frameBuffer()->height();
-            AssertMsg(contentsX() == 0, ("This can't be, else notify Dsen!\n"));
-            AssertMsg(contentsY() == 0, ("This can't be, else notify Dsen!\n"));
-
-            /* Make sure we update always a bigger rectangle than requested to
-             * catch all rounding errors. (use 1 time the ratio factor and
-             * round down on top/left, but round up for the width/height) */
-            viewport()->update((int)(pPaintEvent->x() * xRatio) - ((int)xRatio) - 1,
-                               (int)(pPaintEvent->y() * yRatio) - ((int)yRatio) - 1,
-                               (int)(pPaintEvent->width() * xRatio) + ((int)xRatio + 2) * 2,
-                               (int)(pPaintEvent->height() * yRatio) + ((int)yRatio + 2) * 2);
-            pEvent->accept();
-            return true;
-        }
-
-        default:
-            break;
-    }
-    return UIMachineView::event(pEvent);
+    /* Update corresponding viewport part,
+     * But make sure we update always a bigger rectangle than requested to
+     * catch all rounding errors. (use 1 time the ratio factor and
+     * round down on top/left, but round up for the width/height) */
+    viewport()->update((int)(iX * xRatio) - ((int)xRatio) - 1,
+                       (int)(iY * yRatio) - ((int)yRatio) - 1,
+                       (int)(iW * xRatio) + ((int)xRatio + 2) * 2,
+                       (int)(iH * yRatio) + ((int)yRatio + 2) * 2);
 }
 
 bool UIMachineViewScale::eventFilter(QObject *pWatched, QEvent *pEvent)
@@ -205,35 +163,10 @@ bool UIMachineViewScale::eventFilter(QObject *pWatched, QEvent *pEvent)
         {
             case QEvent::Resize:
             {
-                /* Perform the actually resize */
+                /* Perform the actual resize: */
                 sltPerformGuestScale();
                 break;
             }
-            default:
-                break;
-        }
-    }
-    else if (pWatched != 0 && pWatched == machineWindow())
-    {
-        switch (pEvent->type())
-        {
-#if defined (Q_WS_WIN32)
-# if defined (VBOX_GUI_USE_DDRAW)
-            case QEvent::Move:
-            {
-                /* Notification from our parent that it has moved. We need this in order
-                 * to possibly adjust the direct screen blitting: */
-                if (frameBuffer())
-                    frameBuffer()->moveEvent(static_cast<QMoveEvent*>(pEvent));
-                break;
-            }
-# else
-            case 0: /* Fixes compiler warning, fall through. */
-# endif /* defined (VBOX_GUI_USE_DDRAW) */
-
-#else
-            case 0: /* Fixes compiler warning, fall through. */
-#endif /* defined (Q_WS_WIN32) */
             default:
                 break;
         }
@@ -262,19 +195,29 @@ QRect UIMachineViewScale::workingArea() const
 
 QSize UIMachineViewScale::calculateMaxGuestSize() const
 {
-    /* The area taken up by the machine window on the desktop,
-     * including window frame, title, menu bar and status bar: */
-    QRect windowGeo = machineWindow()->frameGeometry();
-    /* The area taken up by the machine central widget, so excluding all decorations: */
-    QRect centralWidgetGeo = machineWindow()->centralWidget()->geometry();
-    /* To work out how big we can make the console window while still fitting on the desktop,
-     * we calculate workingArea() - (windowGeo - centralWidgetGeo).
-     * This works because the difference between machine window and machine central widget
-     * (or at least its width and height) is a constant. */
-    return QSize(  workingArea().width()
-                 - (windowGeo.width() - centralWidgetGeo.width()),
-                   workingArea().height()
-                 - (windowGeo.height() - centralWidgetGeo.height()));
+    /* 1) The calculation below is not reliable on some (X11) platforms until we
+     *    have been visible for a fraction of a second, so so the best we can
+     *    otherwise.
+     * 2) We also get called early before "machineWindow" has been fully
+     *    initialised, at which time we can't perform the calculation. */
+    if (!isVisible())
+        return workingArea().size() * 0.95;
+    /* The area taken up by the machine window on the desktop, including window
+     * frame, title, menu bar and status bar. */
+    QSize windowSize = machineWindow()->frameGeometry().size();
+    /* The window shouldn't be allowed to expand beyond the working area
+     * unless it already does.  In that case the guest shouldn't expand it
+     * any further though. */
+    QSize maximumSize = workingArea().size().expandedTo(windowSize);
+    /* The current size of the machine display. */
+    QSize centralWidgetSize = machineWindow()->centralWidget()->size();
+    /* To work out how big the guest display can get without the window going
+     * over the maximum size we calculated above, we work out how much space
+     * the other parts of the window (frame, menu bar, status bar and so on)
+     * take up and subtract that space from the maximum window size. The
+     * central widget shouldn't be bigger than the window, but we bound it for
+     * sanity (or insanity) reasons. */
+    return maximumSize - (windowSize - centralWidgetSize.boundedTo(windowSize));
 }
 
 void UIMachineViewScale::updateSliders()

@@ -203,6 +203,7 @@ static bool disFileHeader(void)
      * List the header of each source file, up to and including the
      * copyright notice.
      */
+    bool fNeedLgplDisclaimer = false;
     PBIOSOBJFILE pObjFile;
     RTListForEach(&g_ObjList, pObjFile, BIOSOBJFILE, Node)
     {
@@ -258,6 +259,10 @@ static bool disFileHeader(void)
                         || strstr(psz, "copyright")) )
                     fSeenCopyright = true;
 
+                /* Detect LGPL. */
+                if (strstr(psz, "LGPL"))
+                    fNeedLgplDisclaimer = true;
+
                 fRc = outputPrintf(";  %s\n", psz) && fRc;
             }
 
@@ -266,6 +271,21 @@ static bool disFileHeader(void)
                 return disError("Error reading '%s': rc=%Rrc iLine=%u", pObjFile->pszSource, rc, iLine);
         }
     }
+
+    /*
+     * Add Oracle LGPL disclaimer.
+     */
+    if (fNeedLgplDisclaimer)
+        outputPrintf("\n"
+                     ";\n"
+                     "; Oracle LGPL Disclaimer: For the avoidance of doubt, except that if any license choice\n"
+                     "; other than GPL or LGPL is available it will apply instead, Oracle elects to use only\n"
+                     "; the Lesser General Public License version 2.1 (LGPLv2) at this time for any software where\n"
+                     "; a choice of LGPL license versions is made available with the language indicating\n"
+                     "; that LGPLv2 or any later version may be used, or where a choice of which version\n"
+                     "; of the LGPL is applied is otherwise unspecified.\n"
+                     ";\n"
+                     "\n");
 
     /*
      * Set the org.
@@ -884,7 +904,7 @@ static size_t disHandleYasmDifferences(PDISCPUSTATE pCpuState, uint32_t uFlatAdd
 
         if (cchUsed + 2 < cbBuf)
         {
-            memmove(pszBuf + 2, pszBuf, cchUsed + 2);
+            memmove(pszBuf + 2, pszBuf, cchUsed + 1); /* include terminating \0 */
             cchUsed += 2;
         }
 
@@ -949,31 +969,63 @@ static bool disCode(uint32_t uFlatAddr, uint32_t cb, bool fIs16Bit)
                 return disStringData(uFlatAddr, cb);
         }
         /* Work arounds for switch tables and such (disas assertions). */
-        else if (   (   pb[0] == 0x64   /* int13_cdemu switch */
+        else if (    0
+#if 0
+                 || (   pb[0] == 0x11   /* int13_cdemu switch */
+                     && pb[1] == 0xda
+                     && pb[2] == 0x05
+                     && pb[3] == 0xff
+                     && pb[4] == 0xff
+                    )
+#endif
+                 || (   pb[0] == 0xb0
+                     && pb[1] == 0x58
+                     && pb[2] == 0xc8
+                     && pb[3] == 0x58
+                     && pb[4] == 0xc8
+                     && pb[5] == 0x58
+                    )
+                 || (   pb[0] == 0x50
+                     && pb[1] == 0x4e
+                     && pb[2] == 0x49
+                     && pb[3] == 0x48
+                     && pb[4] == 0x47
+                     && pb[5] == 0x46
+                    )
+                 || (   pb[0] == 0x29
+                     && pb[1] == 0x65
+                     && pb[2] == 0x4b
+                     && pb[3] == 0x65
+                     && pb[4] == 0x6e
+                     && pb[5] == 0x65
+                    )
+                 || (   pb[0] == 0xc9   /* _pci16_function switch */
+                     && pb[1] == 0x8d
+                     && pb[2] == 0xe3
+                     && pb[3] == 0x8d
+                     && pb[4] == 0xf6
+                     && pb[5] == 0x8d
+                     )
+                 || (   pb[0] == 0xa3   /* _int1a_function switch */
                      && pb[1] == 0x67
-                     && pb[2] == 0x8d
+                     && pb[2] == 0xca
                      && pb[3] == 0x67
-                     && pb[4] == 0xb2
+                     && pb[4] == 0xef
                      && pb[5] == 0x67
                     )
-                 || (   pb[0] == 0x9b  /* int1a_function switch */
-                     && pb[1] == 0x66
-                     && pb[2] == 0xc2
-                     && pb[3] == 0x66
-                     && pb[4] == 0xe7
-                     && pb[5] == 0x66
-                     && pb[6] == 0x19
-                     && pb[7] == 0x67
+                 || (   pb[0] == 0x0b   /* _ahci_init byte table */
+                     && pb[1] == 0x05
+                     && pb[2] == 0x04
+                     && pb[3] == 0x03
+                     && pb[4] == 0x02
+                     && pb[5] == 0x01
                     )
-                 || (   pb[0] == 0x49  /* apm_out_str switch */
-                     && pb[1] == 0x87
-                     && pb[2] == 0x18
-                     && pb[3] == 0x88
-                     && pb[4] == 0x5b
-                     && pb[5] == 0x87
-                     && pb[6] == 0x76
-                     && pb[7] == 0x87
-                    )
+                 || (   pb[0] == 0x8c   /* bytes after apm_out_str_ */
+                     && pb[1] == 0x2f
+                     && pb[2] == 0x8d
+                     && pb[3] == 0xbb
+                     && pb[4] == 0x8c
+                     && pb[5] == 0x2f)
                  || 0
                  )
             return disByteData(uFlatAddr, cb);

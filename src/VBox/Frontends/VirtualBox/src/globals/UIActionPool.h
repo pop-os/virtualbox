@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,12 +19,23 @@
 #ifndef __UIActionPool_h__
 #define __UIActionPool_h__
 
-/* Global includes: */
+/* Qt includes: */
 #include <QAction>
 #include <QMenu>
 
-/* Local includes: */
+/* GUI includes: */
 #include "QIWithRetranslateUI.h"
+
+/* Forward declarations: */
+class UIActionState;
+class UIActionPool;
+
+/* Action pool types: */
+enum UIActionPoolType
+{
+    UIActionPoolType_Selector,
+    UIActionPoolType_Runtime
+};
 
 /* Action types: */
 enum UIActionType
@@ -61,24 +72,49 @@ class UIAction : public QIWithRetranslateUI3<QAction>
 
 public:
 
+    /* API: RTTI: */
     UIActionType type() const { return m_type; }
-    virtual void setState(int /* iState */) {}
-    virtual void updateAppearance() {}
 
+    /* API: Parent stuff: */
+    UIActionPool* actionPool() const { return m_pActionPool; }
+
+    /* API: Update stuff: */
+    virtual void update() {}
+
+    /* API: Cast stuff: */
+    UIActionState* toStateAction();
+
+    /* API: Name stuff: */
+    const QString& name() const { return m_strName; }
+    void setName(const QString &strName);
+
+    /* API: Shortcut stuff: */
+    virtual QString shortcutExtraDataID() const { return QString(); }
+    virtual QKeySequence defaultShortcut(UIActionPoolType) const { return QKeySequence(); }
     void setShortcut(const QKeySequence &shortcut);
     void showShortcut();
     void hideShortcut();
 
 protected:
 
-    UIAction(QObject *pParent, UIActionType type);
+    /* Constructor: */
+    UIAction(UIActionPool *pParent, UIActionType type);
 
-    QString menuText(const QString &strText);
+    /* Protected API: Menu stuff: */
+    QString nameInMenu() const;
 
 private:
 
+    /* Helper: Text stuff: */
+    void updateText();
+
+    /* Variables: */
+    UIActionPool *m_pActionPool;
     UIActionType m_type;
+    UIActionPoolType m_actionPoolType;
+    QString m_strName;
     QKeySequence m_shortcut;
+    bool m_fShortcutHidden;
 };
 
 /* Basic QMenu reimplemetation, extending interface: */
@@ -88,15 +124,19 @@ class UIMenu : public QMenu
 
 public:
 
+    /* Constructor: */
     UIMenu();
 
+    /* API: Tool-tip stuff: */
     void setShowToolTips(bool fShowToolTips) { m_fShowToolTips = fShowToolTips; }
     bool isToolTipsShown() const { return m_fShowToolTips; }
 
 private:
 
+    /* Helper: Event stuff: */
     bool event(QEvent *pEvent);
 
+    /* Variables: */
     bool m_fShowToolTips;
 };
 
@@ -107,13 +147,15 @@ class UIActionSimple : public UIAction
 
 protected:
 
-    UIActionSimple(QObject *pParent,
+    /* Constructors: */
+    UIActionSimple(UIActionPool *pParent,
                    const QString &strIcon = QString(), const QString &strIconDis = QString());
-    UIActionSimple(QObject *pParent,
+    UIActionSimple(UIActionPool *pParent,
                    const QSize &normalSize, const QSize &smallSize,
                    const QString &strNormalIcon, const QString &strSmallIcon,
                    const QString &strNormalIconDis = QString(), const QString &strSmallIconDis = QString());
-    UIActionSimple(QObject *pParent, const QIcon& icon);
+    UIActionSimple(UIActionPool *pParent,
+                   const QIcon& icon);
 };
 
 /* Abstract extention for UIAction, describing 'state' action type: */
@@ -121,17 +163,24 @@ class UIActionState : public UIAction
 {
     Q_OBJECT;
 
+public:
+
+    /* API: State stuff: */
+    void setState(int iState) { m_iState = iState; retranslateUi(); }
+
 protected:
 
-    UIActionState(QObject *pParent,
+    /* Constructors: */
+    UIActionState(UIActionPool *pParent,
                   const QString &strIcon = QString(), const QString &strIconDis = QString());
-    UIActionState(QObject *pParent,
+    UIActionState(UIActionPool *pParent,
                   const QSize &normalSize, const QSize &smallSize,
                   const QString &strNormalIcon, const QString &strSmallIcon,
                   const QString &strNormalIconDis = QString(), const QString &strSmallIconDis = QString());
-    UIActionState(QObject *pParent, const QIcon& icon);
-    void setState(int iState) { m_iState = iState; retranslateUi(); }
+    UIActionState(UIActionPool *pParent,
+                  const QIcon& icon);
 
+    /* Variables: */
     int m_iState;
 };
 
@@ -142,21 +191,29 @@ class UIActionToggle : public UIAction
 
 protected:
 
-    UIActionToggle(QObject *pParent, const QString &strIcon = QString(), const QString &strIconDis = QString());
-    UIActionToggle(QObject *pParent,
+    /* Constructors: */
+    UIActionToggle(UIActionPool *pParent,
+                   const QString &strIcon = QString(), const QString &strIconDis = QString());
+    UIActionToggle(UIActionPool *pParent,
                    const QSize &normalSize, const QSize &smallSize,
                    const QString &strNormalIcon, const QString &strSmallIcon,
                    const QString &strNormalIconDis = QString(), const QString &strSmallIconDis = QString());
-    UIActionToggle(QObject *pParent, const QString &strIconOn, const QString &strIconOff, const QString &strIconOnDis, const QString &strIconOffDis);
-    UIActionToggle(QObject *pParent, const QIcon &icon);
-    void updateAppearance() { sltUpdateAppearance(); }
+    UIActionToggle(UIActionPool *pParent,
+                   const QString &strIconOn, const QString &strIconOff, const QString &strIconOnDis, const QString &strIconOffDis);
+    UIActionToggle(UIActionPool *pParent,
+                   const QIcon &icon);
+
+    /* API reimplementation: Update stuff: */
+    void update() { sltUpdate(); }
 
 private slots:
 
-    void sltUpdateAppearance();
+    /* Handler: Update stuff: */
+    void sltUpdate();
 
 private:
 
+    /* Helper: Prepare stuff: */
     void init();
 };
 
@@ -167,15 +224,11 @@ class UIActionMenu : public UIAction
 
 protected:
 
-    UIActionMenu(QObject *pParent, const QString &strIcon = QString(), const QString &strIconDis = QString());
-    UIActionMenu(QObject *pParent, const QIcon &icon);
-};
-
-/* Action pool types: */
-enum UIActionPoolType
-{
-    UIActionPoolType_Selector,
-    UIActionPoolType_Runtime
+    /* Constructors: */
+    UIActionMenu(UIActionPool *pParent,
+                 const QString &strIcon = QString(), const QString &strIconDis = QString());
+    UIActionMenu(UIActionPool *pParent,
+                 const QIcon &icon);
 };
 
 /* Singleton action pool: */
@@ -185,43 +238,57 @@ class UIActionPool : public QObject
 
 public:
 
-    /* Singleton methods: */
+    /* API: Singleton stuff: */
     static UIActionPool* instance();
+    static void create(UIActionPoolType type);
+    static void destroy();
+
+    /* API: Shortcut pool helper stuff: */
+    static void createTemporary(UIActionPoolType type);
+
+    /* API: RTTI: */
+    UIActionPoolType type() const { return m_type; }
+
+    /* API: Action stuff: */
+    UIAction* action(int iIndex) const { return m_pool[iIndex]; }
+    QList<UIAction*> actions() const { return m_pool.values(); }
+
+    /* API: Shortcuts stuff: */
+    virtual QString shortcutsExtraDataID() const = 0;
+
+    /* API: Prepare stuff: */
+    void recreateMenus() { createMenus(); }
+
+    /* API: Hot-key handling stuff: */
+    bool processHotKey(const QKeySequence &key);
+
+protected slots:
+
+    /* Handler: Shortcuts stuff: */
+    void sltApplyShortcuts();
+
+protected:
 
     /* Constructor/destructor: */
     UIActionPool(UIActionPoolType type);
     ~UIActionPool();
 
-    /* Prepare/cleanup: */
+    /* Helpers: Prepare/cleanup stuff: */
     void prepare();
     void cleanup();
 
-    /* Return corresponding action: */
-    UIAction* action(int iIndex) const { return m_pool[iIndex]; }
-
-    /* Helping stuff: */
-    void recreateMenus() { createMenus(); }
-    bool processHotKey(const QKeySequence &key);
-
-    /* Action pool type: */
-    UIActionPoolType type() const { return m_type; }
-
-protected:
-
-    /* Virtual helping stuff: */
+    /* Virtual helpers: Prepare/cleanup stuff: */
     virtual void createActions();
     virtual void createMenus();
     virtual void destroyPool();
 
-    /* Event handler: */
+    /* Helper: Event stuff: */
     bool event(QEvent *pEvent);
 
     /* Instance: */
     static UIActionPool *m_pInstance;
-
     /* Action pool type: */
     UIActionPoolType m_type;
-
     /* Actions pool itself: */
     QMap<int, UIAction*> m_pool;
 };

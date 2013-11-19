@@ -32,6 +32,7 @@
 #include "QIToolButton.h"
 #include "UIWizardNewVD.h"
 #include "QIRichTextLabel.h"
+#include "UIMedium.h"
 
 UIWizardNewVMPage3::UIWizardNewVMPage3()
 {
@@ -97,32 +98,29 @@ bool UIWizardNewVMPage3::getWithNewVirtualDiskWizard()
 
 void UIWizardNewVMPage3::ensureNewVirtualDiskDeleted()
 {
-    /* Make sure virtual-disk exists: */
+    /* Make sure virtual-disk valid: */
     if (m_virtualDisk.isNull())
         return;
 
-    /* Remember virtual-disk ID: */
-    QString strId = m_virtualDisk.GetId();
-
-    /* 1st step: start delete-storage progress: */
+    /* Remember virtual-disk attributes: */
+    QString strMediumID = m_virtualDisk.GetId();
+    QString strLocation = m_virtualDisk.GetLocation();
+    /* Prepare delete storage progress: */
     CProgress progress = m_virtualDisk.DeleteStorage();
-    /* Get initial state: */
-    bool fSuccess = m_virtualDisk.isOk();
-
-    /* 2nd step: show delete-storage progress: */
-    if (fSuccess)
+    if (m_virtualDisk.isOk())
     {
-        msgCenter().showModalProgressDialog(progress, thisImp()->windowTitle(), ":/progress_media_delete_90px.png", thisImp(), true);
-        fSuccess = progress.isOk() && progress.GetResultCode() == S_OK;
+        /* Show delete storage progress: */
+        msgCenter().showModalProgressDialog(progress, thisImp()->windowTitle(), ":/progress_media_delete_90px.png", thisImp());
+        if (!progress.isOk() || progress.GetResultCode() != 0)
+            msgCenter().cannotDeleteHardDiskStorage(progress, strLocation, thisImp());
     }
-
-    /* 3rd step: notify GUI about virtual-disk was deleted or show error if any: */
-    if (fSuccess)
-        vboxGlobal().removeMedium(UIMediumType_HardDisk, strId);
     else
-        msgCenter().cannotDeleteHardDiskStorage(thisImp(), m_virtualDisk, progress);
+        msgCenter().cannotDeleteHardDiskStorage(m_virtualDisk, strLocation, thisImp());
 
-    /* Detach virtual-disk finally: */
+    /* Inform VBoxGlobal about it: */
+    vboxGlobal().deleteMedium(strMediumID);
+
+    /* Detach virtual-disk anyway: */
     m_virtualDisk.detach();
 }
 
@@ -149,7 +147,7 @@ UIWizardNewVMPageBasic3::UIWizardNewVMPageBasic3()
             m_pVMMButton = new QIToolButton(this);
             {
                 m_pVMMButton->setAutoRaise(true);
-                m_pVMMButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png", ":/select_file_dis_16px.png"));
+                m_pVMMButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png", ":/select_file_disabled_16px.png"));
             }
             pDiskLayout->addWidget(m_pDiskSkip, 0, 0, 1, 3);
             pDiskLayout->addWidget(m_pDiskCreate, 1, 0, 1, 3);
@@ -238,7 +236,7 @@ bool UIWizardNewVMPageBasic3::isComplete() const
     /* Make sure 'virtualDisk' field feats the rules: */
     return m_pDiskSkip->isChecked() ||
            !m_pDiskPresent->isChecked() ||
-           !vboxGlobal().findMedium(m_pDiskSelector->id()).isNull();
+           !vboxGlobal().medium(m_pDiskSelector->id()).isNull();
 }
 
 bool UIWizardNewVMPageBasic3::validatePage()
@@ -253,7 +251,7 @@ bool UIWizardNewVMPageBasic3::validatePage()
     if (m_pDiskSkip->isChecked())
     {
         /* Ask user about disk-less machine: */
-        fResult = msgCenter().confirmHardDisklessMachine(this);
+        fResult = msgCenter().confirmHardDisklessMachine(thisImp());
     }
     else if (m_pDiskCreate->isChecked())
     {

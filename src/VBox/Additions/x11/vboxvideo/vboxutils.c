@@ -1,3 +1,4 @@
+/* $Id: vboxutils.c $ */
 /** @file
  * VirtualBox X11 Additions graphics driver utility functions
  */
@@ -253,10 +254,12 @@ unsigned vboxNextStandardMode(ScrnInfoPtr pScrn, unsigned cIndex,
                               uint32_t *pcx, uint32_t *pcy,
                               uint32_t *pcBits)
 {
+    unsigned i;
+
     XF86ASSERT(cIndex < vboxNumStdModes,
                ("cIndex = %d, vboxNumStdModes = %d\n", cIndex,
                 vboxNumStdModes));
-    for (unsigned i = cIndex; i < vboxNumStdModes - 1; ++i)
+    for (i = cIndex; i < vboxNumStdModes - 1; ++i)
     {
         uint32_t cBits = pScrn->bitsPerPixel;
         uint32_t cx = vboxStandardModes[i].cx;
@@ -461,6 +464,7 @@ static DisplayModePtr vboxAddEmptyScreenMode(ScrnInfoPtr pScrn)
 void vboxAddModes(ScrnInfoPtr pScrn, uint32_t cxInit, uint32_t cyInit)
 {
     unsigned cx = 0, cy = 0, cIndex = 0;
+    unsigned i;
     /* For reasons related to the way RandR 1.1 is implemented, we need to
      * make sure that the initial mode (more precisely, a mode equal to the
      * initial virtual resolution) is always present in the mode list.  RandR
@@ -489,8 +493,7 @@ void vboxAddModes(ScrnInfoPtr pScrn, uint32_t cxInit, uint32_t cyInit)
     }
     /* And finally any modes specified by the user.  We assume here that
      * the mode names reflect the mode sizes. */
-    for (unsigned i = 0;    pScrn->display->modes != NULL
-                         && pScrn->display->modes[i] != NULL; i++)
+    for (i = 0; pScrn->display->modes && pScrn->display->modes[i]; i++)
     {
         if (sscanf(pScrn->display->modes[i], "%ux%u", &cx, &cy) == 2)
         {

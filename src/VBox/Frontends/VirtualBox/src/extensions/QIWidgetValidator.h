@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,72 +19,61 @@
 #ifndef __QIWidgetValidator_h__
 #define __QIWidgetValidator_h__
 
-#include <limits.h>
-
-/* Qt includes */
-#include <QObject>
+/* Qt includes: */
 #include <QValidator>
-#include <QList>
-#include <QPointer>
+#include <QPixmap>
 
-class QIWidgetValidator : public QObject
+/* External includes: */
+#ifdef Q_WS_X11
+#include <limits.h>
+#endif /* Q_WS_X11 */
+
+/* Forward declarations: */
+class UISettingsPage;
+
+/* Page validator prototype: */
+class UIPageValidator : public QObject
 {
-    Q_OBJECT
-
-public:
-
-    QIWidgetValidator (QWidget *aWidget, QObject *aParent = 0);
-    QIWidgetValidator (const QString &aCaption,
-                       QWidget *aWidget, QObject *aParent = 0);
-    ~QIWidgetValidator();
-
-    QWidget *widget() const { return mWidget; }
-    bool isValid() const;
-    void rescan();
-
-    void setCaption (const QString& aCaption) { mCaption = aCaption; }
-    QString caption() const { return mCaption; }
-
-    QString warningText() const;
-
-    QString lastWarning() const { return mLastWarning; }
-    void setLastWarning (const QString &aLastWarning) { mLastWarning = aLastWarning; }
-
-    void setOtherValid (bool aValid) { mOtherValid = aValid; }
-    bool isOtherValid() const { return mOtherValid; }
+    Q_OBJECT;
 
 signals:
 
-    void validityChanged (const QIWidgetValidator *aValidator);
-    void isValidRequested (QIWidgetValidator *aValidator);
+    /* Notifier: Validation stuff: */
+    void sigValidityChanged(UIPageValidator *pValidator);
+
+    /* Notifiers: Warning stuff: */
+    void sigShowWarningIcon();
+    void sigHideWarningIcon();
+
+public:
+
+    /* Constructor: */
+    UIPageValidator(QObject *pParent, UISettingsPage *pPage);
+
+    /* API: Page stuff: */
+    UISettingsPage* page() const { return m_pPage; }
+    QPixmap warningPixmap() const;
+    QString internalName() const;
+
+    /* API: Validity stuff: */
+    bool isValid() const { return m_fIsValid; }
+    void setValid(bool fIsValid) { m_fIsValid = fIsValid; }
+
+    /* API: Message stuff: */
+    QString lastMessage() const { return m_strLastMessage; }
+    void setLastMessage(const QString &strLastMessage);
 
 public slots:
 
-    void revalidate() { doRevalidate(); }
+    /* API/Handler: Validation stuff: */
+    void revalidate();
 
 private:
 
-    QString mLastWarning;
-    QString mCaption;
-    QWidget *mWidget;
-    bool mOtherValid;
-
-    struct Watched
-    {
-        Watched()
-            : state (QValidator::Acceptable) {}
-
-        QPointer<QWidget> widget;
-        QPointer<QWidget> buddy;
-        QValidator::State state;
-    };
-
-    QList <Watched> mWatched;
-    Watched mLastInvalid;
-
-private slots:
-
-    void doRevalidate() { emit validityChanged (this); }
+    /* Variables: */
+    UISettingsPage *m_pPage;
+    bool m_fIsValid;
+    QString m_strLastMessage;
 };
 
 class QIULongValidator : public QValidator
@@ -116,4 +105,3 @@ private:
 };
 
 #endif // __QIWidgetValidator_h__
-

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,15 +29,16 @@
 *******************************************************************************/
 #include <iprt/string.h>
 
-#include <iprt/uni.h>
-#include <iprt/uuid.h>
-#include <iprt/time.h>
-#include <iprt/stream.h>
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
+#include <iprt/env.h>
 #include <iprt/err.h>
 #include <iprt/rand.h>
+#include <iprt/stream.h>
 #include <iprt/test.h>
+#include <iprt/time.h>
+#include <iprt/uni.h>
+#include <iprt/uuid.h>
 
 
 
@@ -49,7 +50,7 @@ static RTUTF16 GetRandUtf16(void)
     RTUTF16 wc;
     do
     {
-        wc = (RTUTF16)RTRandU32Ex(1, 0xffff);
+        wc = (RTUTF16)RTRandU32Ex(1, 0xfffd);
     } while (wc >= 0xd800 && wc <= 0xdfff);
     return wc;
 }
@@ -103,6 +104,8 @@ static void test1(RTTEST hTest)
         }
         else if (rc == VERR_NO_TRANSLATION)
             RTTestPassed(hTest, "The second part of random UTF-16 -> UTF-8 -> Current -> UTF-8 returned VERR_NO_TRANSLATION.  This is probably as it should be.\n");
+        else if (rc == VWRN_NO_TRANSLATION)
+            RTTestPassed(hTest, "The second part of random UTF-16 -> UTF-8 -> Current -> UTF-8 returned VWRN_NO_TRANSLATION.  This is probably as it should be.\n");
         else
             RTTestFailed(hTest, "%d: The second part of random UTF-16 -> UTF-8 -> Current -> UTF-8 failed with return value %Rrc.",
                          __LINE__, rc);
@@ -1395,14 +1398,15 @@ static void testNoTransation(RTTEST hTest)
     RTTestSub(hTest, "VERR_NO_TRANSLATION/RTStrUtf8ToCurrentCP");
     char *pszOut;
     rc = RTStrUtf8ToCurrentCP(&pszOut, pszTest1);
-    if (RT_SUCCESS(rc))
+    if (rc == VINF_SUCCESS)
     {
         RTTESTI_CHECK(!strcmp(pszOut, pszTest1));
-        RTTestIPrintf(RTTESTLVL_ALWAYS, "CurrentCP is UTF-8 or similar\n");
+        RTTestIPrintf(RTTESTLVL_ALWAYS, "CurrentCP is UTF-8 or similar (LC_ALL=%s LANG=%s LC_CTYPE=%s)\n",
+                      RTEnvGet("LC_ALL"), RTEnvGet("LANG"), RTEnvGet("LC_CTYPE"));
         RTStrFree(pszOut);
     }
     else
-        RTTESTI_CHECK_RC(rc, VERR_NO_TRANSLATION);
+        RTTESTI_CHECK_MSG(rc == VWRN_NO_TRANSLATION || rc == VERR_NO_TRANSLATION, ("rc=%Rrc\n", rc));
 
     RTTestSub(hTest, "VERR_NO_TRANSLATION/RTUtf16ToLatin1");
     rc = RTUtf16ToLatin1(s_swzTest1, &pszOut);

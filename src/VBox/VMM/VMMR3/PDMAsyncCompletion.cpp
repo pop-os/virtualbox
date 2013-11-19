@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -194,6 +194,8 @@ static int pdmR3AsyncCompletionTemplateCreate(PVM pVM, PPPDMASYNCCOMPLETIONTEMPL
     return VINF_SUCCESS;
 }
 
+
+#ifdef SOME_UNUSED_FUNCTION
 /**
  * Creates a async completion template for a device instance.
  *
@@ -206,7 +208,8 @@ static int pdmR3AsyncCompletionTemplateCreate(PVM pVM, PPPDMASYNCCOMPLETIONTEMPL
  * @param   pfnCompleted    The completion callback routine.
  * @param   pszDesc         Description.
  */
-VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateDevice(PVM pVM, PPDMDEVINS pDevIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate, PFNPDMASYNCCOMPLETEDEV pfnCompleted, const char *pszDesc)
+int pdmR3AsyncCompletionTemplateCreateDevice(PVM pVM, PPDMDEVINS pDevIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate,
+                                             PFNPDMASYNCCOMPLETEDEV pfnCompleted, const char *pszDesc)
 {
     LogFlow(("%s: pDevIns=%p ppTemplate=%p pfnCompleted=%p pszDesc=%s\n",
               __FUNCTION__, pDevIns, ppTemplate, pfnCompleted, pszDesc));
@@ -235,6 +238,8 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateDevice(PVM pVM, PPDMDEVINS pDev
 
     return rc;
 }
+#endif /* SOME_UNUSED_FUNCTION */
+
 
 /**
  * Creates a async completion template for a driver instance.
@@ -249,10 +254,11 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateDevice(PVM pVM, PPDMDEVINS pDev
  * @param   pvTemplateUser  Template user argument
  * @param   pszDesc         Description.
  */
-VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateDriver(PVM pVM, PPDMDRVINS pDrvIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate, PFNPDMASYNCCOMPLETEDRV pfnCompleted, void *pvTemplateUser, const char *pszDesc)
+int pdmR3AsyncCompletionTemplateCreateDriver(PVM pVM, PPDMDRVINS pDrvIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate,
+                                             PFNPDMASYNCCOMPLETEDRV pfnCompleted, void *pvTemplateUser,
+                                             const char *pszDesc)
 {
-    LogFlow(("%s: pDrvIns=%p ppTemplate=%p pfnCompleted=%p pszDesc=%s\n",
-              __FUNCTION__, pDrvIns, ppTemplate, pfnCompleted, pszDesc));
+    LogFlow(("PDMR3AsyncCompletionTemplateCreateDriver: pDrvIns=%p ppTemplate=%p pfnCompleted=%p pszDesc=%s\n", pDrvIns, ppTemplate, pfnCompleted, pszDesc));
 
     /*
      * Validate input.
@@ -279,6 +285,8 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateDriver(PVM pVM, PPDMDRVINS pDrv
     return rc;
 }
 
+
+#ifdef SOME_UNUSED_FUNCTION
 /**
  * Creates a async completion template for a USB device instance.
  *
@@ -291,10 +299,10 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateDriver(PVM pVM, PPDMDRVINS pDrv
  * @param   pfnCompleted    The completion callback routine.
  * @param   pszDesc         Description.
  */
-VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateUsb(PVM pVM, PPDMUSBINS pUsbIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate, PFNPDMASYNCCOMPLETEUSB pfnCompleted, const char *pszDesc)
+int pdmR3AsyncCompletionTemplateCreateUsb(PVM pVM, PPDMUSBINS pUsbIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate,
+                                          PFNPDMASYNCCOMPLETEUSB pfnCompleted, const char *pszDesc)
 {
-    LogFlow(("%s: pUsbIns=%p ppTemplate=%p pfnCompleted=%p pszDesc=%s\n",
-              __FUNCTION__, pUsbIns, ppTemplate, pfnCompleted, pszDesc));
+    LogFlow(("pdmR3AsyncCompletionTemplateCreateUsb: pUsbIns=%p ppTemplate=%p pfnCompleted=%p pszDesc=%s\n", pUsbIns, ppTemplate, pfnCompleted, pszDesc));
 
     /*
      * Validate input.
@@ -320,6 +328,8 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateUsb(PVM pVM, PPDMUSBINS pUsbIns
 
     return rc;
 }
+#endif
+
 
 /**
  * Creates a async completion template for internally by the VMM.
@@ -332,6 +342,7 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateUsb(PVM pVM, PPDMUSBINS pUsbIns
  * @param   pfnCompleted    The completion callback routine.
  * @param   pvUser2         The 2nd user argument for the callback.
  * @param   pszDesc         Description.
+ * @internal
  */
 VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateInternal(PVM pVM, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate, PFNPDMASYNCCOMPLETEINT pfnCompleted, void *pvUser2, const char *pszDesc)
 {
@@ -362,6 +373,7 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateInternal(PVM pVM, PPPDMASYNCCOM
 
     return rc;
 }
+
 
 /**
  * Destroys the specified async completion template.
@@ -418,6 +430,7 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroy(PPDMASYNCCOMPLETIONTEMPLATE p
     return VINF_SUCCESS;
 }
 
+
 /**
  * Destroys all the specified async completion templates for the given device instance.
  *
@@ -428,9 +441,9 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroy(PPDMASYNCCOMPLETIONTEMPLATE p
  * @param   pVM             Pointer to the VM.
  * @param   pDevIns         The device instance.
  */
-VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroyDevice(PVM pVM, PPDMDEVINS pDevIns)
+int pdmR3AsyncCompletionTemplateDestroyDevice(PVM pVM, PPDMDEVINS pDevIns)
 {
-    LogFlow(("%s: pDevIns=%p\n", __FUNCTION__, pDevIns));
+    LogFlow(("pdmR3AsyncCompletionTemplateDestroyDevice: pDevIns=%p\n", pDevIns));
 
     /*
      * Validate input.
@@ -467,6 +480,7 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroyDevice(PVM pVM, PPDMDEVINS pDe
     return VINF_SUCCESS;
 }
 
+
 /**
  * Destroys all the specified async completion templates for the given driver instance.
  *
@@ -477,9 +491,9 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroyDevice(PVM pVM, PPDMDEVINS pDe
  * @param   pVM             Pointer to the VM.
  * @param   pDrvIns         The driver instance.
  */
-VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroyDriver(PVM pVM, PPDMDRVINS pDrvIns)
+int pdmR3AsyncCompletionTemplateDestroyDriver(PVM pVM, PPDMDRVINS pDrvIns)
 {
-    LogFlow(("%s: pDevIns=%p\n", __FUNCTION__, pDrvIns));
+    LogFlow(("pdmR3AsyncCompletionTemplateDestroyDriver: pDevIns=%p\n", pDrvIns));
 
     /*
      * Validate input.
@@ -516,6 +530,7 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroyDriver(PVM pVM, PPDMDRVINS pDr
     return VINF_SUCCESS;
 }
 
+
 /**
  * Destroys all the specified async completion templates for the given USB device instance.
  *
@@ -526,9 +541,9 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroyDriver(PVM pVM, PPDMDRVINS pDr
  * @param   pVM             Pointer to the VM.
  * @param   pUsbIns         The USB device instance.
  */
-VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroyUsb(PVM pVM, PPDMUSBINS pUsbIns)
+int pdmR3AsyncCompletionTemplateDestroyUsb(PVM pVM, PPDMUSBINS pUsbIns)
 {
-    LogFlow(("%s: pUsbIns=%p\n", __FUNCTION__, pUsbIns));
+    LogFlow(("pdmR3AsyncCompletionTemplateDestroyUsb: pUsbIns=%p\n", pUsbIns));
 
     /*
      * Validate input.
@@ -566,17 +581,18 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroyUsb(PVM pVM, PPDMUSBINS pUsbIn
 }
 
 
-static PPDMACBWMGR pdmacBwMgrFindById(PPDMASYNCCOMPLETIONEPCLASS pEpClass, const char *pcszId)
+/** Lazy coder. */
+static PPDMACBWMGR pdmacBwMgrFindById(PPDMASYNCCOMPLETIONEPCLASS pEpClass, const char *pszId)
 {
     PPDMACBWMGR pBwMgr = NULL;
 
-    if (RT_VALID_PTR(pcszId))
+    if (pszId)
     {
         int rc = RTCritSectEnter(&pEpClass->CritSect); AssertRC(rc);
 
         pBwMgr = pEpClass->pBwMgrsHead;
         while (   pBwMgr
-               && RTStrCmp(pBwMgr->pszId, pcszId))
+               && RTStrCmp(pBwMgr->pszId, pszId))
             pBwMgr = pBwMgr->pNext;
 
         rc = RTCritSectLeave(&pEpClass->CritSect); AssertRC(rc);
@@ -585,6 +601,8 @@ static PPDMACBWMGR pdmacBwMgrFindById(PPDMASYNCCOMPLETIONEPCLASS pEpClass, const
     return pBwMgr;
 }
 
+
+/** Lazy coder. */
 static void pdmacBwMgrLink(PPDMACBWMGR pBwMgr)
 {
     PPDMASYNCCOMPLETIONEPCLASS pEpClass = pBwMgr->pEpClass;
@@ -596,7 +614,9 @@ static void pdmacBwMgrLink(PPDMACBWMGR pBwMgr)
     rc = RTCritSectLeave(&pEpClass->CritSect); AssertRC(rc);
 }
 
+
 #ifdef SOME_UNUSED_FUNCTION
+/** Lazy coder. */
 static void pdmacBwMgrUnlink(PPDMACBWMGR pBwMgr)
 {
     PPDMASYNCCOMPLETIONEPCLASS pEpClass = pBwMgr->pEpClass;
@@ -619,18 +639,20 @@ static void pdmacBwMgrUnlink(PPDMACBWMGR pBwMgr)
 }
 #endif /* SOME_UNUSED_FUNCTION */
 
-static int pdmacAsyncCompletionBwMgrCreate(PPDMASYNCCOMPLETIONEPCLASS pEpClass, const char *pcszBwMgr, uint32_t cbTransferPerSecMax,
+
+/** Lazy coder. */
+static int pdmacAsyncCompletionBwMgrCreate(PPDMASYNCCOMPLETIONEPCLASS pEpClass, const char *pszBwMgr, uint32_t cbTransferPerSecMax,
                                            uint32_t cbTransferPerSecStart, uint32_t cbTransferPerSecStep)
 {
-    LogFlowFunc(("pEpClass=%#p pcszBwMgr=%#p{%s} cbTransferPerSecMax=%u cbTransferPerSecStart=%u cbTransferPerSecStep=%u\n",
-                 pEpClass, pcszBwMgr, cbTransferPerSecMax, cbTransferPerSecStart, cbTransferPerSecStep));
+    LogFlowFunc(("pEpClass=%#p pszBwMgr=%#p{%s} cbTransferPerSecMax=%u cbTransferPerSecStart=%u cbTransferPerSecStep=%u\n",
+                 pEpClass, pszBwMgr, cbTransferPerSecMax, cbTransferPerSecStart, cbTransferPerSecStep));
 
     AssertPtrReturn(pEpClass, VERR_INVALID_POINTER);
-    AssertPtrReturn(pcszBwMgr, VERR_INVALID_POINTER);
-    AssertReturn(*pcszBwMgr != '\0', VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszBwMgr, VERR_INVALID_POINTER);
+    AssertReturn(*pszBwMgr != '\0', VERR_INVALID_PARAMETER);
 
     int         rc;
-    PPDMACBWMGR pBwMgr = pdmacBwMgrFindById(pEpClass, pcszBwMgr);
+    PPDMACBWMGR pBwMgr = pdmacBwMgrFindById(pEpClass, pszBwMgr);
     if (!pBwMgr)
     {
         rc = MMR3HeapAllocZEx(pEpClass->pVM, MM_TAG_PDM_ASYNC_COMPLETION,
@@ -638,7 +660,7 @@ static int pdmacAsyncCompletionBwMgrCreate(PPDMASYNCCOMPLETIONEPCLASS pEpClass, 
                               (void **)&pBwMgr);
         if (RT_SUCCESS(rc))
         {
-            pBwMgr->pszId = RTStrDup(pcszBwMgr);
+            pBwMgr->pszId = RTStrDup(pszBwMgr);
             if (pBwMgr->pszId)
             {
                 pBwMgr->pEpClass              = pEpClass;
@@ -669,17 +691,33 @@ static int pdmacAsyncCompletionBwMgrCreate(PPDMASYNCCOMPLETIONEPCLASS pEpClass, 
     return rc;
 }
 
-DECLINLINE(void) pdmacBwMgrRef(PPDMACBWMGR pBwMgr)
+
+/** Lazy coder. */
+DECLINLINE(void) pdmacBwMgrRetain(PPDMACBWMGR pBwMgr)
 {
     ASMAtomicIncU32(&pBwMgr->cRefs);
 }
 
-DECLINLINE(void) pdmacBwMgrUnref(PPDMACBWMGR pBwMgr)
+
+/** Lazy coder. */
+DECLINLINE(void) pdmacBwMgrRelease(PPDMACBWMGR pBwMgr)
 {
     Assert(pBwMgr->cRefs > 0);
     ASMAtomicDecU32(&pBwMgr->cRefs);
 }
 
+
+/**
+ * Checks if the endpoint is allowed to transfer the given amount of bytes.
+ *
+ * @returns true if the endpoint is allowed to transfer the data.
+ *          false otherwise
+ * @param   pEndpoint                 The endpoint.
+ * @param   cbTransfer                The number of bytes to transfer.
+ * @param   pmsWhenNext               Where to store the number of milliseconds
+ *                                    until the bandwidth is refreshed.
+ *                                    Only set if false is returned.
+ */
 bool pdmacEpIsTransferAllowed(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint32_t cbTransfer, RTMSINTERVAL *pmsWhenNext)
 {
     bool        fAllowed = true;
@@ -728,6 +766,16 @@ bool pdmacEpIsTransferAllowed(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint32_t cb
     return fAllowed;
 }
 
+
+/**
+ * Called by the endpoint if a task has finished.
+ *
+ * @returns nothing
+ * @param   pTask                     Pointer to the finished task.
+ * @param   rc                        Status code of the completed request.
+ * @param   fCallCompletionHandler    Flag whether the completion handler should be called to
+ *                                    inform the owner of the task that it has completed.
+ */
 void pdmR3AsyncCompletionCompleteTask(PPDMASYNCCOMPLETIONTASK pTask, int rc, bool fCallCompletionHandler)
 {
     LogFlow(("%s: pTask=%#p fCallCompletionHandler=%RTbool\n", __FUNCTION__, pTask, fCallCompletionHandler));
@@ -762,6 +810,7 @@ void pdmR3AsyncCompletionCompleteTask(PPDMASYNCCOMPLETIONTASK pTask, int rc, boo
     pdmR3AsyncCompletionPutTask(pTask->pEndpoint, pTask);
 }
 
+
 /**
  * Worker initializing a endpoint class.
  *
@@ -777,7 +826,7 @@ int pdmR3AsyncCompletionEpClassInit(PVM pVM, PCPDMASYNCCOMPLETIONEPCLASSOPS pEpC
     AssertReturn(pEpClassOps->u32Version == PDMAC_EPCLASS_OPS_VERSION, VERR_VERSION_MISMATCH);
     AssertReturn(pEpClassOps->u32VersionEnd == PDMAC_EPCLASS_OPS_VERSION, VERR_VERSION_MISMATCH);
 
-    LogFlowFunc((": pVM=%p pEpClassOps=%p{%s}\n", pVM, pEpClassOps, pEpClassOps->pcszName));
+    LogFlow(("pdmR3AsyncCompletionEpClassInit: pVM=%p pEpClassOps=%p{%s}\n", pVM, pEpClassOps, pEpClassOps->pszName));
 
     /* Allocate global class data. */
     PPDMASYNCCOMPLETIONEPCLASS pEndpointClass = NULL;
@@ -794,7 +843,7 @@ int pdmR3AsyncCompletionEpClassInit(PVM pVM, PCPDMASYNCCOMPLETIONEPCLASSOPS pEpC
         rc = RTCritSectInit(&pEndpointClass->CritSect);
         if (RT_SUCCESS(rc))
         {
-            PCFGMNODE pCfgNodeClass = CFGMR3GetChild(pCfgHandle, pEpClassOps->pcszName);
+            PCFGMNODE pCfgNodeClass = CFGMR3GetChild(pCfgHandle, pEpClassOps->pszName);
 
             /* Create task cache */
             rc = RTMemCacheCreate(&pEndpointClass->hMemCacheTasks, pEpClassOps->cbTask,
@@ -847,8 +896,14 @@ int pdmR3AsyncCompletionEpClassInit(PVM pVM, PCPDMASYNCCOMPLETIONEPCLASSOPS pEpC
                         AssertMsg(!pUVM->pdm.s.apAsyncCompletionEndpointClass[pEpClassOps->enmClassType],
                                   ("Endpoint class was already initialized\n"));
 
+#ifdef VBOX_WITH_STATISTICS
+                        CFGMR3QueryBoolDef(pCfgNodeClass, "AdvancedStatistics", &pEndpointClass->fGatherAdvancedStatistics, true);
+#else
+                        CFGMR3QueryBoolDef(pCfgNodeClass, "AdvancedStatistics", &pEndpointClass->fGatherAdvancedStatistics, false);
+#endif
+
                         pUVM->pdm.s.apAsyncCompletionEndpointClass[pEpClassOps->enmClassType] = pEndpointClass;
-                        LogFlowFunc((": Initialized endpoint class \"%s\" rc=%Rrc\n", pEpClassOps->pcszName, rc));
+                        LogFlowFunc((": Initialized endpoint class \"%s\" rc=%Rrc\n", pEpClassOps->pszName, rc));
                         return VINF_SUCCESS;
                     }
                 }
@@ -863,6 +918,7 @@ int pdmR3AsyncCompletionEpClassInit(PVM pVM, PCPDMASYNCCOMPLETIONEPCLASSOPS pEpC
 
     return rc;
 }
+
 
 /**
  * Worker terminating all endpoint classes.
@@ -900,6 +956,276 @@ static void pdmR3AsyncCompletionEpClassTerminate(PPDMASYNCCOMPLETIONEPCLASS pEnd
     MMR3HeapFree(pEndpointClass);
 }
 
+
+/**
+ * Records the size of the request in the statistics.
+ *
+ * @returns nothing.
+ * @param   pEndpoint    The endpoint to register the request size for.
+ * @param   cbReq        Size of the request.
+ */
+static void pdmR3AsyncCompletionStatisticsRecordSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, size_t cbReq)
+{
+    if (cbReq < 512)
+        STAM_REL_COUNTER_INC(&pEndpoint->StatReqSizeSmaller512);
+    else if (cbReq < _1K)
+        STAM_REL_COUNTER_INC(&pEndpoint->StatReqSize512To1K);
+    else if (cbReq < _2K)
+        STAM_REL_COUNTER_INC(&pEndpoint->StatReqSize1KTo2K);
+    else if (cbReq < _4K)
+        STAM_REL_COUNTER_INC(&pEndpoint->StatReqSize2KTo4K);
+    else if (cbReq < _8K)
+        STAM_REL_COUNTER_INC(&pEndpoint->StatReqSize4KTo8K);
+    else if (cbReq < _16K)
+        STAM_REL_COUNTER_INC(&pEndpoint->StatReqSize8KTo16K);
+    else if (cbReq < _32K)
+        STAM_REL_COUNTER_INC(&pEndpoint->StatReqSize16KTo32K);
+    else if (cbReq < _64K)
+        STAM_REL_COUNTER_INC(&pEndpoint->StatReqSize32KTo64K);
+    else if (cbReq < _128K)
+        STAM_REL_COUNTER_INC(&pEndpoint->StatReqSize64KTo128K);
+    else if (cbReq < _256K)
+        STAM_REL_COUNTER_INC(&pEndpoint->StatReqSize128KTo256K);
+    else if (cbReq < _512K)
+        STAM_REL_COUNTER_INC(&pEndpoint->StatReqSize256KTo512K);
+    else
+        STAM_REL_COUNTER_INC(&pEndpoint->StatReqSizeOver512K);
+
+    if (cbReq & ((size_t)512 - 1))
+        STAM_REL_COUNTER_INC(&pEndpoint->StatReqsUnaligned512);
+    else if (cbReq & ((size_t)_4K - 1))
+        STAM_REL_COUNTER_INC(&pEndpoint->StatReqsUnaligned4K);
+    else if (cbReq & ((size_t)_8K - 1))
+        STAM_REL_COUNTER_INC(&pEndpoint->StatReqsUnaligned8K);
+}
+
+
+/**
+ * Records the required processing time of a request.
+ *
+ * @returns nothing.
+ * @param   pEndpoint    The endpoint.
+ * @param   cNsRun       The request time in nanoseconds.
+ */
+static void pdmR3AsyncCompletionStatisticsRecordCompletionTime(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint64_t cNsRun)
+{
+    PSTAMCOUNTER pStatCounter;
+    if (cNsRun < RT_NS_1US)
+        pStatCounter = &pEndpoint->StatTaskRunTimesNs[cNsRun / (RT_NS_1US / 10)];
+    else if (cNsRun < RT_NS_1MS)
+        pStatCounter = &pEndpoint->StatTaskRunTimesUs[cNsRun / (RT_NS_1MS / 10)];
+    else if (cNsRun < RT_NS_1SEC)
+        pStatCounter = &pEndpoint->StatTaskRunTimesMs[cNsRun / (RT_NS_1SEC / 10)];
+    else if (cNsRun < RT_NS_1SEC_64*100)
+        pStatCounter = &pEndpoint->StatTaskRunTimesSec[cNsRun / (RT_NS_1SEC_64*100 / 10)];
+    else
+        pStatCounter = &pEndpoint->StatTaskRunOver100Sec;
+    STAM_REL_COUNTER_INC(pStatCounter);
+
+    STAM_REL_COUNTER_INC(&pEndpoint->StatIoOpsCompleted);
+    pEndpoint->cIoOpsCompleted++;
+    uint64_t tsMsCur = RTTimeMilliTS();
+    uint64_t tsInterval = tsMsCur - pEndpoint->tsIntervalStartMs;
+    if (tsInterval >= 1000)
+    {
+        pEndpoint->StatIoOpsPerSec.c = pEndpoint->cIoOpsCompleted / (tsInterval / 1000);
+        pEndpoint->tsIntervalStartMs = tsMsCur;
+        pEndpoint->cIoOpsCompleted = 0;
+    }
+}
+
+
+/**
+ * Registers advanced statistics for the given endpoint.
+ *
+ * @returns VBox status code.
+ * @param   pEndpoint    The endpoint to register the advanced statistics for.
+ */
+static int pdmR3AsyncCompletionStatisticsRegister(PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
+{
+    int rc = VINF_SUCCESS;
+    PVM pVM = pEndpoint->pEpClass->pVM;
+
+    pEndpoint->tsIntervalStartMs = RTTimeMilliTS();
+
+    for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesNs) && RT_SUCCESS(rc); i++)
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatTaskRunTimesNs[i], STAMTYPE_COUNTER,
+                             STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+                             "Nanosecond resolution runtime statistics",
+                             "/PDM/AsyncCompletion/File/%s/TaskRun1Ns-%u-%u",
+                             RTPathFilename(pEndpoint->pszUri), i*100, i*100+100-1);
+
+    for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesUs) && RT_SUCCESS(rc); i++)
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatTaskRunTimesUs[i], STAMTYPE_COUNTER,
+                             STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+                             "Microsecond resolution runtime statistics",
+                             "/PDM/AsyncCompletion/File/%s/TaskRun2MicroSec-%u-%u",
+                             RTPathFilename(pEndpoint->pszUri), i*100, i*100+100-1);
+
+    for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesMs) && RT_SUCCESS(rc); i++)
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatTaskRunTimesMs[i], STAMTYPE_COUNTER,
+                             STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+                             "Milliseconds resolution runtime statistics",
+                             "/PDM/AsyncCompletion/File/%s/TaskRun3Ms-%u-%u",
+                             RTPathFilename(pEndpoint->pszUri), i*100, i*100+100-1);
+
+    for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesMs) && RT_SUCCESS(rc); i++)
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatTaskRunTimesSec[i], STAMTYPE_COUNTER,
+                             STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+                             "Second resolution runtime statistics",
+                             "/PDM/AsyncCompletion/File/%s/TaskRun4Sec-%u-%u",
+                             RTPathFilename(pEndpoint->pszUri), i*10, i*10+10-1);
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatTaskRunOver100Sec, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+                             "Tasks which ran more than 100sec",
+                             "/PDM/AsyncCompletion/File/%s/TaskRunSecGreater100Sec",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatIoOpsPerSec, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Processed I/O operations per second",
+                             "/PDM/AsyncCompletion/File/%s/IoOpsPerSec",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatIoOpsStarted, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Started I/O operations for this endpoint",
+                             "/PDM/AsyncCompletion/File/%s/IoOpsStarted",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatIoOpsCompleted, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Completed I/O operations for this endpoint",
+                             "/PDM/AsyncCompletion/File/%s/IoOpsCompleted",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatReqSizeSmaller512, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of requests with a size smaller than 512 bytes",
+                             "/PDM/AsyncCompletion/File/%s/ReqSizeSmaller512",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatReqSize512To1K, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of requests with a size between 512 bytes and 1KB",
+                             "/PDM/AsyncCompletion/File/%s/ReqSize512To1K",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatReqSize1KTo2K, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of requests with a size between 1KB and 2KB",
+                             "/PDM/AsyncCompletion/File/%s/ReqSize1KTo2K",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatReqSize2KTo4K, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of requests with a size between 2KB and 4KB",
+                             "/PDM/AsyncCompletion/File/%s/ReqSize2KTo4K",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatReqSize4KTo8K, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of requests with a size between 4KB and 8KB",
+                             "/PDM/AsyncCompletion/File/%s/ReqSize4KTo8K",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatReqSize8KTo16K, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of requests with a size between 8KB and 16KB",
+                             "/PDM/AsyncCompletion/File/%s/ReqSize8KTo16K",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatReqSize16KTo32K, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of requests with a size between 16KB and 32KB",
+                             "/PDM/AsyncCompletion/File/%s/ReqSize16KTo32K",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatReqSize32KTo64K, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of requests with a size between 32KB and 64KB",
+                             "/PDM/AsyncCompletion/File/%s/ReqSize32KTo64K",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatReqSize64KTo128K, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of requests with a size between 64KB and 128KB",
+                             "/PDM/AsyncCompletion/File/%s/ReqSize64KTo128K",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatReqSize128KTo256K, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of requests with a size between 128KB and 256KB",
+                             "/PDM/AsyncCompletion/File/%s/ReqSize128KTo256K",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatReqSize256KTo512K, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of requests with a size between 256KB and 512KB",
+                             "/PDM/AsyncCompletion/File/%s/ReqSize256KTo512K",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatReqSizeOver512K, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of requests with a size over 512KB",
+                             "/PDM/AsyncCompletion/File/%s/ReqSizeOver512K",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatReqsUnaligned512, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of requests which size is not aligned to 512 bytes",
+                             "/PDM/AsyncCompletion/File/%s/ReqsUnaligned512",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatReqsUnaligned4K, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of requests which size is not aligned to 4KB",
+                             "/PDM/AsyncCompletion/File/%s/ReqsUnaligned4K",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    if (RT_SUCCESS(rc))
+        rc = STAMR3RegisterF(pVM, &pEndpoint->StatReqsUnaligned8K, STAMTYPE_COUNTER,
+                             STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of requests which size is not aligned to 8KB",
+                             "/PDM/AsyncCompletion/File/%s/ReqsUnaligned8K",
+                             RTPathFilename(pEndpoint->pszUri));
+
+    return rc;
+}
+
+
+/**
+ * Deregisters advanced statistics for one endpoint.
+ *
+ * @returns nothing.
+ * @param   pEndpoint    The endpoint to deregister the advanced statistics for.
+ */
+static void pdmR3AsyncCompletionStatisticsDeregister(PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
+{
+    /* I hope this doesn't remove too much... */
+    STAMR3DeregisterF(pEndpoint->pEpClass->pVM->pUVM, "/PDM/AsyncCompletion/File/%s/*", RTPathFilename(pEndpoint->pszUri));
+}
+
+
 /**
  * Initialize the async completion manager.
  *
@@ -920,6 +1246,7 @@ int pdmR3AsyncCompletionInit(PVM pVM)
     return rc;
 }
 
+
 /**
  * Terminates the async completion manager.
  *
@@ -937,6 +1264,7 @@ int pdmR3AsyncCompletionTerm(PVM pVM)
 
     return VINF_SUCCESS;
 }
+
 
 /**
  * Resume worker for the async completion manager.
@@ -996,6 +1324,7 @@ void pdmR3AsyncCompletionResume(PVM pVM)
         }
 }
 
+
 /**
  * Tries to get a free task from the endpoint or class cache
  * allocating the task if it fails.
@@ -1017,13 +1346,12 @@ static PPDMASYNCCOMPLETIONTASK pdmR3AsyncCompletionGetTask(PPDMASYNCCOMPLETIONEN
         pTask->pPrev     = NULL;
         pTask->pNext     = NULL;
         pTask->tsNsStart = RTTimeNanoTS();
-#ifdef VBOX_WITH_STATISTICS
-        STAM_COUNTER_INC(&pEndpoint->StatIoOpsStarted);
-#endif
+        STAM_REL_COUNTER_INC(&pEndpoint->StatIoOpsStarted);
     }
 
     return pTask;
 }
+
 
 /**
  * Puts a task in one of the caches.
@@ -1040,37 +1368,15 @@ static void pdmR3AsyncCompletionPutTask(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, P
     if (RT_UNLIKELY(cNsRun >= RT_NS_10SEC))
         LogRel(("AsyncCompletion: Task %#p completed after %llu seconds\n", pTask, cNsRun / RT_NS_1SEC));
 
-#ifdef VBOX_WITH_STATISTICS
-    PSTAMCOUNTER pStatCounter;
-    if (cNsRun < RT_NS_1US)
-        pStatCounter = &pEndpoint->StatTaskRunTimesNs[cNsRun / (RT_NS_1US / 10)];
-    else if (cNsRun < RT_NS_1MS)
-        pStatCounter = &pEndpoint->StatTaskRunTimesUs[cNsRun / (RT_NS_1MS / 10)];
-    else if (cNsRun < RT_NS_1SEC)
-        pStatCounter = &pEndpoint->StatTaskRunTimesMs[cNsRun / (RT_NS_1SEC / 10)];
-    else if (cNsRun < RT_NS_1SEC_64*100)
-        pStatCounter = &pEndpoint->StatTaskRunTimesSec[cNsRun / (RT_NS_1SEC_64*100 / 10)];
-    else
-        pStatCounter = &pEndpoint->StatTaskRunOver100Sec;
-    STAM_COUNTER_INC(pStatCounter);
-
-    STAM_COUNTER_INC(&pEndpoint->StatIoOpsCompleted);
-    pEndpoint->cIoOpsCompleted++;
-    uint64_t tsMsCur = RTTimeMilliTS();
-    uint64_t tsInterval = tsMsCur - pEndpoint->tsIntervalStartMs;
-    if (tsInterval >= 1000)
-    {
-        pEndpoint->StatIoOpsPerSec.c = pEndpoint->cIoOpsCompleted / (tsInterval / 1000);
-        pEndpoint->tsIntervalStartMs = tsMsCur;
-        pEndpoint->cIoOpsCompleted = 0;
-    }
-#endif /* VBOX_WITH_STATISTICS */
+    if (pEndpointClass->fGatherAdvancedStatistics)
+        pdmR3AsyncCompletionStatisticsRecordCompletionTime(pEndpoint, cNsRun);
 
     RTMemCacheFree(pEndpointClass->hMemCacheTasks, pTask);
 }
 
-static PPDMASYNCCOMPLETIONENDPOINT pdmR3AsyncCompletionFindEndpointWithUri(PPDMASYNCCOMPLETIONEPCLASS pEndpointClass,
-                                                                           const char *pszUri)
+
+static PPDMASYNCCOMPLETIONENDPOINT
+pdmR3AsyncCompletionFindEndpointWithUri(PPDMASYNCCOMPLETIONEPCLASS pEndpointClass, const char *pszUri)
 {
     PPDMASYNCCOMPLETIONENDPOINT pEndpoint = pEndpointClass->pEndpointsHead;
 
@@ -1085,6 +1391,17 @@ static PPDMASYNCCOMPLETIONENDPOINT pdmR3AsyncCompletionFindEndpointWithUri(PPDMA
     return NULL;
 }
 
+
+/**
+ * Opens a file as an async completion endpoint.
+ *
+ * @returns VBox status code.
+ * @param   ppEndpoint      Where to store the opaque endpoint handle on success.
+ * @param   pszFilename     Path to the file which is to be opened. (UTF-8)
+ * @param   fFlags          Open flags, see grp_pdmacep_file_flags.
+ * @param   pTemplate       Handle to the completion callback template to use
+ *                          for this end point.
+ */
 VMMR3DECL(int) PDMR3AsyncCompletionEpCreateForFile(PPPDMASYNCCOMPLETIONENDPOINT ppEndpoint,
                                                    const char *pszFilename, uint32_t fFlags,
                                                    PPDMASYNCCOMPLETIONTEMPLATE pTemplate)
@@ -1125,7 +1442,6 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpCreateForFile(PPPDMASYNCCOMPLETIONENDPOINT 
                               (void **)&pEndpoint);
     if (RT_SUCCESS(rc))
     {
-
         /* Initialize common parts. */
         pEndpoint->pNext             = NULL;
         pEndpoint->pPrev             = NULL;
@@ -1142,135 +1458,35 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpCreateForFile(PPPDMASYNCCOMPLETIONENDPOINT 
             rc = pEndpointClass->pEndpointOps->pfnEpInitialize(pEndpoint, pszFilename, fFlags);
             if (RT_SUCCESS(rc))
             {
-                /* Link it into the list of endpoints. */
-                rc = RTCritSectEnter(&pEndpointClass->CritSect);
-                AssertMsg(RT_SUCCESS(rc), ("Failed to enter critical section rc=%Rrc\n", rc));
-
-                pEndpoint->pNext = pEndpointClass->pEndpointsHead;
-                if (pEndpointClass->pEndpointsHead)
-                    pEndpointClass->pEndpointsHead->pPrev = pEndpoint;
-
-                pEndpointClass->pEndpointsHead = pEndpoint;
-                pEndpointClass->cEndpoints++;
-
-                rc = RTCritSectLeave(&pEndpointClass->CritSect);
-                AssertMsg(RT_SUCCESS(rc), ("Failed to enter critical section rc=%Rrc\n", rc));
-
-                /* Reference the template. */
-                ASMAtomicIncU32(&pTemplate->cUsed);
-
-#ifdef VBOX_WITH_STATISTICS
-                /* Init the statistics part */
-                for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesNs); i++)
-                {
-                    rc = STAMR3RegisterF(pVM, &pEndpoint->StatTaskRunTimesNs[i], STAMTYPE_COUNTER,
-                                         STAMVISIBILITY_USED,
-                                         STAMUNIT_OCCURENCES,
-                                         "Nanosecond resolution runtime statistics",
-                                         "/PDM/AsyncCompletion/File/%s/TaskRun1Ns-%u-%u",
-                                         RTPathFilename(pEndpoint->pszUri),
-                                         i*100, i*100+100-1);
-                    if (RT_FAILURE(rc))
-                        break;
-                }
+                if (pEndpointClass->fGatherAdvancedStatistics)
+                    rc = pdmR3AsyncCompletionStatisticsRegister(pEndpoint);
 
                 if (RT_SUCCESS(rc))
                 {
-                    for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesUs); i++)
-                    {
-                        rc = STAMR3RegisterF(pVM, &pEndpoint->StatTaskRunTimesUs[i], STAMTYPE_COUNTER,
-                                             STAMVISIBILITY_USED,
-                                             STAMUNIT_OCCURENCES,
-                                             "Microsecond resolution runtime statistics",
-                                             "/PDM/AsyncCompletion/File/%s/TaskRun2MicroSec-%u-%u",
-                                             RTPathFilename(pEndpoint->pszUri),
-                                             i*100, i*100+100-1);
-                        if (RT_FAILURE(rc))
-                            break;
-                    }
+                    /* Link it into the list of endpoints. */
+                    rc = RTCritSectEnter(&pEndpointClass->CritSect);
+                    AssertMsg(RT_SUCCESS(rc), ("Failed to enter critical section rc=%Rrc\n", rc));
+
+                    pEndpoint->pNext = pEndpointClass->pEndpointsHead;
+                    if (pEndpointClass->pEndpointsHead)
+                        pEndpointClass->pEndpointsHead->pPrev = pEndpoint;
+
+                    pEndpointClass->pEndpointsHead = pEndpoint;
+                    pEndpointClass->cEndpoints++;
+
+                    rc = RTCritSectLeave(&pEndpointClass->CritSect);
+                    AssertMsg(RT_SUCCESS(rc), ("Failed to enter critical section rc=%Rrc\n", rc));
+
+                    /* Reference the template. */
+                    ASMAtomicIncU32(&pTemplate->cUsed);
+
+                    *ppEndpoint = pEndpoint;
+                    LogFlowFunc((": Created endpoint for %s\n", pszFilename));
+                    return VINF_SUCCESS;
                 }
 
-               if (RT_SUCCESS(rc))
-               {
-                   for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesMs); i++)
-                   {
-                       rc = STAMR3RegisterF(pVM, &pEndpoint->StatTaskRunTimesMs[i], STAMTYPE_COUNTER,
-                                            STAMVISIBILITY_USED,
-                                            STAMUNIT_OCCURENCES,
-                                            "Milliseconds resolution runtime statistics",
-                                            "/PDM/AsyncCompletion/File/%s/TaskRun3Ms-%u-%u",
-                                            RTPathFilename(pEndpoint->pszUri),
-                                            i*100, i*100+100-1);
-                       if (RT_FAILURE(rc))
-                           break;
-                   }
-               }
-
-               if (RT_SUCCESS(rc))
-               {
-                   for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesMs); i++)
-                   {
-                        rc = STAMR3RegisterF(pVM, &pEndpoint->StatTaskRunTimesSec[i], STAMTYPE_COUNTER,
-                                             STAMVISIBILITY_USED,
-                                             STAMUNIT_OCCURENCES,
-                                             "Second resolution runtime statistics",
-                                             "/PDM/AsyncCompletion/File/%s/TaskRun4Sec-%u-%u",
-                                             RTPathFilename(pEndpoint->pszUri),
-                                             i*10, i*10+10-1);
-                        if (RT_FAILURE(rc))
-                            break;
-                    }
-                }
-
-                if (RT_SUCCESS(rc))
-                {
-                    rc = STAMR3RegisterF(pVM, &pEndpoint->StatTaskRunOver100Sec, STAMTYPE_COUNTER,
-                                         STAMVISIBILITY_USED,
-                                         STAMUNIT_OCCURENCES,
-                                         "Tasks which ran more than 100sec",
-                                         "/PDM/AsyncCompletion/File/%s/TaskRunSecGreater100Sec",
-                                         RTPathFilename(pEndpoint->pszUri));
-                }
-
-                if (RT_SUCCESS(rc))
-                {
-                    rc = STAMR3RegisterF(pVM, &pEndpoint->StatIoOpsPerSec, STAMTYPE_COUNTER,
-                                         STAMVISIBILITY_ALWAYS,
-                                         STAMUNIT_OCCURENCES,
-                                         "Processed I/O operations per second",
-                                         "/PDM/AsyncCompletion/File/%s/IoOpsPerSec",
-                                         RTPathFilename(pEndpoint->pszUri));
-                }
-
-                if (RT_SUCCESS(rc))
-                {
-                    rc = STAMR3RegisterF(pVM, &pEndpoint->StatIoOpsStarted, STAMTYPE_COUNTER,
-                                         STAMVISIBILITY_ALWAYS,
-                                         STAMUNIT_OCCURENCES,
-                                         "Started I/O operations for this endpoint",
-                                         "/PDM/AsyncCompletion/File/%s/IoOpsStarted",
-                                         RTPathFilename(pEndpoint->pszUri));
-                }
-
-                if (RT_SUCCESS(rc))
-                {
-                    rc = STAMR3RegisterF(pVM, &pEndpoint->StatIoOpsCompleted, STAMTYPE_COUNTER,
-                                         STAMVISIBILITY_ALWAYS,
-                                         STAMUNIT_OCCURENCES,
-                                         "Completed I/O operations for this endpoint",
-                                         "/PDM/AsyncCompletion/File/%s/IoOpsCompleted",
-                                         RTPathFilename(pEndpoint->pszUri));
-                }
-                /** @todo why bother maintaing rc when it's just ignored /
-                          logged and not returned? */
-
-                pEndpoint->tsIntervalStartMs = RTTimeMilliTS();
-#endif
-
-                *ppEndpoint = pEndpoint;
-
-                LogFlowFunc((": Created endpoint for %s: rc=%Rrc\n", pszFilename, rc));
-                return VINF_SUCCESS;
+                if (pEndpointClass->fGatherAdvancedStatistics)
+                    pdmR3AsyncCompletionStatisticsDeregister(pEndpoint);
             }
             RTStrFree(pEndpoint->pszUri);
         }
@@ -1281,6 +1497,13 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpCreateForFile(PPPDMASYNCCOMPLETIONENDPOINT 
     return rc;
 }
 
+
+/**
+ * Closes a endpoint waiting for any pending tasks to finish.
+ *
+ * @returns nothing.
+ * @param   pEndpoint       Handle of the endpoint.
+ */
 VMMR3DECL(void) PDMR3AsyncCompletionEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
 {
     LogFlowFunc((": pEndpoint=%p\n", pEndpoint));
@@ -1294,6 +1517,8 @@ VMMR3DECL(void) PDMR3AsyncCompletionEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoin
     if (!pEndpoint->cUsers)
     {
         PPDMASYNCCOMPLETIONEPCLASS pEndpointClass = pEndpoint->pEpClass;
+        PVM pVM = pEndpointClass->pVM;
+
         pEndpointClass->pEndpointOps->pfnEpClose(pEndpoint);
 
         /* Drop reference from the template. */
@@ -1318,30 +1543,28 @@ VMMR3DECL(void) PDMR3AsyncCompletionEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoin
         rc = RTCritSectLeave(&pEndpointClass->CritSect);
         AssertMsg(RT_SUCCESS(rc), ("Failed to enter critical section rc=%Rrc\n", rc));
 
-#ifdef VBOX_WITH_STATISTICS
-        /* Deregister the statistics part */
-        PVM pVM = pEndpointClass->pVM;
-
-        for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesNs); i++)
-            STAMR3Deregister(pVM, &pEndpoint->StatTaskRunTimesNs[i]);
-        for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesUs); i++)
-            STAMR3Deregister(pVM, &pEndpoint->StatTaskRunTimesUs[i]);
-        for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesMs); i++)
-            STAMR3Deregister(pVM, &pEndpoint->StatTaskRunTimesMs[i]);
-        for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesMs); i++)
-            STAMR3Deregister(pVM, &pEndpoint->StatTaskRunTimesSec[i]);
-
-        STAMR3Deregister(pVM, &pEndpoint->StatTaskRunOver100Sec);
-        STAMR3Deregister(pVM, &pEndpoint->StatIoOpsPerSec);
-        STAMR3Deregister(pVM, &pEndpoint->StatIoOpsStarted);
-        STAMR3Deregister(pVM, &pEndpoint->StatIoOpsCompleted);
-#endif
+        if (pEndpointClass->fGatherAdvancedStatistics)
+            pdmR3AsyncCompletionStatisticsDeregister(pEndpoint);
 
         RTStrFree(pEndpoint->pszUri);
         MMR3HeapFree(pEndpoint);
     }
 }
 
+
+/**
+ * Creates a read task on the given endpoint.
+ *
+ * @returns VBox status code.
+ * @param   pEndpoint       The file endpoint to read from.
+ * @param   off             Where to start reading from.
+ * @param   paSegments      Scatter gather list to store the data in.
+ * @param   cSegments       Number of segments in the list.
+ * @param   cbRead          The overall number of bytes to read.
+ * @param   pvUser          Opaque user data returned in the completion callback
+ *                          upon completion of the task.
+ * @param   ppTask          Where to store the task handle on success.
+ */
 VMMR3DECL(int) PDMR3AsyncCompletionEpRead(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
                                           PCRTSGSEG paSegments, unsigned cSegments,
                                           size_t cbRead, void *pvUser,
@@ -1363,13 +1586,32 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpRead(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
     int rc = pEndpoint->pEpClass->pEndpointOps->pfnEpRead(pTask, pEndpoint, off,
                                                           paSegments, cSegments, cbRead);
     if (RT_SUCCESS(rc))
+    {
+        if (pEndpoint->pEpClass->fGatherAdvancedStatistics)
+            pdmR3AsyncCompletionStatisticsRecordSize(pEndpoint, cbRead);
+
         *ppTask = pTask;
+    }
     else
         pdmR3AsyncCompletionPutTask(pEndpoint, pTask);
 
     return rc;
 }
 
+
+/**
+ * Creates a write task on the given endpoint.
+ *
+ * @returns VBox status code.
+ * @param   pEndpoint       The file endpoint to write to.
+ * @param   off             Where to start writing at.
+ * @param   paSegments      Scatter gather list of the data to write.
+ * @param   cSegments       Number of segments in the list.
+ * @param   cbWrite         The overall number of bytes to write.
+ * @param   pvUser          Opaque user data returned in the completion callback
+ *                          upon completion of the task.
+ * @param   ppTask          Where to store the task handle on success.
+ */
 VMMR3DECL(int) PDMR3AsyncCompletionEpWrite(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
                                            PCRTSGSEG paSegments, unsigned cSegments,
                                            size_t cbWrite, void *pvUser,
@@ -1392,6 +1634,9 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpWrite(PPDMASYNCCOMPLETIONENDPOINT pEndpoint
                                                            paSegments, cSegments, cbWrite);
     if (RT_SUCCESS(rc))
     {
+        if (pEndpoint->pEpClass->fGatherAdvancedStatistics)
+            pdmR3AsyncCompletionStatisticsRecordSize(pEndpoint, cbWrite);
+
         *ppTask = pTask;
     }
     else
@@ -1400,9 +1645,20 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpWrite(PPDMASYNCCOMPLETIONENDPOINT pEndpoint
     return rc;
 }
 
-VMMR3DECL(int) PDMR3AsyncCompletionEpFlush(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
-                                           void *pvUser,
-                                           PPPDMASYNCCOMPLETIONTASK ppTask)
+
+/**
+ * Creates a flush task on the given endpoint.
+ *
+ * Every read and write task initiated before the flush task is
+ * finished upon completion of this task.
+ *
+ * @returns VBox status code.
+ * @param   pEndpoint       The file endpoint to flush.
+ * @param   pvUser          Opaque user data returned in the completion callback
+ *                          upon completion of the task.
+ * @param   ppTask          Where to store the task handle on success.
+ */
+VMMR3DECL(int) PDMR3AsyncCompletionEpFlush(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, void *pvUser, PPPDMASYNCCOMPLETIONTASK ppTask)
 {
     AssertPtrReturn(pEndpoint, VERR_INVALID_POINTER);
     AssertPtrReturn(ppTask, VERR_INVALID_POINTER);
@@ -1422,6 +1678,18 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpFlush(PPDMASYNCCOMPLETIONENDPOINT pEndpoint
     return rc;
 }
 
+
+/**
+ * Queries the size of an endpoint.
+ *
+ * Not that some endpoints may not support this and will return an error
+ * (sockets for example).
+ *
+ * @returns VBox status code.
+ * @retval  VERR_NOT_SUPPORTED if the endpoint does not support this operation.
+ * @param   pEndpoint       The file endpoint.
+ * @param   pcbSize         Where to store the size of the endpoint.
+ */
 VMMR3DECL(int) PDMR3AsyncCompletionEpGetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
                                              uint64_t *pcbSize)
 {
@@ -1433,8 +1701,21 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpGetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoi
     return VERR_NOT_SUPPORTED;
 }
 
-VMMR3DECL(int) PDMR3AsyncCompletionEpSetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
-                                             uint64_t cbSize)
+
+/**
+ * Sets the size of an endpoint.
+ *
+ * Not that some endpoints may not support this and will return an error
+ * (sockets for example).
+ *
+ * @returns VBox status code.
+ * @retval  VERR_NOT_SUPPORTED if the endpoint does not support this operation.
+ * @param   pEndpoint       The file endpoint.
+ * @param   cbSize          The size to set.
+ *
+ * @note PDMR3AsyncCompletionEpFlush should be called before this operation is executed.
+ */
+VMMR3DECL(int) PDMR3AsyncCompletionEpSetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint64_t cbSize)
 {
     AssertPtrReturn(pEndpoint, VERR_INVALID_POINTER);
 
@@ -1443,19 +1724,27 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpSetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoi
     return VERR_NOT_SUPPORTED;
 }
 
-VMMR3DECL(int) PDMR3AsyncCompletionEpSetBwMgr(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
-                                              const char *pcszBwMgr)
+
+/**
+ * Assigns or removes a bandwidth control manager to/from the endpoint.
+ *
+ * @returns VBox status code.
+ * @param   pEndpoint       The endpoint.
+ * @param   pszBwMgr        The identifer of the new bandwidth manager to assign
+ *                          or NULL to remove the current one.
+ */
+VMMR3DECL(int) PDMR3AsyncCompletionEpSetBwMgr(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, const char *pszBwMgr)
 {
     AssertPtrReturn(pEndpoint, VERR_INVALID_POINTER);
     PPDMACBWMGR pBwMgrOld = NULL;
     PPDMACBWMGR pBwMgrNew = NULL;
 
     int rc = VINF_SUCCESS;
-    if (pcszBwMgr)
+    if (pszBwMgr)
     {
-        pBwMgrNew = pdmacBwMgrFindById(pEndpoint->pEpClass, pcszBwMgr);
+        pBwMgrNew = pdmacBwMgrFindById(pEndpoint->pEpClass, pszBwMgr);
         if (pBwMgrNew)
-            pdmacBwMgrRef(pBwMgrNew);
+            pdmacBwMgrRetain(pBwMgrNew);
         else
             rc = VERR_NOT_FOUND;
     }
@@ -1464,26 +1753,49 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpSetBwMgr(PPDMASYNCCOMPLETIONENDPOINT pEndpo
     {
         pBwMgrOld = ASMAtomicXchgPtrT(&pEndpoint->pBwMgr, pBwMgrNew, PPDMACBWMGR);
         if (pBwMgrOld)
-            pdmacBwMgrUnref(pBwMgrOld);
+            pdmacBwMgrRelease(pBwMgrOld);
     }
 
     return rc;
 }
 
+
+/**
+ * Cancels an async completion task.
+ *
+ * If you want to use this method, you have to take great create to make sure
+ * you will never attempt cancel a task which has been completed. Since there is
+ * no reference counting or anything on the task it self, you have to serialize
+ * the cancelation and completion paths such that the aren't racing one another.
+ *
+ * @returns VBox status code
+ * @param   pTask           The Task to cancel.
+ */
 VMMR3DECL(int) PDMR3AsyncCompletionTaskCancel(PPDMASYNCCOMPLETIONTASK pTask)
 {
     NOREF(pTask);
     return VERR_NOT_IMPLEMENTED;
 }
 
-VMMR3DECL(int) PDMR3AsyncCompletionBwMgrSetMaxForFile(PVM pVM, const char *pcszBwMgr, uint32_t cbMaxNew)
+
+/**
+ * Changes the limit of a bandwidth manager for file endpoints to the given value.
+ *
+ * @returns VBox status code.
+ * @param   pUVM            The user mode VM handle.
+ * @param   pszBwMgr        The identifer of the bandwidth manager to change.
+ * @param   cbMaxNew        The new maximum for the bandwidth manager in bytes/sec.
+ */
+VMMR3DECL(int) PDMR3AsyncCompletionBwMgrSetMaxForFile(PUVM pUVM, const char *pszBwMgr, uint32_t cbMaxNew)
 {
-    AssertPtrReturn(pVM, VERR_INVALID_POINTER);
-    AssertPtrReturn(pcszBwMgr, VERR_INVALID_POINTER);
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    AssertPtrReturn(pszBwMgr, VERR_INVALID_POINTER);
 
     int                         rc       = VINF_SUCCESS;
     PPDMASYNCCOMPLETIONEPCLASS  pEpClass = pVM->pUVM->pdm.s.apAsyncCompletionEndpointClass[PDMASYNCCOMPLETIONEPCLASSTYPE_FILE];
-    PPDMACBWMGR                 pBwMgr   = pdmacBwMgrFindById(pEpClass, pcszBwMgr);
+    PPDMACBWMGR                 pBwMgr   = pdmacBwMgrFindById(pEpClass, pszBwMgr);
     if (pBwMgr)
     {
         /*

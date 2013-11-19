@@ -327,7 +327,9 @@ ConfigFileBase::ConfigFileBase(const com::Utf8Str *pstrFilename)
                     m->sv = SettingsVersion_v1_12;
                 else if (ulMinor == 13)
                     m->sv = SettingsVersion_v1_13;
-                else if (ulMinor > 13)
+                else if (ulMinor == 14)
+                    m->sv = SettingsVersion_v1_14;
+                else if (ulMinor > 14)
                     m->sv = SettingsVersion_Future;
             }
             else if (ulMajor > 1)
@@ -382,7 +384,9 @@ void ConfigFileBase::parseUUID(Guid &guid,
                                const Utf8Str &strUUID) const
 {
     guid = strUUID.c_str();
-    if (guid.isEmpty())
+    if (guid.isZero())
+        throw ConfigFileError(this, NULL, N_("UUID \"%s\" has zero format"), strUUID.c_str());
+    else if (!guid.isValid())
         throw ConfigFileError(this, NULL, N_("UUID \"%s\" has invalid format"), strUUID.c_str());
 }
 
@@ -488,9 +492,8 @@ void ConfigFileBase::readExtraData(const xml::ElementNode &elmExtraData,
         {
             // <ExtraDataItem name="GUI/LastWindowPostion" value="97,88,981,858"/>
             Utf8Str strName, strValue;
-            if (    ((pelmExtraDataItem->getAttributeValue("name", strName)))
-                 && ((pelmExtraDataItem->getAttributeValue("value", strValue)))
-               )
+            if (   pelmExtraDataItem->getAttributeValue("name", strName)
+                && pelmExtraDataItem->getAttributeValue("value", strValue) )
                 map[strName] = strValue;
             else
                 throw ConfigFileError(this, pelmExtraDataItem, N_("Required ExtraDataItem/@name or @value attribute is missing"));
@@ -516,9 +519,8 @@ void ConfigFileBase::readUSBDeviceFilters(const xml::ElementNode &elmDeviceFilte
         USBDeviceFilter flt;
         flt.action = USBDeviceFilterAction_Ignore;
         Utf8Str strAction;
-        if (    (pelmLevel4Child->getAttributeValue("name", flt.strName))
-             && (pelmLevel4Child->getAttributeValue("active", flt.fActive))
-           )
+        if (   pelmLevel4Child->getAttributeValue("name", flt.strName)
+            && pelmLevel4Child->getAttributeValue("active", flt.fActive))
         {
             if (!pelmLevel4Child->getAttributeValue("vendorId", flt.strVendorId))
                 pelmLevel4Child->getAttributeValue("vendorid", flt.strVendorId);            // used before 1.3
@@ -571,7 +573,7 @@ void ConfigFileBase::readMedium(MediaType t,
     // <HardDisk uuid="{5471ecdb-1ddb-4012-a801-6d98e226868b}" location="/mnt/innotek-unix/vdis/Windows XP.vdi" format="VDI" type="Normal">
     settings::Medium med;
     Utf8Str strUUID;
-    if (!(elmMedium.getAttributeValue("uuid", strUUID)))
+    if (!elmMedium.getAttributeValue("uuid", strUUID))
         throw ConfigFileError(this, &elmMedium, N_("Required %s/@uuid attribute is missing"), elmMedium.getName());
 
     parseUUID(med.uuid, strUUID);
@@ -664,14 +666,14 @@ void ConfigFileBase::readMedium(MediaType t,
         }
 
         if (med.strFormat.isEmpty())        // not set with 1.4 format above, or 1.4 Custom format?
-            if (!(elmMedium.getAttributeValue("format", med.strFormat)))
+            if (!elmMedium.getAttributeValue("format", med.strFormat))
                 throw ConfigFileError(this, &elmMedium, N_("Required %s/@format attribute is missing"), elmMedium.getName());
 
-        if (!(elmMedium.getAttributeValue("autoReset", med.fAutoReset)))
+        if (!elmMedium.getAttributeValue("autoReset", med.fAutoReset))
             med.fAutoReset = false;
 
         Utf8Str strType;
-        if ((elmMedium.getAttributeValue("type", strType)))
+        if (elmMedium.getAttributeValue("type", strType))
         {
             // pre-1.4 used lower case, so make this case-insensitive
             strType.toUpper();
@@ -696,13 +698,13 @@ void ConfigFileBase::readMedium(MediaType t,
         if (m->sv < SettingsVersion_v1_4)
         {
             // DVD and floppy images before 1.4 had "src" attribute instead of "location"
-            if (!(elmMedium.getAttributeValue("src", med.strLocation)))
+            if (!elmMedium.getAttributeValue("src", med.strLocation))
                 throw ConfigFileError(this, &elmMedium, N_("Required %s/@src attribute is missing"), elmMedium.getName());
 
             fNeedsLocation = false;
         }
 
-        if (!(elmMedium.getAttributeValue("format", med.strFormat)))
+        if (!elmMedium.getAttributeValue("format", med.strFormat))
         {
             // DVD and floppy images before 1.11 had no format attribute. assign the default.
             med.strFormat = "RAW";
@@ -716,7 +718,7 @@ void ConfigFileBase::readMedium(MediaType t,
 
     if (fNeedsLocation)
         // current files and 1.4 CustomHardDisk elements must have a location attribute
-        if (!(elmMedium.getAttributeValue("location", med.strLocation)))
+        if (!elmMedium.getAttributeValue("location", med.strLocation))
             throw ConfigFileError(this, &elmMedium, N_("Required %s/@location attribute is missing"), elmMedium.getName());
 
     elmMedium.getAttributeValue("Description", med.strDescription);       // optional
@@ -740,9 +742,8 @@ void ConfigFileBase::readMedium(MediaType t,
         else if (pelmHDChild->nameEquals("Property"))
         {
             Utf8Str strPropName, strPropValue;
-            if (    (pelmHDChild->getAttributeValue("name", strPropName))
-                 && (pelmHDChild->getAttributeValue("value", strPropValue))
-               )
+            if (   pelmHDChild->getAttributeValue("name", strPropName)
+                && pelmHDChild->getAttributeValue("value", strPropValue) )
                 med.properties[strPropName] = strPropValue;
             else
                 throw ConfigFileError(this, pelmHDChild, N_("Required HardDisk/Property/@name or @value attribute is missing"));
@@ -807,6 +808,47 @@ void ConfigFileBase::readMediaRegistry(const xml::ElementNode &elmMediaRegistry,
 }
 
 /**
+ * This is common version for reading NAT port forward rule in per-_machine's_adapter_ and
+ * per-network approaches.
+ * Note: this function doesn't in fill given list from xml::ElementNodesList, because there is conflicting
+ * declaration in ovmfreader.h.
+ */
+void ConfigFileBase::readNATForwardRuleList(const xml::ElementNode &elmParent, NATRuleList &llRules)
+{
+    xml::ElementNodesList plstRules;
+    elmParent.getChildElements(plstRules, "Forwarding");
+    for (xml::ElementNodesList::iterator pf = plstRules.begin(); pf != plstRules.end(); ++pf)
+    {
+        NATRule rule;
+        uint32_t port = 0;
+        (*pf)->getAttributeValue("name", rule.strName);
+        (*pf)->getAttributeValue("proto", (uint32_t&)rule.proto);
+        (*pf)->getAttributeValue("hostip", rule.strHostIP);
+        (*pf)->getAttributeValue("hostport", port);
+        rule.u16HostPort = port;
+        (*pf)->getAttributeValue("guestip", rule.strGuestIP);
+        (*pf)->getAttributeValue("guestport", port);
+        rule.u16GuestPort = port;
+        llRules.push_back(rule);
+    }
+}
+
+void ConfigFileBase::readNATLoopbacks(const xml::ElementNode &elmParent, NATLoopbackOffsetList &llLoopbacks)
+{
+    xml::ElementNodesList plstLoopbacks;
+    elmParent.getChildElements(plstLoopbacks, "Loopback4");
+    for (xml::ElementNodesList::iterator lo = plstLoopbacks.begin();
+         lo != plstLoopbacks.end(); ++lo)
+    {
+        NATHostLoopbackOffset loopback;
+        (*lo)->getAttributeValue("address", loopback.strLoopbackHostAddress);
+        (*lo)->getAttributeValue("offset", (uint32_t&)loopback.u32Offset);
+        llLoopbacks.push_back(loopback);
+    }
+}
+
+
+/**
  * Adds a "version" attribute to the given XML element with the
  * VirtualBox settings version (e.g. "1.10-linux"). Used by
  * the XML format for the root element and by the OVF export
@@ -842,11 +884,15 @@ void ConfigFileBase::setVersionAttribute(xml::ElementNode &elm)
             pcszVersion = "1.13";
             break;
 
+        case SettingsVersion_v1_14:
+            pcszVersion = "1.14";
+            break;
+
         case SettingsVersion_Future:
             // can be set if this code runs on XML files that were created by a future version of VBox;
             // in that case, downgrade to current version when writing since we can't write future versions...
-            pcszVersion = "1.13";
-            m->sv = SettingsVersion_v1_13;
+            pcszVersion = "1.14";
+            m->sv = SettingsVersion_v1_14;
             break;
 
         default:
@@ -1132,6 +1178,45 @@ void ConfigFileBase::buildMediaRegistry(xml::ElementNode &elmParent,
 }
 
 /**
+ * Serialize NAT port-forwarding rules in parent container.
+ * Note: it's responsibility of caller to create parent of the list tag.
+ * because this method used for serializing per-_mahine's_adapter_ and per-network approaches.
+ */
+void ConfigFileBase::buildNATForwardRuleList(xml::ElementNode &elmParent, const NATRuleList &natRuleList)
+{
+    for (NATRuleList::const_iterator r = natRuleList.begin();
+         r != natRuleList.end(); ++r)
+    {
+        xml::ElementNode *pelmPF;
+        pelmPF = elmParent.createChild("Forwarding");
+        if ((*r).strName.length())
+            pelmPF->setAttribute("name", (*r).strName);
+        pelmPF->setAttribute("proto", (*r).proto);
+        if ((*r).strHostIP.length())
+            pelmPF->setAttribute("hostip", (*r).strHostIP);
+        if ((*r).u16HostPort)
+            pelmPF->setAttribute("hostport", (*r).u16HostPort);
+        if ((*r).strGuestIP.length())
+            pelmPF->setAttribute("guestip", (*r).strGuestIP);
+        if ((*r).u16GuestPort)
+            pelmPF->setAttribute("guestport", (*r).u16GuestPort);
+    }
+}
+
+
+void ConfigFileBase::buildNATLoopbacks(xml::ElementNode &elmParent, const NATLoopbackOffsetList &natLoopbackOffsetList)
+{
+    for (NATLoopbackOffsetList::const_iterator lo = natLoopbackOffsetList.begin();
+         lo != natLoopbackOffsetList.end(); ++lo)
+    {
+        xml::ElementNode *pelmLo;
+        pelmLo = elmParent.createChild("Loopback4");
+        pelmLo->setAttribute("address", (*lo).strLoopbackHostAddress);
+        pelmLo->setAttribute("offset", (*lo).u32Offset);
+    }
+}
+
+/**
  * Cleans up memory allocated by the internal XML parser. To be called by
  * descendant classes when they're done analyzing the DOM tree to discard it.
  */
@@ -1213,9 +1298,8 @@ void MainConfigFile::readMachineRegistry(const xml::ElementNode &elmMachineRegis
         {
             MachineRegistryEntry mre;
             Utf8Str strUUID;
-            if (    ((pelmChild1->getAttributeValue("uuid", strUUID)))
-                 && ((pelmChild1->getAttributeValue("src", mre.strSettingsFile)))
-               )
+            if (   pelmChild1->getAttributeValue("uuid", strUUID)
+                && pelmChild1->getAttributeValue("src", mre.strSettingsFile) )
             {
                 parseUUID(mre.uuid, strUUID);
                 llMachines.push_back(mre);
@@ -1239,16 +1323,100 @@ void MainConfigFile::readDHCPServers(const xml::ElementNode &elmDHCPServers)
         if (pelmServer->nameEquals("DHCPServer"))
         {
             DHCPServer srv;
-            if (    (pelmServer->getAttributeValue("networkName", srv.strNetworkName))
-                 && (pelmServer->getAttributeValue("IPAddress", srv.strIPAddress))
-                 && (pelmServer->getAttributeValue("networkMask", srv.strIPNetworkMask))
-                 && (pelmServer->getAttributeValue("lowerIP", srv.strIPLower))
-                 && (pelmServer->getAttributeValue("upperIP", srv.strIPUpper))
-                 && (pelmServer->getAttributeValue("enabled", srv.fEnabled))
-               )
+            if (   pelmServer->getAttributeValue("networkName", srv.strNetworkName)
+                && pelmServer->getAttributeValue("IPAddress", srv.strIPAddress)
+                && pelmServer->getAttributeValue("networkMask", srv.GlobalDhcpOptions[DhcpOpt_SubnetMask])
+                && pelmServer->getAttributeValue("lowerIP", srv.strIPLower)
+                && pelmServer->getAttributeValue("upperIP", srv.strIPUpper)
+                && pelmServer->getAttributeValue("enabled", srv.fEnabled) )
+            {
+                xml::NodesLoop nlOptions(*pelmServer, "Options");
+                const xml::ElementNode *options;
+                /* XXX: Options are in 1:1 relation to DHCPServer */
+
+                while ((options = nlOptions.forAllNodes()))
+                {
+                    readDhcpOptions(srv.GlobalDhcpOptions, *options);
+                } /* end of forall("Options") */
+                xml::NodesLoop nlConfig(*pelmServer, "Config");
+                const xml::ElementNode *cfg;
+                while ((cfg = nlConfig.forAllNodes()))
+                {
+                    com::Utf8Str strVmName;
+                    uint32_t u32Slot;
+                    cfg->getAttributeValue("vm-name", strVmName);
+                    cfg->getAttributeValue("slot", u32Slot);
+                    readDhcpOptions(srv.VmSlot2OptionsM[VmNameSlotKey(strVmName, u32Slot)], *cfg);
+                }
                 llDhcpServers.push_back(srv);
+            }
             else
                 throw ConfigFileError(this, pelmServer, N_("Required DHCPServer/@networkName, @IPAddress, @networkMask, @lowerIP, @upperIP or @enabled attribute is missing"));
+        }
+    }
+}
+
+void MainConfigFile::readDhcpOptions(DhcpOptionMap& map,
+                                     const xml::ElementNode& options)
+{
+    xml::NodesLoop nl2(options, "Option");
+    const xml::ElementNode *opt;
+    while ((opt = nl2.forAllNodes()))
+    {
+        DhcpOpt_T OptName;
+        com::Utf8Str OptValue;
+        opt->getAttributeValue("name", (uint32_t&)OptName);
+
+        if (OptName == DhcpOpt_SubnetMask)
+            continue;
+
+        opt->getAttributeValue("value", OptValue);
+
+        map.insert(std::map<DhcpOpt_T, Utf8Str>::value_type(OptName, OptValue));
+    } /* end of forall("Option") */
+
+}
+
+/**
+ * Reads in the <NATNetworks> chunk.
+ * @param elmNATNetworks
+ */
+void MainConfigFile::readNATNetworks(const xml::ElementNode &elmNATNetworks)
+{
+    xml::NodesLoop nl1(elmNATNetworks);
+    const xml::ElementNode *pelmNet;
+    while ((pelmNet = nl1.forAllNodes()))
+    {
+        if (pelmNet->nameEquals("NATNetwork"))
+        {
+            NATNetwork net;
+            if (   pelmNet->getAttributeValue("networkName", net.strNetworkName)
+                && pelmNet->getAttributeValue("enabled", net.fEnabled)
+                && pelmNet->getAttributeValue("network", net.strNetwork)
+                && pelmNet->getAttributeValue("ipv6", net.fIPv6)
+                && pelmNet->getAttributeValue("ipv6prefix", net.strIPv6Prefix)
+                && pelmNet->getAttributeValue("advertiseDefaultIPv6Route", net.fAdvertiseDefaultIPv6Route)
+                && pelmNet->getAttributeValue("needDhcp", net.fNeedDhcpServer) )
+            {
+                pelmNet->getAttributeValue("loopback6", net.u32HostLoopback6Offset);
+                const xml::ElementNode *pelmMappings;
+                if ((pelmMappings = pelmNet->findChildElement("Mappings")))
+                    readNATLoopbacks(*pelmMappings, net.llHostLoopbackOffsetList);
+
+                const xml::ElementNode *pelmPortForwardRules4;
+                if ((pelmPortForwardRules4 = pelmNet->findChildElement("PortForwarding4")))
+                    readNATForwardRuleList(*pelmPortForwardRules4,
+                                           net.llPortForwardRules4);
+
+                const xml::ElementNode *pelmPortForwardRules6;
+                if ((pelmPortForwardRules6 = pelmNet->findChildElement("PortForwarding6")))
+                    readNATForwardRuleList(*pelmPortForwardRules6,
+                                           net.llPortForwardRules6);
+
+                llNATNetworks.push_back(net);
+            }
+            else
+                throw ConfigFileError(this, pelmNet, N_("Required NATNetwork/@networkName, @gateway, @network,@advertiseDefaultIpv6Route , @needDhcp or @enabled attribute is missing"));
         }
     }
 }
@@ -1286,6 +1454,7 @@ MainConfigFile::MainConfigFile(const Utf8Str *pstrFilename)
                     if (pelmGlobalChild->nameEquals("SystemProperties"))
                     {
                         pelmGlobalChild->getAttributeValue("defaultMachineFolder", systemProperties.strDefaultMachineFolder);
+                        pelmGlobalChild->getAttributeValue("LoggingLevel", systemProperties.strLoggingLevel);
                         pelmGlobalChild->getAttributeValue("defaultHardDiskFormat", systemProperties.strDefaultHardDiskFormat);
                         if (!pelmGlobalChild->getAttributeValue("VRDEAuthLibrary", systemProperties.strVRDEAuthLibrary))
                             // pre-1.11 used @remoteDisplayAuthLibrary instead
@@ -1294,6 +1463,8 @@ MainConfigFile::MainConfigFile(const Utf8Str *pstrFilename)
                         pelmGlobalChild->getAttributeValue("defaultVRDEExtPack", systemProperties.strDefaultVRDEExtPack);
                         pelmGlobalChild->getAttributeValue("LogHistoryCount", systemProperties.ulLogHistoryCount);
                         pelmGlobalChild->getAttributeValue("autostartDatabasePath", systemProperties.strAutostartDatabasePath);
+                        pelmGlobalChild->getAttributeValue("defaultFrontend", systemProperties.strDefaultFrontend);
+                        pelmGlobalChild->getAttributeValue("exclusiveHwVirt", systemProperties.fExclusiveHwVirt);
                     }
                     else if (pelmGlobalChild->nameEquals("ExtraData"))
                         readExtraData(*pelmGlobalChild, mapExtraDataItems);
@@ -1313,6 +1484,8 @@ MainConfigFile::MainConfigFile(const Utf8Str *pstrFilename)
                         {
                             if (pelmLevel4Child->nameEquals("DHCPServers"))
                                 readDHCPServers(*pelmLevel4Child);
+                            if (pelmLevel4Child->nameEquals("NATNetworks"))
+                                readNATNetworks(*pelmLevel4Child);
                         }
                     }
                     else if (pelmGlobalChild->nameEquals("USBDeviceFilters"))
@@ -1341,7 +1514,7 @@ MainConfigFile::MainConfigFile(const Utf8Str *pstrFilename)
             "HostInterfaceNetworking-vboxnet0";
 #endif
         srv.strIPAddress = "192.168.56.100";
-        srv.strIPNetworkMask = "255.255.255.0";
+        srv.GlobalDhcpOptions[DhcpOpt_SubnetMask] = "255.255.255.0";
         srv.strIPLower = "192.168.56.101";
         srv.strIPUpper = "192.168.56.254";
         srv.fEnabled = true;
@@ -1349,12 +1522,25 @@ MainConfigFile::MainConfigFile(const Utf8Str *pstrFilename)
     }
 }
 
+void MainConfigFile::bumpSettingsVersionIfNeeded()
+{
+    if (m->sv < SettingsVersion_v1_14)
+    {
+        // VirtualBox 4.3 adds NAT networks.
+        if (   !llNATNetworks.empty())
+            m->sv = SettingsVersion_v1_14;
+    }
+}
+
+
 /**
  * Called from the IVirtualBox interface to write out VirtualBox.xml. This
  * builds an XML DOM tree and writes it out to disk.
  */
 void MainConfigFile::write(const com::Utf8Str strFilename)
 {
+    bumpSettingsVersionIfNeeded();
+
     m->strFilename = strFilename;
     createStubDocument();
 
@@ -1384,17 +1570,110 @@ void MainConfigFile::write(const com::Utf8Str strFilename)
     {
         const DHCPServer &d = *it;
         xml::ElementNode *pelmThis = pelmDHCPServers->createChild("DHCPServer");
+        DhcpOptConstIterator itOpt;
+        itOpt = d.GlobalDhcpOptions.find(DhcpOpt_SubnetMask);
+
         pelmThis->setAttribute("networkName", d.strNetworkName);
         pelmThis->setAttribute("IPAddress", d.strIPAddress);
-        pelmThis->setAttribute("networkMask", d.strIPNetworkMask);
+        if (itOpt != d.GlobalDhcpOptions.end())
+            pelmThis->setAttribute("networkMask", itOpt->second);
         pelmThis->setAttribute("lowerIP", d.strIPLower);
         pelmThis->setAttribute("upperIP", d.strIPUpper);
         pelmThis->setAttribute("enabled", (d.fEnabled) ? 1 : 0);        // too bad we chose 1 vs. 0 here
+        /* We assume that if there're only 1 element it means that */
+        int cOpt = d.GlobalDhcpOptions.size();
+        /* We don't want duplicate validation check of networkMask here*/
+        if (   (   itOpt == d.GlobalDhcpOptions.end()
+                && cOpt > 0)
+            || cOpt > 1)
+        {
+            xml::ElementNode *pelmOptions = pelmThis->createChild("Options");
+            for (itOpt = d.GlobalDhcpOptions.begin();
+                 itOpt != d.GlobalDhcpOptions.end();
+                 ++itOpt)
+            {
+                if (itOpt->first == DhcpOpt_SubnetMask)
+                    continue;
+
+                xml::ElementNode *pelmOpt = pelmOptions->createChild("Option");
+
+                if (!pelmOpt)
+                    break;
+
+                pelmOpt->setAttribute("name", itOpt->first);
+                pelmOpt->setAttribute("value", itOpt->second);
+            }
+        } /* end of if */
+
+        if (d.VmSlot2OptionsM.size() > 0)
+        {
+            VmSlot2OptionsConstIterator itVmSlot;
+            DhcpOptConstIterator itOpt1;
+            for(itVmSlot = d.VmSlot2OptionsM.begin();
+                itVmSlot != d.VmSlot2OptionsM.end();
+                ++itVmSlot)
+            {
+                xml::ElementNode *pelmCfg = pelmThis->createChild("Config");
+                pelmCfg->setAttribute("vm-name", itVmSlot->first.VmName);
+                pelmCfg->setAttribute("slot", itVmSlot->first.Slot);
+
+                for (itOpt1 = itVmSlot->second.begin();
+                     itOpt1 != itVmSlot->second.end();
+                     ++itOpt1)
+                {
+                    xml::ElementNode *pelmOpt = pelmCfg->createChild("Option");
+                    pelmOpt->setAttribute("name", itOpt1->first);
+                    pelmOpt->setAttribute("value", itOpt1->second);
+                }
+            }
+        } /* and of if */
+
+     }
+
+    xml::ElementNode *pelmNATNetworks;
+    /* don't create entry if no NAT networks are registered. */
+    if (!llNATNetworks.empty())
+    {
+        pelmNATNetworks = pelmNetserviceRegistry->createChild("NATNetworks");
+        for (NATNetworksList::const_iterator it = llNATNetworks.begin();
+             it != llNATNetworks.end();
+             ++it)
+        {
+            const NATNetwork &n = *it;
+            xml::ElementNode *pelmThis = pelmNATNetworks->createChild("NATNetwork");
+            pelmThis->setAttribute("networkName", n.strNetworkName);
+            pelmThis->setAttribute("network", n.strNetwork);
+            pelmThis->setAttribute("ipv6", n.fIPv6 ? 1 : 0);
+            pelmThis->setAttribute("ipv6prefix", n.strIPv6Prefix);
+            pelmThis->setAttribute("advertiseDefaultIPv6Route", (n.fAdvertiseDefaultIPv6Route)? 1 : 0);
+            pelmThis->setAttribute("needDhcp", (n.fNeedDhcpServer) ? 1 : 0);
+            pelmThis->setAttribute("enabled", (n.fEnabled) ? 1 : 0);        // too bad we chose 1 vs. 0 here
+            if (n.llPortForwardRules4.size())
+            {
+                xml::ElementNode *pelmPf4 = pelmThis->createChild("PortForwarding4");
+                buildNATForwardRuleList(*pelmPf4, n.llPortForwardRules4);
+            }
+            if (n.llPortForwardRules6.size())
+            {
+                xml::ElementNode *pelmPf6 = pelmThis->createChild("PortForwarding6");
+                buildNATForwardRuleList(*pelmPf6, n.llPortForwardRules6);
+            }
+
+            if (n.llHostLoopbackOffsetList.size())
+            {
+                xml::ElementNode *pelmMappings = pelmThis->createChild("Mappings");
+                buildNATLoopbacks(*pelmMappings, n.llHostLoopbackOffsetList);
+
+            }
+        }
     }
+
 
     xml::ElementNode *pelmSysProps = pelmGlobal->createChild("SystemProperties");
     if (systemProperties.strDefaultMachineFolder.length())
         pelmSysProps->setAttribute("defaultMachineFolder", systemProperties.strDefaultMachineFolder);
+    if (systemProperties.strLoggingLevel.length())
+        pelmSysProps->setAttribute("LoggingLevel", systemProperties.strLoggingLevel);
     if (systemProperties.strDefaultHardDiskFormat.length())
         pelmSysProps->setAttribute("defaultHardDiskFormat", systemProperties.strDefaultHardDiskFormat);
     if (systemProperties.strVRDEAuthLibrary.length())
@@ -1406,6 +1685,9 @@ void MainConfigFile::write(const com::Utf8Str strFilename)
     pelmSysProps->setAttribute("LogHistoryCount", systemProperties.ulLogHistoryCount);
     if (systemProperties.strAutostartDatabasePath.length())
         pelmSysProps->setAttribute("autostartDatabasePath", systemProperties.strAutostartDatabasePath);
+    if (systemProperties.strDefaultFrontend.length())
+        pelmSysProps->setAttribute("defaultFrontend", systemProperties.strDefaultFrontend);
+    pelmSysProps->setAttribute("exclusiveHwVirt", systemProperties.fExclusiveHwVirt);
 
     buildUSBDeviceFilters(*pelmGlobal->createChild("USBDeviceFilters"),
                           host.llUSBDeviceFilters,
@@ -1474,9 +1756,22 @@ bool BIOSSettings::operator==(const BIOSSettings &d) const
 bool USBController::operator==(const USBController &u) const
 {
     return (    (this == &u)
-                 || (    (fEnabled          == u.fEnabled)
-                      && (fEnabledEHCI      == u.fEnabledEHCI)
-                      && (llDeviceFilters   == u.llDeviceFilters)
+                 || (    (strName == u.strName)
+                      && (enmType == u.enmType)
+                    )
+           );
+}
+
+/**
+ * Comparison operator. This gets called from MachineConfigFile::operator==,
+ * which in turn gets called from Machine::saveSettings to figure out whether
+ * machine settings have really changed and thus need to be written out to disk.
+ */
+bool USB::operator==(const USB &u) const
+{
+    return (    (this == &u)
+                 || (    (llUSBControllers == u.llUSBControllers)
+                      && (llDeviceFilters  == u.llDeviceFilters)
                     )
            );
 }
@@ -1579,42 +1874,38 @@ bool GuestProperty::operator==(const GuestProperty &g) const
            );
 }
 
-// use a define for the platform-dependent default value of
-// hwvirt exclusivity, since we'll need to check that value
-// in bumpSettingsVersionIfNeeded()
-#if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS)
-    #define HWVIRTEXCLUSIVEDEFAULT false
-#else
-    #define HWVIRTEXCLUSIVEDEFAULT true
-#endif
-
 Hardware::Hardware()
         : strVersion("1"),
           fHardwareVirt(true),
-          fHardwareVirtExclusive(HWVIRTEXCLUSIVEDEFAULT),
           fNestedPaging(true),
           fVPID(true),
+          fUnrestrictedExecution(true),
           fHardwareVirtForce(false),
           fSyntheticCpu(false),
+          fTripleFaultReset(false),
           fPAE(false),
+          enmLongMode(HC_ARCH_BITS == 64 ? Hardware::LongMode_Enabled : Hardware::LongMode_Disabled),
           cCPUs(1),
           fCpuHotPlug(false),
           fHPETEnabled(false),
           ulCpuExecutionCap(100),
           ulMemorySizeMB((uint32_t)-1),
+          graphicsControllerType(GraphicsControllerType_VBoxVGA),
           ulVRAMSizeMB(8),
           cMonitors(1),
           fAccelerate3D(false),
           fAccelerate2DVideo(false),
-          ulVideoCaptureHorzRes(640),
-          ulVideoCaptureVertRes(480),
+          ulVideoCaptureHorzRes(1024),
+          ulVideoCaptureVertRes(768),
+          ulVideoCaptureRate(512),
+          ulVideoCaptureFPS(25),
           fVideoCaptureEnabled(false),
-          strVideoCaptureFile("Test.webm"),
+          u64VideoCaptureScreens(UINT64_C(0xffffffffffffffff)),
+          strVideoCaptureFile(""),
           firmwareType(FirmwareType_BIOS),
           pointingHIDType(PointingHIDType_PS2Mouse),
           keyboardHIDType(KeyboardHIDType_PS2Keyboard),
           chipsetType(ChipsetType_PIIX3),
-          fEmulatedUSBWebcam(false),
           fEmulatedUSBCardReader(false),
           clipboardMode(ClipboardMode_Disabled),
           dragAndDropMode(DragAndDropMode_Disabled),
@@ -1656,13 +1947,15 @@ bool Hardware::operator==(const Hardware& h) const
              || (    (strVersion                == h.strVersion)
                   && (uuid                      == h.uuid)
                   && (fHardwareVirt             == h.fHardwareVirt)
-                  && (fHardwareVirtExclusive    == h.fHardwareVirtExclusive)
                   && (fNestedPaging             == h.fNestedPaging)
                   && (fLargePages               == h.fLargePages)
                   && (fVPID                     == h.fVPID)
+                  && (fUnrestrictedExecution    == h.fUnrestrictedExecution)
                   && (fHardwareVirtForce        == h.fHardwareVirtForce)
                   && (fSyntheticCpu             == h.fSyntheticCpu)
                   && (fPAE                      == h.fPAE)
+                  && (enmLongMode               == h.enmLongMode)
+                  && (fTripleFaultReset         == h.fTripleFaultReset)
                   && (cCPUs                     == h.cCPUs)
                   && (fCpuHotPlug               == h.fCpuHotPlug)
                   && (ulCpuExecutionCap         == h.ulCpuExecutionCap)
@@ -1671,23 +1964,26 @@ bool Hardware::operator==(const Hardware& h) const
                   && (llCpuIdLeafs              == h.llCpuIdLeafs)
                   && (ulMemorySizeMB            == h.ulMemorySizeMB)
                   && (mapBootOrder              == h.mapBootOrder)
+                  && (graphicsControllerType    == h.graphicsControllerType)
                   && (ulVRAMSizeMB              == h.ulVRAMSizeMB)
                   && (cMonitors                 == h.cMonitors)
                   && (fAccelerate3D             == h.fAccelerate3D)
                   && (fAccelerate2DVideo        == h.fAccelerate2DVideo)
                   && (fVideoCaptureEnabled      == h.fVideoCaptureEnabled)
+                  && (u64VideoCaptureScreens    == h.u64VideoCaptureScreens)
                   && (strVideoCaptureFile       == h.strVideoCaptureFile)
                   && (ulVideoCaptureHorzRes     == h.ulVideoCaptureHorzRes)
                   && (ulVideoCaptureVertRes     == h.ulVideoCaptureVertRes)
+                  && (ulVideoCaptureRate        == h.ulVideoCaptureRate)
+                  && (ulVideoCaptureFPS         == h.ulVideoCaptureFPS)
                   && (firmwareType              == h.firmwareType)
                   && (pointingHIDType           == h.pointingHIDType)
                   && (keyboardHIDType           == h.keyboardHIDType)
                   && (chipsetType               == h.chipsetType)
-                  && (fEmulatedUSBWebcam        == h.fEmulatedUSBWebcam)
                   && (fEmulatedUSBCardReader    == h.fEmulatedUSBCardReader)
                   && (vrdeSettings              == h.vrdeSettings)
                   && (biosSettings              == h.biosSettings)
-                  && (usbController             == h.usbController)
+                  && (usbSettings               == h.usbSettings)
                   && (llNetworkAdapters         == h.llNetworkAdapters)
                   && (llSerialPorts             == h.llSerialPorts)
                   && (llParallelPorts           == h.llParallelPorts)
@@ -1701,6 +1997,7 @@ bool Hardware::operator==(const Hardware& h) const
                   && (strNotificationPatterns   == h.strNotificationPatterns)
                   && (ioSettings                == h.ioSettings)
                   && (pciAttachments            == h.pciAttachments)
+                  && (strDefaultFrontend        == h.strDefaultFrontend)
                 )
             );
 }
@@ -1718,6 +2015,7 @@ bool AttachedDevice::operator==(const AttachedDevice &a) const
                   && (fTempEject                == a.fTempEject)
                   && (fNonRotational            == a.fNonRotational)
                   && (fDiscard                  == a.fDiscard)
+                  && (fHotPluggable             == a.fHotPluggable)
                   && (lPort                     == a.lPort)
                   && (lDevice                   == a.lDevice)
                   && (uuid                      == a.uuid)
@@ -2071,25 +2369,11 @@ void MachineConfigFile::readAttachedNetworkMode(const xml::ElementNode &elmMode,
             pelmTFTP->getAttributeValue("boot-file", nic.nat.strTFTPBootFile);
             pelmTFTP->getAttributeValue("next-server", nic.nat.strTFTPNextServer);
         }
-        xml::ElementNodesList plstNatPF;
-        elmMode.getChildElements(plstNatPF, "Forwarding");
-        for (xml::ElementNodesList::iterator pf = plstNatPF.begin(); pf != plstNatPF.end(); ++pf)
-        {
-            NATRule rule;
-            uint32_t port = 0;
-            (*pf)->getAttributeValue("name", rule.strName);
-            (*pf)->getAttributeValue("proto", (uint32_t&)rule.proto);
-            (*pf)->getAttributeValue("hostip", rule.strHostIP);
-            (*pf)->getAttributeValue("hostport", port);
-            rule.u16HostPort = port;
-            (*pf)->getAttributeValue("guestip", rule.strGuestIP);
-            (*pf)->getAttributeValue("guestport", port);
-            rule.u16GuestPort = port;
-            nic.nat.llRules.push_back(rule);
-        }
+
+        readNATForwardRuleList(elmMode, nic.nat.llRules);
     }
-    else if (   (elmMode.nameEquals("HostInterface"))
-             || (elmMode.nameEquals("BridgedInterface")))
+    else if (   elmMode.nameEquals("HostInterface")
+             || elmMode.nameEquals("BridgedInterface"))
     {
         enmAttachmentType = NetworkAttachmentType_Bridged;
 
@@ -2123,14 +2407,20 @@ void MachineConfigFile::readAttachedNetworkMode(const xml::ElementNode &elmMode,
             if (pelmModeChild->nameEquals("Property"))
             {
                 Utf8Str strPropName, strPropValue;
-                if (    (pelmModeChild->getAttributeValue("name", strPropName))
-                     && (pelmModeChild->getAttributeValue("value", strPropValue))
-                   )
+                if (   pelmModeChild->getAttributeValue("name", strPropName)
+                    && pelmModeChild->getAttributeValue("value", strPropValue) )
                     nic.genericProperties[strPropName] = strPropValue;
                 else
                     throw ConfigFileError(this, pelmModeChild, N_("Required GenericInterface/Property/@name or @value attribute is missing"));
             }
         }
+    }
+    else if (elmMode.nameEquals("NATNetwork"))
+    {
+        enmAttachmentType = NetworkAttachmentType_NATNetwork;
+
+        if (!elmMode.getAttributeValue("name", nic.strNATNetworkName))    // required network name
+            throw ConfigFileError(this, &elmMode, N_("Required NATNetwork/@name element is missing"));
     }
     else if (elmMode.nameEquals("VDE"))
     {
@@ -2393,7 +2683,6 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
             if ((pelmCPUChild = pelmHwChild->findChildElement("HardwareVirtEx")))
             {
                 pelmCPUChild->getAttributeValue("enabled", hw.fHardwareVirt);
-                pelmCPUChild->getAttributeValue("exclusive", hw.fHardwareVirtExclusive);        // settings version 1.9
             }
             if ((pelmCPUChild = pelmHwChild->findChildElement("HardwareVirtExNestedPaging")))
                 pelmCPUChild->getAttributeValue("enabled", hw.fNestedPaging);
@@ -2401,6 +2690,8 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
                 pelmCPUChild->getAttributeValue("enabled", hw.fLargePages);
             if ((pelmCPUChild = pelmHwChild->findChildElement("HardwareVirtExVPID")))
                 pelmCPUChild->getAttributeValue("enabled", hw.fVPID);
+            if ((pelmCPUChild = pelmHwChild->findChildElement("HardwareVirtExUX")))
+                pelmCPUChild->getAttributeValue("enabled", hw.fUnrestrictedExecution);
             if ((pelmCPUChild = pelmHwChild->findChildElement("HardwareVirtForce")))
                 pelmCPUChild->getAttributeValue("enabled", hw.fHardwareVirtForce);
 
@@ -2413,8 +2704,19 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
             else
                 pelmCPUChild->getAttributeValue("enabled", hw.fPAE);
 
+            bool fLongMode;
+            if (   (pelmCPUChild = pelmHwChild->findChildElement("LongMode"))
+                && pelmCPUChild->getAttributeValue("enabled", fLongMode) )
+                hw.enmLongMode = fLongMode ? Hardware::LongMode_Enabled : Hardware::LongMode_Disabled;
+            else
+                hw.enmLongMode = Hardware::LongMode_Legacy;
+
             if ((pelmCPUChild = pelmHwChild->findChildElement("SyntheticCpu")))
                 pelmCPUChild->getAttributeValue("enabled", hw.fSyntheticCpu);
+
+            if ((pelmCPUChild = pelmHwChild->findChildElement("TripleFaultReset")))
+                pelmCPUChild->getAttributeValue("enabled", hw.fTripleFaultReset);
+
             if ((pelmCPUChild = pelmHwChild->findChildElement("CpuIdTree")))
                 readCpuIdTree(*pelmCPUChild, hw.llCpuIdLeafs);
         }
@@ -2480,6 +2782,8 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
                     hw.pointingHIDType = PointingHIDType_PS2Mouse;
                 else if (strHIDType == "ComboMouse")
                     hw.pointingHIDType = PointingHIDType_ComboMouse;
+                else if (strHIDType == "USBMultiTouch")
+                    hw.pointingHIDType = PointingHIDType_USBMultiTouch;
                 else
                     throw ConfigFileError(this,
                                           pelmHwChild,
@@ -2555,6 +2859,21 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
         }
         else if (pelmHwChild->nameEquals("Display"))
         {
+            Utf8Str strGraphicsControllerType;
+            if (!pelmHwChild->getAttributeValue("controller", strGraphicsControllerType))
+                hw.graphicsControllerType = GraphicsControllerType_VBoxVGA;
+            else
+            {
+                strGraphicsControllerType.toUpper();
+                GraphicsControllerType_T type;
+                if (strGraphicsControllerType == "VBOXVGA")
+                    type = GraphicsControllerType_VBoxVGA;
+                else if (strGraphicsControllerType == "NONE")
+                    type = GraphicsControllerType_Null;
+                else
+                    throw ConfigFileError(this, pelmHwChild, N_("Invalid value '%s' in Display/@controller attribute"), strGraphicsControllerType.c_str());
+                hw.graphicsControllerType = type;
+            }
             pelmHwChild->getAttributeValue("VRAMSize", hw.ulVRAMSizeMB);
             if (!pelmHwChild->getAttributeValue("monitorCount", hw.cMonitors))
                 pelmHwChild->getAttributeValue("MonitorCount", hw.cMonitors);       // pre-v1.5 variant
@@ -2562,14 +2881,16 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
                 pelmHwChild->getAttributeValue("Accelerate3D", hw.fAccelerate3D);   // pre-v1.5 variant
             pelmHwChild->getAttributeValue("accelerate2DVideo", hw.fAccelerate2DVideo);
         }
-        else if (pelmHwChild->nameEquals("VideoRecording"))
+        else if (pelmHwChild->nameEquals("VideoCapture"))
         {
-            pelmHwChild->getAttributeValue("enabled", hw.fVideoCaptureEnabled);
-            pelmHwChild->getAttributeValue("file",    hw.strVideoCaptureFile);
-            pelmHwChild->getAttributeValue("horzRes", hw.ulVideoCaptureHorzRes);
-            pelmHwChild->getAttributeValue("vertRes", hw.ulVideoCaptureVertRes);
+            pelmHwChild->getAttributeValue("enabled",   hw.fVideoCaptureEnabled);
+            pelmHwChild->getAttributeValue("screens",   hw.u64VideoCaptureScreens);
+            pelmHwChild->getAttributeValuePath("file",  hw.strVideoCaptureFile);
+            pelmHwChild->getAttributeValue("horzRes",   hw.ulVideoCaptureHorzRes);
+            pelmHwChild->getAttributeValue("vertRes",   hw.ulVideoCaptureVertRes);
+            pelmHwChild->getAttributeValue("rate",      hw.ulVideoCaptureRate);
+            pelmHwChild->getAttributeValue("fps",       hw.ulVideoCaptureFPS);
         }
-
         else if (pelmHwChild->nameEquals("RemoteDisplay"))
         {
             pelmHwChild->getAttributeValue("enabled", hw.vrdeSettings.fEnabled);
@@ -2633,9 +2954,8 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
                     {
                         /* <Property name="TCP/Ports" value="3000-3002"/> */
                         Utf8Str strName, strValue;
-                        if (    ((pelmProperty->getAttributeValue("name", strName)))
-                             && ((pelmProperty->getAttributeValue("value", strValue)))
-                           )
+                        if (   pelmProperty->getAttributeValue("name", strName)
+                            && pelmProperty->getAttributeValue("value", strValue))
                             hw.vrdeSettings.mapProperties[strName] = strValue;
                         else
                             throw ConfigFileError(this, pelmProperty, N_("Required VRDE Property/@name or @value attribute is missing"));
@@ -2681,7 +3001,7 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
 
             // legacy BIOS/IDEController (pre 1.7)
             if (    (m->sv < SettingsVersion_v1_7)
-                 && ((pelmBIOSChild = pelmHwChild->findChildElement("IDEController")))
+                 && (pelmBIOSChild = pelmHwChild->findChildElement("IDEController"))
                )
             {
                 StorageController sctl;
@@ -2704,22 +3024,75 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
                 strg.llStorageControllers.push_back(sctl);
             }
         }
-        else if (pelmHwChild->nameEquals("USBController"))
+        else if (   (m->sv <= SettingsVersion_v1_14)
+                 && pelmHwChild->nameEquals("USBController"))
         {
-            pelmHwChild->getAttributeValue("enabled", hw.usbController.fEnabled);
-            pelmHwChild->getAttributeValue("enabledEhci", hw.usbController.fEnabledEHCI);
+            bool fEnabled = false;
+
+            pelmHwChild->getAttributeValue("enabled", fEnabled);
+            if (fEnabled)
+            {
+                /* Create OHCI controller with default name. */
+                USBController ctrl;
+
+                ctrl.strName = "OHCI";
+                ctrl.enmType = USBControllerType_OHCI;
+                hw.usbSettings.llUSBControllers.push_back(ctrl);
+            }
+
+            pelmHwChild->getAttributeValue("enabledEhci", fEnabled);
+            if (fEnabled)
+            {
+                /* Create OHCI controller with default name. */
+                USBController ctrl;
+
+                ctrl.strName = "EHCI";
+                ctrl.enmType = USBControllerType_EHCI;
+                hw.usbSettings.llUSBControllers.push_back(ctrl);
+            }
 
             readUSBDeviceFilters(*pelmHwChild,
-                                 hw.usbController.llDeviceFilters);
+                                 hw.usbSettings.llDeviceFilters);
         }
-        else if (    (m->sv < SettingsVersion_v1_7)
-                  && (pelmHwChild->nameEquals("SATAController"))
-                )
+        else if (pelmHwChild->nameEquals("USB"))
+        {
+            const xml::ElementNode *pelmUSBChild;
+
+            if ((pelmUSBChild = pelmHwChild->findChildElement("Controllers")))
+            {
+                xml::NodesLoop nl2(*pelmUSBChild, "Controller");
+                const xml::ElementNode *pelmCtrl;
+
+                while ((pelmCtrl = nl2.forAllNodes()))
+                {
+                    USBController ctrl;
+                    com::Utf8Str strCtrlType;
+
+                    pelmCtrl->getAttributeValue("name", ctrl.strName);
+
+                    if (pelmCtrl->getAttributeValue("type", strCtrlType))
+                    {
+                        if (strCtrlType == "OHCI")
+                            ctrl.enmType = USBControllerType_OHCI;
+                        else if (strCtrlType == "EHCI")
+                            ctrl.enmType = USBControllerType_EHCI;
+                        else
+                            throw ConfigFileError(this, pelmCtrl, N_("Invalid value '%s' for Controller/@type attribute"), strCtrlType.c_str());
+                    }
+
+                    hw.usbSettings.llUSBControllers.push_back(ctrl);
+                }
+            }
+
+            if ((pelmUSBChild = pelmHwChild->findChildElement("DeviceFilters")))
+                readUSBDeviceFilters(*pelmUSBChild, hw.usbSettings.llDeviceFilters);
+        }
+        else if (   m->sv < SettingsVersion_v1_7
+                 && pelmHwChild->nameEquals("SATAController"))
         {
             bool f;
-            if (    (pelmHwChild->getAttributeValue("enabled", f))
-                 && (f)
-               )
+            if (   pelmHwChild->getAttributeValue("enabled", f)
+                && f)
             {
                 StorageController sctl;
                 sctl.strName = "SATA Controller";
@@ -2736,15 +3109,15 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
         else if (pelmHwChild->nameEquals("RTC"))
         {
             Utf8Str strLocalOrUTC;
-            machineUserData.fRTCUseUTC =    pelmHwChild->getAttributeValue("localOrUTC", strLocalOrUTC)
-                                         && strLocalOrUTC == "UTC";
+            machineUserData.fRTCUseUTC = pelmHwChild->getAttributeValue("localOrUTC", strLocalOrUTC)
+                                      && strLocalOrUTC == "UTC";
         }
-        else if (    (pelmHwChild->nameEquals("UART"))
-                  || (pelmHwChild->nameEquals("Uart"))      // used before 1.3
+        else if (    pelmHwChild->nameEquals("UART")
+                  || pelmHwChild->nameEquals("Uart")      // used before 1.3
                 )
             readSerialPorts(*pelmHwChild, hw.llSerialPorts);
-        else if (    (pelmHwChild->nameEquals("LPT"))
-                  || (pelmHwChild->nameEquals("Lpt"))       // used before 1.3
+        else if (    pelmHwChild->nameEquals("LPT")
+                  || pelmHwChild->nameEquals("Lpt")       // used before 1.3
                 )
             readParallelPorts(*pelmHwChild, hw.llParallelPorts);
         else if (pelmHwChild->nameEquals("AudioAdapter"))
@@ -2846,7 +3219,9 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
                     hw.ioSettings.llBandwidthGroups.push_back(gr);
                 }
             }
-        }  else if (pelmHwChild->nameEquals("HostPci")) {
+        }
+        else if (pelmHwChild->nameEquals("HostPci"))
+        {
             const xml::ElementNode *pelmDevices;
 
             if ((pelmDevices = pelmHwChild->findChildElement("Devices")))
@@ -2872,16 +3247,20 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
         }
         else if (pelmHwChild->nameEquals("EmulatedUSB"))
         {
-            const xml::ElementNode *pelmCardReader, *pelmWebcam;
+            const xml::ElementNode *pelmCardReader;
 
             if ((pelmCardReader = pelmHwChild->findChildElement("CardReader")))
             {
                 pelmCardReader->getAttributeValue("enabled", hw.fEmulatedUSBCardReader);
             }
+        }
+        else if (pelmHwChild->nameEquals("Frontend"))
+        {
+            const xml::ElementNode *pelmDefault;
 
-            if ((pelmWebcam = pelmHwChild->findChildElement("Webcam")))
+            if ((pelmDefault = pelmHwChild->findChildElement("Default")))
             {
-                pelmWebcam->getAttributeValue("enabled", hw.fEmulatedUSBWebcam);
+                pelmDefault->getAttributeValue("type", hw.strDefaultFrontend);
             }
         }
     }
@@ -3106,6 +3485,7 @@ void MachineConfigFile::readStorageControllers(const xml::ElementNode &elmStorag
                 if (!pelmAttached->getAttributeValue("device", att.lDevice))
                     throw ConfigFileError(this, pelmImage, N_("Required AttachedDevice/@device attribute is missing"));
 
+                pelmAttached->getAttributeValue("hotpluggable", att.fHotPluggable);
                 pelmAttached->getAttributeValue("bandwidthGroup", att.strBwGroup);
                 sctl.llAttachedDevices.push_back(att);
             }
@@ -3147,9 +3527,8 @@ void MachineConfigFile::readDVDAndFloppies_pre1_9(const xml::ElementNode &elmHar
 
             const xml::ElementNode *pDriveChild;
             Utf8Str strTmp;
-            if (    ((pDriveChild = pelmHwChild->findChildElement("Image")))
-                 && (pDriveChild->getAttributeValue("uuid", strTmp))
-               )
+            if (   (pDriveChild = pelmHwChild->findChildElement("Image")) != NULL
+                && pDriveChild->getAttributeValue("uuid", strTmp))
                 parseUUID(att.uuid, strTmp);
             else if ((pDriveChild = pelmHwChild->findChildElement("HostDrive")))
                 pDriveChild->getAttributeValue("src", att.strHostDriveSrc);
@@ -3177,9 +3556,8 @@ void MachineConfigFile::readDVDAndFloppies_pre1_9(const xml::ElementNode &elmHar
         else if (pelmHwChild->nameEquals("FloppyDrive"))
         {
             bool fEnabled;
-            if (    (pelmHwChild->getAttributeValue("enabled", fEnabled))
-                 && (fEnabled)
-               )
+            if (   pelmHwChild->getAttributeValue("enabled", fEnabled)
+                && fEnabled)
             {
                 // create a new floppy controller and attach a floppy "attached device"
                 StorageController sctl;
@@ -3195,9 +3573,8 @@ void MachineConfigFile::readDVDAndFloppies_pre1_9(const xml::ElementNode &elmHar
 
                 const xml::ElementNode *pDriveChild;
                 Utf8Str strTmp;
-                if (    ((pDriveChild = pelmHwChild->findChildElement("Image")))
-                     && (pDriveChild->getAttributeValue("uuid", strTmp))
-                   )
+                if (   (pDriveChild = pelmHwChild->findChildElement("Image"))
+                    && pDriveChild->getAttributeValue("uuid", strTmp) )
                     parseUUID(att.uuid, strTmp);
                 else if ((pDriveChild = pelmHwChild->findChildElement("HostDrive")))
                     pDriveChild->getAttributeValue("src", att.strHostDriveSrc);
@@ -3344,13 +3721,11 @@ void MachineConfigFile::readSnapshot(uint32_t depth,
     {
         if (pelmSnapshotChild->nameEquals("Description"))
             snap.strDescription = pelmSnapshotChild->getValue();
-        else if (    (m->sv < SettingsVersion_v1_7)
-                  && (pelmSnapshotChild->nameEquals("HardDiskAttachments"))
-                )
+        else if (   m->sv < SettingsVersion_v1_7
+                 && pelmSnapshotChild->nameEquals("HardDiskAttachments"))
             readHardDiskAttachments_pre1_7(*pelmSnapshotChild, snap.storage);
-        else if (    (m->sv >= SettingsVersion_v1_7)
-                  && (pelmSnapshotChild->nameEquals("StorageControllers"))
-                )
+        else if (   m->sv >= SettingsVersion_v1_7
+                 && pelmSnapshotChild->nameEquals("StorageControllers"))
             readStorageControllers(*pelmSnapshotChild, snap.storage);
         else if (pelmSnapshotChild->nameEquals("Snapshots"))
         {
@@ -3447,9 +3822,8 @@ void MachineConfigFile::convertOldOSType_pre1_5(Utf8Str &str)
 void MachineConfigFile::readMachine(const xml::ElementNode &elmMachine)
 {
     Utf8Str strUUID;
-    if (    (elmMachine.getAttributeValue("uuid", strUUID))
-         && (elmMachine.getAttributeValue("name", machineUserData.strName))
-       )
+    if (   elmMachine.getAttributeValue("uuid", strUUID)
+        && elmMachine.getAttributeValue("name", machineUserData.strName))
     {
         parseUUID(uuid, strUUID);
 
@@ -3458,7 +3832,6 @@ void MachineConfigFile::readMachine(const xml::ElementNode &elmMachine)
 
         Utf8Str str;
         elmMachine.getAttributeValue("Description", machineUserData.strDescription);
-
         elmMachine.getAttributeValue("OSType", machineUserData.strOsType);
         if (m->sv < SettingsVersion_v1_5)
             convertOldOSType_pre1_5(machineUserData.strOsType);
@@ -3477,6 +3850,8 @@ void MachineConfigFile::readMachine(const xml::ElementNode &elmMachine)
             // constructor has called RTTimeNow(&timeLastStateChange) before
         if (elmMachine.getAttributeValue("aborted", fAborted))
             fAborted = true;
+
+        elmMachine.getAttributeValue("icon", machineUserData.ovIcon);
 
         // parse Hardware before the other elements because other things depend on it
         const xml::ElementNode *pelmHardware;
@@ -3561,8 +3936,10 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
 
     if (m->sv >= SettingsVersion_v1_4)
         pelmHardware->setAttribute("version", hw.strVersion);
-    if (    (m->sv >= SettingsVersion_v1_9)
-         && (!hw.uuid.isEmpty())
+
+    if ((m->sv >= SettingsVersion_v1_9)
+         && !hw.uuid.isZero()
+         && hw.uuid.isValid()
        )
         pelmHardware->setAttribute("uuid", hw.uuid.toStringCurly());
 
@@ -3570,15 +3947,18 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
 
     xml::ElementNode *pelmHwVirtEx = pelmCPU->createChild("HardwareVirtEx");
     pelmHwVirtEx->setAttribute("enabled", hw.fHardwareVirt);
-    if (m->sv >= SettingsVersion_v1_9)
-        pelmHwVirtEx->setAttribute("exclusive", hw.fHardwareVirtExclusive);
 
     pelmCPU->createChild("HardwareVirtExNestedPaging")->setAttribute("enabled", hw.fNestedPaging);
     pelmCPU->createChild("HardwareVirtExVPID")->setAttribute("enabled", hw.fVPID);
+    pelmCPU->createChild("HardwareVirtExUX")->setAttribute("enabled", hw.fUnrestrictedExecution);
     pelmCPU->createChild("PAE")->setAttribute("enabled", hw.fPAE);
+    if (m->sv >= SettingsVersion_v1_14 && hw.enmLongMode != Hardware::LongMode_Legacy)
+        pelmCPU->createChild("LongMode")->setAttribute("enabled", hw.enmLongMode == Hardware::LongMode_Enabled);
 
     if (hw.fSyntheticCpu)
         pelmCPU->createChild("SyntheticCpu")->setAttribute("enabled", hw.fSyntheticCpu);
+    if (hw.fTripleFaultReset)
+        pelmCPU->createChild("TripleFaultReset")->setAttribute("enabled", hw.fTripleFaultReset);
     pelmCPU->setAttribute("count", hw.cCPUs);
     if (hw.ulCpuExecutionCap != 100)
         pelmCPU->setAttribute("executionCap", hw.ulCpuExecutionCap);
@@ -3659,12 +4039,13 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
 
          switch (hw.pointingHIDType)
          {
-            case PointingHIDType_USBMouse:      pcszHID = "USBMouse";   break;
-            case PointingHIDType_USBTablet:     pcszHID = "USBTablet";  break;
-            case PointingHIDType_PS2Mouse:      pcszHID = "PS2Mouse";   break;
-            case PointingHIDType_ComboMouse:    pcszHID = "ComboMouse"; break;
-            case PointingHIDType_None:          pcszHID = "None";       break;
-            default:            Assert(false);  pcszHID = "PS2Mouse";   break;
+            case PointingHIDType_USBMouse:      pcszHID = "USBMouse";     break;
+            case PointingHIDType_USBTablet:     pcszHID = "USBTablet";    break;
+            case PointingHIDType_PS2Mouse:      pcszHID = "PS2Mouse";     break;
+            case PointingHIDType_ComboMouse:    pcszHID = "ComboMouse";   break;
+            case PointingHIDType_USBMultiTouch: pcszHID = "USBMultiTouch";break;
+            case PointingHIDType_None:          pcszHID = "None";         break;
+            default:            Assert(false);  pcszHID = "PS2Mouse";     break;
          }
          pelmHID->setAttribute("Pointing", pcszHID);
 
@@ -3726,20 +4107,34 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
     }
 
     xml::ElementNode *pelmDisplay = pelmHardware->createChild("Display");
+    if (hw.graphicsControllerType != GraphicsControllerType_VBoxVGA)
+    {
+        const char *pcszGraphics;
+        switch (hw.graphicsControllerType)
+        {
+            case GraphicsControllerType_VBoxVGA:            pcszGraphics = "VBoxVGA"; break;
+            default: /*case GraphicsControllerType_Null:*/  pcszGraphics = "None"; break;
+        }
+        pelmDisplay->setAttribute("controller", pcszGraphics);
+    }
     pelmDisplay->setAttribute("VRAMSize", hw.ulVRAMSizeMB);
     pelmDisplay->setAttribute("monitorCount", hw.cMonitors);
     pelmDisplay->setAttribute("accelerate3D", hw.fAccelerate3D);
 
     if (m->sv >= SettingsVersion_v1_8)
         pelmDisplay->setAttribute("accelerate2DVideo", hw.fAccelerate2DVideo);
-    xml::ElementNode *pelmVideoCapture = pelmHardware->createChild("VideoRecording");
+    xml::ElementNode *pelmVideoCapture = pelmHardware->createChild("VideoCapture");
 
-    if (m->sv >= SettingsVersion_v1_12)
+    if (m->sv >= SettingsVersion_v1_14)
     {
-        pelmVideoCapture->setAttribute("enabled", hw.fVideoCaptureEnabled);
-        pelmVideoCapture->setAttribute("file",    hw.strVideoCaptureFile);
-        pelmVideoCapture->setAttribute("horzRes", hw.ulVideoCaptureHorzRes);
-        pelmVideoCapture->setAttribute("vertRes", hw.ulVideoCaptureVertRes);
+        pelmVideoCapture->setAttribute("enabled",   hw.fVideoCaptureEnabled);
+        pelmVideoCapture->setAttribute("screens",   hw.u64VideoCaptureScreens);
+        if (!hw.strVideoCaptureFile.isEmpty())
+            pelmVideoCapture->setAttributePath("file",  hw.strVideoCaptureFile);
+        pelmVideoCapture->setAttribute("horzRes",   hw.ulVideoCaptureHorzRes);
+        pelmVideoCapture->setAttribute("vertRes",   hw.ulVideoCaptureVertRes);
+        pelmVideoCapture->setAttribute("rate",      hw.ulVideoCaptureRate);
+        pelmVideoCapture->setAttribute("fps",       hw.ulVideoCaptureFPS);
     }
 
     xml::ElementNode *pelmVRDE = pelmHardware->createChild("RemoteDisplay");
@@ -3878,7 +4273,8 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
                         pelmDVD->setAttribute("passthrough", att.fPassThrough);
                         if (att.fTempEject)
                             pelmDVD->setAttribute("tempeject", att.fTempEject);
-                        if (!att.uuid.isEmpty())
+
+                        if (!att.uuid.isZero() && att.uuid.isValid())
                             pelmDVD->createChild("Image")->setAttribute("uuid", att.uuid.toStringCurly());
                         else if (att.strHostDriveSrc.length())
                             pelmDVD->createChild("HostDrive")->setAttribute("src", att.strHostDriveSrc);
@@ -3894,7 +4290,8 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
                 {
                     const AttachedDevice &att = sctl.llAttachedDevices.front();
                     pelmFloppy->setAttribute("enabled", true);
-                    if (!att.uuid.isEmpty())
+
+                    if (!att.uuid.isZero() && att.uuid.isValid())
                         pelmFloppy->createChild("Image")->setAttribute("uuid", att.uuid.toStringCurly());
                     else if (att.strHostDriveSrc.length())
                         pelmFloppy->createChild("HostDrive")->setAttribute("src", att.strHostDriveSrc);
@@ -3910,13 +4307,68 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
             throw ConfigFileError(this, NULL, N_("Internal error: cannot save more than one floppy drive with old settings format"));
     }
 
-    xml::ElementNode *pelmUSB = pelmHardware->createChild("USBController");
-    pelmUSB->setAttribute("enabled", hw.usbController.fEnabled);
-    pelmUSB->setAttribute("enabledEhci", hw.usbController.fEnabledEHCI);
+    if (m->sv < SettingsVersion_v1_14)
+    {
+        bool fOhciEnabled = false;
+        bool fEhciEnabled = false;
+        xml::ElementNode *pelmUSB = pelmHardware->createChild("USBController");
 
-    buildUSBDeviceFilters(*pelmUSB,
-                          hw.usbController.llDeviceFilters,
-                          false);               // fHostMode
+        for (USBControllerList::const_iterator it = hardwareMachine.usbSettings.llUSBControllers.begin();
+             it != hardwareMachine.usbSettings.llUSBControllers.end();
+             ++it)
+        {
+            const USBController &ctrl = *it;
+
+            switch (ctrl.enmType)
+            {
+                case USBControllerType_OHCI:
+                    fOhciEnabled = true;
+                    break;
+                case USBControllerType_EHCI:
+                    fEhciEnabled = true;
+                    break;
+                default:
+                    AssertMsgFailed(("Unknown USB controller type %d\n", ctrl.enmType));
+            }
+        }
+
+        pelmUSB->setAttribute("enabled", fOhciEnabled);
+        pelmUSB->setAttribute("enabledEhci", fEhciEnabled);
+
+        buildUSBDeviceFilters(*pelmUSB, hw.usbSettings.llDeviceFilters, false /* fHostMode */);
+    }
+    else
+    {
+        xml::ElementNode *pelmUSB = pelmHardware->createChild("USB");
+        xml::ElementNode *pelmCtrls = pelmUSB->createChild("Controllers");
+
+        for (USBControllerList::const_iterator it = hardwareMachine.usbSettings.llUSBControllers.begin();
+             it != hardwareMachine.usbSettings.llUSBControllers.end();
+             ++it)
+        {
+            const USBController &ctrl = *it;
+            com::Utf8Str strType;
+            xml::ElementNode *pelmCtrl = pelmCtrls->createChild("Controller");
+
+            switch (ctrl.enmType)
+            {
+                case USBControllerType_OHCI:
+                    strType = "OHCI";
+                    break;
+                case USBControllerType_EHCI:
+                    strType = "EHCI";
+                    break;
+                default:
+                    AssertMsgFailed(("Unknown USB controller type %d\n", ctrl.enmType));
+            }
+
+            pelmCtrl->setAttribute("name", ctrl.strName);
+            pelmCtrl->setAttribute("type", strType);
+        }
+
+        xml::ElementNode *pelmFilters = pelmUSB->createChild("DeviceFilters");
+        buildUSBDeviceFilters(*pelmFilters, hw.usbSettings.llDeviceFilters, false /* fHostMode */);
+    }
 
     xml::ElementNode *pelmNetwork = pelmHardware->createChild("Network");
     for (NetworkAdaptersList::const_iterator it = hw.llNetworkAdapters.begin();
@@ -4008,6 +4460,8 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
                 buildNetworkXML(NetworkAttachmentType_HostOnly, *pelmDisabledNode, false, nic);
             if (nic.mode != NetworkAttachmentType_Generic)
                 buildNetworkXML(NetworkAttachmentType_Generic, *pelmDisabledNode, false, nic);
+            if (nic.mode != NetworkAttachmentType_NATNetwork)
+                buildNetworkXML(NetworkAttachmentType_NATNetwork, *pelmDisabledNode, false, nic);
             buildNetworkXML(nic.mode, *pelmAdapter, true, nic);
         }
     }
@@ -4201,12 +4655,14 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
 
         xml::ElementNode *pelmCardReader = pelmEmulatedUSB->createChild("CardReader");
         pelmCardReader->setAttribute("enabled", hw.fEmulatedUSBCardReader);
+    }
 
-        if (m->sv >= SettingsVersion_v1_13)
-        {
-            xml::ElementNode *pelmWebcam = pelmEmulatedUSB->createChild("Webcam");
-            pelmWebcam->setAttribute("enabled", hw.fEmulatedUSBWebcam);
-        }
+    if (   m->sv >= SettingsVersion_v1_14
+        && !hw.strDefaultFrontend.isEmpty())
+    {
+        xml::ElementNode *pelmFrontend = pelmHardware->createChild("Frontend");
+        xml::ElementNode *pelmDefault = pelmFrontend->createChild("Default");
+        pelmDefault->setAttribute("type", hw.strDefaultFrontend);
     }
 
     xml::ElementNode *pelmGuest = pelmHardware->createChild("Guest");
@@ -4286,23 +4742,7 @@ void MachineConfigFile::buildNetworkXML(NetworkAttachmentType_T mode,
                 if (nic.nat.strTFTPNextServer.length())
                     pelmTFTP->setAttribute("next-server", nic.nat.strTFTPNextServer);
             }
-            for (NATRuleList::const_iterator rule = nic.nat.llRules.begin();
-                    rule != nic.nat.llRules.end(); ++rule)
-            {
-                xml::ElementNode *pelmPF;
-                pelmPF = pelmNAT->createChild("Forwarding");
-                if ((*rule).strName.length())
-                    pelmPF->setAttribute("name", (*rule).strName);
-                pelmPF->setAttribute("proto", (*rule).proto);
-                if ((*rule).strHostIP.length())
-                    pelmPF->setAttribute("hostip", (*rule).strHostIP);
-                if ((*rule).u16HostPort)
-                    pelmPF->setAttribute("hostport", (*rule).u16HostPort);
-                if ((*rule).strGuestIP.length())
-                    pelmPF->setAttribute("guestip", (*rule).strGuestIP);
-                if ((*rule).u16GuestPort)
-                    pelmPF->setAttribute("guestport", (*rule).u16GuestPort);
-            }
+            buildNATForwardRuleList(*pelmNAT, nic.nat.llRules);
             break;
 
         case NetworkAttachmentType_Bridged:
@@ -4334,6 +4774,11 @@ void MachineConfigFile::buildNetworkXML(NetworkAttachmentType_T mode,
                     pelmProp->setAttribute("value", it->second);
                 }
             }
+            break;
+
+        case NetworkAttachmentType_NATNetwork:
+            if (fEnabled || !nic.strNATNetworkName.isEmpty())
+                elmParent.createChild("NATNetwork")->setAttribute("name", nic.strNATNetworkName);
             break;
 
         default: /*case NetworkAttachmentType_Null:*/
@@ -4466,6 +4911,9 @@ void MachineConfigFile::buildStorageControllersXML(xml::ElementNode &elmParent,
 
             pelmDevice->setAttribute("type", pcszType);
 
+            if (att.fHotPluggable)
+                pelmDevice->setAttribute("hotpluggable", att.fHotPluggable);
+
             pelmDevice->setAttribute("port", att.lPort);
             pelmDevice->setAttribute("device", att.lDevice);
 
@@ -4473,8 +4921,9 @@ void MachineConfigFile::buildStorageControllersXML(xml::ElementNode &elmParent,
                 pelmDevice->setAttribute("bandwidthGroup", att.strBwGroup);
 
             // attached image, if any
-            if (    !att.uuid.isEmpty()
-                 && (    att.deviceType == DeviceType_HardDisk
+            if (!att.uuid.isZero()
+                 && att.uuid.isValid()
+                 && (att.deviceType == DeviceType_HardDisk
                       || !fSkipRemovableMedia
                     )
                )
@@ -4683,8 +5132,10 @@ void MachineConfigFile::buildMachineXML(xml::ElementNode &elmMachine,
          && !(fl & BuildMachineXML_SuppressSavedState)
        )
         elmMachine.setAttributePath("stateFile", strStateFile);
-    if (    (fl & BuildMachineXML_IncludeSnapshots)
-         && !uuidCurrentSnapshot.isEmpty())
+
+    if ((fl & BuildMachineXML_IncludeSnapshots)
+         && !uuidCurrentSnapshot.isZero()
+         && uuidCurrentSnapshot.isValid())
         elmMachine.setAttribute("currentSnapshot", uuidCurrentSnapshot.toStringCurly());
 
     if (machineUserData.strSnapshotFolder.length())
@@ -4694,6 +5145,10 @@ void MachineConfigFile::buildMachineXML(xml::ElementNode &elmMachine,
     elmMachine.setAttribute("lastStateChange", makeString(timeLastStateChange));
     if (fAborted)
         elmMachine.setAttribute("aborted", fAborted);
+    // Please keep the icon last so that one doesn't have to check if there
+    // is anything in the line after this very long attribute in the XML.
+    if (machineUserData.ovIcon.length())
+        elmMachine.setAttribute("icon", machineUserData.ovIcon);
     if (    m->sv >= SettingsVersion_v1_9
         &&  (   machineUserData.fTeleporterEnabled
             ||  machineUserData.uTeleporterPort
@@ -4871,6 +5326,69 @@ AudioDriverType_T MachineConfigFile::getHostDefaultAudioDriver()
  */
 void MachineConfigFile::bumpSettingsVersionIfNeeded()
 {
+    if (m->sv < SettingsVersion_v1_14)
+    {
+        // VirtualBox 4.3 adds default frontend setting, graphics controller
+        // setting, explicit long mode setting, video capturing and NAT networking.
+        if (   !hardwareMachine.strDefaultFrontend.isEmpty()
+            || hardwareMachine.graphicsControllerType != GraphicsControllerType_VBoxVGA
+            || hardwareMachine.enmLongMode != Hardware::LongMode_Legacy
+            || machineUserData.ovIcon.length() > 0
+            || hardwareMachine.fVideoCaptureEnabled)
+        {
+            m->sv = SettingsVersion_v1_14;
+            return;
+        }
+        NetworkAdaptersList::const_iterator netit;
+        for (netit = hardwareMachine.llNetworkAdapters.begin();
+             netit != hardwareMachine.llNetworkAdapters.end();
+             ++netit)
+        {
+            if (netit->mode == NetworkAttachmentType_NATNetwork)
+            {
+                m->sv = SettingsVersion_v1_14;
+                break;
+            }
+        }
+    }
+
+    if (m->sv < SettingsVersion_v1_14)
+    {
+        unsigned cOhciCtrls = 0;
+        unsigned cEhciCtrls = 0;
+        bool fNonStdName = false;
+
+        for (USBControllerList::const_iterator it = hardwareMachine.usbSettings.llUSBControllers.begin();
+             it != hardwareMachine.usbSettings.llUSBControllers.end();
+             ++it)
+        {
+            const USBController &ctrl = *it;
+
+            switch (ctrl.enmType)
+            {
+                case USBControllerType_OHCI:
+                    cOhciCtrls++;
+                    if (ctrl.strName != "OHCI")
+                        fNonStdName = true;
+                    break;
+               case USBControllerType_EHCI:
+                    cEhciCtrls++;
+                    if (ctrl.strName != "EHCI")
+                        fNonStdName = true;
+                    break;
+                default:
+                    AssertMsgFailed(("Unknown USB controller type %d\n", ctrl.enmType));
+            }
+
+            /* Skip checking other controllers if the settings bump is necessary. */
+            if (cOhciCtrls > 1 || cEhciCtrls > 1 || fNonStdName)
+            {
+                m->sv = SettingsVersion_v1_14;
+                break;
+            }
+        }
+    }
+
     if (m->sv < SettingsVersion_v1_13)
     {
         // VirtualBox 4.2 adds tracing, autostart, UUID in directory and groups.
@@ -4899,24 +5417,11 @@ void MachineConfigFile::bumpSettingsVersionIfNeeded()
         }
     }
 
-    if (m->sv < SettingsVersion_v1_13)
-    {
-        /* 4.2: Emulated USB Webcam. */
-        if (hardwareMachine.fEmulatedUSBWebcam)
-            m->sv = SettingsVersion_v1_13;
-    }
-
     if (m->sv < SettingsVersion_v1_12)
     {
-        // 4.1: Emulated USB devices.
-        if (hardwareMachine.fEmulatedUSBCardReader)
-            m->sv = SettingsVersion_v1_12;
-    }
-
-    if (m->sv < SettingsVersion_v1_12)
-    {
-        // VirtualBox 4.1 adds PCI passthrough.
-        if (hardwareMachine.pciAttachments.size())
+        // VirtualBox 4.1 adds PCI passthrough and emulated USB Smart Card reader
+        if (   hardwareMachine.pciAttachments.size()
+            || hardwareMachine.fEmulatedUSBCardReader)
             m->sv = SettingsVersion_v1_12;
     }
 
@@ -5204,12 +5709,11 @@ void MachineConfigFile::bumpSettingsVersionIfNeeded()
     // all the following require settings version 1.9
     if (    (m->sv < SettingsVersion_v1_9)
          && (    (hardwareMachine.firmwareType >= FirmwareType_EFI)
-              || (hardwareMachine.fHardwareVirtExclusive != HWVIRTEXCLUSIVEDEFAULT)
               || machineUserData.fTeleporterEnabled
               || machineUserData.uTeleporterPort
               || !machineUserData.strTeleporterAddress.isEmpty()
               || !machineUserData.strTeleporterPassword.isEmpty()
-              || !hardwareMachine.uuid.isEmpty()
+              || (!hardwareMachine.uuid.isZero() && hardwareMachine.uuid.isValid())
             )
         )
         m->sv = SettingsVersion_v1_9;

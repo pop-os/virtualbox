@@ -1,10 +1,11 @@
 #!/bin/sh
 # $Id: vboxconfig.sh $
-
-#
+## @file
 # VirtualBox Configuration Script, Solaris host.
 #
-# Copyright (C) 2009-2012 Oracle Corporation
+
+#
+# Copyright (C) 2009-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -488,7 +489,7 @@ rem_driver()
     fi
 }
 
-# unload_module(modname, moddesc, [fatal])
+# unload_module(modname, moddesc, retry, [fatal])
 # failure: fatal
 unload_module()
 {
@@ -504,16 +505,42 @@ unload_module()
 
     modname=$1
     moddesc=$2
-    fatal=$3
+    retry=$3
+    fatal=$4
     modid=`$BIN_MODINFO | grep "$modname " | cut -f 1 -d ' ' `
     if test -n "$modid"; then
         $BIN_MODUNLOAD -i $modid
         if test $? -eq 0; then
             subprint "Unloaded: $moddesc module"
         else
-            subprint "Unloading: $moddesc module ...FAILED!"
-            if test "$fatal" = "$FATALOP"; then
-                exit 1
+            #
+            # Hack for vboxdrv. Delayed removing when VMM thread-context hooks are used.
+            # Our automated tests are probably too quick... Fix properly later.
+            #
+            result=$?
+            if test "$retry" -eq 1; then
+                cmax=15
+                cslept=0
+                while test "$result" -ne 0;
+                do
+                    subprint "Unloading: $moddesc module ...FAILED! Busy? Retrying in 3 seconds..."
+                    sleep 3
+                    cslept=`expr $cslept + 3`
+                    if test "$cslept" -ge "$cmax"; then
+                        break
+                    fi
+                    $BIN_MODUNLOAD -i $modid
+                    result=$?
+                done
+            fi
+
+            if test "$result" -ne 0; then
+                subprint "Unloading: $moddesc module ...FAILED!"
+                if test "$fatal" = "$FATALOP"; then
+                    exit 1
+                fi
+            else
+                subprint "Unloaded: $moddesc module"
             fi
             return 1
         fi
@@ -580,9 +607,9 @@ install_drivers()
 {
     if test -f "$DIR_CONF/vboxdrv.conf"; then
         if test -n "_HARDENED_"; then
-            add_driver "$MOD_VBOXDRV" "$DESC_VBOXDRV" "$FATALOP" "not-$NULLOP" "'* 0600 root sys'"
+            add_driver "$MOD_VBOXDRV" "$DESC_VBOXDRV" "$FATALOP" "not-$NULLOP" "'* 0600 root sys','vboxdrvu 0666 root sys'"
         else
-            add_driver "$MOD_VBOXDRV" "$DESC_VBOXDRV" "$FATALOP" "not-$NULLOP" "'* 0666 root sys'"
+            add_driver "$MOD_VBOXDRV" "$DESC_VBOXDRV" "$FATALOP" "not-$NULLOP" "'* 0666 root sys','vboxdrvu 0666 root sys'"
         fi
         load_module "drv/$MOD_VBOXDRV" "$DESC_VBOXDRV" "$FATALOP"
     else
@@ -590,23 +617,25 @@ install_drivers()
         return 1
     fi
 
-    # Add vboxdrv to devlink.tab
+    ## Add vboxdrv to devlink.tab (KEEP TABS!)
+    # clean up devlink.tab (KEEP TABS!)
     if test -f "$PKG_INSTALL_ROOT/etc/devlink.tab"; then
-        sed -e '/name=vboxdrv/d' "$PKG_INSTALL_ROOT/etc/devlink.tab" > "$PKG_INSTALL_ROOT/etc/devlink.vbox"
-        echo "type=ddi_pseudo;name=vboxdrv	\D" >> "$PKG_INSTALL_ROOT/etc/devlink.vbox"
+        sed -e '/name=vboxdrv/d' -e '/name=vboxdrvu/d' "$PKG_INSTALL_ROOT/etc/devlink.tab" > "$PKG_INSTALL_ROOT/etc/devlink.vbox"
+        #echo "type=ddi_pseudo;name=vboxdrv;minor=vboxdrv	\D"  >> "$PKG_INSTALL_ROOT/etc/devlink.vbox"
+        #echo "type=ddi_pseudo;name=vboxdrv;minor=vboxdrvu	\M0" >> "$PKG_INSTALL_ROOT/etc/devlink.vbox"
         mv -f "$PKG_INSTALL_ROOT/etc/devlink.vbox" "$PKG_INSTALL_ROOT/etc/devlink.tab"
     else
         errorprint "Missing $PKG_INSTALL_ROOT/etc/devlink.tab, aborting install"
         return 1
     fi
 
-    # Create the device link for non-remote installs
+    # Create the device link for non-remote installs (not really relevant any more)
     if test "$REMOTEINST" -eq 0; then
         /usr/sbin/devfsadm -i "$MOD_VBOXDRV"
-        if test $? -ne 0 || test ! -h "/dev/vboxdrv"; then
-            errorprint "Failed to create device link for $MOD_VBOXDRV."
-            exit 1
-        fi
+        #if test $? -ne 0 || test ! -h "/dev/vboxdrv" || test ! -h "/dev/vboxdrvu" ; then
+        #    errorprint "Failed to create device link for $MOD_VBOXDRV."
+        #    exit 1
+        #fi
     fi
 
     # Load VBoxNetAdp
@@ -624,9 +653,10 @@ install_drivers()
 
     # If the force-install files exists, install blindly
     if test -f "$PKG_INSTALL_ROOT/etc/vboxinst_vboxflt"; then
+        subprint "Detected: Force-load file $PKG_INSTALL_ROOT/etc/vboxinst_vboxflt."
         load_vboxflt
     elif test -f "$PKG_INSTALL_ROOT/etc/vboxinst_vboxbow"; then
-        infoprint "here"
+        subprint "Detected: Force-load file $PKG_INSTALL_ROOT/etc/vboxinst_vboxbow."
         load_vboxbow
     else
         # If host is S10 or S11 (< snv_159) or vboxbow isn't shipped, then load vboxflt
@@ -703,27 +733,30 @@ remove_drivers()
         fi
     fi
 
-    unload_module "$MOD_VBOXUSB" "$DESC_VBOXUSB" "$fatal"
+    unload_module "$MOD_VBOXUSB" "$DESC_VBOXUSB" 0 "$fatal"
     rem_driver "$MOD_VBOXUSB" "$DESC_VBOXUSB" "$fatal"
 
-    unload_module "$MOD_VBOXUSBMON" "$DESC_VBOXUSBMON" "$fatal"
+    unload_module "$MOD_VBOXUSBMON" "$DESC_VBOXUSBMON" 0 "$fatal"
     rem_driver "$MOD_VBOXUSBMON" "$DESC_VBOXUSBMON" "$fatal"
 
-    unload_module "$MOD_VBOXFLT" "$DESC_VBOXFLT" "$fatal"
+    unload_module "$MOD_VBOXFLT" "$DESC_VBOXFLT" 0 "$fatal"
     rem_driver "$MOD_VBOXFLT" "$DESC_VBOXFLT" "$fatal"
 
-    unload_module "$MOD_VBOXBOW" "$DESC_VBOXBOW" "$fatal"
+    unload_module "$MOD_VBOXBOW" "$DESC_VBOXBOW" 0 "$fatal"
     rem_driver "$MOD_VBOXBOW" "$DESC_VBOXBOW" "$fatal"
 
-    unload_module "$MOD_VBOXNET" "$DESC_VBOXNET" "$fatal"
+    unload_module "$MOD_VBOXNET" "$DESC_VBOXNET" 0 "$fatal"
     rem_driver "$MOD_VBOXNET" "$DESC_VBOXNET" "$fatal"
 
-    unload_module "$MOD_VBOXDRV" "$DESC_VBOXDRV" "$fatal"
+    unload_module "$MOD_VBOXDRV" "$DESC_VBOXDRV" 1 "$fatal"
     rem_driver "$MOD_VBOXDRV" "$DESC_VBOXDRV" "$fatal"
 
     # remove devlinks
     if test -h "$PKG_INSTALL_ROOT/dev/vboxdrv" || test -f "$PKG_INSTALL_ROOT/dev/vboxdrv"; then
         rm -f "$PKG_INSTALL_ROOT/dev/vboxdrv"
+    fi
+    if test -h "$PKG_INSTALL_ROOT/dev/vboxdrvu" || test -f "$PKG_INSTALL_ROOT/dev/vboxdrvu"; then
+        rm -f "$PKG_INSTALL_ROOT/dev/vboxdrvu"
     fi
     if test -h "$PKG_INSTALL_ROOT/dev/vboxusbmon" || test -f "$PKG_INSTALL_ROOT/dev/vboxusbmon"; then
         rm -f "$PKG_INSTALL_ROOT/dev/vboxusbmon"
@@ -793,6 +826,24 @@ install_python_bindings()
     return 1
 }
 
+# is_process_running(processname)
+# returns 1 if the process is running, 0 otherwise
+is_process_running()
+{
+    if test -z "$1"; then
+        errorprint "missing argument to is_process_running()"
+        exit 1
+    fi
+
+    procname=$1
+    procpid=`ps -eo pid,fname | grep $procname | grep -v grep | awk '{ print $1 }'`
+    if test ! -z "$procpid" && test "$procpid" -ge 0; then
+        return 1
+    fi
+    return 0
+}
+
+
 # stop_process(processname)
 # failure: depends on [fatal]
 stop_process()
@@ -802,6 +853,7 @@ stop_process()
         exit 1
     fi
 
+    # @todo use is_process_running()
     procname=$1
     procpid=`ps -eo pid,fname | grep $procname | grep -v grep | awk '{ print $1 }'`
     if test ! -z "$procpid" && test "$procpid" -ge 0; then
@@ -871,7 +923,7 @@ stop_service()
         errorprint "missing argument to stop_service()"
         exit 1
     fi
-    servicefound=`$BIN_SVCS -a | grep "$2" 2>/dev/null`
+    servicefound=`$BIN_SVCS -H "$2" 2>/dev/null | grep '^online'`
     if test ! -z "$servicefound"; then
         $BIN_SVCADM disable -s "$3"
         # Don't delete the manifest, this is handled by the manifest class action
@@ -932,8 +984,40 @@ cleanup_install()
     done
 
     # Stop our other daemons, non-fatal
-    stop_process VBoxSVC
-    stop_process VBoxNetDHCP
+    stop_process "VBoxNetDHCP"
+    stop_process "VBoxNetNAT"
+
+   # Stop VBoxSVC quickly using SIGUSR1
+    procname="VBoxSVC"
+    procpid=`ps -eo pid,fname | grep $procname | grep -v grep | awk '{ print $1 }'`
+    if test ! -z "$procpid" && test "$procpid" -ge 0; then
+        kill -USR1 $procpid
+
+        # Sleep a while and check if VBoxSVC is still running, if so fail uninstallation.
+        sleep 2
+        is_process_running "VBoxSVC"
+        if test "$?" -eq 1; then
+            errorprint "Cannot uninstall VirtualBox while VBoxSVC (pid $procpid) is still running."
+            errorprint "Please shutdown all VMs and VirtualBox frontends before uninstalling VirtualBox."
+            exit 1
+        fi
+
+        # Some VMs might still be alive after VBoxSVC as they poll less frequently before killing themselves
+        # Just check for VBoxHeadless & VirtualBox frontends for now.
+        is_process_running "VBoxHeadless"
+        if test "$?" -eq 1; then
+            errorprint "Cannot uninstall VirtualBox while VBoxHeadless is still running."
+            errorprint "Please shutdown all VMs and VirtualBox frontends before uninstalling VirtualBox."
+            exit 1
+        fi
+
+        is_process_running "VirtualBox"
+        if test "$?" -eq 1; then
+            errorprint "Cannot uninstall VirtualBox while any VM is still running."
+            errorprint "Please shutdown all VMs and VirtualBox frontends before uninstalling VirtualBox."
+            exit 1
+        fi
+    fi
 }
 
 
@@ -1046,10 +1130,14 @@ postinstall()
             if test "$REMOTEINST" -eq 1; then
                 subprint "Skipped for targetted installs."
             else
-                # Start ZoneAccess service, other services are disabled by default.
+                # Since S11 the way to import a manifest is via restarting manifest-import which is asynchronous and can
+                # take a while to complete, using disable/enable -s doesn't work either. So we restart it, and poll in
+                # 1 second intervals to see if our service has been successfully imported and timeout after 'cmax' seconds.
                 $BIN_SVCADM restart svc:system/manifest-import:default
+
+                # Start ZoneAccess service, other services are disabled by default.
                 start_service "Zone access service" "virtualbox/zoneaccess" "svc:/application/virtualbox/zoneaccess:default" \
-                                "/var/svc/log/application-virtualbox-zoneaccess:default.log"
+                            "/var/svc/log/application-virtualbox-zoneaccess:default.log"
             fi
         fi
 
@@ -1164,12 +1252,17 @@ do
             # Use alternate kernel driver config folder (dev only)
             DIR_CONF="/usr/kernel/drv"
             ;;
+        --sh-trace) # forwarded pkgadd -v
+            set -x
+            ;;
         --help)
             printusage
             exit 1
             ;;
         *)
-            break
+            # Take a hard line on invalid options.
+            errorprint "Invalid command line option: \"$1\""
+            exit 1;
             ;;
     esac
     shift

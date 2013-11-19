@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -84,6 +84,8 @@
  * Returned by pfnInit in VBoxService to indicated a non-fatal error that
  * should results in the particular service being disabled. */
 #define VERR_SERVICE_DISABLED               (-1020)
+/** The requested feature is not supported in raw-mode. */
+#define VERR_NOT_SUP_IN_RAW_MODE            (-1021)
 /** @} */
 
 
@@ -156,7 +158,7 @@
 #define VINF_EM_RESCHEDULE_REM              1115
 /** Indicating that a rescheduling to vmx-mode execution.
  * Typically caused by REM detecting that hardware-accelerated raw-mode execution is possible. */
-#define VINF_EM_RESCHEDULE_HWACC            1116
+#define VINF_EM_RESCHEDULE_HM            1116
 /** Indicating that a rescheduling to raw-mode execution.
  * Typically caused by REM detecting that raw-mode execution is possible.
  * @remarks Important to have a higher priority (lower number) than VINF_EM_RESCHEDULE. */
@@ -235,12 +237,15 @@
 /** Start instruction stepping (debug only). */
 #define VINF_EM_RAW_EMULATE_DBG_STEP        1151
 /** Patch TPR access instruction. */
-#define VINF_EM_HWACCM_PATCH_TPR_INSTR      1152
-/** The EMInterpretDisasOne / EMInterpretDisasOneEx methods failed to
- * disassemble the instruction. */
-#define VERR_EM_INTERNAL_DISAS_ERROR        (-1153)
+#define VINF_EM_HM_PATCH_TPR_INSTR          1152
 /** Unexpected guest mapping conflict detected. */
 #define VERR_EM_UNEXPECTED_MAPPING_CONFLICT (-1154)
+/** Reason for leaving RC: A triple-fault condition. Currently, causes
+ *  a guru meditation. */
+#define VINF_EM_TRIPLE_FAULT                1155
+/** The specified execution engine cannot execute guest code in the current
+ *  state. */
+#define VERR_EM_CANNOT_EXEC_GUEST           (-1156)
 /** @} */
 
 
@@ -360,6 +365,8 @@
 #define VINF_PATM_SPINLOCK_FAILED           (1429)
 /** Continue execution after patch trap. */
 #define VINF_PATCH_CONTINUE                 (1430)
+/** The patch manager is not used because we're using HM and VT-x/AMD-V. */
+#define VERR_PATM_HM_IPE                    (-1431)
 
 /** @} */
 
@@ -375,6 +382,8 @@
 #define VWRN_CSAM_PAGE_NOT_FOUND            1502
 /** Reason for leaving RC: CSAM wants perform a task in ring-3. */
 #define VINF_CSAM_PENDING_ACTION            1503
+/** The CSAM is not used because we're using HM and VT-x/AMD-V. */
+#define VERR_CSAM_HM_IPE                    (-1504)
 /** @} */
 
 
@@ -570,6 +579,11 @@
 #define VERR_PGM_PHYS_NULL_PAGE_PARAM           (-1681)
 /** PCI passthru is not supported by this build. */
 #define VERR_PGM_PCI_PASSTHRU_MISCONFIG         (-1682)
+/** Too many MMIO2 ranges. */
+#define VERR_PGM_TOO_MANY_MMIO2_RANGES          (-1683)
+/** Internal processing error in the PGM physial page mapping code dealing
+ * with MMIO2 pages. */
+#define VERR_PGM_PHYS_PAGE_MAP_MMIO2_IPE        (-1684)
 /** @} */
 
 
@@ -968,6 +982,8 @@
 #define VERR_TRPM_IPE_2                     (-2408)
 /** Internal processing error \#3 in TRPM. */
 #define VERR_TRPM_IPE_3                     (-2409)
+/** Got into a part of TRPM that is not used when HM (VT-x/AMD-V) is enabled. */
+#define VERR_TRPM_HM_IPE                    (-2410)
 /** @} */
 
 
@@ -999,6 +1015,8 @@
 /** The guest GDT so full that we cannot find free space for our own
  * selectors. */
 #define VERR_SELM_GDT_TOO_FULL              (-2508)
+/** Got into a part of SELM that is not used when HM (VT-x/AMD-V) is enabled. */
+#define VERR_SELM_HM_IPE                    (-2509)
 /** @} */
 
 
@@ -1078,6 +1096,8 @@
 #define VERR_IOM_MMIO_IPE_2                 (-2635)
 /** Internal processing error \#3 in the MMIO code. */
 #define VERR_IOM_MMIO_IPE_3                 (-2636)
+/** Got into a part of IOM that is not used when HM (VT-x/AMD-V) is enabled. */
+#define VERR_IOM_HM_IPE                     (-2637)
 /** @} */
 
 
@@ -1117,6 +1137,12 @@
 #define VINF_VMM_CALL_TRACER                (2712)
 /** Internal processing error \#1 in the switcher code. */
 #define VERR_VMM_SWITCHER_IPE_1             (-2713)
+/** Reason for leaving RZ: Unknown call to ring-3. */
+#define VINF_VMM_UNKNOWN_RING3_CALL         (2714)
+/** Attempted to use stub switcher. */
+#define VERR_VMM_SWITCHER_STUB              (-2715)
+/** HM returned in the wrong state. */
+#define VERR_VMM_WRONG_HM_VMCPU_STATE       (-2716)
 /** @} */
 
 
@@ -1224,13 +1250,9 @@
 /** No PCI Bus is available to register the device with. This is usually a
  * misconfiguration or in rare cases a buggy pci device. */
 #define VERR_PDM_NO_PCI_BUS                         (-2833)
-/** PCI physical read with bus mastering disabled. */
-#define VINF_PDM_PCI_PHYS_READ_BM_DISABLED          (2833)
 /** The device is not a registered PCI device and thus cannot
  * perform any PCI operations. The device forgot to register it self. */
 #define VERR_PDM_NOT_PCI_DEVICE                     (-2834)
-/** PCI physical write with bus mastering disabled. */
-#define VINF_PDM_PCI_PHYS_WRITE_BM_DISABLED         (2834)
 
 /** The version of the device registration structure is unknown
  * to this VBox version. Either mixing incompatible versions or
@@ -1398,6 +1420,11 @@
 /** The driver is already removed, not more transformations possible (at
  *  present). */
 #define VERR_PDM_CANNOT_TRANSFORM_REMOVED_DRIVER    (-2890)
+/** The PCI device isn't configured as a busmaster, physical memory access
+ * rejected. */
+#define VERR_PDM_NOT_PCI_BUS_MASTER                 (-2891)
+/** Got into a part of PDM that is not used when HM (VT-x/AMD-V) is enabled. */
+#define VERR_PDM_HM_IPE                             (-2892)
 /** @} */
 
 
@@ -1554,6 +1581,10 @@
 #define VERR_VD_READ_OUT_OF_RANGE                   (-3282)
 /** Block read was marked as free in the image and returned as a zero block. */
 #define VINF_VD_NEW_ZEROED_BLOCK                    3283
+/** Unable to parse the XML in DMG file. */
+#define VERR_VD_DMG_XML_PARSE_ERROR                 (-3284)
+/** Unable to locate a usable DMG file within the XAR archive. */
+#define VERR_VD_DMG_NOT_FOUND_INSIDE_XAR            (-3285)
 /** @} */
 
 
@@ -1851,44 +1882,64 @@
 /** @name VBox VMX Status Codes
  * @{
  */
-/** Invalid VMCS index or write to read-only element. */
-#define VERR_VMX_INVALID_VMCS_FIELD                 (-4000)
-/** Invalid VMCS pointer. */
+/** VMXON failed; possibly because it was already run before. */
+#define VERR_VMX_VMXON_FAILED                       (-4000)
+/** Invalid VMCS pointer.
+ * (Can be OR'ed with VERR_VMX_INVALID_VMCS_FIELD.) */
 #define VERR_VMX_INVALID_VMCS_PTR                   (-4001)
+/** Invalid VMCS index or write to read-only element. */
+#define VERR_VMX_INVALID_VMCS_FIELD                 (-4002)
+/** Reserved for future status code that we wish to OR with
+ *  VERR_VMX_INVALID_VMCS_PTR and VERR_VMX_INVALID_VMCS_FIELD. */
+#define VERR_VMX_RESERVED                           (-4003)
 /** Invalid VMXON pointer. */
-#define VERR_VMX_INVALID_VMXON_PTR                  (-4002)
-/** Generic VMX failure. */
-#define VERR_VMX_GENERIC                            (-4003)
-/** Invalid CPU mode for VMX execution. */
-#define VERR_VMX_UNSUPPORTED_MODE                   (-4004)
+#define VERR_VMX_INVALID_VMXON_PTR                  (-4004)
 /** Unable to start VM execution. */
 #define VERR_VMX_UNABLE_TO_START_VM                 (-4005)
-/** Unable to resume VM execution. */
-#define VERR_VMX_UNABLE_TO_RESUME_VM                (-4006)
 /** Unable to switch due to invalid host state. */
-#define VERR_VMX_INVALID_HOST_STATE                 (-4007)
+#define VERR_VMX_INVALID_HOST_STATE                 (-4006)
 /** IA32_FEATURE_CONTROL MSR not setup correcty (turn on VMX in the host system BIOS) */
-#define VERR_VMX_ILLEGAL_FEATURE_CONTROL_MSR        (-4008)
+#define VERR_VMX_ILLEGAL_FEATURE_CONTROL_MSR        (-4007)
+/** Invalid CPU mode for VMX execution. */
+#define VERR_VMX_UNSUPPORTED_MODE                   (-4008)
 /** VMX CPU extension not available */
 #define VERR_VMX_NO_VMX                             (-4009)
-/** VMXON failed; possibly because it was already run before */
-#define VERR_VMX_VMXON_FAILED                       (-4010)
 /** CPU was incorrectly left in VMX root mode; incompatible with VirtualBox */
 #define VERR_VMX_IN_VMX_ROOT_MODE                   (-4011)
 /** Somebody cleared X86_CR4_VMXE in the CR4 register. */
 #define VERR_VMX_X86_CR4_VMXE_CLEARED               (-4012)
-/** VT-x features locked or unavailable in MSR. */
-#define VERR_VMX_MSR_LOCKED_OR_DISABLED             (-4013)
+/** Failed to enable and lock VT-x features. */
+#define VERR_VMX_MSR_LOCKING_FAILED                 (-4013)
 /** Unable to switch due to invalid guest state. */
 #define VERR_VMX_INVALID_GUEST_STATE                (-4014)
-/** Unexpected VM exit code. */
-#define VERR_VMX_UNEXPECTED_EXIT_CODE               (-4015)
-/** Unexpected VM exception code. */
+/** Unexpected VM exit. */
+#define VERR_VMX_UNEXPECTED_EXIT                    (-4015)
+/** Unexpected VM exception. */
 #define VERR_VMX_UNEXPECTED_EXCEPTION               (-4016)
-/** Unexpected interruption exit code. */
-#define VERR_VMX_UNEXPECTED_INTERRUPTION_EXIT_CODE  (-4017)
-/** CPU is not in VMX root mode; unexpected when leaving VMX root mode */
+/** Unexpected interruption exit type. */
+#define VERR_VMX_UNEXPECTED_INTERRUPTION_EXIT_TYPE  (-4017)
+/** CPU is not in VMX root mode; unexpected when leaving VMX root mode. */
 #define VERR_VMX_NOT_IN_VMX_ROOT_MODE               (-4018)
+/** Undefined VM exit code. */
+#define VERR_VMX_UNDEFINED_EXIT_CODE                (-4019)
+/** VMPTRLD failed; possibly because of invalid VMCS launch-state. */
+#define VERR_VMX_VMPTRLD_FAILED                     (-4021)
+/** Invalid VMCS pointer passed to VMLAUNCH/VMRESUME. */
+#define VERR_VMX_INVALID_VMCS_PTR_TO_START_VM       (-4022)
+/** Internal VMX processing error no 1. */
+#define VERR_HMVMX_IPE_1                            (-4023)
+/** Internal VMX processing error no 1. */
+#define VERR_HMVMX_IPE_2                            (-4024)
+/** Internal VMX processing error no 1. */
+#define VERR_HMVMX_IPE_3                            (-4025)
+/** Internal VMX processing error no 1. */
+#define VERR_HMVMX_IPE_4                            (-4026)
+/** Internal VMX processing error no 1. */
+#define VERR_HMVMX_IPE_5                            (-4027)
+/** VT-x features for SMX operation disabled by the BIOS. */
+#define VERR_VMX_MSR_SMX_VMXON_DISABLED             (-4028)
+/** VT-x features disabled by the BIOS. */
+#define VERR_VMX_MSR_VMXON_DISABLED                 (-4029)
 /** @} */
 
 
@@ -1905,44 +1956,60 @@
 #define VERR_SVM_DISABLED                           (-4053)
 /** AMD-V CPU extension in-use. */
 #define VERR_SVM_IN_USE                             (-4054)
+/** Invalid pVMCB. */
+#define VERR_SVM_INVALID_PVMCB                      (-4055)
+/** Unexpected SVM exit. */
+#define VERR_SVM_UNEXPECTED_EXIT                    (-4056)
+/** Unexpected SVM exception exit. */
+#define VERR_SVM_UNEXPECTED_XCPT_EXIT               (-4057)
+/** Unexpected SVM patch type. */
+#define VERR_SVM_UNEXPECTED_PATCH_TYPE              (-4058)
+/** Unable to start VM execution due to an invalid guest state. */
+#define VERR_SVM_INVALID_GUEST_STATE                (-4059)
+/** Unknown or unrecognized SVM exit.  */
+#define VERR_SVM_UNKNOWN_EXIT                       (-4060)
 /** @} */
 
 
-/** @name VBox HWACCM Status Codes
+/** @name VBox HM Status Codes
  * @{
  */
 /** Unable to start VM execution. */
-#define VERR_HWACCM_UNKNOWN_CPU                     (-4100)
+#define VERR_HM_UNKNOWN_CPU                         (-4100)
 /** No CPUID support. */
-#define VERR_HWACCM_NO_CPUID                        (-4101)
+#define VERR_HM_NO_CPUID                            (-4101)
 /** Host is about to go into suspend mode. */
-#define VERR_HWACCM_SUSPEND_PENDING                 (-4102)
+#define VERR_HM_SUSPEND_PENDING                     (-4102)
 /** Conflicting CFGM values. */
-#define VERR_HWACCM_CONFIG_MISMATCH                 (-4103)
+#define VERR_HM_CONFIG_MISMATCH                     (-4103)
 /** Internal processing error in the HM init code. */
 #define VERR_HM_ALREADY_ENABLED_IPE                 (-4104)
 /** Unexpected MSR in the load / restore list.  */
 #define VERR_HM_UNEXPECTED_LD_ST_MSR                (-4105)
 /** No 32-bit to 64-bit switcher in place. */
 #define VERR_HM_NO_32_TO_64_SWITCHER                (-4106)
-/** Invalid pVMCB. */
-#define VERR_HMSVM_INVALID_PVMCB                    (-4107)
-/** Unexpected SVM exit. */
-#define VERR_HMSVM_UNEXPECTED_EXIT                  (-4108)
-/** Unexpected SVM exception exit. */
-#define VERR_HMSVM_UNEXPECTED_XCPT_EXIT             (-4109)
-/** Unexpected SVM patch type. */
-#define VERR_HMSVM_UNEXPECTED_PATCH_TYPE            (-4110)
-/** HWACCMR0Leave was called on the wrong CPU. */
-#define VERR_HM_WRONG_CPU_1                         (-4111)
+/** HMR0Leave was called on the wrong CPU. */
+#define VERR_HM_WRONG_CPU_1                         (-4107)
 /** Internal processing error \#1 in the HM code.  */
-#define VERR_HM_IPE_1                               (-4112)
+#define VERR_HM_IPE_1                               (-4108)
 /** Internal processing error \#2 in the HM code.  */
-#define VERR_HM_IPE_2                               (-4113)
+#define VERR_HM_IPE_2                               (-4109)
 /** Wrong 32/64-bit switcher. */
-#define VERR_HM_WRONG_SWITCHER                      (-4114)
+#define VERR_HM_WRONG_SWITCHER                      (-4110)
 /** Unknown I/O instruction. */
-#define VERR_HM_UNKNOWN_IO_INSTRUCTION              (-4115)
+#define VERR_HM_UNKNOWN_IO_INSTRUCTION              (-4111)
+/** Unsupported CPU feature combination. */
+#define VERR_HM_UNSUPPORTED_CPU_FEATURE_COMBO       (-4112)
+/** Internal processing error \#3 in the HM code.  */
+#define VERR_HM_IPE_3                               (-4113)
+/** Internal processing error \#3 in the HM code.  */
+#define VERR_HM_IPE_4                               (-4114)
+/** Internal processing error \#3 in the HM code.  */
+#define VERR_HM_IPE_5                               (-4115)
+/** Invalid HM64ON32OP value.  */
+#define VERR_HM_INVALID_HM64ON32OP                  (-4116)
+/** Resume guest execution after injecting a double-fault. */
+#define VINF_HM_DOUBLE_FAULT                        4117
 /** @} */
 
 
@@ -1959,8 +2026,6 @@
 #define VERR_DIS_INVALID_MODRM                      (-4203)
 /** Invalid parameter index. */
 #define VERR_DIS_INVALID_PARAMETER                  (-4204)
-/** Reading opcode bytes failed. */
-#define VERR_DIS_MEM_READ                           (-4205)
 /** The instruction is too long. */
 #define VERR_DIS_TOO_LONG_INSTR                     (-4206)
 /** @} */
@@ -2090,7 +2155,7 @@
 #define VERR_PCI_PASSTHROUGH_NO_RAM_PREALLOC        (-5100)
 /** VT-x/AMD-V not active.
  * PCI passthrough currently works only if VT-x/AMD-V is active. */
-#define VERR_PCI_PASSTHROUGH_NO_HWACCM              (-5101)
+#define VERR_PCI_PASSTHROUGH_NO_HM              (-5101)
 /** Nested paging not active.
  * PCI passthrough currently works only if nested paging is active. */
 #define VERR_PCI_PASSTHROUGH_NO_NESTED_PAGING       (-5102)
@@ -2117,6 +2182,17 @@
  * @{ */
 /** The instruction is not yet implemented by IEM. */
 #define VERR_IEM_INSTR_NOT_IMPLEMENTED              (-5300)
+/** Invalid operand size passed to an IEM function. */
+#define VERR_IEM_INVALID_OPERAND_SIZE               (-5301)
+/** Invalid address mode passed to an IEM function. */
+#define VERR_IEM_INVALID_ADDRESS_MODE               (-5302)
+/** Invalid effective segment register number passed to an IEM function. */
+#define VERR_IEM_INVALID_EFF_SEG                    (-5303)
+/** Invalid instruction length passed to an IEM function. */
+#define VERR_IEM_INVALID_INSTR_LENGTH               (-5304)
+/** Internal status code for indicating that a selector isn't valid (LAR, LSL,
+ *  VERR, VERW).  This is not used outside the instruction implementations. */
+#define VINF_IEM_SELECTOR_NOT_OK                    (5305)
 /** This particular aspect of the instruction is not yet implemented by IEM. */
 #define VERR_IEM_ASPECT_NOT_IMPLEMENTED             (-5391)
 /** Internal processing error \#1 in the IEM code.. */
@@ -2221,6 +2297,18 @@
  * extension packs to versions compatible with this VirtualBox release.
  */
 #define VERR_EXTPACK_VBOX_VERSION_MISMATCH          (-6001)
+/** @} */
+
+
+/** @} */
+
+/** @name VBox Guest Control Status Codes
+ * @{
+ */
+/** Guest side reported an error. */
+#define VERR_GSTCTL_GUEST_ERROR                     (-6200)
+/** A guest control object has changed its overall status. */
+#define VWRN_GSTCTL_OBJECTSTATE_CHANGED             6220
 /** @} */
 
 

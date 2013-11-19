@@ -52,6 +52,7 @@
 
 #define DEBUG_ATA       0
 #define DEBUG_AHCI      0
+#define DEBUG_SCSI      0
 #define DEBUG_CD_BOOT   0
 #define DEBUG_ELTORITO  0
 #define DEBUG_INT13_HD  0
@@ -236,7 +237,7 @@ extern  bx_bool     set_enable_a20(bx_bool val);
 #endif /* !VBOX */
 #define BX_PANIC(...)   bios_printf(BIOS_PRINTF_DEBHALT, __VA_ARGS__)
 
-/* Because we don't tell the recompiler when guest physical memory 
+/* Because we don't tell the recompiler when guest physical memory
  * is written, it can incorrectly cache guest code overwritten by
  * DMA (bus master or not). We just re-write the memory block to flush
  * any of its caches. This is not exactly efficient, but works!

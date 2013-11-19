@@ -427,18 +427,27 @@ crServerDispatchSwapBuffers( GLint window, GLint flags )
 
 	ctx = crStateGetCurrent();
 
+	CRASSERT(cr_server.curClient && cr_server.curClient->currentMural == mural);
+
     if (ctx->framebufferobject.drawFB
             || (ctx->buffer.drawBuffer != GL_FRONT && ctx->buffer.drawBuffer != GL_FRONT_LEFT))
-        cr_server.curClient->currentMural->bFbDraw = GL_FALSE;
+        mural->bFbDraw = GL_FALSE;
+
+    CR_SERVER_DUMP_SWAPBUFFERS_ENTER();
 
     if (crServerIsRedirectedToFBO())
     {
+        crServerMuralFBOSwapBuffers(mural);
         crServerPresentFBO(mural);
     }
     else
     {
         cr_server.head_spu->dispatch_table.SwapBuffers( mural->spuWindow, flags );
+        if (crServerVBoxCompositionPresentNeeded(mural))
+            mural->fDataPresented = GL_TRUE;
     }
+
+    CR_SERVER_DUMP_SWAPBUFFERS_LEAVE();
 }
 
 void SERVER_DISPATCH_APIENTRY
@@ -447,20 +456,21 @@ crServerDispatchFlush(void)
     CRContext *ctx = crStateGetCurrent();
     cr_server.head_spu->dispatch_table.Flush();
 
-    if (!cr_server.curClient->currentMural) /* <- on window destroy this will be zero */
-        return;
-
-    if (cr_server.curClient->currentMural->bFbDraw && crServerIsRedirectedToFBO())
+    if (cr_server.curClient && cr_server.curClient->currentMural)
     {
-#ifdef DEBUG_misha
-        CRASSERT(0);
-#endif
-        crServerPresentFBO(cr_server.curClient->currentMural);
-    }
+        CRMuralInfo *mural = cr_server.curClient->currentMural;
+        if (mural->bFbDraw)
+        {
+            if (crServerIsRedirectedToFBO())
+                crServerPresentFBO(mural);
+            else if (crServerVBoxCompositionPresentNeeded(mural))
+                mural->fDataPresented = GL_TRUE;
+        }
 
-    if (ctx->framebufferobject.drawFB
-            || (ctx->buffer.drawBuffer != GL_FRONT && ctx->buffer.drawBuffer != GL_FRONT_LEFT))
-        cr_server.curClient->currentMural->bFbDraw = GL_FALSE;
+        if (ctx->framebufferobject.drawFB
+                || (ctx->buffer.drawBuffer != GL_FRONT && ctx->buffer.drawBuffer != GL_FRONT_LEFT))
+            mural->bFbDraw = GL_FALSE;
+    }
 }
 
 void SERVER_DISPATCH_APIENTRY
@@ -470,15 +480,19 @@ crServerDispatchFinish(void)
 
     cr_server.head_spu->dispatch_table.Finish();
 
-    if (cr_server.curClient->currentMural->bFbDraw && crServerIsRedirectedToFBO())
+    if (cr_server.curClient && cr_server.curClient->currentMural)
     {
-#ifdef DEBUG_misha
-        CRASSERT(0);
-#endif
-        crServerPresentFBO(cr_server.curClient->currentMural);
-    }
+        CRMuralInfo *mural = cr_server.curClient->currentMural;
+        if (mural->bFbDraw)
+        {
+            if (crServerIsRedirectedToFBO())
+                crServerPresentFBO(mural);
+            else if (crServerVBoxCompositionPresentNeeded(mural))
+                mural->fDataPresented = GL_TRUE;
+        }
 
-    if (ctx->framebufferobject.drawFB
-            || (ctx->buffer.drawBuffer != GL_FRONT && ctx->buffer.drawBuffer != GL_FRONT_LEFT))
-        cr_server.curClient->currentMural->bFbDraw = GL_FALSE;
+        if (ctx->framebufferobject.drawFB
+                || (ctx->buffer.drawBuffer != GL_FRONT && ctx->buffer.drawBuffer != GL_FRONT_LEFT))
+            mural->bFbDraw = GL_FALSE;
+    }
 }

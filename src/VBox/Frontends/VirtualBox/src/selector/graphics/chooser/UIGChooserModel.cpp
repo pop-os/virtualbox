@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,12 +43,9 @@
 #include "UIVirtualBoxEventHandler.h"
 
 /* COM includes: */
-#include "CMachine.h"
 #include "CVirtualBox.h"
-
-/* Other VBox includes: */
-#include <VBox/com/com.h>
-#include <iprt/path.h>
+#include "CMachine.h"
+#include "CMedium.h"
 
 /* Type defs: */
 typedef QSet<QString> UIStringSet;
@@ -85,9 +82,6 @@ UIGChooserModel::UIGChooserModel(QObject *pParent)
 
     /* Prepare connections: */
     prepareConnections();
-
-    /* Prepare release logging: */
-    prepareReleaseLogging();
 }
 
 UIGChooserModel::~UIGChooserModel()
@@ -758,13 +752,13 @@ void UIGChooserModel::sltUngroupSelectedGroup()
                     toBeRemoved << pItem;
                 else if (pCollisionSibling->type() == UIGChooserItemType_Group)
                 {
-                    msgCenter().notifyAboutCollisionOnGroupRemovingCantBeResolved(strItemName, pParentItem->name());
+                    msgCenter().cannotResolveCollisionAutomatically(strItemName, pParentItem->name());
                     return;
                 }
             }
             else if (pItem->type() == UIGChooserItemType_Group)
             {
-                if (msgCenter().askAboutCollisionOnGroupRemoving(strItemName, pParentItem->name()) == QIMessageBox::Ok)
+                if (msgCenter().confirmAutomaticCollisionResolve(strItemName, pParentItem->name()))
                     toBeRenamed << pItem;
                 else
                     return;
@@ -894,6 +888,10 @@ void UIGChooserModel::sltReloadMachine(const QString &strId)
     /* And update model: */
     updateNavigation();
     updateLayout();
+
+    /* Make sure at least one item selected after that: */
+    if (!currentItem() && !navigationList().isEmpty())
+        setCurrentItem(navigationList().first());
 
     /* Notify listeners about selection change: */
     emit sigSelectionChanged();
@@ -1224,30 +1222,6 @@ void UIGChooserModel::prepareConnections()
             this, SLOT(sltSnapshotChanged(QString, QString)));
 }
 
-void UIGChooserModel::prepareReleaseLogging()
-{
-    /* Prepare release logging: */
-    char szLogFile[RTPATH_MAX];
-    const char *pszLogFile = NULL;
-    com::GetVBoxUserHomeDirectory(szLogFile, sizeof(szLogFile));
-    RTPathAppend(szLogFile, sizeof(szLogFile), "selectorwindow.log");
-    pszLogFile = szLogFile;
-    /* Create release logger, to file: */
-    char szError[RTPATH_MAX + 128];
-    com::VBoxLogRelCreate("GUI VM Selector Window",
-                          pszLogFile,
-                          RTLOGFLAGS_PREFIX_TIME_PROG,
-                          "all",
-                          "VBOX_GUI_SELECTORWINDOW_RELEASE_LOG",
-                          RTLOGDEST_FILE,
-                          UINT32_MAX,
-                          1,
-                          60 * 60,
-                          _1M,
-                          szError,
-                          sizeof(szError));
-}
-
 void UIGChooserModel::loadLastSelectedItem()
 {
     /* Load last selected item (choose first if unable to load): */
@@ -1417,12 +1391,11 @@ void UIGChooserModel::cleanupGroupTree(UIGChooserItem *pParent)
 
 void UIGChooserModel::removeItems(const QList<UIGChooserItem*> &itemsToRemove)
 {
-    /* Show machine-items remove dialog: */
+    /* Confirm machine-items removal: */
     QStringList names;
     foreach (UIGChooserItem *pItem, itemsToRemove)
         names << pItem->name();
-    int rc = msgCenter().confirmMachineItemRemoval(names);
-    if (rc == QIMessageBox::Cancel)
+    if (!msgCenter().confirmMachineItemRemoval(names))
         return;
 
     /* Remove all the passed items: */
@@ -1452,37 +1425,54 @@ void UIGChooserModel::unregisterMachines(const QStringList &ids)
             machines << machine;
     }
 
-    /* Show machine remove dialog: */
-    int rc = msgCenter().confirmMachineDeletion(machines);
-    if (rc != QIMessageBox::Cancel)
+    /* Confirm machine removal: */
+    int iResultCode = msgCenter().confirmMachineRemoval(machines);
+    if (iResultCode == AlertButton_Cancel)
+        return;
+
+    /* For every selected item: */
+    for (int iMachineIndex = 0; iMachineIndex < machines.size(); ++iMachineIndex)
     {
-        /* For every selected item: */
-        foreach (CMachine machine, machines)
+        /* Get iterated machine: */
+        CMachine &machine = machines[iMachineIndex];
+        if (iResultCode == AlertButton_Choice1)
         {
-            if (rc == QIMessageBox::Yes)
+            /* Unregister machine first: */
+            CMediumVector mediums = machine.Unregister(KCleanupMode_DetachAllReturnHardDisksOnly);
+            if (!machine.isOk())
             {
-                /* Unregister and cleanup machine's data & hard-disks: */
-                CMediumVector mediums = machine.Unregister(KCleanupMode_DetachAllReturnHardDisksOnly);
-                if (machine.isOk())
-                {
-                    /* Delete machine hard-disks: */
-                    CProgress progress = machine.Delete(mediums);
-                    if (machine.isOk())
-                    {
-                        msgCenter().showModalProgressDialog(progress, machine.GetName(), ":/progress_delete_90px.png", 0, true);
-                        if (progress.GetResultCode() != 0)
-                            msgCenter().cannotDeleteMachine(machine, progress);
-                    }
-                }
-                if (!machine.isOk())
-                    msgCenter().cannotDeleteMachine(machine);
+                msgCenter().cannotRemoveMachine(machine);
+                continue;
             }
-            else
+            /* Prepare cleanup progress: */
+            CProgress progress = machine.DeleteConfig(mediums);
+            if (!machine.isOk())
             {
-                /* Just unregister machine: */
-                machine.Unregister(KCleanupMode_DetachAllReturnNone);
-                if (!machine.isOk())
-                    msgCenter().cannotDeleteMachine(machine);
+                msgCenter().cannotRemoveMachine(machine);
+                continue;
+            }
+            /* And show cleanup progress finally: */
+            msgCenter().showModalProgressDialog(progress, machine.GetName(), ":/progress_delete_90px.png");
+            if (!progress.isOk() || progress.GetResultCode() != 0)
+            {
+                msgCenter().cannotRemoveMachine(machine, progress);
+                continue;
+            }
+        }
+        else if (iResultCode == AlertButton_Choice2)
+        {
+            /* Unregister machine first: */
+            CMediumVector mediums = machine.Unregister(KCleanupMode_DetachAllReturnHardDisksOnly);
+            if (!machine.isOk())
+            {
+                msgCenter().cannotRemoveMachine(machine);
+                continue;
+            }
+            /* Finally close all media, deliberately ignoring errors: */
+            foreach (CMedium medium, mediums)
+            {
+                if (!medium.isNull())
+                    medium.Close();
             }
         }
     }
@@ -1614,40 +1604,42 @@ bool UIGChooserModel::processDragMoveEvent(QGraphicsSceneDragDropEvent *pEvent)
 void UIGChooserModel::loadGroupTree()
 {
     /* Add all the approved machines we have into the group-tree: */
-    LogRel(("Loading VMs started...\n"));
+    LogRelFlow(("UIGChooserModel: Loading VMs...\n"));
     foreach (CMachine machine, vboxGlobal().virtualBox().GetMachines())
         if (VBoxGlobal::shouldWeShowMachine(machine))
             addMachineIntoTheTree(machine);
-    LogRel(("Loading VMs finished.\n"));
+    LogRelFlow(("UIGChooserModel: VMs loaded.\n"));
 }
 
 void UIGChooserModel::addMachineIntoTheTree(const CMachine &machine, bool fMakeItVisible /* = false */)
 {
-    /* Which VM we are loading: */
+    /* Make sure passed VM is not NULL: */
     if (machine.isNull())
-        LogRel((" ERROR: VM is NULL!\n"));
-    else
-        LogRel((" Loading VM {%s}...\n", machine.GetId().toAscii().constData()));
+        LogRelFlow(("UIGChooserModel: ERROR: Passed VM is NULL!\n"));
+    AssertReturnVoid(!machine.isNull());
+
+    /* Which VM we are loading: */
+    LogRelFlow(("UIGChooserModel: Loading VM with ID={%s}...\n", machine.GetId().toAscii().constData()));
     /* Is that machine accessible? */
     if (machine.GetAccessible())
     {
         /* VM is accessible: */
         QString strName = machine.GetName();
-        LogRel((" VM {%s} is accessible.\n", strName.toAscii().constData()));
+        LogRelFlow(("UIGChooserModel:  VM {%s} is accessible.\n", strName.toAscii().constData()));
         /* Which groups passed machine attached to? */
         QVector<QString> groups = machine.GetGroups();
         QStringList groupList = groups.toList();
         QString strGroups = groupList.join(", ");
-        LogRel((" VM {%s} groups are {%s}.\n", strName.toAscii().constData(),
-                                               strGroups.toAscii().constData()));
+        LogRelFlow(("UIGChooserModel:  VM {%s} has groups: {%s}.\n", strName.toAscii().constData(),
+                                                                     strGroups.toAscii().constData()));
         foreach (QString strGroup, groups)
         {
             /* Remove last '/' if any: */
             if (strGroup.right(1) == "/")
                 strGroup.truncate(strGroup.size() - 1);
             /* Create machine-item with found group-item as parent: */
-            LogRel(("  Creating item for VM {%s}, group {%s}.\n", strName.toAscii().constData(),
-                                                                  strGroup.toAscii().constData()));
+            LogRelFlow(("UIGChooserModel:   Creating item for VM {%s} in group {%s}.\n", strName.toAscii().constData(),
+                                                                                         strGroup.toAscii().constData()));
             createMachineItem(machine, getGroupItem(strGroup, mainRoot(), fMakeItVisible));
         }
         /* Update group definitions: */
@@ -1657,7 +1649,7 @@ void UIGChooserModel::addMachineIntoTheTree(const CMachine &machine, bool fMakeI
     else
     {
         /* VM is accessible: */
-        LogRel((" VM {%s} is inaccessible.\n", machine.GetId().toAscii().constData()));
+        LogRelFlow(("UIGChooserModel:  VM {%s} is inaccessible.\n", machine.GetId().toAscii().constData()));
         /* Create machine-item with main-root group-item as parent: */
         createMachineItem(machine, mainRoot());
     }
@@ -1954,35 +1946,10 @@ void UIGroupDefinitionSaveThread::configure(QObject *pParent,
     connect(this, SIGNAL(sigComplete()), pParent, SLOT(sltGroupDefinitionsSaveComplete()));
 }
 
-void UIGroupDefinitionSaveThread::sltHandleError(UIGroupsSavingError errorType, const CMachine &machine)
-{
-    switch (errorType)
-    {
-        case UIGroupsSavingError_MachineLockFailed:
-            msgCenter().cannotOpenSession(machine);
-            break;
-        case UIGroupsSavingError_MachineGroupSetFailed:
-            msgCenter().cannotSetGroups(machine);
-            break;
-        case UIGroupsSavingError_MachineSettingsSaveFailed:
-            msgCenter().cannotSaveMachineSettings(machine);
-            break;
-        default:
-            break;
-    }
-    emit sigReload(machine.GetId());
-    m_condition.wakeAll();
-}
-
 UIGroupDefinitionSaveThread::UIGroupDefinitionSaveThread()
 {
     /* Assign instance: */
     m_spInstance = this;
-
-    /* Setup connections: */
-    qRegisterMetaType<UIGroupsSavingError>();
-    connect(this, SIGNAL(sigError(UIGroupsSavingError, const CMachine&)),
-            this, SLOT(sltHandleError(UIGroupsSavingError, const CMachine&)));
 }
 
 UIGroupDefinitionSaveThread::~UIGroupDefinitionSaveThread()
@@ -1996,9 +1963,6 @@ UIGroupDefinitionSaveThread::~UIGroupDefinitionSaveThread()
 
 void UIGroupDefinitionSaveThread::run()
 {
-    /* Lock other thread mutex: */
-    m_mutex.lock();
-
     /* COM prepare: */
     COMBase::InitializeCOM(false);
 
@@ -2011,54 +1975,50 @@ void UIGroupDefinitionSaveThread::run()
         /* Get old group list/set: */
         const QStringList &oldGroupList = m_oldLists.value(strId);
         const UIStringSet &oldGroupSet = UIStringSet::fromList(oldGroupList);
-        /* Is group set changed? */
-        if (newGroupSet != oldGroupSet)
+        /* Make sure group set changed: */
+        if (newGroupSet == oldGroupSet)
+            continue;
+
+        /* The next steps are subsequent.
+         * Every of them is mandatory in order to continue
+         * with common cleanup in case of failure.
+         * We have to simulate a try-catch block. */
+        CSession session;
+        CMachine machine;
+        do
         {
-            /* Create new session instance: */
-            CSession session;
-            session.createInstance(CLSID_Session);
-            AssertMsg(!session.isNull(), ("Session instance creation failed!"));
-            /* Search for the corresponding machine: */
-            CMachine machineToLock = vboxGlobal().virtualBox().FindMachine(strId);
-            AssertMsg(!machineToLock.isNull(), ("Machine not found!"));
+            /* 1. Open session: */
+            session = vboxGlobal().openSession(strId);
+            if (session.isNull())
+                break;
 
-            /* Lock machine: */
-            machineToLock.LockMachine(session, KLockType_Write);
-            if (!machineToLock.isOk())
-            {
-                emit sigError(UIGroupsSavingError_MachineLockFailed, machineToLock);
-                m_condition.wait(&m_mutex);
-                session.detach();
-                continue;
-            }
+            /* 2. Get session machine: */
+            machine = session.GetMachine();
+            if (machine.isNull())
+                break;
 
-            /* Get session's machine: */
-            CMachine machine = session.GetMachine();
-            AssertMsg(!machine.isNull(), ("Machine is null!"));
-
-            /* Set groups: */
+            /* 3. Set new groups: */
             machine.SetGroups(newGroupList.toVector());
             if (!machine.isOk())
             {
-                emit sigError(UIGroupsSavingError_MachineGroupSetFailed, machine);
-                m_condition.wait(&m_mutex);
-                session.UnlockMachine();
-                continue;
+                msgCenter().cannotSetGroups(machine);
+                break;
             }
 
-            /* Save settings: */
+            /* 4. Save settings: */
             machine.SaveSettings();
             if (!machine.isOk())
             {
-                emit sigError(UIGroupsSavingError_MachineSettingsSaveFailed, machine);
-                m_condition.wait(&m_mutex);
-                session.UnlockMachine();
-                continue;
+                msgCenter().cannotSaveMachineSettings(machine);
+                break;
             }
+        } while (0);
 
-            /* Close the session: */
+        /* Cleanup if necessary: */
+        if (machine.isNull() || !machine.isOk())
+            emit sigReload(strId);
+        if (!session.isNull())
             session.UnlockMachine();
-        }
     }
 
     /* Notify listeners about completeness: */
@@ -2066,9 +2026,6 @@ void UIGroupDefinitionSaveThread::run()
 
     /* COM cleanup: */
     COMBase::CleanupCOM();
-
-    /* Unlock other thread mutex: */
-    m_mutex.unlock();
 }
 
 /* static */

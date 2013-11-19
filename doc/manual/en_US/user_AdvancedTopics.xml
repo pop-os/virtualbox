@@ -428,8 +428,7 @@ HKEY_CLASSES_ROOT\CLSID\{275D3BCC-22BB-4948-A7F6-3A3054EBA92B}\InprocServer32</s
         guest OS by default For installing vbox-greeter automatically upon
         Guest Additions installation, use the
         <computeroutput>--with-autologon</computeroutput> switch when starting
-        the VBoxLinuxAdditions.run file:<screen>
-        # ./VBoxLinuxAdditions.run -- --with-autologon</screen></para>
+        the VBoxLinuxAdditions.run file:</para><screen># ./VBoxLinuxAdditions.run -- --with-autologon</screen>
 
         <para>For manual or postponed installation, the
         <computeroutput>vbox-greeter.desktop</computeroutput>
@@ -447,9 +446,8 @@ HKEY_CLASSES_ROOT\CLSID\{275D3BCC-22BB-4948-A7F6-3A3054EBA92B}\InprocServer32</s
         <computeroutput>/etc/lightdm/lightdm.conf</computeroutput> needs to be
         edited:</para>
 
-        <para><screen>
-        [SeatDefaults]
-        greeter-session=vbox-greeter</screen></para>
+        <para><screen>[SeatDefaults]
+greeter-session=vbox-greeter</screen></para>
 
         <note><para>The LightDM server needs to be fully restarted in order to
         get vbox-greeter used as the default greeter. As root, do a
@@ -859,6 +857,102 @@ VBoxManage controlvm "VM name" unplugcpu 3</screen></para>
   </sect1>
 
   <sect1>
+    <title>Webcam passthrough</title>
+
+    <sect2 id="webcam-passthrough">
+      <title>Using a host webcam in the guest</title>
+
+      <para>VirtualBox 4.3 includes an experimental feature which allows a guest to use
+      a host webcam. This complements the general USB passthrough support which was the
+      typical way of using host webcams in earlier versions. The webcam passthrough support
+      can handle non-USB video sources in theory, but this is completely untested.</para>
+
+      <note>
+        <para>The webcam passthrough module is shipped as part of the Oracle VM VirtualBox
+        extension pack, which must be installed separately. See <xref
+        linkend="intro-installing" /> for more information.</para>
+      </note>
+
+      <para>The VBoxManage command line tool must be used to enable webcam passthrough.
+      Please see the host-specific sections below for additional details.
+      The following commands are available:
+        <itemizedlist>
+          <listitem><para>Get a list of host webcams (or other video input devices):
+            <screen>VBoxManage list webcams</screen>
+            The output format:
+            <screen>alias "user friendly name"
+host path or identifier</screen>
+            The alias can be used as a shortcut in other commands. Alias '.0' means
+            default video input device on the host, '.1', '.2', etc mean first, second, etc
+            video input device. The device order is host-specific.
+          </para></listitem>
+          <listitem><para>Attach a webcam to a running VM:
+            <screen>VBoxManage controlvm "VM name" webcam attach [host_path|alias [settings]]</screen>
+            This will attach a USB webcam device to the guest.</para>
+
+            <para>The <computeroutput>settings</computeroutput> parameter is a string
+            <computeroutput>Setting1=Value1;Setting2=Value2</computeroutput>, which allows to
+            configure the emulated webcam device. The following settings are supported:
+            <itemizedlist>
+              <listitem>
+                <computeroutput>MaxFramerate</computeroutput> The highest rate at which video frames
+                are sent to the guest. A higher frame rate requires more CPU power. Therefore sometimes
+                it is useful to set a lower limit. Default is no limit and allow the guest to use all
+                frame rates supported by the host webcam.
+              </listitem>
+              <listitem>
+                <computeroutput>MaxPayloadTransferSize</computeroutput> How many bytes the emulated
+                webcam can send to the guest at a time. Default value is 3060 bytes, which is used by
+                some webcams. Higher values can slightly reduce CPU load, if the guest is able to use
+                larger buffers. However a high <computeroutput>MaxPayloadTransferSize</computeroutput>
+                might be not supported by some guests.
+              </listitem>
+            </itemizedlist>
+          </para></listitem>
+          <listitem><para>Detach a webcam from a running VM:
+            <screen>VBoxManage controlvm "VM name" webcam detach [host_path|alias]</screen>
+          </para></listitem>
+          <listitem><para>List webcams attached to a running VM:
+            <screen>VBoxManage controlvm "VM name" webcam list</screen>
+            The output contains path or alias which was used in 'webcam attach' command for
+            each attached webcam.
+          </para></listitem>
+        </itemizedlist>
+      </para>
+    </sect2>
+
+    <sect2>
+      <title>Windows hosts</title>
+
+      <para>When the webcam device is detached from the host, the emulated webcam device is
+      automatically detached from the guest.</para>
+    </sect2>
+
+    <sect2>
+      <title>Mac OS X hosts</title>
+
+      <para>OS X version 10.7 or newer is required.</para>
+
+      <para>When the webcam device is detached from the host, the emulated webcam device
+      remains attached to the guest and must be manually detached using the
+      <computeroutput>VBoxManage controlvm "VM name" webcam detach ...</computeroutput> command.</para>
+    </sect2>
+
+    <sect2>
+      <title>Linux hosts</title>
+
+      <para>When the webcam is detached from the host the emulated webcam device is
+      automatically detached from the guest only if the webcam is streaming video.
+      If the emulated webcam is inactive it should be manually detached using the
+      <computeroutput>VBoxManage controlvm "VM name" webcam detach ...</computeroutput> command.</para>
+
+      <para>Aliases <computeroutput>.0</computeroutput> and <computeroutput>.1</computeroutput> are mapped
+      to <computeroutput>/dev/video0</computeroutput>, alias <computeroutput>.2</computeroutput> is mapped
+      to <computeroutput>/dev/video1</computeroutput> and so forth.</para>
+    </sect2>
+  </sect1>
+
+  <sect1>
     <title>Advanced display configuration</title>
 
     <sect2>
@@ -1142,13 +1236,14 @@ VBoxManage setextradata "VM name"
       and a MAC address not used by other virtual machines must be chosen. In
       the example below, adapt the name of the virtual machine, the MAC
       address, the IP configuration and the Internal Networking name
-      ("MyIntNet") according to your needs. The following seven commands must
+      ("MyIntNet") according to your needs. The following eight commands must
       first be issued:<screen>VBoxManage setextradata "VM name" VBoxInternal/Devices/IntNetIP/0/Trusted 1
 VBoxManage setextradata "VM name" VBoxInternal/Devices/IntNetIP/0/Config/MAC 08:00:27:01:02:0f
 VBoxManage setextradata "VM name" VBoxInternal/Devices/IntNetIP/0/Config/IP 10.0.9.1
 VBoxManage setextradata "VM name" VBoxInternal/Devices/IntNetIP/0/Config/Netmask 255.255.255.0
 VBoxManage setextradata "VM name" VBoxInternal/Devices/IntNetIP/0/LUN#0/Driver IntNet
 VBoxManage setextradata "VM name" VBoxInternal/Devices/IntNetIP/0/LUN#0/Config/Network MyIntNet
+VBoxManage setextradata "VM name" VBoxInternal/Devices/IntNetIP/0/LUN#0/Config/TrunkType 2
 VBoxManage setextradata "VM name" VBoxInternal/Devices/IntNetIP/0/LUN#0/Config/IsService 1</screen></para>
 
       <para>Finally the iSCSI disk must be attached with the
@@ -1165,82 +1260,6 @@ VBoxManage setextradata "VM name" VBoxInternal/Devices/IntNetIP/0/LUN#0/Config/I
       is started without having the iSCSI target powered up, it can take up to
       200 seconds to detect this situation. The VM will fail to power
       up.</para>
-    </sect2>
-  </sect1>
-
-  <sect1>
-    <title>Launching more than 128 VMs on Linux hosts</title>
-
-    <para>Linux hosts have a fixed number of IPC semaphores IDs per process
-    preventing users from starting substantially many VMs. The exact number
-    may vary with each Linux distribution. While trying to launch more VMs you
-    would be shown a "Cannot create IPC semaphore" error. In order to run more
-    VMs, you will need to increase the semaphore ID limit of the VBoxSVC
-    process. Find the current semaphore limits imposed by the kernel by
-    executing as root:<screen>#/sbin/sysctl kernel.sem
-kernel.sem = 250  32000  32  128</screen></para>
-
-    <para>The "kernel.sem" parameter bundles together 4 values, the one we are
-    interested in is called "SEMMNI", the maximum number of semaphore IDs
-    which is 128 in the above example. Increase this semaphore ID limit by
-    executing as root:<screen>echo "kernel.sem = 250 32000 32 2048" &gt;&gt; /etc/sysctl.conf
-/sbin/sysctl -p</screen></para>
-
-    <para>The above commands will add the new limits to the configuration file, thus
-    making the effect persistent across reboots, and will activate the new
-    limits into the currently running kernel.</para>
-  </sect1>
-
-  <sect1>
-    <title>Launching more than 120 VMs on Solaris hosts</title>
-
-    <para>Solaris hosts have a fixed number of IPC semaphores IDs per process
-    preventing users from starting more than 120 VMs. While trying to launch
-    more VMs you would be shown a "Cannot create IPC semaphore" error. In
-    order to run more VMs, you will need to increase the semaphore ID limit of
-    the VBoxSVC process.</para>
-
-    <sect2>
-      <title>Temporary solution while VirtualBox is running</title>
-
-      <para>Execute as root the <computeroutput>prctl</computeroutput> command
-      as shown below for the currently running VBoxSVC process. The process ID
-      of VBoxSVC can be obtained using the <computeroutput>ps</computeroutput>
-      command.</para>
-
-      <screen>prctl -r -n project.max-sem-ids -v 2048 &lt;pid-of-VBoxSVC&gt;</screen>
-
-      <para>This will immediately increase the semaphore limit of the
-      currently running VBoxSVC process and allow you to launch more VMs.
-      However, this change is not persistent and will be lost when VBoxSVC
-      terminates.</para>
-    </sect2>
-
-    <sect2>
-      <title>Persistent solution, requires user to re-login</title>
-
-      <para>If the user running VirtualBox is root, execute the following
-      command:</para>
-
-      <screen>prctl -n project.max-sem-ids -v 2048 -r -i project user.root</screen>
-
-      <para>From this point, starting new processes will have the increased
-      limit of 2048. You may then re-login or close all VMs and restart
-      VBoxSVC. You can check the current VBoxSVC semaphore ID limit using the
-      following command:</para>
-
-      <screen>prctl -n project.max-sem-ids -i process &lt;pid-of-VBoxSVC&gt;</screen>
-
-      <para>If the user running VirtualBox is not root, you must add the
-      property to the user's default project. Create the default project and
-      set the limit by executing as root:</para>
-
-      <screen>projadd -U &lt;username&gt; user.&lt;username&gt;
-projmod -s -K "project.max-sem-ids=(priv,2048,deny)" user.&lt;username&gt;</screen>
-
-      <para>Substitute "&lt;username&gt;" with the name of the user running
-      VirtualBox. Then re-login as this user to be able to run more than 120
-      VMs.</para>
     </sect2>
   </sect1>
 
@@ -1327,7 +1346,7 @@ VBoxManage setextradata "VM name"
       interface</title>
 
       <para>For network booting in NAT mode, by default VirtualBox uses a
-      built-in TFTP server at the IP address 10.0.2.3. This default behavior
+      built-in TFTP server at the IP address 10.0.2.4. This default behavior
       should work fine for typical remote-booting scenarios. However, it is
       possible to change the boot server IP and the location of the boot image
       with the following commands: <screen>VBoxManage modifyvm "VM name" --nattftpserver1 10.0.2.2
@@ -1772,13 +1791,12 @@ VBoxManage setextradata "VM name"
         <para>Support for Crossbow based bridged networking was introduced
         with VirtualBox 4.1 and requires Solaris 11 build 159 or above.</para>
       </footnote> A VirtualBox VNIC template is a VNIC whose name starts with
-    "vboxvnic_template".</para>
+    "vboxvnic_template" (case-sensitive).</para>
 
     <para>Here is an example of how to use a VNIC template to configure a VLAN
     for VMs. Create a VirtualBox VNIC template, by executing as root:</para>
 
-    <screen>dladm create-vnic -t -l nge0 -v 23 vboxvnic_template0
-</screen>
+    <screen>dladm create-vnic -t -l nge0 -v 23 vboxvnic_template0</screen>
 
     <para>This will create a temporary VNIC over interface "nge0" with the
     VLAN ID 23. To create VNIC templates that are persistent across host
@@ -1793,8 +1811,7 @@ vboxvnic_template0 vnic 1500 up       --         nge0
 
 $ dladm show-vnic
 LINK         OVER         SPEED  MACADDRESS        MACADDRTYPE         VID
-vboxvnic_template0 nge0   1000   2:8:20:25:12:75   random              23
-</screen></para>
+vboxvnic_template0 nge0   1000   2:8:20:25:12:75   random              23</screen></para>
 
     <para>Once the VNIC template is created, all VMs that need to be part of
     VLAN 23 over the physical interface "nge0" can use the same VNIC template.
@@ -2001,49 +2018,49 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
             <para>Don't show the <emphasis>General</emphasis> settings pane.</para>
           </glossdef>
         </glossentry>
-      
+
         <glossentry>
           <glossterm><computeroutput>Input</computeroutput></glossterm>
           <glossdef>
             <para>Don't show the <emphasis>Input</emphasis> settings pane.</para>
           </glossdef>
         </glossentry>
-      
+
         <glossentry>
           <glossterm><computeroutput>Update</computeroutput></glossterm>
           <glossdef>
             <para>Don't show the <emphasis>Update</emphasis> settings pane.</para>
           </glossdef>
         </glossentry>
-      
+
         <glossentry>
           <glossterm><computeroutput>Language</computeroutput></glossterm>
           <glossdef>
             <para>Don't show the <emphasis>Language</emphasis> settings pane.</para>
           </glossdef>
         </glossentry>
-      
+
         <glossentry>
           <glossterm><computeroutput>Display</computeroutput></glossterm>
           <glossdef>
             <para>Don't show the <emphasis>Display</emphasis> settings pane.</para>
           </glossdef>
         </glossentry>
-      
+
         <glossentry>
           <glossterm><computeroutput>Network</computeroutput></glossterm>
           <glossdef>
             <para>Don't show the <emphasis>Network</emphasis> settings pane.</para>
           </glossdef>
         </glossentry>
-      
+
         <glossentry>
           <glossterm><computeroutput>Extensions</computeroutput></glossterm>
           <glossdef>
             <para>Don't show the <emphasis>Extensions</emphasis> settings pane.</para>
           </glossdef>
         </glossentry>
-      
+
         <glossentry>
           <glossterm><computeroutput>Proxy</computeroutput></glossterm>
           <glossdef>
@@ -2058,7 +2075,6 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
       <screen>VBoxManage setextradata global GUI/RestrictedGlobalSettingsPages</screen>
 
     </sect2>
-      
 
     <sect2>
       <title>Configure VM window menu entries</title>
@@ -2179,6 +2195,13 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
         </glossentry>
 
         <glossentry>
+          <glossterm><computeroutput>VideoCapture</computeroutput></glossterm>
+          <glossdef>
+            <para>Don't show the video capture icon in the status bar.</para>
+          </glossdef>
+        </glossentry>
+
+        <glossentry>
           <glossterm><computeroutput>Features</computeroutput></glossterm>
           <glossdef>
             <para>Don't show the CPU features icon in the status bar.</para>
@@ -2207,7 +2230,45 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
 
       <screen>VBoxManage setextradata "VM name" GUI/RestrictedStatusBarIndicators</screen>
 
-  </sect2>
+    </sect2>
+
+    <sect2>
+      <title>Configure VM window visual modes</title>
+
+      <para>You can disable (i.e. black-list) certain VM visual modes:</para>
+      <screen>VBoxManage setextradata "VM name" GUI/RestrictedVisualStates OPTION[,OPTION...]</screen>
+
+      <para>where <computeroutput>OPTION</computeroutput> is one of the
+        following keywords:</para><glosslist>
+        <glossentry>
+          <glossterm><computeroutput>Fullscreen</computeroutput></glossterm>
+          <glossdef>
+            <para>Don't allow to switch the VM into fullscreen mode.</para>
+          </glossdef>
+        </glossentry>
+
+        <glossentry>
+          <glossterm><computeroutput>Seamless</computeroutput></glossterm>
+          <glossdef>
+            <para>Don't allow to switch the VM into seamless mode.</para>
+          </glossdef>
+        </glossentry>
+
+        <glossentry>
+          <glossterm><computeroutput>Scale</computeroutput></glossterm>
+          <glossdef>
+            <para>Don't allow to switch the VM into scale mode.</para>
+          </glossdef>
+        </glossentry>
+      
+      </glosslist>
+
+      <para>This is a per-VM setting. Any combination of the above is allowed. To restore
+        the default behavior, use</para>
+
+      <screen>VBoxManage setextradata "VM name" GUI/RestrictedVisualStates</screen>
+
+      </sect2>
 
       <sect2>
         <title>Host Key customization</title>
@@ -2323,7 +2384,7 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
                 <entry>open the VM settings dialog</entry>
               </row>
               <row>
-                <entry><computeroutput>InformationsDialog</computeroutput></entry>
+                <entry><computeroutput>InformationDialog</computeroutput></entry>
                 <entry>N</entry>
                 <entry>show the VM information window</entry>
               </row>
@@ -2351,6 +2412,7 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
         </para>
 
       </sect2>
+
       <sect2>
         <title>Action when terminating the VM</title>
 
@@ -2435,82 +2497,82 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
               <entry><emphasis role="bold">Default</emphasis></entry>
             </row>
             <row>
-              <entry>USER</entry>
+              <entry><computeroutput>USER</computeroutput></entry>
               <entry>The user as which the web service runs</entry>
               <entry></entry>
             </row>
             <row>
-              <entry>HOST</entry>
+              <entry><computeroutput>HOST</computeroutput></entry>
               <entry>The host to bind the web service to</entry>
               <entry>localhost</entry>
             </row>
             <row>
-              <entry>PORT</entry>
+              <entry><computeroutput>PORT</computeroutput></entry>
               <entry>The port to bind the web service to</entry>
               <entry>18083</entry>
             </row>
             <row>
-              <entry>SSL_KEYFILE</entry>
+              <entry><computeroutput>SSL_KEYFILE</computeroutput></entry>
               <entry>Server key and certificate file, PEM format</entry>
               <entry></entry>
             </row>
             <row>
-              <entry>SSL_PASSWORDFILE</entry>
+              <entry><computeroutput>SSL_PASSWORDFILE</computeroutput></entry>
               <entry>File name for password to server key</entry>
               <entry></entry>
             </row>
             <row>
-              <entry>SSL_CACERT</entry>
+              <entry><computeroutput>SSL_CACERT</computeroutput></entry>
               <entry>CA certificate file, PEM format</entry>
               <entry></entry>
             </row>
             <row>
-              <entry>SSL_CAPATH</entry>
+              <entry><computeroutput>SSL_CAPATH</computeroutput></entry>
               <entry>CA certificate path</entry>
               <entry></entry>
             </row>
             <row>
-              <entry>SSL_DHFILE</entry>
+              <entry><computeroutput>SSL_DHFILE</computeroutput></entry>
               <entry>DH file name or DH key length in bits</entry>
               <entry></entry>
             </row>
             <row>
-              <entry>SSL_RANDFILE</entry>
+              <entry><computeroutput>SSL_RANDFILE</computeroutput></entry>
               <entry>File containing seed for random number generator</entry>
               <entry></entry>
             </row>
             <row>
-              <entry>TIMEOUT</entry>
+              <entry><computeroutput>TIMEOUT</computeroutput></entry>
               <entry>Session timeout in seconds; 0 disables timeouts</entry>
               <entry>300</entry>
             </row>
             <row>
-              <entry>CHECK_INTERVAL</entry>
+              <entry><computeroutput>CHECK_INTERVAL</computeroutput></entry>
               <entry>Frequency of timeout checks in seconds</entry>
               <entry>5</entry>
             </row>
             <row>
-              <entry>THREADS</entry>
+              <entry><computeroutput>THREADS</computeroutput></entry>
               <entry>Maximum number of worker threads to run in parallel</entry>
               <entry>100</entry>
             </row>
             <row>
-              <entry>KEEPALIVE</entry>
+              <entry><computeroutput>KEEPALIVE</computeroutput></entry>
               <entry>Maximum number of requests before a socket will be closed</entry>
               <entry>100</entry>
             </row>
             <row>
-              <entry>ROTATE</entry>
+              <entry><computeroutput>ROTATE</computeroutput></entry>
               <entry>Number of log files; 0 disables log rotation</entry>
               <entry>10</entry>
             </row>
             <row>
-              <entry>LOGSIZE</entry>
+              <entry><computeroutput>LOGSIZE</computeroutput></entry>
               <entry>Maximum size of a log file in bytes to trigger rotation</entry>
               <entry>1MB</entry>
             </row>
             <row>
-              <entry>LOGINTERVAL</entry>
+              <entry><computeroutput>LOGINTERVAL</computeroutput></entry>
               <entry>Maximum time interval in seconds to trigger log rotation</entry>
               <entry>1 day</entry>
             </row>
@@ -2706,6 +2768,108 @@ svccfg -s svc:/application/virtualbox/webservice:default setprop config/user=roo
         <computeroutput>--help</computeroutput>.</para>
     </sect2>
 
+    <sect2 id="vboxwatchdog-linux">
+      <title>Linux: starting the watchdog service via <computeroutput>init</computeroutput></title>
+
+      <para>On Linux, the watchdog service can be automatically started during
+      host boot by adding appropriate parameters to the file
+      <computeroutput>/etc/default/virtualbox</computeroutput>.
+      There is one mandatory parameter, <computeroutput>VBOXWATCHDOG_USER</computeroutput>,
+      which must be set to the user which will later start the VMs. For backward
+      compatibility you can also specify <computeroutput>VBOXBALLOONCTRL_USER</computeroutput>The
+      parameters in the table below all start with <computeroutput>VBOXWATCHDOG_</computeroutput>
+      (<computeroutput>VBOXWATCHDOG_BALLOON_INTERVAL</computeroutput>,
+      <computeroutput>VBOXWATCHDOG_LOGSIZE</computeroutput> etc., and for
+      previously existing parameters the
+      <computeroutput>VBOXBALLOONCTRL_INTERVAL</computeroutput> etc. parameters
+      can still be used):
+      <table>
+        <title>ignored</title>
+        <tgroup cols="3">
+          <tbody>
+            <row>
+              <entry><emphasis role="bold">Parameter</emphasis></entry>
+              <entry><emphasis role="bold">Description</emphasis></entry>
+              <entry><emphasis role="bold">Default</emphasis></entry>
+            </row>
+            <row>
+              <entry><computeroutput>USER</computeroutput></entry>
+              <entry>The user as which the watchdog service runs</entry>
+              <entry></entry>
+            </row>
+            <row>
+              <entry><computeroutput>ROTATE</computeroutput></entry>
+              <entry>Number of log files; 0 disables log rotation</entry>
+              <entry>10</entry>
+            </row>
+            <row>
+              <entry><computeroutput>LOGSIZE</computeroutput></entry>
+              <entry>Maximum size of a log file in bytes to trigger rotation</entry>
+              <entry>1MB</entry>
+            </row>
+            <row>
+              <entry><computeroutput>LOGINTERVAL</computeroutput></entry>
+              <entry>Maximum time interval in seconds to trigger log rotation</entry>
+              <entry>1 day</entry>
+            </row>
+            <row>
+              <entry><computeroutput>BALLOON_INTERVAL</computeroutput></entry>
+              <entry>Interval for checking the balloon size (msec)</entry>
+              <entry>30000</entry>
+            </row>
+            <row>
+              <entry><computeroutput>BALLOON_INCREMENT</computeroutput></entry>
+              <entry>Balloon size increment (MByte)</entry>
+              <entry>256</entry>
+            </row>
+            <row>
+              <entry><computeroutput>BALLOON_DECREMENT</computeroutput></entry>
+              <entry>Balloon size decrement (MByte)</entry>
+              <entry>128</entry>
+            </row>
+            <row>
+              <entry><computeroutput>BALLOON_LOWERLIMIT</computeroutput></entry>
+              <entry>Balloon size lower limit (MByte)</entry>
+              <entry>64</entry>
+            </row>
+            <row>
+              <entry><computeroutput>BALLOON_SAFETYMARGIN</computeroutput></entry>
+              <entry>Free memory required for decreasing the balloon size (MByte)</entry>
+              <entry>1024</entry>
+            </row>
+          </tbody>
+        </tgroup>
+      </table>
+      </para>
+    </sect2>
+
+    <sect2 id="vboxwatchdog-solaris">
+      <title>Solaris: starting the watchdog service via SMF</title>
+
+      <para>On Solaris hosts, the VirtualBox watchdog service daemon is
+      integrated into the SMF framework. You can change the parameters, but
+      don't have to if the defaults already match your needs:<screen>svccfg -s svc:/application/virtualbox/balloonctrl:default setprop config/balloon_interval=10000
+svccfg -s svc:/application/virtualbox/balloonctrl:default setprop config/balloon_safetymargin=134217728</screen></para>
+
+      <para>The table in the previous section showing the parameter names and
+      defaults also applies to Solaris. The parameter names must be changed
+      to lowercase and a prefix of <computeroutput>config/</computeroutput>
+      has to be added, e.g. <computeroutput>config/user</computeroutput> or
+      <computeroutput>config/balloon_safetymargin</computeroutput>. If you made any
+      change, don't forget to run the following command to put the changes into
+      effect immediately:<screen>svcadm refresh svc:/application/virtualbox/balloonctrl:default</screen></para>
+
+      <para>If you forget the above command then the previous settings will
+      be used when enabling the service. Check the current property settings
+      with:<screen>svcprop -p config svc:/application/virtualbox/balloonctrl:default</screen></para>
+
+      <para>When everything is configured correctly you can start the
+      VirtualBox watchdog service with the following command:<screen>svcadm enable svc:/application/virtualbox/balloonctrl:default</screen></para>
+
+      <para>For more information about SMF, please refer to the Solaris
+      documentation.</para>
+    </sect2>
+
   </sect1>
 
   <sect1 id="otherextpacks">
@@ -2735,7 +2899,7 @@ svccfg -s svc:/application/virtualbox/webservice:default setprop config/user=roo
     differently. VNC can only deal with password authentication, and there
     is no option to use password hashes. This leaves no other choice than
     having a clear-text password in the VM configuration, which can be set with
-    the following command:<screen>VBoxManage modifyvm VMNAME --vrdeproperty VNCPassword=secret</screen></para>
+    the following command:<screen>VBoxManage modifyvm "VM name" --vrdeproperty VNCPassword=secret</screen></para>
 
     <para>The user is responsible for keeping this password secret, and it
     should be removed when a VM configuration is passed to another person,
@@ -2767,12 +2931,12 @@ svccfg -s svc:/application/virtualbox/webservice:default setprop config/user=roo
       which points the service to the autostart configuration file which is used
       during boot to determine whether to allow individual users to start a VM
       automatically and configure startup delays.
-      The config file can be placed in <computeroutput>/etc/vbox</computeroutput>
+      The configuration file can be placed in <computeroutput>/etc/vbox</computeroutput>
       and contains several options. One is <computeroutput>default_policy</computeroutput>
       which controls whether the autostart service allows or denies to start a VM
       for users which are not in the exception list.
       The exception list starts with <computeroutput>exception_list</computeroutput>
-      and contains a comma seperated list with usernames. Furthermore a separate
+      and contains a comma separated list with usernames. Furthermore a separate
       startup delay can be configured for every user to avoid overloading the host.
       A sample configuration is given below:</para>
 
@@ -2847,8 +3011,7 @@ alice = {
 
     <para>The expert storage management mode can be enabled per VM executing:</para>
 
-    <screen>VBoxManage setextradata vmname "VBoxInternal2/SilentReconfigureWhilePaused" 1
-</screen>
+    <screen>VBoxManage setextradata "VM name" "VBoxInternal2/SilentReconfigureWhilePaused" 1</screen>
 
     <para>Storage attachments can be reconfigured while the VM is paused afterwards using:</para>
     <screen>VBoxManage storageattach ...</screen>

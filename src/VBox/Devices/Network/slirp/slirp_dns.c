@@ -177,59 +177,77 @@ static int RTFileGets(RTFILE File, void *pvBuf, size_t cbBufSize, size_t *pcbRea
     return rc;
 }
 
+static int slirpOpenResolvConfFile(PRTFILE pResolvConfFile)
+{
+    int rc;
+    char buff[512];
+    char *etc = NULL;
+    char *home = NULL;
+    AssertPtrReturn(pResolvConfFile, VERR_INVALID_PARAMETER);
+    LogFlowFuncEnter();
+# ifdef RT_OS_OS2
+    /* Try various locations. */
+    NOREF(home);
+    etc = getenv("ETC");
+    if (etc)
+    {
+        RTStrmPrintf(buff, sizeof(buff), "%s/RESOLV2", etc);
+        rc = RTFileOpen(pResolvConfFile, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
+    }
+    if (RT_FAILURE(rc))
+    {
+        RTStrmPrintf(buff, sizeof(buff), "%s/RESOLV2", _PATH_ETC);
+        rc = RTFileOpen(pResolvConfFile, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
+    }
+    if (RT_FAILURE(rc))
+    {
+        RTStrmPrintf(buff, sizeof(buff), "%s/resolv.conf", _PATH_ETC);
+        rc = RTFileOpen(pResolvConfFile, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
+    }
+# else /* !RT_OS_OS2 */
+#  ifndef DEBUG_vvl
+    rc = RTFileOpen(pResolvConfFile, "/etc/resolv.conf", RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
+#  else
+    NOREF(etc);
+    home = getenv("HOME");
+    RTStrPrintf(buff, sizeof(buff), "%s/resolv.conf", home);
+    rc = RTFileOpen(pResolvConfFile, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
+    if (RT_SUCCESS(rc))
+        Log(("NAT: DNS we're using %s\n", buff));
+    else
+    {
+        rc = RTFileOpen(pResolvConfFile, "/etc/resolv.conf", RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
+        Log(("NAT: DNS we're using %s\n", buff));
+    }
+#  endif
+# endif /* !RT_OS_OS2 */
+    LogFlowFuncLeaveRC(rc);
+    return rc;
+}
 static int get_dns_addr_domain(PNATState pData, const char **ppszDomain)
 {
-    char buff[512];
+    char buff[256];
     char buff2[256];
-    RTFILE f;
+    RTFILE ResolvConfFile;
     int cNameserversFound = 0;
     bool fWarnTooManyDnsServers = false;
     struct in_addr tmp_addr;
     int rc;
     size_t bytes;
 
-# ifdef RT_OS_OS2
-    /* Try various locations. */
-    char *etc = getenv("ETC");
-    if (etc)
-    {
-        RTStrmPrintf(buff, sizeof(buff), "%s/RESOLV2", etc);
-        rc = RTFileOpen(&f, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-    }
+    rc = slirpOpenResolvConfFile(&ResolvConfFile);
     if (RT_FAILURE(rc))
     {
-        RTStrmPrintf(buff, sizeof(buff), "%s/RESOLV2", _PATH_ETC);
-        rc = RTFileOpen(&f, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
+        LogRel(("NAT: there're some problems with accessing resolv.conf (or known analog), thus NAT switches to use host resolver mechanism\n"));
+        pData->fUseHostResolver = 1;
+        return VINF_SUCCESS;
     }
-    if (RT_FAILURE(rc))
-    {
-        RTStrmPrintf(buff, sizeof(buff), "%s/resolv.conf", _PATH_ETC);
-        rc = RTFileOpen(&f, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-    }
-# else /* !RT_OS_OS2 */
-#  ifndef DEBUG_vvl
-    rc = RTFileOpen(&f, "/etc/resolv.conf", RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-#  else
-    char *home = getenv("HOME");
-    RTStrPrintf(buff, sizeof(buff), "%s/resolv.conf", home);
-    rc = RTFileOpen(&f, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-    if (RT_SUCCESS(rc))
-        Log(("NAT: DNS we're using %s\n", buff));
-    else
-    {
-        rc = RTFileOpen(&f, "/etc/resolv.conf", RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-        Log(("NAT: DNS we're using %s\n", buff));
-    }
-#  endif
-# endif /* !RT_OS_OS2 */
-    if (RT_FAILURE(rc))
-        return -1;
 
     if (ppszDomain)
         *ppszDomain = NULL;
 
     Log(("NAT: DNS Servers:\n"));
-    while (    RT_SUCCESS(rc = RTFileGets(f, buff, sizeof(buff), &bytes))
+    while (    RT_SUCCESS(rc = RTFileGets(ResolvConfFile, buff, sizeof(buff), &bytes))
             && rc != VERR_EOF)
     {
         struct dns_entry *pDns = NULL;
@@ -260,16 +278,13 @@ static int get_dns_addr_domain(PNATState pData, const char **ppszDomain)
             {
                 if ((pDns->de_addr.s_addr) == RT_N2H_U32_C(INADDR_LOOPBACK))
                     pDns->de_addr.s_addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_ALIAS);
-                else
+                else if (pData->fUseDnsProxy != 1)
                 {
                     /* Modern Ubuntu register 127.0.1.1 as DNS server */
-                    LogRel(("NAT: DNS server %RTnaipv4 registration detected, switching to the host resolver.\n",
+                    LogRel(("NAT: DNS server %RTnaipv4 registration detected, switching to the DNS proxy.\n",
                             pDns->de_addr.s_addr));
-                    RTMemFree(pDns);
-                    /* Releasing fetched DNS information. */
-                    slirpReleaseDnsSettings(pData);
-                    pData->fUseHostResolver = 1;
-                    return VINF_SUCCESS;
+                    pData->fUseDnsProxy = 1;
+                    pData->fUseHostResolver = 0;
                 }
             }
             TAILQ_INSERT_HEAD(&pData->pDnsList, pDns, de_list);
@@ -305,7 +320,7 @@ static int get_dns_addr_domain(PNATState pData, const char **ppszDomain)
             }
         }
     }
-    RTFileClose(f);
+    RTFileClose(ResolvConfFile);
     if (!cNameserversFound)
         return -1;
     return 0;
@@ -318,7 +333,7 @@ int slirpInitializeDnsSettings(PNATState pData)
     int rc = VINF_SUCCESS;
     AssertPtrReturn(pData, VERR_INVALID_PARAMETER);
     LogFlowFuncEnter();
-    if (!pData->fUseHostResolver)
+    if (!pData->fUseHostResolverPermanent)
     {
         TAILQ_INIT(&pData->pDnsList);
         LIST_INIT(&pData->pDomainList);
@@ -327,9 +342,20 @@ int slirpInitializeDnsSettings(PNATState pData)
          * so we should other way to configure DNS settings.
          */
         if (get_dns_addr_domain(pData, NULL) < 0)
-            pData->fUseHostResolver = 1;
+        {
+            /* Load the DNS handler if host resolver mode was not used before. */
+            if (!pData->fUseHostResolver)
+                dns_alias_load(pData);
+            pData->fUseHostResolver = true;
+        }
         else
+        {
+            /* Unload to not intercept in the future. */
+            if (pData->fUseHostResolver)
+                dns_alias_unload(pData);
+            pData->fUseHostResolver = false;
             dnsproxy_init(pData);
+        }
 
         if (!pData->fUseHostResolver)
         {

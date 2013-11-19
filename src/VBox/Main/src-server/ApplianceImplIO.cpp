@@ -1,11 +1,10 @@
 /* $Id: ApplianceImplIO.cpp $ */
 /** @file
- *
  * IO helper for IAppliance COM class implementations.
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,19 +22,23 @@
 #include "ProgressImpl.h"
 #include "ApplianceImpl.h"
 #include "ApplianceImplPrivate.h"
+#include "VirtualBoxImpl.h"
 
+#include <iprt/zip.h>
 #include <iprt/tar.h>
 #include <iprt/sha.h>
 #include <iprt/path.h>
 #include <iprt/asm.h>
 #include <iprt/stream.h>
 #include <iprt/circbuf.h>
+#include <iprt/vfs.h>
+#include <iprt/manifest.h>
+#include <VBox/vd-ifs.h>
 #include <VBox/vd.h>
 
 /******************************************************************************
  *   Structures and Typedefs                                                  *
  ******************************************************************************/
-
 typedef struct FILESTORAGEINTERNAL
 {
     /** File handle. */
@@ -107,12 +110,13 @@ typedef struct SHASTORAGEINTERNAL
 #if 0
 # define DEBUG_PRINT_FLOW() RTPrintf("%s\n", __FUNCTION__)
 #else
-# define DEBUG_PRINT_FLOW() do {} while(0)
+# define DEBUG_PRINT_FLOW() do {} while (0)
 #endif
 
 /******************************************************************************
  *   Internal Functions                                                       *
  ******************************************************************************/
+
 
 /******************************************************************************
  *   Internal: RTFile interface
@@ -281,7 +285,7 @@ static int tarOpenCallback(void *pvUser, const char *pszLocation, uint32_t fOpen
 
     int rc = VINF_SUCCESS;
 
-    if (   fOpen & RTFILE_O_READ
+    if (fOpen & RTFILE_O_READ
         && !(fOpen & RTFILE_O_WRITE))
     {
         /* Read only is a little bit more complicated than writing, cause we
@@ -297,13 +301,20 @@ static int tarOpenCallback(void *pvUser, const char *pszLocation, uint32_t fOpen
          *
          */
         bool fFound = false;
+
         for (;;)
         {
             char *pszFilename = 0;
             rc = RTTarCurrentFile(tar, &pszFilename);
             if (RT_SUCCESS(rc))
             {
-                fFound = !strcmp(pszFilename, RTPathFilename(pszLocation));
+                if (rc == VINF_TAR_DIR_PATH)
+                {
+                    break;
+                }
+
+                fFound = !RTStrICmp(pszFilename, pszLocation);
+
                 RTStrFree(pszFilename);
                 if (fFound)
                     break;
@@ -311,7 +322,9 @@ static int tarOpenCallback(void *pvUser, const char *pszLocation, uint32_t fOpen
                 {
                     rc = RTTarSeekNextFile(tar);
                     if (RT_FAILURE(rc))
+                    {
                         break;
+                    }
                 }
             }
             else
@@ -477,7 +490,7 @@ DECLCALLBACK(int) shaCalcWorkerThread(RTTHREAD /* aThread */, void *pvUser)
 
     int rc = VINF_SUCCESS;
     bool fLoop = true;
-    while(fLoop)
+    while (fLoop)
     {
         /* What should we do next? */
         uint32_t u32Status = ASMAtomicReadU32(&pInt->u32Status);
@@ -755,7 +768,7 @@ static int shaOpenCallback(void *pvUser, const char *pszLocation, uint32_t fOpen
             rc = shaSignalManifestThread(pInt, STATUS_READ);
         }
     }
-    while(0);
+    while (0);
 
     if (RT_FAILURE(rc))
     {
@@ -1014,7 +1027,7 @@ static int shaWriteSyncCallback(void *pvUser, void *pvStorage, uint64_t uOffset,
         if ((cbWrite - cbAllWritten) > cbAvail)
         {
             rc = shaSignalManifestThread(pInt, STATUS_WRITE);
-            if(RT_FAILURE(rc))
+            if (RT_FAILURE(rc))
                 break;
             /* If there is _no_ free space available, we have to wait until it is. */
             if (cbAvail == 0)
@@ -1084,24 +1097,29 @@ static int shaReadSyncCallback(void *pvUser, void *pvStorage, uint64_t uOffset,
         AssertMsgFailed(("Jumping backwards is not possible, sequential access is supported only\n"));
 
     size_t cbAllRead = 0;
+    size_t cbAvail = 0;
     for (;;)
     {
         /* Finished? */
         if (cbAllRead == cbRead)
             break;
-        size_t cbAvail = RTCircBufUsed(pInt->pCircBuf);
+
+        cbAvail = RTCircBufUsed(pInt->pCircBuf);
+
         if (    cbAvail == 0
             &&  pInt->fEOF
             && !RTCircBufIsWriting(pInt->pCircBuf))
         {
+            rc = VINF_EOF;
             break;
         }
+
         /* If there isn't enough data make sure the worker thread is fetching
          * more. */
         if ((cbRead - cbAllRead) > cbAvail)
         {
             rc = shaSignalManifestThread(pInt, STATUS_READ);
-            if(RT_FAILURE(rc))
+            if (RT_FAILURE(rc))
                 break;
             /* If there is _no_ data available, we have to wait until it is. */
             if (cbAvail == 0)
@@ -1136,6 +1154,7 @@ static int shaReadSyncCallback(void *pvUser, void *pvStorage, uint64_t uOffset,
 
     /* Signal the thread to read more data in the mean time. */
     if (   RT_SUCCESS(rc)
+        && rc != VINF_EOF
         && RTCircBufFree(pInt->pCircBuf) >= (RTCircBufSize(pInt->pCircBuf) / 2))
         rc = shaSignalManifestThread(pInt, STATUS_READ);
 
@@ -1163,10 +1182,6 @@ static int shaFlushSyncCallback(void *pvUser, void *pvStorage)
 
     return vdIfIoFileFlushSync(pIfIo, pInt->pvStorage);
 }
-
-/******************************************************************************
- *   Public Functions                                                         *
- ******************************************************************************/
 
 PVDINTERFACEIO ShaCreateInterface()
 {
@@ -1274,7 +1289,7 @@ int ShaReadBuf(const char *pcszFilename, void **ppvBuf, size_t *pcbSize, PVDINTE
             memcpy(&((char*)pvBuf)[cbAllRead], pvTmpBuf, cbRead);
             cbAllRead += cbRead;
         }
-    }while(0);
+    } while (0);
 
     pIfIo->pfnClose(pvUser, pvStorage);
 
@@ -1325,8 +1340,152 @@ int ShaWriteBuf(const char *pcszFilename, void *pvBuf, size_t cbSize, PVDINTERFA
         cbAllWritten += cbWritten;
     }
 
+    rc = pIfIo->pfnClose(pvUser, pvStorage);
+
+    return rc;
+}
+
+int decompressImageAndSave(const char *pcszFullFilenameIn, const char *pcszFullFilenameOut, PVDINTERFACEIO pIfIo, void *pvUser)
+{
+    /* Validate input. */
+    AssertPtrReturn(pIfIo, VERR_INVALID_POINTER);
+
+    PSHASTORAGE pShaStorage = (PSHASTORAGE)pvUser;
+    /*
+     * Open the source file.
+     */
+    void *pvStorage;
+    int rc = pIfIo->pfnOpen(pvUser, pcszFullFilenameIn,
+                            RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_NONE, 0,
+                            &pvStorage);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    /* Turn the source file handle/whatever into a VFS stream. */
+    RTVFSIOSTREAM hVfsIosCompressedSrc;
+
+    rc = VDIfCreateVfsStream(pIfIo, pvStorage, RTFILE_O_READ, &hVfsIosCompressedSrc);
+    if (RT_SUCCESS(rc))
+    {
+        /* Pass the source thru gunzip. */
+        RTVFSIOSTREAM hVfsIosSrc;
+        rc = RTZipGzipDecompressIoStream(hVfsIosCompressedSrc, 0, &hVfsIosSrc);
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Create the output file, including necessary paths.
+             * Any existing file will be overwritten.
+             */
+            rc = VirtualBox::ensureFilePathExists(Utf8Str(pcszFullFilenameOut), true /*fCreate*/);
+            if (RT_SUCCESS(rc))
+            {
+                RTVFSIOSTREAM hVfsIosDst;
+                rc = RTVfsIoStrmOpenNormal(pcszFullFilenameOut,
+                                           RTFILE_O_CREATE_REPLACE | RTFILE_O_WRITE | RTFILE_O_DENY_ALL,
+                                           &hVfsIosDst);
+                if (RT_SUCCESS(rc))
+                {
+                    /*
+                     * Pump the bytes thru. If we fail, delete the output file.
+                     */
+                    RTMANIFEST hFileManifest = NIL_RTMANIFEST;
+                    rc = RTManifestCreate(0 /*fFlags*/, &hFileManifest);
+                    if (RT_SUCCESS(rc))
+                    {
+                        RTVFSIOSTREAM hVfsIosMfst;
+
+                        uint32_t digestType = (pShaStorage->fSha256 == true) ? RTMANIFEST_ATTR_SHA256: RTMANIFEST_ATTR_SHA1;
+
+                        rc = RTManifestEntryAddPassthruIoStream(hFileManifest,
+                                                                hVfsIosSrc,
+                                                                "ovf import",
+                                                                digestType,
+                                                                true /*read*/, &hVfsIosMfst);
+                        if (RT_SUCCESS(rc))
+                        {
+                            rc = RTVfsUtilPumpIoStreams(hVfsIosMfst, hVfsIosDst, 0);
+                        }
+
+                        RTVfsIoStrmRelease(hVfsIosMfst);
+                    }
+
+                    RTVfsIoStrmRelease(hVfsIosDst);
+                }
+            }
+
+            RTVfsIoStrmRelease(hVfsIosSrc);
+        }
+    }
     pIfIo->pfnClose(pvUser, pvStorage);
 
     return rc;
 }
 
+int copyFileAndCalcShaDigest(const char *pcszSourceFilename, const char *pcszTargetFilename, PVDINTERFACEIO pIfIo, void *pvUser)
+{
+    /* Validate input. */
+    AssertPtrReturn(pIfIo, VERR_INVALID_POINTER);
+
+    PSHASTORAGE pShaStorage = (PSHASTORAGE)pvUser;
+    void *pvStorage;
+
+    int rc = pIfIo->pfnOpen(pvUser, pcszSourceFilename,
+                            RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_NONE, 0,
+                            &pvStorage);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    /* Turn the source file handle/whatever into a VFS stream. */
+    RTVFSIOSTREAM hVfsIosSrc;
+
+    rc = VDIfCreateVfsStream(pIfIo, pvStorage, RTFILE_O_READ, &hVfsIosSrc);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Create the output file, including necessary paths.
+         * Any existing file will be overwritten.
+         */
+        rc = VirtualBox::ensureFilePathExists(Utf8Str(pcszTargetFilename), true /*fCreate*/);
+        if (RT_SUCCESS(rc))
+        {
+            RTVFSIOSTREAM hVfsIosDst;
+            rc = RTVfsIoStrmOpenNormal(pcszTargetFilename,
+                                       RTFILE_O_CREATE_REPLACE | RTFILE_O_WRITE | RTFILE_O_DENY_ALL,
+                                       &hVfsIosDst);
+            if (RT_SUCCESS(rc))
+            {
+                /*
+                 * Pump the bytes thru. If we fail, delete the output file.
+                 */
+                RTMANIFEST hFileManifest = NIL_RTMANIFEST;
+                rc = RTManifestCreate(0 /*fFlags*/, &hFileManifest);
+                if (RT_SUCCESS(rc))
+                {
+                    RTVFSIOSTREAM hVfsIosMfst;
+
+                    uint32_t digestType = (pShaStorage->fSha256 == true) ? RTMANIFEST_ATTR_SHA256: RTMANIFEST_ATTR_SHA1;
+
+                    rc = RTManifestEntryAddPassthruIoStream(hFileManifest,
+                                                            hVfsIosSrc,
+                                                            "ovf import",
+                                                            digestType,
+                                                            true /*read*/, &hVfsIosMfst);
+                    if (RT_SUCCESS(rc))
+                    {
+                        rc = RTVfsUtilPumpIoStreams(hVfsIosMfst, hVfsIosDst, 0);
+                    }
+
+                    RTVfsIoStrmRelease(hVfsIosMfst);
+                }
+
+                RTVfsIoStrmRelease(hVfsIosDst);
+            }
+        }
+
+        RTVfsIoStrmRelease(hVfsIosSrc);
+
+    }
+
+    pIfIo->pfnClose(pvUser, pvStorage);
+    return rc;
+}

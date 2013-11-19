@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -151,8 +151,7 @@ int VBoxServiceReadPropUInt32(uint32_t u32ClientId, const char *pszPropName,
 /**
  * Reads a guest property from the host side.
  *
- * @returns VBox status code, fully bitched.
- *
+ * @returns IPRT status code, fully bitched.
  * @param   u32ClientId         The HGCM client ID for the guest property session.
  * @param   pszPropName         The property name.
  * @param   fReadOnly           Whether or not this property needs to be read only

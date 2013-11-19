@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,8 +27,6 @@
 #include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
-#include <VBox/com/EventQueue.h>
-
 #include <VBox/com/VirtualBox.h>
 
 #include <list>
@@ -797,12 +795,14 @@ static const RTGETOPTDEF g_aExportOptions[]
         { "--ovf10",              '1', RTGETOPT_REQ_NOTHING },
         { "--ovf20",              '2', RTGETOPT_REQ_NOTHING },
         { "--manifest",           'm', RTGETOPT_REQ_NOTHING },
+        { "--iso",                'I', RTGETOPT_REQ_NOTHING },
         { "--vsys",               's', RTGETOPT_REQ_UINT32 },
         { "--product",            'p', RTGETOPT_REQ_STRING },
         { "--producturl",         'P', RTGETOPT_REQ_STRING },
-        { "--vendor",             'd', RTGETOPT_REQ_STRING },
-        { "--vendorurl",          'D', RTGETOPT_REQ_STRING },
+        { "--vendor",             'n', RTGETOPT_REQ_STRING },
+        { "--vendorurl",          'N', RTGETOPT_REQ_STRING },
         { "--version",            'v', RTGETOPT_REQ_STRING },
+        { "--description",        'd', RTGETOPT_REQ_STRING },
         { "--eula",               'e', RTGETOPT_REQ_STRING },
         { "--eulafile",           'E', RTGETOPT_REQ_STRING },
       };
@@ -814,6 +814,7 @@ int handleExportAppliance(HandlerArg *a)
     Utf8Str strOutputFile;
     Utf8Str strOvfFormat("ovf-1.0"); // the default export version
     bool fManifest = false; // the default
+    bool fExportISOImages = false; // the default
     std::list< ComPtr<IMachine> > llMachines;
 
     uint32_t ulCurVsys = (uint32_t)-1;
@@ -853,6 +854,10 @@ int handleExportAppliance(HandlerArg *a)
                      strOvfFormat = "ovf-2.0";
                      break;
 
+                case 'I':   // --iso
+                     fExportISOImages = true;
+                     break;
+
                 case 'm':   // --manifest
                      fManifest = true;
                      break;
@@ -873,13 +878,13 @@ int handleExportAppliance(HandlerArg *a)
                      mapArgsMapsPerVsys[ulCurVsys]["producturl"] = ValueUnion.psz;
                      break;
 
-                case 'd':   // --vendor
+                case 'n':   // --vendor
                      if (ulCurVsys == (uint32_t)-1)
                          return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
                      mapArgsMapsPerVsys[ulCurVsys]["vendor"] = ValueUnion.psz;
                      break;
 
-                case 'D':   // --vendorurl
+                case 'N':   // --vendorurl
                      if (ulCurVsys == (uint32_t)-1)
                          return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
                      mapArgsMapsPerVsys[ulCurVsys]["vendorurl"] = ValueUnion.psz;
@@ -889,6 +894,12 @@ int handleExportAppliance(HandlerArg *a)
                      if (ulCurVsys == (uint32_t)-1)
                          return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
                      mapArgsMapsPerVsys[ulCurVsys]["version"] = ValueUnion.psz;
+                     break;
+
+                case 'd':   // --description
+                     if (ulCurVsys == (uint32_t)-1)
+                         return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                     mapArgsMapsPerVsys[ulCurVsys]["description"] = ValueUnion.psz;
                      break;
 
                 case 'e':   // --eula
@@ -976,7 +987,7 @@ int handleExportAppliance(HandlerArg *a)
         {
             ComPtr<IMachine> pMachine = *itM;
             ComPtr<IVirtualSystemDescription> pVSD;
-            CHECK_ERROR_BREAK(pMachine, Export(pAppliance, Bstr(pszAbsFilePath).raw(), pVSD.asOutParam()));
+            CHECK_ERROR_BREAK(pMachine, ExportTo(pAppliance, Bstr(pszAbsFilePath).raw(), pVSD.asOutParam()));
             // Add additional info to the virtual system description if the user wants so
             ArgsMap *pmapArgs = NULL;
             ArgsMapsMap::iterator itm = mapArgsMapsPerVsys.find(i);
@@ -1007,6 +1018,10 @@ int handleExportAppliance(HandlerArg *a)
                                              Bstr(itD->second).raw());
                     else if (itD->first == "version")
                         pVSD->AddDescription(VirtualSystemDescriptionType_Version,
+                                             Bstr(itD->second).raw(),
+                                             Bstr(itD->second).raw());
+                    else if (itD->first == "description")
+                        pVSD->AddDescription(VirtualSystemDescriptionType_Description,
                                              Bstr(itD->second).raw(),
                                              Bstr(itD->second).raw());
                     else if (itD->first == "eula")
@@ -1041,9 +1056,16 @@ int handleExportAppliance(HandlerArg *a)
         if (FAILED(rc))
             break;
 
+        com::SafeArray<ExportOptions_T> options;
+        if (fManifest)
+            options.push_back(ExportOptions_CreateManifest);
+
+        if (fExportISOImages)
+            options.push_back(ExportOptions_ExportDVDImages);
+
         ComPtr<IProgress> progress;
         CHECK_ERROR_BREAK(pAppliance, Write(Bstr(strOvfFormat).raw(),
-                                            fManifest,
+                                            ComSafeArrayAsInParam(options),
                                             Bstr(pszAbsFilePath).raw(),
                                             progress.asOutParam()));
         RTStrFree(pszAbsFilePath);

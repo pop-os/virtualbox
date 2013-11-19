@@ -19,9 +19,6 @@ SUB_DEPTH = ../../../..
 include $(KBUILD_PATH)/subheader.kmk
 
 include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
-ifdef VBOX_WITH_FFMPEG
- include $(PATH_SUB_CURRENT)/VideoCapture/Makefile.kmk
-endif
 
 #
 # Targets.
@@ -47,7 +44,7 @@ VBoxHeadlessHardened_NAME = VBoxHeadless
 #
 VBoxHeadless_TEMPLATE  := $(if $(VBOX_WITH_HARDENING),VBOXMAINCLIENTDLL,VBOXMAINCLIENTEXE)
 VBoxHeadless_DEFS      += \
-                 VBOX_WITH_VIDEO_REC 
+                 VBOX_WITH_VIDEO_REC
 VBoxHeadless_SOURCES    = VBoxHeadless.cpp
 VBoxHeadless_SOURCES  += Framebuffer.cpp
 ifdef VBOX_WITH_GUEST_PROPS

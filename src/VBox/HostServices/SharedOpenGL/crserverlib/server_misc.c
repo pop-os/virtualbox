@@ -49,7 +49,40 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGetChromiumParametervCR(GLenum tar
     CRASSERT(bytes >= 0);
     CRASSERT(bytes < 4096);
 
-    cr_server.head_spu->dispatch_table.GetChromiumParametervCR( target, index, type, count, local_storage );
+    switch (target)
+    {
+        case GL_DBG_CHECK_BREAK_CR:
+        {
+            if (bytes > 0)
+            {
+                GLubyte *pbRc = local_storage;
+                GLuint *puRc = (GLuint *)(bytes >=4 ? local_storage : NULL);
+                int rc;
+                memset(local_storage, 0, bytes);
+                if (cr_server.RcToGuestOnce)
+                {
+                    rc = cr_server.RcToGuestOnce;
+                    cr_server.RcToGuestOnce = 0;
+                }
+                else
+                {
+                    rc = cr_server.RcToGuest;
+                }
+                if (puRc)
+                    *puRc = rc;
+                else
+                    *pbRc = !!rc;
+            }
+            else
+            {
+                crWarning("zero bytes for GL_DBG_CHECK_BREAK_CR");
+            }
+            break;
+        }
+        default:
+            cr_server.head_spu->dispatch_table.GetChromiumParametervCR( target, index, type, count, local_storage );
+            break;
+    }
 
     crServerReturnValue( local_storage, bytes );
 }
@@ -96,13 +129,13 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchChromiumParametervCR(GLenum target
         break;
 
     case GL_GATHER_CONNECT_CR:
-        /* 
+        /*
          * We want the last connect to go through,
          * otherwise we might deadlock in CheckWindowSize()
          * in the readback spu
          */
         gather_connect_count++;
-        if (cr_server.only_swap_once && (gather_connect_count != cr_server.numClients)) 
+        if (cr_server.only_swap_once && (gather_connect_count != cr_server.numClients))
         {
             break;
         }
@@ -122,8 +155,8 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchChromiumParametervCR(GLenum target
             const GLfloat *v = (const GLfloat *) values;
             const int eye = v[1] == 0.0 ? 0 : 1;
             crMatrixInitFromFloats(&cr_server.viewMatrix[eye], v + 2);
-            
-            crDebug("Got GL_SERVER_VIEW_MATRIX_CR:\n" 
+
+            crDebug("Got GL_SERVER_VIEW_MATRIX_CR:\n"
                             "  %f %f %f %f\n"
                             "  %f %f %f %f\n"
                             "  %f %f %f %f\n"
@@ -160,8 +193,8 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchChromiumParametervCR(GLenum target
             const GLfloat *v = (const GLfloat *) values;
             const int eye = v[1] == 0.0 ? 0 : 1;
             crMatrixInitFromFloats(&cr_server.projectionMatrix[eye], v + 2);
-      
-            crDebug("Got GL_SERVER_PROJECTION_MATRIX_CR:\n" 
+
+            crDebug("Got GL_SERVER_PROJECTION_MATRIX_CR:\n"
                             "  %f %f %f %f\n"
                             "  %f %f %f %f\n"
                             "  %f %f %f %f\n"
@@ -196,7 +229,7 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchChromiumParametervCR(GLenum target
                 float right = 2.0f * znear / x + left;
                 float bottom = znear * (b - 1.0f) / y;
               float top = 2.0f * znear / y + bottom;
-              crDebug("Frustum: left, right, bottom, top, near, far: %f, %f, %f, %f, %f, %f", left, right, bottom, top, znear, zfar);   
+              crDebug("Frustum: left, right, bottom, top, near, far: %f, %f, %f, %f, %f, %f", left, right, bottom, top, znear, zfar);
             }
             else {
                 /* Todo: Add debug output for orthographic projection*/
@@ -238,6 +271,12 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchChromiumParameteriCR(GLenum target
     case GL_SERVER_CURRENT_EYE_CR:
         cr_server.currentEye = value ? 1 : 0;
         break;
+    case GL_HOST_WND_CREATED_HIDDEN_CR:
+        cr_server.bWindowsInitiallyHidden = value ? 1 : 0;
+        break;
+    case GL_HH_SET_DEFAULT_SHARED_CTX:
+        crWarning("Recieved GL_HH_SET_DEFAULT_SHARED_CTX from guest, ignoring");
+        break;
     default:
         /* Pass the parameter info to the head SPU */
         cr_server.head_spu->dispatch_table.ChromiumParameteriCR( target, value );
@@ -263,14 +302,6 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchChromiumParameterfCR(GLenum target
     }
 }
 
-void crServerCreateInfoDeleteCB(void *data)
-{
-    CRCreateInfo_t *pCreateInfo = (CRCreateInfo_t *) data;
-    if (pCreateInfo->pszDpyName)
-        crFree(pCreateInfo->pszDpyName);
-    crFree(pCreateInfo);
-}
-
 GLint crServerGenerateID(GLint *pCounter)
 {
     return (*pCounter)++;
@@ -284,14 +315,14 @@ static int copynum=0;
 #endif
 
 # ifdef DEBUG_misha
-# define CR_CHECK_BLITS
+//# define CR_CHECK_BLITS
 #  include <iprt/assert.h>
 #  undef CRASSERT /* iprt assert's int3 are inlined that is why are more convenient to use since they can be easily disabled individually */
 #  define CRASSERT Assert
 # endif
 
 
-void SERVER_DISPATCH_APIENTRY 
+void SERVER_DISPATCH_APIENTRY
 crServerDispatchCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height)
 {
     /*@todo pbo/fbo disabled for now as it's slower, check on other gpus*/
@@ -392,7 +423,7 @@ crServerDispatchCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLi
             gl->CopyTexImage2D(target, level, GL_RGBA, x, y, width, -height, 0);
             gl->GenFramebuffersEXT(1, &fboID);
             gl->BindFramebufferEXT(GL_FRAMEBUFFER_EXT, fboID);
-            gl->FramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, target, 
+            gl->FramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, target,
                                         ctx->texture.unit[ctx->texture.curTextureUnit].currentTexture2D->hwid, level);
             status = gl->CheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
             if (status != GL_FRAMEBUFFER_COMPLETE_EXT)
@@ -460,7 +491,7 @@ crServerDispatchCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLi
 
                 gl->GetTexImage(target, level, GL_BGRA, GL_UNSIGNED_BYTE, img1);
 
-            
+
                 for (dRow=yoffset, sRow=y-height-1; dRow<yoffset-height; dRow++, sRow--)
                 {
                     gl->CopyTexSubImage2D(target, level, xoffset, dRow, x, sRow, width, 1);
@@ -632,12 +663,228 @@ void crDbgDumpTexImage2D(const char* pszDesc, GLint texTarget, GLint texName, GL
 }
 #endif
 
-void SERVER_DISPATCH_APIENTRY 
+PCR_BLITTER crServerVBoxBlitterGet()
+{
+    if (!CrBltIsInitialized(&cr_server.Blitter))
+    {
+        CR_BLITTER_CONTEXT Ctx;
+        int rc;
+        CRASSERT(cr_server.MainContextInfo.SpuContext);
+        Ctx.Base.id = cr_server.MainContextInfo.SpuContext;
+        Ctx.Base.visualBits = cr_server.MainContextInfo.CreateInfo.visualBits;
+        rc = CrBltInit(&cr_server.Blitter, &Ctx, true, true, NULL, &cr_server.head_spu->dispatch_table);
+        if (RT_SUCCESS(rc))
+        {
+            CRASSERT(CrBltIsInitialized(&cr_server.Blitter));
+        }
+        else
+        {
+            crWarning("CrBltInit failed, rc %d", rc);
+            CRASSERT(!CrBltIsInitialized(&cr_server.Blitter));
+            return NULL;
+        }
+    }
+    return &cr_server.Blitter;
+}
+
+int crServerVBoxBlitterTexInit(CRContext *ctx, CRMuralInfo *mural, PVBOXVR_TEXTURE pTex, GLboolean fDraw)
+{
+    CRTextureObj *tobj;
+    CRFramebufferObjectState *pBuf = &ctx->framebufferobject;
+    GLenum enmBuf;
+    CRFBOAttachmentPoint *pAp;
+    GLuint idx;
+    CRTextureLevel *tl;
+    CRFramebufferObject *pFBO = fDraw ? pBuf->drawFB : pBuf->readFB;
+
+    if (!pFBO)
+    {
+        GLuint hwid;
+
+        if (!(mural->fPresentMode & CR_SERVER_REDIR_F_FBO))
+            return VERR_NOT_IMPLEMENTED;
+
+        enmBuf = fDraw ? ctx->buffer.drawBuffer : ctx->buffer.readBuffer;
+        switch (enmBuf)
+        {
+            case GL_BACK:
+            case GL_BACK_RIGHT:
+            case GL_BACK_LEFT:
+                hwid = mural->aidColorTexs[CR_SERVER_FBO_BB_IDX(mural)];
+                break;
+            case GL_FRONT:
+            case GL_FRONT_RIGHT:
+            case GL_FRONT_LEFT:
+                hwid = mural->aidColorTexs[CR_SERVER_FBO_FB_IDX(mural)];
+                break;
+            default:
+                crWarning("unsupported enum buf");
+                return VERR_NOT_IMPLEMENTED;
+                break;
+        }
+
+        if (!hwid)
+        {
+            crWarning("offscreen render tex hwid is null");
+            return VERR_INVALID_STATE;
+        }
+
+        pTex->width = mural->width;
+        pTex->height = mural->height;
+        pTex->target = GL_TEXTURE_2D;
+        pTex->hwid = hwid;
+        return VINF_SUCCESS;
+    }
+
+    enmBuf = fDraw ? pFBO->drawbuffer[0] : pFBO->readbuffer;
+    idx = enmBuf - GL_COLOR_ATTACHMENT0_EXT;
+    if (idx >= CR_MAX_COLOR_ATTACHMENTS)
+    {
+        crWarning("idx is invalid %d, using 0", idx);
+    }
+
+    pAp = &pFBO->color[idx];
+
+    if (!pAp->name)
+    {
+        crWarning("no collor draw attachment");
+        return VERR_INVALID_STATE;
+    }
+
+    if (pAp->level)
+    {
+        crWarning("non-zero level not implemented");
+        return VERR_NOT_IMPLEMENTED;
+    }
+
+    tobj = (CRTextureObj*)crHashtableSearch(ctx->shared->textureTable, pAp->name);
+    if (!tobj)
+    {
+        crWarning("no texture object found for name %d", pAp->name);
+        return VERR_INVALID_STATE;
+    }
+
+    if (tobj->target != GL_TEXTURE_2D && tobj->target != GL_TEXTURE_RECTANGLE_NV)
+    {
+        crWarning("non-texture[rect|2d] not implemented");
+        return VERR_NOT_IMPLEMENTED;
+    }
+
+    CRASSERT(tobj->hwid);
+
+    tl = tobj->level[0];
+    pTex->width = tl->width;
+    pTex->height = tl->height;
+    pTex->target = tobj->target;
+    pTex->hwid = tobj->hwid;
+
+    return VINF_SUCCESS;
+}
+
+int crServerVBoxBlitterBlitCurrentCtx(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1,
+        GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,
+        GLbitfield mask, GLenum filter)
+{
+    PCR_BLITTER pBlitter;
+    CR_BLITTER_CONTEXT Ctx;
+    CRMuralInfo *mural;
+    CRContext *ctx = crStateGetCurrent();
+    PVBOXVR_TEXTURE pDrawTex, pReadTex;
+    VBOXVR_TEXTURE DrawTex, ReadTex;
+    int rc;
+    GLuint idDrawFBO, idReadFBO;
+    CR_BLITTER_WINDOW BltInfo;
+
+    if (mask != GL_COLOR_BUFFER_BIT)
+    {
+        crWarning("not supported blit mask %d", mask);
+        return VERR_NOT_IMPLEMENTED;
+    }
+
+    if (!cr_server.curClient)
+    {
+        crWarning("no current client");
+        return VERR_INVALID_STATE;
+    }
+    mural = cr_server.curClient->currentMural;
+    if (!mural)
+    {
+        crWarning("no current mural");
+        return VERR_INVALID_STATE;
+    }
+
+    rc = crServerVBoxBlitterTexInit(ctx, mural, &DrawTex, GL_TRUE);
+    if (RT_SUCCESS(rc))
+    {
+        pDrawTex = &DrawTex;
+    }
+    else
+    {
+        crWarning("crServerVBoxBlitterTexInit failed for draw");
+        return rc;
+    }
+
+    rc = crServerVBoxBlitterTexInit(ctx, mural, &ReadTex, GL_FALSE);
+    if (RT_SUCCESS(rc))
+    {
+        pReadTex = &ReadTex;
+    }
+    else
+    {
+//        crWarning("crServerVBoxBlitterTexInit failed for read");
+        return rc;
+    }
+
+    pBlitter = crServerVBoxBlitterGet();
+    if (!pBlitter)
+    {
+        crWarning("crServerVBoxBlitterGet failed");
+        return VERR_GENERAL_FAILURE;
+    }
+
+    crServerVBoxBlitterWinInit(&BltInfo, mural);
+
+    crServerVBoxBlitterCtxInit(&Ctx, cr_server.curClient->currentCtxInfo);
+
+    CrBltMuralSetCurrent(pBlitter, &BltInfo);
+
+    idDrawFBO = CR_SERVER_FBO_FOR_IDX(mural, mural->iCurDrawBuffer);
+    idReadFBO = CR_SERVER_FBO_FOR_IDX(mural, mural->iCurReadBuffer);
+
+    crStateSwitchPrepare(NULL, ctx, idDrawFBO, idReadFBO);
+
+    rc = CrBltEnter(pBlitter, &Ctx, &BltInfo);
+    if (RT_SUCCESS(rc))
+    {
+        RTRECT ReadRect, DrawRect;
+        ReadRect.xLeft = srcX0;
+        ReadRect.yTop = srcY0;
+        ReadRect.xRight = srcX1;
+        ReadRect.yBottom = srcY1;
+        DrawRect.xLeft = dstX0;
+        DrawRect.yTop = dstY0;
+        DrawRect.xRight = dstX1;
+        DrawRect.yBottom = dstY1;
+        CrBltBlitTexTex(pBlitter, pReadTex, &ReadRect, pDrawTex, &DrawRect, 1, CRBLT_FLAGS_FROM_FILTER(filter));
+        CrBltLeave(pBlitter);
+    }
+    else
+    {
+        crWarning("CrBltEnter failed rc %d", rc);
+    }
+
+    crStateSwitchPostprocess(ctx, NULL, idDrawFBO, idReadFBO);
+
+    return rc;
+}
+
+void SERVER_DISPATCH_APIENTRY
 crServerDispatchBlitFramebufferEXT(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1,
-                                   GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, 
+                                   GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,
                                    GLbitfield mask, GLenum filter)
 {
     CRContext *ctx = crStateGetCurrent();
+    bool fTryBlitter = false;
 #ifdef CR_CHECK_BLITS
 //    {
         SPUDispatchTable *gl = &cr_server.head_spu->dispatch_table;
@@ -847,6 +1094,47 @@ crServerDispatchBlitFramebufferEXT(GLint srcX0, GLint srcY0, GLint srcX1, GLint 
     gl->BindTexture(GL_TEXTURE_2D, otex);
 #endif
 
+    if (srcY0 > srcY1)
+    {
+        /* work around Intel driver bug on Linux host  */
+        if (1 || dstY0 > dstY1)
+        {
+            /* use srcY1 < srcY2 && dstY1 < dstY2 whenever possible to avoid GPU driver bugs */
+            int32_t tmp = srcY0;
+            srcY0 = srcY1;
+            srcY1 = tmp;
+            tmp = dstY0;
+            dstY0 = dstY1;
+            dstY1 = tmp;
+        }
+    }
+
+    if (srcX0 > srcX1)
+    {
+        if (dstX0 > dstX1)
+        {
+            /* use srcX1 < srcX2 && dstX1 < dstX2 whenever possible to avoid GPU driver bugs */
+            int32_t tmp = srcX0;
+            srcX0 = srcX1;
+            srcX1 = tmp;
+            tmp = dstX0;
+            dstX0 = dstX1;
+            dstX1 = tmp;
+        }
+    }
+
+    if (cr_server.fBlitterMode)
+    {
+        fTryBlitter = true;
+    }
+
+    if (fTryBlitter)
+    {
+        int rc = crServerVBoxBlitterBlitCurrentCtx(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+        if (RT_SUCCESS(rc))
+            goto my_exit;
+    }
+
     if (ctx->viewport.scissorTest)
         cr_server.head_spu->dispatch_table.Disable(GL_SCISSOR_TEST);
 
@@ -856,6 +1144,10 @@ crServerDispatchBlitFramebufferEXT(GLint srcX0, GLint srcY0, GLint srcX1, GLint 
 
     if (ctx->viewport.scissorTest)
         cr_server.head_spu->dispatch_table.Enable(GL_SCISSOR_TEST);
+
+
+my_exit:
+
 //#ifdef CR_CHECK_BLITS
 //    crDbgDumpTexImage2D("<== src tex:", GL_TEXTURE_2D, rtex, true);
 //    crDbgDumpTexImage2D("<== dst tex:", GL_TEXTURE_2D, dtex, true);
@@ -868,6 +1160,7 @@ crServerDispatchBlitFramebufferEXT(GLint srcX0, GLint srcY0, GLint srcX1, GLint 
     gl->BindTexture(GL_TEXTURE_2D, otex);
     crFree(img);
 #endif
+    return;
 }
 
 void SERVER_DISPATCH_APIENTRY crServerDispatchDrawBuffer( GLenum mode )
@@ -876,26 +1169,68 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchDrawBuffer( GLenum mode )
 
     if (!crStateGetCurrent()->framebufferobject.drawFB)
     {
-        if (mode == GL_FRONT || mode == GL_FRONT_LEFT)
+        if (mode == GL_FRONT || mode == GL_FRONT_LEFT || mode == GL_FRONT_RIGHT)
             cr_server.curClient->currentMural->bFbDraw = GL_TRUE;
 
-        if (cr_server.curClient->currentMural->bUseFBO && crServerIsRedirectedToFBO()
-                && cr_server.curClient->currentMural->idFBO)
+        if (crServerIsRedirectedToFBO()
+                && cr_server.curClient->currentMural->aidFBOs[0])
         {
+            CRMuralInfo *mural = cr_server.curClient->currentMural;
+            GLint iBufferNeeded = -1;
             switch (mode)
             {
                 case GL_BACK:
                 case GL_BACK_LEFT:
+                case GL_BACK_RIGHT:
                     mode = GL_COLOR_ATTACHMENT0;
+                    iBufferNeeded = CR_SERVER_FBO_BB_IDX(mural);
                     break;
                 case GL_FRONT:
                 case GL_FRONT_LEFT:
-                    crDebug("Setting GL_FRONT with FBO mode! (0x%x)", mode);
+                case GL_FRONT_RIGHT:
                     mode = GL_COLOR_ATTACHMENT0;
+                    iBufferNeeded = CR_SERVER_FBO_FB_IDX(mural);
+                    break;
+                case GL_NONE:
+                    crDebug("DrawBuffer: GL_NONE");
+                    break;
+                case GL_AUX0:
+                    crDebug("DrawBuffer: GL_AUX0");
+                    break;
+                case GL_AUX1:
+                    crDebug("DrawBuffer: GL_AUX1");
+                    break;
+                case GL_AUX2:
+                    crDebug("DrawBuffer: GL_AUX2");
+                    break;
+                case GL_AUX3:
+                    crDebug("DrawBuffer: GL_AUX3");
+                    break;
+                case GL_LEFT:
+                    crWarning("DrawBuffer: GL_LEFT not supported properly");
+                    mode = GL_COLOR_ATTACHMENT0;
+                    iBufferNeeded = CR_SERVER_FBO_BB_IDX(mural);
+                    break;
+                case GL_RIGHT:
+                    crWarning("DrawBuffer: GL_RIGHT not supported properly");
+                    mode = GL_COLOR_ATTACHMENT0;
+                    iBufferNeeded = CR_SERVER_FBO_BB_IDX(mural);
+                    break;
+                case GL_FRONT_AND_BACK:
+                    crWarning("DrawBuffer: GL_FRONT_AND_BACK not supported properly");
+                    mode = GL_COLOR_ATTACHMENT0;
+                    iBufferNeeded = CR_SERVER_FBO_BB_IDX(mural);
                     break;
                 default:
-                    crWarning("unexpected mode! 0x%x", mode);
+                    crWarning("DrawBuffer: unexpected mode! 0x%x", mode);
+                    iBufferNeeded = mural->iCurDrawBuffer;
                     break;
+            }
+
+            if (iBufferNeeded != mural->iCurDrawBuffer)
+            {
+                mural->iCurDrawBuffer = iBufferNeeded;
+                cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, CR_SERVER_FBO_FOR_IDX(mural, iBufferNeeded));
             }
         }
     }
@@ -907,25 +1242,434 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchReadBuffer( GLenum mode )
 {
     crStateReadBuffer( mode );
 
-    if (cr_server.curClient->currentMural->bUseFBO && crServerIsRedirectedToFBO()
-            && cr_server.curClient->currentMural->idFBO
+    if (crServerIsRedirectedToFBO()
+            && cr_server.curClient->currentMural->aidFBOs[0]
             && !crStateGetCurrent()->framebufferobject.readFB)
     {
+        CRMuralInfo *mural = cr_server.curClient->currentMural;
+        GLint iBufferNeeded = -1;
         switch (mode)
         {
             case GL_BACK:
             case GL_BACK_LEFT:
+            case GL_BACK_RIGHT:
                 mode = GL_COLOR_ATTACHMENT0;
+                iBufferNeeded = CR_SERVER_FBO_BB_IDX(mural);
                 break;
             case GL_FRONT:
             case GL_FRONT_LEFT:
-                crWarning("GL_FRONT not supported for FBO mode!");
+            case GL_FRONT_RIGHT:
                 mode = GL_COLOR_ATTACHMENT0;
+                iBufferNeeded = CR_SERVER_FBO_FB_IDX(mural);
+                break;
+            case GL_NONE:
+                crDebug("ReadBuffer: GL_NONE");
+                break;
+            case GL_AUX0:
+                crDebug("ReadBuffer: GL_AUX0");
+                break;
+            case GL_AUX1:
+                crDebug("ReadBuffer: GL_AUX1");
+                break;
+            case GL_AUX2:
+                crDebug("ReadBuffer: GL_AUX2");
+                break;
+            case GL_AUX3:
+                crDebug("ReadBuffer: GL_AUX3");
+                break;
+            case GL_LEFT:
+                crWarning("ReadBuffer: GL_LEFT not supported properly");
+                mode = GL_COLOR_ATTACHMENT0;
+                iBufferNeeded = CR_SERVER_FBO_BB_IDX(mural);
+                break;
+            case GL_RIGHT:
+                crWarning("ReadBuffer: GL_RIGHT not supported properly");
+                mode = GL_COLOR_ATTACHMENT0;
+                iBufferNeeded = CR_SERVER_FBO_BB_IDX(mural);
+                break;
+            case GL_FRONT_AND_BACK:
+                crWarning("ReadBuffer: GL_FRONT_AND_BACK not supported properly");
+                mode = GL_COLOR_ATTACHMENT0;
+                iBufferNeeded = CR_SERVER_FBO_BB_IDX(mural);
                 break;
             default:
-                crWarning("unexpected mode! 0x%x", mode);
+                crWarning("ReadBuffer: unexpected mode! 0x%x", mode);
+                iBufferNeeded = mural->iCurDrawBuffer;
                 break;
+        }
+
+        Assert(CR_SERVER_FBO_FOR_IDX(mural, mural->iCurReadBuffer));
+        if (iBufferNeeded != mural->iCurReadBuffer)
+        {
+            mural->iCurReadBuffer = iBufferNeeded;
+            cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_READ_FRAMEBUFFER, CR_SERVER_FBO_FOR_IDX(mural, iBufferNeeded));
         }
     }
     cr_server.head_spu->dispatch_table.ReadBuffer( mode );
 }
+
+GLenum SERVER_DISPATCH_APIENTRY crServerDispatchGetError( void )
+{
+    GLenum retval, err;
+    CRContext *ctx = crStateGetCurrent();
+    retval = ctx->error;
+
+    err = cr_server.head_spu->dispatch_table.GetError();
+    if (retval == GL_NO_ERROR)
+        retval = err;
+    else
+        ctx->error = GL_NO_ERROR;
+
+    /* our impl has a single error flag, so we just loop here to reset all error flags to no_error */
+    while (err != GL_NO_ERROR)
+        err = cr_server.head_spu->dispatch_table.GetError();
+
+    crServerReturnValue( &retval, sizeof(retval) );
+    return retval; /* WILL PROBABLY BE IGNORED */
+}
+
+void SERVER_DISPATCH_APIENTRY
+crServerMakeTmpCtxCurrent( GLint window, GLint nativeWindow, GLint context )
+{
+    CRContext *pCtx = crStateGetCurrent();
+    CRContext *pCurCtx = NULL;
+    GLuint idDrawFBO = 0, idReadFBO = 0;
+    int fDoPrePostProcess = 0;
+
+    if (pCtx)
+    {
+        GLint curSrvSpuCtx = cr_server.currentCtxInfo && cr_server.currentCtxInfo->SpuContext > 0 ? cr_server.currentCtxInfo->SpuContext : cr_server.MainContextInfo.SpuContext;
+        bool fSwitchToTmpCtx = (curSrvSpuCtx != context);
+        CRMuralInfo *pCurrentMural = cr_server.currentMural;
+        CRContextInfo *pCurCtxInfo = cr_server.currentCtxInfo;
+        pCurCtx = pCurCtxInfo ? pCurCtxInfo->pContext : NULL;
+
+        CRASSERT(pCurCtx == pCtx);
+
+        if (pCurrentMural)
+        {
+            idDrawFBO = CR_SERVER_FBO_FOR_IDX(pCurrentMural, pCurrentMural->iCurDrawBuffer);
+            idReadFBO = CR_SERVER_FBO_FOR_IDX(pCurrentMural, pCurrentMural->iCurReadBuffer);
+        }
+        else
+        {
+            idDrawFBO = 0;
+            idReadFBO = 0;
+        }
+
+        fDoPrePostProcess = fSwitchToTmpCtx ? 1 : -1;
+    }
+    else
+    {
+        /* this is a GUI thread, so no need to do anything here */
+    }
+
+    if (fDoPrePostProcess > 0)
+        crStateSwitchPrepare(NULL, pCurCtx, idDrawFBO, idReadFBO);
+
+    cr_server.head_spu->dispatch_table.MakeCurrent( window, nativeWindow, context);
+
+    if (fDoPrePostProcess < 0)
+        crStateSwitchPostprocess(pCurCtx, NULL, idDrawFBO, idReadFBO);
+}
+
+void crServerInitTmpCtxDispatch()
+{
+    crSPUInitDispatchTable(&cr_server.TmpCtxDispatch);
+    crSPUCopyDispatchTable(&cr_server.TmpCtxDispatch, &cr_server.head_spu->dispatch_table);
+    cr_server.TmpCtxDispatch.MakeCurrent = crServerMakeTmpCtxCurrent;
+}
+
+/* dump stuff */
+#ifdef VBOX_WITH_CRSERVER_DUMPER
+
+/* first four bits are buffer dump config
+ * second four bits are texture dump config
+ * config flags:
+ * 1 - blit on enter
+ * 2 - blit on exit
+ *
+ *
+ * Example:
+ *
+ * 0x03 - dump buffer on enter and exit
+ * 0x22 - dump texture and buffer on exit */
+
+int64_t g_CrDbgDumpPid = 0;
+unsigned long g_CrDbgDumpEnabled = 0;
+unsigned long g_CrDbgDumpDraw = CR_SERVER_DUMP_F_COMPILE_SHADER
+        | CR_SERVER_DUMP_F_LINK_PROGRAM
+        | CR_SERVER_DUMP_F_DRAW_BUFF_ENTER
+        | CR_SERVER_DUMP_F_DRAW_BUFF_LEAVE
+        | CR_SERVER_DUMP_F_DRAW_PROGRAM_UNIFORMS_ENTER
+        | CR_SERVER_DUMP_F_DRAW_PROGRAM_ATTRIBS_ENTER
+        | CR_SERVER_DUMP_F_DRAW_TEX_ENTER
+        | CR_SERVER_DUMP_F_DRAW_PROGRAM_ENTER
+        | CR_SERVER_DUMP_F_DRAW_STATE_ENTER
+        | CR_SERVER_DUMP_F_SWAPBUFFERS_ENTER
+        | CR_SERVER_DUMP_F_DRAWEL
+        | CR_SERVER_DUMP_F_SHADER_SOURCE
+        ; //CR_SERVER_DUMP_F_DRAW_BUFF_ENTER | CR_SERVER_DUMP_F_DRAW_BUFF_LEAVE;
+unsigned long g_CrDbgDumpDrawFramesSettings = CR_SERVER_DUMP_F_DRAW_BUFF_ENTER
+        | CR_SERVER_DUMP_F_DRAW_BUFF_LEAVE
+        | CR_SERVER_DUMP_F_DRAW_TEX_ENTER
+        | CR_SERVER_DUMP_F_DRAW_PROGRAM_ENTER
+        | CR_SERVER_DUMP_F_COMPILE_SHADER
+        | CR_SERVER_DUMP_F_LINK_PROGRAM
+        | CR_SERVER_DUMP_F_SWAPBUFFERS_ENTER;
+unsigned long g_CrDbgDumpDrawFramesAppliedSettings = 0;
+unsigned long g_CrDbgDumpDrawFramesSavedInitSettings = 0;
+unsigned long g_CrDbgDumpDrawFramesCount = 0;
+
+void crServerDumpCheckTerm()
+{
+    if (!CrBltIsInitialized(&cr_server.RecorderBlitter))
+        return;
+
+    CrBltTerm(&cr_server.RecorderBlitter);
+}
+
+int crServerDumpCheckInit()
+{
+    int rc;
+    CR_BLITTER_WINDOW BltWin;
+    CR_BLITTER_CONTEXT BltCtx;
+    CRMuralInfo *pBlitterMural;
+
+    if (CrBltIsInitialized(&cr_server.RecorderBlitter))
+        return VINF_SUCCESS;
+
+    pBlitterMural = crServerGetDummyMural(cr_server.MainContextInfo.CreateInfo.visualBits);
+    if (!pBlitterMural)
+    {
+        crWarning("crServerGetDummyMural failed");
+        return VERR_GENERAL_FAILURE;
+    }
+
+    crServerVBoxBlitterWinInit(&BltWin, pBlitterMural);
+    crServerVBoxBlitterCtxInit(&BltCtx, &cr_server.MainContextInfo);
+
+    rc = CrBltInit(&cr_server.RecorderBlitter, &BltCtx, true, true, NULL, &cr_server.TmpCtxDispatch);
+    if (!RT_SUCCESS(rc))
+    {
+        crWarning("CrBltInit failed rc %d", rc);
+        return rc;
+    }
+
+    rc = CrBltMuralSetCurrent(&cr_server.RecorderBlitter, &BltWin);
+    if (!RT_SUCCESS(rc))
+    {
+        crWarning("CrBltMuralSetCurrent failed rc %d", rc);
+        return rc;
+    }
+
+#if 0
+    crDmpDbgPrintInit(&cr_server.DbgPrintDumper);
+    cr_server.pDumper = &cr_server.DbgPrintDumper.Base;
+#else
+    crDmpHtmlInit(&cr_server.HtmlDumper, "S:\\projects\\virtualbox\\3d\\dumps\\1", "index.html");
+    cr_server.pDumper = &cr_server.HtmlDumper.Base;
+#endif
+
+    crRecInit(&cr_server.Recorder, &cr_server.RecorderBlitter, &cr_server.TmpCtxDispatch, cr_server.pDumper);
+    return VINF_SUCCESS;
+}
+
+void crServerDumpShader(GLint id)
+{
+    CRContext *ctx = crStateGetCurrent();
+    crRecDumpShader(&cr_server.Recorder, ctx, id, 0);
+}
+
+void crServerDumpProgram(GLint id)
+{
+    CRContext *ctx = crStateGetCurrent();
+    crRecDumpProgram(&cr_server.Recorder, ctx, id, 0);
+}
+
+void crServerDumpCurrentProgram()
+{
+    CRContext *ctx = crStateGetCurrent();
+    crRecDumpCurrentProgram(&cr_server.Recorder, ctx);
+}
+
+void crServerDumpRecompileDumpCurrentProgram()
+{
+    crDmpStrF(cr_server.Recorder.pDumper, "==Dump(1)==");
+    crServerRecompileCurrentProgram();
+    crServerDumpCurrentProgramUniforms();
+    crServerDumpCurrentProgramAttribs();
+    crDmpStrF(cr_server.Recorder.pDumper, "Done Dump(1)");
+    crServerRecompileCurrentProgram();
+    crDmpStrF(cr_server.Recorder.pDumper, "Dump(2)");
+    crServerRecompileCurrentProgram();
+    crServerDumpCurrentProgramUniforms();
+    crServerDumpCurrentProgramAttribs();
+    crDmpStrF(cr_server.Recorder.pDumper, "Done Dump(2)");
+}
+
+void crServerRecompileCurrentProgram()
+{
+    CRContext *ctx = crStateGetCurrent();
+    crRecRecompileCurrentProgram(&cr_server.Recorder, ctx);
+}
+
+void crServerDumpCurrentProgramUniforms()
+{
+    CRContext *ctx = crStateGetCurrent();
+    crDmpStrF(cr_server.Recorder.pDumper, "==Uniforms==");
+    crRecDumpCurrentProgramUniforms(&cr_server.Recorder, ctx);
+    crDmpStrF(cr_server.Recorder.pDumper, "==Done Uniforms==");
+}
+
+void crServerDumpCurrentProgramAttribs()
+{
+    CRContext *ctx = crStateGetCurrent();
+    crDmpStrF(cr_server.Recorder.pDumper, "==Attribs==");
+    crRecDumpCurrentProgramAttribs(&cr_server.Recorder, ctx);
+    crDmpStrF(cr_server.Recorder.pDumper, "==Done Attribs==");
+}
+
+void crServerDumpState()
+{
+    CRContext *ctx = crStateGetCurrent();
+    crRecDumpGlGetState(&cr_server.Recorder, ctx);
+    crRecDumpGlEnableState(&cr_server.Recorder, ctx);
+}
+
+void crServerDumpDrawel(const char*pszFormat, ...)
+{
+    CRContext *ctx = crStateGetCurrent();
+    va_list pArgList;
+    va_start(pArgList, pszFormat);
+    crRecDumpVertAttrV(&cr_server.Recorder, ctx, pszFormat, pArgList);
+    va_end(pArgList);
+}
+
+void crServerDumpDrawelv(GLuint idx, const char*pszElFormat, uint32_t cbEl, const void *pvVal, uint32_t cVal)
+{
+    CRContext *ctx = crStateGetCurrent();
+    crRecDumpVertAttrv(&cr_server.Recorder, ctx, idx, pszElFormat, cbEl, pvVal, cVal);
+}
+
+void crServerDumpBuffer(int idx)
+{
+    CRContextInfo *pCtxInfo = cr_server.currentCtxInfo;
+    CR_BLITTER_WINDOW BltWin;
+    CR_BLITTER_CONTEXT BltCtx;
+    CRContext *ctx = crStateGetCurrent();
+    GLint idFBO;
+    GLint idTex;
+    VBOXVR_TEXTURE RedirTex;
+    int rc = crServerDumpCheckInit();
+    idx = idx >= 0 ? idx : crServerMuralFBOIdxFromBufferName(cr_server.currentMural, pCtxInfo->pContext->buffer.drawBuffer);
+    if (!RT_SUCCESS(rc))
+    {
+        crWarning("crServerDumpCheckInit failed, rc %d", rc);
+        return;
+    }
+
+    if (idx < 0)
+    {
+        crWarning("neg idx, unsupported");
+        return;
+    }
+
+    idFBO = CR_SERVER_FBO_FOR_IDX(cr_server.currentMural, idx);
+    idTex = CR_SERVER_FBO_TEX_FOR_IDX(cr_server.currentMural, idx);
+
+    crServerVBoxBlitterWinInit(&BltWin, cr_server.currentMural);
+    crServerVBoxBlitterCtxInit(&BltCtx, pCtxInfo);
+
+    RedirTex.width = cr_server.currentMural->fboWidth;
+    RedirTex.height = cr_server.currentMural->fboHeight;
+    RedirTex.target = GL_TEXTURE_2D;
+    RedirTex.hwid = idTex;
+
+    crRecDumpBuffer(&cr_server.Recorder, ctx, &BltCtx, &BltWin, idFBO, idTex ? &RedirTex : NULL);
+}
+
+void crServerDumpTexture(const VBOXVR_TEXTURE *pTex)
+{
+    CRContextInfo *pCtxInfo = cr_server.currentCtxInfo;
+    CR_BLITTER_WINDOW BltWin;
+    CR_BLITTER_CONTEXT BltCtx;
+    CRContext *ctx = crStateGetCurrent();
+    int rc = crServerDumpCheckInit();
+    if (!RT_SUCCESS(rc))
+    {
+        crWarning("crServerDumpCheckInit failed, rc %d", rc);
+        return;
+    }
+
+    crServerVBoxBlitterWinInit(&BltWin, cr_server.currentMural);
+    crServerVBoxBlitterCtxInit(&BltCtx, pCtxInfo);
+
+    crRecDumpTextureF(&cr_server.Recorder, pTex, &BltCtx, &BltWin, "Tex (%d x %d), hwid (%d) target %#x", pTex->width, pTex->height, pTex->hwid, pTex->target);
+}
+
+void crServerDumpTextures()
+{
+    CRContextInfo *pCtxInfo = cr_server.currentCtxInfo;
+    CR_BLITTER_WINDOW BltWin;
+    CR_BLITTER_CONTEXT BltCtx;
+    CRContext *ctx = crStateGetCurrent();
+    int rc = crServerDumpCheckInit();
+    if (!RT_SUCCESS(rc))
+    {
+        crWarning("crServerDumpCheckInit failed, rc %d", rc);
+        return;
+    }
+
+    crServerVBoxBlitterWinInit(&BltWin, cr_server.currentMural);
+    crServerVBoxBlitterCtxInit(&BltCtx, pCtxInfo);
+
+    crRecDumpTextures(&cr_server.Recorder, ctx, &BltCtx, &BltWin);
+}
+
+void crServerDumpFilterOpLeave(unsigned long event, CR_DUMPER *pDumper)
+{
+}
+
+bool crServerDumpFilterOpEnter(unsigned long event, CR_DUMPER *pDumper)
+{
+    return CR_SERVER_DUMP_DEFAULT_FILTER_OP(event);
+}
+
+bool crServerDumpFilterDmp(unsigned long event, CR_DUMPER *pDumper)
+{
+    return CR_SERVER_DUMP_DEFAULT_FILTER_DMP(event);
+}
+
+void crServerDumpFramesCheck()
+{
+    if (!g_CrDbgDumpDrawFramesCount)
+        return;
+
+    if (!g_CrDbgDumpDrawFramesAppliedSettings)
+    {
+        if (!g_CrDbgDumpDrawFramesSettings)
+        {
+            crWarning("g_CrDbgDumpDrawFramesSettings is NULL, bump will not be started");
+            g_CrDbgDumpDrawFramesCount = 0;
+            return;
+        }
+
+        g_CrDbgDumpDrawFramesSavedInitSettings = g_CrDbgDumpDraw;
+        g_CrDbgDumpDrawFramesAppliedSettings = g_CrDbgDumpDrawFramesSettings;
+        g_CrDbgDumpDraw = g_CrDbgDumpDrawFramesSettings;
+        crDmpStrF(cr_server.Recorder.pDumper, "***Starting draw dump for %d frames, settings(0x%x)", g_CrDbgDumpDrawFramesCount, g_CrDbgDumpDraw);
+        return;
+    }
+
+    --g_CrDbgDumpDrawFramesCount;
+
+    if (!g_CrDbgDumpDrawFramesCount)
+    {
+        crDmpStrF(cr_server.Recorder.pDumper, "***Stop draw dump");
+        g_CrDbgDumpDraw = g_CrDbgDumpDrawFramesSavedInitSettings;
+        g_CrDbgDumpDrawFramesAppliedSettings = 0;
+    }
+}
+#endif
+/* */

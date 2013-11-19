@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,12 @@
 /* Todo: This file needs massive cleanup. Split IAppliance in a public and
  * private classes. */
 #include <iprt/tar.h>
+#include <iprt/circbuf.h>
+#include <VBox/vd.h>
+#include <iprt/sha.h>
+
+#include "ovfreader.h"
+#include <set>
 
 /* VBox forward declarations */
 class Progress;
@@ -36,12 +42,15 @@ typedef struct VDINTERFACE   *PVDINTERFACE;
 typedef struct VDINTERFACEIO *PVDINTERFACEIO;
 typedef struct SHASTORAGE    *PSHASTORAGE;
 
+typedef enum applianceIOName { applianceIOTar, applianceIOFile, applianceIOSha } APPLIANCEIONAME;
+
 namespace ovf
 {
     struct HardDiskController;
     struct VirtualSystem;
     class OVFReader;
     struct DiskImage;
+    struct EnvelopeData;
 }
 
 namespace xml
@@ -72,13 +81,7 @@ public:
 
     DECLARE_EMPTY_CTOR_DTOR (Appliance)
 
-    enum OVFFormat
-    {
-        unspecified,
-        OVF_0_9,
-        OVF_1_0,
-        OVF_2_0
-    };
+
 
     // public initializer/uninitializer for internal purposes only
     HRESULT FinalConstruct() { return BaseFinalConstruct(); }
@@ -100,7 +103,7 @@ public:
     STDMETHOD(ImportMachines)(ComSafeArrayIn(ImportOptions_T, options), IProgress **aProgress);
     /* Export methods */
     STDMETHOD(CreateVFSExplorer)(IN_BSTR aURI, IVFSExplorer **aExplorer);
-    STDMETHOD(Write)(IN_BSTR format, BOOL fManifest, IN_BSTR path, IProgress **aProgress);
+    STDMETHOD(Write)(IN_BSTR format, ComSafeArrayIn(ExportOptions_T, options), IN_BSTR path, IProgress **aProgress);
 
     STDMETHOD(GetWarnings)(ComSafeArrayOut(BSTR, aWarnings));
 
@@ -141,6 +144,16 @@ private:
 
     static DECLCALLBACK(int) taskThreadImportOrExport(RTTHREAD aThread, void *pvUser);
 
+    HRESULT initSetOfSupportedStandardsURI();
+
+    Utf8Str typeOfVirtualDiskFormatFromURI(Utf8Str type) const;
+
+    std::set<Utf8Str> URIFromTypeOfVirtualDiskFormat(Utf8Str type);
+
+    HRESULT initApplianceIONameMap();
+
+    Utf8Str applianceIOName(APPLIANCEIONAME type) const;
+
     /*******************************************************************************
      * Read stuff
      ******************************************************************************/
@@ -164,8 +177,19 @@ private:
     HRESULT importFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock);
     HRESULT importS3(TaskOVF *pTask);
 
-    HRESULT readManifestFile(const Utf8Str &strFile, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pCallbacks, PSHASTORAGE pStorage);
-    HRESULT readTarManifestFile(RTTAR tar, const Utf8Str &strFile, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pCallbacks, PSHASTORAGE pStorage);
+    HRESULT readFileToBuf(const Utf8Str &strFile,
+                             void **ppvBuf,
+                             size_t *pcbSize,
+                             bool fCreateDigest,
+                             PVDINTERFACEIO pCallbacks,
+                             PSHASTORAGE pStorage);
+    HRESULT readTarFileToBuf(RTTAR tar,
+                             const Utf8Str &strFile,
+                             void **ppvBuf,
+                             size_t *pcbSize,
+                             bool fCreateDigest,
+                             PVDINTERFACEIO pCallbacks,
+                             PSHASTORAGE pStorage);
     HRESULT verifyManifestFile(const Utf8Str &strFile, ImportStack &stack, void *pvBuf, size_t cbSize);
 
     void convertDiskAttachmentValues(const ovf::HardDiskController &hdc,
@@ -175,11 +199,12 @@ private:
                                      int32_t &lDevice);
 
     void importOneDiskImage(const ovf::DiskImage &di,
-                            const Utf8Str &strTargetPath,
+                            Utf8Str *strTargetPath,
                             ComObjPtr<Medium> &pTargetHD,
                             ImportStack &stack,
                             PVDINTERFACEIO pCallbacks,
                             PSHASTORAGE pStorage);
+
     void importMachineGeneric(const ovf::VirtualSystem &vsysThis,
                               ComObjPtr<VirtualSystemDescription> &vsdescThis,
                               ComPtr<IMachine> &pNewMachine,
@@ -199,7 +224,7 @@ private:
      * Write stuff
      ******************************************************************************/
 
-    HRESULT writeImpl(OVFFormat aFormat, const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+    HRESULT writeImpl(ovf::OVFVersion_T aFormat, const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
 
     HRESULT writeFS(TaskOVF *pTask);
     HRESULT writeFSOVF(TaskOVF *pTask, AutoWriteLockBase& writeLock);
@@ -208,14 +233,21 @@ private:
     HRESULT writeS3(TaskOVF *pTask);
 
     struct XMLStack;
-    void buildXML(AutoWriteLockBase& writeLock, xml::Document &doc, XMLStack &stack, const Utf8Str &strPath, OVFFormat enFormat);
+
+    void buildXML(AutoWriteLockBase& writeLock,
+                  xml::Document &doc,
+                  XMLStack &stack,
+                  const Utf8Str &strPath,
+                  ovf::OVFVersion_T enFormat);
     void buildXMLForOneVirtualSystem(AutoWriteLockBase& writeLock,
                                      xml::ElementNode &elmToAddVirtualSystemsTo,
                                      std::list<xml::ElementNode*> *pllElementsWithUuidAttributes,
                                      ComObjPtr<VirtualSystemDescription> &vsdescThis,
-                                     OVFFormat enFormat,
+                                     ovf::OVFVersion_T enFormat,
                                      XMLStack &stack);
 
+    HRESULT preCheckImageAvailability(PSHASTORAGE pSHAStorage,
+                                      RTCString &availableImage);
 
     friend class Machine;
 };
@@ -305,6 +337,8 @@ public:
 
     void importVboxMachineXML(const xml::ElementNode &elmMachine);
     const settings::MachineConfigFile* getMachineConfig() const;
+
+    void removeByType(VirtualSystemDescriptionType_T aType);
 
     /* private instance data */
 private:

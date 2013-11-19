@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2012 Oracle Corporation
+ * Copyright (C) 2005-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,10 +54,25 @@
 #include <VBox/err.h>
 #include <VBox/version.h>
 
+#if !defined(RT_OS_DARWIN) && !defined(RT_OS_WINDOWS)
+char szXdgConfigHome[RTPATH_MAX] = "";
+#endif
+
+/**
+ * Possible locations for the VirtualBox user configuration folder,
+ * listed from oldest (as in legacy) to newest.  These can be either
+ * absolute or relative to the home directory.  We use the first entry
+ * of the list which corresponds to a real folder on storage, or
+ * create a folder corresponding to the last in the list (the least
+ * legacy) if none do.
+ */
+const char *const apcszUserHome[] =
 #ifdef RT_OS_DARWIN
-# define VBOX_USER_HOME_SUFFIX   "Library/VirtualBox"
+{ "Library/VirtualBox" };
+#elif defined RT_OS_WINDOWS
+{ ".VirtualBox" };
 #else
-# define VBOX_USER_HOME_SUFFIX   ".VirtualBox"
+{ ".VirtualBox", szXdgConfigHome };
 #endif
 
 #include "Logging.h"
@@ -181,6 +196,24 @@ HRESULT GlueCreateInstance(const CLSID &clsid,
 
 #endif // VBOX_WITH_XPCOM
 
+static int composeHomePath(char *aDir, size_t aDirLen,
+                           const char *pcszBase)
+{
+    int vrc;
+    if (RTPathStartsWithRoot(pcszBase))
+        vrc = RTStrCopy(aDir, aDirLen, pcszBase);
+    else
+    {
+        /* compose the config directory (full path) */
+        /** @todo r=bird: RTPathUserHome doesn't necessarily return a
+         * full (abs) path like the comment above seems to indicate. */
+        vrc = RTPathUserHome(aDir, aDirLen);
+        if (RT_SUCCESS(vrc))
+            vrc = RTPathAppend(aDir, aDirLen, pcszBase);
+    }
+    return vrc;
+}
+
 int GetVBoxUserHomeDirectory(char *aDir, size_t aDirLen, bool fCreateDir)
 {
     AssertReturn(aDir, VERR_INVALID_POINTER);
@@ -193,6 +226,7 @@ int GetVBoxUserHomeDirectory(char *aDir, size_t aDirLen, bool fCreateDir)
     int vrc = RTEnvGetEx(RTENV_DEFAULT, "VBOX_USER_HOME", szTmp, sizeof(szTmp), NULL);
     if (RT_SUCCESS(vrc) || vrc == VERR_ENV_VAR_NOT_FOUND)
     {
+        bool fFound = false;
         if (RT_SUCCESS(vrc))
         {
             /* get the full path name */
@@ -200,17 +234,37 @@ int GetVBoxUserHomeDirectory(char *aDir, size_t aDirLen, bool fCreateDir)
         }
         else
         {
-            /* compose the config directory (full path) */
-            /** @todo r=bird: RTPathUserHome doesn't necessarily return a full (abs) path
-             *        like the comment above seems to indicate. */
-            vrc = RTPathUserHome(aDir, aDirLen);
-            if (RT_SUCCESS(vrc))
-                vrc = RTPathAppend(aDir, aDirLen, VBOX_USER_HOME_SUFFIX);
+#if !defined(RT_OS_WINDOWS) && !defined(RT_OS_DARWIN)
+            const char *pcszConfigHome = RTEnvGet("XDG_CONFIG_HOME");
+            if (pcszConfigHome && pcszConfigHome[0])
+            {
+                vrc = RTStrCopy(szXdgConfigHome,
+                                sizeof(szXdgConfigHome),
+                                pcszConfigHome);
+                if (RT_SUCCESS(vrc))
+                    vrc = RTPathAppend(szXdgConfigHome,
+                                       sizeof(szXdgConfigHome),
+                                       "VirtualBox");
+            }
+            else
+                vrc = RTStrCopy(szXdgConfigHome,
+                                sizeof(szXdgConfigHome),
+                                ".config/VirtualBox");
+#endif
+            for (unsigned i = 0; i < RT_ELEMENTS(apcszUserHome); ++i)
+            {
+                vrc = composeHomePath(aDir, aDirLen, apcszUserHome[i]);
+                if (RTDirExists(aDir))
+                {
+                    fFound = true;
+                    break;
+                }
+            }
         }
 
         /* ensure the home directory exists */
         if (RT_SUCCESS(vrc))
-            if (!RTDirExists(aDir) && fCreateDir)
+            if (!fFound && fCreateDir)
                 vrc = RTDirCreateFullPath(aDir, 0700);
     }
 
@@ -242,6 +296,7 @@ static void vboxHeaderFooter(PRTLOGGER pReleaseLogger, RTLOGPHASE enmPhase, PFNR
                    g_pszLogEntity, VBOX_VERSION_STRING, RTBldCfgRevision(),
                    RTBldCfgTargetDotArch(), __DATE__, __TIME__, szTmp);
 
+            pfnLog(pReleaseLogger, "Build Type: %s\n", KBUILD_TYPE);
             int vrc = RTSystemQueryOSInfo(RTSYSOSINFO_PRODUCT, szTmp, sizeof(szTmp));
             if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
                 pfnLog(pReleaseLogger, "OS Product: %s\n", szTmp);
@@ -320,7 +375,7 @@ int VBoxLogRelCreate(const char *pcszEntity, const char *pcszLogFile,
     fFlags |= RTLOGFLAGS_USECRLF;
 #endif
     g_pszLogEntity = pcszEntity;
-    int vrc = RTLogCreateEx(&pReleaseLogger, fFlags, "all all.restrict default.unrestricted",
+    int vrc = RTLogCreateEx(&pReleaseLogger, fFlags, pcszGroupSettings,
                             pcszEnvVarBase, RT_ELEMENTS(s_apszGroups), s_apszGroups, fDestFlags,
                             vboxHeaderFooter, cHistory, uHistoryFileSize, uHistoryFileTime,
                             pszError, cbError, pcszLogFile);

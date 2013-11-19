@@ -54,6 +54,8 @@ case "$OS" in
   sunos)
     OS='solaris'
     ;;
+  haiku)
+    ;;
   *)
     echo "Cannot determine OS!"
     exit 1
@@ -93,9 +95,11 @@ WITH_VDE=0
 WITH_VNC=0
 WITH_EXTPACK=1
 WITH_DOCS=1
+WITH_LIBVPX=1
 BUILD_LIBXML2=
 BUILD_LIBCURL=
 BUILD_LIBSSL=
+BUILD_LIBVPX=
 PASSIVE_MESA=0
 CC="gcc"
 CC32=""
@@ -142,6 +146,8 @@ else
   INCPNG=""
   LIBPNG="-lpng"
 fi
+INCVPX=""
+LIBVPX="-lvpx"
 PKGCONFIG="`which_wrapper pkg-config`"
 PYTHONDIR="/usr /usr/local"
 QT4DIR="/usr/lib/qt4 /usr/share/qt4 /usr/lib64/qt4 /usr /usr/local"
@@ -333,7 +339,7 @@ check_environment()
   BUILD_CPU=`uname -m`
   [ "$OS" = "solaris" ] && BUILD_CPU=`isainfo | cut -f 1 -d ' '`
   case "$BUILD_CPU" in
-    i[3456789]86|x86|i86pc)
+    i[3456789]86|x86|i86pc|BePC)
       BUILD_MACHINE='x86'
       LIB='lib'
       ;;
@@ -574,7 +580,7 @@ check_iasl()
 {
   test_header iasl
   if check_avail "$IASL" IASL; then
-    iasl_ver=`$IASL|grep version|sed 's+^ASL.*version \([0-9]*\).*+\1+'`
+    iasl_ver=`$IASL|grep "ASL.*version"|sed 's+^ASL.*version \([0-9]*\).*+\1+'`
     if [ $? -ne 0 ]; then
       log_failure "iasl not found"
       fail
@@ -591,6 +597,9 @@ check_iasl()
 #
 check_xsltproc()
 {
+  if [ -n "$BUILD_LIBXSLT" ]; then
+      return 0;
+  fi
   test_header xslt
   if check_avail "$XSLTPROC" XSLTPROC; then
     xsltproc_ver=`$XSLTPROC --version`
@@ -890,7 +899,7 @@ EOF
   [ -n "$INCZ" ] && I_INCZ=`prefix_I "$INCZ"`
   if test_compile "$LIBZ $I_INCZ" zlib zlib; then
     if test_execute; then
-      echo "if1of (\$(KBUILD_TARGET),darwin freebsd linux solaris)" >> $CNF
+      echo "if1of (\$(KBUILD_TARGET),darwin freebsd haiku linux)" >> $CNF
       cnf_append " SDK_VBOX_ZLIB_LIBS" "`strip_l "$LIBZ"`"
       cnf_append " SDK_VBOX_ZLIB_INCS" "$INCZ"
       echo "endif" >> $CNF
@@ -983,11 +992,11 @@ check_curl()
 extern "C" int main(void)
 {
   printf("found version %s", LIBCURL_VERSION);
-#if 10000*LIBCURL_VERSION_MAJOR + 100*LIBCURL_VERSION_MINOR + LIBCURL_VERSION_PATCH >= 71601
+#if 10000*LIBCURL_VERSION_MAJOR + 100*LIBCURL_VERSION_MINOR + LIBCURL_VERSION_PATCH >= 71901
   printf(", OK.\n");
   return 0;
 #else
-  printf(", expected version 7.16.1 or higher\n");
+  printf(", expected version 7.19.1 or higher\n");
   return 1;
 #endif
 }
@@ -1255,7 +1264,7 @@ EOF
 
 
 #
-# Check for the Xcursor library, needed by VBoxSDL and VBoxBFE
+# Check for the Xcursor library, needed by VBoxSDL.
 #
 check_xcursor()
 {
@@ -1616,6 +1625,54 @@ EOF
   else
     log_failure "qt4 not found"
     fail
+  fi
+}
+
+#
+# Check for libvpx
+#
+check_vpx()
+{
+  if [ -z "$BUILD_LIBVPX" ]; then
+    test_header libvpx
+    if which_wrapper pkg-config > /dev/null; then
+      libvpx_ver=`pkg-config vpx --modversion 2>> $LOG`
+      if [ $? -eq 0 ]; then
+        FLGVPX=`pkg-config vpx --cflags`
+        INCVPX=`strip_I "$FLGVPX"`
+        LIBVPX=`pkg-config vpx --libs`
+      fi
+      cat > $ODIR.tmp_src.cc << EOF
+#include <cstdio>
+#include <vpx/vpx_codec.h>
+extern "C" int main(void)
+{
+  int version = vpx_codec_version();
+  int verMajor = VPX_VERSION_MAJOR(version);
+  int verMinor = VPX_VERSION_MINOR(version);
+  int verPatch = VPX_VERSION_PATCH(version);
+  printf("found version %d.%d.%d", verMajor, verMinor, verPatch);
+  if (   verMajor == 1 && verMinor >= 0
+      || verMajor == 0 && verMinor == 9 && verPatch >= 5)
+  {
+      printf(", OK.\n");
+      return 0;
+  }
+  else
+  {
+      printf(", expected version 0.9.5 or higher\n");
+      return 1;
+   }
+}
+EOF
+      [ -n "$INCVPX" ] && I_INCVPX=`prefix_I "$INCVPX"`
+      if test_compile "$LIBVPX $I_INCVPX" vpx vpx; then
+        if test_execute; then
+          cnf_append "SDK_VBOX_VPX_INCS" "$INCVPX"
+          cnf_append "SDK_VBOX_VPX_LIBS" "`strip_l "$LIBVPX"`"
+          fi
+      fi
+    fi
   fi
 }
 
@@ -2177,6 +2234,7 @@ EOF
 [ $OSE          -eq 1 ] && echo "  --enable-vnc             enable the VNC server"
 [ $OSE          -eq 0 ] && echo "  --disable-extpack        don't build the extpack"
 [ $WITH_DOCS    -eq 1 ] && echo "  --disable-docs           don't build the documentation"
+[ $WITH_LIBVPX  -eq 1 ] && echo "  --disable-libvpx         don't use libvpx for video capturing"
 [ "$OS" = "linux" -o "$OS" = "freebsd" ] && echo "  --enable-vde             enable VDE networking"
 cat << EOF
   --disable-udptunnel      disable UDP tunnel networking
@@ -2187,6 +2245,7 @@ EOF
 [ $OSE -eq 0 ] && cat << EOF
   --build-libssl           build openssl from sources
   --build-libcurl          build libcurl from sources
+  --build-libvpx           build libvpx from sources
 EOF
 [ "$OS"   != "darwin" ] && echo "  --setup-wine             setup a Wine directory and register the hhc hack"
 cat << EOF
@@ -2241,7 +2300,29 @@ if [ "$OS" = "darwin" ]; then
   WITH_DBUS=0
   WITH_KMODS=0
   BUILD_LIBXML2=1
+  BUILD_LIBVPX=1
   [ $OSE -eq 1 ] || BUILD_LIBCURL=1
+  [ $OSE -eq 1 ] && WITH_LIBVPX=0
+elif [ "$OS" = "haiku" ]; then
+  #WITH_SDL=0
+  WITH_SDL_TTF=0
+  WITH_X11=0
+  WITH_ALSA=0
+  WITH_PULSE=0
+  WITH_DBUS=0
+  WITH_KMODS=0
+  WITH_LIBIDL=0
+  WITH_XPCOM=0
+  BUILD_LIBXSLT=1
+  BUILD_LIBXML2=1
+  WITH_LIBVPX=0
+  # it is part of libroot, which is linked by default,
+  # but the script wants something
+  LIBPTHREAD="-lroot"
+  #[ $OSE -eq 1 ] || BUILD_LIBCURL=1
+  [ $OSE -eq 1 ] || BUILD_LIBSSL=1
+elif [ "$OS" = "solaris" ]; then
+  [ $OSE -eq 1 ] && WITH_LIBVPX=0
 fi
 
 # scan command line options
@@ -2371,6 +2452,9 @@ for option in $*; do
     --disable-devmapper)
       WITH_DEVMAPPER=0
       ;;
+    --disable-libvpx)
+      WITH_LIBVPX=0
+      ;;
     --build-debug|-d)
       BUILD_TYPE=debug
       ;;
@@ -2385,6 +2469,9 @@ for option in $*; do
       ;;
     --build-libcurl)
       BUILD_LIBCURL=1
+      ;;
+    --build-libvpx)
+      BUILD_LIBVPX=1
       ;;
     --build-headless)
       HEADLESS=1
@@ -2542,6 +2629,7 @@ fi
 [ $WITH_HARDENING -eq 0 ] && cnf_append "VBOX_WITHOUT_HARDENING" "1"
 [ $WITH_HARDENING -eq 2 ] && cnf_append "VBOX_WITH_HARDENING" "2"
 [ $WITH_VMMRAW    -eq 0 ] && cnf_append "VBOX_WITH_RAW_MODE" ""
+[ $WITH_LIBVPX    -eq 0 ] && cnf_append "VBOX_WITH_VPX" ""
 
 # Darwin-specific
 if [ "$OS" = "darwin" ]; then
@@ -2562,6 +2650,7 @@ check_libxml2
 [ $WITH_LIBIDL -eq 1 ] && check_libidl
 check_ssl
 check_curl
+[ $WITH_LIBVPX -eq 1 ] && check_vpx
 [ "$OS" != "darwin"  ] && check_z
 [ "$OS" != "darwin"  ] && check_png
 [ $OSE -eq 0 -a "$OS" = "linux" ] && check_pam

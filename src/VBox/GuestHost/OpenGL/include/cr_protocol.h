@@ -21,6 +21,23 @@ extern "C" {
 #define CR_PROTOCOL_VERSION_MAJOR 9
 #define CR_PROTOCOL_VERSION_MINOR 1
 
+/* new TexPresent mechanism is available */
+#define CR_VBOX_CAP_TEX_PRESENT    0x00000001
+/* no DWM support available, required for Win8 guests to switch to display-only mode gracefully */
+#define CR_VBOX_CAP_NO_DWM_SUPPORT 0x00000002
+
+
+#define CR_PRESENT_SCREEN_MASK 0xffff
+#define CR_PRESENT_FLAGS_OFFSET 16
+#define CR_PRESENT_FLAGS_MASK 0xffff0000
+#define CR_PRESENT_DEFINE_FLAG(_f) (1 << (CR_PRESENT_FLAGS_OFFSET + _f))
+
+#define CR_PRESENT_FLAG_CLEAR_RECTS            CR_PRESENT_DEFINE_FLAG(0)
+#define CR_PRESENT_FLAG_TEX_NONINVERT_YCOORD   CR_PRESENT_DEFINE_FLAG(1)
+
+#define CR_PRESENT_GET_SCREEN(_cfg) ((_cfg) & CR_PRESENT_SCREEN_MASK)
+#define CR_PRESENT_GET_FLAGS(_cfg) ((_cfg) & CR_PRESENT_FLAGS_MASK)
+
 typedef enum {
     /* first message types is 'wGL\001', so we can immediately
          recognize bad message types */

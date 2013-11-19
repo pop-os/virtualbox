@@ -30,6 +30,7 @@
 #include <iprt/types.h>
 #include <iprt/stdarg.h>
 #include <iprt/fs.h>
+#include <iprt/sg.h>
 
 RT_C_DECLS_BEGIN
 
@@ -147,7 +148,7 @@ RTDECL(int) RTFileQuerySize(const char *pszPath, uint64_t *pcbFile);
 #define RTFILE_O_NOT_CONTENT_INDEXED    UINT32_C(0x00000800)
 /** Truncate the file.
  * @remarks This will not truncate files opened for read-only.
- * @remarks The trunction doesn't have to be atomically, so anyone else opening
+ * @remarks The truncation doesn't have to be atomically, so anyone else opening
  *          the file may be racing us. The caller is responsible for not causing
  *          this race. */
 #define RTFILE_O_TRUNCATE               UINT32_C(0x00001000)
@@ -381,6 +382,20 @@ RTDECL(int)  RTFileRead(RTFILE File, void *pvBuf, size_t cbToRead, size_t *pcbRe
 RTDECL(int)  RTFileReadAt(RTFILE File, RTFOFF off, void *pvBuf, size_t cbToRead, size_t *pcbRead);
 
 /**
+ * Read bytes from a file at a given offset into a S/G buffer.
+ * This function may modify the file position.
+ *
+ * @returns iprt status code.
+ * @param   hFile       Handle to the file.
+ * @param   off         Where to read.
+ * @param   pSgBuf      Pointer to the S/G buffer to read into.
+ * @param   cbToRead    How much to read.
+ * @param   *pcbRead    How much we actually read .
+ *                      If NULL an error will be returned for a partial read.
+ */
+RTDECL(int)  RTFileSgReadAt(RTFILE hFile, RTFOFF off, PRTSGBUF pSgBuf, size_t cbToRead, size_t *pcbRead);
+
+/**
  * Write bytes to a file.
  *
  * @returns iprt status code.
@@ -405,6 +420,20 @@ RTDECL(int)  RTFileWrite(RTFILE File, const void *pvBuf, size_t cbToWrite, size_
  *                      If NULL an error will be returned for a partial write.
  */
 RTDECL(int)  RTFileWriteAt(RTFILE File, RTFOFF off, const void *pvBuf, size_t cbToWrite, size_t *pcbWritten);
+
+/**
+ * Write bytes from a S/G buffer to a file at a given offset.
+ * This function may modify the file position.
+ *
+ * @returns iprt status code.
+ * @param   hFile       Handle to the file.
+ * @param   off         Where to write.
+ * @param   pSgBuf      What to write.
+ * @param   cbToWrite   How much to write.
+ * @param   *pcbWritten How much we actually wrote.
+ *                      If NULL an error will be returned for a partial write.
+ */
+RTDECL(int)  RTFileSgWriteAt(RTFILE hFile, RTFOFF off, PRTSGBUF pSgBuf, size_t cbToWrite, size_t *pcbWritten);
 
 /**
  * Flushes the buffers for the specified file.
@@ -569,6 +598,54 @@ RTDECL(int) RTFileRename(const char *pszSrc, const char *pszDst, unsigned fRenam
  * @remarks this flag is currently not implemented and will be ignored. */
 #define RTFILEMOVE_FLAGS_NO_SYMLINKS  0x2
 /** @} */
+
+/**
+ * Converts file opening modes (used by fopen, for example) to IPRT
+ * compatible flags, which then can be used with RTFileOpen* APIs.
+ *
+ * Note: Handling sharing modes is not supported yet, so RTFILE_O_DENY_NONE
+ *       will be used by default.
+ *
+ * @return  IPRT status code.
+ * @param   pszMode                 Mode string to convert.
+ * @param   puMode                  Where to store the converted mode flags
+ *                                  on success.
+ */
+RTDECL(int) RTFileModeToFlags(const char *pszMode, uint64_t *puMode);
+
+/**
+ * Converts file opening modes along with a separate disposition command
+ * to IPRT compatible flags, which then can be used with RTFileOpen* APIs.
+ *
+ * Access modes:
+ *      "r"  - Opens a file for reading.
+ *      "r+" - Opens a file for reading and writing.
+ *      "w"  - Opens a file for writing.
+ *      "w+" - Opens a file for writing and reading.
+ *
+ * Disposition modes:
+ *      "ca" - Creates a new file, always. Overwrites an existing file.
+ *      "ce" - Creates a new file if it does not exist. Fail if exist.
+ *      "oa" - Opens an existing file and places the file pointer at
+ *             the end of the file, if opened with write access.
+ *             Create the file if it does not exist.
+ *      "oc" - Opens an existing file or create it if it does not exist.
+ *      "oe" - Opens an existing file or fail if it does not exist.
+ *      "ot" - Opens and truncate an existing file or fail if it does not exist.
+ *
+ * Sharing modes:
+ *      Not implemented yet. RTFILE_O_DENY_NONE will be
+ *      used by default.
+ *
+ * @return  IPRT status code.
+ * @param   pszAccess               Access mode string to convert.
+ * @param   pszDisposition          Disposition mode string to convert.
+ * @param   pszSharing              Sharing mode string to convert. Not
+ *                                  implemented yet.
+ * @param   puMode                  Where to store the converted mode flags
+ *                                  on success.
+ */
+RTDECL(int) RTFileModeToFlagsEx(const char *pszAccess, const char *pszDisposition, const char *pszSharing, uint64_t *puMode);
 
 /**
  * Moves a file.
@@ -1215,12 +1292,21 @@ RTDECL(int) RTFileAioReqGetRC(RTFILEAIOREQ hReq, size_t *pcbTransferred);
  *                          to handle. Pass RTFILEAIO_UNLIMITED_REQS if the
  *                          context should support an unlimited number of
  *                          requests.
+ * @param   fFlags          Combination of RTFILEAIOCTX_FLAGS_*.
  */
-RTDECL(int) RTFileAioCtxCreate(PRTFILEAIOCTX phAioCtx, uint32_t cAioReqsMax);
+RTDECL(int) RTFileAioCtxCreate(PRTFILEAIOCTX phAioCtx, uint32_t cAioReqsMax,
+                               uint32_t fFlags);
 
 /** Unlimited number of requests.
  * Used with RTFileAioCtxCreate and RTFileAioCtxGetMaxReqCount. */
 #define RTFILEAIO_UNLIMITED_REQS    UINT32_MAX
+
+/** When set RTFileAioCtxWait() will always wait for completing requests,
+ * even when there is none waiting currently, instead of returning
+ * VERR_FILE_AIO_NO_REQUEST. */
+#define RTFILEAIOCTX_FLAGS_WAIT_WITHOUT_PENDING_REQUESTS RT_BIT_32(0)
+/** mask of valid flags. */
+#define RTFILEAIOCTX_FLAGS_VALID_MASK (RTFILEAIOCTX_FLAGS_WAIT_WITHOUT_PENDING_REQUESTS)
 
 /**
  * Destroys an async I/O context.

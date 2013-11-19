@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -61,11 +61,9 @@ int rtSocketConnect(RTSOCKET hSocket, PCRTNETADDR pAddr);
 int rtSocketSetOpt(RTSOCKET hSocket, int iLevel, int iOption, void const *pvValue, int cbValue);
 #endif /* IPRT_INTERNAL_SOCKET_POLLING_ONLY */
 
-#ifdef RT_OS_WINDOWS
-int         rtSocketPollGetHandle(RTSOCKET hSocket, uint32_t fEvents, PHANDLE ph);
+int         rtSocketPollGetHandle(RTSOCKET hSocket, uint32_t fEvents, PRTHCINTPTR phNative);
 uint32_t    rtSocketPollStart(RTSOCKET hSocket, RTPOLLSET hPollSet, uint32_t fEvents, bool fFinalEntry, bool fNoWait);
 uint32_t    rtSocketPollDone(RTSOCKET hSocket, uint32_t fEvents, bool fFinalEntry, bool fHarvestEvents);
-#endif /* RT_OS_WINDOWS */
 
 RT_C_DECLS_END
 

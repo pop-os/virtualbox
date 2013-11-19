@@ -50,7 +50,7 @@ void UIMachineLogicNormal::sltPrepareNetworkAdaptersMenu()
     QMenu *menu = qobject_cast<QMenu*>(sender());
     AssertMsg(menu, ("This slot should be called only on Network Adapters menu show!\n"));
     menu->clear();
-    menu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_NetworkAdaptersDialog));
+    menu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_NetworkSettings));
 }
 
 void UIMachineLogicNormal::sltPrepareSharedFoldersMenu()
@@ -58,7 +58,16 @@ void UIMachineLogicNormal::sltPrepareSharedFoldersMenu()
     QMenu *menu = qobject_cast<QMenu*>(sender());
     AssertMsg(menu, ("This slot should be called only on Shared Folders menu show!\n"));
     menu->clear();
-    menu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_SharedFoldersDialog));
+    menu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_SharedFoldersSettings));
+}
+
+void UIMachineLogicNormal::sltPrepareVideoCaptureMenu()
+{
+    QMenu *pMenu = qobject_cast<QMenu*>(sender());
+    AssertMsg(pMenu, ("This slot should be called only on Video Capture menu show!\n"));
+    pMenu->clear();
+    pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_VideoCapture));
+    pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_VideoCaptureSettings));
 }
 
 void UIMachineLogicNormal::sltPrepareMouseIntegrationMenu()
@@ -75,17 +84,19 @@ void UIMachineLogicNormal::prepareActionConnections()
     UIMachineLogic::prepareActionConnections();
 
     /* This class connections: */
-    connect(gActionPool->action(UIActionIndexRuntime_Menu_NetworkAdapters)->menu(), SIGNAL(aboutToShow()),
+    connect(gActionPool->action(UIActionIndexRuntime_Menu_Network)->menu(), SIGNAL(aboutToShow()),
             this, SLOT(sltPrepareNetworkAdaptersMenu()));
     connect(gActionPool->action(UIActionIndexRuntime_Menu_SharedFolders)->menu(), SIGNAL(aboutToShow()),
             this, SLOT(sltPrepareSharedFoldersMenu()));
+    connect(gActionPool->action(UIActionIndexRuntime_Menu_VideoCapture)->menu(), SIGNAL(aboutToShow()),
+            this, SLOT(sltPrepareVideoCaptureMenu()));
     connect(gActionPool->action(UIActionIndexRuntime_Menu_MouseIntegration)->menu(), SIGNAL(aboutToShow()),
             this, SLOT(sltPrepareMouseIntegrationMenu()));
 }
 
 void UIMachineLogicNormal::prepareMachineWindows()
 {
-    /* Do not create window(s) if they created already: */
+    /* Do not create machine-window(s) if they created already: */
     if (isMachineWindowsCreated())
         return;
 
@@ -104,17 +115,20 @@ void UIMachineLogicNormal::prepareMachineWindows()
     for (ulong uScreenId = uMonitorCount; uScreenId > 0; -- uScreenId)
         machineWindows()[uScreenId - 1]->raise();
 
-    /* Remember what machine window(s) created: */
+    /* Mark machine-window(s) created: */
     setMachineWindowsCreated(true);
 }
 
 void UIMachineLogicNormal::cleanupMachineWindows()
 {
-    /* Do not cleanup machine window(s) if not present: */
+    /* Do not destroy machine-window(s) if they destroyed already: */
     if (!isMachineWindowsCreated())
         return;
 
-    /* Cleanup machine window(s): */
+    /* Mark machine-window(s) destroyed: */
+    setMachineWindowsCreated(false);
+
+    /* Cleanup machine-window(s): */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
         UIMachineWindow::destroy(pMachineWindow);
 }

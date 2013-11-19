@@ -27,6 +27,7 @@
 #include "UIMultiScreenLayout.h"
 #include "UIActionPoolRuntime.h"
 #include "UIMachineLogic.h"
+#include "UIFrameBuffer.h"
 #include "UISession.h"
 #include "UIMessageCenter.h"
 #include "VBoxGlobal.h"
@@ -159,15 +160,26 @@ void UIMultiScreenLayout::update()
         int cDisabledGuestScreens = m_disabledGuestScreens.size();
         /* We have to try to enable disabled guest-screens if any: */
         int cGuestScreensToEnable = qMin(cExcessiveHostScreens, cDisabledGuestScreens);
+        UISession *pSession = m_pMachineLogic->uisession();
         for (int iGuestScreenIndex = 0; iGuestScreenIndex < cGuestScreensToEnable; ++iGuestScreenIndex)
         {
-            /* Get corresponding guest-screen: */
+            /* Defaults: */
+            ULONG uWidth = 800;
+            ULONG uHeight = 600;
+            /* Try to get previous guest-screen arguments: */
             int iGuestScreen = m_disabledGuestScreens[iGuestScreenIndex];
-            /* Re-enable guest-screen with the old arguments: */
-            LogRelFlow(("UIMultiScreenLayout::update: Enabling guest-screen %d.\n", iGuestScreen));
-            ULONG iWidth, iHeight, iBpp;
-            display.GetScreenResolution(iGuestScreen, iWidth, iHeight, iBpp);
-            display.SetVideoModeHint(iGuestScreen, true, false, 0, 0, iWidth, iHeight, iBpp);
+            if (UIFrameBuffer *pFrameBuffer = pSession->frameBuffer(iGuestScreen))
+            {
+                if (pFrameBuffer->width() > 0)
+                    uWidth = pFrameBuffer->width();
+                if (pFrameBuffer->height() > 0)
+                    uHeight = pFrameBuffer->height();
+                pFrameBuffer->setAutoEnabled(true);
+            }
+            /* Re-enable guest-screen with proper resolution: */
+            LogRelFlow(("UIMultiScreenLayout::update: Enabling guest-screen %d with following resolution: %dx%d.\n",
+                        iGuestScreen, uWidth, uHeight));
+            display.SetVideoModeHint(iGuestScreen, true, false, 0, 0, uWidth, uHeight, 32);
         }
     }
 
@@ -266,7 +278,7 @@ void UIMultiScreenLayout::sltScreenLayoutChanged(QAction *pAction)
             if (m_pMachineLogic->visualStateType() == UIVisualStateType_Seamless)
                 msgCenter().cannotSwitchScreenInSeamless((((usedBits + 7) / 8 + _1M - 1) / _1M) * _1M);
             else
-                fSuccess = msgCenter().cannotSwitchScreenInFullscreen((((usedBits + 7) / 8 + _1M - 1) / _1M) * _1M) != QIMessageBox::Cancel;
+                fSuccess = msgCenter().cannotSwitchScreenInFullscreen((((usedBits + 7) / 8 + _1M - 1) / _1M) * _1M);
         }
     }
     /* Make sure memory requirements matched: */
@@ -283,11 +295,7 @@ void UIMultiScreenLayout::sltScreenLayoutChanged(QAction *pAction)
 
 void UIMultiScreenLayout::calculateHostMonitorCount()
 {
-#if (QT_VERSION >= 0x040600)
     m_cHostScreens = QApplication::desktop()->screenCount();
-#else /* (QT_VERSION >= 0x040600) */
-    m_cHostScreens = QApplication::desktop()->numScreens();
-#endif /* !(QT_VERSION >= 0x040600) */
 }
 
 void UIMultiScreenLayout::calculateGuestScreenCount()
@@ -386,6 +394,8 @@ quint64 UIMultiScreenLayout::memoryRequirements(const QMap<int, int> &screenLayo
     ULONG width = 0;
     ULONG height = 0;
     ULONG guestBpp = 0;
+    LONG xOrigin = 0;
+    LONG yOrigin = 0;
     quint64 usedBits = 0;
     CDisplay display = m_pMachineLogic->uisession()->session().GetConsole().GetDisplay();
     foreach (int iGuestScreen, m_guestScreens)
@@ -395,7 +405,7 @@ quint64 UIMultiScreenLayout::memoryRequirements(const QMap<int, int> &screenLayo
             screen = QApplication::desktop()->availableGeometry(screenLayout.value(iGuestScreen, 0));
         else
             screen = QApplication::desktop()->screenGeometry(screenLayout.value(iGuestScreen, 0));
-        display.GetScreenResolution(iGuestScreen, width, height, guestBpp);
+        display.GetScreenResolution(iGuestScreen, width, height, guestBpp, xOrigin, yOrigin);
         usedBits += screen.width() * /* display width */
                     screen.height() * /* display height */
                     guestBpp + /* guest bits per pixel */

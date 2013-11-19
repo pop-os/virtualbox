@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -353,7 +353,7 @@ HRESULT showBandwidthGroups(ComPtr<IBandwidthControl> &bwCtrl,
 HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
                    ComPtr<IMachine> machine,
                    VMINFO_DETAILS details /*= VMINFO_NONE*/,
-                   ComPtr<IConsole> console /*= ComPtr <IConsole> ()*/)
+                   ComPtr<IConsole> console /*= ComPtr<IConsole> ()*/)
 {
     HRESULT rc;
 
@@ -546,7 +546,9 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
         RTPrintf("Firmware:        %s\n", pszFirmwareType);
 
     SHOW_ULONG_PROP(       machine, CPUCount,                   "cpus",                 "Number of CPUs", "");
-    SHOW_BOOLEAN_METHOD(   machine, GetCPUProperty(CPUPropertyType_Synthetic, &f), "synthcpu", "Synthetic Cpu");
+    SHOW_BOOLEAN_METHOD(   machine, GetCPUProperty(CPUPropertyType_PAE, &f), "pae", "PAE");
+    SHOW_BOOLEAN_METHOD(   machine, GetCPUProperty(CPUPropertyType_LongMode, &f), "longmode", "Long Mode");
+    SHOW_BOOLEAN_METHOD(   machine, GetCPUProperty(CPUPropertyType_Synthetic, &f), "synthcpu", "Synthetic CPU");
 
     if (details != VMINFO_MACHINEREADABLE)
         RTPrintf("CPUID overrides: ");
@@ -577,7 +579,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
     if (!cFound && details != VMINFO_MACHINEREADABLE)
         RTPrintf("None\n");
 
-    ComPtr <IBIOSSettings> biosSettings;
+    ComPtr<IBIOSSettings> biosSettings;
     CHECK_ERROR2_RET(machine, COMGETTER(BIOSSettings)(biosSettings.asOutParam()), hrcCheck);
 
     BIOSBootMenuMode_T bootMenuMode;
@@ -666,14 +668,13 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
 
     SHOW_BOOLEAN_PROP(biosSettings, ACPIEnabled,                "acpi",                 "ACPI");
     SHOW_BOOLEAN_PROP(biosSettings, IOAPICEnabled,              "ioapic",               "IOAPIC");
-    SHOW_BOOLEAN_METHOD(machine, GetCPUProperty(CPUPropertyType_PAE, &f), "pae",        "PAE");
     SHOW_LONG64_PROP(biosSettings,  TimeOffset,                 "biossystemtimeoffset", "Time offset",  "ms");
     SHOW_BOOLEAN_PROP_EX(machine,   RTCUseUTC,                  "rtcuseutc",            "RTC",          "UTC", "local time");
     SHOW_BOOLEAN_METHOD(machine, GetHWVirtExProperty(HWVirtExPropertyType_Enabled,   &f),   "hwvirtex",     "Hardw. virt.ext");
-    SHOW_BOOLEAN_METHOD(machine, GetHWVirtExProperty(HWVirtExPropertyType_Exclusive, &f),   "hwvirtexexcl", "Hardw. virt.ext exclusive");
     SHOW_BOOLEAN_METHOD(machine, GetHWVirtExProperty(HWVirtExPropertyType_NestedPaging, &f),"nestedpaging", "Nested Paging");
     SHOW_BOOLEAN_METHOD(machine, GetHWVirtExProperty(HWVirtExPropertyType_LargePages, &f),  "largepages",   "Large Pages");
     SHOW_BOOLEAN_METHOD(machine, GetHWVirtExProperty(HWVirtExPropertyType_VPID, &f),        "vtxvpid",      "VT-x VPID");
+    SHOW_BOOLEAN_METHOD(machine, GetHWVirtExProperty(HWVirtExPropertyType_UnrestrictedExecution, &f), "vtxux", "VT-x unr. exec.");
 
     MachineState_T machineState;
     CHECK_ERROR2_RET(machine, COMGETTER(State)(&machineState), hrcCheck);
@@ -712,6 +713,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
     SHOW_STRING_PROP(     machine,  TracingConfig,              "tracing-config",           "Tracing Configuration");
     SHOW_BOOLEAN_PROP(    machine,  AutostartEnabled,           "autostart-enabled",        "Autostart Enabled");
     SHOW_ULONG_PROP(      machine,  AutostartDelay,             "autostart-delay",          "Autostart Delay", "");
+    SHOW_STRING_PROP(     machine,  DefaultFrontend,            "defaultfrontend",          "Default Frontend");
 
 /** @todo Convert the remainder of the function to SHOW_XXX macros and add error
  *        checking where missing. */
@@ -1070,6 +1072,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
                             strAttachment = Utf8StrFmt("Host-only Interface '%ls'", strHostonlyAdp.raw());
                         break;
                     }
+
                     case NetworkAttachmentType_Generic:
                     {
                         Bstr strGenericDriver;
@@ -1100,6 +1103,21 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
                         }
                         break;
                     }
+
+                    case NetworkAttachmentType_NATNetwork:
+                    {
+                        Bstr strNetwork;
+                        nic->COMGETTER(NATNetwork)(strNetwork.asOutParam());
+                        if (details == VMINFO_MACHINEREADABLE)
+                        {
+                            RTPrintf("nat-network%d=\"%ls\"\n", currentNIC + 1, strNetwork.raw());
+                            strAttachment = "natnetwork";
+                        }
+                        else
+                            strAttachment = Utf8StrFmt("NAT Network '%s'", Utf8Str(strNetwork).c_str());
+                        break;
+                    }
+
                     default:
                         strAttachment = "unknown";
                         break;
@@ -1118,7 +1136,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
                     case NetworkAdapterPromiscModePolicy_Deny:          pszPromiscuousGuestPolicy = "deny"; break;
                     case NetworkAdapterPromiscModePolicy_AllowNetwork:  pszPromiscuousGuestPolicy = "allow-vms"; break;
                     case NetworkAdapterPromiscModePolicy_AllowAll:      pszPromiscuousGuestPolicy = "allow-all"; break;
-                    default: AssertFailedReturn(VERR_INTERNAL_ERROR_4);
+                    default: AssertFailedReturn(E_INVALIDARG);
                 }
 
                 /* trace stuff */
@@ -1214,6 +1232,10 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
         case PointingHIDType_ComboMouse:
             pszHID = "USB Tablet and PS/2 Mouse";
             pszMrHID = "combomouse";
+            break;
+        case PointingHIDType_USBMultiTouch:
+            pszHID = "USB Multi-Touch";
+            pszMrHID = "usbmultitouch";
             break;
         default:
             break;
@@ -1565,7 +1587,24 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
         if (details == VMINFO_MACHINEREADABLE)
             RTPrintf("draganddrop=\"%s\"\n", psz);
         else
-            RTPrintf("Drag'n'drop Mode:  %s\n", psz);
+            RTPrintf("Drag'n'drop Mode: %s\n", psz);
+    }
+
+    {
+        SessionState_T sessState;
+        rc = machine->COMGETTER(SessionState)(&sessState);
+        if (SUCCEEDED(rc) && sessState != SessionState_Unlocked)
+        {
+            Bstr sessType;
+            rc = machine->COMGETTER(SessionType)(sessType.asOutParam());
+            if (SUCCEEDED(rc) && !sessType.isEmpty())
+            {
+                if (details == VMINFO_MACHINEREADABLE)
+                    RTPrintf("SessionType=\"%ls\"\n", sessType.raw());
+                else
+                    RTPrintf("Session type:    %ls\n", sessType.raw());
+            }
+        }
     }
 
     if (console)
@@ -1582,7 +1621,8 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
                 return rc;
             }
             ULONG xRes, yRes, bpp;
-            rc = display->GetScreenResolution(0, &xRes, &yRes, &bpp);
+            LONG xOrigin, yOrigin;
+            rc = display->GetScreenResolution(0, &xRes, &yRes, &bpp, &xOrigin, &yOrigin);
             if (rc == E_ACCESSDENIED)
                 break; /* VM not powered up */
             if (FAILED(rc))
@@ -1592,9 +1632,9 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
                 return rc;
             }
             if (details == VMINFO_MACHINEREADABLE)
-                RTPrintf("VideoMode=\"%d,%d,%d\"\n", xRes, yRes, bpp);
+                RTPrintf("VideoMode=\"%d,%d,%d\"@%d,%d\n", xRes, yRes, bpp, xOrigin, yOrigin);
             else
-                RTPrintf("Video mode:      %dx%dx%d\n", xRes, yRes, bpp);
+                RTPrintf("Video mode:      %dx%dx%d at %d,%d\n", xRes, yRes, bpp, xOrigin, yOrigin);
         }
         while (0);
     }
@@ -1724,30 +1764,51 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
     /*
      * USB.
      */
-    ComPtr<IUSBController> USBCtl;
-    rc = machine->COMGETTER(USBController)(USBCtl.asOutParam());
+    SafeIfaceArray<IUSBController> USBCtlColl;
+    rc = machine->COMGETTER(USBControllers)(ComSafeArrayAsOutParam(USBCtlColl));
     if (SUCCEEDED(rc))
     {
-        BOOL fEnabled;
-        BOOL fEHCIEnabled;
-        rc = USBCtl->COMGETTER(Enabled)(&fEnabled);
-        if (FAILED(rc))
-            fEnabled = false;
-        if (details == VMINFO_MACHINEREADABLE)
-            RTPrintf("usb=\"%s\"\n", fEnabled ? "on" : "off");
-        else
-            RTPrintf("USB:             %s\n", fEnabled ? "enabled" : "disabled");
+        bool fOhciEnabled = false;
+        bool fEhciEnabled = false;
 
-        rc = USBCtl->COMGETTER(EnabledEHCI)(&fEHCIEnabled);
-        if (FAILED(rc))
-            fEHCIEnabled = false;
-        if (details == VMINFO_MACHINEREADABLE)
-            RTPrintf("ehci=\"%s\"\n", fEHCIEnabled ? "on" : "off");
-        else
-            RTPrintf("EHCI:            %s\n", fEHCIEnabled ? "enabled" : "disabled");
+        for (unsigned i = 0; i < USBCtlColl.size(); i++)
+        {
+            USBControllerType_T enmType;
 
+            rc = USBCtlColl[i]->COMGETTER(Type)(&enmType);
+            if (SUCCEEDED(rc))
+            {
+                switch (enmType)
+                {
+                    case USBControllerType_OHCI:
+                        fOhciEnabled = true;
+                        break;
+                    case USBControllerType_EHCI:
+                        fEhciEnabled = true;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        if (details == VMINFO_MACHINEREADABLE)
+            RTPrintf("usb=\"%s\"\n", fOhciEnabled ? "on" : "off");
+        else
+            RTPrintf("USB:             %s\n", fOhciEnabled ? "enabled" : "disabled");
+
+        if (details == VMINFO_MACHINEREADABLE)
+            RTPrintf("ehci=\"%s\"\n", fEhciEnabled ? "on" : "off");
+        else
+            RTPrintf("EHCI:            %s\n", fEhciEnabled ? "enabled" : "disabled");
+    }
+
+    ComPtr<IUSBDeviceFilters> USBFlts;
+    rc = machine->COMGETTER(USBDeviceFilters)(USBFlts.asOutParam());
+    if (SUCCEEDED(rc))
+    {
         SafeIfaceArray <IUSBDeviceFilter> Coll;
-        rc = USBCtl->COMGETTER(DeviceFilters)(ComSafeArrayAsOutParam(Coll));
+        rc = USBFlts->COMGETTER(DeviceFilters)(ComSafeArrayAsOutParam(Coll));
         if (SUCCEEDED(rc))
         {
         if (details != VMINFO_MACHINEREADABLE)
@@ -1848,7 +1909,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
                 {
                     for (size_t index = 0; index < coll.size(); ++index)
                     {
-                        ComPtr <IHostUSBDevice> dev = coll[index];
+                        ComPtr<IHostUSBDevice> dev = coll[index];
 
                         /* Query info. */
                         Bstr id;
@@ -1937,7 +1998,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
                 {
                     for (size_t index = 0; index < coll.size(); ++index)
                     {
-                        ComPtr <IUSBDevice> dev = coll[index];
+                        ComPtr<IUSBDevice> dev = coll[index];
 
                         /* Query info. */
                         Bstr id;
@@ -2094,7 +2155,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
 
         for (size_t i = 0; i < folders.size(); ++i)
         {
-            ComPtr <ISharedFolder> sf = folders[i];
+            ComPtr<ISharedFolder> sf = folders[i];
 
             Bstr name, hostPath;
             BOOL writable;
@@ -2125,7 +2186,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
 
         for (size_t i = 0; i < folders.size(); ++i)
         {
-            ComPtr <ISharedFolder> sf = folders[i];
+            ComPtr<ISharedFolder> sf = folders[i];
 
             Bstr name, hostPath;
             sf->COMGETTER(Name)(name.asOutParam());
@@ -2279,6 +2340,60 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
 
         if (details != VMINFO_MACHINEREADABLE)
             RTPrintf("\n");
+    }
+
+    {
+        /* Video capture */
+        BOOL bActive = FALSE;
+        CHECK_ERROR_RET(machine, COMGETTER(VideoCaptureEnabled)(&bActive), rc);
+        com::SafeArray<BOOL> screens;
+        CHECK_ERROR_RET(machine, COMGETTER(VideoCaptureScreens)(ComSafeArrayAsOutParam(screens)), rc);
+        ULONG Width;
+        CHECK_ERROR_RET(machine, COMGETTER(VideoCaptureWidth)(&Width), rc);
+        ULONG Height;
+        CHECK_ERROR_RET(machine, COMGETTER(VideoCaptureHeight)(&Height), rc);
+        ULONG Rate;
+        CHECK_ERROR_RET(machine, COMGETTER(VideoCaptureRate)(&Rate), rc);
+        ULONG Fps;
+        CHECK_ERROR_RET(machine, COMGETTER(VideoCaptureFPS)(&Fps), rc);
+        Bstr File;
+        CHECK_ERROR_RET(machine, COMGETTER(VideoCaptureFile)(File.asOutParam()), rc);
+        if (details == VMINFO_MACHINEREADABLE)
+        {
+            RTPrintf("vcpenabled=\"%s\"\n", bActive ? "on" : "off");
+            RTPrintf("vcpscreens=");
+            bool fComma = false;
+            for (unsigned i = 0; i < screens.size(); i++)
+                if (screens[i])
+                {
+                    RTPrintf("%s%u", fComma ? "," : "", i);
+                    fComma = true;
+                }
+            RTPrintf("\n");
+            RTPrintf("vcpfile=\"%ls\"\n", File.raw());
+            RTPrintf("vcpwidth=%u\n", (unsigned)Width);
+            RTPrintf("vcpheight=%u\n", (unsigned)Height);
+            RTPrintf("vcprate=%u\n", (unsigned)Rate);
+            RTPrintf("vcpfps=%u\n", (unsigned)Fps);
+        }
+        else
+        {
+            RTPrintf("Video capturing:    %s\n", bActive ? "active" : "not active");
+            RTPrintf("Capture screens:    ");
+            bool fComma = false;
+            for (unsigned i = 0; i < screens.size(); i++)
+                if (screens[i])
+                {
+                    RTPrintf("%s%u", fComma ? "," : "", i);
+                    fComma = true;
+                }
+            RTPrintf("\n");
+            RTPrintf("Capture file:       %ls\n", File.raw());
+            RTPrintf("Capture dimensions: %ux%u\n", Width, Height);
+            RTPrintf("Capture rate:       %u kbps\n", Rate);
+            RTPrintf("Capture FPS:        %u\n", Fps);
+            RTPrintf("\n");
+        }
     }
 
     if (    details == VMINFO_STANDARD
@@ -2490,7 +2605,7 @@ int handleShowVMInfo(HandlerArg *a)
         return errorSyntax(USAGE_SHOWVMINFO, "VM name or UUID required");
 
     /* try to find the given machine */
-    ComPtr <IMachine> machine;
+    ComPtr<IMachine> machine;
     CHECK_ERROR(a->virtualBox, FindMachine(Bstr(VMNameOrUuid).raw(),
                                            machine.asOutParam()));
     if (FAILED(rc))

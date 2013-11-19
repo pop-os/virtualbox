@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,7 @@
 #include <VBox/vmm/pdmdev.h>
 #include "PGMInternal.h"
 #include <VBox/vmm/vm.h>
+#include <VBox/vmm/uvm.h>
 #include "PGMInline.h"
 #include <VBox/sup.h>
 #include <VBox/param.h>
@@ -142,14 +143,15 @@ VMMR3DECL(int) PGMR3PhysReadExternal(PVM pVM, RTGCPHYS GCPhys, void *pvBuf, size
                  * If the page has an ALL access handler, we'll have to
                  * delegate the job to EMT.
                  */
-                if (PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(pPage))
+                if (   PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(pPage)
+                    || PGM_PAGE_IS_SPECIAL_ALIAS_MMIO(pPage))
                 {
                     pgmUnlock(pVM);
 
                     return VMR3ReqPriorityCallWait(pVM, VMCPUID_ANY, (PFNRT)pgmR3PhysReadExternalEMT, 4,
                                                    pVM, &GCPhys, pvBuf, cbRead);
                 }
-                Assert(!PGM_PAGE_IS_MMIO(pPage));
+                Assert(!PGM_PAGE_IS_MMIO_OR_SPECIAL_ALIAS(pPage));
 
                 /*
                  * Simple stuff, go ahead.
@@ -280,7 +282,8 @@ VMMDECL(int) PGMR3PhysWriteExternal(PVM pVM, RTGCPHYS GCPhys, const void *pvBuf,
                  * dealt with here.
                  */
                 if (    PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage)
-                    ||  PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED)
+                    ||  PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED
+                    ||  PGM_PAGE_IS_SPECIAL_ALIAS_MMIO(pPage))
                 {
                     if (    PGM_PAGE_GET_STATE(pPage) == PGM_PAGE_STATE_WRITE_MONITORED
                         && !PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage))
@@ -293,7 +296,7 @@ VMMDECL(int) PGMR3PhysWriteExternal(PVM pVM, RTGCPHYS GCPhys, const void *pvBuf,
                                                        pVM, &GCPhys, pvBuf, cbWrite);
                     }
                 }
-                Assert(!PGM_PAGE_IS_MMIO(pPage));
+                Assert(!PGM_PAGE_IS_MMIO_OR_SPECIAL_ALIAS(pPage));
 
                 /*
                  * Simple stuff, go ahead.
@@ -376,7 +379,7 @@ static DECLCALLBACK(int) pgmR3PhysGCPhys2CCPtrDelegated(PVM pVM, PRTGCPHYS pGCPh
         int rc2 = pgmPhysPageQueryTlbe(pVM, *pGCPhys, &pTlbe);
         AssertFatalRC(rc2);
         PPGMPAGE pPage = pTlbe->pPage;
-        if (PGM_PAGE_IS_MMIO(pPage))
+        if (PGM_PAGE_IS_MMIO_OR_SPECIAL_ALIAS(pPage))
         {
             PGMPhysReleasePageMappingLock(pVM, pLock);
             rc = VERR_PGM_PHYS_PAGE_RESERVED;
@@ -447,7 +450,7 @@ VMMR3DECL(int) PGMR3PhysGCPhys2CCPtrExternal(PVM pVM, RTGCPHYS GCPhys, void **pp
     if (RT_SUCCESS(rc))
     {
         PPGMPAGE pPage = pTlbe->pPage;
-        if (PGM_PAGE_IS_MMIO(pPage))
+        if (PGM_PAGE_IS_MMIO_OR_SPECIAL_ALIAS(pPage))
             rc = VERR_PGM_PHYS_PAGE_RESERVED;
         else
         {
@@ -550,7 +553,7 @@ VMMR3DECL(int) PGMR3PhysGCPhys2CCPtrReadOnlyExternal(PVM pVM, RTGCPHYS GCPhys, v
         PPGMPAGE pPage = pTlbe->pPage;
 #if 1
         /* MMIO pages doesn't have any readable backing. */
-        if (PGM_PAGE_IS_MMIO(pPage))
+        if (PGM_PAGE_IS_MMIO_OR_SPECIAL_ALIAS(pPage))
             rc = VERR_PGM_PHYS_PAGE_RESERVED;
 #else
         if (PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(pPage))
@@ -1360,7 +1363,7 @@ VMMR3DECL(int) PGMR3PhysGetRange(PVM pVM, uint32_t iRange, PRTGCPHYS pGCPhysStar
  * Query the amount of free memory inside VMMR0
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the VM.
+ * @param   pUVM                The user mode VM handle.
  * @param   pcbAllocMem         Where to return the amount of memory allocated
  *                              by VMs.
  * @param   pcbFreeMem          Where to return the amount of memory that is
@@ -1371,14 +1374,17 @@ VMMR3DECL(int) PGMR3PhysGetRange(PVM pVM, uint32_t iRange, PRTGCPHYS pGCPhysStar
  * @param   pcbSharedMem        Where to return the amount of memory that is
  *                              currently shared.
  */
-VMMR3DECL(int) PGMR3QueryGlobalMemoryStats(PVM pVM, uint64_t *pcbAllocMem, uint64_t *pcbFreeMem,
+VMMR3DECL(int) PGMR3QueryGlobalMemoryStats(PUVM pUVM, uint64_t *pcbAllocMem, uint64_t *pcbFreeMem,
                                            uint64_t *pcbBallonedMem, uint64_t *pcbSharedMem)
 {
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, VERR_INVALID_VM_HANDLE);
+
     uint64_t cAllocPages   = 0;
     uint64_t cFreePages    = 0;
     uint64_t cBalloonPages = 0;
     uint64_t cSharedPages  = 0;
-    int rc = GMMR3QueryHypervisorMemoryStats(pVM, &cAllocPages, &cFreePages, &cBalloonPages, &cSharedPages);
+    int rc = GMMR3QueryHypervisorMemoryStats(pUVM->pVM, &cAllocPages, &cFreePages, &cBalloonPages, &cSharedPages);
     AssertRCReturn(rc, rc);
 
     if (pcbAllocMem)
@@ -1403,7 +1409,7 @@ VMMR3DECL(int) PGMR3QueryGlobalMemoryStats(PVM pVM, uint64_t *pcbAllocMem, uint6
  * Query memory stats for the VM.
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the VM.
+ * @param   pUVM                The user mode VM handle.
  * @param   pcbTotalMem         Where to return total amount memory the VM may
  *                              possibly use.
  * @param   pcbPrivateMem       Where to return the amount of private memory
@@ -1424,9 +1430,11 @@ VMMR3DECL(int) PGMR3QueryGlobalMemoryStats(PVM pVM, uint64_t *pcbAllocMem, uint6
  *       potentially be shared?  Doesn't this mean the first VM gets a much
  *       lower number of shared pages?
  */
-VMMR3DECL(int) PGMR3QueryMemoryStats(PVM pVM, uint64_t *pcbTotalMem, uint64_t *pcbPrivateMem,
+VMMR3DECL(int) PGMR3QueryMemoryStats(PUVM pUVM, uint64_t *pcbTotalMem, uint64_t *pcbPrivateMem,
                                      uint64_t *pcbSharedMem, uint64_t *pcbZeroMem)
 {
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    PVM pVM = pUVM->pVM;
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
     if (pcbTotalMem)
@@ -1561,7 +1569,7 @@ static int pgmR3PhysRegisterHighRamChunk(PVM pVM, RTGCPHYS GCPhys, uint32_t cRam
     void        *pvChunk      = NULL;
     int rc = SUPR3PageAllocEx(cChunkPages, 0 /*fFlags*/, &pvChunk,
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
-                              VMMIsHwVirtExtForced(pVM) ? &R0PtrChunk : NULL,
+                              HMIsEnabled(pVM) ? &R0PtrChunk : NULL,
 #else
                               NULL,
 #endif
@@ -1569,7 +1577,7 @@ static int pgmR3PhysRegisterHighRamChunk(PVM pVM, RTGCPHYS GCPhys, uint32_t cRam
     if (RT_SUCCESS(rc))
     {
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
-        if (!VMMIsHwVirtExtForced(pVM))
+        if (!HMIsEnabled(pVM))
             R0PtrChunk = NIL_RTR0PTR;
 #else
         R0PtrChunk = (uintptr_t)pvChunk;
@@ -1691,7 +1699,7 @@ VMMR3DECL(int) PGMR3PhysRegisterRam(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, const
          */
         uint32_t cbChunk;
         uint32_t cPagesPerChunk;
-        if (VMMIsHwVirtExtForced(pVM))
+        if (HMIsEnabled(pVM))
         {
             cbChunk = 16U*_1M;
             cPagesPerChunk = 1048048; /* max ~1048059 */
@@ -1878,7 +1886,7 @@ void pgmR3PhysAssertSharedPageChecksums(PVM pVM)
 
 
 /**
- * Resets (zeros) the RAM.
+ * Resets the physical memory state.
  *
  * ASSUMES that the caller owns the PGM lock.
  *
@@ -1903,13 +1911,29 @@ int pgmR3PhysRamReset(PVM pVM)
     pVM->pgm.s.cReusedSharedPages = 0;
     pVM->pgm.s.cBalloonedPages    = 0;
 
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Resets (zeros) the RAM after all devices and components have been reset.
+ *
+ * ASSUMES that the caller owns the PGM lock.
+ *
+ * @returns VBox status code.
+ * @param   pVM     Pointer to the VM.
+ */
+int pgmR3PhysRamZeroAll(PVM pVM)
+{
+    PGM_LOCK_ASSERT_OWNER(pVM);
+
     /*
      * We batch up pages that should be freed instead of calling GMM for
      * each and every one of them.
      */
     uint32_t            cPendingPages = 0;
     PGMMFREEPAGESREQ    pReq;
-    rc = GMMR3FreePagesPrepare(pVM, &pReq, PGMPHYS_FREE_PAGE_BATCH_SIZE, GMMACCOUNT_BASE);
+    int rc = GMMR3FreePagesPrepare(pVM, &pReq, PGMPHYS_FREE_PAGE_BATCH_SIZE, GMMACCOUNT_BASE);
     AssertLogRelRCReturn(rc, rc);
 
     /*
@@ -1956,6 +1980,7 @@ int pgmR3PhysRamReset(PVM pVM)
                         break;
 
                     case PGMPAGETYPE_MMIO2_ALIAS_MMIO:
+                    case PGMPAGETYPE_SPECIAL_ALIAS_MMIO: /** @todo perhaps leave the special page alone?  I don't think VT-x copes with this code. */
                         pgmHandlerPhysicalResetAliasedPage(pVM, pPage, pRam->GCPhys + ((RTGCPHYS)iPage << PAGE_SHIFT),
                                                            true /*fDoAccounting*/);
                         break;
@@ -2009,6 +2034,7 @@ int pgmR3PhysRamReset(PVM pVM)
                         break;
 
                     case PGMPAGETYPE_MMIO2_ALIAS_MMIO:
+                    case PGMPAGETYPE_SPECIAL_ALIAS_MMIO: /** @todo perhaps leave the special page alone?  I don't think VT-x copes with this code. */
                         pgmHandlerPhysicalResetAliasedPage(pVM, pPage, pRam->GCPhys + ((RTGCPHYS)iPage << PAGE_SHIFT),
                                                            true /*fDoAccounting*/);
                         break;
@@ -2036,7 +2062,6 @@ int pgmR3PhysRamReset(PVM pVM)
         AssertLogRelRCReturn(rc, rc);
     }
     GMMR3FreePagesCleanup(pReq);
-
     return VINF_SUCCESS;
 }
 
@@ -2105,6 +2130,7 @@ int pgmR3PhysRamTerm(PVM pVM)
                     break;
 
                 case PGMPAGETYPE_MMIO2_ALIAS_MMIO:
+                case PGMPAGETYPE_SPECIAL_ALIAS_MMIO:
                 case PGMPAGETYPE_MMIO2:
                 case PGMPAGETYPE_ROM_SHADOW: /* handled by pgmR3PhysRomReset. */
                 case PGMPAGETYPE_ROM:
@@ -2127,6 +2153,7 @@ int pgmR3PhysRamTerm(PVM pVM)
     GMMR3FreePagesCleanup(pReq);
     return VINF_SUCCESS;
 }
+
 
 /**
  * This is the interface IOM is using to register an MMIO region.
@@ -2341,15 +2368,16 @@ VMMR3DECL(int) PGMR3PhysMMIODeregister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb)
                 while (cLeft-- > 0)
                 {
                     PPGMPAGE    pPage    = &pRam->aPages[iPage];
-                    if (    PGM_PAGE_GET_TYPE(pPage) != PGMPAGETYPE_MMIO
+                    if (   !PGM_PAGE_IS_MMIO_OR_ALIAS(pPage)
                         /*|| not-out-of-action later */)
                     {
                         fAllMMIO = false;
-                        Assert(PGM_PAGE_GET_TYPE(pPage) != PGMPAGETYPE_MMIO2_ALIAS_MMIO);
                         AssertMsgFailed(("%RGp %R[pgmpage]\n", pRam->GCPhys + ((RTGCPHYS)iPage << PAGE_SHIFT), pPage));
                         break;
                     }
-                    Assert(PGM_PAGE_IS_ZERO(pPage));
+                    Assert(   PGM_PAGE_IS_ZERO(pPage)
+                           || PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_MMIO2_ALIAS_MMIO
+                           || PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_SPECIAL_ALIAS_MMIO);
                     pPage++;
                 }
                 if (fAllMMIO)
@@ -2387,9 +2415,11 @@ VMMR3DECL(int) PGMR3PhysMMIODeregister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb)
                 while (cLeft--)
                 {
                     PPGMPAGE pPage = &pRam->aPages[iPage];
-                    AssertMsg(PGM_PAGE_IS_MMIO(pPage), ("%RGp %R[pgmpage]\n", pRam->GCPhys + ((RTGCPHYS)iPage << PAGE_SHIFT), pPage));
-                    AssertMsg(PGM_PAGE_IS_ZERO(pPage), ("%RGp %R[pgmpage]\n", pRam->GCPhys + ((RTGCPHYS)iPage << PAGE_SHIFT), pPage));
-                    if (PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_MMIO)
+                    AssertMsg(   (PGM_PAGE_IS_MMIO(pPage) && PGM_PAGE_IS_ZERO(pPage))
+                              || PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_MMIO2_ALIAS_MMIO
+                              || PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_SPECIAL_ALIAS_MMIO,
+                              ("%RGp %R[pgmpage]\n", pRam->GCPhys + ((RTGCPHYS)iPage << PAGE_SHIFT), pPage));
+                    if (PGM_PAGE_IS_MMIO_OR_ALIAS(pPage))
                         PGM_PAGE_SET_TYPE(pVM, pPage, PGMPAGETYPE_RAM);
                 }
                 break;
@@ -2466,7 +2496,8 @@ DECLINLINE(PPGMMMIO2RANGE) pgmR3PhysMMIO2Find(PVM pVM, PPDMDEVINS pDevIns, uint3
  *                          the memory.
  * @param   pszDesc         The description.
  */
-VMMR3DECL(int) PGMR3PhysMMIO2Register(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion, RTGCPHYS cb, uint32_t fFlags, void **ppv, const char *pszDesc)
+VMMR3DECL(int) PGMR3PhysMMIO2Register(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion, RTGCPHYS cb, uint32_t fFlags,
+                                      void **ppv, const char *pszDesc)
 {
     /*
      * Validate input.
@@ -2484,7 +2515,7 @@ VMMR3DECL(int) PGMR3PhysMMIO2Register(PVM pVM, PPDMDEVINS pDevIns, uint32_t iReg
 
     const uint32_t cPages = cb >> PAGE_SHIFT;
     AssertLogRelReturn(((RTGCPHYS)cPages << PAGE_SHIFT) == cb, VERR_INVALID_PARAMETER);
-    AssertLogRelReturn(cPages <= INT32_MAX / 2, VERR_NO_MEMORY);
+    AssertLogRelReturn(cPages <= PGM_MMIO2_MAX_PAGE_COUNT, VERR_NO_MEMORY);
 
     /*
      * For the 2nd+ instance, mangle the description string so it's unique.
@@ -2495,6 +2526,20 @@ VMMR3DECL(int) PGMR3PhysMMIO2Register(PVM pVM, PPDMDEVINS pDevIns, uint32_t iReg
         if (!pszDesc)
             return VERR_NO_MEMORY;
     }
+
+    /*
+     * Allocate an MMIO2 range ID (not freed on failure).
+     * The zero ID is not used as it could be confused with NIL_GMM_PAGEID.
+     */
+    pgmLock(pVM);
+    uint8_t idMmio2 = pVM->pgm.s.cMmio2Regions + 1;
+    if (idMmio2 > PGM_MMIO2_MAX_RANGES)
+    {
+        pgmUnlock(pVM);
+        AssertLogRelFailedReturn(VERR_PGM_TOO_MANY_MMIO2_RANGES);
+    }
+    pVM->pgm.s.cMmio2Regions = idMmio2;
+    pgmUnlock(pVM);
 
     /*
      * Try reserve and allocate the backing memory first as this is what is
@@ -2527,6 +2572,7 @@ VMMR3DECL(int) PGMR3PhysMMIO2Register(PVM pVM, PPDMDEVINS pDevIns, uint32_t iReg
                 //pNew->fOverlapping        = false;
                 pNew->iRegion               = iRegion;
                 pNew->idSavedState          = UINT8_MAX;
+                pNew->idMmio2               = idMmio2;
                 pNew->RamRange.pSelfR0      = MMHyperCCToR0(pVM, &pNew->RamRange);
                 pNew->RamRange.pSelfRC      = MMHyperCCToRC(pVM, &pNew->RamRange);
                 pNew->RamRange.GCPhys       = NIL_RTGCPHYS;
@@ -2541,7 +2587,8 @@ VMMR3DECL(int) PGMR3PhysMMIO2Register(PVM pVM, PPDMDEVINS pDevIns, uint32_t iReg
                 while (iPage-- > 0)
                 {
                     PGM_PAGE_INIT(&pNew->RamRange.aPages[iPage],
-                                  paPages[iPage].Phys, NIL_GMM_PAGEID,
+                                  paPages[iPage].Phys,
+                                  PGM_MMIO2_PAGEID_MAKE(idMmio2, iPage),
                                   PGMPAGETYPE_MMIO2, PGM_PAGE_STATE_ALLOCATED);
                 }
 
@@ -2553,9 +2600,14 @@ VMMR3DECL(int) PGMR3PhysMMIO2Register(PVM pVM, PPDMDEVINS pDevIns, uint32_t iReg
                  * Link it into the list.
                  * Since there is no particular order, just push it.
                  */
+                /** @todo we can save us the linked list now, just search the lookup table... */
                 pgmLock(pVM);
+                Assert(pVM->pgm.s.apMmio2RangesR3[idMmio2 - 1] == NULL);
+                Assert(pVM->pgm.s.apMmio2RangesR0[idMmio2 - 1] == NIL_RTR0PTR);
                 pNew->pNextR3 = pVM->pgm.s.pMmio2RangesR3;
                 pVM->pgm.s.pMmio2RangesR3 = pNew;
+                pVM->pgm.s.apMmio2RangesR3[idMmio2 - 1] = pNew;
+                pVM->pgm.s.apMmio2RangesR0[idMmio2 - 1] = MMHyperCCToR0(pVM, pNew);
                 pgmUnlock(pVM);
 
                 *ppv = pvPages;
@@ -2628,6 +2680,11 @@ VMMR3DECL(int) PGMR3PhysMMIO2Deregister(PVM pVM, PPDMDEVINS pDevIns, uint32_t iR
             else
                 pVM->pgm.s.pMmio2RangesR3 = pNext;
             pCur->pNextR3 = NULL;
+
+            uint8_t idMmio2 = pCur->idMmio2;
+            Assert(pVM->pgm.s.apMmio2RangesR3[idMmio2 - 1] == pCur);
+            pVM->pgm.s.apMmio2RangesR3[idMmio2 - 1] = NULL;
+            pVM->pgm.s.apMmio2RangesR0[idMmio2 - 1] = NIL_RTR0PTR;
 
             /*
              * Free the memory.
@@ -3545,8 +3602,8 @@ static DECLCALLBACK(int) pgmR3PhysRomWriteHandler(PVM pVM, RTGCPHYS GCPhys, void
 
 
 /**
- * Called by PGMR3Reset to reset the shadow, switch to the virgin,
- * and verify that the virgin part is untouched.
+ * Called by PGMR3MemSetup to reset the shadow, switch to the virgin, and verify
+ * that the virgin part is untouched.
  *
  * This is done after the normal memory has been cleared.
  *
@@ -3635,8 +3692,17 @@ int pgmR3PhysRomReset(PVM pVM)
                     break;
 
                 if (memcmp(pvDstPage, pbSrcPage, RT_MIN(cbSrcLeft, PAGE_SIZE)))
+                {
+# ifdef DEBUG_bird /* This is darn handy for EFI debugging w/ snapshots, should be made default later. */
+                    void *pvDstPageW;
+                    rc = pgmPhysPageMap(pVM, &pRom->aPages[iPage].Virgin, GCPhys, &pvDstPageW);
+                    AssertRCReturn(rc, rc);
+                    memcpy(pvDstPageW, pbSrcPage, RT_MIN(cbSrcLeft, PAGE_SIZE));
+# else
                     LogRel(("pgmR3PhysRomReset: %RGp rom page changed (%s) - loaded saved state?\n",
                             GCPhys, pRom->pszDesc));
+# endif
+                }
                 cbSrcLeft -= RT_MIN(cbSrcLeft, PAGE_SIZE);
             }
         }
@@ -3794,7 +3860,7 @@ VMMDECL(void) PGMR3PhysSetA20(PVMCPU pVCpu, bool fEnable)
         pVCpu->pgm.s.fSyncFlags |= PGM_SYNC_UPDATE_PAGE_BIT_VIRTUAL;
         VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
         pgmR3RefreshShadowModeAfterA20Change(pVCpu);
-        HWACCMFlushTLB(pVCpu);
+        HMFlushTLB(pVCpu);
 #endif
         STAM_REL_COUNTER_INC(&pVCpu->pgm.s.cA20Changes);
     }
@@ -4325,7 +4391,7 @@ VMMR3DECL(int) PGMR3PhysAllocateLargeHandyPage(PVM pVM, RTGCPHYS GCPhys)
  * @param   pVM         Pointer to the VM.
  *
  * @remarks The VINF_EM_NO_MEMORY status is for the benefit of the FF processing
- *          in EM.cpp and shouldn't be propagated outside TRPM, HWACCM, EM and
+ *          in EM.cpp and shouldn't be propagated outside TRPM, HM, EM and
  *          pgmPhysEnsureHandyPage. There is one exception to this in the \#PF
  *          handler.
  */

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,8 +21,10 @@
 #include "AutoCaller.h"
 #include "Logging.h"
 #include "netif.h"
-#include "Performance.h"
-#include "PerformanceImpl.h"
+#ifdef VBOX_WITH_RESOURCE_USAGE_API
+# include "Performance.h"
+# include "PerformanceImpl.h"
+#endif
 
 #include <iprt/cpp/utils.h>
 
@@ -69,7 +71,7 @@ HRESULT HostNetworkInterface::init(Bstr aInterfaceName, Bstr aShortName, Guid aG
                       aInterfaceName.raw(), aGuid.toString().c_str()));
 
     ComAssertRet(!aInterfaceName.isEmpty(), E_INVALIDARG);
-    ComAssertRet(!aGuid.isEmpty(), E_INVALIDARG);
+    ComAssertRet(!aGuid.isValid(), E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -77,6 +79,7 @@ HRESULT HostNetworkInterface::init(Bstr aInterfaceName, Bstr aShortName, Guid aG
 
     unconst(mInterfaceName) = aInterfaceName;
     unconst(mNetworkName) = composeNetworkName(aShortName);
+    unconst(mShortName) = aShortName;
     unconst(mGuid) = aGuid;
     mIfType = ifType;
 
@@ -85,6 +88,8 @@ HRESULT HostNetworkInterface::init(Bstr aInterfaceName, Bstr aShortName, Guid aG
 
     return S_OK;
 }
+
+#ifdef VBOX_WITH_RESOURCE_USAGE_API
 
 void HostNetworkInterface::registerMetrics(PerformanceCollector *aCollector, ComPtr<IUnknown> objptr)
 {
@@ -140,6 +145,8 @@ void HostNetworkInterface::unregisterMetrics(PerformanceCollector *aCollector, C
     aCollector->unregisterBaseMetricsFor(objptr, name);
 }
 
+#endif /* VBOX_WITH_RESOURCE_USAGE_API */
+
 #ifdef VBOX_WITH_HOSTNETIF_API
 
 HRESULT HostNetworkInterface::updateConfig()
@@ -184,7 +191,7 @@ HRESULT HostNetworkInterface::init(Bstr aInterfaceName, HostNetworkInterfaceType
 //                      aInterfaceName.raw(), aGuid.toString().raw()));
 
 //    ComAssertRet(aInterfaceName, E_INVALIDARG);
-//    ComAssertRet(!aGuid.isEmpty(), E_INVALIDARG);
+//    ComAssertRet(aGuid.isValid(), E_INVALIDARG);
     ComAssertRet(pIf, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
@@ -244,6 +251,24 @@ STDMETHODIMP HostNetworkInterface::COMGETTER(Name)(BSTR *aInterfaceName)
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     mInterfaceName.cloneTo(aInterfaceName);
+
+    return S_OK;
+}
+
+/**
+ * Returns the short name of the host network interface.
+ *
+ * @returns COM status code
+ * @param   aShortName address of result pointer
+ */
+STDMETHODIMP HostNetworkInterface::COMGETTER(ShortName)(BSTR *aShortName)
+{
+    CheckComArgOutPointerValid(aShortName);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    mShortName.cloneTo(aShortName);
 
     return S_OK;
 }

@@ -146,7 +146,7 @@ int main(int argc, char **argv)
             if (   !strcmp(argv[i], "--version")
                 || !strcmp(argv[i], "-V"))
             {
-                printf("$Revision: 83687 $\n");
+                printf("$Revision: 83575 $\n");
                 return 0;
             }
             fprintf(stderr, "syntax error: unknown option '%s'\n", argv[i]);

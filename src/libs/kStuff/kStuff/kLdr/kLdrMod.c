@@ -1,4 +1,4 @@
-/* $Id: kLdrMod.c 41 2011-08-24 14:35:57Z bird $ */
+/* $Id: kLdrMod.c 52 2013-07-09 17:03:37Z bird $ */
 /** @file
  * kLdr - The Module Interpreter.
  */
@@ -299,6 +299,8 @@ int kLdrModOpenFromRdr(PKRDR pRdr, KU32 fFlags, KCPUARCH enmCpuArch, PPKLDRMOD p
     }           u;
     KLDRFOFF    offHdr = 0;
     int         rc;
+
+    kHlpAssertReturn(!(fFlags & ~KLDRMOD_OPEN_FLAGS_VALID_MASK), KERR_INVALID_PARAMETER);
 
     for (;;)
     {

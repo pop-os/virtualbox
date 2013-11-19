@@ -45,12 +45,14 @@ ifdef VBOX_WITH_OPEN_WATCOM
  	print.c \
  	ata.c \
  	floppy.c \
+ 	floppyt.c \
  	eltorito.c \
  	boot.c \
  	keyboard.c \
  	disk.c \
  	serial.c \
  	system.c \
+ 	invop.c \
  	timepci.c \
  	ps2mouse.c \
  	parallel.c \
@@ -129,6 +131,17 @@ else
 	$(QUIET)$(VBOX_BIN2C) -min 64 -max 256 -mask 0xffff -ascii -export PcBiosBinary $(PcBiosBin_0_OUTDIR)/VBoxPcBios.rom $@
 	$(QUIET)$(RM) -f -- $$(PcBiosBin_0_OUTDIR)/VBoxPcBios.rom
 endif
+
+
+ifdef VBOX_WITH_OPEN_WATCOM
+ #
+ # Install the symbol file for the BIOS.
+ #
+ INSTALLS += VBoxPcBiosSym
+ VBoxPcBiosSym_TEMPLATE = VBoxDbgSyms
+ VBoxPcBiosSym_SOURCES = $(basename $(VBoxPcBios_1_TARGET)).sym
+endif
+
 
 include $(FILE_KBUILD_SUB_FOOTER)
 

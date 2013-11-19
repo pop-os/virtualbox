@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -100,6 +100,7 @@
 #include <VBox/vmm/mm.h>
 #include "PGMInternal.h"
 #include <VBox/vmm/vm.h>
+#include <VBox/vmm/uvm.h>
 #include "PGMInline.h"
 
 #include <VBox/log.h>
@@ -114,7 +115,7 @@
 *******************************************************************************/
 static DECLCALLBACK(int) pgmR3PoolAccessHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
 #ifdef VBOX_WITH_DEBUGGER
-static DECLCALLBACK(int)  pgmR3PoolCmdCheck(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static FNDBGCCMD pgmR3PoolCmdCheck;
 #endif
 
 #ifdef VBOX_WITH_DEBUGGER
@@ -282,53 +283,32 @@ int pgmR3PoolInit(PVM pVM)
     pPool->pszAccessHandler = "Guest Paging Access Handler";
     pPool->HCPhysTree = 0;
 
-    /* The NIL entry. */
+    /*
+     * The NIL entry.
+     */
     Assert(NIL_PGMPOOL_IDX == 0);
     pPool->aPages[NIL_PGMPOOL_IDX].enmKind          = PGMPOOLKIND_INVALID;
     pPool->aPages[NIL_PGMPOOL_IDX].idx              = NIL_PGMPOOL_IDX;
+    pPool->aPages[NIL_PGMPOOL_IDX].Core.Key         = NIL_RTHCPHYS;
+    pPool->aPages[NIL_PGMPOOL_IDX].GCPhys           = NIL_RTGCPHYS;
+    pPool->aPages[NIL_PGMPOOL_IDX].iNext            = NIL_PGMPOOL_IDX;
+    /* pPool->aPages[NIL_PGMPOOL_IDX].cLocked          = INT32_MAX; - test this out... */
+    pPool->aPages[NIL_PGMPOOL_IDX].pvPageR3         = 0;
+    pPool->aPages[NIL_PGMPOOL_IDX].iUserHead        = NIL_PGMPOOL_USER_INDEX;
+    pPool->aPages[NIL_PGMPOOL_IDX].iModifiedNext    = NIL_PGMPOOL_IDX;
+    pPool->aPages[NIL_PGMPOOL_IDX].iModifiedPrev    = NIL_PGMPOOL_IDX;
+    pPool->aPages[NIL_PGMPOOL_IDX].iMonitoredNext   = NIL_PGMPOOL_IDX;
+    pPool->aPages[NIL_PGMPOOL_IDX].iMonitoredNext   = NIL_PGMPOOL_IDX;
+    pPool->aPages[NIL_PGMPOOL_IDX].iAgeNext         = NIL_PGMPOOL_IDX;
+    pPool->aPages[NIL_PGMPOOL_IDX].iAgePrev         = NIL_PGMPOOL_IDX;
 
-    /* The Shadow 32-bit PD. (32 bits guest paging) */
-    pPool->aPages[PGMPOOL_IDX_PD].enmKind           = PGMPOOLKIND_32BIT_PD;
-    pPool->aPages[PGMPOOL_IDX_PD].idx               = PGMPOOL_IDX_PD;
-
-    /* The Shadow PDPT. */
-    pPool->aPages[PGMPOOL_IDX_PDPT].enmKind         = PGMPOOLKIND_PAE_PDPT;
-    pPool->aPages[PGMPOOL_IDX_PDPT].idx             = PGMPOOL_IDX_PDPT;
-
-    /* The Shadow AMD64 CR3. */
-    pPool->aPages[PGMPOOL_IDX_AMD64_CR3].enmKind    = PGMPOOLKIND_64BIT_PML4;
-    pPool->aPages[PGMPOOL_IDX_AMD64_CR3].idx        = PGMPOOL_IDX_AMD64_CR3;
-
-    /* The Nested Paging CR3. */
-    pPool->aPages[PGMPOOL_IDX_NESTED_ROOT].enmKind  = PGMPOOLKIND_ROOT_NESTED;
-    pPool->aPages[PGMPOOL_IDX_NESTED_ROOT].idx      = PGMPOOL_IDX_NESTED_ROOT;
-
-    /*
-     * Set common stuff.
-     */
-    for (unsigned iPage = 0; iPage < PGMPOOL_IDX_FIRST; iPage++)
-    {
-        pPool->aPages[iPage].Core.Key       = NIL_RTHCPHYS;
-        pPool->aPages[iPage].GCPhys         = NIL_RTGCPHYS;
-        pPool->aPages[iPage].iNext          = NIL_PGMPOOL_IDX;
-        /* pPool->aPages[iPage].cLocked        = INT32_MAX; - test this out... */
-        pPool->aPages[iPage].pvPageR3       = 0;
-        pPool->aPages[iPage].iUserHead      = NIL_PGMPOOL_USER_INDEX;
-        pPool->aPages[iPage].iModifiedNext  = NIL_PGMPOOL_IDX;
-        pPool->aPages[iPage].iModifiedPrev  = NIL_PGMPOOL_IDX;
-        pPool->aPages[iPage].iMonitoredNext = NIL_PGMPOOL_IDX;
-        pPool->aPages[iPage].iMonitoredNext = NIL_PGMPOOL_IDX;
-        pPool->aPages[iPage].iAgeNext       = NIL_PGMPOOL_IDX;
-        pPool->aPages[iPage].iAgePrev       = NIL_PGMPOOL_IDX;
-
-        Assert(pPool->aPages[iPage].idx == iPage);
-        Assert(pPool->aPages[iPage].GCPhys == NIL_RTGCPHYS);
-        Assert(!pPool->aPages[iPage].fSeenNonGlobal);
-        Assert(!pPool->aPages[iPage].fMonitored);
-        Assert(!pPool->aPages[iPage].fCached);
-        Assert(!pPool->aPages[iPage].fZeroed);
-        Assert(!pPool->aPages[iPage].fReusedFlushPending);
-    }
+    Assert(pPool->aPages[NIL_PGMPOOL_IDX].idx == NIL_PGMPOOL_IDX);
+    Assert(pPool->aPages[NIL_PGMPOOL_IDX].GCPhys == NIL_RTGCPHYS);
+    Assert(!pPool->aPages[NIL_PGMPOOL_IDX].fSeenNonGlobal);
+    Assert(!pPool->aPages[NIL_PGMPOOL_IDX].fMonitored);
+    Assert(!pPool->aPages[NIL_PGMPOOL_IDX].fCached);
+    Assert(!pPool->aPages[NIL_PGMPOOL_IDX].fZeroed);
+    Assert(!pPool->aPages[NIL_PGMPOOL_IDX].fReusedFlushPending);
 
 #ifdef VBOX_WITH_STATISTICS
     /*
@@ -430,12 +410,17 @@ void pgmR3PoolRelocate(PVM pVM)
     pVM->pgm.s.pPoolR3->pVMRC = pVM->pVMRC;
     pVM->pgm.s.pPoolR3->paUsersRC = MMHyperR3ToRC(pVM, pVM->pgm.s.pPoolR3->paUsersR3);
     pVM->pgm.s.pPoolR3->paPhysExtsRC = MMHyperR3ToRC(pVM, pVM->pgm.s.pPoolR3->paPhysExtsR3);
-    int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "pgmPoolAccessHandler", &pVM->pgm.s.pPoolR3->pfnAccessHandlerRC);
-    AssertReleaseRC(rc);
+
+    if (!HMIsEnabled(pVM))
+    {
+        int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "pgmPoolAccessHandler", &pVM->pgm.s.pPoolR3->pfnAccessHandlerRC);
+        AssertReleaseRC(rc);
+    }
+
     /* init order hack. */
     if (!pVM->pgm.s.pPoolR3->pfnAccessHandlerR0)
     {
-        rc = PDMR3LdrGetSymbolR0(pVM, NULL, "pgmPoolAccessHandler", &pVM->pgm.s.pPoolR3->pfnAccessHandlerR0);
+        int rc = PDMR3LdrGetSymbolR0(pVM, NULL, "pgmPoolAccessHandler", &pVM->pgm.s.pPoolR3->pfnAccessHandlerR0);
         AssertReleaseRC(rc);
     }
 }
@@ -458,8 +443,8 @@ VMMR3DECL(int) PGMR3PoolGrow(PVM pVM)
        (below 4 GB) memory. */
     /** @todo change the pool to handle ROOT page allocations specially when
      *        required. */
-    bool fCanUseHighMemory = HWACCMIsNestedPagingActive(pVM)
-                          && HWACCMGetShwPagingMode(pVM) == PGMMODE_EPT;
+    bool fCanUseHighMemory = HMIsNestedPagingActive(pVM)
+                          && HMGetShwPagingMode(pVM) == PGMMODE_EPT;
 
     pgmLock(pVM);
 
@@ -784,21 +769,6 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
         }
     }
 
-    /* swipe the special pages too. */
-    for (iPage = PGMPOOL_IDX_FIRST_SPECIAL; iPage < PGMPOOL_IDX_FIRST; iPage++)
-    {
-        PPGMPOOLPAGE pPage = &pPool->aPages[iPage];
-        if (pPage->GCPhys != NIL_RTGCPHYS)
-        {
-            Assert(!pPage->cModifications || ++cModifiedPages);
-            Assert(pPage->iModifiedNext == NIL_PGMPOOL_IDX || pPage->cModifications);
-            Assert(pPage->iModifiedPrev == NIL_PGMPOOL_IDX || pPage->cModifications);
-            pPage->iModifiedNext = NIL_PGMPOOL_IDX;
-            pPage->iModifiedPrev = NIL_PGMPOOL_IDX;
-            pPage->cModifications = 0;
-        }
-    }
-
 #ifndef DEBUG_michael
     AssertMsg(cModifiedPages == pPool->cModifiedPages, ("%d != %d\n", cModifiedPages, pPool->cModifiedPages));
 #endif
@@ -977,18 +947,13 @@ void pgmR3PoolWriteProtectPages(PVM pVM)
 
 #ifdef VBOX_WITH_DEBUGGER
 /**
- * The '.pgmpoolcheck' command.
- *
- * @returns VBox status.
- * @param   pCmd        Pointer to the command descriptor (as registered).
- * @param   pCmdHlp     Pointer to command helper functions.
- * @param   pVM         Pointer to the current VM (if any).
- * @param   paArgs      Pointer to (readonly) array of arguments.
- * @param   cArgs       Number of arguments in the array.
+ * @callback_method_impl{FNDBGCCMD, The '.pgmpoolcheck' command.}
  */
-static DECLCALLBACK(int) pgmR3PoolCmdCheck(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
+static DECLCALLBACK(int) pgmR3PoolCmdCheck(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
-    DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
+    DBGC_CMDHLP_REQ_UVM_RET(pCmdHlp, pCmd, pUVM);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, -1, cArgs == 0);
     uint32_t cErrors = 0;
     NOREF(paArgs);

@@ -51,47 +51,27 @@ public:
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init(Machine *aParent);
-    HRESULT init(Machine *aParent, USBController *aThat);
+    HRESULT init(Machine *aParent, const Utf8Str &aName, USBControllerType_T enmType);
+    HRESULT init(Machine *aParent, USBController *aThat, bool fReshare = false);
     HRESULT initCopy(Machine *aParent, USBController *aThat);
     void uninit();
 
     // IUSBController properties
-    STDMETHOD(COMGETTER(Enabled))(BOOL *aEnabled);
-    STDMETHOD(COMSETTER(Enabled))(BOOL aEnabled);
-    STDMETHOD(COMGETTER(EnabledEHCI))(BOOL *aEnabled);
-    STDMETHOD(COMSETTER(EnabledEHCI))(BOOL aEnabled);
-    STDMETHOD(COMGETTER(ProxyAvailable))(BOOL *aEnabled);
+    STDMETHOD(COMGETTER(Name))(BSTR *aName);
+    STDMETHOD(COMGETTER(Type))(USBControllerType_T *enmType);
     STDMETHOD(COMGETTER(USBStandard))(USHORT *aUSBStandard);
-    STDMETHOD(COMGETTER(DeviceFilters))(ComSafeArrayOut(IUSBDeviceFilter *, aDevicesFilters));
-
-    // IUSBController methods
-    STDMETHOD(CreateDeviceFilter)(IN_BSTR aName, IUSBDeviceFilter **aFilter);
-    STDMETHOD(InsertDeviceFilter)(ULONG aPosition, IUSBDeviceFilter *aFilter);
-    STDMETHOD(RemoveDeviceFilter)(ULONG aPosition, IUSBDeviceFilter **aFilter);
 
     // public methods only for internal purposes
-
-    HRESULT loadSettings(const settings::USBController &data);
-    HRESULT saveSettings(settings::USBController &data);
 
     void rollback();
     void commit();
     void copyFrom(USBController *aThat);
+    void unshare();
 
-#ifdef VBOX_WITH_USB
-    HRESULT onDeviceFilterChange(USBDeviceFilter *aFilter,
-                                 BOOL aActiveChanged = FALSE);
+    const Utf8Str &getName() const;
+    USBControllerType_T getControllerType() const;
 
-    bool hasMatchingFilter(const ComObjPtr<HostUSBDevice> &aDevice, ULONG *aMaskedIfs);
-    bool hasMatchingFilter(IUSBDevice *aUSBDevice, ULONG *aMaskedIfs);
-
-    HRESULT notifyProxy(bool aInsertFilters);
-#endif /* VBOX_WITH_USB */
-
-    // public methods for internal purposes only
-    // (ensure there is a caller and a read lock before calling them!)
-    Machine* getMachine();
+    ComObjPtr<USBController> getPeer();
 
 private:
 

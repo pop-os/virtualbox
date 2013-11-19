@@ -48,27 +48,24 @@ private slots:
     /* Slot to perform guest resize: */
     void sltPerformGuestScale();
 
+    /* Handler: Frame-buffer NotifyUpdate stuff: */
+    void sltHandleNotifyUpdate(int iX, int iY, int iW, int iH);
+
 private:
 
     /* Event handlers: */
-    bool event(QEvent *pEvent);
     bool eventFilter(QObject *pWatched, QEvent *pEvent);
 
     /* Prepare helpers: */
-    // void prepareFrameBuffer();
-    //void loadMachineViewSettings();
+    //void loadMachineViewSettings() {}
 
     /* Cleanup helpers: */
     void saveMachineViewSettings();
-    //void cleanupConnections() {}
-    //void cleanupFrameBuffer() {}
 
     /* Private helpers: */
     QSize sizeHint() const;
-    void normalizeGeometry(bool /* fAdjustPosition */) {}
     QRect workingArea() const;
     QSize calculateMaxGuestSize() const;
-    void maybeRestrictMinimumSize() {}
     void updateSliders();
 
     /* Private members: */

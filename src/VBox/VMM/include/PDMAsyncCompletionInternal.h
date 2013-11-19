@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,7 +38,7 @@ typedef struct PDMASYNCCOMPLETIONEPCLASSOPS
     /** Version identifier. */
     uint32_t                      u32Version;
     /** Name of the endpoint class. */
-    const char                   *pcszName;
+    const char                   *pszName;
     /** Class type. */
     PDMASYNCCOMPLETIONEPCLASSTYPE enmClassType;
     /** Size of the global endpoint class data in bytes. */
@@ -183,6 +183,8 @@ typedef struct PDMASYNCCOMPLETIONEPCLASS
     R3PTRTYPE(PCPDMASYNCCOMPLETIONEPCLASSOPS)   pEndpointOps;
     /** Task cache. */
     RTMEMCACHE                                  hMemCacheTasks;
+    /** Flag whether to gather advanced statistics about requests. */
+    bool                                        fGatherAdvancedStatistics;
 } PDMASYNCCOMPLETIONEPCLASS;
 /** Pointer to the PDM async completion endpoint class data. */
 typedef PDMASYNCCOMPLETIONEPCLASS *PPDMASYNCCOMPLETIONEPCLASS;
@@ -207,8 +209,28 @@ typedef struct PDMASYNCCOMPLETIONENDPOINT
     char                                       *pszUri;
     /** Pointer to the assigned bandwidth manager. */
     volatile PPDMACBWMGR                        pBwMgr;
-#ifdef VBOX_WITH_STATISTICS
+    /** Aligns following statistic counters on a 8 byte boundary. */
     uint32_t                                    u32Alignment;
+    /** @name Request size statistics.
+     * @{ */
+    STAMCOUNTER                                 StatReqSizeSmaller512;
+    STAMCOUNTER                                 StatReqSize512To1K;
+    STAMCOUNTER                                 StatReqSize1KTo2K;
+    STAMCOUNTER                                 StatReqSize2KTo4K;
+    STAMCOUNTER                                 StatReqSize4KTo8K;
+    STAMCOUNTER                                 StatReqSize8KTo16K;
+    STAMCOUNTER                                 StatReqSize16KTo32K;
+    STAMCOUNTER                                 StatReqSize32KTo64K;
+    STAMCOUNTER                                 StatReqSize64KTo128K;
+    STAMCOUNTER                                 StatReqSize128KTo256K;
+    STAMCOUNTER                                 StatReqSize256KTo512K;
+    STAMCOUNTER                                 StatReqSizeOver512K;
+    STAMCOUNTER                                 StatReqsUnaligned512;
+    STAMCOUNTER                                 StatReqsUnaligned4K;
+    STAMCOUNTER                                 StatReqsUnaligned8K;
+    /** @} */
+    /** @name Request completion time statistics.
+     * @{ */
     STAMCOUNTER                                 StatTaskRunTimesNs[10];
     STAMCOUNTER                                 StatTaskRunTimesUs[10];
     STAMCOUNTER                                 StatTaskRunTimesMs[10];
@@ -219,11 +241,10 @@ typedef struct PDMASYNCCOMPLETIONENDPOINT
     STAMCOUNTER                                 StatIoOpsCompleted;
     uint64_t                                    tsIntervalStartMs;
     uint64_t                                    cIoOpsCompleted;
-#endif
+    /** @} */
 } PDMASYNCCOMPLETIONENDPOINT;
-#ifdef VBOX_WITH_STATISTICS
+AssertCompileMemberAlignment(PDMASYNCCOMPLETIONENDPOINT, StatReqSizeSmaller512, sizeof(uint64_t));
 AssertCompileMemberAlignment(PDMASYNCCOMPLETIONENDPOINT, StatTaskRunTimesNs, sizeof(uint64_t));
-#endif
 
 /**
  * A PDM async completion task handle.
@@ -245,28 +266,7 @@ typedef struct PDMASYNCCOMPLETIONTASK
     uint64_t                                tsNsStart;
 } PDMASYNCCOMPLETIONTASK;
 
-/**
- * Called by the endpoint if a task has finished.
- *
- * @returns nothing
- * @param   pTask                     Pointer to the finished task.
- * @param   rc                        Status code of the completed request.
- * @param   fCallCompletionHandler    Flag whether the completion handler should be called to
- *                                    inform the owner of the task that it has completed.
- */
 void pdmR3AsyncCompletionCompleteTask(PPDMASYNCCOMPLETIONTASK pTask, int rc, bool fCallCompletionHandler);
-
-/**
- * Checks if the endpoint is allowed to transfer the given amount of bytes.
- *
- * @returns true if the endpoint is allowed to transfer the data.
- *          false otherwise
- * @param   pEndpoint                 The endpoint.
- * @param   cbTransfer                The number of bytes to transfer.
- * @param   pmsWhenNext               Where to store the number of milliseconds
- *                                    until the bandwidth is refreshed.
- *                                    Only set if false is returned.
- */
 bool pdmacEpIsTransferAllowed(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint32_t cbTransfer, RTMSINTERVAL *pmsWhenNext);
 
 RT_C_DECLS_END

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -80,6 +80,7 @@ public:
     STDMETHOD(COMGETTER(AdditionsRunLevel)) (AdditionsRunLevelType_T *aRunLevel);
     STDMETHOD(COMGETTER(AdditionsVersion))(BSTR *a_pbstrAdditionsVersion);
     STDMETHOD(COMGETTER(AdditionsRevision))(ULONG *a_puAdditionsRevision);
+    STDMETHOD(COMGETTER(EventSource))(IEventSource ** aEventSource);
     STDMETHOD(COMGETTER(Facilities)) (ComSafeArrayOut(IAdditionsFacility *, aFacilities));
     STDMETHOD(COMGETTER(Sessions)) (ComSafeArrayOut(IGuestSession *, aSessions));
     STDMETHOD(COMGETTER(MemoryBalloonSize)) (ULONG *aMemoryBalloonSize);
@@ -100,21 +101,22 @@ public:
     STDMETHOD(DragGHPending)(ULONG uScreenId, ComSafeArrayOut(BSTR, formats), ComSafeArrayOut(DragAndDropAction_T, allowedActions), DragAndDropAction_T *pDefaultAction);
     STDMETHOD(DragGHDropped)(IN_BSTR strFormat, DragAndDropAction_T action, IProgress **ppProgress);
     STDMETHOD(DragGHGetData)(ComSafeArrayOut(BYTE, data));
+    // Guest control.
+    STDMETHOD(CreateSession)(IN_BSTR aUser, IN_BSTR aPassword, IN_BSTR aDomain, IN_BSTR aSessionName, IGuestSession **aGuestSession);
+    STDMETHOD(FindSession)(IN_BSTR aSessionName, ComSafeArrayOut(IGuestSession *, aSessions));
     // Misc stuff
     STDMETHOD(InternalGetStatistics)(ULONG *aCpuUser, ULONG *aCpuKernel, ULONG *aCpuIdle,
                                      ULONG *aMemTotal, ULONG *aMemFree, ULONG *aMemBalloon, ULONG *aMemShared, ULONG *aMemCache,
                                      ULONG *aPageTotal, ULONG *aMemAllocTotal, ULONG *aMemFreeTotal, ULONG *aMemBalloonTotal, ULONG *aMemSharedTotal);
-    STDMETHOD(UpdateGuestAdditions)(IN_BSTR aSource, ComSafeArrayIn(AdditionsUpdateFlag_T, aFlags), IProgress **aProgress);
-    STDMETHOD(CreateSession)(IN_BSTR aUser, IN_BSTR aPassword, IN_BSTR aDomain, IN_BSTR aSessionName, IGuestSession **aGuestSession);
-    STDMETHOD(FindSession)(IN_BSTR aSessionName, ComSafeArrayOut(IGuestSession *, aSessions));
+    STDMETHOD(UpdateGuestAdditions)(IN_BSTR aSource, ComSafeArrayIn(IN_BSTR, aArguments), ComSafeArrayIn(AdditionsUpdateFlag_T, aFlags), IProgress **aProgress);
 
 public:
     /** @name Static internal methods.
      * @{ */
 #ifdef VBOX_WITH_GUEST_CONTROL
     /** Static callback for handling guest control notifications. */
-    static DECLCALLBACK(int) notifyCtrlDispatcher(void *pvExtension, uint32_t u32Function, void *pvParms, uint32_t cbParms);
-    static void staticUpdateStats(RTTIMERLR hTimerLR, void *pvUser, uint64_t iTick);
+    static DECLCALLBACK(int) notifyCtrlDispatcher(void *pvExtension, uint32_t u32Function, void *pvData, uint32_t cbData);
+    static DECLCALLBACK(void) staticUpdateStats(RTTIMERLR hTimerLR, void *pvUser, uint64_t iTick);
 #endif
     /** @}  */
 
@@ -127,6 +129,7 @@ public:
     bool facilityIsActive(VBoxGuestFacilityType enmFacility);
     void facilityUpdate(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacilityStatus a_enmStatus, uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS);
     void setAdditionsStatus(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacilityStatus a_enmStatus, uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS);
+    void onUserStateChange(Bstr aUser, Bstr aDomain, VBoxGuestUserState enmState, const uint8_t *puDetails, uint32_t cbDetails);
     void setSupportedFeatures(uint32_t aCaps);
     HRESULT setStatistic(ULONG aCpuId, GUESTSTATTYPE enmType, ULONG aVal);
     BOOL isPageFusionEnabled();
@@ -136,12 +139,11 @@ public:
         return setErrorInternal(aResultCode, getStaticClassIID(), getStaticComponentName(), aText, false, true);
     }
 #ifdef VBOX_WITH_GUEST_CONTROL
-    int         dispatchToSession(uint32_t uContextID, uint32_t uFunction, void *pvData, size_t cbData);
+    int         dispatchToSession(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
     uint32_t    getAdditionsVersion(void) { return mData.mAdditionsVersionFull; }
     Console    *getConsole(void) { return mParent; }
     int         sessionRemove(GuestSession *pSession);
-    int         sessionCreate(const Utf8Str &strUser, const Utf8Str &strPassword, const Utf8Str &strDomain,
-                              const Utf8Str &strSessionName, ComObjPtr<GuestSession> &pGuestSession);
+    int         sessionCreate(const GuestSessionStartupInfo &ssInfo, const GuestCredentials &guestCreds, ComObjPtr<GuestSession> &pGuestSession);
     inline bool sessionExists(uint32_t uSessionID);
 #endif
     /** @}  */
@@ -177,24 +179,29 @@ private:
         Bstr                    mInterfaceVersion;
         GuestSessions           mGuestSessions;
         uint32_t                mNextSessionID;
-    };
+    } mData;
 
-    ULONG             mMemoryBalloonSize;
-    ULONG             mStatUpdateInterval;
-    uint64_t          mNetStatRx;
-    uint64_t          mNetStatTx;
-    uint64_t          mNetStatLastTs;
-    ULONG             mCurrentGuestStat[GUESTSTATTYPE_MAX];
-    ULONG             mVmValidStats;
-    BOOL              mCollectVMMStats;
-    BOOL              mfPageFusionEnabled;
+    ULONG                           mMemoryBalloonSize;
+    ULONG                           mStatUpdateInterval;
+    uint64_t                        mNetStatRx;
+    uint64_t                        mNetStatTx;
+    uint64_t                        mNetStatLastTs;
+    ULONG                           mCurrentGuestStat[GUESTSTATTYPE_MAX];
+    ULONG                           mVmValidStats;
+    BOOL                            mCollectVMMStats;
+    BOOL                            mfPageFusionEnabled;
 
-    Console *mParent;
-    Data mData;
+    Console                        *mParent;
 
 #ifdef VBOX_WITH_GUEST_CONTROL
+    /**
+     * This can safely be used without holding any locks.
+     * An AutoCaller suffices to prevent it being destroy while in use and
+     * internally there is a lock providing the necessary serialization.
+     */
+    const ComObjPtr<EventSource>    mEventSource;
     /** General extension callback for guest control. */
-    HGCMSVCEXTHANDLE  mhExtCtrl;
+    HGCMSVCEXTHANDLE                mhExtCtrl;
 #endif
 
 #ifdef VBOX_WITH_DRAG_AND_DROP

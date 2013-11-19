@@ -481,7 +481,7 @@ static int rtSemEventMultiPosixWaitTimed(struct RTSEMEVENTMULTIINTERNAL *pThis, 
     struct timespec     ts = {0,0};
     if (!pThis->fMonotonicClock)
     {
-#ifdef RT_OS_DARWIN
+#if defined(RT_OS_DARWIN) || defined(RT_OS_HAIKU)
         struct timeval  tv = {0,0};
         gettimeofday(&tv, NULL);
         ts.tv_sec = tv.tv_sec;

@@ -8,6 +8,9 @@
 - OS/2 (WSeB/MCP/ACP) and Windows 98 SE are some of the very few operating
   systems which use the El Torito floppy emulation.
 
+- NetWare 5.1 is one of the *extremely* few users of El Torito hard disk
+  emulation.
+
 - Keystroke check (INT 16h, fn 01h/10h) always enables interrupts on return.
   DOS POWER.EXE depends on that in some situations.
 
@@ -26,6 +29,9 @@
 - OS/2 is the only known guest which can run the 16-bit PCI BIOS in protected
   mode (but only if the 32-bit PCI BIOS is unavailable).
 
+- NetWare 6.x is the only known guest which uses the PCI BIOS service to read
+  the IRQ routing table.
+
 - Any disk reads which use bus-master DMA (AHCI, IDE BM) must use VDS
   (Virtual DMA Services) when present. Otherwise any reads/writes when the
   real mode addresses don't map directly to physical addresses will fail
@@ -40,6 +46,11 @@
   and clear the memory. For those, the FDPT must be in the BIOS ROM area, or
   the OS will destroy it (even when it's at 0:300 in the IVT).
 
+- Windows NT (including XP) uses INT 13h/08h to obtain the DPT for each floppy
+  drive. NT assumes a 13-byte DPT which includes the number of tracks. NT will
+  refuse to read more tracks than the DPT specifies and formats as many tracks
+  as the DPT specifies.
+
 - Windows 98 SE boot CD uses 32-bit registers in real mode and will fail in
   mysterious ways if BIOS trashes high bits of EAX (and likely others).
 
@@ -51,6 +62,22 @@
 
 - Windows 98 is one of the few APM 1.2 users; Windows 95 uses APM 1.1, while
   newer systems prefer ACPI.
+
+- QNX4 calls 16-bit protected-mode PCI BIOS in an environment where ESP is
+  16-bit but SS is a 32-bit stack segment. In such environments, using the
+  ENTER/LEAVE sequence is fatal if the high word of EBP is non-zero (which
+  it will be with QNX 4.25). LEAVE propagates the high word of EBP into ESP
+  with fatal consequences.
+
+- Plan 9 also runs 16-bit code with a 32-bit stack segment, except Plan 9
+  thinks it counts as real mode. Same ENTER/LEAVE problem as above.
+
+- AIX 1.3 is a rare user of INT 15h/89h (switch to protected mode) service.
+
+- IBM OS/2 1.0/1.1 (but not other versions!) attempt to execute a 286 LOADALL
+  instruction. LOADALL must be emulated for OS/2 to work properly. HIMEM.SYS
+  version 2.03 and later also contains 286 LOADALL code but this will not be
+  executed on 386+ processors.
 
 
  Notes on BIOS implementation
@@ -90,6 +117,9 @@
   real mode APM (which supports most functions) is implemented in C and
   protected-mode APM is written in assembler for both 16-bit and 32-bit calls,
   with a small 32->16 thunk.
+
+- The -of switch can be used to avoid generating ENTER/LEAVE instructions.
+  This appears to be an undocumented and perhaps unintentional side effect.
 
 
  Code size notes (code as of 7/6/2011):

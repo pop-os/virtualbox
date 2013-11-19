@@ -27,7 +27,6 @@
 #include <iprt/uuid.h>
 #include <iprt/string.h>
 #include <iprt/semaphore.h>
-#include <iprt/critsect.h>
 
 #include "VBoxDD.h"
 
@@ -96,9 +95,6 @@
  */
 typedef struct PARALLELPORT
 {
-    /** Access critical section. */
-    PDMCRITSECT                           CritSect;
-
     /** Pointer to the device instance - R3 Ptr */
     PPDMDEVINSR3                          pDevInsR3;
     /** Pointer to the device instance - R0 Ptr */
@@ -172,7 +168,7 @@ RT_C_DECLS_END
 
 
 #ifdef IN_RING3
-static void parallelIrqSet(PARALLELPORT *pThis)
+static void parallelR3IrqSet(PARALLELPORT *pThis)
 {
     if (pThis->regControl & LPT_CONTROL_ENABLE_IRQ_VIA_ACK)
     {
@@ -181,7 +177,7 @@ static void parallelIrqSet(PARALLELPORT *pThis)
     }
 }
 
-static void parallelIrqClear(PARALLELPORT *pThis)
+static void parallelR3IrqClear(PARALLELPORT *pThis)
 {
     LogFlowFunc(("%d 0\n", pThis->iIrq));
     PDMDevHlpISASetIrqNoWait(pThis->CTX_SUFF(pDevIns), pThis->iIrq, 0);
@@ -197,7 +193,7 @@ static int parallel_ioport_write_ecp(void *opaque, uint32_t addr, uint32_t val)
     addr &= 7;
     LogFlow(("parallel: write ecp addr=0x%02x val=0x%02x\n", addr, val));
     ch = val;
-    switch(addr) {
+    switch (addr) {
     default:
     case 0:
         if (LPT_ECP_ECR_CHIPMODE_GET_BITS(s->reg_ecp_ecr) == LPT_ECP_ECR_CHIPMODE_FIFO_TEST) {
@@ -257,7 +253,7 @@ static uint32_t parallel_ioport_read_ecp(void *opaque, uint32_t addr, int *pRC)
     *pRC = VINF_SUCCESS;
 
     addr &= 7;
-    switch(addr) {
+    switch (addr) {
     default:
     case 0:
         if (LPT_ECP_ECR_CHIPMODE_GET_BITS(s->reg_ecp_ecr) == LPT_ECP_ECR_CHIPMODE_FIFO_TEST) {
@@ -302,122 +298,112 @@ static uint32_t parallel_ioport_read_ecp(void *opaque, uint32_t addr, int *pRC)
 #endif
 
 #ifdef IN_RING3
-static DECLCALLBACK(int) parallelNotifyInterrupt(PPDMIHOSTPARALLELPORT pInterface)
+/**
+ * @interface_methods_impl{PDMIHOSTPARALLELPORT,pfnNotifyInterrupt}
+ */
+static DECLCALLBACK(int) parallelR3NotifyInterrupt(PPDMIHOSTPARALLELPORT pInterface)
 {
     PARALLELPORT *pThis = PDMIHOSTPARALLELPORT_2_PARALLELPORT(pInterface);
 
-    PDMCritSectEnter(&pThis->CritSect, VINF_SUCCESS);
-    parallelIrqSet(pThis);
-    PDMCritSectLeave(&pThis->CritSect);
+    PDMCritSectEnter(pThis->pDevInsR3->pCritSectRoR3, VINF_SUCCESS);
+    parallelR3IrqSet(pThis);
+    PDMCritSectLeave(pThis->pDevInsR3->pCritSectRoR3);
 
     return VINF_SUCCESS;
 }
 #endif /* IN_RING3 */
 
+
 /**
- * Port I/O Handler for OUT operations.
- *
- * @returns VBox status code.
- *
- * @param   pDevIns     The device instance.
- * @param   pvUser      User argument.
- * @param   Port        Port number used for the IN operation.
- * @param   u32         The value to output.
- * @param   cb          The value size in bytes.
+ * @callback_method_impl{FNIOMIOPORTOUT}
  */
-PDMBOTHCBDECL(int) parallelIOPortWrite(PPDMDEVINS pDevIns, void *pvUser,
-                                       RTIOPORT Port, uint32_t u32, unsigned cb)
+PDMBOTHCBDECL(int) parallelIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
     PARALLELPORT *pThis = PDMINS_2_DATA(pDevIns, PPARALLELPORT);
     int           rc = VINF_SUCCESS;
 
     if (cb == 1)
     {
-        rc = PDMCritSectEnter(&pThis->CritSect, VINF_IOM_R3_IOPORT_WRITE);
-        if (rc == VINF_SUCCESS)
+        uint8_t u8 = u32;
+
+        Log2(("%s: port %#06x val %#04x\n", __FUNCTION__, Port, u32));
+
+        Port &= 7;
+        switch (Port)
         {
-            uint8_t u8 = u32;
+            case 0:
+#ifndef IN_RING3
+                NOREF(u8);
+                rc = VINF_IOM_R3_IOPORT_WRITE;
+#else
+                pThis->regData = u8;
+                if (RT_LIKELY(pThis->pDrvHostParallelConnector))
+                {
+                    LogFlowFunc(("Set data lines 0x%X\n", u8));
+                    rc = pThis->pDrvHostParallelConnector->pfnWrite(pThis->pDrvHostParallelConnector, &u8, 1, PDM_PARALLEL_PORT_MODE_SPP);
+                    AssertRC(rc);
+                }
+#endif
+                break;
+            case 1:
+                break;
+            case 2:
+                /* Set the reserved bits to one */
+                u8 |= (LPT_CONTROL_BIT6 | LPT_CONTROL_BIT7);
+                if (u8 != pThis->regControl)
+                {
+#ifndef IN_RING3
+                    return VINF_IOM_R3_IOPORT_WRITE;
+#else
+                    /* Set data direction. */
+                    if (u8 & LPT_CONTROL_ENABLE_BIDIRECT)
+                        rc = pThis->pDrvHostParallelConnector->pfnSetPortDirection(pThis->pDrvHostParallelConnector, false /* fForward */);
+                    else
+                        rc = pThis->pDrvHostParallelConnector->pfnSetPortDirection(pThis->pDrvHostParallelConnector, true /* fForward */);
+                    AssertRC(rc);
+                    u8 &= ~LPT_CONTROL_ENABLE_BIDIRECT; /* Clear bit. */
 
-            Log2(("%s: port %#06x val %#04x\n", __FUNCTION__, Port, u32));
-
-            Port &= 7;
-            switch(Port)
-            {
-                case 0:
-#ifndef IN_RING3
-                    NOREF(u8);
-                    rc = VINF_IOM_R3_IOPORT_WRITE;
-#else
-                    pThis->regData = u8;
-                    if (RT_LIKELY(pThis->pDrvHostParallelConnector))
-                    {
-                        LogFlowFunc(("Set data lines 0x%X\n", u8));
-                        rc = pThis->pDrvHostParallelConnector->pfnWrite(pThis->pDrvHostParallelConnector, &u8, 1, PDM_PARALLEL_PORT_MODE_SPP);
-                        AssertRC(rc);
-                    }
+                    rc = pThis->pDrvHostParallelConnector->pfnWriteControl(pThis->pDrvHostParallelConnector, u8);
+                    AssertRC(rc);
+                    pThis->regControl = u8;
 #endif
-                    break;
-                case 1:
-                    break;
-                case 2:
-                    /* Set the reserved bits to one */
-                    u8 |= (LPT_CONTROL_BIT6 | LPT_CONTROL_BIT7);
-                    if (u8 != pThis->regControl)
-                    {
+                }
+                break;
+            case 3:
 #ifndef IN_RING3
-                        return VINF_IOM_R3_IOPORT_WRITE;
+                NOREF(u8);
+                rc = VINF_IOM_R3_IOPORT_WRITE;
 #else
-                        /* Set data direction. */
-                        if (u8 & LPT_CONTROL_ENABLE_BIDIRECT)
-                            rc = pThis->pDrvHostParallelConnector->pfnSetPortDirection(pThis->pDrvHostParallelConnector, false /* fForward */);
-                        else
-                            rc = pThis->pDrvHostParallelConnector->pfnSetPortDirection(pThis->pDrvHostParallelConnector, true /* fForward */);
-                        AssertRC(rc);
-                        u8 &= ~LPT_CONTROL_ENABLE_BIDIRECT; /* Clear bit. */
-
-                        rc = pThis->pDrvHostParallelConnector->pfnWriteControl(pThis->pDrvHostParallelConnector, u8);
-                        AssertRC(rc);
-                        pThis->regControl = u8;
+                pThis->regEppAddr = u8;
+                if (RT_LIKELY(pThis->pDrvHostParallelConnector))
+                {
+                    LogFlowFunc(("Write EPP address 0x%X\n", u8));
+                    rc = pThis->pDrvHostParallelConnector->pfnWrite(pThis->pDrvHostParallelConnector, &u8, 1, PDM_PARALLEL_PORT_MODE_EPP_ADDR);
+                    AssertRC(rc);
+                }
 #endif
-                    }
-                    break;
-                case 3:
+                break;
+            case 4:
 #ifndef IN_RING3
-                    NOREF(u8);
-                    rc = VINF_IOM_R3_IOPORT_WRITE;
+                NOREF(u8);
+                rc = VINF_IOM_R3_IOPORT_WRITE;
 #else
-                    pThis->regEppAddr = u8;
-                    if (RT_LIKELY(pThis->pDrvHostParallelConnector))
-                    {
-                        LogFlowFunc(("Write EPP address 0x%X\n", u8));
-                        rc = pThis->pDrvHostParallelConnector->pfnWrite(pThis->pDrvHostParallelConnector, &u8, 1, PDM_PARALLEL_PORT_MODE_EPP_ADDR);
-                        AssertRC(rc);
-                    }
+                pThis->regEppData = u8;
+                if (RT_LIKELY(pThis->pDrvHostParallelConnector))
+                {
+                    LogFlowFunc(("Write EPP data 0x%X\n", u8));
+                    rc = pThis->pDrvHostParallelConnector->pfnWrite(pThis->pDrvHostParallelConnector, &u8, 1, PDM_PARALLEL_PORT_MODE_EPP_DATA);
+                    AssertRC(rc);
+                }
 #endif
-                    break;
-                case 4:
-#ifndef IN_RING3
-                    NOREF(u8);
-                    rc = VINF_IOM_R3_IOPORT_WRITE;
-#else
-                    pThis->regEppData = u8;
-                    if (RT_LIKELY(pThis->pDrvHostParallelConnector))
-                    {
-                        LogFlowFunc(("Write EPP data 0x%X\n", u8));
-                        rc = pThis->pDrvHostParallelConnector->pfnWrite(pThis->pDrvHostParallelConnector, &u8, 1, PDM_PARALLEL_PORT_MODE_EPP_DATA);
-                        AssertRC(rc);
-                    }
-#endif
-                    break;
-                case 5:
-                    break;
-                case 6:
-                    break;
-                case 7:
-                default:
-                    break;
-            }
-            PDMCritSectLeave(&pThis->CritSect);
+                break;
+            case 5:
+                break;
+            case 6:
+                break;
+            case 7:
+            default:
+                break;
         }
     }
     else
@@ -426,109 +412,96 @@ PDMBOTHCBDECL(int) parallelIOPortWrite(PPDMDEVINS pDevIns, void *pvUser,
     return rc;
 }
 
+
 /**
- * Port I/O Handler for IN operations.
- *
- * @returns VBox status code.
- *
- * @param   pDevIns     The device instance.
- * @param   pvUser      User argument.
- * @param   Port        Port number used for the IN operation.
- * @param   pu32        Where to return the read value.
- * @param   cb          The value size in bytes.
+ * @callback_method_impl{FNIOMIOPORTIN}
  */
-PDMBOTHCBDECL(int) parallelIOPortRead(PPDMDEVINS pDevIns, void *pvUser,
-                                      RTIOPORT Port, uint32_t *pu32, unsigned cb)
+PDMBOTHCBDECL(int) parallelIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
     PARALLELPORT *pThis = PDMINS_2_DATA(pDevIns, PARALLELPORT *);
     int           rc = VINF_SUCCESS;
 
     if (cb == 1)
     {
-        rc = PDMCritSectEnter(&pThis->CritSect, VINF_IOM_R3_IOPORT_READ);
-        if (rc == VINF_SUCCESS)
+        Port &= 7;
+        switch (Port)
         {
-            Port &= 7;
-            switch(Port)
-            {
-                case 0:
-                    if (!(pThis->regControl & LPT_CONTROL_ENABLE_BIDIRECT))
-                        *pu32 = pThis->regData;
-                    else
-                    {
-#ifndef IN_RING3
-                        rc = VINF_IOM_R3_IOPORT_READ;
-#else
-                        if (RT_LIKELY(pThis->pDrvHostParallelConnector))
-                        {
-                            rc = pThis->pDrvHostParallelConnector->pfnRead(pThis->pDrvHostParallelConnector, &pThis->regData,
-                                                                           1, PDM_PARALLEL_PORT_MODE_SPP);
-                            Log(("Read data lines 0x%X\n", pThis->regData));
-                            AssertRC(rc);
-                        }
-                        *pu32 = pThis->regData;
-#endif
-                    }
-                    break;
-                case 1:
+            case 0:
+                if (!(pThis->regControl & LPT_CONTROL_ENABLE_BIDIRECT))
+                    *pu32 = pThis->regData;
+                else
+                {
 #ifndef IN_RING3
                     rc = VINF_IOM_R3_IOPORT_READ;
 #else
                     if (RT_LIKELY(pThis->pDrvHostParallelConnector))
                     {
-                        rc = pThis->pDrvHostParallelConnector->pfnReadStatus(pThis->pDrvHostParallelConnector, &pThis->regStatus);
+                        rc = pThis->pDrvHostParallelConnector->pfnRead(pThis->pDrvHostParallelConnector, &pThis->regData,
+                                                                       1, PDM_PARALLEL_PORT_MODE_SPP);
+                        Log(("Read data lines 0x%X\n", pThis->regData));
                         AssertRC(rc);
                     }
-                    *pu32 = pThis->regStatus;
-                    parallelIrqClear(pThis);
+                    *pu32 = pThis->regData;
 #endif
-                    break;
-                case 2:
+                }
+                break;
+            case 1:
 #ifndef IN_RING3
-                     rc = VINF_IOM_R3_IOPORT_READ;
+                rc = VINF_IOM_R3_IOPORT_READ;
 #else
-                     rc = pThis->pDrvHostParallelConnector->pfnReadControl(pThis->pDrvHostParallelConnector, &pThis->regControl);
-                     AssertRC(rc);
-                     pThis->regControl |= LPT_CONTROL_BIT6 | LPT_CONTROL_BIT7;
-                    *pu32 = pThis->regControl;
+                if (RT_LIKELY(pThis->pDrvHostParallelConnector))
+                {
+                    rc = pThis->pDrvHostParallelConnector->pfnReadStatus(pThis->pDrvHostParallelConnector, &pThis->regStatus);
+                    AssertRC(rc);
+                }
+                *pu32 = pThis->regStatus;
+                parallelR3IrqClear(pThis);
 #endif
-                    break;
-                case 3:
+                break;
+            case 2:
 #ifndef IN_RING3
-                    rc = VINF_IOM_R3_IOPORT_READ;
+                 rc = VINF_IOM_R3_IOPORT_READ;
 #else
-                    if (RT_LIKELY(pThis->pDrvHostParallelConnector))
-                    {
-                        rc = pThis->pDrvHostParallelConnector->pfnRead(pThis->pDrvHostParallelConnector, &pThis->regEppAddr,
-                                                                       1, PDM_PARALLEL_PORT_MODE_EPP_ADDR);
-                        Log(("Read EPP address 0x%X\n", pThis->regEppAddr));
-                        AssertRC(rc);
-                    }
-                    *pu32 = pThis->regEppAddr;
+                 rc = pThis->pDrvHostParallelConnector->pfnReadControl(pThis->pDrvHostParallelConnector, &pThis->regControl);
+                 AssertRC(rc);
+                 pThis->regControl |= LPT_CONTROL_BIT6 | LPT_CONTROL_BIT7;
+                *pu32 = pThis->regControl;
 #endif
-                    break;
-                case 4:
+                break;
+            case 3:
 #ifndef IN_RING3
-                    rc = VINF_IOM_R3_IOPORT_READ;
+                rc = VINF_IOM_R3_IOPORT_READ;
 #else
-                    if (RT_LIKELY(pThis->pDrvHostParallelConnector))
-                    {
-                        rc = pThis->pDrvHostParallelConnector->pfnRead(pThis->pDrvHostParallelConnector, &pThis->regEppData,
-                                                                       1, PDM_PARALLEL_PORT_MODE_EPP_DATA);
-                        Log(("Read EPP data 0x%X\n", pThis->regEppData));
-                        AssertRC(rc);
-                    }
-                    *pu32 = pThis->regEppData;
+                if (RT_LIKELY(pThis->pDrvHostParallelConnector))
+                {
+                    rc = pThis->pDrvHostParallelConnector->pfnRead(pThis->pDrvHostParallelConnector, &pThis->regEppAddr,
+                                                                   1, PDM_PARALLEL_PORT_MODE_EPP_ADDR);
+                    Log(("Read EPP address 0x%X\n", pThis->regEppAddr));
+                    AssertRC(rc);
+                }
+                *pu32 = pThis->regEppAddr;
 #endif
-                    break;
-                case 5:
-                    break;
-                case 6:
-                    break;
-                case 7:
-                    break;
-            }
-            PDMCritSectLeave(&pThis->CritSect);
+                break;
+            case 4:
+#ifndef IN_RING3
+                rc = VINF_IOM_R3_IOPORT_READ;
+#else
+                if (RT_LIKELY(pThis->pDrvHostParallelConnector))
+                {
+                    rc = pThis->pDrvHostParallelConnector->pfnRead(pThis->pDrvHostParallelConnector, &pThis->regEppData,
+                                                                   1, PDM_PARALLEL_PORT_MODE_EPP_DATA);
+                    Log(("Read EPP data 0x%X\n", pThis->regEppData));
+                    AssertRC(rc);
+                }
+                *pu32 = pThis->regEppData;
+#endif
+                break;
+            case 5:
+                break;
+            case 6:
+                break;
+            case 7:
+                break;
         }
     }
     else
@@ -539,31 +512,17 @@ PDMBOTHCBDECL(int) parallelIOPortRead(PPDMDEVINS pDevIns, void *pvUser,
 
 #if 0
 /**
- * Port I/O Handler for OUT operations on ECP registers.
- *
- * @returns VBox status code.
- *
- * @param   pDevIns     The device instance.
- * @param   pvUser      User argument.
- * @param   Port        Port number used for the IN operation.
- * @param   u32         The value to output.
- * @param   cb          The value size in bytes.
+ * @callback_method_impl{FNIOMIOPORTOUT, ECP registers.}
  */
-PDMBOTHCBDECL(int) parallelIOPortWriteECP(PPDMDEVINS pDevIns, void *pvUser,
-                                          RTIOPORT Port, uint32_t u32, unsigned cb)
+PDMBOTHCBDECL(int) parallelIOPortWriteECP(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
     PARALLELPORT *pThis = PDMINS_2_DATA(pDevIns, PARALLELPORT *);
     int            rc = VINF_SUCCESS;
 
     if (cb == 1)
     {
-        rc = PDMCritSectEnter(&pThis->CritSect, VINF_IOM_R3_IOPORT_WRITE);
-        if (rc == VINF_SUCCESS)
-        {
-            Log2(("%s: ecp port %#06x val %#04x\n", __FUNCTION__, Port, u32));
-            rc = parallel_ioport_write_ecp (pThis, Port, u32);
-            PDMCritSectLeave(&pThis->CritSect);
-        }
+        Log2(("%s: ecp port %#06x val %#04x\n", __FUNCTION__, Port, u32));
+        rc = parallel_ioport_write_ecp (pThis, Port, u32);
     }
     else
         AssertMsgFailed(("Port=%#x cb=%d u32=%#x\n", Port, cb, u32));
@@ -572,31 +531,17 @@ PDMBOTHCBDECL(int) parallelIOPortWriteECP(PPDMDEVINS pDevIns, void *pvUser,
 }
 
 /**
- * Port I/O Handler for IN operations on ECP registers.
- *
- * @returns VBox status code.
- *
- * @param   pDevIns     The device instance.
- * @param   pvUser      User argument.
- * @param   Port        Port number used for the IN operation.
- * @param   u32         The value to output.
- * @param   cb          The value size in bytes.
+ * @callback_method_impl{FNIOMIOPORTOUT, ECP registers.}
  */
-PDMBOTHCBDECL(int) parallelIOPortReadECP(PPDMDEVINS pDevIns, void *pvUser,
-                                         RTIOPORT Port, uint32_t *pu32, unsigned cb)
+PDMBOTHCBDECL(int) parallelIOPortReadECP(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
     PARALLELPORT *pThis = PDMINS_2_DATA(pDevIns, PARALLELPORT *);
-    int            rc = VINF_SUCCESS;
+    int           rc = VINF_SUCCESS;
 
     if (cb == 1)
     {
-        rc = PDMCritSectEnter(&pThis->CritSect, VINF_IOM_R3_IOPORT_READ);
-        if (rc == VINF_SUCCESS)
-        {
-            *pu32 = parallel_ioport_read_ecp (pThis, Port, &rc);
-            Log2(("%s: ecp port %#06x val %#04x\n", __FUNCTION__, Port, *pu32));
-            PDMCritSectLeave(&pThis->CritSect);
-        }
+        *pu32 = parallel_ioport_read_ecp (pThis, Port, &rc);
+        Log2(("%s: ecp port %#06x val %#04x\n", __FUNCTION__, Port, *pu32));
     }
     else
         rc = VERR_IOM_IOPORT_UNUSED;
@@ -606,12 +551,11 @@ PDMBOTHCBDECL(int) parallelIOPortReadECP(PPDMDEVINS pDevIns, void *pvUser,
 #endif
 
 #ifdef IN_RING3
+
 /**
- * @copydoc FNSSMDEVLIVEEXEC
+ * @callback_method_impl{FNSSMDEVLIVEEXEC}
  */
-static DECLCALLBACK(int) parallelLiveExec(PPDMDEVINS pDevIns,
-                                          PSSMHANDLE pSSM,
-                                          uint32_t uPass)
+static DECLCALLBACK(int) parallelR3LiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
     PARALLELPORT *pThis = PDMINS_2_DATA(pDevIns, PARALLELPORT *);
 
@@ -621,11 +565,11 @@ static DECLCALLBACK(int) parallelLiveExec(PPDMDEVINS pDevIns,
     return VINF_SSM_DONT_CALL_AGAIN;
 }
 
+
 /**
- * @copydoc FNSSMDEVSAVEEXEC
+ * @callback_method_impl{FNSSMDEVSAVEEXEC}
  */
-static DECLCALLBACK(int) parallelSaveExec(PPDMDEVINS pDevIns,
-                                          PSSMHANDLE pSSM)
+static DECLCALLBACK(int) parallelR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
     PARALLELPORT *pThis = PDMINS_2_DATA(pDevIns, PARALLELPORT *);
 
@@ -633,17 +577,15 @@ static DECLCALLBACK(int) parallelSaveExec(PPDMDEVINS pDevIns,
     SSMR3PutU8(pSSM, pThis->regStatus);
     SSMR3PutU8(pSSM, pThis->regControl);
 
-    parallelLiveExec(pDevIns, pSSM, 0);
+    parallelR3LiveExec(pDevIns, pSSM, 0);
     return VINF_SUCCESS;
 }
 
+
 /**
- * @copydoc FNSSMDEVLOADEXEC
+ * @callback_method_impl{FNSSMDEVLOADEXEC}
  */
-static DECLCALLBACK(int) parallelLoadExec(PPDMDEVINS pDevIns,
-                                          PSSMHANDLE pSSM,
-                                          uint32_t uVersion,
-                                          uint32_t uPass)
+static DECLCALLBACK(int) parallelR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
     PARALLELPORT *pThis = PDMINS_2_DATA(pDevIns, PARALLELPORT *);
 
@@ -682,18 +624,9 @@ static DECLCALLBACK(int) parallelLoadExec(PPDMDEVINS pDevIns,
 
 
 /**
- * @copydoc FNPDMDEVRELOCATE
- */
-static DECLCALLBACK(void) parallelRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
-{
-    PARALLELPORT *pThis = PDMINS_2_DATA(pDevIns, PARALLELPORT *);
-    pThis->pDevInsRC += offDelta;
-}
-
-/**
  * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) parallelQueryInterface(PPDMIBASE pInterface, const char *pszIID)
+static DECLCALLBACK(void *) parallelR3QueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     PARALLELPORT *pThis = PDMIBASE_2_PARALLELPORT(pInterface);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->IBase);
@@ -701,32 +634,21 @@ static DECLCALLBACK(void *) parallelQueryInterface(PPDMIBASE pInterface, const c
     return NULL;
 }
 
+
 /**
- * Destruct a device instance.
- *
- * Most VM resources are freed by the VM. This callback is provided so that any non-VM
- * resources can be freed correctly.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
+ * @copydoc FNPDMDEVRELOCATE
  */
-static DECLCALLBACK(int) parallelDestruct(PPDMDEVINS pDevIns)
+static DECLCALLBACK(void) parallelR3Relocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
     PARALLELPORT *pThis = PDMINS_2_DATA(pDevIns, PARALLELPORT *);
-    PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
-
-    PDMR3CritSectDelete(&pThis->CritSect);
-
-    return VINF_SUCCESS;
+    pThis->pDevInsRC += offDelta;
 }
 
 
 /**
  * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
-static DECLCALLBACK(int) parallelConstruct(PPDMDEVINS pDevIns,
-                                           int iInstance,
-                                           PCFGMNODE pCfg)
+static DECLCALLBACK(int) parallelR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     int            rc;
     PARALLELPORT *pThis = PDMINS_2_DATA(pDevIns, PARALLELPORT*);
@@ -735,17 +657,17 @@ static DECLCALLBACK(int) parallelConstruct(PPDMDEVINS pDevIns,
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
-     * Init the data so parallelDestruct doesn't choke.
+     * Init the data.
      */
     pThis->pDevInsR3 = pDevIns;
     pThis->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
     pThis->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
 
     /* IBase */
-    pThis->IBase.pfnQueryInterface = parallelQueryInterface;
+    pThis->IBase.pfnQueryInterface = parallelR3QueryInterface;
 
     /* IHostParallelPort */
-    pThis->IHostParallelPort.pfnNotifyInterrupt = parallelNotifyInterrupt;
+    pThis->IHostParallelPort.pfnNotifyInterrupt = parallelR3NotifyInterrupt;
 
     /* Init parallel state */
     pThis->regData = 0;
@@ -781,14 +703,6 @@ static DECLCALLBACK(int) parallelConstruct(PPDMDEVINS pDevIns,
                                 N_("Configuration error: Failed to get the \"IOBase\" value"));
 
     /*
-     * Initialize critical section and event semaphore.
-     * This must of course be done before attaching drivers or anything else which can call us back..
-     */
-    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->CritSect, RT_SRC_POS, "Parallel#%u", iInstance);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    /*
      * Register the I/O ports and saved state.
      */
     rc = PDMDevHlpIOPortRegister(pDevIns, pThis->IOBase, 8, 0,
@@ -809,13 +723,13 @@ static DECLCALLBACK(int) parallelConstruct(PPDMDEVINS pDevIns,
     if (pThis->fGCEnabled)
     {
         rc = PDMDevHlpIOPortRegisterRC(pDevIns, pThis->IOBase, 8, 0, "parallelIOPortWrite",
-                                      "parallelIOPortRead", NULL, NULL, "Parallel");
+                                       "parallelIOPortRead", NULL, NULL, "Parallel");
         if (RT_FAILURE(rc))
             return rc;
 
 #if 0
         rc = PDMDevHlpIOPortRegisterGC(pDevIns, io_base+0x400, 8, 0, "parallelIOPortWriteECP",
-                                      "parallelIOPortReadECP", NULL, NULL, "Parallel Ecp");
+                                       "parallelIOPortReadECP", NULL, NULL, "Parallel Ecp");
         if (RT_FAILURE(rc))
             return rc;
 #endif
@@ -824,20 +738,20 @@ static DECLCALLBACK(int) parallelConstruct(PPDMDEVINS pDevIns,
     if (pThis->fR0Enabled)
     {
         rc = PDMDevHlpIOPortRegisterR0(pDevIns, pThis->IOBase, 8, 0, "parallelIOPortWrite",
-                                      "parallelIOPortRead", NULL, NULL, "Parallel");
+                                       "parallelIOPortRead", NULL, NULL, "Parallel");
         if (RT_FAILURE(rc))
             return rc;
 
 #if 0
         rc = PDMDevHlpIOPortRegisterR0(pDevIns, io_base+0x400, 8, 0, "parallelIOPortWriteECP",
-                                      "parallelIOPortReadECP", NULL, NULL, "Parallel Ecp");
+                                       "parallelIOPortReadECP", NULL, NULL, "Parallel Ecp");
         if (RT_FAILURE(rc))
             return rc;
 #endif
     }
 
     rc = PDMDevHlpSSMRegister3(pDevIns, PARALLEL_SAVED_STATE_VERSION, sizeof(*pThis),
-                               parallelLiveExec, parallelSaveExec, parallelLoadExec);
+                               parallelR3LiveExec, parallelR3SaveExec, parallelR3LoadExec);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -899,12 +813,12 @@ const PDMDEVREG g_DeviceParallelPort =
     /* cbInstance */
     sizeof(PARALLELPORT),
     /* pfnConstruct */
-    parallelConstruct,
+    parallelR3Construct,
     /* pfnDestruct */
-    parallelDestruct,
+    NULL,
     /* pfnRelocate */
-    parallelRelocate,
-    /* pfnIOCtl */
+    parallelR3Relocate,
+    /* pfnMemSetup */
     NULL,
     /* pfnPowerOn */
     NULL,

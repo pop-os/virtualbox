@@ -75,7 +75,7 @@ UINetworkRequestWidget::UINetworkRequestWidget(UINetworkManagerDialog *pParent, 
     /* Setup cancel-button: */
     m_pCancelButton->removeBorder();
     m_pCancelButton->setFocusPolicy(Qt::NoFocus);
-    m_pCancelButton->setIcon(UIIconPool::iconSet(":/delete_16px.png"));
+    m_pCancelButton->setIcon(UIIconPool::iconSet(":/cancel_16px.png"));
     connect(m_pCancelButton, SIGNAL(clicked(bool)), this, SIGNAL(sigCancel()));
 
     /* Setup error-label: */
@@ -176,7 +176,7 @@ void UINetworkRequestWidget::sltSetProgressToFailed(const QString &strError)
 
     /* Show error label: */
     m_pErrorPane->setHidden(false);
-    m_pErrorPane->setText(UINetworkManagerDialog::tr("Error: %1.").arg(strErrorText));
+    m_pErrorPane->setText(UINetworkManagerDialog::tr("The network operation failed with the following error: %1.").arg(strErrorText));
 }
 
 void UINetworkRequestWidget::sltTimeIsOut()

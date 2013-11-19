@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,13 +26,11 @@
 
 UIMachineSettingsAudio::UIMachineSettingsAudio()
 {
-    /* Apply UI decorations */
-    Ui::UIMachineSettingsAudio::setupUi (this);
-    /* Applying language settings */
-    retranslateUi();
+    /* Prepare: */
+    prepare();
 }
 
-/* Load data to cashe from corresponding external object(s),
+/* Load data to cache from corresponding external object(s),
  * this task COULD be performed in other than GUI thread: */
 void UIMachineSettingsAudio::loadToCacheFrom(QVariant &data)
 {
@@ -70,9 +68,9 @@ void UIMachineSettingsAudio::getFromCache()
     const UIDataSettingsMachineAudio &audioData = m_cache.base();
 
     /* Load audio data to page: */
-    mGbAudio->setChecked(audioData.m_fAudioEnabled);
-    mCbAudioDriver->setCurrentIndex(mCbAudioDriver->findText(gpConverter->toString(audioData.m_audioDriverType)));
-    mCbAudioController->setCurrentIndex(mCbAudioController->findText(gpConverter->toString(audioData.m_audioControllerType)));
+    m_pCheckBoxAudio->setChecked(audioData.m_fAudioEnabled);
+    m_pComboAudioDriver->setCurrentIndex(m_pComboAudioDriver->findData((int)audioData.m_audioDriverType));
+    m_pComboAudioController->setCurrentIndex(m_pComboAudioController->findData((int)audioData.m_audioControllerType));
 
     /* Polish page finally: */
     polishPage();
@@ -86,9 +84,9 @@ void UIMachineSettingsAudio::putToCache()
     UIDataSettingsMachineAudio audioData = m_cache.base();
 
     /* Gather audio data: */
-    audioData.m_fAudioEnabled = mGbAudio->isChecked();
-    audioData.m_audioDriverType = gpConverter->fromString<KAudioDriverType>(mCbAudioDriver->currentText());
-    audioData.m_audioControllerType = gpConverter->fromString<KAudioControllerType>(mCbAudioController->currentText());
+    audioData.m_fAudioEnabled = m_pCheckBoxAudio->isChecked();
+    audioData.m_audioDriverType = static_cast<KAudioDriverType>(m_pComboAudioDriver->itemData(m_pComboAudioDriver->currentIndex()).toInt());
+    audioData.m_audioControllerType = static_cast<KAudioControllerType>(m_pComboAudioController->itemData(m_pComboAudioController->currentIndex()).toInt());
 
     /* Cache audio data: */
     m_cache.cacheCurrentData(audioData);
@@ -101,23 +99,20 @@ void UIMachineSettingsAudio::saveFromCacheTo(QVariant &data)
     /* Fetch data to machine: */
     UISettingsPageMachine::fetchData(data);
 
-    /* Check if audio data was changed: */
-    if (m_cache.wasChanged())
+    /* Make sure machine is in 'offline' mode & audio data was changed: */
+    if (isMachineOffline() && m_cache.wasChanged())
     {
         /* Check if adapter still valid: */
-        CAudioAdapter adapter = m_machine.GetAudioAdapter();
-        if (!adapter.isNull())
+        CAudioAdapter audioAdapter = m_machine.GetAudioAdapter();
+        if (!audioAdapter.isNull())
         {
             /* Get audio data from cache: */
             const UIDataSettingsMachineAudio &audioData = m_cache.data();
 
             /* Store audio data: */
-            if (isMachineOffline())
-            {
-                adapter.SetEnabled(audioData.m_fAudioEnabled);
-                adapter.SetAudioDriver(audioData.m_audioDriverType);
-                adapter.SetAudioController(audioData.m_audioControllerType);
-            }
+            audioAdapter.SetEnabled(audioData.m_fAudioEnabled);
+            audioAdapter.SetAudioDriver(audioData.m_audioDriverType);
+            audioAdapter.SetAudioController(audioData.m_audioControllerType);
         }
     }
 
@@ -125,79 +120,132 @@ void UIMachineSettingsAudio::saveFromCacheTo(QVariant &data)
     UISettingsPageMachine::uploadData(data);
 }
 
-void UIMachineSettingsAudio::setOrderAfter (QWidget *aWidget)
+void UIMachineSettingsAudio::setOrderAfter(QWidget *pWidget)
 {
-    setTabOrder (aWidget, mGbAudio);
-    setTabOrder (mGbAudio, mCbAudioDriver);
-    setTabOrder (mCbAudioDriver, mCbAudioController);
+    /* Audio-page order: */
+    setTabOrder(pWidget, m_pCheckBoxAudio);
+    setTabOrder(m_pCheckBoxAudio, m_pComboAudioDriver);
+    setTabOrder(m_pComboAudioDriver, m_pComboAudioController);
 }
 
 void UIMachineSettingsAudio::retranslateUi()
 {
-    /* Translate uic generated strings */
-    Ui::UIMachineSettingsAudio::retranslateUi (this);
-    /* Fill the comboboxes */
-    prepareComboboxes();
-}
+    /* Translate generated strings: */
+    Ui::UIMachineSettingsAudio::retranslateUi(this);
 
-void UIMachineSettingsAudio::prepareComboboxes()
-{
-    /* Save the current selected value */
-    int currentDriver = mCbAudioDriver->currentIndex();
-    /* Clear the driver box */
-    mCbAudioDriver->clear();
-    /* Refill them */
-    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_Null));
-#if defined Q_WS_WIN32
-    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_DirectSound));
+
+    /* Translate audio-driver combo.
+     * Make sure this order corresponds the same in prepareComboboxes(): */
+    int iIndex = -1;
+
+    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_Null));
+
+#ifdef Q_OS_WIN
+    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_DirectSound));
 # ifdef VBOX_WITH_WINMM
-    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_WinMM));
-# endif
-#endif
-#if defined Q_OS_SOLARIS
-    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_SolAudio));
-# if defined VBOX_WITH_SOLARIS_OSS
-    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_OSS));
-#endif
-#endif
-#if defined Q_OS_LINUX || defined Q_OS_FREEBSD
-    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_OSS));
-# ifdef VBOX_WITH_PULSE
-    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_Pulse));
-# endif
-#endif
-#if defined Q_OS_LINUX
-# ifdef VBOX_WITH_ALSA
-    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_ALSA));
-# endif
-#endif
-#if defined Q_OS_MACX
-    mCbAudioDriver->addItem (gpConverter->toString (KAudioDriverType_CoreAudio));
-#endif
-    /* Set the old value */
-    mCbAudioDriver->setCurrentIndex (currentDriver);
+    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_WinMM));
+# endif /* VBOX_WITH_WINMM */
+#endif /* Q_OS_WIN */
 
-    /* Save the current selected value */
-    int currentController = mCbAudioController->currentIndex();
-    /* Clear the controller box */
-    mCbAudioController->clear();
-    /* Refill them */
-    mCbAudioController->insertItem (mCbAudioController->count(),
-        gpConverter->toString (KAudioControllerType_HDA));
-    mCbAudioController->insertItem (mCbAudioController->count(),
-        gpConverter->toString (KAudioControllerType_AC97));
-    mCbAudioController->insertItem (mCbAudioController->count(),
-        gpConverter->toString (KAudioControllerType_SB16));
-    /* Set the old value */
-    mCbAudioController->setCurrentIndex (currentController);
+#ifdef Q_OS_SOLARIS
+    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_SolAudio));
+# ifdef VBOX_WITH_SOLARIS_OSS
+    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_OSS));
+# endif /* VBOX_WITH_SOLARIS_OSS */
+#endif /* Q_OS_SOLARIS */
+
+#if defined Q_OS_LINUX || defined Q_OS_FREEBSD
+    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_OSS));
+# ifdef VBOX_WITH_PULSE
+    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_Pulse));
+# endif /* VBOX_WITH_PULSE */
+#endif /* Q_OS_LINUX | Q_OS_FREEBSD */
+
+#ifdef Q_OS_LINUX
+# ifdef VBOX_WITH_ALSA
+    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_ALSA));
+# endif /* VBOX_WITH_ALSA */
+#endif /* Q_OS_LINUX */
+
+#ifdef Q_OS_MACX
+    m_pComboAudioDriver->setItemText(++iIndex, gpConverter->toString(KAudioDriverType_CoreAudio));
+#endif /* Q_OS_MACX */
+
+
+    /* Translate audio-controller combo.
+     * Make sure this order corresponds the same in prepareComboboxes(): */
+    iIndex = -1;
+
+    m_pComboAudioController->setItemText(++iIndex, gpConverter->toString(KAudioControllerType_HDA));
+    m_pComboAudioController->setItemText(++iIndex, gpConverter->toString(KAudioControllerType_AC97));
+    m_pComboAudioController->setItemText(++iIndex, gpConverter->toString(KAudioControllerType_SB16));
 }
 
 void UIMachineSettingsAudio::polishPage()
 {
-    mGbAudio->setEnabled(isMachineOffline());
-    mLbAudioDriver->setEnabled(isMachineOffline());
-    mCbAudioDriver->setEnabled(isMachineOffline());
-    mLbAudioController->setEnabled(isMachineOffline());
-    mCbAudioController->setEnabled(isMachineOffline());
+    /* Polish audio-page availability: */
+    m_pContainerAudioOptions->setEnabled(isMachineOffline());
+    m_pContainerAudioSubOptions->setEnabled(m_pCheckBoxAudio->isChecked());
+}
+
+void UIMachineSettingsAudio::prepare()
+{
+    /* Apply UI decorations: */
+    Ui::UIMachineSettingsAudio::setupUi(this);
+
+    /* Prepare combo-boxes: */
+    prepareComboboxes();
+
+    /* Translate finally: */
+    retranslateUi();
+}
+
+void UIMachineSettingsAudio::prepareComboboxes()
+{
+    /* Prepare audio-driver combo.
+     * Make sure this order corresponds the same in retranslateUi(): */
+    int iIndex = -1;
+
+    m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_Null);
+
+#ifdef Q_OS_WIN
+    m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_DirectSound);
+# ifdef VBOX_WITH_WINMM
+    m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_WinMM);
+# endif /* VBOX_WITH_WINMM */
+#endif /* Q_OS_WIN */
+
+#ifdef Q_OS_SOLARIS
+    m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_SolAudio);
+# ifdef VBOX_WITH_SOLARIS_OSS
+    m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_OSS);
+# endif /* VBOX_WITH_SOLARIS_OSS */
+#endif /* Q_OS_SOLARIS */
+
+#if defined Q_OS_LINUX || defined Q_OS_FREEBSD
+    m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_OSS);
+# ifdef VBOX_WITH_PULSE
+    m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_Pulse);
+# endif /* VBOX_WITH_PULSE */
+#endif /* Q_OS_LINUX | Q_OS_FREEBSD */
+
+#ifdef Q_OS_LINUX
+# ifdef VBOX_WITH_ALSA
+    m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_ALSA);
+# endif /* VBOX_WITH_ALSA */
+#endif /* Q_OS_LINUX */
+
+#ifdef Q_OS_MACX
+    m_pComboAudioDriver->insertItem(++iIndex, "", KAudioDriverType_CoreAudio);
+#endif /* Q_OS_MACX */
+
+
+    /* Prepare audio-controller combo.
+     * Make sure this order corresponds the same in retranslateUi(): */
+    iIndex = -1;
+
+    m_pComboAudioController->insertItem(++iIndex, "", KAudioControllerType_HDA);
+    m_pComboAudioController->insertItem(++iIndex, "", KAudioControllerType_AC97);
+    m_pComboAudioController->insertItem(++iIndex, "", KAudioControllerType_SB16);
 }
 

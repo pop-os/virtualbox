@@ -33,7 +33,8 @@ FORMS = \
     src/settings/global/UIGlobalSettingsLanguage.ui \
     src/settings/global/UIGlobalSettingsDisplay.ui \
     src/settings/global/UIGlobalSettingsNetwork.ui \
-    src/settings/global/UIGlobalSettingsNetworkDetails.ui \
+    src/settings/global/UIGlobalSettingsNetworkDetailsNAT.ui \
+    src/settings/global/UIGlobalSettingsNetworkDetailsHost.ui \
     src/settings/global/UIGlobalSettingsExtension.ui \
     src/settings/global/UIGlobalSettingsProxy.ui \
     src/settings/machine/UIMachineSettingsGeneral.ui \
@@ -49,8 +50,7 @@ FORMS = \
     src/settings/machine/UIMachineSettingsSF.ui \
     src/settings/machine/UIMachineSettingsSFDetails.ui \
     src/widgets/UIApplianceEditorWidget.ui \
-    src/selector/VBoxSnapshotsWgt.ui \
-    src/runtime/UIVMCloseDialog.ui
+    src/selector/VBoxSnapshotsWgt.ui
 
 TRANSLATIONS = \
 	nls/VirtualBox_bg.ts \
@@ -62,8 +62,8 @@ TRANSLATIONS = \
 	nls/VirtualBox_en.ts \
 	nls/VirtualBox_es.ts \
 	nls/VirtualBox_eu.ts \
-	nls/VirtualBox_fi.ts \
 	nls/VirtualBox_fa_IR.ts \
+	nls/VirtualBox_fi.ts \
 	nls/VirtualBox_fr.ts \
 	nls/VirtualBox_gl_ES.ts \
 	nls/VirtualBox_hu.ts \

@@ -44,6 +44,116 @@ typedef struct VSCSILUNMMC
     bool            fLocked;
 } VSCSILUNMMC, *PVSCSILUNMMC;
 
+
+DECLINLINE(void) mmcLBA2MSF(uint8_t *pbBuf, uint32_t iLBA)
+{
+    iLBA += 150;
+    pbBuf[0] = (iLBA / 75) / 60;
+    pbBuf[1] = (iLBA / 75) % 60;
+    pbBuf[2] = iLBA % 75;
+}
+
+DECLINLINE(uint32_t) mmcMSF2LBA(const uint8_t *pbBuf)
+{
+    return (pbBuf[0] * 60 + pbBuf[1]) * 75 + pbBuf[2];
+}
+
+
+/* Fabricate normal TOC information. */
+static int mmcReadTOCNormal(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq, uint16_t cbMaxTransfer, bool fMSF)
+{
+    PVSCSILUNMMC    pVScsiLunMmc = (PVSCSILUNMMC)pVScsiLun;
+    uint8_t         aReply[32];
+    uint8_t         *pbBuf = aReply;
+    uint8_t         *q;
+    uint8_t         iStartTrack;
+    uint32_t        cbSize;
+
+    iStartTrack = pVScsiReq->pbCDB[6];
+    if (iStartTrack > 1 && iStartTrack != 0xaa)
+    {
+        return vscsiLunReqSenseErrorSet(pVScsiLun, pVScsiReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET, 0x00);
+    }
+    q = pbBuf + 2;
+    *q++ = 1;   /* first session */
+    *q++ = 1;   /* last session */
+    if (iStartTrack <= 1)
+    {
+        *q++ = 0;       /* reserved */
+        *q++ = 0x14;    /* ADR, CONTROL */
+        *q++ = 1;       /* track number */
+        *q++ = 0;       /* reserved */
+        if (fMSF)
+        {
+            *q++ = 0;   /* reserved */
+            mmcLBA2MSF(q, 0);
+            q += 3;
+        }
+        else
+        {
+            /* sector 0 */
+            vscsiH2BEU32(q, 0);
+            q += 4;
+        }
+    }
+    /* lead out track */
+    *q++ = 0;       /* reserved */
+    *q++ = 0x14;    /* ADR, CONTROL */
+    *q++ = 0xaa;    /* track number */
+    *q++ = 0;       /* reserved */
+    if (fMSF)
+    {
+        *q++ = 0;   /* reserved */
+        mmcLBA2MSF(q, pVScsiLunMmc->cSectors);
+        q += 3;
+    }
+    else
+    {
+        vscsiH2BEU32(q, pVScsiLunMmc->cSectors);
+        q += 4;
+    }
+    cbSize = q - pbBuf;
+    Assert(cbSize <= sizeof(aReply));
+    vscsiH2BEU16(pbBuf, cbSize - 2);
+    if (cbSize < cbMaxTransfer)
+        cbMaxTransfer = cbSize;
+
+    RTSgBufCopyFromBuf(&pVScsiReq->SgBuf, aReply, cbMaxTransfer);
+
+    return vscsiLunReqSenseOkSet(pVScsiLun, pVScsiReq);
+}
+
+/* Fabricate session information. */
+static int mmcReadTOCMulti(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq, uint16_t cbMaxTransfer, bool fMSF)
+{
+    PVSCSILUNMMC    pVScsiLunMmc = (PVSCSILUNMMC)pVScsiLun;
+    uint8_t         aReply[32];
+    uint8_t         *pbBuf = aReply;
+
+    /* multi session: only a single session defined */
+    memset(pbBuf, 0, 12);
+    pbBuf[1] = 0x0a;
+    pbBuf[2] = 0x01;    /* first complete session number */
+    pbBuf[3] = 0x01;    /* last complete session number */
+    pbBuf[5] = 0x14;    /* ADR, CONTROL */
+    pbBuf[6] = 1;       /* first track in last complete session */
+
+    if (fMSF)
+    {
+        pbBuf[8] = 0;   /* reserved */
+        mmcLBA2MSF(pbBuf + 8, 0);
+    }
+    else
+    {
+        /* sector 0 */
+        vscsiH2BEU32(pbBuf + 8, 0);
+    }
+
+    RTSgBufCopyFromBuf(&pVScsiReq->SgBuf, aReply, 12);
+
+    return vscsiLunReqSenseOkSet(pVScsiLun, pVScsiReq);
+}
+
 static int vscsiLunMmcInit(PVSCSILUNINT pVScsiLun)
 {
     PVSCSILUNMMC    pVScsiLunMmc = (PVSCSILUNMMC)pVScsiLun;
@@ -73,9 +183,40 @@ static int vscsiLunMmcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq)
     uint32_t        cSectorTransfer = 0;
     int             rc = VINF_SUCCESS;
     int             rcReq = SCSI_STATUS_OK;
+    unsigned        uCmd = pVScsiReq->pbCDB[0];
 
-    switch(pVScsiReq->pbCDB[0])
+    /*
+     * GET CONFIGURATION, GET EVENT/STATUS NOTIFICATION, INQUIRY, and REQUEST SENSE commands
+     * operate even when a unit attention condition exists for initiator; every other command
+     * needs to report CHECK CONDITION in that case.
+     */
+    if (!pVScsiLunMmc->Core.fReady && uCmd != SCSI_INQUIRY)
     {
+        /*
+         * A note on media changes: As long as a medium is not present, the unit remains in
+         * the 'not ready' state. Technically the unit becomes 'ready' soon after a medium
+         * is inserted; however, we internally keep the 'not ready' state until we've had
+         * a chance to report the UNIT ATTENTION status indicating a media change.
+         */
+        if (pVScsiLunMmc->Core.fMediaPresent)
+        {
+            rcReq = vscsiLunReqSenseErrorSet(pVScsiLun, pVScsiReq, SCSI_SENSE_UNIT_ATTENTION,
+                                             SCSI_ASC_MEDIUM_MAY_HAVE_CHANGED, 0x00);
+            pVScsiLunMmc->Core.fReady = true;
+        }
+        else
+            rcReq = vscsiLunReqSenseErrorSet(pVScsiLun, pVScsiReq, SCSI_SENSE_NOT_READY,
+                                             SCSI_ASC_MEDIUM_NOT_PRESENT, 0x00);
+    }
+    else
+    {
+        switch (uCmd)
+        {
+        case SCSI_TEST_UNIT_READY:
+            Assert(!pVScsiLunMmc->Core.fReady); /* Only should get here if LUN isn't ready. */
+            rcReq = vscsiLunReqSenseErrorSet(pVScsiLun, pVScsiReq, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT, 0x00);
+            break;
+
         case SCSI_INQUIRY:
         {
             SCSIINQUIRYDATA ScsiInquiryReply;
@@ -120,6 +261,7 @@ static int vscsiLunMmcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq)
             uint8_t uModePage = pVScsiReq->pbCDB[2] & 0x3f;
             uint8_t aReply[24];
             uint8_t *pu8ReplyPos;
+            bool    fValid = false;
 
             memset(aReply, 0, sizeof(aReply));
             aReply[0] = 4; /* Reply length 4. */
@@ -135,10 +277,18 @@ static int vscsiLunMmcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq)
                 *pu8ReplyPos++ = 0x08; /* Page code. */
                 *pu8ReplyPos++ = 0x12; /* Size of the page. */
                 *pu8ReplyPos++ = 0x4;  /* Write cache enabled. */
+                fValid = true;
+            } else if (uModePage == 0) {
+                fValid = true;
             }
 
-            RTSgBufCopyFromBuf(&pVScsiReq->SgBuf, aReply, sizeof(aReply));
-            rcReq = vscsiLunReqSenseOkSet(pVScsiLun, pVScsiReq);
+            /* Querying unknown pages must fail. */
+            if (fValid) {
+                RTSgBufCopyFromBuf(&pVScsiReq->SgBuf, aReply, sizeof(aReply));
+                rcReq = vscsiLunReqSenseOkSet(pVScsiLun, pVScsiReq);
+            } else {
+                rcReq = vscsiLunReqSenseErrorSet(pVScsiLun, pVScsiReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET, 0x00);
+            }
             break;
         }
         case SCSI_MODE_SELECT_6:
@@ -267,13 +417,37 @@ static int vscsiLunMmcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq)
         case SCSI_PREVENT_ALLOW_MEDIUM_REMOVAL:
         {
             pVScsiLunMmc->fLocked = pVScsiReq->pbCDB[4] & 1;
+            vscsiLunMediumSetLock(pVScsiLun, pVScsiLunMmc->fLocked);
             rcReq = vscsiLunReqSenseOkSet(pVScsiLun, pVScsiReq);
+            break;
+        }
+        case SCSI_READ_TOC_PMA_ATIP:
+        {
+            uint8_t     format;
+            uint16_t    cbMax;
+            bool        fMSF;
+
+            format = pVScsiReq->pbCDB[2] & 0x0f;
+            cbMax  = vscsiBE2HU16(&pVScsiReq->pbCDB[7]);
+            fMSF   = (pVScsiReq->pbCDB[1] >> 1) & 1;
+            switch (format)
+            {
+                case 0x00:
+                    mmcReadTOCNormal(pVScsiLun, pVScsiReq, cbMax, fMSF);
+                    break;
+                case 0x01:
+                    mmcReadTOCMulti(pVScsiLun, pVScsiReq, cbMax, fMSF);
+                    break;
+                default:
+                    rcReq = vscsiLunReqSenseErrorSet(pVScsiLun, pVScsiReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET, 0x00);
+            }
             break;
         }
 
         default:
-            //AssertMsgFailed(("Command %#x [%s] not implemented\n", pRequest->pbCDB[0], SCSICmdText(pRequest->pbCDB[0])));
+            //AssertMsgFailed(("Command %#x [%s] not implemented\n", pVScsiReq->pbCDB[0], SCSICmdText(pVScsiReq->pbCDB[0])));
             rcReq = vscsiLunReqSenseErrorSet(pVScsiLun, pVScsiReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_ILLEGAL_OPCODE, 0x00);
+        }
     }
 
     if (enmTxDir != VSCSIIOREQTXDIR_INVALID)
@@ -286,7 +460,7 @@ static int vscsiLunMmcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq)
             rcReq = vscsiLunReqSenseErrorSet(pVScsiLun, pVScsiReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_LOGICAL_BLOCK_OOR, 0x00);
             vscsiDeviceReqComplete(pVScsiLun->pVScsiDevice, pVScsiReq, rcReq, false, VINF_SUCCESS);
         }
-        else if (!cSectorTransfer) 
+        else if (!cSectorTransfer)
         {
             /* A 0 transfer length is not an error. */
             rcReq = vscsiLunReqSenseOkSet(pVScsiLun, pVScsiReq);

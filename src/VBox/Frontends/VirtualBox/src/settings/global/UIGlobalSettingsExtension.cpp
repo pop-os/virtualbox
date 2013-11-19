@@ -1,6 +1,8 @@
 /* $Id: UIGlobalSettingsExtension.cpp $ */
 /** @file
- * VBox Qt GUI - UIGlobalSettingsExtension class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIGlobalSettingsExtension class implementation
  */
 
 /*
@@ -113,19 +115,9 @@ UIGlobalSettingsExtension::UIGlobalSettingsExtension()
     retranslateUi();
 }
 
-/**
- * Attempt the actual installation.
- *
- * This code is shared by UIGlobalSettingsExtension::sltInstallPackage and UISelectorWindow::sltOpenUrls.
- *
- * @param   strFilePath     The path to the tarball.
- * @param   strDigest       The digest of the file (SHA-256). Empty string if no
- *                          digest was performed.
- * @param   pParent         The parent widget.
- * @param   pstrExtPackName Where to return the extension pack name. Optional.
- */
-/*static*/ void UIGlobalSettingsExtension::doInstallation(QString const &strFilePath, QString const &strDigest,
-                                                          QWidget *pParent, QString *pstrExtPackName)
+/* static */
+void UIGlobalSettingsExtension::doInstallation(QString const &strFilePath, QString const &strDigest,
+                                               QWidget *pParent, QString *pstrExtPackName)
 {
     /*
      * Open the extpack tarball via IExtPackManager.
@@ -147,7 +139,7 @@ UIGlobalSettingsExtension::UIGlobalSettingsExtension()
 
     if (!extPackFile.GetUsable())
     {
-        msgCenter().badExtPackFile(strFilePath, extPackFile, pParent);
+        msgCenter().warnAboutBadExtPackFile(strFilePath, extPackFile, pParent);
         return;
     }
 
@@ -165,7 +157,7 @@ UIGlobalSettingsExtension::UIGlobalSettingsExtension()
     if (fReplaceIt)
     {
         QString strPackVersionCur = QString("%1r%2%3").arg(extPackCur.GetVersion()).arg(extPackCur.GetRevision()).arg(extPackCur.GetEdition());
-        if (!msgCenter().confirmReplacePackage(strPackName, strPackVersion, strPackVersionCur, strPackDescription, pParent))
+        if (!msgCenter().confirmReplaceExtensionPack(strPackName, strPackVersion, strPackVersionCur, strPackDescription, pParent))
             return;
     }
     /*
@@ -173,7 +165,7 @@ UIGlobalSettingsExtension::UIGlobalSettingsExtension()
      */
     else
     {
-        if (!msgCenter().confirmInstallingPackage(strPackName, strPackVersion, strPackDescription, pParent))
+        if (!msgCenter().confirmInstallExtensionPack(strPackName, strPackVersion, strPackDescription, pParent))
             return;
     }
 
@@ -195,29 +187,26 @@ UIGlobalSettingsExtension::UIGlobalSettingsExtension()
      * do a refresh even on failure.
      */
     QString displayInfo;
-#ifdef RT_OS_WINDOWS
+#ifdef Q_WS_WIN
     if (pParent)
         displayInfo.sprintf("hwnd=%#llx", (uint64_t)(uintptr_t)pParent->winId());
-#endif
+#endif /* Q_WS_WIN */
+    /* Prepare installation progress: */
     CProgress progress = extPackFile.Install(fReplaceIt, displayInfo);
     if (extPackFile.isOk())
     {
-        if (progress.isNull())
-            msgCenter().notifyAboutExtPackInstalled(strPackName, pParent);
-        else
+        /* Show installation progress: */
+        msgCenter().showModalProgressDialog(progress, tr("Extensions"), ":/progress_install_guest_additions_90px.png", pParent);
+        if (!progress.GetCanceled())
         {
-            msgCenter().showModalProgressDialog(progress, tr("Extensions"));
-            if (!progress.GetCanceled())
-            {
-                if (progress.isOk() && progress.GetResultCode() == 0)
-                    msgCenter().notifyAboutExtPackInstalled(strPackName, pParent);
-                else
-                    msgCenter().cannotInstallExtPack(strFilePath, extPackFile, progress, pParent);
-            }
+            if (progress.isOk() && progress.GetResultCode() == 0)
+                msgCenter().warnAboutExtPackInstalled(strPackName, pParent);
+            else
+                msgCenter().cannotInstallExtPack(progress, strFilePath, pParent);
         }
     }
     else
-        msgCenter().cannotInstallExtPack(strFilePath, extPackFile, progress, pParent);
+        msgCenter().cannotInstallExtPack(extPackFile, strFilePath, pParent);
 
     if (pstrExtPackName)
         *pstrExtPackName = strPackName;
@@ -274,14 +263,12 @@ void UIGlobalSettingsExtension::saveFromCacheTo(QVariant &data)
     UISettingsPageGlobal::uploadData(data);
 }
 
-/* Navigation stuff: */
 void UIGlobalSettingsExtension::setOrderAfter(QWidget *pWidget)
 {
     /* Setup tab-order: */
     setTabOrder(pWidget, m_pPackagesTree);
 }
 
-/* Translation stuff: */
 void UIGlobalSettingsExtension::retranslateUi()
 {
     /* Translate uic generated strings: */
@@ -292,7 +279,6 @@ void UIGlobalSettingsExtension::retranslateUi()
     m_pActionRemove->setText(tr("Remove package"));
 }
 
-/* Handle current-item change fact: */
 void UIGlobalSettingsExtension::sltHandleCurrentItemChange(QTreeWidgetItem *pCurrentItem)
 {
     /* Check action's availability: */
@@ -300,7 +286,6 @@ void UIGlobalSettingsExtension::sltHandleCurrentItemChange(QTreeWidgetItem *pCur
     m_pActionRemove->setEnabled(pCurrentItem);
 }
 
-/* Invoke context menu: */
 void UIGlobalSettingsExtension::sltShowContextMenu(const QPoint &position)
 {
     QMenu menu;
@@ -316,7 +301,6 @@ void UIGlobalSettingsExtension::sltShowContextMenu(const QPoint &position)
     menu.exec(m_pPackagesTree->viewport()->mapToGlobal(position));
 }
 
-/* Package add procedure: */
 void UIGlobalSettingsExtension::sltInstallPackage()
 {
     /*
@@ -393,7 +377,6 @@ void UIGlobalSettingsExtension::sltInstallPackage()
     }
 }
 
-/* Package remove procedure: */
 void UIGlobalSettingsExtension::sltRemovePackage()
 {
     /* Get current item: */
@@ -408,7 +391,7 @@ void UIGlobalSettingsExtension::sltRemovePackage()
         /* Get name of current package: */
         QString strSelectedPackageName = pItem->name();
         /* Ask the user about package removing: */
-        if (msgCenter().confirmRemovingPackage(strSelectedPackageName, this))
+        if (msgCenter().confirmRemoveExtensionPack(strSelectedPackageName, this))
         {
             /*
              * Uninstall the package.
@@ -416,19 +399,16 @@ void UIGlobalSettingsExtension::sltRemovePackage()
             CExtPackManager manager = vboxGlobal().virtualBox().GetExtensionPackManager();
             /** @todo Refuse this if any VMs are running. */
             QString displayInfo;
-#ifdef RT_OS_WINDOWS
+#ifdef Q_WS_WIN
             displayInfo.sprintf("hwnd=%#llx", (uint64_t)(uintptr_t)this->winId());
-#endif
+#endif /* Q_WS_WIN */
+            /* Prepare uninstallation progress: */
             CProgress progress = manager.Uninstall(strSelectedPackageName, false /* forced removal? */, displayInfo);
             if (manager.isOk())
             {
-                bool fOk = true;
-                if (!progress.isNull())
-                {
-                    msgCenter().showModalProgressDialog(progress, tr("Extensions"));
-                    fOk = progress.isOk() && progress.GetResultCode() == 0;
-                }
-                if (fOk)
+                /* Show uninstallation progress: */
+                msgCenter().showModalProgressDialog(progress, tr("Extensions"), ":/progress_install_guest_additions_90px.png", this);
+                if (progress.isOk() && progress.GetResultCode() == 0)
                 {
                     /* Remove selected package from cache: */
                     for (int i = 0; i < m_cache.m_items.size(); ++i)
@@ -439,15 +419,14 @@ void UIGlobalSettingsExtension::sltRemovePackage()
                             break;
                         }
                     }
-
                     /* Remove selected package from tree: */
                     delete pItem;
                 }
                 else
-                    msgCenter().cannotUninstallExtPack(strSelectedPackageName, manager, progress, this);
+                    msgCenter().cannotUninstallExtPack(progress, strSelectedPackageName, this);
             }
             else
-                msgCenter().cannotUninstallExtPack(strSelectedPackageName, manager, progress, this);
+                msgCenter().cannotUninstallExtPack(manager, strSelectedPackageName, this);
         }
     }
 }

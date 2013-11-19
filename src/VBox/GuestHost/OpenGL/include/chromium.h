@@ -79,6 +79,11 @@ extern "C" {
 
 /* to shut up gcc warning for struct VBOXUHGSMI * parameters */
 struct VBOXUHGSMI;
+struct VBOXVR_SCR_COMPOSITOR;
+struct VBOXVR_SCR_COMPOSITOR_ENTRY;
+
+#define CR_RENDER_DEFAULT_CONTEXT_ID (INT32_MAX-1)
+#define CR_RENDER_DEFAULT_WINDOW_ID (INT32_MAX-1)
 
 #if defined(IN_GUEST) && (WINDOWS) && defined(VBOX_WITH_WDDM)
 # ifdef VBOX_WDDM_WOW64
@@ -607,6 +612,7 @@ extern void APIENTRY glGetChromiumParametervCR(GLenum target, GLuint index, GLen
 
 #define GL_WINDOW_SIZE_CR               0x8B06
 #define GL_MAX_WINDOW_SIZE_CR           0x8B24  /* new */
+#define GL_WINDOW_VISIBILITY_CR         0x8B25  /* new */
 
 #endif /* GL_CR_window_size */
 
@@ -714,7 +720,11 @@ extern void APIENTRY glZPixCR(GLsizei width, GLsizei height, GLenum format,
 /*report that the shared resource is no longer used by this context, the parameter value is a texture name*/
 #define GL_RCUSAGE_TEXTURE_CLEAR_CR   0x8B2A
 /*configures host to create windows initially hidden*/
-#define GL_HOST_WND_CREATED_HIDDEN    0x8B2B
+#define GL_HOST_WND_CREATED_HIDDEN_CR 0x8B2B
+/* guest requests host whether e debug break is needed*/
+#define GL_DBG_CHECK_BREAK_CR         0x8B2C
+/* Tells renderspu the default context id being used by the crserver */
+#define GL_HH_SET_DEFAULT_SHARED_CTX  0x8B2D
 
 /**********************************************************************/
 /*****                Chromium-specific API                       *****/
@@ -765,8 +775,9 @@ extern GLint APIENTRY crWindowCreate(const char *dpyName, GLint visBits);
 extern void APIENTRY crWindowDestroy(GLint window);
 extern void APIENTRY crWindowSize(GLint window, GLint w, GLint h);
 extern void APIENTRY crWindowPosition(GLint window, GLint x, GLint y);
-extern void APIENTRY crWindowVisibleRegion( GLint window, GLint cRects, void *pRects );
+extern void APIENTRY crWindowVisibleRegion( GLint window, GLint cRects, const void *pRects );
 extern void APIENTRY crWindowShow( GLint window, GLint flag );
+extern void APIENTRY crVBoxTexPresent(GLuint texture, GLuint cfg, GLint xPos, GLint yPos, GLint cRects, const GLint *pRects);
 
 typedef int (CR_APIENTRY *CR_PROC)();
 CR_PROC APIENTRY crGetProcAddress( const char *name );

@@ -69,18 +69,23 @@ VMMRCDECL(int) VMMGCEntry(PVM pVM, unsigned uOperation, unsigned uArg, ...)
         case VMMGC_DO_VMMGC_INIT:
         {
             /*
-             * Validate the svn revision (uArg).
+             * Validate the svn revision (uArg) and build type (ellipsis).
              */
             if (uArg != VMMGetSvnRev())
                 return VERR_VMM_RC_VERSION_MISMATCH;
 
-            /*
-             * Initialize the runtime.
-             * (The program timestamp is found in the elipsis.)
-             */
             va_list va;
             va_start(va, uArg);
+
+            uint32_t uBuildType = va_arg(va, uint32_t);
+            if (uBuildType != vmmGetBuildType())
+                return VERR_VMM_RC_VERSION_MISMATCH;
+
+            /*
+             * Initialize the runtime.
+             */
             uint64_t u64TS = va_arg(va, uint64_t);
+
             va_end(va);
 
             int rc = RTRCInit(u64TS);
@@ -119,7 +124,7 @@ VMMRCDECL(int) VMMGCEntry(PVM pVM, unsigned uOperation, unsigned uArg, ...)
         /*
          * Testcase executes a privileged instruction to force a world switch. (in both SVM & VMX)
          */
-        case VMMGC_DO_TESTCASE_HWACCM_NOP:
+        case VMMGC_DO_TESTCASE_HM_NOP:
             ASMRdMsr_Low(MSR_IA32_SYSENTER_CS);
             return 0;
 

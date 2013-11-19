@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,6 +31,7 @@
 #include <VBox/sup.h>
 #include <VBox/log.h>
 #include <iprt/stdarg.h>
+#include <iprt/thread.h>
 
 RT_C_DECLS_BEGIN
 
@@ -63,6 +64,10 @@ typedef enum VMMSWITCHER
     VMMSWITCHER_AMD64_TO_PAE,
     /** Switcher for AMD64 host paging to AMD64 shadow paging. */
     VMMSWITCHER_AMD64_TO_AMD64,
+    /** Stub switcher for 32-bit and PAE. */
+    VMMSWITCHER_X86_STUB,
+    /** Stub switcher for AMD64. */
+    VMMSWITCHER_AMD64_STUB,
     /** Used to make a count for array declarations and suchlike. */
     VMMSWITCHER_MAX,
     /** The usual 32-bit paranoia. */
@@ -81,6 +86,10 @@ typedef enum VMMCALLRING3
     VMMCALLRING3_PDM_LOCK,
     /** Acquire the critical section specified as argument.  */
     VMMCALLRING3_PDM_CRIT_SECT_ENTER,
+    /** Enter the R/W critical section (in argument) exclusively.  */
+    VMMCALLRING3_PDM_CRIT_SECT_RW_ENTER_EXCL,
+    /** Enter the R/W critical section (in argument) shared.  */
+    VMMCALLRING3_PDM_CRIT_SECT_RW_ENTER_SHARED,
     /** Acquire the PGM lock. */
     VMMCALLRING3_PGM_LOCK,
     /** Grow the PGM shadow page pool. */
@@ -112,17 +121,16 @@ typedef enum VMMCALLRING3
 } VMMCALLRING3;
 
 /**
- * VMMR3AtomicExecuteHandler callback function.
+ * VMMRZCallRing3 notification callback.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the shared VM structure.
- * @param   pvUser  User specified argument
- *
- * @todo missing prefix.
+ * @param   pVCpu           Pointer to the VMCPU.
+ * @param   enmOperation    The operation causing the ring-3 jump.
+ * @param   pvUser          The user argument.
  */
-typedef DECLCALLBACK(int) FNATOMICHANDLER(PVM pVM, void *pvUser);
-/** Pointer to a FNMMATOMICHANDLER(). */
-typedef FNATOMICHANDLER *PFNATOMICHANDLER;
+typedef DECLCALLBACK(int) FNVMMR0CALLRING3NOTIFICATION(PVMCPU pVCpu, VMMCALLRING3 enmOperation, void *pvUser);
+/** Pointer to a FNRTMPNOTIFICATION(). */
+typedef FNVMMR0CALLRING3NOTIFICATION *PFNVMMR0CALLRING3NOTIFICATION;
 
 /**
  * Rendezvous callback.
@@ -213,6 +221,16 @@ typedef struct VMM2USERMETHODS
      */
     DECLR3CALLBACKMEMBER(void, pfnNotifyPdmtTerm,(PCVMM2USERMETHODS pThis, PUVM pUVM));
 
+    /**
+     * Notification callback that that a VM reset will be turned into a power off.
+     *
+     * @param   pThis       Pointer to the callback method table.
+     * @param   pUVM        The user mode VM handle.
+     *
+     * @remarks This is optional and shall be set to NULL if not wanted.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnNotifyResetTurnedIntoPowerOff,(PCVMM2USERMETHODS pThis, PUVM pUVM));
+
     /** Magic value (VMM2USERMETHODS_MAGIC) marking the end of the structure. */
     uint32_t    u32EndMagic;
 } VMM2USERMETHODS;
@@ -220,28 +238,34 @@ typedef struct VMM2USERMETHODS
 /** Magic value of the VMM2USERMETHODS (Franz Kafka). */
 #define VMM2USERMETHODS_MAGIC         UINT32_C(0x18830703)
 /** The VMM2USERMETHODS structure version. */
-#define VMM2USERMETHODS_VERSION       UINT32_C(0x00020000)
+#define VMM2USERMETHODS_VERSION       UINT32_C(0x00020001)
 
 
-VMMDECL(RTRCPTR)     VMMGetStackRC(PVMCPU pVCpu);
-VMMDECL(VMCPUID)     VMMGetCpuId(PVM pVM);
-VMMDECL(PVMCPU)      VMMGetCpu(PVM pVM);
-VMMDECL(PVMCPU)      VMMGetCpu0(PVM pVM);
-VMMDECL(PVMCPU)      VMMGetCpuById(PVM pVM, VMCPUID idCpu);
-VMMDECL(uint32_t)    VMMGetSvnRev(void);
-VMMDECL(VMMSWITCHER) VMMGetSwitcher(PVM pVM);
-VMMDECL(void)        VMMTrashVolatileXMMRegs(void);
-
-/** @def VMMIsHwVirtExtForced
- * Checks if forced to use the hardware assisted virtualization extensions.
+/**
+ * Checks whether we've armed the ring-0 long jump machinery.
  *
- * This is intended for making setup decisions where we can save resources when
- * using hardware assisted virtualization.
- *
- * @returns true / false.
- * @param   pVM     Pointer to the shared VM structure.
+ * @returns @c true / @c false
+ * @param   pVCpu           The caller's cross context virtual CPU structure.
+ * @thread  EMT
+ * @sa      VMMR0IsLongJumpArmed
  */
-#define VMMIsHwVirtExtForced(pVM)   ((pVM)->fHwVirtExtForced)
+#ifdef IN_RING0
+# define VMMIsLongJumpArmed(a_pVCpu)                VMMR0IsLongJumpArmed(a_pVCpu)
+#else
+# define VMMIsLongJumpArmed(a_pVCpu)                (false)
+#endif
+
+
+VMM_INT_DECL(RTRCPTR)       VMMGetStackRC(PVMCPU pVCpu);
+VMMDECL(VMCPUID)            VMMGetCpuId(PVM pVM);
+VMMDECL(PVMCPU)             VMMGetCpu(PVM pVM);
+VMMDECL(PVMCPU)             VMMGetCpu0(PVM pVM);
+VMMDECL(PVMCPU)             VMMGetCpuById(PVM pVM, VMCPUID idCpu);
+VMMR3DECL(PVMCPU)           VMMR3GetCpuByIdU(PUVM pVM, VMCPUID idCpu);
+VMM_INT_DECL(uint32_t)      VMMGetSvnRev(void);
+VMM_INT_DECL(VMMSWITCHER)   VMMGetSwitcher(PVM pVM);
+VMM_INT_DECL(bool)          VMMIsInRing3Call(PVMCPU pVCpu);
+VMM_INT_DECL(void)          VMMTrashVolatileXMMRegs(void);
 
 
 #ifdef IN_RING3
@@ -251,23 +275,26 @@ VMMDECL(void)        VMMTrashVolatileXMMRegs(void);
  */
 VMMR3_INT_DECL(int)     VMMR3Init(PVM pVM);
 VMMR3_INT_DECL(int)     VMMR3InitR0(PVM pVM);
+# ifdef VBOX_WITH_RAW_MODE
 VMMR3_INT_DECL(int)     VMMR3InitRC(PVM pVM);
+# endif
 VMMR3_INT_DECL(int)     VMMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat);
 VMMR3_INT_DECL(int)     VMMR3Term(PVM pVM);
 VMMR3_INT_DECL(void)    VMMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
 VMMR3_INT_DECL(int)     VMMR3UpdateLoggers(PVM pVM);
 VMMR3DECL(const char *) VMMR3GetRZAssertMsg1(PVM pVM);
 VMMR3DECL(const char *) VMMR3GetRZAssertMsg2(PVM pVM);
-VMMR3_INT_DECL(int)     VMMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue);
 VMMR3_INT_DECL(int)     VMMR3SelectSwitcher(PVM pVM, VMMSWITCHER enmSwitcher);
-VMMR3_INT_DECL(int)     VMMR3DisableSwitcher(PVM pVM);
 VMMR3_INT_DECL(RTR0PTR) VMMR3GetHostToGuestSwitcher(PVM pVM, VMMSWITCHER enmSwitcher);
+VMMR3_INT_DECL(int)     VMMR3HmRunGC(PVM pVM, PVMCPU pVCpu);
+# ifdef VBOX_WITH_RAW_MODE
 VMMR3_INT_DECL(int)     VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu);
-VMMR3_INT_DECL(int)     VMMR3HwAccRunGC(PVM pVM, PVMCPU pVCpu);
+VMMR3DECL(int)          VMMR3ResumeHyper(PVM pVM, PVMCPU pVCpu);
+VMMR3_INT_DECL(int)     VMMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue);
 VMMR3DECL(int)          VMMR3CallRC(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, ...);
 VMMR3DECL(int)          VMMR3CallRCV(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, va_list args);
+# endif
 VMMR3DECL(int)          VMMR3CallR0(PVM pVM, uint32_t uOperation, uint64_t u64Arg, PSUPVMMR0REQHDR pReqHdr);
-VMMR3DECL(int)          VMMR3ResumeHyper(PVM pVM, PVMCPU pVCpu);
 VMMR3DECL(void)         VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr);
 VMMR3_INT_DECL(void)    VMMR3YieldSuspend(PVM pVM);
 VMMR3_INT_DECL(void)    VMMR3YieldStop(PVM pVM);
@@ -320,7 +347,7 @@ typedef enum VMMR0OPERATION
     /** Run guest context. */
     VMMR0_DO_RAW_RUN = SUP_VMMR0_DO_RAW_RUN,
     /** Run guest code using the available hardware acceleration technology. */
-    VMMR0_DO_HWACC_RUN = SUP_VMMR0_DO_HWACC_RUN,
+    VMMR0_DO_HM_RUN = SUP_VMMR0_DO_HM_RUN,
     /** Official NOP that we use for profiling. */
     VMMR0_DO_NOP = SUP_VMMR0_DO_NOP,
     /** Official slow iocl NOP that we use for profiling. */
@@ -352,9 +379,9 @@ typedef enum VMMR0OPERATION
     /** Call VMMR0 Per VM Termination. */
     VMMR0_DO_VMMR0_TERM,
     /** Setup the hardware accelerated raw-mode session. */
-    VMMR0_DO_HWACC_SETUP_VM,
+    VMMR0_DO_HM_SETUP_VM,
     /** Attempt to enable or disable hardware accelerated raw-mode. */
-    VMMR0_DO_HWACC_ENABLE,
+    VMMR0_DO_HM_ENABLE,
     /** Calls function in the hypervisor.
      * The caller must setup the hypervisor context so the call will be performed.
      * The difference between VMMR0_DO_RUN_GC and this one is the handling of
@@ -475,18 +502,30 @@ typedef struct GCFGMVALUEREQ
  */
 typedef GCFGMVALUEREQ *PGCFGMVALUEREQ;
 
-VMMR0DECL(int)      VMMR0EntryInt(PVM pVM, VMMR0OPERATION enmOperation, void *pvArg);
-VMMR0DECL(void)     VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperation);
-VMMR0DECL(int)      VMMR0EntryEx(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperation, PSUPVMMR0REQHDR pReq, uint64_t u64Arg, PSUPDRVSESSION);
-VMMR0DECL(int)      VMMR0TermVM(PVM pVM, PGVM pGVM);
+#ifdef IN_RING0
+VMMR0DECL(int)       VMMR0EntryInt(PVM pVM, VMMR0OPERATION enmOperation, void *pvArg);
+VMMR0DECL(void)      VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperation);
+VMMR0DECL(int)       VMMR0EntryEx(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperation, PSUPVMMR0REQHDR pReq, uint64_t u64Arg, PSUPDRVSESSION);
+VMMR0DECL(int)       VMMR0TermVM(PVM pVM, PGVM pGVM);
+VMMR0_INT_DECL(bool) VMMR0IsLongJumpArmed(PVMCPU pVCpu);
+VMMR0_INT_DECL(bool) VMMR0IsInRing3LongJump(PVMCPU pVCpu);
+VMMR0DECL(int)       VMMR0ThreadCtxHooksCreate(PVMCPU pVCpu);
+VMMR0DECL(void)      VMMR0ThreadCtxHooksRelease(PVMCPU pVCpu);
+VMMR0DECL(bool)      VMMR0ThreadCtxHooksAreCreated(PVMCPU pVCpu);
+VMMR0DECL(int)       VMMR0ThreadCtxHooksRegister(PVMCPU pVCpu, PFNRTTHREADCTXHOOK pfnHook);
+VMMR0DECL(int)       VMMR0ThreadCtxHooksDeregister(PVMCPU pVCpu);
+VMMR0DECL(bool)      VMMR0ThreadCtxHooksAreRegistered(PVMCPU pVCpu);
 
-#ifdef LOG_ENABLED
-VMMR0DECL(void)     VMMR0LogFlushDisable(PVMCPU pVCpu);
-VMMR0DECL(void)     VMMR0LogFlushEnable(PVMCPU pVCpu);
-#else
-#define             VMMR0LogFlushDisable(pVCpu)     do { } while(0)
-#define             VMMR0LogFlushEnable(pVCpu)      do { } while(0)
-#endif
+# ifdef LOG_ENABLED
+VMMR0DECL(void)      VMMR0LogFlushDisable(PVMCPU pVCpu);
+VMMR0DECL(void)      VMMR0LogFlushEnable(PVMCPU pVCpu);
+VMMR0DECL(bool)      VMMR0IsLogFlushDisabled(PVMCPU pVCpu);
+# else
+#  define            VMMR0LogFlushDisable(pVCpu)     do { } while(0)
+#  define            VMMR0LogFlushEnable(pVCpu)      do { } while(0)
+#  define            VMMR0IsLogFlushDisabled(pVCpu)  (true)
+# endif /* LOG_ENABLED */
+#endif /* IN_RING0 */
 
 /** @} */
 
@@ -512,6 +551,9 @@ VMMRZDECL(int)      VMMRZCallRing3NoCpu(PVM pVM, VMMCALLRING3 enmOperation, uint
 VMMRZDECL(void)     VMMRZCallRing3Disable(PVMCPU pVCpu);
 VMMRZDECL(void)     VMMRZCallRing3Enable(PVMCPU pVCpu);
 VMMRZDECL(bool)     VMMRZCallRing3IsEnabled(PVMCPU pVCpu);
+VMMRZDECL(int)      VMMRZCallRing3SetNotification(PVMCPU pVCpu, R0PTRTYPE(PFNVMMR0CALLRING3NOTIFICATION) pfnCallback, RTR0PTR pvUser);
+VMMRZDECL(void)     VMMRZCallRing3RemoveNotification(PVMCPU pVCpu);
+VMMRZDECL(bool)     VMMRZCallRing3IsNotificationSet(PVMCPU pVCpu);
 /** @} */
 #endif
 

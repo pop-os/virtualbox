@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -93,9 +93,9 @@ static DECLCALLBACK(size_t) vmmFormatTypeVmCpuSet(PFNRTSTROUTPUT pfnOutput, void
         cCpus = 0;
     }
     if (cCpus == 0)
-        return pfnOutput(pvArgOutput, "<empty>", sizeof("<empty>") - 1);
+        return pfnOutput(pvArgOutput, RT_STR_TUPLE("<empty>"));
     if (cCpus == RT_ELEMENTS(pSet->au32Bitmap) * 32)
-        return pfnOutput(pvArgOutput, "<full>", sizeof("<full>") - 1);
+        return pfnOutput(pvArgOutput, RT_STR_TUPLE("<full>"));
 
     /*
      * Print cpus that are present: {1,2,7,9 ... }
@@ -173,7 +173,7 @@ void vmmTermFormatTypes(void)
  * @returns bottom of the stack.
  * @param   pVCpu       Pointer to the VMCPU.
  */
-VMMDECL(RTRCPTR) VMMGetStackRC(PVMCPU pVCpu)
+VMM_INT_DECL(RTRCPTR) VMMGetStackRC(PVMCPU pVCpu)
 {
     return (RTRCPTR)pVCpu->vmm.s.pbEMTStackBottomRC;
 }
@@ -185,6 +185,7 @@ VMMDECL(RTRCPTR) VMMGetStackRC(PVMCPU pVCpu)
  * @returns The CPU ID. NIL_VMCPUID if the thread isn't an EMT.
  *
  * @param   pVM         Pointer to the VM.
+ * @internal
  */
 VMMDECL(VMCPUID) VMMGetCpuId(PVM pVM)
 {
@@ -198,16 +199,21 @@ VMMDECL(VMCPUID) VMMGetCpuId(PVM pVM)
     /* Search first by host cpu id (most common case)
      * and then by native thread id (page fusion case).
      */
-    /* RTMpCpuId had better be cheap. */
-    RTCPUID idHostCpu = RTMpCpuId();
-
-    /** @todo optimize for large number of VCPUs when that becomes more common. */
-    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+    if (!RTThreadPreemptIsEnabled(NIL_RTTHREAD))
     {
-        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+        /** @todo r=ramshankar: This doesn't buy us anything in terms of performance
+         *        leaving it here for hysterical raisins and as a reference if we
+         *        implemented a hashing approach in the future. */
+        RTCPUID idHostCpu = RTMpCpuId();
 
-        if (pVCpu->idHostCpu == idHostCpu)
-            return pVCpu->idCpu;
+        /** @todo optimize for large number of VCPUs when that becomes more common. */
+        for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+        {
+            PVMCPU pVCpu = &pVM->aCpus[idCpu];
+
+            if (pVCpu->idHostCpu == idHostCpu)
+                return pVCpu->idCpu;
+        }
     }
 
     /* RTThreadGetNativeSelf had better be cheap. */
@@ -236,6 +242,7 @@ VMMDECL(VMCPUID) VMMGetCpuId(PVM pVM)
  * @returns The VMCPU pointer. NULL if not an EMT.
  *
  * @param   pVM         Pointer to the VM.
+ * @internal
  */
 VMMDECL(PVMCPU) VMMGetCpu(PVM pVM)
 {
@@ -250,20 +257,25 @@ VMMDECL(PVMCPU) VMMGetCpu(PVM pVM)
     if (pVM->cCpus == 1)
         return &pVM->aCpus[0];
 
-    /* Search first by host cpu id (most common case)
+    /*
+     * Search first by host cpu id (most common case)
      * and then by native thread id (page fusion case).
      */
-
-    /* RTMpCpuId had better be cheap. */
-    RTCPUID idHostCpu = RTMpCpuId();
-
-    /** @todo optimize for large number of VCPUs when that becomes more common. */
-    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+    if (!RTThreadPreemptIsEnabled(NIL_RTTHREAD))
     {
-        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+        /** @todo r=ramshankar: This doesn't buy us anything in terms of performance
+         *        leaving it here for hysterical raisins and as a reference if we
+         *        implemented a hashing approach in the future. */
+        RTCPUID idHostCpu = RTMpCpuId();
 
-        if (pVCpu->idHostCpu == idHostCpu)
-            return pVCpu;
+        /** @todo optimize for large number of VCPUs when that becomes more common. */
+        for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+        {
+            PVMCPU pVCpu = &pVM->aCpus[idCpu];
+
+            if (pVCpu->idHostCpu == idHostCpu)
+                return pVCpu;
+        }
     }
 
     /* RTThreadGetNativeSelf had better be cheap. */
@@ -290,6 +302,7 @@ VMMDECL(PVMCPU) VMMGetCpu(PVM pVM)
  *
  * @returns The VMCPU pointer.
  * @param   pVM         Pointer to the VM.
+ * @internal
  */
 VMMDECL(PVMCPU) VMMGetCpu0(PVM pVM)
 {
@@ -305,6 +318,7 @@ VMMDECL(PVMCPU) VMMGetCpu0(PVM pVM)
  *
  * @param   pVM         Pointer to the VM.
  * @param   idCpu       The ID of the virtual CPU.
+ * @internal
  */
 VMMDECL(PVMCPU) VMMGetCpuById(PVM pVM, RTCPUID idCpu)
 {
@@ -321,7 +335,7 @@ VMMDECL(PVMCPU) VMMGetCpuById(PVM pVM, RTCPUID idCpu)
  *
  * @returns VBOX_SVN_REV.
  */
-VMMDECL(uint32_t) VMMGetSvnRev(void)
+VMM_INT_DECL(uint32_t) VMMGetSvnRev(void)
 {
     return VBOX_SVN_REV;
 }
@@ -333,8 +347,43 @@ VMMDECL(uint32_t) VMMGetSvnRev(void)
  * @returns active switcher
  * @param   pVM             Pointer to the VM.
  */
-VMMDECL(VMMSWITCHER) VMMGetSwitcher(PVM pVM)
+VMM_INT_DECL(VMMSWITCHER) VMMGetSwitcher(PVM pVM)
 {
     return pVM->vmm.s.enmSwitcher;
+}
+
+
+/**
+ * Checks whether we're in a ring-3 call or not.
+ *
+ * @returns true / false.
+ * @param   pVCpu               The caller's cross context VM structure.
+ * @thread  EMT
+ */
+VMM_INT_DECL(bool) VMMIsInRing3Call(PVMCPU pVCpu)
+{
+#ifdef RT_ARCH_X86
+    return pVCpu->vmm.s.CallRing3JmpBufR0.fInRing3Call;
+#else
+    return pVCpu->vmm.s.CallRing3JmpBufR0.fInRing3Call;
+#endif
+}
+
+
+/**
+ * Returns the build type for matching components.
+ *
+ * @returns Build type value.
+ */
+uint32_t vmmGetBuildType(void)
+{
+    uint32_t uRet = 0xbeef0000;
+#ifdef DEBUG
+    uRet |= RT_BIT_32(0);
+#endif
+#ifdef VBOX_WITH_STATISTICS
+    uRet |= RT_BIT_32(1);
+#endif
+    return uRet;
 }
 

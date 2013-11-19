@@ -143,15 +143,15 @@ CollectorSolaris::CollectorSolaris()
     mZfsSo = dlopen("libzfs.so", RTLD_LAZY);
     if (mZfsSo)
     {
-        mZfsInit        =        (PFNZFSINIT)dlsym(mZfsSo, "libzfs_init");
-        mZfsFini        =        (PFNZFSFINI)dlsym(mZfsSo, "libzfs_fini");
-        mZfsOpen        =        (PFNZFSOPEN)dlsym(mZfsSo, "zfs_open");
-        mZfsClose       =       (PFNZFSCLOSE)dlsym(mZfsSo, "zfs_close");
-        mZfsPropGetInt  =  (PFNZFSPROPGETINT)dlsym(mZfsSo, "zfs_prop_get_int");
-        mZpoolOpen      =      (PFNZPOOLOPEN)dlsym(mZfsSo, "zpool_open");
-        mZpoolClose     =     (PFNZPOOLCLOSE)dlsym(mZfsSo, "zpool_close");
-        mZpoolGetConfig = (PFNZPOOLGETCONFIG)dlsym(mZfsSo, "zpool_get_config");
-        mZpoolVdevName  =  (PFNZPOOLVDEVNAME)dlsym(mZfsSo, "zpool_vdev_name");
+        mZfsInit        =        (PFNZFSINIT)(uintptr_t)dlsym(mZfsSo, "libzfs_init");
+        mZfsFini        =        (PFNZFSFINI)(uintptr_t)dlsym(mZfsSo, "libzfs_fini");
+        mZfsOpen        =        (PFNZFSOPEN)(uintptr_t)dlsym(mZfsSo, "zfs_open");
+        mZfsClose       =       (PFNZFSCLOSE)(uintptr_t)dlsym(mZfsSo, "zfs_close");
+        mZfsPropGetInt  =  (PFNZFSPROPGETINT)(uintptr_t)dlsym(mZfsSo, "zfs_prop_get_int");
+        mZpoolOpen      =      (PFNZPOOLOPEN)(uintptr_t)dlsym(mZfsSo, "zpool_open");
+        mZpoolClose     =     (PFNZPOOLCLOSE)(uintptr_t)dlsym(mZfsSo, "zpool_close");
+        mZpoolGetConfig = (PFNZPOOLGETCONFIG)(uintptr_t)dlsym(mZfsSo, "zpool_get_config");
+        mZpoolVdevName  =  (PFNZPOOLVDEVNAME)(uintptr_t)dlsym(mZfsSo, "zpool_vdev_name");
 
         if (   mZfsInit
             && mZfsOpen
@@ -350,6 +350,7 @@ uint32_t CollectorSolaris::getInstance(const char *pszIfaceName, char *pszDevNam
 
 uint64_t CollectorSolaris::wrapCorrection(uint32_t cur, uint64_t prev, const char *name)
 {
+    NOREF(name);
     uint64_t corrected = (prev & 0xffffffff00000000) + cur;
     if (cur < (prev & 0xffffffff))
     {
@@ -383,13 +384,13 @@ int CollectorSolaris::getRawHostNetworkLoad(const char *name, uint64_t *rx, uint
     static bool g_fNotReported = true;
     AssertReturn(strlen(name) < KSTAT_STRLEN, VERR_INVALID_PARAMETER);
     LogFlowThisFunc(("m=%s i=%d n=%s\n", "link", -1, name));
-    kstat_t *ksAdapter = kstat_lookup(mKC, "link", -1, (char *)name);
+    kstat_t *ksAdapter = kstat_lookup(mKC, (char *)"link", -1, (char *)name);
     if (ksAdapter == 0)
     {
         char szModule[KSTAT_STRLEN];
         uint32_t uInstance = getInstance(name, szModule);
         LogFlowThisFunc(("m=%s i=%u n=%s\n", szModule, uInstance, "phys"));
-        ksAdapter = kstat_lookup(mKC, szModule, uInstance, "phys");
+        ksAdapter = kstat_lookup(mKC, szModule, uInstance, (char *)"phys");
         if (ksAdapter == 0)
         {
             LogFlowThisFunc(("m=%s i=%u n=%s\n", szModule, uInstance, name));
@@ -524,7 +525,6 @@ uint64_t CollectorSolaris::getZfsTotal(uint64_t cbTotal, const char *szFsType, c
 int CollectorSolaris::getHostFilesystemUsage(const char *path, ULONG *total, ULONG *used, ULONG *available)
 {
     struct statvfs64 stats;
-    const unsigned _MB = 1024 * 1024;
 
     if (statvfs64(path, &stats) == -1)
     {
@@ -532,10 +532,10 @@ int CollectorSolaris::getHostFilesystemUsage(const char *path, ULONG *total, ULO
         return VERR_ACCESS_DENIED;
     }
     uint64_t cbBlock = stats.f_frsize ? stats.f_frsize : stats.f_bsize;
-    *total = (ULONG)(getZfsTotal(cbBlock * stats.f_blocks, stats.f_basetype, path) / _MB);
+    *total = (ULONG)(getZfsTotal(cbBlock * stats.f_blocks, stats.f_basetype, path) / _1M);
     LogFlowThisFunc(("f_blocks=%llu.\n", stats.f_blocks));
-    *used  = (ULONG)(cbBlock * (stats.f_blocks - stats.f_bfree) / _MB);
-    *available = (ULONG)(cbBlock * stats.f_bavail / _MB);
+    *used  = (ULONG)(cbBlock * (stats.f_blocks - stats.f_bfree) / _1M);
+    *available = (ULONG)(cbBlock * stats.f_bavail / _1M);
 
     return VINF_SUCCESS;
 }

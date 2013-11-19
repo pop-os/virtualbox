@@ -41,10 +41,8 @@ typedef struct {
                                 so we need to resync every time guest wants to read from it*/
 	CRbitvalue dirty[CR_MAX_BITARRAY];  /* dirty data or state */
 	GLintptrARB dirtyStart, dirtyLength; /* dirty region */
-#ifndef IN_GUEST
     /* bitfield representing the object usage. 1 means the object is used by the context with the given bitid */
     CRbitvalue             ctxUsage[CR_MAX_BITARRAY];
-#endif
 } CRBufferObject;
 
 typedef struct {
@@ -59,6 +57,8 @@ typedef struct {
 
 DECLEXPORT(CRBufferObject *) crStateGetBoundBufferObject(GLenum target, CRBufferObjectState *b);
 DECLEXPORT(GLboolean) crStateIsBufferBound(GLenum target);
+struct CRContext;
+DECLEXPORT(GLboolean) crStateIsBufferBoundForCtx(struct CRContext *g, GLenum target);
 
 DECLEXPORT(GLuint) STATE_APIENTRY crStateBufferHWIDtoID(GLuint hwid);
 DECLEXPORT(GLuint) STATE_APIENTRY crStateGetBufferHWID(GLuint id);

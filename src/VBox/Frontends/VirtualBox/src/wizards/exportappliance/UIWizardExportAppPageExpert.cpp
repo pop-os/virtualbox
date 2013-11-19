@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,13 +26,13 @@
 #include <QLineEdit>
 #include <QLabel>
 #include <QCheckBox>
+#include <QGroupBox>
 
 /* Local includes: */
 #include "UIWizardExportAppPageExpert.h"
 #include "UIWizardExportApp.h"
 #include "UIWizardExportAppDefs.h"
 #include "VBoxGlobal.h"
-#include "QILabelSeparator.h"
 #include "VBoxFilePathSelectorWidget.h"
 #include "UIApplianceExportEditorWidget.h"
 
@@ -42,19 +42,30 @@ UIWizardExportAppPageExpert::UIWizardExportAppPageExpert(const QStringList &sele
     QGridLayout *pMainLayout = new QGridLayout(this);
     {
         pMainLayout->setContentsMargins(8, 6, 8, 6);
-        m_pVMSelectorLabel = new QILabelSeparator(this);
-        m_pVMSelector = new QListWidget(this);
+        pMainLayout->setSpacing(10);
+        m_pSelectorCnt = new QGroupBox(this);
         {
-            m_pVMSelector->setAlternatingRowColors(true);
-            m_pVMSelector->setSelectionMode(QAbstractItemView::ExtendedSelection);
-            m_pVMSelectorLabel->setBuddy(m_pVMSelector);
+            QVBoxLayout *pSelectorCntLayout = new QVBoxLayout(m_pSelectorCnt);
+            {
+                m_pVMSelector = new QListWidget(m_pSelectorCnt);
+                {
+                    m_pVMSelector->setAlternatingRowColors(true);
+                    m_pVMSelector->setSelectionMode(QAbstractItemView::ExtendedSelection);
+                }
+                pSelectorCntLayout->addWidget(m_pVMSelector);
+            }
         }
-        m_pVMApplianceLabel = new QILabelSeparator(this);
-        m_pApplianceWidget = new UIApplianceExportEditorWidget(this);
+        m_pApplianceCnt = new QGroupBox(this);
         {
-            m_pApplianceWidget->setMinimumHeight(250);
-            m_pApplianceWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
-            m_pVMApplianceLabel->setBuddy(m_pApplianceWidget);
+            QVBoxLayout *pApplianceCntLayout = new QVBoxLayout(m_pApplianceCnt);
+            {
+                m_pApplianceWidget = new UIApplianceExportEditorWidget(m_pApplianceCnt);
+                {
+                    m_pApplianceWidget->setMinimumHeight(250);
+                    m_pApplianceWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
+                }
+                pApplianceCntLayout->addWidget(m_pApplianceWidget);
+            }
         }
         m_pTypeCnt = new QGroupBox(this);
         {
@@ -69,68 +80,84 @@ UIWizardExportAppPageExpert::UIWizardExportAppPageExpert(const QStringList &sele
                 pTypeCntLayout->addWidget(m_pTypeSimpleStorageSystem);
             }
         }
-        QGridLayout *pSettingsLayout = new QGridLayout;
+        m_pSettingsCnt = new QGroupBox(this);
         {
-            m_pUsernameEditor = new QLineEdit(this);
-            m_pUsernameLabel = new QLabel(this);
+            QGridLayout *pSettingsLayout = new QGridLayout(m_pSettingsCnt);
             {
-                m_pUsernameLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
-                m_pUsernameLabel->setBuddy(m_pUsernameEditor);
+                m_pUsernameEditor = new QLineEdit(m_pSettingsCnt);
+                m_pUsernameLabel = new QLabel(m_pSettingsCnt);
+                {
+                    m_pUsernameLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
+                    m_pUsernameLabel->setBuddy(m_pUsernameEditor);
+                }
+                m_pPasswordEditor = new QLineEdit(m_pSettingsCnt);
+                {
+                    m_pPasswordEditor->setEchoMode(QLineEdit::Password);
+                }
+                m_pPasswordLabel = new QLabel(m_pSettingsCnt);
+                {
+                    m_pPasswordLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
+                    m_pPasswordLabel->setBuddy(m_pPasswordEditor);
+                }
+                m_pHostnameEditor = new QLineEdit(m_pSettingsCnt);
+                m_pHostnameLabel = new QLabel(m_pSettingsCnt);
+                {
+                    m_pHostnameLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
+                    m_pHostnameLabel->setBuddy(m_pHostnameEditor);
+                }
+                m_pBucketEditor = new QLineEdit(m_pSettingsCnt);
+                m_pBucketLabel = new QLabel(m_pSettingsCnt);
+                {
+                    m_pBucketLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
+                    m_pBucketLabel->setBuddy(m_pBucketEditor);
+                }
+                m_pFileSelector = new VBoxEmptyFileSelector(m_pSettingsCnt);
+                {
+                    m_pFileSelector->setMode(VBoxFilePathSelectorWidget::Mode_File_Save);
+                    m_pFileSelector->setEditable(true);
+                    m_pFileSelector->setButtonPosition(VBoxEmptyFileSelector::RightPosition);
+                    m_pFileSelector->setDefaultSaveExt("ova");
+                }
+                m_pFileSelectorLabel = new QLabel(m_pSettingsCnt);
+                {
+                    m_pFileSelectorLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
+                    m_pFileSelectorLabel->setBuddy(m_pFileSelector);
+                }
+                m_pFormatComboBox = new QComboBox(m_pSettingsCnt);
+                {
+                    const QString strFormat09("ovf-0.9");
+                    const QString strFormat10("ovf-1.0");
+                    const QString strFormat20("ovf-2.0");
+                    m_pFormatComboBox->addItem(strFormat09, strFormat09);
+                    m_pFormatComboBox->addItem(strFormat10, strFormat10);
+                    m_pFormatComboBox->addItem(strFormat20, strFormat20);
+                    connect(m_pFormatComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(sltUpdateFormatComboToolTip()));
+                }
+                m_pFormatComboBoxLabel = new QLabel(m_pSettingsCnt);
+                {
+                    m_pFormatComboBoxLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
+                    m_pFormatComboBoxLabel->setBuddy(m_pFormatComboBox);
+                }
+                m_pManifestCheckbox = new QCheckBox(m_pSettingsCnt);
+                pSettingsLayout->addWidget(m_pUsernameLabel, 0, 0);
+                pSettingsLayout->addWidget(m_pUsernameEditor, 0, 1);
+                pSettingsLayout->addWidget(m_pPasswordLabel, 1, 0);
+                pSettingsLayout->addWidget(m_pPasswordEditor, 1, 1);
+                pSettingsLayout->addWidget(m_pHostnameLabel, 2, 0);
+                pSettingsLayout->addWidget(m_pHostnameEditor, 2, 1);
+                pSettingsLayout->addWidget(m_pBucketLabel, 3, 0);
+                pSettingsLayout->addWidget(m_pBucketEditor, 3, 1);
+                pSettingsLayout->addWidget(m_pFileSelectorLabel, 4, 0);
+                pSettingsLayout->addWidget(m_pFileSelector, 4, 1);
+                pSettingsLayout->addWidget(m_pFormatComboBoxLabel, 5, 0);
+                pSettingsLayout->addWidget(m_pFormatComboBox, 5, 1);
+                pSettingsLayout->addWidget(m_pManifestCheckbox, 6, 0, 1, 2);
             }
-            m_pPasswordEditor = new QLineEdit(this);
-            {
-                m_pPasswordEditor->setEchoMode(QLineEdit::Password);
-            }
-            m_pPasswordLabel = new QLabel(this);
-            {
-                m_pPasswordLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
-                m_pPasswordLabel->setBuddy(m_pPasswordEditor);
-            }
-            m_pHostnameEditor = new QLineEdit(this);
-            m_pHostnameLabel = new QLabel(this);
-            {
-                m_pHostnameLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
-                m_pHostnameLabel->setBuddy(m_pHostnameEditor);
-            }
-            m_pBucketEditor = new QLineEdit(this);
-            m_pBucketLabel = new QLabel(this);
-            {
-                m_pBucketLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
-                m_pBucketLabel->setBuddy(m_pBucketEditor);
-            }
-            m_pFileSelector = new VBoxEmptyFileSelector(this);
-            {
-                m_pFileSelector->setMode(VBoxFilePathSelectorWidget::Mode_File_Save);
-                m_pFileSelector->setEditable(true);
-                m_pFileSelector->setButtonPosition(VBoxEmptyFileSelector::RightPosition);
-                m_pFileSelector->setDefaultSaveExt("ova");
-            }
-            m_pFileSelectorLabel = new QLabel(this);
-            {
-                m_pFileSelectorLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
-                m_pFileSelectorLabel->setBuddy(m_pFileSelector);
-            }
-            pSettingsLayout->addWidget(m_pUsernameLabel, 0, 0);
-            pSettingsLayout->addWidget(m_pUsernameEditor, 0, 1);
-            pSettingsLayout->addWidget(m_pPasswordLabel, 1, 0);
-            pSettingsLayout->addWidget(m_pPasswordEditor, 1, 1);
-            pSettingsLayout->addWidget(m_pHostnameLabel, 2, 0);
-            pSettingsLayout->addWidget(m_pHostnameEditor, 2, 1);
-            pSettingsLayout->addWidget(m_pBucketLabel, 3, 0);
-            pSettingsLayout->addWidget(m_pBucketEditor, 3, 1);
-            pSettingsLayout->addWidget(m_pFileSelectorLabel, 4, 0);
-            pSettingsLayout->addWidget(m_pFileSelector, 4, 1);
         }
-        m_pOVF09Checkbox = new QCheckBox(this);
-        m_pManifestCheckbox = new QCheckBox(this);
-        pMainLayout->addWidget(m_pVMSelectorLabel, 0, 0);
-        pMainLayout->addWidget(m_pVMApplianceLabel, 0, 1);
-        pMainLayout->addWidget(m_pVMSelector, 1, 0);
-        pMainLayout->addWidget(m_pApplianceWidget, 1, 1);
-        pMainLayout->addWidget(m_pTypeCnt, 2, 0, 1, 2);
-        pMainLayout->addLayout(pSettingsLayout, 3, 0, 1, 2);
-        pMainLayout->addWidget(m_pOVF09Checkbox, 4, 0, 1, 2);
-        pMainLayout->addWidget(m_pManifestCheckbox, 5, 0, 1, 2);
+        pMainLayout->addWidget(m_pSelectorCnt, 0, 0);
+        pMainLayout->addWidget(m_pApplianceCnt, 0, 1);
+        pMainLayout->addWidget(m_pTypeCnt, 1, 0, 1, 2);
+        pMainLayout->addWidget(m_pSettingsCnt, 2, 0, 1, 2);
         populateVMSelectorItems(selectedVMNames);
         chooseDefaultStorageType();
         chooseDefaultSettings();
@@ -154,7 +181,7 @@ UIWizardExportAppPageExpert::UIWizardExportAppPageExpert(const QStringList &sele
     registerField("machineNames", this, "machineNames");
     registerField("machineIDs", this, "machineIDs");
     registerField("storageType", this, "storageType");
-    registerField("OVF09Selected", this, "OVF09Selected");
+    registerField("format", this, "format");
     registerField("manifestSelected", this, "manifestSelected");
     registerField("username", this, "username");
     registerField("password", this, "password");
@@ -188,9 +215,10 @@ void UIWizardExportAppPageExpert::retranslateUi()
     /* Translate objects: */
     m_strDefaultApplianceName = UIWizardExportApp::tr("Appliance");
     /* Translate widgets: */
-    m_pVMSelectorLabel->setText(UIWizardExportApp::tr("Virtual &machines to export"));
-    m_pVMApplianceLabel->setText(UIWizardExportApp::tr("Appliance &settings"));
+    m_pSelectorCnt->setTitle(UIWizardExportApp::tr("Virtual &machines to export"));
+    m_pApplianceCnt->setTitle(UIWizardExportApp::tr("Appliance &settings"));
     m_pTypeCnt->setTitle(UIWizardExportApp::tr("&Destination"));
+    m_pSettingsCnt->setTitle(UIWizardExportApp::tr("&Storage settings"));
     m_pTypeLocalFilesystem->setText(UIWizardExportApp::tr("&Local Filesystem "));
     m_pTypeSunCloud->setText(UIWizardExportApp::tr("Sun &Cloud"));
     m_pTypeSimpleStorageSystem->setText(UIWizardExportApp::tr("&Simple Storage System (S3)"));
@@ -199,13 +227,23 @@ void UIWizardExportAppPageExpert::retranslateUi()
     m_pHostnameLabel->setText(UIWizardExportApp::tr("&Hostname:"));
     m_pBucketLabel->setText(UIWizardExportApp::tr("&Bucket:"));
     m_pFileSelectorLabel->setText(UIWizardExportApp::tr("&File:"));
-    m_pFileSelector->setFileDialogTitle(UIWizardExportApp::tr("Please choose a virtual appliance file"));
+    m_pFileSelector->setChooseButtonToolTip(tr("Choose a file to export the virtual appliance to..."));
+    m_pFileSelector->setFileDialogTitle(UIWizardExportApp::tr("Please choose a file to export the virtual appliance to"));
     m_pFileSelector->setFileFilters(UIWizardExportApp::tr("Open Virtualization Format Archive (%1)").arg("*.ova") + ";;" +
                                     UIWizardExportApp::tr("Open Virtualization Format (%1)").arg("*.ovf"));
-    m_pOVF09Checkbox->setToolTip(UIWizardExportApp::tr("Write in legacy OVF 0.9 format for compatibility with other virtualization products."));
-    m_pOVF09Checkbox->setText(UIWizardExportApp::tr("&Write legacy OVF 0.9"));
+    m_pFormatComboBoxLabel->setText(UIWizardExportApp::tr("F&ormat:"));
+    m_pFormatComboBox->setItemText(0, UIWizardExportApp::tr("OVF 0.9"));
+    m_pFormatComboBox->setItemText(1, UIWizardExportApp::tr("OVF 1.0"));
+    m_pFormatComboBox->setItemText(2, UIWizardExportApp::tr("OVF 2.0"));
+    m_pFormatComboBox->setItemData(0, UIWizardExportApp::tr("Write in legacy OVF 0.9 format for compatibility "
+                                                            "with other virtualization products."), Qt::ToolTipRole);
+    m_pFormatComboBox->setItemData(1, UIWizardExportApp::tr("Write in standard OVF 1.0 format."), Qt::ToolTipRole);
+    m_pFormatComboBox->setItemData(2, UIWizardExportApp::tr("Write in new experimental OVF 2.0 format."), Qt::ToolTipRole);
     m_pManifestCheckbox->setToolTip(UIWizardExportApp::tr("Create a Manifest file for automatic data integrity checks on import."));
     m_pManifestCheckbox->setText(UIWizardExportApp::tr("Write &Manifest file"));
+
+    /* Refresh current settings: */
+    updateFormatComboToolTip();
 }
 
 void UIWizardExportAppPageExpert::initializePage()

@@ -137,10 +137,12 @@ RTDECL(void) RTAssertMsg1(const char *pszExpr, unsigned uLine, const char *pszFi
 
 #else  /* !IN_RING0 */
 # if !defined(IN_RING3) && !defined(LOG_NO_COM)
+#  if 0 /* Enable this iff you have a COM port and really want this debug info. */
         RTLogComPrintf("\n!!Assertion Failed!!\n"
                        "Expression: %s\n"
                        "Location  : %s(%d) %s\n",
                        pszExpr, pszFile, uLine, pszFunction);
+#  endif
 # endif
 
         PRTLOGGER pLog = RTLogRelDefaultInstance();
@@ -245,9 +247,11 @@ static void rtAssertMsg2Worker(bool fInitial, const char *pszFormat, va_list va)
 
 #else  /* !IN_RING0 */
 # if !defined(IN_RING3) && !defined(LOG_NO_COM)
+#  if 0 /* Enable this iff you have a COM port and really want this debug info. */
         va_copy(vaCopy, va);
         RTLogComPrintfV(pszFormat, vaCopy);
         va_end(vaCopy);
+#  endif
 # endif
 
         PRTLOGGER pLog = RTLogRelDefaultInstance();

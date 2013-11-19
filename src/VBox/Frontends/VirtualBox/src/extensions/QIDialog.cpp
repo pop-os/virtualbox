@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,111 +17,112 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* VBox includes */
+/* GUI includes: */
 #include "QIDialog.h"
 #include "VBoxGlobal.h"
-#ifdef Q_WS_MAC
-# include "VBoxUtils.h"
-#endif /* Q_WS_MAC */
 
-QIDialog::QIDialog (QWidget *aParent /* = 0 */, Qt::WindowFlags aFlags /* = 0 */)
-    : QDialog (aParent, aFlags)
-    , mPolished (false)
+QIDialog::QIDialog(QWidget *pParent /* = 0 */, Qt::WindowFlags flags /* = 0 */)
+    : QDialog(pParent, flags)
+    , m_fPolished(false)
+{
+    /* No need to count that window as important for application,
+     * it will NOT be taken into account when other top-level windows will be closed: */
+    setAttribute(Qt::WA_QuitOnClose, false);
+}
+
+QIDialog::~QIDialog()
 {
 }
 
-void QIDialog::showEvent (QShowEvent * /* aEvent */)
+void QIDialog::setVisible(bool fVisible)
 {
-    /* Two thinks to do for fixed size dialogs on MacOS X:
-     * 1. Make sure the layout is polished and have the right size
-     * 2. Disable that _unnecessary_ size grip (Bug in Qt?) */
-    QSizePolicy policy = sizePolicy();
-    if ((policy.horizontalPolicy() == QSizePolicy::Fixed &&
-         policy.verticalPolicy() == QSizePolicy::Fixed) ||
-        (windowFlags() & Qt::Sheet) == Qt::Sheet)
-    {
-        adjustSize();
-        setFixedSize (size());
-#ifdef Q_WS_MAC
-        ::darwinSetShowsResizeIndicator (this, false);
-#endif /* Q_WS_MAC */
-    }
+    /* Call to base-class: */
+    QDialog::setVisible(fVisible);
 
-    /* Polishing border */
-    if (mPolished)
-        return;
-    mPolished = true;
-
-    /* Explicit widget centering relatively to it's parent
-     * if any or desktop if parent is missed. */
-    VBoxGlobal::centerWidget (this, parentWidget(), false);
+    /* Exit from the event-loop if
+     * 1. there is any and
+     * 2. we are changing our state from visible to invisible: */
+    if (m_pEventLoop && !fVisible)
+        m_pEventLoop->exit();
 }
 
-int QIDialog::exec (bool aShow /* = true */)
+int QIDialog::exec(bool fShow /* = true */, bool fApplicationModal /* = false*/)
 {
-    /* Reset the result code */
-    setResult (QDialog::Rejected);
+    /* Reset the result-code: */
+    setResult(QDialog::Rejected);
 
-    bool wasDeleteOnClose = testAttribute (Qt::WA_DeleteOnClose);
-    setAttribute (Qt::WA_DeleteOnClose, false);
-#if defined(Q_WS_MAC) && QT_VERSION >= 0x040500
-    /* After 4.5 Qt changed the behavior of Sheets for the window/application
-     * modal case. See "New Ways of Using Dialogs" in
-     * http://doc.trolltech.com/qq/QtQuarterly30.pdf why. We want the old
-     * behavior back, where all modal windows where shown as sheets. So make
-     * the modal mode window, but be application modal in any case. */
-    Qt::WindowModality winModality = windowModality();
-    bool wasSetWinModality = testAttribute (Qt::WA_SetWindowModality);
-    if ((windowFlags() & Qt::Sheet) == Qt::Sheet)
-    {
-        setWindowModality (Qt::WindowModal);
-        setAttribute (Qt::WA_SetWindowModality, false);
-    }
-#endif /* defined(Q_WS_MAC) && QT_VERSION >= 0x040500 */
-    /* The dialog has to modal in any case. Save the current modality to
-     * restore it later. */
-    bool wasShowModal = testAttribute (Qt::WA_ShowModal);
-    setAttribute (Qt::WA_ShowModal, true);
+    /* Should we delete ourself on close in theory? */
+    bool fOldDeleteOnClose = testAttribute(Qt::WA_DeleteOnClose);
+    /* For the exec() time, set this attribute to 'false': */
+    setAttribute(Qt::WA_DeleteOnClose, false);
 
-    /* Create a local event loop */
-    QEventLoop eventLoop;
-    mEventLoop = &eventLoop;
-    /* Show the window if requested */
-    if (aShow)
+    /* Which is the current window-modality? */
+    Qt::WindowModality oldModality = windowModality();
+    /* For the exec() time, set this attribute to 'window-modal' or 'application-modal': */
+    setWindowModality(!fApplicationModal ? Qt::WindowModal : Qt::ApplicationModal);
+
+    /* Show ourself if requested: */
+    if (fShow)
         show();
-    /* A guard to ourself for the case we destroy ourself. */
-    QPointer<QIDialog> guard = this;
-    /* Start the event loop. This blocks. */
-    eventLoop.exec();
-    /* Are we valid anymore? */
-    if (guard.isNull())
-        return QDialog::Rejected;
-    mEventLoop = 0;
-    /* Save the result code in case we delete ourself */
-    QDialog::DialogCode res = (QDialog::DialogCode)result();
-#if defined(Q_WS_MAC) && QT_VERSION >= 0x040500
-    /* Restore old modality mode */
-    if ((windowFlags() & Qt::Sheet) == Qt::Sheet)
+
+    /* Create a local event-loop: */
     {
-        setWindowModality (winModality);
-        setAttribute (Qt::WA_SetWindowModality, wasSetWinModality);
+        QEventLoop eventLoop;
+        m_pEventLoop = &eventLoop;
+
+        /* Guard ourself for the case
+         * we destroyed ourself in our event-loop: */
+        QPointer<QIDialog> guard = this;
+
+        /* Start the blocking event-loop: */
+        eventLoop.exec();
+
+        /* Are we still valid? */
+        if (guard.isNull())
+            return QDialog::Rejected;
+
+        m_pEventLoop = 0;
     }
-#endif /* defined(Q_WS_MAC) && QT_VERSION >= 0x040500 */
-    /* Set the old show modal attribute */
-    setAttribute (Qt::WA_ShowModal, wasShowModal);
-    /* Delete us in the case we should do so on close */
-    if (wasDeleteOnClose)
+
+    /* Save the result-code early (we can delete ourself on close): */
+    int iResultCode = result();
+
+    /* Return old modality: */
+    setWindowModality(oldModality);
+
+    /* Reset attribute to previous value: */
+    setAttribute(Qt::WA_DeleteOnClose, fOldDeleteOnClose);
+    /* Delete ourself if we should do that on close: */
+    if (fOldDeleteOnClose)
         delete this;
-    /* Return the final result */
-    return res;
+
+    /* Return the result-code: */
+    return iResultCode;
 }
 
-void QIDialog::setVisible (bool aVisible)
+void QIDialog::showEvent(QShowEvent *pEvent)
 {
-    QDialog::setVisible (aVisible);
-    /* Exit from the event loop if there is any and we are changing our state
-     * from visible to invisible. */
-    if (mEventLoop && !aVisible)
-        mEventLoop->exit();
+    /* Make sure we should polish dialog: */
+    if (m_fPolished)
+        return;
+
+    /* Call to polish-event: */
+    polishEvent(pEvent);
+
+    /* Mark dialog as polished: */
+    m_fPolished = true;
+}
+
+void QIDialog::polishEvent(QShowEvent*)
+{
+    /* Make sure layout is polished: */
+    adjustSize();
+#ifdef Q_WS_MAC
+    /* And dialog have fixed size: */
+    setFixedSize(size());
+#endif /* Q_WS_MAC */
+
+    /* Explicit centering according to our parent: */
+    VBoxGlobal::centerWidget(this, parentWidget(), false);
 }
 

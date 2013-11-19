@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -86,11 +86,10 @@ int main(int argc, char *argv[])
     }
 
     PVM pVM;
-    int rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM);
+    PUVM pUVM;
+    int rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM, &pUVM);
     if (RT_SUCCESS(rc))
     {
-        PPDMASYNCCOMPLETIONTEMPLATE pTemplate;
-
         /*
          * Little hack to avoid the VM_ASSERT_EMT assertion.
          */
@@ -101,6 +100,7 @@ int main(int argc, char *argv[])
         /*
          * Create the template.
          */
+        PPDMASYNCCOMPLETIONTEMPLATE pTemplate;
         rc = PDMR3AsyncCompletionTemplateCreateInternal(pVM, &pTemplate, pfnAsyncTaskCompleted, NULL, "Test");
         if (RT_FAILURE(rc))
         {
@@ -235,8 +235,9 @@ int main(int argc, char *argv[])
             PDMR3AsyncCompletionEpClose(pEndpointSrc);
         }
 
-        rc = VMR3Destroy(pVM);
+        rc = VMR3Destroy(pUVM);
         AssertMsg(rc == VINF_SUCCESS, ("%s: Destroying VM failed rc=%Rrc!!\n", __FUNCTION__, rc));
+        VMR3ReleaseUVM(pUVM);
 
         /*
          * Clean up.

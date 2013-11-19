@@ -188,7 +188,7 @@
              </sizepolicy>
             </property>
             <property name="whatsThis" >
-             <string>If checked, any change to mounted CD/DVD or Floppy media performed during machine execution will be saved in the settings file in order to preserve the configuration of mounted media between runs.</string>
+             <string>If checked, any CD/DVD or floppy disks inserted into or removed from the virtual drives while the machine is running will be remembered.</string>
             </property>
             <property name="text" >
              <string>&amp;Remember Runtime Changes</string>
@@ -220,7 +220,7 @@
              <string>If checked, show the Mini ToolBar in Fullscreen and Seamless modes.</string>
             </property>
             <property name="text" >
-             <string>Show In &amp;Fullscreen/Seamless</string>
+             <string>Show in &amp;Fullscreen/Seamless</string>
             </property>
             <property name="checked" >
              <bool>true</bool>
@@ -239,7 +239,7 @@
              <string>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</string>
             </property>
             <property name="text" >
-             <string>Show At &amp;Top Of Screen</string>
+             <string>Show at &amp;Top of Screen</string>
             </property>
             <property name="checked" >
              <bool>false</bool>
@@ -275,7 +275,7 @@
        <item>
         <widget class="QTextEdit" name="mTeDescription" >
          <property name="whatsThis" >
-          <string>Displays the description of the virtual machine. The description field is useful for commenting on configuration details of the installed guest OS.</string>
+          <string>Holds the description of the virtual machine. The description field is useful for commenting on configuration details of the installed guest OS.</string>
          </property>
          <property name="acceptRichText" >
           <bool>false</bool>

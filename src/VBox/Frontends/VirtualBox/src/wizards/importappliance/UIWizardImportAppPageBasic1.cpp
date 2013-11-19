@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,8 +41,10 @@ UIWizardImportAppPageBasic1::UIWizardImportAppPageBasic1()
         m_pLabel = new QIRichTextLabel(this);
         m_pFileSelector = new VBoxEmptyFileSelector(this);
         {
-            m_pFileSelector->setMode(VBoxFilePathSelectorWidget::Mode_File_Open);
             m_pFileSelector->setHomeDir(vboxGlobal().documentsPath());
+            m_pFileSelector->setMode(VBoxFilePathSelectorWidget::Mode_File_Open);
+            m_pFileSelector->setButtonPosition(VBoxEmptyFileSelector::RightPosition);
+            m_pFileSelector->setEditable(true);
         }
         pMainLayout->addWidget(m_pLabel);
         pMainLayout->addWidget(m_pFileSelector);
@@ -62,8 +64,8 @@ void UIWizardImportAppPageBasic1::retranslateUi()
     m_pLabel->setText(UIWizardImportApp::tr("<p>VirtualBox currently supports importing appliances "
                                             "saved in the Open Virtualization Format (OVF). "
                                             "To continue, select the file to import below.</p>"));
-    m_pFileSelector->setChooseButtonText(UIWizardImportApp::tr("Open appliance..."));
-    m_pFileSelector->setFileDialogTitle(UIWizardImportApp::tr("Select an appliance to import"));
+    m_pFileSelector->setChooseButtonToolTip(UIWizardImportApp::tr("Choose a virtual appliance file to import..."));
+    m_pFileSelector->setFileDialogTitle(UIWizardImportApp::tr("Please choose a virtual appliance file to import"));
     m_pFileSelector->setFileFilters(UIWizardImportApp::tr("Open Virtualization Format (%1)").arg("*.ova *.ovf"));
 }
 
@@ -77,7 +79,7 @@ bool UIWizardImportAppPageBasic1::isComplete() const
 {
     /* Make sure appliance file has allowed extension and exists: */
     return VBoxGlobal::hasAllowedExtension(m_pFileSelector->path().toLower(), OVFFileExts) &&
-           QFileInfo(m_pFileSelector->path()).exists();
+           QFile::exists(m_pFileSelector->path());
 }
 
 bool UIWizardImportAppPageBasic1::validatePage()

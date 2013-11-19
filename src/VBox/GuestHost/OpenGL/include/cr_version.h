@@ -7,13 +7,38 @@
 #ifndef CR_VERSION_H
 #define CR_VERSION_H
 
-#define SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS       28
-#define SHCROGL_SSM_VERSION_BEFORE_FRONT_DRAW_TRACKING 29
+#define SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS                    28
+/* version which might have context usage bits saved */
+#define SHCROGL_SSM_VERSION_WITH_SAVED_CTXUSAGE_BITS                SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS
+#define SHCROGL_SSM_VERSION_BEFORE_FRONT_DRAW_TRACKING              29
+/* version that might have corrupted state data */
+#define SHCROGL_SSM_VERSION_WITH_CORUPTED_STATE                     30
+/* version with invalid glGetError state */
+#define SHCROGL_SSM_VERSION_WITH_INVALID_ERROR_STATE                30
 /* VBox 4.2.12 had a bug that incorrectly CRMuralInfo data
  * in a different format without changing the state version,
  * i.e. 30 version can have both "correct" and "incorrect" CRMuralInfo data */
-#define SHCROGL_SSM_VERSION_WITH_BUGGY_MURAL_INFO      30
-#define SHCROGL_SSM_VERSION                            30
+#define SHCROGL_SSM_VERSION_WITH_BUGGY_MURAL_INFO                   30
+/* the saved state has incorrect front and back buffer image data */
+#define SHCROGL_SSM_VERSION_WITH_BUGGY_FB_IMAGE_DATA                31
+#define SHCROGL_SSM_VERSION_WITH_STATE_BITS                         33
+#define SHCROGL_SSM_VERSION_WITH_WINDOW_CTX_USAGE                   33
+#define SHCROGL_SSM_VERSION_WITH_FIXED_STENCIL                      34
+#define SHCROGL_SSM_VERSION_WITH_SAVED_DEPTH_STENCIL_BUFFER         35
+/* some ogl drivers fail to Read/DrawPixels for DEPTH and STENCIL separately
+ * from DEPTH_STENCIL renderbuffer we used for offscreen rendering
+ * this is why we switched to glReadDrawPixels(GL_DEPTH_STENCIL) in one run */
+#define SHCROGL_SSM_VERSION_WITH_SINGLE_DEPTH_STENCIL               36
+#define SHCROGL_SSM_VERSION_WITH_PRESENT_STATE                      37
+/* older state did not have glPointParameter ( GL_POINT_SPRITE_COORD_ORIGIN ) implementation */
+#define SHCROGL_SSM_VERSION_WITH_SPRITE_COORD_ORIGIN                38
+/* dirty bits are not needed for now, remove */
+#define SHCROGL_SSM_VERSION_WITHOUT_DIRTY_BITS                      38
+/* dummy windows and contexts have 0 external IDs, so never get stored to the state */
+#define SHCROGL_SSM_VERSION_WITH_FIXED_DUMMYIDS                     39
+#define SHCROGL_SSM_VERSION_WITH_SCREEN_INFO                        40
+#define SHCROGL_SSM_VERSION_WITH_ALLOCATED_KEYS                     41
+#define SHCROGL_SSM_VERSION                                         41
 
 /* These define the Chromium release number.
  * Alpha Release = 0.1.0, Beta Release = 0.2.0
@@ -142,5 +167,7 @@
 #define CR_EXT_framebuffer_blit 1
 #define CR_EXT_blend_equation_separate 1
 #define CR_EXT_stencil_two_side 1
+
+#define CR_GREMEDY_string_marker 1
 
 #endif /* CR_VERSION_H */

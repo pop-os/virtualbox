@@ -46,6 +46,10 @@ void     DarwinDisableGlobalHotKeys(bool fDisable);
 void     DarwinGrabKeyboard(bool fGlobalHotkeys);
 void     DarwinReleaseKeyboard(void);
 
+void   * DarwinHidDevicesKeepLedsState(void);
+int      DarwinHidDevicesApplyAndReleaseLedsState(void *pState);
+void     DarwinHidDevicesBroadcastLeds(void *pState, bool fNumLockOn, bool fCapsLockOn, bool fScrollLockOn);
+
 RT_C_DECLS_END
 
 #endif

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -255,6 +255,7 @@
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/ssm.h>
+#include <VBox/vmm/hm.h>
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/uvm.h>
 #include <VBox/vmm/vmm.h>
@@ -336,12 +337,13 @@ static FNDBGFHANDLERINT pdmR3InfoTracingIds;
  * @returns VBox status code.
  * @param   pUVM        Pointer to the user mode VM structure.
  */
-VMMR3DECL(int) PDMR3InitUVM(PUVM pUVM)
+VMMR3_INT_DECL(int) PDMR3InitUVM(PUVM pUVM)
 {
     AssertCompile(sizeof(pUVM->pdm.s) <= sizeof(pUVM->pdm.padding));
     AssertRelease(sizeof(pUVM->pdm.s) <= sizeof(pUVM->pdm.padding));
     pUVM->pdm.s.pModules   = NULL;
     pUVM->pdm.s.pCritSects = NULL;
+    pUVM->pdm.s.pRwCritSects = NULL;
     return RTCritSectInit(&pUVM->pdm.s.ListCritSect);
 }
 
@@ -352,7 +354,7 @@ VMMR3DECL(int) PDMR3InitUVM(PUVM pUVM)
  * @returns VBox status code.
  * @param   pVM         Pointer to the VM.
  */
-VMMR3DECL(int) PDMR3Init(PVM pVM)
+VMMR3_INT_DECL(int) PDMR3Init(PVM pVM)
 {
     LogFlow(("PDMR3Init\n"));
 
@@ -373,7 +375,7 @@ VMMR3DECL(int) PDMR3Init(PVM pVM)
     /*
      * Initialize critical sections first.
      */
-    int rc = pdmR3CritSectInitStats(pVM);
+    int rc = pdmR3CritSectBothInitStats(pVM);
     if (RT_SUCCESS(rc))
         rc = PDMR3CritSectInit(pVM, &pVM->pdm.s.CritSect, RT_SRC_POS, "PDM");
     if (RT_SUCCESS(rc))
@@ -444,7 +446,7 @@ VMMR3DECL(int) PDMR3Init(PVM pVM)
  * @remark  The loader subcomponent is relocated by PDMR3LdrRelocate() very
  *          early in the relocation phase.
  */
-VMMR3DECL(void) PDMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
+VMMR3_INT_DECL(void) PDMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 {
     LogFlow(("PDMR3Relocate\n"));
 
@@ -457,7 +459,7 @@ VMMR3DECL(void) PDMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     /*
      * Critical sections.
      */
-    pdmR3CritSectRelocate(pVM);
+    pdmR3CritSectBothRelocate(pVM);
 
     /*
      * The registered PIC.
@@ -513,13 +515,20 @@ VMMR3DECL(void) PDMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     /*
      * Devices & Drivers.
      */
-    PCPDMDEVHLPRC pDevHlpRC;
-    int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCDevHlp", &pDevHlpRC);
-    AssertReleaseMsgRC(rc, ("rc=%Rrc when resolving g_pdmRCDevHlp\n", rc));
+    int rc;
+    PCPDMDEVHLPRC pDevHlpRC = NIL_RTRCPTR;
+    if (!HMIsEnabled(pVM))
+    {
+        rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCDevHlp", &pDevHlpRC);
+        AssertReleaseMsgRC(rc, ("rc=%Rrc when resolving g_pdmRCDevHlp\n", rc));
+    }
 
-    PCPDMDRVHLPRC pDrvHlpRC;
-    rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCDevHlp", &pDrvHlpRC);
-    AssertReleaseMsgRC(rc, ("rc=%Rrc when resolving g_pdmRCDevHlp\n", rc));
+    PCPDMDRVHLPRC pDrvHlpRC = NIL_RTRCPTR;
+    if (!HMIsEnabled(pVM))
+    {
+        rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCDevHlp", &pDrvHlpRC);
+        AssertReleaseMsgRC(rc, ("rc=%Rrc when resolving g_pdmRCDevHlp\n", rc));
+    }
 
     for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
     {
@@ -616,7 +625,7 @@ static void pdmR3TermLuns(PVM pVM, PPDMLUN pLun, const char *pszDevice, unsigned
  * @returns VBox status code.
  * @param   pVM         Pointer to the VM.
  */
-VMMR3DECL(int) PDMR3Term(PVM pVM)
+VMMR3_INT_DECL(int) PDMR3Term(PVM pVM)
 {
     LogFlow(("PDMR3Term:\n"));
     AssertMsg(PDMCritSectIsInitialized(&pVM->pdm.s.CritSect), ("bad init order!\n"));
@@ -658,11 +667,15 @@ VMMR3DECL(int) PDMR3Term(PVM pVM)
         }
 
         TMR3TimerDestroyDevice(pVM, pDevIns);
-        //SSMR3DeregisterDriver(pVM, pDevIns, NULL, 0);
-        pdmR3CritSectDeleteDevice(pVM, pDevIns);
-        //pdmR3ThreadDestroyDevice(pVM, pDevIns);
-        //PDMR3QueueDestroyDevice(pVM, pDevIns);
+        SSMR3DeregisterDevice(pVM, pDevIns, NULL, 0);
+        pdmR3CritSectBothDeleteDevice(pVM, pDevIns);
+        pdmR3ThreadDestroyDevice(pVM, pDevIns);
+        PDMR3QueueDestroyDevice(pVM, pDevIns);
         PGMR3PhysMMIO2Deregister(pVM, pDevIns, UINT32_MAX);
+#ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
+        pdmR3AsyncCompletionTemplateDestroyDevice(pVM, pDevIns);
+#endif
+        DBGFR3InfoDeregisterDevice(pVM, pDevIns, NULL);
     }
 
     /*
@@ -697,7 +710,7 @@ VMMR3DECL(int) PDMR3Term(PVM pVM)
      * Destroy the PDM lock.
      */
     PDMR3CritSectDelete(&pVM->pdm.s.CritSect);
-    /* The MiscCritSect is deleted by PDMR3CritSectTerm. */
+    /* The MiscCritSect is deleted by PDMR3CritSectBothTerm later. */
 
     LogFlow(("PDMR3Term: returns %Rrc\n", VINF_SUCCESS));
     return VINF_SUCCESS;
@@ -711,7 +724,7 @@ VMMR3DECL(int) PDMR3Term(PVM pVM)
  *
  * @param   pUVM        Pointer to the user mode VM structure.
  */
-VMMR3DECL(void) PDMR3TermUVM(PUVM pUVM)
+VMMR3_INT_DECL(void) PDMR3TermUVM(PUVM pUVM)
 {
     /*
      * In the normal cause of events we will now call pdmR3LdrTermU for
@@ -721,6 +734,7 @@ VMMR3DECL(void) PDMR3TermUVM(PUVM pUVM)
     pdmR3LdrTermU(pUVM);
 
     Assert(pUVM->pdm.s.pCritSects == NULL);
+    Assert(pUVM->pdm.s.pRwCritSects == NULL);
     RTCritSectDelete(&pUVM->pdm.s.ListCritSect);
 }
 
@@ -782,12 +796,12 @@ static DECLCALLBACK(int) pdmR3SaveExec(PVM pVM, PSSMHANDLE pSSM)
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
         PVMCPU pVCpu = &pVM->aCpus[idCpu];
-        SSMR3PutU32(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC));
-        SSMR3PutU32(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC));
-        SSMR3PutU32(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_NMI));
-        SSMR3PutU32(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_SMI));
+        SSMR3PutU32(pSSM, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC));
+        SSMR3PutU32(pSSM, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC));
+        SSMR3PutU32(pSSM, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_NMI));
+        SSMR3PutU32(pSSM, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_SMI));
     }
-    SSMR3PutU32(pSSM, VM_FF_ISSET(pVM, VM_FF_PDM_DMA));
+    SSMR3PutU32(pSSM, VM_FF_IS_SET(pVM, VM_FF_PDM_DMA));
 
     pdmR3SaveBoth(pVM, pSSM);
     return VINF_SUCCESS;
@@ -806,15 +820,15 @@ static DECLCALLBACK(int) pdmR3SaveExec(PVM pVM, PSSMHANDLE pSSM)
 static DECLCALLBACK(int) pdmR3LoadPrep(PVM pVM, PSSMHANDLE pSSM)
 {
     LogFlow(("pdmR3LoadPrep: %s%s\n",
-             VM_FF_ISSET(pVM, VM_FF_PDM_QUEUES)     ? " VM_FF_PDM_QUEUES" : "",
-             VM_FF_ISSET(pVM, VM_FF_PDM_DMA)        ? " VM_FF_PDM_DMA" : ""));
+             VM_FF_IS_SET(pVM, VM_FF_PDM_QUEUES)     ? " VM_FF_PDM_QUEUES" : "",
+             VM_FF_IS_SET(pVM, VM_FF_PDM_DMA)        ? " VM_FF_PDM_DMA" : ""));
 #ifdef LOG_ENABLED
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
         PVMCPU pVCpu = &pVM->aCpus[idCpu];
         LogFlow(("pdmR3LoadPrep: VCPU %u %s%s\n", idCpu,
-                VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC) ? " VMCPU_FF_INTERRUPT_APIC" : "",
-                VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC)  ? " VMCPU_FF_INTERRUPT_PIC" : ""));
+                VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC) ? " VMCPU_FF_INTERRUPT_APIC" : "",
+                VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC)  ? " VMCPU_FF_INTERRUPT_PIC" : ""));
     }
 #endif
     NOREF(pSSM);
@@ -823,7 +837,7 @@ static DECLCALLBACK(int) pdmR3LoadPrep(PVM pVM, PSSMHANDLE pSSM)
      * In case there is work pending that will raise an interrupt,
      * start a DMA transfer, or release a lock. (unlikely)
      */
-    if (VM_FF_ISSET(pVM, VM_FF_PDM_QUEUES))
+    if (VM_FF_IS_SET(pVM, VM_FF_PDM_QUEUES))
         PDMR3QueueFlushAll(pVM);
 
     /* Clear the FFs. */
@@ -885,7 +899,7 @@ static DECLCALLBACK(int) pdmR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersi
                 AssertMsgFailed(("fInterruptPending=%#x (APIC)\n", fInterruptPending));
                 return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
             }
-            AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC));
+            AssertRelease(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC));
             if (fInterruptPending)
                 VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC);
 
@@ -899,7 +913,7 @@ static DECLCALLBACK(int) pdmR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersi
                 AssertMsgFailed(("fInterruptPending=%#x (PIC)\n", fInterruptPending));
                 return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
             }
-            AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC));
+            AssertRelease(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC));
             if (fInterruptPending)
                 VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC);
 
@@ -915,7 +929,7 @@ static DECLCALLBACK(int) pdmR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersi
                     AssertMsgFailed(("fInterruptPending=%#x (NMI)\n", fInterruptPending));
                     return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
                 }
-                AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_NMI));
+                AssertRelease(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_NMI));
                 if (fInterruptPending)
                     VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_NMI);
 
@@ -929,7 +943,7 @@ static DECLCALLBACK(int) pdmR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersi
                     AssertMsgFailed(("fInterruptPending=%#x (SMI)\n", fInterruptPending));
                     return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
                 }
-                AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_SMI));
+                AssertRelease(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_SMI));
                 if (fInterruptPending)
                     VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_SMI);
             }
@@ -947,7 +961,7 @@ static DECLCALLBACK(int) pdmR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersi
         }
         if (fDMAPending)
             VM_FF_SET(pVM, VM_FF_PDM_DMA);
-        Log(("pdmR3LoadExec: VM_FF_PDM_DMA=%RTbool\n", VM_FF_ISSET(pVM, VM_FF_PDM_DMA)));
+        Log(("pdmR3LoadExec: VM_FF_PDM_DMA=%RTbool\n", VM_FF_IS_SET(pVM, VM_FF_PDM_DMA)));
     }
 
     /*
@@ -1404,7 +1418,7 @@ DECLINLINE(void) pdmR3ResetDev(PPDMDEVINS pDevIns, PPDMNOTIFYASYNCSTATS pAsync)
  *
  * @param   pVCpu               Pointer to the VMCPU.
  */
-VMMR3DECL(void) PDMR3ResetCpu(PVMCPU pVCpu)
+VMMR3_INT_DECL(void) PDMR3ResetCpu(PVMCPU pVCpu)
 {
     VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_APIC);
     VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_PIC);
@@ -1419,7 +1433,7 @@ VMMR3DECL(void) PDMR3ResetCpu(PVMCPU pVCpu)
  *
  * @param   pVM     Pointer to the VM.
  */
-VMMR3DECL(void) PDMR3Reset(PVM pVM)
+VMMR3_INT_DECL(void) PDMR3Reset(PVM pVM)
 {
     LogFlow(("PDMR3Reset:\n"));
 
@@ -1502,6 +1516,34 @@ VMMR3DECL(void) PDMR3Reset(PVM pVM)
     VM_FF_CLEAR(pVM, VM_FF_PDM_DMA);
 
     LogFlow(("PDMR3Reset: returns void\n"));
+}
+
+
+/**
+ * This function will tell all the devices to setup up their memory structures
+ * after VM construction and after VM reset.
+ *
+ * @param   pVM         Pointer to the VM.
+ * @param   fAtReset    Indicates the context, after reset if @c true or after
+ *                      construction if @c false.
+ */
+VMMR3_INT_DECL(void) PDMR3MemSetup(PVM pVM, bool fAtReset)
+{
+    LogFlow(("PDMR3MemSetup: fAtReset=%RTbool\n", fAtReset));
+    PDMDEVMEMSETUPCTX const enmCtx = fAtReset ? PDMDEVMEMSETUPCTX_AFTER_RESET : PDMDEVMEMSETUPCTX_AFTER_CONSTRUCTION;
+
+    /*
+     * Iterate thru the device instances and work the callback.
+     */
+    for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
+        if (pDevIns->pReg->pfnMemSetup)
+        {
+            PDMCritSectEnter(pDevIns->pCritSectRoR3, VERR_IGNORED);
+            pDevIns->pReg->pfnMemSetup(pDevIns, enmCtx);
+            PDMCritSectLeave(pDevIns->pCritSectRoR3);
+        }
+
+    LogFlow(("PDMR3MemSetup: returns void\n"));
 }
 
 
@@ -1653,7 +1695,7 @@ DECLINLINE(void) pdmR3SuspendDev(PPDMDEVINS pDevIns, PPDMNOTIFYASYNCSTATS pAsync
  * @param   pVM     Pointer to the VM.
  * @thread  EMT(0)
  */
-VMMR3DECL(void) PDMR3Suspend(PVM pVM)
+VMMR3_INT_DECL(void) PDMR3Suspend(PVM pVM)
 {
     LogFlow(("PDMR3Suspend:\n"));
     VM_ASSERT_EMT0(pVM);
@@ -1814,7 +1856,7 @@ DECLINLINE(int) pdmR3ResumeDev(PPDMDEVINS pDevIns)
  *
  * @param   pVM     Pointer to the VM.
  */
-VMMR3DECL(void) PDMR3Resume(PVM pVM)
+VMMR3_INT_DECL(void) PDMR3Resume(PVM pVM)
 {
     LogFlow(("PDMR3Resume:\n"));
 
@@ -2093,22 +2135,24 @@ VMMR3DECL(void) PDMR3PowerOff(PVM pVM)
  * and use them to talk to the device.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pUVM            The user mode VM handle.
  * @param   pszDevice       Device name.
  * @param   iInstance       Device instance.
  * @param   ppBase          Where to store the pointer to the base device interface on success.
  * @remark  We're not doing any locking ATM, so don't try call this at times when the
  *          device chain is known to be updated.
  */
-VMMR3DECL(int) PDMR3QueryDevice(PVM pVM, const char *pszDevice, unsigned iInstance, PPDMIBASE *ppBase)
+VMMR3DECL(int) PDMR3QueryDevice(PUVM pUVM, const char *pszDevice, unsigned iInstance, PPDMIBASE *ppBase)
 {
     LogFlow(("PDMR3DeviceQuery: pszDevice=%p:{%s} iInstance=%u ppBase=%p\n", pszDevice, pszDevice, iInstance, ppBase));
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, VERR_INVALID_VM_HANDLE);
 
     /*
      * Iterate registered devices looking for the device.
      */
     size_t cchDevice = strlen(pszDevice);
-    for (PPDMDEV pDev = pVM->pdm.s.pDevs; pDev; pDev = pDev->pNext)
+    for (PPDMDEV pDev = pUVM->pVM->pdm.s.pDevs; pDev; pDev = pDev->pNext)
     {
         if (    pDev->cchName == cchDevice
             &&  !memcmp(pDev->pReg->szName, pszDevice, cchDevice))
@@ -2149,7 +2193,7 @@ VMMR3DECL(int) PDMR3QueryDevice(PVM pVM, const char *pszDevice, unsigned iInstan
  * device and not the top level driver.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pUVM            The user mode VM handle.
  * @param   pszDevice       Device name.
  * @param   iInstance       Device instance.
  * @param   iLun            The Logical Unit to obtain the interface of.
@@ -2157,16 +2201,18 @@ VMMR3DECL(int) PDMR3QueryDevice(PVM pVM, const char *pszDevice, unsigned iInstan
  * @remark  We're not doing any locking ATM, so don't try call this at times when the
  *          device chain is known to be updated.
  */
-VMMR3DECL(int) PDMR3QueryDeviceLun(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPDMIBASE *ppBase)
+VMMR3DECL(int) PDMR3QueryDeviceLun(PUVM pUVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPDMIBASE *ppBase)
 {
     LogFlow(("PDMR3QueryLun: pszDevice=%p:{%s} iInstance=%u iLun=%u ppBase=%p\n",
              pszDevice, pszDevice, iInstance, iLun, ppBase));
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, VERR_INVALID_VM_HANDLE);
 
     /*
      * Find the LUN.
      */
     PPDMLUN pLun;
-    int rc = pdmR3DevFindLun(pVM, pszDevice, iInstance, iLun, &pLun);
+    int rc = pdmR3DevFindLun(pUVM->pVM, pszDevice, iInstance, iLun, &pLun);
     if (RT_SUCCESS(rc))
     {
         *ppBase = pLun->pBase;
@@ -2182,7 +2228,7 @@ VMMR3DECL(int) PDMR3QueryDeviceLun(PVM pVM, const char *pszDevice, unsigned iIns
  * Query the interface of the top level driver on a LUN.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pUVM            The user mode VM handle.
  * @param   pszDevice       Device name.
  * @param   iInstance       Device instance.
  * @param   iLun            The Logical Unit to obtain the interface of.
@@ -2190,10 +2236,12 @@ VMMR3DECL(int) PDMR3QueryDeviceLun(PVM pVM, const char *pszDevice, unsigned iIns
  * @remark  We're not doing any locking ATM, so don't try call this at times when the
  *          device chain is known to be updated.
  */
-VMMR3DECL(int) PDMR3QueryLun(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPDMIBASE *ppBase)
+VMMR3DECL(int) PDMR3QueryLun(PUVM pUVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPDMIBASE *ppBase)
 {
     LogFlow(("PDMR3QueryLun: pszDevice=%p:{%s} iInstance=%u iLun=%u ppBase=%p\n",
              pszDevice, pszDevice, iInstance, iLun, ppBase));
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    PVM pVM = pUVM->pVM;
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
     /*
@@ -2223,7 +2271,7 @@ VMMR3DECL(int) PDMR3QueryLun(PVM pVM, const char *pszDevice, unsigned iInstance,
  * is returned.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pUVM            The user mode VM handle.
  * @param   pszDevice       Device name.
  * @param   iInstance       Device instance.
  * @param   iLun            The Logical Unit to obtain the interface of.
@@ -2233,16 +2281,18 @@ VMMR3DECL(int) PDMR3QueryLun(PVM pVM, const char *pszDevice, unsigned iInstance,
  * @remark  We're not doing any locking ATM, so don't try call this at times when the
  *          device chain is known to be updated.
  */
-VMMR3DECL(int) PDMR3QueryDriverOnLun(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, const char *pszDriver, PPPDMIBASE ppBase)
+VMMR3DECL(int) PDMR3QueryDriverOnLun(PUVM pUVM, const char *pszDevice, unsigned iInstance, unsigned iLun, const char *pszDriver, PPPDMIBASE ppBase)
 {
     LogFlow(("PDMR3QueryDriverOnLun: pszDevice=%p:{%s} iInstance=%u iLun=%u pszDriver=%p:{%s} ppBase=%p\n",
              pszDevice, pszDevice, iInstance, iLun, pszDriver, pszDriver, ppBase));
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, VERR_INVALID_VM_HANDLE);
 
     /*
      * Find the LUN.
      */
     PPDMLUN pLun;
-    int rc = pdmR3DevFindLun(pVM, pszDevice, iInstance, iLun, &pLun);
+    int rc = pdmR3DevFindLun(pUVM->pVM, pszDevice, iInstance, iLun, &pLun);
     if (RT_SUCCESS(rc))
     {
         if (pLun->pTop)
@@ -2276,7 +2326,7 @@ VMMR3DECL(void) PDMR3DmaRun(PVM pVM)
     if (VMMGetCpuId(pVM) != 0)
         return;
 
-    if (VM_FF_TESTANDCLEAR(pVM, VM_FF_PDM_DMA))
+    if (VM_FF_TEST_AND_CLEAR(pVM, VM_FF_PDM_DMA))
     {
         if (pVM->pdm.s.pDmac)
         {
@@ -2294,7 +2344,7 @@ VMMR3DECL(void) PDMR3DmaRun(PVM pVM)
  * @returns VBox status code.
  * @param   pVM     Pointer to the VM.
  */
-VMMR3DECL(int) PDMR3LockCall(PVM pVM)
+VMMR3_INT_DECL(int) PDMR3LockCall(PVM pVM)
 {
     return PDMR3CritSectEnterEx(&pVM->pdm.s.CritSect, true /* fHostCall */);
 }
@@ -2309,11 +2359,11 @@ VMMR3DECL(int) PDMR3LockCall(PVM pVM)
  * @param   pvHeap          Ring-3 pointer.
  * @param   cbSize          Size of the heap.
  */
-VMMR3DECL(int) PDMR3RegisterVMMDevHeap(PVM pVM, RTGCPHYS GCPhys, RTR3PTR pvHeap, unsigned cbSize)
+VMMR3_INT_DECL(int) PDMR3VmmDevHeapRegister(PVM pVM, RTGCPHYS GCPhys, RTR3PTR pvHeap, unsigned cbSize)
 {
     Assert(pVM->pdm.s.pvVMMDevHeap == NULL);
 
-    Log(("PDMR3RegisterVMMDevHeap %RGp %RHv %x\n", GCPhys, pvHeap, cbSize));
+    Log(("PDMR3VmmDevHeapRegister %RGp %RHv %x\n", GCPhys, pvHeap, cbSize));
     pVM->pdm.s.pvVMMDevHeap     = pvHeap;
     pVM->pdm.s.GCPhysVMMDevHeap = GCPhys;
     pVM->pdm.s.cbVMMDevHeap     = cbSize;
@@ -2329,11 +2379,11 @@ VMMR3DECL(int) PDMR3RegisterVMMDevHeap(PVM pVM, RTGCPHYS GCPhys, RTR3PTR pvHeap,
  * @param   pVM             Pointer to the VM.
  * @param   GCPhys          The physical address.
  */
-VMMR3DECL(int) PDMR3UnregisterVMMDevHeap(PVM pVM, RTGCPHYS GCPhys)
+VMMR3_INT_DECL(int) PDMR3VmmDevHeapUnregister(PVM pVM, RTGCPHYS GCPhys)
 {
     Assert(pVM->pdm.s.GCPhysVMMDevHeap == GCPhys);
 
-    Log(("PDMR3UnregisterVMMDevHeap %RGp\n", GCPhys));
+    Log(("PDMR3VmmDevHeapUnregister %RGp\n", GCPhys));
     pVM->pdm.s.pvVMMDevHeap     = NULL;
     pVM->pdm.s.GCPhysVMMDevHeap = NIL_RTGCPHYS;
     pVM->pdm.s.cbVMMDevHeap     = 0;
@@ -2350,7 +2400,7 @@ VMMR3DECL(int) PDMR3UnregisterVMMDevHeap(PVM pVM, RTGCPHYS GCPhys)
  * @param   cbSize          Allocation size.
  * @param   pv              Ring-3 pointer. (out)
  */
-VMMR3DECL(int) PDMR3VMMDevHeapAlloc(PVM pVM, unsigned cbSize, RTR3PTR *ppv)
+VMMR3_INT_DECL(int) PDMR3VmmDevHeapAlloc(PVM pVM, size_t cbSize, RTR3PTR *ppv)
 {
 #ifdef DEBUG_bird
     if (!cbSize || cbSize > pVM->pdm.s.cbVMMDevHeapLeft)
@@ -2359,9 +2409,9 @@ VMMR3DECL(int) PDMR3VMMDevHeapAlloc(PVM pVM, unsigned cbSize, RTR3PTR *ppv)
     AssertReturn(cbSize && cbSize <= pVM->pdm.s.cbVMMDevHeapLeft, VERR_NO_MEMORY);
 #endif
 
-    Log(("PDMR3VMMDevHeapAlloc %x\n", cbSize));
+    Log(("PDMR3VMMDevHeapAlloc: %#zx\n", cbSize));
 
-    /** @todo not a real heap as there's currently only one user. */
+    /** @todo Not a real heap as there's currently only one user. */
     *ppv = pVM->pdm.s.pvVMMDevHeap;
     pVM->pdm.s.cbVMMDevHeapLeft = 0;
     return VINF_SUCCESS;
@@ -2375,9 +2425,9 @@ VMMR3DECL(int) PDMR3VMMDevHeapAlloc(PVM pVM, unsigned cbSize, RTR3PTR *ppv)
  * @param   pVM             Pointer to the VM.
  * @param   pv              Ring-3 pointer.
  */
-VMMR3DECL(int) PDMR3VMMDevHeapFree(PVM pVM, RTR3PTR pv)
+VMMR3_INT_DECL(int) PDMR3VmmDevHeapFree(PVM pVM, RTR3PTR pv)
 {
-    Log(("PDMR3VMMDevHeapFree %RHv\n", pv));
+    Log(("PDMR3VmmDevHeapFree: %RHv\n", pv));
 
     /** @todo not a real heap as there's currently only one user. */
     pVM->pdm.s.cbVMMDevHeapLeft = pVM->pdm.s.cbVMMDevHeap;

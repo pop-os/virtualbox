@@ -39,6 +39,10 @@
 # undef RTMEMALLOC_USE_TRACKER
 #endif
 
+#if defined(RTMEMALLOC_USE_TRACKER) && defined(RTALLOC_USE_EFENCE)
+# error "Cannot define both RTMEMALLOC_USE_TRACKER and RTALLOC_USE_EFENCE!"
+#endif
+
 
 /*******************************************************************************
 *   Header Files                                                               *

@@ -1,11 +1,11 @@
 
 /* $Id: GuestFileImpl.h $ */
 /** @file
- * VirtualBox Main - XXX.
+ * VirtualBox Main - Guest file handling.
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,9 +20,12 @@
 #define ____H_GUESTFILEIMPL
 
 #include "VirtualBoxBase.h"
+#include "EventImpl.h"
 
 #include "GuestFsObjInfoImpl.h"
+#include "GuestCtrlImplPrivate.h"
 
+class Console;
 class GuestSession;
 class GuestProcess;
 
@@ -31,6 +34,7 @@ class GuestProcess;
  */
 class ATL_NO_VTABLE GuestFile :
     public VirtualBoxBase,
+    public GuestObject,
     VBOX_SCRIPTABLE_IMPL(IGuestFile)
 {
 public:
@@ -45,7 +49,7 @@ public:
     END_COM_MAP()
     DECLARE_EMPTY_CTOR_DTOR(GuestFile)
 
-    int     init(GuestSession *pSession, const Utf8Str &strPath, const Utf8Str &strOpenMode, const Utf8Str &strDisposition, uint32_t uCreationMode, int64_t iOffset, int *pGuestRc);
+    int     init(Console *pConsole, GuestSession *pSession, ULONG uFileID, const GuestFileOpenInfo &openInfo);
     void    uninit(void);
     HRESULT FinalConstruct(void);
     void    FinalRelease(void);
@@ -54,11 +58,14 @@ public:
     /** @name IFile interface.
      * @{ */
     STDMETHOD(COMGETTER(CreationMode))(ULONG *aCreationMode);
-    STDMETHOD(COMGETTER(Disposition))(ULONG *aDisposition);
+    STDMETHOD(COMGETTER(Disposition))(BSTR *aDisposition);
+    STDMETHOD(COMGETTER(EventSource))(IEventSource ** aEventSource);
     STDMETHOD(COMGETTER(FileName))(BSTR *aFileName);
+    STDMETHOD(COMGETTER(Id))(ULONG *aID);
     STDMETHOD(COMGETTER(InitialSize))(LONG64 *aInitialSize);
     STDMETHOD(COMGETTER(Offset))(LONG64 *aOffset);
-    STDMETHOD(COMGETTER(OpenMode))(ULONG *aOpenMode);
+    STDMETHOD(COMGETTER(OpenMode))(BSTR *aOpenMode);
+    STDMETHOD(COMGETTER(Status))(FileStatus_T *aStatus);
 
     STDMETHOD(Close)(void);
     STDMETHOD(QueryInfo)(IFsObjInfo **aInfo);
@@ -73,22 +80,48 @@ public:
 public:
     /** @name Public internal methods.
      * @{ */
-    static uint32_t getDispositionFromString(const Utf8Str &strDisposition);
-    static uint32_t getOpenModeFromString(const Utf8Str &strOpenMode);
+    int             callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    int             closeFile(int *pGuestRc);
+    EventSource    *getEventSource(void) { return mEventSource; }
+    static Utf8Str  guestErrorToString(int guestRc);
+    int             onFileNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCbData);
+    int             onGuestDisconnected(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCbData);
+    int             openFile(uint32_t uTimeoutMS, int *pGuestRc);
+    int             readData(uint32_t uSize, uint32_t uTimeoutMS, void* pvData, uint32_t cbData, uint32_t* pcbRead);
+    int             readDataAt(uint64_t uOffset, uint32_t uSize, uint32_t uTimeoutMS, void* pvData, size_t cbData, size_t* pcbRead);
+    int             seekAt(int64_t iOffset, GUEST_FILE_SEEKTYPE eSeekType, uint32_t uTimeoutMS, uint64_t *puOffset);
+    static HRESULT  setErrorExternal(VirtualBoxBase *pInterface, int guestRc);
+    int             setFileStatus(FileStatus_T fileStatus, int fileRc);
+    int             waitForOffsetChange(GuestWaitEvent *pEvent, uint32_t uTimeoutMS, uint64_t *puOffset);
+    int             waitForRead(GuestWaitEvent *pEvent, uint32_t uTimeoutMS, void *pvData, size_t cbData, uint32_t *pcbRead);
+    int             waitForStatusChange(GuestWaitEvent *pEvent, uint32_t uTimeoutMS, FileStatus_T *pFileStatus, int *pGuestRc);
+    int             waitForWrite(GuestWaitEvent *pEvent, uint32_t uTimeoutMS, uint32_t *pcbWritten);
+    int             writeData(uint32_t uTimeoutMS, void *pvData, uint32_t cbData, uint32_t *pcbWritten);
+    int             writeDataAt(uint64_t uOffset, uint32_t uTimeoutMS, void *pvData, uint32_t cbData, uint32_t *pcbWritten);
     /** @}  */
 
 private:
 
+    /** This can safely be used without holding any locks.
+     * An AutoCaller suffices to prevent it being destroy while in use and
+     * internally there is a lock providing the necessary serialization. */
+    const ComObjPtr<EventSource> mEventSource;
+
     struct Data
     {
-        /** The associate session this file belongs to. */
-        GuestSession           *mSession;
-        uint32_t                mCreationMode;
-        uint32_t                mDisposition;
-        Utf8Str                 mFileName;
-        int64_t                 mInitialSize;
-        uint32_t                mOpenMode;
-        int64_t                 mOffset;
+        /** The file's open info. */
+        GuestFileOpenInfo       mOpenInfo;
+        /** The file's initial size on open. */
+        uint64_t                mInitialSize;
+        /** The file's ID. */
+        uint32_t                mID;
+        /** The current file status. */
+        FileStatus_T            mStatus;
+        /** The last returned process status
+         *  returned from the guest side. */
+        int                     mLastError;
+        /** The file's current offset. */
+        uint64_t                mOffCurrent;
     } mData;
 };
 

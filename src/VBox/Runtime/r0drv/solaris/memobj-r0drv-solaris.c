@@ -143,6 +143,10 @@ static page_t *rtR0MemObjSolPageAlloc(caddr_t virtAddr)
     u_offset_t      offPage;
     seg_t           KernelSeg;
 
+    /*
+     * 16777215 terabytes of total memory for all VMs or
+     * restart 8000 1GB VMs 2147483 times until wraparound!
+     */
     mutex_enter(&g_OffsetMtx);
     AssertCompileSize(u_offset_t, sizeof(uint64_t)); NOREF(RTASSERTVAR);
     g_offPage = RT_ALIGN_64(g_offPage, PAGE_SIZE) + PAGE_SIZE;
@@ -968,7 +972,7 @@ DECLHIDDEN(int) rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ
     size_t off = 0;
     while (off < cbSub)
     {
-        RTHCPHYS HCPhys = rtR0MemObjNativeGetPagePhysAddr(pMemToMap, (offSub + offSub) >> PAGE_SHIFT);
+        RTHCPHYS HCPhys = RTR0MemObjGetPagePhysAddr(pMemToMap, (offSub + offSub) >> PAGE_SHIFT);
         AssertBreakStmt(HCPhys != NIL_RTHCPHYS, rc = VERR_INTERNAL_ERROR_2);
         pfn_t pfn = HCPhys >> PAGE_SHIFT;
         AssertBreakStmt(((RTHCPHYS)pfn << PAGE_SHIFT) == HCPhys, rc = VERR_INTERNAL_ERROR_3);

@@ -8,6 +8,8 @@
 #include "cr_error.h"
 #include "cr_mem.h"
 #include "cr_pixeldata.h"
+#include <iprt/err.h>
+#include <stdio.h>
 
 void crStateDiffContext( CRContext *from, CRContext *to )
 {
@@ -121,12 +123,165 @@ void crStateDiffContext( CRContext *from, CRContext *to )
 	}
 }
 
-void crStateApplyFBImage(CRContext *to)
+void crStateFreeFBImageLegacy(CRContext *to)
 {
-    if (to->buffer.pFrontImg || to->buffer.pBackImg)
+    if (to->buffer.pFrontImg)
+    {
+        crFree(to->buffer.pFrontImg);
+        to->buffer.pFrontImg = NULL;
+    }
+    if (to->buffer.pBackImg)
+    {
+        crFree(to->buffer.pBackImg);
+        to->buffer.pBackImg = NULL;
+    }
+
+    to->buffer.storedWidth = 0;
+    to->buffer.storedHeight = 0;
+}
+
+int crStateAcquireFBImage(CRContext *to, CRFBData *data)
+{
+    CRBufferState *pBuf = &to->buffer;
+    CRPixelPackState packing = to->client.pack;
+    uint32_t i;
+
+    diff_api.PixelStorei(GL_PACK_SKIP_ROWS, 0);
+    diff_api.PixelStorei(GL_PACK_SKIP_PIXELS, 0);
+    diff_api.PixelStorei(GL_PACK_ALIGNMENT, 1);
+    diff_api.PixelStorei(GL_PACK_ROW_LENGTH, 0);
+    diff_api.PixelStorei(GL_PACK_IMAGE_HEIGHT, 0);
+    diff_api.PixelStorei(GL_PACK_SKIP_IMAGES, 0);
+    diff_api.PixelStorei(GL_PACK_SWAP_BYTES, 0);
+    diff_api.PixelStorei(GL_PACK_LSB_FIRST, 0);
+
+    if (to->bufferobject.packBuffer->hwid>0)
+    {
+        diff_api.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, 0);
+    }
+
+    for (i = 0; i < data->cElements; ++i)
+    {
+        CRFBDataElement *el = &data->aElements[i];
+
+        if (el->enmFormat == GL_DEPTH_COMPONENT || el->enmFormat == GL_DEPTH_STENCIL)
+        {
+            if (!to->buffer.depthTest)
+            {
+                diff_api.Enable(GL_DEPTH_TEST);
+            }
+            if (to->pixel.depthScale != 1.0f)
+            {
+                diff_api.PixelTransferf (GL_DEPTH_SCALE, 1.0f);
+            }
+            if (to->pixel.depthBias != 0.0f)
+            {
+                diff_api.PixelTransferf (GL_DEPTH_BIAS, 0.0f);
+            }
+        }
+        if (el->enmFormat == GL_STENCIL_INDEX || el->enmFormat == GL_DEPTH_STENCIL)
+        {
+        	if (!to->stencil.stencilTest)
+            {
+                diff_api.Enable(GL_STENCIL_TEST);
+            }
+            if (to->pixel.mapStencil)
+            {
+                diff_api.PixelTransferi (GL_MAP_STENCIL, GL_FALSE);
+            }
+            if (to->pixel.indexOffset)
+            {
+                diff_api.PixelTransferi (GL_INDEX_OFFSET, 0);
+            }
+            if (to->pixel.indexShift)
+            {
+                diff_api.PixelTransferi (GL_INDEX_SHIFT, 0);
+            }
+        }
+
+        diff_api.BindFramebufferEXT(GL_READ_FRAMEBUFFER, el->idFBO);
+
+        if (el->enmBuffer)
+            diff_api.ReadBuffer(el->enmBuffer);
+
+        diff_api.ReadPixels(el->posX, el->posY, el->width, el->height, el->enmFormat, el->enmType, el->pvData);
+        crDebug("Acquired %d;%d;%d;%d;%d;0x%p fb image", el->enmBuffer, el->width, el->height, el->enmFormat, el->enmType, el->pvData);
+
+        if (el->enmFormat == GL_DEPTH_COMPONENT || el->enmFormat == GL_DEPTH_STENCIL)
+        {
+            if (to->pixel.depthScale != 1.0f)
+            {
+                diff_api.PixelTransferf (GL_DEPTH_SCALE, to->pixel.depthScale);
+            }
+            if (to->pixel.depthBias != 0.0f)
+            {
+                diff_api.PixelTransferf (GL_DEPTH_BIAS, to->pixel.depthBias);
+            }
+            if (!to->buffer.depthTest)
+            {
+                diff_api.Disable(GL_DEPTH_TEST);
+            }
+        }
+        if (el->enmFormat == GL_STENCIL_INDEX || el->enmFormat == GL_DEPTH_STENCIL)
+        {
+            if (to->pixel.indexOffset)
+            {
+                diff_api.PixelTransferi (GL_INDEX_OFFSET, to->pixel.indexOffset);
+            }
+            if (to->pixel.indexShift)
+            {
+                diff_api.PixelTransferi (GL_INDEX_SHIFT, to->pixel.indexShift);
+            }
+            if (to->pixel.mapStencil)
+            {
+                diff_api.PixelTransferi (GL_MAP_STENCIL, GL_TRUE);
+            }
+            if (!to->stencil.stencilTest)
+            {
+                diff_api.Disable(GL_STENCIL_TEST);
+            }
+        }
+    }
+
+    if (to->bufferobject.packBuffer->hwid>0)
+    {
+        diff_api.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, to->bufferobject.packBuffer->hwid);
+    }
+    if (to->framebufferobject.readFB)
+    {
+        CRASSERT(to->framebufferobject.readFB->hwid);
+        diff_api.BindFramebufferEXT(GL_READ_FRAMEBUFFER, to->framebufferobject.readFB->hwid);
+        diff_api.ReadBuffer(to->framebufferobject.readFB->readbuffer);
+
+    }
+    else if (data->idOverrrideFBO)
+    {
+        diff_api.BindFramebufferEXT(GL_READ_FRAMEBUFFER, data->idOverrrideFBO);
+        diff_api.ReadBuffer(GL_COLOR_ATTACHMENT0);
+    }
+    else
+    {
+        diff_api.BindFramebufferEXT(GL_READ_FRAMEBUFFER, 0);
+        diff_api.ReadBuffer(to->buffer.readBuffer);
+    }
+
+    diff_api.PixelStorei(GL_PACK_SKIP_ROWS, packing.skipRows);
+    diff_api.PixelStorei(GL_PACK_SKIP_PIXELS, packing.skipPixels);
+    diff_api.PixelStorei(GL_PACK_ALIGNMENT, packing.alignment);
+    diff_api.PixelStorei(GL_PACK_ROW_LENGTH, packing.rowLength);
+    diff_api.PixelStorei(GL_PACK_IMAGE_HEIGHT, packing.imageHeight);
+    diff_api.PixelStorei(GL_PACK_SKIP_IMAGES, packing.skipImages);
+    diff_api.PixelStorei(GL_PACK_SWAP_BYTES, packing.swapBytes);
+    diff_api.PixelStorei(GL_PACK_LSB_FIRST, packing.psLSBFirst);
+    return VINF_SUCCESS;
+}
+
+void crStateApplyFBImage(CRContext *to, CRFBData *data)
+{
     {
         CRBufferState *pBuf = &to->buffer;
         CRPixelPackState unpack = to->client.unpack;
+        uint32_t i;
 
         diff_api.PixelStorei(GL_UNPACK_SKIP_ROWS, 0);
         diff_api.PixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
@@ -137,11 +292,6 @@ void crStateApplyFBImage(CRContext *to)
         diff_api.PixelStorei(GL_UNPACK_SWAP_BYTES, 0);
         diff_api.PixelStorei(GL_UNPACK_LSB_FIRST, 0);
 
-        if (to->framebufferobject.drawFB)
-        {
-            diff_api.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, 0);
-        }
-
         if (to->bufferobject.unpackBuffer->hwid>0)
         {
             diff_api.BindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
@@ -151,25 +301,84 @@ void crStateApplyFBImage(CRContext *to)
         diff_api.Disable(GL_SCISSOR_TEST);
         diff_api.Disable(GL_BLEND);
         diff_api.Disable(GL_COLOR_LOGIC_OP);
+        diff_api.Disable(GL_DEPTH_TEST);
+        diff_api.Disable(GL_STENCIL_TEST);
 
-        if (pBuf->pFrontImg)
+        for (i = 0; i < data->cElements; ++i)
         {
-            diff_api.DrawBuffer(GL_FRONT);
-            diff_api.WindowPos2iARB(0, 0);
-            diff_api.DrawPixels(pBuf->storedWidth, pBuf->storedHeight, GL_RGBA, GL_UNSIGNED_BYTE, pBuf->pFrontImg);
-            crDebug("Applied %ix%i fb image", pBuf->storedWidth, pBuf->storedHeight);
-            crFree(pBuf->pFrontImg);
-            pBuf->pFrontImg = NULL;
-        }
+            CRFBDataElement *el = &data->aElements[i];
+#if 0
+            char fname[200];
+            sprintf(fname, "./img_apply_%p_%d_%d.tga", to, i, el->enmFormat);
+            crDumpNamedTGA(fname, el->width, el->height, el->pvData);
+#endif
 
-        if (pBuf->pBackImg)
-        {
-            diff_api.DrawBuffer(GL_BACK);
-            diff_api.WindowPos2iARB(0, 0);
-            diff_api.DrawPixels(pBuf->storedWidth, pBuf->storedHeight, GL_RGBA, GL_UNSIGNED_BYTE, pBuf->pBackImg);
-            crDebug("Applied %ix%i bb image", pBuf->storedWidth, pBuf->storedHeight);
-            crFree(pBuf->pBackImg);
-            pBuf->pBackImg = NULL;
+            if (el->enmFormat == GL_DEPTH_COMPONENT || el->enmFormat == GL_DEPTH_STENCIL)
+            {
+                diff_api.Enable(GL_DEPTH_TEST);
+                if (to->pixel.depthScale != 1.0f)
+                {
+                    diff_api.PixelTransferf (GL_DEPTH_SCALE, 1.0f);
+                }
+                if (to->pixel.depthBias != 0.0f)
+                {
+                    diff_api.PixelTransferf (GL_DEPTH_BIAS, 0.0f);
+                }
+            }
+            if (el->enmFormat == GL_STENCIL_INDEX || el->enmFormat == GL_DEPTH_STENCIL)
+            {
+                diff_api.Enable(GL_STENCIL_TEST);
+                if (to->pixel.mapStencil)
+                {
+                    diff_api.PixelTransferi (GL_MAP_STENCIL, GL_FALSE);
+                }
+                if (to->pixel.indexOffset)
+                {
+                    diff_api.PixelTransferi (GL_INDEX_OFFSET, 0);
+                }
+                if (to->pixel.indexShift)
+                {
+                    diff_api.PixelTransferi (GL_INDEX_SHIFT, 0);
+                }
+            }
+
+            diff_api.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, el->idFBO);
+
+            if (el->enmBuffer)
+                diff_api.DrawBuffer(el->enmBuffer);
+
+            diff_api.WindowPos2iARB(el->posX, el->posY);
+            diff_api.DrawPixels(el->width, el->height, el->enmFormat, el->enmType, el->pvData);
+            crDebug("Applied %d;%d;%d;%d;%d;0x%p fb image", el->enmBuffer, el->width, el->height, el->enmFormat, el->enmType, el->pvData);
+
+            if (el->enmFormat == GL_DEPTH_COMPONENT || el->enmFormat == GL_DEPTH_STENCIL)
+            {
+                if (to->pixel.depthScale != 1.0f)
+                {
+                    diff_api.PixelTransferf (GL_DEPTH_SCALE, to->pixel.depthScale);
+                }
+                if (to->pixel.depthBias != 0.0f)
+                {
+                    diff_api.PixelTransferf (GL_DEPTH_BIAS, to->pixel.depthBias);
+                }
+                diff_api.Disable(GL_DEPTH_TEST);
+            }
+            if (el->enmFormat == GL_STENCIL_INDEX || el->enmFormat == GL_DEPTH_STENCIL)
+            {
+                if (to->pixel.indexOffset)
+                {
+                    diff_api.PixelTransferi (GL_INDEX_OFFSET, to->pixel.indexOffset);
+                }
+                if (to->pixel.indexShift)
+                {
+                    diff_api.PixelTransferi (GL_INDEX_SHIFT, to->pixel.indexShift);
+                }
+                if (to->pixel.mapStencil)
+                {
+                    diff_api.PixelTransferi (GL_MAP_STENCIL, GL_TRUE);
+                }
+                diff_api.Disable(GL_STENCIL_TEST);
+            }
         }
 
         diff_api.WindowPos3fvARB(to->current.rasterAttrib[VERT_ATTRIB_POS]);
@@ -179,10 +388,20 @@ void crStateApplyFBImage(CRContext *to)
         }
         if (to->framebufferobject.drawFB)
         {
+            CRASSERT(to->framebufferobject.drawFB->hwid);
             diff_api.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, to->framebufferobject.drawFB->hwid);
+            diff_api.DrawBuffer(to->framebufferobject.drawFB->drawbuffer[0]);
         }
-        diff_api.DrawBuffer(to->framebufferobject.drawFB ? 
-                            to->framebufferobject.drawFB->drawbuffer[0] : to->buffer.drawBuffer);
+        else if (data->idOverrrideFBO)
+        {
+            diff_api.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, data->idOverrrideFBO);
+            diff_api.DrawBuffer(GL_COLOR_ATTACHMENT0);
+        }
+        else
+        {
+            diff_api.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, 0);
+            diff_api.DrawBuffer(to->buffer.drawBuffer);
+        }
         if (to->buffer.alphaTest)
         {
             diff_api.Enable(GL_ALPHA_TEST);
@@ -198,6 +417,14 @@ void crStateApplyFBImage(CRContext *to)
         if (to->buffer.logicOp)
         {
             diff_api.Enable(GL_COLOR_LOGIC_OP);
+        }
+        if (to->buffer.depthTest)
+        {
+            diff_api.Enable(GL_DEPTH_TEST);
+        }
+        if (to->stencil.stencilTest)
+        {
+            diff_api.Enable(GL_STENCIL_TEST);
         }
 
         diff_api.PixelStorei(GL_UNPACK_SKIP_ROWS, unpack.skipRows);
@@ -341,34 +568,59 @@ void crStateSwitchContext( CRContext *from, CRContext *to )
 	}
 
 #ifdef WINDOWS
-    crStateApplyFBImage(to);
+	if (to->buffer.pFrontImg)
+	{
+	    CRFBData *pLazyData = (CRFBData *)to->buffer.pFrontImg;
+	    crStateApplyFBImage(to, pLazyData);
+	    crStateFreeFBImageLegacy(to);
+	}
 #endif
 }
 
-CRContext * crStateSwichPrepare(CRContext *toCtx, GLboolean fMultipleContexts, GLuint idFBO)
+void crStateSyncHWErrorState(CRContext *ctx)
 {
-    CRContext *fromCtx = GetCurrentContext();
-
-    if (!fMultipleContexts)
+    GLenum err;
+    while ((err = diff_api.GetError()) != GL_NO_ERROR)
     {
-#ifdef CR_EXT_framebuffer_object
-        if (fromCtx)
-            crStateFramebufferObjectDisableHW(fromCtx, idFBO);
-#endif
+        if (ctx->error != GL_NO_ERROR)
+            ctx->error = err;
     }
-    return fromCtx;
 }
 
-void crStateSwichPostprocess(CRContext *fromCtx, GLboolean fMultipleContexts, GLuint idFBO)
+void crStateSwitchPrepare(CRContext *toCtx, CRContext *fromCtx, GLuint idDrawFBO, GLuint idReadFBO)
 {
-    CRContext *toCtx = GetCurrentContext();;
-    if (!fromCtx || !toCtx)
+    if (!fromCtx)
         return;
 
-    if (!fMultipleContexts)
-    {
+    if (g_bVBoxEnableDiffOnMakeCurrent && toCtx && toCtx != fromCtx)
+        crStateSyncHWErrorState(fromCtx);
+
 #ifdef CR_EXT_framebuffer_object
-        crStateFramebufferObjectReenableHW(fromCtx, toCtx, idFBO);
+    crStateFramebufferObjectDisableHW(fromCtx, idDrawFBO, idReadFBO);
 #endif
+}
+
+void crStateSwitchPostprocess(CRContext *toCtx, CRContext *fromCtx, GLuint idDrawFBO, GLuint idReadFBO)
+{
+    if (!toCtx)
+        return;
+
+    if (g_bVBoxEnableDiffOnMakeCurrent && fromCtx && toCtx != fromCtx)
+    {
+        GLenum err;
+        while ((err = diff_api.GetError()) != GL_NO_ERROR)
+        {
+            static int cErrPrints = 0;
+#ifndef DEBUG_misha
+            if (cErrPrints < 5)
+#endif
+            {
+                ++cErrPrints;
+                crWarning("gl error (0x%x) after context switch, ignoring.. (%d out of 5) ..", err, cErrPrints);
+            }
+        }
     }
+#ifdef CR_EXT_framebuffer_object
+    crStateFramebufferObjectReenableHW(fromCtx, toCtx, idDrawFBO, idReadFBO);
+#endif
 }

@@ -37,6 +37,7 @@
 # include <iprt/asm-amd64-x86.h>
 #endif
 #include <iprt/assert.h>
+#include <iprt/thread.h>
 
 
 
@@ -44,6 +45,11 @@ RTDECL(void) RTLogWriteDebugger(const char *pch, size_t cb)
 {
     if (pch[cb] != '\0')
         AssertBreakpoint();
+
+    /* cmn_err() acquires adaptive mutexes. Not preemption safe, see @bugref{6657}. */
+    if (!RTThreadPreemptIsEnabled(NIL_RTTHREAD))
+        return;
+
     if (    !g_frtSolSplSetsEIF
 #if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
         ||  ASMIntAreEnabled()
@@ -51,7 +57,10 @@ RTDECL(void) RTLogWriteDebugger(const char *pch, size_t cb)
 /* PORTME: Check if interrupts are enabled, if applicable. */
 #endif
         )
+    {
         cmn_err(CE_CONT, pch);
+    }
+
     return;
 }
 

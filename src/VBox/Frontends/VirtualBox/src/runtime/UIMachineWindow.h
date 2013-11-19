@@ -24,7 +24,7 @@
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
-#include "UIMachineDefs.h"
+#include "UIDefs.h"
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -61,8 +61,15 @@ public:
     CSession& session() const;
     CMachine machine() const;
 
+    /** Adjusts machine-window size to correspond current guest screen size.
+      * @param fAdjustPosition determines whether is it necessary to adjust position too.
+      * @note  Reimplemented in sub-classes. Base implementation does nothing. */
+    virtual void normalizeGeometry(bool fAdjustPosition) { Q_UNUSED(fAdjustPosition); }
+
+#ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
     /* Virtual caller for base class setMask: */
     virtual void setMask(const QRegion &region);
+#endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
 
 protected slots:
 
@@ -108,6 +115,7 @@ protected:
 
     /* Visibility stuff: */
     void handleScreenCountChange();
+    void handleScreenGeometryChange();
 
     /* Update stuff: */
     virtual void updateAppearanceOf(int iElement);

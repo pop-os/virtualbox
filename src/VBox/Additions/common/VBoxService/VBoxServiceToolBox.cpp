@@ -632,10 +632,10 @@ static int VBoxServiceToolboxPrintFsInfo(const char *pszName, uint16_t cbName,
                      pObjInfo->Attr.u.Unix.gid,
                      pObjInfo->cbObject,
                      pObjInfo->cbAllocated,
-                     pObjInfo->BirthTime,
-                     pObjInfo->ChangeTime,
-                     pObjInfo->ModificationTime,
-                     pObjInfo->AccessTime);
+                     RTTimeSpecGetNano(&pObjInfo->BirthTime), /** @todo really ns? */
+                     RTTimeSpecGetNano(&pObjInfo->ChangeTime), /** @todo really ns? */
+                     RTTimeSpecGetNano(&pObjInfo->ModificationTime), /** @todo really ns? */
+                     RTTimeSpecGetNano(&pObjInfo->AccessTime)); /** @todo really ns? */
             RTPrintf(" %2d %s\n", cbName, pszName);
         }
     }
@@ -1525,7 +1525,7 @@ static RTEXITCODE VBoxServiceToolboxStat(int argc, char **argv)
     RTListInit(&fileList);
 
     while (   (ch = RTGetOpt(&GetState, &ValueUnion))
-              && RT_SUCCESS(rc))
+           && RT_SUCCESS(rc))
     {
         /* For options that require an argument, ValueUnion has received the value. */
         switch (ch)

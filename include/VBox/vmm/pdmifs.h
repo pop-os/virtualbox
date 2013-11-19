@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -296,14 +296,16 @@ typedef struct PDMIMOUSEPORT
      * @returns VBox status code.  Return VERR_TRY_AGAIN if you cannot process the
      *          event now and want it to be repeated at a later point.
      *
-     * @param   pInterface          Pointer to this interface structure.
-     * @param   iDeltaX             The X delta.
-     * @param   iDeltaY             The Y delta.
-     * @param   iDeltaZ             The Z delta.
-     * @param   iDeltaW             The W (horizontal scroll button) delta.
-     * @param   fButtonStates       The button states, see the PDMIMOUSEPORT_BUTTON_* \#defines.
+     * @param   pInterface     Pointer to this interface structure.
+     * @param   dx             The X delta.
+     * @param   dy             The Y delta.
+     * @param   dz             The Z delta.
+     * @param   dw             The W (horizontal scroll button) delta.
+     * @param   fButtons       The button states, see the PDMIMOUSEPORT_BUTTON_* \#defines.
      */
-    DECLR3CALLBACKMEMBER(int, pfnPutEvent,(PPDMIMOUSEPORT pInterface, int32_t iDeltaX, int32_t iDeltaY, int32_t iDeltaZ, int32_t iDeltaW, uint32_t fButtonStates));
+    DECLR3CALLBACKMEMBER(int, pfnPutEvent,(PPDMIMOUSEPORT pInterface,
+                                           int32_t dx, int32_t dy, int32_t dz,
+                                           int32_t dw, uint32_t fButtons));
     /**
      * Puts an absolute mouse event.
      *
@@ -313,17 +315,45 @@ typedef struct PDMIMOUSEPORT
      * @returns VBox status code.  Return VERR_TRY_AGAIN if you cannot process the
      *          event now and want it to be repeated at a later point.
      *
-     * @param   pInterface          Pointer to this interface structure.
-     * @param   uX                  The X value, in the range 0 to 0xffff.
-     * @param   uY                  The Y value, in the range 0 to 0xffff.
-     * @param   iDeltaZ             The Z delta.
-     * @param   iDeltaW             The W (horizontal scroll button) delta.
-     * @param   fButtonStates       The button states, see the PDMIMOUSEPORT_BUTTON_* \#defines.
+     * @param   pInterface     Pointer to this interface structure.
+     * @param   x              The X value, in the range 0 to 0xffff.
+     * @param   z              The Y value, in the range 0 to 0xffff.
+     * @param   dz             The Z delta.
+     * @param   dw             The W (horizontal scroll button) delta.
+     * @param   fButtons       The button states, see the PDMIMOUSEPORT_BUTTON_* \#defines.
      */
-    DECLR3CALLBACKMEMBER(int, pfnPutEventAbs,(PPDMIMOUSEPORT pInterface, uint32_t uX, uint32_t uY, int32_t iDeltaZ, int32_t iDeltaW, uint32_t fButtonStates));
+    DECLR3CALLBACKMEMBER(int, pfnPutEventAbs,(PPDMIMOUSEPORT pInterface,
+                                              uint32_t x, uint32_t z,
+                                              int32_t dz, int32_t dw,
+                                              uint32_t fButtons));
+    /**
+     * Puts a multi-touch event.
+     *
+     * @returns VBox status code. Return VERR_TRY_AGAIN if you cannot process the
+     *          event now and want it to be repeated at a later point.
+     *
+     * @param   pInterface          Pointer to this interface structure.
+     * @param   cContacts           How many touch contacts in this event.
+     * @param   pau64Contacts       Pointer to array of packed contact information.
+     *                              Each 64bit element contains:
+     *                              Bits 0..15:  X coordinate in pixels (signed).
+     *                              Bits 16..31: Y coordinate in pixels (signed).
+     *                              Bits 32..39: contact identifier.
+     *                              Bit 40:      "in contact" flag, which indicates that
+     *                                           there is a contact with the touch surface.
+     *                              Bit 41:      "in range" flag, the contact is close enough
+     *                                           to the touch surface.
+     *                              All other bits are reserved for future use and must be set to 0.
+     * @param   u32ScanTime         Timestamp of this event in milliseconds. Only relative
+     *                              time between event is important.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnPutEventMultiTouch,(PPDMIMOUSEPORT pInterface,
+                                                     uint8_t cContacts,
+                                                     const uint64_t *pau64Contacts,
+                                                     uint32_t u32ScanTime));
 } PDMIMOUSEPORT;
 /** PDMIMOUSEPORT interface ID. */
-#define PDMIMOUSEPORT_IID                       "442136fe-6f3c-49ec-9964-259b378ffa64"
+#define PDMIMOUSEPORT_IID                       "359364f0-9fa3-4490-a6b4-7ed771901c93"
 
 /** Mouse button defines for PDMIMOUSEPORT::pfnPutEvent.
  * @{ */
@@ -350,8 +380,9 @@ typedef struct PDMIMOUSECONNECTOR
      * @param   pInterface      Pointer to the this interface.
      * @param   fRelative       Whether relative mode is currently supported.
      * @param   fAbsolute       Whether absolute mode is currently supported.
+     * @param   fAbsolute       Whether multi-touch mode is currently supported.
      */
-    DECLR3CALLBACKMEMBER(void, pfnReportModes,(PPDMIMOUSECONNECTOR pInterface, bool fRelative, bool fAbsolute));
+    DECLR3CALLBACKMEMBER(void, pfnReportModes,(PPDMIMOUSECONNECTOR pInterface, bool fRelative, bool fAbsolute, bool fMultiTouch));
 
 } PDMIMOUSECONNECTOR;
 /** PDMIMOUSECONNECTOR interface ID.  */
@@ -892,6 +923,12 @@ typedef enum PDMBLOCKTYPE
     PDMBLOCKTYPE_FLOPPY_1_44,
     /** 2.88MB 3 1/2" floppy drive. */
     PDMBLOCKTYPE_FLOPPY_2_88,
+    /** Fake drive that can take up to 15.6 MB images.
+     * C=255, H=2, S=63.  */
+    PDMBLOCKTYPE_FLOPPY_FAKE_15_6,
+    /** Fake drive that can take up to 63.5 MB images.
+     * C=255, H=2, S=255.  */
+    PDMBLOCKTYPE_FLOPPY_FAKE_63_5,
     /** CDROM drive. */
     PDMBLOCKTYPE_CDROM,
     /** DVD drive. */
@@ -900,6 +937,8 @@ typedef enum PDMBLOCKTYPE
     PDMBLOCKTYPE_HARD_DISK
 } PDMBLOCKTYPE;
 
+/** Check if the given block type is a floppy. */
+#define PDMBLOCKTYPE_IS_FLOPPY(a_enmType) ( (a_enmType) >= PDMBLOCKTYPE_FLOPPY_360 && (a_enmType) <= PDMBLOCKTYPE_FLOPPY_2_88 )
 
 /**
  * Block raw command data transfer direction.
@@ -998,6 +1037,15 @@ typedef struct PDMIBLOCK
      * @thread  Any thread.
      */
     DECLR3CALLBACKMEMBER(uint64_t, pfnGetSize,(PPDMIBLOCK pInterface));
+
+    /**
+     * Gets the media sector size in bytes.
+     *
+     * @returns Media sector size in bytes.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(uint32_t, pfnGetSectorSize,(PPDMIBLOCK pInterface));
 
     /**
      * Gets the block drive type.
@@ -1243,6 +1291,15 @@ typedef struct PDMIMEDIA
      * @thread  Any thread.
      */
     DECLR3CALLBACKMEMBER(uint64_t, pfnGetSize,(PPDMIMEDIA pInterface));
+
+    /**
+     * Gets the media sector size in bytes.
+     *
+     * @returns Media sector size in bytes.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(uint32_t, pfnGetSectorSize,(PPDMIMEDIA pInterface));
 
     /**
      * Check if the media is readonly or not.
@@ -2065,10 +2122,19 @@ typedef struct PDMIVMMDEVPORT
      * @param   cy              Vertical pixel resolution (0 = do not change).
      * @param   cBits           Bits per pixel (0 = do not change).
      * @param   idxDisplay      The display index.
+     * @param   xOrigin         The X coordinate of the lower left
+     *                          corner of the secondary display with
+     *                          ID = idxDisplay
+     * @param   yOrigin         The Y coordinate of the lower left
+     *                          corner of the secondary display with
+     *                          ID = idxDisplay
+     * @param   fEnabled        Whether the display is enabled or not. (Guessing
+     *                          again.)
+     * @param   fChangeOrigin   Whether the display origin point changed. (Guess)
      */
     DECLR3CALLBACKMEMBER(int, pfnRequestDisplayChange,(PPDMIVMMDEVPORT pInterface, uint32_t cx,
                          uint32_t cy, uint32_t cBits, uint32_t idxDisplay,
-                         uint32_t cxOrigin, uint32_t cyOrigin, bool fEnable, bool fChangeOrigin));
+                         int32_t xOrigin, int32_t yOrigin, bool fEnabled, bool fChangeOrigin));
 
     /**
      * Pass credentials to guest.
@@ -2237,6 +2303,23 @@ typedef struct PDMIVMMDEVCONNECTOR
      */
     DECLR3CALLBACKMEMBER(void, pfnUpdateGuestStatus,(PPDMIVMMDEVCONNECTOR pInterface, uint32_t uFacility, uint16_t uStatus,
                                                      uint32_t fFlags, PCRTTIMESPEC pTimeSpecTS));
+
+    /**
+     * Updates a guest user state.
+     *
+     * Called in response to VMMDevReq_ReportGuestUserState.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   pszUser             Guest user name to update status for.
+     * @param   pszDomain           Domain the guest user is bound to. Optional.
+     * @param   uState              New guest user state to notify host about.
+     * @param   puDetails           Pointer to optional state data.
+     * @param   cbDetails           Size (in bytes) of optional state data.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnUpdateGuestUserState,(PPDMIVMMDEVCONNECTOR pInterface, const char *pszUser, const char *pszDomain,
+                                                        uint32_t uState,
+                                                        const uint8_t *puDetails, uint32_t cbDetails));
 
     /**
      * Reports the guest API and OS version.

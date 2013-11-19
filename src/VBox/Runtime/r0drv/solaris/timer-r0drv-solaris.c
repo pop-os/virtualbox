@@ -124,6 +124,36 @@ typedef struct RTTIMER
 
 
 /**
+ * Callback wrapper for specific timers if they happened to have been fired on
+ * the wrong CPU. See rtTimerSolCallbackWrapper().
+ *
+ * @param   idCpu       The CPU this is fired on.
+ * @param   pvUser1     Opaque pointer to the timer.
+ * @param   pvUser2     Not used, NULL.
+ */
+static void rtTimerSolMpCallbackWrapper(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+{
+    PRTTIMER pTimer = (PRTTIMER)pvUser1;
+    AssertPtrReturnVoid(pTimer);
+    Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
+    Assert(pTimer->iCpu == RTMpCpuId());    /* ASSUMES: index == cpuid */
+    Assert(pTimer->pSingleTimer);
+    NOREF(pvUser2);
+
+    /* Make sure one-shots do not fire another time. */
+    Assert(   !pTimer->fSuspended
+           || pTimer->interval != 0);
+
+    /* For one-shot specific timers, allow RTTimer to restart them. */
+    if (pTimer->interval == 0)
+        pTimer->fSuspended = true;
+
+    uint64_t u64Tick = ++pTimer->pSingleTimer->u64Tick;
+    pTimer->pfnTimer(pTimer, pTimer->pvUser, u64Tick);
+}
+
+
+/**
  * Callback wrapper for Omni-CPU and single-CPU timers.
  *
  * @param    pvArg              Opaque pointer to the timer.
@@ -136,9 +166,27 @@ static void rtTimerSolCallbackWrapper(void *pvArg)
 {
     PRTTIMER pTimer = (PRTTIMER)pvArg;
     AssertPtrReturnVoid(pTimer);
+    Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
 
     if (pTimer->pSingleTimer)
     {
+        /* Make sure one-shots do not fire another time. */
+        Assert(   !pTimer->fSuspended
+               || pTimer->interval != 0);
+
+        /* For specific timers, we might fire on the wrong CPU between cyclic_add() and cyclic_bind().
+           Redirect these shots to the right CPU as we are temporarily rebinding to the right CPU. */
+        if (   pTimer->fSpecificCpu
+            && pTimer->iCpu != RTMpCpuId())          /* ASSUMES: index == cpuid */
+        {
+            RTMpOnSpecific(pTimer->iCpu, rtTimerSolMpCallbackWrapper, pTimer, NULL);
+            return;
+        }
+
+        /* For one-shot any-cpu timers, allow RTTimer to restart them. */
+        if (pTimer->interval == 0)
+            pTimer->fSuspended = true;
+
         uint64_t u64Tick = ++pTimer->pSingleTimer->u64Tick;
         pTimer->pfnTimer(pTimer, pTimer->pvUser, u64Tick);
     }
@@ -202,8 +250,12 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, uint32_
         &&  !RTMpIsCpuPossible(RTMpCpuIdFromSetIndex(fFlags & RTTIMER_FLAGS_CPU_MASK)))
         return VERR_CPU_NOT_FOUND;
 
-    if ((fFlags & RTTIMER_FLAGS_CPU_ALL) == RTTIMER_FLAGS_CPU_ALL && u64NanoInterval == 0)
+    /* One-shot omni timers are not supported by the cyclic system. */
+    if (   (fFlags & RTTIMER_FLAGS_CPU_ALL) == RTTIMER_FLAGS_CPU_ALL
+        && u64NanoInterval == 0)
+    {
         return VERR_NOT_SUPPORTED;
+    }
 
     /*
      * Allocate and initialize the timer handle.
@@ -269,13 +321,10 @@ RTDECL(int) RTTimerStart(PRTTIMER pTimer, uint64_t u64First)
     if (!pTimer->fSuspended)
         return VERR_TIMER_ACTIVE;
 
-    /* One-shot timers are not supported by the cyclic system. */
-    if (pTimer->interval == 0)
-        return VERR_NOT_SUPPORTED;
-
     pTimer->fSuspended = false;
     if (pTimer->fAllCpu)
     {
+        Assert(pTimer->interval);
         PRTR0OMNITIMERSOL pOmniTimer = RTMemAllocZ(sizeof(RTR0OMNITIMERSOL));
         if (RT_UNLIKELY(!pOmniTimer))
             return VERR_NO_MEMORY;
@@ -323,7 +372,8 @@ RTDECL(int) RTTimerStart(PRTTIMER pTimer, uint64_t u64First)
         pSingleTimer->hHandler.cyh_level = CY_LOCK_LEVEL;
 
         mutex_enter(&cpu_lock);
-        if (iCpu != SOL_TIMER_ANY_CPU && !cpu_is_online(cpu[iCpu]))
+        if (   iCpu != SOL_TIMER_ANY_CPU
+            && !cpu_is_online(cpu[iCpu]))
         {
             mutex_exit(&cpu_lock);
             RTMemFree(pSingleTimer);
@@ -334,9 +384,12 @@ RTDECL(int) RTTimerStart(PRTTIMER pTimer, uint64_t u64First)
         pSingleTimer->hFireTime.cyt_when = u64First + RTTimeNanoTS();
         if (pTimer->interval == 0)
         {
-            /** @todo use gethrtime_max instead of LLONG_MAX? */
-            AssertCompileSize(pSingleTimer->hFireTime.cyt_interval, sizeof(long long));
-            pSingleTimer->hFireTime.cyt_interval = LLONG_MAX - pSingleTimer->hFireTime.cyt_when;
+            /*
+             * cylic_add() comment: "The caller is responsible for assuring that cyt_when + cyt_interval <= INT64_MAX"
+             * but it contradicts itself because cyclic_reprogram() updates only the interval and accepts CY_INFINITY as
+             * a valid, special value. See cyclic_fire().
+             */
+            pSingleTimer->hFireTime.cyt_interval = CY_INFINITY;
         }
         else
             pSingleTimer->hFireTime.cyt_interval = pTimer->interval;

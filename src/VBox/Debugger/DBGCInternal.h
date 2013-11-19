@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -111,6 +111,8 @@ typedef struct DBGC
 
     /** Pointer to the current VM. */
     PVM                 pVM;
+    /** The user mode handle of the current VM. */
+    PUVM                pUVM;
     /** The ID of current virtual CPU. */
     VMCPUID             idCpu;
     /** The current address space handle. */
@@ -137,6 +139,8 @@ typedef struct DBGC
 
     /** Current disassembler position. */
     DBGCVAR             DisasmPos;
+    /** The flags that goes with DisasmPos. */
+    uint32_t            fDisasm;
     /** Current source position. (flat GC) */
     DBGCVAR             SourcePos;
     /** Current memory dump position. */

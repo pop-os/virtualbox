@@ -1140,9 +1140,10 @@ solisten(PNATState pData, u_int32_t bind_addr, u_int port, u_int32_t laddr, u_in
 #else
         int tmperrno = errno; /* Don't clobber the real reason we failed */
         close(s);
-        QSOCKET_LOCK(tcb);
-        sofree(pData, so);
-        QSOCKET_UNLOCK(tcb);
+        if (sototcpcb(so))
+            tcp_close(pData, sototcpcb(so));
+        else
+            sofree(pData, so);
         /* Restore the real errno */
         errno = tmperrno;
 #endif

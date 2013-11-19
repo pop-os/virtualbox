@@ -396,10 +396,17 @@ static HRESULT vboxNetCfgWinEnumNetCfgComponents(IN INetCfg *pNetCfg,
     return hr;
 }
 
+/*
+ * Forward declarations of functions used in vboxNetCfgWinRemoveAllNetDevicesOfIdCallback.
+ */
+VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinGenHostonlyConnectionName(PCWSTR DevName, WCHAR *pBuf, PULONG pcbBuf);
+VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinRenameConnection (LPWSTR pGuid, PCWSTR NewName);
+
 static BOOL vboxNetCfgWinRemoveAllNetDevicesOfIdCallback(HDEVINFO hDevInfo, PSP_DEVINFO_DATA pDev, PVOID pContext)
 {
     HRESULT hr = S_OK;
     SP_REMOVEDEVICE_PARAMS rmdParams;
+    WCHAR pWCfgGuidString[50] = {L''};
 
     rmdParams.ClassInstallHeader.cbSize = sizeof(SP_CLASSINSTALL_HEADER);
     rmdParams.ClassInstallHeader.InstallFunction = DIF_REMOVE;
@@ -410,6 +417,57 @@ static BOOL vboxNetCfgWinRemoveAllNetDevicesOfIdCallback(HDEVINFO hDevInfo, PSP_
     {
         if (SetupDiSetSelectedDevice (hDevInfo, pDev))
         {
+            /* Figure out NetCfgInstanceId */
+            HKEY hkey = SetupDiOpenDevRegKey(hDevInfo,
+                                             pDev,
+                                             DICS_FLAG_GLOBAL,
+                                             0,
+                                             DIREG_DRV,
+                                             KEY_READ);
+            if (hkey == INVALID_HANDLE_VALUE)
+                NonStandardLogFlow(("SetupDiOpenDevRegKey failed (0x%08X)", GetLastError()));
+            else
+            {
+                DWORD cbSize = sizeof(pWCfgGuidString);
+                DWORD dwValueType;
+                DWORD ret = RegQueryValueExW (hkey, L"NetCfgInstanceId", NULL,
+                                              &dwValueType, (LPBYTE) pWCfgGuidString, &cbSize);
+                if (ret == ERROR_SUCCESS)
+                {
+                    /* Figure out device name */
+                    WCHAR DevName[256], TempName[256];
+                    ULONG cbName = sizeof(TempName);
+                    if (SetupDiGetDeviceRegistryPropertyW(hDevInfo, pDev,
+                                               SPDRP_FRIENDLYNAME , /* IN DWORD Property,*/
+                                               NULL, /*OUT PDWORD PropertyRegDataType, OPTIONAL*/
+                                               (PBYTE)DevName, /*OUT PBYTE PropertyBuffer,*/
+                                               sizeof(DevName), /* IN DWORD PropertyBufferSize,*/
+                                               NULL /*OUT PDWORD RequiredSize OPTIONAL*/))
+                    {
+                        /*
+                         * Rename the connection before removing the device. This will
+                         * hopefully prevent an error when we will be attempting
+                         * to rename a newly created connection (see @bugref{6740}).
+                         */
+                        HRESULT hr_tmp = VBoxNetCfgWinGenHostonlyConnectionName(DevName, TempName, &cbName);
+                        wcscat_s(TempName, sizeof(TempName), L" removed");
+                        if (SUCCEEDED(hr))
+                            hr_tmp = VBoxNetCfgWinRenameConnection(pWCfgGuidString, TempName);
+                        //NonStandardLogFlow(("VBoxNetCfgWinRenameConnection(%S,%S) => 0x%x\n", pWCfgGuidString, TempName, hr_tmp));
+                    }
+                    else
+                    {
+                        NonStandardLogFlow(("Failed to get 'friendly name' property for %S\n", pWCfgGuidString));
+                    }
+                }
+                else
+                {
+                    NonStandardLogFlow(("RegQueryValueExW(L\"NetCfgInstanceId\") failed with %d\n", ret));
+                }
+
+                RegCloseKey (hkey);
+            }
+
             if (SetupDiCallClassInstaller(DIF_REMOVE,hDevInfo,pDev))
             {
                 SP_DEVINSTALL_PARAMS devParams;
@@ -890,7 +948,7 @@ static HRESULT netIfWinFindAdapterClassById(IWbemServices * pSvc, const GUID * p
     {
         swprintf(wszQuery, L"SELECT * FROM Win32_NetworkAdapterConfiguration WHERE SettingID = \"%s\"", wszGuid);
         IEnumWbemClassObject* pEnumerator = NULL;
-        hr = pSvc->ExecQuery(bstr_t("WQL"), bstr_t(wszQuery), WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY, 
+        hr = pSvc->ExecQuery(bstr_t("WQL"), bstr_t(wszQuery), WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
                              NULL, &pEnumerator);
         if (SUCCEEDED(hr))
         {
@@ -899,7 +957,7 @@ static HRESULT netIfWinFindAdapterClassById(IWbemServices * pSvc, const GUID * p
                 IWbemClassObject *pclsObj;
                 ULONG uReturn = 0;
                 hr = pEnumerator->Next(WBEM_INFINITE, 1, &pclsObj, &uReturn);
-                NonStandardLogFlow(("netIfWinFindAdapterClassById: IEnumWbemClassObject::Next -> hr=0x%x pclsObj=%p uReturn=%u 42=%u\n", 
+                NonStandardLogFlow(("netIfWinFindAdapterClassById: IEnumWbemClassObject::Next -> hr=0x%x pclsObj=%p uReturn=%u 42=%u\n",
                                     hr, (void *)pclsObj, uReturn, 42));
                 if (SUCCEEDED(hr))
                 {
@@ -2080,7 +2138,7 @@ static BOOL vboxNetCfgWinAdjustHostOnlyNetworkInterfacePriority(IN INetCfg *pNc,
                 }
                 else
                 {
-                    if (hr = S_FALSE) /* No more binding paths? */
+                    if (hr == S_FALSE) /* No more binding paths? */
                         hr = S_OK;
                     else
                         NonStandardLogFlow(("Next bind path failed, hr (0x%x)\n", hr));

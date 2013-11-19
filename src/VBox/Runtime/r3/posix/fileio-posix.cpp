@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
-#include <sys/fcntl.h>
 #include <fcntl.h>
 #ifdef _MSC_VER
 # include <io.h>
@@ -708,6 +707,19 @@ RTR3DECL(int) RTFileSetMode(RTFILE hFile, RTFMODE fMode)
         Log(("RTFileSetMode(%RTfile,%RTfmode): returns %Rrc\n", hFile, fMode, rc));
         return rc;
     }
+    return VINF_SUCCESS;
+}
+
+
+RTDECL(int) RTFileSetOwner(RTFILE hFile, uint32_t uid, uint32_t gid)
+{
+    uid_t uidNative = uid != NIL_RTUID ? (uid_t)uid : (uid_t)-1;
+    AssertReturn(uid == uidNative, VERR_INVALID_PARAMETER);
+    gid_t gidNative = gid != NIL_RTGID ? (gid_t)gid : (gid_t)-1;
+    AssertReturn(gid == gidNative, VERR_INVALID_PARAMETER);
+
+    if (fchown(RTFileToNative(hFile), uidNative, gidNative))
+        return RTErrConvertFromErrno(errno);
     return VINF_SUCCESS;
 }
 

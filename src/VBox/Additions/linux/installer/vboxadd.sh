@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions kernel module init script ($Revision: 83687 $)
+# Linux Additions kernel module init script ($Revision: 90030 $)
 #
 
 #
@@ -284,7 +284,7 @@ do_vboxguest_non_udev()
 start()
 {
     begin "Starting the VirtualBox Guest Additions ";
-    uname -r | grep -q '^2\.6' 2>/dev/null &&
+    uname -r | grep -q -E '^2\.6|^3' 2>/dev/null &&
         ps -A -o comm | grep -q '/*udevd$' 2>/dev/null ||
         no_udev=1
     running_vboxguest || {
@@ -440,7 +440,7 @@ extra_setup()
     # Add a group "vboxsf" for Shared Folders access
     # All users which want to access the auto-mounted Shared Folders have to
     # be added to this group.
-    groupadd -f vboxsf >/dev/null 2>&1
+    groupadd -r -f vboxsf >/dev/null 2>&1
 
     # Create udev description file
     if [ -d /etc/udev/rules.d ]; then

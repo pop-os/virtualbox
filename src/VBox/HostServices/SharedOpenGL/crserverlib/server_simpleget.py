@@ -74,31 +74,37 @@ for index in range(len(funcs)):
     {
         GLuint fboid;
         CRASSERT(tablesize/sizeof(%s)==1);
-        fboid = crStateFBOHWIDtoID((GLuint) *get_values);
-        if (cr_server.curClient->currentMural->bUseFBO
-            && crServerIsRedirectedToFBO()
-            && fboid==cr_server.curClient->currentMural->idFBO)
+        fboid = (GLuint) *get_values;
+        if (crServerIsRedirectedToFBO()
+            && (fboid==cr_server.curClient->currentMural->aidFBOs[0]
+            || fboid==cr_server.curClient->currentMural->aidFBOs[1]))
         {
             fboid = 0;
+        }
+        else
+        {
+        	fboid = crStateFBOHWIDtoID(fboid);
         }
         *get_values = (%s) fboid;
     }
     else if (GL_READ_BUFFER==pname)
     {
-        if (cr_server.curClient->currentMural->bUseFBO && crServerIsRedirectedToFBO()
-            && cr_server.curClient->currentMural->idFBO
+        if (crServerIsRedirectedToFBO()
+            && CR_SERVER_FBO_FOR_IDX(cr_server.curClient->currentMural, cr_server.curClient->currentMural->iCurReadBuffer)
             && !crStateGetCurrent()->framebufferobject.readFB)
         {
             *get_values = (%s) crStateGetCurrent()->buffer.readBuffer;
+            Assert(crStateGetCurrent()->buffer.readBuffer == GL_BACK || crStateGetCurrent()->buffer.readBuffer == GL_FRONT);
         }
     }
     else if (GL_DRAW_BUFFER==pname)
     {
-        if (cr_server.curClient->currentMural->bUseFBO && crServerIsRedirectedToFBO()
-            && cr_server.curClient->currentMural->idFBO
+        if (crServerIsRedirectedToFBO()
+            && CR_SERVER_FBO_FOR_IDX(cr_server.curClient->currentMural, cr_server.curClient->currentMural->iCurDrawBuffer)
             && !crStateGetCurrent()->framebufferobject.drawFB)
         {
             *get_values = (%s) crStateGetCurrent()->buffer.drawBuffer;
+            Assert(crStateGetCurrent()->buffer.drawBuffer == GL_BACK || crStateGetCurrent()->buffer.drawBuffer == GL_FRONT);
         }
     }
     else if (GL_RENDERBUFFER_BINDING_EXT==pname)

@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2011 Oracle Corporation
+; Copyright (C) 2006-2013 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -66,6 +66,56 @@ GLOBALNAME g_fCPUMIs64bitHost
 
 BEGINCODE
 
+;; Macro for FXSAVE/FXRSTOR leaky behaviour on AMD CPUs, see cpumR3CheckLeakyFpu().
+; Cleans the FPU state, if necessary, before restoring the FPU.
+;
+; This macro ASSUMES CR0.TS is not set!
+; @remarks Trashes xAX!!
+; Changes here should also be reflected in CPUMRCA.asm's copy!
+%macro CLEANFPU 0
+    test    dword [xDX + CPUMCPU.fUseFlags], CPUM_USE_FFXSR_LEAKY
+    jz      .nothing_to_clean
+
+    xor     eax, eax
+    fnstsw  ax               ; Get FSW
+    test    eax, RT_BIT(7)   ; If FSW.ES (bit 7) is set, clear it to not cause FPU exceptions
+                             ; while clearing & loading the FPU bits in 'clean_fpu'
+    jz      .clean_fpu
+    fnclex
+
+.clean_fpu:
+    ffree   st7              ; Clear FPU stack register(7)'s tag entry to prevent overflow if a wraparound occurs
+                             ; for the upcoming push (load)
+    fild    dword [xDX + CPUMCPU.Guest.fpu] ; Explicit FPU load to overwrite FIP, FOP, FDP registers in the FPU.
+
+.nothing_to_clean:
+%endmacro
+
+;; Macro to save and modify CR0 (if necessary) before touching the FPU state
+;  so as to not cause any FPU exceptions.
+;
+; @remarks Uses xCX for backing-up CR0 (if CR0 needs to be modified) otherwise clears xCX.
+; @remarks Trashes xAX.
+%macro SAVE_CR0_CLEAR_FPU_TRAPS 0
+    xor     ecx, ecx
+    mov     xAX, cr0
+    test    eax, X86_CR0_TS | X86_CR0_EM    ; Make sure its safe to access the FPU state.
+    jz      %%skip_cr0_write
+    mov     xCX, xAX                        ; Save old CR0
+    and     xAX, ~(X86_CR0_TS | X86_CR0_EM)
+    mov     cr0, xAX
+%%skip_cr0_write:
+%endmacro
+
+;; Macro to restore CR0 from xCX if necessary.
+;
+; @remarks xCX should contain the CR0 value to restore or 0 if no restoration is needed.
+%macro RESTORE_CR0 0
+    cmp     ecx, 0
+    je      %%skip_cr0_restore
+    mov     cr0, xCX
+%%skip_cr0_restore:
+%endmacro
 
 ;;
 ; Saves the host FPU/XMM state and restores the guest state.
@@ -90,10 +140,9 @@ BEGINPROC cpumR0SaveHostRestoreGuestFPUState
     ; Switch the state.
     or      dword [xDX + CPUMCPU.fUseFlags], (CPUM_USED_FPU | CPUM_USED_FPU_SINCE_REM)
 
-    mov     xAX, cr0                    ; Make sure its safe to access the FPU state.
-    mov     xCX, xAX                    ; save old CR0
-    and     xAX, ~(X86_CR0_TS | X86_CR0_EM)
-    mov     cr0, xAX                    ;; @todo optimize this.
+    ; Clear CR0 FPU bits to not cause exceptions, uses xCX
+    SAVE_CR0_CLEAR_FPU_TRAPS
+    ; Do NOT use xCX from this point!
 
 %ifdef VBOX_WITH_HYBRID_32BIT_KERNEL
     cmp     byte [NAME(g_fCPUMIs64bitHost)], 0
@@ -103,8 +152,14 @@ BEGINPROC cpumR0SaveHostRestoreGuestFPUState
 .legacy_mode:
 %endif ; VBOX_WITH_HYBRID_32BIT_KERNEL
 
-    fxsave  [xDX + CPUMCPU.Host.fpu]    ; ASSUMES that all VT-x/AMD-V boxes sports fxsave/fxrstor (safe assumption)
+%ifdef RT_ARCH_AMD64
+    ; Use explicit REX prefix. See @bugref{6398}.
+    o64 fxsave  [xDX + CPUMCPU.Host.fpu]    ; ASSUMES that all VT-x/AMD-V boxes sports fxsave/fxrstor (safe assumption)
+    o64 fxrstor [xDX + CPUMCPU.Guest.fpu]
+%else
+    fxsave  [xDX + CPUMCPU.Host.fpu]        ; ASSUMES that all VT-x/AMD-V boxes sports fxsave/fxrstor (safe assumption)
     fxrstor [xDX + CPUMCPU.Guest.fpu]
+%endif
 
 %ifdef VBOX_WITH_KERNEL_USING_XMM
     ; Restore the non-volatile xmm registers. ASSUMING 64-bit windows
@@ -122,7 +177,8 @@ BEGINPROC cpumR0SaveHostRestoreGuestFPUState
 %endif
 
 .done:
-    mov     cr0, xCX                    ; and restore old CR0 again ;; @todo optimize this.
+    ; Restore CR0 from xCX if it was previously saved.
+    RESTORE_CR0
     popf
     xor     eax, eax
     ret
@@ -132,8 +188,8 @@ ALIGNCODE(16)
 BITS 64
 .sixtyfourbit_mode:
     and     edx, 0ffffffffh
-    fxsave  [rdx + CPUMCPU.Host.fpu]
-    fxrstor [rdx + CPUMCPU.Guest.fpu]
+    o64 fxsave  [rdx + CPUMCPU.Host.fpu]
+    o64 fxrstor [rdx + CPUMCPU.Guest.fpu]
     jmp far [.fpret wrt rip]
 .fpret:                                 ; 16:32 Pointer to .the_end.
     dd      .done, NAME(SUPR0AbsKernelCS)
@@ -160,14 +216,15 @@ BEGINPROC cpumR0SaveHostFPUState
     ; Switch the state.
     or      dword [xDX + CPUMCPU.fUseFlags], (CPUM_USED_FPU | CPUM_USED_FPU_SINCE_REM)
 
-    mov     xAX, cr0                    ; Make sure its safe to access the FPU state.
-    mov     xCX, xAX                    ; save old CR0
-    and     xAX, ~(X86_CR0_TS | X86_CR0_EM)
-    mov     cr0, xAX                    ;; @todo optimize this.
+    ; Clear CR0 FPU bits to not cause exceptions, uses xCX
+    SAVE_CR0_CLEAR_FPU_TRAPS
+    ; Do NOT use xCX from this point!
 
     fxsave  [xDX + CPUMCPU.Host.fpu]    ; ASSUMES that all VT-x/AMD-V boxes support fxsave/fxrstor (safe assumption)
 
-    mov     cr0, xCX                    ; and restore old CR0 again ;; @todo optimize this.
+    ; Restore CR0 from xCX if it was saved previously.
+    RESTORE_CR0
+
     popf
     xor     eax, eax
     ret
@@ -203,10 +260,9 @@ BEGINPROC cpumR0SaveGuestRestoreHostFPUState
     pushf                               ; The darwin kernel can get upset or upset things if an
     cli                                 ; interrupt occurs while we're doing fxsave/fxrstor/cr0.
 
-    mov     xAX, cr0                    ; Make sure it's safe to access the FPU state.
-    mov     xCX, xAX                    ; save old CR0
-    and     xAX, ~(X86_CR0_TS | X86_CR0_EM)
-    mov     cr0, xAX                    ;; @todo optimize this.
+    ; Clear CR0 FPU bits to not cause exceptions, uses xCX
+    SAVE_CR0_CLEAR_FPU_TRAPS
+    ; Do NOT use xCX from this point!
 
 %ifdef VBOX_WITH_HYBRID_32BIT_KERNEL
     cmp     byte [NAME(g_fCPUMIs64bitHost)], 0
@@ -216,11 +272,18 @@ BEGINPROC cpumR0SaveGuestRestoreHostFPUState
 .legacy_mode:
 %endif ; VBOX_WITH_HYBRID_32BIT_KERNEL
 
-    fxsave  [xDX + CPUMCPU.Guest.fpu]   ; ASSUMES that all VT-x/AMD-V boxes support fxsave/fxrstor (safe assumption)
+%ifdef RT_ARCH_AMD64
+    ; Use explicit REX prefix. See @bugref{6398}.
+    o64 fxsave  [xDX + CPUMCPU.Guest.fpu]   ; ASSUMES that all VT-x/AMD-V boxes support fxsave/fxrstor (safe assumption)
+    o64 fxrstor [xDX + CPUMCPU.Host.fpu]
+%else
+    fxsave  [xDX + CPUMCPU.Guest.fpu]       ; ASSUMES that all VT-x/AMD-V boxes support fxsave/fxrstor (safe assumption)
     fxrstor [xDX + CPUMCPU.Host.fpu]
+%endif
 
 .done:
-    mov     cr0, xCX                    ; and restore old CR0 again ;; @todo optimize this.
+    ; Restore CR0 from xCX if it was previously saved.
+    RESTORE_CR0
     and     dword [xDX + CPUMCPU.fUseFlags], ~CPUM_USED_FPU
     popf
 .fpu_not_used:
@@ -232,8 +295,8 @@ ALIGNCODE(16)
 BITS 64
 .sixtyfourbit_mode:
     and     edx, 0ffffffffh
-    fxsave  [rdx + CPUMCPU.Guest.fpu]
-    fxrstor [rdx + CPUMCPU.Host.fpu]
+    o64 fxsave  [rdx + CPUMCPU.Guest.fpu]
+    o64 fxrstor [rdx + CPUMCPU.Host.fpu]
     jmp far [.fpret wrt rip]
 .fpret:                                 ; 16:32 Pointer to .the_end.
     dd      .done, NAME(SUPR0AbsKernelCS)
@@ -268,10 +331,9 @@ BEGINPROC cpumR0RestoreHostFPUState
     pushf                               ; The darwin kernel can get upset or upset things if an
     cli                                 ; interrupt occurs while we're doing fxsave/fxrstor/cr0.
 
-    mov     xAX, cr0
-    mov     xCX, xAX                    ; save old CR0
-    and     xAX, ~(X86_CR0_TS | X86_CR0_EM)
-    mov     cr0, xAX
+    ; Clear CR0 FPU bits to not cause exceptions, uses xCX
+    SAVE_CR0_CLEAR_FPU_TRAPS
+    ; Do NOT use xCX from this point!
 
 %ifdef VBOX_WITH_HYBRID_32BIT_KERNEL
     cmp     byte [NAME(g_fCPUMIs64bitHost)], 0
@@ -281,10 +343,15 @@ BEGINPROC cpumR0RestoreHostFPUState
 .legacy_mode:
 %endif ; VBOX_WITH_HYBRID_32BIT_KERNEL
 
+%ifdef RT_ARCH_AMD64
+    o64 fxrstor [xDX + CPUMCPU.Host.fpu]
+%else
     fxrstor [xDX + CPUMCPU.Host.fpu]
+%endif
 
 .done:
-    mov     cr0, xCX                    ; and restore old CR0 again
+    ; Restore CR0 from xCX if it was previously saved.
+    RESTORE_CR0
     and     dword [xDX + CPUMCPU.fUseFlags], ~CPUM_USED_FPU
     popf
 .fpu_not_used:
@@ -296,7 +363,7 @@ ALIGNCODE(16)
 BITS 64
 .sixtyfourbit_mode:
     and     edx, 0ffffffffh
-    fxrstor [rdx + CPUMCPU.Host.fpu]
+    o64 fxrstor [rdx + CPUMCPU.Host.fpu]
     jmp far [.fpret wrt rip]
 .fpret:                                 ; 16:32 Pointer to .the_end.
     dd      .done, NAME(SUPR0AbsKernelCS)
