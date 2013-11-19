@@ -58,24 +58,18 @@ namespace UIDefs
     enum RenderMode
     {
           InvalidRenderMode
-        , TimerMode
         , QImageMode
-        , SDLMode
-        , DDRAWMode
+#ifdef VBOX_GUI_USE_QUARTZ2D
         , Quartz2DMode
-#ifdef VBOX_GUI_USE_QGLFB
-        , QGLMode
-#endif /* VBOX_GUI_USE_QGLFB */
+#endif /* VBOX_GUI_USE_QUARTZ2D */
     };
 
     /* Additional Qt event types: */
     enum UIEventType
     {
           ResizeEventType = QEvent::User + 101
-        , RepaintEventType
         , SetRegionEventType
         , ModifierKeyChangeEventType
-        , MediaEnumEventType
 #ifdef Q_WS_WIN
         , ShellExecuteEventType
 #endif /* Q_WS_WIN */
@@ -129,6 +123,7 @@ namespace UIDefs
 
     /* Machine-window declarations: */
     extern const char* GUI_RestrictedRuntimeMenus;
+    extern const char* GUI_RestrictedVisualStates;
     extern const char* GUI_Input_MachineShortcuts;
     extern const char* GUI_LastNormalWindowPosition;
     extern const char* GUI_LastScaleWindowPosition;
@@ -172,10 +167,6 @@ namespace UIDefs
     extern const char* GUI_SuppressMessages;
     extern const char* GUI_InvertMessageOption;
 
-    /* Registration dialog declarations: */
-    extern const char* GUI_RegistrationDlgWinID;
-    extern const char* GUI_RegistrationData;
-
     /* Update manager declarations: */
     extern const char* GUI_UpdateDate;
     extern const char* GUI_UpdateCheckCount;
@@ -210,19 +201,24 @@ namespace UIDefs
     extern const char* GUI_Accelerate2D_PixformatAYUV;
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
-#ifdef VBOX_GUI_WITH_SYSTRAY
-    /* Tray icon declarations: */
-    extern const char* GUI_TrayIconWinID;
-    extern const char* GUI_TrayIconEnabled;
-    extern const char* GUI_MainWindowCount;
-#endif /* VBOX_GUI_WITH_SYSTRAY */
-
     /* File extensions declarations: */
     extern QStringList VBoxFileExts;
     extern QStringList VBoxExtPackFileExts;
     extern QStringList OVFFileExts;
 }
 using namespace UIDefs /* globally */;
+
+#ifdef Q_WS_MAC
+/** Known MacOS X releases. */
+enum MacOSXRelease
+{
+    MacOSXRelease_Unknown,
+    MacOSXRelease_SnowLeopard,
+    MacOSXRelease_Lion,
+    MacOSXRelease_MountainLion,
+    MacOSXRelease_Mavericks
+};
+#endif /* Q_WS_MAC */
 
 struct StorageSlot
 {
@@ -243,6 +239,18 @@ struct StorageSlot
 };
 Q_DECLARE_METATYPE(StorageSlot);
 
+/* Common UI size suffixes: */
+enum SizeSuffix
+{
+    SizeSuffix_Byte = 0,
+    SizeSuffix_KiloByte,
+    SizeSuffix_MegaByte,
+    SizeSuffix_GigaByte,
+    SizeSuffix_TeraByte,
+    SizeSuffix_PetaByte,
+    SizeSuffix_Max
+};
+
 /* Runtime UI menu types: */
 enum RuntimeMenuType
 {
@@ -253,6 +261,17 @@ enum RuntimeMenuType
     RuntimeMenuType_Debug   = RT_BIT(3),
     RuntimeMenuType_Help    = RT_BIT(4),
     RuntimeMenuType_All     = 0xFF
+};
+
+/* Runtime UI visual-state types: */
+enum UIVisualStateType
+{
+    UIVisualStateType_Invalid    = 0,
+    UIVisualStateType_Normal     = RT_BIT(0),
+    UIVisualStateType_Fullscreen = RT_BIT(1),
+    UIVisualStateType_Seamless   = RT_BIT(2),
+    UIVisualStateType_Scale      = RT_BIT(3),
+    UIVisualStateType_All        = 0xFF
 };
 
 /* Details element type: */
@@ -284,7 +303,6 @@ enum GlobalSettingsPageType
     GlobalSettingsPageType_Update,
     GlobalSettingsPageType_Language,
     GlobalSettingsPageType_Display,
-    GlobalSettingsPageType_USB,
     GlobalSettingsPageType_Network,
     GlobalSettingsPageType_Extensions,
     GlobalSettingsPageType_Proxy,

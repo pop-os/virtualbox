@@ -33,22 +33,24 @@
  * @{
  */
 
-/**
- * Enable or disable tracking of Shadow GDT/LDT/TSS.
+/** Enable or disable tracking of Shadow GDT/LDT/TSS.
  * @{
  */
-#define SELM_TRACK_SHADOW_GDT_CHANGES
-#define SELM_TRACK_SHADOW_LDT_CHANGES
-#define SELM_TRACK_SHADOW_TSS_CHANGES
+#if defined(VBOX_WITH_RAW_MODE) || defined(DOXYGEN_RUNNING)
+# define SELM_TRACK_SHADOW_GDT_CHANGES
+# define SELM_TRACK_SHADOW_LDT_CHANGES
+# define SELM_TRACK_SHADOW_TSS_CHANGES
+#endif
 /** @} */
 
-/**
- * Enable or disable tracking of Guest GDT/LDT/TSS.
+/** Enable or disable tracking of Guest GDT/LDT/TSS.
  * @{
  */
-#define SELM_TRACK_GUEST_GDT_CHANGES
-#define SELM_TRACK_GUEST_LDT_CHANGES
-#define SELM_TRACK_GUEST_TSS_CHANGES
+#if defined(VBOX_WITH_RAW_MODE) || defined(DOXYGEN_RUNNING)
+# define SELM_TRACK_GUEST_GDT_CHANGES
+# define SELM_TRACK_GUEST_LDT_CHANGES
+# define SELM_TRACK_GUEST_TSS_CHANGES
+#endif
 /** @} */
 
 
@@ -163,12 +165,9 @@ typedef struct SELM
     /** Indicates that the Guest GDT access handler have been registered. */
     bool                    fGDTRangeRegistered;
 
-    /** Indicates whether LDT/GDT/TSS monitoring and syncing is disabled. */
-    bool                    fDisableMonitoring;
-
     /** Indicates whether the TSS stack selector & base address need to be refreshed.  */
     bool                    fSyncTSSRing0Stack;
-    bool                    fPadding2[1+2];
+    bool                    fPadding2[4];
 
     /** SELMR3UpdateFromCPUM() profiling. */
     STAMPROFILE             StatUpdateFromCPUM;

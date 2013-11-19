@@ -80,6 +80,7 @@ static const RTLDROPS g_rtldrNativeOps =
     NULL,
     NULL,
     NULL,
+    NULL,
     42
 };
 
@@ -127,11 +128,26 @@ RTDECL(int) RTLdrLoadEx(const char *pszFilename, PRTLDRMOD phLdrMod, uint32_t fF
     PRTLDRMODNATIVE pMod = (PRTLDRMODNATIVE)RTMemAlloc(sizeof(*pMod));
     if (pMod)
     {
-        pMod->Core.u32Magic = RTLDRMOD_MAGIC;
-        pMod->Core.eState   = LDR_STATE_LOADED;
-        pMod->Core.pOps     = &g_rtldrNativeOps;
-        pMod->hNative       = ~(uintptr_t)0;
-        pMod->fFlags        = fFlags;
+        pMod->Core.u32Magic     = RTLDRMOD_MAGIC;
+        pMod->Core.eState       = LDR_STATE_LOADED;
+        pMod->Core.pOps         = &g_rtldrNativeOps;
+        pMod->Core.pReader      = NULL;
+        pMod->Core.enmFormat    = RTLDRFMT_NATIVE;
+        pMod->Core.enmType      = RTLDRTYPE_SHARED_LIBRARY_RELOCATABLE; /* approx */
+#ifdef RT_BIG_ENDIAN
+        pMod->Core.enmEndian    = RTLDRENDIAN_BIG;
+#else
+        pMod->Core.enmEndian    = RTLDRENDIAN_LITTLE;
+#endif
+#ifdef RT_ARCH_AMD64
+        pMod->Core.enmArch      = RTLDRARCH_AMD64;
+#elif defined(RT_ARCH_X86)
+        pMod->Core.enmArch      = RTLDRARCH_X86_32;
+#else
+        pMod->Core.enmArch      = RTLDRARCH_HOST;
+#endif
+        pMod->hNative           = ~(uintptr_t)0;
+        pMod->fFlags            = fFlags;
 
         /*
          * Attempt to open the module.

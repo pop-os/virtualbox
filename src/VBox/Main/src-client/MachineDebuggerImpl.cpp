@@ -1,10 +1,10 @@
 /* $Id: MachineDebuggerImpl.cpp $ */
 /** @file
- * VBox IMachineDebugger COM class implementation.
+ * VBox IMachineDebugger COM class implementation (VBoxC).
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,9 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/*******************************************************************************
+*   Header Files                                                               *
+*******************************************************************************/
 #include "MachineDebuggerImpl.h"
 
 #include "Global.h"
@@ -26,18 +29,11 @@
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/patm.h>
 #include <VBox/vmm/csam.h>
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/uvm.h>
 #include <VBox/vmm/tm.h>
-#include <VBox/vmm/hwaccm.h>
+#include <VBox/vmm/hm.h>
 #include <VBox/err.h>
 #include <iprt/cpp/utils.h>
-
-// defines
-/////////////////////////////////////////////////////////////////////////////
-
-
-// globals
-/////////////////////////////////////////////////////////////////////////////
 
 
 // constructor / destructor
@@ -85,6 +81,8 @@ HRESULT MachineDebugger::init (Console *aParent)
 
     unconst(mParent) = aParent;
 
+    for (unsigned i = 0; i < RT_ELEMENTS(maiQueuedEmExecPolicyParams); i++)
+        maiQueuedEmExecPolicyParams[i] = UINT8_MAX;
     mSingleStepQueued = ~0;
     mRecompileUserQueued = ~0;
     mRecompileSupervisorQueued = ~0;
@@ -171,6 +169,68 @@ STDMETHODIMP MachineDebugger::COMSETTER(SingleStep)(BOOL a_fEnable)
 }
 
 /**
+ * Internal worker for getting an EM executable policy setting.
+ *
+ * @returns COM status code.
+ * @param   enmPolicy           Which EM policy.
+ * @param   pfEnforced          Where to return the policy setting.
+ */
+HRESULT MachineDebugger::getEmExecPolicyProperty(EMEXECPOLICY enmPolicy, BOOL *pfEnforced)
+{
+    CheckComArgOutPointerValid(pfEnforced);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        if (queueSettings())
+            *pfEnforced = maiQueuedEmExecPolicyParams[enmPolicy] == 1;
+        else
+        {
+            bool fEnforced = false;
+            Console::SafeVMPtrQuiet ptrVM(mParent);
+            hrc = ptrVM.rc();
+            if (SUCCEEDED(hrc))
+                EMR3QueryExecutionPolicy(ptrVM.rawUVM(), enmPolicy, &fEnforced);
+            *pfEnforced = fEnforced;
+        }
+    }
+    return hrc;
+}
+
+/**
+ * Internal worker for setting an EM executable policy.
+ *
+ * @returns COM status code.
+ * @param   enmPolicy           Which policy to change.
+ * @param   fEnforce            Whether to enforce the policy or not.
+ */
+HRESULT MachineDebugger::setEmExecPolicyProperty(EMEXECPOLICY enmPolicy, BOOL fEnforce)
+{
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        if (queueSettings())
+            maiQueuedEmExecPolicyParams[enmPolicy] = fEnforce ? 1 : 0;
+        else
+        {
+            Console::SafeVMPtrQuiet ptrVM(mParent);
+            hrc = ptrVM.rc();
+            if (SUCCEEDED(hrc))
+            {
+                int vrc = EMR3SetExecutionPolicy(ptrVM.rawUVM(), enmPolicy, fEnforce != FALSE);
+                if (RT_FAILURE(vrc))
+                    hrc = setError(VBOX_E_VM_ERROR, tr("EMR3SetExecutionPolicy failed with %Rrc"), vrc);
+            }
+        }
+    }
+    return hrc;
+}
+
+/**
  * Returns the current recompile user mode code flag.
  *
  * @returns COM status code
@@ -178,21 +238,7 @@ STDMETHODIMP MachineDebugger::COMSETTER(SingleStep)(BOOL a_fEnable)
  */
 STDMETHODIMP MachineDebugger::COMGETTER(RecompileUser) (BOOL *aEnabled)
 {
-    CheckComArgOutPointerValid(aEnabled);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    Console::SafeVMPtrQuiet pVM (mParent);
-
-    if (pVM.isOk())
-        *aEnabled = !EMIsRawRing3Enabled (pVM.raw());
-    else
-        *aEnabled = false;
-
-    return S_OK;
+    return getEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING3, aEnabled);
 }
 
 /**
@@ -204,27 +250,7 @@ STDMETHODIMP MachineDebugger::COMGETTER(RecompileUser) (BOOL *aEnabled)
 STDMETHODIMP MachineDebugger::COMSETTER(RecompileUser)(BOOL aEnable)
 {
     LogFlowThisFunc(("enable=%d\n", aEnable));
-
-    AutoCaller autoCaller(this);
-    HRESULT hrc = autoCaller.rc();
-    if (SUCCEEDED(hrc))
-    {
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-        if (queueSettings())
-            mRecompileUserQueued = aEnable; // queue the request
-        else
-        {
-            Console::SafeVMPtr ptrVM(mParent);
-            hrc = ptrVM.rc();
-            if (SUCCEEDED(hrc))
-            {
-                int vrc = EMR3SetExecutionPolicy(ptrVM.raw(), EMEXECPOLICY_RECOMPILE_RING3, RT_BOOL(aEnable));
-                if (RT_FAILURE(vrc))
-                    hrc = setError(VBOX_E_VM_ERROR, tr("EMR3SetExecutionPolicy failed with %Rrc"), vrc);
-            }
-        }
-    }
-    return hrc;
+    return setEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING3, aEnable);
 }
 
 /**
@@ -235,21 +261,7 @@ STDMETHODIMP MachineDebugger::COMSETTER(RecompileUser)(BOOL aEnable)
  */
 STDMETHODIMP MachineDebugger::COMGETTER(RecompileSupervisor) (BOOL *aEnabled)
 {
-    CheckComArgOutPointerValid(aEnabled);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    Console::SafeVMPtrQuiet pVM (mParent);
-
-    if (pVM.isOk())
-        *aEnabled = !EMIsRawRing0Enabled (pVM.raw());
-    else
-        *aEnabled = false;
-
-    return S_OK;
+    return getEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING0, aEnabled);
 }
 
 /**
@@ -261,27 +273,30 @@ STDMETHODIMP MachineDebugger::COMGETTER(RecompileSupervisor) (BOOL *aEnabled)
 STDMETHODIMP MachineDebugger::COMSETTER(RecompileSupervisor)(BOOL aEnable)
 {
     LogFlowThisFunc(("enable=%d\n", aEnable));
+    return setEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING0, aEnable);
+}
 
-    AutoCaller autoCaller(this);
-    HRESULT hrc = autoCaller.rc();
-    if (SUCCEEDED(hrc))
-    {
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-        if (queueSettings())
-            mRecompileSupervisorQueued = aEnable; // queue the request
-        else
-        {
-            Console::SafeVMPtr ptrVM(mParent);
-            hrc = ptrVM.rc();
-            if (SUCCEEDED(hrc))
-            {
-                int vrc = EMR3SetExecutionPolicy(ptrVM.raw(), EMEXECPOLICY_RECOMPILE_RING0, RT_BOOL(aEnable));
-                if (RT_FAILURE(vrc))
-                    hrc = setError(VBOX_E_VM_ERROR, tr("EMR3SetExecutionPolicy failed with %Rrc"), vrc);
-            }
-        }
-    }
-    return hrc;
+/**
+ * Returns the current execute-all-in-IEM setting.
+ *
+ * @returns COM status code
+ * @param   aEnabled    Address of result variable.
+ */
+STDMETHODIMP MachineDebugger::COMGETTER(ExecuteAllInIEM) (BOOL *aEnabled)
+{
+    return getEmExecPolicyProperty(EMEXECPOLICY_IEM_ALL, aEnabled);
+}
+
+/**
+ * Changes the execute-all-in-IEM setting.
+ *
+ * @returns COM status code
+ * @param   aEnable     New setting.
+ */
+STDMETHODIMP MachineDebugger::COMSETTER(ExecuteAllInIEM)(BOOL aEnable)
+{
+    LogFlowThisFunc(("enable=%d\n", aEnable));
+    return setEmExecPolicyProperty(EMEXECPOLICY_IEM_ALL, aEnable);
 }
 
 /**
@@ -295,15 +310,17 @@ STDMETHODIMP MachineDebugger::COMGETTER(PATMEnabled) (BOOL *aEnabled)
     CheckComArgOutPointerValid(aEnabled);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
+#ifdef VBOX_WITH_RAW_MODE
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    Console::SafeVMPtrQuiet pVM (mParent);
-
-    if (pVM.isOk())
-        *aEnabled = PATMIsEnabled (pVM.raw());
+    Console::SafeVMPtrQuiet ptrVM(mParent);
+    if (ptrVM.isOk())
+        *aEnabled = PATMR3IsEnabled (ptrVM.rawUVM());
     else
+#endif
         *aEnabled = false;
 
     return S_OK;
@@ -322,6 +339,7 @@ STDMETHODIMP MachineDebugger::COMSETTER(PATMEnabled) (BOOL aEnable)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
+#ifdef VBOX_WITH_RAW_MODE
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (queueSettings())
@@ -331,11 +349,18 @@ STDMETHODIMP MachineDebugger::COMSETTER(PATMEnabled) (BOOL aEnable)
         return S_OK;
     }
 
-    Console::SafeVMPtr pVM(mParent);
-    if (FAILED(pVM.rc())) return pVM.rc();
+    Console::SafeVMPtr ptrVM(mParent);
+    if (FAILED(ptrVM.rc()))
+        return ptrVM.rc();
 
-    PATMR3AllowPatching (pVM, aEnable);
+    int vrc = PATMR3AllowPatching(ptrVM.rawUVM(), RT_BOOL(aEnable));
+    if (RT_FAILURE(vrc))
+        return setError(VBOX_E_VM_ERROR, tr("PATMR3AllowPatching returned %Rrc"), vrc);
 
+#else  /* !VBOX_WITH_RAW_MODE */
+    if (aEnable)
+        return setError(VBOX_E_VM_ERROR, tr("PATM not present"), VERR_NOT_SUPPORTED);
+#endif /* !VBOX_WITH_RAW_MODE */
     return S_OK;
 }
 
@@ -352,13 +377,15 @@ STDMETHODIMP MachineDebugger::COMGETTER(CSAMEnabled) (BOOL *aEnabled)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
+#ifdef VBOX_WITH_RAW_MODE
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    Console::SafeVMPtrQuiet pVM (mParent);
+    Console::SafeVMPtrQuiet ptrVM(mParent);
 
-    if (pVM.isOk())
-        *aEnabled = CSAMIsEnabled (pVM.raw());
+    if (ptrVM.isOk())
+        *aEnabled = CSAMR3IsEnabled(ptrVM.rawUVM());
     else
+#endif /* VBOX_WITH_RAW_MODE */
         *aEnabled = false;
 
     return S_OK;
@@ -377,6 +404,7 @@ STDMETHODIMP MachineDebugger::COMSETTER(CSAMEnabled) (BOOL aEnable)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
+#ifdef VBOX_WITH_RAW_MODE
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (queueSettings())
@@ -386,20 +414,18 @@ STDMETHODIMP MachineDebugger::COMSETTER(CSAMEnabled) (BOOL aEnable)
         return S_OK;
     }
 
-    Console::SafeVMPtr pVM(mParent);
-    if (FAILED(pVM.rc())) return pVM.rc();
+    Console::SafeVMPtr ptrVM(mParent);
+    if (FAILED(ptrVM.rc()))
+        return ptrVM.rc();
 
-    int vrc;
-    if (aEnable)
-        vrc = CSAMEnableScanning (pVM);
-    else
-        vrc = CSAMDisableScanning (pVM);
-
+    int vrc = CSAMR3SetScanningEnabled(ptrVM.rawUVM(), aEnable != FALSE);
     if (RT_FAILURE(vrc))
-    {
-        /** @todo handle error case */
-    }
+        return setError(VBOX_E_VM_ERROR, tr("CSAMR3SetScanningEnabled returned %Rrc"), vrc);
 
+#else  /* !VBOX_WITH_RAW_MODE */
+    if (aEnable)
+        return setError(VBOX_E_VM_ERROR, tr("CASM not present"), VERR_NOT_SUPPORTED);
+#endif /* !VBOX_WITH_RAW_MODE */
     return S_OK;
 }
 
@@ -450,11 +476,11 @@ STDMETHODIMP MachineDebugger::COMSETTER(LogEnabled) (BOOL aEnabled)
         return S_OK;
     }
 
-    Console::SafeVMPtr pVM(mParent);
-    if (FAILED(pVM.rc())) return pVM.rc();
+    Console::SafeVMPtr ptrVM(mParent);
+    if (FAILED(ptrVM.rc())) return ptrVM.rc();
 
 #ifdef LOG_ENABLED
-    int vrc = DBGFR3LogModifyFlags (pVM, aEnabled ? "enabled" : "disabled");
+    int vrc = DBGFR3LogModifyFlags(ptrVM.rawUVM(), aEnabled ? "enabled" : "disabled");
     if (RT_FAILURE(vrc))
     {
         /** @todo handle error code. */
@@ -603,10 +629,10 @@ STDMETHODIMP MachineDebugger::COMGETTER(HWVirtExEnabled) (BOOL *aEnabled)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    Console::SafeVMPtrQuiet pVM (mParent);
+    Console::SafeVMPtrQuiet ptrVM(mParent);
 
-    if (pVM.isOk())
-        *aEnabled = HWACCMIsEnabled (pVM.raw());
+    if (ptrVM.isOk())
+        *aEnabled = HMR3IsEnabled(ptrVM.rawUVM());
     else
         *aEnabled = false;
 
@@ -619,19 +645,20 @@ STDMETHODIMP MachineDebugger::COMGETTER(HWVirtExEnabled) (BOOL *aEnabled)
  * @returns COM status code
  * @param   aEnabled address of result variable
  */
-STDMETHODIMP MachineDebugger::COMGETTER(HWVirtExNestedPagingEnabled) (BOOL *aEnabled)
+STDMETHODIMP MachineDebugger::COMGETTER(HWVirtExNestedPagingEnabled)(BOOL *aEnabled)
 {
     CheckComArgOutPointerValid(aEnabled);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    Console::SafeVMPtrQuiet pVM (mParent);
+    Console::SafeVMPtrQuiet ptrVM(mParent);
 
-    if (pVM.isOk())
-        *aEnabled = HWACCMR3IsNestedPagingActive (pVM.raw());
+    if (ptrVM.isOk())
+        *aEnabled = HMR3IsNestedPagingActive(ptrVM.rawUVM());
     else
         *aEnabled = false;
 
@@ -649,14 +676,41 @@ STDMETHODIMP MachineDebugger::COMGETTER(HWVirtExVPIDEnabled) (BOOL *aEnabled)
     CheckComArgOutPointerValid(aEnabled);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    Console::SafeVMPtrQuiet pVM (mParent);
+    Console::SafeVMPtrQuiet ptrVM(mParent);
 
-    if (pVM.isOk())
-        *aEnabled = HWACCMR3IsVPIDActive (pVM.raw());
+    if (ptrVM.isOk())
+        *aEnabled = HMR3IsVpidActive(ptrVM.rawUVM());
+    else
+        *aEnabled = false;
+
+    return S_OK;
+}
+
+/**
+ * Returns the current unrestricted execution setting.
+ *
+ * @returns COM status code
+ * @param   aEnabled address of result variable
+ */
+STDMETHODIMP MachineDebugger::COMGETTER(HWVirtExUXEnabled) (BOOL *aEnabled)
+{
+    CheckComArgOutPointerValid(aEnabled);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    Console::SafeVMPtrQuiet ptrVM(mParent);
+
+    if (ptrVM.isOk())
+        *aEnabled = HMR3IsUXActive(ptrVM.rawUVM());
     else
         *aEnabled = false;
 
@@ -680,7 +734,7 @@ STDMETHODIMP MachineDebugger::COMGETTER(OSName)(BSTR *a_pbstrName)
              * Do the job and try convert the name.
              */
             char szName[64];
-            int vrc = DBGFR3OSQueryNameAndVersion(ptrVM.raw(), szName, sizeof(szName), NULL, 0);
+            int vrc = DBGFR3OSQueryNameAndVersion(ptrVM.rawUVM(), szName, sizeof(szName), NULL, 0);
             if (RT_SUCCESS(vrc))
             {
                 try
@@ -717,7 +771,7 @@ STDMETHODIMP MachineDebugger::COMGETTER(OSVersion)(BSTR *a_pbstrVersion)
              * Do the job and try convert the name.
              */
             char szVersion[256];
-            int vrc = DBGFR3OSQueryNameAndVersion(ptrVM.raw(), NULL, 0, szVersion, sizeof(szVersion));
+            int vrc = DBGFR3OSQueryNameAndVersion(ptrVM.rawUVM(), NULL, 0, szVersion, sizeof(szVersion));
             if (RT_SUCCESS(vrc))
             {
                 try
@@ -752,12 +806,13 @@ STDMETHODIMP MachineDebugger::COMGETTER(PAEEnabled) (BOOL *aEnabled)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    Console::SafeVMPtrQuiet pVM (mParent);
+    Console::SafeVMPtrQuiet ptrVM(mParent);
 
-    if (pVM.isOk())
+    if (ptrVM.isOk())
     {
-        uint64_t cr4 = CPUMGetGuestCR4 (VMMGetCpu0(pVM.raw()));
-        *aEnabled = !!(cr4 & X86_CR4_PAE);
+        uint32_t cr4;
+        int rc = DBGFR3RegCpuQueryU32(ptrVM.rawUVM(), 0 /*idCpu*/,  DBGFREG_CR4, &cr4); AssertRC(rc);
+        *aEnabled = RT_BOOL(cr4 & X86_CR4_PAE);
     }
     else
         *aEnabled = false;
@@ -784,7 +839,7 @@ STDMETHODIMP MachineDebugger::COMGETTER(VirtualTimeRate)(ULONG *a_puPct)
         Console::SafeVMPtr ptrVM(mParent);
         hrc = ptrVM.rc();
         if (SUCCEEDED(hrc))
-            *a_puPct = TMGetWarpDrive(ptrVM.raw());
+            *a_puPct = TMR3GetWarpDrive(ptrVM.rawUVM());
     }
 
     return hrc;
@@ -814,7 +869,7 @@ STDMETHODIMP MachineDebugger::COMSETTER(VirtualTimeRate)(ULONG a_uPct)
             hrc = ptrVM.rc();
             if (SUCCEEDED(hrc))
             {
-                int vrc = TMR3SetWarpDrive(ptrVM.raw(), a_uPct);
+                int vrc = TMR3SetWarpDrive(ptrVM.rawUVM(), a_uPct);
                 if (RT_FAILURE(vrc))
                     hrc = setError(VBOX_E_VM_ERROR, tr("TMR3SetWarpDrive(, %u) failed with rc=%Rrc"), a_uPct, vrc);
             }
@@ -825,7 +880,7 @@ STDMETHODIMP MachineDebugger::COMSETTER(VirtualTimeRate)(ULONG a_uPct)
 }
 
 /**
- * Hack for getting the VM handle.
+ * Hack for getting the user mode VM handle (UVM).
  *
  * This is only temporary (promise) while prototyping the debugger.
  *
@@ -833,10 +888,12 @@ STDMETHODIMP MachineDebugger::COMSETTER(VirtualTimeRate)(ULONG a_uPct)
  * @param   a_u64Vm     Where to store the vm handle. Since there is no
  *                      uintptr_t in COM, we're using the max integer.
  *                      (No, ULONG is not pointer sized!)
+ * @remarks The returned handle must be passed to VMR3ReleaseUVM()!
+ * @remarks Prior to 4.3 this returned PVM.
  */
-STDMETHODIMP MachineDebugger::COMGETTER(VM)(LONG64 *a_u64Vm)
+STDMETHODIMP MachineDebugger::COMGETTER(VM)(LONG64 *a_i64Vm)
 {
-    CheckComArgOutPointerValid(a_u64Vm);
+    CheckComArgOutPointerValid(a_i64Vm);
 
     AutoCaller autoCaller(this);
     HRESULT hrc = autoCaller.rc();
@@ -847,10 +904,13 @@ STDMETHODIMP MachineDebugger::COMGETTER(VM)(LONG64 *a_u64Vm)
         Console::SafeVMPtr ptrVM(mParent);
         hrc = ptrVM.rc();
         if (SUCCEEDED(hrc))
-            *a_u64Vm = (intptr_t)ptrVM.raw();
+        {
+            VMR3RetainUVM(ptrVM.rawUVM());
+            *a_i64Vm = (intptr_t)ptrVM.rawUVM();
+        }
 
         /*
-         * Note! pVM protection provided by SafeVMPtr is no long effective
+         * Note! ptrVM protection provided by SafeVMPtr is no long effective
          *       after we return from this method.
          */
     }
@@ -877,7 +937,7 @@ STDMETHODIMP MachineDebugger::DumpGuestCore(IN_BSTR a_bstrFilename, IN_BSTR a_bs
         hrc = ptrVM.rc();
         if (SUCCEEDED(hrc))
         {
-            int vrc = DBGFR3CoreWrite(ptrVM, strFilename.c_str(), false /*fReplaceFile*/);
+            int vrc = DBGFR3CoreWrite(ptrVM.rawUVM(), strFilename.c_str(), false /*fReplaceFile*/);
             if (RT_SUCCESS(vrc))
                 hrc = S_OK;
             else
@@ -1037,7 +1097,7 @@ STDMETHODIMP MachineDebugger::Info(IN_BSTR a_bstrName, IN_BSTR a_bstrArgs, BSTR 
              */
             MACHINEDEBUGGERINOFHLP Hlp;
             MachineDebuggerInfoInit(&Hlp);
-            int vrc = DBGFR3Info(ptrVM.raw(),  strName.c_str(),  strArgs.c_str(), &Hlp.Core);
+            int vrc = DBGFR3Info(ptrVM.rawUVM(),  strName.c_str(),  strArgs.c_str(), &Hlp.Core);
             if (RT_SUCCESS(vrc))
             {
                 if (!Hlp.fOutOfMemory)
@@ -1079,11 +1139,11 @@ STDMETHODIMP MachineDebugger::InjectNMI()
         hrc = ptrVM.rc();
         if (SUCCEEDED(hrc))
         {
-            int vrc = HWACCMR3InjectNMI(ptrVM);
+            int vrc = DBGFR3InjectNMI(ptrVM.rawUVM(), 0);
             if (RT_SUCCESS(vrc))
                 hrc = S_OK;
             else
-                hrc = setError(E_FAIL, tr("HWACCMR3InjectNMI failed with %Rrc"), vrc);
+                hrc = setError(E_FAIL, tr("DBGFR3InjectNMI failed with %Rrc"), vrc);
         }
     }
     return hrc;
@@ -1104,7 +1164,7 @@ STDMETHODIMP MachineDebugger::ModifyLogFlags(IN_BSTR a_bstrSettings)
         hrc = ptrVM.rc();
         if (SUCCEEDED(hrc))
         {
-            int vrc = DBGFR3LogModifyFlags(ptrVM, strSettings.c_str());
+            int vrc = DBGFR3LogModifyFlags(ptrVM.rawUVM(), strSettings.c_str());
             if (RT_SUCCESS(vrc))
                 hrc = S_OK;
             else
@@ -1129,7 +1189,7 @@ STDMETHODIMP MachineDebugger::ModifyLogGroups(IN_BSTR a_bstrSettings)
         hrc = ptrVM.rc();
         if (SUCCEEDED(hrc))
         {
-            int vrc = DBGFR3LogModifyGroups(ptrVM, strSettings.c_str());
+            int vrc = DBGFR3LogModifyGroups(ptrVM.rawUVM(), strSettings.c_str());
             if (RT_SUCCESS(vrc))
                 hrc = S_OK;
             else
@@ -1154,7 +1214,7 @@ STDMETHODIMP MachineDebugger::ModifyLogDestinations(IN_BSTR a_bstrSettings)
         hrc = ptrVM.rc();
         if (SUCCEEDED(hrc))
         {
-            int vrc = DBGFR3LogModifyDestinations(ptrVM, strSettings.c_str());
+            int vrc = DBGFR3LogModifyDestinations(ptrVM.rawUVM(), strSettings.c_str());
             if (RT_SUCCESS(vrc))
                 hrc = S_OK;
             else
@@ -1206,7 +1266,7 @@ STDMETHODIMP MachineDebugger::DetectOS(BSTR *a_pbstrName)
              */
 /** @todo automatically load the DBGC plugins or this is a waste of time. */
             char szName[64];
-            int vrc = DBGFR3OSDetect(ptrVM.raw(), szName, sizeof(szName));
+            int vrc = DBGFR3OSDetect(ptrVM.rawUVM(), szName, sizeof(szName));
             if (RT_SUCCESS(vrc) && vrc != VINF_DBGF_OS_NOT_DETCTED)
             {
                 try
@@ -1281,7 +1341,7 @@ STDMETHODIMP MachineDebugger::GetRegister(ULONG a_idCpu, IN_BSTR a_bstrName, BST
              */
             DBGFREGVAL      Value;
             DBGFREGVALTYPE  enmType;
-            int vrc = DBGFR3RegNmQuery(ptrVM.raw(), a_idCpu, strName.c_str(), &Value, &enmType);
+            int vrc = DBGFR3RegNmQuery(ptrVM.rawUVM(), a_idCpu, strName.c_str(), &Value, &enmType);
             if (RT_SUCCESS(vrc))
             {
                 try
@@ -1329,13 +1389,13 @@ STDMETHODIMP MachineDebugger::GetRegisters(ULONG a_idCpu, ComSafeArrayOut(BSTR, 
              * Real work.
              */
             size_t cRegs;
-            int vrc = DBGFR3RegNmQueryAllCount(ptrVM.raw(), &cRegs);
+            int vrc = DBGFR3RegNmQueryAllCount(ptrVM.rawUVM(), &cRegs);
             if (RT_SUCCESS(vrc))
             {
                 PDBGFREGENTRYNM paRegs = (PDBGFREGENTRYNM)RTMemAllocZ(sizeof(paRegs[0]) * cRegs);
                 if (paRegs)
                 {
-                    vrc = DBGFR3RegNmQueryAll(ptrVM.raw(), paRegs, cRegs);
+                    vrc = DBGFR3RegNmQueryAll(ptrVM.rawUVM(), paRegs, cRegs);
                     if (RT_SUCCESS(vrc))
                     {
                         try
@@ -1345,7 +1405,6 @@ STDMETHODIMP MachineDebugger::GetRegisters(ULONG a_idCpu, ComSafeArrayOut(BSTR, 
 
                             for (uint32_t iReg = 0; iReg < cRegs; iReg++)
                             {
-                                char szHex[128];
                                 Bstr bstrValue;
 
                                 hrc = formatRegisterValue(&bstrValue, &paRegs[iReg].Val, paRegs[iReg].enmType);
@@ -1402,12 +1461,12 @@ STDMETHODIMP MachineDebugger::DumpGuestStack(ULONG a_idCpu, BSTR *a_pbstrStack)
  */
 STDMETHODIMP MachineDebugger::ResetStats(IN_BSTR aPattern)
 {
-    Console::SafeVMPtrQuiet pVM (mParent);
+    Console::SafeVMPtrQuiet ptrVM(mParent);
 
-    if (!pVM.isOk())
+    if (!ptrVM.isOk())
         return setError(VBOX_E_INVALID_VM_STATE, "Machine is not running");
 
-    STAMR3Reset(pVM, Utf8Str(aPattern).c_str());
+    STAMR3Reset(ptrVM.rawUVM(), Utf8Str(aPattern).c_str());
 
     return S_OK;
 }
@@ -1418,14 +1477,14 @@ STDMETHODIMP MachineDebugger::ResetStats(IN_BSTR aPattern)
  * @returns COM status code.
  * @param   aPattern            The selection pattern. A bit similar to filename globbing.
  */
-STDMETHODIMP MachineDebugger::DumpStats (IN_BSTR aPattern)
+STDMETHODIMP MachineDebugger::DumpStats(IN_BSTR aPattern)
 {
-    Console::SafeVMPtrQuiet pVM (mParent);
+    Console::SafeVMPtrQuiet ptrVM(mParent);
 
-    if (!pVM.isOk())
+    if (!ptrVM.isOk())
         return setError(VBOX_E_INVALID_VM_STATE, "Machine is not running");
 
-    STAMR3Dump(pVM, Utf8Str(aPattern).c_str());
+    STAMR3Dump(ptrVM.rawUVM(), Utf8Str(aPattern).c_str());
 
     return S_OK;
 }
@@ -1440,13 +1499,13 @@ STDMETHODIMP MachineDebugger::DumpStats (IN_BSTR aPattern)
  */
 STDMETHODIMP MachineDebugger::GetStats (IN_BSTR aPattern, BOOL aWithDescriptions, BSTR *aStats)
 {
-    Console::SafeVMPtrQuiet pVM (mParent);
+    Console::SafeVMPtrQuiet ptrVM (mParent);
 
-    if (!pVM.isOk())
+    if (!ptrVM.isOk())
         return setError(VBOX_E_INVALID_VM_STATE, "Machine is not running");
 
     char *pszSnapshot;
-    int vrc = STAMR3Snapshot(pVM, Utf8Str(aPattern).c_str(), &pszSnapshot, NULL,
+    int vrc = STAMR3Snapshot(ptrVM.rawUVM(), Utf8Str(aPattern).c_str(), &pszSnapshot, NULL,
                              !!aWithDescriptions);
     if (RT_FAILURE(vrc))
         return vrc == VERR_NO_MEMORY ? E_OUTOFMEMORY : E_FAIL;
@@ -1456,6 +1515,7 @@ STDMETHODIMP MachineDebugger::GetStats (IN_BSTR aPattern, BOOL aWithDescriptions
      * Until that's done, this method is kind of useless for debugger statistics GUI because
      * of the amount statistics in a debug build. */
     Bstr(pszSnapshot).detachTo(aStats);
+    STAMR3SnapshotFree(ptrVM.rawUVM(), pszSnapshot);
 
     return S_OK;
 }
@@ -1472,16 +1532,12 @@ void MachineDebugger::flushQueuedSettings()
         COMSETTER(SingleStep)(mSingleStepQueued);
         mSingleStepQueued = ~0;
     }
-    if (mRecompileUserQueued != ~0)
-    {
-        COMSETTER(RecompileUser)(mRecompileUserQueued);
-        mRecompileUserQueued = ~0;
-    }
-    if (mRecompileSupervisorQueued != ~0)
-    {
-        COMSETTER(RecompileSupervisor)(mRecompileSupervisorQueued);
-        mRecompileSupervisorQueued = ~0;
-    }
+    for (unsigned i = 0; i < EMEXECPOLICY_END; i++)
+        if (maiQueuedEmExecPolicyParams[i] != UINT8_MAX)
+        {
+            setEmExecPolicyProperty((EMEXECPOLICY)i, RT_BOOL(maiQueuedEmExecPolicyParams[i]));
+            maiQueuedEmExecPolicyParams[i] = UINT8_MAX;
+        }
     if (mPatmEnabledQueued != ~0)
     {
         COMSETTER(PATMEnabled)(mPatmEnabledQueued);

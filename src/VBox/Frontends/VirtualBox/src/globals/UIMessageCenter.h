@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,7 +21,6 @@
 
 /* Qt includes: */
 #include <QObject>
-#include <QPointer>
 
 /* GUI includes: */
 #include "QIMessageBox.h"
@@ -38,437 +37,328 @@ struct StorageSlot;
 class CGuest;
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 
-/**
- * The UIMessageCenter class is a central place to handle all problem/error
- * situations that happen during application runtime and require the user's
- * attention.
- *
- * The role of this class is to describe the problem and/or the cause of the
- * error to the user and give him the opportunity to select an action (when
- * appropriate).
- *
- * Every problem situation has its own (correspondingly named) method in this
- * class that takes a list of arguments necessary to describe the situation and
- * to provide the appropriate actions. The method then returns the choice to the
- * caller.
- */
+/* Possible message types: */
+enum MessageType
+{
+    MessageType_Info = 1,
+    MessageType_Question,
+    MessageType_Warning,
+    MessageType_Error,
+    MessageType_Critical,
+    MessageType_GuruMeditation
+};
+Q_DECLARE_METATYPE(MessageType);
+
+/* Global message-center object: */
 class UIMessageCenter: public QObject
 {
     Q_OBJECT;
 
+signals:
+
+    /* Notifier: Interthreading stuff: */
+    void sigToShowMessageBox(QWidget *pParent, MessageType type,
+                             const QString &strMessage, const QString &strDetails,
+                             int iButton1, int iButton2, int iButton3,
+                             const QString &strButtonText1, const QString &strButtonText2, const QString &strButtonText3,
+                             const QString &strAutoConfirmId) const;
+
 public:
 
-    enum Type
-    {
-        Info = 1,
-        Question,
-        Warning,
-        Error,
-        Critical,
-        GuruMeditation
-    };
+    /* Static API: Create/destroy stuff: */
+    static void create();
+    static void destroy();
 
-    enum
-    {
-        AutoConfirmed = 0x8000
-    };
+    /* API: Warning registration stuff: */
+    bool warningShown(const QString &strWarningName) const;
+    void setWarningShown(const QString &strWarningName, bool fWarningShown) const;
 
-    bool isAnyWarningShown();
-    bool isAlreadyShown(const QString &strGuardBlockName) const;
-    void setShownStatus(const QString &strGuardBlockName);
-    void clearShownStatus(const QString &strGuardBlockName);
-    void closeAllWarnings();
-
-    int message(QWidget *pParent, Type type, const QString &strMessage,
-                const QString &strDetails = QString::null,
+    /* API: Main message function, used directly only in exceptional cases: */
+    int message(QWidget *pParent, MessageType type,
+                const QString &strMessage,
+                const QString &strDetails,
                 const char *pcszAutoConfirmId = 0,
-                int button1 = 0, int button2 = 0, int button3 = 0,
-                const QString &strText1 = QString::null,
-                const QString &strText2 = QString::null,
-                const QString &strText3 = QString::null) const;
+                int iButton1 = 0, int iButton2 = 0, int iButton3 = 0,
+                const QString &strButtonText1 = QString(),
+                const QString &strButtonText2 = QString(),
+                const QString &strButtonText3 = QString()) const;
 
-    int message(QWidget *pParent, Type type, const QString &strMessage,
-                const char *pcszAutoConfirmId,
-                int button1 = 0, int button2 = 0, int button3 = 0,
-                const QString &strText1 = QString::null,
-                const QString &strText2 = QString::null,
-                const QString &strText3 = QString::null) const
-    {
-        return message(pParent, type, strMessage, QString::null, pcszAutoConfirmId,
-                       button1, button2, button3, strText1, strText2, strText3);
-    }
+    /* API: Wrapper to 'message' function.
+     * Provides single OK button: */
+    void error(QWidget *pParent, MessageType type,
+               const QString &strMessage,
+               const QString &strDetails,
+               const char *pcszAutoConfirmId = 0) const;
 
-    bool messageYesNo(QWidget *pParent, Type type, const QString &strMessage,
-                      const QString &strDetails = QString::null,
-                      const char *pcszAutoConfirmId = 0,
-                      const QString &strYesText = QString::null,
-                      const QString &strNoText = QString::null) const
-    {
-        return(message(pParent, type, strMessage, strDetails, pcszAutoConfirmId,
-                       QIMessageBox::Yes | QIMessageBox::Default,
-                       QIMessageBox::No | QIMessageBox::Escape,
-                       0,
-                       strYesText, strNoText, QString::null) &
-               QIMessageBox::ButtonMask) == QIMessageBox::Yes;
-    }
+    /* API: Wrapper to 'message' function,
+     * Error with question providing two buttons (OK and Cancel by default): */
+    bool errorWithQuestion(QWidget *pParent, MessageType type,
+                           const QString &strMessage,
+                           const QString &strDetails,
+                           const char *pcszAutoConfirmId = 0,
+                           const QString &strOkButtonText = QString(),
+                           const QString &strCancelButtonText = QString()) const;
 
-    bool messageYesNo(QWidget *pParent, Type type, const QString &strMessage,
-                      const char *pcszAutoConfirmId,
-                      const QString &strYesText = QString::null,
-                      const QString &strNoText = QString::null) const
-    {
-        return messageYesNo(pParent, type, strMessage, QString::null,
-                            pcszAutoConfirmId, strYesText, strNoText);
-    }
+    /* API: Wrapper to 'error' function.
+     * Omits details: */
+    void alert(QWidget *pParent, MessageType type,
+               const QString &strMessage,
+               const char *pcszAutoConfirmId = 0) const;
 
-    bool messageOkCancel(QWidget *pParent, Type type, const QString &strMessage,
-                         const QString &strDetails = QString::null,
-                         const char *pcszAutoConfirmId = 0,
-                         const QString &strOkText = QString::null,
-                         const QString &strCancelText = QString::null) const
-    {
-        return(message(pParent, type, strMessage, strDetails, pcszAutoConfirmId,
-                       QIMessageBox::Ok | QIMessageBox::Default,
-                       QIMessageBox::Cancel | QIMessageBox::Escape,
-                       0,
-                       strOkText, strCancelText, QString::null) &
-               QIMessageBox::ButtonMask) == QIMessageBox::Ok;
-    }
+    /* API: Wrapper to 'message' function.
+     * Omits details, provides two or three buttons: */
+    int question(QWidget *pParent, MessageType type,
+                 const QString &strMessage,
+                 const char *pcszAutoConfirmId = 0,
+                 int iButton1 = 0, int iButton2 = 0, int iButton3 = 0,
+                 const QString &strButtonText1 = QString(),
+                 const QString &strButtonText2 = QString(),
+                 const QString &strButtonText3 = QString()) const;
 
-    bool messageOkCancel(QWidget *pParent, Type type, const QString &strMessage,
-                         const char *pcszAutoConfirmId,
-                         const QString &strOkText = QString::null,
-                         const QString &strCancelText = QString::null) const
-    {
-        return messageOkCancel(pParent, type, strMessage, QString::null,
-                               pcszAutoConfirmId, strOkText, strCancelText);
-    }
+    /* API: Wrapper to 'question' function,
+     * Question providing two buttons (OK and Cancel by default): */
+    bool questionBinary(QWidget *pParent, MessageType type,
+                        const QString &strMessage,
+                        const char *pcszAutoConfirmId = 0,
+                        const QString &strOkButtonText = QString(),
+                        const QString &strCancelButtonText = QString()) const;
 
-    int messageWithOption(QWidget *pParent,
-                          Type type,
+    /* API: Wrapper to 'question' function,
+     * Question providing three buttons (Yes, No and Cancel by default): */
+    int questionTrinary(QWidget *pParent, MessageType type,
+                        const QString &strMessage,
+                        const char *pcszAutoConfirmId = 0,
+                        const QString &strChoice1ButtonText = QString(),
+                        const QString &strChoice2ButtonText = QString(),
+                        const QString &strCancelButtonText = QString()) const;
+
+    /* API: One more main function: */
+    int messageWithOption(QWidget *pParent, MessageType type,
                           const QString &strMessage,
                           const QString &strOptionText,
                           bool fDefaultOptionValue = true,
-                          const QString &strDetails = QString::null,
-                          int iButton1 = 0,
-                          int iButton2 = 0,
-                          int iButton3 = 0,
-                          const QString &strButtonName1 = QString::null,
-                          const QString &strButtonName2 = QString::null,
-                          const QString &strButtonName3 = QString::null) const;
+                          int iButton1 = 0, int iButton2 = 0, int iButton3 = 0,
+                          const QString &strButtonText1 = QString(),
+                          const QString &strButtonText2 = QString(),
+                          const QString &strButtonText3 = QString()) const;
 
+    /* API: Progress-dialog stuff: */
     bool showModalProgressDialog(CProgress &progress, const QString &strTitle,
                                  const QString &strImage = "", QWidget *pParent = 0,
-                                 bool fSheetOnDarwin = false, int cMinDuration = 2000);
+                                 int cMinDuration = 2000);
 
-    QWidget* mainWindowShown() const;
-    QWidget* mainMachineWindowShown() const;
-    QWidget* networkManagerOrMainWindowShown() const;
-    QWidget* networkManagerOrMainMachineWindowShown() const;
+    /* API: Main (startup) warnings: */
+#ifdef RT_OS_LINUX
+    void warnAboutWrongUSBMounted() const;
+#endif /* RT_OS_LINUX */
+    void cannotStartSelector() const;
+    void showBETAWarning() const;
+    void showBEBWarning() const;
 
-    bool askForOverridingFile(const QString& strPath, QWidget *pParent  = NULL);
-    bool askForOverridingFiles(const QVector<QString>& strPaths, QWidget *pParent = NULL);
-    bool askForOverridingFileIfExists(const QString& strPath, QWidget *pParent = NULL);
-    bool askForOverridingFilesIfExists(const QVector<QString>& strPaths, QWidget *pParent = NULL);
+    /* API: COM startup warnings: */
+    void cannotInitUserHome(const QString &strUserHome) const;
+    void cannotInitCOM(HRESULT rc) const;
+    void cannotCreateVirtualBox(const CVirtualBox &vbox) const;
 
-    void checkForMountedWrongUSB();
+    /* API: Global warnings: */
+    void cannotFindLanguage(const QString &strLangId, const QString &strNlsPath) const;
+    void cannotLoadLanguage(const QString &strLangFile) const;
+    void cannotLoadGlobalConfig(const CVirtualBox &vbox, const QString &strError) const;
+    void cannotSaveGlobalConfig(const CVirtualBox &vbox) const;
+    void cannotFindMachineByName(const CVirtualBox &vbox, const QString &strName) const;
+    void cannotFindMachineById(const CVirtualBox &vbox, const QString &strId) const;
+    void cannotOpenSession(const CSession &session) const;
+    void cannotOpenSession(const CMachine &machine) const;
+    void cannotOpenSession(const CProgress &progress, const QString &strMachineName) const;
+    void cannotGetMediaAccessibility(const UIMedium &medium) const;
+    void cannotOpenURL(const QString &strUrl) const;
 
-    void showBETAWarning();
-    void showBEBWarning();
-
-#ifdef Q_WS_X11
-    void cannotFindLicenseFiles(const QString &strPath);
-#endif
-    void cannotOpenLicenseFile(QWidget *pParent, const QString &strPath);
-
-    void cannotOpenURL(const QString &strUrl);
-
-    void cannotFindLanguage(const QString &strLangId, const QString &strNlsPath);
-    void cannotLoadLanguage(const QString &strLangFile);
-
-    void cannotInitCOM(HRESULT rc);
-    void cannotInitUserHome(const QString &strUserHome);
-    void cannotCreateVirtualBox(const CVirtualBox &vbox);
-
-    void cannotLoadGlobalConfig(const CVirtualBox &vbox, const QString &strError);
-    void cannotSaveGlobalConfig(const CVirtualBox &vbox);
-    void cannotSetSystemProperties(const CSystemProperties &props);
-
-    void cannotAccessUSB(const COMBaseWithEI &object);
-
-    void cannotCreateMachine(const CVirtualBox &vbox, QWidget *pParent = 0);
-    void cannotCreateMachine(const CVirtualBox &vbox, const CMachine &machine, QWidget *pParent = 0);
-
-    void cannotOpenMachine(QWidget *pParent, const QString &strMachinePath, const CVirtualBox &vbox);
-    void cannotRegisterMachine(const CVirtualBox &vbox, const CMachine &machine, QWidget *pParent);
-    void cannotReregisterMachine(QWidget *pParent, const QString &strMachinePath, const QString &strMachineName);
-    void cannotApplyMachineSettings(const CMachine &machine, const COMResult &res);
-    void cannotSaveMachineSettings(const CMachine &machine, QWidget *pParent = 0);
-    void cannotLoadMachineSettings(const CMachine &machine, bool fStrict = true, QWidget *pParent = 0);
-
-    bool confirmedSettingsReloading(QWidget *pParent);
-    void warnAboutStateChange(QWidget *pParent);
-
-    void cannotStartMachine(const CConsole &console);
-    void cannotStartMachine(const CProgress &progress);
-    void cannotPauseMachine(const CConsole &console);
-    void cannotResumeMachine(const CConsole &console);
-    void cannotACPIShutdownMachine(const CConsole &console);
+    /* API: Selector warnings: */
+    void cannotOpenMachine(const CVirtualBox &vbox, const QString &strMachinePath) const;
+    void cannotReregisterExistingMachine(const QString &strMachinePath, const QString &strMachineName) const;
+    void cannotResolveCollisionAutomatically(const QString &strCollisionName, const QString &strGroupName) const;
+    bool confirmAutomaticCollisionResolve(const QString &strName, const QString &strGroupName) const;
+    void cannotSetGroups(const CMachine &machine) const;
+    bool confirmMachineItemRemoval(const QStringList &names) const;
+    int confirmMachineRemoval(const QList<CMachine> &machines) const;
+    void cannotRemoveMachine(const CMachine &machine) const;
+    void cannotRemoveMachine(const CMachine &machine, const CProgress &progress) const;
+    bool warnAboutInaccessibleMedia() const;
+    bool confirmDiscardSavedState(const QString &strNames) const;
+    bool confirmResetMachine(const QString &strNames) const;
+    bool confirmACPIShutdownMachine(const QString &strNames) const;
+    bool confirmPowerOffMachine(const QString &strNames) const;
+    void cannotPauseMachine(const CConsole &console) const;
+    void cannotResumeMachine(const CConsole &console) const;
+    void cannotDiscardSavedState(const CConsole &console) const;
     void cannotSaveMachineState(const CConsole &console);
-    void cannotSaveMachineState(const CProgress &progress);
-    void cannotCreateClone(const CMachine &machine, QWidget *pParent = 0);
-    void cannotCreateClone(const CMachine &machine, const CProgress &progress, QWidget *pParent = 0);
-    void cannotTakeSnapshot(const CConsole &console);
-    void cannotTakeSnapshot(const CProgress &progress);
-    void cannotStopMachine(const CConsole &console);
-    void cannotStopMachine(const CProgress &progress);
-    void cannotDeleteMachine(const CMachine &machine);
-    void cannotDeleteMachine(const CMachine &machine, const CProgress &progress);
-    void cannotDiscardSavedState(const CConsole &console);
+    void cannotSaveMachineState(const CProgress &progress, const QString &strMachineName);
+    void cannotACPIShutdownMachine(const CConsole &console) const;
+    void cannotPowerDownMachine(const CConsole &console) const;
+    void cannotPowerDownMachine(const CProgress &progress, const QString &strMachineName) const;
 
-    void cannotSendACPIToMachine();
+    /* API: Snapshot warnings: */
+    int confirmSnapshotRestoring(const QString &strSnapshotName, bool fAlsoCreateNewSnapshot) const;
+    bool confirmSnapshotRemoval(const QString &strSnapshotName) const;
+    bool warnAboutSnapshotRemovalFreeSpace(const QString &strSnapshotName, const QString &strTargetImageName,
+                                           const QString &strTargetImageMaxSize, const QString &strTargetFileSystemFree) const;
+    void cannotTakeSnapshot(const CConsole &console, const QString &strMachineName, QWidget *pParent = 0) const;
+    void cannotTakeSnapshot(const CProgress &progress, const QString &strMachineName, QWidget *pParent = 0) const;
+    bool cannotRestoreSnapshot(const CConsole &console, const QString &strSnapshotName, const QString &strMachineName) const;
+    bool cannotRestoreSnapshot(const CProgress &progress, const QString &strSnapshotName, const QString &strMachineName) const;
+    void cannotRemoveSnapshot(const CConsole &console, const QString &strSnapshotName, const QString &strMachineName) const;
+    void cannotRemoveSnapshot(const CProgress &progress, const QString &strSnapshotName, const QString &strMachineName) const;
 
-    bool warnAboutVirtNotEnabled64BitsGuest(bool fHWVirtExSupported);
-    bool warnAboutVirtNotEnabledGuestRequired(bool fHWVirtExSupported);
-
-    int askAboutSnapshotRestoring(const QString &strSnapshotName, bool fAlsoCreateNewSnapshot);
-    bool askAboutSnapshotDeleting(const QString &strSnapshotName);
-    bool askAboutSnapshotDeletingFreeSpace(const QString &strSnapshotName,
-                                           const QString &strTargetImageName,
-                                           const QString &strTargetImageMaxSize,
-                                           const QString &strTargetFileSystemFree);
-    void cannotRestoreSnapshot(const CConsole &console, const QString &strSnapshotName);
-    void cannotRestoreSnapshot(const CProgress &progress, const QString &strSnapshotName);
-    void cannotDeleteSnapshot(const CConsole &console, const QString &strSnapshotName);
-    void cannotDeleteSnapshot(const CProgress &progress, const QString &strSnapshotName);
-    void cannotFindSnapshotByName(QWidget *pParent, const CMachine &machine, const QString &strMachine) const;
-
-    void cannotFindMachineByName(const CVirtualBox &vbox, const QString &name);
-
-    void cannotEnterSeamlessMode(ULONG uWidth, ULONG uHeight,
-                                 ULONG uBpp, ULONG64 uMinVRAM);
-    int cannotEnterFullscreenMode(ULONG uWidth, ULONG uHeight,
-                                  ULONG uBpp, ULONG64 uMinVRAM);
-    bool cannotStartWithoutNetworkIf(const QString &strMachineName, const QString &strIfNames);
-    void cannotSwitchScreenInSeamless(quint64 uMinVRAM);
-    int cannotSwitchScreenInFullscreen(quint64 uMinVRAM);
-    int cannotEnterFullscreenMode();
-    int cannotEnterSeamlessMode();
-
-    void notifyAboutCollisionOnGroupRemovingCantBeResolved(const QString &strName, const QString &strGroupName);
-    int askAboutCollisionOnGroupRemoving(const QString &strName, const QString &strGroupName);
-    int confirmMachineItemRemoval(const QStringList &names);
-    int confirmMachineDeletion(const QList<CMachine> &machines);
-    bool confirmDiscardSavedState(const QString &strNames);
-
-    void cannotSetGroups(const CMachine &machine);
-
-    void cannotChangeMediumType(QWidget *pParent, const CMedium &medium, KMediumType oldMediumType, KMediumType newMediumType);
-
-    bool confirmReleaseMedium(QWidget *pParent, const UIMedium &aMedium,
-                              const QString &strUsage);
-
-    bool confirmRemoveMedium(QWidget *pParent, const UIMedium &aMedium);
-
-    void sayCannotOverwriteHardDiskStorage(QWidget *pParent,
-                                           const QString &strLocation);
-    int confirmDeleteHardDiskStorage(QWidget *pParent,
-                                     const QString &strLocation);
-    void cannotDeleteHardDiskStorage(QWidget *pParent, const CMedium &medium,
-                                     const CProgress &progress);
-
-    int askAboutHardDiskAttachmentCreation(QWidget *pParent, const QString &strControllerName);
-    int askAboutOpticalAttachmentCreation(QWidget *pParent, const QString &strControllerName);
-    int askAboutFloppyAttachmentCreation(QWidget *pParent, const QString &strControllerName);
-
-    int confirmRemovingOfLastDVDDevice() const;
-
-    void cannotCreateHardDiskStorage(QWidget *pParent, const CVirtualBox &vbox,
-                                     const QString &strLocation,
-                                     const CMedium &medium,
-                                     const CProgress &progress);
-    void cannotDetachDevice(QWidget *pParent, const CMachine &machine,
-                            UIMediumType type, const QString &strLocation, const StorageSlot &storageSlot);
-
-    int cannotRemountMedium(QWidget *pParent, const CMachine &machine, const UIMedium &aMedium, bool fMount, bool fRetry);
-    void cannotOpenMedium(QWidget *pParent, const CVirtualBox &vbox,
-                          UIMediumType type, const QString &strLocation);
-    void cannotCloseMedium(QWidget *pParent, const UIMedium &aMedium,
-                           const COMResult &rc);
-
-    void cannotOpenSession(const CSession &session);
-    void cannotOpenSession(const CVirtualBox &vbox, const CMachine &machine,
-                           const CProgress &progress = CProgress());
-    void cannotOpenSession(const CMachine &machine);
-
-    void cannotGetMediaAccessibility(const UIMedium &aMedium);
-
-    int confirmDeletingHostInterface(const QString &strName, QWidget *pParent = 0);
-
-    void cannotAttachUSBDevice(const CConsole &console, const QString &device);
-    void cannotAttachUSBDevice(const CConsole &console, const QString &device,
-                               const CVirtualBoxErrorInfo &error);
-    void cannotDetachUSBDevice(const CConsole &console, const QString &device);
-    void cannotDetachUSBDevice(const CConsole &console, const QString &device,
-                               const CVirtualBoxErrorInfo &error);
-
-    void remindAboutGuestAdditionsAreNotActive(QWidget *pParent);
-    bool cannotFindGuestAdditions();
-    void cannotMountGuestAdditions(const QString &strMachineName);
-    bool confirmDownloadAdditions(const QString &strUrl, qulonglong uSize);
-    bool confirmMountAdditions(const QString &strUrl, const QString &strSrc);
-    void warnAboutAdditionsCantBeSaved(const QString &strTarget);
-
-    bool askAboutUserManualDownload(const QString &strMissedLocation);
-    bool confirmUserManualDownload(const QString &strURL, qulonglong uSize);
-    void warnAboutUserManualDownloaded(const QString &strURL, const QString &strTarget);
-    void warnAboutUserManualCantBeSaved(const QString &strURL, const QString &strTarget);
-
-    bool proposeDownloadExtensionPack(const QString &strExtPackName, const QString &strExtPackVersion);
-    bool requestUserDownloadExtensionPack(const QString &strExtPackName, const QString &strExtPackVersion, const QString &strVBoxVersion);
-    bool confirmDownloadExtensionPack(const QString &strExtPackName, const QString &strURL, qulonglong uSize);
-    bool proposeInstallExtentionPack(const QString &strExtPackName, const QString &strFrom, const QString &strTo);
-    void warnAboutExtentionPackCantBeSaved(const QString &strExtPackName, const QString &strFrom, const QString &strTo);
-
-    void cannotConnectRegister(QWidget *pParent,
-                               const QString &strUrl,
-                               const QString &strReason);
-    void showRegisterResult(QWidget *pParent,
-                            const QString &strResult);
-
-    void showUpdateSuccess(const QString &strVersion, const QString &strLink);
-    void showUpdateNotFound();
-
-    bool askAboutCancelAllNetworkRequest(QWidget *pParent);
-
-    bool confirmInputCapture(bool *pfAutoConfirmed = NULL);
-    void remindAboutAutoCapture();
-    void remindAboutMouseIntegration(bool fSupportsAbsolute);
-    bool remindAboutPausedVMInput();
-
-    int warnAboutSettingsAutoConversion(const QString &strFileList, bool fAfterRefresh);
-
-    bool remindAboutInaccessibleMedia();
-
-    bool confirmGoingFullscreen(const QString &strHotKey);
-    bool confirmGoingSeamless(const QString &strHotKey);
-    bool confirmGoingScale(const QString &strHotKey);
-
-    bool remindAboutGuruMeditation(const QString &strLogFolder);
-
-    bool confirmVMReset(const QString &strNames);
-    bool confirmVMACPIShutdown(const QString &strNames);
-    bool confirmVMPowerOff(const QString &strNames);
-
-    void warnAboutCannotRemoveMachineFolder(QWidget *pParent, const QString &strFolderName);
-    void warnAboutCannotRewriteMachineFolder(QWidget *pParent, const QString &strFolderName);
-    void warnAboutCannotCreateMachineFolder(QWidget *pParent, const QString &strFolderName);
-    bool confirmHardDisklessMachine(QWidget *pParent);
-
-    void cannotRunInSelectorMode();
-
-    void cannotImportAppliance(CAppliance *pAppliance, QWidget *pParent = NULL) const;
-    void cannotImportAppliance(const CProgress &progress, CAppliance *pAppliance, QWidget *pParent = NULL) const;
-
-    void cannotCheckFiles(const CProgress &progress, QWidget *pParent = NULL) const;
-    void cannotRemoveFiles(const CProgress &progress, QWidget *pParent = NULL) const;
-
-    bool confirmExportMachinesInSaveState(const QStringList &strMachineNames, QWidget *pParent = NULL) const;
-    void cannotExportAppliance(CAppliance *pAppliance, QWidget *pParent = NULL) const;
-    void cannotExportAppliance(const CMachine &machine, CAppliance *pAppliance, QWidget *pParent = NULL) const;
-    void cannotExportAppliance(const CProgress &progress, CAppliance *pAppliance, QWidget *pParent = NULL) const;
-
-    void cannotUpdateGuestAdditions(const CProgress &progress, QWidget *pParent /* = NULL */) const;
-
-    void cannotOpenExtPack(const QString &strFilename, const CExtPackManager &extPackManager, QWidget *pParent);
-    void badExtPackFile(const QString &strFilename, const CExtPackFile &extPackFile, QWidget *pParent);
-    void cannotInstallExtPack(const QString &strFilename, const CExtPackFile &extPackFile, const CProgress &progress, QWidget *pParent);
-    void cannotUninstallExtPack(const QString &strPackName, const CExtPackManager &extPackManager, const CProgress &progress, QWidget *pParent);
-    bool confirmInstallingPackage(const QString &strPackName, const QString &strPackVersion, const QString &strPackDescription, QWidget *pParent);
-    bool confirmReplacePackage(const QString &strPackName, const QString &strPackVersionNew, const QString &strPackVersionOld,
-                               const QString &strPackDescription, QWidget *pParent);
-    bool confirmRemovingPackage(const QString &strPackName, QWidget *pParent);
-    void notifyAboutExtPackInstalled(const QString &strPackName, QWidget *pParent);
-
-    void warnAboutIncorrectPort(QWidget *pParent) const;
-    bool confirmCancelingPortForwardingDialog(QWidget *pParent) const;
-
-    void showRuntimeError(const CConsole &console, bool fFatal,
-                          const QString &strErrorId,
-                          const QString &strErrorMsg) const;
-
-    static QString mediumToAccusative(UIMediumType type, bool fIsHostDrive = false);
-
-    static QString formatRC(HRESULT rc);
-
-    static QString formatErrorInfo(const COMErrorInfo &info,
-                                   HRESULT wrapperRC = S_OK);
-
-    static QString formatErrorInfo(const CVirtualBoxErrorInfo &info)
-    {
-        return formatErrorInfo(COMErrorInfo(info));
-    }
-
-    static QString formatErrorInfo(const COMBaseWithEI &wrapper)
-    {
-        Assert(wrapper.lastRC() != S_OK);
-        return formatErrorInfo(wrapper.errorInfo(), wrapper.lastRC());
-    }
-
-    static QString formatErrorInfo(const COMResult &rc)
-    {
-        Assert(rc.rc() != S_OK);
-        return formatErrorInfo(rc.errorInfo(), rc.rc());
-    }
-
-    void showGenericError(COMBaseWithEI *object, QWidget *pParent = 0);
-
-    /* Stuff supporting interthreading: */
+    /* API: Global settings warnings: */
+    bool confirmNATNetworkRemoval(const QString &strName, QWidget *pParent = 0) const;
+    bool confirmHostOnlyInterfaceRemoval(const QString &strName, QWidget *pParent = 0) const;
+    void cannotCreateNATNetwork(const CVirtualBox &vbox, QWidget *pParent = 0);
+    void cannotRemoveNATNetwork(const CVirtualBox &vbox, const QString &strNetworkName, QWidget *pParent = 0);
+    void cannotCreateDHCPServer(const CVirtualBox &vbox, QWidget *pParent = 0);
+    void cannotRemoveDHCPServer(const CVirtualBox &vbox, const QString &strInterfaceName, QWidget *pParent = 0);
     void cannotCreateHostInterface(const CHost &host, QWidget *pParent = 0);
     void cannotCreateHostInterface(const CProgress &progress, QWidget *pParent = 0);
-    void cannotRemoveHostInterface(const CHost &host, const CHostNetworkInterface &iface, QWidget *pParent = 0);
-    void cannotRemoveHostInterface(const CProgress &progress, const CHostNetworkInterface &iface, QWidget *pParent = 0);
-    void cannotAttachDevice(const CMachine &machine, UIMediumType type,
-                            const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent = 0);
-    void cannotCreateSharedFolder(const CMachine &machine, const QString &strName,
-                                  const QString &strPath, QWidget *pParent = 0);
-    void cannotRemoveSharedFolder(const CMachine &machine, const QString &strName,
-                                  const QString &strPath, QWidget *pParent = 0);
-    void cannotCreateSharedFolder(const CConsole &console, const QString &strName,
-                                  const QString &strPath, QWidget *pParent = 0);
-    void cannotRemoveSharedFolder(const CConsole &console, const QString &strName,
-                                  const QString &strPath, QWidget *pParent = 0);
+    void cannotRemoveHostInterface(const CHost &host, const QString &strInterfaceName, QWidget *pParent = 0);
+    void cannotRemoveHostInterface(const CProgress &progress, const QString &strInterfaceName, QWidget *pParent = 0);
+    void cannotSetSystemProperties(const CSystemProperties &properties, QWidget *pParent = 0) const;
+
+    /* API: Machine settings warnings: */
+    void warnAboutUnaccessibleUSB(const COMBaseWithEI &object, QWidget *pParent = 0) const;
+    void warnAboutStateChange(QWidget *pParent = 0) const;
+    bool confirmSettingsReloading(QWidget *pParent = 0) const;
+    int confirmHardDiskAttachmentCreation(const QString &strControllerName, QWidget *pParent = 0) const;
+    int confirmOpticalAttachmentCreation(const QString &strControllerName, QWidget *pParent = 0) const;
+    int confirmFloppyAttachmentCreation(const QString &strControllerName, QWidget *pParent = 0) const;
+    int confirmRemovingOfLastDVDDevice(QWidget *pParent = 0) const;
+    void cannotAttachDevice(const CMachine &machine, UIMediumType type, const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent = 0);
+    void warnAboutIncorrectPort(QWidget *pParent = 0) const;
+    bool confirmCancelingPortForwardingDialog(QWidget *pParent = 0) const;
+    void cannotCreateSharedFolder(const CMachine &machine, const QString &strName, const QString &strPath, QWidget *pParent = 0);
+    void cannotCreateSharedFolder(const CConsole &console, const QString &strName, const QString &strPath, QWidget *pParent = 0);
+    void cannotRemoveSharedFolder(const CMachine &machine, const QString &strName, const QString &strPath, QWidget *pParent = 0);
+    void cannotRemoveSharedFolder(const CConsole &console, const QString &strName, const QString &strPath, QWidget *pParent = 0);
+    void cannotSaveMachineSettings(const CMachine &machine, QWidget *pParent = 0) const;
+
+    /* API: Virtual Medium Manager warnings: */
+    void cannotChangeMediumType(const CMedium &medium, KMediumType oldMediumType, KMediumType newMediumType, QWidget *pParent = 0) const;
+    bool confirmMediumRelease(const UIMedium &medium, const QString &strUsage, QWidget *pParent = 0) const;
+    bool confirmMediumRemoval(const UIMedium &medium, QWidget *pParent = 0) const;
+    int confirmDeleteHardDiskStorage(const QString &strLocation, QWidget *pParent = 0) const;
+    void cannotDeleteHardDiskStorage(const CMedium &medium, const QString &strLocation, QWidget *pParent = 0) const;
+    void cannotDeleteHardDiskStorage(const CProgress &progress, const QString &strLocation, QWidget *pParent = 0) const;
+    void cannotDetachDevice(const CMachine &machine, UIMediumType type, const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent = 0) const;
+    bool cannotRemountMedium(const CMachine &machine, const UIMedium &medium, bool fMount, bool fRetry, QWidget *pParent = 0) const;
+    void cannotOpenMedium(const CVirtualBox &vbox, UIMediumType type, const QString &strLocation, QWidget *pParent = 0) const;
+    void cannotCloseMedium(const UIMedium &medium, const COMResult &rc, QWidget *pParent = 0) const;
+
+    /* API: Wizards warnings: */
+    bool confirmHardDisklessMachine(QWidget *pParent = 0) const;
+    void cannotCreateMachine(const CVirtualBox &vbox, QWidget *pParent = 0) const;
+    void cannotRegisterMachine(const CVirtualBox &vbox, const QString &strMachineName, QWidget *pParent = 0) const;
+    void cannotCreateClone(const CMachine &machine, QWidget *pParent = 0) const;
+    void cannotCreateClone(const CProgress &progress, const QString &strMachineName, QWidget *pParent = 0) const;
+    void cannotOverwriteHardDiskStorage(const QString &strLocation, QWidget *pParent = 0) const;
+    void cannotCreateHardDiskStorage(const CVirtualBox &vbox, const QString &strLocation,QWidget *pParent = 0) const;
+    void cannotCreateHardDiskStorage(const CMedium &medium, const QString &strLocation, QWidget *pParent = 0) const;
+    void cannotCreateHardDiskStorage(const CProgress &progress, const QString &strLocation, QWidget *pParent = 0) const;
+    void cannotRemoveMachineFolder(const QString &strFolderName, QWidget *pParent = 0) const;
+    void cannotRewriteMachineFolder(const QString &strFolderName, QWidget *pParent = 0) const;
+    void cannotCreateMachineFolder(const QString &strFolderName, QWidget *pParent = 0) const;
+    void cannotImportAppliance(CAppliance &appliance, QWidget *pParent = 0) const;
+    void cannotImportAppliance(const CProgress &progress, const QString &strPath, QWidget *pParent = 0) const;
+    void cannotCheckFiles(const CProgress &progress, QWidget *pParent = 0) const;
+    void cannotRemoveFiles(const CProgress &progress, QWidget *pParent = 0) const;
+    bool confirmExportMachinesInSaveState(const QStringList &machineNames, QWidget *pParent = 0) const;
+    void cannotExportAppliance(const CAppliance &appliance, QWidget *pParent = 0) const;
+    void cannotExportAppliance(const CMachine &machine, const QString &strPath, QWidget *pParent = 0) const;
+    void cannotExportAppliance(const CProgress &progress, const QString &strPath, QWidget *pParent = 0) const;
+    void cannotFindSnapshotByName(const CMachine &machine, const QString &strMachine, QWidget *pParent = 0) const;
+
+    /* API: Runtime UI warnings: */
+    void showRuntimeError(const CConsole &console, bool fFatal, const QString &strErrorId, const QString &strErrorMsg) const;
+    bool remindAboutGuruMeditation(const QString &strLogFolder);
+    bool warnAboutVirtNotEnabled64BitsGuest(bool fHWVirtExSupported) const;
+    bool warnAboutVirtNotEnabledGuestRequired(bool fHWVirtExSupported) const;
+    bool cannotStartWithoutNetworkIf(const QString &strMachineName, const QString &strIfNames) const;
+    void cannotStartMachine(const CConsole &console, const QString &strName) const;
+    void cannotStartMachine(const CProgress &progress, const QString &strName) const;
+    bool confirmInputCapture(bool &fAutoConfirmed) const;
+    bool confirmGoingFullscreen(const QString &strHotKey) const;
+    bool confirmGoingSeamless(const QString &strHotKey) const;
+    bool confirmGoingScale(const QString &strHotKey) const;
+    bool cannotEnterFullscreenMode(ULONG uWidth, ULONG uHeight, ULONG uBpp, ULONG64 uMinVRAM) const;
+    void cannotEnterSeamlessMode(ULONG uWidth, ULONG uHeight, ULONG uBpp, ULONG64 uMinVRAM) const;
+    bool cannotSwitchScreenInFullscreen(quint64 uMinVRAM) const;
+    void cannotSwitchScreenInSeamless(quint64 uMinVRAM) const;
+    void cannotAttachUSBDevice(const CConsole &console, const QString &strDevice) const;
+    void cannotAttachUSBDevice(const CVirtualBoxErrorInfo &errorInfo, const QString &strDevice, const QString &strMachineName) const;
+    void cannotDetachUSBDevice(const CConsole &console, const QString &strDevice) const;
+    void cannotDetachUSBDevice(const CVirtualBoxErrorInfo &errorInfo, const QString &strDevice, const QString &strMachineName) const;
+    void cannotAttachWebCam(const CEmulatedUSB &dispatcher, const QString &strWebCamName, const QString &strMachineName) const;
+    void cannotDetachWebCam(const CEmulatedUSB &dispatcher, const QString &strWebCamName, const QString &strMachineName) const;
+    void cannotToggleVRDEServer(const CVRDEServer &server, const QString &strMachineName, bool fEnable);
+    void cannotToggleVideoCapture(const CMachine &machine, bool fEnable);
+    void remindAboutGuestAdditionsAreNotActive() const;
+
+    /* API: Network management warnings: */
+    bool confirmCancelingAllNetworkRequests() const;
+    void showUpdateSuccess(const QString &strVersion, const QString &strLink) const;
+    void showUpdateNotFound() const;
+    void askUserToDownloadExtensionPack(const QString &strExtPackName, const QString &strExtPackVersion, const QString &strVBoxVersion) const;
+
+    /* API: Downloading warnings: */
+    bool cannotFindGuestAdditions() const;
+    bool confirmDownloadGuestAdditions(const QString &strUrl, qulonglong uSize) const;
+    void cannotSaveGuestAdditions(const QString &strURL, const QString &strTarget) const;
+    bool proposeMountGuestAdditions(const QString &strUrl, const QString &strSrc) const;
+    void cannotMountGuestAdditions(const QString &strMachineName) const;
+    void cannotUpdateGuestAdditions(const CProgress &progress) const;
+    bool cannotFindUserManual(const QString &strMissedLocation) const;
+    bool confirmDownloadUserManual(const QString &strURL, qulonglong uSize) const;
+    void cannotSaveUserManual(const QString &strURL, const QString &strTarget) const;
+    void warnAboutUserManualDownloaded(const QString &strURL, const QString &strTarget) const;
+    bool warAboutOutdatedExtensionPack(const QString &strExtPackName, const QString &strExtPackVersion) const;
+    bool confirmDownloadExtensionPack(const QString &strExtPackName, const QString &strURL, qulonglong uSize) const;
+    void cannotSaveExtensionPack(const QString &strExtPackName, const QString &strFrom, const QString &strTo) const;
+    bool proposeInstallExtentionPack(const QString &strExtPackName, const QString &strFrom, const QString &strTo) const;
+    bool confirmInstallExtensionPack(const QString &strPackName, const QString &strPackVersion, const QString &strPackDescription, QWidget *pParent = 0) const;
+    bool confirmReplaceExtensionPack(const QString &strPackName, const QString &strPackVersionNew, const QString &strPackVersionOld,
+                                     const QString &strPackDescription, QWidget *pParent = 0) const;
+    bool confirmRemoveExtensionPack(const QString &strPackName, QWidget *pParent = 0) const;
+    void cannotOpenExtPack(const QString &strFilename, const CExtPackManager &extPackManager, QWidget *pParent = 0) const;
+    void warnAboutBadExtPackFile(const QString &strFilename, const CExtPackFile &extPackFile, QWidget *pParent = 0) const;
+    void cannotInstallExtPack(const CExtPackFile &extPackFile, const QString &strFilename, QWidget *pParent = 0) const;
+    void cannotInstallExtPack(const CProgress &progress, const QString &strFilename, QWidget *pParent = 0) const;
+    void cannotUninstallExtPack(const CExtPackManager &extPackManager, const QString &strPackName, QWidget *pParent = 0) const;
+    void cannotUninstallExtPack(const CProgress &progress, const QString &strPackName, QWidget *pParent = 0) const;
+    void warnAboutExtPackInstalled(const QString &strPackName, QWidget *pParent = 0) const;
+
 #ifdef VBOX_WITH_DRAG_AND_DROP
+    /* API: Drag&drop warnings: */
     void cannotDropData(const CGuest &guest, QWidget *pParent = 0) const;
     void cannotDropData(const CProgress &progress, QWidget *pParent = 0) const;
 #endif /* VBOX_WITH_DRAG_AND_DROP */
-    void remindAboutWrongColorDepth(ulong uRealBPP, ulong uWantedBPP);
-    void remindAboutUnsupportedUSB2(const QString &strExtPackName, QWidget *pParent = 0);
 
-signals:
+    /* API: License-viewer warnings: */
+    void cannotOpenLicenseFile(const QString &strPath, QWidget *pParent = 0) const;
 
-    void sigToCloseAllWarnings();
+    /* API: File-dialog warnings: */
+    bool confirmOverridingFile(const QString &strPath, QWidget *pParent = 0) const;
+    bool confirmOverridingFiles(const QVector<QString> &strPaths, QWidget *pParent = 0) const;
+    bool confirmOverridingFileIfExists(const QString &strPath, QWidget *pParent = 0) const;
+    bool confirmOverridingFilesIfExists(const QVector<QString> &strPaths, QWidget *pParent = 0) const;
 
-    /* Stuff supporting interthreading: */
-    void sigCannotCreateHostInterface(const CHost &host, QWidget *pParent);
-    void sigCannotCreateHostInterface(const CProgress &progress, QWidget *pParent);
-    void sigCannotRemoveHostInterface(const CHost &host, const CHostNetworkInterface &iface, QWidget *pParent);
-    void sigCannotRemoveHostInterface(const CProgress &progress, const CHostNetworkInterface &iface, QWidget *pParent);
-    void sigCannotAttachDevice(const CMachine &machine, UIMediumType type,
-                               const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent);
-    void sigCannotCreateSharedFolder(const CMachine &machine, const QString &strName,
-                                     const QString &strPath, QWidget *pParent);
-    void sigCannotRemoveSharedFolder(const CMachine &machine, const QString &strName,
-                                     const QString &strPath, QWidget *pParent);
-    void sigCannotCreateSharedFolder(const CConsole &console, const QString &strName,
-                                     const QString &strPath, QWidget *pParent);
-    void sigCannotRemoveSharedFolder(const CConsole &console, const QString &strName,
-                                     const QString &strPath, QWidget *pParent);
-    void sigRemindAboutWrongColorDepth(ulong uRealBPP, ulong uWantedBPP);
-    void sigRemindAboutUnsupportedUSB2(const QString &strExtPackName, QWidget *pParent);
+    /* API: Static helpers: */
+    static QString formatRC(HRESULT rc);
+    static QString formatErrorInfo(const CProgress &progress);
+    static QString formatErrorInfo(const COMErrorInfo &info, HRESULT wrapperRC = S_OK);
+    static QString formatErrorInfo(const CVirtualBoxErrorInfo &info);
+    static QString formatErrorInfo(const COMBaseWithEI &wrapper);
+    static QString formatErrorInfo(const COMResult &rc);
 
 public slots:
 
+    /* Handlers: Help menu stuff: */
     void sltShowHelpWebDialog();
     void sltShowHelpAboutDialog();
     void sltShowHelpHelpDialog();
@@ -477,41 +367,44 @@ public slots:
 
 private slots:
 
-    /* Stuff supporting interthreading: */
-    void sltCannotCreateHostInterface(const CHost &host, QWidget *pParent);
-    void sltCannotCreateHostInterface(const CProgress &progress, QWidget *pParent);
-    void sltCannotRemoveHostInterface(const CHost &host, const CHostNetworkInterface &iface, QWidget *pParent);
-    void sltCannotRemoveHostInterface(const CProgress &progress, const CHostNetworkInterface &iface, QWidget *pParent);
-    void sltCannotAttachDevice(const CMachine &machine, UIMediumType type,
-                               const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent);
-    void sltCannotCreateSharedFolder(const CMachine &machine, const QString &strName,
-                                     const QString &strPath, QWidget *pParent);
-    void sltCannotRemoveSharedFolder(const CMachine &machine, const QString &strName,
-                                     const QString &strPath, QWidget *pParent);
-    void sltCannotCreateSharedFolder(const CConsole &console, const QString &strName,
-                                     const QString &strPath, QWidget *pParent);
-    void sltCannotRemoveSharedFolder(const CConsole &console, const QString &strName,
-                                     const QString &strPath, QWidget *pParent);
-    void sltRemindAboutWrongColorDepth(ulong uRealBPP, ulong uWantedBPP);
-    void sltRemindAboutUnsupportedUSB2(const QString &strExtPackName, QWidget *pParent);
+    /* Handler: Interthreading stuff: */
+    void sltShowMessageBox(QWidget *pParent, MessageType type,
+                           const QString &strMessage, const QString &strDetails,
+                           int iButton1, int iButton2, int iButton3,
+                           const QString &strButtonText1, const QString &strButtonText2, const QString &strButtonText3,
+                           const QString &strAutoConfirmId) const;
 
 private:
 
+    /* Constructor/destructor: */
     UIMessageCenter();
+    ~UIMessageCenter();
 
-    static UIMessageCenter &instance();
+    /* Helpers: Prepare/cleanup stuff: */
+    void prepare();
+    void cleanup();
 
-    friend UIMessageCenter &msgCenter();
+    /* Helper: */
+    static QString errorInfoToString(const COMErrorInfo &info, HRESULT wrapperRC = S_OK);
 
-    static QString errorInfoToString(const COMErrorInfo &info,
-                                     HRESULT wrapperRC = S_OK);
+    /* Helper: Message-box stuff: */
+    int showMessageBox(QWidget *pParent, MessageType type,
+                       const QString &strMessage, const QString &strDetails,
+                       int iButton1, int iButton2, int iButton3,
+                       const QString &strButtonText1, const QString &strButtonText2, const QString &strButtonText3,
+                       const QString &strAutoConfirmId) const;
 
-    QStringList m_strShownWarnings;
-    mutable QList<QPointer<QIMessageBox> > m_warnings;
+    /* Variables: */
+    mutable QStringList m_warnings;
+
+    /* API: Instance stuff: */
+    static UIMessageCenter* m_spInstance;
+    static UIMessageCenter* instance();
+    friend UIMessageCenter& msgCenter();
 };
 
-/* Shortcut to the static UIMessageCenter::instance() method, for convenience. */
-inline UIMessageCenter &msgCenter() { return UIMessageCenter::instance(); }
+/* Shortcut to the static UIMessageCenter::instance() method: */
+inline UIMessageCenter& msgCenter() { return *UIMessageCenter::instance(); }
 
 #endif // __UIMessageCenter_h__
 

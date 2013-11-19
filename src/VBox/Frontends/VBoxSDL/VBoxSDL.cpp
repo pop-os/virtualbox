@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
 
-#include <VBox/com/EventQueue.h>
+#include <VBox/com/NativeEventQueue.h>
 #include <VBox/com/VirtualBox.h>
 
 using namespace com;
@@ -732,6 +732,10 @@ static CComModule _Module;
 extern "C"
 DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
+#ifdef Q_WS_X11
+    if (!XInitThreads())
+        return 1;
+#endif
 #ifdef VBOXSDL_WITH_X11
     /*
      * Lock keys on SDL behave different from normal keys: A KeyPress event is generated
@@ -949,10 +953,16 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
             // first check if a UUID was supplied
             uuidVM = argv[curArg];
-            if (uuidVM.isEmpty())
+
+            if (!uuidVM.isValid())
             {
                 LogFlow(("invalid UUID format, assuming it's a VM name\n"));
                 vmName = argv[curArg];
+            }
+            else if (uuidVM.isZero())
+            {
+                RTPrintf("Error: UUID argument is zero!\n");
+                return 1;
             }
         }
         else if (   !strcmp(argv[curArg], "--comment")
@@ -1371,7 +1381,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     ComPtr<IVirtualBox> pVirtualBox;
     ComPtr<ISession> pSession;
     bool sessionOpened = false;
-    EventQueue* eventQ = com::EventQueue::getMainEventQueue();
+    NativeEventQueue* eventQ = com::NativeEventQueue::getMainEventQueue();
 
     ComPtr<IMachine> pMachine;
 
@@ -1416,7 +1426,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     /*
      * Do we have a UUID?
      */
-    if (!uuidVM.isEmpty())
+    if (uuidVM.isValid())
     {
         rc = pVirtualBox->FindMachine(uuidVM.toUtf16().raw(), pMachine.asOutParam());
         if (FAILED(rc) || !pMachine)
@@ -1439,19 +1449,27 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         }
         else
         {
-            RTPrintf("Error: machine with the given ID not found!\n");
+            RTPrintf("Error: machine with the given name not found!\n");
+            RTPrintf("Check if this VM has been corrupted and is now inaccessible.");
             goto leave;
         }
-    }
-    else if (uuidVM.isEmpty())
-    {
-        RTPrintf("Error: no machine specified!\n");
-        goto leave;
     }
 
     /* create SDL event semaphore */
     vrc = RTSemEventCreate(&g_EventSemSDLEvents);
     AssertReleaseRC(vrc);
+
+    rc = pVirtualBoxClient->CheckMachineError(pMachine);
+    if (FAILED(rc))
+    {
+        com::ErrorInfo info;
+        if (info.isFullAvailable())
+            PrintError("The VM has errors",
+                       info.getText().raw(), info.getComponent().raw());
+        else
+            RTPrintf("Failed to check for VM errors! No error information available (rc=%Rhrc).\n", rc);
+        goto leave;
+    }
 
     rc = pMachine->LockMachine(pSession, LockType_VM);
     if (FAILED(rc))
@@ -3028,6 +3046,10 @@ static RTEXITCODE settingsPasswordFile(ComPtr<IVirtualBox> virtualBox, const cha
  */
 int main(int argc, char **argv)
 {
+#ifdef Q_WS_X11
+    if (!XInitThreads())
+        return 1;
+#endif
     /*
      * Before we do *anything*, we initialize the runtime.
      */

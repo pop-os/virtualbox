@@ -83,17 +83,17 @@ bool UIWizardCloneVM::cloneVM()
         if (console.isOk())
         {
             /* Show the "Taking Snapshot" progress dialog: */
-            msgCenter().showModalProgressDialog(progress, m_machine.GetName(), ":/progress_snapshot_create_90px.png", this, true);
+            msgCenter().showModalProgressDialog(progress, m_machine.GetName(), ":/progress_snapshot_create_90px.png", this);
 
             if (!progress.isOk() || progress.GetResultCode() != 0)
             {
-                msgCenter().cannotTakeSnapshot(progress);
+                msgCenter().cannotTakeSnapshot(progress, m_machine.GetName(), this);
                 return false;
             }
         }
         else
         {
-            msgCenter().cannotTakeSnapshot(console);
+            msgCenter().cannotTakeSnapshot(console, m_machine.GetName(), this);
             return false;
         }
 
@@ -104,7 +104,7 @@ bool UIWizardCloneVM::cloneVM()
         const CSnapshot &newSnapshot = m_machine.FindSnapshot(strSnapshotName);
         if (newSnapshot.isNull())
         {
-            msgCenter().cannotFindSnapshotByName(this, m_machine, strSnapshotName);
+            msgCenter().cannotFindSnapshotByName(m_machine, strSnapshotName, this);
             return false;
         }
         srcMachine = newSnapshot.GetMachine();
@@ -136,12 +136,12 @@ bool UIWizardCloneVM::cloneVM()
     }
 
     /* Wait until done. */
-    msgCenter().showModalProgressDialog(progress, windowTitle(), ":/progress_clone_90px.png", this, true);
+    msgCenter().showModalProgressDialog(progress, windowTitle(), ":/progress_clone_90px.png", this);
     if (progress.GetCanceled())
         return false;
     if (!progress.isOk() || progress.GetResultCode() != 0)
     {
-        msgCenter().cannotCreateClone(srcMachine, progress, this);
+        msgCenter().cannotCreateClone(progress, srcMachine.GetName(), this);
         return false;
     }
 
@@ -149,7 +149,7 @@ bool UIWizardCloneVM::cloneVM()
     vbox.RegisterMachine(cloneMachine);
     if (!vbox.isOk())
     {
-        msgCenter().cannotRegisterMachine(vbox, cloneMachine, this);
+        msgCenter().cannotRegisterMachine(vbox, cloneMachine.GetName(), this);
         return false;
     }
 

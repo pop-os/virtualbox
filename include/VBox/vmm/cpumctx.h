@@ -135,7 +135,8 @@ typedef struct CPUMSYSENTER
 /**
  * CPU context core.
  *
- * @todo eliminate this structure!
+ * @todo        Eliminate this structure!
+ * @deprecated  We don't push any context cores any more in TRPM.
  */
 #pragma pack(1)
 typedef struct CPUMCTXCORE
@@ -399,10 +400,11 @@ typedef struct CPUMCTX
     uint64_t        msrCSTAR;           /**< Compatibility mode syscall rip. */
     uint64_t        msrSFMASK;          /**< syscall flag mask. */
     uint64_t        msrKERNELGSBASE;    /**< swapgs exchange value. */
+    uint64_t        msrApicBase;        /**< The local APIC base (IA32_APIC_BASE MSR). */
     /** @} */
 
     /** Size padding. */
-    uint32_t        au32SizePadding[8];
+    uint32_t        au32SizePadding[6];
 } CPUMCTX;
 #pragma pack()
 
@@ -412,6 +414,11 @@ typedef struct CPUMCTX
  * Gets the CPUMCTXCORE part of a CPUMCTX.
  */
 # define CPUMCTX2CORE(pCtx) ((PCPUMCTXCORE)(void *)&(pCtx)->rax)
+
+/**
+ * Gets the CPUMCTXCORE part of a CPUMCTX.
+ */
+# define CPUMCTX_FROM_CORE(a_pCtxCore) RT_FROM_MEMBER(a_pCtxCore, CPUMCTX, rax)
 
 /**
  * Gets the first selector register of a CPUMCTX.
@@ -446,6 +453,7 @@ typedef union CPUMCTXMSRS
         uint64_t    MtrrFix4K_E8000;    /**< IA32_MTRR_FIX4K_E8000 */
         uint64_t    MtrrFix4K_F0000;    /**< IA32_MTRR_FIX4K_F0000 */
         uint64_t    MtrrFix4K_F8000;    /**< IA32_MTRR_FIX4K_F8000 */
+        uint64_t    PkgCStateCfgCtrl;   /**< MSR_PKG_CST_CONFIG_CONTROL */
     } msr;
     uint64_t    au64[64];
 } CPUMCTXMSRS;

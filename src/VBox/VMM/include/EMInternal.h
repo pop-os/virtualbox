@@ -38,7 +38,8 @@ RT_C_DECLS_BEGIN
  */
 
 /** The saved state version. */
-#define EM_SAVED_STATE_VERSION                          4
+#define EM_SAVED_STATE_VERSION                          5
+#define EM_SAVED_STATE_VERSION_PRE_IEM                  4
 #define EM_SAVED_STATE_VERSION_PRE_MWAIT                3
 #define EM_SAVED_STATE_VERSION_PRE_SMP                  2
 
@@ -264,11 +265,15 @@ typedef struct EMSTATS
 
     /** @name Privileged Instructions Ending Up In HC.
      * @{ */
+    STAMCOUNTER             StatIoRestarted;
+#ifdef VBOX_WITH_FIRST_IEM_STEP
+    STAMCOUNTER             StatIoIem;
+#else
+    STAMCOUNTER             StatIn;
+    STAMCOUNTER             StatOut;
+#endif
     STAMCOUNTER             StatCli;
     STAMCOUNTER             StatSti;
-    STAMCOUNTER             StatIn;
-    STAMCOUNTER             StatIoRestarted;
-    STAMCOUNTER             StatOut;
     STAMCOUNTER             StatInvlpg;
     STAMCOUNTER             StatHlt;
     STAMCOUNTER             StatMovReadCR[DISCREG_CR4 + 1];
@@ -307,6 +312,13 @@ typedef struct EM
      * See EM2VM(). */
     RTUINT                  offVM;
 
+    /** Whether IEM executes everything. */
+    bool                    fIemExecutesAll;
+    /** Whether a triple fault triggers a guru. */
+    bool                    fGuruOnTripleFault;
+    /** Alignment padding. */
+    bool                    afPadding[6];
+
     /** Id of the VCPU that last executed code in the recompiler. */
     VMCPUID                 idLastRemCpu;
 
@@ -326,10 +338,6 @@ typedef EM *PEM;
  */
 typedef struct EMCPU
 {
-    /** Offset to the VM structure.
-     * See EMCPU2VM(). */
-    RTUINT                  offVMCPU;
-
     /** Execution Manager State. */
     EMSTATE volatile        enmState;
 
@@ -343,11 +351,17 @@ typedef struct EMCPU
 
     uint8_t                 u8Padding[3];
 
+    /** The number of instructions we've executed in IEM since switching to the
+     *  EMSTATE_IEM_THEN_REM state. */
+    uint32_t                cIemThenRemInstructions;
+
     /** Inhibit interrupts for this instruction. Valid only when VM_FF_INHIBIT_INTERRUPTS is set. */
     RTGCUINTPTR             GCPtrInhibitInterrupts;
 
+#ifdef VBOX_WITH_RAW_MODE
     /** Pointer to the PATM status structure. (R3 Ptr) */
     R3PTRTYPE(PPATMGCSTATE) pPatmGCState;
+#endif
 
     /** Pointer to the guest CPUM state. (R3 Ptr) */
     R3PTRTYPE(PCPUMCTX)     pCtx;
@@ -397,8 +411,10 @@ typedef struct EMCPU
     STAMPROFILE             StatForcedActions;
     STAMPROFILE             StatHalted;
     STAMPROFILEADV          StatCapped;
-    STAMPROFILEADV          StatHwAccEntry;
-    STAMPROFILE             StatHwAccExec;
+    STAMPROFILEADV          StatHmEntry;
+    STAMPROFILE             StatHmExec;
+    STAMPROFILE             StatIEMEmu;
+    STAMPROFILE             StatIEMThenREM;
     STAMPROFILE             StatREMEmu;
     STAMPROFILE             StatREMExec;
     STAMPROFILE             StatREMSync;
@@ -414,8 +430,8 @@ typedef struct EMCPU
     STAMPROFILE             StatIOEmu;
     /** R3: Profiling of emR3RawPrivileged. */
     STAMPROFILE             StatPrivEmu;
-    /** R3: Number of time emR3HwAccExecute is called. */
-    STAMCOUNTER             StatHwAccExecuteEntry;
+    /** R3: Number of time emR3HmExecute is called. */
+    STAMCOUNTER             StatHmExecuteEntry;
 
     /** More statistics (R3). */
     R3PTRTYPE(PEMSTATS)     pStatsR3;
@@ -440,11 +456,12 @@ typedef EMCPU *PEMCPU;
 
 /** @} */
 
+int     emR3InitDbg(PVM pVM);
 
-int     emR3HwAccExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone);
+int     emR3HmExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone);
 int     emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone);
 int     emR3RawHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc);
-int     emR3HwaccmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc);
+int     emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc);
 EMSTATE emR3Reschedule(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
 int     emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc);
 int     emR3HighPriorityPostForcedActions(PVM pVM, PVMCPU pVCpu, int rc);
@@ -452,6 +469,7 @@ int     emR3RawUpdateForceFlag(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc);
 int     emR3RawResumeHyper(PVM pVM, PVMCPU pVCpu);
 int     emR3RawStep(PVM pVM, PVMCPU pVCpu);
 int     emR3SingleStepExecRem(PVM pVM, PVMCPU pVCpu, uint32_t cIterations);
+bool    emR3IsExecutionAllowed(PVM pVM, PVMCPU pVCpu);
 
 RT_C_DECLS_END
 

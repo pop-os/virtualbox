@@ -33,8 +33,8 @@
 # include <VBox/vmm/rem.h>
 #endif
 #include <VBox/vmm/em.h>
-#include <VBox/vmm/hwaccm.h>
-#include <VBox/vmm/hwacc_vmx.h>
+#include <VBox/vmm/hm.h>
+#include <VBox/vmm/hm_vmx.h>
 #include "PGMInternal.h"
 #include <VBox/vmm/vm.h>
 #include "PGMInline.h"
@@ -772,9 +772,10 @@ VMMDECL(int) PGMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCPtrPage)
         &&  (pVCpu->pgm.s.fSyncFlags & PGM_SYNC_MONITOR_CR3))
     {
         pVCpu->pgm.s.fSyncFlags &= ~PGM_SYNC_MONITOR_CR3;
-        Assert(!pVM->pgm.s.fMappingsFixed); Assert(!pVM->pgm.s.fMappingsDisabled);
+        Assert(!pVM->pgm.s.fMappingsFixed); Assert(pgmMapAreMappingsEnabled(pVM));
     }
 
+# ifdef VBOX_WITH_RAW_MODE
     /*
      * Inform CSAM about the flush
      *
@@ -782,6 +783,7 @@ VMMDECL(int) PGMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCPtrPage)
      *       callbacks for virtual handlers, this is no longer required.
      */
     CSAMR3FlushPage(pVM, GCPtrPage);
+# endif
 #endif /* IN_RING3 */
 
     /* Ignore all irrelevant error codes. */
@@ -915,6 +917,56 @@ VMMDECL(int) PGMShwMakePageNotPresent(PVMCPU pVCpu, RTGCPTR GCPtr, uint32_t fOpF
 
 
 /**
+ * Changing the page flags for a single page in the shadow page tables so as to
+ * make it supervisor and writable.
+ *
+ * This if for dealing with CR0.WP=0 and readonly user pages.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu       Pointer to the VMCPU.
+ * @param   GCPtr       Virtual address of the first page in the range.
+ * @param   fBigPage    Whether or not this is a big page. If it is, we have to
+ *                      change the shadow PDE as well.  If it isn't, the caller
+ *                      has checked that the shadow PDE doesn't need changing.
+ *                      We ASSUME 4KB pages backing the big page here!
+ * @param   fOpFlags    A combination of the PGM_MK_PG_XXX flags.
+ */
+int pgmShwMakePageSupervisorAndWritable(PVMCPU pVCpu, RTGCPTR GCPtr, bool fBigPage, uint32_t fOpFlags)
+{
+    int rc = pdmShwModifyPage(pVCpu, GCPtr, X86_PTE_RW, ~(uint64_t)X86_PTE_US, fOpFlags);
+    if (rc == VINF_SUCCESS && fBigPage)
+    {
+        /* this is a bit ugly... */
+        switch (pVCpu->pgm.s.enmShadowMode)
+        {
+            case PGMMODE_32_BIT:
+            {
+                PX86PDE pPde = pgmShwGet32BitPDEPtr(pVCpu, GCPtr);
+                AssertReturn(pPde, VERR_INTERNAL_ERROR_3);
+                Log(("pgmShwMakePageSupervisorAndWritable: PDE=%#llx", pPde->u));
+                pPde->n.u1Write = 1;
+                Log(("-> PDE=%#llx (32)\n", pPde->u));
+                break;
+            }
+            case PGMMODE_PAE:
+            case PGMMODE_PAE_NX:
+            {
+                PX86PDEPAE pPde = pgmShwGetPaePDEPtr(pVCpu, GCPtr);
+                AssertReturn(pPde, VERR_INTERNAL_ERROR_3);
+                Log(("pgmShwMakePageSupervisorAndWritable: PDE=%#llx", pPde->u));
+                pPde->n.u1Write = 1;
+                Log(("-> PDE=%#llx (PAE)\n", pPde->u));
+                break;
+            }
+            default:
+                AssertFailedReturn(VERR_INTERNAL_ERROR_4);
+        }
+    }
+    return rc;
+}
+
+
+/**
  * Gets the shadow page directory for the specified address, PAE.
  *
  * @returns Pointer to the shadow PD.
@@ -957,7 +1009,7 @@ int pgmShwSyncPaePDPtr(PVMCPU pVCpu, RTGCPTR GCPtr, X86PGPAEUINT uGstPdpe, PX86P
                     /* PD not present; guest must reload CR3 to change it.
                      * No need to monitor anything in this case.
                      */
-                    Assert(!HWACCMIsEnabled(pVM));
+                    Assert(!HMIsEnabled(pVM));
 
                     GCPdPt  = uGstPdpe & X86_PDPE_PG_MASK;
                     enmKind = PGMPOOLKIND_PAE_PD_PHYS;
@@ -1229,7 +1281,7 @@ static int pgmShwGetEPTPDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PEPTPDPT *ppPdpt, PE
         RTGCPTR64 GCPml4 = (RTGCPTR64)iPml4 << EPT_PML4_SHIFT;
 
         rc = pgmPoolAlloc(pVM, GCPml4, PGMPOOLKIND_EPT_PDPT_FOR_PHYS, PGMPOOLACCESS_DONTCARE, PGM_A20_IS_ENABLED(pVCpu),
-                          PGMPOOL_IDX_NESTED_ROOT, iPml4, false /*fLockPage*/,
+                          pVCpu->pgm.s.CTX_SUFF(pShwPageCR3)->idx, iPml4, false /*fLockPage*/,
                           &pShwPage);
         AssertRCReturn(rc, rc);
     }
@@ -1358,6 +1410,63 @@ VMMDECL(int) PGMGstGetPage(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGC
 {
     VMCPU_ASSERT_EMT(pVCpu);
     return PGM_GST_PFN(GetPage, pVCpu)(pVCpu, GCPtr, pfFlags, pGCPhys);
+}
+
+
+/**
+ * Performs a guest page table walk.
+ *
+ * The guest should be in paged protect mode or long mode when making a call to
+ * this function.
+ *
+ * @returns VBox status code.
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_PAGE_TABLE_NOT_PRESENT on failure.  Check pWalk for details.
+ * @retval  VERR_PGM_NOT_USED_IN_MODE if not paging isn't enabled. @a pWalk is
+ *          not valid, except enmType is PGMPTWALKGSTTYPE_INVALID.
+ *
+ * @param   pVCpu       The current CPU.
+ * @param   GCPtr       The guest virtual address to walk by.
+ * @param   pWalk       Where to return the walk result. This is valid on some
+ *                      error codes as well.
+ */
+int pgmGstPtWalk(PVMCPU pVCpu, RTGCPTR GCPtr, PPGMPTWALKGST pWalk)
+{
+    VMCPU_ASSERT_EMT(pVCpu);
+    switch (pVCpu->pgm.s.enmGuestMode)
+    {
+        case PGMMODE_32_BIT:
+            pWalk->enmType = PGMPTWALKGSTTYPE_32BIT;
+            return PGM_GST_NAME_32BIT(Walk)(pVCpu, GCPtr, &pWalk->u.Legacy);
+
+        case PGMMODE_PAE:
+        case PGMMODE_PAE_NX:
+            pWalk->enmType = PGMPTWALKGSTTYPE_PAE;
+            return PGM_GST_NAME_PAE(Walk)(pVCpu, GCPtr, &pWalk->u.Pae);
+
+#if !defined(IN_RC)
+        case PGMMODE_AMD64:
+        case PGMMODE_AMD64_NX:
+            pWalk->enmType = PGMPTWALKGSTTYPE_AMD64;
+            return PGM_GST_NAME_AMD64(Walk)(pVCpu, GCPtr, &pWalk->u.Amd64);
+#endif
+
+        case PGMMODE_REAL:
+        case PGMMODE_PROTECTED:
+            pWalk->enmType = PGMPTWALKGSTTYPE_INVALID;
+            return VERR_PGM_NOT_USED_IN_MODE;
+
+#if defined(IN_RC)
+        case PGMMODE_AMD64:
+        case PGMMODE_AMD64_NX:
+#endif
+        case PGMMODE_NESTED:
+        case PGMMODE_EPT:
+        default:
+            AssertFailed();
+            pWalk->enmType = PGMPTWALKGSTTYPE_INVALID;
+            return VERR_PGM_NOT_USED_IN_MODE;
+    }
 }
 
 
@@ -1636,8 +1745,8 @@ int pgmGstLazyMapPml4(PVMCPU pVCpu, PX86PML4 *ppPml4)
  * Gets the PAE PDPEs values cached by the CPU.
  *
  * @returns VBox status code.
- * @param   pVCpu               The virtual CPU.
- * @param   paPdpes             Where to return the four PDPEs.  The array
+ * @param   pVCpu               Pointer to the VMCPU.
+ * @param   paPdpes             Where to return the four PDPEs. The array
  *                              pointed to must have 4 entries.
  */
 VMM_INT_DECL(int) PGMGstGetPaePdpes(PVMCPU pVCpu, PX86PDPE paPdpes)
@@ -1657,12 +1766,13 @@ VMM_INT_DECL(int) PGMGstGetPaePdpes(PVMCPU pVCpu, PX86PDPE paPdpes)
  *
  * @remarks This must be called *AFTER* PGMUpdateCR3.
  *
- * @returns VBox status code.
- * @param   pVCpu               The virtual CPU.
- * @param   paPdpes             The four PDPE values.  The array pointed to
- *                              must have exactly 4 entries.
+ * @param   pVCpu               Pointer to the VMCPU.
+ * @param   paPdpes             The four PDPE values. The array pointed to must
+ *                              have exactly 4 entries.
+ *
+ * @remarks No-long-jump zone!!!
  */
-VMM_INT_DECL(int) PGMGstUpdatePaePdpes(PVMCPU pVCpu, PCX86PDPE paPdpes)
+VMM_INT_DECL(void) PGMGstUpdatePaePdpes(PVMCPU pVCpu, PCX86PDPE paPdpes)
 {
     Assert(pVCpu->pgm.s.enmShadowMode == PGMMODE_EPT);
 
@@ -1681,7 +1791,8 @@ VMM_INT_DECL(int) PGMGstUpdatePaePdpes(PVMCPU pVCpu, PCX86PDPE paPdpes)
             pVCpu->pgm.s.aGCPhysGstPaePDs[i]  = NIL_RTGCPHYS;
         }
     }
-    return VINF_SUCCESS;
+
+    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_HM_UPDATE_PAE_PDPES);
 }
 
 
@@ -1870,7 +1981,7 @@ VMMDECL(int) PGMFlushTLB(PVMCPU pVCpu, uint64_t cr3, bool fGlobal)
         else
         {
             AssertMsg(rc == VINF_PGM_SYNC_CR3, ("%Rrc\n", rc));
-            Assert(VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL | VMCPU_FF_PGM_SYNC_CR3));
+            Assert(VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL | VMCPU_FF_PGM_SYNC_CR3));
             pVCpu->pgm.s.GCPhysCR3 = GCPhysOldCR3;
             pVCpu->pgm.s.fSyncFlags |= PGM_SYNC_MAP_CR3;
             if (pgmMapAreMappingsFloating(pVM))
@@ -1899,7 +2010,7 @@ VMMDECL(int) PGMFlushTLB(PVMCPU pVCpu, uint64_t cr3, bool fGlobal)
         if (pVCpu->pgm.s.fSyncFlags & PGM_SYNC_MONITOR_CR3)
         {
             pVCpu->pgm.s.fSyncFlags &= ~PGM_SYNC_MONITOR_CR3;
-            Assert(!pVM->pgm.s.fMappingsFixed); Assert(!pVM->pgm.s.fMappingsDisabled);
+            Assert(!pVM->pgm.s.fMappingsFixed); Assert(pgmMapAreMappingsEnabled(pVM));
         }
         if (fGlobal)
             STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,FlushTLBSameCR3Global));
@@ -1923,9 +2034,9 @@ VMMDECL(int) PGMFlushTLB(PVMCPU pVCpu, uint64_t cr3, bool fGlobal)
  *
  * @returns VBox status code.
  * @retval  VINF_SUCCESS.
- * @retval  (If applied when not in nested mode: VINF_PGM_SYNC_CR3 if monitoring
- *          requires a CR3 sync. This can safely be ignored and overridden since
- *          the FF will be set too then.)
+ * @retval  VINF_PGM_SYNC_CR3 if monitoring requires a CR3 sync (not for nested
+ *          paging modes).  This can safely be ignored and overridden since the
+ *          FF will be set too then.
  * @param   pVCpu       Pointer to the VMCPU.
  * @param   cr3         The new cr3.
  */
@@ -1936,7 +2047,7 @@ VMMDECL(int) PGMUpdateCR3(PVMCPU pVCpu, uint64_t cr3)
 
     /* We assume we're only called in nested paging mode. */
     Assert(pVCpu->CTX_SUFF(pVM)->pgm.s.fNestedPaging || pVCpu->pgm.s.enmShadowMode == PGMMODE_EPT);
-    Assert(pVCpu->CTX_SUFF(pVM)->pgm.s.fMappingsDisabled);
+    Assert(!pgmMapAreMappingsEnabled(pVCpu->CTX_SUFF(pVM)));
     Assert(!(pVCpu->pgm.s.fSyncFlags & PGM_SYNC_MONITOR_CR3));
 
     /*
@@ -1966,6 +2077,8 @@ VMMDECL(int) PGMUpdateCR3(PVMCPU pVCpu, uint64_t cr3)
         rc = PGM_BTH_PFN(MapCR3, pVCpu)(pVCpu, GCPhysCR3);
         AssertRCSuccess(rc); /* Assumes VINF_PGM_SYNC_CR3 doesn't apply to nested paging. */ /** @todo this isn't true for the mac, but we need hw to test/fix this. */
     }
+
+    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_HM_UPDATE_CR3);
     return rc;
 }
 
@@ -2018,7 +2131,7 @@ VMMDECL(int) PGMSyncCR3(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, 
     if (!(cr4 & X86_CR4_PGE))
         fGlobal = true;
     LogFlow(("PGMSyncCR3: cr0=%RX64 cr3=%RX64 cr4=%RX64 fGlobal=%d[%d,%d]\n", cr0, cr3, cr4, fGlobal,
-             VMCPU_FF_ISSET(pVCpu, VMCPU_FF_PGM_SYNC_CR3), VMCPU_FF_ISSET(pVCpu, VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL)));
+             VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3), VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL)));
 
     /*
      * Check if we need to finish an aborted MapCR3 call (see PGMFlushTLB).
@@ -2098,7 +2211,7 @@ VMMDECL(int) PGMSyncCR3(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, 
         {
             pVCpu->pgm.s.fSyncFlags &= ~PGM_SYNC_MONITOR_CR3;
             Assert(!pVCpu->CTX_SUFF(pVM)->pgm.s.fMappingsFixed);
-            Assert(!pVCpu->CTX_SUFF(pVM)->pgm.s.fMappingsDisabled);
+            Assert(pgmMapAreMappingsEnabled(pVCpu->CTX_SUFF(pVM)));
         }
     }
 
@@ -2177,6 +2290,34 @@ VMMDECL(int) PGMChangeMode(PVMCPU pVCpu, uint64_t cr0, uint64_t cr4, uint64_t ef
     LogFlow(("PGMChangeMode: returns VINF_PGM_CHANGE_MODE.\n"));
     return VINF_PGM_CHANGE_MODE;
 #endif
+}
+
+
+/**
+ * Called by CPUM or REM when CR0.WP changes to 1.
+ *
+ * @param   pVCpu       The cross context virtual CPU structure of the caller.
+ * @thread  EMT
+ */
+VMMDECL(void) PGMCr0WpEnabled(PVMCPU pVCpu)
+{
+    /*
+     * Netware WP0+RO+US hack cleanup when WP0 -> WP1.
+     *
+     * Use the counter to judge whether there might be pool pages with active
+     * hacks in them.  If there are, we will be running the risk of messing up
+     * the guest by allowing it to write to read-only pages.  Thus, we have to
+     * clear the page pool ASAP if there is the slightest chance.
+     */
+    if (pVCpu->pgm.s.cNetwareWp0Hacks > 0)
+    {
+        Assert(pVCpu->CTX_SUFF(pVM)->cCpus == 1);
+
+        Log(("PGMCr0WpEnabled: %llu WP0 hacks active - clearing page pool\n", pVCpu->pgm.s.cNetwareWp0Hacks));
+        pVCpu->pgm.s.cNetwareWp0Hacks = 0;
+        pVCpu->pgm.s.fSyncFlags |= PGM_SYNC_CLEAR_PGM_POOL;
+        VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
+    }
 }
 
 
@@ -2371,9 +2512,17 @@ VMMDECL(int) PGMSetLargePageUsage(PVM pVM, bool fUseLargePages)
  * @returns VBox status code
  * @param   pVM         Pointer to the VM.
  */
+#if defined(VBOX_STRICT) && defined(IN_RING3)
+int pgmLockDebug(PVM pVM, RT_SRC_POS_DECL)
+#else
 int pgmLock(PVM pVM)
+#endif
 {
+#if defined(VBOX_STRICT) && defined(IN_RING3)
+    int rc = PDMCritSectEnterDebug(&pVM->pgm.s.CritSectX, VERR_SEM_BUSY, (uintptr_t)ASMReturnAddress(), RT_SRC_POS_ARGS);
+#else
     int rc = PDMCritSectEnter(&pVM->pgm.s.CritSectX, VERR_SEM_BUSY);
+#endif
 #if defined(IN_RC) || defined(IN_RING0)
     if (rc == VERR_SEM_BUSY)
         rc = VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_PGM_LOCK, 0);
@@ -2507,7 +2656,7 @@ static DECLCALLBACK(size_t) pgmFormatTypeHandlerPage(PFNRTSTROUTPUT pfnOutput, v
         cch = pfnOutput(pvArgOutput, szTmp, cch);
     }
     else
-        cch = pfnOutput(pvArgOutput, "<bad-pgmpage-ptr>", sizeof("<bad-pgmpage-ptr>") - 1);
+        cch = pfnOutput(pvArgOutput, RT_STR_TUPLE("<bad-pgmpage-ptr>"));
     NOREF(pszType); NOREF(cchWidth); NOREF(pvUser);
     return cch;
 }
@@ -2529,7 +2678,7 @@ static DECLCALLBACK(size_t) pgmFormatTypeHandlerRamRange(PFNRTSTROUTPUT pfnOutpu
         cch = pfnOutput(pvArgOutput, szTmp, cch);
     }
     else
-        cch = pfnOutput(pvArgOutput, "<bad-pgmramrange-ptr>", sizeof("<bad-pgmramrange-ptr>") - 1);
+        cch = pfnOutput(pvArgOutput, RT_STR_TUPLE("<bad-pgmramrange-ptr>"));
     NOREF(pszType); NOREF(cchWidth); NOREF(cchPrecision); NOREF(pvUser); NOREF(fFlags);
     return cch;
 }

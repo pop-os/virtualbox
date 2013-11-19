@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,6 +36,11 @@
 #ifdef VBOX_WITH_GUEST_PROPS
 # include <VBox/HostServices/GuestPropertySvc.h>
 #endif
+#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
+# include <VBox/VBoxGuest.h>
+# include "../VBoxGuestLib/VBGLR3Internal.h" /* HACK ALERT! Using vbglR3DoIOCtl directly!! */
+#endif
+
 
 /*******************************************************************************
 *   Global Variables                                                           *
@@ -101,29 +106,30 @@ static void usage(enum VBoxControlUsage eWhich = USAGE_ALL)
     doUsage("suppress the logo", g_pszProgName, "--nologo ...");
     RTPrintf("\n");
 
-/* Exclude the Windows bits from the test version.  Anyone who needs to test
- * them can fix this. */
+    /* Exclude the Windows bits from the test version.  Anyone who needs to
+       test them can fix this. */
 #if defined(RT_OS_WINDOWS) && !defined(VBOX_CONTROL_TEST)
-    if (GET_VIDEO_ACCEL == eWhich || eWhich == USAGE_ALL)
+    if (eWhich  == GET_VIDEO_ACCEL || eWhich == USAGE_ALL)
         doUsage("", g_pszProgName, "getvideoacceleration");
-    if (SET_VIDEO_ACCEL == eWhich || eWhich == USAGE_ALL)
+    if (eWhich  == SET_VIDEO_ACCEL || eWhich == USAGE_ALL)
         doUsage("<on|off>", g_pszProgName, "setvideoacceleration");
     if (eWhich  == VIDEO_FLAGS || eWhich == USAGE_ALL)
         doUsage("<get|set|clear|delete> [hex mask]", g_pszProgName, "videoflags");
-    if (LIST_CUST_MODES == eWhich || eWhich == USAGE_ALL)
+    if (eWhich  == LIST_CUST_MODES || eWhich == USAGE_ALL)
         doUsage("", g_pszProgName, "listcustommodes");
-    if (ADD_CUST_MODE == eWhich || eWhich == USAGE_ALL)
+    if (eWhich  == ADD_CUST_MODE || eWhich == USAGE_ALL)
         doUsage("<width> <height> <bpp>", g_pszProgName, "addcustommode");
-    if (REMOVE_CUST_MODE == eWhich || eWhich == USAGE_ALL)
+    if (eWhich  == REMOVE_CUST_MODE || eWhich == USAGE_ALL)
         doUsage("<width> <height> <bpp>", g_pszProgName, "removecustommode");
-    if (SET_VIDEO_MODE == eWhich || eWhich == USAGE_ALL)
+    if (eWhich  == SET_VIDEO_MODE || eWhich == USAGE_ALL)
         doUsage("<width> <height> <bpp> <screen>", g_pszProgName, "setvideomode");
 #endif
 #ifdef VBOX_WITH_GUEST_PROPS
-    if (GUEST_PROP == eWhich || eWhich == USAGE_ALL)
+    if (eWhich == GUEST_PROP || eWhich == USAGE_ALL)
     {
         doUsage("get <property> [--verbose]", g_pszProgName, "guestproperty");
         doUsage("set <property> [<value> [--flags <flags>]]", g_pszProgName, "guestproperty");
+        doUsage("delete|unset <property>", g_pszProgName, "guestproperty");
         doUsage("enumerate [--patterns <patterns>]", g_pszProgName, "guestproperty");
         doUsage("wait <patterns>", g_pszProgName, "guestproperty");
         doUsage("[--timestamp <last timestamp>]");
@@ -131,7 +137,7 @@ static void usage(enum VBoxControlUsage eWhich = USAGE_ALL)
     }
 #endif
 #ifdef VBOX_WITH_SHARED_FOLDERS
-    if (GUEST_SHAREDFOLDERS == eWhich || eWhich == USAGE_ALL)
+    if (eWhich  == GUEST_SHAREDFOLDERS || eWhich == USAGE_ALL)
     {
         doUsage("list [-automount]", g_pszProgName, "sharedfolder");
     }
@@ -578,7 +584,7 @@ static RTEXITCODE handleSetVideoMode(int argc, char *argv[])
         scr = atoi(argv[3]);
     }
 
-    HMODULE hUser = GetModuleHandle("USER32");
+    HMODULE hUser = GetModuleHandle("user32.dll");
 
     if (hUser)
     {
@@ -675,7 +681,7 @@ static HKEY getVideoKey(bool writable)
            }
        }
     }
-    
+
     if (numDevices == 0)
     {
         /* Always try '\Device\Video0' as the old code did. Enum can be used in this case in principle. */
@@ -1306,6 +1312,51 @@ static RTEXITCODE setGuestProperty(int argc, char *argv[])
 
 
 /**
+ * Deletes a guest property from the guest property store.
+ * This is accessed through the "VBoxGuestPropSvc" HGCM service.
+ *
+ * @returns Command exit code.
+ * @note see the command line API description for parameters
+ */
+static RTEXITCODE deleteGuestProperty(int argc, char *argv[])
+{
+    /*
+     * Check the syntax.  We can deduce the correct syntax from the number of
+     * arguments.
+     */
+    bool usageOK = true;
+    const char *pszName = NULL;
+    if (argc < 1)
+        usageOK = false;
+    if (!usageOK)
+    {
+        usage(GUEST_PROP);
+        return RTEXITCODE_FAILURE;
+    }
+    /* This is always needed. */
+    pszName = argv[0];
+
+    /*
+     * Do the actual setting.
+     */
+    uint32_t u32ClientId = 0;
+    int rc = VbglR3GuestPropConnect(&u32ClientId);
+    if (!RT_SUCCESS(rc))
+        VBoxControlError("Failed to connect to the guest property service, error %Rrc\n", rc);
+    if (RT_SUCCESS(rc))
+    {
+        rc = VbglR3GuestPropDelete(u32ClientId, pszName);
+        if (!RT_SUCCESS(rc))
+            VBoxControlError("Failed to delete the property value, error %Rrc\n", rc);
+    }
+
+    if (u32ClientId != 0)
+        VbglR3GuestPropDisconnect(u32ClientId);
+    return RT_SUCCESS(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+}
+
+
+/**
  * Enumerates the properties in the guest property store.
  * This is accessed through the "VBoxGuestPropSvc" HGCM service.
  *
@@ -1525,6 +1576,8 @@ static RTEXITCODE handleGuestProperty(int argc, char *argv[])
         return getGuestProperty(argc - 1, argv + 1);
     else if (!strcmp(argv[0], "set"))
         return setGuestProperty(argc - 1, argv + 1);
+    else if (!strcmp(argv[0], "delete") || !strcmp(argv[0], "unset"))
+        return deleteGuestProperty(argc - 1, argv + 1);
     else if (!strcmp(argv[0], "enumerate"))
         return enumGuestProperty(argc - 1, argv + 1);
     else if (!strcmp(argv[0], "wait"))
@@ -1643,6 +1696,32 @@ static RTEXITCODE handleWriteCoreDump(int argc, char *argv[])
 }
 #endif
 
+#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
+/**
+ * @callback_method_impl{FNVBOXCTRLCMDHANDLER, Command: help}
+ */
+static RTEXITCODE handleDpc(int argc, char *argv[])
+{
+# ifndef VBOX_CONTROL_TEST
+    int rc;
+    for (int i = 0; i < 30; i++)
+    {
+        rc = vbglR3DoIOCtl(VBOXGUEST_IOCTL_DPC_LATENCY_CHECKER, NULL, 0);
+        if (RT_FAILURE(rc))
+            break;
+        RTPrintf("%d\n", i);
+    }
+# else
+    int rc = VERR_NOT_IMPLEMENTED;
+# endif
+    if (RT_FAILURE(rc))
+        return VBoxControlError("Error. rc=%Rrc\n", rc);
+    RTPrintf("Samples collection completed.\n");
+    return RTEXITCODE_SUCCESS;
+}
+#endif /* VBOX_WITH_DPC_LATENCY_CHECKER */
+
+
 /**
  * @callback_method_impl{FNVBOXCTRLCMDHANDLER, Command: takesnapshot}
  */
@@ -1700,38 +1779,6 @@ static RTEXITCODE handleHelp(int argc, char *argv[])
     return RTEXITCODE_SUCCESS;
 }
 
-#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
-#include "..\VBoxGuestLib\VBGLR3Internal.h"
-
-static RTEXITCODE handleDpc(int argc, char *argv[])
-{
-#ifndef VBOX_CONTROL_TEST
-    int rc = VINF_SUCCESS;
-    int i;
-    for (i = 0; i < 30; i++)
-    {
-        rc = vbglR3DoIOCtl(VBOXGUEST_IOCTL_DPC, NULL, 0);
-        if (RT_FAILURE(rc))
-        {
-            break;
-        }
-        RTPrintf("%d\n", i);
-    }
-#else
-    int rc = VERR_NOT_IMPLEMENTED;
-#endif
-    if (RT_SUCCESS(rc))
-    {
-        RTPrintf("Samples collection completed.\n");
-        return RTEXITCODE_SUCCESS;
-    }
-    else
-    {
-        VBoxControlError("Error. rc=%Rrc\n", rc);
-        return RTEXITCODE_FAILURE;
-    }
-}
-#endif /* VBOX_WITH_DPC_LATENCY_CHECKER */
 
 /** command handler type */
 typedef DECLCALLBACK(RTEXITCODE) FNVBOXCTRLCMDHANDLER(int argc, char *argv[]);
@@ -1762,6 +1809,9 @@ struct COMMANDHANDLER
 #if !defined(VBOX_CONTROL_TEST)
     { "writecoredump",          handleWriteCoreDump },
 #endif
+#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
+    { "dpc",                    handleDpc },
+#endif
     { "takesnapshot",           handleTakeSnapshot },
     { "savestate",              handleSaveState },
     { "suspend",                handleSuspend },
@@ -1770,9 +1820,6 @@ struct COMMANDHANDLER
     { "powerdown",              handlePowerOff },
     { "getversion",             handleVersion },
     { "version",                handleVersion },
-#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
-    { "dpc",                    handleDpc },
-#endif /* VBOX_WITH_DPC_LATENCY_CHECKER */
     { "help",                   handleHelp }
 };
 

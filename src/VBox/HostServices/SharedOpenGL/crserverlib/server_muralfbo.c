@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +19,7 @@
 #include "server.h"
 #include "cr_string.h"
 #include "cr_mem.h"
+#include "cr_vreg.h"
 #include "render/renderspu.h"
 
 static int crServerGetPointScreen(GLint x, GLint y)
@@ -45,16 +46,308 @@ static GLboolean crServerMuralCoverScreen(CRMuralInfo *mural, int sId)
            && mural->gY+(int)mural->height > cr_server.screen[sId].y+(int)cr_server.screen[sId].h;
 }
 
+void crServerDEntryResized(CRMuralInfo *pMural, CR_DISPLAY_ENTRY *pDEntry)
+{
+    /*PBO*/
+    if (pDEntry->idPBO)
+    {
+        CRASSERT(cr_server.bUsePBOForReadback);
+        cr_server.head_spu->dispatch_table.DeleteBuffersARB(1, &pDEntry->idPBO);
+        pDEntry->idPBO = 0;
+    }
+
+    if (pDEntry->idInvertTex)
+    {
+        cr_server.head_spu->dispatch_table.DeleteTextures(1, &pDEntry->idInvertTex);
+        pDEntry->idInvertTex = 0;
+    }
+
+    if (pDEntry->pvORInstance)
+    {
+        cr_server.outputRedirect.CRORGeometry(pDEntry->pvORInstance,
+                                                pMural->hX + CrVrScrCompositorEntryPosGet(&pDEntry->CEntry)->x,
+                                                pMural->hY + CrVrScrCompositorEntryPosGet(&pDEntry->CEntry)->y,
+                                                CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->width,
+                                                CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->height);
+
+        crServerDEntryVibleRegions(pMural, pDEntry);
+    }
+}
+
+void crServerDEntryMoved(CRMuralInfo *pMural, CR_DISPLAY_ENTRY *pDEntry)
+{
+    if (pDEntry->pvORInstance)
+    {
+        cr_server.outputRedirect.CRORGeometry(pDEntry->pvORInstance,
+                                                pMural->hX + CrVrScrCompositorEntryPosGet(&pDEntry->CEntry)->x,
+                                                pMural->hY + CrVrScrCompositorEntryPosGet(&pDEntry->CEntry)->y,
+                                                CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->width,
+                                                CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->height);
+
+        crServerDEntryVibleRegions(pMural, pDEntry);
+    }
+
+}
+
+void crServerDEntryVibleRegions(CRMuralInfo *pMural, CR_DISPLAY_ENTRY *pDEntry)
+{
+    if (pDEntry->pvORInstance)
+    {
+        uint32_t cRects;
+        const RTRECT *pRects;
+
+        int rc = CrVrScrCompositorEntryRegionsGet(&pMural->Compositor, &pDEntry->CEntry, &cRects, NULL, &pRects, NULL);
+        if (!RT_SUCCESS(rc))
+        {
+            crWarning("CrVrScrCompositorEntryRegionsGet failed, rc %d", rc);
+            return;
+        }
+
+        cr_server.outputRedirect.CRORVisibleRegion(pDEntry->pvORInstance, cRects, pRects);
+    }
+}
+
+/***/
+void crServerDEntryAllResized(CRMuralInfo *pMural)
+{
+    VBOXVR_SCR_COMPOSITOR_ITERATOR Iter;
+    PVBOXVR_SCR_COMPOSITOR_ENTRY pEntry;
+
+    CrVrScrCompositorIterInit(&pMural->Compositor, &Iter);
+    while ((pEntry = CrVrScrCompositorIterNext(&Iter)) != NULL)
+    {
+        CR_DISPLAY_ENTRY *pDEntry = CR_DENTRY_FROM_CENTRY(pEntry);
+        crServerDEntryResized(pMural, pDEntry);
+    }
+}
+
+void crServerDEntryAllMoved(CRMuralInfo *pMural)
+{
+    VBOXVR_SCR_COMPOSITOR_ITERATOR Iter;
+    PVBOXVR_SCR_COMPOSITOR_ENTRY pEntry;
+
+    CrVrScrCompositorIterInit(&pMural->Compositor, &Iter);
+
+    while ((pEntry = CrVrScrCompositorIterNext(&Iter)) != NULL)
+    {
+        CR_DISPLAY_ENTRY *pDEntry = CR_DENTRY_FROM_CENTRY(pEntry);
+        crServerDEntryMoved(pMural, pDEntry);
+    }
+}
+
+void crServerDEntryAllVibleRegions(CRMuralInfo *pMural)
+{
+    VBOXVR_SCR_COMPOSITOR_ITERATOR Iter;
+    PVBOXVR_SCR_COMPOSITOR_ENTRY pEntry;
+
+    CrVrScrCompositorIterInit(&pMural->Compositor, &Iter);
+
+    while ((pEntry = CrVrScrCompositorIterNext(&Iter)) != NULL)
+    {
+        CR_DISPLAY_ENTRY *pDEntry = CR_DENTRY_FROM_CENTRY(pEntry);
+        crServerDEntryVibleRegions(pMural, pDEntry);
+    }
+}
+/**/
+
+void crServerDEntryCheckFBO(CRMuralInfo *pMural, CR_DISPLAY_ENTRY *pDEntry, CRContext *ctx)
+{
+    if (!cr_server.bUsePBOForReadback == !pDEntry->idPBO)
+        return;
+
+    if (cr_server.bUsePBOForReadback)
+    {
+        Assert(!pDEntry->idPBO);
+        cr_server.head_spu->dispatch_table.GenBuffersARB(1, &pDEntry->idPBO);
+        cr_server.head_spu->dispatch_table.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, pDEntry->idPBO);
+        cr_server.head_spu->dispatch_table.BufferDataARB(GL_PIXEL_PACK_BUFFER_ARB,
+                CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->width*CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->height*4,
+                0, GL_STREAM_READ_ARB);
+        cr_server.head_spu->dispatch_table.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, ctx->bufferobject.packBuffer->hwid);
+
+        if (!pDEntry->idPBO)
+        {
+            crWarning("PBO create failed");
+        }
+    }
+}
+
+void crServerDEntryCheckInvertTex(CRMuralInfo *pMural, CR_DISPLAY_ENTRY *pDEntry, CRContext *ctx)
+{
+    CRContextInfo *pMuralContextInfo;
+
+    if (pDEntry->idInvertTex)
+        return;
+
+    pMuralContextInfo = cr_server.currentCtxInfo;
+    if (!pMuralContextInfo)
+    {
+        /* happens on saved state load */
+        CRASSERT(cr_server.MainContextInfo.SpuContext);
+        pMuralContextInfo = &cr_server.MainContextInfo;
+        cr_server.head_spu->dispatch_table.MakeCurrent(pMural->spuWindow, 0, cr_server.MainContextInfo.SpuContext);
+    }
+
+    if (pMuralContextInfo->CreateInfo.visualBits != pMural->CreateInfo.visualBits)
+    {
+        crWarning("mural visual bits do not match with current context visual bits!");
+    }
+
+    if (crStateIsBufferBound(GL_PIXEL_UNPACK_BUFFER_ARB))
+    {
+        cr_server.head_spu->dispatch_table.BindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+    }
+
+    cr_server.head_spu->dispatch_table.GenTextures(1, &pDEntry->idInvertTex);
+    CRASSERT(pDEntry->idInvertTex);
+    cr_server.head_spu->dispatch_table.BindTexture(GL_TEXTURE_2D, pDEntry->idInvertTex);
+    cr_server.head_spu->dispatch_table.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    cr_server.head_spu->dispatch_table.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    cr_server.head_spu->dispatch_table.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    cr_server.head_spu->dispatch_table.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    cr_server.head_spu->dispatch_table.TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8,
+            CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->width,
+            CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->height,
+            0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
+
+
+    /*Restore gl state*/
+    cr_server.head_spu->dispatch_table.BindTexture(GL_TEXTURE_2D,
+            ctx->texture.unit[ctx->texture.curTextureUnit].currentTexture2D->hwid);
+
+    if (crStateIsBufferBound(GL_PIXEL_UNPACK_BUFFER_ARB))
+    {
+        cr_server.head_spu->dispatch_table.BindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, ctx->bufferobject.unpackBuffer->hwid);
+    }
+
+    if (crStateIsBufferBound(GL_PIXEL_PACK_BUFFER_ARB))
+    {
+        cr_server.head_spu->dispatch_table.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, ctx->bufferobject.packBuffer->hwid);
+    }
+    else
+    {
+        cr_server.head_spu->dispatch_table.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, 0);
+    }
+}
+
+void crServerDEntryImgRelease(CRMuralInfo *pMural, CR_DISPLAY_ENTRY *pDEntry, void*pvImg)
+{
+    GLuint idPBO;
+    CRContext *ctx = crStateGetCurrent();
+
+    idPBO = cr_server.bUsePBOForReadback ? pDEntry->idPBO : 0;
+
+    CrHlpFreeTexImage(ctx, idPBO, pvImg);
+}
+
+
+void* crServerDEntryImgAcquire(CRMuralInfo *pMural, CR_DISPLAY_ENTRY *pDEntry, GLenum enmFormat)
+{
+    void* pvData;
+    GLuint idPBO;
+    VBOXVR_TEXTURE Tex;
+    const VBOXVR_TEXTURE * pTex;
+    CRContext *ctx = crStateGetCurrent();
+
+    crServerDEntryCheckFBO(pMural, pDEntry, ctx);
+
+    if (cr_server.bUsePBOForReadback && !pDEntry->idPBO)
+    {
+        crWarning("Mural doesn't have PBO even though bUsePBOForReadback is set!");
+    }
+
+    idPBO = cr_server.bUsePBOForReadback ? pDEntry->idPBO : 0;
+
+    if (!(CrVrScrCompositorEntryFlagsGet(&pDEntry->CEntry) & CRBLT_F_INVERT_SRC_YCOORDS))
+        pTex = CrVrScrCompositorEntryTexGet(&pDEntry->CEntry);
+    else
+    {
+        CRMuralInfo *pCurrentMural = cr_server.currentMural;
+        CRContextInfo *pCurCtxInfo = cr_server.currentCtxInfo;
+        PCR_BLITTER pBlitter = crServerVBoxBlitterGet();
+        CRMuralInfo *pBlitterMural;
+        CR_SERVER_CTX_SWITCH CtxSwitch;
+        RTRECT SrcRect, DstRect;
+        CR_BLITTER_WINDOW BlitterBltInfo, CurrentBltInfo;
+        CR_BLITTER_CONTEXT CtxBltInfo;
+        int rc;
+
+        crServerDEntryCheckInvertTex(pMural, pDEntry, ctx);
+        if (!pDEntry->idInvertTex)
+        {
+            crWarning("crServerDEntryCheckInvertTex failed");
+            return NULL;
+        }
+
+        Tex = *CrVrScrCompositorEntryTexGet(&pDEntry->CEntry);
+        Tex.hwid = pDEntry->idInvertTex;
+
+        SrcRect.xLeft = 0;
+        SrcRect.yTop = Tex.height;
+        SrcRect.xRight = Tex.width;
+        SrcRect.yBottom = 0;
+
+        DstRect.xLeft = 0;
+        DstRect.yTop = 0;
+        DstRect.xRight = Tex.width;
+        DstRect.yBottom = Tex.height;
+
+        if (pCurrentMural && pCurrentMural->CreateInfo.visualBits == CrBltGetVisBits(pBlitter))
+        {
+            pBlitterMural = pCurrentMural;
+        }
+        else
+        {
+            pBlitterMural = crServerGetDummyMural(pCurrentMural->CreateInfo.visualBits);
+            if (!pBlitterMural)
+            {
+                crWarning("crServerGetDummyMural failed for blitter mural");
+                return NULL;
+            }
+        }
+
+        crServerCtxSwitchPrepare(&CtxSwitch, NULL);
+
+        crServerVBoxBlitterWinInit(&CurrentBltInfo, pCurrentMural);
+        crServerVBoxBlitterWinInit(&BlitterBltInfo, pBlitterMural);
+        crServerVBoxBlitterCtxInit(&CtxBltInfo, pCurCtxInfo);
+
+        CrBltMuralSetCurrent(pBlitter, &BlitterBltInfo);
+
+        rc =  CrBltEnter(pBlitter, &CtxBltInfo, &CurrentBltInfo);
+        if (RT_SUCCESS(rc))
+        {
+            CrBltBlitTexTex(pBlitter, CrVrScrCompositorEntryTexGet(&pDEntry->CEntry), &SrcRect, &Tex, &DstRect, 1, 0);
+            CrBltLeave(pBlitter);
+        }
+        else
+        {
+            crWarning("CrBltEnter failed rc %d", rc);
+        }
+
+        crServerCtxSwitchPostprocess(&CtxSwitch);
+
+        pTex = &Tex;
+    }
+
+    pvData = CrHlpGetTexImage(ctx, pTex, idPBO, enmFormat);
+    if (!pvData)
+        crWarning("CrHlpGetTexImage failed in crServerPresentFBO");
+
+    return pvData;
+}
+
+
 /* Called when a new CRMuralInfo is created
  * or when OutputRedirect status is changed.
  */
-void crServerSetupOutputRedirect(CRMuralInfo *mural)
+void crServerSetupOutputRedirectEntry(CRMuralInfo *mural, CR_DISPLAY_ENTRY *pDEntry)
 {
     /* Unset the previous redirect. */
-    if (mural->pvOutputRedirectInstance)
+    if (pDEntry->pvORInstance)
     {
-        cr_server.outputRedirect.CROREnd(mural->pvOutputRedirectInstance);
-        mural->pvOutputRedirectInstance = NULL;
+        cr_server.outputRedirect.CROREnd(pDEntry->pvORInstance);
+        pDEntry->pvORInstance = NULL;
     }
 
     /* Setup a new redirect. */
@@ -74,7 +367,7 @@ void crServerSetupOutputRedirect(CRMuralInfo *mural)
                 if (RTStrStr(pachFormats, "H3DOR_FMT_RGBA_TOPDOWN"))
                 {
                     cr_server.outputRedirect.CRORBegin(cr_server.outputRedirect.pvContext,
-                                                       &mural->pvOutputRedirectInstance,
+                                                       &pDEntry->pvORInstance,
                                                        "H3DOR_FMT_RGBA_TOPDOWN"); // @todo from a header
                 }
             }
@@ -83,14 +376,27 @@ void crServerSetupOutputRedirect(CRMuralInfo *mural)
         }
 
         /* If this is not NULL then there was a supported format. */
-        if (mural->pvOutputRedirectInstance)
+        if (pDEntry->pvORInstance)
         {
-            cr_server.outputRedirect.CRORGeometry(mural->pvOutputRedirectInstance,
-                                                  mural->hX, mural->hY,
-                                                  mural->width, mural->height);
-            // @todo the code assumes that RTRECT == four of GLInts
-            cr_server.outputRedirect.CRORVisibleRegion(mural->pvOutputRedirectInstance,
-                                                       mural->cVisibleRects, (RTRECT *)mural->pVisibleRects);
+            uint32_t cRects;
+            const RTRECT *pRects;
+
+            int rc = CrVrScrCompositorEntryRegionsGet(&mural->Compositor, &pDEntry->CEntry, &cRects, NULL, &pRects, NULL);
+            if (!RT_SUCCESS(rc))
+            {
+                crWarning("CrVrScrCompositorEntryRegionsGet failed, rc %d", rc);
+                return;
+            }
+
+            cr_server.outputRedirect.CRORGeometry(pDEntry->pvORInstance,
+                                                  mural->hX + CrVrScrCompositorEntryPosGet(&pDEntry->CEntry)->x,
+                                                  mural->hY + CrVrScrCompositorEntryPosGet(&pDEntry->CEntry)->y,
+                                                  CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->width,
+                                                  CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->height);
+
+            cr_server.outputRedirect.CRORVisibleRegion(pDEntry->pvORInstance, cRects, pRects);
+//!!
+//            crServerPresentFBO(mural);
         }
     }
 }
@@ -98,34 +404,61 @@ void crServerSetupOutputRedirect(CRMuralInfo *mural)
 void crServerCheckMuralGeometry(CRMuralInfo *mural)
 {
     int tlS, brS, trS, blS;
-    int overlappingScreenCount, primaryS, i;
+    int overlappingScreenCount = 0, primaryS = -1 , i;
+    uint64_t winID = 0;
+    GLuint fPresentMode;
 
-    if (!mural->width || !mural->height)
+    if (!mural->CreateInfo.externalID)
         return;
 
-    if (cr_server.screenCount<2 && !cr_server.bForceOffscreenRendering)
+    CRASSERT(mural->spuWindow);
+    CRASSERT(mural->spuWindow != CR_RENDER_DEFAULT_WINDOW_ID);
+
+    crServerVBoxCompositionDisableEnter(mural);
+
+    if (!mural->width || !mural->height)
     {
-        CRScreenViewportInfo *pVieport = &cr_server.screenVieport[mural->screenId];
-        CRASSERT(cr_server.screenCount>0);
-
-        mural->hX = mural->gX-cr_server.screen[0].x;
-        mural->hY = mural->gY-cr_server.screen[0].y;
-
-        cr_server.head_spu->dispatch_table.WindowPosition(mural->spuWindow, mural->hX - pVieport->x, mural->hY - pVieport->y);
-
+        crServerRedirMuralFBO(mural, CR_SERVER_REDIR_F_NONE);
+        crServerDeleteMuralFBO(mural);
+        crServerVBoxCompositionDisableLeave(mural, GL_FALSE);
         return;
     }
 
     tlS = crServerGetPointScreen(mural->gX, mural->gY);
     brS = crServerGetPointScreen(mural->gX+mural->width-1, mural->gY+mural->height-1);
 
-    if (tlS==brS && tlS>=0)
+    if ((tlS==brS && tlS>=0) || cr_server.screenCount <= 1)
     {
-        overlappingScreenCount = 1;
-        primaryS = tlS;
+        if (cr_server.screenCount <= 1)
+        {
+            if (tlS != brS)
+            {
+                if (tlS >= 0)
+                    brS = tlS;
+                else
+                    tlS = brS;
+            }
+
+            primaryS = 0;
+        }
+        else
+        {
+            Assert(brS == tlS);
+
+            primaryS = brS;
+        }
+
+
+        Assert(brS == tlS);
+
+        if (tlS>=0 && cr_server.screen[tlS].winID)
+        {
+            overlappingScreenCount = 1;
+        }
     }
     else
     {
+        bool fFoundWindIdScreen = false;
         trS = crServerGetPointScreen(mural->gX+mural->width-1, mural->gY);
         blS = crServerGetPointScreen(mural->gX, mural->gY+mural->height-1);
 
@@ -135,81 +468,95 @@ void crServerCheckMuralGeometry(CRMuralInfo *mural)
             if ((i==tlS) || (i==brS) || (i==trS) || (i==blS)
                 || crServerMuralCoverScreen(mural, i))
             {
-                overlappingScreenCount++;
-                primaryS = primaryS<0 ? i:primaryS;
+                if ((!fFoundWindIdScreen && cr_server.screen[i].winID) || primaryS<0)
+                    primaryS = i;
+
+                if (cr_server.screen[i].winID)
+                {
+                    overlappingScreenCount++;
+                    fFoundWindIdScreen = true;
+                }
             }
         }
 
-        if (!overlappingScreenCount)
+        if (primaryS<0)
         {
             primaryS = 0;
         }
     }
 
-    if (primaryS!=mural->screenId)
-    {
-        mural->screenId = primaryS;
+    CRASSERT(primaryS >= 0);
 
-        renderspuSetWindowId(cr_server.screen[primaryS].winID);
+    winID = overlappingScreenCount ? cr_server.screen[primaryS].winID : 0;
+
+    if (!winID != !mural->fHasParentWindow
+            || (winID && primaryS!=mural->screenId))
+    {
+        mural->fHasParentWindow = !!winID;
+
+        renderspuSetWindowId(winID);
         renderspuReparentWindow(mural->spuWindow);
         renderspuSetWindowId(cr_server.screen[0].winID);
+    }
+
+    if (primaryS != mural->screenId)
+    {
+        /* mark it invisible on the old screen */
+        crServerWindowSetIsVisible(mural, GL_FALSE);
+        mural->screenId = primaryS;
+        /* check if mural is visivle on the new screen, and mark it as such */
+        crServerWindowCheckIsVisible(mural);
     }
 
     mural->hX = mural->gX-cr_server.screen[primaryS].x;
     mural->hY = mural->gY-cr_server.screen[primaryS].y;
 
-    if (overlappingScreenCount<2 && !cr_server.bForceOffscreenRendering)
+    fPresentMode = cr_server.fPresentMode;
+
+    if (!mural->fHasParentWindow)
+        fPresentMode &= ~CR_SERVER_REDIR_F_DISPLAY;
+
+    if (!overlappingScreenCount)
+        fPresentMode &= ~CR_SERVER_REDIR_F_DISPLAY;
+    else if (overlappingScreenCount > 1)
+        fPresentMode = (fPresentMode | CR_SERVER_REDIR_F_FBO_RAM_VMFB | cr_server.fVramPresentModeDefault) & ~CR_SERVER_REDIR_F_DISPLAY;
+
+    if (!mural->fUseDefaultDEntry)
     {
-        CRScreenViewportInfo *pVieport = &cr_server.screenVieport[mural->screenId];
+        /* only display matters */
+        fPresentMode &= CR_SERVER_REDIR_F_DISPLAY;
+    }
 
-        if (mural->bUseFBO)
-        {
-            crServerRedirMuralFBO(mural, GL_FALSE);
-            crServerDeleteMuralFBO(mural);
-        }
+    fPresentMode = crServerRedirModeAdjust(fPresentMode);
 
-        cr_server.head_spu->dispatch_table.WindowPosition(mural->spuWindow, mural->hX - pVieport->x, mural->hY - pVieport->y);
+    if (!(fPresentMode & CR_SERVER_REDIR_F_FBO))
+    {
+        crServerRedirMuralFBO(mural, fPresentMode);
+        crServerDeleteMuralFBO(mural);
     }
     else
     {
-        if (mural->spuWindow)
+        if (mural->fPresentMode & CR_SERVER_REDIR_F_FBO)
         {
-            if (!mural->bUseFBO)
+            if (mural->width!=mural->fboWidth
+                || mural->height!=mural->fboHeight)
             {
-                crServerRedirMuralFBO(mural, GL_TRUE);
-            }
-            else
-            {
-                if (mural->width!=mural->fboWidth
-                    || mural->height!=mural->height)
-                {
-                    crServerRedirMuralFBO(mural, GL_FALSE);
-                    crServerDeleteMuralFBO(mural);
-                    crServerRedirMuralFBO(mural, GL_TRUE);
-                }
+                crServerRedirMuralFBO(mural, fPresentMode & CR_SERVER_REDIR_F_DISPLAY);
+                crServerDeleteMuralFBO(mural);
             }
         }
-#ifdef DEBUG_misha
-        else
-        {
-            Assert(!mural->bUseFBO);
-        }
-#endif
 
-        if (!mural->bUseFBO)
-        {
-            CRScreenViewportInfo *pVieport = &cr_server.screenVieport[mural->screenId];
-
-            cr_server.head_spu->dispatch_table.WindowPosition(mural->spuWindow, mural->hX - pVieport->x, mural->hY - pVieport->y);
-        }
+        crServerRedirMuralFBO(mural, fPresentMode);
     }
 
-    if (mural->pvOutputRedirectInstance)
+    if (mural->fPresentMode & CR_SERVER_REDIR_F_DISPLAY)
     {
-        cr_server.outputRedirect.CRORGeometry(mural->pvOutputRedirectInstance,
-                                              mural->hX, mural->hY,
-                                              mural->width, mural->height);
+        CRScreenViewportInfo *pVieport = &cr_server.screenVieport[mural->screenId];
+
+        cr_server.head_spu->dispatch_table.WindowPosition(mural->spuWindow, mural->hX - pVieport->x, mural->hY - pVieport->y);
     }
+
+    crServerVBoxCompositionDisableLeave(mural, GL_FALSE);
 }
 
 GLboolean crServerSupportRedirMuralFBO(void)
@@ -228,43 +575,159 @@ GLboolean crServerSupportRedirMuralFBO(void)
     return fSupported;
 }
 
-void crServerRedirMuralFBO(CRMuralInfo *mural, GLboolean redir)
+static void crServerDentryPresentVRAM(CRMuralInfo *mural, CR_DISPLAY_ENTRY *pDEntry, char *pixels);
+
+#define CR_SERVER_MURAL_FROM_RPW_ENTRY(_pEntry) ((CRMuralInfo*)(((uint8_t*)(_pEntry)) - RT_OFFSETOF(CRMuralInfo, RpwEntry)))
+
+static DECLCALLBACK(void) crServerMuralRpwDataCB(const struct CR_SERVER_RPW_ENTRY* pEntry, void *pvEntryTexData)
 {
-    if (redir)
+    CRMuralInfo *pMural = CR_SERVER_MURAL_FROM_RPW_ENTRY(pEntry);
+
+    Assert(&pMural->RpwEntry == pEntry);
+    crError("port me!");
+    //    crServerPresentMuralVRAM(pMural, pvEntryTexData);
+}
+
+static void crServerCreateMuralFBO(CRMuralInfo *mural);
+
+static bool crServerEnableMuralRpw(CRMuralInfo *mural, GLboolean fEnable)
+{
+    if (!mural->CreateInfo.externalID)
+    {
+        crWarning("trying to change Rpw setting for internal mural %d", mural->spuWindow);
+        return !fEnable;
+    }
+
+    if (fEnable)
+    {
+        if (!(mural->fPresentMode & CR_SERVER_REDIR_F_FBO_RPW))
+        {
+            int rc;
+            if (!crServerRpwIsInitialized(&cr_server.RpwWorker))
+            {
+                rc = crServerRpwInit(&cr_server.RpwWorker);
+                if (!RT_SUCCESS(rc))
+                {
+                    crWarning("crServerRpwInit failed rc %d", rc);
+                    return false;
+                }
+            }
+
+            CRASSERT(!mural->RpwEntry.Size.cx);
+            CRASSERT(!mural->RpwEntry.Size.cy);
+
+            if (!crServerRpwEntryIsInitialized(&mural->RpwEntry))
+            {
+                rc = crServerRpwEntryInit(&cr_server.RpwWorker, &mural->RpwEntry, mural->width, mural->height, crServerMuralRpwDataCB);
+                if (!RT_SUCCESS(rc))
+                {
+                    crWarning("crServerRpwEntryInit failed rc %d", rc);
+                    return false;
+                }
+            }
+            else
+            {
+                rc = crServerRpwEntryResize(&cr_server.RpwWorker, &mural->RpwEntry, mural->width, mural->height);
+                if (!RT_SUCCESS(rc))
+                {
+                    crWarning("crServerRpwEntryResize failed rc %d", rc);
+                    return false;
+                }
+            }
+
+            mural->fPresentMode |= CR_SERVER_REDIR_F_FBO_RPW;
+        }
+    }
+    else
+    {
+        if ((mural->fPresentMode & CR_SERVER_REDIR_F_FBO_RPW))
+        {
+//            crServerRpwEntryCleanup(&cr_server.RpwWorker, &mural->RpwEntry);
+            mural->fPresentMode &= ~CR_SERVER_REDIR_F_FBO_RPW;
+        }
+    }
+
+    return true;
+}
+
+static void crServerEnableDisplayMuralFBO(CRMuralInfo *mural, GLboolean fEnable)
+{
+    if (!mural->CreateInfo.externalID)
+    {
+        crWarning("trying to change display setting for internal mural %d", mural->spuWindow);
+        return;
+    }
+
+    if (fEnable)
+    {
+        if (!(mural->fPresentMode & CR_SERVER_REDIR_F_DISPLAY))
+        {
+            mural->fPresentMode |= CR_SERVER_REDIR_F_DISPLAY;
+
+            if  (mural->bVisible)
+                crServerWindowShow(mural);
+        }
+    }
+    else
+    {
+        if ((mural->fPresentMode & CR_SERVER_REDIR_F_DISPLAY))
+        {
+            mural->fPresentMode &= ~CR_SERVER_REDIR_F_DISPLAY;
+
+            if (mural->bVisible)
+                crServerWindowShow(mural);
+        }
+    }
+}
+
+void crServerRedirMuralFBO(CRMuralInfo *mural, GLuint redir)
+{
+    if (mural->fPresentMode == redir)
+    {
+//        if (redir)
+//            crWarning("crServerRedirMuralFBO called with the same redir status %d", redir);
+        return;
+    }
+
+    if (!mural->CreateInfo.externalID)
+    {
+        crWarning("trying to change redir setting for internal mural %d", mural->spuWindow);
+        return;
+    }
+
+    crServerVBoxCompositionDisableEnter(mural);
+
+    if (redir & CR_SERVER_REDIR_F_FBO)
     {
         if (!crServerSupportRedirMuralFBO())
         {
             crWarning("FBO not supported, can't redirect window output");
-            return;
+            goto end;
         }
 
-        cr_server.head_spu->dispatch_table.WindowShow(mural->spuWindow, GL_FALSE);
-
-        if (mural->idFBO==0)
+        if (mural->fUseDefaultDEntry && mural->aidFBOs[0]==0)
         {
             crServerCreateMuralFBO(mural);
         }
 
-        if (!crStateGetCurrent()->framebufferobject.drawFB)
-        {
-            cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, mural->idFBO);
-        }
-        if (!crStateGetCurrent()->framebufferobject.readFB)
-        {
-            cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_READ_FRAMEBUFFER, mural->idFBO);
-        }
-
         if (cr_server.curClient && cr_server.curClient->currentMural == mural)
         {
+            if (!crStateGetCurrent()->framebufferobject.drawFB)
+            {
+                cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, CR_SERVER_FBO_FOR_IDX(mural, mural->iCurDrawBuffer));
+            }
+            if (!crStateGetCurrent()->framebufferobject.readFB)
+            {
+                cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_READ_FRAMEBUFFER, CR_SERVER_FBO_FOR_IDX(mural, mural->iCurReadBuffer));
+            }
+
             crStateGetCurrent()->buffer.width = 0;
             crStateGetCurrent()->buffer.height = 0;
         }
     }
     else
     {
-        cr_server.head_spu->dispatch_table.WindowShow(mural->spuWindow, mural->bVisible);
-
-        if (mural->bUseFBO && crServerSupportRedirMuralFBO())
+        if (cr_server.curClient && cr_server.curClient->currentMural == mural)
         {
             if (!crStateGetCurrent()->framebufferobject.drawFB)
             {
@@ -274,29 +737,35 @@ void crServerRedirMuralFBO(CRMuralInfo *mural, GLboolean redir)
             {
                 cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_READ_FRAMEBUFFER, 0);
             }
-        }
 
-        if (cr_server.curClient && cr_server.curClient->currentMural == mural)
-        {
             crStateGetCurrent()->buffer.width = mural->width;
             crStateGetCurrent()->buffer.height = mural->height;
         }
     }
 
-    mural->bUseFBO = redir;
+    crServerEnableMuralRpw(mural, !!(redir & CR_SERVER_REDIR_F_FBO_RPW));
+
+    crServerEnableDisplayMuralFBO(mural, !!(redir & CR_SERVER_REDIR_F_DISPLAY));
+
+    mural->fPresentMode = redir;
+
+end:
+    crServerVBoxCompositionDisableLeave(mural, GL_FALSE);
 }
 
-void crServerCreateMuralFBO(CRMuralInfo *mural)
+static void crServerCreateMuralFBO(CRMuralInfo *mural)
 {
     CRContext *ctx = crStateGetCurrent();
-    GLuint uid;
+    GLuint uid, i;
     GLenum status;
     SPUDispatchTable *gl = &cr_server.head_spu->dispatch_table;
     CRContextInfo *pMuralContextInfo;
-    int RestoreSpuWindow = -1;
-    int RestoreSpuContext = -1;
 
-    CRASSERT(mural->idFBO==0);
+    CRASSERT(mural->aidFBOs[0]==0);
+    CRASSERT(mural->aidFBOs[1]==0);
+    CRASSERT(mural->fUseDefaultDEntry);
+    CRASSERT(mural->width == mural->DefaultDEntry.CEntry.Tex.width);
+    CRASSERT(mural->height == mural->DefaultDEntry.CEntry.Tex.height);
 
     pMuralContextInfo = cr_server.currentCtxInfo;
     if (!pMuralContextInfo)
@@ -305,63 +774,68 @@ void crServerCreateMuralFBO(CRMuralInfo *mural)
         CRASSERT(cr_server.MainContextInfo.SpuContext);
         pMuralContextInfo = &cr_server.MainContextInfo;
         cr_server.head_spu->dispatch_table.MakeCurrent(mural->spuWindow, 0, cr_server.MainContextInfo.SpuContext);
-        RestoreSpuWindow = 0;
-        RestoreSpuContext = 0;
     }
 
+    if (pMuralContextInfo->CreateInfo.visualBits != mural->CreateInfo.visualBits)
+    {
+        crWarning("mural visual bits do not match with current context visual bits!");
+    }
+
+    mural->cBuffers = 2;
+    mural->iBbBuffer = 0;
     /*Color texture*/
-    gl->GenTextures(1, &mural->idColorTex);
-    gl->BindTexture(GL_TEXTURE_2D, mural->idColorTex);
-    gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+
     if (crStateIsBufferBound(GL_PIXEL_UNPACK_BUFFER_ARB))
     {
         gl->BindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
     }
-    gl->TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, mural->width, mural->height,
-                   0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
+
+    for (i = 0; i < mural->cBuffers; ++i)
+    {
+        gl->GenTextures(1, &mural->aidColorTexs[i]);
+        gl->BindTexture(GL_TEXTURE_2D, mural->aidColorTexs[i]);
+        gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+        gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+        gl->TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, mural->width, mural->height,
+                       0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
+    }
 
     /*Depth&Stencil*/
     gl->GenRenderbuffersEXT(1, &mural->idDepthStencilRB);
     gl->BindRenderbufferEXT(GL_RENDERBUFFER_EXT, mural->idDepthStencilRB);
     gl->RenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH24_STENCIL8_EXT,
-                               mural->width, mural->height);
+                           mural->width, mural->height);
 
     /*FBO*/
-    gl->GenFramebuffersEXT(1, &mural->idFBO);
-    gl->BindFramebufferEXT(GL_FRAMEBUFFER_EXT, mural->idFBO);
-
-    gl->FramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
-                                GL_TEXTURE_2D, mural->idColorTex, 0);
-    gl->FramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT,
-                                   GL_RENDERBUFFER_EXT, mural->idDepthStencilRB);
-    gl->FramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT,
-                                   GL_RENDERBUFFER_EXT, mural->idDepthStencilRB);
-
-    status = gl->CheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
-    if (status!=GL_FRAMEBUFFER_COMPLETE_EXT)
+    for (i = 0; i < mural->cBuffers; ++i)
     {
-        crWarning("FBO status(0x%x) isn't complete", status);
+        gl->GenFramebuffersEXT(1, &mural->aidFBOs[i]);
+        gl->BindFramebufferEXT(GL_FRAMEBUFFER_EXT, mural->aidFBOs[i]);
+
+        gl->FramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
+                                    GL_TEXTURE_2D, mural->aidColorTexs[i], 0);
+        gl->FramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT,
+                                       GL_RENDERBUFFER_EXT, mural->idDepthStencilRB);
+        gl->FramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT,
+                                       GL_RENDERBUFFER_EXT, mural->idDepthStencilRB);
+
+        status = gl->CheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
+        if (status!=GL_FRAMEBUFFER_COMPLETE_EXT)
+        {
+            crWarning("FBO status(0x%x) isn't complete", status);
+        }
     }
+
+    mural->iCurDrawBuffer = crServerMuralFBOIdxFromBufferName(mural, ctx->buffer.drawBuffer);
+    mural->iCurReadBuffer = crServerMuralFBOIdxFromBufferName(mural, ctx->buffer.readBuffer);
 
     mural->fboWidth = mural->width;
     mural->fboHeight = mural->height;
 
-    /*PBO*/
-    if (cr_server.bUsePBOForReadback)
-    {
-        gl->GenBuffersARB(1, &mural->idPBO);
-        gl->BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, mural->idPBO);
-        gl->BufferDataARB(GL_PIXEL_PACK_BUFFER_ARB, mural->width*mural->height*4, 0, GL_STREAM_READ_ARB);
-        gl->BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, ctx->bufferobject.packBuffer->hwid);
-
-        if (!mural->idPBO)
-        {
-            crWarning("PBO create failed");
-        }
-    }
+    mural->iCurDrawBuffer = crServerMuralFBOIdxFromBufferName(mural, ctx->buffer.drawBuffer);
+    mural->iCurReadBuffer = crServerMuralFBOIdxFromBufferName(mural, ctx->buffer.readBuffer);
 
     /*Restore gl state*/
     uid = ctx->texture.unit[ctx->texture.curTextureUnit].currentTexture2D->hwid;
@@ -381,33 +855,50 @@ void crServerCreateMuralFBO(CRMuralInfo *mural)
         gl->BindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, ctx->bufferobject.unpackBuffer->hwid);
     }
 
-    if (RestoreSpuWindow >= 0 && RestoreSpuContext >= 0)
+    if (crStateIsBufferBound(GL_PIXEL_PACK_BUFFER_ARB))
     {
-        cr_server.head_spu->dispatch_table.MakeCurrent(RestoreSpuWindow, 0, RestoreSpuContext);
+        gl->BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, ctx->bufferobject.packBuffer->hwid);
     }
+    else
+    {
+        gl->BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, 0);
+    }
+
+    CRASSERT(mural->aidColorTexs[CR_SERVER_FBO_FB_IDX(mural)]);
+
+    CrVrScrCompositorEntryTexNameUpdate(&mural->DefaultDEntry.CEntry, mural->aidColorTexs[CR_SERVER_FBO_FB_IDX(mural)]);
+
+//    if (mural->fRootVrOn)
+//        CrVrScrCompositorEntryTexNameUpdate(&mural->DefaultDEntry.RootVrCEntry, mural->aidColorTexs[CR_SERVER_FBO_FB_IDX(mural)]);
 }
 
 void crServerDeleteMuralFBO(CRMuralInfo *mural)
 {
-    CRASSERT(!mural->bUseFBO);
+    CRASSERT(!(mural->fPresentMode & CR_SERVER_REDIR_F_FBO));
 
-    if (mural->idFBO!=0)
+    if (mural->aidFBOs[0]!=0)
     {
-        cr_server.head_spu->dispatch_table.DeleteTextures(1, &mural->idColorTex);
+        GLuint i;
+        for (i = 0; i < mural->cBuffers; ++i)
+        {
+            cr_server.head_spu->dispatch_table.DeleteTextures(1, &mural->aidColorTexs[i]);
+            mural->aidColorTexs[i] = 0;
+        }
+
         cr_server.head_spu->dispatch_table.DeleteRenderbuffersEXT(1, &mural->idDepthStencilRB);
-        cr_server.head_spu->dispatch_table.DeleteFramebuffersEXT(1, &mural->idFBO);
-
-        mural->idFBO = 0;
-        mural->idColorTex = 0;
         mural->idDepthStencilRB = 0;
+
+        for (i = 0; i < mural->cBuffers; ++i)
+        {
+            cr_server.head_spu->dispatch_table.DeleteFramebuffersEXT(1, &mural->aidFBOs[i]);
+            mural->aidFBOs[i] = 0;
+        }
     }
 
-    if (mural->idPBO!=0)
-    {
-        CRASSERT(cr_server.bUsePBOForReadback);
-        cr_server.head_spu->dispatch_table.DeleteBuffersARB(1, &mural->idPBO);
-        mural->idPBO = 0;
-    }
+    mural->cBuffers = 0;
+
+    if (crServerRpwEntryIsInitialized(&mural->RpwEntry))
+        crServerRpwEntryCleanup(&cr_server.RpwWorker, &mural->RpwEntry);
 }
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -425,12 +916,16 @@ static GLboolean crServerIntersectRect(CRrecti *a, CRrecti *b, CRrecti *rect)
     return (rect->x2>rect->x1) && (rect->y2>rect->y1);
 }
 
-static GLboolean crServerIntersectScreen(CRMuralInfo *mural, int sId, CRrecti *rect)
+static GLboolean crServerIntersectScreen(CRMuralInfo *mural, CR_DISPLAY_ENTRY *pDEntry, int sId, CRrecti *rect)
 {
-    rect->x1 = MAX(mural->gX, cr_server.screen[sId].x);
-    rect->x2 = MIN(mural->gX+(int)mural->fboWidth, cr_server.screen[sId].x+(int)cr_server.screen[sId].w);
-    rect->y1 = MAX(mural->gY, cr_server.screen[sId].y);
-    rect->y2 = MIN(mural->gY+(int)mural->fboHeight, cr_server.screen[sId].y+(int)cr_server.screen[sId].h);
+    rect->x1 = MAX(mural->gX + CrVrScrCompositorEntryPosGet(&pDEntry->CEntry)->x, cr_server.screen[sId].x);
+    rect->x2 = MIN(mural->gX + CrVrScrCompositorEntryPosGet(&pDEntry->CEntry)->x
+            + (int)CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->width,
+            cr_server.screen[sId].x+(int)cr_server.screen[sId].w);
+    rect->y1 = MAX(mural->gY + CrVrScrCompositorEntryPosGet(&pDEntry->CEntry)->y, cr_server.screen[sId].y);
+    rect->y2 = MIN(mural->gY + CrVrScrCompositorEntryPosGet(&pDEntry->CEntry)->y
+            + (int)CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->height,
+            cr_server.screen[sId].y+(int)cr_server.screen[sId].h);
 
     return (rect->x2>rect->x1) && (rect->y2>rect->y1);
 }
@@ -461,150 +956,409 @@ static void crServerTransformRect(CRrecti *pDst, CRrecti *pSrc, int dx, int dy)
     pDst->y2 = pSrc->y2+dy;
 }
 
-void crServerPresentFBO(CRMuralInfo *mural)
+static void crServerVBoxCompositionPresentPerform(CRMuralInfo *mural)
 {
-    char *pixels=NULL, *tmppixels;
-    GLuint uid;
-    int i, j;
-    CRrecti rect, rectwr, sectr;
-    GLboolean bUsePBO;
-    CRContext *ctx = crStateGetCurrent();
+    CRMuralInfo *currentMural = cr_server.currentMural;
+    CRContextInfo *curCtxInfo = cr_server.currentCtxInfo;
+    GLuint idDrawFBO, idReadFBO;
+    CRContext *curCtx = curCtxInfo ? curCtxInfo->pContext : NULL;
 
-    CRASSERT(cr_server.pfnPresentFBO);
+    CRASSERT(curCtx == crStateGetCurrent());
 
-    if (!mural->bVisible)
+    Assert((mural->fPresentMode & CR_SERVER_REDIR_F_FBO) || !mural->fUseDefaultDEntry);
+    Assert(mural->fPresentMode & CR_SERVER_REDIR_F_DISPLAY);
+
+    mural->fDataPresented = GL_TRUE;
+
+    if (currentMural)
     {
-        return;
-    }
-
-    if (!mural->width || !mural->height)
-    {
-        return;
-    }
-
-    if (cr_server.bUsePBOForReadback && !mural->idPBO)
-    {
-        crWarning("Mural doesn't have PBO even though bUsePBOForReadback is set!");
-    }
-
-    bUsePBO = cr_server.bUsePBOForReadback && mural->idPBO;
-
-    cr_server.head_spu->dispatch_table.BindTexture(GL_TEXTURE_2D, mural->idColorTex);
-
-    if (bUsePBO)
-    {
-        CRASSERT(mural->idPBO);
-        cr_server.head_spu->dispatch_table.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, mural->idPBO);
+        idDrawFBO = CR_SERVER_FBO_FOR_IDX(currentMural, currentMural->iCurDrawBuffer);
+        idReadFBO = CR_SERVER_FBO_FOR_IDX(currentMural, currentMural->iCurReadBuffer);
     }
     else
     {
-        if (crStateIsBufferBound(GL_PIXEL_PACK_BUFFER_ARB))
-        {
-            cr_server.head_spu->dispatch_table.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, 0);
-        }
-
-        pixels = crAlloc(4*mural->fboWidth*mural->fboHeight);
-        if (!pixels)
-        {
-            crWarning("Out of memory in crServerPresentFBO");
-            return;
-        }
+        idDrawFBO = 0;
+        idReadFBO = 0;
     }
 
-    /*read the texture, note pixels are NULL for PBO case as it's offset in the buffer*/    
-    cr_server.head_spu->dispatch_table.GetTexImage(GL_TEXTURE_2D, 0, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
+    crStateSwitchPrepare(NULL, curCtx, idDrawFBO, idReadFBO);
 
-    /*restore gl state*/
-    uid = ctx->texture.unit[ctx->texture.curTextureUnit].currentTexture2D->hwid;
-    cr_server.head_spu->dispatch_table.BindTexture(GL_TEXTURE_2D, uid);
+    if (!mural->fRootVrOn)
+        cr_server.head_spu->dispatch_table.VBoxPresentComposition(mural->spuWindow, &mural->Compositor, NULL);
+    else
+        cr_server.head_spu->dispatch_table.VBoxPresentComposition(mural->spuWindow, &mural->RootVrCompositor, NULL);
 
-    if (bUsePBO)
+    crStateSwitchPostprocess(curCtx, NULL, idDrawFBO, idReadFBO);
+}
+
+void crServerVBoxCompositionPresent(CRMuralInfo *mural)
+{
+    if (!crServerVBoxCompositionPresentNeeded(mural))
+        return;
+    crServerVBoxCompositionPresentPerform(mural);
+}
+
+static void crServerVBoxCompositionReenable(CRMuralInfo *mural)
+{
+    GLboolean fForcePresent = mural->fForcePresentState;
+    GLboolean fOrPresentOnReenable = mural->fOrPresentOnReenable;
+
+    mural->fForcePresentState = GL_FALSE;
+    mural->fOrPresentOnReenable = GL_FALSE;
+
+    if ((mural->fUseDefaultDEntry && !(mural->fPresentMode & CR_SERVER_REDIR_F_FBO))
+            || !mural->fDataPresented
+            || (!fForcePresent
+                    && !crServerVBoxCompositionPresentNeeded(mural)))
+        return;
+
+    if (mural->fPresentMode & CR_SERVER_REDIR_F_DISPLAY)
+        crServerVBoxCompositionPresentPerform(mural);
+
+    if (fOrPresentOnReenable
+            && cr_server.bUseOutputRedirect
+            && crServerVBoxCompositionPresentNeeded(mural))
+        crServerPresentOutputRedirect(mural);
+}
+
+static void crServerVBoxCompositionDisable(CRMuralInfo *mural)
+{
+    if (!(mural->fPresentMode & CR_SERVER_REDIR_F_DISPLAY)
+            || (mural->fUseDefaultDEntry && !(mural->fPresentMode & CR_SERVER_REDIR_F_FBO))
+            || !mural->fDataPresented)
+        return;
+    cr_server.head_spu->dispatch_table.VBoxPresentComposition(mural->spuWindow, NULL, NULL);
+}
+
+void crServerVBoxCompositionDisableEnter(CRMuralInfo *mural)
+{
+    ++cr_server.cDisableEvents;
+    Assert(cr_server.cDisableEvents);
+
+    ++mural->cDisabled;
+    Assert(mural->cDisabled);
+    if (mural->cDisabled == 1)
     {
-        pixels = cr_server.head_spu->dispatch_table.MapBufferARB(GL_PIXEL_PACK_BUFFER_ARB, GL_READ_ONLY);
-        if (!pixels)
-        {
-            crWarning("Failed to MapBuffer in crServerPresentFBO");
-            return;
-        }
+        crServerVBoxCompositionDisable(mural);
+    }
+}
+
+void crServerVBoxCompositionDisableLeave(CRMuralInfo *mural, GLboolean fForcePresentOnEnabled)
+{
+    mural->fForcePresentState |= fForcePresentOnEnabled;
+    --mural->cDisabled;
+    Assert(mural->cDisabled < UINT32_MAX/2);
+    if (!mural->cDisabled)
+    {
+        crServerVBoxCompositionReenable(mural);
     }
 
-    for (i=0; i<cr_server.screenCount; ++i)
+    --cr_server.cDisableEvents;
+    Assert(cr_server.cDisableEvents < UINT32_MAX/2);
+    crVBoxServerCheckVisibilityEvent(-1);
+}
+
+static void crServerVBoxCompositionSetEnableStateGlobalCB(unsigned long key, void *data1, void *data2)
+{
+    CRMuralInfo *mural = (CRMuralInfo *)data1;
+
+    if (data2)
+        crServerVBoxCompositionDisableLeave(mural, GL_FALSE);
+    else
+        crServerVBoxCompositionDisableEnter(mural);
+}
+
+DECLEXPORT(void) crServerVBoxCompositionSetEnableStateGlobal(GLboolean fEnable)
+{
+    int i;
+
+    crHashtableWalk(cr_server.muralTable, crServerVBoxCompositionSetEnableStateGlobalCB, (void*)(uintptr_t)fEnable);
+
+    crHashtableWalk(cr_server.dummyMuralTable, crServerVBoxCompositionSetEnableStateGlobalCB, (void*)(uintptr_t)fEnable);
+
+    for (i = 0; i < cr_server.screenCount; ++i)
     {
-        if (crServerIntersectScreen(mural, i, &rect))
+        PCR_DISPLAY pDisplay = crServerDisplayGetInitialized((uint32_t)i);
+        if (!pDisplay)
+            continue;
+
+        if (!fEnable)
+            CrDpEnter(pDisplay);
+        else
+            CrDpLeave(pDisplay);
+    }
+}
+
+static void crServerDentryPresentVRAM(CRMuralInfo *mural, CR_DISPLAY_ENTRY *pDEntry, char *pixels)
+{
+    char *tmppixels;
+    CRrecti rect, rectwr, sectr;
+    int i, rc;
+    uint32_t j;
+
+    if (mural->fPresentMode & CR_SERVER_REDIR_F_FBO_RAM_VMFB)
+    {
+        for (i=0; i<cr_server.screenCount; ++i)
         {
-            /* rect in window relative coords */
-            crServerTransformRect(&rectwr, &rect, -mural->gX, -mural->gY);
-
-            if (!mural->pVisibleRects)
+            if (crServerIntersectScreen(mural, pDEntry, i, &rect))
             {
-                /*we don't get any rects info for guest compiz windows, so we treat windows as visible unless explicitly received 0 visible rects*/
-                if (!mural->bReceivedRects)
-                {
-                    tmppixels = crAlloc(4*(rect.x2-rect.x1)*(rect.y2-rect.y1));
-                    if (!tmppixels)
-                    {
-                        crWarning("Out of memory in crServerPresentFBO");
-                        crFree(pixels);
-                        return;
-                    }
+                uint32_t cRects;
+                const RTRECT *pRects;
 
-                    crServerCopySubImage(tmppixels, pixels, &rectwr, mural->fboWidth, mural->fboHeight);
-                    /*Note: pfnPresentFBO would free tmppixels*/
-                    cr_server.pfnPresentFBO(tmppixels, i, rect.x1-cr_server.screen[i].x, rect.y1-cr_server.screen[i].y, rect.x2-rect.x1, rect.y2-rect.y1);
-                }
-            }
-            else
-            {
-                for (j=0; j<mural->cVisibleRects; ++j)
+                /* rect in window relative coords */
+                crServerTransformRect(&rectwr, &rect, -mural->gX, -mural->gY);
+
+                rc = CrVrScrCompositorEntryRegionsGet(&mural->Compositor, &pDEntry->CEntry, &cRects, NULL, &pRects, NULL);
+                if (RT_SUCCESS(rc))
                 {
-                    if (crServerIntersectRect(&rectwr, (CRrecti*) &mural->pVisibleRects[4*j], &sectr))
+                    /*we don't get any rects info for guest compiz windows, so we treat windows as visible unless explicitly received 0 visible rects*/
+                    for (j=0; j<cRects; ++j)
                     {
-                        tmppixels = crAlloc(4*(sectr.x2-sectr.x1)*(sectr.y2-sectr.y1));
-                        if (!tmppixels)
+                        if (crServerIntersectRect(&rectwr, (CRrecti*)&pRects[j], &sectr))
                         {
-                            crWarning("Out of memory in crServerPresentFBO");
-                            crFree(pixels);
-                            return;
-                        }
+                            tmppixels = crAlloc(4*(sectr.x2-sectr.x1)*(sectr.y2-sectr.y1));
+                            if (!tmppixels)
+                            {
+                                crWarning("Out of memory in crServerPresentFBO");
+                                crFree(pixels);
+                                return;
+                            }
 
-                        crServerCopySubImage(tmppixels, pixels, &sectr, mural->fboWidth, mural->fboHeight);
-                        /*Note: pfnPresentFBO would free tmppixels*/
-                        cr_server.pfnPresentFBO(tmppixels, i,
-                                                sectr.x1+mural->gX-cr_server.screen[i].x,
-                                                sectr.y1+mural->gY-cr_server.screen[i].y,
-                                                sectr.x2-sectr.x1, sectr.y2-sectr.y1);
+                            crServerCopySubImage(tmppixels, pixels, &sectr, CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->width, CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->height);
+                            /*Note: pfnPresentFBO would free tmppixels*/
+                            cr_server.pfnPresentFBO(tmppixels, i,
+                                                    sectr.x1+mural->gX+CrVrScrCompositorEntryPosGet(&pDEntry->CEntry)->x-cr_server.screen[i].x,
+                                                    sectr.y1+mural->gY+CrVrScrCompositorEntryPosGet(&pDEntry->CEntry)->y-cr_server.screen[i].y,
+                                                    sectr.x2-sectr.x1, sectr.y2-sectr.y1);
+                        }
                     }
+                }
+                else
+                {
+                    crWarning("CrVrScrCompositorEntryRegionsGet failed, rc %d", rc);
                 }
             }
         }
     }
 
-    if (mural->pvOutputRedirectInstance)
+    if (pDEntry->pvORInstance)
     {
         /* @todo find out why presentfbo is not called but crorframe is called. */
-        cr_server.outputRedirect.CRORFrame(mural->pvOutputRedirectInstance,
+        cr_server.outputRedirect.CRORFrame(pDEntry->pvORInstance,
                                            pixels,
-                                           4 * mural->fboWidth * mural->fboHeight);
+                                           4 * CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->width * CrVrScrCompositorEntryTexGet(&pDEntry->CEntry)->height);
     }
+}
 
-    if (bUsePBO)
+void crServerPresentOutputRedirectEntry(CRMuralInfo *pMural, CR_DISPLAY_ENTRY *pDEntry)
+{
+    char *pixels=NULL;
+
+    if (!pDEntry->pvORInstance)
     {
-        cr_server.head_spu->dispatch_table.UnmapBufferARB(GL_PIXEL_PACK_BUFFER_ARB);
-        cr_server.head_spu->dispatch_table.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, ctx->bufferobject.packBuffer->hwid);
-    }
-    else
-    {
-        crFree(pixels);
-        if (crStateIsBufferBound(GL_PIXEL_PACK_BUFFER_ARB))
+        crServerSetupOutputRedirectEntry(pMural, pDEntry);
+        if (!pDEntry->pvORInstance)
         {
-            cr_server.head_spu->dispatch_table.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, ctx->bufferobject.packBuffer->hwid);
+            crWarning("crServerSetupOutputRedirectEntry failed!");
+            return;
         }
     }
+
+    if (pMural->fPresentMode & CR_SERVER_REDIR_F_FBO_RPW)
+    {
+        crError("port me!");
+#if 0
+        /* 1. blit to RPW entry draw texture */
+        CRMuralInfo *pCurrentMural = cr_server.currentMural;
+        CRContextInfo *pCurCtxInfo = cr_server.currentCtxInfo;
+        PCR_BLITTER pBlitter = crServerVBoxBlitterGet();
+        CRMuralInfo *pBlitterMural;
+        CR_SERVER_CTX_SWITCH CtxSwitch;
+        RTRECT Rect;
+        VBOXVR_TEXTURE DstTex;
+        CR_BLITTER_WINDOW BlitterBltInfo, CurrentBltInfo;
+        CR_BLITTER_CONTEXT CtxBltInfo;
+        int rc;
+
+        Rect.xLeft = 0;
+        Rect.yTop = 0;
+        Rect.xRight = Tex.width;
+        Rect.yBottom = Tex.height;
+
+        if (pCurrentMural && pCurrentMural->CreateInfo.visualBits == CrBltGetVisBits(pBlitter))
+        {
+            pBlitterMural = pCurrentMural;
+        }
+        else
+        {
+            pBlitterMural = crServerGetDummyMural(pCurrentMural->CreateInfo.visualBits);
+            if (!pBlitterMural)
+            {
+                crWarning("crServerGetDummyMural failed for blitter mural");
+                return;
+            }
+        }
+
+        crServerRpwEntryDrawSettingsToTex(&mural->RpwEntry, &DstTex);
+
+        crServerCtxSwitchPrepare(&CtxSwitch, NULL);
+
+        crServerVBoxBlitterWinInit(&CurrentBltInfo, pCurrentMural);
+        crServerVBoxBlitterWinInit(&BlitterBltInfo, pBlitterMural);
+        crServerVBoxBlitterCtxInit(&CtxBltInfo, pCurCtxInfo);
+
+        CrBltMuralSetCurrent(pBlitter, &BlitterBltInfo);
+
+        rc =  CrBltEnter(pBlitter, &CtxBltInfo, &CurrentBltInfo);
+        if (RT_SUCCESS(rc))
+        {
+            CrBltBlitTexTex(pBlitter, &Tex, &Rect, &DstTex, &Rect, 1, 0);
+            CrBltLeave(pBlitter);
+        }
+        else
+        {
+            crWarning("CrBltEnter failed rc %d", rc);
+        }
+
+        crServerCtxSwitchPostprocess(&CtxSwitch);
+
+#if 1
+        if (RT_SUCCESS(rc))
+        {
+            /* 2. submit RPW entry */
+            rc =  crServerRpwEntrySubmit(&cr_server.RpwWorker, &mural->RpwEntry);
+            if (!RT_SUCCESS(rc))
+            {
+                crWarning("crServerRpwEntrySubmit failed rc %d", rc);
+            }
+        }
+#endif
+#endif
+        return;
+    }
+
+    pixels = crServerDEntryImgAcquire(pMural, pDEntry, GL_BGRA);
+    if (!pixels)
+    {
+        crWarning("CrHlpGetTexImage failed in crServerPresentFBO");
+        return;
+    }
+
+    crServerDentryPresentVRAM(pMural, pDEntry, pixels);
+
+    crServerDEntryImgRelease(pMural, pDEntry, pixels);
+}
+
+void crServerPresentOutputRedirect(CRMuralInfo *pMural)
+{
+    VBOXVR_SCR_COMPOSITOR_ITERATOR Iter;
+    PVBOXVR_SCR_COMPOSITOR_ENTRY pEntry;
+
+    CrVrScrCompositorIterInit(&pMural->Compositor, &Iter);
+
+    while ((pEntry = CrVrScrCompositorIterNext(&Iter)) != NULL)
+    {
+        CR_DISPLAY_ENTRY *pDEntry = CR_DENTRY_FROM_CENTRY(pEntry);
+        crServerPresentOutputRedirectEntry(pMural, pDEntry);
+    }
+}
+
+void crServerOutputRedirectCheckEnableDisable(CRMuralInfo *pMural)
+{
+    VBOXVR_SCR_COMPOSITOR_ITERATOR Iter;
+    PVBOXVR_SCR_COMPOSITOR_ENTRY pEntry;
+
+    CrVrScrCompositorIterInit(&pMural->Compositor, &Iter);
+
+    while ((pEntry = CrVrScrCompositorIterNext(&Iter)) != NULL)
+    {
+        CR_DISPLAY_ENTRY *pDEntry = CR_DENTRY_FROM_CENTRY(pEntry);
+        crServerSetupOutputRedirectEntry(pMural, pDEntry);
+    }
+}
+
+void crServerPresentFBO(CRMuralInfo *mural)
+{
+    CRASSERT(mural->fPresentMode & CR_SERVER_REDIR_F_FBO);
+    CRASSERT(cr_server.pfnPresentFBO || (mural->fPresentMode & CR_SERVER_REDIR_F_DISPLAY));
+
+    if (!crServerVBoxCompositionPresentNeeded(mural))
+        return;
+
+    mural->fDataPresented = GL_TRUE;
+
+    if (mural->fPresentMode & CR_SERVER_REDIR_F_DISPLAY)
+        crServerVBoxCompositionPresentPerform(mural);
+
+    if (mural->fPresentMode & CR_SERVER_REDIR_FGROUP_REQUIRE_FBO_RAM)
+        crServerPresentOutputRedirect(mural);
 }
 
 GLboolean crServerIsRedirectedToFBO()
 {
+#ifdef DEBUG_misha
+    Assert(cr_server.curClient);
+    if (cr_server.curClient)
+    {
+        Assert(cr_server.curClient->currentMural == cr_server.currentMural);
+        Assert(cr_server.curClient->currentCtxInfo == cr_server.currentCtxInfo);
+    }
+#endif
     return cr_server.curClient
            && cr_server.curClient->currentMural
-           && cr_server.curClient->currentMural->bUseFBO;
+           && (cr_server.curClient->currentMural->fPresentMode & CR_SERVER_REDIR_F_FBO);
+}
+
+GLint crServerMuralFBOIdxFromBufferName(CRMuralInfo *mural, GLenum buffer)
+{
+    switch (buffer)
+    {
+        case GL_FRONT:
+        case GL_FRONT_LEFT:
+        case GL_FRONT_RIGHT:
+            return CR_SERVER_FBO_FB_IDX(mural);
+        case GL_BACK:
+        case GL_BACK_LEFT:
+        case GL_BACK_RIGHT:
+            return CR_SERVER_FBO_BB_IDX(mural);
+        case GL_NONE:
+        case GL_AUX0:
+        case GL_AUX1:
+        case GL_AUX2:
+        case GL_AUX3:
+        case GL_LEFT:
+        case GL_RIGHT:
+        case GL_FRONT_AND_BACK:
+            return -1;
+        default:
+            crWarning("crServerMuralFBOIdxFromBufferName: invalid buffer passed 0x%x", buffer);
+            return -2;
+    }
+}
+
+void crServerMuralFBOSwapBuffers(CRMuralInfo *mural)
+{
+    CRContext *ctx = crStateGetCurrent();
+    GLuint iOldCurDrawBuffer = mural->iCurDrawBuffer;
+    GLuint iOldCurReadBuffer = mural->iCurReadBuffer;
+    mural->iBbBuffer = ((mural->iBbBuffer + 1) % (mural->cBuffers));
+    if (mural->iCurDrawBuffer >= 0)
+        mural->iCurDrawBuffer = ((mural->iCurDrawBuffer + 1) % (mural->cBuffers));
+    if (mural->iCurReadBuffer >= 0)
+        mural->iCurReadBuffer = ((mural->iCurReadBuffer + 1) % (mural->cBuffers));
+    Assert(iOldCurDrawBuffer != mural->iCurDrawBuffer || mural->cBuffers == 1 || mural->iCurDrawBuffer < 0);
+    Assert(iOldCurReadBuffer != mural->iCurReadBuffer || mural->cBuffers == 1 || mural->iCurReadBuffer < 0);
+    if (!ctx->framebufferobject.drawFB && iOldCurDrawBuffer != mural->iCurDrawBuffer)
+    {
+        cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, CR_SERVER_FBO_FOR_IDX(mural, mural->iCurDrawBuffer));
+    }
+    if (!ctx->framebufferobject.readFB && iOldCurReadBuffer != mural->iCurReadBuffer)
+    {
+        cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_READ_FRAMEBUFFER, CR_SERVER_FBO_FOR_IDX(mural, mural->iCurReadBuffer));
+    }
+    Assert(mural->aidColorTexs[CR_SERVER_FBO_FB_IDX(mural)]);
+    Assert(mural->fUseDefaultDEntry);
+    CrVrScrCompositorEntryTexNameUpdate(&mural->DefaultDEntry.CEntry, mural->aidColorTexs[CR_SERVER_FBO_FB_IDX(mural)]);
+    if (mural->fRootVrOn)
+        CrVrScrCompositorEntryTexNameUpdate(&mural->DefaultDEntry.RootVrCEntry, mural->aidColorTexs[CR_SERVER_FBO_FB_IDX(mural)]);
 }

@@ -18,7 +18,6 @@
  */
 
 /* Qt includes: */
-#include <QNetworkReply>
 #include <QTimer>
 #include <QDir>
 #include <QPointer>
@@ -29,8 +28,10 @@
 #include "UIUpdateManager.h"
 #include "UINetworkManager.h"
 #include "UINetworkCustomer.h"
+#include "UINetworkRequest.h"
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
+#include "UIModalWindowManager.h"
 #include "VBoxUtils.h"
 #include "UIDownloaderExtensionPack.h"
 #include "UIGlobalSettingsExtension.h"
@@ -130,9 +131,9 @@ protected:
     /* Network pregress handler dummy: */
     void processNetworkReplyProgress(qint64, qint64) {}
     /* Network reply canceled handler dummy: */
-    void processNetworkReplyCanceled(QNetworkReply*) {}
+    void processNetworkReplyCanceled(UINetworkReply*) {}
     /* Network reply canceled handler dummy: */
-    void processNetworkReplyFinished(QNetworkReply*) {}
+    void processNetworkReplyFinished(UINetworkReply*) {}
 };
 
 /* Update-step to check for the new VirtualBox version: */
@@ -145,7 +146,7 @@ public:
     /* Constructor: */
     UIUpdateStepVirtualBox(UIUpdateQueue *pQueue, bool fForceCall)
         : UIUpdateStep(pQueue, fForceCall)
-        , m_url("http://update.virtualbox.org/query.php")
+        , m_url("https://update.virtualbox.org/query.php")
     {
     }
 
@@ -195,18 +196,18 @@ private:
         QNetworkRequest request;
         request.setUrl(url);
         request.setRawHeader("User-Agent", strUserAgent.toAscii());
-        createNetworkRequest(request, UINetworkRequestType_GET, tr("Checking for a new VirtualBox version..."));
+        createNetworkRequest(request, UINetworkRequestType_GET_Our, tr("Checking for a new VirtualBox version..."));
     }
 
     /* Handle network reply canceled: */
-    void processNetworkReplyCanceled(QNetworkReply* /* pReply */)
+    void processNetworkReplyCanceled(UINetworkReply* /* pReply */)
     {
         /* Notify about step completion: */
         emit sigStepComplete();
     }
 
     /* Handle network reply: */
-    void processNetworkReplyFinished(QNetworkReply *pReply)
+    void processNetworkReplyFinished(UINetworkReply *pReply)
     {
         /* Deserialize incoming data: */
         QString strResponseData(pReply->readAll());
@@ -414,14 +415,14 @@ private slots:
         if (strExtPackEdition.contains("ENTERPRISE"))
         {
             /* Inform the user that he should update the extension pack: */
-            msgCenter().requestUserDownloadExtensionPack(GUI_ExtPackName, strExtPackVersion, strVBoxVersion);
+            msgCenter().askUserToDownloadExtensionPack(GUI_ExtPackName, strExtPackVersion, strVBoxVersion);
             /* Never try to download for ENTERPRISE version: */
             emit sigStepComplete();
             return;
         }
 
         /* Ask the user about extension pack downloading: */
-        if (!msgCenter().proposeDownloadExtensionPack(GUI_ExtPackName, strExtPackVersion))
+        if (!msgCenter().warAboutOutdatedExtensionPack(GUI_ExtPackName, strExtPackVersion))
         {
             emit sigStepComplete();
             return;
@@ -443,7 +444,7 @@ private slots:
     {
         /* Warn the user about extension pack was downloaded and saved, propose to install it: */
         if (msgCenter().proposeInstallExtentionPack(GUI_ExtPackName, strSource, QDir::toNativeSeparators(strTarget)))
-            UIGlobalSettingsExtension::doInstallation(strTarget, strDigest, msgCenter().mainWindowShown(), NULL);
+            UIGlobalSettingsExtension::doInstallation(strTarget, strDigest, windowManager().networkManagerOrMainWindowShown(), NULL);
     }
 };
 

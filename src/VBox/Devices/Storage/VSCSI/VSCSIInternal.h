@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -85,6 +85,10 @@ typedef struct VSCSILUNINT
     PVSCSILUNIOCALLBACKS pVScsiLunIoCallbacks;
     /** Pointer to the LUN type descriptor. */
     PVSCSILUNDESC        pVScsiLunDesc;
+    /** Flag indicating whether LUN is ready. */
+    bool                 fReady;
+    /** Flag indicating media presence in LUN. */
+    bool                 fMediaPresent;
     /** Flags of supported features. */
     uint64_t             fFeatures;
     /** I/O request processing data */
@@ -356,6 +360,34 @@ DECLINLINE(int) vscsiLunMediumGetSize(PVSCSILUNINT pVScsiLun, uint64_t *pcbSize)
     return pVScsiLun->pVScsiLunIoCallbacks->pfnVScsiLunMediumGetSize(pVScsiLun,
                                                                      pVScsiLun->pvVScsiLunUser,
                                                                      pcbSize);
+}
+
+/**
+ * Wrapper for the get medium sector size I/O callback.
+ *
+ * @returns VBox status code.
+ * @param   pVScsiLun     The LUN.
+ * @param   pcbSectorSize Where to store the sector size on success.
+ */
+DECLINLINE(int) vscsiLunMediumGetSectorSize(PVSCSILUNINT pVScsiLun, uint32_t *pcbSectorSize)
+{
+    return pVScsiLun->pVScsiLunIoCallbacks->pfnVScsiLunMediumGetSectorSize(pVScsiLun,
+                                                                           pVScsiLun->pvVScsiLunUser,
+                                                                           pcbSectorSize);
+}
+
+/**
+ * Wrapper for the get medium lock/unlock I/O callback.
+ *
+ * @returns VBox status code.
+ * @param   pVScsiLun   The LUN.
+ * @param   bool        The new medium lock state.
+ */
+DECLINLINE(int) vscsiLunMediumSetLock(PVSCSILUNINT pVScsiLun, bool fLocked)
+{
+    return pVScsiLun->pVScsiLunIoCallbacks->pfnVScsiLunMediumSetLock(pVScsiLun,
+                                                                     pVScsiLun->pvVScsiLunUser,
+                                                                     fLocked);
 }
 
 /**

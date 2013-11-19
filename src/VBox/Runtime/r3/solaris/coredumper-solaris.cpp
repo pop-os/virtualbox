@@ -162,7 +162,7 @@ static int ReadFileNoIntr(int fd, void *pv, size_t cbToRead)
  *
  * @param fd                Handle to the file to write to.
  * @param pv                Pointer to what to write.
- * @param cbToWrite          Size of data to write.
+ * @param cbToWrite         Size of data to write.
  *
  * @return IPRT status code.
  */
@@ -191,9 +191,9 @@ static int WriteFileNoIntr(int fd, const void *pv, size_t cbToWrite)
  * Read from a given offset in the process' address space.
  *
  * @param pSolProc         Pointer to the solaris process.
- * @param pv                Where to read the data into.
- * @param cb                Size of the read buffer.
- * @param off               Offset to read from.
+ * @param off              The offset to read from.
+ * @param pvBuf            Where to read the data into.
+ * @param cbToRead         Number of bytes to read.
  *
  * @return VINF_SUCCESS, if all the given bytes was read in, otherwise VERR_READ_ERROR.
  */
@@ -1263,51 +1263,8 @@ static int rtCoreDumperResumeThreads(PRTSOLCORE pSolCore)
 {
     AssertReturn(pSolCore, VERR_INVALID_POINTER);
 
-#if 1
     uint64_t cThreads;
     return rtCoreDumperForEachThread(pSolCore, &cThreads, resumeThread);
-#else
-    PRTSOLCOREPROCESS pSolProc = &pSolCore->SolProc;
-
-    char szCurThread[128];
-    char szPath[PATH_MAX];
-    PRTDIR pDir = NULL;
-
-    RTStrPrintf(szPath, sizeof(szPath), "/proc/%d/lwp", (int)pSolProc->Process);
-    RTStrPrintf(szCurThread, sizeof(szCurThread), "%d", (int)pSolProc->hCurThread);
-
-    int32_t cRunningThreads = 0;
-    int rc = RTDirOpen(&pDir, szPath);
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * Loop through all our threads & resume them.
-         */
-        RTDIRENTRY DirEntry;
-        while (RT_SUCCESS(RTDirRead(pDir, &DirEntry, NULL)))
-        {
-            if (   !strcmp(DirEntry.szName, ".")
-                || !strcmp(DirEntry.szName, ".."))
-                continue;
-
-            if ( !strcmp(DirEntry.szName, szCurThread))
-                continue;
-
-            int32_t ThreadId = RTStrToInt32(DirEntry.szName);
-            _lwp_continue((lwpid_t)ThreadId);
-            ++cRunningThreads;
-        }
-
-        CORELOG((CORELOG_NAME "ResumeAllThreads: resumed %d threads\n", cRunningThreads));
-        RTDirClose(pDir);
-    }
-    else
-    {
-        CORELOGRELSYS((CORELOG_NAME "ResumeAllThreads: Failed to open %s\n", szPath));
-        rc = VERR_READ_ERROR;
-    }
-    return rc;
-#endif
 }
 
 
@@ -2116,8 +2073,7 @@ static int rtCoreDumperDestroyCore(PRTSOLCORE pSolCore)
 
 
 /**
- * Takes a core dump. This function has no other parameters than the context
- * because it can be called from signal handlers.
+ * Takes a core dump.
  *
  * @param   pContext            The context of the caller.
  * @param   pszOutputFile       Path of the core file. If NULL is passed, the

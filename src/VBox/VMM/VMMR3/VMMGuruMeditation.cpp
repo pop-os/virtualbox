@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,7 +33,7 @@
 #include <VBox/err.h>
 #include <VBox/param.h>
 #include <VBox/version.h>
-#include <VBox/vmm/hwaccm.h>
+#include <VBox/vmm/hm.h>
 #include <iprt/assert.h>
 #include <iprt/time.h>
 #include <iprt/stream.h>
@@ -288,6 +288,7 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
         case VINF_EM_RAW_IRET_TRAP:
         case VINF_EM_DBG_HYPER_BREAKPOINT:
         case VINF_EM_DBG_HYPER_STEPPED:
+        case VINF_EM_TRIPLE_FAULT:
         case VERR_VMM_HYPER_CR3_MISMATCH:
         {
             /*
@@ -299,13 +300,14 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
             uint8_t         u8TrapNo   =       0xce;
             RTGCUINT        uErrorCode = 0xdeadface;
             RTGCUINTPTR     uCR2       = 0xdeadface;
-            int rc2 = TRPMQueryTrapAll(pVCpu, &u8TrapNo, &enmType, &uErrorCode, &uCR2);
-            if (!HWACCMIsEnabled(pVM))
+            uint8_t         cbInstr    = UINT8_MAX;
+            int rc2 = TRPMQueryTrapAll(pVCpu, &u8TrapNo, &enmType, &uErrorCode, &uCR2, &cbInstr);
+            if (!HMIsEnabled(pVM))
             {
                 if (RT_SUCCESS(rc2))
                     pHlp->pfnPrintf(pHlp,
-                                    "!! TRAP=%02x ERRCD=%RGv CR2=%RGv EIP=%RX32 Type=%d\n",
-                                    u8TrapNo, uErrorCode, uCR2, uEIP, enmType);
+                                    "!! TRAP=%02x ERRCD=%RGv CR2=%RGv EIP=%RX32 Type=%d cbInstr=%02x\n",
+                                    u8TrapNo, uErrorCode, uCR2, uEIP, enmType, cbInstr);
                 else
                     pHlp->pfnPrintf(pHlp,
                                     "!! EIP=%RX32 NOTRAP\n",
@@ -313,13 +315,13 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
             }
             else if (RT_SUCCESS(rc2))
                 pHlp->pfnPrintf(pHlp,
-                                "!! ACTIVE TRAP=%02x ERRCD=%RGv CR2=%RGv PC=%RGr Type=%d (Guest!)\n",
-                                u8TrapNo, uErrorCode, uCR2, CPUMGetGuestRIP(pVCpu), enmType);
+                                "!! ACTIVE TRAP=%02x ERRCD=%RGv CR2=%RGv PC=%RGr Type=%d cbInstr=%02x (Guest!)\n",
+                                u8TrapNo, uErrorCode, uCR2, CPUMGetGuestRIP(pVCpu), enmType, cbInstr);
 
             /*
              * Dump the relevant hypervisor registers and stack.
              */
-            if (HWACCMIsEnabled(pVM))
+            if (HMIsEnabled(pVM))
             {
                 if (   rcErr == VERR_VMM_RING0_ASSERTION /* fInRing3Call has already been cleared here. */
                     || pVCpu->vmm.s.CallRing3JmpBufR0.fInRing3Call)
@@ -414,7 +416,7 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
                     esp.FlatPtr  = esp.off = pVCpu->vmm.s.CallRing3JmpBufR0.SavedEsp;
 
                     PCDBGFSTACKFRAME pFirstFrame;
-                    rc2 = DBGFR3StackWalkBeginEx(pVM, pVCpu->idCpu, DBGFCODETYPE_RING0, &ebp, &esp, &pc,
+                    rc2 = DBGFR3StackWalkBeginEx(pVM->pUVM, pVCpu->idCpu, DBGFCODETYPE_RING0, &ebp, &esp, &pc,
                                                  DBGFRETURNTYPE_INVALID, &pFirstFrame);
                     if (RT_SUCCESS(rc2))
                     {
@@ -526,7 +528,8 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
 
                 /* Disassemble the instruction. */
                 char szInstr[256];
-                rc2 = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, 0, 0, DBGF_DISAS_FLAGS_CURRENT_HYPER | DBGF_DISAS_FLAGS_DEFAULT_MODE,
+                rc2 = DBGFR3DisasInstrEx(pVM->pUVM, pVCpu->idCpu, 0, 0,
+                                         DBGF_DISAS_FLAGS_CURRENT_HYPER | DBGF_DISAS_FLAGS_DEFAULT_MODE,
                                          &szInstr[0], sizeof(szInstr), NULL);
                 if (RT_SUCCESS(rc2))
                     pHlp->pfnPrintf(pHlp,
@@ -537,12 +540,12 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
                                 "!!\n"
                                 "!!\n"
                                 "!!\n");
-                rc2 = DBGFR3Info(pVM, "cpumhyper", "verbose", pHlp);
+                rc2 = DBGFR3Info(pVM->pUVM, "cpumhyper", "verbose", pHlp);
                 fDoneHyper = true;
 
                 /* Callstack. */
                 PCDBGFSTACKFRAME pFirstFrame;
-                rc2 = DBGFR3StackWalkBegin(pVM, pVCpu->idCpu, DBGFCODETYPE_HYPER, &pFirstFrame);
+                rc2 = DBGFR3StackWalkBegin(pVM->pUVM, pVCpu->idCpu, DBGFCODETYPE_HYPER, &pFirstFrame);
                 if (RT_SUCCESS(rc2))
                 {
                     pHlp->pfnPrintf(pHlp,
@@ -591,15 +594,15 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
                                 "%.*Rhxd\n",
                                 pVCpu->vmm.s.pbEMTStackRC, pVCpu->vmm.s.pbEMTStackBottomRC,
                                 VMM_STACK_SIZE, pVCpu->vmm.s.pbEMTStackR3);
-            } /* !HWACCMIsEnabled */
+            } /* !HMIsEnabled */
             break;
         }
 
         case VERR_IEM_INSTR_NOT_IMPLEMENTED:
         case VERR_IEM_ASPECT_NOT_IMPLEMENTED:
         {
-            DBGFR3Info(pVM, "cpumguest", NULL, pHlp);
-            DBGFR3Info(pVM, "cpumguestinstr", NULL, pHlp);
+            DBGFR3Info(pVM->pUVM, "cpumguest", NULL, pHlp);
+            DBGFR3Info(pVM->pUVM, "cpumguestinstr", NULL, pHlp);
             break;
         }
 
@@ -642,7 +645,7 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
                         "!! {%s, %s}\n"
                         "!!\n",
                         aInfo[i].pszInfo, aInfo[i].pszArgs);
-        DBGFR3Info(pVM, aInfo[i].pszInfo, aInfo[i].pszArgs, pHlp);
+        DBGFR3Info(pVM->pUVM, aInfo[i].pszInfo, aInfo[i].pszArgs, pHlp);
     }
 
     /* All other info items */

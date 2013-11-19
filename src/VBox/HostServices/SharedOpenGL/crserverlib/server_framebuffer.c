@@ -75,29 +75,54 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchBindFramebufferEXT(GLenum target, 
     if (0==framebuffer)
     {
         CRContext *ctx = crStateGetCurrent();
-        if (ctx->buffer.drawBuffer == GL_FRONT || ctx->buffer.drawBuffer == GL_FRONT_LEFT)
+        if (ctx->buffer.drawBuffer == GL_FRONT || ctx->buffer.drawBuffer == GL_FRONT_LEFT || ctx->buffer.drawBuffer == GL_FRONT_RIGHT)
             cr_server.curClient->currentMural->bFbDraw = GL_TRUE;
     }
 
     if (0==framebuffer && crServerIsRedirectedToFBO())
     {
-        cr_server.head_spu->dispatch_table.BindFramebufferEXT(target, cr_server.curClient->currentMural->idFBO);
+        CRMuralInfo *mural = cr_server.curClient->currentMural;
+        if (target == GL_FRAMEBUFFER)
+        {
+            GLuint idDrawFBO = CR_SERVER_FBO_FOR_IDX(mural, mural->iCurDrawBuffer);
+            GLuint idReadFBO = CR_SERVER_FBO_FOR_IDX(mural, mural->iCurReadBuffer);
+            if (idDrawFBO == idReadFBO)
+                cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_FRAMEBUFFER, idDrawFBO);
+            else
+            {
+                cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_READ_FRAMEBUFFER, idReadFBO);
+                cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, idDrawFBO);
+            }
+        }
+        else if (target == GL_READ_FRAMEBUFFER)
+        {
+            GLuint idReadFBO = CR_SERVER_FBO_FOR_IDX(mural, mural->iCurReadBuffer);
+            cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_READ_FRAMEBUFFER, idReadFBO);
+        }
+        else if (target == GL_DRAW_FRAMEBUFFER)
+        {
+            GLuint idDrawFBO = CR_SERVER_FBO_FOR_IDX(mural, mural->iCurDrawBuffer);
+            cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, idDrawFBO);
+        }
+        else
+        {
+            crWarning("unknown target %d", target);
+        }
 #ifdef DEBUG_misha
-        Assert(0);
         cr_server.head_spu->dispatch_table.GetIntegerv(GL_READ_FRAMEBUFFER_BINDING_EXT, &rfb);
         cr_server.head_spu->dispatch_table.GetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING_EXT, &dfb);
         if (GL_FRAMEBUFFER_EXT == target)
         {
-            Assert(rfb == cr_server.curClient->currentMural->idFBO);
-            Assert(dfb == cr_server.curClient->currentMural->idFBO);
+            Assert(rfb == CR_SERVER_FBO_FOR_IDX(mural, mural->iCurReadBuffer));
+            Assert(dfb == CR_SERVER_FBO_FOR_IDX(mural, mural->iCurDrawBuffer));
         }
         else if (GL_READ_FRAMEBUFFER_EXT == target)
         {
-            Assert(rfb == cr_server.curClient->currentMural->idFBO);
+            Assert(rfb == CR_SERVER_FBO_FOR_IDX(mural, mural->iCurReadBuffer));
         }
         else if (GL_DRAW_FRAMEBUFFER_EXT == target)
         {
-            Assert(dfb == cr_server.curClient->currentMural->idFBO);
+            Assert(dfb == CR_SERVER_FBO_FOR_IDX(mural, mural->iCurDrawBuffer));
         }
         else
         {

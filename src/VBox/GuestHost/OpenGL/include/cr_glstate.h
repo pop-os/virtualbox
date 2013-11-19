@@ -51,26 +51,18 @@ typedef struct CRContext CRContext;
 
 #include <iprt/cdefs.h>
 
-#ifndef IN_GUEST
 # include <VBox/vmm/ssm.h>
 # include <iprt/asm.h>
 
 # define CR_STATE_SHAREDOBJ_USAGE_INIT(_pObj) (crMemset((_pObj)->ctxUsage, 0, sizeof ((_pObj)->ctxUsage)))
 # define CR_STATE_SHAREDOBJ_USAGE_SET(_pObj, _pCtx) (ASMBitSet((_pObj)->ctxUsage, (_pCtx)->id))
+# define CR_STATE_SHAREDOBJ_USAGE_IS_SET(_pObj, _pCtx) (ASMBitTest((_pObj)->ctxUsage, (_pCtx)->id))
 # define CR_STATE_SHAREDOBJ_USAGE_CLEAR_IDX(_pObj, _i) (ASMBitClear((_pObj)->ctxUsage, (_i)))
 # define CR_STATE_SHAREDOBJ_USAGE_CLEAR(_pObj, _pCtx) (CR_STATE_SHAREDOBJ_USAGE_CLEAR_IDX((_pObj), (_pCtx)->id))
 # define CR_STATE_SHAREDOBJ_USAGE_IS_USED(_pObj) (ASMBitFirstSet((_pObj)->ctxUsage, sizeof ((_pObj)->ctxUsage)<<3) >= 0)
 # define CR_STATE_SHAREDOBJ_USAGE_GET_FIRST_USED_IDX(_pObj) (ASMBitFirstSet((_pObj)->ctxUsage, sizeof ((_pObj)->ctxUsage)<<3))
 # define CR_STATE_SHAREDOBJ_USAGE_GET_NEXT_USED_IDX(_pObj, _i) (ASMBitNextSet((_pObj)->ctxUsage, sizeof ((_pObj)->ctxUsage)<<3, (_i)))
-#else
-# define CR_STATE_SHAREDOBJ_USAGE_INIT(_pObj) do {} while (0)
-# define CR_STATE_SHAREDOBJ_USAGE_SET(_pObj, _pCtx) do {} while (0)
-# define CR_STATE_SHAREDOBJ_USAGE_CLEAR_IDX(_pObj, _i) do {} while (0)
-# define CR_STATE_SHAREDOBJ_USAGE_CLEAR(_pObj, _pCtx) do {} while (0)
-# define CR_STATE_SHAREDOBJ_USAGE_IS_USED(_pObj) (GL_FALSE)
-# define CR_STATE_SHAREDOBJ_USAGE_GET_FIRST_USED_IDX(_pObj) (-1)
-# define CR_STATE_SHAREDOBJ_USAGE_GET_NEXT_USED_IDX(_pObj, _i) (-1)
-#endif
+
 # define CR_STATE_SHAREDOBJ_USAGE_FOREACH_USED_IDX(_pObj, _i) for ((_i) = CR_STATE_SHAREDOBJ_USAGE_GET_FIRST_USED_IDX(_pObj); ((int)(_i)) >= 0; (_i) = CR_STATE_SHAREDOBJ_USAGE_GET_NEXT_USED_IDX((_pObj), ((int)(_i))))
 
 #define CR_MAX_EXTENTS 256
@@ -225,8 +217,10 @@ DECLEXPORT(CRContext *) crStateGetCurrent(void);
 DECLEXPORT(void) crStateDestroyContext(CRContext *ctx);
 DECLEXPORT(GLboolean) crStateEnableDiffOnMakeCurrent(GLboolean fEnable);
 
-CRContext * crStateSwichPrepare(CRContext *toCtx, GLboolean fMultipleContexts, GLuint idFBO);
-void crStateSwichPostprocess(CRContext *fromCtx, GLboolean fMultipleContexts, GLuint idFBO);
+void crStateSwitchPrepare(CRContext *toCtx, CRContext *fromCtx, GLuint idDrawFBO, GLuint idReadFBO);
+void crStateSwitchPostprocess(CRContext *toCtx, CRContext *fromCtx, GLuint idDrawFBO, GLuint idReadFBO);
+
+void crStateSyncHWErrorState(CRContext *ctx);
 
 DECLEXPORT(void) crStateFlushFunc( CRStateFlushFunc ff );
 DECLEXPORT(void) crStateFlushArg( void *arg );
@@ -240,7 +234,38 @@ DECLEXPORT(void) crStateSetExtensionString( CRContext *ctx, const GLubyte *exten
 
 DECLEXPORT(void) crStateDiffContext( CRContext *from, CRContext *to );
 DECLEXPORT(void) crStateSwitchContext( CRContext *from, CRContext *to );
-DECLEXPORT(void) crStateApplyFBImage(CRContext *to);
+
+typedef struct CRFBDataElement
+{
+    /* FBO, can be NULL */
+    GLint idFBO;
+    /* to be used for glDraw/ReadBuffer, i.e. GL_FRONT, GL_BACK, GL_COLOR_ATTACHMENTX */
+    GLenum enmBuffer;
+    GLint posX;
+    GLint posY;
+    GLint width;
+    GLint height;
+    GLenum enmFormat;
+    GLenum enmType;
+    GLuint cbData;
+    GLvoid *pvData;
+} CRFBDataElement;
+
+typedef struct CRFBData
+{
+    /* override default draw and read buffers to be used for offscreen rendering */
+    GLint idOverrrideFBO;
+    uint32_t cElements;
+    CRFBDataElement aElements[1];
+} CRFBData;
+
+DECLEXPORT(void) crStateApplyFBImage(CRContext *to, CRFBData *data);
+DECLEXPORT(int) crStateAcquireFBImage(CRContext *to, CRFBData *data);
+DECLEXPORT(void) crStateFreeFBImageLegacy(CRContext *to);
+
+DECLEXPORT(void) crStateGetTextureObjectAndImage(CRContext *g, GLenum texTarget, GLint level,
+                                     CRTextureObj **obj, CRTextureLevel **img);
+
 
 #ifndef IN_GUEST
 DECLEXPORT(int32_t) crStateSaveContext(CRContext *pContext, PSSMHANDLE pSSM);
@@ -248,6 +273,12 @@ typedef DECLCALLBACK(CRContext*) FNCRSTATE_CONTEXT_GET(void*);
 typedef FNCRSTATE_CONTEXT_GET *PFNCRSTATE_CONTEXT_GET;
 DECLEXPORT(int32_t) crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PFNCRSTATE_CONTEXT_GET pfnCtxGet, PSSMHANDLE pSSM, uint32_t u32Version);
 DECLEXPORT(void) crStateFreeShared(CRContext *pContext, CRSharedState *s);
+
+DECLEXPORT(int32_t) crStateLoadGlobals(PSSMHANDLE pSSM, uint32_t u32Version);
+DECLEXPORT(int32_t) crStateSaveGlobals(PSSMHANDLE pSSM);
+
+DECLEXPORT(CRSharedState *) crStateGlobalSharedAcquire();
+DECLEXPORT(void) crStateGlobalSharedRelease();
 #endif
 
 DECLEXPORT(void) crStateSetTextureUsed(GLuint texture, GLboolean used);
@@ -276,7 +307,7 @@ DECLEXPORT(void) STATE_APIENTRY crStateShareContext(GLboolean value);
 DECLEXPORT(void) STATE_APIENTRY crStateSetSharedContext(CRContext *pCtx);
 DECLEXPORT(GLboolean) STATE_APIENTRY crStateContextIsShared(CRContext *pCtx);
 
-DECLEXPORT(void) STATE_APIENTRY crStateQueryHWState();
+DECLEXPORT(void) STATE_APIENTRY crStateQueryHWState(GLuint fbFbo, GLuint bbFbo);
 #ifdef __cplusplus
 }
 #endif

@@ -18,6 +18,7 @@
 #include "renderspu_cocoa_helper.h"
 
 #import <Cocoa/Cocoa.h>
+#undef PVM
 
 #include "chromium.h" /* For the visual bits of chromium */
 
@@ -25,6 +26,17 @@
 #include <iprt/string.h>
 #include <iprt/mem.h>
 #include <iprt/time.h>
+#include <iprt/assert.h>
+
+#include <cr_vreg.h>
+#include <cr_error.h>
+#include <cr_blitter.h>
+#ifdef VBOX_WITH_CRDUMPER_THUMBNAIL
+# include <cr_pixeldata.h>
+#endif
+
+
+#include "renderspu.h"
 
 /** @page pg_opengl_cocoa  OpenGL - Cocoa Window System Helper
  *
@@ -74,6 +86,7 @@
 /* Debug macros */
 #define FBO 1 /* Disable this to see how the output is without the FBO in the middle of the processing chain. */
 #if 0
+# define CR_RENDER_FORCE_PRESENT_MAIN_THREAD /* force present schedule to main thread */
 # define SHOW_WINDOW_BACKGROUND 1 /* Define this to see the window background even if the window is clipped */
 # define DEBUG_VERBOSE /* Define this to get some debug info about the messages flow. */
 #endif
@@ -81,9 +94,16 @@
 #ifdef DEBUG_misha
 # define DEBUG_MSG(text) \
     printf text
+# define DEBUG_WARN(text) do { \
+        crWarning text ; \
+        Assert(0); \
+    } while (0)
 #else
 # define DEBUG_MSG(text) \
     do {} while (0)
+# define DEBUG_WARN(text) do { \
+        crWarning text ; \
+    } while (0)
 #endif
 
 #ifdef DEBUG_VERBOSE
@@ -159,6 +179,114 @@
     } \
     while(0);
 
+static NSOpenGLContext * vboxCtxGetCurrent()
+{
+    GET_CONTEXT(pCtxInfo);
+    if (pCtxInfo)
+    {
+        Assert(pCtxInfo->context);
+        return pCtxInfo->context;
+    }
+
+    return nil;
+}
+
+static bool vboxCtxSyncCurrentInfo()
+{
+    GET_CONTEXT(pCtxInfo);
+    NSOpenGLContext *pCtx = [NSOpenGLContext currentContext];
+    NSView *pView = pCtx ? [pCtx view] : nil;
+    bool fAdjusted = false;
+    if (pCtxInfo)
+    {
+        WindowInfo *pWinInfo = pCtxInfo->currentWindow;
+        Assert(pWinInfo);
+        if (pCtxInfo->context != pCtx
+            || pWinInfo->window != pView)
+        {
+            renderspu_SystemMakeCurrent(pWinInfo, 0, pCtxInfo);
+            fAdjusted = true;
+        }
+    }
+    else
+    {
+        if (pCtx)
+        {
+            [NSOpenGLContext clearCurrentContext];
+            fAdjusted = true;
+        }
+    }
+    
+    return fAdjusted;
+}
+
+typedef struct VBOX_CR_RENDER_CTX_INFO
+{
+    bool fIsValid;
+    NSOpenGLContext *pCtx;
+    NSView *pView;
+} VBOX_CR_RENDER_CTX_INFO, *PVBOX_CR_RENDER_CTX_INFO;
+
+static void vboxCtxEnter(NSOpenGLContext*pCtx, PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
+{
+    NSOpenGLContext *pOldCtx = vboxCtxGetCurrent(); 
+    NSView *pOldView = (pOldCtx ? [pOldCtx view] : nil);
+    NSView *pView = [pCtx view];
+    bool fNeedCtxSwitch = (pOldCtx != pCtx || pOldView != pView);
+    Assert(pCtx);
+ //   Assert(pOldCtx == m_pGLCtx);
+ //   Assert(pOldView == self);
+ //   Assert(fNeedCtxSwitch);
+    if (fNeedCtxSwitch)
+    {
+        if(pOldCtx != nil)
+            glFlush();
+        
+        [pCtx makeCurrentContext];
+        
+        pCtxInfo->fIsValid = true;
+        pCtxInfo->pCtx = pOldCtx;
+        pCtxInfo->pView = pView;
+    }
+    else
+    {
+        pCtxInfo->fIsValid = false;
+    }
+}    
+    
+static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
+{
+    if (pCtxInfo->fIsValid)
+    {
+        NSOpenGLContext *pOldCtx = pCtxInfo->pCtx;
+        NSView *pOldView = pCtxInfo->pView;
+    
+        glFlush();
+        if (pOldCtx != nil)
+        {
+            if ([pOldCtx view] != pOldView)
+            {
+                [pOldCtx setView: pOldView];
+            }
+        
+            [pOldCtx makeCurrentContext];
+            
+#ifdef DEBUG
+            {
+                NSOpenGLContext *pTstOldCtx = [NSOpenGLContext currentContext];
+                NSView *pTstOldView = (pTstOldCtx ? [pTstOldCtx view] : nil);
+                Assert(pTstOldCtx == pOldCtx);
+                Assert(pTstOldView == pOldView);
+            }
+#endif
+        }
+        else
+        {
+            [NSOpenGLContext clearCurrentContext];
+        }
+    }
+}
+
 /** Custom OpenGL context class.
  *
  * This implementation doesn't allow to set a view to the
@@ -193,25 +321,12 @@
     NSOpenGLContext *m_pSharedGLCtx;
     RTTHREAD         mThread;
 
-#ifdef FBO
     GLuint           m_FBOId;
-    /* FBO handling */
-    GLuint           m_FBOTexBackId;
-    GLuint           m_FBOTexFrontId;
-    GLuint           m_FBOAttBackId;
-    GLuint           m_FBOAttFrontId;
-    GLuint           m_FBODepthStencilPackedId;
-    NSSize           m_FBOTexSize;
-
-    bool             m_fFrontDrawing;
-#endif
 
     /** The corresponding dock tile view of this OpenGL view & all helper
      * members. */
     DockOverlayView *m_DockTileView;
 
-    GLuint           m_FBOThumbId;
-    GLuint           m_FBOThumbTexId;
     GLfloat          m_FBOThumbScaleX;
     GLfloat          m_FBOThumbScaleY;
     uint64_t         m_uiDockUpdateTime;
@@ -225,9 +340,15 @@
     NSSize           m_Size;
 
     /** This is necessary for clipping on the root window */
-    NSPoint          m_RootShift;
+    NSRect           m_RootRect;
+    float            m_yInvRootOffset;
+    
+    CR_BLITTER *m_pBlitter;
+    WindowInfo *m_pWinInfo;
+    bool m_fNeedViewportUpdate;
+    bool m_fNeedCtxUpdate;
 }
-- (id)initWithFrame:(NSRect)frame thread:(RTTHREAD)aThread parentView:(NSView*)pParentView;
+- (id)initWithFrame:(NSRect)frame thread:(RTTHREAD)aThread parentView:(NSView*)pParentView winInfo:(WindowInfo*)pWinInfo;
 - (void)setGLCtx:(NSOpenGLContext*)pCtx;
 - (NSOpenGLContext*)glCtx;
 
@@ -240,26 +361,26 @@
 - (NSPoint)pos;
 - (void)setSize:(NSSize)size;
 - (NSSize)size;
-- (void)updateViewport;
+- (void)updateViewportCS;
 - (void)reshape;
+- (void)reshapeLocked;
 
-- (void)createFBO;
-- (void)deleteFBO;
+- (void)createDockTile;
+- (void)deleteDockTile;
 
-- (bool)isCurrentFBO;
-- (void)updateFBO;
 - (void)makeCurrentFBO;
 - (void)swapFBO;
-- (void)flushFBO;
-- (void)stateInfo:(GLenum)pname withParams:(GLint*)params;
-- (void)finishFBO;
-- (void)bindFBO:(GLenum)target withFrameBuffer:(GLuint)framebuffer;
-- (void)tryDraw;
-- (void)renderFBOToView;
-- (void)renderFBOToDockTile;
+- (void)vboxTryDraw;
+- (void)vboxTryDrawUI;
+- (void)vboxPresent:(PVBOXVR_SCR_COMPOSITOR)pCompositor;
+- (void)vboxPresentCS:(PVBOXVR_SCR_COMPOSITOR)pCompositor;
+- (void)vboxPresentToDockTileCS:(PVBOXVR_SCR_COMPOSITOR)pCompositor;
+- (void)vboxPresentToViewCS:(PVBOXVR_SCR_COMPOSITOR)pCompositor;
+- (void)presentComposition:(PVBOXVR_SCR_COMPOSITOR_ENTRY)pChangedEntry;
+- (void)vboxBlitterSyncWindow;
 
 - (void)clearVisibleRegions;
-- (void)setVisibleRegions:(GLint)cRects paRects:(GLint*)paRects;
+- (void)setVisibleRegions:(GLint)cRects paRects:(const GLint*)paRects;
 
 - (NSView*)dockTileScreen;
 - (void)reshapeDockTile;
@@ -465,7 +586,7 @@
 {
     DEBUG_MSG(("OCTX(%p): setView: new view: %p\n", (void*)self, (void*)view));
 
-#ifdef FBO
+#if 1 /* def FBO */
     m_pView = view;;
 #else
     [super setView: view];
@@ -474,7 +595,7 @@
 
 -(NSView*)view
 {
-#ifdef FBO
+#if 1 /* def FBO */
     return m_pView;
 #else
     return [super view];
@@ -638,30 +759,25 @@
 ********************************************************************************/
 @implementation OverlayView
 
-- (id)initWithFrame:(NSRect)frame thread:(RTTHREAD)aThread parentView:(NSView*)pParentView
+- (id)initWithFrame:(NSRect)frame thread:(RTTHREAD)aThread parentView:(NSView*)pParentView winInfo:(WindowInfo*)pWinInfo
 {
     m_pParentView             = pParentView;
     /* Make some reasonable defaults */
     m_pGLCtx                  = nil;
     m_pSharedGLCtx            = nil;
     mThread                   = aThread;
-#ifdef FBO
     m_FBOId                   = 0;
-    m_FBOTexBackId            = 0;
-    m_FBOTexFrontId           = 0;
-    m_FBOAttBackId            = GL_COLOR_ATTACHMENT0_EXT;
-    m_FBOAttFrontId           = GL_COLOR_ATTACHMENT1_EXT;
-    m_FBODepthStencilPackedId = 0;
-    m_FBOTexSize              = NSZeroSize;
-#endif
-    m_FBOThumbId              = 0;
-    m_FBOThumbTexId           = 0;
     m_cClipRects              = 0;
     m_paClipRects             = NULL;
     m_Pos                     = NSZeroPoint;
     m_Size                    = NSMakeSize(1, 1);
-    m_RootShift               = NSZeroPoint;
-
+    m_RootRect                = NSMakeRect(0, 0, m_Size.width, m_Size.height);
+    m_yInvRootOffset          = 0;
+    m_pBlitter                = nil;
+    m_pWinInfo             	  = pWinInfo;
+    m_fNeedViewportUpdate     = true;        
+    m_fNeedCtxUpdate          = true;
+    
     self = [super initWithFrame:frame];
 
     DEBUG_MSG(("OVIW(%p): init OverlayView\n", (void*)self));
@@ -671,8 +787,8 @@
 
 - (void)cleanupData
 {
-    [self deleteFBO];
-
+    [self deleteDockTile];
+    
     if (m_pGLCtx)
     {
         if ([m_pGLCtx view] == self)
@@ -688,6 +804,10 @@
         [m_pSharedGLCtx release];
 
         m_pSharedGLCtx = nil;
+        
+        CrBltTerm(m_pBlitter);
+        
+        m_pBlitter = nil;
     }
 
     [self clearVisibleRegions];
@@ -704,7 +824,7 @@
 
 - (void)drawRect:(NSRect)aRect
 {
-    /* Do nothing */
+    [self vboxTryDrawUI];
 }
 
 - (void)setGLCtx:(NSOpenGLContext*)pCtx
@@ -756,6 +876,14 @@
     m_Pos = pos;
 
     [self reshape];
+    
+    /* we need to redwar on regions change, however the compositor now is cleared 
+     * because all compositor&window data-related modifications are performed with compositor cleared
+     * the renderspu client will re-set the compositor after modifications are complete
+     * this way we indicate renderspu generic code not to ignore the empty compositor */
+     /* generally this should not be needed for setPos because compositor should not be zeroed with it,
+      * in any way setting this flag here should not hurt as it will be re-set on next present */
+    m_pWinInfo->fCompositorPresentEmpty = GL_TRUE;
 }
 
 - (NSPoint)pos
@@ -765,24 +893,34 @@
 
 - (void)setSize:(NSSize)size
 {
+    NSOpenGLContext *pCurCtx;
+    NSView *pCurView;
     m_Size = size;
 
-#ifdef FBO
-    if (m_FBOId)
+    DEBUG_MSG(("OVIW(%p): setSize: new size: %dx%d\n", (void*)self, (int)size.width, (int)size.height));
+    [self reshape];
+    [self createDockTile];
+    /* have to rebind GL_TEXTURE_RECTANGLE_ARB as m_FBOTexId could be changed in updateFBO call */
+    m_fNeedViewportUpdate = true;
+    pCurCtx = [NSOpenGLContext currentContext];
+    if (pCurCtx && pCurCtx == m_pGLCtx && (pCurView = [pCurCtx view]) == self)
     {
-        DEBUG_MSG(("OVIW(%p): setSize: new size: %dx%d\n", (void*)self, (int)size.width, (int)size.height));
-        [self reshape];
-        [self updateFBO];
-        /* have to rebind GL_TEXTURE_RECTANGLE_ARB as m_FBOTexId could be changed in updateFBO call */
-        [self updateViewport];
+        [m_pGLCtx update];
+        m_fNeedCtxUpdate = false;
     }
     else
-#endif
     {
-        DEBUG_MSG(("OVIW(%p): setSize (no FBO): new size: %dx%d\n", (void*)self, (int)size.width, (int)size.height));
-        [self reshape];
-        [self updateFBO];
+        /* do it in a lazy way */
+        m_fNeedCtxUpdate = true;
     }
+    
+    /* we need to redwar on regions change, however the compositor now is cleared 
+     * because all compositor&window data-related modifications are performed with compositor cleared
+     * the renderspu client will re-set the compositor after modifications are complete
+     * this way we indicate renderspu generic code not to ignore the empty compositor */
+     /* generally this should not be needed for setSize because compositor should not be zeroed with it,
+      * in any way setting this flag here should not hurt as it will be re-set on next present */
+    m_pWinInfo->fCompositorPresentEmpty = GL_TRUE;
 }
 
 - (NSSize)size
@@ -790,44 +928,19 @@
     return m_Size;
 }
 
-- (void)updateViewport
+- (void)updateViewportCS
 {
-    NSRect r;
-
     DEBUG_MSG(("OVIW(%p): updateViewport\n", (void*)self));
 
-#ifdef FBO
-    if (m_pSharedGLCtx)
-    {
-        /* Update the viewport for our OpenGL view */
-        DEBUG_MSG(("OVIW(%p): makeCurrent (shared) %p\n", (void*)self, (void*)m_pSharedGLCtx));
-        [m_pSharedGLCtx makeCurrentContext];
-        [m_pSharedGLCtx update];
+    /* Update the viewport for our OpenGL view */
+    [m_pSharedGLCtx update];
 
-        r = [self frame];
-        /* Setup all matrices */
-        glMatrixMode(GL_PROJECTION);
-        glLoadIdentity();
-        glViewport(0, 0, r.size.width, r.size.height);
-        glOrtho(0, r.size.width, 0, r.size.height, -1, 1);
-        DEBUG_MSG_1(("OVIW(%p): frame[%i, %i, %i, %i]\n", (void*)self, (int)r.origin.x, (int)r.origin.x, (int)r.size.width, (int)r.size.height));
-        DEBUG_MSG_1(("OVIW(%p): m_Pos(%i,%i) m_Size(%i,%i)\n", (void*)self, (int)m_Pos.x, (int)m_Pos.y, (int)m_Size.width, (int)m_Size.height));
-        DEBUG_MSG_1(("OVIW(%p): m_RootShift(%i, %i)\n", (void*)self, (int)m_RootShift.x, (int)m_RootShift.y));
-        glMatrixMode(GL_TEXTURE);
-        glLoadIdentity();
-        glMatrixMode(GL_MODELVIEW);
-        glLoadIdentity();
+    [self vboxBlitterSyncWindow];
+        
+    /* Clear background to transparent */
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);}
 
-        /* Clear background to transparent */
-        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-
-        DEBUG_MSG(("OVIW(%p): makeCurrent (non shared) %p\n", (void*)self, (void*)m_pGLCtx));
-        [m_pGLCtx makeCurrentContext];
-    }
-#endif
-}
-
-- (void)reshape
+- (void)reshapeLocked
 {
     NSRect parentFrame = NSZeroRect;
     NSPoint parentPos  = NSZeroPoint;
@@ -856,17 +969,33 @@
      * frame for the window. */
     newFrame = NSIntersectionRect(parentFrame, childFrame);
 
+    DEBUG_MSG(("[%#p]: parentFrame pos[%f : %f] size[%f : %f]\n",
+          (void*)self, 
+         parentFrame.origin.x, parentFrame.origin.y,
+         parentFrame.size.width, parentFrame.size.height));
+    DEBUG_MSG(("[%#p]: childFrame pos[%f : %f] size[%f : %f]\n",
+          (void*)self, 
+         childFrame.origin.x, childFrame.origin.y,
+         childFrame.size.width, childFrame.size.height));
+         
+    DEBUG_MSG(("[%#p]: newFrame pos[%f : %f] size[%f : %f]\n",
+          (void*)self, 
+         newFrame.origin.x, newFrame.origin.y,
+         newFrame.size.width, newFrame.size.height));
+    
     /* Later we have to correct the texture position in the case the window is
-     * out of the parents window frame. So save the shift values for later use. */
-    if (parentFrame.origin.x > childFrame.origin.x)
-        m_RootShift.x = parentFrame.origin.x - childFrame.origin.x;
-    else
-        m_RootShift.x = 0;
-    if (parentFrame.origin.y > childFrame.origin.y)
-        m_RootShift.y = parentFrame.origin.y - childFrame.origin.y;
-    else
-        m_RootShift.y = 0;
-
+     * out of the parents window frame. So save the shift values for later use. */ 
+    m_RootRect.origin.x = newFrame.origin.x - childFrame.origin.x;
+    m_RootRect.origin.y =  childFrame.size.height + childFrame.origin.y - (newFrame.size.height + newFrame.origin.y);
+    m_RootRect.size = newFrame.size;
+    m_yInvRootOffset = newFrame.origin.y - childFrame.origin.y;
+    
+    DEBUG_MSG(("[%#p]: m_RootRect pos[%f : %f] size[%f : %f]\n",
+         (void*)self, 
+         m_RootRect.origin.x, m_RootRect.origin.y,
+         m_RootRect.size.width, m_RootRect.size.height));
+    
+        
     /*
     NSScrollView *pScrollView = [[[m_pParentView window] contentView] enclosingScrollView];
     if (pScrollView)
@@ -888,220 +1017,47 @@
     [self reshapeDockTile];
 
     /* Make sure the context is updated according */
-    [self updateViewport];
+    /* [self updateViewport]; */
+    if (m_pSharedGLCtx)
+    {
+        VBOX_CR_RENDER_CTX_INFO CtxInfo; 
+        vboxCtxEnter(m_pSharedGLCtx, &CtxInfo);
+    
+        [self updateViewportCS];
+    
+        vboxCtxLeave(&CtxInfo);
+    }
 }
 
-- (void)createFBO
+- (void)reshape
 {
-    GLint   oldTexId         = 0;
-    GLint   oldFBId          = 0;
-    NSView *pDockScreen      = nil;
-    GLint   maxTexSize       = 0;
-    GLfloat imageAspectRatio = 0;
-    GLint   filter           = GL_NEAREST;
-
-    [self deleteFBO];
-
-#ifdef FBO
-    DEBUG_MSG(("OVIW(%p): createFBO\n", (void*)self));
-
-    glGetIntegerv(GL_TEXTURE_BINDING_RECTANGLE_ARB, &oldTexId);
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &oldFBId);
-
-    /* If not previously setup generate IDs for FBO and its associated texture. */
-    if (!m_FBOId)
+    int rc = renderspuVBoxCompositorLock(m_pWinInfo);
+    if (RT_SUCCESS(rc))
     {
-        /* Make sure the framebuffer extension is supported */
-        const GLubyte* strExt;
-        GLboolean isFBO;
-        /* Get the extension name string. It is a space-delimited list of the
-         * OpenGL extensions that are supported by the current renderer. */
-        strExt = glGetString(GL_EXTENSIONS);
-        isFBO = gluCheckExtension((const GLubyte*)"GL_EXT_framebuffer_object", strExt);
-        if (!isFBO)
-        {
-            DEBUG_MSG(("Your system does not support the GL_EXT_framebuffer_object extension\n"));
-        }
-        isFBO = gluCheckExtension((const GLubyte*)"GL_EXT_framebuffer_blit", strExt);
-        if (!isFBO)
-        {
-            DEBUG_MSG(("Your system does not support the GL_EXT_framebuffer_blit extension\n"));
-        }
-
-        /* Create FBO object */
-        glGenFramebuffersEXT(1, &m_FBOId);
-        /* & the texture as well the depth/stencil render buffer */
-        glGenTextures(1, &m_FBOTexBackId);
-        glGenTextures(1, &m_FBOTexFrontId);
-        DEBUG_MSG(("OVIW(%p): gen numbers: FBOId=%d FBOTexBackId=%d FBOTexFrontId=%d\n", (void*)self, m_FBOId, m_FBOTexBackId, m_FBOTexFrontId));
-
-        glGenRenderbuffersEXT(1, &m_FBODepthStencilPackedId);
+        [self reshapeLocked];
+        renderspuVBoxCompositorUnlock(m_pWinInfo);
     }
+}
 
-    m_FBOTexSize = m_Size;
-    /* Bind to FBO */
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, m_FBOId);
-
-    /*
-    glEnable(GL_TEXTURE_RECTANGLE_ARB);
-     */
-
-    imageAspectRatio = m_FBOTexSize.width / m_FBOTexSize.height;
-
-    /* Sanity check against maximum OpenGL texture size. If bigger adjust to
-     * maximum possible size while maintain the aspect ratio. */
-    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTexSize);
-    if (m_FBOTexSize.width > maxTexSize || m_FBOTexSize.height > maxTexSize)
-    {
-        filter = GL_LINEAR;
-        if (imageAspectRatio > 1)
-        {
-            m_FBOTexSize.width = maxTexSize;
-            m_FBOTexSize.height = maxTexSize / imageAspectRatio;
-        }
-        else
-        {
-            m_FBOTexSize.width = maxTexSize * imageAspectRatio;
-            m_FBOTexSize.height = maxTexSize;
-        }
-    }
-
-    DEBUG_MSG(("OVIW(%p): tex size is: %dx%d\n", (void*)self, (int)m_FBOTexSize.width, (int)m_FBOTexSize.height));
-
-    /* Initialize FBO Textures */
-    /* The GPUs like the GL_BGRA / GL_UNSIGNED_INT_8_8_8_8_REV combination
-     * others are also valid, but might incur a costly software translation. */
-    glBindTexture(GL_TEXTURE_RECTANGLE_ARB, m_FBOTexBackId);
-    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGB, m_FBOTexSize.width, m_FBOTexSize.height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
-    glBindTexture(GL_TEXTURE_RECTANGLE_ARB, m_FBOTexFrontId);
-    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGB, m_FBOTexSize.width, m_FBOTexSize.height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
-
-    /* Now attach the textures to the FBO as its color destinations */
-    glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, m_FBOAttBackId,  GL_TEXTURE_RECTANGLE_ARB, m_FBOTexBackId, 0);
-    glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, m_FBOAttFrontId, GL_TEXTURE_RECTANGLE_ARB, m_FBOTexFrontId, 0);
-
-    glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, m_FBODepthStencilPackedId);
-    glRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT, m_FBOTexSize.width, m_FBOTexSize.height);
-    glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, m_FBODepthStencilPackedId);
-
-    /* Bind the FBOs for reading and drawing. */
-    glBindFramebufferEXT(GL_READ_FRAMEBUFFER_EXT, m_FBOId);
-    glBindFramebufferEXT(GL_DRAW_FRAMEBUFFER_EXT, m_FBOId);
-
-    /* Explicitly clear the textures otherwise they would contain old memory stuff. */
-    glDrawBuffer(m_FBOAttBackId);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glDrawBuffer(m_FBOAttFrontId);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    /* Now initially reading/drawing to the back buffer. */
-    glReadBuffer(m_FBOAttBackId);
-    glDrawBuffer(m_FBOAttBackId);
-
-    /* Make sure the FBO was created successfully. */
-    if (GL_FRAMEBUFFER_COMPLETE_EXT != glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT))
-        DEBUG_MSG(("OVIW(%p): Framebuffer Object creation or update failed!\n", (void*)self));
-
-//    glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, 0);
-    glBindTexture(GL_TEXTURE_RECTANGLE_ARB, oldTexId);
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, (GLuint)oldFBId ? (GLuint)oldFBId : m_FBOId);
-
-    /* Is there a dock tile preview enabled in the GUI? If so setup a
+- (void)createDockTile
+{
+	NSView *pDockScreen      = nil;
+	[self deleteDockTile];
+	
+	/* Is there a dock tile preview enabled in the GUI? If so setup a
      * additional thumbnail view for the dock tile. */
-    pDockScreen = [self dockTileScreen];
-    if (pDockScreen)
+	pDockScreen = [self dockTileScreen];
+	if (pDockScreen)
     {
-        if (!m_FBOThumbId)
-        {
-            glGenFramebuffersEXT(1, &m_FBOThumbId);
-            glGenTextures(1, &m_FBOThumbTexId);
-        }
-
-        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, m_FBOThumbId);
-        /* Initialize FBO Texture */
-        glBindTexture(GL_TEXTURE_RECTANGLE_ARB, m_FBOThumbTexId);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
-
-        /* The GPUs like the GL_BGRA / GL_UNSIGNED_INT_8_8_8_8_REV combination
-         * others are also valid, but might incur a costly software translation. */
-        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGB, m_FBOTexSize.width * m_FBOThumbScaleX, m_FBOTexSize.height * m_FBOThumbScaleY, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
-
-        /* Now attach texture to the FBO as its color destination */
-        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_RECTANGLE_ARB, m_FBOThumbTexId, 0);
-
-        /* Make sure the FBO was created successfully. */
-        if (GL_FRAMEBUFFER_COMPLETE_EXT != glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT))
-            DEBUG_MSG(("OVIW(%p): Framebuffer \"Thumb\" Object creation or update failed!\n", (void*)self));
-
-        glBindTexture(GL_TEXTURE_RECTANGLE_ARB, oldTexId);
-        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, (GLuint)oldFBId ? (GLuint)oldFBId : m_FBOId);
-
         m_DockTileView = [[DockOverlayView alloc] init];
         [self reshapeDockTile];
         [pDockScreen addSubview:m_DockTileView];
     }
-
-    /* Initialize with one big visual region over the full size */
-    [self clearVisibleRegions];
-    m_cClipRects = 1;
-    m_paClipRects = (GLint*)RTMemAlloc(sizeof(GLint) * 4);
-    m_paClipRects[0] = 0;
-    m_paClipRects[1] = 0;
-    m_paClipRects[2] = m_FBOTexSize.width;
-    m_paClipRects[3] = m_FBOTexSize.height;
-#endif
 }
 
-- (void)deleteFBO
+- (void)deleteDockTile
 {
-    DEBUG_MSG(("OVIW(%p): deleteFBO\n", (void*)self));
-
-    if (m_pSharedGLCtx)
-    {
-        DEBUG_MSG(("OVIW(%p): makeCurrent (shared) %p\n", (void*)self, (void*)m_pSharedGLCtx));
-        [m_pSharedGLCtx makeCurrentContext];
-        [m_pSharedGLCtx update];
-
-        glEnable(GL_TEXTURE_RECTANGLE_ARB);
-        glBindTexture(GL_TEXTURE_RECTANGLE_ARB, 0);
-    }
-
-    if (m_pGLCtx)
-    {
-        DEBUG_MSG(("OVIW(%p): makeCurrent (non shared) %p\n", (void*)self, (void*)m_pGLCtx));
-        [m_pGLCtx makeCurrentContext];
-
-#ifdef FBO
-        if (m_FBODepthStencilPackedId > 0)
-        {
-            glDeleteRenderbuffersEXT(1, &m_FBODepthStencilPackedId);
-            m_FBODepthStencilPackedId = 0;
-        }
-        if (m_FBOTexBackId > 0)
-        {
-            glDeleteTextures(1, &m_FBOTexBackId);
-            m_FBOTexBackId = 0;
-        }
-        if (m_FBOTexFrontId > 0)
-        {
-            glDeleteTextures(1, &m_FBOTexFrontId);
-            m_FBOTexFrontId = 0;
-        }
-        if (m_FBOId > 0)
-        {
-            if ([self isCurrentFBO])
-                glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-
-            glDeleteFramebuffersEXT(1, &m_FBOId);
-            m_FBOId = 0;
-        }
-#endif
-    }
-
-    if (m_DockTileView != nil)
+	if (m_DockTileView != nil)
     {
         [m_DockTileView removeFromSuperview];
         [m_DockTileView release];
@@ -1109,32 +1065,10 @@
     }
 }
 
-- (void)updateFBO
-{
-    DEBUG_MSG(("OVIW(%p): updateFBO\n", (void*)self));
-
-    [self makeCurrentFBO];
-
-    if (m_pGLCtx)
-    {
-#ifdef FBO
-        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-        [self createFBO];
-        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, m_FBOId);
-#endif
-        [m_pGLCtx update];
-    }
-}
-
 - (void)makeCurrentFBO
 {
     DEBUG_MSG(("OVIW(%p): makeCurrentFBO\n", (void*)self));
 
-#ifdef FBO
-    DEBUG_MSG(("OVIW(%p): FBOId=%d CTX=%p\n", (void*)self, m_FBOId, (void*)m_pGLCtx));
-    if([NSOpenGLContext currentContext] != 0)
-        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, m_FBOId);
-#endif
     if (m_pGLCtx)
     {
         if ([m_pGLCtx view] != self)
@@ -1151,352 +1085,377 @@
         {
             [m_pGLCtx makeCurrentContext];
             CHECK_GL_ERROR();
-            /*
-            [m_pGLCtx update];
-            */
+            if (m_fNeedCtxUpdate == true)
+            {
+                [m_pGLCtx update];
+                m_fNeedCtxUpdate = false;
+            }
         }
+        
+        if (!m_FBOId)
+        {
+            glGenFramebuffersEXT(1, &m_FBOId);
+            Assert(m_FBOId);
+        }
+        
     }
-#ifdef FBO
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, m_FBOId);
-#endif
 }
 
-- (bool)isCurrentFBO
+- (void)vboxTryDraw
 {
-#ifdef FBO
-    GLint curFBOId = 0;
-
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &curFBOId);
-    DEBUG_MSG_1(("OVIW(%p): isCurrentFBO: curFBOId=%d FBOId=%d\n", (void*)self, curFBOId, m_FBOId));
-    return (GLuint)curFBOId == m_FBOId;
-#else
-    return false;
+    GLint opaque       = 0;
+    if ([self lockFocusIfCanDraw])
+    {
+        VBOXVR_SCR_COMPOSITOR *pCompositor = NULL;
+        if (!m_pSharedGLCtx)
+	    {
+	    	pCompositor = renderspuVBoxCompositorAcquire(m_pWinInfo);
+	    	if (pCompositor)
+	    	{
+	    	    Assert(!m_pBlitter);
+                m_pBlitter = RTMemAlloc(sizeof (*m_pBlitter));
+                if (m_pBlitter)
+                {
+                    int rc = CrBltInit(m_pBlitter, NULL, false, false, &render_spu.GlobalShaders, render_spu.blitterDispatch);
+                    if (RT_SUCCESS(rc))
+                    {
+                        DEBUG_MSG(("blitter created successfully for view 0x%p\n", (void*)self));
+                    }
+                    else
+                    {
+                        DEBUG_WARN(("CrBltInit failed, rc %d", rc));
+                        RTMemFree(m_pBlitter);
+                        m_pBlitter = NULL;
+                    }        
+                }
+                else
+                {
+                    DEBUG_WARN(("m_pBlitter allocation failed"));
+                }
+                    
+	    	    if (m_pBlitter)
+	    	    {
+    		        /* Create a shared context out of the main context. Use the same pixel format. */
+    		        m_pSharedGLCtx = [[NSOpenGLContext alloc] initWithFormat:[(OverlayOpenGLContext*)m_pGLCtx openGLPixelFormat] shareContext:m_pGLCtx];
+    		
+    		        /* Set the new context as non opaque */
+    		        [m_pSharedGLCtx setValues:&opaque forParameter:NSOpenGLCPSurfaceOpacity];
+    		        /* Set this view as the drawable for the new context */
+    		        [m_pSharedGLCtx setView: self];
+    		        m_fNeedViewportUpdate = true;
+    		    }
+#ifdef CR_RENDER_FORCE_PRESENT_MAIN_THREAD
+				renderspuVBoxCompositorRelease(m_pWinInfo);
+				pCompositor = NULL;
 #endif
+		    }
+		}
+		
+		if (m_pSharedGLCtx)
+		{
+			if (!pCompositor)
+			{
+#ifndef CR_RENDER_FORCE_PRESENT_MAIN_THREAD
+				/* we do not want to be blocked with the GUI thread here, so only draw her eif we are really able to do that w/o bllocking */
+				int rc = renderspuVBoxCompositorTryAcquire(m_pWinInfo, &pCompositor);
+				if (RT_SUCCESS(rc))
+				{
+					Assert(pCompositor);
+				}
+			    else if (rc == VERR_SEM_BUSY)
+#endif
+			    {
+			        glFlush();
+			            
+			        /* issue to the gui thread */
+			        [self setNeedsDisplay:YES];
+			    }
+#ifndef CR_RENDER_FORCE_PRESENT_MAIN_THREAD
+			    else
+			    {
+			        /* this is somewhat we do not expect */
+			        DEBUG_MSG(("renderspuVBoxCompositorTryAcquire failed rc %d", rc));
+			    }
+#endif
+			}
+		
+#ifdef CR_RENDER_FORCE_PRESENT_MAIN_THREAD
+			Assert(!pCompositor);
+#endif	
+			if (pCompositor)
+			{
+				[self vboxPresent:pCompositor];
+				renderspuVBoxCompositorRelease(m_pWinInfo);
+			}
+		}
+		else
+		{
+			AssertRelease(!pCompositor);
+		}
+        [self unlockFocus];
+    }
+    else
+    {
+        [self setNeedsDisplay:YES];
+    }
 }
 
-- (void)tryDraw
+- (void)vboxTryDrawUI
 {
     if ([self lockFocusIfCanDraw])
     {
-        [self renderFBOToView];
+        if (m_pSharedGLCtx)
+	    {
+#if 1
+            /* tmp workaround to prevent potential deadlock:
+             * crOpenGL service thread does compositor lock acquire and calls cocoa NS methods that could synchronize on the GUI thread
+             * while here we do a reverse order: acquire compositor lock being in gui thread.
+             * this is why we do only try acquire and re-submit repaint event if compositor lock is busy */
+             VBOXVR_SCR_COMPOSITOR *pCompositor = NULL;
+            int rc = renderspuVBoxCompositorTryAcquire(m_pWinInfo, &pCompositor);
+            if (RT_SUCCESS(rc))
+            {
+                Assert(pCompositor);
+                [self vboxPresent:pCompositor];
+                renderspuVBoxCompositorRelease(m_pWinInfo);
+            }
+            else if (rc == VERR_SEM_BUSY)
+            {
+                /* re-issue to the gui thread */
+# ifdef DEBUG_misha
+                DEBUG_WARN(("renderspuVBoxCompositorTryAcquire busy\n"));
+# endif 
+                [NSTimer scheduledTimerWithTimeInterval:0.1 target:self selector:@selector(vboxTryDrawUI) userInfo:nil repeats:NO];
+            }
+            else
+            {
+                /* this is somewhat we do not expect */
+                DEBUG_WARN(("renderspuVBoxCompositorTryAcquire failed rc %d", rc));
+            }
+#else
+	    	VBOXVR_SCR_COMPOSITOR *pCompositor = renderspuVBoxCompositorAcquire(m_pWinInfo);
+	    	if (pCompositor)
+	    	{
+	    		[self vboxPresent:pCompositor];
+				renderspuVBoxCompositorRelease(m_pWinInfo);
+			}
+#endif
+		}
         [self unlockFocus];
+    }
+    else
+    {
+        [self setNeedsDisplay:YES];
     }
 }
 
 - (void)swapFBO
 {
-    GLint sw     = 0;
-    GLint readFBOId = 0;
-    GLint drawFBOId = 0;
-    GLint readId = 0;
-    GLint drawId = 0;
-
-    DEBUG_MSG(("OVIW(%p): swapFBO\n", (void*)self));
-
-#ifdef FBO
-    /* Don't use flush buffers cause we are using FBOs here! */
-
-    /* Before we swap make sure everything is done (This is really
-     * important. Don't remove.) */
-    glFlush();
-
-    /* Fetch the current used read and draw buffers. */
-    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &readFBOId);
-    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawFBOId);
-    glGetIntegerv(GL_READ_BUFFER, &readId);
-    glGetIntegerv(GL_DRAW_BUFFER, &drawId);
-
-    /* Do the swapping of our internal ids */
-    sw              = m_FBOTexFrontId;
-    m_FBOTexFrontId = m_FBOTexBackId;
-    m_FBOTexBackId  = sw;
-    sw              = m_FBOAttFrontId;
-    m_FBOAttFrontId = m_FBOAttBackId;
-    m_FBOAttBackId  = sw;
-
-    DEBUG_MSG_1(("read FBO: %d draw FBO: %d readId: %d drawId: %d\n", readFBOId, drawFBOId, readId, drawId));
-    /* We also have to swap the real ids on the current context. */
-    if ((GLuint)readFBOId == m_FBOId)
-    {
-        if ((GLuint)readId == m_FBOAttFrontId)
-            glReadBuffer(m_FBOAttBackId);
-        if ((GLuint)readId == m_FBOAttBackId)
-            glReadBuffer(m_FBOAttFrontId);
-    }
-    if ((GLuint)drawFBOId == m_FBOId)
-    {
-        if ((GLuint)drawId == m_FBOAttFrontId)
-            glDrawBuffer(m_FBOAttBackId);
-        if ((GLuint)drawId == m_FBOAttBackId)
-            glDrawBuffer(m_FBOAttFrontId);
-    }
-
-    if (m_cClipRects)
-        [self tryDraw];
-#else
     [m_pGLCtx flushBuffer];
-#endif
 }
 
-- (void)flushFBO
+- (void)vboxPresent:(PVBOXVR_SCR_COMPOSITOR)pCompositor
 {
-    GLint drawId = 0;
-    GLint FBOId  = 0;
-
-    DEBUG_MSG(("OVIW(%p): flushFBO\n", (void*)self));
-
-    glFlush();
-#ifdef FBO
-    /* If at any time OpenGl operations where done in the front buffer, we need
-     * to reflect this in the FBO as well. This is something which on real
-     * hardware happens and unfortunately some applications rely on it (grrr ... Compiz). */
-    if (   m_fFrontDrawing
-        && [self isCurrentFBO])
-    {
-        /* Only reset if we aren't currently front. */
-        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &FBOId);
-        glGetIntegerv(GL_DRAW_BUFFER, &drawId);
-        if (!(   (GLuint)FBOId  == m_FBOId
-              && (GLuint)drawId == m_FBOAttFrontId))
-            m_fFrontDrawing = false;
-        if (m_cClipRects)
-            [self tryDraw];
-    }
-#endif
-}
-
-- (void)finishFBO
-{
-    DEBUG_MSG(("OVIW(%p): finishFBO\n", (void*)self));
-
-    glFinish();
-#ifdef FBO
-    if (m_cClipRects && [self isCurrentFBO])
-        [self tryDraw];
-#endif
-}
-
-- (void)stateInfo:(GLenum)pname withParams:(GLint*)params
-{
-    GLint test;
-//    DEBUG_MSG_1(("StateInfo requested: %d\n", pname));
-
-    glGetIntegerv(pname, params);
-#ifdef FBO
-    switch(pname)
-    {
-        case GL_FRAMEBUFFER_BINDING_EXT:
-        case GL_READ_FRAMEBUFFER_BINDING:
-        case GL_READ_FRAMEBUFFER_EXT:
-        case GL_DRAW_FRAMEBUFFER_EXT:
-        {
-            if ((GLuint)*params == m_FBOId)
-                *params = 0;
-            break;
-        }
-        case GL_READ_BUFFER:
-        {
-            glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &test);
-            if ((GLuint)test == m_FBOId)
+    VBOX_CR_RENDER_CTX_INFO CtxInfo;    
+    
+    DEBUG_MSG(("OVIW(%p): renderFBOToView\n", (void*)self));    
+    
+    Assert(pCompositor);
+    
+#if 0 //def DEBUG
             {
-                if ((GLuint)*params == m_FBOAttFrontId)
-                    *params = GL_FRONT;
-                else
-                    if ((GLuint)*params == m_FBOAttBackId)
-                        *params = GL_BACK;
+            	NSOpenGLContext *pTstOldCtx = [NSOpenGLContext currentContext];
+            	NSView *pTstOldView = (pTstOldCtx ? [pTstOldCtx view] : nil);
+            	Assert(pTstOldCtx == m_pGLCtx);
+            	Assert(pTstOldView == self);
             }
-            break;
-        }
-        case GL_DRAW_BUFFER:
-        {
-            glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &test);
-            if ((GLuint)test == m_FBOId)
-            {
-                if ((GLuint)*params == m_FBOAttFrontId)
-                    *params = GL_FRONT;
-                else
-                    if ((GLuint)*params == m_FBOAttBackId)
-                        *params = GL_BACK;
-            }
-            break;
-        }
-    }
 #endif
+
+    vboxCtxEnter(m_pSharedGLCtx, &CtxInfo);
+    
+    [self vboxPresentCS:pCompositor];
+    
+    vboxCtxLeave(&CtxInfo);
 }
 
-- (void)readBuffer:(GLenum)mode
+- (void)vboxPresentCS:(PVBOXVR_SCR_COMPOSITOR)pCompositor
 {
-#ifdef FBO
-    /*
-    if ([self isCurrentFBO])
-    */
-    {
-        if (mode == GL_FRONT)
-        {
-            glBindFramebufferEXT(GL_READ_FRAMEBUFFER_EXT, m_FBOId);
-            glReadBuffer(m_FBOAttFrontId);
-        }
-        else if (mode == GL_BACK)
-        {
-            glBindFramebufferEXT(GL_READ_FRAMEBUFFER_EXT, m_FBOId);
-            glReadBuffer(m_FBOAttBackId);
-        }
-        else
-            glReadBuffer(mode);
-    }
-#else
-    glReadBuffer(mode);
-#endif
-}
-
-- (void)drawBuffer:(GLenum)mode
-{
-#ifdef FBO
-    /*
-    if ([self isCurrentFBO])
-    */
-    {
-        if (mode == GL_FRONT)
-        {
-            DEBUG_MSG(("OVIW(%p): front\n", (void*)self));
-            glBindFramebufferEXT(GL_DRAW_FRAMEBUFFER_EXT, m_FBOId);
-            glDrawBuffer(m_FBOAttFrontId);
-            m_fFrontDrawing = true;
-        }
-        else if (mode == GL_BACK)
-        {
-            DEBUG_MSG(("OVIW(%p): back\n", (void*)self));
-            glBindFramebufferEXT(GL_DRAW_FRAMEBUFFER_EXT, m_FBOId);
-            glDrawBuffer(m_FBOAttBackId);
-        }
-        else
-        {
-            DEBUG_MSG(("OVIW(%p): other: %d\n", (void*)self, mode));
-            glDrawBuffer(mode);
-        }
-    }
-#else
-    glDrawBuffer(mode);
-#endif
-}
-
-- (void)bindFBO:(GLenum)target withFrameBuffer:(GLuint)framebuffer
-{
-#ifdef FBO
-    if (framebuffer != 0)
-        glBindFramebufferEXT(target, framebuffer);
-    else
-        glBindFramebufferEXT(target, m_FBOId);
-#else
-    glBindFramebufferEXT(target, framebuffer);
-#endif
-}
-
-- (void)renderFBOToView
-{
-    GLint opaque       = 0;
-    GLint i            = 0;
-    GLint oldReadFBOId = 0;
-    GLint oldDrawFBOId = 0;
-    GLint oldReadId    = 0;
-    GLint oldDrawId    = 0;
-
-    DEBUG_MSG(("OVIW(%p): renderFBOToView\n", (void*)self));
-
-#ifdef FBO
-
-    /* Fetch the current used read and draw buffers. */
-    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING_EXT, &oldReadFBOId);
-    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING_EXT, &oldDrawFBOId);
-    glGetIntegerv(GL_READ_BUFFER, &oldReadId);
-    glGetIntegerv(GL_DRAW_BUFFER, &oldDrawId);
-
-    if (!m_pSharedGLCtx)
-    {
-        /* Create a shared context out of the main context. Use the same pixel format. */
-        m_pSharedGLCtx = [[NSOpenGLContext alloc] initWithFormat:[(OverlayOpenGLContext*)m_pGLCtx openGLPixelFormat] shareContext:m_pGLCtx];
-
-        /* Set the new context as non opaque */
-        [m_pSharedGLCtx setValues:&opaque forParameter:NSOpenGLCPSurfaceOpacity];
-        /* Set this view as the drawable for the new context */
-        [m_pSharedGLCtx setView: self];
-        [self updateViewport];
-    }
-
-    if (m_pSharedGLCtx)
-    {
-        NSRect r = [self frame];
-        DEBUG_MSG(("OVIW(%p): rF2V frame: [%i, %i, %i, %i]\n", (void*)self, (int)r.origin.x, (int)r.origin.y, (int)r.size.width, (int)r.size.height));
-
-        if (m_FBOTexFrontId > 0)
         {
             if ([m_pSharedGLCtx view] != self)
             {
                 DEBUG_MSG(("OVIW(%p): not current view of shared ctx! Switching ...\n", (void*)self));
                 [m_pSharedGLCtx setView: self];
-                [self updateViewport];
+                m_fNeedViewportUpdate = true;
             }
-
-            [m_pSharedGLCtx makeCurrentContext];
-
-            glBindFramebufferEXT(GL_READ_FRAMEBUFFER_EXT, m_FBOId);
-            glReadBuffer(m_FBOAttFrontId);
-            glBindFramebufferEXT(GL_DRAW_FRAMEBUFFER_EXT, 0);
-            glDrawBuffer(GL_BACK);
-
+            
+            if (m_fNeedViewportUpdate)
+            {
+                [self updateViewportCS];
+                m_fNeedViewportUpdate = false;
+            }
+            
             /* Render FBO content to the dock tile when necessary. */
-            [self renderFBOToDockTile];
+            [self vboxPresentToDockTileCS:pCompositor];
+            /* change to #if 0 to see thumbnail image */            
+#if 1
+            [self vboxPresentToViewCS:pCompositor];
+#else
+            glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+            [m_pSharedGLCtx flushBuffer];
+#endif
+           
+        }
+}
+
+DECLINLINE(void) vboxNSRectToRect(const NSRect *pR, RTRECT *pRect)
+{
+    pRect->xLeft = (int)pR->origin.x;
+    pRect->yTop = (int)pR->origin.y;
+    pRect->xRight = (int)(pR->origin.x + pR->size.width);
+    pRect->yBottom = (int)(pR->origin.y + pR->size.height);
+}
+
+DECLINLINE(void) vboxNSRectToRectUnstretched(const NSRect *pR, RTRECT *pRect, float xStretch, float yStretch)
+{
+    pRect->xLeft = (int)(pR->origin.x / xStretch);
+    pRect->yTop = (int)(pR->origin.y / yStretch);
+    pRect->xRight = (int)((pR->origin.x + pR->size.width) / xStretch);
+    pRect->yBottom = (int)((pR->origin.y + pR->size.height) / yStretch);
+}
+
+DECLINLINE(void) vboxNSRectToRectStretched(const NSRect *pR, RTRECT *pRect, float xStretch, float yStretch)
+{
+    pRect->xLeft = (int)(pR->origin.x * xStretch);
+    pRect->yTop = (int)(pR->origin.y * yStretch);
+    pRect->xRight = (int)((pR->origin.x + pR->size.width) * xStretch);
+    pRect->yBottom = (int)((pR->origin.y + pR->size.height) * yStretch);
+}
+
+- (void)vboxPresentToViewCS:(PVBOXVR_SCR_COMPOSITOR)pCompositor
+{
+    NSRect r = [self frame];
+    float xStretch, yStretch;
+    DEBUG_MSG(("OVIW(%p): rF2V frame: [%i, %i, %i, %i]\n", (void*)self, (int)r.origin.x, (int)r.origin.y, (int)r.size.width, (int)r.size.height));
 
 #if 1 /* Set to 0 to see the docktile instead of the real output */
-            /* Clear background to transparent */
-            glClear(GL_COLOR_BUFFER_BIT);
+    VBOXVR_SCR_COMPOSITOR_ITERATOR CIter;
+    PVBOXVR_SCR_COMPOSITOR_ENTRY pEntry;
+        
+    CrVrScrCompositorIterInit(pCompositor, &CIter);
+        
+    glBindFramebufferEXT(GL_DRAW_FRAMEBUFFER_EXT, 0);
+    glDrawBuffer(GL_BACK);
 
-            /* Blit the content of the FBO to the screen. */
-            for (i = 0; i < m_cClipRects; ++i)
-            {
-                GLint x1 = m_paClipRects[4*i];
-                GLint y1 = r.size.height - m_paClipRects[4*i+1];
-                GLint x2 = m_paClipRects[4*i+2];
-                GLint y2 = r.size.height - m_paClipRects[4*i+3];
-                glBlitFramebufferEXT(x1, y1 + m_RootShift.y, x2, y2 + m_RootShift.y,
-                                     x1 - m_RootShift.x, y1, x2 - m_RootShift.x, y2,
-                                     GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    /* Clear background to transparent */
+    glClear(GL_COLOR_BUFFER_BIT);
+    
+    CrVrScrCompositorGetStretching(pCompositor, &xStretch, &yStretch);
+        
+    while ((pEntry = CrVrScrCompositorIterNext(&CIter)) != NULL)
+    {
+        uint32_t cRegions;
+        const RTRECT *paSrcRegions, *paDstRegions;
+        int rc = CrVrScrCompositorEntryRegionsGet(pCompositor, pEntry, &cRegions, &paSrcRegions, &paDstRegions, NULL);
+        uint32_t fFlags = CrVrScrCompositorEntryFlagsCombinedGet(pCompositor, pEntry);
+        if (RT_SUCCESS(rc))
+        {
+            uint32_t i;
+            int rc = CrBltEnter(m_pBlitter, NULL, NULL);
+            if (RT_SUCCESS(rc))
+            {                   
+                for (i = 0; i < cRegions; ++i)
+                {
+                    const RTRECT * pSrcRect = &paSrcRegions[i];
+                    const RTRECT * pDstRect = &paDstRegions[i];
+                    RTRECT SrcRect, DstRect, RestrictSrcRect, RestrictDstRect;
+                    
+                    vboxNSRectToRect(&m_RootRect, &RestrictDstRect);
+                    VBoxRectIntersected(&RestrictDstRect, pDstRect, &DstRect);
+                    
+                    if (VBoxRectIsZero(&DstRect))
+                        continue;
+
+                    VBoxRectTranslate(&DstRect, -RestrictDstRect.xLeft, -RestrictDstRect.yTop);
+                        
+                    vboxNSRectToRectUnstretched(&m_RootRect, &RestrictSrcRect, xStretch, yStretch);
+                    VBoxRectIntersected(&RestrictSrcRect, pSrcRect, &SrcRect);
+                    
+                    if (VBoxRectIsZero(&SrcRect))
+                        continue;
+
+                    pSrcRect = &SrcRect;
+                    pDstRect = &DstRect;
+                    
+                    CrBltBlitTexMural(m_pBlitter, true, &pEntry->Tex, pSrcRect, pDstRect, 1, fFlags | CRBLT_F_NOALPHA);
+                }
+                CrBltLeave(m_pBlitter);
             }
+            else
+            {
+                DEBUG_WARN(("CrBltEnter failed rc %d", rc));
+            }
+        }
+        else
+        {
+            Assert(0);
+            DEBUG_MSG_1(("BlitStretched: CrVrScrCompositorEntryRegionsGet failed rc %d\n", rc));
+        }
+    }
 #endif
             /*
             glFinish();
             */
             glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
             [m_pSharedGLCtx flushBuffer];
-
-            [m_pGLCtx makeCurrentContext];
-            /* Reset to previous buffer bindings. */
-            glBindFramebufferEXT(GL_READ_FRAMEBUFFER_EXT, oldReadFBOId);
-            glReadBuffer(oldReadId);
-            glBindFramebufferEXT(GL_DRAW_FRAMEBUFFER_EXT, oldDrawFBOId);
-            glDrawBuffer(oldDrawId);
-        }
-    }
-#else
-    [m_pGLCtx flushBuffer];
-#endif
 }
 
-- (void)renderFBOToDockTile
+- (void)presentComposition:(PVBOXVR_SCR_COMPOSITOR_ENTRY)pChangedEntry
+{
+    [self vboxTryDraw];
+}
+
+- (void)vboxBlitterSyncWindow
+{
+    CR_BLITTER_WINDOW WinInfo;
+    NSRect r;
+    
+    if (!m_pBlitter)
+        return;
+        
+    memset(&WinInfo, 0, sizeof (WinInfo));
+    
+    r = [self frame];
+    WinInfo.width = r.size.width;
+    WinInfo.height = r.size.height;
+    
+    Assert(WinInfo.width = m_RootRect.size.width);
+    Assert(WinInfo.height = m_RootRect.size.height);
+
+    /*CrBltMuralSetCurrent(m_pBlitter, NULL);*/
+    
+    CrBltMuralSetCurrent(m_pBlitter, &WinInfo);
+    CrBltCheckUpdateViewport(m_pBlitter);
+}
+
+#ifdef VBOX_WITH_CRDUMPER_THUMBNAIL
+static int g_cVBoxTgaCtr = 0;
+#endif
+- (void)vboxPresentToDockTileCS:(PVBOXVR_SCR_COMPOSITOR)pCompositor
 {
     NSRect r        = [self frame];
     NSRect rr       = NSZeroRect;
     GLint i         = 0;
     NSDockTile *pDT = nil;
+    float xStretch, yStretch;
 
-#ifdef FBO
-    if (   m_FBOThumbId
-        && m_FBOThumbTexId
-        && [m_DockTileView thumbBitmap] != nil)
+    if ([m_DockTileView thumbBitmap] != nil)
     {
         /* Only update after at least 200 ms, cause glReadPixels is
          * heavy performance wise. */
         uint64_t uiNewTime = RTTimeMilliTS();
+        VBOXVR_SCR_COMPOSITOR_ITERATOR CIter;
+        PVBOXVR_SCR_COMPOSITOR_ENTRY pEntry;
+        
         if (uiNewTime - m_uiDockUpdateTime > 200)
         {
             m_uiDockUpdateTime = uiNewTime;
@@ -1516,22 +1475,70 @@
             glGetTexImage(GL_TEXTURE_RECTANGLE_ARB, 0, GL_BGRA,
                           GL_UNSIGNED_INT_8_8_8_8_REV, pixels);
 #endif
+            glBindFramebufferEXT(GL_DRAW_FRAMEBUFFER_EXT, 0);
+            glDrawBuffer(GL_BACK);
+
             /* Clear background to transparent */
             glClear(GL_COLOR_BUFFER_BIT);
 
             rr = [m_DockTileView frame];
-
-            for (i = 0; i < m_cClipRects; ++i)
+            
+            CrVrScrCompositorGetStretching(pCompositor, &xStretch, &yStretch);
+            
+            CrVrScrCompositorIterInit(pCompositor, &CIter);
+            while ((pEntry = CrVrScrCompositorIterNext(&CIter)) != NULL)
             {
-                GLint x1 = m_paClipRects[4*i];
-                GLint y1 = r.size.height - m_paClipRects[4*i+1];
-                GLint x2 = m_paClipRects[4*i+2];
-                GLint y2 = r.size.height - m_paClipRects[4*i+3];
+                uint32_t cRegions;
+                const RTRECT *paSrcRegions, *paDstRegions;
+                int rc = CrVrScrCompositorEntryRegionsGet(pCompositor, pEntry, &cRegions, &paSrcRegions, &paDstRegions, NULL);
+                uint32_t fFlags = CrVrScrCompositorEntryFlagsCombinedGet(pCompositor, pEntry);
+                if (RT_SUCCESS(rc))
+                {
+                    uint32_t i;
+                    int rc = CrBltEnter(m_pBlitter, NULL, NULL);
+                    if (RT_SUCCESS(rc))
+                    {                   
+                        for (i = 0; i < cRegions; ++i)
+                        {
+                            const RTRECT * pSrcRect = &paSrcRegions[i];
+                            const RTRECT * pDstRect = &paDstRegions[i];
+                            RTRECT SrcRect, DstRect, RestrictSrcRect, RestrictDstRect;
+                    
+                            vboxNSRectToRect(&m_RootRect, &RestrictDstRect);
+                            VBoxRectIntersected(&RestrictDstRect, pDstRect, &DstRect);
+                            
+                            VBoxRectTranslate(&DstRect, -RestrictDstRect.xLeft, -RestrictDstRect.yTop);
+                            
+                            VBoxRectStretch(&DstRect, m_FBOThumbScaleX, m_FBOThumbScaleY);
+                    
+                            if (VBoxRectIsZero(&DstRect))
+                                continue;
+                        
+                            vboxNSRectToRectUnstretched(&m_RootRect, &RestrictSrcRect, xStretch, yStretch);
+                            VBoxRectIntersected(&RestrictSrcRect, pSrcRect, &SrcRect);
+                    
+                            if (VBoxRectIsZero(&SrcRect))
+                                continue;
 
-                glBlitFramebufferEXT(x1, y1 + m_RootShift.y, x2, y2 + m_RootShift.y,
-                                     x1 * m_FBOThumbScaleX, y1 * m_FBOThumbScaleY, x2 * m_FBOThumbScaleX, y2 * m_FBOThumbScaleY,
-                                     GL_COLOR_BUFFER_BIT, GL_LINEAR);
+                            pSrcRect = &SrcRect;
+                            pDstRect = &DstRect;
+                            
+                            CrBltBlitTexMural(m_pBlitter, true, &pEntry->Tex, pSrcRect, pDstRect, 1, fFlags);
+                        }
+                        CrBltLeave(m_pBlitter);
+                    }
+                    else
+                    {
+                        DEBUG_WARN(("CrBltEnter failed rc %d", rc));
+                    }
+                }
+                else
+                {
+                    Assert(0);
+                    DEBUG_MSG_1(("BlitStretched: CrVrScrCompositorEntryRegionsGet failed rc %d\n", rc));
+                }
             }
+            
             glFinish();
 
             glBindFramebufferEXT(GL_READ_FRAMEBUFFER_EXT, 0);
@@ -1540,23 +1547,24 @@
              * happens. We have to lock this access, in the case the dock
              * is updated currently. */
             [m_DockTileView lock];
-            glReadPixels(0, 0, rr.size.width, rr.size.height,
+            glReadPixels(0, m_RootRect.size.height - rr.size.height, rr.size.width, rr.size.height,
                          GL_BGRA,
                          GL_UNSIGNED_INT_8_8_8_8,
                          [[m_DockTileView thumbBitmap] bitmapData]);
             [m_DockTileView unlock];
-
-            glBindFramebufferEXT(GL_READ_FRAMEBUFFER_EXT, m_FBOId);
-            glReadBuffer(m_FBOAttFrontId);
+            
+#ifdef VBOX_WITH_CRDUMPER_THUMBNAIL
+            ++g_cVBoxTgaCtr;
+            crDumpNamedTGAF((GLint)rr.size.width, (GLint)rr.size.height, 
+                [[m_DockTileView thumbBitmap] bitmapData], "/Users/leo/vboxdumps/dump%d.tga", g_cVBoxTgaCtr);
+#endif                
 
             pDT = [[NSApplication sharedApplication] dockTile];
 
             /* Send a display message to the dock tile in the main thread */
             [[[NSApplication sharedApplication] dockTile] performSelectorOnMainThread:@selector(display) withObject:nil waitUntilDone:NO];
-
         }
     }
-#endif
 }
 
 - (void)clearVisibleRegions
@@ -1569,7 +1577,7 @@
     m_cClipRects = 0;
 }
 
-- (void)setVisibleRegions:(GLint)cRects paRects:(GLint*)paRects
+- (void)setVisibleRegions:(GLint)cRects paRects:(const GLint*)paRects
 {
     GLint cOldRects = m_cClipRects;
 
@@ -1589,8 +1597,12 @@
         m_cClipRects = cRects;
         memcpy(m_paClipRects, paRects, sizeof(GLint) * 4 * cRects);
     }
-    else if (cOldRects)
-        [self tryDraw];
+
+    /* we need to redwar on regions change, however the compositor now is cleared 
+     * because all compositor&window data-related modifications are performed with compositor cleared
+     * the renderspu client will re-set the compositor after modifications are complete
+     * this way we indicate renderspu generic code not to ignore the empty compositor */
+    m_pWinInfo->fCompositorPresentEmpty = GL_TRUE;
 }
 
 - (NSView*)dockTileScreen
@@ -1615,11 +1627,12 @@
     if (pView != nil)
     {
         NSRect dockFrame = [pView frame];
+        /* todo: this is not correct, we should use framebuffer size here, while parent view frame size may differ in case of scrolling */
         NSRect parentFrame = [m_pParentView frame];
 
         m_FBOThumbScaleX = (float)dockFrame.size.width / parentFrame.size.width;
         m_FBOThumbScaleY = (float)dockFrame.size.height / parentFrame.size.height;
-        newFrame = NSMakeRect((int)(m_Pos.x * m_FBOThumbScaleX), (int)(dockFrame.size.height - (m_Pos.y + m_Size.height - m_RootShift.y) * m_FBOThumbScaleY), (int)(m_Size.width * m_FBOThumbScaleX), (int)(m_Size.height * m_FBOThumbScaleY));
+        newFrame = NSMakeRect((int)(m_Pos.x * m_FBOThumbScaleX), (int)(dockFrame.size.height - (m_Pos.y + m_Size.height - m_yInvRootOffset) * m_FBOThumbScaleY), (int)(m_Size.width * m_FBOThumbScaleX), (int)(m_Size.height * m_FBOThumbScaleY));
         /*
         NSRect newFrame = NSMakeRect ((int)roundf(m_Pos.x * m_FBOThumbScaleX), (int)roundf(dockFrame.size.height - (m_Pos.y + m_Size.height) * m_FBOThumbScaleY), (int)roundf(m_Size.width * m_FBOThumbScaleX), (int)roundf(m_Size.height * m_FBOThumbScaleY));
         NSRect newFrame = NSMakeRect ((m_Pos.x * m_FBOThumbScaleX), (dockFrame.size.height - (m_Pos.y + m_Size.height) * m_FBOThumbScaleY), (m_Size.width * m_FBOThumbScaleX), (m_Size.height * m_FBOThumbScaleY));
@@ -1739,12 +1752,12 @@ void cocoaGLCtxDestroy(NativeNSOpenGLContextRef pCtx)
 * View management
 *
 ********************************************************************************/
-void cocoaViewCreate(NativeNSViewRef *ppView, NativeNSViewRef pParentView, GLbitfield fVisParams)
+void cocoaViewCreate(NativeNSViewRef *ppView, WindowInfo *pWinInfo, NativeNSViewRef pParentView, GLbitfield fVisParams)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
     /* Create our worker view */
-    OverlayView* pView = [[OverlayView alloc] initWithFrame:NSZeroRect thread:RTThreadSelf() parentView:pParentView];
+    OverlayView* pView = [[OverlayView alloc] initWithFrame:NSZeroRect thread:RTThreadSelf() parentView:pParentView winInfo:pWinInfo];
 
     if (pView)
     {
@@ -1778,7 +1791,7 @@ void cocoaViewReparent(NativeNSViewRef pView, NativeNSViewRef pParentView)
         if (pParentView != nil)
         {
             [[pParentView window] addChildWindow:[pOView overlayWin] ordered:NSWindowAbove];
-            [pOView createFBO];
+            [pOView createDockTile];
         }
     }
 
@@ -1886,19 +1899,54 @@ void cocoaViewGetGeometry(NativeNSViewRef pView, int *pX, int *pY, int *pW, int 
     [pPool release];
 }
 
+void cocoaViewPresentComposition(NativeNSViewRef pView, struct VBOXVR_SCR_COMPOSITOR_ENTRY *pChangedEntry)
+{
+    NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
+    NSOpenGLContext *pCtx;
+    
+    /* view should not necesserily have a context set */
+    pCtx = [(OverlayView*)pView glCtx];
+    if (!pCtx)
+    {
+        ContextInfo * pCtxInfo = renderspuDefaultSharedContextAcquire();
+        if (!pCtxInfo)
+        {
+            DEBUG_WARN(("renderspuDefaultSharedContextAcquire returned NULL"));
+            
+            [pPool release];
+            return;
+        }
+        
+        pCtx = pCtxInfo->context;
+        
+        [(OverlayView*)pView setGLCtx:pCtx];
+    }
+    
+    [(OverlayView*)pView presentComposition:pChangedEntry];
+
+    [pPool release];
+}
+
 void cocoaViewMakeCurrentContext(NativeNSViewRef pView, NativeNSOpenGLContextRef pCtx)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
     DEBUG_MSG(("cocoaViewMakeCurrentContext(%p, %p)\n", (void*)pView, (void*)pCtx));
 
-    [(OverlayView*)pView setGLCtx:pCtx];
-    [(OverlayView*)pView makeCurrentFBO];
+    if (pView)
+    {
+        [(OverlayView*)pView setGLCtx:pCtx];
+        [(OverlayView*)pView makeCurrentFBO];
+    }
+    else
+    {
+    	[NSOpenGLContext clearCurrentContext];
+    }
 
     [pPool release];
 }
 
-void cocoaViewSetVisibleRegion(NativeNSViewRef pView, GLint cRects, GLint* paRects)
+void cocoaViewSetVisibleRegion(NativeNSViewRef pView, GLint cRects, const GLint* paRects)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
@@ -1906,142 +1954,3 @@ void cocoaViewSetVisibleRegion(NativeNSViewRef pView, GLint cRects, GLint* paRec
 
     [pPool release];
 }
-
-/********************************************************************************
-*
-* Additional OpenGL wrapper
-*
-********************************************************************************/
-static void performSelectorOnView(SEL selector)
-{
-    NSOpenGLContext *pCtx = [NSOpenGLContext currentContext];
-
-    if (pCtx)
-    {
-        NSView *pView = [pCtx view];
-        if (pView)
-        {
-            if ([pView respondsToSelector:selector])
-                [pView performSelector:selector];
-        }
-    }
-}
-
-static void performSelectorOnViewOneArg(SEL selector, id arg1)
-{
-    NSOpenGLContext *pCtx = [NSOpenGLContext currentContext];
-
-    if (pCtx)
-    {
-        NSView *pView = [pCtx view];
-        if (pView)
-        {
-            if ([pView respondsToSelector:selector])
-                [pView performSelector:selector withObject:arg1];
-        }
-    }
-}
-
-static void performSelectorOnViewTwoArgs(SEL selector, id arg1, id arg2)
-{
-    NSOpenGLContext *pCtx = [NSOpenGLContext currentContext];
-
-    if (pCtx)
-    {
-        NSView *pView = [pCtx view];
-        if (pView)
-        {
-            if ([pView respondsToSelector:selector])
-                [pView performSelector:selector withObject:arg1 withObject:arg2];
-        }
-    }
-}
-
-void cocoaFlush(void)
-{
-    NSOpenGLContext *pCtx = nil;
-
-    NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
-
-    DEBUG_MSG_1(("glFlush called\n"));
-
-    performSelectorOnView(@selector(flushFBO));
-
-    [pPool release];
-}
-
-void cocoaFinish(void)
-{
-    NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
-
-    DEBUG_MSG_1(("glFinish called\n"));
-
-    performSelectorOnView(@selector(finishFBO));
-
-    [pPool release];
-}
-
-void cocoaBindFramebufferEXT(GLenum target, GLuint framebuffer)
-{
-    NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
-
-    DEBUG_MSG_1(("glBindFramebufferEXT called target: %d  fb: %d\n", target, framebuffer));
-
-    performSelectorOnViewTwoArgs(@selector(bindFBO:withFrameBuffer:), (id)target, (id)framebuffer);
-
-    [pPool release];
-}
-
-void cocoaCopyPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum type)
-{
-    NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
-    GLbitfield mask = GL_COLOR_BUFFER_BIT;
-
-    DEBUG_MSG_1(("glCopyPixels called: %d,%d-%dx%d type: %d\n", x, y, width, height, type));
-
-#ifdef FBO
-    if (type == GL_DEPTH)
-        mask = GL_DEPTH_BUFFER_BIT;
-    else if (type == GL_STENCIL)
-        mask = GL_STENCIL_BUFFER_BIT;
-    glBlitFramebufferEXT(x, y, x + width, y + height, x, y, x + width, y + height, mask, GL_NEAREST);
-#else
-    glCopyPixels(x, y, width, height, type);
-#endif
-
-    [pPool release];
-}
-
-void cocoaGetIntegerv(GLenum pname, GLint *params)
-{
-    NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
-
-//    DEBUG_MSG_1(("getIntergerv called: %d\n", pname));
-
-    performSelectorOnViewTwoArgs(@selector(stateInfo:withParams:), (id)pname, (id)params);
-
-    [pPool release];
-}
-
-void cocoaReadBuffer(GLenum mode)
-{
-    NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
-
-    DEBUG_MSG_1(("glReadBuffer called: %d\n", mode));
-
-    performSelectorOnViewOneArg(@selector(readBuffer:), (id)mode);
-
-    [pPool release];
-}
-
-void cocoaDrawBuffer(GLenum mode)
-{
-    NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
-
-    DEBUG_MSG_1(("glDrawBuffer called: %d\n", mode));
-
-    performSelectorOnViewOneArg(@selector(drawBuffer:), (id)mode);
-
-    [pPool release];
-}
-

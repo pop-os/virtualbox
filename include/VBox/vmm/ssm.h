@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -377,7 +377,11 @@ typedef struct SSMFIELD
 #define SSMSTRUCT_FLAGS_DONT_IGNORE         RT_BIT_32(2)
 /** Saved using SSMR3PutMem, don't be too strict. */
 #define SSMSTRUCT_FLAGS_SAVED_AS_MEM        RT_BIT_32(3)
-/** Band-aid for old SSMR3PutMem/SSMR3GetMem of structurs with host pointers. */
+/** Band-aid for old SSMR3PutMem/SSMR3GetMem of structurs with host pointers.
+ * @remarks This type is normally only used up to the first changes to the
+ *          structures take place in order to make sure the conversion from
+ *          SSMR3PutMem to field descriptors went smoothly.  Replace with
+ *          SSMSTRUCT_FLAGS_MEM_BAND_AID_RELAXED when changing the structure. */
 #define SSMSTRUCT_FLAGS_MEM_BAND_AID        (  SSMSTRUCT_FLAGS_DONT_IGNORE | SSMSTRUCT_FLAGS_FULL_STRUCT \
                                              | SSMSTRUCT_FLAGS_NO_MARKERS  | SSMSTRUCT_FLAGS_SAVED_AS_MEM)
 /** Band-aid for old SSMR3PutMem/SSMR3GetMem of structurs with host
@@ -399,6 +403,7 @@ typedef struct SSMFIELD
  * @returns VBox status code.
  * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
+ * @remarks The caller enters the device critical section prior to the call.
  * @thread  Any.
  */
 typedef DECLCALLBACK(int) FNSSMDEVLIVEPREP(PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
@@ -415,6 +420,7 @@ typedef FNSSMDEVLIVEPREP *PFNSSMDEVLIVEPREP;
  * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
  * @param   uPass           The pass.
+ * @remarks The caller enters the device critical section prior to the call.
  * @thread  Any.
  */
 typedef DECLCALLBACK(int) FNSSMDEVLIVEEXEC(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass);
@@ -437,6 +443,7 @@ typedef FNSSMDEVLIVEEXEC *PFNSSMDEVLIVEEXEC;
  * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
  * @param   uPass           The data pass.
+ * @remarks The caller enters the device critical section prior to the call.
  * @thread  Any.
  */
 typedef DECLCALLBACK(int) FNSSMDEVLIVEVOTE(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass);
@@ -449,6 +456,7 @@ typedef FNSSMDEVLIVEVOTE *PFNSSMDEVLIVEVOTE;
  * @returns VBox status code.
  * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
+ * @remarks The caller enters the device critical section prior to the call.
  */
 typedef DECLCALLBACK(int) FNSSMDEVSAVEPREP(PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 /** Pointer to a FNSSMDEVSAVEPREP() function. */
@@ -460,6 +468,7 @@ typedef FNSSMDEVSAVEPREP *PFNSSMDEVSAVEPREP;
  * @returns VBox status code.
  * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
+ * @remarks The caller enters the device critical section prior to the call.
  */
 typedef DECLCALLBACK(int) FNSSMDEVSAVEEXEC(PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 /** Pointer to a FNSSMDEVSAVEEXEC() function. */
@@ -471,6 +480,7 @@ typedef FNSSMDEVSAVEEXEC *PFNSSMDEVSAVEEXEC;
  * @returns VBox status code.
  * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
+ * @remarks The caller enters the device critical section prior to the call.
  */
 typedef DECLCALLBACK(int) FNSSMDEVSAVEDONE(PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 /** Pointer to a FNSSMDEVSAVEDONE() function. */
@@ -482,6 +492,7 @@ typedef FNSSMDEVSAVEDONE *PFNSSMDEVSAVEDONE;
  * @returns VBox status code.
  * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
+ * @remarks The caller enters the device critical section prior to the call.
  */
 typedef DECLCALLBACK(int) FNSSMDEVLOADPREP(PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 /** Pointer to a FNSSMDEVLOADPREP() function. */
@@ -496,6 +507,7 @@ typedef FNSSMDEVLOADPREP *PFNSSMDEVLOADPREP;
  * @param   uVersion        Data layout version.
  * @param   uPass           The pass. This is always SSM_PASS_FINAL for units
  *                          that doesn't specify a pfnSaveLive callback.
+ * @remarks The caller enters the device critical section prior to the call.
  */
 typedef DECLCALLBACK(int) FNSSMDEVLOADEXEC(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
 /** Pointer to a FNSSMDEVLOADEXEC() function. */
@@ -507,6 +519,7 @@ typedef FNSSMDEVLOADEXEC *PFNSSMDEVLOADEXEC;
  * @returns VBox load code.
  * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
+ * @remarks The caller enters the device critical section prior to the call.
  */
 typedef DECLCALLBACK(int) FNSSMDEVLOADDONE(PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 /** Pointer to a FNSSMDEVLOADDONE() function. */
@@ -1131,22 +1144,27 @@ typedef struct SSMSTRMOPS
 
 
 VMMR3_INT_DECL(void)    SSMR3Term(PVM pVM);
-VMMR3DECL(int)          SSMR3RegisterDevice(PVM pVM, PPDMDEVINS pDevIns, const char *pszName, uint32_t uInstance, uint32_t uVersion, size_t cbGuess, const char *pszBefore,
-                                            PFNSSMDEVLIVEPREP pfnLivePrep, PFNSSMDEVLIVEEXEC pfnLiveExec, PFNSSMDEVLIVEVOTE pfnLiveVote,
-                                            PFNSSMDEVSAVEPREP pfnSavePrep, PFNSSMDEVSAVEEXEC pfnSaveExec, PFNSSMDEVSAVEDONE pfnSaveDone,
-                                            PFNSSMDEVLOADPREP pfnLoadPrep, PFNSSMDEVLOADEXEC pfnLoadExec, PFNSSMDEVLOADDONE pfnLoadDone);
-VMMR3DECL(int)          SSMR3RegisterDriver(PVM pVM, PPDMDRVINS pDrvIns, const char *pszName, uint32_t uInstance, uint32_t uVersion, size_t cbGuess,
-                                            PFNSSMDRVLIVEPREP pfnLivePrep, PFNSSMDRVLIVEEXEC pfnLiveExec, PFNSSMDRVLIVEVOTE pfnLiveVote,
-                                            PFNSSMDRVSAVEPREP pfnSavePrep, PFNSSMDRVSAVEEXEC pfnSaveExec, PFNSSMDRVSAVEDONE pfnSaveDone,
-                                            PFNSSMDRVLOADPREP pfnLoadPrep, PFNSSMDRVLOADEXEC pfnLoadExec, PFNSSMDRVLOADDONE pfnLoadDone);
-VMMR3DECL(int)          SSMR3RegisterInternal(PVM pVM, const char *pszName, uint32_t uInstance, uint32_t uVersion, size_t cbGuess,
-                                              PFNSSMINTLIVEPREP pfnLivePrep, PFNSSMINTLIVEEXEC pfnLiveExec, PFNSSMINTLIVEVOTE pfnLiveVote,
-                                              PFNSSMINTSAVEPREP pfnSavePrep, PFNSSMINTSAVEEXEC pfnSaveExec, PFNSSMINTSAVEDONE pfnSaveDone,
-                                              PFNSSMINTLOADPREP pfnLoadPrep, PFNSSMINTLOADEXEC pfnLoadExec, PFNSSMINTLOADDONE pfnLoadDone);
-VMMR3DECL(int)          SSMR3RegisterExternal(PVM pVM, const char *pszName, uint32_t uInstance, uint32_t uVersion, size_t cbGuess,
-                                              PFNSSMEXTLIVEPREP pfnLivePrep, PFNSSMEXTLIVEEXEC pfnLiveExec, PFNSSMEXTLIVEVOTE pfnLiveVote,
-                                              PFNSSMEXTSAVEPREP pfnSavePrep, PFNSSMEXTSAVEEXEC pfnSaveExec, PFNSSMEXTSAVEDONE pfnSaveDone,
-                                              PFNSSMEXTLOADPREP pfnLoadPrep, PFNSSMEXTLOADEXEC pfnLoadExec, PFNSSMEXTLOADDONE pfnLoadDone, void *pvUser);
+VMMR3_INT_DECL(int)
+SSMR3RegisterDevice(PVM pVM, PPDMDEVINS pDevIns, const char *pszName, uint32_t uInstance, uint32_t uVersion,
+                    size_t cbGuess, const char *pszBefore,
+                    PFNSSMDEVLIVEPREP pfnLivePrep, PFNSSMDEVLIVEEXEC pfnLiveExec, PFNSSMDEVLIVEVOTE pfnLiveVote,
+                    PFNSSMDEVSAVEPREP pfnSavePrep, PFNSSMDEVSAVEEXEC pfnSaveExec, PFNSSMDEVSAVEDONE pfnSaveDone,
+                    PFNSSMDEVLOADPREP pfnLoadPrep, PFNSSMDEVLOADEXEC pfnLoadExec, PFNSSMDEVLOADDONE pfnLoadDone);
+VMMR3_INT_DECL(int)
+SSMR3RegisterDriver(PVM pVM, PPDMDRVINS pDrvIns, const char *pszName, uint32_t uInstance, uint32_t uVersion, size_t cbGuess,
+                    PFNSSMDRVLIVEPREP pfnLivePrep, PFNSSMDRVLIVEEXEC pfnLiveExec, PFNSSMDRVLIVEVOTE pfnLiveVote,
+                    PFNSSMDRVSAVEPREP pfnSavePrep, PFNSSMDRVSAVEEXEC pfnSaveExec, PFNSSMDRVSAVEDONE pfnSaveDone,
+                    PFNSSMDRVLOADPREP pfnLoadPrep, PFNSSMDRVLOADEXEC pfnLoadExec, PFNSSMDRVLOADDONE pfnLoadDone);
+VMMR3DECL(int)
+SSMR3RegisterInternal(PVM pVM, const char *pszName, uint32_t uInstance, uint32_t uVersion, size_t cbGuess,
+                      PFNSSMINTLIVEPREP pfnLivePrep, PFNSSMINTLIVEEXEC pfnLiveExec, PFNSSMINTLIVEVOTE pfnLiveVote,
+                      PFNSSMINTSAVEPREP pfnSavePrep, PFNSSMINTSAVEEXEC pfnSaveExec, PFNSSMINTSAVEDONE pfnSaveDone,
+                      PFNSSMINTLOADPREP pfnLoadPrep, PFNSSMINTLOADEXEC pfnLoadExec, PFNSSMINTLOADDONE pfnLoadDone);
+VMMR3DECL(int)
+SSMR3RegisterExternal(PUVM pUVM, const char *pszName, uint32_t uInstance, uint32_t uVersion, size_t cbGuess,
+                      PFNSSMEXTLIVEPREP pfnLivePrep, PFNSSMEXTLIVEEXEC pfnLiveExec, PFNSSMEXTLIVEVOTE pfnLiveVote,
+                      PFNSSMEXTSAVEPREP pfnSavePrep, PFNSSMEXTSAVEEXEC pfnSaveExec, PFNSSMEXTSAVEDONE pfnSaveDone,
+                      PFNSSMEXTLOADPREP pfnLoadPrep, PFNSSMEXTLOADEXEC pfnLoadExec, PFNSSMEXTLOADDONE pfnLoadDone, void *pvUser);
 VMMR3_INT_DECL(int)     SSMR3DeregisterDevice(PVM pVM, PPDMDEVINS pDevIns, const char *pszName, uint32_t uInstance);
 VMMR3_INT_DECL(int)     SSMR3DeregisterDriver(PVM pVM, PPDMDRVINS pDrvIns, const char *pszName, uint32_t uInstance);
 VMMR3DECL(int)          SSMR3DeregisterInternal(PVM pVM, const char *pszName);
@@ -1176,7 +1194,7 @@ VMMR3DECL(uint32_t)     SSMR3HandleVersion(PSSMHANDLE pSSM);
 VMMR3DECL(const char *) SSMR3HandleHostOSAndArch(PSSMHANDLE pSSM);
 VMMR3_INT_DECL(int)     SSMR3HandleSetGCPtrSize(PSSMHANDLE pSSM, unsigned cbGCPtr);
 VMMR3DECL(void)         SSMR3HandleReportLivePercent(PSSMHANDLE pSSM, unsigned uPercent);
-VMMR3DECL(int)          SSMR3Cancel(PVM pVM);
+VMMR3DECL(int)          SSMR3Cancel(PUVM pUVM);
 
 
 /** Save operations.

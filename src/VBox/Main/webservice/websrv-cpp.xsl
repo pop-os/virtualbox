@@ -11,7 +11,7 @@
         See webservice/Makefile.kmk for an overview of all the things
         generated for the webservice.
 
-    Copyright (C) 2007-2012 Oracle Corporation
+    Copyright (C) 2007-2013 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -39,7 +39,7 @@
 
 <xsl:variable name="G_xsltFilename" select="'websrv-cpp.xsl'" />
 
-<xsl:include href="websrv-shared.inc.xsl" />
+<xsl:include href="../idl/typemap-shared.inc.xsl" />
 
 <!-- collect all interfaces with "wsmap='suppress'" in a global variable for
      quick lookup -->
@@ -86,7 +86,7 @@ const char *g_pcszDoneCallingComMethod = "   done calling COM method\n";
 const char *g_pcszConvertComOutputBack = "   convert COM output \"%s\" back to caller format\n";
 const char *g_pcszDoneConvertingComOutputBack = "   done converting COM output \"%s\" back to caller format\n";
 const char *g_pcszEntering = "-- entering %s\n";
-const char *g_pcszLeaving = "-- leaving %s, rc: 0x%lX (%d)\n";
+const char *g_pcszLeaving = "-- leaving %s, rc: %#lx (%d)\n";
 
 // generated string constants for all interface names
 const char *g_pcszIUnknown = "IUnknown";
@@ -273,17 +273,19 @@ const char *g_pcszIUnknown = "IUnknown";
     <xsl:call-template name="emitNewline" />
 
     <xsl:for-each select="//interface[@name=$structname]/attribute">
-      <xsl:value-of select="concat('        // -- ', $structname, '.', @name)" />
-      <xsl:call-template name="emitNewline" />
-      <!-- recurse! -->
-      <xsl:call-template name="emitGetAttributeComCall">
-        <xsl:with-param name="ifname" select="$structname" />
-        <xsl:with-param name="object" select="'in'" />
-        <xsl:with-param name="attrname" select="@name" />
-        <xsl:with-param name="attrtype" select="@type" />
-        <xsl:with-param name="callerprefix" select="concat('out', '.')" />
-      </xsl:call-template>
-      <xsl:call-template name="emitNewline" />
+      <xsl:if test="not(@wsmap = 'suppress')">
+        <xsl:value-of select="concat('        // -- ', $structname, '.', @name)" />
+        <xsl:call-template name="emitNewline" />
+        <!-- recurse! -->
+        <xsl:call-template name="emitGetAttributeComCall">
+          <xsl:with-param name="ifname" select="$structname" />
+          <xsl:with-param name="object" select="'in'" />
+          <xsl:with-param name="attrname" select="@name" />
+          <xsl:with-param name="attrtype" select="@type" />
+          <xsl:with-param name="callerprefix" select="concat('out', '.')" />
+        </xsl:call-template>
+        <xsl:call-template name="emitNewline" />
+      </xsl:if>
     </xsl:for-each>
 
     <xsl:call-template name="emitEpilogue"><xsl:with-param name="fSkipHRESULT" select="'1'"/></xsl:call-template>
@@ -360,7 +362,7 @@ const char *g_pcszIUnknown = "IUnknown";
   <xsl:param name="varprefix" />      <!-- only with nested get-attribute calls -->
   <xsl:param name="inptr" />          <!-- whether to add INPTR to BSTR (Dmitry template magic) -->
 
-  <!-- look up C++ glue type from IDL type from table array in websrv-shared.inc.xsl -->
+  <!-- look up C++ glue type from IDL type from table array in typemap-shared.inc.xsl -->
   <xsl:variable name="gluetypefield" select="exsl:node-set($G_aSharedTypes)/type[@idlname=$type]/@gluename" />
 
   <xsl:choose>
@@ -533,7 +535,10 @@ const char *g_pcszIUnknown = "IUnknown";
     so we can then pass them to the actual COM method call.
 -->
 <xsl:template name="emitInputArgConverter">
+  <xsl:param name="ifname" />
+  <xsl:param name="object" />       <!-- normally "pObj" -->
   <xsl:param name="method" />
+  <xsl:param name="methodname" />
   <xsl:param name="structprefix" />   <!-- with WSDL document style: req element prefix, like "vbox__IVirtualBox_USCOREcreateMachineRequestElement->" -->
   <xsl:param name="name" />
   <xsl:param name="type" />
@@ -546,7 +551,7 @@ const char *g_pcszIUnknown = "IUnknown";
      <xsl:when test="$safearray='yes' and $type='octet'">
        <xsl:value-of select="concat('com::SafeArray&lt;BYTE&gt; comcall_',$name, ';')" />
        <xsl:call-template name="emitNewlineIndent8" />
-       <xsl:value-of select="concat('Base64DecodeByteArray(soap, ',$structprefix,$name,', ComSafeArrayAsOutParam(comcall_',$name, '));')" />
+       <xsl:value-of select="concat('Base64DecodeByteArray(soap, ',$structprefix,$name,', ComSafeArrayAsOutParam(comcall_',$name, '), idThis, &quot;', $ifname, '::', $methodname, '&quot;, ', $object, ', COM_IIDOF(', $ifname, '));')" />
     </xsl:when>
 
     <xsl:when test="$safearray='yes'">
@@ -593,6 +598,10 @@ const char *g_pcszIUnknown = "IUnknown";
           <xsl:value-of select="concat('    comcall_', $name, '[i] = tmpObjectB;')" />
         </xsl:when>
         <xsl:when test="$type='long'">
+          <xsl:call-template name="emitNewlineIndent8" />
+          <xsl:value-of select="concat('    comcall_', $name, '[i] = ', $structprefix, $name, '[i];')" />
+        </xsl:when>
+        <xsl:when test="$type='long long'">
           <xsl:call-template name="emitNewlineIndent8" />
           <xsl:value-of select="concat('    comcall_', $name, '[i] = ', $structprefix, $name, '[i];')" />
         </xsl:when>
@@ -778,7 +787,8 @@ const char *g_pcszIUnknown = "IUnknown";
     emits the actual method call with the arguments.
 -->
 <xsl:template name="emitComCall">
-  <xsl:param name="object" />       <!-- normally "pObj->" -->
+  <xsl:param name="ifname" />
+  <xsl:param name="object" />       <!-- normally "pObj" -->
   <xsl:param name="methodname" />
   <xsl:param name="attrname" />     <!-- with attributes only -->
   <xsl:param name="attrtype" />     <!-- with attributes only -->
@@ -786,14 +796,10 @@ const char *g_pcszIUnknown = "IUnknown";
   <xsl:param name="attrdir" />      <!-- with attributes only: "in" or "return" -->
   <xsl:param name="varprefix" />      <!-- only with nested get-attribute calls -->
 
-  <xsl:variable name="comMethodName">
-    <xsl:call-template name="capitalize"><xsl:with-param name="str" select="$methodname" /></xsl:call-template>
-  </xsl:variable>
-
   <xsl:call-template name="emitNewlineIndent8" />
-  <xsl:value-of select="concat('WEBDEBUG((g_pcszCallingComMethod, &quot;', $comMethodName, '&quot;));')" />
+  <xsl:value-of select="concat('WEBDEBUG((g_pcszCallingComMethod, &quot;', $methodname, '&quot;));')" />
   <xsl:call-template name="emitNewlineIndent8" />
-  <xsl:value-of select="concat('rc = ', $object, '-&gt;', $comMethodName, '(')" />
+  <xsl:value-of select="concat('rc = ', $object, '-&gt;', $methodname, '(')" />
   <xsl:if test="$attrtype">
     <xsl:choose>
       <xsl:when test="$attrdir='in'">
@@ -856,7 +862,7 @@ const char *g_pcszIUnknown = "IUnknown";
   <xsl:call-template name="emitNewlineIndent8" />
   <xsl:text>{</xsl:text>
   <xsl:call-template name="emitNewlineIndent8" />
-  <xsl:value-of select="concat('    RaiseSoapRuntimeFault(soap, rc, ', $object, ');')" />
+  <xsl:value-of select="concat('    RaiseSoapRuntimeFault(soap, idThis, &quot;', $ifname, '::', $methodname,'&quot;, rc, ', $object, ', COM_IIDOF(', $ifname, '));')" />
   <xsl:call-template name="emitNewlineIndent8" />
   <xsl:text>    break;</xsl:text>
   <xsl:call-template name="emitNewlineIndent8" />
@@ -984,7 +990,7 @@ const char *g_pcszIUnknown = "IUnknown";
       <xsl:call-template name="emitNewlineIndent8" />
       <xsl:value-of select="'{'" />
       <xsl:call-template name="emitNewlineIndent8" />
-      <!-- look up C++ glue type from IDL type from table array in websrv-shared.inc.xsl -->
+      <!-- look up C++ glue type from IDL type from table array in typemap-shared.inc.xsl -->
       <xsl:variable name="gluetypefield" select="exsl:node-set($G_aSharedTypes)/type[@idlname=$type]/@gluename" />
       <xsl:choose>
         <xsl:when test="//interface[@name=$type]">
@@ -1067,6 +1073,7 @@ const char *g_pcszIUnknown = "IUnknown";
   <xsl:variable name="upperattrname"><xsl:call-template name="capitalize"><xsl:with-param name="str" select="$attrname" /></xsl:call-template></xsl:variable>
   <!-- actual COM method call -->
   <xsl:call-template name="emitComCall">
+    <xsl:with-param name="ifname" select="$ifname" />
     <xsl:with-param name="methodname" select="concat('COMGETTER(', $upperattrname, ')')" />
     <xsl:with-param name="object" select="$object" />
     <xsl:with-param name="attrname" select="$attrname" />
@@ -1102,13 +1109,17 @@ const char *g_pcszIUnknown = "IUnknown";
   <xsl:variable name="upperattrname"><xsl:call-template name="capitalize"><xsl:with-param name="str" select="$attrname" /></xsl:call-template></xsl:variable>
 
   <xsl:call-template name="emitInputArgConverter">
+    <xsl:with-param name="ifname" select="$ifname" />
     <xsl:with-param name="method" select="concat($ifname, '::', $settername)" />
+    <xsl:with-param name="methodname" select="concat('COMSETTER(', $upperattrname, ')')" />
+    <xsl:with-param name="object" select="$object" />
     <xsl:with-param name="name" select="$attrname" />
     <xsl:with-param name="structprefix" select="concat($G_requestElementVarName, '-&gt;')" />
     <xsl:with-param name="type" select="$attrtype" />
     <xsl:with-param name="safearray" select="$attrsafearray" />
   </xsl:call-template>
   <xsl:call-template name="emitComCall">
+    <xsl:with-param name="ifname" select="$ifname" />
     <xsl:with-param name="methodname" select="concat('COMSETTER(', $upperattrname, ')')" />
     <xsl:with-param name="object" select="$object" />
     <xsl:with-param name="attrname" select="$attrname" />
@@ -1272,7 +1283,10 @@ const char *g_pcszIUnknown = "IUnknown";
       <!-- skip this attribute if it has parameters of a type that has wsmap="suppress" -->
       <xsl:choose>
         <xsl:when test="( $attrtype=($G_setSuppressedInterfaces/@name) )">
-          <xsl:value-of select="concat('// Skipping attribute ', $attrtype, ' for it is of suppressed type ', $attrtype)" />
+          <xsl:value-of select="concat('// Skipping attribute ', $attrname, ' for it is of suppressed type ', $attrtype)" />
+        </xsl:when>
+        <xsl:when test="@wsmap = 'suppress'">
+          <xsl:value-of select="concat('// Skipping attribute ', $attrname, ' for it is suppressed')" />
         </xsl:when>
         <xsl:otherwise>
           <xsl:choose>
@@ -1320,6 +1334,9 @@ const char *g_pcszIUnknown = "IUnknown";
         <xsl:when test="   (param[@type=($G_setSuppressedInterfaces/@name)])
                         or (param[@mod='ptr'])" >
           <xsl:comment><xsl:value-of select="concat('Skipping method ', $methodname, ' for it has parameters with suppressed types')" /></xsl:comment>
+        </xsl:when>
+        <xsl:when test="@wsmap = 'suppress'">
+          <xsl:comment><xsl:value-of select="concat('Skipping method ', $methodname, ' for it is suppressed')" /></xsl:comment>
         </xsl:when>
         <xsl:otherwise>
           <xsl:variable name="fHasReturnParms" select="param[@dir='return']" />
@@ -1377,7 +1394,14 @@ const char *g_pcszIUnknown = "IUnknown";
                 <xsl:choose>
                   <xsl:when test="$dir='in'">
                     <xsl:call-template name="emitInputArgConverter">
+                      <xsl:with-param name="ifname" select="$ifname" />
                       <xsl:with-param name="method" select="concat($ifname, '::', $methodname)" />
+                      <xsl:with-param name="methodname">
+                        <xsl:call-template name="capitalize">
+                          <xsl:with-param name="str" select="$methodname" />
+                        </xsl:call-template>
+                      </xsl:with-param>
+                      <xsl:with-param name="object" select='"pObj"' />
                       <xsl:with-param name="structprefix" select="concat($G_requestElementVarName, '-&gt;')" />
                       <xsl:with-param name="name" select="@name" />
                       <xsl:with-param name="type" select="@type" />
@@ -1404,6 +1428,7 @@ const char *g_pcszIUnknown = "IUnknown";
               </xsl:for-each>
               <!-- actual COM method call -->
               <xsl:call-template name="emitComCall">
+                <xsl:with-param name="ifname" select="$ifname" />
                 <xsl:with-param name="object" select='"pObj"' />
                 <xsl:with-param name="methodname">
                   <xsl:call-template name="capitalize">

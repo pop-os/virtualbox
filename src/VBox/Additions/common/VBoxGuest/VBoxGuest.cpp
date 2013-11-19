@@ -54,7 +54,7 @@
 #  include <Windows.h>
 # endif
 #endif
-#if defined(RT_OS_SOLARIS)
+#if defined(RT_OS_SOLARIS) || defined(RT_OS_DARWIN)
 # include <iprt/rand.h>
 #endif
 
@@ -69,11 +69,6 @@ static DECLCALLBACK(int) VBoxGuestHGCMAsyncWaitCallback(VMMDevHGCMRequestHeader 
 static void testSetMouseStatus(void);
 #endif
 static int VBoxGuestCommonIOCtl_SetMouseStatus(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession, uint32_t fFeatures);
-
-#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
-int VBoxGuestCommonIOCtl_DPC(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession,
-                             void *pvData, size_t cbData, size_t *pcbDataReturned);
-#endif /* VBOX_WITH_DPC_LATENCY_CHECKER */
 
 static int VBoxGuestCommonGuestCapsAcquire(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession, uint32_t fOrMask, uint32_t fNotMask, VBOXGUESTCAPSACQUIRE_FLAGS enmFlags);
 
@@ -129,7 +124,7 @@ DECLINLINE(bool) VBoxGuestCommonGuestCapsModeSet(PVBOXGUESTDEVEXT pDevExt, uint3
 *******************************************************************************/
 static const size_t cbChangeMemBalloonReq = RT_OFFSETOF(VMMDevChangeMemBalloon, aPhysPage[VMMDEV_MEMORY_BALLOON_CHUNK_PAGES]);
 
-#if defined(RT_OS_SOLARIS)
+#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
 /**
  * Drag in the rest of IRPT since we share it with the
  * rest of the kernel modules on Solaris.
@@ -149,7 +144,7 @@ PFNRT g_apfnVBoxGuestIPRTDeps[] =
     (PFNRT)RTSemMutexIsOwned,
     NULL
 };
-#endif  /* RT_OS_SOLARIS */
+#endif  /* RT_OS_DARWIN || RT_OS_SOLARIS  */
 
 
 /**
@@ -755,6 +750,20 @@ int VBoxGuestInitDevExt(PVBOXGUESTDEVEXT pDevExt, uint16_t IOPortBase,
     int rc, rc2;
     unsigned i;
 
+#ifdef VBOX_GUESTDRV_WITH_RELEASE_LOGGER
+    /*
+     * Create the release log.
+     */
+    static const char * const s_apszGroups[] = VBOX_LOGGROUP_NAMES;
+    PRTLOGGER pRelLogger;
+    rc = RTLogCreate(&pRelLogger, 0 /* fFlags */, "all",
+                     "VBOX_RELEASE_LOG", RT_ELEMENTS(s_apszGroups), s_apszGroups, RTLOGDEST_STDOUT | RTLOGDEST_DEBUGGER, NULL);
+    if (RT_SUCCESS(rc))
+        RTLogRelSetDefaultInstance(pRelLogger);
+    /** @todo Add native hook for getting logger config parameters and setting
+     *        them. On linux we should use the module parameter stuff... */
+#endif
+
     /*
      * Adjust fFixedEvents.
      */
@@ -909,6 +918,11 @@ int VBoxGuestInitDevExt(PVBOXGUESTDEVEXT pDevExt, uint16_t IOPortBase,
     rc2 = RTSemFastMutexDestroy(pDevExt->MemBalloon.hMtx); AssertRC(rc2);
     rc2 = RTSpinlockDestroy(pDevExt->EventSpinlock); AssertRC(rc2);
     rc2 = RTSpinlockDestroy(pDevExt->SessionSpinlock); AssertRC(rc2);
+
+#ifdef VBOX_GUESTDRV_WITH_RELEASE_LOGGER
+    RTLogDestroy(RTLogRelSetDefaultInstance(NULL));
+    RTLogDestroy(RTLogSetDefaultInstance(NULL));
+#endif
     return rc; /* (failed) */
 }
 
@@ -978,6 +992,12 @@ void VBoxGuestDeleteDevExt(PVBOXGUESTDEVEXT pDevExt)
 
     pDevExt->IOPortBase = 0;
     pDevExt->pIrqAckEvents = NULL;
+
+#ifdef VBOX_GUESTDRV_WITH_RELEASE_LOGGER
+    RTLogDestroy(RTLogRelSetDefaultInstance(NULL));
+    RTLogDestroy(RTLogSetDefaultInstance(NULL));
+#endif
+
 }
 
 
@@ -1389,7 +1409,7 @@ static int VBoxGuestCommonIOCtl_WaitEvent(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSE
     iEvent = ASMBitFirstSetU32(fReqEvents) - 1;
     if (RT_UNLIKELY(iEvent < 0))
     {
-        Log(("VBoxGuestCommonIOCtl: WAITEVENT: Invalid input mask %#x!!\n", fReqEvents));
+        LogRel(("VBoxGuestCommonIOCtl: WAITEVENT: Invalid input mask %#x!!\n", fReqEvents));
         return VERR_INVALID_PARAMETER;
     }
 
@@ -1521,6 +1541,7 @@ static int VBoxGuestCommonIOCtl_CancelAllWaitEvents(PVBOXGUESTDEVEXT pDevExt, PV
     }
     RTSpinlockReleaseNoInts(pDevExt->EventSpinlock);
     Assert(rc == 0);
+    NOREF(rc);
 
 #ifdef VBOXGUEST_USE_DEFERRED_WAKE_UP
     VBoxGuestWaitDoWakeUps(pDevExt);
@@ -1597,6 +1618,7 @@ static int VBoxGuestCheckIfVMMReqAllowed(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSES
         case VMMDevReq_GetPageSharingStatus:
         case VMMDevReq_DebugIsPageShared:
         case VMMDevReq_ReportGuestStats:
+        case VMMDevReq_ReportGuestUserState:
         case VMMDevReq_GetStatisticsChangeRequest:
         case VMMDevReq_ChangeMemBalloon:
             enmRequired = kLevel_TrustedUsers;
@@ -1718,13 +1740,13 @@ static int VBoxGuestCommonIOCtl_VMMRequest(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTS
 
     if (cbReq < cbMinSize)
     {
-        Log(("VBoxGuestCommonIOCtl: VMMREQUEST: invalid hdr size %#x, expected >= %#x; type=%#x!!\n",
+        LogRel(("VBoxGuestCommonIOCtl: VMMREQUEST: invalid hdr size %#x, expected >= %#x; type=%#x!!\n",
              cbReq, cbMinSize, enmType));
         return VERR_INVALID_PARAMETER;
     }
     if (cbReq > cbData)
     {
-        Log(("VBoxGuestCommonIOCtl: VMMREQUEST: invalid size %#x, expected >= %#x (hdr); type=%#x!!\n",
+        LogRel(("VBoxGuestCommonIOCtl: VMMREQUEST: invalid size %#x, expected >= %#x (hdr); type=%#x!!\n",
              cbData, cbReq, enmType));
         return VERR_INVALID_PARAMETER;
     }
@@ -2360,6 +2382,9 @@ static int VBoxGuestCommonIOCtl_SetMouseStatus(PVBOXGUESTDEVEXT pDevExt, PVBOXGU
 
     RTSpinlockAcquire(pDevExt->SessionSpinlock);
 
+    /* For all the bits which the guest is allowed to set, check whether the
+     * requested value is different to the current one and adjust the global
+     * usage counter and if appropriate the global state if so. */
     for (i = 0; i < sizeof(fFeatures) * 8; i++)
     {
         if (RT_BIT_32(i) & VMMDEV_MOUSE_GUEST_MASK)
@@ -2548,18 +2573,17 @@ static int VBoxGuestCommonGuestCapsAcquire(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTS
     LogRel(("VBoxGuest: VBoxGuestCommonGuestCapsAcquire: pSession(0x%p), OR(0x%x), NOT(0x%x), flags(0x%x)\n", pSession, fOrMask, fNotMask, enmFlags));
 
     if (!VBoxGuestCommonGuestCapsValidateValues(fOrMask))
- 	{
-    	LogRel(("invalid fOrMask 0x%x\n", fOrMask));
-    	return VERR_INVALID_PARAMETER;
- 	}
+    {
+        LogRel(("invalid fOrMask 0x%x\n", fOrMask));
+        return VERR_INVALID_PARAMETER;
+    }
 
- 	if (enmFlags != VBOXGUESTCAPSACQUIRE_FLAGS_CONFIG_ACQUIRE_MODE
- 			&& enmFlags != VBOXGUESTCAPSACQUIRE_FLAGS_NONE)
- 	{
- 		LogRel(("invalid enmFlags %d\n", enmFlags));
- 		return VERR_INVALID_PARAMETER;
- 	}
-
+    if (enmFlags != VBOXGUESTCAPSACQUIRE_FLAGS_CONFIG_ACQUIRE_MODE
+            && enmFlags != VBOXGUESTCAPSACQUIRE_FLAGS_NONE)
+    {
+        LogRel(("invalid enmFlags %d\n", enmFlags));
+        return VERR_INVALID_PARAMETER;
+    }
     if (!VBoxGuestCommonGuestCapsModeSet(pDevExt, fOrMask, true, &fSetCaps))
     {
         LogRel(("calling caps acquire for set caps %d\n", fOrMask));
@@ -2568,8 +2592,8 @@ static int VBoxGuestCommonGuestCapsAcquire(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTS
 
     if (enmFlags & VBOXGUESTCAPSACQUIRE_FLAGS_CONFIG_ACQUIRE_MODE)
     {
-     	Log(("Configured Acquire caps: 0x%x\n", fOrMask));
-     	return VINF_SUCCESS;
+        Log(("Configured Acquire caps: 0x%x\n", fOrMask));
+        return VINF_SUCCESS;
     }
 
     /* the fNotMask no need to have all values valid,
@@ -2718,7 +2742,7 @@ int VBoxGuestCommonIOCtl(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUES
         if (cbData != (cb)) \
         { \
             LogFunc((mnemonic ": cbData=%#zx (%zu) expected is %#zx (%zu)\n", \
-                 cbData, cbData, (size_t)(cb), (size_t)(cb))); \
+                     cbData, cbData, (size_t)(cb), (size_t)(cb))); \
             return VERR_BUFFER_OVERFLOW; \
         } \
         if ((cb) != 0 && !VALID_PTR(pvData)) \
@@ -2738,12 +2762,6 @@ int VBoxGuestCommonIOCtl(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUES
         CHECKRET_MIN_SIZE("VMMREQUEST", sizeof(VMMDevRequestHeader));
         rc = VBoxGuestCommonIOCtl_VMMRequest(pDevExt, pSession, (VMMDevRequestHeader *)pvData, cbData, pcbDataReturned);
     }
-#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
-    else if (VBOXGUEST_IOCTL_STRIP_SIZE(iFunction) == VBOXGUEST_IOCTL_STRIP_SIZE(VBOXGUEST_IOCTL_DPC))
-    {
-        rc = VBoxGuestCommonIOCtl_DPC(pDevExt, pSession, pvData, cbData, pcbDataReturned);
-    }
-#endif /* VBOX_WITH_DPC_LATENCY_CHECKER */
 #ifdef VBOX_WITH_HGCM
     /*
      * These ones are a bit tricky.
@@ -2881,6 +2899,13 @@ int VBoxGuestCommonIOCtl(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUES
                                                          *(uint32_t *)pvData);
                 break;
 
+#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
+            case VBOXGUEST_IOCTL_DPC_LATENCY_CHECKER:
+                CHECKRET_SIZE("DPC_LATENCY_CHECKER", 0);
+                rc = VbgdNtIOCtl_DpcLatencyChecker();
+                break;
+#endif
+
             case VBOXGUEST_IOCTL_GUEST_CAPS_ACQUIRE:
                 CHECKRET_SIZE("GUEST_CAPS_ACQUIRE", sizeof(VBoxGuestCapsAquire));
                 rc = VBoxGuestCommonIOCTL_GuestCapsAcquire(pDevExt, pSession, (VBoxGuestCapsAquire*)pvData);
@@ -2951,7 +2976,7 @@ bool VBoxGuestCommonISR(PVBOXGUESTDEVEXT pDevExt)
             PVBOXGUESTWAIT  pWait;
             PVBOXGUESTWAIT  pSafe;
 
-            Log(("VBoxGuestCommonISR: acknowledge events succeeded %#RX32\n", fEvents));
+            Log3(("VBoxGuestCommonISR: acknowledge events succeeded %#RX32\n", fEvents));
 
             /*
              * VMMDEV_EVENT_MOUSE_POSITION_CHANGED can only be polled for.
@@ -3048,6 +3073,7 @@ bool VBoxGuestCommonISR(PVBOXGUESTDEVEXT pDevExt)
 
     ASMAtomicDecU32(&pDevExt->cISR);
     Assert(rc == 0);
+    NOREF(rc);
     return fOurIrq;
 }
 

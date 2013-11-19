@@ -1548,12 +1548,6 @@ int DragAndDropService::run(bool fDaemonised /* = false */)
     int rc = VINF_SUCCESS;
     LogRelFlowFunc(("\n"));
 
-    /* We need to initialize XLib with thread support, otherwise our
-     * simultaneously access to the display makes trouble (has to be called
-     * before any usage of XLib). */
-    if (!XInitThreads())
-        AssertMsgFailedReturn(("Failed to initialize thread-safe XLib.\n"), VERR_GENERAL_FAILURE);
-
     do
     {
         /* Initialize our service */
@@ -1716,7 +1710,7 @@ int DragAndDropService::x11DragAndDropTerm()
     /* Mark that we are stopping. */
     ASMAtomicWriteBool(&m_fSrvStopping, true);
     RTSemEventSignal(m_hEventSem);
-  
+
     if (m_pDisplay)
     {
         /* Send a x11 client messages to the x11 event loop. */
@@ -1731,7 +1725,7 @@ int DragAndDropService::x11DragAndDropTerm()
         if (RT_UNLIKELY(xrc == 0))
                 DO(("DnD_TERM: error sending xevent\n"));
     }
-    
+
     /* We cannot signal the m_hHGCMThread as it is most likely waiting in vbglR3DoIOCtl() */
     /* Wait for our event threads to stop. */
     if (m_hX11Thread)

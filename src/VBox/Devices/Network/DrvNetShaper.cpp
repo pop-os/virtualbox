@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -127,16 +127,8 @@ PDMBOTHCBDECL(int) drvNetShaperUp_AllocBuf(PPDMINETWORKUP pInterface, size_t cbM
     //LogFlow(("drvNetShaperUp_AllocBuf: cb=%d\n", cbMin));
     STAM_REL_COUNTER_ADD(&pThis->StatXmitBytesRequested, cbMin);
     STAM_REL_COUNTER_INC(&pThis->StatXmitPktsRequested);
-#ifdef IN_RING3
-    if (!PDMR3NsAllocateBandwidth(&pThis->Filter, cbMin))
-    {
-        STAM_REL_COUNTER_ADD(&pThis->StatXmitBytesDenied, cbMin);
-        STAM_REL_COUNTER_INC(&pThis->StatXmitPktsDenied);
-        return VERR_TRY_AGAIN;
-    }
-#endif
-#ifdef IN_RING0
-    if (!PDMR0NsAllocateBandwidth(&pThis->Filter, cbMin))
+#if defined(IN_RING3) || defined(IN_RING0)
+    if (!PDMNsAllocateBandwidth(&pThis->Filter, cbMin))
     {
         STAM_REL_COUNTER_ADD(&pThis->StatXmitBytesDenied, cbMin);
         STAM_REL_COUNTER_INC(&pThis->StatXmitPktsDenied);
@@ -434,9 +426,7 @@ static DECLCALLBACK(int) drvR3NetShaperConstruct(PPDMDRVINS pDrvIns, PCFGMNODE p
     pThis->INetworkUpR3.pfnEndXmit                  = drvNetShaperUp_EndXmit;
     pThis->INetworkUpR3.pfnSetPromiscuousMode       = drvNetShaperUp_SetPromiscuousMode;
     pThis->INetworkUpR3.pfnNotifyLinkChanged        = drvR3NetShaperUp_NotifyLinkChanged;
-    /*
-     * Resolve the ring-0 context interface addresses.
-     */
+    /* Resolve the ring-0 context interface addresses. */
     int rc = pDrvIns->pHlpR3->pfnLdrGetR0InterfaceSymbols(pDrvIns, &pThis->INetworkUpR0,
                                                           sizeof(pThis->INetworkUpR0),
                                                           "drvNetShaperUp_", PDMINETWORKUP_SYM_LIST);
@@ -476,7 +466,7 @@ static DECLCALLBACK(int) drvR3NetShaperConstruct(PPDMDRVINS pDrvIns, PCFGMNODE p
     else
         rc = VINF_SUCCESS;
 
-    pThis->Filter.pIDrvNet = &pThis->INetworkDown;
+    pThis->Filter.pIDrvNetR3 = &pThis->INetworkDown;
     rc = PDMDrvHlpNetShaperAttach(pDrvIns, pThis->pszBwGroup, &pThis->Filter);
     if (RT_FAILURE(rc))
     {

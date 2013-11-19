@@ -217,8 +217,13 @@ void tstASMCpuId(void)
         {
             u32 = ASMCpuId_EAX(iStd);
             CHECKVAL(u32, s.uEAX, "%x");
+
+            uint32_t u32EbxMask = UINT32_MAX;
+            if (iStd == 1)
+                u32EbxMask = UINT32_C(0x00ffffff); /* Omit the local apic ID in case we're rescheduled. */
             u32 = ASMCpuId_EBX(iStd);
-            CHECKVAL(u32, s.uEBX, "%x");
+            CHECKVAL(u32 & u32EbxMask, s.uEBX & u32EbxMask, "%x");
+
             u32 = ASMCpuId_ECX(iStd);
             CHECKVAL(u32, s.uECX, "%x");
             u32 = ASMCpuId_EDX(iStd);
@@ -363,6 +368,8 @@ void tstASMCpuId(void)
 
         if (iExt > cExtFunctions)
             continue;   /* Invalid extended functions seems change the value if ECX changes */
+        if (iExt == 0x8000001d)
+            continue;   /* Takes cache level in ecx. */
 
         u32 = ASMCpuId_EAX(iExt);
         CHECKVAL(u32, s.uEAX, "%x");

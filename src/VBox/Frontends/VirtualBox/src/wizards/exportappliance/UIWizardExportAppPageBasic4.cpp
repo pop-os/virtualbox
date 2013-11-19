@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,11 +54,11 @@ void UIWizardExportAppPage4::refreshApplianceSettingsWidget()
             if (fResult)
             {
                 /* Add the export description to our appliance object: */
-                CVirtualSystemDescription vsd = machine.Export(*pAppliance, qobject_cast<UIWizardExportApp*>(wizardImp())->uri());
+                CVirtualSystemDescription vsd = machine.ExportTo(*pAppliance, qobject_cast<UIWizardExportApp*>(wizardImp())->uri());
                 fResult = machine.isOk();
                 if (!fResult)
                 {
-                    msgCenter().cannotExportAppliance(machine, pAppliance, thisImp());
+                    msgCenter().cannotExportAppliance(machine, pAppliance->GetPath(), thisImp());
                     return;
                 }
                 /* Now add some new fields the user may change: */
@@ -76,7 +76,7 @@ void UIWizardExportAppPage4::refreshApplianceSettingsWidget()
         m_pApplianceWidget->populate();
     }
     if (!fResult)
-        msgCenter().cannotExportAppliance(pAppliance, thisImp());
+        msgCenter().cannotExportAppliance(*pAppliance, thisImp());
 }
 
 UIWizardExportAppPageBasic4::UIWizardExportAppPageBasic4()

@@ -354,12 +354,7 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 16
         IEM_SAVE_FLAGS                 A2, %3, %4
         EPILOGUE_3_ARGS_EX 8
 ENDPROC iemAImpl_ %+ %1 %+ _u64
- %else ; stub it for now - later, replace with hand coded stuff.
-BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 16
-        int3
-        ret
-ENDPROC iemAImpl_ %+ %1 %+ _u64
-  %endif ; !RT_ARCH_AMD64
+  %endif ; RT_ARCH_AMD64
 
  %if %2 != 0 ; locked versions requested?
 
@@ -395,12 +390,7 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64_locked, 16
         IEM_SAVE_FLAGS                 A2, %3, %4
         EPILOGUE_3_ARGS_EX 8
 ENDPROC iemAImpl_ %+ %1 %+ _u64_locked
-  %else ; stub it for now - later, replace with hand coded stuff.
-BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64_locked, 16
-        int3
-        ret 8
-ENDPROC iemAImpl_ %+ %1 %+ _u64_locked
-  %endif ; !RT_ARCH_AMD64
+  %endif ; RT_ARCH_AMD64
  %endif ; locked
 %endmacro
 
@@ -409,11 +399,11 @@ IEMIMPL_BIN_OP add,  1, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86
 IEMIMPL_BIN_OP adc,  1, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF | X86_EFL_CF), 0
 IEMIMPL_BIN_OP sub,  1, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF | X86_EFL_CF), 0
 IEMIMPL_BIN_OP sbb,  1, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF | X86_EFL_CF), 0
-IEMIMPL_BIN_OP or,   1, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_PF | X86_EFL_CF), X86_EFL_AF,
-IEMIMPL_BIN_OP xor,  1, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_PF | X86_EFL_CF), X86_EFL_AF,
-IEMIMPL_BIN_OP and,  1, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_PF | X86_EFL_CF), X86_EFL_AF,
+IEMIMPL_BIN_OP or,   1, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_PF | X86_EFL_CF), X86_EFL_AF
+IEMIMPL_BIN_OP xor,  1, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_PF | X86_EFL_CF), X86_EFL_AF
+IEMIMPL_BIN_OP and,  1, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_PF | X86_EFL_CF), X86_EFL_AF
 IEMIMPL_BIN_OP cmp,  0, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF | X86_EFL_CF), 0
-IEMIMPL_BIN_OP test, 0, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_PF | X86_EFL_CF), X86_EFL_AF,
+IEMIMPL_BIN_OP test, 0, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_PF | X86_EFL_CF), X86_EFL_AF
 
 
 ;;
@@ -457,12 +447,7 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 16
         IEM_SAVE_FLAGS                 A2, %3, %4
         EPILOGUE_3_ARGS_EX 8
 ENDPROC iemAImpl_ %+ %1 %+ _u64
- %else ; stub it for now - later, replace with hand coded stuff.
-BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 16
-        int3
-        ret 8
-ENDPROC iemAImpl_ %+ %1 %+ _u64
-  %endif ; !RT_ARCH_AMD64
+  %endif ; RT_ARCH_AMD64
 
  %if %2 != 0 ; locked versions requested?
 
@@ -490,12 +475,7 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64_locked, 16
         IEM_SAVE_FLAGS                 A2, %3, %4
         EPILOGUE_3_ARGS_EX 8
 ENDPROC iemAImpl_ %+ %1 %+ _u64_locked
-  %else ; stub it for now - later, replace with hand coded stuff.
-BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64_locked, 16
-        int3
-        ret 8
-ENDPROC iemAImpl_ %+ %1 %+ _u64_locked
-  %endif ; !RT_ARCH_AMD64
+  %endif ; RT_ARCH_AMD64
  %endif ; locked
 %endmacro
 IEMIMPL_BIT_OP bt,  0, (X86_EFL_CF), (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF)
@@ -551,12 +531,7 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 16
         IEM_SAVE_FLAGS                 A2, %2, %3
         EPILOGUE_3_ARGS_EX 8
 ENDPROC iemAImpl_ %+ %1 %+ _u64
- %else ; stub it for now - later, replace with hand coded stuff.
-BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 16
-        int3
-        ret 8
-ENDPROC iemAImpl_ %+ %1 %+ _u64
- %endif ; !RT_ARCH_AMD64
+ %endif ; RT_ARCH_AMD64
 %endmacro
 IEMIMPL_BIT_OP bsf, (X86_EFL_ZF), (X86_EFL_OF | X86_EFL_SF | X86_EFL_AF | X86_EFL_PF | X86_EFL_CF)
 IEMIMPL_BIT_OP bsr, (X86_EFL_ZF), (X86_EFL_OF | X86_EFL_SF | X86_EFL_AF | X86_EFL_PF | X86_EFL_CF)
@@ -585,18 +560,16 @@ BEGINPROC_FASTCALL iemAImpl_imul_two_u32, 12
         EPILOGUE_3_ARGS
 ENDPROC iemAImpl_imul_two_u32
 
+%ifdef RT_ARCH_AMD64
 BEGINPROC_FASTCALL iemAImpl_imul_two_u64, 16
         PROLOGUE_3_ARGS
-%ifdef RT_ARCH_AMD64
         IEM_MAYBE_LOAD_FLAGS A2, (X86_EFL_OF | X86_EFL_CF), (X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF)
         imul    A1, qword [A0]
         mov     [A0], A1
         IEM_SAVE_FLAGS       A2, (X86_EFL_OF | X86_EFL_CF), (X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF)
-%else
-        int3 ;; @todo implement me
-%endif
         EPILOGUE_3_ARGS_EX 8
 ENDPROC iemAImpl_imul_two_u64
+%endif ; RT_ARCH_AMD64
 
 
 ;
@@ -630,18 +603,15 @@ BEGINPROC_FASTCALL iemAImpl_xchg_u32, 8
         EPILOGUE_2_ARGS
 ENDPROC iemAImpl_xchg_u32
 
-BEGINPROC_FASTCALL iemAImpl_xchg_u64, 8
 %ifdef RT_ARCH_AMD64
+BEGINPROC_FASTCALL iemAImpl_xchg_u64, 8
         PROLOGUE_2_ARGS
         mov     T0, [A1]
         xchg    [A0], T0
         mov     [A1], T0
         EPILOGUE_2_ARGS
-%else
-        int3
-        ret 0
-%endif
 ENDPROC iemAImpl_xchg_u64
+%endif
 
 
 ;
@@ -682,8 +652,8 @@ BEGINPROC_FASTCALL iemAImpl_xadd_u32, 12
         EPILOGUE_3_ARGS
 ENDPROC iemAImpl_xadd_u32
 
-BEGINPROC_FASTCALL iemAImpl_xadd_u64, 12
 %ifdef RT_ARCH_AMD64
+BEGINPROC_FASTCALL iemAImpl_xadd_u64, 12
         PROLOGUE_3_ARGS
         IEM_MAYBE_LOAD_FLAGS A2, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF | X86_EFL_CF), 0
         mov     T0, [A1]
@@ -691,11 +661,8 @@ BEGINPROC_FASTCALL iemAImpl_xadd_u64, 12
         mov     [A1], T0
         IEM_SAVE_FLAGS       A2, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF | X86_EFL_CF), 0
         EPILOGUE_3_ARGS
-%else
-        int3
-        ret 4
-%endif
 ENDPROC iemAImpl_xadd_u64
+%endif ; RT_ARCH_AMD64
 
 BEGINPROC_FASTCALL iemAImpl_xadd_u8_locked, 12
         PROLOGUE_3_ARGS
@@ -727,8 +694,8 @@ BEGINPROC_FASTCALL iemAImpl_xadd_u32_locked, 12
         EPILOGUE_3_ARGS
 ENDPROC iemAImpl_xadd_u32_locked
 
-BEGINPROC_FASTCALL iemAImpl_xadd_u64_locked, 12
 %ifdef RT_ARCH_AMD64
+BEGINPROC_FASTCALL iemAImpl_xadd_u64_locked, 12
         PROLOGUE_3_ARGS
         IEM_MAYBE_LOAD_FLAGS A2, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF | X86_EFL_CF), 0
         mov     T0, [A1]
@@ -736,11 +703,8 @@ BEGINPROC_FASTCALL iemAImpl_xadd_u64_locked, 12
         mov     [A1], T0
         IEM_SAVE_FLAGS       A2, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF | X86_EFL_CF), 0
         EPILOGUE_3_ARGS
-%else
-        int3
-        ret 4
-%endif
 ENDPROC iemAImpl_xadd_u64_locked
+%endif ; RT_ARCH_AMD64
 
 
 ;
@@ -882,9 +846,9 @@ BEGINPROC_FASTCALL iemAImpl_cmpxchg_u64 %+ %2, 16
 %ifdef RT_ARCH_AMD64
         PROLOGUE_4_ARGS
         IEM_MAYBE_LOAD_FLAGS A3, (X86_EFL_ZF | X86_EFL_CF | X86_EFL_PF | X86_EFL_AF | X86_EFL_SF | X86_EFL_OF), 0 ; clobbers T0 (eax)
-        mov     ax, [A1]
+        mov     rax, [A1]
         %1 cmpxchg [A0], A2
-        mov     [A1], ax
+        mov     [A1], rax
         IEM_SAVE_FLAGS       A3, (X86_EFL_ZF | X86_EFL_CF | X86_EFL_PF | X86_EFL_AF | X86_EFL_SF | X86_EFL_OF), 0 ; clobbers T0+T1 (eax, r11/edi)
         EPILOGUE_4_ARGS
 %else
@@ -1016,17 +980,7 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64_locked, 8
         IEM_SAVE_FLAGS       A1, %2, %3
         EPILOGUE_2_ARGS
 ENDPROC iemAImpl_ %+ %1 %+ _u64_locked
- %else
-        ; stub them for now.
-BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 8
-        int3
-        ret 0
-ENDPROC iemAImpl_ %+ %1 %+ _u64
-BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64_locked, 8
-        int3
-        ret 0
-ENDPROC iemAImpl_ %+ %1 %+ _u64_locked
- %endif
+ %endif ; RT_ARCH_AMD64
 
 %endmacro
 
@@ -1034,6 +988,36 @@ IEMIMPL_UNARY_OP inc, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_E
 IEMIMPL_UNARY_OP dec, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF), 0
 IEMIMPL_UNARY_OP neg, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF | X86_EFL_CF), 0
 IEMIMPL_UNARY_OP not, 0, 0
+
+
+;;
+; Macro for implementing memory fence operation.
+;
+; No return value, no operands or anything.
+;
+; @param        1      The instruction.
+;
+%macro IEMIMPL_MEM_FENCE 1
+BEGINCODE
+BEGINPROC_FASTCALL iemAImpl_ %+ %1, 0
+        %1
+        ret
+ENDPROC iemAImpl_ %+ %1
+%endmacro
+
+IEMIMPL_MEM_FENCE lfence
+IEMIMPL_MEM_FENCE sfence
+IEMIMPL_MEM_FENCE mfence
+
+;;
+; Alternative for non-SSE2 host.
+;
+BEGINPROC_FASTCALL iemAImpl_alt_mem_fence, 0
+        push    xAX
+        xchg    xAX, [xSP]
+        add     xSP, xCB
+        ret
+ENDPROC iemAImpl_alt_mem_fence
 
 
 
@@ -1110,12 +1094,7 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 12
         IEM_SAVE_FLAGS       A2, %2, %3
         EPILOGUE_3_ARGS
 ENDPROC iemAImpl_ %+ %1 %+ _u64
- %else ; stub it for now - later, replace with hand coded stuff.
-BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 12
-        int3
-        ret 4
-ENDPROC iemAImpl_ %+ %1 %+ _u64
-  %endif ; !RT_ARCH_AMD64
+ %endif ; RT_ARCH_AMD64
 
 %endmacro
 
@@ -1190,12 +1169,7 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 20
         IEM_SAVE_FLAGS       A3, %2, %3
         EPILOGUE_4_ARGS_EX 12
 ENDPROC iemAImpl_ %+ %1 %+ _u64
- %else ; stub it for now - later, replace with hand coded stuff.
-BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 20
-        int3
-        ret 12
-ENDPROC iemAImpl_ %+ %1 %+ _u64
-  %endif ; !RT_ARCH_AMD64
+ %endif ; RT_ARCH_AMD64
 
 %endmacro
 
@@ -1273,36 +1247,61 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u32, 16
         EPILOGUE_4_ARGS
 ENDPROC iemAImpl_ %+ %1 %+ _u32
 
- %ifdef RT_ARCH_AMD64
+ %ifdef RT_ARCH_AMD64 ; The 32-bit host version lives in IEMAllAImplC.cpp.
 BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 20
         PROLOGUE_4_ARGS
         IEM_MAYBE_LOAD_FLAGS A3, %2, %3
         mov     rax, [A0]
- %ifdef ASM_CALL64_GCC
+  %ifdef ASM_CALL64_GCC
         %1      A2
         mov     [A0], rax
         mov     [A1], rdx
- %else
+  %else
         mov     T1, A1
         %1      A2
         mov     [A0], rax
         mov     [T1], rdx
- %endif
+  %endif
         IEM_SAVE_FLAGS       A3, %2, %3
         xor     eax, eax
         EPILOGUE_4_ARGS_EX 12
 ENDPROC iemAImpl_ %+ %1 %+ _u64
- %else ; stub it for now - later, replace with hand coded stuff.
-BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 20
-        int3
-        ret 12
-ENDPROC iemAImpl_ %+ %1 %+ _u64
-  %endif ; !RT_ARCH_AMD64
+ %endif ; !RT_ARCH_AMD64
 
 %endmacro
 
 IEMIMPL_MUL_OP mul,  (X86_EFL_OF | X86_EFL_CF), (X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF)
 IEMIMPL_MUL_OP imul, (X86_EFL_OF | X86_EFL_CF), (X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF)
+
+
+BEGINCODE
+;;
+; Worker function for negating a 32-bit number in T1:T0
+; @uses None (T0,T1)
+iemAImpl_negate_T0_T1_u32:
+        push    0
+        push    0
+        xchg    T0_32, [xSP]
+        xchg    T1_32, [xSP + xCB]
+        sub     T0_32, [xSP]
+        sbb     T1_32, [xSP + xCB]
+        add     xSP, xCB*2
+        ret
+
+%ifdef RT_ARCH_AMD64
+;;
+; Worker function for negating a 64-bit number in T1:T0
+; @uses None (T0,T1)
+iemAImpl_negate_T0_T1_u64:
+        push    0
+        push    0
+        xchg    T0, [xSP]
+        xchg    T1, [xSP + xCB]
+        sub     T0, [xSP]
+        sbb     T1, [xSP + xCB]
+        add     xSP, xCB*2
+        ret
+%endif
 
 
 ;;
@@ -1321,17 +1320,56 @@ IEMIMPL_MUL_OP imul, (X86_EFL_OF | X86_EFL_CF), (X86_EFL_SF | X86_EFL_ZF | X86_E
 ; @param        1       The instruction mnemonic.
 ; @param        2       The modified flags.
 ; @param        3       The undefined flags.
+; @param        4       1 if signed, 0 if unsigned.
 ;
 ; Makes ASSUMPTIONS about A0, A1, A2, A3, T0 and T1 assignments.
 ;
-%macro IEMIMPL_DIV_OP 3
+%macro IEMIMPL_DIV_OP 4
 BEGINCODE
 BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u8, 12
         PROLOGUE_3_ARGS
 
+        ; div by chainsaw check.
         test    A1_8, A1_8
         jz      .div_zero
-        ;; @todo test for overflow
+
+        ; Overflow check - unsigned division is simple to verify, haven't
+        ; found a simple way to check signed division yet unfortunately.
+ %if %4 == 0
+        cmp     [A0 + 1], A1_8
+        jae     .div_overflow
+ %else
+        mov     T0_16, [A0]             ; T0 = dividend
+        mov     T1, A1                  ; T1 = saved divisor (because of missing T1_8 in 32-bit)
+        test    A1_8, A1_8
+        js      .divisor_negative
+        test    T0_16, T0_16
+        jns     .both_positive
+        neg     T0_16
+.one_of_each:                           ; OK range is 2^(result-with - 1) + (divisor - 1).
+        push    T0                      ; Start off like unsigned below.
+        shr     T0_16, 7
+        cmp     T0_8, A1_8
+        pop     T0
+        jb      .div_no_overflow
+        ja      .div_overflow
+        and     T0_8, 0x7f              ; Special case for covering (divisor - 1).
+        cmp     T0_8, A1_8
+        jae     .div_overflow
+        jmp     .div_no_overflow
+
+.divisor_negative:
+        neg     A1_8
+        test    T0_16, T0_16
+        jns     .one_of_each
+        neg     T0_16
+.both_positive:                         ; Same as unsigned shifted by sign indicator bit.
+        shr     T0_16, 7
+        cmp     T0_8, A1_8
+        jae     .div_overflow
+.div_no_overflow:
+        mov     A1, T1                  ; restore divisor
+ %endif
 
         IEM_MAYBE_LOAD_FLAGS A2, %2, %3
         mov     ax, [A0]
@@ -1344,6 +1382,7 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u8, 12
         EPILOGUE_3_ARGS
 
 .div_zero:
+.div_overflow:
         mov     eax, -1
         jmp     .return
 ENDPROC iemAImpl_ %+ %1 %+ _u8
@@ -1351,9 +1390,48 @@ ENDPROC iemAImpl_ %+ %1 %+ _u8
 BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u16, 16
         PROLOGUE_4_ARGS
 
-        test    A1_16, A1_16
+        ; div by chainsaw check.
+        test    A2_16, A2_16
         jz      .div_zero
-        ;; @todo test for overflow
+
+        ; Overflow check - unsigned division is simple to verify, haven't
+        ; found a simple way to check signed division yet unfortunately.
+ %if %4 == 0
+        cmp     [A1], A2_16
+        jae     .div_overflow
+ %else
+        mov     T0_16, [A1]
+        shl     T0_32, 16
+        mov     T0_16, [A0]              ; T0 = dividend
+        mov     T1, A2                   ; T1 = divisor
+        test    T1_16, T1_16
+        js      .divisor_negative
+        test    T0_32, T0_32
+        jns     .both_positive
+        neg     T0_32
+.one_of_each:                           ; OK range is 2^(result-with - 1) + (divisor - 1).
+        push    T0                      ; Start off like unsigned below.
+        shr     T0_32, 15
+        cmp     T0_16, T1_16
+        pop     T0
+        jb      .div_no_overflow
+        ja      .div_overflow
+        and     T0_16, 0x7fff           ; Special case for covering (divisor - 1).
+        cmp     T0_16, T1_16
+        jae     .div_overflow
+        jmp     .div_no_overflow
+
+.divisor_negative:
+        neg     T1_16
+        test    T0_32, T0_32
+        jns     .one_of_each
+        neg     T0_32
+.both_positive:                         ; Same as unsigned shifted by sign indicator bit.
+        shr     T0_32, 15
+        cmp     T0_16, T1_16
+        jae     .div_overflow
+.div_no_overflow:
+ %endif
 
         IEM_MAYBE_LOAD_FLAGS A3, %2, %3
  %ifdef ASM_CALL64_GCC
@@ -1378,6 +1456,7 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u16, 16
         EPILOGUE_4_ARGS
 
 .div_zero:
+.div_overflow:
         mov     eax, -1
         jmp     .return
 ENDPROC iemAImpl_ %+ %1 %+ _u16
@@ -1385,9 +1464,52 @@ ENDPROC iemAImpl_ %+ %1 %+ _u16
 BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u32, 16
         PROLOGUE_4_ARGS
 
-        test    A1_32, A1_32
+        ; div by chainsaw check.
+        test    A2_32, A2_32
         jz      .div_zero
-        ;; @todo test for overflow
+
+        ; Overflow check - unsigned division is simple to verify, haven't
+        ; found a simple way to check signed division yet unfortunately.
+ %if %4 == 0
+        cmp     [A1], A2_32
+        jae     .div_overflow
+ %else
+        push    A2                      ; save A2 so we modify it (we out of regs on x86).
+        mov     T0_32, [A0]             ; T0 = dividend low
+        mov     T1_32, [A1]             ; T1 = dividend high
+        test    A2_32, A2_32
+        js      .divisor_negative
+        test    T1_32, T1_32
+        jns     .both_positive
+        call    iemAImpl_negate_T0_T1_u32
+.one_of_each:                           ; OK range is 2^(result-with - 1) + (divisor - 1).
+        push    T0                      ; Start off like unsigned below.
+        shl     T1_32, 1
+        shr     T0_32, 31
+        or      T1_32, T0_32
+        cmp     T1_32, A2_32
+        pop     T0
+        jb      .div_no_overflow
+        ja      .div_overflow
+        and     T0_32, 0x7fffffff       ; Special case for covering (divisor - 1).
+        cmp     T0_32, A2_32
+        jae     .div_overflow
+        jmp     .div_no_overflow
+
+.divisor_negative:
+        neg     A2_32
+        test    T1_32, T1_32
+        jns     .one_of_each
+        call    iemAImpl_negate_T0_T1_u32
+.both_positive:                         ; Same as unsigned shifted by sign indicator bit.
+        shl     T1_32, 1
+        shr     T0_32, 31
+        or      T1_32, T0_32
+        cmp     T1_32, A2_32
+        jae     .div_overflow
+.div_no_overflow:
+        pop     A2
+ %endif
 
         IEM_MAYBE_LOAD_FLAGS A3, %2, %3
         mov     eax, [A0]
@@ -1412,57 +1534,100 @@ BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u32, 16
 .return:
         EPILOGUE_4_ARGS
 
+.div_overflow:
+ %if %4 != 0
+        pop     A2
+ %endif
 .div_zero:
         mov     eax, -1
         jmp     .return
 ENDPROC iemAImpl_ %+ %1 %+ _u32
 
- %ifdef RT_ARCH_AMD64
+ %ifdef RT_ARCH_AMD64 ; The 32-bit host version lives in IEMAllAImplC.cpp.
 BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 20
         PROLOGUE_4_ARGS
 
-        test    A1, A1
+        test    A2, A2
         jz      .div_zero
-        ;; @todo test for overflow
+  %if %4 == 0
+        cmp     [A1], A2
+        jae     .div_overflow
+  %else
+        push    A2                      ; save A2 so we modify it (we out of regs on x86).
+        mov     T0, [A0]                ; T0 = dividend low
+        mov     T1, [A1]                ; T1 = dividend high
+        test    A2, A2
+        js      .divisor_negative
+        test    T1, T1
+        jns     .both_positive
+        call    iemAImpl_negate_T0_T1_u64
+.one_of_each:                           ; OK range is 2^(result-with - 1) + (divisor - 1).
+        push    T0                      ; Start off like unsigned below.
+        shl     T1, 1
+        shr     T0, 63
+        or      T1, T0
+        cmp     T1, A2
+        pop     T0
+        jb      .div_no_overflow
+        ja      .div_overflow
+        mov     T1, 0x7fffffffffffffff
+        and     T0, T1                  ; Special case for covering (divisor - 1).
+        cmp     T0, A2
+        jae     .div_overflow
+        jmp     .div_no_overflow
+
+.divisor_negative:
+        neg     A2
+        test    T1, T1
+        jns     .one_of_each
+        call    iemAImpl_negate_T0_T1_u64
+.both_positive:                         ; Same as unsigned shifted by sign indicator bit.
+        shl     T1, 1
+        shr     T0, 63
+        or      T1, T0
+        cmp     T1, A2
+        jae     .div_overflow
+.div_no_overflow:
+        pop     A2
+  %endif
 
         IEM_MAYBE_LOAD_FLAGS A3, %2, %3
         mov     rax, [A0]
- %ifdef ASM_CALL64_GCC
+  %ifdef ASM_CALL64_GCC
         mov     T1, A2
         mov     rax, [A0]
         mov     rdx, [A1]
         %1      T1
         mov     [A0], rax
         mov     [A1], rdx
- %else
+  %else
         mov     T1, A1
         mov     rax, [A0]
         mov     rdx, [T1]
         %1      A2
         mov     [A0], rax
         mov     [T1], rdx
- %endif
+  %endif
         IEM_SAVE_FLAGS       A3, %2, %3
         xor     eax, eax
 
 .return:
         EPILOGUE_4_ARGS_EX 12
 
+.div_overflow:
+  %if %4 != 0
+        pop     A2
+  %endif
 .div_zero:
         mov     eax, -1
         jmp     .return
 ENDPROC iemAImpl_ %+ %1 %+ _u64
- %else ; stub it for now - later, replace with hand coded stuff.
-BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 20
-        int3
-        ret
-ENDPROC iemAImpl_ %+ %1 %+ _u64
-  %endif ; !RT_ARCH_AMD64
+ %endif ; !RT_ARCH_AMD64
 
 %endmacro
 
-IEMIMPL_DIV_OP div,  0, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF | X86_EFL_CF)
-IEMIMPL_DIV_OP idiv, 0, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF | X86_EFL_CF)
+IEMIMPL_DIV_OP div,  0, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF | X86_EFL_CF), 0
+IEMIMPL_DIV_OP idiv, 0, (X86_EFL_OF | X86_EFL_SF | X86_EFL_ZF | X86_EFL_AF | X86_EFL_PF | X86_EFL_CF), 1
 
 
 ;
@@ -2533,4 +2698,256 @@ ENDPROC iemAImpl_ %+ %1 %+ _r80_r80
 IEMIMPL_FPU_R80_R80 fptan
 IEMIMPL_FPU_R80_R80 fxtract
 IEMIMPL_FPU_R80_R80 fsincos
+
+
+
+
+;---------------------- SSE and MMX Operations ----------------------
+
+;; @todo what do we need to do for MMX?
+%macro IEMIMPL_MMX_PROLOGUE 0
+%endmacro
+%macro IEMIMPL_MMX_EPILOGUE 0
+%endmacro
+
+;; @todo what do we need to do for SSE?
+%macro IEMIMPL_SSE_PROLOGUE 0
+%endmacro
+%macro IEMIMPL_SSE_EPILOGUE 0
+%endmacro
+
+
+;;
+; Media instruction working on two full sized registers.
+;
+; @param    1       The instruction
+;
+; @param    A0      FPU context (fxsave).
+; @param    A1      Pointer to the first media register size operand (input/output).
+; @param    A2      Pointer to the second media register size operand (input).
+;
+%macro IEMIMPL_MEDIA_F2 1
+BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 12
+        PROLOGUE_3_ARGS
+        IEMIMPL_MMX_PROLOGUE
+
+        movq    mm0, [A1]
+        movq    mm1, [A2]
+        %1      mm0, mm1
+        movq    [A1], mm0
+
+        IEMIMPL_MMX_EPILOGUE
+        EPILOGUE_3_ARGS
+ENDPROC iemAImpl_ %+ %1 %+ _u64
+
+BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u128, 12
+        PROLOGUE_3_ARGS
+        IEMIMPL_SSE_PROLOGUE
+
+        movdqu   xmm0, [A1]
+        movdqu   xmm1, [A2]
+        %1       xmm0, xmm1
+        movdqu   [A1], xmm0
+
+        IEMIMPL_SSE_EPILOGUE
+        EPILOGUE_3_ARGS
+ENDPROC iemAImpl_ %+ %1 %+ _u128
+%endmacro
+
+IEMIMPL_MEDIA_F2 pxor
+IEMIMPL_MEDIA_F2 pcmpeqb
+IEMIMPL_MEDIA_F2 pcmpeqw
+IEMIMPL_MEDIA_F2 pcmpeqd
+
+
+;;
+; Media instruction working on one full sized and one half sized register (lower half).
+;
+; @param    1       The instruction
+; @param    2       1 if MMX is included, 0 if not.
+;
+; @param    A0      FPU context (fxsave).
+; @param    A1      Pointer to the first full sized media register operand (input/output).
+; @param    A2      Pointer to the second half sized media register operand (input).
+;
+%macro IEMIMPL_MEDIA_F1L1 2
+ %if %2 != 0
+BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 12
+        PROLOGUE_3_ARGS
+        IEMIMPL_MMX_PROLOGUE
+
+        movq    mm0, [A1]
+        movd    mm1, [A2]
+        %1      mm0, mm1
+        movq    [A1], mm0
+
+        IEMIMPL_MMX_EPILOGUE
+        EPILOGUE_3_ARGS
+ENDPROC iemAImpl_ %+ %1 %+ _u64
+ %endif
+
+BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u128, 12
+        PROLOGUE_3_ARGS
+        IEMIMPL_SSE_PROLOGUE
+
+        movdqu   xmm0, [A1]
+        movq     xmm1, [A2]
+        %1       xmm0, xmm1
+        movdqu   [A1], xmm0
+
+        IEMIMPL_SSE_EPILOGUE
+        EPILOGUE_3_ARGS
+ENDPROC iemAImpl_ %+ %1 %+ _u128
+%endmacro
+
+IEMIMPL_MEDIA_F1L1 punpcklbw,  1
+IEMIMPL_MEDIA_F1L1 punpcklwd,  1
+IEMIMPL_MEDIA_F1L1 punpckldq,  1
+IEMIMPL_MEDIA_F1L1 punpcklqdq, 0
+
+
+;;
+; Media instruction working on one full sized and one half sized register (high half).
+;
+; @param    1       The instruction
+; @param    2       1 if MMX is included, 0 if not.
+;
+; @param    A0      FPU context (fxsave).
+; @param    A1      Pointer to the first full sized media register operand (input/output).
+; @param    A2      Pointer to the second full sized media register operand, where we
+;                   will only use the upper half (input).
+;
+%macro IEMIMPL_MEDIA_F1H1 2
+ %if %2 != 0
+BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u64, 12
+        PROLOGUE_3_ARGS
+        IEMIMPL_MMX_PROLOGUE
+
+        movq    mm0, [A1]
+        movq    mm1, [A2]
+        %1      mm0, mm1
+        movq    [A1], mm0
+
+        IEMIMPL_MMX_EPILOGUE
+        EPILOGUE_3_ARGS
+ENDPROC iemAImpl_ %+ %1 %+ _u64
+ %endif
+
+BEGINPROC_FASTCALL iemAImpl_ %+ %1 %+ _u128, 12
+        PROLOGUE_3_ARGS
+        IEMIMPL_SSE_PROLOGUE
+
+        movdqu   xmm0, [A1]
+        movdqu   xmm1, [A2]
+        %1       xmm0, xmm1
+        movdqu   [A1], xmm0
+
+        IEMIMPL_SSE_EPILOGUE
+        EPILOGUE_3_ARGS
+ENDPROC iemAImpl_ %+ %1 %+ _u128
+%endmacro
+
+IEMIMPL_MEDIA_F1L1 punpckhbw,  1
+IEMIMPL_MEDIA_F1L1 punpckhwd,  1
+IEMIMPL_MEDIA_F1L1 punpckhdq,  1
+IEMIMPL_MEDIA_F1L1 punpckhqdq, 0
+
+
+;
+; Shufflers with evil 8-bit immediates.
+;
+
+BEGINPROC_FASTCALL iemAImpl_pshufw, 16
+        PROLOGUE_4_ARGS
+        IEMIMPL_MMX_PROLOGUE
+
+        movq    mm0, [A1]
+        movq    mm1, [A2]
+        lea     T0, [A3 + A3*4]         ; sizeof(pshufw+ret) == 5
+        lea     T1, [.imm0 xWrtRIP]
+        lea     T1, [T1 + T0]
+        call    T1
+        movq    [A1], mm0
+
+        IEMIMPL_MMX_EPILOGUE
+        EPILOGUE_4_ARGS
+%assign bImm 0
+%rep 256
+.imm %+ bImm:
+       pshufw    mm0, mm1, bImm
+       ret
+ %assign bImm bImm + 1
+%endrep
+.immEnd:                                ; 256*5 == 0x500
+dw 0xfaff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
+dw 0x104ff - (.immEnd - .imm0)          ; will cause warning if entries are small big.
+ENDPROC iemAImpl_pshufw
+
+
+%macro IEMIMPL_MEDIA_SSE_PSHUFXX 1
+BEGINPROC_FASTCALL iemAImpl_ %+ %1, 16
+        PROLOGUE_4_ARGS
+        IEMIMPL_SSE_PROLOGUE
+
+        movdqu  xmm0, [A1]
+        movdqu  xmm1, [A2]
+        lea     T1, [.imm0 xWrtRIP]
+        lea     T0, [A3 + A3*2]         ; sizeof(pshufXX+ret) == 6: (A3 * 3) *2
+        lea     T1, [T1 + T0*2]
+        call    T1
+        movdqu  [A1], xmm0
+
+        IEMIMPL_SSE_EPILOGUE
+        EPILOGUE_4_ARGS
+ %assign bImm 0
+ %rep 256
+.imm %+ bImm:
+       %1       xmm0, xmm1, bImm
+       ret
+  %assign bImm bImm + 1
+ %endrep
+.immEnd:                                ; 256*6 == 0x600
+dw 0xf9ff  + (.immEnd - .imm0)          ; will cause warning if entries are too big.
+dw 0x105ff - (.immEnd - .imm0)          ; will cause warning if entries are small big.
+ENDPROC iemAImpl_ %+ %1
+%endmacro
+
+IEMIMPL_MEDIA_SSE_PSHUFXX pshufhw
+IEMIMPL_MEDIA_SSE_PSHUFXX pshuflw
+IEMIMPL_MEDIA_SSE_PSHUFXX pshufd
+
+
+;
+; Move byte mask.
+;
+
+BEGINPROC_FASTCALL iemAImpl_pmovmskb_u64, 12
+        PROLOGUE_3_ARGS
+        IEMIMPL_MMX_PROLOGUE
+
+        mov     T0,  [A1]
+        movq    mm1, [A2]
+        pmovmskb T0, mm1
+        mov     [A1], T0
+%ifdef RT_ARCH_X86
+        mov     dword [A1 + 4], 0
+%endif
+        IEMIMPL_MMX_EPILOGUE
+        EPILOGUE_3_ARGS
+ENDPROC iemAImpl_pmovmskb_u64
+
+BEGINPROC_FASTCALL iemAImpl_pmovmskb_u128, 12
+        PROLOGUE_3_ARGS
+        IEMIMPL_SSE_PROLOGUE
+
+        mov     T0,  [A1]
+        movdqu  xmm1, [A2]
+        pmovmskb T0, xmm1
+        mov     [A1], T0
+%ifdef RT_ARCH_X86
+        mov     dword [A1 + 4], 0
+%endif
+        IEMIMPL_SSE_EPILOGUE
+        EPILOGUE_3_ARGS
+ENDPROC iemAImpl_pmovmskb_u128
 

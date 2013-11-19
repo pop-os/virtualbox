@@ -63,6 +63,7 @@ public:
 
     virtual int getRawHostCpuLoad(uint64_t *user, uint64_t *kernel, uint64_t *idle);
     virtual int getRawProcessCpuLoad(RTPROCESS process, uint64_t *user, uint64_t *kernel, uint64_t *total);
+
 private:
     struct VMProcessStats
     {
@@ -74,17 +75,15 @@ private:
 
     typedef std::map<RTPROCESS, VMProcessStats> VMProcessMap;
 
-    VMProcessMap       mProcessStats;
+    VMProcessMap mProcessStats;
 
-    typedef BOOL (WINAPI *PFNGST)(
-        LPFILETIME lpIdleTime,
-        LPFILETIME lpKernelTime,
-        LPFILETIME lpUserTime);
-    typedef NTSTATUS (WINAPI *PFNNQSI)(
-        SYSTEM_INFORMATION_CLASS SystemInformationClass,
-        PVOID SystemInformation,
-        ULONG SystemInformationLength,
-        PULONG ReturnLength);
+    typedef BOOL (WINAPI *PFNGST)(LPFILETIME lpIdleTime,
+                                  LPFILETIME lpKernelTime,
+                                  LPFILETIME lpUserTime);
+    typedef NTSTATUS (WINAPI *PFNNQSI)(SYSTEM_INFORMATION_CLASS SystemInformationClass,
+                                       PVOID SystemInformation,
+                                       ULONG SystemInformationLength,
+                                       PULONG ReturnLength);
 
     PFNGST  mpfnGetSystemTimes;
     PFNNQSI mpfnNtQuerySystemInformation;
@@ -275,7 +274,7 @@ int CollectorWin::getHostCpuMHz(ULONG *mhz)
         return VERR_NO_MEMORY;
 
     LONG ns = CallNtPowerInformation(ProcessorInformation, NULL, 0, ppi,
-        nProcessors * sizeof(PROCESSOR_POWER_INFORMATION));
+                                     nProcessors * sizeof(PROCESSOR_POWER_INFORMATION));
     if (ns)
     {
         Log(("CallNtPowerInformation() -> %x\n", ns));

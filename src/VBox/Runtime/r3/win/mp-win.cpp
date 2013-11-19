@@ -30,9 +30,14 @@
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_SYSTEM
 #include <Windows.h>
+
 #include <iprt/mp.h>
-#include <iprt/cpuset.h>
+#include "internal/iprt.h"
+
 #include <iprt/assert.h>
+#include <iprt/cpuset.h>
+#include <iprt/ldr.h>
+#include <iprt/mem.h>
 
 
 AssertCompile(MAXIMUM_PROCESSORS <= RTCPUSET_MAX_CPUS);
@@ -91,6 +96,59 @@ RTDECL(RTCPUID) RTMpGetCount(void)
 }
 
 
+RTDECL(RTCPUID) RTMpGetCoreCount(void)
+{
+    /*
+     * Resolve the API dynamically (one try) as it requires XP w/ sp3 or later.
+     */
+    typedef BOOL (WINAPI *PFNGETLOGICALPROCINFO)(PSYSTEM_LOGICAL_PROCESSOR_INFORMATION, PDWORD);
+    static PFNGETLOGICALPROCINFO s_pfnGetLogicalProcInfo = (PFNGETLOGICALPROCINFO)~(uintptr_t)0;
+    if (s_pfnGetLogicalProcInfo == (PFNGETLOGICALPROCINFO)~(uintptr_t)0)
+        s_pfnGetLogicalProcInfo = (PFNGETLOGICALPROCINFO)RTLdrGetSystemSymbol("kernel32.dll", "GetLogicalProcessorInformation");
+
+    if (s_pfnGetLogicalProcInfo)
+    {
+        /*
+         * Query the information. This unfortunately requires a buffer, so we
+         * start with a guess and let windows advice us if it's too small.
+         */
+        DWORD                                   cbSysProcInfo = _4K;
+        PSYSTEM_LOGICAL_PROCESSOR_INFORMATION   paSysInfo = NULL;
+        BOOL                                    fRc = FALSE;
+        do
+        {
+            cbSysProcInfo = RT_ALIGN_32(cbSysProcInfo, 256);
+            void *pv = RTMemRealloc(paSysInfo, cbSysProcInfo);
+            if (!pv)
+                break;
+            paSysInfo = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION)pv;
+            fRc = s_pfnGetLogicalProcInfo(paSysInfo, &cbSysProcInfo);
+        } while (!fRc && GetLastError() == ERROR_INSUFFICIENT_BUFFER);
+        if (fRc)
+        {
+            /*
+             * Parse the result.
+             */
+            uint32_t cCores = 0;
+            uint32_t i      = cbSysProcInfo / sizeof(paSysInfo[0]);
+            while (i-- > 0)
+                if (paSysInfo[i].Relationship == RelationProcessorCore)
+                    cCores++;
+
+            RTMemFree(paSysInfo);
+            Assert(cCores > 0);
+            return cCores;
+        }
+
+        RTMemFree(paSysInfo);
+    }
+
+    /* If we don't have the necessary API or if it failed, return the same
+       value as the generic implementation. */
+    return RTMpGetCount();
+}
+
+
 RTDECL(PRTCPUSET) RTMpGetOnlineSet(PRTCPUSET pSet)
 {
     SYSTEM_INFO SysInfo;
@@ -105,5 +163,12 @@ RTDECL(RTCPUID) RTMpGetOnlineCount(void)
     RTCPUSET Set;
     RTMpGetOnlineSet(&Set);
     return RTCpuSetCount(&Set);
+}
+
+
+RTDECL(RTCPUID) RTMpGetOnlineCoreCount(void)
+{
+    /** @todo this isn't entirely correct. */
+    return RTMpGetCoreCount();
 }
 

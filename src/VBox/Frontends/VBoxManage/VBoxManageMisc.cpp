@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,8 +26,6 @@
 # include <VBox/com/array.h>
 # include <VBox/com/ErrorInfo.h>
 # include <VBox/com/errorprint.h>
-# include <VBox/com/EventQueue.h>
-
 # include <VBox/com/VirtualBox.h>
 #endif /* !VBOX_ONLY_DOCS */
 
@@ -155,17 +153,31 @@ int handleUnregisterVM(HandlerArg *a)
                                                machine.asOutParam()),
                     RTEXITCODE_FAILURE);
     SafeIfaceArray<IMedium> aMedia;
-    CHECK_ERROR_RET(machine, Unregister(fDelete ? (CleanupMode_T)CleanupMode_DetachAllReturnHardDisksOnly : (CleanupMode_T)CleanupMode_DetachAllReturnNone,
+    CHECK_ERROR_RET(machine, Unregister(CleanupMode_DetachAllReturnHardDisksOnly,
                                         ComSafeArrayAsOutParam(aMedia)),
                     RTEXITCODE_FAILURE);
     if (fDelete)
     {
         ComPtr<IProgress> pProgress;
-        CHECK_ERROR_RET(machine, Delete(ComSafeArrayAsInParam(aMedia), pProgress.asOutParam()),
+        CHECK_ERROR_RET(machine, DeleteConfig(ComSafeArrayAsInParam(aMedia), pProgress.asOutParam()),
                         RTEXITCODE_FAILURE);
 
         rc = showProgress(pProgress);
         CHECK_PROGRESS_ERROR_RET(pProgress, ("Machine delete failed"), RTEXITCODE_FAILURE);
+    }
+    else
+    {
+        /* Note that the IMachine::Unregister method will return the medium
+         * reference in a sane order, which means that closing will normally
+         * succeed, unless there is still another machine which uses the
+         * medium. No harm done if we ignore the error. */
+        for (size_t i = 0; i < aMedia.size(); i++)
+        {
+            IMedium *pMedium = aMedia[i];
+            if (pMedium)
+                rc = pMedium->Close();
+        }
+        rc = S_OK;
     }
     return RTEXITCODE_SUCCESS;
 }
@@ -485,7 +497,7 @@ int handleStartVM(HandlerArg *a)
 {
     HRESULT rc = S_OK;
     std::list<const char *> VMs;
-    Bstr sessionType = "gui";
+    Bstr sessionType;
 
     static const RTGETOPTDEF s_aStartVMOptions[] =
     {
@@ -825,6 +837,18 @@ int handleSetProperty(HandlerArg *a)
         else
             CHECK_ERROR(systemProperties, COMSETTER(DefaultMachineFolder)(Bstr(a->argv[1]).raw()));
     }
+    else if (!strcmp(a->argv[0], "hwvirtexclusive"))
+    {
+        bool   fHwVirtExclusive;
+
+        if (!strcmp(a->argv[1], "on"))
+            fHwVirtExclusive = true;
+        else if (!strcmp(a->argv[1], "off"))
+            fHwVirtExclusive = false;
+        else
+            return errorArgument("Invalid hwvirtexclusive argument '%s'", a->argv[1]);
+        CHECK_ERROR(systemProperties, COMSETTER(ExclusiveHwVirt)(fHwVirtExclusive));
+    }
     else if (   !strcmp(a->argv[0], "vrdeauthlibrary")
              || !strcmp(a->argv[0], "vrdpauthlibrary"))
     {
@@ -869,6 +893,13 @@ int handleSetProperty(HandlerArg *a)
             CHECK_ERROR(systemProperties, COMSETTER(AutostartDatabasePath)(NULL));
         else
             CHECK_ERROR(systemProperties, COMSETTER(AutostartDatabasePath)(Bstr(a->argv[1]).raw()));
+    }
+    else if (!strcmp(a->argv[0], "defaultfrontend"))
+    {
+        Bstr bstrDefaultFrontend(a->argv[1]);
+        if (!strcmp(a->argv[1], "default"))
+            bstrDefaultFrontend.setNull();
+        CHECK_ERROR(systemProperties, COMSETTER(DefaultFrontend)(bstrDefaultFrontend.raw()));
     }
     else
         return errorSyntax(USAGE_SETPROPERTY, "Invalid parameter '%s'", a->argv[0]);
@@ -950,7 +981,7 @@ int handleSharedFolder(HandlerArg *a)
 
         if (fTransient)
         {
-            ComPtr <IConsole> console;
+            ComPtr<IConsole> console;
 
             /* open an existing session for the VM */
             CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), 1);
@@ -1016,7 +1047,7 @@ int handleSharedFolder(HandlerArg *a)
 
         if (fTransient)
         {
-            ComPtr <IConsole> console;
+            ComPtr<IConsole> console;
 
             /* open an existing session for the VM */
             CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), 1);

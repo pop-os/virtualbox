@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include <math.h>
 
+#include <iprt/string.h>
+
 #if defined(WINDOWS)
 # include <float.h>
 # define isnan(x) _isnan(x)
@@ -1691,7 +1693,9 @@ void crPixelCopy3D( GLsizei width, GLsizei height, GLsizei depth,
 
     /*@todo this should be implemented properly*/
 
+#ifndef DEBUG_misha
     crWarning( "crPixelCopy3D:  simply crMemcpy'ing from srcPtr to dstPtr" );
+#endif
     if (dstFormat != srcFormat)
         crWarning( "crPixelCopy3D: formats don't match!" );
     if (dstType != srcType)
@@ -1840,4 +1844,20 @@ void crDumpNamedTGA(const char* fname, GLint w, GLint h, GLvoid *data)
     fwrite(data, w*h*4, 1, out);
 
     fclose(out);
+}
+
+void crDumpNamedTGAV(GLint w, GLint h, GLvoid *data, const char* fname, va_list va)
+{
+    char szName[4096];
+    RTStrPrintfV(szName, sizeof(szName), fname, va);
+    crDumpNamedTGA(szName, w, h, data);
+}
+
+void crDumpNamedTGAF(GLint w, GLint h, GLvoid *data, const char* fname, ...)
+{
+    va_list va;
+    int rc;
+    va_start(va, fname);
+    crDumpNamedTGAV(w, h, data, fname, va);
+    va_end(va);
 }

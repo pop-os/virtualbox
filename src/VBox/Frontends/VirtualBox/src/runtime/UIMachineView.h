@@ -75,8 +75,9 @@ public:
     /* Public setters: */
     virtual void setGuestAutoresizeEnabled(bool /* fEnabled */) {}
 
-    /* Public members: */
-    virtual void normalizeGeometry(bool /* bAdjustPosition = false */) = 0;
+    /** Adjusts guest screen size to correspond current machine-window size.
+      * @note Reimplemented in sub-classes. Base implementation does nothing. */
+    virtual void maybeAdjustGuestScreenSize() {}
 
     /* Framebuffer aspect ratio: */
     double aspectRatio() const;
@@ -90,6 +91,20 @@ protected slots:
 
     /* Slot to perform guest resize: */
     void sltPerformGuestResize(const QSize &aSize = QSize());
+
+    /* Handler: Frame-buffer RequestResize stuff: */
+    virtual void sltHandleRequestResize(int iPixelFormat, uchar *pVRAM,
+                                int iBitsPerPixel, int iBytesPerLine,
+                                int iWidth, int iHeight);
+
+    /* Handler: Frame-buffer NotifyUpdate stuff: */
+    virtual void sltHandleNotifyUpdate(int iX, int iY, int iWidth, int iHeight);
+
+    /* Handler: Frame-buffer SetVisibleRegion stuff: */
+    virtual void sltHandleSetVisibleRegion(QRegion region);
+
+    /* Handler: Frame-buffer 3D overlay visibility stuff: */
+    virtual void sltHandle3DOverlayVisibilityChange(bool fVisible);
 
     /* Watch dog for desktop resizes: */
     void sltDesktopResized();
@@ -145,7 +160,7 @@ protected:
      * to handle for @a maxGuestSize() to read.  Should be called if anything
      * happens (e.g. a screen hotplug) which might cause the value to change.
      * @sa m_u64MaxGuestSize. */
-    void setMaxGuestSize();
+    void setMaxGuestSize(const QSize &minimumSizeHint = QSize());
     /** Atomically read the maximum guest resolution which we currently wish to
      * handle.  This may safely be called from another thread (called by
      * UIFramebuffer on EMT).
@@ -169,7 +184,6 @@ protected:
     /** Calculate how big the guest desktop can be while still fitting on one
      * host screen. */
     virtual QSize calculateMaxGuestSize() const = 0;
-    virtual void maybeRestrictMinimumSize() = 0;
     virtual void updateSliders();
     QPoint viewportToContents(const QPoint &vp) const;
     void scrollBy(int dx, int dy);
@@ -180,7 +194,6 @@ protected:
     CGImageRef vmContentImage();
     CGImageRef frameBuffertoCGImageRef(UIFrameBuffer *pFrameBuffer);
 #endif /* Q_WS_MAC */
-    bool guestResizeEvent(QEvent *pEvent, bool fFullscreen);
     /** What view mode (normal, fullscreen etc.) are we in? */
     UIVisualStateType visualStateType() const;
     /** Is this a fullscreen-type view? */
@@ -188,9 +201,6 @@ protected:
     /** Return a string consisting of @a base with a suffix for the active
      * virtual monitor.  Used for storing monitor-specific extra data. */
     QString makeExtraDataKeyPerMonitor(QString base) const;
-    /** Returns the current rendering mode.
-     * @note contains special case logic for scale mode. */
-    RenderMode getRenderMode() const;
 
     /* Cross-platforms event processors: */
     bool event(QEvent *pEvent);
@@ -253,8 +263,9 @@ protected:
     friend class UIMachineLogic;
     friend class UIFrameBuffer;
     friend class UIFrameBufferQImage;
+#ifdef VBOX_GUI_USE_QUARTZ2D
     friend class UIFrameBufferQuartz2D;
-    friend class UIFrameBufferQGL;
+#endif /* VBOX_GUI_USE_QUARTZ2D */
     template<class, class, class> friend class VBoxOverlayFrameBuffer;
 };
 

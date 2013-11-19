@@ -36,6 +36,8 @@
 #include "../Input/DevPS2.cpp"
 #undef LOG_GROUP
 #include "../Input/PS2K.cpp"
+#undef LOG_GROUP
+#include "../Input/PS2M.cpp"
 #ifdef VBOX_WITH_E1000
 # undef LOG_GROUP
 # include "../Network/DevE1000.cpp"
@@ -97,6 +99,9 @@
 # include "../Bus/DevPciRaw.cpp"
 #endif
 
+#undef LOG_GROUP
+#include "../Audio/DevIchHda.cpp"
+
 #include <stdio.h>
 
 
@@ -144,7 +149,7 @@
     { \
         if (RT_OFFSETOF(strct, member) & ((align) - 1) ) \
         { \
-            printf("tstDeviceStructSize: error! %s::%s offset=%#x (%u) expected alignment %x, meaning %#x (%u) off\n", \
+            printf("tstDeviceStructSize: error! %s::%s offset=%#x (%u) expected alignment %#x, meaning %#x (%u) off\n", \
                    #strct, #member, \
                    (unsigned)RT_OFFSETOF(strct, member), \
                    (unsigned)RT_OFFSETOF(strct, member), \
@@ -270,7 +275,6 @@ int main()
     CHECK_MEMBER_ALIGNMENT(ATACONTROLLER, lock, 8);
     CHECK_MEMBER_ALIGNMENT(ATACONTROLLER, StatAsyncOps, 8);
     CHECK_MEMBER_ALIGNMENT(BUSLOGIC, CritSectIntr, 8);
-    CHECK_MEMBER_ALIGNMENT(PARALLELPORT, CritSect, 8);
 #ifdef VBOX_WITH_STATISTICS
     CHECK_MEMBER_ALIGNMENT(DEVPIC, StatSetIrqGC, 8);
 #endif
@@ -293,13 +297,15 @@ int main()
 #endif
     CHECK_MEMBER_ALIGNMENT(E1KSTATE, StatReceiveBytes, 8);
 #ifdef VBOX_WITH_STATISTICS
-    CHECK_MEMBER_ALIGNMENT(IOAPICState, StatMMIOReadGC, 8);
-    CHECK_MEMBER_ALIGNMENT(IOAPICState, StatMMIOReadGC, 8);
+    CHECK_MEMBER_ALIGNMENT(IOAPIC, StatMMIOReadGC, 8);
+    CHECK_MEMBER_ALIGNMENT(IOAPIC, StatMMIOReadGC, 8);
 #endif
-    CHECK_MEMBER_ALIGNMENT(KBDState, CritSect, 8);
-    CHECK_MEMBER_ALIGNMENT(PS2K, KbdCritSect, 8);
+    CHECK_MEMBER_ALIGNMENT(LSILOGISCSI, GCPhysMMIOBase, 8);
+    CHECK_MEMBER_ALIGNMENT(LSILOGISCSI, aMessage, 8);
     CHECK_MEMBER_ALIGNMENT(LSILOGISCSI, ReplyPostQueueCritSect, 8);
     CHECK_MEMBER_ALIGNMENT(LSILOGISCSI, ReplyFreeQueueCritSect, 8);
+    CHECK_MEMBER_ALIGNMENT(LSILOGISCSI, uReplyFreeQueueNextEntryFreeWrite, 8);
+    CHECK_MEMBER_ALIGNMENT(LSILOGISCSI, VBoxSCSI, 8);
 #ifdef VBOX_WITH_USB
     CHECK_MEMBER_ALIGNMENT(OHCI, RootHub, 8);
 # ifdef VBOX_WITH_STATISTICS
@@ -309,16 +315,16 @@ int main()
     CHECK_MEMBER_ALIGNMENT(PCIBUS, devices, 16);
     CHECK_MEMBER_ALIGNMENT(PCIBUS, devices, 16);
     CHECK_MEMBER_ALIGNMENT(PCIGLOBALS, pci_irq_levels, 16);
-    CHECK_MEMBER_ALIGNMENT(PCNetState, u64LastPoll, 8);
-    CHECK_MEMBER_ALIGNMENT(PCNetState, CritSect, 8);
-    CHECK_MEMBER_ALIGNMENT(PCNetState, StatReceiveBytes, 8);
+    CHECK_MEMBER_ALIGNMENT(PCNETSTATE, u64LastPoll, 8);
+    CHECK_MEMBER_ALIGNMENT(PCNETSTATE, CritSect, 8);
+    CHECK_MEMBER_ALIGNMENT(PCNETSTATE, StatReceiveBytes, 8);
 #ifdef VBOX_WITH_STATISTICS
-    CHECK_MEMBER_ALIGNMENT(PCNetState, StatMMIOReadRZ, 8);
+    CHECK_MEMBER_ALIGNMENT(PCNETSTATE, StatMMIOReadRZ, 8);
 #endif
-    CHECK_MEMBER_ALIGNMENT(PITState, StatPITIrq, 8);
+    CHECK_MEMBER_ALIGNMENT(PITSTATE, StatPITIrq, 8);
     CHECK_MEMBER_ALIGNMENT(SerialState, CritSect, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, Dev, 8);
-    CHECK_MEMBER_ALIGNMENT(VGASTATE, lock, 8);
+    CHECK_MEMBER_ALIGNMENT(VGASTATE, CritSect, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, StatRZMemoryRead, 8);
     CHECK_MEMBER_ALIGNMENT(VMMDevState, CritSect, 8);
 #ifdef VBOX_WITH_VIRTIO

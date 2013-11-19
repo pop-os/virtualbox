@@ -115,7 +115,7 @@ void tst(int iFrom, int iTo, int iInc)
 
     for (int i = iFrom, iItr = 0; i != iTo; i += iInc, iItr++)
     {
-        int rc = vmmR0CallRing3SetJmp(&g_Jmp, (PFNVMMR0SETJMP)tst2, (PVM)i, 0);
+        int rc = vmmR0CallRing3SetJmp(&g_Jmp, (PFNVMMR0SETJMP)tst2, (PVM)(uintptr_t)i, 0);
         RTTESTI_CHECK_MSG_RETV(rc == 0 || rc == 42, ("i=%d rc=%d setjmp; cbFoo=%#x cbFooUsed=%#x\n", i, rc, g_cbFoo, g_cbFooUsed));
 
 #ifdef VMM_R0_SWITCH_STACK
@@ -145,13 +145,9 @@ int main()
      * Init.
      */
     RTTEST hTest;
-    int rc;
-    if (    RT_FAILURE(rc = RTR3InitExeNoArguments(0))
-        ||  RT_FAILURE(rc = RTTestCreate("tstVMMR0CallHost-1", &hTest)))
-    {
-        RTStrmPrintf(g_pStdErr, "tstVMMR0CallHost-1: Fatal error during init: %Rrc\n", rc);
-        return 1;
-    }
+    RTEXITCODE rcExit = RTTestInitAndCreate("tstVMMR0CallHost-1", &hTest);
+    if (rcExit != RTEXITCODE_SUCCESS)
+        return rcExit;
     RTTestBanner(hTest);
 
     g_Jmp.pvSavedStack = (RTR0PTR)RTTestGuardedAllocTail(hTest, VMM_STACK_SIZE);

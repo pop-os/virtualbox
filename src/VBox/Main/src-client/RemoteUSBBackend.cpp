@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -900,7 +900,7 @@ bool RemoteUSBBackend::addUUID (const Guid *pUuid)
     unsigned i;
     for (i = 0; i < RT_ELEMENTS(aGuids); i++)
     {
-        if (aGuids[i].isEmpty ())
+        if (aGuids[i].isZero())
         {
             aGuids[i] = *pUuid;
             return true;
@@ -961,7 +961,7 @@ RemoteUSBBackend::RemoteUSBBackend(Console *console, ConsoleVRDPServer *server, 
     if (RT_FAILURE(rc))
     {
         AssertFailed ();
-        memset (&mCritsect, 0, sizeof (mCritsect));
+        RT_ZERO(mCritsect);
     }
 
     mCallback.pInstance           = (PREMOTEUSBBACKEND)this;
@@ -1320,7 +1320,7 @@ int RemoteUSBBackend::reapURB (const void *pvBody, uint32_t cbBody)
                     /* And insert it to its new place. */
                     if (pDevice->pHeadQURBs->fCompleted)
                     {
-                        /* At least one other completed URB; insert after the 
+                        /* At least one other completed URB; insert after the
                          * last completed URB.
                          */
                         REMOTEUSBQURB *prev_qurb = pDevice->pHeadQURBs;
@@ -1341,7 +1341,7 @@ int RemoteUSBBackend::reapURB (const void *pvBody, uint32_t cbBody)
                         /* No other completed URBs; insert at head. */
                         qurb->next = pDevice->pHeadQURBs;
                         qurb->prev = NULL;
-    
+
                         pDevice->pHeadQURBs->prev = qurb;
                         pDevice->pHeadQURBs = qurb;
                     }

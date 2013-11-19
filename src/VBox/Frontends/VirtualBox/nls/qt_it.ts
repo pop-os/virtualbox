@@ -589,7 +589,7 @@ in
         <translation>Chiude la finestra</translation>
     </message>
     <message>
-        <source>Displays the name of the window and contains controls to manipulate it</source>
+        <source>Holds the name of the window and contains controls to manipulate it</source>
         <translation>Visualizza il nome della finestra e contiene i controlli per manipolarla</translation>
     </message>
 </context>
@@ -1899,7 +1899,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Could not mmap &apos;%1&apos;: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>mmap di &apos;%1&apos; non possibile: %2</translation>
     </message>
     <message>
         <source>Plugin verification data mismatch in &apos;%1&apos;</source>
@@ -1907,7 +1907,7 @@ Vuoi eliminarlo comunque?</translation>
     </message>
     <message>
         <source>Could not unmap &apos;%1&apos;: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>unmap di &apos;%1&apos; non possibile: %2</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
@@ -3325,7 +3325,7 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>%1: create size is less then 0</source>
-        <translation type="unfinished"></translation>
+        <translation>%1: la dimensione di creazione è minore di 0</translation>
     </message>
     <message>
         <source>%1: unable to lock</source>
@@ -3532,23 +3532,23 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>Media Play</source>
-        <translation type="unfinished"></translation>
+        <translation>Media Riproduci</translation>
     </message>
     <message>
         <source>Media Stop</source>
-        <translation type="unfinished"></translation>
+        <translation>Media Ferma</translation>
     </message>
     <message>
         <source>Media Previous</source>
-        <translation type="unfinished"></translation>
+        <translation>Media Precedente</translation>
     </message>
     <message>
         <source>Media Next</source>
-        <translation type="unfinished"></translation>
+        <translation>Media Successivo</translation>
     </message>
     <message>
         <source>Media Record</source>
-        <translation type="unfinished"></translation>
+        <translation>Media Registra</translation>
     </message>
     <message>
         <source>Favorites</source>
@@ -3560,7 +3560,7 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>Standby</source>
-        <translation type="unfinished"></translation>
+        <translation>Standby</translation>
     </message>
     <message>
         <source>Open URL</source>
@@ -4578,7 +4578,7 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>Standalone accepts only yes or no.</source>
-        <translation type="unfinished"></translation>
+        <translation>Standalone accetta solo yes o no.</translation>
     </message>
     <message>
         <source>Invalid attribute in XML declaration.</source>
@@ -4677,11 +4677,11 @@ Scegli un nome diverso.</translation>
     <name>QtXmlPatterns</name>
     <message>
         <source>An %1-attribute with value %2 has already been declared.</source>
-        <translation type="unfinished"></translation>
+        <translation>Un attributo %1 con valore %2 è già stato dichiarato.</translation>
     </message>
     <message>
         <source>An %1-attribute must have a valid %2 as value, which %3 isn&apos;t.</source>
-        <translation type="unfinished"></translation>
+        <translation>Un valore %1 deve avere un %2 valido come valore, che %3 non rappresenta.</translation>
     </message>
     <message>
         <source>Network timeout.</source>
@@ -4697,15 +4697,15 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>Year %1 is invalid because it begins with %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>L&apos;anno %1 non è valido poiché inizia con %2.</translation>
     </message>
     <message>
         <source>Day %1 is outside the range %2..%3.</source>
-        <translation type="unfinished"></translation>
+        <translation>Il giorno %1 è fuori dall&apos;intervallo %2..%3.</translation>
     </message>
     <message>
         <source>Month %1 is outside the range %2..%3.</source>
-        <translation type="unfinished"></translation>
+        <translation>Il mese %1 è fuori dall&apos;intervallo %2..%3.</translation>
     </message>
     <message>
         <source>Overflow: Can&apos;t represent date %1.</source>
@@ -4729,7 +4729,7 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>At least one component must be present.</source>
-        <translation type="unfinished"></translation>
+        <translation>Deve essere presente almeno un componente.</translation>
     </message>
     <message>
         <source>At least one time component must appear after the %1-delimiter.</source>
@@ -4741,11 +4741,11 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>The first operand in an integer division, %1, cannot be infinity (%2).</source>
-        <translation type="unfinished"></translation>
+        <translation>Il primo operando in una divisione intera, %1, non può essere infinito (%2).</translation>
     </message>
     <message>
         <source>The second operand in a division, %1, cannot be zero (%2).</source>
-        <translation type="unfinished"></translation>
+        <translation>Il secondo operando in una divisione, %1, non può essere zero (%2).</translation>
     </message>
     <message>
         <source>%1 is not a valid value of type %2.</source>
@@ -4757,11 +4757,11 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>Integer division (%1) by zero (%2) is undefined.</source>
-        <translation type="unfinished"></translation>
+        <translation>La divisione intera (%1) per zero (%2) non è definita.</translation>
     </message>
     <message>
         <source>Division (%1) by zero (%2) is undefined.</source>
-        <translation type="unfinished"></translation>
+        <translation>La divisione (%1) per zero (%2) non è definita.</translation>
     </message>
     <message>
         <source>Modulus division (%1) by zero (%2) is undefined.</source>
@@ -4833,7 +4833,7 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>It is not possible to cast from %1 to %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>Impossibile eseguire il cast da %1 a %2.</translation>
     </message>
     <message>
         <source>Casting to %1 is not possible because it is an abstract type, and can therefore never be instantiated.</source>
@@ -4841,11 +4841,11 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>It&apos;s not possible to cast the value %1 of type %2 to %3</source>
-        <translation type="unfinished"></translation>
+        <translation>Impossibile effettuare il cast di un valore %1 del tipo %2 in %3</translation>
     </message>
     <message>
         <source>Failure when casting from %1 to %2: %3</source>
-        <translation type="unfinished"></translation>
+        <translation>Problema durante il cast di %1 in %2: %3</translation>
     </message>
     <message>
         <source>A comment cannot contain %1</source>
@@ -4857,11 +4857,11 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>No comparisons can be done involving the type %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Non è possibile alcuna comparazione che includa il tipo %1.</translation>
     </message>
     <message>
         <source>Operator %1 is not available between atomic values of type %2 and %3.</source>
-        <translation type="unfinished"></translation>
+        <translation>L&apos;operatore %1 non è disponibile tra i valori atomici di tipo %2 e %3.</translation>
     </message>
     <message>
         <source>An attribute node cannot be a child of a document node. Therefore, the attribute %1 is out of place.</source>
@@ -4937,7 +4937,7 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>The first argument to %1 cannot be of type %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>Il primo argomento di %1 non può essere di tipo %2.</translation>
     </message>
     <message>
         <source>If both values have zone offsets, they must have the same zone offset. %1 and %2 are not the same.</source>
@@ -4961,7 +4961,7 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>%1 matches newline characters</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 verifica i caratteri di fine riga</translation>
     </message>
     <message>
         <source>%1 and %2 match the start and end of a line.</source>
@@ -4989,7 +4989,7 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>It will not be possible to retrieve %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Non sarà possibile recuperare %1.</translation>
     </message>
     <message>
         <source>The root node of the second argument to function %1 must be a document node. %2 is not a document node.</source>
@@ -5021,7 +5021,7 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>The item %1 did not match the required type %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>L&apos;elemento %1 non corrisponde al tipo %2 richiesto.</translation>
     </message>
     <message>
         <source>%1 is an unknown schema type.</source>
@@ -5125,7 +5125,7 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>An argument by name %1 has already been declared. Every argument name must be unique.</source>
-        <translation type="unfinished"></translation>
+        <translation>Un argomento con nome %1 è già stato dichiarato. Ogni nome di argomento deve essere unico.</translation>
     </message>
     <message>
         <source>The name of a variable bound in a for-expression must be different from the positional variable. Hence, the two variables named %1 collide.</source>
@@ -5249,7 +5249,7 @@ Scegli un nome diverso.</translation>
     </message>
     <message>
         <source>An attribute by name %1 has already been created.</source>
-        <translation type="unfinished"></translation>
+        <translation>Un attributo con nome %1 è già stato creato.</translation>
     </message>
     <message>
         <source>Only the Unicode Codepoint Collation is supported(%1). %2 is unsupported.</source>

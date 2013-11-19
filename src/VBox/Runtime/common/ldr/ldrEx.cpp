@@ -165,15 +165,6 @@ int rtldrOpenWithReader(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch
 }
 
 
-/**
- * Gets the size of the loaded image.
- * This is only supported for modules which has been opened using RTLdrOpen() and RTLdrOpenBits().
- *
- * @returns image size (in bytes).
- * @returns ~(size_t)0 on if not opened by RTLdrOpen().
- * @param   hLdrMod     Handle to the loader module.
- * @remark  Not supported for RTLdrLoad() images.
- */
 RTDECL(size_t) RTLdrSize(RTLDRMOD hLdrMod)
 {
     LogFlow(("RTLdrSize: hLdrMod=%RTldrm\n", hLdrMod));
@@ -546,4 +537,35 @@ RTDECL(int) RTLdrRvaToSegOffset(RTLDRMOD hLdrMod, RTLDRADDR Rva, uint32_t *piSeg
     return rc;
 }
 RT_EXPORT_SYMBOL(RTLdrRvaToSegOffset);
+
+
+/**
+ * Internal method used by the IPRT debug bits.
+ *
+ * @returns IPRT status code.
+ * @param   hLdrMod             The loader handle which executable we wish to
+ *                              read from.
+ * @param   pvBuf               The output buffer.
+ * @param   iDbgInfo            The debug info ordinal number if the request
+ *                              corresponds exactly to a debug info part from
+ *                              pfnEnumDbgInfo.  Otherwise, pass UINT32_MAX.
+ * @param   off                 Where in the executable file to start reading.
+ * @param   cb                  The number of bytes to read.
+ *
+ * @remarks Fixups will only be applied if @a iDbgInfo is specified.
+ */
+DECLHIDDEN(int) rtLdrReadAt(RTLDRMOD hLdrMod, void *pvBuf, uint32_t iDbgInfo, RTFOFF off, size_t cb)
+{
+    AssertMsgReturn(rtldrIsValid(hLdrMod), ("hLdrMod=%p\n", hLdrMod), VERR_INVALID_HANDLE);
+    PRTLDRMODINTERNAL pMod = (PRTLDRMODINTERNAL)hLdrMod;
+
+    if (iDbgInfo != UINT32_MAX)
+    {
+        AssertReturn(pMod->pOps->pfnReadDbgInfo, VERR_NOT_SUPPORTED);
+        return pMod->pOps->pfnReadDbgInfo(pMod, iDbgInfo, off, cb, pvBuf);
+    }
+
+    AssertReturn(pMod->pReader, VERR_NOT_SUPPORTED);
+    return pMod->pReader->pfnRead(pMod->pReader, pvBuf, cb, off);
+}
 

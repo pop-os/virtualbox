@@ -54,7 +54,6 @@
 
 #include <VBox/VBoxVideoGuest.h>
 #include <VBox/VBoxVideo.h>
-#include <iprt/asm-math.h>
 
 #ifdef DEBUG
 
@@ -98,14 +97,13 @@ if (!(expr)) \
 #define BOOL_STR(a) ((a) ? "TRUE" : "FALSE")
 
 #include <VBox/Hardware/VBoxVideoVBE.h>
-#include <VBox/VMMDev.h>
 
 #include "xf86str.h"
 #include "xf86Cursor.h"
 
-#define VBOX_VERSION		4000  /* Why? */
-#define VBOX_NAME		      "VBoxVideo"
-#define VBOX_DRIVER_NAME	  "vboxvideo"
+#define VBOX_VERSION            4000  /* Why? */
+#define VBOX_NAME               "VBoxVideo"
+#define VBOX_DRIVER_NAME        "vboxvideo"
 
 #ifdef VBOX_DRI
 /* DRI support */
@@ -139,7 +137,6 @@ typedef struct VBOXRec
     EntityInfoPtr pEnt;
 #ifdef PCIACCESS
     struct pci_device *pciInfo;
-    struct pci_device *vmmDevInfo;
 #else
     pciVideoPtr pciInfo;
     PCITAG pciTag;
@@ -258,15 +255,14 @@ static inline uint16_t vboxBPP(ScrnInfoPtr pScrn)
 /** Calculate the scan line length for a display width */
 static inline int32_t vboxLineLength(ScrnInfoPtr pScrn, int32_t cDisplayWidth)
 {
-    uint64_t cbLine = ((uint64_t)cDisplayWidth * vboxBPP(pScrn) / 8 + 3) & ~3;
+    uint32_t cbLine = (cDisplayWidth * vboxBPP(pScrn) / 8 + 3) & ~3;
     return cbLine < INT32_MAX ? cbLine : INT32_MAX;
 }
 
 /** Calculate the display pitch from the scan line length */
 static inline int32_t vboxDisplayPitch(ScrnInfoPtr pScrn, int32_t cbLine)
 {
-    /* take care to reference __udivdi3! */
-    return ASMDivU64ByU32RetU32((uint64_t)cbLine * 8, vboxBPP(pScrn));
+    return cbLine * 8 / vboxBPP(pScrn);
 }
 
 extern void vboxClearVRAM(ScrnInfoPtr pScrn, int32_t cNewX, int32_t cNewY);

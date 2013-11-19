@@ -25,6 +25,7 @@ udev_write_vboxdrv() {
     VBOXDRV_MODE="$2"
 
     echo "KERNEL==\"vboxdrv\", NAME=\"vboxdrv\", OWNER=\"root\", GROUP=\"$VBOXDRV_GRP\", MODE=\"$VBOXDRV_MODE\""
+    echo "KERNEL==\"vboxdrvu\", NAME=\"vboxdrvu\", OWNER=\"root\", GROUP=\"root\", MODE=\"0666\""
     echo "KERNEL==\"vboxnetctl\", NAME=\"vboxnetctl\", OWNER=\"root\", GROUP=\"$VBOXDRV_GRP\", MODE=\"$VBOXDRV_MODE\""
 }
 
@@ -88,7 +89,7 @@ install_udev() {
                            "$USB_GROUP" "$NO_INSTALL" "$udev_out"
     fi
     # Remove old udev description file
-    rm -f /etc/udev/rules.d/60-vboxdrv.rules 2> /dev/null
+    rm -f /etc/udev/rules.d/10-vboxdrv.rules 2> /dev/null
 }
 
 # Add a unit test if/when needed following the same pattern as for
@@ -110,7 +111,7 @@ install_create_usb_node_for_sysfs() {
 }
 
 # install_device_node_setup contains some aliases for unit testing purposes.  # Set them to their normal values here.
-udev_rule_file=/etc/udev/rules.d/10-vboxdrv.rules # Set this to /dev/null
+udev_rule_file=/etc/udev/rules.d/60-vboxdrv.rules # Set this to /dev/null
                                                   # for unit testing
 sysfs_usb_devices="/sys/bus/usb/devices/*"
 
@@ -162,6 +163,8 @@ set_selinux_permissions() {
         chcon -t java_exec_t    "$INSTALLATION_DIR"/VBoxHeadless \
             > /dev/null 2>&1
         chcon -t java_exec_t    "$INSTALLATION_DIR"/VBoxNetDHCP \
+            > /dev/null 2>&1
+        chcon -t java_exec_t    "$INSTALLATION_DIR"/VBoxNetNAT \
             > /dev/null 2>&1
         chcon -t java_exec_t    "$INSTALLATION_DIR"/VBoxExtPackHelperApp \
             > /dev/null 2>&1

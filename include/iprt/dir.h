@@ -272,8 +272,8 @@ typedef struct RTDIRENTRY
      * RTDIRENTRYTYPE_UNKNOWN is a common return value here since not all file
      * systems (or Unixes) stores the type of a directory entry and instead
      * expects the user to use stat() to get it.  So, when you see this you
-     * should use RTPathQueryInfo to get the type, or if if you're lazy, use
-     * RTDirReadEx. */
+     * should use RTDirQueryUnknownType or RTDirQueryUnknownTypeEx to get the type,
+     * or if if you're lazy, use RTDirReadEx. */
     RTDIRENTRYTYPE  enmType;
     /** The length of the filename, excluding the terminating nul character. */
     uint16_t        cbName;
@@ -284,6 +284,8 @@ typedef struct RTDIRENTRY
 #pragma pack()
 /** Pointer to a directory entry. */
 typedef RTDIRENTRY *PRTDIRENTRY;
+/** Pointer to a const directory entry. */
+typedef RTDIRENTRY const *PCRTDIRENTRY;
 
 
 /**
@@ -313,6 +315,8 @@ typedef struct RTDIRENTRYEX
 #pragma pack()
 /** Pointer to a directory entry. */
 typedef RTDIRENTRYEX *PRTDIRENTRYEX;
+/** Pointer to a const directory entry. */
+typedef RTDIRENTRYEX const *PCRTDIRENTRYEX;
 
 
 /**
@@ -409,6 +413,55 @@ RTDECL(int) RTDirRead(PRTDIR pDir, PRTDIRENTRY pDirEntry, size_t *pcbDirEntry);
  */
 RTDECL(int) RTDirReadEx(PRTDIR pDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntry, RTFSOBJATTRADD enmAdditionalAttribs, uint32_t fFlags);
 
+/**
+ * Resolves RTDIRENTRYTYPE_UNKNOWN values returned by RTDirRead.
+ *
+ * @returns IPRT status code (see RTPathQueryInfo).
+ * @param   pszComposedName The path to the directory entry. The caller must
+ *                          compose this, it's NOT sufficient to pass
+ *                          RTDIRENTRY::szName!
+ * @param   fFollowSymlinks Whether to follow symbolic links or not.
+ * @param   penmType        Pointer to the RTDIRENTRY::enmType member.  If this
+ *                          is not RTDIRENTRYTYPE_UNKNOWN and, if
+ *                          @a fFollowSymlinks is false, not
+ *                          RTDIRENTRYTYPE_SYMLINK, the function will return
+ *                          immediately without doing anything.  Otherwise it
+ *                          will use RTPathQueryInfo to try figure out the
+ *                          correct value.  On failure, this will be unchanged.
+ */
+RTDECL(int) RTDirQueryUnknownType(const char *pszComposedName, bool fFollowSymlinks, RTDIRENTRYTYPE *penmType);
+
+/**
+ * Resolves RTDIRENTRYTYPE_UNKNOWN values returned by RTDirRead, extended
+ * version.
+ *
+ * @returns IPRT status code (see RTPathQueryInfo).
+ * @param   pszComposedName The path to the directory entry. The caller must
+ *                          compose this, it's NOT sufficient to pass
+ *                          RTDIRENTRY::szName!
+ * @param   fFollowSymlinks Whether to follow symbolic links or not.
+ * @param   penmType        Pointer to the RTDIRENTRY::enmType member or
+ *                          similar.  Will NOT be checked on input.
+ * @param   pObjInfo        The object info buffer to use with RTPathQueryInfo.
+ */
+RTDECL(int) RTDirQueryUnknownTypeEx(const char *pszComposedName, bool fFollowSymlinks, RTDIRENTRYTYPE *penmType, PRTFSOBJINFO pObjInfo);
+
+/**
+ * Checks if the directory entry returned by RTDirRead is '.', '..' or similar.
+ *
+ * @returns true / false.
+ * @param   pDirEntry       The directory entry to check.
+ */
+RTDECL(bool) RTDirEntryIsStdDotLink(PRTDIRENTRY pDirEntry);
+
+/**
+ * Checks if the directory entry returned by RTDirReadEx is '.', '..' or
+ * similar.
+ *
+ * @returns true / false.
+ * @param   pDirEntryEx     The extended directory entry to check.
+ */
+RTDECL(bool) RTDirEntryExIsStdDotLink(PCRTDIRENTRYEX pDirEntryEx);
 
 /**
  * Renames a file.

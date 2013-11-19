@@ -29,7 +29,8 @@
 class Console;
 struct VIDEORECCONTEXT;
 
-enum {
+enum
+{
     ResizeStatus_Void,
     ResizeStatus_InProgress,
     ResizeStatus_UpdateDisplayData
@@ -55,7 +56,7 @@ typedef struct _DISPLAYFBINFO
     uint32_t u32LineSize;
 
     uint16_t flags;
-    
+
     /* for saving the rectangles arrived during fb resize is in progress. */
     PRTRECT mpSavedVisibleRegion;
     uint32_t mcSavedVisibleRegion;
@@ -67,7 +68,8 @@ typedef struct _DISPLAYFBINFO
     /* The Framebuffer has default format and must be updates immediately. */
     bool fDefaultFormat;
 
-    struct {
+    struct
+    {
         /* The rectangle that includes all dirty rectangles. */
         int32_t xLeft;
         int32_t xRight;
@@ -75,7 +77,8 @@ typedef struct _DISPLAYFBINFO
         int32_t yBottom;
     } dirtyRect;
 
-    struct {
+    struct
+    {
         bool fPending;
         ULONG pixelFormat;
         void *pvVRAM;
@@ -89,7 +92,8 @@ typedef struct _DISPLAYFBINFO
 #ifdef VBOX_WITH_HGSMI
     bool fVBVAEnabled;
     uint32_t cVBVASkipUpdate;
-    struct {
+    struct
+    {
        int32_t xLeft;
        int32_t yTop;
        int32_t xRight;
@@ -99,10 +103,20 @@ typedef struct _DISPLAYFBINFO
 #endif /* VBOX_WITH_HGSMI */
 } DISPLAYFBINFO;
 
+class DisplayMouseInterface
+{
+public:
+    virtual int getScreenResolution(uint32_t cScreen, ULONG *pcx,
+                                    ULONG *pcy, ULONG *pcBPP, LONG *pXOrigin, LONG *pYOrigin) = 0;
+    virtual void getFramebufferDimensions(int32_t *px1, int32_t *py1,
+                                          int32_t *px2, int32_t *py2) = 0;
+};
+
 class ATL_NO_VTABLE Display :
     public VirtualBoxBase,
     VBOX_SCRIPTABLE_IMPL(IEventListener),
-    VBOX_SCRIPTABLE_IMPL(IDisplay)
+    VBOX_SCRIPTABLE_IMPL(IDisplay),
+    public DisplayMouseInterface
 {
 public:
 
@@ -117,20 +131,20 @@ public:
         COM_INTERFACE_ENTRY(IEventListener)
     END_COM_MAP()
 
-    DECLARE_EMPTY_CTOR_DTOR (Display)
+    DECLARE_EMPTY_CTOR_DTOR(Display)
 
     HRESULT FinalConstruct();
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init (Console *aParent);
+    HRESULT init(Console *aParent);
     void uninit();
-    int  registerSSM(PVM pVM);
+    int  registerSSM(PUVM pUVM);
 
     // public methods only for internal purposes
-    int handleDisplayResize (unsigned uScreenId, uint32_t bpp, void *pvVRAM, uint32_t cbLine, int w, int h, uint16_t flags);
-    void handleDisplayUpdateLegacy (int x, int y, int cx, int cy);
-    void handleDisplayUpdate (unsigned uScreenId, int x, int y, int w, int h);
+    int  handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRAM, uint32_t cbLine, int w, int h, uint16_t flags);
+    void handleDisplayUpdateLegacy(int x, int y, int cx, int cy);
+    void handleDisplayUpdate(unsigned uScreenId, int x, int y, int w, int h);
 #ifdef VBOX_WITH_VIDEOHWACCEL
     void handleVHWACommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVHWACMD pCommand);
 #endif
@@ -145,24 +159,30 @@ public:
     {
         return maFramebuffers[VBOX_VIDEO_PRIMARY_SCREEN].pFramebuffer;
     }
-    void getFramebufferDimensions(int32_t *px1, int32_t *py1, int32_t *px2,
-                                  int32_t *py2);
+    void getFramebufferDimensions(int32_t *px1, int32_t *py1, int32_t *px2, int32_t *py2);
+    int getScreenResolution(uint32_t cScreen, ULONG *pcx, ULONG *pcy,
+                            ULONG *pcBPP, LONG *pXOrigin, LONG *pYOrigin)
+    {
+        return GetScreenResolution(cScreen, pcx, pcy, pcBPP, pXOrigin, pYOrigin);
+    }
 
-    int handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect);
-    int handleQueryVisibleRegion(uint32_t *pcRect, PRTRECT pRect);
+    int  handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect);
+    int  handleQueryVisibleRegion(uint32_t *pcRect, PRTRECT pRect);
 
-    int VideoAccelEnable (bool fEnable, VBVAMEMORY *pVbvaMemory);
-    void VideoAccelFlush (void);
+    int  VideoAccelEnable(bool fEnable, VBVAMEMORY *pVbvaMemory);
+    void VideoAccelFlush(void);
+    bool VideoAccelAllowed(void);
+    void VideoAccelVRDP(bool fEnable);
 
-    bool VideoAccelAllowed (void);
-
-    void VideoAccelVRDP (bool fEnable);
+    int  VideoCaptureStart();
+    void VideoCaptureStop();
+    int  VideoCaptureEnableScreens(ComSafeArrayIn(BOOL, aScreens));
 
     // IEventListener methods
     STDMETHOD(HandleEvent)(IEvent * aEvent);
 
     // IDisplay methods
-    STDMETHOD(GetScreenResolution)(ULONG aScreenId, ULONG *aWidth, ULONG *aHeight, ULONG *aBitsPerPixel);
+    STDMETHOD(GetScreenResolution)(ULONG aScreenId, ULONG *aWidth, ULONG *aHeight, ULONG *aBitsPerPixel, LONG *aXOrigin, LONG *aYOrigin);
     STDMETHOD(SetFramebuffer)(ULONG aScreenId, IFramebuffer *aFramebuffer);
     STDMETHOD(GetFramebuffer)(ULONG aScreenId, IFramebuffer **aFramebuffer, LONG *aXOrigin, LONG *aYOrigin);
     STDMETHOD(SetVideoModeHint)(ULONG aDisplay, BOOL aEnabled, BOOL aChangeOrigin, LONG aOriginX, LONG aOriginY, ULONG aWidth, ULONG aHeight, ULONG aBitsPerPixel);
@@ -211,8 +231,8 @@ private:
     static DECLCALLBACK(void)  displayCrHgsmiCommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd);
     static DECLCALLBACK(void)  displayCrHgsmiControlProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CTL pCtl, uint32_t cbCtl);
 
-    static DECLCALLBACK(void) displayCrHgsmiCommandCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext);
-    static DECLCALLBACK(void) displayCrHgsmiControlCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext);
+    static DECLCALLBACK(void)  displayCrHgsmiCommandCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext);
+    static DECLCALLBACK(void)  displayCrHgsmiControlCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext);
 #endif
 
 #ifdef VBOX_WITH_HGSMI
@@ -224,7 +244,6 @@ private:
     static DECLCALLBACK(int)   displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, const PVBVAINFOVIEW pView, const PVBVAINFOSCREEN pScreen, void *pvVRAM);
     static DECLCALLBACK(int)   displayVBVAMousePointerShape(PPDMIDISPLAYCONNECTOR pInterface, bool fVisible, bool fAlpha, uint32_t xHot, uint32_t yHot, uint32_t cx, uint32_t cy, const void *pvShape);
 #endif
-
 
     static DECLCALLBACK(void)  displaySSMSaveScreenshot(PSSMHANDLE pSSM, void *pvUser);
     static DECLCALLBACK(int)   displaySSMLoadScreenshot(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32_t uPass);
@@ -242,15 +261,13 @@ private:
     unsigned mcMonitors;
     DISPLAYFBINFO maFramebuffers[SchemaDefs::MaxGuestMonitors];
 
-    bool mFramebufferOpened;
-
     /* arguments of the last handleDisplayResize() call */
-    void *mLastAddress;
-    uint32_t mLastBytesPerLine;
-    uint32_t mLastBitsPerPixel;
-    int mLastWidth;
-    int mLastHeight;
-    uint16_t mLastFlags;
+    void       *mLastAddress;
+    uint32_t    mLastBytesPerLine;
+    uint32_t    mLastBitsPerPixel;
+    int         mLastWidth;
+    int         mLastHeight;
+    uint16_t    mLastFlags;
 
     VBVAMEMORY *mpVbvaMemory;
     bool        mfVideoAccelEnabled;
@@ -264,61 +281,57 @@ private:
     bool        mfMachineRunning;
 
     uint8_t    *mpu8VbvaPartial;
-    uint32_t   mcbVbvaPartial;
+    uint32_t    mcbVbvaPartial;
 
 #ifdef VBOX_WITH_CRHGSMI
     /* for fast host hgcm calls */
     HGCMCVSHANDLE mhCrOglSvc;
 #endif
 
-    bool vbvaFetchCmd (VBVACMDHDR **ppHdr, uint32_t *pcbCmd);
-    void vbvaReleaseCmd (VBVACMDHDR *pHdr, int32_t cbCmd);
+    bool vbvaFetchCmd(VBVACMDHDR **ppHdr, uint32_t *pcbCmd);
+    void vbvaReleaseCmd(VBVACMDHDR *pHdr, int32_t cbCmd);
 
-    void handleResizeCompletedEMT (void);
+    void handleResizeCompletedEMT(void);
 
     RTCRITSECT mVBVALock;
     volatile uint32_t mfu32PendingVideoAccelDisable;
 
-    int vbvaLock(void);
+    int  vbvaLock(void);
     void vbvaUnlock(void);
-    
+
     RTCRITSECT mSaveSeamlessRectLock;
-    int SaveSeamlessRectLock(void);
+    int  SaveSeamlessRectLock(void);
     void SaveSeamlessRectUnLock(void);
-    
+
 public:
-    static int displayTakeScreenshotEMT(Display *pDisplay, ULONG aScreenId, uint8_t **ppu8Data, size_t *pcbData, uint32_t *pu32Width, uint32_t *pu32Height);
+    static int  displayTakeScreenshotEMT(Display *pDisplay, ULONG aScreenId, uint8_t **ppu8Data, size_t *pcbData, uint32_t *pu32Width, uint32_t *pu32Height);
 
 private:
     static void InvalidateAndUpdateEMT(Display *pDisplay, unsigned uId, bool fUpdateAll);
-    static int drawToScreenEMT(Display *pDisplay, ULONG aScreenId, BYTE *address, ULONG x, ULONG y, ULONG width, ULONG height);
+    static int  drawToScreenEMT(Display *pDisplay, ULONG aScreenId, BYTE *address, ULONG x, ULONG y, ULONG width, ULONG height);
 
-    int videoAccelRefreshProcess(void);
+    int  videoAccelRefreshProcess(void);
 
     /* Functions run under VBVA lock. */
-    int videoAccelEnable (bool fEnable, VBVAMEMORY *pVbvaMemory);
-    void videoAccelFlush (void);
+    int  videoAccelEnable(bool fEnable, VBVAMEMORY *pVbvaMemory);
+    void videoAccelFlush(void);
 
 #ifdef VBOX_WITH_HGSMI
     volatile uint32_t mu32UpdateVBVAFlags;
 #endif
 
 #ifdef VBOX_WITH_VPX
-    VIDEORECCONTEXT *mpVideoRecContext;
+    VIDEORECCONTEXT *mpVideoRecCtx;
+    bool maVideoRecEnabled[SchemaDefs::MaxGuestMonitors];
 #endif
 };
 
-void gdImageCopyResampled (uint8_t *dst, uint8_t *src,
-                           int dstX, int dstY,
-                           int srcX, int srcY,
-                           int dstW, int dstH, int srcW, int srcH);
+void gdImageCopyResampled(uint8_t *dst, uint8_t *src,
+                          int dstX, int dstY, int srcX, int srcY,
+                          int dstW, int dstH, int srcW, int srcH);
 
-
-void BitmapScale32 (uint8_t *dst,
-                        int dstW, int dstH,
-                        const uint8_t *src,
-                        int iDeltaLine,
-                        int srcW, int srcH);
+void BitmapScale32(uint8_t *dst, int dstW, int dstH,
+                   const uint8_t *src, int iDeltaLine, int srcW, int srcH);
 
 int DisplayMakePNG(uint8_t *pu8Data, uint32_t cx, uint32_t cy,
                    uint8_t **ppu8PNG, uint32_t *pcbPNG, uint32_t *pcxPNG, uint32_t *pcyPNG,

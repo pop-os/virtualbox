@@ -1,10 +1,10 @@
-/* $Revision: 86251 $ */
+/* $Id: SUPDrvInternal.h $ */
 /** @file
  * VirtualBox Support Driver - Internal header.
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -199,6 +199,16 @@
     (   VALID_PTR(pSession) \
      && pSession->u32Cookie == BIRD_INV)
 
+/**
+ * Validates a device extension pointer.
+ *
+ * @returns true/false accordingly.
+ * @param   pDevExt     The device extension.
+ */
+#define SUP_IS_DEVEXT_VALID(pDevExt) \
+    (   VALID_PTR(pDevExt)\
+     && pDevExt->u32Cookie == BIRD)
+
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
@@ -378,9 +388,9 @@ typedef struct SUPDRVOBJ
 } SUPDRVOBJ, *PSUPDRVOBJ;
 
 /** Magic number for SUPDRVOBJ::u32Magic. (Dame Agatha Mary Clarissa Christie). */
-#define SUPDRVOBJ_MAGIC             0x18900915
+#define SUPDRVOBJ_MAGIC             UINT32_C(0x18900915)
 /** Dead number magic for SUPDRVOBJ::u32Magic. */
-#define SUPDRVOBJ_MAGIC_DEAD        0x19760112
+#define SUPDRVOBJ_MAGIC_DEAD        UINT32_C(0x19760112)
 
 /**
  * The per-session object usage record.
@@ -406,11 +416,15 @@ typedef struct SUPDRVSESSION
     PSUPDRVDEVEXT                   pDevExt;
     /** Session Cookie. */
     uint32_t                        u32Cookie;
+    /** Set if is an unrestricted session, clear if restricted. */
+    bool                            fUnrestricted;
+    /* Reference counter. */
+    uint32_t volatile               cRefs;
 
     /** The VM associated with the session. */
     PVM                             pVM;
     /** Handle table for IPRT semaphore wrapper APIs.
-     * Programmable from R0 and R3. */
+     * This takes care of its own locking in an IRQ safe manner. */
     RTHANDLETABLE                   hHandleTable;
     /** Load usage records. (protected by SUPDRVDEVEXT::mtxLdr) */
     PSUPDRVLDRUSAGE volatile        pLdrUsage;
@@ -476,18 +490,21 @@ typedef struct SUPDRVSESSION
  */
 typedef struct SUPDRVDEVEXT
 {
-    /** Spinlock to serialize the initialization, usage counting and objects. */
+    /** Global cookie. */
+    uint32_t                        u32Cookie;
+    /** The actual size of SUPDRVSESSION. (SUPDRV_AGNOSTIC) */
+    uint32_t                        cbSession;
+
+    /** Spinlock to serialize the initialization, usage counting and objects.
+     * This is IRQ safe because we want to be able signal semaphores from the
+     * special HM context (and later maybe interrupt handlers), so we must be able
+     * to reference and dereference handles when IRQs are disabled. */
     RTSPINLOCK                      Spinlock;
 
     /** List of registered objects. Protected by the spinlock. */
     PSUPDRVOBJ volatile             pObjs;
     /** List of free object usage records. */
     PSUPDRVUSAGE volatile           pUsageFree;
-
-    /** Global cookie. */
-    uint32_t                        u32Cookie;
-    /** The actual size of SUPDRVSESSION. (SUPDRV_AGNOSTIC) */
-    uint32_t                        cbSession;
 
     /** Loader mutex.
      * This protects pvVMMR0, pvVMMR0Entry, pImages and SUPDRVSESSION::pLdrUsage. */
@@ -529,7 +546,9 @@ typedef struct SUPDRVDEVEXT
 #else
     RTSEMFASTMUTEX                  mtxGip;
 #endif
-    /** GIP spinlock protecting GIP members during Mp events. */
+    /** GIP spinlock protecting GIP members during Mp events.
+     * This is IRQ safe since be may get MP callbacks in contexts where IRQs are
+     * disabled (on some platforms). */
     RTSPINLOCK                      hGipSpinlock;
     /** Pointer to the Global Info Page (GIP). */
     PSUPGLOBALINFOPAGE              pGip;
@@ -674,9 +693,9 @@ int  VBOXCALL   supdrvIOCtlFast(uintptr_t uIOCtl, VMCPUID idCpu, PSUPDRVDEVEXT p
 int  VBOXCALL   supdrvIDC(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPDRVIDCREQHDR pReqHdr);
 int  VBOXCALL   supdrvInitDevExt(PSUPDRVDEVEXT pDevExt, size_t cbSession);
 void VBOXCALL   supdrvDeleteDevExt(PSUPDRVDEVEXT pDevExt);
-int  VBOXCALL   supdrvCreateSession(PSUPDRVDEVEXT pDevExt, bool fUser, PSUPDRVSESSION *ppSession);
-void VBOXCALL   supdrvCloseSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
-void VBOXCALL   supdrvCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
+int  VBOXCALL   supdrvCreateSession(PSUPDRVDEVEXT pDevExt, bool fUser, bool fUnrestricted,  PSUPDRVSESSION *ppSession);
+uint32_t VBOXCALL supdrvSessionRetain(PSUPDRVSESSION pSession);
+uint32_t VBOXCALL supdrvSessionRelease(PSUPDRVSESSION pSession);
 
 int  VBOXCALL   supdrvTracerInit(PSUPDRVDEVEXT pDevExt);
 void VBOXCALL   supdrvTracerTerm(PSUPDRVDEVEXT pDevExt);

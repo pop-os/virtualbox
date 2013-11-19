@@ -40,18 +40,20 @@
 #include "IOMInternal.h"
 #include "REMInternal.h"
 #include "SSMInternal.h"
-#include "HWACCMInternal.h"
-#include "PATMInternal.h"
+#include "HMInternal.h"
 #include "VMMInternal.h"
 #include "DBGFInternal.h"
 #include "STAMInternal.h"
 #include "VMInternal.h"
-#include "CSAMInternal.h"
 #include "EMInternal.h"
 #include "IEMInternal.h"
 #include "REMInternal.h"
 #include "../VMMR0/GMMR0Internal.h"
 #include "../VMMR0/GVMMR0Internal.h"
+#ifdef VBOX_WITH_RAW_MODE
+# include "CSAMInternal.h"
+# include "PATMInternal.h"
+#endif
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/uvm.h>
 #include <VBox/vmm/gvm.h>
@@ -206,18 +208,22 @@ int main()
     PRINT_OFFSET(VM, pgm);
     PRINT_OFFSET(VM, pgm.s.CritSectX);
     CHECK_PADDING_VM(64, pgm);
-    PRINT_OFFSET(VM, hwaccm);
-    CHECK_PADDING_VM(64, hwaccm);
+    PRINT_OFFSET(VM, hm);
+    CHECK_PADDING_VM(64, hm);
     CHECK_PADDING_VM(64, trpm);
     CHECK_PADDING_VM(64, selm);
     CHECK_PADDING_VM(64, mm);
     CHECK_PADDING_VM(64, pdm);
+    PRINT_OFFSET(VM, pdm.s.CritSect);
     CHECK_PADDING_VM(64, iom);
+#ifdef VBOX_WITH_RAW_MODE
     CHECK_PADDING_VM(64, patm);
     CHECK_PADDING_VM(64, csam);
+#endif
     CHECK_PADDING_VM(64, em);
     /*CHECK_PADDING_VM(64, iem);*/
     CHECK_PADDING_VM(64, tm);
+    PRINT_OFFSET(VM, tm.s.VirtualSyncLock);
     CHECK_PADDING_VM(64, dbgf);
     CHECK_PADDING_VM(64, ssm);
     CHECK_PADDING_VM(64, rem);
@@ -226,7 +232,7 @@ int main()
 
     PRINT_OFFSET(VMCPU, cpum);
     CHECK_PADDING_VMCPU(64, cpum);
-    CHECK_PADDING_VMCPU(64, hwaccm);
+    CHECK_PADDING_VMCPU(64, hm);
     CHECK_PADDING_VMCPU(64, em);
     CHECK_PADDING_VMCPU(64, iem);
     CHECK_PADDING_VMCPU(64, trpm);
@@ -268,7 +274,7 @@ int main()
     CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].cpum.s.Hyper, 64);
     CHECK_MEMBER_ALIGNMENT(VM, aCpus[1].cpum.s.Hyper, 64);
 #ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
-    CHECK_MEMBER_ALIGNMENT(VM, cpum.s.pvApicBase, 8);
+    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].cpum.s.pvApicBase, 8);
 #endif
 
     CHECK_MEMBER_ALIGNMENT(VMCPU, vmm.s.u64CallRing3Arg, 8);
@@ -347,6 +353,7 @@ int main()
     CHECK_PADDING(PDMDRVINS, Internal, 1);
 
     CHECK_PADDING2(PDMCRITSECT);
+    CHECK_PADDING2(PDMCRITSECTRW);
 
     /* pgm */
 #if defined(VBOX_WITH_2X_4GB_ADDR_SPACE)  || defined(VBOX_WITH_RAW_MODE)
@@ -378,7 +385,9 @@ int main()
     /* misc */
     CHECK_PADDING3(EMCPU, u.FatalLongJump, u.achPaddingFatalLongJump);
     CHECK_SIZE_ALIGNMENT(VMMR0JMPBUF, 8);
+#ifdef VBOX_WITH_RAW_MODE
     CHECK_SIZE_ALIGNMENT(PATCHINFO, 8);
+#endif
 #if 0
     PRINT_OFFSET(VM, fForcedActions);
     PRINT_OFFSET(VM, StatQemuToGC);
@@ -393,15 +402,16 @@ int main()
     CHECK_MEMBER_ALIGNMENT(PDM, CritSect, sizeof(uintptr_t));
     CHECK_MEMBER_ALIGNMENT(MMHYPERHEAP, Lock, sizeof(uintptr_t));
 
-    /* hwaccm - 32-bit gcc won't align uint64_t naturally, so check. */
-    CHECK_MEMBER_ALIGNMENT(HWACCM, u64RegisterMask, 8);
-    CHECK_MEMBER_ALIGNMENT(HWACCM, vmx.hostCR4, 8);
-    CHECK_MEMBER_ALIGNMENT(HWACCM, vmx.msr.feature_ctrl, 8);
-    CHECK_MEMBER_ALIGNMENT(HWACCM, StatTPRPatchSuccess, 8);
-    CHECK_MEMBER_ALIGNMENT(HWACCMCPU, StatEntry, 8);
-    CHECK_MEMBER_ALIGNMENT(HWACCMCPU, vmx.HCPhysVMCS, sizeof(RTHCPHYS));
-    CHECK_MEMBER_ALIGNMENT(HWACCMCPU, vmx.proc_ctls, 8);
-    CHECK_MEMBER_ALIGNMENT(HWACCMCPU, Event.intInfo, 8);
+    /* hm - 32-bit gcc won't align uint64_t naturally, so check. */
+    CHECK_MEMBER_ALIGNMENT(HM, uMaxAsid, 8);
+    CHECK_MEMBER_ALIGNMENT(HM, vmx.u64HostCr4, 8);
+    CHECK_MEMBER_ALIGNMENT(HM, vmx.Msrs.u64FeatureCtrl, 8);
+    CHECK_MEMBER_ALIGNMENT(HM, StatTprPatchSuccess, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, StatEntry, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.HCPhysVmcs, sizeof(RTHCPHYS));
+    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.u32PinCtls, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, DisState, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, Event.u64IntInfo, 8);
 
     /* Make sure the set is large enough and has the correct size. */
     CHECK_SIZE(VMCPUSET, 32);

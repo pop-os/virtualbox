@@ -101,11 +101,11 @@ int main(int argc, char **argv)
                 break;
 
             case 'h':
-                RTPrintf("%s [mod1 [mod2...]]\n");
+                RTPrintf("%s [mod1 [mod2...]]\n", argv[0]);
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 83687 $\n");
+                RTPrintf("$Revision: 83575 $\n");
                 return 0;
 
             default:

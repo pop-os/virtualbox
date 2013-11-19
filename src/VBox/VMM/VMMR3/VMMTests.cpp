@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,7 @@
 #include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/cpum.h>
 #include <VBox/dbg.h>
+#include <VBox/vmm/hm.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/trpm.h>
 #include <VBox/vmm/selm.h>
@@ -33,7 +34,6 @@
 #include <VBox/vmm/vm.h>
 #include <VBox/err.h>
 #include <VBox/param.h>
-#include <VBox/vmm/hwaccm.h>
 
 #include <iprt/assert.h>
 #include <iprt/asm.h>
@@ -69,6 +69,7 @@ static int vmmR3DoGCTest(PVM pVM, VMMGCOPERATION enmTestcase, unsigned uVariatio
     if (RT_FAILURE(rc))
         return rc;
 
+    Log(("vmmR3DoGCTest: %d %#x\n", enmTestcase, uVariation));
     CPUMSetHyperState(pVCpu, pVM->vmm.s.pfnCallTrampolineRC, pVCpu->vmm.s.pbEMTStackBottomRC, 0, 0);
     vmmR3TestClearStack(pVCpu);
     CPUMPushHyper(pVCpu, uVariation);
@@ -78,6 +79,23 @@ static int vmmR3DoGCTest(PVM pVM, VMMGCOPERATION enmTestcase, unsigned uVariatio
     CPUMPushHyper(pVCpu, RCPtrEP);                /* what to call */
     Assert(CPUMGetHyperCR3(pVCpu) && CPUMGetHyperCR3(pVCpu) == PGMGetHyperCR3(pVCpu));
     rc = SUPR3CallVMMR0Fast(pVM->pVMR0, VMMR0_DO_RAW_RUN, 0);
+
+#if 1
+    /* flush the raw-mode logs. */
+# ifdef LOG_ENABLED
+    PRTLOGGERRC pLogger = pVM->vmm.s.pRCLoggerR3;
+    if (   pLogger
+        && pLogger->offScratch > 0)
+        RTLogFlushRC(NULL, pLogger);
+# endif
+# ifdef VBOX_WITH_RC_RELEASE_LOGGING
+    PRTLOGGERRC pRelLogger = pVM->vmm.s.pRCRelLoggerR3;
+    if (RT_UNLIKELY(pRelLogger && pRelLogger->offScratch > 0))
+        RTLogFlushRC(RTLogRelDefaultInstance(), pRelLogger);
+# endif
+#endif
+
+    Log(("vmmR3DoGCTest: rc=%Rrc iLastGZRc=%Rrc\n", rc, pVCpu->vmm.s.iLastGZRc));
     if (RT_LIKELY(rc == VINF_SUCCESS))
         rc = pVCpu->vmm.s.iLastGZRc;
     return rc;
@@ -188,6 +206,7 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
 
 #ifdef VBOX_WITH_RAW_MODE
     PVMCPU pVCpu = &pVM->aCpus[0];
+    PUVM   pUVM  = pVM->pUVM;
 
 # ifdef NO_SUPCALLR0VMM
     RTPrintf("NO_SUPCALLR0VMM\n");
@@ -209,7 +228,7 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
         vmmR3DoTrapTest(pVM, 0x3, 0, VINF_EM_DBG_HYPER_ASSERTION,  0xf0f0f0f0, "vmmGCTestTrap3_FaultEIP", "int3");
         vmmR3DoTrapTest(pVM, 0x3, 1, VINF_EM_DBG_HYPER_ASSERTION,  0xf0f0f0f0, "vmmGCTestTrap3_FaultEIP", "int3 WP");
 
-# if defined(DEBUG_bird) /* guess most people would like to skip these since they write to com1. */
+# if 0//defined(DEBUG_bird) /* guess most people would like to skip these since they write to com1. */
         vmmR3DoTrapTest(pVM, 0x8, 0, VERR_TRPM_PANIC,       0x00000000, "vmmGCTestTrap8_FaultEIP", "#DF [#PG]");
         SELMR3Relocate(pVM); /* this resets the busy flag of the Trap 08 TSS */
         bool f;
@@ -244,34 +263,34 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
         if (rc != VINF_SUCCESS)
         {
             RTPrintf("VMM: Nop test failed, rc=%Rrc not VINF_SUCCESS\n", rc);
-            return rc;
+            return RT_FAILURE(rc) ? rc : VERR_IPE_UNEXPECTED_INFO_STATUS;
         }
 
         /* a harmless breakpoint */
         RTPrintf("VMM: testing hardware bp at 0x10000 (not hit)\n");
         DBGFADDRESS Addr;
-        DBGFR3AddrFromFlat(pVM, &Addr, 0x10000);
+        DBGFR3AddrFromFlat(pUVM, &Addr, 0x10000);
         RTUINT iBp0;
-        rc = DBGFR3BpSetReg(pVM, &Addr, 0,  ~(uint64_t)0, X86_DR7_RW_EO, 1, &iBp0);
+        rc = DBGFR3BpSetReg(pUVM, &Addr, 0,  ~(uint64_t)0, X86_DR7_RW_EO, 1, &iBp0);
         AssertReleaseRC(rc);
         rc = vmmR3DoGCTest(pVM, VMMGC_DO_TESTCASE_NOP, 0);
         if (rc != VINF_SUCCESS)
         {
             RTPrintf("VMM: DR0=0x10000 test failed with rc=%Rrc!\n", rc);
-            return rc;
+            return RT_FAILURE(rc) ? rc : VERR_IPE_UNEXPECTED_INFO_STATUS;
         }
 
         /* a bad one at VMMGCEntry */
         RTPrintf("VMM: testing hardware bp at VMMGCEntry (hit)\n");
-        DBGFR3AddrFromFlat(pVM, &Addr, RCPtrEP);
+        DBGFR3AddrFromFlat(pUVM, &Addr, RCPtrEP);
         RTUINT iBp1;
-        rc = DBGFR3BpSetReg(pVM, &Addr, 0,  ~(uint64_t)0, X86_DR7_RW_EO, 1, &iBp1);
+        rc = DBGFR3BpSetReg(pUVM, &Addr, 0,  ~(uint64_t)0, X86_DR7_RW_EO, 1, &iBp1);
         AssertReleaseRC(rc);
         rc = vmmR3DoGCTest(pVM, VMMGC_DO_TESTCASE_NOP, 0);
         if (rc != VINF_EM_DBG_HYPER_BREAKPOINT)
         {
             RTPrintf("VMM: DR1=VMMGCEntry test failed with rc=%Rrc! expected VINF_EM_RAW_BREAKPOINT_HYPER\n", rc);
-            return rc;
+            return RT_FAILURE(rc) ? rc : VERR_IPE_UNEXPECTED_INFO_STATUS;
         }
 
         /* resume the breakpoint */
@@ -281,7 +300,7 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
         if (rc != VINF_SUCCESS)
         {
             RTPrintf("VMM: failed to resume on hyper breakpoint, rc=%Rrc = KNOWN BUG\n", rc); /** @todo fix VMMR3ResumeHyper */
-            return rc;
+            return RT_FAILURE(rc) ? rc : VERR_IPE_UNEXPECTED_INFO_STATUS;
         }
 
         /* engage the breakpoint again and try single stepping. */
@@ -290,7 +309,7 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
         if (rc != VINF_EM_DBG_HYPER_BREAKPOINT)
         {
             RTPrintf("VMM: DR1=VMMGCEntry test failed with rc=%Rrc! expected VINF_EM_RAW_BREAKPOINT_HYPER\n", rc);
-            return rc;
+            return RT_FAILURE(rc) ? rc : VERR_IPE_UNEXPECTED_INFO_STATUS;
         }
 
         RTGCUINTREG OldPc = CPUMGetHyperEIP(pVCpu);
@@ -303,7 +322,7 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
             if (rc != VINF_EM_DBG_HYPER_STEPPED)
             {
                 RTPrintf("\nVMM: failed to step on hyper breakpoint, rc=%Rrc\n", rc);
-                return rc;
+                return RT_FAILURE(rc) ? rc : VERR_IPE_UNEXPECTED_INFO_STATUS;
             }
             RTGCUINTREG Pc = CPUMGetHyperEIP(pVCpu);
             RTPrintf("%RGr=>", Pc);
@@ -317,8 +336,8 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
         RTPrintf("ok\n");
 
         /* done, clear it */
-        if (    RT_FAILURE(DBGFR3BpClear(pVM, iBp0))
-            ||  RT_FAILURE(DBGFR3BpClear(pVM, iBp1)))
+        if (    RT_FAILURE(DBGFR3BpClear(pUVM, iBp0))
+            ||  RT_FAILURE(DBGFR3BpClear(pUVM, iBp1)))
         {
             RTPrintf("VMM: Failed to clear breakpoints!\n");
             return VERR_GENERAL_FAILURE;
@@ -327,11 +346,11 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
         if (rc != VINF_SUCCESS)
         {
             RTPrintf("VMM: NOP failed, rc=%Rrc\n", rc);
-            return rc;
+            return RT_FAILURE(rc) ? rc : VERR_IPE_UNEXPECTED_INFO_STATUS;
         }
 
         /*
-         * Interrupt masking.
+         * Interrupt masking.  Failure may indiate NMI watchdog activity.
          */
         RTPrintf("VMM: interrupt masking...\n"); RTStrmFlush(g_pStdOut); RTThreadSleep(250);
         for (i = 0; i < 10000; i++)
@@ -341,7 +360,7 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
             if (rc != VINF_SUCCESS)
             {
                 RTPrintf("VMM: Interrupt masking failed: rc=%Rrc\n", rc);
-                return rc;
+                return RT_FAILURE(rc) ? rc : VERR_IPE_UNEXPECTED_INFO_STATUS;
             }
             uint64_t Ticks = ASMReadTSC() - StartTick;
             if (Ticks < (SUPGetCpuHzFromGIP(g_pSUPGlobalInfoPage) / 10000))
@@ -474,7 +493,7 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
         }
 
 /* execute the switch. */
-VMMR3DECL(int) VMMDoHwAccmTest(PVM pVM)
+VMMR3DECL(int) VMMDoHmTest(PVM pVM)
 {
     uint32_t i;
     int      rc;
@@ -482,17 +501,19 @@ VMMR3DECL(int) VMMDoHwAccmTest(PVM pVM)
     RTGCPHYS CR3Phys = 0x0; /* fake address */
     PVMCPU   pVCpu = &pVM->aCpus[0];
 
-    if (!HWACCMR3IsAllowed(pVM))
+    if (!HMIsEnabled(pVM))
     {
         RTPrintf("VMM: Hardware accelerated test not available!\n");
         return VERR_ACCESS_DENIED;
     }
 
+#ifdef VBOX_WITH_RAW_MODE
     /*
      * These forced actions are not necessary for the test and trigger breakpoints too.
      */
     VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
     VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
+#endif
 
     /* Enable mapping of the hypervisor into the shadow page table. */
     uint32_t cb;
@@ -547,7 +568,7 @@ VMMR3DECL(int) VMMDoHwAccmTest(PVM pVM)
         {
             CPUMSetHyperState(pVCpu, pVM->vmm.s.pfnCallTrampolineRC, pVCpu->vmm.s.pbEMTStackBottomRC, 0, 0);
             CPUMPushHyper(pVCpu, 0);
-            CPUMPushHyper(pVCpu, VMMGC_DO_TESTCASE_HWACCM_NOP);
+            CPUMPushHyper(pVCpu, VMMGC_DO_TESTCASE_HM_NOP);
             CPUMPushHyper(pVCpu, pVM->pVMRC);
             CPUMPushHyper(pVCpu, 3 * sizeof(RTRCPTR));    /* stack frame size */
             CPUMPushHyper(pVCpu, RCPtrEP);                /* what to call */
@@ -564,7 +585,7 @@ VMMR3DECL(int) VMMDoHwAccmTest(PVM pVM)
             VM_FF_CLEAR(pVM, VM_FF_TM_VIRTUAL_SYNC);
 
             uint64_t TickThisStart = ASMReadTSC();
-            rc = SUPR3CallVMMR0Fast(pVM->pVMR0, VMMR0_DO_HWACC_RUN, 0);
+            rc = SUPR3CallVMMR0Fast(pVM->pVMR0, VMMR0_DO_HM_RUN, 0);
             uint64_t TickThisElapsed = ASMReadTSC() - TickThisStart;
             if (RT_FAILURE(rc))
             {

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -109,7 +109,7 @@ typedef FNPDMUSBASYNCNOTIFY *PFNPDMUSBASYNCNOTIFY;
  * @returns true if done, false if more work to be done.
  *
  * @param   pDevIns             The device instance.
- *
+ * @remarks The caller will enter the device critical section.
  * @thread  EMT(0)
  */
 typedef DECLCALLBACK(bool) FNPDMDEVASYNCNOTIFY(PPDMDEVINS pDevIns);

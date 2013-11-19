@@ -25,8 +25,6 @@
 #include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
-#include <VBox/com/EventQueue.h>
-
 #include <VBox/com/VirtualBox.h>
 
 #include <iprt/ctype.h>
@@ -66,7 +64,7 @@ static unsigned parseNum(const char *psz, unsigned cMaxNum, const char *name)
 
 unsigned int getMaxNics(IVirtualBox* vbox, IMachine* mach)
 {
-    ComPtr <ISystemProperties> info;
+    ComPtr<ISystemProperties> info;
     ChipsetType_T aChipset;
     ULONG NetworkAdapterCount = 0;
     HRESULT rc;
@@ -92,7 +90,7 @@ int handleControlVM(HandlerArg *a)
         return errorSyntax(USAGE_CONTROLVM, "Not enough parameters");
 
     /* try to find the given machine */
-    ComPtr <IMachine> machine;
+    ComPtr<IMachine> machine;
     CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
                                            machine.asOutParam()));
     if (FAILED(rc))
@@ -762,6 +760,18 @@ int handleControlVM(HandlerArg *a)
                         CHECK_ERROR_RET(adapter, COMSETTER(GenericDriver)(Bstr(a->argv[3]).raw()), 1);
                         CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Generic), 1);
                     }
+                    else if (!strcmp(a->argv[2], "natnetwork"))
+                    {
+                        if (a->argc <= 3)
+                        {
+                            errorArgument("Missing argument to '%s'", a->argv[2]);
+                            rc = E_FAIL;
+                            break;
+                        }
+                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), 1);
+                        CHECK_ERROR_RET(adapter, COMSETTER(NATNetwork)(Bstr(a->argv[3]).raw()), 1);
+                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_NATNetwork), 1);
+                    }
                     /** @todo obsolete, remove eventually */
                     else if (!strcmp(a->argv[2], "vde"))
                     {
@@ -926,16 +936,18 @@ int handleControlVM(HandlerArg *a)
             bool attach = !strcmp(a->argv[1], "usbattach");
 
             Bstr usbId = a->argv[2];
-            if (Guid(usbId).isEmpty())
+
+            Guid guid(usbId);
+            if (!guid.isValid())
             {
                 // assume address
                 if (attach)
                 {
-                    ComPtr <IHost> host;
+                    ComPtr<IHost> host;
                     CHECK_ERROR_BREAK(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
                     SafeIfaceArray <IHostUSBDevice> coll;
                     CHECK_ERROR_BREAK(host, COMGETTER(USBDevices)(ComSafeArrayAsOutParam(coll)));
-                    ComPtr <IHostUSBDevice> dev;
+                    ComPtr<IHostUSBDevice> dev;
                     CHECK_ERROR_BREAK(host, FindUSBDeviceByAddress(Bstr(a->argv[2]).raw(),
                                                                    dev.asOutParam()));
                     CHECK_ERROR_BREAK(dev, COMGETTER(Id)(usbId.asOutParam()));
@@ -944,18 +956,24 @@ int handleControlVM(HandlerArg *a)
                 {
                     SafeIfaceArray <IUSBDevice> coll;
                     CHECK_ERROR_BREAK(console, COMGETTER(USBDevices)(ComSafeArrayAsOutParam(coll)));
-                    ComPtr <IUSBDevice> dev;
+                    ComPtr<IUSBDevice> dev;
                     CHECK_ERROR_BREAK(console, FindUSBDeviceByAddress(Bstr(a->argv[2]).raw(),
                                                                       dev.asOutParam()));
                     CHECK_ERROR_BREAK(dev, COMGETTER(Id)(usbId.asOutParam()));
                 }
+            }
+            else if (guid.isZero())
+            {
+                errorArgument("Zero UUID argument '%s'", a->argv[2]);
+                rc = E_FAIL;
+                break;
             }
 
             if (attach)
                 CHECK_ERROR_BREAK(console, AttachUSBDevice(usbId.raw()));
             else
             {
-                ComPtr <IUSBDevice> dev;
+                ComPtr<IUSBDevice> dev;
                 CHECK_ERROR_BREAK(console, DetachUSBDevice(usbId.raw(),
                                                            dev.asOutParam()));
             }
@@ -1205,7 +1223,7 @@ int handleControlVM(HandlerArg *a)
                 break;
             }
             /* guest is running; update IGuest */
-            ComPtr <IGuest> pGuest;
+            ComPtr<IGuest> pGuest;
             rc = console->COMGETTER(Guest)(pGuest.asOutParam());
             if (SUCCEEDED(rc))
             {
@@ -1292,10 +1310,10 @@ int handleControlVM(HandlerArg *a)
                 break;
             }
             int vrc;
-            uint32_t displayIdx = 0;
+            uint32_t iScreen = 0;
             if (a->argc == 4)
             {
-                vrc = RTStrToUInt32Ex(a->argv[3], NULL, 0, &displayIdx);
+                vrc = RTStrToUInt32Ex(a->argv[3], NULL, 0, &iScreen);
                 if (vrc != VINF_SUCCESS)
                 {
                     errorArgument("Error parsing display number '%s'", a->argv[3]);
@@ -1312,9 +1330,10 @@ int handleControlVM(HandlerArg *a)
                 break;
             }
             ULONG width, height, bpp;
-            CHECK_ERROR_BREAK(pDisplay, GetScreenResolution(displayIdx, &width, &height, &bpp));
+            LONG xOrigin, yOrigin;
+            CHECK_ERROR_BREAK(pDisplay, GetScreenResolution(iScreen, &width, &height, &bpp, &xOrigin, &yOrigin));
             com::SafeArray<BYTE> saScreenshot;
-            CHECK_ERROR_BREAK(pDisplay, TakeScreenShotPNGToArray(displayIdx, width, height, ComSafeArrayAsOutParam(saScreenshot)));
+            CHECK_ERROR_BREAK(pDisplay, TakeScreenShotPNGToArray(iScreen, width, height, ComSafeArrayAsOutParam(saScreenshot)));
             RTFILE pngFile = NIL_RTFILE;
             vrc = RTFileOpen(&pngFile, a->argv[2], RTFILE_O_OPEN_CREATE | RTFILE_O_WRITE | RTFILE_O_TRUNCATE | RTFILE_O_DENY_ALL);
             if (RT_FAILURE(vrc))
@@ -1330,6 +1349,127 @@ int handleControlVM(HandlerArg *a)
                 rc = E_FAIL;
             }
             RTFileClose(pngFile);
+        }
+        else if (   !strcmp(a->argv[1], "vcpenabled"))
+        {
+            if (a->argc != 3)
+            {
+                errorArgument("Missing argument to '%s'", a->argv[1]);
+                rc = E_FAIL;
+                break;
+            }
+            if (!strcmp(a->argv[2], "on"))
+            {
+                CHECK_ERROR_RET(sessionMachine, COMSETTER(VideoCaptureEnabled)(TRUE), 1);
+            }
+            else if (!strcmp(a->argv[2], "off"))
+            {
+                CHECK_ERROR_RET(sessionMachine, COMSETTER(VideoCaptureEnabled)(FALSE), 1);
+            }
+            else
+            {
+                errorArgument("Invalid state '%s'", Utf8Str(a->argv[2]).c_str());
+                rc = E_FAIL;
+                break;
+            }
+        }
+        else if (   !strcmp(a->argv[1], "videocapturescreens"))
+        {
+            ULONG cMonitors = 64;
+            CHECK_ERROR_BREAK(machine, COMGETTER(MonitorCount)(&cMonitors));
+            com::SafeArray<BOOL> saScreens(cMonitors);
+            if (   a->argc == 3
+                && !strcmp(a->argv[2], "all"))
+            {
+                /* enable all screens */
+                for (unsigned i = 0; i < cMonitors; i++)
+                    saScreens[i] = true;
+            }
+            else if (   a->argc == 3
+                     && !strcmp(a->argv[2], "none"))
+            {
+                /* disable all screens */
+                for (unsigned i = 0; i < cMonitors; i++)
+                    saScreens[i] = false;
+            }
+            else
+            {
+                /* enable selected screens */
+                for (unsigned i = 0; i < cMonitors; i++)
+                    saScreens[i] = false;
+                for (int i = 2; SUCCEEDED(rc) && i < a->argc; i++)
+                {
+                    uint32_t iScreen;
+                    int vrc = RTStrToUInt32Ex(a->argv[i], NULL, 0, &iScreen);
+                    if (vrc != VINF_SUCCESS)
+                    {
+                        errorArgument("Error parsing display number '%s'", a->argv[i]);
+                        rc = E_FAIL;
+                        break;
+                    }
+                    if (iScreen >= cMonitors)
+                    {
+                        errorArgument("Invalid screen ID specified '%u'", iScreen);
+                        rc = E_FAIL;
+                        break;
+                    }
+                    saScreens[iScreen] = true;
+                }
+            }
+
+            CHECK_ERROR_BREAK(sessionMachine, COMSETTER(VideoCaptureScreens)(ComSafeArrayAsInParam(saScreens)));
+        }
+        else if (!strcmp(a->argv[1], "webcam"))
+        {
+            if (a->argc < 3)
+            {
+                errorArgument("Missing argument to '%s'", a->argv[1]);
+                rc = E_FAIL;
+                break;
+            }
+
+            ComPtr<IEmulatedUSB> pEmulatedUSB;
+            CHECK_ERROR_BREAK(console, COMGETTER(EmulatedUSB)(pEmulatedUSB.asOutParam()));
+            if (!pEmulatedUSB)
+            {
+                RTMsgError("Guest not running");
+                rc = E_FAIL;
+                break;
+            }
+
+            if (!strcmp(a->argv[2], "attach"))
+            {
+                Bstr path("");
+                if (a->argc >= 4)
+                    path = a->argv[3];
+                Bstr settings("");
+                if (a->argc >= 5)
+                    settings = a->argv[4];
+                CHECK_ERROR_BREAK(pEmulatedUSB, WebcamAttach(path.raw(), settings.raw()));
+            }
+            else if (!strcmp(a->argv[2], "detach"))
+            {
+                Bstr path("");
+                if (a->argc >= 4)
+                    path = a->argv[3];
+                CHECK_ERROR_BREAK(pEmulatedUSB, WebcamDetach(path.raw()));
+            }
+            else if (!strcmp(a->argv[2], "list"))
+            {
+                com::SafeArray <BSTR> webcams;
+                CHECK_ERROR_BREAK(pEmulatedUSB, COMGETTER(Webcams)(ComSafeArrayAsOutParam(webcams)));
+                for (size_t i = 0; i < webcams.size(); ++i)
+                {
+                    RTPrintf("%ls\n", webcams[i][0]? webcams[i]: Bstr("default").raw());
+                }
+            }
+            else
+            {
+                errorArgument("Invalid argument to '%s'", a->argv[1]);
+                rc = E_FAIL;
+                break;
+            }
+
         }
         else
         {

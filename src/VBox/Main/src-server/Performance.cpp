@@ -49,57 +49,57 @@ using namespace pm;
 
 int CollectorHAL::getHostCpuLoad(ULONG * /* user */, ULONG * /* kernel */, ULONG * /* idle */)
 {
-    return E_NOTIMPL;
+    return VERR_NOT_IMPLEMENTED;
 }
 
 int CollectorHAL::getProcessCpuLoad(RTPROCESS  /* process */, ULONG * /* user */, ULONG * /* kernel */)
 {
-    return E_NOTIMPL;
+    return VERR_NOT_IMPLEMENTED;
 }
 
 int CollectorHAL::getRawHostCpuLoad(uint64_t * /* user */, uint64_t * /* kernel */, uint64_t * /* idle */)
 {
-    return E_NOTIMPL;
+    return VERR_NOT_IMPLEMENTED;
 }
 
 int CollectorHAL::getRawHostNetworkLoad(const char * /* name */, uint64_t * /* rx */, uint64_t * /* tx */)
 {
-    return E_NOTIMPL;
+    return VERR_NOT_IMPLEMENTED;
 }
 
 int CollectorHAL::getRawHostDiskLoad(const char * /* name */, uint64_t * /* disk_ms */, uint64_t * /* total_ms */)
 {
-    return E_NOTIMPL;
+    return VERR_NOT_IMPLEMENTED;
 }
 
 int CollectorHAL::getRawProcessCpuLoad(RTPROCESS  /* process */, uint64_t * /* user */, uint64_t * /* kernel */, uint64_t * /* total */)
 {
-    return E_NOTIMPL;
+    return VERR_NOT_IMPLEMENTED;
 }
 
 int CollectorHAL::getHostMemoryUsage(ULONG * /* total */, ULONG * /* used */, ULONG * /* available */)
 {
-    return E_NOTIMPL;
+    return VERR_NOT_IMPLEMENTED;
 }
 
 int CollectorHAL::getHostFilesystemUsage(const char * /* name */, ULONG * /* total */, ULONG * /* used */, ULONG * /* available */)
 {
-    return E_NOTIMPL;
+    return VERR_NOT_IMPLEMENTED;
 }
 
 int CollectorHAL::getHostDiskSize(const char * /* name */, uint64_t * /* size */)
 {
-    return E_NOTIMPL;
+    return VERR_NOT_IMPLEMENTED;
 }
 
 int CollectorHAL::getProcessMemoryUsage(RTPROCESS /* process */, ULONG * /* used */)
 {
-    return E_NOTIMPL;
+    return VERR_NOT_IMPLEMENTED;
 }
 
 int CollectorHAL::getDiskListByFs(const char * /* name */, DiskList& /* listUsage */, DiskList& /* listLoad */)
 {
-    return E_NOTIMPL;
+    return VERR_NOT_IMPLEMENTED;
 }
 
 /* Generic implementations */
@@ -183,7 +183,7 @@ CollectorGuestRequest* CollectorGuestQueue::pop()
     return NULL;
 }
 
-int CGRQEnable::execute()
+HRESULT CGRQEnable::execute()
 {
     Assert(mCGuest);
     return mCGuest->enableInternal(mMask);
@@ -198,7 +198,7 @@ void CGRQEnable::debugPrint(void *aObject, const char *aFunction, const char *aT
                 aObject, aFunction, mMask, aText));
 }
 
-int CGRQDisable::execute()
+HRESULT CGRQDisable::execute()
 {
     Assert(mCGuest);
     return mCGuest->disableInternal(mMask);
@@ -213,7 +213,7 @@ void CGRQDisable::debugPrint(void *aObject, const char *aFunction, const char *a
                 aObject, aFunction, mMask, aText));
 }
 
-int CGRQAbort::execute()
+HRESULT CGRQAbort::execute()
 {
     return E_ABORT;
 }
@@ -281,7 +281,7 @@ int CollectorGuest::disable(ULONG mask)
     return enqueueRequest(new CGRQDisable(mask));
 }
 
-int CollectorGuest::enableInternal(ULONG mask)
+HRESULT CollectorGuest::enableInternal(ULONG mask)
 {
     HRESULT ret = S_OK;
 
@@ -528,7 +528,7 @@ int CollectorGuestManager::enqueueRequest(CollectorGuestRequest *aRequest)
      */
     if (aRequest->getGuest() && aRequest->getGuest() == mGuestBeingCalled)
     {
-        /* 
+        /*
          * Before we can declare a guest blocked we need to wait for a while
          * and then check again as it may never had a chance to process
          * the previous request. Half a second is an eternity for processes
@@ -688,18 +688,18 @@ void HostCpuLoadRaw::collect()
 #ifndef VBOX_COLLECTOR_TEST_CASE
 static bool getLinkSpeed(const char *szShortName, uint32_t *pSpeed)
 {
-    /*
-     * Note that we do not need the full name in the info, so we do not
-     * allocate the space for it and we rely on the fact that
-     * NetIfGetConfigByName() never fills it.
-     */
-    NETIFINFO Info;
-    memset(&Info, 0, sizeof(Info));
-    strcpy(Info.szShortName, szShortName);
-    int rc = NetIfGetConfigByName(&Info);
+    NETIFSTATUS enmState = NETIF_S_UNKNOWN;
+    int rc = NetIfGetState(szShortName, &enmState);
     if (RT_FAILURE(rc))
         return false;
-    *pSpeed =  Info.enmStatus == NETIF_S_UP ? Info.uSpeedMbits : 0;
+    if (enmState != NETIF_S_UP)
+        *pSpeed = 0;
+    else
+    {
+        rc = NetIfGetLinkSpeed(szShortName, pSpeed);
+        if (RT_FAILURE(rc))
+            return false;
+    }
     return true;
 }
 
@@ -877,7 +877,6 @@ void HostRamUsage::collect()
         mTotal->put(total);
         mUsed->put(used);
         mAvailable->put(available);
-
     }
 }
 
@@ -903,7 +902,6 @@ void HostFilesystemUsage::collect()
         mTotal->put(total);
         mUsed->put(used);
         mAvailable->put(available);
-
     }
 }
 
@@ -923,7 +921,7 @@ void HostDiskUsage::collect()
     uint64_t total;
     int rc = mHAL->getHostDiskSize(mDiskName.c_str(), &total);
     if (RT_SUCCESS(rc))
-        mTotal->put((ULONG)(total / (1024*1024)));
+        mTotal->put((ULONG)(total / _1M));
 }
 
 #ifndef VBOX_COLLECTOR_TEST_CASE
@@ -1102,7 +1100,7 @@ void MachineDiskUsage::collect()
 
         AutoReadLock local_alock(pMedium COMMA_LOCKVAL_SRC_POS);
 
-        used += pMedium->getSize() / (1024 * 1024);
+        used += (ULONG)(pMedium->getSize() / _1M);
     }
 
     mUsed->put(used);

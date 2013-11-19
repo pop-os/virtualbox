@@ -88,7 +88,7 @@ public:
 
 protected:
 
-    /* Load data to cashe from corresponding external object(s),
+    /* Load data to cache from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
     /* Load data to corresponding widgets from cache,
@@ -105,8 +105,8 @@ protected:
      * this task COULD be performed in other than GUI thread: */
     void saveFromCacheTo(QVariant &data);
 
-    void setValidator (QIWidgetValidator *aVal);
-    bool revalidate(QString &strWarning, QString &strTitle);
+    /* API: Validation stuff: */
+    bool validate(QList<UIValidationMessage> &messages);
 
     void setOrderAfter (QWidget *aWidget);
 
@@ -114,12 +114,13 @@ protected:
 
 private:
 
+    /* Helper: Prepare stuff: */
+    void prepareValidation();
+
     void polishPage();
 
-    QIWidgetValidator *mValidator;
-    bool m_fHWVirtExEnabled;
-
     /* Cache: */
+    bool m_fHWVirtExEnabled;
     UICacheSettingsMachineGeneral m_cache;
 };
 

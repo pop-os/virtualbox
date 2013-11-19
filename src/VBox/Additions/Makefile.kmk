@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -69,6 +69,9 @@ ifndef VBOX_ONLY_TESTSUITE
  endif
  ifeq ($(KBUILD_TARGET),darwin)
   include $(PATH_SUB_CURRENT)/darwin/Makefile.kmk
+ endif
+ ifeq ($(KBUILD_TARGET),haiku)
+  include $(PATH_SUB_CURRENT)/haiku/Makefile.kmk
  endif
 
  ifeq ($(KBUILD_TARGET),linux)
@@ -155,7 +158,7 @@ ifndef VBOX_ONLY_TESTSUITE
  # The packing target rule, but only if we're on the local build box.
  # (VBOX_WITHOUT_ADDITIONS_ISO is used by the additions build box, see the root makefile.)
  ifndef VBOX_WITHOUT_ADDITIONS_ISO
-  PACKING += $(PATH_STAGE_BIN)/additions/VBoxGuestAdditions.zip
+  PACKING += $(VBOX_PATH_ADDITIONS_ISO)/VBoxGuestAdditions.zip
  endif
 endif # !VBOX_ONLY_TESTSUITE
 
@@ -170,17 +173,18 @@ include $(FILE_KBUILD_SUB_FOOTER)
 #
 
 # Darwin / Mac OS X
+## @todo Create .pkg files not run files. The build server shall create a combined packaged, goverend by
+# the VBOX_WITH_COMBINED_DARWIN_GUEST_PACKAGE macro.
 ifdef VBOX_WITH_ADDITIONS_ISO.darwin.x86
- VBOX_PATH_ADDITIONS.darwin.x86 = $(PATH_OUT_BASE)/darwin.x86/$(KBUILD_TYPE)/bin/additions
- # or dmg?
+ VBOX_PATH_ADDITIONS.darwin.x86 = $(PATH_OUT_BASE)/darwin.x86/$(KBUILD_TYPE)/dist
  GUESTADDITIONS_FILESPEC.darwin.x86 = \
-	VBoxDarwinAdditions-x86.run=$(VBOX_PATH_ADDITIONS.darwin.x86)/VBoxDarwinAdditions-x86.run
+	VBoxDarwinAdditions-x86.dmg=$(VBOX_PATH_ADDITIONS.darwin.x86)/VBoxDarwinAdditions.dmg
 endif
 
 ifdef VBOX_WITH_ADDITIONS_ISO.darwin.amd64
- VBOX_PATH_ADDITIONS.darwin.amd64 = $(PATH_OUT_BASE)/darwin.amd64/$(KBUILD_TYPE)/bin/additions
+ VBOX_PATH_ADDITIONS.darwin.amd64 = $(PATH_OUT_BASE)/darwin.amd64/$(KBUILD_TYPE)/dist
  GUESTADDITIONS_FILESPEC.darwin.amd64 = \
-	VBoxDarwinAdditions-amd64.run=$(VBOX_PATH_ADDITIONS.darwin.amd64)/VBoxDarwinAdditions-amd64.run
+	VBoxDarwinAdditions-amd64.dmg=$(VBOX_PATH_ADDITIONS.darwin.amd64)/VBoxDarwinAdditions.dmg
 endif
 
 # FreeBSD
@@ -227,9 +231,16 @@ ifdef VBOX_WITH_ADDITIONS_ISO.os2.x86
 	OS2/VBoxGuest.sys=$(VBOX_PATH_ADDITIONS.os2.x86)/VBoxGuest.sys \
 	OS2/VBoxService.exe=$(VBOX_PATH_ADDITIONS.os2.x86)/VBoxService.exe \
 	OS2/VBoxControl.exe=$(VBOX_PATH_ADDITIONS.os2.x86)/VBoxControl.exe \
-	OS2/gengradd.dll=$(VBOX_PATH_ADDITIONS.os2.x86)/gengradd.dll \
+	OS2/VBoxReplaceDll.exe=$(VBOX_PATH_ADDITIONS.os2.x86)/VBoxReplaceDll.exe \
+	OS2/libc06.dll=$(VBOX_PATH_ADDITIONS.os2.x86)/libc06.dll \
+	OS2/libc061.dll=$(VBOX_PATH_ADDITIONS.os2.x86)/libc061.dll \
+	OS2/libc062.dll=$(VBOX_PATH_ADDITIONS.os2.x86)/libc062.dll \
+	OS2/libc063.dll=$(VBOX_PATH_ADDITIONS.os2.x86)/libc063.dll \
 	OS2/libc064.dll=$(VBOX_PATH_ADDITIONS.os2.x86)/libc064.dll \
+	OS2/libc065.dll=$(VBOX_PATH_ADDITIONS.os2.x86)/libc065.dll \
 	OS2/readme.txt=$(VBOX_PATH_ADDITIONS.os2.x86)/readme.txt \
+       \
+	OS2/gengradd.dll=$(VBOX_PATH_ADDITIONS.os2.x86)/gengradd.dll \
 	OS2/vboxmouse.sys=$(VBOX_PATH_ADDITIONS.os2.x86)/vboxmouse.sys
 endif
 
@@ -277,6 +288,13 @@ ifdef VBOX_WITH_ADDITIONS_ISO.win.x86
 	cert/VBoxCertUtil.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxCertUtil.exe
 endif # win.x86
 
+ifdef VBOX_WITH_ADDITIONS_ISO.haiku.x86
+ VBOX_PATH_ADDITIONS.haiku.x86 = $(PATH_OUT_BASE)/haiku.x86/$(KBUILD_TYPE)/bin/additions
+ # or bfs?
+ GUESTADDITIONS_FILESPEC.haiku.x86 = \
+	VBoxHaikuAdditions-x86.run=$(VBOX_PATH_ADDITIONS.haiku.x86)/VBoxHaikuAdditions-x86.run
+endif
+
 
 #
 # Build the Guest Additions ISO image.
@@ -294,6 +312,7 @@ $(VBOX_PATH_ADDITIONS_ISO)/VBoxGuestAdditions.iso: \
 				$(GUESTADDITIONS_FILESPEC.linux.amd64) \
 				$(GUESTADDITIONS_FILESPEC.freebsd.x86) \
 				$(GUESTADDITIONS_FILESPEC.freebsd.amd64) \
+				$(GUESTADDITIONS_FILESPEC.haiku.x86) \
 				$(GUESTADDITIONS_FILESPEC.darwin.x86) \
 				$(GUESTADDITIONS_FILESPEC.darwin.amd64) \
 			)\
@@ -316,6 +335,7 @@ $(VBOX_PATH_ADDITIONS_ISO)/VBoxGuestAdditions.iso: \
 		$(GUESTADDITIONS_FILESPEC.linux.amd64) \
 		$(GUESTADDITIONS_FILESPEC.freebsd.x86) \
 		$(GUESTADDITIONS_FILESPEC.freebsd.amd64) \
+		$(GUESTADDITIONS_FILESPEC.haiku.x86) \
 		$(GUESTADDITIONS_FILESPEC.darwin.x86) \
 		$(GUESTADDITIONS_FILESPEC.darwin.amd64)
 

@@ -1,10 +1,9 @@
 /** @file
- * MS COM / XPCOM Abstraction Layer:
- * ErrorInfo class declaration
+ * MS COM / XPCOM Abstraction Layer - ErrorInfo class declaration.
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -174,6 +173,7 @@ public:
         : mIsBasicAvailable(false),
           mIsFullAvailable(false),
           mResultCode(S_OK),
+          mResultDetail(0),
           m_pNext(NULL)
     {
         init();
@@ -183,6 +183,7 @@ public:
         : mIsBasicAvailable(false),
           mIsFullAvailable(false),
           mResultCode(S_OK),
+          mResultDetail(0),
           m_pNext(NULL)
     {
         init(pObj, aIID);
@@ -191,7 +192,7 @@ public:
     /** Specialization for the IVirtualBoxErrorInfo smart pointer */
     ErrorInfo (const ComPtr <IVirtualBoxErrorInfo> &aPtr)
         : mIsBasicAvailable (false), mIsFullAvailable (false)
-        , mResultCode (S_OK)
+        , mResultCode (S_OK), mResultDetail(0)
         { init (aPtr); }
 
     /**
@@ -204,7 +205,7 @@ public:
      */
     ErrorInfo (IVirtualBoxErrorInfo *aInfo)
         : mIsBasicAvailable (false), mIsFullAvailable (false)
-        , mResultCode (S_OK)
+        , mResultCode (S_OK), mResultDetail(0)
         { init (aInfo); }
 
     ErrorInfo(const ErrorInfo &x)
@@ -264,6 +265,14 @@ public:
     HRESULT getResultCode() const
     {
         return mResultCode;
+    }
+
+    /**
+     *  Returns the (optional) result detail code of the failed operation.
+     */
+    LONG getResultDetail() const
+    {
+        return mResultDetail;
     }
 
     /**
@@ -330,6 +339,8 @@ public:
         return mCalleeName;
     }
 
+    HRESULT getVirtualBoxErrorInfo(ComPtr<IVirtualBoxErrorInfo> &pVirtualBoxErrorInfo);
+
     /**
      *  Resets all collected error information. #isBasicAvailable() and
      *  #isFullAvailable will return @c true after this method is called.
@@ -359,6 +370,7 @@ protected:
     bool mIsFullAvailable : 1;
 
     HRESULT mResultCode;
+    LONG    mResultDetail;
     Guid    mInterfaceID;
     Bstr    mComponent;
     Bstr    mText;
@@ -441,6 +453,19 @@ public:
     {
         if (!aIsNull)
             init(true /* aKeepObj */);
+    }
+
+    /**
+     *  Constructs a new instance from an ErrorInfo object, to inject a full
+     *  error info created elsewhere.
+     *
+     *  @param aInfo    @c true to prevent fetching error info and leave
+     *                  the instance uninitialized.
+     */
+    ErrorInfoKeeper(const ErrorInfo &aInfo)
+        : ErrorInfo(false), mForgot(false)
+    {
+        copyFrom(aInfo);
     }
 
     /**

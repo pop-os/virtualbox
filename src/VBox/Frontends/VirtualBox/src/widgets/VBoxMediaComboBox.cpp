@@ -17,11 +17,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#include "VBoxMediaComboBox.h"
-
+/* Qt includes: */
 #include <QFileInfo>
 #include <QDir>
 #include <QAbstractItemView>
+
+/* GUI includes: */
+#include "VBoxMediaComboBox.h"
+#include "UIMedium.h"
 
 VBoxMediaComboBox::VBoxMediaComboBox (QWidget *aParent)
     : QComboBox (aParent)
@@ -37,19 +40,19 @@ VBoxMediaComboBox::VBoxMediaComboBox (QWidget *aParent)
     sp1.setHorizontalStretch (2);
     setSizePolicy (sp1);
 
-    /* Setup enumeration handlers */
-    connect (&vboxGlobal(), SIGNAL (mediumEnumStarted()),
-             this, SLOT (mediumEnumStarted()));
-    connect (&vboxGlobal(), SIGNAL (mediumEnumerated (const UIMedium &)),
-             this, SLOT (mediumEnumerated (const UIMedium &)));
+    /* Setup medium-processing handlers: */
+    connect(&vboxGlobal(), SIGNAL(sigMediumCreated(const QString&)),
+            this, SLOT(sltHandleMediumCreated(const QString&)));
+    connect(&vboxGlobal(), SIGNAL(sigMediumUpdated(const QString&)),
+            this, SLOT(sltHandleMediumUpdated(const QString&)));
+    connect(&vboxGlobal(), SIGNAL(sigMediumDeleted(const QString&)),
+            this, SLOT(sltHandleMediumDeleted(const QString&)));
 
-    /* Setup update handlers */
-    connect (&vboxGlobal(), SIGNAL (mediumAdded (const UIMedium &)),
-             this, SLOT (mediumAdded (const UIMedium &)));
-    connect (&vboxGlobal(), SIGNAL (mediumUpdated (const UIMedium &)),
-             this, SLOT (mediumUpdated (const UIMedium &)));
-    connect (&vboxGlobal(), SIGNAL (mediumRemoved (UIMediumType, const QString &)),
-             this, SLOT (mediumRemoved (UIMediumType, const QString &)));
+    /* Setup medium-enumeration handlers: */
+    connect(&vboxGlobal(), SIGNAL(sigMediumEnumerationStarted()),
+            this, SLOT(sltHandleMediumEnumerationStart()));
+    connect(&vboxGlobal(), SIGNAL(sigMediumEnumerated(const QString&)),
+            this, SLOT(sltHandleMediumUpdated(const QString&)));
 
     /* Setup other connections */
     connect (this, SIGNAL (activated (int)),
@@ -66,9 +69,8 @@ void VBoxMediaComboBox::refresh()
     /* Clearing lists */
     clear(), mMedia.clear();
 
-    VBoxMediaList list (vboxGlobal().currentMediaList());
-    foreach (UIMedium medium, list)
-        mediumAdded (medium);
+    foreach (const QString &strMediumID, vboxGlobal().mediumIDs())
+        sltHandleMediumCreated(strMediumID);
 
     /* If at least one real medium present, process null medium */
     if (count() > 1 && (!mShowNullItem || mType == UIMediumType_HardDisk))
@@ -88,13 +90,13 @@ void VBoxMediaComboBox::refresh()
  */
 void VBoxMediaComboBox::repopulate()
 {
-    if (!vboxGlobal().isMediaEnumerationStarted())
-        vboxGlobal().startEnumeratingMedia();
+    if (!vboxGlobal().isMediumEnumerationInProgress())
+        vboxGlobal().startMediumEnumeration();
     else
         refresh();
 }
 
-QString VBoxMediaComboBox::id (int aIndex /*= -1*/) const
+QString VBoxMediaComboBox::id (int aIndex /* = -1*/) const
 {
     AssertReturn (aIndex == -1 ||
                   (aIndex >= 0 && aIndex < mMedia.size()),
@@ -104,7 +106,7 @@ QString VBoxMediaComboBox::id (int aIndex /*= -1*/) const
     return aIndex == -1 ? QString::null : mMedia [aIndex].id;
 }
 
-QString VBoxMediaComboBox::location (int aIndex /*= -1*/) const
+QString VBoxMediaComboBox::location (int aIndex /* = -1*/) const
 {
     AssertReturn (aIndex == -1 ||
                   (aIndex >= 0 && aIndex < mMedia.size()),
@@ -167,78 +169,75 @@ void VBoxMediaComboBox::setShowDiffs (bool aShowDiffs)
 }
 
 
-void VBoxMediaComboBox::mediumEnumStarted()
+void VBoxMediaComboBox::sltHandleMediumCreated(const QString &strMediumID)
 {
-    refresh();
-}
+    /* Search for corresponding medium: */
+    UIMedium medium = vboxGlobal().medium(strMediumID);
 
-void VBoxMediaComboBox::mediumEnumerated (const UIMedium &aMedium)
-{
-    mediumUpdated (aMedium);
-}
-
-void VBoxMediaComboBox::mediumAdded (const UIMedium &aMedium)
-{
-    if (aMedium.isNull() || aMedium.type() == mType)
-    {
-        if (!mShowDiffs && aMedium.type() == UIMediumType_HardDisk)
-        {
-            if (aMedium.parent() != NULL)
-            {
-                /* In !mShowDiffs mode, we ignore all diffs except ones that are
-                 * directly attached to the related VM in the current state */
-                if (!aMedium.isAttachedInCurStateTo (mMachineId))
-                    return;
-            }
-        }
-
-        appendItem (aMedium);
-
-        /* Activate the required item if there is any */
-        if (aMedium.id() == mLastId)
-            setCurrentItem (aMedium.id());
-        /* Select last added item if there is no item selected */
-        else if (currentText().isEmpty())
-            QComboBox::setCurrentIndex (count() - 1);
-    }
-}
-
-void VBoxMediaComboBox::mediumUpdated (const UIMedium &aMedium)
-{
-    if (aMedium.isNull() || aMedium.type() == mType)
-    {
-        int index;
-        if (!findMediaIndex (aMedium.id(), index))
-            return;
-
-        replaceItem (index, aMedium);
-
-        /* Emit the signal to ensure the parent dialog handles the change of
-         * the selected item's data */
-        emit activated (currentIndex());
-    }
-}
-
-void VBoxMediaComboBox::mediumRemoved (UIMediumType aType,
-                                       const QString &aId)
-{
-    if (mType != aType)
+    /* Add only 1. NULL medium and 2. mediums of required type: */
+    if (!medium.isNull() && medium.type() != mType)
         return;
 
+    /* In !mShowDiffs mode, we ignore all diffs: */
+    if (!mShowDiffs && medium.type() == UIMediumType_HardDisk && medium.parentID() != UIMedium::nullID())
+        return;
+
+    /* Append medium into combo-box: */
+    appendItem(medium);
+
+    /* Activate the required item if any: */
+    if (medium.id() == mLastId)
+        setCurrentItem(medium.id());
+    /* Select last added item if there is no item selected: */
+    else if (currentText().isEmpty())
+        QComboBox::setCurrentIndex(count() - 1);
+}
+
+void VBoxMediaComboBox::sltHandleMediumUpdated(const QString &strMediumID)
+{
+    /* Search for corresponding medium: */
+    UIMedium medium = vboxGlobal().medium(strMediumID);
+
+    /* Add only 1. NULL medium and 2. mediums of required type: */
+    if (!medium.isNull() && medium.type() != mType)
+        return;
+
+    /* Search for corresponding item index: */
     int index;
-    if (!findMediaIndex (aId, index))
+    if (!findMediaIndex(medium.id(), index))
         return;
 
-    removeItem (index);
-    mMedia.erase (mMedia.begin() + index);
-
-    /* If no real medium left, add the null medium */
-    if (count() == 0)
-        mediumAdded (UIMedium());
+    /* Replace medium in combo-box: */
+    replaceItem(index, medium);
 
     /* Emit the signal to ensure the parent dialog handles the change of
-     * the selected item */
-    emit activated (currentIndex());
+     * the selected item's data: */
+    emit activated(currentIndex());
+}
+
+void VBoxMediaComboBox::sltHandleMediumDeleted(const QString &strMediumID)
+{
+    /* Search for corresponding item index: */
+    int index;
+    if (!findMediaIndex(strMediumID, index))
+        return;
+
+    /* Replace medium from combo-box: */
+    removeItem(index);
+    mMedia.erase(mMedia.begin() + index);
+
+    /* If no real medium left, add the NULL medium: */
+    if (count() == 0)
+        sltHandleMediumCreated(UIMedium::nullID());
+
+    /* Emit the signal to ensure the parent dialog handles the change of
+     * the selected item: */
+    emit activated(currentIndex());
+}
+
+void VBoxMediaComboBox::sltHandleMediumEnumerationStart()
+{
+    refresh();
 }
 
 
@@ -270,26 +269,6 @@ void VBoxMediaComboBox::processOnItem (const QModelIndex &aIndex)
 
 void VBoxMediaComboBox::appendItem (const UIMedium &aMedium)
 {
-    if (!mShowDiffs && aMedium.parent() != NULL)
-    {
-        /* We are adding the direct machine diff in !mShowDiffs mode. Since its
-         * base hard disk has been already appended (enumerated before), we want
-         * to replace the base with the diff to avoid showing both (both would
-         * be labeled using the base filename and therefore look like
-         * duplicates). Note though that these visual duplicates are still
-         * possible in !mShowDiffs mode if the same base hard disk is attached*
-         * to the VM through different diffs (this is why we don't assert
-         * below on findMediaIndex() == true). However, this situation is
-         * unavoidable so we accept it assuming that the user will switch to
-           mShowDiffs mode if he needs clarity. */
-        int index;
-        if (findMediaIndex (aMedium.root().id(), index))
-        {
-            replaceItem (index, aMedium);
-            return;
-        }
-    }
-
     mMedia.append (Medium (aMedium.id(), aMedium.location(),
                            aMedium.toolTipCheckRO (!mShowDiffs, mShowNullItem && mType != UIMediumType_HardDisk)));
 

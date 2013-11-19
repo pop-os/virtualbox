@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@
 # include <VBox/com/ErrorInfo.h>
 # include <VBox/com/errorprint.h>
 
-# include <VBox/com/EventQueue.h>
+# include <VBox/com/NativeEventQueue.h>
 # include <VBox/com/listeners.h>
 # include <VBox/com/VirtualBox.h>
 #endif /* !VBOX_ONLY_DOCS */
@@ -131,7 +131,7 @@ static ComPtr<IVirtualBoxClient> g_pVirtualBoxClient = NULL;
 static ComPtr<IEventSource>      g_pEventSource = NULL;
 static ComPtr<IEventSource>      g_pEventSourceClient = NULL;
 static ComPtr<IEventListener>    g_pVBoxEventListener = NULL;
-static EventQueue               *g_pEventQ = NULL;
+static NativeEventQueue         *g_pEventQ = NULL;
 
 /* Prototypes. */
 static int machineAdd(const Bstr &strUuid);
@@ -296,7 +296,7 @@ static void signalHandler(int iSignal)
     NOREF(iSignal);
     ASMAtomicWriteBool(&g_fCanceled, true);
 
-    if (!g_pEventQ)
+    if (g_pEventQ)
     {
         int rc = g_pEventQ->interruptEventQueueProcessing();
         if (RT_FAILURE(rc))
@@ -684,7 +684,7 @@ static RTEXITCODE watchdogMain(HandlerArg *a)
     do
     {
         /* Initialize global weak references. */
-        g_pEventQ = com::EventQueue::getMainEventQueue();
+        g_pEventQ = com::NativeEventQueue::getMainEventQueue();
 
         /*
          * Install signal handlers.
@@ -751,7 +751,7 @@ static RTEXITCODE watchdogMain(HandlerArg *a)
              * Process pending events, then wait for new ones. Note, this
              * processes NULL events signalling event loop termination.
              */
-            g_pEventQ->processEventQueue(500 / 10);
+            g_pEventQ->processEventQueue(50);
 
             if (g_fCanceled)
             {
@@ -1147,7 +1147,7 @@ int main(int argc, char *argv[])
     HandlerArg handlerArg = { argc, argv };
     RTEXITCODE rcExit = watchdogMain(&handlerArg);
 
-    EventQueue::getMainEventQueue()->processEventQueue(0);
+    NativeEventQueue::getMainEventQueue()->processEventQueue(0);
 
     watchdogShutdown();
 

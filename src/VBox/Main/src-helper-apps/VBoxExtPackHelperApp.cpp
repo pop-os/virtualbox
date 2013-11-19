@@ -1087,7 +1087,7 @@ static RTEXITCODE DoCleanup(int argc, char **argv)
             char *pszMarker = strstr(Entry.szName, "-_-");
             if (   pszMarker
                 && (   !strcmp(pszMarker, "-_-uninst")
-                    || !strncmp(pszMarker, "-_-inst", sizeof("-_-inst") - 1)))
+                    || !strncmp(pszMarker, RT_STR_TUPLE("-_-inst"))))
                 fCandidate = VBoxExtPackIsValidMangledName(Entry.szName, pszMarker - &Entry.szName[0]);
             if (fCandidate)
             {
@@ -1767,7 +1767,11 @@ int main(int argc, char **argv)
     /*
      * Initialize IPRT and check that we're correctly installed.
      */
+#ifdef RT_OS_WINDOWS
+    int rc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_UTF8_ARGV); /* WinMain gives us UTF-8, see below. */
+#else
     int rc = RTR3InitExe(argc, &argv, 0);
+#endif
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
 

@@ -43,9 +43,6 @@
 #include <iprt/thread.h>
 #include "internal/magics.h"
 
-/* Enable spinlock checker when CONFIG_PROVE_LOCKING is
- * enabled (checker is disabled by default in release build, but enabled in debug one) */
-
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
@@ -133,7 +130,7 @@ RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock)
     AssertMsg(pThis && pThis->u32Magic == RTSPINLOCK_MAGIC,
               ("pThis=%p u32Magic=%08x\n", pThis, pThis ? (int)pThis->u32Magic : 0));
 
-#ifdef CONFIG_PROVE_LOCKING
+#if defined(CONFIG_PROVE_LOCKING) && !defined(RT_STRICT)
     lockdep_off();
 #endif
     if (pThis->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)
@@ -144,7 +141,7 @@ RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock)
     }
     else
         spin_lock(&pThis->Spinlock);
-#ifdef CONFIG_PROVE_LOCKING
+#if defined(CONFIG_PROVE_LOCKING) && !defined(RT_STRICT)
     lockdep_on();
 #endif
 
@@ -161,7 +158,7 @@ RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock)
               ("pThis=%p u32Magic=%08x\n", pThis, pThis ? (int)pThis->u32Magic : 0));
     RT_ASSERT_PREEMPT_CPUID_SPIN_RELEASE(pThis);
 
-#ifdef CONFIG_PROVE_LOCKING
+#if defined(CONFIG_PROVE_LOCKING) && !defined(RT_STRICT)
     lockdep_off();
 #endif
     if (pThis->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)
@@ -172,7 +169,7 @@ RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock)
     }
     else
         spin_unlock(&pThis->Spinlock);
-#ifdef CONFIG_PROVE_LOCKING
+#if defined(CONFIG_PROVE_LOCKING) && !defined(RT_STRICT)
     lockdep_on();
 #endif
 

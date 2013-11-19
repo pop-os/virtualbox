@@ -187,7 +187,7 @@ public:
         {
             pActionFullscreen->blockSignals(true);
             pActionFullscreen->setChecked(true);
-            QTimer::singleShot(0, pActionFullscreen, SLOT(sltUpdateAppearance()));
+            QTimer::singleShot(0, pActionFullscreen, SLOT(sltUpdate()));
             pActionFullscreen->blockSignals(false);
         }
     }
@@ -201,7 +201,7 @@ public:
         {
             pActionFullscreen->blockSignals(true);
             pActionFullscreen->setChecked(false);
-            QTimer::singleShot(0, pActionFullscreen, SLOT(sltUpdateAppearance()));
+            QTimer::singleShot(0, pActionFullscreen, SLOT(sltUpdate()));
             pActionFullscreen->blockSignals(false);
         }
     }
@@ -251,7 +251,7 @@ public:
         {
             pActionSeamless->blockSignals(true);
             pActionSeamless->setChecked(true);
-            QTimer::singleShot(0, pActionSeamless, SLOT(sltUpdateAppearance()));
+            QTimer::singleShot(0, pActionSeamless, SLOT(sltUpdate()));
             pActionSeamless->blockSignals(false);
         }
     }
@@ -265,7 +265,7 @@ public:
         {
             pActionSeamless->blockSignals(true);
             pActionSeamless->setChecked(false);
-            QTimer::singleShot(0, pActionSeamless, SLOT(sltUpdateAppearance()));
+            QTimer::singleShot(0, pActionSeamless, SLOT(sltUpdate()));
             pActionSeamless->blockSignals(false);
         }
     }
@@ -315,7 +315,7 @@ public:
         {
             pActionScale->blockSignals(true);
             pActionScale->setChecked(true);
-            QTimer::singleShot(0, pActionScale, SLOT(sltUpdateAppearance()));
+            QTimer::singleShot(0, pActionScale, SLOT(sltUpdate()));
             pActionScale->blockSignals(false);
         }
     }
@@ -329,7 +329,7 @@ public:
         {
             pActionScale->blockSignals(true);
             pActionScale->setChecked(false);
-            QTimer::singleShot(0, pActionScale, SLOT(sltUpdateAppearance()));
+            QTimer::singleShot(0, pActionScale, SLOT(sltUpdate()));
             pActionScale->blockSignals(false);
         }
     }
@@ -369,6 +369,7 @@ UIMachine::UIMachine(UIMachine **ppSelf, const CSession &session)
     , m_session(session)
     , m_pSession(0)
     , m_pVisualState(0)
+    , m_allowedVisualStateTypes(UIVisualStateType_Invalid)
 {
     /* Store self pointer: */
     if (m_ppThis)
@@ -380,8 +381,8 @@ UIMachine::UIMachine(UIMachine **ppSelf, const CSession &session)
     /* Preventing application from closing in case of window(s) closed: */
     qApp->setQuitOnLastWindowClosed(false);
 
-    /* Cache IMedium data: */
-    vboxGlobal().startEnumeratingMedia();
+    /* Cache medium data only if really necessary: */
+    vboxGlobal().startMediumEnumeration(false /* force start */);
 
     /* Load machine settings: */
     loadMachineSettings();
@@ -414,12 +415,13 @@ UIMachine::~UIMachine()
     QApplication::quit();
 }
 
-QWidget* UIMachine::mainWindow() const
+QWidget* UIMachine::activeWindow() const
 {
-    if (machineLogic() && machineLogic()->mainMachineWindow())
-        return machineLogic()->mainMachineWindow();
-    else
+    /* Null if machine-logic not yet created: */
+    if (!machineLogic())
         return 0;
+    /* Active machine-window otherwise: */
+    return machineLogic()->activeMachineWindow();
 }
 
 void UIMachine::sltChangeVisualState(UIVisualStateType newVisualStateType)
@@ -486,11 +488,6 @@ void UIMachine::sltChangeVisualState(UIVisualStateType newVisualStateType)
     }
 }
 
-void UIMachine::sltCloseVirtualMachine()
-{
-    delete this;
-}
-
 void UIMachine::enterInitialVisualState()
 {
     sltChangeVisualState(initialStateType);
@@ -508,6 +505,8 @@ void UIMachine::loadMachineSettings()
 {
     /* Load machine settings: */
     CMachine machine = uisession()->session().GetMachine();
+    UIVisualStateType restrictedVisualStateTypes = VBoxGlobal::restrictedVisualStateTypes(machine);
+    m_allowedVisualStateTypes = static_cast<UIVisualStateType>(UIVisualStateType_All ^ restrictedVisualStateTypes);
 
     /* Load extra-data settings: */
     {
@@ -523,7 +522,7 @@ void UIMachine::loadMachineSettings()
         {
             /* Test 'scale' flag: */
             QString strScaleSettings = machine.GetExtraData(GUI_Scale);
-            if (strScaleSettings == "on")
+            if (strScaleSettings == "on" && isVisualStateAllowedScale())
             {
                 fIsSomeExtendedModeChosen = true;
                 /* We can enter scale mode initially: */
@@ -535,7 +534,7 @@ void UIMachine::loadMachineSettings()
         {
             /* Test 'seamless' flag: */
             QString strSeamlessSettings = machine.GetExtraData(GUI_Seamless);
-            if (strSeamlessSettings == "on")
+            if (strSeamlessSettings == "on" && isVisualStateAllowedSeamless())
             {
                 fIsSomeExtendedModeChosen = true;
                 /* We can't enter seamless mode initially,
@@ -548,7 +547,7 @@ void UIMachine::loadMachineSettings()
         {
             /* Test 'fullscreen' flag: */
             QString strFullscreenSettings = machine.GetExtraData(GUI_Fullscreen);
-            if (strFullscreenSettings == "on")
+            if (strFullscreenSettings == "on" && isVisualStateAllowedFullscreen())
             {
                 fIsSomeExtendedModeChosen = true;
                 /* We can enter fullscreen mode initially: */

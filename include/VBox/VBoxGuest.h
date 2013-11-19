@@ -61,6 +61,9 @@
 /** Device name. */
 # define VBOXGUEST_DEVICE_NAME_DOS      L"\\DosDevices\\VBoxGuest"
 
+#elif defined(RT_OS_HAIKU)
+# define VBOXGUEST_DEVICE_NAME          "/dev/misc/vboxguest"
+
 #else /* (PORTME) */
 # define VBOXGUEST_DEVICE_NAME          "/dev/vboxguest"
 # if defined(RT_OS_LINUX)
@@ -146,7 +149,7 @@ typedef const VBGLBIGREQ *PCVBGLBIGREQ;
 
 
 #if defined(RT_OS_WINDOWS)
-/* @todo Remove IOCTL_CODE later! Integrate it in VBOXGUEST_IOCTL_CODE below. */
+/** @todo Remove IOCTL_CODE later! Integrate it in VBOXGUEST_IOCTL_CODE below. */
 /** @todo r=bird: IOCTL_CODE is supposedly defined in some header included by Windows.h or ntddk.h, which is why it wasn't in the #if 0 earlier. See HostDrivers/Support/SUPDrvIOC.h... */
 # define IOCTL_CODE(DeviceType, Function, Method, Access, DataSize_ignored) \
   ( ((DeviceType) << 16) | ((Access) << 14) | ((Function) << 2) | (Method))
@@ -175,6 +178,13 @@ typedef const VBGLBIGREQ *PCVBGLBIGREQ;
 # define VBOXGUEST_IOCTL_CODE_FAST_(Function)       _IO(  'V', (Function))
 # define VBOXGUEST_IOCTL_STRIP_SIZE(Code)           VBOXGUEST_IOCTL_CODE_(_IOC_NR((Code)), 0)
 
+#elif defined(RT_OS_HAIKU)
+  /* No automatic buffering, size not encoded. */
+  /** @todo do something better */
+# define VBOXGUEST_IOCTL_CODE_(Function, Size)      (0x56420000 | (Function))
+# define VBOXGUEST_IOCTL_CODE_FAST_(Function)       (0x56420000 | (Function))
+# define VBOXGUEST_IOCTL_STRIP_SIZE(Code)           (Code)
+
 #elif defined(RT_OS_FREEBSD) /** @todo r=bird: Please do it like SUPDRVIOC to keep it as similar as possible. */
 # include <sys/ioccom.h>
 
@@ -185,8 +195,8 @@ typedef const VBGLBIGREQ *PCVBGLBIGREQ;
 #else /* BSD Like */
   /* Automatic buffering, size limited to 4KB on *BSD and 8KB on Darwin - commands the limit, 4KB. */
 # include <sys/ioccom.h>
-# define VBOXGUEST_IOCTL_CODE_(Function, Size)      _IOC(IOC_INOUT, 'V', (Function) | VBOXGUEST_IOCTL_FLAG, (Size))
-# define VBOXGUEST_IOCTL_CODE_FAST_(Function)       _IO('V', (Function) | VBOXGUEST_IOCTL_FLAG)
+# define VBOXGUEST_IOCTL_CODE_(Function, Size)      _IOC(IOC_INOUT, 'V', (Function), (Size))
+# define VBOXGUEST_IOCTL_CODE_FAST_(Function)       _IO('V', (Function))
 # define VBOXGUEST_IOCTL_STRIP_SIZE(uIOCtl)         ( (uIOCtl) & ~_IOC(0,0,0,IOCPARM_MASK) )
 #endif
 
@@ -321,7 +331,7 @@ typedef struct VBoxGuestWriteCoreDump
 AssertCompileSize(VBoxGuestWriteCoreDump, 4);
 
 /** IOCTL to VBoxGuest to update the mouse status features. */
-# define VBOXGUEST_IOCTL_SET_MOUSE_STATUS         VBOXGUEST_IOCTL_CODE_(10, sizeof(uint32_t))
+# define VBOXGUEST_IOCTL_SET_MOUSE_STATUS           VBOXGUEST_IOCTL_CODE_(10, sizeof(uint32_t))
 
 #ifdef VBOX_WITH_HGCM
 /** IOCTL to VBoxGuest to connect to a HGCM service. */
@@ -340,7 +350,7 @@ AssertCompileSize(VBoxGuestWriteCoreDump, 4);
 /** IOCTL to VBoxGuest passed from the Kernel Mode driver, but containing a user mode data in VBoxGuestHGCMCallInfo
  * the driver received from the UM. Called in the context of the process passing the data.
  * @see VBoxGuestHGCMCallInfo */
-# define VBOXGUEST_IOCTL_HGCM_CALL_USERDATA(Size)      VBOXGUEST_IOCTL_CODE(21, (Size))
+# define VBOXGUEST_IOCTL_HGCM_CALL_USERDATA(Size)   VBOXGUEST_IOCTL_CODE(21, (Size))
 
 # ifdef RT_ARCH_AMD64
 /** @name IOCTL numbers that 32-bit clients, like the Windows OpenGL guest
@@ -353,10 +363,6 @@ AssertCompileSize(VBoxGuestWriteCoreDump, 4);
 /** @} */
 # endif /* RT_ARCH_AMD64 */
 
-#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
-#define VBOXGUEST_IOCTL_DPC VBOXGUEST_IOCTL_CODE(30, 0)
-#endif
-
 /** Get the pointer to the first HGCM parameter.  */
 # define VBOXGUEST_HGCM_CALL_PARMS(a)             ( (HGCMFunctionParameter   *)((uint8_t *)(a) + sizeof(VBoxGuestHGCMCallInfo)) )
 /** Get the pointer to the first HGCM parameter in a 32-bit request.  */
@@ -364,8 +370,14 @@ AssertCompileSize(VBoxGuestWriteCoreDump, 4);
 
 #endif /* VBOX_WITH_HGCM */
 
-/** IOCTL to for setting the mouse driver callback. (kernel only)  */
-#define VBOXGUEST_IOCTL_SET_MOUSE_NOTIFY_CALLBACK   VBOXGUEST_IOCTL_CODE_(31, sizeof(VBoxGuestMouseSetNotifyCallback))
+#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
+/** IOCTL to VBoxGuest to perform DPC latency tests, printing the result in
+ * the release log on the host.  Takes no data, returns no data. */
+# define VBOXGUEST_IOCTL_DPC_LATENCY_CHECKER        VBOXGUEST_IOCTL_CODE_(30, 0)
+#endif
+
+/** IOCTL to for setting the mouse driver callback. (kernel only) */
+#define VBOXGUEST_IOCTL_SET_MOUSE_NOTIFY_CALLBACK   VBOXGUEST_IOCTL_CODE(31, sizeof(VBoxGuestMouseSetNotifyCallback))
 
 typedef enum VBOXGUESTCAPSACQUIRE_FLAGS
 {

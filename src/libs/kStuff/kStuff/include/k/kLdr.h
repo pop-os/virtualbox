@@ -1,4 +1,4 @@
-/* $Id: kLdr.h 41 2011-08-24 14:35:57Z bird $ */
+/* $Id: kLdr.h 52 2013-07-09 17:03:37Z bird $ */
 /** @file
  * kLdr - The Dynamic Loader.
  */
@@ -588,6 +588,14 @@ typedef FNKLDRENUMRSRC *PFNKLDRENUMRSRC;
 #define KLDR_LANG_ID_UI_CUSTOM_DEFAULT  ( ~(KU32)7 )
 /** @} */
 
+/** @name Module Open Flags
+ * @{ */
+/** Indicates that we won't be loading the module, we're just getting
+ *  information (like symbols and line numbers) out of it. */
+#define KLDRMOD_OPEN_FLAGS_FOR_INFO     K_BIT32(0)
+/** Mask of valid flags.    */
+#define KLDRMOD_OPEN_FLAGS_VALID_MASK   KU32_C(0x00000001)
+/** @} */
 
 int     kLdrModOpen(const char *pszFilename, KU32 fFlags, KCPUARCH enmCpuArch, PPKLDRMOD ppMod);
 int     kLdrModOpenFromRdr(PKRDR pRdr, KU32 fFlags, KCPUARCH enmCpuArch, PPKLDRMOD ppMod);

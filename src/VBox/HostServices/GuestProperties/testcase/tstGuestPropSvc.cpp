@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -431,7 +431,7 @@ int doSetProperty(VBOXHGCMSVCFNTABLE *pTable, const char *pcszName,
  */
 static void testSetProp(VBOXHGCMSVCFNTABLE *pTable)
 {
-    RTTestISub("SET_PROP, SET_PROP_VALUE, SET_PROP_HOST, SET_PROP_VALUE_HOST");
+    RTTestISub("SET_PROP, _VALUE, _HOST, _VALUE_HOST");
 
     /** Array of properties for testing SET_PROP_HOST and _GUEST. */
     static const struct
@@ -745,7 +745,7 @@ struct asyncNotification_
  */
 static void setupAsyncNotification(VBOXHGCMSVCFNTABLE *pTable)
 {
-    RTTestISub("Asynchronous GET_NOTIFICATION call with no notifications are available");
+    RTTestISub("Async GET_NOTIFICATION without notifications");
     static char s_szPattern[] = "";
 
     g_AsyncNotification.aParms[0].setPointer((void *)s_szPattern, sizeof(s_szPattern));
@@ -796,7 +796,7 @@ static void test2(void)
     /* Set up the asynchronous notification test */
     setupAsyncNotification(&svcTable);
     testSetProp(&svcTable);
-    RTTestISub("Checking the data returned by the asynchronous notification call");
+    RTTestISub("Async notification call data");
     testAsyncNotification(&svcTable); /* Our previous notification call should have completed by now. */
 
     testDelProp(&svcTable);
@@ -838,7 +838,7 @@ static int doSetGlobalFlags(VBOXHGCMSVCFNTABLE *pTable, ePropFlags eFlags)
  */
 static void testSetPropROGuest(VBOXHGCMSVCFNTABLE *pTable)
 {
-    RTTestISub("SET_PROP, SET_PROP_VALUE, SET_PROP_HOST and SET_PROP_VALUE_HOST calls with READONLYGUEST set globally");
+    RTTestISub("global READONLYGUEST and SET_PROP*");
 
     /** Array of properties for testing SET_PROP_HOST and _GUEST with the
      * READONLYGUEST global flag set. */
@@ -908,7 +908,7 @@ static void testSetPropROGuest(VBOXHGCMSVCFNTABLE *pTable)
  */
 static void testDelPropROGuest(VBOXHGCMSVCFNTABLE *pTable)
 {
-    RTTestISub("DEL_PROP and DEL_PROP_HOST calls with RDONLYGUEST set globally");
+    RTTestISub("global READONLYGUEST and DEL_PROP*");
 
     /** Array of properties for testing DEL_PROP_HOST and _GUEST with
      * READONLYGUEST set globally. */

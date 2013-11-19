@@ -240,9 +240,10 @@ static int      rtkldrRdr_Create(  PPKRDR ppRdr, const char *pszFilename)
 /** @copydoc KLDRRDROPS::pfnDestroy */
 static int      rtkldrRdr_Destroy( PKRDR pRdr)
 {
-    PRTLDRREADER pReader = ((PRTKLDRRDR)pRdr)->pReader;
-    int rc = pReader->pfnDestroy(pReader);
-    return rtkldrConvertErrorFromIPRT(rc);
+    PRTKLDRRDR pThis = (PRTKLDRRDR)pRdr;
+    pThis->pReader = NULL;
+    RTMemFree(pThis);
+    return 0;
 }
 
 
@@ -598,23 +599,49 @@ static int rtkldrEnumDbgInfoWrapper(PKLDRMOD pMod, KU32 iDbgInfo, KLDRDBGINFOTYP
     PRTLDRMODKLDRARGS pArgs = (PRTLDRMODKLDRARGS)pvUser;
     NOREF(pMod);
 
-    RTLDRDBGINFOTYPE enmMyType;
+    RTLDRDBGINFO DbgInfo;
+    RT_ZERO(DbgInfo.u);
+    DbgInfo.iDbgInfo        = iDbgInfo;
+    DbgInfo.offFile         = offFile;
+    DbgInfo.LinkAddress     = LinkAddress;
+    DbgInfo.cb              = cb;
+    DbgInfo.pszExtFile      = pszExtFile;
+
     switch (enmType)
     {
-        case KLDRDBGINFOTYPE_UNKNOWN:   enmMyType = RTLDRDBGINFOTYPE_UNKNOWN;  break;
-        case KLDRDBGINFOTYPE_STABS:     enmMyType = RTLDRDBGINFOTYPE_STABS;    break;
-        case KLDRDBGINFOTYPE_DWARF:     enmMyType = RTLDRDBGINFOTYPE_DWARF;    break;
-        case KLDRDBGINFOTYPE_CODEVIEW:  enmMyType = RTLDRDBGINFOTYPE_CODEVIEW; break;
-        case KLDRDBGINFOTYPE_WATCOM:    enmMyType = RTLDRDBGINFOTYPE_WATCOM;   break;
-        case KLDRDBGINFOTYPE_HLL:       enmMyType = RTLDRDBGINFOTYPE_HLL;      break;
+        case KLDRDBGINFOTYPE_UNKNOWN:
+            DbgInfo.enmType = RTLDRDBGINFOTYPE_UNKNOWN;
+            break;
+        case KLDRDBGINFOTYPE_STABS:
+            DbgInfo.enmType = RTLDRDBGINFOTYPE_STABS;
+            break;
+        case KLDRDBGINFOTYPE_DWARF:
+            DbgInfo.enmType = RTLDRDBGINFOTYPE_DWARF;
+            if (!pszExtFile)
+                DbgInfo.u.Dwarf.pszSection = pszPartNm;
+            else
+            {
+                DbgInfo.enmType = RTLDRDBGINFOTYPE_DWARF_DWO;
+                DbgInfo.u.Dwo.uCrc32 = 0;
+            }
+            break;
+        case KLDRDBGINFOTYPE_CODEVIEW:
+            DbgInfo.enmType = RTLDRDBGINFOTYPE_CODEVIEW;
+            /* Should make some more effort here... Assume the IPRT loader will kick in before we get here! */
+            break;
+        case KLDRDBGINFOTYPE_WATCOM:
+            DbgInfo.enmType = RTLDRDBGINFOTYPE_WATCOM;
+            break;
+        case KLDRDBGINFOTYPE_HLL:
+            DbgInfo.enmType = RTLDRDBGINFOTYPE_HLL;
+            break;
         default:
             AssertFailed();
-            enmMyType = RTLDRDBGINFOTYPE_UNKNOWN;
+            DbgInfo.enmType = RTLDRDBGINFOTYPE_UNKNOWN;
             break;
     }
 
-    int rc = pArgs->u.pfnEnumDbgInfo(&pArgs->pMod->Core, iDbgInfo, enmMyType, iMajorVer, iMinorVer, pszPartNm,
-                                     offFile, LinkAddress, cb, pszExtFile, pArgs->pvUser);
+    int rc = pArgs->u.pfnEnumDbgInfo(&pArgs->pMod->Core, &DbgInfo, pArgs->pvUser);
     if (RT_FAILURE(rc))
         return rc; /* don't bother converting. */
     return 0;
@@ -645,13 +672,29 @@ static DECLCALLBACK(int) rtkldr_EnumSegments(PRTLDRMODINTERNAL pMod, PFNRTLDRENU
     PRTLDRMODKLDR   pThis      = (PRTLDRMODKLDR)pMod;
     uint32_t const  cSegments  = pThis->pMod->cSegments;
     PCKLDRSEG       paSegments = &pThis->pMod->aSegments[0];
+    char            szName[128];
 
     for (uint32_t iSeg = 0; iSeg < cSegments; iSeg++)
     {
         RTLDRSEG Seg;
 
-        Seg.pchName     = paSegments[iSeg].pchName;
-        Seg.cchName     = paSegments[iSeg].cchName;
+        if (!paSegments[iSeg].cchName)
+        {
+            Seg.pszName = szName;
+            Seg.cchName = (uint32_t)RTStrPrintf(szName, sizeof(szName), "Seg%02u", iSeg);
+        }
+        else if (paSegments[iSeg].pchName[paSegments[iSeg].cchName])
+        {
+            AssertReturn(paSegments[iSeg].cchName < sizeof(szName), VERR_INTERNAL_ERROR_3);
+            RTStrCopyEx(szName, sizeof(szName), paSegments[iSeg].pchName, paSegments[iSeg].cchName);
+            Seg.pszName = szName;
+            Seg.cchName = paSegments[iSeg].cchName;
+        }
+        else
+        {
+            Seg.pszName = paSegments[iSeg].pchName;
+            Seg.cchName = paSegments[iSeg].cchName;
+        }
         Seg.SelFlat     = paSegments[iSeg].SelFlat;
         Seg.Sel16bit    = paSegments[iSeg].Sel16bit;
         Seg.fFlags      = paSegments[iSeg].fFlags;
@@ -784,6 +827,15 @@ static DECLCALLBACK(int) rtkldr_RvaToSegOffset(PRTLDRMODINTERNAL pMod, RTLDRADDR
 }
 
 
+/** @copydoc RTLDROPS::pfnReadDbgInfo. */
+static DECLCALLBACK(int) rtkldr_ReadDbgInfo(PRTLDRMODINTERNAL pMod, uint32_t iDbgInfo, RTFOFF off, size_t cb, void *pvBuf)
+{
+    PRTLDRMODKLDR   pThis = (PRTLDRMODKLDR)pMod;
+    /** @todo May have to apply fixups here. */
+    return pThis->Core.pReader->pfnRead(pThis->Core.pReader, pvBuf, cb, off);
+}
+
+
 /**
  * Operations for a kLdr module.
  */
@@ -805,6 +857,7 @@ static const RTLDROPS g_rtkldrOps =
     rtkldr_LinkAddressToRva,
     rtkldr_SegOffsetToRva,
     rtkldr_RvaToSegOffset,
+    rtkldr_ReadDbgInfo,
     42
 };
 
@@ -836,6 +889,9 @@ int rtldrkLdrOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, PRTL
         default:
             return VERR_INVALID_PARAMETER;
     }
+    KU32 fKFlags = 0;
+    if (fFlags & RTLDR_O_FOR_DEBUG)
+        fKFlags |= KLDRMOD_OPEN_FLAGS_FOR_INFO;
 
     /* Create a rtkldrRdr_ instance. */
     PRTKLDRRDR pRdr = (PRTKLDRRDR)RTMemAllocZ(sizeof(*pRdr));
@@ -847,7 +903,7 @@ int rtldrkLdrOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, PRTL
 
     /* Try open it. */
     PKLDRMOD pMod;
-    int krc = kLdrModOpenFromRdr(&pRdr->Core, fFlags, enmCpuArch, &pMod);
+    int krc = kLdrModOpenFromRdr(&pRdr->Core, fKFlags, enmCpuArch, &pMod);
     if (!krc)
     {
         /* Create a module wrapper for it. */
@@ -855,9 +911,59 @@ int rtldrkLdrOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, PRTL
         if (pNewMod)
         {
             pNewMod->Core.u32Magic = RTLDRMOD_MAGIC;
-            pNewMod->Core.eState = LDR_STATE_OPENED;
-            pNewMod->Core.pOps = &g_rtkldrOps;
-            pNewMod->pMod = pMod;
+            pNewMod->Core.eState   = LDR_STATE_OPENED;
+            pNewMod->Core.pOps     = &g_rtkldrOps;
+            pNewMod->Core.pReader  = pReader;
+            switch (pMod->enmFmt)
+            {
+                case KLDRFMT_NATIVE:    pNewMod->Core.enmFormat = RTLDRFMT_NATIVE; break;
+                case KLDRFMT_AOUT:      pNewMod->Core.enmFormat = RTLDRFMT_AOUT; break;
+                case KLDRFMT_ELF:       pNewMod->Core.enmFormat = RTLDRFMT_ELF; break;
+                case KLDRFMT_LX:        pNewMod->Core.enmFormat = RTLDRFMT_LX; break;
+                case KLDRFMT_MACHO:     pNewMod->Core.enmFormat = RTLDRFMT_MACHO; break;
+                case KLDRFMT_PE:        pNewMod->Core.enmFormat = RTLDRFMT_PE; break;
+                default:
+                    AssertMsgFailed(("%d\n", pMod->enmFmt));
+                    pNewMod->Core.enmFormat = RTLDRFMT_NATIVE;
+                    break;
+            }
+            switch (pMod->enmType)
+            {
+                case KLDRTYPE_OBJECT:                       pNewMod->Core.enmType = RTLDRTYPE_OBJECT; break;
+                case KLDRTYPE_EXECUTABLE_FIXED:             pNewMod->Core.enmType = RTLDRTYPE_EXECUTABLE_FIXED; break;
+                case KLDRTYPE_EXECUTABLE_RELOCATABLE:       pNewMod->Core.enmType = RTLDRTYPE_EXECUTABLE_RELOCATABLE; break;
+                case KLDRTYPE_EXECUTABLE_PIC:               pNewMod->Core.enmType = RTLDRTYPE_EXECUTABLE_PIC; break;
+                case KLDRTYPE_SHARED_LIBRARY_FIXED:         pNewMod->Core.enmType = RTLDRTYPE_SHARED_LIBRARY_FIXED; break;
+                case KLDRTYPE_SHARED_LIBRARY_RELOCATABLE:   pNewMod->Core.enmType = RTLDRTYPE_SHARED_LIBRARY_RELOCATABLE; break;
+                case KLDRTYPE_SHARED_LIBRARY_PIC:           pNewMod->Core.enmType = RTLDRTYPE_SHARED_LIBRARY_PIC; break;
+                case KLDRTYPE_FORWARDER_DLL:                pNewMod->Core.enmType = RTLDRTYPE_FORWARDER_DLL; break;
+                case KLDRTYPE_CORE:                         pNewMod->Core.enmType = RTLDRTYPE_CORE; break;
+                case KLDRTYPE_DEBUG_INFO:                   pNewMod->Core.enmType = RTLDRTYPE_DEBUG_INFO; break;
+                default:
+                    AssertMsgFailed(("%d\n", pMod->enmType));
+                    pNewMod->Core.enmType = RTLDRTYPE_OBJECT;
+                    break;
+            }
+            switch (pMod->enmEndian)
+            {
+                case KLDRENDIAN_LITTLE:     pNewMod->Core.enmEndian = RTLDRENDIAN_LITTLE; break;
+                case KLDRENDIAN_BIG:        pNewMod->Core.enmEndian = RTLDRENDIAN_BIG; break;
+                case KLDRENDIAN_NA:         pNewMod->Core.enmEndian = RTLDRENDIAN_NA; break;
+                default:
+                    AssertMsgFailed(("%d\n", pMod->enmEndian));
+                    pNewMod->Core.enmEndian = RTLDRENDIAN_NA;
+                    break;
+            }
+            switch (pMod->enmArch)
+            {
+                case KCPUARCH_X86_32:       pNewMod->Core.enmArch   = RTLDRARCH_X86_32; break;
+                case KCPUARCH_AMD64:        pNewMod->Core.enmArch   = RTLDRARCH_AMD64; break;
+                default:
+                    AssertMsgFailed(("%d\n", pMod->enmArch));
+                    pNewMod->Core.enmArch = RTLDRARCH_WHATEVER;
+                    break;
+            }
+            pNewMod->pMod          = pMod;
             *phLdrMod = &pNewMod->Core;
 
 #ifdef LOG_ENABLED
@@ -874,9 +980,14 @@ int rtldrkLdrOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, PRTL
 #endif
             return VINF_SUCCESS;
         }
+
+        /* bail out */
         kLdrModClose(pMod);
         krc = KERR_NO_MEMORY;
     }
+    else
+        RTMemFree(pRdr);
+
     return rtkldrConvertError(krc);
 }
 

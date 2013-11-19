@@ -52,17 +52,6 @@ bool UIMachineLogicFullscreen::checkAvailability()
     /* Temporary get a machine object: */
     const CMachine &machine = uisession()->session().GetMachine();
 
-#if 0
-    /* Check that there are enough physical screens are connected: */
-    int cHostScreens = m_pScreenLayout->hostScreenCount();
-    int cGuestScreens = m_pScreenLayout->guestScreenCount();
-    if (cHostScreens < cGuestScreens)
-    {
-        msgCenter().cannotEnterFullscreenMode();
-        return false;
-    }
-#endif
-
     /* Check if there is enough physical memory to enter fullscreen: */
     if (uisession()->isGuestAdditionsActive())
     {
@@ -70,9 +59,7 @@ bool UIMachineLogicFullscreen::checkAvailability()
         quint64 usedBits = m_pScreenLayout->memoryRequirements();
         if (availBits < usedBits)
         {
-            int result = msgCenter().cannotEnterFullscreenMode(0, 0, 0,
-                                                               (((usedBits + 7) / 8 + _1M - 1) / _1M) * _1M);
-            if (result == QIMessageBox::Cancel)
+            if (!msgCenter().cannotEnterFullscreenMode(0, 0, 0, (((usedBits + 7) / 8 + _1M - 1) / _1M) * _1M))
                 return false;
         }
     }
@@ -91,6 +78,16 @@ bool UIMachineLogicFullscreen::checkAvailability()
     return true;
 }
 
+/** Adjusts guest screen count/size for the machine-logic we have. */
+void UIMachineLogicFullscreen::maybeAdjustGuestScreenSize()
+{
+    /* We should rebuild screen-layout: */
+    m_pScreenLayout->rebuild();
+    /* And update machine-windows sizes finally: */
+    foreach (UIMachineWindow *pMachineWindow, machineWindows())
+        pMachineWindow->handleScreenGeometryChange();
+}
+
 int UIMachineLogicFullscreen::hostScreenForGuestScreen(int iScreenId) const
 {
     return m_pScreenLayout->hostScreenForGuestScreen(iScreenId);
@@ -99,6 +96,28 @@ int UIMachineLogicFullscreen::hostScreenForGuestScreen(int iScreenId) const
 bool UIMachineLogicFullscreen::hasHostScreenForGuestScreen(int iScreenId) const
 {
     return m_pScreenLayout->hasHostScreenForGuestScreen(iScreenId);
+}
+
+void UIMachineLogicFullscreen::sltMachineStateChanged()
+{
+    /* Call to base-class: */
+    UIMachineLogic::sltMachineStateChanged();
+
+    /* If machine-state changed from 'paused' to 'running': */
+    if (uisession()->isRunning() && uisession()->wasPaused())
+    {
+        LogRelFlow(("UIMachineLogicFullscreen: "
+                    "Machine-state changed from 'paused' to 'running': "
+                    "Updating screen-layout...\n"));
+
+        /* Make sure further code will be called just once: */
+        uisession()->forgetPreviousMachineState();
+        /* We should rebuild screen-layout: */
+        m_pScreenLayout->rebuild();
+        /* We should update machine-windows sizes: */
+        foreach (UIMachineWindow *pMachineWindow, machineWindows())
+            pMachineWindow->handleScreenGeometryChange();
+    }
 }
 
 #ifdef Q_WS_MAC
@@ -115,7 +134,7 @@ void UIMachineLogicFullscreen::sltScreenLayoutChanged()
 
 void UIMachineLogicFullscreen::sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo)
 {
-    LogRelFlow(("UIMachineLogicFullscreen::GuestScreenCountChanged.\n"));
+    LogRelFlow(("UIMachineLogicFullscreen: Guest-screen count changed.\n"));
 
     /* Update multi-screen layout before any window update: */
     if (changeType == KGuestMonitorChangedEventType_Enabled ||
@@ -126,15 +145,15 @@ void UIMachineLogicFullscreen::sltGuestMonitorChange(KGuestMonitorChangedEventTy
     UIMachineLogic::sltGuestMonitorChange(changeType, uScreenId, screenGeo);
 }
 
-void UIMachineLogicFullscreen::sltHostScreenCountChanged(int cScreenCount)
+void UIMachineLogicFullscreen::sltHostScreenCountChanged()
 {
-    LogRelFlow(("UIMachineLogicFullscreen::HostScreenCountChanged.\n"));
+    LogRelFlow(("UIMachineLogicFullscreen: Host-screen count changed.\n"));
 
     /* Update multi-screen layout before any window update: */
     m_pScreenLayout->rebuild();
 
     /* Call to base-class: */
-    UIMachineLogic::sltHostScreenCountChanged(cScreenCount);
+    UIMachineLogic::sltHostScreenCountChanged();
 }
 
 void UIMachineLogicFullscreen::prepareActionGroups()
@@ -157,7 +176,7 @@ void UIMachineLogicFullscreen::prepareOtherConnections()
 
 void UIMachineLogicFullscreen::prepareMachineWindows()
 {
-    /* Do not create window(s) if they created already: */
+    /* Do not create machine-window(s) if they created already: */
     if (isMachineWindowsCreated())
         return;
 
@@ -167,14 +186,14 @@ void UIMachineLogicFullscreen::prepareMachineWindows()
     ::darwinSetFrontMostProcess();
 #endif /* Q_WS_MAC */
 
-    /* Update the multi screen layout: */
+    /* Update the multi-screen layout: */
     m_pScreenLayout->update();
 
-    /* Create machine window(s): */
+    /* Create machine-window(s): */
     for (uint cScreenId = 0; cScreenId < session().GetMachine().GetMonitorCount(); ++cScreenId)
         addMachineWindow(UIMachineWindow::create(this, cScreenId));
 
-    /* Connect screen-layout change handler: */
+    /* Connect multi-screen layout change handler: */
     for (int i = 0; i < machineWindows().size(); ++i)
         connect(m_pScreenLayout, SIGNAL(sigScreenLayoutChanged()),
                 static_cast<UIMachineWindowFullscreen*>(machineWindows()[i]), SLOT(sltShowInNecessaryMode()));
@@ -188,7 +207,7 @@ void UIMachineLogicFullscreen::prepareMachineWindows()
     setPresentationModeEnabled(true);
 #endif /* Q_WS_MAC */
 
-    /* Remember what machine window(s) created: */
+    /* Mark machine-window(s) created: */
     setMachineWindowsCreated(true);
 }
 
@@ -203,11 +222,14 @@ void UIMachineLogicFullscreen::prepareMenu()
 
 void UIMachineLogicFullscreen::cleanupMachineWindows()
 {
-    /* Do not cleanup machine window(s) if not present: */
+    /* Do not destroy machine-window(s) if they destroyed already: */
     if (!isMachineWindowsCreated())
         return;
 
-    /* Cleanup machine window(s): */
+    /* Mark machine-window(s) destroyed: */
+    setMachineWindowsCreated(false);
+
+    /* Cleanup machine-window(s): */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
         UIMachineWindow::destroy(pMachineWindow);
 

@@ -655,7 +655,7 @@ signals:
 
 protected:
 
-    /* Load data to cashe from corresponding external object(s),
+    /* Load data to cache from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
     /* Load data to corresponding widgets from cache,
@@ -672,8 +672,8 @@ protected:
     /* Page changed: */
     bool changed() const { return m_cache.wasChanged(); }
 
-    void setValidator (QIWidgetValidator *aVal);
-    bool revalidate (QString &aWarning, QString &aTitle);
+    /* API: Validation stuff: */
+    bool validate(QList<UIValidationMessage> &messages);
 
     void retranslateUi();
 
@@ -681,8 +681,9 @@ protected:
 
 private slots:
 
-    void mediumUpdated (const UIMedium &aMedium);
-    void mediumRemoved (UIMediumType aType, const QString &aMediumId);
+    /* Handlers: Medium-processing stuff: */
+    void sltHandleMediumUpdated(const QString &strMediumID);
+    void sltHandleMediumDeleted(const QString &strMediumID);
 
     void addController();
     void addIDEController();
@@ -754,8 +755,6 @@ private:
 
     void setDialogType(SettingsDialogType settingsDialogType);
     void polishPage();
-
-    QIWidgetValidator *mValidator;
 
     QString m_strMachineId;
     QString m_strMachineSettingsFilePath;

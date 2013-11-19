@@ -354,13 +354,13 @@ XPCOM_NATIVE(getComponentRegistrar) (JNIEnv *env, jobject)
 }
 
 #ifdef VBOX
-#  include <VBox/com/EventQueue.h>
+#  include <VBox/com/NativeEventQueue.h>
 #  include <iprt/err.h>
 
 extern "C" NS_EXPORT jint JNICALL
 XPCOM_NATIVE2(waitForEvents) (JNIEnv *env, jobject, jlong aTimeout)
 {
-    com::EventQueue* aEventQ = com::EventQueue::getMainEventQueue();
+    com::NativeEventQueue* aEventQ = com::NativeEventQueue::getMainEventQueue();
     NS_WARN_IF_FALSE(aEventQ != nsnull, "Null main event queue");
     if (!aEventQ)
         return -1;
@@ -379,7 +379,11 @@ XPCOM_NATIVE2(waitForEvents) (JNIEnv *env, jobject, jlong aTimeout)
 #endif
 
 extern "C" NS_EXPORT jobject JNICALL
+#ifdef VBOX
+XPCOM_NATIVE2(getServiceManager) (JNIEnv *env, jobject)
+#else
 XPCOM_NATIVE(getServiceManager) (JNIEnv *env, jobject)
+#endif
 {
   // Call XPCOM method
   nsCOMPtr<nsIServiceManager> sm;

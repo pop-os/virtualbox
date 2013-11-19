@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2011 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -89,16 +89,6 @@ AssertCompileMemberSize(RTTARRECORD, h.name, RTTAR_NAME_MAX+1);
 /** Pointer to a tar file header. */
 typedef RTTARRECORD *PRTTARRECORD;
 
-
-#if 0 /* not currently used */
-typedef struct RTTARFILELIST
-{
-    char *pszFilename;
-    RTTARFILELIST *pNext;
-} RTTARFILELIST;
-typedef RTTARFILELIST *PRTTARFILELIST;
-#endif
-
 /** Pointer to a tar file handle. */
 typedef struct RTTARFILEINTERNAL *PRTTARFILEINTERNAL;
 
@@ -145,9 +135,21 @@ typedef struct RTTARFILEINTERNAL
     uint64_t        offCurrent;
     /** The open mode. */
     uint32_t        fOpenMode;
+    /** The link flag. */
+    char            linkflag;
 } RTTARFILEINTERNAL;
 /** Pointer to the internal data of a tar file.  */
 typedef RTTARFILEINTERNAL *PRTTARFILEINTERNAL;
+
+#if 0 /* not currently used */
+typedef struct RTTARFILELIST
+{
+    char *pszFilename;
+    RTTARFILELIST *pNext;
+} RTTARFILELIST;
+typedef RTTARFILELIST *PRTTARFILELIST;
+#endif
+
 
 
 /******************************************************************************
@@ -333,12 +335,15 @@ DECLINLINE(int) rtTarCreateHeaderRecord(PRTTARRECORD pRecord, const char *pszSrc
     /** @todo check for field overflows. */
     /* Fill the header record */
 //    RT_ZERO(pRecord); - done by the caller.
-    RTStrPrintf(pRecord->h.name,  sizeof(pRecord->h.name),  "%s",       pszSrcName);
-    RTStrPrintf(pRecord->h.mode,  sizeof(pRecord->h.mode),  "%0.7o",    fmode);
-    RTStrPrintf(pRecord->h.uid,   sizeof(pRecord->h.uid),   "%0.7o",    uid);
-    RTStrPrintf(pRecord->h.gid,   sizeof(pRecord->h.gid),   "%0.7o",    gid);
+    /** @todo use RTStrCopy */
+    size_t cb = RTStrPrintf(pRecord->h.name,  sizeof(pRecord->h.name),  "%s", pszSrcName);
+    if (cb < strlen(pszSrcName))
+        return VERR_BUFFER_OVERFLOW;
+    RTStrPrintf(pRecord->h.mode,  sizeof(pRecord->h.mode),  "%0.7o", fmode);
+    RTStrPrintf(pRecord->h.uid,   sizeof(pRecord->h.uid),   "%0.7o", uid);
+    RTStrPrintf(pRecord->h.gid,   sizeof(pRecord->h.gid),   "%0.7o", gid);
     rtTarSizeToRec(pRecord, cbSize);
-    RTStrPrintf(pRecord->h.mtime, sizeof(pRecord->h.mtime), "%0.11o",   mtime);
+    RTStrPrintf(pRecord->h.mtime, sizeof(pRecord->h.mtime), "%0.11llo", mtime);
     RTStrPrintf(pRecord->h.magic, sizeof(pRecord->h.magic), "ustar  ");
     RTStrPrintf(pRecord->h.uname, sizeof(pRecord->h.uname), "someone");
     RTStrPrintf(pRecord->h.gname, sizeof(pRecord->h.gname), "someone");
@@ -1179,7 +1184,7 @@ RTR3DECL(int) RTTarFileSetTime(RTTARFILE hFile, PRTTIMESPEC pTime)
 
     /* Convert the time to an string. */
     char szModTime[RT_SIZEOFMEMB(RTTARRECORD, h.mtime)];
-    RTStrPrintf(szModTime, sizeof(szModTime), "%0.11o", RTTimeSpecGetSeconds(pTime));
+    RTStrPrintf(szModTime, sizeof(szModTime), "%0.11llo", RTTimeSpecGetSeconds(pTime));
 
     /* Write it directly into the header */
     return RTFileWriteAt(pFileInt->pTar->hTarFile,
@@ -1618,14 +1623,23 @@ RTR3DECL(int) RTTarSeekNextFile(RTTAR hTar)
      * If not we are somehow busted. */
     uint64_t offCur = RTFileTell(pInt->hTarFile);
     if (!(   pInt->pFileCache->offStart <= offCur
-          && offCur < pInt->pFileCache->offStart + sizeof(RTTARRECORD) + pInt->pFileCache->cbSize))
+          && offCur <= pInt->pFileCache->offStart + sizeof(RTTARRECORD) + pInt->pFileCache->cbSize))
         return VERR_INVALID_STATE;
 
     /* Seek to the next file header. */
     uint64_t offNext = RT_ALIGN(pInt->pFileCache->offStart + sizeof(RTTARRECORD) + pInt->pFileCache->cbSize, sizeof(RTTARRECORD));
-    rc = RTFileSeek(pInt->hTarFile, offNext - offCur, RTFILE_SEEK_CURRENT, NULL);
-    if (RT_FAILURE(rc))
-        return rc;
+    if (pInt->pFileCache->cbSize != 0)
+    {
+        rc = RTFileSeek(pInt->hTarFile, offNext - offCur, RTFILE_SEEK_CURRENT, NULL);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+    else
+    {
+        /* Else delete the last open file cache. Might be recreated below. */
+        rtDeleteTarFileInternal(pInt->pFileCache);
+        pInt->pFileCache = NULL;
+    }
 
     /* Again check the current filename to fill the cache with the new value. */
     return RTTarCurrentFile(hTar, NULL);
@@ -1649,20 +1663,24 @@ RTR3DECL(int) RTTarFileOpenCurrentFile(RTTAR hTar, PRTTARFILE phFile, char **pps
     /* Is there some cached entry? */
     if (pInt->pFileCache)
     {
-        /* Are we still direct behind that header? */
-        if (pInt->pFileCache->offStart + sizeof(RTTARRECORD) == RTFileTell(pInt->hTarFile))
+        if (pInt->pFileCache->offStart + sizeof(RTTARRECORD) < RTFileTell(pInt->hTarFile))
+        {
+            /* Else delete the last open file cache. Might be recreated below. */
+            rtDeleteTarFileInternal(pInt->pFileCache);
+            pInt->pFileCache = NULL;
+        }
+        else/* Are we still directly behind that header? */
         {
             /* Yes, so the streaming can start. Just return the cached file
              * structure to the caller. */
             *phFile = rtCopyTarFileInternal(pInt->pFileCache);
             if (ppszFilename)
                 *ppszFilename = RTStrDup(pInt->pFileCache->pszFilename);
+            if (pInt->pFileCache->linkflag == LF_DIR)
+                return VINF_TAR_DIR_PATH;
             return VINF_SUCCESS;
         }
 
-        /* Else delete the last open file cache. Might be recreated below. */
-        rtDeleteTarFileInternal(pInt->pFileCache);
-        pInt->pFileCache = NULL;
     }
 
     PRTTARFILEINTERNAL pFileInt = NULL;
@@ -1680,7 +1698,8 @@ RTR3DECL(int) RTTarFileOpenCurrentFile(RTTAR hTar, PRTTARFILE phFile, char **pps
 
         /* We support normal files only */
         if (   record.h.linkflag == LF_OLDNORMAL
-            || record.h.linkflag == LF_NORMAL)
+            || record.h.linkflag == LF_NORMAL
+            || record.h.linkflag == LF_DIR)
         {
             pFileInt = rtCreateTarFileInternal(pInt, record.h.name, fOpen);
             if (!pFileInt)
@@ -1693,11 +1712,16 @@ RTR3DECL(int) RTTarFileOpenCurrentFile(RTTAR hTar, PRTTARFILE phFile, char **pps
             pFileInt->cbSize = rtTarRecToSize(&record);
             /* The start is -512 from here. */
             pFileInt->offStart = RTFileTell(pInt->hTarFile) - sizeof(RTTARRECORD);
+            /* remember the type of a file */
+            pFileInt->linkflag = record.h.linkflag;
 
             /* Copy the new file structure to our cache. */
             pInt->pFileCache = rtCopyTarFileInternal(pFileInt);
             if (ppszFilename)
                 *ppszFilename = RTStrDup(pFileInt->pszFilename);
+
+            if (pFileInt->linkflag == LF_DIR)
+                rc = VINF_TAR_DIR_PATH;
         }
     } while (0);
 

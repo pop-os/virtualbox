@@ -1,10 +1,10 @@
 /* $Id: DevPcBios.cpp $ */
 /** @file
- * PC BIOS Device.
+ * DevPcBios - PC BIOS Device.
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,6 +31,7 @@
 #include <iprt/mem.h>
 #include <iprt/string.h>
 #include <iprt/uuid.h>
+#include <iprt/cdefs.h>
 #include <VBox/err.h>
 #include <VBox/param.h>
 
@@ -182,11 +183,99 @@ typedef struct DEVPCBIOS
     uint16_t        cCpus;
     uint32_t        u32McfgBase;
     uint32_t        cbMcfgLength;
-} DEVPCBIOS, *PDEVPCBIOS;
+} DEVPCBIOS;
+/** Pointer to the BIOS device state. */
+typedef DEVPCBIOS *PDEVPCBIOS;
 
 
-/* Attempt to guess the LCHS disk geometry from the MS-DOS master boot
- * record (partition table). */
+/**
+ * @callback_method_impl{FNIOMIOPORTIN, Boch Debug and Shutdown ports.}
+ */
+static DECLCALLBACK(int) pcbiosIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+{
+    return VERR_IOM_IOPORT_UNUSED;
+}
+
+
+/**
+ * @callback_method_impl{FNIOMIOPORTOUT, Boch Debug and Shutdown ports.}
+ */
+static DECLCALLBACK(int) pcbiosIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+{
+    /*
+     * Bochs BIOS char printing.
+     */
+    if (    cb == 1
+        &&  (   Port == 0x402
+             || Port == 0x403))
+    {
+        PDEVPCBIOS pThis = PDMINS_2_DATA(pDevIns, PDEVPCBIOS);
+        /* The raw version. */
+        switch (u32)
+        {
+            case '\r': Log2(("pcbios: <return>\n")); break;
+            case '\n': Log2(("pcbios: <newline>\n")); break;
+            case '\t': Log2(("pcbios: <tab>\n")); break;
+            default:   Log2(("pcbios: %c (%02x)\n", u32, u32)); break;
+        }
+
+        /* The readable, buffered version. */
+        if (u32 == '\n' || u32 == '\r')
+        {
+            pThis->szMsg[pThis->iMsg] = '\0';
+            if (pThis->iMsg)
+                Log(("pcbios: %s\n", pThis->szMsg));
+            pThis->iMsg = 0;
+        }
+        else
+        {
+            if (pThis->iMsg >= sizeof(pThis->szMsg)-1)
+            {
+                pThis->szMsg[pThis->iMsg] = '\0';
+                Log(("pcbios: %s\n", pThis->szMsg));
+                pThis->iMsg = 0;
+            }
+            pThis->szMsg[pThis->iMsg] = (char )u32;
+            pThis->szMsg[++pThis->iMsg] = '\0';
+        }
+        return VINF_SUCCESS;
+    }
+
+    /*
+     * Bochs BIOS shutdown request.
+     */
+    if (cb == 1 && Port == 0x8900)
+    {
+        static const unsigned char szShutdown[] = "Shutdown";
+        PDEVPCBIOS pThis = PDMINS_2_DATA(pDevIns, PDEVPCBIOS);
+        if (u32 == szShutdown[pThis->iShutdown])
+        {
+            pThis->iShutdown++;
+            if (pThis->iShutdown == 8)
+            {
+                pThis->iShutdown = 0;
+                LogRel(("DevPcBios: 8900h shutdown request.\n"));
+                return PDMDevHlpVMPowerOff(pDevIns);
+            }
+        }
+        else
+            pThis->iShutdown = 0;
+        return VINF_SUCCESS;
+    }
+
+    /* not in use. */
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Attempt to guess the LCHS disk geometry from the MS-DOS master boot record
+ * (partition table).
+ *
+ * @returns VBox status code.
+ * @param   pBlock          The block device interface of the disk.
+ * @param   pLCHSGeometry   Where to return the disk geometry on success
+ */
 static int biosGuessDiskLCHS(PPDMIBLOCK pBlock, PPDMMEDIAGEOMETRY pLCHSGeometry)
 {
     uint8_t aMBR[512], *p;
@@ -240,6 +329,7 @@ static void pcbiosCmosWrite(PPDMDEVINS pDevIns, int off, uint32_t u32Val)
     AssertRC(rc);
 }
 
+
 /**
  * Read from CMOS memory.
  * This is used by the init complete code.
@@ -256,7 +346,6 @@ static uint8_t pcbiosCmosRead(PPDMDEVINS pDevIns, int off)
     return u8val;
 }
 
-/* -=-=-=-=-=-=- based on code from pc.c -=-=-=-=-=-=- */
 
 /**
  * Initializes the CMOS data for one harddisk.
@@ -283,6 +372,7 @@ static void pcbiosCmosInitHardDisk(PPDMDEVINS pDevIns, int offType, int offInfo,
     /* Sectors */
     pcbiosCmosWrite(pDevIns, offInfo + 7, pLCHSGeometry->cSectors);
 }
+
 
 /**
  * Set logical CHS geometry for a hard disk
@@ -369,6 +459,7 @@ static int setLogicalDiskGeometry(PPDMIBASE pBase, PPDMIBLOCKBIOS pHardDisk, PPD
     return rc;
 }
 
+
 /**
  * Get BIOS boot code from enmBootDevice in order
  *
@@ -396,11 +487,10 @@ static uint8_t getBiosBootCode(PDEVPCBIOS pThis, unsigned iOrder)
 
 
 /**
- * Init complete notification.
+ * @interface_method_impl{PDMDEVREG,pfnInitComplete}
+ *
  * This routine will write information needed by the bios to the CMOS.
  *
- * @returns VBOX status code.
- * @param   pDevIns     The device instance.
  * @see     http://www.brl.ntt.co.jp/people/takehiko/interrupt/CMOS.LST.txt for
  *          a description of standard and non-standard CMOS registers.
  */
@@ -409,10 +499,8 @@ static DECLCALLBACK(int) pcbiosInitComplete(PPDMDEVINS pDevIns)
     PDEVPCBIOS      pThis = PDMINS_2_DATA(pDevIns, PDEVPCBIOS);
     uint32_t        u32;
     unsigned        i;
-    PVM             pVM = PDMDevHlpGetVM(pDevIns);
+    PUVM            pUVM = PDMDevHlpGetUVM(pDevIns); AssertRelease(pUVM);
     PPDMIBLOCKBIOS  apHDs[4] = {0};
-    PPDMIBLOCKBIOS  apFDs[2] = {0};
-    AssertRelease(pVM);
     LogFlow(("pcbiosInitComplete:\n"));
 
     /*
@@ -497,45 +585,42 @@ static DECLCALLBACK(int) pcbiosInitComplete(PPDMDEVINS pDevIns)
     /*
      * Floppy drive type.
      */
-    for (i = 0; i < RT_ELEMENTS(apFDs); i++)
+    uint32_t cFDs = 0;
+    u32 = 0;
+    for (i = 0; i < 2; i++)
     {
         PPDMIBASE pBase;
-        int rc = PDMR3QueryLun(pVM, pThis->pszFDDevice, 0, i, &pBase);
+        int rc = PDMR3QueryLun(pUVM, pThis->pszFDDevice, 0, i, &pBase);
         if (RT_SUCCESS(rc))
-            apFDs[i] = PDMIBASE_QUERY_INTERFACE(pBase, PDMIBLOCKBIOS);
+        {
+            PPDMIBLOCKBIOS pFD = PDMIBASE_QUERY_INTERFACE(pBase, PDMIBLOCKBIOS);
+            if (pFD)
+            {
+                cFDs++;
+                unsigned cShift = i == 0 ? 4 : 0;
+                switch (pFD->pfnGetType(pFD))
+                {
+                    case PDMBLOCKTYPE_FLOPPY_360:       u32 |= 1  << cShift; break;
+                    case PDMBLOCKTYPE_FLOPPY_1_20:      u32 |= 2  << cShift; break;
+                    case PDMBLOCKTYPE_FLOPPY_720:       u32 |= 3  << cShift; break;
+                    case PDMBLOCKTYPE_FLOPPY_1_44:      u32 |= 4  << cShift; break;
+                    case PDMBLOCKTYPE_FLOPPY_2_88:      u32 |= 5  << cShift; break;
+                    case PDMBLOCKTYPE_FLOPPY_FAKE_15_6: u32 |= 14 << cShift; break;
+                    case PDMBLOCKTYPE_FLOPPY_FAKE_63_5: u32 |= 15 << cShift; break;
+                    default:                        AssertFailed(); break;
+                }
+            }
+        }
     }
-    u32 = 0;
-    if (apFDs[0])
-        switch (apFDs[0]->pfnGetType(apFDs[0]))
-        {
-            case PDMBLOCKTYPE_FLOPPY_360:   u32 |= 1 << 4; break;
-            case PDMBLOCKTYPE_FLOPPY_1_20:  u32 |= 2 << 4; break;
-            case PDMBLOCKTYPE_FLOPPY_720:   u32 |= 3 << 4; break;
-            case PDMBLOCKTYPE_FLOPPY_1_44:  u32 |= 4 << 4; break;
-            case PDMBLOCKTYPE_FLOPPY_2_88:  u32 |= 5 << 4; break;
-            default:                        AssertFailed(); break;
-        }
-    if (apFDs[1])
-        switch (apFDs[1]->pfnGetType(apFDs[1]))
-        {
-            case PDMBLOCKTYPE_FLOPPY_360:   u32 |= 1; break;
-            case PDMBLOCKTYPE_FLOPPY_1_20:  u32 |= 2; break;
-            case PDMBLOCKTYPE_FLOPPY_720:   u32 |= 3; break;
-            case PDMBLOCKTYPE_FLOPPY_1_44:  u32 |= 4; break;
-            case PDMBLOCKTYPE_FLOPPY_2_88:  u32 |= 5; break;
-            default:                        AssertFailed(); break;
-        }
     pcbiosCmosWrite(pDevIns, 0x10, u32);                                        /* 10h - Floppy Drive Type */
 
     /*
      * Equipment byte.
      */
-    u32 = !!apFDs[0] + !!apFDs[1];
-    switch (u32)
-    {
-        case 1: u32 = 0x01; break;      /* floppy installed, 2 drives. */
-        default:u32 = 0;    break;      /* floppy not installed. */
-    }
+    if (cFDs > 0)
+        u32 = 0x01;                        /* floppy installed, 2 drives. */
+    else
+        u32 = 0x00;                        /* floppy not installed. */
     u32 |= RT_BIT(1);                      /* math coprocessor installed  */
     u32 |= RT_BIT(2);                      /* keyboard enabled (or mouse?) */
     u32 |= RT_BIT(3);                      /* display enabled (monitory type is 0, i.e. vga) */
@@ -547,7 +632,7 @@ static DECLCALLBACK(int) pcbiosInitComplete(PPDMDEVINS pDevIns)
     for (i = 0; i < RT_ELEMENTS(apHDs); i++)
     {
         PPDMIBASE pBase;
-        int rc = PDMR3QueryLun(pVM, pThis->pszHDDevice, 0, i, &pBase);
+        int rc = PDMR3QueryLun(pUVM, pThis->pszHDDevice, 0, i, &pBase);
         if (RT_SUCCESS(rc))
             apHDs[i] = PDMIBASE_QUERY_INTERFACE(pBase, PDMIBLOCKBIOS);
         if (   apHDs[i]
@@ -608,7 +693,7 @@ static DECLCALLBACK(int) pcbiosInitComplete(PPDMDEVINS pDevIns)
         for (i = 0; i < RT_ELEMENTS(apHDs); i++)
         {
             PPDMIBASE pBase;
-            int rc = PDMR3QueryLun(pVM, pThis->pszSataDevice, 0, pThis->iSataHDLUN[i], &pBase);
+            int rc = PDMR3QueryLun(pUVM, pThis->pszSataDevice, 0, pThis->iSataHDLUN[i], &pBase);
             if (RT_SUCCESS(rc))
                 apHDs[i] = PDMIBASE_QUERY_INTERFACE(pBase, PDMIBLOCKBIOS);
             if (   apHDs[i]
@@ -661,111 +746,14 @@ static DECLCALLBACK(int) pcbiosInitComplete(PPDMDEVINS pDevIns)
     return VINF_SUCCESS;
 }
 
-/**
- * Port I/O Handler for IN operations.
- *
- * @returns VBox status code.
- *
- * @param   pDevIns     The device instance.
- * @param   pvUser      User argument - ignored.
- * @param   Port        Port number used for the IN operation.
- * @param   pu32        Where to store the result.
- * @param   cb          Number of bytes read.
- */
-static DECLCALLBACK(int) pcbiosIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
-{
-    return VERR_IOM_IOPORT_UNUSED;
-}
-
 
 /**
- * Port I/O Handler for OUT operations.
- *
- * @returns VBox status code.
- *
- * @param   pDevIns     The device instance.
- * @param   pvUser      User argument - ignored.
- * @param   Port        Port number used for the IN operation.
- * @param   u32         The value to output.
- * @param   cb          The value size in bytes.
+ * @interface_method_impl{PDMDEVREG,pfnMemSetup}
  */
-static DECLCALLBACK(int) pcbiosIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
-{
-    /*
-     * Bochs BIOS char printing.
-     */
-    if (    cb == 1
-        &&  (   Port == 0x402
-             || Port == 0x403))
-    {
-        PDEVPCBIOS pThis = PDMINS_2_DATA(pDevIns, PDEVPCBIOS);
-        /* The raw version. */
-        switch (u32)
-        {
-            case '\r': Log2(("pcbios: <return>\n")); break;
-            case '\n': Log2(("pcbios: <newline>\n")); break;
-            case '\t': Log2(("pcbios: <tab>\n")); break;
-            default:   Log2(("pcbios: %c (%02x)\n", u32, u32)); break;
-        }
-
-        /* The readable, buffered version. */
-        if (u32 == '\n' || u32 == '\r')
-        {
-            pThis->szMsg[pThis->iMsg] = '\0';
-            if (pThis->iMsg)
-                Log(("pcbios: %s\n", pThis->szMsg));
-            pThis->iMsg = 0;
-        }
-        else
-        {
-            if (pThis->iMsg >= sizeof(pThis->szMsg)-1)
-            {
-                pThis->szMsg[pThis->iMsg] = '\0';
-                Log(("pcbios: %s\n", pThis->szMsg));
-                pThis->iMsg = 0;
-            }
-            pThis->szMsg[pThis->iMsg] = (char )u32;
-            pThis->szMsg[++pThis->iMsg] = '\0';
-        }
-        return VINF_SUCCESS;
-    }
-
-    /*
-     * Bochs BIOS shutdown request.
-     */
-    if (cb == 1 && Port == 0x8900)
-    {
-        static const unsigned char szShutdown[] = "Shutdown";
-        PDEVPCBIOS pThis = PDMINS_2_DATA(pDevIns, PDEVPCBIOS);
-        if (u32 == szShutdown[pThis->iShutdown])
-        {
-            pThis->iShutdown++;
-            if (pThis->iShutdown == 8)
-            {
-                pThis->iShutdown = 0;
-                LogRel(("DevPcBios: 8900h shutdown request.\n"));
-                return PDMDevHlpVMPowerOff(pDevIns);
-            }
-        }
-        else
-            pThis->iShutdown = 0;
-        return VINF_SUCCESS;
-    }
-
-    /* not in use. */
-    return VINF_SUCCESS;
-}
-
-/**
- * Reset notification.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- */
-static DECLCALLBACK(void) pcbiosReset(PPDMDEVINS pDevIns)
+static DECLCALLBACK(void) pcbiosMemSetup(PPDMDEVINS pDevIns, PDMDEVMEMSETUPCTX enmCtx)
 {
     PDEVPCBIOS  pThis = PDMINS_2_DATA(pDevIns, PDEVPCBIOS);
-    LogFlow(("pcbiosReset:\n"));
+    LogFlow(("pcbiosMemSetup:\n"));
 
     if (pThis->u8IOAPIC)
         FwCommonPlantMpsFloatPtr(pDevIns);
@@ -807,12 +795,7 @@ static DECLCALLBACK(void) pcbiosReset(PPDMDEVINS pDevIns)
 
 
 /**
- * Destruct a device instance.
- *
- * Most VM resources are freed by the VM. This callback is provided so that any non-VM
- * resources can be freed correctly.
- *
- * @param   pDevIns     The device instance data.
+ * @interface_method_impl{PDMDEVREG,pfnDestruct}
  */
 static DECLCALLBACK(int) pcbiosDestruct(PPDMDEVINS pDevIns)
 {
@@ -930,10 +913,10 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
                               "RamHoleSize\0"
                               "HardDiskDevice\0"
                               "SataHardDiskDevice\0"
-                              "SataPrimaryMasterLUN\0"
-                              "SataPrimarySlaveLUN\0"
-                              "SataSecondaryMasterLUN\0"
-                              "SataSecondarySlaveLUN\0"
+                              "SataLUN1\0"
+                              "SataLUN2\0"
+                              "SataLUN3\0"
+                              "SataLUN4\0"
                               "FloppyDevice\0"
                               "DelayBoot\0"
                               "BiosRom\0"
@@ -1045,7 +1028,7 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
     if (pThis->pszSataDevice)
     {
         static const char * const s_apszSataDisks[] =
-            { "SataPrimaryMasterLUN", "SataPrimarySlaveLUN", "SataSecondaryMasterLUN", "SataSecondarySlaveLUN" };
+            { "SataLUN1", "SataLUN2", "SataLUN3", "SataLUN4" };
         Assert(RT_ELEMENTS(s_apszSataDisks) == RT_ELEMENTS(pThis->iSataHDLUN));
         for (unsigned i = 0; i < RT_ELEMENTS(pThis->iSataHDLUN); i++)
         {
@@ -1245,8 +1228,9 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
     uuid.Gen.u16TimeMid = RT_H2BE_U16(uuid.Gen.u16TimeMid);
     uuid.Gen.u16TimeHiAndVersion = RT_H2BE_U16(uuid.Gen.u16TimeHiAndVersion);
     uint16_t cbDmiTables = 0;
+    uint16_t cNumDmiTables = 0;
     rc = FwCommonPlantDMITable(pDevIns, pThis->au8DMIPage, VBOX_DMI_TABLE_SIZE,
-                               &uuid, pCfg, pThis->cCpus, &cbDmiTables);
+                               &uuid, pCfg, pThis->cCpus, &cbDmiTables, &cNumDmiTables);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -1260,7 +1244,8 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
             && pThis->pu8PcBios[i + 0x04] == '_'
             && *(uint16_t*)&pThis->pu8PcBios[i + 0x06] == 0)
         {
-            *(uint16_t*)&pThis->pu8PcBios[i + 0x06] = cbDmiTables;
+            *(uint16_t*)&pThis->pu8PcBios[i + 0x06] = RT_H2LE_U16(cbDmiTables);
+            *(uint16_t*)&pThis->pu8PcBios[i + 0x0C] = RT_H2LE_U16(cNumDmiTables);
             uint8_t u8Sum = 0;
             for (unsigned j = 0; j < pThis->cbPcBios; j++)
                 if (j != i + 0x05)
@@ -1422,11 +1407,6 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
     if (pThis->uBootDelay > 15)
         pThis->uBootDelay = 15;
 
-    /*
-     * Call reset plant tables and shadow the PXE ROM.
-     */
-    pcbiosReset(pDevIns);
-
     return VINF_SUCCESS;
 }
 
@@ -1460,12 +1440,12 @@ const PDMDEVREG g_DevicePcBios =
     pcbiosDestruct,
     /* pfnRelocate */
     NULL,
-    /* pfnIOCtl */
-    NULL,
+    /* pfnMemSetup */
+    pcbiosMemSetup,
     /* pfnPowerOn */
     NULL,
     /* pfnReset */
-    pcbiosReset,
+    NULL,
     /* pfnSuspend */
     NULL,
     /* pfnResume */
@@ -1485,3 +1465,4 @@ const PDMDEVREG g_DevicePcBios =
     /* u32VersionEnd */
     PDM_DEVREG_VERSION
 };
+

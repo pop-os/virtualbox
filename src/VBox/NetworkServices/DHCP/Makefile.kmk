@@ -40,17 +40,16 @@ VBoxNetDHCPHardened_NAME = VBoxNetDHCP
 #
 # VBoxNetDHCP
 #
-VBoxNetDHCP_TEMPLATE =
-VBoxNetDHCP_TEMPLATE := VBOXR3$(if-expr defined(VBOX_WITH_HARDENING),,EXE)
+VBoxNetDHCP_TEMPLATE := VBOX$(if-expr defined(VBOX_WITH_HARDENING),MAINDLL,MAINCLIENTEXE)
 VBoxNetDHCP_SOURCES = \
 	VBoxNetDHCP.cpp \
+	Config.cpp \
 	../NetLib/VBoxNetIntIf.cpp \
 	../NetLib/VBoxNetUDP.cpp \
-	../NetLib/VBoxNetARP.cpp
+	../NetLib/VBoxNetARP.cpp \
+	../NetLib/VBoxNetBaseService.cpp
 VBoxNetDHCP_LIBS = \
 	$(LIB_RUNTIME)
 VBoxNetDHCP_LDFLAGS.win = /SUBSYSTEM:windows
 
-
 include $(FILE_KBUILD_SUB_FOOTER)
-

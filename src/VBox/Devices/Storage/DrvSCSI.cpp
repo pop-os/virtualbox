@@ -70,10 +70,8 @@ typedef struct DRVSCSI
     PDMIBLOCKPORT           IPort;
     /** The optional block async port interface. */
     PDMIBLOCKASYNCPORT      IPortAsync;
-#if 0 /* these interfaces aren't implemented */
     /** The mount notify interface. */
     PDMIMOUNTNOTIFY         IMountNotify;
-#endif
     /** Fallback status LED state for this drive.
      * This is used in case the device doesn't has a LED interface. */
     PDMLED                  Led;
@@ -114,6 +112,8 @@ typedef struct DRVSCSI
 #define PDMISCSICONNECTOR_2_DRVSCSI(pInterface)  ( (PDRVSCSI)((uintptr_t)pInterface - RT_OFFSETOF(DRVSCSI, ISCSIConnector)) )
 /** Converts a pointer to DRVSCSI::IPortAsync to a PDRVSCSI. */
 #define PDMIBLOCKASYNCPORT_2_DRVSCSI(pInterface) ( (PDRVSCSI)((uintptr_t)pInterface - RT_OFFSETOF(DRVSCSI, IPortAsync)) )
+/** Converts a pointer to DRVSCSI::IMountNotify to PDRVSCSI. */
+#define PDMIMOUNTNOTIFY_2_DRVSCSI(pInterface)    ( (PDRVSCSI)((uintptr_t)pInterface - RT_OFFSETOF(DRVSCSI, IMountNotify)) )
 /** Converts a pointer to DRVSCSI::IPort to a PDRVSCSI. */
 #define PDMIBLOCKPORT_2_DRVSCSI(pInterface)      ( (PDRVSCSI)((uintptr_t)pInterface - RT_OFFSETOF(DRVSCSI, IPort)) )
 
@@ -241,6 +241,27 @@ static DECLCALLBACK(int) drvscsiGetSize(VSCSILUN hVScsiLun, void *pvScsiLunUser,
     PDRVSCSI pThis = (PDRVSCSI)pvScsiLunUser;
 
     *pcbSize = pThis->pDrvBlock->pfnGetSize(pThis->pDrvBlock);
+
+    return VINF_SUCCESS;
+}
+
+
+static DECLCALLBACK(int) drvscsiGetSectorSize(VSCSILUN hVScsiLun, void *pvScsiLunUser, uint32_t *pcbSectorSize)
+{
+    PDRVSCSI pThis = (PDRVSCSI)pvScsiLunUser;
+
+    *pcbSectorSize = pThis->pDrvBlock->pfnGetSectorSize(pThis->pDrvBlock);
+
+    return VINF_SUCCESS;
+}
+static DECLCALLBACK(int) drvscsiSetLock(VSCSILUN hVScsiLun, void *pvScsiLunUser, bool fLocked)
+{
+    PDRVSCSI pThis = (PDRVSCSI)pvScsiLunUser;
+
+    if (fLocked)
+        pThis->pDrvMount->pfnLock(pThis->pDrvMount);
+    else
+        pThis->pDrvMount->pfnUnlock(pThis->pDrvMount);
 
     return VINF_SUCCESS;
 }
@@ -635,9 +656,11 @@ static DECLCALLBACK(void *)  drvscsiQueryInterface(PPDMIBASE pInterface, const c
     PPDMDRVINS  pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
     PDRVSCSI    pThis   = PDMINS_2_DATA(pDrvIns, PDRVSCSI);
 
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMOUNT, pThis->pDrvMount);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMISCSICONNECTOR, &pThis->ISCSIConnector);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBLOCKPORT, &pThis->IPort);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMOUNTNOTIFY, &pThis->IMountNotify);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBLOCKASYNCPORT, &pThis->IPortAsync);
     return NULL;
 }
@@ -649,6 +672,38 @@ static DECLCALLBACK(int) drvscsiQueryDeviceLocation(PPDMIBLOCKPORT pInterface, c
 
     return pThis->pDevScsiPort->pfnQueryDeviceLocation(pThis->pDevScsiPort, ppcszController,
                                                        piInstance, piLUN);
+}
+
+/**
+ * Called when media is mounted.
+ *
+ * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+ */
+static DECLCALLBACK(void) drvscsiMountNotify(PPDMIMOUNTNOTIFY pInterface)
+{
+    PDRVSCSI pThis = PDMIMOUNTNOTIFY_2_DRVSCSI(pInterface);
+    LogFlowFunc(("mounting LUN#%p\n", pThis->hVScsiLun));
+
+    /* Ignore the call if we're called while being attached. */
+    if (!pThis->pDrvBlock)
+        return;
+
+    /* Let the LUN know that a medium was mounted. */
+    VSCSILunMountNotify(pThis->hVScsiLun);
+}
+
+/**
+ * Called when media is unmounted
+ *
+ * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+ */
+static DECLCALLBACK(void) drvscsiUnmountNotify(PPDMIMOUNTNOTIFY pInterface)
+{
+    PDRVSCSI pThis = PDMIMOUNTNOTIFY_2_DRVSCSI(pInterface);
+    LogFlowFunc(("unmounting LUN#%p\n", pThis->hVScsiLun));
+
+    /* Let the LUN know that the medium was unmounted. */
+    VSCSILunUnmountNotify(pThis->hVScsiLun);
 }
 
 /**
@@ -800,15 +855,21 @@ static DECLCALLBACK(void) drvscsiDestruct(PPDMDRVINS pDrvIns)
     }
 
     /* Free the VSCSI device and LUN handle. */
-    VSCSILUN hVScsiLun;
-    int rc = VSCSIDeviceLunDetach(pThis->hVScsiDevice, 0, &hVScsiLun);
-    AssertRC(rc);
+    if (pThis->hVScsiDevice)
+    {
+        VSCSILUN hVScsiLun;
+        int rc = VSCSIDeviceLunDetach(pThis->hVScsiDevice, 0, &hVScsiLun);
+        AssertRC(rc);
 
-    Assert(hVScsiLun == pThis->hVScsiLun);
-    rc = VSCSILunDestroy(hVScsiLun);
-    AssertRC(rc);
-    rc = VSCSIDeviceDestroy(pThis->hVScsiDevice);
-    AssertRC(rc);
+        Assert(hVScsiLun == pThis->hVScsiLun);
+        rc = VSCSILunDestroy(hVScsiLun);
+        AssertRC(rc);
+        rc = VSCSIDeviceDestroy(pThis->hVScsiDevice);
+        AssertRC(rc);
+
+        pThis->hVScsiDevice = NULL;
+        pThis->hVScsiLun    = NULL;
+    }
 }
 
 /**
@@ -831,6 +892,8 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
 
     pDrvIns->IBase.pfnQueryInterface            = drvscsiQueryInterface;
 
+    pThis->IMountNotify.pfnMountNotify          = drvscsiMountNotify;
+    pThis->IMountNotify.pfnUnmountNotify        = drvscsiUnmountNotify;
     pThis->IPort.pfnQueryDeviceLocation         = drvscsiQueryDeviceLocation;
     pThis->IPortAsync.pfnTransferCompleteNotify = drvscsiTransferCompleteNotify;
     pThis->hQueueRequests                       = NIL_RTREQQUEUE;
@@ -896,23 +959,59 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
     pThis->pDrvBlockAsync = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMIBLOCKASYNC);
 
     PDMBLOCKTYPE enmType = pThis->pDrvBlock->pfnGetType(pThis->pDrvBlock);
-    if (enmType != PDMBLOCKTYPE_HARD_DISK)
+    VSCSILUNTYPE enmLunType;
+    switch (enmType)
+    {
+    case PDMBLOCKTYPE_HARD_DISK:
+        enmLunType = VSCSILUNTYPE_SBC;
+        break;
+    case PDMBLOCKTYPE_CDROM:
+    case PDMBLOCKTYPE_DVD:
+        enmLunType = VSCSILUNTYPE_MMC;
+        break;
+    default:
         return PDMDrvHlpVMSetError(pDrvIns, VERR_PDM_UNSUPPORTED_BLOCK_TYPE, RT_SRC_POS,
-                                   N_("Only hard disks are currently supported as SCSI devices (enmType=%d)"),
+                                   N_("Only hard disks and CD/DVD-ROMs are currently supported as SCSI devices (enmType=%d)"),
                                    enmType);
+    }
+    if (    (   enmType == PDMBLOCKTYPE_DVD
+             || enmType == PDMBLOCKTYPE_CDROM)
+        &&  !pThis->pDrvMount)
+    {
+        AssertMsgFailed(("Internal error: cdrom without a mountable interface\n"));
+        return VERR_INTERNAL_ERROR;
+    }
 
     /* Create VSCSI device and LUN. */
-    pThis->VScsiIoCallbacks.pfnVScsiLunMediumGetSize      = drvscsiGetSize;
-    pThis->VScsiIoCallbacks.pfnVScsiLunReqTransferEnqueue = drvscsiReqTransferEnqueue;
-    pThis->VScsiIoCallbacks.pfnVScsiLunGetFeatureFlags    = drvscsiGetFeatureFlags;
+    pThis->VScsiIoCallbacks.pfnVScsiLunMediumGetSize       = drvscsiGetSize;
+    pThis->VScsiIoCallbacks.pfnVScsiLunMediumGetSectorSize = drvscsiGetSectorSize;
+    pThis->VScsiIoCallbacks.pfnVScsiLunReqTransferEnqueue  = drvscsiReqTransferEnqueue;
+    pThis->VScsiIoCallbacks.pfnVScsiLunGetFeatureFlags     = drvscsiGetFeatureFlags;
+    pThis->VScsiIoCallbacks.pfnVScsiLunMediumSetLock       = drvscsiSetLock;
 
     rc = VSCSIDeviceCreate(&pThis->hVScsiDevice, drvscsiVScsiReqCompleted, pThis);
     AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create VSCSI device rc=%Rrc\n"), rc);
-    rc = VSCSILunCreate(&pThis->hVScsiLun, VSCSILUNTYPE_SBC, &pThis->VScsiIoCallbacks,
+    rc = VSCSILunCreate(&pThis->hVScsiLun, enmLunType, &pThis->VScsiIoCallbacks,
                         pThis);
     AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create VSCSI LUN rc=%Rrc\n"), rc);
     rc = VSCSIDeviceLunAttach(pThis->hVScsiDevice, pThis->hVScsiLun, 0);
     AssertMsgReturn(RT_SUCCESS(rc), ("Failed to attached the LUN to the SCSI device\n"), rc);
+
+    //@todo: This is a very hacky way of telling the LUN whether a medium was mounted.
+    // The mount/unmount interface doesn't work in a very sensible manner!
+    if (pThis->pDrvMount)
+    {
+        if (pThis->pDrvBlock->pfnGetSize(pThis->pDrvBlock))
+        {
+            rc = VINF_SUCCESS; VSCSILunMountNotify(pThis->hVScsiLun);
+            AssertMsgReturn(RT_SUCCESS(rc), ("Failed to notify the LUN of media being mounted\n"), rc);
+        }
+        else
+        {
+            rc = VINF_SUCCESS; VSCSILunUnmountNotify(pThis->hVScsiLun);
+            AssertMsgReturn(RT_SUCCESS(rc), ("Failed to notify the LUN of media being unmounted\n"), rc);
+        }
+    }
 
     /* Register statistics counter. */
     /** @todo aeichner: Find a way to put the instance number of the attached
@@ -1001,4 +1100,3 @@ const PDMDRVREG g_DrvSCSI =
     /* u32EndVersion */
     PDM_DRVREG_VERSION
 };
-

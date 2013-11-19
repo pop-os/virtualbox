@@ -29,13 +29,29 @@
 void SERVER_DISPATCH_APIENTRY crServerDispatchShaderSource(GLuint shader, GLsizei count, const char ** string, const GLint * length)
 {
     /*@todo?crStateShaderSource(shader...);*/
+#ifdef DEBUG_misha
+    GLenum err = cr_server.head_spu->dispatch_table.GetError();
+#endif
     cr_server.head_spu->dispatch_table.ShaderSource(crStateGetShaderHWID(shader), count, string, length);
+#ifdef DEBUG_misha
+    err = cr_server.head_spu->dispatch_table.GetError();
+    CRASSERT(err == GL_NO_ERROR);
+#endif
+    CR_SERVER_DUMP_SHADER_SOURCE(shader);
 }
 
 void SERVER_DISPATCH_APIENTRY crServerDispatchCompileShader(GLuint shader)
 {
+#ifdef DEBUG_misha
+    GLint iCompileStatus = GL_FALSE;
+#endif
     crStateCompileShader(shader);
     cr_server.head_spu->dispatch_table.CompileShader(crStateGetShaderHWID(shader));
+#ifdef DEBUG_misha
+    cr_server.head_spu->dispatch_table.GetShaderiv(crStateGetShaderHWID(shader), GL_COMPILE_STATUS, &iCompileStatus);
+    Assert(iCompileStatus == GL_TRUE);
+#endif
+    CR_SERVER_DUMP_COMPILE_SHADER(shader);
 }
 
 void SERVER_DISPATCH_APIENTRY crServerDispatchDeleteShader(GLuint shader)
@@ -64,6 +80,7 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchLinkProgram(GLuint program)
 {
     crStateLinkProgram(program);
     cr_server.head_spu->dispatch_table.LinkProgram(crStateGetProgramHWID(program));
+    CR_SERVER_DUMP_LINK_PROGRAM(program);
 }
 
 void SERVER_DISPATCH_APIENTRY crServerDispatchUseProgram(GLuint program)
@@ -96,21 +113,12 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchBindAttribLocation(GLuint program,
 
 void SERVER_DISPATCH_APIENTRY crServerDispatchDeleteObjectARB(GLhandleARB obj)
 {
-    GLuint hwid = crStateGetProgramHWID(obj);
-
-    if (!hwid)
-    {
-        hwid = crStateGetShaderHWID(obj);
-        CRASSERT(hwid);
-        crStateDeleteShader(obj);
-    }
-    else
-    {
-        crStateDeleteProgram(obj);
-    }
+    GLuint hwid =  crStateDeleteObjectARB(obj);
 
     if (hwid)
         cr_server.head_spu->dispatch_table.DeleteObjectARB(hwid);
+    else
+        crWarning("zero hwid for object %d", obj);
 }
 
 GLint SERVER_DISPATCH_APIENTRY crServerDispatchGetAttribLocation( GLuint program, const char * name )
@@ -141,4 +149,19 @@ GLint SERVER_DISPATCH_APIENTRY crServerDispatchGetUniformLocation(GLuint program
     return retval; /* WILL PROBABLY BE IGNORED */
 }
 
+void SERVER_DISPATCH_APIENTRY crServerDispatchGetProgramiv( GLuint program, GLenum pname, GLint * params )
+{
+    GLint local_params[1];
+    (void) params;
+    cr_server.head_spu->dispatch_table.GetProgramiv(crStateGetProgramHWID(program), pname, local_params);
+    crServerReturnValue( &(local_params[0]), 1*sizeof(GLint) );
+}
+
+void SERVER_DISPATCH_APIENTRY crServerDispatchGetShaderiv( GLuint shader, GLenum pname, GLint * params )
+{
+    GLint local_params[1];
+    (void) params;
+    cr_server.head_spu->dispatch_table.GetShaderiv( crStateGetShaderHWID(shader), pname, local_params );
+    crServerReturnValue( &(local_params[0]), 1*sizeof(GLint) );
+}
 #endif /* #ifdef CR_OPENGL_VERSION_2_0 */

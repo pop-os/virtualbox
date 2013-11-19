@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -161,6 +161,8 @@
 #define LOG_GROUP LOG_GROUP_DBGC
 #include <VBox/dbg.h>
 #include <VBox/vmm/dbgf.h>
+#include <VBox/vmm/vmapi.h> /* VMR3GetVM() */
+#include <VBox/vmm/hm.h>    /* HMR3IsEnabled */
 #include <VBox/err.h>
 #include <VBox/log.h>
 
@@ -234,10 +236,11 @@ int dbgcSymbolGet(PDBGC pDbgc, const char *pszSymbol, DBGCVARTYPE enmType, PDBGC
         "sp;"          "ss;"
         "ip;"
     ;
-    size_t const cchSymbol = strlen(pszSymbol);
-    if (    (cchSymbol == 2 && strstr(s_szTwoLetterRegisters,   pszSymbol))
-        ||  (cchSymbol == 3 && strstr(s_szThreeLetterRegisters, pszSymbol))
-        ||  (cchSymbol == 6 && strstr(s_szSixLetterRegisters,   pszSymbol)))
+    const char  *pszRegSym = *pszSymbol == '.' ? pszSymbol + 1 : pszSymbol;
+    size_t const cchRegSym = strlen(pszRegSym);
+    if (    (cchRegSym == 2 && strstr(s_szTwoLetterRegisters,   pszRegSym))
+        ||  (cchRegSym == 3 && strstr(s_szThreeLetterRegisters, pszRegSym))
+        ||  (cchRegSym == 6 && strstr(s_szSixLetterRegisters,   pszRegSym)))
     {
         if (!strchr(pszSymbol, ';'))
         {
@@ -258,7 +261,7 @@ int dbgcSymbolGet(PDBGC pDbgc, const char *pszSymbol, DBGCVARTYPE enmType, PDBGC
      * Ask the debug info manager.
      */
     RTDBGSYMBOL Symbol;
-    rc = DBGFR3AsSymbolByName(pDbgc->pVM, pDbgc->hDbgAs, pszSymbol, &Symbol, NULL);
+    rc = DBGFR3AsSymbolByName(pDbgc->pUVM, pDbgc->hDbgAs, pszSymbol, &Symbol, NULL);
     if (RT_SUCCESS(rc))
     {
         /*
@@ -579,7 +582,7 @@ static const char *dbgcGetEventCtx(DBGFEVENTCTX enmCtx)
     {
         case DBGFEVENTCTX_RAW:      return "raw";
         case DBGFEVENTCTX_REM:      return "rem";
-        case DBGFEVENTCTX_HWACCL:   return "hwaccl";
+        case DBGFEVENTCTX_HM:   return "hwaccl";
         case DBGFEVENTCTX_HYPER:    return "hyper";
         case DBGFEVENTCTX_OTHER:    return "other";
 
@@ -673,7 +676,7 @@ static int dbgcProcessEvent(PDBGC pDbgc, PCDBGFEVENT pEvent)
                 default:
                     break;
             }
-            if (RT_SUCCESS(rc) && DBGFR3IsHalted(pDbgc->pVM))
+            if (RT_SUCCESS(rc) && DBGFR3IsHalted(pDbgc->pUVM))
                 rc = pDbgc->CmdHlp.pfnExec(&pDbgc->CmdHlp, "r");
             else
                 pDbgc->fRegCtxGuest = fRegCtxGuest;
@@ -736,11 +739,11 @@ static int dbgcProcessEvent(PDBGC pDbgc, PCDBGFEVENT pEvent)
             break;
         }
 
-        case DBGFEVENT_TERMINATING:
+        case DBGFEVENT_POWERING_OFF:
         {
             pDbgc->fReady = false;
             pDbgc->pBack->pfnSetReady(pDbgc->pBack, false);
-            pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "\nVM is terminating!\n");
+            pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "\nVM is powering off!\n");
             fPrintPrompt = false;
             rc = VERR_GENERAL_FAILURE;
             break;
@@ -784,6 +787,15 @@ static int dbgcProcessLog(PDBGC pDbgc)
     return 0;
 }
 
+/** @callback_method_impl{FNRTDBGCFGLOG} */
+static DECLCALLBACK(void) dbgcDbgCfgLogCallback(RTDBGCFG hDbgCfg, uint32_t iLevel, const char *pszMsg, void *pvUser)
+{
+    /** @todo Add symbol noise setting.  */
+    NOREF(hDbgCfg); NOREF(iLevel);
+    PDBGC pDbgc = (PDBGC)pvUser;
+    pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "%s", pszMsg);
+}
+
 
 /**
  * Run the debugger console.
@@ -806,17 +818,20 @@ int dbgcRun(PDBGC pDbgc)
      * debug events. If we're forwarding the log we cannot wait for long
      * before we must flush the log.
      */
-    int rc = VINF_SUCCESS;
+    int rc;
     for (;;)
     {
-        if (    pDbgc->pVM
-            &&  DBGFR3CanWait(pDbgc->pVM))
+        rc = VERR_SEM_OUT_OF_TURN;
+        if (pDbgc->pUVM)
+            rc = DBGFR3QueryWaitable(pDbgc->pUVM);
+
+        if (RT_SUCCESS(rc))
         {
             /*
              * Wait for a debug event.
              */
             PCDBGFEVENT pEvent;
-            rc = DBGFR3EventWait(pDbgc->pVM, pDbgc->fLog ? 1 : 32, &pEvent);
+            rc = DBGFR3EventWait(pDbgc->pUVM, pDbgc->fLog ? 1 : 32, &pEvent);
             if (RT_SUCCESS(rc))
             {
                 rc = dbgcProcessEvent(pDbgc, pEvent);
@@ -836,7 +851,7 @@ int dbgcRun(PDBGC pDbgc)
                     break;
             }
         }
-        else
+        else if (rc == VERR_SEM_OUT_OF_TURN)
         {
             /*
              * Wait for input. If Logging is enabled we'll only wait very briefly.
@@ -848,6 +863,8 @@ int dbgcRun(PDBGC pDbgc)
                     break;
             }
         }
+        else
+            break;
 
         /*
          * Forward log output.
@@ -890,6 +907,7 @@ int dbgcCreate(PDBGC *ppDbgc, PDBGCBACK pBack, unsigned fFlags)
     dbgcInitCmdHlp(pDbgc);
     pDbgc->pBack            = pBack;
     pDbgc->pVM              = NULL;
+    pDbgc->pUVM             = NULL;
     pDbgc->idCpu            = 0;
     pDbgc->hDbgAs           = DBGF_AS_GLOBAL;
     pDbgc->pszEmulation     = "CodeView/WinDbg";
@@ -953,8 +971,8 @@ void dbgcDestroy(PDBGC pDbgc)
     dbgcPlugInUnloadAll(pDbgc);
 
     /* Detach from the VM. */
-    if (pDbgc->pVM)
-        DBGFR3Detach(pDbgc->pVM);
+    if (pDbgc->pUVM)
+        DBGFR3Detach(pDbgc->pUVM);
 
     /* finally, free the instance memory. */
     RTMemFree(pDbgc);
@@ -970,19 +988,25 @@ void dbgcDestroy(PDBGC pDbgc)
  * @returns VINF_SUCCESS if console termination caused by the 'exit' command.
  * @returns The VBox status code causing the console termination.
  *
- * @param   pVM         VM Handle.
+ * @param   pUVM        The user mode VM handle.
  * @param   pBack       Pointer to the backend structure. This must contain
  *                      a full set of function pointers to service the console.
  * @param   fFlags      Reserved, must be zero.
  * @remark  A forced termination of the console is easiest done by forcing the
  *          callbacks to return fatal failures.
  */
-DBGDECL(int) DBGCCreate(PVM pVM, PDBGCBACK pBack, unsigned fFlags)
+DBGDECL(int) DBGCCreate(PUVM pUVM, PDBGCBACK pBack, unsigned fFlags)
 {
     /*
      * Validate input.
      */
-    AssertPtrNullReturn(pVM, VERR_INVALID_POINTER);
+    AssertPtrNullReturn(pUVM, VERR_INVALID_VM_HANDLE);
+    PVM pVM = NULL;
+    if (pUVM)
+    {
+        pVM = VMR3GetVM(pUVM);
+        AssertPtrReturn(pVM, VERR_INVALID_VM_HANDLE);
+    }
 
     /*
      * Allocate and initialize instance data
@@ -991,6 +1015,8 @@ DBGDECL(int) DBGCCreate(PVM pVM, PDBGCBACK pBack, unsigned fFlags)
     int rc = dbgcCreate(&pDbgc, pBack, fFlags);
     if (RT_FAILURE(rc))
         return rc;
+    if (!HMR3IsEnabled(pUVM))
+        pDbgc->hDbgAs = DBGF_AS_RC_AND_GC_GLOBAL;
 
     /*
      * Print welcome message.
@@ -1001,12 +1027,13 @@ DBGDECL(int) DBGCCreate(PVM pVM, PDBGCBACK pBack, unsigned fFlags)
     /*
      * Attach to the specified VM.
      */
-    if (RT_SUCCESS(rc) && pVM)
+    if (RT_SUCCESS(rc) && pUVM)
     {
-        rc = DBGFR3Attach(pVM);
+        rc = DBGFR3Attach(pUVM);
         if (RT_SUCCESS(rc))
         {
             pDbgc->pVM   = pVM;
+            pDbgc->pUVM  = pUVM;
             pDbgc->idCpu = 0;
             rc = pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL,
                                          "Current VM is %08x, CPU #%u\n" /** @todo get and print the VM name! */
@@ -1024,15 +1051,45 @@ DBGDECL(int) DBGCCreate(PVM pVM, PDBGCBACK pBack, unsigned fFlags)
         if (pVM)
             dbgcPlugInAutoLoad(pDbgc);
         rc = pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "VBoxDbg> ");
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Set debug config log callback.
+             */
+            RTDBGCFG    hDbgCfg = DBGFR3AsGetConfig(pUVM);
+            if (   hDbgCfg != NIL_RTDBGCFG
+                && RTDbgCfgRetain(hDbgCfg) != UINT32_MAX)
+            {
+                int rc2 = RTDbgCfgSetLogCallback(hDbgCfg, dbgcDbgCfgLogCallback, pDbgc);
+                if (RT_FAILURE(rc2))
+                {
+                    hDbgCfg = NIL_RTDBGCFG;
+                    RTDbgCfgRelease(hDbgCfg);
+                }
+            }
+            else
+                hDbgCfg = NIL_RTDBGCFG;
+
+
+            /*
+             * Run the debugger main loop.
+             */
+            rc = dbgcRun(pDbgc);
+
+
+            /*
+             * Remove debug config log callback.
+             */
+            if (hDbgCfg != NIL_RTDBGCFG)
+            {
+                RTDbgCfgSetLogCallback(hDbgCfg, NULL, NULL);
+                RTDbgCfgRelease(hDbgCfg);
+            }
+        }
     }
     else
         pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "\nDBGCCreate error: %Rrc\n", rc);
 
-    /*
-     * Run the debugger main loop.
-     */
-    if (RT_SUCCESS(rc))
-        rc = dbgcRun(pDbgc);
 
     /*
      * Cleanup console debugger session.

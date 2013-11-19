@@ -165,6 +165,8 @@ RT_C_DECLS_END
 # include <iprt/nocrt/compiler/compiler.h>
 #endif /* no crt */
 
+
+
 /** @def NULL
  * NULL pointer.
  */
@@ -194,9 +196,9 @@ RT_C_DECLS_END
 #endif
 
 /*
- * C doesn't have bool.
+ * C doesn't have bool, nor does VisualAge for C++ v3.08.
  */
-#ifndef __cplusplus
+#if !defined(__cplusplus) || (defined(__IBMCPP__) && defined(RT_OS_OS2))
 # if defined(__GNUC__)
 #  if defined(RT_OS_LINUX) && __GNUC__ < 3
 typedef uint8_t bool;
@@ -205,7 +207,7 @@ typedef uint8_t bool;
 typedef _Bool bool;
 #   endif
 #  else
-#   if defined(RT_OS_DARWIN) && defined(_STDBOOL_H)
+#   if (defined(RT_OS_DARWIN) || defined(RT_OS_HAIKU)) && (defined(_STDBOOL_H) || defined(__STDBOOL_H))
 #    undef bool
 #   endif
 typedef _Bool bool;
@@ -395,6 +397,7 @@ typedef const RTUINT64U *PCRTUINT64U;
 /**
  * 128-bit unsigned integer union.
  */
+#pragma pack(1)
 typedef union RTUINT128U
 {
     /** Natural view.
@@ -470,6 +473,7 @@ typedef union RTUINT128U
     /** 8-bit view. */
     uint8_t     au8[16];
 } RTUINT128U;
+#pragma pack()
 /** Pointer to a 64-bit unsigned integer union. */
 typedef RTUINT128U *PRTUINT128U;
 /** Pointer to a const 64-bit unsigned integer union. */
@@ -545,6 +549,8 @@ typedef RTFLOAT64U *PRTFLOAT64U;
 /** Pointer to a const double precision floating point format union. */
 typedef const RTFLOAT64U *PCRTFLOAT64U;
 
+
+#if !defined(__IBMCPP__) && !defined(__IBMC__)
 
 /**
  * Extended Double precision floating point format (80-bit).
@@ -690,6 +696,8 @@ typedef RTFLOAT80U2 *PRTFLOAT80U2;
  * variant. */
 typedef const RTFLOAT80U2 *PCRTFLOAT80U2;
 
+#endif /* uint16_t bitfields doesn't work */
+
 
 /** Generic function type.
  * @see PFNRT
@@ -733,15 +741,27 @@ typedef const struct RTTIMESPEC *PCRTTIMESPEC;
 typedef union RTPTRUNION
 {
     /** Pointer into the void... */
-    void               *pv;
+    void                   *pv;
+    /** Pointer to char value. */
+    char                   *pch;
+    /** Pointer to char value. */
+    unsigned char          *puch;
+    /** Pointer to a int value. */
+    int                    *pi;
+    /** Pointer to a unsigned int value. */
+    unsigned int           *pu;
+    /** Pointer to a long value. */
+    long                   *pl;
+    /** Pointer to a long value. */
+    unsigned long          *pul;
     /** Pointer to a 8-bit unsigned value. */
-    uint8_t            *pu8;
+    uint8_t                *pu8;
     /** Pointer to a 16-bit unsigned value. */
-    uint16_t           *pu16;
+    uint16_t               *pu16;
     /** Pointer to a 32-bit unsigned value. */
-    uint32_t           *pu32;
+    uint32_t               *pu32;
     /** Pointer to a 64-bit unsigned value. */
-    uint64_t           *pu64;
+    uint64_t               *pu64;
 } RTPTRUNION;
 /** Pointer to a pointer union. */
 typedef RTPTRUNION *PRTPTRUNION;
@@ -752,15 +772,27 @@ typedef RTPTRUNION *PRTPTRUNION;
 typedef union RTCPTRUNION
 {
     /** Pointer into the void... */
-    void const         *pv;
+    void const             *pv;
+    /** Pointer to char value. */
+    char const             *pch;
+    /** Pointer to char value. */
+    unsigned char const    *puch;
+    /** Pointer to a int value. */
+    int const              *pi;
+    /** Pointer to a unsigned int value. */
+    unsigned int const     *pu;
+    /** Pointer to a long value. */
+    long const             *pl;
+    /** Pointer to a long value. */
+    unsigned long const    *pul;
     /** Pointer to a 8-bit unsigned value. */
-    uint8_t const      *pu8;
+    uint8_t const          *pu8;
     /** Pointer to a 16-bit unsigned value. */
-    uint16_t const     *pu16;
+    uint16_t const         *pu16;
     /** Pointer to a 32-bit unsigned value. */
-    uint32_t const     *pu32;
+    uint32_t const         *pu32;
     /** Pointer to a 64-bit unsigned value. */
-    uint64_t const     *pu64;
+    uint64_t const         *pu64;
 } RTCPTRUNION;
 /** Pointer to a const pointer union. */
 typedef RTCPTRUNION *PRTCPTRUNION;
@@ -771,15 +803,27 @@ typedef RTCPTRUNION *PRTCPTRUNION;
 typedef union RTVPTRUNION
 {
     /** Pointer into the void... */
-    void volatile      *pv;
+    void volatile          *pv;
+    /** Pointer to char value. */
+    char volatile          *pch;
+    /** Pointer to char value. */
+    unsigned char volatile *puch;
+    /** Pointer to a int value. */
+    int volatile           *pi;
+    /** Pointer to a unsigned int value. */
+    unsigned int volatile  *pu;
+    /** Pointer to a long value. */
+    long volatile          *pl;
+    /** Pointer to a long value. */
+    unsigned long volatile *pul;
     /** Pointer to a 8-bit unsigned value. */
-    uint8_t volatile   *pu8;
+    uint8_t volatile       *pu8;
     /** Pointer to a 16-bit unsigned value. */
-    uint16_t volatile  *pu16;
+    uint16_t volatile      *pu16;
     /** Pointer to a 32-bit unsigned value. */
-    uint32_t volatile  *pu32;
+    uint32_t volatile      *pu32;
     /** Pointer to a 64-bit unsigned value. */
-    uint64_t volatile  *pu64;
+    uint64_t volatile      *pu64;
 } RTVPTRUNION;
 /** Pointer to a const pointer union. */
 typedef RTVPTRUNION *PRTVPTRUNION;
@@ -790,15 +834,27 @@ typedef RTVPTRUNION *PRTVPTRUNION;
 typedef union RTCVPTRUNION
 {
     /** Pointer into the void... */
-    void const volatile        *pv;
+    void const volatile            *pv;
+    /** Pointer to char value. */
+    char const volatile            *pch;
+    /** Pointer to char value. */
+    unsigned char const volatile   *puch;
+    /** Pointer to a int value. */
+    int const volatile             *pi;
+    /** Pointer to a unsigned int value. */
+    unsigned int const volatile    *pu;
+    /** Pointer to a long value. */
+    long const volatile            *pl;
+    /** Pointer to a long value. */
+    unsigned long const volatile   *pul;
     /** Pointer to a 8-bit unsigned value. */
-    uint8_t const volatile     *pu8;
+    uint8_t const volatile         *pu8;
     /** Pointer to a 16-bit unsigned value. */
-    uint16_t const volatile    *pu16;
+    uint16_t const volatile        *pu16;
     /** Pointer to a 32-bit unsigned value. */
-    uint32_t const volatile    *pu32;
+    uint32_t const volatile        *pu32;
     /** Pointer to a 64-bit unsigned value. */
-    uint64_t const volatile    *pu64;
+    uint64_t const volatile        *pu64;
 } RTCVPTRUNION;
 /** Pointer to a const pointer union. */
 typedef RTCVPTRUNION *PRTCVPTRUNION;
@@ -1585,6 +1641,11 @@ typedef struct RTCRITSECT                          *PRTCRITSECT;
 /** Pointer to a const critical section. */
 typedef const struct RTCRITSECT                    *PCRTCRITSECT;
 
+/** Pointer to a read/write critical section. */
+typedef struct RTCRITSECTRW                        *PRTCRITSECTRW;
+/** Pointer to a const read/write critical section. */
+typedef const struct RTCRITSECTRW                  *PCRTCRITSECTRW;
+
 
 /** Condition variable handle. */
 typedef R3PTRTYPE(struct RTCONDVARINTERNAL *)       RTCONDVAR;
@@ -1762,6 +1823,13 @@ typedef R3R0PTRTYPE(struct RTTHREADINT *)           RTTHREAD;
 typedef RTTHREAD                                   *PRTTHREAD;
 /** Nil thread handle. */
 #define NIL_RTTHREAD                                0
+
+/** Thread-context handle.*/
+typedef R0PTRTYPE(struct RTTHREADCTXINT *)          RTTHREADCTX;
+/** Pointer to thread handle. */
+typedef RTTHREADCTX                                *PRTTHREADCTX;
+/** Nil thread-context handle. */
+#define NIL_RTTHREADCTX                             0
 
 /** A TLS index. */
 typedef RTHCINTPTR                                  RTTLS;
@@ -1952,6 +2020,19 @@ typedef RTVFSSYMLINK                               *PRTVFSSYMLINK;
 /** A NIL VFS symbolic link handle. */
 #define NIL_RTVFSSYMLINK                            ((RTVFSSYMLINK)~(uintptr_t)0)
 
+/** Async I/O manager handle. */
+typedef struct RTAIOMGRINT                         *RTAIOMGR;
+/** Pointer to a async I/O manager handle. */
+typedef RTAIOMGR                                   *PRTAIOMGR;
+/** A NIL async I/O manager handle. */
+#define NIL_RTAIOMGR                                ((RTAIOMGR)~(uintptr_t)0)
+
+/** Async I/O manager file handle. */
+typedef struct RTAIOMGRFILEINT                     *RTAIOMGRFILE;
+/** Pointer to a async I/O manager file handle. */
+typedef RTAIOMGRFILE                               *PRTAIOMGRFILE;
+/** A NIL async I/O manager file handle. */
+#define NIL_RTAIOMGRFILE                            ((RTAIOMGRFILE)~(uintptr_t)0)
 
 /**
  * Handle type.
@@ -2110,6 +2191,9 @@ typedef union RTUUID
 typedef RTUUID *PRTUUID;
 /** Pointer to readonly UUID data. */
 typedef const RTUUID *PCRTUUID;
+
+/** Initializes a RTUUID structure with all zeros (RTUuidIsNull() true). */
+#define RTUUID_INITIALIZE_NULL  { { 0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0 } }
 
 /** UUID string maximum length. */
 #define RTUUID_STR_LENGTH       37
@@ -2273,6 +2357,9 @@ typedef const RTMAC *PCRTMAC;
 /** Pointer to a lock validator record.
  * The structure definition is found in iprt/lockvalidator.h.  */
 typedef struct RTLOCKVALRECEXCL        *PRTLOCKVALRECEXCL;
+/** Pointer to a record of one ownership share.
+ * The structure definition is found in iprt/lockvalidator.h.  */
+typedef struct RTLOCKVALRECSHRD        *PRTLOCKVALRECSHRD;
 /** Pointer to a lock validator source poisition.
  * The structure definition is found in iprt/lockvalidator.h.  */
 typedef struct RTLOCKVALSRCPOS         *PRTLOCKVALSRCPOS;

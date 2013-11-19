@@ -246,6 +246,7 @@ if [ "$ACTION" = "install" ]; then
     # Terminate Server and VBoxNetDHCP if running
     terminate_proc VBoxSVC
     terminate_proc VBoxNetDHCP
+    terminate_proc VBoxNetNAT
 
     # Remove previous installation
     if [ -n "$PREV_INSTALLATION" -a -z "$FORCE_UPGRADE" -a ! "$VERSION" = "$INSTALL_VER" ] &&
@@ -355,16 +356,14 @@ if [ "$ACTION" = "install" ]; then
     #                 create symlinks for working around unsupported $ORIGIN/.. in VBoxC.so (setuid),
     #                 and finally make sure the directory is only writable by the user (paranoid).
     if [ -n "$HARDENED" ]; then
-        test -e $INSTALLATION_DIR/VirtualBox    && chmod 4511 $INSTALLATION_DIR/VirtualBox
-        test -e $INSTALLATION_DIR/VBoxSDL       && chmod 4511 $INSTALLATION_DIR/VBoxSDL
-        test -e $INSTALLATION_DIR/VBoxHeadless  && chmod 4511 $INSTALLATION_DIR/VBoxHeadless
-        test -e $INSTALLATION_DIR/VBoxNetDHCP   && chmod 4511 $INSTALLATION_DIR/VBoxNetDHCP
+        test -e $INSTALLATION_DIR/VirtualBox     && chmod 4511 $INSTALLATION_DIR/VirtualBox
+        test -e $INSTALLATION_DIR/VBoxSDL        && chmod 4511 $INSTALLATION_DIR/VBoxSDL
+        test -e $INSTALLATION_DIR/VBoxHeadless   && chmod 4511 $INSTALLATION_DIR/VBoxHeadless
+        test -e $INSTALLATION_DIR/VBoxNetDHCP    && chmod 4511 $INSTALLATION_DIR/VBoxNetDHCP
+        test -e $INSTALLATION_DIR/VBoxNetNAT     && chmod 4511 $INSTALLATION_DIR/VBoxNetNAT
 
         ln -sf $INSTALLATION_DIR/VBoxVMM.so   $INSTALLATION_DIR/components/VBoxVMM.so
-        ln -sf $INSTALLATION_DIR/VBoxREM.so   $INSTALLATION_DIR/components/VBoxREM.so
         ln -sf $INSTALLATION_DIR/VBoxRT.so    $INSTALLATION_DIR/components/VBoxRT.so
-        ln -sf $INSTALLATION_DIR/VBoxDDU.so   $INSTALLATION_DIR/components/VBoxDDU.so
-        ln -sf $INSTALLATION_DIR/VBoxXPCOM.so $INSTALLATION_DIR/components/VBoxXPCOM.so
 
         chmod go-w $INSTALLATION_DIR
     fi
@@ -392,7 +391,7 @@ if [ "$ACTION" = "install" ]; then
     addrunlevel vboxweb-service 25 75 # This may produce useful output
 
     # Create users group
-    groupadd $GROUPNAME 2> /dev/null
+    groupadd -r -f $GROUPNAME 2> /dev/null
 
     # Create symlinks to start binaries
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VirtualBox

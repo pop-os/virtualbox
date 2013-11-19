@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -533,6 +533,10 @@ typedef struct RTTHREADPREEMPTSTATE
     /** Reserved, MBZ. */
     uint8_t         bReserved3;
 #   define RTTHREADPREEMPTSTATE_INITIALIZER { NIL_RTCPUID, 255, 0, 0, 0 }
+#  elif defined(RT_OS_HAIKU)
+    /** The cpu_state. Don't touch! */
+    uint32_t        uOldCpuState;
+#   define RTTHREADPREEMPTSTATE_INITIALIZER { NIL_RTCPUID, 0 }
 #  elif defined(RT_OS_SOLARIS)
     /** The Old PIL. Don't touch! */
     uint32_t        uOldPil;
@@ -574,6 +578,109 @@ RTDECL(void) RTThreadPreemptRestore(PRTTHREADPREEMPTSTATE pState);
  * @param       hThread         Must be NIL_RTTHREAD for now.
  */
 RTDECL(bool) RTThreadIsInInterrupt(RTTHREAD hThread);
+
+
+/**
+ * Thread-context events.
+ */
+typedef enum RTTHREADCTXEVENT
+{
+    /** This thread is about to be preempted. */
+    RTTHREADCTXEVENT_PREEMPTING = 0,
+    /** This thread has just been resumed. */
+    RTTHREADCTXEVENT_RESUMED,
+    /** The usual 32-bit size hack. */
+    RTTHREADCTXEVENT_32BIT_HACK = 0x7fffffff
+} RTTHREADCTXEVENT;
+
+/**
+ * Thread-context hook.
+ *
+ * @returns IPRT status code.
+ * @param   enmEvent    The thread-context event.
+ * @param   pvUser      User argument.
+ *
+ * @remarks This function may be called under different contexts, i.e. with
+ *          different locks held, with/without preemption disabled depending on
+ *          the event in @a enmEvent.
+ */
+typedef DECLCALLBACK(void) FNRTTHREADCTXHOOK(RTTHREADCTXEVENT enmEvent, void *pvUser);
+/** Pointer to a thread-context hook. */
+typedef FNRTTHREADCTXHOOK *PFNRTTHREADCTXHOOK;
+
+/**
+ * Initializes a thread-context hook for the current thread.
+ *
+ * This must be called once per-thread before using RTThreadCtxHooksRegister().
+ *
+ * @returns IPRT status code.
+ * @param   phThreadCtx         Where to store the thread-context handle.
+ *
+ * @remarks This must be called with preemption enabled!
+ */
+RTDECL(int) RTThreadCtxHooksCreate(PRTTHREADCTX phThreadCtx);
+
+/**
+ * Retains a new reference to a thread-context hook.
+ *
+ * @returns New reference count.
+ *          UINT32_MAX is returned if the handle is invalid (asserted).
+ * @param   phThreadCtx         Pointer to the thread-context handle.
+ *
+ * @remarks This can be called from any thread. Can be called with preemption
+ *          disabled.
+ */
+RTDECL(uint32_t) RTThreadCtxHooksRetain(RTTHREADCTX hThreadCtx);
+
+/**
+ * Releases a reference to a thread-context hook.
+ *
+ * @returns New reference count.
+ * @retval  0 if the thread-context hook was freed or @a hThreadCtx is
+ *          NIL_RTTHREADCTX.
+ * @retval  UINT32_MAX is returned if the handle is invalid (asserted).
+ *
+ * @param   hThreadCtx          The thread-context handle.
+ *
+ * @remarks This can be called from any thread but must be called with
+ *          preemption enabled!
+ */
+RTDECL(uint32_t) RTThreadCtxHooksRelease(RTTHREADCTX hThreadCtx);
+
+/**
+ * Registers a thread-context hook for the current thread to receive
+ * notifications for all supported thread-context events.
+ *
+ * @returns IPRT status code.
+ * @param   hThreadCtx          The thread-context handle.
+ * @param   pfnThreadHook       Pointer to a thread-context hook (a callback)
+ *                              for all thread-context events.
+ * @param   pvUser              User argument (optional, can be NULL).
+ *
+ * @remarks Can be called with preemption disabled.
+ */
+RTDECL(int) RTThreadCtxHooksRegister(RTTHREADCTX hThreadCtx, PFNRTTHREADCTXHOOK pfnThreadHook, void *pvUser);
+
+/**
+ * Deregisters the thread-context hook for the current thread.
+ *
+ * @returns IPRT status code.
+ * @param   hThreadCtx          The thread-context handle.
+ *
+ * @remarks Can be called with preemption disabled.
+ */
+RTDECL(int) RTThreadCtxHooksDeregister(RTTHREADCTX hThreadCtx);
+
+/**
+ * Are thread-context hooks registered for the thread?
+ *
+ * @returns true if registered, false if not supported or not registered.
+ * @param   hThreadCtx          The thread-context handle.
+ *
+ * @remarks Can be called from any thread (but possibility of races when
+ *          it's not the current thread!)
+ */
+RTDECL(bool) RTThreadCtxHooksAreRegistered(RTTHREADCTX hThreadCtx);
 
 # endif /* IN_RING0 */
 

@@ -1,11 +1,11 @@
 
 /* $Id: GuestSessionImpl.h $ */
 /** @file
- * VirtualBox Main - XXX.
+ * VirtualBox Main - Guest session handling.
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,6 +20,7 @@
 #define ____H_GUESTSESSIONIMPL
 
 #include "VirtualBoxBase.h"
+#include "EventImpl.h"
 
 #include "GuestCtrlImplPrivate.h"
 #include "GuestProcessImpl.h"
@@ -63,6 +64,33 @@ protected:
     /** Progress object for getting updated when running
      *  asynchronously. Optional. */
     ComObjPtr<Progress>     mProgress;
+};
+
+/**
+ * Task for opening a guest session.
+ */
+class SessionTaskOpen : public GuestSessionTask
+{
+public:
+
+    SessionTaskOpen(GuestSession *pSession,
+                    uint32_t uFlags,
+                    uint32_t uTimeoutMS);
+
+    virtual ~SessionTaskOpen(void);
+
+public:
+
+    int Run(int *pGuestRc);
+    int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress);
+    static int taskThread(RTTHREAD Thread, void *pvUser);
+
+protected:
+
+    /** Session creation flags. */
+    uint32_t mFlags;
+    /** Session creation timeout (in ms). */
+    uint32_t mTimeoutMS;
 };
 
 /**
@@ -130,7 +158,8 @@ class SessionTaskUpdateAdditions : public GuestSessionTask
 public:
 
     SessionTaskUpdateAdditions(GuestSession *pSession,
-                               const Utf8Str &strSource, uint32_t uFlags);
+                               const Utf8Str &strSource, const ProcessArguments &aArguments,
+                               uint32_t uFlags);
 
     virtual ~SessionTaskUpdateAdditions(void);
 
@@ -191,6 +220,8 @@ protected:
         GuestProcessStartupInfo mProcInfo;
     };
 
+    int addProcessArguments(ProcessArguments &aArgumentsDest,
+                            const ProcessArguments &aArgumentsSource);
     int copyFileToGuest(GuestSession *pSession, PRTISOFSFILE pISO,
                         Utf8Str const &strFileSource, const Utf8Str &strFileDest,
                         bool fOptional, uint32_t *pcbSize);
@@ -201,6 +232,8 @@ protected:
     /** The (optionally) specified Guest Additions .ISO on the host
      *  which will be used for the updating process. */
     Utf8Str                    mSource;
+    /** (Optional) installer command line arguments. */
+    ProcessArguments           mArguments;
     /** Update flags. */
     uint32_t                   mFlags;
 };
@@ -210,6 +243,7 @@ protected:
  */
 class ATL_NO_VTABLE GuestSession :
     public VirtualBoxBase,
+    public GuestBase,
     VBOX_SCRIPTABLE_IMPL(IGuestSession)
 {
 public:
@@ -223,7 +257,7 @@ public:
     END_COM_MAP()
     DECLARE_EMPTY_CTOR_DTOR(GuestSession)
 
-    int     init(Guest *aGuest, ULONG aSessionID, Utf8Str aUser, Utf8Str aPassword, Utf8Str aDomain, Utf8Str aName);
+    int     init(Guest *pGuest, const GuestSessionStartupInfo &ssInfo, const GuestCredentials &guestCreds);
     void    uninit(void);
     HRESULT FinalConstruct(void);
     void    FinalRelease(void);
@@ -235,13 +269,16 @@ public:
     STDMETHOD(COMGETTER(Domain))(BSTR *aDomain);
     STDMETHOD(COMGETTER(Name))(BSTR *aName);
     STDMETHOD(COMGETTER(Id))(ULONG *aId);
+    STDMETHOD(COMGETTER(Status))(GuestSessionStatus_T *aStatus);
     STDMETHOD(COMGETTER(Timeout))(ULONG *aTimeout);
     STDMETHOD(COMSETTER(Timeout))(ULONG aTimeout);
+    STDMETHOD(COMGETTER(ProtocolVersion))(ULONG *aVersion);
     STDMETHOD(COMGETTER(Environment))(ComSafeArrayOut(BSTR, aEnvironment));
     STDMETHOD(COMSETTER(Environment))(ComSafeArrayIn(IN_BSTR, aEnvironment));
     STDMETHOD(COMGETTER(Processes))(ComSafeArrayOut(IGuestProcess *, aProcesses));
     STDMETHOD(COMGETTER(Directories))(ComSafeArrayOut(IGuestDirectory *, aDirectories));
     STDMETHOD(COMGETTER(Files))(ComSafeArrayOut(IGuestFile *, aFiles));
+    STDMETHOD(COMGETTER(EventSource))(IEventSource ** aEventSource);
     /** @}  */
 
     /** @name IGuestSession methods.
@@ -265,7 +302,8 @@ public:
     STDMETHOD(FileCreateTemp)(IN_BSTR aTemplate, ULONG aMode, IN_BSTR aPath, BOOL aSecure, IGuestFile **aFile);
     STDMETHOD(FileExists)(IN_BSTR aPath, BOOL *aExists);
     STDMETHOD(FileRemove)(IN_BSTR aPath);
-    STDMETHOD(FileOpen)(IN_BSTR aPath, IN_BSTR aOpenMode, IN_BSTR aDisposition, ULONG aCreationMode, LONG64 aOffset, IGuestFile **aFile);
+    STDMETHOD(FileOpen)(IN_BSTR aPath, IN_BSTR aOpenMode, IN_BSTR aDisposition, ULONG aCreationMode, IGuestFile **aFile);
+    STDMETHOD(FileOpenEx)(IN_BSTR aPath, IN_BSTR aOpenMode, IN_BSTR aDisposition, IN_BSTR aSharingMode, ULONG aCreationMode, LONG64 aOffset, IGuestFile **aFile);
     STDMETHOD(FileQueryInfo)(IN_BSTR aPath, IGuestFsObjInfo **aInfo);
     STDMETHOD(FileQuerySize)(IN_BSTR aPath, LONG64 *aSize);
     STDMETHOD(FileRename)(IN_BSTR aSource, IN_BSTR aDest, ComSafeArrayIn(PathRenameFlag_T, aFlags));
@@ -282,12 +320,16 @@ public:
     STDMETHOD(SymlinkRead)(IN_BSTR aSymlink, ComSafeArrayIn(SymlinkReadFlag_T, aFlags), BSTR *aTarget);
     STDMETHOD(SymlinkRemoveDirectory)(IN_BSTR aPath);
     STDMETHOD(SymlinkRemoveFile)(IN_BSTR aFile);
+    STDMETHOD(WaitFor)(ULONG aWaitFlags, ULONG aTimeoutMS, GuestSessionWaitResult_T *aReason);
+    STDMETHOD(WaitForArray)(ComSafeArrayIn(GuestSessionWaitForFlag_T, aFlags), ULONG aTimeoutMS, GuestSessionWaitResult_T *aReason);
     /** @}  */
 
 private:
 
-    typedef std::vector <ComObjPtr<GuestDirectory> > SessionDirectories;
-    typedef std::vector <ComObjPtr<GuestFile> > SessionFiles;
+    /** Map of guest directories. The key specifies the internal directory ID. */
+    typedef std::map <uint32_t, ComObjPtr<GuestDirectory> > SessionDirectories;
+    /** Map of guest files. The key specifies the internal file ID. */
+    typedef std::map <uint32_t, ComObjPtr<GuestFile> > SessionFiles;
     /** Map of guest processes. The key specifies the internal process number.
      *  To retrieve the process' guest PID use the Id() method of the IProcess interface. */
     typedef std::map <uint32_t, ComObjPtr<GuestProcess> > SessionProcesses;
@@ -295,66 +337,99 @@ private:
 public:
     /** @name Public internal methods.
      * @{ */
+    int                     closeSession(uint32_t uFlags, uint32_t uTimeoutMS, int *pGuestRc);
+    inline bool             directoryExists(uint32_t uDirID, ComObjPtr<GuestDirectory> *pDir);
     int                     directoryRemoveFromList(GuestDirectory *pDirectory);
+    int                     directoryRemoveInternal(const Utf8Str &strPath, uint32_t uFlags, int *pGuestRc);
     int                     directoryCreateInternal(const Utf8Str &strPath, uint32_t uMode, uint32_t uFlags, int *pGuestRc);
     int                     objectCreateTempInternal(const Utf8Str &strTemplate, const Utf8Str &strPath, bool fDirectory, const Utf8Str &strName, int *pGuestRc);
-    int                     directoryOpenInternal(const Utf8Str &strPath, const Utf8Str &strFilter, uint32_t uFlags, ComObjPtr<GuestDirectory> &pDirectory);
+    int                     directoryOpenInternal(const GuestDirectoryOpenInfo &openInfo, ComObjPtr<GuestDirectory> &pDirectory, int *pGuestRc);
     int                     directoryQueryInfoInternal(const Utf8Str &strPath, GuestFsObjData &objData, int *pGuestRc);
-    int                     dispatchToProcess(uint32_t uContextID, uint32_t uFunction, void *pvData, size_t cbData);
+    int                     dispatchToDirectory(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    int                     dispatchToFile(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    int                     dispatchToObject(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    int                     dispatchToProcess(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    int                     dispatchToThis(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    inline bool             fileExists(uint32_t uFileID, ComObjPtr<GuestFile> *pFile);
     int                     fileRemoveFromList(GuestFile *pFile);
     int                     fileRemoveInternal(const Utf8Str &strPath, int *pGuestRc);
-    int                     fileOpenInternal(const Utf8Str &strPath, const Utf8Str &strOpenMode, const Utf8Str &strDisposition,
-                                             uint32_t uCreationMode, int64_t iOffset, ComObjPtr<GuestFile> &pFile, int *pGuestRc);
+    int                     fileOpenInternal(const GuestFileOpenInfo &openInfo, ComObjPtr<GuestFile> &pFile, int *pGuestRc);
     int                     fileQueryInfoInternal(const Utf8Str &strPath, GuestFsObjData &objData, int *pGuestRc);
     int                     fileQuerySizeInternal(const Utf8Str &strPath, int64_t *pllSize, int *pGuestRc);
     int                     fsQueryInfoInternal(const Utf8Str &strPath, GuestFsObjData &objData, int *pGuestRc);
     const GuestCredentials &getCredentials(void);
     const GuestEnvironment &getEnvironment(void);
+    EventSource            *getEventSource(void) { return mEventSource; }
     Utf8Str                 getName(void);
-    ULONG                   getId(void) { return mData.mId; }
-    Guest                  *getParent(void) { return mData.mParent; }
+    ULONG                   getId(void) { return mData.mSession.mID; }
+    static Utf8Str          guestErrorToString(int guestRc);
+    HRESULT                 isReadyExternal(void);
+    int                     onSessionStatusChange(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCbData);
+    int                     startSessionInternal(int *pGuestRc);
+    int                     startSessionAsync(void);
+    static DECLCALLBACK(int)
+                            startSessionThread(RTTHREAD Thread, void *pvUser);
+    Guest                  *getParent(void) { return mParent; }
     uint32_t                getProtocolVersion(void) { return mData.mProtocolVersion; }
+    int                     pathRenameInternal(const Utf8Str &strSource, const Utf8Str &strDest, uint32_t uFlags, int *pGuestRc);
     int                     processRemoveFromList(GuestProcess *pProcess);
     int                     processCreateExInteral(GuestProcessStartupInfo &procInfo, ComObjPtr<GuestProcess> &pProgress);
     inline bool             processExists(uint32_t uProcessID, ComObjPtr<GuestProcess> *pProcess);
     inline int              processGetByPID(ULONG uPID, ComObjPtr<GuestProcess> *pProcess);
+    int                     sendCommand(uint32_t uFunction, uint32_t uParms, PVBOXHGCMSVCPARM paParms);
+    static HRESULT          setErrorExternal(VirtualBoxBase *pInterface, int guestRc);
+    int                     setSessionStatus(GuestSessionStatus_T sessionStatus, int sessionRc);
+    int                     signalWaiters(GuestSessionWaitResult_T enmWaitResult, int rc /*= VINF_SUCCESS */);
     int                     startTaskAsync(const Utf8Str &strTaskDesc, GuestSessionTask *pTask, ComObjPtr<Progress> &pProgress);
     int                     queryInfo(void);
+    int                     waitFor(uint32_t fWaitFlags, ULONG uTimeoutMS, GuestSessionWaitResult_T &waitResult, int *pGuestRc);
+    int                     waitForStatusChange(GuestWaitEvent *pEvent, uint32_t fWaitFlags, uint32_t uTimeoutMS, GuestSessionStatus_T *pSessionStatus, int *pGuestRc);
     /** @}  */
 
 private:
 
+    /** Pointer to the parent (Guest). */
+    Guest                          *mParent;
+    /**
+     * The session's event source. This source is used for
+     * serving the internal listener as well as all other
+     * external listeners that may register to it.
+     *
+     * Note: This can safely be used without holding any locks.
+     * An AutoCaller suffices to prevent it being destroy while in use and
+     * internally there is a lock providing the necessary serialization.
+     */
+    const ComObjPtr<EventSource>    mEventSource;
+
     struct Data
     {
-        /** Guest control protocol version to be used.
-         *  Guest Additions < VBox 4.2 have version 1,
-         *  any newer version will have version 2. */
-        uint32_t             mProtocolVersion;
-        /** Flag indicating if this is an internal session
-         *  or not. Internal session are not accessible by clients. */
-        bool                 fInternal;
-        /** Pointer to the parent (Guest). */
-        Guest               *mParent;
         /** The session credentials. */
-        GuestCredentials     mCredentials;
-        /** The (optional) session name. */
-        Utf8Str              mName;
-        /** The session ID. */
-        ULONG                mId;
-        /** The session timeout. Default is 30s. */
-        ULONG                mTimeout;
+        GuestCredentials            mCredentials;
+        /** The session's startup info. */
+        GuestSessionStartupInfo     mSession;
+        /** The session's current status. */
+        GuestSessionStatus_T        mStatus;
         /** The session's environment block. Can be
          *  overwritten/extended by ProcessCreate(Ex). */
-        GuestEnvironment     mEnvironment;
+        GuestEnvironment            mEnvironment;
         /** Directory objects bound to this session. */
-        SessionDirectories   mDirectories;
+        SessionDirectories          mDirectories;
         /** File objects bound to this session. */
-        SessionFiles         mFiles;
+        SessionFiles                mFiles;
         /** Process objects bound to this session. */
-        SessionProcesses     mProcesses;
+        SessionProcesses            mProcesses;
+        /** Guest control protocol version to be used.
+         *  Guest Additions < VBox 4.3 have version 1,
+         *  any newer version will have version 2. */
+        uint32_t                    mProtocolVersion;
+        /** Session timeout (in ms). */
+        uint32_t                    mTimeout;
         /** Total number of session objects (processes,
          *  files, ...). */
-        uint32_t             mNumObjects;
+        uint32_t                    mNumObjects;
+        /** The last returned session status
+         *  returned from the guest side. */
+        int                         mRC;
     } mData;
 };
 

@@ -9,8 +9,8 @@ import apiutil
 
 apiutil.CopyrightDef()
 
-print "LIBRARY VBoxOGL"
-print "DESCRIPTION \"\""
+#print "LIBRARY VBoxOGL"
+#print "DESCRIPTION \"\"" - warning LNK4017: DESCRIPTION statement not supported for the target platform; ignored
 print "EXPORTS"
 
 # XXX can't these values be automatically computed by analyzing parameters?
@@ -477,6 +477,8 @@ crMakeCurrent
 crSwapBuffers
 crGetProcAddress
 VBoxCreateContext
+VBoxCtxChromiumParameteriCR
 VBoxGetWindowId
+VBoxGetContextId
 VBoxFlushToHost"""
 #print "DllMain"

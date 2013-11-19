@@ -79,6 +79,7 @@ mv *.gc $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv *.r0 $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv *.rel $RPM_BUILD_ROOT/usr/lib/virtualbox || true
 mv VBoxNetDHCP $RPM_BUILD_ROOT/usr/lib/virtualbox
+mv VBoxNetNAT $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv VBoxNetAdpCtl $RPM_BUILD_ROOT/usr/lib/virtualbox
 if [ -f VBoxVolInfo ]; then
   mv VBoxVolInfo $RPM_BUILD_ROOT/usr/lib/virtualbox
@@ -87,6 +88,7 @@ mv VBoxXPCOMIPCD $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv components $RPM_BUILD_ROOT/usr/lib/virtualbox/components
 mv *.so $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv *.so.4 $RPM_BUILD_ROOT/usr/lib/virtualbox || true
+ln -s ../VBoxVMM.so $RPM_BUILD_ROOT/usr/lib/virtualbox/components/VBoxVMM.so
 mv VBoxTestOGL $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv vboxshell.py $RPM_BUILD_ROOT/usr/lib/virtualbox
 (export VBOX_INSTALL_PATH=/usr/lib/virtualbox && \
@@ -119,7 +121,7 @@ if %WEBSVC%; then
   for i in vboxwebsrv webtest; do
     mv $i $RPM_BUILD_ROOT/usr/lib/virtualbox; done
 fi
-for i in VBoxSDL VirtualBox VBoxHeadless VBoxNetDHCP VBoxNetAdpCtl; do
+for i in VBoxSDL VirtualBox VBoxHeadless VBoxNetDHCP VBoxNetNAT VBoxNetAdpCtl; do
   chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/$i; done
 if [ -f $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxVolInfo ]; then
   chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxVolInfo
@@ -278,7 +280,7 @@ if [ "$INSTALL_NO_GROUP" != "1" ]; then
   echo
   echo "Creating group 'vboxusers'. VM users must be member of that group!"
   echo
-  groupadd -f vboxusers 2> /dev/null
+  groupadd -r -f vboxusers 2> /dev/null
 fi
 
 # install udev rule (disable with INSTALL_NO_UDEV=1 in /etc/default/virtualbox)
@@ -397,7 +399,7 @@ if [ "$1" = 0 ]; then
   /sbin/service vboxdrv stop > /dev/null
   /sbin/chkconfig --del vboxdrv
 %endif
-  rm -f /etc/udev/rules.d/10-vboxdrv.rules
+  rm -f /etc/udev/rules.d/60-vboxdrv.rules
   rm -f /etc/vbox/license_agreed
   rm -f /etc/vbox/module_not_compiled
 fi

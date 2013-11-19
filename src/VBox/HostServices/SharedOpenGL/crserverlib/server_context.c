@@ -27,6 +27,8 @@ GLint crServerDispatchCreateContextEx(const char *dpyName, GLint visualBits, GLi
     CRContextInfo *pContextInfo;
     GLboolean fFirst = GL_FALSE;
 
+    dpyName = "";
+
     if (shareCtx > 0) {
         crWarning("CRServer: context sharing not implemented.");
         shareCtx = 0;
@@ -38,6 +40,8 @@ GLint crServerDispatchCreateContextEx(const char *dpyName, GLint visualBits, GLi
         crWarning("failed to alloc context info!");
         return -1;
     }
+
+    pContextInfo->currentMural = NULL;
 
     pContextInfo->CreateInfo.visualBits = visualBits;
 
@@ -58,6 +62,8 @@ GLint crServerDispatchCreateContextEx(const char *dpyName, GLint visualBits, GLi
         CRASSERT(cr_server.MainContextInfo.pContext);
         cr_server.firstCallCreateContext = GL_FALSE;
         fFirst = GL_TRUE;
+
+        cr_server.head_spu->dispatch_table.ChromiumParameteriCR(GL_HH_SET_DEFAULT_SHARED_CTX, cr_server.MainContextInfo.SpuContext);
     }
     else {
         /* second or third or ... context */
@@ -66,7 +72,7 @@ GLint crServerDispatchCreateContextEx(const char *dpyName, GLint visualBits, GLi
 
             /* the new context needs new visual attributes */
             cr_server.MainContextInfo.CreateInfo.visualBits |= visualBits;
-            crDebug("crServerDispatchCreateContext requires new visual (0x%x).",
+            crWarning("crServerDispatchCreateContext requires new visual (0x%x).",
                     cr_server.MainContextInfo.CreateInfo.visualBits);
 
             /* Here, we used to just destroy the old rendering context.
@@ -90,6 +96,10 @@ GLint crServerDispatchCreateContextEx(const char *dpyName, GLint visualBits, GLi
                 crFree(pContextInfo);
                 return -1;
             }
+
+            /* we do not need to clean up the old default context explicitly, since the above cr_server.head_spu->dispatch_table.DestroyContext call
+             * will do that for us */
+            cr_server.head_spu->dispatch_table.ChromiumParameteriCR(GL_HH_SET_DEFAULT_SHARED_CTX, cr_server.MainContextInfo.SpuContext);
         }
     }
 
@@ -120,7 +130,7 @@ GLint crServerDispatchCreateContextEx(const char *dpyName, GLint visualBits, GLi
     if (newCtx) {
         crStateSetCurrentPointers( newCtx, &(cr_server.current) );
         crStateResetCurrentPointers(&(cr_server.current));
-        retVal = preloadCtxID<0 ? crServerGenerateID(&cr_server.idsPool.freeContextID) : preloadCtxID;
+        retVal = preloadCtxID<0 ? (GLint)crHashtableAllocKeys( cr_server.contextTable, 1 ) : preloadCtxID;
 
         pContextInfo->pContext = newCtx;
         pContextInfo->CreateInfo.visualBits = visualBits;
@@ -136,25 +146,6 @@ GLint crServerDispatchCreateContextEx(const char *dpyName, GLint visualBits, GLi
                 cr_server.curClient->contextList[pos] = retVal;
                 break;
             }
-        }
-    }
-
-    {
-        /* As we're using only one host context to serve all client contexts, newly created context will still
-         * hold last error value from any previous failed opengl call. Proper solution would be to redirect any
-         * client glGetError calls to our state tracker, but right now it's missing quite a lot of checks and doesn't
-         * reflect host driver/gpu specific issues. Thus we just reset last opengl error at context creation.
-         */
-        GLint err;
-
-        err = cr_server.head_spu->dispatch_table.GetError();
-        if (err!=GL_NO_ERROR)
-        {
-#ifdef DEBUG_misha
-            crDebug("Cleared gl error %#x on context creation", err);
-#else
-            crWarning("Cleared gl error %#x on context creation", err);
-#endif
         }
     }
 
@@ -179,6 +170,14 @@ static int crServerRemoveClientContext(CRClient *pClient, GLint ctx)
     return false;
 }
 
+static void crServerCleanupMuralCtxUsageCB(unsigned long key, void *data1, void *data2)
+{
+    CRMuralInfo *mural = (CRMuralInfo *) data1;
+    CRContext *ctx = (CRContext *) data2;
+
+    CR_STATE_SHAREDOBJ_USAGE_CLEAR(mural, ctx);
+}
+
 void SERVER_DISPATCH_APIENTRY
 crServerDispatchDestroyContext( GLint ctx )
 {
@@ -198,6 +197,15 @@ crServerDispatchDestroyContext( GLint ctx )
 
     crDebug("CRServer: DestroyContext context %d", ctx);
 
+    if (cr_server.currentCtxInfo == crCtxInfo)
+    {
+        CRMuralInfo *dummyMural = crServerGetDummyMural(cr_server.MainContextInfo.CreateInfo.visualBits);
+        crServerPerformMakeCurrent(dummyMural, &cr_server.MainContextInfo);
+        CRASSERT(cr_server.currentCtxInfo == &cr_server.MainContextInfo);
+    }
+
+    crHashtableWalk(cr_server.muralTable, crServerCleanupMuralCtxUsageCB, crCtx);
+    crCtxInfo->currentMural = NULL;
     crHashtableDelete(cr_server.contextTable, ctx, NULL);
     crStateDestroyContext( crCtx );
 
@@ -268,18 +276,161 @@ crServerDispatchDestroyContext( GLint ctx )
         pNode = pNode->next;
     }
 
-    if (cr_server.currentCtxInfo == crCtxInfo)
+    CRASSERT(cr_server.currentCtxInfo != crCtxInfo);
+}
+
+void crServerPerformMakeCurrent( CRMuralInfo *mural, CRContextInfo *ctxInfo )
+{
+    CRMuralInfo *oldMural;
+    CRContext *ctx, *oldCtx = NULL;
+    GLuint idDrawFBO, idReadFBO;
+    GLint context = ctxInfo->CreateInfo.externalID;
+    GLint window = mural->CreateInfo.externalID;
+
+    cr_server.bForceMakeCurrentOnClientSwitch = GL_FALSE;
+
+    ctx = ctxInfo->pContext;
+    CRASSERT(ctx);
+
+    oldMural = cr_server.currentMural;
+
+    /* Ubuntu 11.04 hosts misbehave if context window switch is
+     * done with non-default framebuffer object settings.
+     * crStateSwitchPrepare & crStateSwitchPostprocess are supposed to work around this problem
+     * crStateSwitchPrepare restores the FBO state to its default values before the context window switch,
+     * while crStateSwitchPostprocess restores it back to the original values */
+    oldCtx = crStateGetCurrent();
+    if (oldMural && (oldMural->fPresentMode & CR_SERVER_REDIR_F_FBO) && crServerSupportRedirMuralFBO())
     {
-        cr_server.currentCtxInfo = &cr_server.MainContextInfo;
+        idDrawFBO = CR_SERVER_FBO_FOR_IDX(oldMural, oldMural->iCurDrawBuffer);
+        idReadFBO = CR_SERVER_FBO_FOR_IDX(oldMural, oldMural->iCurReadBuffer);
+    }
+    else
+    {
+        idDrawFBO = 0;
+        idReadFBO = 0;
+    }
+    crStateSwitchPrepare(cr_server.bUseMultipleContexts ? NULL : ctx, oldCtx, idDrawFBO, idReadFBO);
+
+    if (cr_server.curClient)
+    {
+        /*
+        crDebug("**** %s client %d  curCtx=%d curWin=%d", __func__,
+                        cr_server.curClient->number, ctxPos, window);
+        */
+        cr_server.curClient->currentContextNumber = context;
+        cr_server.curClient->currentCtxInfo = ctxInfo;
+        cr_server.curClient->currentMural = mural;
+        cr_server.curClient->currentWindow = window;
+
+        CRASSERT(cr_server.curClient->currentCtxInfo);
+        CRASSERT(cr_server.curClient->currentCtxInfo->pContext);
+    }
+
+    /* This is a hack to force updating the 'current' attribs */
+    crStateUpdateColorBits();
+
+    if (ctx)
+        crStateSetCurrentPointers( ctx, &(cr_server.current) );
+
+    /* check if being made current for first time, update viewport */
+#if 0
+    if (ctx) {
+        /* initialize the viewport */
+        if (ctx->viewport.viewportW == 0) {
+            ctx->viewport.viewportW = mural->width;
+            ctx->viewport.viewportH = mural->height;
+            ctx->viewport.scissorW = mural->width;
+            ctx->viewport.scissorH = mural->height;
+        }
+    }
+#endif
+
+    /*
+    crDebug("**** %s  currentWindow %d  newWindow %d", __func__,
+                    cr_server.currentWindow, window);
+    */
+
+    if (1/*cr_server.firstCallMakeCurrent ||
+            cr_server.currentWindow != window ||
+            cr_server.currentNativeWindow != nativeWindow*/) {
+        /* Since the cr server serialized all incoming contexts/clients into
+         * one output stream of GL commands, we only need to call the head
+         * SPU's MakeCurrent() function once.
+         * BUT, if we're rendering to multiple windows, we do have to issue
+         * MakeCurrent() calls sometimes.  The same GL context will always be
+         * used though.
+         */
+        cr_server.head_spu->dispatch_table.MakeCurrent( mural->spuWindow,
+                                                        0,
+                                                        ctxInfo->SpuContext >= 0
+                                                            ? ctxInfo->SpuContext
+                                                              : cr_server.MainContextInfo.SpuContext);
+
+        CR_STATE_SHAREDOBJ_USAGE_SET(mural, ctx);
+        if (cr_server.currentCtxInfo)
+            cr_server.currentCtxInfo->currentMural = NULL;
+        ctxInfo->currentMural = mural;
+
+        cr_server.firstCallMakeCurrent = GL_FALSE;
+        cr_server.currentCtxInfo = ctxInfo;
+        cr_server.currentWindow = window;
+        cr_server.currentNativeWindow = 0;
+        cr_server.currentMural = mural;
+    }
+
+    /* This used to be earlier, after crStateUpdateColorBits() call */
+    crStateMakeCurrent( ctx );
+
+    if (mural && (mural->fPresentMode & CR_SERVER_REDIR_F_FBO) && crServerSupportRedirMuralFBO())
+    {
+        GLuint id = crServerMuralFBOIdxFromBufferName(mural, ctx->buffer.drawBuffer);
+        if (id != mural->iCurDrawBuffer)
+        {
+            crDebug("DBO draw buffer changed on make current");
+            mural->iCurDrawBuffer = id;
+        }
+
+        id = crServerMuralFBOIdxFromBufferName(mural, ctx->buffer.readBuffer);
+        if (id != mural->iCurReadBuffer)
+        {
+            crDebug("DBO read buffer changed on make current");
+            mural->iCurReadBuffer = id;
+        }
+
+        idDrawFBO = CR_SERVER_FBO_FOR_IDX(mural, mural->iCurDrawBuffer);
+        idReadFBO = CR_SERVER_FBO_FOR_IDX(mural, mural->iCurReadBuffer);
+    }
+    else
+    {
+        idDrawFBO = 0;
+        idReadFBO = 0;
+    }
+    crStateSwitchPostprocess(ctx, cr_server.bUseMultipleContexts ? NULL : oldCtx, idDrawFBO, idReadFBO);
+
+    if (!ctx->framebufferobject.drawFB
+            && (ctx->buffer.drawBuffer == GL_FRONT || ctx->buffer.drawBuffer == GL_FRONT_LEFT)
+            && cr_server.curClient)
+        cr_server.curClient->currentMural->bFbDraw = GL_TRUE;
+
+    if (!(mural->fPresentMode & CR_SERVER_REDIR_F_FBO))
+    {
+        ctx->buffer.width = mural->width;
+        ctx->buffer.height = mural->height;
+    }
+    else
+    {
+        ctx->buffer.width = 0;
+        ctx->buffer.height = 0;
     }
 }
+
 
 void SERVER_DISPATCH_APIENTRY
 crServerDispatchMakeCurrent( GLint window, GLint nativeWindow, GLint context )
 {
-    CRMuralInfo *mural, *oldMural;
+    CRMuralInfo *mural;
     CRContextInfo *ctxInfo = NULL;
-    CRContext *ctx, *oldCtx = NULL;
 
     if (context >= 0 && window >= 0) {
         mural = (CRMuralInfo *) crHashtableSearch(cr_server.muralTable, window);
@@ -319,95 +470,6 @@ crServerDispatchMakeCurrent( GLint window, GLint nativeWindow, GLint context )
         return;
     }
 
-    cr_server.bForceMakeCurrentOnClientSwitch = GL_FALSE;
-
-    ctx = ctxInfo->pContext;
-    CRASSERT(ctx);
-
-    oldMural = (CRMuralInfo *) crHashtableSearch(cr_server.muralTable, cr_server.currentWindow);
-
-    /* Ubuntu 11.04 hosts misbehave if context window switch is
-     * done with non-default framebuffer object settings.
-     * crStateSwichPrepare & crStateSwichPostprocess are supposed to work around this problem
-     * crStateSwichPrepare restores the FBO state to its default values before the context window switch,
-     * while crStateSwichPostprocess restores it back to the original values */
-    oldCtx = crStateSwichPrepare(ctx, cr_server.bUseMultipleContexts, oldMural && oldMural->bUseFBO && crServerSupportRedirMuralFBO() ? oldMural->idFBO : 0);
-
-    /*
-    crDebug("**** %s client %d  curCtx=%d curWin=%d", __func__,
-                    cr_server.curClient->number, ctxPos, window);
-    */
-    cr_server.curClient->currentContextNumber = context;
-    cr_server.curClient->currentCtxInfo = ctxInfo;
-    cr_server.curClient->currentMural = mural;
-    cr_server.curClient->currentWindow = window;
-
-    CRASSERT(cr_server.curClient->currentCtxInfo);
-    CRASSERT(cr_server.curClient->currentCtxInfo->pContext);
-
-    /* This is a hack to force updating the 'current' attribs */
-    crStateUpdateColorBits();
-
-    if (ctx)
-        crStateSetCurrentPointers( ctx, &(cr_server.current) );
-
-    /* check if being made current for first time, update viewport */
-#if 0
-    if (ctx) {
-        /* initialize the viewport */
-        if (ctx->viewport.viewportW == 0) {
-            ctx->viewport.viewportW = mural->width;
-            ctx->viewport.viewportH = mural->height;
-            ctx->viewport.scissorW = mural->width;
-            ctx->viewport.scissorH = mural->height;
-        }
-    }
-#endif
-
-    /*
-    crDebug("**** %s  currentWindow %d  newWindow %d", __func__,
-                    cr_server.currentWindow, window);
-    */
-
-    if (1/*cr_server.firstCallMakeCurrent ||
-            cr_server.currentWindow != window ||
-            cr_server.currentNativeWindow != nativeWindow*/) {
-        /* Since the cr server serialized all incoming contexts/clients into
-         * one output stream of GL commands, we only need to call the head
-         * SPU's MakeCurrent() function once.
-         * BUT, if we're rendering to multiple windows, we do have to issue
-         * MakeCurrent() calls sometimes.  The same GL context will always be
-         * used though.
-         */
-        cr_server.head_spu->dispatch_table.MakeCurrent( mural->spuWindow,
-                                                        nativeWindow,
-                                                        ctxInfo->SpuContext >= 0
-                                                            ? ctxInfo->SpuContext
-                                                              : cr_server.MainContextInfo.SpuContext);
-        cr_server.firstCallMakeCurrent = GL_FALSE;
-        cr_server.currentCtxInfo = ctxInfo;
-        cr_server.currentWindow = window;
-        cr_server.currentNativeWindow = nativeWindow;
-    }
-
-    /* This used to be earlier, after crStateUpdateColorBits() call */
-    crStateMakeCurrent( ctx );
-
-    crStateSwichPostprocess(oldCtx, cr_server.bUseMultipleContexts, mural->bUseFBO && crServerSupportRedirMuralFBO() ? mural->idFBO : 0);
-
-    if (!ctx->framebufferobject.drawFB
-            && (ctx->buffer.drawBuffer == GL_FRONT || ctx->buffer.drawBuffer == GL_FRONT_LEFT))
-        cr_server.curClient->currentMural->bFbDraw = GL_TRUE;
-
-    if (!mural->bUseFBO)
-    {
-        ctx->buffer.width = mural->width;
-        ctx->buffer.height = mural->height;
-    }
-    else
-    {
-        ctx->buffer.width = 0;
-        ctx->buffer.height = 0;
-    }
+    crServerPerformMakeCurrent( mural, ctxInfo );
 }
 

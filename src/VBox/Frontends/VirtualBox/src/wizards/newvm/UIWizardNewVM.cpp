@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,17 +18,19 @@
  */
 
 /* GUI includes: */
+#include "VBoxGlobal.h"
 #include "UIWizardNewVM.h"
 #include "UIWizardNewVMPageBasic1.h"
 #include "UIWizardNewVMPageBasic2.h"
 #include "UIWizardNewVMPageBasic3.h"
 #include "UIWizardNewVMPageExpert.h"
-#include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
+#include "UIMedium.h"
 
 /* COM includes: */
 #include "CAudioAdapter.h"
 #include "CUSBController.h"
+#include "CUSBDeviceFilters.h"
 #include "CExtPackManager.h"
 #include "CStorageController.h"
 
@@ -93,10 +95,12 @@ bool UIWizardNewVM::createVM()
     m_machine.GetAudioAdapter().SetEnabled(true);
 
     /* Enable the OHCI and EHCI controller by default for new VMs. (new in 2.2): */
-    CUSBController usbController = m_machine.GetUSBController();
-    if (!usbController.isNull() && type.GetRecommendedUSB() && usbController.GetProxyAvailable())
+    CUSBDeviceFilters usbDeviceFilters = m_machine.GetUSBDeviceFilters();
+    bool fOhciEnabled = false;
+    if (!usbDeviceFilters.isNull() && type.GetRecommendedUSB() && m_machine.GetUSBProxyAvailable())
     {
-        usbController.SetEnabled(true);
+        m_machine.AddUSBController("OHCI", KUSBControllerType_OHCI);
+        fOhciEnabled = true;
         /* USB 2.0 is only available if the proper ExtPack is installed.
          * Note. Configuring EHCI here and providing messages about
          * the missing extpack isn't exactly clean, but it is a
@@ -104,7 +108,7 @@ bool UIWizardNewVM::createVM()
          * introduced by the new distribution model. */
         CExtPackManager manager = vboxGlobal().virtualBox().GetExtensionPackManager();
         if (manager.IsExtPackUsable(GUI_ExtPackName))
-            usbController.SetEnabledEHCI(true);
+            m_machine.AddUSBController("EHCI", KUSBControllerType_EHCI);
     }
 
     /* Create a floppy controller if recommended: */
@@ -137,10 +141,6 @@ bool UIWizardNewVM::createVM()
         m_machine.AddStorageController(strHDName, ctrHDBus);
         hdCtr = m_machine.GetStorageControllerByName(strHDName);
         hdCtr.SetControllerType(hdStorageControllerType);
-
-        /* Set the port count to 1 if SATA is used. */
-        if (hdStorageControllerType == KStorageControllerType_IntelAhci)
-            hdCtr.SetPortCount(1);
     }
     else
     {
@@ -148,6 +148,14 @@ bool UIWizardNewVM::createVM()
         hdCtr = dvdCtr;
         strHDName = strDVDName;
     }
+
+    /* Liomit the AHCI port count if it's used because windows has trouble with
+       too many ports and other guest (OS X in particular) may take extra long
+       to boot: */
+    if (hdStorageControllerType == KStorageControllerType_IntelAhci)
+        hdCtr.SetPortCount(1 + (dvdStorageControllerType == KStorageControllerType_IntelAhci));
+    else if (dvdStorageControllerType == KStorageControllerType_IntelAhci)
+        dvdCtr.SetPortCount(1);
 
     /* Turn on PAE, if recommended: */
     m_machine.SetCPUProperty(KCPUPropertyType_PAE, type.GetRecommendedPAE());
@@ -161,15 +169,15 @@ bool UIWizardNewVM::createVM()
     {
         m_machine.SetKeyboardHIDType(KKeyboardHIDType_USBKeyboard);
         m_machine.SetPointingHIDType(KPointingHIDType_USBMouse);
-        if (!usbController.isNull())
-            usbController.SetEnabled(true);
+        if (!fOhciEnabled && !usbDeviceFilters.isNull())
+            m_machine.AddUSBController("OHCI", KUSBControllerType_OHCI);
     }
 
     if (type.GetRecommendedUSBTablet())
     {
         m_machine.SetPointingHIDType(KPointingHIDType_USBTablet);
-        if (!usbController.isNull())
-            usbController.SetEnabled(true);
+        if (!fOhciEnabled && !usbDeviceFilters.isNull())
+            m_machine.AddUSBController("OHCI", KUSBControllerType_OHCI);
     }
 
     /* Set HPET flag: */
@@ -189,7 +197,7 @@ bool UIWizardNewVM::createVM()
     vbox.RegisterMachine(m_machine);
     if (!vbox.isOk())
     {
-        msgCenter().cannotCreateMachine(vbox, m_machine, this);
+        msgCenter().cannotRegisterMachine(vbox, m_machine.GetName(), this);
         return false;
     }
 
@@ -206,7 +214,7 @@ bool UIWizardNewVM::createVM()
             /* Boot virtual hard drive: */
             if (!strId.isNull())
             {
-                UIMedium vmedium = vboxGlobal().findMedium(strId);
+                UIMedium vmedium = vboxGlobal().medium(strId);
                 CMedium medium = vmedium.medium();              // @todo r=dj can this be cached somewhere?
                 machine.AttachDevice(strHDName, 0, 0, KDeviceType_HardDisk, medium);
                 if (!machine.isOk())
@@ -245,7 +253,7 @@ bool UIWizardNewVM::createVM()
             QVector<CMedium> aMedia = m_machine.Unregister(KCleanupMode_UnregisterOnly);   //  @todo replace with DetachAllReturnHardDisksOnly once a progress dialog is in place below
             if (vbox.isOk())
             {
-                CProgress progress = m_machine.Delete(aMedia);
+                CProgress progress = m_machine.DeleteConfig(aMedia);
                 progress.WaitForCompletion(-1);         // @todo do this nicely with a progress dialog, this can delete lots of files
             }
             return false;

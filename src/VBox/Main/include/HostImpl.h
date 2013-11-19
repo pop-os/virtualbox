@@ -61,9 +61,13 @@ public:
     STDMETHOD(COMGETTER(USBDevices))(ComSafeArrayOut(IHostUSBDevice *, aUSBDevices));
     STDMETHOD(COMGETTER(USBDeviceFilters))(ComSafeArrayOut(IHostUSBDeviceFilter *, aUSBDeviceFilters));
     STDMETHOD(COMGETTER(NetworkInterfaces))(ComSafeArrayOut(IHostNetworkInterface *, aNetworkInterfaces));
+    STDMETHOD(COMGETTER(NameServers))(ComSafeArrayOut(BSTR, aNameServers));
+    STDMETHOD(COMGETTER(DomainName))(BSTR *aDomainName);
+    STDMETHOD(COMGETTER(SearchStrings))(ComSafeArrayOut(BSTR, aSearchStrings));
     STDMETHOD(COMGETTER(ProcessorCount))(ULONG *count);
     STDMETHOD(COMGETTER(ProcessorOnlineCount))(ULONG *count);
     STDMETHOD(COMGETTER(ProcessorCoreCount))(ULONG *count);
+    STDMETHOD(COMGETTER(ProcessorOnlineCoreCount))(ULONG *count);
     STDMETHOD(GetProcessorSpeed)(ULONG cpuId, ULONG *speed);
     STDMETHOD(GetProcessorDescription)(ULONG cpuId, BSTR *description);
     STDMETHOD(GetProcessorFeature)(ProcessorFeature_T feature, BOOL *supported);
@@ -74,6 +78,7 @@ public:
     STDMETHOD(COMGETTER(OSVersion))(BSTR *version);
     STDMETHOD(COMGETTER(UTCTime))(LONG64 *aUTCTime);
     STDMETHOD(COMGETTER(Acceleration3DAvailable))(BOOL *aSupported);
+    STDMETHOD(COMGETTER(VideoInputDevices))(ComSafeArrayOut(IHostVideoInputDevice*, aVideoInputDevices));
 
     // IHost methods
     STDMETHOD(CreateHostOnlyNetworkInterface)(IHostNetworkInterface **aHostNetworkInterface,
@@ -145,6 +150,12 @@ private:
 #endif
 
     HRESULT updateNetIfList();
+
+#ifndef RT_OS_WINDOWS
+    HRESULT parseResolvConf();
+#else
+    HRESULT fetchNameResolvingInformation();
+#endif
 
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
     void registerMetrics(PerformanceCollector *aCollector);

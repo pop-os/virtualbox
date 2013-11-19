@@ -215,7 +215,18 @@ DECLINLINE(bool)    CPUMIsGuestInRealModeEx(PCPUMCTX pCtx)
 DECLINLINE(bool) CPUMIsGuestInRealOrV86ModeEx(PCPUMCTX pCtx)
 {
     return !(pCtx->cr0 & X86_CR0_PE)
-        || pCtx->eflags.Bits.u1VM; /** @todo verify that this cannot be set in long mode. */
+        || pCtx->eflags.Bits.u1VM;  /* Cannot be set in long mode. Intel spec 2.3.1 "System Flags and Fields in IA-32e Mode". */
+}
+
+/**
+ * Tests if the guest is running in virtual 8086 mode.
+ *
+ * @returns @c true if it is, @c false if not.
+ * @param   pCtx    Current CPU context
+ */
+DECLINLINE(bool) CPUMIsGuestInV86ModeEx(PCPUMCTX pCtx)
+{
+    return (pCtx->eflags.Bits.u1VM == 1);
 }
 
 /**
@@ -259,6 +270,17 @@ DECLINLINE(bool)    CPUMIsGuestIn64BitCodeEx(PCPUMCTX pCtx)
 }
 
 /**
+ * Tests if the guest has paging enabled or not.
+ *
+ * @returns true if paging is enabled, otherwise false.
+ * @param   pCtx    Current CPU context
+ */
+DECLINLINE(bool)    CPUMIsGuestPagingEnabledEx(PCPUMCTX pCtx)
+{
+    return !!(pCtx->cr0 & X86_CR0_PG);
+}
+
+/**
  * Tests if the guest is running in PAE mode or not.
  *
  * @returns true if in PAE mode, otherwise false.
@@ -266,9 +288,15 @@ DECLINLINE(bool)    CPUMIsGuestIn64BitCodeEx(PCPUMCTX pCtx)
  */
 DECLINLINE(bool)    CPUMIsGuestInPAEModeEx(PCPUMCTX pCtx)
 {
+#ifdef VBOX_WITH_OLD_VTX_CODE
     return (    (pCtx->cr4 & X86_CR4_PAE)
             &&  CPUMIsGuestInPagedProtectedModeEx(pCtx)
             &&  !CPUMIsGuestInLongModeEx(pCtx));
+#else
+    return (   (pCtx->cr4 & X86_CR4_PAE)
+            && CPUMIsGuestPagingEnabledEx(pCtx)
+            && !(pCtx->msrEFER & MSR_K6_EFER_LME));
+#endif
 }
 
 #endif /* VBOX_WITHOUT_UNNAMED_UNIONS */
@@ -341,7 +369,7 @@ VMMDECL(void)           CPUMSetHyperDR3(PVMCPU pVCpu, RTGCUINTREG uDr3);
 VMMDECL(void)           CPUMSetHyperDR6(PVMCPU pVCpu, RTGCUINTREG uDr6);
 VMMDECL(void)           CPUMSetHyperDR7(PVMCPU pVCpu, RTGCUINTREG uDr7);
 VMMDECL(void)           CPUMSetHyperCtx(PVMCPU pVCpu, const PCPUMCTX pCtx);
-VMMDECL(int)            CPUMRecalcHyperDRx(PVMCPU pVCpu);
+VMMDECL(int)            CPUMRecalcHyperDRx(PVMCPU pVCpu, uint8_t iGstReg, bool fForceHyper);
 /** @} */
 
 VMMDECL(void)           CPUMPushHyper(PVMCPU pVCpu, uint32_t u32);
@@ -350,11 +378,10 @@ VMMDECL(PCPUMCTX)       CPUMGetHyperCtxPtr(PVMCPU pVCpu);
 VMMDECL(PCCPUMCTXCORE)  CPUMGetHyperCtxCore(PVMCPU pVCpu);
 VMMDECL(PCPUMCTX)       CPUMQueryGuestCtxPtr(PVMCPU pVCpu);
 VMMDECL(PCCPUMCTXCORE)  CPUMGetGuestCtxCore(PVMCPU pVCpu);
-VMMR3DECL(int)          CPUMR3RawEnter(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore);
-VMMR3DECL(int)          CPUMR3RawLeave(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, int rc);
+VMM_INT_DECL(int)       CPUMRawEnter(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore);
+VMM_INT_DECL(int)       CPUMRawLeave(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, int rc);
 VMMDECL(uint32_t)       CPUMRawGetEFlags(PVMCPU pVCpu);
 VMMDECL(void)           CPUMRawSetEFlags(PVMCPU pVCpu, uint32_t fEfl);
-VMMDECL(int)            CPUMHandleLazyFPU(PVMCPU pVCpu);
 
 /** @name Changed flags.
  * These flags are used to keep track of which important register that
@@ -394,12 +421,13 @@ VMMR3DECL(void)         CPUMR3RemLeave(PVMCPU pVCpu, bool fNoOutOfSyncSels);
 VMMDECL(bool)           CPUMSupportsFXSR(PVM pVM);
 VMMDECL(bool)           CPUMIsHostUsingSysEnter(PVM pVM);
 VMMDECL(bool)           CPUMIsHostUsingSysCall(PVM pVM);
-VMMDECL(bool)           CPUMIsGuestFPUStateActive(PVMCPU pVCPU);
+VMMDECL(bool)           CPUMIsGuestFPUStateActive(PVMCPU pVCpu);
 VMMDECL(void)           CPUMDeactivateGuestFPUState(PVMCPU pVCpu);
 VMMDECL(bool)           CPUMIsGuestDebugStateActive(PVMCPU pVCpu);
+VMMDECL(bool)           CPUMIsGuestDebugStateActivePending(PVMCPU pVCpu);
 VMMDECL(void)           CPUMDeactivateGuestDebugState(PVMCPU pVCpu);
 VMMDECL(bool)           CPUMIsHyperDebugStateActive(PVMCPU pVCpu);
-VMMDECL(void)           CPUMDeactivateHyperDebugState(PVMCPU pVCpu);
+VMMDECL(bool)           CPUMIsHyperDebugStateActivePending(PVMCPU pVCpu);
 VMMDECL(uint32_t)       CPUMGetGuestCPL(PVMCPU pVCpu);
 VMMDECL(CPUMMODE)       CPUMGetGuestMode(PVMCPU pVCpu);
 VMMDECL(uint32_t)       CPUMGetGuestCodeBits(PVMCPU pVCpu);
@@ -413,6 +441,7 @@ VMMDECL(DISCPUMODE)     CPUMGetGuestDisMode(PVMCPU pVCpu);
  */
 
 VMMR3DECL(int)          CPUMR3Init(PVM pVM);
+VMMR3DECL(int)          CPUMR3InitCompleted(PVM pVM);
 VMMR3DECL(void)         CPUMR3LogCpuIds(PVM pVM);
 VMMR3DECL(void)         CPUMR3Relocate(PVM pVM);
 VMMR3DECL(int)          CPUMR3Term(PVM pVM);
@@ -460,7 +489,7 @@ DECLASM(void)           CPUMGCCallGuestTrapHandler(PCPUMCTXCORE pRegFrame, uint3
  */
 DECLASM(void)           CPUMGCCallV86Code(PCPUMCTXCORE pRegFrame);
 
-
+VMMDECL(int)            CPUMHandleLazyFPU(PVMCPU pVCpu);
 VMMDECL(uint32_t)       CPUMRCGetGuestCPL(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 #ifdef VBOX_WITH_RAW_RING1
 VMMDECL(void)           CPUMRCRecheckRawState(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore);
@@ -474,18 +503,20 @@ VMMDECL(void)           CPUMRCRecheckRawState(PVMCPU pVCpu, PCPUMCTXCORE pCtxCor
  * @ingroup grp_cpum
  * @{
  */
-VMMR0DECL(int)          CPUMR0ModuleInit(void);
-VMMR0DECL(int)          CPUMR0ModuleTerm(void);
-VMMR0DECL(int)          CPUMR0Init(PVM pVM);
-VMMR0DECL(int)          CPUMR0LoadGuestFPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
-VMMR0DECL(int)          CPUMR0SaveGuestFPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
-VMMR0DECL(int)          CPUMR0SaveGuestDebugState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, bool fDR6);
-VMMR0DECL(int)          CPUMR0LoadGuestDebugState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, bool fDR6);
-VMMR0DECL(int)          CPUMR0LoadHostDebugState(PVM pVM, PVMCPU pVCpu);
-VMMR0DECL(int)          CPUMR0SaveHostDebugState(PVM pVM, PVMCPU pVCpu);
-VMMR0DECL(int)          CPUMR0LoadHyperDebugState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, bool fDR6);
+VMMR0_INT_DECL(int)     CPUMR0ModuleInit(void);
+VMMR0_INT_DECL(int)     CPUMR0ModuleTerm(void);
+VMMR0_INT_DECL(int)     CPUMR0InitVM(PVM pVM);
+VMMR0_INT_DECL(int)     CPUMR0Trap07Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
+VMMR0_INT_DECL(int)     CPUMR0LoadGuestFPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
+VMMR0_INT_DECL(int)     CPUMR0SaveGuestFPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
+VMMR0_INT_DECL(int)     CPUMR0SaveHostDebugState(PVM pVM, PVMCPU pVCpu);
+VMMR0_INT_DECL(bool)    CPUMR0DebugStateMaybeSaveGuestAndRestoreHost(PVMCPU pVCpu, bool fDr6);
+VMMR0_INT_DECL(bool)    CPUMR0DebugStateMaybeSaveGuest(PVMCPU pVCpu, bool fDr6);
+
+VMMR0_INT_DECL(void)    CPUMR0LoadGuestDebugState(PVMCPU pVCpu, bool fDr6);
+VMMR0_INT_DECL(void)    CPUMR0LoadHyperDebugState(PVMCPU pVCpu, bool fDr6);
 #ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
-VMMR0DECL(void)         CPUMR0SetLApic(PVM pVM, RTCPUID idHostCpu);
+VMMR0_INT_DECL(void)    CPUMR0SetLApic(PVMCPU pVCpu, RTCPUID idHostCpu);
 #endif
 
 /** @} */

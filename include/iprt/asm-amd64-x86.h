@@ -68,6 +68,10 @@
 #  pragma intrinsic(__readcr8)
 #  pragma intrinsic(__writecr8)
 # endif
+# if RT_INLINE_ASM_USES_INTRIN >= 15
+#  pragma intrinsic(__readeflags)
+#  pragma intrinsic(__writeeflags)
+# endif
 #endif
 
 
@@ -350,10 +354,75 @@ DECLINLINE(RTSEL) ASMGetTR(void)
 
 
 /**
+ * Get the LDTR register.
+ * @returns LDTR.
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(RTSEL) ASMGetLDTR(void);
+#else
+DECLINLINE(RTSEL) ASMGetLDTR(void)
+{
+    RTSEL SelLDTR;
+# if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__("sldt %w0\n\t" : "=r" (SelLDTR));
+# else
+    __asm
+    {
+        sldt    ax
+        mov     [SelLDTR], ax
+    }
+# endif
+    return SelLDTR;
+}
+#endif
+
+
+/**
+ * Get the access rights for the segment selector.
+ *
+ * @returns The access rights on success or ~0U on failure.
+ * @param   uSel        The selector value.
+ *
+ * @remarks Using ~0U for failure is chosen because valid access rights always
+ *          have bits 0:7 as 0 (on both Intel & AMD).
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(uint32_t) ASMGetSegAttr(uint32_t uSel);
+#else
+DECLINLINE(uint32_t) ASMGetSegAttr(uint32_t uSel)
+{
+    uint32_t uAttr;
+    /* LAR only accesses 16-bit of the source operand, but eax for the
+       destination operand is required for getting the full 32-bit access rights. */
+# if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__("lar %1, %%eax\n\t"
+                         "jz done%=\n\t"
+                         "movl $0xffffffff, %%eax\n\t"
+                         "done%=:\n\t"
+                         "movl %%eax, %0\n\t"
+                         : "=r" (uAttr)
+                         : "r" (uSel)
+                         : "cc", "%eax");
+# else
+    __asm
+    {
+        lar     eax, [uSel]
+        jz      done
+        mov     eax, 0ffffffffh
+        done:
+        mov     [uAttr], eax
+    }
+# endif
+    return uAttr;
+}
+#endif
+
+
+/**
  * Get the [RE]FLAGS register.
  * @returns [RE]FLAGS.
  */
-#if RT_INLINE_ASM_EXTERNAL
+#if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 15
 DECLASM(RTCCUINTREG) ASMGetFlags(void);
 #else
 DECLINLINE(RTCCUINTREG) ASMGetFlags(void)
@@ -369,6 +438,8 @@ DECLINLINE(RTCCUINTREG) ASMGetFlags(void)
                          "popl  %0\n\t"
                          : "=r" (uFlags));
 #  endif
+# elif RT_INLINE_ASM_USES_INTRIN >= 15
+    uFlags = __readeflags();
 # else
     __asm
     {
@@ -390,7 +461,7 @@ DECLINLINE(RTCCUINTREG) ASMGetFlags(void)
  * Set the [RE]FLAGS register.
  * @param   uFlags      The new [RE]FLAGS value.
  */
-#if RT_INLINE_ASM_EXTERNAL
+#if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 15
 DECLASM(void) ASMSetFlags(RTCCUINTREG uFlags);
 #else
 DECLINLINE(void) ASMSetFlags(RTCCUINTREG uFlags)
@@ -405,6 +476,8 @@ DECLINLINE(void) ASMSetFlags(RTCCUINTREG uFlags)
                          "popfl\n\t"
                          : : "g" (uFlags));
 #  endif
+# elif RT_INLINE_ASM_USES_INTRIN >= 15
+    __writeeflags(uFlags);
 # else
     __asm
     {
@@ -978,7 +1051,7 @@ DECLINLINE(bool) ASMIsIntelCpu(void)
 
 
 /**
- * Tests if it a authentic AMD CPU based on the ASMCpuId(0) output.
+ * Tests if it an authentic AMD CPU based on the ASMCpuId(0) output.
  *
  * @returns true/false.
  * @param   uEBX    EBX return from ASMCpuId(0)
@@ -1004,6 +1077,71 @@ DECLINLINE(bool) ASMIsAmdCpu(void)
     uint32_t uEAX, uEBX, uECX, uEDX;
     ASMCpuId(0, &uEAX, &uEBX, &uECX, &uEDX);
     return ASMIsAmdCpuEx(uEBX, uECX, uEDX);
+}
+
+
+/**
+ * Tests if it a centaur hauling VIA CPU based on the ASMCpuId(0) output.
+ *
+ * @returns true/false.
+ * @param   uEBX    EBX return from ASMCpuId(0).
+ * @param   uECX    ECX return from ASMCpuId(0).
+ * @param   uEDX    EDX return from ASMCpuId(0).
+ */
+DECLINLINE(bool) ASMIsViaCentaurCpuEx(uint32_t uEBX, uint32_t uECX, uint32_t uEDX)
+{
+    return uEBX == UINT32_C(0x746e6543)
+        && uECX == UINT32_C(0x736c7561)
+        && uEDX == UINT32_C(0x48727561);
+}
+
+
+/**
+ * Tests if this is a centaur hauling VIA CPU.
+ *
+ * @returns true/false.
+ * @remarks ASSUMES that cpuid is supported by the CPU.
+ */
+DECLINLINE(bool) ASMIsViaCentaurCpu(void)
+{
+    uint32_t uEAX, uEBX, uECX, uEDX;
+    ASMCpuId(0, &uEAX, &uEBX, &uECX, &uEDX);
+    return ASMIsAmdCpuEx(uEBX, uECX, uEDX);
+}
+
+
+/**
+ * Checks whether ASMCpuId_EAX(0x00000000) indicates a valid range.
+ *
+ *
+ * @returns true/false.
+ * @param   uEAX    The EAX value of CPUID leaf 0x00000000.
+ *
+ * @note    This only succeeds if there are at least two leaves in the range.
+ * @remarks The upper range limit is just some half reasonable value we've
+ *          picked out of thin air.
+ */
+DECLINLINE(bool) ASMIsValidStdRange(uint32_t uEAX)
+{
+    return uEAX >= UINT32_C(0x00000001) && uEAX <= UINT32_C(0x000fffff);
+}
+
+
+/**
+ * Checks whether ASMCpuId_EAX(0x80000000) indicates a valid range.
+ *
+ * This only succeeds if there are at least two leaves in the range.
+ *
+ * @returns true/false.
+ * @param   uEAX    The EAX value of CPUID leaf 0x80000000.
+ *
+ * @note    This only succeeds if there are at least two leaves in the range.
+ * @remarks The upper range limit is just some half reasonable value we've
+ *          picked out of thin air.
+ */
+DECLINLINE(bool) ASMIsValidExtRange(uint32_t uEAX)
+{
+    return uEAX >= UINT32_C(0x80000001) && uEAX <= UINT32_C(0x800fffff);
 }
 
 

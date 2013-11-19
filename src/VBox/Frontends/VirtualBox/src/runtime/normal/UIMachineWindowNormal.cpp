@@ -36,7 +36,7 @@
 #include "UIMachineView.h"
 #include "QIStatusBar.h"
 #include "QIStateIndicator.h"
-#include "UIHotKeyEditor.h"
+#include "UIHostComboEditor.h"
 #ifdef Q_WS_MAC
 # include "VBoxUtils.h"
 # include "UIImageTools.h"
@@ -46,6 +46,7 @@
 #include "CConsole.h"
 #include "CMediumAttachment.h"
 #include "CUSBController.h"
+#include "CUSBDeviceFilters.h"
 
 UIMachineWindowNormal::UIMachineWindowNormal(UIMachineLogic *pMachineLogic, ulong uScreenId)
     : UIMachineWindow(pMachineLogic, uScreenId)
@@ -100,6 +101,12 @@ void UIMachineWindowNormal::sltSharedFolderChange()
     updateAppearanceOf(UIVisualElement_SharedFolderStuff);
 }
 
+void UIMachineWindowNormal::sltVideoCaptureChange()
+{
+    /* Update video-capture stuff: */
+    updateAppearanceOf(UIVisualElement_VideoCapture);
+}
+
 void UIMachineWindowNormal::sltCPUExecutionCapChange()
 {
     /* Update virtualization stuff: */
@@ -146,14 +153,20 @@ void UIMachineWindowNormal::sltShowIndicatorsContextMenu(QIStateIndicator *pIndi
     /* Show network LED context menu: */
     else if (pIndicator == indicatorsPool()->indicator(IndicatorType_Network))
     {
-        if (gActionPool->action(UIActionIndexRuntime_Menu_NetworkAdapters)->isEnabled())
-            gActionPool->action(UIActionIndexRuntime_Menu_NetworkAdapters)->menu()->exec(pEvent->globalPos());
+        if (gActionPool->action(UIActionIndexRuntime_Menu_Network)->isEnabled())
+            gActionPool->action(UIActionIndexRuntime_Menu_Network)->menu()->exec(pEvent->globalPos());
     }
     /* Show shared-folders LED context menu: */
     else if (pIndicator == indicatorsPool()->indicator(IndicatorType_SharedFolders))
     {
         if (gActionPool->action(UIActionIndexRuntime_Menu_SharedFolders)->isEnabled())
             gActionPool->action(UIActionIndexRuntime_Menu_SharedFolders)->menu()->exec(pEvent->globalPos());
+    }
+    /* Show video-capture LED context menu: */
+    else if (pIndicator == indicatorsPool()->indicator(IndicatorType_VideoCapture))
+    {
+        if (gActionPool->action(UIActionIndexRuntime_Menu_VideoCapture)->isEnabled())
+            gActionPool->action(UIActionIndexRuntime_Menu_VideoCapture)->menu()->exec(pEvent->globalPos());
     }
     /* Show mouse LED context menu: */
     else if (pIndicator == indicatorsPool()->indicator(IndicatorType_Mouse))
@@ -167,7 +180,7 @@ void UIMachineWindowNormal::sltProcessGlobalSettingChange(const char * /* aPubli
 {
     /* Update host-combination status-bar label: */
     if (m_pNameHostkey)
-        m_pNameHostkey->setText(UIHotKeyCombination::toReadableString(vboxGlobal().settings().hostCombo()));
+        m_pNameHostkey->setText(UIHostCombo::toReadableString(vboxGlobal().settings().hostCombo()));
 }
 
 void UIMachineWindowNormal::prepareSessionConnections()
@@ -194,6 +207,10 @@ void UIMachineWindowNormal::prepareSessionConnections()
     /* Shared folder change updater: */
     connect(machineLogic()->uisession(), SIGNAL(sigSharedFolderChange()),
             this, SLOT(sltSharedFolderChange()));
+
+    /* Video capture change updater: */
+    connect(machineLogic()->uisession(), SIGNAL(sigVideoCaptureChange()),
+            this, SLOT(sltVideoCaptureChange()));
 
     /* CPU execution cap change updater: */
     connect(machineLogic()->uisession(), SIGNAL(sigCPUExecutionCapChange()),
@@ -223,7 +240,7 @@ void UIMachineWindowNormal::prepareStatusBar()
     setStatusBar(new QIStatusBar(this));
     QWidget *pIndicatorBox = new QWidget;
     QHBoxLayout *pIndicatorBoxHLayout = new QHBoxLayout(pIndicatorBox);
-    VBoxGlobal::setLayoutMargin(pIndicatorBoxHLayout, 0);
+    pIndicatorBoxHLayout->setContentsMargins(0, 0, 0, 0);
     pIndicatorBoxHLayout->setSpacing(5);
     bool fAtLeastOneAddedToLeftSection = false;
 
@@ -279,6 +296,15 @@ void UIMachineWindowNormal::prepareStatusBar()
         fAtLeastOneAddedToLeftSection = true;
     }
 
+    /* Video Capture: */
+    if (QIStateIndicator *pLedVideoCapture = indicatorsPool()->indicator(IndicatorType_VideoCapture))
+    {
+        pIndicatorBoxHLayout->addWidget(pLedVideoCapture);
+        connect(pLedVideoCapture, SIGNAL(contextMenuRequested(QIStateIndicator*, QContextMenuEvent*)),
+                this, SLOT(sltShowIndicatorsContextMenu(QIStateIndicator*, QContextMenuEvent*)));
+        fAtLeastOneAddedToLeftSection = true;
+    }
+
     /* Features: */
     if (QIStateIndicator *pLedFeatures = indicatorsPool()->indicator(IndicatorType_Features))
     {
@@ -309,9 +335,9 @@ void UIMachineWindowNormal::prepareStatusBar()
         {
             if (QHBoxLayout *pContainerLayoutHostkey = new QHBoxLayout(pContainerWidgetHostkey))
             {
-                VBoxGlobal::setLayoutMargin(pContainerLayoutHostkey, 0);
+                pContainerLayoutHostkey->setContentsMargins(0, 0, 0, 0);
                 pContainerLayoutHostkey->setSpacing(3);
-                m_pNameHostkey = new QLabel(UIHotKeyCombination::toReadableString(vboxGlobal().settings().hostCombo()));
+                m_pNameHostkey = new QLabel(UIHostCombo::toReadableString(vboxGlobal().settings().hostCombo()));
                 pContainerLayoutHostkey->addWidget(pLedKeyboard);
                 pContainerLayoutHostkey->addWidget(m_pNameHostkey);
             }
@@ -430,8 +456,8 @@ void UIMachineWindowNormal::loadSettings()
                 /* Restore only window position: */
                 m_normalGeometry = QRect(x, y, width(), height());
                 setGeometry(m_normalGeometry);
-                if (machineView())
-                    machineView()->normalizeGeometry(false);
+                /* Normalize to the optimal size: */
+                normalizeGeometry(false);
             }
             /* Maximize if needed: */
             if (max)
@@ -439,22 +465,20 @@ void UIMachineWindowNormal::loadSettings()
         }
         else
         {
-            /* Normalize view early to the optimal size: */
-            if (machineView())
-                machineView()->normalizeGeometry(true);
+            /* Normalize to the optimal size: */
+            normalizeGeometry(true);
             /* Move newly created window to the screen center: */
             m_normalGeometry = geometry();
             m_normalGeometry.moveCenter(ar.center());
             setGeometry(m_normalGeometry);
         }
 
-        /* Normalize view to the optimal size: */
-        if (machineView())
+        /* Normalize to the optimal size: */
 #ifdef Q_WS_X11
-            QTimer::singleShot(0, machineView(), SLOT(sltNormalizeGeometry()));
-#else /* Q_WS_X11 */
-            machineView()->normalizeGeometry(true);
-#endif
+        QTimer::singleShot(0, this, SLOT(sltNormalizeGeometry()));
+#else /* !Q_WS_X11 */
+        normalizeGeometry(true);
+#endif /* !Q_WS_X11 */
     }
 
     /* Load availability settings: */
@@ -462,10 +486,11 @@ void UIMachineWindowNormal::loadSettings()
         /* USB Stuff: */
         if (indicatorsPool()->indicator(IndicatorType_USB))
         {
-            const CUSBController &usbController = m.GetUSBController();
-            if (    usbController.isNull()
-                || !usbController.GetEnabled()
-                || !usbController.GetProxyAvailable())
+            const CUSBDeviceFilters &filters = m.GetUSBDeviceFilters();
+            ULONG cOhciCtls = m.GetUSBControllerCountByType(KUSBControllerType_OHCI);
+            bool fUSBEnabled = !filters.isNull() && cOhciCtls && m.GetUSBProxyAvailable();
+
+            if (!fUSBEnabled)
             {
                 /* Hide USB menu: */
                 indicatorsPool()->indicator(IndicatorType_USB)->setHidden(true);
@@ -473,8 +498,7 @@ void UIMachineWindowNormal::loadSettings()
             else
             {
                 /* Toggle USB LED: */
-                indicatorsPool()->indicator(IndicatorType_USB)->setState(
-                    usbController.GetEnabled() ? KDeviceActivity_Idle : KDeviceActivity_Null);
+                indicatorsPool()->indicator(IndicatorType_USB)->setState(KDeviceActivity_Idle);
             }
         }
     }
@@ -535,7 +559,7 @@ void UIMachineWindowNormal::retranslateUi()
                "This key, when pressed alone, toggles the keyboard and mouse "
                "capture state. It can also be used in combination with other keys "
                "to quickly perform actions from the main menu."));
-        m_pNameHostkey->setText(UIHotKeyCombination::toReadableString(vboxGlobal().settings().hostCombo()));
+        m_pNameHostkey->setText(UIHostCombo::toReadableString(vboxGlobal().settings().hostCombo()));
     }
 }
 
@@ -584,6 +608,58 @@ void UIMachineWindowNormal::showInNecessaryMode()
         hide();
 }
 
+/**
+ * Adjusts machine-window size to correspond current guest screen size.
+ * @param fAdjustPosition determines whether is it necessary to adjust position too.
+ */
+void UIMachineWindowNormal::normalizeGeometry(bool fAdjustPosition)
+{
+#ifndef VBOX_GUI_WITH_CUSTOMIZATIONS1
+    /* Skip if maximized: */
+    if (isMaximized())
+        return;
+
+    /* Calculate client window offsets: */
+    QRect frameGeo = frameGeometry();
+    QRect geo = geometry();
+    int dl = geo.left() - frameGeo.left();
+    int dt = geo.top() - frameGeo.top();
+    int dr = frameGeo.right() - geo.right();
+    int db = frameGeo.bottom() - geo.bottom();
+
+    /* Get the best size w/o scroll-bars: */
+    QSize s = sizeHint();
+
+    /* Resize the frame to fit the contents: */
+    s -= size();
+    frameGeo.setRight(frameGeo.right() + s.width());
+    frameGeo.setBottom(frameGeo.bottom() + s.height());
+
+    /* Adjust position if necessary: */
+    if (fAdjustPosition)
+    {
+        QRegion availableGeo;
+        QDesktopWidget *dwt = QApplication::desktop();
+        if (dwt->isVirtualDesktop())
+            /* Compose complex available region: */
+            for (int i = 0; i < dwt->numScreens(); ++i)
+                availableGeo += dwt->availableGeometry(i);
+        else
+            /* Get just a simple available rectangle */
+            availableGeo = dwt->availableGeometry(pos());
+
+        frameGeo = VBoxGlobal::normalizeGeometry(frameGeo, availableGeo);
+    }
+
+    /* Finally, set the frame geometry: */
+    setGeometry(frameGeo.left() + dl, frameGeo.top() + dt,
+                frameGeo.width() - dl - dr, frameGeo.height() - dt - db);
+
+#else /* !VBOX_GUI_WITH_CUSTOMIZATIONS1 */
+    Q_UNUSED(fAdjustPosition);
+#endif /* VBOX_GUI_WITH_CUSTOMIZATIONS1 */
+}
+
 void UIMachineWindowNormal::updateAppearanceOf(int iElement)
 {
     /* Call to base-class: */
@@ -620,6 +696,9 @@ void UIMachineWindowNormal::updateAppearanceOf(int iElement)
     if ((iElement & UIVisualElement_SharedFolderStuff) &&
         indicatorsPool()->indicator(IndicatorType_SharedFolders))
         indicatorsPool()->indicator(IndicatorType_SharedFolders)->updateAppearance();
+    if ((iElement & UIVisualElement_VideoCapture) &&
+        indicatorsPool()->indicator(IndicatorType_VideoCapture))
+        indicatorsPool()->indicator(IndicatorType_VideoCapture)->updateAppearance();
     if ((iElement & UIVisualElement_FeaturesStuff) &&
         indicatorsPool()->indicator(IndicatorType_Features))
         indicatorsPool()->indicator(IndicatorType_Features)->updateAppearance();

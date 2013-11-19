@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,7 +33,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/fcntl.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <stdio.h>
@@ -53,7 +52,7 @@
 #include "internal/fs.h"
 #include "internal/path.h"
 
-#if !defined(RT_OS_SOLARIS)
+#if !defined(RT_OS_SOLARIS) && !defined(RT_OS_HAIKU)
 # define HAVE_DIRENT_D_TYPE 1
 #endif
 
@@ -193,6 +192,26 @@ RTDECL(int) RTDirFlush(const char *pszPath)
 }
 
 
+size_t rtDirNativeGetStructSize(const char *pszPath)
+{
+    long cbNameMax = pathconf(pszPath, _PC_NAME_MAX);
+# ifdef NAME_MAX
+    if (cbNameMax < NAME_MAX)           /* This is plain paranoia, but it doesn't hurt. */
+        cbNameMax = NAME_MAX;
+# endif
+# ifdef _XOPEN_NAME_MAX
+    if (cbNameMax < _XOPEN_NAME_MAX)    /* Ditto. */
+        cbNameMax = _XOPEN_NAME_MAX;
+# endif
+    size_t cbDir = RT_OFFSETOF(RTDIR, Data.d_name[cbNameMax + 1]);
+    if (cbDir < sizeof(RTDIR))          /* Ditto. */
+        cbDir = sizeof(RTDIR);
+    cbDir = RT_ALIGN_Z(cbDir, 8);
+
+    return cbDir;
+}
+
+
 int rtDirNativeOpen(PRTDIR pDir, char *pszPathBuf)
 {
     NOREF(pszPathBuf); /* only used on windows */
@@ -208,11 +227,9 @@ int rtDirNativeOpen(PRTDIR pDir, char *pszPathBuf)
         if (pDir->pDir)
         {
             /*
-             * Init data.
+             * Init data (allocated as all zeros).
              */
-            pDir->fDataUnread = false;
-            memset(&pDir->Data, 0, RT_OFFSETOF(RTDIR, Data.d_name)); /* not strictly necessary */
-            memset(&pDir->Data.d_name[0], 0, pDir->cbMaxName);
+            pDir->fDataUnread = false; /* spelling it out */
         }
         else
             rc = RTErrConvertFromErrno(errno);

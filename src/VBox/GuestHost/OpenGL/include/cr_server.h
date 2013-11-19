@@ -12,14 +12,20 @@
 #include "cr_hash.h"
 #include "cr_protocol.h"
 #include "cr_glstate.h"
-#include "spu_dispatch_table.h"
 #include "cr_vreg.h"
+#include "cr_blitter.h"
+#include "spu_dispatch_table.h"
+#include "cr_dump.h"
 
 #include "state/cr_currentpointers.h"
 
 #include <iprt/types.h>
 #include <iprt/err.h>
 #include <iprt/string.h>
+#include <iprt/list.h>
+#include <iprt/thread.h>
+#include <iprt/critsect.h>
+#include <iprt/semaphore.h>
 
 #include <VBox/vmm/ssm.h>
 
@@ -27,6 +33,8 @@
 # include <VBox/VBoxVideo.h>
 #endif
 #include <VBox/Hardware/VBoxVideoVBE.h>
+
+#include "cr_vreg.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,7 +64,7 @@ typedef struct {
     DECLR3CALLBACKMEMBER(void, CRORGeometry,        (void *pvInstance,
                                                      int32_t x, int32_t y, uint32_t w, uint32_t h));
     DECLR3CALLBACKMEMBER(void, CRORVisibleRegion,   (void *pvInstance,
-                                                     uint32_t cRects, RTRECT *paRects));
+                                                     uint32_t cRects, const RTRECT *paRects));
     DECLR3CALLBACKMEMBER(void, CRORFrame,           (void *pvInstance,
                                                      void *pvData, uint32_t cbData));
     DECLR3CALLBACKMEMBER(void, CROREnd,             (void *pvInstance));
@@ -77,6 +85,135 @@ typedef struct {
 
 struct BucketingInfo;
 
+typedef struct {
+    char   *pszDpyName;
+    GLint   visualBits;
+    int32_t externalID;
+} CRCreateInfo_t;
+
+
+/* VRAM->RAM worker thread */
+
+typedef enum
+{
+    CR_SERVER_RPW_STATE_UNINITIALIZED = 0,
+    CR_SERVER_RPW_STATE_INITIALIZING,
+    CR_SERVER_RPW_STATE_INITIALIZED,
+    CR_SERVER_RPW_STATE_UNINITIALIZING,
+} CR_SERVER_RPW_STATE;
+
+/* worker control command */
+typedef enum
+{
+    CR_SERVER_RPW_CTL_TYPE_UNDEFINED = 0,
+    CR_SERVER_RPW_CTL_TYPE_WAIT_COMPLETE,
+    CR_SERVER_RPW_CTL_TYPE_TERM
+} CR_SERVER_RPW_CTL_TYPE;
+
+struct CR_SERVER_RPW_ENTRY;
+
+typedef struct CR_SERVER_RPW_CTL {
+    CR_SERVER_RPW_CTL_TYPE enmType;
+    int rc;
+    RTSEMEVENT hCompleteEvent;
+    /* valid for *_WAIT_COMPLETE and *_CANCEL */
+    struct CR_SERVER_RPW_ENTRY *pEntry;
+} CR_SERVER_RPW_CTL;
+
+
+struct CR_SERVER_RPW_ENTRY;
+
+typedef DECLCALLBACKPTR(void, PFNCR_SERVER_RPW_DATA) (const struct CR_SERVER_RPW_ENTRY* pEntry, void *pvEntryTexData);
+
+typedef DECLCALLBACKPTR(void, PFNCRSERVERNOTIFYEVENT) (int32_t screenId, uint32_t uEvent, void*pvData);
+
+typedef struct CR_SERVER_RPW_ENTRY
+{
+    RTRECTSIZE Size;
+    /*  We have to use 4 textures here.
+     *
+     *  1. iDrawTex - the texture clients can draw to and then submit it for contents acquisition via crServerRpwEntrySubmit
+     *  2. iSubmittedTex - the texture submitted to the worker for processing and, whose processing has not start yet,
+     *     i.e. it is being in the queue and can be safely removed/replaced [from] there
+     *  3. iWorkerTex - the texture being prepared & passed by the worker to the GPU (stage 1 of a worker contents acquisition process)
+     *  4. iGpuTex - the texture passed/processed to/by the GPU, whose data is then acquired by the server (stage 2 of a worker contents acquisition process)
+     *
+     *  - There can be valid distinct iGpuTex, iWorkerTex, iSubmittedTex and iDrawTex present simultaneously.
+     *  - Either or both of iSubmittedTex and iFreeTex are always valid
+     *
+     *  Detail:
+     *
+     *  - iSubmittedTex and iFreeTex modifications are performed under CR_SERVER_RPW::CritSect lock.
+     *
+     *  - iDrawTex can only be changed by client side (i.e. the crServerRpwEntrySubmit caller), this is why client thread can access it w/o a lock
+     *  - iSubmittedTex and iFreeTex can be modified by both client and worker, so lock is always required
+     *
+     *  - iDrawTex can be accessed by client code only
+     *  - iWorkerTex and iGpuTex can be accessed by worker code only
+     *  - iSubmittedTex and iFreeTex can be accessed under CR_SERVER_RPW::CritSect lock only
+     *  - either or both of iSubmittedTex and iFreeTex are always valid (see below for more explanation),
+     *    this is why client can easily determine the new iDrawTex value on Submit, i.e. :
+     *
+     *          (if initial iSubmittedTex was valid)
+     *                ---------------
+     *                |              ^
+     *                >              |
+     *   Submit-> iDrawTex -> iSubmittedTex
+     *                ^
+     *                | (if initial iSubmittedTex was NOT valid)
+     *              iFreeTex
+     *
+     *  - The worker can invalidate the iSubmittedTex (i.e. do iSubmittedTex -> iWorkerTex) only after it is done
+     *    with the last iWorkerTex -> iGpuTex transformation freeing the previously used iGpuTex to iFreeTex.
+     *
+     *  - A simplified worker iXxxTex transformation logic is:
+     *    1. iFreeTex is initially valid
+     *    2. iSubmittedTex -> iWorkerTex;
+     *    3. submit iWorkerTex acquire request to the GPU
+     *    4. complete current iGpuTex
+     *    5. iGpuTex -> iFreeTex
+     *    6. iWorkerTex -> iGpuTex
+     *    7. goto 1
+     *
+     *  */
+    int8_t iTexDraw;
+    int8_t iTexSubmitted;
+    int8_t iTexWorker;
+    int8_t iTexGpu;
+    int8_t iCurPBO;
+    GLuint aidWorkerTexs[4];
+    GLuint aidPBOs[2];
+    RTLISTNODE WorkEntry;
+    RTLISTNODE WorkerWorkEntry;
+    RTLISTNODE GpuSubmittedEntry;
+    PFNCR_SERVER_RPW_DATA pfnData;
+} CR_SERVER_RPW_ENTRY;
+
+typedef struct CR_SERVER_RPW {
+    RTLISTNODE WorkList;
+    RTCRITSECT CritSect;
+    RTSEMEVENT hSubmitEvent;
+    /* only one outstanding command is supported,
+     * and ctl requests must be cynchronized, hold it right here */
+    CR_SERVER_RPW_CTL Ctl;
+    int ctxId;
+    GLint ctxVisBits;
+    RTTHREAD hThread;
+} CR_SERVER_RPW;
+/* */
+
+/* DISPLAY */
+/* define display entry early so it can be used in MuralInfo */
+typedef struct CR_DISPLAY_ENTRY
+{
+    VBOXVR_SCR_COMPOSITOR_ENTRY CEntry;
+    VBOXVR_SCR_COMPOSITOR_ENTRY RootVrCEntry;
+    void *pvORInstance;
+    GLuint idPBO;
+    GLuint idInvertTex;
+} CR_DISPLAY_ENTRY, *PCR_DISPLAY_ENTRY;
+/**/
+
 /**
  * Mural info
  */
@@ -90,35 +227,65 @@ typedef struct {
     int screenId;
 
     GLboolean bVisible;      /*guest window is visible*/
-    GLboolean bUseFBO;       /*redirect to FBO instead of real host window*/
+    GLubyte   u8Unused;       /*redirect to FBO instead of real host window*/
     GLboolean bFbDraw;       /*GL_FRONT buffer is drawn to directly*/
+    GLboolean fDataPresented;
 
     GLint       cVisibleRects;    /*count of visible rects*/
     GLint      *pVisibleRects;    /*visible rects left, top, right, bottom*/
     GLboolean   bReceivedRects;   /*indicates if guest did any updates for visible regions*/
 
-    GLuint idFBO, idColorTex, idDepthStencilRB;
-    GLuint fboWidth, fboHeight;
-    GLuint idPBO;
+    GLuint cBuffers;
+    GLuint iBbBuffer;
+    GLuint aidFBOs[2];
+    GLuint aidColorTexs[2];
 
-    void *pvOutputRedirectInstance;
+    void *pvReserved;
+
+    CRCreateInfo_t CreateInfo;
+
+    /* to avoid saved state breakage we need to keep RT_OFFSETOF(CRMuralInfo, CreateInfo) intact
+     * this is why we place some FBO stuff to the tail
+     * @todo: once we need to increment a saved state version, we could refactor this structure */
+    GLint iCurDrawBuffer;
+    GLint iCurReadBuffer;
+
+    GLuint idDepthStencilRB;
+    GLuint fboWidth, fboHeight;
+
+    GLuint cDisabled;
+
+    GLuint   fPresentMode;       /*redirect to FBO instead of real host window*/
+
+    GLboolean fHasParentWindow;
 
     GLboolean fRootVrOn;
-    /* if root Visible regions are set, these two contain actual regions being passed to render spu */
-    VBOXVR_SCR_COMPOSITOR_ENTRY RootVrCEntry;
-    VBOXVR_SCR_COMPOSITOR RootVrCompositor;
-} CRMuralInfo;
+    GLboolean fForcePresentState;
+    GLboolean fOrPresentOnReenable;
 
-typedef struct {
-    char   *pszDpyName;
-    GLint   visualBits;
-    int32_t externalID;
-} CRCreateInfo_t;
+    GLboolean fUseDefaultDEntry;
+
+    GLboolean fIsVisible;
+
+    CR_DISPLAY_ENTRY DefaultDEntry;
+
+    VBOXVR_SCR_COMPOSITOR Compositor;
+
+    /* if root Visible regions are set, these two contain actual regions being passed to render spu */
+    VBOXVR_SCR_COMPOSITOR RootVrCompositor;
+
+    CR_SERVER_RPW_ENTRY RpwEntry;
+
+    /* bitfield representing contexts the mural has been ever current with
+     * we just reuse CR_STATE_SHAREDOBJ_USAGE_XXX API here for simplicity */
+    CRbitvalue             ctxUsage[CR_MAX_BITARRAY];
+} CRMuralInfo;
 
 typedef struct {
     CRContext *pContext;
     int SpuContext;
     CRCreateInfo_t CreateInfo;
+    CRMuralInfo * currentMural;
 } CRContextInfo;
 
 /**
@@ -180,6 +347,54 @@ typedef struct {
 } CRScreenViewportInfo;
 
 
+/* DISPLAY */
+
+#define CR_DENTRY_FROM_CENTRY(_pCentry) ((CR_DISPLAY_ENTRY*)((uint8_t*)(_pCentry) - RT_OFFSETOF(CR_DISPLAY_ENTRY, CEntry)))
+
+
+/* @todo:
+ * 1. use compositor stored inside mural to use current MuralFBO and window-related API
+ * 2. CR_SERVER_REDIR_F_NONE and CR_SERVER_REDIR_F_FBO should be trated identically for presented window
+ *    since we just need to blit the given textures to it if we are NOT in CR_SERVER_REDIR_F_FBO_RAM mode */
+typedef struct CR_DISPLAY
+{
+    CRMuralInfo Mural;
+    GLboolean fForcePresent;
+} CR_DISPLAY, *PCR_DISPLAY;
+
+
+typedef struct CR_DISPLAY_ENTRY_MAP
+{
+    CRHashTable * pTexIdToDemInfoMap;
+    uint32_t cEntered;
+    RTLISTNODE ReleasedList;
+} CR_DISPLAY_ENTRY_MAP, *PCR_DISPLAY_ENTRY_MAP;
+
+
+typedef struct CRWinVisibilityInfo
+{
+    uint32_t cVisibleWindows        : 30;
+    uint32_t fLastReportedVisible   : 1;
+    uint32_t fVisibleChanged        : 1;
+} CRWinVisibilityInfo;
+
+/* */
+
+/* helpers */
+
+void CrHlpFreeTexImage(CRContext *pCurCtx, GLuint idPBO, void *pvData);
+void* CrHlpGetTexImage(CRContext *pCurCtx, const VBOXVR_TEXTURE *pTexture, GLuint idPBO, GLenum enmFormat);
+void CrHlpPutTexImage(CRContext *pCurCtx, const VBOXVR_TEXTURE *pTexture, GLenum enmFormat, void *pvData);
+
+/* */
+
+/* BFB (BlitFramebuffer Blitter) flags
+ * so far only CR_SERVER_BFB_ON_ALWAIS is supported and is alwais used if any flag is set */
+#define CR_SERVER_BFB_DISABLED 0
+#define CR_SERVER_BFB_ON_INVERTED_BLIT 1
+#define CR_SERVER_BFB_ON_STRAIGHT_BLIT 2
+#define CR_SERVER_BFB_ON_ALWAIS (CR_SERVER_BFB_ON_INVERTED_BLIT | CR_SERVER_BFB_ON_STRAIGHT_BLIT)
+
 typedef struct {
     unsigned short tcpip_port;
 
@@ -201,13 +416,11 @@ typedef struct {
     CRContextInfo *currentCtxInfo;
     GLint currentWindow;
     GLint currentNativeWindow;
+    CRMuralInfo *currentMural;
 
     CRHashTable *muralTable;  /**< hash table where all murals are stored */
-    CRHashTable *pWindowCreateInfoTable; /**< hash table with windows creation info */
 
     int client_spu_id;
-
-    CRServerFreeIDsPool_t idsPool;
 
     int mtu;
     int buffer_size;
@@ -228,12 +441,22 @@ typedef struct {
     CRHashTable *programTable;  /**< for vertex programs */
     GLuint currentProgram;
 
+    /* visBits -> dummy mural association */
+    CRHashTable *dummyMuralTable;
+
     GLboolean fRootVrOn;
     VBOXVR_LIST RootVr;
     /* we need to translate Root Vr to each window coords, this one cpecifies the current translation point
      * note that since window attributes modifications is performed in HGCM thread only and thus is serialized,
      * we deal with the global RootVr data directly */
     RTPOINT RootVrCurPoint;
+
+    /* blitter so far used for working around host drivers BlitFramebuffer bugs
+     * by implementing */
+    uint32_t fBlitterMode;
+    CR_BLITTER Blitter;
+
+    CR_SERVER_RPW RpwWorker;
 
     /** configuration options */
     /*@{*/
@@ -290,14 +513,48 @@ typedef struct {
     GLuint currentSerialNo;
 
     PFNCRSERVERPRESENTFBO pfnPresentFBO;
-    GLboolean             bForceOffscreenRendering; /*Force server to render 3d data offscreen
+    GLuint                fPresentMode; /*Force server to render 3d data offscreen
                                                      *using callback above to update vbox framebuffers*/
+    GLuint                fPresentModeDefault; /*can be set with CR_SERVER_DEFAULT_RENDER_TYPE*/
+    GLuint                fVramPresentModeDefault;
     GLboolean             bUsePBOForReadback;       /*Use PBO's for data readback*/
 
     GLboolean             bUseOutputRedirect;       /* Whether the output redirect was set. */
     CROutputRedirect      outputRedirect;
 
     GLboolean             bUseMultipleContexts;
+
+    GLboolean             bWindowsInitiallyHidden;
+
+    /* OR-ed CR_VBOX_CAP_XXX cap values
+     * describing VBox Chromium functionality caps visible to guest
+     * Currently can have only CR_VBOX_CAP_TEX_PRESENT cap to notify
+     * that the TexPresent mechanism is available and enabled */
+    uint32_t              u32Caps;
+
+    uint32_t cDisableEvents;
+    CRWinVisibilityInfo  aWinVisibilityInfos[CR_MAX_GUEST_MONITORS];
+
+    PFNCRSERVERNOTIFYEVENT pfnNotifyEventCB;
+
+    SPUDispatchTable TmpCtxDispatch;
+
+#ifdef VBOX_WITH_CRSERVER_DUMPER
+    CR_RECORDER Recorder;
+    CR_BLITTER RecorderBlitter;
+    CR_DBGPRINT_DUMPER DbgPrintDumper;
+    CR_HTML_DUMPER HtmlDumper;
+    CR_DUMPER *pDumper;
+#endif
+
+    int RcToGuest;
+    int RcToGuestOnce;
+
+    /* @todo: should we use just one blitter?
+     * we use two currently because the drawable attribs can differ*/
+    CR_DISPLAY_ENTRY_MAP  PresentTexturepMap;
+    uint32_t              DisplaysInitMap[(CR_MAX_GUEST_MONITORS + 31)/32];
+    CR_DISPLAY            aDispplays[CR_MAX_GUEST_MONITORS];
 } CRServer;
 
 
@@ -315,6 +572,7 @@ extern DECLEXPORT(void) crVBoxServerRemoveClient(uint32_t u32ClientID);
 extern DECLEXPORT(int32_t) crVBoxServerClientWrite(uint32_t u32ClientID, uint8_t *pBuffer, uint32_t cbBuffer);
 extern DECLEXPORT(int32_t) crVBoxServerClientRead(uint32_t u32ClientID, uint8_t *pBuffer, uint32_t *pcbBuffer);
 extern DECLEXPORT(int32_t) crVBoxServerClientSetVersion(uint32_t u32ClientID, uint32_t vMajor, uint32_t vMinor);
+extern DECLEXPORT(int32_t) crVBoxServerClientGetCaps(uint32_t u32ClientID, uint32_t *pu32Caps);
 extern DECLEXPORT(int32_t) crVBoxServerClientSetPID(uint32_t u32ClientID, uint64_t pid);
 
 extern DECLEXPORT(int32_t) crVBoxServerSaveState(PSSMHANDLE pSSM);
@@ -323,7 +581,7 @@ extern DECLEXPORT(int32_t) crVBoxServerLoadState(PSSMHANDLE pSSM, uint32_t versi
 extern DECLEXPORT(int32_t) crVBoxServerSetScreenCount(int sCount);
 extern DECLEXPORT(int32_t) crVBoxServerUnmapScreen(int sIndex);
 extern DECLEXPORT(int32_t) crVBoxServerMapScreen(int sIndex, int32_t x, int32_t y, uint32_t w, uint32_t h, uint64_t winID);
-
+extern DECLEXPORT(void) crServerVBoxCompositionSetEnableStateGlobal(GLboolean fEnable);
 extern DECLEXPORT(int32_t) crVBoxServerSetRootVisibleRegion(GLint cRects, const RTRECT *pRects);
 
 extern DECLEXPORT(void) crVBoxServerSetPresentFBOCB(PFNCRSERVERPRESENTFBO pfnPresentFBO);
@@ -333,6 +591,8 @@ extern DECLEXPORT(int32_t) crVBoxServerSetOffscreenRendering(GLboolean value);
 extern DECLEXPORT(int32_t) crVBoxServerOutputRedirectSet(const CROutputRedirect *pCallbacks);
 
 extern DECLEXPORT(int32_t) crVBoxServerSetScreenViewport(int sIndex, int32_t x, int32_t y, uint32_t w, uint32_t h);
+
+extern DECLEXPORT(void) crServerVBoxSetNotifyEventCB(PFNCRSERVERNOTIFYEVENT pfnCb);
 
 #ifdef VBOX_WITH_CRHGSMI
 /* We moved all CrHgsmi command processing to crserverlib to keep the logic of dealing with CrHgsmi commands in one place.

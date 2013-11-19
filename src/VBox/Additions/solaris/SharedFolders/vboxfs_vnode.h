@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2011 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,7 @@ typedef struct sfnode {
 	uint64_t	sf_ino;		/* assigned unique ID number */
 	vnode_t		*sf_vnode;	/* vnode if active */
 	sfp_file_t	*sf_file;	/* non NULL if open */
+	int			sf_flag;    /* last opened file-mode. */
 	struct sfnode	*sf_parent;	/* parent sfnode of this one */
 	uint16_t	sf_children;	/* number of children sfnodes */
 	uint8_t		sf_type;	/* VDIR or VREG */

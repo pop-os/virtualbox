@@ -22,6 +22,7 @@
 #include "UIWizardFirstRunPageBasic.h"
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
+#include "UIMedium.h"
 
 /* COM includes: */
 #include "CStorageController.h"
@@ -73,7 +74,7 @@ bool UIWizardFirstRun::insertMedium()
     AssertMsg(!cda.isNull(), ("Storage Controller is NOT properly configured!\n"));
     /* Get chosen 'dvd' medium to mount: */
     QString mediumId = field("id").toString();
-    UIMedium vmedium = vboxGlobal().findMedium(mediumId);
+    UIMedium vmedium = vboxGlobal().medium(mediumId);
     CMedium medium = vmedium.medium(); // @todo r=dj can this be cached somewhere?
     /* Mount medium to the predefined port/device: */
     m_machine.MountMedium(cda.GetController(), cda.GetPort(), cda.GetDevice(), medium, false /* force */);
@@ -81,7 +82,7 @@ bool UIWizardFirstRun::insertMedium()
         return true;
     else
     {
-        msgCenter().cannotRemountMedium(this, m_machine, vmedium, true /* mount? */, false /* retry? */);
+        msgCenter().cannotRemountMedium(m_machine, vmedium, true /* mount? */, false /* retry? */, this);
         return false;
     }
 }

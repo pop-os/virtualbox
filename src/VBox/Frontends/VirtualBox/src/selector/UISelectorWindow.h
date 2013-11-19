@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,19 +25,17 @@
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
-#include "UIMedium.h"
 #include "UINetworkDefs.h"
 
 /* Forward declarations: */
 class QISplitter;
 class QMenu;
 class UIAction;
+class UIActionState;
 class UIMainBar;
 class UIToolBar;
 class UIVMDesktop;
 class UIVMItem;
-class UIVMItemModel;
-class UIVMListView;
 class UIGChooser;
 class UIGDetails;
 class QStackedWidget;
@@ -46,11 +44,6 @@ class QStackedWidget;
 class UISelectorWindow : public QIWithRetranslateUI2<QMainWindow>
 {
     Q_OBJECT;
-
-signals:
-
-    /* Obsolete: Signal to notify listeners about this dialog closed: */
-    void closing();
 
 public:
 
@@ -70,7 +63,7 @@ private slots:
     void sltDetailsViewIndexChanged(int iWidgetIndex);
 
     /* Handler: Medium enumeration stuff: */
-    void sltMediumEnumFinished(const VBoxMediaList &mediumList);
+    void sltHandleMediumEnumerationFinish();
 
     /* Handler: Menubar/status stuff: */
     void sltShowSelectorContextMenu(const QPoint &pos);
@@ -115,7 +108,8 @@ private:
 
     /* Event handlers: */
     bool event(QEvent *pEvent);
-    void closeEvent(QCloseEvent *pEvent);
+    void showEvent(QShowEvent *pEvent);
+    void polishEvent(QShowEvent *pEvent);
 #ifdef Q_WS_MAC
     bool eventFilter(QObject *pObject, QEvent *pEvent);
 #endif /* Q_WS_MAC */
@@ -158,6 +152,10 @@ private:
     static bool isAtLeastOneItemStarted(const QList<UIVMItem*> &items);
     static bool isAtLeastOneItemRunning(const QList<UIVMItem*> &items);
 
+    /* Variables: */
+    bool m_fPolished : 1;
+    bool m_fWarningAboutInaccessibleMediumShown : 1;
+
     /* Central splitter window: */
     QISplitter *m_pSplitter;
 
@@ -186,7 +184,7 @@ private:
     UIAction *m_pExitAction;
 
     /* Common Group/Machine actions: */
-    UIAction *m_pAction_Common_StartOrShow;
+    UIActionState *m_pAction_Common_StartOrShow;
     UIAction *m_pAction_Common_PauseAndResume;
     UIAction *m_pAction_Common_Reset;
     UIAction *m_pAction_Common_Discard;
@@ -240,7 +238,6 @@ private:
 
     /* Other variables: */
     QRect m_normalGeo;
-    bool m_fDoneInaccessibleWarningOnce : 1;
 };
 
 #endif // __UISelectorWindow_h__

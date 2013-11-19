@@ -39,14 +39,21 @@ protected:
     /* Check if this logic is available: */
     bool checkAvailability();
 
-    /* Multi-screen stuff: */
+    /* Helpers: Multi-screen stuff: */
+    void maybeAdjustGuestScreenSize();
     int hostScreenForGuestScreen(int iScreenId) const;
     bool hasHostScreenForGuestScreen(int iScreenId) const;
 
+    /* API: 3D overlay visibility stuff: */
+    void notifyAbout3DOverlayVisibilityChange(bool fVisible);
+
 private slots:
 
+    /* Handler: Console callback stuff: */
+    void sltMachineStateChanged();
+
     void sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
-    void sltHostScreenCountChanged(int cScreenCount);
+    void sltHostScreenCountChanged();
 
 private:
 

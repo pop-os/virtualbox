@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -62,10 +62,6 @@
 #endif
 #include <errno.h>
 #include <unistd.h>
-
-#ifdef RT_OS_L4
-# include <l4/vboxserver/file.h>
-#endif
 
 #include "VBoxDD.h"
 
@@ -776,17 +772,22 @@ static DECLCALLBACK(void) drvTAPDestruct(PPDMDRVINS pDrvIns)
      * Terminate the control pipe.
      */
     int rc;
-    rc = RTPipeClose(pThis->hPipeWrite); AssertRC(rc);
-    pThis->hPipeWrite = NIL_RTPIPE;
-    rc = RTPipeClose(pThis->hPipeRead); AssertRC(rc);
-    pThis->hPipeRead = NIL_RTPIPE;
+    if (pThis->hPipeWrite != NIL_RTPIPE)
+    {
+        rc = RTPipeClose(pThis->hPipeWrite); AssertRC(rc);
+        pThis->hPipeWrite = NIL_RTPIPE;
+    }
+    if (pThis->hPipeRead != NIL_RTPIPE)
+    {
+        rc = RTPipeClose(pThis->hPipeRead); AssertRC(rc);
+        pThis->hPipeRead = NIL_RTPIPE;
+    }
 
 #ifdef RT_OS_SOLARIS
     /** @todo r=bird: This *does* need checking against ConsoleImpl2.cpp if used on non-solaris systems. */
     if (pThis->hFileDevice != NIL_RTFILE)
     {
-        int rc = RTFileClose(pThis->hFileDevice);
-        AssertRC(rc);
+        int rc = RTFileClose(pThis->hFileDevice); AssertRC(rc);
         pThis->hFileDevice = NIL_RTFILE;
     }
 
@@ -807,8 +808,11 @@ static DECLCALLBACK(void) drvTAPDestruct(PPDMDRVINS pDrvIns)
 #else
     MMR3HeapFree(pThis->pszDeviceName);
 #endif
+    pThis->pszDeviceName = NULL;
     MMR3HeapFree(pThis->pszSetupApplication);
+    pThis->pszSetupApplication = NULL;
     MMR3HeapFree(pThis->pszTerminateApplication);
+    pThis->pszTerminateApplication = NULL;
 
     /*
      * Kill the xmit lock.
@@ -845,6 +849,8 @@ static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
      */
     pThis->pDrvIns                      = pDrvIns;
     pThis->hFileDevice                  = NIL_RTFILE;
+    pThis->hPipeWrite                   = NIL_RTPIPE;
+    pThis->hPipeRead                    = NIL_RTPIPE;
     pThis->pszDeviceName                = NULL;
 #ifdef RT_OS_SOLARIS
     pThis->iIPFileDes                   = -1;
@@ -901,7 +907,7 @@ static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
      * Read the configuration.
      */
     int rc;
-#if defined(RT_OS_SOLARIS)   /** @todo Other platforms' TAP code should be moved here from ConsoleImpl & VBoxBFE. */
+#if defined(RT_OS_SOLARIS)   /** @todo Other platforms' TAP code should be moved here from ConsoleImpl. */
     rc = CFGMR3QueryStringAlloc(pCfg, "TAPSetupApplication", &pThis->pszSetupApplication);
     if (RT_SUCCESS(rc))
     {

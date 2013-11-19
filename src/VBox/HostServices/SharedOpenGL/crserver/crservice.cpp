@@ -18,47 +18,27 @@
 
 #define __STDC_CONSTANT_MACROS  /* needed for a definition in iprt/string.h */
 
-#ifdef RT_OS_WINDOWS
-# include <iprt/alloc.h>
-# include <iprt/string.h>
-# include <iprt/assert.h>
-# include <iprt/stream.h>
-# include <VBox/vmm/ssm.h>
-# include <VBox/hgcmsvc.h>
-# include <VBox/HostServices/VBoxCrOpenGLSvc.h>
-# include "cr_server.h"
-# define LOG_GROUP LOG_GROUP_SHARED_CROPENGL
-# include <VBox/log.h>
+#define LOG_GROUP LOG_GROUP_SHARED_CROPENGL
 
-# include <VBox/com/com.h>
-# include <VBox/com/string.h>
-# include <VBox/com/array.h>
-# include <VBox/com/Guid.h>
-# include <VBox/com/ErrorInfo.h>
-# include <VBox/com/EventQueue.h>
-# include <VBox/com/VirtualBox.h>
-# include <VBox/com/assert.h>
-
-#else
-# include <VBox/com/VirtualBox.h>
-# include <iprt/assert.h>
-# include <VBox/vmm/ssm.h>
-# include <VBox/hgcmsvc.h>
-# include <VBox/HostServices/VBoxCrOpenGLSvc.h>
-
-# include "cr_server.h"
-# define LOG_GROUP LOG_GROUP_SHARED_CROPENGL
-# include <VBox/log.h>
-# include <VBox/com/ErrorInfo.h>
-#endif /* RT_OS_WINDOWS */
-
-#include <VBox/com/errorprint.h>
-#include <iprt/thread.h>
-#include <iprt/critsect.h>
-#include <iprt/semaphore.h>
+#include <iprt/assert.h>
 #include <iprt/asm.h>
+#include <iprt/critsect.h>
+#include <iprt/mem.h>
+#include <iprt/semaphore.h>
+#include <iprt/stream.h>
+#include <iprt/string.h>
+#include <iprt/thread.h>
+
+#include <VBox/hgcmsvc.h>
+#include <VBox/log.h>
+#include <VBox/com/ErrorInfo.h>
+#include <VBox/com/VirtualBox.h>
+#include <VBox/com/errorprint.h>
+#include <VBox/HostServices/VBoxCrOpenGLSvc.h>
+#include <VBox/vmm/ssm.h>
 
 #include "cr_mem.h"
+#include "cr_server.h"
 
 PVBOXHGCMSVCHELPERS g_pHelpers;
 static IConsole* g_pConsole = NULL;
@@ -243,6 +223,29 @@ static int svcPresentFBOTearDown(void)
 
     return rc;
 }
+
+static DECLCALLBACK(void) svcNotifyEventCB(int32_t screenId, uint32_t uEvent, void*pvData)
+{
+    ComPtr<IDisplay> pDisplay;
+    ComPtr<IFramebuffer> pFramebuffer;
+    LONG xo, yo;
+
+    if (!g_pConsole)
+    {
+        crWarning("Console not defined!");
+        return;
+    }
+
+    CHECK_ERROR2_STMT(g_pConsole, COMGETTER(Display)(pDisplay.asOutParam()), return);
+
+    CHECK_ERROR2_STMT(pDisplay, GetFramebuffer(screenId, pFramebuffer.asOutParam(), &xo, &yo), return);
+
+    if (!pFramebuffer)
+        return;
+
+    CHECK_ERROR2_STMT(pFramebuffer, Notify3DEvent(uEvent, (BYTE*)pvData), return);
+}
+
 
 static DECLCALLBACK(int) svcUnload (void *)
 {
@@ -892,6 +895,30 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
             break;
         }
 
+        case SHCRGL_GUEST_FN_GET_CAPS:
+        {
+            Log(("svcCall: SHCRGL_GUEST_FN_GET_CAPS\n"));
+
+            /* Verify parameter count and types. */
+            if (cParms != SHCRGL_CPARMS_GET_CAPS)
+            {
+                rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            if (paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT)
+            {
+                rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                /* Execute the function. */
+                rc = crVBoxServerClientGetCaps(u32ClientID, &paParms[0].u.uint32);
+                AssertRC(rc);
+            }
+
+            break;
+        }
+
         default:
         {
             rc = VERR_NOT_IMPLEMENTED;
@@ -990,6 +1017,10 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
                     CHECK_ERROR_BREAK(pMachine, COMGETTER(MonitorCount)(&monitorCount));
                     CHECK_ERROR_BREAK(pConsole, COMGETTER(Display)(pDisplay.asOutParam()));
 
+                    crServerVBoxCompositionSetEnableStateGlobal(GL_FALSE);
+
+                    g_pConsole = pConsole;
+
                     rc = crVBoxServerSetScreenCount(monitorCount);
                     AssertRCReturn(rc, rc);
 
@@ -1013,7 +1044,7 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
                         }
                     }
 
-                    g_pConsole = pConsole;
+                    crServerVBoxCompositionSetEnableStateGlobal(GL_TRUE);
 
                     rc = VINF_SUCCESS;
                 }
@@ -1105,6 +1136,8 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
                 CHECK_ERROR_RET(g_pConsole, COMGETTER(Display)(pDisplay.asOutParam()), rc);
                 CHECK_ERROR_RET(pDisplay, GetFramebuffer(screenId, pFramebuffer.asOutParam(), &xo, &yo), rc);
 
+                crServerVBoxCompositionSetEnableStateGlobal(GL_FALSE);
+
                 if (!pFramebuffer)
                 {
                     rc = crVBoxServerUnmapScreen(screenId);
@@ -1129,6 +1162,8 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
                         AssertRCReturn(rc, rc);
                     }
                 }
+
+                crServerVBoxCompositionSetEnableStateGlobal(GL_TRUE);
 
                 rc = VINF_SUCCESS;
             }
@@ -1162,6 +1197,8 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
                 break;
             }
 
+            crServerVBoxCompositionSetEnableStateGlobal(GL_FALSE);
+
             rc = crVBoxServerSetScreenViewport((int)paParms[0].u.uint32,
                     paParms[1].u.uint32, /* x */
                     paParms[2].u.uint32, /* y */
@@ -1170,8 +1207,9 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
             if (!RT_SUCCESS(rc))
             {
                 LogRel(("SHCRGL_HOST_FN_VIEWPORT_CHANGED: crVBoxServerSetScreenViewport failed, rc %d", rc));
-                break;
             }
+
+            crServerVBoxCompositionSetEnableStateGlobal(GL_TRUE);
 
             break;
         }
@@ -1207,19 +1245,28 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
                 }
                 else /* Execute the function. */
                 {
-                    rc = crVBoxServerSetOffscreenRendering(GL_TRUE);
-
-                    if (RT_SUCCESS(rc))
+                    if (pOutputRedirect->H3DORBegin != NULL)
                     {
-                        CROutputRedirect outputRedirect;
-                        outputRedirect.pvContext = pOutputRedirect->pvContext;
-                        outputRedirect.CRORBegin = pOutputRedirect->H3DORBegin;
-                        outputRedirect.CRORGeometry = pOutputRedirect->H3DORGeometry;
-                        outputRedirect.CRORVisibleRegion = pOutputRedirect->H3DORVisibleRegion;
-                        outputRedirect.CRORFrame = pOutputRedirect->H3DORFrame;
-                        outputRedirect.CROREnd = pOutputRedirect->H3DOREnd;
-                        outputRedirect.CRORContextProperty = pOutputRedirect->H3DORContextProperty;
-                        rc = crVBoxServerOutputRedirectSet(&outputRedirect);
+                        rc = crVBoxServerSetOffscreenRendering(GL_TRUE);
+
+                        if (RT_SUCCESS(rc))
+                        {
+                            CROutputRedirect outputRedirect;
+                            outputRedirect.pvContext = pOutputRedirect->pvContext;
+                            outputRedirect.CRORBegin = pOutputRedirect->H3DORBegin;
+                            outputRedirect.CRORGeometry = pOutputRedirect->H3DORGeometry;
+                            outputRedirect.CRORVisibleRegion = pOutputRedirect->H3DORVisibleRegion;
+                            outputRedirect.CRORFrame = pOutputRedirect->H3DORFrame;
+                            outputRedirect.CROREnd = pOutputRedirect->H3DOREnd;
+                            outputRedirect.CRORContextProperty = pOutputRedirect->H3DORContextProperty;
+                            rc = crVBoxServerOutputRedirectSet(&outputRedirect);
+                        }
+                    }
+                    else
+                    {
+                        /* Redirection is disabled. */
+                        crVBoxServerSetOffscreenRendering(GL_FALSE);
+                        crVBoxServerOutputRedirectSet(NULL);
                     }
                 }
             }
@@ -1272,6 +1319,8 @@ extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad (VBOXHGCMSVCFNTABLE *pt
                 return VERR_NOT_SUPPORTED;
 
             rc = svcPresentFBOInit();
+
+            crServerVBoxSetNotifyEventCB(svcNotifyEventCB);
         }
     }
 

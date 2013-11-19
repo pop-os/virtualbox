@@ -69,7 +69,7 @@ AssertCompileSize(RTHCPHYS, 8);
 #include "TMInternal.h"
 #include "IOMInternal.h"
 #include "REMInternal.h"
-#include "HWACCMInternal.h"
+#include "HMInternal.h"
 #include "PATMInternal.h"
 #include "VMMInternal.h"
 #include "DBGFInternal.h"
@@ -79,6 +79,7 @@ AssertCompileSize(RTHCPHYS, 8);
 #include "IEMInternal.h"
 #include "REMInternal.h"
 #include <VBox/vmm/vm.h>
+#include <VBox/vmm/hm_vmx.h>
 #include <VBox/param.h>
 #include <iprt/x86.h>
 #include <iprt/assert.h>

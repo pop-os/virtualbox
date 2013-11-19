@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -139,38 +139,51 @@ DECLCALLBACK(int) tstTMWorker(PVM pVM, RTTEST hTest)
 
 /** PDMR3LdrEnumModules callback, see FNPDMR3ENUM. */
 static DECLCALLBACK(int)
-tstVMMLdrEnum(PVM pVM, const char *pszFilename, const char *pszName, RTUINTPTR ImageBase, size_t cbImage, bool fGC, void *pvUser)
+tstVMMLdrEnum(PVM pVM, const char *pszFilename, const char *pszName, RTUINTPTR ImageBase, size_t cbImage,
+              PDMLDRCTX enmCtx, void *pvUser)
 {
-    NOREF(pVM); NOREF(pszFilename); NOREF(fGC); NOREF(pvUser); NOREF(cbImage);
+    NOREF(pVM); NOREF(pszFilename); NOREF(enmCtx); NOREF(pvUser); NOREF(cbImage);
     RTPrintf("tstVMM: %RTptr %s\n", ImageBase, pszName);
     return VINF_SUCCESS;
 }
 
 static DECLCALLBACK(int)
-tstVMMConfigConstructor(PVM pVM, void *pvUser)
+tstVMMConfigConstructor(PUVM pUVM, PVM pVM, void *pvUser)
 {
     NOREF(pvUser);
     int rc = CFGMR3ConstructDefaultTree(pVM);
-    if (    RT_SUCCESS(rc)
-        &&  g_cCpus > 1)
+    if (RT_SUCCESS(rc))
     {
         PCFGMNODE pRoot = CFGMR3GetRoot(pVM);
-        CFGMR3RemoveValue(pRoot, "NumCPUs");
-        rc = CFGMR3InsertInteger(pRoot, "NumCPUs", g_cCpus);
-        RTTESTI_CHECK_MSG_RET(RT_SUCCESS(rc), ("CFGMR3InsertInteger(pRoot,\"NumCPUs\",) -> %Rrc\n", rc), rc);
+        if (g_cCpus < 2)
+        {
+            rc = CFGMR3InsertInteger(pRoot, "HMEnabled", false);
+            RTTESTI_CHECK_MSG_RET(RT_SUCCESS(rc),
+                                  ("CFGMR3InsertInteger(pRoot,\"HMEnabled\",) -> %Rrc\n", rc), rc);
+        }
+        else if (g_cCpus > 1)
+        {
+            CFGMR3RemoveValue(pRoot, "NumCPUs");
+            rc = CFGMR3InsertInteger(pRoot, "NumCPUs", g_cCpus);
+            RTTESTI_CHECK_MSG_RET(RT_SUCCESS(rc),
+                                  ("CFGMR3InsertInteger(pRoot,\"NumCPUs\",) -> %Rrc\n", rc), rc);
 
-        CFGMR3RemoveValue(pRoot, "HwVirtExtForced");
-        rc = CFGMR3InsertInteger(pRoot, "HwVirtExtForced", true);
-        RTTESTI_CHECK_MSG_RET(RT_SUCCESS(rc), ("CFGMR3InsertInteger(pRoot,\"HwVirtExtForced\",) -> %Rrc\n", rc), rc);
-
-        PCFGMNODE pHwVirtExt = CFGMR3GetChild(pRoot, "HWVirtExt");
-        CFGMR3RemoveNode(pHwVirtExt);
-        rc = CFGMR3InsertNode(pRoot, "HWVirtExt", &pHwVirtExt);
-        RTTESTI_CHECK_MSG_RET(RT_SUCCESS(rc), ("CFGMR3InsertNode(pRoot,\"HWVirtExt\",) -> %Rrc\n", rc), rc);
-        rc = CFGMR3InsertInteger(pHwVirtExt, "Enabled", true);
-        RTTESTI_CHECK_MSG_RET(RT_SUCCESS(rc), ("CFGMR3InsertInteger(pHwVirtExt,\"Enabled\",) -> %Rrc\n", rc), rc);
-        rc = CFGMR3InsertInteger(pHwVirtExt, "64bitEnabled", false);
-        RTTESTI_CHECK_MSG_RET(RT_SUCCESS(rc), ("CFGMR3InsertInteger(pHwVirtExt,\"64bitEnabled\",) -> %Rrc\n", rc), rc);
+            CFGMR3RemoveValue(pRoot, "HwVirtExtForced");
+            rc = CFGMR3InsertInteger(pRoot, "HwVirtExtForced", true);
+            RTTESTI_CHECK_MSG_RET(RT_SUCCESS(rc),
+                                  ("CFGMR3InsertInteger(pRoot,\"HwVirtExtForced\",) -> %Rrc\n", rc), rc);
+            PCFGMNODE pHwVirtExt = CFGMR3GetChild(pRoot, "HWVirtExt");
+            CFGMR3RemoveNode(pHwVirtExt);
+            rc = CFGMR3InsertNode(pRoot, "HWVirtExt", &pHwVirtExt);
+            RTTESTI_CHECK_MSG_RET(RT_SUCCESS(rc),
+                                  ("CFGMR3InsertNode(pRoot,\"HWVirtExt\",) -> %Rrc\n", rc), rc);
+            rc = CFGMR3InsertInteger(pHwVirtExt, "Enabled", true);
+            RTTESTI_CHECK_MSG_RET(RT_SUCCESS(rc),
+                                  ("CFGMR3InsertInteger(pHwVirtExt,\"Enabled\",) -> %Rrc\n", rc), rc);
+            rc = CFGMR3InsertInteger(pHwVirtExt, "64bitEnabled", false);
+            RTTESTI_CHECK_MSG_RET(RT_SUCCESS(rc),
+                                  ("CFGMR3InsertInteger(pHwVirtExt,\"64bitEnabled\",) -> %Rrc\n", rc), rc);
+        }
     }
     return rc;
 }
@@ -181,16 +194,10 @@ int main(int argc, char **argv)
     /*
      * Init runtime and the test environment.
      */
-    int rc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
-    if (RT_FAILURE(rc))
-        return RTMsgInitFailure(rc);
     RTTEST hTest;
-    rc = RTTestCreate("tstVMM", &hTest);
-    if (RT_FAILURE(rc))
-    {
-        RTPrintf("tstVMM: RTTestCreate failed: %Rrc\n", rc);
-        return 1;
-    }
+    RTEXITCODE rcExit = RTTestInitExAndCreate(argc, &argv, RTR3INIT_FLAGS_SUPLIB, "tstVMM", &hTest);
+    if (rcExit != RTEXITCODE_SUCCESS)
+        return rcExit;
 
     /*
      * Parse arguments.
@@ -234,7 +241,7 @@ int main(int argc, char **argv)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 83687 $\n");
+                RTPrintf("$Revision: 86910 $\n");
                 return 0;
 
             default:
@@ -247,7 +254,8 @@ int main(int argc, char **argv)
      */
     RTPrintf(TESTCASE ": Initializing...\n");
     PVM pVM;
-    rc = VMR3Create(g_cCpus, NULL, NULL, NULL, tstVMMConfigConstructor, NULL, &pVM);
+    PUVM pUVM;
+    int rc = VMR3Create(g_cCpus, NULL, NULL, NULL, tstVMMConfigConstructor, NULL, &pVM, &pUVM);
     if (RT_SUCCESS(rc))
     {
         PDMR3LdrEnumModules(pVM, tstVMMLdrEnum, NULL);
@@ -262,7 +270,7 @@ int main(int argc, char **argv)
             case kTstVMMTest_VMM:
             {
                 RTTestSub(hTest, "VMM");
-                rc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)VMMDoTest, 1, pVM);
+                rc = VMR3ReqCallWaitU(pUVM, VMCPUID_ANY, (PFNRT)VMMDoTest, 1, pVM);
                 if (RT_FAILURE(rc))
                     RTTestFailed(hTest, "VMMDoTest failed: rc=%Rrc\n", rc);
                 break;
@@ -273,29 +281,30 @@ int main(int argc, char **argv)
                 RTTestSub(hTest, "TM");
                 for (VMCPUID idCpu = 1; idCpu < g_cCpus; idCpu++)
                 {
-                    rc = VMR3ReqCallNoWait(pVM, idCpu, (PFNRT)tstTMWorker, 2, pVM, hTest);
+                    rc = VMR3ReqCallNoWaitU(pUVM, idCpu, (PFNRT)tstTMWorker, 2, pVM, hTest);
                     if (RT_FAILURE(rc))
                         RTTestFailed(hTest, "VMR3ReqCall failed: rc=%Rrc\n", rc);
                 }
 
-                rc = VMR3ReqCallWait(pVM, 0 /*idDstCpu*/, (PFNRT)tstTMWorker, 2, pVM, hTest);
+                rc = VMR3ReqCallWaitU(pUVM, 0 /*idDstCpu*/, (PFNRT)tstTMWorker, 2, pVM, hTest);
                 if (RT_FAILURE(rc))
                     RTTestFailed(hTest, "VMMDoTest failed: rc=%Rrc\n", rc);
                 break;
             }
         }
 
-        STAMR3Dump(pVM, "*");
+        STAMR3Dump(pUVM, "*");
 
         /*
          * Cleanup.
          */
-        rc = VMR3PowerOff(pVM);
+        rc = VMR3PowerOff(pUVM);
         if (RT_FAILURE(rc))
             RTTestFailed(hTest, "VMR3PowerOff failed: rc=%Rrc\n", rc);
-        rc = VMR3Destroy(pVM);
+        rc = VMR3Destroy(pUVM);
         if (RT_FAILURE(rc))
             RTTestFailed(hTest, "VMR3Destroy failed: rc=%Rrc\n", rc);
+        VMR3ReleaseUVM(pUVM);
     }
     else
         RTTestFailed(hTest, "VMR3Create failed: rc=%Rrc\n", rc);

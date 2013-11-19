@@ -1,4 +1,4 @@
-/* $Revision: 83629 $ */
+/* $Revision: 84251 $ */
 /** @file
  * VBoxGuestR0LibSharedFolders - Ring 0 Shared Folders calls.
  */
@@ -27,11 +27,12 @@
 /* Entire file is ifdef'ed with !VBGL_VBOXGUEST */
 #ifndef VBGL_VBOXGUEST
 
+/*******************************************************************************
+*   Header Files                                                               *
+*******************************************************************************/
 #define LOG_GROUP LOG_GROUP_SHARED_FOLDERS
-
 #ifdef RT_OS_LINUX
 # include "VBoxGuestR0LibSharedFolders.h"
-# define DbgPrint RTAssertMsg2Weak
 #else
 # include "VBoxGuestR0LibSharedFolders.h"
 #endif
@@ -41,6 +42,10 @@
 #include <iprt/path.h>
 #include <iprt/string.h>
 
+
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
 #define SHFL_CPARMS_SET_UTF8 0
 #define SHFL_CPARMS_SET_SYMLINKS 0
 
@@ -52,9 +57,6 @@
     (a)->u32Function = SHFL_FN_##b;      \
     (a)->cParms      = SHFL_CPARMS_##b
 
-#ifndef RT_OS_WINDOWS
-# define RtlZeroMemory(a, b) memset (a, 0, b)
-#endif
 
 
 DECLVBGL(int) vboxInit (void)
@@ -72,14 +74,12 @@ DECLVBGL(void) vboxUninit (void)
 
 DECLVBGL(int) vboxConnect (PVBSFCLIENT pClient)
 {
-    int rc = VINF_SUCCESS;
-
+    int rc;
     VBoxGuestHGCMConnectInfo data;
-
-    RtlZeroMemory (&data, sizeof (VBoxGuestHGCMConnectInfo));
 
     pClient->handle = NULL;
 
+    RT_ZERO(data);
     data.result   = VINF_SUCCESS;
     data.Loc.type = VMMDevHGCMLoc_LocalHost_Existing;
     strcpy (data.Loc.u.host.achName, "VBoxSharedFolders");
@@ -111,8 +111,7 @@ DECLVBGL(void) vboxDisconnect (PVBSFCLIENT pClient)
     if (pClient->handle == NULL)
         return;                 /* not connected */
 
-    RtlZeroMemory (&data, sizeof (VBoxGuestHGCMDisconnectInfo));
-
+    RT_ZERO(data);
     data.result      = VINF_SUCCESS;
     data.u32ClientID = pClient->ulClientID;
 
@@ -125,7 +124,7 @@ DECLVBGL(void) vboxDisconnect (PVBSFCLIENT pClient)
 }
 
 DECLVBGL(int) vboxCallQueryMappings (PVBSFCLIENT pClient, SHFLMAPPING paMappings[],
-                           uint32_t *pcMappings)
+                                     uint32_t *pcMappings)
 {
     int rc = VINF_SUCCESS;
 

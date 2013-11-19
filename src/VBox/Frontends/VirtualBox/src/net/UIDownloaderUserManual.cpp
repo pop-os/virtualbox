@@ -18,15 +18,16 @@
  */
 
 /* Global includes: */
-#include <QNetworkReply>
 #include <QDir>
 #include <QFile>
 
 /* Local includes: */
 #include "UIDownloaderUserManual.h"
+#include "UINetworkReply.h"
 #include "QIFileDialog.h"
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
+#include "UIModalWindowManager.h"
 
 /* static */
 UIDownloaderUserManual* UIDownloaderUserManual::m_spInstance = 0;
@@ -74,12 +75,12 @@ UIDownloaderUserManual::~UIDownloaderUserManual()
         m_spInstance = 0;
 }
 
-bool UIDownloaderUserManual::askForDownloadingConfirmation(QNetworkReply *pReply)
+bool UIDownloaderUserManual::askForDownloadingConfirmation(UINetworkReply *pReply)
 {
-    return msgCenter().confirmUserManualDownload(source().toString(), pReply->header(QNetworkRequest::ContentLengthHeader).toInt());
+    return msgCenter().confirmDownloadUserManual(source().toString(), pReply->header(QNetworkRequest::ContentLengthHeader).toInt());
 }
 
-void UIDownloaderUserManual::handleDownloadedObject(QNetworkReply *pReply)
+void UIDownloaderUserManual::handleDownloadedObject(UINetworkReply *pReply)
 {
     /* Read received data into the buffer: */
     QByteArray receivedData(pReply->readAll());
@@ -102,11 +103,11 @@ void UIDownloaderUserManual::handleDownloadedObject(QNetworkReply *pReply)
         }
 
         /* Warn user about user-manual was downloaded but was NOT saved: */
-        msgCenter().warnAboutUserManualCantBeSaved(source().toString(), QDir::toNativeSeparators(target()));
+        msgCenter().cannotSaveUserManual(source().toString(), QDir::toNativeSeparators(target()));
 
         /* Ask the user for another location for the user-manual file: */
         QString strTarget = QIFileDialog::getExistingDirectory(QFileInfo(target()).absolutePath(),
-                                                               msgCenter().networkManagerOrMainWindowShown(),
+                                                               windowManager().networkManagerOrMainWindowShown(),
                                                                tr("Select folder to save User Manual to"), true);
 
         /* Check if user had really set a new target: */

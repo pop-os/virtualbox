@@ -74,8 +74,9 @@ typedef struct RTDBGMODVTIMG
      *
      *                      Upon successful return the method is expected to
      *                      initialize pImgOps and pvImgPriv.
+     * @param   enmArch     The desired architecture.
      */
-    DECLCALLBACKMEMBER(int, pfnTryOpen)(PRTDBGMODINT pMod);
+    DECLCALLBACKMEMBER(int, pfnTryOpen)(PRTDBGMODINT pMod, RTLDRARCH enmArch);
 
     /**
      * Close the interpreter, freeing all associated resources.
@@ -116,6 +117,21 @@ typedef struct RTDBGMODVTIMG
     DECLCALLBACKMEMBER(int, pfnEnumSegments)(PRTDBGMODINT pMod, PFNRTLDRENUMSEGS pfnCallback, void *pvUser);
 
     /**
+     * Enumerates the symbols exported by the module.
+     *
+     * @returns iprt status code, which might have been returned by pfnCallback.
+     * @param   pMod            Pointer to the module structure.
+     * @param   fFlags          Flags indicating what to return and such.
+     * @param   BaseAddress     The image base addressto use when calculating the
+     *                          symbol values.
+     * @param   pfnCallback     The callback function which each symbol is to be fed
+     *                          to.
+     * @param   pvUser          User argument to pass to the enumerator.
+     */
+    DECLCALLBACKMEMBER(int, pfnEnumSymbols)(PRTDBGMODINT pMod, uint32_t fFlags, RTLDRADDR BaseAddress,
+                                            PFNRTLDRENUMSYMS pfnCallback, void *pvUser);
+
+    /**
      * Gets the size of the loaded image.
      *
      * Identical to RTLdrSize.
@@ -140,16 +156,33 @@ typedef struct RTDBGMODVTIMG
                                                        PRTDBGSEGIDX piSeg, PRTLDRADDR poffSeg);
 
     /**
+     * Converts an image relative virtual address to a segment:offset.
+     *
+     * @returns IPRT status code.
+     *
+     * @param   pMod            Pointer to the loader module structure.
+     * @param   Rva             The RVA to convert.
+     * @param   piSeg           The segment index.
+     * @param   poffSeg         Where to return the segment offset.
+     */
+    DECLCALLBACKMEMBER(int, pfnRvaToSegOffset)(PRTDBGMODINT pMod, RTLDRADDR Rva, uint32_t *piSeg, PRTLDRADDR poffSeg);
+
+    /**
      * Creates a read-only mapping of a part of the image file.
      *
      * @returns IPRT status code and *ppvMap set on success.
      *
      * @param   pMod            Pointer to the module structure.
+     * @param   iDbgInfo        The debug info ordinal number if the request
+     *                          corresponds exactly to a debug info part from
+     *                          pfnEnumDbgInfo.  Otherwise, pass UINT32_MAX.
      * @param   off             The offset into the image file.
      * @param   cb              The number of bytes to map.
      * @param   ppvMap          Where to return the mapping address on success.
+     *
+     * @remarks Fixups will only be applied if @a iDbgInfo is specified.
      */
-    DECLCALLBACKMEMBER(int, pfnMapPart)(PRTDBGMODINT pMod, RTFOFF off, size_t cb, void const **ppvMap);
+    DECLCALLBACKMEMBER(int, pfnMapPart)(PRTDBGMODINT pMod, uint32_t iDbgInfo, RTFOFF off, size_t cb, void const **ppvMap);
 
     /**
      * Unmaps memory previously mapped by pfnMapPart.
@@ -163,6 +196,36 @@ typedef struct RTDBGMODVTIMG
      */
     DECLCALLBACKMEMBER(int, pfnUnmapPart)(PRTDBGMODINT pMod, size_t cb, void const **ppvMap);
 
+    /**
+     * Reads data from the image file.
+     *
+     * @returns IPRT status code, *ppvMap set to NULL on success.
+     *
+     * @param   pMod            Pointer to the module structure.
+     * @param   iDbgInfoHint    The debug info ordinal number hint, pass UINT32_MAX
+     *                          if not know or sure.
+     * @param   off             The offset into the image file.
+     * @param   pvBuf           The buffer to read into.
+     * @param   cb              The number of bytes to read.
+     */
+    DECLCALLBACKMEMBER(int, pfnReadAt)(PRTDBGMODINT pMod, uint32_t iDbgInfoHint, RTFOFF off, void *pvBuf, size_t cb);
+
+    /**
+     * Gets the image format.
+     *
+     * @returns Valid image format on success, RTLDRFMT_INVALID if not supported.
+     * @param   pMod            Pointer to the module structure.
+     */
+    DECLCALLBACKMEMBER(RTLDRFMT, pfnGetFormat)(PRTDBGMODINT pMod);
+
+    /**
+     * Gets the image architecture.
+     *
+     * @returns Valid image architecutre on success, RTLDRARCH_WHATEVER if not
+     *          supported.
+     * @param   pMod            Pointer to the module structure.
+     */
+    DECLCALLBACKMEMBER(RTLDRARCH, pfnGetArch)(PRTDBGMODINT pMod);
 
     /** For catching initialization errors (RTDBGMODVTIMG_MAGIC). */
     uint32_t    u32EndMagic;
@@ -203,8 +266,9 @@ typedef struct RTDBGMODVTDBG
      *
      *                      Upon successful return the method is expected to
      *                      initialize pDbgOps and pvDbgPriv.
+     * @param   enmArch     The desired architecture.
      */
-    DECLCALLBACKMEMBER(int, pfnTryOpen)(PRTDBGMODINT pMod);
+    DECLCALLBACKMEMBER(int, pfnTryOpen)(PRTDBGMODINT pMod, RTLDRARCH enmArch);
 
     /**
      * Close the interpreter, freeing all associated resources.
@@ -443,6 +507,64 @@ typedef RTDBGMODVTDBG const *PCRTDBGMODVTDBG;
 
 
 /**
+ * Deferred loading callback.
+ *
+ * @returns IPRT status code. On success the necessary method tables should be
+ *          installed in @a pMod.
+ * @param   pMod            Pointer to the debug module structure.
+ * @param   pDeferred       The deferred load data.
+ */
+typedef DECLCALLBACK(int) FNRTDBGMODDEFERRED(PRTDBGMODINT pMod, struct RTDBGMODDEFERRED *pDeferred);
+/** Pointer to a deferred loading callback. */
+typedef FNRTDBGMODDEFERRED *PFNRTDBGMODDEFERRED;
+
+
+/**
+ * Structure pointed to by pvDbgPriv and/or pvImgPriv when
+ * g_rtDbgModVtDbgDeferred and/or g_rtDbgModVtImgDeferred are being used.
+ */
+typedef struct RTDBGMODDEFERRED
+{
+    /** The image size.
+     * Deferred loading is almost pointless without knowing the module size, as
+     * it cannot be mapped (correctly) without it. */
+    RTUINTPTR           cbImage;
+    /** Reference counter. */
+    uint32_t volatile   cRefs;
+    /** The configuration instance (referenced), can be NIL. */
+    RTDBGCFG            hDbgCfg;
+    /** Performs deferred loading of the module. */
+    PFNRTDBGMODDEFERRED pfnDeferred;
+    /** Callback specific data.  */
+    union
+    {
+        struct
+        {
+            /** The time/date stamp of the executable image and codeview file. */
+            uint32_t    uTimestamp;
+        }   PeImage,
+            OldCodeView;
+
+        struct
+        {
+            /** The PDB uuid. */
+            RTUUID      Uuid;
+            /** The PDB age. */
+            uint32_t    uAge;
+        }   NewCodeview;
+
+        struct
+        {
+            /** The CRC-32 value found in the .gnu_debuglink section. */
+            uint32_t    uCrc32;
+        }   GnuDebugLink;
+    } u;
+} RTDBGMODDEFERRED;
+/** Pointer to the deferred loading data. */
+typedef RTDBGMODDEFERRED *PRTDBGMODDEFERRED;
+
+
+/**
  * Debug module structure.
  */
 typedef struct RTDBGMODINT
@@ -454,15 +576,28 @@ typedef struct RTDBGMODINT
     uint32_t volatile   cRefs;
     /** The module tag. */
     uint64_t            uTag;
+
+    /** When set, the loading of the image and debug info (including locating any
+     * external files), will not have taken place yet.  */
+    uint32_t            fDeferred : 1;
+    /** Set if deferred loading failed. */
+    uint32_t            fDeferredFailed : 1;
+    /** Set if the debug info is based on image exports and segments. */
+    uint32_t            fExports : 1;
+    /** Alignment padding. */
+    uint32_t            fPadding1 : 29;
+#if ARCH_BITS == 64
+    uint32_t            u32Padding2;
+#endif
+
     /** The module name (short). */
     char const         *pszName;
+    /** The image file specified by the user.  Can be NULL. */
+    char const         *pszImgFileSpecified;
     /** The module filename. Can be NULL. */
     char const         *pszImgFile;
     /** The debug info file (if external). Can be NULL. */
     char const         *pszDbgFile;
-
-    /** Critical section serializing access to the module. */
-    RTCRITSECT          CritSect;
 
     /** The method table for the executable image interpreter. */
     PCRTDBGMODVTIMG     pImgVt;
@@ -474,17 +609,36 @@ typedef struct RTDBGMODINT
     /** Pointer to the private data of the debug info interpreter. */
     void               *pvDbgPriv;
 
+    /** Critical section serializing access to the module. */
+    RTCRITSECT          CritSect;
 } RTDBGMODINT;
 /** Pointer to an debug module structure.  */
 typedef RTDBGMODINT *PRTDBGMODINT;
 
 
 extern DECLHIDDEN(RTSTRCACHE)           g_hDbgModStrCache;
+extern DECLHIDDEN(RTDBGMODVTDBG const)  g_rtDbgModVtDbgCodeView;
 extern DECLHIDDEN(RTDBGMODVTDBG const)  g_rtDbgModVtDbgDwarf;
 extern DECLHIDDEN(RTDBGMODVTDBG const)  g_rtDbgModVtDbgNm;
-extern DECLHIDDEN(RTDBGMODVTIMG const)  g_rtDbgModVtImgLdr;
+#ifdef RT_OS_WINDOWS
+extern DECLHIDDEN(RTDBGMODVTDBG const)  g_rtDbgModVtDbgDbgHelp;
+#endif
+extern DECLHIDDEN(RTDBGMODVTDBG const)  g_rtDbgModVtDbgDeferred;
+extern DECLHIDDEN(RTDBGMODVTDBG const)  g_rtDbgModVtDbgContainer;
 
-int rtDbgModContainerCreate(PRTDBGMODINT pMod, RTUINTPTR cbSeg);
+extern DECLHIDDEN(RTDBGMODVTIMG const)  g_rtDbgModVtImgLdr;
+extern DECLHIDDEN(RTDBGMODVTIMG const)  g_rtDbgModVtImgDeferred;
+
+DECLHIDDEN(int) rtDbgModContainerCreate(PRTDBGMODINT pMod, RTUINTPTR cbSeg);
+DECLHIDDEN(int) rtDbgModContainer_SymbolRemoveAll(PRTDBGMODINT pMod);
+DECLHIDDEN(int) rtDbgModContainer_LineRemoveAll(PRTDBGMODINT pMod);
+DECLHIDDEN(int) rtDbgModContainer_RemoveAll(PRTDBGMODINT pMod);
+
+DECLHIDDEN(int) rtDbgModCreateForExports(PRTDBGMODINT pDbgMod);
+DECLHIDDEN(int) rtDbgModDeferredCreate(PRTDBGMODINT pDbgMod, PFNRTDBGMODDEFERRED pfnDeferred, RTUINTPTR cbImage,
+                                       RTDBGCFG hDbgCfg, PRTDBGMODDEFERRED *ppDeferred);
+
+DECLHIDDEN(int) rtDbgModLdrOpenFromHandle(PRTDBGMODINT pDbgMod, RTLDRMOD hLdrMod);
 
 /** @} */
 

@@ -52,6 +52,7 @@ const char* UIDefs::GUI_HideDetails = "GUI/HideDetails";
 
 /* Machine-window definitions: */
 const char* UIDefs::GUI_RestrictedRuntimeMenus = "GUI/RestrictedRuntimeMenus";
+const char* UIDefs::GUI_RestrictedVisualStates = "GUI/RestrictedVisualStates";
 const char* UIDefs::GUI_Input_MachineShortcuts = "GUI/Input/MachineShortcuts";
 const char* UIDefs::GUI_LastNormalWindowPosition = "GUI/LastNormalWindowPosition";
 const char* UIDefs::GUI_LastScaleWindowPosition = "GUI/LastScaleWindowPosition";
@@ -95,10 +96,6 @@ const char* UIDefs::GUI_Export_Bucket = "GUI/Export/Bucket";
 const char* UIDefs::GUI_SuppressMessages = "GUI/SuppressMessages";
 const char* UIDefs::GUI_InvertMessageOption = "GUI/InvertMessageOption";
 
-/* Registration dialog definitions: */
-const char* UIDefs::GUI_RegistrationDlgWinID = "GUI/RegistrationDlgWinID";
-const char* UIDefs::GUI_RegistrationData = "GUI/SUNOnlineData";
-
 /* Update manager definitions: */
 const char* UIDefs::GUI_UpdateDate = "GUI/UpdateDate";
 const char* UIDefs::GUI_UpdateCheckCount = "GUI/UpdateCheckCount";
@@ -132,13 +129,6 @@ const char* UIDefs::GUI_Accelerate2D_PixformatUYVY = "GUI/Accelerate2D/Pixformat
 const char* UIDefs::GUI_Accelerate2D_PixformatYUY2 = "GUI/Accelerate2D/PixformatYUY2";
 const char* UIDefs::GUI_Accelerate2D_PixformatAYUV = "GUI/Accelerate2D/PixformatAYUV";
 #endif /* VBOX_WITH_VIDEOHWACCEL */
-
-#ifdef VBOX_GUI_WITH_SYSTRAY
-/* Tray icon declarations: */
-const char* UIDefs::GUI_TrayIconWinID = "GUI/TrayIcon/WinID";
-const char* UIDefs::GUI_TrayIconEnabled = "GUI/TrayIcon/Enabled";
-const char* UIDefs::GUI_MainWindowCount = "GUI/MainWindowCount";
-#endif /* VBOX_GUI_WITH_SYSTRAY */
 
 /* File extensions definitions: */
 QStringList UIDefs::VBoxFileExts = QStringList() << "xml" << "vbox";

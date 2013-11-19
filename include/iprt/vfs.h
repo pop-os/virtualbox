@@ -332,7 +332,7 @@ RTDECL(uint32_t)    RTVfsDirRelease(RTVFSDIR hVfsDir);
 /** @}  */
 
 
-/** @defgroup grp_vfs_iostream      VFS Symbolic Link API
+/** @defgroup grp_vfs_symlink       VFS Symbolic Link API
  *
  * @remarks The TAR VFS and filesystem stream uses symbolic links for
  *          describing hard links as well.  The users must use RTFS_IS_SYMLINK
@@ -450,6 +450,17 @@ RTDECL(int)         RTVfsSymlinkRead(RTVFSSYMLINK hVfsSym, char *pszTarget, size
  * @param   phVfsIos        Where to return the VFS I/O stream handle.
  */
 RTDECL(int)         RTVfsIoStrmFromRTFile(RTFILE hFile, uint64_t fOpen, bool fLeaveOpen, PRTVFSIOSTREAM phVfsIos);
+
+/**
+ * Convenience function combining RTFileOpen with RTVfsIoStrmFromRTFile.
+ *
+ * @returns IPRT status code.
+ * @param   pszFilename     The path to the file in the normal file system.
+ * @param   fOpen           The flags to pass to RTFileOpen when opening the
+ *                          file, i.e. RTFILE_O_XXX.
+ * @param   phVfsIos        Where to return the VFS I/O stream handle.
+ */
+RTDECL(int)         RTVfsIoStrmOpenNormal(const char *pszFilename, uint64_t fOpen, PRTVFSIOSTREAM phVfsIos);
 
 /**
  * Create a VFS I/O stream handle from one of the standard handles.
@@ -594,7 +605,7 @@ RTDECL(int)         RTVfsIoStrmSgRead(RTVFSIOSTREAM hVfsIos, PCRTSGBUF pSgBuf, b
  *                          attemted written.
  * @param   fBlocking       Whether the call is blocking (@c true) or not.  If
  *                          not, the @a pcbWritten parameter must not be NULL.
- * @param   pcbRead         Where to always store the number of bytes actually
+ * @param   pcbWritten      Where to always store the number of bytes actually
  *                          written.  This can be NULL if @a fBlocking is true.
  * @sa      RTFileSgWrite, RTSocketSgWrite
  */
@@ -703,6 +714,17 @@ RTDECL(int)         RTVfsFileOpen(RTVFS hVfs, const char *pszFilename, uint64_t 
  */
 RTDECL(int)         RTVfsFileFromRTFile(RTFILE hFile, uint64_t fOpen, bool fLeaveOpen, PRTVFSFILE phVfsFile);
 RTDECL(RTHCUINTPTR) RTVfsFileToNative(RTFILE hVfsFile);
+
+/**
+ * Convenience function combining RTFileOpen with RTVfsFileFromRTFile.
+ *
+ * @returns IPRT status code.
+ * @param   pszFilename     The path to the file in the normal file system.
+ * @param   fOpen           The flags to pass to RTFileOpen when opening the
+ *                          file, i.e. RTFILE_O_XXX.
+ * @param   phVfsFile       Where to return the VFS file handle.
+ */
+RTDECL(int)         RTVfsFileOpenNormal(const char *pszFilename, uint64_t fOpen, PRTVFSFILE phVfsFile);
 
 /**
  * Convert the VFS file handle to a VFS I/O stream handle.

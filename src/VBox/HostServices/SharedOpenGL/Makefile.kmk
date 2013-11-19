@@ -133,6 +133,8 @@ VBoxOGLcrserverlib_SOURCES := \
 	crserverlib/server_glsl.c \
 	crserverlib/server_muralfbo.c \
 	crserverlib/server_texture.c \
+	crserverlib/server_presenter.cpp \
+	crserverlib/server_rpw.cpp \
 	$(VBOX_PATH_CROGL_GENFILES)/server_dispatch.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_retval.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_get.c \
@@ -149,6 +151,13 @@ endif
 ifdef VBOX_WITH_CRHGSMI
 VBoxOGLcrserverlib_DEFS += ifdef VBOX_WITH_CRHGSMI
 endif
+ifdef VBOX_WITH_CRDUMPER
+VBoxOGLcrserverlib_DEFS        += VBOX_WITH_CRDUMPER
+endif
+ifdef VBOX_WITH_CRSERVER_DUMPER
+VBoxOGLcrserverlib_DEFS        += VBOX_WITH_CRSERVER_DUMPER
+endif
+
 
 #
 # Generate files for VBoxOGLcrserverlib

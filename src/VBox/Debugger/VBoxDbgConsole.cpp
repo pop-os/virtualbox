@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -82,6 +82,18 @@ VBoxDbgConsoleOutput::VBoxDbgConsoleOutput(QWidget *pParent/* = NULL*/, const ch
     Pal.setColor(QPalette::All, QPalette::Base, QColor(Qt::black));
     setPalette(Pal);
     setTextColor(QColor(qRgb(0, 0xe0, 0)));
+
+#ifdef DEBUG_ramshankar
+    /* Solaris host (esp. S10) has illegible Courier font (bad aliasing). */
+    Font.setFamily("Monospace [Monotype]");
+    setFont(Font);
+
+    /* White on black while I'm at it. */
+    Pal.setColor(QPalette::All, QPalette::Base, QColor(Qt::white));
+    setPalette(Pal);
+    setTextColor(QColor(qRgb(0, 0, 0)));
+#endif
+
     NOREF(pszName);
 }
 
@@ -101,9 +113,9 @@ VBoxDbgConsoleOutput::appendText(const QString &rStr, bool fClearSelection)
         return;
 
     /*
-     * Insert all in one go and make sure it's visible. 
-     *  
-     * We need to move the cursor and unselect any selected text before 
+     * Insert all in one go and make sure it's visible.
+     *
+     * We need to move the cursor and unselect any selected text before
      * inserting anything, otherwise, text will disappear.
      */
     QTextCursor Cursor = textCursor();
@@ -145,9 +157,10 @@ VBoxDbgConsoleOutput::appendText(const QString &rStr, bool fClearSelection)
 
 
 VBoxDbgConsoleInput::VBoxDbgConsoleInput(QWidget *pParent/* = NULL*/, const char *pszName/* = NULL*/)
-    : QComboBox(pParent), m_iBlankItem(0), m_hGUIThread(RTThreadNativeSelf())
+    : QComboBox(pParent), m_hGUIThread(RTThreadNativeSelf())
 {
-    insertItem(m_iBlankItem, "");
+    addItem(""); /* invariant: empty command line is the last item */
+
     setEditable(true);
     setInsertPolicy(NoInsert);
     setAutoCompletion(false);
@@ -180,23 +193,52 @@ void
 VBoxDbgConsoleInput::returnPressed()
 {
     Assert(m_hGUIThread == RTThreadNativeSelf());
-    /* deal with the current command. */
-    QString Str = currentText();
-    emit commandSubmitted(Str);
 
-    /* update the history and clear the entry field */
-    QString PrevStr = m_iBlankItem > 0 ? itemText(m_iBlankItem - 1) : "";
-    if (PrevStr != Str)
+    QString strCommand = currentText();
+    /* TODO: trim whitespace? */
+    if (strCommand.isEmpty())
+        return;
+
+    /* deal with the current command. */
+    emit commandSubmitted(strCommand);
+
+
+    /*
+     * Add current command to history.
+     */
+    bool fNeedsAppending = true;
+
+    /* invariant: empty line at the end */
+    int iLastItem = count() - 1;
+    Assert(itemText(iLastItem).isEmpty());
+
+    /* have previous command? check duplicate. */
+    if (iLastItem > 0)
     {
-        setItemText(m_iBlankItem, Str);
-        if (    m_iBlankItem > 0
-            &&  m_iBlankItem >= maxCount() - 1)
-            removeItem(m_iBlankItem - maxCount() - 1);
-        insertItem(++m_iBlankItem, "");
+        const QString strPrevCommand(itemText(iLastItem - 1));
+        if (strCommand == strPrevCommand)
+            fNeedsAppending = false;
     }
 
-    clearEditText();
-    setCurrentIndex(m_iBlankItem);
+    if (fNeedsAppending)
+    {
+        /* history full? drop the oldest command. */
+        if (count() == maxCount())
+        {
+            removeItem(0);
+            --iLastItem;
+        }
+
+        /* insert before the empty line. */
+        insertItem(iLastItem, strCommand);
+    }
+
+    /* invariant: empty line at the end */
+    int iNewLastItem = count() - 1;
+    Assert(itemText(iNewLastItem).isEmpty());
+
+    /* select empty line to present "new" command line to the user */
+    setCurrentIndex(iNewLastItem);
 }
 
 

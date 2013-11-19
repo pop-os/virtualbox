@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,8 +20,8 @@
 #define __UIMedium_h__
 
 /* Qt includes: */
+#include <QMap>
 #include <QPixmap>
-#include <QLinkedList>
 
 /* GUI includes: */
 #include "UIMediumDefs.h"
@@ -38,13 +38,13 @@
  */
 struct NoDiffsCache
 {
-    NoDiffsCache() : isSet (false), state (KMediumState_NotCreated) {}
-    NoDiffsCache& operator= (const NoDiffsCache &aOther)
+    NoDiffsCache() : isSet(false), state(KMediumState_NotCreated) {}
+    NoDiffsCache& operator=(const NoDiffsCache &other)
     {
-        isSet = aOther.isSet;
-        state = aOther.state;
-        result = aOther.result;
-        toolTip = aOther.toolTip;
+        isSet = other.isSet;
+        state = other.state;
+        result = other.result;
+        toolTip = other.toolTip;
         return *this;
     }
 
@@ -81,73 +81,47 @@ class UIMedium
 {
 public:
 
-    /**
-     * Creates a null medium descriptor which is not associated with any medium.
-     * The state field is set to KMediumState_NotCreated.
-     */
-    UIMedium()
-        : mType (UIMediumType_Invalid)
-        , mState (KMediumState_NotCreated)
-        , mIsReadOnly (false)
-        , mIsUsedInSnapshots (false)
-        , mParent (0) { refresh(); }
+    /* Default (NULL) constructor:
+     * Creates NULL uimedium which is not associated with any medium. */
+    UIMedium();
 
-    /**
-     * Creates a media descriptor associated with the given medium.
-     *
-     * The state field remain KMediumState_NotCreated until #blockAndQueryState()
-     * is called. All precomposed strings are filled up by implicitly calling
-     * #refresh(), see the #refresh() details for more info.
-     *
-     * One of the hardDisk, dvdImage, or floppyImage members is assigned from
-     * aMedium according to aType. @a aParent must be always NULL for non-hard
-     * disk media.
-     */
-    UIMedium (const CMedium &aMedium, UIMediumType aType, UIMedium *aParent = 0)
-        : mMedium (aMedium)
-        , mType (aType)
-        , mState (KMediumState_NotCreated)
-        , mIsReadOnly (false)
-        , mIsUsedInSnapshots (false)
-        , mParent (aParent) { refresh(); }
+    /* Lazy wrapping constructor:
+     * Creates a uimedium associated with the given medium. */
+    UIMedium(const CMedium &medium, UIMediumType type);
 
-    /**
-     * Similar to the other non-null constructor but sets the media state to
-     * @a aState. Suitable when the media state is known such as right after
-     * creation.
-     */
-    UIMedium (const CMedium &aMedium, UIMediumType aType, KMediumState aState)
-        : mMedium (aMedium)
-        , mType (aType)
-        , mState (aState)
-        , mIsReadOnly (false)
-        , mIsUsedInSnapshots (false)
-        , mParent (0) { refresh(); }
+    /* Wrapping constructor with known medium state:
+     * Similar to previous one but sets the uimedium state to passed one.
+     * Suitable when the medium-state is known such as right after medium creation. */
+    UIMedium(const CMedium &medium, UIMediumType type, KMediumState state);
 
-    UIMedium& operator= (const UIMedium &aOther);
+    /* Copy-constructor: */
+    UIMedium(const UIMedium &other);
+
+    /* API: Operator=: */
+    UIMedium& operator=(const UIMedium &other);
 
     void blockAndQueryState();
     void refresh();
 
-    bool isAttachedToHiddenMachinesOnly() const { return m_fAttachedToHiddenMachinesOnly; }
+    bool isHidden() const { return m_fHidden | m_fAttachedToHiddenMachinesOnly; }
 
-    const CMedium &medium() const { return mMedium; }
+    const CMedium &medium() const { return m_medium; }
 
-    UIMediumType type() const { return mType; }
+    UIMediumType type() const { return m_type; }
 
     /**
      * Media state. In "don't show diffs" mode, this is the worst state (in
      * terms of inaccessibility) detected on the given hard disk chain.
      *
-     * @param aNoDiffs  @c true to enable user-friendly "don't show diffs" mode.
+     * @param fNoDiffs  @c true to enable user-friendly "don't show diffs" mode.
      */
-    KMediumState state (bool aNoDiffs = false) const
+    KMediumState state(bool fNoDiffs = false) const
     {
-        unconst (this)->checkNoDiffs (aNoDiffs);
-        return aNoDiffs ? mNoDiffs.state : mState;
+        unconst (this)->checkNoDiffs(fNoDiffs);
+        return fNoDiffs ? m_noDiffs.state : m_state;
     }
 
-    QString lastAccessError() const { return mLastAccessError; }
+    QString lastAccessError() const { return m_strLastAccessError; }
 
     /**
      * Result of the last blockAndQueryState() call. Will indicate an error and
@@ -155,134 +129,144 @@ public:
      * diffs" mode, this is the worst result (in terms of inaccessibility)
      * detected on the given hard disk chain.
      *
-     * @param aNoDiffs  @c true to enable user-friendly "don't show diffs" mode.
+     * @param fNoDiffs  @c true to enable user-friendly "don't show diffs" mode.
      */
-    const COMResult &result (bool aNoDiffs = false) const
+    const COMResult &result(bool fNoDiffs = false) const
     {
-        unconst (this)->checkNoDiffs (aNoDiffs);
-        return aNoDiffs ? mNoDiffs.result : mResult;
+        unconst(this)->checkNoDiffs(fNoDiffs);
+        return fNoDiffs ? m_noDiffs.result : m_result;
     }
 
-    QString id() const { return mId; }
-    QString name (bool aNoDiffs = false) const { return aNoDiffs ? root().mName : mName; }
-    QString location (bool aNoDiffs = false) const { return aNoDiffs ? root().mLocation : mLocation; }
+    QString id() const { return m_strId; }
+    QString name(bool fNoDiffs = false) const { return fNoDiffs ? root().m_strName : m_strName; }
+    QString location(bool fNoDiffs = false) const { return fNoDiffs ? root().m_strLocation : m_strLocation; }
 
-    QString size (bool aNoDiffs = false) const { return aNoDiffs ? root().mSize : mSize; }
-    QString logicalSize (bool aNoDiffs = false) const { return aNoDiffs ? root().mLogicalSize : mLogicalSize; }
+    QString size(bool fNoDiffs = false) const { return fNoDiffs ? root().m_strSize : m_strSize; }
+    QString logicalSize(bool fNoDiffs = false) const { return fNoDiffs ? root().m_strLogicalSize : m_strLogicalSize; }
 
-    QString hardDiskFormat (bool aNoDiffs = false) const { return aNoDiffs ? root().mHardDiskFormat : mHardDiskFormat; }
-    QString hardDiskType (bool aNoDiffs = false) const { return aNoDiffs ? root().mHardDiskType : mHardDiskType; }
+    QString hardDiskFormat(bool fNoDiffs = false) const { return fNoDiffs ? root().m_strHardDiskFormat : m_strHardDiskFormat; }
+    QString hardDiskType(bool fNoDiffs = false) const { return fNoDiffs ? root().m_strHardDiskType : m_strHardDiskType; }
 
-    QString storageDetails() const { return mStorageDetails; }
+    QString storageDetails() const { return m_strStorageDetails; }
 
-    QString usage (bool aNoDiffs = false) const { return aNoDiffs ? root().mUsage : mUsage; }
-    QString tip() const { return mToolTip; }
+    QString usage(bool fNoDiffs = false) const { return fNoDiffs ? root().m_strUsage : m_strUsage; }
+    QString tip() const { return m_strToolTip; }
 
-    const NoDiffsCache& cache() const { return mNoDiffs; }
+    const NoDiffsCache& cache() const { return m_noDiffs; }
 
     /**
      * Returns @c true if this medium is read-only (either because it is
      * Immutable or because it has child hard disks). Read-only media can only
      * be attached indirectly.
      */
-    bool isReadOnly() const { return mIsReadOnly; }
+    bool isReadOnly() const { return m_fReadOnly; }
 
     /**
      * Returns @c true if this medium is attached to any VM (in the current
      * state or in a snapshot) in which case #usage() will contain a string with
      * comma-separated VM names (with snapshot names, if any, in parenthesis).
      */
-    bool isUsed() const { return !mUsage.isNull(); }
+    bool isUsed() const { return !m_strUsage.isNull(); }
 
     /**
      * Returns @c true if this medium is attached to any VM in any snapshot.
      */
-    bool isUsedInSnapshots() const { return mIsUsedInSnapshots; }
+    bool isUsedInSnapshots() const { return m_fUsedInSnapshots; }
 
     /**
      * Returns @c true if this medium corresponds to real host drive.
      */
-    bool isHostDrive() const { return mIsHostDrive; }
+    bool isHostDrive() const { return m_fHostDrive; }
+
+    /**
+     * Returns a vector of IDs of all machines this medium is attached to.
+     */
+    const QList <QString> &machineIds() const { return m_machineIds; }
 
     /**
      * Returns @c true if this medium is attached to the given machine in the current state.
      */
-    bool isAttachedInCurStateTo (const QString &aMachineId) const { return mCurStateMachineIds.indexOf (aMachineId) >= 0; }
+    bool isAttachedInCurStateTo(const QString &strMachineId) const { return m_curStateMachineIds.indexOf(strMachineId) >= 0; }
 
     /**
      * Returns a vector of IDs of all machines this medium is attached
      * to in their current state (i.e. excluding snapshots).
      */
-    const QList <QString> &curStateMachineIds() const { return mCurStateMachineIds; }
+    const QList <QString> &curStateMachineIds() const { return m_curStateMachineIds; }
 
-    /**
-     * Returns a parent medium. For non-hard disk media, this is always NULL.
-     */
-    UIMedium* parent() const { return mParent; }
+    /* API: Parent/Root stuff: */
+    QString parentID() const { return m_strParentID; }
+    QString rootID() const { return m_strRootID; }
+    UIMedium parent() const;
+    UIMedium root() const;
 
-    UIMedium& root() const;
+    QString toolTip(bool fNoDiffs = false, bool fCheckRO = false, bool fNullAllowed = false) const;
+    QPixmap icon(bool fNoDiffs = false, bool fCheckRO = false) const;
 
-    QString toolTip (bool aNoDiffs = false, bool aCheckRO = false, bool aNullAllowed = false) const;
-    QPixmap icon (bool aNoDiffs = false, bool aCheckRO = false) const;
+    /** Shortcut to <tt>#toolTip(fNoDiffs, true)</tt>. */
+    QString toolTipCheckRO(bool fNoDiffs = false, bool fNullAllowed = false) const { return toolTip(fNoDiffs, true, fNullAllowed); }
 
-    /** Shortcut to <tt>#toolTip (aNoDiffs, true)</tt>. */
-    QString toolTipCheckRO (bool aNoDiffs = false, bool aNullAllowed = false) const { return toolTip (aNoDiffs, true, aNullAllowed); }
+    /** Shortcut to <tt>#icon(fNoDiffs, true)</tt>. */
+    QPixmap iconCheckRO(bool fNoDiffs = false) const { return icon(fNoDiffs, true); }
 
-    /** Shortcut to <tt>#icon (aNoDiffs, true)</tt>. */
-    QPixmap iconCheckRO (bool aNoDiffs = false) const { return icon (aNoDiffs, true); }
+    QString details(bool fNoDiffs = false, bool fPredictDiff = false, bool aUseHTML = false) const;
 
-    QString details (bool aNoDiffs = false, bool aPredictDiff = false, bool aUseHTML = false) const;
-
-    /** Shortcut to <tt>#details (aNoDiffs, aPredictDiff, true)</tt>. */
-    QString detailsHTML (bool aNoDiffs = false, bool aPredictDiff = false) const { return details (aNoDiffs, aPredictDiff, true); }
+    /** Shortcut to <tt>#details(fNoDiffs, fPredictDiff, true)</tt>. */
+    QString detailsHTML(bool fNoDiffs = false, bool fPredictDiff = false) const { return details(fNoDiffs, fPredictDiff, true); }
 
     /** Returns @c true if this media descriptor is a null object. */
-    bool isNull() const { return mMedium.isNull(); }
+    bool isNull() const { return m_medium.isNull(); }
+
+    /* Static API: Null medium ID: */
+    static QString nullID();
 
 private:
 
-    void checkNoDiffs (bool aNoDiffs);
+    void checkNoDiffs(bool fNoDiffs);
 
-    bool m_fAttachedToHiddenMachinesOnly;
+    CMedium m_medium;
 
-    CMedium mMedium;
+    UIMediumType m_type;
 
-    UIMediumType mType;
+    KMediumState m_state;
+    QString m_strLastAccessError;
+    COMResult m_result;
 
-    KMediumState mState;
-    QString mLastAccessError;
-    COMResult mResult;
+    QString m_strId;
+    QString m_strName;
+    QString m_strLocation;
 
-    QString mId;
-    QString mName;
-    QString mLocation;
+    QString m_strSize;
+    QString m_strLogicalSize;
 
-    QString mSize;
-    QString mLogicalSize;
+    QString m_strHardDiskFormat;
+    QString m_strHardDiskType;
 
-    QString mHardDiskFormat;
-    QString mHardDiskType;
+    QString m_strStorageDetails;
 
-    QString mStorageDetails;
+    QString m_strUsage;
+    QString m_strToolTip;
 
-    QString mUsage;
-    QString mToolTip;
+    bool m_fHidden                       : 1;
+    bool m_fAttachedToHiddenMachinesOnly : 1;
+    bool m_fReadOnly                     : 1;
+    bool m_fUsedInSnapshots              : 1;
+    bool m_fHostDrive                    : 1;
 
-    bool mIsReadOnly        : 1;
-    bool mIsUsedInSnapshots : 1;
-    bool mIsHostDrive       : 1;
+    QList<QString> m_machineIds;
+    QList<QString> m_curStateMachineIds;
 
-    QList <QString> mCurStateMachineIds;
+    QString m_strParentID;
+    QString m_strRootID;
 
-    UIMedium *mParent;
+    NoDiffsCache m_noDiffs;
 
-    NoDiffsCache mNoDiffs;
-
-    static QString mTable;
-    static QString mRow;
+    static QString m_sstrNullID;
+    static QString m_sstrTable;
+    static QString m_sstrRow;
 };
+Q_DECLARE_METATYPE(UIMedium);
 
-typedef QLinkedList <UIMedium> VBoxMediaList;
+typedef QMap<QString, UIMedium> UIMediumMap;
 
 #endif /* __UIMedium_h__ */
-

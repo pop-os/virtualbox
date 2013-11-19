@@ -213,12 +213,6 @@
               </listitem>
     
               <listitem>
-                <para>Even when idle, Mac OS X guests currently burn 100% CPU.
-                This is a power management issue that will be addressed in a
-                future release.</para>
-              </listitem>
-    
-              <listitem>
                 <para>Mac OS X guests only work with one CPU assigned to the
                 VM. Support for SMP will be provided in a future release.</para>
               </listitem>
@@ -285,7 +279,7 @@
           </note>
           To solve this problem, one should uninstall the VirtualBox WDDM Video driver manually.
           To do that open Device Manager, and check whether the Display Adapter is named 
-          "VirtualBox Graphics Adapter ..". If no - there is nothing to be done. If yes - right-clik 
+          "VirtualBox Graphics Adapter ..". If no - there is nothing to be done. If yes - right-click 
           the VirtualBox Graphics Adapter in Device Manager, select "Uninstall", check "Delete the driver software for this device"
           and click "OK". Once uninstallation is done - in Device Manager go to menu "Action" and select 
           "Scan for hardware changes" to make the propper (Windows default) driver be picked up for the Graphics adapter.

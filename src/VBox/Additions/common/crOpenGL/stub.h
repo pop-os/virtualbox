@@ -146,8 +146,7 @@ struct context_info_t
     Bool direct;
     GLXContext glxContext;
     CRHashTable *pGLXPixmapsHash;
-    Bool     damageInitFailed;
-    Display *damageDpy; /* second display connection to read xdamage extension data */
+    Bool     damageQueryFailed;
     int      damageEventsBase;
 #endif
 };
@@ -222,7 +221,6 @@ typedef struct {
     int trackWindowVisibleRgn;
     char *spu_dir;
     int force_pbuffers;
-    int viewportHack;
 
     /* thread safety stuff */
     GLboolean threadSafe;
@@ -343,6 +341,9 @@ extern ContextInfo *stubNewContext( const char *dpyName, GLint visBits, ContextT
         , struct VBOXUHGSMI *pHgsmi
 #endif
         );
+extern void stubConChromiumParameteriCR(GLint con, GLenum param, GLint value);
+extern GLboolean stubCtxCreate(ContextInfo *context);
+extern GLboolean stubCtxCheckCreate(ContextInfo *context);
 extern void stubDestroyContext( unsigned long contextId );
 extern GLboolean stubMakeCurrent( WindowInfo *window, ContextInfo *context );
 extern GLint stubNewWindow( const char *dpyName, GLint visBits );

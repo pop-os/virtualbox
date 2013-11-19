@@ -43,16 +43,9 @@ private slots:
     /* Console callback handlers: */
     void sltAdditionsStateChanged();
 
-#ifdef Q_WS_X11
-    /* Slot to perform synchronized geometry normalization.
-     * Currently its only required under X11 as of its async nature: */
-    virtual void sltNormalizeGeometry() { normalizeGeometry(true); }
-#endif /* Q_WS_X11 */
-
 private:
 
     /* Event handlers: */
-    bool event(QEvent *pEvent);
     bool eventFilter(QObject *pWatched, QEvent *pEvent);
 
     /* Prepare helpers: */
@@ -60,11 +53,6 @@ private:
     void prepareFilters();
     void prepareConsoleConnections();
     //void loadMachineViewSettings();
-    /** If the last guest size hint was sent to switch to fullscreen or
-     * seamless mode then send one to restore the old view size.
-     * @note This method also does some hacks to suppress intermediary resizes
-     *        to the old fullscreen size. */
-    void maybeResendResizeHint();
 
     /* Cleanup helpers: */
     void saveMachineViewSettings();
@@ -76,10 +64,10 @@ private:
     void setGuestAutoresizeEnabled(bool bEnabled);
 
     /* Private helpers: */
-    void normalizeGeometry(bool fAdjustPosition);
+    void maybeResendResizeHint();
+    void maybeAdjustGuestScreenSize();
     QRect workingArea() const;
     QSize calculateMaxGuestSize() const;
-    void maybeRestrictMinimumSize();
 
     /* Private members: */
     bool m_bIsGuestAutoresizeEnabled : 1;

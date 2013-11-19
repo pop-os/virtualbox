@@ -306,13 +306,14 @@ int handleSnapshot(HandlerArg *a)
 
             /* parse the optional arguments */
             Bstr desc;
-            bool fPause = false;
+            bool fPause = true; /* default is NO live snapshot */
             static const RTGETOPTDEF s_aTakeOptions[] =
             {
                 { "--description", 'd', RTGETOPT_REQ_STRING },
                 { "-description",  'd', RTGETOPT_REQ_STRING },
                 { "-desc",         'd', RTGETOPT_REQ_STRING },
-                { "--pause",       'p', RTGETOPT_REQ_NOTHING }
+                { "--pause",       'p', RTGETOPT_REQ_NOTHING },
+                { "--live",        'l', RTGETOPT_REQ_NOTHING }
             };
             RTGETOPTSTATE GetOptState;
             RTGetOptInit(&GetOptState, a->argc, a->argv, s_aTakeOptions, RT_ELEMENTS(s_aTakeOptions),
@@ -328,6 +329,10 @@ int handleSnapshot(HandlerArg *a)
                         fPause = true;
                         break;
 
+                    case 'l':
+                        fPause = false;
+                        break;
+
                     case 'd':
                         desc = Value.psz;
                         break;
@@ -341,10 +346,6 @@ int handleSnapshot(HandlerArg *a)
             if (FAILED(rc))
                 break;
 
-            /*
-             * XXX for now, do ALWAYS pause as live snapshots are still broken
-             */
-            fPause = true;
             if (fPause)
             {
                 MachineState_T machineState;

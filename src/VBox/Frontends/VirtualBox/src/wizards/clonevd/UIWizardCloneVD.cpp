@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -61,30 +61,38 @@ bool UIWizardCloneVD::copyVirtualDisk()
     /* Get VBox object: */
     CVirtualBox vbox = vboxGlobal().virtualBox();
 
-    /* Create new virtual-disk: */
+    /* Create new virtual hard-disk: */
     CMedium virtualDisk = vbox.CreateHardDisk(mediumFormat.GetName(), strMediumPath);
-    CProgress progress;
     if (!vbox.isOk())
     {
-        msgCenter().cannotCreateHardDiskStorage(this, vbox, strMediumPath, virtualDisk, progress);
+        msgCenter().cannotCreateHardDiskStorage(vbox, strMediumPath, this);
         return false;
     }
 
-    /* Copy existing virtual-disk to the new virtual-disk: */
-    progress = sourceVirtualDisk.CloneTo(virtualDisk, uVariant, CMedium());
-    if (!virtualDisk.isOk())
+    /* Compose medium-variant: */
+    QVector<KMediumVariant> variants(sizeof(qulonglong)*8);
+    for (int i = 0; i < variants.size(); ++i)
     {
-        msgCenter().cannotCreateHardDiskStorage(this, vbox, strMediumPath, virtualDisk, progress);
+        qulonglong temp = uVariant;
+        temp &= Q_UINT64_C(1) << i;
+        variants[i] = (KMediumVariant)temp;
+    }
+
+    /* Copy existing virtual-disk to the new virtual-disk: */
+    CProgress progress = sourceVirtualDisk.CloneTo(virtualDisk, variants, CMedium());
+    if (!sourceVirtualDisk.isOk())
+    {
+        msgCenter().cannotCreateHardDiskStorage(sourceVirtualDisk, strMediumPath, this);
         return false;
     }
 
     /* Show creation progress: */
-    msgCenter().showModalProgressDialog(progress, windowTitle(), ":/progress_media_create_90px.png", this, true);
+    msgCenter().showModalProgressDialog(progress, windowTitle(), ":/progress_media_create_90px.png", this);
     if (progress.GetCanceled())
         return false;
     if (!progress.isOk() || progress.GetResultCode() != 0)
     {
-        msgCenter().cannotCreateHardDiskStorage(this, vbox, strMediumPath, virtualDisk, progress);
+        msgCenter().cannotCreateHardDiskStorage(progress, strMediumPath, this);
         return false;
     }
 

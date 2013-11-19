@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,7 +32,7 @@
 #include "VSCSIInternal.h"
 
 /** Maximum of amount of LBAs to unmap with one command. */
-#define VSCSI_UNMAP_LBAS_MAX ((10*_1M) / 512)
+#define VSCSI_UNMAP_LBAS_MAX(a_cbSector) ((10*_1M) / a_cbSector)
 
 /**
  * SBC LUN instance
@@ -41,6 +41,8 @@ typedef struct VSCSILUNSBC
 {
     /** Core LUN structure */
     VSCSILUNINT    Core;
+    /** Sector size of the medium. */
+    uint32_t       cbSector;
     /** Size of the virtual disk. */
     uint64_t       cSectors;
     /** VPD page pool. */
@@ -56,9 +58,13 @@ static int vscsiLunSbcInit(PVSCSILUNINT pVScsiLun)
     int rc = VINF_SUCCESS;
     int cVpdPages = 0;
 
-    rc = vscsiLunMediumGetSize(pVScsiLun, &cbDisk);
+    rc = vscsiLunMediumGetSectorSize(pVScsiLun, &pVScsiLunSbc->cbSector);
     if (RT_SUCCESS(rc))
-        pVScsiLunSbc->cSectors = cbDisk / 512; /* Fixed sector size */
+    {
+        rc = vscsiLunMediumGetSize(pVScsiLun, &cbDisk);
+        if (RT_SUCCESS(rc))
+            pVScsiLunSbc->cSectors = cbDisk / pVScsiLunSbc->cbSector;
+    }
 
     if (RT_SUCCESS(rc))
         rc = vscsiVpdPagePoolInit(&pVScsiLunSbc->VpdPagePool);
@@ -99,7 +105,7 @@ static int vscsiLunSbcInit(PVSCSILUNINT pVScsiLun)
                 pBlkPage->u32MaxTrfLength              = 0;
                 pBlkPage->u32OptTrfLength              = 0;
                 pBlkPage->u32MaxPreXdTrfLength         = 0;
-                pBlkPage->u32MaxUnmapLbaCount          = RT_H2BE_U32(VSCSI_UNMAP_LBAS_MAX);
+                pBlkPage->u32MaxUnmapLbaCount          = RT_H2BE_U32(VSCSI_UNMAP_LBAS_MAX(pVScsiLunSbc->cbSector));
                 pBlkPage->u32MaxUnmapBlkDescCount      = UINT32_C(0xffffffff);
                 pBlkPage->u32OptUnmapGranularity       = 0;
                 pBlkPage->u32UnmapGranularityAlignment = 0;
@@ -166,6 +172,9 @@ static int vscsiLunSbcInit(PVSCSILUNINT pVScsiLun)
                 pVpdPages->abVpdPages[idxVpdPage++] = VSCSI_VPD_BLOCK_CHARACTERISTICS_NUMBER;
         }
     }
+
+    /* For SBC LUNs, there will be no ready state transitions. */
+    pVScsiLunSbc->Core.fReady = true;
 
     return rc;
 }
@@ -242,7 +251,7 @@ static int vscsiLunSbcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq)
                 vscsiH2BEU32(aReply, UINT32_C(0xffffffff));
             else
                 vscsiH2BEU32(aReply, pVScsiLunSbc->cSectors - 1);
-            vscsiH2BEU32(&aReply[4], 512);
+            vscsiH2BEU32(&aReply[4], pVScsiLunSbc->cbSector);
             RTSgBufCopyFromBuf(&pVScsiReq->SgBuf, aReply, sizeof(aReply));
             rcReq = vscsiLunReqSenseOkSet(pVScsiLun, pVScsiReq);
             break;
@@ -252,6 +261,7 @@ static int vscsiLunSbcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq)
             uint8_t uModePage = pVScsiReq->pbCDB[2] & 0x3f;
             uint8_t aReply[24];
             uint8_t *pu8ReplyPos;
+            bool    fValid = false;
 
             memset(aReply, 0, sizeof(aReply));
             aReply[0] = 4; /* Reply length 4. */
@@ -270,10 +280,47 @@ static int vscsiLunSbcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq)
                 *pu8ReplyPos++ = 0x08; /* Page code. */
                 *pu8ReplyPos++ = 0x12; /* Size of the page. */
                 *pu8ReplyPos++ = 0x4;  /* Write cache enabled. */
+                fValid = true;
+            } else if (uModePage == 0) {
+                fValid = true;
             }
 
-            RTSgBufCopyFromBuf(&pVScsiReq->SgBuf, aReply, sizeof(aReply));
-            rcReq = vscsiLunReqSenseOkSet(pVScsiLun, pVScsiReq);
+            /* Querying unknown pages must fail. */
+            if (fValid) {
+                RTSgBufCopyFromBuf(&pVScsiReq->SgBuf, aReply, sizeof(aReply));
+                rcReq = vscsiLunReqSenseOkSet(pVScsiLun, pVScsiReq);
+            } else {
+                rcReq = vscsiLunReqSenseErrorSet(pVScsiLun, pVScsiReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET, 0x00);
+            }
+            break;
+        }
+        case SCSI_MODE_SELECT_6:
+        {
+            uint8_t abParms[12];
+            size_t  cbCopied;
+            size_t  cbList = pVScsiReq->pbCDB[4];
+
+            /* Copy the parameters. */
+            cbCopied = RTSgBufCopyToBuf(&pVScsiReq->SgBuf, &abParms[0], sizeof(abParms));
+
+            /* Handle short LOGICAL BLOCK LENGTH parameter. */
+            if (   !(pVScsiReq->pbCDB[1] & 0x01)
+                && cbCopied == sizeof(abParms)
+                && cbList >= 12
+                && abParms[3] == 8)
+            {
+                uint32_t    cbBlock;
+
+                cbBlock = vscsiBE2HU24(&abParms[4 + 5]);
+                Log2(("SBC: set LOGICAL BLOCK LENGTH to %u\n", cbBlock));
+                if (cbBlock == 512) /* Fixed block size. */
+                {
+                    rcReq = vscsiLunReqSenseOkSet(pVScsiLun, pVScsiReq);
+                    break;
+                }
+            }
+            /* Fail any other requests. */
+            rcReq = vscsiLunReqSenseErrorSet(pVScsiLun, pVScsiReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET, 0x00);
             break;
         }
         case SCSI_READ_6:
@@ -445,7 +492,7 @@ static int vscsiLunSbcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq)
                     && cbCopied == sizeof(abHdr)
                     && cbList >= 8)
                 {
-                    size_t cBlkDesc = vscsiBE2HU16(&abHdr[2]) / 16;
+                    uint32_t    cBlkDesc = vscsiBE2HU16(&abHdr[2]) / 16;
 
                     if (cBlkDesc)
                     {

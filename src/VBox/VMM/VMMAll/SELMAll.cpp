@@ -24,8 +24,9 @@
 #include <VBox/vmm/stam.h>
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/mm.h>
+#include <VBox/vmm/hm.h>
 #include <VBox/vmm/pgm.h>
-#include <VBox/vmm/hwaccm.h>
+#include <VBox/vmm/hm.h>
 #include "SELMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/err.h>
@@ -63,6 +64,7 @@ static char const g_aszSRegNms[X86_SREG_COUNT][4] = { "ES", "CS", "SS", "DS", "F
 VMMDECL(RTGCPTR) SELMToFlatBySel(PVM pVM, RTSEL Sel, RTGCPTR Addr)
 {
     Assert(pVM->cCpus == 1 && !CPUMIsGuestInLongMode(VMMGetCpu(pVM)));    /* DON'T USE! */
+    Assert(!HMIsEnabled(pVM));
 
     /** @todo check the limit. */
     X86DESC    Desc;
@@ -185,7 +187,6 @@ VMMDECL(int) SELMToFlatEx(PVMCPU pVCpu, DISSELREG SelReg, PCPUMCTXCORE pCtxCore,
         }
         return VINF_SUCCESS;
     }
-
 
 #ifdef VBOX_WITH_RAW_MODE_NOT_R0
     if (!CPUMSELREG_ARE_HIDDEN_PARTS_VALID(pVCpu, pSReg))
@@ -321,6 +322,7 @@ VMMDECL(int) SELMToFlatBySelEx(PVMCPU pVCpu, X86EFLAGS eflags, RTSEL Sel, RTGCPT
                                uint32_t fFlags, PRTGCPTR ppvGC, uint32_t *pcb)
 {
     Assert(!CPUMIsGuestInLongMode(pVCpu));    /* DON'T USE! (Accessing shadow GDT/LDT.) */
+    Assert(!HMIsEnabled(pVCpu->CTX_SUFF(pVM)));
 
     /*
      * Deal with real & v86 mode first.
@@ -487,6 +489,8 @@ VMMDECL(int) SELMToFlatBySelEx(PVMCPU pVCpu, X86EFLAGS eflags, RTSEL Sel, RTGCPT
 static void selLoadHiddenSelectorRegFromGuestTable(PVMCPU pVCpu, PCCPUMCTX pCtx, PCPUMSELREG pSReg,
                                                    RTGCPTR GCPtrDesc, RTSEL const Sel, uint32_t const iSReg)
 {
+    Assert(!HMIsEnabled(pVCpu->CTX_SUFF(pVM)));
+
     /*
      * Try read the entry.
      */
@@ -540,6 +544,7 @@ VMM_INT_DECL(void) SELMLoadHiddenSelectorReg(PVMCPU pVCpu, PCCPUMCTX pCtx, PCPUM
 
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     Assert(pVM->cCpus == 1);
+    Assert(!HMIsEnabled(pVM));
 
 
     /*
@@ -633,6 +638,8 @@ DECLINLINE(int) selmValidateAndConvertCSAddrRawMode(PVM pVM, PVMCPU pVCpu, RTSEL
                                                     PRTGCPTR ppvFlat, uint32_t *pcBits)
 {
     NOREF(pVCpu);
+    Assert(!HMIsEnabled(pVM));
+
     /** @todo validate limit! */
     X86DESC    Desc;
     if (!(SelCS & X86_SEL_LDT))
@@ -788,10 +795,10 @@ VMMDECL(int) SELMValidateAndConvertCSAddr(PVMCPU pVCpu, X86EFLAGS Efl, RTSEL Sel
         CPUMGuestLazyLoadHiddenSelectorReg(pVCpu, pSRegCS);
 
     /* Undo ring compression. */
-    if ((SelCPL & X86_SEL_RPL) == 1 && !HWACCMIsEnabled(pVCpu->CTX_SUFF(pVM)))
+    if ((SelCPL & X86_SEL_RPL) == 1 && !HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
         SelCPL &= ~X86_SEL_RPL;
     Assert(pSRegCS->Sel == SelCS);
-    if ((SelCS  & X86_SEL_RPL) == 1 && !HWACCMIsEnabled(pVCpu->CTX_SUFF(pVM)))
+    if ((SelCS  & X86_SEL_RPL) == 1 && !HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
         SelCS  &= ~X86_SEL_RPL;
 #else
     Assert(CPUMSELREG_ARE_HIDDEN_PARTS_VALID(pVCpu, pSRegCS));
@@ -835,6 +842,7 @@ VMMDECL(void) SELMSetTrap8EIP(PVM pVM, uint32_t u32EIP)
  */
 void selmSetRing1Stack(PVM pVM, uint32_t ss, RTGCPTR32 esp)
 {
+    Assert(!HMIsEnabled(pVM));
     Assert((ss & 1) || esp == 0);
     pVM->selm.s.Tss.ss1  = ss;
     pVM->selm.s.Tss.esp1 = (uint32_t)esp;
@@ -851,6 +859,7 @@ void selmSetRing1Stack(PVM pVM, uint32_t ss, RTGCPTR32 esp)
  */
 void selmSetRing2Stack(PVM pVM, uint32_t ss, RTGCPTR32 esp)
 {
+    Assert(!HMIsEnabled(pVM));
     Assert((ss & 3) == 2 || esp == 0);
     pVM->selm.s.Tss.ss2  = ss;
     pVM->selm.s.Tss.esp2 = (uint32_t)esp;
@@ -871,6 +880,7 @@ void selmSetRing2Stack(PVM pVM, uint32_t ss, RTGCPTR32 esp)
  */
 VMMDECL(int) SELMGetRing1Stack(PVM pVM, uint32_t *pSS, PRTGCPTR32 pEsp)
 {
+    Assert(!HMIsEnabled(pVM));
     Assert(pVM->cCpus == 1);
     PVMCPU pVCpu = &pVM->aCpus[0];
 
@@ -946,18 +956,7 @@ l_tryagain:
 #endif /* VBOX_WITH_RAW_MODE_NOT_R0 */
 
 
-/**
- * Returns Guest TSS pointer
- *
- * @returns Pointer to the guest TSS, RTRCPTR_MAX if not being monitored.
- * @param   pVM     Pointer to the VM.
- */
-VMMDECL(RTGCPTR) SELMGetGuestTSS(PVM pVM)
-{
-    return (RTGCPTR)pVM->selm.s.GCPtrGuestTss;
-}
-
-#ifdef VBOX_WITH_RAW_MODE_NOT_R0
+#if defined(VBOX_WITH_RAW_MODE) || (HC_ARCH_BITS != 64 && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL))
 
 /**
  * Gets the hypervisor code selector (CS).
@@ -1031,7 +1030,7 @@ VMMDECL(RTRCPTR) SELMGetHyperGDT(PVM pVM)
     return (RTRCPTR)MMHyperR3ToRC(pVM, pVM->selm.s.paGdtR3);
 }
 
-#endif /* VBOX_WITH_RAW_MODE_NOT_R0 */
+#endif /* defined(VBOX_WITH_RAW_MODE) || (HC_ARCH_BITS != 64 && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)) */
 
 /**
  * Gets info about the current TSS.
@@ -1078,7 +1077,7 @@ VMMDECL(int) SELMGetTSSInfo(PVM pVM, PVMCPU pVCpu, PRTGCUINTPTR pGCPtrTss, PRTGC
  */
 VMMDECL(void) SELMShadowCR3Changed(PVM pVM, PVMCPU pVCpu)
 {
-    /** @todo SMP support!! */
+    /** @todo SMP support!! (64-bit guest scenario, primarily) */
     pVM->selm.s.Tss.cr3       = PGMGetHyperCR3(pVCpu);
     pVM->selm.s.TssTrap08.cr3 = PGMGetInterRCCR3(pVM, pVCpu);
 }

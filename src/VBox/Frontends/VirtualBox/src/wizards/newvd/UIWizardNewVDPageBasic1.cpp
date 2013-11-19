@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,7 +38,12 @@ UIWizardNewVDPage1::UIWizardNewVDPage1()
 void UIWizardNewVDPage1::addFormatButton(QWidget *pParent, QVBoxLayout *pFormatLayout, CMediumFormat medFormat)
 {
     /* Check that medium format supports creation: */
-    ULONG uFormatCapabilities = medFormat.GetCapabilities();
+    ULONG uFormatCapabilities = 0;
+    QVector<KMediumFormatCapabilities> capabilities;
+    capabilities = medFormat.GetCapabilities();
+    for (int i = 0; i < capabilities.size(); i++)
+        uFormatCapabilities |= capabilities[i];
+
     if (!(uFormatCapabilities & MediumFormatCapabilities_CreateFixed ||
           uFormatCapabilities & MediumFormatCapabilities_CreateDynamic))
         return;
@@ -98,8 +103,11 @@ UIWizardNewVDPageBasic1::UIWizardNewVDPageBasic1()
                         addFormatButton(this, pFormatLayout, medFormat);
                 }
             }
-            m_pFormatButtonGroup->button(0)->click();
-            m_pFormatButtonGroup->button(0)->setFocus();
+            if (!m_pFormatButtonGroup->buttons().isEmpty())
+            {
+                m_pFormatButtonGroup->button(0)->click();
+                m_pFormatButtonGroup->button(0)->setFocus();
+            }
         }
         pMainLayout->addWidget(m_pLabel);
         pMainLayout->addLayout(pFormatLayout);
@@ -148,16 +156,28 @@ int UIWizardNewVDPageBasic1::nextId() const
 {
     /* Show variant page only if there is something to show: */
     CMediumFormat mf = mediumFormat();
-    ULONG uCapabilities = mf.GetCapabilities();
-    int cTest = 0;
-    if (uCapabilities & KMediumFormatCapabilities_CreateDynamic)
-        ++cTest;
-    if (uCapabilities & KMediumFormatCapabilities_CreateFixed)
-        ++cTest;
-    if (uCapabilities & KMediumFormatCapabilities_CreateSplit2G)
-        ++cTest;
-    if (cTest > 1)
-        return UIWizardNewVD::Page2;
+    if (mf.isNull())
+    {
+        AssertMsgFailed(("No medium format set!"));
+    }
+    else
+    {
+        ULONG uCapabilities = 0;
+        QVector<KMediumFormatCapabilities> capabilities;
+        capabilities = mf.GetCapabilities();
+        for (int i = 0; i < capabilities.size(); i++)
+            uCapabilities |= capabilities[i];
+
+        int cTest = 0;
+        if (uCapabilities & KMediumFormatCapabilities_CreateDynamic)
+            ++cTest;
+        if (uCapabilities & KMediumFormatCapabilities_CreateFixed)
+            ++cTest;
+        if (uCapabilities & KMediumFormatCapabilities_CreateSplit2G)
+            ++cTest;
+        if (cTest > 1)
+            return UIWizardNewVD::Page2;
+    }
     /* Skip otherwise: */
     return UIWizardNewVD::Page3;
 }

@@ -47,6 +47,7 @@
 #endif
 
 #include <VBox/err.h>
+#include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/pdmdrv.h>
 #include <iprt/assert.h>
 #include <iprt/file.h>
@@ -303,6 +304,7 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
         return VERR_NO_MEMORY;
     pData->fPassDomain = !fUseHostResolver ? fPassDomain : false;
     pData->fUseHostResolver = fUseHostResolver;
+    pData->fUseHostResolverPermanent = fUseHostResolver;
     pData->pvUser = pvUser;
     pData->netmask = u32Netmask;
 
@@ -351,8 +353,13 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
 
     /* set default addresses */
     inet_aton("127.0.0.1", &loopback_addr);
-    rc = slirpInitializeDnsSettings(pData);
-    AssertRCReturn(rc, VINF_NAT_DNS);
+
+    if (!fUseHostResolver)
+    {
+        rc = slirpInitializeDnsSettings(pData);
+        AssertRCReturn(rc, VINF_NAT_DNS);
+    }
+
     rc = slirpTftpInit(pData);
     AssertRCReturn(rc, VINF_NAT_DNS);
 
@@ -736,7 +743,15 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
                 Log2(("NAT: %R[natsock] expired\n", so));
                 if (so->so_timeout != NULL)
                 {
+                    /* so_timeout - might change the so_expire value or
+                     * drop so_timeout* from so.
+                     */
                     so->so_timeout(pData, so, so->so_timeout_arg);
+                    /* on 4.2 so->
+                     */
+                    if (   so_next->so_prev != so /* so_timeout freed the socket */
+                        || so->so_timeout)  /* so_timeout just freed so_timeout */
+                      CONTINUE_NO_UNLOCK(udp);
                 }
                 UDP_DETACH(pData, so, so_next);
                 CONTINUE_NO_UNLOCK(udp);
@@ -1976,11 +1991,12 @@ void slirp_set_mtu(PNATState pData, int mtu)
 /**
  * Info handler.
  */
-void slirp_info(PNATState pData, PCDBGFINFOHLP pHlp, const char *pszArgs)
+void slirp_info(PNATState pData, const void *pvArg, const char *pszArgs)
 {
     struct socket *so, *so_next;
     struct arp_cache_entry *ac;
     struct port_forward_rule *rule;
+    PCDBGFINFOHLP pHlp = (PCDBGFINFOHLP)pvArg;
     NOREF(pszArgs);
 
     pHlp->pfnPrintf(pHlp, "NAT parameters: MTU=%d\n", if_mtu);
