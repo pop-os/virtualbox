@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,7 @@
 #include <VBox/sup.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
-#include <VBox/vmm/hwaccm.h>
+#include <VBox/vmm/hm.h>
 #include <VBox/VBoxTpG.h>
 
 #include <VBox/log.h>
@@ -77,7 +77,7 @@ static char    *pdmR3File(const char *pszFile, const char *pszDefaultExt, const 
  * @returns VBox status code.
  * @param   pUVM            Pointer to the user mode VM structure.
  */
-VMMR3DECL(int) PDMR3LdrLoadVMMR0U(PUVM pUVM)
+VMMR3_INT_DECL(int) PDMR3LdrLoadVMMR0U(PUVM pUVM)
 {
     return pdmR3LoadR0U(pUVM, NULL, VMMR0_MAIN_MODULE_NAME, NULL);
 }
@@ -95,16 +95,15 @@ VMMR3DECL(int) PDMR3LdrLoadVMMR0U(PUVM pUVM)
  */
 int pdmR3LdrInitU(PUVM pUVM)
 {
-#if defined(PDMLDR_FAKE_MODE) || !defined(VBOX_WITH_RAW_MODE)
-    return VINF_SUCCESS;
-
-#else
-
+#if !defined(PDMLDR_FAKE_MODE) && defined(VBOX_WITH_RAW_MODE)
     /*
-     * Load the mandatory GC module, the VMMR0.r0 is loaded before VM creation.
+     * Load the mandatory RC module, the VMMR0.r0 is loaded before VM creation.
      */
-    return PDMR3LdrLoadRC(pUVM->pVM, NULL, VMMGC_MAIN_MODULE_NAME);
+    PVM pVM = pUVM->pVM; AssertPtr(pVM);
+    if (!HMIsEnabled(pVM))
+        return PDMR3LdrLoadRC(pVM, NULL, VMMGC_MAIN_MODULE_NAME);
 #endif
+    return VINF_SUCCESS;
 }
 
 
@@ -177,7 +176,7 @@ void pdmR3LdrTermU(PUVM pUVM)
  * @param   pUVM        Pointer to the user mode VM structure.
  * @param   offDelta    Relocation delta relative to old location.
  */
-VMMR3DECL(void) PDMR3LdrRelocateU(PUVM pUVM, RTGCINTPTR offDelta)
+VMMR3_INT_DECL(void) PDMR3LdrRelocateU(PUVM pUVM, RTGCINTPTR offDelta)
 {
 #ifdef VBOX_WITH_RAW_MODE
     LogFlow(("PDMR3LdrRelocate: offDelta=%RGv\n", offDelta));
@@ -216,8 +215,6 @@ VMMR3DECL(void) PDMR3LdrRelocateU(PUVM pUVM, RTGCINTPTR offDelta)
                 int rc = RTLdrRelocate(pCur->hLdrMod, pCur->pvBits, pCur->ImageBase, pCur->OldImageBase,
                                        pdmR3GetImportRC, &Args);
                 AssertFatalMsgRC(rc, ("RTLdrRelocate failed, rc=%d\n", rc));
-                DBGFR3ModuleRelocate(pUVM->pVM, pCur->OldImageBase, pCur->ImageBase, RTLdrSize(pCur->hLdrMod),
-                                     pCur->szFilename, pCur->szName);
             }
         }
     }
@@ -319,8 +316,8 @@ int pdmR3LoadR3U(PUVM pUVM, const char *pszFilename, const char *pszName)
     return rc;
 }
 
-
 #ifdef VBOX_WITH_RAW_MODE
+
 /**
  * Resolve an external symbol during RTLdrGetBits() of a RC module.
  *
@@ -451,6 +448,8 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
      * Validate input.
      */
     AssertMsg(PDMCritSectIsInitialized(&pVM->pdm.s.CritSect), ("bad init order!\n"));
+    AssertReturn(!HMIsEnabled(pVM), VERR_PDM_HM_IPE);
+
     PUVM     pUVM = pVM->pUVM;
     RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
     PPDMMOD  pCur = pUVM->pdm.s.pModules;
@@ -608,8 +607,8 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
     RTMemTmpFree(pszFile);
     return rc;
 }
-#endif /* VBOX_WITH_RAW_MODE */
 
+#endif /* VBOX_WITH_RAW_MODE */
 
 /**
  * Loads a module into the ring-0 context.
@@ -719,7 +718,7 @@ static int pdmR3LoadR0U(PUVM pUVM, const char *pszFilename, const char *pszName,
  *                          ordinal value rather than a string pointer.
  * @param   ppvValue        Where to store the symbol value.
  */
-VMMR3DECL(int) PDMR3LdrGetSymbolR3(PVM pVM, const char *pszModule, const char *pszSymbol, void **ppvValue)
+VMMR3_INT_DECL(int) PDMR3LdrGetSymbolR3(PVM pVM, const char *pszModule, const char *pszSymbol, void **ppvValue)
 {
     /*
      * Validate input.
@@ -883,7 +882,8 @@ VMMR3DECL(int) PDMR3LdrGetSymbolR0Lazy(PVM pVM, const char *pszModule, const cha
 VMMR3DECL(int) PDMR3LdrGetSymbolRC(PVM pVM, const char *pszModule, const char *pszSymbol, PRTRCPTR pRCPtrValue)
 {
 #if defined(PDMLDR_FAKE_MODE) || !defined(VBOX_WITH_RAW_MODE)
-    *pRCPtrValue = 0xfeedf00d;
+    Assert(!HMIsEnabled(pVM));
+    *pRCPtrValue = NIL_RTRCPTR;
     return VINF_SUCCESS;
 
 #else
@@ -950,7 +950,8 @@ VMMR3DECL(int) PDMR3LdrGetSymbolRCLazy(PVM pVM, const char *pszModule, const cha
                                        PRTRCPTR pRCPtrValue)
 {
 #if defined(PDMLDR_FAKE_MODE) || !defined(VBOX_WITH_RAW_MODE)
-    *pRCPtrValue = 0xfeedf00d;
+    Assert(!HMIsEnabled(pVM));
+    *pRCPtrValue = NIL_RTRCPTR;
     return VINF_SUCCESS;
 
 #else
@@ -1358,10 +1359,10 @@ static int pdmR3LdrQueryModFromPC(PVM pVM, RTUINTPTR uPC, PDMMODTYPE enmType,
  * @param   cchNearSym2 Size of the buffer pointed to by pszNearSym2.
  * @param   pNearSym2   The address of pszNearSym2.
  */
-VMMR3DECL(int) PDMR3LdrQueryRCModFromPC(PVM pVM, RTRCPTR uPC,
-                                        char *pszModName,  size_t cchModName,  PRTRCPTR pMod,
-                                        char *pszNearSym1, size_t cchNearSym1, PRTRCPTR pNearSym1,
-                                        char *pszNearSym2, size_t cchNearSym2, PRTRCPTR pNearSym2)
+VMMR3_INT_DECL(int) PDMR3LdrQueryRCModFromPC(PVM pVM, RTRCPTR uPC,
+                                             char *pszModName,  size_t cchModName,  PRTRCPTR pMod,
+                                             char *pszNearSym1, size_t cchNearSym1, PRTRCPTR pNearSym1,
+                                             char *pszNearSym2, size_t cchNearSym2, PRTRCPTR pNearSym2)
 {
     RTUINTPTR AddrMod   = 0;
     RTUINTPTR AddrNear1 = 0;
@@ -1402,10 +1403,10 @@ VMMR3DECL(int) PDMR3LdrQueryRCModFromPC(PVM pVM, RTRCPTR uPC,
  * @param   cchNearSym2 Size of the buffer pointed to by pszNearSym2. Optional.
  * @param   pNearSym2   The address of pszNearSym2. Optional.
  */
-VMMR3DECL(int) PDMR3LdrQueryR0ModFromPC(PVM pVM, RTR0PTR uPC,
-                                        char *pszModName,  size_t cchModName,  PRTR0PTR pMod,
-                                        char *pszNearSym1, size_t cchNearSym1, PRTR0PTR pNearSym1,
-                                        char *pszNearSym2, size_t cchNearSym2, PRTR0PTR pNearSym2)
+VMMR3_INT_DECL(int) PDMR3LdrQueryR0ModFromPC(PVM pVM, RTR0PTR uPC,
+                                             char *pszModName,  size_t cchModName,  PRTR0PTR pMod,
+                                             char *pszNearSym1, size_t cchNearSym1, PRTR0PTR pNearSym1,
+                                             char *pszNearSym2, size_t cchNearSym2, PRTR0PTR pNearSym2)
 {
     RTUINTPTR AddrMod   = 0;
     RTUINTPTR AddrNear1 = 0;
@@ -1447,7 +1448,10 @@ VMMR3DECL(int)  PDMR3LdrEnumModules(PVM pVM, PFNPDMR3ENUM pfnCallback, void *pvA
                          pCur->szName,
                          pCur->ImageBase,
                          pCur->eType == PDMMOD_TYPE_RC ? RTLdrSize(pCur->hLdrMod) : 0,
-                         pCur->eType == PDMMOD_TYPE_RC,
+                           pCur->eType == PDMMOD_TYPE_RC ? PDMLDRCTX_RAW_MODE
+                         : pCur->eType == PDMMOD_TYPE_R0 ? PDMLDRCTX_RING_0
+                         : pCur->eType == PDMMOD_TYPE_R3 ? PDMLDRCTX_RING_3
+                         :                                 PDMLDRCTX_INVALID,
                          pvArg);
         if (RT_FAILURE(rc))
             break;
@@ -1551,20 +1555,24 @@ static PPDMMOD pdmR3LdrFindModule(PUVM pUVM, const char *pszModule, PDMMODTYPE e
  * @param   fRing0          Set if it's a ring-0 context interface, clear if
  *                          it's raw-mode context interface.
  */
-VMMR3DECL(int) PDMR3LdrGetInterfaceSymbols(PVM pVM, void *pvInterface, size_t cbInterface,
-                                           const char *pszModule, const char *pszSearchPath,
-                                           const char *pszSymPrefix, const char *pszSymList,
-                                           bool fRing0)
+VMMR3_INT_DECL(int) PDMR3LdrGetInterfaceSymbols(PVM pVM, void *pvInterface, size_t cbInterface,
+                                                const char *pszModule, const char *pszSearchPath,
+                                                const char *pszSymPrefix, const char *pszSymList,
+                                                bool fRing0)
 {
+    bool const fNullRun = !fRing0 && HMIsEnabled(pVM);
+
     /*
      * Find the module.
      */
     int     rc      = VINF_SUCCESS;
-    PPDMMOD pModule = pdmR3LdrFindModule(pVM->pUVM,
-                                         pszModule ? pszModule : fRing0 ? "VMMR0.r0" : "VMMGC.gc",
-                                         fRing0 ? PDMMOD_TYPE_R0 : PDMMOD_TYPE_RC,
-                                         true /*fLazy*/, pszSearchPath);
-    if (pModule)
+    PPDMMOD pModule = NULL;
+    if (!fNullRun)
+        pModule = pdmR3LdrFindModule(pVM->pUVM,
+                                     pszModule ? pszModule : fRing0 ? "VMMR0.r0" : "VMMGC.gc",
+                                     fRing0 ? PDMMOD_TYPE_R0 : PDMMOD_TYPE_RC,
+                                     true /*fLazy*/, pszSearchPath);
+    if (pModule || fNullRun)
     {
         /* Prep the symbol name. */
         char            szSymbol[256];
@@ -1644,9 +1652,12 @@ VMMR3DECL(int) PDMR3LdrGetInterfaceSymbols(PVM pVM, void *pvInterface, size_t cb
 
                 if (fRing0)
                 {
-                    void *pvValue;
-                    rc = SUPR3GetSymbolR0((void *)(RTR0PTR)pModule->ImageBase, szSymbol, &pvValue);
-                    AssertMsgRCBreak(rc, ("Couldn't find symbol '%s' in module '%s'\n", szSymbol, pModule->szName));
+                    void *pvValue = NULL;
+                    if (!fNullRun)
+                    {
+                        rc = SUPR3GetSymbolR0((void *)(RTR0PTR)pModule->ImageBase, szSymbol, &pvValue);
+                        AssertMsgRCBreak(rc, ("Couldn't find symbol '%s' in module '%s'\n", szSymbol, pModule->szName));
+                    }
 
                     PRTR0PTR pValue = (PRTR0PTR)((uintptr_t)pvInterface + offInterface);
                     AssertMsgBreakStmt(offInterface + sizeof(*pValue) <= cbInterface,
@@ -1658,9 +1669,12 @@ VMMR3DECL(int) PDMR3LdrGetInterfaceSymbols(PVM pVM, void *pvInterface, size_t cb
                 }
                 else
                 {
-                    RTUINTPTR Value;
-                    rc = RTLdrGetSymbolEx(pModule->hLdrMod, pModule->pvBits, pModule->ImageBase, szSymbol, &Value);
-                    AssertMsgRCBreak(rc, ("Couldn't find symbol '%s' in module '%s'\n", szSymbol, pModule->szName));
+                    RTUINTPTR Value = 0;
+                    if (!fNullRun)
+                    {
+                        rc = RTLdrGetSymbolEx(pModule->hLdrMod, pModule->pvBits, pModule->ImageBase, szSymbol, &Value);
+                        AssertMsgRCBreak(rc, ("Couldn't find symbol '%s' in module '%s'\n", szSymbol, pModule->szName));
+                    }
 
                     PRTRCPTR pValue = (PRTRCPTR)((uintptr_t)pvInterface + offInterface);
                     AssertMsgBreakStmt(offInterface + sizeof(*pValue) <= cbInterface,

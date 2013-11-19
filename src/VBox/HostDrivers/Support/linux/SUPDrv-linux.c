@@ -1,4 +1,4 @@
-/* $Rev: 84704 $ */
+/* $Rev: 87729 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
@@ -95,14 +95,15 @@
 *******************************************************************************/
 static int  VBoxDrvLinuxInit(void);
 static void VBoxDrvLinuxUnload(void);
-static int  VBoxDrvLinuxCreate(struct inode *pInode, struct file *pFilp);
+static int  VBoxDrvLinuxCreateSys(struct inode *pInode, struct file *pFilp);
+static int  VBoxDrvLinuxCreateUsr(struct inode *pInode, struct file *pFilp);
 static int  VBoxDrvLinuxClose(struct inode *pInode, struct file *pFilp);
 #ifdef HAVE_UNLOCKED_IOCTL
 static long VBoxDrvLinuxIOCtl(struct file *pFilp, unsigned int uCmd, unsigned long ulArg);
 #else
 static int  VBoxDrvLinuxIOCtl(struct inode *pInode, struct file *pFilp, unsigned int uCmd, unsigned long ulArg);
 #endif
-static int  VBoxDrvLinuxIOCtlSlow(struct file *pFilp, unsigned int uCmd, unsigned long ulArg);
+static int  VBoxDrvLinuxIOCtlSlow(struct file *pFilp, unsigned int uCmd, unsigned long ulArg, PSUPDRVSESSION pSession);
 static int  VBoxDrvLinuxErr2LinuxErr(int);
 #ifdef VBOX_WITH_SUSPEND_NOTIFICATION
 static int  VBoxDrvProbe(struct platform_device *pDev);
@@ -126,20 +127,26 @@ static void VBoxDevRelease(struct device *pDev);
 static SUPDRVDEVEXT         g_DevExt;
 
 #ifndef CONFIG_VBOXDRV_AS_MISC
-/** Module major number */
-#define DEVICE_MAJOR        234
-/** Saved major device number */
-static int                  g_iModuleMajor;
+/** Module major number for vboxdrv. */
+#define DEVICE_MAJOR_SYS    234
+/** Saved major device number for vboxdrv. */
+static int                  g_iModuleMajorSys;
+/** Module major number for vboxdrvu. */
+#define DEVICE_MAJOR_USR    235
+/** Saved major device number for vboxdrvu. */
+static int                  g_iModuleMajorUsr;
 #endif /* !CONFIG_VBOXDRV_AS_MISC */
 
 /** Module parameter.
  * Not prefixed because the name is used by macros and the end of this file. */
 static int force_async_tsc = 0;
 
-/** The module name. */
-#define DEVICE_NAME         "vboxdrv"
+/** The system device name. */
+#define DEVICE_NAME_SYS     "vboxdrv"
+/** The user device name. */
+#define DEVICE_NAME_USR     "vboxdrvu"
 
-#if defined(RT_ARCH_AMD64) && !defined(CONFIG_DEBUG_SET_MODULE_RONX)
+#if defined(RT_ARCH_AMD64) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
 /**
  * Memory for the executable memory heap (in IPRT).
  */
@@ -155,10 +162,23 @@ __asm__(".section execmemory, \"awx\", @progbits\n\t"
 #endif
 
 /** The file_operations structure. */
-static struct file_operations gFileOpsVBoxDrv =
+static struct file_operations gFileOpsVBoxDrvSys =
 {
     owner:      THIS_MODULE,
-    open:       VBoxDrvLinuxCreate,
+    open:       VBoxDrvLinuxCreateSys,
+    release:    VBoxDrvLinuxClose,
+#ifdef HAVE_UNLOCKED_IOCTL
+    unlocked_ioctl: VBoxDrvLinuxIOCtl,
+#else
+    ioctl:      VBoxDrvLinuxIOCtl,
+#endif
+};
+
+/** The file_operations structure. */
+static struct file_operations gFileOpsVBoxDrvUsr =
+{
+    owner:      THIS_MODULE,
+    open:       VBoxDrvLinuxCreateUsr,
     release:    VBoxDrvLinuxClose,
 #ifdef HAVE_UNLOCKED_IOCTL
     unlocked_ioctl: VBoxDrvLinuxIOCtl,
@@ -168,14 +188,24 @@ static struct file_operations gFileOpsVBoxDrv =
 };
 
 #ifdef CONFIG_VBOXDRV_AS_MISC
-/** The miscdevice structure. */
-static struct miscdevice gMiscDevice =
+/** The miscdevice structure for vboxdrv. */
+static struct miscdevice gMiscDeviceSys =
 {
     minor:      MISC_DYNAMIC_MINOR,
-    name:       DEVICE_NAME,
-    fops:       &gFileOpsVBoxDrv,
+    name:       DEVICE_NAME_SYS,
+    fops:       &gFileOpsVBoxDrvSys,
 # if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 17)
-    devfs_name: DEVICE_NAME,
+    devfs_name: DEVICE_NAME_SYS,
+# endif
+};
+/** The miscdevice structure for vboxdrvu. */
+static struct miscdevice gMiscDeviceUsr =
+{
+    minor:      MISC_DYNAMIC_MINOR,
+    name:       DEVICE_NAME_USR,
+    fops:       &gFileOpsVBoxDrvUsr,
+# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 17)
+    devfs_name: DEVICE_NAME_USR,
 # endif
 };
 #endif
@@ -271,40 +301,60 @@ static int __init VBoxDrvLinuxInit(void)
     /*
      * Check for synchronous/asynchronous TSC mode.
      */
-    printk(KERN_DEBUG DEVICE_NAME ": Found %u processor cores.\n", (unsigned)RTMpGetOnlineCount());
+    printk(KERN_DEBUG "vboxdrv: Found %u processor cores.\n", (unsigned)RTMpGetOnlineCount());
 #ifdef CONFIG_VBOXDRV_AS_MISC
-    rc = misc_register(&gMiscDevice);
+    rc = misc_register(&gMiscDeviceSys);
     if (rc)
     {
-        printk(KERN_ERR DEVICE_NAME ": Can't register misc device! rc=%d\n", rc);
+        printk(KERN_ERR "vboxdrv: Can't register system misc device! rc=%d\n", rc);
+        return rc;
+    }
+    rc = misc_register(&gMiscDeviceUsr);
+    if (rc)
+    {
+        printk(KERN_ERR "vboxdrv: Can't register user misc device! rc=%d\n", rc);
+        misc_deregister(&gMiscDeviceSys);
         return rc;
     }
 #else  /* !CONFIG_VBOXDRV_AS_MISC */
     /*
-     * Register character device.
+     * Register character devices and save the returned major numbers.
      */
-    g_iModuleMajor = DEVICE_MAJOR;
-    rc = register_chrdev((dev_t)g_iModuleMajor, DEVICE_NAME, &gFileOpsVBoxDrv);
+    /* /dev/vboxdrv */
+    g_iModuleMajorSys = DEVICE_MAJOR_SYS;
+    rc = register_chrdev((dev_t)g_iModuleMajorSys, DEVICE_NAME_SYS, &gFileOpsVBoxDrvSys);
     if (rc < 0)
     {
-        Log(("register_chrdev() failed with rc=%#x!\n", rc));
+        Log(("register_chrdev() failed with rc=%#x for vboxdrv!\n", rc));
         return rc;
     }
-
-    /*
-     * Save returned module major number
-     */
-    if (DEVICE_MAJOR != 0)
-        g_iModuleMajor = DEVICE_MAJOR;
+    if (DEVICE_MAJOR_SYS != 0)
+        g_iModuleMajorSys = DEVICE_MAJOR_SYS;
     else
-        g_iModuleMajor = rc;
+        g_iModuleMajorSys = rc;
+
+    /* /dev/vboxdrvu */
+    /** @todo Use a minor number of this bugger (not sure if this code is used
+     *        though, so not bothering right now.) */
+    g_iModuleMajorUsr = DEVICE_MAJOR_USR;
+    rc = register_chrdev((dev_t)g_iModuleMajorUsr, DEVICE_NAME_USR, &gFileOpsVBoxDrvUsr);
+    if (rc < 0)
+    {
+        Log(("register_chrdev() failed with rc=%#x for vboxdrv!\n", rc));
+        return rc;
+    }
+    if (DEVICE_MAJOR_USR != 0)
+        g_iModuleMajorUsr = DEVICE_MAJOR_USR;
+    else
+        g_iModuleMajorUsr = rc;
     rc = 0;
 
 # ifdef CONFIG_DEVFS_FS
     /*
      * Register a device entry
      */
-    if (devfs_mk_cdev(MKDEV(DEVICE_MAJOR, 0), S_IFCHR | VBOX_DEV_FMASK, DEVICE_NAME) != 0)
+    if (   devfs_mk_cdev(MKDEV(DEVICE_MAJOR_SYS, 0), S_IFCHR | VBOX_DEV_FMASK, DEVICE_NAME_SYS) != 0
+        || devfs_mk_cdev(MKDEV(DEVICE_MAJOR_USR, 0), S_IFCHR | VBOX_DEV_FMASK, DEVICE_NAME_USR) != 0)
     {
         Log(("devfs_register failed!\n"));
         rc = -EINVAL;
@@ -341,10 +391,10 @@ static int __init VBoxDrvLinuxInit(void)
                     if (rc == 0)
 #endif
                     {
-                        printk(KERN_INFO DEVICE_NAME ": TSC mode is %s, kernel timer mode is 'normal'.\n",
+                        printk(KERN_INFO "vboxdrv: TSC mode is %s, kernel timer mode is 'normal'.\n",
                                g_DevExt.pGip->u32Mode == SUPGIPMODE_SYNC_TSC ? "'synchronous'" : "'asynchronous'");
                         LogFlow(("VBoxDrv::ModuleInit returning %#x\n", rc));
-                        printk(KERN_DEBUG DEVICE_NAME ": Successfully loaded version "
+                        printk(KERN_DEBUG "vboxdrv: Successfully loaded version "
                                 VBOX_VERSION_STRING " (interface " RT_XSTR(SUPDRV_IOC_VERSION) ").\n");
                         return rc;
                     }
@@ -365,15 +415,18 @@ static int __init VBoxDrvLinuxInit(void)
          * Failed, cleanup and return the error code.
          */
 #if defined(CONFIG_DEVFS_FS) && !defined(CONFIG_VBOXDRV_AS_MISC)
-        devfs_remove(DEVICE_NAME);
+        devfs_remove(DEVICE_NAME_SYS);
+        devfs_remove(DEVICE_NAME_USR);
 #endif
     }
 #ifdef CONFIG_VBOXDRV_AS_MISC
-    misc_deregister(&gMiscDevice);
-    Log(("VBoxDrv::ModuleInit returning %#x (minor:%d)\n", rc, gMiscDevice.minor));
+    misc_deregister(&gMiscDeviceSys);
+    misc_deregister(&gMiscDeviceUsr);
+    Log(("VBoxDrv::ModuleInit returning %#x (minor:%d & %d)\n", rc, gMiscDeviceSys.minor, gMiscDeviceUsr.minor));
 #else
-    unregister_chrdev(g_iModuleMajor, DEVICE_NAME);
-    Log(("VBoxDrv::ModuleInit returning %#x (major:%d)\n", rc, g_iModuleMajor));
+    unregister_chrdev(g_iModuleMajorUsr, DEVICE_NAME_USR);
+    unregister_chrdev(g_iModuleMajorSys, DEVICE_NAME_SYS);
+    Log(("VBoxDrv::ModuleInit returning %#x (major:%d & %d)\n", rc, g_iModuleMajorSys, g_iModuleMajorUsr));
 #endif
     return rc;
 }
@@ -398,19 +451,26 @@ static void __exit VBoxDrvLinuxUnload(void)
      * opened, at least we'll blindly assume that here.
      */
 #ifdef CONFIG_VBOXDRV_AS_MISC
-    rc = misc_deregister(&gMiscDevice);
+    rc = misc_deregister(&gMiscDeviceUsr);
     if (rc < 0)
     {
-        Log(("misc_deregister failed with rc=%#x\n", rc));
+        Log(("misc_deregister failed with rc=%#x on vboxdrvu\n", rc));
+    }
+    rc = misc_deregister(&gMiscDeviceSys);
+    if (rc < 0)
+    {
+        Log(("misc_deregister failed with rc=%#x on vboxdrv\n", rc));
     }
 #else  /* !CONFIG_VBOXDRV_AS_MISC */
 # ifdef CONFIG_DEVFS_FS
     /*
      * Unregister a device entry
      */
-    devfs_remove(DEVICE_NAME);
+    devfs_remove(DEVICE_NAME_USR);
+    devfs_remove(DEVICE_NAME_SYS);
 # endif /* devfs */
-    unregister_chrdev(g_iModuleMajor, DEVICE_NAME);
+    unregister_chrdev(g_iModuleMajorUsr, DEVICE_NAME_USR);
+    unregister_chrdev(g_iModuleMajorSys, DEVICE_NAME_SYS);
 #endif /* !CONFIG_VBOXDRV_AS_MISC */
 
     /*
@@ -422,12 +482,13 @@ static void __exit VBoxDrvLinuxUnload(void)
 
 
 /**
- * Device open. Called on open /dev/vboxdrv
+ * Common open code.
  *
- * @param   pInode      Pointer to inode info structure.
- * @param   pFilp       Associated file pointer.
+ * @param   pInode          Pointer to inode info structure.
+ * @param   pFilp           Associated file pointer.
+ * @param   fUnrestricted   Indicates which device node which was opened.
  */
-static int VBoxDrvLinuxCreate(struct inode *pInode, struct file *pFilp)
+static int vboxdrvLinuxCreateCommon(struct inode *pInode, struct file *pFilp, bool fUnrestricted)
 {
     int                 rc;
     PSUPDRVSESSION      pSession;
@@ -435,9 +496,10 @@ static int VBoxDrvLinuxCreate(struct inode *pInode, struct file *pFilp)
 
 #ifdef VBOX_WITH_HARDENING
     /*
-     * Only root is allowed to access the device, enforce it!
+     * Only root is allowed to access the unrestricted device, enforce it!
      */
-    if (vboxdrvLinuxEuid() != 0 /* root */ )
+    if (   fUnrestricted
+        && vboxdrvLinuxEuid() != 0 /* root */ )
     {
         Log(("VBoxDrvLinuxCreate: euid=%d, expected 0 (root)\n", vboxdrvLinuxEuid()));
         return -EPERM;
@@ -447,7 +509,7 @@ static int VBoxDrvLinuxCreate(struct inode *pInode, struct file *pFilp)
     /*
      * Call common code for the rest.
      */
-    rc = supdrvCreateSession(&g_DevExt, true /* fUser */, &pSession);
+    rc = supdrvCreateSession(&g_DevExt, true /* fUser */, fUnrestricted, &pSession);
     if (!rc)
     {
         pSession->Uid = vboxdrvLinuxUid();
@@ -463,6 +525,20 @@ static int VBoxDrvLinuxCreate(struct inode *pInode, struct file *pFilp)
 }
 
 
+/** /dev/vboxdrv.  */
+static int VBoxDrvLinuxCreateSys(struct inode *pInode, struct file *pFilp)
+{
+    return vboxdrvLinuxCreateCommon(pInode, pFilp, true);
+}
+
+
+/** /dev/vboxdrvu.  */
+static int VBoxDrvLinuxCreateUsr(struct inode *pInode, struct file *pFilp)
+{
+    return vboxdrvLinuxCreateCommon(pInode, pFilp, false);
+}
+
+
 /**
  * Close device.
  *
@@ -473,7 +549,7 @@ static int VBoxDrvLinuxClose(struct inode *pInode, struct file *pFilp)
 {
     Log(("VBoxDrvLinuxClose: pFilp=%p pSession=%p pid=%d/%d %s\n",
          pFilp, pFilp->private_data, RTProcSelf(), current->pid, current->comm));
-    supdrvCloseSession(&g_DevExt, (PSUPDRVSESSION)pFilp->private_data);
+    supdrvSessionRelease((PSUPDRVSESSION)pFilp->private_data);
     pFilp->private_data = NULL;
     return 0;
 }
@@ -545,27 +621,31 @@ static long VBoxDrvLinuxIOCtl(struct file *pFilp, unsigned int uCmd, unsigned lo
 static int VBoxDrvLinuxIOCtl(struct inode *pInode, struct file *pFilp, unsigned int uCmd, unsigned long ulArg)
 #endif
 {
+    PSUPDRVSESSION pSession = (PSUPDRVSESSION)pFilp->private_data;
+
     /*
      * Deal with the two high-speed IOCtl that takes it's arguments from
      * the session and iCmd, and only returns a VBox status code.
      */
 #ifdef HAVE_UNLOCKED_IOCTL
-    if (RT_LIKELY(   uCmd == SUP_IOCTL_FAST_DO_RAW_RUN
-                  || uCmd == SUP_IOCTL_FAST_DO_HWACC_RUN
-                  || uCmd == SUP_IOCTL_FAST_DO_NOP))
-        return supdrvIOCtlFast(uCmd, ulArg, &g_DevExt, (PSUPDRVSESSION)pFilp->private_data);
-    return VBoxDrvLinuxIOCtlSlow(pFilp, uCmd, ulArg);
+    if (RT_LIKELY(   (   uCmd == SUP_IOCTL_FAST_DO_RAW_RUN
+                      || uCmd == SUP_IOCTL_FAST_DO_HM_RUN
+                      || uCmd == SUP_IOCTL_FAST_DO_NOP)
+                  && pSession->fUnrestricted == true))
+        return supdrvIOCtlFast(uCmd, ulArg, &g_DevExt, pSession);
+    return VBoxDrvLinuxIOCtlSlow(pFilp, uCmd, ulArg, pSession);
 
 #else   /* !HAVE_UNLOCKED_IOCTL */
 
     int rc;
     unlock_kernel();
-    if (RT_LIKELY(   uCmd == SUP_IOCTL_FAST_DO_RAW_RUN
-                  || uCmd == SUP_IOCTL_FAST_DO_HWACC_RUN
-                  || uCmd == SUP_IOCTL_FAST_DO_NOP))
-        rc = supdrvIOCtlFast(uCmd, ulArg, &g_DevExt, (PSUPDRVSESSION)pFilp->private_data);
+    if (RT_LIKELY(   (   uCmd == SUP_IOCTL_FAST_DO_RAW_RUN
+                      || uCmd == SUP_IOCTL_FAST_DO_HM_RUN
+                      || uCmd == SUP_IOCTL_FAST_DO_NOP)
+                  && pSession->fUnrestricted == true))
+        rc = supdrvIOCtlFast(uCmd, ulArg, &g_DevExt, pSession);
     else
-        rc = VBoxDrvLinuxIOCtlSlow(pFilp, uCmd, ulArg);
+        rc = VBoxDrvLinuxIOCtlSlow(pFilp, uCmd, ulArg, pSession);
     lock_kernel();
     return rc;
 #endif  /* !HAVE_UNLOCKED_IOCTL */
@@ -578,8 +658,9 @@ static int VBoxDrvLinuxIOCtl(struct inode *pInode, struct file *pFilp, unsigned 
  * @param   pFilp       Associated file pointer.
  * @param   uCmd        The function specified to ioctl().
  * @param   ulArg       The argument specified to ioctl().
+ * @param   pSession    The session instance.
  */
-static int VBoxDrvLinuxIOCtlSlow(struct file *pFilp, unsigned int uCmd, unsigned long ulArg)
+static int VBoxDrvLinuxIOCtlSlow(struct file *pFilp, unsigned int uCmd, unsigned long ulArg, PSUPDRVSESSION pSession)
 {
     int                 rc;
     SUPREQHDR           Hdr;
@@ -632,7 +713,7 @@ static int VBoxDrvLinuxIOCtlSlow(struct file *pFilp, unsigned int uCmd, unsigned
     /*
      * Process the IOCtl.
      */
-    rc = supdrvIOCtl(uCmd, &g_DevExt, (PSUPDRVSESSION)pFilp->private_data, pHdr);
+    rc = supdrvIOCtl(uCmd, &g_DevExt, pSession, pHdr);
 
     /*
      * Copy ioctl data and output buffer back to user space.

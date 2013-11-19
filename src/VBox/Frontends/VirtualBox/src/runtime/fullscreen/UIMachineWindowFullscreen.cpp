@@ -21,9 +21,6 @@
 #include <QDesktopWidget>
 #include <QMenu>
 #include <QTimer>
-#ifdef Q_WS_MAC
-# include <QMenuBar>
-#endif /* Q_WS_MAC */
 
 /* GUI includes: */
 #include "VBoxGlobal.h"
@@ -31,7 +28,9 @@
 #include "UIActionPoolRuntime.h"
 #include "UIMachineLogicFullscreen.h"
 #include "UIMachineWindowFullscreen.h"
-#include "VBoxMiniToolBar.h"
+#include "UIMachineView.h"
+#include "UIMachineDefs.h"
+#include "UIMiniToolBar.h"
 
 /* COM includes: */
 #include "CSnapshot.h"
@@ -104,21 +103,22 @@ void UIMachineWindowFullscreen::prepareMiniToolbar()
     bool fIsAtTop = m.GetExtraData(GUI_MiniToolBarAlignment) == "top";
     /* Get the mini-toolbar auto-hide feature availability: */
     bool fIsAutoHide = m.GetExtraData(GUI_MiniToolBarAutoHide) != "off";
-    m_pMiniToolBar = new VBoxMiniToolBar(centralWidget(),
-                                         fIsAtTop ? VBoxMiniToolBar::AlignTop : VBoxMiniToolBar::AlignBottom,
-                                         true, fIsAutoHide);
-    m_pMiniToolBar->updateDisplay(true, true);
+    /* Create mini-toolbar: */
+    m_pMiniToolBar = new UIRuntimeMiniToolBar(this,
+                                              fIsAtTop ? Qt::AlignTop : Qt::AlignBottom,
+                                              IntegrationMode_Embedded,
+                                              fIsAutoHide);
     QList<QMenu*> menus;
     RuntimeMenuType restrictedMenus = VBoxGlobal::restrictedRuntimeMenuTypes(m);
     RuntimeMenuType allowedMenus = static_cast<RuntimeMenuType>(RuntimeMenuType_All ^ restrictedMenus);
     QList<QAction*> actions = uisession()->newMenu(allowedMenus)->actions();
     for (int i=0; i < actions.size(); ++i)
         menus << actions.at(i)->menu();
-    *m_pMiniToolBar << menus;
-    connect(m_pMiniToolBar, SIGNAL(minimizeAction()), this, SLOT(showMinimized()));
-    connect(m_pMiniToolBar, SIGNAL(exitAction()),
+    m_pMiniToolBar->addMenus(menus);
+    connect(m_pMiniToolBar, SIGNAL(sigMinimizeAction()), this, SLOT(showMinimized()));
+    connect(m_pMiniToolBar, SIGNAL(sigExitAction()),
             gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SLOT(trigger()));
-    connect(m_pMiniToolBar, SIGNAL(closeAction()),
+    connect(m_pMiniToolBar, SIGNAL(sigCloseAction()),
             gActionPool->action(UIActionIndexRuntime_Simple_Close), SLOT(trigger()));
 }
 
@@ -129,7 +129,7 @@ void UIMachineWindowFullscreen::cleanupMiniToolbar()
         return;
 
     /* Save mini-toolbar settings: */
-    machine().SetExtraData(GUI_MiniToolBarAutoHide, m_pMiniToolBar->isAutoHide() ? QString() : "off");
+    machine().SetExtraData(GUI_MiniToolBarAutoHide, m_pMiniToolBar->autoHide() ? QString() : "off");
     /* Delete mini-toolbar: */
     delete m_pMiniToolBar;
     m_pMiniToolBar = 0;
@@ -164,6 +164,11 @@ void UIMachineWindowFullscreen::placeOnScreen()
     move(workingArea.topLeft());
     /* Resize to the appropriate size: */
     resize(workingArea.size());
+    /* Adjust guest screen size if necessary: */
+    machineView()->maybeAdjustGuestScreenSize();
+    /* Move mini-toolbar into appropriate place: */
+    if (m_pMiniToolBar)
+        m_pMiniToolBar->adjustGeometry();
     /* Process pending move & resize events: */
     qApp->processEvents();
 }
@@ -179,8 +184,7 @@ void UIMachineWindowFullscreen::showInNecessaryMode()
             /* Is this guest screen has own host screen? */
             if (pFullscreenLogic->hasHostScreenForGuestScreen(m_uScreenId))
             {
-                /* Make sure the window is placed on valid screen
-                 * before we are show fullscreen window: */
+                /* Make sure the window is maximized and placed on valid screen: */
                 placeOnScreen();
 
 #ifdef Q_WS_WIN
@@ -192,19 +196,13 @@ void UIMachineWindowFullscreen::showInNecessaryMode()
                     setWindowState(windowState() | Qt::WindowActive);
 #endif /* Q_WS_WIN */
 
-                /* Show window fullscreen: */
+                /* Show in fullscreen mode: */
                 showFullScreen();
 
                 /* Make sure the window is placed on valid screen again
                  * after window is shown & window's decorations applied.
-                 * That is required due to X11 Window Geometry Rules. */
+                 * That is required (still?) due to X11 Window Geometry Rules. */
                 placeOnScreen();
-
-#ifdef Q_WS_MAC
-                /* Make sure it is really on the right place (especially on the Mac): */
-                QRect r = QApplication::desktop()->screenGeometry(qobject_cast<UIMachineLogicFullscreen*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId));
-                move(r.topLeft());
-#endif /* Q_WS_MAC */
 
                 /* Return early: */
                 return;
@@ -235,7 +233,7 @@ void UIMachineWindowFullscreen::updateAppearanceOf(int iElement)
                 strSnapshotName = " (" + snapshot.GetName() + ")";
             }
             /* Update mini-toolbar text: */
-            m_pMiniToolBar->setDisplayText(m.GetName() + strSnapshotName);
+            m_pMiniToolBar->setText(m.GetName() + strSnapshotName);
         }
     }
 }

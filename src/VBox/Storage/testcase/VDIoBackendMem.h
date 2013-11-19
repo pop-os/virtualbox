@@ -20,20 +20,7 @@
 
 #include <iprt/sg.h>
 
-/**
- * I/O transfer direction.
- */
-typedef enum VDIOTXDIR
-{
-    /** Read. */
-    VDIOTXDIR_READ = 0,
-    /** Write. */
-    VDIOTXDIR_WRITE,
-    /** Flush. */
-    VDIOTXDIR_FLUSH,
-    /** Invalid. */
-    VDIOTXDIR_INVALID
-} VDIOTXDIR;
+#include "VDDefs.h"
 
 /** Memory backend handle. */
 typedef struct VDIOBACKENDMEM *PVDIOBACKENDMEM;
@@ -85,8 +72,7 @@ int VDIoBackendMemDestroy(PVDIOBACKENDMEM pIoBackend);
  * @param pvUser         Opaque user data.
  */
 int VDIoBackendMemTransfer(PVDIOBACKENDMEM pIoBackend, PVDMEMDISK pMemDisk,
-                           VDIOTXDIR enmTxDir, uint64_t off, size_t cbTransfer, PCRTSGSEG paSegs,
-                           unsigned cSegs,
-                           PFNVDIOCOMPLETE pfnComplete, void *pvUser);
+                           VDIOTXDIR enmTxDir, uint64_t off, size_t cbTransfer,
+                           PRTSGBUF pSgBuf, PFNVDIOCOMPLETE pfnComplete, void *pvUser);
 
 #endif /* __VDIoBackendMem_h__ */

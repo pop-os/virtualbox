@@ -34,6 +34,7 @@
 /* Forward declarations: */
 class QAction;
 class QImage;
+class QPixmap;
 class QMenu;
 class QTimer;
 
@@ -71,8 +72,8 @@ public:
 
 private slots:
 
-    /* Handler: Global-event listener: */
-    void sltMachineStateChange(QString strId, KMachineState state);
+    /* Handler: Global-event listener stuff: */
+    void sltMachineStateChange(QString strId);
 
     /* Handler: Preview recreator: */
     void sltRecreatePreview();
@@ -96,23 +97,21 @@ private:
 
     /* Helpers: Update stuff: */
     void setUpdateInterval(UpdateInterval interval, bool fSave);
-    void repaintBGImages();
+    void recalculatePreviewRectangle();
     void restart();
     void stop();
 
     /* Variables: */
     CSession m_session;
     CMachine m_machine;
-    KMachineState m_machineState;
     QTimer *m_pUpdateTimer;
     QMenu *m_pUpdateTimerMenu;
     QHash<UpdateInterval, QAction*> m_actions;
-    const int m_vMargin;
-    QRect m_wRect;
+    const int m_iMargin;
     QRect m_vRect;
-    QImage *m_pbgImage;
+    QPixmap *m_pbgEmptyImage;
+    QPixmap *m_pbgFullImage;
     QImage *m_pPreviewImg;
-    QImage *m_pGlossyImg;
     static UpdateIntervalMap m_intervals;
 };
 

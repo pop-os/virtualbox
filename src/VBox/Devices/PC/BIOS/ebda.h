@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -214,11 +214,14 @@ typedef struct {
     uint16_t    skip_a;             /* Bytes to skip after transfer. */
 } disk_req_t;
 
-uint16_t ahci_cmd_packet(uint16_t device_id, uint8_t cmdlen, char __far *cmdbuf,
-                         uint16_t header, uint32_t length, uint8_t inout, char __far *buffer);
+extern uint16_t ahci_cmd_packet(uint16_t device_id, uint8_t cmdlen, char __far *cmdbuf,
+                                uint16_t header, uint32_t length, uint8_t inout, char __far *buffer);
+extern uint16_t scsi_cmd_packet(uint16_t device, uint8_t cmdlen, char __far *cmdbuf,
+                                uint16_t header, uint32_t length, uint8_t inout, char __far *buffer);
+extern uint16_t ata_cmd_packet(uint16_t device, uint8_t cmdlen, char __far *cmdbuf,
+                               uint16_t header, uint32_t length, uint8_t inout, char __far *buffer);
 
-uint16_t ata_cmd_packet(uint16_t device, uint8_t cmdlen, char __far *cmdbuf, 
-                        uint16_t header, uint32_t length, uint8_t inout, char __far *buffer);
+extern uint16_t ata_soft_reset(uint16_t device);
 
 /* All BIOS disk information. Disk-related code in the BIOS should not need
  * anything outside of this structure.
@@ -243,7 +246,7 @@ typedef struct {
 #ifdef VBOX_WITH_SCSI
     /* SCSI bus-specific device information. */
     scsi_dev_t  scsidev[BX_MAX_SCSI_DEVICES];
-    uint8_t     scsi_hdcount;       /* Number of SCSI disks. */
+    uint8_t     scsi_devcount;      /* Number of SCSI devices. */
 #endif
 
 #ifdef VBOX_WITH_AHCI
@@ -313,6 +316,8 @@ int __fastcall scsi_write_sectors(bio_dsk_t __far *bios_dsk);
 
 int __fastcall ahci_read_sectors(bio_dsk_t __far *bios_dsk);
 int __fastcall ahci_write_sectors(bio_dsk_t __far *bios_dsk);
+
+extern void set_geom_lba(chs_t __far *lgeo, uint32_t nsectors);
 
 // @todo: put this elsewhere (and change/eliminate?)
 #define SET_DISK_RET_STATUS(status) write_byte(0x0040, 0x0074, status)

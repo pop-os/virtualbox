@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,7 +66,7 @@
 # define TRPM_ENTER_DBG_HOOK(a_iVector) \
     uint32_t const fDbgEFlags1 = CPUMRawGetEFlags(pVCpu); \
     if (!(fDbgEFlags1 & X86_EFL_IF)) Log(("%s: IF=0 ##\n", __FUNCTION__)); \
-    else do {} while(0)
+    else do {} while (0)
 # define TRPM_EXIT_DBG_HOOK(a_iVector) \
     do { \
         uint32_t const fDbgEFlags2 = CPUMRawGetEFlags(pVCpu); \
@@ -180,7 +180,7 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
         {
             TMTimerPollVoid(pVM, pVCpu);
             Log2(("TMTimerPoll at %08RX32 - VM_FF_TM_VIRTUAL_SYNC=%d VM_FF_TM_VIRTUAL_SYNC=%d\n", pRegFrame->eip,
-                  VM_FF_ISPENDING(pVM, VM_FF_TM_VIRTUAL_SYNC), VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_TIMER)));
+                  VM_FF_IS_PENDING(pVM, VM_FF_TM_VIRTUAL_SYNC), VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TIMER)));
         }
     }
     else
@@ -188,7 +188,7 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
 #endif
 
     /* Clear pending inhibit interrupt state if required. (necessary for dispatching interrupts later on) */
-    if (VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
+    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
     {
         Log2(("VM_FF_INHIBIT_INTERRUPTS at %08RX32 successor %RGv\n", pRegFrame->eip, EMGetInhibitInterruptsPC(pVCpu)));
         if (pRegFrame->eip != EMGetInhibitInterruptsPC(pVCpu))
@@ -207,8 +207,8 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
      * Or pending (A)PIC interrupt? Windows XP will crash if we delay APIC interrupts.
      */
     if (    rc == VINF_SUCCESS
-        &&  (   VM_FF_ISPENDING(pVM, VM_FF_TM_VIRTUAL_SYNC | VM_FF_REQUEST | VM_FF_PGM_NO_MEMORY | VM_FF_PDM_DMA)
-             || VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_TIMER | VMCPU_FF_TO_R3 | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC
+        &&  (   VM_FF_IS_PENDING(pVM, VM_FF_TM_VIRTUAL_SYNC | VM_FF_REQUEST | VM_FF_PGM_NO_MEMORY | VM_FF_PDM_DMA)
+             || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TIMER | VMCPU_FF_TO_R3 | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC
                                           | VMCPU_FF_REQUEST | VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL
                                           | VMCPU_FF_PDM_CRITSECT
                                           | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS
@@ -217,34 +217,34 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
        )
     {
         /* The out of memory condition naturally outranks the others. */
-        if (RT_UNLIKELY(VM_FF_ISPENDING(pVM, VM_FF_PGM_NO_MEMORY)))
+        if (RT_UNLIKELY(VM_FF_IS_PENDING(pVM, VM_FF_PGM_NO_MEMORY)))
             rc = VINF_EM_NO_MEMORY;
         /* Pending Ring-3 action. */
-        else if (VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_TO_R3 | VMCPU_FF_PDM_CRITSECT))
+        else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TO_R3 | VMCPU_FF_PDM_CRITSECT))
         {
             VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_TO_R3);
             rc = VINF_EM_RAW_TO_R3;
         }
         /* Pending timer action. */
-        else if (VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_TIMER))
+        else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TIMER))
             rc = VINF_EM_RAW_TIMER_PENDING;
         /* The Virtual Sync clock has stopped. */
-        else if (VM_FF_ISPENDING(pVM, VM_FF_TM_VIRTUAL_SYNC))
+        else if (VM_FF_IS_PENDING(pVM, VM_FF_TM_VIRTUAL_SYNC))
             rc = VINF_EM_RAW_TO_R3;
         /* DMA work pending? */
-        else if (VM_FF_ISPENDING(pVM, VM_FF_PDM_DMA))
+        else if (VM_FF_IS_PENDING(pVM, VM_FF_PDM_DMA))
             rc = VINF_EM_RAW_TO_R3;
         /* Pending request packets might contain actions that need immediate
            attention, such as pending hardware interrupts. */
-        else if (   VM_FF_ISPENDING(pVM, VM_FF_REQUEST)
-                 || VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_REQUEST))
+        else if (   VM_FF_IS_PENDING(pVM, VM_FF_REQUEST)
+                 || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_REQUEST))
             rc = VINF_EM_PENDING_REQUEST;
         /* Pending GDT/LDT/TSS sync. */
-        else if (VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS))
+        else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS))
             rc = VINF_SELM_SYNC_GDT;
         /* Pending interrupt: dispatch it. */
-        else if (    VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
-                 && !VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
+        else if (    VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
+                 && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
                  &&  PATMAreInterruptsEnabledByCtxCore(pVM, pRegFrame)
            )
         {
@@ -269,12 +269,12 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
         /*
          * Try sync CR3?
          */
-        else if (VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL))
+        else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL))
         {
 #if 1
             PGMRZDynMapReleaseAutoSet(pVCpu);
             PGMRZDynMapStartAutoSet(pVCpu);
-            rc = PGMSyncCR3(pVCpu, CPUMGetGuestCR0(pVCpu), CPUMGetGuestCR3(pVCpu), CPUMGetGuestCR4(pVCpu), VMCPU_FF_ISSET(pVCpu, VMCPU_FF_PGM_SYNC_CR3));
+            rc = PGMSyncCR3(pVCpu, CPUMGetGuestCR0(pVCpu), CPUMGetGuestCR3(pVCpu), CPUMGetGuestCR4(pVCpu), VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3));
 #else
             rc = VINF_PGM_SYNC_CR3;
 #endif
@@ -320,9 +320,15 @@ DECLASM(int) TRPMGCTrap01Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
      * Now leave the rest to the DBGF.
      */
     PGMRZDynMapStartAutoSet(pVCpu);
-    int rc = DBGFRZTrap01Handler(pVM, pVCpu, pRegFrame, uDr6);
+    int rc = DBGFRZTrap01Handler(pVM, pVCpu, pRegFrame, uDr6, false /*fAltStepping*/);
     if (rc == VINF_EM_RAW_GUEST_TRAP)
-        CPUMSetGuestDR6(pVCpu, uDr6);
+    {
+        CPUMSetGuestDR6(pVCpu, (CPUMGetGuestDR6(pVCpu) & ~X86_DR6_B_MASK) | uDr6);
+        if (CPUMGetGuestDR7(pVCpu) & X86_DR7_GD)
+            CPUMSetGuestDR7(pVCpu, CPUMGetGuestDR7(pVCpu) & ~X86_DR7_GD);
+    }
+    else if (rc == VINF_EM_DBG_STEPPED)
+        pRegFrame->eflags.Bits.u1TF = 0;
 
     rc = trpmGCExitTrap(pVM, pVCpu, rc, pRegFrame);
     Log6(("TRPMGC01: %Rrc (%04x:%08x %RTreg %EFlag=%#x)\n", rc, pRegFrame->cs.Sel, pRegFrame->eip, uDr6, CPUMRawGetEFlags(pVCpu)));
@@ -367,8 +373,10 @@ DECLASM(int) TRPMGCHyperTrap01Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     /*
      * Now leave the rest to the DBGF.
      */
-    int rc = DBGFRZTrap01Handler(pVM, pVCpu, pRegFrame, uDr6);
+    int rc = DBGFRZTrap01Handler(pVM, pVCpu, pRegFrame, uDr6, false /*fAltStepping*/);
     AssertStmt(rc != VINF_EM_RAW_GUEST_TRAP, rc = VERR_TRPM_IPE_1);
+    if (rc == VINF_EM_DBG_STEPPED)
+        pRegFrame->eflags.Bits.u1TF = 0;
 
     Log6(("TRPMGCHyper01: %Rrc (%04x:%08x %RTreg)\n", rc, pRegFrame->cs.Sel, pRegFrame->eip, uDr6));
     TRPM_EXIT_DBG_HOOK_HYPER(1);
@@ -391,7 +399,9 @@ DECLASM(int) TRPMGCHyperTrap01Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
 DECLASM(int) TRPMGCTrap02Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
 {
     LogFlow(("TRPMGCTrap02Handler: cs:eip=%04x:%08x\n", pRegFrame->cs.Sel, pRegFrame->eip));
+#if 0 /* Enable this iff you have a COM port and really want this debug info. */
     RTLogComPrintf("TRPMGCTrap02Handler: cs:eip=%04x:%08x\n", pRegFrame->cs.Sel, pRegFrame->eip);
+#endif
     NOREF(pTrpmCpu);
     return VERR_TRPM_DONT_PANIC;
 }
@@ -415,7 +425,9 @@ DECLASM(int) TRPMGCTrap02Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
 DECLASM(int) TRPMGCHyperTrap02Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
 {
     LogFlow(("TRPMGCHyperTrap02Handler: cs:eip=%04x:%08x\n", pRegFrame->cs.Sel, pRegFrame->eip));
+#if 0 /* Enable this iff you have a COM port and really want this debug info. */
     RTLogComPrintf("TRPMGCHyperTrap02Handler: cs:eip=%04x:%08x\n", pRegFrame->cs.Sel, pRegFrame->eip);
+#endif
     NOREF(pTrpmCpu);
     return VERR_TRPM_DONT_PANIC;
 }
@@ -1063,9 +1075,53 @@ static int trpmGCTrap0dHandler(PVM pVM, PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFram
     if (    pVCpu->trpm.s.uActiveErrorCode == 0
         &&  (Cpu.pCurInstr->fOpType & DISOPTYPE_PORTIO))
     {
-        VBOXSTRICTRC rcStrict = IOMRCIOPortHandler(pVM, pRegFrame, &Cpu);
+        VBOXSTRICTRC rcStrict = IOMRCIOPortHandler(pVM, pVCpu, pRegFrame, &Cpu);
         if (IOM_SUCCESS(rcStrict))
+        {
             pRegFrame->rip += cbOp;
+
+            /*
+             * Check for I/O breakpoints.  A bit clumsy, but should be short lived (moved to IEM).
+             */
+            uint32_t const uDr7 = CPUMGetGuestDR7(pVCpu);
+            if (RT_UNLIKELY(   (   (uDr7 & X86_DR7_ENABLED_MASK)
+                                && X86_DR7_ANY_RW_IO(uDr7)
+                                && (CPUMGetGuestCR4(pVCpu) & X86_CR4_DE))
+                            || DBGFBpIsHwIoArmed(pVM)))
+            {
+                uint64_t    uPort = pRegFrame->dx;
+                unsigned    cbValue;
+                if (   Cpu.pCurInstr->uOpcode == OP_IN
+                    || Cpu.pCurInstr->uOpcode == OP_INSB
+                    || Cpu.pCurInstr->uOpcode == OP_INSWD)
+                {
+                    cbValue = DISGetParamSize(&Cpu, &Cpu.Param1);
+                    if (Cpu.Param2.fUse & DISUSE_IMMEDIATE)
+                        uPort = Cpu.Param2.uValue;
+                }
+                else
+                {
+                    cbValue = DISGetParamSize(&Cpu, &Cpu.Param2);
+                    if (Cpu.Param1.fUse & DISUSE_IMMEDIATE)
+                        uPort = Cpu.Param1.uValue;
+                }
+
+                VBOXSTRICTRC rcStrict2 = DBGFBpCheckIo(pVM, pVCpu, CPUMCTX_FROM_CORE(pRegFrame), uPort, cbValue);
+                if (rcStrict2 == VINF_EM_RAW_GUEST_TRAP)
+                {
+                    /* Raise #DB. */
+                    TRPMResetTrap(pVCpu);
+                    TRPMAssertTrap(pVCpu, X86_XCPT_DE, TRPM_TRAP);
+                    if (rcStrict)
+                        LogRel(("trpmGCTrap0dHandler: Overriding %Rrc with #DB on I/O port access.\n", VBOXSTRICTRC_VAL(rcStrict)));
+                    rcStrict = VINF_EM_RAW_GUEST_TRAP;
+                }
+                /* rcStrict is VINF_SUCCESS or in [VINF_EM_FIRST..VINF_EM_LAST]. */
+                else if (   rcStrict2 != VINF_SUCCESS
+                         && (rcStrict == VINF_SUCCESS || rcStrict2 < rcStrict))
+                    rcStrict = rcStrict2;
+            }
+        }
         rc = VBOXSTRICTRC_TODO(rcStrict);
         TRPM_EXIT_DBG_HOOK(0xd);
         return trpmGCExitTrap(pVM, pVCpu, rc, pRegFrame);

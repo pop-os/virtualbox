@@ -28,6 +28,7 @@
 #include "QIRichTextLabel.h"
 #include "VBoxMediaComboBox.h"
 #include "QIToolButton.h"
+#include "UIMedium.h"
 
 UIWizardCloneVDPage1::UIWizardCloneVDPage1()
 {
@@ -48,7 +49,7 @@ void UIWizardCloneVDPage1::onHandleOpenSourceDiskClick()
 
 CMedium UIWizardCloneVDPage1::sourceVirtualDisk() const
 {
-    return vboxGlobal().findMedium(m_pSourceDiskSelector->id()).medium();
+    return vboxGlobal().medium(m_pSourceDiskSelector->id()).medium();
 }
 
 void UIWizardCloneVDPage1::setSourceVirtualDisk(const CMedium &sourceVirtualDisk)
@@ -74,7 +75,7 @@ UIWizardCloneVDPageBasic1::UIWizardCloneVDPageBasic1(const CMedium &sourceVirtua
             m_pSourceDiskOpenButton = new QIToolButton(this);
             {
                 m_pSourceDiskOpenButton->setAutoRaise(true);
-                m_pSourceDiskOpenButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png", ":/select_file_dis_16px.png"));
+                m_pSourceDiskOpenButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png", ":/select_file_disabled_16px.png"));
             }
             pSourceDiskLayout->addWidget(m_pSourceDiskSelector);
             pSourceDiskLayout->addWidget(m_pSourceDiskOpenButton);

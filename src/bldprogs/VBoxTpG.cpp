@@ -483,11 +483,15 @@ static RTEXITCODE generateAssembly(PSCMSTREAM pStrm)
                     "  [section __VTG __VTGObj        align=16]\n"
                     "VTG_GLOBAL g_aVTGObj_LinkerPleaseNoticeMe, data\n"
                     "  [section __VTG __VTGPrLc.Begin align=16]\n"
+                    "  dq 0, 0 ; Paranoia, related to the fudge below.\n"
                     "VTG_GLOBAL g_aVTGPrLc, data\n"
                     "  [section __VTG __VTGPrLc align=16]\n"
                     "VTG_GLOBAL g_aVTGPrLc_LinkerPleaseNoticeMe, data\n"
                     "  [section __VTG __VTGPrLc.End   align=16]\n"
                     "VTG_GLOBAL g_aVTGPrLc_End, data\n"
+                    "  dq 0, 0 ; Fudge to work around unidentified linker where it would otherwise generate\n"
+                    "          ; a fix up of the first dword in __VTGPrLc.Begin despite the fact that it were\n"
+                    "          ; an empty section with nothing whatsoever to fix up.\n"
                     " %%endif\n"
                     " [section __VTG __VTGObj]\n"
                     "\n"
@@ -782,22 +786,21 @@ static RTEXITCODE generateAssembly(PSCMSTREAM pStrm)
      * Emit code for the stub functions.
      */
     bool const fWin64   = g_cBits == 64 && (!strcmp(g_pszAssemblerFmtVal, "win64") || !strcmp(g_pszAssemblerFmtVal, "pe64"));
-    bool const fMachO64 = g_cBits == 64 && !strcmp(g_pszAssemblerFmtVal, "macho64");
-    bool const fMachO32 = g_cBits == 32 && !strcmp(g_pszAssemblerFmtVal, "macho32");
+    bool const fElf     = !strcmp(g_pszAssemblerFmtVal, "elf32") || !strcmp(g_pszAssemblerFmtVal, "elf64");
     ScmStreamPrintf(pStrm,
                     "\n"
                     ";\n"
                     "; Prob stubs.\n"
                     ";\n"
                     "BEGINCODE\n"
-                    "extern %sNAME(%s)\n",
-                    g_fProbeFnImported ? "IMP" : "",
-                    g_pszProbeFnName);
-    if (fMachO64 && g_fProbeFnImported && !g_fPic)
+                    );
+    if (g_fProbeFnImported)
         ScmStreamPrintf(pStrm,
-                        "g_pfnVtgProbeFn:\n"
-                        "   dq NAME(%s)\n",
+                        "EXTERN_IMP2 %s\n"
+                        "BEGINCODE ; EXTERN_IMP2 changes section\n",
                         g_pszProbeFnName);
+    else
+        ScmStreamPrintf(pStrm, "extern NAME(%s)\n", g_pszProbeFnName);
 
     RTListForEach(&g_ProviderHead, pProvider, VTGPROVIDER, ListEntry)
     {
@@ -835,7 +838,7 @@ static RTEXITCODE generateAssembly(PSCMSTREAM pStrm)
              * Jump to the fire-probe function.
              */
             if (g_cBits == 32)
-                ScmStreamPrintf(pStrm, g_fPic ?
+                ScmStreamPrintf(pStrm, g_fPic && fElf ?
                                 "        jmp     %s wrt ..plt\n"
                                 : g_fProbeFnImported ?
                                 "        mov     ecx, IMP2(%s)\n"
@@ -843,22 +846,11 @@ static RTEXITCODE generateAssembly(PSCMSTREAM pStrm)
                                 :
                                 "        jmp     NAME(%s)\n"
                                 , g_pszProbeFnName);
-            else if (fWin64)
-                ScmStreamPrintf(pStrm, g_fProbeFnImported ?
-                                "        mov     rax, IMP2(%s)\n"
-                                "        jmp     rax\n"
-                                :
-                                "        jmp     NAME(%s)\n"
-                                , g_pszProbeFnName);
-            else if (fMachO64 && g_fProbeFnImported)
-                ScmStreamPrintf(pStrm,
-                                "        jmp     [g_pfnVtgProbeFn wrt rip]\n");
             else
-                ScmStreamPrintf(pStrm, g_fPic ?
+                ScmStreamPrintf(pStrm, g_fPic && fElf ?
                                 "        jmp     [rel %s wrt ..got]\n"
                                 : g_fProbeFnImported ?
-                                "        lea     rax, [IMP2(%s)]\n"
-                                "        jmp     rax\n"
+                                "        jmp     IMP2(%s)\n"
                                 :
                                 "        jmp     NAME(%s)\n"
                                 , g_pszProbeFnName);
@@ -2320,7 +2312,7 @@ static RTEXITCODE parseArguments(int argc,  char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                static const char s_szRev[] = "$Revision: 80390 $";
+                static const char s_szRev[] = "$Revision: 87697 $";
                 const char *psz = RTStrStripL(strchr(s_szRev, ' '));
                 RTPrintf("r%.*s\n", strchr(psz, ' ') - psz, psz);
                 return RTEXITCODE_SUCCESS;

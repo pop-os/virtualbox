@@ -56,29 +56,49 @@
 
 
 /** Use flags (CPUM::fUseFlags).
- * (Don't forget to sync this with CPUMInternal.mac!)
+ * (Don't forget to sync this with CPUMInternal.mac !)
  * @{ */
 /** Used the FPU, SSE or such stuff. */
 #define CPUM_USED_FPU                   RT_BIT(0)
 /** Used the FPU, SSE or such stuff since last we were in REM.
  * REM syncing is clearing this, lazy FPU is setting it. */
 #define CPUM_USED_FPU_SINCE_REM         RT_BIT(1)
-/** Host OS is using SYSENTER and we must NULL the CS. */
-#define CPUM_USE_SYSENTER               RT_BIT(2)
-/** Host OS is using SYSENTER and we must NULL the CS. */
-#define CPUM_USE_SYSCALL                RT_BIT(3)
-/** Debug registers are used by host and must be disabled. */
-#define CPUM_USE_DEBUG_REGS_HOST        RT_BIT(4)
-/** Enabled use of debug registers in guest context. */
-#define CPUM_USE_DEBUG_REGS             RT_BIT(5)
 /** The XMM state was manually restored. (AMD only) */
-#define CPUM_MANUAL_XMM_RESTORE         RT_BIT(6)
-/** Sync the FPU state on entry (32->64 switcher only). */
-#define CPUM_SYNC_FPU_STATE             RT_BIT(7)
-/** Sync the debug state on entry (32->64 switcher only). */
-#define CPUM_SYNC_DEBUG_STATE           RT_BIT(8)
-/** Enabled use of hypervisor debug registers in guest context. */
-#define CPUM_USE_DEBUG_REGS_HYPER       RT_BIT(9)
+#define CPUM_USED_MANUAL_XMM_RESTORE    RT_BIT(2)
+
+/** Host OS is using SYSENTER and we must NULL the CS. */
+#define CPUM_USE_SYSENTER               RT_BIT(3)
+/** Host OS is using SYSENTER and we must NULL the CS. */
+#define CPUM_USE_SYSCALL                RT_BIT(4)
+
+/** Debug registers are used by host and that DR7 and DR6 must be saved and
+ *  disabled when switching to raw-mode. */
+#define CPUM_USE_DEBUG_REGS_HOST        RT_BIT(5)
+/** Records that we've saved the host DRx registers.
+ * In ring-0 this means all (DR0-7), while in raw-mode context this means DR0-3
+ * since DR6 and DR7 are covered by CPUM_USE_DEBUG_REGS_HOST. */
+#define CPUM_USED_DEBUG_REGS_HOST       RT_BIT(6)
+/** Set to indicate that we should save host DR0-7 and load the hypervisor debug
+ * registers in the raw-mode world switchers. (See CPUMRecalcHyperDRx.) */
+#define CPUM_USE_DEBUG_REGS_HYPER       RT_BIT(7)
+/** Used in ring-0 to indicate that we have loaded the hypervisor debug
+ * registers. */
+#define CPUM_USED_DEBUG_REGS_HYPER      RT_BIT(8)
+/** Used in ring-0 to indicate that we have loaded the guest debug
+ * registers (DR0-3 and maybe DR6) for direct use by the guest.
+ * DR7 (and AMD-V DR6) are handled via the VMCB. */
+#define CPUM_USED_DEBUG_REGS_GUEST      RT_BIT(9)
+
+
+/** Sync the FPU state on next entry (32->64 switcher only). */
+#define CPUM_SYNC_FPU_STATE             RT_BIT(16)
+/** Sync the debug state on next entry (32->64 switcher only). */
+#define CPUM_SYNC_DEBUG_REGS_GUEST      RT_BIT(17)
+/** Sync the debug state on next entry (32->64 switcher only).
+ * Almost the same as CPUM_USE_DEBUG_REGS_HYPER in the raw-mode switchers.  */
+#define CPUM_SYNC_DEBUG_REGS_HYPER      RT_BIT(18)
+/** Host CPU requires fxsave/fxrstor leaky bit handling. */
+#define CPUM_USE_FFXSR_LEAKY            RT_BIT(19)
 /** @} */
 
 /* Sanity check. */
@@ -297,7 +317,7 @@ typedef struct CPUM
     /** CR4 mask */
     struct
     {
-        uint32_t            AndMask;
+        uint32_t            AndMask; /**< @todo Move these to the per-CPU structure and fix the switchers. Saves a register! */
         uint32_t            OrMask;
     } CR4;
 
@@ -323,12 +343,6 @@ typedef struct CPUM
 
 #if HC_ARCH_BITS == 32
     uint8_t                 abPadding2[4];
-#endif
-
-#ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
-    RTHCPTR                 pvApicBase;
-    uint32_t                fApicDisVectors;
-    uint8_t                 abPadding3[4];
 #endif
 } CPUM;
 /** Pointer to the CPUM instance data residing in the shared VM structure. */
@@ -387,13 +401,27 @@ typedef struct CPUMCPU
      * 32-64 switcher. */
     uint32_t                u32RetCode;
 
+#ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
+    /** The address of the APIC mapping, NULL if no APIC.
+     * Call CPUMR0SetLApic to update this before doing a world switch. */
+    RTHCPTR                 pvApicBase;
+    /** Used by the world switcher code to store which vectors needs restoring on
+     * the way back. */
+    uint32_t                fApicDisVectors;
+    /** Set if the CPU has the X2APIC mode enabled.
+     * Call CPUMR0SetLApic to update this before doing a world switch. */
+    bool                    fX2Apic;
+#else
+    uint8_t                 abPadding3[(HC_ARCH_BITS == 64 ? 8 : 4) + 4 + 1];
+#endif
+
     /** Have we entered raw-mode? */
     bool                    fRawEntered;
     /** Have we entered the recompiler? */
     bool                    fRemEntered;
 
     /** Align the structure on a 64-byte boundary. */
-    uint8_t                 abPadding2[64 - 16 - 2];
+    uint8_t                 abPadding2[64 - 16 - (HC_ARCH_BITS == 64 ? 8 : 4) - 4 - 1 - 2];
 } CPUMCPU;
 /** Pointer to the CPUMCPU instance data residing in the shared VMCPU structure. */
 typedef CPUMCPU *PCPUMCPU;
@@ -405,7 +433,9 @@ RT_C_DECLS_BEGIN
 int                 cpumR3DbgInit(PVM pVM);
 #endif
 
+#ifdef IN_RC
 DECLASM(int)        cpumHandleLazyFPUAsm(PCPUMCPU pCPUM);
+#endif
 
 #ifdef IN_RING0
 DECLASM(int)        cpumR0SaveHostRestoreGuestFPUState(PCPUMCPU pCPUM);

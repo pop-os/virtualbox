@@ -64,7 +64,8 @@ typedef struct RAWIMAGE
     VDGEOMETRY          PCHSGeometry;
     /** Logical geometry of this image. */
     VDGEOMETRY          LCHSGeometry;
-
+    /** Sector size of the image. */
+    uint32_t            cbSector;
 } RAWIMAGE, *PRAWIMAGE;
 
 
@@ -86,6 +87,7 @@ static const VDFILEEXTENSION s_aRawFileExtensions[] =
     {"img", VDTYPE_FLOPPY},
     {"ima", VDTYPE_FLOPPY},
     {"dsk", VDTYPE_FLOPPY},
+    {"flp", VDTYPE_FLOPPY},
     {"vfd", VDTYPE_FLOPPY},
     {NULL, VDTYPE_INVALID}
 };
@@ -146,7 +148,7 @@ static int rawFreeImage(PRAWIMAGE pImage, bool fDelete)
                                                             RAW_FILL_SIZE);
 
                         rc = vdIfIoIntFileWriteSync(pImage->pIfIo, pImage->pStorage,
-                                                    uOff, pvBuf, cbChunk, NULL);
+                                                    uOff, pvBuf, cbChunk);
                         if (RT_FAILURE(rc))
                             goto out;
 
@@ -159,7 +161,7 @@ out:
                 rawFlushImage(pImage);
             }
 
-            vdIfIoIntFileClose(pImage->pIfIo, pImage->pStorage);
+            rc = vdIfIoIntFileClose(pImage->pIfIo, pImage->pStorage);
             pImage->pStorage = NULL;
         }
 
@@ -299,7 +301,7 @@ static int rawCreateImage(PRAWIMAGE pImage, uint64_t cbSize,
             unsigned cbChunk = (unsigned)RT_MIN(cbSize, RAW_FILL_SIZE);
 
             rc = vdIfIoIntFileWriteSync(pImage->pIfIo, pImage->pStorage, uOff,
-                                        pvBuf, cbChunk, NULL);
+                                        pvBuf, cbChunk);
             if (RT_FAILURE(rc))
             {
                 rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("Raw: writing block failed for '%s'"), pImage->pszFilename);
@@ -392,6 +394,7 @@ static int rawCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
         else if (   !RTStrICmp(pszExtension, ".img")
                  || !RTStrICmp(pszExtension, ".ima")
                  || !RTStrICmp(pszExtension, ".dsk")
+                 || !RTStrICmp(pszExtension, ".flp")
                  || !RTStrICmp(pszExtension, ".vfd")) /* Floppy images */
         {
             if (!(cbFile % 512) && cbFile <= RAW_MAX_FLOPPY_IMG_SIZE)
@@ -454,7 +457,13 @@ static int rawOpen(const char *pszFilename, unsigned uOpenFlags,
 
     rc = rawOpenImage(pImage, uOpenFlags);
     if (RT_SUCCESS(rc))
+    {
+        if (enmType == VDTYPE_DVD)
+            pImage->cbSector = 2048;
+        else
+            pImage->cbSector = 512;
         *ppBackendData = pImage;
+    }
     else
         RTMemFree(pImage);
 
@@ -601,97 +610,50 @@ static int rawClose(void *pBackendData, bool fDelete)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnRead */
-static int rawRead(void *pBackendData, uint64_t uOffset, void *pvBuf,
-                   size_t cbToRead, size_t *pcbActuallyRead)
+static int rawRead(void *pBackendData, uint64_t uOffset, size_t cbRead,
+                   PVDIOCTX pIoCtx, size_t *pcbActuallyRead)
 {
-    LogFlowFunc(("pBackendData=%#p uOffset=%llu pvBuf=%#p cbToRead=%zu pcbActuallyRead=%#p\n", pBackendData, uOffset, pvBuf, cbToRead, pcbActuallyRead));
+    int rc = VINF_SUCCESS;
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
-    int rc;
 
-    AssertPtr(pImage);
-    Assert(uOffset % 512 == 0);
-    Assert(cbToRead % 512 == 0);
+    rc = vdIfIoIntFileReadUser(pImage->pIfIo, pImage->pStorage, uOffset,
+                               pIoCtx, cbRead);
+    if (RT_SUCCESS(rc))
+        *pcbActuallyRead = cbRead;
 
-    if (   uOffset + cbToRead > pImage->cbSize
-        || cbToRead == 0)
-    {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
-
-    /* For sequential access do not allow to go back. */
-    if (   pImage->uOpenFlags & VD_OPEN_FLAGS_SEQUENTIAL
-        && uOffset < pImage->offAccess)
-    {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
-
-    rc = vdIfIoIntFileReadSync(pImage->pIfIo, pImage->pStorage, uOffset, pvBuf,
-                               cbToRead, NULL);
-    pImage->offAccess = uOffset + cbToRead;
-    if (pcbActuallyRead)
-        *pcbActuallyRead = cbToRead;
-
-out:
-    LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnWrite */
-static int rawWrite(void *pBackendData, uint64_t uOffset, const void *pvBuf,
-                    size_t cbToWrite, size_t *pcbWriteProcess,
-                    size_t *pcbPreRead, size_t *pcbPostRead, unsigned fWrite)
+static int rawWrite(void *pBackendData, uint64_t uOffset, size_t cbWrite,
+                    PVDIOCTX pIoCtx, size_t *pcbWriteProcess, size_t *pcbPreRead,
+                    size_t *pcbPostRead, unsigned fWrite)
 {
-    LogFlowFunc(("pBackendData=%#p uOffset=%llu pvBuf=%#p cbToWrite=%zu pcbWriteProcess=%#p pcbPreRead=%#p pcbPostRead=%#p\n", pBackendData, uOffset, pvBuf, cbToWrite, pcbWriteProcess, pcbPreRead, pcbPostRead));
+    int rc = VINF_SUCCESS;
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
-    int rc;
 
-    AssertPtr(pImage);
-    Assert(uOffset % 512 == 0);
-    Assert(cbToWrite % 512 == 0);
-
-    if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
+    rc = vdIfIoIntFileWriteUser(pImage->pIfIo, pImage->pStorage, uOffset,
+                                pIoCtx, cbWrite, NULL, NULL);
+    if (RT_SUCCESS(rc))
     {
-        rc = VERR_VD_IMAGE_READ_ONLY;
-        goto out;
+        *pcbWriteProcess = cbWrite;
+        *pcbPostRead = 0;
+        *pcbPreRead  = 0;
     }
 
-    if (   uOffset + cbToWrite > pImage->cbSize
-        || cbToWrite == 0)
-    {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
-
-    /* For sequential access do not allow to go back. */
-    if (   pImage->uOpenFlags & VD_OPEN_FLAGS_SEQUENTIAL
-        && uOffset < pImage->offAccess)
-    {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
-
-    rc = vdIfIoIntFileWriteSync(pImage->pIfIo, pImage->pStorage, uOffset, pvBuf,
-                                cbToWrite, NULL);
-    pImage->offAccess = uOffset + cbToWrite;
-    if (pcbWriteProcess)
-        *pcbWriteProcess = cbToWrite;
-
-out:
-    LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnFlush */
-static int rawFlush(void *pBackendData)
+static int rawFlush(void *pBackendData, PVDIOCTX pIoCtx)
 {
-    LogFlowFunc(("pBackendData=%#p\n", pBackendData));
+    int rc = VINF_SUCCESS;
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
-    int rc;
 
-    rc = rawFlushImage(pImage);
-    LogFlowFunc(("returns %Rrc\n", rc));
+    if (!(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
+        rc = vdIfIoIntFileFlush(pImage->pIfIo, pImage->pStorage, pIoCtx,
+                                NULL, NULL);
+
     return rc;
 }
 
@@ -707,6 +669,22 @@ static unsigned rawGetVersion(void *pBackendData)
         return 1;
     else
         return 0;
+}
+
+/** @copydoc VBOXHDDBACKEND::pfnGetSize */
+static uint32_t rawGetSectorSize(void *pBackendData)
+{
+    LogFlowFunc(("pBackendData=%#p\n", pBackendData));
+    PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
+    uint32_t cb = 0;
+
+    AssertPtr(pImage);
+
+    if (pImage && pImage->pStorage)
+        cb = pImage->cbSector;
+
+    LogFlowFunc(("returns %u\n", cb));
+    return cb;
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnGetSize */
@@ -1146,54 +1124,6 @@ static void rawDump(void *pBackendData)
     }
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnAsyncRead */
-static int rawAsyncRead(void *pBackendData, uint64_t uOffset, size_t cbRead,
-                        PVDIOCTX pIoCtx, size_t *pcbActuallyRead)
-{
-    int rc = VINF_SUCCESS;
-    PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
-
-    rc = vdIfIoIntFileReadUserAsync(pImage->pIfIo, pImage->pStorage, uOffset,
-                                    pIoCtx, cbRead);
-    if (RT_SUCCESS(rc))
-        *pcbActuallyRead = cbRead;
-
-    return rc;
-}
-
-/** @copydoc VBOXHDDBACKEND::pfnAsyncWrite */
-static int rawAsyncWrite(void *pBackendData, uint64_t uOffset, size_t cbWrite,
-                         PVDIOCTX pIoCtx,
-                         size_t *pcbWriteProcess, size_t *pcbPreRead,
-                         size_t *pcbPostRead, unsigned fWrite)
-{
-    int rc = VINF_SUCCESS;
-    PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
-
-    rc = vdIfIoIntFileWriteUserAsync(pImage->pIfIo, pImage->pStorage, uOffset,
-                                     pIoCtx, cbWrite, NULL, NULL);
-    if (RT_SUCCESS(rc))
-    {
-        *pcbWriteProcess = cbWrite;
-        *pcbPostRead = 0;
-        *pcbPreRead  = 0;
-    }
-
-    return rc;
-}
-
-/** @copydoc VBOXHDDBACKEND::pfnAsyncFlush */
-static int rawAsyncFlush(void *pBackendData, PVDIOCTX pIoCtx)
-{
-    int rc = VINF_SUCCESS;
-    PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
-
-    if (!(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
-        rc = vdIfIoIntFileFlushAsync(pImage->pIfIo, pImage->pStorage, pIoCtx,
-                                     NULL, NULL);
-
-    return rc;
-}
 
 
 VBOXHDDBACKEND g_RawBackend =
@@ -1226,8 +1156,12 @@ VBOXHDDBACKEND g_RawBackend =
     rawWrite,
     /* pfnFlush */
     rawFlush,
+    /* pfnDiscard */
+    NULL,
     /* pfnGetVersion */
     rawGetVersion,
+    /* pfnGetSectorSize */
+    rawGetSectorSize,
     /* pfnGetSize */
     rawGetSize,
     /* pfnGetFileSize */
@@ -1278,12 +1212,6 @@ VBOXHDDBACKEND g_RawBackend =
     NULL,
     /* pfnSetParentFilename */
     NULL,
-    /* pfnAsyncRead */
-    rawAsyncRead,
-    /* pfnAsyncWrite */
-    rawAsyncWrite,
-    /* pfnAsyncFlush */
-    rawAsyncFlush,
     /* pfnComposeLocation */
     genericFileComposeLocation,
     /* pfnComposeName */
@@ -1291,10 +1219,6 @@ VBOXHDDBACKEND g_RawBackend =
     /* pfnCompact */
     NULL,
     /* pfnResize */
-    NULL,
-    /* pfnDiscard */
-    NULL,
-    /* pfnAsyncDiscard */
     NULL,
     /* pfnRepair */
     NULL

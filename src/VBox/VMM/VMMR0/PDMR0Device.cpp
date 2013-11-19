@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/vmm.h>
 #include <VBox/vmm/patm.h>
-#include <VBox/vmm/hwaccm.h>
+#include <VBox/vmm/hm.h>
 
 #include <VBox/log.h>
 #include <VBox/err.h>
@@ -56,13 +56,6 @@ RT_C_DECLS_END
 
 
 /*******************************************************************************
-*   Prototypes                                                                 *
-*******************************************************************************/
-static DECLCALLBACK(int) pdmR0DevHlp_PhysRead(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, void *pvBuf, size_t cbRead);
-static DECLCALLBACK(int) pdmR0DevHlp_PhysWrite(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, const void *pvBuf, size_t cbWrite);
-
-
-/*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
 static bool pdmR0IsaSetIrq(PVM pVM, int iIrq, int iLevel, uint32_t uTagSrc);
@@ -77,22 +70,23 @@ static bool pdmR0IsaSetIrq(PVM pVM, int iIrq, int iLevel, uint32_t uTagSrc);
 static DECLCALLBACK(int) pdmR0DevHlp_PCIPhysRead(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, void *pvBuf, size_t cbRead)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    LogFlow(("pdmR0DevHlp_PCIPhysRead: caller=%p/%d: GCPhys=%RGp pvBuf=%p cbRead=%#x\n",
-             pDevIns, pDevIns->iInstance, GCPhys, pvBuf, cbRead));
 
-    PCIDevice *pPciDev = pDevIns->Internal.s.pPciDeviceR0;
-    AssertPtrReturn(pPciDev, VERR_INVALID_POINTER);
+#ifndef PDM_DO_NOT_RESPECT_PCI_BM_BIT
+    /*
+     * Just check the busmaster setting here and forward the request to the generic read helper.
+     */
+    PPCIDEVICE pPciDev = pDevIns->Internal.s.pPciDeviceR0;
+    AssertReleaseMsg(pPciDev, ("No PCI device registered!\n"));
 
     if (!PCIDevIsBusmaster(pPciDev))
     {
-#ifdef DEBUG
-        LogFlow(("%s: %RU16:%RU16: No bus master (anymore), skipping read %p (%z)\n", __FUNCTION__,
-                 PCIDevGetVendorId(pPciDev), PCIDevGetDeviceId(pPciDev), pvBuf, cbRead));
-#endif
-        return VINF_PDM_PCI_PHYS_READ_BM_DISABLED;
+        Log(("pdmRCDevHlp_PCIPhysRead: caller=%p/%d: returns %Rrc - Not bus master! GCPhys=%RGp cbRead=%#zx\n",
+             pDevIns, pDevIns->iInstance, VERR_PDM_NOT_PCI_BUS_MASTER, GCPhys, cbRead));
+        return VERR_PDM_NOT_PCI_BUS_MASTER;
     }
+#endif
 
-    return pdmR0DevHlp_PhysRead(pDevIns, GCPhys, pvBuf, cbRead);
+    return pDevIns->pHlpR0->pfnPhysRead(pDevIns, GCPhys, pvBuf, cbRead);
 }
 
 
@@ -100,22 +94,23 @@ static DECLCALLBACK(int) pdmR0DevHlp_PCIPhysRead(PPDMDEVINS pDevIns, RTGCPHYS GC
 static DECLCALLBACK(int) pdmR0DevHlp_PCIPhysWrite(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, const void *pvBuf, size_t cbWrite)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    LogFlow(("pdmR0DevHlp_PCIPhysWrite: caller=%p/%d: GCPhys=%RGp pvBuf=%p cbWrite=%#x\n",
-             pDevIns, pDevIns->iInstance, GCPhys, pvBuf, cbWrite));
 
-    PCIDevice *pPciDev = pDevIns->Internal.s.pPciDeviceR0;
-    AssertPtrReturn(pPciDev, VERR_INVALID_POINTER);
+#ifndef PDM_DO_NOT_RESPECT_PCI_BM_BIT
+    /*
+     * Just check the busmaster setting here and forward the request to the generic read helper.
+     */
+    PPCIDEVICE pPciDev = pDevIns->Internal.s.pPciDeviceR0;
+    AssertReleaseMsg(pPciDev, ("No PCI device registered!\n"));
 
     if (!PCIDevIsBusmaster(pPciDev))
     {
-#ifdef DEBUG
-        LogFlow(("%s: %RU16:%RU16: No bus master (anymore), skipping write %p (%z)\n", __FUNCTION__,
-                 PCIDevGetVendorId(pPciDev), PCIDevGetDeviceId(pPciDev), pvBuf, cbWrite));
-#endif
-        return VINF_PDM_PCI_PHYS_WRITE_BM_DISABLED;
+        Log(("pdmRCDevHlp_PCIPhysWrite: caller=%p/%d: returns %Rrc - Not bus master! GCPhys=%RGp cbWrite=%#zx\n",
+             pDevIns, pDevIns->iInstance, VERR_PDM_NOT_PCI_BUS_MASTER, GCPhys, cbWrite));
+        return VERR_PDM_NOT_PCI_BUS_MASTER;
     }
+#endif
 
-    return pdmR0DevHlp_PhysWrite(pDevIns, GCPhys, pvBuf, cbWrite);
+    return pDevIns->pHlpR0->pfnPhysWrite(pDevIns, GCPhys, pvBuf, cbWrite);
 }
 
 
@@ -373,7 +368,7 @@ static DECLCALLBACK(bool) pdmR0DevHlp_CanEmulateIoBlock(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     LogFlow(("pdmR0DevHlp_GetVM: caller='%p'/%d\n", pDevIns, pDevIns->iInstance));
-    return HWACCMCanEmulateIoBlock(VMMGetCpu(pDevIns->Internal.s.pVMR0));
+    return HMCanEmulateIoBlock(VMMGetCpu(pDevIns->Internal.s.pVMR0));
 }
 
 
@@ -433,7 +428,7 @@ static DECLCALLBACK(void) pdmR0PicHlp_SetInterruptFF(PPDMDEVINS pDevIns)
     PVMCPU pVCpu = &pVM->aCpus[0];      /* for PIC we always deliver to CPU 0, MP use APIC */
 
     LogFlow(("pdmR0PicHlp_SetInterruptFF: caller=%p/%d: VMCPU_FF_INTERRUPT_PIC %d -> 1\n",
-             pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC)));
+             pDevIns, pDevIns->iInstance, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC)));
 
     VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC);
 }
@@ -458,7 +453,7 @@ static DECLCALLBACK(void) pdmR0PicHlp_ClearInterruptFF(PPDMDEVINS pDevIns)
     PVMCPU pVCpu = &pVM->aCpus[0];      /* for PIC we always deliver to CPU 0, MP use APIC */
 
     LogFlow(("pdmR0PicHlp_ClearInterruptFF: caller=%p/%d: VMCPU_FF_INTERRUPT_PIC %d -> 0\n",
-             pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC)));
+             pDevIns, pDevIns->iInstance, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC)));
 
     VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_PIC);
 }
@@ -512,7 +507,7 @@ static DECLCALLBACK(void) pdmR0ApicHlp_SetInterruptFF(PPDMDEVINS pDevIns, PDMAPI
     AssertReturnVoid(idCpu < pVM->cCpus);
 
     LogFlow(("pdmR0ApicHlp_SetInterruptFF: CPU%d=caller=%p/%d: VM_FF_INTERRUPT %d -> 1 (CPU%d)\n",
-             VMMGetCpuId(pVM), pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC), idCpu));
+             VMMGetCpuId(pVM), pDevIns, pDevIns->iInstance, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC), idCpu));
 
     switch (enmType)
     {
@@ -533,7 +528,7 @@ static DECLCALLBACK(void) pdmR0ApicHlp_SetInterruptFF(PPDMDEVINS pDevIns, PDMAPI
             break;
     }
 
-    /* We need to wait up the target CPU. */
+    /* We need to wake up the target CPU. */
     if (VMMGetCpuId(pVM) != idCpu)
     {
         switch (VMCPU_GET_STATE(pVCpu))
@@ -563,7 +558,7 @@ static DECLCALLBACK(void) pdmR0ApicHlp_ClearInterruptFF(PPDMDEVINS pDevIns, PDMA
     AssertReturnVoid(idCpu < pVM->cCpus);
 
     LogFlow(("pdmR0ApicHlp_ClearInterruptFF: caller=%p/%d: VM_FF_INTERRUPT %d -> 0\n",
-             pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC)));
+             pDevIns, pDevIns->iInstance, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC)));
 
     /* Note: NMI/SMI can't be cleared. */
     switch (enmType)

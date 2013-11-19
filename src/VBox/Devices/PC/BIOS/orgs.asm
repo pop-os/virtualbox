@@ -126,6 +126,7 @@ extrn		_ata_detect:near
 extrn		_cdemu_init:near
 extrn		_keyboard_init:near
 extrn		_print_bios_banner:near
+extrn		_inv_op_handler:near
 
 
 ;; Symbols referenced from C code
@@ -214,55 +215,6 @@ eoi_master_pic:
 		out	PIC_MASTER, al
 		ret
 
-;; --------------------------------------------------------
-;; POST entry point
-;; --------------------------------------------------------
-		BIOSORG	0E05Bh
-post:
-		xor	ax, ax
-
-		;; reset the DMA controllers
-		out	00Dh, al
-		out	0DAh, al
-
-		;; then initialize the DMA controllers
-		mov	al, 0C0h
-		out	0D6h, al	; enable channel 4 cascade
-		mov	al, 0
-		out	0D4h, al	; unmask channel 4
-
-		;; read the CMOS shutdown status
-		mov	al, 0Fh
-		out	CMOS_ADDR, al
-		in	al, CMOS_DATA
-
-		;; save status
-		mov	bl, al
-
-		;; reset the shutdown status in CMOS
-		mov	al, 0Fh
-		out	CMOS_ADDR, al
-		mov	al, 0
-		out	CMOS_DATA, al
-
-		;; examine the shutdown status code
-		mov	al, bl
-		cmp	al, 0
-		jz	normal_post
-		cmp	al, 0Dh
-		jae	normal_post
-		cmp	al, 9
-		je	normal_post	;; TODO: really?!
-
-		;; 05h = EOI + jump through 40:67
-		cmp	al, 5
-		je	eoi_jmp_post
-
-		;; any other shutdown status values are ignored
-		;; OpenSolaris sets the status to 0Ah in some cases?
-		jmp	normal_post
-
-
 		;; routine to write the pointer in DX:AX to memory starting
 		;; at DS:BX (repeat CX times)
 		;; - modifies BX, CX
@@ -276,9 +228,88 @@ set_int_vects	proc	near
 
 set_int_vects	endp
 
+;; --------------------------------------------------------
+;; POST entry point
+;; --------------------------------------------------------
+		BIOSORG	0E05Bh
+post:
+		cli
+
+		;; Check if in protected (V86) mode. If so, the CPU needs
+		;; to be reset.
+		smsw	ax
+		test	ax, 1
+		jz	in_real_mode
+
+		;; Reset processor to get out of protected mode. Use system
+		;; port instead of KBC.
+		;; NB: We only need bit 0 to be set in AL, which we just
+		;; determined to be the case.
+		out	92h, al
+		jmp	$		; not strictly necessary in a VM
+		
+		
+in_real_mode:
+		;; TODO: Check KBC system flag first
+
+		;; read the CMOS shutdown status
+		mov	al, 0Fh
+		out	CMOS_ADDR, al
+		in	al, CMOS_DATA
+
+		;; save status
+		xchg	ah, al
+
+		;; reset the shutdown status in CMOS
+		mov	al, 0Fh
+		out	CMOS_ADDR, al
+		mov	al, 0
+		out	CMOS_DATA, al
+
+		;; pre-check the shutdown status - shutdown codes 9/A leave
+		;; the hardware alone
+		mov	al, ah
+		cmp	al, 09h
+		jz	check_shutdown
+		cmp	al, 0Ah
+		jz	check_shutdown
+		
+		xor	al, al
+
+		;; reset the DMA controllers
+		out	00Dh, al
+		out	0DAh, al
+
+		;; then initialize the DMA controllers
+		mov	al, 0C0h
+		out	0D6h, al	; enable channel 4 cascade
+		mov	al, 0
+		out	0D4h, al	; unmask channel 4
+
+check_shutdown:
+		;; examine the shutdown status code
+		mov	al, ah
+		cmp	al, 0
+		jz	normal_post
+
+		cmp	al, 0Dh
+		jae	normal_post
+		cmp	al, 9
+		jne	check_next_std
+		jmp	return_blkmove
+check_next_std:		
+
+		;; 05h = EOI + jump through 40:67
+		cmp	al, 5
+		je	eoi_jmp_post
+
+		;; any other shutdown status values are ignored
+		;; OpenSolaris sets the status to 0Ah in some cases?
+		jmp	normal_post
+
 normal_post:
 		;; shutdown code 0: normal startup
-		cli
+
 		;; Set up the stack top at 0:7800h. The stack should not be
 		;; located above 0:7C00h; that conflicts with PXE, which
 		;; considers anything above that address to be fair game.
@@ -350,6 +381,7 @@ memory_cleared:
 
 		;; set up various service vectors
 		;; TODO: This should use the table at FEF3h instead
+		SET_INT_VECTOR 06h, BIOSSEG, int06_handler
 		SET_INT_VECTOR 11h, BIOSSEG, int11_handler
 		SET_INT_VECTOR 12h, BIOSSEG, int12_handler
 		SET_INT_VECTOR 15h, BIOSSEG, int15_handler
@@ -461,6 +493,51 @@ memory_cleared:
 
 		call	rom_scan
 
+		jmp	norm_post_cont
+
+
+;; --------------------------------------------------------
+;; NMI handler
+;; --------------------------------------------------------
+		BIOSORG	0E2C3h
+nmi:
+		C_SETUP
+		call	_nmi_handler_msg
+		iret
+
+int75_handler:
+		out	0F0h, al	; clear IRQ13
+		call	eoi_both_pics
+		int	2		; emulate legacy NMI
+		iret
+
+
+hard_drive_post	proc	near
+
+		xor	ax, ax
+		mov	ds, ax
+		;; TODO: Didn't we just clear the entire EBDA?
+		mov	ds:[474h], al	; last HD operation status
+		mov	ds:[477h], al	; HD port offset (XT only???)
+		mov	ds:[48Ch], al	; HD status register
+		mov	ds:[48Dh], al	; HD error register
+		mov	ds:[48Eh], al	; HD task complete flag
+		mov	al, 0C0h
+		mov	ds:[476h], al	; HD control byte
+		;; set up hard disk interrupt vectors
+		SET_INT_VECTOR 13h, BIOSSEG, int13_handler
+		SET_INT_VECTOR 76h, BIOSSEG, int76_handler
+		;; INT 41h/46h: hard disk 0/1 dpt
+		; TODO: This should be done from the code which
+		; builds the DPTs?
+		SET_INT_VECTOR 41h, EBDA_SEG, 3Dh
+		SET_INT_VECTOR 46h, EBDA_SEG, 4Dh
+		ret
+
+hard_drive_post	endp
+
+
+norm_post_cont:
 		C_SETUP
 		;; ATA/ATAPI driver setup
 		call	_ata_init
@@ -498,53 +575,39 @@ wait_forever:
 		jmp	wait_forever
 		cli
 		hlt
+		
 
-
-;; --------------------------------------------------------
-;; NMI handler
-;; --------------------------------------------------------
-		BIOSORG	0E2C3h
-nmi:
-		C_SETUP
-		call	_nmi_handler_msg
-		iret
-
-int75_handler:
-		out	0F0h, al	; clear IRQ13
-		call	eoi_both_pics
-		int	2		; emulate legacy NMI
-		iret
-
-
-hard_drive_post	proc	near
-
-		;; TODO Why? And what about secondary controllers?
-		mov	al, 0Ah		; disable IRQ 14
-		mov	dx, 03F6h
-		out	dx, al
-
-		xor	ax, ax
+;;
+;; Return from block move (shutdown code 09h). Care must be taken to disturb
+;; register and memory state as little as possible.
+;;
+return_blkmove:
+		mov	ax, 40h
 		mov	ds, ax
-		;; TODO: Didn't we just clear the entire EBDA?
-		mov	ds:[474h], al	; last HD operation status
-		mov	ds:[477h], al	; HD port offset (XT only???)
-		mov	ds:[48Ch], al	; HD status register
-		mov	ds:[48Dh], al	; HD error register
-		mov	ds:[48Eh], al	; HD task complete flag
-		mov	al, 0C0h
-		mov	ds:[476h], al	; HD control byte
-		;; set up hard disk interrupt vectors
-		SET_INT_VECTOR 13h, BIOSSEG, int13_handler
-		SET_INT_VECTOR 76h, BIOSSEG, int76_handler
-		;; INT 41h/46h: hard disk 0/1 dpt
-		; TODO: This should be done from the code which
-		; builds the DPTs?
-		SET_INT_VECTOR 41h, EBDA_SEG, 3Dh
-		SET_INT_VECTOR 46h, EBDA_SEG, 4Dh
-		ret
-
-hard_drive_post	endp
-
+		;; restore user stack
+		mov	ss, ds:[69h]
+		mov	sp, ds:[67h]
+		;; reset A20 gate
+		in	al, 92h
+		and	al, 0FDh
+		out	92h, al
+		;; ensure proper real mode IDT
+		lidt	fword ptr cs:_rmode_IDT
+		;; restore user segments
+		pop	ds
+		pop	es
+		;; set up BP
+		mov	bp, sp
+		;; restore status code
+		in	al, 80h
+		mov	[bp+15], al
+		;; set ZF/CF
+		cmp	ah,al		; AH is zero here!
+		;; restore registers and return
+		popa
+		sti
+		retf	2
+		
 
 ;; --------------------------------------------------------
 ;; INT 13h handler - Disk services
@@ -915,6 +978,21 @@ int09_finish:
 		pop	ax
 		iret
 
+
+;; --------------------------------------------------------
+;; INT 06h handler - Invalid Opcode Exception
+;; --------------------------------------------------------
+
+int06_handler:
+		pusha
+		push	es
+		push	ds
+		C_SETUP
+		call	_inv_op_handler
+		pop	ds
+		pop	es
+		popa
+		iret
 
 ;; --------------------------------------------------------
 ;; INT 13h handler - Diskette service
@@ -1536,6 +1614,8 @@ int15_handler:
 		je	int15_handler32
 		cmp	ah, 0E8h
 		je	int15_handler32
+		cmp	ah, 0d0h
+		je	int15_handler32
 		pusha
 		cmp	ah, 53h		; APM function?
 		je	apm_call
@@ -1700,23 +1780,11 @@ int08_handler:
 		sti
 		push	eax
 		push	ds
-		xor	ax, ax
+		push	dx
+		mov	ax, 40h
 		mov	ds, ax
 
-		;; time to turn off floppy driv motor(s)?
-		mov	al, ds:[440h]
-		or	al, al
-		jz	int08_floppy_off
-		;; turn motor(s) off
-		push	dx
-		mov	dx, 03F2h
-		in	al, dx
-		and	al, 0CFh
-		out	dx, al
-		pop	dx
-
-int08_floppy_off:
-		mov	eax, ds:[46Ch]	; get ticks dword
+		mov	eax, ds:[6Ch]	; get ticks dword
 		inc	eax
 
 		;; compare eax to one day's worth of ticks (at 18.2 Hz)
@@ -1724,13 +1792,30 @@ int08_floppy_off:
 		jb	int08_store_ticks
 		;; there has been a midnight rollover
 		xor	eax, eax
-		inc	byte ptr ds:[470h]	; increment rollover flag
+		inc	byte ptr ds:[70h]	; increment rollover flag
 
 int08_store_ticks:
-		mov	ds:[46Ch], eax
+		mov	ds:[6Ch], eax
+
+		;; time to turn off floppy drive motor(s)?
+		mov	al, ds:[40h]
+		or	al, al
+		jz	int08_floppy_off
+		dec	al
+		mov	ds:[40h], al
+		jnz	int08_floppy_off
+		;; turn motor(s) off
+		mov	dx, 03F2h
+		in	al, dx
+		and	al, 0CFh
+		out	dx, al
+int08_floppy_off:
+
 		int	1Ch		; call the user timer handler
+
 		cli
 		call	eoi_master_pic
+		pop	dx
 		pop	ds
 		pop	eax
 		.286

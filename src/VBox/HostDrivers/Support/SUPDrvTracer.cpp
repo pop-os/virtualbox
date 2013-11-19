@@ -345,7 +345,9 @@ static int supdrvVtgValidateHdr(PVTGOBJHDR pVtgHdr, RTUINTPTR uVtgHdrAddr, const
 #ifdef RT_OS_DARWIN
         /* The loader and/or ld64-97.17 seems not to generate fixups for our
            __VTGObj section. Detect this by comparing them with the
-           u64VtgObjSectionStart member and assume max image size of 4MB. */
+           u64VtgObjSectionStart member and assume max image size of 4MB.
+           Seems to be worked around by the __VTGPrLc.End and __VTGPrLc.Begin
+           padding fudge, meaning that the linker misplaced the relocations. */
         if (   (int64_t)u64Tmp != (int32_t)u64Tmp
             && pVtgHdr->u64VtgObjSectionStart != uVtgHdrAddr
             && pVtgHdr->u64VtgObjSectionStart < _4M
@@ -1470,13 +1472,13 @@ SUPR0TracerFireProbe:                                                   \n\
 ");
 # if   defined(RT_ARCH_AMD64)
 __asm__(" \
-	    movq    g_pfnSupdrvProbeFireKernel(%rip), %rax                  \n\
-	    jmp	    *%rax \n\
+            movq    g_pfnSupdrvProbeFireKernel(%rip), %rax                  \n\
+            jmp     *%rax \n\
 ");
 # elif defined(RT_ARCH_X86)
 __asm__("\
-	    movl    g_pfnSupdrvProbeFireKernel, %eax                        \n\
-	    jmp	    *%eax \n\
+            movl    g_pfnSupdrvProbeFireKernel, %eax                        \n\
+            jmp     *%eax \n\
 ");
 # else
 #  error "Which arch is this?"
@@ -2136,6 +2138,7 @@ int  VBOXCALL   supdrvIOCtl_TracerUmodDeregister(PSUPDRVDEVEXT pDevExt, PSUPDRVS
         RTR0MemObjFree(pUmod->hMemObjMap, false /*fFreeMappings*/);
         RTR0MemObjFree(pUmod->hMemObjLock, false /*fFreeMappings*/);
         RTMemFree(pUmod);
+        rc = VINF_SUCCESS;
     }
     else
         rc = VERR_NOT_FOUND;

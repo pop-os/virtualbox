@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,124 +29,183 @@
 /* Machine settings / Display page / Data: */
 struct UIDataSettingsMachineDisplay
 {
-    /* Default constructor: */
+    /* Constructor: */
     UIDataSettingsMachineDisplay()
         : m_iCurrentVRAM(0)
-        , m_cMonitorCount(0)
+        , m_cGuestScreenCount(0)
         , m_f3dAccelerationEnabled(false)
 #ifdef VBOX_WITH_VIDEOHWACCEL
         , m_f2dAccelerationEnabled(false)
 #endif /* VBOX_WITH_VIDEOHWACCEL */
-        , m_fVRDEServerSupported(false)
-        , m_fVRDEServerEnabled(false)
-        , m_strVRDEPort(QString())
-        , m_VRDEAuthType(KAuthType_Null)
-        , m_uVRDETimeout(0)
-        , m_fMultipleConnectionsAllowed(false) {}
+        , m_fRemoteDisplayServerSupported(false)
+        , m_fRemoteDisplayServerEnabled(false)
+        , m_strRemoteDisplayPort(QString())
+        , m_remoteDisplayAuthType(KAuthType_Null)
+        , m_uRemoteDisplayTimeout(0)
+        , m_fRemoteDisplayMultiConnAllowed(false)
+        , m_fVideoCaptureEnabled(false)
+        , m_strVideoCaptureFolder(QString())
+        , m_strVideoCaptureFilePath(QString())
+        , m_iVideoCaptureFrameWidth(0)
+        , m_iVideoCaptureFrameHeight(0)
+        , m_iVideoCaptureFrameRate(0)
+        , m_iVideoCaptureBitRate(0)
+    {}
+
     /* Functions: */
     bool equal(const UIDataSettingsMachineDisplay &other) const
     {
         return (m_iCurrentVRAM == other.m_iCurrentVRAM) &&
-               (m_cMonitorCount == other.m_cMonitorCount) &&
+               (m_cGuestScreenCount == other.m_cGuestScreenCount) &&
                (m_f3dAccelerationEnabled == other.m_f3dAccelerationEnabled) &&
 #ifdef VBOX_WITH_VIDEOHWACCEL
                (m_f2dAccelerationEnabled == other.m_f2dAccelerationEnabled) &&
 #endif /* VBOX_WITH_VIDEOHWACCEL */
-               (m_fVRDEServerSupported == other.m_fVRDEServerSupported) &&
-               (m_fVRDEServerEnabled == other.m_fVRDEServerEnabled) &&
-               (m_strVRDEPort == other.m_strVRDEPort) &&
-               (m_VRDEAuthType == other.m_VRDEAuthType) &&
-               (m_uVRDETimeout == other.m_uVRDETimeout) &&
-               (m_fMultipleConnectionsAllowed == other.m_fMultipleConnectionsAllowed);
+               (m_fRemoteDisplayServerSupported == other.m_fRemoteDisplayServerSupported) &&
+               (m_fRemoteDisplayServerEnabled == other.m_fRemoteDisplayServerEnabled) &&
+               (m_strRemoteDisplayPort == other.m_strRemoteDisplayPort) &&
+               (m_remoteDisplayAuthType == other.m_remoteDisplayAuthType) &&
+               (m_uRemoteDisplayTimeout == other.m_uRemoteDisplayTimeout) &&
+               (m_fRemoteDisplayMultiConnAllowed == other.m_fRemoteDisplayMultiConnAllowed) &&
+               (m_fVideoCaptureEnabled == other.m_fVideoCaptureEnabled) &&
+               (m_strVideoCaptureFilePath == other.m_strVideoCaptureFilePath) &&
+               (m_iVideoCaptureFrameWidth == other.m_iVideoCaptureFrameWidth) &&
+               (m_iVideoCaptureFrameHeight == other.m_iVideoCaptureFrameHeight) &&
+               (m_iVideoCaptureFrameRate == other.m_iVideoCaptureFrameRate) &&
+               (m_iVideoCaptureBitRate == other.m_iVideoCaptureBitRate) &&
+               (m_screens == other.m_screens);
     }
+
     /* Operators: */
     bool operator==(const UIDataSettingsMachineDisplay &other) const { return equal(other); }
     bool operator!=(const UIDataSettingsMachineDisplay &other) const { return !equal(other); }
-    /* Variables: */
+
+    /* Variables: Video stuff: */
     int m_iCurrentVRAM;
-    int m_cMonitorCount;
+    int m_cGuestScreenCount;
     bool m_f3dAccelerationEnabled;
 #ifdef VBOX_WITH_VIDEOHWACCEL
     bool m_f2dAccelerationEnabled;
 #endif /* VBOX_WITH_VIDEOHWACCEL */
-    bool m_fVRDEServerSupported;
-    bool m_fVRDEServerEnabled;
-    QString m_strVRDEPort;
-    KAuthType m_VRDEAuthType;
-    ulong m_uVRDETimeout;
-    bool m_fMultipleConnectionsAllowed;
+
+    /* Variables: Remote Display stuff: */
+    bool m_fRemoteDisplayServerSupported;
+    bool m_fRemoteDisplayServerEnabled;
+    QString m_strRemoteDisplayPort;
+    KAuthType m_remoteDisplayAuthType;
+    ulong m_uRemoteDisplayTimeout;
+    bool m_fRemoteDisplayMultiConnAllowed;
+
+    /* Variables: Video Capture stuff: */
+    bool m_fVideoCaptureEnabled;
+    QString m_strVideoCaptureFolder;
+    QString m_strVideoCaptureFilePath;
+    int m_iVideoCaptureFrameWidth;
+    int m_iVideoCaptureFrameHeight;
+    int m_iVideoCaptureFrameRate;
+    int m_iVideoCaptureBitRate;
+    QVector<BOOL> m_screens;
 };
 typedef UISettingsCache<UIDataSettingsMachineDisplay> UICacheSettingsMachineDisplay;
 
 /* Machine settings / Display page: */
 class UIMachineSettingsDisplay : public UISettingsPageMachine,
-                              public Ui::UIMachineSettingsDisplay
+                                 public Ui::UIMachineSettingsDisplay
 {
     Q_OBJECT;
 
 public:
 
+    /* Constructor: */
     UIMachineSettingsDisplay();
 
+    /* API: Correlation stuff: */
     void setGuestOSType(CGuestOSType guestOSType);
-
 #ifdef VBOX_WITH_VIDEOHWACCEL
     bool isAcceleration2DVideoSelected() const;
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
 protected:
 
-    /* Load data to cashe from corresponding external object(s),
+    /* API: Cache stuff: */
+    bool changed() const { return m_cache.wasChanged(); }
+
+    /* API: Load data to cache from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
-    /* Load data to corresponding widgets from cache,
+    /* API: Load data to corresponding widgets from cache,
      * this task SHOULD be performed in GUI thread only: */
     void getFromCache();
 
-    /* Save data from corresponding widgets to cache,
+    /* API: Save data from corresponding widgets to cache,
      * this task SHOULD be performed in GUI thread only: */
     void putToCache();
-    /* Save data from cache to corresponding external object(s),
+    /* API: Save data from cache to corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void saveFromCacheTo(QVariant &data);
 
-    /* Page changed: */
-    bool changed() const { return m_cache.wasChanged(); }
+    /* API: Validation stuff: */
+    bool validate(QList<UIValidationMessage> &messages);
 
-    void setValidator (QIWidgetValidator *aVal);
-    bool revalidate (QString &aWarning, QString &aTitle);
+    /* Helper: Navigation stuff: */
+    void setOrderAfter(QWidget *pWidget);
 
-    void setOrderAfter (QWidget *aWidget);
-
+    /* Helper: Translation stuff: */
     void retranslateUi();
+
+    /* Helper: Polishing stuff: */
+    void polishPage();
 
 private slots:
 
-    void valueChangedVRAM (int aVal);
-    void textChangedVRAM (const QString &aText);
-    void valueChangedMonitors (int aVal);
-    void textChangedMonitors (const QString &aText);
+    /* Handlers: Video stuff: */
+    void sltHandleVideoMemorySizeSliderChange();
+    void sltHandleVideoMemorySizeEditorChange();
+    void sltHandleVideoScreenCountSliderChange();
+    void sltHandleVideoScreenCountEditorChange();
+
+    /* Handlers: Video Capture stuff: */
+    void sltHandleVideoCaptureCheckboxToggle();
+    void sltHandleVideoCaptureFrameSizeComboboxChange();
+    void sltHandleVideoCaptureFrameWidthEditorChange();
+    void sltHandleVideoCaptureFrameHeightEditorChange();
+    void sltHandleVideoCaptureFrameRateSliderChange();
+    void sltHandleVideoCaptureFrameRateEditorChange();
+    void sltHandleVideoCaptureQualitySliderChange();
+    void sltHandleVideoCaptureBitRateEditorChange();
 
 private:
 
+    /* Helpers: Prepare stuff: */
+    void prepare();
+    void prepareVideoTab();
+    void prepareRemoteDisplayTab();
+    void prepareVideoCaptureTab();
+    void prepareValidation();
+
+    /* Helpers: Video stuff: */
     void checkVRAMRequirements();
     bool shouldWeWarnAboutLowVideoMemory();
+    static int calcPageStep(int iMax);
 
-    void polishPage();
-
-    QIWidgetValidator *mValidator;
+    /* Helpers: Video Capture stuff: */
+    void lookForCorrespondingSizePreset();
+    void updateVideoCaptureScreenCount();
+    static void lookForCorrespondingPreset(QComboBox *pWhere, const QVariant &whichData);
+    static int calculateBitRate(int iFrameWidth, int iFrameHeight, int iFrameRate, int iQuality);
+    static int calculateQuality(int iFrameWidth, int iFrameHeight, int iFrameRate, int iBitRate);
 
     /* Guest OS type id: */
     CGuestOSType m_guestOSType;
     /* System minimum lower limit of VRAM (MiB). */
-    int m_minVRAM;
+    int m_iMinVRAM;
     /* System maximum limit of VRAM (MiB). */
-    int m_maxVRAM;
+    int m_iMaxVRAM;
     /* Upper limit of VRAM in MiB for this dialog. This value is lower than
      * m_maxVRAM to save careless users from setting useless big values. */
-    int m_maxVRAMVisible;
+    int m_iMaxVRAMVisible;
     /* Initial VRAM value when the dialog is opened. */
-    int m_initialVRAM;
+    int m_iInitialVRAM;
 #ifdef VBOX_WITH_VIDEOHWACCEL
     /* Specifies whether the guest OS supports 2D video-acceleration: */
     bool m_f2DVideoAccelerationSupported;

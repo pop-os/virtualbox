@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -75,10 +75,31 @@ static const char*getDeviceTypeText(DeviceType_T enmType)
 
 
 /**
+ * List internal networks.
+ *
+ * @returns See produceList.
+ * @param   pVirtualBox         Reference to the IVirtualBox smart pointer.
+ */
+static HRESULT listInternalNetworks(const ComPtr<IVirtualBox> pVirtualBox)
+{
+    HRESULT rc;
+    com::SafeArray<BSTR> internalNetworks;
+    CHECK_ERROR(pVirtualBox, COMGETTER(InternalNetworks)(ComSafeArrayAsOutParam(internalNetworks)));
+    for (size_t i = 0; i < internalNetworks.size(); ++i)
+    {
+        RTPrintf("Name:        %ls\n", internalNetworks[i]);
+    }
+    return rc;
+}
+
+
+/**
  * List network interfaces information (bridged/host only).
  *
  * @returns See produceList.
  * @param   pVirtualBox         Reference to the IVirtualBox smart pointer.
+ * @param   fIsBridged          Selects between listing host interfaces (for
+ *                              use with bridging) or host only interfaces.
  */
 static HRESULT listNetworkInterfaces(const ComPtr<IVirtualBox> pVirtualBox,
                                      bool fIsBridged)
@@ -174,6 +195,12 @@ static HRESULT listHostInfo(const ComPtr<IVirtualBox> pVirtualBox)
     ULONG processorCount = 0;
     CHECK_ERROR(Host, COMGETTER(ProcessorCount)(&processorCount));
     RTPrintf("Processor count: %lu\n", processorCount);
+    ULONG processorOnlineCoreCount = 0;
+    CHECK_ERROR(Host, COMGETTER(ProcessorOnlineCoreCount)(&processorOnlineCoreCount));
+    RTPrintf("Processor online core count: %lu\n", processorOnlineCoreCount);
+    ULONG processorCoreCount = 0;
+    CHECK_ERROR(Host, COMGETTER(ProcessorCoreCount)(&processorCoreCount));
+    RTPrintf("Processor core count: %lu\n", processorCoreCount);
     ULONG processorSpeed = 0;
     Bstr processorDescription;
     for (ULONG i = 0; i < processorCount; i++)
@@ -182,7 +209,7 @@ static HRESULT listHostInfo(const ComPtr<IVirtualBox> pVirtualBox)
         if (processorSpeed)
             RTPrintf("Processor#%u speed: %lu MHz\n", i, processorSpeed);
         else
-            RTPrintf("Processor#%u speed: unknown\n", i, processorSpeed);
+            RTPrintf("Processor#%u speed: unknown\n", i);
         CHECK_ERROR(Host, GetProcessorDescription(i, processorDescription.asOutParam()));
         RTPrintf("Processor#%u description: %ls\n", i, processorDescription.raw());
     }
@@ -211,118 +238,33 @@ static HRESULT listHostInfo(const ComPtr<IVirtualBox> pVirtualBox)
  *
  * @returns See produceList.
  * @param   pVirtualBox         Reference to the IVirtualBox smart pointer.
+ * @param   aMedia              Medium objects to list information for.
+ * @param   pszParentUUIDStr    String with the parent UUID string (or "base").
+ * @param   fOptLong            Long (@c true) or short list format.
  */
 static HRESULT listMedia(const ComPtr<IVirtualBox> pVirtualBox,
                          const com::SafeIfaceArray<IMedium> &aMedia,
-                         const char *pszParentUUIDStr)
+                         const char *pszParentUUIDStr,
+                         bool fOptLong)
 {
     HRESULT rc = S_OK;
     for (size_t i = 0; i < aMedia.size(); ++i)
     {
         ComPtr<IMedium> pMedium = aMedia[i];
-        Bstr uuid;
-        pMedium->COMGETTER(Id)(uuid.asOutParam());
-        RTPrintf("UUID:        %s\n", Utf8Str(uuid).c_str());
-        if (pszParentUUIDStr)
-            RTPrintf("Parent UUID: %s\n", pszParentUUIDStr);
-        Bstr format;
-        pMedium->COMGETTER(Format)(format.asOutParam());
-        RTPrintf("Format:      %ls\n", format.raw());
-        Bstr filepath;
-        pMedium->COMGETTER(Location)(filepath.asOutParam());
-        RTPrintf("Location:    %ls\n", filepath.raw());
 
-        MediumState_T enmState;
-        pMedium->RefreshState(&enmState);
-        const char *stateStr = "unknown";
-        switch (enmState)
-        {
-            case MediumState_NotCreated:
-                stateStr = "not created";
-                break;
-            case MediumState_Created:
-                stateStr = "created";
-                break;
-            case MediumState_LockedRead:
-                stateStr = "locked read";
-                break;
-            case MediumState_LockedWrite:
-                stateStr = "locked write";
-                break;
-            case MediumState_Inaccessible:
-                stateStr = "inaccessible";
-                break;
-            case MediumState_Creating:
-                stateStr = "creating";
-                break;
-            case MediumState_Deleting:
-                stateStr = "deleting";
-                break;
-        }
-        RTPrintf("State:       %s\n", stateStr);
+        rc = showMediumInfo(pVirtualBox, pMedium, pszParentUUIDStr, fOptLong);
 
-        MediumType_T type;
-        pMedium->COMGETTER(Type)(&type);
-        const char *typeStr = "unknown";
-        switch (type)
-        {
-            case MediumType_Normal:
-                typeStr = "normal";
-                break;
-            case MediumType_Immutable:
-                typeStr = "immutable";
-                break;
-            case MediumType_Writethrough:
-                typeStr = "writethrough";
-                break;
-            case MediumType_Shareable:
-                typeStr = "shareable";
-                break;
-            case MediumType_Readonly:
-                typeStr = "readonly";
-                break;
-            case MediumType_MultiAttach:
-                typeStr = "multiattach";
-                break;
-        }
-        RTPrintf("Type:        %s\n", typeStr);
-
-        com::SafeArray<BSTR> machineIds;
-        pMedium->COMGETTER(MachineIds)(ComSafeArrayAsOutParam(machineIds));
-        for (size_t j = 0; j < machineIds.size(); ++j)
-        {
-            ComPtr<IMachine> machine;
-            CHECK_ERROR(pVirtualBox, FindMachine(machineIds[j], machine.asOutParam()));
-            ASSERT(machine);
-            Bstr name;
-            machine->COMGETTER(Name)(name.asOutParam());
-            RTPrintf("%s%ls (UUID: %ls)",
-                    j == 0 ? "Usage:       " : "             ",
-                    name.raw(), machineIds[j]);
-            com::SafeArray<BSTR> snapshotIds;
-            pMedium->GetSnapshotIds(machineIds[j],
-                                    ComSafeArrayAsOutParam(snapshotIds));
-            for (size_t k = 0; k < snapshotIds.size(); ++k)
-            {
-                ComPtr<ISnapshot> snapshot;
-                machine->FindSnapshot(snapshotIds[k], snapshot.asOutParam());
-                if (snapshot)
-                {
-                    Bstr snapshotName;
-                    snapshot->COMGETTER(Name)(snapshotName.asOutParam());
-                    RTPrintf(" [%ls (UUID: %ls)]", snapshotName.raw(), snapshotIds[k]);
-                }
-            }
-            RTPrintf("\n");
-        }
         RTPrintf("\n");
 
         com::SafeIfaceArray<IMedium> children;
         CHECK_ERROR(pMedium, COMGETTER(Children)(ComSafeArrayAsOutParam(children)));
         if (children.size() > 0)
         {
+            Bstr uuid;
+            pMedium->COMGETTER(Id)(uuid.asOutParam());
+
             // depth first listing of child media
-            rc = listMedia(pVirtualBox, children, Utf8Str(uuid).c_str());
+            rc = listMedia(pVirtualBox, children, Utf8Str(uuid).c_str(), fOptLong);
         }
     }
 
@@ -353,18 +295,22 @@ static HRESULT listHddBackends(const ComPtr<IVirtualBox> pVirtualBox)
 
         Bstr description;
         CHECK_ERROR(mediumFormats[i],
-                    COMGETTER(Id)(description.asOutParam()));
+                    COMGETTER(Name)(description.asOutParam()));
 
-        ULONG caps;
+        ULONG caps = 0;
+        com::SafeArray <MediumFormatCapabilities_T> mediumFormatCap;
         CHECK_ERROR(mediumFormats[i],
-                    COMGETTER(Capabilities)(&caps));
+                    COMGETTER(Capabilities)(ComSafeArrayAsOutParam(mediumFormatCap)));
+        for (ULONG j = 0; j < mediumFormatCap.size(); j++)
+            caps |= mediumFormatCap[j];
+
 
         RTPrintf("Backend %u: id='%ls' description='%ls' capabilities=%#06x extensions='",
                 i, id.raw(), description.raw(), caps);
 
         /* File extensions */
-        com::SafeArray <BSTR> fileExtensions;
-        com::SafeArray <DeviceType_T> deviceTypes;
+        com::SafeArray<BSTR> fileExtensions;
+        com::SafeArray<DeviceType_T> deviceTypes;
         CHECK_ERROR(mediumFormats[i],
                     DescribeFileExtensions(ComSafeArrayAsOutParam(fileExtensions), ComSafeArrayAsOutParam(deviceTypes)));
         for (size_t j = 0; j < fileExtensions.size(); ++j)
@@ -376,11 +322,11 @@ static HRESULT listHddBackends(const ComPtr<IVirtualBox> pVirtualBox)
         RTPrintf("'");
 
         /* Configuration keys */
-        com::SafeArray <BSTR> propertyNames;
-        com::SafeArray <BSTR> propertyDescriptions;
-        com::SafeArray <DataType_T> propertyTypes;
-        com::SafeArray <ULONG> propertyFlags;
-        com::SafeArray <BSTR> propertyDefaults;
+        com::SafeArray<BSTR> propertyNames;
+        com::SafeArray<BSTR> propertyDescriptions;
+        com::SafeArray<DataType_T> propertyTypes;
+        com::SafeArray<ULONG> propertyFlags;
+        com::SafeArray<BSTR> propertyDefaults;
         CHECK_ERROR(mediumFormats[i],
                     DescribeProperties(ComSafeArrayAsOutParam(propertyNames),
                                         ComSafeArrayAsOutParam(propertyDescriptions),
@@ -438,7 +384,7 @@ static HRESULT listUsbHost(const ComPtr<IVirtualBox> &pVirtualBox)
     {
         for (size_t i = 0; i < CollPtr.size(); ++i)
         {
-            ComPtr <IHostUSBDevice> dev = CollPtr[i];
+            ComPtr<IHostUSBDevice> dev = CollPtr[i];
 
             /* Query info. */
             Bstr id;
@@ -605,6 +551,7 @@ static HRESULT listSystemProperties(const ComPtr<IVirtualBox> &pVirtualBox)
     Bstr str;
     ULONG ulValue;
     LONG64 i64Value;
+    BOOL fValue;
 
     pVirtualBox->COMGETTER(APIVersion)(str.asOutParam());
     RTPrintf("API version:                     %ls\n", str.raw());
@@ -617,6 +564,8 @@ static HRESULT listSystemProperties(const ComPtr<IVirtualBox> &pVirtualBox)
     RTPrintf("Minimum video RAM size:          %u Megabytes\n", ulValue);
     systemProperties->COMGETTER(MaxGuestVRAM)(&ulValue);
     RTPrintf("Maximum video RAM size:          %u Megabytes\n", ulValue);
+    systemProperties->COMGETTER(MaxGuestMonitors)(&ulValue);
+    RTPrintf("Maximum guest monitor count:     %u\n", ulValue);
     systemProperties->COMGETTER(MinGuestCPUCount)(&ulValue);
     RTPrintf("Minimum guest CPU count:         %u\n", ulValue);
     systemProperties->COMGETTER(MaxGuestCPUCount)(&ulValue);
@@ -673,8 +622,22 @@ static HRESULT listSystemProperties(const ComPtr<IVirtualBox> &pVirtualBox)
     RTPrintf("Maximum Floppy Port count:       %u\n", ulValue);
     systemProperties->GetMaxDevicesPerPortForStorageBus(StorageBus_Floppy, &ulValue);
     RTPrintf("Maximum Devices per Floppy Port: %u\n", ulValue);
+#if 0
+    systemProperties->GetFreeDiskSpaceWarning(&i64Value);
+    RTPrintf("Free disk space warning at:      %u Bytes\n", i64Value);
+    systemProperties->GetFreeDiskSpacePercentWarning(&ulValue);
+    RTPrintf("Free disk space warning at:      %u %%\n", ulValue);
+    systemProperties->GetFreeDiskSpaceError(&i64Value);
+    RTPrintf("Free disk space error at:        %u Bytes\n", i64Value);
+    systemProperties->GetFreeDiskSpacePercentError(&ulValue);
+    RTPrintf("Free disk space error at:        %u %%\n", ulValue);
+#endif
     systemProperties->COMGETTER(DefaultMachineFolder)(str.asOutParam());
     RTPrintf("Default machine folder:          %ls\n", str.raw());
+    systemProperties->COMGETTER(ExclusiveHwVirt)(&fValue);
+    RTPrintf("Exclusive HW virtualization use: %ls\n", fValue ? L"on" : L"off");
+    systemProperties->COMGETTER(DefaultHardDiskFormat)(str.asOutParam());
+    RTPrintf("Default hard disk format:        %ls\n", str.raw());
     systemProperties->COMGETTER(VRDEAuthLibrary)(str.asOutParam());
     RTPrintf("VRDE auth library:               %ls\n", str.raw());
     systemProperties->COMGETTER(WebServiceAuthLibrary)(str.asOutParam());
@@ -683,6 +646,8 @@ static HRESULT listSystemProperties(const ComPtr<IVirtualBox> &pVirtualBox)
     RTPrintf("Remote desktop ExtPack:          %ls\n", str.raw());
     systemProperties->COMGETTER(LogHistoryCount)(&ulValue);
     RTPrintf("Log history count:               %u\n", ulValue);
+    systemProperties->COMGETTER(DefaultFrontend)(str.asOutParam());
+    RTPrintf("Default frontend:                %ls\n", str.raw());
     systemProperties->COMGETTER(AutostartDatabasePath)(str.asOutParam());
     RTPrintf("Autostart database path:         %ls\n", str.raw());
     systemProperties->COMGETTER(DefaultAdditionsISO)(str.asOutParam());
@@ -773,6 +738,35 @@ static HRESULT listGroups(const ComPtr<IVirtualBox> &pVirtualBox)
 
 
 /**
+ * List video capture devices.
+ *
+ * @returns See produceList.
+ * @param   pVirtualBox         Reference to the IVirtualBox pointer.
+ */
+static HRESULT listVideoInputDevices(const ComPtr<IVirtualBox> pVirtualBox)
+{
+    HRESULT rc;
+    ComPtr<IHost> host;
+    CHECK_ERROR(pVirtualBox, COMGETTER(Host)(host.asOutParam()));
+    com::SafeIfaceArray<IHostVideoInputDevice> hostVideoInputDevices;
+    CHECK_ERROR(host, COMGETTER(VideoInputDevices)(ComSafeArrayAsOutParam(hostVideoInputDevices)));
+    RTPrintf("Video Input Devices: %u\n", hostVideoInputDevices.size());
+    for (size_t i = 0; i < hostVideoInputDevices.size(); ++i)
+    {
+        ComPtr<IHostVideoInputDevice> p = hostVideoInputDevices[i];
+        Bstr name;
+        p->COMGETTER(Name)(name.asOutParam());
+        Bstr path;
+        p->COMGETTER(Path)(path.asOutParam());
+        Bstr alias;
+        p->COMGETTER(Alias)(alias.asOutParam());
+        RTPrintf("%ls \"%ls\"\n%ls\n", alias.raw(), name.raw(), path.raw());
+    }
+    return rc;
+}
+
+
+/**
  * The type of lists we can produce.
  */
 enum enmListType
@@ -783,6 +777,7 @@ enum enmListType
     kListOsTypes,
     kListHostDvds,
     kListHostFloppies,
+    kListInternalNetworks,
     kListBridgedInterfaces,
 #if defined(VBOX_WITH_NETFLT)
     kListHostOnlyInterfaces,
@@ -798,7 +793,9 @@ enum enmListType
     kListSystemProperties,
     kListDhcpServers,
     kListExtPacks,
-    kListGroups
+    kListGroups,
+    kListNatNetworks,
+    kListVideoInputDevices
 };
 
 
@@ -954,6 +951,10 @@ static HRESULT produceList(enum enmListType enmCommand, bool fOptLong, const Com
             break;
         }
 
+        case kListInternalNetworks:
+            rc = listInternalNetworks(pVirtualBox);
+            break;
+
         case kListBridgedInterfaces:
 #if defined(VBOX_WITH_NETFLT)
         case kListHostOnlyInterfaces:
@@ -1002,7 +1003,7 @@ static HRESULT produceList(enum enmListType enmCommand, bool fOptLong, const Com
         {
             com::SafeIfaceArray<IMedium> hdds;
             CHECK_ERROR(pVirtualBox, COMGETTER(HardDisks)(ComSafeArrayAsOutParam(hdds)));
-            rc = listMedia(pVirtualBox, hdds, "base");
+            rc = listMedia(pVirtualBox, hdds, "base", fOptLong);
             break;
         }
 
@@ -1010,7 +1011,7 @@ static HRESULT produceList(enum enmListType enmCommand, bool fOptLong, const Com
         {
             com::SafeIfaceArray<IMedium> dvds;
             CHECK_ERROR(pVirtualBox, COMGETTER(DVDImages)(ComSafeArrayAsOutParam(dvds)));
-            rc = listMedia(pVirtualBox, dvds, NULL);
+            rc = listMedia(pVirtualBox, dvds, NULL, fOptLong);
             break;
         }
 
@@ -1018,7 +1019,7 @@ static HRESULT produceList(enum enmListType enmCommand, bool fOptLong, const Com
         {
             com::SafeIfaceArray<IMedium> floppies;
             CHECK_ERROR(pVirtualBox, COMGETTER(FloppyImages)(ComSafeArrayAsOutParam(floppies)));
-            rc = listMedia(pVirtualBox, floppies, NULL);
+            rc = listMedia(pVirtualBox, floppies, NULL, fOptLong);
             break;
         }
 
@@ -1072,6 +1073,66 @@ static HRESULT produceList(enum enmListType enmCommand, bool fOptLong, const Com
             rc = listGroups(pVirtualBox);
             break;
 
+        case kListNatNetworks:
+        {
+            com::SafeIfaceArray<INATNetwork> nets;
+            CHECK_ERROR(pVirtualBox, COMGETTER(NATNetworks)(ComSafeArrayAsOutParam(nets)));
+            for (size_t i = 0; i < nets.size(); ++i)
+            {
+                ComPtr<INATNetwork> net = nets[i];
+                Bstr netName;
+                net->COMGETTER(NetworkName)(netName.asOutParam());
+                RTPrintf("NetworkName:    %ls\n", netName.raw());
+                Bstr gateway;
+                net->COMGETTER(Gateway)(gateway.asOutParam());
+                RTPrintf("IP:             %ls\n", gateway.raw());
+                Bstr network;
+                net->COMGETTER(Network)(network.asOutParam());
+                RTPrintf("Network:        %ls\n", network.raw());
+                BOOL fEnabled;
+                net->COMGETTER(IPv6Enabled)(&fEnabled);
+                RTPrintf("IPv6 Enabled:   %s\n", fEnabled ? "Yes" : "No");
+                Bstr ipv6prefix;
+                net->COMGETTER(Network)(network.asOutParam());
+                RTPrintf("IPv6 Prefix:    %ls\n", ipv6prefix.raw());
+                net->COMGETTER(NeedDhcpServer)(&fEnabled);
+                RTPrintf("DHCP Enabled:   %s\n", fEnabled ? "Yes" : "No");
+                net->COMGETTER(Enabled)(&fEnabled);
+                RTPrintf("Enabled:        %s\n", fEnabled ? "Yes" : "No");
+
+#define PRINT_STRING_ARRAY(title) \
+                if (strs.size() > 0)    \
+                { \
+                    RTPrintf(title); \
+                    size_t j = 0; \
+                    for (;j < strs.size(); ++j) \
+                        RTPrintf("        %s\n", Utf8Str(strs[j]).c_str()); \
+                }
+
+                com::SafeArray<BSTR> strs;
+
+                CHECK_ERROR(nets[i], COMGETTER(PortForwardRules4)(ComSafeArrayAsOutParam(strs)));
+                PRINT_STRING_ARRAY("Port-forwarding (ipv4)\n");
+                strs.setNull();
+
+                CHECK_ERROR(nets[i], COMGETTER(PortForwardRules6)(ComSafeArrayAsOutParam(strs)));
+                PRINT_STRING_ARRAY("Port-forwarding (ipv6)\n");
+                strs.setNull();
+
+                CHECK_ERROR(nets[i], COMGETTER(LocalMappings)(ComSafeArrayAsOutParam(strs)));
+                PRINT_STRING_ARRAY("loopback mappings (ipv4)\n");
+                strs.setNull();
+
+#undef PRINT_STRING_ARRAY
+                RTPrintf("\n");
+            }
+            break;
+        }
+
+        case kListVideoInputDevices:
+            rc = listVideoInputDevices(pVirtualBox);
+            break;
+
         /* No default here, want gcc warnings. */
 
     } /* end switch */
@@ -1100,11 +1161,14 @@ int handleList(HandlerArg *a)
         { "ostypes",            kListOsTypes,            RTGETOPT_REQ_NOTHING },
         { "hostdvds",           kListHostDvds,           RTGETOPT_REQ_NOTHING },
         { "hostfloppies",       kListHostFloppies,       RTGETOPT_REQ_NOTHING },
+        { "intnets",            kListInternalNetworks,   RTGETOPT_REQ_NOTHING },
         { "hostifs",            kListBridgedInterfaces,  RTGETOPT_REQ_NOTHING }, /* backward compatibility */
         { "bridgedifs",         kListBridgedInterfaces,  RTGETOPT_REQ_NOTHING },
 #if defined(VBOX_WITH_NETFLT)
         { "hostonlyifs",        kListHostOnlyInterfaces, RTGETOPT_REQ_NOTHING },
 #endif
+        { "natnetworks",        kListNatNetworks,        RTGETOPT_REQ_NOTHING },
+        { "natnets",            kListNatNetworks,        RTGETOPT_REQ_NOTHING },
         { "hostinfo",           kListHostInfo,           RTGETOPT_REQ_NOTHING },
         { "hostcpuids",         kListHostCpuIDs,         RTGETOPT_REQ_NOTHING },
         { "hddbackends",        kListHddBackends,        RTGETOPT_REQ_NOTHING },
@@ -1117,6 +1181,7 @@ int handleList(HandlerArg *a)
         { "dhcpservers",        kListDhcpServers,        RTGETOPT_REQ_NOTHING },
         { "extpacks",           kListExtPacks,           RTGETOPT_REQ_NOTHING },
         { "groups",             kListGroups,             RTGETOPT_REQ_NOTHING },
+        { "webcams",            kListVideoInputDevices,  RTGETOPT_REQ_NOTHING },
     };
 
     int                 ch;
@@ -1144,6 +1209,7 @@ int handleList(HandlerArg *a)
             case kListOsTypes:
             case kListHostDvds:
             case kListHostFloppies:
+            case kListInternalNetworks:
             case kListBridgedInterfaces:
 #if defined(VBOX_WITH_NETFLT)
             case kListHostOnlyInterfaces:
@@ -1160,6 +1226,8 @@ int handleList(HandlerArg *a)
             case kListDhcpServers:
             case kListExtPacks:
             case kListGroups:
+            case kListNatNetworks:
+            case kListVideoInputDevices:
                 enmOptCommand = (enum enmListType)ch;
                 if (fOptMultiple)
                 {

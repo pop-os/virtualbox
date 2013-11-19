@@ -229,6 +229,16 @@ static PFNSCMREWRITER const g_aRewritersFor_BatchFiles[] =
     rewrite_StripTrailingBlanks
 };
 
+static PFNSCMREWRITER const g_aRewritersFor_Python[] =
+{
+    /** @todo rewrite_ForceLFIfExecutable */
+    rewrite_ExpandTabs,
+    rewrite_StripTrailingBlanks,
+    rewrite_AdjustTrailingLines,
+    rewrite_SvnKeywords
+};
+
+
 static SCMCFGENTRY const g_aConfigs[] =
 {
     { RT_ELEMENTS(g_aRewritersFor_Makefile_kup), &g_aRewritersFor_Makefile_kup[0], "Makefile.kup" },
@@ -238,6 +248,7 @@ static SCMCFGENTRY const g_aConfigs[] =
     { RT_ELEMENTS(g_aRewritersFor_RC),           &g_aRewritersFor_RC[0],           "*.rc" },
     { RT_ELEMENTS(g_aRewritersFor_ShellScripts), &g_aRewritersFor_ShellScripts[0], "*.sh|configure" },
     { RT_ELEMENTS(g_aRewritersFor_BatchFiles),   &g_aRewritersFor_BatchFiles[0],   "*.bat|*.cmd|*.btm|*.vbs|*.ps1" },
+    { RT_ELEMENTS(g_aRewritersFor_Python),       &g_aRewritersFor_Python[0],       "*.py" },
 };
 
 
@@ -449,7 +460,7 @@ static int scmSettingsBaseHandleOpt(PSCMSETTINGSBASE pSettings, int rc, PRTGETOP
                 return VINF_SUCCESS;
 
             return RTStrAAppendExN(ppsz, 2,
-                                   "|", *ppsz && **ppsz ? 1 : 0,
+                                   "|", *ppsz && **ppsz ? (size_t)1 : (size_t)0,
                                    pszSrc, cchSrc);
         }
 
@@ -1529,7 +1540,7 @@ int main(int argc, char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                static const char s_szRev[] = "$Revision: 78836 $";
+                static const char s_szRev[] = "$Revision: 89658 $";
                 const char *psz = RTStrStripL(strchr(s_szRev, ' '));
                 RTPrintf("r%.*s\n", strchr(psz, ' ') - psz, psz);
                 return 0;

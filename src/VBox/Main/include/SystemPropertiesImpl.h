@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,6 +69,10 @@ public:
     STDMETHOD(COMGETTER(SerialPortCount))(ULONG *count);
     STDMETHOD(COMGETTER(ParallelPortCount))(ULONG *count);
     STDMETHOD(COMGETTER(MaxBootPosition))(ULONG *aMaxBootPosition);
+    STDMETHOD(COMGETTER(ExclusiveHwVirt))(BOOL *aExclusiveHwVirt);
+    STDMETHOD(COMSETTER(ExclusiveHwVirt))(BOOL aExclusiveHwVirt);
+    STDMETHOD(COMGETTER(LoggingLevel))(BSTR *aLoggingLevel);
+    STDMETHOD(COMSETTER(LoggingLevel))(IN_BSTR aLoggingLevel);
     STDMETHOD(COMGETTER(DefaultMachineFolder))(BSTR *aDefaultMachineFolder);
     STDMETHOD(COMSETTER(DefaultMachineFolder))(IN_BSTR aDefaultMachineFolder);
     STDMETHOD(COMGETTER(MediumFormats))(ComSafeArrayOut(IMediumFormat *, aMediumFormats));
@@ -95,6 +99,8 @@ public:
     STDMETHOD(COMSETTER(AutostartDatabasePath))(IN_BSTR aAutostartDbPath);
     STDMETHOD(COMGETTER(DefaultAdditionsISO))(BSTR *aDefaultAdditionsISO);
     STDMETHOD(COMSETTER(DefaultAdditionsISO))(IN_BSTR aDefaultAdditionsISO);
+    STDMETHOD(COMGETTER(DefaultFrontend))(BSTR *aDefaultFrontend);
+    STDMETHOD(COMSETTER(DefaultFrontend))(IN_BSTR aDefaultFrontend);
 
     STDMETHOD(GetMaxNetworkAdapters)(ChipsetType_T aChipset, ULONG *aMaxInstances);
     STDMETHOD(GetMaxNetworkAdaptersOfType)(ChipsetType_T aChipset, NetworkAttachmentType_T aType, ULONG *aMaxInstances);
@@ -104,6 +110,7 @@ public:
     STDMETHOD(GetMaxInstancesOfStorageBus)(ChipsetType_T aChipset, StorageBus_T aBus, ULONG *aMaxInstances);
     STDMETHOD(GetDeviceTypesForStorageBus)(StorageBus_T aBus, ComSafeArrayOut(DeviceType_T, aDeviceTypes));
     STDMETHOD(GetDefaultIoCacheSettingForStorageController)(StorageControllerType_T aControllerType, BOOL *aEnabled);
+    STDMETHOD(GetMaxInstancesOfUSBControllerType)(ChipsetType_T aChipset, USBControllerType_T aType, ULONG *aMaxInstances);
 
     // public methods only for internal purposes
 
@@ -122,6 +129,7 @@ private:
 
     HRESULT getUserHomeDirectory(Utf8Str &strPath);
     HRESULT setDefaultMachineFolder(const Utf8Str &aPath);
+    HRESULT setLoggingLevel(const Utf8Str &aLoggingLevel);
     HRESULT setDefaultHardDiskFormat(const Utf8Str &aFormat);
 
     HRESULT setVRDEAuthLibrary(const Utf8Str &aPath);
@@ -129,6 +137,7 @@ private:
     HRESULT setDefaultVRDEExtPack(const Utf8Str &aPath);
     HRESULT setAutostartDatabasePath(const Utf8Str &aPath);
     HRESULT setDefaultAdditionsISO(const Utf8Str &aPath);
+    HRESULT setDefaultFrontend(const Utf8Str &aPath);
 
     VirtualBox * const  mParent;
 

@@ -34,10 +34,10 @@
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
 #include "UIFrameBuffer.h"
-#include "UIFrameBufferQGL.h"
 #include "UIFrameBufferQImage.h"
-#include "UIFrameBufferQuartz2D.h"
-#include "UIFrameBufferSDL.h"
+#ifdef VBOX_GUI_USE_QUARTZ2D
+# include "UIFrameBufferQuartz2D.h"
+#endif /* VBOX_GUI_USE_QUARTZ2D */
 #include "VBoxFBOverlay.h"
 #include "UISession.h"
 #include "UIKeyboardHandler.h"
@@ -89,10 +89,12 @@ class UIViewport: public QWidget
 {
 public:
 
-    UIViewport(QWidget *pParent) : QWidget(pParent)
+    UIViewport(QWidget *pParent = 0) : QWidget(pParent)
     {
         /* No need for background drawing: */
         setAttribute(Qt::WA_OpaquePaintEvent);
+        /* Enable multi-touch support: */
+        setAttribute(Qt::WA_AcceptTouchEvents);
     }
 
     QPaintEngine *paintEngine() const
@@ -170,6 +172,9 @@ UIMachineView* UIMachineView::create(  UIMachineWindow *pMachineWindow
      * but not for Fullscreen and Scale.  However for Scale it is a no op.,
      * so it would not hurt.  Would it hurt for Fullscreen? */
 
+    /* Set a preliminary maximum size: */
+    pMachineView->setMaxGuestSize();
+
     return pMachineView;
 }
 
@@ -194,7 +199,12 @@ void UIMachineView::sltPerformGuestResize(const QSize &toSize)
     QSize newSize(toSize.isValid() ? toSize : machineWindow()->centralWidget()->size());
     AssertMsg(newSize.isValid(), ("Size should be valid!\n"));
 
+    /* Expand current limitations: */
+    setMaxGuestSize(newSize);
+
     /* Send new size-hint to the guest: */
+    LogRelFlow(("UIMachineView: Sending guest size-hint to screen %d: %dx%d\n",
+                (int)screenId(), newSize.width(), newSize.height()));
     session().GetConsole().GetDisplay().SetVideoModeHint(screenId(),
                                                          uisession()->isScreenVisible(screenId()),
                                                          false, 0, 0, newSize.width(), newSize.height(), 0);
@@ -202,6 +212,104 @@ void UIMachineView::sltPerformGuestResize(const QSize &toSize)
      * fullscreen resize hint was sent: */
     QString strKey = makeExtraDataKeyPerMonitor(GUI_LastGuestSizeHintWasFullscreen);
     machine.SetExtraData(strKey, isFullscreenOrSeamless() ? "true" : "");
+}
+
+void UIMachineView::sltHandleRequestResize(int iPixelFormat, uchar *pVRAM,
+                                           int iBitsPerPixel, int iBytesPerLine,
+                                           int iWidth, int iHeight)
+{
+    /* Some situations require frame-buffer resize-events to be ignored at all,
+     * leaving machine-window, machine-view and frame-buffer sizes preserved: */
+    if (uisession()->isGuestResizeIgnored())
+        return;
+
+    /* If only the pitch has changed (or nothing at all!) we only update the
+     * frame-buffer and don't touch the window.  This prevents unwanted resizes
+     * when entering or exiting fullscreen on X.Org guests and when
+     * re-attaching the frame-buffer on a view switch. */
+    bool fResize =    (ulong)iWidth != frameBuffer()->width()
+                   || (ulong)iHeight != frameBuffer()->height();
+
+    /* If machine-window is visible: */
+    if (uisession()->isScreenVisible(m_uScreenId))
+    {
+        /* Apply current window size to frame-buffer: */
+        if (visualStateType() == UIVisualStateType_Scale)
+            frameBuffer()->setScaledSize(size());
+
+        /* Compose guest resize-event: */
+        UIResizeEvent resizeEvent(iPixelFormat, pVRAM,
+                                  iBitsPerPixel, iBytesPerLine,
+                                  iWidth, iHeight);
+
+        /* Perform frame-buffer resize if parent window is visible: */
+        frameBuffer()->resizeEvent(&resizeEvent);
+    }
+
+    /* If resize actually happens and machine-window is visible: */
+    if (fResize && uisession()->isScreenVisible(m_uScreenId))
+    {
+        /* Scale-mode doesn't need this: */
+        if (visualStateType() != UIVisualStateType_Scale)
+        {
+            /* Reapply maximum size restriction for machine-view: */
+            setMaximumSize(sizeHint());
+
+            /* Disable the resize hint override hack: */
+            m_sizeHintOverride = QSize(-1, -1);
+
+            /* Perform machine-view resize: */
+            resize(iWidth, iHeight);
+        }
+
+        /* Let our toplevel widget calculate its sizeHint properly: */
+        QCoreApplication::sendPostedEvents(0, QEvent::LayoutRequest);
+
+#ifdef Q_WS_MAC
+        machineLogic()->updateDockIconSize(screenId(), iWidth, iHeight);
+#endif /* Q_WS_MAC */
+
+        /* Scale-mode doesn't need this: */
+        if (visualStateType() != UIVisualStateType_Scale)
+        {
+            /* Update machine-view sliders: */
+            updateSliders();
+
+            /* Normalize machine-window geometry: */
+            if (visualStateType() == UIVisualStateType_Normal)
+                machineWindow()->normalizeGeometry(true /* adjust position */);
+        }
+    }
+
+    /* Report to the VM thread that we finished resizing: */
+    session().GetConsole().GetDisplay().ResizeCompleted(screenId());
+
+    /* Emit a signal about guest was resized: */
+    emit resizeHintDone();
+
+    LogRelFlow(("UIMachineView::ResizeHandled: "
+                "Screen=%d, Format=%d, "
+                "BitsPerPixel=%d, BytesPerLine=%d, "
+                "Size=%dx%d.\n",
+                (unsigned long)m_uScreenId, iPixelFormat,
+                iBitsPerPixel, iBytesPerLine, iWidth, iHeight));
+}
+
+void UIMachineView::sltHandleNotifyUpdate(int iX, int iY, int iWidth, int iHeight)
+{
+    /* Update corresponding viewport part: */
+    viewport()->update(iX - contentsX(), iY - contentsY(), iWidth, iHeight);
+}
+
+void UIMachineView::sltHandleSetVisibleRegion(QRegion region)
+{
+    /* Used only in seamless-mode. */
+    Q_UNUSED(region);
+}
+
+void UIMachineView::sltHandle3DOverlayVisibilityChange(bool fVisible)
+{
+    machineLogic()->notifyAbout3DOverlayVisibilityChange(fVisible);
 }
 
 void UIMachineView::sltDesktopResized()
@@ -218,11 +326,9 @@ void UIMachineView::sltMachineStateChanged()
         case KMachineState_Paused:
         case KMachineState_TeleportingPausedVM:
         {
-            if (   vboxGlobal().vmRenderMode() != TimerMode
-                && m_pFrameBuffer
-                &&
-                (   state           != KMachineState_TeleportingPausedVM
-                 || m_previousState != KMachineState_Teleporting))
+            if (   m_pFrameBuffer
+                && (   state           != KMachineState_TeleportingPausedVM
+                    || m_previousState != KMachineState_Teleporting))
             {
                 takePauseShotLive();
                 /* Fully repaint to pick up m_pauseShot: */
@@ -243,18 +349,22 @@ void UIMachineView::sltMachineStateChanged()
         }
         case KMachineState_Running:
         {
-            if (   m_previousState == KMachineState_Paused
-                || m_previousState == KMachineState_TeleportingPausedVM
-                || m_previousState == KMachineState_Restoring)
+            if (m_previousState == KMachineState_Paused ||
+                m_previousState == KMachineState_TeleportingPausedVM ||
+                m_previousState == KMachineState_Restoring)
             {
-                if (vboxGlobal().vmRenderMode() != TimerMode && m_pFrameBuffer)
+                if (m_pFrameBuffer)
                 {
                     /* Reset the pixmap to free memory: */
                     resetPauseShot();
                     /* Ask for full guest display update (it will also update
                      * the viewport through IFramebuffer::NotifyUpdate): */
-                    CDisplay dsp = session().GetConsole().GetDisplay();
-                    dsp.InvalidateAndUpdate();
+                    if (m_previousState == KMachineState_Paused ||
+                        m_previousState == KMachineState_TeleportingPausedVM)
+                    {
+                        CDisplay dsp = session().GetConsole().GetDisplay();
+                        dsp.InvalidateAndUpdate();
+                    }
                 }
             }
             break;
@@ -300,33 +410,25 @@ UIMachineView::~UIMachineView()
 void UIMachineView::prepareViewport()
 {
     /* Prepare viewport: */
-#ifdef VBOX_GUI_USE_QGLFB
-    QWidget *pViewport = 0;
-    switch (vboxGlobal().vmRenderMode())
-    {
-        case QGLMode:
-            pViewport = new VBoxGLWidget(session().GetConsole(), this, NULL);
-            break;
-        default:
-            pViewport = new UIViewport(this);
-    }
-#else /* VBOX_GUI_USE_QGLFB */
-    UIViewport *pViewport = new UIViewport(this);
-#endif /* !VBOX_GUI_USE_QGLFB */
-    setViewport(pViewport);
+    setViewport(new UIViewport);
 }
 
 void UIMachineView::prepareFrameBuffer()
 {
     /* Prepare frame-buffer depending on render-mode: */
-    switch (getRenderMode())
+    switch (vboxGlobal().vmRenderMode())
     {
 #ifdef VBOX_GUI_USE_QIMAGE
         case QImageMode:
         {
-            UIFrameBuffer* pFrameBuffer = uisession()->frameBuffer(screenId());
+            UIFrameBuffer *pFrameBuffer = uisession()->frameBuffer(screenId());
             if (pFrameBuffer)
+            {
                 pFrameBuffer->setView(this);
+                /* Mark framebuffer as used again: */
+                LogRelFlow(("UIMachineView::prepareFrameBuffer: Start EMT callbacks accepting for screen: %d.\n", screenId()));
+                pFrameBuffer->setMarkAsUnused(false);
+            }
             else
             {
 # ifdef VBOX_WITH_VIDEOHWACCEL
@@ -348,73 +450,20 @@ void UIMachineView::prepareFrameBuffer()
             break;
         }
 #endif /* VBOX_GUI_USE_QIMAGE */
-#ifdef VBOX_GUI_USE_QGLFB
-        case QGLMode:
-            m_pFrameBuffer = new UIFrameBufferQGL(this);
-            break;
-//        case QGLOverlayMode:
-//            m_pFrameBuffer = new UIQGLOverlayFrameBuffer(this);
-//            break;
-#endif /* VBOX_GUI_USE_QGLFB */
-#ifdef VBOX_GUI_USE_SDL
-        case SDLMode:
-        {
-            /* Indicate that we are doing all drawing stuff ourself: */
-            // TODO_NEW_CORE
-            viewport()->setAttribute(Qt::WA_PaintOnScreen);
-# ifdef Q_WS_X11
-            /* This is somehow necessary to prevent strange X11 warnings on i386 and segfaults on x86_64: */
-            XFlush(QX11Info::display());
-# endif /* Q_WS_X11 */
-            UIFrameBuffer* pFrameBuffer = uisession()->frameBuffer(screenId());
-            if (pFrameBuffer)
-                pFrameBuffer->setView(this);
-            else
-            {
-# if defined(VBOX_WITH_VIDEOHWACCEL) && defined(DEBUG_misha) /* not tested yet */
-                if (m_fAccelerate2DVideo)
-                {
-                    /** these two additional template args is a workaround to
-                     * this [VBox|UI] duplication
-                     * @todo: they are to be removed once VBox stuff is gone */
-                    pFrameBuffer = new VBoxOverlayFrameBuffer<UIFrameBufferSDL, UIMachineView, UIResizeEvent>(this, &session(), (uint32_t)screenId());
-                }
-                else
-                    pFrameBuffer = new UIFrameBufferSDL(this);
-# else /* VBOX_WITH_VIDEOHWACCEL */
-                pFrameBuffer = new UIFrameBufferSDL(this);
-# endif /* !VBOX_WITH_VIDEOHWACCEL */
-                uisession()->setFrameBuffer(screenId(), pFrameBuffer);
-            }
-            m_pFrameBuffer = pFrameBuffer;
-            /* Disable scrollbars because we cannot correctly draw in a scrolled window using SDL: */
-            horizontalScrollBar()->setEnabled(false);
-            verticalScrollBar()->setEnabled(false);
-            break;
-        }
-#endif /* VBOX_GUI_USE_SDL */
-#if 0 // TODO: Enable DDraw frame buffer!
-#ifdef VBOX_GUI_USE_DDRAW
-        case DDRAWMode:
-            m_pFrameBuffer = new UIDDRAWFrameBuffer(this);
-            if (!m_pFrameBuffer || m_pFrameBuffer->address() == NULL)
-            {
-                if (m_pFrameBuffer)
-                    delete m_pFrameBuffer;
-                m_mode = QImageMode;
-                m_pFrameBuffer = new UIFrameBufferQImage(this);
-            }
-            break;
-#endif /* VBOX_GUI_USE_DDRAW */
-#endif
+
 #ifdef VBOX_GUI_USE_QUARTZ2D
         case Quartz2DMode:
         {
             /* Indicate that we are doing all drawing stuff ourself: */
             viewport()->setAttribute(Qt::WA_PaintOnScreen);
-            UIFrameBuffer* pFrameBuffer = uisession()->frameBuffer(screenId());
+            UIFrameBuffer *pFrameBuffer = uisession()->frameBuffer(screenId());
             if (pFrameBuffer)
+            {
                 pFrameBuffer->setView(this);
+                /* Mark framebuffer as used again: */
+                LogRelFlow(("UIMachineView::prepareFrameBuffer: Start EMT callbacks accepting for screen: %d.\n", screenId()));
+                pFrameBuffer->setMarkAsUnused(false);
+            }
             else
             {
 # ifdef VBOX_WITH_VIDEOHWACCEL
@@ -436,6 +485,7 @@ void UIMachineView::prepareFrameBuffer()
             break;
         }
 #endif /* VBOX_GUI_USE_QUARTZ2D */
+
         default:
             AssertReleaseMsgFailed(("Render mode must be valid: %d\n", vboxGlobal().vmRenderMode()));
             LogRel(("Invalid render mode: %d\n", vboxGlobal().vmRenderMode()));
@@ -564,50 +614,29 @@ void UIMachineView::loadMachineViewSettings()
 
 void UIMachineView::cleanupFrameBuffer()
 {
-    if (m_pFrameBuffer)
-    {
-        /* Process pending frame-buffer resize events: */
-        QApplication::sendPostedEvents(this, ResizeEventType);
-        if (   0
-#ifdef VBOX_GUI_USE_QIMAGE
-            || vboxGlobal().vmRenderMode() == QImageMode
-#endif
-#ifdef VBOX_GUI_USE_SDL
-            || vboxGlobal().vmRenderMode() == SDLMode
-#endif
-#ifdef VBOX_GUI_USE_QUARTZ2D
-            || vboxGlobal().vmRenderMode() == Quartz2DMode
-#endif
-#ifdef VBOX_WITH_VIDEOHWACCEL
-            || m_fAccelerate2DVideo
-#endif
-           )
-        {
-            Assert(m_pFrameBuffer == uisession()->frameBuffer(screenId()));
-            CDisplay display = session().GetConsole().GetDisplay();
-            /* Temporarily remove the framebuffer in Display while unsetting
-             * the view in order to respect the thread synchonisation logic
-             * (see UIFrameBuffer.h). */
-            /* Note! VBOX_WITH_CROGL additionally requires us to call
-             * SetFramebuffer to ensure 3D gets notified of view being
-             * destroyed */
-            display.SetFramebuffer(m_uScreenId, CFramebuffer(NULL));
-            m_pFrameBuffer->setView(NULL);
-            display.SetFramebuffer(m_uScreenId, CFramebuffer(m_pFrameBuffer));
-        }
-        else
-        {
-            /* Warn framebuffer about its no more necessary: */
-            m_pFrameBuffer->setDeleted(true);
-            /* Detach framebuffer from Display: */
-            CDisplay display = session().GetConsole().GetDisplay();
-            display.SetFramebuffer(m_uScreenId, CFramebuffer(NULL));
-            /* Release the reference: */
-            m_pFrameBuffer->Release();
-//          delete m_pFrameBuffer; // TODO_NEW_CORE: possibly necessary to really cleanup
-            m_pFrameBuffer = NULL;
-        }
-    }
+    /* Make sure proper framebuffer assigned: */
+    AssertReturnVoid(m_pFrameBuffer);
+    AssertReturnVoid(m_pFrameBuffer == uisession()->frameBuffer(screenId()));
+
+    /* Mark framebuffer as unused: */
+    LogRelFlow(("UIMachineView::cleanupFrameBuffer: Stop EMT callbacks accepting for screen: %d.\n", screenId()));
+    m_pFrameBuffer->setMarkAsUnused(true);
+
+    /* Process pending framebuffer events: */
+    QApplication::sendPostedEvents(this, QEvent::MetaCall);
+
+    /* Temporarily detach the framebuffer from IDisplay before detaching
+     * from view in order to respect the thread synchonisation logic (see UIFrameBuffer.h).
+     * Note: VBOX_WITH_CROGL additionally requires us to call SetFramebuffer
+     * to ensure 3D gets notified of view being destroyed... */
+    CDisplay display = session().GetConsole().GetDisplay();
+    display.SetFramebuffer(m_uScreenId, CFramebuffer(NULL));
+
+    /* Detach framebuffer from view: */
+    m_pFrameBuffer->setView(NULL);
+
+    /* Attach frambuffer back to IDisplay: */
+    display.SetFramebuffer(m_uScreenId, CFramebuffer(m_pFrameBuffer));
 }
 
 UIMachineLogic* UIMachineView::machineLogic() const
@@ -676,7 +705,7 @@ int UIMachineView::visibleHeight() const
     return verticalScrollBar()->pageStep();
 }
 
-void UIMachineView::setMaxGuestSize()
+void UIMachineView::setMaxGuestSize(const QSize &minimumSizeHint /* = QSize() */)
 {
     QSize maxSize;
     switch (m_maxGuestSizePolicy)
@@ -685,7 +714,7 @@ void UIMachineView::setMaxGuestSize()
             maxSize = m_fixedMaxGuestSize;
             break;
         case MaxGuestSizePolicy_Automatic:
-            maxSize = calculateMaxGuestSize();
+            maxSize = calculateMaxGuestSize().expandedTo(minimumSizeHint);
             break;
         case MaxGuestSizePolicy_Any:
         default:
@@ -911,66 +940,6 @@ CGImageRef UIMachineView::frameBuffertoCGImageRef(UIFrameBuffer *pFrameBuffer)
 }
 #endif /* Q_WS_MAC */
 
-bool UIMachineView::guestResizeEvent(QEvent *pEvent,
-                                     bool fFullscreenOrSeamless)
-{
-    /* Some situations require framebuffer resize events to be ignored at all,
-     * leaving machine-window, machine-view and framebuffer sizes preserved: */
-    if (uisession()->isGuestResizeIgnored())
-        return true;
-
-    /* Get guest resize-event: */
-    UIResizeEvent *pResizeEvent = static_cast<UIResizeEvent*>(pEvent);
-
-    /** If only the pitch has changed (or nothing at all!) we only update the
-     * framebuffer and don't touch the window.  This prevents unwanted resizes
-     * when entering or exiting fullscreen on X.Org guests and when
-     * re-attaching the framebuffer on a view switch. */
-    bool fResize =    pResizeEvent->width() != frameBuffer()->width()
-                   || pResizeEvent->height() != frameBuffer()->height();
-
-    /* Perform framebuffer resize: */
-    frameBuffer()->resizeEvent(pResizeEvent);
-
-    if (fResize)
-    {
-        /* Reapply maximum size restriction for machine-view: */
-        setMaximumSize(sizeHint());
-
-        /* Disable the resize hint override hack: */
-        m_sizeHintOverride = QSize(-1, -1);
-
-        /* Perform machine-view resize: */
-        resize(pResizeEvent->width(), pResizeEvent->height());
-
-        /* May be we have to restrict minimum size? */
-        maybeRestrictMinimumSize();
-
-        /* Let our toplevel widget calculate its sizeHint properly: */
-        QCoreApplication::sendPostedEvents(0, QEvent::LayoutRequest);
-
-#ifdef Q_WS_MAC
-        machineLogic()->updateDockIconSize(screenId(), pResizeEvent->width(), pResizeEvent->height());
-#endif /* Q_WS_MAC */
-
-        /* Update machine-view sliders: */
-        updateSliders();
-
-        /* Normalize machine-window geometry: */
-        if (!fFullscreenOrSeamless)
-            normalizeGeometry(true /* Adjust Position? */);
-    }
-
-    /* Report to the VM thread that we finished resizing: */
-    session().GetConsole().GetDisplay().ResizeCompleted(screenId());
-
-    /* Emit a signal about guest was resized: */
-    emit resizeHintDone();
-
-    pEvent->accept();
-    return true;
-}
-
 UIVisualStateType UIMachineView::visualStateType() const
 {
     return machineLogic()->visualStateType();
@@ -988,45 +957,10 @@ QString UIMachineView::makeExtraDataKeyPerMonitor(QString base) const
                             : QString("%1%2").arg(base).arg(m_uScreenId);
 }
 
-RenderMode UIMachineView::getRenderMode() const
-{
-    if (visualStateType() != UIVisualStateType_Scale)
-        return vboxGlobal().vmRenderMode();
-    /* This part of the method is temporary since not all of our framebuffer
-     * modes currently support scale view mode.  Once they do it will be
-     * removed. */
-    /** @note this could have been a mini-class which would be easier to
-     * unit test. */
-    /* Prepare frame-buffer depending on render-mode: */
-    switch (vboxGlobal().vmRenderMode())
-    {
-#ifdef VBOX_GUI_USE_QUARTZ2D
-        case Quartz2DMode:
-            return Quartz2DMode;
-#endif /* VBOX_GUI_USE_QUARTZ2D */
-        default:
-#ifdef VBOX_GUI_USE_QIMAGE
-        case QImageMode:
-            return QImageMode;
-#endif /* VBOX_GUI_USE_QIMAGE */
-        break;
-    }
-    AssertReleaseMsgFailed(("Scale-mode currently does NOT supporting render-mode %d\n", vboxGlobal().vmRenderMode()));
-    qApp->exit(1);
-}
-
 bool UIMachineView::event(QEvent *pEvent)
 {
     switch (pEvent->type())
     {
-        case RepaintEventType:
-        {
-            UIRepaintEvent *pPaintEvent = static_cast<UIRepaintEvent*>(pEvent);
-            viewport()->update(pPaintEvent->x() - contentsX(), pPaintEvent->y() - contentsY(),
-                                pPaintEvent->width(), pPaintEvent->height());
-            return true;
-        }
-
 #ifdef Q_WS_MAC
         /* Event posted OnShowWindow: */
         case ShowWindowEventType:

@@ -58,9 +58,6 @@ UIMachineViewSeamless::UIMachineViewSeamless(  UIMachineWindow *pMachineWindow
 {
     /* Prepare seamless view: */
     prepareSeamless();
-
-    /* Initialization: */
-    sltAdditionsStateChanged();
 }
 
 UIMachineViewSeamless::~UIMachineViewSeamless()
@@ -74,36 +71,13 @@ UIMachineViewSeamless::~UIMachineViewSeamless()
 
 void UIMachineViewSeamless::sltAdditionsStateChanged()
 {
-    // TODO: Exit seamless if additions doesn't support it!
+    maybeAdjustGuestScreenSize();
 }
 
-bool UIMachineViewSeamless::event(QEvent *pEvent)
+void UIMachineViewSeamless::sltHandleSetVisibleRegion(QRegion region)
 {
-    switch (pEvent->type())
-    {
-        case SetRegionEventType:
-        {
-            /* Get region-update event: */
-            UISetRegionEvent *pSetRegionEvent = static_cast<UISetRegionEvent*>(pEvent);
-
-            /* Apply new region: */
-            if (pSetRegionEvent->region() != m_lastVisibleRegion)
-            {
-                m_lastVisibleRegion = pSetRegionEvent->region();
-                machineWindow()->setMask(m_lastVisibleRegion);
-            }
-            return true;
-        }
-
-        case ResizeEventType:
-        {
-            return guestResizeEvent(pEvent, true);
-        }
-
-        default:
-            break;
-    }
-    return UIMachineView::event(pEvent);
+    /* Apply new seamless-region: */
+    m_pFrameBuffer->applyVisibleRegion(region);
 }
 
 bool UIMachineViewSeamless::eventFilter(QObject *pWatched, QEvent *pEvent)
@@ -119,6 +93,9 @@ bool UIMachineViewSeamless::eventFilter(QObject *pWatched, QEvent *pEvent)
                 if (pResizeEvent->size() != workingArea().size())
                     break;
 
+                /* Recalculate max guest size: */
+                setMaxGuestSize();
+                /* And resize guest to that size: */
                 if (uisession()->isGuestSupportsGraphics())
                     QTimer::singleShot(0, this, SLOT(sltPerformGuestResize()));
                 break;
@@ -174,6 +151,21 @@ void UIMachineViewSeamless::cleanupSeamless()
     if (uisession()->isRunning())
         /* Reset seamless feature flag of the guest: */
         session().GetConsole().GetDisplay().SetSeamlessMode(false);
+}
+
+/** Adjusts guest screen size to correspond current <i>working area</i> size. */
+void UIMachineViewSeamless::maybeAdjustGuestScreenSize()
+{
+    /* Check if we should adjust guest to new size: */
+    if (frameBuffer()->isAutoEnabled() ||
+        (int)frameBuffer()->width() != workingArea().size().width() ||
+        (int)frameBuffer()->height() != workingArea().size().height())
+        if (uisession()->isGuestSupportsGraphics() &&
+            uisession()->isScreenVisible(screenId()))
+        {
+            frameBuffer()->setAutoEnabled(false);
+            sltPerformGuestResize(workingArea().size());
+        }
 }
 
 QRect UIMachineViewSeamless::workingArea() const

@@ -51,7 +51,7 @@
 #include <iprt/string.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
-#include <VBox/vmm/hwaccm.h>
+#include <VBox/vmm/hm.h>
 
 
 /*******************************************************************************
@@ -119,7 +119,8 @@ VMMR3DECL(int) PGMR3HandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmType,
          * Resolve the GC handler.
          */
         RTRCPTR pfnHandlerRC = NIL_RTRCPTR;
-        rc = PDMR3LdrGetSymbolRCLazy(pVM, pszModRC, NULL /*pszSearchPath*/, pszHandlerRC, &pfnHandlerRC);
+        if (!HMIsEnabled(pVM))
+            rc = PDMR3LdrGetSymbolRCLazy(pVM, pszModRC, NULL /*pszSearchPath*/, pszHandlerRC, &pfnHandlerRC);
         if (RT_SUCCESS(rc))
             return PGMHandlerPhysicalRegisterEx(pVM, enmType, GCPhys, GCPhysLast, pfnHandlerR3, pvUserR3,
                                                 pfnHandlerR0, pvUserR0, pfnHandlerRC, pvUserRC, pszDesc);
@@ -239,7 +240,7 @@ VMMR3DECL(int) PGMR3HandlerVirtualRegister(PVM pVM, PGMVIRTHANDLERTYPE enmType, 
              enmType, GCPtr, GCPtrLast, pszHandlerRC, pszHandlerRC, pszModRC, pszModRC, pszDesc));
 
     /* Not supported/relevant for VT-x and AMD-V. */
-    if (HWACCMIsEnabled(pVM))
+    if (HMIsEnabled(pVM))
         return VERR_NOT_IMPLEMENTED;
 
     /*
@@ -259,7 +260,8 @@ VMMR3DECL(int) PGMR3HandlerVirtualRegister(PVM pVM, PGMVIRTHANDLERTYPE enmType, 
     RTRCPTR pfnHandlerRC;
     int rc = PDMR3LdrGetSymbolRCLazy(pVM, pszModRC, NULL /*pszSearchPath*/, pszHandlerRC, &pfnHandlerRC);
     if (RT_SUCCESS(rc))
-        return PGMR3HandlerVirtualRegisterEx(pVM, enmType, GCPtr, GCPtrLast, pfnInvalidateR3, pfnHandlerR3, pfnHandlerRC, pszDesc);
+        return PGMR3HandlerVirtualRegisterEx(pVM, enmType, GCPtr, GCPtrLast, pfnInvalidateR3,
+                                             pfnHandlerR3, pfnHandlerRC, pszDesc);
 
     AssertMsgFailed(("Failed to resolve %s.%s, rc=%Rrc.\n", pszModRC, pszHandlerRC, rc));
     return rc;
@@ -292,7 +294,7 @@ VMMDECL(int) PGMR3HandlerVirtualRegisterEx(PVM pVM, PGMVIRTHANDLERTYPE enmType, 
          enmType, GCPtr, GCPtrLast, pfnInvalidateR3, pfnHandlerR3, pfnHandlerRC, pszDesc));
 
     /* Not supported/relevant for VT-x and AMD-V. */
-    if (HWACCMIsEnabled(pVM))
+    if (HMIsEnabled(pVM))
         return VERR_NOT_IMPLEMENTED;
 
     /*
@@ -408,9 +410,8 @@ VMMDECL(int) PGMR3HandlerVirtualRegisterEx(PVM pVM, PGMVIRTHANDLERTYPE enmType, 
         pgmUnlock(pVM);
 
 #ifdef VBOX_WITH_STATISTICS
-        char szPath[256];
-        RTStrPrintf(szPath, sizeof(szPath), "/PGM/VirtHandler/Calls/%RGv-%RGv", pNew->Core.Key, pNew->Core.KeyLast);
-        rc = STAMR3Register(pVM, &pNew->Stat, STAMTYPE_PROFILE, STAMVISIBILITY_USED, szPath, STAMUNIT_TICKS_PER_CALL, pszDesc);
+        rc = STAMR3RegisterF(pVM, &pNew->Stat, STAMTYPE_PROFILE, STAMVISIBILITY_USED, STAMUNIT_TICKS_PER_CALL, pszDesc,
+                             "/PGM/VirtHandler/Calls/%RGv-%RGv", pNew->Core.Key, pNew->Core.KeyLast);
         AssertRC(rc);
 #endif
         return VINF_SUCCESS;
@@ -506,7 +507,9 @@ VMMDECL(int) PGMHandlerVirtualDeregister(PVM pVM, RTGCPTR GCPtr)
 
     pgmUnlock(pVM);
 
-    STAM_DEREG(pVM, &pCur->Stat);
+#ifdef VBOX_WITH_STATISTICS
+    STAMR3DeregisterF(pVM->pUVM, "/PGM/VirtHandler/Calls/%RGv-%RGv", pCur->Core.Key, pCur->Core.KeyLast);
+#endif
     MMHyperFree(pVM, pCur);
 
     return VINF_SUCCESS;
@@ -582,9 +585,9 @@ DECLCALLBACK(void) pgmR3InfoHandlers(PVM pVM, PCDBGFINFOHLP pHlp, const char *ps
         pHlp->pfnPrintf(pHlp,
             "Hypervisor Virtual handlers:\n"
             "%*s %*s %*s %*s Type       Description\n",
-            - (int)sizeof(RTGCPTR) * 2,     "From", 
-            - (int)sizeof(RTGCPTR) * 2 - 3, "- To (excl)", 
-            - (int)sizeof(RTHCPTR) * 2 - 1, "HandlerHC", 
+            - (int)sizeof(RTGCPTR) * 2,     "From",
+            - (int)sizeof(RTGCPTR) * 2 - 3, "- To (excl)",
+            - (int)sizeof(RTHCPTR) * 2 - 1, "HandlerHC",
             - (int)sizeof(RTRCPTR) * 2 - 1, "HandlerGC");
         RTAvlroGCPtrDoWithAll(&pVM->pgm.s.pTreesR3->HyperVirtHandlers, true, pgmR3InfoHandlersVirtualOne, &Args);
     }

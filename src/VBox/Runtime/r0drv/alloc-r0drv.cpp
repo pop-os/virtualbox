@@ -336,7 +336,7 @@ RTDECL(int) RTMemAllocExTag(size_t cb, size_t cbAlignment, uint32_t fFlags, cons
     int         rc;
 
     RT_ASSERT_PREEMPT_CPUID_VAR();
-    if (!(fFlags & RTMEMHDR_FLAG_ANY_CTX_ALLOC))
+    if (!(fFlags & RTMEMALLOCEX_FLAGS_ANY_CTX_ALLOC))
         RT_ASSERT_INTS_ON();
 
     /*
@@ -349,7 +349,7 @@ RTDECL(int) RTMemAllocExTag(size_t cb, size_t cbAlignment, uint32_t fFlags, cons
     /*
      * Validate and convert flags.
      */
-    AssertMsgReturn(!(fFlags & ~RTMEMALLOCEX_FLAGS_VALID_MASK), ("%#x\n", fFlags), VERR_INVALID_PARAMETER);
+    AssertMsgReturn(!(fFlags & ~RTMEMALLOCEX_FLAGS_VALID_MASK_R0), ("%#x\n", fFlags), VERR_INVALID_PARAMETER);
     if (fFlags & RTMEMALLOCEX_FLAGS_ZEROED)
         fHdrFlags |= RTMEMHDR_FLAG_ZEROED;
     if (fFlags & RTMEMALLOCEX_FLAGS_EXEC)

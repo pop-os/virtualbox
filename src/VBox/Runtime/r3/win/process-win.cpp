@@ -40,7 +40,7 @@
 #include <Lmcons.h>
 
 #include <iprt/process.h>
-#include "internal/iprt.h"
+#include "internal-r3-win.h"
 
 #include <iprt/assert.h>
 #include <iprt/critsect.h>
@@ -58,7 +58,6 @@
 #include <iprt/string.h>
 #include <iprt/socket.h>
 
-#include "../init.h"
 
 
 /*******************************************************************************
@@ -967,7 +966,7 @@ static int rtProcWinCreateAsUser1(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
 {
     PFNCREATEPROCESSWITHLOGON pfnCreateProcessWithLogonW;
     pfnCreateProcessWithLogonW = (PFNCREATEPROCESSWITHLOGON)RTLdrGetSystemSymbol("Advapi32.dll", "CreateProcessWithLogonW");
-    if (pfnCreateProcessWithLogonW)
+    if (!pfnCreateProcessWithLogonW)
         return VERR_SYMBOL_NOT_FOUND;
 
     PRTUTF16 pwszzBlock;

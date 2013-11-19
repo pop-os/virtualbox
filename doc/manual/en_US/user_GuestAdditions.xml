@@ -386,7 +386,7 @@
           </listitem>
 
           <listitem>
-            <para>Do a <computeroutput>VBoxCertUtil add-trusted-publisher oracle-vbox.cer --root oracle-vbox.cer</computeroutput>.</para>
+            <para>Do<screen>VBoxCertUtil add-trusted-publisher oracle-vbox.cer --root oracle-vbox.cer</screen></para>
             <para>This will install the certificates to the certificate store. When installing the same certificate
             more than once, an appropriate error will be displayed.</para>
           </listitem>
@@ -521,6 +521,10 @@
       <para>The following Linux distributions are officially supported:</para>
 
       <itemizedlist>
+        <listitem>
+          <para>Oracle Linux as of version 5 including UEK kernels;</para>
+        </listitem>
+
         <listitem>
           <para>Fedora as of Fedora Core 4;</para>
         </listitem>
@@ -762,8 +766,7 @@
         </sect4>
 
         <sect4>
-          <title>CentOS, Red Hat Enterprise Linux and Oracle
-          Enterprise Linux</title>
+          <title>Oracle Linux, Red Hat Enterprise Linux and CentOS</title>
 
           <para><orderedlist>
               <listitem>
@@ -781,7 +784,9 @@
               <listitem>
                 <para>Install the GNU C compiler and the kernel development
                 packages using <screen>yum install gcc</screen> followed by
-                <screen>yum install kernel-devel</screen></para>
+                <screen>yum install kernel-devel</screen> For Oracle UEK
+                kernels, use <screen>yum install kernel-uek-devel</screen>
+                to install the UEK kernel headers.</para>
               </listitem>
 
               <listitem>
@@ -790,7 +795,7 @@
               </listitem>
 
               <listitem>
-                <para>In case Oracle Enterprise Linux does not find the
+                <para>In case Oracle Linux does not find the
                 required packages, you either have to install them from a
                 different source (e.g. DVD) or use Oracle's public Yum server
                 located at <ulink
@@ -1335,12 +1340,12 @@ $</screen>
       <para>The Aero theme is not enabled by default. To enable it<itemizedlist>
           <listitem>
             <para>In Windows Vista guest: right-click on the desktop, in the
-            contect menu select "Personalize", then select "Windows Color and Appearance"
+            context menu select "Personalize", then select "Windows Color and Appearance"
             in the "Personalization" window, in the "Appearance Settings" dialog select
             "Windows Aero" and press "OK"</para></listitem>
           <listitem>
             <para>In Windows 7 guest: right-click on the desktop, in the
-            contect menu select "Personalize" and select any Aero theme
+            context menu select "Personalize" and select any Aero theme
             in the "Personalization" window</para></listitem>
           </itemizedlist>
         </para>
@@ -1542,8 +1547,7 @@ VirtualBox Command Line Management Interface Version $VBOX_VERSION_MAJOR.$VBOX_V
 (C) 2005-$VBOX_C_YEAR $VBOX_VENDOR
 All rights reserved.
 
-Value: Windows Vista Business Edition
-</screen></para>
+Value: Windows Vista Business Edition</screen></para>
 
     <para>To add or change guest properties from the guest, use the tool
     <computeroutput>VBoxControl</computeroutput>. This tool is included in the

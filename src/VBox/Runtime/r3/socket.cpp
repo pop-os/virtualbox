@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,7 @@
 # include <ws2tcpip.h>
 #else /* !RT_OS_WINDOWS */
 # include <errno.h>
+# include <sys/select.h>
 # include <sys/stat.h>
 # include <sys/socket.h>
 # include <netinet/in.h>
@@ -110,6 +111,15 @@
 /** How many pending connection. */
 #define RTTCP_SERVER_BACKLOG    10
 
+/* Limit read and write sizes on Windows and OS/2. */
+#ifdef RT_OS_WINDOWS
+# define RTSOCKET_MAX_WRITE     (INT_MAX / 2)
+# define RTSOCKET_MAX_READ      (INT_MAX / 2)
+#elif defined(RT_OS_OS2)
+# define RTSOCKET_MAX_WRITE     0x10000
+# define RTSOCKET_MAX_READ      0x10000
+#endif
+
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
@@ -135,13 +145,15 @@ typedef struct RTSOCKETINT
     /** Indicates whether the socket is operating in blocking or non-blocking mode
      * currently. */
     bool                fBlocking;
+#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
+    /** The pollset currently polling this socket.  This is NIL if no one is
+     * polling. */
+    RTPOLLSET           hPollSet;
+#endif
 #ifdef RT_OS_WINDOWS
     /** The event semaphore we've associated with the socket handle.
      * This is WSA_INVALID_EVENT if not done. */
     WSAEVENT            hEvent;
-    /** The pollset currently polling this socket.  This is NIL if no one is
-     * polling. */
-    RTPOLLSET           hPollSet;
     /** The events we're polling for. */
     uint32_t            fPollEvts;
     /** The events we're currently subscribing to with WSAEventSelect.
@@ -397,9 +409,11 @@ int rtSocketCreateForNative(RTSOCKETINT **ppSocket, RTSOCKETNATIVE hNative)
     pThis->hNative          = hNative;
     pThis->fClosed          = false;
     pThis->fBlocking        = true;
+#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
+    pThis->hPollSet         = NIL_RTPOLLSET;
+#endif
 #ifdef RT_OS_WINDOWS
     pThis->hEvent           = WSA_INVALID_EVENT;
-    pThis->hPollSet         = NIL_RTPOLLSET;
     pThis->fPollEvts        = 0;
     pThis->fSubscribedEvts  = 0;
 #endif
@@ -853,8 +867,8 @@ RTDECL(int) RTSocketRead(RTSOCKET hSocket, void *pvBuffer, size_t cbBuffer, size
     for (;;)
     {
         rtSocketErrorReset();
-#ifdef RT_OS_WINDOWS
-        int    cbNow = cbToRead >= INT_MAX/2 ? INT_MAX/2 : (int)cbToRead;
+#ifdef RTSOCKET_MAX_READ
+        int    cbNow = cbToRead >= RTSOCKET_MAX_READ ? RTSOCKET_MAX_READ : (int)cbToRead;
 #else
         size_t cbNow = cbToRead;
 #endif
@@ -920,8 +934,8 @@ RTDECL(int) RTSocketReadFrom(RTSOCKET hSocket, void *pvBuffer, size_t cbBuffer, 
     size_t  cbToRead = cbBuffer;
     rtSocketErrorReset();
     RTSOCKADDRUNION u;
-#ifdef RT_OS_WINDOWS
-    int       cbNow  = cbToRead >= INT_MAX/2 ? INT_MAX/2 : (int)cbToRead;
+#ifdef RTSOCKET_MAX_READ
+    int       cbNow  = cbToRead >= RTSOCKET_MAX_READ ? RTSOCKET_MAX_READ : (int)cbToRead;
     int       cbAddr = sizeof(u);
 #else
     size_t    cbNow  = cbToRead;
@@ -967,8 +981,8 @@ RTDECL(int) RTSocketWrite(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuffe
     /*
      * Try write all at once.
      */
-#ifdef RT_OS_WINDOWS
-    int     cbNow     = cbBuffer >= INT_MAX / 2 ? INT_MAX / 2 : (int)cbBuffer;
+#ifdef RTSOCKET_MAX_WRITE
+    int     cbNow     = cbBuffer >= RTSOCKET_MAX_WRITE ? RTSOCKET_MAX_WRITE : (int)cbBuffer;
 #else
     size_t  cbNow     = cbBuffer >= SSIZE_MAX   ? SSIZE_MAX   :      cbBuffer;
 #endif
@@ -994,8 +1008,8 @@ RTDECL(int) RTSocketWrite(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuffe
             pvBuffer     = (char const *)pvBuffer + cbWritten;
 
             /* send */
-#ifdef RT_OS_WINDOWS
-            cbNow = cbBuffer >= INT_MAX / 2 ? INT_MAX / 2 : (int)cbBuffer;
+#ifdef RTSOCKET_MAX_WRITE
+            cbNow = cbBuffer >= RTSOCKET_MAX_WRITE ? RTSOCKET_MAX_WRITE : (int)cbBuffer;
 #else
             cbNow = cbBuffer >= SSIZE_MAX   ? SSIZE_MAX   :      cbBuffer;
 #endif
@@ -1056,7 +1070,7 @@ RTDECL(int) RTSocketWriteTo(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuf
      * Must write all at once, otherwise it is a failure.
      */
 #ifdef RT_OS_WINDOWS
-    int     cbNow     = cbBuffer >= INT_MAX / 2 ? INT_MAX / 2 : (int)cbBuffer;
+    int     cbNow     = cbBuffer >= RTSOCKET_MAX_WRITE ? RTSOCKET_MAX_WRITE : (int)cbBuffer;
 #else
     size_t  cbNow     = cbBuffer >= SSIZE_MAX   ? SSIZE_MAX   :      cbBuffer;
 #endif
@@ -1201,9 +1215,13 @@ RTDECL(int) RTSocketReadNB(RTSOCKET hSocket, void *pvBuffer, size_t cbBuffer, si
         return rc;
 
     rtSocketErrorReset();
-#ifdef RT_OS_WINDOWS
-    int cbNow = cbBuffer >= INT_MAX/2 ? INT_MAX/2 : (int)cbBuffer;
+#ifdef RTSOCKET_MAX_READ
+    int    cbNow = cbBuffer >= RTSOCKET_MAX_WRITE ? RTSOCKET_MAX_WRITE : (int)cbBuffer;
+#else
+    size_t cbNow = cbBuffer;
+#endif
 
+#ifdef RT_OS_WINDOWS
     int cbRead = recv(pThis->hNative, (char *)pvBuffer, cbNow, MSG_NOSIGNAL);
     if (cbRead >= 0)
     {
@@ -1216,7 +1234,7 @@ RTDECL(int) RTSocketReadNB(RTSOCKET hSocket, void *pvBuffer, size_t cbBuffer, si
     if (rc == VERR_TRY_AGAIN)
         rc = VINF_TRY_AGAIN;
 #else
-    ssize_t cbRead = recv(pThis->hNative, pvBuffer, cbBuffer, MSG_NOSIGNAL);
+    ssize_t cbRead = recv(pThis->hNative, pvBuffer, cbNow, MSG_NOSIGNAL);
     if (cbRead >= 0)
         *pcbRead = cbRead;
     else if (errno == EAGAIN)
@@ -1249,11 +1267,14 @@ RTDECL(int) RTSocketWriteNB(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuf
         return rc;
 
     rtSocketErrorReset();
+#ifdef RTSOCKET_MAX_WRITE
+    int    cbNow = cbBuffer >= RTSOCKET_MAX_WRITE ? RTSOCKET_MAX_WRITE : (int)cbBuffer;
+#else
+    size_t cbNow = cbBuffer;
+#endif
+
 #ifdef RT_OS_WINDOWS
-    int cbNow = RT_MIN((int)cbBuffer, INT_MAX/2);
-
     int cbWritten = send(pThis->hNative, (const char *)pvBuffer, cbNow, MSG_NOSIGNAL);
-
     if (cbWritten >= 0)
     {
         *pcbWritten = cbWritten;
@@ -1752,7 +1773,6 @@ int rtSocketSetOpt(RTSOCKET hSocket, int iLevel, int iOption, void const *pvValu
     return rc;
 }
 
-#ifdef RT_OS_WINDOWS
 
 /**
  * Internal RTPollSetAdd helper that returns the handle that should be added to
@@ -1761,29 +1781,37 @@ int rtSocketSetOpt(RTSOCKET hSocket, int iLevel, int iOption, void const *pvValu
  * @returns Valid handle on success, INVALID_HANDLE_VALUE on failure.
  * @param   hSocket             The socket handle.
  * @param   fEvents             The events we're polling for.
- * @param   ph                  where to put the primary handle.
+ * @param   phNative            Where to put the primary handle.
  */
-int rtSocketPollGetHandle(RTSOCKET hSocket, uint32_t fEvents, PHANDLE ph)
+int rtSocketPollGetHandle(RTSOCKET hSocket, uint32_t fEvents, PRTHCINTPTR phNative)
 {
     RTSOCKETINT *pThis = hSocket;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
+#ifdef RT_OS_WINDOWS
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
     int rc = VINF_SUCCESS;
     if (pThis->hEvent != WSA_INVALID_EVENT)
-        *ph = pThis->hEvent;
+        *phNative = (RTHCINTPTR)pThis->hEvent;
     else
     {
-        *ph = pThis->hEvent = WSACreateEvent();
+        pThis->hEvent = WSACreateEvent();
+        *phNative = (RTHCINTPTR)pThis->hEvent;
         if (pThis->hEvent == WSA_INVALID_EVENT)
             rc = rtSocketError();
     }
 
     rtSocketUnlock(pThis);
     return rc;
+
+#else  /* !RT_OS_WINDOWS */
+    *phNative = (RTHCUINTPTR)pThis->hNative;
+    return VINF_SUCCESS;
+#endif /* !RT_OS_WINDOWS */
 }
 
+#ifdef RT_OS_WINDOWS
 
 /**
  * Undos the harm done by WSAEventSelect.
@@ -1853,6 +1881,10 @@ static int rtSocketPollUpdateEvents(RTSOCKETINT *pThis, uint32_t fEvents)
     return rc;
 }
 
+#endif  /* RT_OS_WINDOWS */
+
+
+#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
 
 /**
  * Checks for pending events.
@@ -1863,12 +1895,13 @@ static int rtSocketPollUpdateEvents(RTSOCKETINT *pThis, uint32_t fEvents)
  */
 static uint32_t rtSocketPollCheck(RTSOCKETINT *pThis, uint32_t fEvents)
 {
-    int         rc         = VINF_SUCCESS;
-    uint32_t    fRetEvents = 0;
+    uint32_t fRetEvents = 0;
 
     LogFlowFunc(("pThis=%#p fEvents=%#x\n", pThis, fEvents));
 
+# ifdef RT_OS_WINDOWS
     /* Make sure WSAEnumNetworkEvents returns what we want. */
+    int rc = VINF_SUCCESS;
     if ((pThis->fSubscribedEvts & fEvents) != fEvents)
         rc = rtSocketPollUpdateEvents(pThis, pThis->fSubscribedEvts | fEvents);
 
@@ -1904,8 +1937,23 @@ static uint32_t rtSocketPollCheck(RTSOCKETINT *pThis, uint32_t fEvents)
     /* Fall back on select if we hit an error above. */
     if (RT_FAILURE(rc))
     {
-        /** @todo  */
+
     }
+
+#else  /* RT_OS_OS2 */
+    int aFds[4] = { pThis->hNative, pThis->hNative, pThis->hNative, -1 };
+    int rc = os2_select(aFds, 1, 1, 1, 0);
+    if (rc > 0)
+    {
+        if (aFds[0] == pThis->hNative)
+            fRetEvents |= RTPOLL_EVT_READ;
+        if (aFds[1] == pThis->hNative)
+            fRetEvents |= RTPOLL_EVT_WRITE;
+        if (aFds[2] == pThis->hNative)
+            fRetEvents |= RTPOLL_EVT_ERROR;
+        fRetEvents &= fEvents;
+    }
+#endif /* RT_OS_OS2 */
 
     LogFlowFunc(("fRetEvents=%#x\n", fRetEvents));
     return fRetEvents;
@@ -1939,6 +1987,8 @@ uint32_t rtSocketPollStart(RTSOCKET hSocket, RTPOLLSET hPollSet, uint32_t fEvent
     RTSOCKETINT *pThis = hSocket;
     AssertPtrReturn(pThis, UINT32_MAX);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, UINT32_MAX);
+    /** @todo This isn't quite sane. Replace by critsect and open up concurrent
+     *        reads and writes! */
     if (rtSocketTryLock(pThis))
         pThis->hPollSet = hPollSet;
     else
@@ -1948,6 +1998,7 @@ uint32_t rtSocketPollStart(RTSOCKET hSocket, RTPOLLSET hPollSet, uint32_t fEvent
     }
 
     /* (rtSocketPollCheck will reset the event object). */
+# ifdef RT_OS_WINDOWS
     uint32_t fRetEvents = pThis->fEventsSaved;
     pThis->fEventsSaved = 0; /* Reset */
     fRetEvents |= rtSocketPollCheck(pThis, fEvents);
@@ -1967,12 +2018,17 @@ uint32_t rtSocketPollStart(RTSOCKET hSocket, RTPOLLSET hPollSet, uint32_t fEvent
             }
         }
     }
+# else
+    uint32_t fRetEvents = rtSocketPollCheck(pThis, fEvents);
+# endif
 
     if (fRetEvents || fNoWait)
     {
         if (pThis->cUsers == 1)
         {
+# ifdef RT_OS_WINDOWS
             rtSocketPollClearEventAndRestoreBlocking(pThis);
+# endif
             pThis->hPollSet = NIL_RTPOLLSET;
         }
         ASMAtomicDecU32(&pThis->cUsers);
@@ -2008,6 +2064,7 @@ uint32_t rtSocketPollDone(RTSOCKET hSocket, uint32_t fEvents, bool fFinalEntry, 
 
     /* Harvest events and clear the event mask for the next round of polling. */
     uint32_t fRetEvents = rtSocketPollCheck(pThis, fEvents);
+# ifdef RT_OS_WINDOWS
     pThis->fPollEvts = 0;
 
     /*
@@ -2021,15 +2078,19 @@ uint32_t rtSocketPollDone(RTSOCKET hSocket, uint32_t fEvents, bool fFinalEntry, 
         pThis->fEventsSaved = fRetEvents;
         fRetEvents = 0;
     }
+# endif
 
     /* Make the socket blocking again and unlock the handle. */
     if (pThis->cUsers == 1)
     {
+# ifdef RT_OS_WINDOWS
         rtSocketPollClearEventAndRestoreBlocking(pThis);
+# endif
         pThis->hPollSet = NIL_RTPOLLSET;
     }
     ASMAtomicDecU32(&pThis->cUsers);
     return fRetEvents;
 }
 
-#endif /* RT_OS_WINDOWS */
+#endif /* RT_OS_WINDOWS || RT_OS_OS2 */
+

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2012 Oracle Corporation
+ * Copyright (C) 2007-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,6 +55,16 @@ typedef struct UVMCPU
 #endif
         uint8_t                     padding[512];
     } vm;
+
+    /** The DBGF data. */
+    union
+    {
+#ifdef ___DBGFInternal_h
+        struct DBGFUSERPERVMCPU     s;
+#endif
+        uint8_t                     padding[64];
+    } dbgf;
+
 } UVMCPU;
 AssertCompileMemberAlignment(UVMCPU, vm, 32);
 
@@ -114,7 +124,7 @@ typedef struct UVM
 #ifdef ___PDMInternal_h
         struct PDMUSERPERVM     s;
 #endif
-        uint8_t                 padding[128];
+        uint8_t                 padding[256];
     } pdm;
 
     /** The STAM data. */
@@ -123,8 +133,17 @@ typedef struct UVM
 #ifdef ___STAMInternal_h
         struct STAMUSERPERVM    s;
 #endif
-        uint8_t                 padding[6624];
+        uint8_t                 padding[6880];
     } stam;
+
+    /** The DBGF data. */
+    union
+    {
+#ifdef ___DBGFInternal_h
+        struct DBGFUSERPERVM    s;
+#endif
+        uint8_t                 padding[256];
+    } dbgf;
 
     /** Per virtual CPU data. */
     UVMCPU                      aCpus[1];

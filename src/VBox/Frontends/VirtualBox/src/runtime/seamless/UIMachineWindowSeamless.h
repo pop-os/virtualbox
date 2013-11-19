@@ -23,7 +23,7 @@
 #include "UIMachineWindow.h"
 
 /* Forward declarations: */
-class VBoxMiniToolBar;
+class UIRuntimeMiniToolBar;
 
 /* Seamless machine-window implementation: */
 class UIMachineWindowSeamless : public UIMachineWindow
@@ -47,13 +47,6 @@ private slots:
 
     /* Popup main menu: */
     void sltPopupMainMenu();
-
-#ifndef RT_OS_DARWIN
-    /* Current Qt on MAC has something broken in moc generation,
-     * so we have to use RT_OS_DARWIN instead of Q_WS_MAC here. */
-    /* Update mini tool-bar mask: */
-    void sltUpdateMiniToolBarMask();
-#endif /* !RT_OS_DARWIN */
 
 private:
 
@@ -80,24 +73,26 @@ private:
     void updateAppearanceOf(int iElement);
 #endif /* !Q_WS_MAC */
 
-#ifdef Q_WS_MAC
-    /* Event handlers: */
-    bool event(QEvent *pEvent);
-#endif /* Q_WS_MAC */
+#if defined(VBOX_WITH_TRANSLUCENT_SEAMLESS) && defined(Q_WS_WIN)
+    /* Handler: Translucency stuff: */
+    void showEvent(QShowEvent *pEvent);
+#endif /* VBOX_WITH_TRANSLUCENT_SEAMLESS && Q_WS_WIN */
 
-    /* Helpers: */
+#ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
+    /* Helper: Masking stuff: */
     void setMask(const QRegion &region);
+#endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
 
     /* Widgets: */
     QMenu *m_pMainMenu;
 #ifndef Q_WS_MAC
-    VBoxMiniToolBar *m_pMiniToolBar;
+    UIRuntimeMiniToolBar *m_pMiniToolBar;
 #endif /* !Q_WS_MAC */
 
-    /* Variables: */
-#ifdef Q_WS_WIN
-    QRegion m_prevRegion;
-#endif /* Q_WS_WIN */
+#ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
+    /* Variable: Masking stuff: */
+    QRegion m_maskRegion;
+#endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
 
     /* Factory support: */
     friend class UIMachineWindow;

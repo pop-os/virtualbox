@@ -95,6 +95,8 @@ struct VBOXTLSREFDATA_DUMMY
         VBoxTlsRefAssertImpl(cRefs > 1 || (_p)->enmTlsRefState == VBOXTLSREFDATA_STATE_DESTROYING); \
     } while (0)
 
+#define VBoxTlsRefCountGet(_p) (ASMAtomicReadS32(&(_p)->cTlsRefs))
+
 #define VBoxTlsRefRelease(_p) do { \
         int cRefs = ASMAtomicDecS32(&(_p)->cTlsRefs); \
         VBoxTlsRefAssertImpl(cRefs >= 0); \
@@ -132,5 +134,9 @@ struct VBOXTLSREFDATA_DUMMY
             } \
         } \
     } while (0)
+
+
+/* host 3D->Fe[/Qt] notification mechanism defines */
+#define VBOX3D_NOTIFY_EVENT_TYPE_VISIBLE_3DDATA 2
 
 #endif /* #ifndef ___VBox_VBoxVideo3D_h */

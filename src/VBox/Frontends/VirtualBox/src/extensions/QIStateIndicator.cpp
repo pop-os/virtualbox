@@ -25,40 +25,12 @@
 # include <QContextMenuEvent>
 #endif
 
-/** @clas QIStateIndicator
- *
- *  The QIStateIndicator class is a simple class that can visually indicate
- *  the state of some thing, as described by the state property.
- */
-
-QIStateIndicator::QIStateIndicator(QWidget *pParent /* = 0 */)
-  : QFrame(pParent)
+QIStateIndicator::QIStateIndicator(QWidget *pParent /* = 0*/)
+  : QIWithRetranslateUI<QFrame>(pParent)
   , mState(0)
   , mSize(0, 0)
 {
     setSizePolicy(QSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed));
-}
-
-/**
- *  Constructs a new QIStateIndicator instance. This instance is useless
- *  until icons are specified for necessary states.
- *
- *  @param aState
- *      the initial indicator state
- */
-QIStateIndicator::QIStateIndicator (int aState)
-//    : QFrame (aParent, aName, aFlags | Qt::WStaticContents | Qt::WMouseNoMask)
-{
-    mState = aState;
-    mSize = QSize (0, 0);
-
-    setSizePolicy (QSizePolicy (QSizePolicy::Fixed, QSizePolicy::Fixed));
-
-    /* we will precompose the pixmap background using the widget background in
-     * drawContents(), so try to set the correct background origin for the
-     * case when a pixmap is used as a widget background. */
-//    if (aParent)
-//        setBackgroundOrigin (aParent->backgroundOrigin());
 }
 
 QIStateIndicator::~QIStateIndicator()

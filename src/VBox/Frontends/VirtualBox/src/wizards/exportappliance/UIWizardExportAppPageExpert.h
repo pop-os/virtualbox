@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@
 #include "UIWizardExportAppPageBasic4.h"
 
 /* Forward declarations: */
-class QILabelSeparator;
+class QGroupBox;
 
 /* Expert page of the Export Appliance wizard: */
 class UIWizardExportAppPageExpert : public UIWizardPage,
@@ -39,7 +39,7 @@ class UIWizardExportAppPageExpert : public UIWizardPage,
     Q_PROPERTY(QStringList machineNames READ machineNames);
     Q_PROPERTY(QStringList machineIDs READ machineIDs);
     Q_PROPERTY(StorageType storageType READ storageType WRITE setStorageType);
-    Q_PROPERTY(bool OVF09Selected READ isOVF09Selected WRITE setOVF09Selected);
+    Q_PROPERTY(QString format READ format WRITE setFormat);
     Q_PROPERTY(bool manifestSelected READ isManifestSelected WRITE setManifestSelected);
     Q_PROPERTY(QString username READ username WRITE setUserName);
     Q_PROPERTY(QString password READ password WRITE setPassword);
@@ -70,6 +70,9 @@ private slots:
     /* Storage-type change handler: */
     void sltStorageTypeChangeHandler();
 
+    /* Format combo change handler: */
+    void sltUpdateFormatComboToolTip() { updateFormatComboToolTip(); }
+
 private:
 
     /* Field API: */
@@ -86,8 +89,9 @@ private:
     bool validatePage();
 
     /* Widgets: */
-    QILabelSeparator *m_pVMSelectorLabel;
-    QILabelSeparator *m_pVMApplianceLabel;
+    QGroupBox *m_pSelectorCnt;
+    QGroupBox *m_pApplianceCnt;
+    QGroupBox *m_pSettingsCnt;
 };
 
 #endif /* __UIWizardExportAppPageExpert_h__ */

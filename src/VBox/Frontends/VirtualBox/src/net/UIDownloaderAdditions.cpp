@@ -18,15 +18,16 @@
  */
 
 /* Global includes: */
-#include <QNetworkReply>
 #include <QDir>
 #include <QFile>
 
 /* Local includes: */
 #include "UIDownloaderAdditions.h"
+#include "UINetworkReply.h"
 #include "QIFileDialog.h"
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
+#include "UIModalWindowManager.h"
 
 /* static */
 UIDownloaderAdditions* UIDownloaderAdditions::m_spInstance = 0;
@@ -71,12 +72,12 @@ UIDownloaderAdditions::~UIDownloaderAdditions()
         m_spInstance = 0;
 }
 
-bool UIDownloaderAdditions::askForDownloadingConfirmation(QNetworkReply *pReply)
+bool UIDownloaderAdditions::askForDownloadingConfirmation(UINetworkReply *pReply)
 {
-    return msgCenter().confirmDownloadAdditions(source().toString(), pReply->header(QNetworkRequest::ContentLengthHeader).toInt());
+    return msgCenter().confirmDownloadGuestAdditions(source().toString(), pReply->header(QNetworkRequest::ContentLengthHeader).toInt());
 }
 
-void UIDownloaderAdditions::handleDownloadedObject(QNetworkReply *pReply)
+void UIDownloaderAdditions::handleDownloadedObject(UINetworkReply *pReply)
 {
     /* Read received data into the buffer: */
     QByteArray receivedData(pReply->readAll());
@@ -92,17 +93,17 @@ void UIDownloaderAdditions::handleDownloadedObject(QNetworkReply *pReply)
             file.close();
 
             /* Warn the user about additions-image loaded and saved, propose to mount it: */
-            if (msgCenter().confirmMountAdditions(source().toString(), QDir::toNativeSeparators(target())))
+            if (msgCenter().proposeMountGuestAdditions(source().toString(), QDir::toNativeSeparators(target())))
                 emit sigDownloadFinished(target());
             break;
         }
 
         /* Warn the user about additions-image was downloaded but was NOT saved: */
-        msgCenter().warnAboutAdditionsCantBeSaved(target());
+        msgCenter().cannotSaveGuestAdditions(source().toString(), QDir::toNativeSeparators(target()));
 
         /* Ask the user for another location for the additions-image file: */
         QString strTarget = QIFileDialog::getExistingDirectory(QFileInfo(target()).absolutePath(),
-                                                               msgCenter().networkManagerOrMainMachineWindowShown(),
+                                                               windowManager().networkManagerOrMainWindowShown(),
                                                                tr("Select folder to save Guest Additions image to"), true);
 
         /* Check if user had really set a new target: */

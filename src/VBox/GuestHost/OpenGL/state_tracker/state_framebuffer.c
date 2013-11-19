@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -79,9 +79,7 @@ crStateFramebufferAllocate(CRContext *ctx, GLuint name)
 
     crStateInitFrameBuffer(buffer);
     crHashtableAdd(ctx->shared->fbTable, name, buffer);
-#ifndef IN_GUEST
     CR_STATE_SHAREDOBJ_USAGE_INIT(buffer);
-#endif
 
     return buffer;
 }
@@ -106,9 +104,7 @@ crStateRenderbufferAllocate(CRContext *ctx, GLuint name)
 
     buffer->internalformat = GL_RGBA;
     crHashtableAdd(ctx->shared->rbTable, name, buffer);
-#ifndef IN_GUEST
     CR_STATE_SHAREDOBJ_USAGE_INIT(buffer);
-#endif
 
     return buffer;
 }
@@ -168,10 +164,7 @@ crStateBindRenderbufferEXT(GLenum target, GLuint renderbuffer)
             CRSTATE_CHECKERR(!crHashtableIsKeyUsed(g->shared->rbTable, renderbuffer), GL_INVALID_OPERATION, "name is not a renderbuffer");
             fbo->renderbuffer = crStateRenderbufferAllocate(g, renderbuffer);
         }
-#ifndef IN_GUEST
         CR_STATE_SHAREDOBJ_USAGE_SET(fbo->renderbuffer, g);
-#endif
-
     }
     else fbo->renderbuffer = NULL;
 }
@@ -227,9 +220,7 @@ static void ctStateRenderbufferRefsCleanup(CRContext *g, GLuint fboId, CRRenderb
     crStateCheckFBOAttachments(fbo->readFB, fboId, GL_READ_FRAMEBUFFER);
     crStateCheckFBOAttachments(fbo->drawFB, fboId, GL_DRAW_FRAMEBUFFER);
 
-#ifndef IN_GUEST
     CR_STATE_SHAREDOBJ_USAGE_CLEAR(rbo, g);
-#endif
 }
 
 DECLEXPORT(void) STATE_APIENTRY
@@ -250,11 +241,9 @@ crStateDeleteRenderbuffersEXT(GLsizei n, const GLuint *renderbuffers)
             rbo = (CRRenderbufferObject*) crHashtableSearch(g->shared->rbTable, renderbuffers[i]);
             if (rbo)
             {
-#ifndef IN_GUEST
                 int j;
-#endif
+
                 ctStateRenderbufferRefsCleanup(g, renderbuffers[i], rbo);
-#ifndef IN_GUEST
                 CR_STATE_SHAREDOBJ_USAGE_FOREACH_USED_IDX(rbo, j)
                 {
                     /* saved state version <= SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS does not have usage bits info,
@@ -275,7 +264,6 @@ crStateDeleteRenderbuffersEXT(GLsizei n, const GLuint *renderbuffers)
                     else
                         CR_STATE_SHAREDOBJ_USAGE_CLEAR_IDX(rbo, j);
                 }
-#endif
                 crHashtableDelete(g->shared->rbTable, renderbuffers[i], crStateFreeRBO);
             }
         }
@@ -401,9 +389,8 @@ crStateBindFramebufferEXT(GLenum target, GLuint framebuffer)
             pFBO = crStateFramebufferAllocate(g, framebuffer);
         }
 
-#ifndef IN_GUEST
+
         CR_STATE_SHAREDOBJ_USAGE_SET(pFBO, g);
-#endif
     }
 
     /* @todo: http://www.opengl.org/registry/specs/ARB/framebuffer_object.txt 
@@ -458,11 +445,10 @@ crStateDeleteFramebuffersEXT(GLsizei n, const GLuint *framebuffers)
             fb = (CRFramebufferObject*) crHashtableSearch(g->shared->fbTable, framebuffers[i]);
             if (fb)
             {
-#ifndef IN_GUEST
                 int j;
-#endif
+
                 ctStateFramebufferRefsCleanup(g, fb);
-#ifndef IN_GUEST
+
                 CR_STATE_SHAREDOBJ_USAGE_FOREACH_USED_IDX(fb, j)
                 {
                     /* saved state version <= SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS does not have usage bits info,
@@ -486,7 +472,6 @@ crStateDeleteFramebuffersEXT(GLsizei n, const GLuint *framebuffers)
                     else
                         CR_STATE_SHAREDOBJ_USAGE_CLEAR_IDX(fb, j);
                 }
-#endif
                 crHashtableDelete(g->shared->fbTable, framebuffers[i], crStateFreeFBO);
             }
         }
@@ -655,9 +640,7 @@ crStateFramebufferTexture1DEXT(GLenum target, GLenum attachment, GLenum textarge
 
     CRSTATE_CHECKERR(textarget!=GL_TEXTURE_1D, GL_INVALID_OPERATION, "textarget");
 
-#ifndef IN_GUEST
     CR_STATE_SHAREDOBJ_USAGE_SET(tobj, g);
-#endif
 
     for (i = 0; i < cap; ++i)
     {
@@ -691,9 +674,7 @@ crStateFramebufferTexture2DEXT(GLenum target, GLenum attachment, GLenum textarge
 
     CRSTATE_CHECKERR(GL_TEXTURE_1D==textarget || GL_TEXTURE_3D==textarget, GL_INVALID_OPERATION, "textarget");
 
-#ifndef IN_GUEST
     CR_STATE_SHAREDOBJ_USAGE_SET(tobj, g);
-#endif
 
     for (i = 0; i < cap; ++i)
     {
@@ -732,9 +713,7 @@ crStateFramebufferTexture3DEXT(GLenum target, GLenum attachment, GLenum textarge
     CRSTATE_CHECKERR(zoffset>(g->limits.max3DTextureSize-1), GL_INVALID_VALUE, "zoffset too big");
     CRSTATE_CHECKERR(textarget!=GL_TEXTURE_3D, GL_INVALID_OPERATION, "textarget");
 
-#ifndef IN_GUEST
     CR_STATE_SHAREDOBJ_USAGE_SET(tobj, g);
-#endif
 
     for (i = 0; i < cap; ++i)
     {
@@ -793,9 +772,7 @@ crStateFramebufferRenderbufferEXT(GLenum target, GLenum attachment, GLenum rende
         rb = crStateRenderbufferAllocate(g, renderbuffer);
     }
 
-#ifndef IN_GUEST
     CR_STATE_SHAREDOBJ_USAGE_SET(rb, g);
-#endif
 
     for (i = 0; i < cFBOs; ++i)
     {
@@ -911,8 +888,11 @@ static void crStateSyncRenderbuffersCB(unsigned long key, void *data1, void *dat
 
     diff_api.GenRenderbuffersEXT(1, &pRBO->hwid);
 
-    diff_api.BindRenderbufferEXT(GL_RENDERBUFFER_EXT, pRBO->hwid);
-    diff_api.RenderbufferStorageEXT(GL_RENDERBUFFER_EXT, pRBO->internalformat, pRBO->width, pRBO->height);
+    if (pRBO->width && pRBO->height)
+    {
+        diff_api.BindRenderbufferEXT(GL_RENDERBUFFER_EXT, pRBO->hwid);
+        diff_api.RenderbufferStorageEXT(GL_RENDERBUFFER_EXT, pRBO->internalformat, pRBO->width, pRBO->height);
+    }
 }
 
 static void crStateSyncAP(CRFBOAttachmentPoint *pAP, GLenum ap, CRContext *ctx)
@@ -1043,36 +1023,37 @@ crStateFramebufferObjectSwitch(CRContext *from, CRContext *to)
 }
 
 DECLEXPORT(void) STATE_APIENTRY
-crStateFramebufferObjectDisableHW(CRContext *ctx, GLuint idFBO)
+crStateFramebufferObjectDisableHW(CRContext *ctx, GLuint idDrawFBO, GLuint idReadFBO)
 {
-    GLboolean fAdjustDrawReadBuffers = GL_FALSE;
+    GLenum idDrawBuffer = 0, idReadBuffer = 0;
 
-    if (ctx->framebufferobject.drawFB || idFBO)
+    if (ctx->framebufferobject.drawFB || idDrawFBO)
     {
         diff_api.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, 0);
-        fAdjustDrawReadBuffers = GL_TRUE;
+        idDrawBuffer = ctx->buffer.drawBuffer;
     }
 
-    if (ctx->framebufferobject.readFB ||idFBO)
+    if (ctx->framebufferobject.readFB || idReadFBO)
     {
         diff_api.BindFramebufferEXT(GL_READ_FRAMEBUFFER, 0);
-        fAdjustDrawReadBuffers = GL_TRUE;
+        idReadBuffer = ctx->buffer.readBuffer;
     }
 
-    if (fAdjustDrawReadBuffers)
-    {
-        diff_api.DrawBuffer(GL_BACK);
-        diff_api.ReadBuffer(GL_BACK);
-    }
+    if (idDrawBuffer)
+        diff_api.DrawBuffer(idDrawBuffer);
+    if (idReadBuffer)
+        diff_api.ReadBuffer(idReadBuffer);
 
     if (ctx->framebufferobject.renderbuffer)
         diff_api.BindRenderbufferEXT(GL_RENDERBUFFER_EXT, 0);
 }
 
 DECLEXPORT(void) STATE_APIENTRY
-crStateFramebufferObjectReenableHW(CRContext *fromCtx, CRContext *toCtx, GLuint idFBO)
+crStateFramebufferObjectReenableHW(CRContext *fromCtx, CRContext *toCtx, GLuint idDrawFBO, GLuint idReadFBO)
 {
     GLuint idReadBuffer = 0, idDrawBuffer = 0;
+    if (!fromCtx)
+        fromCtx = toCtx; /* <- in case fromCtx is zero, set it to toCtx to ensure framebuffer state gets re-enabled correctly */
 
     if ((fromCtx->framebufferobject.drawFB) /* <- the FBO state was reset in crStateFramebufferObjectDisableHW */
             && fromCtx->framebufferobject.drawFB == toCtx->framebufferobject.drawFB)  /* .. and it was NOT restored properly in crStateFramebufferObjectSwitch */
@@ -1080,9 +1061,9 @@ crStateFramebufferObjectReenableHW(CRContext *fromCtx, CRContext *toCtx, GLuint 
         diff_api.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, toCtx->framebufferobject.drawFB->hwid);
         idDrawBuffer = toCtx->framebufferobject.drawFB->drawbuffer[0];
     }
-    else if (idFBO && !toCtx->framebufferobject.drawFB)
+    else if (idDrawFBO && !toCtx->framebufferobject.drawFB)
     {
-        diff_api.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, idFBO);
+        diff_api.BindFramebufferEXT(GL_DRAW_FRAMEBUFFER, idDrawFBO);
         idDrawBuffer = GL_COLOR_ATTACHMENT0;
     }
 
@@ -1092,9 +1073,9 @@ crStateFramebufferObjectReenableHW(CRContext *fromCtx, CRContext *toCtx, GLuint 
         diff_api.BindFramebufferEXT(GL_READ_FRAMEBUFFER, toCtx->framebufferobject.readFB->hwid);
         idReadBuffer = toCtx->framebufferobject.readFB->readbuffer;
     }
-    else if (idFBO && !toCtx->framebufferobject.readFB)
+    else if (idReadFBO && !toCtx->framebufferobject.readFB)
     {
-        diff_api.BindFramebufferEXT(GL_READ_FRAMEBUFFER, idFBO);
+        diff_api.BindFramebufferEXT(GL_READ_FRAMEBUFFER, idReadFBO);
         idReadBuffer = GL_COLOR_ATTACHMENT0;
     }
 

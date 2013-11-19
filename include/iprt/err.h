@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -654,6 +654,8 @@ RT_C_DECLS_END
 #define VERR_VERSION_MISMATCH               (-11)
 /** The request function is not implemented. */
 #define VERR_NOT_IMPLEMENTED                (-12)
+/** Invalid flags was given. */
+#define VERR_INVALID_FLAGS                  (-13)
 
 /** Not equal. */
 #define VERR_NOT_EQUAL                      (-18)
@@ -875,6 +877,8 @@ RT_C_DECLS_END
 #define VERR_UNEVEN_INPUT                   (-22402)
 /** Something is not available or not working properly. */
 #define VERR_NOT_AVAILABLE                  (-22403)
+/** The RTPROC_FLAGS_DETACHED flag isn't supported. */
+#define VERR_PROC_DETACH_NOT_SUPPORTED      (-22404)
 /** An account is restricted in a certain way. */
 #define VERR_ACCOUNT_RESTRICTED             (-22405)
 /** An account is restricted in a certain way. */
@@ -980,6 +984,8 @@ RT_C_DECLS_END
 #define VERR_PATH_IS_RELATIVE               (-143)
 /** A path is not relative (start with root), expected an relative path. */
 #define VERR_PATH_IS_NOT_RELATIVE           (-144)
+/** Zero length path. */
+#define VERR_PATH_ZERO_LENGTH               (-145)
 /** @} */
 
 
@@ -1477,6 +1483,36 @@ RT_C_DECLS_END
 #define VERR_DWARF_UNKNOWN_FORM                 (-677)
 /** Encountered an unexpected attribute form. */
 #define VERR_DWARF_UNEXPECTED_FORM              (-678)
+/** Unfinished code. */
+#define VERR_DWARF_TODO                         (-679)
+/** Unknown location opcode. */
+#define VERR_DWARF_UNKNOWN_LOC_OPCODE           (-680)
+/** Expression stack overflow. */
+#define VERR_DWARF_STACK_OVERFLOW               (-681)
+/** Expression stack underflow. */
+#define VERR_DWARF_STACK_UNDERFLOW              (-682)
+/** Internal processing error in the DWARF code. */
+#define VERR_DWARF_IPE                          (-683)
+/** Invalid configuration property value. */
+#define VERR_DBG_CFG_INVALID_VALUE              (-684)
+/** Not an integer property. */
+#define VERR_DBG_CFG_NOT_UINT_PROP              (-685)
+/** Deferred loading of information failed. */
+#define VERR_DBG_DEFERRED_LOAD_FAILED           (-686)
+/** Unfinished debug info reader code. */
+#define VERR_DBG_TODO                           (-687)
+/** Found file, but it didn't match the search criteria. */
+#define VERR_DBG_FILE_MISMATCH                  (-688)
+/** Internal processing error in the debug module reader code. */
+#define VERR_DBG_MOD_IPE                        (-689)
+/** The symbol size was adjusted while adding it. */
+#define VINF_DBG_ADJUSTED_SYM_SIZE              690
+/** Unable to parse the CodeView debug information. */
+#define VERR_CV_BAD_FORMAT                      (-691)
+/** Unfinished CodeView debug information feature. */
+#define VERR_CV_TODO                            (-692)
+/** Internal processing error the CodeView debug information reader. */
+#define VERR_CV_IPE                             (-693)
 /** @} */
 
 /** @name Request Packet Status Codes.
@@ -1567,6 +1603,28 @@ RT_C_DECLS_END
 #define VERR_S3_CANCELED                        (-879)
 /** @} */
 
+/** @name HTTP status codes
+ * @{ */
+/** HTTP initialization failed. */
+#define VERR_HTTP_INIT_FAILED                   (-885)
+/** The server has not found anything matching the URI given. */
+#define VERR_HTTP_NOT_FOUND                     (-886)
+/** The request is for something forbidden. Authorization will not help. */
+#define VERR_HTTP_ACCESS_DENIED                 (-887)
+/** The server did not understand the request due to bad syntax. */
+#define VERR_HTTP_BAD_REQUEST                   (-888)
+/** Couldn't connect to the server (proxy?). */
+#define VERR_HTTP_COULDNT_CONNECT               (-889)
+/** SSL connection error. */
+#define VERR_HTTP_SSL_CONNECT_ERROR             (-890)
+/** CAcert is missing or has the wrong format. */
+#define VERR_HTTP_CACERT_WRONG_FORMAT           (-891)
+/** Certificate cannot be authenticated with the given CA certificates. */
+#define VERR_HTTP_CACERT_CANNOT_AUTHENTICATE    (-892)
+/** The current HTTP request was forcefully aborted */
+#define VERR_HTTP_ABORTED                       (-893)
+/** @} */
+
 /** @name RTManifest status codes
  * @{ */
 /** A digest type used in the manifest file isn't supported. */
@@ -1637,6 +1695,8 @@ RT_C_DECLS_END
 #define VERR_TAR_MALFORMED_GNU_LONGXXXX         (-946)
 /** Too long name or link string. */
 #define VERR_TAR_NAME_TOO_LONG                  (-947)
+/** A directory entry in the archive. */
+#define VINF_TAR_DIR_PATH                        (925)
 /** @} */
 
 /** @name RTPoll status codes
@@ -1726,6 +1786,96 @@ RT_C_DECLS_END
  * @{ */
 /** Filesystem can't be opened because it is corrupt. */
 #define VERR_FILESYSTEM_CORRUPT                     (-22600)
+/** @} */
+
+/** @name RTZipXar status codes.
+ * @{ */
+/** Wrong magic value. */
+#define VERR_XAR_WRONG_MAGIC                        (-22700)
+/** Bad header size. */
+#define VERR_XAR_BAD_HDR_SIZE                       (-22701)
+/** Unsupported version. */
+#define VERR_XAR_UNSUPPORTED_VERSION                (-22702)
+/** Unsupported hashing function. */
+#define VERR_XAR_UNSUPPORTED_HASH_FUNCTION          (-22703)
+/** The table of content (TOC) is too small and therefore can't be valid. */
+#define VERR_XAR_TOC_TOO_SMALL                      (-22704)
+/** The table of content (TOC) is too big. */
+#define VERR_XAR_TOC_TOO_BIG                        (-22705)
+/** The compressed table of content is too big. */
+#define VERR_XAR_TOC_TOO_BIG_COMPRESSED             (-22706)
+/** The uncompressed table of content size in the header didn't match what
+ * ZLib returned. */
+#define VERR_XAR_TOC_UNCOMP_SIZE_MISMATCH           (-22707)
+/** The table of content string length didn't match the size specified in the
+ *  header. */
+#define VERR_XAR_TOC_STRLEN_MISMATCH                (-22708)
+/** The table of content isn't valid UTF-8. */
+#define VERR_XAR_TOC_UTF8_ENCODING                  (-22709)
+/** XML error while parsing the table of content. */
+#define VERR_XAR_TOC_XML_PARSE_ERROR                (-22710)
+/** The table of content XML document does not have a toc element. */
+#define VERR_XML_TOC_ELEMENT_MISSING                (-22711)
+/** The table of content XML element (toc) has sibilings, we expected it to be
+ *  an only child or the root element (xar). */
+#define VERR_XML_TOC_ELEMENT_HAS_SIBLINGS           (-22712)
+/** The XAR table of content digest doesn't match. */
+#define VERR_XAR_TOC_DIGEST_MISMATCH                (-22713)
+/** Bad or missing XAR checksum element. */
+#define VERR_XAR_BAD_CHECKSUM_ELEMENT               (-22714)
+/** The hash function in the header doesn't match the one in the table of
+ *  content. */
+#define VERR_XAR_HASH_FUNCTION_MISMATCH             (-22715)
+/** Bad digest length encountered in the table of content.  */
+#define VERR_XAR_BAD_DIGEST_LENGTH                  (-22716)
+/** The order of elements in the XAR file does not lend it self to expansion
+ *  from via an I/O stream. */
+#define VERR_XAR_NOT_STREAMBLE_ELEMENT_ORDER        (-22717)
+/** Missing offset element in table of content sub-element. */
+#define VERR_XAR_MISSING_OFFSET_ELEMENT             (-22718)
+/** Bad offset element in table of content sub-element. */
+#define VERR_XAR_BAD_OFFSET_ELEMENT                 (-22719)
+/** Missing size element in table of content sub-element. */
+#define VERR_XAR_MISSING_SIZE_ELEMENT               (-22720)
+/** Bad size element in table of content sub-element. */
+#define VERR_XAR_BAD_SIZE_ELEMENT                   (-22721)
+/** Missing length element in table of content sub-element. */
+#define VERR_XAR_MISSING_LENGTH_ELEMENT             (-22722)
+/** Bad length element in table of content sub-element. */
+#define VERR_XAR_BAD_LENGTH_ELEMENT                 (-22723)
+/** Bad file element in XAR table of content. */
+#define VERR_XAR_BAD_FILE_ELEMENT                   (-22724)
+/** Missing data element for XAR file. */
+#define VERR_XAR_MISSING_DATA_ELEMENT               (-22725)
+/** Unknown XAR file type value. */
+#define VERR_XAR_UNKNOWN_FILE_TYPE                  (-22726)
+/** Missing encoding element for XAR data stream. */
+#define VERR_XAR_NO_ENCODING                        (-22727)
+/** Bad timestamp for XAR file. */
+#define VERR_XAR_BAD_FILE_TIMESTAMP                 (-22728)
+/** Bad file mode for XAR file. */
+#define VERR_XAR_BAD_FILE_MODE                      (-22729)
+/** Bad file user id for XAR file. */
+#define VERR_XAR_BAD_FILE_UID                       (-22730)
+/** Bad file group id for XAR file. */
+#define VERR_XAR_BAD_FILE_GID                       (-22731)
+/** Bad file inode device number for XAR file. */
+#define VERR_XAR_BAD_FILE_DEVICE_NO                 (-22732)
+/** Bad file inode number for XAR file. */
+#define VERR_XAR_BAD_FILE_INODE                     (-22733)
+/** Invalid name for XAR file. */
+#define VERR_XAR_INVALID_FILE_NAME                  (-22734)
+/** The message digest of the extracted data does not match the one supplied. */
+#define VERR_XAR_EXTRACTED_HASH_MISMATCH            (-22735)
+/** The extracted data has exceeded the expected size. */
+#define VERR_XAR_EXTRACTED_SIZE_EXCEEDED            (-22736)
+/** The message digest of the archived data does not match the one supplied. */
+#define VERR_XAR_ARCHIVED_HASH_MISMATCH             (-22737)
+/** The decompressor completed without using all the input data. */
+#define VERR_XAR_UNUSED_ARCHIVED_DATA               (-22738)
+/** Expected the archived and extracted XAR data sizes to be the same for
+ * uncompressed data. */
+#define VERR_XAR_ARCHIVED_AND_EXTRACTED_SIZES_MISMATCH (-22739)
 /** @} */
 
 

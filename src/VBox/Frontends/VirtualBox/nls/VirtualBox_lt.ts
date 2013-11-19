@@ -152,7 +152,7 @@
     </message>
     <message>
         <source>Ignore</source>
-        <translation>Nepaisyti</translation>
+        <translation type="obsolete">Nepaisyti</translation>
     </message>
     <message>
         <source>&amp;Details</source>
@@ -187,21 +187,21 @@
     </message>
     <message>
         <source>&lt;qt&gt;The value of the &lt;b&gt;%1&lt;/b&gt; field on the &lt;b&gt;%2&lt;/b&gt; page is %3.&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Laukelio &lt;b&gt;%1&lt;/b&gt; reikšmė puslapyje „&lt;b&gt;%2&lt;/b&gt;“ yra %3.&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;Laukelio &lt;b&gt;%1&lt;/b&gt; reikšmė puslapyje „&lt;b&gt;%2&lt;/b&gt;“ yra %3.&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&lt;qt&gt;One of the values on the &lt;b&gt;%1&lt;/b&gt; page is %2.&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Viena iš puslapio „&lt;b&gt;%1&lt;/b&gt;“ reikšmių yra %2.&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;Viena iš puslapio „&lt;b&gt;%1&lt;/b&gt;“ reikšmių yra %2.&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>not complete</source>
         <comment>value state</comment>
-        <translation>neužbaigta</translation>
+        <translation type="obsolete">neužbaigta</translation>
     </message>
     <message>
         <source>invalid</source>
         <comment>value state</comment>
-        <translation>neleistina</translation>
+        <translation type="obsolete">neleistina</translation>
     </message>
 </context>
 <context>
@@ -282,8 +282,8 @@
         <translation type="obsolete">Sesijos i&amp;nformacija</translation>
     </message>
     <message>
-        <source>Show Session Information Dialog</source>
-        <translation>Rodyti informaciją apie šią sesiją</translation>
+        <source>Show Session Information Window</source>
+        <translation type="unfinished">Rodyti informaciją apie šią sesiją</translation>
     </message>
     <message>
         <source>&amp;Pause</source>
@@ -351,7 +351,7 @@
     </message>
     <message>
         <source>&amp;Network Adapters...</source>
-        <translation>&amp;Tinklo plokštės...</translation>
+        <translation type="obsolete">&amp;Tinklo plokštės...</translation>
     </message>
     <message>
         <source>Change the settings of network adapters</source>
@@ -359,19 +359,19 @@
     </message>
     <message>
         <source>&amp;Shared Folders...</source>
-        <translation>&amp;Bendrieji aplankai...</translation>
+        <translation type="obsolete">&amp;Bendrieji aplankai...</translation>
     </message>
     <message>
         <source>Create or modify shared folders</source>
         <translation>Kurti arba keisti bendruosius aplankus</translation>
     </message>
     <message>
-        <source>&amp;Install Guest Additions...</source>
-        <translation>Į&amp;diegti svečio papildinius...</translation>
+        <source>&amp;Insert Guest Additions CD image...</source>
+        <translation type="unfinished">Į&amp;diegti svečio papildinius...</translation>
     </message>
     <message>
-        <source>Mount the Guest Additions installation image</source>
-        <translation>Prijungti svečio papildinių disko atvaizdį</translation>
+        <source>Insert the Guest Additions disk file into the virtual drive</source>
+        <translation type="unfinished">Prijungti svečio papildinių disko atvaizdį</translation>
     </message>
     <message>
         <source>De&amp;bug</source>
@@ -443,7 +443,7 @@
     </message>
     <message>
         <source>Enable remote desktop (RDP) connections to this machine</source>
-        <translation>Įgalinti nuotolinio darbastalio (RDP) prisijungimus prie šios mašinos</translation>
+        <translation type="obsolete">Įgalinti nuotolinio darbastalio (RDP) prisijungimus prie šios mašinos</translation>
     </message>
     <message>
         <source>&amp;Disable Remote Display</source>
@@ -456,7 +456,7 @@
     <message>
         <source>Enable &amp;Logging...</source>
         <comment>debug action</comment>
-        <translation>Uždrausti žurnalų pildy&amp;mą...</translation>
+        <translation type="obsolete">Uždrausti žurnalų pildy&amp;mą...</translation>
     </message>
     <message>
         <source>Disable &amp;Logging...</source>
@@ -480,11 +480,11 @@
         <translation>Pereiti į įprastą arba integruoto darbalaukio veikseną</translation>
     </message>
     <message>
-        <source>Switch to &amp;Scale Mode</source>
+        <source>Switch to &amp;Scaled Mode</source>
         <translation>Pereiti į &amp;keičiamo lango dydžio veikseną</translation>
     </message>
     <message>
-        <source>Switch between normal and scale mode</source>
+        <source>Switch between normal and scaled mode</source>
         <translation>Pereiti į įprastą arba keičiamo lango dydžio veikseną</translation>
     </message>
     <message>
@@ -497,7 +497,7 @@
     </message>
     <message>
         <source>Enable R&amp;emote Display</source>
-        <translation>Įgalinti &amp;nuotolinį ekraną</translation>
+        <translation type="obsolete">Įgalinti &amp;nuotolinį ekraną</translation>
     </message>
     <message>
         <source>&amp;Statistics...</source>
@@ -536,7 +536,7 @@
         <translation type="unfinished">&amp;Virtualių laikmenų tvarkytuvė...</translation>
     </message>
     <message>
-        <source>Display the Virtual Media Manager dialog</source>
+        <source>Display the Virtual Media Manager window</source>
         <translation type="unfinished">Atveria virtualių laikmenų tvarkytuvę</translation>
     </message>
     <message>
@@ -561,7 +561,7 @@
         <translation type="unfinished">&amp;Nuostatos...</translation>
     </message>
     <message>
-        <source>Display the global settings dialog</source>
+        <source>Display the global settings window</source>
         <translation type="unfinished">Keisti bendras nuostatas</translation>
     </message>
     <message>
@@ -722,7 +722,7 @@
     </message>
     <message>
         <source>Power off the virtual machine</source>
-        <translation type="obsolete">Išjungti virtualią mašiną</translation>
+        <translation type="unfinished">Išjungti virtualią mašiną</translation>
     </message>
     <message>
         <source>&amp;Contents...</source>
@@ -757,7 +757,7 @@
         <translation type="unfinished">&amp;Apie VirtualBox...</translation>
     </message>
     <message>
-        <source>Show a dialog with product information</source>
+        <source>Show a window with product information</source>
         <translation type="unfinished">Rodyti langą su produkto informacija</translation>
     </message>
     <message>
@@ -895,6 +895,61 @@
     <message>
         <source>Drag&apos;n&apos;Drop</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save the machine state of the virtual machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Network Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Shared Folders Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>R&amp;emote Display</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Toggle remote desktop (RDP) connections to this machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Video Capture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Toggle video capture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Video Capture Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Configure video capture settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Popup Menu</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Insert Guest Additions CD image...</source>
+        <comment>new</comment>
+        <translation type="obsolete">Į&amp;diegti svečio papildinius...</translation>
+    </message>
+    <message>
+        <source>Insert the Guest Additions disk file into the virtual drive</source>
+        <comment>new</comment>
+        <translation type="obsolete">Prijungti svečio papildinių disko atvaizdį</translation>
     </message>
 </context>
 <context>
@@ -1153,15 +1208,15 @@
     <name>UIDescriptionPagePrivate</name>
     <message>
         <source>No description. Press the Edit button below to add it.</source>
-        <translation>Aprašo nėra. Norėdami pridėti aprašą, spauskite mygtuką „Keisti“.</translation>
+        <translation type="obsolete">Aprašo nėra. Norėdami pridėti aprašą, spauskite mygtuką „Keisti“.</translation>
     </message>
     <message>
         <source>Edit</source>
-        <translation>Keisti</translation>
+        <translation type="obsolete">Keisti</translation>
     </message>
     <message>
         <source>Edit (Ctrl+E)</source>
-        <translation>Keisti (Vald+E)</translation>
+        <translation type="obsolete">Keisti (Vald+E)</translation>
     </message>
 </context>
 <context>
@@ -1169,231 +1224,231 @@
     <message>
         <source>Name</source>
         <comment>details report</comment>
-        <translation type="unfinished">Pavadinimas</translation>
+        <translation type="obsolete">Pavadinimas</translation>
     </message>
     <message>
         <source>OS Type</source>
         <comment>details report</comment>
-        <translation type="unfinished">OS tipas</translation>
+        <translation type="obsolete">OS tipas</translation>
     </message>
     <message>
         <source>Information inaccessible</source>
         <comment>details report</comment>
-        <translation type="unfinished">Informacija neprieinama</translation>
+        <translation type="obsolete">Informacija neprieinama</translation>
     </message>
     <message>
         <source>Base Memory</source>
         <comment>details report</comment>
-        <translation type="unfinished">Pagrindinė atmintis</translation>
+        <translation type="obsolete">Pagrindinė atmintis</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1 MB&lt;/nobr&gt;</source>
         <comment>details report</comment>
-        <translation type="unfinished">&lt;nobr&gt;%1 MB&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;nobr&gt;%1 MB&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Processors</source>
         <comment>details report</comment>
-        <translation type="unfinished">Procesoriai</translation>
+        <translation type="obsolete">Procesoriai</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
         <comment>details report</comment>
-        <translation type="unfinished">&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Execution Cap</source>
         <comment>details report</comment>
-        <translation type="unfinished">Vykdymo riba</translation>
+        <translation type="obsolete">Vykdymo riba</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
         <comment>details report</comment>
-        <translation type="unfinished">&lt;nobr&gt;%1%&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;nobr&gt;%1%&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Boot Order</source>
         <comment>details report</comment>
-        <translation type="unfinished">Krovimo tvarka</translation>
+        <translation type="obsolete">Krovimo tvarka</translation>
     </message>
     <message>
         <source>ACPI</source>
         <comment>details report</comment>
-        <translation type="unfinished">ACPI</translation>
+        <translation type="obsolete">ACPI</translation>
     </message>
     <message>
-        <source>IO APIC</source>
+        <source>I/O APIC</source>
         <comment>details report</comment>
-        <translation type="unfinished">IO APIC</translation>
+        <translation type="obsolete">I/O APIC</translation>
     </message>
     <message>
         <source>BIOS</source>
         <comment>details report</comment>
-        <translation type="unfinished">BIOS</translation>
+        <translation type="obsolete">BIOS</translation>
     </message>
     <message>
         <source>VT-x/AMD-V</source>
         <comment>details report</comment>
-        <translation type="unfinished">VT-x/AMD-V</translation>
+        <translation type="obsolete">VT-x/AMD-V</translation>
     </message>
     <message>
         <source>Nested Paging</source>
         <comment>details report</comment>
-        <translation type="unfinished">Lizdinis puslapiavimas</translation>
+        <translation type="obsolete">Lizdinis puslapiavimas</translation>
     </message>
     <message>
         <source>PAE/NX</source>
         <comment>details report</comment>
-        <translation type="unfinished">PAE/NX</translation>
+        <translation type="obsolete">PAE/NX</translation>
     </message>
     <message>
         <source>Acceleration</source>
         <comment>details report</comment>
-        <translation type="unfinished">Spartinimas</translation>
+        <translation type="obsolete">Spartinimas</translation>
     </message>
     <message>
         <source>Video Memory</source>
         <comment>details report</comment>
-        <translation type="unfinished">Vaizdo atmintis</translation>
+        <translation type="obsolete">Vaizdo atmintis</translation>
     </message>
     <message>
         <source>Screens</source>
         <comment>details report</comment>
-        <translation type="unfinished">Ekranai</translation>
+        <translation type="obsolete">Ekranai</translation>
     </message>
     <message>
         <source>2D Video</source>
         <comment>details report</comment>
-        <translation type="unfinished">2D vaizdas</translation>
+        <translation type="obsolete">2D vaizdas</translation>
     </message>
     <message>
         <source>3D</source>
         <comment>details report</comment>
-        <translation type="unfinished">3D</translation>
+        <translation type="obsolete">3D</translation>
     </message>
     <message>
         <source>Remote Desktop Server Port</source>
         <comment>details report (VRDE Server)</comment>
-        <translation type="unfinished">Nuotolinio ekrano serverio prievadas</translation>
+        <translation type="obsolete">Nuotolinio ekrano serverio prievadas</translation>
     </message>
     <message>
         <source>Remote Desktop Server</source>
         <comment>details report (VRDE Server)</comment>
-        <translation type="unfinished">Nuotolinio ekrano serveris</translation>
+        <translation type="obsolete">Nuotolinio ekrano serveris</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (VRDE Server)</comment>
-        <translation type="unfinished">Uždrausta</translation>
+        <translation type="obsolete">Uždrausta</translation>
     </message>
     <message>
         <source>(CD/DVD)</source>
-        <translation type="unfinished">(CD/DVD)</translation>
+        <translation type="obsolete">(CD/DVD)</translation>
     </message>
     <message>
         <source>Not Attached</source>
         <comment>details report (Storage)</comment>
-        <translation type="unfinished">Neprijungta</translation>
+        <translation type="obsolete">Neprijungta</translation>
     </message>
     <message>
         <source>Host Driver</source>
         <comment>details report (audio)</comment>
-        <translation type="unfinished">Pagr. kompiuterio tvarkyklė</translation>
+        <translation type="obsolete">Pagr. kompiuterio tvarkyklė</translation>
     </message>
     <message>
         <source>Controller</source>
         <comment>details report (audio)</comment>
-        <translation type="unfinished">Valdiklis</translation>
+        <translation type="obsolete">Valdiklis</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (audio)</comment>
-        <translation type="unfinished">Uždrausta</translation>
+        <translation type="obsolete">Uždrausta</translation>
     </message>
     <message>
         <source>Bridged adapter, %1</source>
         <comment>details report (network)</comment>
-        <translation type="unfinished">Tinklų tiltas, %1</translation>
+        <translation type="obsolete">Tinklų tiltas, %1</translation>
     </message>
     <message>
         <source>Internal network, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation type="unfinished">Vidinis tinklas, „%1“</translation>
+        <translation type="obsolete">Vidinis tinklas, „%1“</translation>
     </message>
     <message>
         <source>Host-only adapter, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation type="unfinished">Plokštė prisijungimui tik prie pagrindinio kompiuterio, „%1“</translation>
+        <translation type="obsolete">Plokštė prisijungimui tik prie pagrindinio kompiuterio, „%1“</translation>
     </message>
     <message>
         <source>Generic driver, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation type="unfinished">Pagrindinė tvarkyklė, „%1“</translation>
+        <translation type="obsolete">Pagrindinė tvarkyklė, „%1“</translation>
     </message>
     <message>
         <source>Generic driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
         <comment>details report (network)</comment>
-        <translation type="unfinished">Pagrindinė tvarkyklė, „%1“ {&amp;nbsp;%2&amp;nbsp;}</translation>
+        <translation type="obsolete">Pagrindinė tvarkyklė, „%1“ {&amp;nbsp;%2&amp;nbsp;}</translation>
     </message>
     <message>
         <source>Adapter %1</source>
         <comment>details report (network)</comment>
-        <translation type="unfinished">%1 plokštė</translation>
+        <translation type="obsolete">%1 plokštė</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (network)</comment>
-        <translation type="unfinished">Uždrausta</translation>
+        <translation type="obsolete">Uždrausta</translation>
     </message>
     <message>
         <source>Port %1</source>
         <comment>details report (serial ports)</comment>
-        <translation type="unfinished">%1 prievadas</translation>
+        <translation type="obsolete">%1 prievadas</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (serial ports)</comment>
-        <translation type="unfinished">Uždrausta</translation>
+        <translation type="obsolete">Uždrausta</translation>
     </message>
     <message>
         <source>Port %1</source>
         <comment>details report (parallel ports)</comment>
-        <translation type="unfinished">%1 prievadas</translation>
+        <translation type="obsolete">%1 prievadas</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (parallel ports)</comment>
-        <translation type="unfinished">Uždrausta</translation>
+        <translation type="obsolete">Uždrausta</translation>
     </message>
     <message>
         <source>Device Filters</source>
         <comment>details report (USB)</comment>
-        <translation type="unfinished">Įtaisų filtrai</translation>
+        <translation type="obsolete">Įtaisų filtrai</translation>
     </message>
     <message>
         <source>%1 (%2 active)</source>
         <comment>details report (USB)</comment>
-        <translation type="unfinished">%1 (%2 įgalinta)</translation>
+        <translation type="obsolete">%1 (%2 įgalinta)</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (USB)</comment>
-        <translation type="unfinished">Uždrausta</translation>
+        <translation type="obsolete">Uždrausta</translation>
     </message>
     <message>
         <source>Shared Folders</source>
         <comment>details report (shared folders)</comment>
-        <translation type="unfinished">Bendrieji aplankai</translation>
+        <translation type="obsolete">Bendrieji aplankai</translation>
     </message>
     <message>
         <source>None</source>
         <comment>details report (shared folders)</comment>
-        <translation type="unfinished">Nieko</translation>
+        <translation type="obsolete">Nieko</translation>
     </message>
     <message>
         <source>None</source>
         <comment>details report (description)</comment>
-        <translation type="unfinished">Nieko</translation>
+        <translation type="obsolete">Nieko</translation>
     </message>
 </context>
 <context>
@@ -1439,9 +1494,9 @@
         <translation type="obsolete">ACPI</translation>
     </message>
     <message>
-        <source>IO APIC</source>
+        <source>I/O APIC</source>
         <comment>details report</comment>
-        <translation type="obsolete">IO APIC</translation>
+        <translation type="obsolete">I/O APIC</translation>
     </message>
     <message>
         <source>BIOS</source>
@@ -1609,62 +1664,62 @@
     <message>
         <source>General</source>
         <comment>details report</comment>
-        <translation>Bendra</translation>
+        <translation type="obsolete">Bendra</translation>
     </message>
     <message>
         <source>System</source>
         <comment>details report</comment>
-        <translation>Sistema</translation>
+        <translation type="obsolete">Sistema</translation>
     </message>
     <message>
         <source>Preview</source>
         <comment>details report</comment>
-        <translation>Peržiūra</translation>
+        <translation type="obsolete">Peržiūra</translation>
     </message>
     <message>
         <source>Display</source>
         <comment>details report</comment>
-        <translation>Ekranas</translation>
+        <translation type="obsolete">Ekranas</translation>
     </message>
     <message>
         <source>Storage</source>
         <comment>details report</comment>
-        <translation>Atminties įtaisas</translation>
+        <translation type="obsolete">Atminties įtaisas</translation>
     </message>
     <message>
         <source>Audio</source>
         <comment>details report</comment>
-        <translation>Garsas</translation>
+        <translation type="obsolete">Garsas</translation>
     </message>
     <message>
         <source>Network</source>
         <comment>details report</comment>
-        <translation>Tinklas</translation>
+        <translation type="obsolete">Tinklas</translation>
     </message>
     <message>
         <source>Serial Ports</source>
         <comment>details report</comment>
-        <translation>Nuoseklieji prievadai</translation>
+        <translation type="obsolete">Nuoseklieji prievadai</translation>
     </message>
     <message>
         <source>Parallel Ports</source>
         <comment>details report</comment>
-        <translation>Lygiagretieji prievadai</translation>
+        <translation type="obsolete">Lygiagretieji prievadai</translation>
     </message>
     <message>
         <source>USB</source>
         <comment>details report</comment>
-        <translation>USB</translation>
+        <translation type="obsolete">USB</translation>
     </message>
     <message>
         <source>Shared Folders</source>
         <comment>details report</comment>
-        <translation>Bendrieji aplankai</translation>
+        <translation type="obsolete">Bendrieji aplankai</translation>
     </message>
     <message>
         <source>Description</source>
         <comment>details report</comment>
-        <translation>Aprašas</translation>
+        <translation type="obsolete">Aprašas</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
@@ -1983,7 +2038,7 @@
         <translation type="obsolete">&lt;p&gt;Jūs pirmą kartą paleidote naujai sukurtą virtualią mašiną. Šis vediklis padės atlikti svarbiausius žingsnius įdiegiant pasirinktą operacinę sistemą į šią virtualią mašiną.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for booting an operating system of your choice on the virtual machine.&lt;/p&gt;&lt;p&gt;Note that you will not be able to install an operating system into this virtual machine right now because you did not attach any hard disk to it. If this is not what you want, you can cancel the execution of this wizard, select &lt;b&gt;Settings&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window to access the settings dialog of this machine and change the hard disk configuration.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
+        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for booting an operating system of your choice on the virtual machine.&lt;/p&gt;&lt;p&gt;Note that you will not be able to install an operating system into this virtual machine right now because you did not attach any hard disk to it. If this is not what you want, you can cancel the execution of this wizard, select &lt;b&gt;Settings&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window to access the settings window of this machine and change the hard disk configuration.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Pirmą kartą paleidote naujai sukurtą virtualią mašiną. Šis vediklis padės atlikti svarbiausius žingsnius įkraunant operacinę sistemą iš pasirinktos virtualios mašinos.&lt;/p&gt;&lt;p&gt;Atminkite, kad šią akimirką negalite įdiegti operacinės sistemos į virtualią mašiną, nes neprijungėte jokio standžiojo disko. Jei vis tik norite įdiegti, galite atšaukti šį vediklį, pagrindiniame VirtualBox lange iš &lt;b&gt;Mašinos&lt;/b&gt; meniu pasirinkite &lt;b&gt;Nuostatas&lt;/b&gt; ir pakeiskite standžiųjų diskų konfigūraciją.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
     </message>
 </context>
@@ -2029,7 +2084,7 @@
         <translation type="obsolete">Santrauka</translation>
     </message>
     <message>
-        <source>CD/DVD-ROM Device</source>
+        <source>CD/DVD Device</source>
         <translation type="obsolete">CD/DVD įtaisas</translation>
     </message>
     <message>
@@ -2390,6 +2445,35 @@
         <comment>details (shared folders)</comment>
         <translation type="unfinished">Bendrieji aplankai</translation>
     </message>
+    <message>
+        <source>Video Capture File</source>
+        <comment>details (display/video capture)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Video Capture Attributes</source>
+        <comment>details (display/video capture)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Video Capture</source>
+        <comment>details (display/video capture)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (display/video capture)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>NAT Network, &apos;%1&apos;</source>
+        <comment>details (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIGDetailsUpdateThreadAudio</name>
@@ -2692,7 +2776,7 @@
     <name>UIGlobalSettingsExtension</name>
     <message>
         <source>&amp;Extension Packages:</source>
-        <translation>&amp;Papildinių paketai:</translation>
+        <translation type="obsolete">&amp;Papildinių paketai:</translation>
     </message>
     <message>
         <source>Lists all installed packages.</source>
@@ -2730,6 +2814,10 @@
         <source>Extensions</source>
         <translation>Papildiniai</translation>
     </message>
+    <message>
+        <source>&amp;Extension Packages</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsGeneral</name>
@@ -2743,42 +2831,66 @@
     </message>
     <message>
         <source>When checked, the application will provide an icon with the context menu in the system tray.</source>
-        <translation>Pasirinkus, sistemos dėkle bus rodomas programos ženkliukas.</translation>
+        <translation type="obsolete">Pasirinkus, sistemos dėkle bus rodomas programos ženkliukas.</translation>
     </message>
     <message>
         <source>&amp;Show System Tray Icon</source>
-        <translation>&amp;Rodyti ženkliuką sistemos dėkle</translation>
+        <translation type="obsolete">&amp;Rodyti ženkliuką sistemos dėkle</translation>
     </message>
     <message>
         <source>&amp;Auto show Dock and Menubar in fullscreen</source>
-        <translation>Viso ekrano veiksenoje &amp;automatiškai rodyti sistemos dėklą ir meniu juostą</translation>
+        <translation type="obsolete">Viso ekrano veiksenoje &amp;automatiškai rodyti sistemos dėklą ir meniu juostą</translation>
     </message>
     <message>
         <source>When checked, the host screen saver will be disabled whenever a virtual machine is running.</source>
-        <translation>Pasirinkus, pagrindiniame kompiuteryje bus išjungta ekrano užsklanda tol, kol veiks virtuali mašina.</translation>
+        <translation type="obsolete">Pasirinkus, pagrindiniame kompiuteryje bus išjungta ekrano užsklanda tol, kol veiks virtuali mašina.</translation>
     </message>
     <message>
         <source>Disable Host &amp;ScreenSaver</source>
-        <translation>Uždrausti pagr. kompiuterio &amp;ekrano užsklandą</translation>
+        <translation type="obsolete">Uždrausti pagr. kompiuterio &amp;ekrano užsklandą</translation>
     </message>
     <message>
-        <source>Displays the path to the default virtual machine folder. This folder is used, if not explicitly specified otherwise, when creating new virtual machines.</source>
+        <source>Holds the path to the default virtual machine folder. This folder is used, if not explicitly specified otherwise, when creating new virtual machines.</source>
         <translation>Rodo kelią iki numatytojo virtualios mašinos aplanko. Šis aplankas naudojamas, jei kuriant naują virtualią mašiną nenurodomas joks kitas.</translation>
     </message>
     <message>
-        <source>Displays the path to the library that provides authentication for Remote Display (VRDP) clients.</source>
+        <source>Holds the path to the library that provides authentication for Remote Display (VRDP) clients.</source>
         <translation>Rodo kelią iki bibliotekos, kuri pateikia nuotolinio ekrano (VRDP) klientų atpažinimo funkciją.</translation>
+    </message>
+    <message>
+        <source>&amp;Dock and Menubar:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Auto-Show in Fullscreen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, the host dock and menu bar will be shown when the virtual machine is in fullscreen mode.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Host Screensaver:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, the host screensaver will be disabled whenever a virtual machine is running.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable When Running Virtual Machines</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>UIGlobalSettingsInput</name>
     <message>
         <source>Host &amp;Key:</source>
-        <translation>Pagr. kompiuterio &amp;klavišas:</translation>
+        <translation type="obsolete">Pagr. kompiuterio &amp;klavišas:</translation>
     </message>
     <message>
-        <source>Displays the key used as a Host Key in the VM window. Activate the entry field and press a new Host Key. Note that alphanumeric, cursor movement and editing keys cannot be used.</source>
-        <translation>Rodo klavišą, naudojamą kaip pagrindinio kompiuterio klavišą VM lange. Aktyvuokite įvedimo laukelį ir nuspauskite būsimą pagrindinį klavišą. Atminkite, kad negalima priskirti raidžių, skaičių, žymeklio perkėlimo, redagavimo klavišų.</translation>
+        <source>Holds the key used as a Host Key in the VM window. Activate the entry field and press a new Host Key. Note that alphanumeric, cursor movement and editing keys cannot be used.</source>
+        <translation type="obsolete">Rodo klavišą, naudojamą kaip pagrindinio kompiuterio klavišą VM lange. Aktyvuokite įvedimo laukelį ir nuspauskite būsimą pagrindinį klavišą. Atminkite, kad negalima priskirti raidžių, skaičių, žymeklio perkėlimo, redagavimo klavišų.</translation>
     </message>
     <message>
         <source>Reset Host Key</source>
@@ -2798,18 +2910,42 @@
     </message>
     <message>
         <source>Reset host combination</source>
-        <translation>Atstatyti pagr. kompiuterio kombinaciją</translation>
+        <translation type="obsolete">Atstatyti pagr. kompiuterio kombinaciją</translation>
     </message>
     <message>
         <source>Resets the key combination used as the host combination in the VM window.</source>
-        <translation>Atstatyti klavišų kombinaciją, kuri naudojama kaip pagrindinio kompiuterio kombinacija VM lange.</translation>
+        <translation type="obsolete">Atstatyti klavišų kombinaciją, kuri naudojama kaip pagrindinio kompiuterio kombinacija VM lange.</translation>
+    </message>
+    <message>
+        <source>Host Key Combination</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some items have the same shortcuts assigned.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;VirtualBox Manager</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Virtual &amp;Machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lists all the available shortcuts which can be configured.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enter a sequence to filter the shortcut list.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>UIGlobalSettingsLanguage</name>
     <message>
         <source>&amp;Interface Language:</source>
-        <translation>&amp;Sąsajos kalba:</translation>
+        <translation type="obsolete">&amp;Sąsajos kalba:</translation>
     </message>
     <message>
         <source>Lists all available user interface languages. The effective language is written in &lt;b&gt;bold&lt;/b&gt;. Select &lt;i&gt;Default&lt;/i&gt; to reset to the system default language.</source>
@@ -2859,12 +2995,16 @@
         <source>Author(s):</source>
         <translation>Autorius(-iai): </translation>
     </message>
+    <message>
+        <source>&amp;Interface Languages</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsNetwork</name>
     <message>
         <source>&amp;Host-only Networks:</source>
-        <translation>&amp;Tinklo ryšiai prisijungimui tik prie pagrindinio kompiuterio:</translation>
+        <translation type="obsolete">&amp;Tinklo ryšiai prisijungimui tik prie pagrindinio kompiuterio:</translation>
     </message>
     <message>
         <source>Lists all available host-only networks.</source>
@@ -2876,31 +3016,31 @@
     </message>
     <message>
         <source>host IPv4 address of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation>pagrindinio kompiuterio IPv4 adresas&lt;b&gt;%1&lt;/b&gt; yra netinkamas</translation>
+        <translation type="obsolete">pagrindinio kompiuterio IPv4 adresas&lt;b&gt;%1&lt;/b&gt; yra netinkamas</translation>
     </message>
     <message>
         <source>host IPv4 network mask of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation>pagrindinio kompiuterio IPv4 tinklo kaukė &lt;b&gt;%1&lt;/b&gt; yra netinkama</translation>
+        <translation type="obsolete">pagrindinio kompiuterio IPv4 tinklo kaukė &lt;b&gt;%1&lt;/b&gt; yra netinkama</translation>
     </message>
     <message>
         <source>host IPv6 address of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation>pagrindinio kompiuterio IPv6 adresas&lt;b&gt;%1&lt;/b&gt; yra netinkamas</translation>
+        <translation type="obsolete">pagrindinio kompiuterio IPv6 adresas&lt;b&gt;%1&lt;/b&gt; yra netinkamas</translation>
     </message>
     <message>
         <source>DHCP server address of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation>DHCP serverio adresas&lt;b&gt;%1&lt;/b&gt; yra netinkamas</translation>
+        <translation type="obsolete">DHCP serverio adresas&lt;b&gt;%1&lt;/b&gt; yra netinkamas</translation>
     </message>
     <message>
         <source>DHCP server network mask of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation>DHCP serverio tinklo kaukė &lt;b&gt;%1&lt;/b&gt; yra netinkama</translation>
+        <translation type="obsolete">DHCP serverio tinklo kaukė &lt;b&gt;%1&lt;/b&gt; yra netinkama</translation>
     </message>
     <message>
         <source>DHCP lower address bound of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation>DHCP serverio adreso apatinė riba &lt;b&gt;%1&lt;/b&gt; yra netinkama</translation>
+        <translation type="obsolete">DHCP serverio adreso apatinė riba &lt;b&gt;%1&lt;/b&gt; yra netinkama</translation>
     </message>
     <message>
         <source>DHCP upper address bound of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation>DHCP serverio adreso viršutinė riba &lt;b&gt;%1&lt;/b&gt; yra netinkama</translation>
+        <translation type="obsolete">DHCP serverio adreso viršutinė riba &lt;b&gt;%1&lt;/b&gt; yra netinkama</translation>
     </message>
     <message>
         <source>Adapter</source>
@@ -2998,100 +3138,402 @@
         <source>Networking</source>
         <translation>Tinklas</translation>
     </message>
+    <message>
+        <source>&amp;NAT Networks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lists all available NAT networks.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Host-only Networks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No new name specified for the NAT network previously called &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No CIDR specified for the NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No CIDR specified for the NAT network previously called &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid CIDR specified (&lt;i&gt;%1&lt;/i&gt;) for the NAT network &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid CIDR specified (&lt;i&gt;%1&lt;/i&gt;) for the NAT network previously called &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>[empty]</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (renamed from %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Old Network Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New Network Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network CIDR</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Supports DHCP</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>yes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>no</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Supports IPv6</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Default IPv6 route</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv4 address.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv4 network mask.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 address.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server address.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server mask.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server lower address bound.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server upper address bound.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The name &lt;b&gt;%1&lt;/b&gt; is being used for several NAT networks.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Active</source>
+        <comment>NAT network</comment>
+        <translation type="unfinished">Aktyvus</translation>
+    </message>
+    <message>
+        <source>&amp;Add NAT network</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Remove NAT network</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Edit NAT network</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsNetworkDetails</name>
     <message>
         <source>Host-only Network Details</source>
-        <translation>Tik prie pagr. kompiuterio prisijungiančio tinklo detalės</translation>
+        <translation type="obsolete">Tik prie pagr. kompiuterio prisijungiančio tinklo detalės</translation>
     </message>
     <message>
         <source>&amp;Adapter</source>
-        <translation>&amp;Plokštė</translation>
+        <translation type="obsolete">&amp;Plokštė</translation>
     </message>
     <message>
         <source>Manual &amp;Configuration</source>
-        <translation>Rankinė &amp;konfigūracija</translation>
+        <translation type="obsolete">Rankinė &amp;konfigūracija</translation>
     </message>
     <message>
         <source>Use manual configuration for this host-only network adapter.</source>
-        <translation>Šiam tinklui, prisijunčiam tik prie pagrindinio kompiuterio, naudoti rankinę konfigūraciją.</translation>
+        <translation type="obsolete">Šiam tinklui, prisijunčiam tik prie pagrindinio kompiuterio, naudoti rankinę konfigūraciją.</translation>
     </message>
     <message>
         <source>&amp;IPv4 Address:</source>
-        <translation>&amp;IPv4 adresas:</translation>
+        <translation type="obsolete">&amp;IPv4 adresas:</translation>
     </message>
     <message>
-        <source>Displays the host IPv4 address for this adapter.</source>
-        <translation>Rodo šio pagrindinio kompiuterio IPv4 adresą šiai plokštei.</translation>
+        <source>Holds the host IPv4 address for this adapter.</source>
+        <translation type="obsolete">Rodo šio pagrindinio kompiuterio IPv4 adresą šiai plokštei.</translation>
     </message>
     <message>
         <source>IPv4 Network &amp;Mask:</source>
-        <translation>IPv4 tinklo &amp;kaukė:</translation>
+        <translation type="obsolete">IPv4 tinklo &amp;kaukė:</translation>
     </message>
     <message>
-        <source>Displays the host IPv4 network mask for this adapter.</source>
-        <translation>Rodo šio pagrindinio kompiuterio IPv4 tinklo kaukę šiai plokštei.</translation>
+        <source>Holds the host IPv4 network mask for this adapter.</source>
+        <translation type="obsolete">Rodo šio pagrindinio kompiuterio IPv4 tinklo kaukę šiai plokštei.</translation>
     </message>
     <message>
         <source>I&amp;Pv6 Address:</source>
-        <translation>&amp;IPv6 adresas:</translation>
+        <translation type="obsolete">&amp;IPv6 adresas:</translation>
     </message>
     <message>
-        <source>Displays the host IPv6 address for this adapter if IPv6 is supported.</source>
-        <translation>Rodo šio pagrindinio kompiuterio IPv4 adresą šiai plokštei, jei palaikomas IPv6.</translation>
+        <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
+        <translation type="obsolete">Rodo šio pagrindinio kompiuterio IPv4 adresą šiai plokštei, jei palaikomas IPv6.</translation>
     </message>
     <message>
         <source>IPv6 Network Mask &amp;Length:</source>
-        <translation>IPv6 tinklo kaukės i&amp;lgis:</translation>
+        <translation type="obsolete">IPv6 tinklo kaukės i&amp;lgis:</translation>
     </message>
     <message>
-        <source>Displays the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
-        <translation>Rodo šio pagrindinio kompiuterio IPv4 tinklo kaukės prefikso ilgį šiai plokštei, jei palaikomas IPv6.</translation>
+        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <translation type="obsolete">Rodo šio pagrindinio kompiuterio IPv4 tinklo kaukės prefikso ilgį šiai plokštei, jei palaikomas IPv6.</translation>
     </message>
     <message>
         <source>&amp;DHCP Server</source>
-        <translation>&amp;DHCP serveris</translation>
+        <translation type="obsolete">&amp;DHCP serveris</translation>
     </message>
     <message>
         <source>&amp;Enable Server</source>
-        <translation>Į&amp;galinti serverį</translation>
+        <translation type="obsolete">Į&amp;galinti serverį</translation>
     </message>
     <message>
         <source>Indicates whether the DHCP Server is enabled on machine startup or not.</source>
-        <translation>Rodo, ar mašinos paleidimo metu įgalinamas DHCP serveris.</translation>
+        <translation type="obsolete">Rodo, ar mašinos paleidimo metu įgalinamas DHCP serveris.</translation>
     </message>
     <message>
         <source>Server Add&amp;ress:</source>
-        <translation>Serve&amp;rio adresas:</translation>
+        <translation type="obsolete">Serve&amp;rio adresas:</translation>
     </message>
     <message>
-        <source>Displays the address of the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation>Rodo adresą to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
+        <source>Holds the address of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="obsolete">Rodo adresą to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
     </message>
     <message>
         <source>Server &amp;Mask:</source>
-        <translation>Serverio &amp;kaukė:</translation>
+        <translation type="obsolete">Serverio &amp;kaukė:</translation>
     </message>
     <message>
-        <source>Displays the network mask of the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation>Rodo tinklo kaukę to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
+        <source>Holds the network mask of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="obsolete">Rodo tinklo kaukę to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
     </message>
     <message>
         <source>&amp;Lower Address Bound:</source>
-        <translation>Adreso &amp;apatinė riba:</translation>
+        <translation type="obsolete">Adreso &amp;apatinė riba:</translation>
     </message>
     <message>
-        <source>Displays the lower address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation>Rodo adreso apatinę ribą to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
+        <source>Holds the lower address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="obsolete">Rodo adreso apatinę ribą to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
     </message>
     <message>
         <source>&amp;Upper Address Bound:</source>
-        <translation>Adreso &amp;viršutinė riba:</translation>
+        <translation type="obsolete">Adreso &amp;viršutinė riba:</translation>
     </message>
     <message>
-        <source>Displays the upper address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation>Rodo adreso viršutinę ribą to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
+        <source>Holds the upper address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="obsolete">Rodo adreso viršutinę ribą to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
+    </message>
+</context>
+<context>
+    <name>UIGlobalSettingsNetworkDetailsHost</name>
+    <message>
+        <source>Host-only Network Details</source>
+        <translation type="unfinished">Tik prie pagr. kompiuterio prisijungiančio tinklo detalės</translation>
+    </message>
+    <message>
+        <source>&amp;Adapter</source>
+        <translation type="unfinished">&amp;Plokštė</translation>
+    </message>
+    <message>
+        <source>Manual &amp;Configuration</source>
+        <translation type="unfinished">Rankinė &amp;konfigūracija</translation>
+    </message>
+    <message>
+        <source>Use manual configuration for this host-only network adapter.</source>
+        <translation type="unfinished">Šiam tinklui, prisijunčiam tik prie pagrindinio kompiuterio, naudoti rankinę konfigūraciją.</translation>
+    </message>
+    <message>
+        <source>&amp;IPv4 Address:</source>
+        <translation type="unfinished">&amp;IPv4 adresas:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv4 address for this adapter.</source>
+        <translation type="unfinished">Rodo šio pagrindinio kompiuterio IPv4 adresą šiai plokštei.</translation>
+    </message>
+    <message>
+        <source>IPv4 Network &amp;Mask:</source>
+        <translation type="unfinished">IPv4 tinklo &amp;kaukė:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv4 network mask for this adapter.</source>
+        <translation type="unfinished">Rodo šio pagrindinio kompiuterio IPv4 tinklo kaukę šiai plokštei.</translation>
+    </message>
+    <message>
+        <source>I&amp;Pv6 Address:</source>
+        <translation type="unfinished">&amp;IPv6 adresas:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>IPv6 Network Mask &amp;Length:</source>
+        <translation type="unfinished">IPv6 tinklo kaukės i&amp;lgis:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <translation type="unfinished">Rodo šio pagrindinio kompiuterio IPv4 tinklo kaukės prefikso ilgį šiai plokštei, jei palaikomas IPv6.</translation>
+    </message>
+    <message>
+        <source>&amp;DHCP Server</source>
+        <translation type="unfinished">&amp;DHCP serveris</translation>
+    </message>
+    <message>
+        <source>&amp;Enable Server</source>
+        <translation type="unfinished">Į&amp;galinti serverį</translation>
+    </message>
+    <message>
+        <source>Indicates whether the DHCP Server is enabled on machine startup or not.</source>
+        <translation type="unfinished">Rodo, ar mašinos paleidimo metu įgalinamas DHCP serveris.</translation>
+    </message>
+    <message>
+        <source>Server Add&amp;ress:</source>
+        <translation type="unfinished">Serve&amp;rio adresas:</translation>
+    </message>
+    <message>
+        <source>Holds the address of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="unfinished">Rodo adresą to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
+    </message>
+    <message>
+        <source>Server &amp;Mask:</source>
+        <translation type="unfinished">Serverio &amp;kaukė:</translation>
+    </message>
+    <message>
+        <source>Holds the network mask of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="unfinished">Rodo tinklo kaukę to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
+    </message>
+    <message>
+        <source>&amp;Lower Address Bound:</source>
+        <translation type="unfinished">Adreso &amp;apatinė riba:</translation>
+    </message>
+    <message>
+        <source>Holds the lower address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="unfinished">Rodo adreso apatinę ribą to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
+    </message>
+    <message>
+        <source>&amp;Upper Address Bound:</source>
+        <translation type="unfinished">Adreso &amp;viršutinė riba:</translation>
+    </message>
+    <message>
+        <source>Holds the upper address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation type="unfinished">Rodo adreso viršutinę ribą to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
+    </message>
+</context>
+<context>
+    <name>UIGlobalSettingsNetworkDetailsNAT</name>
+    <message>
+        <source>NAT Network Details</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Enable Network</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable this NAT network.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network &amp;Name:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the name for this network.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network &amp;CIDR:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the CIDR for this network.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network Options:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Supports &amp;DHCP</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Determines whether this network supports DHCP.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Supports &amp;IPv6</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Determines whether this network supports IPv6.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Advertise Default IPv6 &amp;Route</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Determines whether this network should be advertised as the default IPv6 route.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opens a window to manage port forwarding rules.</source>
+        <translation type="unfinished">Atveria langą prievadų persiuntimo taisyklių tvarkymui.</translation>
+    </message>
+    <message>
+        <source>&amp;Port Forwarding</source>
+        <translation type="unfinished">&amp;Prievadų persiuntimas</translation>
+    </message>
+</context>
+<context>
+    <name>UIGlobalSettingsPortForwardingDlg</name>
+    <message>
+        <source>Port Forwarding Rules</source>
+        <translation type="unfinished">Prievadų persiuntimo taisyklės</translation>
+    </message>
+    <message>
+        <source>IPv4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>IPv6</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3101,7 +3543,7 @@
         <translation>Kai pažymėta, VirtualBox užduotims tokioms kaip svečio papildinių parsiuntimas ar atnaujinimų tikrinimas, naudos tarpinio serverio nustatymus.</translation>
     </message>
     <message>
-        <source>&amp;Enable proxy</source>
+        <source>&amp;Enable Proxy</source>
         <translation>&amp;Naudoti įgaliotąjį serverį</translation>
     </message>
     <message>
@@ -3122,27 +3564,35 @@
     </message>
     <message>
         <source>When checked the authentication supplied will be used with the proxy server.</source>
-        <translation>Kai pažymėta, tarpniam serveriui bus naudojamas tapatybės patirkinimas.</translation>
+        <translation type="obsolete">Kai pažymėta, tarpniam serveriui bus naudojamas tapatybės patirkinimas.</translation>
     </message>
     <message>
         <source>&amp;Use authentication</source>
-        <translation>&amp;Nurodyti tapatybę</translation>
+        <translation type="obsolete">&amp;Nurodyti tapatybę</translation>
     </message>
     <message>
         <source>User &amp;name:</source>
-        <translation>Naudotojo &amp;vardas:</translation>
+        <translation type="obsolete">Naudotojo &amp;vardas:</translation>
     </message>
     <message>
         <source>Changes the user name used for authentication.</source>
-        <translation>Pakeičia prisijungimui naudojamą naudotojo vardą.</translation>
+        <translation type="obsolete">Pakeičia prisijungimui naudojamą naudotojo vardą.</translation>
     </message>
     <message>
         <source>Pass&amp;word:</source>
-        <translation>&amp;Slaptažodis:</translation>
+        <translation type="obsolete">&amp;Slaptažodis:</translation>
     </message>
     <message>
         <source>Changes the password used for authentication.</source>
-        <translation>Pakeičia prisijungimui naudojamą slaptažodį.</translation>
+        <translation type="obsolete">Pakeičia prisijungimui naudojamą slaptažodį.</translation>
+    </message>
+    <message>
+        <source>No proxy host is currently specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No proxy port is currently specified.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3152,7 +3602,7 @@
         <translation>Pasirinkus, programa karts nuo karto prisijungs prie VirtualBox svetainės ir tikrins, ar yra naujesnių VirtualBox versijų.</translation>
     </message>
     <message>
-        <source>&amp;Check for updates</source>
+        <source>&amp;Check for Updates</source>
         <translation>&amp;Tikrinti, ar yra atnaujinimų</translation>
     </message>
     <message>
@@ -3176,7 +3626,7 @@
         <translation>&lt;p&gt;Pasirinkite, jei norite sužinoti tik apie galimas stabilias VirtualBox versijas.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&amp;Stable release versions</source>
+        <source>&amp;Stable Release Versions</source>
         <translation>&amp;Stabilias versijas</translation>
     </message>
     <message>
@@ -3184,7 +3634,7 @@
         <translation>&lt;p&gt;Pasirinkite, jei norite sužinoti apie visas naujas VirtualBox versijas.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&amp;All new releases</source>
+        <source>&amp;All New Releases</source>
         <translation>&amp;Visas naujas versijas</translation>
     </message>
     <message>
@@ -3192,7 +3642,7 @@
         <translation>&lt;p&gt;Pasirinkite, jei norite sužinoti apie visas naujas VirtualBox versijas, įskaitant ir eksperimentines.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>All new releases and &amp;pre-releases</source>
+        <source>All New Releases and &amp;Pre-Releases</source>
         <translation>Visas naujas versijas, įskaitant &amp;eksperimentines</translation>
     </message>
 </context>
@@ -3204,66 +3654,137 @@
     </message>
 </context>
 <context>
-    <name>UIHotKeyEditor</name>
+    <name>UIHostComboEditor</name>
+    <message>
+        <source>&lt;key_%1&gt;</source>
+        <translation type="unfinished">&lt;%1_klavišas&gt;</translation>
+    </message>
     <message>
         <source>Left </source>
-        <translation>Kairėn </translation>
+        <translation type="unfinished">Kairėn </translation>
     </message>
     <message>
         <source>Right </source>
-        <translation>Dešinėn </translation>
+        <translation type="unfinished">Dešinėn </translation>
     </message>
     <message>
         <source>Left Shift</source>
-        <translation>Kairysis Lyg2</translation>
+        <translation type="unfinished">Kairysis Lyg2</translation>
     </message>
     <message>
         <source>Right Shift</source>
-        <translation>Dešinysis Lyg2</translation>
+        <translation type="unfinished">Dešinysis Lyg2</translation>
     </message>
     <message>
         <source>Left Ctrl</source>
-        <translation>Kairysis Vald</translation>
+        <translation type="unfinished">Kairysis Vald</translation>
     </message>
     <message>
         <source>Right Ctrl</source>
-        <translation>Dešinysis Vald</translation>
+        <translation type="unfinished">Dešinysis Vald</translation>
     </message>
     <message>
         <source>Left Alt</source>
-        <translation>Kairysis Alt</translation>
+        <translation type="unfinished">Kairysis Alt</translation>
     </message>
     <message>
         <source>Right Alt</source>
-        <translation>Dešinysis Alt</translation>
+        <translation type="unfinished">Dešinysis Alt</translation>
     </message>
     <message>
         <source>Left WinKey</source>
-        <translation>Kairysis Win</translation>
+        <translation type="unfinished">Kairysis Win</translation>
     </message>
     <message>
         <source>Right WinKey</source>
-        <translation>Dešinysis Win</translation>
+        <translation type="unfinished">Dešinysis Win</translation>
     </message>
     <message>
         <source>Menu key</source>
-        <translation>Meniu klavišas</translation>
+        <translation type="unfinished">Meniu klavišas</translation>
     </message>
     <message>
         <source>Alt Gr</source>
-        <translation>Lyg3</translation>
+        <translation type="unfinished">Lyg3</translation>
     </message>
     <message>
         <source>Caps Lock</source>
-        <translation>Didž(iosios)</translation>
+        <translation type="unfinished">Didž(iosios)</translation>
     </message>
     <message>
         <source>Scroll Lock</source>
-        <translation>Slinkti</translation>
+        <translation type="unfinished">Slinkti</translation>
+    </message>
+    <message>
+        <source>Host+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIHotKeyEditor</name>
+    <message>
+        <source>Left </source>
+        <translation type="obsolete">Kairėn </translation>
+    </message>
+    <message>
+        <source>Right </source>
+        <translation type="obsolete">Dešinėn </translation>
+    </message>
+    <message>
+        <source>Left Shift</source>
+        <translation type="obsolete">Kairysis Lyg2</translation>
+    </message>
+    <message>
+        <source>Right Shift</source>
+        <translation type="obsolete">Dešinysis Lyg2</translation>
+    </message>
+    <message>
+        <source>Left Ctrl</source>
+        <translation type="obsolete">Kairysis Vald</translation>
+    </message>
+    <message>
+        <source>Right Ctrl</source>
+        <translation type="obsolete">Dešinysis Vald</translation>
+    </message>
+    <message>
+        <source>Left Alt</source>
+        <translation type="obsolete">Kairysis Alt</translation>
+    </message>
+    <message>
+        <source>Right Alt</source>
+        <translation type="obsolete">Dešinysis Alt</translation>
+    </message>
+    <message>
+        <source>Left WinKey</source>
+        <translation type="obsolete">Kairysis Win</translation>
+    </message>
+    <message>
+        <source>Right WinKey</source>
+        <translation type="obsolete">Dešinysis Win</translation>
+    </message>
+    <message>
+        <source>Menu key</source>
+        <translation type="obsolete">Meniu klavišas</translation>
+    </message>
+    <message>
+        <source>Alt Gr</source>
+        <translation type="obsolete">Lyg3</translation>
+    </message>
+    <message>
+        <source>Caps Lock</source>
+        <translation type="obsolete">Didž(iosios)</translation>
+    </message>
+    <message>
+        <source>Scroll Lock</source>
+        <translation type="obsolete">Slinkti</translation>
     </message>
     <message>
         <source>&lt;key_%1&gt;</source>
-        <translation>&lt;%1_klavišas&gt;</translation>
+        <translation type="obsolete">&lt;%1_klavišas&gt;</translation>
     </message>
     <message>
         <source>Pause</source>
@@ -3383,7 +3904,26 @@
     </message>
     <message>
         <source>None</source>
-        <translation>Nėra</translation>
+        <translation type="obsolete">Nėra</translation>
+    </message>
+    <message>
+        <source>Reset shortcut to default</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unset shortcut</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIHotKeyTableModel</name>
+    <message>
+        <source>Name</source>
+        <translation type="unfinished">Pavadinimas</translation>
+    </message>
+    <message>
+        <source>Shortcut</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3635,11 +4175,11 @@
     </message>
     <message>
         <source>Indicates whether the Remote Desktop Server is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
-        <translation>Rodo, ar įgalintas nuotolinio ekrano serveris (&lt;img src=:/vrdp_16px.png/&gt;) ar ne (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
+        <translation type="obsolete">Rodo, ar įgalintas nuotolinio ekrano serveris (&lt;img src=:/vrdp_16px.png/&gt;) ar ne (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>&lt;hr&gt;The Remote Desktop Server is listening on port %1</source>
-        <translation>&lt;hr&gt;Nuotolinio ekrano serverio klausomasi %1 prievadu</translation>
+        <translation type="obsolete">&lt;hr&gt;Nuotolinio ekrano serverio klausomasi %1 prievadu</translation>
     </message>
     <message>
         <source>Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</source>
@@ -3652,9 +4192,26 @@
         <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1 :&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>Indicates the status of different features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6%&lt;/nobr&gt;</source>
+        <source>Additional feature status:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6%&lt;/nobr&gt;</source>
         <comment>Virtualization Stuff LED</comment>
-        <translation>Rodo įvairias virtualios mašinos funkcijas:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6%&lt;/nobr&gt;</translation>
+        <translation type="obsolete">Rodo įvairias virtualios mašinos funkcijas:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6%&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Indicates video capturing activity:&lt;/nobr&gt;&lt;br&gt;%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;Video capture disabled&lt;/b&gt;&lt;/nobr&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;Video capture file:&lt;/b&gt; %1&lt;/nobr&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Additional feature status:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%7:&lt;/b&gt;&amp;nbsp;%8%&lt;/nobr&gt;</source>
+        <comment>Virtualization Stuff LED</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3700,19 +4257,19 @@
     </message>
     <message>
         <source>No CD/DVD Devices Attached</source>
-        <translation>Neprijungtas joks CD/DVD</translation>
+        <translation type="obsolete">Neprijungtas joks CD/DVD</translation>
     </message>
     <message>
         <source>No CD/DVD devices attached to that VM</source>
-        <translation>Prie šios VM neprijungtas joks CD/DVD</translation>
+        <translation type="obsolete">Prie šios VM neprijungtas joks CD/DVD</translation>
     </message>
     <message>
         <source>No Floppy Devices Attached</source>
-        <translation>Neprijungtas joks diskelių įtaisas</translation>
+        <translation type="obsolete">Neprijungtas joks diskelių įtaisas</translation>
     </message>
     <message>
         <source>No floppy devices attached to that VM</source>
-        <translation>Prie šios VM neprijungtas joks diskelis</translation>
+        <translation type="obsolete">Prie šios VM neprijungtas joks diskelis</translation>
     </message>
     <message>
         <source>No USB Devices Connected</source>
@@ -3846,11 +4403,11 @@
     </message>
     <message>
         <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required to switch the virtual machine to fullscreen or seamless mode.</source>
-        <translation>vaizdo atminčiai paskyrėte mažiau kaip &lt;b&gt;%1&lt;/b&gt;. Pastarasis dydis yra mažiausias amtinties kiekis, kurio reikia mašinai pereiti į viso ekrano arbą integruotą darbastalio veikseną.</translation>
+        <translation type="obsolete">vaizdo atminčiai paskyrėte mažiau kaip &lt;b&gt;%1&lt;/b&gt;. Pastarasis dydis yra mažiausias amtinties kiekis, kurio reikia mašinai pereiti į viso ekrano arbą integruotą darbastalio veikseną.</translation>
     </message>
     <message>
         <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required for HD Video to be played efficiently.</source>
-        <translation>vaizdo atminčiai paskyrėte mažiau kaip &lt;b&gt;%1&lt;/b&gt;. Pastarasis dydis yra mažiausias amtinties kiekis, kurio reikia be trikdžių peržiūrint HD vaizdo kūrinius.</translation>
+        <translation type="obsolete">vaizdo atminčiai paskyrėte mažiau kaip &lt;b&gt;%1&lt;/b&gt;. Pastarasis dydis yra mažiausias amtinties kiekis, kurio reikia be trikdžių peržiūrint HD vaizdo kūrinius.</translation>
     </message>
     <message>
         <source>You have 3D Acceleration enabled for a operation system which uses the WDDM video driver. For maximal performance set the guest VRAM to at least &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -3866,15 +4423,142 @@
     </message>
     <message>
         <source>you have 3D Acceleration enabled for a operation system which uses the WDDM video driver. For maximal performance set the guest VRAM to at least &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Įgalinote 3D spartinimą operacinei sistemai, kuri naudoja WDDM vaizdo tvarkyklę. Didžiausią našumą pasieksite, jei vaizdo laisvosios prieigos atminčiai (VRAM) paskirsite bent &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation type="obsolete">Įgalinote 3D spartinimą operacinei sistemai, kuri naudoja WDDM vaizdo tvarkyklę. Didžiausią našumą pasieksite, jei vaizdo laisvosios prieigos atminčiai (VRAM) paskirsite bent &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
-        <translation>įgalinote 2D vaizdo spartinimą. Kadangi 2D vaizdo spartinimas palaikomas tik Windows svečiui, pastaroji savybė bus uždrausta.</translation>
+        <translation type="obsolete">įgalinote 2D vaizdo spartinimą. Kadangi 2D vaizdo spartinimas palaikomas tik Windows svečiui, pastaroji savybė bus uždrausta.</translation>
     </message>
     <message>
         <source>you enabled 3D acceleration. However, 3D acceleration is not working on the current host setup so you will not be able to start the VM.</source>
-        <translation>jūs įjungėte 3D spartinimą. Nepaisant to dabartinio kompiuterio sąrankoj 3D spartinimas neveikia, todėl jūs negalėsite paleisti VM.</translation>
+        <translation type="obsolete">jūs įjungėte 3D spartinimą. Nepaisant to dabartinio kompiuterio sąrankoj 3D spartinimas neveikia, todėl jūs negalėsite paleisti VM.</translation>
+    </message>
+    <message>
+        <source>Video &amp;Capture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, VirtualBox will record the virtual machine session as a video file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Enable Video Capture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File &amp;Path:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This setting determines the filename VirtualBox uses to save the recorded content.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frame &amp;Size:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This setting determines the resolution (frame size) of the recorded video.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This setting determines the &lt;b&gt;horizontal&lt;/b&gt; resolution (frame width) of the recorded video.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This setting determines the &lt;b&gt;vertical&lt;/b&gt; resolution (frame height) of the recorded video.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Frame Rate:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This setting determines the maximum number of &lt;b&gt;frames per second&lt;/b&gt;. Additional frames will be skipped. Reducing this value will increase the number of skipped frames and reduce the file size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Quality:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This setting determines the &lt;b&gt;quality&lt;/b&gt;. Increasing this value will make the video look better at the cost of an increased file size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This setting determines the bitrate in &lt;b&gt;kilobits per second&lt;/b&gt;. Increasing this value will make the video look better at the cost of an increased file size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Screens:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The virtual machine is set up to use hardware graphics acceleration. However the host system does not currently provide this, so you will not be able to start the machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The virtual machine is currently assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required to switch to fullscreen or seamless mode.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The virtual machine is currently assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required for High Definition Video to be played efficiently.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The virtual machine is set up to use hardware graphics acceleration and the operating system hint is set to Windows Vista or later. For best performance you should set the machine&apos;s video memory to at least b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The virtual machine is set up to use Video Stream Acceleration. As this feature only works with Windows guest systems it will be disabled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The VRDE server port value is not currently specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The VRDE authentication timeout value is not currently specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>User Defined</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 fps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>fps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>low</source>
+        <comment>quality</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>medium</source>
+        <comment>quality</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>high</source>
+        <comment>quality</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>kbps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Screen %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable video recording for screen %1.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3888,7 +4572,7 @@
         <translation type="obsolete">&amp;Pavadinimas:</translation>
     </message>
     <message>
-        <source>Displays the name of the virtual machine.</source>
+        <source>Holds the name of the virtual machine.</source>
         <translation type="obsolete">Parodo virtualios mašinos pavadinimą.</translation>
     </message>
     <message>
@@ -3912,7 +4596,7 @@
         <translation>Keičiamoji laikmena:</translation>
     </message>
     <message>
-        <source>If checked, any change to mounted CD/DVD or Floppy media performed during machine execution will be saved in the settings file in order to preserve the configuration of mounted media between runs.</source>
+        <source>If checked, any CD/DVD or floppy disks inserted into or removed from the virtual drives while the machine is running will be remembered.</source>
         <translation>Jei pažymėta, bus įsimintas bet koks CD/DVD ar diskelių prijungimo pakeitimas mašinos veikimo metu. Šie pakeitimai bus įrašyti į nuostatas tam, kad būtų išlaikyta ta pati pakeista prijungtų įtaisių konfigūracija sekantį kartą paleidus svečio OS.</translation>
     </message>
     <message>
@@ -3928,7 +4612,7 @@
         <translation>Jei pažymėta, viso ekrano ir integruoto darbo veiksenose bus rodoma maža įrankinė.</translation>
     </message>
     <message>
-        <source>Show In &amp;Fullscreen/Seamless</source>
+        <source>Show in &amp;Fullscreen/Seamless</source>
         <translation>Rodyti viso &amp;ekrano/integravimo veiksenoje</translation>
     </message>
     <message>
@@ -3936,7 +4620,7 @@
         <translation>Jei pažymėta, maža įrankinė bus rodoma ekrano viršuje, o ne apačioje.</translation>
     </message>
     <message>
-        <source>Show At &amp;Top Of Screen</source>
+        <source>Show at &amp;Top of Screen</source>
         <translation>Rodyti &amp;virš kitų langų</translation>
     </message>
     <message>
@@ -3944,16 +4628,16 @@
         <translation>&amp;Aprašas</translation>
     </message>
     <message>
-        <source>Displays the description of the virtual machine. The description field is useful for commenting on configuration details of the installed guest OS.</source>
+        <source>Holds the description of the virtual machine. The description field is useful for commenting on configuration details of the installed guest OS.</source>
         <translation>Rodo virtualios mašinos aprašą. Aprašo laukelis naudingas komentuojant įdiegtos svečio OS konfigūracijos niuansus.</translation>
     </message>
     <message>
-        <source>Displays the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of disk space.</source>
+        <source>Holds the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of disk space.</source>
         <translation>Rodo kelią, kur bus saugomos šios virtualios mašinos momentinių būvių kopijos. Atminkite, kad būvių kopijos gali užimti daug vietos.</translation>
     </message>
     <message>
         <source>you have selected a 64-bit guest OS type for this VM. As such guests require hardware virtualization (VT-x/AMD-V), this feature will be enabled automatically.</source>
-        <translation>šiai mašinai pasirinkote 64 bitų svečio OS. Kadangi toks svečias reikalauja virtualizaciją palaikančio procesoriaus (VT-x/AMD-V), pastaroji parinktis bus įgalinta automatiškai.</translation>
+        <translation type="obsolete">šiai mašinai pasirinkote 64 bitų svečio OS. Kadangi toks svečias reikalauja virtualizaciją palaikančio procesoriaus (VT-x/AMD-V), pastaroji parinktis bus įgalinta automatiškai.</translation>
     </message>
     <message>
         <source>&amp;Drag&apos;n&apos;Drop:</source>
@@ -3961,6 +4645,14 @@
     </message>
     <message>
         <source>Selects which data will be copied between the guest and the host OS by drag&apos;n&apos;drop. This feature requires Guest Additions to be installed in the guest OS.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No name specified for the virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The virtual machine operating system hint is set to a 64-bit type. 64-bit guest systems require hardware virtualization, so this will be enabled automatically if you confirm the changes.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -4011,7 +4703,7 @@
         <translation type="obsolete">&amp;MAC adresas:</translation>
     </message>
     <message>
-        <source>Displays the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</source>
+        <source>Holds the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</source>
         <translation>Rodo šios plokštės MAC adresą. Jis susideda iš 12 rašmenų {0-9,A-F}. Atminkite, antrasis rašmuo turi būti lyginis skaičius.</translation>
     </message>
     <message>
@@ -4023,11 +4715,11 @@
         <translation>Rodo, ar virtualaus tinklo kabelis yra prijungtas mašinos paleidimo metu.</translation>
     </message>
     <message>
-        <source>&amp;Cable connected</source>
+        <source>&amp;Cable Connected</source>
         <translation>&amp;Kabelis prijungtas</translation>
     </message>
     <message>
-        <source>Opens dialog to manage port forwarding rules.</source>
+        <source>Opens a window to manage port forwarding rules.</source>
         <translation>Atveria langą prievadų persiuntimo taisyklių tvarkymui.</translation>
     </message>
     <message>
@@ -4036,15 +4728,15 @@
     </message>
     <message>
         <source>no bridged network adapter is selected</source>
-        <translation>nepasirinkta tinklo plokštė tiltiniam sujungimui</translation>
+        <translation type="obsolete">nepasirinkta tinklo plokštė tiltiniam sujungimui</translation>
     </message>
     <message>
         <source>no internal network name is specified</source>
-        <translation>nenurodytas vidinio tinklo pavadinimas</translation>
+        <translation type="obsolete">nenurodytas vidinio tinklo pavadinimas</translation>
     </message>
     <message>
         <source>no host-only network adapter is selected</source>
-        <translation>nepasirinkta plokštė, leidžianti prisijungti tik prie pagrindinio kompiuterio</translation>
+        <translation type="obsolete">nepasirinkta plokštė, leidžianti prisijungti tik prie pagrindinio kompiuterio</translation>
     </message>
     <message>
         <source>Not selected</source>
@@ -4068,15 +4760,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>no generic driver is selected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Selects the network adapter on the host system that traffic to and from this network card will go through.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Enter the name of the internal network that this network card will be connected to. You can create a new internal network by choosing a name which is not used by any other network cards in this virtual machine or others.</source>
+        <source>Holds the name of the internal network that this network card will be connected to. You can create a new internal network by choosing a name which is not used by any other network cards in this virtual machine or others.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -4092,11 +4780,35 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>the MAC address must be 12 hexadecimal digits long.</source>
+        <source>No bridged network adapter is currently selected.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>the second digit in the MAC address may not be odd as only unicast addresses are allowed.</source>
+        <source>No internal network name is currently specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No host-only network adapter is currently selected.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No generic driver is currently selected.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The MAC address must be 12 hexadecimal digits long.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The second digit in the MAC address may not be odd as only unicast addresses are allowed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No NAT network name is currently specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the name of the NAT network that this network card will be connected to. You can create and remove networks using the global network settings in the virtual machine manager window.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -4115,7 +4827,7 @@
         <translation>Prievado &amp;numeris: </translation>
     </message>
     <message>
-        <source>Displays the parallel port number. You can choose one of the standard parallel ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
+        <source>Holds the parallel port number. You can choose one of the standard parallel ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
         <translation>Roro lygiagrečiojo prievado numerį. Galite pasirinkti kurį nors standartinį lygiagretųjį prievadą arba galite rankiniu būdu parinkti prievado parametrus nuspaudę mygtuką &lt;b&gt;Naudotojo apibrėžtas&lt;/b&gt;.</translation>
     </message>
     <message>
@@ -4123,15 +4835,15 @@
         <translation>&amp;IRQ:</translation>
     </message>
     <message>
-        <source>Displays the IRQ number of this parallel port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
-        <translation>Rodo šio lygiagrečiojo prievado IRQ numerį. Tai turi būti sveikasis skaičius iš intervalo nuo &lt;tt&gt;0&lt;/tt&gt; iki &lt;tt&gt;255&lt;/tt&gt;. Reikšmes, didesnes kaip &lt;tt&gt;15&lt;/tt&gt;, galima naudoti tik jei šiai virtualiai mašinai įgalinta &lt;b&gt;IO APIC&lt;/b&gt; nuostata.</translation>
+        <source>Holds the IRQ number of this parallel port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;I/O APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
+        <translation>Rodo šio lygiagrečiojo prievado IRQ numerį. Tai turi būti sveikasis skaičius iš intervalo nuo &lt;tt&gt;0&lt;/tt&gt; iki &lt;tt&gt;255&lt;/tt&gt;. Reikšmes, didesnes kaip &lt;tt&gt;15&lt;/tt&gt;, galima naudoti tik jei šiai virtualiai mašinai įgalinta &lt;b&gt;I/O APIC&lt;/b&gt; nuostata.</translation>
     </message>
     <message>
         <source>I/O Po&amp;rt:</source>
         <translation>I/O p&amp;rievadas: </translation>
     </message>
     <message>
-        <source>Displays the base I/O port address of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <source>Holds the base I/O port address of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
         <translation>Rodo pagrindinį įvesties/išvesties prievado adresą šiam lygiagrečiam prievadui. Galimos reikšmės yra sveikieji skaičiai nuo &lt;tt&gt;0&lt;/tt&gt; iki &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
     </message>
     <message>
@@ -4139,7 +4851,7 @@
         <translation>&amp;Prievado kelias: </translation>
     </message>
     <message>
-        <source>Displays the host parallel device name.</source>
+        <source>Holds the host parallel device name.</source>
         <translation>Rodo pagrindinio kopiuterio lygiagrečiųjų įtaisų vardus.</translation>
     </message>
     <message>
@@ -4152,15 +4864,35 @@
     <name>UIMachineSettingsParallelPage</name>
     <message>
         <source>Duplicate port number selected </source>
-        <translation>Pasirinktas prievado numeris kartojasi </translation>
+        <translation type="obsolete">Pasirinktas prievado numeris kartojasi </translation>
     </message>
     <message>
         <source>Port path not specified </source>
-        <translation>Nenurodytas prievado kelias </translation>
+        <translation type="obsolete">Nenurodytas prievado kelias </translation>
     </message>
     <message>
         <source>Duplicate port path entered </source>
-        <translation>Nurodytas prievado kelias kartojasi </translation>
+        <translation type="obsolete">Nurodytas prievado kelias kartojasi </translation>
+    </message>
+    <message>
+        <source>No IRQ is currently specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No I/O port is currently specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Two or more ports have the same settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No port path is currently specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>There are currently duplicate port paths specified.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4213,7 +4945,7 @@
         <translation>Kelias</translation>
     </message>
     <message>
-        <source>Auto-Mount</source>
+        <source>Auto-mount</source>
         <translation>Automatinis prijungimas</translation>
     </message>
     <message>
@@ -4269,7 +5001,7 @@
     <name>UIMachineSettingsSFDetails</name>
     <message>
         <source>Dialog</source>
-        <translation>Skydelis</translation>
+        <translation type="obsolete">Skydelis</translation>
     </message>
     <message>
         <source>Folder Path:</source>
@@ -4280,7 +5012,7 @@
         <translation>Aplanko pavadinimas:</translation>
     </message>
     <message>
-        <source>Displays the name of the shared folder (as it will be seen by the guest OS).</source>
+        <source>Holds the name of the shared folder (as it will be seen by the guest OS).</source>
         <translation>Rodo bendrųjų aplankų pavadinimus (kaip jie matomi iš svečio OS).</translation>
     </message>
     <message>
@@ -4315,6 +5047,10 @@
         <source>Edit Share</source>
         <translation>Keisti bendrąjį išteklių</translation>
     </message>
+    <message>
+        <source>Window</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsSerial</name>
@@ -4331,7 +5067,7 @@
         <translation>Prievado &amp;numeris: </translation>
     </message>
     <message>
-        <source>Displays the serial port number. You can choose one of the standard serial ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
+        <source>Selects the serial port number. You can choose one of the standard serial ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
         <translation>Roro nuosekliojo prievado numerį. Galite pasirinkti kurį nors standartinį lygiagretųjį prievadą arba galite rankiniu būdu parinkti prievado parametrus nuspaudę mygtuką &lt;b&gt;Naudotojo apibrėžtas&lt;/b&gt;.</translation>
     </message>
     <message>
@@ -4339,15 +5075,15 @@
         <translation>&amp;IRQ:</translation>
     </message>
     <message>
-        <source>Displays the IRQ number of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
-        <translation>Rodo šio nuosekliojo prievado IRQ numerį. Tai turi būti sveikasis skaičius iš intervalo nuo &lt;tt&gt;0&lt;/tt&gt; iki &lt;tt&gt;255&lt;/tt&gt;. Reikšmes, didesnes kaip &lt;tt&gt;15&lt;/tt&gt;, galima naudoti tik jei šiai virtualiai mašinai įgalinta &lt;b&gt;IO APIC&lt;/b&gt; nuostata.</translation>
+        <source>Holds the IRQ number of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;I/O APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
+        <translation>Rodo šio nuosekliojo prievado IRQ numerį. Tai turi būti sveikasis skaičius iš intervalo nuo &lt;tt&gt;0&lt;/tt&gt; iki &lt;tt&gt;255&lt;/tt&gt;. Reikšmes, didesnes kaip &lt;tt&gt;15&lt;/tt&gt;, galima naudoti tik jei šiai virtualiai mašinai įgalinta &lt;b&gt;I/O APIC&lt;/b&gt; nuostata.</translation>
     </message>
     <message>
         <source>I/O Po&amp;rt:</source>
         <translation>I/O p&amp;rievadas: </translation>
     </message>
     <message>
-        <source>Displays the base I/O port address of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <source>Holds the base I/O port address of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
         <translation>Rodo pagrindinį įvesties/išvesties prievado adresą šiam nuosekliam prievadui. Galimos reikšmės yra sveikieji skaičiai nuo &lt;tt&gt;0&lt;/tt&gt; iki &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
     </message>
     <message>
@@ -4371,7 +5107,7 @@
         <translation>&amp;Prievado/rinkmenos kelias:</translation>
     </message>
     <message>
-        <source>Displays the path to the serial port&apos;s pipe on the host when the port is working in &lt;b&gt;Host Pipe&lt;/b&gt; mode, or the host serial device name when the port is working in &lt;b&gt;Host Device&lt;/b&gt; mode.</source>
+        <source>Holds the path to the serial port&apos;s pipe on the host when the port is working in &lt;b&gt;Host Pipe&lt;/b&gt; mode, or the host serial device name when the port is working in &lt;b&gt;Host Device&lt;/b&gt; mode.</source>
         <translation>Rodo kelią iki nuosekliojo prievado kanalo pagrindiniame kompiuteryje, kai dirbama &lt;b&gt;Pagrindinio kompiuterio kanalo&lt;/b&gt; veiksenoje, arba pagrindinio kompiuterio nuosekliojo įtaiso vardą, kai dirbama &lt;b&gt;Pagrindinio kompiuterio įtaiso&lt;/b&gt; veiksenoje.</translation>
     </message>
     <message>
@@ -4384,15 +5120,35 @@
     <name>UIMachineSettingsSerialPage</name>
     <message>
         <source>Duplicate port number selected </source>
-        <translation>Pasirinktas prievado numeris kartojasi </translation>
+        <translation type="obsolete">Pasirinktas prievado numeris kartojasi </translation>
     </message>
     <message>
         <source>Port path not specified </source>
-        <translation>Nenurodytas prievado kelias </translation>
+        <translation type="obsolete">Nenurodytas prievado kelias </translation>
     </message>
     <message>
         <source>Duplicate port path entered </source>
-        <translation>Nurodytas prievado kelias kartojasi </translation>
+        <translation type="obsolete">Nurodytas prievado kelias kartojasi </translation>
+    </message>
+    <message>
+        <source>No IRQ is currently specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No I/O port is currently specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Two or more ports have the same settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No port path is currently specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>There are currently duplicate port paths specified.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4438,7 +5194,7 @@
         <translation>Leidžia naudotis pagrindinio kompiuterio įvesties/išvesties podėlio funkcijomis.</translation>
     </message>
     <message>
-        <source>Use host I/O cache</source>
+        <source>Use Host I/O Cache</source>
         <translation>Naudoti pagrindinio kompiuterio įvesties/išvesties podėlį</translation>
     </message>
     <message>
@@ -4478,7 +5234,7 @@
         <translation>Vieta:</translation>
     </message>
     <message>
-        <source>Attached To:</source>
+        <source>Attached to:</source>
         <translation>Susietas su:</translation>
     </message>
     <message>
@@ -4511,11 +5267,11 @@
     </message>
     <message>
         <source>No hard disk is selected for &lt;i&gt;%1&lt;/i&gt;.</source>
-        <translation type="obsolete">Neparinktas joks standusis diskas &lt;i&gt;%1&lt;/i&gt;.</translation>
+        <translation type="unfinished">Neparinktas joks standusis diskas &lt;i&gt;%1&lt;/i&gt;.</translation>
     </message>
     <message>
         <source>&lt;i&gt;%1&lt;/i&gt; uses a medium that is already attached to &lt;i&gt;%2&lt;/i&gt;.</source>
-        <translation>&lt;i&gt;%1&lt;/i&gt; naudoja laikmeną, kuri jau prijungta prie &lt;i&gt;%2&lt;/i&gt;.</translation>
+        <translation type="obsolete">&lt;i&gt;%1&lt;/i&gt; naudoja laikmeną, kuri jau prijungta prie &lt;i&gt;%2&lt;/i&gt;.</translation>
     </message>
     <message>
         <source>Add Controller</source>
@@ -4670,7 +5426,7 @@
         <translation>Kai pažymėta, svečio sitema matys virtualų diską kaip kietos būsenos įrenginį.</translation>
     </message>
     <message>
-        <source>&amp;Solid-state drive</source>
+        <source>&amp;Solid-state Drive</source>
         <translation>&amp;Puslaidininkinis diskas</translation>
     </message>
     <message>
@@ -4679,15 +5435,15 @@
     </message>
     <message>
         <source>no name specified for controller at position &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>valdikliui pozicijoje &lt;b&gt;%1&lt;/b&gt; nenurodytas vardas.</translation>
+        <translation type="obsolete">valdikliui pozicijoje &lt;b&gt;%1&lt;/b&gt; nenurodytas vardas.</translation>
     </message>
     <message>
         <source>controller at position &lt;b&gt;%1&lt;/b&gt; uses the name that is already used by controller at position &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation>valdiklis pozicijoje &lt;b&gt;%1&lt;/b&gt; naudoja vcardą kuris jau naudojamas valdiklio &lt;b&gt;%2&lt;/b&gt;.</translation>
+        <translation type="obsolete">valdiklis pozicijoje &lt;b&gt;%1&lt;/b&gt; naudoja vcardą kuris jau naudojamas valdiklio &lt;b&gt;%2&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>no hard disk is selected for &lt;i&gt;%1&lt;/i&gt;.</source>
-        <translation>&lt;i&gt;%1&lt;/i&gt; neturi standžiojo disko.</translation>
+        <translation type="obsolete">&lt;i&gt;%1&lt;/i&gt; neturi standžiojo disko.</translation>
     </message>
     <message>
         <source>at most one supported</source>
@@ -4701,7 +5457,7 @@
     </message>
     <message>
         <source>you are currently using more storage controllers than a %1 chipset supports. Please change the chipset type on the System settings page or reduce the number of the following storage controllers on the Storage settings page: %2.</source>
-        <translation>naudojate daugiau laikmenų valdiklių nei palaiko %1 lustų rinkinys. Todėl arba pakeiskite lustų rinkinio tipą sistemos nuostatose, arba sumažinkite laikmenų valdiklių skaičių laikmenų nuostatose: %2.</translation>
+        <translation type="obsolete">naudojate daugiau laikmenų valdiklių nei palaiko %1 lustų rinkinys. Todėl arba pakeiskite lustų rinkinio tipą sistemos nuostatose, arba sumažinkite laikmenų valdiklių skaičių laikmenų nuostatose: %2.</translation>
     </message>
     <message>
         <source>&amp;Port Count:</source>
@@ -4713,6 +5469,22 @@
     </message>
     <message>
         <source>Controller: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No name is currently specified for the controller at position &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The controller at position &lt;b&gt;%1&lt;/b&gt; has the same name as the controller at position &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;%1&lt;/i&gt; is using a disk that is already attached to &lt;i&gt;%2&lt;/i&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The machine currently has more storage controllers assigned than a %1 chipset supports. Please change the chipset type on the System settings page or reduce the number of the following storage controllers on the Storage settings page: %2</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -4771,12 +5543,12 @@
         <translation>Papildomos savybės:</translation>
     </message>
     <message>
-        <source>When checked, the virtual machine will support the Input Output APIC (IO APIC), which may slightly decrease performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
-        <translation>Pažymėjus, virtuali mašina palaikys įvesties/išvesties APIC (IO APIC), kuris gali šiek tiek sumažinti našumą. &lt;b&gt;Atminkite:&lt;/b&gt; neuždrauskite šios parinkties, jei įdiegėte Windows kaip svečio operacinę sistemą!</translation>
+        <source>When checked, the virtual machine will support the Input Output APIC (I/O APIC), which may slightly decrease performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
+        <translation>Pažymėjus, virtuali mašina palaikys įvesties/išvesties APIC (I/O APIC), kuris gali šiek tiek sumažinti našumą. &lt;b&gt;Atminkite:&lt;/b&gt; neuždrauskite šios parinkties, jei įdiegėte Windows kaip svečio operacinę sistemą!</translation>
     </message>
     <message>
-        <source>Enable &amp;IO APIC</source>
-        <translation>Įgalinti &amp;IO APIC</translation>
+        <source>Enable &amp;I/O APIC</source>
+        <translation>Įgalinti &amp;I/O APIC</translation>
     </message>
     <message>
         <source>When checked, the guest will support the Extended Firmware Interface (EFI), which is required to boot certain guest OSes. Non-EFI aware OSes will not be able to boot if this option is activated.</source>
@@ -4791,16 +5563,16 @@
         <translation>Pažymėjus, RTC įtaisas laiką praneš pasauliniu formatu (UTC); priešingu atveju – vietiniu (pagrindinio kompiuterio) laiku. Unix sistemose aparatinis laikrodis paprastai nustatytas į pasaulinį.</translation>
     </message>
     <message>
-        <source>Hardware clock in &amp;UTC time</source>
+        <source>Hardware Clock in &amp;UTC Time</source>
         <translation>Aparatinis laikrodis &amp;pasauliniu laiku</translation>
     </message>
     <message>
         <source>If checked, an absolute pointing device (a USB tablet) will be supported. Otherwise, only a standard PS/2 mouse will be emulated.</source>
-        <translation>Pažymėjus, bus palaikomas absoliutusis manipuliatorius (USB planšetė). Priešingu atveju bus emuliuojama tik standartinė PS/2 pelė.</translation>
+        <translation type="obsolete">Pažymėjus, bus palaikomas absoliutusis manipuliatorius (USB planšetė). Priešingu atveju bus emuliuojama tik standartinė PS/2 pelė.</translation>
     </message>
     <message>
         <source>Enable &amp;absolute pointing device</source>
-        <translation>Įgalinti &amp;absoliutųjį manipuliatorių</translation>
+        <translation type="obsolete">Įgalinti &amp;absoliutųjį manipuliatorių</translation>
     </message>
     <message>
         <source>&amp;Processor</source>
@@ -4848,27 +5620,27 @@
     </message>
     <message>
         <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. Not enough memory is left for your host operating system. Please select a smaller amount.</source>
-        <translation>virtualiai mašinai paskyrėte daugiau kaip &lt;b&gt;%1%&lt;/b&gt; savo kompiuterio atminties (&lt;b&gt;%2&lt;/b&gt;). Nepakankamai atminties lieka Jūsų pagrindinei operacinei sistemai. Parinkite mažesnį atminties kiekį svečio sistemai.</translation>
+        <translation type="obsolete">virtualiai mašinai paskyrėte daugiau kaip &lt;b&gt;%1%&lt;/b&gt; savo kompiuterio atminties (&lt;b&gt;%2&lt;/b&gt;). Nepakankamai atminties lieka Jūsų pagrindinei operacinei sistemai. Parinkite mažesnį atminties kiekį svečio sistemai.</translation>
     </message>
     <message>
         <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. There might not be enough memory left for your host operating system. Continue at your own risk.</source>
-        <translation>virtualiai mašinai paskyrėte daugiau kaip &lt;b&gt;%1%&lt;/b&gt; savo kompiuterio atminties (&lt;b&gt;%2&lt;/b&gt;). Gali nepakakti atminties Jūsų pagrindinei operacinei sistemai. Atsakomybę už darbą tokiomis sąlygomis prisiimkite patys.</translation>
+        <translation type="obsolete">virtualiai mašinai paskyrėte daugiau kaip &lt;b&gt;%1%&lt;/b&gt; savo kompiuterio atminties (&lt;b&gt;%2&lt;/b&gt;). Gali nepakakti atminties Jūsų pagrindinei operacinei sistemai. Atsakomybę už darbą tokiomis sąlygomis prisiimkite patys.</translation>
     </message>
     <message>
         <source>for performance reasons, the number of virtual CPUs attached to the virtual machine may not be more than twice the number of physical CPUs on the host (&lt;b&gt;%1&lt;/b&gt;). Please reduce the number of virtual CPUs.</source>
-        <translation>dėl našumo apribojimų, virtualių procesorių skaičius virtualioje mašinoje negali būti dvigubai didesnis nei yra procesorių pagrindiniame kompiuteryje (&lt;b&gt;%1&lt;/b&gt;). Sumažinkite virtualių procsorių skaičių.</translation>
+        <translation type="obsolete">dėl našumo apribojimų, virtualių procesorių skaičius virtualioje mašinoje negali būti dvigubai didesnis nei yra procesorių pagrindiniame kompiuteryje (&lt;b&gt;%1&lt;/b&gt;). Sumažinkite virtualių procsorių skaičių.</translation>
     </message>
     <message>
         <source>you have assigned more virtual CPUs to the virtual machine than the number of physical CPUs on your host system (&lt;b&gt;%1&lt;/b&gt;). This is likely to degrade the performance of your virtual machine. Please consider reducing the number of virtual CPUs.</source>
-        <translation>virtualiai mašinai paskyrėte daugiau virtualių procesorių nei yra tikrame pagrindiniame kompiuteryje (&lt;b&gt;%1&lt;/b&gt;). Tikėtina, kad smarkiai nukentės virtualios mašinos našumas. Patartina sumažinti virtualių procesorių skaičių.</translation>
+        <translation type="obsolete">virtualiai mašinai paskyrėte daugiau virtualių procesorių nei yra tikrame pagrindiniame kompiuteryje (&lt;b&gt;%1&lt;/b&gt;). Tikėtina, kad smarkiai nukentės virtualios mašinos našumas. Patartina sumažinti virtualių procesorių skaičių.</translation>
     </message>
     <message>
         <source>you have assigned more than one virtual CPU to this VM. This will not work unless the IO-APIC feature is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation>šiai virtualiai mašinai priskyrėte daugiau kaip vieną virtualų procesorių. Ši funkcija neveiktų, jei neįgalinsite IO-ACPI. Todėl šią savybė bus automatiškai įgalinta nuspausdus mygtuką „Gerai“.</translation>
+        <translation type="obsolete">šiai virtualiai mašinai priskyrėte daugiau kaip vieną virtualų procesorių. Ši funkcija neveiktų, jei neįgalinsite IO-ACPI. Todėl šią savybė bus automatiškai įgalinta nuspausdus mygtuką „Gerai“.</translation>
     </message>
     <message>
         <source>you have assigned more than one virtual CPU to this VM. This will not work unless hardware virtualization (VT-x/AMD-V) is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation>šiai virtualiai mašinai priskyrėte daugiau kaip vieną virtualų procesorių. Ši funkcija neveiktų, jei neįgalinsite procesoriaus virtualizavimo aparatiniame lygyje (VT-x/AMD-V). Todėl šią savybė bus automatiškai įgalinta patvirtinant VM nuostatas nuspausdžiant mygtuką „Gerai“.</translation>
+        <translation type="obsolete">šiai virtualiai mašinai priskyrėte daugiau kaip vieną virtualų procesorių. Ši funkcija neveiktų, jei neįgalinsite procesoriaus virtualizavimo aparatiniame lygyje (VT-x/AMD-V). Todėl šią savybė bus automatiškai įgalinta patvirtinant VM nuostatas nuspausdžiant mygtuką „Gerai“.</translation>
     </message>
     <message>
         <source>you have selected emulation of an ICH9 chipset in this machine. This requires the IO-APIC feature to be enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
@@ -4897,12 +5669,8 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>you have set the processor execution cap to a low value. This can make the machine feel slow to respond.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>you have enabled a USB HID (Human Interface Device). This will not work unless USB emulation is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation>įgalinote USB HID (žmogaus sąsajos įtaisą). Jis neveiks tol, kol neįgalinsite USB emuliacijos. Todėl pastaroji bus įgalinta automatiškai po to, kai patvirtinsite VM nuostatas mygtuku „Gerai“.</translation>
+        <translation type="obsolete">įgalinote USB HID (žmogaus sąsajos įtaisą). Jis neveiks tol, kol neįgalinsite USB emuliacijos. Todėl pastaroji bus įgalinta automatiškai po to, kai patvirtinsite VM nuostatas mygtuku „Gerai“.</translation>
     </message>
     <message>
         <source>&lt;qt&gt;%1%&lt;/qt&gt;</source>
@@ -4916,7 +5684,51 @@
     </message>
     <message>
         <source>you have assigned ICH9 chipset type to this VM. It will not work properly unless the IO-APIC feature is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation>šiai VM priskyrėte ICH9 lustų rinkinį. Ši savybė neveiktų, jei neįgalinsite IO-ACPI. Todėl šią savybė bus automatiškai įgalinta nuspausdus mygtuką „Gerai“.</translation>
+        <translation type="obsolete">šiai VM priskyrėte ICH9 lustų rinkinį. Ši savybė neveiktų, jei neįgalinsite IO-ACPI. Todėl šią savybė bus automatiškai įgalinta nuspausdus mygtuką „Gerai“.</translation>
+    </message>
+    <message>
+        <source>&amp;Pointing Device:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Determines whether the emulated pointing device is a standard PS/2 mouse, a USB tablet or a USB multi-touch tablet.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>More than &lt;b&gt;%1%&lt;/b&gt; of the host computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) is assigned to the virtual machine. Not enough memory is left for the host operating system. Please select a smaller amount.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>More than &lt;b&gt;%1%&lt;/b&gt; of the host computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) is assigned to the virtual machine. There might not be enough memory left for the host operating system. Please consider selecting a smaller amount.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support a chip set of type ICH9. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB input device. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>For performance reasons, the number of virtual CPUs attached to the virtual machine may not be more than twice the number of physical CPUs on the host (&lt;b&gt;%1&lt;/b&gt;). Please reduce the number of virtual CPUs.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>More virtual CPUs are assigned to the virtual machine than the number of physical CPUs on the host system (&lt;b&gt;%1&lt;/b&gt;). This is likely to degrade the performance of your virtual machine. Please consider reducing the number of virtual CPUs.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support more than one virtual processor. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed in order to support more than one virtual processor. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The processor execution cap is set to a low value. This may make the machine feel slow to respond.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5048,7 +5860,11 @@
     </message>
     <message>
         <source>USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site. After this you will be able to re-enable USB 2.0. It will be disabled in the meantime unless you cancel the current settings changes.</source>
-        <translation>Šioje virtualioje mašinoje įgalintas USB 2.0. Tačiau tam turi įdiegtas &lt;b&gt;%1&lt;/b&gt;. Įdiegike papildinių paketą, kurį rasite VirtualBox svetainėje. Tuomet vėl galėsite įgalite USB 2.0. Iki tol ši funkcija bus uždrausta, nebent atsisakysite dabartinių nuostatų pakeitimų.</translation>
+        <translation type="obsolete">Šioje virtualioje mašinoje įgalintas USB 2.0. Tačiau tam turi įdiegtas &lt;b&gt;%1&lt;/b&gt;. Įdiegike papildinių paketą, kurį rasite VirtualBox svetainėje. Tuomet vėl galėsite įgalite USB 2.0. Iki tol ši funkcija bus uždrausta, nebent atsisakysite dabartinių nuostatų pakeitimų.</translation>
+    </message>
+    <message>
+        <source>USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site or disable USB 2.0 to be able to start the machine.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5062,7 +5878,7 @@
         <translation>&amp;Pavadinimas:</translation>
     </message>
     <message>
-        <source>Displays the filter name.</source>
+        <source>Holds the filter name.</source>
         <translation>Rodo filtro pavadinimą.</translation>
     </message>
     <message>
@@ -5131,11 +5947,11 @@
     </message>
     <message>
         <source>&amp;Action:</source>
-        <translation>&amp;Veiksmas: </translation>
+        <translation type="obsolete">&amp;Veiksmas: </translation>
     </message>
     <message>
         <source>Defines an action performed by the host computer when a matching device is attached: give it up to the host OS (&lt;i&gt;Ignore&lt;/i&gt;) or grab it for later usage by virtual machines (&lt;i&gt;Hold&lt;/i&gt;).</source>
-        <translation>Nurodo veiksmą, kurį atlieka pagrindinis kompiuteris, kai prijungiamas atitinkamas įtaisas: palikti pagrindinio kompiuterio žinioje (&lt;i&gt;Nepaisyti&lt;/i&gt;) arba atiduoti į virtualios mašinos valdymui (&lt;i&gt;Sulaikyti&lt;/i&gt;).</translation>
+        <translation type="obsolete">Nurodo veiksmą, kurį atlieka pagrindinis kompiuteris, kai prijungiamas atitinkamas įtaisas: palikti pagrindinio kompiuterio žinioje (&lt;i&gt;Nepaisyti&lt;/i&gt;) arba atiduoti į virtualios mašinos valdymui (&lt;i&gt;Sulaikyti&lt;/i&gt;).</translation>
     </message>
     <message>
         <source>Any</source>
@@ -5183,7 +5999,7 @@
     </message>
     <message>
         <source>&amp;Select</source>
-        <translation type="unfinished">Pa&amp;sirinkti</translation>
+        <translation type="obsolete">Pa&amp;sirinkti</translation>
     </message>
     <message>
         <source>C&amp;lose</source>
@@ -5197,11 +6013,11 @@
         <translation>Keisti laikmenos atributus</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You are about to change the attributes of the virtual disk located in &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please choose one of the following medium types and press &lt;b&gt;%2&lt;/b&gt; to proceed or &lt;b&gt;%3&lt;/b&gt; otherwise.&lt;/p&gt;</source>
+        <source>&lt;p&gt;You are about to change the settings of the disk image file &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please choose one of the following modes and press &lt;b&gt;%2&lt;/b&gt; to proceed or &lt;b&gt;%3&lt;/b&gt; otherwise.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Keistumėte &lt;b&gt;%1&lt;/b&gt; virtualaus disko atributus.&lt;/p&gt;&lt;p&gt;Pasirinkite laikmenos tipą ir norėdami tęsti spauskite &lt;b&gt;%2&lt;/b&gt;, priešingu atveju – &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Choose medium type:</source>
+        <source>Choose mode:</source>
         <translation>Pasirinkite laikmenos tipą:</translation>
     </message>
 </context>
@@ -5269,11 +6085,11 @@
     </message>
     <message>
         <source>Failed to create a new virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Nepavyko sukurti naujos virtualios mašinos &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation type="obsolete">Nepavyko sukurti naujos virtualios mašinos &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to apply the settings to the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Virtualiai mašinai &lt;b&gt;%1&lt;/b&gt; nepavyko pritaikyti nuostatų.</translation>
+        <translation type="obsolete">Virtualiai mašinai &lt;b&gt;%1&lt;/b&gt; nepavyko pritaikyti nuostatų.</translation>
     </message>
     <message>
         <source>Failed to start the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -5349,7 +6165,7 @@
     </message>
     <message>
         <source>Failed to remove the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) from the virtual machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>Nepavyko pervadinti bendrojo aplanko &lt;b&gt;%1&lt;/b&gt; (ties &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) virtualiai mašinai &lt;b&gt;%3&lt;/b&gt;.</translation>
+        <translation type="obsolete">Nepavyko pervadinti bendrojo aplanko &lt;b&gt;%1&lt;/b&gt; (ties &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) virtualiai mašinai &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS does not support &lt;b&gt;mouse pointer integration&lt;/b&gt; in the current video mode. You need to capture the mouse (by clicking over the VM display or pressing the host key) in order to use the mouse inside the guest OS.&lt;/p&gt;</source>
@@ -5361,7 +6177,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Cannot run VirtualBox in &lt;i&gt;VM Selector&lt;/i&gt; mode due to local restrictions.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Dėl vietinių apribojimų nepavyksta paleisti VirtualBox &lt;i&gt;VM pasirinkimo&lt;/i&gt; veiksenos.&lt;/p&gt;&lt;p&gt;Programa netrukus baigs darbą.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Dėl vietinių apribojimų nepavyksta paleisti VirtualBox &lt;i&gt;VM pasirinkimo&lt;/i&gt; veiksenos.&lt;/p&gt;&lt;p&gt;Programa netrukus baigs darbą.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Fatal Error&lt;/nobr&gt;</source>
@@ -5434,23 +6250,23 @@
         <translation>Iššaukė&amp;nbsp;RC: </translation>
     </message>
     <message>
-        <source>&lt;p&gt;Could not find a language file for the language &lt;b&gt;%1&lt;/b&gt; in the directory &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;The language will be temporarily reset to the system default language. Please go to the &lt;b&gt;Preferences&lt;/b&gt; dialog which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the main VirtualBox window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Nepavyksta rasti &lt;b&gt;%1&lt;/b&gt; kalbos rinkmenos kataloge &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Laikinai bus naudojama sistemos numatytoji kalba. Eikite į &lt;b&gt;nuostatas&lt;/b&gt; per &lt;b&gt;rinkmenos&lt;/b&gt; meniu, esantį pagrindiniame VirtualBox lange, ir pasirinkite egzistuojančią kalbą &lt;b&gt;kalbos&lt;/b&gt; kortelėje.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;Could not find a language file for the language &lt;b&gt;%1&lt;/b&gt; in the directory &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;The language will be temporarily reset to the system default language. Please go to the &lt;b&gt;Preferences&lt;/b&gt; window which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the main VirtualBox window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Nepavyksta rasti &lt;b&gt;%1&lt;/b&gt; kalbos rinkmenos kataloge &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Laikinai bus naudojama sistemos numatytoji kalba. Eikite į &lt;b&gt;nuostatas&lt;/b&gt; per &lt;b&gt;rinkmenos&lt;/b&gt; meniu, esantį pagrindiniame VirtualBox lange, ir pasirinkite egzistuojančią kalbą &lt;b&gt;kalbos&lt;/b&gt; kortelėje.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Could not load the language file &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;. &lt;p&gt;The language will be temporarily reset to English (built-in). Please go to the &lt;b&gt;Preferences&lt;/b&gt; dialog which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the main VirtualBox window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Nepavyksta įkelti kalbos rinkmenos &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;. &lt;p&gt;Laikinai bus naudojama anglų kalba.Eikite į &lt;b&gt;nuostatas&lt;/b&gt; per &lt;b&gt;rinkmenos&lt;/b&gt; meniu, esantį pagrindiniame VirtualBox lange, ir pasirinkite egzistuojančią kalbą &lt;b&gt;kalbos&lt;/b&gt; kortelėje.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;Could not load the language file &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;. &lt;p&gt;The language will be temporarily reset to English (built-in). Please go to the &lt;b&gt;Preferences&lt;/b&gt; window which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the main VirtualBox window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Nepavyksta įkelti kalbos rinkmenos &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;. &lt;p&gt;Laikinai bus naudojama anglų kalba.Eikite į &lt;b&gt;nuostatas&lt;/b&gt; per &lt;b&gt;rinkmenos&lt;/b&gt; meniu, esantį pagrindiniame VirtualBox lange, ir pasirinkite egzistuojančią kalbą &lt;b&gt;kalbos&lt;/b&gt; kortelėje.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too old: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) will most likely stop working properly.&lt;/p&gt;&lt;p&gt;Please update the Guest Additions to the current version by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too old: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) will most likely stop working properly.&lt;/p&gt;&lt;p&gt;Please update the Guest Additions to the current version by choosing &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Įdiegtieji VirtualBox svečio papildiniai yra per seni: yra įdiegta %1 versija, bet tikėtasi %2 versijos. Kai kurios funkcijos (pelės integravimas, svečio ekrano dydžio automatinis keitimas) gali neveikti tinkamai.&lt;/p&gt;&lt;p&gt;Atnaujinkite svečio papildinius iki tinkamos versijos nuspaudę &lt;b&gt;Įdiegti svečio papildinius&lt;/b&gt; iš &lt;b&gt;įtaisų&lt;/b&gt; meniu.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are outdated: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) may not work as expected.&lt;/p&gt;&lt;p&gt;It is recommended to update the Guest Additions to the current version  by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are outdated: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) may not work as expected.&lt;/p&gt;&lt;p&gt;It is recommended to update the Guest Additions to the current version  by choosing &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Įdiegtieji VirtualBox svečio papildiniai nėra patys naujausi: yra įdiegta %1 versija, bet tikėtasi %2 versijos. Kai kurios funkcijos (pelės integravimas, svečio ekrano dydžio automatinis keitimas) gali neveikti tinkamai.&lt;/p&gt;&lt;p&gt;Patariama atnaujinti svečio papildinius iki tinkamos versijos nuspaudus &lt;b&gt;Įdiegti svečio papildinius&lt;/b&gt; iš &lt;b&gt;įtaisų&lt;/b&gt; meniu.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too recent for this version of VirtualBox: the installed version is %1, the expected version is %2.&lt;/p&gt;&lt;p&gt;Using a newer version of Additions with an older version of VirtualBox is not supported. Please install the current version of the Guest Additions by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too recent for this version of VirtualBox: the installed version is %1, the expected version is %2.&lt;/p&gt;&lt;p&gt;Using a newer version of Additions with an older version of VirtualBox is not supported. Please install the current version of the Guest Additions by choosing &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Įdiegtieji VirtualBox svečio papildiniai yra per nauji: yra įdiegta %1 versija, bet tikėtasi %2 versijos. Negalima naudoti naujesnių svečio papildinių už versiją, kurią palaiko VirtualBox.&lt;/p&gt;&lt;p&gt;Atnaujinkite svečio papildinius iki tinkamos versijos nuspaudę &lt;b&gt;Įdiegti svečio papildinius&lt;/b&gt; iš &lt;b&gt;įtaisų&lt;/b&gt; meniu.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -5462,32 +6278,32 @@
         <translation>&lt;p&gt;Nepavyko pašalinti bendrojo aplanko &lt;b&gt;%1&lt;/b&gt; (ties &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) iš virtualios mašinos &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Užverkite visas svečio OS programas, kurios gali naudotis tuo aplanku ir bandykite iš naujo.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Could not find the VirtualBox Guest Additions CD image file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; or &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this CD image from the Internet?&lt;/p&gt;</source>
+        <source>&lt;p&gt;Could not find the VirtualBox Guest Additions disk image file file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; or &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this disk image file from the Internet?&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Nepavyksta rasti VirtualBox svečio papildinių CD atvaizdžio &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; arba &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Ar atsisiųsti šį CD atvaizdį iš interneto?&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Failed to download the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
+        <source>&lt;p&gt;Failed to download the VirtualBox Guest Additions disk image file from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Nepavyko parsiųsti VirtualBox svečio papildinių CD avaizdo iš &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Are you sure you want to download the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Tikrai parsiųsti VirtualBox svečio papildinių CD atvaizdį iš &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (%3 baitų dydžio)?&lt;/p&gt;</translation>
+        <source>&lt;p&gt;Are you sure you want to download the VirtualBox Guest Additions disk image file from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Tikrai parsiųsti VirtualBox svečio papildinių CD atvaizdį iš &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (%3 baitų dydžio)?&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions CD image has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this CD image and mount it on the virtual CD/DVD drive?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;VirtualBox svečio papildinių CD atvaizdis iš &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; parsiųstas sėkmingai ir įrašytas vietinėje sistemoje &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Priregistruoti šį CD atvaizdį ir prijungti jį virtualiame CD/DVD kaupiklyje?&lt;/p&gt;</translation>
+        <source>&lt;p&gt;The VirtualBox Guest Additions disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this disk image file and insert it into the virtual CD/DVD drive?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;VirtualBox svečio papildinių CD atvaizdis iš &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; parsiųstas sėkmingai ir įrašytas vietinėje sistemoje &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Priregistruoti šį CD atvaizdį ir prijungti jį virtualiame CD/DVD kaupiklyje?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Virtualios mašinos langas sukonfigūruotas dirbti &lt;b&gt;%1&amp;nbsp;bitų&lt;/b&gt; spalvų veiksenoje, tačiau virtualus ekranas šiuo metu naudoja &lt;b&gt;%2&amp;nbsp;bitų&lt;/b&gt; veikseną.&lt;/p&gt;&lt;p&gt;Jei įmanoma, atverkite svečio OS ekrano nuostatas ir pasirinkite &lt;b&gt;%3&amp;nbsp;bitų&lt;/b&gt; spalvų veikseną; taip užtikrinsite geriausią virtualios vaizdo posistemės veikimą.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Atminkite&lt;/b&gt;. Kai kurios operacinės sistemos, pavyzdžiui OS/2, gali iš tikrųjų dirbti 32&amp;nbsp;bitų veiksenoje, tačiau pranešti, kad yra 24&amp;nbsp;bitų (16 milijonų spalvų). Galite pasirinkti kitą spalvų veikseną, kad įsitikintumėte, ar šis pranešimai pasirodo pagrįstai; arba galite uždrausti šio pranešimo pakartotinį rodymą, jei žinote, kad reikiamos spalvų veiksenos (%4&amp;nbsp;bitų) svečio OS nepalaiko.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings dialog or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you wish to continue?&lt;/p&gt;</source>
+        <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings window or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you wish to continue?&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Naujai virtualiai mašinai nepriskyrėte jokio standžiojo disko. Jei nepriskirsite standžiojo disko su svečio operacine sistema arba kitos įkraunamos laikmenos, kuri būtų naudojama mašinos nuostatų lange arba pirmojo paleidimo vediklyje, mašinos nebus galima paleisti.&lt;/p&gt;&lt;p&gt;Tęsti?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to find license files in &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>Nepavyko rasti licencijos rinkmenos &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
+        <translation type="obsolete">Nepavyko rasti licencijos rinkmenos &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Failed to open the license file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. Check file permissions.</source>
@@ -5499,7 +6315,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Congratulations! You have been successfully registered as a user of VirtualBox.&lt;/p&gt;&lt;p&gt;Thank you for finding time to fill out the registration form!&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sveikiname! VirtualBox naudotojas sėkmingai užregistruotas.&lt;/p&gt;&lt;p&gt;Dėkojame, kad užsiregistravote!&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Sveikiname! VirtualBox naudotojas sėkmingai užregistruotas.&lt;/p&gt;&lt;p&gt;Dėkojame, kad užsiregistravote!&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Failed to save the global VirtualBox settings to &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;</source>
@@ -5519,7 +6335,7 @@
     </message>
     <message>
         <source>Failed to load the settings of the virtual machine &lt;b&gt;%1&lt;/b&gt; from &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.</source>
-        <translation>Nepavyko įkelti virtualios mašinos &lt;b&gt;%1&lt;/b&gt; nuostatų iš &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.</translation>
+        <translation type="obsolete">Nepavyko įkelti virtualios mašinos &lt;b&gt;%1&lt;/b&gt; nuostatų iš &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Delete</source>
@@ -5551,7 +6367,7 @@
         <translation type="obsolete">Parsiųsti</translation>
     </message>
     <message>
-        <source>Mount</source>
+        <source>Insert</source>
         <comment>additions
 </comment>
         <translation type="obsolete">Prijungti</translation>
@@ -5687,7 +6503,7 @@
         <translation type="obsolete">&amp;Apie VirtualBox...</translation>
     </message>
     <message>
-        <source>Show a dialog with product information</source>
+        <source>Show a window with product information</source>
         <translation type="obsolete">Rodyti langą su produkto informacija</translation>
     </message>
     <message>
@@ -5696,7 +6512,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to release the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Tikrai atlaisvinti %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;Tuomet laikmena nebebus susieta su šia virtualia mašina(-omis): &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Tikrai atlaisvinti %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;Tuomet laikmena nebebus susieta su šia virtualia mašina(-omis): &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Release</source>
@@ -5705,16 +6521,16 @@
         <translation type="obsolete">Atlaisvinti</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Are you sure you want to remove the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; from the list of known media?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Tikrai pašalinti %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; iš žinomų laikmenų sąrašo?&lt;/p&gt;</translation>
+        <source>&lt;p&gt;Are you sure you want to remove the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; from the list of known disk image files?&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Tikrai pašalinti %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; iš žinomų laikmenų sąrašo?&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Note that as this hard disk is inaccessible its storage unit cannot be deleted right now.</source>
-        <translation>Atminkite, kad šio standžiojo disko dabar negalima ištrinti, nes jis neprieinamas.</translation>
+        <source>As this hard disk is inaccessible its image file can not be deleted.</source>
+        <translation type="obsolete">Atminkite, kad šio standžiojo disko dabar negalima ištrinti, nes jis neprieinamas.</translation>
     </message>
     <message>
         <source>The next dialog will let you choose whether you also want to delete the storage unit of this hard disk or keep it for later usage.</source>
-        <translation>Sekančiame puslapyje galėsite pasirinkti, ar ištrinti šį standųjį diską, ar išlaikyti vėlesniam naudojimui.</translation>
+        <translation type="obsolete">Sekančiame puslapyje galėsite pasirinkti, ar ištrinti šį standųjį diską, ar išlaikyti vėlesniam naudojimui.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Note that the storage unit of this medium will not be deleted and that it will be possible to add it to the list later again.&lt;/p&gt;</source>
@@ -5756,26 +6572,26 @@
     </message>
     <message>
         <source>Failed to open the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>Nepavyko atverti %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</translation>
+        <translation type="obsolete">Nepavyko atverti %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
         <source>Failed to close the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>Nepavyko užverti %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</translation>
+        <translation type="obsolete">Nepavyko užverti %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
-        <source>Failed to determine the accessibility state of the medium &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <source>Failed to access the disk image file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
         <translation>Nepavyko nustatyti &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; laikmenos pasiekiamumo būsenos.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Failed to connect to the VirtualBox online registration service due to the following error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Nepavyko prisijungti prie VirtualBox nuotolinės registracijos paslaugos, nes įvyko klaida:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Nepavyko prisijungti prie VirtualBox nuotolinės registracijos paslaugos, nes įvyko klaida:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Unable to obtain the new version information due to the following error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Nepavyksta gauti informacijos apie naują versiją, nes įvyko klaida:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;One or more virtual hard disks, CD/DVD or floppy media are not currently accessible. As a result, you will not be able to operate virtual machines that use these media until they become accessible later.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Check&lt;/b&gt; to open the Virtual Media Manager window and see what media are inaccessible, or press &lt;b&gt;Ignore&lt;/b&gt; to ignore this message.&lt;/p&gt;</source>
+        <source>&lt;p&gt;One or more virtual hard disks, CD/DVD or floppy disk image files are not currently accessible. As a result, you will not be able to operate virtual machines that use these files until they become accessible later.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Check&lt;/b&gt; to open the Virtual Media Manager window and see which files are inaccessible, or press &lt;b&gt;Ignore&lt;/b&gt; to ignore this message.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Vienas ar keli virtualūs standieji diskai, CD/DVD ar diskelių įtaisai nebepasiekiami. Todėl negalėsite naudotis tomis virtualiomis mašinomis, kurios naudoja tas laikmenas tol, kol jos nebus pasiekiamos.&lt;/p&gt;&lt;p&gt;Norėdami atverti virtualių laikmenų tvarkytuvę ir pamatyti tas laikmenas, spauskite &lt;b&gt;Tikrinti&lt;/b&gt;, o norėdami nekreipti dėmesio į šį pranešimą, spauskite &lt;b&gt;Nepaisyti&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -5834,15 +6650,15 @@
     </message>
     <message>
         <source>Failed to create the host-only network interface.</source>
-        <translation>Nepavyko sukurti sąsajos prisijungimui tik prie pagrindinio kompiuterio.</translation>
+        <translation type="obsolete">Nepavyko sukurti sąsajos prisijungimui tik prie pagrindinio kompiuterio.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Your existing VirtualBox settings files will be automatically converted from the old format to a new format required by the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;Exit&lt;/b&gt; if you want to terminate the VirtualBox application without any further actions.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Esamos VirtualBox nuostatų rinkmenos bus automatiškai konvertuotos iš seno į naują formatą, kurį naudoja naujoji VirtualBox versija.&lt;/p&gt;&lt;p&gt;Norėdami paleisti VirtualBox dabar, spauskite &lt;b&gt;Gerai&lt;/b&gt;, o jei norite užverti VirtualBox nieko nedarant, spauskite &lt;b&gt;Baigti&lt;/b&gt;.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Esamos VirtualBox nuostatų rinkmenos bus automatiškai konvertuotos iš seno į naują formatą, kurį naudoja naujoji VirtualBox versija.&lt;/p&gt;&lt;p&gt;Norėdami paleisti VirtualBox dabar, spauskite &lt;b&gt;Gerai&lt;/b&gt;, o jei norite užverti VirtualBox nieko nedarant, spauskite &lt;b&gt;Baigti&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to open appliance.</source>
-        <translation>Nepavyko atverti mašinos.</translation>
+        <translation type="obsolete">Nepavyko atverti mašinos.</translation>
     </message>
     <message>
         <source>Failed to open/interpret appliance &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -5854,7 +6670,7 @@
     </message>
     <message>
         <source>Failed to create appliance.</source>
-        <translation>Nepavyko sukurti virtualios mašinos.</translation>
+        <translation type="obsolete">Nepavyko sukurti virtualios mašinos.</translation>
     </message>
     <message>
         <source>Failed to prepare the export of the appliance &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -5862,7 +6678,7 @@
     </message>
     <message>
         <source>Failed to create an appliance.</source>
-        <translation>Virtualios mašinos sukurti nepavyko.</translation>
+        <translation type="obsolete">Virtualios mašinos sukurti nepavyko.</translation>
     </message>
     <message>
         <source>Failed to export appliance &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -5882,11 +6698,11 @@
     </message>
     <message>
         <source>&lt;p&gt;Invalid e-mail address or password specified.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Klaidingas el. pašto adresas arba slaptažodis.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Klaidingas el. pašto adresas arba slaptažodis.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Failed to register the VirtualBox product.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Nepavyko užregistruoti VirtualBox produkto.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Nepavyko užregistruoti VirtualBox produkto.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to check files.</source>
@@ -5949,20 +6765,20 @@
         <translation type="obsolete">Nepavyko atjungti %1 nuo &lt;i&gt;%2&lt;/i&gt; lizdo mašinoje &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
-        <source>Unable to mount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; on the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>Nepavyksta prijungti %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; prie mašinos &lt;b&gt;%3&lt;/b&gt;.</translation>
+        <source>Unable to insert the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; into the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="obsolete">Nepavyksta prijungti %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; prie mašinos &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
         <source> Would you like to force mounting of this medium?</source>
-        <translation> Ar šią laikmeną prijungti priverstinai?</translation>
+        <translation type="obsolete"> Ar šią laikmeną prijungti priverstinai?</translation>
     </message>
     <message>
         <source>Unable to unmount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; from the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>Nepavyksta atjungti %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; nuo mašinos &lt;b&gt;%3&lt;/b&gt;.</translation>
+        <translation type="obsolete">Nepavyksta atjungti %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; nuo mašinos &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
         <source> Would you like to force unmounting of this medium?</source>
-        <translation> Ar šią laikmeną atjungti priverstinai?</translation>
+        <translation type="obsolete"> Ar šią laikmeną atjungti priverstinai?</translation>
     </message>
     <message>
         <source>Force Unmount</source>
@@ -5973,8 +6789,8 @@
         <translation type="obsolete">Nepavyko išmesti disko iš virtualaus įtaiso. Galbūt įtaisą užblokavo svečio operacinė sistema. Patikrinkite ir bandykite iš naujo.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Could not insert the VirtualBox Guest Additions installer CD image into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no CD/DVD-ROM drives. Please add a drive using the storage page of the virtual machine settings dialog.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Nepavyksta prijungti VirtualBox svečio papildinių diegimo CD atvaizdžio prie virtualios mašinos &lt;b&gt;%1&lt;/b&gt;, nes mašina neturi CD/DVD įtaiso.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;Could not insert the VirtualBox Guest Additions installer disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no CD/DVD drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Nepavyksta prijungti VirtualBox svečio papildinių diegimo CD atvaizdžio prie virtualios mašinos &lt;b&gt;%1&lt;/b&gt;, nes mašina neturi CD/DVD įtaiso.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>E&amp;xit</source>
@@ -5984,7 +6800,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The following VirtualBox settings files will be automatically converted from the old format to a new format required by the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;Exit&lt;/b&gt; if you want to terminate the VirtualBox application without any further actions.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sekančios VirtualBox nuostatų rinkmenos bus automatiškai konvertuotos iš seno į naują formatą, kurį naudoja naujoji VirtualBox versija.&lt;/p&gt;&lt;p&gt;Norėdami paleisti VirtualBox dabar, spauskite &lt;b&gt;Gerai&lt;/b&gt;, o jei norite užverti VirtualBox nieko nedarant, spauskite &lt;b&gt;Baigti&lt;/b&gt;.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Sekančios VirtualBox nuostatų rinkmenos bus automatiškai konvertuotos iš seno į naują formatą, kurį naudoja naujoji VirtualBox versija.&lt;/p&gt;&lt;p&gt;Norėdami paleisti VirtualBox dabar, spauskite &lt;b&gt;Gerai&lt;/b&gt;, o jei norite užverti VirtualBox nieko nedarant, spauskite &lt;b&gt;Baigti&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>hard disk</source>
@@ -6035,8 +6851,8 @@
         <translation type="obsolete">diskelių įtaiso</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Are you sure you want to delete the CD/DVD-ROM device?&lt;/p&gt;&lt;p&gt;You will not be able to mount any CDs or ISO images or install the Guest Additions without it!&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Tikrai pašalinti CD/DVD-ROM įtaisą?&lt;/p&gt;&lt;p&gt;Jei taip, negalėsite prijungti jokio CD ar ISO atvaizdžio, negalėsite įdiegti svečio papildinių!&lt;/p&gt;</translation>
+        <source>&lt;p&gt;Are you sure you want to delete the CD/DVD device?&lt;/p&gt;&lt;p&gt;You will not be able to insert any CDs or ISO images or install the Guest Additions without it!&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Tikrai pašalinti CD/DVD įtaisą?&lt;/p&gt;&lt;p&gt;Jei taip, negalėsite prijungti jokio CD ar ISO atvaizdžio, negalėsite įdiegti svečio papildinių!&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Remove</source>
@@ -6066,19 +6882,19 @@
     </message>
     <message>
         <source>&lt;p&gt;Can not switch the guest display to fullscreen mode. You have more virtual screens configured than physical screens are attached to your host.&lt;/p&gt;&lt;p&gt;Please either lower the virtual screens in your VM configuration or attach additional screens to your host.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Nepavyksta svečio ekrano perjungti į viso ekrano veikseną. Sukonfigūravote daugiau virtualių ekranų nei yra fizinių ekranų, prijungtų prie pagrindinio kompiuterio.&lt;/p&gt;&lt;p&gt;Arba sumažinkite virtualių ekranų skaičių, arba prie pagrindinio kompiuterio prijunkite papildomų fizinių ekranų.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Nepavyksta svečio ekrano perjungti į viso ekrano veikseną. Sukonfigūravote daugiau virtualių ekranų nei yra fizinių ekranų, prijungtų prie pagrindinio kompiuterio.&lt;/p&gt;&lt;p&gt;Arba sumažinkite virtualių ekranų skaičių, arba prie pagrindinio kompiuterio prijunkite papildomų fizinių ekranų.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Can not switch the guest display to seamless mode. You have more virtual screens configured than physical screens are attached to your host.&lt;/p&gt;&lt;p&gt;Please either lower the virtual screens in your VM configuration or attach additional screens to your host.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Nepavyksta svečio ekrano perjungti į integruoto darbalaukio veikseną. Sukonfigūravote daugiau virtualių ekranų nei yra fizinių ekranų, prijungtų prie pagrindinio kompiuterio.&lt;/p&gt;&lt;p&gt;Arba sumažinkite virtualių ekranų skaičių, arba prie pagrindinio kompiuterio prijunkite papildomų fizinių ekranų.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Nepavyksta svečio ekrano perjungti į integruoto darbalaukio veikseną. Sukonfigūravote daugiau virtualių ekranų nei yra fizinių ekranų, prijungtų prie pagrindinio kompiuterio.&lt;/p&gt;&lt;p&gt;Arba sumažinkite virtualių ekranų skaičių, arba prie pagrindinio kompiuterio prijunkite papildomų fizinių ekranų.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not find the VirtualBox User Manual &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this file from the Internet?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Nepavyksta rasti VirtualBox naudotojo žinyno &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Ar parsiųsti jį iš interneto?&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Nepavyksta rasti VirtualBox naudotojo žinyno &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Ar parsiųsti jį iš interneto?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to download the VirtualBox User Manual from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Tikrai parsiųsti VirtualBox naudotojo žinyną iš &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (%3 baitų dydžio)?&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Tikrai parsiųsti VirtualBox naudotojo žinyną iš &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (%3 baitų dydžio)?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Failed to download the VirtualBox User Manual from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
@@ -6086,11 +6902,11 @@
     </message>
     <message>
         <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sėkmingai parsiųstas VirtualBox naudotojo žinynas iš &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; ir įrašytas vietinėje sistemoje kaip &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Sėkmingai parsiųstas VirtualBox naudotojo žinynas iš &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; ir įrašytas vietinėje sistemoje kaip &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sėkmingai parsiųstas VirtualBox naudotojo žinynas iš &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt;, tačiau nepavyksta jo įrašyti vietinėje sistemoje  kaip &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Nurodykite kitą rinkmenos įrašymo vietą.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Sėkmingai parsiųstas VirtualBox naudotojo žinynas iš &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt;, tačiau nepavyksta jo įrašyti vietinėje sistemoje  kaip &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Nurodykite kitą rinkmenos įrašymo vietą.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>VirtualBox - Information</source>
@@ -6186,12 +7002,12 @@
     <message>
         <source>Create &amp;new disk</source>
         <comment>add attachment routine</comment>
-        <translation>Sukurti &amp;naują diską</translation>
+        <translation type="obsolete">Sukurti &amp;naują diską</translation>
     </message>
     <message>
         <source>&amp;Choose existing disk</source>
         <comment>add attachment routine</comment>
-        <translation>&amp;Pasirinkti esamą diską</translation>
+        <translation type="obsolete">&amp;Pasirinkti esamą diską</translation>
     </message>
     <message>
         <source>&lt;p&gt;You are about to add a new CD/DVD drive to controller &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Would you like to choose a virtual CD/DVD disk to put in the drive or to leave it empty for now?&lt;/p&gt;</source>
@@ -6200,12 +7016,12 @@
     <message>
         <source>&amp;Choose disk</source>
         <comment>add attachment routine</comment>
-        <translation>&amp;Pasirinkti diską</translation>
+        <translation type="obsolete">&amp;Pasirinkti diską</translation>
     </message>
     <message>
         <source>Leave &amp;empty</source>
         <comment>add attachment routine</comment>
-        <translation>Palikti &amp;tuščią</translation>
+        <translation type="obsolete">Palikti &amp;tuščią</translation>
     </message>
     <message>
         <source>&lt;p&gt;You are about to add a new floppy drive to controller &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Would you like to choose a virtual floppy disk to put in the drive or to leave it empty for now?&lt;/p&gt;</source>
@@ -6229,18 +7045,18 @@
         <translation>Nepavyko atjungti diskelio įtaiso (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) nuo &lt;i&gt;%2&lt;/i&gt; lizdo mašinoje &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Regis šioje virtualioje mašinoje neprieinami VirtualBox svečio papildiniai, tad negalite naudoti bendrųjų aplankų. Norėdami naudoti bendruosius aplankus virtualioje mašinoje, įdiekite svečio papildinius (jei jie neįdiegti) arba iš naujo įdiekite juos (jei jie veikia netinkamai) pasirinkdami &lt;b&gt;Įdiegti svečio papildinius&lt;/b&gt; iš &lt;b&gt;Mašinos&lt;/b&gt; meniu. Jei jie įdiegti, bet mašina dar pilnai nepasileido, tuomet luktelėkite.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Download</source>
         <comment>additions</comment>
-        <translation>Parsiųsti</translation>
+        <translation type="obsolete">Parsiųsti</translation>
     </message>
     <message>
-        <source>Mount</source>
+        <source>Insert</source>
         <comment>additions</comment>
-        <translation>Prijungti</translation>
+        <translation type="unfinished">Prijungti</translation>
     </message>
     <message>
         <source>Check</source>
@@ -6250,17 +7066,17 @@
     <message>
         <source>E&amp;xit</source>
         <comment>warnAboutSettingsAutoConversion message box</comment>
-        <translation>&amp;Baigti</translation>
+        <translation type="obsolete">&amp;Baigti</translation>
     </message>
     <message>
         <source>Switch</source>
         <comment>fullscreen</comment>
-        <translation>Perjungti</translation>
+        <translation type="obsolete">Perjungti</translation>
     </message>
     <message>
         <source>Switch</source>
         <comment>seamless</comment>
-        <translation>Perjungti</translation>
+        <translation type="obsolete">Perjungti</translation>
     </message>
     <message>
         <source>Reset</source>
@@ -6278,7 +7094,7 @@
         <translation>Atgal</translation>
     </message>
     <message>
-        <source>Failed to update Guest Additions. The Guest Additions installation image will be mounted to provide a manual installation.</source>
+        <source>Failed to update Guest Additions. The Guest Additions disk image file will be inserted for user installation.</source>
         <translation>Nepavyko atnaujinti svečio papildinių. Svečio papildinių diegimo atvaizdis bus prijungtas tam, kad įdiegtumėte patys rankiniu būdu.</translation>
     </message>
     <message>
@@ -6333,31 +7149,31 @@
     <message>
         <source>hard disk</source>
         <comment>failed to mount ...</comment>
-        <translation>standųjį diską</translation>
+        <translation type="obsolete">standųjį diską</translation>
     </message>
     <message>
         <source>CD/DVD</source>
         <comment>failed to mount ... host-drive</comment>
-        <translation>CD/DVD</translation>
+        <translation type="obsolete">CD/DVD</translation>
     </message>
     <message>
         <source>CD/DVD image</source>
         <comment>failed to mount ...</comment>
-        <translation>CD/DVD atvaizdį</translation>
+        <translation type="obsolete">CD/DVD atvaizdį</translation>
     </message>
     <message>
         <source>floppy</source>
         <comment>failed to mount ... host-drive</comment>
-        <translation>diskelį</translation>
+        <translation type="obsolete">diskelį</translation>
     </message>
     <message>
         <source>floppy image</source>
         <comment>failed to mount ...</comment>
-        <translation>diskelio atvaizdį</translation>
+        <translation type="obsolete">diskelio atvaizdį</translation>
     </message>
     <message>
         <source>Sorry, some generic error happens.</source>
-        <translation>Atleiskite, būna daugybinių klaidų.</translation>
+        <translation type="obsolete">Atleiskite, būna daugybinių klaidų.</translation>
     </message>
     <message>
         <source>Failed to attach the hard disk (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) to the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
@@ -6391,8 +7207,8 @@
         <translation>&lt;p&gt;Atminkite, kad ši laikmena nebus ištrinta, tad vėliau ją vėl galėsite naudoti.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Regis šioje virtualioje mašinoje neprieinami VirtualBox svečio papildiniai, tad negalite naudoti bendrųjų aplankų. Norėdami naudoti bendruosius aplankus virtualioje mašinoje, įdiekite svečio papildinius (jei jie neįdiegti) arba iš naujo įdiekite juos (jei jie veikia netinkamai) pasirinkdami &lt;b&gt;Įdiegti svečio papildinius&lt;/b&gt; iš &lt;b&gt;Įtaisų&lt;/b&gt; meniu. Jei jie įdiegti, bet mašina dar pilnai nepasileido, tuomet luktelėkite.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;Regis šioje virtualioje mašinoje neprieinami VirtualBox svečio papildiniai, tad negalite naudoti bendrųjų aplankų. Norėdami naudoti bendruosius aplankus virtualioje mašinoje, įdiekite svečio papildinius (jei jie neįdiegti) arba iš naujo įdiekite juos (jei jie veikia netinkamai) pasirinkdami &lt;b&gt;Įdiegti svečio papildinius&lt;/b&gt; iš &lt;b&gt;Įtaisų&lt;/b&gt; meniu. Jei jie įdiegti, bet mašina dar pilnai nepasileido, tuomet luktelėkite.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;fullscreen&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in fullscreen mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
@@ -6403,13 +7219,13 @@
         <translation>&lt;p&gt;Virtualios mašinos langas netrukus pereis į &lt;b&gt;integruoto darbalaukio&lt;/b&gt; veikseną. Į įprastą lango veikseną sugrįšite nuspaudę &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Atminkite, kad &lt;i&gt;pagrindinio kompiuterio&lt;/i&gt; klavišas šiuo metu yra &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Be to, integruotoje veiksenoje meniu juosta yra paslėpta. Ją pasieksite nuspaudę &lt;b&gt;(pagr. komp. klav.) + Prad&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;Scale&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in scale mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;Scale&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in scaled mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Virtualios mašinos langas netrukus pereis į &lt;b&gt;keičiamo lango dydžio&lt;/b&gt; veikseną. Į įprastą lango veikseną sugrįšite nuspaudę &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Atminkite, kad &lt;i&gt;pagrindinio kompiuterio&lt;/i&gt; klavišas šiuo metu yra &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Be to, keičiamo lango dydžio veiksenoje meniu juosta yra paslėpta. Ją pasieksite nuspaudę &lt;b&gt;(pagr. komp. klav.) + Prad&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Switch</source>
         <comment>scale</comment>
-        <translation>Perjungti</translation>
+        <translation type="obsolete">Perjungti</translation>
     </message>
     <message>
         <source>Failed to open the Extension Pack &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -6421,7 +7237,7 @@
     </message>
     <message>
         <source>&amp;Install</source>
-        <translation>Į&amp;diegti</translation>
+        <translation type="obsolete">Į&amp;diegti</translation>
     </message>
     <message>
         <source>Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.</source>
@@ -6504,12 +7320,12 @@
         <translation type="obsolete">&lt;p&gt;Tikrai atkurti momentinį būvį &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Error changing medium type from &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Error changing disk image mode from &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Klaida keičiant laikmenos tipą iš &lt;b&gt;%1&lt;/b&gt; į &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; to be installed.&lt;/p&gt;&lt;p&gt;Please install the Extension Pack from the VirtualBox download site. After this you will be able to re-enable USB 2.0. It will be disabled in the meantime unless you cancel the current settings changes.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Šioje virtualioje mašinoje įgalintas USB 2.0. Tačiau tam turi įdiegtas &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;. &lt;/p&gt;&lt;p&gt;Įdiegike papildinių paketą, kurį rasite VirtualBox svetainėje. Tuomet vėl rinkitės įgalinti USB 2.0. Iki tol ši funkcija bus uždrausta, nebent atsisakysite dabartinių nuostatų pakeitimų.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Šioje virtualioje mašinoje įgalintas USB 2.0. Tačiau tam turi įdiegtas &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;. &lt;/p&gt;&lt;p&gt;Įdiegike papildinių paketą, kurį rasite VirtualBox svetainėje. Tuomet vėl rinkitės įgalinti USB 2.0. Iki tol ši funkcija bus uždrausta, nebent atsisakysite dabartinių nuostatų pakeitimų.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Could not load the Host USB Proxy Service (VERR_FILE_NOT_FOUND). The service might not be installed on the host computer</source>
@@ -6537,7 +7353,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Failed to save the downloaded file as &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Nepavyko įrašyti parsiųstos rinkmenos kaip &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Nepavyko įrašyti parsiųstos rinkmenos kaip &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You have an old version (%1) of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;Do you wish to download latest one from the Internet?&lt;/p&gt;</source>
@@ -6546,7 +7362,7 @@
     <message>
         <source>Download</source>
         <comment>extension pack</comment>
-        <translation>Parsiųsti</translation>
+        <translation type="obsolete">Parsiųsti</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
@@ -6576,16 +7392,7 @@
     <message>
         <source>Ok</source>
         <comment>extension pack</comment>
-        <translation>Gerai</translation>
-    </message>
-    <message numerus="yes">
-        <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
-        <comment>This text is never used with n == 0.  Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many machines are in the list and doesn&apos;t need to be told).</comment>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
+        <translation type="obsolete">Gerai</translation>
     </message>
     <message>
         <source>&lt;p&gt;Failed to initialize COM because the VirtualBox global configuration directory &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; is not accessible. Please check the permissions of this directory and of its parent directory.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
@@ -6638,10 +7445,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;p&gt;Could not find the VirtualBox Guest Additions CD image file.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this CD image from the Internet?&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&lt;p&gt;Are you sure you want to discard the saved state of the following virtual machines?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;This operation is equivalent to resetting or powering off the machine without doing a proper shutdown of the guest OS.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
@@ -6691,7 +7494,234 @@
     </message>
     <message>
         <source>Close Virtual Machine</source>
-        <translation type="unfinished">Užverti virtualią mašiną</translation>
+        <translation type="obsolete">Užverti virtualią mašiną</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Cannot start the VirtualBox Manager due to local restrictions.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not find a language file for the language &lt;b&gt;%1&lt;/b&gt; in the directory &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;The language will be temporarily reset to the system default language. Please go to the &lt;b&gt;Preferences&lt;/b&gt; window which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the VirtualBox Manager window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not load the language file &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;. &lt;p&gt;The language will be temporarily reset to English (built-in). Please go to the &lt;b&gt;Preferences&lt;/b&gt; window which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the VirtualBox Manager window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>There is no virtual machine with the identifier &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ignore</source>
+        <translation type="unfinished">Nepaisyti</translation>
+    </message>
+    <message>
+        <source>Failed to create NAT network.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to remove NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to create DHCP server.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to remove DHCP server for network interface &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to create the host network interface.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create &amp;new disk</source>
+        <translation type="unfinished">Sukurti &amp;naują diską</translation>
+    </message>
+    <message>
+        <source>&amp;Choose existing disk</source>
+        <translation type="unfinished">&amp;Pasirinkti esamą diską</translation>
+    </message>
+    <message>
+        <source>Leave &amp;empty</source>
+        <translation type="unfinished">Palikti &amp;tuščią</translation>
+    </message>
+    <message>
+        <source>&amp;Choose disk</source>
+        <translation type="unfinished">&amp;Pasirinkti diską</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to release the virtual hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to release the virtual optical disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to release the virtual floppy disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to remove the virtual hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from the list of known disk image files?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;As this hard disk is inaccessible its image file can not be deleted.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to remove the virtual optical disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from the list of known disk image files?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to remove the virtual floppy disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from the list of known disk image files?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to insert the virtual optical disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; into the machine &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Would you like to try to force insertion of this disk?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to eject the virtual optical disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from the machine &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Would you like to try to force ejection of this disk?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to insert the virtual floppy disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; into the machine &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to eject the virtual floppy disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from the machine &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to open the hard disk file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to open the optical disk file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to open the floppy disk file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to close the hard disk file &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to close the optical disk file &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to close the floppy disk file &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
+        <comment>This text is never used with n == 0. Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many machines are in the list and doesn&apos;t need to be told).</comment>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Switch</source>
+        <translation type="unfinished">Perjungti</translation>
+    </message>
+    <message>
+        <source>Failed to enable the remote desktop server for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to disable the remote desktop server for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to enable video capturing for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to disable video capturing for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not find the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file.&lt;/p&gt;&lt;p&gt;Do you wish to download this disk image file from the Internet?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <translation type="unfinished">Parsiųsti</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; (size %2 bytes)?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this disk image file and insert it into the virtual CD/DVD drive?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not insert the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no CD/DVD drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not find the &lt;b&gt;VirtualBox User Manual&lt;/b&gt; &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this file from the Internet?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;VirtualBox User Manual&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; (size %2 bytes)?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;Sėkmingai parsiųstas VirtualBox naudotojo žinynas iš &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt;, tačiau nepavyksta jo įrašyti vietinėje sistemoje  kaip &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Nurodykite kitą rinkmenos įrašymo vietą.&lt;/p&gt; {1&quot;?} {1&lt;?} {2&lt;?}</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;Sėkmingai parsiųstas VirtualBox naudotojo žinynas iš &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; ir įrašytas vietinėje sistemoje kaip &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt; {1&quot;?} {1&lt;?} {2&lt;?}</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished">Užverti</translation>
+    </message>
+    <message>
+        <source>Ok</source>
+        <translation type="unfinished">Gerai</translation>
+    </message>
+    <message>
+        <source>Do not show this message again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Do you want to remove the NAT network &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;If this network is in use by one or more virtual machine network adapters these adapters will no longer be usable until you correct their settings by either choosing a different network name or a different adapter attachment type.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
+        <comment>new</comment>
+        <translation type="obsolete">&lt;p&gt;Regis šioje virtualioje mašinoje neprieinami VirtualBox svečio papildiniai, tad negalite naudoti bendrųjų aplankų. Norėdami naudoti bendruosius aplankus virtualioje mašinoje, įdiekite svečio papildinius (jei jie neįdiegti) arba iš naujo įdiekite juos (jei jie veikia netinkamai) pasirinkdami &lt;b&gt;Įdiegti svečio papildinius&lt;/b&gt; iš &lt;b&gt;Įtaisų&lt;/b&gt; meniu. Jei jie įdiegti, bet mašina dar pilnai nepasileido, tuomet luktelėkite.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Insert</source>
+        <comment>additions-new</comment>
+        <translation type="obsolete">Prijungti</translation>
     </message>
 </context>
 <context>
@@ -6701,11 +7731,11 @@
         <translation type="obsolete">Atšaukti</translation>
     </message>
     <message>
-        <source>Cancel the VirtualBox Guest Additions CD image download</source>
+        <source>Cancel the VirtualBox Guest Additions disk image file download</source>
         <translation type="obsolete">Atšaukti „VirtualBox svečio papildinių“ CD atvaizdžio parsiuntimą</translation>
     </message>
     <message>
-        <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
+        <source>Downloading the VirtualBox Guest Additions disk image file from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
         <translation type="obsolete">Parsiunčiamas „VirtualBox svečio papildinių“ CD atvaizdis iš &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
     </message>
 </context>
@@ -6731,11 +7761,11 @@
 <context>
     <name>UIMiniProgressWidgetAdditions</name>
     <message>
-        <source>Cancel the VirtualBox Guest Additions CD image download</source>
+        <source>Cancel the VirtualBox Guest Additions disk image file download</source>
         <translation type="obsolete">Atšaukti „VirtualBox svečio papildinių“ CD atvaizdžio parsiuntimą</translation>
     </message>
     <message>
-        <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
+        <source>Downloading the VirtualBox Guest Additions disk image file from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
         <translation type="obsolete">Parsiunčiamas „VirtualBox svečio papildinių“ CD atvaizdis iš &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
     </message>
 </context>
@@ -6748,6 +7778,25 @@
     <message>
         <source>Downloading the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</source>
         <translation type="obsolete">&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; parsiunčiamas iš &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIMiniToolBar</name>
+    <message>
+        <source>Always show the toolbar</source>
+        <translation type="unfinished">Įrankių juostą rodyti visada</translation>
+    </message>
+    <message>
+        <source>Minimize Window</source>
+        <translation type="unfinished">Suskleisti langą</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen or Seamless Mode</source>
+        <translation type="unfinished">Išeiti iš viso ekrano arba integruotos veiksenos</translation>
+    </message>
+    <message>
+        <source>Close VM</source>
+        <translation type="unfinished">Užverti virtualią mašiną</translation>
     </message>
 </context>
 <context>
@@ -6768,7 +7817,7 @@
         <translation type="unfinished">&amp;Pavadinimas:</translation>
     </message>
     <message>
-        <source>Displays the name of the virtual machine.</source>
+        <source>Holds the name of the virtual machine.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -6776,7 +7825,7 @@
         <translation type="unfinished">&amp;Tipas:</translation>
     </message>
     <message>
-        <source>Displays the operating system family that you plan to install into this virtual machine.</source>
+        <source>Selects the operating system family that you plan to install into this virtual machine.</source>
         <translation type="unfinished">Rodo šeimą operacinių sistemų, kurią ketinate įdiegti virtualioje mašinoje.</translation>
     </message>
     <message>
@@ -6784,7 +7833,7 @@
         <translation type="unfinished">&amp;Versija:</translation>
     </message>
     <message>
-        <source>Displays the operating system type that you plan to install into this virtual machine (called a guest operating system).</source>
+        <source>Selects the operating system type that you plan to install into this virtual machine (called a guest operating system).</source>
         <translation type="unfinished">Rodo operacinės sistemos tipą, kurį ketinate įdiegti šioje virtualioje mašinoje (pastaroji dar vadinama svečio operacine sistema).</translation>
     </message>
 </context>
@@ -6807,10 +7856,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Error: %1.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Network Operation</source>
         <translation type="unfinished"></translation>
     </message>
@@ -6820,6 +7865,10 @@
     </message>
     <message>
         <source>Cancel network operation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The network operation failed with the following error: %1.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -6840,6 +7889,33 @@
     </message>
     <message>
         <source>Double-click for more information.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkReplyPrivate</name>
+    <message>
+        <source>Host not found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content access denied</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Protocol failure</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wrong SSL certificate format</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SSL authentication failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown reason</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -7230,7 +8306,7 @@
 <context>
     <name>UINewVMWzdPage4</name>
     <message>
-        <source>&lt;p&gt;Select a hard disk image to be used as the boot hard disk of the virtual machine. You can either create a new hard disk using the &lt;b&gt;New&lt;/b&gt; button or select an existing hard disk image from the drop-down list or by pressing the &lt;b&gt;Existing&lt;/b&gt; button (to invoke the Virtual Media Manager dialog).&lt;/p&gt;&lt;p&gt;If you need a more complex virtual disk setup you can skip this step and make the changes to the machine settings once the machine is created.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Select a hard disk image to be used as the boot hard disk of the virtual machine. You can either create a new hard disk using the &lt;b&gt;New&lt;/b&gt; button or select an existing hard disk image from the drop-down list or by pressing the &lt;b&gt;Existing&lt;/b&gt; button (to invoke the Virtual Media Manager window).&lt;/p&gt;&lt;p&gt;If you need a more complex virtual disk setup you can skip this step and make the changes to the machine settings once the machine is created.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Pasirinkite standžiojo diko atvaizdį, naudotiną kaip virtualios mašinos įkrovos standųjį diską. Galite arba sukurti naują diską nuspaudę &lt;b&gt;Naujas&lt;/b&gt;, arba pasirinkite jau sukurtąjį iš išskleidžiamojo meniu nuspaudę &lt;b&gt;Esamas&lt;/b&gt; (atsivers virtualių laikmenų tvarkytuvė).&lt;/p&gt;&lt;p&gt;Jei norite sudėtingesnės disko konfigūracijos, galite praleisti šį etapą – standųjį diską pridėsite vėliau per šios virtualios mašinos nuostatas.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -7329,6 +8405,13 @@
         <source>Start-up Disk</source>
         <comment>summary</comment>
         <translation type="obsolete">Paleidimo diskas</translation>
+    </message>
+</context>
+<context>
+    <name>UIPopupCenter</name>
+    <message>
+        <source>Click for full details</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -7434,7 +8517,7 @@
     </message>
     <message>
         <source>On the &lt;b&gt;%1&lt;/b&gt; page, %2</source>
-        <translation>Ties &lt;b&gt;%1&lt;/b&gt;, %2</translation>
+        <translation type="obsolete">Ties &lt;b&gt;%1&lt;/b&gt;, %2</translation>
     </message>
     <message>
         <source>Invalid settings detected</source>
@@ -7442,11 +8525,19 @@
     </message>
     <message>
         <source>Non-optimal settings detected</source>
-        <translation>Rastos ne itin gerai tinkančios nuostatos</translation>
+        <translation type="obsolete">Rastos ne itin gerai tinkančios nuostatos</translation>
     </message>
     <message>
         <source>Settings</source>
         <translation>Nuostatos</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;%1&lt;/b&gt; page:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;%1: %2&lt;/b&gt; page:</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -7469,7 +8560,7 @@
     </message>
     <message>
         <source>USB</source>
-        <translation>USB</translation>
+        <translation type="obsolete">USB</translation>
     </message>
     <message>
         <source>Network</source>
@@ -7878,31 +8969,31 @@
     <name>UIVMPreviewWindow</name>
     <message>
         <source>Update Disabled</source>
-        <translation>Atnaujinimas uždraustas</translation>
+        <translation type="obsolete">Atnaujinimas uždraustas</translation>
     </message>
     <message>
         <source>Every 0.5 s</source>
-        <translation>Kas 0,5 s</translation>
+        <translation type="obsolete">Kas 0,5 s</translation>
     </message>
     <message>
         <source>Every 1 s</source>
-        <translation>Kas 1 s</translation>
+        <translation type="obsolete">Kas 1 s</translation>
     </message>
     <message>
         <source>Every 2 s</source>
-        <translation>Kas 2 s</translation>
+        <translation type="obsolete">Kas 2 s</translation>
     </message>
     <message>
         <source>Every 5 s</source>
-        <translation>Kas 5 s</translation>
+        <translation type="obsolete">Kas 5 s</translation>
     </message>
     <message>
         <source>Every 10 s</source>
-        <translation>Kas 10 s</translation>
+        <translation type="obsolete">Kas 10 s</translation>
     </message>
     <message>
         <source>No Preview</source>
-        <translation>Be peržiūros</translation>
+        <translation type="obsolete">Be peržiūros</translation>
     </message>
 </context>
 <context>
@@ -8194,10 +9285,6 @@
         <translation type="unfinished">&amp;Rinkmena:</translation>
     </message>
     <message>
-        <source>Please choose a virtual appliance file</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Open Virtualization Format Archive (%1)</source>
         <translation type="unfinished">Suglaudintas atviras virtualizavimo formatas (%1)</translation>
     </message>
@@ -8211,7 +9298,7 @@
     </message>
     <message>
         <source>&amp;Write legacy OVF 0.9</source>
-        <translation type="unfinished">&amp;Kurti senuoju OVF 0.9 formatu</translation>
+        <translation type="obsolete">&amp;Kurti senuoju OVF 0.9 formatu</translation>
     </message>
     <message>
         <source>Create a Manifest file for automatic data integrity checks on import.</source>
@@ -8241,6 +9328,42 @@
         <source>&amp;Local Filesystem </source>
         <translation type="unfinished">&amp;Vietinė rinkmenų sistema</translation>
     </message>
+    <message>
+        <source>Storage settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Please choose a file to export the virtual appliance to</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>F&amp;ormat:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OVF 0.9</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OVF 1.0</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OVF 2.0</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Write in standard OVF 1.0 format.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Write in new experimental OVF 2.0 format.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Storage settings</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIWizardExportAppPageBasic3</name>
@@ -8255,6 +9378,17 @@
     <message>
         <source>Please complete the additional fields like the username, password, hostname and the bucket, and provide a filename for the OVF target.</source>
         <translation type="unfinished">Užpildykite papildomus laukus, tokius kaip naudotojo vardas, slaptažodis, kompiuterio vardas ir produktas, taipogi nurodykite OVF paskirties failo vardą. </translation>
+    </message>
+    <message>
+        <source>Choose a file to export the virtual appliance to...</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardExportAppPageExpert</name>
+    <message>
+        <source>Choose a file to export the virtual appliance to...</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -8283,10 +9417,6 @@
 <context>
     <name>UIWizardImportApp</name>
     <message>
-        <source>Import Virtual Applicance</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Restore Defaults</source>
         <translation type="unfinished">Atkurti pirmines reiškmes</translation>
     </message>
@@ -8303,12 +9433,8 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open appliance...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Select an appliance to import</source>
-        <translation type="unfinished">Pasirinkite, iš kurios rinkmenos importuoti</translation>
+        <translation type="obsolete">Pasirinkite, iš kurios rinkmenos importuoti</translation>
     </message>
     <message>
         <source>Open Virtualization Format (%1)</source>
@@ -8321,6 +9447,18 @@
     <message>
         <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
         <translation type="unfinished">Rinkmenoje rastos šios virtualios mašinos ir jų nuostatos importavimui į VirtualBox. Čia daugelį savybių galite keisti dukart spragtelėdami peleties elementu, o uždrausti – pažymėdami žymimąjį langelį.</translation>
+    </message>
+    <message>
+        <source>Import Virtual Appliance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose a virtual appliance file to import...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Please choose a virtual appliance file to import</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -8547,7 +9685,11 @@
     <name>VBoxEmptyFileSelector</name>
     <message>
         <source>&amp;Choose...</source>
-        <translation>&amp;Pasirinkti...</translation>
+        <translation type="obsolete">&amp;Pasirinkti...</translation>
+    </message>
+    <message>
+        <source>Choose...</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -8557,8 +9699,8 @@
         <translation>&lt;numatyta&gt;</translation>
     </message>
     <message>
-        <source>The actual default path value will be displayed after accepting the changes and opening this dialog again.</source>
-        <translation>Pasirinkus, patvirtinus pasirinkimą ir iš naujo atvėrus šį langą, matysite numatytąjį kelią.</translation>
+        <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
+        <translation type="unfinished">Pasirinkus, patvirtinus pasirinkimą ir iš naujo atvėrus šį langą, matysite numatytąjį kelią.</translation>
     </message>
     <message>
         <source>&lt;not selected&gt;</source>
@@ -8577,7 +9719,7 @@
         <translation>Numatyta</translation>
     </message>
     <message>
-        <source>Opens a dialog to select a different folder.</source>
+        <source>Opens a window to select a different folder.</source>
         <translation>Atveriamas langas kitokio aplanko pasirinkimui.</translation>
     </message>
     <message>
@@ -8585,7 +9727,7 @@
         <translation>Atstato numatytąjį aplanko kelią.</translation>
     </message>
     <message>
-        <source>Opens a dialog to select a different file.</source>
+        <source>Opens a window to select a different file.</source>
         <translation>Atveriamas langas kitokios rinkmenos pasirinkimui.</translation>
     </message>
     <message>
@@ -8603,6 +9745,11 @@
     <message>
         <source>Please type the file path here.</source>
         <translation>Įrašykite rinkmenos kelią.</translation>
+    </message>
+    <message>
+        <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
+        <comment>new</comment>
+        <translation type="obsolete">Pasirinkus, patvirtinus pasirinkimą ir iš naujo atvėrus šį langą, matysite numatytąjį kelią.</translation>
     </message>
 </context>
 <context>
@@ -8639,11 +9786,11 @@
 <context>
     <name>VBoxGLSettingsGeneral</name>
     <message>
-        <source>Displays the path to the default virtual machine folder. This folder is used, if not explicitly specified otherwise, when creating new virtual machines.</source>
+        <source>Holds the path to the default virtual machine folder. This folder is used, if not explicitly specified otherwise, when creating new virtual machines.</source>
         <translation type="obsolete">Rodo kelią iki numatytojo virtualios mašinos aplanko. Šis aplankas naudojamas, jei kuriant naują virtualią mašiną nenurodomas joks kitas.</translation>
     </message>
     <message>
-        <source>Displays the path to the library that provides authentication for Remote Display (VRDP) clients.</source>
+        <source>Holds the path to the library that provides authentication for Remote Display (VRDP) clients.</source>
         <translation type="obsolete">Rodo kelią iki bibliotekos, kuri pateikia nuotolinio ekrano (VRDP) klientų atpažinimo funkciją.</translation>
     </message>
     <message>
@@ -8659,7 +9806,7 @@
         <translation type="obsolete">V&amp;RDP atpažinimo biblioteka:</translation>
     </message>
     <message>
-        <source>Displays the path to the default hard disk folder. This folder is used, if not explicitly specified otherwise, when adding existing or creating new virtual hard disks.</source>
+        <source>Holds the path to the default hard disk folder. This folder is used, if not explicitly specified otherwise, when adding existing or creating new virtual hard disks.</source>
         <translation type="obsolete">Rodo kelią iki numatytojo standžiųjų diskų aplanko. Šis aplankas naudojamas, jei kuriant naują ar pridedant esantį virtualų diską nenurodomas joks kitas.</translation>
     </message>
     <message>
@@ -8682,7 +9829,7 @@
         <translation type="obsolete">Pagrindinis &amp;klavišas:</translation>
     </message>
     <message>
-        <source>Displays the key used as a Host Key in the VM window. Activate the entry field and press a new Host Key. Note that alphanumeric, cursor movement and editing keys cannot be used.</source>
+        <source>Holds the key used as a Host Key in the VM window. Activate the entry field and press a new Host Key. Note that alphanumeric, cursor movement and editing keys cannot be used.</source>
         <translation type="obsolete">Rodo klavišą, naudojamą kaip pagrindinio kompiuterio klavišą virtualioje mašinoje. Nuspauskite įvesties laukelį ir nuspauskite būsimą „pagrindinį“ klavišą. Atminkite, kad negalima priskirti raidių, skaičių, žymeklio perkėlimo, redagavimo klavišų.</translation>
     </message>
     <message>
@@ -8939,7 +10086,7 @@
         <translation type="obsolete">&amp;IPv4 adresas:</translation>
     </message>
     <message>
-        <source>Displays the host IPv4 address for this adapter.</source>
+        <source>Holds the host IPv4 address for this adapter.</source>
         <translation type="obsolete">Rodo šio pagrindinio kompiuterio IPv4 adresą šiai plokštei.</translation>
     </message>
     <message>
@@ -8947,7 +10094,7 @@
         <translation type="obsolete">IPv4 tinklo &amp;kaukė:</translation>
     </message>
     <message>
-        <source>Displays the host IPv4 network mask for this adapter.</source>
+        <source>Holds the host IPv4 network mask for this adapter.</source>
         <translation type="obsolete">Rodo šio pagrindinio kompiuterio IPv4 tinklo kaukę šiai plokštei.</translation>
     </message>
     <message>
@@ -8955,7 +10102,7 @@
         <translation type="obsolete">&amp;IPv6 adresas:</translation>
     </message>
     <message>
-        <source>Displays the host IPv6 address for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
         <translation type="obsolete">Rodo šio pagrindinio kompiuterio IPv4 adresą šiai plokštei, jei palaikomas 
 IPv6.</translation>
     </message>
@@ -8964,7 +10111,7 @@ IPv6.</translation>
         <translation type="obsolete">IPv6 tinklo kaukės i&amp;lgis:</translation>
     </message>
     <message>
-        <source>Displays the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
         <translation type="obsolete">Rodo šio pagrindinio kompiuterio IPv4 tinklo kaukės prefikso ilgį šiai plokštei, jei palaikomas IPv6.</translation>
     </message>
     <message>
@@ -8984,7 +10131,7 @@ IPv6.</translation>
         <translation type="obsolete">Serve&amp;rio adresas:</translation>
     </message>
     <message>
-        <source>Displays the address of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <source>Holds the address of the DHCP server servicing the network associated with this host-only adapter.</source>
         <translation type="obsolete">Rodo adresą to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
     </message>
     <message>
@@ -8992,7 +10139,7 @@ IPv6.</translation>
         <translation type="obsolete">Serverio &amp;kaukė:</translation>
     </message>
     <message>
-        <source>Displays the network mask of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <source>Holds the network mask of the DHCP server servicing the network associated with this host-only adapter.</source>
         <translation type="obsolete">Rodo tinklo kaukę to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
     </message>
     <message>
@@ -9000,7 +10147,7 @@ IPv6.</translation>
         <translation type="obsolete">Adreso &amp;apatinė riba:</translation>
     </message>
     <message>
-        <source>Displays the lower address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <source>Holds the lower address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
         <translation type="obsolete">Rodo adreso apatinę ribą to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
     </message>
     <message>
@@ -9008,7 +10155,7 @@ IPv6.</translation>
         <translation type="obsolete">Adreso &amp;viršutinė riba:</translation>
     </message>
     <message>
-        <source>Displays the upper address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <source>Holds the upper address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
         <translation type="obsolete">Rodo adreso viršutinę ribą to DHCP serverio, kuris aptarnauja tinklą, susijusį su plokšte, kuri gali prisijungti tik prie pagrindinio kompiuterio.</translation>
     </message>
 </context>
@@ -9019,7 +10166,7 @@ IPv6.</translation>
         <translation type="obsolete">Pasirinkus, programa karts nuo karto prisijungs prie VirtualBox svetainės ir tikrins, ar yra naujesnių VirtualBox versijų.</translation>
     </message>
     <message>
-        <source>&amp;Check for updates</source>
+        <source>&amp;Check for Updates</source>
         <translation type="obsolete">&amp;Tikrinti, ar yra atnaujinimų</translation>
     </message>
     <message>
@@ -9043,7 +10190,7 @@ IPv6.</translation>
         <translation type="obsolete">&lt;p&gt;Pasirinkite, jei norite sužinoti tik apie galimas stabilias VirtualBox versijas.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&amp;Stable release versions</source>
+        <source>&amp;Stable Release Versions</source>
         <translation type="obsolete">&amp;Stabilias versijas</translation>
     </message>
     <message>
@@ -9051,7 +10198,7 @@ IPv6.</translation>
         <translation type="obsolete">&lt;p&gt;Pasirinkite, jei norite sužinoti apie visas naujas VirtualBox versijas.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&amp;All new releases</source>
+        <source>&amp;All New Releases</source>
         <translation type="obsolete">&amp;Visas naujas versijas</translation>
     </message>
     <message>
@@ -9059,7 +10206,7 @@ IPv6.</translation>
         <translation type="obsolete">&lt;p&gt;Pasirinkite, jei norite sužinoti apie visas naujas VirtualBox versijas, įskaitant ir eksperimentines.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>All new releases and &amp;pre-releases</source>
+        <source>All New Releases and &amp;Pre-Releases</source>
         <translation type="obsolete">Visas naujas versijas, įskaitant &amp;eksperimentines</translation>
     </message>
 </context>
@@ -9132,10 +10279,10 @@ IPv6.</translation>
         <translation type="obsolete">ACPI</translation>
     </message>
     <message>
-        <source>IO APIC</source>
+        <source>I/O APIC</source>
         <comment>details report
 </comment>
-        <translation type="obsolete">IO APIC</translation>
+        <translation type="obsolete">I/O APIC</translation>
     </message>
     <message>
         <source>Enabled</source>
@@ -9151,13 +10298,13 @@ IPv6.</translation>
     </message>
     <message>
         <source>Enabled</source>
-        <comment>details report (IO APIC)
+        <comment>details report (I/O APIC)
 </comment>
         <translation type="obsolete">Įgalinta</translation>
     </message>
     <message>
         <source>Disabled</source>
-        <comment>details report (IO APIC)
+        <comment>details report (I/O APIC)
 </comment>
         <translation type="obsolete">Uždrausta</translation>
     </message>
@@ -9300,7 +10447,7 @@ IPv6.</translation>
         <translation type="obsolete">Diskelis</translation>
     </message>
     <message>
-        <source>CD/DVD-ROM</source>
+        <source>CD/DVD</source>
         <comment>DeviceType
 </comment>
         <translation type="obsolete">CD/DVD</translation>
@@ -10126,13 +11273,13 @@ IPv6.</translation>
         <translation type="obsolete">&lt;i&gt;Tikrinamas prieinamumas...&lt;/i&gt;</translation>
     </message>
     <message>
-        <source>Failed to check media accessibility.</source>
+        <source>Failed to check accessibility of disk image files.</source>
         <comment>medium
 </comment>
         <translation type="obsolete">Nepavyko patikrinti laikmenų prieinamumo.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;No medium selected&lt;/b&gt;</source>
+        <source>&lt;b&gt;No disk image file selected&lt;/b&gt;</source>
         <comment>medium
 </comment>
         <translation type="obsolete">&lt;b&gt;Laikmena nepasirinkta&lt;/b&gt;</translation>
@@ -10142,14 +11289,14 @@ IPv6.</translation>
         <translation>Galite pakeisti ir veikiančioje mašinoje.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;No media available&lt;/b&gt;</source>
+        <source>&lt;b&gt;No disk image files available&lt;/b&gt;</source>
         <comment>medium
 </comment>
         <translation type="obsolete">&lt;b&gt;Laikmenų nėra&lt;/b&gt;</translation>
     </message>
     <message>
-        <source>You can create media images using the virtual media manager.</source>
-        <translation>Naują laikmeną sukursite naudodamiesi virtualių laikmenų tvarkytuve.</translation>
+        <source>You can create disk image files using the virtual media manager.</source>
+        <translation type="obsolete">Naują laikmeną sukursite naudodamiesi virtualių laikmenų tvarkytuve.</translation>
     </message>
     <message>
         <source>Attaching this hard disk will be performed indirectly using a newly created differencing hard disk.</source>
@@ -10157,7 +11304,7 @@ IPv6.</translation>
         <translation>Su šiuo standžiuoju disku bus dirbama ne tiesiogiai, o naudojant naujai sukurtą standžiojo disko vedinį.</translation>
     </message>
     <message>
-        <source>Some of the media in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these media.</source>
+        <source>Some of the files in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these files.</source>
         <comment>medium
 </comment>
         <translation type="obsolete">Kai kurių laikmenų neavyksta rasti standžiajame diske. Virtualių laikmenų tvarkytuvėje pasirinkę &lt;b&gt;rodyti diskų vedinius&lt;/b&gt;, galite pamatytio tas laikmenas.</translation>
@@ -10337,17 +11484,17 @@ IPv6.</translation>
         <translation>&lt;i&gt;Tikrinamas prieinamumas...&lt;/i&gt;</translation>
     </message>
     <message>
-        <source>Failed to check media accessibility.</source>
+        <source>Failed to check accessibility of disk image files.</source>
         <comment>medium</comment>
         <translation>Nepavyko patikrinti laikmenų prieinamumo.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;No medium selected&lt;/b&gt;</source>
+        <source>&lt;b&gt;No disk image file selected&lt;/b&gt;</source>
         <comment>medium</comment>
         <translation>&lt;b&gt;Laikmena nepasirinkta&lt;/b&gt;</translation>
     </message>
     <message>
-        <source>&lt;b&gt;No media available&lt;/b&gt;</source>
+        <source>&lt;b&gt;No disk image files available&lt;/b&gt;</source>
         <comment>medium</comment>
         <translation>&lt;b&gt;Laikmenų nėra&lt;/b&gt;</translation>
     </message>
@@ -10362,7 +11509,7 @@ IPv6.</translation>
         <translation>Neprieinama</translation>
     </message>
     <message>
-        <source>Some of the media in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these media.</source>
+        <source>Some of the files in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these files.</source>
         <comment>medium</comment>
         <translation>Kai kurių laikmenų neavyksta rasti standžiajame diske. Tas laimenas pamatysite, jei virtualių laikmenų tvarkytuvėje pasirinksite &lt;b&gt;rodyti diskų vedinius&lt;/b&gt;.</translation>
     </message>
@@ -10488,12 +11635,12 @@ IPv6.</translation>
     </message>
     <message>
         <source>Enabled</source>
-        <comment>details report (IO APIC)</comment>
+        <comment>details report (I/O APIC)</comment>
         <translation>Įgalinta</translation>
     </message>
     <message>
         <source>Disabled</source>
-        <comment>details report (IO APIC)</comment>
+        <comment>details report (I/O APIC)</comment>
         <translation>Uždrausta</translation>
     </message>
     <message>
@@ -10537,9 +11684,9 @@ IPv6.</translation>
         <translation>ACPI</translation>
     </message>
     <message>
-        <source>IO APIC</source>
+        <source>I/O APIC</source>
         <comment>details report</comment>
-        <translation>IO APIC</translation>
+        <translation>I/O APIC</translation>
     </message>
     <message>
         <source>PAE/NX</source>
@@ -10724,7 +11871,7 @@ IPv6.</translation>
         <translation type="obsolete">Pasirinkite virtualaus CD/DVD disko rinkmeną</translation>
     </message>
     <message>
-        <source>CD/DVD-ROM disk</source>
+        <source>CD/DVD disk</source>
         <translation type="obsolete">CD/DVD diskų</translation>
     </message>
     <message>
@@ -10844,7 +11991,7 @@ IPv6.</translation>
         <translation>Diskelis</translation>
     </message>
     <message>
-        <source>CD/DVD-ROM</source>
+        <source>CD/DVD</source>
         <comment>DeviceType</comment>
         <translation>CD/DVD</translation>
     </message>
@@ -11225,12 +12372,12 @@ IPv6.</translation>
     <message>
         <source>Enabled</source>
         <comment>nested paging</comment>
-        <translation>Įgalinta</translation>
+        <translation type="obsolete">Įgalinta</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>nested paging</comment>
-        <translation>Uždrausta</translation>
+        <translation type="obsolete">Uždrausta</translation>
     </message>
     <message>
         <source>Readonly</source>
@@ -11584,6 +12731,74 @@ IPv6.</translation>
         <source>Please choose a location for new virtual hard drive file</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (Unrestricted Execution)</comment>
+        <translation type="unfinished">Įgalinta</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (Unrestricted Execution)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unrestricted Execution</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PS/2 Mouse</source>
+        <comment>PointingHIDType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB Mouse</source>
+        <comment>PointingHIDType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PS/2 and USB Mouse</source>
+        <comment>PointingHIDType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>unrestricted execution</comment>
+        <translation type="obsolete">Įgalinta</translation>
+    </message>
+    <message>
+        <source>Unrestricted Execution</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB Tablet</source>
+        <comment>PointingHIDType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB Multi-Touch Tablet</source>
+        <comment>PointingHIDType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>NAT Network</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>NAT network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>You can create or add disk image files in the virtual machine settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>StorageControllerType</comment>
+        <translation type="obsolete">USB</translation>
+    </message>
 </context>
 <context>
     <name>VBoxGlobalSettings</name>
@@ -11677,11 +12892,11 @@ IPv6.</translation>
     </message>
     <message>
         <source>&amp;New...</source>
-        <translation>&amp;Naujas...</translation>
+        <translation type="obsolete">&amp;Naujas...</translation>
     </message>
     <message>
         <source>&amp;Add...</source>
-        <translation>Pri&amp;dėti...</translation>
+        <translation type="obsolete">Pri&amp;dėti...</translation>
     </message>
     <message>
         <source>R&amp;emove</source>
@@ -11700,19 +12915,19 @@ IPv6.</translation>
         <translation type="obsolete">Sukurti naują virtualų standųjį diską</translation>
     </message>
     <message>
-        <source>Add an existing medium</source>
-        <translation>Pridėti esamą laikmeną</translation>
+        <source>Add an existing disk image file</source>
+        <translation type="obsolete">Pridėti esamą laikmeną</translation>
     </message>
     <message>
-        <source>Remove the selected medium</source>
+        <source>Remove the selected disk image file</source>
         <translation>Pašalinti pasirinktą laikmeną</translation>
     </message>
     <message>
-        <source>Release the selected medium by detaching it from the machines</source>
+        <source>Release the selected disk image file by detaching it from the machines</source>
         <translation>Atlaisvinus pasirinktą laikmeną, ji nebebus susieta su mašinomis</translation>
     </message>
     <message>
-        <source>Refresh the media list</source>
+        <source>Refresh the list of disk image files</source>
         <translation>Atnaujinti laikmenų sąrašą</translation>
     </message>
     <message>
@@ -11741,18 +12956,18 @@ IPv6.</translation>
     </message>
     <message>
         <source>All files (*)</source>
-        <translation>Visos rinkmenos (*)</translation>
+        <translation type="obsolete">Visos rinkmenos (*)</translation>
     </message>
     <message>
         <source>Select a hard disk image file</source>
         <translation type="obsolete">Pasirinkite standžiojo disko atvaizdžio rinkmeną</translation>
     </message>
     <message>
-        <source>CD/DVD-ROM images (*.iso);;All files (*)</source>
+        <source>CD/DVD images (*.iso);;All files (*)</source>
         <translation type="obsolete">CD/DVD atvaizdžiai (*.iso);;Visos rinkmenos (*)</translation>
     </message>
     <message>
-        <source>Select a CD/DVD-ROM disk image file</source>
+        <source>Select a CD/DVD disk image file</source>
         <translation type="obsolete">Pasirinkite CD/DVD atvaizdį</translation>
     </message>
     <message>
@@ -11760,7 +12975,7 @@ IPv6.</translation>
         <translation type="obsolete">Diskelių atvaizdžiai (*.img);;Visos rinkmenos (*)</translation>
     </message>
     <message>
-        <source>Select a floppy disk image file</source>
+        <source>Select a floppy disk image files</source>
         <translation type="obsolete">Pasirinkite diskelio atvaizdžio rinkmeną</translation>
     </message>
     <message>
@@ -11839,7 +13054,7 @@ IPv6.</translation>
         <translation type="obsolete">Susietas su </translation>
     </message>
     <message>
-        <source>CD/DVD-ROM disk</source>
+        <source>CD/DVD disk</source>
         <translation type="obsolete">CD/DVD diskas</translation>
     </message>
     <message>
@@ -11888,39 +13103,35 @@ IPv6.</translation>
         <translation>&amp;Keisti...</translation>
     </message>
     <message>
-        <source>Copy an existing medium</source>
+        <source>Copy an existing disk image file</source>
         <translation>Kopijuoti esamą laikmeną</translation>
     </message>
     <message>
-        <source>Modify the attributes of the selected medium</source>
+        <source>Modify the attributes of the selected disk image file</source>
         <translation>Modifikuoti pasirinktos laikmenos atributus</translation>
     </message>
     <message>
         <source>C&amp;lose</source>
         <translation type="obsolete">&amp;Užverti</translation>
     </message>
-    <message>
-        <source>Create a new virtual hard drive</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>VBoxMiniToolBar</name>
     <message>
         <source>Always show the toolbar</source>
-        <translation>Įrankių juostą rodyti visada</translation>
+        <translation type="obsolete">Įrankių juostą rodyti visada</translation>
     </message>
     <message>
         <source>Exit Full Screen or Seamless Mode</source>
-        <translation>Išeiti iš viso ekrano arba integruotos veiksenos</translation>
+        <translation type="obsolete">Išeiti iš viso ekrano arba integruotos veiksenos</translation>
     </message>
     <message>
         <source>Close VM</source>
-        <translation>Užverti virtualią mašiną</translation>
+        <translation type="obsolete">Užverti virtualią mašiną</translation>
     </message>
     <message>
         <source>Minimize Window</source>
-        <translation>Suskleisti langą</translation>
+        <translation type="obsolete">Suskleisti langą</translation>
     </message>
 </context>
 <context>
@@ -11937,11 +13148,11 @@ IPv6.</translation>
         <translation type="obsolete">&amp;Operacinė sistema:</translation>
     </message>
     <message>
-        <source>Displays the operating system family that you plan to install into this virtual machine.</source>
+        <source>Selects the operating system family that you plan to install into this virtual machine.</source>
         <translation type="obsolete">Rodo šeimą operacinių sistemų, kurią ketinate įdiegti virtualioje mašinoje.</translation>
     </message>
     <message>
-        <source>Displays the operating system type that you plan to install into this virtual machine (called a guest operating system).</source>
+        <source>Selects the operating system type that you plan to install into this virtual machine (called a guest operating system).</source>
         <translation type="obsolete">Rodo operacinės sistemos tipą, kurį ketinate įdiegti šioje virtualioje mašinoje (pastaroji dar vadinama svečio operacine sistema).</translation>
     </message>
     <message>
@@ -12127,7 +13338,7 @@ IPv6.</translation>
         <translation type="obsolete">&amp;Virtualių laikmenų tvarkytuvė...</translation>
     </message>
     <message>
-        <source>Display the Virtual Media Manager dialog</source>
+        <source>Display the Virtual Media Manager window</source>
         <translation type="obsolete">Atveria virtualių laikmenų tvarkytuvę</translation>
     </message>
     <message>
@@ -12152,7 +13363,7 @@ IPv6.</translation>
         <translation type="obsolete">&amp;Nuostatos...</translation>
     </message>
     <message>
-        <source>Display the global settings dialog</source>
+        <source>Display the global settings window</source>
         <translation type="obsolete">Keisti bendras nuostatas</translation>
     </message>
     <message>
@@ -12610,11 +13821,11 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
     </message>
     <message>
         <source>&amp;Details</source>
-        <translation>&amp;Detalės</translation>
+        <translation type="obsolete">&amp;Detalės</translation>
     </message>
     <message>
         <source>&amp;Runtime</source>
-        <translation>&amp;Vykdymas</translation>
+        <translation type="obsolete">&amp;Vykdymas</translation>
     </message>
     <message>
         <source>DMA Transfers</source>
@@ -12715,6 +13926,14 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
     </message>
     <message>
         <source>Drag&apos;n&apos;Drop Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Configuration &amp;Details</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Runtime Information</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -12894,7 +14113,7 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">Standieji diskai</translation>
     </message>
     <message>
-        <source>CD/DVD-ROM</source>
+        <source>CD/DVD</source>
         <translation type="obsolete">CD/DVD</translation>
     </message>
     <message>
@@ -12961,7 +14180,7 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
 <context>
     <name>VBoxVMSettingsGeneral</name>
     <message>
-        <source>Displays the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of disk space.</source>
+        <source>Holds the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of disk space.</source>
         <translation type="obsolete">Rodo kelią, kur bus saugomos šios virtualios mašinos momentinių būvių kopijos. Atminkite, kad būvių kopijos gali užimti daug vietos.</translation>
     </message>
     <message>
@@ -12973,7 +14192,7 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">&amp;Pavadinimas:</translation>
     </message>
     <message>
-        <source>Displays the name of the virtual machine.</source>
+        <source>Holds the name of the virtual machine.</source>
         <translation type="obsolete">Pateikia virtualios mašinos pavadinimą.</translation>
     </message>
     <message>
@@ -12997,11 +14216,11 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">&amp;Aprašymas</translation>
     </message>
     <message>
-        <source>Displays the description of the virtual machine. The description field is useful for commenting on configuration details of the installed guest OS.</source>
+        <source>Holds the description of the virtual machine. The description field is useful for commenting on configuration details of the installed guest OS.</source>
         <translation type="obsolete">Rodo virtualios mašinos aprašymą. Aprašymo laukelis naudingas komentuojant įdiegtos svečio OS konfigūracijos niuansus.</translation>
     </message>
     <message>
-        <source>If checked, any change to mounted CD/DVD or Floppy media performed during machine execution will be saved in the settings file in order to preserve the configuration of mounted media between runs.</source>
+        <source>If checked, any CD/DVD or floppy disks inserted into or removed from the virtual drives while the machine is running will be remembered.</source>
         <translation type="obsolete">Jei pažymėta, bus įsimintas bet koks CD/DVD ar diskelių prijungimo pakeitimas mašinos veikimo metu. Šie pakeitimai bus įrašyti į nuostatas siekiant išlaikyti tą pačią pakeistą prijungtų įtaisių konfigūraciją sekantį kartą paleidus svečio OS.</translation>
     </message>
     <message>
@@ -13021,7 +14240,7 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">Jei pažymėta, viso ekrano ir integruoto darbo veiksenose bus rodoma maža įrankinė.</translation>
     </message>
     <message>
-        <source>Show In &amp;Fullscreen/Seamless</source>
+        <source>Show in &amp;Fullscreen/Seamless</source>
         <translation type="obsolete">Rodyti viso &amp;ekrano/integravimo veiksenoje</translation>
     </message>
     <message>
@@ -13029,7 +14248,7 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">Jei pažymėta, maža įrankinė bus rodoma ekrano viršuje, o ne apačioje.</translation>
     </message>
     <message>
-        <source>Show At &amp;Top Of Screen</source>
+        <source>Show at &amp;Top of Screen</source>
         <translation type="obsolete">Rodyti &amp;virš kitų langų</translation>
     </message>
 </context>
@@ -13244,7 +14463,7 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">Tipas (formatas):</translation>
     </message>
     <message>
-        <source>Attached To:</source>
+        <source>Attached to:</source>
         <translation type="obsolete">Susietas su:</translation>
     </message>
     <message>
@@ -13252,7 +14471,7 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">Leidžia naudotis pagrindinio kompiuterio įvesties/išvesties podėlio funkcijomis.</translation>
     </message>
     <message>
-        <source>Use host I/O cache</source>
+        <source>Use Host I/O Cache</source>
         <translation type="obsolete">Naudoti pagrindinio kompiuterio įvesties/išvesties podėlį</translation>
     </message>
     <message>
@@ -13337,7 +14556,7 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">&amp;MAC adresas:</translation>
     </message>
     <message>
-        <source>Displays the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</source>
+        <source>Holds the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</source>
         <translation type="obsolete">Rodo šios plokštės MAC adresą. Jis susideda iš 12 rašmenų {0-9,A-F}. Atminkite, antrasis rašmuo turi būti lyginis skaičius.</translation>
     </message>
     <message>
@@ -13349,7 +14568,7 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">Rodo, ar virtualaus tinklo kabelis yra prijungtas mašinos paleidimo metu.</translation>
     </message>
     <message>
-        <source>&amp;Cable connected</source>
+        <source>&amp;Cable Connected</source>
         <translation type="obsolete">&amp;Kabelis prijungtas</translation>
     </message>
 </context>
@@ -13374,7 +14593,7 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">Prievado &amp;numeris: </translation>
     </message>
     <message>
-        <source>Displays the parallel port number. You can choose one of the standard parallel ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
+        <source>Holds the parallel port number. You can choose one of the standard parallel ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
         <translation type="obsolete">Roro lygiagrečiojo prievado numerį. Galite pasirinkti kurį nors standartinį lygiagretųjį prievadą arba galite rankiniu būdu parinkti prievado parametrus nuspaudę mygtuką &lt;b&gt;Naudotojo apibrėžtas&lt;/b&gt;.</translation>
     </message>
     <message>
@@ -13390,15 +14609,15 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">&amp;Prievado kelias: </translation>
     </message>
     <message>
-        <source>Displays the host parallel device name.</source>
+        <source>Holds the host parallel device name.</source>
         <translation type="obsolete">Rodo pagrindinio kopiuterio lygiagrečiųjų įtaisų vardus.</translation>
     </message>
     <message>
-        <source>Displays the IRQ number of this parallel port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
-        <translation type="obsolete">Rodo šio lygiagrečiojo prievado IRQ numerį. Tai turi būti sveikasis skaičius iš intervalo nuo &lt;tt&gt;0&lt;/tt&gt; iki &lt;tt&gt;255&lt;/tt&gt;. Reikšmes, didesnes kaip &lt;tt&gt;15&lt;/tt&gt;, galima naudoti tik jei šiai virtualiai mašinai įgalinta &lt;b&gt;IO APIC&lt;/b&gt; nuostata.</translation>
+        <source>Holds the IRQ number of this parallel port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;I/O APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
+        <translation type="obsolete">Rodo šio lygiagrečiojo prievado IRQ numerį. Tai turi būti sveikasis skaičius iš intervalo nuo &lt;tt&gt;0&lt;/tt&gt; iki &lt;tt&gt;255&lt;/tt&gt;. Reikšmes, didesnes kaip &lt;tt&gt;15&lt;/tt&gt;, galima naudoti tik jei šiai virtualiai mašinai įgalinta &lt;b&gt;I/O APIC&lt;/b&gt; nuostata.</translation>
     </message>
     <message>
-        <source>Displays the base I/O port address of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <source>Holds the base I/O port address of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
         <translation type="obsolete">Rodo pagrindinį įvesties/išvesties prievado adresą šiam lygiagrečiam prievadui. Galimos reikšmės yra sveikieji skaičiai nuo &lt;tt&gt;0&lt;/tt&gt; iki &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
     </message>
 </context>
@@ -13507,7 +14726,7 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">Aplanko pavadinimas:</translation>
     </message>
     <message>
-        <source>Displays the name of the shared folder (as it will be seen by the guest OS).</source>
+        <source>Holds the name of the shared folder (as it will be seen by the guest OS).</source>
         <translation type="obsolete">Rodo bendrųjų aplankų pavadinimus (kaip jie matomi iš svečio OS).</translation>
     </message>
     <message>
@@ -13544,7 +14763,7 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">Prievado &amp;numeris: </translation>
     </message>
     <message>
-        <source>Displays the serial port number. You can choose one of the standard serial ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
+        <source>Selects the serial port number. You can choose one of the standard serial ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
         <translation type="obsolete">Roro nuosekliojo prievado numerį. Galite pasirinkti kurį nors standartinį lygiagretųjį prievadą arba galite rankiniu būdu parinkti prievado parametrus nuspaudę mygtuką &lt;b&gt;Naudotojo apibrėžtas&lt;/b&gt;.</translation>
     </message>
     <message>
@@ -13572,7 +14791,7 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">Sukurti &amp;kanalą</translation>
     </message>
     <message>
-        <source>Displays the path to the serial port&apos;s pipe on the host when the port is working in &lt;b&gt;Host Pipe&lt;/b&gt; mode, or the host serial device name when the port is working in &lt;b&gt;Host Device&lt;/b&gt; mode.</source>
+        <source>Holds the path to the serial port&apos;s pipe on the host when the port is working in &lt;b&gt;Host Pipe&lt;/b&gt; mode, or the host serial device name when the port is working in &lt;b&gt;Host Device&lt;/b&gt; mode.</source>
         <translation type="obsolete">Rodo kelią iki nuosekliojo prievado kanalo pagrindiniame kompiuteryje, kai dirbama &lt;b&gt;Pagrindinio kompiuterio kanalo&lt;/b&gt; veiksenoje, arba pagrindinio kompiuterio nuosekliojo įtaiso vardą, kai dirbama &lt;b&gt;Pagrindinio kompiuterio įtaiso&lt;/b&gt; veiksenoje.</translation>
     </message>
     <message>
@@ -13580,11 +14799,11 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">&amp;Prievado/rinkmenos kelias:</translation>
     </message>
     <message>
-        <source>Displays the IRQ number of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
-        <translation type="obsolete">Rodo šio nuosekliojo prievado IRQ numerį. Tai turi būti sveikasis skaičius iš intervalo nuo &lt;tt&gt;0&lt;/tt&gt; iki &lt;tt&gt;255&lt;/tt&gt;. Reikšmes, didesnes kaip &lt;tt&gt;15&lt;/tt&gt;, galima naudoti tik jei šiai virtualiai mašinai įgalinta &lt;b&gt;IO APIC&lt;/b&gt; nuostata.</translation>
+        <source>Holds the IRQ number of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;I/O APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
+        <translation type="obsolete">Rodo šio nuosekliojo prievado IRQ numerį. Tai turi būti sveikasis skaičius iš intervalo nuo &lt;tt&gt;0&lt;/tt&gt; iki &lt;tt&gt;255&lt;/tt&gt;. Reikšmes, didesnes kaip &lt;tt&gt;15&lt;/tt&gt;, galima naudoti tik jei šiai virtualiai mašinai įgalinta &lt;b&gt;I/O APIC&lt;/b&gt; nuostata.</translation>
     </message>
     <message>
-        <source>Displays the base I/O port address of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <source>Holds the base I/O port address of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
         <translation type="obsolete">Rodo pagrindinį įvesties/išvesties prievado adresą šiam nuosekliam prievadui. Galimos reikšmės yra sveikieji skaičiai nuo &lt;tt&gt;0&lt;/tt&gt; iki &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
     </message>
 </context>
@@ -13684,12 +14903,12 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">Papildomos savybės:</translation>
     </message>
     <message>
-        <source>When checked, the virtual machine will support the Input Output APIC (IO APIC), which may slightly decrease performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
-        <translation type="obsolete">Pažymėjus, virtuali mašina palaikys įvesties/išvesties APIC (IO APIC), kuris gali šiek tiek sumažinti našumą. &lt;b&gt;Atminkite:&lt;/b&gt; neuždrauskite šios parinkties, jei įdiegėte Windows kaip svečio operacinę sistemą!</translation>
+        <source>When checked, the virtual machine will support the Input Output APIC (I/O APIC), which may slightly decrease performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
+        <translation type="obsolete">Pažymėjus, virtuali mašina palaikys įvesties/išvesties APIC (I/O APIC), kuris gali šiek tiek sumažinti našumą. &lt;b&gt;Atminkite:&lt;/b&gt; neuždrauskite šios parinkties, jei įdiegėte Windows kaip svečio operacinę sistemą!</translation>
     </message>
     <message>
-        <source>Enable &amp;IO APIC</source>
-        <translation type="obsolete">Įgalinti &amp;IO APIC</translation>
+        <source>Enable &amp;I/O APIC</source>
+        <translation type="obsolete">Įgalinti &amp;I/O APIC</translation>
     </message>
     <message>
         <source>&amp;Processor</source>
@@ -13738,7 +14957,7 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">Pažymėjus, RTC įtaisas laiką praneš pasauliniu formatu (UTC); priešingu atveju – vietiniu (pagrindinio kompiuterio) laiku. Unix sistemose aparatinis laikrodis paprastai nustatytas į pasaulinį.</translation>
     </message>
     <message>
-        <source>Hardware clock in &amp;UTC time</source>
+        <source>Hardware Clock in &amp;UTC Time</source>
         <translation type="obsolete">Aparatinis laikrodis &amp;pasauliniu laiku</translation>
     </message>
     <message>
@@ -13856,7 +15075,7 @@ konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
         <translation type="obsolete">&amp;Pavadinimas:</translation>
     </message>
     <message>
-        <source>Displays the filter name.</source>
+        <source>Holds the filter name.</source>
         <translation type="obsolete">Rodo filtro pavadinimą.</translation>
     </message>
     <message>

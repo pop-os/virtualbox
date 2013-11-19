@@ -116,7 +116,7 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, uint32_
     int rc = RTSemEventCreate(&pTimer->Event);
     if (RT_SUCCESS(rc))
     {
-        rc = RTThreadCreate(&pTimer->Thread, rtTimerThread, pTimer, 0, RTTHREADTYPE_TIMER, RTTHREADFLAGS_WAITABLE, "TIMER");
+        rc = RTThreadCreate(&pTimer->Thread, rtTimerThread, pTimer, 0, RTTHREADTYPE_TIMER, RTTHREADFLAGS_WAITABLE, "Timer");
         if (RT_SUCCESS(rc))
         {
             *ppTimer = pTimer;
@@ -256,18 +256,15 @@ static DECLCALLBACK(int) rtTimerThread(RTTHREAD hThreadSelf, void *pvUser)
             if (u64NanoTS >= pTimer->u64NextTS)
             {
                 pTimer->iTick++;
+
+                /* one shot? */
+                if (!pTimer->u64NanoInterval)
+                    ASMAtomicXchgU8(&pTimer->fSuspended, true);
                 pTimer->pfnTimer(pTimer, pTimer->pvUser, pTimer->iTick);
 
                 /* status changed? */
                 if (pTimer->fSuspended || pTimer->fDestroyed)
                     continue;
-
-                /* one shot? */
-                if (!pTimer->u64NanoInterval)
-                {
-                    ASMAtomicXchgU8(&pTimer->fSuspended, true);
-                    continue;
-                }
 
                 /* calc the next time we should fire. */
                 pTimer->u64NextTS = pTimer->u64StartTS + pTimer->iTick * pTimer->u64NanoInterval;

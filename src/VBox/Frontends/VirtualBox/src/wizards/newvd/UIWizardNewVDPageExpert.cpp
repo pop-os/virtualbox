@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,6 +49,7 @@ UIWizardNewVDPageExpert::UIWizardNewVDPageExpert(const QString &strDefaultName, 
     QGridLayout *pMainLayout = new QGridLayout(this);
     {
         pMainLayout->setContentsMargins(8, 6, 8, 6);
+        pMainLayout->setSpacing(10);
         m_pLocationCnt = new QGroupBox(this);
         {
             m_pLocationCnt->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
@@ -61,7 +62,7 @@ UIWizardNewVDPageExpert::UIWizardNewVDPageExpert(const QString &strDefaultName, 
                 m_pLocationOpenButton = new QIToolButton(m_pLocationCnt);
                 {
                     m_pLocationOpenButton->setAutoRaise(true);
-                    m_pLocationOpenButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png", "select_file_dis_16px.png"));
+                    m_pLocationOpenButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png", "select_file_disabled_16px.png"));
                 }
                 pLocationCntLayout->addWidget(m_pLocationEditor);
                 pLocationCntLayout->addWidget(m_pLocationOpenButton);
@@ -129,8 +130,11 @@ UIWizardNewVDPageExpert::UIWizardNewVDPageExpert(const QString &strDefaultName, 
                         if (medFormat.GetName() != "VDI")
                             addFormatButton(m_pFormatCnt, pFormatCntLayout, medFormat);
                     }
-                    m_pFormatButtonGroup->button(0)->click();
-                    m_pFormatButtonGroup->button(0)->setFocus();
+                    if (!m_pFormatButtonGroup->buttons().isEmpty())
+                    {
+                        m_pFormatButtonGroup->button(0)->click();
+                        m_pFormatButtonGroup->button(0)->setFocus();
+                    }
                 }
             }
         }
@@ -186,9 +190,19 @@ void UIWizardNewVDPageExpert::sltMediumFormatChanged()
 {
     /* Get medium format: */
     CMediumFormat mf = mediumFormat();
+    if (mf.isNull())
+    {
+        AssertMsgFailed(("No medium format set!"));
+        return;
+    }
 
     /* Enable/disable widgets: */
-    ULONG uCapabilities = mf.GetCapabilities();
+    ULONG uCapabilities = 0;
+    QVector<KMediumFormatCapabilities> capabilities;
+    capabilities = mf.GetCapabilities();
+    for (int i = 0; i < capabilities.size(); i++)
+        uCapabilities |= capabilities[i];
+
     bool fIsCreateDynamicPossible = uCapabilities & KMediumFormatCapabilities_CreateDynamic;
     bool fIsCreateFixedPossible = uCapabilities & KMediumFormatCapabilities_CreateFixed;
     bool fIsCreateSplitPossible = uCapabilities & KMediumFormatCapabilities_CreateSplit2G;
@@ -270,7 +284,7 @@ bool UIWizardNewVDPageExpert::validatePage()
     QString strMediumPath(mediumPath());
     fResult = !QFileInfo(strMediumPath).exists();
     if (!fResult)
-        msgCenter().sayCannotOverwriteHardDiskStorage(this, strMediumPath);
+        msgCenter().cannotOverwriteHardDiskStorage(strMediumPath, this);
 
     /* Try to create virtual-disk: */
     if (fResult)

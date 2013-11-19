@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -59,6 +59,7 @@
 
 #include "PIIX3ATABmDma.h"
 #include "ide.h"
+#include "ATAPIPassthrough.h"
 #include "VBoxDD.h"
 
 /*******************************************************************************
@@ -100,8 +101,6 @@
 
 /* Media track type */
 #define ATA_MEDIA_TYPE_UNKNOWN                  0    /**< unknown CD type */
-#define ATA_MEDIA_TYPE_DATA                     1    /**< Data CD */
-#define ATA_MEDIA_TYPE_CDDA                     2    /**< CD-DA  (audio) CD type */
 #define ATA_MEDIA_NO_DISC                    0x70    /**< Door closed, no medium */
 
 /*******************************************************************************
@@ -128,6 +127,8 @@ typedef struct ATADevState
     PDMMEDIAGEOMETRY PCHSGeometry;
     /** Total number of sectors on this disk. */
     uint64_t cTotalSectors;
+    /** Sector size of the medium. */
+    uint32_t cbSector;
     /** Number of sectors to transfer per IRQ. */
     uint32_t cSectorsPerIRQ;
 
@@ -179,6 +180,8 @@ typedef struct ATADevState
     uint32_t cbTotalTransfer;
     /** Elementary ATA/ATAPI transfer size, shared PIO/DMA. */
     uint32_t cbElementaryTransfer;
+    /** Maximum ATAPI elementary transfer size, PIO only. */
+    uint32_t cbPIOTransferLimit;
     /** Current read/write buffer position, shared PIO/DMA. */
     uint32_t iIOBufferCur;
     /** First element beyond end of valid buffer content, shared PIO/DMA. */
@@ -304,12 +307,8 @@ typedef struct ATADevState
     char                                szInquiryProductId[ATAPI_INQUIRY_PRODUCT_ID_LENGTH+1];
     /** The revision string for SCSI INQUIRY commands. */
     char                                szInquiryRevision[ATAPI_INQUIRY_REVISION_LENGTH+1];
-    /** Size of the current CUE sheet in bytes. */
-    uint32_t                            cbCueSheet;
-    /** Align pbCueSheet correctly. */
-    uint32_t                            u32Alignment3;
-    /** The current CUE Sheet if passthrough is used. */
-    R3PTRTYPE(uint8_t *)                pbCueSheet;
+    /** The current tracklist of the loaded medium if passthrough is used. */
+    R3PTRTYPE(PTRACKLIST)               pTrackList;
 
     uint8_t                             abAlignment4[HC_ARCH_BITS == 64 ? 7 : 3];
 } ATADevState;
@@ -987,6 +986,7 @@ static void ataPIOTransferStart(ATADevState *s, uint32_t start, uint32_t size)
     s->iIOBufferPIODataStart = start;
     s->iIOBufferPIODataEnd = start + size;
     ataSetStatus(s, ATA_STAT_DRQ | ATA_STAT_SEEK);
+    ataUnsetStatus(s, ATA_STAT_BUSY);
 }
 
 
@@ -1013,7 +1013,7 @@ static void ataPIOTransferLimitATAPI(ATADevState *s)
 {
     uint32_t cbLimit, cbTransfer;
 
-    cbLimit = s->uATARegLCyl | (s->uATARegHCyl << 8);
+    cbLimit = s->cbPIOTransferLimit;
     /* Use maximum transfer size if the guest requested 0. Avoids a hang. */
     if (cbLimit == 0)
         cbLimit = 0xfffe;
@@ -1162,117 +1162,6 @@ DECLINLINE(int) atapiCmpMSF(const uint8_t *pbMSF1, const uint8_t *pbMSF2)
     return iRes;
 }
 
-/**
- * Return the correct sector size from the given LBA.
- *
- * @returns Sector size.
- * @param   s            ATA Device state.
- * @param   iATAPILBA    The LBA.
- */
-static size_t atapiGetSectorSizeFromLba(ATADevState *s, uint32_t iATAPILBA)
-{
-    size_t cbATAPISector = 2048;
-
-    /*
-     * Check if there is a valid CUE Sheet we can use,
-     * otherwise we just return the standard sector size.
-     */
-    if (s->pbCueSheet)
-    {
-        uint8_t *pbCueSheetEntry = NULL;
-        uint8_t iMSF[3];
-
-        /*
-         * Convert the LBA to the MSF format so we can look it up in the cue sheet.
-         * Note that it is possible to have negative LBA values for the Lead-In area.
-         * See MMC6 spec chapter 6.46.3.3 for more details.
-         */
-        LogFlowFunc(("iATAPILBA=%#x (signed: %d unsigned: %u)\n",
-                     iATAPILBA, (int32_t)iATAPILBA, iATAPILBA));
-
-        if (   iATAPILBA > UINT32_C(0xffff4fa1)
-            && (int32_t)iATAPILBA < -150)
-        {
-            /* Lead-In area, this is always the first entry in the cue sheet. */
-            pbCueSheetEntry = s->pbCueSheet;
-            LogFlowFunc(("Selected Lead-In area\n"));
-        }
-        else
-        {
-            iATAPILBA += 150;
-            iMSF[0] = (iATAPILBA / 75) / 60;
-            iMSF[1] = (iATAPILBA / 75) % 60;
-            iMSF[2] = iATAPILBA % 75;
-
-            pbCueSheetEntry = s->pbCueSheet + 8; /* Start after the Lead-in track. */
-
-            /* Go through the CUE sheet and find the correct entry. */
-            for (unsigned i = 0; i < (s->cbCueSheet / 8) - 2; i++)
-            {
-                if (   atapiCmpMSF(&pbCueSheetEntry[5], iMSF) != 1
-                    && atapiCmpMSF(&pbCueSheetEntry[8+5], iMSF) == 1)
-                    break;
-                pbCueSheetEntry += 8;
-            }
-            LogFlowFunc(("Selected CUE sheet entry iMin=%u iSec=%u iFrame=%u\n",
-                         pbCueSheetEntry[5], pbCueSheetEntry[6], pbCueSheetEntry[7]));
-        }
-
-        if (pbCueSheetEntry)
-        {
-            /* Determine size of main data based on the data form field. */
-            switch (pbCueSheetEntry[3] & 0x3f)
-            {
-                case 0x00: /* CD-DA with data. */
-                case 0x11: /* CD-ROM mode 1 */
-                case 0x13:
-                case 0x21: /* CD-ROM XA, CD-I */
-                case 0x23:
-                case 0x31: /* CD-ROM Mode 2 */
-                case 0x33:
-                    cbATAPISector = 2352;
-                    break;
-                case 0x01: /* CD-DA without data (used for pauses between tracks). */
-                case 0x14:
-                case 0x24:
-                case 0x34:
-                    cbATAPISector = 0;
-                    break;
-                case 0x10: /* CD-ROM mode 1 */
-                case 0x12:
-                    cbATAPISector = 2048;
-                    break;
-                case 0x20: /* CD-ROM XA, CD-I */
-                case 0x22:
-                case 0x30: /* CD-ROM Mode 2 */
-                case 0x32:
-                    cbATAPISector = 2336;
-                    break;
-                default: /* Reserved, invalid mode. Log and leave default sector size. */
-                    LogRel(("ATA: Invalid data form mode %u for current CUE sheet\n",
-                            pbCueSheetEntry[3] & 0x3f));
-            }
-
-            /* Determine size of sub channel data based on data form field. */
-            switch ((pbCueSheetEntry[3] & 0xc0) >> 6)
-            {
-                case 0x00: /* Sub channel all zeroes, autogenerated by the drive. */
-                    break;
-                case 0x01:
-                case 0x03:
-                    cbATAPISector += 96;
-                    break;
-                default:
-                    LogRel(("ATA: Invalid sub-channel data form mode %u for current CUE sheet\n",
-                            pbCueSheetEntry[3] & 0xc0));
-            }
-        }
-    }
-
-    LogFlowFunc(("cbATAPISector=%zu\n", cbATAPISector));
-    return cbATAPISector;
-}
-
 static void ataCmdOK(ATADevState *s, uint8_t status)
 {
     s->uATARegError = 0; /* Not needed by ATA spec, but cannot hurt. */
@@ -1321,7 +1210,7 @@ static bool ataIdentifySS(ATADevState *s)
     p[1] = RT_H2LE_U16(RT_MIN(s->PCHSGeometry.cCylinders, 16383));
     p[3] = RT_H2LE_U16(s->PCHSGeometry.cHeads);
     /* Block size; obsolete, but required for the BIOS. */
-    p[5] = RT_H2LE_U16(512);
+    p[5] = RT_H2LE_U16(s->cbSector);
     p[6] = RT_H2LE_U16(s->PCHSGeometry.cSectors);
     ataPadString((uint8_t *)(p + 10), s->szSerialNumber, ATA_SERIAL_NUMBER_LENGTH); /* serial number */
     p[20] = RT_H2LE_U16(3); /* XXX: retired, cache type */
@@ -1366,7 +1255,9 @@ static bool ataIdentifySS(ATADevState *s)
     p[66] = RT_H2LE_U16(120); /* recommended DMA multiword tx cycle time */
     p[67] = RT_H2LE_U16(120); /* minimum PIO cycle time without flow control */
     p[68] = RT_H2LE_U16(120); /* minimum PIO cycle time with IORDY flow control */
-    if (s->pDrvBlock->pfnDiscard)
+    if (   s->pDrvBlock->pfnDiscard
+        || s->cbSector != 512
+        || s->fNonRotational)
     {
         p[80] = RT_H2LE_U16(0x1f0); /* support everything up to ATA/ATAPI-8 ACS */
         p[81] = RT_H2LE_U16(0x28); /* conforms to ATA/ATAPI-8 ACS */
@@ -1397,6 +1288,16 @@ static bool ataIdentifySS(ATADevState *s)
         p[102] = RT_H2LE_U16(s->cTotalSectors >> 32);
         p[103] = RT_H2LE_U16(s->cTotalSectors >> 48);
     }
+
+    if (s->cbSector != 512)
+    {
+        uint32_t cSectorSizeInWords = s->cbSector / sizeof(uint16_t);
+        /* Enable reporting of logical sector size. */
+        p[106] |= RT_H2LE_U16(RT_BIT(12) | RT_BIT(14));
+        p[117] = RT_H2LE_U16(cSectorSizeInWords);
+        p[118] = RT_H2LE_U16(cSectorSizeInWords >> 16);
+    }
+
     if (s->pDrvBlock->pfnDiscard) /** @todo: Set bit 14 in word 69 too? (Deterministic read after TRIM). */
         p[169] = RT_H2LE_U16(1); /* DATA SET MANAGEMENT command supported. */
     if (s->fNonRotational)
@@ -1440,8 +1341,8 @@ static bool atapiIdentifySS(ATADevState *s)
 
     p = (uint16_t *)s->CTX_SUFF(pbIOBuffer);
     memset(p, 0, 512);
-    /* Removable CDROM, 50us response, 12 byte packets */
-    p[0] = RT_H2LE_U16(2 << 14 | 5 << 8 | 1 << 7 | 2 << 5 | 0 << 0);
+    /* Removable CDROM, 3ms response, 12 byte packets */
+    p[0] = RT_H2LE_U16(2 << 14 | 5 << 8 | 1 << 7 | 0 << 5 | 0 << 0);
     ataPadString((uint8_t *)(p + 10), s->szSerialNumber, ATA_SERIAL_NUMBER_LENGTH); /* serial number */
     p[20] = RT_H2LE_U16(3); /* XXX: retired, cache type */
     p[21] = RT_H2LE_U16(512); /* XXX: retired, cache size in sectors */
@@ -1653,11 +1554,13 @@ static int ataReadSectors(ATADevState *s, uint64_t u64Sector, void *pvBuf,
 
     STAM_PROFILE_ADV_START(&s->StatReads, r);
     s->Led.Asserted.s.fReading = s->Led.Actual.s.fReading = 1;
-    rc = s->pDrvBlock->pfnRead(s->pDrvBlock, u64Sector * 512, pvBuf, cSectors * 512);
+    rc = s->pDrvBlock->pfnRead(s->pDrvBlock, u64Sector * s->cbSector, pvBuf, cSectors * s->cbSector);
     s->Led.Actual.s.fReading = 0;
     STAM_PROFILE_ADV_STOP(&s->StatReads, r);
+    Log4(("ataReadSectors: rc=%Rrc cSectors=%#x u64Sector=%llu\n%.*Rhxd\n",
+          rc, cSectors, u64Sector, cSectors * s->cbSector, pvBuf));
 
-    STAM_REL_COUNTER_ADD(&s->StatBytesRead, cSectors * 512);
+    STAM_REL_COUNTER_ADD(&s->StatBytesRead, cSectors * s->cbSector);
 
     if (RT_SUCCESS(rc))
         *pfRedo = false;
@@ -1685,15 +1588,17 @@ static int ataWriteSectors(ATADevState *s, uint64_t u64Sector,
     if (s->fDMA)
         STAM_PROFILE_ADV_START(&s->StatInstrVDWrites, vw);
 #endif
-    rc = s->pDrvBlock->pfnWrite(s->pDrvBlock, u64Sector * 512, pvBuf, cSectors * 512);
+    rc = s->pDrvBlock->pfnWrite(s->pDrvBlock, u64Sector * s->cbSector, pvBuf, cSectors * s->cbSector);
 #ifdef VBOX_INSTRUMENT_DMA_WRITES
     if (s->fDMA)
         STAM_PROFILE_ADV_STOP(&s->StatInstrVDWrites, vw);
 #endif
     s->Led.Actual.s.fWriting = 0;
     STAM_PROFILE_ADV_STOP(&s->StatWrites, w);
+    Log4(("ataWriteSectors: rc=%Rrc cSectors=%#x u64Sector=%llu\n%.*Rhxd\n",
+          rc, cSectors, u64Sector, cSectors * s->cbSector, pvBuf));
 
-    STAM_REL_COUNTER_ADD(&s->StatBytesWritten, cSectors * 512);
+    STAM_REL_COUNTER_ADD(&s->StatBytesWritten, cSectors * s->cbSector);
 
     if (RT_SUCCESS(rc))
         *pfRedo = false;
@@ -1711,11 +1616,11 @@ static void ataReadWriteSectorsBT(ATADevState *s)
 {
     uint32_t cSectors;
 
-    cSectors = s->cbTotalTransfer / 512;
+    cSectors = s->cbTotalTransfer / s->cbSector;
     if (cSectors > s->cSectorsPerIRQ)
-        s->cbElementaryTransfer = s->cSectorsPerIRQ * 512;
+        s->cbElementaryTransfer = s->cSectorsPerIRQ * s->cbSector;
     else
-        s->cbElementaryTransfer = cSectors * 512;
+        s->cbElementaryTransfer = cSectors * s->cbSector;
     if (s->uTxDir == PDMBLOCKTXDIR_TO_DEVICE)
         ataCmdOK(s, 0);
 }
@@ -1728,7 +1633,7 @@ static bool ataReadSectorsSS(ATADevState *s)
     uint64_t iLBA;
     bool fRedo;
 
-    cSectors = s->cbElementaryTransfer / 512;
+    cSectors = s->cbElementaryTransfer / s->cbSector;
     Assert(cSectors);
     iLBA = ataGetSector(s);
     Log(("%s: %d sectors at LBA %d\n", __FUNCTION__, cSectors, iLBA));
@@ -1766,7 +1671,7 @@ static bool ataWriteSectorsSS(ATADevState *s)
     uint64_t iLBA;
     bool fRedo;
 
-    cSectors = s->cbElementaryTransfer / 512;
+    cSectors = s->cbElementaryTransfer / s->cbSector;
     Assert(cSectors);
     iLBA = ataGetSector(s);
     Log(("%s: %d sectors at LBA %d\n", __FUNCTION__, cSectors, iLBA));
@@ -1850,6 +1755,7 @@ static void atapiCmdBT(ATADevState *s)
 {
     s->fATAPITransfer = true;
     s->cbElementaryTransfer = s->cbTotalTransfer;
+    s->cbPIOTransferLimit = s->uATARegLCyl | (s->uATARegHCyl << 8);
     if (s->uTxDir == PDMBLOCKTXDIR_TO_DEVICE)
         atapiCmdOK(s);
 }
@@ -2039,7 +1945,7 @@ static bool atapiPassthroughSS(ATADevState *s)
     uint32_t cbTransfer;
     PSTAMPROFILEADV pProf = NULL;
 
-    cbTransfer = RT_MIN(s->cbElementaryTransfer, s->cbIOBuffer);
+    cbTransfer = RT_MIN(s->cbTotalTransfer, s->cbIOBuffer);
 
     if (s->uTxDir == PDMBLOCKTXDIR_TO_DEVICE)
         Log3(("ATAPI PT data write (%d): %.*Rhxs\n", cbTransfer, cbTransfer, s->CTX_SUFF(pbIOBuffer)));
@@ -2241,33 +2147,23 @@ static bool atapiPassthroughSS(ATADevState *s)
         switch (s->aATAPICmd[0])
         {
             case SCSI_SEND_CUE_SHEET:
+            case SCSI_READ_TOC_PMA_ATIP:
             {
-                /* Save the CUE sheet to determine sector sizes during writes */
-                if (s->pbCueSheet)
-                {
-                    s->cbCueSheet = 0;
-                    RTMemFree(s->pbCueSheet);
-                }
+                if (!s->pTrackList)
+                    rc = ATAPIPassthroughTrackListCreateEmpty(&s->pTrackList);
 
-                s->pbCueSheet = (uint8_t *)RTMemAllocZ(s->cbElementaryTransfer);
-                if (s->pbCueSheet)
-                {
-                    s->cbCueSheet = s->cbElementaryTransfer;
-                    memcpy(s->pbCueSheet, s->CTX_SUFF(pbIOBuffer), s->cbElementaryTransfer);
-                }
-                else if (s->cErrors++ < MAX_LOG_REL_ERRORS)
-                    LogRel(("ATA: Out of memory while saving the CUE sheet, burning disc might fail\n"));
+                if (RT_SUCCESS(rc))
+                    rc = ATAPIPassthroughTrackListUpdate(s->pTrackList, s->aATAPICmd, s->CTX_SUFF(pbIOBuffer));
+
+                if (   RT_FAILURE(rc)
+                    && s->cErrors++ < MAX_LOG_REL_ERRORS)
+                    LogRel(("ATA: Error (%Rrc) while updating the tracklist during %s, burning the disc might fail\n",
+                            rc, s->aATAPICmd[0] == SCSI_SEND_CUE_SHEET ? "SEND CUE SHEET" : "READ TOC/PMA/ATIP"));
                 break;
             }
             case SCSI_SYNCHRONIZE_CACHE:
             {
-                /* Free the current CUE sheet after session at once recording. */
-                if (s->pbCueSheet)
-                {
-                    s->cbCueSheet = 0;
-                    RTMemFree(s->pbCueSheet);
-                    s->pbCueSheet = NULL;
-                }
+                ATAPIPassthroughTrackListClear(s->pTrackList);
                 break;
             }
         }
@@ -2277,10 +2173,12 @@ static bool atapiPassthroughSS(ATADevState *s)
             Assert(cbTransfer <= s->cbTotalTransfer);
             /*
              * Reply with the same amount of data as the real drive
-             * but only if the command wasn't splitted.
+             * but only if the command wasn't split.
              */
+#if 0   //@todo: This destroys commands where cbTotalTransfer > cbIOBuffer
             if (s->cbElementaryTransfer < s->cbIOBuffer)
                 s->cbTotalTransfer = cbTransfer;
+#endif
 
             if (   s->aATAPICmd[0] == SCSI_INQUIRY
                 && s->fOverwriteInquiry)
@@ -2293,37 +2191,7 @@ static bool atapiPassthroughSS(ATADevState *s)
                 ataSCSIPadStr(s->CTX_SUFF(pbIOBuffer) + 16, "CD-ROM", 16);
                 ataSCSIPadStr(s->CTX_SUFF(pbIOBuffer) + 32, "1.0", 4);
             }
-            else if (   s->aATAPICmd[0] == SCSI_READ_TOC_PMA_ATIP
-                     && (s->aATAPICmd[2] & 0xf) != 0x05
-                     && s->aATAPICmd[6] != 0xaa)
-            {
-                /* Set the media type if we can detect it. */
-                uint8_t *pbBuf = s->CTX_SUFF(pbIOBuffer);
 
-                /** @todo: Implemented only for formatted TOC now. */
-                if (   (s->aATAPICmd[2] & 0xf) == 0
-                    && cbTransfer >= 6)
-                {
-                    uint32_t NewMediaType;
-                    uint32_t OldMediaType;
-
-                    if (pbBuf[5] & 0x4)
-                        NewMediaType = ATA_MEDIA_TYPE_DATA;
-                    else
-                        NewMediaType = ATA_MEDIA_TYPE_CDDA;
-
-                    OldMediaType = ataMediumTypeSet(s, NewMediaType);
-
-                    if (OldMediaType != NewMediaType)
-                        LogRel(("PIIX3 ATA: LUN#%d: CD-ROM passthrough, detected %s CD\n",
-                                s->iLUN,
-                                NewMediaType == ATA_MEDIA_TYPE_DATA
-                                ? "data"
-                                : "audio"));
-                }
-                else /* Play safe and set to unknown. */
-                    ataMediumTypeSet(s, ATA_MEDIA_TYPE_UNKNOWN);
-            }
             if (cbTransfer)
                 Log3(("ATAPI PT data read (%d): %.*Rhxs\n", cbTransfer, cbTransfer, s->CTX_SUFF(pbIOBuffer)));
         }
@@ -2597,7 +2465,7 @@ static bool atapiReadTrackInformationSS(ATADevState *s)
     return false;
 }
 
-static size_t atapiGetConfigurationFillFeatureListProfiles(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static uint32_t atapiGetConfigurationFillFeatureListProfiles(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     if (cbBuf < 3*4)
         return 0;
@@ -2615,7 +2483,7 @@ static size_t atapiGetConfigurationFillFeatureListProfiles(ATADevState *s, uint8
     return 3*4; /* Header + 2 profiles entries */
 }
 
-static size_t atapiGetConfigurationFillFeatureCore(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static uint32_t atapiGetConfigurationFillFeatureCore(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     if (cbBuf < 12)
         return 0;
@@ -2630,7 +2498,7 @@ static size_t atapiGetConfigurationFillFeatureCore(ATADevState *s, uint8_t *pbBu
     return 12;
 }
 
-static size_t atapiGetConfigurationFillFeatureMorphing(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static uint32_t atapiGetConfigurationFillFeatureMorphing(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     if (cbBuf < 8)
         return 0;
@@ -2644,7 +2512,7 @@ static size_t atapiGetConfigurationFillFeatureMorphing(ATADevState *s, uint8_t *
     return 8;
 }
 
-static size_t atapiGetConfigurationFillFeatureRemovableMedium(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static uint32_t atapiGetConfigurationFillFeatureRemovableMedium(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     if (cbBuf < 8)
         return 0;
@@ -2659,7 +2527,7 @@ static size_t atapiGetConfigurationFillFeatureRemovableMedium(ATADevState *s, ui
     return 8;
 }
 
-static size_t atapiGetConfigurationFillFeatureRandomReadable(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static uint32_t atapiGetConfigurationFillFeatureRandomReadable(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     if (cbBuf < 12)
         return 0;
@@ -2675,7 +2543,7 @@ static size_t atapiGetConfigurationFillFeatureRandomReadable(ATADevState *s, uin
     return 12;
 }
 
-static size_t atapiGetConfigurationFillFeatureCDRead(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static uint32_t atapiGetConfigurationFillFeatureCDRead(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     if (cbBuf < 8)
         return 0;
@@ -2689,7 +2557,7 @@ static size_t atapiGetConfigurationFillFeatureCDRead(ATADevState *s, uint8_t *pb
     return 8;
 }
 
-static size_t atapiGetConfigurationFillFeaturePowerManagement(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static uint32_t atapiGetConfigurationFillFeaturePowerManagement(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     if (cbBuf < 4)
         return 0;
@@ -2701,7 +2569,7 @@ static size_t atapiGetConfigurationFillFeaturePowerManagement(ATADevState *s, ui
     return 4;
 }
 
-static size_t atapiGetConfigurationFillFeatureTimeout(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static uint32_t atapiGetConfigurationFillFeatureTimeout(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     if (cbBuf < 8)
         return 0;
@@ -2717,8 +2585,8 @@ static size_t atapiGetConfigurationFillFeatureTimeout(ATADevState *s, uint8_t *p
 static bool atapiGetConfigurationSS(ATADevState *s)
 {
     uint8_t *pbBuf = s->CTX_SUFF(pbIOBuffer);
-    size_t cbBuf = s->cbIOBuffer;
-    size_t cbCopied = 0;
+    uint32_t cbBuf = s->cbIOBuffer;
+    uint32_t cbCopied = 0;
     uint16_t u16Sfn = ataBE2H_U16(&s->aATAPICmd[2]);
 
     Assert(s->uTxDir == PDMBLOCKTXDIR_FROM_DEVICE);
@@ -3648,11 +3516,20 @@ static void atapiParseCmdPassthrough(ATADevState *s)
             switch ((pbPacket[1] >> 2) & 0x7)
             {
                 case 0x0: /* All types. */
-                    if (ASMAtomicReadU32(&s->MediaTrackType) == ATA_MEDIA_TYPE_CDDA)
-                        s->cbATAPISector = 2352;
+                {
+                    uint32_t iLbaStart;
+
+                    if (pbPacket[0] == SCSI_READ_CD)
+                        iLbaStart = ataBE2H_U32(&pbPacket[2]);
+                    else
+                        iLbaStart = ataMSF2LBA(&pbPacket[3]);
+
+                    if (s->pTrackList)
+                        s->cbATAPISector = ATAPIPassthroughTrackListGetSectorSizeFromLba(s->pTrackList, iLbaStart);
                     else
                         s->cbATAPISector = 2048; /* Might be incorrect if we couldn't determine the type. */
                     break;
+                }
                 case 0x1: /* CD-DA */
                     s->cbATAPISector = 2352;
                     break;
@@ -3772,7 +3649,10 @@ static void atapiParseCmdPassthrough(ATADevState *s)
         case SCSI_WRITE_AND_VERIFY_10:
             iATAPILBA = ataBE2H_U32(pbPacket + 2);
             cSectors = ataBE2H_U16(pbPacket + 7);
-            s->cbATAPISector = atapiGetSectorSizeFromLba(s, iATAPILBA);
+            if (s->pTrackList)
+                s->cbATAPISector = ATAPIPassthroughTrackListGetSectorSizeFromLba(s->pTrackList, iATAPILBA);
+            else
+                s->cbATAPISector = 2048;
             Log2(("ATAPI PT: lba %d sectors %d sector size %d\n", iATAPILBA, cSectors, s->cbATAPISector));
             cbTransfer = cSectors * s->cbATAPISector;
             uTxDir = PDMBLOCKTXDIR_TO_DEVICE;
@@ -3780,7 +3660,10 @@ static void atapiParseCmdPassthrough(ATADevState *s)
         case SCSI_WRITE_12:
             iATAPILBA = ataBE2H_U32(pbPacket + 2);
             cSectors = ataBE2H_U32(pbPacket + 6);
-            s->cbATAPISector = atapiGetSectorSizeFromLba(s, iATAPILBA);
+            if (s->pTrackList)
+                s->cbATAPISector = ATAPIPassthroughTrackListGetSectorSizeFromLba(s->pTrackList, iATAPILBA);
+            else
+                s->cbATAPISector = 2048;
             Log2(("ATAPI PT: lba %d sectors %d sector size %d\n", iATAPILBA, cSectors, s->cbATAPISector));
             cbTransfer = cSectors * s->cbATAPISector;
             uTxDir = PDMBLOCKTXDIR_TO_DEVICE;
@@ -3822,7 +3705,7 @@ static void atapiParseCmdPassthrough(ATADevState *s)
         sendcmd:
             /*
              * Send a command to the drive, passing data in/out as required.
-             * Commands which exceed the I/O buffer size are splitted below
+             * Commands which exceed the I/O buffer size are split below
              * or aborted if splitting is not implemented.
              */
             Log2(("ATAPI PT: max size %d\n", cbTransfer));
@@ -3916,7 +3799,7 @@ static DECLCALLBACK(void) ataMountNotify(PPDMIMOUNTNOTIFY pInterface)
     if (pIf->fATAPI)
         pIf->cTotalSectors = pIf->pDrvBlock->pfnGetSize(pIf->pDrvBlock) / 2048;
     else
-        pIf->cTotalSectors = pIf->pDrvBlock->pfnGetSize(pIf->pDrvBlock) / 512;
+        pIf->cTotalSectors = pIf->pDrvBlock->pfnGetSize(pIf->pDrvBlock) / pIf->cbSector;
 
     LogRel(("PIIX3 ATA: LUN#%d: CD/DVD, total number of sectors %Ld, passthrough unchanged\n", pIf->iLUN, pIf->cTotalSectors));
 
@@ -4003,8 +3886,8 @@ static int ataTrimSectors(ATADevState *s, uint64_t u64Sector, uint32_t cSectors,
 
     PDMCritSectLeave(&pCtl->lock);
 
-    TrimRange.offStart = u64Sector * 512;
-    TrimRange.cbRange  = cSectors * 512;
+    TrimRange.offStart = u64Sector * s->cbSector;
+    TrimRange.cbRange  = cSectors * s->cbSector;
 
     s->Led.Asserted.s.fWriting = s->Led.Actual.s.fWriting = 1;
     rc = s->pDrvBlock->pfnDiscard(s->pDrvBlock, &TrimRange, 1);
@@ -4143,7 +4026,7 @@ static void ataParseCmd(ATADevState *s, uint8_t cmd)
             if (!s->pDrvBlock || s->fATAPI)
                 goto abort_cmd;
             s->cSectorsPerIRQ = 1;
-            ataStartTransfer(s, ataGetNSectors(s) * 512, PDMBLOCKTXDIR_FROM_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_READ_SECTORS, false);
+            ataStartTransfer(s, ataGetNSectors(s) * s->cbSector, PDMBLOCKTXDIR_FROM_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_READ_SECTORS, false);
             break;
         case ATA_WRITE_SECTORS_EXT:
             s->fLBA48 = true;
@@ -4152,7 +4035,7 @@ static void ataParseCmd(ATADevState *s, uint8_t cmd)
             if (!s->pDrvBlock || s->fATAPI)
                 goto abort_cmd;
             s->cSectorsPerIRQ = 1;
-            ataStartTransfer(s, ataGetNSectors(s) * 512, PDMBLOCKTXDIR_TO_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_WRITE_SECTORS, false);
+            ataStartTransfer(s, ataGetNSectors(s) * s->cbSector, PDMBLOCKTXDIR_TO_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_WRITE_SECTORS, false);
             break;
         case ATA_READ_MULTIPLE_EXT:
             s->fLBA48 = true;
@@ -4160,7 +4043,7 @@ static void ataParseCmd(ATADevState *s, uint8_t cmd)
             if (!s->pDrvBlock || !s->cMultSectors || s->fATAPI)
                 goto abort_cmd;
             s->cSectorsPerIRQ = s->cMultSectors;
-            ataStartTransfer(s, ataGetNSectors(s) * 512, PDMBLOCKTXDIR_FROM_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_READ_SECTORS, false);
+            ataStartTransfer(s, ataGetNSectors(s) * s->cbSector, PDMBLOCKTXDIR_FROM_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_READ_SECTORS, false);
             break;
         case ATA_WRITE_MULTIPLE_EXT:
             s->fLBA48 = true;
@@ -4168,7 +4051,7 @@ static void ataParseCmd(ATADevState *s, uint8_t cmd)
             if (!s->pDrvBlock || !s->cMultSectors || s->fATAPI)
                 goto abort_cmd;
             s->cSectorsPerIRQ = s->cMultSectors;
-            ataStartTransfer(s, ataGetNSectors(s) * 512, PDMBLOCKTXDIR_TO_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_WRITE_SECTORS, false);
+            ataStartTransfer(s, ataGetNSectors(s) * s->cbSector, PDMBLOCKTXDIR_TO_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_WRITE_SECTORS, false);
             break;
         case ATA_READ_DMA_EXT:
             s->fLBA48 = true;
@@ -4178,7 +4061,7 @@ static void ataParseCmd(ATADevState *s, uint8_t cmd)
                 goto abort_cmd;
             s->cSectorsPerIRQ = ATA_MAX_MULT_SECTORS;
             s->fDMA = true;
-            ataStartTransfer(s, ataGetNSectors(s) * 512, PDMBLOCKTXDIR_FROM_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_READ_SECTORS, false);
+            ataStartTransfer(s, ataGetNSectors(s) * s->cbSector, PDMBLOCKTXDIR_FROM_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_READ_SECTORS, false);
             break;
         case ATA_WRITE_DMA_EXT:
             s->fLBA48 = true;
@@ -4188,7 +4071,7 @@ static void ataParseCmd(ATADevState *s, uint8_t cmd)
                 goto abort_cmd;
             s->cSectorsPerIRQ = ATA_MAX_MULT_SECTORS;
             s->fDMA = true;
-            ataStartTransfer(s, ataGetNSectors(s) * 512, PDMBLOCKTXDIR_TO_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_WRITE_SECTORS, false);
+            ataStartTransfer(s, ataGetNSectors(s) * s->cbSector, PDMBLOCKTXDIR_TO_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_WRITE_SECTORS, false);
             break;
         case ATA_READ_NATIVE_MAX_ADDRESS_EXT:
             s->fLBA48 = true;
@@ -4330,7 +4213,7 @@ static void ataParseCmd(ATADevState *s, uint8_t cmd)
                 || (s->uATARegFeature & ~UINT8_C(0x01)))
                 goto abort_cmd;
             s->fDMA = true;
-            ataStartTransfer(s, (s->uATARegNSectorHOB << 8 | s->uATARegNSector) * 512, PDMBLOCKTXDIR_TO_DEVICE, ATAFN_BT_NULL, ATAFN_SS_TRIM, false);
+            ataStartTransfer(s, (s->uATARegNSectorHOB << 8 | s->uATARegNSector) * s->cbSector, PDMBLOCKTXDIR_TO_DEVICE, ATAFN_BT_NULL, ATAFN_SS_TRIM, false);
             break;
         default:
         abort_cmd:
@@ -4641,9 +4524,12 @@ static uint32_t ataStatusRead(PATACONTROLLER pCtl, uint32_t addr)
     ATADevState *s = &pCtl->aIfs[pCtl->iSelectedIf];
     uint32_t val;
 
-    if ((!pCtl->aIfs[0].pDrvBlock && !pCtl->aIfs[1].pDrvBlock) ||
-            (pCtl->iSelectedIf == 1 && !s->pDrvBlock))
-        val = 0;
+    //@todo: The handler should not be even registered if there
+    // is no device on an IDE channel.
+    if (!pCtl->aIfs[0].pDrvBlock && !pCtl->aIfs[1].pDrvBlock)
+        val = 0xff;
+    else if (pCtl->iSelectedIf == 1 && !s->pDrvBlock)
+        val = 0;    /* Device 1 selected, Device 0 responding for it. */
     else
         val = s->uATARegStatus;
     Log2(("%s: addr=%#x val=%#04x\n", __FUNCTION__, addr, val));
@@ -5018,9 +4904,9 @@ static void ataDMATransfer(PATACONTROLLER pCtl)
                 PCIATAState *pATAState = PDMINS_2_DATA(pDevIns, PCIATAState *);
                 AssertPtr(pATAState);
                 if (uTxDir == PDMBLOCKTXDIR_FROM_DEVICE)
-                    PDMDevHlpPCIDevPhysWrite(&pATAState->dev, pBuffer, s->CTX_SUFF(pbIOBuffer) + iIOBufferCur, dmalen);
+                    PDMDevHlpPCIPhysWrite(pDevIns, pBuffer, s->CTX_SUFF(pbIOBuffer) + iIOBufferCur, dmalen);
                 else
-                    PDMDevHlpPCIDevPhysRead(&pATAState->dev, pBuffer, s->CTX_SUFF(pbIOBuffer) + iIOBufferCur, dmalen);
+                    PDMDevHlpPCIPhysRead(pDevIns, pBuffer, s->CTX_SUFF(pbIOBuffer) + iIOBufferCur, dmalen);
 
                 iIOBufferCur += dmalen;
                 cbTotalTransfer -= dmalen;
@@ -6221,120 +6107,6 @@ DECLINLINE(void) ataRelocBuffer(PPDMDEVINS pDevIns, ATADevState *s)
 
 
 /**
- * @copydoc FNPDMDEVRELOCATE
- */
-static DECLCALLBACK(void) ataR3Relocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
-{
-    PCIATAState *pThis = PDMINS_2_DATA(pDevIns, PCIATAState *);
-
-    for (uint32_t i = 0; i < RT_ELEMENTS(pThis->aCts); i++)
-    {
-        pThis->aCts[i].pDevInsRC += offDelta;
-        pThis->aCts[i].aIfs[0].pDevInsRC += offDelta;
-        pThis->aCts[i].aIfs[0].pControllerRC += offDelta;
-        ataRelocBuffer(pDevIns, &pThis->aCts[i].aIfs[0]);
-        pThis->aCts[i].aIfs[1].pDevInsRC += offDelta;
-        pThis->aCts[i].aIfs[1].pControllerRC += offDelta;
-        ataRelocBuffer(pDevIns, &pThis->aCts[i].aIfs[1]);
-    }
-}
-
-
-/**
- * Destroy a driver instance.
- *
- * Most VM resources are freed by the VM. This callback is provided so that any non-VM
- * resources can be freed correctly.
- *
- * @param   pDevIns     The device instance data.
- */
-static DECLCALLBACK(int) ataR3Destruct(PPDMDEVINS pDevIns)
-{
-    PCIATAState    *pThis = PDMINS_2_DATA(pDevIns, PCIATAState *);
-    int             rc;
-
-    Log(("ataR3Destruct\n"));
-    PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
-
-    /*
-     * Tell the async I/O threads to terminate.
-     */
-    for (uint32_t i = 0; i < RT_ELEMENTS(pThis->aCts); i++)
-    {
-        if (pThis->aCts[i].AsyncIOThread != NIL_RTTHREAD)
-        {
-            ASMAtomicWriteU32(&pThis->aCts[i].fShutdown, true);
-            rc = RTSemEventSignal(pThis->aCts[i].AsyncIOSem);
-            AssertRC(rc);
-            rc = RTSemEventSignal(pThis->aCts[i].SuspendIOSem);
-            AssertRC(rc);
-        }
-    }
-
-    /*
-     * Wait for the threads to terminate before destroying their resources.
-     */
-    for (unsigned i = 0; i < RT_ELEMENTS(pThis->aCts); i++)
-    {
-        if (pThis->aCts[i].AsyncIOThread != NIL_RTTHREAD)
-        {
-            rc = RTThreadWait(pThis->aCts[i].AsyncIOThread, 30000 /* 30 s*/, NULL);
-            if (RT_SUCCESS(rc))
-                pThis->aCts[i].AsyncIOThread = NIL_RTTHREAD;
-            else
-                LogRel(("PIIX3 ATA Dtor: Ctl#%u is still executing, DevSel=%d AIOIf=%d CmdIf0=%#04x CmdIf1=%#04x rc=%Rrc\n",
-                        i, pThis->aCts[i].iSelectedIf, pThis->aCts[i].iAIOIf,
-                        pThis->aCts[i].aIfs[0].uATARegCommand, pThis->aCts[i].aIfs[1].uATARegCommand, rc));
-        }
-    }
-
-    /*
-     * Free resources.
-     */
-    for (uint32_t i = 0; i < RT_ELEMENTS(pThis->aCts); i++)
-    {
-        if (pThis->aCts[i].AsyncIORequestMutex != NIL_RTSEMMUTEX)
-        {
-            RTSemMutexDestroy(pThis->aCts[i].AsyncIORequestMutex);
-            pThis->aCts[i].AsyncIORequestMutex = NIL_RTSEMMUTEX;
-        }
-        if (pThis->aCts[i].AsyncIOSem != NIL_RTSEMEVENT)
-        {
-            RTSemEventDestroy(pThis->aCts[i].AsyncIOSem);
-            pThis->aCts[i].AsyncIOSem = NIL_RTSEMEVENT;
-        }
-        if (pThis->aCts[i].SuspendIOSem != NIL_RTSEMEVENT)
-        {
-            RTSemEventDestroy(pThis->aCts[i].SuspendIOSem);
-            pThis->aCts[i].SuspendIOSem = NIL_RTSEMEVENT;
-        }
-
-        /* try one final time */
-        if (pThis->aCts[i].AsyncIOThread != NIL_RTTHREAD)
-        {
-            rc = RTThreadWait(pThis->aCts[i].AsyncIOThread, 1 /*ms*/, NULL);
-            if (RT_SUCCESS(rc))
-            {
-                pThis->aCts[i].AsyncIOThread = NIL_RTTHREAD;
-                LogRel(("PIIX3 ATA Dtor: Ctl#%u actually completed.\n", i));
-            }
-        }
-
-        for (uint32_t iIf = 0; iIf < RT_ELEMENTS(pThis->aCts[i].aIfs); iIf++)
-        {
-            if (pThis->aCts[i].aIfs[iIf].pbCueSheet)
-            {
-                RTMemFree(pThis->aCts[i].aIfs[iIf].pbCueSheet);
-                pThis->aCts[i].aIfs[iIf].pbCueSheet = NULL;
-            }
-        }
-    }
-
-    return VINF_SUCCESS;
-}
-
-
-/**
  * Detach notification.
  *
  * The DVD drive has been unplugged.
@@ -6434,6 +6206,11 @@ static int ataConfigLun(PPDMDEVINS pDevIns, ATADevState *pIf)
     /*
      * Allocate I/O buffer.
      */
+    if (pIf->fATAPI)
+        pIf->cbSector = 2048;
+    else
+        pIf->cbSector = pIf->pDrvBlock->pfnGetSectorSize(pIf->pDrvBlock);
+
     PVM pVM = PDMDevHlpGetVM(pDevIns);
     if (pIf->cbIOBuffer)
     {
@@ -6442,7 +6219,7 @@ static int ataConfigLun(PPDMDEVINS pDevIns, ATADevState *pIf)
         if (pIf->fATAPI)
             AssertRelease(pIf->cbIOBuffer == _128K);
         else
-            AssertRelease(pIf->cbIOBuffer == ATA_MAX_MULT_SECTORS * 512);
+            AssertRelease(pIf->cbIOBuffer == ATA_MAX_MULT_SECTORS * pIf->cbSector);
         Assert(pIf->pbIOBufferR3);
         Assert(pIf->pbIOBufferR0 == MMHyperR3ToR0(pVM, pIf->pbIOBufferR3));
         Assert(pIf->pbIOBufferRC == MMHyperR3ToRC(pVM, pIf->pbIOBufferR3));
@@ -6452,7 +6229,7 @@ static int ataConfigLun(PPDMDEVINS pDevIns, ATADevState *pIf)
         if (pIf->fATAPI)
             pIf->cbIOBuffer = _128K;
         else
-            pIf->cbIOBuffer = ATA_MAX_MULT_SECTORS * 512;
+            pIf->cbIOBuffer = ATA_MAX_MULT_SECTORS * pIf->cbSector;
         Assert(!pIf->pbIOBufferR3);
         rc = MMR3HyperAllocOnceNoRel(pVM, pIf->cbIOBuffer, 0, MM_TAG_PDM_DEVICE_USER, (void **)&pIf->pbIOBufferR3);
         if (RT_FAILURE(rc))
@@ -6466,7 +6243,7 @@ static int ataConfigLun(PPDMDEVINS pDevIns, ATADevState *pIf)
      */
     if (pIf->fATAPI)
     {
-        pIf->cTotalSectors = pIf->pDrvBlock->pfnGetSize(pIf->pDrvBlock) / 2048;
+        pIf->cTotalSectors = pIf->pDrvBlock->pfnGetSize(pIf->pDrvBlock) / pIf->cbSector;
         pIf->PCHSGeometry.cCylinders = 0; /* dummy */
         pIf->PCHSGeometry.cHeads     = 0; /* dummy */
         pIf->PCHSGeometry.cSectors   = 0; /* dummy */
@@ -6474,7 +6251,7 @@ static int ataConfigLun(PPDMDEVINS pDevIns, ATADevState *pIf)
     }
     else
     {
-        pIf->cTotalSectors = pIf->pDrvBlock->pfnGetSize(pIf->pDrvBlock) / 512;
+        pIf->cTotalSectors = pIf->pDrvBlock->pfnGetSize(pIf->pDrvBlock) / pIf->cbSector;
         rc = pIf->pDrvBlockBios->pfnGetPCHSGeometry(pIf->pDrvBlockBios,
                                                     &pIf->PCHSGeometry);
         if (rc == VERR_PDM_MEDIA_NOT_MOUNTED)
@@ -6639,183 +6416,6 @@ static bool ataR3AllAsyncIOIsIdle(PPDMDEVINS pDevIns)
     return true;
 }
 
-
-/**
- * Callback employed by ataSuspend and ataR3PowerOff.
- *
- * @returns true if we've quiesced, false if we're still working.
- * @param   pDevIns     The device instance.
- */
-static DECLCALLBACK(bool) ataR3IsAsyncSuspendOrPowerOffDone(PPDMDEVINS pDevIns)
-{
-    return ataR3AllAsyncIOIsIdle(pDevIns);
-}
-
-
-/**
- * Common worker for ataSuspend and ataR3PowerOff.
- */
-static void ataR3SuspendOrPowerOff(PPDMDEVINS pDevIns)
-{
-    if (!ataR3AllAsyncIOIsIdle(pDevIns))
-        PDMDevHlpSetAsyncNotification(pDevIns, ataR3IsAsyncSuspendOrPowerOffDone);
-}
-
-
-/**
- * Power Off notification.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- */
-static DECLCALLBACK(void) ataR3PowerOff(PPDMDEVINS pDevIns)
-{
-    Log(("%s:\n", __FUNCTION__));
-    ataR3SuspendOrPowerOff(pDevIns);
-}
-
-
-/**
- * Suspend notification.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- */
-static DECLCALLBACK(void) ataR3Suspend(PPDMDEVINS pDevIns)
-{
-    Log(("%s:\n", __FUNCTION__));
-    ataR3SuspendOrPowerOff(pDevIns);
-}
-
-
-/**
- * Callback employed by ataR3Reset.
- *
- * @returns true if we've quiesced, false if we're still working.
- * @param   pDevIns     The device instance.
- */
-static DECLCALLBACK(bool) ataR3IsAsyncResetDone(PPDMDEVINS pDevIns)
-{
-    PCIATAState *pThis = PDMINS_2_DATA(pDevIns, PCIATAState *);
-
-    if (!ataR3AllAsyncIOIsIdle(pDevIns))
-        return false;
-
-    for (uint32_t i = 0; i < RT_ELEMENTS(pThis->aCts); i++)
-    {
-        PDMCritSectEnter(&pThis->aCts[i].lock, VERR_INTERNAL_ERROR);
-        for (uint32_t j = 0; j < RT_ELEMENTS(pThis->aCts[i].aIfs); j++)
-            ataResetDevice(&pThis->aCts[i].aIfs[j]);
-        PDMCritSectLeave(&pThis->aCts[i].lock);
-    }
-    return true;
-}
-
-
-/**
- * Common reset worker for ataR3Reset and ataR3Construct.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- * @param   fConstruct  Indicates who is calling.
- */
-static int ataR3ResetCommon(PPDMDEVINS pDevIns, bool fConstruct)
-{
-    PCIATAState *pThis = PDMINS_2_DATA(pDevIns, PCIATAState *);
-
-    for (uint32_t i = 0; i < RT_ELEMENTS(pThis->aCts); i++)
-    {
-        PDMCritSectEnter(&pThis->aCts[i].lock, VERR_INTERNAL_ERROR);
-
-        pThis->aCts[i].iSelectedIf = 0;
-        pThis->aCts[i].iAIOIf = 0;
-        pThis->aCts[i].BmDma.u8Cmd = 0;
-        /* Report that both drives present on the bus are in DMA mode. This
-         * pretends that there is a BIOS that has set it up. Normal reset
-         * default is 0x00. */
-        pThis->aCts[i].BmDma.u8Status =   (pThis->aCts[i].aIfs[0].pDrvBase != NULL ? BM_STATUS_D0DMA : 0)
-                                        | (pThis->aCts[i].aIfs[1].pDrvBase != NULL ? BM_STATUS_D1DMA : 0);
-        pThis->aCts[i].BmDma.pvAddr = 0;
-
-        pThis->aCts[i].fReset = true;
-        pThis->aCts[i].fRedo = false;
-        pThis->aCts[i].fRedoIdle = false;
-        ataAsyncIOClearRequests(&pThis->aCts[i]);
-        Log2(("%s: Ctl#%d: message to async I/O thread, reset controller\n", __FUNCTION__, i));
-        ataAsyncIOPutRequest(&pThis->aCts[i], &g_ataResetARequest);
-        ataAsyncIOPutRequest(&pThis->aCts[i], &g_ataResetCRequest);
-
-        PDMCritSectLeave(&pThis->aCts[i].lock);
-    }
-
-    int rcRet = VINF_SUCCESS;
-    if (!fConstruct)
-    {
-        /*
-         * Setup asynchronous notification completion if the requests haven't
-         * completed yet.
-         */
-        if (!ataR3IsAsyncResetDone(pDevIns))
-            PDMDevHlpSetAsyncNotification(pDevIns, ataR3IsAsyncResetDone);
-    }
-    else
-    {
-        /*
-         * Wait for the requests for complete.
-         *
-         * Would be real nice if we could do it all from EMT(0) and not
-         * involve the worker threads, then we could dispense with all the
-         * waiting and semaphore ping-pong here...
-         */
-        for (uint32_t i = 0; i < RT_ELEMENTS(pThis->aCts); i++)
-        {
-            if (pThis->aCts[i].AsyncIOThread != NIL_RTTHREAD)
-            {
-                int rc = RTSemMutexRequest(pThis->aCts[i].AsyncIORequestMutex, RT_INDEFINITE_WAIT);
-                AssertRC(rc);
-
-                ASMAtomicWriteBool(&pThis->aCts[i].fSignalIdle, true);
-                rc = RTThreadUserReset(pThis->aCts[i].AsyncIOThread);
-                AssertRC(rc);
-
-                rc = RTSemMutexRelease(pThis->aCts[i].AsyncIORequestMutex);
-                AssertRC(rc);
-
-                if (!ataAsyncIOIsIdle(&pThis->aCts[i], false /*fStrict*/))
-                {
-                    rc = RTThreadUserWait(pThis->aCts[i].AsyncIOThread,  30*1000 /*ms*/);
-                    if (RT_FAILURE(rc))
-                        rc = RTThreadUserWait(pThis->aCts[i].AsyncIOThread, 1000 /*ms*/);
-                    if (RT_FAILURE(rc))
-                    {
-                        AssertRC(rc);
-                        rcRet = rc;
-                    }
-                }
-            }
-            ASMAtomicWriteBool(&pThis->aCts[i].fSignalIdle, false);
-        }
-        if (RT_SUCCESS(rcRet))
-        {
-            rcRet = ataR3IsAsyncResetDone(pDevIns) ? VINF_SUCCESS : VERR_INTERNAL_ERROR;
-            AssertRC(rcRet);
-        }
-    }
-    return rcRet;
-}
-
-
-/**
- * Reset notification.
- *
- * @param   pDevIns     The device instance data.
- */
-static DECLCALLBACK(void)  ataR3Reset(PPDMDEVINS pDevIns)
-{
-    ataR3ResetCommon(pDevIns, false /*fConstruct*/);
-}
-
-
 /**
  * Prepare state save and load operation.
  *
@@ -6857,7 +6457,6 @@ static DECLCALLBACK(int) ataLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
 
     return VINF_SSM_DONT_CALL_AGAIN;
 }
-
 
 /**
  * @copydoc FNSSMDEVSAVEEXEC
@@ -7091,6 +6690,12 @@ static DECLCALLBACK(int) ataLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
             SSMR3GetBool(pSSM, &pThis->aCts[i].aIfs[j].fATAPITransfer);
             SSMR3GetU32(pSSM, &pThis->aCts[i].aIfs[j].cbTotalTransfer);
             SSMR3GetU32(pSSM, &pThis->aCts[i].aIfs[j].cbElementaryTransfer);
+            /* NB: cbPIOTransferLimit could be saved/restored but it's sufficient
+             * to re-calculate it here, with a tiny risk that it could be
+             * unnecessarily low for the current transfer only. Could be changed
+             * when changing the saved state in the future.
+             */
+            pThis->aCts[i].aIfs[j].cbPIOTransferLimit = (pThis->aCts[i].aIfs[j].uATARegHCyl << 8) | pThis->aCts[i].aIfs[j].uATARegLCyl;
             SSMR3GetU32(pSSM, &pThis->aCts[i].aIfs[j].iIOBufferCur);
             SSMR3GetU32(pSSM, &pThis->aCts[i].aIfs[j].iIOBufferEnd);
             SSMR3GetU32(pSSM, &pThis->aCts[i].aIfs[j].iIOBufferPIODataStart);
@@ -7158,6 +6763,293 @@ static DECLCALLBACK(int) ataLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
     return VINF_SUCCESS;
 }
 
+
+/**
+ * Callback employed by ataSuspend and ataR3PowerOff.
+ *
+ * @returns true if we've quiesced, false if we're still working.
+ * @param   pDevIns     The device instance.
+ */
+static DECLCALLBACK(bool) ataR3IsAsyncSuspendOrPowerOffDone(PPDMDEVINS pDevIns)
+{
+    return ataR3AllAsyncIOIsIdle(pDevIns);
+}
+
+
+/**
+ * Common worker for ataSuspend and ataR3PowerOff.
+ */
+static void ataR3SuspendOrPowerOff(PPDMDEVINS pDevIns)
+{
+    if (!ataR3AllAsyncIOIsIdle(pDevIns))
+        PDMDevHlpSetAsyncNotification(pDevIns, ataR3IsAsyncSuspendOrPowerOffDone);
+}
+
+
+/**
+ * Power Off notification.
+ *
+ * @returns VBox status.
+ * @param   pDevIns     The device instance data.
+ */
+static DECLCALLBACK(void) ataR3PowerOff(PPDMDEVINS pDevIns)
+{
+    Log(("%s:\n", __FUNCTION__));
+    ataR3SuspendOrPowerOff(pDevIns);
+}
+
+
+/**
+ * Suspend notification.
+ *
+ * @returns VBox status.
+ * @param   pDevIns     The device instance data.
+ */
+static DECLCALLBACK(void) ataR3Suspend(PPDMDEVINS pDevIns)
+{
+    Log(("%s:\n", __FUNCTION__));
+    ataR3SuspendOrPowerOff(pDevIns);
+}
+
+
+/**
+ * Callback employed by ataR3Reset.
+ *
+ * @returns true if we've quiesced, false if we're still working.
+ * @param   pDevIns     The device instance.
+ */
+static DECLCALLBACK(bool) ataR3IsAsyncResetDone(PPDMDEVINS pDevIns)
+{
+    PCIATAState *pThis = PDMINS_2_DATA(pDevIns, PCIATAState *);
+
+    if (!ataR3AllAsyncIOIsIdle(pDevIns))
+        return false;
+
+    for (uint32_t i = 0; i < RT_ELEMENTS(pThis->aCts); i++)
+    {
+        PDMCritSectEnter(&pThis->aCts[i].lock, VERR_INTERNAL_ERROR);
+        for (uint32_t j = 0; j < RT_ELEMENTS(pThis->aCts[i].aIfs); j++)
+            ataResetDevice(&pThis->aCts[i].aIfs[j]);
+        PDMCritSectLeave(&pThis->aCts[i].lock);
+    }
+    return true;
+}
+
+
+/**
+ * Common reset worker for ataR3Reset and ataR3Construct.
+ *
+ * @returns VBox status.
+ * @param   pDevIns     The device instance data.
+ * @param   fConstruct  Indicates who is calling.
+ */
+static int ataR3ResetCommon(PPDMDEVINS pDevIns, bool fConstruct)
+{
+    PCIATAState *pThis = PDMINS_2_DATA(pDevIns, PCIATAState *);
+
+    for (uint32_t i = 0; i < RT_ELEMENTS(pThis->aCts); i++)
+    {
+        PDMCritSectEnter(&pThis->aCts[i].lock, VERR_INTERNAL_ERROR);
+
+        pThis->aCts[i].iSelectedIf = 0;
+        pThis->aCts[i].iAIOIf = 0;
+        pThis->aCts[i].BmDma.u8Cmd = 0;
+        /* Report that both drives present on the bus are in DMA mode. This
+         * pretends that there is a BIOS that has set it up. Normal reset
+         * default is 0x00. */
+        pThis->aCts[i].BmDma.u8Status =   (pThis->aCts[i].aIfs[0].pDrvBase != NULL ? BM_STATUS_D0DMA : 0)
+                                        | (pThis->aCts[i].aIfs[1].pDrvBase != NULL ? BM_STATUS_D1DMA : 0);
+        pThis->aCts[i].BmDma.pvAddr = 0;
+
+        pThis->aCts[i].fReset = true;
+        pThis->aCts[i].fRedo = false;
+        pThis->aCts[i].fRedoIdle = false;
+        ataAsyncIOClearRequests(&pThis->aCts[i]);
+        Log2(("%s: Ctl#%d: message to async I/O thread, reset controller\n", __FUNCTION__, i));
+        ataAsyncIOPutRequest(&pThis->aCts[i], &g_ataResetARequest);
+        ataAsyncIOPutRequest(&pThis->aCts[i], &g_ataResetCRequest);
+
+        PDMCritSectLeave(&pThis->aCts[i].lock);
+    }
+
+    int rcRet = VINF_SUCCESS;
+    if (!fConstruct)
+    {
+        /*
+         * Setup asynchronous notification completion if the requests haven't
+         * completed yet.
+         */
+        if (!ataR3IsAsyncResetDone(pDevIns))
+            PDMDevHlpSetAsyncNotification(pDevIns, ataR3IsAsyncResetDone);
+    }
+    else
+    {
+        /*
+         * Wait for the requests for complete.
+         *
+         * Would be real nice if we could do it all from EMT(0) and not
+         * involve the worker threads, then we could dispense with all the
+         * waiting and semaphore ping-pong here...
+         */
+        for (uint32_t i = 0; i < RT_ELEMENTS(pThis->aCts); i++)
+        {
+            if (pThis->aCts[i].AsyncIOThread != NIL_RTTHREAD)
+            {
+                int rc = RTSemMutexRequest(pThis->aCts[i].AsyncIORequestMutex, RT_INDEFINITE_WAIT);
+                AssertRC(rc);
+
+                ASMAtomicWriteBool(&pThis->aCts[i].fSignalIdle, true);
+                rc = RTThreadUserReset(pThis->aCts[i].AsyncIOThread);
+                AssertRC(rc);
+
+                rc = RTSemMutexRelease(pThis->aCts[i].AsyncIORequestMutex);
+                AssertRC(rc);
+
+                if (!ataAsyncIOIsIdle(&pThis->aCts[i], false /*fStrict*/))
+                {
+                    rc = RTThreadUserWait(pThis->aCts[i].AsyncIOThread,  30*1000 /*ms*/);
+                    if (RT_FAILURE(rc))
+                        rc = RTThreadUserWait(pThis->aCts[i].AsyncIOThread, 1000 /*ms*/);
+                    if (RT_FAILURE(rc))
+                    {
+                        AssertRC(rc);
+                        rcRet = rc;
+                    }
+                }
+            }
+            ASMAtomicWriteBool(&pThis->aCts[i].fSignalIdle, false);
+        }
+        if (RT_SUCCESS(rcRet))
+        {
+            rcRet = ataR3IsAsyncResetDone(pDevIns) ? VINF_SUCCESS : VERR_INTERNAL_ERROR;
+            AssertRC(rcRet);
+        }
+    }
+    return rcRet;
+}
+
+/**
+ * Reset notification.
+ *
+ * @param   pDevIns     The device instance data.
+ */
+static DECLCALLBACK(void)  ataR3Reset(PPDMDEVINS pDevIns)
+{
+    ataR3ResetCommon(pDevIns, false /*fConstruct*/);
+}
+
+/**
+ * @copydoc FNPDMDEVRELOCATE
+ */
+static DECLCALLBACK(void) ataR3Relocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
+{
+    PCIATAState *pThis = PDMINS_2_DATA(pDevIns, PCIATAState *);
+
+    for (uint32_t i = 0; i < RT_ELEMENTS(pThis->aCts); i++)
+    {
+        pThis->aCts[i].pDevInsRC += offDelta;
+        pThis->aCts[i].aIfs[0].pDevInsRC += offDelta;
+        pThis->aCts[i].aIfs[0].pControllerRC += offDelta;
+        ataRelocBuffer(pDevIns, &pThis->aCts[i].aIfs[0]);
+        pThis->aCts[i].aIfs[1].pDevInsRC += offDelta;
+        pThis->aCts[i].aIfs[1].pControllerRC += offDelta;
+        ataRelocBuffer(pDevIns, &pThis->aCts[i].aIfs[1]);
+    }
+}
+
+/**
+ * Destroy a driver instance.
+ *
+ * Most VM resources are freed by the VM. This callback is provided so that any non-VM
+ * resources can be freed correctly.
+ *
+ * @param   pDevIns     The device instance data.
+ */
+static DECLCALLBACK(int) ataR3Destruct(PPDMDEVINS pDevIns)
+{
+    PCIATAState    *pThis = PDMINS_2_DATA(pDevIns, PCIATAState *);
+    int             rc;
+
+    Log(("ataR3Destruct\n"));
+    PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
+
+    /*
+     * Tell the async I/O threads to terminate.
+     */
+    for (uint32_t i = 0; i < RT_ELEMENTS(pThis->aCts); i++)
+    {
+        if (pThis->aCts[i].AsyncIOThread != NIL_RTTHREAD)
+        {
+            ASMAtomicWriteU32(&pThis->aCts[i].fShutdown, true);
+            rc = RTSemEventSignal(pThis->aCts[i].AsyncIOSem);
+            AssertRC(rc);
+            rc = RTSemEventSignal(pThis->aCts[i].SuspendIOSem);
+            AssertRC(rc);
+        }
+    }
+
+    /*
+     * Wait for the threads to terminate before destroying their resources.
+     */
+    for (unsigned i = 0; i < RT_ELEMENTS(pThis->aCts); i++)
+    {
+        if (pThis->aCts[i].AsyncIOThread != NIL_RTTHREAD)
+        {
+            rc = RTThreadWait(pThis->aCts[i].AsyncIOThread, 30000 /* 30 s*/, NULL);
+            if (RT_SUCCESS(rc))
+                pThis->aCts[i].AsyncIOThread = NIL_RTTHREAD;
+            else
+                LogRel(("PIIX3 ATA Dtor: Ctl#%u is still executing, DevSel=%d AIOIf=%d CmdIf0=%#04x CmdIf1=%#04x rc=%Rrc\n",
+                        i, pThis->aCts[i].iSelectedIf, pThis->aCts[i].iAIOIf,
+                        pThis->aCts[i].aIfs[0].uATARegCommand, pThis->aCts[i].aIfs[1].uATARegCommand, rc));
+        }
+    }
+
+    /*
+     * Free resources.
+     */
+    for (uint32_t i = 0; i < RT_ELEMENTS(pThis->aCts); i++)
+    {
+        if (pThis->aCts[i].AsyncIORequestMutex != NIL_RTSEMMUTEX)
+        {
+            RTSemMutexDestroy(pThis->aCts[i].AsyncIORequestMutex);
+            pThis->aCts[i].AsyncIORequestMutex = NIL_RTSEMMUTEX;
+        }
+        if (pThis->aCts[i].AsyncIOSem != NIL_RTSEMEVENT)
+        {
+            RTSemEventDestroy(pThis->aCts[i].AsyncIOSem);
+            pThis->aCts[i].AsyncIOSem = NIL_RTSEMEVENT;
+        }
+        if (pThis->aCts[i].SuspendIOSem != NIL_RTSEMEVENT)
+        {
+            RTSemEventDestroy(pThis->aCts[i].SuspendIOSem);
+            pThis->aCts[i].SuspendIOSem = NIL_RTSEMEVENT;
+        }
+
+        /* try one final time */
+        if (pThis->aCts[i].AsyncIOThread != NIL_RTTHREAD)
+        {
+            rc = RTThreadWait(pThis->aCts[i].AsyncIOThread, 1 /*ms*/, NULL);
+            if (RT_SUCCESS(rc))
+            {
+                pThis->aCts[i].AsyncIOThread = NIL_RTTHREAD;
+                LogRel(("PIIX3 ATA Dtor: Ctl#%u actually completed.\n", i));
+            }
+        }
+
+        for (uint32_t iIf = 0; iIf < RT_ELEMENTS(pThis->aCts[i].aIfs); iIf++)
+        {
+            if (pThis->aCts[i].aIfs[iIf].pTrackList)
+            {
+                ATAPIPassthroughTrackListDestroy(pThis->aCts[i].aIfs[iIf].pTrackList);
+                pThis->aCts[i].aIfs[iIf].pTrackList = NULL;
+            }
+        }
+    }
+
+    return VINF_SUCCESS;
+}
+
 /**
  * Convert config value to DEVPCBIOSBOOT.
  *
@@ -7189,7 +7081,6 @@ static int ataControllerFromCfg(PPDMDEVINS pDevIns, PCFGMNODE pCfg, CHIPSET *pen
     }
     return rc;
 }
-
 
 /**
  * @interface_method_impl{PDMDEVREG,pfnConstruct}
@@ -7344,6 +7235,12 @@ static DECLCALLBACK(int)   ataR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     pThis->aCts[1].irq          = 15;
     pThis->aCts[1].IOPortBase1  = 0x170;
     pThis->aCts[1].IOPortBase2  = 0x376;
+
+    /*
+     * Set the default critical section to NOP as we lock on controller level.
+     */
+    rc = PDMDevHlpSetDeviceCritSect(pDevIns, PDMDevHlpCritSectGetNop(pDevIns));
+    AssertRCReturn(rc, rc);
 
     /*
      * Register the PCI device.
@@ -7714,7 +7611,7 @@ const PDMDEVREG g_DevicePIIX3IDE =
     ataR3Destruct,
     /* pfnRelocate */
     ataR3Relocate,
-    /* pfnIOCtl */
+    /* pfnMemSetup */
     NULL,
     /* pfnPowerOn */
     NULL,

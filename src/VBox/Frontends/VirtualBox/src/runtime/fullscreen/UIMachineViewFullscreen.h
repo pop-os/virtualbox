@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,13 +40,12 @@ protected:
 
 private slots:
 
-    /* Console callback handlers: */
+    /* Handler: Console callback stuff: */
     void sltAdditionsStateChanged();
 
 private:
 
     /* Event handlers: */
-    bool event(QEvent *pEvent);
     bool eventFilter(QObject *pWatched, QEvent *pEvent);
 
     /* Prepare routines: */
@@ -56,18 +55,16 @@ private:
 
     /* Cleanup routines: */
     //void cleanupConsoleConnections() {}
-    //void cleanupConnections() {}
     //void cleanupFilters() {}
     //void cleanupCommon() {}
 
     /* Private setters: */
     void setGuestAutoresizeEnabled(bool bEnabled);
 
-    /* Private helpers: */
-    void normalizeGeometry(bool /* fAdjustPosition */) {}
+    /* Helpers: Geometry stuff: */
+    void maybeAdjustGuestScreenSize();
     QRect workingArea() const;
     QSize calculateMaxGuestSize() const;
-    void maybeRestrictMinimumSize();
 
     /* Private variables: */
     bool m_bIsGuestAutoresizeEnabled : 1;

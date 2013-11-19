@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -577,7 +577,7 @@ static size_t supR3HardenedStrPrintf(char *pszDst, size_t cchDst, const char *ps
  */
 static void supR3HardenedMainOpenDevice(void)
 {
-    int rc = suplibOsInit(&g_SupPreInitData.Data, false);
+    int rc = suplibOsInit(&g_SupPreInitData.Data, false /*fPreInit*/, true /*fUnrestricted*/);
     if (RT_SUCCESS(rc))
         return;
 

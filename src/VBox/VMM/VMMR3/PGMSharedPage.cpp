@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,6 +22,7 @@
 #define LOG_GROUP LOG_GROUP_PGM_SHARED
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/stam.h>
+#include <VBox/vmm/uvm.h>
 #include "PGMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/sup.h>
@@ -318,16 +319,9 @@ VMMR3DECL(int) PGMR3SharedModuleGetPageState(PVM pVM, RTGCPTR GCPtrPage, bool *p
 # ifdef VBOX_STRICT
 
 /**
- * The '.pgmcheckduppages' command.
- *
- * @returns VBox status.
- * @param   pCmd        Pointer to the command descriptor (as registered).
- * @param   pCmdHlp     Pointer to command helper functions.
- * @param   pVM         Pointer to the current VM (if any).
- * @param   paArgs      Pointer to (readonly) array of arguments.
- * @param   cArgs       Number of arguments in the array.
+ * @callback_method_impl{FNDBGCCMD, The '.pgmcheckduppages' command.}
  */
-DECLCALLBACK(int) pgmR3CmdCheckDuplicatePages(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
+DECLCALLBACK(int) pgmR3CmdCheckDuplicatePages(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     unsigned cBallooned = 0;
     unsigned cShared    = 0;
@@ -337,6 +331,8 @@ DECLCALLBACK(int) pgmR3CmdCheckDuplicatePages(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHl
     unsigned cAllocZero = 0;
     unsigned cPages     = 0;
     NOREF(pCmd); NOREF(paArgs); NOREF(cArgs);
+    PVM      pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
     pgmLock(pVM);
 
@@ -410,18 +406,13 @@ DECLCALLBACK(int) pgmR3CmdCheckDuplicatePages(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHl
 
 
 /**
- * The '.pgmsharedmodules' command.
- *
- * @returns VBox status.
- * @param   pCmd        Pointer to the command descriptor (as registered).
- * @param   pCmdHlp     Pointer to command helper functions.
- * @param   pVM         Pointer to the current VM (if any).
- * @param   paArgs      Pointer to (readonly) array of arguments.
- * @param   cArgs       Number of arguments in the array.
+ * @callback_method_impl{FNDBGCCMD, The '.pgmsharedmodules' command.}
  */
-DECLCALLBACK(int) pgmR3CmdShowSharedModules(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
+DECLCALLBACK(int) pgmR3CmdShowSharedModules(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     NOREF(pCmd); NOREF(paArgs); NOREF(cArgs);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
     pgmLock(pVM);
     for (unsigned i = 0; i < RT_ELEMENTS(g_apSharedModules); i++)

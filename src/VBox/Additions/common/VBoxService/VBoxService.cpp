@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2013 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,6 +56,9 @@
 #include <VBox/log.h>
 
 #include "VBoxServiceInternal.h"
+#ifdef VBOX_WITH_GUEST_CONTROL
+# include "VBoxServiceControl.h"
+#endif
 
 
 /*******************************************************************************
@@ -127,7 +130,7 @@ static struct
 # endif
     { &g_VMStatistics,  NIL_RTTHREAD, false, false, false, false, true },
 #endif
-#if defined(VBOX_WITH_PAGE_SHARING) && defined(RT_OS_WINDOWS)
+#if defined(VBOXSERVICE_PAGE_SHARING)
     { &g_PageSharing,   NIL_RTTHREAD, false, false, false, false, true },
 #endif
 #ifdef VBOX_WITH_SHARED_FOLDERS
@@ -212,12 +215,16 @@ static void VBoxServiceLogHeaderFooter(PRTLOGGER pLoggerRelease, RTLOGPHASE enmP
 
 /**
  * Creates the default release logger outputting to the specified file.
+ * Pass NULL for disabled logging.
  *
  * @return  IPRT status code.
  * @param   pszLogFile              Filename for log output.  Optional.
  */
 int VBoxServiceLogCreate(const char *pszLogFile)
 {
+    if (!pszLogFile) /* No logging wanted? Take a shortcut. */
+        return VINF_SUCCESS;
+
     /* Create release logger (stdout + file). */
     static const char * const s_apszGroups[] = VBOX_LOGGROUP_NAMES;
     RTUINT fFlags = RTLOGFLAGS_PREFIX_THREAD | RTLOGFLAGS_PREFIX_TIME_PROG;
@@ -241,6 +248,7 @@ int VBoxServiceLogCreate(const char *pszLogFile)
 
     return rc;
 }
+
 
 void VBoxServiceLogDestroy(void)
 {
@@ -634,6 +642,8 @@ int VBoxServiceStopServices(void)
             g_aServices[j].pDesc->pfnStop();
         }
 
+    VBoxServiceVerbose(3, "All stop functions for services called\n");
+
     /*
      * Wait for all the service threads to complete.
      */
@@ -791,9 +801,19 @@ int main(int argc, char **argv)
      * Check if we're the specially spawned VBoxService.exe process that
      * handles page fusion.  This saves an extra executable.
      */
+    if (    argc == 2
+        &&  !RTStrICmp(argv[1], "pagefusion"))
+        return VBoxServicePageSharingInitFork();
+#endif
+
+#ifdef VBOX_WITH_GUEST_CONTROL
+    /*
+     * Check if we're the specially spawned VBoxService.exe process that
+     * handles a guest control session.
+     */
     if (    argc >= 2
-        &&  !strcmp(argv[1], "--pagefusionfork"))
-        return VBoxServicePageSharingInitFork(argc, argv);
+        &&  !RTStrICmp(argv[1], "guestsession"))
+        return VBoxServiceControlSessionForkInit(argc, argv);
 #endif
 
     /*
@@ -844,17 +864,17 @@ int main(int argc, char **argv)
             {
                 bool fFound = false;
 
-                if (cch > sizeof("enable-") && !memcmp(psz, "enable-", sizeof("enable-") - 1))
+                if (cch > sizeof("enable-") && !memcmp(psz, RT_STR_TUPLE("enable-")))
                     for (unsigned j = 0; !fFound && j < RT_ELEMENTS(g_aServices); j++)
                         if ((fFound = !RTStrICmp(psz + sizeof("enable-") - 1, g_aServices[j].pDesc->pszName)))
                             g_aServices[j].fEnabled = true;
 
-                if (cch > sizeof("disable-") && !memcmp(psz, "disable-", sizeof("disable-") - 1))
+                if (cch > sizeof("disable-") && !memcmp(psz, RT_STR_TUPLE("disable-")))
                     for (unsigned j = 0; !fFound && j < RT_ELEMENTS(g_aServices); j++)
                         if ((fFound = !RTStrICmp(psz + sizeof("disable-") - 1, g_aServices[j].pDesc->pszName)))
                             g_aServices[j].fEnabled = false;
 
-                if (cch > sizeof("only-") && !memcmp(psz, "only-", sizeof("only-") - 1))
+                if (cch > sizeof("only-") && !memcmp(psz, RT_STR_TUPLE("only-")))
                     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
                     {
                         g_aServices[j].fEnabled = !RTStrICmp(psz + sizeof("only-") - 1, g_aServices[j].pDesc->pszName);

@@ -1,11 +1,10 @@
-
 /* $Id: GuestSessionImplTasks.cpp $ */
 /** @file
- * VirtualBox Main - XXX.
+ * VirtualBox Main - Guest session tasks.
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -138,6 +137,9 @@ int GuestSessionTask::setProgressSuccess(void)
 
 HRESULT GuestSessionTask::setProgressErrorMsg(HRESULT hr, const Utf8Str &strMsg)
 {
+    LogFlowFunc(("hr=%Rhrc, strMsg=%s\n",
+                 hr, strMsg.c_str()));
+
     if (mProgress.isNull()) /* Progress is optional. */
         return hr; /* Return original rc. */
 
@@ -156,6 +158,62 @@ HRESULT GuestSessionTask::setProgressErrorMsg(HRESULT hr, const Utf8Str &strMsg)
             return hr2;
     }
     return hr; /* Return original rc. */
+}
+
+SessionTaskOpen::SessionTaskOpen(GuestSession *pSession,
+                                 uint32_t uFlags,
+                                 uint32_t uTimeoutMS)
+                                 : GuestSessionTask(pSession),
+                                   mFlags(uFlags),
+                                   mTimeoutMS(uTimeoutMS)
+{
+
+}
+
+SessionTaskOpen::~SessionTaskOpen(void)
+{
+
+}
+
+int SessionTaskOpen::Run(int *pGuestRc)
+{
+    LogFlowThisFuncEnter();
+
+    ComObjPtr<GuestSession> pSession = mSession;
+    Assert(!pSession.isNull());
+
+    AutoCaller autoCaller(pSession);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    int vrc = pSession->startSessionInternal(pGuestRc);
+    /* Nothing to do here anymore. */
+
+    LogFlowFuncLeaveRC(vrc);
+    return vrc;
+}
+
+int SessionTaskOpen::RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress)
+{
+    LogFlowThisFunc(("strDesc=%s\n", strDesc.c_str()));
+
+    mDesc = strDesc;
+    mProgress = pProgress;
+
+    int rc = RTThreadCreate(NULL, SessionTaskOpen::taskThread, this,
+                            0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0,
+                            "gctlSesOpen");
+    LogFlowFuncLeaveRC(rc);
+    return rc;
+}
+
+/* static */
+int SessionTaskOpen::taskThread(RTTHREAD Thread, void *pvUser)
+{
+    std::auto_ptr<SessionTaskOpen> task(static_cast<SessionTaskOpen*>(pvUser));
+    AssertReturn(task.get(), VERR_GENERAL_FAILURE);
+
+    LogFlowFunc(("pTask=%p\n", task.get()));
+    return task->Run(NULL /* guestRc */);
 }
 
 SessionTaskCopyTo::SessionTaskCopyTo(GuestSession *pSession,
@@ -260,12 +318,13 @@ int SessionTaskCopyTo::Run(void)
     ComObjPtr<GuestProcess> pProcess; int guestRc;
     rc = pSession->processCreateExInteral(procInfo, pProcess);
     if (RT_SUCCESS(rc))
-        rc = pProcess->startProcess(&guestRc);
+        rc = pProcess->startProcess(30 * 1000 /* 30s timeout */,
+                                    &guestRc);
     if (RT_FAILURE(rc))
     {
         switch (rc)
         {
-            case VERR_GENERAL_FAILURE: /** @todo Special guest control rc needed! */
+            case VERR_GSTCTL_GUEST_ERROR:
                 setProgressErrorMsg(VBOX_E_IPRT_ERROR,
                                     GuestProcess::guestErrorToString(guestRc));
                 break;
@@ -301,7 +360,7 @@ int SessionTaskCopyTo::Run(void)
             /* If the guest does not support waiting for stdin, we now yield in
              * order to reduce the CPU load due to busy waiting. */
             if (waitRes == ProcessWaitResult_WaitFlagNotSupported)
-                RTThreadSleep(1); /* Optional, don't check rc. */
+                RTThreadYield(); /* Optional, don't check rc. */
 
             size_t cbRead = 0;
             if (mSourceSize) /* If we have nothing to write, take a shortcut. */
@@ -312,7 +371,7 @@ int SessionTaskCopyTo::Run(void)
                 if (RT_SUCCESS(rc))
                 {
                     rc = RTFileRead(*pFile, (uint8_t*)byBuf,
-                                    RT_MIN(cbToRead, sizeof(byBuf)), &cbRead);
+                                    RT_MIN((size_t)cbToRead, sizeof(byBuf)), &cbRead);
                     /*
                      * Some other error occured? There might be a chance that RTFileRead
                      * could not resolve/map the native error code to an IPRT code, so just
@@ -360,7 +419,7 @@ int SessionTaskCopyTo::Run(void)
             {
                 switch (rc)
                 {
-                    case VERR_GENERAL_FAILURE: /** @todo Special guest control rc needed! */
+                    case VERR_GSTCTL_GUEST_ERROR:
                         setProgressErrorMsg(VBOX_E_IPRT_ERROR,
                                             GuestProcess::guestErrorToString(guestRc));
                         break;
@@ -403,7 +462,8 @@ int SessionTaskCopyTo::Run(void)
                 break;
         } /* for */
 
-        LogFlowThisFunc(("Copy loop ended with rc=%Rrc\n" ,rc));
+        LogFlowThisFunc(("Copy loop ended with rc=%Rrc, cbWrittenTotal=%RU64, cbFileSize=%RU64\n",
+                         rc, cbWrittenTotal, mSourceSize));
 
         if (   !fCanceled
             || RT_SUCCESS(rc))
@@ -472,8 +532,7 @@ int SessionTaskCopyTo::Run(void)
             }
         }
 
-        if (!pProcess.isNull())
-            pProcess->uninit();
+        pProcess->Release();
     } /* processCreateExInteral */
 
     if (!mSourceFile) /* Only close locally opened files. */
@@ -567,8 +626,8 @@ int SessionTaskCopyFrom::Run(void)
         else
         {
             GuestProcessStartupInfo procInfo;
-            procInfo.mName    = Utf8StrFmt(GuestSession::tr("Copying file \"%s\" from guest to the host to \"%s\" (%RI64 bytes)"),
-                                                            mSource.c_str(), mDest.c_str(), objData.mObjectSize);
+            procInfo.mName      = Utf8StrFmt(GuestSession::tr("Copying file \"%s\" from guest to the host to \"%s\" (%RI64 bytes)"),
+                                                              mSource.c_str(), mDest.c_str(), objData.mObjectSize);
             procInfo.mCommand   = Utf8Str(VBOXSERVICE_TOOL_CAT);
             procInfo.mFlags     = ProcessCreateFlag_Hidden | ProcessCreateFlag_WaitForStdOut;
 
@@ -579,12 +638,13 @@ int SessionTaskCopyFrom::Run(void)
             ComObjPtr<GuestProcess> pProcess;
             rc = pSession->processCreateExInteral(procInfo, pProcess);
             if (RT_SUCCESS(rc))
-                rc = pProcess->startProcess(&guestRc);
+                rc = pProcess->startProcess(30 * 1000 /* 30s timeout */,
+                                            &guestRc);
             if (RT_FAILURE(rc))
             {
                 switch (rc)
                 {
-                    case VERR_GENERAL_FAILURE: /** @todo Special guest control rc needed! */
+                    case VERR_GSTCTL_GUEST_ERROR:
                         setProgressErrorMsg(VBOX_E_IPRT_ERROR,
                                             GuestProcess::guestErrorToString(guestRc));
                         break;
@@ -613,7 +673,7 @@ int SessionTaskCopyFrom::Run(void)
                     {
                         switch (rc)
                         {
-                            case VERR_GENERAL_FAILURE: /** @todo Special guest control rc needed! */
+                            case VERR_GSTCTL_GUEST_ERROR:
                                 setProgressErrorMsg(VBOX_E_IPRT_ERROR,
                                                     GuestProcess::guestErrorToString(guestRc));
                                 break;
@@ -634,9 +694,9 @@ int SessionTaskCopyFrom::Run(void)
                         /* If the guest does not support waiting for stdin, we now yield in
                          * order to reduce the CPU load due to busy waiting. */
                         if (waitRes == ProcessWaitResult_WaitFlagNotSupported)
-                            RTThreadSleep(1); /* Optional, don't check rc. */
+                            RTThreadYield(); /* Optional, don't check rc. */
 
-                        size_t cbRead;
+                        uint32_t cbRead = 0; /* readData can return with VWRN_GSTCTL_OBJECTSTATE_CHANGED. */
                         rc = pProcess->readData(OUTPUT_HANDLE_ID_STDOUT, sizeof(byBuf),
                                                 30 * 1000 /* Timeout */, byBuf, sizeof(byBuf),
                                                 &cbRead, &guestRc);
@@ -644,7 +704,7 @@ int SessionTaskCopyFrom::Run(void)
                         {
                             switch (rc)
                             {
-                                case VERR_GENERAL_FAILURE: /** @todo Special guest control rc needed! */
+                                case VERR_GSTCTL_GUEST_ERROR:
                                     setProgressErrorMsg(VBOX_E_IPRT_ERROR,
                                                         GuestProcess::guestErrorToString(guestRc));
                                     break;
@@ -743,8 +803,7 @@ int SessionTaskCopyFrom::Run(void)
                     }
                 }
 
-                if (!pProcess.isNull())
-                    pProcess->uninit();
+                pProcess->Release();
             }
 
             RTFileClose(fileDest);
@@ -781,16 +840,58 @@ int SessionTaskCopyFrom::taskThread(RTTHREAD Thread, void *pvUser)
 }
 
 SessionTaskUpdateAdditions::SessionTaskUpdateAdditions(GuestSession *pSession,
-                                                       const Utf8Str &strSource, uint32_t uFlags)
+                                                       const Utf8Str &strSource,
+                                                       const ProcessArguments &aArguments,
+                                                       uint32_t uFlags)
                                                        : GuestSessionTask(pSession)
 {
     mSource = strSource;
+    mArguments = aArguments;
     mFlags  = uFlags;
 }
 
 SessionTaskUpdateAdditions::~SessionTaskUpdateAdditions(void)
 {
 
+}
+
+int SessionTaskUpdateAdditions::addProcessArguments(ProcessArguments &aArgumentsDest,
+                                                    const ProcessArguments &aArgumentsSource)
+{
+    int rc = VINF_SUCCESS;
+
+    try
+    {
+        /* Filter out arguments which already are in the destination to
+         * not end up having them specified twice. Not the fastest method on the
+         * planet but does the job. */
+        ProcessArguments::const_iterator itSource = aArgumentsSource.begin();
+        while (itSource != aArgumentsSource.end())
+        {
+            bool fFound = false;
+            ProcessArguments::iterator itDest = aArgumentsDest.begin();
+            while (itDest != aArgumentsDest.end())
+            {
+                if ((*itDest).equalsIgnoreCase((*itSource)))
+                {
+                    fFound = true;
+                    break;
+                }
+                itDest++;
+            }
+
+            if (!fFound)
+                aArgumentsDest.push_back((*itSource));
+
+            itSource++;
+        }
+    }
+    catch(std::bad_alloc &)
+    {
+        return VERR_NO_MEMORY;
+    }
+
+    return rc;
 }
 
 int SessionTaskUpdateAdditions::copyFileToGuest(GuestSession *pSession, PRTISOFSFILE pISO,
@@ -820,8 +921,8 @@ int SessionTaskUpdateAdditions::copyFileToGuest(GuestSession *pSession, PRTISOFS
     /* Copy over the Guest Additions file to the guest. */
     if (RT_SUCCESS(rc))
     {
-        LogFlowThisFunc(("Copying Guest Additions installer file \"%s\" to \"%s\" on guest ...\n",
-                         strFileSource.c_str(), strFileDest.c_str()));
+        LogRel(("Copying Guest Additions installer file \"%s\" to \"%s\" on guest ...\n",
+                strFileSource.c_str(), strFileDest.c_str()));
 
         if (RT_SUCCESS(rc))
         {
@@ -858,8 +959,8 @@ int SessionTaskUpdateAdditions::copyFileToGuest(GuestSession *pSession, PRTISOFS
     /* Determine where the installer image ended up and if it has the correct size. */
     if (RT_SUCCESS(rc))
     {
-        LogFlowThisFunc(("Verifying Guest Additions installer file \"%s\" ...\n",
-                         strFileDest.c_str()));
+        LogRel(("Verifying Guest Additions installer file \"%s\" ...\n",
+                strFileDest.c_str()));
 
         GuestFsObjData objData;
         int64_t cbSizeOnGuest; int guestRc;
@@ -874,15 +975,15 @@ int SessionTaskUpdateAdditions::copyFileToGuest(GuestSession *pSession, PRTISOFS
         {
             if (RT_SUCCESS(rc)) /* Size does not match. */
             {
-                LogFlowThisFunc(("Size of Guest Additions installer file \"%s\" does not match: %RI64bytes copied, %RU64bytes expected\n",
-                                 strFileDest.c_str(), cbSizeOnGuest, cbSize));
+                LogRel(("Size of Guest Additions installer file \"%s\" does not match: %RI64 bytes copied, %RU64 bytes expected\n",
+                        strFileDest.c_str(), cbSizeOnGuest, cbSize));
                 rc = VERR_BROKEN_PIPE; /** @todo Find a better error. */
             }
             else
             {
                 switch (rc)
                 {
-                    case VERR_GENERAL_FAILURE: /** @todo Special guest control rc needed! */
+                    case VERR_GSTCTL_GUEST_ERROR:
                         setProgressErrorMsg(VBOX_E_IPRT_ERROR,
                                             GuestProcess::guestErrorToString(guestRc));
                         break;
@@ -899,7 +1000,7 @@ int SessionTaskUpdateAdditions::copyFileToGuest(GuestSession *pSession, PRTISOFS
         if (RT_SUCCESS(rc))
         {
             if (pcbSize)
-                *pcbSize = cbSizeOnGuest;
+                *pcbSize = (uint32_t)cbSizeOnGuest;
         }
     }
 
@@ -933,7 +1034,7 @@ int SessionTaskUpdateAdditions::runFileOnGuest(GuestSession *pSession, GuestProc
                                                procInfo.mCommand.c_str(), exitCode));
                 break;
 
-            case VERR_GENERAL_FAILURE: /** @todo Special guest control rc needed! */
+            case VERR_GSTCTL_GUEST_ERROR:
                 setProgressErrorMsg(VBOX_E_IPRT_ERROR,
                                     GuestProcess::guestErrorToString(guestRc));
                 break;
@@ -1036,7 +1137,7 @@ int SessionTaskUpdateAdditions::Run(void)
     }
 
     Utf8Str strOSVer;
-    eOSType osType;
+    eOSType osType = eOSType_Unknown;
     if (RT_SUCCESS(rc))
     {
         /*
@@ -1066,20 +1167,29 @@ int SessionTaskUpdateAdditions::Run(void)
                  * can't do automated updates here. */
                 /* Windows XP 64-bit (5.2) is a Windows 2003 Server actually, so skip this here. */
                 if (   RT_SUCCESS(rc)
-                    && (   strOSVer.startsWith("5.0")  /* Exclude the build number. */
-                        || strOSVer.startsWith("5.1")) /* Exclude the build number. */
-                   )
+                    && RTStrVersionCompare(strOSVer.c_str(), "5.0") >= 0)
                 {
-                    /* If we don't have AdditionsUpdateFlag_WaitForUpdateStartOnly set we can't continue
-                     * because the Windows Guest Additions installer will fail because of WHQL popups. If the
-                     * flag is set this update routine ends successfully as soon as the installer was started
-                     * (and the user has to deal with it in the guest). */
-                    if (!(mFlags & AdditionsUpdateFlag_WaitForUpdateStartOnly))
+                    if (   strOSVer.startsWith("5.0") /* Exclude the build number. */
+                        || strOSVer.startsWith("5.1") /* Exclude the build number. */)
                     {
-                        hr = setProgressErrorMsg(VBOX_E_NOT_SUPPORTED,
-                                                 Utf8StrFmt(GuestSession::tr("Windows 2000 and XP are not supported for automatic updating due to WHQL interaction, please update manually")));
-                        rc = VERR_NOT_SUPPORTED;
+                        /* If we don't have AdditionsUpdateFlag_WaitForUpdateStartOnly set we can't continue
+                         * because the Windows Guest Additions installer will fail because of WHQL popups. If the
+                         * flag is set this update routine ends successfully as soon as the installer was started
+                         * (and the user has to deal with it in the guest). */
+                        if (!(mFlags & AdditionsUpdateFlag_WaitForUpdateStartOnly))
+                        {
+                            hr = setProgressErrorMsg(VBOX_E_NOT_SUPPORTED,
+                                                     Utf8StrFmt(GuestSession::tr("Windows 2000 and XP are not supported for automatic updating due to WHQL interaction, please update manually")));
+                            rc = VERR_NOT_SUPPORTED;
+                        }
                     }
+                }
+                else
+                {
+                    hr = setProgressErrorMsg(VBOX_E_NOT_SUPPORTED,
+                                             Utf8StrFmt(GuestSession::tr("%s (%s) not supported for automatic updating, please update manually"),
+                                                        strOSType.c_str(), strOSVer.c_str()));
+                    rc = VERR_NOT_SUPPORTED;
                 }
             }
             else if (strOSType.contains("Solaris", Utf8Str::CaseInsensitive))
@@ -1090,7 +1200,8 @@ int SessionTaskUpdateAdditions::Run(void)
                 osType = eOSType_Linux;
 
 #if 1 /* Only Windows is supported (and tested) at the moment. */
-            if (osType != eOSType_Windows)
+            if (   RT_SUCCESS(rc)
+                && osType != eOSType_Windows)
             {
                 hr = setProgressErrorMsg(VBOX_E_NOT_SUPPORTED,
                                          Utf8StrFmt(GuestSession::tr("Detected guest OS (%s) does not support automatic Guest Additions updating, please update manually"),
@@ -1172,15 +1283,15 @@ int SessionTaskUpdateAdditions::Run(void)
             {
                 switch (rc)
                 {
-                    case VERR_GENERAL_FAILURE: /** @todo Special guest control rc needed! */
-                        setProgressErrorMsg(VBOX_E_IPRT_ERROR,
-                                            GuestProcess::guestErrorToString(guestRc));
+                    case VERR_GSTCTL_GUEST_ERROR:
+                        hr = setProgressErrorMsg(VBOX_E_IPRT_ERROR,
+                                                 GuestProcess::guestErrorToString(guestRc));
                         break;
 
                     default:
-                        setProgressErrorMsg(VBOX_E_IPRT_ERROR,
-                                            Utf8StrFmt(GuestSession::tr("Error creating installation directory \"%s\" on the guest: %Rrc"),
-                                                       strUpdateDir.c_str(), rc));
+                        hr = setProgressErrorMsg(VBOX_E_IPRT_ERROR,
+                                                 Utf8StrFmt(GuestSession::tr("Error creating installation directory \"%s\" on the guest: %Rrc"),
+                                                 strUpdateDir.c_str(), rc));
                         break;
                 }
             }
@@ -1262,6 +1373,10 @@ int SessionTaskUpdateAdditions::Run(void)
                          * using a running VBoxTray instance via balloon messages in the
                          * Windows taskbar. */
                         siInstaller.mArguments.push_back(Utf8Str("/post_installstatus"));
+                        /* Add optional installer command line arguments from the API to the
+                         * installer's startup info. */
+                        rc = addProcessArguments(siInstaller.mArguments, mArguments);
+                        AssertRC(rc);
                         /* If the caller does not want to wait for out guest update process to end,
                          * complete the progress object now so that the caller can do other work. */
                         if (mFlags & AdditionsUpdateFlag_WaitForUpdateStartOnly)
@@ -1373,24 +1488,22 @@ int SessionTaskUpdateAdditions::Run(void)
             Utf8Str strError = Utf8StrFmt("No further error information available (%Rrc)", rc);
             if (!mProgress.isNull()) /* Progress object is optional. */
             {
-                ComPtr<IVirtualBoxErrorInfo> pError;
-                hr = mProgress->COMGETTER(ErrorInfo)(pError.asOutParam());
-                Assert(!pError.isNull());
-                if (SUCCEEDED(hr))
+                com::ProgressErrorInfo errorInfo(mProgress);
+                if (   errorInfo.isFullAvailable()
+                    || errorInfo.isBasicAvailable())
                 {
-                    Bstr strVal;
-                    hr = pError->COMGETTER(Text)(strVal.asOutParam());
-                    if (   SUCCEEDED(hr)
-                        && strVal.isNotEmpty())
-                        strError = strVal;
+                    strError = errorInfo.getText();
                 }
             }
 
-            LogRel(("Automatic update of Guest Additions failed: %s\n", strError.c_str()));
+            LogRel(("Automatic update of Guest Additions failed: %s (%Rhrc)\n",
+                    strError.c_str(), hr));
         }
 
         LogRel(("Please install Guest Additions manually\n"));
     }
+
+    /** @todo Clean up copied / left over installation files. */
 
     LogFlowFuncLeaveRC(rc);
     return rc;

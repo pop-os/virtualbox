@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -50,6 +50,7 @@ PROGRAMS += \
 	tstRTBitOperations \
 	tstRTCidr \
 	tstRTCritSect \
+	tstRTCritSectRw \
 	tstRTCType \
 	tstRTDigest \
 	tstDir \
@@ -62,8 +63,10 @@ PROGRAMS += \
 	tstRTFileAio \
 	tstRTFileAppend-1 \
 	tstRTFileGetSize-1 \
+	tstRTFileModeStringToFlags \
 	tstFileLock \
 	tstFork \
+	tstRTHttp \
 	tstRTFsQueries \
 	tstRTFilesystem \
 	tstRTGetOpt \
@@ -85,7 +88,7 @@ PROGRAMS += \
 	tstRTMemPool \
 	tstRTMemWipe \
 	tstMove \
-	tstMp-1 \
+	tstRTMp-1 \
 	tstOnce \
 	tstRTPath \
 	tstRTPipe \
@@ -120,7 +123,7 @@ PROGRAMS += \
 	tstThread-1 \
 	tstRTThreadPoke \
 	tstRTThreadExecutionTime \
-	tstTime \
+	tstRTTime \
 	tstTime-2 \
 	tstTime-3 \
 	tstTime-4 \
@@ -135,8 +138,9 @@ PROGRAMS += \
 	tstVector
 
 PROGRAMS.win += \
-	tstRTProcWait \
 	tstRTCritSectW32 \
+	tstRTLocalIpc \
+	tstRTProcWait \
 	tstFileAppendWin-1 \
 	ntGetTimerResolution
 PROGRAMS.linux += \
@@ -147,8 +151,6 @@ PROGRAMS.linux += \
 	tstRTInlineAsmPIC3
 PROGRAMS.solaris += \
 	tstRTCoreDump
-PROGRAMS.l4 += \
-	tstIoCtl
 PROGRAMS.darwin += \
 	tstDarwinSched \
 	tstRTDarwinMachKernel
@@ -215,6 +217,9 @@ tstRTCidr_SOURCES = tstRTCidr.cpp
 tstRTCritSect_TEMPLATE = VBOXR3TSTEXE
 tstRTCritSect_SOURCES = tstRTCritSect.cpp
 
+tstRTCritSectRw_TEMPLATE = VBOXR3TSTEXE
+tstRTCritSectRw_SOURCES = tstRTCritSectRw.cpp
+
 tstRTCritSectW32_TEMPLATE = VBOXR3TSTEXE
 tstRTCritSectW32_SOURCES = tstRTCritSect.cpp
 tstRTCritSectW32_DEFS = TRY_WIN32_CRIT
@@ -223,6 +228,12 @@ tstRTCType_TEMPLATE = VBOXR3TSTEXE
 tstRTCType_SOURCES = tstRTCType.cpp
 
 tstRTDigest_SOURCES = tstRTDigest.cpp
+
+ifdef VBOX_WITH_LIBCURL
+tstRTHttp_TEMPLATE = VBOXR3TSTEXE
+tstRTHttp_SOURCES = tstRTHttp.cpp
+tstRTHttp_SDKS = VBOX_LIBCURL
+endif
 
 tstDir_TEMPLATE = VBOXR3TSTEXE
 tstDir_SOURCES = tstDir.cpp
@@ -255,6 +266,9 @@ tstRTFileAppend-1_SOURCES = tstRTFileAppend-1.cpp
 tstRTFileGetSize-1_TEMPLATE = VBOXR3TSTEXE
 tstRTFileGetSize-1_SOURCES = tstRTFileGetSize-1.cpp
 
+tstRTFileModeStringToFlags_TEMPLATE = VBOXR3TSTEXE
+tstRTFileModeStringToFlags_SOURCES = tstRTFileModeStringToFlags.cpp
+
 tstFileAppendWin-1_TEMPLATE = VBOXR3TSTEXE
 tstFileAppendWin-1_SOURCES = tstFileAppendWin-1.cpp
 
@@ -283,9 +297,6 @@ tstRTHeapOffset_SOURCES = tstRTHeapOffset.cpp
 
 tstRTHeapSimple_TEMPLATE = VBOXR3TSTEXE
 tstRTHeapSimple_SOURCES = tstRTHeapSimple.cpp
-
-tstIoCtl_TEMPLATE = VBOXR3TSTEXE
-tstIoCtl_SOURCES = tstIoCtl.cpp
 
 tstRTInlineAsm_TEMPLATE = VBOXR3TSTEXE
 tstRTInlineAsm_SOURCES = tstRTInlineAsm.cpp
@@ -393,6 +404,9 @@ tstLdrLoad_SOURCES = tstLdrLoad.cpp
 tstRTList_TEMPLATE = VBOXR3TSTEXE
 tstRTList_SOURCES = tstRTList.cpp
 
+tstRTLocalIpc_TEMPLATE = VBOXR3TSTEXE
+tstRTLocalIpc_SOURCES = tstRTLocalIpc.cpp
+
 tstRTLockValidator_TEMPLATE = VBOXR3TSTEXE
 tstRTLockValidator_SOURCES = tstRTLockValidator.cpp
 
@@ -417,8 +431,8 @@ tstRTMemWipe_SOURCES = tstRTMemWipe.cpp
 tstMove_TEMPLATE = VBOXR3TSTEXE
 tstMove_SOURCES = tstMove.cpp
 
-tstMp-1_TEMPLATE = VBOXR3TSTEXE
-tstMp-1_SOURCES = tstMp-1.cpp
+tstRTMp-1_TEMPLATE = VBOXR3TSTEXE
+tstRTMp-1_SOURCES = tstRTMp-1.cpp
 
 tstNoCrt-1_TEMPLATE = VBOXR3TSTEXE
 tstNoCrt-1_DEFS = RT_WITHOUT_NOCRT_WRAPPER_ALIASES
@@ -546,8 +560,8 @@ tstRTThreadPoke_SOURCES = tstRTThreadPoke.cpp
 tstRTThreadExecutionTime_TEMPLATE = VBOXR3TSTEXE
 tstRTThreadExecutionTime_SOURCES = tstRTThreadExecutionTime.cpp
 
-tstTime_TEMPLATE = VBOXR3TSTEXE
-tstTime_SOURCES = tstTime.cpp
+tstRTTime_TEMPLATE = VBOXR3TSTEXE
+tstRTTime_SOURCES = tstRTTime.cpp
 
 tstTime-2_TEMPLATE = VBOXR3TSTEXE
 tstTime-2_SOURCES = tstTime-2.cpp

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -85,6 +85,18 @@ static int32_t crStateAllocAndSSMR3GetMem(PSSMHANDLE pSSM, void **pBuffer, size_
             } \
         } while (0)
 
+#define SHCROGL_ROUNDBOUND(_v, _b) (((_v) + ((_b) - 1)) & ~((_b) - 1))
+#define SHCROGL_ALIGNTAILSIZE(_v, _b) (SHCROGL_ROUNDBOUND((_v),(_b)) - (_v))
+#define SHCROGL_CUT_FOR_OLD_TYPE_TO_ENSURE_ALIGNMENT_SIZE(_type, _field, _oldFieldType, _nextFieldAllignment) (SHCROGL_ALIGNTAILSIZE(((RT_OFFSETOF(_type, _field) + sizeof (_oldFieldType))), (_nextFieldAllignment)))
+#define SHCROGL_CUT_FOR_OLD_TYPE_TO_ENSURE_ALIGNMENT(_type, _field, _oldFieldType, _nextFieldAllignment)  do { \
+        const int32_t cbAlignment = SHCROGL_CUT_FOR_OLD_TYPE_TO_ENSURE_ALIGNMENT_SIZE(_type, _field, _oldFieldType, _nextFieldAllignment); \
+        /*AssertCompile(SHCROGL_CUT_TAIL_ALIGNMENT_SIZE(_type, _lastField) >= 0 && SHCROGL_CUT_TAIL_ALIGNMENT_SIZE(_type, _lastField) < sizeof (void*));*/ \
+        if (cbAlignment) { \
+            rc = SSMR3Skip(pSSM, cbAlignment); \
+        } \
+    } while (0)
+
+
 #define SHCROGL_CUT_TAIL_ALIGNMENT_SIZE(_type, _lastField) (sizeof (_type) - RT_OFFSETOF(_type, _lastField) - RT_SIZEOFMEMB(_type, _lastField))
 #define SHCROGL_CUT_TAIL_ALIGNMENT(_type, _lastField) do { \
             const int32_t cbAlignment = SHCROGL_CUT_TAIL_ALIGNMENT_SIZE(_type, _lastField); \
@@ -137,6 +149,35 @@ static int32_t crStateLoadTextureUnit_v_BEFORE_CTXUSAGE_BITS(CRTextureUnit *t, P
     SHCROGL_CUT_TAIL_ALIGNMENT(CRTextureUnit, SHCROGL_INTERNAL_LAST_FIELD);
 #undef SHCROGL_INTERNAL_LAST_FIELD
     return rc;
+}
+
+static int crStateLoadStencilPoint_v_37(CRPointState *pPoint, PSSMHANDLE pSSM)
+{
+    int rc = VINF_SUCCESS;
+    SHCROGL_GET_STRUCT_HEAD(pPoint, CRPointState, spriteCoordOrigin);
+    pPoint->spriteCoordOrigin = (GLfloat)GL_UPPER_LEFT;
+    return rc;
+}
+
+static int32_t crStateLoadStencilState_v_33(CRStencilState *s, PSSMHANDLE pSSM)
+{
+    CRStencilState_v_33 stencilV33;
+    int32_t rc = SSMR3GetMem(pSSM, &stencilV33, sizeof (stencilV33));
+    AssertRCReturn(rc, rc);
+    s->stencilTest = stencilV33.stencilTest;
+    s->stencilTwoSideEXT = GL_FALSE;
+    s->activeStencilFace = GL_FRONT;
+    s->clearValue = stencilV33.clearValue;
+    s->writeMask = stencilV33.writeMask;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_FRONT].func = stencilV33.func;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_FRONT].mask = stencilV33.mask;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_FRONT].ref = stencilV33.ref;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_FRONT].fail = stencilV33.fail;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_FRONT].passDepthFail = stencilV33.passDepthFail;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_FRONT].passDepthPass = stencilV33.passDepthPass;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_BACK] = s->buffers[CRSTATE_STENCIL_BUFFER_ID_FRONT];
+    crStateStencilBufferInit(&s->buffers[CRSTATE_STENCIL_BUFFER_ID_TWO_SIDE_BACK]);
+    return VINF_SUCCESS;
 }
 
 static int32_t crStateLoadTextureState_v_BEFORE_CTXUSAGE_BITS(CRTextureState *t, PSSMHANDLE pSSM)
@@ -202,6 +243,47 @@ static int32_t crStateLoadTextureState_v_BEFORE_CTXUSAGE_BITS(CRTextureState *t,
 
     SHCROGL_CUT_TAIL_ALIGNMENT(CRTextureState, unit);
 
+    return VINF_SUCCESS;
+}
+
+static int32_t crStateStencilBufferStack_v_33(CRStencilBufferStack *s, PSSMHANDLE pSSM)
+{
+    CRStencilBufferStack_v_33 stackV33;
+    int32_t rc = SSMR3GetMem(pSSM, &stackV33, sizeof (stackV33));
+
+    s->stencilTest = stackV33.stencilTest;
+    s->stencilTwoSideEXT = GL_FALSE;
+    s->activeStencilFace = GL_FRONT;
+    s->clearValue = stackV33.clearValue;
+    s->writeMask = stackV33.writeMask;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_FRONT].func = stackV33.func;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_FRONT].mask = stackV33.mask;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_FRONT].ref = stackV33.ref;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_FRONT].fail = stackV33.fail;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_FRONT].passDepthFail = stackV33.passDepthFail;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_FRONT].passDepthPass = stackV33.passDepthPass;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_BACK] = s->buffers[CRSTATE_STENCIL_BUFFER_ID_FRONT];
+
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_TWO_SIDE_BACK].func = GL_ALWAYS;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_TWO_SIDE_BACK].mask = 0xFFFFFFFF;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_TWO_SIDE_BACK].ref = 0;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_TWO_SIDE_BACK].fail = GL_KEEP;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_TWO_SIDE_BACK].passDepthFail = GL_KEEP;
+    s->buffers[CRSTATE_STENCIL_BUFFER_ID_TWO_SIDE_BACK].passDepthPass = GL_KEEP;
+
+    return VINF_SUCCESS;
+}
+
+static int32_t crStateLoadAttribState_v_33(CRAttribState *t, PSSMHANDLE pSSM)
+{
+    int32_t i, rc;
+    SHCROGL_GET_STRUCT_HEAD(t, CRAttribState, stencilBufferStack);
+    for (i = 0; i < CR_MAX_ATTRIB_STACK_DEPTH; ++i)
+    {
+        rc = crStateStencilBufferStack_v_33(&t->stencilBufferStack[i], pSSM);
+        AssertRCReturn(rc, rc);
+    }
+    SHCROGL_GET_STRUCT_TAIL(t, CRAttribState, textureStackDepth);
     return rc;
 }
 
@@ -221,7 +303,14 @@ static int32_t crStateLoadTextureStack_v_BEFORE_CTXUSAGE_BITS(CRTextureStack *t,
 static int32_t crStateLoadAttribState_v_BEFORE_CTXUSAGE_BITS(CRAttribState *t, PSSMHANDLE pSSM)
 {
     int32_t i, rc;
-    SHCROGL_GET_STRUCT_HEAD(t, CRAttribState, textureStack);
+
+    SHCROGL_GET_STRUCT_HEAD(t, CRAttribState, stencilBufferStack);
+    for (i = 0; i < CR_MAX_ATTRIB_STACK_DEPTH; ++i)
+    {
+        rc = crStateStencilBufferStack_v_33(&t->stencilBufferStack[i], pSSM);
+        AssertRCReturn(rc, rc);
+    }
+    SHCROGL_GET_STRUCT_PART(t, CRAttribState, textureStackDepth, textureStack);
     for (i = 0; i < CR_MAX_ATTRIB_STACK_DEPTH; ++i)
     {
         rc = crStateLoadTextureStack_v_BEFORE_CTXUSAGE_BITS(&t->textureStack[i], pSSM);
@@ -1069,6 +1158,15 @@ static void crStateSaveGLSLProgramCB(unsigned long key, void *data1, void *data2
     diff_api.GetProgramiv(pProgram->hwid, GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxUniformLen);
     diff_api.GetProgramiv(pProgram->hwid, GL_ACTIVE_UNIFORMS, &activeUniforms);
 
+    if (!maxUniformLen)
+    {
+        if (activeUniforms)
+        {
+            crWarning("activeUniforms (%d), while maxUniformLen is zero", activeUniforms);
+            activeUniforms = 0;
+        }
+    }
+
     if (activeUniforms>0)
     {
         name = (GLchar *) crAlloc((maxUniformLen+8)*sizeof(GLchar));
@@ -1308,6 +1406,54 @@ static int32_t crStateLoadCurrentBits(CRStateBits *pBits, PSSMHANDLE pSSM)
     return VINF_SUCCESS;
 }
 
+static void crStateSaveKeysCB(unsigned long firstKey, unsigned long count, void *data)
+{
+    PSSMHANDLE pSSM = (PSSMHANDLE)data;
+    int rc;
+    CRASSERT(firstKey);
+    CRASSERT(count);
+    rc = SSMR3PutU32(pSSM, firstKey);
+    CRASSERT(RT_SUCCESS(rc));
+    rc = SSMR3PutU32(pSSM, count);
+    CRASSERT(RT_SUCCESS(rc));
+}
+
+static int32_t crStateSaveKeys(CRHashTable *pHash, PSSMHANDLE pSSM)
+{
+    crHashtableWalkKeys(pHash, crStateSaveKeysCB , pSSM);
+    /* use null terminator */
+    SSMR3PutU32(pSSM, 0);
+    return VINF_SUCCESS;
+}
+
+static int32_t crStateLoadKeys(CRHashTable *pHash, PSSMHANDLE pSSM)
+{
+    uint32_t u32Key, u32Count, i;
+    int rc;
+    for(;;)
+    {
+        rc = SSMR3GetU32(pSSM, &u32Key);
+        AssertRCReturn(rc, rc);
+
+        if (!u32Key)
+            return rc;
+
+        rc = SSMR3GetU32(pSSM, &u32Count);
+        AssertRCReturn(rc, rc);
+
+        CRASSERT(u32Count);
+
+        for (i = u32Key; i < u32Count + u32Key; ++i)
+        {
+            GLboolean fIsNew = crHashtableAllocRegisterKey(pHash, i);
+            CRASSERT(fIsNew);
+        }
+    }
+
+    return rc;
+}
+
+
 int32_t crStateSaveContext(CRContext *pContext, PSSMHANDLE pSSM)
 {
     int32_t rc, i;
@@ -1316,30 +1462,18 @@ int32_t crStateSaveContext(CRContext *pContext, PSSMHANDLE pSSM)
 
     CRASSERT(pContext && pSSM);
 
-    pContext->buffer.storedWidth = pContext->buffer.width;
-    pContext->buffer.storedHeight = pContext->buffer.height;
+    CRASSERT(pContext->client.attribStackDepth == 0);
+
+    /* this stuff is not used anymore, zero it up for sanity */
+    pContext->buffer.storedWidth = 0;
+    pContext->buffer.storedHeight = 0;
 
     CRASSERT(VBoxTlsRefIsFunctional(pContext));
 
-    /* do not increment the saved state version due to VBOXTLSREFDATA addition to CRContext */
-    rc = SSMR3PutMem(pSSM, pContext, VBOXTLSREFDATA_OFFSET(CRContext));
-    AssertRCReturn(rc, rc);
+    /* make sure the gl error state is captured by our state mechanism to store the correct gl  error value */
+    crStateSyncHWErrorState(pContext);
 
-    /* now store bitid & neg_bitid */
-    rc = SSMR3PutMem(pSSM, pContext->bitid, sizeof (pContext->bitid) + sizeof (pContext->neg_bitid));
-    AssertRCReturn(rc, rc);
-
-    /* the pre-VBOXTLSREFDATA CRContext structure might have additional allignment bits before the CRContext::shared */
-    ui32 = VBOXTLSREFDATA_OFFSET(CRContext) + sizeof (pContext->bitid) + sizeof (pContext->neg_bitid);
-    ui32 &= (sizeof (void*) - 1);
-    if (ui32)
-    {
-        void* pTmp = NULL;
-        rc = SSMR3PutMem(pSSM, &pTmp, ui32);
-        AssertRCReturn(rc, rc);
-    }
-
-    rc = SSMR3PutMem(pSSM, &pContext->shared, sizeof (CRContext) - RT_OFFSETOF(CRContext, shared));
+    rc = SSMR3PutMem(pSSM, pContext, sizeof (*pContext));
     AssertRCReturn(rc, rc);
 
     if (crHashtableNumElements(pContext->shared->dlistTable)>0)
@@ -1416,6 +1550,8 @@ int32_t crStateSaveContext(CRContext *pContext, PSSMHANDLE pSSM)
     if (bSaveShared)
     {
         CRASSERT(pContext->shared && pContext->shared->textureTable);
+        rc = crStateSaveKeys(pContext->shared->textureTable, pSSM);
+        AssertRCReturn(rc, rc);
         ui32 = crHashtableNumElements(pContext->shared->textureTable);
         rc = SSMR3PutU32(pSSM, ui32);
         AssertRCReturn(rc, rc);
@@ -1513,6 +1649,11 @@ int32_t crStateSaveContext(CRContext *pContext, PSSMHANDLE pSSM)
 
 #ifdef CR_ARB_vertex_buffer_object
     /* Save buffer objects */
+    if (bSaveShared)
+    {
+        rc = crStateSaveKeys(pContext->shared->buffersTable, pSSM);
+        AssertRCReturn(rc, rc);
+    }
     ui32 = bSaveShared? crHashtableNumElements(pContext->shared->buffersTable):0;
     rc = SSMR3PutU32(pSSM, ui32);
     AssertRCReturn(rc, rc);
@@ -1580,10 +1721,15 @@ int32_t crStateSaveContext(CRContext *pContext, PSSMHANDLE pSSM)
     /* Save FBOs */
     if (bSaveShared)
     {
+        rc = crStateSaveKeys(pContext->shared->fbTable, pSSM);
+        AssertRCReturn(rc, rc);
         ui32 = crHashtableNumElements(pContext->shared->fbTable);
         rc = SSMR3PutU32(pSSM, ui32);
         AssertRCReturn(rc, rc);
         crHashtableWalk(pContext->shared->fbTable, crStateSaveFramebuffersCB, pSSM);
+
+        rc = crStateSaveKeys(pContext->shared->rbTable, pSSM);
+        AssertRCReturn(rc, rc);
         ui32 = crHashtableNumElements(pContext->shared->rbTable);
         rc = SSMR3PutU32(pSSM, ui32);
         AssertRCReturn(rc, rc);
@@ -1611,72 +1757,6 @@ int32_t crStateSaveContext(CRContext *pContext, PSSMHANDLE pSSM)
     AssertRCReturn(rc, rc);
 #endif
 
-    if (pContext->buffer.storedWidth && pContext->buffer.storedHeight)
-    {
-        CRBufferState *pBuf = &pContext->buffer;
-        CRPixelPackState packing = pContext->client.pack;
-        GLint cbData;
-        void *pData;
-
-        cbData = crPixelSize(GL_RGBA, GL_UNSIGNED_BYTE) * pBuf->storedWidth * pBuf->storedHeight;
-        pData = crAlloc(cbData);
-
-        if (!pData)
-        {
-            return VERR_NO_MEMORY;
-        }
-
-        diff_api.PixelStorei(GL_PACK_SKIP_ROWS, 0);
-        diff_api.PixelStorei(GL_PACK_SKIP_PIXELS, 0);
-        diff_api.PixelStorei(GL_PACK_ALIGNMENT, 1);
-        diff_api.PixelStorei(GL_PACK_ROW_LENGTH, 0);
-        diff_api.PixelStorei(GL_PACK_IMAGE_HEIGHT, 0);
-        diff_api.PixelStorei(GL_PACK_SKIP_IMAGES, 0);
-        diff_api.PixelStorei(GL_PACK_SWAP_BYTES, 0);
-        diff_api.PixelStorei(GL_PACK_LSB_FIRST, 0);
-
-        if (pContext->framebufferobject.readFB)
-        {
-            diff_api.BindFramebufferEXT(GL_READ_FRAMEBUFFER, 0);
-        }
-        if (pContext->bufferobject.packBuffer->hwid>0)
-        {
-            diff_api.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, 0);
-        }
-
-        diff_api.ReadBuffer(GL_FRONT);
-        diff_api.ReadPixels(0, 0, pBuf->storedWidth, pBuf->storedHeight, GL_RGBA, GL_UNSIGNED_BYTE, pData);
-        rc = SSMR3PutMem(pSSM, pData, cbData);
-        AssertRCReturn(rc, rc);
-
-        diff_api.ReadBuffer(GL_BACK);
-        diff_api.ReadPixels(0, 0, pBuf->storedWidth, pBuf->storedHeight, GL_RGBA, GL_UNSIGNED_BYTE, pData);
-        rc = SSMR3PutMem(pSSM, pData, cbData);
-        AssertRCReturn(rc, rc);
-
-        if (pContext->bufferobject.packBuffer->hwid>0)
-        {
-            diff_api.BindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, pContext->bufferobject.packBuffer->hwid);
-        }
-        if (pContext->framebufferobject.readFB)
-        {
-            diff_api.BindFramebufferEXT(GL_READ_FRAMEBUFFER, pContext->framebufferobject.readFB->hwid);
-        }
-        diff_api.ReadBuffer(pContext->framebufferobject.readFB ? 
-                            pContext->framebufferobject.readFB->readbuffer : pContext->buffer.readBuffer);
-
-        diff_api.PixelStorei(GL_PACK_SKIP_ROWS, packing.skipRows);
-        diff_api.PixelStorei(GL_PACK_SKIP_PIXELS, packing.skipPixels);
-        diff_api.PixelStorei(GL_PACK_ALIGNMENT, packing.alignment);
-        diff_api.PixelStorei(GL_PACK_ROW_LENGTH, packing.rowLength);
-        diff_api.PixelStorei(GL_PACK_IMAGE_HEIGHT, packing.imageHeight);
-        diff_api.PixelStorei(GL_PACK_SKIP_IMAGES, packing.skipImages);
-        diff_api.PixelStorei(GL_PACK_SWAP_BYTES, packing.swapBytes);
-        diff_api.PixelStorei(GL_PACK_LSB_FIRST, packing.psLSBFirst);
-
-        crFree(pData);
-    }
-
     return VINF_SUCCESS;
 }
 
@@ -1697,6 +1777,77 @@ static void crStateFindSharedCB(unsigned long key, void *data1, void *data2)
     }
 }
 
+int32_t crStateSaveGlobals(PSSMHANDLE pSSM)
+{
+    /* don't need that for now */
+#if 0
+    CRStateBits *pBits;
+    int rc;
+
+    CRASSERT(g_cContexts >= 1);
+    if (g_cContexts <= 1)
+        return VINF_SUCCESS;
+
+    pBits = GetCurrentBits();
+#define CRSTATE_BITS_OP(_var, _size) \
+        rc = SSMR3PutMem(pSSM, (pBits->_var), _size); \
+        AssertRCReturn(rc, rc);
+#include "state_bits_globalop.h"
+#undef CRSTATE_BITS_OP
+#endif
+    return VINF_SUCCESS;
+}
+
+int32_t crStateLoadGlobals(PSSMHANDLE pSSM, uint32_t u32Version)
+{
+    CRStateBits *pBits;
+    int rc;
+    CRASSERT(g_cContexts >= 1);
+    if (g_cContexts <= 1)
+        return VINF_SUCCESS;
+
+    pBits = GetCurrentBits();
+
+    if (u32Version >= SHCROGL_SSM_VERSION_WITH_STATE_BITS)
+    {
+#define CRSTATE_BITS_OP(_var, _size) \
+            rc = SSMR3GetMem(pSSM, (pBits->_var), _size); \
+            AssertRCReturn(rc, rc);
+
+        if (u32Version < SHCROGL_SSM_VERSION_WITH_FIXED_STENCIL)
+        {
+#define CRSTATE_BITS_OP_VERSION (SHCROGL_SSM_VERSION_WITH_FIXED_STENCIL - 1)
+#define CRSTATE_BITS_OP_STENCIL_FUNC_V_33(_i, _var) do {} while (0)
+#define CRSTATE_BITS_OP_STENCIL_OP_V_33(_i, _var) do {} while (0)
+#include "state_bits_globalop.h"
+#undef CRSTATE_BITS_OP_VERSION
+#undef CRSTATE_BITS_OP_STENCIL_FUNC_V_33
+#undef CRSTATE_BITS_OP_STENCIL_OP_V_33
+        }
+        else if (u32Version < SHCROGL_SSM_VERSION_WITH_SPRITE_COORD_ORIGIN)
+        {
+#define CRSTATE_BITS_OP_VERSION (SHCROGL_SSM_VERSION_WITH_SPRITE_COORD_ORIGIN - 1)
+#include "state_bits_globalop.h"
+#undef CRSTATE_BITS_OP_VERSION
+        }
+        else
+        {
+            /* we do not put dirty bits to state anymore,
+             * nop */
+//#include "state_bits_globalop.h"
+        }
+#undef CRSTATE_BITS_OP
+        /* always dirty all bits */
+        /* return VINF_SUCCESS; */
+    }
+
+#define CRSTATE_BITS_OP(_var, _size) FILLDIRTY(pBits->_var);
+#include "state_bits_globalop.h"
+#undef CRSTATE_BITS_OP
+    return VINF_SUCCESS;
+}
+
+
 #define SLC_COPYPTR(ptr) pTmpContext->ptr = pContext->ptr
 #define SLC_ASSSERT_NULL_PTR(ptr) CRASSERT(!pContext->ptr)
 
@@ -1711,12 +1862,7 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PFNCRST
     uint32_t uiNumElems, ui, k;
     unsigned long key;
     GLboolean bLoadShared = GL_TRUE;
-    union {
-        CRbitvalue bitid[CR_MAX_BITARRAY];
-        struct {
-            VBOXTLSREFDATA
-        } tlsRef;
-    } bitid;
+    GLenum err;
 
     CRASSERT(pContext && pSSM);
 
@@ -1727,69 +1873,129 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PFNCRST
 
     CRASSERT(VBoxTlsRefIsFunctional(pContext));
 
-    /* do not increment the saved state version due to VBOXTLSREFDATA addition to CRContext */
-    rc = SSMR3GetMem(pSSM, pTmpContext, VBOXTLSREFDATA_OFFSET(CRContext));
-    AssertRCReturn(rc, rc);
-
-    /* VBox 4.1.8 had a bug that VBOXTLSREFDATA was also stored in the snapshot,
-     * thus the saved state data format was changed w/o changing the saved state version.
-     * here we determine whether the saved state contains VBOXTLSREFDATA, and if so, treat it accordingly */
-    rc = SSMR3GetMem(pSSM, &bitid, sizeof (bitid));
-    AssertRCReturn(rc, rc);
-
-    /* the bitid array has one bit set only. this is why if bitid.tlsRef has both cTlsRefs
-     * and enmTlsRefState non-zero - this is definitely NOT a bit id and is a VBOXTLSREFDATA */
-    if (bitid.tlsRef.enmTlsRefState == VBOXTLSREFDATA_STATE_INITIALIZED
-            && bitid.tlsRef.cTlsRefs)
+    if (u32Version <= SHCROGL_SSM_VERSION_WITH_INVALID_ERROR_STATE)
     {
-        /* VBOXTLSREFDATA is stored, skip it */
-        crMemcpy(&pTmpContext->bitid, ((uint8_t*)&bitid) + VBOXTLSREFDATA_SIZE(), sizeof (bitid) - VBOXTLSREFDATA_SIZE());
-        rc = SSMR3GetMem(pSSM, ((uint8_t*)&pTmpContext->bitid) + sizeof (pTmpContext->bitid) - VBOXTLSREFDATA_SIZE(), sizeof (pTmpContext->neg_bitid) + VBOXTLSREFDATA_SIZE());
+        union {
+            CRbitvalue bitid[CR_MAX_BITARRAY];
+            struct {
+                VBOXTLSREFDATA
+            } tlsRef;
+        } bitid;
+
+        /* do not increment the saved state version due to VBOXTLSREFDATA addition to CRContext */
+        rc = SSMR3GetMem(pSSM, pTmpContext, VBOXTLSREFDATA_OFFSET(CRContext));
         AssertRCReturn(rc, rc);
 
-        ui = VBOXTLSREFDATA_OFFSET(CRContext) + VBOXTLSREFDATA_SIZE() + sizeof (pTmpContext->bitid) + sizeof (pTmpContext->neg_bitid);
-        ui = RT_OFFSETOF(CRContext, shared) - ui;
+        /* VBox 4.1.8 had a bug that VBOXTLSREFDATA was also stored in the snapshot,
+         * thus the saved state data format was changed w/o changing the saved state version.
+         * here we determine whether the saved state contains VBOXTLSREFDATA, and if so, treat it accordingly */
+        rc = SSMR3GetMem(pSSM, &bitid, sizeof (bitid));
+        AssertRCReturn(rc, rc);
+
+        /* the bitid array has one bit set only. this is why if bitid.tlsRef has both cTlsRefs
+         * and enmTlsRefState non-zero - this is definitely NOT a bit id and is a VBOXTLSREFDATA */
+        if (bitid.tlsRef.enmTlsRefState == VBOXTLSREFDATA_STATE_INITIALIZED
+                && bitid.tlsRef.cTlsRefs)
+        {
+            /* VBOXTLSREFDATA is stored, skip it */
+            crMemcpy(&pTmpContext->bitid, ((uint8_t*)&bitid) + VBOXTLSREFDATA_SIZE(), sizeof (bitid) - VBOXTLSREFDATA_SIZE());
+            rc = SSMR3GetMem(pSSM, ((uint8_t*)&pTmpContext->bitid) + sizeof (pTmpContext->bitid) - VBOXTLSREFDATA_SIZE(), sizeof (pTmpContext->neg_bitid) + VBOXTLSREFDATA_SIZE());
+            AssertRCReturn(rc, rc);
+
+            ui = VBOXTLSREFDATA_OFFSET(CRContext) + VBOXTLSREFDATA_SIZE() + sizeof (pTmpContext->bitid) + sizeof (pTmpContext->neg_bitid);
+            ui = RT_OFFSETOF(CRContext, shared) - ui;
+        }
+        else
+        {
+            /* VBOXTLSREFDATA is NOT stored */
+            crMemcpy(&pTmpContext->bitid, &bitid, sizeof (bitid));
+            rc = SSMR3GetMem(pSSM, &pTmpContext->neg_bitid, sizeof (pTmpContext->neg_bitid));
+            AssertRCReturn(rc, rc);
+
+            /* the pre-VBOXTLSREFDATA CRContext structure might have additional allignment bits before the CRContext::shared */
+            ui = VBOXTLSREFDATA_OFFSET(CRContext) + sizeof (pTmpContext->bitid) + sizeof (pTmpContext->neg_bitid);
+
+            ui &= (sizeof (void*) - 1);
+        }
+
+        if (ui)
+        {
+            void* pTmp = NULL;
+            rc = SSMR3GetMem(pSSM, &pTmp, ui);
+            AssertRCReturn(rc, rc);
+        }
+
+        if (u32Version == SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS)
+        {
+            SHCROGL_GET_STRUCT_PART(pTmpContext, CRContext, shared, attrib);
+            rc = crStateLoadAttribState_v_BEFORE_CTXUSAGE_BITS(&pTmpContext->attrib, pSSM);
+            AssertRCReturn(rc, rc);
+            SHCROGL_CUT_FIELD_ALIGNMENT(CRContext, attrib, buffer);
+            SHCROGL_GET_STRUCT_PART(pTmpContext, CRContext, buffer, point);
+            rc = crStateLoadStencilPoint_v_37(&pTmpContext->point, pSSM);
+            AssertRCReturn(rc, rc);
+            SHCROGL_GET_STRUCT_PART(pTmpContext, CRContext, polygon, stencil);
+            rc = crStateLoadStencilState_v_33(&pTmpContext->stencil, pSSM);
+            AssertRCReturn(rc, rc);
+            SHCROGL_CUT_FOR_OLD_TYPE_TO_ENSURE_ALIGNMENT(CRContext, stencil, CRStencilState_v_33, sizeof (void*));
+            rc = crStateLoadTextureState_v_BEFORE_CTXUSAGE_BITS(&pTmpContext->texture, pSSM);
+            AssertRCReturn(rc, rc);
+            SHCROGL_CUT_FIELD_ALIGNMENT(CRContext, texture, transform);
+            SHCROGL_GET_STRUCT_TAIL(pTmpContext, CRContext, transform);
+        }
+        else
+        {
+            SHCROGL_GET_STRUCT_PART(pTmpContext, CRContext, shared, attrib);
+            rc = crStateLoadAttribState_v_33(&pTmpContext->attrib, pSSM);
+            AssertRCReturn(rc, rc);
+            SHCROGL_CUT_FIELD_ALIGNMENT(CRContext, attrib, buffer);
+            SHCROGL_GET_STRUCT_PART(pTmpContext, CRContext, buffer, point);
+            rc = crStateLoadStencilPoint_v_37(&pTmpContext->point, pSSM);
+            AssertRCReturn(rc, rc);
+            SHCROGL_GET_STRUCT_PART(pTmpContext, CRContext, polygon, stencil);
+            rc = crStateLoadStencilState_v_33(&pTmpContext->stencil, pSSM);
+            AssertRCReturn(rc, rc);
+            SHCROGL_CUT_FOR_OLD_TYPE_TO_ENSURE_ALIGNMENT(CRContext, stencil, CRStencilState_v_33, sizeof (void*));
+            SHCROGL_GET_STRUCT_TAIL(pTmpContext, CRContext, texture);
+        }
+
+        pTmpContext->error = GL_NO_ERROR; /* <- the error state contained some random error data here
+                                                   * treat as no error */
+    }
+    else if (u32Version < SHCROGL_SSM_VERSION_WITH_FIXED_STENCIL)
+    {
+        SHCROGL_GET_STRUCT_HEAD(pTmpContext, CRContext, attrib);
+        rc = crStateLoadAttribState_v_33(&pTmpContext->attrib, pSSM);
+        AssertRCReturn(rc, rc);
+        SHCROGL_CUT_FIELD_ALIGNMENT(CRContext, attrib, buffer);
+        SHCROGL_GET_STRUCT_PART(pTmpContext, CRContext, buffer, point);
+        rc = crStateLoadStencilPoint_v_37(&pTmpContext->point, pSSM);
+        AssertRCReturn(rc, rc);
+        SHCROGL_GET_STRUCT_PART(pTmpContext, CRContext, polygon, stencil);
+        rc = crStateLoadStencilState_v_33(&pTmpContext->stencil, pSSM);
+        AssertRCReturn(rc, rc);
+        SHCROGL_CUT_FOR_OLD_TYPE_TO_ENSURE_ALIGNMENT(CRContext, stencil, CRStencilState_v_33, sizeof (void*));
+        SHCROGL_GET_STRUCT_TAIL(pTmpContext, CRContext, texture);
+    }
+    else if (u32Version < SHCROGL_SSM_VERSION_WITH_SPRITE_COORD_ORIGIN)
+    {
+        SHCROGL_GET_STRUCT_HEAD(pTmpContext, CRContext, point);
+        crStateLoadStencilPoint_v_37(&pTmpContext->point, pSSM);
+        SHCROGL_GET_STRUCT_TAIL(pTmpContext, CRContext, polygon);
     }
     else
     {
-        /* VBOXTLSREFDATA is NOT stored */
-        crMemcpy(&pTmpContext->bitid, &bitid, sizeof (bitid));
-        rc = SSMR3GetMem(pSSM, &pTmpContext->neg_bitid, sizeof (pTmpContext->neg_bitid));
-        AssertRCReturn(rc, rc);
-
-        /* the pre-VBOXTLSREFDATA CRContext structure might have additional allignment bits before the CRContext::shared */
-        ui = VBOXTLSREFDATA_OFFSET(CRContext) + sizeof (pTmpContext->bitid) + sizeof (pTmpContext->neg_bitid);
-
-        ui &= (sizeof (void*) - 1);
-    }
-
-    if (ui)
-    {
-        void* pTmp = NULL;
-        rc = SSMR3GetMem(pSSM, &pTmp, ui);
+        rc = SSMR3GetMem(pSSM, pTmpContext, sizeof (*pTmpContext));
         AssertRCReturn(rc, rc);
     }
+
+    /* preserve the error to restore it at the end of context creation,
+     * it should not normally change, but just in case it it changed */
+    err = pTmpContext->error;
 
     /* we will later do crMemcpy from entire pTmpContext to pContext,
      * for simplicity store the VBOXTLSREFDATA from the pContext to pTmpContext */
     VBOXTLSREFDATA_COPY(pTmpContext, pContext);
-
-    if (u32Version == SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS)
-    {
-        SHCROGL_GET_STRUCT_PART(pTmpContext, CRContext, shared, attrib);
-        rc = crStateLoadAttribState_v_BEFORE_CTXUSAGE_BITS(&pTmpContext->attrib, pSSM);
-        AssertRCReturn(rc, rc);
-        SHCROGL_CUT_FIELD_ALIGNMENT(CRContext, attrib, buffer);
-        SHCROGL_GET_STRUCT_PART(pTmpContext, CRContext, buffer, texture);
-        rc = crStateLoadTextureState_v_BEFORE_CTXUSAGE_BITS(&pTmpContext->texture, pSSM);
-        AssertRCReturn(rc, rc);
-        SHCROGL_CUT_FIELD_ALIGNMENT(CRContext, texture, transform);
-        SHCROGL_GET_STRUCT_TAIL(pTmpContext, CRContext, transform);
-    }
-    else
-    {
-        SHCROGL_GET_STRUCT_TAIL(pTmpContext, CRContext, shared);
-    }
 
     /* Deal with shared state */
     {
@@ -2022,6 +2228,13 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PFNCRST
     {
         /* Load shared textures */
         CRASSERT(pContext->shared && pContext->shared->textureTable);
+
+        if (u32Version >= SHCROGL_SSM_VERSION_WITH_ALLOCATED_KEYS)
+        {
+            rc = crStateLoadKeys(pContext->shared->buffersTable, pSSM);
+            AssertRCReturn(rc, rc);
+        }
+
         rc = SSMR3GetU32(pSSM, &uiNumElems);
         AssertRCReturn(rc, rc);
         for (ui=0; ui<uiNumElems; ++ui)
@@ -2124,6 +2337,15 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PFNCRST
 
     /* Load buffer objects */
 #ifdef CR_ARB_vertex_buffer_object
+    if (bLoadShared)
+    {
+        if (u32Version >= SHCROGL_SSM_VERSION_WITH_ALLOCATED_KEYS)
+        {
+            rc = crStateLoadKeys(pContext->shared->textureTable, pSSM);
+            AssertRCReturn(rc, rc);
+        }
+    }
+
     rc = SSMR3GetU32(pSSM, &uiNumElems);
     AssertRCReturn(rc, rc);
     for (ui=0; ui<=uiNumElems; ++ui) /*ui<=uiNumElems to load nullBuffer in same loop*/
@@ -2246,6 +2468,12 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PFNCRST
     /* Load FBOs */
     if (bLoadShared)
     {
+        if (u32Version >= SHCROGL_SSM_VERSION_WITH_ALLOCATED_KEYS)
+        {
+            rc = crStateLoadKeys(pContext->shared->fbTable, pSSM);
+            AssertRCReturn(rc, rc);
+        }
+
         rc = SSMR3GetU32(pSSM, &uiNumElems);
         AssertRCReturn(rc, rc);
         for (ui=0; ui<uiNumElems; ++ui)
@@ -2260,7 +2488,15 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PFNCRST
             rc = crStateLoadFramebufferObject(pFBO, pSSM, u32Version);
             AssertRCReturn(rc, rc);
 
+            Assert(key == pFBO->id);
+
             crHashtableAdd(pContext->shared->fbTable, key, pFBO);
+        }
+
+        if (u32Version >= SHCROGL_SSM_VERSION_WITH_ALLOCATED_KEYS)
+        {
+            rc = crStateLoadKeys(pContext->shared->rbTable, pSSM);
+            AssertRCReturn(rc, rc);
         }
 
         rc = SSMR3GetU32(pSSM, &uiNumElems);
@@ -2308,7 +2544,10 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PFNCRST
     for (ui=0; ui<uiNumElems; ++ui)
     {
         CRGLSLShader *pShader = crStateLoadGLSLShader(pSSM);
+        GLboolean fNewKeyCheck;
         if (!pShader) return VERR_SSM_UNEXPECTED_DATA;
+        fNewKeyCheck = crHashtableAllocRegisterKey(pContext->glsl.programs, pShader->id);
+        CRASSERT(fNewKeyCheck);
         crHashtableAdd(pContext->glsl.shaders, pShader->id, pShader);
     }
 
@@ -2420,310 +2659,11 @@ int32_t crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PFNCRST
     pContext->glsl.bResyncNeeded = GL_TRUE;
 #endif
 
-
-    /*Restore front/back buffer images*/
-    if (pContext->buffer.storedWidth && pContext->buffer.storedHeight)
+    if (pContext->error != err)
     {
-        CRBufferState *pBuf = &pContext->buffer;
-        GLint cbData;
-        void *pData;
-
-        cbData = crPixelSize(GL_RGBA, GL_UNSIGNED_BYTE) * pBuf->storedWidth * pBuf->storedHeight;
-
-        pData = crAlloc(cbData);
-        if (!pData)
-        {
-            pBuf->pFrontImg = NULL;
-            pBuf->pBackImg = NULL;
-            return VERR_NO_MEMORY;
-        }
-
-        rc = SSMR3GetMem(pSSM, pData, cbData);
-        AssertRCReturn(rc, rc);
-
-        pBuf->pFrontImg = pData;
-
-        pData = crAlloc(cbData);
-        if (!pData)
-        {
-            pBuf->pBackImg = NULL;
-            return VERR_NO_MEMORY;
-        }
-
-        rc = SSMR3GetMem(pSSM, pData, cbData);
-        AssertRCReturn(rc, rc);
-
-        pBuf->pBackImg = pData;
-    }
-
-
-    /*Mark all as dirty to make sure we'd restore correct context state*/
-    {
-        CRStateBits *pBits = GetCurrentBits();
-
-        FILLDIRTY(pBits->attrib.dirty);
-
-        FILLDIRTY(pBits->buffer.dirty);
-        FILLDIRTY(pBits->buffer.enable);
-        FILLDIRTY(pBits->buffer.alphaFunc);
-        FILLDIRTY(pBits->buffer.depthFunc);
-        FILLDIRTY(pBits->buffer.blendFunc);
-        FILLDIRTY(pBits->buffer.logicOp);
-        FILLDIRTY(pBits->buffer.indexLogicOp);
-        FILLDIRTY(pBits->buffer.drawBuffer);
-        FILLDIRTY(pBits->buffer.readBuffer);
-        FILLDIRTY(pBits->buffer.indexMask);
-        FILLDIRTY(pBits->buffer.colorWriteMask);
-        FILLDIRTY(pBits->buffer.clearColor);
-        FILLDIRTY(pBits->buffer.clearIndex);
-        FILLDIRTY(pBits->buffer.clearDepth);
-        FILLDIRTY(pBits->buffer.clearAccum);
-        FILLDIRTY(pBits->buffer.depthMask);
-#ifdef CR_EXT_blend_color
-        FILLDIRTY(pBits->buffer.blendColor);
-#endif
-#if defined(CR_EXT_blend_minmax) || defined(CR_EXT_blend_subtract) || defined(CR_EXT_blend_logic_op)
-        FILLDIRTY(pBits->buffer.blendEquation);
-#endif
-#if defined(CR_EXT_blend_func_separate)
-        FILLDIRTY(pBits->buffer.blendFuncSeparate);
-#endif
-
-#ifdef CR_ARB_vertex_buffer_object
-        FILLDIRTY(pBits->bufferobject.dirty);
-        FILLDIRTY(pBits->bufferobject.arrayBinding);
-        FILLDIRTY(pBits->bufferobject.elementsBinding);
-# ifdef CR_ARB_pixel_buffer_object
-        FILLDIRTY(pBits->bufferobject.packBinding);
-        FILLDIRTY(pBits->bufferobject.unpackBinding);
-# endif
-#endif
-
-        FILLDIRTY(pBits->client.dirty);
-        FILLDIRTY(pBits->client.pack);
-        FILLDIRTY(pBits->client.unpack);
-        FILLDIRTY(pBits->client.enableClientState);
-        FILLDIRTY(pBits->client.clientPointer);
-        FILLDIRTY(pBits->client.v);
-        FILLDIRTY(pBits->client.n);
-        FILLDIRTY(pBits->client.c);
-        FILLDIRTY(pBits->client.i);
-        FILLDIRTY(pBits->client.e);
-        FILLDIRTY(pBits->client.s);
-        FILLDIRTY(pBits->client.f);
-        for (i=0; i<CR_MAX_TEXTURE_UNITS; i++)
-        {
-            FILLDIRTY(pBits->client.t[i]);
-        }
-#ifdef CR_NV_vertex_program
-        for (i=0; i<CR_MAX_VERTEX_ATTRIBS; i++)
-        {
-            FILLDIRTY(pBits->client.a[i]);
-        }
-#endif
-
-        FILLDIRTY(pBits->current.dirty);
-        for (i=0; i<CR_MAX_VERTEX_ATTRIBS; i++)
-        {
-            FILLDIRTY(pBits->current.vertexAttrib[i]);
-        }
-        FILLDIRTY(pBits->current.edgeFlag);
-        FILLDIRTY(pBits->current.colorIndex);
-        FILLDIRTY(pBits->current.rasterPos);
-
-
-        FILLDIRTY(pBits->eval.dirty);
-        for (i=0; i<GLEVAL_TOT; i++)
-        {
-            FILLDIRTY(pBits->eval.eval1D[i]);
-            FILLDIRTY(pBits->eval.eval2D[i]);
-            FILLDIRTY(pBits->eval.enable1D[i]);
-            FILLDIRTY(pBits->eval.enable2D[i]);
-        }
-        FILLDIRTY(pBits->eval.enable);
-        FILLDIRTY(pBits->eval.grid1D);
-        FILLDIRTY(pBits->eval.grid2D);
-#ifdef CR_NV_vertex_program
-        /*@todo Those seems to be unused?
-        FILLDIRTY(pBits->eval.enableAttrib1D);
-        FILLDIRTY(pBits->eval.enableAttrib2D);
-        */
-#endif
-
-        FILLDIRTY(pBits->feedback.dirty);
-        FILLDIRTY(pBits->selection.dirty);
-
-        FILLDIRTY(pBits->fog.dirty);
-        FILLDIRTY(pBits->fog.color);
-        FILLDIRTY(pBits->fog.index);
-        FILLDIRTY(pBits->fog.density);
-        FILLDIRTY(pBits->fog.start);
-        FILLDIRTY(pBits->fog.end);
-        FILLDIRTY(pBits->fog.mode);
-        FILLDIRTY(pBits->fog.enable);
-#ifdef CR_NV_fog_distance
-        FILLDIRTY(pBits->fog.fogDistanceMode);
-#endif
-#ifdef CR_EXT_fog_coord
-        FILLDIRTY(pBits->fog.fogCoordinateSource);
-#endif
-
-        FILLDIRTY(pBits->hint.dirty);
-        FILLDIRTY(pBits->hint.perspectiveCorrection);
-        FILLDIRTY(pBits->hint.pointSmooth);
-        FILLDIRTY(pBits->hint.lineSmooth);
-        FILLDIRTY(pBits->hint.polygonSmooth);
-        FILLDIRTY(pBits->hint.fog);
-#ifdef CR_EXT_clip_volume_hint
-        FILLDIRTY(pBits->hint.clipVolumeClipping);
-
-#endif
-#ifdef CR_ARB_texture_compression
-        FILLDIRTY(pBits->hint.textureCompression);
-#endif
-#ifdef CR_SGIS_generate_mipmap
-        FILLDIRTY(pBits->hint.generateMipmap);
-#endif
-
-        FILLDIRTY(pBits->lighting.dirty);
-        FILLDIRTY(pBits->lighting.shadeModel);
-        FILLDIRTY(pBits->lighting.colorMaterial);
-        FILLDIRTY(pBits->lighting.lightModel);
-        FILLDIRTY(pBits->lighting.material);
-        FILLDIRTY(pBits->lighting.enable);
-        for (i=0; i<CR_MAX_LIGHTS; ++i)
-        {
-            FILLDIRTY(pBits->lighting.light[i].dirty);
-            FILLDIRTY(pBits->lighting.light[i].enable);
-            FILLDIRTY(pBits->lighting.light[i].ambient);
-            FILLDIRTY(pBits->lighting.light[i].diffuse);
-            FILLDIRTY(pBits->lighting.light[i].specular);
-            FILLDIRTY(pBits->lighting.light[i].position);
-            FILLDIRTY(pBits->lighting.light[i].attenuation);
-            FILLDIRTY(pBits->lighting.light[i].spot);
-        }
-
-        FILLDIRTY(pBits->line.dirty);
-        FILLDIRTY(pBits->line.enable);
-        FILLDIRTY(pBits->line.width);
-        FILLDIRTY(pBits->line.stipple);
-
-        FILLDIRTY(pBits->lists.dirty);
-        FILLDIRTY(pBits->lists.base);
-
-        FILLDIRTY(pBits->multisample.dirty);
-        FILLDIRTY(pBits->multisample.enable);
-        FILLDIRTY(pBits->multisample.sampleAlphaToCoverage);
-        FILLDIRTY(pBits->multisample.sampleAlphaToOne);
-        FILLDIRTY(pBits->multisample.sampleCoverage);
-        FILLDIRTY(pBits->multisample.sampleCoverageValue);
-
-#if CR_ARB_occlusion_query
-        FILLDIRTY(pBits->occlusion.dirty);
-#endif
-
-        FILLDIRTY(pBits->pixel.dirty);
-        FILLDIRTY(pBits->pixel.transfer);
-        FILLDIRTY(pBits->pixel.zoom);
-        FILLDIRTY(pBits->pixel.maps);
-
-        FILLDIRTY(pBits->point.dirty);
-        FILLDIRTY(pBits->point.enableSmooth);
-        FILLDIRTY(pBits->point.size);
-#ifdef CR_ARB_point_parameters
-        FILLDIRTY(pBits->point.minSize);
-        FILLDIRTY(pBits->point.maxSize);
-        FILLDIRTY(pBits->point.fadeThresholdSize);
-        FILLDIRTY(pBits->point.distanceAttenuation);
-#endif
-#ifdef CR_ARB_point_sprite
-        FILLDIRTY(pBits->point.enableSprite);
-        for (i=0; i<CR_MAX_TEXTURE_UNITS; ++i)
-        {
-            FILLDIRTY(pBits->point.coordReplacement[i]);
-        }
-#endif
-
-        FILLDIRTY(pBits->polygon.dirty);
-        FILLDIRTY(pBits->polygon.enable);
-        FILLDIRTY(pBits->polygon.offset);
-        FILLDIRTY(pBits->polygon.mode);
-        FILLDIRTY(pBits->polygon.stipple);
-
-        FILLDIRTY(pBits->program.dirty);
-        FILLDIRTY(pBits->program.vpEnable);
-        FILLDIRTY(pBits->program.fpEnable);
-        FILLDIRTY(pBits->program.vpBinding);
-        FILLDIRTY(pBits->program.fpBinding);
-        for (i=0; i<CR_MAX_VERTEX_ATTRIBS; ++i)
-        {
-            FILLDIRTY(pBits->program.vertexAttribArrayEnable[i]);
-            FILLDIRTY(pBits->program.map1AttribArrayEnable[i]);
-            FILLDIRTY(pBits->program.map2AttribArrayEnable[i]);
-        }
-        for (i=0; i<CR_MAX_VERTEX_PROGRAM_ENV_PARAMS; ++i)
-        {
-            FILLDIRTY(pBits->program.vertexEnvParameter[i]);
-        }
-        for (i=0; i<CR_MAX_FRAGMENT_PROGRAM_ENV_PARAMS; ++i)
-        {
-            FILLDIRTY(pBits->program.fragmentEnvParameter[i]);
-        }
-        FILLDIRTY(pBits->program.vertexEnvParameters);
-        FILLDIRTY(pBits->program.fragmentEnvParameters);
-        for (i=0; i<CR_MAX_VERTEX_PROGRAM_ENV_PARAMS/4; ++i)
-        {
-            FILLDIRTY(pBits->program.trackMatrix[i]);
-        }
-
-        FILLDIRTY(pBits->regcombiner.dirty);
-        FILLDIRTY(pBits->regcombiner.enable);
-        FILLDIRTY(pBits->regcombiner.regCombinerVars);
-        FILLDIRTY(pBits->regcombiner.regCombinerColor0);
-        FILLDIRTY(pBits->regcombiner.regCombinerColor1);
-        for (i=0; i<CR_MAX_GENERAL_COMBINERS; ++i)
-        {
-            FILLDIRTY(pBits->regcombiner.regCombinerStageColor0[i]);
-            FILLDIRTY(pBits->regcombiner.regCombinerStageColor1[i]);
-            FILLDIRTY(pBits->regcombiner.regCombinerInput[i]);
-            FILLDIRTY(pBits->regcombiner.regCombinerOutput[i]);
-        }
-        FILLDIRTY(pBits->regcombiner.regCombinerFinalInput);
-
-        FILLDIRTY(pBits->stencil.dirty);
-        FILLDIRTY(pBits->stencil.enable);
-        FILLDIRTY(pBits->stencil.func);
-        FILLDIRTY(pBits->stencil.op);
-        FILLDIRTY(pBits->stencil.clearValue);
-        FILLDIRTY(pBits->stencil.writeMask);
-
-        FILLDIRTY(pBits->texture.dirty);
-        for (i=0; i<CR_MAX_TEXTURE_UNITS; ++i)
-        {
-            FILLDIRTY(pBits->texture.enable[i]);
-            FILLDIRTY(pBits->texture.current[i]);
-            FILLDIRTY(pBits->texture.objGen[i]);
-            FILLDIRTY(pBits->texture.eyeGen[i]);
-            FILLDIRTY(pBits->texture.genMode[i]);
-            FILLDIRTY(pBits->texture.envBit[i]);
-        }
-
-        FILLDIRTY(pBits->transform.dirty);
-        FILLDIRTY(pBits->transform.matrixMode);
-        FILLDIRTY(pBits->transform.modelviewMatrix);
-        FILLDIRTY(pBits->transform.projectionMatrix);
-        FILLDIRTY(pBits->transform.colorMatrix);
-        FILLDIRTY(pBits->transform.textureMatrix);
-        FILLDIRTY(pBits->transform.programMatrix);
-        FILLDIRTY(pBits->transform.clipPlane);
-        FILLDIRTY(pBits->transform.enable);
-        FILLDIRTY(pBits->transform.base);
-
-        FILLDIRTY(pBits->viewport.dirty);
-        FILLDIRTY(pBits->viewport.v_dims);
-        FILLDIRTY(pBits->viewport.s_dims);
-        FILLDIRTY(pBits->viewport.enable);
-        FILLDIRTY(pBits->viewport.depth);
+        crWarning("context error state changed on context restore, was 0x%x, but became 0x%x, resetting to its original value",
+                err, pContext->error);
+        pContext->error = err;
     }
 
     return VINF_SUCCESS;

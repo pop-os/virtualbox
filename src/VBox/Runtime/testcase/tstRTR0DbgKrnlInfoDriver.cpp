@@ -83,7 +83,7 @@ int main (int argc, char **argv)
 
     void *pvImageBase;
     rc = SUPR3LoadServiceModule(szPath, "tstRTR0DbgKrnlInfo",
-                                "tstRTR0DbgKrnlInfoSrvReqHandler",
+                                "TSTR0DbgKrnlInfoSrvReqHandler",
                                 &pvImageBase);
     if (RT_FAILURE(rc))
     {
@@ -120,8 +120,8 @@ int main (int argc, char **argv)
                                              TSTRTR0DBGKRNLINFO_SANITY_FAILURE, 0, &Req.Hdr), VINF_SUCCESS);
     if (RT_FAILURE(rc))
         return RTTestSummaryAndDestroy(hTest);
-    RTTESTI_CHECK_MSG(!strncmp(Req.szMsg, "!42failure42", sizeof("!42failure42") - 1), ("%s", Req.szMsg));
-    if (strncmp(Req.szMsg, "!42failure42", sizeof("!42failure42") - 1))
+    RTTESTI_CHECK_MSG(!strncmp(Req.szMsg, RT_STR_TUPLE("!42failure42")), ("%s", Req.szMsg));
+    if (strncmp(Req.szMsg, RT_STR_TUPLE("!42failure42")))
         return RTTestSummaryAndDestroy(hTest);
 
     /*

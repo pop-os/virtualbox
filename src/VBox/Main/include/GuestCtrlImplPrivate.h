@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,6 +17,8 @@
 
 #ifndef ____H_GUESTIMPLPRIVATE
 #define ____H_GUESTIMPLPRIVATE
+
+#include "ConsoleImpl.h"
 
 #include <iprt/asm.h>
 #include <iprt/semaphore.h>
@@ -36,172 +38,13 @@ using namespace com;
 using namespace guestControl;
 #endif
 
-/** Maximum number of guest sessions a VM can have. */
-#define VBOX_GUESTCTRL_MAX_SESSIONS     32
-/** Maximum number of guest objects (processes, files, ...)
- *  a guest session can have. */
-#define VBOX_GUESTCTRL_MAX_OBJECTS      _2K
-/** Maximum of callback contexts a guest process can have. */
-#define VBOX_GUESTCTRL_MAX_CONTEXTS     _64K
-
-/** Builds a context ID out of the session ID, object ID and an
- *  increasing count. */
-#define VBOX_GUESTCTRL_CONTEXTID_MAKE(uSession, uObject, uCount) \
-    (  (uint32_t)((uSession) &   0x1f) << 27 \
-     | (uint32_t)((uObject)  &  0x7ff) << 16 \
-     | (uint32_t)((uCount)   & 0xffff)       \
-    )
-/** Gets the session ID out of a context ID. */
-#define VBOX_GUESTCTRL_CONTEXTID_GET_SESSION(uContextID) \
-    ((uContextID) >> 27)
-/** Gets the process ID out of a context ID. */
-#define VBOX_GUESTCTRL_CONTEXTID_GET_OBJECT(uContextID) \
-    (((uContextID) >> 16) & 0x7ff)
-/** Gets the conext count of a process out of a context ID. */
-#define VBOX_GUESTCTRL_CONTEXTID_GET_COUNT(uContextID) \
-    ((uContextID) & 0xffff)
-
 /** Vector holding a process' CPU affinity. */
 typedef std::vector <LONG> ProcessAffinity;
 /** Vector holding process startup arguments. */
 typedef std::vector <Utf8Str> ProcessArguments;
 
 class GuestProcessStreamBlock;
-
-
-/**
- * Base class for a all guest control callbacks/events.
- */
-class GuestCtrlEvent
-{
-public:
-
-    GuestCtrlEvent(void);
-
-    virtual ~GuestCtrlEvent(void);
-
-    /** @todo Copy/comparison operator? */
-
-public:
-
-    int Cancel(void);
-
-    bool Canceled(void);
-
-    virtual void Destroy(void);
-
-    int Init(void);
-
-    virtual int Signal(int rc = VINF_SUCCESS);
-
-    int GetResultCode(void) { return mRC; }
-
-    int Wait(ULONG uTimeoutMS);
-
-protected:
-
-    /** Was the callback canceled? */
-    bool                        fCanceled;
-    /** Did the callback complete? */
-    bool                        fCompleted;
-    /** The event semaphore for triggering
-     *  the actual event. */
-    RTSEMEVENT                  hEventSem;
-    /** The waiting mutex. */
-    RTSEMMUTEX                  hEventMutex;
-    /** Overall result code. */
-    int                         mRC;
-};
-
-
-/*
- * Class representing a guest control callback.
- */
-class GuestCtrlCallback : public GuestCtrlEvent
-{
-public:
-
-    GuestCtrlCallback(void);
-
-    GuestCtrlCallback(eVBoxGuestCtrlCallbackType enmType);
-
-    virtual ~GuestCtrlCallback(void);
-
-public:
-
-    void Destroy(void);
-
-    int Init(eVBoxGuestCtrlCallbackType enmType);
-
-    eVBoxGuestCtrlCallbackType GetCallbackType(void) { return mType; }
-
-    const void* GetDataRaw(void) const { return pvData; }
-
-    size_t GetDataSize(void) { return cbData; }
-
-    const void* GetPayloadRaw(void) const { return pvPayload; }
-
-    size_t GetPayloadSize(void) { return cbPayload; }
-
-    int SetData(const void *pvCallback, size_t cbCallback);
-
-    int SetPayload(const void *pvToWrite, size_t cbToWrite);
-
-protected:
-
-    /** Pointer to actual callback data. */
-    void                       *pvData;
-    /** Size of user-supplied data. */
-    size_t                      cbData;
-    /** The callback type. */
-    eVBoxGuestCtrlCallbackType  mType;
-    /** Callback flags. */
-    uint32_t                    uFlags;
-    /** Payload which will be available on successful
-     *  waiting (optional). */
-    void                       *pvPayload;
-    /** Size of the payload (optional). */
-    size_t                      cbPayload;
-};
-typedef std::map < uint32_t, GuestCtrlCallback* > GuestCtrlCallbacks;
-
-
-/*
- * Class representing a guest control process waiting
- * event.
- */
-class GuestProcessWaitEvent : public GuestCtrlEvent
-{
-public:
-
-    GuestProcessWaitEvent(void);
-
-    GuestProcessWaitEvent(uint32_t uWaitFlags);
-
-    virtual ~GuestProcessWaitEvent(void);
-
-public:
-
-    void Destroy(void);
-
-    int Init(uint32_t uWaitFlags);
-
-    uint32_t GetWaitFlags(void) { return ASMAtomicReadU32(&mFlags); }
-
-    ProcessWaitResult_T GetWaitResult(void) { return mResult; }
-
-    int GetWaitRc(void) { return mRC; }
-
-    int Signal(ProcessWaitResult_T enmResult, int rc = VINF_SUCCESS);
-
-protected:
-
-    /** The waiting flag(s). The specifies what to
-     *  wait for. See ProcessWaitFlag_T. */
-    uint32_t                    mFlags;
-    /** Structure containing the overall result. */
-    ProcessWaitResult_T         mResult;
-};
+class GuestSession;
 
 
 /**
@@ -261,6 +104,43 @@ protected:
 
 
 /**
+ * Structure for keeping all the relevant guest directory
+ * information around.
+ */
+struct GuestDirectoryOpenInfo
+{
+    /** The directory path. */
+    Utf8Str                 mPath;
+    /** Then open filter. */
+    Utf8Str                 mFilter;
+    /** Opening flags. */
+    uint32_t                mFlags;
+};
+
+
+/**
+ * Structure for keeping all the relevant guest file
+ * information around.
+ */
+struct GuestFileOpenInfo
+{
+    /** The filename. */
+    Utf8Str                 mFileName;
+    /** Then file's opening mode. */
+    Utf8Str                 mOpenMode;
+    /** The file's disposition mode. */
+    Utf8Str                 mDisposition;
+    /** The file's sharing mode.
+     **@todo Not implemented yet.*/
+    Utf8Str                 mSharingMode;
+    /** Octal creation mode. */
+    uint32_t                mCreationMode;
+    /** The initial offset on open. */
+    uint64_t                mInitialOffset;
+};
+
+
+/**
  * Structure representing information of a
  * file system object.
  */
@@ -295,8 +175,37 @@ struct GuestFsObjData
 
 
 /**
- * Structure for keeping all the relevant process
- * starting parameters around.
+ * Structure for keeping all the relevant guest session
+ * startup parameters around.
+ */
+class GuestSessionStartupInfo
+{
+public:
+
+    GuestSessionStartupInfo(void)
+        : mIsInternal(false /* Non-internal session */),
+          mOpenTimeoutMS(30 * 1000 /* 30s opening timeout */),
+          mOpenFlags(0 /* No opening flags set */) { }
+
+    /** The session's friendly name. Optional. */
+    Utf8Str                     mName;
+    /** The session's unique ID. Used to encode
+     *  a context ID. */
+    uint32_t                    mID;
+    /** Flag indicating if this is an internal session
+     *  or not. Internal session are not accessible by
+     *  public API clients. */
+    bool                        mIsInternal;
+    /** Timeout (in ms) used for opening the session. */
+    uint32_t                    mOpenTimeoutMS;
+    /** Session opening flags. */
+    uint32_t                    mOpenFlags;
+};
+
+
+/**
+ * Structure for keeping all the relevant guest process
+ * startup parameters around.
  */
 class GuestProcessStartupInfo
 {
@@ -316,8 +225,12 @@ public:
     /** Process creation flags. */
     uint32_t                    mFlags;
     ULONG                       mTimeoutMS;
+    /** Process priority. */
     ProcessPriority_T           mPriority;
-    ProcessAffinity             mAffinity;
+    /** Process affinity. At the moment we
+     *  only support 64 VCPUs. API and
+     *  guest can do more already!  */
+    uint64_t                    mAffinity;
 };
 
 
@@ -377,13 +290,13 @@ public:
 
     uint32_t GetUInt32(const char *pszKey) const;
 
-    bool IsEmpty(void) { return m_mapPairs.empty(); }
+    bool IsEmpty(void) { return mPairs.empty(); }
 
     int SetValue(const char *pszKey, const char *pszValue);
 
 protected:
 
-    GuestCtrlStreamPairMap m_mapPairs;
+    GuestCtrlStreamPairMap mPairs;
 };
 
 /** Vector containing multiple allocated stream pair objects. */
@@ -414,9 +327,9 @@ public:
     void Dump(const char *pszFile);
 #endif
 
-    uint32_t GetOffset();
+    uint32_t GetOffset() { return m_cbOffset; }
 
-    uint32_t GetSize();
+    size_t GetSize() { return m_cbSize; }
 
     int ParseBlock(GuestProcessStreamBlock &streamBlock);
 
@@ -425,7 +338,7 @@ protected:
     /** Currently allocated size of internal stream buffer. */
     uint32_t m_cbAllocated;
     /** Currently used size of allocated internal stream buffer. */
-    uint32_t m_cbSize;
+    size_t m_cbSize;
     /** Current offset within the internal stream buffer. */
     uint32_t m_cbOffset;
     /** Internal stream buffer. */
@@ -477,6 +390,281 @@ public:
     Utf8Str strUserName;
     Utf8Str strPassword;
     ULONG   uFlags;
+};
+
+class GuestWaitEventPayload
+{
+
+public:
+
+    GuestWaitEventPayload(void)
+        : uType(0),
+          cbData(0),
+          pvData(NULL) { }
+
+    GuestWaitEventPayload(uint32_t uTypePayload,
+                          const void *pvPayload, uint32_t cbPayload)
+    {
+        if (cbPayload)
+        {
+            pvData = RTMemAlloc(cbPayload);
+            if (pvData)
+            {
+                uType = uTypePayload;
+
+                memcpy(pvData, pvPayload, cbPayload);
+                cbData = cbPayload;
+            }
+            else /* Throw IPRT error. */
+                throw VERR_NO_MEMORY;
+        }
+        else
+        {
+            uType = uTypePayload;
+
+            pvData = NULL;
+            cbData = 0;
+        }
+    }
+
+    virtual ~GuestWaitEventPayload(void)
+    {
+        Clear();
+    }
+
+    GuestWaitEventPayload& operator=(const GuestWaitEventPayload &that)
+    {
+        CopyFromDeep(that);
+        return *this;
+    }
+
+public:
+
+    void Clear(void)
+    {
+        if (pvData)
+        {
+            RTMemFree(pvData);
+            cbData = 0;
+        }
+        uType = 0;
+    }
+
+    int CopyFromDeep(const GuestWaitEventPayload &payload)
+    {
+        Clear();
+
+        int rc = VINF_SUCCESS;
+        if (payload.cbData)
+        {
+            Assert(payload.cbData);
+            pvData = RTMemAlloc(payload.cbData);
+            if (pvData)
+            {
+                memcpy(pvData, payload.pvData, payload.cbData);
+                cbData = payload.cbData;
+                uType = payload.uType;
+            }
+            else
+                rc = VERR_NO_MEMORY;
+        }
+
+        return rc;
+    }
+
+    const void* Raw(void) const { return pvData; }
+
+    size_t Size(void) const { return cbData; }
+
+    uint32_t Type(void) const { return uType; }
+
+    void* MutableRaw(void) { return pvData; }
+
+protected:
+
+    /** Type of payload. */
+    uint32_t uType;
+    /** Size (in bytes) of payload. */
+    uint32_t cbData;
+    /** Pointer to actual payload data. */
+    void *pvData;
+};
+
+class GuestWaitEventBase
+{
+
+protected:
+
+    GuestWaitEventBase(void);
+    virtual ~GuestWaitEventBase(void);
+
+public:
+
+    uint32_t                        ContextID(void) { return mCID; };
+    int                             GuestResult(void) { return mGuestRc; }
+    int                             Result(void) { return mRc; }
+    GuestWaitEventPayload &         Payload(void) { return mPayload; }
+    int                             SignalInternal(int rc, int guestRc, const GuestWaitEventPayload *pPayload);
+    int                             Wait(RTMSINTERVAL uTimeoutMS);
+
+protected:
+
+    int             Init(uint32_t uCID);
+
+protected:
+
+    /* Shutdown indicator. */
+    bool                       mfAborted;
+    /* Associated context ID (CID). */
+    uint32_t                   mCID;
+    /** The event semaphore for triggering
+     *  the actual event. */
+    RTSEMEVENT                 mEventSem;
+    /** The event's overall result. If
+     *  set to VERR_GSTCTL_GUEST_ERROR,
+     *  mGuestRc will contain the actual
+     *  error code from the guest side. */
+    int                        mRc;
+    /** The event'S overall result from the
+     *  guest side. If used, mRc must be
+     *  set to VERR_GSTCTL_GUEST_ERROR. */
+    int                        mGuestRc;
+    /** The event's payload data. Optional. */
+    GuestWaitEventPayload      mPayload;
+};
+
+/** List of public guest event types. */
+typedef std::list < VBoxEventType_T > GuestEventTypes;
+
+class GuestWaitEvent : public GuestWaitEventBase
+{
+
+public:
+
+    GuestWaitEvent(uint32_t uCID);
+    GuestWaitEvent(uint32_t uCID, const GuestEventTypes &lstEvents);
+    virtual ~GuestWaitEvent(void);
+
+public:
+
+    int                              Cancel(void);
+    const ComPtr<IEvent>             Event(void) { return mEvent; }
+    int                              SignalExternal(IEvent *pEvent);
+    const GuestEventTypes            Types(void) { return mEventTypes; }
+    size_t                           TypeCount(void) { return mEventTypes.size(); }
+
+protected:
+
+    int                              Init(uint32_t uCID);
+
+protected:
+
+    /** List of public event types this event should
+     *  be signalled on. Optional. */
+    GuestEventTypes            mEventTypes;
+    /** Pointer to the actual public event, if any. */
+    ComPtr<IEvent>             mEvent;
+};
+/** Map of pointers to guest events. The primary key
+ *  contains the context ID. */
+typedef std::map < uint32_t, GuestWaitEvent* > GuestWaitEvents;
+/** Map of wait events per public guest event. Nice for
+ *  faster lookups when signalling a whole event group. */
+typedef std::map < VBoxEventType_T, GuestWaitEvents > GuestEventGroup;
+
+class GuestBase
+{
+
+public:
+
+    GuestBase(void);
+    virtual ~GuestBase(void);
+
+public:
+
+    /** Signals a wait event using a public guest event; also used for
+     *  for external event listeners. */
+    int signalWaitEvent(VBoxEventType_T aType, IEvent *aEvent);
+    /** Signals a wait event using a guest rc. */
+    int signalWaitEventInternal(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, int guestRc, const GuestWaitEventPayload *pPayload);
+    /** Signals a wait event without letting public guest events know,
+     *  extended director's cut version. */
+    int signalWaitEventInternalEx(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, int rc, int guestRc, const GuestWaitEventPayload *pPayload);
+public:
+
+    int baseInit(void);
+    void baseUninit(void);
+    int cancelWaitEvents(void);
+    int dispatchGeneric(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    int generateContextID(uint32_t uSessionID, uint32_t uObjectID, uint32_t *puContextID);
+    int registerWaitEvent(uint32_t uSessionID, uint32_t uObjectID, GuestWaitEvent **ppEvent);
+    int registerWaitEvent(uint32_t uSessionID, uint32_t uObjectID, const GuestEventTypes &lstEvents, GuestWaitEvent **ppEvent);
+    void unregisterWaitEvent(GuestWaitEvent *pEvent);
+    int waitForEvent(GuestWaitEvent *pEvent, uint32_t uTimeoutMS, VBoxEventType_T *pType, IEvent **ppEvent);
+
+protected:
+
+    /** Pointer to the console object. Needed
+     *  for HGCM (VMMDev) communication. */
+    Console                 *mConsole;
+    /** The next upcoming context ID for this object. */
+    uint32_t                 mNextContextID;
+    /** Local listener for handling the waiting events
+     *  internally. */
+    ComPtr<IEventListener>   mLocalListener;
+    /** Critical section for wait events access. */
+    RTCRITSECT               mWaitEventCritSect;
+    /** Map of registered wait events per event group. */
+    GuestEventGroup          mWaitEventGroups;
+    /** Map of registered wait events. */
+    GuestWaitEvents          mWaitEvents;
+};
+
+/**
+ * Virtual class (interface) for guest objects (processes, files, ...) --
+ * contains all per-object callback management.
+ */
+class GuestObject : public GuestBase
+{
+
+public:
+
+    GuestObject(void);
+    virtual ~GuestObject(void);
+
+public:
+
+    ULONG getObjectID(void) { return mObjectID; }
+
+protected:
+
+    /** Callback dispatcher -- must be implemented by the actual object. */
+    virtual int callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb) = 0;
+
+protected:
+
+    int bindToSession(Console *pConsole, GuestSession *pSession, uint32_t uObjectID);
+    int registerWaitEvent(const GuestEventTypes &lstEvents, GuestWaitEvent **ppEvent);
+    int sendCommand(uint32_t uFunction, uint32_t uParms, PVBOXHGCMSVCPARM paParms);
+
+protected:
+
+    /**
+     * Commom parameters for all derived objects, when then have
+     * an own mData structure to keep their specific data around.
+     */
+
+    /** Pointer to parent session. Per definition
+     *  this objects *always* lives shorter than the
+     *  parent. */
+    GuestSession            *mSession;
+    /** The object ID -- must be unique for each guest
+     *  object and is encoded into the context ID. Must
+     *  be set manually when initializing the object.
+     *
+     *  For guest processes this is the internal PID,
+     *  for guest files this is the internal file ID. */
+    uint32_t                 mObjectID;
 };
 #endif // ____H_GUESTIMPLPRIVATE
 

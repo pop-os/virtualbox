@@ -23,6 +23,7 @@
 /* GUI includes: */
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
+#include "UIPopupCenter.h"
 #include "UISession.h"
 #include "UIActionPoolRuntime.h"
 #include "UIMachineLogicSeamless.h"
@@ -49,17 +50,6 @@ bool UIMachineLogicSeamless::checkAvailability()
 {
     /* Temporary get a machine object: */
     const CMachine &machine = uisession()->session().GetMachine();
-
-#if 0
-    /* Check that there are enough physical screens are connected: */
-    int cHostScreens = m_pScreenLayout->hostScreenCount();
-    int cGuestScreens = m_pScreenLayout->guestScreenCount();
-    if (cHostScreens < cGuestScreens)
-    {
-        msgCenter().cannotEnterSeamlessMode();
-        return false;
-    }
-#endif
 
     /* Check if there is enough physical memory to enter seamless: */
     if (uisession()->isGuestAdditionsActive())
@@ -88,6 +78,16 @@ bool UIMachineLogicSeamless::checkAvailability()
     return true;
 }
 
+/** Adjusts guest screen count/size for the machine-logic we have. */
+void UIMachineLogicSeamless::maybeAdjustGuestScreenSize()
+{
+    /* We should rebuild screen-layout: */
+    m_pScreenLayout->rebuild();
+    /* We should update machine-windows sizes: */
+    foreach (UIMachineWindow *pMachineWindow, machineWindows())
+        pMachineWindow->handleScreenGeometryChange();
+}
+
 int UIMachineLogicSeamless::hostScreenForGuestScreen(int iScreenId) const
 {
     return m_pScreenLayout->hostScreenForGuestScreen(iScreenId);
@@ -98,9 +98,43 @@ bool UIMachineLogicSeamless::hasHostScreenForGuestScreen(int iScreenId) const
     return m_pScreenLayout->hasHostScreenForGuestScreen(iScreenId);
 }
 
+void UIMachineLogicSeamless::notifyAbout3DOverlayVisibilityChange(bool)
+{
+    /* If active machine-window is defined now: */
+    if (activeMachineWindow())
+    {
+        /* Reinstall corresponding popup-stack and make sure it has proper type: */
+        popupCenter().hidePopupStack(activeMachineWindow());
+        popupCenter().setPopupStackType(activeMachineWindow(), UIPopupStackType_Separate);
+        popupCenter().showPopupStack(activeMachineWindow());
+    }
+}
+
+void UIMachineLogicSeamless::sltMachineStateChanged()
+{
+    /* Call to base-class: */
+    UIMachineLogic::sltMachineStateChanged();
+
+    /* If machine-state changed from 'paused' to 'running': */
+    if (uisession()->isRunning() && uisession()->wasPaused())
+    {
+        LogRelFlow(("UIMachineLogicSeamless: "
+                    "Machine-state changed from 'paused' to 'running': "
+                    "Updating screen-layout...\n"));
+
+        /* Make sure further code will be called just once: */
+        uisession()->forgetPreviousMachineState();
+        /* We should rebuild screen-layout: */
+        m_pScreenLayout->rebuild();
+        /* We should update machine-windows sizes: */
+        foreach (UIMachineWindow *pMachineWindow, machineWindows())
+            pMachineWindow->handleScreenGeometryChange();
+    }
+}
+
 void UIMachineLogicSeamless::sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo)
 {
-    LogRelFlow(("UIMachineLogicSeamless::GuestScreenCountChanged.\n"));
+    LogRelFlow(("UIMachineLogicSeamless: Guest-screen count changed.\n"));
 
     /* Update multi-screen layout before any window update: */
     if (changeType == KGuestMonitorChangedEventType_Enabled ||
@@ -111,15 +145,15 @@ void UIMachineLogicSeamless::sltGuestMonitorChange(KGuestMonitorChangedEventType
     UIMachineLogic::sltGuestMonitorChange(changeType, uScreenId, screenGeo);
 }
 
-void UIMachineLogicSeamless::sltHostScreenCountChanged(int cScreenCount)
+void UIMachineLogicSeamless::sltHostScreenCountChanged()
 {
-    LogRelFlow(("UIMachineLogicSeamless::HostScreenCountChanged.\n"));
+    LogRelFlow(("UIMachineLogicSeamless: Host-screen count changed.\n"));
 
     /* Update multi-screen layout before any window update: */
     m_pScreenLayout->rebuild();
 
     /* Call to base-class: */
-    UIMachineLogic::sltHostScreenCountChanged(cScreenCount);
+    UIMachineLogic::sltHostScreenCountChanged();
 }
 
 void UIMachineLogicSeamless::prepareActionGroups()
@@ -139,7 +173,7 @@ void UIMachineLogicSeamless::prepareActionGroups()
 
 void UIMachineLogicSeamless::prepareMachineWindows()
 {
-    /* Do not create window(s) if they created already: */
+    /* Do not create machine-window(s) if they created already: */
     if (isMachineWindowsCreated())
         return;
 
@@ -149,19 +183,19 @@ void UIMachineLogicSeamless::prepareMachineWindows()
     ::darwinSetFrontMostProcess();
 #endif /* Q_WS_MAC */
 
-    /* Update the multi screen layout: */
+    /* Update the multi-screen layout: */
     m_pScreenLayout->update();
 
     /* Create machine window(s): */
     for (uint cScreenId = 0; cScreenId < session().GetMachine().GetMonitorCount(); ++cScreenId)
         addMachineWindow(UIMachineWindow::create(this, cScreenId));
 
-    /* Connect screen-layout change handler: */
+    /* Connect multi-screen layout change handler: */
     for (int i = 0; i < machineWindows().size(); ++i)
         connect(m_pScreenLayout, SIGNAL(sigScreenLayoutChanged()),
                 static_cast<UIMachineWindowSeamless*>(machineWindows()[i]), SLOT(sltShowInNecessaryMode()));
 
-    /* Remember what machine window(s) created: */
+    /* Mark machine-window(s) created: */
     setMachineWindowsCreated(true);
 }
 
@@ -176,11 +210,14 @@ void UIMachineLogicSeamless::prepareMenu()
 
 void UIMachineLogicSeamless::cleanupMachineWindows()
 {
-    /* Do not cleanup machine window(s) if not present: */
+    /* Do not destroy machine-window(s) if they destroyed already: */
     if (!isMachineWindowsCreated())
         return;
 
-    /* Cleanup machine window(s): */
+    /* Mark machine-window(s) destroyed: */
+    setMachineWindowsCreated(false);
+
+    /* Cleanup machine-window(s): */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
         UIMachineWindow::destroy(pMachineWindow);
 }

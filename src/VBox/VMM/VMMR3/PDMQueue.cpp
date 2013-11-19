@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,7 +39,7 @@
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-DECLINLINE(void)            pdmR3QueueFree(PPDMQUEUE pQueue, PPDMQUEUEITEMCORE pItem);
+DECLINLINE(void)            pdmR3QueueFreeItem(PPDMQUEUE pQueue, PPDMQUEUEITEMCORE pItem);
 static bool                 pdmR3QueueFlush(PPDMQUEUE pQueue);
 static DECLCALLBACK(void)   pdmR3QueueTimer(PVM pVM, PTMTIMER pTimer, void *pvUser);
 
@@ -264,11 +264,7 @@ VMMR3_INT_DECL(int) PDMR3QueueCreateDriver(PVM pVM, PPDMDRVINS pDrvIns, size_t c
      * Validate input.
      */
     VMCPU_ASSERT_EMT(&pVM->aCpus[0]);
-    if (!pfnCallback)
-    {
-        AssertMsgFailed(("No consumer callback!\n"));
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertPtrReturn(pfnCallback, VERR_INVALID_POINTER);
 
     /*
      * Create the queue.
@@ -314,11 +310,7 @@ VMMR3_INT_DECL(int) PDMR3QueueCreateInternal(PVM pVM, size_t cbItem, uint32_t cI
      * Validate input.
      */
     VMCPU_ASSERT_EMT(&pVM->aCpus[0]);
-    if (!pfnCallback)
-    {
-        AssertMsgFailed(("No consumer callback!\n"));
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertPtrReturn(pfnCallback, VERR_INVALID_POINTER);
 
     /*
      * Create the queue.
@@ -362,11 +354,7 @@ VMMR3_INT_DECL(int) PDMR3QueueCreateExternal(PVM pVM, size_t cbItem, uint32_t cI
      * Validate input.
      */
     VMCPU_ASSERT_EMT(&pVM->aCpus[0]);
-    if (!pfnCallback)
-    {
-        AssertMsgFailed(("No consumer callback!\n"));
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertPtrReturn(pfnCallback, VERR_INVALID_POINTER);
 
     /*
      * Create the queue.
@@ -457,16 +445,7 @@ VMMR3_INT_DECL(int) PDMR3QueueDestroy(PPDMQUEUE pQueue)
     /*
      * Deregister statistics.
      */
-    STAMR3Deregister(pVM, &pQueue->cbItem);
-    STAMR3Deregister(pVM, &pQueue->cbItem);
-    STAMR3Deregister(pVM, &pQueue->StatAllocFailures);
-    STAMR3Deregister(pVM, &pQueue->StatInsert);
-    STAMR3Deregister(pVM, &pQueue->StatFlush);
-    STAMR3Deregister(pVM, &pQueue->StatFlushLeftovers);
-#ifdef VBOX_WITH_STATISTICS
-    STAMR3Deregister(pVM, &pQueue->StatFlushPrf);
-    STAMR3Deregister(pVM, (void *)&pQueue->cStatPending);
-#endif
+    STAMR3DeregisterF(pVM->pUVM, "/PDM/Queue/%s/cbItem", pQueue->pszName);
 
     /*
      * Destroy the timer and free it.
@@ -683,7 +662,7 @@ VMMR3_INT_DECL(void) PDMR3QueueFlushAll(PVM pVM)
 
         /* We're done if there were no inserts while we were busy. */
         if (   !ASMBitTest(&pVM->pdm.s.fQueueFlushing, PDM_QUEUE_FLUSH_FLAG_PENDING_BIT)
-            && !VM_FF_ISPENDING(pVM, VM_FF_PDM_QUEUES))
+            && !VM_FF_IS_PENDING(pVM, VM_FF_PDM_QUEUES))
             break;
         VM_FF_CLEAR(pVM, VM_FF_PDM_QUEUES);
     }
@@ -764,7 +743,7 @@ static bool pdmR3QueueFlush(PPDMQUEUE pQueue)
                     break;
                 pCur = pItems;
                 pItems = pItems->pNextR3;
-                pdmR3QueueFree(pQueue, pCur);
+                pdmR3QueueFreeItem(pQueue, pCur);
             }
             break;
 
@@ -775,7 +754,7 @@ static bool pdmR3QueueFlush(PPDMQUEUE pQueue)
                     break;
                 pCur = pItems;
                 pItems = pItems->pNextR3;
-                pdmR3QueueFree(pQueue, pCur);
+                pdmR3QueueFreeItem(pQueue, pCur);
             }
             break;
 
@@ -786,7 +765,7 @@ static bool pdmR3QueueFlush(PPDMQUEUE pQueue)
                     break;
                 pCur = pItems;
                 pItems = pItems->pNextR3;
-                pdmR3QueueFree(pQueue, pCur);
+                pdmR3QueueFreeItem(pQueue, pCur);
             }
             break;
 
@@ -797,7 +776,7 @@ static bool pdmR3QueueFlush(PPDMQUEUE pQueue)
                     break;
                 pCur = pItems;
                 pItems = pItems->pNextR3;
-                pdmR3QueueFree(pQueue, pCur);
+                pdmR3QueueFreeItem(pQueue, pCur);
             }
             break;
 
@@ -858,7 +837,7 @@ static bool pdmR3QueueFlush(PPDMQUEUE pQueue)
  * @param   pQueue  The queue.
  * @param   pItem   The item.
  */
-DECLINLINE(void) pdmR3QueueFree(PPDMQUEUE pQueue, PPDMQUEUEITEMCORE pItem)
+DECLINLINE(void) pdmR3QueueFreeItem(PPDMQUEUE pQueue, PPDMQUEUEITEMCORE pItem)
 {
     VM_ASSERT_EMT(pQueue->pVMR3);
 

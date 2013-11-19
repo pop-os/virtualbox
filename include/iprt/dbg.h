@@ -29,6 +29,7 @@
 
 #include <iprt/types.h>
 #include <iprt/stdarg.h>
+#include <iprt/ldr.h>
 
 RT_C_DECLS_BEGIN
 
@@ -59,6 +60,7 @@ typedef RTDBGSEGIDX const  *PCRTDBGSEGIDX;
 #define RTDBGSEGIDX_SPECIAL_LAST    RTDBGSEGIDX_ABS
 /** The last valid special segment index. */
 #define RTDBGSEGIDX_SPECIAL_FIRST   (RTDBGSEGIDX_LAST + 1U)
+
 
 
 /** @name RTDBGSYMADDR_FLAGS_XXX
@@ -212,6 +214,258 @@ RTDECL(PRTDBGLINE)      RTDbgLineDup(PCRTDBGLINE pLine);
 RTDECL(void)            RTDbgLineFree(PRTDBGLINE pLine);
 
 
+/** @defgroup grp_rt_dbgcfg     RTDbgCfg - Debugging Configuration
+ *
+ * The settings used when loading and processing debug info is kept in a
+ * RTDBGCFG instance since it's generally shared for a whole debugging session
+ * and anyhow would be a major pain to pass as individual parameters to each
+ * call.  The debugging config API not only keeps the settings information but
+ * also provide APIs for making use of it, and in some cases, like for instance
+ * symbol severs, retriving and maintaining it.
+ *
+ * @todo Work in progress - APIs are still missing, adding when needed.
+ *
+ * @{
+ */
+
+/** Debugging configuration handle.  */
+typedef struct RTDBGCFGINT *RTDBGCFG;
+/** Pointer to a debugging configuration handle. */
+typedef RTDBGCFG           *PRTDBGCFG;
+/** NIL debug configuration handle. */
+#define NIL_RTDBGCFG        ((RTDBGCFG)0)
+
+/** @name RTDBGCFG_FLAGS_XXX - Debugging configuration flags.
+ * @{ */
+/** Use deferred loading. */
+#define RTDBGCFG_FLAGS_DEFERRED                     RT_BIT_64(0)
+/** Don't use the symbol server (http). */
+#define RTDBGCFG_FLAGS_NO_SYM_SRV                   RT_BIT_64(1)
+/** Don't use system search paths.
+ * On windows this means not using _NT_ALT_SYMBOL_PATH, _NT_SYMBOL_PATH,
+ * _NT_SOURCE_PATH, and _NT_EXECUTABLE_PATH.
+ * On other systems the effect has yet to be determined. */
+#define RTDBGCFG_FLAGS_NO_SYSTEM_PATHS              RT_BIT_64(2)
+/** Don't search the debug and image paths recursively. */
+#define RTDBGCFG_FLAGS_NO_RECURSIV_SEARCH           RT_BIT_64(3)
+/** Don't search the source paths recursively. */
+#define RTDBGCFG_FLAGS_NO_RECURSIV_SRC_SEARCH       RT_BIT_64(4)
+/** @} */
+
+/**
+ * Debugging configuration properties.
+ *
+ * The search paths are using the DOS convention of semicolon as separator
+ * character.  The the special 'srv' + asterisk syntax known from the windows
+ * debugger search paths are also supported to some extent, as is 'cache' +
+ * asterisk.
+ */
+typedef enum RTDBGCFGPROP
+{
+    /** The customary invalid 0 value. */
+    RTDBGCFGPROP_INVALID = 0,
+    /** RTDBGCFG_FLAGS_XXX.
+     * Env: _FLAGS
+     * The environment variable can be specified as a unsigned value or one or more
+     * mnemonics separated by spaces. */
+    RTDBGCFGPROP_FLAGS,
+    /** List of paths to search for symbol files and images.
+     * Env: _PATH  */
+    RTDBGCFGPROP_PATH,
+    /** List of symbol file suffixes (semicolon separated).
+     * Env: _SUFFIXES  */
+    RTDBGCFGPROP_SUFFIXES,
+    /** List of paths to search for source files.
+     * Env: _SRC_PATH   */
+    RTDBGCFGPROP_SRC_PATH,
+    /** End of valid values. */
+    RTDBGCFGPROP_END,
+    /** The customary 32-bit type hack. */
+    RTDBGCFGPROP_32BIT_HACK = 0x7fffffff
+} RTDBGCFGPROP;
+
+/**
+ * Configuration property change operation.
+ */
+typedef enum RTDBGCFGOP
+{
+    /** Customary invalid 0 value. */
+    RTDBGCFGOP_INVALID = 0,
+    /** Replace the current value with the given one. */
+    RTDBGCFGOP_SET,
+    /** Append the given value to the existing one.  For integer values this is
+     *  considered a bitwise OR operation.  */
+    RTDBGCFGOP_APPEND,
+    /** Prepend the given value to the existing one.  For integer values this is
+     *  considered a bitwise OR operation.  */
+    RTDBGCFGOP_PREPEND,
+    /** Removes the value from the existing one.  For interger values the value is
+     * complemented and ANDed with the existing one, clearing all the specified
+     * flags/bits. */
+    RTDBGCFGOP_REMOVE,
+    /** End of valid values. */
+    RTDBGCFGOP_END,
+    /** Customary 32-bit type hack. */
+    RTDBGCFGOP_32BIT_HACK = 0x7fffffff
+} RTDBGCFGOP;
+
+
+
+/**
+ * Initializes a debugging configuration.
+ *
+ * @returns IPRT status code.
+ * @param   phDbgCfg            Where to return the configuration handle.
+ * @param   pszEnvVarPrefix     The environment variable prefix.  If NULL, the
+ *                              environment is not consulted.
+ * @param   fNativePaths        Whether to pick up native paths from the
+ *                              environment.
+ *
+ * @sa  RTDbgCfgChangeString, RTDbgCfgChangeUInt.
+ */
+RTDECL(int) RTDbgCfgCreate(PRTDBGCFG phDbgCfg, const char *pszEnvVarPrefix, bool fNativePaths);
+
+/**
+ * Retains a new reference to a debugging config.
+ *
+ * @returns New reference count.
+ *          UINT32_MAX is returned if the handle is invalid (asserted).
+ * @param   hDbgCfg             The config handle.
+ */
+RTDECL(uint32_t) RTDbgCfgRetain(RTDBGCFG hDbgCfg);
+
+/**
+ * Releases a references to a debugging config.
+ *
+ * @returns New reference count, if 0 the config was freed.  UINT32_MAX is
+ *          returned if the handle is invalid (asserted).
+ * @param   hDbgCfg             The config handle.
+ */
+RTDECL(uint32_t) RTDbgCfgRelease(RTDBGCFG hDbgCfg);
+
+/**
+ * Changes a property value by string.
+ *
+ * For string values the string is used more or less as given.  For integer
+ * values and flags, it can contains both values (ORed together) or property
+ * specific mnemonics (ORed / ~ANDed).
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_DBG_CFG_INVALID_VALUE
+ * @param   hDbgCfg             The debugging configuration handle.
+ * @param   enmProp             The property to change.
+ * @param   enmOp               How to change the property.
+ * @param   pszValue            The property value to apply.
+ */
+RTDECL(int) RTDbgCfgChangeString(RTDBGCFG hDbgCfg, RTDBGCFGPROP enmProp, RTDBGCFGOP enmOp, const char *pszValue);
+
+/**
+ * Changes a property value by unsigned integer (64-bit).
+ *
+ * This can only be applied to integer and flag properties.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_DBG_CFG_NOT_UINT_PROP
+ * @param   hDbgCfg             The debugging configuration handle.
+ * @param   enmProp             The property to change.
+ * @param   enmOp               How to change the property.
+ * @param   uValue              The property value to apply.
+ */
+RTDECL(int) RTDbgCfgChangeUInt(RTDBGCFG hDbgCfg, RTDBGCFGPROP enmProp, RTDBGCFGOP enmOp, uint64_t uValue);
+
+/**
+ * Query a property value as string.
+ *
+ * Integer and flags properties are returned as a list of mnemonics if possible,
+ * otherwise as simple hex values.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_BUFFER_OVERFLOW if there isn't sufficient buffer space. Nothing
+ *          is written.
+ * @param   hDbgCfg             The debugging configuration handle.
+ * @param   enmProp             The property to change.
+ * @param   pszValue            The output buffer.
+ * @param   cbValue             The size of the output buffer.
+ */
+RTDECL(int) RTDbgCfgQueryString(RTDBGCFG hDbgCfg, RTDBGCFGPROP enmProp, char *pszValue, size_t cbValue);
+
+/**
+ * Query a property value as unsigned integer (64-bit).
+ *
+ * Only integer and flags properties can be queried this way.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_DBG_CFG_NOT_UINT_PROP
+ * @param   hDbgCfg             The debugging configuration handle.
+ * @param   enmProp             The property to change.
+ * @param   puValue             Where to return the value.
+ */
+RTDECL(int) RTDbgCfgQueryUInt(RTDBGCFG hDbgCfg, RTDBGCFGPROP enmProp, uint64_t *puValue);
+
+/**
+ * Log callback.
+ *
+ * @param   hDbgCfg         The debug config instance.
+ * @param   iLevel          The message level.
+ * @param   pszMsg          The message.
+ * @param   pvUser          User argument.
+ */
+typedef DECLCALLBACK(void) FNRTDBGCFGLOG(RTDBGCFG hDbgCfg, uint32_t iLevel, const char *pszMsg, void *pvUser);
+/** Pointer to a log callback. */
+typedef FNRTDBGCFGLOG *PFNRTDBGCFGLOG;
+
+/**
+ * Sets the log callback for the configuration.
+ *
+ * This will fail if there is already a log callback present, unless pfnCallback
+ * is NULL.
+ *
+ * @returns IPRT status code.
+ * @param   hDbgCfg             The debugging configuration handle.
+ * @param   pfnCallback         The callback function.  NULL to unset.
+ * @param   pvUser              The user argument.
+ */
+RTDECL(int) RTDbgCfgSetLogCallback(RTDBGCFG hDbgCfg, PFNRTDBGCFGLOG pfnCallback, void *pvUser);
+
+/**
+ * Callback used by the RTDbgCfgOpen function to try out a file that was found.
+ *
+ * @returns On statuses other than VINF_CALLBACK_RETURN and
+ *          VERR_CALLBACK_RETURN the search will continue till the end of the
+ *          list.  These status codes will not necessarily be propagated to the
+ *          caller in any consistent manner.
+ * @retval  VINF_CALLBACK_RETURN if successuflly opened the file and it's time
+ *          to return
+ * @retval  VERR_CALLBACK_RETURN if we shouldn't stop searching.
+ *
+ * @param   hDbgCfg             The debugging configuration handle.
+ * @param   pszFilename         The path to the file that should be tried out.
+ * @param   pvUser1             First user parameter.
+ * @param   pvUser2             Second user parameter.
+ */
+typedef DECLCALLBACK(int) FNDBGCFGOPEN(RTDBGCFG hDbgCfg, const char *pszFilename, void *pvUser1, void *pvUser2);
+/** Pointer to a open-file callback used to the RTDbgCfgOpen functions. */
+typedef FNDBGCFGOPEN *PFNDBGCFGOPEN;
+
+
+RTDECL(int) RTDbgCfgOpenPeImage(RTDBGCFG hDbgCfg, const char *pszFilename, uint32_t cbImage, uint32_t uTimestamp,
+                                PFNDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2);
+RTDECL(int) RTDbgCfgOpenPdb70(RTDBGCFG hDbgCfg, const char *pszFilename, PCRTUUID pUuid, uint32_t uAge,
+                              PFNDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2);
+RTDECL(int) RTDbgCfgOpenPdb20(RTDBGCFG hDbgCfg, const char *pszFilename, uint32_t cbImage, uint32_t uTimestamp, uint32_t uAge,
+                              PFNDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2);
+RTDECL(int) RTDbgCfgOpenDbg(RTDBGCFG hDbgCfg, const char *pszFilename, uint32_t cbImage, uint32_t uTimestamp,
+                            PFNDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2);
+RTDECL(int) RTDbgCfgOpenDwo(RTDBGCFG hDbgCfg, const char *pszFilename, uint32_t uCrc32,
+                            PFNDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2);
+
+RTDECL(int) RTDbgCfgOpenDsymBundle(RTDBGCFG hDbgCfg, const char *pszFilename, PCRTUUID pUuid,
+                                   PFNDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2);
+
+
+/** @} */
+
+
 /** @defgroup grp_rt_dbgas      RTDbgAs - Debug Address Space
  * @{
  */
@@ -281,6 +535,22 @@ RTDECL(uint32_t) RTDbgAsRetain(RTDBGAS hDbgAs);
  * @remarks Will not take any locks.
  */
 RTDECL(uint32_t) RTDbgAsRelease(RTDBGAS hDbgAs);
+
+/**
+ * Locks the address space for exclusive access.
+ *
+ * @returns IRPT status code
+ * @param   hDbgAs          The address space handle.
+ */
+RTDECL(int) RTDbgAsLockExcl(RTDBGAS hDbgAs);
+
+/**
+ * Counters the actions of one RTDbgAsUnlockExcl call.
+ *
+ * @returns IRPT status code
+ * @param   hDbgAs          The address space handle.
+ */
+RTDECL(int) RTDbgAsUnlockExcl(RTDBGAS hDbgAs);
 
 /**
  * Gets the name of an address space.
@@ -580,24 +850,9 @@ RTDECL(int) RTDbgAsSymbolByName(RTDBGAS hDbgAs, const char *pszSymbol, PRTDBGSYM
 RTDECL(int) RTDbgAsSymbolByNameA(RTDBGAS hDbgAs, const char *pszSymbol, PRTDBGSYMBOL *ppSymbol, PRTDBGMOD phMod);
 
 /**
- * Query a line number by address.
- *
- * @returns IPRT status code. See RTDbgModSymbolAddrA for more specific ones.
- * @retval  VERR_INVALID_HANDLE if hDbgAs is invalid.
- * @retval  VERR_NOT_FOUND if the address couldn't be mapped to a module.
- *
- * @param   hDbgAs          The address space handle.
- * @param   Addr            The address which closest symbol is requested.
- * @param   poffDisp        Where to return the distance between the line
- *                          number and address.
- * @param   pLine           Where to return the line number information.
- */
-RTDECL(int) RTDbgAs(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGLINE pLine);
-
-/**
  * Adds a line number to a module in the address space.
  *
- * @returns IPRT status code. See RTDbgModSymbolAdd for more specific ones.
+ * @returns IPRT status code. See RTDbgModLineAdd for more specific ones.
  * @retval  VERR_INVALID_HANDLE if hDbgAs is invalid.
  * @retval  VERR_NOT_FOUND if no module was found at the specified address.
  * @retval  VERR_NOT_SUPPORTED if the module interpret doesn't support adding
@@ -613,11 +868,10 @@ RTDECL(int) RTDbgAs(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGLI
  */
 RTDECL(int) RTDbgAsLineAdd(RTDBGAS hDbgAs, const char *pszFile, uint32_t uLineNo, RTUINTPTR Addr, uint32_t *piOrdinal);
 
-
 /**
  * Query a line number by address.
  *
- * @returns IPRT status code. See RTDbgModSymbolAddrA for more specific ones.
+ * @returns IPRT status code. See RTDbgModLineAddrA for more specific ones.
  * @retval  VERR_INVALID_HANDLE if hDbgAs is invalid.
  * @retval  VERR_NOT_FOUND if the address couldn't be mapped to a module.
  *
@@ -626,13 +880,14 @@ RTDECL(int) RTDbgAsLineAdd(RTDBGAS hDbgAs, const char *pszFile, uint32_t uLineNo
  * @param   poffDisp        Where to return the distance between the line
  *                          number and address.
  * @param   pLine           Where to return the line number information.
+ * @param   phMod           Where to return the module handle. Optional.
  */
-RTDECL(int) RTDbgAsLineByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGLINE pLine);
+RTDECL(int) RTDbgAsLineByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGLINE pLine, PRTDBGMOD phMod);
 
 /**
  * Query a line number by address.
  *
- * @returns IPRT status code. See RTDbgModSymbolAddrA for more specific ones.
+ * @returns IPRT status code. See RTDbgModLineAddrA for more specific ones.
  * @retval  VERR_INVALID_HANDLE if hDbgAs is invalid.
  * @retval  VERR_NOT_FOUND if the address couldn't be mapped to a module.
  *
@@ -642,8 +897,9 @@ RTDECL(int) RTDbgAsLineByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp
  *                          number and address.
  * @param   ppLine          Where to return the pointer to the allocated line
  *                          number info. Always set. Free with RTDbgLineFree.
+ * @param   phMod           Where to return the module handle. Optional.
  */
-RTDECL(int) RTDbgAsLineByAddrA(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGLINE *ppLine);
+RTDECL(int) RTDbgAsLineByAddrA(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGLINE *ppLine, PRTDBGMOD phMod);
 
 /** @todo Missing some bits here. */
 
@@ -672,9 +928,18 @@ RTDECL(int) RTDbgAsLineByAddrA(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDis
  */
 RTDECL(int)         RTDbgModCreate(PRTDBGMOD phDbgMod, const char *pszName, RTUINTPTR cbSeg, uint32_t fFlags);
 
-RTDECL(int)         RTDbgModCreateDeferred(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, RTUINTPTR cb, uint32_t fFlags);
-RTDECL(int)         RTDbgModCreateFromImage(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, uint32_t fFlags);
-RTDECL(int)         RTDbgModCreateFromMap(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, RTUINTPTR uSubtrahend, uint32_t fFlags);
+RTDECL(int)         RTDbgModCreateFromImage(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName,
+                                            RTLDRARCH enmArch, RTDBGCFG hDbgCfg);
+RTDECL(int)         RTDbgModCreateFromMap(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, RTUINTPTR uSubtrahend,
+                                          RTDBGCFG hDbgCfg);
+RTDECL(int)         RTDbgModCreateFromPeImage(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, RTLDRMOD hLdrMod,
+                                              uint32_t cbImage, uint32_t uTimeDateStamp, RTDBGCFG hDbgCfg);
+RTDECL(int)         RTDbgModCreateFromDbg(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, uint32_t cbImage,
+                                          uint32_t uTimeDateStamp, RTDBGCFG hDbgCfg);
+RTDECL(int)         RTDbgModCreateFromPdb(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, uint32_t cbImage,
+                                          PCRTUUID pUuid, uint32_t Age, RTDBGCFG hDbgCfg);
+RTDECL(int)         RTDbgModCreateFromDwo(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, uint32_t cbImage,
+                                          uint32_t uCrc32, RTDBGCFG hDbgCfg);
 
 
 /**
@@ -703,6 +968,18 @@ RTDECL(uint32_t)    RTDbgModRetain(RTDBGMOD hDbgMod);
 RTDECL(uint32_t)    RTDbgModRelease(RTDBGMOD hDbgMod);
 
 /**
+ * Removes all content from the debug module (container), optionally only
+ * leaving segments and image size intact.
+ *
+ * This is only possible on container modules, i.e. created by RTDbgModCreate().
+ *
+ * @returns IPRT status code.
+ * @param   hDbgMod         The module handle.
+ * @param   fLeaveSegments  Whether to leave segments (and image size) as is.
+ */
+RTDECL(int)         RTDbgModRemoveAll(RTDBGMOD hDbgMod, bool fLeaveSegments);
+
+/**
  * Gets the module name.
  *
  * @returns Pointer to a read only string containing the name.
@@ -710,6 +987,51 @@ RTDECL(uint32_t)    RTDbgModRelease(RTDBGMOD hDbgMod);
  * @param   hDbgMod         The module handle.
  */
 RTDECL(const char *) RTDbgModName(RTDBGMOD hDbgMod);
+
+/**
+ * Gets the name of the debug info file we're using.
+ *
+ * @returns Pointer to a read only string containing the filename, NULL if we
+ *          don't use one.
+ *
+ * @param   hDbgMod         The module handle.
+ */
+RTDECL(const char *) RTDbgModDebugFile(RTDBGMOD hDbgMod);
+
+/**
+ * Gets the image filename (as specified by the user).
+ *
+ * @returns Pointer to a read only string containing the filename.
+ *
+ * @param   hDbgMod         The module handle.
+ */
+RTDECL(const char *) RTDbgModImageFile(RTDBGMOD hDbgMod);
+
+/**
+ * Gets the image filename actually used if it differs from RTDbgModImageFile.
+ *
+ * @returns Pointer to a read only string containing the filename, NULL if same
+ *          as RTDBgModImageFile.
+ *
+ * @param   hDbgMod         The module handle.
+ */
+RTDECL(const char *) RTDbgModImageFileUsed(RTDBGMOD hDbgMod);
+
+/**
+ * Checks if the loading of the debug info has been postponed.
+ *
+ * @returns true if postponed, false if not or invalid handle.
+ * @param   hDbgMod         The module handle.
+ */
+RTDECL(bool)        RTDbgModIsDeferred(RTDBGMOD hDbgMod);
+
+/**
+ * Checks if the debug info is exports only.
+ *
+ * @returns true if exports only, false if not or invalid handle.
+ * @param   hDbgMod         The module handle.
+ */
+RTDECL(bool)        RTDbgModIsExports(RTDBGMOD hDbgMod);
 
 /**
  * Converts an image relative address to a segment:offset address.

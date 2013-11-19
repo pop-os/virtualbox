@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,7 @@
 #include "UIImageTools.h"
 #include "UINetworkManager.h"
 #include "VBoxGlobal.h"
+#include "UISession.h"
 
 /* COM includes: */
 #include "CMachine.h"
@@ -98,10 +99,10 @@ private:
     bool m_fShowBetaLabel;
 };
 
-UIMachineMenuBar::UIMachineMenuBar(const CMachine &machine)
+UIMachineMenuBar::UIMachineMenuBar(UISession *pSession, const CMachine &machine)
     /* On the Mac we add some items only the first time, cause otherwise they
      * will be merged more than once to the application menu by Qt. */
-    : m_fIsFirstTime(true)
+    : m_pSession(pSession)
     , m_machine(machine)
 {
 }
@@ -196,7 +197,7 @@ void UIMachineMenuBar::prepareMenuMachine(QMenu *pMenu)
 
     /* Machine submenu: */
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_SettingsDialog));
-    if (vboxGlobal().shouldWeAllowSnapshotOperations(m_machine, false /* sanity check? */))
+    if (vboxGlobal().shouldWeAllowSnapshotOperations(m_machine))
         pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_TakeSnapshot));
     else
         gActionPool->action(UIActionIndexRuntime_Simple_TakeSnapshot)->setEnabled(false);
@@ -226,10 +227,20 @@ void UIMachineMenuBar::prepareMenuView(QMenu *pMenu)
         return;
 
     /* View submenu: */
-    pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen));
-    pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless));
-    pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_Scale));
-    pMenu->addSeparator();
+    bool fIsAllowedFullscreen = uisession()->isVisualStateAllowedFullscreen();
+    bool fIsAllowedSeamless = uisession()->isVisualStateAllowedSeamless();
+    bool fIsAllowedScale = uisession()->isVisualStateAllowedScale();
+    gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen)->setEnabled(fIsAllowedFullscreen);
+    if (fIsAllowedFullscreen)
+        pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen));
+    gActionPool->action(UIActionIndexRuntime_Toggle_Seamless)->setEnabled(fIsAllowedSeamless);
+    if (fIsAllowedSeamless)
+        pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless));
+    gActionPool->action(UIActionIndexRuntime_Toggle_Scale)->setEnabled(fIsAllowedScale);
+    if (fIsAllowedScale)
+        pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_Scale));
+    if (fIsAllowedFullscreen || fIsAllowedSeamless || fIsAllowedScale)
+        pMenu->addSeparator();
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_GuestAutoresize));
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow));
 }
@@ -244,11 +255,14 @@ void UIMachineMenuBar::prepareMenuDevices(QMenu *pMenu)
     pMenu->addMenu(gActionPool->action(UIActionIndexRuntime_Menu_OpticalDevices)->menu());
     pMenu->addMenu(gActionPool->action(UIActionIndexRuntime_Menu_FloppyDevices)->menu());
     pMenu->addMenu(gActionPool->action(UIActionIndexRuntime_Menu_USBDevices)->menu());
+    pMenu->addMenu(gActionPool->action(UIActionIndexRuntime_Menu_WebCams)->menu());
     pMenu->addMenu(gActionPool->action(UIActionIndexRuntime_Menu_SharedClipboard)->menu());
     pMenu->addMenu(gActionPool->action(UIActionIndexRuntime_Menu_DragAndDrop)->menu());
-    pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_NetworkAdaptersDialog));
-    pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_SharedFoldersDialog));
+    pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_NetworkSettings));
+    pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_SharedFoldersSettings));
+    pMenu->addSeparator();
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_VRDEServer));
+    pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_VideoCapture));
     pMenu->addSeparator();
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_InstallGuestTools));
 }
@@ -280,32 +294,13 @@ void UIMachineMenuBar::prepareMenuHelp(QMenu *pMenu)
     pMenu->addSeparator();
     pMenu->addAction(gActionPool->action(UIActionIndex_Simple_ResetWarnings));
     pMenu->addSeparator();
-
     pMenu->addAction(gActionPool->action(UIActionIndex_Simple_NetworkAccessManager));
-#ifdef VBOX_WITH_REGISTRATION
-    pMenu->addAction(gActionPool->action(UIActionIndex_Simple_Register));
-#endif
-
 #ifndef Q_WS_MAC
     pMenu->addSeparator();
 #endif /* !Q_WS_MAC */
-#if defined(Q_WS_MAC) && (QT_VERSION < 0x040700)
-    if (m_fIsFirstTime)
-# endif
-        pMenu->addAction(gActionPool->action(UIActionIndex_Simple_About));
+    pMenu->addAction(gActionPool->action(UIActionIndex_Simple_About));
 
-#if defined(Q_WS_MAC) && (QT_VERSION < 0x040700)
-    /* Because this connections are done to VBoxGlobal, they are needed once only.
-     * Otherwise we will get the slots called more than once. */
-    if (m_fIsFirstTime)
-    {
-#endif
-        VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_About), SIGNAL(triggered()),
-                            &msgCenter(), SLOT(sltShowHelpAboutDialog()));
-#if defined(Q_WS_MAC) && (QT_VERSION < 0x040700)
-    }
-#endif
-
+    /* Prepare connections: */
     VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_Contents), SIGNAL(triggered()),
                         &msgCenter(), SLOT(sltShowHelpHelpDialog()));
     VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_WebSite), SIGNAL(triggered()),
@@ -314,14 +309,8 @@ void UIMachineMenuBar::prepareMenuHelp(QMenu *pMenu)
                         &msgCenter(), SLOT(sltResetSuppressedMessages()));
     VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_NetworkAccessManager), SIGNAL(triggered()),
                         gNetworkManager, SLOT(show()));
-#ifdef VBOX_WITH_REGISTRATION
-    VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_Register), SIGNAL(triggered()),
-                        &vboxGlobal(), SLOT(showRegistrationDialog()));
-    VBoxGlobal::connect(gEDataEvents, SIGNAL(sigCanShowRegistrationDlg(bool)),
-                        gActionPool->action(UIActionIndex_Simple_Register), SLOT(setEnabled(bool)));
-#endif /* VBOX_WITH_REGISTRATION */
-
-    m_fIsFirstTime = false;
+    VBoxGlobal::connect(gActionPool->action(UIActionIndex_Simple_About), SIGNAL(triggered()),
+                        &msgCenter(), SLOT(sltShowHelpAboutDialog()));
 }
 
 #include "UIMachineMenuBar.moc"

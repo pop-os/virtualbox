@@ -173,7 +173,7 @@ static int solarisWalkDeviceNode(di_node_t Node, void *pvArg)
     char *pszCompatNames = NULL;
     int cCompatNames = di_compatible_names(Node, &pszCompatNames);
     for (int i = 0; i < cCompatNames; i++, pszCompatNames += strlen(pszCompatNames) + 1)
-        if (!strncmp(pszCompatNames, "usb", 3))
+        if (!strncmp(pszCompatNames, RT_STR_TUPLE("usb")))
         {
             fUSBDevice = true;
             break;
@@ -304,7 +304,7 @@ static int solarisWalkDeviceNode(di_node_t Node, void *pvArg)
                 pList->pTail = pList->pHead = pCur;
 
             rc = DI_WALK_CONTINUE;
-        } while(0);
+        } while (0);
 
         di_devfs_path_free(pszDevicePath);
         if (!fValidDevice)
@@ -322,7 +322,7 @@ static USBDEVICESTATE solarisDetermineUSBDeviceState(PUSBDEVICE pDevice, di_node
     if (!pszDriverName)
         return USBDEVICESTATE_UNUSED;
 
-    if (!strncmp(pszDriverName, VBOXUSB_DRIVER_NAME, sizeof(VBOXUSB_DRIVER_NAME) - 1))
+    if (!strncmp(pszDriverName, RT_STR_TUPLE(VBOXUSB_DRIVER_NAME)))
         return USBDEVICESTATE_HELD_BY_PROXY;
 
     NOREF(pDevice);

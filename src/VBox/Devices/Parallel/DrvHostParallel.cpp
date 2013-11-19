@@ -872,23 +872,35 @@ static DECLCALLBACK(void) drvHostParallelDestruct(PPDMDRVINS pDrvIns)
     if (pThis->hFileDevice != NIL_RTFILE)
         ioctl(RTFileToNative(pThis->hFileDevice), PPRELEASE);
 
-    rc = RTPipeClose(pThis->hWakeupPipeW); AssertRC(rc);
-    pThis->hWakeupPipeW = NIL_RTPIPE;
+    if (pThis->hWakeupPipeW != NIL_RTPIPE)
+    {
+        rc = RTPipeClose(pThis->hWakeupPipeW); AssertRC(rc);
+        pThis->hWakeupPipeW = NIL_RTPIPE;
+    }
 
-    rc = RTPipeClose(pThis->hWakeupPipeR); AssertRC(rc);
-    pThis->hWakeupPipeR = NIL_RTPIPE;
+    if (pThis->hWakeupPipeR != NIL_RTPIPE)
+    {
+        rc = RTPipeClose(pThis->hWakeupPipeR); AssertRC(rc);
+        pThis->hWakeupPipeR = NIL_RTPIPE;
+    }
 
-    rc = RTFileClose(pThis->hFileDevice); AssertRC(rc);
-    pThis->hFileDevice = NIL_RTFILE;
+    if (pThis->hFileDevice != NIL_RTFILE)
+    {
+        rc = RTFileClose(pThis->hFileDevice); AssertRC(rc);
+        pThis->hFileDevice = NIL_RTFILE;
+    }
 
     if (pThis->pszDevicePath)
     {
         MMR3HeapFree(pThis->pszDevicePath);
         pThis->pszDevicePath = NULL;
     }
-#else /* VBOX_WITH_WIN_PARPORT_SUP */
+#else  /* VBOX_WITH_WIN_PARPORT_SUP */
     if (pThis->hWinFileDevice != NIL_RTFILE)
+    {
         rc = RTFileClose(pThis->hWinFileDevice); AssertRC(rc);
+        pThis->hWinFileDevice = NIL_RTFILE;
+    }
 #endif /* VBOX_WITH_WIN_PARPORT_SUP */
 }
 
@@ -913,7 +925,7 @@ static DECLCALLBACK(int) drvHostParallelConstruct(PPDMDRVINS pDrvIns, PCFGMNODE 
 #ifndef VBOX_WITH_WIN_PARPORT_SUP
     pThis->hWakeupPipeR = NIL_RTPIPE;
     pThis->hWakeupPipeW = NIL_RTPIPE;
-#else /* VBOX_WITH_WIN_PARPORT_SUP */
+#else
     pThis->hWinFileDevice = NIL_RTFILE;
 #endif
 
@@ -1010,7 +1022,6 @@ static DECLCALLBACK(int) drvHostParallelConstruct(PPDMDRVINS pDrvIns, PCFGMNODE 
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("HostParallel#%d cannot create monitor thread"), pDrvIns->iInstance);
 
 #else /* VBOX_WITH_WIN_PARPORT_SUP */
-    HANDLE hPort;
     pThis->fParportAvail     = false;
     pThis->u32LptAddr        = 0;
     pThis->u32LptAddrControl = 0;
@@ -1085,5 +1096,4 @@ const PDMDRVREG g_DrvHostParallel =
     PDM_DRVREG_VERSION
 };
 #endif /*IN_RING3*/
-
 

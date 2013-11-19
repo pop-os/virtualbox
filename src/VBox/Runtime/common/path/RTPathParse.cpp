@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,88 +31,45 @@
 #include "internal/iprt.h"
 #include <iprt/path.h>
 
+#include <iprt/assert.h>
+#include <iprt/ctype.h>
+#include <iprt/err.h>
+#include <iprt/string.h>
 
-/**
- * Parses a path.
- *
- * It figures the length of the directory component, the offset of
- * the file name and the location of the suffix dot.
- *
- * @returns The path length.
- *
- * @param   pszPath     Path to find filename in.
- * @param   pcchDir     Where to put the length of the directory component. If
- *                      no directory, this will be 0. Optional.
- * @param   poffName    Where to store the filename offset.
- *                      If empty string or if it's ending with a slash this
- *                      will be set to -1. Optional.
- * @param   poffSuff    Where to store the suffix offset (the last dot).
- *                      If empty string or if it's ending with a slash this
- *                      will be set to -1. Optional.
- */
-RTDECL(size_t) RTPathParse(const char *pszPath, size_t *pcchDir, ssize_t *poffName, ssize_t *poffSuff)
+#define RTPATH_TEMPLATE_CPP_H "RTPathParse.cpp.h"
+#include "rtpath-expand-template.cpp.h"
+
+
+RTDECL(int) RTPathParse(const char *pszPath, PRTPATHPARSED pParsed, size_t cbParsed, uint32_t fFlags)
 {
-    const char *psz = pszPath;
-    ssize_t     offRoot = 0;
-    const char *pszName = pszPath;
-    const char *pszLastDot = NULL;
+    /*
+     * Input validation.
+     */
+    AssertReturn(cbParsed >= RT_UOFFSETOF(RTPATHPARSED, aComps), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pParsed, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszPath, VERR_INVALID_POINTER);
+    AssertReturn(*pszPath, VERR_PATH_ZERO_LENGTH);
+    AssertReturn(RTPATH_STR_F_IS_VALID(fFlags, 0), VERR_INVALID_FLAGS);
 
-    for (;; psz++)
+    /*
+     * Invoke the worker for the selected path style.
+     */
+    switch (fFlags & RTPATH_STR_F_STYLE_MASK)
     {
-        switch (*psz)
-        {
-            /* handle separators. */
-#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
-            case ':':
-                pszName = psz + 1;
-                offRoot = pszName - psz;
-                break;
-
-            case '\\':
+#if defined(RT_OS_OS2) || defined(RT_OS_WINDOWS)
+        case RTPATH_STR_F_STYLE_HOST:
 #endif
-            case '/':
-                pszName = psz + 1;
-                break;
+        case RTPATH_STR_F_STYLE_DOS:
+            return rtPathParseStyleDos(pszPath, pParsed, cbParsed, fFlags);
 
-            case '.':
-                pszLastDot = psz;
-                break;
+#if !defined(RT_OS_OS2) && !defined(RT_OS_WINDOWS)
+        case RTPATH_STR_F_STYLE_HOST:
+#endif
+        case RTPATH_STR_F_STYLE_UNIX:
+            return rtPathParseStyleUnix(pszPath, pParsed, cbParsed, fFlags);
 
-            /*
-             * The end. Complete the results.
-             */
-            case '\0':
-            {
-                ssize_t offName = *pszName != '\0' ? pszName - pszPath : -1;
-                if (poffName)
-                    *poffName = offName;
-
-                if (poffSuff)
-                {
-                    ssize_t offSuff = -1;
-                    if (pszLastDot)
-                    {
-                        offSuff = pszLastDot - pszPath;
-                        if (offSuff <= offName)
-                            offSuff = -1;
-                    }
-                    *poffSuff = offSuff;
-                }
-
-                if (pcchDir)
-                {
-                    ssize_t off = offName - 1;
-                    while (off >= offRoot && RTPATH_IS_SLASH(pszPath[off]))
-                        off--;
-                    *pcchDir = RT_MAX(off, offRoot) + 1;
-                }
-
-                return psz - pszPath;
-            }
-        }
+        default:
+            AssertFailedReturn(VERR_INVALID_FLAGS); /* impossible */
     }
-
-    /* will never get here */
-    return 0;
 }
 

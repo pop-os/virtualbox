@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,7 +33,7 @@
 #include "EMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/vmm.h>
-#include <VBox/vmm/hwaccm.h>
+#include <VBox/vmm/hm.h>
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/pdmapi.h>
 #include <VBox/param.h>
@@ -122,7 +122,7 @@ static size_t  g_cbIemWrote;
  * @returns Current status.
  * @param   pVCpu         Pointer to the VMCPU.
  */
-VMMDECL(EMSTATE) EMGetState(PVMCPU pVCpu)
+VMM_INT_DECL(EMSTATE) EMGetState(PVMCPU pVCpu)
 {
     return pVCpu->em.s.enmState;
 }
@@ -132,7 +132,7 @@ VMMDECL(EMSTATE) EMGetState(PVMCPU pVCpu)
  *
  * @param   pVCpu         Pointer to the VMCPU.
  */
-VMMDECL(void)    EMSetState(PVMCPU pVCpu, EMSTATE enmNewState)
+VMM_INT_DECL(void)    EMSetState(PVMCPU pVCpu, EMSTATE enmNewState)
 {
     /* Only allowed combination: */
     Assert(pVCpu->em.s.enmState == EMSTATE_WAIT_SIPI && enmNewState == EMSTATE_HALTED);
@@ -180,13 +180,15 @@ VMMDECL(RTGCUINTPTR) EMGetInhibitInterruptsPC(PVMCPU pVCpu)
  * @param   rax                 The content of RAX.
  * @param   rcx                 The content of RCX.
  * @param   rdx                 The content of RDX.
+ * @param   GCPhys              The physical address corresponding to rax.
  */
-VMM_INT_DECL(int) EMMonitorWaitPrepare(PVMCPU pVCpu, uint64_t rax, uint64_t rcx, uint64_t rdx)
+VMM_INT_DECL(int) EMMonitorWaitPrepare(PVMCPU pVCpu, uint64_t rax, uint64_t rcx, uint64_t rdx, RTGCPHYS GCPhys)
 {
     pVCpu->em.s.MWait.uMonitorRAX = rax;
     pVCpu->em.s.MWait.uMonitorRCX = rcx;
     pVCpu->em.s.MWait.uMonitorRDX = rdx;
     pVCpu->em.s.MWait.fWait |= EMMWAIT_FLAG_MONITOR_ACTIVE;
+    /** @todo Make use of GCPhys. */
     /** @todo Complete MONITOR implementation.  */
     return VINF_SUCCESS;
 }
@@ -216,25 +218,42 @@ VMM_INT_DECL(int) EMMonitorWaitPerform(PVMCPU pVCpu, uint64_t rax, uint64_t rcx)
 
 
 /**
- * Determine if we should continue after encountering a hlt or mwait
- * instruction.
+ * Determine if we should continue after encountering a mwait instruction.
  *
  * Clears MWAIT flags if returning @c true.
  *
- * @returns boolean
+ * @returns true if we should continue, false if we should halt.
  * @param   pVCpu           Pointer to the VMCPU.
  * @param   pCtx            Current CPU context.
  */
-VMM_INT_DECL(bool) EMShouldContinueAfterHalt(PVMCPU pVCpu, PCPUMCTX pCtx)
+VMM_INT_DECL(bool) EMMonitorWaitShouldContinue(PVMCPU pVCpu, PCPUMCTX pCtx)
 {
     if (   pCtx->eflags.Bits.u1IF
         || (   (pVCpu->em.s.MWait.fWait & (EMMWAIT_FLAG_ACTIVE | EMMWAIT_FLAG_BREAKIRQIF0))
             ==                            (EMMWAIT_FLAG_ACTIVE | EMMWAIT_FLAG_BREAKIRQIF0)) )
     {
-        pVCpu->em.s.MWait.fWait &= ~(EMMWAIT_FLAG_ACTIVE | EMMWAIT_FLAG_BREAKIRQIF0);
-        return !!VMCPU_FF_ISPENDING(pVCpu, (VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC));
+        if (VMCPU_FF_IS_PENDING(pVCpu, (VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)))
+        {
+            pVCpu->em.s.MWait.fWait &= ~(EMMWAIT_FLAG_ACTIVE | EMMWAIT_FLAG_BREAKIRQIF0);
+            return true;
+        }
     }
 
+    return false;
+}
+
+
+/**
+ * Determine if we should continue after encountering a hlt instruction.
+ *
+ * @returns true if we should continue, false if we should halt.
+ * @param   pVCpu           Pointer to the VMCPU.
+ * @param   pCtx            Current CPU context.
+ */
+VMM_INT_DECL(bool) EMShouldContinueAfterHalt(PVMCPU pVCpu, PCPUMCTX pCtx)
+{
+    if (pCtx->eflags.Bits.u1IF)
+        return !!VMCPU_FF_IS_PENDING(pVCpu, (VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC));
     return false;
 }
 
@@ -251,7 +270,7 @@ VMMDECL(void) EMRemLock(PVM pVM)
         return;     /* early init */
 
     Assert(!PGMIsLockOwner(pVM));
-    Assert(!IOMIsLockOwner(pVM));
+    Assert(!IOMIsLockWriteOwner(pVM));
     int rc = PDMCritSectEnter(&pVM->em.s.CritSectREM, VERR_SEM_BUSY);
     AssertRCSuccess(rc);
 #endif
@@ -299,7 +318,7 @@ VMMDECL(bool) EMRemIsLockOwner(PVM pVM)
  * @returns VBox status code
  * @param   pVM         Pointer to the VM.
  */
-VMMDECL(int) EMRemTryLock(PVM pVM)
+VMM_INT_DECL(int) EMRemTryLock(PVM pVM)
 {
 #ifdef VBOX_WITH_REM
     if (!PDMCritSectIsInitialized(&pVM->em.s.CritSectREM))
@@ -333,7 +352,7 @@ static DECLCALLBACK(int) emReadBytes(PDISCPUSTATE pDis, uint8_t offInstr, uint8_
     else if (cbToRead < cbMinRead)
         cbToRead = cbMinRead;
 
-#if defined(IN_RC) || defined(IN_RING3)
+#if defined(VBOX_WITH_RAW_MODE) && (defined(IN_RC) || defined(IN_RING3))
     /*
      * We might be called upon to interpret an instruction in a patch.
      */
@@ -382,9 +401,9 @@ static DECLCALLBACK(int) emReadBytes(PDISCPUSTATE pDis, uint8_t offInstr, uint8_
                      */
                     if (rc == VERR_PAGE_TABLE_NOT_PRESENT || rc == VERR_PAGE_NOT_PRESENT)
                     {
-                        HWACCMInvalidatePage(pVCpu, uSrcAddr);
+                        HMInvalidatePage(pVCpu, uSrcAddr);
                         if (((uSrcAddr + cbToRead - 1) >> PAGE_SHIFT) !=  (uSrcAddr >> PAGE_SHIFT))
-                            HWACCMInvalidatePage(pVCpu, uSrcAddr + cbToRead - 1);
+                            HMInvalidatePage(pVCpu, uSrcAddr + cbToRead - 1);
                     }
 #endif
                 }
@@ -408,14 +427,13 @@ DECLINLINE(int) emDisCoreOne(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, RTGCUINTP
  *
  * @returns VBox status code, see SELMToFlatEx and EMInterpretDisasOneEx for
  *          details.
- * @retval  VERR_EM_INTERNAL_DISAS_ERROR on DISCoreOneEx failure.
  *
  * @param   pVM             Pointer to the VM.
  * @param   pVCpu           Pointer to the VMCPU.
  * @param   pDis            Where to return the parsed instruction info.
  * @param   pcbInstr        Where to return the instruction size. (optional)
  */
-VMMDECL(int) EMInterpretDisasCurrent(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, unsigned *pcbInstr)
+VMM_INT_DECL(int) EMInterpretDisasCurrent(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, unsigned *pcbInstr)
 {
     PCPUMCTXCORE pCtxCore = CPUMCTX2CORE(CPUMQueryGuestCtxPtr(pVCpu));
     RTGCPTR GCPtrInstr;
@@ -442,7 +460,6 @@ VMMDECL(int) EMInterpretDisasCurrent(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, u
  * This is used by internally by the interpreter and by trap/access handlers.
  *
  * @returns VBox status code.
- * @retval  VERR_EM_INTERNAL_DISAS_ERROR on DISCoreOneEx failure.
  *
  * @param   pVM             Pointer to the VM.
  * @param   pVCpu           Pointer to the VMCPU.
@@ -451,8 +468,8 @@ VMMDECL(int) EMInterpretDisasCurrent(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, u
  * @param   pDis            Where to return the parsed instruction info.
  * @param   pcbInstr        Where to return the instruction size. (optional)
  */
-VMMDECL(int) EMInterpretDisasOneEx(PVM pVM, PVMCPU pVCpu, RTGCUINTPTR GCPtrInstr, PCCPUMCTXCORE pCtxCore,
-                                   PDISCPUSTATE pDis, unsigned *pcbInstr)
+VMM_INT_DECL(int) EMInterpretDisasOneEx(PVM pVM, PVMCPU pVCpu, RTGCUINTPTR GCPtrInstr, PCCPUMCTXCORE pCtxCore,
+                                        PDISCPUSTATE pDis, unsigned *pcbInstr)
 {
     Assert(pCtxCore == CPUMGetGuestCtxCore(pVCpu));
     DISCPUMODE enmCpuMode = CPUMGetGuestDisMode(pVCpu);
@@ -461,8 +478,8 @@ VMMDECL(int) EMInterpretDisasOneEx(PVM pVM, PVMCPU pVCpu, RTGCUINTPTR GCPtrInstr
     int rc = DISInstrWithReader(GCPtrInstr, enmCpuMode, emReadBytes, pVCpu, pDis, pcbInstr);
     if (RT_SUCCESS(rc))
         return VINF_SUCCESS;
-    AssertMsgFailed(("DISCoreOne failed to GCPtrInstr=%RGv rc=%Rrc\n", GCPtrInstr, rc));
-    return VERR_EM_INTERNAL_DISAS_ERROR;
+    AssertMsg(rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT, ("DISCoreOne failed to GCPtrInstr=%RGv rc=%Rrc\n", GCPtrInstr, rc));
+    return rc;
 }
 
 
@@ -684,7 +701,7 @@ static void emCompareWithIem(PVMCPU pVCpu, PCCPUMCTX pEmCtx, PCCPUMCTX pIemCtx,
  *          Architecture System Developers Manual, Vol 3, 5.5) so we don't need
  *          to worry about e.g. invalid modrm combinations (!)
  */
-VMMDECL(VBOXSTRICTRC) EMInterpretInstruction(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault)
+VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstruction(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault)
 {
     Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
     LogFlow(("EMInterpretInstruction %RGv fault %RGv\n", (RTGCPTR)pRegFrame->rip, pvFault));
@@ -813,7 +830,7 @@ VMMDECL(VBOXSTRICTRC) EMInterpretInstruction(PVMCPU pVCpu, PCPUMCTXCORE pRegFram
  *          Architecture System Developers Manual, Vol 3, 5.5) so we don't need
  *          to worry about e.g. invalid modrm combinations (!)
  */
-VMMDECL(VBOXSTRICTRC) EMInterpretInstructionEx(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbWritten)
+VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstructionEx(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbWritten)
 {
     LogFlow(("EMInterpretInstructionEx %RGv fault %RGv\n", (RTGCPTR)pRegFrame->rip, pvFault));
     Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
@@ -955,8 +972,8 @@ VMMDECL(VBOXSTRICTRC) EMInterpretInstructionEx(PVMCPU pVCpu, PCPUMCTXCORE pRegFr
  * @todo    At this time we do NOT check if the instruction overwrites vital information.
  *          Make sure this can't happen!! (will add some assertions/checks later)
  */
-VMMDECL(VBOXSTRICTRC) EMInterpretInstructionDisasState(PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame,
-                                                       RTGCPTR pvFault, EMCODETYPE enmCodeType)
+VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstructionDisasState(PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame,
+                                                            RTGCPTR pvFault, EMCODETYPE enmCodeType)
 {
     LogFlow(("EMInterpretInstructionDisasState %RGv fault %RGv\n", (RTGCPTR)pRegFrame->rip, pvFault));
     Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
@@ -1053,7 +1070,7 @@ DECLINLINE(int) emRCStackRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, void
  * @param   pRegFrame   The register frame.
  *
  */
-VMMDECL(int) EMInterpretIretV86ForPatm(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
+VMM_INT_DECL(int) EMInterpretIretV86ForPatm(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
 {
     RTGCUINTPTR pIretStack = (RTGCUINTPTR)pRegFrame->esp;
     RTGCUINTPTR eip, cs, esp, ss, eflags, ds, es, fs, gs, uMask;
@@ -1190,7 +1207,7 @@ static int emInterpretIret(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCOR
  * @param   pRegFrame   The register frame.
  *
  */
-VMMDECL(int) EMInterpretCpuId(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
+VMM_INT_DECL(int) EMInterpretCpuId(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
 {
     Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
     uint32_t iLeaf = pRegFrame->eax;
@@ -1218,7 +1235,7 @@ VMMDECL(int) EMInterpretCpuId(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
  * @param   pRegFrame   The register frame.
  *
  */
-VMMDECL(int) EMInterpretRdtsc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
+VMM_INT_DECL(int) EMInterpretRdtsc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
 {
     Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
     unsigned uCR4 = CPUMGetGuestCR4(pVCpu);
@@ -1248,7 +1265,7 @@ VMMDECL(int) EMInterpretRdtsc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
  * @param   pCtx        The CPU context.
  *
  */
-VMMDECL(int) EMInterpretRdtscp(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
+VMM_INT_DECL(int) EMInterpretRdtscp(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 {
     Assert(pCtx == CPUMQueryGuestCtxPtr(pVCpu));
     uint32_t uCR4 = CPUMGetGuestCR4(pVCpu);
@@ -1286,7 +1303,7 @@ VMMDECL(int) EMInterpretRdtscp(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
  * @param   pRegFrame   The register frame.
  *
  */
-VMMDECL(int) EMInterpretRdpmc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
+VMM_INT_DECL(int) EMInterpretRdpmc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
 {
     Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
     uint32_t uCR4 = CPUMGetGuestCR4(pVCpu);
@@ -1313,7 +1330,7 @@ VMMDECL(int) EMInterpretRdpmc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
 /**
  * MWAIT Emulation.
  */
-VMMDECL(VBOXSTRICTRC) EMInterpretMWait(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
+VMM_INT_DECL(VBOXSTRICTRC) EMInterpretMWait(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
 {
     Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
     uint32_t u32Dummy, u32ExtFeatures, cpl, u32MWaitFeatures;
@@ -1352,7 +1369,7 @@ VMMDECL(VBOXSTRICTRC) EMInterpretMWait(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegF
 /**
  * MONITOR Emulation.
  */
-VMMDECL(int) EMInterpretMonitor(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
+VMM_INT_DECL(int) EMInterpretMonitor(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
 {
     uint32_t u32Dummy, u32ExtFeatures, cpl;
     Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
@@ -1373,7 +1390,7 @@ VMMDECL(int) EMInterpretMonitor(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
     if (!(u32ExtFeatures & X86_CPUID_FEATURE_ECX_MONITOR))
         return VERR_EM_INTERPRETER; /* not supported */
 
-    EMMonitorWaitPrepare(pVCpu, pRegFrame->rax, pRegFrame->rcx, pRegFrame->rdx);
+    EMMonitorWaitPrepare(pVCpu, pRegFrame->rax, pRegFrame->rcx, pRegFrame->rdx, NIL_RTGCPHYS);
     return VINF_SUCCESS;
 }
 
@@ -1390,7 +1407,7 @@ VMMDECL(int) EMInterpretMonitor(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
  * @param   pAddrGC     Operand address.
  *
  */
-VMMDECL(VBOXSTRICTRC) EMInterpretInvlpg(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pAddrGC)
+VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInvlpg(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pAddrGC)
 {
     /** @todo is addr always a flat linear address or ds based
      * (in absence of segment override prefixes)????
@@ -1468,14 +1485,14 @@ static int emUpdateCRx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t D
                 if (pRegFrame->cs.Attr.n.u1Long)
                 {
                     AssertMsgFailed(("Illegal enabling of paging with CS.u1Long = 1!!\n"));
-                    return VERR_EM_INTERPRETER; /* @todo generate #GP(0) */
+                    return VERR_EM_INTERPRETER; /** @todo generate #GP(0) */
                 }
 
                 /* Illegal to switch to long mode before activating PAE first (AMD Arch. Programmer's Manual Volume 2: Table 14-5) */
                 if (!(CPUMGetGuestCR4(pVCpu) & X86_CR4_PAE))
                 {
                     AssertMsgFailed(("Illegal enabling of paging with PAE disabled!!\n"));
-                    return VERR_EM_INTERPRETER; /* @todo generate #GP(0) */
+                    return VERR_EM_INTERPRETER; /** @todo generate #GP(0) */
                 }
                 msrEFER |= MSR_K6_EFER_LMA;
             }
@@ -1484,7 +1501,7 @@ static int emUpdateCRx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t D
                 &&  !(val & X86_CR0_PG))
             {
                 msrEFER &= ~MSR_K6_EFER_LMA;
-                /* @todo Do we need to cut off rip here? High dword of rip is undefined, so it shouldn't really matter. */
+                /** @todo Do we need to cut off rip here? High dword of rip is undefined, so it shouldn't really matter. */
             }
             CPUMSetGuestEFER(pVCpu, msrEFER);
         }
@@ -1538,8 +1555,10 @@ static int emUpdateCRx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t D
             VMCPU_FF_SET(pVCpu, VMCPU_FF_TO_R3);
         }
 # endif
-        if ((val ^ oldval) & X86_CR4_VME)
+# ifdef VBOX_WITH_RAW_MODE
+        if (((val ^ oldval) & X86_CR4_VME) && !HMIsEnabled(pVM))
             VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
+# endif
 
         rc2 = PGMChangeMode(pVCpu, CPUMGetGuestCR0(pVCpu), CPUMGetGuestCR4(pVCpu), CPUMGetGuestEFER(pVCpu));
         return rc2 == VINF_SUCCESS ? rc : rc2;
@@ -1567,7 +1586,7 @@ static int emUpdateCRx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t D
  * @param   SrcRegGen   General purpose register index (USE_REG_E**))
  *
  */
-VMMDECL(int) EMInterpretCRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegCrx, uint32_t SrcRegGen)
+VMM_INT_DECL(int) EMInterpretCRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegCrx, uint32_t SrcRegGen)
 {
     uint64_t val;
     int      rc;
@@ -1598,7 +1617,7 @@ VMMDECL(int) EMInterpretCRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, 
  * @param   u16Data     LMSW source data.
  *
  */
-VMMDECL(int) EMInterpretLMSW(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint16_t u16Data)
+VMM_INT_DECL(int) EMInterpretLMSW(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint16_t u16Data)
 {
     Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
     uint64_t OldCr0 = CPUMGetGuestCR0(pVCpu);
@@ -1619,7 +1638,7 @@ VMMDECL(int) EMInterpretLMSW(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint
  * @param   pVCpu       Pointer to the VMCPU.
  *
  */
-VMMDECL(int) EMInterpretCLTS(PVM pVM, PVMCPU pVCpu)
+VMM_INT_DECL(int) EMInterpretCLTS(PVM pVM, PVMCPU pVCpu)
 {
     NOREF(pVM);
 
@@ -1627,6 +1646,127 @@ VMMDECL(int) EMInterpretCLTS(PVM pVM, PVMCPU pVCpu)
     if (!(cr0 & X86_CR0_TS))
         return VINF_SUCCESS;
     return CPUMSetGuestCR0(pVCpu, cr0 & ~X86_CR0_TS);
+}
+
+
+#ifdef LOG_ENABLED
+static const char *emMSRtoString(uint32_t uMsr)
+{
+    switch (uMsr)
+    {
+        case MSR_IA32_APICBASE:             return "MSR_IA32_APICBASE";
+        case MSR_IA32_CR_PAT:               return "MSR_IA32_CR_PAT";
+        case MSR_IA32_SYSENTER_CS:          return "MSR_IA32_SYSENTER_CS";
+        case MSR_IA32_SYSENTER_EIP:         return "MSR_IA32_SYSENTER_EIP";
+        case MSR_IA32_SYSENTER_ESP:         return "MSR_IA32_SYSENTER_ESP";
+        case MSR_K6_EFER:                   return "MSR_K6_EFER";
+        case MSR_K8_SF_MASK:                return "MSR_K8_SF_MASK";
+        case MSR_K6_STAR:                   return "MSR_K6_STAR";
+        case MSR_K8_LSTAR:                  return "MSR_K8_LSTAR";
+        case MSR_K8_CSTAR:                  return "MSR_K8_CSTAR";
+        case MSR_K8_FS_BASE:                return "MSR_K8_FS_BASE";
+        case MSR_K8_GS_BASE:                return "MSR_K8_GS_BASE";
+        case MSR_K8_KERNEL_GS_BASE:         return "MSR_K8_KERNEL_GS_BASE";
+        case MSR_K8_TSC_AUX:                return "MSR_K8_TSC_AUX";
+        case MSR_IA32_BIOS_SIGN_ID:         return "Unsupported MSR_IA32_BIOS_SIGN_ID";
+        case MSR_IA32_PLATFORM_ID:          return "Unsupported MSR_IA32_PLATFORM_ID";
+        case MSR_IA32_BIOS_UPDT_TRIG:       return "Unsupported MSR_IA32_BIOS_UPDT_TRIG";
+        case MSR_IA32_TSC:                  return "MSR_IA32_TSC";
+        case MSR_IA32_MISC_ENABLE:          return "MSR_IA32_MISC_ENABLE";
+        case MSR_IA32_MTRR_CAP:             return "MSR_IA32_MTRR_CAP";
+        case MSR_IA32_MCG_CAP:              return "Unsupported MSR_IA32_MCG_CAP";
+        case MSR_IA32_MCG_STATUS:           return "Unsupported MSR_IA32_MCG_STATUS";
+        case MSR_IA32_MCG_CTRL:             return "Unsupported MSR_IA32_MCG_CTRL";
+        case MSR_IA32_MTRR_DEF_TYPE:        return "MSR_IA32_MTRR_DEF_TYPE";
+        case MSR_K7_EVNTSEL0:               return "Unsupported MSR_K7_EVNTSEL0";
+        case MSR_K7_EVNTSEL1:               return "Unsupported MSR_K7_EVNTSEL1";
+        case MSR_K7_EVNTSEL2:               return "Unsupported MSR_K7_EVNTSEL2";
+        case MSR_K7_EVNTSEL3:               return "Unsupported MSR_K7_EVNTSEL3";
+        case MSR_IA32_MC0_CTL:              return "Unsupported MSR_IA32_MC0_CTL";
+        case MSR_IA32_MC0_STATUS:           return "Unsupported MSR_IA32_MC0_STATUS";
+        case MSR_IA32_PERFEVTSEL0:          return "Unsupported MSR_IA32_PERFEVTSEL0";
+        case MSR_IA32_PERFEVTSEL1:          return "Unsupported MSR_IA32_PERFEVTSEL1";
+        case MSR_IA32_PERF_STATUS:          return "MSR_IA32_PERF_STATUS";
+        case MSR_IA32_PLATFORM_INFO:        return "MSR_IA32_PLATFORM_INFO";
+        case MSR_IA32_PERF_CTL:             return "Unsupported MSR_IA32_PERF_CTL";
+        case MSR_K7_PERFCTR0:               return "Unsupported MSR_K7_PERFCTR0";
+        case MSR_K7_PERFCTR1:               return "Unsupported MSR_K7_PERFCTR1";
+        case MSR_K7_PERFCTR2:               return "Unsupported MSR_K7_PERFCTR2";
+        case MSR_K7_PERFCTR3:               return "Unsupported MSR_K7_PERFCTR3";
+        case MSR_IA32_PMC0:                 return "Unsupported MSR_IA32_PMC0";
+        case MSR_IA32_PMC1:                 return "Unsupported MSR_IA32_PMC1";
+        case MSR_IA32_PMC2:                 return "Unsupported MSR_IA32_PMC2";
+        case MSR_IA32_PMC3:                 return "Unsupported MSR_IA32_PMC3";
+    }
+    return "Unknown MSR";
+}
+#endif /* LOG_ENABLED */
+
+
+/**
+ * Interpret RDMSR
+ *
+ * @returns VBox status code.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pRegFrame   The register frame.
+ */
+VMM_INT_DECL(int) EMInterpretRdmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
+{
+    NOREF(pVM);
+
+    /* Get the current privilege level. */
+    if (CPUMGetGuestCPL(pVCpu) != 0)
+    {
+        Log4(("EM: Refuse RDMSR: CPL != 0\n"));
+        return VERR_EM_INTERPRETER; /* supervisor only */
+    }
+
+    uint64_t uValue;
+    int rc = CPUMQueryGuestMsr(pVCpu, pRegFrame->ecx, &uValue);
+    if (RT_UNLIKELY(rc != VINF_SUCCESS))
+    {
+        Assert(rc == VERR_CPUM_RAISE_GP_0);
+        Log4(("EM: Refuse RDMSR: rc=%Rrc\n", rc));
+        return VERR_EM_INTERPRETER;
+    }
+    pRegFrame->rax = (uint32_t) uValue;
+    pRegFrame->rdx = (uint32_t)(uValue >> 32);
+    LogFlow(("EMInterpretRdmsr %s (%x) -> %RX64\n", emMSRtoString(pRegFrame->ecx), pRegFrame->ecx, uValue));
+    return rc;
+}
+
+
+/**
+ * Interpret WRMSR
+ *
+ * @returns VBox status code.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pRegFrame   The register frame.
+ */
+VMM_INT_DECL(int) EMInterpretWrmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
+{
+    Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
+
+    /* Check the current privilege level, this instruction is supervisor only. */
+    if (CPUMGetGuestCPL(pVCpu) != 0)
+    {
+        Log4(("EM: Refuse WRMSR: CPL != 0\n"));
+        return VERR_EM_INTERPRETER; /** @todo raise \#GP(0) */
+    }
+
+    int rc = CPUMSetGuestMsr(pVCpu, pRegFrame->ecx, RT_MAKE_U64(pRegFrame->eax, pRegFrame->edx));
+    if (rc != VINF_SUCCESS)
+    {
+        Assert(rc == VERR_CPUM_RAISE_GP_0);
+        Log4(("EM: Refuse WRMSR: rc=%d\n", rc));
+        return VERR_EM_INTERPRETER;
+    }
+    LogFlow(("EMInterpretWrmsr %s (%x) val=%RX64\n", emMSRtoString(pRegFrame->ecx), pRegFrame->ecx,
+             RT_MAKE_U64(pRegFrame->eax, pRegFrame->edx)));
+    NOREF(pVM);
+    return rc;
 }
 
 
@@ -1641,7 +1781,7 @@ VMMDECL(int) EMInterpretCLTS(PVM pVM, PVMCPU pVCpu)
  * @param   SrcRegCRx   CRx register index (DISUSE_REG_CR*)
  *
  */
-VMMDECL(int) EMInterpretCRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegGen, uint32_t SrcRegCrx)
+VMM_INT_DECL(int) EMInterpretCRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegGen, uint32_t SrcRegCrx)
 {
     Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
     uint64_t val64;
@@ -1674,7 +1814,7 @@ VMMDECL(int) EMInterpretCRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, u
  * @param   SrcRegGen   General purpose register index (USE_REG_E**))
  *
  */
-VMMDECL(int) EMInterpretDRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegDrx, uint32_t SrcRegGen)
+VMM_INT_DECL(int) EMInterpretDRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegDrx, uint32_t SrcRegGen)
 {
     Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
     uint64_t val;
@@ -1713,7 +1853,7 @@ VMMDECL(int) EMInterpretDRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, 
  * @param   SrcRegDRx   DRx register index (USE_REG_DR*)
  *
  */
-VMMDECL(int) EMInterpretDRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegGen, uint32_t SrcRegDrx)
+VMM_INT_DECL(int) EMInterpretDRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegGen, uint32_t SrcRegDrx)
 {
     uint64_t val64;
     Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
@@ -2649,7 +2789,7 @@ static int emInterpretMov(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE
             return VERR_EM_INTERPRETER;
         }
         AssertRCReturn(rc, rc);
-    }    
+    }
 #endif
     else
     { /* read fault */
@@ -2956,7 +3096,6 @@ static int emInterpretCmpXchg(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTX
  */
 static int emInterpretCmpXchg8b(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize)
 {
-    Assert(pDis->uCpuMode != DISCPUMODE_64BIT);    /** @todo check */
     DISQPVPARAMVAL param1;
     NOREF(pvFault);
 
@@ -3010,7 +3149,7 @@ static int emInterpretCmpXchg8b(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMC
 }
 
 
-#ifdef IN_RC /** @todo test+enable for HWACCM as well. */
+#ifdef IN_RC /** @todo test+enable for HM as well. */
 /**
  * [LOCK] XADD emulation.
  */
@@ -3400,7 +3539,7 @@ static int emInterpretLIGdt(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCO
 static int emInterpretSti(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize)
 {
     NOREF(pcbSize);
-    PPATMGCSTATE pGCState = PATMQueryGCState(pVM);
+    PPATMGCSTATE pGCState = PATMGetGCState(pVM);
 
     if(!pGCState)
     {
@@ -3464,139 +3603,6 @@ static VBOXSTRICTRC emInterpretMWait(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, P
 }
 
 
-#ifdef LOG_ENABLED
-static const char *emMSRtoString(uint32_t uMsr)
-{
-    switch (uMsr)
-    {
-    case MSR_IA32_APICBASE:
-        return "MSR_IA32_APICBASE";
-    case MSR_IA32_CR_PAT:
-        return "MSR_IA32_CR_PAT";
-    case MSR_IA32_SYSENTER_CS:
-        return "MSR_IA32_SYSENTER_CS";
-    case MSR_IA32_SYSENTER_EIP:
-        return "MSR_IA32_SYSENTER_EIP";
-    case MSR_IA32_SYSENTER_ESP:
-        return "MSR_IA32_SYSENTER_ESP";
-    case MSR_K6_EFER:
-        return "MSR_K6_EFER";
-    case MSR_K8_SF_MASK:
-        return "MSR_K8_SF_MASK";
-    case MSR_K6_STAR:
-        return "MSR_K6_STAR";
-    case MSR_K8_LSTAR:
-        return "MSR_K8_LSTAR";
-    case MSR_K8_CSTAR:
-        return "MSR_K8_CSTAR";
-    case MSR_K8_FS_BASE:
-        return "MSR_K8_FS_BASE";
-    case MSR_K8_GS_BASE:
-        return "MSR_K8_GS_BASE";
-    case MSR_K8_KERNEL_GS_BASE:
-        return "MSR_K8_KERNEL_GS_BASE";
-    case MSR_K8_TSC_AUX:
-        return "MSR_K8_TSC_AUX";
-    case MSR_IA32_BIOS_SIGN_ID:
-        return "Unsupported MSR_IA32_BIOS_SIGN_ID";
-    case MSR_IA32_PLATFORM_ID:
-        return "Unsupported MSR_IA32_PLATFORM_ID";
-    case MSR_IA32_BIOS_UPDT_TRIG:
-        return "Unsupported MSR_IA32_BIOS_UPDT_TRIG";
-    case MSR_IA32_TSC:
-        return "MSR_IA32_TSC";
-    case MSR_IA32_MISC_ENABLE:
-        return "MSR_IA32_MISC_ENABLE";
-    case MSR_IA32_MTRR_CAP:
-        return "MSR_IA32_MTRR_CAP";
-    case MSR_IA32_MCP_CAP:
-        return "Unsupported MSR_IA32_MCP_CAP";
-    case MSR_IA32_MCP_STATUS:
-        return "Unsupported MSR_IA32_MCP_STATUS";
-    case MSR_IA32_MCP_CTRL:
-        return "Unsupported MSR_IA32_MCP_CTRL";
-    case MSR_IA32_MTRR_DEF_TYPE:
-        return "MSR_IA32_MTRR_DEF_TYPE";
-    case MSR_K7_EVNTSEL0:
-        return "Unsupported MSR_K7_EVNTSEL0";
-    case MSR_K7_EVNTSEL1:
-        return "Unsupported MSR_K7_EVNTSEL1";
-    case MSR_K7_EVNTSEL2:
-        return "Unsupported MSR_K7_EVNTSEL2";
-    case MSR_K7_EVNTSEL3:
-        return "Unsupported MSR_K7_EVNTSEL3";
-    case MSR_IA32_MC0_CTL:
-        return "Unsupported MSR_IA32_MC0_CTL";
-    case MSR_IA32_MC0_STATUS:
-        return "Unsupported MSR_IA32_MC0_STATUS";
-    case MSR_IA32_PERFEVTSEL0:
-        return "Unsupported MSR_IA32_PERFEVTSEL0";
-    case MSR_IA32_PERFEVTSEL1:
-        return "Unsupported MSR_IA32_PERFEVTSEL1";
-    case MSR_IA32_PERF_STATUS:
-        return "MSR_IA32_PERF_STATUS";
-    case MSR_IA32_PLATFORM_INFO:
-        return "MSR_IA32_PLATFORM_INFO";
-    case MSR_IA32_PERF_CTL:
-        return "Unsupported MSR_IA32_PERF_CTL";
-    case MSR_K7_PERFCTR0:
-        return "Unsupported MSR_K7_PERFCTR0";
-    case MSR_K7_PERFCTR1:
-        return "Unsupported MSR_K7_PERFCTR1";
-    case MSR_K7_PERFCTR2:
-        return "Unsupported MSR_K7_PERFCTR2";
-    case MSR_K7_PERFCTR3:
-        return "Unsupported MSR_K7_PERFCTR3";
-    case MSR_IA32_PMC0:
-        return "Unsupported MSR_IA32_PMC0";
-    case MSR_IA32_PMC1:
-        return "Unsupported MSR_IA32_PMC1";
-    case MSR_IA32_PMC2:
-        return "Unsupported MSR_IA32_PMC2";
-    case MSR_IA32_PMC3:
-        return "Unsupported MSR_IA32_PMC3";
-    }
-    return "Unknown MSR";
-}
-#endif /* LOG_ENABLED */
-
-
-/**
- * Interpret RDMSR
- *
- * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
- * @param   pRegFrame   The register frame.
- */
-VMMDECL(int) EMInterpretRdmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
-{
-    /** @todo According to the Intel manuals, there's a REX version of RDMSR that is slightly different.
-     *  That version clears the high dwords of both RDX & RAX */
-    NOREF(pVM);
-
-    /* Get the current privilege level. */
-    if (CPUMGetGuestCPL(pVCpu) != 0)
-    {
-        Log4(("EM: Refuse RDMSR: CPL != 0\n"));
-        return VERR_EM_INTERPRETER; /* supervisor only */
-    }
-
-    uint64_t uValue;
-    int rc = CPUMQueryGuestMsr(pVCpu, pRegFrame->ecx, &uValue);
-    if (RT_UNLIKELY(rc != VINF_SUCCESS))
-    {
-        Assert(rc == VERR_CPUM_RAISE_GP_0);
-        Log4(("EM: Refuse RDMSR: rc=%Rrc\n", rc));
-        return VERR_EM_INTERPRETER;
-    }
-    pRegFrame->rax = (uint32_t) uValue;
-    pRegFrame->rdx = (uint32_t)(uValue >> 32);
-    LogFlow(("EMInterpretRdmsr %s (%x) -> %RX64\n", emMSRtoString(pRegFrame->ecx), pRegFrame->ecx, uValue));
-    return rc;
-}
-
-
 /**
  * RDMSR Emulation.
  */
@@ -3607,39 +3613,6 @@ static int emInterpretRdmsr(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCO
     Assert(!(pDis->fPrefix & DISPREFIX_REX));
     NOREF(pDis); NOREF(pvFault); NOREF(pcbSize);
     return EMInterpretRdmsr(pVM, pVCpu, pRegFrame);
-}
-
-
-/**
- * Interpret WRMSR
- *
- * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
- * @param   pRegFrame   The register frame.
- */
-VMMDECL(int) EMInterpretWrmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
-{
-    Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
-
-    /* Check the current privilege level, this instruction is supervisor only. */
-    if (CPUMGetGuestCPL(pVCpu) != 0)
-    {
-        Log4(("EM: Refuse WRMSR: CPL != 0\n"));
-        return VERR_EM_INTERPRETER; /** @todo raise \#GP(0) */
-    }
-
-    int rc = CPUMSetGuestMsr(pVCpu, pRegFrame->ecx, RT_MAKE_U64(pRegFrame->eax, pRegFrame->edx));
-    if (rc != VINF_SUCCESS)
-    {
-        Assert(rc == VERR_CPUM_RAISE_GP_0);
-        Log4(("EM: Refuse WRMSR: rc=%d\n", rc));
-        return VERR_EM_INTERPRETER;
-    }
-    LogFlow(("EMInterpretWrmsr %s (%x) val=%RX64\n", emMSRtoString(pRegFrame->ecx), pRegFrame->ecx,
-             RT_MAKE_U64(pRegFrame->eax, pRegFrame->edx)));
-    NOREF(pVM);
-    return rc;
 }
 
 

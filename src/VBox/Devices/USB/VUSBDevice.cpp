@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -995,6 +995,7 @@ void vusbDevSetAddress(PVUSBDEV pDev, uint8_t u8Address)
         return;
 
     PVUSBROOTHUB pRh = vusbDevGetRh(pDev);
+    AssertPtrReturnVoid(pRh);
     if (pDev->u8Address == VUSB_DEFAULT_ADDRESS)
         pRh->pDefaultAddress = NULL;
 
@@ -1034,6 +1035,7 @@ void vusbDevSetAddress(PVUSBDEV pDev, uint8_t u8Address)
 static void vusbDevCancelAllUrbs(PVUSBDEV pDev, bool fDetaching)
 {
     PVUSBROOTHUB pRh = vusbDevGetRh(pDev);
+    AssertPtrReturnVoid(pRh);
 
     /*
      * Iterate the URBs and cancel them.
@@ -1101,8 +1103,8 @@ static void vusbDevCancelAllUrbs(PVUSBDEV pDev, bool fDetaching)
                 AssertMsgFailed(("%s: Leaking left over URB! state=%d pDev=%p[%s]\n",
                                  pUrb->pszDesc, pUrb->enmState, pDev, pDev->pUsbIns->pszName));
                 vusbUrbUnlink(pUrb);
-                /* Unlink isn't enough, because boundary timer and detaching will try to reap it. 
-                 * It was tested with MSD & iphone attachment to vSMP guest, if 
+                /* Unlink isn't enough, because boundary timer and detaching will try to reap it.
+                 * It was tested with MSD & iphone attachment to vSMP guest, if
                  * it breaks anything, please add comment here, why we should unlink only.
                  */
                 pUrb->VUsb.pfnFree(pUrb);

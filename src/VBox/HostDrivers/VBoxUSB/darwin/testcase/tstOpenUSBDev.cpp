@@ -206,7 +206,7 @@ int main(int argc, char **argv)
             case 'h':
                 return tstSyntax(argv[0]);
             case 'V':
-                RTPrintf("$Revision: 83687 $\n");
+                RTPrintf("$Revision: 83575 $\n");
                 return 0;
 
             default:

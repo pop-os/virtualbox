@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,7 @@
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/cfgm.h>
+#include <VBox/vmm/hm.h>
 #include <VBox/vmm/vmm.h>
 #include <VBox/sup.h>
 #include <VBox/vmm/vm.h>
@@ -701,7 +702,7 @@ int pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDM
                     pNew->Internal.s.pVMR0          = pDrv->pReg->fFlags & PDM_DRVREG_FLAGS_R0 ? pVM->pVMR0 : NIL_RTR0PTR;
                     pNew->Internal.s.pVMRC          = pDrv->pReg->fFlags & PDM_DRVREG_FLAGS_RC ? pVM->pVMRC : NIL_RTRCPTR;
                     //pNew->Internal.s.fDetaching     = false;
-                    pNew->Internal.s.fVMSuspended   = true;
+                    pNew->Internal.s.fVMSuspended   = true; /** @todo: should be 'false', if driver is attached at runtime. */
                     //pNew->Internal.s.fVMReset       = false;
                     pNew->Internal.s.fHyperHeap     = fHyperHeap;
                     //pNew->Internal.s.pfnAsyncNotify = NULL;
@@ -721,9 +722,9 @@ int pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDM
                         pNew->pvInstanceDataR0      = MMHyperR3ToR0(pVM, &pNew->achInstanceData[0]);
                         rc = PDMR3LdrGetSymbolR0(pVM, NULL, "g_pdmR0DrvHlp", &pNew->pHlpR0);
                         AssertReleaseRCReturn(rc, rc);
-
                     }
-                    if (pDrv->pReg->fFlags & PDM_DRVREG_FLAGS_RC)
+                    if (   (pDrv->pReg->fFlags & PDM_DRVREG_FLAGS_RC)
+                        && !HMIsEnabled(pVM))
                     {
                         pNew->pvInstanceDataR0      = MMHyperR3ToRC(pVM, &pNew->achInstanceData[0]);
                         rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCDrvHlp", &pNew->pHlpRC);
@@ -961,11 +962,16 @@ void pdmR3DrvDestroyChain(PPDMDRVINS pDrvIns, uint32_t fFlags)
         AssertRC(rc);
 
         /* PDM critsects. */
-        rc = pdmR3CritSectDeleteDriver(pVM, pCur);
+        rc = pdmR3CritSectBothDeleteDriver(pVM, pCur);
         AssertRC(rc);
 
         /* Block caches. */
         PDMR3BlkCacheReleaseDriver(pVM, pCur);
+
+#ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
+        /* Completion templates.*/
+        pdmR3AsyncCompletionTemplateDestroyDriver(pVM, pCur);
+#endif
 
         /* Finally, the driver it self. */
         bool fHyperHeap = pCur->Internal.s.fHyperHeap;
@@ -1420,7 +1426,7 @@ static DECLCALLBACK(int) pdmR3DrvHlp_STAMDeregister(PPDMDRVINS pDrvIns, void *pv
     PDMDRV_ASSERT_DRVINS(pDrvIns);
     VM_ASSERT_EMT(pDrvIns->Internal.s.pVMR3);
 
-    int rc = STAMR3DeregisterU(pDrvIns->Internal.s.pVMR3->pUVM, pvSample);
+    int rc = STAMR3DeregisterByAddr(pDrvIns->Internal.s.pVMR3->pUVM, pvSample);
     AssertRC(rc);
     return rc;
 }
@@ -1544,7 +1550,7 @@ static DECLCALLBACK(int) pdmR3DrvHlp_AsyncCompletionTemplateCreate(PPDMDRVINS pD
     LogFlow(("pdmR3DrvHlp_AsyncCompletionTemplateCreate: caller='%s'/%d: ppTemplate=%p pfnCompleted=%p pszDesc=%p:{%s}\n",
              pDrvIns->pReg->szName, pDrvIns->iInstance, ppTemplate, pfnCompleted, pszDesc, pszDesc));
 
-    int rc = PDMR3AsyncCompletionTemplateCreateDriver(pDrvIns->Internal.s.pVMR3, pDrvIns, ppTemplate, pfnCompleted, pvTemplateUser, pszDesc);
+    int rc = pdmR3AsyncCompletionTemplateCreateDriver(pDrvIns->Internal.s.pVMR3, pDrvIns, ppTemplate, pfnCompleted, pvTemplateUser, pszDesc);
 
     LogFlow(("pdmR3DrvHlp_AsyncCompletionTemplateCreate: caller='%s'/%d: returns %Rrc *ppThread=%p\n", pDrvIns->pReg->szName,
              pDrvIns->iInstance, rc, *ppTemplate));
@@ -1560,7 +1566,7 @@ static DECLCALLBACK(int) pdmR3DrvHlp_NetShaperAttach(PPDMDRVINS pDrvIns, const c
     LogFlow(("pdmR3DrvHlp_NetShaperAttach: caller='%s'/%d: pFilter=%p pszBwGroup=%p:{%s}\n",
              pDrvIns->pReg->szName, pDrvIns->iInstance, pFilter, pszBwGroup, pszBwGroup));
 
-    int rc = PDMR3NsAttach(pDrvIns->Internal.s.pVMR3, pDrvIns, pszBwGroup, pFilter);
+    int rc = PDMR3NsAttach(pDrvIns->Internal.s.pVMR3->pUVM, pDrvIns, pszBwGroup, pFilter);
 
     LogFlow(("pdmR3DrvHlp_NetShaperAttach: caller='%s'/%d: returns %Rrc\n", pDrvIns->pReg->szName,
              pDrvIns->iInstance, rc));
@@ -1575,7 +1581,7 @@ static DECLCALLBACK(int) pdmR3DrvHlp_NetShaperDetach(PPDMDRVINS pDrvIns, PPDMNSF
     LogFlow(("pdmR3DrvHlp_NetShaperDetach: caller='%s'/%d: pFilter=%p\n",
              pDrvIns->pReg->szName, pDrvIns->iInstance, pFilter));
 
-    int rc = PDMR3NsDetach(pDrvIns->Internal.s.pVMR3, pDrvIns, pFilter);
+    int rc = PDMR3NsDetach(pDrvIns->Internal.s.pVMR3->pUVM, pDrvIns, pFilter);
 
     LogFlow(("pdmR3DrvHlp_NetShaperDetach: caller='%s'/%d: returns %Rrc\n", pDrvIns->pReg->szName,
              pDrvIns->iInstance, rc));
@@ -1751,6 +1757,33 @@ static DECLCALLBACK(int) pdmR3DrvHlp_BlkCacheRetain(PPDMDRVINS pDrvIns, PPPDMBLK
 }
 
 
+
+/** @interface_method_impl{PDMDRVHLP,pfnVMGetSuspendReason} */
+static DECLCALLBACK(VMSUSPENDREASON) pdmR3DrvHlp_VMGetSuspendReason(PPDMDRVINS pDrvIns)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    PVM pVM = pDrvIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
+    VMSUSPENDREASON enmReason = VMR3GetSuspendReason(pVM->pUVM);
+    LogFlow(("pdmR3DrvHlp_VMGetSuspendReason: caller='%s'/%d: returns %d\n",
+             pDrvIns->pReg->szName, pDrvIns->iInstance, enmReason));
+    return enmReason;
+}
+
+
+/** @interface_method_impl{PDMDRVHLP,pfnVMGetResumeReason} */
+static DECLCALLBACK(VMRESUMEREASON) pdmR3DrvHlp_VMGetResumeReason(PPDMDRVINS pDrvIns)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    PVM pVM = pDrvIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
+    VMRESUMEREASON enmReason = VMR3GetResumeReason(pVM->pUVM);
+    LogFlow(("pdmR3DrvHlp_VMGetResumeReason: caller='%s'/%d: returns %d\n",
+             pDrvIns->pReg->szName, pDrvIns->iInstance, enmReason));
+    return enmReason;
+}
+
+
 /**
  * The driver helper structure.
  */
@@ -1798,6 +1831,18 @@ const PDMDRVHLPR3 g_pdmR3DrvHlp =
     pdmR3DrvHlp_CallR0,
     pdmR3DrvHlp_FTSetCheckpoint,
     pdmR3DrvHlp_BlkCacheRetain,
+    pdmR3DrvHlp_VMGetSuspendReason,
+    pdmR3DrvHlp_VMGetResumeReason,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     PDM_DRVHLPR3_VERSION /* u32TheEnd */
 };
 

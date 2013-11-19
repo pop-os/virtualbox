@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -84,7 +84,7 @@ typedef DBGDIGGEROS2 *PDBGDIGGEROS2;
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-static DECLCALLBACK(int)  dbgDiggerOS2Init(PVM pVM, void *pvData);
+static DECLCALLBACK(int)  dbgDiggerOS2Init(PUVM pUVM, void *pvData);
 
 
 /*******************************************************************************
@@ -95,16 +95,16 @@ static DECLCALLBACK(int)  dbgDiggerOS2Init(PVM pVM, void *pvData);
 /**
  * Process a PE image found in guest memory.
  *
- * @param   pThis               The instance data.
- * @param   pVM                 The VM handle.
- * @param   pszName             The image name.
- * @param   pImageAddr          The image address.
- * @param   cbImage             The size of the image.
- * @param   pbBuf               Scratch buffer containing the first
- *                              RT_MIN(cbBuf, cbImage) bytes of the image.
- * @param   cbBuf               The scratch buffer size.
+ * @param   pThis           The instance data.
+ * @param   pUVM            The user mode VM handle.
+ * @param   pszName         The image name.
+ * @param   pImageAddr      The image address.
+ * @param   cbImage         The size of the image.
+ * @param   pbBuf           Scratch buffer containing the first
+ *                          RT_MIN(cbBuf, cbImage) bytes of the image.
+ * @param   cbBuf           The scratch buffer size.
  */
-static void dbgDiggerOS2ProcessImage(PDBGDIGGEROS2 pThis, PVM pVM, const char *pszName,
+static void dbgDiggerOS2ProcessImage(PDBGDIGGEROS2 pThis, PUVM pUVM, const char *pszName,
                                      PCDBGFADDRESS pImageAddr, uint32_t cbImage,
                                      uint8_t *pbBuf, size_t cbBuf)
 {
@@ -117,7 +117,7 @@ static void dbgDiggerOS2ProcessImage(PDBGDIGGEROS2 pThis, PVM pVM, const char *p
 /**
  * @copydoc DBGFOSREG::pfnQueryInterface
  */
-static DECLCALLBACK(void *) dbgDiggerOS2QueryInterface(PVM pVM, void *pvData, DBGFOSINTERFACE enmIf)
+static DECLCALLBACK(void *) dbgDiggerOS2QueryInterface(PUVM pUVM, void *pvData, DBGFOSINTERFACE enmIf)
 {
     return NULL;
 }
@@ -126,7 +126,7 @@ static DECLCALLBACK(void *) dbgDiggerOS2QueryInterface(PVM pVM, void *pvData, DB
 /**
  * @copydoc DBGFOSREG::pfnQueryVersion
  */
-static DECLCALLBACK(int)  dbgDiggerOS2QueryVersion(PVM pVM, void *pvData, char *pszVersion, size_t cchVersion)
+static DECLCALLBACK(int)  dbgDiggerOS2QueryVersion(PUVM pUVM, void *pvData, char *pszVersion, size_t cchVersion)
 {
     PDBGDIGGEROS2 pThis = (PDBGDIGGEROS2)pvData;
     Assert(pThis->fValid);
@@ -145,14 +145,14 @@ static DECLCALLBACK(int)  dbgDiggerOS2QueryVersion(PVM pVM, void *pvData, char *
             RTStrPrintf(pszOS2ProductType, sizeof(achOS2ProductType), "OS/2 2.%02d", pThis->OS2MinorVersion);
             pThis->enmVer = DBGDIGGEROS2VER_2_x;
         }
-        else if (pThis->OS2MinorVersion < 40) 
+        else if (pThis->OS2MinorVersion < 40)
         {
-            RTStrPrintf(pszOS2ProductType, sizeof(achOS2ProductType), "OS/2 Warp", pThis->OS2MinorVersion);
+            RTStrPrintf(pszOS2ProductType, sizeof(achOS2ProductType), "OS/2 Warp");
             pThis->enmVer = DBGDIGGEROS2VER_3_0;
         }
-        else if (pThis->OS2MinorVersion == 40) 
+        else if (pThis->OS2MinorVersion == 40)
         {
-            RTStrPrintf(pszOS2ProductType, sizeof(achOS2ProductType), "OS/2 Warp 4", pThis->OS2MinorVersion);
+            RTStrPrintf(pszOS2ProductType, sizeof(achOS2ProductType), "OS/2 Warp 4");
             pThis->enmVer = DBGDIGGEROS2VER_4_0;
         }
         else
@@ -170,7 +170,7 @@ static DECLCALLBACK(int)  dbgDiggerOS2QueryVersion(PVM pVM, void *pvData, char *
 /**
  * @copydoc DBGFOSREG::pfnTerm
  */
-static DECLCALLBACK(void)  dbgDiggerOS2Term(PVM pVM, void *pvData)
+static DECLCALLBACK(void)  dbgDiggerOS2Term(PUVM pUVM, void *pvData)
 {
     PDBGDIGGEROS2 pThis = (PDBGDIGGEROS2)pvData;
     Assert(pThis->fValid);
@@ -182,7 +182,7 @@ static DECLCALLBACK(void)  dbgDiggerOS2Term(PVM pVM, void *pvData)
 /**
  * @copydoc DBGFOSREG::pfnRefresh
  */
-static DECLCALLBACK(int)  dbgDiggerOS2Refresh(PVM pVM, void *pvData)
+static DECLCALLBACK(int)  dbgDiggerOS2Refresh(PUVM pUVM, void *pvData)
 {
     PDBGDIGGEROS2 pThis = (PDBGDIGGEROS2)pvData;
     NOREF(pThis);
@@ -191,7 +191,7 @@ static DECLCALLBACK(int)  dbgDiggerOS2Refresh(PVM pVM, void *pvData)
     /*
      * For now we'll flush and reload everything.
      */
-    RTDBGAS hDbgAs = DBGFR3AsResolveAndRetain(pVM, DBGF_AS_KERNEL);
+    RTDBGAS hDbgAs = DBGFR3AsResolveAndRetain(pUVM, DBGF_AS_KERNEL);
     if (hDbgAs != NIL_RTDBGAS)
     {
         uint32_t iMod = RTDbgAsModuleCount(hDbgAs);
@@ -211,15 +211,15 @@ static DECLCALLBACK(int)  dbgDiggerOS2Refresh(PVM pVM, void *pvData)
         RTDbgAsRelease(hDbgAs);
     }
 
-    dbgDiggerOS2Term(pVM, pvData);
-    return dbgDiggerOS2Init(pVM, pvData);
+    dbgDiggerOS2Term(pUVM, pvData);
+    return dbgDiggerOS2Init(pUVM, pvData);
 }
 
 
 /**
  * @copydoc DBGFOSREG::pfnInit
  */
-static DECLCALLBACK(int)  dbgDiggerOS2Init(PVM pVM, void *pvData)
+static DECLCALLBACK(int)  dbgDiggerOS2Init(PUVM pUVM, void *pvData)
 {
     PDBGDIGGEROS2 pThis = (PDBGDIGGEROS2)pvData;
     Assert(!pThis->fValid);
@@ -239,10 +239,10 @@ static DECLCALLBACK(int)  dbgDiggerOS2Init(PVM pVM, void *pvData)
      */
     do {
         /* Version info is at GIS:15h (major/minor/revision). */
-        rc = DBGFR3AddrFromSelOff(pVM, 0 /*idCpu*/, &Addr, pThis->selGIS, 0x15);
+        rc = DBGFR3AddrFromSelOff(pUVM, 0 /*idCpu*/, &Addr, pThis->selGIS, 0x15);
         if (RT_FAILURE(rc))
             break;
-        rc = DBGFR3MemRead(pVM, 0 /*idCpu*/, &Addr, u.au32, sizeof(uint32_t));
+        rc = DBGFR3MemRead(pUVM, 0 /*idCpu*/, &Addr, u.au32, sizeof(uint32_t));
         if (RT_FAILURE(rc))
             break;
 
@@ -259,7 +259,7 @@ static DECLCALLBACK(int)  dbgDiggerOS2Init(PVM pVM, void *pvData)
 /**
  * @copydoc DBGFOSREG::pfnProbe
  */
-static DECLCALLBACK(bool)  dbgDiggerOS2Probe(PVM pVM, void *pvData)
+static DECLCALLBACK(bool)  dbgDiggerOS2Probe(PUVM pUVM, void *pvData)
 {
     PDBGDIGGEROS2   pThis = (PDBGDIGGEROS2)pvData;
     DBGFADDRESS     Addr;
@@ -273,24 +273,24 @@ static DECLCALLBACK(bool)  dbgDiggerOS2Probe(PVM pVM, void *pvData)
         RTUTF16             wsz[8192/2];
     } u;
 
-    /* 
+    /*
      * If the DWORD at 70:0 contains 'SAS ' it's quite unlikely that this wouldn't be OS/2.
      * Note: The SAS layout is similar between 16-bit and 32-bit OS/2, but not identical.
-     * 32-bit OS/2 will have the flat kernel data selector at SAS:06. The selector is 168h 
-     * or similar. For 16-bit OS/2 the field contains a table offset into the SAS which will 
-     * be much smaller. Fun fact: The global infoseg selector in the SAS is bimodal in 16-bit 
-     * OS/2 and will work in real mode as well. 
+     * 32-bit OS/2 will have the flat kernel data selector at SAS:06. The selector is 168h
+     * or similar. For 16-bit OS/2 the field contains a table offset into the SAS which will
+     * be much smaller. Fun fact: The global infoseg selector in the SAS is bimodal in 16-bit
+     * OS/2 and will work in real mode as well.
      */
     do {
-        rc = DBGFR3AddrFromSelOff(pVM, 0 /*idCpu*/, &Addr, 0x70, 0x00);
+        rc = DBGFR3AddrFromSelOff(pUVM, 0 /*idCpu*/, &Addr, 0x70, 0x00);
         if (RT_FAILURE(rc))
             break;
-        rc = DBGFR3MemRead(pVM, 0 /*idCpu*/, &Addr, u.au32, 256);
+        rc = DBGFR3MemRead(pUVM, 0 /*idCpu*/, &Addr, u.au32, 256);
         if (RT_FAILURE(rc))
             break;
         if (u.au32[0] != DIG_OS2_SAS_SIG)
             break;
-        
+
         /* This sure looks like OS/2, but a bit of paranoia won't hurt. */
         if (u.au16[2] >= u.au16[4])
             break;
@@ -317,7 +317,7 @@ static DECLCALLBACK(bool)  dbgDiggerOS2Probe(PVM pVM, void *pvData)
 /**
  * @copydoc DBGFOSREG::pfnDestruct
  */
-static DECLCALLBACK(void)  dbgDiggerOS2Destruct(PVM pVM, void *pvData)
+static DECLCALLBACK(void)  dbgDiggerOS2Destruct(PUVM pUVM, void *pvData)
 {
 
 }
@@ -326,7 +326,7 @@ static DECLCALLBACK(void)  dbgDiggerOS2Destruct(PVM pVM, void *pvData)
 /**
  * @copydoc DBGFOSREG::pfnConstruct
  */
-static DECLCALLBACK(int)  dbgDiggerOS2Construct(PVM pVM, void *pvData)
+static DECLCALLBACK(int)  dbgDiggerOS2Construct(PUVM pUVM, void *pvData)
 {
     PDBGDIGGEROS2 pThis = (PDBGDIGGEROS2)pvData;
     pThis->fValid = false;

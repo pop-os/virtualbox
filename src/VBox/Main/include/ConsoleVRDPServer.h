@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,7 @@
 #include <VBox/RemoteDesktop/VRDETSMF.h>
 #define VRDE_VIDEOIN_WITH_VRDEINTERFACE /* Get the VRDE interface definitions. */
 #include <VBox/RemoteDesktop/VRDEVideoIn.h>
+#include <VBox/RemoteDesktop/VRDEInput.h>
 
 #include <VBox/HostServices/VBoxClipboardExt.h>
 #include <VBox/HostServices/VBoxHostChannel.h>
@@ -37,6 +38,8 @@
 
 // ConsoleVRDPServer
 ///////////////////////////////////////////////////////////////////////////////
+
+class EmWebcam;
 
 typedef struct _VRDPInputSynch
 {
@@ -142,10 +145,6 @@ public:
                             uint32_t cBits);
 
     void SendAudioInputEnd(void *pvUserCtx);
-#ifdef VBOX_WITH_USB_VIDEO
-    int GetVideoFrameDimensions(uint16_t *pu16Heigh, uint16_t *pu16Width);
-    int SendVideoSreamOn(bool fFetch);
-#endif
 
     int SCardRequest(void *pvUser, uint32_t u32Function, const void *pvData, uint32_t cbData);
 
@@ -154,6 +153,8 @@ public:
     int VideoInGetDeviceDesc(void *pvUser, const VRDEVIDEOINDEVICEHANDLE *pDeviceHandle);
     int VideoInControl(void *pvUser, const VRDEVIDEOINDEVICEHANDLE *pDeviceHandle,
                        const VRDEVIDEOINCTRLHDR *pReq, uint32_t cbReq);
+
+    Console *getConsole(void) { return mConsole; }
 
 private:
     /* Note: This is not a ComObjPtr here, because the ConsoleVRDPServer object
@@ -247,19 +248,21 @@ private:
 
     uint32_t volatile mu32AudioInputClientId;
 
+    int32_t volatile mcClients;
+
     static DECLCALLBACK(void) H3DORBegin(const void *pvContext, void **ppvInstance,
                                          const char *pszFormat);
     static DECLCALLBACK(void) H3DORGeometry(void *pvInstance,
                                             int32_t x, int32_t y, uint32_t w, uint32_t h);
     static DECLCALLBACK(void) H3DORVisibleRegion(void *pvInstance,
-                                                 uint32_t cRects, RTRECT *paRects);
+                                                 uint32_t cRects, const RTRECT *paRects);
     static DECLCALLBACK(void) H3DORFrame(void *pvInstance,
                                          void *pvData, uint32_t cbData);
     static DECLCALLBACK(void) H3DOREnd(void *pvInstance);
     static DECLCALLBACK(int)  H3DORContextProperty(const void *pvContext, uint32_t index,
                                                    void *pvBuffer, uint32_t cbBuffer, uint32_t *pcbOut);
 
-    void remote3DRedirect(void);
+    void remote3DRedirect(bool fEnable);
 
     /*
      * VRDE server optional interfaces.
@@ -339,6 +342,21 @@ private:
                                                        void *pDeviceCtx,
                                                        const VRDEVIDEOINPAYLOADHDR *pFrame,
                                                        uint32_t cbFrame);
+    EmWebcam *mEmWebcam;
+
+    /* Input interface. */
+    VRDEINPUTINTERFACE m_interfaceInput;
+    VRDEINPUTCALLBACKS m_interfaceCallbacksInput;
+    static DECLCALLBACK(void) VRDECallbackInputSetup(void *pvCallback,
+                                                     int rcRequest,
+                                                     uint32_t u32Method,
+                                                     const void *pvResult,
+                                                     uint32_t cbResult);
+    static DECLCALLBACK(void) VRDECallbackInputEvent(void *pvCallback,
+                                                     uint32_t u32Method,
+                                                     const void *pvEvent,
+                                                     uint32_t cbEvent);
+    uint64_t mu64TouchInputTimestampMCS;
 };
 
 

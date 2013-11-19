@@ -20,7 +20,6 @@
 #include <VBox/com/string.h>
 #include <VBox/com/Guid.h>
 #include <VBox/com/ErrorInfo.h>
-#include <VBox/com/EventQueue.h>
 #include <VBox/com/VirtualBox.h>
 
 #include <iprt/stream.h>
@@ -621,6 +620,12 @@ STDMETHODIMP VBoxSDLFB::ProcessVHWACommand(BYTE *pCommand)
 {
     return E_NOTIMPL;
 }
+
+STDMETHODIMP VBoxSDLFB::Notify3DEvent(ULONG uType, BYTE *pReserved)
+{
+    return E_NOTIMPL;
+}
+
 //
 // Internal public methods
 //

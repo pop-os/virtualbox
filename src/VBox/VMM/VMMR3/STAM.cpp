@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -58,9 +58,16 @@
 
 #include <iprt/assert.h>
 #include <iprt/asm.h>
-#include <iprt/alloc.h>
+#include <iprt/mem.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
+
+
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
+/** The maximum name length excluding the terminator. */
+#define STAM_MAX_NAME_LEN   239
 
 
 /*******************************************************************************
@@ -71,8 +78,8 @@
  */
 typedef struct STAMR3PRINTONEARGS
 {
-    PVM pVM;
-    void *pvArg;
+    PUVM        pUVM;
+    void       *pvArg;
     DECLCALLBACKMEMBER(void, pfnPrintf)(struct STAMR3PRINTONEARGS *pvArg, const char *pszFormat, ...);
 } STAMR3PRINTONEARGS, *PSTAMR3PRINTONEARGS;
 
@@ -132,6 +139,9 @@ typedef struct STAMR0SAMPLE
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
+#ifdef STAM_WITH_LOOKUP_TREE
+static void                 stamR3LookupDestroyTree(PSTAMLOOKUP pRoot);
+#endif
 static int                  stamR3RegisterU(PUVM pUVM, void *pvSample, PFNSTAMR3CALLBACKRESET pfnReset, PFNSTAMR3CALLBACKPRINT pfnPrint,
                                             STAMTYPE enmType, STAMVISIBILITY enmVisibility, const char *pszName, STAMUNIT enmUnit, const char *pszDesc);
 static int                  stamR3ResetOne(PSTAMDESC pDesc, void *pvArg);
@@ -150,9 +160,9 @@ static void                 stamR3Ring0StatsUpdateU(PUVM pUVM, const char *pszPa
 static void                 stamR3Ring0StatsUpdateMultiU(PUVM pUVM, const char * const *papszExpressions, unsigned cExpressions);
 
 #ifdef VBOX_WITH_DEBUGGER
-static DECLCALLBACK(int)    stamR3CmdStats(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static FNDBGCCMD            stamR3CmdStats;
 static DECLCALLBACK(void)   stamR3EnumDbgfPrintf(PSTAMR3PRINTONEARGS pArgs, const char *pszFormat, ...);
-static DECLCALLBACK(int)    stamR3CmdStatsReset(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static FNDBGCCMD            stamR3CmdStatsReset;
 #endif
 
 
@@ -249,8 +259,8 @@ static const STAMR0SAMPLE g_aGMMStats[] =
     { RT_UOFFSETOF(GMMSTATS, VMStats.enmPolicy),                STAMTYPE_U32,   STAMUNIT_NONE,  "/GMM/VM/enmPolicy",                "The current over-commit policy." },
     { RT_UOFFSETOF(GMMSTATS, VMStats.enmPriority),              STAMTYPE_U32,   STAMUNIT_NONE,  "/GMM/VM/enmPriority",              "The VM priority for arbitrating VMs in low and out of memory situation." },
     { RT_UOFFSETOF(GMMSTATS, VMStats.fBallooningEnabled),       STAMTYPE_BOOL,  STAMUNIT_NONE,  "/GMM/VM/fBallooningEnabled",       "Whether ballooning is enabled or not." },
-    { RT_UOFFSETOF(GMMSTATS, VMStats.fBallooningEnabled),       STAMTYPE_BOOL,  STAMUNIT_NONE,  "/GMM/VM/fSharedPagingEnabled",     "Whether shared paging is enabled or not." },
-    { RT_UOFFSETOF(GMMSTATS, VMStats.fBallooningEnabled),       STAMTYPE_BOOL,  STAMUNIT_NONE,  "/GMM/VM/fMayAllocate",             "Whether the VM is allowed to allocate memory or not." },
+    { RT_UOFFSETOF(GMMSTATS, VMStats.fSharedPagingEnabled),     STAMTYPE_BOOL,  STAMUNIT_NONE,  "/GMM/VM/fSharedPagingEnabled",     "Whether shared paging is enabled or not." },
+    { RT_UOFFSETOF(GMMSTATS, VMStats.fMayAllocate),             STAMTYPE_BOOL,  STAMUNIT_NONE,  "/GMM/VM/fMayAllocate",             "Whether the VM is allowed to allocate memory or not." },
 };
 
 
@@ -271,10 +281,37 @@ VMMR3DECL(int) STAMR3InitUVM(PUVM pUVM)
     AssertRelease(sizeof(pUVM->stam.s) <= sizeof(pUVM->stam.padding));
 
     /*
-     * Setup any fixed pointers and offsets.
+     * Initialize the read/write lock and list.
      */
     int rc = RTSemRWCreate(&pUVM->stam.s.RWSem);
     AssertRCReturn(rc, rc);
+
+    RTListInit(&pUVM->stam.s.List);
+
+#ifdef STAM_WITH_LOOKUP_TREE
+    /*
+     * Initialize the root node.
+     */
+    PSTAMLOOKUP pRoot = (PSTAMLOOKUP)RTMemAlloc(sizeof(STAMLOOKUP));
+    if (!pRoot)
+    {
+        RTSemRWDestroy(pUVM->stam.s.RWSem);
+        pUVM->stam.s.RWSem = NIL_RTSEMRW;
+        return VERR_NO_MEMORY;
+    }
+    pRoot->pParent      = NULL;
+    pRoot->papChildren   = NULL;
+    pRoot->pDesc        = NULL;
+    pRoot->cDescsInTree = 0;
+    pRoot->cChildren    = 0;
+    pRoot->iParent      = UINT16_MAX;
+    pRoot->off          = 0;
+    pRoot->cch          = 0;
+    pRoot->szName[0]    = '\0';
+
+    pUVM->stam.s.pRoot = pRoot;
+#endif
+
 
     /*
      * Register the ring-0 statistics (GVMM/GMM).
@@ -308,14 +345,19 @@ VMMR3DECL(void) STAMR3TermUVM(PUVM pUVM)
     /*
      * Free used memory and the RWLock.
      */
-    PSTAMDESC pCur = pUVM->stam.s.pHead;
-    while (pCur)
+    PSTAMDESC pCur, pNext;
+    RTListForEachSafe(&pUVM->stam.s.List, pCur, pNext, STAMDESC, ListEntry)
     {
-        void *pvFree = pCur;
-        pCur = pCur->pNext;
-        RTMemFree(pvFree);
+#ifdef STAM_WITH_LOOKUP_TREE
+        pCur->pLookup->pDesc = NULL;
+#endif
+        RTMemFree(pCur);
     }
-    pUVM->stam.s.pHead = NULL;
+
+#ifdef STAM_WITH_LOOKUP_TREE
+    stamR3LookupDestroyTree(pUVM->stam.s.pRoot);
+    pUVM->stam.s.pRoot = NULL;
+#endif
 
     Assert(pUVM->stam.s.RWSem != NIL_RTSEMRW);
     RTSemRWDestroy(pUVM->stam.s.RWSem);
@@ -348,6 +390,7 @@ VMMR3DECL(void) STAMR3TermUVM(PUVM pUVM)
 VMMR3DECL(int)  STAMR3RegisterU(PUVM pUVM, void *pvSample, STAMTYPE enmType, STAMVISIBILITY enmVisibility, const char *pszName, STAMUNIT enmUnit, const char *pszDesc)
 {
     AssertReturn(enmType != STAMTYPE_CALLBACK, VERR_INVALID_PARAMETER);
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
     return stamR3RegisterU(pUVM, pvSample, NULL, NULL, enmType, enmVisibility, pszName, enmUnit, pszDesc);
 }
 
@@ -450,14 +493,11 @@ VMMR3DECL(int)  STAMR3RegisterVU(PUVM pUVM, void *pvSample, STAMTYPE enmType, ST
 {
     AssertReturn(enmType != STAMTYPE_CALLBACK, VERR_INVALID_PARAMETER);
 
-    char *pszFormattedName;
-    RTStrAPrintfV(&pszFormattedName, pszName, args);
-    if (!pszFormattedName)
-        return VERR_NO_MEMORY;
+    char   szFormattedName[STAM_MAX_NAME_LEN + 8];
+    size_t cch = RTStrPrintfV(szFormattedName, sizeof(szFormattedName), pszName, args);
+    AssertReturn(cch <= STAM_MAX_NAME_LEN, VERR_OUT_OF_RANGE);
 
-    int rc = STAMR3RegisterU(pUVM, pvSample, enmType, enmVisibility, pszFormattedName, enmUnit, pszDesc);
-    RTStrFree(pszFormattedName);
-    return rc;
+    return STAMR3RegisterU(pUVM, pvSample, enmType, enmVisibility, szFormattedName, enmUnit, pszDesc);
 }
 
 
@@ -577,6 +617,624 @@ static int stamR3SlashCompare(const char *psz1, const char *psz2)
 #endif /* VBOX_STRICT */
 
 
+#ifdef STAM_WITH_LOOKUP_TREE
+
+/**
+ * Compares a lookup node with a name.
+ *
+ * @returns like strcmp and memcmp.
+ * @param   pNode               The lookup node.
+ * @param   pchName             The name, not necessarily terminated.
+ * @param   cchName             The length of the name.
+ */
+DECL_FORCE_INLINE(int) stamR3LookupCmp(PSTAMLOOKUP pNode, const char *pchName, uint32_t cchName)
+{
+    uint32_t cchComp = RT_MIN(pNode->cch, cchName);
+    int iDiff = memcmp(pNode->szName, pchName, cchComp);
+    if (!iDiff && pNode->cch != cchName)
+        iDiff = pNode->cch > cchName ? 2 : -2;
+    return iDiff;
+}
+
+
+/**
+ * Creates a new lookup child node.
+ *
+ * @returns Pointer to the newly created lookup node.
+ * @param   pParent             The parent node.
+ * @param   pchName             The name (not necessarily terminated).
+ * @param   cchName             The length of the name.
+ * @param   offName             The offset of the node in a path.
+ * @param   iChild              Child index of a node that's before the one
+ *                              we're inserting (returned by
+ *                              stamR3LookupFindChild).
+ */
+static PSTAMLOOKUP stamR3LookupNewChild(PSTAMLOOKUP pParent, const char *pchName, uint32_t cchName, uint32_t offName,
+                                        uint32_t iChild)
+{
+    Assert(cchName <= UINT8_MAX);
+    Assert(offName <= UINT8_MAX);
+    Assert(iChild  <  UINT16_MAX);
+
+    /*
+     * Allocate a new entry.
+     */
+    PSTAMLOOKUP pNew = (PSTAMLOOKUP)RTMemAlloc(RT_OFFSETOF(STAMLOOKUP, szName[cchName + 1]));
+    if (!pNew)
+        return NULL;
+    pNew->pParent       = pParent;
+    pNew->papChildren    = NULL;
+    pNew->pDesc         = NULL;
+    pNew->cDescsInTree  = 0;
+    pNew->cChildren     = 0;
+    pNew->cch           = (uint16_t)cchName;
+    pNew->off           = (uint16_t)offName;
+    memcpy(pNew->szName, pchName, cchName);
+    pNew->szName[cchName] = '\0';
+
+    /*
+     * Reallocate the array?
+     */
+    if (RT_IS_POWER_OF_TWO(pParent->cChildren))
+    {
+        uint32_t cNew = pParent->cChildren ? (uint32_t)pParent->cChildren * 2 : 8;
+        AssertReturnStmt(cNew <= 0x8000, RTMemFree(pNew), NULL);
+        void *pvNew = RTMemRealloc(pParent->papChildren, cNew * sizeof(pParent->papChildren[0]));
+        if (!pvNew)
+        {
+            RTMemFree(pNew);
+            return NULL;
+        }
+        pParent->papChildren = (PSTAMLOOKUP *)pvNew;
+    }
+
+    /*
+     * Find the exact insertion point using iChild as a very good clue from
+     * the find function.
+     */
+    if (!pParent->cChildren)
+        iChild = 0;
+    else
+    {
+        if (iChild >= pParent->cChildren)
+            iChild = pParent->cChildren - 1;
+        while (   iChild < pParent->cChildren
+               && stamR3LookupCmp(pParent->papChildren[iChild], pchName, cchName) < 0)
+            iChild++;
+    }
+
+    /*
+     * Insert it.
+     */
+    if (iChild < pParent->cChildren)
+    {
+        /* Do shift. */
+        uint32_t i = pParent->cChildren;
+        while (i > iChild)
+        {
+            PSTAMLOOKUP pNode = pParent->papChildren[i - 1];
+            pParent->papChildren[i] = pNode;
+            pNode->iParent = i;
+            i--;
+        }
+    }
+
+    pNew->iParent = iChild;
+    pParent->papChildren[iChild] = pNew;
+    pParent->cChildren++;
+
+    return pNew;
+}
+
+
+/**
+ * Looks up a child.
+ *
+ * @returns Pointer to child node if found, NULL if not.
+ * @param   pParent             The parent node.
+ * @param   pchName             The name (not necessarily terminated).
+ * @param   cchName             The length of the name.
+ * @param   piChild             Where to store a child index suitable for
+ *                              passing to stamR3LookupNewChild when NULL is
+ *                              returned.
+ */
+static PSTAMLOOKUP stamR3LookupFindChild(PSTAMLOOKUP pParent, const char *pchName, uint32_t cchName, uint32_t *piChild)
+{
+    uint32_t iChild = pParent->cChildren;
+    if (iChild > 4)
+    {
+        uint32_t iFirst = 0;
+        uint32_t iEnd   = iChild;
+        iChild /= 2;
+        for (;;)
+        {
+            int iDiff = stamR3LookupCmp(pParent->papChildren[iChild], pchName, cchName);
+            if (!iDiff)
+            {
+                if (piChild)
+                    *piChild = iChild;
+                return pParent->papChildren[iChild];
+            }
+
+            /* Split. */
+            if (iDiff < 0)
+            {
+                iFirst = iChild + 1;
+                if (iFirst >= iEnd)
+                {
+                    if (piChild)
+                        *piChild = iChild;
+                    break;
+                }
+            }
+            else
+            {
+                if (iChild == iFirst)
+                {
+                    if (piChild)
+                        *piChild = iChild ? iChild - 1 : 0;
+                    break;
+                }
+                iEnd = iChild;
+            }
+
+            /* Calc next child. */
+            iChild = (iEnd - iFirst) / 2 + iFirst;
+        }
+        return NULL;
+    }
+
+    /*
+     * Linear search.
+     */
+    while (iChild-- > 0)
+    {
+        int iDiff = stamR3LookupCmp(pParent->papChildren[iChild], pchName, cchName);
+        if (iDiff <= 0)
+        {
+            if (piChild)
+                *piChild = iChild;
+            return !iDiff ? pParent->papChildren[iChild] : NULL;
+        }
+    }
+    if (piChild)
+        *piChild = 0;
+    return NULL;
+}
+
+
+/**
+ * Find the next sample descriptor node.
+ *
+ * This is for use with insertion in the big list and pattern range lookups.
+ *
+ * @returns Pointer to the next sample descriptor. NULL if not found (i.e.
+ *          we're at the end of the list).
+ * @param   pLookup             The current node.
+ */
+static PSTAMDESC stamR3LookupFindNextWithDesc(PSTAMLOOKUP pLookup)
+{
+    Assert(!pLookup->pDesc);
+    PSTAMLOOKUP pCur = pLookup;
+    uint32_t    iCur = 0;
+    for (;;)
+    {
+        /*
+         * Check all children.
+         */
+        uint32_t cChildren = pCur->cChildren;
+        if (iCur < cChildren)
+        {
+            PSTAMLOOKUP *papChildren = pCur->papChildren;
+            do
+            {
+                PSTAMLOOKUP pChild = pCur->papChildren[iCur];
+                if (pChild->pDesc)
+                    return pChild->pDesc;
+
+                if (pChild->cChildren > 0)
+                {
+                    /* One level down. */
+                    iCur = 0;
+                    pCur = pChild;
+                    break;
+                }
+            } while (++iCur < cChildren);
+        }
+        else
+        {
+            /*
+             * One level up, resuming after the current.
+             */
+            iCur = pCur->iParent + 1;
+            pCur = pCur->pParent;
+            if (!pCur)
+                return NULL;
+        }
+    }
+}
+
+
+/**
+ * Look up a sample descriptor by name.
+ *
+ * @returns Pointer to a sample descriptor.
+ * @param   pRoot               The root node.
+ * @param   pszName             The name to lookup.
+ */
+static PSTAMDESC stamR3LookupFindDesc(PSTAMLOOKUP pRoot, const char *pszName)
+{
+    Assert(!pRoot->pParent);
+    while (*pszName++ == '/')
+    {
+        const char *pszEnd = strchr(pszName, '/');
+        uint32_t    cch    = pszEnd ? pszEnd - pszName : (uint32_t)strlen(pszName);
+        PSTAMLOOKUP pChild = stamR3LookupFindChild(pRoot, pszName, cch, NULL);
+        if (!pChild)
+            break;
+        if (!pszEnd)
+            return pChild->pDesc;
+        pszName = pszEnd;
+        pRoot   = pChild;
+    }
+
+    return NULL;
+}
+
+
+/**
+ * Finds the first sample descriptor for a given lookup range.
+ *
+ * This is for pattern range lookups.
+ *
+ * @returns Pointer to the first descriptor.
+ * @param   pFirst              The first node in the range.
+ * @param   pLast               The last node in the range.
+ */
+static PSTAMDESC stamR3LookupFindFirstDescForRange(PSTAMLOOKUP pFirst, PSTAMLOOKUP pLast)
+{
+    if (pFirst->pDesc)
+        return pFirst->pDesc;
+
+    PSTAMLOOKUP pCur = pFirst;
+    uint32_t    iCur = 0;
+    for (;;)
+    {
+        uint32_t cChildren = pCur->cChildren;
+        if (iCur < pCur->cChildren)
+        {
+            /*
+             * Check all children.
+             */
+            PSTAMLOOKUP *papChildren = pCur->papChildren;
+            do
+            {
+                PSTAMLOOKUP pChild = pCur->papChildren[iCur];
+                if (pChild->pDesc)
+                    return pChild->pDesc;
+                if (pChild->cChildren > 0)
+                {
+                    /* One level down. */
+                    iCur = 0;
+                    pCur = pChild;
+                    break;
+                }
+                if (pChild == pLast)
+                    return NULL;
+            } while (++iCur < cChildren);
+        }
+        else
+        {
+            /*
+             * One level up, checking current and its 'older' sibilings.
+             */
+            if (pCur == pLast)
+                return NULL;
+            iCur = pCur->iParent + 1;
+            pCur = pCur->pParent;
+            if (!pCur)
+                break;
+        }
+    }
+
+    return NULL;
+}
+
+
+/**
+ * Finds the first sample descriptor for a given lookup range.
+ *
+ * This is for pattern range lookups.
+ *
+ * @returns Pointer to the first descriptor.
+ * @param   pFirst              The first node in the range.
+ * @param   pLast               The last node in the range.
+ */
+static PSTAMDESC stamR3LookupFindLastDescForRange(PSTAMLOOKUP pFirst, PSTAMLOOKUP pLast)
+{
+    PSTAMLOOKUP pCur = pLast;
+    uint32_t    iCur = pCur->cChildren - 1;
+    for (;;)
+    {
+        if (iCur < pCur->cChildren)
+        {
+            /*
+             * Check children backwards, depth first.
+             */
+            PSTAMLOOKUP *papChildren = pCur->papChildren;
+            do
+            {
+                PSTAMLOOKUP pChild = pCur->papChildren[iCur];
+                if (pChild->cChildren > 0)
+                {
+                    /* One level down. */
+                    iCur = pChild->cChildren - 1;
+                    pCur = pChild;
+                    break;
+                }
+
+                if (pChild->pDesc)
+                    return pChild->pDesc;
+                if (pChild == pFirst)
+                    return NULL;
+            } while (iCur-- > 0); /* (underflow handled above) */
+        }
+        else
+        {
+            /*
+             * One level up, checking current and its 'older' sibilings.
+             */
+            if (pCur->pDesc)
+                return pCur->pDesc;
+            if (pCur == pFirst)
+                return NULL;
+            iCur = pCur->iParent - 1; /* (underflow handled above) */
+            pCur = pCur->pParent;
+            if (!pCur)
+                break;
+        }
+    }
+
+    return NULL;
+}
+
+
+/**
+ * Look up the first and last descriptors for a (single) pattern expression.
+ *
+ * This is used to optimize pattern enumerations and doesn't have to return 100%
+ * accurate results if that costs too much.
+ *
+ * @returns Pointer to the first descriptor in the range.
+ * @param   pRoot               The root node.
+ * @param   pList               The descriptor list anchor.
+ * @param   pszPat              The name patter to lookup.
+ * @param   ppLastDesc          Where to store the address of the last
+ *                              descriptor (approximate).
+ */
+static PSTAMDESC stamR3LookupFindPatternDescRange(PSTAMLOOKUP pRoot, PRTLISTANCHOR pList, const char *pszPat,
+                                                  PSTAMDESC *ppLastDesc)
+{
+    Assert(!pRoot->pParent);
+
+    /*
+     * If there is an early enough wildcard, the whole list needs to be searched.
+     */
+    if (   pszPat[0] == '*' || pszPat[0] == '?'
+        || pszPat[1] == '*' || pszPat[1] == '?')
+    {
+        *ppLastDesc = RTListGetLast(pList, STAMDESC, ListEntry);
+        return RTListGetFirst(pList, STAMDESC, ListEntry);
+    }
+
+    /*
+     * All statistics starts with a slash.
+     */
+    while (   *pszPat++ == '/'
+           && pRoot->cDescsInTree > 0
+           && pRoot->cChildren    > 0)
+    {
+        const char *pszEnd = strchr(pszPat, '/');
+        uint32_t    cch    = pszEnd ? pszEnd - pszPat : (uint32_t)strlen(pszPat);
+        if (!cch)
+            break;
+
+        const char *pszPat1 = (const char *)memchr(pszPat, '*', cch);
+        const char *pszPat2 = (const char *)memchr(pszPat, '?', cch);
+        if (pszPat1 || pszPat2)
+        {
+            /* We've narrowed it down to a sub-tree now. */
+            PSTAMLOOKUP pFirst = pRoot->papChildren[0];
+            PSTAMLOOKUP pLast  = pRoot->papChildren[pRoot->cChildren - 1];
+            /** @todo narrow the range further if both pszPat1/2 != pszPat. */
+
+            *ppLastDesc = stamR3LookupFindLastDescForRange(pFirst, pLast);
+            return stamR3LookupFindFirstDescForRange(pFirst, pLast);
+        }
+
+        PSTAMLOOKUP pChild = stamR3LookupFindChild(pRoot, pszPat, cch, NULL);
+        if (!pChild)
+            break;
+
+        /* Advance */
+        if (!pszEnd)
+            return *ppLastDesc = pChild->pDesc;
+        pszPat = pszEnd;
+        pRoot  = pChild;
+    }
+
+    /* No match. */
+    *ppLastDesc = NULL;
+    return NULL;
+}
+
+
+/**
+ * Increments the cDescInTree member of the given node an all ancestors.
+ *
+ * @param   pLookup             The lookup node.
+ */
+static void stamR3LookupIncUsage(PSTAMLOOKUP pLookup)
+{
+    Assert(pLookup->pDesc);
+
+    PSTAMLOOKUP pCur = pLookup;
+    while (pCur != NULL)
+    {
+        pCur->cDescsInTree++;
+        pCur = pCur->pParent;
+    }
+}
+
+
+/**
+ * Descrements the cDescInTree member of the given node an all ancestors.
+ *
+ * @param   pLookup             The lookup node.
+ */
+static void stamR3LookupDecUsage(PSTAMLOOKUP pLookup)
+{
+    Assert(!pLookup->pDesc);
+
+    PSTAMLOOKUP pCur = pLookup;
+    while (pCur != NULL)
+    {
+        Assert(pCur->cDescsInTree > 0);
+        pCur->cDescsInTree--;
+        pCur = pCur->pParent;
+    }
+}
+
+
+/**
+ * Frees empty lookup nodes if it's worth it.
+ *
+ * @param   pLookup             The lookup node.
+ */
+static void stamR3LookupMaybeFree(PSTAMLOOKUP pLookup)
+{
+    Assert(!pLookup->pDesc);
+
+    /*
+     * Free between two and three levels of nodes.  Freeing too much most
+     * likely wasted effort since we're either going to repopluate the tree
+     * or quit the whole thing.
+     */
+    if (pLookup->cDescsInTree > 0)
+        return;
+
+    PSTAMLOOKUP pCur = pLookup->pParent;
+    if (!pCur)
+        return;
+    if (pCur->cDescsInTree > 0)
+        return;
+    PSTAMLOOKUP pParent = pCur->pParent;
+    if (pParent)
+        return;
+
+    if (pParent->cDescsInTree == 0 && pParent->pParent)
+    {
+        pCur = pParent;
+        pParent = pCur->pParent;
+    }
+
+    /*
+     * Remove pCur from pParent.
+     */
+    PSTAMLOOKUP *papChildren = pParent->papChildren;
+    uint32_t     cChildren   = --pParent->cChildren;
+    for (uint32_t i = pCur->iParent; i < cChildren; i++)
+    {
+        PSTAMLOOKUP pChild = papChildren[i + 1];
+        pChild->iParent = i;
+        papChildren[i] = pChild;
+    }
+    pCur->pParent = NULL;
+
+    /*
+     * Destroy pCur.
+     */
+    stamR3LookupDestroyTree(pCur);
+}
+
+
+/**
+ * Destroys a lookup tree.
+ *
+ * This is used by STAMR3Term as well as stamR3LookupMaybeFree.
+ *
+ * @param   pRoot               The root of the tree (must have no parent).
+ */
+static void stamR3LookupDestroyTree(PSTAMLOOKUP pRoot)
+{
+    Assert(pRoot); Assert(!pRoot->pParent);
+    PSTAMLOOKUP pCur = pRoot;
+    for (;;)
+    {
+        uint32_t i = pCur->cChildren;
+        if (i > 0)
+        {
+            /*
+             * Push child (with leaf optimization).
+             */
+            PSTAMLOOKUP pChild = pCur->papChildren[--i];
+            if (pChild->cChildren != 0)
+                pCur = pChild;
+            else
+            {
+                /* free leaves. */
+                for (;;)
+                {
+                    if (pChild->papChildren)
+                    {
+                        RTMemFree(pChild->papChildren);
+                        pChild->papChildren = NULL;
+                    }
+                    RTMemFree(pChild);
+                    pCur->papChildren[i] = NULL;
+
+                    /* next */
+                    if (i == 0)
+                    {
+                        pCur->cChildren = 0;
+                        break;
+                    }
+                    pChild = pCur->papChildren[--i];
+                    if (pChild->cChildren != 0)
+                    {
+                        pCur->cChildren = i + 1;
+                        pCur = pChild;
+                        break;
+                    }
+                }
+            }
+        }
+        else
+        {
+            /*
+             * Pop and free current.
+             */
+            Assert(!pCur->pDesc);
+
+            PSTAMLOOKUP pParent = pCur->pParent;
+            Assert(pCur->iParent == (pParent ? pParent->cChildren - 1 : UINT16_MAX));
+
+            RTMemFree(pCur->papChildren);
+            pCur->papChildren = NULL;
+            RTMemFree(pCur);
+
+            pCur = pParent;
+            if (!pCur)
+                break;
+            pCur->papChildren[--pCur->cChildren] = NULL;
+        }
+    }
+}
+
+#endif /* STAM_WITH_LOOKUP_TREE */
+
+
+
 /**
  * Internal worker for the different register calls.
  *
@@ -596,14 +1254,65 @@ static int stamR3SlashCompare(const char *psz1, const char *psz2)
 static int stamR3RegisterU(PUVM pUVM, void *pvSample, PFNSTAMR3CALLBACKRESET pfnReset, PFNSTAMR3CALLBACKPRINT pfnPrint,
                            STAMTYPE enmType, STAMVISIBILITY enmVisibility, const char *pszName, STAMUNIT enmUnit, const char *pszDesc)
 {
+    AssertReturn(pszName[0] == '/', VERR_INVALID_NAME);
+    AssertReturn(pszName[1] != '/' && pszName[1], VERR_INVALID_NAME);
+    uint32_t const cchName = (uint32_t)strlen(pszName);
+    AssertReturn(cchName <= STAM_MAX_NAME_LEN, VERR_OUT_OF_RANGE);
+    AssertReturn(pszName[cchName - 1] != '/', VERR_INVALID_NAME);
+    AssertReturn(memchr(pszName, '\\', cchName) == NULL, VERR_INVALID_NAME);
+
     STAM_LOCK_WR(pUVM);
 
     /*
-     * Check if exists.
+     * Look up the tree location, populating the lookup tree as we walk it.
      */
-    PSTAMDESC   pPrev = NULL;
-    PSTAMDESC   pCur = pUVM->stam.s.pHead;
-    while (pCur)
+#ifdef STAM_WITH_LOOKUP_TREE
+    PSTAMLOOKUP pLookup = pUVM->stam.s.pRoot; Assert(pLookup);
+    uint32_t    offName = 1;
+    for (;;)
+    {
+        /* Get the next part of the path. */
+        const char *pszStart = &pszName[offName];
+        const char *pszEnd   = strchr(pszStart, '/');
+        uint32_t    cch      = pszEnd ? (uint32_t)(pszEnd - pszStart) : cchName - offName;
+        if (cch == 0)
+        {
+            STAM_UNLOCK_WR(pUVM);
+            AssertMsgFailed(("No double or trailing slashes are allowed: '%s'\n", pszName));
+            return VERR_INVALID_NAME;
+        }
+
+        /* Do the looking up. */
+        uint32_t    iChild = 0;
+        PSTAMLOOKUP pChild = stamR3LookupFindChild(pLookup, pszStart, cch, &iChild);
+        if (!pChild)
+        {
+            pChild = stamR3LookupNewChild(pLookup, pszStart, cch, offName, iChild);
+            if (!pChild)
+            {
+                STAM_UNLOCK_WR(pUVM);
+                return VERR_NO_MEMORY;
+            }
+        }
+
+        /* Advance. */
+        pLookup = pChild;
+        if (!pszEnd)
+            break;
+        offName += cch + 1;
+    }
+    if (pLookup->pDesc)
+    {
+        STAM_UNLOCK_WR(pUVM);
+        AssertMsgFailed(("Duplicate sample name: %s\n", pszName));
+        return VERR_ALREADY_EXISTS;
+    }
+
+    PSTAMDESC pCur = stamR3LookupFindNextWithDesc(pLookup);
+
+#else
+    PSTAMDESC pCur;
+    RTListForEach(&pUVM->stam.s.List, pCur, STAMDESC, ListEntry)
     {
         int iDiff = strcmp(pCur->pszName, pszName);
         /* passed it */
@@ -616,24 +1325,24 @@ static int stamR3RegisterU(PUVM pUVM, void *pvSample, PFNSTAMR3CALLBACKRESET pfn
             AssertMsgFailed(("Duplicate sample name: %s\n", pszName));
             return VERR_ALREADY_EXISTS;
         }
-
-        /* next */
-        pPrev = pCur;
-        pCur = pCur->pNext;
     }
+#endif
 
     /*
      * Check that the name doesn't screw up sorting order when taking
      * slashes into account. The QT4 GUI makes some assumptions.
      * Problematic chars are: !"#$%&'()*+,-.
      */
-    Assert(pszName[0] == '/');
-    if (pPrev)
-        Assert(stamR3SlashCompare(pPrev->pszName, pszName) < 0);
-    if (pCur)
-        Assert(stamR3SlashCompare(pCur->pszName, pszName) > 0);
-
 #ifdef VBOX_STRICT
+    Assert(pszName[0] == '/');
+    PSTAMDESC pPrev = pCur
+                    ? RTListGetPrev(&pUVM->stam.s.List, pCur, STAMDESC, ListEntry)
+                    : RTListGetLast(&pUVM->stam.s.List, STAMDESC, ListEntry);
+    Assert(!pPrev || strcmp(pszName, pPrev->pszName) > 0);
+    Assert(!pCur  || strcmp(pszName, pCur->pszName)  < 0);
+    Assert(!pPrev || stamR3SlashCompare(pPrev->pszName, pszName) < 0);
+    Assert(!pCur  || stamR3SlashCompare(pCur->pszName, pszName) > 0);
+
     /*
      * Check alignment requirements.
      */
@@ -688,12 +1397,11 @@ static int stamR3RegisterU(PUVM pUVM, void *pvSample, PFNSTAMR3CALLBACKRESET pfn
      * Create a new node and insert it at the current location.
      */
     int rc;
-    size_t cchName = strlen(pszName) + 1;
-    size_t cchDesc = pszDesc ? strlen(pszDesc) + 1 : 0;
-    PSTAMDESC pNew = (PSTAMDESC)RTMemAlloc(sizeof(*pNew) + cchName + cchDesc);
+    size_t cbDesc = pszDesc ? strlen(pszDesc) + 1 : 0;
+    PSTAMDESC pNew = (PSTAMDESC)RTMemAlloc(sizeof(*pNew) + cchName + 1 + cbDesc);
     if (pNew)
     {
-        pNew->pszName       = (char *)memcpy((char *)(pNew + 1), pszName, cchName);
+        pNew->pszName       = (char *)memcpy((char *)(pNew + 1), pszName, cchName + 1);
         pNew->enmType       = enmType;
         pNew->enmVisibility = enmVisibility;
         if (enmType != STAMTYPE_CALLBACK)
@@ -707,13 +1415,18 @@ static int stamR3RegisterU(PUVM pUVM, void *pvSample, PFNSTAMR3CALLBACKRESET pfn
         pNew->enmUnit       = enmUnit;
         pNew->pszDesc       = NULL;
         if (pszDesc)
-            pNew->pszDesc   = (char *)memcpy((char *)(pNew + 1) + cchName,  pszDesc,  cchDesc);
+            pNew->pszDesc   = (char *)memcpy((char *)(pNew + 1) + cchName + 1, pszDesc, cbDesc);
 
-        pNew->pNext         = pCur;
-        if (pPrev)
-            pPrev->pNext    = pNew;
+        if (pCur)
+            RTListNodeInsertBefore(&pCur->ListEntry, &pNew->ListEntry);
         else
-            pUVM->stam.s.pHead = pNew;
+            RTListAppend(&pUVM->stam.s.List, &pNew->ListEntry);
+
+#ifdef STAM_WITH_LOOKUP_TREE
+        pNew->pLookup       = pLookup;
+        pLookup->pDesc      = pNew;
+        stamR3LookupIncUsage(pLookup);
+#endif
 
         stamR3ResetOne(pNew, pUVM->pVM);
         rc = VINF_SUCCESS;
@@ -727,7 +1440,29 @@ static int stamR3RegisterU(PUVM pUVM, void *pvSample, PFNSTAMR3CALLBACKRESET pfn
 
 
 /**
- * Deregisters a sample previously registered by STAR3Register().
+ * Destroys the statistics descriptor, unlinking it and freeing all resources.
+ *
+ * @returns VINF_SUCCESS
+ * @param   pUVM        Pointer to the user mode VM structure.
+ * @param   pCur        The descriptor to destroy.
+ */
+static int stamR3DestroyDesc(PUVM pUVM, PSTAMDESC pCur)
+{
+    RTListNodeRemove(&pCur->ListEntry);
+#ifdef STAM_WITH_LOOKUP_TREE
+    pCur->pLookup->pDesc = NULL; /** @todo free lookup nodes once it's working. */
+    stamR3LookupDecUsage(pCur->pLookup);
+    stamR3LookupMaybeFree(pCur->pLookup);
+#endif
+    RTMemFree(pCur);
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Deregisters a sample previously registered by STAR3Register() given its
+ * address.
  *
  * This is intended used for devices which can be unplugged and for
  * temporary samples.
@@ -736,35 +1471,26 @@ static int stamR3RegisterU(PUVM pUVM, void *pvSample, PFNSTAMR3CALLBACKRESET pfn
  * @param   pUVM        Pointer to the user mode VM structure.
  * @param   pvSample    Pointer to the sample registered with STAMR3Register().
  */
-VMMR3DECL(int)  STAMR3DeregisterU(PUVM pUVM, void *pvSample)
+VMMR3DECL(int)  STAMR3DeregisterByAddr(PUVM pUVM, void *pvSample)
 {
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+
+    /* This is a complete waste of time when shutting down. */
+    VMSTATE enmState = VMR3GetStateU(pUVM);
+    if (enmState >= VMSTATE_DESTROYING)
+        return VINF_SUCCESS;
+
     STAM_LOCK_WR(pUVM);
 
     /*
      * Search for it.
      */
     int         rc = VERR_INVALID_HANDLE;
-    PSTAMDESC   pPrev = NULL;
-    PSTAMDESC   pCur = pUVM->stam.s.pHead;
-    while (pCur)
+    PSTAMDESC   pCur, pNext;
+    RTListForEachSafe(&pUVM->stam.s.List, pCur, pNext, STAMDESC, ListEntry)
     {
         if (pCur->u.pv == pvSample)
-        {
-            void *pvFree = pCur;
-            pCur = pCur->pNext;
-            if (pPrev)
-                pPrev->pNext = pCur;
-            else
-                pUVM->stam.s.pHead = pCur;
-
-            RTMemFree(pvFree);
-            rc = VINF_SUCCESS;
-            continue;
-        }
-
-        /* next */
-        pPrev = pCur;
-        pCur = pCur->pNext;
+            rc = stamR3DestroyDesc(pUVM, pCur);
     }
 
     STAM_UNLOCK_WR(pUVM);
@@ -773,18 +1499,113 @@ VMMR3DECL(int)  STAMR3DeregisterU(PUVM pUVM, void *pvSample)
 
 
 /**
- * Deregisters a sample previously registered by STAR3Register().
+ * Worker for STAMR3Deregister, STAMR3DeregisterV and STAMR3DeregisterF.
  *
- * This is intended used for devices which can be unplugged and for
- * temporary samples.
+ * @returns VBox status code.
+ * @retval  VWRN_NOT_FOUND if no matching names found.
+ *
+ * @param   pUVM        Pointer to the user mode VM structure.
+ * @param   pszPat      The name pattern.
+ */
+static int stamR3DeregisterByPattern(PUVM pUVM, const char *pszPat)
+{
+    Assert(!strchr(pszPat, '|')); /* single pattern! */
+
+    int rc = VWRN_NOT_FOUND;
+    STAM_LOCK_WR(pUVM);
+
+    PSTAMDESC pLast;
+    PSTAMDESC pCur = stamR3LookupFindPatternDescRange(pUVM->stam.s.pRoot, &pUVM->stam.s.List, pszPat, &pLast);
+    if (pCur)
+    {
+        for (;;)
+        {
+            PSTAMDESC pNext = RTListNodeGetNext(&pCur->ListEntry, STAMDESC, ListEntry);
+
+            if (RTStrSimplePatternMatch(pszPat, pCur->pszName))
+                rc = stamR3DestroyDesc(pUVM, pCur);
+
+            /* advance. */
+            if (pCur == pLast)
+                break;
+            pCur = pNext;
+        }
+        Assert(pLast);
+    }
+    else
+        Assert(!pLast);
+
+    STAM_UNLOCK_WR(pUVM);
+    return rc;
+}
+
+
+/**
+ * Deregister zero or more samples given a (single) pattern matching their
+ * names.
  *
  * @returns VBox status.
- * @param   pVM         Pointer to the VM.
- * @param   pvSample    Pointer to the sample registered with STAMR3Register().
+ * @param   pUVM        Pointer to the user mode VM structure.
+ * @param   pszPat      The name pattern.
+ * @sa      STAMR3DeregisterF, STAMR3DeregisterV
  */
-VMMR3DECL(int)  STAMR3Deregister(PVM pVM, void *pvSample)
+VMMR3DECL(int)  STAMR3Deregister(PUVM pUVM, const char *pszPat)
 {
-    return STAMR3DeregisterU(pVM->pUVM, pvSample);
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+
+    /* This is a complete waste of time when shutting down. */
+    VMSTATE enmState = VMR3GetStateU(pUVM);
+    if (enmState >= VMSTATE_DESTROYING)
+        return VINF_SUCCESS;
+
+    return stamR3DeregisterByPattern(pUVM, pszPat);
+}
+
+
+/**
+ * Deregister zero or more samples given a (single) pattern matching their
+ * names.
+ *
+ * @returns VBox status.
+ * @param   pUVM        Pointer to the user mode VM structure.
+ * @param   pszPatFmt   The name pattern format string.
+ * @param   ...         Format string arguments.
+ * @sa      STAMR3Deregister, STAMR3DeregisterV
+ */
+VMMR3DECL(int)  STAMR3DeregisterF(PUVM pUVM, const char *pszPatFmt, ...)
+{
+    va_list va;
+    va_start(va, pszPatFmt);
+    int rc = STAMR3DeregisterV(pUVM, pszPatFmt, va);
+    va_end(va);
+    return rc;
+}
+
+
+/**
+ * Deregister zero or more samples given a (single) pattern matching their
+ * names.
+ *
+ * @returns VBox status.
+ * @param   pUVM        Pointer to the user mode VM structure.
+ * @param   pszPatFmt   The name pattern format string.
+ * @param   va          Format string arguments.
+ * @sa      STAMR3Deregister, STAMR3DeregisterF
+ */
+VMMR3DECL(int)  STAMR3DeregisterV(PUVM pUVM, const char *pszPatFmt, va_list va)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+
+    /* This is a complete waste of time when shutting down. */
+    VMSTATE enmState = VMR3GetStateU(pUVM);
+    if (enmState >= VMSTATE_DESTROYING)
+        return VINF_SUCCESS;
+
+    char   szPat[STAM_MAX_NAME_LEN + 8];
+    size_t cchPat = RTStrPrintfV(szPat, sizeof(szPat), pszPatFmt, va);
+    AssertReturn(cchPat <= STAM_MAX_NAME_LEN, VERR_OUT_OF_RANGE);
+
+    return stamR3DeregisterByPattern(pUVM, szPat);
 }
 
 
@@ -793,13 +1614,16 @@ VMMR3DECL(int)  STAMR3Deregister(PVM pVM, void *pvSample)
  * It's possible to select a subset of the samples.
  *
  * @returns VBox status. (Basically, it cannot fail.)
- * @param   pVM         Pointer to the VM.
+ * @param   pUVM        The user mode VM handle.
  * @param   pszPat      The name matching pattern. See somewhere_where_this_is_described_in_detail.
  *                      If NULL all samples are reset.
  * @remarks Don't confuse this with the other 'XYZR3Reset' methods, it's not called at VM reset.
  */
-VMMR3DECL(int)  STAMR3ResetU(PUVM pUVM, const char *pszPat)
+VMMR3DECL(int)  STAMR3Reset(PUVM pUVM, const char *pszPat)
 {
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, VERR_INVALID_VM_HANDLE);
+
     int rc = VINF_SUCCESS;
 
     /* ring-0 */
@@ -871,22 +1695,6 @@ VMMR3DECL(int)  STAMR3ResetU(PUVM pUVM, const char *pszPat)
 
     STAM_UNLOCK_WR(pUVM);
     return rc;
-}
-
-
-/**
- * Resets statistics for the specified VM.
- * It's possible to select a subset of the samples.
- *
- * @returns VBox status. (Basically, it cannot fail.)
- * @param   pVM         Pointer to the VM.
- * @param   pszPat      The name matching pattern. See somewhere_where_this_is_described_in_detail.
- *                      If NULL all samples are reset.
- * @remarks Don't confuse this with the other 'XYZR3Reset' methods, it's not called at VM reset.
- */
-VMMR3DECL(int)  STAMR3Reset(PVM pVM, const char *pszPat)
-{
-    return STAMR3ResetU(pVM->pUVM, pszPat);
 }
 
 
@@ -975,7 +1783,7 @@ static int stamR3ResetOne(PSTAMDESC pDesc, void *pvArg)
  * It's possible to select a subset of the samples.
  *
  * @returns VBox status. (Basically, it cannot fail.)
- * @param   pUVM            Pointer to the user mode VM structure.
+ * @param   pUVM            The user mode VM handle.
  * @param   pszPat          The name matching pattern. See somewhere_where_this_is_described_in_detail.
  *                          If NULL all samples are reset.
  * @param   fWithDesc       Whether to include the descriptions.
@@ -985,8 +1793,11 @@ static int stamR3ResetOne(PSTAMDESC pDesc, void *pvArg)
  *                          The returned pointer must be freed by calling STAMR3SnapshotFree().
  * @param   pcchSnapshot    Where to store the size of the snapshot data. (Excluding the trailing '\0')
  */
-VMMR3DECL(int) STAMR3SnapshotU(PUVM pUVM, const char *pszPat, char **ppszSnapshot, size_t *pcchSnapshot, bool fWithDesc)
+VMMR3DECL(int) STAMR3Snapshot(PUVM pUVM, const char *pszPat, char **ppszSnapshot, size_t *pcchSnapshot, bool fWithDesc)
 {
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, VERR_INVALID_VM_HANDLE);
+
     STAMR3SNAPSHOTONE State = { NULL, NULL, NULL, pUVM->pVM, 0, VINF_SUCCESS, fWithDesc };
 
     /*
@@ -1018,28 +1829,6 @@ VMMR3DECL(int) STAMR3SnapshotU(PUVM pUVM, const char *pszPat, char **ppszSnapsho
     if (pcchSnapshot)
         *pcchSnapshot = State.psz - State.pszStart;
     return rc;
-}
-
-
-/**
- * Get a snapshot of the statistics.
- * It's possible to select a subset of the samples.
- *
- * @returns VBox status. (Basically, it cannot fail.)
- * @param   pVM             Pointer to the VM.
- * @param   pszPat          The name matching pattern. See somewhere_where_this_is_described_in_detail.
- *                          If NULL all samples are reset.
- * @param   fWithDesc       Whether to include the descriptions.
- * @param   ppszSnapshot    Where to store the pointer to the snapshot data.
- *                          The format of the snapshot should be XML, but that will have to be discussed
- *                          when this function is implemented.
- *                          The returned pointer must be freed by calling STAMR3SnapshotFree().
- * @param   pcchSnapshot    Where to store the size of the snapshot data.
- *                          (Excluding the trailing '\\0')
- */
-VMMR3DECL(int) STAMR3Snapshot(PVM pVM, const char *pszPat, char **ppszSnapshot, size_t *pcchSnapshot, bool fWithDesc)
-{
-    return STAMR3SnapshotU(pVM->pUVM, pszPat, ppszSnapshot, pcchSnapshot, fWithDesc);
 }
 
 
@@ -1282,30 +2071,16 @@ static int stamR3SnapshotPrintf(PSTAMR3SNAPSHOTONE pThis, const char *pszFormat,
  * Releases a statistics snapshot returned by STAMR3Snapshot().
  *
  * @returns VBox status.
- * @param   pUVM        Pointer to the user mode VM structure.
+ * @param   pUVM            The user mode VM handle.
  * @param   pszSnapshot     The snapshot data pointer returned by STAMR3Snapshot().
  *                          NULL is allowed.
  */
-VMMR3DECL(int)  STAMR3SnapshotFreeU(PUVM pUVM, char *pszSnapshot)
+VMMR3DECL(int)  STAMR3SnapshotFree(PUVM pUVM, char *pszSnapshot)
 {
     if (!pszSnapshot)
         RTMemFree(pszSnapshot);
     NOREF(pUVM);
     return VINF_SUCCESS;
-}
-
-
-/**
- * Releases a statistics snapshot returned by STAMR3Snapshot().
- *
- * @returns VBox status.
- * @param   pVM             Pointer to the VM.
- * @param   pszSnapshot     The snapshot data pointer returned by STAMR3Snapshot().
- *                          NULL is allowed.
- */
-VMMR3DECL(int)  STAMR3SnapshotFree(PVM pVM, char *pszSnapshot)
-{
-    return STAMR3SnapshotFreeU(pVM->pUVM, pszSnapshot);
 }
 
 
@@ -1317,29 +2092,18 @@ VMMR3DECL(int)  STAMR3SnapshotFree(PVM pVM, char *pszSnapshot)
  * @param   pszPat          The name matching pattern. See somewhere_where_this_is_described_in_detail.
  *                          If NULL all samples are written to the log.
  */
-VMMR3DECL(int)  STAMR3DumpU(PUVM pUVM, const char *pszPat)
+VMMR3DECL(int)  STAMR3Dump(PUVM pUVM, const char *pszPat)
 {
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, VERR_INVALID_VM_HANDLE);
+
     STAMR3PRINTONEARGS Args;
-    Args.pVM = pUVM->pVM;
+    Args.pUVM = pUVM;
     Args.pvArg = NULL;
     Args.pfnPrintf = stamR3EnumLogPrintf;
 
     stamR3EnumU(pUVM, pszPat, true /* fUpdateRing0 */, stamR3PrintOne, &Args);
     return VINF_SUCCESS;
-}
-
-
-/**
- * Dumps the selected statistics to the log.
- *
- * @returns VBox status.
- * @param   pVM             Pointer to the VM.
- * @param   pszPat          The name matching pattern. See somewhere_where_this_is_described_in_detail.
- *                          If NULL all samples are written to the log.
- */
-VMMR3DECL(int)  STAMR3Dump(PVM pVM, const char *pszPat)
-{
-    return STAMR3DumpU(pVM->pUVM, pszPat);
 }
 
 
@@ -1368,31 +2132,19 @@ static DECLCALLBACK(void) stamR3EnumLogPrintf(PSTAMR3PRINTONEARGS pArgs, const c
  * @param   pszPat          The name matching pattern. See somewhere_where_this_is_described_in_detail.
  *                          If NULL all samples are written to the log.
  */
-VMMR3DECL(int)  STAMR3DumpToReleaseLogU(PUVM pUVM, const char *pszPat)
+VMMR3DECL(int)  STAMR3DumpToReleaseLog(PUVM pUVM, const char *pszPat)
 {
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, VERR_INVALID_VM_HANDLE);
+
     STAMR3PRINTONEARGS Args;
-    Args.pVM = pUVM->pVM;
+    Args.pUVM = pUVM;
     Args.pvArg = NULL;
     Args.pfnPrintf = stamR3EnumRelLogPrintf;
 
     stamR3EnumU(pUVM, pszPat, true /* fUpdateRing0 */, stamR3PrintOne, &Args);
     return VINF_SUCCESS;
 }
-
-
-/**
- * Dumps the selected statistics to the release log.
- *
- * @returns VBox status.
- * @param   pVM             Pointer to the VM.
- * @param   pszPat          The name matching pattern. See somewhere_where_this_is_described_in_detail.
- *                          If NULL all samples are written to the log.
- */
-VMMR3DECL(int)  STAMR3DumpToReleaseLog(PVM pVM, const char *pszPat)
-{
-    return STAMR3DumpToReleaseLogU(pVM->pUVM, pszPat);
-}
-
 
 /**
  * Prints to the release log.
@@ -1415,33 +2167,22 @@ static DECLCALLBACK(void) stamR3EnumRelLogPrintf(PSTAMR3PRINTONEARGS pArgs, cons
  * Prints the selected statistics to standard out.
  *
  * @returns VBox status.
- * @param   pVM             Pointer to the VM.
+ * @param   pUVM            The user mode VM handle.
  * @param   pszPat          The name matching pattern. See somewhere_where_this_is_described_in_detail.
  *                          If NULL all samples are reset.
  */
-VMMR3DECL(int)  STAMR3PrintU(PUVM pUVM, const char *pszPat)
+VMMR3DECL(int)  STAMR3Print(PUVM pUVM, const char *pszPat)
 {
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, VERR_INVALID_VM_HANDLE);
+
     STAMR3PRINTONEARGS Args;
-    Args.pVM = pUVM->pVM;
+    Args.pUVM = pUVM;
     Args.pvArg = NULL;
     Args.pfnPrintf = stamR3EnumPrintf;
 
     stamR3EnumU(pUVM, pszPat, true /* fUpdateRing0 */, stamR3PrintOne, &Args);
     return VINF_SUCCESS;
-}
-
-
-/**
- * Prints the selected statistics to standard out.
- *
- * @returns VBox status.
- * @param   pVM             Pointer to the VM.
- * @param   pszPat          The name matching pattern. See somewhere_where_this_is_described_in_detail.
- *                          If NULL all samples are reset.
- */
-VMMR3DECL(int)  STAMR3Print(PVM pVM, const char *pszPat)
-{
-    return STAMR3PrintU(pVM->pUVM, pszPat);
 }
 
 
@@ -1507,7 +2248,7 @@ static int stamR3PrintOne(PSTAMDESC pDesc, void *pvArg)
         case STAMTYPE_CALLBACK:
         {
             char szBuf[512];
-            pDesc->u.Callback.pfnPrint(pArgs->pVM, pDesc->u.Callback.pvSample, szBuf, sizeof(szBuf));
+            pDesc->u.Callback.pfnPrint(pArgs->pUVM->pVM, pDesc->u.Callback.pvSample, szBuf, sizeof(szBuf));
             pArgs->pfnPrintf(pArgs, "%-32s %s %s\n", pDesc->pszName, szBuf, STAMR3GetUnit(pDesc->enmUnit));
             break;
         }
@@ -1589,35 +2330,22 @@ static int stamR3PrintOne(PSTAMDESC pDesc, void *pvArg)
  *
  * @returns Whatever the callback returns.
  *
- * @param   pUVM        Pointer to the user mode VM structure.
+ * @param   pUVM        The user mode VM handle.
  * @param   pszPat      The pattern to match samples.
  * @param   pfnEnum     The callback function.
  * @param   pvUser      The pvUser argument of the callback function.
  */
-VMMR3DECL(int) STAMR3EnumU(PUVM pUVM, const char *pszPat, PFNSTAMR3ENUM pfnEnum, void *pvUser)
+VMMR3DECL(int) STAMR3Enum(PUVM pUVM, const char *pszPat, PFNSTAMR3ENUM pfnEnum, void *pvUser)
 {
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, VERR_INVALID_VM_HANDLE);
+
     STAMR3ENUMONEARGS Args;
     Args.pVM     = pUVM->pVM;
     Args.pfnEnum = pfnEnum;
     Args.pvUser  = pvUser;
 
     return stamR3EnumU(pUVM, pszPat, true /* fUpdateRing0 */, stamR3EnumOne, &Args);
-}
-
-
-/**
- * Enumerate the statistics by the means of a callback function.
- *
- * @returns Whatever the callback returns.
- *
- * @param   pVM         Pointer to the VM.
- * @param   pszPat      The pattern to match samples.
- * @param   pfnEnum     The callback function.
- * @param   pvUser      The pvUser argument of the callback function.
- */
-VMMR3DECL(int) STAMR3Enum(PVM pVM, const char *pszPat, PFNSTAMR3ENUM pfnEnum, void *pvUser)
-{
-    return STAMR3EnumU(pVM->pUVM, pszPat, pfnEnum, pvUser);
 }
 
 
@@ -1644,6 +2372,19 @@ static int stamR3EnumOne(PSTAMDESC pDesc, void *pvArg)
         rc = pArgs->pfnEnum(pDesc->pszName, pDesc->enmType, pDesc->u.pv, pDesc->enmUnit,
                             pDesc->enmVisibility, pDesc->pszDesc, pArgs->pvUser);
     return rc;
+}
+
+
+/**
+ * Checks if the string contains a pattern expression or not.
+ *
+ * @returns true / false.
+ * @param   pszPat              The potential pattern.
+ */
+static bool stamR3IsPattern(const char *pszPat)
+{
+    return strchr(pszPat, '*') != NULL
+        || strchr(pszPat, '?') != NULL;
 }
 
 
@@ -1745,9 +2486,10 @@ static int stamR3EnumU(PUVM pUVM, const char *pszPat, bool fUpdateRing0,
                        int (*pfnCallback)(PSTAMDESC pDesc, void *pvArg), void *pvArg)
 {
     int rc = VINF_SUCCESS;
+    PSTAMDESC pCur;
 
     /*
-     * All
+     * All.
      */
     if (!pszPat || !*pszPat || !strcmp(pszPat, "*"))
     {
@@ -1755,15 +2497,11 @@ static int stamR3EnumU(PUVM pUVM, const char *pszPat, bool fUpdateRing0,
             stamR3Ring0StatsUpdateU(pUVM, "*");
 
         STAM_LOCK_RD(pUVM);
-        PSTAMDESC pCur = pUVM->stam.s.pHead;
-        while (pCur)
+        RTListForEach(&pUVM->stam.s.List, pCur, STAMDESC, ListEntry)
         {
             rc = pfnCallback(pCur, pvArg);
             if (rc)
                 break;
-
-            /* next */
-            pCur = pCur->pNext;
         }
         STAM_UNLOCK_RD(pUVM);
     }
@@ -1777,16 +2515,48 @@ static int stamR3EnumU(PUVM pUVM, const char *pszPat, bool fUpdateRing0,
             stamR3Ring0StatsUpdateU(pUVM, pszPat);
 
         STAM_LOCK_RD(pUVM);
-        /** @todo This needs to be optimized since the GUI is using this path for the VM info dialog.
-         * Note that it's doing exact matching. Organizing the samples in a tree would speed up thing
-         * no end (at least for debug and profile builds). */
-        for (PSTAMDESC pCur = pUVM->stam.s.pHead; pCur; pCur = pCur->pNext)
+#ifdef STAM_WITH_LOOKUP_TREE
+        if (!stamR3IsPattern(pszPat))
+        {
+            pCur = stamR3LookupFindDesc(pUVM->stam.s.pRoot, pszPat);
+            if (pCur)
+                rc = pfnCallback(pCur, pvArg);
+        }
+        else
+        {
+            PSTAMDESC pLast;
+            pCur = stamR3LookupFindPatternDescRange(pUVM->stam.s.pRoot, &pUVM->stam.s.List, pszPat, &pLast);
+            if (pCur)
+            {
+                for (;;)
+                {
+                    if (RTStrSimplePatternMatch(pszPat, pCur->pszName))
+                    {
+                        rc = pfnCallback(pCur, pvArg);
+                        if (rc)
+                            break;
+                    }
+                    if (pCur == pLast)
+                        break;
+                    pCur = RTListNodeGetNext(&pCur->ListEntry, STAMDESC, ListEntry);
+                }
+                Assert(pLast);
+            }
+            else
+                Assert(!pLast);
+
+        }
+#else
+        RTListForEach(&pUVM->stam.s.List, pCur, STAMDESC, ListEntry)
+        {
             if (RTStrSimplePatternMatch(pszPat, pCur->pszName))
             {
                 rc = pfnCallback(pCur, pvArg);
                 if (rc)
                     break;
             }
+        }
+#endif
         STAM_UNLOCK_RD(pUVM);
     }
 
@@ -1812,13 +2582,15 @@ static int stamR3EnumU(PUVM pUVM, const char *pszPat, bool fUpdateRing0,
 
         STAM_LOCK_RD(pUVM);
         unsigned iExpression = 0;
-        for (PSTAMDESC pCur = pUVM->stam.s.pHead; pCur; pCur = pCur->pNext)
+        RTListForEach(&pUVM->stam.s.List, pCur, STAMDESC, ListEntry)
+        {
             if (stamR3MultiMatch(papszExpressions, cExpressions, &iExpression, pCur->pszName))
             {
                 rc = pfnCallback(pCur, pvArg);
                 if (rc)
                     break;
             }
+        }
         STAM_UNLOCK_RD(pUVM);
 
         RTMemTmpFree(papszExpressions);
@@ -2003,30 +2775,22 @@ VMMR3DECL(const char *) STAMR3GetUnit(STAMUNIT enmUnit)
 #ifdef VBOX_WITH_DEBUGGER
 
 /**
- * The '.stats' command.
- *
- * @returns VBox status.
- * @param   pCmd        Pointer to the command descriptor (as registered).
- * @param   pCmdHlp     Pointer to command helper functions.
- * @param   pVM         Pointer to the current VM (if any).
- * @param   paArgs      Pointer to (readonly) array of arguments.
- * @param   cArgs       Number of arguments in the array.
+ * @callback_method_impl{FNDBGCCMD, The '.stats' command.}
  */
-static DECLCALLBACK(int) stamR3CmdStats(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
+static DECLCALLBACK(int) stamR3CmdStats(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Validate input.
      */
-    DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
-    PUVM pUVM = pVM->pUVM;
-    if (!pUVM->stam.s.pHead)
+    DBGC_CMDHLP_REQ_UVM_RET(pCmdHlp, pCmd, pUVM);
+    if (RTListIsEmpty(&pUVM->stam.s.List))
         return DBGCCmdHlpFail(pCmdHlp, pCmd, "No statistics present");
 
     /*
      * Do the printing.
      */
     STAMR3PRINTONEARGS Args;
-    Args.pVM        = pVM;
+    Args.pUVM       = pUVM;
     Args.pvArg      = pCmdHlp;
     Args.pfnPrintf  = stamR3EnumDbgfPrintf;
 
@@ -2054,29 +2818,21 @@ static DECLCALLBACK(void) stamR3EnumDbgfPrintf(PSTAMR3PRINTONEARGS pArgs, const 
 
 
 /**
- * The '.statsreset' command.
- *
- * @returns VBox status.
- * @param   pCmd        Pointer to the command descriptor (as registered).
- * @param   pCmdHlp     Pointer to command helper functions.
- * @param   pVM         Pointer to the current VM (if any).
- * @param   paArgs      Pointer to (readonly) array of arguments.
- * @param   cArgs       Number of arguments in the array.
+ * @callback_method_impl{FNDBGCCMD, The '.statsreset' command.}
  */
-static DECLCALLBACK(int) stamR3CmdStatsReset(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
+static DECLCALLBACK(int) stamR3CmdStatsReset(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     /*
      * Validate input.
      */
-    DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
-    PUVM pUVM = pVM->pUVM;
-    if (!pUVM->stam.s.pHead)
+    DBGC_CMDHLP_REQ_UVM_RET(pCmdHlp, pCmd, pUVM);
+    if (RTListIsEmpty(&pUVM->stam.s.List))
         return DBGCCmdHlpFail(pCmdHlp, pCmd, "No statistics present");
 
     /*
      * Execute reset.
      */
-    int rc = STAMR3ResetU(pUVM, cArgs ? paArgs[0].u.pszString : NULL);
+    int rc = STAMR3Reset(pUVM, cArgs ? paArgs[0].u.pszString : NULL);
     if (RT_SUCCESS(rc))
         return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "STAMR3ResetU");
     return DBGCCmdHlpPrintf(pCmdHlp, "Statistics have been reset.\n");

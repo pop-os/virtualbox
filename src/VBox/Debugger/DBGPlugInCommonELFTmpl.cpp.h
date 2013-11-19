@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,7 +43,7 @@
  *
  * @returns VBox status code.
  *
- * @param   pVM             The VM handle.
+ * @param   pUVM            The user mode VM handle.
  * @param   pszModName      The module name.
  * @param   pszFilename     The filename. optional.
  * @param   fFlags          Flags.
@@ -68,13 +68,13 @@
  *                          sanity checks..
  * @param   uModTag         Module tag. Pass 0 if tagging is of no interest.
  */
-int DBGDiggerCommonParseElfMod(PVM pVM, const char *pszModName, const char *pszFilename, uint32_t fFlags,
+int DBGDiggerCommonParseElfMod(PUVM pUVM, const char *pszModName, const char *pszFilename, uint32_t fFlags,
                                Elf_Ehdr const *pEhdr, Elf_Shdr const *paShdrs,
                                Elf_Sym const *paSyms, size_t cMaxSyms,
                                char const *pbStrings, size_t cbMaxStrings,
                                RTGCPTR MinAddr, RTGCPTR MaxAddr, uint64_t uModTag)
 {
-    AssertPtrReturn(pVM, VERR_INVALID_POINTER);
+    AssertPtrReturn(pUVM, VERR_INVALID_POINTER);
     AssertPtrReturn(pszModName, VERR_INVALID_POINTER);
     AssertPtrReturn(pszFilename, VERR_INVALID_POINTER);
     AssertReturn(!(fFlags & ~DBG_DIGGER_ELF_MASK), VERR_INVALID_PARAMETER);
@@ -239,7 +239,7 @@ int DBGDiggerCommonParseElfMod(PVM pVM, const char *pszModName, const char *pszF
             if (paSegs[i].uLastAddr != 0)
             {
                 char szSeg[32];
-                RTStrPrintf(szSeg, sizeof(szSeg), "sec%02", i);
+                RTStrPrintf(szSeg, sizeof(szSeg), "sec%02u", i);
                 RTGCPTR cbSeg = paSegs[i].uLastAddr - paSegs[i].uLoadAddr + 1;
                 rc = RTDbgModSegmentAdd(hMod, uRvaNext, cbSeg, szSeg, 0 /*fFlags*/, &paSegs[i].iSeg);
                 if (RT_FAILURE(rc))
@@ -255,7 +255,7 @@ int DBGDiggerCommonParseElfMod(PVM pVM, const char *pszModName, const char *pszF
             if (paShdrs[i].sh_flags & SHF_ALLOC)
             {
                 char szSeg[32];
-                RTStrPrintf(szSeg, sizeof(szSeg), "sec%02", i);
+                RTStrPrintf(szSeg, sizeof(szSeg), "sec%02u", i);
                 rc = RTDbgModSegmentAdd(hMod, paShdrs[i].sh_addr - uLoadAddr, paShdrs[i].sh_size, szSeg, 0 /*fFlags*/, &paSegs[i].iSeg);
                 if (RT_FAILURE(rc))
                     break;
@@ -315,7 +315,7 @@ int DBGDiggerCommonParseElfMod(PVM pVM, const char *pszModName, const char *pszF
     /*
      * Link it into the address space.
      */
-    RTDBGAS hAs = DBGFR3AsResolveAndRetain(pVM, DBGF_AS_KERNEL);
+    RTDBGAS hAs = DBGFR3AsResolveAndRetain(pUVM, DBGF_AS_KERNEL);
     if (hAs != NIL_RTDBGAS)
         rc = dbgDiggerCommonLinkElfSegs(hAs, hMod, paSegs, cSegs);
     else

@@ -24,12 +24,13 @@
 # define _WIN32_WINNT 0x0502 /* CachedRemoteInteractive in recent SDKs. */
 #endif
 #include <Windows.h>
-#include <wtsapi32.h>       /* For WTS* calls. */
-#include <psapi.h>          /* EnumProcesses. */
-#include <Ntsecapi.h>       /* Needed for process security information. */
+#include <wtsapi32.h>        /* For WTS* calls. */
+#include <psapi.h>           /* EnumProcesses. */
+#include <Ntsecapi.h>        /* Needed for process security information. */
 
 #include <iprt/assert.h>
 #include <iprt/ldr.h>
+#include <iprt/localipc.h>
 #include <iprt/mem.h>
 #include <iprt/thread.h>
 #include <iprt/string.h>
@@ -39,15 +40,20 @@
 #include <VBox/VBoxGuestLib.h>
 #include "VBoxServiceInternal.h"
 #include "VBoxServiceUtils.h"
+#include "VBoxServiceVMInfo.h"
+#include "../../WINNT/VBoxTray/VBoxTrayMsg.h" /* For IPC. */
 
-static uint32_t s_uGuestPropClientID = 0;
-static uint32_t s_uIter = 0;
+static uint32_t s_uDebugGuestPropClientID = 0;
+static uint32_t s_uDebugIter = 0;
+/** Whether to skip the logged-in user detection over RDP or not.
+ *  See notes in this section why we might want to skip this. */
+static bool s_fSkipRDPDetection = false;
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
 /** Structure for storing the looked up user information. */
-typedef struct
+typedef struct VBOXSERVICEVMINFOUSER
 {
     WCHAR wszUser[_MAX_PATH];
     WCHAR wszAuthenticationPackage[_MAX_PATH];
@@ -62,14 +68,14 @@ typedef struct
 } VBOXSERVICEVMINFOUSER, *PVBOXSERVICEVMINFOUSER;
 
 /** Structure for the file information lookup. */
-typedef struct
+typedef struct VBOXSERVICEVMINFOFILE
 {
     char *pszFilePath;
     char *pszFileName;
 } VBOXSERVICEVMINFOFILE, *PVBOXSERVICEVMINFOFILE;
 
 /** Structure for process information lookup. */
-typedef struct
+typedef struct VBOXSERVICEVMINFOPROC
 {
     /** The PID. */
     DWORD id;
@@ -89,6 +95,7 @@ uint32_t VBoxServiceVMInfoWinSessionHasProcesses(PLUID pSession, PVBOXSERVICEVMI
 bool VBoxServiceVMInfoWinIsLoggedIn(PVBOXSERVICEVMINFOUSER a_pUserInfo, PLUID a_pSession);
 int  VBoxServiceVMInfoWinProcessesEnumerate(PVBOXSERVICEVMINFOPROC *ppProc, DWORD *pdwCount);
 void VBoxServiceVMInfoWinProcessesFree(DWORD cProcs, PVBOXSERVICEVMINFOPROC paProcs);
+int vboxServiceVMInfoWinWriteLastInput(PVBOXSERVICEVEPROPCACHE pCache, const char *pszUser, const char *pszDomain);
 
 typedef BOOL WINAPI FNQUERYFULLPROCESSIMAGENAME(HANDLE,  DWORD, LPTSTR, PDWORD);
 typedef FNQUERYFULLPROCESSIMAGENAME *PFNQUERYFULLPROCESSIMAGENAME;
@@ -133,6 +140,7 @@ static int VBoxServiceVMInfoWinProcessesGetModuleName(PVBOXSERVICEVMINFOPROC con
     AssertPtrReturn(pszName, VERR_INVALID_POINTER);
     AssertReturn(cbName, VERR_INVALID_PARAMETER);
 
+    /** @todo Only do this once. Later. */
     OSVERSIONINFOEX OSInfoEx;
     RT_ZERO(OSInfoEx);
     OSInfoEx.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
@@ -542,6 +550,8 @@ uint32_t VBoxServiceVMInfoWinSessionHasProcesses(PLUID pSession,
     if (!IsValidSid(pSessionData->Sid))
     {
        VBoxServiceError("User SID=%p is not valid\n", pSessionData->Sid);
+       if (pSessionData)
+           LsaFreeReturnBuffer(pSessionData);
        return 0;
     }
 
@@ -736,55 +746,90 @@ bool VBoxServiceVMInfoWinIsLoggedIn(PVBOXSERVICEVMINFOUSER pUserInfo, PLUID pSes
                                    pSessionData->LogonId.LowPart, pUserInfo->wszAuthenticationPackage,
                                    pUserInfo->wszLogonDomain);
 
-                /* Detect RDP sessions as well. */
-                LPTSTR  pBuffer = NULL;
-                DWORD   cbRet   = 0;
-                int     iState  = -1;
-                if (WTSQuerySessionInformation(WTS_CURRENT_SERVER_HANDLE,
-                                               pSessionData->Session,
-                                               WTSConnectState,
-                                               &pBuffer,
-                                               &cbRet))
+                /**
+                 * Note: On certain Windows OSes WTSQuerySessionInformation leaks memory when used
+                 * under a heavy stress situation. There are hotfixes available from Microsoft.
+                 *
+                 * See: http://support.microsoft.com/kb/970910
+                 */
+                if (!s_fSkipRDPDetection)
                 {
-                    if (cbRet)
-                        iState = *pBuffer;
-                    VBoxServiceVerbose(3, "Account User=%ls, WTSConnectState=%d (%ld)\n",
-                                       pUserInfo->wszUser, iState, cbRet);
-                    if (    iState == WTSActive           /* User logged on to WinStation. */
-                         || iState == WTSShadow           /* Shadowing another WinStation. */
-                         || iState == WTSDisconnected)    /* WinStation logged on without client. */
+                    /** @todo Only do this once. Later. */
+                    OSVERSIONINFOEX OSInfoEx;
+                    RT_ZERO(OSInfoEx);
+                    OSInfoEx.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+
+                    /* Skip RDP detection on non-NT systems. */
+                    if (   !GetVersionEx((LPOSVERSIONINFO) &OSInfoEx)
+                        || OSInfoEx.dwPlatformId != VER_PLATFORM_WIN32_NT)
                     {
-                        /** @todo On Vista and W2K, always "old" user name are still
-                         *        there. Filter out the old one! */
-                        VBoxServiceVerbose(3, "Account User=%ls using TCS/RDP, state=%d \n",
-                                           pUserInfo->wszUser, iState);
+                        s_fSkipRDPDetection = true;
+                    }
+                    /* Skip RDP detection on Windows 2000.
+                     * For Windows 2000 however we don't have any hotfixes, so just skip the
+                     * RDP detection in any case. */
+                    if (   OSInfoEx.dwMajorVersion == 5
+                        && OSInfoEx.dwMinorVersion == 0)
+                    {
+                        s_fSkipRDPDetection = true;
+                    }
+
+                    if (s_fSkipRDPDetection)
+                        VBoxServiceVerbose(0, "Detection of logged-in users via RDP is disabled\n");
+                }
+
+                if (!s_fSkipRDPDetection)
+                {
+                    /* Detect RDP sessions as well. */
+                    LPTSTR  pBuffer = NULL;
+                    DWORD   cbRet   = 0;
+                    int     iState  = -1;
+                    if (WTSQuerySessionInformation(WTS_CURRENT_SERVER_HANDLE,
+                                                   pSessionData->Session,
+                                                   WTSConnectState,
+                                                   &pBuffer,
+                                                   &cbRet))
+                    {
+                        if (cbRet)
+                            iState = *pBuffer;
+                        VBoxServiceVerbose(3, "Account User=%ls, WTSConnectState=%d (%ld)\n",
+                                           pUserInfo->wszUser, iState, cbRet);
+                        if (    iState == WTSActive           /* User logged on to WinStation. */
+                             || iState == WTSShadow           /* Shadowing another WinStation. */
+                             || iState == WTSDisconnected)    /* WinStation logged on without client. */
+                        {
+                            /** @todo On Vista and W2K, always "old" user name are still
+                             *        there. Filter out the old one! */
+                            VBoxServiceVerbose(3, "Account User=%ls using TCS/RDP, state=%d \n",
+                                               pUserInfo->wszUser, iState);
+                            fFoundUser = true;
+                        }
+                        if (pBuffer)
+                            WTSFreeMemory(pBuffer);
+                    }
+                    else
+                    {
+                        DWORD dwLastErr = GetLastError();
+                        switch (dwLastErr)
+                        {
+                            /*
+                             * Terminal services don't run (for example in W2K,
+                             * nothing to worry about ...).  ... or is on the Vista
+                             * fast user switching page!
+                             */
+                            case ERROR_CTX_WINSTATION_NOT_FOUND:
+                                VBoxServiceVerbose(3, "No WinStation found for user=%ls\n",
+                                                   pUserInfo->wszUser);
+                                break;
+
+                            default:
+                                VBoxServiceVerbose(3, "Cannot query WTS connection state for user=%ls, error=%ld\n",
+                                                   pUserInfo->wszUser, dwLastErr);
+                                break;
+                        }
+
                         fFoundUser = true;
                     }
-                    if (pBuffer)
-                        WTSFreeMemory(pBuffer);
-                }
-                else
-                {
-                    DWORD dwLastErr = GetLastError();
-                    switch (dwLastErr)
-                    {
-                        /*
-                         * Terminal services don't run (for example in W2K,
-                         * nothing to worry about ...).  ... or is on the Vista
-                         * fast user switching page!
-                         */
-                        case ERROR_CTX_WINSTATION_NOT_FOUND:
-                            VBoxServiceVerbose(3, "No WinStation found for user=%ls\n",
-                                               pUserInfo->wszUser);
-                            break;
-
-                        default:
-                            VBoxServiceVerbose(3, "Cannot query WTS connection state for user=%ls, error=%ld\n",
-                                               pUserInfo->wszUser, dwLastErr);
-                            break;
-                    }
-
-                    fFoundUser = true;
                 }
             }
             else
@@ -804,28 +849,152 @@ bool VBoxServiceVMInfoWinIsLoggedIn(PVBOXSERVICEVMINFOUSER pUserInfo, PLUID pSes
 }
 
 
+static int vboxServiceVMInfoWinWriteLastInput(PVBOXSERVICEVEPROPCACHE pCache,
+                                              const char *pszUser, const char *pszDomain)
+{
+    AssertPtrReturn(pCache, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszUser, VERR_INVALID_POINTER);
+    /* pszDomain is optional. */
+
+    int rc = VINF_SUCCESS;
+
+    char szPipeName[255];
+    if (RTStrPrintf(szPipeName, sizeof(szPipeName), "%s%s",
+                    VBOXTRAY_IPC_PIPE_PREFIX, pszUser))
+    {
+        bool fReportToHost = false;
+        VBoxGuestUserState userState = VBoxGuestUserState_Unknown;
+
+        RTLOCALIPCSESSION hSession;
+        rc = RTLocalIpcSessionConnect(&hSession, szPipeName, 0 /* Flags */);
+        if (RT_SUCCESS(rc))
+        {
+            VBOXTRAYIPCHEADER ipcHdr = { VBOXTRAY_IPC_HDR_MAGIC, 0 /* Header version */,
+                                         VBOXTRAYIPCMSGTYPE_USERLASTINPUT, 0 /* No msg */ };
+
+            rc = RTLocalIpcSessionWrite(hSession, &ipcHdr, sizeof(ipcHdr));
+
+            VBOXTRAYIPCRES_USERLASTINPUT ipcRes;
+            if (RT_SUCCESS(rc))
+                rc = RTLocalIpcSessionRead(hSession, &ipcRes, sizeof(ipcRes),
+                                           NULL /* Exact read */);
+            if (   RT_SUCCESS(rc)
+                /* If uLastInput is set to UINT32_MAX VBoxTray was not able to retrieve the
+                 * user's last input time. This might happen when running on Windows NT4 or older. */
+                && ipcRes.uLastInput != UINT32_MAX)
+            {
+                userState = (ipcRes.uLastInput * 1000) < g_uVMInfoUserIdleThresholdMS
+                          ? VBoxGuestUserState_InUse
+                          : VBoxGuestUserState_Idle;
+
+                rc = vboxServiceUserUpdateF(pCache, pszUser, pszDomain, "UsageState",
+                                              userState == VBoxGuestUserState_InUse
+                                            ? "InUse" : "Idle");
+
+                /*
+                 * Note: vboxServiceUserUpdateF can return VINF_NO_CHANGE in case there wasn't anything
+                 *       to update. So only report the user's status to host when we really got something
+                 *       new.
+                 */
+                fReportToHost = rc == VINF_SUCCESS;
+                VBoxServiceVerbose(4, "User \"%s\" (domain \"%s\") is idle for %RU32, fReportToHost=%RTbool\n",
+                                   pszUser, pszDomain ? pszDomain : "<None>", ipcRes.uLastInput, fReportToHost);
+
+#if 0 /* Do we want to write the idle time as well? */
+                    /* Also write the user's current idle time, if there is any. */
+                    if (userState == VBoxGuestUserState_Idle)
+                        rc = vboxServiceUserUpdateF(pCache, pszUser, pszDomain, "IdleTimeMs",
+                                                    "%RU32", ipcRes.uLastInputMs);
+                    else
+                        rc = vboxServiceUserUpdateF(pCache, pszUser, pszDomain, "IdleTimeMs",
+                                                    NULL /* Delete property */);
+
+                    if (RT_SUCCESS(rc))
+#endif
+            }
+#ifdef DEBUG
+            else if (ipcRes.uLastInput == UINT32_MAX)
+                VBoxServiceVerbose(4, "Last input for user \"%s\" is not supported, skipping\n",
+                                   pszUser, rc);
+
+            VBoxServiceVerbose(4, "Getting last input for user \"%s\" ended with rc=%Rrc\n",
+                               pszUser, rc);
+#endif
+            int rc2 = RTLocalIpcSessionClose(hSession);
+            if (RT_SUCCESS(rc))
+                rc = rc2;
+        }
+        else
+        {
+            switch (rc)
+            {
+                case VERR_FILE_NOT_FOUND:
+                {
+                    /* No VBoxTray (or too old version which does not support IPC) running
+                       for the given user. Not much we can do then. */
+                    VBoxServiceVerbose(4, "VBoxTray for user \"%s\" not running (anymore), no last input available\n",
+                                       pszUser);
+
+                    /* Overwrite rc from above. */
+                    rc = vboxServiceUserUpdateF(pCache, pszUser, pszDomain,
+                                                "UsageState", "Idle");
+
+                    fReportToHost = rc == VINF_SUCCESS;
+                    if (fReportToHost)
+                        userState = VBoxGuestUserState_Idle;
+                    break;
+                }
+
+                default:
+                    VBoxServiceError("Error querying last input for user \"%s\", rc=%Rrc\n",
+                                     pszUser, rc);
+                    break;
+            }
+        }
+
+        if (fReportToHost)
+        {
+            Assert(userState != VBoxGuestUserState_Unknown);
+            int rc2 = VbglR3GuestUserReportState(pszUser, pszDomain, userState,
+                                                 NULL /* No details */, 0);
+            if (RT_FAILURE(rc2))
+                VBoxServiceError("Error reporting usage state %ld for user \"%s\" to host, rc=%Rrc\n",
+                                 userState, pszUser, rc2);
+
+            if (RT_SUCCESS(rc))
+                rc = rc2;
+        }
+    }
+
+    return rc;
+}
+
+
 /**
  * Retrieves the currently logged in users and stores their names along with the
  * user count.
  *
  * @returns VBox status code.
+ * @param   pCachce         Property cache to use for storing some of the lookup
+ *                          data in between calls.
  * @param   ppszUserList    Where to store the user list (separated by commas).
  *                          Must be freed with RTStrFree().
  * @param   pcUsersInList   Where to store the number of users in the list.
  */
-int VBoxServiceVMInfoWinWriteUsers(char **ppszUserList, uint32_t *pcUsersInList)
+int VBoxServiceVMInfoWinWriteUsers(PVBOXSERVICEVEPROPCACHE pCache,
+                                   char **ppszUserList, uint32_t *pcUsersInList)
 {
+    AssertPtrReturn(pCache, VERR_INVALID_POINTER);
     AssertPtrReturn(ppszUserList, VERR_INVALID_POINTER);
     AssertPtrReturn(pcUsersInList, VERR_INVALID_POINTER);
 
-    PLUID       paSessions = NULL;
-    ULONG       cSessions = 0;
-
-    int rc2 = VbglR3GuestPropConnect(&s_uGuestPropClientID);
+    int rc2 = VbglR3GuestPropConnect(&s_uDebugGuestPropClientID);
     AssertRC(rc2);
 
     /* This function can report stale or orphaned interactive logon sessions
        of already logged off users (especially in Windows 2000). */
+    PLUID    paSessions = NULL;
+    ULONG    cSessions = 0;
     NTSTATUS rcNt = LsaEnumerateLogonSessions(&cSessions, &paSessions);
     if (rcNt != STATUS_SUCCESS)
     {
@@ -844,9 +1013,12 @@ int VBoxServiceVMInfoWinWriteUsers(char **ppszUserList, uint32_t *pcUsersInList)
                 break;
 
             default:
-                VBoxServiceError("LsaEnumerate failed with error %u\n", ulError);
+                VBoxServiceError("LsaEnumerate failed with error %RU32\n", ulError);
                 break;
         }
+
+        if (paSessions)
+            LsaFreeReturnBuffer(paSessions);
 
         return RTErrConvertFromWin32(ulError);
     }
@@ -898,8 +1070,8 @@ int VBoxServiceVMInfoWinWriteUsers(char **ppszUserList, uint32_t *pcUsersInList)
                     {
                         char szDebugSessionPath[255]; RTStrPrintf(szDebugSessionPath,  sizeof(szDebugSessionPath), "/VirtualBox/GuestInfo/Debug/LSA/Session/%RU32",
                                                                   userSession.ulLastSession);
-                        VBoxServiceWritePropF(s_uGuestPropClientID, szDebugSessionPath,
-                                              "#%RU32: cSessionProcs=%RU32 (of %RU32 procs total)", s_uIter, cCurSessionProcs, cProcs);
+                        VBoxServiceWritePropF(s_uDebugGuestPropClientID, szDebugSessionPath,
+                                              "#%RU32: cSessionProcs=%RU32 (of %RU32 procs total)", s_uDebugIter, cCurSessionProcs, cProcs);
                     }
 
                     bool fFoundUser = false;
@@ -959,9 +1131,9 @@ int VBoxServiceVMInfoWinWriteUsers(char **ppszUserList, uint32_t *pcUsersInList)
             }
 
             if (g_cVerbosity > 3)
-                VBoxServiceWritePropF(s_uGuestPropClientID, "/VirtualBox/GuestInfo/Debug/LSA",
+                VBoxServiceWritePropF(s_uDebugGuestPropClientID, "/VirtualBox/GuestInfo/Debug/LSA",
                                       "#%RU32: cSessions=%RU32, cProcs=%RU32, cUniqueUsers=%RU32",
-                                      s_uIter, cSessions, cProcs, cUniqueUsers);
+                                      s_uDebugIter, cSessions, cProcs, cUniqueUsers);
 
             VBoxServiceVerbose(3, "Found %u unique logged-in user(s)\n",
                                cUniqueUsers);
@@ -972,9 +1144,9 @@ int VBoxServiceVMInfoWinWriteUsers(char **ppszUserList, uint32_t *pcUsersInList)
                 if (g_cVerbosity > 3)
                 {
                     char szDebugUserPath[255]; RTStrPrintf(szDebugUserPath,  sizeof(szDebugUserPath), "/VirtualBox/GuestInfo/Debug/LSA/User/%RU32", i);
-                    VBoxServiceWritePropF(s_uGuestPropClientID, szDebugUserPath,
+                    VBoxServiceWritePropF(s_uDebugGuestPropClientID, szDebugUserPath,
                                           "#%RU32: szName=%ls, sessionID=%RU32, cProcs=%RU32",
-                                          s_uIter, pUserInfo[i].wszUser, pUserInfo[i].ulLastSession, pUserInfo[i].ulNumProcs);
+                                          s_uDebugIter, pUserInfo[i].wszUser, pUserInfo[i].ulLastSession, pUserInfo[i].ulNumProcs);
                 }
 
                 bool fAddUser = false;
@@ -994,15 +1166,27 @@ int VBoxServiceVMInfoWinWriteUsers(char **ppszUserList, uint32_t *pcUsersInList)
 
                     *pcUsersInList += 1;
 
-                    char *pszTemp;
-                    int rc2 = RTUtf16ToUtf8(pUserInfo[i].wszUser, &pszTemp);
-                    if (RT_SUCCESS(rc2))
+                    char *pszUser = NULL;
+                    char *pszDomain = NULL;
+                    rc = RTUtf16ToUtf8(pUserInfo[i].wszUser, &pszUser);
+                    if (   RT_SUCCESS(rc)
+                        && pUserInfo[i].wszLogonDomain)
+                        rc = RTUtf16ToUtf8(pUserInfo[i].wszLogonDomain, &pszDomain);
+                    if (RT_SUCCESS(rc))
                     {
-                        rc = RTStrAAppend(ppszUserList, pszTemp);
-                        RTMemFree(pszTemp);
+                        /* Append user to users list. */
+                        rc = RTStrAAppend(ppszUserList, pszUser);
+
+                        /* Do idle detection. */
+                        if (RT_SUCCESS(rc))
+                            rc = vboxServiceVMInfoWinWriteLastInput(pCache, pszUser, pszDomain);
                     }
                     else
                         rc = RTStrAAppend(ppszUserList, "<string-conversion-error>");
+
+                    RTStrFree(pszUser);
+                    RTStrFree(pszDomain);
+
                     AssertRCBreakStmt(rc, RTStrFree(*ppszUserList));
                 }
             }
@@ -1011,10 +1195,11 @@ int VBoxServiceVMInfoWinWriteUsers(char **ppszUserList, uint32_t *pcUsersInList)
         }
         VBoxServiceVMInfoWinProcessesFree(cProcs, paProcs);
     }
-    LsaFreeReturnBuffer(paSessions);
+    if (paSessions)
+        LsaFreeReturnBuffer(paSessions);
 
-    s_uIter++;
-    VbglR3GuestPropDisconnect(s_uGuestPropClientID);
+    s_uDebugIter++;
+    VbglR3GuestPropDisconnect(s_uDebugGuestPropClientID);
 
     return rc;
 }
@@ -1049,10 +1234,16 @@ int VBoxServiceWinGetComponentVersions(uint32_t uClientID)
         { szSysDir, "VBoxTray.exe" },
         { szSysDir, "VBoxGINA.dll" },
         { szSysDir, "VBoxCredProv.dll" },
+# ifdef VBOX_WITH_MMR
+        { szSysDir, "VBoxMMR.exe" },
+# endif /* VBOX_WITH_MMR */
 
  /* On 64-bit we don't yet have the OpenGL DLLs in native format.
     So just enumerate the 32-bit files in the SYSWOW directory. */
 # ifdef RT_ARCH_AMD64
+#  ifdef VBOX_WITH_MMR
+        { szSysWowDir, "VBoxMMRHook.dll" },
+#  endif /* VBOX_WITH_MMR */
         { szSysWowDir, "VBoxOGLarrayspu.dll" },
         { szSysWowDir, "VBoxOGLcrutil.dll" },
         { szSysWowDir, "VBoxOGLerrorspu.dll" },
@@ -1061,6 +1252,9 @@ int VBoxServiceWinGetComponentVersions(uint32_t uClientID)
         { szSysWowDir, "VBoxOGLfeedbackspu.dll" },
         { szSysWowDir, "VBoxOGL.dll" },
 # else  /* !RT_ARCH_AMD64 */
+#  ifdef VBOX_WITH_MMR
+        { szSysDir, "VBoxMMRHook.dll" },
+#  endif /* VBOX_WITH_MMR */
         { szSysDir, "VBoxOGLarrayspu.dll" },
         { szSysDir, "VBoxOGLcrutil.dll" },
         { szSysDir, "VBoxOGLerrorspu.dll" },

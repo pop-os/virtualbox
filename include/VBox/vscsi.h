@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -120,6 +120,32 @@ typedef struct VSCSILUNIOCALLBACKS
                                                          void *pvScsiLunUser,
                                                          uint64_t *pcbSize));
 
+    /**
+     * Retrieve the sector size of the underlying medium.
+     *
+     * @returns VBox status status code.
+     * @param   hVScsiLun        Virtual SCSI LUN handle.
+     * @param   pvScsiLunUser    Opaque user data which may
+     *                           be used to identify the medium.
+     * @param   pcbSectorSize    Where to store the sector size of the
+     *                           medium.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnVScsiLunMediumGetSectorSize, (VSCSILUN hVScsiLun,
+                                                              void *pvScsiLunUser,
+                                                              uint32_t *pcbSectorSize));
+
+    /**
+     * Set the lock state of the underlying medium.
+     *
+     * @returns VBox status status code.
+     * @param   hVScsiLun        Virtual SCSI LUN handle.
+     * @param   pvScsiLunUser    Opaque user data which may
+     *                           be used to identify the medium.
+     * @param   fLocked          New lock state (locked/unlocked).
+     */
+    DECLR3CALLBACKMEMBER(int, pfnVScsiLunMediumSetLock, (VSCSILUN hVScsiLun,
+                                                         void *pvScsiLunUser,
+                                                         bool fLocked));
     /**
      * Enqueue a read or write request from the medium.
      *
@@ -268,6 +294,22 @@ VBOXDDU_DECL(int) VSCSILunCreate(PVSCSILUN phVScsiLun, VSCSILUNTYPE enmLunType,
  * @param   hVScsiLun               The virtual SCSI LUN handle to destroy.
  */
 VBOXDDU_DECL(int) VSCSILunDestroy(VSCSILUN hVScsiLun);
+
+/**
+ * Notify virtual SCSI LUN of medium being mounted.
+ *
+ * @returns VBox status code.
+ * @param   hVScsiLun               The virtual SCSI LUN handle to destroy.
+ */
+VBOXDDU_DECL(int) VSCSILunMountNotify(VSCSILUN hVScsiLun);
+
+/**
+ * Notify virtual SCSI LUN of medium being unmounted.
+ *
+ * @returns VBox status code.
+ * @param   hVScsiLun               The virtual SCSI LUN handle to destroy.
+ */
+VBOXDDU_DECL(int) VSCSILunUnmountNotify(VSCSILUN hVScsiLun);
 
 /**
  * Notify a that a I/O request completed.

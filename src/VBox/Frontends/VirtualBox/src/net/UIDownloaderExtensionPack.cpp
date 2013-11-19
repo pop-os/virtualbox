@@ -18,16 +18,17 @@
  */
 
 /* Global includes: */
-#include <QNetworkReply>
 #include <QDir>
 #include <QFile>
 #include <iprt/sha.h>
 
 /* Local includes: */
 #include "UIDownloaderExtensionPack.h"
+#include "UINetworkReply.h"
 #include "QIFileDialog.h"
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
+#include "UIModalWindowManager.h"
 
 /* static */
 UIDownloaderExtensionPack* UIDownloaderExtensionPack::m_spInstance = 0;
@@ -78,12 +79,12 @@ UIDownloaderExtensionPack::~UIDownloaderExtensionPack()
         m_spInstance = 0;
 }
 
-bool UIDownloaderExtensionPack::askForDownloadingConfirmation(QNetworkReply *pReply)
+bool UIDownloaderExtensionPack::askForDownloadingConfirmation(UINetworkReply *pReply)
 {
     return msgCenter().confirmDownloadExtensionPack(GUI_ExtPackName, source().toString(), pReply->header(QNetworkRequest::ContentLengthHeader).toInt());
 }
 
-void UIDownloaderExtensionPack::handleDownloadedObject(QNetworkReply *pReply)
+void UIDownloaderExtensionPack::handleDownloadedObject(UINetworkReply *pReply)
 {
     /* Read received data into the buffer: */
     QByteArray receivedData(pReply->readAll());
@@ -115,11 +116,11 @@ void UIDownloaderExtensionPack::handleDownloadedObject(QNetworkReply *pReply)
         }
 
         /* Warn the user about extension-pack was downloaded but was NOT saved: */
-        msgCenter().warnAboutExtentionPackCantBeSaved(GUI_ExtPackName, source().toString(), QDir::toNativeSeparators(target()));
+        msgCenter().cannotSaveExtensionPack(GUI_ExtPackName, source().toString(), QDir::toNativeSeparators(target()));
 
         /* Ask the user for another location for the extension-pack file: */
         QString strTarget = QIFileDialog::getExistingDirectory(QFileInfo(target()).absolutePath(),
-                                                               msgCenter().networkManagerOrMainWindowShown(),
+                                                               windowManager().networkManagerOrMainWindowShown(),
                                                                tr("Select folder to save %1 to").arg(GUI_ExtPackName), true);
 
         /* Check if user had really set a new target: */

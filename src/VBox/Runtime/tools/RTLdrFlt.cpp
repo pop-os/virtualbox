@@ -129,19 +129,39 @@ int main(int argc, char **argv)
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTDBgAsCreate -> %Rrc", rc);
 
+    /*
+     * Create a debugging configuration instance to work with so that we can
+     * make use of (i.e. test) path searching and such.
+     */
+    RTDBGCFG hDbgCfg;
+    rc = RTDbgCfgCreate(&hDbgCfg, "IPRT", true /*fNativePaths*/);
+    if (RT_FAILURE(rc))
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTDbgCfgCreate -> %Rrc", rc);
 
     /*
      * Parse arguments.
      */
     static const RTGETOPTDEF s_aOptions[] =
     {
-        { "--input",   'i', RTGETOPT_REQ_STRING },
-        { "--verbose", 'v', RTGETOPT_REQ_NOTHING },
+        { "--input",        'i', RTGETOPT_REQ_STRING },
+        { "--local-file",   'l', RTGETOPT_REQ_NOTHING },
+        { "--cache-file",   'c', RTGETOPT_REQ_NOTHING },
+        { "--pe-image",     'p', RTGETOPT_REQ_NOTHING },
+        { "--verbose",      'v', RTGETOPT_REQ_NOTHING },
+        { "--x86",          '8', RTGETOPT_REQ_NOTHING },
+        { "--amd64",        '6', RTGETOPT_REQ_NOTHING },
+        { "--whatever",     '*', RTGETOPT_REQ_NOTHING },
     };
 
     PRTSTREAM       pInput          = g_pStdIn;
     PRTSTREAM       pOutput         = g_pStdOut;
     unsigned        cVerbosityLevel = 0;
+    enum {
+        kOpenMethod_FromImage,
+        kOpenMethod_FromPeImage
+    }               enmOpenMethod   = kOpenMethod_FromImage;
+    bool            fCacheFile      = false;
+    RTLDRARCH       enmArch         = RTLDRARCH_WHATEVER;
 
     RTGETOPTUNION   ValueUnion;
     RTGETOPTSTATE   GetState;
@@ -156,8 +176,32 @@ int main(int argc, char **argv)
                     return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to open '%s' for reading: %Rrc", ValueUnion.psz, rc);
                 break;
 
+            case 'c':
+                fCacheFile = true;
+                break;
+
+            case 'l':
+                fCacheFile = false;
+                break;
+
+            case 'p':
+                enmOpenMethod = kOpenMethod_FromPeImage;
+                break;
+
             case 'v':
                 cVerbosityLevel++;
+                break;
+
+            case '8':
+                enmArch = RTLDRARCH_X86_32;
+                break;
+
+            case '6':
+                enmArch = RTLDRARCH_AMD64;
+                break;
+
+            case '*':
+                enmArch = RTLDRARCH_WHATEVER;
                 break;
 
             case 'h':
@@ -166,8 +210,12 @@ int main(int argc, char **argv)
                          "Options:\n"
                          "  -i,--input=file\n"
                          "      Specify a input file instead of standard input.\n"
+                         "  --pe-image\n"
+                         "      Use RTDbgModCreateFromPeImage to open the file."
                          "  -v, --verbose\n"
                          "      Display the address space before doing the filtering.\n"
+                         "  --amd64,--x86,--whatever\n"
+                         "      Selects the desired architecture.\n"
                          "  -h, -?, --help\n"
                          "      Display this help text and exit successfully.\n"
                          "  -V, --version\n"
@@ -176,7 +224,7 @@ int main(int argc, char **argv)
                 return RTEXITCODE_SUCCESS;
 
             case 'V':
-                RTPrintf("$Revision: 83687 $\n");
+                RTPrintf("$Revision: 87101 $\n");
                 return RTEXITCODE_SUCCESS;
 
             case VINF_GETOPT_NOT_OPTION:
@@ -189,8 +237,26 @@ int main(int argc, char **argv)
                     return RTGetOptPrintError(rc, &ValueUnion);
                 uint64_t u64Address = ValueUnion.u64;
 
+                uint32_t cbImage    = 0;
+                uint32_t uTimestamp = 0;
+                if (fCacheFile)
+                {
+                    rc = RTGetOptFetchValue(&GetState, &ValueUnion, RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX);
+                    if (RT_FAILURE(rc))
+                        return RTGetOptPrintError(rc, &ValueUnion);
+                    cbImage = ValueUnion.u32;
+
+                    rc = RTGetOptFetchValue(&GetState, &ValueUnion, RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX);
+                    if (RT_FAILURE(rc))
+                        return RTGetOptPrintError(rc, &ValueUnion);
+                    uTimestamp = ValueUnion.u32;
+                }
+
                 RTDBGMOD hMod;
-                rc = RTDbgModCreateFromImage(&hMod, pszModule, NULL, 0 /*fFlags*/);
+                if (enmOpenMethod == kOpenMethod_FromImage)
+                    rc = RTDbgModCreateFromImage(&hMod, pszModule, NULL, enmArch, hDbgCfg);
+                else
+                    rc = RTDbgModCreateFromPeImage(&hMod, pszModule, NULL, NIL_RTLDRMOD, cbImage, uTimestamp, hDbgCfg);
                 if (RT_FAILURE(rc))
                     return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTDbgModCreateFromImage(,%s,,) -> %Rrc", pszModule, rc);
 
@@ -339,7 +405,7 @@ int main(int argc, char **argv)
                      */
                     RTDBGLINE   Line;
                     RTINTPTR    offLine;
-                    rc = RTDbgAsLineByAddr(hDbgAs, u64Address, &offLine, &Line);
+                    rc = RTDbgAsLineByAddr(hDbgAs, u64Address, &offLine, &Line, NULL);
                     if (RT_SUCCESS(rc))
                         RTStrmPrintf(pOutput, " %Rbn(%u)", Line.szFilename, Line.uLineNo);
 

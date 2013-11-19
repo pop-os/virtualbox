@@ -605,6 +605,43 @@ DECLINLINE(int) vdIfIoFileFlushSync(PVDINTERFACEIO pIfIo, void *pStorage)
 }
 
 /**
+ * Create a VFS stream handle around a VD I/O interface.
+ *
+ * The I/O interface will not be closed or free by the stream, the caller will
+ * do so after it is done with the stream and has released the instances of the
+ * I/O stream object returned by this API.
+ *
+ * @return  VBox status code.
+ * @param   pVDIfsIo        Pointer to the VD I/O interface.
+ * @param   pvStorage       The storage argument to pass to the interface
+ *                          methods.
+ * @param   fFlags          RTFILE_O_XXX, access mask requied.
+ * @param   phVfsIos        Where to return the VFS I/O stream handle on
+ *                          success.
+ */
+VBOXDDU_DECL(int) VDIfCreateVfsStream(PVDINTERFACEIO pVDIfsIo, void *pvStorage, uint32_t fFlags, PRTVFSIOSTREAM phVfsIos);
+
+/**
+ * Create a VFS file handle around a VD I/O interface.
+ *
+ * The I/O interface will not be closed or free by the VFS file, the caller will
+ * do so after it is done with the VFS file and has released the instances of
+ * the VFS object returned by this API.
+ *
+ * @return  VBox status code.
+ * @param   pVDIfs          Pointer to the VD I/O interface.  If NULL, then @a
+ *                          pVDIfsInt must be specified.
+ * @param   pVDIfsInt       Pointer to the internal VD I/O interface.  If NULL,
+ *                          then @ pVDIfs must be specified.
+ * @param   pvStorage       The storage argument to pass to the interface
+ *                          methods.
+ * @param   fFlags          RTFILE_O_XXX, access mask requied.
+ * @param   phVfsFile       Where to return the VFS file handle on success.
+ */
+VBOXDDU_DECL(int) VDIfCreateVfsFile(PVDINTERFACEIO pVDIfs, struct VDINTERFACEIOINT *pVDIfsInt, void *pvStorage, uint32_t fFlags, PRTVFSFILE phVfsFile);
+
+
+/**
  * Callback which provides progress information about a currently running
  * lengthy operation.
  *

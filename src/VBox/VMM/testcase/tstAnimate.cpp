@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -328,7 +328,7 @@ static DECLCALLBACK(int) loadMem(PVM pVM, RTFILE File, uint64_t *poff)
  * @returns VBox status code.
  * @param   pVM     Pointer to the VM.
  */
-static DECLCALLBACK(int) cfgmR3CreateDefault(PVM pVM, void *pvUser)
+static DECLCALLBACK(int) cfgmR3CreateDefault(PUVM pUVM, PVM pVM, void *pvUser)
 {
     uint64_t cbMem = *(uint64_t *)pvUser;
     int rc;
@@ -831,25 +831,26 @@ int main(int argc, char **argv)
      * Create empty VM.
      */
     PVM pVM;
-    rc = VMR3Create(1, NULL, NULL, NULL, cfgmR3CreateDefault, &cbMem, &pVM);
+    PUVM pUVM;
+    rc = VMR3Create(1, NULL, NULL, NULL, cfgmR3CreateDefault, &cbMem, &pVM, &pUVM);
     if (RT_SUCCESS(rc))
     {
         /*
          * Load memory.
          */
         if (FileRawMem != NIL_RTFILE)
-            rc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)loadMem, 3, pVM, FileRawMem, &offRawMem);
+            rc = VMR3ReqCallWaitU(pUVM, VMCPUID_ANY, (PFNRT)loadMem, 3, pVM, FileRawMem, &offRawMem);
         else
-            rc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)SSMR3Load,
-                                 7, pVM, pszSavedState, (uintptr_t)NULL /*pStreamOps*/, (uintptr_t)NULL /*pvUser*/,
-                                 SSMAFTER_DEBUG_IT, (uintptr_t)NULL /*pfnProgress*/, (uintptr_t)NULL /*pvProgressUser*/);
+            rc = VMR3ReqCallWaitU(pUVM, VMCPUID_ANY, (PFNRT)SSMR3Load,
+                                  7, pVM, pszSavedState, (uintptr_t)NULL /*pStreamOps*/, (uintptr_t)NULL /*pvUser*/,
+                                  SSMAFTER_DEBUG_IT, (uintptr_t)NULL /*pfnProgress*/, (uintptr_t)NULL /*pvProgressUser*/);
         if (RT_SUCCESS(rc))
         {
             /*
              * Load register script.
              */
             if (FileScript != NIL_RTFILE)
-                rc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)scriptRun, 2, pVM, FileScript);
+                rc = VMR3ReqCallWaitU(pUVM, VMCPUID_ANY, (PFNRT)scriptRun, 2, pVM, FileScript);
             if (RT_SUCCESS(rc))
             {
                 if (fPowerOn)
@@ -859,7 +860,7 @@ int main(int argc, char **argv)
                      */
                     if (u32WarpDrive != 100)
                     {
-                        rc = TMR3SetWarpDrive(pVM, u32WarpDrive);
+                        rc = TMR3SetWarpDrive(pUVM, u32WarpDrive);
                         if (RT_FAILURE(rc))
                             RTPrintf("warning: TMVirtualSetWarpDrive(,%u) -> %Rrc\n", u32WarpDrive, rc);
                     }
@@ -877,11 +878,11 @@ int main(int argc, char **argv)
 #endif
                     if (RT_SUCCESS(rc))
                     {
-                        rc = EMR3SetExecutionPolicy(pVM, EMEXECPOLICY_RECOMPILE_RING0, true); AssertReleaseRC(rc);
-                        rc = EMR3SetExecutionPolicy(pVM, EMEXECPOLICY_RECOMPILE_RING3, true); AssertReleaseRC(rc);
-                        DBGFR3Info(pVM, "cpumguest", "verbose", NULL);
+                        rc = EMR3SetExecutionPolicy(pUVM, EMEXECPOLICY_RECOMPILE_RING0, true); AssertReleaseRC(rc);
+                        rc = EMR3SetExecutionPolicy(pUVM, EMEXECPOLICY_RECOMPILE_RING3, true); AssertReleaseRC(rc);
+                        DBGFR3Info(pUVM, "cpumguest", "verbose", NULL);
                         if (fPowerOn)
-                            rc = VMR3PowerOn(pVM);
+                            rc = VMR3PowerOn(pUVM);
                         if (RT_SUCCESS(rc))
                         {
                             RTPrintf("info: VM is running\n");
@@ -901,7 +902,7 @@ int main(int argc, char **argv)
                      * Don't start it, just enter the debugger.
                      */
                     RTPrintf("info: entering debugger...\n");
-                    DBGFR3Info(pVM, "cpumguest", "verbose", NULL);
+                    DBGFR3Info(pUVM, "cpumguest", "verbose", NULL);
                     signal(SIGINT, SigInterrupt);
                     while (!g_fSignaled)
                         RTThreadSleep(1000);
@@ -917,12 +918,14 @@ int main(int argc, char **argv)
         /*
          * Cleanup.
          */
-        rc = VMR3Destroy(pVM);
+        rc = VMR3Destroy(pUVM);
         if (!RT_SUCCESS(rc))
         {
             RTPrintf("tstAnimate: error: failed to destroy vm! rc=%Rrc\n", rc);
             rcRet++;
         }
+
+        VMR3ReleaseUVM(pUVM);
     }
     else
     {

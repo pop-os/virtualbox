@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -17,6 +17,13 @@
 
 SUB_DEPTH = ../../../..
 include $(KBUILD_PATH)/subheader.kmk
+
+#
+# Include sub-makefiles.
+#
+if 0 # Not ready for general consumption yet.
+ include $(PATH_SUB_CURRENT)/Instructions/Makefile.kmk
+endif
 
 #
 # Target lists.
@@ -35,7 +42,7 @@ endif
 ifndef VBOX_ONLY_EXTPACKS_USE_IMPLIBS
  PROGRAMS  += tstGlobalConfig tstInstrEmul
  ifdef VBOX_WITH_RAW_MODE
-  PROGRAMS  += tstVMM tstVMM-HwAccm
+  PROGRAMS  += tstVMM tstVMM-HM
   ifneq ($(KBUILD_TARGET),win)
    PROGRAMS += tstVMMFork
   endif
@@ -255,9 +262,9 @@ ifdef VBOX_WITH_RAW_MODE
  tstVMM_SOURCES         = tstVMM.cpp
  tstVMM_LIBS            = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
 
- tstVMM-HwAccm_TEMPLATE = VBOXR3EXE
- tstVMM-HwAccm_SOURCES  = tstVMM-HwAccm.cpp
- tstVMM-HwAccm_LIBS     = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+ tstVMM-HM_TEMPLATE     = VBOXR3EXE
+ tstVMM-HM_SOURCES      = tstVMM-HM.cpp
+ tstVMM-HM_LIBS         = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
 
  tstVMMFork_TEMPLATE    = VBOXR3EXE
  tstVMMFork_SOURCES     = tstVMMFork.cpp
@@ -266,10 +273,11 @@ ifdef VBOX_WITH_RAW_MODE
  tstMicro_TEMPLATE       = VBOXR3EXE
  tstMicro_SOURCES        = tstMicro.cpp
  tstMicro_LIBS           = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+ tstMicro_DEFS           = $(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,)
 
  tstMicroRC_TEMPLATE     = VBoxRc
  tstMicroRC_SOURCES      = tstMicroRC.cpp tstMicroRCA.asm
- tstMicroRC_DEFS         =
+ tstMicroRC_DEFS         = $(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,)
  tstMicroRC_INCS         = $(VBOX_PATH_VMM_SRC)/testcase
  ifeq ($(VBOX_LDR_FMT32),pe)
   tstMicroRC_LDFLAGS     = -Entry:tstMicroRC
@@ -395,7 +403,7 @@ $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.mac: \
 		$(DEPTH)/include/iprt/x86.mac \
 		$(VBOX_PATH_VMM_SRC)/include/CPUMInternal.mac \
 		$(VBOX_PATH_VMM_SRC)/include/TRPMInternal.mac \
-		$(VBOX_PATH_VMM_SRC)/include/HWACCMInternal.mac \
+		$(VBOX_PATH_VMM_SRC)/include/HMInternal.mac \
 		$(VBOX_PATH_VMM_SRC)/include/VMMInternal.mac \
 		$(VBOX_PATH_VMM_SRC)/testcase/Makefile.kmk \
 		$(PATH_ROOT)/Config.kmk $(LOCALCFG) $(AUTOCFG) \
@@ -418,11 +426,14 @@ $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.o: \
 		$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.mac \
 		$(DEPTH)/include/iprt/asmdefs.mac \
 		$(DEPTH)/include/VBox/vmm/cpum.mac \
+		$(DEPTH)/include/VBox/vmm/hm_vmx.mac \
+		$(DEPTH)/include/VBox/vmm/stam.mac \
+		$(DEPTH)/include/VBox/vmm/trpm.mac \
 		$(DEPTH)/include/VBox/vmm/vm.mac \
 		$(DEPTH)/include/VBox/sup.mac \
 		$(DEPTH)/include/iprt/x86.mac \
 		$(VBOX_PATH_VMM_SRC)/include/CPUMInternal.mac \
-		$(VBOX_PATH_VMM_SRC)/include/HWACCMInternal.mac \
+		$(VBOX_PATH_VMM_SRC)/include/HMInternal.mac \
 		$(VBOX_PATH_VMM_SRC)/include/VMMInternal.mac \
 		$(VBOX_PATH_VMM_SRC)/include/VMMSwitcher.mac \
 		$(VBOX_PATH_VMM_SRC)/testcase/Makefile.kmk \

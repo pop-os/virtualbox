@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,8 +18,8 @@
 
 #include <iprt/path.h>
 #include <iprt/cpp/utils.h>
-
 #include <VBox/com/array.h>
+#include <map>
 
 #include "ApplianceImpl.h"
 #include "VFSExplorerImpl.h"
@@ -28,7 +28,8 @@
 #include "Global.h"
 #include "ProgressImpl.h"
 #include "MachineImpl.h"
-
+#include "MediumFormatImpl.h"
+#include "SystemPropertiesImpl.h"
 #include "AutoCaller.h"
 #include "Logging.h"
 
@@ -41,6 +42,21 @@ using namespace std;
 // Internal helpers
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+static const char* const strISOURI = "http://www.ecma-international.org/publications/standards/Ecma-119.htm";
+static const char* const strVMDKStreamURI = "http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized";
+static const char* const strVMDKSparseURI = "http://www.vmware.com/specifications/vmdk.html#sparse";
+static const char* const strVMDKCompressedURI = "http://www.vmware.com/specifications/vmdk.html#compressed";
+static const char* const strVMDKCompressedURI2 = "http://www.vmware.com/interfaces/specifications/vmdk.html#compressed";
+static const char* const strVHDURI = "http://go.microsoft.com/fwlink/?LinkId=137171";
+
+static std::map<Utf8Str, Utf8Str> supportedStandardsURI;
+
+static const char* const applianceIOTarName = "Appliance::IOTar";
+static const char* const applianceIOShaName = "Appliance::IOSha";
+static const char* const applianceIOFileName = "Appliance::IOFile";
+
+static std::map<APPLIANCEIONAME, Utf8Str> applianceIONameMap;
 
 static const struct
 {
@@ -83,6 +99,11 @@ g_osTypes[] =
     { ovf::CIMOSType_CIMOS_FreeBSD_64,                           VBOXOSTYPE_FreeBSD_x64 },
     { ovf::CIMOSType_CIMOS_MACOS,                                VBOXOSTYPE_MacOS },
     { ovf::CIMOSType_CIMOS_MACOS,                                VBOXOSTYPE_MacOS_x64 },            // there is no CIM 64-bit type for this
+    { ovf::CIMOSType_CIMOS_MACOS,                                VBOXOSTYPE_MacOS106 },
+    { ovf::CIMOSType_CIMOS_MACOS,                                VBOXOSTYPE_MacOS106_x64 },
+    { ovf::CIMOSType_CIMOS_MACOS,                                VBOXOSTYPE_MacOS107_x64 },
+    { ovf::CIMOSType_CIMOS_MACOS,                                VBOXOSTYPE_MacOS108_x64 },
+    { ovf::CIMOSType_CIMOS_MACOS,                                VBOXOSTYPE_MacOS109_x64 },
 
     // Linuxes
     { ovf::CIMOSType_CIMOS_RedHatEnterpriseLinux,                VBOXOSTYPE_RedHat },
@@ -238,24 +259,44 @@ void convertCIMOSType2VBoxOSType(Utf8Str &strType, ovf::CIMOSType_T c, const Utf
         }
     }
 
-    strType = Global::OSTypeId(VBOXOSTYPE_Unknown);
+    if (c == ovf::CIMOSType_CIMOS_Other_64)
+        strType = Global::OSTypeId(VBOXOSTYPE_Unknown_x64);
+    else
+        strType = Global::OSTypeId(VBOXOSTYPE_Unknown);
 }
 
 /**
  * Private helper func that suggests a VirtualBox guest OS type
  * for the given OVF operating system type.
- * @param osTypeVBox
- * @param c
+ * @returns CIM OS type.
+ * @param pcszVBox  Our guest OS type identifier string.
+ * @param fLongMode Whether long mode is enabled and a 64-bit CIM type is
+ *                  preferred even if the VBox guest type isn't 64-bit.
  */
-ovf::CIMOSType_T convertVBoxOSType2CIMOSType(const char *pcszVbox)
+ovf::CIMOSType_T convertVBoxOSType2CIMOSType(const char *pcszVBox, BOOL fLongMode)
 {
     for (size_t i = 0; i < RT_ELEMENTS(g_osTypes); ++i)
     {
-        if (!RTStrICmp(pcszVbox, Global::OSTypeId(g_osTypes[i].osType)))
+        if (!RTStrICmp(pcszVBox, Global::OSTypeId(g_osTypes[i].osType)))
+        {
+            if (fLongMode && !(g_osTypes[i].osType & VBOXOSTYPE_x64))
+            {
+                VBOXOSTYPE enmDesiredOsType = (VBOXOSTYPE)((int)g_osTypes[i].osType | (int)VBOXOSTYPE_x64);
+                size_t     j = i;
+                while (++j < RT_ELEMENTS(g_osTypes))
+                    if (g_osTypes[j].osType == enmDesiredOsType)
+                        return g_osTypes[j].cim;
+                j = i;
+                while (--j > 0)
+                    if (g_osTypes[j].osType == enmDesiredOsType)
+                        return g_osTypes[j].cim;
+                /* Not all OSes have 64-bit versions, so just return the 32-bit variant. */
+            }
             return g_osTypes[i].cim;
+        }
     }
 
-    return ovf::CIMOSType_CIMOS_Other;
+    return fLongMode ? ovf::CIMOSType_CIMOS_Other_64 : ovf::CIMOSType_CIMOS_Other;
 }
 
 Utf8Str convertNetworkAttachmentTypeToString(NetworkAttachmentType_T type)
@@ -268,6 +309,7 @@ Utf8Str convertNetworkAttachmentTypeToString(NetworkAttachmentType_T type)
         case NetworkAttachmentType_Internal: strType = "Internal"; break;
         case NetworkAttachmentType_HostOnly: strType = "HostOnly"; break;
         case NetworkAttachmentType_Generic: strType = "Generic"; break;
+        case NetworkAttachmentType_NATNetwork: strType = "NATNetwork"; break;
         case NetworkAttachmentType_Null: strType = "Null"; break;
     }
     return strType;
@@ -324,6 +366,7 @@ Appliance::~Appliance()
  */
 HRESULT Appliance::init(VirtualBox *aVirtualBox)
 {
+    HRESULT rc = S_OK;
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
@@ -334,10 +377,14 @@ HRESULT Appliance::init(VirtualBox *aVirtualBox)
     // initialize data
     m = new Data;
 
+    initApplianceIONameMap();
+
+    rc = initSetOfSupportedStandardsURI();
+
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
 
-    return S_OK;
+    return rc;
 }
 
 /**
@@ -573,6 +620,113 @@ STDMETHODIMP Appliance::GetWarnings(ComSafeArrayOut(BSTR, aWarnings))
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+HRESULT Appliance::initSetOfSupportedStandardsURI()
+{
+    HRESULT rc = S_OK;
+    if (!supportedStandardsURI.empty())
+        return rc;
+
+    /* Get the system properties. */
+    SystemProperties *pSysProps = mVirtualBox->getSystemProperties();
+    {
+        ComObjPtr<MediumFormat> trgFormat = pSysProps->mediumFormatFromExtension("iso");
+        if (trgFormat.isNull())
+            return setError(E_FAIL, tr("Can't find appropriate medium format for ISO type of a virtual disk."));
+
+        Bstr bstrFormatName;
+        rc = trgFormat->COMGETTER(Name)(bstrFormatName.asOutParam());
+        if (FAILED(rc)) return rc;
+
+        Utf8Str strTrgFormat = Utf8Str(bstrFormatName);
+
+        supportedStandardsURI.insert(std::make_pair(Utf8Str(strISOURI), strTrgFormat));
+    }
+
+    {
+        ComObjPtr<MediumFormat> trgFormat = pSysProps->mediumFormatFromExtension("vmdk");
+        if (trgFormat.isNull())
+            return setError(E_FAIL, tr("Can't find appropriate medium format for VMDK type of a virtual disk."));
+
+        Bstr bstrFormatName;
+        rc = trgFormat->COMGETTER(Name)(bstrFormatName.asOutParam());
+        if (FAILED(rc)) return rc;
+
+        Utf8Str strTrgFormat = Utf8Str(bstrFormatName);
+
+        supportedStandardsURI.insert(std::make_pair(Utf8Str(strVMDKStreamURI), strTrgFormat));
+        supportedStandardsURI.insert(std::make_pair(Utf8Str(strVMDKSparseURI), strTrgFormat));
+        supportedStandardsURI.insert(std::make_pair(Utf8Str(strVMDKCompressedURI), strTrgFormat));
+        supportedStandardsURI.insert(std::make_pair(Utf8Str(strVMDKCompressedURI2), strTrgFormat));
+    }
+
+    {
+        ComObjPtr<MediumFormat> trgFormat = pSysProps->mediumFormatFromExtension("vhd");
+        if (trgFormat.isNull())
+            return setError(E_FAIL, tr("Can't find appropriate medium format for VHD type of a virtual disk."));
+
+        Bstr bstrFormatName;
+        rc = trgFormat->COMGETTER(Name)(bstrFormatName.asOutParam());
+        if (FAILED(rc)) return rc;
+
+        Utf8Str strTrgFormat = Utf8Str(bstrFormatName);
+
+        supportedStandardsURI.insert(std::make_pair(Utf8Str(strVHDURI), strTrgFormat));
+    }
+
+    return rc;
+}
+
+Utf8Str Appliance::typeOfVirtualDiskFormatFromURI(Utf8Str uri) const
+{
+    Utf8Str type;
+    std::map<Utf8Str, Utf8Str>::const_iterator cit = supportedStandardsURI.find(uri);
+    if (cit != supportedStandardsURI.end())
+    {
+        type = cit->second;
+    }
+
+    return type;
+}
+
+std::set<Utf8Str> Appliance::URIFromTypeOfVirtualDiskFormat(Utf8Str type)
+{
+    std::set<Utf8Str> uri;
+    std::map<Utf8Str, Utf8Str>::const_iterator cit = supportedStandardsURI.begin();
+    while(cit != supportedStandardsURI.end())
+    {
+        if (cit->second.compare(type,Utf8Str::CaseInsensitive) == 0)
+            uri.insert(cit->first);
+        ++cit;
+    }
+
+    return uri;
+}
+
+HRESULT Appliance::initApplianceIONameMap()
+{
+    HRESULT rc = S_OK;
+    if (!applianceIONameMap.empty())
+        return rc;
+
+        applianceIONameMap.insert(std::make_pair(applianceIOTar, applianceIOTarName));
+        applianceIONameMap.insert(std::make_pair(applianceIOFile, applianceIOFileName));
+        applianceIONameMap.insert(std::make_pair(applianceIOSha, applianceIOShaName));
+
+    return rc;
+}
+
+Utf8Str Appliance::applianceIOName(APPLIANCEIONAME type) const
+{
+    Utf8Str name;
+    std::map<APPLIANCEIONAME, Utf8Str>::const_iterator cit = applianceIONameMap.find(type);
+    if (cit != applianceIONameMap.end())
+    {
+        name = cit->second;
+    }
+
+    return name;
+}
+
 /**
  * Returns true if the appliance is in "idle" state. This should always be the
  * case unless an import or export is currently in progress. Similar to machine
@@ -626,7 +780,7 @@ HRESULT Appliance::searchUniqueDiskImageFilePath(Utf8Str& aName) const
      * already */
     /** @todo: Maybe too cost-intensive; try to find a lighter way */
     while (    RTPathExists(tmpName)
-            || mVirtualBox->OpenMedium(Bstr(tmpName).raw(), DeviceType_HardDisk, AccessMode_ReadWrite, FALSE /* fForceNewUuid */,  &harddisk) != VBOX_E_OBJECT_NOT_FOUND 
+            || mVirtualBox->OpenMedium(Bstr(tmpName).raw(), DeviceType_HardDisk, AccessMode_ReadWrite, FALSE /* fForceNewUuid */,  &harddisk) != VBOX_E_OBJECT_NOT_FOUND
           )
     {
         RTStrFree(tmpName);
@@ -783,7 +937,7 @@ void Appliance::waitForAsyncProgress(ComObjPtr<Progress> &pProgressThis,
            that in the meantime more than one async operation was finished. So
            we have to loop as long as we reached the same operation count. */
         ULONG curOp;
-        for(;;)
+        for (;;)
         {
             rc = pProgressAsync->COMGETTER(Operation(&curOp));
             if (FAILED(rc)) throw rc;
@@ -858,6 +1012,16 @@ void Appliance::disksWeight()
         /* One for every hard disk of the Virtual System */
         std::list<VirtualSystemDescriptionEntry*> avsdeHDs = vsdescThis->findByType(VirtualSystemDescriptionType_HardDiskImage);
         std::list<VirtualSystemDescriptionEntry*>::const_iterator itH;
+        for (itH = avsdeHDs.begin();
+             itH != avsdeHDs.end();
+             ++itH)
+        {
+            const VirtualSystemDescriptionEntry *pHD = *itH;
+            m->ulTotalDisksMB += pHD->ulSizeMB;
+            ++m->cDisks;
+        }
+
+        avsdeHDs = vsdescThis->findByType(VirtualSystemDescriptionType_CDROM);
         for (itH = avsdeHDs.begin();
              itH != avsdeHDs.end();
              ++itH)
@@ -1391,6 +1555,26 @@ std::list<VirtualSystemDescriptionEntry*> VirtualSystemDescription::findByType(V
     }
 
     return vsd;
+}
+
+/**
+ * Private method; delete all records from the list 
+ * m->llDescriptions that match the given type. 
+ * @param aType
+ * @return
+ */
+void VirtualSystemDescription::removeByType(VirtualSystemDescriptionType_T aType)
+{
+    std::list<VirtualSystemDescriptionEntry*> vsd;
+
+    list<VirtualSystemDescriptionEntry>::iterator it = m->llDescriptions.begin();
+    while (it != m->llDescriptions.end())
+    {
+        if (it->type == aType)
+            it = m->llDescriptions.erase(it);
+        else
+            ++it;
+    }
 }
 
 /**

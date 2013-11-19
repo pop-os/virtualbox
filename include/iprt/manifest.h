@@ -60,18 +60,22 @@ RT_C_DECLS_BEGIN
 /** @name Digest types. */
 typedef enum RTDIGESTTYPE
 {
-    /** CRC32 checksum */
-    RTDIGESTTYPE_CRC32 = 1,
-    /** CRC64 checksum */
+    /** Invalid digest value.  */
+    RTDIGESTTYPE_INVALID = 0,
+    /** CRC32 checksum. */
+    RTDIGESTTYPE_CRC32,
+    /** CRC64 checksum. */
     RTDIGESTTYPE_CRC64,
-    /** MD5 checksum (unsafe!) */
+    /** MD5 checksum (unsafe!). */
     RTDIGESTTYPE_MD5,
-    /** SHA1 checksum (unsafe!) */
+    /** SHA1 checksum (unsafe!). */
     RTDIGESTTYPE_SHA1,
-    /** SHA256 checksum */
+    /** SHA256 checksum. */
     RTDIGESTTYPE_SHA256,
-    /** SHA512 checksum */
-    RTDIGESTTYPE_SHA512
+    /** SHA512 checksum. */
+    RTDIGESTTYPE_SHA512,
+    /** Usual 32-bit type blowup. */
+    RTDIGESTTYPE_32BIT_HACK = 0x7fffffff
 } RTDIGESTTYPE;
 /** @} */
 
@@ -445,6 +449,7 @@ typedef RTMANIFESTTEST* PRTMANIFESTTEST;
  * @param   piFailed             A index to paTests in the
  *                               VERR_MANIFEST_DIGEST_MISMATCH error case
  *                               (optional).
+ * @deprecated Use the RTMANIFEST based API instead.
  */
 RTR3DECL(int) RTManifestVerify(const char *pszManifestFile, PRTMANIFESTTEST paTests, size_t cTests, size_t *piFailed);
 
@@ -462,6 +467,7 @@ RTR3DECL(int) RTManifestVerify(const char *pszManifestFile, PRTMANIFESTTEST paTe
  *                               (optional).
  * @param   pfnProgressCallback  optional callback for the progress indication
  * @param   pvUser               user defined pointer for the callback
+ * @deprecated Use the RTMANIFEST based API instead.
  */
 RTR3DECL(int) RTManifestVerifyFiles(const char *pszManifestFile, const char * const *papszFiles, size_t cFiles, size_t *piFailed,
                                     PFNRTPROGRESS pfnProgressCallback, void *pvUser);
@@ -479,10 +485,24 @@ RTR3DECL(int) RTManifestVerifyFiles(const char *pszManifestFile, const char * co
  * @param   cFiles               Number of entries in papszFiles.
  * @param   pfnProgressCallback  optional callback for the progress indication
  * @param   pvUser               user defined pointer for the callback
+ * @deprecated Use the RTMANIFEST based API instead.
  */
 RTR3DECL(int) RTManifestWriteFiles(const char *pszManifestFile, RTDIGESTTYPE enmDigestType,
                                    const char * const *papszFiles, size_t cFiles,
                                    PFNRTPROGRESS pfnProgressCallback, void *pvUser);
+
+/**
+ * Queries the first digest type found in the given manifest.
+ *
+ * @returns iprt status code.
+ *
+ * @param   pvBuf                Pointer to memory buffer of the manifest file.
+ * @param   cbSize               Size of the memory buffer.
+ * @param   penmDigestType       Where to return the first digest type found in
+ *                               the manifest.
+ * @deprecated Use the RTMANIFEST based API instead.
+ */
+RTR3DECL(int) RTManifestVerifyDigestType(void const *pvBuf, size_t cbSize, RTDIGESTTYPE *penmDigestType);
 
 /**
  * Verify the given SHA1 digests against the entries in the manifest file in
@@ -497,6 +517,7 @@ RTR3DECL(int) RTManifestWriteFiles(const char *pszManifestFile, RTDIGESTTYPE enm
  * @param   piFailed             A index to paTests in the
  *                               VERR_MANIFEST_DIGEST_MISMATCH error case
  *                               (optional).
+ * @deprecated Use the RTMANIFEST based API instead.
  */
 RTR3DECL(int) RTManifestVerifyFilesBuf(void *pvBuf, size_t cbSize, PRTMANIFESTTEST paTests, size_t cTests, size_t *piFailed);
 
@@ -512,6 +533,7 @@ RTR3DECL(int) RTManifestVerifyFilesBuf(void *pvBuf, size_t cbSize, PRTMANIFESTTE
  * @param   enmDigestType        Which type of digest ("SHA1", "SHA256", ...)
  * @param   paFiles              Array of file names and digests.
  * @param   cFiles               Number of entries in paFiles.
+ * @deprecated Use the RTMANIFEST based API instead.
  */
 RTR3DECL(int) RTManifestWriteFilesBuf(void **ppvBuf, size_t *pcbSize, RTDIGESTTYPE enmDigestType, PRTMANIFESTTEST paFiles, size_t cFiles);
 

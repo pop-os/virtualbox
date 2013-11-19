@@ -28,14 +28,17 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#define LOG_GROUP RTLOGGROUP_DBG
 #include <iprt/dbg.h>
 #include "internal/iprt.h"
 
+#include <iprt/alloca.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/avl.h>
 #include <iprt/err.h>
 #include <iprt/initterm.h>
+#include <iprt/log.h>
 #include <iprt/mem.h>
 #include <iprt/once.h>
 #include <iprt/param.h>
@@ -116,6 +119,8 @@ static PRTDBGMODREGDBG  g_pDbgHead;
 /** String cache for the debug info interpreters.
  * RTSTRCACHE is thread safe. */
 DECLHIDDEN(RTSTRCACHE)  g_hDbgModStrCache = NIL_RTSTRCACHE;
+
+
 
 
 
@@ -275,6 +280,12 @@ static DECLCALLBACK(int) rtDbgModInitOnce(void *pvUser)
         if (RT_SUCCESS(rc))
             rc = rtDbgModDebugInterpreterRegister(&g_rtDbgModVtDbgDwarf);
         if (RT_SUCCESS(rc))
+            rc = rtDbgModDebugInterpreterRegister(&g_rtDbgModVtDbgCodeView);
+#ifdef RT_OS_WINDOWS
+        if (RT_SUCCESS(rc))
+            rc = rtDbgModDebugInterpreterRegister(&g_rtDbgModVtDbgDbgHelp);
+#endif
+        if (RT_SUCCESS(rc))
             rc = rtDbgModImageInterpreterRegister(&g_rtDbgModVtImgLdr);
         if (RT_SUCCESS(rc))
         {
@@ -295,28 +306,16 @@ static DECLCALLBACK(int) rtDbgModInitOnce(void *pvUser)
 }
 
 
+/**
+ * Performs lazy init of our global variables.
+ * @returns IPRT status code.
+ */
 DECLINLINE(int) rtDbgModLazyInit(void)
 {
     return RTOnce(&g_rtDbgModOnce, rtDbgModInitOnce, NULL);
 }
 
 
-/**
- * Creates a module based on the default debug info container.
- *
- * This can be used to manually load a module and its symbol. The primary user
- * group is the debug info interpreters, which use this API to create an
- * efficient debug info container behind the scenes and forward all queries to
- * it once the info has been loaded.
- *
- * @returns IPRT status code.
- *
- * @param   phDbgMod        Where to return the module handle.
- * @param   pszName         The name of the module (mandatory).
- * @param   cbSeg           The size of initial segment. If zero, segments will
- *                          have to be added manually using RTDbgModSegmentAdd.
- * @param   fFlags          Flags reserved for future extensions, MBZ for now.
- */
 RTDECL(int) RTDbgModCreate(PRTDBGMOD phDbgMod, const char *pszName, RTUINTPTR cbSeg, uint32_t fFlags)
 {
     /*
@@ -343,7 +342,8 @@ RTDECL(int) RTDbgModCreate(PRTDBGMOD phDbgMod, const char *pszName, RTUINTPTR cb
     rc = RTCritSectInit(&pDbgMod->CritSect);
     if (RT_SUCCESS(rc))
     {
-        pDbgMod->pszName = RTStrCacheEnter(g_hDbgModStrCache, pszName);
+        pDbgMod->pszImgFileSpecified = RTStrCacheEnter(g_hDbgModStrCache, pszName);
+        pDbgMod->pszName = RTStrCacheEnterLower(g_hDbgModStrCache, RTPathFilenameEx(pszName, RTPATH_STR_F_STYLE_DOS));
         if (pDbgMod->pszName)
         {
             rc = rtDbgModContainerCreate(pDbgMod, cbSeg);
@@ -352,6 +352,7 @@ RTDECL(int) RTDbgModCreate(PRTDBGMOD phDbgMod, const char *pszName, RTUINTPTR cb
                 *phDbgMod = pDbgMod;
                 return rc;
             }
+            RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszImgFile);
             RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszName);
         }
         RTCritSectDelete(&pDbgMod->CritSect);
@@ -363,16 +364,8 @@ RTDECL(int) RTDbgModCreate(PRTDBGMOD phDbgMod, const char *pszName, RTUINTPTR cb
 RT_EXPORT_SYMBOL(RTDbgModCreate);
 
 
-RTDECL(int) RTDbgModCreateDeferred(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName,
-                                   RTUINTPTR cb, uint32_t fFlags)
-{
-    NOREF(phDbgMod); NOREF(pszFilename); NOREF(pszName); NOREF(cb); NOREF(fFlags);
-    return VERR_NOT_IMPLEMENTED;
-}
-RT_EXPORT_SYMBOL(RTDbgModCreateDeferred);
-
-
-RTDECL(int) RTDbgModCreateFromImage(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, uint32_t fFlags)
+RTDECL(int) RTDbgModCreateFromMap(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName,
+                                  RTUINTPTR uSubtrahend, RTDBGCFG hDbgCfg)
 {
     /*
      * Input validation and lazy initialization.
@@ -382,14 +375,14 @@ RTDECL(int) RTDbgModCreateFromImage(PRTDBGMOD phDbgMod, const char *pszFilename,
     AssertPtrReturn(pszFilename, VERR_INVALID_POINTER);
     AssertReturn(*pszFilename, VERR_INVALID_PARAMETER);
     AssertPtrNullReturn(pszName, VERR_INVALID_POINTER);
-    AssertReturn(fFlags == 0, VERR_INVALID_PARAMETER);
+    AssertReturn(uSubtrahend == 0, VERR_NOT_IMPLEMENTED); /** @todo implement uSubtrahend. */
 
     int rc = rtDbgModLazyInit();
     if (RT_FAILURE(rc))
         return rc;
 
     if (!pszName)
-        pszName = RTPathFilename(pszFilename);
+        pszName = RTPathFilenameEx(pszFilename, RTPATH_STR_F_STYLE_DOS);
 
     /*
      * Allocate a new module instance.
@@ -402,12 +395,426 @@ RTDECL(int) RTDbgModCreateFromImage(PRTDBGMOD phDbgMod, const char *pszFilename,
     rc = RTCritSectInit(&pDbgMod->CritSect);
     if (RT_SUCCESS(rc))
     {
-        pDbgMod->pszName = RTStrCacheEnter(g_hDbgModStrCache, pszName);
+        pDbgMod->pszName = RTStrCacheEnterLower(g_hDbgModStrCache, pszName);
+        if (pDbgMod->pszName)
+        {
+            pDbgMod->pszDbgFile = RTStrCacheEnter(g_hDbgModStrCache, pszFilename);
+            if (pDbgMod->pszDbgFile)
+            {
+                /*
+                 * Try the map file readers.
+                 */
+                rc = RTSemRWRequestRead(g_hDbgModRWSem, RT_INDEFINITE_WAIT);
+                if (RT_SUCCESS(rc))
+                {
+                    rc = VERR_DBG_NO_MATCHING_INTERPRETER;
+                    for (PRTDBGMODREGDBG pCur = g_pDbgHead; pCur; pCur = pCur->pNext)
+                    {
+                        if (pCur->pVt->fSupports & RT_DBGTYPE_MAP)
+                        {
+                            pDbgMod->pDbgVt = pCur->pVt;
+                            pDbgMod->pvDbgPriv = NULL;
+                            rc = pCur->pVt->pfnTryOpen(pDbgMod, RTLDRARCH_WHATEVER);
+                            if (RT_SUCCESS(rc))
+                            {
+                                ASMAtomicIncU32(&pCur->cUsers);
+                                RTSemRWReleaseRead(g_hDbgModRWSem);
+
+                                *phDbgMod = pDbgMod;
+                                return rc;
+                            }
+                        }
+                    }
+
+                    /* bail out */
+                    RTSemRWReleaseRead(g_hDbgModRWSem);
+                }
+                RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszName);
+            }
+            else
+                rc = VERR_NO_STR_MEMORY;
+            RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszDbgFile);
+        }
+        else
+            rc = VERR_NO_STR_MEMORY;
+        RTCritSectDelete(&pDbgMod->CritSect);
+    }
+
+    RTMemFree(pDbgMod);
+    return rc;
+}
+RT_EXPORT_SYMBOL(RTDbgModCreateFromMap);
+
+
+
+/*
+ *
+ *  E x e c u t a b l e   I m a g e   F i l e s
+ *  E x e c u t a b l e   I m a g e   F i l e s
+ *  E x e c u t a b l e   I m a g e   F i l e s
+ *
+ */
+
+
+/**
+ * Opens debug information for an image.
+ *
+ * @returns IPRT status code
+ * @param   pDbgMod             The debug module structure.
+ *
+ * @note    This will generally not look for debug info stored in external
+ *          files.  rtDbgModFromPeImageExtDbgInfoCallback can help with that.
+ */
+static int rtDbgModOpenDebugInfoInsideImage(PRTDBGMODINT pDbgMod)
+{
+    AssertReturn(!pDbgMod->pDbgVt, VERR_DBG_MOD_IPE);
+    AssertReturn(pDbgMod->pImgVt, VERR_DBG_MOD_IPE);
+
+    int rc = RTSemRWRequestRead(g_hDbgModRWSem, RT_INDEFINITE_WAIT);
+    if (RT_SUCCESS(rc))
+    {
+        for (PRTDBGMODREGDBG pDbg = g_pDbgHead; pDbg; pDbg = pDbg->pNext)
+        {
+            pDbgMod->pDbgVt    = pDbg->pVt;
+            pDbgMod->pvDbgPriv = NULL;
+            rc = pDbg->pVt->pfnTryOpen(pDbgMod, pDbgMod->pImgVt->pfnGetArch(pDbgMod));
+            if (RT_SUCCESS(rc))
+            {
+                /*
+                 * That's it!
+                 */
+                ASMAtomicIncU32(&pDbg->cUsers);
+                RTSemRWReleaseRead(g_hDbgModRWSem);
+                return VINF_SUCCESS;
+            }
+
+            pDbgMod->pDbgVt = NULL;
+            Assert(pDbgMod->pvDbgPriv == NULL);
+        }
+        RTSemRWReleaseRead(g_hDbgModRWSem);
+    }
+
+    return VERR_DBG_NO_MATCHING_INTERPRETER;
+}
+
+
+/** @callback_method_impl{FNRTDBGCFGOPEN} */
+static DECLCALLBACK(int) rtDbgModExtDbgInfoOpenCallback(RTDBGCFG hDbgCfg, const char *pszFilename, void *pvUser1, void *pvUser2)
+{
+    PRTDBGMODINT        pDbgMod   = (PRTDBGMODINT)pvUser1;
+    PCRTLDRDBGINFO      pDbgInfo  = (PCRTLDRDBGINFO)pvUser2;
+    NOREF(pDbgInfo); /** @todo consider a more direct search for a interpreter. */
+
+    Assert(!pDbgMod->pDbgVt);
+    Assert(!pDbgMod->pvDbgPriv);
+    Assert(!pDbgMod->pszDbgFile);
+    Assert(pDbgMod->pImgVt);
+
+    /*
+     * Set the debug file name and try possible interpreters.
+     */
+    pDbgMod->pszDbgFile = RTStrCacheEnter(g_hDbgModStrCache, pszFilename);
+
+    int rc = RTSemRWRequestRead(g_hDbgModRWSem, RT_INDEFINITE_WAIT);
+    if (RT_SUCCESS(rc))
+    {
+        for (PRTDBGMODREGDBG pDbg = g_pDbgHead; pDbg; pDbg = pDbg->pNext)
+        {
+            pDbgMod->pDbgVt    = pDbg->pVt;
+            pDbgMod->pvDbgPriv = NULL;
+            rc = pDbg->pVt->pfnTryOpen(pDbgMod, pDbgMod->pImgVt->pfnGetArch(pDbgMod));
+            if (RT_SUCCESS(rc))
+            {
+                /*
+                 * Got it!
+                 */
+                ASMAtomicIncU32(&pDbg->cUsers);
+                RTSemRWReleaseRead(g_hDbgModRWSem);
+                return VINF_CALLBACK_RETURN;
+            }
+
+            pDbgMod->pDbgVt = NULL;
+            Assert(pDbgMod->pvDbgPriv == NULL);
+        }
+        RTSemRWReleaseRead(g_hDbgModRWSem);
+    }
+
+    /* No joy. */
+    RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszDbgFile);
+    pDbgMod->pszDbgFile = NULL;
+    return rc;
+}
+
+
+/**
+ * Argument package used by rtDbgModOpenDebugInfoExternalToImage.
+ */
+typedef struct RTDBGMODOPENDIETI
+{
+    PRTDBGMODINT    pDbgMod;
+    RTDBGCFG        hDbgCfg;
+} RTDBGMODOPENDIETI;
+
+
+/** @callback_method_impl{FNRTLDRENUMDBG} */
+static DECLCALLBACK(int)
+rtDbgModOpenDebugInfoExternalToImageCallback(RTLDRMOD hLdrMod, PCRTLDRDBGINFO pDbgInfo, void *pvUser)
+{
+    RTDBGMODOPENDIETI *pArgs = (RTDBGMODOPENDIETI *)pvUser;
+
+    Assert(pDbgInfo->enmType > RTLDRDBGINFOTYPE_INVALID && pDbgInfo->enmType < RTLDRDBGINFOTYPE_END);
+    const char *pszExtFile = pDbgInfo->pszExtFile;
+    if (!pszExtFile)
+    {
+        /*
+         * If a external debug type comes without a file name, calculate a
+         * likely debug filename for it. (Hack for NT4 drivers.)
+         */
+        const char *pszExt = NULL;
+        if (pDbgInfo->enmType == RTLDRDBGINFOTYPE_CODEVIEW_DBG)
+            pszExt = ".dbg";
+        else if (   pDbgInfo->enmType == RTLDRDBGINFOTYPE_CODEVIEW_PDB20
+                 || pDbgInfo->enmType == RTLDRDBGINFOTYPE_CODEVIEW_PDB70)
+            pszExt = ".pdb";
+        if (pszExt && pArgs->pDbgMod->pszName)
+        {
+            size_t cchName = strlen(pArgs->pDbgMod->pszName);
+            char *psz = (char *)alloca(cchName + strlen(pszExt) + 1);
+            if (psz)
+            {
+                memcpy(psz, pArgs->pDbgMod->pszName, cchName + 1);
+                RTPathStripExt(psz);
+                pszExtFile = strcat(psz, pszExt);
+            }
+        }
+
+        if (!pszExtFile)
+        {
+            Log2(("rtDbgModOpenDebugInfoExternalToImageCallback: enmType=%d\n", pDbgInfo->enmType));
+            return VINF_SUCCESS;
+        }
+    }
+
+    /*
+     * Switch on type and call the appropriate search function.
+     */
+    int rc;
+    switch (pDbgInfo->enmType)
+    {
+        case RTLDRDBGINFOTYPE_CODEVIEW_PDB70:
+            rc = RTDbgCfgOpenPdb70(pArgs->hDbgCfg, pszExtFile,
+                                   &pDbgInfo->u.Pdb70.Uuid,
+                                   pDbgInfo->u.Pdb70.uAge,
+                                   rtDbgModExtDbgInfoOpenCallback, pArgs->pDbgMod, (void *)pDbgInfo);
+            break;
+
+        case RTLDRDBGINFOTYPE_CODEVIEW_PDB20:
+            rc = RTDbgCfgOpenPdb20(pArgs->hDbgCfg, pszExtFile,
+                                   pDbgInfo->u.Pdb20.cbImage,
+                                   pDbgInfo->u.Pdb20.uTimestamp,
+                                   pDbgInfo->u.Pdb20.uAge,
+                                   rtDbgModExtDbgInfoOpenCallback, pArgs->pDbgMod, (void *)pDbgInfo);
+            break;
+
+        case RTLDRDBGINFOTYPE_CODEVIEW_DBG:
+            rc = RTDbgCfgOpenDbg(pArgs->hDbgCfg, pszExtFile,
+                                 pDbgInfo->u.Dbg.cbImage,
+                                 pDbgInfo->u.Dbg.uTimestamp,
+                                 rtDbgModExtDbgInfoOpenCallback, pArgs->pDbgMod, (void *)pDbgInfo);
+            break;
+
+        case RTLDRDBGINFOTYPE_DWARF_DWO:
+            rc = RTDbgCfgOpenDwo(pArgs->hDbgCfg, pszExtFile,
+                                 pDbgInfo->u.Dwo.uCrc32,
+                                 rtDbgModExtDbgInfoOpenCallback, pArgs->pDbgMod, (void *)pDbgInfo);
+            break;
+
+        default:
+            Log(("rtDbgModOpenDebugInfoExternalToImageCallback: Don't know how to handle enmType=%d and pszFileExt=%s\n",
+                 pDbgInfo->enmType, pszExtFile));
+            return VERR_DBG_TODO;
+    }
+    if (RT_SUCCESS(rc))
+    {
+        LogFlow(("RTDbgMod: Successfully opened external debug info '%s' for '%s'\n",
+                 pArgs->pDbgMod->pszDbgFile, pArgs->pDbgMod->pszImgFile));
+        return VINF_CALLBACK_RETURN;
+    }
+    Log(("rtDbgModOpenDebugInfoExternalToImageCallback: '%s' (enmType=%d) for '%s'  -> %Rrc\n",
+         pszExtFile, pDbgInfo->enmType, pArgs->pDbgMod->pszImgFile, rc));
+    return rc;
+}
+
+
+/**
+ * Opens debug info listed in the image that is stored in a separate file.
+ *
+ * @returns IPRT status code
+ * @param   pDbgMod             The debug module.
+ * @param   hDbgCfg             The debug config.  Can be NIL.
+ */
+static int rtDbgModOpenDebugInfoExternalToImage(PRTDBGMODINT pDbgMod, RTDBGCFG hDbgCfg)
+{
+    Assert(!pDbgMod->pDbgVt);
+
+    RTDBGMODOPENDIETI Args;
+    Args.pDbgMod = pDbgMod;
+    Args.hDbgCfg = hDbgCfg;
+    int rc = pDbgMod->pImgVt->pfnEnumDbgInfo(pDbgMod, rtDbgModOpenDebugInfoExternalToImageCallback, &Args);
+    if (RT_SUCCESS(rc) && pDbgMod->pDbgVt)
+        return VINF_SUCCESS;
+
+    LogFlow(("rtDbgModOpenDebugInfoExternalToImage: rc=%Rrc\n", rc));
+    return VERR_NOT_FOUND;
+}
+
+
+/** @callback_method_impl{FNRTDBGCFGOPEN} */
+static DECLCALLBACK(int) rtDbgModExtDbgInfoOpenCallback2(RTDBGCFG hDbgCfg, const char *pszFilename, void *pvUser1, void *pvUser2)
+{
+    PRTDBGMODINT        pDbgMod   = (PRTDBGMODINT)pvUser1;
+    NOREF(pvUser2); /** @todo image matching string or smth. */
+
+    Assert(!pDbgMod->pDbgVt);
+    Assert(!pDbgMod->pvDbgPriv);
+    Assert(!pDbgMod->pszDbgFile);
+    Assert(pDbgMod->pImgVt);
+
+    /*
+     * Set the debug file name and try possible interpreters.
+     */
+    pDbgMod->pszDbgFile = RTStrCacheEnter(g_hDbgModStrCache, pszFilename);
+
+    int rc = RTSemRWRequestRead(g_hDbgModRWSem, RT_INDEFINITE_WAIT);
+    if (RT_SUCCESS(rc))
+    {
+        for (PRTDBGMODREGDBG pDbg = g_pDbgHead; pDbg; pDbg = pDbg->pNext)
+        {
+            pDbgMod->pDbgVt    = pDbg->pVt;
+            pDbgMod->pvDbgPriv = NULL;
+            rc = pDbg->pVt->pfnTryOpen(pDbgMod, pDbgMod->pImgVt->pfnGetArch(pDbgMod));
+            if (RT_SUCCESS(rc))
+            {
+                /*
+                 * Got it!
+                 */
+                ASMAtomicIncU32(&pDbg->cUsers);
+                RTSemRWReleaseRead(g_hDbgModRWSem);
+                return VINF_CALLBACK_RETURN;
+            }
+            pDbgMod->pDbgVt    = NULL;
+            Assert(pDbgMod->pvDbgPriv == NULL);
+        }
+    }
+
+    /* No joy. */
+    RTSemRWReleaseRead(g_hDbgModRWSem);
+    RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszDbgFile);
+    pDbgMod->pszDbgFile = NULL;
+    return rc;
+}
+
+
+/**
+ * Opens external debug info that is not listed in the image.
+ *
+ * @returns IPRT status code
+ * @param   pDbgMod             The debug module.
+ * @param   hDbgCfg             The debug config.  Can be NIL.
+ */
+static int rtDbgModOpenDebugInfoExternalToImage2(PRTDBGMODINT pDbgMod, RTDBGCFG hDbgCfg)
+{
+    int rc;
+    Assert(!pDbgMod->pDbgVt);
+    Assert(pDbgMod->pImgVt);
+
+    /*
+     * Figure out what to search for based on the image format.
+     */
+    const char *pszzExts = NULL;
+    RTLDRFMT    enmFmt = pDbgMod->pImgVt->pfnGetFormat(pDbgMod);
+    switch (enmFmt)
+    {
+        case RTLDRFMT_MACHO:
+        {
+            rc = RTDbgCfgOpenDsymBundle(hDbgCfg, pDbgMod->pszImgFile, NULL /**@todo pUuid*/,
+                                        rtDbgModExtDbgInfoOpenCallback2, pDbgMod, NULL /*pvUser2*/);
+            if (RT_SUCCESS(rc))
+                return VINF_SUCCESS;
+            break;
+        }
+
+#if 0 /* Will be links in the image if these apply. .map readers for PE or ELF we don't have. */
+        case RTLDRFMT_ELF:
+            pszzExts = ".debug\0.dwo\0";
+            break;
+        case RTLDRFMT_PE:
+            pszzExts = ".map\0";
+            break;
+#endif
+#if 0 /* Haven't implemented .sym or .map file readers for OS/2 yet. */
+        case RTLDRFMT_LX:
+            pszzExts = ".sym\0.map\0";
+            break;
+#endif
+        default:
+            rc = VERR_NOT_IMPLEMENTED;
+            break;
+    }
+
+    NOREF(pszzExts);
+#if 0 /* Later */
+    if (pszzExts)
+    {
+
+    }
+#endif
+
+    LogFlow(("rtDbgModOpenDebugInfoExternalToImage2: rc=%Rrc\n", rc));
+    return VERR_NOT_FOUND;
+}
+
+
+RTDECL(int) RTDbgModCreateFromImage(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName,
+                                    RTLDRARCH enmArch, RTDBGCFG hDbgCfg)
+{
+    /*
+     * Input validation and lazy initialization.
+     */
+    AssertPtrReturn(phDbgMod, VERR_INVALID_POINTER);
+    *phDbgMod = NIL_RTDBGMOD;
+    AssertPtrReturn(pszFilename, VERR_INVALID_POINTER);
+    AssertReturn(*pszFilename, VERR_INVALID_PARAMETER);
+    AssertPtrNullReturn(pszName, VERR_INVALID_POINTER);
+    AssertReturn(enmArch > RTLDRARCH_INVALID && enmArch < RTLDRARCH_END, VERR_INVALID_PARAMETER);
+
+    int rc = rtDbgModLazyInit();
+    if (RT_FAILURE(rc))
+        return rc;
+
+    if (!pszName)
+        pszName = RTPathFilenameEx(pszFilename, RTPATH_STR_F_STYLE_DOS);
+
+    /*
+     * Allocate a new module instance.
+     */
+    PRTDBGMODINT pDbgMod = (PRTDBGMODINT)RTMemAllocZ(sizeof(*pDbgMod));
+    if (!pDbgMod)
+        return VERR_NO_MEMORY;
+    pDbgMod->u32Magic = RTDBGMOD_MAGIC;
+    pDbgMod->cRefs = 1;
+    rc = RTCritSectInit(&pDbgMod->CritSect);
+    if (RT_SUCCESS(rc))
+    {
+        pDbgMod->pszName = RTStrCacheEnterLower(g_hDbgModStrCache, pszName);
         if (pDbgMod->pszName)
         {
             pDbgMod->pszImgFile = RTStrCacheEnter(g_hDbgModStrCache, pszFilename);
             if (pDbgMod->pszImgFile)
             {
+                RTStrCacheRetain(pDbgMod->pszImgFile);
+                pDbgMod->pszImgFileSpecified = pDbgMod->pszImgFile;
+
                 /*
                  * Find an image reader which groks the file.
                  */
@@ -420,38 +827,40 @@ RTDECL(int) RTDbgModCreateFromImage(PRTDBGMOD phDbgMod, const char *pszFilename,
                     {
                         pDbgMod->pImgVt    = pImg->pVt;
                         pDbgMod->pvImgPriv = NULL;
-                        rc = pImg->pVt->pfnTryOpen(pDbgMod);
+                        /** @todo need to specify some arch stuff here. */
+                        rc = pImg->pVt->pfnTryOpen(pDbgMod, enmArch);
                         if (RT_SUCCESS(rc))
                         {
-                            /*
-                             * Find a debug info interpreter.
-                             */
-                            rc = VERR_DBG_NO_MATCHING_INTERPRETER;
-                            for (PRTDBGMODREGDBG pDbg = g_pDbgHead; pDbg; pDbg = pDbg->pNext)
-                            {
-                                pDbgMod->pDbgVt = pDbg->pVt;
-                                pDbgMod->pvDbgPriv = NULL;
-                                rc = pDbg->pVt->pfnTryOpen(pDbgMod);
-                                if (RT_SUCCESS(rc))
-                                {
-                                    /*
-                                     * That's it!
-                                     */
-                                    ASMAtomicIncU32(&pDbg->cUsers);
-                                    ASMAtomicIncU32(&pImg->cUsers);
-                                    RTSemRWReleaseRead(g_hDbgModRWSem);
-
-                                    *phDbgMod = pDbgMod;
-                                    return rc;
-                                }
-                            }
-
                             /*
                              * Image detected, but found no debug info we were
                              * able to understand.
                              */
-                            /** @todo Fall back on exported symbols! */
+                            /** @todo some generic way of matching image and debug info, flexible signature
+                             *        of some kind. Apple uses UUIDs, microsoft uses a UUID+age or a
+                             *        size+timestamp, and GNU a CRC32 (last time I checked). */
+                            rc = rtDbgModOpenDebugInfoExternalToImage(pDbgMod, hDbgCfg);
+                            if (RT_FAILURE(rc))
+                                rc = rtDbgModOpenDebugInfoInsideImage(pDbgMod);
+                            if (RT_FAILURE(rc))
+                                rc = rtDbgModOpenDebugInfoExternalToImage2(pDbgMod, hDbgCfg);
+                            if (RT_FAILURE(rc))
+                                rc = rtDbgModCreateForExports(pDbgMod);
+                            if (RT_SUCCESS(rc))
+                            {
+                                /*
+                                 * We're done!
+                                 */
+                                ASMAtomicIncU32(&pImg->cUsers);
+                                RTSemRWReleaseRead(g_hDbgModRWSem);
+
+                                *phDbgMod = pDbgMod;
+                                return VINF_SUCCESS;
+                            }
+
+                            /* Failed, close up the shop. */
                             pDbgMod->pImgVt->pfnClose(pDbgMod);
+                            pDbgMod->pImgVt = NULL;
+                            pDbgMod->pvImgPriv = NULL;
                             break;
                         }
                     }
@@ -470,7 +879,7 @@ RTDECL(int) RTDbgModCreateFromImage(PRTDBGMOD phDbgMod, const char *pszFilename,
                         {
                             pDbgMod->pDbgVt = pDbg->pVt;
                             pDbgMod->pvDbgPriv = NULL;
-                            rc = pDbg->pVt->pfnTryOpen(pDbgMod);
+                            rc = pDbg->pVt->pfnTryOpen(pDbgMod, enmArch);
                             if (RT_SUCCESS(rc))
                             {
                                 /*
@@ -491,10 +900,15 @@ RTDECL(int) RTDbgModCreateFromImage(PRTDBGMOD phDbgMod, const char *pszFilename,
                     /* bail out */
                     RTSemRWReleaseRead(g_hDbgModRWSem);
                 }
-                RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszName);
+                RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszImgFileSpecified);
+                RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszImgFile);
             }
-            RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszImgFile);
+            else
+                rc = VERR_NO_STR_MEMORY;
+            RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszName);
         }
+        else
+            rc = VERR_NO_STR_MEMORY;
         RTCritSectDelete(&pDbgMod->CritSect);
     }
 
@@ -504,8 +918,150 @@ RTDECL(int) RTDbgModCreateFromImage(PRTDBGMOD phDbgMod, const char *pszFilename,
 RT_EXPORT_SYMBOL(RTDbgModCreateFromImage);
 
 
-RTDECL(int) RTDbgModCreateFromMap(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName,
-                                  RTUINTPTR uSubtrahend, uint32_t fFlags)
+
+
+
+/*
+ *
+ *  P E   I M A G E
+ *  P E   I M A G E
+ *  P E   I M A G E
+ *
+ */
+
+
+
+/** @callback_method_impl{FNRTDBGCFGOPEN} */
+static DECLCALLBACK(int) rtDbgModFromPeImageOpenCallback(RTDBGCFG hDbgCfg, const char *pszFilename, void *pvUser1, void *pvUser2)
+{
+    PRTDBGMODINT        pDbgMod   = (PRTDBGMODINT)pvUser1;
+    PRTDBGMODDEFERRED   pDeferred = (PRTDBGMODDEFERRED)pvUser2;
+    LogFlow(("rtDbgModFromPeImageOpenCallback: %s\n", pszFilename));
+
+    Assert(pDbgMod->pImgVt == NULL);
+    Assert(pDbgMod->pvImgPriv == NULL);
+    Assert(pDbgMod->pDbgVt == NULL);
+    Assert(pDbgMod->pvDbgPriv == NULL);
+
+    /*
+     * Replace the image file name while probing it.
+     */
+    const char *pszNewImgFile = RTStrCacheEnter(g_hDbgModStrCache, pszFilename);
+    if (!pszNewImgFile)
+        return VERR_NO_STR_MEMORY;
+    const char *pszOldImgFile = pDbgMod->pszImgFile;
+    pDbgMod->pszImgFile = pszNewImgFile;
+
+    /*
+     * Find an image reader which groks the file.
+     */
+    int rc = RTSemRWRequestRead(g_hDbgModRWSem, RT_INDEFINITE_WAIT);
+    if (RT_SUCCESS(rc))
+    {
+        rc = VERR_DBG_NO_MATCHING_INTERPRETER;
+        PRTDBGMODREGIMG pImg;
+        for (pImg = g_pImgHead; pImg; pImg = pImg->pNext)
+        {
+            pDbgMod->pImgVt    = pImg->pVt;
+            pDbgMod->pvImgPriv = NULL;
+            rc = pImg->pVt->pfnTryOpen(pDbgMod, RTLDRARCH_WHATEVER);
+            if (RT_SUCCESS(rc))
+                break;
+            pDbgMod->pImgVt    = NULL;
+            Assert(pDbgMod->pvImgPriv == NULL);
+        }
+        RTSemRWReleaseRead(g_hDbgModRWSem);
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Check the deferred info.
+             */
+            RTUINTPTR cbImage = pDbgMod->pImgVt->pfnImageSize(pDbgMod);
+            if (   pDeferred->cbImage == 0
+                || pDeferred->cbImage == cbImage)
+            {
+                uint32_t uTimestamp = pDeferred->u.PeImage.uTimestamp; /** @todo add method for getting the timestamp. */
+                if (   pDeferred->u.PeImage.uTimestamp == 0
+                    || pDeferred->u.PeImage.uTimestamp == uTimestamp)
+                {
+                    Log(("RTDbgMod: Found matching PE image '%s'\n", pszFilename));
+
+                    /*
+                     * We found the executable image we need, now go find any
+                     * debug info associated with it.  For PE images, this is
+                     * generally found in an external file, so we do a sweep
+                     * for that first.
+                     *
+                     * Then try open debug inside the module, and finally
+                     * falling back on exports.
+                     */
+                    rc = rtDbgModOpenDebugInfoExternalToImage(pDbgMod, pDeferred->hDbgCfg);
+                    if (RT_FAILURE(rc))
+                        rc = rtDbgModOpenDebugInfoInsideImage(pDbgMod);
+                    if (RT_FAILURE(rc))
+                        rc = rtDbgModCreateForExports(pDbgMod);
+                    if (RT_SUCCESS(rc))
+                    {
+                        RTStrCacheRelease(g_hDbgModStrCache, pszOldImgFile);
+                        return VINF_CALLBACK_RETURN;
+                    }
+
+                    /* Something bad happened, just give up. */
+                    Log(("rtDbgModFromPeImageOpenCallback: rtDbgModCreateForExports failed: %Rrc\n", rc));
+                }
+                else
+                {
+                    LogFlow(("rtDbgModFromPeImageOpenCallback: uTimestamp mismatch (found %#x, expected %#x) - %s\n",
+                             uTimestamp, pDeferred->u.PeImage.uTimestamp, pszFilename));
+                    rc = VERR_DBG_FILE_MISMATCH;
+                }
+            }
+            else
+            {
+                LogFlow(("rtDbgModFromPeImageOpenCallback: cbImage mismatch (found %#x, expected %#x) - %s\n",
+                         cbImage, pDeferred->cbImage, pszFilename));
+                rc = VERR_DBG_FILE_MISMATCH;
+            }
+
+            pDbgMod->pImgVt->pfnClose(pDbgMod);
+            pDbgMod->pImgVt    = NULL;
+            pDbgMod->pvImgPriv = NULL;
+        }
+        else
+            LogFlow(("rtDbgModFromPeImageOpenCallback: Failed %Rrc - %s\n", rc, pszFilename));
+    }
+
+    /* Restore image name. */
+    pDbgMod->pszImgFile = pszOldImgFile;
+    RTStrCacheRelease(g_hDbgModStrCache, pszNewImgFile);
+    return rc;
+}
+
+
+/** @callback_method_impl{FNRTDBGMODDEFERRED}  */
+static DECLCALLBACK(int) rtDbgModFromPeImageDeferredCallback(PRTDBGMODINT pDbgMod, PRTDBGMODDEFERRED pDeferred)
+{
+    int rc;
+
+    Assert(pDbgMod->pszImgFile);
+    if (!pDbgMod->pImgVt)
+        rc = RTDbgCfgOpenPeImage(pDeferred->hDbgCfg, pDbgMod->pszImgFile,
+                                 pDeferred->cbImage, pDeferred->u.PeImage.uTimestamp,
+                                 rtDbgModFromPeImageOpenCallback, pDbgMod, pDeferred);
+    else
+    {
+        rc = rtDbgModOpenDebugInfoExternalToImage(pDbgMod, pDeferred->hDbgCfg);
+        if (RT_FAILURE(rc))
+            rc = rtDbgModOpenDebugInfoInsideImage(pDbgMod);
+        if (RT_FAILURE(rc))
+            rc = rtDbgModCreateForExports(pDbgMod);
+    }
+    return rc;
+}
+
+
+RTDECL(int) RTDbgModCreateFromPeImage(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, RTLDRMOD hLdrMod,
+                                      uint32_t cbImage, uint32_t uTimestamp, RTDBGCFG hDbgCfg)
 {
     /*
      * Input validation and lazy initialization.
@@ -514,16 +1070,21 @@ RTDECL(int) RTDbgModCreateFromMap(PRTDBGMOD phDbgMod, const char *pszFilename, c
     *phDbgMod = NIL_RTDBGMOD;
     AssertPtrReturn(pszFilename, VERR_INVALID_POINTER);
     AssertReturn(*pszFilename, VERR_INVALID_PARAMETER);
-    AssertPtrNullReturn(pszName, VERR_INVALID_POINTER);
-    AssertReturn(fFlags == 0, VERR_INVALID_PARAMETER);
-    AssertReturn(uSubtrahend == 0, VERR_NOT_IMPLEMENTED); /** @todo implement uSubtrahend. */
+    if (!pszName)
+        pszName = RTPathFilenameEx(pszFilename, RTPATH_STR_F_STYLE_DOS);
+    AssertPtrReturn(pszName, VERR_INVALID_POINTER);
+    AssertReturn(hLdrMod == NIL_RTLDRMOD || RTLdrSize(hLdrMod) != ~(size_t)0, VERR_INVALID_HANDLE);
 
     int rc = rtDbgModLazyInit();
     if (RT_FAILURE(rc))
         return rc;
 
-    if (!pszName)
-        pszName = RTPathFilename(pszFilename);
+    uint64_t fDbgCfg = 0;
+    if (hDbgCfg)
+    {
+        rc = RTDbgCfgQueryUInt(hDbgCfg, RTDBGCFGPROP_FLAGS, &fDbgCfg);
+        AssertRCReturn(rc, rc);
+    }
 
     /*
      * Allocate a new module instance.
@@ -536,51 +1097,76 @@ RTDECL(int) RTDbgModCreateFromMap(PRTDBGMOD phDbgMod, const char *pszFilename, c
     rc = RTCritSectInit(&pDbgMod->CritSect);
     if (RT_SUCCESS(rc))
     {
-        pDbgMod->pszName = RTStrCacheEnter(g_hDbgModStrCache, pszName);
+        pDbgMod->pszName = RTStrCacheEnterLower(g_hDbgModStrCache, pszName);
         if (pDbgMod->pszName)
         {
-            pDbgMod->pszDbgFile = RTStrCacheEnter(g_hDbgModStrCache, pszFilename);
-            if (pDbgMod->pszDbgFile)
+            pDbgMod->pszImgFile = RTStrCacheEnter(g_hDbgModStrCache, pszFilename);
+            if (pDbgMod->pszImgFile)
             {
+                RTStrCacheRetain(pDbgMod->pszImgFile);
+                pDbgMod->pszImgFileSpecified = pDbgMod->pszImgFile;
+
                 /*
-                 * Try the map file readers.
+                 * If we have a loader module, we must instantiate the loader
+                 * side of things regardless of the deferred setting.
                  */
-                rc = RTSemRWRequestRead(g_hDbgModRWSem, RT_INDEFINITE_WAIT);
+                if (hLdrMod != NIL_RTLDRMOD)
+                {
+                    if (!cbImage)
+                        cbImage = (uint32_t)RTLdrSize(hLdrMod);
+                    pDbgMod->pImgVt = &g_rtDbgModVtImgLdr;
+
+                    rc = rtDbgModLdrOpenFromHandle(pDbgMod, hLdrMod);
+                }
                 if (RT_SUCCESS(rc))
                 {
-                    rc = VERR_DBG_NO_MATCHING_INTERPRETER;
-                    for (PRTDBGMODREGDBG pCur = g_pDbgHead; pCur; pCur = pCur->pNext)
+                    /*
+                     * Do it now or procrastinate?
+                     */
+                    if (!(fDbgCfg & RTDBGCFG_FLAGS_DEFERRED) || !cbImage)
                     {
-                        if (pCur->pVt->fSupports & RT_DBGTYPE_MAP)
-                        {
-                            pDbgMod->pDbgVt = pCur->pVt;
-                            pDbgMod->pvDbgPriv = NULL;
-                            rc = pCur->pVt->pfnTryOpen(pDbgMod);
-                            if (RT_SUCCESS(rc))
-                            {
-                                ASMAtomicIncU32(&pCur->cUsers);
-                                RTSemRWReleaseRead(g_hDbgModRWSem);
-
-                                *phDbgMod = pDbgMod;
-                                return rc;
-                            }
-                        }
+                        RTDBGMODDEFERRED Deferred;
+                        Deferred.cbImage = cbImage;
+                        Deferred.hDbgCfg = hDbgCfg;
+                        Deferred.u.PeImage.uTimestamp = uTimestamp;
+                        rc = rtDbgModFromPeImageDeferredCallback(pDbgMod, &Deferred);
+                    }
+                    else
+                    {
+                        PRTDBGMODDEFERRED pDeferred;
+                        rc = rtDbgModDeferredCreate(pDbgMod, rtDbgModFromPeImageDeferredCallback, cbImage, hDbgCfg, &pDeferred);
+                        if (RT_SUCCESS(rc))
+                            pDeferred->u.PeImage.uTimestamp = uTimestamp;
+                    }
+                    if (RT_SUCCESS(rc))
+                    {
+                        *phDbgMod = pDbgMod;
+                        return VINF_SUCCESS;
                     }
 
-                    /* bail out */
-                    RTSemRWReleaseRead(g_hDbgModRWSem);
+                    /* Failed, bail out. */
+                    if (hLdrMod != NIL_RTLDRMOD)
+                    {
+                        Assert(pDbgMod->pImgVt);
+                        pDbgMod->pImgVt->pfnClose(pDbgMod);
+                    }
                 }
                 RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszName);
             }
-            RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszDbgFile);
+            else
+                rc = VERR_NO_STR_MEMORY;
+            RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszImgFileSpecified);
+            RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszImgFile);
         }
+        else
+            rc = VERR_NO_STR_MEMORY;
         RTCritSectDelete(&pDbgMod->CritSect);
     }
 
     RTMemFree(pDbgMod);
     return rc;
 }
-RT_EXPORT_SYMBOL(RTDbgModCreateFromMap);
+RT_EXPORT_SYMBOL(RTDbgModCreateFromPeImage);
 
 
 /**
@@ -615,6 +1201,7 @@ static void rtDbgModDestroy(PRTDBGMODINT pDbgMod)
     ASMAtomicWriteU32(&pDbgMod->u32Magic, ~RTDBGMOD_MAGIC);
     RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszName);
     RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszImgFile);
+    RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszImgFileSpecified);
     RTStrCacheRelease(g_hDbgModStrCache, pDbgMod->pszDbgFile);
     RTCritSectLeave(&pDbgMod->CritSect); /* paranoia  */
     RTCritSectDelete(&pDbgMod->CritSect);
@@ -622,15 +1209,6 @@ static void rtDbgModDestroy(PRTDBGMODINT pDbgMod)
 }
 
 
-/**
- * Retains another reference to the module.
- *
- * @returns New reference count, UINT32_MAX on invalid handle (asserted).
- *
- * @param   hDbgMod         The module handle.
- *
- * @remarks Will not take any locks.
- */
 RTDECL(uint32_t) RTDbgModRetain(RTDBGMOD hDbgMod)
 {
     PRTDBGMODINT pDbgMod = hDbgMod;
@@ -640,18 +1218,6 @@ RTDECL(uint32_t) RTDbgModRetain(RTDBGMOD hDbgMod)
 RT_EXPORT_SYMBOL(RTDbgModRetain);
 
 
-/**
- * Release a reference to the module.
- *
- * When the reference count reaches zero, the module is destroyed.
- *
- * @returns New reference count, UINT32_MAX on invalid handle (asserted).
- *
- * @param   hDbgMod         The module handle. The NIL handle is quietly ignored
- *                          and 0 is returned.
- *
- * @remarks Will not take any locks.
- */
 RTDECL(uint32_t) RTDbgModRelease(RTDBGMOD hDbgMod)
 {
     if (hDbgMod == NIL_RTDBGMOD)
@@ -667,13 +1233,6 @@ RTDECL(uint32_t) RTDbgModRelease(RTDBGMOD hDbgMod)
 RT_EXPORT_SYMBOL(RTDbgModRelease);
 
 
-/**
- * Gets the module name.
- *
- * @returns Pointer to a read only string containing the name.
- *
- * @param   hDbgMod         The module handle.
- */
 RTDECL(const char *) RTDbgModName(RTDBGMOD hDbgMod)
 {
     PRTDBGMODINT pDbgMod = hDbgMod;
@@ -683,17 +1242,79 @@ RTDECL(const char *) RTDbgModName(RTDBGMOD hDbgMod)
 RT_EXPORT_SYMBOL(RTDbgModName);
 
 
-/**
- * Converts an image relative address to a segment:offset address.
- *
- * @returns Segment index on success.
- *          NIL_RTDBGSEGIDX is returned if the module handle or the RVA are
- *          invalid.
- *
- * @param   hDbgMod         The module handle.
- * @param   uRva            The image relative address to convert.
- * @param   poffSeg         Where to return the segment offset. Optional.
- */
+RTDECL(const char *) RTDbgModDebugFile(RTDBGMOD hDbgMod)
+{
+    PRTDBGMODINT pDbgMod = hDbgMod;
+    RTDBGMOD_VALID_RETURN_RC(pDbgMod, NULL);
+    if (pDbgMod->fDeferred || pDbgMod->fExports)
+        return NULL;
+    return pDbgMod->pszDbgFile;
+}
+RT_EXPORT_SYMBOL(RTDbgModDebugFile);
+
+
+RTDECL(const char *) RTDbgModImageFile(RTDBGMOD hDbgMod)
+{
+    PRTDBGMODINT pDbgMod = hDbgMod;
+    RTDBGMOD_VALID_RETURN_RC(pDbgMod, NULL);
+    return pDbgMod->pszImgFileSpecified;
+}
+RT_EXPORT_SYMBOL(RTDbgModImageFile);
+
+
+RTDECL(const char *) RTDbgModImageFileUsed(RTDBGMOD hDbgMod)
+{
+    PRTDBGMODINT pDbgMod = hDbgMod;
+    RTDBGMOD_VALID_RETURN_RC(pDbgMod, NULL);
+    return pDbgMod->pszImgFile == pDbgMod->pszImgFileSpecified ? NULL : pDbgMod->pszImgFile;
+}
+RT_EXPORT_SYMBOL(RTDbgModImageFileUsed);
+
+
+RTDECL(bool) RTDbgModIsDeferred(RTDBGMOD hDbgMod)
+{
+    PRTDBGMODINT pDbgMod = hDbgMod;
+    RTDBGMOD_VALID_RETURN_RC(pDbgMod, false);
+    return pDbgMod->fDeferred;
+}
+
+
+RTDECL(bool) RTDbgModIsExports(RTDBGMOD hDbgMod)
+{
+    PRTDBGMODINT pDbgMod = hDbgMod;
+    RTDBGMOD_VALID_RETURN_RC(pDbgMod, false);
+    return pDbgMod->fExports;
+}
+
+
+RTDECL(int) RTDbgModRemoveAll(RTDBGMOD hDbgMod, bool fLeaveSegments)
+{
+    PRTDBGMODINT pDbgMod = hDbgMod;
+    RTDBGMOD_VALID_RETURN_RC(pDbgMod, VERR_INVALID_HANDLE);
+
+    RTDBGMOD_LOCK(pDbgMod);
+
+    /* Only possible on container modules. */
+    int rc = VINF_SUCCESS;
+    if (pDbgMod->pDbgVt != &g_rtDbgModVtDbgContainer)
+    {
+        if (fLeaveSegments)
+        {
+            rc = rtDbgModContainer_LineRemoveAll(pDbgMod);
+            if (RT_SUCCESS(rc))
+                rc = rtDbgModContainer_SymbolRemoveAll(pDbgMod);
+        }
+        else
+            rc = rtDbgModContainer_RemoveAll(pDbgMod);
+    }
+    else
+        rc = VERR_ACCESS_DENIED;
+
+    RTDBGMOD_UNLOCK(pDbgMod);
+    return rc;
+}
+
+
 RTDECL(RTDBGSEGIDX) RTDbgModRvaToSegOff(RTDBGMOD hDbgMod, RTUINTPTR uRva, PRTUINTPTR poffSeg)
 {
     PRTDBGMODINT pDbgMod = hDbgMod;
@@ -708,17 +1329,6 @@ RTDECL(RTDBGSEGIDX) RTDbgModRvaToSegOff(RTDBGMOD hDbgMod, RTUINTPTR uRva, PRTUIN
 RT_EXPORT_SYMBOL(RTDbgModRvaToSegOff);
 
 
-/**
- * Image size when mapped if segments are mapped adjacently.
- *
- * For ELF, PE, and Mach-O images this is (usually) a natural query, for LX and
- * NE and such it's a bit odder and the answer may not make much sense for them.
- *
- * @returns Image mapped size.
- *          RTUINTPTR_MAX is returned if the handle is invalid.
- *
- * @param   hDbgMod         The module handle.
- */
 RTDECL(RTUINTPTR) RTDbgModImageSize(RTDBGMOD hDbgMod)
 {
     PRTDBGMODINT pDbgMod = hDbgMod;
@@ -733,13 +1343,6 @@ RTDECL(RTUINTPTR) RTDbgModImageSize(RTDBGMOD hDbgMod)
 RT_EXPORT_SYMBOL(RTDbgModImageSize);
 
 
-/**
- * Gets the module tag value if any.
- *
- * @returns The tag. 0 if hDbgMod is invalid.
- *
- * @param   hDbgMod         The module handle.
- */
 RTDECL(uint64_t) RTDbgModGetTag(RTDBGMOD hDbgMod)
 {
     PRTDBGMODINT pDbgMod = hDbgMod;
@@ -749,19 +1352,6 @@ RTDECL(uint64_t) RTDbgModGetTag(RTDBGMOD hDbgMod)
 RT_EXPORT_SYMBOL(RTDbgModGetTag);
 
 
-/**
- * Tags or untags the module.
- *
- * @returns IPRT status code.
- * @retval  VERR_INVALID_HANDLE if hDbgMod is invalid.
- *
- * @param   hDbgMod         The module handle.
- * @param   uTag            The tag value.  The convention is that 0 is no tag
- *                          and any other value means it's tagged.  It's adviced
- *                          to use some kind of unique number like an address
- *                          (global or string cache for instance) to avoid
- *                          collisions with other users
- */
 RTDECL(int) RTDbgModSetTag(RTDBGMOD hDbgMod, uint64_t uTag)
 {
     PRTDBGMODINT pDbgMod = hDbgMod;
@@ -776,35 +1366,6 @@ RTDECL(int) RTDbgModSetTag(RTDBGMOD hDbgMod, uint64_t uTag)
 RT_EXPORT_SYMBOL(RTDbgModSetTag);
 
 
-/**
- * Adds a segment to the module. Optional feature.
- *
- * This method is intended used for manually constructing debug info for a
- * module. The main usage is from other debug info interpreters that want to
- * avoid writing a debug info database and instead uses the standard container
- * behind the scenes.
- *
- * @returns IPRT status code.
- * @retval  VERR_NOT_SUPPORTED if this feature isn't support by the debug info
- *          interpreter. This is a common return code.
- * @retval  VERR_INVALID_HANDLE if hDbgMod is invalid.
- * @retval  VERR_DBG_ADDRESS_WRAP if uRva+cb wraps around.
- * @retval  VERR_DBG_SEGMENT_NAME_OUT_OF_RANGE if pszName is too short or long.
- * @retval  VERR_INVALID_PARAMETER if fFlags contains undefined flags.
- * @retval  VERR_DBG_SPECIAL_SEGMENT if *piSeg is a special segment.
- * @retval  VERR_DBG_INVALID_SEGMENT_INDEX if *piSeg doesn't meet expectations.
- *
- * @param   hDbgMod             The module handle.
- * @param   uRva                The image relative address of the segment.
- * @param   cb                  The size of the segment.
- * @param   pszName             The segment name. Does not normally need to be
- *                              unique, although this is somewhat up to the
- *                              debug interpreter to decide.
- * @param   fFlags              Segment flags. Reserved for future used, MBZ.
- * @param   piSeg               The segment index or NIL_RTDBGSEGIDX on input.
- *                              The assigned segment index on successful return.
- *                              Optional.
- */
 RTDECL(int) RTDbgModSegmentAdd(RTDBGMOD hDbgMod, RTUINTPTR uRva, RTUINTPTR cb, const char *pszName,
                                uint32_t fFlags, PRTDBGSEGIDX piSeg)
 {
@@ -835,17 +1396,6 @@ RTDECL(int) RTDbgModSegmentAdd(RTDBGMOD hDbgMod, RTUINTPTR uRva, RTUINTPTR cb, c
 RT_EXPORT_SYMBOL(RTDbgModSegmentAdd);
 
 
-/**
- * Gets the number of segments in the module.
- *
- * This is can be used to determine the range which can be passed to
- * RTDbgModSegmentByIndex and derivatives.
- *
- * @returns The segment relative address.
- *          NIL_RTDBGSEGIDX if the handle is invalid.
- *
- * @param   hDbgMod         The module handle.
- */
 RTDECL(RTDBGSEGIDX) RTDbgModSegmentCount(RTDBGMOD hDbgMod)
 {
     PRTDBGMODINT pDbgMod = hDbgMod;
@@ -860,23 +1410,6 @@ RTDECL(RTDBGSEGIDX) RTDbgModSegmentCount(RTDBGMOD hDbgMod)
 RT_EXPORT_SYMBOL(RTDbgModSegmentCount);
 
 
-/**
- * Query information about a segment.
- *
- * This can be used together with RTDbgModSegmentCount to enumerate segments.
- * The index starts a 0 and stops one below RTDbgModSegmentCount.
- *
- * @returns IPRT status code.
- * @retval  VERR_DBG_INVALID_SEGMENT_INDEX if iSeg is too high.
- * @retval  VERR_DBG_SPECIAL_SEGMENT if iSeg indicates a special segment.
- * @retval  VERR_INVALID_HANDLE if hDbgMod is invalid.
- *
- * @param   hDbgMod         The module handle.
- * @param   iSeg            The segment index. No special segments.
- * @param   pSegInfo        Where to return the segment info. The
- *                          RTDBGSEGMENT::Address member will be set to
- *                          RTUINTPTR_MAX or the load address used at link time.
- */
 RTDECL(int) RTDbgModSegmentByIndex(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, PRTDBGSEGMENT pSegInfo)
 {
     AssertMsgReturn(iSeg <= RTDBGSEGIDX_LAST, ("%#x\n", iSeg), VERR_DBG_SPECIAL_SEGMENT);
@@ -892,20 +1425,6 @@ RTDECL(int) RTDbgModSegmentByIndex(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, PRTDBGSEG
 RT_EXPORT_SYMBOL(RTDbgModSegmentByIndex);
 
 
-/**
- * Gets the size of a segment.
- *
- * This is a just a wrapper around RTDbgModSegmentByIndex.
- *
- * @returns The segment size.
- *          RTUINTPTR_MAX is returned if either the handle and segment index are
- *          invalid.
- *
- * @param   hDbgMod         The module handle.
- * @param   iSeg            The segment index. RTDBGSEGIDX_ABS is not allowed.
- *                          If RTDBGSEGIDX_RVA is used, the functions returns
- *                          the same value as RTDbgModImageSize.
- */
 RTDECL(RTUINTPTR) RTDbgModSegmentSize(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg)
 {
     if (iSeg == RTDBGSEGIDX_RVA)
@@ -917,19 +1436,6 @@ RTDECL(RTUINTPTR) RTDbgModSegmentSize(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg)
 RT_EXPORT_SYMBOL(RTDbgModSegmentSize);
 
 
-/**
- * Gets the image relative address of a segment.
- *
- * This is a just a wrapper around RTDbgModSegmentByIndex.
- *
- * @returns The segment relative address.
- *          RTUINTPTR_MAX is returned if either the handle and segment index are
- *          invalid.
- *
- * @param   hDbgMod         The module handle.
- * @param   iSeg            The segment index. No special segment indexes
- *                          allowed (asserted).
- */
 RTDECL(RTUINTPTR) RTDbgModSegmentRva(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg)
 {
     RTDBGSEGMENT SegInfo;
@@ -939,34 +1445,6 @@ RTDECL(RTUINTPTR) RTDbgModSegmentRva(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg)
 RT_EXPORT_SYMBOL(RTDbgModSegmentRva);
 
 
-/**
- * Adds a line number to the module.
- *
- * @returns IPRT status code.
- * @retval  VERR_NOT_SUPPORTED if the module interpret doesn't support adding
- *          custom symbols. This is a common place occurrence.
- * @retval  VERR_INVALID_HANDLE if hDbgMod is invalid.
- * @retval  VERR_DBG_SYMBOL_NAME_OUT_OF_RANGE if the symbol name is too long or
- *          short.
- * @retval  VERR_DBG_INVALID_RVA if an image relative address is specified and
- *          it's not inside any of the segments defined by the module.
- * @retval  VERR_DBG_INVALID_SEGMENT_INDEX if the segment index isn't valid.
- * @retval  VERR_DBG_INVALID_SEGMENT_OFFSET if the segment offset is beyond the
- *          end of the segment.
- * @retval  VERR_DBG_ADDRESS_WRAP if off+cb wraps around.
- * @retval  VERR_INVALID_PARAMETER if the symbol flags sets undefined bits.
- *
- * @param   hDbgMod         The module handle.
- * @param   pszSymbol       The symbol name.
- * @param   iSeg            The segment index.
- * @param   off             The segment offset.
- * @param   cb              The size of the symbol. Can be zero, although this
- *                          may depend somewhat on the debug interpreter.
- * @param   fFlags          Symbol flags. Reserved for the future, MBZ.
- * @param   piOrdinal       Where to return the symbol ordinal on success. If
- *                          the interpreter doesn't do ordinals, this will be set to
- *                          UINT32_MAX. Optional.
- */
 RTDECL(int) RTDbgModSymbolAdd(RTDBGMOD hDbgMod, const char *pszSymbol, RTDBGSEGIDX iSeg, RTUINTPTR off,
                               RTUINTPTR cb, uint32_t fFlags, uint32_t *piOrdinal)
 {
@@ -1013,18 +1491,6 @@ RTDECL(int) RTDbgModSymbolAdd(RTDBGMOD hDbgMod, const char *pszSymbol, RTDBGSEGI
 RT_EXPORT_SYMBOL(RTDbgModSymbolAdd);
 
 
-/**
- * Gets the symbol count.
- *
- * This can be used together wtih RTDbgModSymbolByOrdinal or
- * RTDbgModSymbolByOrdinalA to enumerate all the symbols.
- *
- * @returns The number of symbols in the module.
- *          UINT32_MAX is returned if the module handle is invalid or some other
- *          error occurs.
- *
- * @param   hDbgMod             The module handle.
- */
 RTDECL(uint32_t) RTDbgModSymbolCount(RTDBGMOD hDbgMod)
 {
     PRTDBGMODINT pDbgMod = hDbgMod;
@@ -1039,20 +1505,6 @@ RTDECL(uint32_t) RTDbgModSymbolCount(RTDBGMOD hDbgMod)
 RT_EXPORT_SYMBOL(RTDbgModSymbolCount);
 
 
-/**
- * Queries symbol information by ordinal number.
- *
- * @returns IPRT status code.
- * @retval  VERR_SYMBOL_NOT_FOUND if there is no symbol at the given number.
- * @retval  VERR_DBG_NO_SYMBOLS if there aren't any symbols.
- * @retval  VERR_INVALID_HANDLE if hDbgMod is invalid.
- * @retval  VERR_NOT_SUPPORTED if lookup by ordinal is not supported.
- *
- * @param   hDbgMod             The module handle.
- * @param   iOrdinal            The symbol ordinal number. 0-based. The highest
- *                              number is RTDbgModSymbolCount() - 1.
- * @param   pSymInfo            Where to store the symbol information.
- */
 RTDECL(int) RTDbgModSymbolByOrdinal(RTDBGMOD hDbgMod, uint32_t iOrdinal, PRTDBGSYMBOL pSymInfo)
 {
     PRTDBGMODINT pDbgMod = hDbgMod;
@@ -1067,22 +1519,6 @@ RTDECL(int) RTDbgModSymbolByOrdinal(RTDBGMOD hDbgMod, uint32_t iOrdinal, PRTDBGS
 RT_EXPORT_SYMBOL(RTDbgModSymbolByOrdinal);
 
 
-/**
- * Queries symbol information by ordinal number.
- *
- * @returns IPRT status code.
- * @retval  VERR_DBG_NO_SYMBOLS if there aren't any symbols.
- * @retval  VERR_NOT_SUPPORTED if lookup by ordinal is not supported.
- * @retval  VERR_SYMBOL_NOT_FOUND if there is no symbol at the given number.
- * @retval  VERR_NO_MEMORY if RTDbgSymbolAlloc fails.
- *
- * @param   hDbgMod             The module handle.
- * @param   iOrdinal            The symbol ordinal number. 0-based. The highest
- *                              number is RTDbgModSymbolCount() - 1.
- * @param   ppSymInfo           Where to store the pointer to the returned
- *                              symbol information. Always set. Free with
- *                              RTDbgSymbolFree.
- */
 RTDECL(int) RTDbgModSymbolByOrdinalA(RTDBGMOD hDbgMod, uint32_t iOrdinal, PRTDBGSYMBOL *ppSymInfo)
 {
     AssertPtr(ppSymInfo);
@@ -1103,33 +1539,6 @@ RTDECL(int) RTDbgModSymbolByOrdinalA(RTDBGMOD hDbgMod, uint32_t iOrdinal, PRTDBG
 RT_EXPORT_SYMBOL(RTDbgModSymbolByOrdinalA);
 
 
-/**
- * Queries symbol information by address.
- *
- * The returned symbol is what the debug info interpreter considers the symbol
- * most applicable to the specified address. This usually means a symbol with an
- * address equal or lower than the requested.
- *
- * @returns IPRT status code.
- * @retval  VERR_SYMBOL_NOT_FOUND if no suitable symbol was found.
- * @retval  VERR_DBG_NO_SYMBOLS if there aren't any symbols.
- * @retval  VERR_INVALID_HANDLE if hDbgMod is invalid.
- * @retval  VERR_DBG_INVALID_RVA if an image relative address is specified and
- *          it's not inside any of the segments defined by the module.
- * @retval  VERR_DBG_INVALID_SEGMENT_INDEX if the segment index isn't valid.
- * @retval  VERR_DBG_INVALID_SEGMENT_OFFSET if the segment offset is beyond the
- *          end of the segment.
- * @retval  VERR_INVALID_PARAMETER if incorrect flags.
- *
- * @param   hDbgMod             The module handle.
- * @param   iSeg                The segment number.
- * @param   off                 The offset into the segment.
- * @param   fFlags              Symbol search flags, see RTDBGSYMADDR_FLAGS_XXX.
- * @param   poffDisp            Where to store the distance between the
- *                              specified address and the returned symbol.
- *                              Optional.
- * @param   pSymInfo            Where to store the symbol information.
- */
 RTDECL(int) RTDbgModSymbolByAddr(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUINTPTR off, uint32_t fFlags,
                                  PRTINTPTR poffDisp, PRTDBGSYMBOL pSymInfo)
 {
@@ -1168,35 +1577,6 @@ RTDECL(int) RTDbgModSymbolByAddr(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUINTPTR o
 RT_EXPORT_SYMBOL(RTDbgModSymbolByAddr);
 
 
-/**
- * Queries symbol information by address.
- *
- * The returned symbol is what the debug info interpreter considers the symbol
- * most applicable to the specified address. This usually means a symbol with an
- * address equal or lower than the requested.
- *
- * @returns IPRT status code.
- * @retval  VERR_SYMBOL_NOT_FOUND if no suitable symbol was found.
- * @retval  VERR_DBG_NO_SYMBOLS if there aren't any symbols.
- * @retval  VERR_INVALID_HANDLE if hDbgMod is invalid.
- * @retval  VERR_DBG_INVALID_RVA if an image relative address is specified and
- *          it's not inside any of the segments defined by the module.
- * @retval  VERR_DBG_INVALID_SEGMENT_INDEX if the segment index isn't valid.
- * @retval  VERR_DBG_INVALID_SEGMENT_OFFSET if the segment offset is beyond the
- *          end of the segment.
- * @retval  VERR_NO_MEMORY if RTDbgSymbolAlloc fails.
- * @retval  VERR_INVALID_PARAMETER if incorrect flags.
- *
- * @param   hDbgMod             The module handle.
- * @param   iSeg                The segment index.
- * @param   off                 The offset into the segment.
- * @param   fFlags              Symbol search flags, see RTDBGSYMADDR_FLAGS_XXX.
- * @param   poffDisp            Where to store the distance between the
- *                              specified address and the returned symbol. Optional.
- * @param   ppSymInfo           Where to store the pointer to the returned
- *                              symbol information. Always set. Free with
- *                              RTDbgSymbolFree.
- */
 RTDECL(int) RTDbgModSymbolByAddrA(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUINTPTR off, uint32_t fFlags,
                                   PRTINTPTR poffDisp, PRTDBGSYMBOL *ppSymInfo)
 {
@@ -1218,19 +1598,6 @@ RTDECL(int) RTDbgModSymbolByAddrA(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUINTPTR 
 RT_EXPORT_SYMBOL(RTDbgModSymbolByAddrA);
 
 
-/**
- * Queries symbol information by symbol name.
- *
- * @returns IPRT status code.
- * @retval  VERR_DBG_NO_SYMBOLS if there aren't any symbols.
- * @retval  VERR_SYMBOL_NOT_FOUND if no suitable symbol was found.
- * @retval  VERR_DBG_SYMBOL_NAME_OUT_OF_RANGE if the symbol name is too long or
- *          short.
- *
- * @param   hDbgMod             The module handle.
- * @param   pszSymbol           The symbol name.
- * @param   pSymInfo            Where to store the symbol information.
- */
 RTDECL(int) RTDbgModSymbolByName(RTDBGMOD hDbgMod, const char *pszSymbol, PRTDBGSYMBOL pSymInfo)
 {
     /*
@@ -1256,22 +1623,6 @@ RTDECL(int) RTDbgModSymbolByName(RTDBGMOD hDbgMod, const char *pszSymbol, PRTDBG
 RT_EXPORT_SYMBOL(RTDbgModSymbolByName);
 
 
-/**
- * Queries symbol information by symbol name.
- *
- * @returns IPRT status code.
- * @retval  VERR_DBG_NO_SYMBOLS if there aren't any symbols.
- * @retval  VERR_SYMBOL_NOT_FOUND if no suitable symbol was found.
- * @retval  VERR_DBG_SYMBOL_NAME_OUT_OF_RANGE if the symbol name is too long or
- *          short.
- * @retval  VERR_NO_MEMORY if RTDbgSymbolAlloc fails.
- *
- * @param   hDbgMod             The module handle.
- * @param   pszSymbol           The symbol name.
- * @param   ppSymInfo           Where to store the pointer to the returned
- *                              symbol information. Always set. Free with
- *                              RTDbgSymbolFree.
- */
 RTDECL(int) RTDbgModSymbolByNameA(RTDBGMOD hDbgMod, const char *pszSymbol, PRTDBGSYMBOL *ppSymInfo)
 {
     AssertPtr(ppSymInfo);
@@ -1292,31 +1643,6 @@ RTDECL(int) RTDbgModSymbolByNameA(RTDBGMOD hDbgMod, const char *pszSymbol, PRTDB
 RT_EXPORT_SYMBOL(RTDbgModSymbolByNameA);
 
 
-/**
- * Adds a line number to the module.
- *
- * @returns IPRT status code.
- * @retval  VERR_NOT_SUPPORTED if the module interpret doesn't support adding
- *          custom symbols. This should be consider a normal response.
- * @retval  VERR_INVALID_HANDLE if hDbgMod is invalid.
- * @retval  VERR_DBG_FILE_NAME_OUT_OF_RANGE if the file name is too longer or
- *          empty.
- * @retval  VERR_DBG_INVALID_RVA if an image relative address is specified and
- *          it's not inside any of the segments defined by the module.
- * @retval  VERR_DBG_INVALID_SEGMENT_INDEX if the segment index isn't valid.
- * @retval  VERR_DBG_INVALID_SEGMENT_OFFSET if the segment offset is beyond the
- *          end of the segment.
- * @retval  VERR_INVALID_PARAMETER if the line number flags sets undefined bits.
- *
- * @param   hDbgMod             The module handle.
- * @param   pszFile             The file name.
- * @param   uLineNo             The line number.
- * @param   iSeg                The segment index.
- * @param   off                 The segment offset.
- * @param   piOrdinal           Where to return the line number ordinal on
- *                              success. If  the interpreter doesn't do ordinals,
- *                              this will be set to UINT32_MAX. Optional.
- */
 RTDECL(int) RTDbgModLineAdd(RTDBGMOD hDbgMod, const char *pszFile, uint32_t uLineNo,
                             RTDBGSEGIDX iSeg, RTUINTPTR off, uint32_t *piOrdinal)
 {
@@ -1361,18 +1687,6 @@ RTDECL(int) RTDbgModLineAdd(RTDBGMOD hDbgMod, const char *pszFile, uint32_t uLin
 RT_EXPORT_SYMBOL(RTDbgModLineAdd);
 
 
-/**
- * Gets the line number count.
- *
- * This can be used together wtih RTDbgModLineByOrdinal or RTDbgModSymbolByLineA
- * to enumerate all the line number information.
- *
- * @returns The number of line numbers in the module.
- *          UINT32_MAX is returned if the module handle is invalid or some other
- *          error occurs.
- *
- * @param   hDbgMod             The module handle.
- */
 RTDECL(uint32_t) RTDbgModLineCount(RTDBGMOD hDbgMod)
 {
     PRTDBGMODINT pDbgMod = hDbgMod;
@@ -1387,23 +1701,6 @@ RTDECL(uint32_t) RTDbgModLineCount(RTDBGMOD hDbgMod)
 RT_EXPORT_SYMBOL(RTDbgModLineCount);
 
 
-/**
- * Queries line number information by ordinal number.
- *
- * This can be used to enumerate the line numbers for the module. Use
- * RTDbgModLineCount() to figure the end of the ordinals.
- *
- * @returns IPRT status code.
- * @retval  VERR_DBG_NO_LINE_NUMBERS if there aren't any line numbers.
- * @retval  VERR_DBG_LINE_NOT_FOUND if there is no line number with that
- *          ordinal.
- * @retval  VERR_INVALID_HANDLE if hDbgMod is invalid.
-
- * @param   hDbgMod             The module handle.
- * @param   iOrdinal            The line number ordinal number.
- * @param   pLineInfo           Where to store the information about the line
- *                              number.
- */
 RTDECL(int) RTDbgModLineByOrdinal(RTDBGMOD hDbgMod, uint32_t iOrdinal, PRTDBGLINE pLineInfo)
 {
     PRTDBGMODINT pDbgMod = hDbgMod;
@@ -1418,25 +1715,6 @@ RTDECL(int) RTDbgModLineByOrdinal(RTDBGMOD hDbgMod, uint32_t iOrdinal, PRTDBGLIN
 RT_EXPORT_SYMBOL(RTDbgModLineByOrdinal);
 
 
-/**
- * Queries line number information by ordinal number.
- *
- * This can be used to enumerate the line numbers for the module. Use
- * RTDbgModLineCount() to figure the end of the ordinals.
- *
- * @returns IPRT status code.
- * @retval  VERR_DBG_NO_LINE_NUMBERS if there aren't any line numbers.
- * @retval  VERR_DBG_LINE_NOT_FOUND if there is no line number with that
- *          ordinal.
- * @retval  VERR_INVALID_HANDLE if hDbgMod is invalid.
- * @retval  VERR_NO_MEMORY if RTDbgLineAlloc fails.
- *
- * @param   hDbgMod             The module handle.
- * @param   iOrdinal            The line number ordinal number.
- * @param   ppLineInfo          Where to store the pointer to the returned line
- *                              number information. Always set. Free with
- *                              RTDbgLineFree.
- */
 RTDECL(int) RTDbgModLineByOrdinalA(RTDBGMOD hDbgMod, uint32_t iOrdinal, PRTDBGLINE *ppLineInfo)
 {
     AssertPtr(ppLineInfo);
@@ -1457,31 +1735,6 @@ RTDECL(int) RTDbgModLineByOrdinalA(RTDBGMOD hDbgMod, uint32_t iOrdinal, PRTDBGLI
 RT_EXPORT_SYMBOL(RTDbgModLineByOrdinalA);
 
 
-/**
- * Queries line number information by address.
- *
- * The returned line number is what the debug info interpreter considers the
- * one most applicable to the specified address. This usually means a line
- * number with an address equal or lower than the requested.
- *
- * @returns IPRT status code.
- * @retval  VERR_DBG_NO_LINE_NUMBERS if there aren't any line numbers.
- * @retval  VERR_DBG_LINE_NOT_FOUND if no suitable line number was found.
- * @retval  VERR_INVALID_HANDLE if hDbgMod is invalid.
- * @retval  VERR_DBG_INVALID_RVA if an image relative address is specified and
- *          it's not inside any of the segments defined by the module.
- * @retval  VERR_DBG_INVALID_SEGMENT_INDEX if the segment index isn't valid.
- * @retval  VERR_DBG_INVALID_SEGMENT_OFFSET if the segment offset is beyond the
- *          end of the segment.
- *
- * @param   hDbgMod             The module handle.
- * @param   iSeg                The segment number.
- * @param   off                 The offset into the segment.
- * @param   poffDisp            Where to store the distance between the
- *                              specified address and the returned symbol.
- *                              Optional.
- * @param   pLineInfo           Where to store the line number information.
- */
 RTDECL(int) RTDbgModLineByAddr(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUINTPTR off, PRTINTPTR poffDisp, PRTDBGLINE pLineInfo)
 {
     /*
@@ -1515,34 +1768,6 @@ RTDECL(int) RTDbgModLineByAddr(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUINTPTR off
 RT_EXPORT_SYMBOL(RTDbgModLineByAddr);
 
 
-/**
- * Queries line number information by address.
- *
- * The returned line number is what the debug info interpreter considers the
- * one most applicable to the specified address. This usually means a line
- * number with an address equal or lower than the requested.
- *
- * @returns IPRT status code.
- * @retval  VERR_DBG_NO_LINE_NUMBERS if there aren't any line numbers.
- * @retval  VERR_DBG_LINE_NOT_FOUND if no suitable line number was found.
- * @retval  VERR_INVALID_HANDLE if hDbgMod is invalid.
- * @retval  VERR_DBG_INVALID_RVA if an image relative address is specified and
- *          it's not inside any of the segments defined by the module.
- * @retval  VERR_DBG_INVALID_SEGMENT_INDEX if the segment index isn't valid.
- * @retval  VERR_DBG_INVALID_SEGMENT_OFFSET if the segment offset is beyond the
- *          end of the segment.
- * @retval  VERR_NO_MEMORY if RTDbgLineAlloc fails.
- *
- * @param   hDbgMod             The module handle.
- * @param   iSeg                The segment number.
- * @param   off                 The offset into the segment.
- * @param   poffDisp            Where to store the distance between the
- *                              specified address and the returned symbol.
- *                              Optional.
- * @param   ppLineInfo          Where to store the pointer to the returned line
- *                              number information. Always set. Free with
- *                              RTDbgLineFree.
- */
 RTDECL(int) RTDbgModLineByAddrA(RTDBGMOD hDbgMod, RTDBGSEGIDX iSeg, RTUINTPTR off, PRTINTPTR poffDisp, PRTDBGLINE *ppLineInfo)
 {
     AssertPtr(ppLineInfo);

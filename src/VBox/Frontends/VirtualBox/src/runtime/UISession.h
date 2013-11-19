@@ -23,6 +23,7 @@
 #include <QObject>
 #include <QCursor>
 #include <QEvent>
+#include <QMap>
 
 /* GUI includes: */
 #include "UIDefs.h"
@@ -86,20 +87,27 @@ public:
     UISession(UIMachine *pMachine, CSession &session);
     virtual ~UISession();
 
-    /* Common members: */
+    /* API: Runtime UI stuff: */
     void powerUp();
-    bool save();
+    bool saveState();
     bool shutdown();
-    bool powerOff(bool fDiscardState, bool &fServerCrashed);
+    bool powerOff(bool fIncludingDiscard, bool &fServerCrashed);
+    void closeRuntimeUI();
 
     /* Common getters: */
     CSession& session() { return m_session; }
+    KMachineState machineStatePrevious() const { return m_machineStatePrevious; }
     KMachineState machineState() const { return m_machineState; }
     UIMachineLogic* machineLogic() const;
     QWidget* mainMachineWindow() const;
     QMenu* newMenu(RuntimeMenuType fOptions = RuntimeMenuType_All);
     QMenuBar* newMenuBar(RuntimeMenuType fOptions = RuntimeMenuType_All);
     QCursor cursor() const { return m_cursor; }
+
+    /* API: Visual-state stuff: */
+    bool isVisualStateAllowedFullscreen() const;
+    bool isVisualStateAllowedSeamless() const;
+    bool isVisualStateAllowedScale() const;
 
     bool isSaved() const { return machineState() == KMachineState_Saved; }
     bool isTurnedOff() const { return machineState() == KMachineState_PoweredOff ||
@@ -112,6 +120,8 @@ public:
                                     machineState() == KMachineState_Teleporting ||
                                     machineState() == KMachineState_LiveSnapshotting; }
     bool isStuck() const { return machineState() == KMachineState_Stuck; }
+    bool wasPaused() const { return machineStatePrevious() == KMachineState_Paused ||
+                                    machineStatePrevious() == KMachineState_TeleportingPausedVM; }
     bool isFirstTimeStarted() const { return m_fIsFirstTimeStarted; }
     bool isIgnoreRuntimeMediumsChanging() const { return m_fIsIgnoreRuntimeMediumsChanging; }
     bool isGuestResizeIgnored() const { return m_fIsGuestResizeIgnored; }
@@ -133,6 +143,7 @@ public:
     /* Mouse getters: */
     bool isMouseSupportsAbsolute() const { return m_fIsMouseSupportsAbsolute; }
     bool isMouseSupportsRelative() const { return m_fIsMouseSupportsRelative; }
+    bool isMouseSupportsMultiTouch() const { return m_fIsMouseSupportsMultiTouch; }
     bool isMouseHostCursorNeeded() const { return m_fIsMouseHostCursorNeeded; }
     bool isMouseCaptured() const { return m_fIsMouseCaptured; }
     bool isMouseIntegrated() const { return m_fIsMouseIntegrated; }
@@ -146,6 +157,7 @@ public:
     void setGuestResizeIgnored(bool fIsGuestResizeIgnored) { m_fIsGuestResizeIgnored = fIsGuestResizeIgnored; }
     void setSeamlessModeRequested(bool fIsSeamlessModeRequested) { m_fIsSeamlessModeRequested = fIsSeamlessModeRequested; }
     void setAutoCaptureDisabled(bool fIsAutoCaptureDisabled) { m_fIsAutoCaptureDisabled = fIsAutoCaptureDisabled; }
+    void forgetPreviousMachineState() { m_machineStatePrevious = m_machineState; }
 
     /* Keyboard setters: */
     void setNumLockAdaptionCnt(uint uNumLockAdaptionCnt) { m_uNumLockAdaptionCnt = uNumLockAdaptionCnt; }
@@ -166,7 +178,14 @@ public:
      * Ignores (asserts) if screen-number attribute is out of bounds: */
     void setFrameBuffer(ulong uScreenId, UIFrameBuffer* pFrameBuffer);
 
+    /* Temporary API: */
+    void updateStatusVRDE() { sltVRDEChange(); }
+    void updateStatusVideoCapture() { sltVideoCaptureChange(); }
+
 signals:
+
+    /* Notifier: Close Runtime UI stuff: */
+    void sigCloseRuntimeUI();
 
     /* Console callback signals: */
     void sigMousePointerShapeChange();
@@ -177,6 +196,7 @@ signals:
     void sigNetworkAdapterChange(const CNetworkAdapter &networkAdapter);
     void sigMediumChange(const CMediumAttachment &mediumAttachment);
     void sigVRDEChange();
+    void sigVideoCaptureChange();
     void sigUSBControllerChange();
     void sigUSBDeviceStateChange(const CUSBDevice &device, bool bIsAttached, const CVirtualBoxErrorInfo &error);
     void sigSharedFolderChange();
@@ -187,8 +207,9 @@ signals:
     void sigCPUExecutionCapChange();
     void sigGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
 
-    /* Qt callback signal: */
-    void sigHostScreenCountChanged(int cHostScreenCount);
+    /* Notifiers: Qt callback stuff: */
+    void sigHostScreenCountChanged();
+    void sigHostScreenGeometryChanged();
 
     /* Session signals: */
     void sigMachineStarted();
@@ -199,17 +220,22 @@ public slots:
 
 private slots:
 
-    /* Close uisession handler: */
-    void sltCloseVirtualSession();
+    /* Handler: Close Runtime UI stuff: */
+    void sltCloseRuntimeUI();
 
     /* Console events slots */
     void sltMousePointerShapeChange(bool fVisible, bool fAlpha, QPoint hotCorner, QSize size, QVector<uint8_t> shape);
-    void sltMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative, bool fNeedsHostCursor);
+    void sltMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative, bool fSupportsMultiTouch, bool fNeedsHostCursor);
     void sltKeyboardLedsChangeEvent(bool fNumLock, bool fCapsLock, bool fScrollLock);
     void sltStateChange(KMachineState state);
     void sltAdditionsChange();
     void sltVRDEChange();
+    void sltVideoCaptureChange();
     void sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
+
+    /* Handlers: Host callback stuff: */
+    void sltHandleHostScreenCountChange();
+    void sltHandleHostScreenGeometryChange();
 
 private:
 
@@ -230,7 +256,7 @@ private:
     void cleanupFramebuffers();
     //void cleanupScreens() {}
     void cleanupConsoleEventHandlers();
-    //void cleanupConnections() {}
+    void cleanupConnections();
 
     /* Update helpers: */
     void updateSessionSettings();
@@ -259,6 +285,7 @@ private:
     QVector<UIFrameBuffer*> m_frameBufferVector;
 
     /* Common variables: */
+    KMachineState m_machineStatePrevious;
     KMachineState m_machineState;
     QCursor m_cursor;
 #if defined(Q_WS_WIN)
@@ -288,6 +315,7 @@ private:
     /* Mouse flags: */
     bool m_fIsMouseSupportsAbsolute : 1;
     bool m_fIsMouseSupportsRelative : 1;
+    bool m_fIsMouseSupportsMultiTouch: 1;
     bool m_fIsMouseHostCursorNeeded : 1;
     bool m_fIsMouseCaptured : 1;
     bool m_fIsMouseIntegrated : 1;

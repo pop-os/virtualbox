@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2007-2012 Oracle Corporation
+# Copyright (C) 2007-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -51,7 +51,10 @@ ifdef VBOX_WITH_MEMBALLOON
  VBoxService_DEFS        += VBOX_WITH_MEMBALLOON
 endif
 if1of ($(KBUILD_TARGET), win)
- VBoxService_DEFS        += VBOX_WITH_PAGE_SHARING
+ VBoxService_DEFS        += VBOXSERVICE_PAGE_SHARING
+ ifdef VBOX_WITH_MMR
+  VBoxService_DEFS       += VBOX_WITH_MMR
+ endif
 endif
 if1of ($(KBUILD_TARGET), linux)
  VBoxService_DEFS        += VBOXSERVICE_CPUHOTPLUG
@@ -73,7 +76,8 @@ VBoxService_SOURCES       = \
 ifdef VBOX_WITH_GUEST_CONTROL
  VBoxService_SOURCES    += \
  	VBoxServiceControl.cpp \
-	VBoxServiceControlThread.cpp
+	VBoxServiceControlProcess.cpp \
+	VBoxServiceControlSession.cpp
 endif
 
 ifdef VBOX_WITH_MEMBALLOON
@@ -115,10 +119,8 @@ VBoxService_SOURCES.os2   = \
 	VBoxService-os2.def \
 	VBoxServiceClipboard-os2.cpp
 
-VBoxService_LIBS        += \
-	$(VBOX_LIB_IPRT_GUEST_R3) \
-	$(VBOX_LIB_VBGL_R3) \
-	$(VBOX_LIB_IPRT_GUEST_R3)       # (The joy of unix linkers.)
+VBoxService_LDFLAGS.darwin = -framework IOKit
+
 if1of ($(KBUILD_TARGET), linux)
  VBoxService_LIBS        += \
 	crypt
@@ -138,6 +140,16 @@ ifdef VBOX_WITH_GUEST_PROPS
  	nsl \
 	kstat \
 	contract
+endif
+
+# 32-bit version for the 64-bit Linux Additions
+ifeq ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),linux.amd64)
+ ifneq ($(VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE),)
+  PROGRAMS += VBoxService_32
+  VBoxService_32_EXTENDS  = VBoxService
+  VBoxService_32_TEMPLATE = NewVBoxGuestR3Exe_X86
+  VBoxService_32_NAME     = VBoxService
+ endif
 endif
 
 #

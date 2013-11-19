@@ -115,7 +115,7 @@ VBoxVMInformationDlg::VBoxVMInformationDlg (UIMachineWindow *pMachineWindow, Qt:
      * more than one screens. */
     connect (pMachineWindow->machineView(), SIGNAL (resizeHintDone()), this, SLOT (processStatistics()));
     connect (mInfoStack, SIGNAL (currentChanged (int)), this, SLOT (onPageChanged (int)));
-    connect (&vboxGlobal(), SIGNAL (mediumEnumFinished (const VBoxMediaList &)), this, SLOT (updateDetails()));
+    connect(&vboxGlobal(), SIGNAL(sigMediumEnumerationFinished()), this, SLOT(updateDetails()));
     connect (mStatTimer, SIGNAL (timeout()), this, SLOT (processStatistics()));
 
     /* Loading language constants */
@@ -171,10 +171,6 @@ void VBoxVMInformationDlg::retranslateUi()
 
     /* Setup a dialog caption */
     setWindowTitle (tr ("%1 - Session Information").arg (machine.GetName()));
-
-    /* Setup a tabwidget page names */
-    mInfoStack->setTabText (0, tr ("&Details"));
-    mInfoStack->setTabText (1, tr ("&Runtime"));
 
     /* Clear counter names initially */
     mNamesMap.clear();
@@ -396,8 +392,8 @@ void VBoxVMInformationDlg::processStatistics()
     /* Process selected statistics: */
     for (DataMapType::const_iterator it = mNamesMap.begin(); it != mNamesMap.end(); ++ it)
     {
-        dbg.GetStats (it.key(), true, info);
-        mValuesMap [it.key()] = parseStatistics (info);
+        info = dbg.GetStats(it.key(), true);
+        mValuesMap[it.key()] = parseStatistics(info);
     }
 
     /* Statistics page update */
@@ -468,12 +464,17 @@ void VBoxVMInformationDlg::refreshStatistics()
         ULONG width = 0;
         ULONG height = 0;
         ULONG bpp = 0;
-        console.GetDisplay().GetScreenResolution(0, width, height, bpp);
+        LONG xOrigin = 0;
+        LONG yOrigin = 0;
+        console.GetDisplay().GetScreenResolution(0, width, height, bpp, xOrigin, yOrigin);
         QString resolution = QString ("%1x%2")
             .arg (width)
             .arg (height);
         if (bpp)
             resolution += QString ("x%1").arg (bpp);
+        resolution += QString (" @%1,%2")
+                          .arg (xOrigin)
+                          .arg (yOrigin);
 
         QString clipboardMode = gpConverter->toString(m.GetClipboardMode());
         QString dragAndDropMode = gpConverter->toString(m.GetDragAndDropMode());
@@ -485,6 +486,9 @@ void VBoxVMInformationDlg::refreshStatistics()
         QString nested = debugger.GetHWVirtExNestedPagingEnabled() ?
             VBoxGlobal::tr ("Enabled", "details report (Nested Paging)") :
             VBoxGlobal::tr ("Disabled", "details report (Nested Paging)");
+        QString unrestricted = debugger.GetHWVirtExUXEnabled() ?
+            VBoxGlobal::tr ("Enabled", "details report (Unrestricted Execution)") :
+            VBoxGlobal::tr ("Disabled", "details report (Unrestricted Execution)");
 
         CGuest guest = console.GetGuest();
         QString addVersionStr = guest.GetAdditionsVersion();
@@ -509,7 +513,7 @@ void VBoxVMInformationDlg::refreshStatistics()
 
         /* Searching for longest string */
         QStringList valuesList;
-        valuesList << resolution << virtualization << nested << addVersionStr << osType << vrdeInfo;
+        valuesList << resolution << virtualization << nested << unrestricted << addVersionStr << osType << vrdeInfo;
         int maxLength = 0;
         foreach (const QString &value, valuesList)
             maxLength = maxLength < fontMetrics().width (value) ?
@@ -521,6 +525,7 @@ void VBoxVMInformationDlg::refreshStatistics()
         result += formatValue (tr ("Drag'n'Drop Mode"), dragAndDropMode, maxLength);
         result += formatValue (VBoxGlobal::tr ("VT-x/AMD-V", "details report"), virtualization, maxLength);
         result += formatValue (VBoxGlobal::tr ("Nested Paging", "details report"), nested, maxLength);
+        result += formatValue (VBoxGlobal::tr ("Unrestricted Execution", "details report"), unrestricted, maxLength);
         result += formatValue (tr ("Guest Additions"), addVersionStr, maxLength);
         result += formatValue (tr ("Guest OS Type"), osType, maxLength);
         result += formatValue (VBoxGlobal::tr ("Remote Desktop Server Port", "details report (VRDE Server)"), vrdeInfo, maxLength);
@@ -531,7 +536,7 @@ void VBoxVMInformationDlg::refreshStatistics()
     {
         QString storageStat;
 
-        result += hdrRow.arg (":/attachment_16px.png").arg (tr ("Storage Statistics"));
+        result += hdrRow.arg (":/hd_16px.png").arg (tr ("Storage Statistics"));
 
         CStorageControllerVector controllers = mSession.GetMachine().GetStorageControllers();
         int ideCount = 0, sataCount = 0, scsiCount = 0;

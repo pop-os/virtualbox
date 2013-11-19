@@ -24,8 +24,8 @@
  * not be in the ISA range (below 400h) to avoid conflicts with ISA device
  * probing. Addresses in the 300h-340h range should be especially avoided.
  */
-#define LSILOGIC_BIOS_IO_PORT       0x340
-#define LSILOGIC_SAS_BIOS_IO_PORT   0x350
+#define LSILOGIC_BIOS_IO_PORT       0x434
+#define LSILOGIC_SAS_BIOS_IO_PORT   0x438
 
 #define LSILOGICSCSI_REQUEST_QUEUE_DEPTH_DEFAULT 256
 #define LSILOGICSCSI_REPLY_QUEUE_DEPTH_DEFAULT   256
@@ -1150,7 +1150,71 @@ typedef union MptReplyUnion
     MptFWDownloadReply         FWDownload;
     MptFWUploadReply           FWUpload;
 } MptReplyUnion, *PMptReplyUnion;
+AssertCompileSize(MptReplyUnion, 60);
 
+/**
+ * Firmware image header.
+ */
+#pragma pack(1)
+typedef struct FwImageHdr
+{
+    /** ARM branch instruction. */
+    uint32_t    u32ArmBrInsn;
+    /** Signature part 1. */
+    uint32_t    u32Signature1;
+    /** Signature part 2. */
+    uint32_t    u32Signature2;
+    /** Signature part 3. */
+    uint32_t    u32Signature3;
+    /** Another ARM branch instruction. */
+    uint32_t    u32ArmBrInsn2;
+    /** Yet another ARM branch instruction. */
+    uint32_t    u32ArmBrInsn3;
+    /** Reserved. */
+    uint32_t    u32Reserved;
+    /** Checksum of the image. */
+    uint32_t    u32Checksum;
+    /** Vendor ID. */
+    uint16_t    u16VendorId;
+    /** Product ID. */
+    uint16_t    u16ProductId;
+    /** Firmware version. */
+    uint32_t    u32FwVersion;
+    /** Firmware sequencer Code version. */
+    uint32_t    u32SeqCodeVersion;
+    /** Image size in bytes including the header. */
+    uint32_t    u32ImageSize;
+    /** Offset of the first extended image header. */
+    uint32_t    u32NextImageHeaderOffset;
+    /** Start address of the image in IOC memory. */
+    uint32_t    u32LoadStartAddress;
+    /** Absolute start address of the Iop ARM. */
+    uint32_t    u32IopResetVectorValue;
+    /** Address of the IopResetVector register. */
+    uint32_t    u32IopResetVectorRegAddr;
+    /** Marker value for what utility. */
+    uint32_t    u32VersionNameWhat;
+    /** ASCII string of version. */
+    uint8_t     aszVersionName[256];
+    /** Marker value for what utility. */
+    uint32_t    u32VendorNameWhat;
+    /** ASCII string of vendor name. */
+    uint8_t     aszVendorName[256];
+} FwImageHdr, *PFwImageHdr;
+#pragma pack()
+AssertCompileSize(FwImageHdr, 584);
+
+/** First part of the signature. */
+#define LSILOGIC_FWIMGHDR_SIGNATURE1 UINT32_C(0x5aeaa55a)
+/** Second part of the signature. */
+#define LSILOGIC_FWIMGHDR_SIGNATURE2 UINT32_C(0xa55aeaa5)
+/** Third part of the signature. */
+#define LSILOGIC_FWIMGHDR_SIGNATURE3 UINT32_C(0x5aa55aea)
+/** Load address of the firmware image to watch for,
+ * seen used by Solaris 9. When this value is written to the
+ * diagnostic address register we know a firmware image is downloaded.
+ */
+#define LSILOGIC_FWIMGHDR_LOAD_ADDRESS UINT32_C(0x21ff5e00)
 
 /**
  * Configuration Page attributes.
@@ -3465,6 +3529,32 @@ typedef enum LSILOGICWHOINIT
 
 
 /**
+ * Doorbell state.
+ */
+typedef enum LSILOGICDOORBELLSTATE
+{
+    /** Invalid value. */
+    LSILOGICDOORBELLSTATE_INVALID = 0,
+    /** Doorbell not in use. */
+    LSILOGICDOORBELLSTATE_NOT_IN_USE,
+    /** Reply frame removal, transfer number of entries, low 16bits. */
+    LSILOGICDOORBELLSTATE_RFR_FRAME_COUNT_LOW,
+    /** Reply frame removal, transfer number of entries, high 16bits. */
+    LSILOGICDOORBELLSTATE_RFR_FRAME_COUNT_HIGH,
+    /** Reply frame removal, remove next free frame, low part. */
+    LSILOGICDOORBELLSTATE_RFR_NEXT_FRAME_LOW,
+    /** Reply frame removal, remove next free frame, high part. */
+    LSILOGICDOORBELLSTATE_RFR_NEXT_FRAME_HIGH,
+    /** Function handshake. */
+    LSILOGICDOORBELLSTATE_FN_HANDSHAKE,
+    /** 32bit hack. */
+    LSILOGICDOORBELLSTATE_32BIT_HACK = 0x7fffffff
+} LSILOGICDOORBELLSTATE;
+/** Pointer to a doorbell state. */
+typedef LSILOGICDOORBELLSTATE *PLSILOGICDOORBELLSTATE;
+
+
+/**
  * IOC status codes.
  */
 #define LSILOGIC_IOCSTATUS_SUCCESS                0x0000
@@ -3490,7 +3580,7 @@ typedef enum LSILOGICWHOINIT
  */
 #define LSILOGIC_REG_DOORBELL 0x00
 # define LSILOGIC_REG_DOORBELL_SET_STATE(enmState)     (((enmState) & 0x0f) << 28)
-# define LSILOGIC_REG_DOORBELL_SET_USED(fUsed)         (((fUsed) ? 1 : 0) << 27)
+# define LSILOGIC_REG_DOORBELL_SET_USED(enmDoorbell)   (((enmDoorbell != LSILOGICDOORBELLSTATE_NOT_IN_USE) ? 1 : 0) << 27)
 # define LSILOGIC_REG_DOORBELL_SET_WHOINIT(enmWhoInit) (((enmWhoInit) & 0x07) << 24)
 # define LSILOGIC_REG_DOORBELL_SET_FAULT_CODE(u16Code) (u16Code)
 # define LSILOGIC_REG_DOORBELL_GET_FUNCTION(x)         (((x) & 0xff000000) >> 24)

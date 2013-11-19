@@ -1,8 +1,6 @@
 /* $Id: UIGDetailsElements.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIGDetailsDetails class implementation
+ * VBox Qt GUI - UIGDetailsDetails class implementation.
  */
 
 /*
@@ -41,8 +39,10 @@
 #include "CSerialPort.h"
 #include "CParallelPort.h"
 #include "CUSBController.h"
+#include "CUSBDeviceFilters.h"
 #include "CUSBDeviceFilter.h"
 #include "CSharedFolder.h"
+#include "CMedium.h"
 
 /* Constructor: */
 UIGDetailsUpdateThread::UIGDetailsUpdateThread(const CMachine &machine)
@@ -417,6 +417,22 @@ void UIGDetailsUpdateThreadDisplay::run()
                     m_text << UITextTableLine(QApplication::translate("UIGDetails", "Remote Desktop Server", "details (display/vrde)"),
                                               QApplication::translate("UIGDetails", "Disabled", "details (display/vrde/VRDE server)"));
             }
+
+            /* Video Capture info: */
+            if (machine().GetVideoCaptureEnabled())
+            {
+                m_text << UITextTableLine(QApplication::translate("UIGDetails", "Video Capture File", "details (display/video capture)"),
+                                          machine().GetVideoCaptureFile());
+                m_text << UITextTableLine(QApplication::translate("UIGDetails", "Video Capture Attributes", "details (display/video capture)"),
+                                          QApplication::translate("UIGDetails", "Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps")
+                                             .arg(machine().GetVideoCaptureWidth()).arg(machine().GetVideoCaptureHeight())
+                                             .arg(machine().GetVideoCaptureFPS()).arg(machine().GetVideoCaptureRate()));
+            }
+            else
+            {
+                m_text << UITextTableLine(QApplication::translate("UIGDetails", "Video Capture", "details (display/video capture)"),
+                                          QApplication::translate("UIGDetails", "Disabled", "details (display/video capture)"));
+            }
         }
         else
             m_text << UITextTableLine(QApplication::translate("UIGDetails", "Information Inaccessible", "details"), QString());
@@ -520,7 +536,7 @@ UIGDetailsElementStorage::UIGDetailsElementStorage(UIGDetailsSet *pParent, bool 
     : UIGDetailsElementInterface(pParent, DetailsElementType_Storage, fOpened)
 {
     /* Icon: */
-    setIcon(UIIconPool::iconSet(":/attachment_16px.png"));
+    setIcon(UIIconPool::iconSet(":/hd_16px.png"));
 
     /* Translate: */
     retranslateUi();
@@ -656,6 +672,12 @@ void UIGDetailsUpdateThreadNetwork::run()
                                       strAttachmentType.arg(QApplication::translate("UIGDetails", "Generic Driver, '%1'", "details (network)").arg(adapter.GetGenericDriver())) :
                                       strAttachmentType.arg(QApplication::translate("UIGDetails", "Generic Driver, '%1' {&nbsp;%2&nbsp;}", "details (network)")
                                                             .arg(adapter.GetGenericDriver(), strGenericDriverProperties));
+                            break;
+                        }
+                        case KNetworkAttachmentType_NATNetwork:
+                        {
+                            strAttachmentType = strAttachmentType.arg(QApplication::translate("UIGDetails", "NAT Network, '%1'", "details (network)")
+                                                                      .arg(adapter.GetNATNetwork()));
                             break;
                         }
                         default:
@@ -871,12 +893,13 @@ void UIGDetailsUpdateThreadUSB::run()
         if (machine().GetAccessible())
         {
             /* Iterate over all the USB filters: */
-            const CUSBController &ctl = machine().GetUSBController();
-            if (!ctl.isNull() && ctl.GetProxyAvailable())
+            const CUSBDeviceFilters &filters = machine().GetUSBDeviceFilters();
+            if (!filters.isNull() && machine().GetUSBProxyAvailable())
             {
-                if (ctl.GetEnabled())
+                const CUSBDeviceFilters &flts = machine().GetUSBDeviceFilters();
+                if (!flts.isNull() && machine().GetUSBControllerCountByType(KUSBControllerType_OHCI))
                 {
-                    const CUSBDeviceFilterVector &coll = ctl.GetDeviceFilters();
+                    const CUSBDeviceFilterVector &coll = flts.GetDeviceFilters();
                     uint uActive = 0;
                     for (int i = 0; i < coll.size(); ++i)
                         if (coll[i].GetActive())
@@ -959,7 +982,7 @@ UIGDetailsElementSF::UIGDetailsElementSF(UIGDetailsSet *pParent, bool fOpened)
     : UIGDetailsElementInterface(pParent, DetailsElementType_SF, fOpened)
 {
     /* Icon: */
-    setIcon(UIIconPool::iconSet(":/shared_folder_16px.png"));
+    setIcon(UIIconPool::iconSet(":/sf_16px.png"));
 
     /* Translate: */
     retranslateUi();

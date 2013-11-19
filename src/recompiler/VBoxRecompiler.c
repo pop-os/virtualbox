@@ -39,11 +39,12 @@
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/dbg.h>
-#include <VBox/vmm/hwaccm.h>
+#include <VBox/vmm/hm.h>
 #include <VBox/vmm/patm.h>
 #include <VBox/vmm/csam.h>
 #include "REMInternal.h"
 #include <VBox/vmm/vm.h>
+#include <VBox/vmm/uvm.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
 
@@ -83,6 +84,14 @@ ram_addr_t get_phys_page_offset(target_ulong addr);
 #define REM_USE_QEMU_SINGLE_STEP_FOR_LOGGING
 
 
+/** Selector flag shift between qemu and VBox.
+ * VBox shifts the qemu bits to the right. */
+#define SEL_FLAGS_SHIFT     (8)
+/** Mask applied to the shifted qemu selector flags to get the attributes VBox
+ * (VT-x) needs. */
+#define SEL_FLAGS_SMASK     UINT32_C(0x1F0FF)
+
+
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
@@ -91,12 +100,12 @@ static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, 
 static void     remR3StateUpdate(PVM pVM, PVMCPU pVCpu);
 static int      remR3InitPhysRamSizeAndDirtyMap(PVM pVM, bool fGuarded);
 
-static uint32_t remR3MMIOReadU8(void *pvVM, target_phys_addr_t GCPhys);
-static uint32_t remR3MMIOReadU16(void *pvVM, target_phys_addr_t GCPhys);
-static uint32_t remR3MMIOReadU32(void *pvVM, target_phys_addr_t GCPhys);
-static void     remR3MMIOWriteU8(void *pvVM, target_phys_addr_t GCPhys, uint32_t u32);
-static void     remR3MMIOWriteU16(void *pvVM, target_phys_addr_t GCPhys, uint32_t u32);
-static void     remR3MMIOWriteU32(void *pvVM, target_phys_addr_t GCPhys, uint32_t u32);
+static uint32_t remR3MMIOReadU8(void *pvEnv, target_phys_addr_t GCPhys);
+static uint32_t remR3MMIOReadU16(void *pvEnv, target_phys_addr_t GCPhys);
+static uint32_t remR3MMIOReadU32(void *pvEnv, target_phys_addr_t GCPhys);
+static void     remR3MMIOWriteU8(void *pvEnv, target_phys_addr_t GCPhys, uint32_t u32);
+static void     remR3MMIOWriteU16(void *pvEnv, target_phys_addr_t GCPhys, uint32_t u32);
+static void     remR3MMIOWriteU32(void *pvEnv, target_phys_addr_t GCPhys, uint32_t u32);
 
 static uint32_t remR3HandlerReadU8(void *pvVM, target_phys_addr_t GCPhys);
 static uint32_t remR3HandlerReadU16(void *pvVM, target_phys_addr_t GCPhys);
@@ -192,7 +201,7 @@ CPUWriteMemoryFunc *g_apfnHandlerWrite[3] =
 /*
  * Debugger commands.
  */
-static DECLCALLBACK(int) remR3CmdDisasEnableStepping(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
+static FNDBGCCMD remR3CmdDisasEnableStepping;;
 
 /** '.remstep' arguments. */
 static const DBGCVARDESC    g_aArgRemStep[] =
@@ -332,7 +341,7 @@ REMR3DECL(int) REMR3Init(PVM pVM)
     /*
      * Register ram types.
      */
-    pVM->rem.s.iMMIOMemType    = cpu_register_io_memory(g_apfnMMIORead, g_apfnMMIOWrite, pVM);
+    pVM->rem.s.iMMIOMemType    = cpu_register_io_memory(g_apfnMMIORead, g_apfnMMIOWrite, &pVM->rem.s.Env);
     AssertReleaseMsg(pVM->rem.s.iMMIOMemType >= 0, ("pVM->rem.s.iMMIOMemType=%d\n", pVM->rem.s.iMMIOMemType));
     pVM->rem.s.iHandlerMemType = cpu_register_io_memory(g_apfnHandlerRead, g_apfnHandlerWrite, pVM);
     AssertReleaseMsg(pVM->rem.s.iHandlerMemType >= 0, ("pVM->rem.s.iHandlerMemType=%d\n", pVM->rem.s.iHandlerMemType));
@@ -548,67 +557,11 @@ static int remR3InitPhysRamSizeAndDirtyMap(PVM pVM, bool fGuarded)
  */
 REMR3DECL(int) REMR3Term(PVM pVM)
 {
-#ifdef VBOX_WITH_STATISTICS
     /*
      * Statistics.
      */
-    STAM_DEREG(pVM, &gStatExecuteSingleInstr);
-    STAM_DEREG(pVM, &gStatCompilationQEmu);
-    STAM_DEREG(pVM, &gStatRunCodeQEmu);
-    STAM_DEREG(pVM, &gStatTotalTimeQEmu);
-    STAM_DEREG(pVM, &gStatTimers);
-    STAM_DEREG(pVM, &gStatTBLookup);
-    STAM_DEREG(pVM, &gStatIRQ);
-    STAM_DEREG(pVM, &gStatRawCheck);
-    STAM_DEREG(pVM, &gStatMemRead);
-    STAM_DEREG(pVM, &gStatMemWrite);
-    STAM_DEREG(pVM, &gStatGCPhys2HCVirt);
-
-    STAM_DEREG(pVM, &gStatCpuGetTSC);
-
-    STAM_DEREG(pVM, &gStatRefuseTFInhibit);
-    STAM_DEREG(pVM, &gStatRefuseVM86);
-    STAM_DEREG(pVM, &gStatRefusePaging);
-    STAM_DEREG(pVM, &gStatRefusePAE);
-    STAM_DEREG(pVM, &gStatRefuseIOPLNot0);
-    STAM_DEREG(pVM, &gStatRefuseIF0);
-    STAM_DEREG(pVM, &gStatRefuseCode16);
-    STAM_DEREG(pVM, &gStatRefuseWP0);
-    STAM_DEREG(pVM, &gStatRefuseRing1or2);
-    STAM_DEREG(pVM, &gStatRefuseCanExecute);
-    STAM_DEREG(pVM, &gaStatRefuseStale[0]);
-    STAM_DEREG(pVM, &gaStatRefuseStale[1]);
-    STAM_DEREG(pVM, &gaStatRefuseStale[2]);
-    STAM_DEREG(pVM, &gaStatRefuseStale[3]);
-    STAM_DEREG(pVM, &gaStatRefuseStale[4]);
-    STAM_DEREG(pVM, &gaStatRefuseStale[5]);
-    STAM_DEREG(pVM, &gStatFlushTBs);
-
-    STAM_DEREG(pVM, &gStatREMGDTChange);
-    STAM_DEREG(pVM, &gStatREMLDTRChange);
-    STAM_DEREG(pVM, &gStatREMIDTChange);
-    STAM_DEREG(pVM, &gStatREMTRChange);
-
-    STAM_DEREG(pVM, &gStatSelOutOfSync[0]);
-    STAM_DEREG(pVM, &gStatSelOutOfSync[1]);
-    STAM_DEREG(pVM, &gStatSelOutOfSync[2]);
-    STAM_DEREG(pVM, &gStatSelOutOfSync[3]);
-    STAM_DEREG(pVM, &gStatSelOutOfSync[4]);
-    STAM_DEREG(pVM, &gStatSelOutOfSync[5]);
-
-    STAM_DEREG(pVM, &gStatSelOutOfSyncStateBack[0]);
-    STAM_DEREG(pVM, &gStatSelOutOfSyncStateBack[1]);
-    STAM_DEREG(pVM, &gStatSelOutOfSyncStateBack[2]);
-    STAM_DEREG(pVM, &gStatSelOutOfSyncStateBack[3]);
-    STAM_DEREG(pVM, &gStatSelOutOfSyncStateBack[4]);
-    STAM_DEREG(pVM, &gStatSelOutOfSyncStateBack[5]);
-
-    STAM_DEREG(pVM, &pVM->rem.s.Env.StatTbFlush);
-#endif /* VBOX_WITH_STATISTICS */
-
-    STAM_REL_DEREG(pVM, &tb_flush_count);
-    STAM_REL_DEREG(pVM, &tb_phys_invalidate_count);
-    STAM_REL_DEREG(pVM, &tlb_flush_count);
+    STAMR3Deregister(pVM->pUVM, "/PROF/REM/*");
+    STAMR3Deregister(pVM->pUVM, "/REM/*");
 
     return VINF_SUCCESS;
 }
@@ -864,7 +817,7 @@ REMR3DECL(int) REMR3Step(PVM pVM, PVMCPU pVCpu)
                 pVM->rem.s.rc = VERR_INTERNAL_ERROR;
                 break;
             case EXCP_EXECUTE_RAW:
-            case EXCP_EXECUTE_HWACC:
+            case EXCP_EXECUTE_HM:
                 /** @todo: is it correct? No! */
                 rc = VINF_SUCCESS;
                 break;
@@ -953,10 +906,10 @@ REMR3DECL(int) REMR3EmulateInstruction(PVM pVM, PVMCPU pVCpu)
     Log2(("REMR3EmulateInstruction: (cs:eip=%04x:%08x)\n", CPUMGetGuestCS(pVCpu), CPUMGetGuestEIP(pVCpu)));
 
     /* Make sure this flag is set; we might never execute remR3CanExecuteRaw in the AMD-V case.
-     * CPU_RAW_HWACC makes sure we never execute interrupt handlers in the recompiler.
+     * CPU_RAW_HM makes sure we never execute interrupt handlers in the recompiler.
      */
-    if (HWACCMIsEnabled(pVM))
-        pVM->rem.s.Env.state |= CPU_RAW_HWACC;
+    if (HMIsEnabled(pVM))
+        pVM->rem.s.Env.state |= CPU_RAW_HM;
 
     /* Skip the TB flush as that's rather expensive and not necessary for single instruction emulation. */
     fFlushTBs = pVM->rem.s.fFlushTBs;
@@ -1052,9 +1005,9 @@ REMR3DECL(int) REMR3EmulateInstruction(PVM pVM, PVMCPU pVCpu)
             /*
              * Switch to hardware accelerated RAW-mode.
              */
-            case EXCP_EXECUTE_HWACC:
-                Log2(("REMR3EmulateInstruction: cpu_exec -> EXCP_EXECUTE_HWACC\n"));
-                rc = VINF_EM_RESCHEDULE_HWACC;
+            case EXCP_EXECUTE_HM:
+                Log2(("REMR3EmulateInstruction: cpu_exec -> EXCP_EXECUTE_HM\n"));
+                rc = VINF_EM_RESCHEDULE_HM;
                 break;
 
             /*
@@ -1120,14 +1073,12 @@ static int remR3RunLoggingStep(PVM pVM, PVMCPU pVCpu)
          * Log the current registers state and instruction.
          */
         remR3StateUpdate(pVM, pVCpu);
-        DBGFR3Info(pVM, "cpumguest", NULL, NULL);
+        DBGFR3Info(pVM->pUVM, "cpumguest", NULL, NULL);
         szBuf[0] = '\0';
-        rc = DBGFR3DisasInstrEx(pVM,
+        rc = DBGFR3DisasInstrEx(pVM->pUVM,
                                 pVCpu->idCpu,
-                                0, /* Sel */
-                                0, /* GCPtr */
-                                DBGF_DISAS_FLAGS_CURRENT_GUEST
-                                | DBGF_DISAS_FLAGS_DEFAULT_MODE,
+                                0, /* Sel */  0, /* GCPtr */
+                                DBGF_DISAS_FLAGS_CURRENT_GUEST | DBGF_DISAS_FLAGS_DEFAULT_MODE,
                                 szBuf,
                                 sizeof(szBuf),
                                 NULL);
@@ -1149,7 +1100,7 @@ static int remR3RunLoggingStep(PVM pVM, PVMCPU pVCpu)
 #else
         pVM->rem.s.Env.interrupt_request = CPU_INTERRUPT_SINGLE_INSTR;
 #endif
-        if (   VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
+        if (   VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
             || pVM->rem.s.u32PendingInterrupt != REM_NO_PENDING_IRQ)
             pVM->rem.s.Env.interrupt_request |= CPU_INTERRUPT_HARD;
         RTLogPrintf("remR3RunLoggingStep: interrupt_request=%#x halted=%d exception_index=%#x\n", rc,
@@ -1175,8 +1126,8 @@ static int remR3RunLoggingStep(PVM pVM, PVMCPU pVCpu)
              * The normal exit.
              */
             case EXCP_SINGLE_INSTR:
-                if (   !VM_FF_ISPENDING(pVM, VM_FF_ALL_REM_MASK)
-                    && !VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_ALL_REM_MASK))
+                if (   !VM_FF_IS_PENDING(pVM, VM_FF_ALL_REM_MASK)
+                    && !VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_ALL_REM_MASK))
                     continue;
                 RTLogPrintf("remR3RunLoggingStep: rc=VINF_SUCCESS w/ FFs (%#x/%#x)\n",
                             pVM->fGlobalForcedActions, pVCpu->fLocalForcedActions);
@@ -1208,8 +1159,8 @@ static int remR3RunLoggingStep(PVM pVM, PVMCPU pVCpu)
 #ifdef REM_USE_QEMU_SINGLE_STEP_FOR_LOGGING
                 if (rc == VINF_EM_DBG_STEPPED)
                 {
-                    if (   !VM_FF_ISPENDING(pVM, VM_FF_ALL_REM_MASK)
-                        && !VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_ALL_REM_MASK))
+                    if (   !VM_FF_IS_PENDING(pVM, VM_FF_ALL_REM_MASK)
+                        && !VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_ALL_REM_MASK))
                         continue;
 
                     RTLogPrintf("remR3RunLoggingStep: rc=VINF_SUCCESS w/ FFs (%#x/%#x)\n",
@@ -1255,9 +1206,9 @@ static int remR3RunLoggingStep(PVM pVM, PVMCPU pVCpu)
             /*
              * Switch to hardware accelerated RAW-mode.
              */
-            case EXCP_EXECUTE_HWACC:
-                RTLogPrintf("remR3RunLoggingStep: cpu_exec -> EXCP_EXECUTE_HWACC rc=VINF_EM_RESCHEDULE_HWACC\n");
-                rc = VINF_EM_RESCHEDULE_HWACC;
+            case EXCP_EXECUTE_HM:
+                RTLogPrintf("remR3RunLoggingStep: cpu_exec -> EXCP_EXECUTE_HM rc=VINF_EM_RESCHEDULE_HM\n");
+                rc = VINF_EM_RESCHEDULE_HM;
                 break;
 
             /*
@@ -1376,9 +1327,9 @@ REMR3DECL(int) REMR3Run(PVM pVM, PVMCPU pVCpu)
         /*
          * Switch to hardware accelerated RAW-mode.
          */
-        case EXCP_EXECUTE_HWACC:
-            Log2(("REMR3Run: cpu_exec -> EXCP_EXECUTE_HWACC\n"));
-            rc = VINF_EM_RESCHEDULE_HWACC;
+        case EXCP_EXECUTE_HM:
+            Log2(("REMR3Run: cpu_exec -> EXCP_EXECUTE_HM\n"));
+            rc = VINF_EM_RESCHEDULE_HM;
             break;
 
         /*
@@ -1435,11 +1386,11 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
     if (env->state & CPU_EMULATE_SINGLE_STEP)
         return false;
 
-    if (HWACCMIsEnabled(env->pVM))
+    if (HMIsEnabled(env->pVM))
     {
         CPUMCTX Ctx;
 
-        env->state |= CPU_RAW_HWACC;
+        env->state |= CPU_RAW_HM;
 
         /*
          * The simple check first...
@@ -1448,7 +1399,7 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
             return false;
 
         /*
-         * Create partial context for HWACCMR3CanExecuteGuest
+         * Create partial context for HMR3CanExecuteGuest
          */
         Ctx.cr0            = env->cr[0];
         Ctx.cr3            = env->cr[3];
@@ -1459,14 +1410,14 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
         Ctx.tr.fFlags      = CPUMSELREG_FLAGS_VALID;
         Ctx.tr.u64Base     = env->tr.base;
         Ctx.tr.u32Limit    = env->tr.limit;
-        Ctx.tr.Attr.u      = (env->tr.flags >> 8) & 0xF0FF;
+        Ctx.tr.Attr.u      = (env->tr.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
         Ctx.ldtr.Sel       = env->ldt.selector;
         Ctx.ldtr.ValidSel  = env->ldt.selector;
         Ctx.ldtr.fFlags    = CPUMSELREG_FLAGS_VALID;
         Ctx.ldtr.u64Base   = env->ldt.base;
         Ctx.ldtr.u32Limit  = env->ldt.limit;
-        Ctx.ldtr.Attr.u    = (env->ldt.flags >> 8) & 0xF0FF;
+        Ctx.ldtr.Attr.u    = (env->ldt.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
         Ctx.idtr.cbIdt     = env->idt.limit;
         Ctx.idtr.pIdt      = env->idt.base;
@@ -1484,42 +1435,42 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
         Ctx.cs.fFlags      = CPUMSELREG_FLAGS_VALID;
         Ctx.cs.u64Base     = env->segs[R_CS].base;
         Ctx.cs.u32Limit    = env->segs[R_CS].limit;
-        Ctx.cs.Attr.u      = (env->segs[R_CS].flags >> 8) & 0xF0FF;
+        Ctx.cs.Attr.u      = (env->segs[R_CS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
         Ctx.ds.Sel         = env->segs[R_DS].selector;
         Ctx.ds.ValidSel    = env->segs[R_DS].selector;
         Ctx.ds.fFlags      = CPUMSELREG_FLAGS_VALID;
         Ctx.ds.u64Base     = env->segs[R_DS].base;
         Ctx.ds.u32Limit    = env->segs[R_DS].limit;
-        Ctx.ds.Attr.u      = (env->segs[R_DS].flags >> 8) & 0xF0FF;
+        Ctx.ds.Attr.u      = (env->segs[R_DS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
         Ctx.es.Sel         = env->segs[R_ES].selector;
         Ctx.es.ValidSel    = env->segs[R_ES].selector;
         Ctx.es.fFlags      = CPUMSELREG_FLAGS_VALID;
         Ctx.es.u64Base     = env->segs[R_ES].base;
         Ctx.es.u32Limit    = env->segs[R_ES].limit;
-        Ctx.es.Attr.u      = (env->segs[R_ES].flags >> 8) & 0xF0FF;
+        Ctx.es.Attr.u      = (env->segs[R_ES].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
         Ctx.fs.Sel         = env->segs[R_FS].selector;
         Ctx.fs.ValidSel    = env->segs[R_FS].selector;
         Ctx.fs.fFlags      = CPUMSELREG_FLAGS_VALID;
         Ctx.fs.u64Base     = env->segs[R_FS].base;
         Ctx.fs.u32Limit    = env->segs[R_FS].limit;
-        Ctx.fs.Attr.u      = (env->segs[R_FS].flags >> 8) & 0xF0FF;
+        Ctx.fs.Attr.u      = (env->segs[R_FS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
         Ctx.gs.Sel         = env->segs[R_GS].selector;
         Ctx.gs.ValidSel    = env->segs[R_GS].selector;
         Ctx.gs.fFlags      = CPUMSELREG_FLAGS_VALID;
         Ctx.gs.u64Base     = env->segs[R_GS].base;
         Ctx.gs.u32Limit    = env->segs[R_GS].limit;
-        Ctx.gs.Attr.u      = (env->segs[R_GS].flags >> 8) & 0xF0FF;
+        Ctx.gs.Attr.u      = (env->segs[R_GS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
         Ctx.ss.Sel         = env->segs[R_SS].selector;
         Ctx.ss.ValidSel    = env->segs[R_SS].selector;
         Ctx.ss.fFlags      = CPUMSELREG_FLAGS_VALID;
         Ctx.ss.u64Base     = env->segs[R_SS].base;
         Ctx.ss.u32Limit    = env->segs[R_SS].limit;
-        Ctx.ss.Attr.u      = (env->segs[R_SS].flags >> 8) & 0xF0FF;
+        Ctx.ss.Attr.u      = (env->segs[R_SS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
         Ctx.msrEFER        = env->efer;
 
@@ -1527,9 +1478,9 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
          *
          * Typically only 32-bits protected mode, with paging enabled, code is allowed here.
          */
-        if (HWACCMR3CanExecuteGuest(env->pVM, &Ctx) == true)
+        if (HMR3CanExecuteGuest(env->pVM, &Ctx) == true)
         {
-            *piException = EXCP_EXECUTE_HWACC;
+            *piException = EXCP_EXECUTE_HM;
             return true;
         }
         return false;
@@ -1655,12 +1606,14 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
             return false;
         }
 
+#ifdef VBOX_WITH_RAW_MODE
         if (PATMIsPatchGCAddr(env->pVM, eip))
         {
             Log2(("raw r0 mode forced: patch code\n"));
             *piException = EXCP_EXECUTE_RAW;
             return true;
         }
+#endif
 
 #if !defined(VBOX_ALLOW_IF0) && !defined(VBOX_RUN_INTERRUPT_GATE_HANDLERS)
         if (!(env->eflags & IF_MASK))
@@ -1739,6 +1692,7 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
 }
 
 
+#ifdef VBOX_WITH_RAW_MODE
 /**
  * Fetches a code byte.
  *
@@ -1754,6 +1708,7 @@ bool remR3GetOpcode(CPUX86State *env, RTGCPTR GCPtrInstr, uint8_t *pu8Byte)
         return true;
     return false;
 }
+#endif /* VBOX_WITH_RAW_MODE */
 
 
 /**
@@ -1790,8 +1745,10 @@ void remR3FlushPage(CPUX86State *env, RTGCPTR GCPtr)
     Assert(pCtx);
     pCtx->cr0 = env->cr[0];
     pCtx->cr3 = env->cr[3];
-    if ((env->cr[4] ^ pCtx->cr4) & X86_CR4_VME)
+#ifdef VBOX_WITH_RAW_MODE
+    if (((env->cr[4] ^ pCtx->cr4) & X86_CR4_VME) && !HMIsEnabled(pVM))
         VMCPU_FF_SET(env->pVCpu, VMCPU_FF_SELM_SYNC_TSS);
+#endif
     pCtx->cr4 = env->cr[4];
 
     /*
@@ -1850,7 +1807,7 @@ void remR3ProtectCode(CPUX86State *env, RTGCPTR GCPtr)
         &&  !(env->state & CPU_EMULATE_SINGLE_INSTR)        /* ignore during single instruction execution */
         &&   (((env->hflags >> HF_CPL_SHIFT) & 3) == 0)     /* supervisor mode only */
         &&  !(env->eflags & VM_MASK)                        /* no V86 mode */
-        &&  !HWACCMIsEnabled(env->pVM))
+        &&  !HMIsEnabled(env->pVM))
         CSAMR3MonitorPage(env->pVM, GCPtr, CSAM_TAG_REM);
 #endif
 }
@@ -1870,7 +1827,7 @@ void remR3UnprotectCode(CPUX86State *env, RTGCPTR GCPtr)
         &&  !(env->state & CPU_EMULATE_SINGLE_INSTR)        /* ignore during single instruction execution */
         &&   (((env->hflags >> HF_CPL_SHIFT) & 3) == 0)     /* supervisor mode only */
         &&  !(env->eflags & VM_MASK)                        /* no V86 mode */
-        &&  !HWACCMIsEnabled(env->pVM))
+        &&  !HMIsEnabled(env->pVM))
         CSAMR3UnmonitorPage(env->pVM, GCPtr, CSAM_TAG_REM);
 #endif
 }
@@ -1911,8 +1868,10 @@ void remR3FlushTLB(CPUX86State *env, bool fGlobal)
     Assert(pCtx);
     pCtx->cr0 = env->cr[0];
     pCtx->cr3 = env->cr[3];
-    if ((env->cr[4] ^ pCtx->cr4) & X86_CR4_VME)
+#ifdef VBOX_WITH_RAW_MODE
+    if (((env->cr[4] ^ pCtx->cr4) & X86_CR4_VME) && !HMIsEnabled(pVM))
         VMCPU_FF_SET(env->pVCpu, VMCPU_FF_SELM_SYNC_TSS);
+#endif
     pCtx->cr4 = env->cr[4];
 
     /*
@@ -1943,16 +1902,25 @@ void remR3ChangeCpuMode(CPUX86State *env)
         return;
     Assert(pVM->rem.s.fInREM);
 
+    pCtx = (PCPUMCTX)pVM->rem.s.pCtx;
+    Assert(pCtx);
+
+    /*
+     * Notify PGM about WP0 being enabled (like CPUSetGuestCR0 does).
+     */
+    if (((env->cr[0] ^ pCtx->cr0) & X86_CR0_WP) && (env->cr[0] & X86_CR0_WP))
+        PGMCr0WpEnabled(env->pVCpu);
+
     /*
      * Update the control registers before calling PGMChangeMode()
      * as it may need to map whatever cr3 is pointing to.
      */
-    pCtx = (PCPUMCTX)pVM->rem.s.pCtx;
-    Assert(pCtx);
     pCtx->cr0 = env->cr[0];
     pCtx->cr3 = env->cr[3];
-    if ((env->cr[4] ^ pCtx->cr4) & X86_CR4_VME)
+#ifdef VBOX_WITH_RAW_MODE
+    if (((env->cr[4] ^ pCtx->cr4) & X86_CR4_VME) && !HMIsEnabled(pVM))
         VMCPU_FF_SET(env->pVCpu, VMCPU_FF_SELM_SYNC_TSS);
+#endif
     pCtx->cr4 = env->cr[4];
 #ifdef TARGET_X86_64
     efer = env->efer;
@@ -2050,7 +2018,10 @@ int remR3NotifyTrap(CPUX86State *env, uint32_t uTrap, uint32_t uErrorCode, RTGCP
             return VERR_REM_TOO_MANY_TRAPS;
         }
         if(pVM->rem.s.uPendingException != uTrap || pVM->rem.s.uPendingExcptEIP != env->eip || pVM->rem.s.uPendingExcptCR2 != env->cr[2])
+        {
+            Log(("remR3NotifyTrap: uTrap=%#x set as pending\n", uTrap));
             pVM->rem.s.cPendingExceptions = 1;
+        }
         pVM->rem.s.uPendingException = uTrap;
         pVM->rem.s.uPendingExcptEIP  = env->eip;
         pVM->rem.s.uPendingExcptCR2  = env->cr[2];
@@ -2087,7 +2058,9 @@ void remR3TrapClear(PVM pVM)
  */
 void remR3RecordCall(CPUX86State *env)
 {
+#ifdef VBOX_WITH_RAW_MODE
     CSAMR3RecordCallAddress(env->pVM, env->eip);
+#endif
 }
 
 
@@ -2251,7 +2224,7 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
 
     /* Update the inhibit IRQ mask. */
     pVM->rem.s.Env.hflags &= ~HF_INHIBIT_IRQ_MASK;
-    if (VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
+    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
     {
         RTGCPTR InhibitPC = EMGetInhibitInterruptsPC(pVCpu);
         if (InhibitPC == pCtx->rip)
@@ -2351,7 +2324,7 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
                 pVM->rem.s.Env.ldt.fVBoxFlags  = pCtx->ldtr.fFlags;
                 pVM->rem.s.Env.ldt.base        = pCtx->ldtr.u64Base;
                 pVM->rem.s.Env.ldt.limit       = pCtx->ldtr.u32Limit;
-                pVM->rem.s.Env.ldt.flags       = (pCtx->ldtr.Attr.u << 8) & 0xFFFFFF;
+                pVM->rem.s.Env.ldt.flags       = (pCtx->ldtr.Attr.u & SEL_FLAGS_SMASK) << SEL_FLAGS_SHIFT;
             }
             else
             {
@@ -2384,8 +2357,8 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
     pVM->rem.s.Env.tr.fVBoxFlags  = pCtx->tr.fFlags;
     pVM->rem.s.Env.tr.base        = pCtx->tr.u64Base;
     pVM->rem.s.Env.tr.limit       = pCtx->tr.u32Limit;
-    pVM->rem.s.Env.tr.flags       = (pCtx->tr.Attr.u << 8) & 0xFFFFFF;
-    /* Note! do_interrupt will fault if the busy flag is still set... */
+    pVM->rem.s.Env.tr.flags       = (pCtx->tr.Attr.u & SEL_FLAGS_SMASK) << SEL_FLAGS_SHIFT;
+    /* Note! do_interrupt will fault if the busy flag is still set... */ /** @todo so fix do_interrupt then! */
     pVM->rem.s.Env.tr.flags      &= ~DESC_TSS_BUSY_MASK;
 
     /*
@@ -2409,7 +2382,7 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
                                        (a_pVBoxSReg)->Sel, \
                                        (a_pVBoxSReg)->u64Base, \
                                        (a_pVBoxSReg)->u32Limit, \
-                                       ((a_pVBoxSReg)->Attr.u << 8) & 0xFFFFFF); \
+                                       ((a_pVBoxSReg)->Attr.u & SEL_FLAGS_SMASK) << SEL_FLAGS_SHIFT); \
                 (a_pRemSReg)->fVBoxFlags = (a_pVBoxSReg)->fFlags; \
             } \
             /* This only-reload-if-changed stuff is the old approach, we should ditch it. */ \
@@ -2453,6 +2426,9 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
         if (enmType != TRPM_SOFTWARE_INT)
         {
             pVM->rem.s.Env.exception_is_int     = 0;
+#ifdef IEM_VERIFICATION_MODE /* Ugly hack, needs proper fixing. */
+            pVM->rem.s.Env.exception_is_int     = enmType == TRPM_HARDWARE_INT ? 0x42 : 0;
+#endif
             pVM->rem.s.Env.exception_next_eip   = pVM->rem.s.Env.eip;
         }
         else
@@ -2483,14 +2459,14 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
         {
             switch (u8TrapNo)
             {
-                case 0x0e:
+                case X86_XCPT_PF:
                     pVM->rem.s.Env.cr[2] = TRPMGetFaultAddress(pVCpu);
                     /* fallthru */
-                case 0x0a: case 0x0b: case 0x0c: case 0x0d:
+                case X86_XCPT_TS: case X86_XCPT_NP: case X86_XCPT_SS: case X86_XCPT_GP:
                     pVM->rem.s.Env.error_code = TRPMGetErrorCode(pVCpu);
                     break;
 
-                case 0x11: case 0x08:
+                case X86_XCPT_AC: case X86_XCPT_DF:
                 default:
                     pVM->rem.s.Env.error_code = 0;
                     break;
@@ -2514,7 +2490,7 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
      */
     pVM->rem.s.Env.interrupt_request &= ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER);
     if (    pVM->rem.s.u32PendingInterrupt != REM_NO_PENDING_IRQ
-        ||  VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
+        ||  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
         pVM->rem.s.Env.interrupt_request |= CPU_INTERRUPT_HARD;
 
     /*
@@ -2608,8 +2584,8 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
                 pCtx->a_sreg.fFlags   = CPUMSELREG_FLAGS_VALID; \
                 pCtx->a_sreg.u64Base  = pVM->rem.s.Env.segs[R_##a_SREG].base; \
                 pCtx->a_sreg.u32Limit = pVM->rem.s.Env.segs[R_##a_SREG].limit; \
-                /* Note! QEmu saves the 2nd dword of the descriptor; we should store the attribute word only! */ \
-                pCtx->a_sreg.Attr.u   = (pVM->rem.s.Env.segs[R_##a_SREG].flags >> 8) & 0xF0FF; \
+                /* Note! QEmu saves the 2nd dword of the descriptor; we (VT-x/AMD-V) keep only the attributes! */ \
+                pCtx->a_sreg.Attr.u   = (pVM->rem.s.Env.segs[R_##a_SREG].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK; \
             } \
             else \
             { \
@@ -2636,8 +2612,10 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
     pCtx->cr0           = pVM->rem.s.Env.cr[0];
     pCtx->cr2           = pVM->rem.s.Env.cr[2];
     pCtx->cr3           = pVM->rem.s.Env.cr[3];
-    if ((pVM->rem.s.Env.cr[4] ^ pCtx->cr4) & X86_CR4_VME)
+#ifdef VBOX_WITH_RAW_MODE
+    if (((pVM->rem.s.Env.cr[4] ^ pCtx->cr4) & X86_CR4_VME) && !HMIsEnabled(pVM))
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
+#endif
     pCtx->cr4           = pVM->rem.s.Env.cr[4];
 
     for (i = 0; i < 8; i++)
@@ -2648,7 +2626,10 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
     {
         pCtx->gdtr.pGdt = pVM->rem.s.Env.gdt.base;
         STAM_COUNTER_INC(&gStatREMGDTChange);
-        VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT);
+#ifdef VBOX_WITH_RAW_MODE
+        if (!HMIsEnabled(pVM))
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT);
+#endif
     }
 
     pCtx->idtr.cbIdt    = pVM->rem.s.Env.idt.limit;
@@ -2656,14 +2637,17 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
     {
         pCtx->idtr.pIdt = pVM->rem.s.Env.idt.base;
         STAM_COUNTER_INC(&gStatREMIDTChange);
-        VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
+#ifdef VBOX_WITH_RAW_MODE
+        if (!HMIsEnabled(pVM))
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
+#endif
     }
 
     if (    pCtx->ldtr.Sel      != pVM->rem.s.Env.ldt.selector
         ||  pCtx->ldtr.ValidSel != pVM->rem.s.Env.ldt.selector
         ||  pCtx->ldtr.u64Base  != pVM->rem.s.Env.ldt.base
         ||  pCtx->ldtr.u32Limit != pVM->rem.s.Env.ldt.limit
-        ||  pCtx->ldtr.Attr.u   != ((pVM->rem.s.Env.ldt.flags >> 8) & 0xF0FF)
+        ||  pCtx->ldtr.Attr.u   != ((pVM->rem.s.Env.ldt.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK)
         ||  !(pCtx->ldtr.fFlags & CPUMSELREG_FLAGS_VALID)
        )
     {
@@ -2672,18 +2656,21 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
         pCtx->ldtr.fFlags   = CPUMSELREG_FLAGS_VALID;
         pCtx->ldtr.u64Base  = pVM->rem.s.Env.ldt.base;
         pCtx->ldtr.u32Limit = pVM->rem.s.Env.ldt.limit;
-        pCtx->ldtr.Attr.u   = (pVM->rem.s.Env.ldt.flags >> 8) & 0xF0FF;
+        pCtx->ldtr.Attr.u   = (pVM->rem.s.Env.ldt.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
         STAM_COUNTER_INC(&gStatREMLDTRChange);
-        VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_LDT);
+#ifdef VBOX_WITH_RAW_MODE
+        if (!HMIsEnabled(pVM))
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_LDT);
+#endif
     }
 
     if (    pCtx->tr.Sel      != pVM->rem.s.Env.tr.selector
         ||  pCtx->tr.ValidSel != pVM->rem.s.Env.tr.selector
         ||  pCtx->tr.u64Base  != pVM->rem.s.Env.tr.base
         ||  pCtx->tr.u32Limit != pVM->rem.s.Env.tr.limit
-            /* Qemu and AMD/Intel have different ideas about the busy flag ... */
-        ||  pCtx->tr.Attr.u   != (  (pVM->rem.s.Env.tr.flags >> 8) & 0xF0FF
-                                  ? (pVM->rem.s.Env.tr.flags | DESC_TSS_BUSY_MASK) >> 8
+            /* Qemu and AMD/Intel have different ideas about the busy flag ... */ /** @todo just fix qemu! */
+        ||  pCtx->tr.Attr.u   != (  (pVM->rem.s.Env.tr.flags >> SEL_FLAGS_SHIFT) & (SEL_FLAGS_SMASK & ~DESC_INTEL_UNUSABLE)
+                                  ? (pVM->rem.s.Env.tr.flags | DESC_TSS_BUSY_MASK) >> SEL_FLAGS_SHIFT
                                   : 0)
         ||  !(pCtx->tr.fFlags & CPUMSELREG_FLAGS_VALID)
        )
@@ -2691,17 +2678,21 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
         Log(("REM: TR changed! %#x{%#llx,%#x,%#x} -> %#x{%llx,%#x,%#x}\n",
              pCtx->tr.Sel, pCtx->tr.u64Base, pCtx->tr.u32Limit, pCtx->tr.Attr.u,
              pVM->rem.s.Env.tr.selector, (uint64_t)pVM->rem.s.Env.tr.base, pVM->rem.s.Env.tr.limit,
-             (pVM->rem.s.Env.tr.flags >> 8) & 0xF0FF ? (pVM->rem.s.Env.tr.flags | DESC_TSS_BUSY_MASK) >> 8 : 0));
+             (pVM->rem.s.Env.tr.flags >> SEL_FLAGS_SHIFT) & (SEL_FLAGS_SMASK & ~DESC_INTEL_UNUSABLE)
+             ? (pVM->rem.s.Env.tr.flags | DESC_TSS_BUSY_MASK) >> SEL_FLAGS_SHIFT : 0));
         pCtx->tr.Sel        = pVM->rem.s.Env.tr.selector;
         pCtx->tr.ValidSel   = pVM->rem.s.Env.tr.selector;
         pCtx->tr.fFlags     = CPUMSELREG_FLAGS_VALID;
         pCtx->tr.u64Base    = pVM->rem.s.Env.tr.base;
         pCtx->tr.u32Limit   = pVM->rem.s.Env.tr.limit;
-        pCtx->tr.Attr.u     = (pVM->rem.s.Env.tr.flags >> 8) & 0xF0FF;
-        if (pCtx->tr.Attr.u)
-            pCtx->tr.Attr.u |= DESC_TSS_BUSY_MASK >> 8;
+        pCtx->tr.Attr.u     = (pVM->rem.s.Env.tr.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        if (pCtx->tr.Attr.u & ~DESC_INTEL_UNUSABLE)
+            pCtx->tr.Attr.u |= DESC_TSS_BUSY_MASK >> SEL_FLAGS_SHIFT;
         STAM_COUNTER_INC(&gStatREMTRChange);
-        VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
+#ifdef VBOX_WITH_RAW_MODE
+        if (!HMIsEnabled(pVM))
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
+#endif
     }
 
     /* Sysenter MSR */
@@ -2727,7 +2718,7 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
         EMSetInhibitInterruptsPC(pVCpu, pCtx->rip);
         VMCPU_FF_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
     }
-    else if (VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
+    else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
     {
         Log(("Clearing VMCPU_FF_INHIBIT_INTERRUPTS at %RGv - successor %RGv (REM#2)\n", (RTGCPTR)pCtx->rip, EMGetInhibitInterruptsPC(pVCpu)));
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
@@ -2741,29 +2732,33 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
     if (    pVM->rem.s.Env.exception_index >= 0
         &&  pVM->rem.s.Env.exception_index < 256)
     {
+        /* This cannot be a hardware-interrupt because exception_index < EXCP_INTERRUPT. */
         int rc;
 
         Log(("REMR3StateBack: Pending trap %x %d\n", pVM->rem.s.Env.exception_index, pVM->rem.s.Env.exception_is_int));
-        rc = TRPMAssertTrap(pVCpu, pVM->rem.s.Env.exception_index, (pVM->rem.s.Env.exception_is_int) ? TRPM_SOFTWARE_INT : TRPM_HARDWARE_INT);
+        TRPMEVENT enmType = pVM->rem.s.Env.exception_is_int ? TRPM_SOFTWARE_INT : TRPM_TRAP;
+        rc = TRPMAssertTrap(pVCpu, pVM->rem.s.Env.exception_index, enmType);
         AssertRC(rc);
-        switch (pVM->rem.s.Env.exception_index)
+        if (enmType == TRPM_TRAP)
         {
-            case 0x0e:
-                TRPMSetFaultAddress(pVCpu, pCtx->cr2);
-                /* fallthru */
-            case 0x0a: case 0x0b: case 0x0c: case 0x0d:
-            case 0x11: case 0x08: /* 0 */
-                TRPMSetErrorCode(pVCpu, pVM->rem.s.Env.error_code);
-                break;
+            switch (pVM->rem.s.Env.exception_index)
+            {
+                case X86_XCPT_PF:
+                    TRPMSetFaultAddress(pVCpu, pCtx->cr2);
+                    /* fallthru */
+                case X86_XCPT_TS: case X86_XCPT_NP: case X86_XCPT_SS: case X86_XCPT_GP:
+                case X86_XCPT_AC: case X86_XCPT_DF: /* 0 */
+                    TRPMSetErrorCode(pVCpu, pVM->rem.s.Env.error_code);
+                    break;
+            }
         }
-
     }
 
     /*
      * We're not longer in REM mode.
      */
     CPUMR3RemLeave(pVCpu,
-                      HWACCMIsEnabled(pVM)
+                      HMIsEnabled(pVM)
                    || (  pVM->rem.s.Env.segs[R_SS].newselector
                        | pVM->rem.s.Env.segs[R_GS].newselector
                        | pVM->rem.s.Env.segs[R_FS].newselector
@@ -2858,8 +2853,10 @@ static void remR3StateUpdate(PVM pVM, PVMCPU pVCpu)
     pCtx->cr0           = pVM->rem.s.Env.cr[0];
     pCtx->cr2           = pVM->rem.s.Env.cr[2];
     pCtx->cr3           = pVM->rem.s.Env.cr[3];
-    if ((pVM->rem.s.Env.cr[4] ^ pCtx->cr4) & X86_CR4_VME)
+#ifdef VBOX_WITH_RAW_MODE
+    if (((pVM->rem.s.Env.cr[4] ^ pCtx->cr4) & X86_CR4_VME) && !HMIsEnabled(pVM))
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
+#endif
     pCtx->cr4           = pVM->rem.s.Env.cr[4];
 
     for (i = 0; i < 8; i++)
@@ -2870,7 +2867,10 @@ static void remR3StateUpdate(PVM pVM, PVMCPU pVCpu)
     {
         pCtx->gdtr.pGdt     = (RTGCPTR)pVM->rem.s.Env.gdt.base;
         STAM_COUNTER_INC(&gStatREMGDTChange);
-        VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT);
+#ifdef VBOX_WITH_RAW_MODE
+        if (!HMIsEnabled(pVM))
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT);
+#endif
     }
 
     pCtx->idtr.cbIdt    = pVM->rem.s.Env.idt.limit;
@@ -2878,14 +2878,17 @@ static void remR3StateUpdate(PVM pVM, PVMCPU pVCpu)
     {
         pCtx->idtr.pIdt     = (RTGCPTR)pVM->rem.s.Env.idt.base;
         STAM_COUNTER_INC(&gStatREMIDTChange);
-        VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
+#ifdef VBOX_WITH_RAW_MODE
+        if (!HMIsEnabled(pVM))
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
+#endif
     }
 
     if (    pCtx->ldtr.Sel      != pVM->rem.s.Env.ldt.selector
         ||  pCtx->ldtr.ValidSel != pVM->rem.s.Env.ldt.selector
         ||  pCtx->ldtr.u64Base  != pVM->rem.s.Env.ldt.base
         ||  pCtx->ldtr.u32Limit != pVM->rem.s.Env.ldt.limit
-        ||  pCtx->ldtr.Attr.u   != ((pVM->rem.s.Env.ldt.flags >> 8) & 0xF0FF)
+        ||  pCtx->ldtr.Attr.u   != ((pVM->rem.s.Env.ldt.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK)
         ||  !(pCtx->ldtr.fFlags & CPUMSELREG_FLAGS_VALID)
        )
     {
@@ -2894,9 +2897,12 @@ static void remR3StateUpdate(PVM pVM, PVMCPU pVCpu)
         pCtx->ldtr.fFlags   = CPUMSELREG_FLAGS_VALID;
         pCtx->ldtr.u64Base  = pVM->rem.s.Env.ldt.base;
         pCtx->ldtr.u32Limit = pVM->rem.s.Env.ldt.limit;
-        pCtx->ldtr.Attr.u   = (pVM->rem.s.Env.ldt.flags >> 8) & 0xF0FF;
+        pCtx->ldtr.Attr.u   = (pVM->rem.s.Env.ldt.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
         STAM_COUNTER_INC(&gStatREMLDTRChange);
-        VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_LDT);
+#ifdef VBOX_WITH_RAW_MODE
+        if (!HMIsEnabled(pVM))
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_LDT);
+#endif
     }
 
     if (    pCtx->tr.Sel      != pVM->rem.s.Env.tr.selector
@@ -2904,8 +2910,8 @@ static void remR3StateUpdate(PVM pVM, PVMCPU pVCpu)
         ||  pCtx->tr.u64Base  != pVM->rem.s.Env.tr.base
         ||  pCtx->tr.u32Limit != pVM->rem.s.Env.tr.limit
             /* Qemu and AMD/Intel have different ideas about the busy flag ... */
-        ||  pCtx->tr.Attr.u   != (  (pVM->rem.s.Env.tr.flags >> 8) & 0xF0FF
-                                  ? (pVM->rem.s.Env.tr.flags | DESC_TSS_BUSY_MASK) >> 8
+        ||  pCtx->tr.Attr.u   != (  (pVM->rem.s.Env.tr.flags >> SEL_FLAGS_SHIFT) & (SEL_FLAGS_SMASK & ~DESC_INTEL_UNUSABLE)
+                                  ? (pVM->rem.s.Env.tr.flags | DESC_TSS_BUSY_MASK) >> SEL_FLAGS_SHIFT
                                   : 0)
         ||  !(pCtx->tr.fFlags & CPUMSELREG_FLAGS_VALID)
        )
@@ -2913,17 +2919,21 @@ static void remR3StateUpdate(PVM pVM, PVMCPU pVCpu)
         Log(("REM: TR changed! %#x{%#llx,%#x,%#x} -> %#x{%llx,%#x,%#x}\n",
              pCtx->tr.Sel, pCtx->tr.u64Base, pCtx->tr.u32Limit, pCtx->tr.Attr.u,
              pVM->rem.s.Env.tr.selector, (uint64_t)pVM->rem.s.Env.tr.base, pVM->rem.s.Env.tr.limit,
-             (pVM->rem.s.Env.tr.flags >> 8) & 0xF0FF ? (pVM->rem.s.Env.tr.flags | DESC_TSS_BUSY_MASK) >> 8 : 0));
+             (pVM->rem.s.Env.tr.flags >> SEL_FLAGS_SHIFT) & (SEL_FLAGS_SMASK & ~DESC_INTEL_UNUSABLE)
+             ? (pVM->rem.s.Env.tr.flags | DESC_TSS_BUSY_MASK) >> SEL_FLAGS_SHIFT : 0));
         pCtx->tr.Sel        = pVM->rem.s.Env.tr.selector;
         pCtx->tr.ValidSel   = pVM->rem.s.Env.tr.selector;
         pCtx->tr.fFlags     = CPUMSELREG_FLAGS_VALID;
         pCtx->tr.u64Base    = pVM->rem.s.Env.tr.base;
         pCtx->tr.u32Limit   = pVM->rem.s.Env.tr.limit;
-        pCtx->tr.Attr.u     = (pVM->rem.s.Env.tr.flags >> 8) & 0xF0FF;
-        if (pCtx->tr.Attr.u)
-            pCtx->tr.Attr.u |= DESC_TSS_BUSY_MASK >> 8;
+        pCtx->tr.Attr.u     = (pVM->rem.s.Env.tr.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        if (pCtx->tr.Attr.u & ~DESC_INTEL_UNUSABLE)
+            pCtx->tr.Attr.u |= DESC_TSS_BUSY_MASK >> SEL_FLAGS_SHIFT;
         STAM_COUNTER_INC(&gStatREMTRChange);
-        VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
+#ifdef VBOX_WITH_RAW_MODE
+        if (!HMIsEnabled(pVM))
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
+#endif
     }
 
     /* Sysenter MSR */
@@ -3008,7 +3018,7 @@ REMR3DECL(void) REMR3ReplayHandlerNotifications(PVM pVM)
     VM_ASSERT_EMT(pVM);
 
     /** @todo this isn't ensuring correct replay order. */
-    if (VM_FF_TESTANDCLEAR(pVM, VM_FF_REM_HANDLER_NOTIFY))
+    if (VM_FF_TEST_AND_CLEAR(pVM, VM_FF_REM_HANDLER_NOTIFY))
     {
         uint32_t    idxNext;
         uint32_t    idxRevHead;
@@ -3505,11 +3515,11 @@ target_ulong remR3PhysGetPhysicalAddressCode(CPUX86State       *env,
     LogRel(("\nTrying to execute code with memory type addr_code=%RGv addend=%RGp at %RGv! (iHandlerMemType=%#x iMMIOMemType=%#x IOTLB=%RGp)\n"
             "*** handlers\n",
             (RTGCPTR)pTLBEntry->addr_code, (RTGCPHYS)pTLBEntry->addend, (RTGCPTR)addr, pVM->rem.s.iHandlerMemType, pVM->rem.s.iMMIOMemType, (RTGCPHYS)ioTLBEntry));
-    DBGFR3Info(pVM, "handlers", NULL, DBGFR3InfoLogRelHlp());
+    DBGFR3Info(pVM->pUVM, "handlers", NULL, DBGFR3InfoLogRelHlp());
     LogRel(("*** mmio\n"));
-    DBGFR3Info(pVM, "mmio", NULL, DBGFR3InfoLogRelHlp());
+    DBGFR3Info(pVM->pUVM, "mmio", NULL, DBGFR3InfoLogRelHlp());
     LogRel(("*** phys\n"));
-    DBGFR3Info(pVM, "phys", NULL, DBGFR3InfoLogRelHlp());
+    DBGFR3Info(pVM->pUVM, "phys", NULL, DBGFR3InfoLogRelHlp());
     cpu_abort(env, "Trying to execute code with memory type addr_code=%RGv addend=%RGp at %RGv. (iHandlerMemType=%#x iMMIOMemType=%#x)\n",
               (RTGCPTR)pTLBEntry->addr_code, (RTGCPHYS)pTLBEntry->addend, (RTGCPTR)addr, pVM->rem.s.iHandlerMemType, pVM->rem.s.iMMIOMemType);
     AssertFatalFailed();
@@ -3780,59 +3790,65 @@ void remR3PhysWriteU64(RTGCPHYS DstGCPhys, uint64_t val)
 #define LOG_GROUP LOG_GROUP_REM_MMIO
 
 /** Read MMIO memory. */
-static uint32_t remR3MMIOReadU8(void *pvVM, target_phys_addr_t GCPhys)
+static uint32_t remR3MMIOReadU8(void *pvEnv, target_phys_addr_t GCPhys)
 {
-    uint32_t u32 = 0;
-    int rc = IOMMMIORead((PVM)pvVM, GCPhys, &u32, 1);
+    CPUX86State *env = (CPUX86State *)pvEnv;
+    uint32_t     u32 = 0;
+    int rc = IOMMMIORead(env->pVM, env->pVCpu, GCPhys, &u32, 1);
     AssertMsg(rc == VINF_SUCCESS, ("rc=%Rrc\n", rc)); NOREF(rc);
     Log2(("remR3MMIOReadU8: GCPhys=%RGp -> %02x\n", (RTGCPHYS)GCPhys, u32));
     return u32;
 }
 
 /** Read MMIO memory. */
-static uint32_t remR3MMIOReadU16(void *pvVM, target_phys_addr_t GCPhys)
+static uint32_t remR3MMIOReadU16(void *pvEnv, target_phys_addr_t GCPhys)
 {
-    uint32_t u32 = 0;
-    int rc = IOMMMIORead((PVM)pvVM, GCPhys, &u32, 2);
+    CPUX86State *env = (CPUX86State *)pvEnv;
+    uint32_t     u32 = 0;
+    int rc = IOMMMIORead(env->pVM, env->pVCpu, GCPhys, &u32, 2);
     AssertMsg(rc == VINF_SUCCESS, ("rc=%Rrc\n", rc)); NOREF(rc);
     Log2(("remR3MMIOReadU16: GCPhys=%RGp -> %04x\n", (RTGCPHYS)GCPhys, u32));
     return u32;
 }
 
 /** Read MMIO memory. */
-static uint32_t remR3MMIOReadU32(void *pvVM, target_phys_addr_t GCPhys)
+static uint32_t remR3MMIOReadU32(void *pvEnv, target_phys_addr_t GCPhys)
 {
-    uint32_t u32 = 0;
-    int rc = IOMMMIORead((PVM)pvVM, GCPhys, &u32, 4);
+    CPUX86State *env = (CPUX86State *)pvEnv;
+    uint32_t     u32 = 0;
+    int rc = IOMMMIORead(env->pVM, env->pVCpu, GCPhys, &u32, 4);
     AssertMsg(rc == VINF_SUCCESS, ("rc=%Rrc\n", rc)); NOREF(rc);
     Log2(("remR3MMIOReadU32: GCPhys=%RGp -> %08x\n", (RTGCPHYS)GCPhys, u32));
     return u32;
 }
 
 /** Write to MMIO memory. */
-static void     remR3MMIOWriteU8(void *pvVM, target_phys_addr_t GCPhys, uint32_t u32)
+static void     remR3MMIOWriteU8(void *pvEnv, target_phys_addr_t GCPhys, uint32_t u32)
 {
-    int rc;
+    CPUX86State *env = (CPUX86State *)pvEnv;
+    int          rc;
     Log2(("remR3MMIOWriteU8: GCPhys=%RGp u32=%#x\n", (RTGCPHYS)GCPhys, u32));
-    rc = IOMMMIOWrite((PVM)pvVM, GCPhys, u32, 1);
+    rc = IOMMMIOWrite(env->pVM, env->pVCpu, GCPhys, u32, 1);
     AssertMsg(rc == VINF_SUCCESS, ("rc=%Rrc\n", rc)); NOREF(rc);
 }
 
 /** Write to MMIO memory. */
-static void     remR3MMIOWriteU16(void *pvVM, target_phys_addr_t GCPhys, uint32_t u32)
+static void     remR3MMIOWriteU16(void *pvEnv, target_phys_addr_t GCPhys, uint32_t u32)
 {
-    int rc;
+    CPUX86State *env = (CPUX86State *)pvEnv;
+    int          rc;
     Log2(("remR3MMIOWriteU16: GCPhys=%RGp u32=%#x\n", (RTGCPHYS)GCPhys, u32));
-    rc = IOMMMIOWrite((PVM)pvVM, GCPhys, u32, 2);
+    rc = IOMMMIOWrite(env->pVM, env->pVCpu, GCPhys, u32, 2);
     AssertMsg(rc == VINF_SUCCESS, ("rc=%Rrc\n", rc)); NOREF(rc);
 }
 
 /** Write to MMIO memory. */
-static void     remR3MMIOWriteU32(void *pvVM, target_phys_addr_t GCPhys, uint32_t u32)
+static void     remR3MMIOWriteU32(void *pvEnv, target_phys_addr_t GCPhys, uint32_t u32)
 {
-    int rc;
+    CPUX86State *env = (CPUX86State *)pvEnv;
+    int          rc;
     Log2(("remR3MMIOWriteU32: GCPhys=%RGp u32=%#x\n", (RTGCPHYS)GCPhys, u32));
-    rc = IOMMMIOWrite((PVM)pvVM, GCPhys, u32, 4);
+    rc = IOMMMIOWrite(env->pVM, env->pVCpu, GCPhys, u32, 4);
     AssertMsg(rc == VINF_SUCCESS, ("rc=%Rrc\n", rc)); NOREF(rc);
 }
 
@@ -3938,9 +3954,10 @@ REMR3DECL(int) REMR3DisasEnableStepping(PVM pVM, bool fEnable)
 /**
  * External Debugger Command: .remstep [on|off|1|0]
  */
-static DECLCALLBACK(int) remR3CmdDisasEnableStepping(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
+static DECLCALLBACK(int) remR3CmdDisasEnableStepping(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     int rc;
+    PVM pVM = pUVM->pVM;
 
     if (cArgs == 0)
         /*
@@ -4003,7 +4020,7 @@ bool remR3DisasInstr(CPUX86State *env, int f32BitCode, char *pszPrefix)
      * Log registers if requested.
      */
     if (fLog2)
-        DBGFR3InfoLog(pVM, "cpumguest", pszPrefix);
+        DBGFR3_INFO_LOG(pVM, "cpumguest", pszPrefix);
 
     /*
      * Disassemble to log.
@@ -4013,12 +4030,10 @@ bool remR3DisasInstr(CPUX86State *env, int f32BitCode, char *pszPrefix)
         PVMCPU  pVCpu = VMMGetCpu(pVM);
         char    szBuf[256];
         szBuf[0] = '\0';
-        int rc = DBGFR3DisasInstrEx(pVCpu->pVMR3,
+        int rc = DBGFR3DisasInstrEx(pVCpu->pVMR3->pUVM,
                                     pVCpu->idCpu,
-                                    0, /* Sel */
-                                    0, /* GCPtr */
-                                    DBGF_DISAS_FLAGS_CURRENT_GUEST
-                                    | DBGF_DISAS_FLAGS_DEFAULT_MODE,
+                                    0, /* Sel */  0, /* GCPtr */
+                                    DBGF_DISAS_FLAGS_CURRENT_GUEST | DBGF_DISAS_FLAGS_DEFAULT_MODE,
                                     szBuf,
                                     sizeof(szBuf),
                                     NULL);
@@ -4107,7 +4122,7 @@ void target_disas(FILE *phFile, target_ulong uCode, target_ulong cb, int fFlags)
         {
             char        szBuf[256];
             uint32_t    cbInstr;
-            int rc = DBGFR3DisasInstrEx(pVM,
+            int rc = DBGFR3DisasInstrEx(pVM->pUVM,
                                         pVCpu->idCpu,
                                         cs,
                                         eip,
@@ -4146,7 +4161,8 @@ const char *lookup_symbol(target_ulong orig_addr)
     RTDBGSYMBOL Sym;
     DBGFADDRESS Addr;
 
-    int rc = DBGFR3AsSymbolByAddr(pVM, DBGF_AS_GLOBAL, DBGFR3AddrFromFlat(pVM, &Addr, orig_addr), &off, &Sym, NULL /*phMod*/);
+    int rc = DBGFR3AsSymbolByAddr(pVM->pUVM, DBGF_AS_GLOBAL, DBGFR3AddrFromFlat(pVM->pUVM, &Addr, orig_addr),
+                                  RTDBGSYMADDR_FLAGS_LESS_OR_EQUAL, &off, &Sym, NULL /*phMod*/);
     if (RT_SUCCESS(rc))
     {
         static char szSym[sizeof(Sym.szName) + 48];
@@ -4458,7 +4474,7 @@ int cpu_get_pic_interrupt(CPUX86State *env)
              u8Interrupt, rc, env->segs[R_CS].selector, (uint64_t)env->eip, (uint64_t)env->eflags));
     if (RT_SUCCESS(rc))
     {
-        if (VMCPU_FF_ISPENDING(env->pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
+        if (VMCPU_FF_IS_PENDING(env->pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
             env->interrupt_request |= CPU_INTERRUPT_HARD;
         return u8Interrupt;
     }
@@ -4479,7 +4495,7 @@ void cpu_set_apic_base(CPUX86State *env, uint64_t val)
 uint64_t cpu_get_apic_base(CPUX86State *env)
 {
     uint64_t u64;
-    int rc = PDMApicGetBase(env->pVM, &u64);
+    int rc = CPUMQueryGuestMsr(env->pVCpu, MSR_IA32_APICBASE, &u64);
     if (RT_SUCCESS(rc))
     {
         LogFlow(("cpu_get_apic_base: returns %#llx \n", u64));
@@ -4498,7 +4514,7 @@ void cpu_set_apic_tpr(CPUX86State *env, uint8_t val)
 uint8_t cpu_get_apic_tpr(CPUX86State *env)
 {
     uint8_t u8;
-    int rc = PDMApicGetTPR(env->pVCpu, &u8, NULL);
+    int rc = PDMApicGetTPR(env->pVCpu, &u8, NULL, NULL);
     if (RT_SUCCESS(rc))
     {
         LogFlow(("cpu_get_apic_tpr: returns %#x\n", u8));
@@ -4550,7 +4566,7 @@ void cpu_outb(CPUX86State *env, pio_addr_t addr, uint8_t val)
     if (addr != 0x80 && addr != 0x70 && addr != 0x61)
         Log2(("cpu_outb: addr=%#06x val=%#x\n", addr, val));
 
-    rc = IOMIOPortWrite(env->pVM, (RTIOPORT)addr, val, 1);
+    rc = IOMIOPortWrite(env->pVM, env->pVCpu, (RTIOPORT)addr, val, 1);
     if (RT_LIKELY(rc == VINF_SUCCESS))
         return;
     if (rc >= VINF_EM_FIRST && rc <= VINF_EM_LAST)
@@ -4565,7 +4581,7 @@ void cpu_outb(CPUX86State *env, pio_addr_t addr, uint8_t val)
 void cpu_outw(CPUX86State *env, pio_addr_t addr, uint16_t val)
 {
     //Log2(("cpu_outw: addr=%#06x val=%#x\n", addr, val));
-    int rc = IOMIOPortWrite(env->pVM, (RTIOPORT)addr, val, 2);
+    int rc = IOMIOPortWrite(env->pVM, env->pVCpu, (RTIOPORT)addr, val, 2);
     if (RT_LIKELY(rc == VINF_SUCCESS))
         return;
     if (rc >= VINF_EM_FIRST && rc <= VINF_EM_LAST)
@@ -4581,7 +4597,7 @@ void cpu_outl(CPUX86State *env, pio_addr_t addr, uint32_t val)
 {
     int rc;
     Log2(("cpu_outl: addr=%#06x val=%#x\n", addr, val));
-    rc = IOMIOPortWrite(env->pVM, (RTIOPORT)addr, val, 4);
+    rc = IOMIOPortWrite(env->pVM, env->pVCpu, (RTIOPORT)addr, val, 4);
     if (RT_LIKELY(rc == VINF_SUCCESS))
         return;
     if (rc >= VINF_EM_FIRST && rc <= VINF_EM_LAST)
@@ -4596,7 +4612,7 @@ void cpu_outl(CPUX86State *env, pio_addr_t addr, uint32_t val)
 uint8_t cpu_inb(CPUX86State *env, pio_addr_t addr)
 {
     uint32_t u32 = 0;
-    int rc = IOMIOPortRead(env->pVM, (RTIOPORT)addr, &u32, 1);
+    int rc = IOMIOPortRead(env->pVM, env->pVCpu, (RTIOPORT)addr, &u32, 1);
     if (RT_LIKELY(rc == VINF_SUCCESS))
     {
         if (/*addr != 0x61 && */addr != 0x71)
@@ -4616,7 +4632,7 @@ uint8_t cpu_inb(CPUX86State *env, pio_addr_t addr)
 uint16_t cpu_inw(CPUX86State *env, pio_addr_t addr)
 {
     uint32_t u32 = 0;
-    int rc = IOMIOPortRead(env->pVM, (RTIOPORT)addr, &u32, 2);
+    int rc = IOMIOPortRead(env->pVM, env->pVCpu, (RTIOPORT)addr, &u32, 2);
     if (RT_LIKELY(rc == VINF_SUCCESS))
     {
         Log2(("cpu_inw: addr=%#06x -> %#x\n", addr, u32));
@@ -4635,11 +4651,9 @@ uint16_t cpu_inw(CPUX86State *env, pio_addr_t addr)
 uint32_t cpu_inl(CPUX86State *env, pio_addr_t addr)
 {
     uint32_t u32 = 0;
-    int rc = IOMIOPortRead(env->pVM, (RTIOPORT)addr, &u32, 4);
+    int rc = IOMIOPortRead(env->pVM, env->pVCpu, (RTIOPORT)addr, &u32, 4);
     if (RT_LIKELY(rc == VINF_SUCCESS))
     {
-//if (addr==0x01f0 && u32 == 0x6b6d)
-//    loglevel = ~0;
         Log2(("cpu_inl: addr=%#06x -> %#x\n", addr, u32));
         return u32;
     }

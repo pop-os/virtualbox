@@ -11,6 +11,7 @@
 #include "state/cr_client.h"
 
 #include <iprt/cdefs.h>
+#include <stdarg.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,6 +44,8 @@ DECLEXPORT(void) crBitmapCopy( GLsizei width, GLsizei height, GLubyte *dstPtr,
 									 const GLubyte *srcPtr, const CRPixelPackState *srcPacking );
 
 DECLEXPORT(void) crDumpNamedTGA(const char *fname, GLint w, GLint h, GLvoid *data);
+DECLEXPORT(void) crDumpNamedTGAV(GLint w, GLint h, GLvoid *data, const char* fname, va_list va);
+DECLEXPORT(void) crDumpNamedTGAF(GLint w, GLint h, GLvoid *data, const char* fname, ...);
 DECLEXPORT(void) crDumpTGA(GLint w, GLint h, GLvoid *data);
 #ifdef __cplusplus
 }

@@ -13,7 +13,7 @@
         rather trivial container classes for their read-only attributes.
         Further extension to other interfaces is possible and anticipated.
 
-    Copyright (C) 2010-2012 Oracle Corporation
+    Copyright (C) 2010-2013 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -30,7 +30,7 @@
   encoding="utf-8"
   indent="no"/>
 
-<xsl:include href="../webservice/websrv-shared.inc.xsl" />
+<xsl:include href="typemap-shared.inc.xsl" />
 
 <!-- $G_kind contains what kind of COM class implementation we generate -->
 <xsl:variable name="G_xsltFilename" select="'autogen.xsl'" />
@@ -46,7 +46,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -148,6 +148,12 @@
         </xsl:when>
          <xsl:when test="$type='octet'">
           <xsl:value-of select="'BYTE'" />
+        </xsl:when>
+        <xsl:when test="$type='unsigned short'">
+          <xsl:value-of select="'USHORT'" />
+        </xsl:when>
+        <xsl:when test="$type='short'">
+          <xsl:value-of select="'SHORT'" />
         </xsl:when>
         <xsl:when test="$type='unsigned long'">
           <xsl:value-of select="'ULONG'" />
@@ -293,14 +299,14 @@
            </xsl:call-template>
          </xsl:variable>
          <xsl:value-of select="       '#ifdef RT_OS_WINDOWS&#10;'"/>
-         <xsl:value-of select="       '              SAFEARRAY *    aPtr = va_arg(args, SAFEARRAY *);&#10;'"/>
-         <xsl:value-of select="concat('              com::SafeArray&lt;', $elemtype,'&gt;   aArr(aPtr);&#10;')"/>
+         <xsl:value-of select="concat('              SAFEARRAY *aPtr_', @name, ' = va_arg(args, SAFEARRAY *);&#10;')"/>
+         <xsl:value-of select="concat('              com::SafeArray&lt;', $elemtype,'&gt;   aArr_', @name, '(aPtr_', @name, ');&#10;')"/>
          <xsl:value-of select="       '#else&#10;'"/>
-         <xsl:value-of select="       '              PRUint32 aArrSize = va_arg(args, PRUint32);&#10;'"/>
-         <xsl:value-of select="       '              void*    aPtr = va_arg(args, void*);&#10;'"/>
-         <xsl:value-of select="concat('              com::SafeArray&lt;', $elemtype,'&gt;   aArr(aArrSize, (', $elemtype,'*)aPtr);&#10;')"/>
+         <xsl:value-of select="concat('              PRUint32 aArrSize_', @name, ' = va_arg(args, PRUint32);&#10;')"/>
+         <xsl:value-of select="concat('              void*    aPtr_', @name, ' = va_arg(args, void*);&#10;')"/>
+         <xsl:value-of select="concat('              com::SafeArray&lt;', $elemtype,'&gt;   aArr_', @name, '(aArrSize_', @name, ', (', $elemtype,'*)aPtr_', @name, ');&#10;')"/>
          <xsl:value-of select="       '#endif&#10;'"/>
-         <xsl:value-of select="concat('              ',$obj, '->set_', @name, '(ComSafeArrayAsInParam(aArr));&#10;')"/>
+         <xsl:value-of select="concat('              ',$obj, '->set_', @name, '(ComSafeArrayAsInParam(aArr_', @name, '));&#10;')"/>
       </xsl:when>
       <xsl:otherwise>
         <xsl:value-of select="concat('              ',$aTypeName, ' = va_arg(args, ',$aType,');&#10;')"/>

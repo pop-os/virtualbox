@@ -903,7 +903,7 @@
 
       <para>Linux kernels shipped with Red Hat Enterprise Linux (RHEL) as of
       release 4.7 and 5.1 as well as kernels of related Linux distributions
-      (for instance CentOS and Oracle Enterprise Linux) support a kernel
+      (for instance CentOS and Oracle Linux) support a kernel
       parameter <emphasis>divider=N</emphasis>. Hence, such kernels support a
       lower timer frequency without recompilation. We suggest to add the
       kernel parameter <emphasis>divider=10</emphasis> to select a guest
@@ -1281,7 +1281,7 @@ VirtualBox</screen>
       automatically. They are only accessible from the user account they are
       running under. <computeroutput>VBoxSVC</computeroutput> owns the
       VirtualBox configuration database which normally resides in
-      <computeroutput>~/.VirtualBox</computeroutput>. While it is running, the
+      <computeroutput>~/.config/VirtualBox</computeroutput>, or the appropriate configuration directory for your operating system. While it is running, the
       configuration files are locked. Communication between the various
       VirtualBox components and <computeroutput>VBoxSVC</computeroutput> is
       performed through a local domain socket residing in
@@ -1385,7 +1385,7 @@ none     /proc/bus/usb     usbfs      devgid=85,devmode=664    0    0</screen>Re
     <sect2>
       <title>Cannot start VM, not enough contiguous memory</title>
 
-      <para>The ZFS file system is known to use all available RAM as cache if
+      <para>The ZFS file system is known to use nearly all available RAM as cache if
       the default system settings are not changed. This may lead to a heavy
       fragmentation of the host memory preventing VirtualBox VMs from being
       started. We recommend to limit the ZFS cache by adding a line<screen>set zfs:zfs_arc_max = xxxx</screen>

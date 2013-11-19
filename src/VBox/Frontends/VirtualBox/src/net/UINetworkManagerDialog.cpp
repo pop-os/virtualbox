@@ -33,6 +33,7 @@
 #include "UIIconPool.h"
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
+#include "UIModalWindowManager.h"
 #include "QIDialogButtonBox.h"
 
 void UINetworkManagerDialog::showNormal()
@@ -114,8 +115,8 @@ void UINetworkManagerDialog::addNetworkRequestWidget(UINetworkRequest *pNetworkR
     }
 
     /* Prepare network-request widget's notifications for network-request: */
-    connect(pNetworkRequestWidget, SIGNAL(sigRetry()), pNetworkRequest, SLOT(sltRetry()));
-    connect(pNetworkRequestWidget, SIGNAL(sigCancel()), pNetworkRequest, SLOT(sltCancel()));
+    connect(pNetworkRequestWidget, SIGNAL(sigRetry()), pNetworkRequest, SLOT(sltRetry()), Qt::QueuedConnection);
+    connect(pNetworkRequestWidget, SIGNAL(sigCancel()), pNetworkRequest, SLOT(sltCancel()), Qt::QueuedConnection);
 }
 
 void UINetworkManagerDialog::removeNetworkRequestWidget(const QUuid &uuid)
@@ -144,7 +145,7 @@ void UINetworkManagerDialog::removeNetworkRequestWidget(const QUuid &uuid)
 void UINetworkManagerDialog::sltHandleCancelAllButtonPress()
 {
     /* Ask if user wants to cancel all current network-requests: */
-    if (msgCenter().askAboutCancelAllNetworkRequest(this))
+    if (msgCenter().confirmCancelingAllNetworkRequests())
         emit sigCancelNetworkRequests();
 }
 
@@ -167,7 +168,7 @@ void UINetworkManagerDialog::showEvent(QShowEvent *pShowEvent)
     resize(minimumSizeHint());
 
     /* Center according current main application window: */
-    vboxGlobal().centerWidget(this, vboxGlobal().mainWindow(), false);
+    vboxGlobal().centerWidget(this, windowManager().mainWindowShown(), false);
 
     /* Pass event to the base-class: */
     QMainWindow::showEvent(pShowEvent);

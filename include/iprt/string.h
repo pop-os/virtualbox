@@ -166,7 +166,7 @@ RT_C_DECLS_BEGIN
 #define RTSTR_MAX       (~(size_t)0)
 
 
-/** @def RTMEM_TAG
+/** @def RTSTR_TAG
  * The default allocation tag used by the RTStr allocation APIs.
  *
  * When not defined before the inclusion of iprt/string.h, this will default to
@@ -2410,6 +2410,31 @@ RTDECL(char *) RTStrToLower(char *psz);
  * @param   psz     The string to convert.
  */
 RTDECL(char *) RTStrToUpper(char *psz);
+
+/**
+ * Checks if the string is case foldable, i.e. whether it would change if
+ * subject to RTStrToLower or RTStrToUpper.
+ *
+ * @returns true / false
+ * @param   psz     The string in question.
+ */
+RTDECL(bool) RTStrIsCaseFoldable(const char *psz);
+
+/**
+ * Checks if the string is upper cased (no lower case chars in it).
+ *
+ * @returns true / false
+ * @param   psz     The string in question.
+ */
+RTDECL(bool) RTStrIsUpperCased(const char *psz);
+
+/**
+ * Checks if the string is lower cased (no upper case chars in it).
+ *
+ * @returns true / false
+ * @param   psz     The string in question.
+ */
+RTDECL(bool) RTStrIsLowerCased(const char *psz);
 
 /**
  * Find the length of a zero-terminated byte string, given

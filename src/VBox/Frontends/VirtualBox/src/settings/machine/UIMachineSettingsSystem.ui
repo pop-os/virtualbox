@@ -2,7 +2,7 @@
  <comment>
  VBox frontends: Qt4 GUI (&quot;VirtualBox&quot;):
 
- Copyright (C) 2008-2012 Oracle Corporation
+ Copyright (C) 2008-2013 Oracle Corporation
 
  This file is part of VirtualBox Open Source Edition (OSE), as
  available from http://www.virtualbox.org. This file is free software;
@@ -14,33 +14,16 @@
  </comment>
  <class>UIMachineSettingsSystem</class>
  <widget class="QWidget" name="UIMachineSettingsSystem">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>461</width>
-    <height>378</height>
-   </rect>
-  </property>
-  <layout class="QVBoxLayout" name="mLtMain">
+  <layout class="QVBoxLayout">
    <item>
-    <widget class="QITabWidget" name="mTwSystem">
-     <property name="currentIndex">
-      <number>0</number>
-     </property>
-     <widget class="QWidget" name="mTabMotherboard">
+    <widget class="QITabWidget" name="m_pTabWidgetSystem">
+     <widget class="QWidget" name="m_pTabMotherboard">
       <attribute name="title">
        <string>&amp;Motherboard</string>
       </attribute>
-      <layout class="QGridLayout" name="mLtMotherboard">
+      <layout class="QGridLayout">
        <item row="0" column="0">
-        <widget class="QLabel" name="mLbMemory">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
+        <widget class="QLabel" name="m_pLabelMemorySize">
          <property name="text">
           <string>Base &amp;Memory:</string>
          </property>
@@ -48,96 +31,72 @@
           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
          </property>
          <property name="buddy">
-          <cstring>mLeMemory</cstring>
+          <cstring>m_pEditorMemorySize</cstring>
          </property>
         </widget>
        </item>
        <item row="0" column="1" rowspan="2" colspan="2">
-        <layout class="QVBoxLayout" name="mLtMemorySlider">
-         <property name="spacing">
-          <number>0</number>
+        <widget class="QWidget">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>1</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
          </property>
-         <item>
-          <widget class="VBoxGuestRAMSlider" name="mSlMemory">
-           <property name="whatsThis">
-            <string>Controls the amount of memory provided to the virtual machine. If you assign too much, the machine might not start.</string>
-           </property>
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-           <property name="tickPosition">
-            <enum>QSlider::TicksBelow</enum>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="mLtMemoryLegend">
-           <property name="spacing">
-            <number>0</number>
-           </property>
-           <item>
-            <widget class="QLabel" name="mLbMemoryMin">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <spacer name="mSpHor1">
-             <property name="orientation">
-              <enum>Qt::Horizontal</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>0</width>
-               <height>0</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
-           <item>
-            <widget class="QLabel" name="mLbMemoryMax">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-        </layout>
+         <layout class="QVBoxLayout">
+          <property name="spacing">
+           <number>0</number>
+          </property>
+          <item>
+           <widget class="VBoxGuestRAMSlider" name="m_pSliderMemorySize">
+            <property name="whatsThis">
+             <string>Controls the amount of memory provided to the virtual machine. If you assign too much, the machine might not start.</string>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout">
+            <property name="spacing">
+             <number>0</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="m_pLabelMemoryMin"/>
+            </item>
+            <item>
+             <spacer name="m_pSpacerHorizontal1">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>0</width>
+                <height>0</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QLabel" name="m_pLabelMemoryMax"/>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
        </item>
        <item row="0" column="3">
-        <layout class="QHBoxLayout" name="mLtMemoryUnits">
+        <layout class="QHBoxLayout">
          <item>
-          <widget class="QILineEdit" name="mLeMemory">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
+          <widget class="QSpinBox" name="m_pEditorMemorySize">
            <property name="whatsThis">
             <string>Controls the amount of memory provided to the virtual machine. If you assign too much, the machine might not start.</string>
            </property>
           </widget>
          </item>
          <item>
-          <widget class="QLabel" name="mLbMemoryUnit">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
+          <widget class="QLabel" name="m_pLabelMemoryUnits">
            <property name="text">
             <string>MB</string>
            </property>
@@ -146,13 +105,7 @@
         </layout>
        </item>
        <item row="2" column="0">
-        <widget class="QLabel" name="mLbBootOrder">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
+        <widget class="QLabel" name="m_pLabelBootOrder">
          <property name="text">
           <string>&amp;Boot Order:</string>
          </property>
@@ -165,7 +118,7 @@
         </widget>
        </item>
        <item row="2" column="1" rowspan="2" colspan="2">
-        <layout class="QHBoxLayout" name="mLtBootOrder">
+        <layout class="QHBoxLayout" name="m_pLayoutBootOrder">
          <property name="spacing">
           <number>1</number>
          </property>
@@ -203,9 +156,6 @@
            </property>
            <item>
             <widget class="QIToolButton" name="mTbBootItemUp">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
              <property name="focusPolicy">
               <enum>Qt::StrongFocus</enum>
              </property>
@@ -229,9 +179,6 @@
            </item>
            <item>
             <widget class="QIToolButton" name="mTbBootItemDown">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
              <property name="focusPolicy">
               <enum>Qt::StrongFocus</enum>
              </property>
@@ -254,7 +201,7 @@
             </widget>
            </item>
            <item>
-            <spacer name="mSpVer2">
+            <spacer name="m_pSpacerVertical1">
              <property name="orientation">
               <enum>Qt::Vertical</enum>
              </property>
@@ -269,7 +216,7 @@
           </layout>
          </item>
          <item>
-          <spacer name="mSpHor2">
+          <spacer name="m_pSpacerHorizontal2">
            <property name="orientation">
             <enum>Qt::Horizontal</enum>
            </property>
@@ -284,13 +231,7 @@
         </layout>
        </item>
        <item row="4" column="0">
-        <widget class="QLabel" name="mLbChipset">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
+        <widget class="QLabel" name="m_pLabelChipsetType">
          <property name="text">
           <string>&amp;Chipset:</string>
          </property>
@@ -298,14 +239,14 @@
           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
          </property>
          <property name="buddy">
-          <cstring>mCbChipset</cstring>
+          <cstring>m_pComboChipsetType</cstring>
          </property>
         </widget>
        </item>
        <item row="4" column="1" colspan="3">
-        <layout class="QHBoxLayout" name="mLtChipset">
+        <layout class="QHBoxLayout">
          <item>
-          <widget class="QComboBox" name="mCbChipset">
+          <widget class="QComboBox" name="m_pComboChipsetType">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
              <horstretch>0</horstretch>
@@ -318,7 +259,7 @@
           </widget>
          </item>
          <item>
-          <spacer name="mSpHor3">
+          <spacer name="m_pSpacerHorizontal3">
            <property name="orientation">
             <enum>Qt::Horizontal</enum>
            </property>
@@ -333,13 +274,50 @@
         </layout>
        </item>
        <item row="5" column="0">
-        <widget class="QLabel" name="mLbMotherboardExtended">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
+        <widget class="QLabel" name="m_pLabelPointingHIDType">
+         <property name="text">
+          <string>&amp;Pointing Device:</string>
          </property>
+         <property name="alignment">
+          <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+         </property>
+         <property name="buddy">
+          <cstring>m_pComboPointingHIDType</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1" colspan="3">
+        <layout class="QHBoxLayout">
+         <item>
+          <widget class="QComboBox" name="m_pComboPointingHIDType" >
+           <property name="sizePolicy" >
+            <sizepolicy vsizetype="Fixed" hsizetype="Minimum" >
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+             </sizepolicy>
+           </property>
+           <property name="whatsThis" >
+            <string>Determines whether the emulated pointing device is a standard PS/2 mouse, a USB tablet or a USB multi-touch tablet.</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="m_pSpacerHorizontal4">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>0</width>
+             <height>0</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+       <item row="6" column="0">
+        <widget class="QLabel" name="m_pLabelMotherboardExtended">
          <property name="text">
           <string>Extended Features:</string>
          </property>
@@ -348,30 +326,18 @@
          </property>
         </widget>
        </item>
-       <item row="5" column="1" colspan="3">
-        <widget class="QCheckBox" name="mCbApic">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-           <horstretch>1</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
+       <item row="6" column="1" colspan="3">
+        <widget class="QCheckBox" name="m_pCheckBoxApic">
          <property name="whatsThis">
-          <string>When checked, the virtual machine will support the Input Output APIC (IO APIC), which may slightly decrease performance. &lt;b&gt;Note:&lt;/b&gt; don't disable this feature after having installed a Windows guest operating system!</string>
+          <string>When checked, the virtual machine will support the Input Output APIC (I/O APIC), which may slightly decrease performance. &lt;b&gt;Note:&lt;/b&gt; don't disable this feature after having installed a Windows guest operating system!</string>
          </property>
          <property name="text">
-          <string>Enable &amp;IO APIC</string>
+          <string>Enable &amp;I/O APIC</string>
          </property>
         </widget>
        </item>
-       <item row="6" column="1" colspan="3">
-        <widget class="QCheckBox" name="mCbEFI">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
+       <item row="7" column="1" colspan="3">
+        <widget class="QCheckBox" name="m_pCheckBoxEFI">
          <property name="whatsThis">
           <string>When checked, the guest will support the Extended Firmware Interface (EFI), which is required to boot certain guest OSes. Non-EFI aware OSes will not be able to boot if this option is activated.</string>
          </property>
@@ -380,40 +346,18 @@
          </property>
         </widget>
        </item>
-       <item row="7" column="1" colspan="3">
-        <widget class="QCheckBox" name="mCbTCUseUTC" >
-         <property name="sizePolicy" >
-          <sizepolicy vsizetype="Fixed" hsizetype="MinimumExpanding" >
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-           </sizepolicy>
-         </property>
+       <item row="8" column="1" colspan="3">
+        <widget class="QCheckBox" name="m_pCheckBoxUseUTC" >
          <property name="whatsThis" >
           <string>If checked, the RTC device will report the time in UTC, otherwise in local (host) time. Unix usually expects the hardware clock to be set to UTC.</string>
          </property>
          <property name="text" >
-          <string>Hardware clock in &amp;UTC time</string>
-         </property>
-        </widget>
-       </item>
-       <item row="8" column="1" colspan="3">
-        <widget class="QCheckBox" name="mCbUseAbsHID" >
-         <property name="sizePolicy" >
-          <sizepolicy vsizetype="Fixed" hsizetype="MinimumExpanding" >
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-           </sizepolicy>
-         </property>
-         <property name="whatsThis" >
-          <string>If checked, an absolute pointing device (a USB tablet) will be supported. Otherwise, only a standard PS/2 mouse will be emulated.</string>
-         </property>
-         <property name="text" >
-          <string>Enable &amp;absolute pointing device</string>
+          <string>Hardware Clock in &amp;UTC Time</string>
          </property>
         </widget>
        </item>
        <item row="9" column="0" colspan="4">
-        <spacer name="mSpVer1">
+        <spacer name="m_pSpacerVertical2">
          <property name="orientation">
           <enum>Qt::Vertical</enum>
          </property>
@@ -427,19 +371,13 @@
        </item>
       </layout>
      </widget>
-     <widget class="QWidget" name="mTabProcessor">
+     <widget class="QWidget" name="m_pTabCPU">
       <attribute name="title">
        <string>&amp;Processor</string>
       </attribute>
-      <layout class="QGridLayout" name="mLtProcessor">
+      <layout class="QGridLayout">
        <item row="0" column="0">
-        <widget class="QLabel" name="mLbCPU">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
+        <widget class="QLabel" name="m_pLabelCPUCount">
          <property name="text">
           <string>&amp;Processor(s):</string>
          </property>
@@ -447,103 +385,70 @@
           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
          </property>
          <property name="buddy">
-          <cstring>mLeCPU</cstring>
+          <cstring>m_pEditorCPUCount</cstring>
          </property>
         </widget>
        </item>
        <item row="0" column="1" rowspan="2">
-        <layout class="QVBoxLayout" name="mLtCPUSlider">
-         <property name="spacing">
-          <number>0</number>
-         </property>
-         <item>
-          <widget class="QIAdvancedSlider" name="mSlCPU">
-           <property name="whatsThis">
-            <string>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</string>
-           </property>
-           <property name="maximum">
-            <number>4096</number>
-           </property>
-           <property name="singleStep">
-            <number>200</number>
-           </property>
-           <property name="value">
-            <number>512</number>
-           </property>
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-           <property name="tickPosition">
-            <enum>QSlider::TicksBelow</enum>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="mLtCPULegend">
-           <property name="spacing">
-            <number>0</number>
-           </property>
-           <item>
-            <widget class="QLabel" name="mLbCPUMin">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <spacer name="mSpHor4">
-             <property name="orientation">
-              <enum>Qt::Horizontal</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>0</width>
-               <height>0</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
-           <item>
-            <widget class="QLabel" name="mLbCPUMax">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-        </layout>
-       </item>
-       <item row="0" column="2">
-        <widget class="QILineEdit" name="mLeCPU">
+        <widget class="QWidget">
          <property name="sizePolicy">
-          <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-           <horstretch>0</horstretch>
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>1</horstretch>
            <verstretch>0</verstretch>
           </sizepolicy>
          </property>
+         <layout class="QVBoxLayout">
+          <property name="spacing">
+           <number>0</number>
+          </property>
+          <item>
+           <widget class="QIAdvancedSlider" name="m_pSliderCPUCount">
+            <property name="whatsThis">
+             <string>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</string>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout">
+            <property name="spacing">
+             <number>0</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="m_pLabelCPUMin"/>
+            </item>
+            <item>
+             <spacer name="m_pSpacerHorizontal5">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>0</width>
+                <height>0</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QLabel" name="m_pLabelCPUMax"/>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="0" column="2">
+        <widget class="QSpinBox" name="m_pEditorCPUCount">
          <property name="whatsThis">
           <string>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</string>
          </property>
         </widget>
        </item>
        <item row="2" column="0">
-        <widget class="QLabel" name="mLbCPUExecCap">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
+        <widget class="QLabel" name="m_pLabelCPUExecCap">
          <property name="text">
           <string>&amp;Execution Cap:</string>
          </property>
@@ -551,54 +456,35 @@
           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
          </property>
          <property name="buddy">
-          <cstring>mLeCPUExecCap</cstring>
+          <cstring>m_pEditorCPUExecCap</cstring>
          </property>
         </widget>
        </item>
        <item row="2" column="1" rowspan="2">
-        <layout class="QVBoxLayout" name="mLtCPUExecCapSlider">
+        <layout class="QVBoxLayout">
          <property name="spacing">
           <number>0</number>
          </property>
          <item>
-          <widget class="QIAdvancedSlider" name="mSlCPUExecCap">
+          <widget class="QIAdvancedSlider" name="m_pSliderCPUExecCap">
            <property name="whatsThis">
             <string>Limits the amount of time that each virtual CPU is allowed to run for. Each virtual CPU will be allowed to use up to this percentage of the processing time available on one physical CPU. The execution cap can be disabled by setting it to 100%. Setting the cap too low can make the machine feel slow to respond.</string>
-           </property>
-           <property name="maximum">
-            <number>4096</number>
-           </property>
-           <property name="singleStep">
-            <number>200</number>
-           </property>
-           <property name="value">
-            <number>512</number>
            </property>
            <property name="orientation">
             <enum>Qt::Horizontal</enum>
            </property>
-           <property name="tickPosition">
-            <enum>QSlider::TicksBelow</enum>
-           </property>
           </widget>
          </item>
          <item>
-          <layout class="QHBoxLayout" name="mLtCPUExecCapLegend">
+          <layout class="QHBoxLayout">
            <property name="spacing">
             <number>0</number>
            </property>
            <item>
-            <widget class="QLabel" name="mLbCPUExecCapMin">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-            </widget>
+            <widget class="QLabel" name="m_pLabelCPUExecCapMin"/>
            </item>
            <item>
-            <spacer name="mSpHor5">
+            <spacer name="m_pSpacerHorizontal6">
              <property name="orientation">
               <enum>Qt::Horizontal</enum>
              </property>
@@ -611,37 +497,21 @@
             </spacer>
            </item>
            <item>
-            <widget class="QLabel" name="mLbCPUExecCapMax">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-             </property>
-            </widget>
+            <widget class="QLabel" name="m_pLabelCPUExecCapMax"/>
            </item>
           </layout>
          </item>
         </layout>
        </item>
        <item row="2" column="2">
-        <widget class="QILineEdit" name="mLeCPUExecCap">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
+        <widget class="QSpinBox" name="m_pEditorCPUExecCap">
          <property name="whatsThis">
           <string>Limits the amount of time that each virtual CPU is allowed to run for. Each virtual CPU will be allowed to use up to this percentage of the processing time available on one physical CPU. The execution cap can be disabled by setting it to 100%. Setting the cap too low can make the machine feel slow to respond.</string>
          </property>
         </widget>
        </item>
        <item row="4" column="0">
-        <widget class="QLabel" name="mLbProcessorExtended">
+        <widget class="QLabel" name="m_pLabelCPUExtended">
          <property name="text">
           <string>Extended Features:</string>
          </property>
@@ -651,13 +521,7 @@
         </widget>
        </item>
        <item row="4" column="1" colspan="2">
-        <widget class="QCheckBox" name="mCbPae">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
+        <widget class="QCheckBox" name="m_pCheckBoxPAE">
          <property name="whatsThis">
           <string>When checked, the Physical Address Extension (PAE) feature of the host CPU will be exposed to the virtual machine.</string>
          </property>
@@ -667,7 +531,7 @@
         </widget>
        </item>
        <item row="5" column="0" colspan="3">
-        <spacer name="mSpVer3">
+        <spacer name="m_pSpacerVertical3">
          <property name="orientation">
           <enum>Qt::Vertical</enum>
          </property>
@@ -681,23 +545,23 @@
        </item>
       </layout>
      </widget>
-     <widget class="QWidget" name="mTabAcceleration">
+     <widget class="QWidget" name="m_pTabAcceleration">
       <attribute name="title">
        <string>Acce&amp;leration</string>
       </attribute>
-      <layout class="QGridLayout" name="mLtAcceleration">
+      <layout class="QGridLayout">
        <item row="0" column="0">
-        <widget class="QLabel" name="mLbVirt">
+        <widget class="QLabel" name="m_pLabelVirtualization">
          <property name="text">
           <string>Hardware Virtualization:</string>
          </property>
         </widget>
        </item>
        <item row="0" column="1">
-        <widget class="QCheckBox" name="mCbVirt">
+        <widget class="QCheckBox" name="m_pCheckBoxVirtualization">
          <property name="sizePolicy">
           <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-           <horstretch>0</horstretch>
+           <horstretch>1</horstretch>
            <verstretch>0</verstretch>
           </sizepolicy>
          </property>
@@ -707,13 +571,10 @@
          <property name="text">
           <string>Enable &amp;VT-x/AMD-V</string>
          </property>
-         <property name="checked">
-          <bool>true</bool>
-         </property>
         </widget>
        </item>
        <item row="1" column="1">
-        <widget class="QCheckBox" name="mCbNestedPaging">
+        <widget class="QCheckBox" name="m_pCheckBoxNestedPaging">
          <property name="sizePolicy">
           <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
            <horstretch>0</horstretch>
@@ -726,20 +587,17 @@
          <property name="text">
           <string>Enable Nested Pa&amp;ging</string>
          </property>
-         <property name="checked">
-          <bool>true</bool>
-         </property>
         </widget>
        </item>
        <item row="2" column="0" colspan="2">
-        <spacer name="verticalSpacer">
+        <spacer name="m_pSpacerVertical4">
          <property name="orientation">
           <enum>Qt::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
-           <width>20</width>
-           <height>40</height>
+           <width>0</width>
+           <height>0</height>
           </size>
          </property>
         </spacer>
@@ -755,11 +613,6 @@
    <class>UIBootTable</class>
    <extends>QListWidget</extends>
    <header>UIBootTable.h</header>
-  </customwidget>
-  <customwidget>
-   <class>QILineEdit</class>
-   <extends>QLineEdit</extends>
-   <header>QILineEdit.h</header>
   </customwidget>
   <customwidget>
    <class>QIAdvancedSlider</class>
@@ -785,20 +638,10 @@
  <resources/>
  <connections>
   <connection>
-   <sender>mCbVirt</sender>
+   <sender>m_pCheckBoxVirtualization</sender>
    <signal>toggled(bool)</signal>
-   <receiver>mCbNestedPaging</receiver>
+   <receiver>m_pCheckBoxNestedPaging</receiver>
    <slot>setEnabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>195</x>
-     <y>50</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>196</x>
-     <y>72</y>
-    </hint>
-   </hints>
   </connection>
  </connections>
 </ui>

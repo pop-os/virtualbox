@@ -82,8 +82,10 @@ crHashtableSearch
 crHashtableReplace
 crHashtableNumElements
 crHashtableWalk
+crHashtableWalkUnlocked
 crHashtableAllocRegisterKey
 crAllocHashtable
+crAllocHashtableEx
 crFreeHashtable
 crHashtableGetDataKey
 crDetermineEndianness
@@ -146,7 +148,6 @@ crGetCurrentDir
 crHashtableAllocKeys
 crHashtableDeleteBlock
 crHashtableIsKeyUsed
-crHashtableWalk
 crMatrixInit
 crMatrixInitFromString
 crMatrixInitFromFloats

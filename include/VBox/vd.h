@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -154,11 +154,11 @@ typedef struct VBOXHDDRAWPARTDESC
  * Auxiliary data structure for difference between GPT and MBR
  * disks.
  */
-enum PARTITIONING_TYPE
+typedef enum VBOXHDDPARTTYPE
 {
     MBR,
     GPT
-};
+} VBOXHDDPARTTYPE;
 
 /**
  * Auxiliary data structure for creating raw disks.
@@ -178,8 +178,8 @@ typedef struct VBOXHDDRAW
     unsigned        cPartDescs;
     /** Pointer to the partition descriptor array. */
     PVBOXHDDRAWPARTDESC pPartDescs;
-    /**partitioning type of the disk */
-    PARTITIONING_TYPE uPartitioningType;
+    /** Partitioning type of the disk */
+    VBOXHDDPARTTYPE uPartitioningType;
 
 } VBOXHDDRAW, *PVBOXHDDRAW;
 
@@ -795,7 +795,9 @@ VBOXDDU_DECL(int) VDCompact(PVBOXHDD pDisk, unsigned nImage,
                             PVDINTERFACE pVDIfsOperation);
 
 /**
- * Resizes the given disk image to the given size.
+ * Resizes the given disk image to the given size. It is OK if there are
+ * multiple images open in the container. In this case the last disk image
+ * will be resized.
  *
  * @return  VBox status
  * @return  VERR_VD_IMAGE_READ_ONLY if image is not writable.
@@ -896,6 +898,16 @@ VBOXDDU_DECL(unsigned) VDGetCount(PVBOXHDD pDisk);
  * @param   pDisk           Pointer to HDD container.
  */
 VBOXDDU_DECL(bool) VDIsReadOnly(PVBOXHDD pDisk);
+
+/**
+ * Get sector size of an image in HDD container.
+ *
+ * @return  Virtual disk sector size in bytes.
+ * @return  0 if image with specified number was not opened.
+ * @param   pDisk           Pointer to HDD container.
+ * @param   nImage          Image number, counts from 0. 0 is always base image of container.
+ */
+VBOXDDU_DECL(uint32_t) VDGetSectorSize(PVBOXHDD pDisk, unsigned nImage);
 
 /**
  * Get total capacity of an image in HDD container.
@@ -1245,7 +1257,8 @@ VBOXDDU_DECL(int) VDRepair(PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
  * @return  VBox status code.
  * @param   pDisk           Pointer to HDD container.
  * @param   fFlags          Combination of the VD_VFSFILE_* flags.
- * @param   phVfsFile       Where to stoer the handle to the VFS file on success.
+ * @param   phVfsFile       Where to store the handle to the VFS file on
+ *                          success.
  */
 VBOXDDU_DECL(int) VDCreateVfsFileFromDisk(PVBOXHDD pDisk, uint32_t fFlags,
                                           PRTVFSFILE phVfsFile);

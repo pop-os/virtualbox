@@ -39,18 +39,22 @@ protected:
     /* Check if this logic is available: */
     bool checkAvailability();
 
-    /* Multi-screen stuff: */
+    /* Helpers: Multi-screen stuff: */
+    void maybeAdjustGuestScreenSize();
     int hostScreenForGuestScreen(int iScreenId) const;
     bool hasHostScreenForGuestScreen(int iScreenId) const;
 
 private slots:
+
+    /* Handler: Console callback stuff: */
+    void sltMachineStateChanged();
 
 #ifdef Q_WS_MAC
     void sltChangePresentationMode(bool fEnabled);
     void sltScreenLayoutChanged();
 #endif /* Q_WS_MAC */
     void sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
-    void sltHostScreenCountChanged(int cScreenCount);
+    void sltHostScreenCountChanged();
 
 private:
 

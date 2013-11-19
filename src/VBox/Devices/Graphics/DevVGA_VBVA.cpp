@@ -1,9 +1,10 @@
+/* $Id: DevVGA_VBVA.cpp $ */
 /** @file
  * VirtualBox Video Acceleration (VBVA).
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,6 +15,9 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/*******************************************************************************
+*   Header Files                                                               *
+*******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_VGA
 #include <VBox/vmm/pdmifs.h>
 #include <VBox/vmm/pdmdev.h>
@@ -36,9 +40,12 @@
 #if 0 // def DEBUG_sunlover
 #define LOGVBVABUFFER(a) LogFlow(a)
 #else
-#define LOGVBVABUFFER(a) do {} while(0)
+#define LOGVBVABUFFER(a) do {} while (0)
 #endif
 
+/*******************************************************************************
+*   Structures and Typedefs                                                    *
+*******************************************************************************/
 typedef struct VBVAPARTIALRECORD
 {
     uint8_t *pu8;
@@ -68,7 +75,7 @@ typedef struct VBVAMOUSESHAPEINFO
     uint8_t *pu8Shape;
 } VBVAMOUSESHAPEINFO;
 
-/* @todo saved state: save and restore VBVACONTEXT */
+/** @todo saved state: save and restore VBVACONTEXT */
 typedef struct VBVACONTEXT
 {
     uint32_t cViews;
@@ -76,12 +83,14 @@ typedef struct VBVACONTEXT
     VBVAMOUSESHAPEINFO mouseShapeInfo;
 } VBVACONTEXT;
 
-/* Copies 'cb' bytes from the VBVA ring buffer to the 'pu8Dst'.
+
+
+/** Copies @a cb bytes from the VBVA ring buffer to the @a pu8Dst.
  * Used for partial records or for records which cross the ring boundary.
  */
 static void vbvaFetchBytes (VBVABUFFER *pVBVA, uint8_t *pu8Dst, uint32_t cb)
 {
-    /* @todo replace the 'if' with an assert. The caller must ensure this condition. */
+    /** @todo replace the 'if' with an assert. The caller must ensure this condition. */
     if (cb >= pVBVA->cbData)
     {
         AssertMsgFailed (("cb = 0x%08X, ring buffer size 0x%08X", cb, pVBVA->cbData));
@@ -1497,8 +1506,7 @@ int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Vers
                     AssertRCReturn(rc, rc);
                 }
 
-                if (   pView->u32VBVAOffset == HGSMIOFFSET_VOID
-                    || pView->screen.u32LineSize == 0) /* Earlier broken saved states. */
+                if (pView->u32VBVAOffset == HGSMIOFFSET_VOID)
                 {
                     pView->pVBVA = NULL;
                 }
@@ -1632,10 +1640,12 @@ int vboxVBVALoadStateDone (PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 void VBVARaiseIrq (PVGASTATE pVGAState, uint32_t fFlags)
 {
     PPDMDEVINS pDevIns = pVGAState->pDevInsR3;
-    PDMCritSectEnter(&pVGAState->lock, VERR_SEM_BUSY);
+    PDMCritSectEnter(&pVGAState->CritSect, VERR_SEM_BUSY);
+
     HGSMISetHostGuestFlags(pVGAState->pHGSMI, HGSMIHOSTFLAGS_IRQ | fFlags);
     PDMDevHlpPCISetIrq(pDevIns, 0, PDM_IRQ_LEVEL_HIGH);
-    PDMCritSectLeave(&pVGAState->lock);
+
+    PDMCritSectLeave(&pVGAState->CritSect);
 }
 
 /*
@@ -1833,7 +1843,7 @@ static DECLCALLBACK(int) vbvaChannelHandler (void *pvHandler, uint16_t u16Channe
              * implemented. */
             int64_t offEnd =   (int64_t)pScreen->u32Height * pScreen->u32LineSize
                              + pScreen->u32Width + pScreen->u32StartOffset;
-            LogRelFlowFunc(("VBVA_INFO_SCREEN: [%d] @%d,%d %dx%d, line 0x%x, BPP %d, flags 0x%x\n",
+            LogRel(("VBVA_INFO_SCREEN: [%d] @%d,%d %dx%d, line 0x%x, BPP %d, flags 0x%x\n",
                             pScreen->u32ViewIndex, pScreen->i32OriginX, pScreen->i32OriginY,
                             pScreen->u32Width, pScreen->u32Height,
                             pScreen->u32LineSize,  pScreen->u16BitsPerPixel, pScreen->u16Flags));

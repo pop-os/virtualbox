@@ -40,6 +40,7 @@
 #include <iprt/path.h>
 #include <iprt/string.h>
 #include "internal/dbgmod.h"
+#include "internal/ldr.h"
 #include "internal/magics.h"
 
 
@@ -53,11 +54,34 @@ typedef struct RTDBGMODLDR
 {
     /** The loader handle. */
     RTLDRMOD        hLdrMod;
-    /** File handle for the image. */
-    RTFILE          hFile;
 } RTDBGMODLDR;
 /** Pointer to instance data NM map reader. */
 typedef RTDBGMODLDR *PRTDBGMODLDR;
+
+
+
+/** @interface_method_impl{RTDBGMODVTIMG,pfnGetArch} */
+static DECLCALLBACK(RTLDRARCH) rtDbgModLdr_GetArch(PRTDBGMODINT pMod)
+{
+    PRTDBGMODLDR pThis = (PRTDBGMODLDR)pMod->pvImgPriv;
+    return RTLdrGetArch(pThis->hLdrMod);
+}
+
+
+/** @interface_method_impl{RTDBGMODVTIMG,pfnGetFormat} */
+static DECLCALLBACK(RTLDRFMT) rtDbgModLdr_GetFormat(PRTDBGMODINT pMod)
+{
+    PRTDBGMODLDR pThis = (PRTDBGMODLDR)pMod->pvImgPriv;
+    return RTLdrGetFormat(pThis->hLdrMod);
+}
+
+
+/** @interface_method_impl{RTDBGMODVTIMG,pfnReadAt} */
+static DECLCALLBACK(int) rtDbgModLdr_ReadAt(PRTDBGMODINT pMod, uint32_t iDbgInfoHint, RTFOFF off, void *pvBuf, size_t cb)
+{
+    PRTDBGMODLDR pThis = (PRTDBGMODLDR)pMod->pvImgPriv;
+    return rtLdrReadAt(pThis->hLdrMod, pvBuf, UINT32_MAX /** @todo iDbgInfo*/, off, cb);
+}
 
 
 /** @interface_method_impl{RTDBGMODVTIMG,pfnUnmapPart} */
@@ -71,7 +95,7 @@ static DECLCALLBACK(int) rtDbgModLdr_UnmapPart(PRTDBGMODINT pMod, size_t cb, voi
 
 
 /** @interface_method_impl{RTDBGMODVTIMG,pfnMapPart} */
-static DECLCALLBACK(int) rtDbgModLdr_MapPart(PRTDBGMODINT pMod, RTFOFF off, size_t cb, void const **ppvMap)
+static DECLCALLBACK(int) rtDbgModLdr_MapPart(PRTDBGMODINT pMod, uint32_t iDbgInfo, RTFOFF off, size_t cb, void const **ppvMap)
 {
     PRTDBGMODLDR pThis = (PRTDBGMODLDR)pMod->pvImgPriv;
 
@@ -79,7 +103,7 @@ static DECLCALLBACK(int) rtDbgModLdr_MapPart(PRTDBGMODINT pMod, RTFOFF off, size
     if (!pvMap)
         return VERR_NO_MEMORY;
 
-    int rc = RTFileReadAt(pThis->hFile, off, pvMap, cb, NULL);
+    int rc = rtLdrReadAt(pThis->hLdrMod, pvMap, iDbgInfo, off, cb);
     if (RT_SUCCESS(rc))
         *ppvMap = pvMap;
     else
@@ -99,12 +123,30 @@ static DECLCALLBACK(RTUINTPTR) rtDbgModLdr_GetLoadedSize(PRTDBGMODINT pMod)
 }
 
 
+/** @interface_method_impl{RTDBGMODVTIMG,pfnRvaToSegOffset} */
+static DECLCALLBACK(int) rtDbgModLdr_RvaToSegOffset(PRTDBGMODINT pMod, RTLDRADDR uRva,
+                                                    PRTDBGSEGIDX piSeg, PRTLDRADDR poffSeg)
+{
+    PRTDBGMODLDR pThis = (PRTDBGMODLDR)pMod->pvImgPriv;
+    return RTLdrRvaToSegOffset(pThis->hLdrMod, uRva, piSeg, poffSeg);
+}
+
+
 /** @interface_method_impl{RTDBGMODVTIMG,pfnLinkAddressToSegOffset} */
 static DECLCALLBACK(int) rtDbgModLdr_LinkAddressToSegOffset(PRTDBGMODINT pMod, RTLDRADDR LinkAddress,
                                                             PRTDBGSEGIDX piSeg, PRTLDRADDR poffSeg)
 {
     PRTDBGMODLDR pThis = (PRTDBGMODLDR)pMod->pvImgPriv;
     return RTLdrLinkAddressToSegOffset(pThis->hLdrMod, LinkAddress, piSeg, poffSeg);
+}
+
+
+/** @interface_method_impl{RTDBGMODVTIMG,pfnEnumSegments} */
+static DECLCALLBACK(int) rtDbgModLdr_EnumSymbols(PRTDBGMODINT pMod, uint32_t fFlags, RTLDRADDR BaseAddress,
+                                                 PFNRTLDRENUMSYMS pfnCallback, void *pvUser)
+{
+    PRTDBGMODLDR pThis = (PRTDBGMODLDR)pMod->pvImgPriv;
+    return RTLdrEnumSymbols(pThis->hLdrMod, fFlags, NULL /*pvBits*/, BaseAddress, pfnCallback, pvUser);
 }
 
 
@@ -133,9 +175,6 @@ static DECLCALLBACK(int) rtDbgModLdr_Close(PRTDBGMODINT pMod)
     int rc = RTLdrClose(pThis->hLdrMod); AssertRC(rc);
     pThis->hLdrMod = NIL_RTLDRMOD;
 
-    rc = RTFileClose(pThis->hFile); AssertRC(rc);
-    pThis->hFile = NIL_RTFILE;
-
     RTMemFree(pThis);
 
     return VINF_SUCCESS;
@@ -143,30 +182,15 @@ static DECLCALLBACK(int) rtDbgModLdr_Close(PRTDBGMODINT pMod)
 
 
 /** @interface_method_impl{RTDBGMODVTIMG,pfnTryOpen} */
-static DECLCALLBACK(int) rtDbgModLdr_TryOpen(PRTDBGMODINT pMod)
+static DECLCALLBACK(int) rtDbgModLdr_TryOpen(PRTDBGMODINT pMod, RTLDRARCH enmArch)
 {
-    RTFILE hFile;
-    int rc = RTFileOpen(&hFile, pMod->pszImgFile, RTFILE_O_READ | RTFILE_O_DENY_WRITE | RTFILE_O_OPEN);
+    RTLDRMOD hLdrMod;
+    int rc = RTLdrOpen(pMod->pszImgFile, RTLDR_O_FOR_DEBUG, enmArch, &hLdrMod);
     if (RT_SUCCESS(rc))
     {
-        RTLDRMOD hLdrMod;
-        rc = RTLdrOpen(pMod->pszImgFile, 0 /*fFlags*/, RTLDRARCH_WHATEVER, &hLdrMod);
-        if (RT_SUCCESS(rc))
-        {
-            PRTDBGMODLDR pThis = (PRTDBGMODLDR)RTMemAllocZ(sizeof(RTDBGMODLDR));
-            if (pThis)
-            {
-                pThis->hLdrMod  = hLdrMod;
-                pThis->hFile    = hFile;
-                pMod->pvImgPriv = pThis;
-                return VINF_SUCCESS;
-            }
-
-            rc = VERR_NO_MEMORY;
+        rc = rtDbgModLdrOpenFromHandle(pMod, hLdrMod);
+        if (RT_FAILURE(rc))
             RTLdrClose(hLdrMod);
-        }
-
-        RTFileClose(hFile);
     }
     return rc;
 }
@@ -182,11 +206,35 @@ DECL_HIDDEN_CONST(RTDBGMODVTIMG) const g_rtDbgModVtImgLdr =
     /*.pfnClose = */                    rtDbgModLdr_Close,
     /*.pfnEnumDbgInfo = */              rtDbgModLdr_EnumDbgInfo,
     /*.pfnEnumSegments = */             rtDbgModLdr_EnumSegments,
+    /*.pfnEnumSymbols = */              rtDbgModLdr_EnumSymbols,
     /*.pfnGetLoadedSize = */            rtDbgModLdr_GetLoadedSize,
     /*.pfnLinkAddressToSegOffset = */   rtDbgModLdr_LinkAddressToSegOffset,
+    /*.pfnRvaToSegOffset= */            rtDbgModLdr_RvaToSegOffset,
     /*.pfnMapPart = */                  rtDbgModLdr_MapPart,
     /*.pfnUnmapPart = */                rtDbgModLdr_UnmapPart,
+    /*.pfnReadAt = */                   rtDbgModLdr_ReadAt,
+    /*.pfnGetFormat = */                rtDbgModLdr_GetFormat,
+    /*.pfnGetArch = */                  rtDbgModLdr_GetArch,
 
     /*.u32EndMagic = */                 RTDBGMODVTIMG_MAGIC
 };
+
+
+/**
+ * Open PE-image trick.
+ *
+ * @returns IPRT status code
+ * @param   pDbgMod             The debug module instance.
+ * @param   hLdrMod             The module to open a image debug backend for.
+ */
+DECLHIDDEN(int) rtDbgModLdrOpenFromHandle(PRTDBGMODINT pDbgMod, RTLDRMOD hLdrMod)
+{
+    PRTDBGMODLDR pThis = (PRTDBGMODLDR)RTMemAllocZ(sizeof(RTDBGMODLDR));
+    if (!pThis)
+        return VERR_NO_MEMORY;
+
+    pThis->hLdrMod     = hLdrMod;
+    pDbgMod->pvImgPriv = pThis;
+    return VINF_SUCCESS;
+}
 

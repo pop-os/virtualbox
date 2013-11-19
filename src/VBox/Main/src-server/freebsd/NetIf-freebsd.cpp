@@ -271,7 +271,7 @@ int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
         if (pSdl->sdl_type == IFT_ETHER || pSdl->sdl_type == IFT_L2VLAN)
         {
             struct ifreq IfReq;
-            strcpy(IfReq.ifr_name, pNew->szShortName);
+            RTStrCopy(IfReq.ifr_name, sizeof(IfReq.ifr_name), pNew->szShortName);
             if (ioctl(sock, SIOCGIFFLAGS, &IfReq) < 0)
             {
                 Log(("NetIfList: ioctl(SIOCGIFFLAGS) -> %d\n", errno));
@@ -281,7 +281,7 @@ int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
                 pNew->enmStatus = (IfReq.ifr_flags & IFF_UP) ? NETIF_S_UP : NETIF_S_DOWN;
 
             HostNetworkInterfaceType_T enmType;
-            if (strncmp("vboxnet", pNew->szName, 7))
+            if (strncmp(pNew->szName, RT_STR_TUPLE("vboxnet")))
                 enmType = HostNetworkInterfaceType_Bridged;
             else
                 enmType = HostNetworkInterfaceType_HostOnly;
@@ -388,7 +388,7 @@ int NetIfGetConfigByName(PNETIFINFO pInfo)
             pInfo->Uuid = uuid;
 
             struct ifreq IfReq;
-            strcpy(IfReq.ifr_name, pInfo->szShortName);
+            RTSTrCopy(IfReq.ifr_name, sizeof(IfReq.ifr_name), pInfo->szShortName);
             if (ioctl(sock, SIOCGIFFLAGS, &IfReq) < 0)
             {
                 Log(("NetIfList: ioctl(SIOCGIFFLAGS) -> %d\n", errno));
@@ -405,3 +405,16 @@ int NetIfGetConfigByName(PNETIFINFO pInfo)
     return rc;
 }
 
+/**
+ * Retrieve the physical link speed in megabits per second. If the interface is
+ * not up or otherwise unavailable the zero speed is returned.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pcszIfName  Interface name.
+ * @param   puMbits     Where to store the link speed.
+ */
+int NetIfGetLinkSpeed(const char * /*pcszIfName*/, uint32_t * /*puMbits*/)
+{
+    return VERR_NOT_IMPLEMENTED;
+}

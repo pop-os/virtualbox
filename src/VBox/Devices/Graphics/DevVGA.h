@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -259,8 +259,7 @@ typedef struct VGAState {
     PPDMDEVINSRC                pDevInsRC;
     /** Pointer to the GC vram mapping. */
     RCPTRTYPE(uint8_t *)        vram_ptrRC;
-    /** Pointer to vgaGCLFBAccessHandler(). */
-    RTRCPTR                     RCPtrLFBHandler;
+    uint32_t                    PaddingMinus1;
 
     /** Pointer to the device instance - R3 Ptr. */
     PPDMDEVINSR3                pDevInsR3;
@@ -316,8 +315,8 @@ typedef struct VGAState {
 
     /** The physical address the VRAM was assigned. */
     RTGCPHYS                    GCPhysVRAM;
-    /** The critical section. */
-    PDMCRITSECT                 lock;
+    /** The critical section protect the instance data. */
+    PDMCRITSECT                 CritSect;
     /** The PCI device. */
     PCIDEVICE                   Dev;
 

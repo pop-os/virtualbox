@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,7 +69,7 @@ VBoxReadInput(InputInfoPtr pInfo)
 
     /* Read a byte from the device to acknowledge the event */
     char c;
-    read(pInfo->fd, &c, 1);
+    (void) read(pInfo->fd, &c, 1);
     /* The first test here is a workaround for an apparent bug in Xorg Server 1.5 */
     if (
 #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) < 2
@@ -116,7 +116,7 @@ VBoxInit(DeviceIntPtr device)
 
 #elif GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 3
                                  VBoxPtrCtrlProc, GetMotionHistorySize(),
-								 2 /* Number of axes */
+                                 2 /* Number of axes */
 #else
 # error Unsupported version of X.Org
 #endif

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,7 @@
 /* GUI includes: */
 #include "VBoxFBOverlay.h"
 #include "UIMessageCenter.h"
+#include "UIPopupCenter.h"
 #include "VBoxGlobal.h"
 
 /* COM includes: */
@@ -3716,7 +3717,6 @@ void VBoxVHWAImage::resize(const VBoxFBSizeInfo & size)
     ulong bytesPerLine;
     uint32_t bitsPerPixel;
     uint32_t b = 0xff, g = 0xff00, r = 0xff0000;
-    ulong pixelFormat;
     bool bUsesGuestVram;
 
     /* check if we support the pixel format and can use the guest VRAM directly */
@@ -3777,7 +3777,6 @@ void VBoxVHWAImage::resize(const VBoxFBSizeInfo & size)
         if (!fallback)
         {
             // ulong virtWdt = bitsPerLine / size.bitsPerPixel();
-            pixelFormat = FramebufferPixelFormat_FOURCC_RGB;
             bUsesGuestVram = true;
         }
     }
@@ -3798,7 +3797,6 @@ void VBoxVHWAImage::resize(const VBoxFBSizeInfo & size)
         g = 0xff00;
         r = 0xff0000;
         bytesPerLine = size.width()*bitsPerPixel/8;
-        pixelFormat = FramebufferPixelFormat_FOURCC_RGB;
         bUsesGuestVram = false;
     }
 
@@ -3924,7 +3922,9 @@ void VBoxVHWAImage::resize(const VBoxFBSizeInfo & size)
 //    }
 
     if (remind)
-        msgCenter().remindAboutWrongColorDepth(size.bitsPerPixel(), 32);
+        popupCenter().remindAboutWrongColorDepth(vboxGlobal().activeMachineWindow(), size.bitsPerPixel(), 32);
+    else
+        popupCenter().forgetAboutWrongColorDepth(vboxGlobal().activeMachineWindow());
 }
 
 VBoxVHWAColorFormat::VBoxVHWAColorFormat (uint32_t bitsPerPixel, uint32_t r, uint32_t g, uint32_t b) :
@@ -4791,7 +4791,7 @@ void VBoxQGLOverlay::vhwaSaveExec(struct SSMHANDLE * pSSM)
 
 int VBoxQGLOverlay::vhwaConstruct(struct VBOXVHWACMD_HH_CONSTRUCT *pCmd)
 {
-    PVM pVM = (PVM)pCmd->pVM;
+    PUVM pUVM = VMR3GetUVM((PVM)pCmd->pVM);
     uint32_t intsId = m_id;
 
     char nameFuf[sizeof(VBOXQGL_STATE_NAMEBASE) + 8];
@@ -4799,7 +4799,7 @@ int VBoxQGLOverlay::vhwaConstruct(struct VBOXVHWACMD_HH_CONSTRUCT *pCmd)
     char * pszName = nameFuf;
     sprintf(pszName, "%s%d", VBOXQGL_STATE_NAMEBASE, intsId);
     int rc = SSMR3RegisterExternal(
-            pVM,                    /* The VM handle*/
+            pUVM,                   /* The VM handle*/
             pszName,                /* Data unit name. */
             intsId,                 /* The instance identifier of the data unit.
                                      * This must together with the name be unique. */

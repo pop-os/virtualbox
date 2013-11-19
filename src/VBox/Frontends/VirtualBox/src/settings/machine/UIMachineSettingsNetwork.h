@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,6 +43,7 @@ struct UIDataSettingsMachineNetworkAdapter
         , m_strHostInterfaceName(QString())
         , m_strGenericDriverName(QString())
         , m_strGenericProperties(QString())
+        , m_strNATNetworkName(QString())
         , m_strMACAddress(QString())
         , m_fCableConnected(false)
         , m_redirects(UIPortForwardingDataList()) {}
@@ -59,6 +60,7 @@ struct UIDataSettingsMachineNetworkAdapter
                (m_strHostInterfaceName == other.m_strHostInterfaceName) &&
                (m_strGenericDriverName == other.m_strGenericDriverName) &&
                (m_strGenericProperties == other.m_strGenericProperties) &&
+               (m_strNATNetworkName == other.m_strNATNetworkName) &&
                (m_strMACAddress == other.m_strMACAddress) &&
                (m_fCableConnected == other.m_fCableConnected) &&
                (m_redirects == other.m_redirects);
@@ -77,6 +79,7 @@ struct UIDataSettingsMachineNetworkAdapter
     QString m_strHostInterfaceName;
     QString m_strGenericDriverName;
     QString m_strGenericProperties;
+    QString m_strNATNetworkName;
     QString m_strMACAddress;
     bool m_fCableConnected;
     UIPortForwardingDataList m_redirects;
@@ -108,9 +111,8 @@ public:
     void fetchAdapterCache(const UICacheSettingsMachineNetworkAdapter &adapterCache);
     void uploadAdapterCache(UICacheSettingsMachineNetworkAdapter &adapterCache);
 
-    /* Validation stuff: */
-    void setValidator(QIWidgetValidator *pValidator);
-    bool revalidate(QString &strWarning, QString &strTitle);
+    /* API: Validation stuff: */
+    bool validate(QList<UIValidationMessage> &messages);
 
     /* Navigation stuff: */
     QWidget* setOrderAfter(QWidget *pAfter);
@@ -144,6 +146,9 @@ private slots:
 
 private:
 
+    /* Helper: Prepare stuff: */
+    void prepareValidation();
+
     /* Helping stuff: */
     void populateComboboxes();
     void updateAlternativeList();
@@ -156,15 +161,13 @@ private:
     /* Parent page: */
     UIMachineSettingsNetworkPage *m_pParent;
 
-    /* Validator: */
-    QIWidgetValidator *m_pValidator;
-
     /* Other variables: */
     int m_iSlot;
     QString m_strBridgedAdapterName;
     QString m_strInternalNetworkName;
     QString m_strHostInterfaceName;
     QString m_strGenericDriverName;
+    QString m_strNATNetworkName;
     UIPortForwardingDataList m_portForwardingRules;
 };
 
@@ -186,10 +189,12 @@ public:
     const QStringList& hostInterfaceList() const { return m_hostInterfaceList; }
     /* Generic driver list: */
     const QStringList& genericDriverList() const { return m_genericDriverList; }
+    /* NAT network list: */
+    const QStringList& natNetworkList() const { return m_natNetworkList; }
 
 protected:
 
-    /* Load data to cashe from corresponding external object(s),
+    /* Load data to cache from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
     /* Load data to corresponding widgets from cache,
@@ -206,9 +211,8 @@ protected:
     /* Page changed: */
     bool changed() const { return m_cache.wasChanged(); }
 
-    /* Validation stuff: */
-    void setValidator(QIWidgetValidator *pValidator);
-    bool revalidate(QString &strWarning, QString &strTitle);
+    /* API: Validation stuff: */
+    bool validate(QList<UIValidationMessage> &messages);
 
     /* Translation stuff: */
     void retranslateUi();
@@ -226,15 +230,13 @@ private:
     void refreshInternalNetworkList(bool fFullRefresh = false);
     void refreshHostInterfaceList();
     void refreshGenericDriverList(bool fFullRefresh = false);
+    void refreshNATNetworkList();
 
     /* Various static stuff: */
     static QStringList otherInternalNetworkList();
     static QStringList otherGenericDriverList();
     static QString summarizeGenericProperties(const CNetworkAdapter &adapter);
     static void updateGenericProperties(CNetworkAdapter &adapter, const QString &strPropText);
-
-    /* Validator: */
-    QIWidgetValidator *m_pValidator;
 
     /* Tab holder: */
     QITabWidget *m_pTwAdapters;
@@ -244,6 +246,7 @@ private:
     QStringList m_internalNetworkList;
     QStringList m_hostInterfaceList;
     QStringList m_genericDriverList;
+    QStringList m_natNetworkList;
 
     /* Cache: */
     UICacheSettingsMachineNetwork m_cache;

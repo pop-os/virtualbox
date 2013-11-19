@@ -51,6 +51,87 @@ typedef RTLDRADDR const    *PCRTLDRADDR;
 
 
 /**
+ * Loader module format.
+ */
+typedef enum RTLDRFMT
+{
+    /** The usual invalid 0 format. */
+    RTLDRFMT_INVALID = 0,
+    /** The native OS loader. */
+    RTLDRFMT_NATIVE,
+    /** The AOUT loader. */
+    RTLDRFMT_AOUT,
+    /** The ELF loader. */
+    RTLDRFMT_ELF,
+    /** The LX loader. */
+    RTLDRFMT_LX,
+    /** The Mach-O loader. */
+    RTLDRFMT_MACHO,
+    /** The PE loader. */
+    RTLDRFMT_PE,
+    /** The end of the valid format values (exclusive). */
+    RTLDRFMT_END,
+    /** Hack to blow the type up to 32-bit. */
+    RTLDRFMT_32BIT_HACK = 0x7fffffff
+} RTLDRFMT;
+
+
+/**
+ * Loader module type.
+ */
+typedef enum RTLDRTYPE
+{
+    /** The usual invalid 0 type. */
+    RTLDRTYPE_INVALID = 0,
+    /** Object file. */
+    RTLDRTYPE_OBJECT,
+    /** Executable module, fixed load address. */
+    RTLDRTYPE_EXECUTABLE_FIXED,
+    /** Executable module, relocatable, non-fixed load address. */
+    RTLDRTYPE_EXECUTABLE_RELOCATABLE,
+    /** Executable module, position independent code, non-fixed load address. */
+    RTLDRTYPE_EXECUTABLE_PIC,
+    /** Shared library, fixed load address.
+     * Typically a system library. */
+    RTLDRTYPE_SHARED_LIBRARY_FIXED,
+    /** Shared library, relocatable, non-fixed load address. */
+    RTLDRTYPE_SHARED_LIBRARY_RELOCATABLE,
+    /** Shared library, position independent code, non-fixed load address. */
+    RTLDRTYPE_SHARED_LIBRARY_PIC,
+    /** DLL that contains no code or data only imports and exports. (Chiefly OS/2.) */
+    RTLDRTYPE_FORWARDER_DLL,
+    /** Core or dump. */
+    RTLDRTYPE_CORE,
+    /** Debug module (debug info with empty code & data segments). */
+    RTLDRTYPE_DEBUG_INFO,
+    /** The end of the valid types values (exclusive). */
+    RTLDRTYPE_END,
+    /** Hack to blow the type up to 32-bit. */
+    RTLDRTYPE_32BIT_HACK = 0x7fffffff
+} RTLDRTYPE;
+
+
+/**
+ * Loader endian indicator.
+ */
+typedef enum RTLDRENDIAN
+{
+    /** The usual invalid endian. */
+    RTLDRENDIAN_INVALID,
+    /** Little endian. */
+    RTLDRENDIAN_LITTLE,
+    /** Bit endian. */
+    RTLDRENDIAN_BIG,
+    /** Endianness doesn't have a meaning in the context. */
+    RTLDRENDIAN_NA,
+    /** The end of the valid endian values (exclusive). */
+    RTLDRENDIAN_END,
+    /** Hack to blow the type up to 32-bit. */
+    RTLDRENDIAN_32BIT_HACK = 0x7fffffff
+} RTLDRENDIAN;
+
+
+/**
  * Gets the default file suffix for DLL/SO/DYLIB/whatever.
  *
  * @returns The stuff (readonly).
@@ -186,12 +267,21 @@ typedef enum RTLDRARCH
 /** Pointer to a RTLDRARCH. */
 typedef RTLDRARCH *PRTLDRARCH;
 
+/** @name RTLDR_O_XXX - RTLdrOpen flags.
+ * @{ */
+/** Open for debugging or introspection reasons.
+ * This will skip a few of the stricter validations when loading images. */
+#define RTLDR_O_FOR_DEBUG       RT_BIT_32(0)
+/** Mask of valid flags. */
+#define RTLDR_O_VALID_MASK      UINT32_C(0x00000001)
+/** @} */
+
 /**
  * Open a binary image file, extended version.
  *
  * @returns iprt status code.
  * @param   pszFilename Image filename.
- * @param   fFlags      Reserved, MBZ.
+ * @param   fFlags      Valid RTLDR_O_XXX combination.
  * @param   enmArch     CPU architecture specifier for the image to be loaded.
  * @param   phLdrMod    Where to store the handle to the loader module.
  */
@@ -201,53 +291,72 @@ RTDECL(int) RTLdrOpen(const char *pszFilename, uint32_t fFlags, RTLDRARCH enmArc
  * Opens a binary image file using kLdr.
  *
  * @returns iprt status code.
- * @param   pszFilename     Image filename.
- * @param   phLdrMod        Where to store the handle to the loaded module.
- * @param   fFlags      Reserved, MBZ.
+ * @param   pszFilename Image filename.
+ * @param   phLdrMod    Where to store the handle to the loaded module.
+ * @param   fFlags      Valid RTLDR_O_XXX combination.
  * @param   enmArch     CPU architecture specifier for the image to be loaded.
  * @remark  Primarily for testing the loader.
  */
 RTDECL(int) RTLdrOpenkLdr(const char *pszFilename, uint32_t fFlags, RTLDRARCH enmArch, PRTLDRMOD phLdrMod);
 
-/**
- * What to expect and do with the bits passed to RTLdrOpenBits().
- */
-typedef enum RTLDROPENBITS
-{
-    /** The usual invalid 0 entry. */
-    RTLDROPENBITS_INVALID = 0,
-    /** The bits are readonly and will never be changed. */
-    RTLDROPENBITS_READONLY,
-    /** The bits are going to be changed and the loader will have to duplicate them
-     * when opening the image. */
-    RTLDROPENBITS_WRITABLE,
-    /** The bits are both the source and destination for the loader operation.
-     * This means that the loader may have to duplicate them prior to changing them. */
-    RTLDROPENBITS_SRC_AND_DST,
-    /** The end of the valid enums. This entry marks the
-     * first invalid entry.. */
-    RTLDROPENBITS_END,
-    RTLDROPENBITS_32BIT_HACK = 0x7fffffff
-} RTLDROPENBITS;
 
 /**
- * Open a binary image from in-memory bits.
+ * Called to read @a cb bytes at @a off into @a pvBuf.
  *
- * @returns iprt status code.
- * @param   pvBits      The start of the raw-image.
- * @param   cbBits      The size of the raw-image.
- * @param   enmBits     What to expect from the pvBits.
- * @param   pszLogName  What to call the raw-image when logging.
- *                      For RTLdrLoad and RTLdrOpen the filename is used for this.
- * @param   phLdrMod    Where to store the handle to the loader module.
+ * @returns IPRT status code
+ * @param   pvBuf       The output buffer.
+ * @param   cb          The number of bytes to read.
+ * @param   off         Where to start reading.
+ * @param   pvUser      The user parameter.
  */
-RTDECL(int) RTLdrOpenBits(const void *pvBits, size_t cbBits, RTLDROPENBITS enmBits, const char *pszLogName, PRTLDRMOD phLdrMod);
+typedef DECLCALLBACK(int) FNRTLDRRDRMEMREAD(void *pvBuf, size_t cb, size_t off, void *pvUser);
+/** Pointer to a RTLdrOpenInMemory reader callback. */
+typedef FNRTLDRRDRMEMREAD *PFNRTLDRRDRMEMREAD;
+
+/**
+ * Called to when the module is unloaded (or done loading) to release resources
+ * associated with it (@a pvUser).
+ *
+ * @returns IPRT status code
+ * @param   pvUser      The user parameter.
+ */
+typedef DECLCALLBACK(void) FNRTLDRRDRMEMDTOR(void *pvUser);
+/** Pointer to a RTLdrOpenInMemory destructor callback. */
+typedef FNRTLDRRDRMEMDTOR *PFNRTLDRRDRMEMDTOR;
+
+/**
+ * Open a in-memory image or an image with a custom reader callback.
+ *
+ * @returns IPRT status code.
+ * @param   pszName     The image name.
+ * @param   fFlags      Valid RTLDR_O_XXX combination.
+ * @param   enmArch     CPU architecture specifier for the image to be loaded.
+ * @param   cbImage     The size of the image (fake file).
+ * @param   pfnRead     The read function.  If NULL is passed in, a default
+ *                      reader function is provided that assumes @a pvUser
+ *                      points to the raw image bits, at least @a cbImage of
+ *                      valid memory.
+ * @param   pfnDtor     The destructor function.  If NULL is passed, a default
+ *                      destructor will be provided that passes @a pvUser to
+ *                      RTMemFree.
+ * @param   pvUser      The user argument or, if any of the callbacks are NULL,
+ *                      a pointer to a memory block.
+ * @param   phLdrMod    Where to return the module handle.
+ *
+ * @remarks With the exception of invalid @a pfnDtor and/or @a pvUser
+ *          parameters, the pfnDtor methods (or the default one if NULL) will
+ *          always be invoked.  The destruction of pvUser is entirely in the
+ *          hands of this method once it's called.
+ */
+RTDECL(int) RTLdrOpenInMemory(const char *pszName, uint32_t fFlags, RTLDRARCH enmArch, size_t cbImage,
+                              PFNRTLDRRDRMEMREAD pfnRead, PFNRTLDRRDRMEMDTOR pfnDtor, void *pvUser,
+                              PRTLDRMOD phLdrMod);
 
 /**
  * Closes a loader module handle.
  *
  * The handle can be obtained using any of the RTLdrLoad(), RTLdrOpen()
- * and RTLdrOpenBits() functions.
+ * and RTLdrOpenInMemory() functions.
  *
  * @returns iprt status code.
  * @param   hLdrMod         The loader module handle.
@@ -300,12 +409,13 @@ RTDECL(PFNRT) RTLdrGetFunction(RTLDRMOD hLdrMod, const char *pszSymbol);
 
 /**
  * Gets the size of the loaded image.
- * This is only supported for modules which has been opened using RTLdrOpen() and RTLdrOpenBits().
+ *
+ * This is not necessarily available for images that has been loaded using
+ * RTLdrLoad().
  *
  * @returns image size (in bytes).
- * @returns ~(size_t)0 on if not opened by RTLdrOpen().
+ * @returns ~(size_t)0 on if not available.
  * @param   hLdrMod     Handle to the loader module.
- * @remark  Not supported for RTLdrLoad() images.
  */
 RTDECL(size_t) RTLdrSize(RTLDRMOD hLdrMod);
 
@@ -389,7 +499,9 @@ RTDECL(int) RTLdrEnumSymbols(RTLDRMOD hLdrMod, unsigned fFlags, const void *pvBi
 /** @name RTLdrEnumSymbols flags.
  * @{ */
 /** Returns ALL kinds of symbols. The default is to only return public/exported symbols. */
-#define RTLDR_ENUM_SYMBOL_FLAGS_ALL    RT_BIT(1)
+#define RTLDR_ENUM_SYMBOL_FLAGS_ALL     RT_BIT(1)
+/** Ignore forwarders (for use with RTLDR_ENUM_SYMBOL_FLAGS_ALL). */
+#define RTLDR_ENUM_SYMBOL_FLAGS_NO_FWD  RT_BIT(2)
 /** @} */
 
 
@@ -406,8 +518,18 @@ typedef enum RTLDRDBGINFOTYPE
     RTLDRDBGINFOTYPE_STABS,
     /** Debug With Arbitrary Record Format (DWARF). */
     RTLDRDBGINFOTYPE_DWARF,
+    /** Debug With Arbitrary Record Format (DWARF), in external file (DWO). */
+    RTLDRDBGINFOTYPE_DWARF_DWO,
     /** Microsoft Codeview debug info. */
     RTLDRDBGINFOTYPE_CODEVIEW,
+    /** Microsoft Codeview debug info, in external v2.0+ program database (PDB). */
+    RTLDRDBGINFOTYPE_CODEVIEW_PDB20,
+    /** Microsoft Codeview debug info, in external v7.0+ program database (PDB). */
+    RTLDRDBGINFOTYPE_CODEVIEW_PDB70,
+    /** Microsoft Codeview debug info, in external file (DBG). */
+    RTLDRDBGINFOTYPE_CODEVIEW_DBG,
+    /** Microsoft COFF debug info. */
+    RTLDRDBGINFOTYPE_COFF,
     /** Watcom debug info. */
     RTLDRDBGINFOTYPE_WATCOM,
     /** IBM High Level Language debug info.. */
@@ -418,6 +540,96 @@ typedef enum RTLDRDBGINFOTYPE
     RTLDRDBGINFOTYPE_32BIT_HACK = 0x7fffffff
 } RTLDRDBGINFOTYPE;
 
+
+/**
+ * Debug info details for the enumeration callback.
+ */
+typedef struct RTLDRDBGINFO
+{
+    /** The kind of debug info. */
+    RTLDRDBGINFOTYPE    enmType;
+    /** The debug info ordinal number / id. */
+    uint32_t            iDbgInfo;
+    /** The file offset *if* this type has one specific location in the executable
+     * image file. This is -1 if there isn't any specific file location. */
+    RTFOFF              offFile;
+    /** The link address of the debug info if it's loadable. NIL_RTLDRADDR if not
+     * loadable*/
+    RTLDRADDR           LinkAddress;
+    /** The size of the debug information. -1 is used if this isn't applicable.*/
+    RTLDRADDR           cb;
+    /** This is set if the debug information is found in an external file.  NULL
+     * if no external file involved.
+     * @note Putting it outside the union to allow lazy callback implementation. */
+    const char         *pszExtFile;
+    /** Type (enmType) specific information. */
+    union
+    {
+        /** RTLDRDBGINFOTYPE_DWARF */
+        struct
+        {
+            /** The section name. */
+            const char *pszSection;
+        } Dwarf;
+
+        /** RTLDRDBGINFOTYPE_DWARF_DWO */
+        struct
+        {
+            /** The CRC32 of the external file. */
+            uint32_t    uCrc32;
+        } Dwo;
+
+        /** RTLDRDBGINFOTYPE_CODEVIEW, RTLDRDBGINFOTYPE_COFF  */
+        struct
+        {
+            /** The PE image size. */
+            uint32_t    cbImage;
+            /** The timestamp. */
+            uint32_t    uTimestamp;
+            /** The major version from the entry. */
+            uint32_t    uMajorVer;
+            /** The minor version from the entry. */
+            uint32_t    uMinorVer;
+        } Cv, Coff;
+
+        /** RTLDRDBGINFOTYPE_CODEVIEW_DBG */
+        struct
+        {
+            /** The PE image size. */
+            uint32_t    cbImage;
+            /** The timestamp. */
+            uint32_t    uTimestamp;
+        } Dbg;
+
+        /** RTLDRDBGINFOTYPE_CODEVIEW_PDB20*/
+        struct
+        {
+            /** The PE image size. */
+            uint32_t    cbImage;
+            /** The timestamp. */
+            uint32_t    uTimestamp;
+            /** The PDB age. */
+            uint32_t    uAge;
+        } Pdb20;
+
+        /** RTLDRDBGINFOTYPE_CODEVIEW_PDB70 */
+        struct
+        {
+            /** The PE image size. */
+            uint32_t    cbImage;
+            /** The PDB age. */
+            uint32_t    uAge;
+            /** The UUID. */
+            RTUUID      Uuid;
+        } Pdb70;
+    } u;
+} RTLDRDBGINFO;
+/** Pointer to debug info details. */
+typedef RTLDRDBGINFO *PRTLDRDBGINFO;
+/** Pointer to read only debug info details. */
+typedef RTLDRDBGINFO const *PCRTLDRDBGINFO;
+
+
 /**
  * Debug info enumerator callback.
  *
@@ -425,30 +637,10 @@ typedef enum RTLDRDBGINFOTYPE
  *          will cause RTLdrEnumDbgInfo to immediately return with that status.
  *
  * @param   hLdrMod         The module handle.
- * @param   iDbgInfo        The debug info ordinal number / id.
- * @param   enmType         The debug info type.
- * @param   iMajorVer       The major version number of the debug info format.
- *                          -1 if unknow - implies invalid iMinorVer.
- * @param   iMinorVer       The minor version number of the debug info format.
- *                          -1 when iMajorVer is -1.
- * @param   pszPartNm       The name of the debug info part, NULL if not
- *                          applicable.
- * @param   offFile         The file offset *if* this type has one specific
- *                          location in the executable image file. This is -1
- *                          if there isn't any specific file location.
- * @param   LinkAddress     The link address of the debug info if it's
- *                          loadable. NIL_RTLDRADDR if not loadable.
- * @param   cb              The size of the debug information. -1 is used if
- *                          this isn't applicable.
- * @param   pszExtFile      This points to the name of an external file
- *                          containing the debug info.  This is NULL if there
- *                          isn't any external file.
+ * @param   pDbgInfo        Pointer to a read only structure with the details.
  * @param   pvUser          The user parameter specified to RTLdrEnumDbgInfo.
  */
-typedef DECLCALLBACK(int) FNRTLDRENUMDBG(RTLDRMOD hLdrMod, uint32_t iDbgInfo, RTLDRDBGINFOTYPE enmType,
-                                         uint16_t iMajorVer, uint16_t iMinorVer, const char *pszPartNm,
-                                         RTFOFF offFile, RTLDRADDR LinkAddress, RTLDRADDR cb,
-                                         const char *pszExtFile, void *pvUser);
+typedef DECLCALLBACK(int) FNRTLDRENUMDBG(RTLDRMOD hLdrMod, PCRTLDRDBGINFO pDbgInfo, void *pvUser);
 /** Pointer to a debug info enumerator callback. */
 typedef FNRTLDRENUMDBG *PFNRTLDRENUMDBG;
 
@@ -472,8 +664,8 @@ RTDECL(int) RTLdrEnumDbgInfo(RTLDRMOD hLdrMod, const void *pvBits, PFNRTLDRENUMD
  */
 typedef struct RTLDRSEG
 {
-    /** The segment name. (Might not be zero terminated!) */
-    const char     *pchName;
+    /** The segment name.  Always set to something. */
+    const char     *pszName;
     /** The length of the segment name. */
     uint32_t        cchName;
     /** The flat selector to use for the segment (i.e. data/code).
@@ -598,6 +790,43 @@ RTDECL(int) RTLdrSegOffsetToRva(RTLDRMOD hLdrMod, uint32_t iSeg, RTLDRADDR offSe
  * @param   pRva            Where to return the RVA.
  */
 RTDECL(int) RTLdrRvaToSegOffset(RTLDRMOD hLdrMod, RTLDRADDR Rva, uint32_t *piSeg, PRTLDRADDR poffSeg);
+
+/**
+ * Gets the image format.
+ *
+ * @returns Valid image format on success. RTLDRFMT_INVALID on invalid handle or
+ *          other errors.
+ * @param   hLdrMod         The module handle.
+ */
+RTDECL(RTLDRFMT) RTLdrGetFormat(RTLDRMOD hLdrMod);
+
+/**
+ * Gets the image type.
+ *
+ * @returns Valid image type value on success. RTLDRTYPE_INVALID on
+ *          invalid handle or other errors.
+ * @param   hLdrMod         The module handle.
+ */
+RTDECL(RTLDRTYPE) RTLdrGetType(RTLDRMOD hLdrMod);
+
+/**
+ * Gets the image endian-ness.
+ *
+ * @returns Valid image endian value on success. RTLDRENDIAN_INVALID on invalid
+ *          handle or other errors.
+ * @param   hLdrMod         The module handle.
+ */
+RTDECL(RTLDRENDIAN) RTLdrGetEndian(RTLDRMOD hLdrMod);
+
+/**
+ * Gets the image endian-ness.
+ *
+ * @returns Valid image architecture value on success.
+ *          RTLDRARCH_INVALID on invalid handle or other errors.
+ * @param   hLdrMod         The module handle.
+ */
+RTDECL(RTLDRARCH) RTLdrGetArch(RTLDRMOD hLdrMod);
+
 
 RT_C_DECLS_END
 

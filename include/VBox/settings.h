@@ -162,6 +162,54 @@ struct MediaRegistry
 };
 
 /**
+ *
+ */
+struct NATRule
+{
+    NATRule()
+    : proto(NATProtocol_TCP),
+      u16HostPort(0),
+      u16GuestPort(0)
+    {}
+
+    bool operator==(const NATRule &r) const
+    {
+        return    strName == r.strName
+               && proto == r.proto
+               && u16HostPort == r.u16HostPort
+               && strHostIP == r.strHostIP
+               && u16GuestPort == r.u16GuestPort
+               && strGuestIP == r.strGuestIP;
+    }
+
+    com::Utf8Str            strName;
+    NATProtocol_T           proto;
+    uint16_t                u16HostPort;
+    com::Utf8Str            strHostIP;
+    uint16_t                u16GuestPort;
+    com::Utf8Str            strGuestIP;
+};
+typedef std::list<NATRule> NATRuleList;
+
+
+struct NATHostLoopbackOffset
+{
+    /** Note: 128/8 is only acceptable */
+    com::Utf8Str strLoopbackHostAddress;
+    uint32_t u32Offset;
+    bool operator == (const com::Utf8Str& strAddr)
+    {
+        return (strLoopbackHostAddress == strAddr);
+    }
+
+    bool operator == (uint32_t off)
+    {
+        return (this->u32Offset == off);
+    }
+};
+typedef std::list<NATHostLoopbackOffset> NATLoopbackOffsetList;
+
+/**
  * Common base class for both MainConfigFile and MachineConfigFile
  * which contains some common logic for both.
  */
@@ -194,6 +242,8 @@ protected:
     typedef enum {Error, HardDisk, DVDImage, FloppyImage} MediaType;
     void readMedium(MediaType t, const xml::ElementNode &elmMedium, MediaList &llMedia);
     void readMediaRegistry(const xml::ElementNode &elmMediaRegistry, MediaRegistry &mr);
+    void readNATForwardRuleList(const xml::ElementNode  &elmParent, NATRuleList &llRules);
+    void readNATLoopbacks(const xml::ElementNode &elmParent, NATLoopbackOffsetList &llLoopBacks);
 
     void setVersionAttribute(xml::ElementNode &elm);
     void createStubDocument();
@@ -208,6 +258,8 @@ protected:
                      uint32_t level);
     void buildMediaRegistry(xml::ElementNode &elmParent,
                             const MediaRegistry &mr);
+    void buildNATForwardRuleList(xml::ElementNode &elmParent, const NATRuleList &natRuleList);
+    void buildNATLoopbacks(xml::ElementNode &elmParent, const NATLoopbackOffsetList &natLoopbackList);
     void clearDocument();
 
     struct Data;
@@ -231,6 +283,11 @@ struct SystemProperties
 {
     SystemProperties()
         : ulLogHistoryCount(3)
+#if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS)
+        , fExclusiveHwVirt(false)
+#else
+        , fExclusiveHwVirt(true)
+#endif
     {}
 
     com::Utf8Str            strDefaultMachineFolder;
@@ -241,7 +298,10 @@ struct SystemProperties
     com::Utf8Str            strDefaultVRDEExtPack;
     com::Utf8Str            strAutostartDatabasePath;
     com::Utf8Str            strDefaultAdditionsISO;
+    com::Utf8Str            strDefaultFrontend;
+    com::Utf8Str            strLoggingLevel;
     uint32_t                ulLogHistoryCount;
+    bool                    fExclusiveHwVirt;
 };
 
 struct MachineRegistryEntry
@@ -251,6 +311,29 @@ struct MachineRegistryEntry
 };
 typedef std::list<MachineRegistryEntry> MachinesRegistry;
 
+typedef std::map<DhcpOpt_T, com::Utf8Str> DhcpOptionMap;
+typedef DhcpOptionMap::value_type DhcpOptValuePair;
+typedef DhcpOptionMap::iterator DhcpOptIterator;
+typedef DhcpOptionMap::const_iterator DhcpOptConstIterator;
+
+typedef struct VmNameSlotKey
+{
+    VmNameSlotKey(const com::Utf8Str& aVmName, LONG aSlot): VmName(aVmName),
+      Slot(aSlot){}
+    const com::Utf8Str VmName;
+    LONG      Slot;
+    bool operator< (const VmNameSlotKey& that) const
+    {
+        if (VmName == that.VmName)
+            return Slot < that.Slot;
+        else return VmName < that.VmName;
+    }
+} VmNameSlotKey;
+typedef std::map<VmNameSlotKey, DhcpOptionMap> VmSlot2OptionsMap;
+typedef VmSlot2OptionsMap::value_type VmSlot2OptionsPair;
+typedef VmSlot2OptionsMap::iterator VmSlot2OptionsIterator;
+typedef VmSlot2OptionsMap::const_iterator VmSlot2OptionsConstIterator;
+
 struct DHCPServer
 {
     DHCPServer()
@@ -259,12 +342,44 @@ struct DHCPServer
 
     com::Utf8Str    strNetworkName,
                     strIPAddress,
-                    strIPNetworkMask,
                     strIPLower,
                     strIPUpper;
     bool            fEnabled;
+    std::map<DhcpOpt_T, com::Utf8Str>  GlobalDhcpOptions;
+    VmSlot2OptionsMap VmSlot2OptionsM;
 };
 typedef std::list<DHCPServer> DHCPServersList;
+
+
+/**
+ * Nat Networking settings (NAT service).
+ */
+struct NATNetwork
+{
+    com::Utf8Str strNetworkName;
+    bool         fEnabled;
+    com::Utf8Str strNetwork;
+    bool         fIPv6;
+    com::Utf8Str strIPv6Prefix;
+    uint32_t     u32HostLoopback6Offset;
+    NATLoopbackOffsetList llHostLoopbackOffsetList;
+    bool         fAdvertiseDefaultIPv6Route;
+    bool         fNeedDhcpServer;
+    NATRuleList  llPortForwardRules4;
+    NATRuleList  llPortForwardRules6;
+    NATNetwork():fEnabled(false),
+      fAdvertiseDefaultIPv6Route(false),
+      fNeedDhcpServer(false)
+      {}
+    bool operator==(const NATNetwork &n) const
+    {
+        return    strNetworkName == n.strNetworkName
+               && strNetwork == n.strNetwork;
+    }
+
+};
+typedef std::list<NATNetwork> NATNetworksList;
+
 
 class MainConfigFile : public ConfigFileBase
 {
@@ -273,6 +388,8 @@ public:
 
     void readMachineRegistry(const xml::ElementNode &elmMachineRegistry);
     void readDHCPServers(const xml::ElementNode &elmDHCPServers);
+    void readDhcpOptions(DhcpOptionMap& map, const xml::ElementNode& options);
+    void readNATNetworks(const xml::ElementNode &elmNATNetworks);
 
     void write(const com::Utf8Str strFilename);
 
@@ -281,7 +398,11 @@ public:
     MediaRegistry           mediaRegistry;
     MachinesRegistry        llMachines;
     DHCPServersList         llDhcpServers;
+    NATNetworksList         llNATNetworks;
     StringsMap              mapExtraDataItems;
+
+private:
+    void bumpSettingsVersionIfNeeded();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -356,43 +477,27 @@ struct BIOSSettings
 struct USBController
 {
     USBController()
-        : fEnabled(false),
-          fEnabledEHCI(false)
+        : enmType(USBControllerType_Null)
     {}
 
     bool operator==(const USBController &u) const;
 
-    bool                    fEnabled;
-    bool                    fEnabledEHCI;
+    com::Utf8Str            strName;
+    USBControllerType_T     enmType;
+};
+typedef std::list<USBController> USBControllerList;
+
+struct USB
+{
+    USB() {}
+
+    bool operator==(const USB &u) const;
+
+    /** List of USB controllers present. */
+    USBControllerList       llUSBControllers;
+    /** List of USB device filters. */
     USBDeviceFiltersList    llDeviceFilters;
 };
-
- struct NATRule
- {
-     NATRule()
-         : proto(NATProtocol_TCP),
-           u16HostPort(0),
-           u16GuestPort(0)
-     {}
-
-     bool operator==(const NATRule &r) const
-     {
-         return strName == r.strName
-             && proto == r.proto
-             && u16HostPort == r.u16HostPort
-             && strHostIP == r.strHostIP
-             && u16GuestPort == r.u16GuestPort
-             && strGuestIP == r.strGuestIP;
-     }
-
-     com::Utf8Str            strName;
-     NATProtocol_T           proto;
-     uint16_t                u16HostPort;
-     com::Utf8Str            strHostIP;
-     uint16_t                u16GuestPort;
-     com::Utf8Str            strGuestIP;
- };
- typedef std::list<NATRule> NATRuleList;
 
  struct NAT
  {
@@ -449,6 +554,7 @@ struct USBController
      bool                    fAliasUseSamePorts;
      NATRuleList             llRules;
  };
+
 /**
  * NOTE: If you add any fields in here, you must update a) the constructor and b)
  * the operator== which is used by MachineConfigFile::operator==(), or otherwise
@@ -488,6 +594,7 @@ struct NetworkAdapter
     com::Utf8Str                        strInternalNetworkName;
     com::Utf8Str                        strGenericDriver;
     StringsMap                          genericProperties;
+    com::Utf8Str                        strNATNetworkName;
     uint32_t                            ulBootPriority;
     com::Utf8Str                        strBandwidthGroup; // requires settings version 1.13 (VirtualBox 4.2)
 };
@@ -762,13 +869,16 @@ struct Hardware
     com::Guid           uuid;                   // hardware uuid, optional (null).
 
     bool                fHardwareVirt,
-                        fHardwareVirtExclusive,
                         fNestedPaging,
                         fLargePages,
                         fVPID,
+                        fUnrestrictedExecution,
                         fHardwareVirtForce,
                         fSyntheticCpu,
+                        fTripleFaultReset,
                         fPAE;
+    typedef enum LongModeType { LongMode_Enabled, LongMode_Disabled, LongMode_Legacy } LongModeType;
+    LongModeType        enmLongMode;
     uint32_t            cCPUs;
     bool                fCpuHotPlug;            // requires settings version 1.10 (VirtualBox 3.2)
     CpuList             llCpus;                 // requires settings version 1.10 (VirtualBox 3.2)
@@ -781,14 +891,20 @@ struct Hardware
 
     BootOrderMap        mapBootOrder;           // item 0 has highest priority
 
+    GraphicsControllerType_T graphicsControllerType;
     uint32_t            ulVRAMSizeMB;
     uint32_t            cMonitors;
     bool                fAccelerate3D,
                         fAccelerate2DVideo;     // requires settings version 1.8 (VirtualBox 3.1)
-    uint32_t            ulVideoCaptureHorzRes;
-    uint32_t            ulVideoCaptureVertRes;
-    bool                fVideoCaptureEnabled;
-    com::Utf8Str        strVideoCaptureFile;
+
+    uint32_t            ulVideoCaptureHorzRes;  // requires settings version 1.14 (VirtualBox 4.3)
+    uint32_t            ulVideoCaptureVertRes;  // requires settings version 1.14 (VirtualBox 4.3)
+    uint32_t            ulVideoCaptureRate;     // requires settings version 1.14 (VirtualBox 4.3)
+    uint32_t            ulVideoCaptureFPS;      // requires settings version 1.14 (VirtualBox 4.3)
+    bool                fVideoCaptureEnabled;   // requires settings version 1.14 (VirtualBox 4.3)
+    uint64_t            u64VideoCaptureScreens; // requires settings version 1.14 (VirtualBox 4.3)
+    com::Utf8Str        strVideoCaptureFile;    // requires settings version 1.14 (VirtualBox 4.3)
+
     FirmwareType_T      firmwareType;           // requires settings version 1.9 (VirtualBox 3.1)
 
     PointingHIDType_T   pointingHIDType;        // requires settings version 1.10 (VirtualBox 3.2)
@@ -796,13 +912,12 @@ struct Hardware
 
     ChipsetType_T       chipsetType;            // requires settings version 1.11 (VirtualBox 4.0)
 
-    bool                fEmulatedUSBWebcam;     // 1.13 (VirtualBox 4.2)
     bool                fEmulatedUSBCardReader; // 1.12 (VirtualBox 4.1)
 
     VRDESettings        vrdeSettings;
 
     BIOSSettings        biosSettings;
-    USBController       usbController;
+    USB                 usbSettings;
     NetworkAdaptersList llNetworkAdapters;
     SerialPortsList     llSerialPorts;
     ParallelPortsList   llParallelPorts;
@@ -822,6 +937,8 @@ struct Hardware
 
     IOSettings          ioSettings;             // requires settings version 1.10 (VirtualBox 3.2)
     HostPCIDeviceAttachmentList pciAttachments; // requires settings version 1.12 (VirtualBox 4.1)
+
+    com::Utf8Str        strDefaultFrontend;     // requires settings version 1.14 (VirtualBox 4.3)
 };
 
 /**
@@ -861,6 +978,9 @@ struct AttachedDevice
 
     // Whether the medium supports discarding unused blocks:
     bool                fDiscard;
+
+    // Whether the medium is hot-pluggable:
+    bool                fHotPluggable;
 
     int32_t             lPort;
     int32_t             lDevice;
@@ -1054,7 +1174,8 @@ struct MachineUserData
                && (uFaultToleranceInterval    == c.uFaultToleranceInterval)
                && (strFaultToleranceAddress   == c.strFaultToleranceAddress)
                && (strFaultTolerancePassword  == c.strFaultTolerancePassword)
-               && (fRTCUseUTC                 == c.fRTCUseUTC);
+               && (fRTCUseUTC                 == c.fRTCUseUTC)
+               && (ovIcon                     == c.ovIcon);
     }
 
     com::Utf8Str            strName;
@@ -1074,6 +1195,7 @@ struct MachineUserData
     com::Utf8Str            strFaultTolerancePassword;
     uint32_t                uFaultToleranceInterval;
     bool                    fRTCUseUTC;
+    com::Utf8Str            ovIcon;
 };
 
 /**

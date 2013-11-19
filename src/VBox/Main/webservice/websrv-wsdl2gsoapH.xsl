@@ -9,7 +9,7 @@
         See webservice/Makefile.kmk for an overview of all the things
         generated for the webservice.
 
-    Copyright (C) 2006-2012 Oracle Corporation
+    Copyright (C) 2006-2013 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -43,7 +43,7 @@
 
 <xsl:variable name="G_xsltFilename" select="'websrv-wsdl2gsoapH.xsl'" />
 
-<xsl:include href="websrv-shared.inc.xsl" />
+<xsl:include href="../idl/typemap-shared.inc.xsl" />
 
 <!-- collect all interfaces with "wsmap='suppress'" in a global variable for
      quick lookup -->
@@ -81,7 +81,7 @@
  ****************************************************************************/
 
 // forward declarations
- class _vbox__InvalidObjectFault;
+class _vbox__InvalidObjectFault;
 class _vbox__RuntimeFault;
 
 struct SOAP_ENV__Detail

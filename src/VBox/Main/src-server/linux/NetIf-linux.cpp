@@ -37,14 +37,23 @@
 #include "netif.h"
 #include "Logging.h"
 
+/**
+ * Obtain the name of the interface used for default routing.
+ *
+ * NOTE: There is a copy in Devices/Network/testcase/tstIntNet-1.cpp.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pszName     The buffer of IFNAMSIZ+1 length where to put the name.
+ */
 static int getDefaultIfaceName(char *pszName)
 {
     FILE *fp = fopen("/proc/net/route", "r");
     char szBuf[1024];
     char szIfName[17];
-    char szAddr[129];
-    char szGateway[129];
-    char szMask[129];
+    uint32_t uAddr;
+    uint32_t uGateway;
+    uint32_t uMask;
     int  iTmp;
     unsigned uFlags;
 
@@ -52,13 +61,13 @@ static int getDefaultIfaceName(char *pszName)
     {
         while (fgets(szBuf, sizeof(szBuf)-1, fp))
         {
-            int n = sscanf(szBuf, "%16s %128s %128s %X %d %d %d %128s %d %d %d\n",
-                           szIfName, szAddr, szGateway, &uFlags, &iTmp, &iTmp, &iTmp,
-                           szMask, &iTmp, &iTmp, &iTmp);
+            int n = sscanf(szBuf, "%16s %x %x %x %d %d %d %x %d %d %d\n",
+                           szIfName, &uAddr, &uGateway, &uFlags, &iTmp, &iTmp, &iTmp,
+                           &uMask, &iTmp, &iTmp, &iTmp);
             if (n < 10 || !(uFlags & RTF_UP))
                 continue;
 
-            if (strcmp(szAddr, "00000000") == 0 && strcmp(szMask, "00000000") == 0)
+            if (uAddr == 0 && uMask == 0)
             {
                 fclose(fp);
                 strncpy(pszName, szIfName, 16);
@@ -71,14 +80,55 @@ static int getDefaultIfaceName(char *pszName)
     return VERR_INTERNAL_ERROR;
 }
 
+static uint32_t getInterfaceSpeed(const char *pszName)
+{
+    /*
+     * I wish I could do simple ioctl here, but older kernels require root
+     * privileges for any ethtool commands.
+     */
+    char szBuf[256];
+    uint32_t uSpeed = 0;
+    /* First, we try to retrieve the speed via sysfs. */
+    RTStrPrintf(szBuf, sizeof(szBuf), "/sys/class/net/%s/speed", pszName);
+    FILE *fp = fopen(szBuf, "r");
+    if (fp)
+    {
+        if (fscanf(fp, "%u", &uSpeed) != 1)
+            uSpeed = 0;
+        fclose(fp);
+    }
+    if (uSpeed == 10)
+    {
+        /* Check the cable is plugged in at all */
+        unsigned uCarrier = 0;
+        RTStrPrintf(szBuf, sizeof(szBuf), "/sys/class/net/%s/carrier", pszName);
+        fp = fopen(szBuf, "r");
+        if (fp)
+        {
+            if (fscanf(fp, "%u", &uCarrier) != 1 || uCarrier == 0)
+                uSpeed = 0;
+            fclose(fp);
+        }
+    }
+
+    if (uSpeed == 0)
+    {
+        /* Failed to get speed via sysfs, go to plan B. */
+        int rc = NetIfAdpCtlOut(pszName, "speed", szBuf, sizeof(szBuf));
+        if (RT_SUCCESS(rc))
+            uSpeed = RTStrToUInt32(szBuf);
+    }
+    return uSpeed;
+}
+
 static int getInterfaceInfo(int iSocket, const char *pszName, PNETIFINFO pInfo)
 {
     // Zeroing out pInfo is a bad idea as it should contain both short and long names at
     // this point. So make sure the structure is cleared by the caller if necessary!
     // memset(pInfo, 0, sizeof(*pInfo));
     struct ifreq Req;
-    memset(&Req, 0, sizeof(Req));
-    strncpy(Req.ifr_name, pszName, sizeof(Req.ifr_name) - 1);
+    RT_ZERO(Req);
+    RTStrCopy(Req.ifr_name, sizeof(Req.ifr_name), pszName);
     if (ioctl(iSocket, SIOCGIFHWADDR, &Req) >= 0)
     {
         switch (Req.ifr_hwaddr.sa_family)
@@ -122,7 +172,7 @@ static int getInterfaceInfo(int iSocket, const char *pszName, PNETIFINFO pInfo)
             char szName[30];
             for (;;)
             {
-                memset(szName, 0, sizeof(szName));
+                RT_ZERO(szName);
                 int n = fscanf(fp,
                                "%08x%08x%08x%08x"
                                " %02x %02x %02x %02x %20s\n",
@@ -152,45 +202,10 @@ static int getInterfaceInfo(int iSocket, const char *pszName, PNETIFINFO pInfo)
          * Don't even try to get speed for non-Ethernet interfaces, it only
          * produces errors.
          */
-        pInfo->uSpeedMbits = 0;
         if (pInfo->enmMediumType == NETIF_T_ETHERNET)
-        {
-            /*
-             * I wish I could do simple ioctl here, but older kernels require root
-             * privileges for any ethtool commands.
-             */
-            char szBuf[256];
-            /* First, we try to retrieve the speed via sysfs. */
-            RTStrPrintf(szBuf, sizeof(szBuf), "/sys/class/net/%s/speed", pszName);
-            fp = fopen(szBuf, "r");
-            if (fp)
-            {
-                if (fscanf(fp, "%u", &pInfo->uSpeedMbits) != 1)
-                    pInfo->uSpeedMbits = 0;
-                fclose(fp);
-            }
-            if (pInfo->uSpeedMbits == 10)
-            {
-                /* Check the cable is plugged in at all */
-                unsigned uCarrier = 0;
-                RTStrPrintf(szBuf, sizeof(szBuf), "/sys/class/net/%s/carrier", pszName);
-                fp = fopen(szBuf, "r");
-                if (fp)
-                {
-                    if (fscanf(fp, "%u", &uCarrier) != 1 || uCarrier == 0)
-                        pInfo->uSpeedMbits = 0;
-                    fclose(fp);
-                }
-            }
-
-            if (pInfo->uSpeedMbits == 0)
-            {
-                /* Failed to get speed via sysfs, go to plan B. */
-                int rc = NetIfAdpCtlOut(pszName, "speed", szBuf, sizeof(szBuf));
-                if (RT_SUCCESS(rc))
-                    pInfo->uSpeedMbits = RTStrToUInt32(szBuf);
-            }
-        }
+            pInfo->uSpeedMbits = getInterfaceSpeed(pszName);
+        else
+            pInfo->uSpeedMbits = 0;
     }
     return VINF_SUCCESS;
 }
@@ -230,7 +245,7 @@ int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
                     IfObj.createObject();
 
                     HostNetworkInterfaceType_T enmType;
-                    if (strncmp("vboxnet", pszName, 7))
+                    if (strncmp(pszName, RT_STR_TUPLE("vboxnet")))
                         enmType = HostNetworkInterfaceType_Bridged;
                     else
                         enmType = HostNetworkInterfaceType_HostOnly;
@@ -264,4 +279,36 @@ int NetIfGetConfigByName(PNETIFINFO pInfo)
     rc = getInterfaceInfo(sock, pInfo->szShortName, pInfo);
     close(sock);
     return rc;
+}
+
+/**
+ * Retrieve the physical link speed in megabits per second. If the interface is
+ * not up or otherwise unavailable the zero speed is returned.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pcszIfName  Interface name.
+ * @param   puMbits     Where to store the link speed.
+ */
+int NetIfGetLinkSpeed(const char *pcszIfName, uint32_t *puMbits)
+{
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0)
+        return VERR_OUT_OF_RESOURCES;
+    struct ifreq Req;
+    RT_ZERO(Req);
+    RTStrCopy(Req.ifr_name, sizeof(Req.ifr_name), pcszIfName);
+    if (ioctl(sock, SIOCGIFHWADDR, &Req) >= 0)
+    {
+        if (ioctl(sock, SIOCGIFFLAGS, &Req) >= 0)
+            if (Req.ifr_flags & IFF_UP)
+            {
+                close(sock);
+                *puMbits = getInterfaceSpeed(pcszIfName);
+                return VINF_SUCCESS;
+            }
+    }
+    close(sock);
+    *puMbits = 0;
+    return VWRN_NOT_FOUND;
 }

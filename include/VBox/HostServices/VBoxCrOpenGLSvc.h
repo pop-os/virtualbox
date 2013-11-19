@@ -52,6 +52,7 @@
 #define SHCRGL_GUEST_FN_SET_PID     (12)
 #define SHCRGL_GUEST_FN_WRITE_BUFFER        (13)
 #define SHCRGL_GUEST_FN_WRITE_READ_BUFFERED (14)
+#define SHCRGL_GUEST_FN_GET_CAPS            (15)
 
 /* Parameters count */
 #define SHCRGL_CPARMS_SET_CONSOLE (1)
@@ -68,6 +69,7 @@
 #define SHCRGL_CPARMS_WRITE_READ_BUFFERED (3)
 #define SHCRGL_CPARMS_SET_OUTPUT_REDIRECT (1)
 #define SHCRGL_CPARMS_VIEWPORT_CHANGED (5)
+#define SHCRGL_CPARMS_GET_CAPS (1)
 
 /* @todo Move to H3DOR.h begin */
 
@@ -89,7 +91,7 @@ typedef struct {
                                                       int32_t x, int32_t y, uint32_t w, uint32_t h));
     /* Update the window visible region. */
     DECLR3CALLBACKMEMBER(void, H3DORVisibleRegion,   (void *pvInstance,
-                                                      uint32_t cRects, RTRECT *paRects));
+                                                      uint32_t cRects, const RTRECT *paRects));
     /* A rendered 3D frame is ready. Format of pvData is "pszFormat" parameter of H3DORBegin. */
     DECLR3CALLBACKMEMBER(void, H3DORFrame,           (void *pvInstance,
                                                       void *pvData, uint32_t cbData));
@@ -267,6 +269,17 @@ typedef struct
     HGCMFunctionParameter   vMinor;
 
 } CRVBOXHGCMSETVERSION;
+
+/** GUEST_FN_GET_CAPS Parameters structure. */
+typedef struct
+{
+    VBoxGuestHGCMCallInfo   hdr;
+
+    /** 32bit, out
+     *  Caps
+     */
+    HGCMFunctionParameter   Caps;
+} CRVBOXHGCMGETCAPS;
 
 /** GUEST_FN_INJECT Parameters structure. */
 typedef struct

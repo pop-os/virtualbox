@@ -393,8 +393,10 @@ extensions_num_get_values = {
     # Point sprite (2.0) #
     'GL_POINT_SPRITE': (1, 'CR_OPENGL_VERSION_2_0'),
     # Separate stencil (2.0) #
-    'GL_STENCIL_BACK_FAIL': (1, 'CR_OPENGL_VERSION_2_0'),
     'GL_STENCIL_BACK_FUNC': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_STENCIL_BACK_REF': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_STENCIL_BACK_VALUE_MASK': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_STENCIL_BACK_FAIL': (1, 'CR_OPENGL_VERSION_2_0'),
     'GL_STENCIL_BACK_PASS_DEPTH_FAIL': (1, 'CR_OPENGL_VERSION_2_0'),
     'GL_STENCIL_BACK_PASS_DEPTH_PASS': (1, 'CR_OPENGL_VERSION_2_0'),
     # Frame buffer object EXT #
@@ -404,22 +406,52 @@ extensions_num_get_values = {
     'GL_MAX_RENDERBUFFER_SIZE_EXT': (1, 'CR_EXT_framebuffer_object'),
     # ARB_shader_objects
     'GL_CURRENT_PROGRAM': (1, 'CR_ARB_shader_objects'),
+    # EXT_framebuffer_blit
+    'GL_READ_FRAMEBUFFER_BINDING_EXT': (1, 'CR_EXT_framebuffer_blit'),
+    'GL_DRAW_FRAMEBUFFER_BINDING_EXT': (1, 'CR_EXT_framebuffer_blit'),
+    # EXT_stencil_two_side
+    'GL_ACTIVE_STENCIL_FACE_EXT': (1, 'CR_EXT_stencil_two_side'),
 }
 
 get_keys = num_get_values.keys() + extensions_num_get_values.keys()
 get_keys.sort()
+max_keyvalues = 0
 
-print "struct nv_struct { GLenum pname; unsigned int num_values; } num_values_array[] = {"
+print """
+static struct nv_struct { GLenum pname; unsigned int num_values;
+#ifdef VBOX_WITH_CRDUMPER 
+const char* pszName;
+#endif
+} num_values_array[] = {
+"""
 for key in get_keys:
     try:
-        print '\t{ %s, %d },' % (key, num_get_values[key])
+        keyvalues = num_get_values[key]
+        if max_keyvalues < keyvalues:
+            max_keyvalues = keyvalues
+        print """
+        \t{ %s, %d
+#ifdef VBOX_WITH_CRDUMPER
+            , "%s"
+#endif
+        },
+        """ % (key, keyvalues, key)
     except KeyError:
         (nv, ifdef) = extensions_num_get_values[key]
+        if max_keyvalues < nv:
+            max_keyvalues = nv
         print '#ifdef %s' % ifdef
-        print '\t{ %s, %d },' % (key, nv)
+        print """
+        \t{ %s, %d
+        #ifdef VBOX_WITH_CRDUMPER
+            , "%s"
+        #endif
+        },
+        """ % (key, nv, key)
         print '#endif /* %s */' % ifdef
 print "\t{ 0, 0 }"
 print "};"
+print "#define CR_MAX_GET_VALUES %d" % max_keyvalues
 
 print """
 static unsigned int __numValues( GLenum pname )

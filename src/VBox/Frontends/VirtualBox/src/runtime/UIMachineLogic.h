@@ -20,7 +20,7 @@
 #define __UIMachineLogic_h__
 
 /* GUI includes: */
-#include "UIMachineDefs.h"
+#include "UIDefs.h"
 #include <QIWithRetranslateUI.h>
 #ifdef VBOX_WITH_DEBUGGER_GUI
 # include <VBox/dbggui.h>
@@ -79,6 +79,9 @@ public:
     bool isPreventAutoClose() const { return m_fIsPreventAutoClose; }
     void setPreventAutoClose(bool fIsPreventAutoClose) { m_fIsPreventAutoClose = fIsPreventAutoClose; }
 
+    /* API: Guest screen size stuff: */
+    virtual void maybeAdjustGuestScreenSize();
+
     /* Wrapper to open Machine settings / Network page: */
     void openNetworkAdaptersDialog() { sltOpenNetworkAdaptersDialog(); }
 
@@ -89,9 +92,12 @@ public:
 #endif /* Q_WS_MAC */
 
     /* API: Close actions: */
-    void save();
+    void saveState();
     void shutdown();
     void powerOff(bool fDiscardingState);
+
+    /* API: 3D overlay visibility stuff: */
+    virtual void notifyAbout3DOverlayVisibilityChange(bool fVisible);
 
 protected slots:
 
@@ -99,6 +105,7 @@ protected slots:
     virtual void sltMachineStateChanged();
     virtual void sltAdditionsStateChanged();
     virtual void sltMouseCapabilityChanged();
+    virtual void sltKeyboardLedsChanged();
     virtual void sltUSBDeviceStateChange(const CUSBDevice &device, bool fIsAttached, const CVirtualBoxErrorInfo &error);
     virtual void sltRuntimeError(bool fIsFatal, const QString &strErrorId, const QString &strMessage);
 #ifdef RT_OS_DARWIN
@@ -107,7 +114,8 @@ protected slots:
     virtual void sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
 
     /* Qt callback handler: */
-    virtual void sltHostScreenCountChanged(int cHostScreenCount);
+    virtual void sltHostScreenCountChanged();
+    virtual void sltHostScreenGeometryChanged();
 
 protected:
 
@@ -116,7 +124,7 @@ protected:
 
     /* Protected getters/setters: */
     bool isMachineWindowsCreated() const { return m_fIsWindowsCreated; }
-    void setMachineWindowsCreated(bool fIsWindowsCreated) { m_fIsWindowsCreated = fIsWindowsCreated; }
+    void setMachineWindowsCreated(bool fIsWindowsCreated);
 
     /* Protected members: */
     void setKeyboardHandler(UIKeyboardHandler *pKeyboardHandler);
@@ -161,6 +169,9 @@ protected:
     //virtual void cleanupSessionConnections() {}
     //virtual void cleanupRequiredFeatures() {}
 
+    /* Handler: Event-filter stuff: */
+    bool eventFilter(QObject *pWatched, QEvent *pEvent);
+
 private slots:
 
     /* Mode request watch dog: */
@@ -179,25 +190,29 @@ private slots:
     void sltShowInformationDialog();
     void sltReset();
     void sltPause(bool fOn);
-    void sltSave();
+    void sltSaveState();
     void sltShutdown();
     void sltPowerOff();
     void sltClose();
 
     /* "Device" menu functionality: */
-    void sltOpenVMSettingsDialog(const QString &strCategory = QString());
+    void sltOpenVMSettingsDialog(const QString &strCategory = QString(), const QString &strControl = QString());
     void sltOpenNetworkAdaptersDialog();
     void sltOpenSharedFoldersDialog();
     void sltPrepareStorageMenu();
     void sltMountStorageMedium();
     void sltMountRecentStorageMedium();
     void sltPrepareUSBMenu();
+    void sltPrepareWebCamMenu();
     void sltAttachUSBDevice();
+    void sltAttachWebCamDevice();
     void sltPrepareSharedClipboardMenu();
     void sltChangeSharedClipboardType(QAction *pAction);
     void sltPrepareDragAndDropMenu();
     void sltChangeDragAndDropType(QAction *pAction);
-    void sltSwitchVrde(bool fOn);
+    void sltToggleVRDE(bool fEnabled);
+    void sltToggleVideoCapture(bool fEnabled);
+    void sltOpenVideoCaptureOptions();
     void sltInstallGuestAdditions();
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
@@ -215,6 +230,10 @@ private slots:
     void sltChangeDockIconUpdate(bool fEnabled);
 #endif /* RT_OS_DARWIN */
 
+    /* Handlers: Keyboard LEDs sync logic: */
+    void sltSwitchKeyboardLedsToGuestLeds();
+    void sltSwitchKeyboardLedsToPreviousLeds();
+
 private:
 
     /* Helpers: */
@@ -230,7 +249,7 @@ private:
 
     QActionGroup *m_pRunningActions;
     QActionGroup *m_pRunningOrPausedActions;
-    QActionGroup *m_pRunningOrPausedOrStuckActions;
+    QActionGroup *m_pRunningOrPausedOrStackedActions;
     QActionGroup *m_pSharedClipboardActions;
     QActionGroup *m_pDragAndDropActions;
 
@@ -254,6 +273,7 @@ private:
     UIDockIconPreview *m_pDockIconPreview;
     QActionGroup *m_pDockPreviewSelectMonitorGroup;
     int m_DockIconPreviewMonitor;
+    void *m_pHostLedsState;
 #endif /* Q_WS_MAC */
 
     /* Friend classes: */

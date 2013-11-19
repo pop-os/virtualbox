@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -271,6 +271,12 @@ typedef struct PDMASYNCCOMPLETIONEPCLASSFILE
     RTR3UINTPTR                         uBitmaskAlignment;
     /** Flag whether the out of resources warning was printed already. */
     bool                                fOutOfResourcesWarningPrinted;
+#ifdef PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
+    /** Timer for delayed request completion. */
+    PTMTIMERR3                          pTimer;
+    /** Milliseconds until the next delay expires. */
+    volatile uint64_t                   cMilliesNext;
+#endif
 } PDMASYNCCOMPLETIONEPCLASSFILE;
 /** Pointer to the endpoint class data. */
 typedef PDMASYNCCOMPLETIONEPCLASSFILE *PPDMASYNCCOMPLETIONEPCLASSFILE;
@@ -379,6 +385,8 @@ typedef struct PDMASYNCCOMPLETIONENDPOINTFILE
 #ifdef PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
     /** Request delay. */
     volatile uint32_t                      msDelay;
+    /** Request delay jitter. */
+    volatile uint32_t                      msJitter;
     /** Number of requests to delay. */
     volatile uint32_t                      cReqsDelay;
     /** Task type to delay. */
@@ -419,6 +427,8 @@ typedef struct PDMASYNCCOMPLETIONENDPOINTFILE
          * task writing to that range has to wait until the task completes.
          */
         PAVLRFOFFTREE                              pTreeRangesLocked;
+        /** Number of requests with a range lock active. */
+        unsigned                                   cLockedReqsActive;
         /** Number of requests currently being processed for this endpoint
          * (excluded flush requests). */
         unsigned                                   cRequestsActive;

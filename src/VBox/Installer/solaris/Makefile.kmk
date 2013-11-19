@@ -209,14 +209,12 @@ SOLARIS_STRIP_EXES = \
 	$(if $(VBOX_WITH_VBOXSDL),VBoxSDL,) \
 	$(if $(VBOX_WITH_NETADP),VBoxNetAdpCtl,) \
 	VBoxNetDHCP \
+	VBoxNetNAT \
 	$(if $(VBOX_WITH_EXTPACK),VBoxExtPackHelperApp,) \
 	VBoxSVC \
 	$(if $(VBOX_WITH_CROGL),VBoxTestOGL,) \
 	VBoxXPCOMIPCD \
 	$(if $(VBOX_WITH_KCHMVIEWER),kchmviewer,)
-## Follow the Windows + Linux example of not shipping VBoxBFE.
-#SOLARIS_STRIP_EXES = \
-#	$(if $(VBOX_WITH_VBOXBFE),VBoxBFE,)
 
 SOLARIS_DRIVER_BINS = \
 	vboxdrv \
@@ -268,14 +266,20 @@ SOLARIS_STRIP_BINS = \
 	components/VBoxC.so \
 	components/VBoxSVCM.so \
 	components/VBoxXPCOMIPCC.so
+ifdef VBOX_WITH_32_ON_64_MAIN_API
+ SOLARIS_STRIP_BINS += \
+	VBoxRT-x86.so \
+	VBoxXPCOM-x86.so \
+	components/VBoxClient-x86.so \
+	components/VBoxSVCM-x86.so \
+	components/VBoxXPCOMIPCC-x86.so
+endif
 ifdef VBOX_WITH_HARDENING
-SOLARIS_STRIP_BINS += \
+ SOLARIS_STRIP_BINS += \
 	VBoxNetDHCP.so \
+	VBoxNetNAT.so \
 	$(if $(VBOX_WITH_VBOXSDL),VBoxSDL.so,) \
 	$(if $(VBOX_WITH_QTGUI),VirtualBox.so,)
-## Follow the Windows + Linux example of not shipping VBoxBFE.
-#SOLARIS_STRIP_BINS += \
-#	$(if $(VBOX_WITH_VBOXBFE),VBoxBFE.so,)
 endif
 
 # Do not remove relocation information of these binaries
@@ -476,7 +480,8 @@ else
 	$(ifeq ($(KBUILD_TARGET_ARCH),amd64),$(addprefix $(SOLARIS_VBOXINST_DIR_ISA)/,$(SOLARIS_STRIP_OBJ_64)),) \
 	$(addprefix $(SOLARIS_VBOXINST_DIR_ISA)/,$(SOLARIS_STRIP_OBJS)) \
 	$(addprefix $(SOLARIS_VBOXINST_DIR_ISA)/,$(SOLARIS_NO_STRIP)) \
-	$(addprefix $(SOLARIS_VBOXINST_DIR_ISA)/,$(SOLARIS_QTLIBS))
+	$(addprefix $(SOLARIS_VBOXINST_DIR_ISA)/,$(SOLARIS_QTLIBS)) \
+	$(wildcard $(addprefix $(SOLARIS_OUT_BIN)/,VBoxPython*.so))
  SOLARIS_DBG_DEPFILES = $(addprefix $(SOLARIS_DBG_DIR_ISA)/,$(SOLARIS_DBG_FILES))
 endif
 SOLARIS_ARCH_DEPFILES += $(addprefix $(SOLARIS_VBOXINST_DIR)/,$(SOLARIS_COMMON)) \
@@ -532,6 +537,10 @@ include $(FILE_KBUILD_SUB_FOOTER)
 
 #
 # -=-=-=-=-=-=-=- Main package -=-=-=-=-=-=-=-
+#
+# !!WARNING!!  The current packing may NOT produce the expected rules in
+# !!WARNING!!  incremental build!  Removed and renamed components may
+# !!WARNING!!  appear in the package!  Always do clean builds for customers.
 #
 
 ## @todo r=bird: makepackage.sh packing a directory tree, right? So, there is no guarantee that it's not
@@ -617,7 +626,12 @@ else
 	@# @todo -XXX- how to get rid of this manual MKDIR ?
  ifdef VBOX_WITH_PYTHON
 	$(QUIET)$(if $(SOL64_PKG),$(MKDIR) -p $(SOLARIS_VBOXINST_DIR)/$(VBOX_SOL_PYTHON_DIR_64),)
+  ifdef VBOX_WITH_32_ON_64_MAIN_API
+	$(QUIET)$(INSTALL) -m 0644 $(if $(VBOX_DO_STRIP),-s) $(filter     %_x86.so,$(wildcard $(SOLARIS_OUT_BIN)/VBoxPython*.so)) $(SOLARIS_VBOXINST_DIR)/
+	$(QUIET)$(INSTALL) -m 0644 $(if $(VBOX_DO_STRIP),-s) $(filter-out %_x86.so,$(wildcard $(SOLARIS_OUT_BIN)/VBoxPython*.so)) $(SOLARIS_VBOXINST_DIR)/$(VBOX_SOL_PYTHON_DIR_64)/
+  else
 	$(QUIET)$(INSTALL) -m 0644 $(if $(VBOX_DO_STRIP),-s) $(wildcard $(SOLARIS_OUT_BIN)/VBoxPython*.so)                   $(SOLARIS_VBOXINST_DIR)/$(if $(SOL64_PKG),$(VBOX_SOL_PYTHON_DIR_64)/,)
+  endif
  endif
 	$(QUIET)$(if $(VBOX_WITH_QTGUI),$(if $(VBOX_WITH_QT4_SUN),$(INSTALL) -m 0755 $(VBOX_PATH_QT4)/bin/qtconfig           $(SOLARIS_VBOXINST_DIR_ISA)/VBoxQtconfig,),)
 	$(QUIET)$(INSTALL) -m 0755 $(SOLARIS_OUT_BIN)/VBoxISAExec                                                            $(SOLARIS_VBOXINST_DIR)/VBoxISAExec
@@ -692,7 +706,7 @@ endif
 	@# Clean up files emitted as side-effect or result of packing
 	$(QUIET)$(RM) -f $(SOLARIS_BASEINST_DIR)/$(PKG_FILENAME).tar.gz
 	$(QUIET)$(RM) -f $(SOLARIS_BASEINST_DIR)/$(PKG_FILENAME).pkg
-	$(call MSG_L1,Packaging completed.)
+	$(call MSG_L1,Packaging $@ is completed.)
 
 
 #
@@ -787,8 +801,7 @@ $(addprefix $(SOLARIS_USRSHR_ICONS_DIR)/,$(SOLARIS_COMMON_ICONS)): \
 # Some symlinks are created manually in the prepackage steps above (eg. VBoxQtconfig)
 # as those binaries do not originate from $(PATH_STAGE_BIN)
 #
-$(addprefix $(SOLARIS_USRBIN_DIR)/,$(SOLARIS_USRBIN_LINKS)): \
-		$(SOLARIS_USRBIN_DIR)/% : % | $$(dir $$@)
+$(addprefix $(SOLARIS_USRBIN_DIR)/,$(SOLARIS_USRBIN_LINKS)): | $$(dir $$@)
 	$(LN_SYMLINK) -f ../../$(SOLARIS_VBOXINST_SUBDIR)/VBox.sh $@
 
 
@@ -802,9 +815,10 @@ $(PATH_STAGE_BIN)/$(DBG_ARCHIVE): \
 		$(SOLARIS_DBG_DEPFILES)
 	$(call MSG_L1,Installing debug binaries $(SOLARIS_DBG_DIR))
 	$(call MSG_L1,Packing $@)
-	$(QUIET)/usr/sfw/bin/gtar --dereference --owner 0 --group 0 \
+	$(QUIET)$(SOL_GTAR) --dereference --owner 0 --group 0 \
 		-cjRhf "$(PATH_STAGE_BIN)/$(DBG_ARCHIVE)" -C "$(SOLARIS_INST_OUT_DIR)" "$(SOLARIS_DBG_DIR_NAME)"
 	$(QUIET)$(CHMOD) 0644 $@
+	$(call MSG_L1,Packaging $@ is completed.)
 
 #
 # 32-bit Debug package

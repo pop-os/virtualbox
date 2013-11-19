@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2012 Oracle Corporation
+ * Copyright (C) 2004-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,7 @@
 #endif // VBOX_WITH_USB
 
 #include "HostNetworkInterfaceImpl.h"
+#include "HostVideoInputDeviceImpl.h"
 #include "MachineImpl.h"
 #include "AutoCaller.h"
 #include "Logging.h"
@@ -53,6 +54,11 @@
 #if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_NETFLT)
 # include <VBox/VBoxNetCfg-win.h>
 #endif /* #if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_NETFLT) */
+
+#if defined(RT_OS_DARWIN) && ARCH_BITS == 32
+# include <sys/types.h>
+# include <sys/sysctl.h>
+#endif
 
 #ifdef RT_OS_LINUX
 # include <sys/ioctl.h>
@@ -133,15 +139,17 @@ typedef SOLARISDVD *PSOLARISDVD;
 #include <iprt/env.h>
 #include <iprt/mem.h>
 #include <iprt/system.h>
-#ifdef RT_OS_SOLARIS
+#ifndef RT_OS_WINDOWS
 # include <iprt/path.h>
+#endif
+#ifdef RT_OS_SOLARIS
 # include <iprt/ctype.h>
 #endif
 #ifdef VBOX_WITH_HOSTNETIF_API
 # include "netif.h"
 #endif
 
-/* XXX Solaris: definitions in /usr/include/sys/regset.h clash with hwacc_svm.h */
+/* XXX Solaris: definitions in /usr/include/sys/regset.h clash with hm_svm.h */
 #undef DS
 #undef ES
 #undef CS
@@ -150,17 +158,22 @@ typedef SOLARISDVD *PSOLARISDVD;
 #undef GS
 
 #include <VBox/usb.h>
-#include <VBox/vmm/hwacc_svm.h>
+#include <VBox/vmm/hm_svm.h>
 #include <VBox/err.h>
 #include <VBox/settings.h>
 #include <VBox/sup.h>
 #include <iprt/x86.h>
 
 #include "VBox/com/MultiResult.h"
+#include "VBox/com/array.h"
 
 #include <stdio.h>
 
 #include <algorithm>
+#include <string>
+#include <vector>
+
+#include "HostDnsService.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -199,18 +212,23 @@ struct Host::Data
     /** Object with information about host drives */
     VBoxMainDriveInfo       hostDrives;
 #endif
-    /* Features that can be queried with GetProcessorFeature */
-    BOOL                    fVTSupported,
+    /** @name Features that can be queried with GetProcessorFeature.
+     * @{ */
+    bool                    fVTSupported,
                             fLongModeSupported,
                             fPAESupported,
-                            fNestedPagingSupported;
+                            fNestedPagingSupported,
+                            fRecheckVTSupported;
 
-    /* 3D hardware acceleration supported? */
-    BOOL                    f3DAccelerationSupported;
+    /** @}  */
+
+    /** 3D hardware acceleration supported? Tristate, -1 meaning not probed. */
+    int                     f3DAccelerationSupported;
 
     HostPowerService        *pHostPowerService;
+    /** Host's DNS informaton fetching */
+    HostDnsMonitorProxy         hostDnsMonitorProxy;
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -276,6 +294,8 @@ HRESULT Host::init(VirtualBox *aParent)
     /* Create the list of network interfaces so their metrics get registered. */
     updateNetIfList();
 
+    m->hostDnsMonitorProxy.init(HostDnsMonitor::getHostDnsMonitor(), m->pParent);
+
 #if defined (RT_OS_WINDOWS)
     m->pHostPowerService = new HostPowerServiceWin(m->pParent);
 #elif defined (RT_OS_DARWIN)
@@ -289,100 +309,104 @@ HRESULT Host::init(VirtualBox *aParent)
     m->fLongModeSupported = false;
     m->fPAESupported = false;
     m->fNestedPagingSupported = false;
+    m->fRecheckVTSupported = false;
 
     if (ASMHasCpuId())
     {
-        uint32_t u32FeaturesECX;
-        uint32_t u32Dummy;
-        uint32_t u32FeaturesEDX;
-        uint32_t u32VendorEBX, u32VendorECX, u32VendorEDX, u32ExtFeatureEDX, u32ExtFeatureECX;
-
-        ASMCpuId(0, &u32Dummy, &u32VendorEBX, &u32VendorECX, &u32VendorEDX);
-        ASMCpuId(1, &u32Dummy, &u32Dummy, &u32FeaturesECX, &u32FeaturesEDX);
-        /* Query Extended features. */
-        ASMCpuId(0x80000001, &u32Dummy, &u32Dummy, &u32ExtFeatureECX, &u32ExtFeatureEDX);
-
-        m->fLongModeSupported = !!(u32ExtFeatureEDX & X86_CPUID_EXT_FEATURE_EDX_LONG_MODE);
-        m->fPAESupported      = !!(u32FeaturesEDX & X86_CPUID_FEATURE_EDX_PAE);
-
-        if (    u32VendorEBX == X86_CPUID_VENDOR_INTEL_EBX
-            &&  u32VendorECX == X86_CPUID_VENDOR_INTEL_ECX
-            &&  u32VendorEDX == X86_CPUID_VENDOR_INTEL_EDX
-           )
+        /* Note! This code is duplicated in SUPDrv.c and other places! */
+        uint32_t uMaxId, uVendorEBX, uVendorECX, uVendorEDX;
+        ASMCpuId(0, &uMaxId, &uVendorEBX, &uVendorECX, &uVendorEDX);
+        if (ASMIsValidStdRange(uMaxId))
         {
-            /* Intel. */
-            if (    (u32FeaturesECX & X86_CPUID_FEATURE_ECX_VMX)
-                 && (u32FeaturesEDX & X86_CPUID_FEATURE_EDX_MSR)
-                 && (u32FeaturesEDX & X86_CPUID_FEATURE_EDX_FXSR)
-               )
-            {
-                int rc = SUPR3QueryVTxSupported();
-                if (RT_SUCCESS(rc))
-                    m->fVTSupported = true;
-            }
-        }
-        else
-        if (    u32VendorEBX == X86_CPUID_VENDOR_AMD_EBX
-            &&  u32VendorECX == X86_CPUID_VENDOR_AMD_ECX
-            &&  u32VendorEDX == X86_CPUID_VENDOR_AMD_EDX
-           )
-        {
-            /* AMD. */
-            if (   (u32ExtFeatureECX & X86_CPUID_AMD_FEATURE_ECX_SVM)
-                && (u32FeaturesEDX & X86_CPUID_FEATURE_EDX_MSR)
-                && (u32FeaturesEDX & X86_CPUID_FEATURE_EDX_FXSR)
-               )
-            {
-                uint32_t u32SVMFeatureEDX;
+            /* PAE? */
+            uint32_t uDummy, fFeaturesEcx, fFeaturesEdx;
+            ASMCpuId(1, &uDummy, &uDummy, &fFeaturesEcx, &fFeaturesEdx);
+            m->fPAESupported = RT_BOOL(fFeaturesEdx & X86_CPUID_FEATURE_EDX_PAE);
 
-                m->fVTSupported = true;
+            /* Long Mode? */
+            uint32_t uExtMaxId, fExtFeaturesEcx, fExtFeaturesEdx;
+            ASMCpuId(0x80000000, &uExtMaxId, &uDummy, &uDummy, &uDummy);
+            ASMCpuId(0x80000001, &uDummy, &uDummy, &fExtFeaturesEcx, &fExtFeaturesEdx);
+            m->fLongModeSupported = ASMIsValidExtRange(uExtMaxId)
+                                 && (fExtFeaturesEdx & X86_CPUID_EXT_FEATURE_EDX_LONG_MODE);
 
-                /* Query AMD features. */
-                ASMCpuId(0x8000000A, &u32Dummy, &u32Dummy, &u32Dummy, &u32SVMFeatureEDX);
-                if (u32SVMFeatureEDX & AMD_CPUID_SVM_FEATURE_EDX_NESTED_PAGING)
-                    m->fNestedPagingSupported = true;
-            }
-        }
-        else
-        if (    u32VendorEBX == X86_CPUID_VENDOR_VIA_EBX
-            &&  u32VendorECX == X86_CPUID_VENDOR_VIA_ECX
-            &&  u32VendorEDX == X86_CPUID_VENDOR_VIA_EDX
-           )
-        {
-            /* VIA. */
-            if (    (u32FeaturesECX & X86_CPUID_FEATURE_ECX_VMX)
-                 && (u32FeaturesEDX & X86_CPUID_FEATURE_EDX_MSR)
-                 && (u32FeaturesEDX & X86_CPUID_FEATURE_EDX_FXSR)
-               )
-            {
-                int rc = SUPR3QueryVTxSupported();
-                if (RT_SUCCESS(rc))
-                    m->fVTSupported = true;
-            }
-        }
-    }
-
-#if 0 /* needs testing */
-    if (m->fVTSupported)
-    {
-        uint32_t u32Caps = 0;
-
-        int rc = SUPR3QueryVTCaps(&u32Caps);
-        if (RT_SUCCESS(rc))
-        {
-            if (u32Caps & SUPVTCAPS_NESTED_PAGING)
-                m->fNestedPagingSupported = true;
-        }
-        /* else @todo; report BIOS trouble in some way. */
-    }
+#if defined(RT_OS_DARWIN) && ARCH_BITS == 32 /* darwin.x86 has some optimizations of 64-bit on 32-bit. */
+            int     f64bitCapable = 0;
+            size_t  cbParameter   = sizeof(f64bitCapable);
+            if (sysctlbyname("hw.cpu64bit_capable", &f64bitCapable, &cbParameter, NULL, NULL) != -1)
+                m->fLongModeSupported = f64bitCapable != 0;
 #endif
 
-    /* Test for 3D hardware acceleration support */
-    m->f3DAccelerationSupported = false;
+            /* VT-x? */
+            if (   ASMIsIntelCpuEx(uVendorEBX, uVendorECX, uVendorEDX)
+                || ASMIsViaCentaurCpuEx(uVendorEBX, uVendorECX, uVendorEDX))
+            {
+                if (    (fFeaturesEcx & X86_CPUID_FEATURE_ECX_VMX)
+                     && (fFeaturesEdx & X86_CPUID_FEATURE_EDX_MSR)
+                     && (fFeaturesEdx & X86_CPUID_FEATURE_EDX_FXSR)
+                   )
+                {
+                    int rc = SUPR3QueryVTxSupported();
+                    if (RT_SUCCESS(rc))
+                        m->fVTSupported = true;
+                }
+            }
+            /* AMD-V */
+            else if (ASMIsAmdCpuEx(uVendorEBX, uVendorECX, uVendorEDX))
+            {
+                if (   (fExtFeaturesEcx & X86_CPUID_AMD_FEATURE_ECX_SVM)
+                    && (fFeaturesEdx    & X86_CPUID_FEATURE_EDX_MSR)
+                    && (fFeaturesEdx    & X86_CPUID_FEATURE_EDX_FXSR)
+                    && ASMIsValidExtRange(uExtMaxId)
+                   )
+                {
+                    m->fVTSupported = true;
+
+                    /* Query AMD features. */
+                    if (uExtMaxId >= 0x8000000a)
+                    {
+                        uint32_t fSVMFeaturesEdx;
+                        ASMCpuId(0x8000000a, &uDummy, &uDummy, &uDummy, &fSVMFeaturesEdx);
+                        if (fSVMFeaturesEdx & AMD_CPUID_SVM_FEATURE_EDX_NESTED_PAGING)
+                            m->fNestedPagingSupported = true;
+                    }
+                }
+            }
+        }
+    }
+
+    /* Check with SUPDrv if VT-x and AMD-V are really supported (may fail). */
+    if (m->fVTSupported)
+    {
+        int rc = SUPR3InitEx(false /*fUnrestricted*/, NULL);
+        if (RT_SUCCESS(rc))
+        {
+            uint32_t fVTCaps;
+            rc = SUPR3QueryVTCaps(&fVTCaps);
+            if (RT_SUCCESS(rc))
+            {
+                Assert(fVTCaps & (SUPVTCAPS_AMD_V | SUPVTCAPS_VT_X));
+                if (fVTCaps & SUPVTCAPS_NESTED_PAGING)
+                    m->fNestedPagingSupported = true;
+                else
+                    Assert(m->fNestedPagingSupported == false);
+            }
+            else
+            {
+                LogRel(("SUPR0QueryVTCaps -> %Rrc\n", rc));
+                m->fVTSupported = m->fNestedPagingSupported = false;
+            }
+        }
+        else
+            m->fRecheckVTSupported = true; /* Try again later when the driver is loaded. */
+    }
 
 #ifdef VBOX_WITH_CROGL
-    m->f3DAccelerationSupported = VBoxOglIs3DAccelerationSupported();
-#endif /* VBOX_WITH_CROGL */
+    /* Test for 3D hardware acceleration support later when (if ever) need. */
+    m->f3DAccelerationSupported = -1;
+#else
+    m->f3DAccelerationSupported = false;
+#endif
 
 #if defined (RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
     /* Extract the list of configured host-only interfaces */
@@ -547,7 +571,7 @@ static int vboxNetWinAddComponent(std::list< ComObjPtr<HostNetworkInterface> > *
     HRESULT hr;
     int rc = VERR_GENERAL_FAILURE;
 
-    hr = pncc->GetDisplayName( &lpszName );
+    hr = pncc->GetDisplayName(&lpszName);
     Assert(hr == S_OK);
     if (hr == S_OK)
     {
@@ -640,10 +664,10 @@ STDMETHODIMP Host::COMGETTER(NetworkInterfaces)(ComSafeArrayOut(IHostNetworkInte
     INetCfgBindingInterface *pBi;
 
     /* we are using the INetCfg API for getting the list of miniports */
-    hr = VBoxNetCfgWinQueryINetCfg( FALSE,
-                       VBOX_APP_NAME,
-                       &pNc,
-                       &lpszApp );
+    hr = VBoxNetCfgWinQueryINetCfg(FALSE,
+                                   VBOX_APP_NAME,
+                                   &pNc,
+                                   &lpszApp);
     Assert(hr == S_OK);
     if (hr == S_OK)
     {
@@ -666,24 +690,24 @@ STDMETHODIMP Host::COMGETTER(NetworkInterfaces)(ComSafeArrayOut(IHostNetworkInte
         {
             hr = VBoxNetCfgWinGetBindingPathEnum(pTcpIpNcc, EBP_BELOW, &pEnumBp);
             Assert(hr == S_OK);
-            if ( hr == S_OK )
+            if (hr == S_OK)
             {
                 hr = VBoxNetCfgWinGetFirstBindingPath(pEnumBp, &pBp);
                 Assert(hr == S_OK || hr == S_FALSE);
-                while( hr == S_OK )
+                while (hr == S_OK)
                 {
                     /* S_OK == enabled, S_FALSE == disabled */
                     if (pBp->IsEnabled() == S_OK)
                     {
                         hr = VBoxNetCfgWinGetBindingInterfaceEnum(pBp, &pEnumBi);
                         Assert(hr == S_OK);
-                        if ( hr == S_OK )
+                        if (hr == S_OK)
                         {
                             hr = VBoxNetCfgWinGetFirstBindingInterface(pEnumBi, &pBi);
                             Assert(hr == S_OK);
-                            while(hr == S_OK)
+                            while (hr == S_OK)
                             {
-                                hr = pBi->GetLowerComponent( &pMpNcc );
+                                hr = pBi->GetLowerComponent(&pMpNcc);
                                 Assert(hr == S_OK);
                                 if (hr == S_OK)
                                 {
@@ -697,7 +721,7 @@ STDMETHODIMP Host::COMGETTER(NetworkInterfaces)(ComSafeArrayOut(IHostNetworkInte
                                             vboxNetWinAddComponent(&list, pMpNcc);
                                         }
                                     }
-                                    VBoxNetCfgWinReleaseRef( pMpNcc );
+                                    VBoxNetCfgWinReleaseRef(pMpNcc);
                                 }
                                 VBoxNetCfgWinReleaseRef(pBi);
 
@@ -795,6 +819,54 @@ STDMETHODIMP Host::COMGETTER(USBDevices)(ComSafeArrayOut(IHostUSBDevice*, aUSBDe
 #endif
 }
 
+
+/**
+ * This method return the list of registered name servers
+ */
+STDMETHODIMP Host::COMGETTER(NameServers)(ComSafeArrayOut(BSTR, aNameServers))
+{
+    CheckComArgOutSafeArrayPointerValid(aNameServers);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    return m->hostDnsMonitorProxy.COMGETTER(NameServers)(ComSafeArrayOutArg(aNameServers));
+}
+
+
+/**
+ * This method returns the domain name of the host
+ */
+STDMETHODIMP Host::COMGETTER(DomainName)(BSTR *aDomainName)
+{
+    /* XXX: note here should be synchronization with thread polling state
+     * changes in name resoving system on host */
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    return m->hostDnsMonitorProxy.COMGETTER(DomainName)(aDomainName);
+}
+
+
+/**
+ * This method returns the search string.
+ */
+STDMETHODIMP Host::COMGETTER(SearchStrings)(ComSafeArrayOut(BSTR, aSearchStrings))
+{
+    CheckComArgOutSafeArrayPointerValid(aSearchStrings);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    return m->hostDnsMonitorProxy.COMGETTER(SearchStrings)(ComSafeArrayOutArg(aSearchStrings));
+}
+
+
 STDMETHODIMP Host::COMGETTER(USBDeviceFilters)(ComSafeArrayOut(IHostUSBDeviceFilter*, aUSBDeviceFilters))
 {
 #ifdef VBOX_WITH_USB
@@ -865,7 +937,23 @@ STDMETHODIMP Host::COMGETTER(ProcessorCoreCount)(ULONG *aCount)
     CheckComArgOutPointerValid(aCount);
     // no locking required
 
-    return E_NOTIMPL;
+    *aCount = RTMpGetPresentCoreCount();
+    return S_OK;
+}
+
+/**
+ * Returns the number of installed physical processor cores.
+ *
+ * @returns COM status code
+ * @param   count address of result variable
+ */
+STDMETHODIMP Host::COMGETTER(ProcessorOnlineCoreCount)(ULONG *aCount)
+{
+    CheckComArgOutPointerValid(aCount);
+    // no locking required
+
+    *aCount = RTMpGetOnlineCoreCount();
+    return S_OK;
 }
 
 /**
@@ -913,34 +1001,82 @@ STDMETHODIMP Host::GetProcessorDescription(ULONG aCpuId, BSTR *aDescription)
  */
 STDMETHODIMP Host::GetProcessorFeature(ProcessorFeature_T aFeature, BOOL *aSupported)
 {
+    /* Validate input. */
     CheckComArgOutPointerValid(aSupported);
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
     switch (aFeature)
     {
         case ProcessorFeature_HWVirtEx:
-            *aSupported = m->fVTSupported;
-            break;
-
         case ProcessorFeature_PAE:
-            *aSupported = m->fPAESupported;
-            break;
-
         case ProcessorFeature_LongMode:
-            *aSupported = m->fLongModeSupported;
-            break;
-
         case ProcessorFeature_NestedPaging:
-            *aSupported = m->fNestedPagingSupported;
             break;
-
         default:
-            ReturnComNotImplemented();
+            return setError(E_INVALIDARG, tr("The aFeature value %d (%#x) is out of range."), (int)aFeature, (int)aFeature);
     }
-    return S_OK;
+
+    /* Do the job. */
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+        if (   m->fRecheckVTSupported
+            && (   aFeature == ProcessorFeature_HWVirtEx
+                || aFeature == ProcessorFeature_NestedPaging)
+           )
+        {
+            alock.release();
+
+            /* Perhaps the driver is available now... */
+            int rc = SUPR3InitEx(false /*fUnrestricted*/, NULL);
+            if (RT_SUCCESS(rc))
+            {
+                uint32_t fVTCaps;
+                rc = SUPR3QueryVTCaps(&fVTCaps);
+
+                AutoWriteLock wlock(this COMMA_LOCKVAL_SRC_POS);
+                if (RT_SUCCESS(rc))
+                {
+                    Assert(fVTCaps & (SUPVTCAPS_AMD_V | SUPVTCAPS_VT_X));
+                    if (fVTCaps & SUPVTCAPS_NESTED_PAGING)
+                        m->fNestedPagingSupported = true;
+                    else
+                        Assert(m->fNestedPagingSupported == false);
+                }
+                else
+                {
+                    LogRel(("SUPR0QueryVTCaps -> %Rrc\n", rc));
+                    m->fVTSupported = m->fNestedPagingSupported = true;
+                }
+            }
+
+            alock.acquire();
+        }
+
+        switch (aFeature)
+        {
+            case ProcessorFeature_HWVirtEx:
+                *aSupported = m->fVTSupported;
+                break;
+
+            case ProcessorFeature_PAE:
+                *aSupported = m->fPAESupported;
+                break;
+
+            case ProcessorFeature_LongMode:
+                *aSupported = m->fLongModeSupported;
+                break;
+
+            case ProcessorFeature_NestedPaging:
+                *aSupported = m->fNestedPagingSupported;
+                break;
+
+            default:
+                AssertFailed();
+        }
+    }
+    return hrc;
 }
 
 /**
@@ -1095,17 +1231,33 @@ STDMETHODIMP Host::COMGETTER(Acceleration3DAvailable)(BOOL *aSupported)
 {
     CheckComArgOutPointerValid(aSupported);
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        if (m->f3DAccelerationSupported != -1)
+            *aSupported = m->f3DAccelerationSupported;
+        else
+        {
+            alock.release();
+#ifdef VBOX_WITH_CROGL
+            bool fSupported = VBoxOglIs3DAccelerationSupported();
+#else
+            bool fSupported = false; /* shoudn't get here, but just in case. */
+#endif
+            AutoWriteLock alock2(this COMMA_LOCKVAL_SRC_POS);
+            m->f3DAccelerationSupported = fSupported;
+            alock2.release();
 
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    *aSupported = m->f3DAccelerationSupported;
+            *aSupported = fSupported;
+        }
+    }
 
 #ifdef DEBUG_misha
     AssertMsgFailed(("should not be here any more!\n"));
 #endif
 
-    return S_OK;
+    return hrc;
 }
 
 STDMETHODIMP Host::CreateHostOnlyNetworkInterface(IHostNetworkInterface **aHostNetworkInterface,
@@ -1427,7 +1579,7 @@ STDMETHODIMP Host::FindHostNetworkInterfaceById(IN_BSTR id, IHostNetworkInterfac
 #ifndef VBOX_WITH_HOSTNETIF_API
     return E_NOTIMPL;
 #else
-    if (Guid(id).isEmpty())
+    if (!Guid(id).isValid())
         return E_INVALIDARG;
     if (!networkInterface)
         return E_POINTER;
@@ -1531,7 +1683,7 @@ STDMETHODIMP Host::FindUSBDeviceById(IN_BSTR aId,
                                      IHostUSBDevice **aDevice)
 {
 #ifdef VBOX_WITH_USB
-    CheckComArgExpr(aId, Guid (aId).isEmpty() == false);
+    CheckComArgExpr(aId, Guid (aId).isValid());
     CheckComArgOutPointerValid(aDevice);
 
     *aDevice = NULL;
@@ -1570,6 +1722,34 @@ STDMETHODIMP Host::GenerateMACAddress(BSTR *aAddress)
     generateMACAddress(mac);
     Bstr(mac).cloneTo(aAddress);
     return S_OK;
+}
+
+/**
+ * Returns a list of host video capture devices (webcams, etc).
+ *
+ * @returns COM status code
+ * @param aVideoInputDevices Array of interface pointers to be filled.
+ */
+STDMETHODIMP Host::COMGETTER(VideoInputDevices)(ComSafeArrayOut(IHostVideoInputDevice*, aVideoInputDevices))
+{
+    if (ComSafeArrayOutIsNull(aVideoInputDevices))
+        return E_POINTER;
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    HostVideoInputDeviceList list;
+
+    HRESULT hr = HostVideoInputDevice::queryHostDevices(m->pParent, &list);
+
+    if (SUCCEEDED(hr))
+    {
+        SafeIfaceArray<IHostVideoInputDevice> devices(list);
+        devices.detachTo(ComSafeArrayOutArg(aVideoInputDevices));
+    }
+
+    return hr;
 }
 
 // public methods only for internal purposes
@@ -1862,7 +2042,7 @@ HRESULT Host::findHostDriveByNameOrId(DeviceType_T mediumType,
     AutoWriteLock wlock(m->pParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
     Guid uuid(strNameOrId);
-    if (!uuid.isEmpty())
+    if (uuid.isValid() && !uuid.isZero())
         return findHostDriveById(mediumType, uuid, true /* fRefresh */, pMedium);
 
     // string is not a syntactically valid UUID: try a name then
@@ -2222,7 +2402,7 @@ static int solarisWalkDeviceNodeForDVD(di_node_t Node, void *pvArg)
                             {
                                 char *pszSlice = solarisGetSliceFromPath(pszDevLinkPath);
                                 if (   pszSlice && !strcmp(pszSlice, "s2")
-                                    && !strncmp(pszDevLinkPath, "/dev/rdsk", sizeof("/dev/rdsk") - 1))   /* We want only raw disks */
+                                    && !strncmp(pszDevLinkPath, RT_STR_TUPLE("/dev/rdsk")))   /* We want only raw disks */
                                 {
                                     /*
                                      * We've got a fully qualified DVD drive. Add it to the list.
@@ -2674,9 +2854,9 @@ void Host::parseMountTable(char *mountTable, std::list< ComObjPtr<Medium> > &lis
             {
                 // skip devices we are not interested in
                 if ((*mountName && mountName[0] == '/') &&                      // skip 'fake' devices (like -hosts, proc, fd, swap)
-                    (*mountFSType && (strncmp(mountFSType, "devfs", 5) != 0 &&  // skip devfs (i.e. /devices)
-                                      strncmp(mountFSType, "dev", 3) != 0 &&    // skip dev (i.e. /dev)
-                                      strncmp(mountFSType, "lofs", 4) != 0)))   // skip loop-back file-system (lofs)
+                    (*mountFSType && (strncmp(mountFSType, RT_STR_TUPLE("devfs")) != 0 &&  // skip devfs (i.e. /devices)
+                                      strncmp(mountFSType, RT_STR_TUPLE("dev")) != 0 &&    // skip dev (i.e. /dev)
+                                      strncmp(mountFSType, RT_STR_TUPLE("lofs")) != 0)))   // skip loop-back file-system (lofs)
                 {
                     char *rawDevName = getfullrawname((char *)mountName);
                     if (validateDevice(rawDevName, true))
@@ -2828,7 +3008,9 @@ HRESULT Host::updateNetIfList()
     /* Make a copy as the original may be partially destroyed later. */
     listCopy = list;
     HostNetworkInterfaceList::iterator itOld, itNew;
+# ifdef VBOX_WITH_RESOURCE_USAGE_API
     PerformanceCollector *aCollector = m->pParent->performanceCollector();
+# endif
     for (itOld = m->llNetIfs.begin(); itOld != m->llNetIfs.end(); ++itOld)
     {
         bool fGone = true;
@@ -2846,7 +3028,11 @@ HRESULT Host::updateNetIfList()
             }
         }
         if (fGone)
+        {
+# ifdef VBOX_WITH_RESOURCE_USAGE_API
             (*itOld)->unregisterMetrics(aCollector, this);
+# endif
+        }
     }
     /*
      * Need to set the references to VirtualBox object in all interface objects
@@ -2866,7 +3052,11 @@ HRESULT Host::updateNetIfList()
             LogRel(("Host::updateNetIfList: failed to get interface type for %ls\n", n.raw()));
         }
         else if (t == HostNetworkInterfaceType_Bridged)
+        {
+# ifdef VBOX_WITH_RESOURCE_USAGE_API
             (*itNew)->registerMetrics(aCollector, this);
+# endif
+        }
     }
     m->llNetIfs = list;
     return S_OK;
@@ -3105,6 +3295,8 @@ void Host::unregisterMetrics (PerformanceCollector *aCollector)
     aCollector->unregisterBaseMetricsFor(this);
 }
 
+#endif /* VBOX_WITH_RESOURCE_USAGE_API */
+
 
 /* static */
 void Host::generateMACAddress(Utf8Str &mac)
@@ -3119,7 +3311,5 @@ void Host::generateMACAddress(Utf8Str &mac)
     mac = Utf8StrFmt("080027%02X%02X%02X",
                      guid.raw()->au8[0], guid.raw()->au8[1], guid.raw()->au8[2]);
 }
-
-#endif /* VBOX_WITH_RESOURCE_USAGE_API */
 
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */
