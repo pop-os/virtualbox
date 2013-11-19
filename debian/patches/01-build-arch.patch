@@ -1,9 +1,11 @@
 Description: Correctly check build architecture.
 Author: Michael Meskes <meskes@debian.org>
 
---- a/configure
-+++ b/configure
-@@ -330,7 +330,7 @@ test_execute_path()
+Index: virtualbox/configure
+===================================================================
+--- virtualbox.orig/configure	2013-11-19 03:40:50.133475296 -0500
++++ virtualbox/configure	2013-11-19 03:40:50.129475296 -0500
+@@ -336,7 +336,7 @@
  check_environment()
  {
    test_header environment
@@ -11,4 +13,4 @@ Author: Michael Meskes <meskes@debian.org>
 +  BUILD_CPU=`dpkg-architecture -qDEB_HOST_GNU_CPU`
    [ "$OS" = "solaris" ] && BUILD_CPU=`isainfo | cut -f 1 -d ' '`
    case "$BUILD_CPU" in
-     i[3456789]86|x86|i86pc)
+     i[3456789]86|x86|i86pc|BePC)

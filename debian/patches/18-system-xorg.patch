@@ -1,22 +1,24 @@
 Description: Build the X.Org driver only for the selected system X Server version.
 Author: Michael Meskes <meskes@debian.org>, Felix Geyer <fgeyer@debian.org>
 
---- a/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk
-+++ b/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk
-@@ -40,8 +40,8 @@ LIBRARIES += \
+Index: virtualbox/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk
+===================================================================
+--- virtualbox.orig/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk	2013-11-19 04:35:17.181627034 -0500
++++ virtualbox/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk	2013-11-19 04:36:33.913630598 -0500
+@@ -40,8 +40,6 @@
  	VBoxGuestR3LibShared
  ifndef VBOX_ONLY_TESTSUITE
   if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd)
 -  LIBRARIES += \
--  	VBoxGuestR3LibXFree86
-+#  LIBRARIES += \
-+#  	VBoxGuestR3LibXFree86
+-        VBoxGuestR3LibXFree86
   endif
  endif
  LIBRARIES.win.amd64 += VBoxGuestR3Lib-x86 VBoxGuestR3LibShared-x86
---- a/src/VBox/Additions/common/crOpenGL/Makefile.kmk
-+++ b/src/VBox/Additions/common/crOpenGL/Makefile.kmk
-@@ -63,18 +63,12 @@ VBoxOGL_TEMPLATE       = VBOXCROGLR3GUES
+Index: virtualbox/src/VBox/Additions/common/crOpenGL/Makefile.kmk
+===================================================================
+--- virtualbox.orig/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2013-11-19 04:35:17.181627034 -0500
++++ virtualbox/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2013-11-19 04:35:17.181627034 -0500
+@@ -82,18 +82,12 @@
  VBoxOGL_INCS           = .
  if1of ($(KBUILD_TARGET), linux solaris freebsd)
   VBoxOGL_INCS     += \
@@ -40,7 +42,7 @@ Author: Michael Meskes <meskes@debian.org>, Felix Geyer <fgeyer@debian.org>
   VBoxOGL_DEFS     += VBOX_NO_NATIVEGL
  endif
  
-@@ -204,10 +198,10 @@ VBoxOGL_LIBS = \
+@@ -223,10 +217,10 @@
  	$(PATH_STAGE_LIB)/additions/VBoxOGLspuload$(VBOX_SUFF_LIB)
  if1of ($(KBUILD_TARGET), linux solaris freebsd)
   VBoxOGL_LIBS += \
@@ -53,5 +55,5 @@ Author: Michael Meskes <meskes@debian.org>, Felix Geyer <fgeyer@debian.org>
 + 	Xfixes \
 + 	Xext
   ifdef VBoxOGL_FAKEDRI
-   VBoxOGL_LIBS += \
-   	dl
+   ifeq ($(KBUILD_TARGET), freebsd)
+     VBoxOGL_LIBS += \

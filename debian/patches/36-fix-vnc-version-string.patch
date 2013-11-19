@@ -1,6 +1,8 @@
---- a/Config.kmk
-+++ b/Config.kmk
-@@ -2339,6 +2339,7 @@
+Index: virtualbox/Config.kmk
+===================================================================
+--- virtualbox.orig/Config.kmk	2013-11-19 04:41:16.173643708 -0500
++++ virtualbox/Config.kmk	2013-11-19 04:41:16.169643708 -0500
+@@ -2457,6 +2457,7 @@
  	-e 's/@VBOX_VERSION_MINOR@/$(VBOX_VERSION_MINOR)/g' \
  	-e 's/@VBOX_VERSION_BUILD@/$(VBOX_VERSION_BUILD)/g' \
  	-e 's/@VBOX_VERSION_STRING@/$(VBOX_VERSION_STRING)/g' \
@@ -8,8 +10,10 @@
  	-e 's/@VBOX_SVN_REV@/$(VBOX_SVN_REV)/g' \
  	-e 's/@VBOX_VENDOR@/$(VBOX_VENDOR)/g' \
  	-e 's/@VBOX_VENDOR_SHORT@/$(VBOX_VENDOR_SHORT)/g' \
---- a/src/VBox/ExtPacks/VNC/ExtPack.xml
-+++ b/src/VBox/ExtPacks/VNC/ExtPack.xml
+Index: virtualbox/src/VBox/ExtPacks/VNC/ExtPack.xml
+===================================================================
+--- virtualbox.orig/src/VBox/ExtPacks/VNC/ExtPack.xml	2013-11-19 04:41:16.173643708 -0500
++++ virtualbox/src/VBox/ExtPacks/VNC/ExtPack.xml	2013-11-19 04:41:16.169643708 -0500
 @@ -2,7 +2,7 @@
  <VirtualBoxExtensionPack xmlns="http://www.virtualbox.org/VirtualBoxExtensionPack" version="1.0">
      <Name>VNC</Name>

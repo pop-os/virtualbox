@@ -1,9 +1,11 @@
 Description: Adjusts failure message with Debian specific solution.
 Author: Daniel Baumann <daniel@debian.org>
 
---- a/src/VBox/VMM/VMMR3/VM.cpp
-+++ b/src/VBox/VMM/VMMR3/VM.cpp
-@@ -433,9 +433,11 @@ VMMR3DECL(int)   VMR3Create(uint32_t cCp
+Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
+===================================================================
+--- virtualbox.orig/src/VBox/VMM/VMMR3/VM.cpp	2013-11-19 03:41:10.333476234 -0500
++++ virtualbox/src/VBox/VMM/VMMR3/VM.cpp	2013-11-19 03:41:10.333476234 -0500
+@@ -425,9 +425,11 @@
                      break;
                  case VERR_VERSION_MISMATCH:
                  case VERR_VM_DRIVER_VERSION_MISMATCH:
