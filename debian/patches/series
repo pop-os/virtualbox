@@ -1,3 +1,4 @@
+rrs-build-fix.patch
 01-build-arch.patch
 02-gsoap-build-fix.patch
 04-vboxdrv-references.patch
