@@ -1,7 +1,10 @@
-virtualbox (4.2.16-dfsg-3) UNRELEASED; urgency=low
+virtualbox (4.3.2-dfsg-1) UNRELEASED; urgency=low
 
+  [ Ritesh Raj Sarraf ]
   * Fix VBox network interface error on Linux 3.11
     - Add 38-linux-3.11-vboxnet.patch 
+  * Imported Upstream version 4.3.2-dfsg
+  * Refresh patches and drop patch 37 and 38 for linux 3.11
 
  -- Ritesh Raj Sarraf <rrs@debian.org>  Fri, 13 Sep 2013 13:25:29 -0400
 
