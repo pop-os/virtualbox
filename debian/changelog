@@ -1,11 +1,13 @@
-virtualbox (4.3.2-dfsg-1) UNRELEASED; urgency=low
+virtualbox (4.3.2-dfsg-1) unstable; urgency=low
 
   * Fix VBox network interface error on Linux 3.11
     - Add 38-linux-3.11-vboxnet.patch 
   * [8e73a12] Imported Upstream version 4.3.2-dfsg
+  * [9b2bc93] Fix VBox network interface error on Linux 3.11
   * [516aa9a] Refresh patches and drop patch 37 and 38 for linux 3.11
-  * [8e53496] Add libvpx-dev to build-deps
   * [ab699e4] bump versioned build-dep on kbuild to r2695
+  * [5913c87] Add myself to Uploaders
+  * [8e53496] Add libvpx-dev to build-deps
   * [caeed37] Add patch 02-gsoap-build-fix.patch to fix build
     incompatibilities with gsoap > 2.8.13
 
