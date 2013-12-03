@@ -4,9 +4,9 @@ Author: Felix Geyer <fgeyer@debian.org>
 
 Index: virtualbox/src/VBox/Main/src-client/ConsoleImpl2.cpp
 ===================================================================
---- virtualbox.orig/src/VBox/Main/src-client/ConsoleImpl2.cpp	2013-11-19 04:36:56.653631654 -0500
-+++ virtualbox/src/VBox/Main/src-client/ConsoleImpl2.cpp	2013-11-19 04:39:37.777639138 -0500
-@@ -3589,17 +3589,6 @@
+--- virtualbox.orig/src/VBox/Main/src-client/ConsoleImpl2.cpp	2013-12-03 07:11:18.165655881 -0500
++++ virtualbox/src/VBox/Main/src-client/ConsoleImpl2.cpp	2013-12-03 07:12:44.373659885 -0500
+@@ -3589,34 +3589,12 @@
                      if (   enmFsTypeFile == RTFSTYPE_EXT4
                          || enmFsTypeFile == RTFSTYPE_XFS)
                      {
@@ -24,3 +24,20 @@ Index: virtualbox/src/VBox/Main/src-client/ConsoleImpl2.cpp
                          fUseHostIOCache = true;
                      }
                      else if (  (   enmFsTypeSnap == RTFSTYPE_EXT4
+                                 || enmFsTypeSnap == RTFSTYPE_XFS)
+                              && !mfSnapshotFolderExt4WarningShown)
+                     {
+-                        setVMRuntimeErrorCallbackF(0, "Ext4PartitionDetected",
+-                                N_("The host I/O cache for at least one controller is disabled "
+-                                   "and the snapshot folder for this VM "
+-                                   "is located on an %s partition. There is a known Linux "
+-                                   "kernel bug which can lead to the corruption of the virtual "
+-                                   "disk image under these conditions.\n"
+-                                   "Either enable the host I/O cache permanently in the VM "
+-                                   "settings or put the disk image and the snapshot folder "
+-                                   "onto a different file system.\n"
+-                                   "The host I/O cache will now be enabled for this medium"),
+-                                enmFsTypeSnap == RTFSTYPE_EXT4 ? "ext4" : "xfs");
+                         fUseHostIOCache = true;
+                         mfSnapshotFolderExt4WarningShown = true;
+                     }
