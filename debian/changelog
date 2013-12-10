@@ -1,4 +1,4 @@
-virtualbox (4.3.2-dfsg-1) unstable; urgency=medium
+virtualbox (4.3.2-dfsg-1) unstable; urgency=low
 
   [ Ritesh Raj Sarraf ]
   * [a4d35eb] Drop patch 30-usb-warning-filters.patch
