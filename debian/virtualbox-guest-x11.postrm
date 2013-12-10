@@ -4,6 +4,6 @@ set -e
 
 #DEBHELPER#
 
-if [ "$1" = remove|purge ]; then
+if [ "$1" = "remove" ]; then
     ldconfig
 fi
