@@ -1,5 +1,11 @@
-virtualbox (4.3.2-dfsg-1) unstable; urgency=low
+virtualbox (4.3.2-dfsg-1) unstable; urgency=medium
 
+  [ Ritesh Raj Sarraf ]
+  * [a4d35eb] Drop patch 30-usb-warning-filters.patch
+  * [84b99a4] Refresh patch 27-hide-host-cache-warning.patch
+  * [55f29e6] Add virtualbox-guest-x11.postrm and call ldconfig in postrm
+  * [9bbe020] Don't ship .debug files, when we already are stripping dwarf
+    symbols from its libraries
   * Fix VBox network interface error on Linux 3.11
     - Add 38-linux-3.11-vboxnet.patch 
   * [8e73a12] Imported Upstream version 4.3.2-dfsg
@@ -11,7 +17,7 @@ virtualbox (4.3.2-dfsg-1) unstable; urgency=low
   * [caeed37] Add patch 02-gsoap-build-fix.patch to fix build
     incompatibilities with gsoap > 2.8.13
 
- -- Ritesh Raj Sarraf <rrs@debian.org>  Fri, 13 Sep 2013 13:25:29 -0400
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Tue, 10 Dec 2013 10:15:34 -0500
 
 virtualbox (4.2.16-dfsg-2) unstable; urgency=low
 
