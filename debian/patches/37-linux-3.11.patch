@@ -1,5 +1,6 @@
-Description: Additions/linux/sharefolders: fix for Linux 3.11+ (thanks Azat Khuzhin)
-Origin: upstream, https://www.virtualbox.org/changeset/47588/vbox
+Description: Fix for Linux 3.11
+Origin: upstream, https://www.virtualbox.org/changeset/47588/vbox and
+ https://www.virtualbox.org/changeset/47484/vbox
 
 --- a/src/VBox/Additions/linux/sharedfolders/dirops.c
 +++ b/src/VBox/Additions/linux/sharedfolders/dirops.c
@@ -72,3 +73,17 @@ Origin: upstream, https://www.virtualbox.org/changeset/47588/vbox
      .release = sf_dir_release,
      .read    = generic_read_dir
  #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+--- a/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
++++ b/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
+@@ -1804,7 +1804,11 @@
+ 
+ {
+     PVBOXNETFLTINS      pThis = VBOX_FLT_NB_TO_INST(self);
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
++    struct net_device  *pDev  = netdev_notifier_info_to_dev(ptr);
++#else
+     struct net_device  *pDev  = (struct net_device *)ptr;
++#endif
+     int                 rc    = NOTIFY_OK;
+ 
+     Log(("VBoxNetFlt: got event %s(0x%lx) on %s, pDev=%p pThis=%p pThis->u.s.pDev=%p\n",

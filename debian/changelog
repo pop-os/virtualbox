@@ -19,6 +19,14 @@ virtualbox (4.3.2-dfsg-1) unstable; urgency=medium
 
  -- Ritesh Raj Sarraf <rrs@debian.org>  Tue, 10 Dec 2013 10:15:34 -0500
 
+virtualbox (4.2.16-dfsg-3) unstable; urgency=low
+
+  [ Ritesh Raj Sarraf ]
+  * Fix VBox network interface error on Linux 3.11. (Closes: #721786)
+    - Extend 37-linux-3.11.patch
+
+ -- Felix Geyer <fgeyer@debian.org>  Thu, 19 Sep 2013 21:52:12 +0200
+
 virtualbox (4.2.16-dfsg-2) unstable; urgency=low
 
   [ Whoopie ]
