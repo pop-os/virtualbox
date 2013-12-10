@@ -221,6 +221,9 @@ ifeq (,$(filter nostrip,$(DEB_BUILD_OPTIONS)))
 	    strip --strip-debug --remove-section=.comment --remove-section=.note $${file}; \
 	done
 endif
+	# I don't see a reason to have these. If any user complains, we can try ship it.
+	rm -f debian/$(sname)/usr/lib/virtualbox/VMMGC.debug
+	rm -f debian/$(sname)/usr/lib/virtualbox/VMMR0.debug
 
 override_dh_shlibdeps:
 	dh_shlibdeps -p$(sname) -X debian/$(sname)$(INSTALL_PATH)/VBoxTestOGL -- \
