@@ -1,3 +1,9 @@
+virtualbox (4.3.2-dfsg-2) UNRELEASED; urgency=medium
+
+  * Drop compatibility with old X11 server packages.
+
+ -- Felix Geyer <fgeyer@debian.org>  Sat, 01 Feb 2014 18:50:13 +0100
+
 virtualbox (4.3.2-dfsg-1) unstable; urgency=low
 
   [ Ritesh Raj Sarraf ]

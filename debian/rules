@@ -24,61 +24,8 @@ DIST_NAME := $(shell lsb_release -si)
 DIST_RELEASE := $(DIST_NAME)/$(shell lsb_release -sc)
 
 XSERVER_VERSION = 17
-XORG_PKG_ABI = 3
 
-ifeq ($(DIST_RELEASE),Debian/squeeze)
-	XORG_PKG_ABI = 2
-endif
-
-ifeq ($(DIST_RELEASE),Ubuntu/maverick)
-	XORG_PKG_ABI = 2
-endif
-
-ifeq ($(DIST_RELEASE),Ubuntu/lucid)
-	XORG_PKG_ABI = 1
-endif
-
-
-ifeq ($(XORG_PKG_ABI),3)
-	VIDEODEP = $(shell cat /usr/share/xserver-xorg/videodrvdep 2>/dev/null)
-
-	SERVER_DEPENDS = $(VIDEODEP)
-	VIDDRIVER_PROVIDES = xorg-driver-video
-
-	ifeq ($(strip $(VIDEODEP)),)
-		XORG_PKG_ABI_ERROR = VIDEODEP is empty
-	endif
-endif
-ifeq ($(XORG_PKG_ABI),2)
-	VIDEODEP = $(shell cat /usr/share/xserver-xorg/videodrvdep 2>/dev/null)
-	VIDEOABI = $(shell cat /usr/share/xserver-xorg/videoabiver 2>/dev/null)
-
-	SERVER_DEPENDS = $(VIDEODEP)
-	VIDDRIVER_PROVIDES = xserver-xorg-video-$(VIDEOABI)
-
-	ifeq ($(strip $(VIDEODEP)),)
-		XORG_PKG_ABI_ERROR = VIDEODEP is empty
-	endif
-	ifeq ($(strip $(VIDEOABI)),)
-		XORG_PKG_ABI_ERROR = VIDEOABI is empty
-	endif
-endif
-ifeq ($(XORG_PKG_ABI),1)
-	SERVERMINVERS = $(shell cat /usr/share/xserver-xorg/serverminver 2>/dev/null)
-	VIDEOABI = $(shell cat /usr/share/xserver-xorg/videoabiver 2>/dev/null)
-
-	SERVER_DEPENDS = xserver-xorg-core (>= $(SERVERMINVERS))
-	VIDDRIVER_PROVIDES = xserver-xorg-video-$(VIDEOABI)
-
-	ifeq ($(strip $(SERVERMINVERS)),)
-		XORG_PKG_ABI_ERROR = SERVERMINVERS is empty
-	endif
-	ifeq ($(strip $(VIDEOABI)),)
-		XORG_PKG_ABI_ERROR = VIDEOABI is empty
-	endif
-endif
-
-
+SERVER_DEPENDS = $(shell cat /usr/share/xserver-xorg/videodrvdep 2>/dev/null)
 
 %:
 	dh $@ --with python2,dkms
@@ -86,8 +33,8 @@ endif
 override_dh_auto_configure:
 	@echo Building for $(DIST_RELEASE)
 
-ifdef XORG_PKG_ABI_ERROR
-	@echo 'error: $(XORG_PKG_ABI_ERROR)'
+ifeq ($(strip $(SERVER_DEPENDS)),)
+	@echo 'error: SERVER_DEPENDS is empty'
 	@exit 1
 endif
 
@@ -139,8 +86,6 @@ override_dh_auto_install:
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).install.in > debian/$(gdkms).install
 
 	echo "xserver:Depends=$(SERVER_DEPENDS)" >> debian/$(uxname).substvars
-	echo "xviddriver:Provides=$(VIDDRIVER_PROVIDES)" >> debian/$(uxname).substvars
-	echo "xinpdriver:Provides=$(INPDRIVER_PROVIDES)" >> debian/$(uxname).substvars
 
 ifeq ($(DIST_NAME),Ubuntu)
 	echo "modaliases=vboxguest(pci:v000080EEd0000CAFEsv00000000sd00000000bc*sc*i*)" >> debian/$(gdkms).substvars
