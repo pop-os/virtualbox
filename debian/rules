@@ -27,6 +27,9 @@ XSERVER_VERSION = 17
 
 SERVER_DEPENDS = $(shell cat /usr/share/xserver-xorg/videodrvdep 2>/dev/null)
 
+export DEB_BUILD_HARDENING=1
+export DEB_BUILD_HARDENING_PIE=0
+
 %:
 	dh $@ --with python2,dkms
 
