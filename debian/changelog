@@ -1,5 +1,6 @@
-virtualbox (4.3.2-dfsg-2) UNRELEASED; urgency=medium
+virtualbox (4.3.6-dfsg-1) UNRELEASED; urgency=medium
 
+  * New upstream release.
   * Drop compatibility with old X11 server packages.
   * Enable hardened build flags using hardening-wrapper. The upstream build
     system ignores the *FLAGS env variables. (Closes: #736459)
