@@ -1,6 +1,9 @@
 virtualbox (4.3.6-dfsg-1) UNRELEASED; urgency=medium
 
-  * New upstream release.
+  * New upstream release. (Closes: #733263)
+    - Fixes build against Linux 3.13. (Closes: #734340)
+    - Fixes several vulnerabilities. (Closes: #735410)
+      CVE-2013-5892, CVE-2014-0407, CVE-2014-0406, CVE-2014-0404
   * Drop compatibility with old X11 server packages.
   * Enable hardened build flags using hardening-wrapper. The upstream build
     system ignores the *FLAGS env variables. (Closes: #736459)
