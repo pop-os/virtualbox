@@ -372,6 +372,8 @@ AssertCompileSize(VMXRESTOREHOST, 56);
 #define VMX_IGS_CS_ATTR_S_INVALID                               120
 /** CS.Attr.DPL invalid. */
 #define VMX_IGS_CS_ATTR_DPL_INVALID                             121
+/** PAE PDPTE reserved bits not set to 0. */
+#define VMX_IGS_PAE_PDPTE_RESERVED                              123
 /** @} */
 
 /** @name VMX VMCS-Read cache indices.
@@ -1506,8 +1508,8 @@ typedef VMXMSRS *PVMXMSRS;
 #define VMX_EXIT_INTERRUPTION_INFO_TYPE_EXT_INT                   0
 #define VMX_EXIT_INTERRUPTION_INFO_TYPE_NMI                       2
 #define VMX_EXIT_INTERRUPTION_INFO_TYPE_HW_XCPT                   3
-#define VMX_EXIT_INTERRUPTION_INFO_TYPE_SW_INT                    4 /**< int xx */
-#define VMX_EXIT_INTERRUPTION_INFO_TYPE_DB_XCPT                   5 /**< Why are we getting this one?? */
+#define VMX_EXIT_INTERRUPTION_INFO_TYPE_SW_INT                    4
+#define VMX_EXIT_INTERRUPTION_INFO_TYPE_PRIV_SW_XCPT              5
 #define VMX_EXIT_INTERRUPTION_INFO_TYPE_SW_XCPT                   6
 /** @} */
 

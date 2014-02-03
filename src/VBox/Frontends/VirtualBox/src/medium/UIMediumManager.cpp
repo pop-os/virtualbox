@@ -59,17 +59,17 @@ class UIMediumItem : public QTreeWidgetItem
 public:
 
     /* Medium-item type: */
-    enum { MediaItemType = QTreeWidgetItem::UserType + 1 };
+    enum { Type = QTreeWidgetItem::UserType + 1 };
 
     /* Constructor: Top-level item: */
     UIMediumItem(const UIMedium &medium, QTreeWidget *pParent)
-        : QTreeWidgetItem(pParent, MediaItemType)
+        : QTreeWidgetItem(pParent, Type)
         , m_medium(medium)
     { refresh(); }
 
     /* Constructor: Child item: */
     UIMediumItem(const UIMedium &medium, UIMediumItem *pParent)
-        : QTreeWidgetItem(pParent, MediaItemType)
+        : QTreeWidgetItem(pParent, Type)
         , m_medium(medium)
     { refresh(); }
 
@@ -88,8 +88,8 @@ public:
         refresh();
     }
 
-    /* API: Type stuff: */
-    UIMediumType type() const { return m_medium.type(); }
+    /* API: Medium-type stuff: */
+    UIMediumType mediumType() const { return m_medium.type(); }
 
     /* API: State stuff: */
     KMediumState state() const { return m_medium.state(); }
@@ -145,25 +145,32 @@ private:
 };
 
 
-/* Medium-item: */
-class UIMediumItemIterator : public QTreeWidgetItemIterator
+/** Functor allowing to check if passed UIMediumItem is suitable by ID. */
+class CheckIfSuitableByID : public CheckIfSuitableBy
 {
 public:
+    /** Constructor. */
+    CheckIfSuitableByID(const QString &strID) : m_strID(strID) {}
 
-    UIMediumItemIterator(QTreeWidget *pTree)
-        : QTreeWidgetItemIterator(pTree) {}
+private:
+    /** Determines whether passed UIMediumItem is suitable by ID. */
+    bool isItSuitable(UIMediumItem *pItem) const { return pItem->id() == m_strID; }
+    /** Holds the ID to compare to. */
+    QString m_strID;
+};
 
-    UIMediumItem* operator*()
-    {
-        QTreeWidgetItem *pItem = QTreeWidgetItemIterator::operator*();
-        return pItem && pItem->type() == UIMediumItem::MediaItemType ?
-            static_cast<UIMediumItem*>(pItem) : 0;
-    }
+/** Functor allowing to check if passed UIMediumItem is suitable by @a state. */
+class CheckIfSuitableByState : public CheckIfSuitableBy
+{
+public:
+    /** Constructor. */
+    CheckIfSuitableByState(KMediumState state) : m_state(state) {}
 
-    UIMediumItemIterator& operator++()
-    {
-        return static_cast<UIMediumItemIterator&>(QTreeWidgetItemIterator::operator++());
-    }
+private:
+    /** Determines whether passed UIMediumItem is suitable by @a state. */
+    bool isItSuitable(UIMediumItem *pItem) const { return pItem->state() == m_state; }
+    /** Holds the @a state to compare to. */
+    KMediumState m_state;
 };
 
 
@@ -263,11 +270,6 @@ void UIMediumManager::showModeless(QWidget *pCenterWidget /* = 0*/, bool fRefres
 
 void UIMediumManager::refreshAll()
 {
-    // TODO (Planned to 4.3.release by Dsen)
-    // Currently we just restarting medium-enumeration which is *very* expensive.
-    // To make it proper way, we have to invalidate mediums which were known as *related*
-    // to machine who's event called for *full-refresh* and start medium-enumeration.
-    // But medium-enumeration itself should update *only* invalidated mediums.
     vboxGlobal().startMediumEnumeration();
 }
 
@@ -339,42 +341,6 @@ void UIMediumManager::sltHandleMediumCreated(const QString &strMediumID)
         sltHandleCurrentItemChanged(pMediumItem);
 }
 
-void UIMediumManager::sltHandleMediumUpdated(const QString &strMediumID)
-{
-    /* Search for corresponding medium: */
-    UIMedium medium = vboxGlobal().medium(strMediumID);
-
-    /* Ignore non-interesting mediums: */
-    if ((medium.isNull()) || (medium.isHostDrive()))
-        return;
-
-    /* Ignore mediums (and their children) which are
-     * marked as hidden or attached to hidden machines only: */
-    if (isMediumAttachedToHiddenMachinesOnly(medium))
-        return;
-
-    /* Prepare medium-item: */
-    UIMediumItem *pMediumItem = 0;
-    switch (medium.type())
-    {
-        case UIMediumType_HardDisk: pMediumItem = searchItem(mTwHD, medium.id()); break;
-        case UIMediumType_DVD:      pMediumItem = searchItem(mTwCD, medium.id()); break;
-        case UIMediumType_Floppy:   pMediumItem = searchItem(mTwFD, medium.id()); break;
-        default: AssertFailed();
-    }
-    AssertPtrReturnVoid(pMediumItem);
-
-    /* Update medium-item: */
-    pMediumItem->setMedium(medium);
-
-    /* Update tab-icons: */
-    updateTabIcons(pMediumItem, ItemAction_Updated);
-
-    /* Update stuff if that was current-item updated: */
-    if (pMediumItem == currentTreeWidget()->currentItem())
-        sltHandleCurrentItemChanged(pMediumItem);
-}
-
 void UIMediumManager::sltHandleMediumDeleted(const QString &strMediumID)
 {
     /* Get tree/item: */
@@ -385,7 +351,7 @@ void UIMediumManager::sltHandleMediumDeleted(const QString &strMediumID)
     foreach (UIMediumType type, types)
     {
         pTree = treeWidget(type);
-        pMediumItem = searchItem(pTree, strMediumID);
+        pMediumItem = searchItem(pTree, CheckIfSuitableByID(strMediumID));
         if (pMediumItem)
             break;
     }
@@ -420,28 +386,11 @@ void UIMediumManager::sltHandleMediumEnumerationStart()
     mTabWidget->setTabIcon(CDTab, m_iconCD);
     mTabWidget->setTabIcon(FDTab, m_iconFD);
 
-    /* Load mediums: */
+    /* Repopulate all medium-items: */
     QList<QString> mediumIDs = vboxGlobal().mediumIDs();
-    QList<QString> loadedMediumIDs;
     prepareToRefresh(mediumIDs.size());
-    while (!mediumIDs.isEmpty())
-    {
-        /* Get first available medium: */
-        QString strMediumID = mediumIDs.first();
-        UIMedium medium = vboxGlobal().medium(strMediumID);
-        /* Make sure medium parent (if any) is already in list: */
-        while (medium.parentID() != UIMedium::nullID() &&
-               !loadedMediumIDs.contains(medium.parentID()))
-        {
-            medium = medium.parent();
-            strMediumID = medium.id();
-        }
-        /* Insert resulting medium into tree: */
-        int iItemIndex = mediumIDs.indexOf(strMediumID);
-        AssertReturnVoid(iItemIndex != -1);
-        loadedMediumIDs.append(mediumIDs.takeAt(iItemIndex));
+    foreach (const QString &strMediumID, mediumIDs)
         sltHandleMediumCreated(strMediumID);
-    }
 
     /* Select the first item to be the current one
      * if the previous saved item was not selected yet. */
@@ -461,8 +410,41 @@ void UIMediumManager::sltHandleMediumEnumerationStart()
 
 void UIMediumManager::sltHandleMediumEnumerated(const QString &strMediumID)
 {
-    /* Handle medium-update: */
-    sltHandleMediumUpdated(strMediumID);
+    /* Search for corresponding medium: */
+    UIMedium medium = vboxGlobal().medium(strMediumID);
+
+    /* Ignore non-interesting mediums: */
+    if ((medium.isNull()) || (medium.isHostDrive()))
+        return;
+
+    /* Ignore mediums (and their children) which are
+     * marked as hidden or attached to hidden machines only: */
+    if (isMediumAttachedToHiddenMachinesOnly(medium))
+        return;
+
+    /* Search for corresponding medium-item: */
+    UIMediumItem *pMediumItem = 0;
+    switch (medium.type())
+    {
+        case UIMediumType_HardDisk: pMediumItem = searchItem(mTwHD, CheckIfSuitableByID(medium.id())); break;
+        case UIMediumType_DVD:      pMediumItem = searchItem(mTwCD, CheckIfSuitableByID(medium.id())); break;
+        case UIMediumType_Floppy:   pMediumItem = searchItem(mTwFD, CheckIfSuitableByID(medium.id())); break;
+        default: AssertFailed();
+    }
+
+    /* If medium-item was not found it's time to create it: */
+    if (!pMediumItem)
+        return sltHandleMediumCreated(strMediumID);
+
+    /* Update medium-item: */
+    pMediumItem->setMedium(medium);
+
+    /* Update tab-icons: */
+    updateTabIcons(pMediumItem, ItemAction_Updated);
+
+    /* Update stuff if that was current-item updated: */
+    if (pMediumItem == currentTreeWidget()->currentItem())
+        sltHandleCurrentItemChanged(pMediumItem);
 
     /* Advance progress-bar: */
     m_pProgressBar->setValue(m_pProgressBar->value() + 1);
@@ -527,7 +509,7 @@ void UIMediumManager::sltRemoveMedium()
     /* Remember ID/type as they may get lost after the closure/deletion: */
     QString strMediumID = pMediumItem->id();
     AssertReturnVoid(!strMediumID.isNull());
-    UIMediumType type = pMediumItem->type();
+    UIMediumType type = pMediumItem->mediumType();
 
     /* Confirm medium removal: */
     if (!msgCenter().confirmMediumRemoval(pMediumItem->medium(), this))
@@ -654,9 +636,6 @@ void UIMediumManager::sltReleaseMedium()
     foreach (const QString &strMachineId, machineIds)
         if (!releaseMediumFrom(pMediumItem->medium(), strMachineId))
             break;
-
-    /* Inform others about medium changes: */
-    vboxGlobal().updateMedium(pMediumItem->medium());
 }
 
 void UIMediumManager::sltHandleCurrentTabChanged()
@@ -763,26 +742,6 @@ void UIMediumManager::sltHandleContextMenuCall(const QPoint &position)
     }
 }
 
-void UIMediumManager::sltHandleMachineStateChanged(QString, KMachineState state)
-{
-    switch (state)
-    {
-        case KMachineState_PoweredOff:
-        case KMachineState_Aborted:
-        case KMachineState_Saved:
-        case KMachineState_Teleported:
-        case KMachineState_Starting:
-        case KMachineState_Restoring:
-        case KMachineState_TeleportingIn:
-        {
-            refreshAll();
-            break;
-        }
-        default:
-            break;
-    }
-}
-
 void UIMediumManager::sltMakeRequestForTableAdjustment()
 {
     /* We have to perform tables adjustment only after all the [auto]resize
@@ -881,8 +840,6 @@ void UIMediumManager::prepareThis()
     /* Configure medium-processing connections: */
     connect(&vboxGlobal(), SIGNAL(sigMediumCreated(const QString&)),
             this, SLOT(sltHandleMediumCreated(const QString&)));
-    connect(&vboxGlobal(), SIGNAL(sigMediumUpdated(const QString&)),
-            this, SLOT(sltHandleMediumUpdated(const QString&)));
     connect(&vboxGlobal(), SIGNAL(sigMediumDeleted(const QString&)),
             this, SLOT(sltHandleMediumDeleted(const QString&)));
 
@@ -1170,24 +1127,12 @@ void UIMediumManager::populateTreeWidgets()
     {
         /* Emulate (possible partial) medium-enumeration: */
         QList<QString> mediumIDs = vboxGlobal().mediumIDs();
-        QList<QString> loadedMediumIDs;
         prepareToRefresh(mediumIDs.size());
-        while (!mediumIDs.isEmpty())
+        foreach (const QString &strMediumID, mediumIDs)
         {
-            /* Get first available medium: */
-            QString strMediumID = mediumIDs.first();
-            UIMedium medium = vboxGlobal().medium(strMediumID);
-            /* Make sure medium parent (if any) is already in list: */
-            while (medium.parentID() != UIMedium::nullID() &&
-                   !loadedMediumIDs.contains(medium.parentID()))
-            {
-                medium = medium.parent();
-                strMediumID = medium.id();
-            }
-            /* Insert resulting medium into tree: */
-            int iItemIndex = mediumIDs.indexOf(strMediumID);
-            AssertReturnVoid(iItemIndex != -1);
-            loadedMediumIDs.append(mediumIDs.takeAt(iItemIndex));
+            /* Get corresponding medium: */
+            const UIMedium medium = vboxGlobal().medium(strMediumID);
+            /* Create corresponding medium-item: */
             sltHandleMediumCreated(strMediumID);
             /* Advance progress-bar only for created mediums: */
             if (medium.state() != KMediumState_NotCreated)
@@ -1497,26 +1442,38 @@ void UIMediumManager::setCurrentItem(QTreeWidget *pTree, QTreeWidgetItem *pItem)
 UIMediumItem* UIMediumManager::toMediumItem(QTreeWidgetItem *pItem) const
 {
     /* Return UIMediumItem based on QTreeWidgetItem if it is valid: */
-    if (pItem && pItem->type() == UIMediumItem::MediaItemType)
+    if (pItem && pItem->type() == UIMediumItem::Type)
         return static_cast<UIMediumItem*>(pItem);
     /* Null by default: */
     return 0;
 }
 
-UIMediumItem* UIMediumManager::searchItem(QTreeWidget *pTree, const QString &strId) const
+UIMediumItem* UIMediumManager::searchItem(QTreeWidget *pTree, const CheckIfSuitableBy &functor) const
 {
-    /* Make sure passed ID is valid: */
-    if (strId.isNull())
+    /* Make sure argument is valid: */
+    if (!pTree)
         return 0;
 
-    /* Iterate other all the mediums of passed tree: */
-    UIMediumItemIterator iterator(pTree);
-    while (*iterator)
-    {
-        if ((*iterator)->id() == strId)
-            return *iterator;
-        ++iterator;
-    }
+    /* Return wrapper: */
+    return searchItem(pTree->invisibleRootItem(), functor);
+}
+
+UIMediumItem* UIMediumManager::searchItem(QTreeWidgetItem *pParentItem, const CheckIfSuitableBy &functor) const
+{
+    /* Make sure argument is valid: */
+    if (!pParentItem)
+        return 0;
+
+    /* Verify passed item if it is of 'medium' type too: */
+    if (UIMediumItem *pMediumParentItem = toMediumItem(pParentItem))
+        if (functor.isItSuitable(pMediumParentItem))
+            return pMediumParentItem;
+
+    /* Iterate other all the children: */
+    for (int iChildIndex = 0; iChildIndex < pParentItem->childCount(); ++iChildIndex)
+        if (UIMediumItem *pMediumChildItem = toMediumItem(pParentItem->child(iChildIndex)))
+            if (UIMediumItem *pRequiredMediumChildItem = searchItem(pMediumChildItem, functor))
+                return pRequiredMediumChildItem;
 
     /* Null by default: */
     return 0;
@@ -1527,19 +1484,38 @@ UIMediumItem* UIMediumManager::createHardDiskItem(QTreeWidget *pTree, const UIMe
     /* Make sure passed medium is valid: */
     AssertReturn(!medium.medium().isNull(), 0);
 
-    /* Prepare medium-item: */
-    UIMediumItem *pMediumItem = 0;
-    CMedium parent = medium.medium().GetParent();
+    /* Search for medium-item: */
+    UIMediumItem *pMediumItem = searchItem(pTree, CheckIfSuitableByID(medium.id()));
 
-    /* First try to create item under corresponding parent: */
-    if (!parent.isNull())
-        if (UIMediumItem *pRoot = searchItem(pTree, parent.GetId()))
-            pMediumItem = new UIMediumItem(medium, pRoot);
-    /* Else just create item as top-level one: */
+    /* If medium-item do not exists: */
     if (!pMediumItem)
-        pMediumItem = new UIMediumItem(medium, pTree);
+    {
+        /* If medium have a parent: */
+        if (medium.parentID() != UIMedium::nullID())
+        {
+            /* Try to find parent medium-item: */
+            UIMediumItem *pParentMediumItem = searchItem(pTree, CheckIfSuitableByID(medium.parentID()));
+            /* If parent medium-item was not found: */
+            if (!pParentMediumItem)
+            {
+                /* Make sure such corresponding parent medium is already cached! */
+                UIMedium parentMedium = vboxGlobal().medium(medium.parentID());
+                if (parentMedium.isNull())
+                    AssertMsgFailed(("Parent medium with ID={%s} was not found!\n", medium.parentID().toAscii().constData()));
+                /* Try to create parent medium-item: */
+                else
+                    pParentMediumItem = createHardDiskItem(pTree, parentMedium);
+            }
+            /* If parent medium-item was found: */
+            if (pParentMediumItem)
+                pMediumItem = new UIMediumItem(medium, pParentMediumItem);
+        }
+        /* Else just create item as top-level one: */
+        if (!pMediumItem)
+            pMediumItem = new UIMediumItem(medium, pTree);
+    }
 
-    /* Return created item: */
+    /* Return medium-item: */
     return pMediumItem;
 }
 
@@ -1552,7 +1528,7 @@ void UIMediumManager::updateTabIcons(UIMediumItem *pMediumItem, ItemAction actio
     int iTab = -1;
     const QIcon *pIcon = 0;
     bool *pfInaccessible = 0;
-    switch (pMediumItem->type())
+    switch (pMediumItem->mediumType())
     {
         case UIMediumType_HardDisk:
             iTab = HDTab;
@@ -1611,20 +1587,10 @@ void UIMediumManager::updateTabIcons(UIMediumItem *pMediumItem, ItemAction actio
 
             if (fCheckRest)
             {
-                *pfInaccessible = false;
-
-                QTreeWidget *pTree = pMediumItem->treeWidget();
-
-                /* Find the first pfInaccessible item to be in charge: */
-                UIMediumItemIterator it(pTree);
-                for (; *it; ++ it)
-                {
-                    if (*it != pMediumItem && (*it)->state() == KMediumState_Inaccessible)
-                    {
-                        *pfInaccessible = true;
-                        break;
-                    }
-                }
+                /* Find the first KMediumState_Inaccessible item to be in charge: */
+                UIMediumItem *pInaccessibleMediumItem =
+                    searchItem(pMediumItem->treeWidget(), CheckIfSuitableByState(KMediumState_Inaccessible));
+                *pfInaccessible = !!pInaccessibleMediumItem;
             }
 
             if (*pfInaccessible)

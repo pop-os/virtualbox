@@ -4069,7 +4069,6 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
 
     SCSIREQ sr;
     RTSGSEG DataSeg;
-    uint8_t sense[96];
     uint8_t data8[8];
     uint8_t data12[12];
 
@@ -4458,7 +4457,7 @@ return the status of target and will clear any unit attention condition that it 
                 /* Log failures but continue. */
                 LogRel(("iSCSI: Could not enable read and write cache of target %s, rc=%Rrc status=%#x\n",
                         pImage->pszTargetName, rc, sr.status));
-                LogRel(("iSCSI: Sense:\n%.*Rhxd\n", sr.cbSense, sense));
+                LogRel(("iSCSI: Sense:\n%.*Rhxd\n", sr.cbSense, sr.abSense));
                 rc = VINF_SUCCESS;
             }
         }
@@ -4466,8 +4465,8 @@ return the status of target and will clear any unit attention condition that it 
     else
     {
         /* Log errors but continue. */
-        LogRel(("iSCSI: Could not check write cache of target %s, rc=%Rrc, got mode page %#x\n", pImage->pszTargetName, rc,aCachingModePage[0] & 0x3f));
-        LogRel(("iSCSI: Sense:\n%.*Rhxd\n", sr.cbSense, sense));
+        LogRel(("iSCSI: Could not check write cache of target %s, rc=%Rrc, got mode page %#x\n", pImage->pszTargetName, rc, aCachingModePage[0] & 0x3f));
+        LogRel(("iSCSI: Sense:\n%.*Rhxd\n", sr.cbSense, sr.abSense));
         rc = VINF_SUCCESS;
     }
 

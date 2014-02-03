@@ -303,6 +303,7 @@ int SessionTaskCopyTo::Run(void)
     }
     else
     {
+        rc = VINF_SUCCESS;
         pFile = mSourceFile;
         /* Size + offset are optional. */
     }
@@ -316,10 +317,15 @@ int SessionTaskCopyTo::Run(void)
 
     /* Startup process. */
     ComObjPtr<GuestProcess> pProcess; int guestRc;
-    rc = pSession->processCreateExInteral(procInfo, pProcess);
     if (RT_SUCCESS(rc))
+        rc = pSession->processCreateExInteral(procInfo, pProcess);
+    if (RT_SUCCESS(rc))
+    {
+        Assert(!pProcess.isNull());
         rc = pProcess->startProcess(30 * 1000 /* 30s timeout */,
                                     &guestRc);
+    }
+
     if (RT_FAILURE(rc))
     {
         switch (rc)
@@ -462,8 +468,8 @@ int SessionTaskCopyTo::Run(void)
                 break;
         } /* for */
 
-        LogFlowThisFunc(("Copy loop ended with rc=%Rrc, cbWrittenTotal=%RU64, cbFileSize=%RU64\n",
-                         rc, cbWrittenTotal, mSourceSize));
+        LogFlowThisFunc(("Copy loop ended with rc=%Rrc, cbToRead=%RU64, cbWrittenTotal=%RU64, cbFileSize=%RU64\n",
+                         rc, cbToRead, cbWrittenTotal, mSourceSize));
 
         if (   !fCanceled
             || RT_SUCCESS(rc))
@@ -531,8 +537,6 @@ int SessionTaskCopyTo::Run(void)
                     rc = setProgressSuccess();
             }
         }
-
-        pProcess->Release();
     } /* processCreateExInteral */
 
     if (!mSourceFile) /* Only close locally opened files. */
@@ -595,7 +599,7 @@ int SessionTaskCopyFrom::Run(void)
      * Note: There will be races between querying file size + reading the guest file's
      *       content because we currently *do not* lock down the guest file when doing the
      *       actual operations.
-     ** @todo Implement guest file locking!
+     ** @todo Use the IGuestFile API for locking down the file on the guest!
      */
     GuestFsObjData objData; int guestRc;
     int rc = pSession->fileQueryInfoInternal(Utf8Str(mSource), objData, &guestRc);
@@ -771,7 +775,7 @@ int SessionTaskCopyFrom::Run(void)
                         /* If nothing was transfered but the file size was > 0 then "vbox_cat" wasn't able to write
                          * to the destination -> access denied. */
                         setProgressErrorMsg(VBOX_E_IPRT_ERROR,
-                                            Utf8StrFmt(GuestSession::tr("Access denied when copying file \"%s\" to \"%s\""),
+                                            Utf8StrFmt(GuestSession::tr("Unable to write \"%s\" to \"%s\": Access denied"),
                                             mSource.c_str(), mDest.c_str()));
                         rc = VERR_GENERAL_FAILURE; /* Fudge. */
                     }
@@ -802,8 +806,6 @@ int SessionTaskCopyFrom::Run(void)
                             rc = setProgressSuccess();
                     }
                 }
-
-                pProcess->Release();
             }
 
             RTFileClose(fileDest);

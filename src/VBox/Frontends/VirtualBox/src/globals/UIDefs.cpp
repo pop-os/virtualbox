@@ -31,7 +31,6 @@ const char* UIDefs::GUI_RecentFolderFD = "GUI/RecentFolderFD";
 const char* UIDefs::GUI_RecentListHD = "GUI/RecentListHD";
 const char* UIDefs::GUI_RecentListCD = "GUI/RecentListCD";
 const char* UIDefs::GUI_RecentListFD = "GUI/RecentListFD";
-const char* UIDefs::GUI_PreventApplicationUpdate = "GUI/PreventApplicationUpdate";
 
 /* Selector-window definitions: */
 const char* UIDefs::GUI_Input_SelectorShortcuts = "GUI/Input/SelectorShortcuts";
@@ -69,6 +68,7 @@ const char* UIDefs::GUI_SaveMountedAtRuntime = "GUI/SaveMountedAtRuntime";
 const char* UIDefs::GUI_PassCAD = "GUI/PassCAD";
 const char* UIDefs::GUI_DefaultCloseAction = "GUI/DefaultCloseAction";
 const char* UIDefs::GUI_RestrictedStatusBarIndicators = "GUI/RestrictedStatusBarIndicators";
+const char* UIDefs::GUI_HidLedsSync = "GUI/HidLedsSync";
 
 /* Settings dialogs stuff: */
 const char* UIDefs::GUI_RestrictedGlobalSettingsPages = "GUI/RestrictedGlobalSettingsPages";
@@ -96,9 +96,12 @@ const char* UIDefs::GUI_Export_Bucket = "GUI/Export/Bucket";
 const char* UIDefs::GUI_SuppressMessages = "GUI/SuppressMessages";
 const char* UIDefs::GUI_InvertMessageOption = "GUI/InvertMessageOption";
 
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
 /* Update manager definitions: */
+const char* UIDefs::GUI_PreventApplicationUpdate = "GUI/PreventApplicationUpdate";
 const char* UIDefs::GUI_UpdateDate = "GUI/UpdateDate";
 const char* UIDefs::GUI_UpdateCheckCount = "GUI/UpdateCheckCount";
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 
 /* Information dialog definitions: */
 const char* UIDefs::GUI_InfoDlgState = "GUI/InfoDlgState";

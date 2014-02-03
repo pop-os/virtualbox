@@ -1,12 +1,10 @@
 /* $Id: UIMachineLogicScale.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachineLogicScale class implementation
+ * VBox Qt GUI - UIMachineLogicScale class implementation.
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +22,6 @@
 #include "UIActionPoolRuntime.h"
 #include "UIMachineLogicScale.h"
 #include "UIMachineWindow.h"
-#include "UIDownloaderAdditions.h"
-#include "UIDownloaderExtensionPack.h"
 #ifdef Q_WS_MAC
 #include "VBoxUtils.h"
 #endif /* Q_WS_MAC */
@@ -58,9 +54,32 @@ void UIMachineLogicScale::prepareActionGroups()
 
     /* Guest auto-resize isn't allowed in scale-mode: */
     gActionPool->action(UIActionIndexRuntime_Toggle_GuestAutoresize)->setVisible(false);
-
     /* Adjust-window isn't allowed in scale-mode: */
     gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(false);
+
+    /* Take care of view-action toggle state: */
+    UIAction *pActionScale = gActionPool->action(UIActionIndexRuntime_Toggle_Scale);
+    if (!pActionScale->isChecked())
+    {
+        pActionScale->blockSignals(true);
+        pActionScale->setChecked(true);
+        pActionScale->blockSignals(false);
+        pActionScale->update();
+    }
+}
+
+void UIMachineLogicScale::prepareActionConnections()
+{
+    /* Call to base-class: */
+    UIMachineLogic::prepareActionConnections();
+
+    /* "View" actions connections: */
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
+            uisession(), SLOT(sltChangeVisualStateToNormal()));
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
+            uisession(), SLOT(sltChangeVisualStateToFullscreen()));
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
+            uisession(), SLOT(sltChangeVisualStateToSeamless()));
 }
 
 void UIMachineLogicScale::prepareMachineWindows()
@@ -102,15 +121,39 @@ void UIMachineLogicScale::cleanupMachineWindows()
         UIMachineWindow::destroy(pMachineWindow);
 }
 
+void UIMachineLogicScale::cleanupActionConnections()
+{
+    /* "View" actions disconnections: */
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
+               uisession(), SLOT(sltChangeVisualStateToNormal()));
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
+               uisession(), SLOT(sltChangeVisualStateToFullscreen()));
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
+               uisession(), SLOT(sltChangeVisualStateToSeamless()));
+
+    /* Call to base-class: */
+    UIMachineLogic::cleanupActionConnections();
+
+}
+
 void UIMachineLogicScale::cleanupActionGroups()
 {
-    /* Call to base-class: */
-    UIMachineLogic::cleanupActionGroups();
+    /* Take care of view-action toggle state: */
+    UIAction *pActionScale = gActionPool->action(UIActionIndexRuntime_Toggle_Scale);
+    if (pActionScale->isChecked())
+    {
+        pActionScale->blockSignals(true);
+        pActionScale->setChecked(false);
+        pActionScale->blockSignals(false);
+        pActionScale->update();
+    }
 
     /* Reenable guest-autoresize action: */
     gActionPool->action(UIActionIndexRuntime_Toggle_GuestAutoresize)->setVisible(true);
-
     /* Reenable adjust-window action: */
     gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(true);
+
+    /* Call to base-class: */
+    UIMachineLogic::cleanupActionGroups();
 }
 

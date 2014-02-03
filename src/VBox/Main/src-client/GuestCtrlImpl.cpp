@@ -129,7 +129,7 @@ STDMETHODIMP Guest::UpdateGuestAdditions(IN_BSTR aSource, ComSafeArrayIn(IN_BSTR
     uint32_t fFlags = AdditionsUpdateFlag_None;
     if (aFlags)
     {
-        com::SafeArray<CopyFileFlag_T> flags(ComSafeArrayInArg(aFlags));
+        com::SafeArray<AdditionsUpdateFlag_T> flags(ComSafeArrayInArg(aFlags));
         for (size_t i = 0; i < flags.size(); i++)
             fFlags |= flags[i];
     }
@@ -312,8 +312,16 @@ int Guest::dispatchToSession(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTC
                     break;
 
                 default:
+                    /*
+                     * Try processing generic messages which might
+                     * (or might not) supported by certain objects.
+                     * If the message either is not found or supported
+                     * by the approprirate object, try handling it
+                     * in this session object.
+                     */
                     rc = pSession->dispatchToObject(pCtxCb, pSvcCb);
-                    if (rc == VERR_NOT_FOUND)
+                    if (   rc == VERR_NOT_FOUND
+                        || rc == VERR_NOT_SUPPORTED)
                     {
                         alock.acquire();
 
@@ -346,29 +354,34 @@ int Guest::sessionRemove(GuestSession *pSession)
 
     int rc = VERR_NOT_FOUND;
 
-    LogFlowFunc(("Closing session (ID=%RU32) ...\n", pSession->getId()));
+    LogFlowThisFunc(("Removing session (ID=%RU32) ...\n", pSession->getId()));
 
     GuestSessions::iterator itSessions = mData.mGuestSessions.begin();
     while (itSessions != mData.mGuestSessions.end())
     {
         if (pSession == itSessions->second)
         {
+#ifdef DEBUG_andy
+            ULONG cRefs = pSession->AddRef();
+            Assert(cRefs >= 2);
+            LogFlowThisFunc(("pCurSession=%p, cRefs=%RU32\n", pSession, cRefs - 2));
+            pSession->Release();
+#endif
             /* Make sure to consume the pointer before the one of the
              * iterator gets released. */
             ComObjPtr<GuestSession> pCurSession = pSession;
 
-            LogFlowFunc(("Removing session (pSession=%p, ID=%RU32) (now total %ld sessions)\n",
-                         pSession, pSession->getId(), mData.mGuestSessions.size() - 1));
+            LogFlowThisFunc(("Removing session (pSession=%p, ID=%RU32) (now total %ld sessions)\n",
+                             pSession, pSession->getId(), mData.mGuestSessions.size() - 1));
 
-            itSessions->second->Release();
-
+            rc = pSession->onRemove();
             mData.mGuestSessions.erase(itSessions);
 
             alock.release(); /* Release lock before firing off event. */
 
             fireGuestSessionRegisteredEvent(mEventSource, pCurSession,
                                             false /* Unregistered */);
-            rc = VINF_SUCCESS;
+            pCurSession.setNull();
             break;
         }
 
@@ -481,7 +494,7 @@ STDMETHODIMP Guest::CreateSession(IN_BSTR aUser, IN_BSTR aPassword, IN_BSTR aDom
     /* Do not allow anonymous sessions (with system rights) with public API. */
     if (RT_UNLIKELY((aUser) == NULL || *(aUser) == '\0'))
         return setError(E_INVALIDARG, tr("No user name specified"));
-    if (RT_UNLIKELY((aPassword) == NULL || *(aPassword) == '\0'))
+    if (RT_UNLIKELY((aPassword) == NULL)) /* Allow empty passwords. */
         return setError(E_INVALIDARG, tr("No password specified"));
     CheckComArgOutPointerValid(aGuestSession);
     /* Rest is optional. */

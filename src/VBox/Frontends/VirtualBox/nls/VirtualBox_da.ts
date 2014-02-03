@@ -959,6 +959,10 @@
         <comment>new</comment>
         <translation type="obsolete">Monterer CD&apos;en med Gæstetilføjelser</translation>
     </message>
+    <message>
+        <source>&amp;Webcams</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceEditorWidget</name>
@@ -4506,6 +4510,14 @@ p, li { white-space: pre-wrap; }
         <source>Select a filename for the screenshot ...</source>
         <translation>Vælg et filnavn til skærmbilledet ...</translation>
     </message>
+    <message>
+        <source>No Webcams Connected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No supported webcams connected to the host PC</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -6721,7 +6733,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Visning af virtuelle maskiner fungerer bedst ved &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; farver men den virtuelle maskines skærm er sat til &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Åbn egenskaber for skærm i gæsteoperativsystemet og vælg &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; farver (hvis tilgængelig) for at opnå bedst mulig grafikydelse.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Bemærk&lt;/b&gt;. Nogle operativsystemer, såsom OS/2, arbejder muligvis med 32&amp;nbsp;bit farver, men rapporterer dette som 24&amp;nbsp;bit (16 millioner farver). Du kan prøve at vælge en anden bit pr. farve-indstilling for at se om denne besked forsvinder eller du kan vælge helt at deaktivere denne besked, hvis den krævede indstilling (%4&amp;nbsp;bit) ikke er tilgængelig i gæsteoperativsystemet.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Visning af virtuelle maskiner fungerer bedst ved &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; farver men den virtuelle maskines skærm er sat til &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Åbn egenskaber for skærm i gæsteoperativsystemet og vælg &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; farver (hvis tilgængelig) for at opnå bedst mulig grafikydelse.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Bemærk&lt;/b&gt;. Nogle operativsystemer, såsom OS/2, arbejder muligvis med 32&amp;nbsp;bit farver, men rapporterer dette som 24&amp;nbsp;bit (16 millioner farver). Du kan prøve at vælge en anden bit pr. farve-indstilling for at se om denne besked forsvinder eller du kan vælge helt at deaktivere denne besked, hvis den krævede indstilling (%4&amp;nbsp;bit) ikke er tilgængelig i gæsteoperativsystemet.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings window or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you wish to continue?&lt;/p&gt;</source>
@@ -8067,6 +8079,18 @@ p, li { white-space: pre-wrap; }
         <source>Insert</source>
         <comment>additions-new</comment>
         <translation type="obsolete">Montér</translation>
+    </message>
+    <message>
+        <source>Failed to attach the webcam &lt;b&gt;%1&lt;/b&gt; to the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to detach the webcam &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The virtual screen is currently set to a &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode. For better performance please change this to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;. This can usually be done from the &lt;b&gt;Display&lt;/b&gt; section of the guest operating system&apos;s Control Panel or System Settings.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

@@ -353,7 +353,7 @@
     </message>
     <message>
         <source>Show Session Information Window</source>
-        <translation type="unfinished">Oturum Bilgileri İletisi Göster</translation>
+        <translation>Oturum Bilgisi Penceresi Göster</translation>
     </message>
     <message>
         <source>&amp;Pause</source>
@@ -905,6 +905,10 @@
     <message>
         <source>Popup Menu</source>
         <translation>Açılır Menü</translation>
+    </message>
+    <message>
+        <source>&amp;Webcams</source>
+        <translation>&amp;Web kameraları</translation>
     </message>
 </context>
 <context>
@@ -3756,6 +3760,14 @@
         <source>Select a filename for the screenshot ...</source>
         <translation>Ekran görüntüsü için bir dosya adı seçin...</translation>
     </message>
+    <message>
+        <source>No Webcams Connected</source>
+        <translation>Bağlanmış Web Kameraları Yok</translation>
+    </message>
+    <message>
+        <source>No supported webcams connected to the host PC</source>
+        <translation>Anamakineye bağlanmış desteklenen web kameraları yok</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -6107,7 +6119,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sanal makine penceresi &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; renk kipinde çalışması için uyarlandı ama sanal ekran şu anda &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt; olarak ayarlı.&lt;/p&gt;&lt;p&gt;Sanal görüntü alt sisteminin mümkün olan en iyi performansı için eğer kullanılabilirse, lütfen misafir İS&apos;nin ekran özellikleri iletisini açın ve &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; renk kipini seçin.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Not&lt;/b&gt;. Bazı işletim sistemleri, OS/2 gibi, aslında 32&amp;nbsp;bit kipinde çalışabilir ama 24&amp;nbsp;bit (16 milyon renk) olarak bildirir. Eğer bu mesaj kaybolursa, faklı bir renk kipi seçmeyi deneyebilirsiniz ya da eğer misafir İS içinde gereken renk kipinin (%4&amp;nbsp;bit) kullanılabilir olmadığından eminseniz, basitçe hemen mesajı etkisizleştirebilirsiniz.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Sanal makine penceresi &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; renk kipinde çalışması için uyarlandı ama sanal ekran şu anda &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt; olarak ayarlı.&lt;/p&gt;&lt;p&gt;Sanal görüntü alt sisteminin mümkün olan en iyi performansı için eğer kullanılabilirse, lütfen misafir İS&apos;nin ekran özellikleri iletisini açın ve &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; renk kipini seçin.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Not&lt;/b&gt;. Bazı işletim sistemleri, OS/2 gibi, aslında 32&amp;nbsp;bit kipinde çalışabilir ama 24&amp;nbsp;bit (16 milyon renk) olarak bildirir. Eğer bu mesaj kaybolursa, faklı bir renk kipi seçmeyi deneyebilirsiniz ya da eğer misafir İS içinde gereken renk kipinin (%4&amp;nbsp;bit) kullanılabilir olmadığından eminseniz, basitçe hemen mesajı etkisizleştirebilirsiniz.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to find license files in &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
@@ -7332,6 +7344,18 @@
         <source>Insert</source>
         <comment>additions-new</comment>
         <translation type="obsolete">Bağla</translation>
+    </message>
+    <message>
+        <source>Failed to attach the webcam &lt;b&gt;%1&lt;/b&gt; to the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>&lt;b&gt;%2&lt;/b&gt; sanal makinesine &lt;b&gt;%1&lt;/b&gt; web kamerasını takma başarısız.</translation>
+    </message>
+    <message>
+        <source>Failed to detach the webcam &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>&lt;b&gt;%2&lt;/b&gt; sanal makinesinden &lt;b&gt;%1&lt;/b&gt; web kamerasını çıkartma başarısız.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The virtual screen is currently set to a &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode. For better performance please change this to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;. This can usually be done from the &lt;b&gt;Display&lt;/b&gt; section of the guest operating system&apos;s Control Panel or System Settings.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Sanal ekran şu anda &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; renk kipine ayarlı. Daha iyi performans için lütfen bunu &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt; olarak değiştirin. Bu genelde misafir işletim sisteminin Denetim Masasının ya da Sistem Ayarlarının &lt;b&gt;Görüntü&lt;/b&gt; bölümünden yapılabilir.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>

@@ -252,34 +252,40 @@ void UIMachineWindow::closeEvent(QCloseEvent *pEvent)
     if (!uisession()->isRunning() && !uisession()->isPaused() && !uisession()->isStuck())
         return;
 
+    /* Get machine: */
+    CMachine m = machine();
+
     /* If there is a close hook script defined: */
-    QString strScript = machine().GetExtraData(GUI_CloseActionHook);
+    QString strScript = m.GetExtraData(GUI_CloseActionHook);
     if (!strScript.isEmpty())
     {
         /* Execute asynchronously and leave: */
-        QProcess::startDetached(strScript, QStringList() << machine().GetId());
+        QProcess::startDetached(strScript, QStringList() << m.GetId());
         return;
     }
 
     /* Choose the close action: */
     MachineCloseAction closeAction = MachineCloseAction_Invalid;
 
-    /* If there IS default close-action defined: */
-    QString strDefaultAction = machine().GetExtraData(GUI_DefaultCloseAction);
-    if (!strDefaultAction.isEmpty())
+    /* If default close-action defined and not restricted: */
+    MachineCloseAction defaultCloseAction = uisession()->defaultCloseAction();
+    MachineCloseAction restrictedCloseActions = uisession()->restrictedCloseActions();
+    if ((defaultCloseAction != MachineCloseAction_Invalid) &&
+        !(restrictedCloseActions & defaultCloseAction))
     {
-        /* Parse the close-action which was defined: */
-        closeAction = gpConverter->fromInternalString<MachineCloseAction>(strDefaultAction);
-        /* If VM is stuck, and the default close-action is not 'power-off',
-         * we should ask the user about what to do: */
-        if (uisession()->isStuck() &&
-            closeAction != MachineCloseAction_PowerOff)
-            closeAction = MachineCloseAction_Invalid;
-        /* If the default-action is 'power-off',
-         * we should check if its possible to discard machine-state: */
-        if (closeAction == MachineCloseAction_PowerOff &&
-            machine().GetSnapshotCount() > 0)
-            closeAction = MachineCloseAction_PowerOff_RestoringSnapshot;
+        switch (defaultCloseAction)
+        {
+            /* If VM is stuck, and the default close-action is 'save-state' or 'shutdown',
+             * we should ask the user about what to do: */
+            case MachineCloseAction_SaveState:
+            case MachineCloseAction_Shutdown:
+                closeAction = uisession()->isStuck() ? MachineCloseAction_Invalid : defaultCloseAction;
+                break;
+            /* Otherwise we just use what we have: */
+            default:
+                closeAction = defaultCloseAction;
+                break;
+        }
     }
 
     /* If the close-action still undefined: */
@@ -287,7 +293,9 @@ void UIMachineWindow::closeEvent(QCloseEvent *pEvent)
     {
         /* Prepare close-dialog: */
         QWidget *pParentDlg = windowManager().realParentWindow(this);
-        QPointer<UIVMCloseDialog> pCloseDlg = new UIVMCloseDialog(pParentDlg, machine(), session());
+        QPointer<UIVMCloseDialog> pCloseDlg = new UIVMCloseDialog(pParentDlg, m,
+                                                                  session().GetConsole().GetGuestEnteredACPIMode(),
+                                                                  restrictedCloseActions);
 
         /* Make sure close-dialog is valid: */
         if (pCloseDlg->isValid())
@@ -318,8 +326,8 @@ void UIMachineWindow::closeEvent(QCloseEvent *pEvent)
         }
         else
         {
-            /* Else user misconfigured .vbox file, 'power-off' will be the action: */
-            closeAction = MachineCloseAction_PowerOff;
+            /* Else user misconfigured .vbox file, we will reject closing UI: */
+            closeAction = MachineCloseAction_Invalid;
         }
 
         /* Cleanup close-dialog: */

@@ -857,6 +857,10 @@
         <source>Show Session Information Window</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>&amp;Webcams</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceEditorWidget</name>
@@ -3222,6 +3226,14 @@
         <source>Select a filename for the screenshot ...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>No Webcams Connected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No supported webcams connected to the host PC</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -5309,7 +5321,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Makina birtualaren leihoa &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; kolore moduan funtzionatzeko garatua izan da baina pantaila birtualaren kalitatea &lt;b&gt;%2&amp;nbsp;bitera&lt;/b&gt; ezarririk dago.&lt;/p&gt;&lt;p&gt;Mesedez ireki bezero sistema eragileko pantaila propietateak eta hautatu &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; duen modu bat, erabilgarri badago, bideo birtual azpisistemak ahal den hobekien funtzionatzeko.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Kontutan izan&lt;/b&gt; OS/2 bezalako zenbait sistema eragilek 32 bit-eako moduan lan egiten dutela, baina 24 bit-etara (16 Milioi kolore) dagoela dirudi. Beste kolore kalitate bat hautatzea probatu dezakezu, edo mezu hau baztertu dezakezu ziur bazaude eskatutako kolore kalitatea (%4&amp;nbsp;bit) ezin dela Sistema eragile bezeroan erabili.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Makina birtualaren leihoa &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; kolore moduan funtzionatzeko garatua izan da baina pantaila birtualaren kalitatea &lt;b&gt;%2&amp;nbsp;bitera&lt;/b&gt; ezarririk dago.&lt;/p&gt;&lt;p&gt;Mesedez ireki bezero sistema eragileko pantaila propietateak eta hautatu &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; duen modu bat, erabilgarri badago, bideo birtual azpisistemak ahal den hobekien funtzionatzeko.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Kontutan izan&lt;/b&gt; OS/2 bezalako zenbait sistema eragilek 32 bit-eako moduan lan egiten dutela, baina 24 bit-etara (16 Milioi kolore) dagoela dirudi. Beste kolore kalitate bat hautatzea probatu dezakezu, edo mezu hau baztertu dezakezu ziur bazaude eskatutako kolore kalitatea (%4&amp;nbsp;bit) ezin dela Sistema eragile bezeroan erabili.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings window or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you wish to continue?&lt;/p&gt;</source>
@@ -6228,6 +6240,18 @@
     </message>
     <message>
         <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to attach the webcam &lt;b&gt;%1&lt;/b&gt; to the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to detach the webcam &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The virtual screen is currently set to a &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode. For better performance please change this to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;. This can usually be done from the &lt;b&gt;Display&lt;/b&gt; section of the guest operating system&apos;s Control Panel or System Settings.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

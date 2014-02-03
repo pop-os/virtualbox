@@ -1833,14 +1833,16 @@ static int vga_draw_text(PVGASTATE pThis, bool full_update, bool fFailOnResize, 
                 bgcol = palette[cattr >> 4];
                 fgcol = palette[cattr & 0x0f];
                 if (cw != 9) {
-                    vga_draw_glyph8(d1, linesize,
-                                    font_ptr, cheight, fgcol, bgcol, dscan);
+                    if (pThis->fRenderVRAM)
+                        vga_draw_glyph8(d1, linesize,
+                                        font_ptr, cheight, fgcol, bgcol, dscan);
                 } else {
                     dup9 = 0;
                     if (ch >= 0xb0 && ch <= 0xdf && (pThis->ar[0x10] & 0x04))
                         dup9 = 1;
-                    vga_draw_glyph9(d1, linesize,
-                                    font_ptr, cheight, fgcol, bgcol, dup9);
+                    if (pThis->fRenderVRAM)
+                        vga_draw_glyph9(d1, linesize,
+                                        font_ptr, cheight, fgcol, bgcol, dup9);
                 }
                 if (src == cursor_ptr &&
                     !(pThis->cr[0x0a] & 0x20)) {
@@ -1855,11 +1857,13 @@ static int vga_draw_text(PVGASTATE pThis, bool full_update, bool fFailOnResize, 
                         h = line_last - line_start + 1;
                         d = d1 + (linesize * line_start << dscan);
                         if (cw != 9) {
-                            vga_draw_glyph8(d, linesize,
-                                            cursor_glyph, h, fgcol, bgcol, dscan);
+                            if (pThis->fRenderVRAM)
+                                vga_draw_glyph8(d, linesize,
+                                                cursor_glyph, h, fgcol, bgcol, dscan);
                         } else {
-                            vga_draw_glyph9(d, linesize,
-                                            cursor_glyph, h, fgcol, bgcol, 1);
+                            if (pThis->fRenderVRAM)
+                                vga_draw_glyph9(d, linesize,
+                                                cursor_glyph, h, fgcol, bgcol, 1);
                         }
                     }
                 }
@@ -2268,9 +2272,12 @@ static void vga_draw_blank(PVGASTATE pThis, int full_update)
         val = 0;
     w = pThis->last_scr_width * ((pThis->pDrv->cBits + 7) >> 3);
     d = pThis->pDrv->pu8Data;
-    for(i = 0; i < (int)pThis->last_scr_height; i++) {
-        memset(d, val, w);
-        d += cbScanline;
+    if (pThis->fRenderVRAM)
+    {
+        for(i = 0; i < (int)pThis->last_scr_height; i++) {
+            memset(d, val, w);
+            d += cbScanline;
+        }
     }
     pThis->pDrv->pfnUpdateRect(pThis->pDrv, 0, 0, pThis->last_scr_width, pThis->last_scr_height);
 }
@@ -4945,7 +4952,12 @@ static DECLCALLBACK(void) vgaPortSetRenderVRAM(PPDMIDISPLAYPORT pInterface, bool
 
     LogFlow(("vgaPortSetRenderVRAM: fRender = %d\n", fRender));
 
+    int rc = PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
+    AssertRC(rc);
+
     pThis->fRenderVRAM = fRender;
+
+    PDMCritSectLeave(&pThis->CritSect);
 }
 
 
@@ -4964,6 +4976,11 @@ static DECLCALLBACK(void) vgaTimerRefresh(PPDMDEVINS pDevIns, PTMTIMER pTimer, v
 
     if (pThis->cMilliesRefreshInterval)
         TMTimerSetMillies(pTimer, pThis->cMilliesRefreshInterval);
+
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    vbvaTimerCb(pThis);
+#endif
+
 }
 
 

@@ -890,6 +890,10 @@
         <comment>new</comment>
         <translation type="obsolete">Монтирај слику &apos;додатака госта&apos;</translation>
     </message>
+    <message>
+        <source>&amp;Webcams</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceEditorWidget</name>
@@ -4303,6 +4307,14 @@ p, li { white-space: pre-wrap; }
         <source>Select a filename for the screenshot ...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>No Webcams Connected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No supported webcams connected to the host PC</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -6742,7 +6754,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Прозор машине је оптимизован за рад у &lt;b&gt;%1&amp;nbsp;бита&lt;/b&gt; боје, али је актуелно &lt;b&gt;%2&amp;nbsp;бита&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Молимо да отворите дијалог дисплеја госта и да одаберете &lt;b&gt;%3&amp;nbsp;бита&lt;/b&gt; боја, ако је доступно, за најбоље перформансе подсистема.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Белешка&lt;/b&gt;. Неки системи, као OS/2, могу радити у  32&amp;nbsp;бита али показује као 24&amp;nbsp;бита (16 милиона боја). Можете да одаберете други квалитет боје да би видели да ли поруке нестаје или можете онемогућити поруку ако знате да потребна боја (%4&amp;nbsp;бита) није доступна на гост.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Прозор машине је оптимизован за рад у &lt;b&gt;%1&amp;nbsp;бита&lt;/b&gt; боје, али је актуелно &lt;b&gt;%2&amp;nbsp;бита&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Молимо да отворите дијалог дисплеја госта и да одаберете &lt;b&gt;%3&amp;nbsp;бита&lt;/b&gt; боја, ако је доступно, за најбоље перформансе подсистема.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Белешка&lt;/b&gt;. Неки системи, као OS/2, могу радити у  32&amp;nbsp;бита али показује као 24&amp;nbsp;бита (16 милиона боја). Можете да одаберете други квалитет боје да би видели да ли поруке нестаје или можете онемогућити поруку ако знате да потребна боја (%4&amp;nbsp;бита) није доступна на гост.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings window or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you wish to continue?&lt;/p&gt;</source>
@@ -8080,6 +8092,18 @@ p, li { white-space: pre-wrap; }
         <source>Insert</source>
         <comment>additions-new</comment>
         <translation type="obsolete">Монтирај</translation>
+    </message>
+    <message>
+        <source>Failed to attach the webcam &lt;b&gt;%1&lt;/b&gt; to the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to detach the webcam &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The virtual screen is currently set to a &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode. For better performance please change this to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;. This can usually be done from the &lt;b&gt;Display&lt;/b&gt; section of the guest operating system&apos;s Control Panel or System Settings.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

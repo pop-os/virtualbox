@@ -1,8 +1,6 @@
 /* $Id: UIMachineLogicFullscreen.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachineLogicFullscreen class implementation
+ * VBox Qt GUI - UIMachineLogicFullscreen class implementation.
  */
 
 /*
@@ -163,6 +161,30 @@ void UIMachineLogicFullscreen::prepareActionGroups()
 
     /* Adjust-window action isn't allowed in fullscreen: */
     gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(false);
+
+    /* Take care of view-action toggle state: */
+    UIAction *pActionFullscreen = gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen);
+    if (!pActionFullscreen->isChecked())
+    {
+        pActionFullscreen->blockSignals(true);
+        pActionFullscreen->setChecked(true);
+        pActionFullscreen->blockSignals(false);
+        pActionFullscreen->update();
+    }
+}
+
+void UIMachineLogicFullscreen::prepareActionConnections()
+{
+    /* Call to base-class: */
+    UIMachineLogic::prepareActionConnections();
+
+    /* "View" actions connections: */
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
+            uisession(), SLOT(sltChangeVisualStateToNormal()));
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
+            uisession(), SLOT(sltChangeVisualStateToSeamless()));
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
+            uisession(), SLOT(sltChangeVisualStateToScale()));
 }
 
 #ifdef Q_WS_MAC
@@ -238,13 +260,37 @@ void UIMachineLogicFullscreen::cleanupMachineWindows()
 #endif/* Q_WS_MAC */
 }
 
+void UIMachineLogicFullscreen::cleanupActionConnections()
+{
+    /* "View" actions disconnections: */
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
+               uisession(), SLOT(sltChangeVisualStateToNormal()));
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
+               uisession(), SLOT(sltChangeVisualStateToSeamless()));
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
+               uisession(), SLOT(sltChangeVisualStateToScale()));
+
+    /* Call to base-class: */
+    UIMachineLogic::cleanupActionConnections();
+}
+
 void UIMachineLogicFullscreen::cleanupActionGroups()
 {
-    /* Call to base-class: */
-    UIMachineLogic::cleanupActionGroups();
+    /* Take care of view-action toggle state: */
+    UIAction *pActionFullscreen = gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen);
+    if (pActionFullscreen->isChecked())
+    {
+        pActionFullscreen->blockSignals(true);
+        pActionFullscreen->setChecked(false);
+        pActionFullscreen->blockSignals(false);
+        pActionFullscreen->update();
+    }
 
     /* Reenable adjust-window action: */
     gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(true);
+
+    /* Call to base-class: */
+    UIMachineLogic::cleanupActionGroups();
 }
 
 #ifdef Q_WS_MAC

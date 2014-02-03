@@ -452,6 +452,10 @@
             <para>10.8 (Mountain Lion, 64-bit)</para>
           </listitem>
 
+          <listitem>
+            <para>10.9 (Mavericks, 64-bit)</para>
+          </listitem>
+
         </itemizedlist>
 
         <para>Intel hardware is required; please see <xref
@@ -468,7 +472,7 @@
               <para>10.04 ("Lucid Lynx"), 10.10 ("Maverick Meerkat),
               11.04 ("Natty Narwhal"), 11.10 ("Oneiric Oncelot"),
               12.04 ("Precise Pangolin"), 12.10 ("Quantal Quetzal"),
-              13.04 ("Raring Ringtail")</para>
+              13.04 ("Raring Ringtail"), 13.10 ("Saucy Salamander")</para>
             </listitem>
 
             <listitem>
@@ -484,7 +488,7 @@
             </listitem>
 
             <listitem>
-              <para>Fedora Core 6 to 17</para>
+              <para>Fedora Core 6 to 19</para>
             </listitem>
 
             <listitem>
@@ -566,8 +570,12 @@
               </listitem>
 
               <listitem>
-                <para>Intel PXE boot ROM with support for the E1000 network
-                card.</para>
+                <para>Host webcam passthrough; see chapter <xref
+                    linkend="webcam-passthrough" />.</para>
+              </listitem>
+
+              <listitem>
+                <para>Intel PXE boot ROM.</para>
               </listitem>
 
               <listitem>
@@ -979,7 +987,12 @@
             will go to the guest instead. After you press the host key to
             re-enable the host keyboard, all key presses will go through the
             host again, so that sequences like Alt-Tab will no longer reach
-            the guest.</para>
+            the guest.  For technical reasons it may not be possible for the
+            VM to get all keyboard input even when it does own the keyboard.
+            Examples of this are the Ctrl-Alt-Del sequence on Windows hosts
+            or single keys grabbed by other applications on X11 hosts like
+            the GNOME desktop's "Control key highlights mouse pointer"
+            functionality.</para>
           </listitem>
 
           <listitem>

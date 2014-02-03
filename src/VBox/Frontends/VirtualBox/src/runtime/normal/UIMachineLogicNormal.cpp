@@ -1,12 +1,10 @@
 /* $Id: UIMachineLogicNormal.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachineLogicNormal class implementation
+ * VBox Qt GUI - UIMachineLogicNormal class implementation.
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,9 +25,6 @@
 #include "UIActionPoolRuntime.h"
 #include "UIMachineLogicNormal.h"
 #include "UIMachineWindow.h"
-#include "UIDownloaderAdditions.h"
-#include "UIDownloaderUserManual.h"
-#include "UIDownloaderExtensionPack.h"
 #ifdef Q_WS_MAC
 #include "VBoxUtils.h"
 #endif /* Q_WS_MAC */
@@ -43,6 +38,32 @@ bool UIMachineLogicNormal::checkAvailability()
 {
     /* Normal mode is always available: */
     return true;
+}
+
+void UIMachineLogicNormal::sltCheckForRequestedVisualStateType()
+{
+    /* Do not try to change visual-state type if machine was not started yet: */
+    if (!uisession()->isRunning() && !uisession()->isPaused())
+        return;
+
+    /* Check requested visual-state types: */
+    switch (uisession()->requestedVisualState())
+    {
+        /* If 'seamless' visual-state type is requested: */
+        case UIVisualStateType_Seamless:
+        {
+            /* And supported: */
+            if (uisession()->isGuestSupportsSeamless())
+            {
+                LogRel(("UIMachineLogicNormal: Going 'seamless' as requested...\n"));
+                uisession()->setRequestedVisualState(UIVisualStateType_Invalid);
+                uisession()->changeVisualState(UIVisualStateType_Seamless);
+            }
+            break;
+        }
+        default:
+            break;
+    }
 }
 
 void UIMachineLogicNormal::sltPrepareNetworkAdaptersMenu()
@@ -80,10 +101,18 @@ void UIMachineLogicNormal::sltPrepareMouseIntegrationMenu()
 
 void UIMachineLogicNormal::prepareActionConnections()
 {
-    /* Base class connections: */
+    /* Call to base-class: */
     UIMachineLogic::prepareActionConnections();
 
-    /* This class connections: */
+    /* "View" actions connections: */
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
+            uisession(), SLOT(sltChangeVisualStateToFullscreen()));
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
+            uisession(), SLOT(sltChangeVisualStateToSeamless()));
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
+            uisession(), SLOT(sltChangeVisualStateToScale()));
+
+    /* "Device" actions connections: */
     connect(gActionPool->action(UIActionIndexRuntime_Menu_Network)->menu(), SIGNAL(aboutToShow()),
             this, SLOT(sltPrepareNetworkAdaptersMenu()));
     connect(gActionPool->action(UIActionIndexRuntime_Menu_SharedFolders)->menu(), SIGNAL(aboutToShow()),
@@ -131,5 +160,19 @@ void UIMachineLogicNormal::cleanupMachineWindows()
     /* Cleanup machine-window(s): */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
         UIMachineWindow::destroy(pMachineWindow);
+}
+
+void UIMachineLogicNormal::cleanupActionConnections()
+{
+    /* "View" actions disconnections: */
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
+               uisession(), SLOT(sltChangeVisualStateToFullscreen()));
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
+               uisession(), SLOT(sltChangeVisualStateToSeamless()));
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
+               uisession(), SLOT(sltChangeVisualStateToScale()));
+
+    /* Call to base-class: */
+    UIMachineLogic::cleanupActionConnections();
 }
 

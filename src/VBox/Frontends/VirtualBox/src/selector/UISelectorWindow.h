@@ -25,7 +25,6 @@
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
-#include "UINetworkDefs.h"
 
 /* Forward declarations: */
 class QISplitter;
@@ -111,6 +110,9 @@ private:
     void showEvent(QShowEvent *pEvent);
     void polishEvent(QShowEvent *pEvent);
 #ifdef Q_WS_MAC
+# if 0  /* disabled until #7112 resolved */
+    void closeEvent(QCloseEvent *pEvent);
+# endif /* disabled until #7112 resolved */
     bool eventFilter(QObject *pObject, QEvent *pEvent);
 #endif /* Q_WS_MAC */
 

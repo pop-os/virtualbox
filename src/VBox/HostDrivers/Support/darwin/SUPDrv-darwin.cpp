@@ -66,6 +66,9 @@
 #include <IOKit/IOUserClient.h>
 #include <IOKit/pwr_mgt/RootDomain.h>
 #include <IOKit/IODeviceTreeSupport.h>
+#include <IOKit/usb/IOUSBHIDDriver.h>
+#include <IOKit/bluetooth/IOBluetoothHIDDriver.h>
+#include <IOKit/bluetooth/IOBluetoothHIDDriverTypes.h>
 
 #ifdef VBOX_WITH_HOST_VMX
 # include <libkern/version.h>
@@ -939,6 +942,72 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
 {
     NOREF(pDevExt); NOREF(pImage);
+}
+
+
+/**
+ * Resume Bluetooth keyboard.
+ * If there is no Bluetooth keyboard device connected to the system we just ignore this.
+ */
+static void supdrvDarwinResumeBluetoothKbd(void)
+{
+    OSDictionary *pDictionary = IOService::serviceMatching("AppleBluetoothHIDKeyboard");
+    if (pDictionary)
+    {
+        OSIterator     *pIter;
+        IOBluetoothHIDDriver *pDriver;
+
+        pIter = IOService::getMatchingServices(pDictionary);
+        if (pIter)
+        {
+            while ((pDriver = (IOBluetoothHIDDriver *)pIter->getNextObject()))
+                if (pDriver->isKeyboard())
+                    (void)pDriver->hidControl(IOBTHID_CONTROL_EXIT_SUSPEND);
+
+            pIter->release();
+        }
+        pDictionary->release();
+    }
+}
+
+/**
+ * Resume built-in keyboard on MacBook Air and Pro hosts.
+ * If there is no built-in keyboard device attached to the system we just ignore this.
+ */
+static void supdrvDarwinResumeBuiltinKbd(void)
+{
+    /*
+     * AppleUSBTCKeyboard KEXT is responsible for built-in keyboard management.
+     * We resume keyboard by accessing to its IOService. */
+    OSDictionary *pDictionary = IOService::serviceMatching("AppleUSBTCKeyboard");
+    if (pDictionary)
+    {
+        OSIterator     *pIter;
+        IOUSBHIDDriver *pDriver;
+
+        pIter = IOService::getMatchingServices(pDictionary);
+        if (pIter)
+        {
+            while ((pDriver = (IOUSBHIDDriver *)pIter->getNextObject()))
+                if (pDriver->IsPortSuspended())
+                    pDriver->SuspendPort(false, 0);
+
+            pIter->release();
+        }
+        pDictionary->release();
+    }
+}
+
+
+/**
+ * Resume suspended keyboard devices (if any).
+ */
+int VBOXCALL    supdrvDarwinResumeSuspendedKbds(void)
+{
+    supdrvDarwinResumeBuiltinKbd();
+    supdrvDarwinResumeBluetoothKbd();
+
+    return 0;
 }
 
 

@@ -33,7 +33,9 @@
 #include <QTimer>
 #include <QDir>
 #include <QLocale>
-#include <QNetworkProxy>
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+# include <QNetworkProxy>
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 #include <QSpinBox>
 #include <QStyleOptionSpinBox>
 
@@ -65,8 +67,10 @@
 #include "UIActionPoolRuntime.h"
 #include "UIExtraDataEventHandler.h"
 #include "QIFileDialog.h"
-#include "UINetworkManager.h"
-#include "UIUpdateManager.h"
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+# include "UINetworkManager.h"
+# include "UIUpdateManager.h"
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 #include "UIMachine.h"
 #include "UISession.h"
 #include "UIConverter.h"
@@ -463,7 +467,11 @@ QWidget* VBoxGlobal::activeMachineWindow()
  */
 bool VBoxGlobal::is3DAvailableWorker() const
 {
+#ifdef VBOX_WITH_CROGL
     bool fSupported = VBoxOglIs3DAccelerationSupported();
+#else
+    bool fSupported = false;
+#endif
     unconst(this)->m3DAvailable = fSupported;
     return fSupported;
 }
@@ -1677,6 +1685,7 @@ CSession VBoxGlobal::openSession(const QString &strId, KLockType lockType /* = K
     return session;
 }
 
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
 void VBoxGlobal::reloadProxySettings()
 {
     UIProxyManager proxyManager(settings().proxySettings());
@@ -1708,6 +1717,7 @@ void VBoxGlobal::reloadProxySettings()
         QNetworkProxy::setApplicationProxy(QNetworkProxy(QNetworkProxy::NoProxy));
     }
 }
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 
 void VBoxGlobal::createMedium(const UIMedium &medium)
 {
@@ -1715,14 +1725,6 @@ void VBoxGlobal::createMedium(const UIMedium &medium)
     QReadLocker cleanupRacePreventor(&m_mediumEnumeratorDtorRwLock);
     if (m_pMediumEnumerator)
         m_pMediumEnumerator->createMedium(medium);
-}
-
-void VBoxGlobal::updateMedium(const UIMedium &medium)
-{
-    /* Update medium of medium-enumerator: */
-    QReadLocker cleanupRacePreventor(&m_mediumEnumeratorDtorRwLock);
-    if (m_pMediumEnumerator)
-        m_pMediumEnumerator->updateMedium(medium);
 }
 
 void VBoxGlobal::deleteMedium(const QString &strMediumID)
@@ -3412,12 +3414,14 @@ bool VBoxGlobal::isApprovedByExtraData(CMachine &machine, const QString &strExtr
            || strExtraDataValue == "1";
 }
 
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
 /* static */
 bool VBoxGlobal::shouldWeAllowApplicationUpdate(CVirtualBox &vbox)
 {
     /* 'true' if disabling is not approved by the extra-data: */
     return !isApprovedByExtraData(vbox, GUI_PreventApplicationUpdate);
 }
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 
 /* static */
 bool VBoxGlobal::shouldWeShowMachine(CMachine &machine)
@@ -3528,6 +3532,12 @@ bool VBoxGlobal::shouldWeAllowSnapshotOperations(CMachine &machine,
     return !isApprovedByExtraData(machine, GUI_PreventSnapshotOperations);
 }
 
+/** Returns default machine close action for passed @a machine. */
+MachineCloseAction VBoxGlobal::defaultMachineCloseAction(CMachine &machine)
+{
+    return gpConverter->fromInternalString<MachineCloseAction>(machine.GetExtraData(GUI_DefaultCloseAction));
+}
+
 /* static */
 RuntimeMenuType VBoxGlobal::restrictedRuntimeMenuTypes(CMachine &machine)
 {
@@ -3585,11 +3595,11 @@ QList<IndicatorType> VBoxGlobal::restrictedStatusBarIndicators(CMachine &machine
     return result;
 }
 
-/* static */
-QList<MachineCloseAction> VBoxGlobal::restrictedMachineCloseActions(CMachine &machine)
+/** Returns merged restricted machine close actions for passed @a machine. */
+MachineCloseAction VBoxGlobal::restrictedMachineCloseActions(CMachine &machine)
 {
     /* Prepare result: */
-    QList<MachineCloseAction> result;
+    MachineCloseAction result = MachineCloseAction_Invalid;
     /* Load restricted machine-close-actions: */
     QString strList(machine.GetExtraData(GUI_RestrictedCloseActions));
     QStringList list = strList.split(',');
@@ -3598,7 +3608,7 @@ QList<MachineCloseAction> VBoxGlobal::restrictedMachineCloseActions(CMachine &ma
     {
         MachineCloseAction value = gpConverter->fromInternalString<MachineCloseAction>(strValue);
         if (value != MachineCloseAction_Invalid)
-            result << value;
+            result = static_cast<MachineCloseAction>(result | value);
     }
     /* Return result: */
     return result;
@@ -3792,8 +3802,10 @@ void VBoxGlobal::sltGUILanguageChange(QString strLang)
 
 void VBoxGlobal::sltProcessGlobalSettingChange()
 {
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     /* Reload proxy settings: */
     reloadProxySettings();
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 }
 
 // Protected members
@@ -4347,8 +4359,6 @@ void VBoxGlobal::prepare()
         /* Prepare medium-enumerator: */
         connect(m_pMediumEnumerator, SIGNAL(sigMediumCreated(const QString&)),
                 this, SIGNAL(sigMediumCreated(const QString&)));
-        connect(m_pMediumEnumerator, SIGNAL(sigMediumUpdated(const QString&)),
-                this, SIGNAL(sigMediumUpdated(const QString&)));
         connect(m_pMediumEnumerator, SIGNAL(sigMediumDeleted(const QString&)),
                 this, SIGNAL(sigMediumDeleted(const QString&)));
         connect(m_pMediumEnumerator, SIGNAL(sigMediumEnumerationStarted()),
@@ -4382,11 +4392,13 @@ void VBoxGlobal::prepare()
         UIActionPool::createTemporary(UIActionPoolType_Runtime);
     }
 
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     /* Create network manager: */
     UINetworkManager::create();
 
     /* Schedule update manager: */
     UIUpdateManager::schedule();
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 }
 
 void VBoxGlobal::cleanup()
@@ -4395,11 +4407,13 @@ void VBoxGlobal::cleanup()
      * which could de called from the other threads: */
     m_sfCleanupInProgress = true;
 
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     /* Shutdown update manager: */
     UIUpdateManager::shutdown();
 
     /* Destroy network manager: */
     UINetworkManager::destroy();
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 
     /* Destroy action pool: */
     UIActionPool::destroy();

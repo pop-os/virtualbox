@@ -901,21 +901,14 @@ static int cpumQueryGuestMsrInt(PVMCPU pVCpu, uint32_t idMsr, uint64_t *puValue)
 
         case MSR_IA32_APICBASE:
         {
+            /* See @bugref{7097} comment 6. */
             PVM pVM = pVCpu->CTX_SUFF(pVM);
-            if (   (    pVM->cpum.s.aGuestCpuIdStd[0].eax >= 1                                  /* APIC Std feature */
-                    && (pVM->cpum.s.aGuestCpuIdStd[1].edx & X86_CPUID_FEATURE_EDX_APIC))
-                || (   pVM->cpum.s.aGuestCpuIdExt[0].eax >= 0x80000001                          /* APIC Ext feature (AMD) */
-                    && pVM->cpum.s.enmGuestCpuVendor == CPUMCPUVENDOR_AMD
-                    && (pVM->cpum.s.aGuestCpuIdExt[1].edx & X86_CPUID_AMD_FEATURE_EDX_APIC))
-                || (    pVM->cpum.s.aGuestCpuIdStd[0].eax >= 1                                  /* x2APIC */
-                    && (pVM->cpum.s.aGuestCpuIdStd[1].ecx & X86_CPUID_FEATURE_ECX_X2APIC)))
-            {
+            if (PDMHasApic(pVM))
                 *puValue = pVCpu->cpum.s.Guest.msrApicBase;
-            }
             else
             {
-                *puValue = 0;
                 rc = VERR_CPUM_RAISE_GP_0;
+                *puValue = 0;
             }
             break;
         }
@@ -1124,6 +1117,8 @@ static int cpumQueryGuestMsrInt(PVMCPU pVCpu, uint32_t idMsr, uint64_t *puValue)
         case MSR_P4_LASTBRANCH_1:
         case MSR_P4_LASTBRANCH_2:
         case MSR_P4_LASTBRANCH_3:
+        case 0x2c:                          /* accessed by some Intel driver but also read on
+                                               AMD systems */
             *puValue = 0;
             break;
 
@@ -1147,6 +1142,7 @@ static int cpumQueryGuestMsrInt(PVMCPU pVCpu, uint32_t idMsr, uint64_t *puValue)
         case MSR_PKG_CST_CONFIG_CONTROL:    /* Nahalem, Sandy Bridge */
         case MSR_CORE_THREAD_COUNT:         /* Apple queries this. */
         case MSR_FLEX_RATIO:                /* Apple queries this. */
+        case 0x1ad:                         /* MSR_TURBO_POWER_CURRENT_LIMIT */
             *puValue = 0;
             if (CPUMGetGuestCpuVendor(pVCpu->CTX_SUFF(pVM)) != CPUMCPUVENDOR_INTEL)
             {
@@ -1213,6 +1209,7 @@ static int cpumQueryGuestMsrInt(PVMCPU pVCpu, uint32_t idMsr, uint64_t *puValue)
         case 0xc001102a:                /* quick fix for w2k8 + opposition. */
         case 0xc0011004:                /* quick fix for the opposition. */
         case 0xc0011005:                /* quick fix for the opposition. */
+        case 0xc0011023:                /* quick fix for the opposition. */
         case MSR_K7_EVNTSEL0:           /* quick fix for the opposition. */
         case MSR_K7_EVNTSEL1:           /* quick fix for the opposition. */
         case MSR_K7_EVNTSEL2:           /* quick fix for the opposition. */
@@ -2803,9 +2800,11 @@ VMMDECL(bool) CPUMIsGuestInLongMode(PVMCPU pVCpu)
  */
 VMMDECL(bool) CPUMIsGuestInPAEMode(PVMCPU pVCpu)
 {
+    /* Intel mentions EFER.LMA and EFER.LME in different parts of their spec. We shall use EFER.LMA rather
+       than EFER.LME as it reflects if the CPU has entered paging with EFER.LME set.  */
     return (pVCpu->cpum.s.Guest.cr4 & X86_CR4_PAE)
         && (pVCpu->cpum.s.Guest.cr0 & X86_CR0_PG)
-        && !(pVCpu->cpum.s.Guest.msrEFER & MSR_K6_EFER_LME);
+        && !(pVCpu->cpum.s.Guest.msrEFER & MSR_K6_EFER_LMA);
 }
 
 

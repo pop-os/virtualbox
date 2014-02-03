@@ -760,6 +760,10 @@
         <comment>new</comment>
         <translation type="obsolete">بارگیری ایمیج نصب افزونه مهمان</translation>
     </message>
+    <message>
+        <source>&amp;Webcams</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceEditorWidget</name>
@@ -2885,6 +2889,14 @@
         <source>Select a filename for the screenshot ...</source>
         <translation>یک نام فایل برای ضبط وضعیت انتخاب کنید...</translation>
     </message>
+    <message>
+        <source>No Webcams Connected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No supported webcams connected to the host PC</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -4835,7 +4847,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;پنجره ماشین مجازی برای کار در حالت رنگی &lt;b&gt;%1&amp;nbsp;بیت&lt;/b&gt; بهسازی شده است اما نمایشگر مجازی اکنون روی &lt;b&gt;%2&amp;nbsp;بیت&lt;/b&gt; تنظیم شده است.&lt;/p&gt;&lt;p&gt;لطفا پنجره مشخصات نمایش سیستم عامل مهمان را باز کنید و حالت رنگی &lt;b&gt;%3&amp;nbsp;بیت&lt;/b&gt; را انتخاب کنید، اگر آن موجود است، آن بهترین کارایی ممکن را برای ویدیو مجازی سیستم فرعی دارد.&lt;/p&gt;&lt;p&gt;&lt;b&gt;توجه&lt;/b&gt;. برخی سیستم عامل ها، مانند OS/2، ممکن است واقعا در حالت 32&amp;nbsp;بیت کار کنند اما آن را بعنوان 24&amp;nbsp;بیت (16 میلیون رنگی) گزارش میکند. میتوانید سعی کنید حالت رنگی متفاوت انتخاب کنید برای اینکه ببینید این پیام ناپدید شود یا میتوانید بسادگی این پیام را حالا غیرفعال کنید اگر مطمئنید حالت رنگی موردنیاز (%4&amp;nbsp;بیت) در سیستم عامل مهمان موجود نیست.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;پنجره ماشین مجازی برای کار در حالت رنگی &lt;b&gt;%1&amp;nbsp;بیت&lt;/b&gt; بهسازی شده است اما نمایشگر مجازی اکنون روی &lt;b&gt;%2&amp;nbsp;بیت&lt;/b&gt; تنظیم شده است.&lt;/p&gt;&lt;p&gt;لطفا پنجره مشخصات نمایش سیستم عامل مهمان را باز کنید و حالت رنگی &lt;b&gt;%3&amp;nbsp;بیت&lt;/b&gt; را انتخاب کنید، اگر آن موجود است، آن بهترین کارایی ممکن را برای ویدیو مجازی سیستم فرعی دارد.&lt;/p&gt;&lt;p&gt;&lt;b&gt;توجه&lt;/b&gt;. برخی سیستم عامل ها، مانند OS/2، ممکن است واقعا در حالت 32&amp;nbsp;بیت کار کنند اما آن را بعنوان 24&amp;nbsp;بیت (16 میلیون رنگی) گزارش میکند. میتوانید سعی کنید حالت رنگی متفاوت انتخاب کنید برای اینکه ببینید این پیام ناپدید شود یا میتوانید بسادگی این پیام را حالا غیرفعال کنید اگر مطمئنید حالت رنگی موردنیاز (%4&amp;nbsp;بیت) در سیستم عامل مهمان موجود نیست.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to find license files in &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
@@ -5876,6 +5888,18 @@
         <source>Insert</source>
         <comment>additions-new</comment>
         <translation type="obsolete">بارگیری</translation>
+    </message>
+    <message>
+        <source>Failed to attach the webcam &lt;b&gt;%1&lt;/b&gt; to the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to detach the webcam &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The virtual screen is currently set to a &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode. For better performance please change this to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;. This can usually be done from the &lt;b&gt;Display&lt;/b&gt; section of the guest operating system&apos;s Control Panel or System Settings.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
