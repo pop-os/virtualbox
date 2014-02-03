@@ -2741,3 +2741,26 @@ DECLASM(void) suplibTracerFireProbe(PVTGPROBELOC pProbeLoc, PSUPTRACERUMODFIREPR
     suplibOsIOCtl(&g_supLibData, SUP_IOCTL_TRACER_UMOD_FIRE_PROBE, pReq, SUP_IOCTL_TRACER_UMOD_FIRE_PROBE_SIZE);
 }
 
+
+SUPR3DECL(int) SUPR3ResumeSuspendedKeyboards(void)
+{
+#ifdef RT_OS_DARWIN
+    /*
+     * Issue IOCtl to the SUPDRV kernel module.
+     */
+    SUPREQHDR Req;
+    Req.u32Cookie       = g_u32Cookie;
+    Req.u32SessionCookie= g_u32SessionCookie;
+    Req.cbIn            = SUP_IOCTL_RESUME_SUSPENDED_KBDS_SIZE_IN;
+    Req.cbOut           = SUP_IOCTL_RESUME_SUSPENDED_KBDS_SIZE_OUT;
+    Req.fFlags          = SUPREQHDR_FLAGS_DEFAULT;
+    Req.rc              = VERR_INTERNAL_ERROR;
+    int rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_RESUME_SUSPENDED_KBDS, &Req, SUP_IOCTL_RESUME_SUSPENDED_KBDS_SIZE);
+    if (RT_SUCCESS(rc))
+        rc = Req.rc;
+    return rc;
+#else /* !RT_OS_DARWIN */
+    return VERR_NOT_SUPPORTED;
+#endif
+}
+

@@ -15,6 +15,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#include <string>
 #include "NetworkServiceRunner.h"
 #include "DHCPServerImpl.h"
 #include "NATNetworkImpl.h"
@@ -49,10 +50,10 @@
 struct NATNetwork::Data
 {
     Data()
-      : fEnabled(FALSE)
+      : fEnabled(TRUE)
       , fIPv6Enabled(FALSE)
       , fAdvertiseDefaultIPv6Route(FALSE)
-      , fNeedDhcpServer(FALSE)
+      , fNeedDhcpServer(TRUE)
       , u32LoopbackIp6(0)
       , offGateway(0)
       , offDhcp(0)
@@ -142,7 +143,6 @@ HRESULT NATNetwork::init(VirtualBox *aVirtualBox, IN_BSTR aName)
     m->offGateway = 1;
     m->IPv4NetworkCidr = "10.0.2.0/24";
     m->IPv6Prefix = "fe80::/64";
-    m->fEnabled = FALSE;
 
     settings::NATHostLoopbackOffset off;
     off.strLoopbackHostAddress = "127.0.0.1";
@@ -302,13 +302,13 @@ STDMETHODIMP NATNetwork::COMSETTER(NetworkName)(IN_BSTR aName)
 {
     CheckComArgOutPointerValid(aName);
     AutoCaller autoCaller(this);
-    
-    if (FAILED(autoCaller.rc())) 
+
+    if (FAILED(autoCaller.rc()))
         return autoCaller.rc();
-    
+
     {
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    
+
         if (aName == mName)
             return S_OK;
 
@@ -340,12 +340,12 @@ STDMETHODIMP NATNetwork::COMGETTER(Enabled)(BOOL *aEnabled)
 STDMETHODIMP NATNetwork::COMSETTER(Enabled)(BOOL aEnabled)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) 
+    if (FAILED(autoCaller.rc()))
         return autoCaller.rc();
-    
+
     {
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    
+
         if (aEnabled == m->fEnabled)
             return S_OK;
 
@@ -391,15 +391,15 @@ STDMETHODIMP NATNetwork::COMSETTER(Network)(IN_BSTR aIPv4NetworkCidr)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc()))
         return autoCaller.rc();
-    
+
     {
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    
+
         if (aIPv4NetworkCidr == m->IPv4NetworkCidr)
             return S_OK;
-        
-        /* silently ignore network cidr update for now. 
-         * todo: keep internally guest address of port forward rule 
+
+        /* silently ignore network cidr update for now.
+         * todo: keep internally guest address of port forward rule
          * as offset from network id.
          */
         if (!m->mapName2PortForwardRule4.empty())
@@ -433,9 +433,9 @@ STDMETHODIMP NATNetwork::COMGETTER(IPv6Enabled)(BOOL *aIPv6Enabled)
 STDMETHODIMP NATNetwork::COMSETTER(IPv6Enabled)(BOOL aIPv6Enabled)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) 
+    if (FAILED(autoCaller.rc()))
         return autoCaller.rc();
-    
+
     {
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -472,7 +472,7 @@ STDMETHODIMP NATNetwork::COMSETTER(IPv6Prefix) (IN_BSTR aIPv6Prefix)
     CheckComArgOutPointerValid(aIPv6Prefix);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) 
+    if (FAILED(autoCaller.rc()))
         return autoCaller.rc();
 
     {
@@ -481,7 +481,7 @@ STDMETHODIMP NATNetwork::COMSETTER(IPv6Prefix) (IN_BSTR aIPv6Prefix)
         if (aIPv6Prefix == m->IPv6Prefix)
             return S_OK;
 
-        /* silently ignore network IPv6 prefix update. 
+        /* silently ignore network IPv6 prefix update.
          * todo: see similar todo in NATNetwork::COMSETTER(Network)(IN_BSTR)
          */
         if (!m->mapName2PortForwardRule6.empty())
@@ -514,12 +514,12 @@ STDMETHODIMP NATNetwork::COMGETTER(AdvertiseDefaultIPv6RouteEnabled)(BOOL *aAdve
 STDMETHODIMP NATNetwork::COMSETTER(AdvertiseDefaultIPv6RouteEnabled)(BOOL aAdvertiseDefaultIPv6Route)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) 
+    if (FAILED(autoCaller.rc()))
         return autoCaller.rc();
-    
+
     {
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    
+
         if (aAdvertiseDefaultIPv6Route == m->fAdvertiseDefaultIPv6Route)
             return S_OK;
 
@@ -553,10 +553,10 @@ STDMETHODIMP NATNetwork::COMSETTER(NeedDhcpServer)(BOOL aNeedDhcpServer)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc()))
         return autoCaller.rc();
-    
+
     {
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    
+
         if (aNeedDhcpServer == m->fNeedDhcpServer)
             return S_OK;
 
@@ -684,9 +684,9 @@ STDMETHODIMP NATNetwork::COMGETTER(LoopbackIp6)(LONG *aLoopbackIp6)
 STDMETHODIMP NATNetwork::COMSETTER(LoopbackIp6)(LONG aLoopbackIp6)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) 
+    if (FAILED(autoCaller.rc()))
         return autoCaller.rc();
-    
+
     {
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -695,7 +695,7 @@ STDMETHODIMP NATNetwork::COMSETTER(LoopbackIp6)(LONG aLoopbackIp6)
 
         if (static_cast<uint32_t>(aLoopbackIp6) == m->u32LoopbackIp6)
             return S_OK;
-    
+
         m->u32LoopbackIp6 = aLoopbackIp6;
     }
 
@@ -740,7 +740,7 @@ STDMETHODIMP NATNetwork::AddPortForwardRule(BOOL aIsIpv6,
                                             USHORT aGuestPort)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) 
+    if (FAILED(autoCaller.rc()))
         return autoCaller.rc();
 
     {
@@ -812,7 +812,7 @@ STDMETHODIMP NATNetwork::AddPortForwardRule(BOOL aIsIpv6,
 STDMETHODIMP NATNetwork::RemovePortForwardRule(BOOL aIsIpv6, IN_BSTR aPortForwardRuleName)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) 
+    if (FAILED(autoCaller.rc()))
         return autoCaller.rc();
 
     Utf8Str strHostIP;
@@ -824,9 +824,9 @@ STDMETHODIMP NATNetwork::RemovePortForwardRule(BOOL aIsIpv6, IN_BSTR aPortForwar
 
     {
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-        NATRuleMap& mapRules = aIsIpv6 ? m->mapName2PortForwardRule6 
+        NATRuleMap& mapRules = aIsIpv6 ? m->mapName2PortForwardRule6
           : m->mapName2PortForwardRule4;
-        
+
         NATRuleMap::iterator it = mapRules.find(aPortForwardRuleName);
 
         if (it == mapRules.end())
@@ -840,7 +840,7 @@ STDMETHODIMP NATNetwork::RemovePortForwardRule(BOOL aIsIpv6, IN_BSTR aPortForwar
 
         mapRules.erase(it);
     }
-    
+
     {
         AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
         HRESULT rc = mVirtualBox->saveSettings();
@@ -869,10 +869,11 @@ STDMETHODIMP NATNetwork::Start(IN_BSTR aTrunkType)
 
     if (!m->fEnabled) return S_OK;
 
-    m->NATRunner.setOption(NETCFG_NETNAME, mName, true);
-    m->NATRunner.setOption(NETCFG_TRUNKTYPE, Utf8Str(aTrunkType), true);
-    m->NATRunner.setOption(NETCFG_IPADDRESS, m->IPv4Gateway, true);
-    m->NATRunner.setOption(NETCFG_NETMASK, m->IPv4NetworkMask, true);
+    m->NATRunner.setOption(NetworkServiceRunner::kNsrKeyNeedMain, "on");
+    m->NATRunner.setOption(NetworkServiceRunner::kNsrKeyNetwork, Utf8Str(mName).c_str());
+    m->NATRunner.setOption(NetworkServiceRunner::kNsrKeyTrunkType, Utf8Str(aTrunkType).c_str());
+    m->NATRunner.setOption(NetworkServiceRunner::kNsrIpAddress, Utf8Str(m->IPv4Gateway).c_str());
+    m->NATRunner.setOption(NetworkServiceRunner::kNsrIpNetmask, Utf8Str(m->IPv4NetworkMask).c_str());
 
     /* No portforwarding rules from command-line, all will be fetched via API */
 
@@ -911,8 +912,6 @@ STDMETHODIMP NATNetwork::Start(IN_BSTR aTrunkType)
                          Utf8Str(m->IPv4DhcpServerLowerIp.raw()).c_str(),
                          Utf8Str(m->IPv4DhcpServerUpperIp.raw()).c_str()));
 
-                m->dhcpServer->AddGlobalOption(DhcpOpt_Router, m->IPv4Gateway.raw());
-
                 rc = m->dhcpServer->COMSETTER(Enabled)(true);
 
                 BSTR dhcpip = NULL;
@@ -935,6 +934,9 @@ STDMETHODIMP NATNetwork::Start(IN_BSTR aTrunkType)
             default:
                 return E_FAIL;
         }
+
+        /* XXX: AddGlobalOption(DhcpOpt_Router,) - enables attachement of DhcpServer to Main. */
+        m->dhcpServer->AddGlobalOption(DhcpOpt_Router, m->IPv4Gateway.raw());
 
         rc = m->dhcpServer->Start(mName.raw(), Bstr("").raw(), aTrunkType);
         if (FAILED(rc))

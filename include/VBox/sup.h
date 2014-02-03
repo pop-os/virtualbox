@@ -1294,6 +1294,13 @@ SUPR3DECL(int) SUPR3TracerDeregisterModule(struct VTGOBJHDR *pVtgHdr);
  */
 SUPDECL(void)  SUPTracerFireProbe(struct VTGPROBELOC *pVtgProbeLoc, uintptr_t uArg0, uintptr_t uArg1, uintptr_t uArg2,
                                   uintptr_t uArg3, uintptr_t uArg4);
+/**
+ * Resume built-in keyboard on MacBook Air and Pro hosts.
+ *
+ * @returns VBox status code.
+ */
+SUPR3DECL(int) SUPR3ResumeSuspendedKeyboards(void);
+
 /** @} */
 #endif /* IN_RING3 */
 

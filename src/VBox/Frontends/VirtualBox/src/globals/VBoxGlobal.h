@@ -247,11 +247,12 @@ public:
     /** Shortcut to openSession (aId, true). */
     CSession openExistingSession(const QString &aId) { return openSession(aId, KLockType_Shared); }
 
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     void reloadProxySettings();
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 
     /* API: Medium-processing stuff: */
     void createMedium(const UIMedium &medium);
-    void updateMedium(const UIMedium &medium);
     void deleteMedium(const QString &strMediumID);
     QString openMediumWithFileOpenDialog(UIMediumType mediumType, QWidget *pParent = 0,
                                          const QString &strDefaultFolder = QString(), bool fUseLastFolder = true);
@@ -349,7 +350,9 @@ public:
     /* Extra-data settings stuff: */
     static bool isApprovedByExtraData(CVirtualBox &vbox, const QString &strExtraDataKey);
     static bool isApprovedByExtraData(CMachine &machine, const QString &strExtraDataKey);
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     static bool shouldWeAllowApplicationUpdate(CVirtualBox &vbox);
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
     static bool shouldWeShowMachine(CMachine &machine);
     static bool shouldWeAllowMachineReconfiguration(CMachine &machine,
                                                     bool fIncludingMachineGeneralCheck = false,
@@ -358,10 +361,11 @@ public:
                                     bool fIncludingMachineGeneralCheck = false);
     static bool shouldWeAutoMountGuestScreens(CMachine &machine, bool fIncludingSanityCheck = true);
     static bool shouldWeAllowSnapshotOperations(CMachine &machine, bool fIncludingSanityCheck = true);
+    static MachineCloseAction defaultMachineCloseAction(CMachine &machine);
     static RuntimeMenuType restrictedRuntimeMenuTypes(CMachine &machine);
     static UIVisualStateType restrictedVisualStateTypes(CMachine &machine);
     static QList<IndicatorType> restrictedStatusBarIndicators(CMachine &machine);
-    static QList<MachineCloseAction> restrictedMachineCloseActions(CMachine &machine);
+    static MachineCloseAction restrictedMachineCloseActions(CMachine &machine);
     static QList<GlobalSettingsPageType> restrictedGlobalSettingsPages(CVirtualBox &vbox);
     static QList<MachineSettingsPageType> restrictedMachineSettingsPages(CMachine &machine);
 
@@ -379,7 +383,6 @@ signals:
 
     /* Notifiers: Medium-processing stuff: */
     void sigMediumCreated(const QString &strMediumID);
-    void sigMediumUpdated(const QString &strMediumID);
     void sigMediumDeleted(const QString &strMediumID);
 
     /* Notifiers: Medium-enumeration stuff: */

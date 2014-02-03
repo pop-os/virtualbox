@@ -365,7 +365,7 @@
     </message>
     <message>
         <source>Show Session Information Window</source>
-        <translation type="unfinished">Munkamenet információk megjelenítése</translation>
+        <translation>Munkamenet információk megjelenítése</translation>
     </message>
     <message>
         <source>&amp;Pause</source>
@@ -457,11 +457,11 @@
     </message>
     <message>
         <source>&amp;Insert Guest Additions CD image...</source>
-        <translation type="unfinished">&amp;Integrációs szolgáltatások telepítése...</translation>
+        <translation>&amp;Integrációs szolgáltatások telepítése...</translation>
     </message>
     <message>
         <source>Insert the Guest Additions disk file into the virtual drive</source>
-        <translation type="unfinished">Integrációs szolgáltatások telepítő CD-kép felcsatolása</translation>
+        <translation>Integrációs szolgáltatások telepítő CD-kép felcsatolása</translation>
     </message>
     <message>
         <source>De&amp;bug</source>
@@ -1009,6 +1009,10 @@
         <source>Show Session Information Window</source>
         <comment>new</comment>
         <translation type="obsolete">Munkamenet információk megjelenítése</translation>
+    </message>
+    <message>
+        <source>&amp;Webcams</source>
+        <translation>&amp;Webkamerák</translation>
     </message>
 </context>
 <context>
@@ -4611,6 +4615,14 @@ p, li { white-space: pre-wrap; }
         <source>Select a filename for the screenshot ...</source>
         <translation>Válassz nevet a képernyőmentésnek ...</translation>
     </message>
+    <message>
+        <source>No Webcams Connected</source>
+        <translation>Nincs webkamera csatlakoztatva</translation>
+    </message>
+    <message>
+        <source>No supported webcams connected to the host PC</source>
+        <translation>Nincs támogatott webkamera a gazda PC-hez csatlakoztatva</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -5683,7 +5695,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Window</source>
-        <translation type="unfinished"></translation>
+        <translation>Ablak</translation>
     </message>
 </context>
 <context>
@@ -7082,7 +7094,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;A virtuális gép ablaka &lt;b&gt;%1&amp;nbsp;bites&lt;/b&gt; színmélységű munkára van optimalizálva, de a virtuális megjelenítő jelenlegi színmélysége &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Nyisd meg a vendég OS megjelenítési tulajdonságait és válassz egy &lt;b&gt;%3&amp;nbsp;bites&lt;/b&gt; módot, ha elérhető, a virtuális videóalrendszer legjobb teljesítménye érdekében.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Megjegyzés&lt;/b&gt;. Néhány operációs rendszer, mint az OS/2, működhetnek 32&amp;nbsp;bites módban, de mégis 24&amp;nbsp;bitnek (16 millió szín) érzékeli. Próbáld meg másik színmélységet választani, hogy akkor eltűnik-e ez az üzenet vay egyszerűen kikapcsolhatod most is, ha biztos vagy bene, hogy a szükséges színmélység (%4&amp;nbsp;bit) nem érhető el az adott vendég rendszeren.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;A virtuális gép ablaka &lt;b&gt;%1&amp;nbsp;bites&lt;/b&gt; színmélységű munkára van optimalizálva, de a virtuális megjelenítő jelenlegi színmélysége &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Nyisd meg a vendég OS megjelenítési tulajdonságait és válassz egy &lt;b&gt;%3&amp;nbsp;bites&lt;/b&gt; módot, ha elérhető, a virtuális videóalrendszer legjobb teljesítménye érdekében.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Megjegyzés&lt;/b&gt;. Néhány operációs rendszer, mint az OS/2, működhetnek 32&amp;nbsp;bites módban, de mégis 24&amp;nbsp;bitnek (16 millió szín) érzékeli. Próbáld meg másik színmélységet választani, hogy akkor eltűnik-e ez az üzenet vay egyszerűen kikapcsolhatod most is, ha biztos vagy bene, hogy a szükséges színmélység (%4&amp;nbsp;bit) nem érhető el az adott vendég rendszeren.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings window or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you wish to continue?&lt;/p&gt;</source>
@@ -7171,7 +7183,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Insert</source>
         <comment>additions</comment>
-        <translation type="unfinished">Csatolás</translation>
+        <translation>Csatolás</translation>
     </message>
     <message>
         <source>&lt;p&gt;The host key is currently defined as &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
@@ -7933,7 +7945,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
-        <translation type="unfinished">&lt;p&gt;Úgy tűnik a VirtualBox Integrációs szolgáltatások nem érhetők el a virtuális gépen, és nélküle a megosztott mappák nem használhatók. A virtuális gépen belüli megosztott mappák használatához telepítsd fel az Integrációs szolgáltatásokat, ha nincsenek telepítve, vagy ha csak nem működnek helyesen, az &lt;b&gt;Eszközök&lt;/b&gt; menüben az &lt;b&gt;Integrációs szolgáltatások telepítése...&lt;/b&gt; választásával. Ha telepítve vannak, de a gép nem teljesen indult még el, a megosztott mappák elérhetők lesznek.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Úgy tűnik, a VirtualBox Integrációs szolgáltatások nem érhetők el a virtuális gépen, és nélküle a megosztott mappák nem használhatók. A virtuális gépen belüli megosztott mappák használatához telepítsd fel az Integrációs szolgáltatásokat, ha nincsenek telepítve, vagy ha csak nem működnek helyesen, az &lt;b&gt;Eszközök&lt;/b&gt; menüben az &lt;b&gt;Integrációs szolgáltatások telepítése...&lt;/b&gt; választásával. Ha telepítve vannak, a megosztott mappák elérhetők lesznek, amin a gép teljesen elindult.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;fullscreen&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in fullscreen mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
@@ -8461,6 +8473,18 @@ p, li { white-space: pre-wrap; }
         <source>Insert</source>
         <comment>additions-new</comment>
         <translation type="obsolete">Csatolás</translation>
+    </message>
+    <message>
+        <source>Failed to attach the webcam &lt;b&gt;%1&lt;/b&gt; to the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>Webkamera (&lt;b&gt;%1&lt;/b&gt;) csatlakoztatása sikertelen a virtuális géphez: &lt;b&gt;%2&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>Failed to detach the webcam &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>Webkamera (&lt;b&gt;%1&lt;/b&gt;) leválasztása sikertelen a virtuális gépről: &lt;b&gt;%2&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The virtual screen is currently set to a &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode. For better performance please change this to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;. This can usually be done from the &lt;b&gt;Display&lt;/b&gt; section of the guest operating system&apos;s Control Panel or System Settings.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;A virtuális képernyő jelenleg &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; színmódra van beállítva. A jobb teljesítmény érdekében, állítsd át &lt;b&gt;%2&amp;nbsp;bitre&lt;/b&gt;. Ez alapesetben megtehető a vendég operációs rendszer Vezérlőpult vagy Rendszerbeállítások. &lt;b&gt;Képernyő&lt;/b&gt; részében.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -11968,7 +11992,7 @@ Verzió %1</translation>
     </message>
     <message>
         <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
-        <translation type="unfinished">Az aktuális alapértelmezés akkor lesz kijelezve, ha a változásokat elfogadod, és ezt az ablakot újra megnyitod.</translation>
+        <translation>Az aktuális alapértelmezés akkor lesz kijelezve, ha a változásokat elfogadod, és ezt az ablakot újra megnyitod.</translation>
     </message>
     <message>
         <source>&lt;not selected&gt;</source>

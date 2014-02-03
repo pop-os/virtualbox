@@ -1,7 +1,5 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachineLogic class declaration
+ * VBox Qt GUI - UIMachineLogic class declaration.
  */
 
 /*
@@ -16,8 +14,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIMachineLogic_h__
-#define __UIMachineLogic_h__
+#ifndef ___UIMachineLogic_h___
+#define ___UIMachineLogic_h___
 
 /* GUI includes: */
 #include "UIDefs.h"
@@ -101,6 +99,9 @@ public:
 
 protected slots:
 
+    /** Checks if some visual-state type was requested. */
+    virtual void sltCheckForRequestedVisualStateType() {}
+
     /* Console callback handlers: */
     virtual void sltMachineStateChanged();
     virtual void sltAdditionsStateChanged();
@@ -131,6 +132,7 @@ protected:
     void setMouseHandler(UIMouseHandler *pMouseHandler);
     void addMachineWindow(UIMachineWindow *pMachineWindow);
     void retranslateUi();
+    bool isHidLedsSyncEnabled();
 #ifdef Q_WS_MAC
     bool isDockIconPreviewEnabled() const { return m_fIsDockIconEnabled; }
     void setDockIconPreviewEnabled(bool fIsDockIconPreviewEnabled) { m_fIsDockIconEnabled = fIsDockIconPreviewEnabled; }
@@ -164,7 +166,7 @@ protected:
     virtual void cleanupMachineWindows() = 0;
     virtual void cleanupHandlers();
     //virtual void cleanupOtherConnections() {}
-    //virtual void cleanupActionConnections() {}
+    virtual void cleanupActionConnections() {}
     virtual void cleanupActionGroups();
     //virtual void cleanupSessionConnections() {}
     //virtual void cleanupRequiredFeatures() {}
@@ -173,9 +175,6 @@ protected:
     bool eventFilter(QObject *pWatched, QEvent *pEvent);
 
 private slots:
-
-    /* Mode request watch dog: */
-    void sltCheckRequestedModes();
 
     /* "Machine" menu functionality: */
     void sltToggleGuestAutoresize(bool fEnabled);
@@ -280,5 +279,5 @@ private:
     friend class UIMachineWindow;
 };
 
-#endif // __UIMachineLogic_h__
+#endif /* !___UIMachineLogic_h___ */
 

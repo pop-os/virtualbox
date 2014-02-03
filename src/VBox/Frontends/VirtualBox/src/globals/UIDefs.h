@@ -1,11 +1,9 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * Global declarations and functions
+ * VBox Qt GUI - UIDefs namespace and other global declarations.
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +14,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIDefs_h__
-#define __UIDefs_h__
+#ifndef ___UIDefs_h___
+#define ___UIDefs_h___
 
 /* Qt includes: */
 #include <QEvent>
@@ -102,7 +100,6 @@ namespace UIDefs
     extern const char* GUI_RecentListHD;
     extern const char* GUI_RecentListCD;
     extern const char* GUI_RecentListFD;
-    extern const char* GUI_PreventApplicationUpdate;
 
     /* Selector-window declarations: */
     extern const char* GUI_Input_SelectorShortcuts;
@@ -140,6 +137,7 @@ namespace UIDefs
     extern const char* GUI_PassCAD;
     extern const char* GUI_DefaultCloseAction;
     extern const char* GUI_RestrictedStatusBarIndicators;
+    extern const char* GUI_HidLedsSync;
 
     /* Settings dialogs stuff: */
     extern const char* GUI_RestrictedGlobalSettingsPages;
@@ -167,9 +165,12 @@ namespace UIDefs
     extern const char* GUI_SuppressMessages;
     extern const char* GUI_InvertMessageOption;
 
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     /* Update manager declarations: */
+    extern const char* GUI_PreventApplicationUpdate;
     extern const char* GUI_UpdateDate;
     extern const char* GUI_UpdateCheckCount;
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 
     /* Information dialog declarations: */
     extern const char* GUI_InfoDlgState;
@@ -273,6 +274,7 @@ enum UIVisualStateType
     UIVisualStateType_Scale      = RT_BIT(3),
     UIVisualStateType_All        = 0xFF
 };
+Q_DECLARE_METATYPE(UIVisualStateType);
 
 /* Details element type: */
 enum DetailsElementType
@@ -300,12 +302,16 @@ enum GlobalSettingsPageType
     GlobalSettingsPageType_Invalid,
     GlobalSettingsPageType_General,
     GlobalSettingsPageType_Input,
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     GlobalSettingsPageType_Update,
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
     GlobalSettingsPageType_Language,
     GlobalSettingsPageType_Display,
     GlobalSettingsPageType_Network,
     GlobalSettingsPageType_Extensions,
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     GlobalSettingsPageType_Proxy,
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
     GlobalSettingsPageType_Max
 };
 Q_DECLARE_METATYPE(GlobalSettingsPageType);
@@ -350,14 +356,14 @@ Q_DECLARE_METATYPE(IndicatorType);
 /* Machine close action: */
 enum MachineCloseAction
 {
-    MachineCloseAction_Invalid,
-    MachineCloseAction_SaveState,
-    MachineCloseAction_Shutdown,
-    MachineCloseAction_PowerOff,
-    MachineCloseAction_PowerOff_RestoringSnapshot,
-    MachineCloseAction_Max
+    MachineCloseAction_Invalid                    = 0,
+    MachineCloseAction_SaveState                  = RT_BIT(0),
+    MachineCloseAction_Shutdown                   = RT_BIT(1),
+    MachineCloseAction_PowerOff                   = RT_BIT(2),
+    MachineCloseAction_PowerOff_RestoringSnapshot = RT_BIT(3),
+    MachineCloseAction_All                        = 0xFF
 };
 Q_DECLARE_METATYPE(MachineCloseAction);
 
-#endif // __UIDefs_h__
+#endif /* !___UIDefs_h___ */
 

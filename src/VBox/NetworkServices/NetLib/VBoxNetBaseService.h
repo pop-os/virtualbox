@@ -38,7 +38,7 @@ public:
     virtual int         parseOpt(int rc, const RTGETOPTUNION& getOptVal) = 0;
 
     virtual int         init(void);
-
+    virtual bool        isMainNeeded() const { return m_fNeedMain; }
     /* VirtualBox instance */
     ComPtr<IVirtualBox> virtualbox;
 
@@ -91,6 +91,8 @@ private:
 
     /* cs for syncing */
     RTCRITSECT          m_csThis;
+    /* Controls whether service will connect SVC for runtime needs */
+    bool                m_fNeedMain;
 
     /** @} */
 };

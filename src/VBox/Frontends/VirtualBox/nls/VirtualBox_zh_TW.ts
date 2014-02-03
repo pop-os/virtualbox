@@ -195,10 +195,6 @@
         <translation>取得虛擬機器的快照</translation>
     </message>
     <message>
-        <source>Show Session Information Window</source>
-        <translation type="unfinished">顯示工作階段資訊視窗</translation>
-    </message>
-    <message>
         <source>&amp;Pause</source>
         <translation>暫停(&amp;P)</translation>
     </message>
@@ -697,17 +693,20 @@
         <translation>Popup Menu</translation>
     </message>
     <message>
-        <source>&amp;Insert Guest Additions CD image...</source>
-        <translation type="unfinished">插入 Guest Additions 安裝程式(&amp;I)...</translation>
-    </message>
-    <message>
         <source>Insert the Guest Additions disk file into the virtual drive</source>
         <translation>插入 Guest Additions 磁碟檔案到虛擬磁碟機</translation>
     </message>
     <message>
         <source>&amp;Insert Guest Additions CD image...</source>
-        <comment>new</comment>
-        <translation type="obsolete">插入 Guest Additions 安裝程式(&amp;I)...</translation>
+        <translation>插入 Guest Additions CD 映像(&amp;I)...</translation>
+    </message>
+    <message>
+        <source>Show Session Information Window</source>
+        <translation>顯示工作階段資訊視窗</translation>
+    </message>
+    <message>
+        <source>&amp;Webcams</source>
+        <translation>Webcams(&amp;W)</translation>
     </message>
 </context>
 <context>
@@ -2239,6 +2238,14 @@
         <source>Select a filename for the screenshot ...</source>
         <translation>選取快照的檔案名稱 ...</translation>
     </message>
+    <message>
+        <source>No Webcams Connected</source>
+        <translation>未連接 Webcams</translation>
+    </message>
+    <message>
+        <source>No supported webcams connected to the host PC</source>
+        <translation>未連接支援的 Webcams 在主機電腦</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -2896,10 +2903,6 @@
         <translation>編輯共用</translation>
     </message>
     <message>
-        <source>Dialog</source>
-        <translation type="obsolete">Dialog</translation>
-    </message>
-    <message>
         <source>Folder Path:</source>
         <translation>資料夾路徑:</translation>
     </message>
@@ -2921,7 +2924,7 @@
     </message>
     <message>
         <source>&amp;Make Permanent</source>
-        <translation>永久性(&amp;M)</translation>
+        <translation>設為永久(&amp;M)</translation>
     </message>
     <message>
         <source>When checked, the guest OS will try to automatically mount the shared folder on startup.</source>
@@ -2937,7 +2940,7 @@
     </message>
     <message>
         <source>Window</source>
-        <translation type="unfinished"></translation>
+        <translation>視窗</translation>
     </message>
 </context>
 <context>
@@ -2949,7 +2952,7 @@
     </message>
     <message>
         <source>When checked, enables the given serial port of the virtual machine.</source>
-        <translation>勾選時，表示啟用給予的虛擬機器序列埠。</translation>
+        <translation>勾選時，虛擬機器啟用給予的序列埠。</translation>
     </message>
     <message>
         <source>&amp;Enable Serial Port</source>
@@ -2961,7 +2964,7 @@
     </message>
     <message>
         <source>Selects the serial port number. You can choose one of the standard serial ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
-        <translation>選取序列埠號。您可以選擇標準序列埠之一，或是選擇&lt;b&gt;使用者定義&lt;/b&gt;並手動指定連接埠參數。</translation>
+        <translation>選取序列埠號。 您可以選擇標準序列埠之一，或是選擇&lt;b&gt;使用者定義&lt;/b&gt;並手動指定連接埠參數。</translation>
     </message>
     <message>
         <source>&amp;IRQ:</source>
@@ -2977,11 +2980,11 @@
     </message>
     <message>
         <source>Controls the working mode of this serial port. If you select &lt;b&gt;Disconnected&lt;/b&gt;, the guest OS will detect the serial port but will not be able to operate it.</source>
-        <translation>控制這個序列埠的工作模式。如果您選取&lt;b&gt;已中斷連接&lt;/b&gt;，客體作業系統將會偵測到序列埠但無法操作它。</translation>
+        <translation>控制這個序列埠的工作模式。 如果您選取&lt;b&gt;已中斷連接&lt;/b&gt;，客體作業系統將偵測到序列埠但無法操作。</translation>
     </message>
     <message>
         <source>If checked, the pipe specified in the &lt;b&gt;Port Path&lt;/b&gt; field will be created by the virtual machine when it starts. Otherwise, the virtual machine will assume that the pipe exists and try to use it.</source>
-        <translation>如果勾選，在&lt;b&gt;連接埠路徑&lt;/b&gt;欄位中指定的管線將由虛擬機器於啟動時建立。 否則，虛擬機器將假設管線存在並嘗試使用它。</translation>
+        <translation>如果勾選，虛擬機器於啟動時將建立&lt;b&gt;連接埠路徑&lt;/b&gt;欄位中指定的管線。 否則，虛擬機器將假設管線存在並嘗試使用。</translation>
     </message>
     <message>
         <source>&amp;Create Pipe</source>
@@ -2997,7 +3000,7 @@
     </message>
     <message>
         <source>Holds the IRQ number of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;I/O APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
-        <translation>這個序列埠所使用的 IRQ 號碼。這應該是介於 &lt;tt&gt;0&lt;/tt&gt; 與 &lt;tt&gt;255&lt;/tt&gt; 之間的整數。 只有這部虛擬機器啟用 &lt;b&gt;I/O APIC&lt;/b&gt; 時，才會使用大於 &lt;tt&gt;15&lt;/tt&gt; 的值。</translation>
+        <translation>這個序列埠所使用的 IRQ 號碼。這應該是介於 &lt;tt&gt;0&lt;/tt&gt; 與 &lt;tt&gt;255&lt;/tt&gt; 之間的整數。 除非這部虛擬機器啟用 &lt;b&gt;I/O APIC&lt;/b&gt; 時，才會使用大於 &lt;tt&gt;15&lt;/tt&gt; 的值。</translation>
     </message>
     <message>
         <source>Holds the base I/O port address of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
@@ -3099,7 +3102,7 @@
     </message>
     <message>
         <source>Removes the controller highlighted in the Storage Tree.</source>
-        <translation>移除存放裝置樹中反白的控制器。</translation>
+        <translation>移除存放裝置樹中反白顯示的控制器。</translation>
     </message>
     <message>
         <source>Adds a new attachment to the Storage Tree using currently selected controller as parent.</source>
@@ -3107,7 +3110,7 @@
     </message>
     <message>
         <source>Removes the attachment highlighted in the Storage Tree.</source>
-        <translation>移除存放裝置樹中反白的附件。</translation>
+        <translation>移除存放裝置樹中反白顯示的附件。</translation>
     </message>
     <message>
         <source>Hard &amp;Disk:</source>
@@ -3984,10 +3987,6 @@
         <translation>&lt;p&gt;從虛擬機器 &lt;b&gt;%3&lt;/b&gt; 移除共用資料夾 &lt;b&gt;%1&lt;/b&gt; (指向 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) 時失敗。&lt;/p&gt;&lt;p&gt;請關閉客體作業系統中所有可能會用到這個共用資料夾的程式，並且再試一次。&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;虛擬機器視窗最佳化在 &lt;b&gt;%1&amp;nbsp;位元&lt;/b&gt; 的色彩模式中工作，但是目前虛擬顯示設定為 &lt;b&gt;%2&amp;nbsp;位元&lt;/b&gt;。&lt;/p&gt;&lt;p&gt;如果可用，請開啟客體作業系統的顯示內容對話方塊，並且選取 &lt;b&gt;%3&amp;nbsp;位元&lt;/b&gt; 的色彩模式，作為虛擬視訊子系統的最佳效能。&lt;/p&gt;&lt;p&gt;&lt;b&gt;請注意&lt;/b&gt;，某些像是 OS/2 的作業系統，可能實際上作用於 32&amp;nbsp;位元模式，卻回報為 24&amp;nbsp;位元 (16 萬色) 。 您可以試著選取不同的色彩模式來查看這個訊息是否消失，如果您確定所要求的色彩模式 (%4&amp;nbsp;位元) 在客體作業系統中不可用，您可以現在簡單的停用訊息。&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Failed to open the license file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. Check file permissions.</source>
         <translation>開啟授權檔案 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; 失敗。 請檢查檔案權限。</translation>
     </message>
@@ -4782,18 +4781,25 @@
         <translation>&lt;p&gt;您確定要移除 NAT 網路 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt; 嗎?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;如果一個或數個虛擬機器網路卡正在使用此網路，除非選擇不同的網路名稱或以不同的網路卡附加類型來修正其設定，否則這些網路卡將不再能使用。&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
-        <translation type="unfinished">&lt;p&gt;VirtualBox Guest Additions 似乎在這部虛擬機器不可使用，因此共用資料夾無法使用。 若要在虛擬機器內使用共用資料夾，如果未安裝則請安裝 Guest Additions ，或者如果是未正常動作則請重新安裝，從&lt;b&gt;裝置&lt;/b&gt;功能表選取&lt;b&gt;插入 Guest Additions 安裝程式&lt;/b&gt;。 如果已安裝但機器尚未完全啟動，則共用資料夾將在啟動後可以使用。&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Insert</source>
         <comment>additions</comment>
         <translation>插入</translation>
     </message>
     <message>
         <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
-        <comment>new</comment>
-        <translation type="obsolete">&lt;p&gt;VirtualBox Guest Additions 似乎在這部虛擬機器不可使用，因此共用資料夾無法使用。 若要在虛擬機器內使用共用資料夾，如果未安裝則請安裝 Guest Additions ，或者如果是未正常動作則請重新安裝，從&lt;b&gt;裝置&lt;/b&gt;功能表選取&lt;b&gt;插入 Guest Additions 安裝程式&lt;/b&gt;。 如果已安裝但機器尚未完全啟動，則共用資料夾將在啟動後可以使用。&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;VirtualBox Guest Additions 似乎在這部虛擬機器不可使用，因此共用資料夾無法使用。 若要在虛擬機器內使用共用資料夾，如果未安裝則請安裝 Guest Additions ，或者如果是未正常動作則請重新安裝，從&lt;b&gt;裝置&lt;/b&gt;功能表選取&lt;b&gt;插入 Guest Additions CD 映像&lt;/b&gt;。 如果已安裝但機器尚未完全啟動，則共用資料夾將在啟動後可以使用。&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to attach the webcam &lt;b&gt;%1&lt;/b&gt; to the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>附加 Webcam &lt;b&gt;%1&lt;/b&gt; 到虛擬機器 &lt;b&gt;%2&lt;/b&gt; 失敗。</translation>
+    </message>
+    <message>
+        <source>Failed to detach the webcam &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>從虛擬機器 &lt;b&gt;%2&lt;/b&gt; 附加 Webcam &lt;b&gt;%1&lt;/b&gt; 失敗。</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The virtual screen is currently set to a &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode. For better performance please change this to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;. This can usually be done from the &lt;b&gt;Display&lt;/b&gt; section of the guest operating system&apos;s Control Panel or System Settings.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;虛擬螢幕目前設成 &lt;b&gt;%1&amp;nbsp;位元&lt;/b&gt;色彩模式。 為了更好的效能，請變更此為 &lt;b&gt;%2&amp;nbsp;位元&lt;/b&gt;。 這通常能從客體作業系統的控制台或系統設定中的&lt;b&gt;顯示&lt;/b&gt;區段完成。&lt;/p&gt;</translation>
     </message>
 </context>
 <context>

@@ -947,6 +947,10 @@
         <comment>new</comment>
         <translation type="obsolete">Monta a imagem de instalação das Adições de Convidado</translation>
     </message>
+    <message>
+        <source>&amp;Webcams</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceEditorWidget</name>
@@ -3982,6 +3986,14 @@
         <source>Select a filename for the screenshot ...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>No Webcams Connected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No supported webcams connected to the host PC</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -6348,7 +6360,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;A janela da máquina virtual está optimizada para funcionar em modo de cores &lt;b&gt;%1&amp;nbsp;bits&lt;/b&gt;, mas o modo de cores do monitor virtual está definido como &lt;b&gt;%2&amp;nbsp;bits&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Abra o diálogo de propriedades do monitor no sistema operativo convidado e seleccione um modo de cores &lt;b&gt;%3&amp;nbsp;bits&lt;/b&gt; se estiver disponível, de forma a obter o melhor desempenho possível do sub-sistema de vídeo virtual.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Nota&lt;/b&gt;: alguns sistemas operativos, como o OS/2, podem funcionar em modo de 32&amp;nbsp;bits de cor embora reportam como sendo 24&amp;nbsp;bits (16 milhões de cores). Pode tentar seleccionar um modo de cores diferente para satisfazer o que é pedido nesta mensagem, ou pode desactivá-lo agora se tiver certeza de que o modo de cor necessário (%4&amp;nbsp;bits) não está disponível no sistema operativo Convidado em uso.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;A janela da máquina virtual está optimizada para funcionar em modo de cores &lt;b&gt;%1&amp;nbsp;bits&lt;/b&gt;, mas o modo de cores do monitor virtual está definido como &lt;b&gt;%2&amp;nbsp;bits&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Abra o diálogo de propriedades do monitor no sistema operativo convidado e seleccione um modo de cores &lt;b&gt;%3&amp;nbsp;bits&lt;/b&gt; se estiver disponível, de forma a obter o melhor desempenho possível do sub-sistema de vídeo virtual.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Nota&lt;/b&gt;: alguns sistemas operativos, como o OS/2, podem funcionar em modo de 32&amp;nbsp;bits de cor embora reportam como sendo 24&amp;nbsp;bits (16 milhões de cores). Pode tentar seleccionar um modo de cores diferente para satisfazer o que é pedido nesta mensagem, ou pode desactivá-lo agora se tiver certeza de que o modo de cor necessário (%4&amp;nbsp;bits) não está disponível no sistema operativo Convidado em uso.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution has been stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt; and the image file &lt;tt&gt;VBox.png&lt;/tt&gt;, which you can find in the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; directory, as well as a description of what you were doing when this error happened. Note that you can also access the above files by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; if you want to power off the machine or press &lt;b&gt;Ignore&lt;/b&gt; if you want to leave it as is for debugging. Please note that debugging requires special knowledge and tools, so it is recommended to press &lt;b&gt;OK&lt;/b&gt; now.&lt;/p&gt;</source>
@@ -7512,6 +7524,18 @@
     </message>
     <message>
         <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to attach the webcam &lt;b&gt;%1&lt;/b&gt; to the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to detach the webcam &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The virtual screen is currently set to a &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode. For better performance please change this to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;. This can usually be done from the &lt;b&gt;Display&lt;/b&gt; section of the guest operating system&apos;s Control Panel or System Settings.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -132,7 +132,7 @@ int GuestDirectory::init(Console *pConsole, GuestSession *pSession,
  */
 void GuestDirectory::uninit(void)
 {
-    LogFlowThisFunc(("\n"));
+    LogFlowThisFuncEnter();
 
     /* Enclose the state transition Ready->InUninit->NotReady. */
     AutoUninitSpan autoUninitSpan(this);
@@ -247,6 +247,20 @@ Utf8Str GuestDirectory::guestErrorToString(int guestRc)
     return strError;
 }
 
+/**
+ * Called by IGuestSession right before this directory gets 
+ * removed from the public directory list. 
+ */
+int GuestDirectory::onRemove(void)
+{
+    LogFlowThisFuncEnter();
+
+    int vrc = VINF_SUCCESS;
+         
+    LogFlowFuncLeaveRC(vrc);
+    return vrc;
+}
+
 /* static */
 HRESULT GuestDirectory::setErrorExternal(VirtualBoxBase *pInterface, int guestRc)
 {
@@ -269,14 +283,10 @@ STDMETHODIMP GuestDirectory::Close(void)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AssertPtr(mSession);
-    int rc = mSession->directoryRemoveFromList(this);
-    AssertRC(rc);
-
     HRESULT hr = S_OK;
 
     int guestRc;
-    rc = mData.mProcessTool.Terminate(30 * 1000, &guestRc);
+    int rc = mData.mProcessTool.Terminate(30 * 1000, &guestRc);
     if (RT_FAILURE(rc))
     {
         switch (rc)
@@ -298,12 +308,10 @@ STDMETHODIMP GuestDirectory::Close(void)
         }
     }
 
-    /*
-     * Release autocaller before calling uninit.
-     */
-    autoCaller.release();
-
-    uninit();
+    AssertPtr(mSession);
+    int rc2 = mSession->directoryRemoveFromList(this);
+    if (RT_SUCCESS(rc))
+        rc = rc2;
 
     LogFlowThisFunc(("Returning rc=%Rrc\n", rc));
     return hr;

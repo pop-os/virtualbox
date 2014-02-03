@@ -684,6 +684,11 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage);
 
 
+#if defined(RT_OS_DARWIN)
+int VBOXCALL    supdrvDarwinResumeSuspendedKbds(void);
+#endif
+
+
 /*******************************************************************************
 *   Shared Functions                                                           *
 *******************************************************************************/

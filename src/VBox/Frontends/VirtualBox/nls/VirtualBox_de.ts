@@ -1632,7 +1632,7 @@
     </message>
     <message>
         <source>%1 (renamed from %2)</source>
-        <translation>%1 (umbenannt zu %2)</translation>
+        <translation>%1 (umbenannt von %2)</translation>
     </message>
     <message>
         <source>Old Network Name</source>
@@ -4002,10 +4002,6 @@
         <translation>Callee&amp;nbsp;RC:</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Das Fenster der virtuellen Maschine ist optimiert für eine Anzeige im &lt;b&gt;%1-Bit&lt;/b&gt;-Farbmodus, der aktuelle Modus des virtuellen Bildschirms ist aber auf &lt;b&gt;%2-&amp;nbsp;Bit&lt;/b&gt; gesetzt.&lt;/p&gt;&lt;p&gt;Bitte öffnen Sie die Einstellungen für die Anzeige im Gast und wählen Sie den &lt;b&gt;%3-Bit&lt;/b&gt;-Farbmodus, falls verfügbar, um die beste Performance der Anzeige zu erreichen.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Beachten Sie&lt;/b&gt;: Manche Betriebssysteme (z.B. OS/2) arbeiten tatsächlich im 32-Bit-Farbmodus, zeigen aber einen 24-Bit-Farbmodus (16 Millionen Farben) an. Sie können versuchen, einen anderen Farbmodus einzustellen, um zu testen, ob diese Meldung verschwindet. Oder Sie können diese Meldung nun deaktivieren falls Sie sicher sind, dass der erforderliche Farbmodus (%4&amp;nbsp;Bit) im Gast-Betriebssystem nicht verfügbar ist.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Failed to open the license file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. Check file permissions.</source>
         <translation>Die Lizenzdatei &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; konnte nicht geöffnet werden. Bitte überprüfen Sie die Zugriffsrechte.</translation>
     </message>
@@ -4804,6 +4800,10 @@
     <message>
         <source>Failed to detach the webcam &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
         <translation>Die Zuordnung der Webcam &lt;b&gt;%1&lt;/b&gt; an die virtuelle Maschine &lt;b&gt;%2&lt;/b&gt; konnte nicht aufgehoben werden.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The virtual screen is currently set to a &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode. For better performance please change this to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;. This can usually be done from the &lt;b&gt;Display&lt;/b&gt; section of the guest operating system&apos;s Control Panel or System Settings.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Der virtuelle Bildschirm ist momentan auf eine Farbtiefe von &lt;b&gt;%1&amp;nbsp;Bit&lt;/b&gt; eingestellt. Für eine bestmögliche Performance sollten Sie die Farbtiefe auf &lt;b&gt;%2&amp;nbsp;Bit&lt;/b&gt; ändern. Benutzen Sie dafür die Anzeigeeinstellungen des Gast-Betriebssystems.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>

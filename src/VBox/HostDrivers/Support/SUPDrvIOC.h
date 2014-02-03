@@ -1,4 +1,4 @@
-/* $Revision: 83575 $ */
+/* $Revision: 91386 $ */
 /** @file
  * VirtualBox Support Driver - IOCtl definitions.
  */
@@ -193,7 +193,7 @@ typedef SUPREQHDR *PSUPREQHDR;
  * @todo Pending work on next major version change:
  *          - Remove RTSpinlockReleaseNoInts.
  */
-#define SUPDRV_IOC_VERSION                              0x001a0005
+#define SUPDRV_IOC_VERSION                              0x001a0007
 
 /** SUP_IOCTL_COOKIE. */
 typedef struct SUPCOOKIE
@@ -1329,6 +1329,18 @@ typedef struct SUPTRACERUMODFIREPROBE
         SUPDRVTRACERUSRCTX  In;
     } u;
 } SUPTRACERUMODFIREPROBE, *PSUPTRACERUMODFIREPROBE;
+/** @} */
+
+
+/** @name SUP_IOCTL_RESUME_SUSPENDED_KBDS
+ * Resume suspended keyboard devices if any found in the system.
+ *
+ * @{
+ */
+#define SUP_IOCTL_RESUME_SUSPENDED_KBDS                 SUP_CTL_CODE_SIZE(35, SUP_IOCTL_RESUME_SUSPENDED_KBDS_SIZE)
+#define SUP_IOCTL_RESUME_SUSPENDED_KBDS_SIZE            sizeof(SUPREQHDR)
+#define SUP_IOCTL_RESUME_SUSPENDED_KBDS_SIZE_IN         sizeof(SUPREQHDR)
+#define SUP_IOCTL_RESUME_SUSPENDED_KBDS_SIZE_OUT        sizeof(SUPREQHDR)
 /** @} */
 
 

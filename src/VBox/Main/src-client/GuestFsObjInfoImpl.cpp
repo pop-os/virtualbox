@@ -1,7 +1,6 @@
-
 /* $Id: GuestFsObjInfoImpl.cpp $ */
 /** @file
- * VirtualBox Main - XXX.
+ * VirtualBox Main - Guest file system object information handling.
  */
 
 /*

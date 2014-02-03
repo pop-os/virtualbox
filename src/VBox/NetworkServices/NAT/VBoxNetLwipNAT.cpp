@@ -165,7 +165,8 @@ class VBoxNetLwipNAT: public VBoxNetBaseService
     virtual int init(void);
     /* @todo: when configuration would be really needed */
     virtual int parseOpt(int rc, const RTGETOPTUNION& getOptVal);
-
+    /* VBoxNetNAT always needs Main */
+    virtual bool isMainNeeded() const { return true; }
    private:
     struct proxy_options m_ProxyOptions;
     struct sockaddr_in m_src4;
@@ -889,12 +890,14 @@ int VBoxNetLwipNAT::natServiceProcessRegisteredPf(VECNATSERVICEPF& vecRules){
 
 int VBoxNetLwipNAT::init()
 {
-    int rc = VINF_SUCCESS;
     HRESULT hrc;
     LogFlowFuncEnter();
 
 
     /* virtualbox initialized in super class */
+
+    int rc = ::VBoxNetBaseService::init();
+    AssertRCReturn(rc, rc);
 
     hrc = virtualbox->FindNATNetworkByName(com::Bstr(m_Network.c_str()).raw(),
                                                   m_net.asOutParam());

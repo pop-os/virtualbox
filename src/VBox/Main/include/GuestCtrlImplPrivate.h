@@ -149,6 +149,7 @@ struct GuestFsObjData
     /** Helper function to extract the data from
      *  a certin VBoxService tool's guest stream block. */
     int FromLs(const GuestProcessStreamBlock &strmBlk);
+    int FromMkTemp(const GuestProcessStreamBlock &strmBlk);
     int FromStat(const GuestProcessStreamBlock &strmBlk);
 
     int64_t              mAccessTime;
@@ -283,6 +284,8 @@ public:
     int64_t GetInt64(const char *pszKey) const;
 
     size_t GetCount(void) const;
+
+    int GetRc(void) const;
 
     const char* GetString(const char *pszKey) const;
 
@@ -637,6 +640,8 @@ public:
     ULONG getObjectID(void) { return mObjectID; }
 
 protected:
+
+    virtual int onRemove(void) = 0;
 
     /** Callback dispatcher -- must be implemented by the actual object. */
     virtual int callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb) = 0;

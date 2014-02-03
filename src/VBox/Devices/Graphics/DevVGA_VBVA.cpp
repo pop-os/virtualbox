@@ -629,6 +629,13 @@ static int vbvaMousePointerShape (PVGASTATE pVGAState, VBVACONTEXT *pCtx, const 
 
     if (fShape)
     {
+         if (pShape->u32Width > 8192 || pShape->u32Height > 8192)
+         {
+             Log(("vbvaMousePointerShape: unsupported size %ux%u\n",
+                   pShape->u32Width, pShape->u32Height));
+             return VERR_INVALID_PARAMETER;
+         }
+
          cbPointerData = ((((pShape->u32Width + 7) / 8) * pShape->u32Height + 3) & ~3)
                          + pShape->u32Width * 4 * pShape->u32Height;
     }
@@ -766,7 +773,7 @@ static void vbvaVHWAHHCommandReinit(VBOXVHWACMD* pHdr, VBOXVHWACMD_TYPE enmCmd, 
 
 static VBOXVHWACMD* vbvaVHWAHHCommandCreate (PVGASTATE pVGAState, VBOXVHWACMD_TYPE enmCmd, int32_t iDisplay, VBOXVHWACMD_LENGTH cbCmd)
 {
-    VBOXVHWACMD* pHdr = (VBOXVHWACMD*)RTMemAlloc(cbCmd + VBOXVHWACMD_HEADSIZE());
+    VBOXVHWACMD* pHdr = (VBOXVHWACMD*)RTMemAllocZ(cbCmd + VBOXVHWACMD_HEADSIZE());
     Assert(pHdr);
     if (pHdr)
         vbvaVHWAHHCommandReinit(pHdr, enmCmd, iDisplay);
@@ -788,15 +795,237 @@ DECLINLINE(void) vbvaVHWAHHCommandRetain (VBOXVHWACMD* pCmd)
     ASMAtomicIncU32(&pCmd->cRefs);
 }
 
-static unsigned vbvaVHWAHandleCommand (PVGASTATE pVGAState, VBVACONTEXT *pCtx, PVBOXVHWACMD pCmd)
+static void vbvaVHWACommandComplete(PVGASTATE pVGAState, PVBOXVHWACMD pCommand, bool fAsyncCommand)
 {
-    if (pVGAState->pDrv->pfnVHWACommandProcess)
-        pVGAState->pDrv->pfnVHWACommandProcess(pVGAState->pDrv, pCmd);
-#ifdef DEBUG_misha
+    if (fAsyncCommand)
+    {
+        Assert(pCommand->Flags & VBOXVHWACMD_FLAG_HG_ASYNCH);
+        vbvaVHWACommandCompleteAsynch(&pVGAState->IVBVACallbacks, pCommand);
+    }
     else
+    {
+        Log(("VGA Command <<< Sync rc %d %#p, %d\n", pCommand->rc, pCommand, pCommand->enmCmd));
+        pCommand->Flags &= (~VBOXVHWACMD_FLAG_HG_ASYNCH);
+    }
+
+}
+
+static void vbvaVHWACommandCompleteAllPending(PVGASTATE pVGAState, int rc)
+{
+    if (!ASMAtomicUoReadU32(&pVGAState->pendingVhwaCommands.cPending))
+        return;
+
+    VBOX_VHWA_PENDINGCMD *pIter, *pNext;
+
+    PDMCritSectEnter(&pVGAState->CritSect, VERR_SEM_BUSY);
+
+    RTListForEachSafe(&pVGAState->pendingVhwaCommands.PendingList, pIter, pNext, VBOX_VHWA_PENDINGCMD, Node)
+    {
+        pIter->pCommand->rc = rc;
+        vbvaVHWACommandComplete(pVGAState, pIter->pCommand, true);
+
+        /* the command is submitted/processed, remove from the pend list */
+        RTListNodeRemove(&pIter->Node);
+        ASMAtomicDecU32(&pVGAState->pendingVhwaCommands.cPending);
+        RTMemFree(pIter);
+    }
+
+    PDMCritSectLeave(&pVGAState->CritSect);
+}
+
+static void vbvaVHWACommandClearAllPending(PVGASTATE pVGAState)
+{
+    if (!ASMAtomicUoReadU32(&pVGAState->pendingVhwaCommands.cPending))
+        return;
+
+    VBOX_VHWA_PENDINGCMD *pIter, *pNext;
+
+    PDMCritSectEnter(&pVGAState->CritSect, VERR_SEM_BUSY);
+
+    RTListForEachSafe(&pVGAState->pendingVhwaCommands.PendingList, pIter, pNext, VBOX_VHWA_PENDINGCMD, Node)
+    {
+        RTListNodeRemove(&pIter->Node);
+        ASMAtomicDecU32(&pVGAState->pendingVhwaCommands.cPending);
+        RTMemFree(pIter);
+    }
+
+    PDMCritSectLeave(&pVGAState->CritSect);
+}
+
+static void vbvaVHWACommandPend(PVGASTATE pVGAState, PVBOXVHWACMD pCommand)
+{
+    int rc = VERR_BUFFER_OVERFLOW;
+
+    if (ASMAtomicUoReadU32(&pVGAState->pendingVhwaCommands.cPending) < VBOX_VHWA_MAX_PENDING_COMMANDS)
+    {
+        VBOX_VHWA_PENDINGCMD *pPend = (VBOX_VHWA_PENDINGCMD*)RTMemAlloc(sizeof (*pPend));
+        if (pPend)
+        {
+            pCommand->Flags |= VBOXVHWACMD_FLAG_HG_ASYNCH;
+            pPend->pCommand = pCommand;
+            PDMCritSectEnter(&pVGAState->CritSect, VERR_SEM_BUSY);
+            if (ASMAtomicUoReadU32(&pVGAState->pendingVhwaCommands.cPending) < VBOX_VHWA_MAX_PENDING_COMMANDS)
+            {
+                RTListAppend(&pVGAState->pendingVhwaCommands.PendingList, &pPend->Node);
+                ASMAtomicIncU32(&pVGAState->pendingVhwaCommands.cPending);
+                PDMCritSectLeave(&pVGAState->CritSect);
+                return;
+            }
+            PDMCritSectLeave(&pVGAState->CritSect);
+            LogRel(("Pending command count has reached its threshold.. completing them all.."));
+            RTMemFree(pPend);
+        }
+        else
+            rc = VERR_NO_MEMORY;
+    }
+    else
+        LogRel(("Pending command count has reached its threshold, completing them all.."));
+
+    vbvaVHWACommandCompleteAllPending(pVGAState, rc);
+
+    pCommand->rc = rc;
+
+    vbvaVHWACommandComplete(pVGAState, pCommand, false);
+}
+
+static bool vbvaVHWACommandCanPend(PVBOXVHWACMD pCommand)
+{
+    switch (pCommand->enmCmd)
+    {
+        case VBOXVHWACMD_TYPE_HH_CONSTRUCT:
+        case VBOXVHWACMD_TYPE_HH_SAVESTATE_SAVEBEGIN:
+        case VBOXVHWACMD_TYPE_HH_SAVESTATE_SAVEEND:
+        case VBOXVHWACMD_TYPE_HH_SAVESTATE_SAVEPERFORM:
+        case VBOXVHWACMD_TYPE_HH_SAVESTATE_LOADPERFORM:
+            return false;
+        default:
+            return true;
+    }
+}
+
+static int vbvaVHWACommandSavePending(PVGASTATE pVGAState, PSSMHANDLE pSSM)
+{
+    int rc = SSMR3PutU32(pSSM, pVGAState->pendingVhwaCommands.cPending);
+    AssertRCReturn(rc, rc);
+    VBOX_VHWA_PENDINGCMD *pIter;
+    RTListForEach(&pVGAState->pendingVhwaCommands.PendingList, pIter, VBOX_VHWA_PENDINGCMD, Node)
+    {
+        rc = SSMR3PutU32(pSSM, (uint32_t)(((uint8_t*)pIter->pCommand) - ((uint8_t*)pVGAState->vram_ptrR3)));
+        AssertRCReturn(rc, rc);
+    }
+    return rc;
+}
+
+static int vbvaVHWACommandLoadPending(PVGASTATE pVGAState, PSSMHANDLE pSSM, uint32_t u32Version)
+{
+    if (u32Version < VGA_SAVEDSTATE_VERSION_WITH_PENDVHWA)
+        return VINF_SUCCESS;
+
+    int rc;
+    uint32_t u32;
+    rc = SSMR3GetU32(pSSM, &u32);
+    AssertRCReturn(rc, rc);
+    for (uint32_t i = 0; i < u32; ++i)
+    {
+        uint32_t off32;
+        rc = SSMR3GetU32(pSSM, &off32);
+        AssertRCReturn(rc, rc);
+        PVBOXVHWACMD pCommand = (PVBOXVHWACMD)(((uint8_t*)pVGAState->vram_ptrR3) + off32);
+        vbvaVHWACommandPend(pVGAState, pCommand);
+    }
+    return rc;
+}
+
+
+static bool vbvaVHWACommandSubmit(PVGASTATE pVGAState, PVBOXVHWACMD pCommand, bool fAsyncCommand)
+{
+    unsigned id = (unsigned)pCommand->iDisplay;
+    bool fPend = false;
+
+    if (pVGAState->pDrv->pfnVHWACommandProcess)
+    {
+        Log(("VGA Command >>> %#p, %d\n", pCommand, pCommand->enmCmd));
+        int rc = pVGAState->pDrv->pfnVHWACommandProcess(pVGAState->pDrv, pCommand);
+        if (rc == VINF_CALLBACK_RETURN)
+        {
+            Log(("VGA Command --- Going Async %#p, %d\n", pCommand, pCommand->enmCmd));
+            return true; /* command will be completed asynchronously, return right away */
+        }
+        else if (rc == VERR_INVALID_STATE)
+        {
+            Log(("VGA Command --- Trying Pend %#p, %d\n", pCommand, pCommand->enmCmd));
+            fPend = vbvaVHWACommandCanPend(pCommand);
+            if (!fPend)
+            {
+                Log(("VGA Command --- Can NOT Pend %#p, %d\n", pCommand, pCommand->enmCmd));
+                pCommand->rc = rc;
+            }
+            else
+                Log(("VGA Command --- Can Pend %#p, %d\n", pCommand, pCommand->enmCmd));
+        }
+        else
+        {
+            Log(("VGA Command --- Going Complete Sync rc %d %#p, %d\n", rc, pCommand, pCommand->enmCmd));
+            pCommand->rc = rc;
+        }
+
+        /* the command was completed, take a special care about it (seee below) */
+    }
+    else
+    {
         AssertFailed();
-#endif
-    return 0;
+        pCommand->rc = VERR_INVALID_STATE;
+    }
+
+    if (fPend)
+        return false;
+
+    vbvaVHWACommandComplete(pVGAState, pCommand, fAsyncCommand);
+
+    return true;
+}
+
+static bool vbvaVHWACheckPendingCommands(PVGASTATE pVGAState)
+{
+    if (!ASMAtomicUoReadU32(&pVGAState->pendingVhwaCommands.cPending))
+        return true;
+
+    VBOX_VHWA_PENDINGCMD *pIter, *pNext;
+
+    PDMCritSectEnter(&pVGAState->CritSect, VERR_SEM_BUSY);
+
+    RTListForEachSafe(&pVGAState->pendingVhwaCommands.PendingList, pIter, pNext, VBOX_VHWA_PENDINGCMD, Node)
+    {
+        if (!vbvaVHWACommandSubmit(pVGAState, pIter->pCommand, true))
+        {
+            PDMCritSectLeave(&pVGAState->CritSect);
+            return false; /* the command should be pended still */
+        }
+
+        /* the command is submitted/processed, remove from the pend list */
+        RTListNodeRemove(&pIter->Node);
+        ASMAtomicDecU32(&pVGAState->pendingVhwaCommands.cPending);
+        RTMemFree(pIter);
+    }
+
+    PDMCritSectLeave(&pVGAState->CritSect);
+
+    return true;
+}
+
+void vbvaTimerCb(PVGASTATE pVGAState)
+{
+    vbvaVHWACheckPendingCommands(pVGAState);
+}
+static void vbvaVHWAHandleCommand(PVGASTATE pVGAState, PVBOXVHWACMD pCmd)
+{
+    if (vbvaVHWACheckPendingCommands(pVGAState))
+    {
+        if (vbvaVHWACommandSubmit(pVGAState, pCmd, false))
+            return;
+    }
+
+    vbvaVHWACommandPend(pVGAState, pCmd);
 }
 
 static DECLCALLBACK(void) vbvaVHWAHHCommandSetEventCallback(void * pContext)
@@ -814,7 +1043,7 @@ static int vbvaVHWAHHCommandPost(PVGASTATE pVGAState, VBOXVHWACMD* pCmd)
         /* ensure the cmd is not deleted until we process it */
         vbvaVHWAHHCommandRetain (pCmd);
         VBOXVHWA_HH_CALLBACK_SET(pCmd, vbvaVHWAHHCommandSetEventCallback, (void*)hComplEvent);
-        vbvaVHWAHandleCommand(pVGAState, NULL, pCmd);
+        vbvaVHWAHandleCommand(pVGAState, pCmd);
         if((ASMAtomicReadU32((volatile uint32_t *)&pCmd->Flags)  & VBOXVHWACMD_FLAG_HG_ASYNCH) != 0)
         {
             rc = RTSemEventWaitNoResume(hComplEvent, RT_INDEFINITE_WAIT);
@@ -836,6 +1065,9 @@ static int vbvaVHWAHHCommandPost(PVGASTATE pVGAState, VBOXVHWACMD* pCmd)
 
 int vbvaVHWAConstruct (PVGASTATE pVGAState)
 {
+    pVGAState->pendingVhwaCommands.cPending = 0;
+    RTListInit(&pVGAState->pendingVhwaCommands.PendingList);
+
     VBOXVHWACMD *pCmd = vbvaVHWAHHCommandCreate(pVGAState, VBOXVHWACMD_TYPE_HH_CONSTRUCT, 0, sizeof(VBOXVHWACMD_HH_CONSTRUCT));
     Assert(pCmd);
     if(pCmd)
@@ -889,6 +1121,8 @@ int vbvaVHWAConstruct (PVGASTATE pVGAState)
 
 int vbvaVHWAReset (PVGASTATE pVGAState)
 {
+    vbvaVHWACommandClearAllPending(pVGAState);
+
     /* ensure we have all pending cmds processed and h->g cmds disabled */
     VBOXVHWACMD *pCmd = vbvaVHWAHHCommandCreate(pVGAState, VBOXVHWACMD_TYPE_HH_RESET, 0, 0);
     Assert(pCmd);
@@ -1008,6 +1242,8 @@ int vboxVBVASaveStateDone (PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 int vbvaVHWACommandCompleteAsynch(PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd)
 {
     int rc;
+    Log(("VGA Command <<< Async rc %d %#p, %d\n", pCmd->rc, pCmd, pCmd->enmCmd));
+
     if((pCmd->Flags & VBOXVHWACMD_FLAG_HH_CMD) == 0)
     {
         PVGASTATE pVGAState = PPDMIDISPLAYVBVACALLBACKS_2_PVGASTATE(pInterface);
@@ -1393,6 +1629,9 @@ int vboxVBVASaveStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
                 AssertRC(rc);
                 if (RT_SUCCESS(rc))
                 {
+                    rc = vbvaVHWACommandSavePending(pVGAState, pSSM);
+                    AssertRCReturn(rc, rc);
+
                     vbvaVHWAHHCommandReinit(pCmd, VBOXVHWACMD_TYPE_HH_SAVESTATE_SAVEEND, 0);
                     vbvaVHWAHHPost (pVGAState, pCmd, vboxVBVASaveStateEndPreCb, NULL, &VhwaData);
                     rc = VhwaData.rc;
@@ -1587,8 +1826,11 @@ int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Vers
                     pLoad->pSSM = pSSM;
                     vbvaVHWAHHPost (pVGAState, pCmd, vboxVBVALoadStatePerformPreCb, vboxVBVALoadStatePerformPostCb, &VhwaData);
                     rc = VhwaData.rc;
-                    AssertRC(rc);
                     vbvaVHWAHHCommandRelease(pCmd);
+                    AssertRCReturn(rc, rc);
+
+                    rc = vbvaVHWACommandLoadPending(pVGAState, pSSM, u32Version);
+                    AssertRCReturn(rc, rc);
                 }
                 else
                 {
@@ -1972,7 +2214,14 @@ static DECLCALLBACK(int) vbvaChannelHandler (void *pvHandler, uint16_t u16Channe
 #ifdef VBOX_WITH_VIDEOHWACCEL
         case VBVA_VHWA_CMD:
         {
-            rc = vbvaVHWAHandleCommand (pVGAState, pCtx, (PVBOXVHWACMD)pvBuffer);
+            if (cbBuffer < sizeof (VBOXVHWACMD))
+            {
+                rc = VERR_INVALID_PARAMETER;
+                break;
+            }
+            vbvaVHWAHandleCommand(pVGAState, (PVBOXVHWACMD)pvBuffer);
+            rc = VINF_SUCCESS;
+            break;
         } break;
 #endif
 

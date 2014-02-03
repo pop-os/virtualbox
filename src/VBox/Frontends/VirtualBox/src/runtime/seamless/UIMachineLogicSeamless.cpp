@@ -1,8 +1,6 @@
 /* $Id: UIMachineLogicSeamless.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachineLogicSeamless class implementation
+ * VBox Qt GUI - UIMachineLogicSeamless class implementation.
  */
 
 /*
@@ -110,6 +108,21 @@ void UIMachineLogicSeamless::notifyAbout3DOverlayVisibilityChange(bool)
     }
 }
 
+void UIMachineLogicSeamless::sltCheckForRequestedVisualStateType()
+{
+    /* Do not try to change visual-state type if machine was not started yet: */
+    if (!uisession()->isRunning() && !uisession()->isPaused())
+        return;
+
+    /* If 'seamless' visual-state type is no more supported: */
+    if (!uisession()->isGuestSupportsSeamless())
+    {
+        LogRel(("UIMachineLogicSeamless: Leaving 'seamless' as it is no more supported...\n"));
+        uisession()->setRequestedVisualState(UIVisualStateType_Seamless);
+        uisession()->changeVisualState(UIVisualStateType_Normal);
+    }
+}
+
 void UIMachineLogicSeamless::sltMachineStateChanged()
 {
     /* Call to base-class: */
@@ -163,12 +176,34 @@ void UIMachineLogicSeamless::prepareActionGroups()
 
     /* Guest auto-resize isn't allowed in seamless: */
     gActionPool->action(UIActionIndexRuntime_Toggle_GuestAutoresize)->setVisible(false);
-
     /* Adjust-window isn't allowed in seamless: */
     gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(false);
-
     /* Disable mouse-integration isn't allowed in seamless: */
     gActionPool->action(UIActionIndexRuntime_Toggle_MouseIntegration)->setVisible(false);
+
+    /* Take care of view-action toggle state: */
+    UIAction *pActionSeamless = gActionPool->action(UIActionIndexRuntime_Toggle_Seamless);
+    if (!pActionSeamless->isChecked())
+    {
+        pActionSeamless->blockSignals(true);
+        pActionSeamless->setChecked(true);
+        pActionSeamless->blockSignals(false);
+        pActionSeamless->update();
+    }
+}
+
+void UIMachineLogicSeamless::prepareActionConnections()
+{
+    /* Call to base-class: */
+    UIMachineLogic::prepareActionConnections();
+
+    /* "View" actions connections: */
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
+            uisession(), SLOT(sltChangeVisualStateToNormal()));
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
+            uisession(), SLOT(sltChangeVisualStateToFullscreen()));
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
+            uisession(), SLOT(sltChangeVisualStateToScale()));
 }
 
 void UIMachineLogicSeamless::prepareMachineWindows()
@@ -222,18 +257,40 @@ void UIMachineLogicSeamless::cleanupMachineWindows()
         UIMachineWindow::destroy(pMachineWindow);
 }
 
+void UIMachineLogicSeamless::cleanupActionConnections()
+{
+    /* "View" actions disconnections: */
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
+               uisession(), SLOT(sltChangeVisualStateToNormal()));
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
+               uisession(), SLOT(sltChangeVisualStateToFullscreen()));
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
+               uisession(), SLOT(sltChangeVisualStateToScale()));
+
+    /* Call to base-class: */
+    UIMachineLogic::cleanupActionConnections();
+}
+
 void UIMachineLogicSeamless::cleanupActionGroups()
 {
-    /* Call to base-class: */
-    UIMachineLogic::cleanupActionGroups();
+    /* Take care of view-action toggle state: */
+    UIAction *pActionSeamless = gActionPool->action(UIActionIndexRuntime_Toggle_Seamless);
+    if (pActionSeamless->isChecked())
+    {
+        pActionSeamless->blockSignals(true);
+        pActionSeamless->setChecked(false);
+        pActionSeamless->blockSignals(false);
+        pActionSeamless->update();
+    }
 
     /* Reenable guest-autoresize action: */
     gActionPool->action(UIActionIndexRuntime_Toggle_GuestAutoresize)->setVisible(true);
-
     /* Reenable adjust-window action: */
     gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(true);
-
     /* Reenable mouse-integration action: */
     gActionPool->action(UIActionIndexRuntime_Toggle_MouseIntegration)->setVisible(true);
+
+    /* Call to base-class: */
+    UIMachineLogic::cleanupActionGroups();
 }
 

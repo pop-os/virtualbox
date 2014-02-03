@@ -1,6 +1,335 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.3.6 (2013-12-18)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed a Guru Meditation <emphasis>VINF_EM_TRIPLE_FAULT</emphasis>
+          caused by VMCB caching with nested paging on certain AMD CPUs (bug #12451)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a Guru Meditation <emphasis>VERR_VMX_UNEXPECTED_INTERRUPTION_EXIT_TYPE</emphasis>
+          while intercepting debug exceptions (VT-x only; bug #12410)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a Guru Meditation <emphasis>VERR_SVM_UNEXPECTED_EXIT</emphasis>
+          while intercepting debug register accesses (AMD-V only; bug #12481)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a <emphasis>VERR_SSM_STRUCTURE_MAGIC</emphasis> error when trying
+          to load a saved state made with VBox 4.3.4 when VT-x/AMD-V is disabled. Unfortunately,
+          VBox 4.3.4 produced broken saved states for this configuration so you have to discard
+          these states (bug #12414)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: added a few more MSRs to the whitelist required by certain guests
+          (bug #12245)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed deleting of inaccessible VMs (4.3 regression, bug
+          #12205)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed warnings in VM settings / number of guest processors
+          (bug #12480)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: don't automatically enable 64-bit guests on 64-bit hosts if
+          VT-x/AMD-V is not available (bug #12424)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: always expose the DMI memory information to Windows 2012 guests
+          (bug #12017)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: fixed occasional crashes on guest display resolution change
+          (bug #7063)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: fixed reporting back temporary name when calling
+          <emphasis>IGuestSession::DirectoryCreateTemp()</emphasis> (bug #12498)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fix for a hang when launching a GUI VM through the API, which crashes
+          due to GUI unavailability</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fix for <emphasis>BLKCACHE_IOERR</emphasis> runtime errors under
+          rare circumstances (bug #11030)</para>
+      </listitem>
+
+      <listitem>
+        <para>Network: allow to start more than 5 PCNet instances (bug #12426)</para>
+      </listitem>
+
+      <listitem>
+        <para>E1000: if the cable was disconnected before the guest initialized
+          the device, the link status was not properly set to 'down' after the
+          initialization completed despite the fact that there was no connection</para>
+      </listitem>
+
+      <listitem>
+        <para>3D support: fixed offset of guest 3D image elements (Mac OS X Retina
+          hosts only; bug #11021)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris hosts: fixed accessing the host driver from non-global zones
+          (4.3 regression, bug #12271)</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
+    <title>Version 4.3.4 (2013-11-29)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fix for a bug in the Local APIC emulation causing a BSOD when
+          booting certain guests (4.3.0 regression; bug #12240)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed loading of saved states if VT-x/AMD-V was disabled
+          (4.3.2 regression; bug #12291)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed single-stepping inside the guest for certain
+          instructions (VT-x only; bug #10947)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a performance issue involving APIC accesses after rebooting
+          a VM (4.3.0 regression; VT-x only; bug #12296)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed TPR patching to be enabled for 32-bit guests even when
+          the chosen guest type is 64-bit (4.3.0 regression; AMD-V only)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed occassional <emphasis>VINF_EM_TRIPLE_FAULT</emphasis> errors on
+          hosts without the unrestricted guest execution feature (bug #12198)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: don't bother the user with the BPP warning if no
+          Guest Additions are installed</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed machine-window paint artifacts on VM reboot / guest-screen
+          resize</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: make sure the assigned license and description are attached to
+          the exported appliance</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed bugs in close VM action restrictions handling (bug #12333)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed incorrect wizards text colors for some unusual
+          look and feel styles (bug #11743)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: should restore seamless mode as soon as possible after
+          VM reboot or shutdown</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixes for medium enumeration</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: the OS X hot corners were not accessible while a VirtualBox VM
+          is running (Mac OS X hosts only; bug #4139)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed an old bug which bared the host from cleanly shutdown / reboot
+          if the VM selector window is open (Mac OS X hosts only; bug #8254)</para>
+      </listitem>
+
+      <listitem>
+        <para>Host-only Networking: fixed creating of host-only network interfaces
+          (4.3.0 regression; bug #12182)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: don't run into an infinite loop in case the host cannot
+          access any DNS server (4.3.0 regression; bug #12300)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: don't re-connect the cable if the DNS information changes
+          and the cable was disconnected before (4.3.0 regression; bug #12225)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed several issues with automatically starting /
+          terminating of NAT networks on VM start / stop and configuration
+          changes</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxNetDHCP: don't block prevent VBoxSVC from terminating
+          (bug #12264)</para>
+      </listitem>
+
+      <listitem>
+        <para>2D Video acceleration: fix crashes on presentation mode switches
+          (bug #9194)</para>
+      </listitem>
+
+      <listitem>
+        <para>BusLogic: allow to run VMs with more than one BusLogic SCSI
+          controller enabled</para>
+      </listitem>
+
+      <listitem>
+        <para>Keyboard: fixed a VM crash if a VM was resumed from a saved state
+          where at least one key was pressed (bug #11289)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC: fixed a heap corruption under certain conditions (4.3.0
+          regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC: fixed a race leading to a hang during initialization
+          (bug #12349)</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF: fixed import logic for OVF appliances containing multiple
+          VMs</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF: improved logic for finding an appropriate image format
+          during OVF import</para>
+      </listitem>
+
+      <listitem>
+        <para>API: block the removal of the current snapshot if it has child
+          snapshots (only relevant for VMs without snapshottable hard disks,
+          their presence always prevented removal), which resulted in VM
+          config corruption</para>
+      </listitem>
+
+      <listitem>
+        <para>API: mark VM configs with snapshots but without current snapshot
+          as inaccessible, as this combination is nonsense</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fixed information for some automatically generated events
+          (only with XPCOM, Windows host was not affected), which caused
+          errors when getting some of the attributes over the webservice
+          (bug #12379)</para>
+      </listitem>
+
+      <listitem>
+        <para>SDK: extended the functionality coverage for the C bindings</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control: various bugfixes and improved VBoxManage help
+          (bugs #8072, #11044, #12336, #12338, #12346, #12371)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: another attempt to fix the massive DPC latency
+          (bug #6242)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows host installer: make registering file extensions optional,
+          contributed by Tal Aloni (bug #8009)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: properly sign the kernel extensions for Mavericks
+          hosts (bug #12256)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed a bug where the VirtualBox dock icon was
+          not properly removed from the dock after a VM terminated preventing
+          Mavericks hosts from shutting down (bug #12241)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed minor installer issue (bug #12275)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / guests: Linux 3.13 compile fixes (bug #12358)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: build the vboxvideo kernel module correctly on
+           OL/RHEL 6.1 guests (bug #11996)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: make 3D work on Slackware 14.1
+           (bug #12320 comments 3 and 4)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Additions/3D: fixed an occasional dead-lock (bug #12319)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions/3D: fixed possible memory leaking (bug #12228)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions/XPDM: use separate tables containing valid video
+          modes for each virtual monitor</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed automatic logins for Vista and newer Windows
+          guests (bug #12332)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 4.3.2 (2013-11-01)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -41,7 +370,7 @@
 
       <listitem>
         <para>GUI: fixed guest resize breakage on visual representation mode change
-	  (when switching from normal to fullscreen etc)</para>
+          (when switching from normal to fullscreen etc)</para>
       </listitem>
 
       <listitem>

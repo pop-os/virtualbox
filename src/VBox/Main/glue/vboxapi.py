@@ -16,7 +16,7 @@ Foundation, in version 2 as it comes in the "COPYING" file of the
 VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 """
-__version__ = "$Revision: 88749 $"
+__version__ = "$Revision: 91042 $"
 
 
 # Note! To set Python bitness on OSX use 'export VERSIONER_PYTHON_PREFER_32_BIT=yes'
@@ -43,7 +43,7 @@ if VBoxSdkDir is None:
     # Will be set by the installer
     VBoxSdkDir = "%VBOX_SDK_PATH%"
 else:
-    VBoxBinDir = os.path.abspath(VBoxSdkDir);
+    VBoxSdkDir = os.path.abspath(VBoxSdkDir);
 
 os.environ["VBOX_PROGRAM_PATH"] = VBoxBinDir
 os.environ["VBOX_SDK_PATH"] = VBoxSdkDir

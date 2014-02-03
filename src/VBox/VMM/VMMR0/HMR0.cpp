@@ -919,8 +919,7 @@ static int hmR0EnableCpu(PVM pVM, RTCPUID idCpu)
     Assert(idCpu < RT_ELEMENTS(g_HvmR0.aCpuInfo));
     Assert(!pCpu->fConfigured);
 
-    pCpu->idCpu         = idCpu;
-    pCpu->uCurrentAsid  = 0;    /* we'll aways increment this the first time (host uses ASID 0) */
+    pCpu->idCpu = idCpu;
     /* Do NOT reset cTlbFlushes here, see @bugref{6255}. */
 
     int rc;
@@ -957,6 +956,7 @@ static DECLCALLBACK(void) hmR0EnableCpuCallback(RTCPUID idCpu, void *pvUser1, vo
     PVM             pVM      = (PVM)pvUser1;     /* can be NULL! */
     PHMR0FIRSTRC    pFirstRc = (PHMR0FIRSTRC)pvUser2;
     AssertReturnVoid(g_HvmR0.fGlobalInit);
+    Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
     hmR0FirstRcSetStatus(pFirstRc, hmR0EnableCpu(pVM, idCpu));
 }
 
@@ -986,13 +986,15 @@ static DECLCALLBACK(int32_t) hmR0EnableAllCpuOnce(void *pvUser)
      */
     g_HvmR0.fGlobalInit = pVM->hm.s.fGlobalInit;
 
+#ifdef VBOX_STRICT
     for (unsigned i = 0; i < RT_ELEMENTS(g_HvmR0.aCpuInfo); i++)
     {
         Assert(g_HvmR0.aCpuInfo[i].hMemObj == NIL_RTR0MEMOBJ);
-        g_HvmR0.aCpuInfo[i].fConfigured  = false;
-        g_HvmR0.aCpuInfo[i].cTlbFlushes  = 0;
-        g_HvmR0.aCpuInfo[i].uCurrentAsid = 0;
+        Assert(!g_HvmR0.aCpuInfo[i].fConfigured);
+        Assert(!g_HvmR0.aCpuInfo[i].cTlbFlushes);
+        Assert(!g_HvmR0.aCpuInfo[i].uCurrentAsid);
     }
+#endif
 
     int rc;
     if (   g_HvmR0.vmx.fSupported
@@ -1099,7 +1101,6 @@ static int hmR0DisableCpu(RTCPUID idCpu)
     else
         rc = VINF_SUCCESS; /* nothing to do */
 
-    pCpu->uCurrentAsid = 0;
     return rc;
 }
 
@@ -1332,7 +1333,7 @@ VMMR0_INT_DECL(int) HMR0SetupVM(PVM pVM)
 
     /* On first entry we'll sync everything. */
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
-        VMCPU_HMCF_RESET_TO(&pVM->aCpus[i], HM_CHANGED_HOST_CONTEXT | HM_CHANGED_ALL_GUEST);
+        HMCPU_CF_RESET_TO(&pVM->aCpus[i], HM_CHANGED_HOST_CONTEXT | HM_CHANGED_ALL_GUEST);
 
     /*
      * Call the hardware specific setup VM method. This requires the CPU to be
@@ -1389,7 +1390,7 @@ VMMR0_INT_DECL(int) HMR0EnterCpu(PVMCPU pVCpu)
         rc = hmR0EnableCpu(pVCpu->CTX_SUFF(pVM), idCpu);
 
     /* Reload host-context (back from ring-3/migrated CPUs), reload host context & shared bits. */
-    VMCPU_HMCF_SET(pVCpu, HM_CHANGED_HOST_CONTEXT | HM_CHANGED_HOST_GUEST_SHARED_STATE);
+    HMCPU_CF_SET(pVCpu, HM_CHANGED_HOST_CONTEXT | HM_CHANGED_HOST_GUEST_SHARED_STATE);
     pVCpu->hm.s.idEnteredCpu = idCpu;
     return rc;
 }
@@ -1424,7 +1425,7 @@ VMMR0_INT_DECL(int) HMR0Enter(PVM pVM, PVMCPU pVCpu)
     PCPUMCTX         pCtx  = CPUMQueryGuestCtxPtr(pVCpu);
     Assert(pCpu);
     Assert(pCtx);
-    Assert(VMCPU_HMCF_IS_SET(pVCpu, HM_CHANGED_HOST_CONTEXT | HM_CHANGED_HOST_GUEST_SHARED_STATE));
+    Assert(HMCPU_CF_IS_SET(pVCpu, HM_CHANGED_HOST_CONTEXT | HM_CHANGED_HOST_GUEST_SHARED_STATE));
 
     rc = g_HvmR0.pfnEnterSession(pVM, pVCpu, pCpu);
     AssertMsgRCReturn(rc, ("pfnEnterSession failed. rc=%Rrc pVCpu=%p HostCpuId=%u\n", rc, pVCpu, idCpu), rc);

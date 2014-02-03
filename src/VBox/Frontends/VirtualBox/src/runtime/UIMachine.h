@@ -1,11 +1,9 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachine class declaration
+ * VBox Qt GUI - UIMachine class declaration.
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +14,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIMachine_h__
-#define __UIMachine_h__
+#ifndef ___UIMachine_h___
+#define ___UIMachine_h___
 
 /* Qt includes: */
 #include <QObject>
@@ -40,6 +38,11 @@ class UIMachine : public QObject
 {
     Q_OBJECT;
 
+signals:
+
+    /** Requests async visual-state change. */
+    void sigRequestAsyncVisualStateChange(UIVisualStateType visualStateType);
+
 public:
 
     /* Virtual Machine constructor/destructor: */
@@ -54,6 +57,9 @@ public:
     bool isVisualStateAllowedFullscreen() const { return m_allowedVisualStateTypes & UIVisualStateType_Fullscreen; }
     bool isVisualStateAllowedSeamless() const { return m_allowedVisualStateTypes & UIVisualStateType_Seamless; }
     bool isVisualStateAllowedScale() const { return m_allowedVisualStateTypes & UIVisualStateType_Scale; }
+
+    /** Requests async visual-state change. */
+    void asyncChangeVisualState(UIVisualStateType visualStateType);
 
 private slots:
 
@@ -86,5 +92,5 @@ private:
     friend class UISession;
 };
 
-#endif // __UIMachine_h__
+#endif /* !___UIMachine_h___ */
 

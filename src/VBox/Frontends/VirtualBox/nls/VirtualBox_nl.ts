@@ -256,7 +256,7 @@
     </message>
     <message>
         <source>Show Session Information Window</source>
-        <translation type="unfinished">Toon sessie-informatiedialoog</translation>
+        <translation>Toon sessie-informatievenster</translation>
     </message>
     <message>
         <source>&amp;Pause</source>
@@ -329,7 +329,7 @@
     <message>
         <source>&amp;Insert Guest Additions CD image...</source>
         <translatorcomment>Guest Additions als naam laten staan</translatorcomment>
-        <translation type="unfinished">&amp;Installeren Guest Additions...</translation>
+        <translation>&amp;Installeren Guest Additions...</translation>
     </message>
     <message>
         <source>Insert the Guest Additions disk file into the virtual drive</source>
@@ -829,6 +829,10 @@
         <source>Insert the Guest Additions disk file into the virtual drive</source>
         <comment>new</comment>
         <translation type="obsolete">Koppel Guest Additions installatie-image aan</translation>
+    </message>
+    <message>
+        <source>&amp;Webcams</source>
+        <translation>&amp;Webcams</translation>
     </message>
 </context>
 <context>
@@ -3785,6 +3789,14 @@
         <source>Select a filename for the screenshot ...</source>
         <translation>Geef een bestandsnaam op voor deze schermafdruk ...</translation>
     </message>
+    <message>
+        <source>No Webcams Connected</source>
+        <translation>Er zijn geen webcams aangesloten</translation>
+    </message>
+    <message>
+        <source>No supported webcams connected to the host PC</source>
+        <translation>Er zijn geen ondersteunde webcams aan de host-PC verbonden</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -4555,7 +4567,7 @@
     </message>
     <message>
         <source>Window</source>
-        <translation type="unfinished"></translation>
+        <translation>Venster</translation>
     </message>
 </context>
 <context>
@@ -5795,7 +5807,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Het venster van de virtuele machine is geöptimaliseerd om te werken in &lt;b&gt;%1 bits&lt;/b&gt; kleurenmodus, echter de kleurkwaliteit van het virtuele beeldscherm staat op &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Open de beeldscherm-eigenschappen in het gastbesturingssysteem en selecteer indien beschikbaar &lt;b&gt;%3 bits&lt;/b&gt;kleurenmodus voor de beste prestatie van het video-subsysteem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Let op:&lt;/b&gt; Sommige besturingssystemen (zoals OS/2 en soms XP) werken in 32 bits kleurenmodus maar melden dit als 24 bits kleurenmodus (16 miljoen kleuren).U kunt proberen een andere kleurkwaliteit te selecteren om deze boodschap weg te krijgen of u kunt de boodschap gewoon nu uitzetten indien u zeker weet dat de vereiste kleurkwaliteit (%4&amp;nbsp; bit) niet beschikbaar is op het gastbesturingssysteem.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Het venster van de virtuele machine is geöptimaliseerd om te werken in &lt;b&gt;%1 bits&lt;/b&gt; kleurenmodus, echter de kleurkwaliteit van het virtuele beeldscherm staat op &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Open de beeldscherm-eigenschappen in het gastbesturingssysteem en selecteer indien beschikbaar &lt;b&gt;%3 bits&lt;/b&gt;kleurenmodus voor de beste prestatie van het video-subsysteem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Let op:&lt;/b&gt; Sommige besturingssystemen (zoals OS/2 en soms XP) werken in 32 bits kleurenmodus maar melden dit als 24 bits kleurenmodus (16 miljoen kleuren).U kunt proberen een andere kleurkwaliteit te selecteren om deze boodschap weg te krijgen of u kunt de boodschap gewoon nu uitzetten indien u zeker weet dat de vereiste kleurkwaliteit (%4&amp;nbsp; bit) niet beschikbaar is op het gastbesturingssysteem.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings window or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you wish to continue?&lt;/p&gt;</source>
@@ -6397,7 +6409,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
-        <translation type="unfinished">&lt;p&gt;De VirtualBox Guest Additions lijken niet beschikbaar op deze virtuele machine. Gedeelde mappen kunnen dan niet worden gebruikt. Om gedeelde mappen te kunnen gebruiken binnen de virtuele machine installeert u de Guest Additions indien deze nog niet zijn geïnstalleerd. Indien wel, moet u deze herinstalleren. Selecteer &lt;b&gt;Installeer Guest Additions&lt;/b&gt; uit het menu &lt;b&gt;Machine&lt;/b&gt;. Zijn de Guest Additions wel goed geïnstalleerd maar is de machine nog niet helemaal gestart dan komen de gedeelde mappen waarschijnlijk beschikbaar zodra de machine wel volledig is opgestart.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;De VirtualBox Guest Additions lijken niet beschikbaar op deze virtuele machine. Gedeelde mappen kunnen dan niet worden gebruikt. Om gedeelde mappen binnen de virtuele machine te kunnen gebruiken, installeert u de Guest Additions indien deze nog niet zijn geïnstalleerd. Indien wel, moet u deze herinstalleren. Selecteer &lt;b&gt;Installeer Guest Additions&lt;/b&gt; uit het menu &lt;b&gt;Machine&lt;/b&gt;. Zijn de Guest Additions wel goed geïnstalleerd maar is de machine nog niet helemaal gestart dan komen de gedeelde mappen waarschijnlijk beschikbaar zodra de machine wel volledig is opgestart.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;fullscreen&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in fullscreen mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
@@ -6924,6 +6936,21 @@
         <source>Insert</source>
         <comment>additions-new</comment>
         <translation type="obsolete">Aankoppelen</translation>
+    </message>
+    <message>
+        <source>Failed to attach the webcam &lt;b&gt;%1&lt;/b&gt; to the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>Het is niet gelukt webcam &lt;b&gt;%1&lt;/b&gt; te koppelen aan virtuele machine &lt;b&gt;%2&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>Failed to detach the webcam &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>Het is niet gelukt webcam &lt;b&gt;%1&lt;/b&gt; van virtuele machine &lt;b&gt;%2&lt;/b&gt; los te koppelen.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The virtual screen is currently set to a &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode. For better performance please change this to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;. This can usually be done from the &lt;b&gt;Display&lt;/b&gt; section of the guest operating system&apos;s Control Panel or System Settings.&lt;/p&gt;</source>
+        <translatorcomment>In het Nederlands wordt dit afhankelijk van het OS vertaald:
+Windows: Beeldscherm en Configuratiescherm
+Linux: Schermen en Voorkeuren</translatorcomment>
+        <translation>&lt;p&gt;Het virtuele scherm staat momenteel in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt;-colormodus. Verander dit in &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt; voor een betere prestatie. Normaal gesproken kan dit via het menu-item &lt;b&gt;Beeldscherm&lt;/b&gt; in het Configuratiescherm of via &lt;b&gt;Schermen&lt;/b&gt; bij Voorkeuren van het gastbesturingssysteem (afhankelijk van de gast).&lt;/p&gt;</translation>
     </message>
 </context>
 <context>

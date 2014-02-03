@@ -2408,7 +2408,8 @@ static int vdWriteHelperOptimizedPreReadAsync(PVDIOCTX pIoCtx)
 
     pIoCtx->fFlags |= VDIOCTX_FLAGS_ZERO_FREE_BLOCKS;
 
-    if (pIoCtx->Req.Io.cbTransferLeft)
+    if (   pIoCtx->Req.Io.cbTransferLeft
+        && !pIoCtx->cDataTransfersPending)
         rc = vdReadHelperAsync(pIoCtx);
 
     if (   RT_SUCCESS(rc)

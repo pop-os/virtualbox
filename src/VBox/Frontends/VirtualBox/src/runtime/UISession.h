@@ -1,11 +1,9 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UISession class declaration
+ * VBox Qt GUI - UISession class declaration.
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +14,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIConsole_h___
-#define ___UIConsole_h___
+#ifndef ___UISession_h___
+#define ___UISession_h___
 
 /* Qt includes: */
 #include <QObject>
@@ -34,15 +32,6 @@
 /* Forward declarations: */
 class QMenu;
 class QMenuBar;
-#ifdef VBOX_GUI_WITH_KEYS_RESET_HANDLER
-# ifdef Q_WS_MAC
-struct __siginfo;
-typedef struct __siginfo siginfo_t;
-# else /* Q_WS_MAC */
-struct siginfo;
-typedef struct siginfo siginfo_t;
-# endif /* !Q_WS_MAC */
-#endif /* VBOX_GUI_WITH_KEYS_RESET_HANDLER */
 class UIFrameBuffer;
 class UIMachine;
 class UIMachineLogic;
@@ -104,10 +93,32 @@ public:
     QMenuBar* newMenuBar(RuntimeMenuType fOptions = RuntimeMenuType_All);
     QCursor cursor() const { return m_cursor; }
 
+    /** @name Application Close configuration stuff.
+     * @{ */
+    /** Returns default close action. */
+    MachineCloseAction defaultCloseAction() const { return m_defaultCloseAction; }
+    /** Returns merged restricted close actions. */
+    MachineCloseAction restrictedCloseActions() const { return m_restrictedCloseActions; }
+    /** Returns whether all the close actions are restricted. */
+    bool isAllCloseActionsRestricted() const { return m_fAllCloseActionsRestricted; }
+    /** @} */
+
+    /** @name Snapshot Operations configuration stuff.
+     * @{ */
+    /** Returns whether we should allow snapshot operations. */
+    bool isSnapshotOperationsAllowed() const { return m_fSnapshotOperationsAllowed; }
+    /** @} */
+
     /* API: Visual-state stuff: */
     bool isVisualStateAllowedFullscreen() const;
     bool isVisualStateAllowedSeamless() const;
     bool isVisualStateAllowedScale() const;
+    /** Requests visual-state change. */
+    void changeVisualState(UIVisualStateType visualStateType);
+    /** Requests visual-state to be entered when possible. */
+    void setRequestedVisualState(UIVisualStateType visualStateType) { m_requestedVisualStateType = visualStateType; }
+    /** Returns requested visual-state to be entered when possible. */
+    UIVisualStateType requestedVisualState() const { return m_requestedVisualStateType; }
 
     bool isSaved() const { return machineState() == KMachineState_Saved; }
     bool isTurnedOff() const { return machineState() == KMachineState_PoweredOff ||
@@ -125,7 +136,6 @@ public:
     bool isFirstTimeStarted() const { return m_fIsFirstTimeStarted; }
     bool isIgnoreRuntimeMediumsChanging() const { return m_fIsIgnoreRuntimeMediumsChanging; }
     bool isGuestResizeIgnored() const { return m_fIsGuestResizeIgnored; }
-    bool isSeamlessModeRequested() const { return m_fIsSeamlessModeRequested; }
     bool isAutoCaptureDisabled() const { return m_fIsAutoCaptureDisabled; }
 
     /* Guest additions state getters: */
@@ -155,7 +165,6 @@ public:
     bool unpause() { return setPause(false); }
     bool setPause(bool fOn);
     void setGuestResizeIgnored(bool fIsGuestResizeIgnored) { m_fIsGuestResizeIgnored = fIsGuestResizeIgnored; }
-    void setSeamlessModeRequested(bool fIsSeamlessModeRequested) { m_fIsSeamlessModeRequested = fIsSeamlessModeRequested; }
     void setAutoCaptureDisabled(bool fIsAutoCaptureDisabled) { m_fIsAutoCaptureDisabled = fIsAutoCaptureDisabled; }
     void forgetPreviousMachineState() { m_machineStatePrevious = m_machineState; }
 
@@ -220,6 +229,15 @@ public slots:
 
 private slots:
 
+    /** Requests visual-state change to 'normal' (window). */
+    void sltChangeVisualStateToNormal();
+    /** Requests visual-state change to 'fullscreen'. */
+    void sltChangeVisualStateToFullscreen();
+    /** Requests visual-state change to 'seamless'. */
+    void sltChangeVisualStateToSeamless();
+    /** Requests visual-state change to 'scale'. */
+    void sltChangeVisualStateToScale();
+
     /* Handler: Close Runtime UI stuff: */
     void sltCloseRuntimeUI();
 
@@ -233,7 +251,11 @@ private slots:
     void sltVideoCaptureChange();
     void sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
 
-    /* Handlers: Host callback stuff: */
+    /* Handlers: Display reconfiguration stuff: */
+#ifdef RT_OS_DARWIN
+    void sltHandleHostDisplayAboutToChange();
+    void sltCheckIfHostDisplayChanged();
+#endif /* RT_OS_DARWIN */
     void sltHandleHostScreenCountChange();
     void sltHandleHostScreenGeometryChange();
 
@@ -268,9 +290,10 @@ private:
     bool preparePowerUp();
     int countOfVisibleWindows();
 
-#ifdef VBOX_GUI_WITH_KEYS_RESET_HANDLER
-    static void signalHandlerSIGUSR1(int sig, siginfo_t *pInfo, void *pSecret);
-#endif /* VBOX_GUI_WITH_KEYS_RESET_HANDLER */
+#ifdef Q_WS_MAC
+    /* Helper: Display reconfiguration stuff: */
+    void recacheDisplayData();
+#endif /* Q_WS_MAC */
 
     /* Private variables: */
     UIMachine *m_pMachine;
@@ -288,15 +311,47 @@ private:
     KMachineState m_machineStatePrevious;
     KMachineState m_machineState;
     QCursor m_cursor;
+
+    /** @name Visual-state configuration variables.
+     ** @{ */
+    /** Determines which visual-state should be entered when possible. */
+    UIVisualStateType m_requestedVisualStateType;
+    /** @} */
+
 #if defined(Q_WS_WIN)
     HCURSOR m_alphaCursor;
 #endif
+
+#ifdef Q_WS_MAC
+    /** @name MacOS X: Display reconfiguration variables.
+     * @{ */
+    /** MacOS X: Watchdog timer looking for display reconfiguration. */
+    QTimer *m_pWatchdogDisplayChange;
+    /** MacOS X: A list of display geometries we currently have. */
+    QList<QRect> m_screens;
+    /** @} */
+#endif /* Q_WS_MAC */
+
+    /** @name Application Close configuration variables.
+     * @{ */
+    /** Default close action. */
+    MachineCloseAction m_defaultCloseAction;
+    /** Merged restricted close actions. */
+    MachineCloseAction m_restrictedCloseActions;
+    /** Determines whether all the close actions are restricted. */
+    bool m_fAllCloseActionsRestricted;
+    /** @} */
+
+    /** @name Snapshot Operations configuration variables.
+     * @{ */
+    /** Determines whether we should allow snapshot operations. */
+    bool m_fSnapshotOperationsAllowed;
+    /** @} */
 
     /* Common flags: */
     bool m_fIsFirstTimeStarted : 1;
     bool m_fIsIgnoreRuntimeMediumsChanging : 1;
     bool m_fIsGuestResizeIgnored : 1;
-    bool m_fIsSeamlessModeRequested : 1;
     bool m_fIsAutoCaptureDisabled : 1;
     bool m_fReconfigurable : 1;
 
@@ -326,4 +381,5 @@ private:
     friend class UIConsoleEventHandler;
 };
 
-#endif // !___UIConsole_h___
+#endif /* !___UISession_h___ */
+

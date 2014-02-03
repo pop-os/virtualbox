@@ -137,6 +137,7 @@ static void                 supdrvGipUpdate(PSUPDRVDEVEXT pDevExt, uint64_t u64N
 static void                 supdrvGipUpdatePerCpu(PSUPDRVDEVEXT pDevExt, uint64_t u64NanoTS, uint64_t u64TSC,
                                                   RTCPUID idCpu, uint8_t idApic, uint64_t iTick);
 static void                 supdrvGipInitCpu(PSUPGLOBALINFOPAGE pGip, PSUPGIPCPU pCpu, uint64_t u64NanoTS);
+static int                  supdrvIOCtl_ResumeSuspendedKbds(void);
 
 
 /*******************************************************************************
@@ -1890,6 +1891,15 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
             return 0;
         }
 
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_RESUME_SUSPENDED_KBDS):
+        {
+            /* validate */
+            REQ_CHECK_SIZES(SUP_IOCTL_RESUME_SUSPENDED_KBDS);
+
+            pReqHdr->rc = supdrvIOCtl_ResumeSuspendedKbds();
+            return 0;
+        }
+
         default:
             Log(("Unknown IOCTL %#lx\n", (long)uIOCtl));
             break;
@@ -3383,6 +3393,9 @@ SUPR0DECL(void) SUPR0ResumeVTxOnCpu(bool fSuspended)
  */
 SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps)
 {
+    int rc = VERR_UNSUPPORTED_CPU;
+    RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
+
     /*
      * Input validation.
      */
@@ -3390,10 +3403,8 @@ SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps)
     AssertPtrReturn(pfCaps, VERR_INVALID_POINTER);
 
     *pfCaps = 0;
-
-    /** @todo r=ramshankar: Although we're only reading CPUIDs/MSRs here which
-     *        should be identical on all CPUs on the system, it's probably
-     *        cleaner to prevent migration nonetheless? */
+    /* We may modify MSRs and re-read them, disable preemption so we make sure we don't migrate CPUs. */
+    RTThreadPreemptDisable(&PreemptState);
     if (ASMHasCpuId())
     {
         uint32_t fFeaturesECX, fFeaturesEDX, uDummy;
@@ -3421,7 +3432,6 @@ SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps)
                 bool       fVmxAllowed    = RT_BOOL(u64FeatMsr & MSR_IA32_FEATURE_CONTROL_VMXON);
 
                 /* Check if the LOCK bit is set but excludes the required VMXON bit. */
-                int rc = VERR_HM_IPE_1;
                 if (fMsrLocked)
                 {
                     if (fInSmxMode && !fSmxVmxAllowed)
@@ -3471,15 +3481,13 @@ SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps)
                         if (vtCaps.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC2_EPT)
                             *pfCaps |= SUPVTCAPS_NESTED_PAGING;
                     }
-                    return VINF_SUCCESS;
                 }
-                return rc;
             }
-            return VERR_VMX_NO_VMX;
+            else
+                rc = VERR_VMX_NO_VMX;
         }
-
-        if (   ASMIsAmdCpuEx(uVendorEBX, uVendorECX, uVendorEDX)
-            && ASMIsValidStdRange(uMaxId))
+        else if (   ASMIsAmdCpuEx(uVendorEBX, uVendorECX, uVendorEDX)
+                 && ASMIsValidStdRange(uMaxId))
         {
             uint32_t fExtFeaturesEcx, uExtMaxId;
             ASMCpuId(0x80000000, &uExtMaxId, &uDummy, &uDummy, &uDummy);
@@ -3503,15 +3511,18 @@ SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps)
                     if (fSvmFeatures & AMD_CPUID_SVM_FEATURE_EDX_NESTED_PAGING)
                         *pfCaps |= SUPVTCAPS_NESTED_PAGING;
 
-                    return VINF_SUCCESS;
+                    rc = VINF_SUCCESS;
                 }
-                return VERR_SVM_DISABLED;
+                else
+                    rc = VERR_SVM_DISABLED;
             }
-            return VERR_SVM_NO_SVM;
+            else
+                rc = VERR_SVM_NO_SVM;
         }
     }
 
-    return VERR_UNSUPPORTED_CPU;
+    RTThreadPreemptRestore(&PreemptState);
+    return rc;
 }
 
 
@@ -6063,5 +6074,20 @@ static void supdrvGipUpdatePerCpu(PSUPDRVDEVEXT pDevExt, uint64_t u64NanoTS, uin
             ASMAtomicIncU32(&pGipCpu->u32TransactionId);
         }
     }
+}
+
+/**
+ * Resume built-in keyboard on MacBook Air and Pro hosts.
+ * If there is no built-in keyboard device, return success anyway.
+ *
+ * @returns 0 on Mac OS X platform, VERR_NOT_IMPLEMENTED on the other ones.
+ */
+static int supdrvIOCtl_ResumeSuspendedKbds(void)
+{
+#if defined(RT_OS_DARWIN)
+    return supdrvDarwinResumeSuspendedKbds();
+#else
+    return VERR_NOT_IMPLEMENTED;
+#endif
 }
 

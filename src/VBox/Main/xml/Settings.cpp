@@ -3680,11 +3680,14 @@ void MachineConfigFile::readGroups(const xml::ElementNode *pElmGroups, StringsLi
  * contain a list of child snapshots; such lists are maintained in the
  * Snapshot structure.
  *
+ * @param curSnapshotUuid
  * @param depth
  * @param elmSnapshot
  * @param snap
+ * @returns true if curSnapshotUuid is in this snapshot subtree, otherwise false
  */
-void MachineConfigFile::readSnapshot(uint32_t depth,
+bool MachineConfigFile::readSnapshot(const Guid &curSnapshotUuid,
+                                     uint32_t depth,
                                      const xml::ElementNode &elmSnapshot,
                                      Snapshot &snap)
 {
@@ -3696,6 +3699,7 @@ void MachineConfigFile::readSnapshot(uint32_t depth,
     if (!elmSnapshot.getAttributeValue("uuid", strTemp))
         throw ConfigFileError(this, &elmSnapshot, N_("Required Snapshot/@uuid attribute is missing"));
     parseUUID(snap.uuid, strTemp);
+    bool foundCurrentSnapshot = (snap.uuid == curSnapshotUuid);
 
     if (!elmSnapshot.getAttributeValue("name", snap.strName))
         throw ConfigFileError(this, &elmSnapshot, N_("Required Snapshot/@name attribute is missing"));
@@ -3740,7 +3744,8 @@ void MachineConfigFile::readSnapshot(uint32_t depth,
                     // deeply nested snapshots. The stack can be quite
                     // small, especially with XPCOM.
                     Snapshot *child = new Snapshot();
-                    readSnapshot(depth + 1, *pelmChildSnapshot, *child);
+                    bool found = readSnapshot(curSnapshotUuid, depth + 1, *pelmChildSnapshot, *child);
+                    foundCurrentSnapshot = foundCurrentSnapshot || found;
                     snap.llChildSnapshots.push_back(*child);
                     delete child;
                 }
@@ -3756,6 +3761,8 @@ void MachineConfigFile::readSnapshot(uint32_t depth,
     readDebugging(elmSnapshot.findChildElement("Debugging"), &snap.debugging);
     readAutostart(elmSnapshot.findChildElement("Autostart"), &snap.autostart);
     // note: Groups exist only for Machine, not for Snapshot
+
+    return foundCurrentSnapshot;
 }
 
 const struct {
@@ -3876,9 +3883,14 @@ void MachineConfigFile::readMachine(const xml::ElementNode &elmMachine)
                 readStorageControllers(*pelmMachineChild, storageMachine);
             else if (pelmMachineChild->nameEquals("Snapshot"))
             {
+                if (uuidCurrentSnapshot.isZero())
+                    throw ConfigFileError(this, &elmMachine, N_("Snapshots present but required Machine/@currentSnapshot attribute is missing"));
+                bool foundCurrentSnapshot = false;
                 Snapshot snap;
                 // this will recurse into child snapshots, if necessary
-                readSnapshot(1, *pelmMachineChild, snap);
+                foundCurrentSnapshot = readSnapshot(uuidCurrentSnapshot, 1, *pelmMachineChild, snap);
+                if (!foundCurrentSnapshot)
+                    throw ConfigFileError(this, &elmMachine, N_("Snapshots present but none matches the UUID in the Machine/@currentSnapshot attribute"));
                 llFirstSnapshot.push_back(snap);
             }
             else if (pelmMachineChild->nameEquals("Description"))

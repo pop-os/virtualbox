@@ -85,6 +85,7 @@ static RTGETOPTDEF g_aGetOptDef[] =
     { "--ip-address",     'i',   RTGETOPT_REQ_IPV4ADDR },
     { "--netmask",        'm',   RTGETOPT_REQ_IPV4ADDR },
     { "--verbose",        'v',   RTGETOPT_REQ_NOTHING },
+    { "--need-main",      'M',   RTGETOPT_REQ_BOOL },
 };
 
 
@@ -101,13 +102,10 @@ VBoxNetBaseService::VBoxNetBaseService()
     m_cVerbosity            = 0;
     m_Name                  = "VBoxNetNAT";
     m_Network               = "intnet";
+    m_fNeedMain             = false;
 
     for(unsigned int i = 0; i < RT_ELEMENTS(g_aGetOptDef); ++i)
         m_vecOptionDefs.push_back(&g_aGetOptDef[i]);
-
-    HRESULT hrc = virtualbox.createLocalObject(CLSID_VirtualBox);
-    if (FAILED(hrc))
-        RTMsgError("Failed to create the VirtualBox object!");
 }
 
 
@@ -139,6 +137,15 @@ VBoxNetBaseService::~VBoxNetBaseService()
 
 int VBoxNetBaseService::init()
 {
+    if (isMainNeeded())
+    {
+        HRESULT hrc = com::Initialize();
+        AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+
+        hrc = virtualbox.createLocalObject(CLSID_VirtualBox);
+        AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+    }
+
     return VINF_SUCCESS;
 }
 
@@ -172,16 +179,19 @@ int VBoxNetBaseService::parseArgs(int argc, char **argv)
             break;
         switch (rc)
         {
-            case 'N':
+            case 'N': // --name
                 m_Name = Val.psz;
                 break;
-            case 'n':
+
+            case 'n': // --network
                 m_Network = Val.psz;
                 break;
-            case 't':
+
+            case 't': //--trunk-name
                 m_TrunkName = Val.psz;
                 break;
-            case 'T':
+
+            case 'T': //--trunk-type
                 if (!strcmp(Val.psz, "none"))
                     m_enmTrunkType = kIntNetTrunkType_None;
                 else if (!strcmp(Val.psz, "whatever"))
@@ -198,25 +208,32 @@ int VBoxNetBaseService::parseArgs(int argc, char **argv)
                     return 1;
                 }
                 break;
-            case 'a':
+
+            case 'a': // --mac-address
                 m_MacAddress = Val.MacAddr;
                 break;
-            case 'i':
+
+            case 'i': // --ip-address
                 m_Ipv4Address = Val.IPv4Addr;
                 break;
-        case 'm':
-          m_Ipv4Netmask = Val.IPv4Addr;
-          break;
 
-            case 'v':
+            case 'm': // --netmask 
+                m_Ipv4Netmask = Val.IPv4Addr;
+                break;
+
+            case 'v': // --verbose
                 m_cVerbosity++;
                 break;
 
-            case 'V':
+            case 'V': // --version (missed)
                 RTPrintf("%sr%u\n", RTBldCfgVersion(), RTBldCfgRevision());
                 return 1;
 
-            case 'h':
+            case 'M': // --need-main
+                m_fNeedMain = true;
+                break;
+
+            case 'h': // --help (missed)
                 RTPrintf("%s Version %sr%u\n"
                          "(C) 2009-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
                          "All rights reserved.\n"

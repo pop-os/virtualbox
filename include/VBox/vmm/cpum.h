@@ -293,9 +293,11 @@ DECLINLINE(bool)    CPUMIsGuestInPAEModeEx(PCPUMCTX pCtx)
             &&  CPUMIsGuestInPagedProtectedModeEx(pCtx)
             &&  !CPUMIsGuestInLongModeEx(pCtx));
 #else
+    /* Intel mentions EFER.LMA and EFER.LME in different parts of their spec. We shall use EFER.LMA rather
+       than EFER.LME as it reflects if the CPU has entered paging with EFER.LME set.  */
     return (   (pCtx->cr4 & X86_CR4_PAE)
             && CPUMIsGuestPagingEnabledEx(pCtx)
-            && !(pCtx->msrEFER & MSR_K6_EFER_LME));
+            && !(pCtx->msrEFER & MSR_K6_EFER_LMA));
 #endif
 }
 

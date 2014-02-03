@@ -16,7 +16,388 @@
   construction contient un numéro de révision.</para>
 
   <sect1>
-    <title>Version 4.3.0 (15-10-2013)</title>
+    <title>Version 4.3.4 (2013-xx-xx)</title>
+ 
+    <para>C'est une version de maintenance. Les éléments suivants ont été
+      corrigés et/ou ajoutés :</para>
+ 
+     <itemizedlist>
+ 
+       <listitem>
+        <para>VMM : correction d'un bogue dans l'émulation de Local APIC qui 
+          provoquait un BSOD lors du démarrage de certains invités (régression
+          4.3.0 ; bogue #12240)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM : correction du chargement des états sauvegardés si
+        VT-x/AMD-V a été désactivé (régression 4.3.0 ; bogue #12291)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM : correction d'un single-stepping dans l'invité pour certaines
+          instructions (VT-x seulement ; bogue #10947)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM : correction d'un problème de performance des accès APIC 
+        au redémarrage d'une VM (régression 4.#.0 ; VT-x seulement ; bogue #12296)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM : correction d'une correction TPR qui s'activait pour les
+        invités 32 bits quand le type d'invité choisi est 64 bits (régression
+        4.3.0 ; AMD-V seulement)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM : correction d'erreurs <emphasis>VINF_EM_TRIPLE_FAULT</emphasis>
+        occassionnelles sur les hôtes n'ayant pas la fonction d'exécution de
+          l'invité sans restriction (bogue #12198)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI : on n'ennuie pas l'utilisateur avec un avertissement BPP
+          s'il n'y a pas de suppléments invité installés</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI : correction de dessins d'artifacts dans la fenêtre de la machine 
+          au redémarrage de la VM ou au redimensionnement de l'écran de l'invité</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI : on s'assure que la licence et la description affectées 
+        sont rattachées à l'applicatif exporté.</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI : correction de bogues dans la gestion des restrictions de laa ferin de la VM
+        (bogue #12333)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI : correction de mauvaises couleurs du texte des assistant pour
+        des apparences inhabituelles (bogue #11743)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI : devrait restaurer le mode transparent dès que possible après
++          le redémarrage ou l'extinction de la VM</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI : corrections de plus de numéros de médias</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI : cache le gestionnaire de VM au lieu de fermer la fenêtre quand
+        on appuie sur le bouton Fermer la fenêtre (hôtes Max OS X seulement ; bogue #1772)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI : les angles chauds d'OS X n'étaient pas accessibles quand
+        VirtualBox VM était ouvert (hôtes Mac OS X seulement ; bogue #4139)</para>
+      </listitem>
+
+      <listitem>
+        <para>Réseau Host-only : correction de la création d'interfaces réseaux host-only
+          (régression 4.3.0 ; bogue #12182)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT : ne pas faire une boucle infinie si l'hôte ne peut pas
+          accéder à un serveur DNS (régression 4.3.0 ; bogue #12300)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT : ne reconnecte pas le caâle si les informations de DNS changent
+          et si le câble a été déconnecté auparavant (régression 4.3.0 ; bogue #12225)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT : correction de plusieurs problèmes au démarrage/fin
+        automatique des réseaux NAT au démarrage/arrêt d'une VM ou lors d'un
+        changement de configuration</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxNetDHCP : n'empêche pas VBoxSVC de se terminer
+          (bogue #12264)</para>
+      </listitem>
+
+      <listitem>
+        <para>Accélération graphique 2D : correction de plantages lors des bascules
+        entre les modes de présentation 
+          (bogue #9194)</para>
+      </listitem>
+
+      <listitem>
+        <para>BusLogic : possibilité de lancer des VMs ayant plus d'un 
+        contrôleur SCSI BusLogic activé</para>
+      </listitem>
+
+      <listitem>
+        <para>Clavier : correction d'un plantage de VM si elle est réveillée d'un
+          état sauvegardé et si on a appuyé sur au moins une touche (bogue #11289)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC : correction d'une corruption heap$$ dans certaines conditions
+          (régression 4.3.0)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC : correction d'un conflit facteur d'accrocs à l'initialisation
+          (bogue #12349)</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF : correction de l'import logique pour les applicatifs OVF qui
+        contiennent plusieurs VMs</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF : amélioration de la logique permettant de trouver un format d'image
+        adéquat à l'import d'un OVF</para>
+      </listitem>
+
+      <listitem>
+        <para>API : correction des informations sur certains événements générés
+        automatiquement (seulement avec XPCOM, seul l'hôte Windows était concerné), 
++       qui provoquaient des erreurs lors de la définition d'attributs par le
+        service web 
+          (bogue #12379)</para>
+      </listitem>
+
+      <listitem>
+        <para>SDK : extension de la fonctionnalité aux bindings C</para>
+      </listitem>
+
+      <listitem>
+        <para>Contrôle d'invité : diverses correcions (bogues #8072, #11044, #12336, #12338,
+          #12346, #12371)</para>
+      </listitem>
+
+      <listitem>
+        <para>Hôtes Windows : nouvelle tentative de correction de la forte latence 
+        de DPC (bogue #6242)</para>
+      </listitem>
+
+      <listitem>
+        <para>Installeur hôte Windows : l'enregistrement des extensions de
+          fichiers est facultatif, depuis une contribution de Tal Aloni (bogue #8009)</para>
+      </listitem>
+
+      <listitem>
+        <para>Hôtes Mac OS X : bonne signature des extensions du noyau pour les
+          hôtes Mavericks (bogue #12256)</para>
+      </listitem>
+
+      <listitem>
+        <para>Hôtes Mac OS X : correction d'un bogue où l'icône VirtualBox restait
+          dans le dock, empêchant l'hôte de s'éteindre (bogue #12241)</para>
+      </listitem>
+
+      <listitem>
+        <para>Hôtes Mac OS X : correction d'un petit problème de l'installeur (bogue #12275)</para>
+      </listitem>
+
+      <listitem>
+        <para>Hôtes / invités Linux : corrections de la compilation avec Linux 
+        3.13 (bogue #12358)</para>
+      </listitem>
+
+      <listitem>
+        <para>Invités Linux : bonne construction du module vboxvideo du noyau
+           sur les invités OL/RHEL 6.1 (bogue #11996)</para>
+      </listitem>
+
+      <listitem>
+        <para>Invités Linux : la 3D fonctionne sur Slackware 14.1
+           (bogue #12320 commentaires 3 et 4)</para>
+      </listitem>
+
+      <listitem>
+        <para>Suppléments invité/3D : correction de dead-lock occasionnel
+        (bogue #12319)</para>
+      </listitem>
+
+      <listitem>
+        <para>Suppléments Windows/3D : correction d'une fuite de mémoire possible (bogue #12228)</para>
+      </listitem>
+
+      <listitem>
+        <para>Suppléments Windows/XPDM : utilisation de tables distinctes contenant
+          les modes graphiques valides de chaque écran virtuel</para>
+      </listitem>
+
+     </itemizedlist>
+  </sect1>
+ 
+  <sect1>
+    <title>Version 4.3.2 (01-11-2013)</title>
+
+    <para>C'est une version de maintenance. Les éléments suivants ont çté
+      corrigés et/ou ajoutés :</para>
+ 
+     <itemizedlist>
+ 
+       <listitem>
+        <para>VMM : correction de la restauration du TSC MSR auxiliaire avec
+        VT-x, qui provoquait des BSODs de l'hôte sur les hôtes Windows 8.1 et
+        un comportement imprévisible sur les autres hôtes 
+          (bogue #12237)</para>
+       </listitem>
+ 
+       <listitem>
+        <para>VMM : fourniture de fausses valeurs pour deux MSRs pour mieux
+          satisfaire l'invité sur certains hôtes</para>
+      </listitem>
+
+       <listitem>
+        <para>VMM : correction de la détection de VT-x sur certaines machines où
+        le BIOS ne définit pas le bit de la fonction VMX LOCK, ce qui touchait
+       les paramètres de la VM dans la GUI</para>
+       </listitem>
+ 
+      <listitem>
+        <para>VMM : correction d'un $$ TPR threshold qui provoquait des BSODs sur
+les invités Windows XP utilisant l'APIC E/S (VT-x seulement ; bogue #12227)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM : correction d'une incompatibilité de l'état sauvegardé PATM
+          pour les VMs en virtualisationlogicielle (bogue #12222)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM : n'échoue pas si AMD-V n'est pas disponible si la VM est
+        configurée pour utiliser la virtualisation logicielle</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI : correction du redimensionnement de l'invité qui se brisait
+        au changement de mode de représentation visuelle
+	  (en passant de normal à plein-écran etc)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI : on s'assure que l'écran de l'invité se redimensionne après la
+        restauration d'une VM d'un état sauvegardé si la taille de l'écran de l'hôte 
+          a changé</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI : désactivation de la synchronisation de la led de défilement
+        de la synchronisation des LEDs HID 
+          (hôtes Mac OS X seulement)</para>
+      </listitem>
+
+      <listitem>
+        <para>Amélioration du support du webcam passthrough avec le support GUI (voir
+          <xref linkend="webcam-passthrough" />)</para>
+      </listitem>
+
+      <listitem>
+        <para>Contrôle invité : implémentation de davantage de méthodes
+        <computeroutput>IGuestSession</computeroutput></para>
+      </listitem>
+
+      <listitem>
+        <para>Contrôle invité : ajout du support de l'effacement et du renommage
+        des fichiers et des répertoires de l'invité dans
+          VBoxManage</para>
+      </listitem>
+
+      <listitem>
+        <para>Contrôle invité : diverses corrections de bogues</para>
+      </listitem>
+
+      <listitem>
+        <para>API : mauvaise gestion de la valeur par défaut de l'UUID du matériel,
+         si bien que tous les UUIDs DMI/SMBIOS sont de zéro, ce qui amène Windows 
+          à demander la ré-activation (régression 4.3 ; bogue #12244)</para>
+      </listitem>
+
+      <listitem>
+        <para>Support 3D : correction d'un plantge à l'extinction si l'accélération 
+        graphique 2D est activée  (hôtes Mac OS X seulement)</para>
+      </listitem>
+
+      <listitem>
+        <para>Support 3D : corrections de généralités</para>
+      </listitem>
+
+      <listitem>
+        <para>Stockage : correction de la détection d'un CD/DVD quand on vient
+        d'un lecteur vide à celui de l'hôte quand passthrough est activé</para>
+      </listitem>
+
+      <listitem>
+        <para>Stockage : correction d'un accroc du processus de VM quand le disque
+        est plein dans certaines circonstances</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT : écoute des changements de paramétrages du réseau NAT au moment
+        de l'exécution.</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT : le serveur DHCP du réseau NAT enregistre maintenant les baux
+          de façon permanente</para>
+      </listitem>
+
+      <listitem>
+        <para>Principal : modifications du moniteur dans la configuration du
+        DNS de l'hôte</para>
+      </listitem>
+
+      <listitem>
+        <para>Hôte Mac OS X : on a retravaillé un mécanisme d'ajout d'une icône
+        de bureau d'une VM à partir du sélecteur de VM</para>
+      </listitem>
+
+      <listitem>
+        <para>Installeur Mac OS X : suppression des anciennes extensions du noyau
+        à la mise à jour  (bogue #12258)</para>
+      </listitem>
+
+      <listitem>
+        <para>Suppléments Linux : bon réglage de l'umask avant l'-installation
+          (bogue #12166)</para>
+      </listitem>
+
+      <listitem>
+        <para>Suppléments X11/3D : correction de gels au démarrage d'un bureau 3D
+          (bogue #11503, merci à Sam Spilsbury)</para>
+      </listitem>
+
+      <listitem>
+        <para>Suppléments X11/3D : correctin de la largeur du support de tampon
+        (bogue #11905)</para>
+      </listitem>
+
+      <listitem>
+        <para>Suppléments X11/3D : correction du thème Age Of Empires 3 (l'âge des
+        Empires 3 (bogue #11331)</para>
+      </listitem>
+
+      <listitem>
+        <para>Suppléments Windows/3D : correction de l'affichage du greffon
+        Google Earth</para>
+      </listitem>
+
+      <listitem>
+        <para>Suppléments Windows/WDDM : corrections du redimensionnement automatique</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+ 
+   <sect1>
+    <title>Version 4.3.0 (2013-10-15)</title>
 
     <para>C'est une mise à jour majeure. Les nouvelles fonctions suivantes ont
     été ajoutées :</para>
