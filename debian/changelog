@@ -4,6 +4,7 @@ virtualbox (4.3.6-dfsg-1) UNRELEASED; urgency=medium
   * Drop compatibility with old X11 server packages.
   * Enable hardened build flags using hardening-wrapper. The upstream build
     system ignores the *FLAGS env variables. (Closes: #736459)
+  * Refresh 16-no-update.patch.
 
  -- Felix Geyer <fgeyer@debian.org>  Sat, 01 Feb 2014 18:50:13 +0100
 
