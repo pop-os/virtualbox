@@ -1,3 +1,10 @@
+virtualbox (4.3.6-dfsg-2) unstable; urgency=medium
+
+  * Disable bindnow in hardening-wrapper. This fixes loading the x11 driver.
+    (LP: #1280292)
+
+ -- Felix Geyer <fgeyer@debian.org>  Sat, 15 Feb 2014 11:02:21 +0100
+
 virtualbox (4.3.6-dfsg-1) unstable; urgency=medium
 
   * New upstream release. (Closes: #733263)
