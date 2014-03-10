@@ -5,7 +5,7 @@ Index: virtualbox/Config.kmk
 ===================================================================
 --- virtualbox.orig/Config.kmk	2013-11-19 04:39:48.053639615 -0500
 +++ virtualbox/Config.kmk	2013-11-19 04:39:48.049639615 -0500
-@@ -4826,7 +4826,7 @@
+@@ -4835,7 +4835,7 @@
  TEMPLATE_VBOXBLDPROG_LDFLAGS.amd64       = -m64
  TEMPLATE_VBOXBLDPROG_LDFLAGS.sparc64     = -m64
   ifeq ($(KBUILD_HOST),linux)
