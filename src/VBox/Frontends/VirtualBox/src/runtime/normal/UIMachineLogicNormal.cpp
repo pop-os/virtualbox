@@ -66,14 +66,6 @@ void UIMachineLogicNormal::sltCheckForRequestedVisualStateType()
     }
 }
 
-void UIMachineLogicNormal::sltPrepareNetworkAdaptersMenu()
-{
-    QMenu *menu = qobject_cast<QMenu*>(sender());
-    AssertMsg(menu, ("This slot should be called only on Network Adapters menu show!\n"));
-    menu->clear();
-    menu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_NetworkSettings));
-}
-
 void UIMachineLogicNormal::sltPrepareSharedFoldersMenu()
 {
     QMenu *menu = qobject_cast<QMenu*>(sender());
@@ -87,8 +79,8 @@ void UIMachineLogicNormal::sltPrepareVideoCaptureMenu()
     QMenu *pMenu = qobject_cast<QMenu*>(sender());
     AssertMsg(pMenu, ("This slot should be called only on Video Capture menu show!\n"));
     pMenu->clear();
-    pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_VideoCapture));
     pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Simple_VideoCaptureSettings));
+    pMenu->addAction(gActionPool->action(UIActionIndexRuntime_Toggle_VideoCapture));
 }
 
 void UIMachineLogicNormal::sltPrepareMouseIntegrationMenu()
@@ -113,8 +105,6 @@ void UIMachineLogicNormal::prepareActionConnections()
             uisession(), SLOT(sltChangeVisualStateToScale()));
 
     /* "Device" actions connections: */
-    connect(gActionPool->action(UIActionIndexRuntime_Menu_Network)->menu(), SIGNAL(aboutToShow()),
-            this, SLOT(sltPrepareNetworkAdaptersMenu()));
     connect(gActionPool->action(UIActionIndexRuntime_Menu_SharedFolders)->menu(), SIGNAL(aboutToShow()),
             this, SLOT(sltPrepareSharedFoldersMenu()));
     connect(gActionPool->action(UIActionIndexRuntime_Menu_VideoCapture)->menu(), SIGNAL(aboutToShow()),

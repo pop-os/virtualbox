@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -196,7 +196,11 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--unplugcpu <id>]\n"
                      "                            [--cpuexecutioncap <1-100>]\n"
                      "                            [--rtcuseutc on|off]\n"
+#ifdef VBOX_WITH_VMSVGA
+                     "                            [--graphicscontroller none|vboxvga|vmsvga]\n"
+#else
                      "                            [--graphicscontroller none|vboxvga]\n"
+#endif
                      "                            [--monitorcount <number>]\n"
                      "                            [--accelerate3d on|off]\n"
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -344,7 +348,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--teleporterport <port>]\n"
                      "                            [--teleporteraddress <address|empty>\n"
                      "                            [--teleporterpassword <password>]\n"
-                     "                            [--teleporterpasswordfile  <file>|stdin]\n"
+                     "                            [--teleporterpasswordfile <file>|stdin]\n"
                      "                            [--tracing-enabled on|off]\n"
                      "                            [--tracing-config <config-string>]\n"
                      "                            [--tracing-allow-vm-access on|off]\n"
@@ -377,7 +381,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--vcprate <rate>]\n"
                      "                            [--vcpfps <fps>]\n"
 #endif
-                     "                            [--defaultfrontend default|<name]\n"
+                     "                            [--defaultfrontend default|<name>]\n"
                      "\n");
     }
 
@@ -410,6 +414,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--legacy09|--ovf09|--ovf10|--ovf20]\n"
                      "                            [--manifest]\n"
                      "                            [--iso]\n"
+                     "                            [--options manifest|iso|nomacs|nomacsbutnat]\n"
                      "                            [--vsys <number of virtual system>]\n"
                      "                                    [--product <product name>]\n"
                      "                                    [--producturl <product url>]\n"
@@ -757,7 +762,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
     {
         RTStrmPrintf(pStrm,
                            "%s natnetwork %s      add --netname <name>\n"
-                     "                            --network <network\n"
+                     "                            --network <network>\n"
                      "                            [--enable|--disable]\n"
                      "                            [--dhcp on|off]\n"
                      "                            [--port-forward-4 <rule>]\n"
@@ -767,7 +772,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--loopback-6 <rule>]\n\n"
                            "%s natnetwork %s      remove --netname <name>\n\n"
                            "%s natnetwork %s      modify --netname <name>\n"
-                     "                            [--network <network]\n"
+                     "                            [--network <network>]\n"
                      "                            [--enable|--disable]\n"
                      "                            [--dhcp on|off]\n"
                      "                            [--port-forward-4 <rule>]\n"

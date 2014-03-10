@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,7 +23,6 @@
 #include <VBox/com/string.h>
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
-#include <VBox/com/EventQueue.h>
 
 #include <iprt/initterm.h>
 #include <iprt/stream.h>
@@ -116,12 +115,12 @@ void importOVF(const char *pcszPrefix,
         com::SafeArray<VirtualSystemDescriptionType_T> aTypes;
         com::SafeArray<BSTR> aRefs;
         com::SafeArray<BSTR> aOvfValues;
-        com::SafeArray<BSTR> aVboxValues;
+        com::SafeArray<BSTR> aVBoxValues;
         com::SafeArray<BSTR> aExtraConfigValues;
         rc = pVSys->GetDescription(ComSafeArrayAsOutParam(aTypes),
                                    ComSafeArrayAsOutParam(aRefs),
                                    ComSafeArrayAsOutParam(aOvfValues),
-                                   ComSafeArrayAsOutParam(aVboxValues),
+                                   ComSafeArrayAsOutParam(aVBoxValues),
                                    ComSafeArrayAsOutParam(aExtraConfigValues));
         if (FAILED(rc)) throw MyError(rc, "VirtualSystemDescription::GetDescription() failed\n");
 
@@ -226,7 +225,7 @@ void importOVF(const char *pcszPrefix,
             RTPrintf("  vsys %2u item %2u: type %2d (%s), ovf: \"%ls\", vbox: \"%ls\", extra: \"%ls\"\n",
                      u, u2, t, pcszType,
                      aOvfValues[u2],
-                     aVboxValues[u2],
+                     aVBoxValues[u2],
                      aExtraConfigValues[u2]);
         }
     }
@@ -304,10 +303,6 @@ int main(int argc, char *argv[])
 
         rc = pSession.createInprocObject(CLSID_Session);
         if (FAILED(rc)) throw MyError(rc, "failed to create a session object!\n");
-
-        // create the event queue
-        // (here it is necessary only to process remaining XPCOM/IPC events after the session is closed)
-        EventQueue eventQ;
 
         // for each testcase, we will copy the dummy VMDK image to the subdirectory with the OVF testcase
         // so that the import will find the disks it expects; this is just for testing the import since

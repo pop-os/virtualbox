@@ -43,6 +43,9 @@
 #include <iprt/alloca.h>
 #include <iprt/time.h>
 #include <iprt/net.h>
+#include <iprt/thread.h>
+
+#include "../../darwin/VBoxNetSend.h"
 
 #include <mach/kmod.h>
 #include <sys/conf.h>
@@ -882,6 +885,41 @@ static errno_t vboxNetFltDarwinIffInput(void *pvThis, ifnet_t pIfNet, protocol_f
 }
 
 
+/** A worker thread for vboxNetFltSendDummy(). */
+static DECLCALLBACK(int) vboxNetFltSendDummyWorker(RTTHREAD hThreadSelf, void *pvUser)
+{
+    Assert(pvUser);
+    ifnet_t pIfNet = (ifnet_t)pvUser;
+    return VBoxNetSendDummy(pIfNet);
+}
+
+
+/**
+ * Prevent GUI icon freeze issue when VirtualBoxVM process terminates.
+ *
+ * This function is a workaround for stuck-in-dock issue.  The idea here is to
+ * send a dummy packet to an interface from the context of a kernel thread.
+ * Therefore, an XNU's receive thread (which is created as a result if we are
+ * the first who is communicating with the interface) will be associated with
+ * the kernel thread instead of VirtualBoxVM process.
+ *
+ * @param pIfNet    Interface to be used to send data.
+ */
+static void vboxNetFltSendDummy(ifnet_t pIfNet)
+{
+    RTTHREAD hThread;
+    int rc = RTThreadCreate(&hThread, vboxNetFltSendDummyWorker, (void *)pIfNet, 0,
+                            RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "DummyThread");
+    if (RT_SUCCESS(rc))
+    {
+        RTThreadWait(hThread, RT_INDEFINITE_WAIT, NULL);
+        LogFlow(("vboxNetFltSendDummy: a dummy packet has been successfully sent in order to prevent stuck-in-dock issue\n"));
+    }
+    else
+        LogFlow(("vboxNetFltSendDummy: unable to send dummy packet in order to prevent stuck-in-dock issue\n"));
+}
+
+
 /**
  * Internal worker for vboxNetFltOsInitInstance and vboxNetFltOsMaybeRediscovered.
  *
@@ -916,6 +954,9 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
     RTSpinlockAcquire(pThis->hSpinlock);
     ASMAtomicUoWritePtr(&pThis->u.s.pIfNet, pIfNet);
     RTSpinlockReleaseNoInts(pThis->hSpinlock);
+
+    /* Prevent stuck-in-dock issue by associating interface receive thread with kernel thread. */
+    vboxNetFltSendDummy(pIfNet);
 
     /*
      * Get the mac address while we still have a valid ifnet reference.

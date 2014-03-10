@@ -7,7 +7,7 @@
 #
 
 #
-# Copyright (C) 2006-2013 Oracle Corporation
+# Copyright (C) 2006-2014 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -206,7 +206,7 @@ VBOX_VERSION_MINOR = 3
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 6
+VBOX_VERSION_BUILD = 8
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -372,6 +372,8 @@ VBOX_WITH_DEBUGGER_GUI = 1
 VBOX_WITH_PDM_LOCK = 1
 # Enables the first step using IEM (the interpreter).
 VBOX_WITH_FIRST_IEM_STEP = 1
+# Enables the new MSR code.
+VBOX_WITH_NEW_MSR_CODE = 1
 ## @}
 
 
@@ -417,8 +419,10 @@ if1of ($(KBUILD_TARGET), linux solaris)
 endif
 # Disable WINMM support for Windows (not implemented).
 VBOX_WITH_WINMM =
-# Enabled internal networking.
+# Enable internal networking.
 VBOX_WITH_INTERNAL_NETWORKING = 1
+# Enable vmsvga (svga2) graphics device variant, 2D part
+VBOX_WITH_VMSVGA = 1
 # Enable Host Guest Shared Memory Interface.
 VBOX_WITH_HGSMI = 1
 # Enable Video 2D Acceleration.
@@ -831,6 +835,7 @@ VBOX_BRAND_GUI_VBOX_32PX_PNG         := $(PATH_ROOT)/src/VBox/Frontends/VirtualB
 VBOX_BRAND_GUI_VBOX_40PX_PNG         := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/NonOSE/VirtualBox_40px.png
 VBOX_BRAND_GUI_VBOX_48PX_PNG         := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/NonOSE/VirtualBox_48px.png
 VBOX_BRAND_GUI_VBOX_64PX_PNG         := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/NonOSE/VirtualBox_64px.png
+VBOX_BRAND_GUI_VBOX_SVG              := $(PATH_ROOT)/src/VBox/Resources/NonOSE/virtualbox.svg
 VBOX_BRAND_WIN_INST_DLGJPG           := $(PATH_ROOT)/src/VBox/Installer/win/Binary/Dialog.jpg
 VBOX_BRAND_WIN_INST_EXT              :=
 VBOX_BRAND_WIN_ADD_INST_DLGBMP       := $(PATH_ROOT)/src/VBox/Additions/WINNT/Installer/welcome.bmp
@@ -1063,6 +1068,7 @@ ifdef VBOX_OSE
  VBOX_BRAND_GUI_VBOX_48PX_PNG  := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_48px.png
  VBOX_BRAND_GUI_VBOX_64PX_PNG  := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_64px.png
  VBOX_BRAND_GUI_CUBE_42PX_PNG  := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_cube_42px.png
+ VBOX_BRAND_GUI_VBOX_SVG       := $(PATH_ROOT)/src/VBox/Resources/OSE/virtualbox.svg
 endif
 
 #
@@ -2564,7 +2570,7 @@ ifdef VBOX_SIGNING_MODE
    VBOX_CERTIFICATE_SUBJECT_NAME_ARGS ?= /n "$(VBOX_CERTIFICATE_SUBJECT_NAME)"
   else if1of ($(VBOX_SIGNING_MODE), release development)
    VBOX_CERTIFICATE_SUBJECT_NAME ?= Oracle Corporation
-   VBOX_CERTIFICATE_SUBJECT_NAME_ARGS ?= /n "$(VBOX_CERTIFICATE_SUBJECT_NAME)"
+   VBOX_CERTIFICATE_SUBJECT_NAME_ARGS ?= /n "$(VBOX_CERTIFICATE_SUBJECT_NAME)" /a
    VBOX_CROSS_CERTIFICATE_FILE ?= $(VBOX_PATH_SELFSIGN)/MSCV-VSClass3.cer
    VBOX_CROSS_CERTIFICATE_FILE_ARGS ?= /ac "$(VBOX_CROSS_CERTIFICATE_FILE)"
    VBOX_TSA_URL ?= http://timestamp.verisign.com/scripts/timestamp.dll
@@ -3757,7 +3763,7 @@ endif
 #
 TEMPLATE_VBOXR3STATIC                  = VBox Static Ring 3 EXE
 TEMPLATE_VBOXR3STATIC_EXTENDS          = VBOXR3EXE
-TEMPLATE_VBOXR3STATIC_DEFS             = IN_RT_STATIC IN_RT_R3 $(TEMPLATE_VBOXR3EXE_DEFS)
+TEMPLATE_VBOXR3STATIC_DEFS             = IN_RT_STATIC IN_RT_R3 IN_SUP_STATIC $(TEMPLATE_VBOXR3EXE_DEFS)
 ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBOXR3STATIC_CFLAGS          = $(filter-out -MD$(VBOX_VCC_CRT_TYPE), $(TEMPLATE_VBOXR3EXE_CFLAGS)) -MT$(VBOX_VCC_CRT_TYPE)
  TEMPLATE_VBOXR3STATIC_CXXFLAGS        = $(filter-out -MD$(VBOX_VCC_CRT_TYPE), $(TEMPLATE_VBOXR3EXE_CFLAGS)) -MT$(VBOX_VCC_CRT_TYPE)
@@ -4190,7 +4196,7 @@ TEMPLATE_VBOXMAINEXE_LDFLAGS.x86         = -m32
 TEMPLATE_VBOXMAINEXE_LDFLAGS.amd64       = -m64
  ifeq ($(KBUILD_TARGET),linux)
 TEMPLATE_VBOXMAINEXE_LIBS                = pthread m rt $(LIB_RUNTIME) dl
-TEMPLATE_VBOXMAINEXE_LDFLAGS.linux       = $(VBOX_LD_as_needed)
+TEMPLATE_VBOXMAINEXE_LDFLAGS.linux       = -Wl,-z,noexecstack $(VBOX_LD_as_needed)
  else ifeq ($(KBUILD_TARGET),os2)
 TEMPLATE_VBOXMAINEXE_TOOL                = GXX3OMF
 TEMPLATE_VBOXMAINEXE_LIBS                = $(LIB_RUNTIME)
@@ -4649,7 +4655,7 @@ ifdef VBOX_WITH_QTGUI
 	$(VBOX_LIB_VMM_LAZY)
 
   ifeq ($(KBUILD_TARGET),linux)
-   TEMPLATE_VBOXQT4GUIEXE_LDFLAGS += $(VBOX_LD_as_needed)
+   TEMPLATE_VBOXQT4GUIEXE_LDFLAGS += -Wl,-z,noexecstack $(VBOX_LD_as_needed)
    TEMPLATE_VBOXQT4GUIEXE_LIBS += \
      $(VBOX_XCURSOR_LIBS) \
 	Xext \
@@ -5022,25 +5028,6 @@ TEMPLATE_NewVBoxGuestR3Exe_LIBS     = \
 	$(VBOX_LIB_VBGL_R3) \
 	$(VBOX_LIB_IPRT_GUEST_R3) \
 	$(TEMPLATE_VBOXGUESTR3EXE_LIBS)
-ifeq ($(KBUILD_TARGET),linux)
- TEMPLATE_NewVBoxGuestR3Exe_LIBS   += crypt
-endif
-
-#
-# Template for building normal 32-bit R3 programs for the guest additions.
-#
-TEMPLATE_NewVBoxGuestR3Exe_X86              = 32-bit VBox Guest Program w/ IPRT and VBGL.
-TEMPLATE_NewVBoxGuestR3Exe_X86_EXTENDS      = NewVBoxGuestR3Exe
-TEMPLATE_NewVBoxGuestR3Exe_X86_BLD_TRG_ARCH = x86
-TEMPLATE_NewVBoxGuestR3Exe_X86_LIBS         = \
-	$(VBOX_LIB_IPRT_GUEST_R3_X86) \
-	$(VBOX_LIB_VBGL_R3_X86) \
-	$(VBOX_LIB_IPRT_GUEST_R3_X86) \
-	$(TEMPLATE_VBOXGUESTR3EXE_LIBS)
-ifeq ($(KBUILD_TARGET),linux)
- TEMPLATE_NewVBoxGuestR3Exe_X86_LIBS       += crypt
-endif
-TEMPLATE_NewVBoxGuestR3Exe_X86_INST         = $(INST_ADDITIONS)/32/
 
 #
 # Template for building R3 (dynamic) libraries for the guest additions.
@@ -5054,14 +5041,6 @@ ifn1of ($(KBUILD_TARGET), darwin os2 win)
  TEMPLATE_VBOXGUESTR3DLL_CXXFLAGS = $(TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS) -fPIC -fno-exceptions
  TEMPLATE_VBOXGUESTR3DLL_LDFLAGS  = $(TEMPLATE_VBOXGUESTR3EXE_LDFLAGS) -fPIC
 endif
-
-#
-# Template for building normal 32-bit R3 programs for the guest additions.
-#
-TEMPLATE_VBOXGUESTR3DLL_X86              = 32-bit VBox Guest User Dynamic Libraries
-TEMPLATE_VBOXGUESTR3DLL_X86_EXTENDS      = VBOXGUESTR3DLL
-TEMPLATE_VBOXGUESTR3DLL_X86_BLD_TRG_ARCH = x86
-TEMPLATE_VBOXGUESTR3DLL_X86_INST         = $(INST_ADDITIONS)/32/
 
 #
 # Template for building normal R3 (dynamic) libraries for the guest additions, allows warnings.
@@ -5181,7 +5160,7 @@ ifeq ($(VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE),)
 endif
 TEMPLATE_VBOXGUESTR3XF86MOD_SYSSUFF = .o
 TEMPLATE_VBOXGUESTR3XF86MOD_LIBS  = \
-        $(VBOX_LIB_VBGL_R3_XFREE86)
+	$(VBOX_LIB_VBGL_R3_XFREE86)
 TEMPLATE_VBOXGUESTR3XF86MOD_DEFS  = $(TEMPLATE_VBOXGUESTR3DLL_DEFS) VBOX_GUESTR3XF86MOD RTMEM_NO_WRAP_TO_EF_APIS
 
 
@@ -5191,27 +5170,6 @@ TEMPLATE_VBOXGUESTR3XF86MOD_DEFS  = $(TEMPLATE_VBOXGUESTR3DLL_DEFS) VBOX_GUESTR3
 TEMPLATE_VBOXGUESTR3XF86LIB         = VBox XFree86 Guest Library
 TEMPLATE_VBOXGUESTR3XF86LIB_EXTENDS = VBOXGUESTR3XF86MOD
 TEMPLATE_VBOXGUESTR3XF86LIB_INST    = $(INST_ADDITIONS_LIB)
-
-
-#
-# Template for 32-bit XFree86 guest modules (relocatable module, i.e. sysmod).
-#
-TEMPLATE_VBOXGUESTR3XF86MOD_X86      = 32-bit VBox X.org Guest Module
-TEMPLATE_VBOXGUESTR3XF86MOD_X86_EXTENDS = VBOXGUESTR3XF86MOD
-TEMPLATE_VBOXGUESTR3XF86MOD_X86_BLD_TRG_ARCH = x86
-TEMPLATE_VBOXGUESTR3XF86MOD_X86_DEFS = \
-	$(filter-out _XSERVER64,$(TEMPLATE_VBOXGUESTR3XF86MOD_DEFS))
-TEMPLATE_VBOXGUESTR3XF86MOD_X86_LIBS = \
-	$(VBOX_LIB_VBGL_R3_XFREE86_X86)
-TEMPLATE_VBOXGUESTR3XF86MOD_X86_INST = $(INST_ADDITIONS)/32/
-
-
-#
-# Template for 32-bit XFree86 guest libraries.
-#
-TEMPLATE_VBOXGUESTR3XF86LIB_X86         = 32-bit VBox XFree86 Guest Library
-TEMPLATE_VBOXGUESTR3XF86LIB_X86_EXTENDS = VBOXGUESTR3XF86LIB
-TEMPLATE_VBOXGUESTR3XF86LIB_X86_BLD_TRG_ARCH = x86
 
 
 #
@@ -5243,22 +5201,6 @@ TEMPLATE_VBOXGUESTR3XORGMOD_LIBS = \
 	$(VBOX_LIB_IPRT_GUEST_R3_MINI)
 TEMPLATE_VBOXGUESTR3XORGMOD_LIBS.freebsd += \
 	iconv
-
-
-#
-# Template for 32-bit X.org guest modules (shared libs).
-#
-TEMPLATE_VBOXGUESTR3XORGMOD_X86      = 32-bit VBox X.org Guest Module
-TEMPLATE_VBOXGUESTR3XORGMOD_X86_EXTENDS = VBOXGUESTR3XORGMOD
-TEMPLATE_VBOXGUESTR3XORGMOD_X86_BLD_TRG_ARCH = x86
-TEMPLATE_VBOXGUESTR3XORGMOD_X86_DEFS = \
-	$(filter-out _XSERVER64,$(TEMPLATE_VBOXGUESTR3XORGMOD_DEFS))
-TEMPLATE_VBOXGUESTR3XORGMOD_X86_LIBS = \
-	$(VBOX_LIB_VBGL_R3_SHARED_X86) \
-	$(VBOX_LIB_IPRT_GUEST_R3_MINI_X86) \
-	$(VBOX_LIB_VBGL_R3_SHARED_X86) \
-	$(VBOX_LIB_IPRT_GUEST_R3_MINI_X86)
-TEMPLATE_VBOXGUESTR3XORGMOD_X86_INST = $(INST_ADDITIONS)/32/
 
 
 #
@@ -5389,15 +5331,11 @@ VBOX_LIB_VBGL_R0BASE             = $(VBOX_PATH_ADDITIONS_LIB)/VBoxGuestR0LibBase
 VBOX_LIB_VBGL_R0                 = $(VBOX_PATH_ADDITIONS_LIB)/VBoxGuestR0Lib$(VBOX_SUFF_LIB)
 ifeq ($(KBUILD_TARGET),x86)
  VBOX_LIB_IPRT_GUEST_R3_X86      = $(VBOX_LIB_IPRT_GUEST_R3)
- VBOX_LIB_IPRT_GUEST_R3_MINI_X86 = $(VBOX_LIB_IPRT_GUEST_R3_MINI)
- VBOX_LIB_VBGL_R3_XFREE86_X86    = $(VBOX_LIB_VBGL_R3_XFREE86)
  VBOX_LIB_IPRT_GUEST_R3_SHARED_X86 = $(VBOX_LIB_IPRT_GUEST_R3_SHARED)
  VBOX_LIB_VBGL_R3_X86            = $(VBOX_LIB_VBGL_R3)
  VBOX_LIB_VBGL_R3_SHARED_X86     = $(VBOX_LIB_VBGL_R3_SHARED)
 else
  VBOX_LIB_IPRT_GUEST_R3_X86      = $(VBOX_PATH_ADDITIONS_LIB)/RuntimeGuestR3-x86$(VBOX_SUFF_LIB)
- VBOX_LIB_IPRT_GUEST_R3_MINI_X86 = $(VBOX_PATH_ADDITIONS_LIB)/RuntimeGuestR3Mini-x86$(VBOX_SUFF_LIB)
- VBOX_LIB_VBGL_R3_XFREE86_X86    = $(VBOX_PATH_ADDITIONS_LIB)/VBoxGuestR3LibXFree86-x86$(VBOX_SUFF_LIB)
  VBOX_LIB_IPRT_GUEST_R3_SHARED_X86 = $(VBOX_PATH_ADDITIONS_LIB)/RuntimeGuestR3Shared-x86$(VBOX_SUFF_LIB)
  VBOX_LIB_VBGL_R3_X86            = $(VBOX_PATH_ADDITIONS_LIB)/VBoxGuestR3Lib-x86$(VBOX_SUFF_LIB)
  VBOX_LIB_VBGL_R3_SHARED_X86     = $(VBOX_PATH_ADDITIONS_LIB)/VBoxGuestR3LibShared-x86$(VBOX_SUFF_LIB)
@@ -5590,7 +5528,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 91406 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 92456 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=
@@ -5603,11 +5541,7 @@ $(VBOX_SVN_REV_KMK).ts +| $(VBOX_SVN_REV_KMK): $(if $(VBOX_SVN_DEP), $(VBOX_SVN_
 	$(QUIET)$(MKDIR) -p $(@D)
  ifneq ($(VBOX_SVN_DEP),)
 	$(REDIRECT) -E 'LC_ALL=C' -wo $@.tmp -- $(SVN) info $(PATH_ROOT)
-  ifeq ($(int-mod $(VBOX_VERSION_BUILD), 2),0)
 	$(SED) -e '/^Last Changed Rev/!d'  -e 's/Last Changed Rev\: */export VBOX_SVN_REV=/' --output $@ $@.tmp
-  else
-	$(SED) -e '/^Revision/!d'  -e 's/Revision\: */export VBOX_SVN_REV=/' --output $@ $@.tmp
-  endif
 	$(QUIET)$(RM) -f $@.tmp
  else
 	$(QUIET)$(APPEND) $@ 'export VBOX_SVN_REV=$(VBOX_SVN_REV_FALLBACK)'

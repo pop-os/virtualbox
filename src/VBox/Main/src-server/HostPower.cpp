@@ -51,7 +51,7 @@ void HostPowerService::notify(Reason_T aReason)
     {
         case Reason_HostSuspend:
         {
-            LogFunc(("SUSPEND\n"));
+            LogFunc(("HOST SUSPEND\n"));
 
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
             /* Suspend performance sampling to avoid unnecessary callbacks due to jumps in time. */
@@ -79,14 +79,13 @@ void HostPowerService::notify(Reason_T aReason)
                 mSessionControls.push_back(pControl);
             }
 
-            LogFunc(("Suspended %d VMs\n", mSessionControls.size()));
-
+            LogRel(("Host suspending: Paused %d VMs\n", mSessionControls.size()));
             break;
         }
 
         case Reason_HostResume:
         {
-            LogFunc(("RESUME\n"));
+            LogFunc(("HOST RESUME\n"));
 
             size_t resumed = 0;
 
@@ -104,7 +103,7 @@ void HostPowerService::notify(Reason_T aReason)
                 ++resumed;
             }
 
-            LogFunc(("Resumed %d VMs\n", resumed));
+            LogRel(("Host resumed: Resumed %d VMs\n", resumed));
 
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
             /* Resume the performance sampling. */
@@ -115,7 +114,6 @@ void HostPowerService::notify(Reason_T aReason)
 #endif
 
             mSessionControls.clear();
-
             break;
         }
 
@@ -123,42 +121,74 @@ void HostPowerService::notify(Reason_T aReason)
         {
             LogFunc(("BATTERY LOW\n"));
 
-            mVirtualBox->getOpenedMachines(machines, &controls);
+            Bstr value;
+            rc = mVirtualBox->GetExtraData(Bstr("VBoxInternal2/SavestateOnBatteryLow").raw(),
+                                           value.asOutParam());
+            int fGlobal = 0;
+            if (SUCCEEDED(rc) && !value.isEmpty())
+            {
+                if (value != "0")
+                    fGlobal = 1;
+                else if (value == "0")
+                    fGlobal = -1;
+            }
 
+            mVirtualBox->getOpenedMachines(machines, &controls);
             size_t saved = 0;
 
             /* save running VMs */
+            SessionMachinesList::const_iterator it2 = machines.begin();
             for (VirtualBox::InternalControlList::const_iterator it = controls.begin();
-                 it != controls.end();
-                 ++it)
+                 it != controls.end() && it2 != machines.end();
+                 ++it, ++it2)
             {
-                ComPtr<IInternalSessionControl> pControl = *it;
-
-                ComPtr<IProgress> progress;
-
-                /* note that SaveStateWithReason() will simply return a failure
-                 * if the VM is in an inappropriate state */
-                rc = pControl->SaveStateWithReason(Reason_HostBatteryLow, progress.asOutParam());
-                if (FAILED(rc))
-                    continue;
-
-                /* Wait until the operation has been completed. */
-                rc = progress->WaitForCompletion(-1);
-                if (SUCCEEDED(rc))
+                ComPtr<SessionMachine> pMachine = *it2;
+                rc = pMachine->GetExtraData(Bstr("VBoxInternal2/SavestateOnBatteryLow").raw(),
+                                            value.asOutParam());
+                int fPerVM = 0;
+                if (SUCCEEDED(rc) && !value.isEmpty())
                 {
-                    LONG iRc;
-                    progress->COMGETTER(ResultCode)(&iRc);
-                    rc = iRc;
+                    /* per-VM overrides global */
+                    if (value != "0")
+                        fPerVM = 2;
+                    else if (value == "0")
+                        fPerVM = -2;
                 }
 
-                AssertMsg(SUCCEEDED(rc), ("SaveState WaitForCompletion failed with %Rhrc (%#08X)\n", rc, rc));
+                /* default is true */
+                if (fGlobal + fPerVM >= 0)
+                {
+                    ComPtr<IInternalSessionControl> pControl = *it;
+                    ComPtr<IProgress> progress;
 
-                if (SUCCEEDED(rc))
-                    ++saved;
+                    /* note that SaveStateWithReason() will simply return a failure
+                     * if the VM is in an inappropriate state */
+                    rc = pControl->SaveStateWithReason(Reason_HostBatteryLow, progress.asOutParam());
+                    if (FAILED(rc))
+                    {
+                        LogRel(("SaveState '%s' failed with %Rhrc\n", pMachine->getName().c_str(), rc));
+                        continue;
+                    }
+
+                    /* Wait until the operation has been completed. */
+                    rc = progress->WaitForCompletion(-1);
+                    if (SUCCEEDED(rc))
+                    {
+                        LONG iRc;
+                        progress->COMGETTER(ResultCode)(&iRc);
+                        rc = iRc;
+                    }
+
+                    AssertMsg(SUCCEEDED(rc), ("SaveState WaitForCompletion failed with %Rhrc (%#08X)\n", rc, rc));
+
+                    if (SUCCEEDED(rc))
+                    {
+                        LogRel(("SaveState '%s' succeeded\n", pMachine->getName().c_str()));
+                        ++saved;
+                    }
+                }
             }
-
-            LogFunc(("Saved %d VMs\n", saved));
-
+            LogRel(("Battery Low: saved %d VMs\n", saved));
             break;
         }
 

@@ -60,6 +60,12 @@
 #include "lwip/debug.h"
 #include "lwip/stats.h"
 
+/* see comment in "lwip/ip.h" */
+#ifdef IP_HDRINCL
+#undef IP_HDRINCL
+#endif
+#define IP_HDRINCL LWIP_IP_HDRINCL
+
 #if LWIP_CONNECTION_PROXY
 proxy_ip6_divert_hook_fn proxy_ip6_divert_hook;
 #endif
@@ -704,9 +710,9 @@ netif_found:
       }
 
       /* Offset == 0 and more_fragments == 0? */
-      if (((frag_hdr->_fragment_offset & IP6_FRAG_OFFSET_MASK) == 0) &&
-          ((frag_hdr->_fragment_offset & IP6_FRAG_MORE_FLAG) == 0)) {
-
+      if ((frag_hdr->_fragment_offset
+           & PP_HTONS(IP6_FRAG_OFFSET_MASK | IP6_FRAG_MORE_FLAG)) == 0)
+      {
         /* This is a 1-fragment packet, usually a packet that we have
          * already reassembled. Skip this header anc continue. */
         pbuf_header(p, -hlen);
@@ -778,6 +784,14 @@ options_done:
       tcp_proxy_input(p, inp);
       break;
 #endif /* LWIP_TCP */
+
+#if LWIP_ICMP6
+    case IP6_NEXTH_ICMP6:
+      /* Point to payload. */
+      pbuf_header(p, -ip_data.current_ip_header_tot_len);
+      icmp6_proxy_input(p, inp);
+      break;
+#endif /* LWIP_ICMP */
 
     default:
       /* no proxy support for this protocol */

@@ -373,6 +373,8 @@ renderSPUInit( int id, SPU *child, SPU *self,
 
     render_spu.gather_conns = NULL;
 
+    numFuncs = renderspu_SystemPostprocessFunctions(_cr_render_table, numFuncs, RT_ELEMENTS(_cr_render_table));
+
     crDebug("Render SPU: ---------- End of Init -------------");
 
     return &render_functions;
@@ -383,7 +385,8 @@ static void renderSPUSelfDispatch(SPUDispatchTable *self)
     crSPUInitDispatchTable( &(render_spu.self) );
     crSPUCopyDispatchTable( &(render_spu.self), self );
 
-    render_spu.blitterDispatch = &(render_spu.self);
+    crSPUInitDispatchTable( &(render_spu.blitterDispatch) );
+    crSPUCopyDispatchTable( &(render_spu.blitterDispatch), self );
 
     render_spu.server = (CRServer *)(self->server);
 

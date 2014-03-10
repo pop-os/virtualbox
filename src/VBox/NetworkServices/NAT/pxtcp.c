@@ -738,9 +738,7 @@ pxtcp_pcb_delete_pxtcp(void *ctx)
      * to close the socket.
      */
     if (pxtcp->sock != INVALID_SOCKET) {
-        int status = closesocket(pxtcp->sock);
-        DPRINTF(("%s:%d=closesocket(%d)\n", __func__, status, pxtcp->sock));
-
+        closesocket(pxtcp->sock);
         pxtcp->sock = INVALID_SOCKET;
     }
 
@@ -1108,8 +1106,7 @@ pxtcp_pmgr_connect(struct pollmgr_handler *handler, SOCKET fd, int revents)
             }
             s = pxtcp->sock;
             pxtcp->sock = INVALID_SOCKET;
-            status = closesocket(s);
-            DPRINTF(("%s: %d closesocket: %ld\n", status, s));
+            closesocket(s);
         }
         return pxtcp_schedule_reject(pxtcp);
     }
@@ -1552,7 +1549,7 @@ pxtcp_pcb_forward_outbound(struct pxtcp *pxtcp, struct pbuf *p)
         }
         if (qoff > 0) {
             /* advance payload pointer past the forwarded part */
-          pbuf_header(q, -(s16_t)qoff);
+            pbuf_header(q, -(s16_t)qoff);
         }
         pxtcp->unsent = q;
 

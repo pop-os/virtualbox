@@ -1,12 +1,10 @@
 /* $Id: Wrapper.h $ */
-
 /** @file
- *
  * VirtualBox COM: API wrapper helpers
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -150,10 +148,13 @@ public:
 
     ArrayBSTRInConverter(ComSafeArrayIn(IN_BSTR, aSrc))
     {
-        com::SafeArray<IN_BSTR> inArray(ComSafeArrayInArg(aSrc));
-        mArray.resize(inArray.size());
-        for (size_t i = 0; i < inArray.size(); i++)
-            mArray[i] = inArray[i];
+        if (!ComSafeArrayInIsNull(aSrc))
+        {
+            com::SafeArray<IN_BSTR> inArray(ComSafeArrayInArg(aSrc));
+            mArray.resize(inArray.size());
+            for (size_t i = 0; i < inArray.size(); i++)
+                mArray[i] = inArray[i];
+        }
     }
 
     ~ArrayBSTRInConverter()
@@ -382,10 +383,13 @@ public:
 
     ArrayComTypeInConverter(ComSafeArrayIn(A *, aSrc))
     {
-        com::SafeIfaceArray<A> inArray(ComSafeArrayInArg(aSrc));
-        mArray.resize(inArray.size());
-        for (size_t i = 0; i < inArray.size(); i++)
-            mArray[i] = inArray[i];
+        if (!ComSafeArrayInIsNull(aSrc))
+        {
+            com::SafeIfaceArray<A> inArray(ComSafeArrayInArg(aSrc));
+            mArray.resize(inArray.size());
+            for (size_t i = 0; i < inArray.size(); i++)
+                mArray[i] = inArray[i];
+        }
     }
 
     ~ArrayComTypeInConverter()
@@ -461,10 +465,13 @@ public:
 
     ArrayInConverter(ComSafeArrayIn(A, aSrc))
     {
-        com::SafeArray<A> inArray(ComSafeArrayInArg(aSrc));
-        mArray.resize(inArray.size());
-        for (size_t i = 0; i < inArray.size(); i++)
-            mArray[i] = inArray[i];
+        if (!ComSafeArrayInIsNull(aSrc))
+        {
+            com::SafeArray<A> inArray(ComSafeArrayInArg(aSrc));
+            mArray.resize(inArray.size());
+            for (size_t i = 0; i < inArray.size(); i++)
+                mArray[i] = inArray[i];
+        }
     }
 
     ~ArrayInConverter()
@@ -480,5 +487,5 @@ private:
     std::vector<A> mArray;
 };
 
-#endif // ____H_WRAPPER
+#endif // !____H_WRAPPER
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

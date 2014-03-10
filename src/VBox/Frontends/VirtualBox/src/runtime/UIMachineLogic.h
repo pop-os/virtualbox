@@ -208,6 +208,8 @@ private slots:
     void sltPrepareSharedClipboardMenu();
     void sltChangeSharedClipboardType(QAction *pAction);
     void sltPrepareDragAndDropMenu();
+    void sltPrepareNetworkMenu();
+    void sltToggleNetworkAdapterConnection();
     void sltChangeDragAndDropType(QAction *pAction);
     void sltToggleVRDE(bool fEnabled);
     void sltToggleVideoCapture(bool fEnabled);
@@ -272,8 +274,9 @@ private:
     UIDockIconPreview *m_pDockIconPreview;
     QActionGroup *m_pDockPreviewSelectMonitorGroup;
     int m_DockIconPreviewMonitor;
-    void *m_pHostLedsState;
 #endif /* Q_WS_MAC */
+
+    void *m_pHostLedsState;
 
     /* Friend classes: */
     friend class UIMachineWindow;

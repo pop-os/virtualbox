@@ -58,6 +58,12 @@
 
 #include <string.h>
 
+/* see comment in "lwip/ip.h" */
+#ifdef IP_HDRINCL
+#undef IP_HDRINCL
+#endif
+#define IP_HDRINCL LWIP_IP_HDRINCL
+
 /** Set this to 0 in the rare case of wanting to call an extra function to
  * generate the IP checksum (in contrast to calculating it on-the-fly). */
 #ifndef LWIP_INLINE_IP_CHKSUM
@@ -613,6 +619,12 @@ ip_input(struct pbuf *p, struct netif *inp)
     pbuf_header(p, -iphdr_hlen); /* Move to payload, no check necessary. */
 
     switch (IPH_PROTO(iphdr)) {
+
+#if LWIP_ICMP
+    case IP_PROTO_ICMP:
+      icmp_proxy_input(p, inp);
+      break;
+#endif
 
 #if LWIP_UDP
     case IP_PROTO_UDP:

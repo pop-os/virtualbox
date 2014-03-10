@@ -708,6 +708,10 @@
         <source>&amp;Webcams</source>
         <translation>&amp;Webcams</translation>
     </message>
+    <message>
+        <source>Network</source>
+        <translation>Netzwerk</translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceEditorWidget</name>
@@ -2249,6 +2253,14 @@
         <source>No supported webcams connected to the host PC</source>
         <translation>Keine unterstützten Webcams mit dem PC verbunden</translation>
     </message>
+    <message>
+        <source>Connect Network Adapter</source>
+        <translation>Netzwerkadapter verbinden</translation>
+    </message>
+    <message>
+        <source>Connect Network Adapter %1</source>
+        <translation>Netzwerkadapter %1 verbinden</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -2501,6 +2513,11 @@
     <message>
         <source>Enable video recording for screen %1.</source>
         <translation>Videoaufzeichnung für Bildschirm %1 aktivieren.</translation>
+    </message>
+    <message>
+        <source>Remote Display is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site as otherwise your VM will be started with Remote Display disabled.</source>
+        <translatorcomment>Die Fernsteu</translatorcomment>
+        <translation>Die Fernsteuerung per Remote Desktop Protocol wurde für diese virtuelle Maschine aktiviert. Dafür ist allerdings die Installation des &lt;b&gt;%1&lt;/b&gt; notwendig. Bitte installieren Sie dieses Zusatzpaket von der VirtualBox-Webseite, sonst wird die virtuelle Maschine mit deaktivierter Fernsteuerung gestartet.</translation>
     </message>
 </context>
 <context>

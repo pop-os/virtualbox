@@ -32,6 +32,8 @@ struct ip4_lomap_desc
 struct proxy_options {
     int ipv6_enabled;
     int ipv6_defroute;
+    SOCKET icmpsock4;
+    SOCKET icmpsock6;
     const char *tftp_root;
     const struct sockaddr_in *src4;
     const struct sockaddr_in6 *src6;
@@ -46,7 +48,7 @@ void proxy_init(struct netif *, struct proxy_options *);
 SOCKET proxy_connected_socket(int, int, ipX_addr_t *, u16_t);
 SOCKET proxy_bound_socket(int, int, struct sockaddr *);
 void proxy_reset_socket(SOCKET);
-void proxy_sendto(SOCKET, struct pbuf *, void *, size_t);
+int proxy_sendto(SOCKET, struct pbuf *, void *, size_t);
 void proxy_lwip_post(struct tcpip_msg *);
 const char *proxy_lwip_strerr(err_t);
 
@@ -72,6 +74,9 @@ void pxudp_init(void);
 /* pxdns.c */
 err_t pxdns_init(struct netif *);
 void pxdns_set_nameservers(void *);
+
+/* pxping.c */
+err_t pxping_init(struct netif *, SOCKET, SOCKET);
 
 
 #if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS) || defined(RT_OS_WINDOWS)

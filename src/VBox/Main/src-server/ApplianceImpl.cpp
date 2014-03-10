@@ -1,6 +1,5 @@
 /* $Id: ApplianceImpl.cpp $ */
 /** @file
- *
  * IAppliance and IVirtualSystem COM class implementations.
  */
 
@@ -1273,13 +1272,13 @@ STDMETHODIMP VirtualSystemDescription::COMGETTER(Count)(ULONG *aCount)
 STDMETHODIMP VirtualSystemDescription::GetDescription(ComSafeArrayOut(VirtualSystemDescriptionType_T, aTypes),
                                                       ComSafeArrayOut(BSTR, aRefs),
                                                       ComSafeArrayOut(BSTR, aOrigValues),
-                                                      ComSafeArrayOut(BSTR, aVboxValues),
+                                                      ComSafeArrayOut(BSTR, aVBoxValues),
                                                       ComSafeArrayOut(BSTR, aExtraConfigValues))
 {
     if (ComSafeArrayOutIsNull(aTypes) ||
         ComSafeArrayOutIsNull(aRefs) ||
         ComSafeArrayOutIsNull(aOrigValues) ||
-        ComSafeArrayOutIsNull(aVboxValues) ||
+        ComSafeArrayOutIsNull(aVBoxValues) ||
         ComSafeArrayOutIsNull(aExtraConfigValues))
         return E_POINTER;
 
@@ -1292,7 +1291,7 @@ STDMETHODIMP VirtualSystemDescription::GetDescription(ComSafeArrayOut(VirtualSys
     com::SafeArray<VirtualSystemDescriptionType_T> sfaTypes(c);
     com::SafeArray<BSTR> sfaRefs(c);
     com::SafeArray<BSTR> sfaOrigValues(c);
-    com::SafeArray<BSTR> sfaVboxValues(c);
+    com::SafeArray<BSTR> sfaVBoxValues(c);
     com::SafeArray<BSTR> sfaExtraConfigValues(c);
 
     list<VirtualSystemDescriptionEntry>::const_iterator it;
@@ -1311,8 +1310,8 @@ STDMETHODIMP VirtualSystemDescription::GetDescription(ComSafeArrayOut(VirtualSys
         bstr = vsde.strOvf;
         bstr.cloneTo(&sfaOrigValues[i]);
 
-        bstr = vsde.strVboxCurrent;
-        bstr.cloneTo(&sfaVboxValues[i]);
+        bstr = vsde.strVBoxCurrent;
+        bstr.cloneTo(&sfaVBoxValues[i]);
 
         bstr = vsde.strExtraConfigCurrent;
         bstr.cloneTo(&sfaExtraConfigValues[i]);
@@ -1321,7 +1320,7 @@ STDMETHODIMP VirtualSystemDescription::GetDescription(ComSafeArrayOut(VirtualSys
     sfaTypes.detachTo(ComSafeArrayOutArg(aTypes));
     sfaRefs.detachTo(ComSafeArrayOutArg(aRefs));
     sfaOrigValues.detachTo(ComSafeArrayOutArg(aOrigValues));
-    sfaVboxValues.detachTo(ComSafeArrayOutArg(aVboxValues));
+    sfaVBoxValues.detachTo(ComSafeArrayOutArg(aVBoxValues));
     sfaExtraConfigValues.detachTo(ComSafeArrayOutArg(aExtraConfigValues));
 
     return S_OK;
@@ -1335,13 +1334,13 @@ STDMETHODIMP VirtualSystemDescription::GetDescriptionByType(VirtualSystemDescrip
                                                             ComSafeArrayOut(VirtualSystemDescriptionType_T, aTypes),
                                                             ComSafeArrayOut(BSTR, aRefs),
                                                             ComSafeArrayOut(BSTR, aOrigValues),
-                                                            ComSafeArrayOut(BSTR, aVboxValues),
+                                                            ComSafeArrayOut(BSTR, aVBoxValues),
                                                             ComSafeArrayOut(BSTR, aExtraConfigValues))
 {
     if (ComSafeArrayOutIsNull(aTypes) ||
         ComSafeArrayOutIsNull(aRefs) ||
         ComSafeArrayOutIsNull(aOrigValues) ||
-        ComSafeArrayOutIsNull(aVboxValues) ||
+        ComSafeArrayOutIsNull(aVBoxValues) ||
         ComSafeArrayOutIsNull(aExtraConfigValues))
         return E_POINTER;
 
@@ -1355,7 +1354,7 @@ STDMETHODIMP VirtualSystemDescription::GetDescriptionByType(VirtualSystemDescrip
     com::SafeArray<VirtualSystemDescriptionType_T> sfaTypes(c);
     com::SafeArray<BSTR> sfaRefs(c);
     com::SafeArray<BSTR> sfaOrigValues(c);
-    com::SafeArray<BSTR> sfaVboxValues(c);
+    com::SafeArray<BSTR> sfaVBoxValues(c);
     com::SafeArray<BSTR> sfaExtraConfigValues(c);
 
     list<VirtualSystemDescriptionEntry*>::const_iterator it;
@@ -1374,8 +1373,8 @@ STDMETHODIMP VirtualSystemDescription::GetDescriptionByType(VirtualSystemDescrip
         bstr = vsde->strOvf;
         bstr.cloneTo(&sfaOrigValues[i]);
 
-        bstr = vsde->strVboxCurrent;
-        bstr.cloneTo(&sfaVboxValues[i]);
+        bstr = vsde->strVBoxCurrent;
+        bstr.cloneTo(&sfaVBoxValues[i]);
 
         bstr = vsde->strExtraConfigCurrent;
         bstr.cloneTo(&sfaExtraConfigValues[i]);
@@ -1384,7 +1383,7 @@ STDMETHODIMP VirtualSystemDescription::GetDescriptionByType(VirtualSystemDescrip
     sfaTypes.detachTo(ComSafeArrayOutArg(aTypes));
     sfaRefs.detachTo(ComSafeArrayOutArg(aRefs));
     sfaOrigValues.detachTo(ComSafeArrayOutArg(aOrigValues));
-    sfaVboxValues.detachTo(ComSafeArrayOutArg(aVboxValues));
+    sfaVBoxValues.detachTo(ComSafeArrayOutArg(aVBoxValues));
     sfaExtraConfigValues.detachTo(ComSafeArrayOutArg(aExtraConfigValues));
 
     return S_OK;
@@ -1422,7 +1421,7 @@ STDMETHODIMP VirtualSystemDescription::GetValuesByType(VirtualSystemDescriptionT
         {
             case VirtualSystemDescriptionValueType_Reference: bstr = vsde->strRef; break;
             case VirtualSystemDescriptionValueType_Original: bstr = vsde->strOvf; break;
-            case VirtualSystemDescriptionValueType_Auto: bstr = vsde->strVboxCurrent; break;
+            case VirtualSystemDescriptionValueType_Auto: bstr = vsde->strVBoxCurrent; break;
             case VirtualSystemDescriptionValueType_ExtraConfig: bstr = vsde->strExtraConfigCurrent; break;
         }
 
@@ -1439,7 +1438,7 @@ STDMETHODIMP VirtualSystemDescription::GetValuesByType(VirtualSystemDescriptionT
  * @return
  */
 STDMETHODIMP VirtualSystemDescription::SetFinalValues(ComSafeArrayIn(BOOL, aEnabled),
-                                                      ComSafeArrayIn(IN_BSTR, argVboxValues),
+                                                      ComSafeArrayIn(IN_BSTR, argVBoxValues),
                                                       ComSafeArrayIn(IN_BSTR, argExtraConfigValues))
 {
 #ifndef RT_OS_WINDOWS
@@ -1447,7 +1446,7 @@ STDMETHODIMP VirtualSystemDescription::SetFinalValues(ComSafeArrayIn(BOOL, aEnab
 #endif /* RT_OS_WINDOWS */
 
     CheckComArgSafeArrayNotNull(aEnabled);
-    CheckComArgSafeArrayNotNull(argVboxValues);
+    CheckComArgSafeArrayNotNull(argVBoxValues);
     CheckComArgSafeArrayNotNull(argExtraConfigValues);
 
     AutoCaller autoCaller(this);
@@ -1456,11 +1455,11 @@ STDMETHODIMP VirtualSystemDescription::SetFinalValues(ComSafeArrayIn(BOOL, aEnab
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     com::SafeArray<BOOL> sfaEnabled(ComSafeArrayInArg(aEnabled));
-    com::SafeArray<IN_BSTR> sfaVboxValues(ComSafeArrayInArg(argVboxValues));
+    com::SafeArray<IN_BSTR> sfaVBoxValues(ComSafeArrayInArg(argVBoxValues));
     com::SafeArray<IN_BSTR> sfaExtraConfigValues(ComSafeArrayInArg(argExtraConfigValues));
 
     if (    (sfaEnabled.size() != m->llDescriptions.size())
-         || (sfaVboxValues.size() != m->llDescriptions.size())
+         || (sfaVBoxValues.size() != m->llDescriptions.size())
          || (sfaExtraConfigValues.size() != m->llDescriptions.size())
        )
         return E_INVALIDARG;
@@ -1475,7 +1474,7 @@ STDMETHODIMP VirtualSystemDescription::SetFinalValues(ComSafeArrayIn(BOOL, aEnab
 
         if (sfaEnabled[i])
         {
-            vsde.strVboxCurrent = sfaVboxValues[i];
+            vsde.strVBoxCurrent = sfaVBoxValues[i];
             vsde.strExtraConfigCurrent = sfaExtraConfigValues[i];
         }
         else
@@ -1490,7 +1489,7 @@ STDMETHODIMP VirtualSystemDescription::SetFinalValues(ComSafeArrayIn(BOOL, aEnab
  * @return
  */
 STDMETHODIMP VirtualSystemDescription::AddDescription(VirtualSystemDescriptionType_T aType,
-                                                      IN_BSTR aVboxValue,
+                                                      IN_BSTR aVBoxValue,
                                                       IN_BSTR aExtraConfigValue)
 {
     AutoCaller autoCaller(this);
@@ -1498,7 +1497,7 @@ STDMETHODIMP VirtualSystemDescription::AddDescription(VirtualSystemDescriptionTy
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    addEntry(aType, "", aVboxValue, aVboxValue, 0, aExtraConfigValue);
+    addEntry(aType, "", aVBoxValue, aVBoxValue, 0, aExtraConfigValue);
 
     return S_OK;
 }
@@ -1515,7 +1514,7 @@ STDMETHODIMP VirtualSystemDescription::AddDescription(VirtualSystemDescriptionTy
 void VirtualSystemDescription::addEntry(VirtualSystemDescriptionType_T aType,
                                         const Utf8Str &strRef,
                                         const Utf8Str &aOvfValue,
-                                        const Utf8Str &aVboxValue,
+                                        const Utf8Str &aVBoxValue,
                                         uint32_t ulSizeMB,
                                         const Utf8Str &strExtraConfig /*= ""*/)
 {
@@ -1524,9 +1523,9 @@ void VirtualSystemDescription::addEntry(VirtualSystemDescriptionType_T aType,
     vsde.type = aType;
     vsde.strRef = strRef;
     vsde.strOvf = aOvfValue;
-    vsde.strVboxSuggested           // remember original value
-        = vsde.strVboxCurrent       // and set current value which can be overridden by setFinalValues()
-        = aVboxValue;
+    vsde.strVBoxSuggested           // remember original value
+        = vsde.strVBoxCurrent       // and set current value which can be overridden by setFinalValues()
+        = aVBoxValue;
     vsde.strExtraConfigSuggested
         = vsde.strExtraConfigCurrent
         = strExtraConfig;
@@ -1621,7 +1620,7 @@ const VirtualSystemDescriptionEntry* VirtualSystemDescription::findControllerFro
  * @param elmMachine <vbox:Machine> element with attributes and subelements from some
  *                  DOM tree.
  */
-void VirtualSystemDescription::importVboxMachineXML(const xml::ElementNode &elmMachine)
+void VirtualSystemDescription::importVBoxMachineXML(const xml::ElementNode &elmMachine)
 {
     settings::MachineConfigFile *pConfig = NULL;
 
@@ -1643,7 +1642,7 @@ void VirtualSystemDescription::importVboxMachineXML(const xml::ElementNode &elmM
 }
 
 /**
- * Returns the machine config created by importVboxMachineXML() or NULL if there's none.
+ * Returns the machine config created by importVBoxMachineXML() or NULL if there's none.
  * @return
  */
 const settings::MachineConfigFile* VirtualSystemDescription::getMachineConfig() const
