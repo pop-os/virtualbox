@@ -10,7 +10,7 @@ Index: virtualbox/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk
  ifndef VBOX_ONLY_TESTSUITE
   if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd)
 -  LIBRARIES += \
--        VBoxGuestR3LibXFree86
+-  	VBoxGuestR3LibXFree86
   endif
  endif
  LIBRARIES.win.amd64 += VBoxGuestR3Lib-x86 VBoxGuestR3LibShared-x86
@@ -18,7 +18,7 @@ Index: virtualbox/src/VBox/Additions/common/crOpenGL/Makefile.kmk
 ===================================================================
 --- virtualbox.orig/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2013-11-19 04:35:17.181627034 -0500
 +++ virtualbox/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2013-11-19 04:35:17.181627034 -0500
-@@ -82,18 +82,12 @@
+@@ -74,18 +74,12 @@
  VBoxOGL_INCS           = .
  if1of ($(KBUILD_TARGET), linux solaris freebsd)
   VBoxOGL_INCS     += \
@@ -42,7 +42,7 @@ Index: virtualbox/src/VBox/Additions/common/crOpenGL/Makefile.kmk
   VBoxOGL_DEFS     += VBOX_NO_NATIVEGL
  endif
  
-@@ -223,10 +217,10 @@
+@@ -215,10 +209,10 @@
  	$(PATH_STAGE_LIB)/additions/VBoxOGLspuload$(VBOX_SUFF_LIB)
  if1of ($(KBUILD_TARGET), linux solaris freebsd)
   VBoxOGL_LIBS += \

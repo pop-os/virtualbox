@@ -1,3 +1,10 @@
+virtualbox (4.3.8-dfsg-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release, patch refresh.
+
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Mon, 10 Mar 2014 10:35:35 +0100
+
 virtualbox (4.3.6-dfsg-2) unstable; urgency=medium
 
   * Disable bindnow in hardening-wrapper. This fixes loading the x11 driver.
