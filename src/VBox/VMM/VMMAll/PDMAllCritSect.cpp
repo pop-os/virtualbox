@@ -111,7 +111,9 @@ DECL_FORCE_INLINE(int) pdmCritSectEnterFirst(PPDMCRITSECT pCritSect, RTNATIVETHR
 /**
  * Deals with the contended case in ring-3 and ring-0.
  *
- * @returns VINF_SUCCESS or VERR_SEM_DESTROYED.
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_SEM_DESTROYED if destroyed.
+ *
  * @param   pCritSect           The critsect.
  * @param   hNativeSelf         The native thread handle.
  */
@@ -145,25 +147,53 @@ static int pdmR3R0CritSectEnterContended(PPDMCRITSECT pCritSect, RTNATIVETHREAD 
 # endif
     for (;;)
     {
-# ifdef PDMCRITSECT_STRICT
+        /*
+         * Do the wait.
+         *
+         * In ring-3 this gets cluttered by lock validation and thread state
+         * maintainence.
+         *
+         * In ring-0 we have to deal with the possibility that the thread has
+         * been signalled and the interruptible wait function returning
+         * immediately.  In that case we do normal R0/RC rcBusy handling.
+         */
+# ifdef IN_RING3
+#  ifdef PDMCRITSECT_STRICT
         int rc9 = RTLockValidatorRecExclCheckBlocking(pCritSect->s.Core.pValidatorRec, hThreadSelf, pSrcPos,
                                                       !(pCritSect->s.Core.fFlags & RTCRITSECT_FLAGS_NO_NESTING),
                                                       RT_INDEFINITE_WAIT, RTTHREADSTATE_CRITSECT, true);
         if (RT_FAILURE(rc9))
             return rc9;
-# elif defined(IN_RING3)
+#  else
         RTThreadBlocking(hThreadSelf, RTTHREADSTATE_CRITSECT, true);
-# endif
+#  endif
         int rc = SUPSemEventWaitNoResume(pSession, hEvent, RT_INDEFINITE_WAIT);
-# ifdef IN_RING3
         RTThreadUnblocked(hThreadSelf, RTTHREADSTATE_CRITSECT);
-# endif
+# else  /* IN_RING0 */
+        int rc = SUPSemEventWaitNoResume(pSession, hEvent, RT_INDEFINITE_WAIT);
+# endif /* IN_RING0 */
 
+        /*
+         * Deal with the return code and critsect destruction.
+         */
         if (RT_UNLIKELY(pCritSect->s.Core.u32Magic != RTCRITSECT_MAGIC))
             return VERR_SEM_DESTROYED;
         if (rc == VINF_SUCCESS)
             return pdmCritSectEnterFirst(pCritSect, hNativeSelf, pSrcPos);
         AssertMsg(rc == VERR_INTERRUPTED, ("rc=%Rrc\n", rc));
+
+# ifdef IN_RING0
+        /* Something is pending (signal, APC, debugger, whatever), just go back
+           to ring-3 so the kernel can deal with it when leaving kernel context.
+
+           Note! We've incremented cLockers already and cannot safely decrement
+                 it without creating a race with PDMCritSectLeave, resulting in
+                 spurious wakeups. */
+        PVM     pVM   = pCritSect->s.CTX_SUFF(pVM); AssertPtr(pVM);
+        PVMCPU  pVCpu = VMMGetCpu(pVM);             AssertPtr(pVCpu);
+        rc = VMMRZCallRing3(pVM, pVCpu, VMMCALLRING3_VM_R0_PREEMPT, NULL);
+        AssertRC(rc);
+# endif
     }
     /* won't get here */
 }

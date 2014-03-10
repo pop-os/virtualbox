@@ -730,7 +730,8 @@ endif
 VirtualBox_SOURCES.win += \
 	src/platform/win/VirtualBox.rc \
 	src/platform/win/UIDesktopServices_win.cpp \
-	src/platform/win/VBoxUtils-win.cpp
+	src/platform/win/VBoxUtils-win.cpp \
+	src/platform/win/WinKeyboard.cpp
 
 VirtualBox_DEFS.darwin += VBOX_DARWIN_USE_NATIVE_CONTROLS
 VirtualBox_SOURCES.darwin += \
@@ -849,6 +850,7 @@ VirtualBox_BLDDIRS       += $(VBOX_VIRTUALBOX4_OUT_DIR)
 VirtualBox_CLEAN         += $(VBOX_VIRTUALBOX4_OUT_DIR)/VirtualBoxBrand.qrc
 $(VBOX_VIRTUALBOX4_OUT_DIR)/VirtualBoxBrand.qrc: \
 		$(VBOX_VIRTUALBOX4_SRC)/VirtualBoxBrand.qrc \
+		$(PATH_ROOT)/Config.kmk \
 		| $$(dir $$@)
 	$(call MSG_GENERATE,VirtualBox,$<,$@)
 	$(QUIET)$(SED) \
@@ -861,6 +863,7 @@ $(VBOX_VIRTUALBOX4_OUT_DIR)/VirtualBoxBrand.qrc: \
 		-e 's;@VBOX_VBOX_48PX_PNG@;$(VBOX_BRAND_GUI_VBOX_48PX_PNG);g' \
 		-e 's;@VBOX_VBOX_64PX_PNG@;$(VBOX_BRAND_GUI_VBOX_64PX_PNG);g' \
 		-e 's;@VBOX_CUBE_42PX_PNG@;$(VBOX_BRAND_GUI_CUBE_42PX_PNG);g' \
+		-e 's;@VBOX_CUBE_SVG@;$(VBOX_BRAND_GUI_VBOX_SVG);g' \
 		--output $@ \
 		$<
 

@@ -41,14 +41,26 @@ VBoxNetLwipNAT_TEMPLATE =
 VBoxNetLwipNAT_TEMPLATE := VBOXMAIN$(if-expr defined(VBOX_WITH_HARDENING),DLL,CLIENTEXE)
 VBoxNetLwipNAT_NAME = VBoxNetNAT
 VBoxNetLwipNAT_DEFS += ${LWIP_DEFS} IPv6
+# VBoxNetLwipNAT_DEFS.linux += WITH_VALGRIND # instrument lwip memp.c
 VBoxNetLwipNAT_DEFS.win += VBOX_COM_OUTOFPROC_MODULE _WIN32_WINNT=0x501 # Windows XP
 VBoxNetLwipNAT_SOURCES += VBoxNetLwipNAT.cpp	\
 	../NetLib/VBoxNetBaseService.cpp \
-	../NetLib/VBoxNetPortForwardString.cpp
+	../NetLib/VBoxNetPortForwardString.cpp \
+	../NetLib/VBoxNetIntIf.cpp \
+	../NetLib/VBoxNetUDP.cpp \
+	../NetLib/VBoxNetARP.cpp \
+	../NetLib/ComHostUtils.cpp
+
 VBoxNetLwipNAT_LIBS = \
 	$(LIB_RUNTIME)
 VBoxNetLwipNAT_LIBS.solaris += socket nsl
 VBoxNetLwipNAT_LDFLAGS.win = /SUBSYSTEM:windows
+
+# Convince Solaris headers to expose socket stuff we need.  600 would
+# also work, but <sys/feature_tests.h> insists on C99 for it and so
+# explodes for C++.  Note that for 500 it insists on NOT using C99, so
+# when some day we decide to use -std=c99 we are in for some fun.
+VBoxNetLwipNAT_DEFS.solaris += _XOPEN_SOURCE=500 __EXTENSIONS__=1
 
 VBoxNetLwipNAT_SOURCES += \
     proxy_pollmgr.c \
@@ -63,6 +75,22 @@ VBoxNetLwipNAT_SOURCES += \
     portfwd.c \
     proxy_dhcp6ds.c \
     proxy_tftpd.c
+
+ifeq ($(KBUILD_TARGET),win)
+ # unprivileged Icmp API
+ VBoxNetLwipNAT_SOURCES += pxping_win.c
+else
+ # raw sockets
+ VBoxNetLwipNAT_SOURCES += pxping.c
+endif
+
+# ifeq ($(VBOX_WITH_HARDENING),)
+#  ifn1of ($(KBUILD_TARGET), darwin win)
+#   # helper for debugging unprivileged
+#   VBoxNetLwipNAT_DEFS += VBOX_RAWSOCK_DEBUG_HELPER
+#   VBoxNetLwipNAT_SOURCES += getrawsock.c
+#  endif
+# endif
 
 VBoxNetLwipNAT_SOURCES.darwin  += rtmon_bsd.c
 VBoxNetLwipNAT_SOURCES.freebsd += rtmon_bsd.c

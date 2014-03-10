@@ -674,6 +674,23 @@ DECLINLINE(void) ASMCpuId_Idx_ECX(uint32_t uOperator, uint32_t uIdxECX, void *pv
 
 
 /**
+ * CPUID variant that initializes all 4 registers before the CPUID instruction.
+ *
+ * @returns The EAX result value.
+ * @param   uOperator   CPUID operation (eax).
+ * @param   uInitEBX    The value to assign EBX prior to the CPUID instruction.
+ * @param   uInitECX    The value to assign ECX prior to the CPUID instruction.
+ * @param   uInitEDX    The value to assign EDX prior to the CPUID instruction.
+ * @param   pvEAX       Where to store eax. Optional.
+ * @param   pvEBX       Where to store ebx. Optional.
+ * @param   pvECX       Where to store ecx. Optional.
+ * @param   pvEDX       Where to store edx. Optional.
+ */
+DECLASM(uint32_t) ASMCpuIdExSlow(uint32_t uOperator, uint32_t uInitEBX, uint32_t uInitECX, uint32_t uInitEDX,
+                                 void *pvEAX, void *pvEBX, void *pvECX, void *pvEDX);
+
+
+/**
  * Performs the cpuid instruction returning ecx and edx.
  *
  * @param   uOperator   CPUID operation (eax).
@@ -1746,6 +1763,82 @@ DECLINLINE(void) ASMWrMsr(uint32_t uRegister, uint64_t u64Val)
 # endif
 }
 #endif
+
+
+/**
+ * Reads a machine specific register, extended version (for AMD).
+ *
+ * @returns Register content.
+ * @param   uRegister   Register to read.
+ * @param   uXDI        RDI/EDI value.
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(uint64_t) ASMRdMsrEx(uint32_t uRegister, RTCCUINTREG uXDI);
+#else
+DECLINLINE(uint64_t) ASMRdMsrEx(uint32_t uRegister, RTCCUINTREG uXDI)
+{
+    RTUINT64U u;
+# if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__("rdmsr\n\t"
+                         : "=a" (u.s.Lo),
+                           "=d" (u.s.Hi)
+                         : "c" (uRegister),
+                           "D" (uXDI));
+
+# else
+    __asm
+    {
+        mov     ecx, [uRegister]
+        xchg    edi, [uXDI]
+        rdmsr
+        mov     [u.s.Lo], eax
+        mov     [u.s.Hi], edx
+        xchg    edi, [uXDI]
+    }
+# endif
+
+    return u.u;
+}
+#endif
+
+
+/**
+ * Writes a machine specific register, extended version (for AMD).
+ *
+ * @returns Register content.
+ * @param   uRegister   Register to write to.
+ * @param   uXDI        RDI/EDI value.
+ * @param   u64Val      Value to write.
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(void) ASMWrMsrEx(uint32_t uRegister, RTCCUINTREG uXDI, uint64_t u64Val);
+#else
+DECLINLINE(void) ASMWrMsrEx(uint32_t uRegister, RTCCUINTREG uXDI, uint64_t u64Val)
+{
+    RTUINT64U u;
+
+    u.u = u64Val;
+# if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__("wrmsr\n\t"
+                         ::"a" (u.s.Lo),
+                           "d" (u.s.Hi),
+                           "c" (uRegister),
+                           "D" (uXDI));
+
+# else
+    __asm
+    {
+        mov     ecx, [uRegister]
+        xchg    edi, [uXDI]
+        mov     edx, [u.s.Hi]
+        mov     eax, [u.s.Lo]
+        wrmsr
+        xchg    edi, [uXDI]
+    }
+# endif
+}
+#endif
+
 
 
 /**

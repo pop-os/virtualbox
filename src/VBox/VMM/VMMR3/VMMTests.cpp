@@ -52,6 +52,137 @@ static void vmmR3TestClearStack(PVMCPU pVCpu)
 
 #ifdef VBOX_WITH_RAW_MODE
 
+static int vmmR3ReportMsrRange(PVM pVM, uint32_t uMsr, uint64_t cMsrs, PRTSTREAM pReportStrm, uint32_t *pcMsrsFound)
+{
+    /*
+     * Preps.
+     */
+    RTRCPTR RCPtrEP;
+    int rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "VMMRCTestReadMsrs", &RCPtrEP);
+    AssertMsgRCReturn(rc, ("Failed to resolved VMMRC.rc::VMMRCEntry(), rc=%Rrc\n", rc), rc);
+
+    uint32_t const      cMsrsPerCall = 16384;
+    uint32_t            cbResults = cMsrsPerCall * sizeof(VMMTESTMSRENTRY);
+    PVMMTESTMSRENTRY    paResults;
+    rc = MMHyperAlloc(pVM, cbResults, 0, MM_TAG_VMM, (void **)&paResults);
+    AssertMsgRCReturn(rc, ("Error allocating %#x bytes off the hyper heap: %Rrc\n", cbResults, rc), rc);
+    /*
+     * The loop.
+     */
+    RTRCPTR  RCPtrResults = MMHyperR3ToRC(pVM, paResults);
+    uint32_t cMsrsFound   = 0;
+    uint32_t uLastMsr     = uMsr;
+    uint64_t uNsTsStart   = RTTimeNanoTS();
+
+    for (;;)
+    {
+        if (   pReportStrm
+            && uMsr - uLastMsr > _64K
+            && (uMsr & (_4M - 1)) == 0)
+        {
+            if (uMsr - uLastMsr < 16U*_1M)
+                RTStrmFlush(pReportStrm);
+            RTPrintf("... %#010x [%u ns/msr] ...\n", uMsr, (RTTimeNanoTS() - uNsTsStart) / uMsr);
+        }
+
+        /*RT_BZERO(paResults, cbResults);*/
+        uint32_t const cBatch = RT_MIN(cMsrsPerCall, cMsrs);
+        rc = VMMR3CallRC(pVM, RCPtrEP, 4, pVM->pVMRC, uMsr, cBatch, RCPtrResults);
+        if (RT_FAILURE(rc))
+        {
+            RTPrintf("VMM: VMMR3CallRC failed rc=%Rrc, uMsr=%#x\n", rc, uMsr);
+            break;
+        }
+
+        for (uint32_t i = 0; i < cBatch; i++)
+            if (paResults[i].uMsr != UINT64_MAX)
+            {
+                if (paResults[i].uValue == 0)
+                {
+                    if (pReportStrm)
+                        RTStrmPrintf(pReportStrm,
+                                     "    MVO(%#010llx, \"MSR\", UINT64_C(%#018llx)),\n", paResults[i].uMsr, paResults[i].uValue);
+                    RTPrintf("%#010llx = 0\n", paResults[i].uMsr);
+                }
+                else
+                {
+                    if (pReportStrm)
+                        RTStrmPrintf(pReportStrm,
+                                     "    MVO(%#010llx, \"MSR\", UINT64_C(%#018llx)),\n", paResults[i].uMsr, paResults[i].uValue);
+                    RTPrintf("%#010llx = %#010x`%08x\n", paResults[i].uMsr,
+                             (uint32_t)(paResults[i].uValue >> 32), (uint32_t)paResults[i].uValue);
+                }
+                cMsrsFound++;
+                uLastMsr = paResults[i].uMsr;
+            }
+
+        /* Advance. */
+        if (cMsrs <= cMsrsPerCall)
+            break;
+        cMsrs -= cMsrsPerCall;
+        uMsr  += cMsrsPerCall;
+    }
+
+    *pcMsrsFound += cMsrsFound;
+    MMHyperFree(pVM, paResults);
+    return rc;
+}
+
+
+/**
+ * Produces a quick report of MSRs.
+ *
+ * @returns VBox status code.
+ * @param   pVM             Pointer to the cross context VM structure.
+ * @param   pReportStrm     Pointer to the report output stream. Optional.
+ * @param   fWithCpuId      Whether CPUID should be included.
+ */
+static int vmmR3DoMsrQuickReport(PVM pVM, PRTSTREAM pReportStrm, bool fWithCpuId)
+{
+    uint64_t uTsStart = RTTimeNanoTS();
+    RTPrintf("=== MSR Quick Report Start ===\n");
+    RTStrmFlush(g_pStdOut);
+    if (fWithCpuId)
+    {
+        DBGFR3InfoStdErr(pVM->pUVM, "cpuid", "verbose");
+        RTPrintf("\n");
+    }
+    if (pReportStrm)
+        RTStrmPrintf(pReportStrm, "\n\n{\n");
+
+    static struct { uint32_t uFirst, cMsrs; } const s_aRanges[] =
+    {
+        { 0x00000000, 0x00042000 },
+        { 0x10000000, 0x00001000 },
+        { 0x20000000, 0x00001000 },
+        { 0x40000000, 0x00012000 },
+        { 0x80000000, 0x00012000 },
+//   Need 0xc0000000..0xc001106f (at least), but trouble on solaris w/ 10h and 0fh family cpus:
+//      { 0xc0000000, 0x00022000 },
+        { 0xc0000000, 0x00010000 },
+        { 0xc0010000, 0x00001040 },
+        { 0xc0011040, 0x00004040 }, /* should cause trouble... */
+    };
+    uint32_t cMsrsFound = 0;
+    int rc = VINF_SUCCESS;
+    for (unsigned i = 0; i < RT_ELEMENTS(s_aRanges) && RT_SUCCESS(rc); i++)
+    {
+//if (i >= 3)
+//{
+//RTStrmFlush(g_pStdOut);
+//RTThreadSleep(40);
+//}
+        rc = vmmR3ReportMsrRange(pVM, s_aRanges[i].uFirst, s_aRanges[i].cMsrs, pReportStrm, &cMsrsFound);
+    }
+
+    if (pReportStrm)
+        RTStrmPrintf(pReportStrm, "}; /* %u (%#x) MSRs; rc=%Rrc */\n", cMsrsFound, cMsrsFound, rc);
+    RTPrintf("Total %u (%#x) MSRs\n", cMsrsFound, cMsrsFound);
+    RTPrintf("=== MSR Quick Report End (rc=%Rrc, %'llu ns) ===\n", rc, RTTimeNanoTS() - uTsStart);
+    return rc;
+}
+
+
 /**
  * Performs a testcase.
  *
@@ -467,6 +598,13 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
              i, Elapsed, cTicksElapsed, PerIteration, cTicksPerIteration, TickMin));
 
         rc = VINF_SUCCESS;
+
+#if 0  /* drop this for now as it causes trouble on AMDs (Opteron 2384 and possibly others). */
+        /*
+         * A quick MSR report.
+         */
+        vmmR3DoMsrQuickReport(pVM, NULL, true);
+#endif
     }
     else
         AssertMsgFailed(("Failed to resolved VMMGC.gc::VMMGCEntry(), rc=%Rrc\n", rc));
@@ -615,5 +753,201 @@ VMMR3DECL(int) VMMDoHmTest(PVM pVM)
         AssertMsgFailed(("Failed to resolved VMMGC.gc::VMMGCEntry(), rc=%Rrc\n", rc));
 
     return rc;
+}
+
+
+#ifdef VBOX_WITH_RAW_MODE
+
+/**
+ * Used by VMMDoBruteForceMsrs to dump the CPUID info of the host CPU as a
+ * prefix to the MSR report.
+ */
+static DECLCALLBACK(void) vmmDoPrintfVToStream(PCDBGFINFOHLP pHlp, const char *pszFormat, va_list va)
+{
+    PRTSTREAM pOutStrm = ((PRTSTREAM *)pHlp)[-1];
+    RTStrmPrintfV(pOutStrm, pszFormat, va);
+}
+
+/**
+ * Used by VMMDoBruteForceMsrs to dump the CPUID info of the host CPU as a
+ * prefix to the MSR report.
+ */
+static DECLCALLBACK(void) vmmDoPrintfToStream(PCDBGFINFOHLP pHlp, const char *pszFormat, ...)
+{
+    va_list va;
+    va_start(va, pszFormat);
+    vmmDoPrintfVToStream(pHlp, pszFormat, va);
+    va_end(va);
+}
+
+#endif
+
+
+/**
+ * Uses raw-mode to query all possible MSRs on the real hardware.
+ *
+ * This generates a msr-report.txt file (appending, no overwriting) as well as
+ * writing the values and process to stdout.
+ *
+ * @returns VBox status code.
+ * @param   pVM         The VM handle.
+ */
+VMMR3DECL(int) VMMDoBruteForceMsrs(PVM pVM)
+{
+#ifdef VBOX_WITH_RAW_MODE
+    PRTSTREAM pOutStrm;
+    int rc = RTStrmOpen("msr-report.txt", "a", &pOutStrm);
+    if (RT_SUCCESS(rc))
+    {
+        /* Header */
+        struct
+        {
+            PRTSTREAM   pOutStrm;
+            DBGFINFOHLP Hlp;
+        } MyHlp = { pOutStrm, { vmmDoPrintfToStream, vmmDoPrintfVToStream } };
+        DBGFR3Info(pVM->pUVM, "cpuid", "verbose", &MyHlp.Hlp);
+        RTStrmPrintf(pOutStrm, "\n");
+
+        uint32_t cMsrsFound = 0;
+        vmmR3ReportMsrRange(pVM, 0, _4G, pOutStrm, &cMsrsFound);
+
+        RTStrmPrintf(pOutStrm, "Total %u (%#x) MSRs\n", cMsrsFound, cMsrsFound);
+        RTPrintf("Total %u (%#x) MSRs\n", cMsrsFound, cMsrsFound);
+
+        RTStrmClose(pOutStrm);
+    }
+    return rc;
+#else
+    return VERR_NOT_SUPPORTED;
+#endif
+}
+
+
+/**
+ * Uses raw-mode to query all known MSRS on the real hardware.
+ *
+ * This generates a known-msr-report.txt file (appending, no overwriting) as
+ * well as writing the values and process to stdout.
+ *
+ * @returns VBox status code.
+ * @param   pVM         The VM handle.
+ */
+VMMR3DECL(int) VMMDoKnownMsrs(PVM pVM)
+{
+#ifdef VBOX_WITH_RAW_MODE
+    PRTSTREAM pOutStrm;
+    int rc = RTStrmOpen("known-msr-report.txt", "a", &pOutStrm);
+    if (RT_SUCCESS(rc))
+    {
+        vmmR3DoMsrQuickReport(pVM, pOutStrm, false);
+        RTStrmClose(pOutStrm);
+    }
+    return rc;
+#else
+    return VERR_NOT_SUPPORTED;
+#endif
+}
+
+
+/**
+ * MSR experimentation.
+ *
+ * @returns VBox status code.
+ * @param   pVM         The VM handle.
+ */
+VMMR3DECL(int) VMMDoMsrExperiments(PVM pVM)
+{
+#ifdef VBOX_WITH_RAW_MODE
+    /*
+     * Preps.
+     */
+    RTRCPTR RCPtrEP;
+    int rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "VMMRCTestTestWriteMsr", &RCPtrEP);
+    AssertMsgRCReturn(rc, ("Failed to resolved VMMRC.rc::VMMRCEntry(), rc=%Rrc\n", rc), rc);
+
+    uint64_t *pauValues;
+    rc = MMHyperAlloc(pVM, 2 * sizeof(uint64_t), 0, MM_TAG_VMM, (void **)&pauValues);
+    AssertMsgRCReturn(rc, ("Error allocating %#x bytes off the hyper heap: %Rrc\n", 2 * sizeof(uint64_t), rc), rc);
+    RTRCPTR RCPtrValues = MMHyperR3ToRC(pVM, pauValues);
+
+    /*
+     * Do the experiments.
+     */
+    uint32_t uMsr   = 0x00000277;
+    uint64_t uValue = UINT64_C(0x0007010600070106);
+#if 0
+    uValue &= ~(RT_BIT_64(17) | RT_BIT_64(16) | RT_BIT_64(15) | RT_BIT_64(14) | RT_BIT_64(13));
+    uValue |= RT_BIT_64(13);
+    rc = VMMR3CallRC(pVM, RCPtrEP, 6, pVM->pVMRC, uMsr, RT_LODWORD(uValue), RT_HIDWORD(uValue),
+                     RCPtrValues, RCPtrValues + sizeof(uint64_t));
+    RTPrintf("uMsr=%#010x before=%#018llx written=%#018llx after=%#018llx rc=%Rrc\n",
+             uMsr, pauValues[0], uValue, pauValues[1], rc);
+#elif 1
+    const uint64_t uOrgValue = uValue;
+    uint32_t       cChanges = 0;
+    for (int iBit = 63; iBit >= 58; iBit--)
+    {
+        uValue = uOrgValue & ~RT_BIT_64(iBit);
+        rc = VMMR3CallRC(pVM, RCPtrEP, 6, pVM->pVMRC, uMsr, RT_LODWORD(uValue), RT_HIDWORD(uValue),
+                         RCPtrValues, RCPtrValues + sizeof(uint64_t));
+        RTPrintf("uMsr=%#010x before=%#018llx written=%#018llx after=%#018llx rc=%Rrc\nclear bit=%u -> %s\n",
+                 uMsr, pauValues[0], uValue, pauValues[1], rc, iBit,
+                 (pauValues[0] ^  pauValues[1]) & RT_BIT_64(iBit) ?  "changed" : "unchanged");
+        cChanges += RT_BOOL(pauValues[0] ^ pauValues[1]);
+
+        uValue = uOrgValue | RT_BIT_64(iBit);
+        rc = VMMR3CallRC(pVM, RCPtrEP, 6, pVM->pVMRC, uMsr, RT_LODWORD(uValue), RT_HIDWORD(uValue),
+                         RCPtrValues, RCPtrValues + sizeof(uint64_t));
+        RTPrintf("uMsr=%#010x before=%#018llx written=%#018llx after=%#018llx rc=%Rrc\nset   bit=%u -> %s\n",
+                 uMsr, pauValues[0], uValue, pauValues[1], rc, iBit,
+                 (pauValues[0] ^  pauValues[1]) & RT_BIT_64(iBit) ?  "changed" : "unchanged");
+        cChanges += RT_BOOL(pauValues[0] ^ pauValues[1]);
+    }
+    RTPrintf("%u change(s)\n", cChanges);
+#else
+    uint64_t fWriteable = 0;
+    for (uint32_t i = 0; i <= 63; i++)
+    {
+        uValue = RT_BIT_64(i);
+# if 0
+        if (uValue & (0x7))
+            continue;
+# endif
+        rc = VMMR3CallRC(pVM, RCPtrEP, 6, pVM->pVMRC, uMsr, RT_LODWORD(uValue), RT_HIDWORD(uValue),
+                         RCPtrValues, RCPtrValues + sizeof(uint64_t));
+        RTPrintf("uMsr=%#010x before=%#018llx written=%#018llx after=%#018llx rc=%Rrc\n",
+                 uMsr, pauValues[0], uValue, pauValues[1], rc);
+        if (RT_SUCCESS(rc))
+            fWriteable |= RT_BIT_64(i);
+    }
+
+    uValue = 0;
+    rc = VMMR3CallRC(pVM, RCPtrEP, 6, pVM->pVMRC, uMsr, RT_LODWORD(uValue), RT_HIDWORD(uValue),
+                     RCPtrValues, RCPtrValues + sizeof(uint64_t));
+    RTPrintf("uMsr=%#010x before=%#018llx written=%#018llx after=%#018llx rc=%Rrc\n",
+             uMsr, pauValues[0], uValue, pauValues[1], rc);
+
+    uValue = UINT64_MAX;
+    rc = VMMR3CallRC(pVM, RCPtrEP, 6, pVM->pVMRC, uMsr, RT_LODWORD(uValue), RT_HIDWORD(uValue),
+                     RCPtrValues, RCPtrValues + sizeof(uint64_t));
+    RTPrintf("uMsr=%#010x before=%#018llx written=%#018llx after=%#018llx rc=%Rrc\n",
+             uMsr, pauValues[0], uValue, pauValues[1], rc);
+
+    uValue = fWriteable;
+    rc = VMMR3CallRC(pVM, RCPtrEP, 6, pVM->pVMRC, uMsr, RT_LODWORD(uValue), RT_HIDWORD(uValue),
+                     RCPtrValues, RCPtrValues + sizeof(uint64_t));
+    RTPrintf("uMsr=%#010x before=%#018llx written=%#018llx after=%#018llx rc=%Rrc [fWriteable]\n",
+             uMsr, pauValues[0], uValue, pauValues[1], rc);
+
+#endif
+
+    /*
+     * Cleanups.
+     */
+    MMHyperFree(pVM, pauValues);
+    return rc;
+#else
+    return VERR_NOT_SUPPORTED;
+#endif
 }
 

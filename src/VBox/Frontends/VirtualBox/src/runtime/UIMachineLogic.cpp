@@ -73,6 +73,7 @@
 #include "CSystemProperties.h"
 #include "CHostVideoInputDevice.h"
 #include "CEmulatedUSB.h"
+#include "CNetworkAdapter.h"
 #ifdef Q_WS_MAC
 # include "CGuest.h"
 #endif /* Q_WS_MAC */
@@ -84,6 +85,9 @@
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 #ifdef Q_WS_MAC
 # include "DarwinKeyboard.h"
+#endif
+#ifdef Q_WS_WIN
+# include "WinKeyboard.h"
 #endif
 
 /* External includes: */
@@ -514,9 +518,19 @@ void UIMachineLogic::sltKeyboardLedsChanged()
     if (!isHidLedsSyncEnabled())
         return;
 
-#ifdef Q_WS_MAC
-    LogRelFlow(("UIMachineLogic::sltKeyboardLedsChanged: Updating host LED lock states.\n"));
+#if defined(Q_WS_MAC)
     DarwinHidDevicesBroadcastLeds(m_pHostLedsState, uisession()->isNumLock(), uisession()->isCapsLock(), uisession()->isScrollLock());
+#elif defined(Q_WS_WIN)
+    if (!winHidLedsInSync(uisession()->isNumLock(), uisession()->isCapsLock(), uisession()->isScrollLock()))
+    {
+        keyboardHandler()->winSkipKeyboardEvents(true);
+        WinHidDevicesBroadcastLeds(uisession()->isNumLock(), uisession()->isCapsLock(), uisession()->isScrollLock());
+        keyboardHandler()->winSkipKeyboardEvents(false);
+    }
+    else
+        LogRel2(("HID LEDs Sync: already in sync\n"));
+#else
+    LogRelFlow(("UIMachineLogic::sltKeyboardLedsChanged: Updating host LED lock states does not supported on this platform.\n"));
 #endif
 }
 
@@ -602,8 +616,8 @@ UIMachineLogic::UIMachineLogic(QObject *pParent, UISession *pSession, UIVisualSt
     , m_pDockIconPreview(0)
     , m_pDockPreviewSelectMonitorGroup(0)
     , m_DockIconPreviewMonitor(0)
-    , m_pHostLedsState(NULL)
 #endif /* Q_WS_MAC */
+    , m_pHostLedsState(NULL)
 {
 }
 
@@ -881,6 +895,8 @@ void UIMachineLogic::prepareActionConnections()
             this, SLOT(sltPrepareSharedClipboardMenu()));
     connect(gActionPool->action(UIActionIndexRuntime_Menu_DragAndDrop)->menu(), SIGNAL(aboutToShow()),
             this, SLOT(sltPrepareDragAndDropMenu()));
+    connect(gActionPool->action(UIActionIndexRuntime_Menu_Network)->menu(), SIGNAL(aboutToShow()),
+            this, SLOT(sltPrepareNetworkMenu()));
     connect(gActionPool->action(UIActionIndexRuntime_Simple_NetworkSettings), SIGNAL(triggered()),
             this, SLOT(sltOpenNetworkAdaptersDialog()));
     connect(gActionPool->action(UIActionIndexRuntime_Simple_SharedFoldersSettings), SIGNAL(triggered()),
@@ -1079,14 +1095,25 @@ bool UIMachineLogic::eventFilter(QObject *pWatched, QEvent *pEvent)
                 /* Handle *window activated* event: */
                 case QEvent::WindowActivate:
                 {
+#ifdef Q_WS_WIN
                     /* We should save current lock states as *previous* and
                      * set current lock states to guest values we have,
                      * As we have no ipc between threads of different VMs
-                     * we are using 300ms timer as lazy sync timout: */
-                    //QTimer::singleShot(300, this, SLOT(sltSwitchKeyboardLedsToGuestLeds()));
+                     * we are using 100ms timer as lazy sync timout: */
 
+                    /* On Windows host we should do that only in case if sync
+                     * is enabled. Otherwise, keyboardHandler()->winSkipKeyboardEvents(false)
+                     * won't be called in sltSwitchKeyboardLedsToGuestLeds() and guest
+                     * will loose keyboard input forever. */
+                    if (isHidLedsSyncEnabled())
+                    {
+                        keyboardHandler()->winSkipKeyboardEvents(true);
+                        QTimer::singleShot(100, this, SLOT(sltSwitchKeyboardLedsToGuestLeds()));
+                    }
+#else /* Q_WS_WIN */
                     /* Trigger callback synchronously for now! */
                     sltSwitchKeyboardLedsToGuestLeds();
+#endif /* !Q_WS_WIN */
                     break;
                 }
                 /* Handle *window deactivated* event: */
@@ -2049,6 +2076,81 @@ void UIMachineLogic::sltPrepareDragAndDropMenu()
                 pAction->setChecked(true);
 }
 
+/** Prepares menu content when user hovers <b>Network</b> submenu of the <b>Devices</b> menu. */
+void UIMachineLogic::sltPrepareNetworkMenu()
+{
+    /* Get and check 'the sender' menu object: */
+    QMenu *pMenu = qobject_cast<QMenu*>(sender());
+    QMenu *pNetworkMenu = gActionPool->action(UIActionIndexRuntime_Menu_Network)->menu();
+    AssertReturnVoid(pMenu == pNetworkMenu);
+    Q_UNUSED(pNetworkMenu);
+
+    /* Get and check current machine: */
+    const CMachine &machine = session().GetMachine();
+    AssertReturnVoid(!machine.isNull());
+
+    /* Determine how many adapters we should display: */
+    KChipsetType chipsetType = machine.GetChipsetType();
+    ULONG uCount = qMin((ULONG)4, vboxGlobal().virtualBox().GetSystemProperties().GetMaxNetworkAdapters(chipsetType));
+
+    /* Enumerate existing network adapters: */
+    QMap<int, bool> adapterData;
+    for (ULONG uSlot = 0; uSlot < uCount; ++uSlot)
+    {
+        /* Get and check iterated adapter: */
+        const CNetworkAdapter &adapter = machine.GetNetworkAdapter(uSlot);
+        AssertReturnVoid(machine.isOk());
+        Assert(!adapter.isNull());
+        if (adapter.isNull())
+            continue;
+
+        /* Remember adapter data if it is enabled: */
+        if (adapter.GetEnabled())
+            adapterData.insert((int)uSlot, (bool)adapter.GetCableConnected());
+    }
+    AssertReturnVoid(!adapterData.isEmpty());
+
+    /* Delete all "temporary" actions: */
+    QList<QAction*> actions = pMenu->actions();
+    foreach (QAction *pAction, actions)
+        if (pAction->property("temporary").toBool())
+            delete pAction;
+
+    /* Add new "temporary" actions: */
+    foreach (int iSlot, adapterData.keys())
+    {
+        QAction *pAction = pMenu->addAction(QIcon(adapterData[iSlot] ? ":/connect_16px.png": ":/disconnect_16px.png"),
+                                            adapterData.size() == 1 ? tr("Connect Network Adapter") : tr("Connect Network Adapter %1").arg(iSlot + 1),
+                                            this, SLOT(sltToggleNetworkAdapterConnection()));
+        pAction->setProperty("temporary", true);
+        pAction->setProperty("slot", iSlot);
+        pAction->setCheckable(true);
+        pAction->setChecked(adapterData[iSlot]);
+    }
+}
+
+/** Toggles network adapter's <i>Cable Connected</i> state. */
+void UIMachineLogic::sltToggleNetworkAdapterConnection()
+{
+    /* Get and check 'the sender' action object: */
+    QAction *pAction = qobject_cast<QAction*>(sender());
+    AssertReturnVoid(pAction);
+
+    /* Get and check current machine: */
+    CMachine machine = session().GetMachine();
+    AssertReturnVoid(!machine.isNull());
+
+    /* Get operation target: */
+    CNetworkAdapter adapter = machine.GetNetworkAdapter((ULONG)pAction->property("slot").toInt());
+    AssertReturnVoid(machine.isOk() && !adapter.isNull());
+
+    /* Connect/disconnect cable to/from target: */
+    adapter.SetCableConnected(!adapter.GetCableConnected());
+    machine.SaveSettings();
+    if (!machine.isOk())
+        msgCenter().cannotSaveMachineSettings(machine);
+}
+
 void UIMachineLogic::sltChangeDragAndDropType(QAction *pAction)
 {
     /* Assign new mode (without save): */
@@ -2318,12 +2420,19 @@ void UIMachineLogic::sltSwitchKeyboardLedsToGuestLeds()
     if (!isHidLedsSyncEnabled())
         return;
 
-#ifdef Q_WS_MAC
-    LogRelFlow(("UIMachineLogic::sltSwitchKeyboardLedsToGuestLeds: keep host LED lock states and broadcast guest's ones.\n"));
+#if defined(Q_WS_MAC)
     if (m_pHostLedsState == NULL)
         m_pHostLedsState = DarwinHidDevicesKeepLedsState();
     DarwinHidDevicesBroadcastLeds(m_pHostLedsState, uisession()->isNumLock(), uisession()->isCapsLock(), uisession()->isScrollLock());
-#endif /* Q_WS_MAC */
+#elif defined(Q_WS_WIN)
+    if (m_pHostLedsState == NULL)
+        m_pHostLedsState = WinHidDevicesKeepLedsState();
+    keyboardHandler()->winSkipKeyboardEvents(true);
+    WinHidDevicesBroadcastLeds(uisession()->isNumLock(), uisession()->isCapsLock(), uisession()->isScrollLock());
+    keyboardHandler()->winSkipKeyboardEvents(false);
+#else
+    LogRelFlow(("UIMachineLogic::sltSwitchKeyboardLedsToGuestLeds: keep host LED lock states and broadcast guest's ones does not supported on this platform.\n"));
+#endif
 }
 
 void UIMachineLogic::sltSwitchKeyboardLedsToPreviousLeds()
@@ -2338,15 +2447,19 @@ void UIMachineLogic::sltSwitchKeyboardLedsToPreviousLeds()
         return;
 
     /* Here we have to restore host LED lock states. */
-#ifdef Q_WS_MAC
-    LogRelFlow(("UIMachineLogic::sltSwitchKeyboardLedsToPreviousLeds: restore host LED lock states.\n"));
-
     if (m_pHostLedsState)
     {
-        DarwinHidDevicesApplyAndReleaseLedsState(m_pHostLedsState);
+#if defined(Q_WS_MAC)
+    	DarwinHidDevicesApplyAndReleaseLedsState(m_pHostLedsState);
+#elif defined(Q_WS_WIN)
+        keyboardHandler()->winSkipKeyboardEvents(true);
+        WinHidDevicesApplyAndReleaseLedsState(m_pHostLedsState);
+        keyboardHandler()->winSkipKeyboardEvents(false);
+#else
+        LogRelFlow(("UIMachineLogic::sltSwitchKeyboardLedsToPreviousLeds: restore host LED lock states does not supported on this platform.\n"));
+#endif
         m_pHostLedsState = NULL;
-    }
-#endif /* Q_WS_MAC */
+	}
 }
 
 int UIMachineLogic::searchMaxSnapshotIndex(const CMachine &machine,

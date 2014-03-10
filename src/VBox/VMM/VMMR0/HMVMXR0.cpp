@@ -4094,8 +4094,7 @@ static int hmR0VmxLoadGuestMsrs(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
         {
             pGuestMsr->u32Msr      = MSR_K8_TSC_AUX;
             pGuestMsr->u32Reserved = 0;
-            rc = CPUMQueryGuestMsr(pVCpu, MSR_K8_TSC_AUX, &pGuestMsr->u64Value);
-            AssertRCReturn(rc, rc);
+            pGuestMsr->u64Value    = CPUMR0GetGuestTscAux(pVCpu);
             pGuestMsr++; cGuestMsrs++;
         }
 
@@ -5546,7 +5545,7 @@ static int hmR0VmxSaveGuestAutoLoadStoreMsrs(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
             case MSR_K8_LSTAR:          pMixedCtx->msrLSTAR  = pMsr->u64Value;                   break;
             case MSR_K6_STAR:           pMixedCtx->msrSTAR   = pMsr->u64Value;                   break;
             case MSR_K8_SF_MASK:        pMixedCtx->msrSFMASK = pMsr->u64Value;                   break;
-            case MSR_K8_TSC_AUX:        CPUMSetGuestMsr(pVCpu, MSR_K8_TSC_AUX, pMsr->u64Value);  break;
+            case MSR_K8_TSC_AUX:        CPUMR0SetGuestTscAux(pVCpu, pMsr->u64Value);             break;
             case MSR_K8_KERNEL_GS_BASE: pMixedCtx->msrKERNELGSBASE = pMsr->u64Value;             break;
             case MSR_K6_EFER:           /* EFER can't be changed without causing a VM-exit. */   break;
             default:
@@ -7730,9 +7729,7 @@ static void hmR0VmxPreRunGuestCommitted(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCt
     if (pVCpu->hm.s.vmx.u32ProcCtls2 & VMX_VMCS_CTRL_PROC_EXEC2_RDTSCP)
     {
         pVCpu->hm.s.u64HostTscAux = ASMRdMsr(MSR_K8_TSC_AUX);
-        uint64_t u64HostTscAux = 0;
-        int rc2 = CPUMQueryGuestMsr(pVCpu, MSR_K8_TSC_AUX, &u64HostTscAux);
-        AssertRC(rc2);
+        uint64_t u64HostTscAux = CPUMR0GetGuestTscAux(pVCpu);
         ASMWrMsr(MSR_K8_TSC_AUX, u64HostTscAux);
     }
 #endif

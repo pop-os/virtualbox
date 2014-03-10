@@ -506,18 +506,100 @@ static Utf8Str *GetExtraDataBoth(IVirtualBox *pVirtualBox, IMachine *pMachine, c
 }
 
 
-/** Helper that finds out the next SATA port used
+/** Helper that finds out the next HBA port used
  */
-static LONG GetNextUsedSataPort(LONG aSataPortUsed[30], LONG lBaseVal, uint32_t u32Size)
+static LONG GetNextUsedPort(LONG aPortUsed[30], LONG lBaseVal, uint32_t u32Size)
 {
     LONG lNextPortUsed = 30;
     for (size_t j = 0; j < u32Size; ++j)
     {
-        if (   aSataPortUsed[j] >  lBaseVal
-            && aSataPortUsed[j] <= lNextPortUsed)
-           lNextPortUsed = aSataPortUsed[j];
+        if (   aPortUsed[j] >  lBaseVal
+            && aPortUsed[j] <= lNextPortUsed)
+           lNextPortUsed = aPortUsed[j];
     }
     return lNextPortUsed;
+}
+
+#define MAX_BIOS_LUN_COUNT   4
+
+static int SetBiosDiskInfo(ComPtr<IMachine> pMachine, PCFGMNODE pCfg, PCFGMNODE pBiosCfg,
+                           Bstr controllerName, const char * const s_apszBiosConfig[4])
+{
+    HRESULT             hrc;
+#define MAX_DEVICES     30
+#define H()     AssertMsgReturn(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), VERR_GENERAL_FAILURE)
+
+    LONG lPortLUN[MAX_BIOS_LUN_COUNT];
+    LONG lPortUsed[MAX_DEVICES];
+    uint32_t u32HDCount = 0;
+
+    /* init to max value */
+    lPortLUN[0] = MAX_DEVICES;
+
+    com::SafeIfaceArray<IMediumAttachment> atts;
+    hrc = pMachine->GetMediumAttachmentsOfController(controllerName.raw(),
+                                        ComSafeArrayAsOutParam(atts));  H();
+    size_t uNumAttachments = atts.size();
+    if (uNumAttachments > MAX_DEVICES)
+    {
+        LogRel(("Number of Attachments > Max=%d.\n", uNumAttachments));
+        uNumAttachments = MAX_DEVICES;
+    }
+
+    /* Find the relevant ports/IDs, i.e the ones to which a HD is attached. */
+    for (size_t j = 0; j < uNumAttachments; ++j)
+    {
+        IMediumAttachment *pMediumAtt = atts[j];
+        LONG lPortNum = 0;
+        hrc = pMediumAtt->COMGETTER(Port)(&lPortNum);                   H();
+        if (SUCCEEDED(hrc))
+        {
+            DeviceType_T lType;
+            hrc = pMediumAtt->COMGETTER(Type)(&lType);                    H();
+            if (SUCCEEDED(hrc) && lType == DeviceType_HardDisk)
+            {
+                /* find min port number used for HD */
+                if (lPortNum < lPortLUN[0])
+                    lPortLUN[0] = lPortNum;
+                lPortUsed[u32HDCount++] = lPortNum;
+                LogFlowFunc(("HD port Count=%d\n", u32HDCount));
+            }
+
+            /* Configure the hotpluggable flag for the port. */
+            BOOL fHotPluggable = FALSE;
+            hrc = pMediumAtt->COMGETTER(HotPluggable)(&fHotPluggable); H();
+            if (SUCCEEDED(hrc))
+            {
+                PCFGMNODE pPortCfg;
+                char szName[24];
+                RTStrPrintf(szName, sizeof(szName), "Port%d", lPortNum);
+
+                InsertConfigNode(pCfg, szName, &pPortCfg);
+                InsertConfigInteger(pPortCfg, "Hotpluggable", fHotPluggable ? 1 : 0);
+            }
+         }
+    }
+
+
+    /* Pick only the top 4 used HD Ports as CMOS doesn't have space
+     * to save details for all 30 ports
+     */
+    uint32_t u32MaxPortCount = MAX_BIOS_LUN_COUNT;
+    if (u32HDCount < MAX_BIOS_LUN_COUNT)
+        u32MaxPortCount = u32HDCount;
+    for (size_t j = 1; j < u32MaxPortCount; j++)
+        lPortLUN[j] = GetNextUsedPort(lPortUsed,
+                                      lPortLUN[j-1],
+                                       u32HDCount);
+    if (pBiosCfg)
+    {
+        for (size_t j = 0; j < u32MaxPortCount; j++)
+        {
+            InsertConfigInteger(pBiosCfg, s_apszBiosConfig[j], lPortLUN[j]);
+            LogFlowFunc(("Top %d HBA ports = %s, %d\n", j, s_apszBiosConfig[j], lPortLUN[j]));
+        }
+    }
+    return VINF_SUCCESS;
 }
 
 #ifdef VBOX_WITH_PCI_PASSTHROUGH
@@ -1172,6 +1254,10 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             hrc = bwGroups[i]->COMGETTER(Type)(&enmType);                                   H();
             hrc = bwGroups[i]->COMGETTER(MaxBytesPerSec)(&cMaxBytesPerSec);                 H();
 
+            if (strName.isEmpty())
+                return VMR3SetError(pUVM, VERR_CFGM_NO_NODE, RT_SRC_POS,
+                                    N_("No bandwidth group name specified"));
+
             if (enmType == BandwidthGroupType_Disk)
             {
                 PCFGMNODE pBwGroup;
@@ -1203,6 +1289,7 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         PCFGMNODE pLunL2 = NULL;        /* /Devices/Dev/0/LUN#0/AttachedDriver/Config/ */
         PCFGMNODE pBiosCfg = NULL;      /* /Devices/pcbios/0/Config/ */
         PCFGMNODE pNetBootCfg = NULL;   /* /Devices/pcbios/0/Config/NetBoot/ */
+        bool fHaveBiosScsiConfig = false;
 
         InsertConfigNode(pRoot, "Devices", &pDevices);
 
@@ -1431,7 +1518,10 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             case GraphicsControllerType_Null:
                 break;
             case GraphicsControllerType_VBoxVGA:
-                rc = configGraphicsController(pDevices, "vga", pBusMgr, pMachine, biosSettings,
+#ifdef VBOX_WITH_VMSVGA
+            case GraphicsControllerType_VMSVGA:
+#endif
+                rc = configGraphicsController(pDevices, graphicsController, pBusMgr, pMachine, biosSettings,
                                               RT_BOOL(fHMEnabled));
                 if (FAILED(rc))
                     return rc;
@@ -1641,6 +1731,12 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             InsertConfigInteger(pCtlInst, "Trusted",   1);
             InsertConfigNode(pCtlInst,    "Config",    &pCfg);
 
+            static const char * const apszBiosConfigScsi[MAX_BIOS_LUN_COUNT] =
+            { "ScsiLUN1", "ScsiLUN2", "ScsiLUN3", "ScsiLUN4" };
+
+            static const char * const apszBiosConfigSata[MAX_BIOS_LUN_COUNT] =
+            { "SataLUN1", "SataLUN2", "SataLUN3", "SataLUN4" };
+
             switch (enmCtrlType)
             {
                 case StorageControllerType_LsiLogic:
@@ -1648,6 +1744,18 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                     hrc = pBusMgr->assignPCIDevice("lsilogic", pCtlInst);                   H();
 
                     InsertConfigInteger(pCfg, "Bootable",  fBootable);
+
+                    /* BIOS configuration values, first controller only. */
+                    if (!pBusMgr->hasPCIDevice("lsilogicscsi", 1) && pBiosCfg)
+                    {
+                        if (!fHaveBiosScsiConfig)
+                        {
+                            fHaveBiosScsiConfig = true;
+                            InsertConfigString(pBiosCfg, "ScsiHardDiskDevice", "lsilogicscsi");
+
+                            hrc = SetBiosDiskInfo(pMachine, pCfg, pBiosCfg, controllerName, apszBiosConfigScsi);    H();
+                        }
+                    }
 
                     /* Attach the status driver */
                     Assert(cLedScsi >= 16);
@@ -1662,6 +1770,18 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                     hrc = pBusMgr->assignPCIDevice("buslogic", pCtlInst);                   H();
 
                     InsertConfigInteger(pCfg, "Bootable",  fBootable);
+
+                    /* BIOS configuration values, first controller only. */
+                    if (!pBusMgr->hasPCIDevice("buslogic", 1) && pBiosCfg)
+                    {
+                        if (!fHaveBiosScsiConfig)
+                        {
+                            fHaveBiosScsiConfig = true;
+                            InsertConfigString(pBiosCfg, "ScsiHardDiskDevice", "buslogic");
+
+                            hrc = SetBiosDiskInfo(pMachine, pCfg, pBiosCfg, controllerName, apszBiosConfigScsi);    H();
+                        }
+                    }
 
                     /* Attach the status driver */
                     Assert(cLedScsi >= 16);
@@ -1683,76 +1803,12 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                     /* Needed configuration values for the bios, only first controller. */
                     if (!pBusMgr->hasPCIDevice("ahci", 1))
                     {
-#define MAX_SATA_LUN_COUNT 4
-#define MAX_SATA_PORTS     30
-
-                        static const char * const s_apszBiosConfig[4] =
-                        { "SataLUN1", "SataLUN2", "SataLUN3", "SataLUN4" };
-
-                        LONG lPortLUN[MAX_SATA_LUN_COUNT];
-                        LONG lPortUsed[MAX_SATA_PORTS];
-                        uint32_t u32HDSataPortCount = 0;
-
-                        /* init to max value */
-                        lPortLUN[0] = MAX_SATA_PORTS;
-
                         if (pBiosCfg)
                         {
                             InsertConfigString(pBiosCfg, "SataHardDiskDevice", "ahci");
                         }
 
-                        com::SafeIfaceArray<IMediumAttachment> atts;
-                        hrc = pMachine->GetMediumAttachmentsOfController(controllerName.raw(),
-                                                            ComSafeArrayAsOutParam(atts));  H();
-                        size_t uNumAttachments = atts.size();
-                        if (uNumAttachments > MAX_SATA_PORTS)
-                        {
-                            LogRel(("Number of Sata Port Attachments > Max=%d.\n", uNumAttachments));
-                            uNumAttachments =  MAX_SATA_PORTS;
-                        }
-
-                        /* find the relavant ports i.e Sata ports to which
-                         * HD is attached.
-                         */
-                        for (size_t j = 0; j < uNumAttachments; ++j)
-                        {
-                            IMediumAttachment *pMediumAtt = atts[j];
-                            LONG lPortNum = 0;
-                            hrc = pMediumAtt->COMGETTER(Port)(&lPortNum);                   H();
-                            if (SUCCEEDED(hrc))
-                            {
-                                DeviceType_T lType;
-                                hrc = pMediumAtt->COMGETTER(Type)(&lType);                    H();
-                                if (SUCCEEDED(hrc) && lType == DeviceType_HardDisk)
-                                {
-                                    /* find min port number used for HD */
-                                    if (lPortNum < lPortLUN[0])
-                                        lPortLUN[0] = lPortNum;
-                                    lPortUsed[u32HDSataPortCount++] = lPortNum;
-                                    LogFlowFunc(("HD Sata port Count=%d\n", u32HDSataPortCount));
-                                }
-                             }
-                        }
-
-
-                        /* Pick only the top 4 used HD Sata Ports as CMOS doesn't have space
-                         * to save details for every 30 ports
-                         */
-                        uint32_t u32MaxPortCount = MAX_SATA_LUN_COUNT;
-                        if (u32HDSataPortCount < MAX_SATA_LUN_COUNT)
-                            u32MaxPortCount = u32HDSataPortCount;
-                        for (size_t j = 1; j < u32MaxPortCount; j++)
-                            lPortLUN[j] = GetNextUsedSataPort(lPortUsed,
-                                                              lPortLUN[j-1],
-                                                              u32HDSataPortCount);
-                        if (pBiosCfg)
-                        {
-                            for (size_t j = 0; j < u32MaxPortCount; j++)
-                            {
-                                InsertConfigInteger(pBiosCfg, s_apszBiosConfig[j], lPortLUN[j]);
-                                LogFlowFunc(("Top %d ports = %s, %d\n", j, s_apszBiosConfig[j], lPortLUN[j]));
-                            }
-                        }
+                        hrc = SetBiosDiskInfo(pMachine, pCfg, pBiosCfg, controllerName, apszBiosConfigSata);    H();
                     }
 
                     /* Attach the status driver */
@@ -1810,6 +1866,22 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
 
                     InsertConfigString(pCfg,  "ControllerType", "SAS1068");
                     InsertConfigInteger(pCfg, "Bootable",  fBootable);
+
+                    /* BIOS configuration values, first controller only. */
+                    if (!pBusMgr->hasPCIDevice("lsilogicsas", 1) && pBiosCfg)
+                    {
+                        if (!fHaveBiosScsiConfig)
+                        {
+                            fHaveBiosScsiConfig = true;
+                            InsertConfigString(pBiosCfg, "ScsiHardDiskDevice", "lsilogicsas");
+
+                            hrc = SetBiosDiskInfo(pMachine, pCfg, pBiosCfg, controllerName, apszBiosConfigScsi);    H();
+                        }
+                    }
+
+                    ULONG cPorts = 0;
+                    hrc = ctrls[i]->COMGETTER(PortCount)(&cPorts);                          H();
+                    InsertConfigInteger(pCfg, "NumPorts", cPorts);
 
                     /* Attach the status driver */
                     Assert(cLedSas >= 8);
@@ -3164,7 +3236,7 @@ int Console::configDumpAPISettingsTweaks(IVirtualBox *pVirtualBox, IMachine *pMa
 }
 
 int Console::configGraphicsController(PCFGMNODE pDevices,
-                                      const char *pcszDevice,
+                                      const GraphicsControllerType_T graphicsController,
                                       BusAssignmentManager *pBusMgr,
                                       const ComPtr<IMachine> &pMachine,
                                       const ComPtr<IBIOSSettings> &biosSettings,
@@ -3176,6 +3248,7 @@ int Console::configGraphicsController(PCFGMNODE pDevices,
         PCFGMNODE pDev, pInst, pCfg, pLunL0;
         HRESULT hrc;
         Bstr    bstr;
+        const char *pcszDevice = "vga";
 
 #define H()         AssertMsgReturn(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), VERR_GENERAL_FAILURE)
         InsertConfigNode(pDevices, pcszDevice, &pDev);
@@ -3194,6 +3267,27 @@ int Console::configGraphicsController(PCFGMNODE pDevices,
         InsertConfigInteger(pCfg,  "R0Enabled",            fHMEnabled);
 #else
         NOREF(fHMEnabled);
+#endif
+
+#ifdef VBOX_WITH_VMSVGA
+        if (graphicsController == GraphicsControllerType_VMSVGA)
+        {
+            InsertConfigInteger(pCfg, "VMSVGAEnabled", true);
+#ifdef VBOX_WITH_VMSVGA3D
+            IFramebuffer *pFramebuffer = getDisplay()->getFramebuffer();
+            if (pFramebuffer)
+            {
+                LONG64 winId = 0;
+                /* @todo deal with multimonitor setup */
+                Assert(cMonitorCount == 1);
+                hrc = pFramebuffer->COMGETTER(WinId)(&winId);
+                InsertConfigInteger(pCfg, "HostWindowId", winId);
+            }
+            BOOL f3DEnabled;
+            pMachine->COMGETTER(Accelerate3DEnabled)(&f3DEnabled);
+            InsertConfigInteger(pCfg, "VMSVGA3dEnabled", f3DEnabled);
+#endif
+        }
 #endif
 
         /* Custom VESA mode list */
@@ -4243,6 +4337,10 @@ int Console::configNetwork(const char *pszDevice,
                     /* continue with next rule if no valid proto was passed */
                     if (!fValid)
                         continue;
+
+                    if (strName.isEmpty())
+                        VMSetError(VMR3GetVM(mpUVM), VERR_CFGM_NO_NODE, RT_SRC_POS,
+                                   N_("NAT redirection rule without a name"));
 
                     InsertConfigNode(pCfg, strName.c_str(), &pPF);
                     InsertConfigString(pPF, "Protocol", strProto);

@@ -81,6 +81,7 @@ typedef struct VBVACONTEXT
     uint32_t cViews;
     VBVAVIEW aViews[64 /* @todo SchemaDefs::MaxGuestMonitors*/];
     VBVAMOUSESHAPEINFO mouseShapeInfo;
+    bool fPaused;
 } VBVACONTEXT;
 
 
@@ -1890,6 +1891,18 @@ void VBVARaiseIrq (PVGASTATE pVGAState, uint32_t fFlags)
     PDMCritSectLeave(&pVGAState->CritSect);
 }
 
+void VBVARaiseIrqNoWait(PVGASTATE pVGAState, uint32_t fFlags)
+{
+    PPDMDEVINS pDevIns = pVGAState->pDevInsR3;
+    PDMCritSectEnter(&pVGAState->CritSect, VERR_SEM_BUSY);
+
+    HGSMISetHostGuestFlags(pVGAState->pHGSMI, HGSMIHOSTFLAGS_IRQ | fFlags);
+    PDMDevHlpPCISetIrqNoWait(pDevIns, 0, PDM_IRQ_LEVEL_HIGH);
+
+    PDMCritSectLeave(&pVGAState->CritSect);
+}
+
+
 /*
  *
  * New VBVA uses a new interface id: #define VBE_DISPI_ID_VBOX_VIDEO         0xBE01
@@ -1905,7 +1918,7 @@ static DECLCALLBACK(void) vbvaNotifyGuest (void *pvCallback)
 {
 #if defined(VBOX_WITH_HGSMI) && (defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_WITH_VDMA) || defined(VBOX_WITH_WDDM))
     PVGASTATE pVGAState = (PVGASTATE)pvCallback;
-    VBVARaiseIrq (pVGAState, 0);
+    VBVARaiseIrqNoWait (pVGAState, 0);
 #else
     NOREF(pvCallback);
     /* Do nothing. Later the VMMDev/VGA IRQ can be used for the notification. */
@@ -2239,6 +2252,54 @@ static DECLCALLBACK(int) vbvaChannelHandler (void *pvHandler, uint16_t u16Channe
             pCaps->rc = VINF_SUCCESS;
         } break;
 #endif
+
+        case VBVA_CMDVBVA_ENABLE:
+        {
+            if (cbBuffer < sizeof (VBVAENABLE))
+            {
+                rc = VERR_INVALID_PARAMETER;
+                break;
+            }
+
+            VBVAENABLE *pEnable = (VBVAENABLE *)pvBuffer;
+
+            if ((pEnable->u32Flags & (VBVA_F_ENABLE | VBVA_F_DISABLE)) == VBVA_F_ENABLE)
+            {
+                uint32_t u32Offset = pEnable->u32Offset;
+                VBVABUFFER *pVBVA = (VBVABUFFER *)HGSMIOffsetToPointerHost (pIns, u32Offset);
+
+                if (pVBVA)
+                    rc = vboxCmdVBVAEnable(pVGAState, pVBVA);
+                else
+                {
+                    LogRel(("Invalid VBVABUFFER offset 0x%x!!!\n",
+                         pEnable->u32Offset));
+                    rc = VERR_INVALID_PARAMETER;
+                }
+            }
+            else if ((pEnable->u32Flags & (VBVA_F_ENABLE | VBVA_F_DISABLE)) == VBVA_F_DISABLE)
+            {
+                rc = vboxCmdVBVADisable(pVGAState);
+            }
+            else
+            {
+                LogRel(("Invalid VBVA_ENABLE flags 0x%x!!!\n", pEnable->u32Flags));
+                rc = VERR_INVALID_PARAMETER;
+            }
+
+            pEnable->i32Result = rc;
+            break;
+        }
+        case VBVA_CMDVBVA_SUBMIT:
+        {
+            rc = vboxCmdVBVACmdSubmit(pVGAState);
+            break;
+        }
+        case VBVA_CMDVBVA_FLUSH:
+        {
+            rc =vboxCmdVBVACmdFlush(pVGAState);
+            break;
+        }
         case VBVA_SCANLINE_CFG:
         {
             if (cbBuffer < sizeof (VBVASCANLINECFG))
@@ -2258,6 +2319,24 @@ static DECLCALLBACK(int) vbvaChannelHandler (void *pvHandler, uint16_t u16Channe
     }
 
     return rc;
+}
+
+/* When VBVA is paused, then VGA device is allowed to work but
+ * no HGSMI etc state is changed.
+ */
+void VBVAPause(PVGASTATE pVGAState, bool fPause)
+{
+    if (!pVGAState || !pVGAState->pHGSMI)
+    {
+        return;
+    }
+
+    VBVACONTEXT *pCtx = (VBVACONTEXT *)HGSMIContext(pVGAState->pHGSMI);
+
+    if (pCtx)
+    {
+        pCtx->fPaused = fPause;
+    }
 }
 
 void VBVAReset (PVGASTATE pVGAState)
@@ -2308,14 +2387,17 @@ int VBVAUpdateDisplay (PVGASTATE pVGAState)
 
     if (pCtx)
     {
-        rc = vbvaFlush (pVGAState, pCtx);
-
-        if (RT_SUCCESS (rc))
+        if (!pCtx->fPaused)
         {
-            if (!pCtx->aViews[0].pVBVA)
+            rc = vbvaFlush (pVGAState, pCtx);
+
+            if (RT_SUCCESS (rc))
             {
-                /* VBVA is not enabled for the first view, so VGA device must do updates. */
-                rc = VERR_NOT_SUPPORTED;
+                if (!pCtx->aViews[0].pVBVA)
+                {
+                    /* VBVA is not enabled for the first view, so VGA device must do updates. */
+                    rc = VERR_NOT_SUPPORTED;
+                }
             }
         }
     }
@@ -2352,6 +2434,7 @@ int VBVAInit (PVGASTATE pVGAState)
          {
              VBVACONTEXT *pCtx = (VBVACONTEXT *)HGSMIContext (pVGAState->pHGSMI);
              pCtx->cViews = pVGAState->cMonitors;
+             pCtx->fPaused = true;
          }
      }
 
@@ -2374,4 +2457,40 @@ void VBVADestroy (PVGASTATE pVGAState)
 
     HGSMIDestroy (pVGAState->pHGSMI);
     pVGAState->pHGSMI = NULL;
+}
+
+int VBVAGetScreenInfo(PVGASTATE pVGAState, unsigned uScreenId, struct VBVAINFOSCREEN *pScreen, void **ppvVram)
+{
+    PPDMDEVINS pDevIns = pVGAState->pDevInsR3;
+    PHGSMIINSTANCE pIns = pVGAState->pHGSMI;
+    VBVACONTEXT *pCtx = (VBVACONTEXT *)HGSMIContext (pIns);
+    int rc = PDMCritSectEnter(&pVGAState->CritSect, VERR_SEM_BUSY);
+    if (RT_SUCCESS(rc))
+    {
+        if (uScreenId < pCtx->cViews)
+        {
+            VBVAVIEW *pView = &pCtx->aViews[uScreenId];
+            if (pView->pVBVA)
+            {
+                uint8_t *pu8VRAM = pVGAState->vram_ptrR3 + pView->view.u32ViewOffset;
+                *pScreen = pView->screen;
+                *ppvVram = (void*)pu8VRAM;
+                rc = VINF_SUCCESS;
+            }
+            else
+            {
+                /* pretend disabled */
+                memset(pScreen, 0, sizeof (*pScreen));
+                pScreen->u16Flags = VBVA_SCREEN_F_DISABLED;
+                pScreen->u32ViewIndex = uScreenId;
+                *ppvVram = NULL;
+                rc = VINF_SUCCESS;
+            }
+        }
+        else
+            rc = VERR_INVALID_PARAMETER;
+
+        PDMCritSectLeave(&pVGAState->CritSect);
+    }
+    return rc;
 }

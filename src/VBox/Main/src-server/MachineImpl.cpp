@@ -571,6 +571,10 @@ HRESULT Machine::init(VirtualBox *aParent,
             autoInitSpan.setSucceeded();
         else
         {
+            /* Ignore all errors from unregistering, they would destroy
+             * the more interesting error information we already have,
+             * pinpointing the issue with the VM config. */
+            ErrorInfoKeeper eik;
             autoInitSpan.setLimited();
 
             // uninit media from this machine's media registry, or else
@@ -1933,6 +1937,9 @@ STDMETHODIMP Machine::COMSETTER(GraphicsControllerType)(GraphicsControllerType_T
     {
         case GraphicsControllerType_Null:
         case GraphicsControllerType_VBoxVGA:
+#ifdef VBOX_WITH_VMSVGA
+        case GraphicsControllerType_VMSVGA:
+#endif
             break;
         default:
             return setError(E_INVALIDARG, tr("The graphics controller type (%d) is invalid"), aGraphicsControllerType);

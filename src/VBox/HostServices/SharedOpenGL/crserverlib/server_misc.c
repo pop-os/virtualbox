@@ -239,6 +239,10 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchChromiumParametervCR(GLenum target
         cr_server.projectionOverride = GL_TRUE;
         break;
 
+    case GL_HH_SET_TMPCTX_MAKE_CURRENT:
+        /*we should not receive it from the guest! */
+        break;
+
     default:
         /* Pass the parameter info to the head SPU */
         cr_server.head_spu->dispatch_table.ChromiumParametervCR( target, type, count, values );
@@ -671,8 +675,8 @@ PCR_BLITTER crServerVBoxBlitterGet()
         int rc;
         CRASSERT(cr_server.MainContextInfo.SpuContext);
         Ctx.Base.id = cr_server.MainContextInfo.SpuContext;
-        Ctx.Base.visualBits = cr_server.MainContextInfo.CreateInfo.visualBits;
-        rc = CrBltInit(&cr_server.Blitter, &Ctx, true, true, NULL, &cr_server.head_spu->dispatch_table);
+        Ctx.Base.visualBits = cr_server.MainContextInfo.CreateInfo.realVisualBits;
+        rc = CrBltInit(&cr_server.Blitter, &Ctx, true, true, NULL, &cr_server.TmpCtxDispatch);
         if (RT_SUCCESS(rc))
         {
             CRASSERT(CrBltIsInitialized(&cr_server.Blitter));
@@ -684,8 +688,26 @@ PCR_BLITTER crServerVBoxBlitterGet()
             return NULL;
         }
     }
+
+    if (!CrBltMuralGetCurrentInfo(&cr_server.Blitter)->Base.id)
+    {
+        CRMuralInfo *dummy = crServerGetDummyMural(cr_server.MainContextInfo.CreateInfo.realVisualBits);
+        CR_BLITTER_WINDOW DummyInfo;
+        CRASSERT(dummy);
+        crServerVBoxBlitterWinInit(&DummyInfo, dummy);
+        CrBltMuralSetCurrentInfo(&cr_server.Blitter, &DummyInfo);
+    }
+
     return &cr_server.Blitter;
 }
+
+PCR_BLITTER crServerVBoxBlitterGetInitialized()
+{
+    if (CrBltIsInitialized(&cr_server.Blitter))
+        return &cr_server.Blitter;
+    return NULL;
+}
+
 
 int crServerVBoxBlitterTexInit(CRContext *ctx, CRMuralInfo *mural, PVBOXVR_TEXTURE pTex, GLboolean fDraw)
 {
@@ -701,7 +723,7 @@ int crServerVBoxBlitterTexInit(CRContext *ctx, CRMuralInfo *mural, PVBOXVR_TEXTU
     {
         GLuint hwid;
 
-        if (!(mural->fPresentMode & CR_SERVER_REDIR_F_FBO))
+        if (!mural->fRedirected)
             return VERR_NOT_IMPLEMENTED;
 
         enmBuf = fDraw ? ctx->buffer.drawBuffer : ctx->buffer.readBuffer;
@@ -846,14 +868,14 @@ int crServerVBoxBlitterBlitCurrentCtx(GLint srcX0, GLint srcY0, GLint srcX1, GLi
 
     crServerVBoxBlitterCtxInit(&Ctx, cr_server.curClient->currentCtxInfo);
 
-    CrBltMuralSetCurrent(pBlitter, &BltInfo);
+    CrBltMuralSetCurrentInfo(pBlitter, &BltInfo);
 
     idDrawFBO = CR_SERVER_FBO_FOR_IDX(mural, mural->iCurDrawBuffer);
     idReadFBO = CR_SERVER_FBO_FOR_IDX(mural, mural->iCurReadBuffer);
 
     crStateSwitchPrepare(NULL, ctx, idDrawFBO, idReadFBO);
 
-    rc = CrBltEnter(pBlitter, &Ctx, &BltInfo);
+    rc = CrBltEnter(pBlitter);
     if (RT_SUCCESS(rc))
     {
         RTRECT ReadRect, DrawRect;
@@ -1338,13 +1360,35 @@ crServerMakeTmpCtxCurrent( GLint window, GLint nativeWindow, GLint context )
 
     if (pCtx)
     {
-        GLint curSrvSpuCtx = cr_server.currentCtxInfo && cr_server.currentCtxInfo->SpuContext > 0 ? cr_server.currentCtxInfo->SpuContext : cr_server.MainContextInfo.SpuContext;
-        bool fSwitchToTmpCtx = (curSrvSpuCtx != context);
         CRMuralInfo *pCurrentMural = cr_server.currentMural;
-        CRContextInfo *pCurCtxInfo = cr_server.currentCtxInfo;
-        pCurCtx = pCurCtxInfo ? pCurCtxInfo->pContext : NULL;
 
-        CRASSERT(pCurCtx == pCtx);
+        pCurCtx = cr_server.currentCtxInfo ? cr_server.currentCtxInfo->pContext : cr_server.MainContextInfo.pContext;
+        Assert(pCurCtx == pCtx);
+
+        if (!context)
+        {
+            if (pCurrentMural)
+            {
+                Assert(cr_server.currentCtxInfo);
+                context = cr_server.currentCtxInfo->SpuContext > 0 ? cr_server.currentCtxInfo->SpuContext : cr_server.MainContextInfo.SpuContext;
+                window = pCurrentMural->spuWindow;
+            }
+            else
+            {
+                CRMuralInfo * pDummy;
+                Assert(!cr_server.currentCtxInfo);
+                pDummy = crServerGetDummyMural(cr_server.MainContextInfo.CreateInfo.realVisualBits);
+                context = cr_server.MainContextInfo.SpuContext;
+                window = pDummy->spuWindow;
+            }
+
+
+            fDoPrePostProcess = -1;
+        }
+        else
+        {
+            fDoPrePostProcess = 1;
+        }
 
         if (pCurrentMural)
         {
@@ -1356,8 +1400,6 @@ crServerMakeTmpCtxCurrent( GLint window, GLint nativeWindow, GLint context )
             idDrawFBO = 0;
             idReadFBO = 0;
         }
-
-        fDoPrePostProcess = fSwitchToTmpCtx ? 1 : -1;
     }
     else
     {
@@ -1375,9 +1417,15 @@ crServerMakeTmpCtxCurrent( GLint window, GLint nativeWindow, GLint context )
 
 void crServerInitTmpCtxDispatch()
 {
+    MakeCurrentFunc_t pfnMakeCurrent;
+
     crSPUInitDispatchTable(&cr_server.TmpCtxDispatch);
     crSPUCopyDispatchTable(&cr_server.TmpCtxDispatch, &cr_server.head_spu->dispatch_table);
     cr_server.TmpCtxDispatch.MakeCurrent = crServerMakeTmpCtxCurrent;
+
+    pfnMakeCurrent = crServerMakeTmpCtxCurrent;
+    cr_server.head_spu->dispatch_table.ChromiumParametervCR(GL_HH_SET_TMPCTX_MAKE_CURRENT, GL_BYTE, sizeof (void*), &pfnMakeCurrent);
+
 }
 
 /* dump stuff */
@@ -1397,8 +1445,13 @@ void crServerInitTmpCtxDispatch()
 
 int64_t g_CrDbgDumpPid = 0;
 unsigned long g_CrDbgDumpEnabled = 0;
-unsigned long g_CrDbgDumpDraw = CR_SERVER_DUMP_F_COMPILE_SHADER
+unsigned long g_CrDbgDumpDraw = 0
+#if 0
+        | CR_SERVER_DUMP_F_COMPILE_SHADER
         | CR_SERVER_DUMP_F_LINK_PROGRAM
+#endif
+        ;
+#if 0
         | CR_SERVER_DUMP_F_DRAW_BUFF_ENTER
         | CR_SERVER_DUMP_F_DRAW_BUFF_LEAVE
         | CR_SERVER_DUMP_F_DRAW_PROGRAM_UNIFORMS_ENTER
@@ -1409,7 +1462,8 @@ unsigned long g_CrDbgDumpDraw = CR_SERVER_DUMP_F_COMPILE_SHADER
         | CR_SERVER_DUMP_F_SWAPBUFFERS_ENTER
         | CR_SERVER_DUMP_F_DRAWEL
         | CR_SERVER_DUMP_F_SHADER_SOURCE
-        ; //CR_SERVER_DUMP_F_DRAW_BUFF_ENTER | CR_SERVER_DUMP_F_DRAW_BUFF_LEAVE;
+        ;
+#endif
 unsigned long g_CrDbgDumpDrawFramesSettings = CR_SERVER_DUMP_F_DRAW_BUFF_ENTER
         | CR_SERVER_DUMP_F_DRAW_BUFF_LEAVE
         | CR_SERVER_DUMP_F_DRAW_TEX_ENTER
@@ -1420,6 +1474,25 @@ unsigned long g_CrDbgDumpDrawFramesSettings = CR_SERVER_DUMP_F_DRAW_BUFF_ENTER
 unsigned long g_CrDbgDumpDrawFramesAppliedSettings = 0;
 unsigned long g_CrDbgDumpDrawFramesSavedInitSettings = 0;
 unsigned long g_CrDbgDumpDrawFramesCount = 0;
+
+uint32_t g_CrDbgDumpDrawCount = 0;
+uint32_t g_CrDbgDumpDumpOnCount = 10;
+uint32_t g_CrDbgDumpDumpOnCountEnabled = 0;
+uint32_t g_CrDbgDumpDumpOnCountPerform = 0;
+uint32_t g_CrDbgDumpDrawFlags = CR_SERVER_DUMP_F_COMPILE_SHADER
+        | CR_SERVER_DUMP_F_SHADER_SOURCE
+        | CR_SERVER_DUMP_F_COMPILE_SHADER
+        | CR_SERVER_DUMP_F_LINK_PROGRAM
+        | CR_SERVER_DUMP_F_DRAW_BUFF_ENTER
+        | CR_SERVER_DUMP_F_DRAW_BUFF_LEAVE
+        | CR_SERVER_DUMP_F_DRAW_TEX_ENTER
+        | CR_SERVER_DUMP_F_DRAW_PROGRAM_UNIFORMS_ENTER
+        | CR_SERVER_DUMP_F_DRAW_PROGRAM_ATTRIBS_ENTER
+        | CR_SERVER_DUMP_F_DRAW_PROGRAM_ENTER
+        | CR_SERVER_DUMP_F_DRAW_STATE_ENTER
+        | CR_SERVER_DUMP_F_SWAPBUFFERS_ENTER
+        | CR_SERVER_DUMP_F_DRAWEL
+        | CR_SERVER_DUMP_F_TEXPRESENT;
 
 void crServerDumpCheckTerm()
 {
@@ -1436,39 +1509,45 @@ int crServerDumpCheckInit()
     CR_BLITTER_CONTEXT BltCtx;
     CRMuralInfo *pBlitterMural;
 
-    if (CrBltIsInitialized(&cr_server.RecorderBlitter))
-        return VINF_SUCCESS;
-
-    pBlitterMural = crServerGetDummyMural(cr_server.MainContextInfo.CreateInfo.visualBits);
-    if (!pBlitterMural)
+    if (!CrBltIsInitialized(&cr_server.RecorderBlitter))
     {
-        crWarning("crServerGetDummyMural failed");
-        return VERR_GENERAL_FAILURE;
-    }
+        pBlitterMural = crServerGetDummyMural(cr_server.MainContextInfo.CreateInfo.realVisualBits);
+        if (!pBlitterMural)
+        {
+            crWarning("crServerGetDummyMural failed");
+            return VERR_GENERAL_FAILURE;
+        }
 
-    crServerVBoxBlitterWinInit(&BltWin, pBlitterMural);
-    crServerVBoxBlitterCtxInit(&BltCtx, &cr_server.MainContextInfo);
+        crServerVBoxBlitterWinInit(&BltWin, pBlitterMural);
+        crServerVBoxBlitterCtxInit(&BltCtx, &cr_server.MainContextInfo);
 
-    rc = CrBltInit(&cr_server.RecorderBlitter, &BltCtx, true, true, NULL, &cr_server.TmpCtxDispatch);
-    if (!RT_SUCCESS(rc))
-    {
-        crWarning("CrBltInit failed rc %d", rc);
-        return rc;
-    }
+        rc = CrBltInit(&cr_server.RecorderBlitter, &BltCtx, true, true, NULL, &cr_server.TmpCtxDispatch);
+        if (!RT_SUCCESS(rc))
+        {
+            crWarning("CrBltInit failed rc %d", rc);
+            return rc;
+        }
 
-    rc = CrBltMuralSetCurrent(&cr_server.RecorderBlitter, &BltWin);
-    if (!RT_SUCCESS(rc))
-    {
-        crWarning("CrBltMuralSetCurrent failed rc %d", rc);
-        return rc;
+        rc = CrBltMuralSetCurrentInfo(&cr_server.RecorderBlitter, &BltWin);
+        if (!RT_SUCCESS(rc))
+        {
+            crWarning("CrBltMuralSetCurrentInfo failed rc %d", rc);
+            return rc;
+        }
     }
 
 #if 0
     crDmpDbgPrintInit(&cr_server.DbgPrintDumper);
     cr_server.pDumper = &cr_server.DbgPrintDumper.Base;
 #else
-    crDmpHtmlInit(&cr_server.HtmlDumper, "S:\\projects\\virtualbox\\3d\\dumps\\1", "index.html");
-    cr_server.pDumper = &cr_server.HtmlDumper.Base;
+    if (!crDmpHtmlIsInited(&cr_server.HtmlDumper))
+    {
+        static int cCounter = 0;
+//    crDmpHtmlInit(&cr_server.HtmlDumper, "S:\\projects\\virtualbox\\3d\\dumps\\1", "index.html");
+        crDmpHtmlInitF(&cr_server.HtmlDumper, "/Users/oracle-mac/vbox/dump/1", "index%d.html", cCounter);
+        cr_server.pDumper = &cr_server.HtmlDumper.Base;
+        ++cCounter;
+    }
 #endif
 
     crRecInit(&cr_server.Recorder, &cr_server.RecorderBlitter, &cr_server.TmpCtxDispatch, cr_server.pDumper);
@@ -1629,15 +1708,57 @@ void crServerDumpTextures()
 
 void crServerDumpFilterOpLeave(unsigned long event, CR_DUMPER *pDumper)
 {
+    if (CR_SERVER_DUMP_F_DRAW_LEAVE_ALL & event)
+    {
+        g_CrDbgDumpDumpOnCountPerform = 0;
+    }
 }
 
 bool crServerDumpFilterOpEnter(unsigned long event, CR_DUMPER *pDumper)
 {
+    if ((CR_SERVER_DUMP_F_SWAPBUFFERS_ENTER & event)
+            || (CR_SERVER_DUMP_F_TEXPRESENT & event))
+    {
+        if (g_CrDbgDumpDumpOnCountEnabled == 1)
+            g_CrDbgDumpDumpOnCountEnabled = 2;
+        else if (g_CrDbgDumpDumpOnCountEnabled)
+        {
+            g_CrDbgDumpDumpOnCountEnabled = 0;
+            if (cr_server.pDumper == &cr_server.HtmlDumper.Base)
+            {
+                crDmpHtmlTerm(&cr_server.HtmlDumper);
+                cr_server.pDumper = NULL;
+            }
+        }
+
+        g_CrDbgDumpDrawCount = 0;
+    }
+    else if (CR_SERVER_DUMP_F_DRAW_ENTER_ALL & event)
+    {
+        if (g_CrDbgDumpDumpOnCountEnabled == 2)
+        {
+            if (g_CrDbgDumpDumpOnCount == g_CrDbgDumpDrawCount)
+            {
+                g_CrDbgDumpDumpOnCountPerform = 1;
+            }
+            ++g_CrDbgDumpDrawCount;
+        }
+    }
+    if (g_CrDbgDumpDumpOnCountPerform)
+    {
+        if (g_CrDbgDumpDrawFlags & event)
+            return true;
+    }
     return CR_SERVER_DUMP_DEFAULT_FILTER_OP(event);
 }
 
 bool crServerDumpFilterDmp(unsigned long event, CR_DUMPER *pDumper)
 {
+    if (g_CrDbgDumpDumpOnCountPerform)
+    {
+        if (g_CrDbgDumpDrawFlags & event)
+            return true;
+    }
     return CR_SERVER_DUMP_DEFAULT_FILTER_DMP(event);
 }
 
@@ -1672,4 +1793,132 @@ void crServerDumpFramesCheck()
     }
 }
 #endif
-/* */
+
+GLvoid crServerSpriteCoordReplEnable(GLboolean fEnable)
+{
+    CRContext *g = crStateGetCurrent();
+    CRTextureState *t = &(g->texture);
+    GLuint curTextureUnit = t->curTextureUnit;
+    GLuint curTextureUnitRestore = curTextureUnit;
+    GLuint i;
+
+    for (i = 0; i < g->limits.maxTextureUnits; ++i)
+    {
+        if (g->point.coordReplacement[i])
+        {
+            if (i != curTextureUnit)
+            {
+                curTextureUnit = i;
+                cr_server.head_spu->dispatch_table.ActiveTextureARB( i + GL_TEXTURE0_ARB );
+            }
+
+            cr_server.head_spu->dispatch_table.TexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, (GLint)fEnable);
+        }
+    }
+
+    if (curTextureUnit != curTextureUnitRestore)
+    {
+        cr_server.head_spu->dispatch_table.ActiveTextureARB( curTextureUnitRestore + GL_TEXTURE0_ARB );
+    }
+}
+
+GLvoid SERVER_DISPATCH_APIENTRY crServerDispatchDrawArrays(GLenum mode, GLint first, GLsizei count)
+{
+#ifdef DEBUG
+    GLenum status = cr_server.head_spu->dispatch_table.CheckFramebufferStatusEXT(GL_DRAW_FRAMEBUFFER_EXT);
+    Assert(GL_FRAMEBUFFER_COMPLETE == status);
+#endif
+    if (mode == GL_POINTS)
+        crServerSpriteCoordReplEnable(GL_TRUE);
+    CR_SERVER_DUMP_DRAW_ENTER();
+    CR_GLERR_CHECK(cr_server.head_spu->dispatch_table.DrawArrays(mode, first, count););
+    CR_SERVER_DUMP_DRAW_LEAVE();
+    if (mode == GL_POINTS)
+        crServerSpriteCoordReplEnable(GL_FALSE);
+}
+
+GLvoid SERVER_DISPATCH_APIENTRY crServerDispatchDrawElements(GLenum mode,  GLsizei count,  GLenum type,  const GLvoid * indices)
+{
+#ifdef DEBUG
+    GLenum status = cr_server.head_spu->dispatch_table.CheckFramebufferStatusEXT(GL_DRAW_FRAMEBUFFER_EXT);
+    Assert(GL_FRAMEBUFFER_COMPLETE == status);
+#endif
+    if (mode == GL_POINTS)
+        crServerSpriteCoordReplEnable(GL_TRUE);
+    CR_SERVER_DUMP_DRAW_ENTER();
+    CR_GLERR_CHECK(cr_server.head_spu->dispatch_table.DrawElements(mode, count, type, indices););
+    CR_SERVER_DUMP_DRAW_LEAVE();
+    if (mode == GL_POINTS)
+        crServerSpriteCoordReplEnable(GL_FALSE);
+}
+
+void SERVER_DISPATCH_APIENTRY crServerDispatchEnd( void )
+{
+    CRContext *g = crStateGetCurrent();
+    GLenum mode = g->current.mode;
+
+    crStateEnd();
+    cr_server.head_spu->dispatch_table.End();
+
+    CR_SERVER_DUMP_DRAW_LEAVE();
+
+    if (mode == GL_POINTS)
+        crServerSpriteCoordReplEnable(GL_FALSE);
+}
+
+void SERVER_DISPATCH_APIENTRY crServerDispatchBegin(GLenum mode)
+{
+#ifdef DEBUG
+    CRContext *ctx = crStateGetCurrent();
+    SPUDispatchTable *gl = &cr_server.head_spu->dispatch_table;
+
+    if (ctx->program.vpProgramBinding)
+    {
+        AssertRelease(ctx->program.currentVertexProgram);
+
+        if (ctx->program.currentVertexProgram->isARBprogram)
+        {
+            GLint pid=-1;
+            gl->GetProgramivARB(GL_VERTEX_PROGRAM_ARB, GL_PROGRAM_BINDING_ARB, &pid);
+
+            if (pid != ctx->program.currentVertexProgram->id)
+            {
+                crWarning("pid(%d) != ctx->program.currentVertexProgram->id(%d)", pid, ctx->program.currentVertexProgram->id);
+            }
+            AssertRelease(pid == ctx->program.currentVertexProgram->id);
+        }
+        else
+        {
+            GLint pid=-1;
+
+            gl->GetIntegerv(GL_VERTEX_PROGRAM_BINDING_NV, &pid);
+            if (pid != ctx->program.currentVertexProgram->id)
+            {
+                crWarning("pid(%d) != ctx->program.currentVertexProgram->id(%d)", pid, ctx->program.currentVertexProgram->id);
+            }
+            AssertRelease(pid == ctx->program.currentVertexProgram->id);
+        }
+    }
+    else if (ctx->glsl.activeProgram)
+    {
+        GLint pid=-1;
+
+        gl->GetIntegerv(GL_CURRENT_PROGRAM, &pid);
+        crDebug("pid %i, state: id %i, hwid %i", pid, ctx->glsl.activeProgram->id, ctx->glsl.activeProgram->hwid);
+        if (pid != ctx->glsl.activeProgram->hwid)
+        {
+            crWarning("pid(%d) != ctx->glsl.activeProgram->hwid(%d)", pid, ctx->glsl.activeProgram->hwid);
+        }
+        AssertRelease(pid == ctx->glsl.activeProgram->hwid);
+    }
+#endif
+
+    if (mode == GL_POINTS)
+        crServerSpriteCoordReplEnable(GL_TRUE);
+
+    CR_SERVER_DUMP_DRAW_ENTER();
+
+    crStateBegin(mode);
+    cr_server.head_spu->dispatch_table.Begin(mode);
+}
+

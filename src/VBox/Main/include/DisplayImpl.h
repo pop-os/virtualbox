@@ -26,6 +26,10 @@
 #include <VBox/VMMDev.h>
 #include <VBox/VBoxVideo.h>
 
+#ifdef VBOX_WITH_CROGL
+# include <VBox/HostServices/VBoxCrOpenGLSvc.h>
+#endif
+
 class Console;
 struct VIDEORECCONTEXT;
 
@@ -101,6 +105,17 @@ typedef struct _DISPLAYFBINFO
     } vbvaSkippedRect;
     PVBVAHOSTFLAGS pVBVAHostFlags;
 #endif /* VBOX_WITH_HGSMI */
+
+#ifdef VBOX_WITH_CROGL
+    struct
+    {
+        bool fPending;
+        ULONG x;
+        ULONG y;
+        ULONG width;
+        ULONG height;
+    } pendingViewportInfo;
+#endif /* VBOX_WITH_CROGL */
 } DISPLAYFBINFO;
 
 class DisplayMouseInterface
@@ -111,6 +126,8 @@ public:
     virtual void getFramebufferDimensions(int32_t *px1, int32_t *py1,
                                           int32_t *px2, int32_t *py2) = 0;
 };
+
+class VMMDev;
 
 class ATL_NO_VTABLE Display :
     public VirtualBoxBase,
@@ -149,12 +166,27 @@ public:
     int handleVHWACommandProcess(PVBOXVHWACMD pCommand);
 #endif
 #ifdef VBOX_WITH_CRHGSMI
-    void handleCrHgsmiCommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd);
-    void handleCrHgsmiControlProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CTL pCtl, uint32_t cbCtl);
+    int  handleCrCmdNotifyCmds();
+    void handleCrHgsmiCommandProcess(PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd);
+    void handleCrHgsmiControlProcess(PVBOXVDMACMD_CHROMIUM_CTL pCtl, uint32_t cbCtl);
 
     void handleCrHgsmiCommandCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam);
     void handleCrHgsmiControlCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam);
 #endif
+
+#if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
+    void  handleCrAsyncCmdCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam);
+    void  handleCrVRecScreenshotPerform(uint32_t uScreen,
+                                        uint32_t x, uint32_t y, uint32_t uPixelFormat, uint32_t uBitsPerPixel,
+                                        uint32_t uBytesPerLine, uint32_t uGuestWidth, uint32_t uGuestHeight,
+                                        uint8_t *pu8BufferAddress, uint64_t u64TimeStamp);
+    bool handleCrVRecScreenshotBegin(uint32_t uScreen, uint64_t u64TimeStamp);
+    void handleCrVRecScreenshotEnd(uint32_t uScreen, uint64_t u64TimeStamp);
+    void handleVRecCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext);
+#endif
+
+    int notifyCroglResize(const PVBVAINFOVIEW pView, const PVBVAINFOSCREEN pScreen, void *pvVRAM);
+
     IFramebuffer *getFramebuffer()
     {
         return maFramebuffers[VBOX_VIDEO_PRIMARY_SCREEN].pFramebuffer;
@@ -209,6 +241,10 @@ private:
     void destructCrHgsmiData(void);
 #endif
 
+#ifdef VBOX_WITH_CROGL
+    void crViewportNotify(class VMMDev *pVMMDev, ULONG aScreenId, ULONG x, ULONG y, ULONG width, ULONG height);
+#endif
+
     static DECLCALLBACK(int)   changeFramebuffer(Display *that, IFramebuffer *aFB, unsigned uScreenId);
 
     static DECLCALLBACK(void*) drvQueryInterface(PPDMIBASE pInterface, const char *pszIID);
@@ -228,6 +264,7 @@ private:
 #endif
 
 #ifdef VBOX_WITH_CRHGSMI
+    static DECLCALLBACK(int)  displayCrCmdNotifyCmds(PPDMIDISPLAYCONNECTOR pInterface);
     static DECLCALLBACK(void)  displayCrHgsmiCommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd);
     static DECLCALLBACK(void)  displayCrHgsmiControlProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CTL pCtl, uint32_t cbCtl);
 
@@ -243,6 +280,19 @@ private:
     static DECLCALLBACK(void)  displayVBVAUpdateEnd(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, int32_t x, int32_t y, uint32_t cx, uint32_t cy);
     static DECLCALLBACK(int)   displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, const PVBVAINFOVIEW pView, const PVBVAINFOSCREEN pScreen, void *pvVRAM);
     static DECLCALLBACK(int)   displayVBVAMousePointerShape(PPDMIDISPLAYCONNECTOR pInterface, bool fVisible, bool fAlpha, uint32_t xHot, uint32_t yHot, uint32_t cx, uint32_t cy, const void *pvShape);
+#endif
+
+#if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
+    static DECLCALLBACK(void) displayCrVRecScreenshotPerform(void *pvCtx, uint32_t uScreen,
+                                                             uint32_t x, uint32_t y,
+                                                             uint32_t uBitsPerPixel, uint32_t uBytesPerLine,
+                                                             uint32_t uGuestWidth, uint32_t uGuestHeight,
+                                                             uint8_t *pu8BufferAddress, uint64_t u64TimeStamp);
+    static DECLCALLBACK(bool) displayCrVRecScreenshotBegin(void *pvCtx, uint32_t uScreen, uint64_t u64TimeStamp);
+    static DECLCALLBACK(void) displayCrVRecScreenshotEnd(void *pvCtx, uint32_t uScreen, uint64_t u64TimeStamp);
+
+    static DECLCALLBACK(void)  displayVRecCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext);
+    static DECLCALLBACK(void)  displayCrAsyncCmdCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext);
 #endif
 
     static DECLCALLBACK(void)  displaySSMSaveScreenshot(PSSMHANDLE pSSM, void *pvUser);
@@ -279,6 +329,9 @@ private:
     VBVAMEMORY *mpPendingVbvaMemory;
     bool        mfPendingVideoAccelEnable;
     bool        mfMachineRunning;
+#ifdef VBOX_WITH_CROGL
+    bool        mfCrOglDataHidden;
+#endif
 
     uint8_t    *mpu8VbvaPartial;
     uint32_t    mcbVbvaPartial;
@@ -286,6 +339,11 @@ private:
 #ifdef VBOX_WITH_CRHGSMI
     /* for fast host hgcm calls */
     HGCMCVSHANDLE mhCrOglSvc;
+#endif
+#ifdef VBOX_WITH_CROGL
+    CR_MAIN_INTERFACE mCrOglCallbacks;
+    volatile uint32_t mfCrOglVideoRecState;
+    CRVBOXHGCMTAKESCREENSHOT mCrOglScreenshotData;
 #endif
 
     bool vbvaFetchCmd(VBVACMDHDR **ppHdr, uint32_t *pcbCmd);
@@ -306,6 +364,10 @@ private:
 public:
     static int  displayTakeScreenshotEMT(Display *pDisplay, ULONG aScreenId, uint8_t **ppu8Data, size_t *pcbData, uint32_t *pu32Width, uint32_t *pu32Height);
 
+#ifdef VBOX_WITH_CROGL
+    static BOOL  displayCheckTakeScreenshotCrOgl(Display *pDisplay, ULONG aScreenId, uint8_t *pu8Data, uint32_t u32Width, uint32_t u32Height);
+#endif
+
 private:
     static void InvalidateAndUpdateEMT(Display *pDisplay, unsigned uId, bool fUpdateAll);
     static int  drawToScreenEMT(Display *pDisplay, ULONG aScreenId, BYTE *address, ULONG x, ULONG y, ULONG width, ULONG height);
@@ -315,6 +377,10 @@ private:
     /* Functions run under VBVA lock. */
     int  videoAccelEnable(bool fEnable, VBVAMEMORY *pVbvaMemory);
     void videoAccelFlush(void);
+
+#ifdef VBOX_WITH_CROGL
+    int crOglWindowsShow(bool fShow);
+#endif
 
 #ifdef VBOX_WITH_HGSMI
     volatile uint32_t mu32UpdateVBVAFlags;

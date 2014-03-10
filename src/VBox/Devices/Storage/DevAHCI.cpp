@@ -445,8 +445,6 @@ typedef struct AHCIPort
     bool                            fAsyncInterface;
     /** Flag if we are in a device reset. */
     bool                            fResetDevice;
-    /** Flag whether the I/O thread idles. */
-    volatile bool                   fAsyncIOThreadIdle;
     /** Flag whether the port is in redo task mode. */
     volatile bool                   fRedo;
     /** Flag whether the worker thread is sleeping. */
@@ -479,13 +477,15 @@ typedef struct AHCIPort
     volatile uint32_t               u32QueuedTasksFinished;
     /** Bitmap for new queued tasks (Guest -> R3). */
     volatile uint32_t               u32TasksNew;
+    /** Bitmap of tasks which must be redone because of a non fatal error. */
+    volatile uint32_t               u32TasksRedo;
 
     /** Current command slot processed.
      * Accessed by the guest by reading the CMD register.
      * Holds the command slot of the command processed at the moment. */
     volatile uint32_t               u32CurrentCommandSlot;
 
-#if HC_ARCH_BITS == 32
+#if HC_ARCH_BITS == 64
     uint32_t                        u32Alignment2;
 #endif
 
@@ -674,6 +674,8 @@ typedef struct AHCI
 
     /** Bitmask of ports which asserted an interrupt. */
     volatile uint32_t               u32PortsInterrupted;
+    /** Number of I/O threads currently active - used for async controller reset handling. */
+    volatile uint32_t               cThreadsActive;
     /** Device is in a reset state. */
     bool                            fReset;
     /** Supports 64bit addressing */
@@ -697,6 +699,10 @@ typedef struct AHCI
 
     /** Flag whether we have written the first 4bytes in an 8byte MMIO write successfully. */
     volatile bool                   f8ByteMMIO4BytesWrittenSuccessfully;
+
+#if HC_ARCH_BITS == 64
+    uint32_t                        Alignment7;
+#endif
 
     /** The support driver session handle. */
     R3R0PTRTYPE(PSUPDRVSESSION)     pSupDrvSession;
@@ -1284,7 +1290,7 @@ static int PortTaskFileData_r(PAHCI ahci, PAHCIPort pAhciPort, uint32_t iReg, ui
  */
 static int PortCmd_r(PAHCI ahci, PAHCIPort pAhciPort, uint32_t iReg, uint32_t *pu32Value)
 {
-    ahciLog(("%s: read regCMD=%#010x\n", __FUNCTION__, pAhciPort->regCMD));
+    ahciLog(("%s: read regCMD=%#010x\n", __FUNCTION__, pAhciPort->regCMD | AHCI_PORT_CMD_CCS_SHIFT(pAhciPort->u32CurrentCommandSlot)));
     ahciLog(("%s: ICC=%d ASP=%d ALPE=%d DLAE=%d ATAPI=%d CPD=%d ISP=%d HPCP=%d PMA=%d CPS=%d CR=%d FR=%d ISS=%d CCS=%d FRE=%d CLO=%d POD=%d SUD=%d ST=%d\n",
              __FUNCTION__, (pAhciPort->regCMD & AHCI_PORT_CMD_ICC) >> 28, (pAhciPort->regCMD & AHCI_PORT_CMD_ASP) >> 27,
              (pAhciPort->regCMD & AHCI_PORT_CMD_ALPE) >> 26, (pAhciPort->regCMD & AHCI_PORT_CMD_DLAE) >> 25,
@@ -1319,6 +1325,9 @@ static int PortCmd_w(PAHCI ahci, PAHCIPort pAhciPort, uint32_t iReg, uint32_t u3
              (u32Value & AHCI_PORT_CMD_POD) >> 2, (u32Value & AHCI_PORT_CMD_SUD) >> 1,
              (u32Value & AHCI_PORT_CMD_ST)));
 
+    /* The PxCMD.CCS bits are R/O and maintained separately. */
+    u32Value &= ~AHCI_PORT_CMD_CCS;
+
     if (pAhciPort->fPoweredOn && pAhciPort->fSpunUp)
     {
         if (u32Value & AHCI_PORT_CMD_CLO)
@@ -1331,11 +1340,36 @@ static int PortCmd_w(PAHCI ahci, PAHCIPort pAhciPort, uint32_t iReg, uint32_t u3
 
         if (u32Value & AHCI_PORT_CMD_ST)
         {
-            ahciLog(("%s: Engine starts\n", __FUNCTION__));
-
-            /* Set engine state to running if there is a device attached. */
-            if (pAhciPort->pDrvBase)
+            /*
+             * Set engine state to running if there is a device attached and
+             * IS.PCS is clear.
+             */
+            if (   pAhciPort->pDrvBase
+                && !(pAhciPort->regIS & AHCI_PORT_IS_PCS))
+            {
+                ahciLog(("%s: Engine starts\n", __FUNCTION__));
                 u32Value |= AHCI_PORT_CMD_CR;
+
+                /* If there is something in CI, kick the I/O thread. */
+                if (   pAhciPort->regCI > 0
+                    && ASMAtomicReadBool(&pAhciPort->fWrkThreadSleeping))
+                {
+                    ASMAtomicOrU32(&pAhciPort->u32TasksNew, pAhciPort->regCI);
+#ifdef IN_RC
+                    PDEVPORTNOTIFIERQUEUEITEM pItem = (PDEVPORTNOTIFIERQUEUEITEM)PDMQueueAlloc(ahci->CTX_SUFF(pNotifierQueue));
+                    AssertMsg(VALID_PTR(pItem), ("Allocating item for queue failed\n"));
+
+                    pItem->iPort = pAhciPort->iLUN;
+                    PDMQueueInsert(ahci->CTX_SUFF(pNotifierQueue), (PPDMQUEUEITEMCORE)pItem);
+#else
+                    LogFlowFunc(("Signal event semaphore\n"));
+                    int rc = SUPSemEventSignal(ahci->pSupDrvSession, pAhciPort->hEvtProcess);
+                    AssertRC(rc);
+#endif
+                }
+            }
+            else
+                u32Value &= ~AHCI_PORT_CMD_CR;
         }
         else
         {
@@ -1734,9 +1768,22 @@ static int HbaControl_w(PAHCI ahci, uint32_t iReg, uint32_t u32Value)
 #ifndef IN_RING3
     return VINF_IOM_R3_MMIO_WRITE;
 #else
-    ahci->regHbaCtrl = (u32Value & AHCI_HBA_CTRL_RW_MASK) | AHCI_HBA_CTRL_AE;
-    if (ahci->regHbaCtrl & AHCI_HBA_CTRL_HR)
+    /*
+     * Increase the active thread counter because we might set the host controller
+     * reset bit.
+     */
+    ASMAtomicIncU32(&ahci->cThreadsActive);
+    ASMAtomicWriteU32(&ahci->regHbaCtrl, (u32Value & AHCI_HBA_CTRL_RW_MASK) | AHCI_HBA_CTRL_AE);
+
+    /*
+     * Do the HBA reset if requested and there is no other active thread at the moment,
+     * the work is deferred to the last active thread otherwise.
+     */
+    uint32_t cThreadsActive = ASMAtomicDecU32(&ahci->cThreadsActive);
+    if (   (u32Value & AHCI_HBA_CTRL_HR)
+        && !cThreadsActive)
         ahciHBAReset(ahci);
+
     return VINF_SUCCESS;
 #endif
 }
@@ -1951,6 +1998,7 @@ static void ahciPortSwReset(PAHCIPort pAhciPort)
     pAhciPort->uATATransferMode = ATA_MODE_UDMA | 6;
 
     pAhciPort->u32TasksNew = 0;
+    pAhciPort->u32TasksRedo = 0;
     pAhciPort->u32TasksFinished = 0;
     pAhciPort->u32QueuedTasksFinished = 0;
     pAhciPort->u32CurrentCommandSlot = 0;
@@ -2391,6 +2439,8 @@ PDMBOTHCBDECL(int) ahciIdxDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Po
             rc = ahciRegisterRead(pAhci, pAhci->regIdx, pu32, cb);
             if (rc == VINF_IOM_R3_MMIO_READ)
                 rc = VINF_IOM_R3_IOPORT_READ;
+            else if (rc == VINF_IOM_MMIO_UNUSED_00)
+                rc = VERR_IOM_IOPORT_UNUSED;
         }
     }
     else
@@ -4112,41 +4162,41 @@ static int atapiReadDVDStructureSS(PAHCIREQ pAhciReq, PAHCIPort pAhciPort, size_
                 switch (format)
                 {
                     case 0x0: /* Physical format information */
+                    {
+                        int layer = pAhciReq->aATAPICmd[6];
+                        uint64_t total_sectors;
+
+                        if (layer != 0)
                         {
-                            int layer = pAhciReq->aATAPICmd[6];
-                            uint64_t total_sectors;
-
-                            if (layer != 0)
-                            {
-                                uASC = -SCSI_ASC_INV_FIELD_IN_CMD_PACKET;
-                                break;
-                            }
-
-                            total_sectors = pAhciPort->cTotalSectors;
-                            total_sectors >>= 2;
-                            if (total_sectors == 0)
-                            {
-                                uASC = -SCSI_ASC_MEDIUM_NOT_PRESENT;
-                                break;
-                            }
-
-                            buf[4] = 1;   /* DVD-ROM, part version 1 */
-                            buf[5] = 0xf; /* 120mm disc, minimum rate unspecified */
-                            buf[6] = 1;   /* one layer, read-only (per MMC-2 spec) */
-                            buf[7] = 0;   /* default densities */
-
-                            /* FIXME: 0x30000 per spec? */
-                            ataH2BE_U32(buf + 8, 0); /* start sector */
-                            ataH2BE_U32(buf + 12, total_sectors - 1); /* end sector */
-                            ataH2BE_U32(buf + 16, total_sectors - 1); /* l0 end sector */
-
-                            /* Size of buffer, not including 2 byte size field */
-                            ataH2BE_U32(&buf[0], 2048 + 2);
-
-                            /* 2k data + 4 byte header */
-                            uASC = (2048 + 4);
+                            uASC = -SCSI_ASC_INV_FIELD_IN_CMD_PACKET;
+                            break;
                         }
+
+                        total_sectors = pAhciPort->cTotalSectors;
+                        total_sectors >>= 2;
+                        if (total_sectors == 0)
+                        {
+                            uASC = -SCSI_ASC_MEDIUM_NOT_PRESENT;
+                            break;
+                        }
+
+                        buf[4] = 1;   /* DVD-ROM, part version 1 */
+                        buf[5] = 0xf; /* 120mm disc, minimum rate unspecified */
+                        buf[6] = 1;   /* one layer, read-only (per MMC-2 spec) */
+                        buf[7] = 0;   /* default densities */
+
+                        /* FIXME: 0x30000 per spec? */
+                        ataH2BE_U32(buf + 8, 0); /* start sector */
+                        ataH2BE_U32(buf + 12, total_sectors - 1); /* end sector */
+                        ataH2BE_U32(buf + 16, total_sectors - 1); /* l0 end sector */
+
+                        /* Size of buffer, not including 2 byte size field */
+                        ataH2BE_U32(&buf[0], 2048 + 2);
+
+                        /* 2k data + 4 byte header */
+                        uASC = (2048 + 4);
                         break;
+                    }
                     case 0x01: /* DVD copyright information */
                         buf[4] = 0; /* no copyright data */
                         buf[5] = 0; /* no region restrictions */
@@ -4316,7 +4366,7 @@ static int atapiReadSectors(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint32_t iAT
 
 static AHCITXDIR atapiParseCmdVirtualATAPI(PAHCIPort pAhciPort, PAHCIREQ pAhciReq)
 {
-    AHCITXDIR rc = AHCITXDIR_NONE;
+    AHCITXDIR enmTxDir = AHCITXDIR_NONE;
     const uint8_t *pbPacket;
     uint32_t cbMax;
 
@@ -4344,37 +4394,37 @@ static AHCITXDIR atapiParseCmdVirtualATAPI(PAHCIPort pAhciPort, PAHCIREQ pAhciRe
             atapiDoTransfer(pAhciPort, pAhciReq, cbMax, ATAFN_SS_ATAPI_GET_EVENT_STATUS_NOTIFICATION);
             break;
         case SCSI_MODE_SENSE_10:
+        {
+            uint8_t uPageControl, uPageCode;
+            cbMax = ataBE2H_U16(pbPacket + 7);
+            uPageControl = pbPacket[2] >> 6;
+            uPageCode = pbPacket[2] & 0x3f;
+            switch (uPageControl)
             {
-                uint8_t uPageControl, uPageCode;
-                cbMax = ataBE2H_U16(pbPacket + 7);
-                uPageControl = pbPacket[2] >> 6;
-                uPageCode = pbPacket[2] & 0x3f;
-                switch (uPageControl)
-                {
-                    case SCSI_PAGECONTROL_CURRENT:
-                        switch (uPageCode)
-                        {
-                            case SCSI_MODEPAGE_ERROR_RECOVERY:
-                                atapiDoTransfer(pAhciPort, pAhciReq, cbMax, ATAFN_SS_ATAPI_MODE_SENSE_ERROR_RECOVERY);
-                                break;
-                            case SCSI_MODEPAGE_CD_STATUS:
-                                atapiDoTransfer(pAhciPort, pAhciReq, cbMax, ATAFN_SS_ATAPI_MODE_SENSE_CD_STATUS);
-                                break;
-                            default:
-                                goto error_cmd;
-                        }
-                        break;
-                    case SCSI_PAGECONTROL_CHANGEABLE:
-                        goto error_cmd;
-                    case SCSI_PAGECONTROL_DEFAULT:
-                        goto error_cmd;
-                    default:
-                    case SCSI_PAGECONTROL_SAVED:
-                        atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_SAVING_PARAMETERS_NOT_SUPPORTED);
-                        break;
-                }
+                case SCSI_PAGECONTROL_CURRENT:
+                    switch (uPageCode)
+                    {
+                        case SCSI_MODEPAGE_ERROR_RECOVERY:
+                            atapiDoTransfer(pAhciPort, pAhciReq, cbMax, ATAFN_SS_ATAPI_MODE_SENSE_ERROR_RECOVERY);
+                            break;
+                        case SCSI_MODEPAGE_CD_STATUS:
+                            atapiDoTransfer(pAhciPort, pAhciReq, cbMax, ATAFN_SS_ATAPI_MODE_SENSE_CD_STATUS);
+                            break;
+                        default:
+                            goto error_cmd;
+                    }
+                    break;
+                case SCSI_PAGECONTROL_CHANGEABLE:
+                    goto error_cmd;
+                case SCSI_PAGECONTROL_DEFAULT:
+                    goto error_cmd;
+                default:
+                case SCSI_PAGECONTROL_SAVED:
+                    atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_SAVING_PARAMETERS_NOT_SUPPORTED);
+                    break;
             }
             break;
+        }
         case SCSI_REQUEST_SENSE:
             cbMax = pbPacket[4];
             atapiDoTransfer(pAhciPort, pAhciReq, cbMax, ATAFN_SS_ATAPI_REQUEST_SENSE);
@@ -4393,224 +4443,224 @@ static AHCITXDIR atapiParseCmdVirtualATAPI(PAHCIPort pAhciPort, PAHCIREQ pAhciRe
             break;
         case SCSI_READ_10:
         case SCSI_READ_12:
-            {
-                uint32_t cSectors, iATAPILBA;
+        {
+            uint32_t cSectors, iATAPILBA;
 
-                if (pAhciPort->cNotifiedMediaChange > 0)
-                {
-                    pAhciPort->cNotifiedMediaChange-- ;
-                    atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_UNIT_ATTENTION, SCSI_ASC_MEDIUM_MAY_HAVE_CHANGED); /* media changed */
-                    break;
-                }
-                if (!pAhciPort->pDrvMount->pfnIsMounted(pAhciPort->pDrvMount))
-                {
-                    atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT);
-                    break;
-                }
-                if (pbPacket[0] == SCSI_READ_10)
-                    cSectors = ataBE2H_U16(pbPacket + 7);
-                else
-                    cSectors = ataBE2H_U32(pbPacket + 6);
-                iATAPILBA = ataBE2H_U32(pbPacket + 2);
-                if (cSectors == 0)
-                {
-                    atapiCmdOK(pAhciPort, pAhciReq);
-                    break;
-                }
-                if ((uint64_t)iATAPILBA + cSectors > pAhciPort->cTotalSectors)
-                {
-                    /* Rate limited logging, one log line per second. For
-                     * guests that insist on reading from places outside the
-                     * valid area this often generates too many release log
-                     * entries otherwise. */
-                    static uint64_t s_uLastLogTS = 0;
-                    if (RTTimeMilliTS() >= s_uLastLogTS + 1000)
-                    {
-                        LogRel(("AHCI ATAPI: LUN#%d: CD-ROM block number %Ld invalid (READ)\n", pAhciPort->iLUN, (uint64_t)iATAPILBA + cSectors));
-                        s_uLastLogTS = RTTimeMilliTS();
-                    }
-                    atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_LOGICAL_BLOCK_OOR);
-                    break;
-                }
-                atapiReadSectors(pAhciPort, pAhciReq, iATAPILBA, cSectors, 2048);
-                rc = AHCITXDIR_READ;
-            }
-            break;
-        case SCSI_READ_CD:
+            if (pAhciPort->cNotifiedMediaChange > 0)
             {
-                uint32_t cSectors, iATAPILBA;
-
-                if (pAhciPort->cNotifiedMediaChange > 0)
-                {
-                    pAhciPort->cNotifiedMediaChange-- ;
-                    atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_UNIT_ATTENTION, SCSI_ASC_MEDIUM_MAY_HAVE_CHANGED); /* media changed */
-                    break;
-                }
-                else if (!pAhciPort->pDrvMount->pfnIsMounted(pAhciPort->pDrvMount))
-                {
-                    atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT);
-                    break;
-                }
-                cSectors = (pbPacket[6] << 16) | (pbPacket[7] << 8) | pbPacket[8];
-                iATAPILBA = ataBE2H_U32(pbPacket + 2);
-                if (cSectors == 0)
-                {
-                    atapiCmdOK(pAhciPort, pAhciReq);
-                    break;
-                }
-                if ((uint64_t)iATAPILBA + cSectors > pAhciPort->cTotalSectors)
-                {
-                    /* Rate limited logging, one log line per second. For
-                     * guests that insist on reading from places outside the
-                     * valid area this often generates too many release log
-                     * entries otherwise. */
-                    static uint64_t s_uLastLogTS = 0;
-                    if (RTTimeMilliTS() >= s_uLastLogTS + 1000)
-                    {
-                        LogRel(("AHCI ATA: LUN#%d: CD-ROM block number %Ld invalid (READ CD)\n", pAhciPort->iLUN, (uint64_t)iATAPILBA + cSectors));
-                        s_uLastLogTS = RTTimeMilliTS();
-                    }
-                    atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_LOGICAL_BLOCK_OOR);
-                    break;
-                }
-                switch (pbPacket[9] & 0xf8)
-                {
-                    case 0x00:
-                        /* nothing */
-                        atapiCmdOK(pAhciPort, pAhciReq);
-                        break;
-                    case 0x10:
-                        /* normal read */
-                        atapiReadSectors(pAhciPort, pAhciReq, iATAPILBA, cSectors, 2048);
-                        rc = AHCITXDIR_READ;
-                        break;
-                    case 0xf8:
-                        /* read all data */
-                        atapiReadSectors(pAhciPort, pAhciReq, iATAPILBA, cSectors, 2352);
-                        rc = AHCITXDIR_READ;
-                        break;
-                    default:
-                        LogRel(("AHCI ATAPI: LUN#%d: CD-ROM sector format not supported\n", pAhciPort->iLUN));
-                        atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET);
-                        break;
-                }
+                pAhciPort->cNotifiedMediaChange-- ;
+                atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_UNIT_ATTENTION, SCSI_ASC_MEDIUM_MAY_HAVE_CHANGED); /* media changed */
+                break;
             }
-            break;
-        case SCSI_SEEK_10:
+            if (!pAhciPort->pDrvMount->pfnIsMounted(pAhciPort->pDrvMount))
             {
-                uint32_t iATAPILBA;
-                if (pAhciPort->cNotifiedMediaChange > 0)
-                {
-                    pAhciPort->cNotifiedMediaChange-- ;
-                    atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_UNIT_ATTENTION, SCSI_ASC_MEDIUM_MAY_HAVE_CHANGED); /* media changed */
-                    break;
-                }
-                else if (!pAhciPort->pDrvMount->pfnIsMounted(pAhciPort->pDrvMount))
-                {
-                    atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT);
-                    break;
-                }
-                iATAPILBA = ataBE2H_U32(pbPacket + 2);
-                if (iATAPILBA > pAhciPort->cTotalSectors)
-                {
-                    /* Rate limited logging, one log line per second. For
-                     * guests that insist on seeking to places outside the
-                     * valid area this often generates too many release log
-                     * entries otherwise. */
-                    static uint64_t s_uLastLogTS = 0;
-                    if (RTTimeMilliTS() >= s_uLastLogTS + 1000)
-                    {
-                        LogRel(("AHCI ATAPI: LUN#%d: CD-ROM block number %Ld invalid (SEEK)\n", pAhciPort->iLUN, (uint64_t)iATAPILBA));
-                        s_uLastLogTS = RTTimeMilliTS();
-                    }
-                    atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_LOGICAL_BLOCK_OOR);
-                    break;
-                }
+                atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT);
+                break;
+            }
+            if (pbPacket[0] == SCSI_READ_10)
+                cSectors = ataBE2H_U16(pbPacket + 7);
+            else
+                cSectors = ataBE2H_U32(pbPacket + 6);
+            iATAPILBA = ataBE2H_U32(pbPacket + 2);
+            if (cSectors == 0)
+            {
                 atapiCmdOK(pAhciPort, pAhciReq);
-                pAhciReq->uATARegStatus |= ATA_STAT_SEEK; /* Linux expects this. */
+                break;
             }
-            break;
-        case SCSI_START_STOP_UNIT:
+            if ((uint64_t)iATAPILBA + cSectors > pAhciPort->cTotalSectors)
             {
-                int rc2 = VINF_SUCCESS;
-                switch (pbPacket[4] & 3)
+                /* Rate limited logging, one log line per second. For
+                 * guests that insist on reading from places outside the
+                 * valid area this often generates too many release log
+                 * entries otherwise. */
+                static uint64_t s_uLastLogTS = 0;
+                if (RTTimeMilliTS() >= s_uLastLogTS + 1000)
                 {
-                    case 0: /* 00 - Stop motor */
-                    case 1: /* 01 - Start motor */
-                        break;
-                    case 2: /* 10 - Eject media */
-                    {
-                        /* This must be done from EMT. */
-                        PAHCI pAhci = pAhciPort->CTX_SUFF(pAhci);
-                        PPDMDEVINS pDevIns = pAhci->CTX_SUFF(pDevIns);
-
-                        rc2 = VMR3ReqPriorityCallWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
-                                                      (PFNRT)pAhciPort->pDrvMount->pfnUnmount, 3,
-                                                      pAhciPort->pDrvMount, false/*=fForce*/, true/*=fEject*/);
-                        Assert(RT_SUCCESS(rc2) || (rc2 == VERR_PDM_MEDIA_LOCKED) || (rc2 = VERR_PDM_MEDIA_NOT_MOUNTED));
-                        if (RT_SUCCESS(rc) && pAhci->pMediaNotify)
-                        {
-                            rc2 = VMR3ReqCallNoWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
-                                                    (PFNRT)pAhci->pMediaNotify->pfnEjected, 2,
-                                                    pAhci->pMediaNotify, pAhciPort->iLUN);
-                            AssertRC(rc);
-                        }
-                        break;
-                    }
-                    case 3: /* 11 - Load media */
-                        /** @todo rc = s->pDrvMount->pfnLoadMedia(s->pDrvMount) */
-                        break;
+                    LogRel(("AHCI ATAPI: LUN#%d: CD-ROM block number %Ld invalid (READ)\n", pAhciPort->iLUN, (uint64_t)iATAPILBA + cSectors));
+                    s_uLastLogTS = RTTimeMilliTS();
                 }
-                if (RT_SUCCESS(rc2))
+                atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_LOGICAL_BLOCK_OOR);
+                break;
+            }
+            atapiReadSectors(pAhciPort, pAhciReq, iATAPILBA, cSectors, 2048);
+            enmTxDir = AHCITXDIR_READ;
+            break;
+        }
+        case SCSI_READ_CD:
+        {
+            uint32_t cSectors, iATAPILBA;
+
+            if (pAhciPort->cNotifiedMediaChange > 0)
+            {
+                pAhciPort->cNotifiedMediaChange-- ;
+                atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_UNIT_ATTENTION, SCSI_ASC_MEDIUM_MAY_HAVE_CHANGED); /* media changed */
+                break;
+            }
+            else if (!pAhciPort->pDrvMount->pfnIsMounted(pAhciPort->pDrvMount))
+            {
+                atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT);
+                break;
+            }
+            cSectors = (pbPacket[6] << 16) | (pbPacket[7] << 8) | pbPacket[8];
+            iATAPILBA = ataBE2H_U32(pbPacket + 2);
+            if (cSectors == 0)
+            {
+                atapiCmdOK(pAhciPort, pAhciReq);
+                break;
+            }
+            if ((uint64_t)iATAPILBA + cSectors > pAhciPort->cTotalSectors)
+            {
+                /* Rate limited logging, one log line per second. For
+                 * guests that insist on reading from places outside the
+                 * valid area this often generates too many release log
+                 * entries otherwise. */
+                static uint64_t s_uLastLogTS = 0;
+                if (RTTimeMilliTS() >= s_uLastLogTS + 1000)
+                {
+                    LogRel(("AHCI ATA: LUN#%d: CD-ROM block number %Ld invalid (READ CD)\n", pAhciPort->iLUN, (uint64_t)iATAPILBA + cSectors));
+                    s_uLastLogTS = RTTimeMilliTS();
+                }
+                atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_LOGICAL_BLOCK_OOR);
+                break;
+            }
+            switch (pbPacket[9] & 0xf8)
+            {
+                case 0x00:
+                    /* nothing */
                     atapiCmdOK(pAhciPort, pAhciReq);
-                else
-                    atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIA_LOAD_OR_EJECT_FAILED);
+                    break;
+                case 0x10:
+                    /* normal read */
+                    atapiReadSectors(pAhciPort, pAhciReq, iATAPILBA, cSectors, 2048);
+                    enmTxDir = AHCITXDIR_READ;
+                    break;
+                case 0xf8:
+                    /* read all data */
+                    atapiReadSectors(pAhciPort, pAhciReq, iATAPILBA, cSectors, 2352);
+                    enmTxDir = AHCITXDIR_READ;
+                    break;
+                default:
+                    LogRel(("AHCI ATAPI: LUN#%d: CD-ROM sector format not supported\n", pAhciPort->iLUN));
+                    atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET);
+                    break;
             }
             break;
-        case SCSI_MECHANISM_STATUS:
+        }
+        case SCSI_SEEK_10:
+        {
+            uint32_t iATAPILBA;
+            if (pAhciPort->cNotifiedMediaChange > 0)
             {
-                cbMax = ataBE2H_U16(pbPacket + 8);
-                atapiDoTransfer(pAhciPort, pAhciReq, cbMax, ATAFN_SS_ATAPI_MECHANISM_STATUS);
+                pAhciPort->cNotifiedMediaChange-- ;
+                atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_UNIT_ATTENTION, SCSI_ASC_MEDIUM_MAY_HAVE_CHANGED); /* media changed */
+                break;
             }
-            break;
-        case SCSI_READ_TOC_PMA_ATIP:
+            else if (!pAhciPort->pDrvMount->pfnIsMounted(pAhciPort->pDrvMount))
             {
-                uint8_t format;
+                atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT);
+                break;
+            }
+            iATAPILBA = ataBE2H_U32(pbPacket + 2);
+            if (iATAPILBA > pAhciPort->cTotalSectors)
+            {
+                /* Rate limited logging, one log line per second. For
+                 * guests that insist on seeking to places outside the
+                 * valid area this often generates too many release log
+                 * entries otherwise. */
+                static uint64_t s_uLastLogTS = 0;
+                if (RTTimeMilliTS() >= s_uLastLogTS + 1000)
+                {
+                    LogRel(("AHCI ATAPI: LUN#%d: CD-ROM block number %Ld invalid (SEEK)\n", pAhciPort->iLUN, (uint64_t)iATAPILBA));
+                    s_uLastLogTS = RTTimeMilliTS();
+                }
+                atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_LOGICAL_BLOCK_OOR);
+                break;
+            }
+            atapiCmdOK(pAhciPort, pAhciReq);
+            pAhciReq->uATARegStatus |= ATA_STAT_SEEK; /* Linux expects this. */
+            break;
+        }
+        case SCSI_START_STOP_UNIT:
+        {
+            int rc = VINF_SUCCESS;
+            switch (pbPacket[4] & 3)
+            {
+                case 0: /* 00 - Stop motor */
+                case 1: /* 01 - Start motor */
+                    break;
+                case 2: /* 10 - Eject media */
+                {
+                    /* This must be done from EMT. */
+                    PAHCI pAhci = pAhciPort->CTX_SUFF(pAhci);
+                    PPDMDEVINS pDevIns = pAhci->CTX_SUFF(pDevIns);
 
-                if (pAhciPort->cNotifiedMediaChange > 0)
-                {
-                    pAhciPort->cNotifiedMediaChange-- ;
-                    atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_UNIT_ATTENTION, SCSI_ASC_MEDIUM_MAY_HAVE_CHANGED); /* media changed */
+                    rc = VMR3ReqPriorityCallWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
+                                                 (PFNRT)pAhciPort->pDrvMount->pfnUnmount, 3,
+                                                 pAhciPort->pDrvMount, false/*=fForce*/, true/*=fEject*/);
+                    Assert(RT_SUCCESS(rc) || rc == VERR_PDM_MEDIA_LOCKED || rc == VERR_PDM_MEDIA_NOT_MOUNTED);
+                    if (RT_SUCCESS(rc) && pAhci->pMediaNotify)
+                    {
+                        rc = VMR3ReqCallNoWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
+                                               (PFNRT)pAhci->pMediaNotify->pfnEjected, 2,
+                                               pAhci->pMediaNotify, pAhciPort->iLUN);
+                        AssertRC(rc);
+                    }
                     break;
                 }
-                else if (!pAhciPort->pDrvMount->pfnIsMounted(pAhciPort->pDrvMount))
-                {
-                    atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT);
+                case 3: /* 11 - Load media */
+                    /** @todo rc = s->pDrvMount->pfnLoadMedia(s->pDrvMount) */
                     break;
-                }
-                cbMax = ataBE2H_U16(pbPacket + 7);
-                /* SCSI MMC-3 spec says format is at offset 2 (lower 4 bits),
-                 * but Linux kernel uses offset 9 (topmost 2 bits). Hope that
-                 * the other field is clear... */
-                format = (pbPacket[2] & 0xf) | (pbPacket[9] >> 6);
-                switch (format)
-                {
-                    case 0:
-                        atapiDoTransfer(pAhciPort, pAhciReq, cbMax, ATAFN_SS_ATAPI_READ_TOC_NORMAL);
-                        break;
-                    case 1:
-                        atapiDoTransfer(pAhciPort, pAhciReq, cbMax, ATAFN_SS_ATAPI_READ_TOC_MULTI);
-                        break;
-                    case 2:
-                        atapiDoTransfer(pAhciPort, pAhciReq, cbMax, ATAFN_SS_ATAPI_READ_TOC_RAW);
-                        break;
-                    default:
-                    error_cmd:
-                        atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET);
-                        break;
-                }
+            }
+            if (RT_SUCCESS(rc))
+                atapiCmdOK(pAhciPort, pAhciReq);
+            else
+                atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIA_LOAD_OR_EJECT_FAILED);
+            break;
+        }
+        case SCSI_MECHANISM_STATUS:
+        {
+            cbMax = ataBE2H_U16(pbPacket + 8);
+            atapiDoTransfer(pAhciPort, pAhciReq, cbMax, ATAFN_SS_ATAPI_MECHANISM_STATUS);
+            break;
+        }
+        case SCSI_READ_TOC_PMA_ATIP:
+        {
+            uint8_t format;
+
+            if (pAhciPort->cNotifiedMediaChange > 0)
+            {
+                pAhciPort->cNotifiedMediaChange-- ;
+                atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_UNIT_ATTENTION, SCSI_ASC_MEDIUM_MAY_HAVE_CHANGED); /* media changed */
+                break;
+            }
+            else if (!pAhciPort->pDrvMount->pfnIsMounted(pAhciPort->pDrvMount))
+            {
+                atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT);
+                break;
+            }
+            cbMax = ataBE2H_U16(pbPacket + 7);
+            /* SCSI MMC-3 spec says format is at offset 2 (lower 4 bits),
+             * but Linux kernel uses offset 9 (topmost 2 bits). Hope that
+             * the other field is clear... */
+            format = (pbPacket[2] & 0xf) | (pbPacket[9] >> 6);
+            switch (format)
+            {
+                case 0:
+                    atapiDoTransfer(pAhciPort, pAhciReq, cbMax, ATAFN_SS_ATAPI_READ_TOC_NORMAL);
+                    break;
+                case 1:
+                    atapiDoTransfer(pAhciPort, pAhciReq, cbMax, ATAFN_SS_ATAPI_READ_TOC_MULTI);
+                    break;
+                case 2:
+                    atapiDoTransfer(pAhciPort, pAhciReq, cbMax, ATAFN_SS_ATAPI_READ_TOC_RAW);
+                    break;
+                default:
+                  error_cmd:
+                    atapiCmdErrorSimple(pAhciPort, pAhciReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET);
+                    break;
             }
             break;
+        }
         case SCSI_READ_CAPACITY:
             if (pAhciPort->cNotifiedMediaChange > 0)
             {
@@ -4673,7 +4723,7 @@ static AHCITXDIR atapiParseCmdVirtualATAPI(PAHCIPort pAhciPort, PAHCIREQ pAhciRe
             break;
     }
 
-    return rc;
+    return enmTxDir;
 }
 
 /*
@@ -5896,7 +5946,7 @@ static bool ahciTransferComplete(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, int rcR
                 ASMAtomicCmpXchgPtr(&pAhciPort->pTaskErr, pAhciReq, NULL);
             }
             else
-                ASMAtomicOrU32(&pAhciPort->u32TasksNew, RT_BIT_32(pAhciReq->uTag));
+                ASMAtomicOrU32(&pAhciPort->u32TasksRedo, RT_BIT_32(pAhciReq->uTag));
         }
         else
         {
@@ -5996,6 +6046,9 @@ static bool ahciTransferComplete(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, int rcR
             RTMemFree(pAhciReq);
     }
 
+    if (pAhciPort->cTasksActive == 0 && pAhciPort->pAhciR3->fSignalIdle)
+        PDMDevHlpAsyncNotificationCompleted(pAhciPort->pDevInsR3);
+
     return fCanceled;
 }
 
@@ -6015,11 +6068,9 @@ static DECLCALLBACK(int) ahciR3TransferCompleteNotify(PPDMIBLOCKASYNCPORT pInter
     ahciLog(("%s: pInterface=%p pvUser=%p uTag=%u\n",
              __FUNCTION__, pInterface, pvUser, pAhciReq->uTag));
 
-    int rc = ahciTransferComplete(pAhciPort, pAhciReq, rcReq, true);
+    ahciTransferComplete(pAhciPort, pAhciReq, rcReq, true);
 
-    if (pAhciPort->cTasksActive == 0 && pAhciPort->pAhciR3->fSignalIdle)
-        PDMDevHlpAsyncNotificationCompleted(pAhciPort->pDevInsR3);
-    return rc;
+    return VINF_SUCCESS;
 }
 
 /**
@@ -6030,7 +6081,7 @@ static DECLCALLBACK(int) ahciR3TransferCompleteNotify(PPDMIBLOCKASYNCPORT pInter
  */
 static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t *pCmdFis)
 {
-    AHCITXDIR rc = AHCITXDIR_NONE;
+    AHCITXDIR enmTxDir = AHCITXDIR_NONE;
     bool fLBA48 = false;
     CmdHdr   *pCmdHdr = &pAhciReq->cmdHdr;
 
@@ -6080,10 +6131,11 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t 
                     pAhciReq->uATARegStatus = ATA_STAT_READY | ATA_STAT_SEEK;
                     break;
                 case 0x82: /* write cache disable */
-                    rc = AHCITXDIR_FLUSH;
+                    enmTxDir = AHCITXDIR_FLUSH;
                     break;
                 case 0x03:
-                { /* set transfer mode */
+                {
+                    /* set transfer mode */
                     Log2(("%s: transfer mode %#04x\n", __FUNCTION__, pCmdFis[AHCI_CMDFIS_SECTC]));
                     switch (pCmdFis[AHCI_CMDFIS_SECTC] & 0xf8)
                     {
@@ -6121,7 +6173,7 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t 
         }
         case ATA_FLUSH_CACHE_EXT:
         case ATA_FLUSH_CACHE:
-            rc = AHCITXDIR_FLUSH;
+            enmTxDir = AHCITXDIR_FLUSH;
             break;
         case ATA_PACKET:
             if (!pAhciPort->fATAPI)
@@ -6130,7 +6182,7 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t 
                 pAhciReq->uATARegStatus = ATA_STAT_READY | ATA_STAT_ERR;
             }
             else
-                rc = atapiParseCmd(pAhciPort, pAhciReq);
+                enmTxDir = atapiParseCmd(pAhciPort, pAhciReq);
             break;
         case ATA_IDENTIFY_PACKET_DEVICE:
             if (!pAhciPort->fATAPI)
@@ -6185,7 +6237,7 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t 
         {
             pAhciReq->cbTransfer = ahciGetNSectors(pCmdFis, fLBA48) * pAhciPort->cbSector;
             pAhciReq->uOffset = ahciGetSector(pAhciPort, pCmdFis, fLBA48) * pAhciPort->cbSector;
-            rc = AHCITXDIR_READ;
+            enmTxDir = AHCITXDIR_READ;
             break;
         }
         case ATA_WRITE_DMA_EXT:
@@ -6194,7 +6246,7 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t 
         {
             pAhciReq->cbTransfer = ahciGetNSectors(pCmdFis, fLBA48) * pAhciPort->cbSector;
             pAhciReq->uOffset = ahciGetSector(pAhciPort, pCmdFis, fLBA48) * pAhciPort->cbSector;
-            rc = AHCITXDIR_WRITE;
+            enmTxDir = AHCITXDIR_WRITE;
             break;
         }
         case ATA_READ_FPDMA_QUEUED:
@@ -6202,7 +6254,7 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t 
             pAhciReq->cbTransfer = ahciGetNSectorsQueued(pCmdFis) * pAhciPort->cbSector;
             pAhciReq->uOffset = ahciGetSectorQueued(pCmdFis) * pAhciPort->cbSector;
             pAhciReq->fFlags |= AHCI_REQ_IS_QUEUED;
-            rc = AHCITXDIR_READ;
+            enmTxDir = AHCITXDIR_READ;
             break;
         }
         case ATA_WRITE_FPDMA_QUEUED:
@@ -6210,7 +6262,7 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t 
             pAhciReq->cbTransfer = ahciGetNSectorsQueued(pCmdFis) * pAhciPort->cbSector;
             pAhciReq->uOffset = ahciGetSectorQueued(pCmdFis) * pAhciPort->cbSector;
             pAhciReq->fFlags |= AHCI_REQ_IS_QUEUED;
-            rc = AHCITXDIR_WRITE;
+            enmTxDir = AHCITXDIR_WRITE;
             break;
         }
         case ATA_READ_LOG_EXT:
@@ -6291,7 +6343,7 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t 
                     pAhciReq->uATARegStatus = ATA_STAT_READY | ATA_STAT_SEEK;
                 }
                 else
-                    rc = AHCITXDIR_TRIM;
+                    enmTxDir = AHCITXDIR_TRIM;
                 break;
             }
             /* else: fall through and report error to the guest. */
@@ -6310,20 +6362,22 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t 
             pAhciReq->uATARegStatus = ATA_STAT_READY | ATA_STAT_ERR;
     }
 
-    return rc;
+    return enmTxDir;
 }
 
 /**
  * Retrieve a command FIS from guest memory.
  *
- * @returns nothing
+ * @returns whether the H2D FIS was successfully read from the guest memory.
  * @param pAhciReq The state of the actual task.
  */
-static void ahciPortTaskGetCommandFis(PAHCIPort pAhciPort, PAHCIREQ pAhciReq)
+static bool ahciPortTaskGetCommandFis(PAHCIPort pAhciPort, PAHCIREQ pAhciReq)
 {
     RTGCPHYS  GCPhysAddrCmdTbl;
 
-    AssertMsg(pAhciPort->GCPhysAddrClb && pAhciPort->GCPhysAddrFb, ("%s: GCPhysAddrClb and/or GCPhysAddrFb are 0\n", __FUNCTION__));
+    AssertMsgReturn(pAhciPort->GCPhysAddrClb && pAhciPort->GCPhysAddrFb,
+                    ("%s: GCPhysAddrClb and/or GCPhysAddrFb are 0\n", __FUNCTION__),
+                    false);
 
     /*
      * First we are reading the command header pointed to by regCLB.
@@ -6342,12 +6396,17 @@ static void ahciPortTaskGetCommandFis(PAHCIPort pAhciPort, PAHCIREQ pAhciReq)
 
     GCPhysAddrCmdTbl = AHCI_RTGCPHYS_FROM_U32(pAhciReq->cmdHdr.u32CmdTblAddrUp, pAhciReq->cmdHdr.u32CmdTblAddr);
 
-    AssertMsg((pAhciReq->cmdHdr.u32DescInf & AHCI_CMDHDR_CFL_MASK) * sizeof(uint32_t) == AHCI_CMDFIS_TYPE_H2D_SIZE,
-              ("This is not a command FIS!!\n"));
+    AssertMsgReturn((pAhciReq->cmdHdr.u32DescInf & AHCI_CMDHDR_CFL_MASK) * sizeof(uint32_t) == AHCI_CMDFIS_TYPE_H2D_SIZE,
+                    ("This is not a command FIS!!\n"),
+                    false);
 
     /* Read the command Fis. */
     LogFlow(("%s: PDMDevHlpPhysRead GCPhysAddrCmdTbl=%RGp cbCmdFis=%u\n", __FUNCTION__, GCPhysAddrCmdTbl, AHCI_CMDFIS_TYPE_H2D_SIZE));
     PDMDevHlpPhysRead(pAhciPort->CTX_SUFF(pDevIns), GCPhysAddrCmdTbl, &pAhciReq->cmdFis[0], AHCI_CMDFIS_TYPE_H2D_SIZE);
+
+    AssertMsgReturn(pAhciReq->cmdFis[AHCI_CMDFIS_TYPE] == AHCI_CMDFIS_TYPE_H2D,
+                    ("This is not a command FIS\n"),
+                    false);
 
     /* Set transfer direction. */
     pAhciReq->enmTxDir = (pAhciReq->cmdHdr.u32DescInf & AHCI_CMDHDR_W) ? AHCITXDIR_WRITE : AHCITXDIR_READ;
@@ -6394,6 +6453,8 @@ static void ahciPortTaskGetCommandFis(PAHCIPort pAhciPort, PAHCIREQ pAhciReq)
         GCPhysPrdtl += sizeof(SGLEntry);
     }
 #endif
+
+    return true;
 }
 
 /**
@@ -6441,6 +6502,7 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
     {
         unsigned idx = 0;
         uint32_t u32Tasks = 0;
+        uint32_t u32RegHbaCtrl = 0;
 
         ASMAtomicWriteBool(&pAhciPort->fWrkThreadSleeping, true);
         u32Tasks = ASMAtomicXchgU32(&pAhciPort->u32TasksNew, 0);
@@ -6456,9 +6518,24 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
         }
 
         ASMAtomicWriteBool(&pAhciPort->fWrkThreadSleeping, false);
+        ASMAtomicIncU32(&pAhci->cThreadsActive);
+
+        /*
+         * Check whether the global host controller bit is set and go to sleep immediately again
+         * if it is set.
+         */
+        u32RegHbaCtrl = ASMAtomicReadU32(&pAhci->regHbaCtrl);
+        if (   u32RegHbaCtrl & AHCI_HBA_CTRL_HR
+            && !ASMAtomicDecU32(&pAhci->cThreadsActive))
+        {
+            ahciHBAReset(pAhci);
+            continue;
+        }
+
         idx = ASMBitFirstSetU32(u32Tasks);
         while (idx)
         {
+            bool fReqCanceled = false;
             AHCITXDIR enmTxDir;
             PAHCIREQ pAhciReq;
 
@@ -6493,7 +6570,23 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
             pAhciReq->uTag = idx;
             ASMAtomicWriteU32(&pAhciPort->u32CurrentCommandSlot, pAhciReq->uTag);
 
-            ahciPortTaskGetCommandFis(pAhciPort, pAhciReq);
+            bool fFisRead = ahciPortTaskGetCommandFis(pAhciPort, pAhciReq);
+            if (RT_UNLIKELY(!fFisRead))
+            {
+                /*
+                 * Couldn't find anything in either the AHCI or SATA spec which
+                 * indicates what should be done if the FIS is not read successfully.
+                 * The closest thing is in the state machine, stating that the device
+                 * should go into idle state again (SATA spec 1.0 chapter 8.7.1).
+                 * Do the same here and ignore any corrupt FIS types, after all
+                 * the guest messed up everything and this behavior is undefined.
+                 */
+                ASMAtomicCmpXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_FREE, AHCITXSTATE_ACTIVE, fXchg);
+                Assert(fXchg);
+                u32Tasks &= ~RT_BIT_32(idx); /* Clear task bit. */
+                idx = ASMBitFirstSetU32(u32Tasks);
+                continue;
+            }
 
             /* Mark the task as processed by the HBA if this is a queued task so that it doesn't occur in the CI register anymore. */
             if (pAhciPort->regSACT & (1 << idx))
@@ -6510,21 +6603,15 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                     ahciLog(("%s: Setting device into reset state\n", __FUNCTION__));
                     pAhciPort->fResetDevice = true;
                     ahciSendD2HFis(pAhciPort, pAhciReq, pAhciReq->cmdFis, true);
-
-                    ASMAtomicCmpXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_FREE, AHCITXSTATE_ACTIVE, fXchg);
-                    AssertMsg(fXchg, ("Task is not active\n"));
-                    break;
                 }
                 else if (pAhciPort->fResetDevice) /* The bit is not set and we are in a reset state. */
-                {
                     ahciFinishStorageDeviceReset(pAhciPort, pAhciReq);
-
-                    ASMAtomicCmpXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_FREE, AHCITXSTATE_ACTIVE, fXchg);
-                    AssertMsg(fXchg, ("Task is not active\n"));
-                    break;
-                }
                 else /* We are not in a reset state update the control registers. */
                     AssertMsgFailed(("%s: Update the control register\n", __FUNCTION__));
+
+                ASMAtomicCmpXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_FREE, AHCITXSTATE_ACTIVE, fXchg);
+                AssertMsg(fXchg, ("Task is not active\n"));
+                break;
             }
             else
             {
@@ -6585,9 +6672,9 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                                                                               pAhciReq);
                             }
                             if (rc == VINF_VD_ASYNC_IO_FINISHED)
-                                rc = ahciTransferComplete(pAhciPort, pAhciReq, VINF_SUCCESS, true);
+                                fReqCanceled = ahciTransferComplete(pAhciPort, pAhciReq, VINF_SUCCESS, true);
                             else if (RT_FAILURE(rc) && rc != VERR_VD_ASYNC_IO_IN_PROGRESS)
-                                rc = ahciTransferComplete(pAhciPort, pAhciReq, rc, true);
+                                fReqCanceled = ahciTransferComplete(pAhciPort, pAhciReq, rc, true);
                         }
                         else
                         {
@@ -6620,17 +6707,34 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                                                                     pAhciReq->cbTransfer);
                                 pAhciPort->Led.Asserted.s.fWriting = pAhciPort->Led.Actual.s.fWriting = 0;
                             }
-                            rc = ahciTransferComplete(pAhciPort, pAhciReq, rc, true);
+                            fReqCanceled = ahciTransferComplete(pAhciPort, pAhciReq, rc, true);
                         }
                     }
                 }
                 else
-                    rc = ahciTransferComplete(pAhciPort, pAhciReq, VINF_SUCCESS, true);
+                    fReqCanceled = ahciTransferComplete(pAhciPort, pAhciReq, VINF_SUCCESS, true);
             } /* Command */
+
+            /*
+             * Don't process other requests if the last one was canceled,
+             * the others are not valid anymore.
+             */
+            if (fReqCanceled)
+                break;
 
             u32Tasks &= ~RT_BIT_32(idx); /* Clear task bit. */
             idx = ASMBitFirstSetU32(u32Tasks);
         } /* while tasks available */
+
+        /*
+         * Check whether a host controller reset is pending and execute the reset
+         * if this is the last active thread.
+         */
+        u32RegHbaCtrl = ASMAtomicReadU32(&pAhci->regHbaCtrl);
+        uint32_t cThreadsActive = ASMAtomicDecU32(&pAhci->cThreadsActive);
+        if (   (u32RegHbaCtrl & AHCI_HBA_CTRL_HR)
+            && !cThreadsActive)
+            ahciHBAReset(pAhci);
     } /* While running */
 
     ahciLog(("%s: Port %d async IO thread exiting\n", __FUNCTION__, pAhciPort->iLUN));
@@ -6720,7 +6824,6 @@ static DECLCALLBACK(void) ahciR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, con
         pHlp->pfnPrintf(pHlp, "PortATAPI=%RTbool\n", pThisPort->fATAPI);
         pHlp->pfnPrintf(pHlp, "PortTasksFinished=%#x\n", pThisPort->u32TasksFinished);
         pHlp->pfnPrintf(pHlp, "PortQueuedTasksFinished=%#x\n", pThisPort->u32QueuedTasksFinished);
-        pHlp->pfnPrintf(pHlp, "PortAsyncIoThreadIdle=%RTbool\n", pThisPort->fAsyncIOThreadIdle);
         pHlp->pfnPrintf(pHlp, "\n");
     }
 }
@@ -6740,17 +6843,16 @@ static bool ahciR3AllAsyncIOIsFinished(PPDMDEVINS pDevIns)
 {
     PAHCI pThis = PDMINS_2_DATA(pDevIns, PAHCI);
 
+    if (pThis->cThreadsActive)
+        return false;
+
     for (uint32_t i = 0; i < RT_ELEMENTS(pThis->ahciPort); i++)
     {
         PAHCIPort pThisPort = &pThis->ahciPort[i];
         if (pThisPort->pDrvBase)
         {
-            bool fFinished;
-            if (pThisPort->fAsyncInterface)
-                fFinished = (pThisPort->cTasksActive == 0);
-            else
-                fFinished = ((pThisPort->cTasksActive == 0) && (pThisPort->fAsyncIOThreadIdle));
-            if (!fFinished)
+            if (   (pThisPort->cTasksActive != 0)
+                || (pThisPort->u32TasksNew != 0))
                return false;
         }
     }
@@ -7421,10 +7523,13 @@ static DECLCALLBACK(void) ahciR3Resume(PPDMDEVINS pDevIns)
     {
         PAHCIPort pAhciPort = &pAhci->ahciPort[i];
 
-        if (pAhciPort->u32TasksNew)
+        if (pAhciPort->u32TasksRedo)
         {
             PDEVPORTNOTIFIERQUEUEITEM pItem = (PDEVPORTNOTIFIERQUEUEITEM)PDMQueueAlloc(pAhci->CTX_SUFF(pNotifierQueue));
             AssertMsg(pItem, ("Allocating item for queue failed\n"));
+
+            pAhciPort->u32TasksNew |= pAhciPort->u32TasksRedo;
+            pAhciPort->u32TasksRedo = 0;
 
             Assert(pAhciPort->fRedo);
             pAhciPort->fRedo = false;
@@ -7597,13 +7702,14 @@ static DECLCALLBACK(void) ahciR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32
          * Inform the guest about the removed device.
          */
         pAhciPort->regSSTS = 0;
+        pAhciPort->regSIG = 0;
         /*
          * Clear CR bit too to prevent submission of new commands when CI is written
          * (AHCI Spec 1.2: 7.4 Interaction of the Command List and Port Change Status).
          */
         ASMAtomicAndU32(&pAhciPort->regCMD, ~(AHCI_PORT_CMD_CPS | AHCI_PORT_CMD_CR));
-        ASMAtomicOrU32(&pAhciPort->regIS, AHCI_PORT_IS_CPDS | AHCI_PORT_IS_PRCS);
-        ASMAtomicOrU32(&pAhciPort->regSERR, AHCI_PORT_SERR_N);
+        ASMAtomicOrU32(&pAhciPort->regIS, AHCI_PORT_IS_CPDS | AHCI_PORT_IS_PRCS | AHCI_PORT_IS_PCS);
+        ASMAtomicOrU32(&pAhciPort->regSERR, AHCI_PORT_SERR_X | AHCI_PORT_SERR_N);
         if (   (pAhciPort->regIE & AHCI_PORT_IE_CPDE)
             || (pAhciPort->regIE & AHCI_PORT_IE_PCE)
             || (pAhciPort->regIE & AHCI_PORT_IE_PRCE))
@@ -7967,6 +8073,8 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
     PCIDevSetWord(&pThis->dev, 0xaa, 0x0010);      /* Revision */
     PCIDevSetDWord(&pThis->dev, 0xac, 0x00000028); /* SATA Capability Register 1 */
 
+    pThis->cThreadsActive = 0;
+
     /* Initialize port members. */
     for (i = 0; i < AHCI_MAX_NR_PORTS_IMPL; i++)
     {
@@ -8124,7 +8232,6 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         pAhciPort->IPort.pfnQueryDeviceLocation         = ahciR3PortQueryDeviceLocation;
         pAhciPort->IMountNotify.pfnMountNotify          = ahciR3MountNotify;
         pAhciPort->IMountNotify.pfnUnmountNotify        = ahciR3UnmountNotify;
-        pAhciPort->fAsyncIOThreadIdle                   = true;
 
         /*
          * Attach the block driver
