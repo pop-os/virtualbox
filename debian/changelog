@@ -1,7 +1,12 @@
 virtualbox (4.3.8-dfsg-1) unstable; urgency=medium
 
   * Team upload.
+
+  [ Gianfranco Costamagna ]
   * New upstream release, patch refresh.
+
+  [ Felix Geyer ]
+  * 39-fix-wrong-vboxvideo_drv-source.patch: fixed build failure.
 
  -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Mon, 10 Mar 2014 10:35:35 +0100
 
