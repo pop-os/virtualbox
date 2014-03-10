@@ -136,6 +136,7 @@ static void crServerTearDown( void )
 {
     GLint i;
     CRClientNode *pNode, *pNext;
+    GLboolean fOldEnableDiff;
 
     /* avoid a race condition */
     if (tearingdown)
@@ -158,11 +159,6 @@ static void crServerTearDown( void )
     cr_server.currentNativeWindow = 0;
     cr_server.currentMural = NULL;
 
-    if (CrBltIsInitialized(&cr_server.Blitter))
-    {
-        CrBltTerm(&cr_server.Blitter);
-    }
-
     /* sync our state with renderspu,
      * do it before mural & context deletion to avoid deleting currently set murals/contexts*/
     cr_server.head_spu->dispatch_table.MakeCurrent(0, 0, 0);
@@ -178,20 +174,27 @@ static void crServerTearDown( void )
     /* Free all context info */
     crFreeHashtable(cr_server.contextTable, deleteContextInfoCallback);
 
+    /* synchronize with reality */
+    fOldEnableDiff = crStateEnableDiffOnMakeCurrent(GL_FALSE);
+    if(cr_server.MainContextInfo.pContext)
+        crStateMakeCurrent(cr_server.MainContextInfo.pContext);
+    crStateEnableDiffOnMakeCurrent(fOldEnableDiff);
+
     /* Free vertex programs */
     crFreeHashtable(cr_server.programTable, crFree);
-
-    /* Free dummy murals */
-    crFreeHashtable(cr_server.dummyMuralTable, deleteMuralInfoCallback);
 
     /* Free murals */
     crFreeHashtable(cr_server.muralTable, deleteMuralInfoCallback);
 
-    crServerDisplayTermAll();
-    CrDemTerm(&cr_server.PresentTexturepMap);
-    CrDemTeGlobalTerm();
-    memset(cr_server.DisplaysInitMap, 0, sizeof (cr_server.DisplaysInitMap));
-    memset(cr_server.aDispplays, 0, sizeof (cr_server.aDispplays));
+    CrPMgrTerm();
+
+    if (CrBltIsInitialized(&cr_server.Blitter))
+    {
+        CrBltTerm(&cr_server.Blitter);
+    }
+
+    /* Free dummy murals */
+    crFreeHashtable(cr_server.dummyMuralTable, deleteMuralInfoCallback);
 
     for (i = 0; i < cr_server.numClients; i++) {
         if (cr_server.clients[i]) {
@@ -331,7 +334,7 @@ crServerInit(int argc, char *argv[])
     }
 #endif
 
-//    cr_server.bUseMultipleContexts = (crGetenv( "CR_SERVER_ENABLE_MULTIPLE_CONTEXTS" ) != NULL);
+    cr_server.bUseMultipleContexts = (crGetenv( "CR_SERVER_ENABLE_MULTIPLE_CONTEXTS" ) != NULL);
 
     if (cr_server.bUseMultipleContexts)
     {
@@ -368,11 +371,7 @@ crServerInit(int argc, char *argv[])
 
     cr_server.dummyMuralTable = crAllocHashtable();
 
-    CrDemGlobalInit();
-
-    CrDemInit(&cr_server.PresentTexturepMap);
-    memset(cr_server.DisplaysInitMap, 0, sizeof (cr_server.DisplaysInitMap));
-    memset(cr_server.aDispplays, 0, sizeof (cr_server.aDispplays));
+    CrPMgrInit();
 
     cr_server.fRootVrOn = GL_FALSE;
     VBoxVrListInit(&cr_server.RootVr);
@@ -394,6 +393,14 @@ crServerInit(int argc, char *argv[])
     crServerInitDispatch();
     crServerInitTmpCtxDispatch();
     crStateDiffAPI( &(cr_server.head_spu->dispatch_table) );
+
+#ifdef VBOX_WITH_CRSERVER_DUMPER
+    crMemset(&cr_server.Recorder, 0, sizeof (cr_server.Recorder));
+    crMemset(&cr_server.RecorderBlitter, 0, sizeof (cr_server.RecorderBlitter));
+    crMemset(&cr_server.DbgPrintDumper, 0, sizeof (cr_server.DbgPrintDumper));
+    crMemset(&cr_server.HtmlDumper, 0, sizeof (cr_server.HtmlDumper));
+    cr_server.pDumper = NULL;
+#endif
 
     crUnpackSetReturnPointer( &(cr_server.return_ptr) );
     crUnpackSetWritebackPointer( &(cr_server.writeback_ptr) );
@@ -431,7 +438,7 @@ GLboolean crVBoxServerInit(void)
     }
 #endif
 
-//    cr_server.bUseMultipleContexts = (crGetenv( "CR_SERVER_ENABLE_MULTIPLE_CONTEXTS" ) != NULL);
+    cr_server.bUseMultipleContexts = (crGetenv( "CR_SERVER_ENABLE_MULTIPLE_CONTEXTS" ) != NULL);
 
     if (cr_server.bUseMultipleContexts)
     {
@@ -477,11 +484,7 @@ GLboolean crVBoxServerInit(void)
 
     cr_server.dummyMuralTable = crAllocHashtable();
 
-    CrDemGlobalInit();
-
-    CrDemInit(&cr_server.PresentTexturepMap);
-    memset(cr_server.DisplaysInitMap, 0, sizeof (cr_server.DisplaysInitMap));
-    memset(cr_server.aDispplays, 0, sizeof (cr_server.aDispplays));
+    CrPMgrInit();
 
     cr_server.fRootVrOn = GL_FALSE;
     VBoxVrListInit(&cr_server.RootVr);
@@ -508,6 +511,14 @@ GLboolean crVBoxServerInit(void)
     crServerInitDispatch();
     crServerInitTmpCtxDispatch();
     crStateDiffAPI( &(cr_server.head_spu->dispatch_table) );
+
+#ifdef VBOX_WITH_CRSERVER_DUMPER
+    crMemset(&cr_server.Recorder, 0, sizeof (cr_server.Recorder));
+    crMemset(&cr_server.RecorderBlitter, 0, sizeof (cr_server.RecorderBlitter));
+    crMemset(&cr_server.DbgPrintDumper, 0, sizeof (cr_server.DbgPrintDumper));
+    crMemset(&cr_server.HtmlDumper, 0, sizeof (cr_server.HtmlDumper));
+    cr_server.pDumper = NULL;
+#endif
 
     /*Check for PBO support*/
     if (crStateGetCurrent()->extensions.ARB_pixel_buffer_object)
@@ -849,14 +860,19 @@ static void crVBoxServerSaveCreateInfoCB(unsigned long key, void *data1, void *d
 static void crVBoxServerSaveCreateInfoFromMuralInfoCB(unsigned long key, void *data1, void *data2)
 {
     CRMuralInfo *pMural = (CRMuralInfo *)data1;
-    CRCreateInfo_t *pCreateInfo = &pMural->CreateInfo;
-    crVBoxServerSaveCreateInfoCB(key, pCreateInfo, data2);
+    CRCreateInfo_t CreateInfo;
+    CreateInfo.pszDpyName = pMural->CreateInfo.pszDpyName;
+    CreateInfo.visualBits = pMural->CreateInfo.requestedVisualBits;
+    CreateInfo.externalID = pMural->CreateInfo.externalID;
+    crVBoxServerSaveCreateInfoCB(key, &CreateInfo, data2);
 }
 
 static void crVBoxServerSaveCreateInfoFromCtxInfoCB(unsigned long key, void *data1, void *data2)
 {
     CRContextInfo *pContextInfo = (CRContextInfo *)data1;
-    CRCreateInfo_t CreateInfo = pContextInfo->CreateInfo;
+    CRCreateInfo_t CreateInfo;
+    CreateInfo.pszDpyName = pContextInfo->CreateInfo.pszDpyName;
+    CreateInfo.visualBits = pContextInfo->CreateInfo.requestedVisualBits;
     /* saved state contains internal id */
     CreateInfo.externalID = pContextInfo->pContext->id;
     crVBoxServerSaveCreateInfoCB(key, &CreateInfo, data2);
@@ -915,7 +931,7 @@ static void crVBoxServerBuildAdditionalWindowContextMapCB(unsigned long key, voi
 
     Assert(!crHashtableGetDataKey(pData->pGlobal->contextMuralTable, pMural, NULL));
 
-    if (cr_server.MainContextInfo.CreateInfo.visualBits == pMural->CreateInfo.visualBits)
+    if (cr_server.MainContextInfo.CreateInfo.realVisualBits == pMural->CreateInfo.realVisualBits)
     {
         pContextInfo = &cr_server.MainContextInfo;
     }
@@ -960,7 +976,7 @@ static void crVBoxServerBuildContextWindowMapWindowWalkerCB(unsigned long key, v
     if (crHashtableSearch(pData->usedMuralTable, pMural->CreateInfo.externalID))
         return;
 
-    CRASSERT(pMural->CreateInfo.visualBits == pData->pContextInfo->CreateInfo.visualBits);
+    CRASSERT(pMural->CreateInfo.realVisualBits == pData->pContextInfo->CreateInfo.realVisualBits);
     pData->pMural = pMural;
 }
 
@@ -988,7 +1004,7 @@ CRMuralInfo * crServerGetDummyMural(GLint visualBits)
             crWarning("crCalloc failed!");
             return NULL;
         }
-        id = crServerMuralInit(pMural, "", visualBits, 0, GL_TRUE);
+        id = crServerMuralInit(pMural, "", visualBits, 0);
         if (id < 0)
         {
             crWarning("crServerMuralInit failed!");
@@ -1028,7 +1044,7 @@ static void crVBoxServerBuildContextUnusedWindowMapCB(unsigned long key, void *d
 
     if (!pMural)
     {
-        pMural = crServerGetDummyMural(pContextInfo->CreateInfo.visualBits);
+        pMural = crServerGetDummyMural(pContextInfo->CreateInfo.realVisualBits);
         if (!pMural)
         {
             crWarning("crServerGetDummyMural failed");
@@ -1132,7 +1148,7 @@ static int crVBoxServerFBImageDataInitEx(CRFBData *pData, CRContextInfo *pCtxInf
     pData->cElements = 0;
 
     pEl = &pData->aElements[pData->cElements];
-    pEl->idFBO = pMural && (pMural->fPresentMode & CR_SERVER_REDIR_F_FBO) ? pMural->aidFBOs[CR_SERVER_FBO_FB_IDX(pMural)] : 0;
+    pEl->idFBO = pMural && pMural->fRedirected ? pMural->aidFBOs[CR_SERVER_FBO_FB_IDX(pMural)] : 0;
     pEl->enmBuffer = pData->aElements[1].idFBO ? GL_COLOR_ATTACHMENT0 : GL_FRONT;
     pEl->posX = 0;
     pEl->posY = 0;
@@ -1152,14 +1168,14 @@ static int crVBoxServerFBImageDataInitEx(CRFBData *pData, CRContextInfo *pCtxInf
 
     /* there is a lot of code that assumes we have double buffering, just assert here to print a warning in the log
      * so that we know that something irregular is going on */
-    CRASSERT(pCtxInfo->CreateInfo.visualBits & CR_DOUBLE_BIT);
-    if ((pCtxInfo->CreateInfo.visualBits & CR_DOUBLE_BIT)
+    CRASSERT(pCtxInfo->CreateInfo.requestedVisualBits & CR_DOUBLE_BIT);
+    if ((pCtxInfo->CreateInfo.requestedVisualBits & CR_DOUBLE_BIT)
     		|| version < SHCROGL_SSM_VERSION_WITH_SINGLE_DEPTH_STENCIL /* <- older version had a typo which lead to back always being used,
     																	* no matter what the visual bits are */
     		)
     {
         pEl = &pData->aElements[pData->cElements];
-        pEl->idFBO = pMural && (pMural->fPresentMode & CR_SERVER_REDIR_F_FBO) ? pMural->aidFBOs[CR_SERVER_FBO_BB_IDX(pMural)] : 0;
+        pEl->idFBO = pMural && pMural->fRedirected ? pMural->aidFBOs[CR_SERVER_FBO_BB_IDX(pMural)] : 0;
         pEl->enmBuffer = pData->aElements[1].idFBO ? GL_COLOR_ATTACHMENT0 : GL_BACK;
         pEl->posX = 0;
         pEl->posY = 0;
@@ -1184,12 +1200,12 @@ static int crVBoxServerFBImageDataInitEx(CRFBData *pData, CRContextInfo *pCtxInf
 
     if (version < SHCROGL_SSM_VERSION_WITH_SINGLE_DEPTH_STENCIL)
     {
-/*        if (pCtxInfo->CreateInfo.visualBits & CR_DEPTH_BIT) */ /* <- older version had a typo which lead to back always being used,
+/*        if (pCtxInfo->CreateInfo.requestedVisualBits & CR_DEPTH_BIT) */ /* <- older version had a typo which lead to back always being used,
 																  * no matter what the visual bits are */
         {
             AssertCompile(sizeof (GLfloat) == 4);
             pEl = &pData->aElements[pData->cElements];
-            pEl->idFBO = pMural && (pMural->fPresentMode & CR_SERVER_REDIR_F_FBO) ? pMural->aidFBOs[CR_SERVER_FBO_FB_IDX(pMural)] : 0;
+            pEl->idFBO = pMural && pMural->fRedirected ? pMural->aidFBOs[CR_SERVER_FBO_FB_IDX(pMural)] : 0;
             pEl->enmBuffer = 0; /* we do not care */
             pEl->posX = 0;
             pEl->posY = 0;
@@ -1215,12 +1231,12 @@ static int crVBoxServerFBImageDataInitEx(CRFBData *pData, CRContextInfo *pCtxInf
             ++pData->cElements;
         }
 
- /*       if (pCtxInfo->CreateInfo.visualBits & CR_STENCIL_BIT) */ /* <- older version had a typo which lead to back always being used,
+ /*       if (pCtxInfo->CreateInfo.requestedVisualBits & CR_STENCIL_BIT) */ /* <- older version had a typo which lead to back always being used,
 																	* no matter what the visual bits are */
         {
             AssertCompile(sizeof (GLuint) == 4);
             pEl = &pData->aElements[pData->cElements];
-            pEl->idFBO = pMural && (pMural->fPresentMode & CR_SERVER_REDIR_F_FBO) ? pMural->aidFBOs[CR_SERVER_FBO_FB_IDX(pMural)] : 0;
+            pEl->idFBO = pMural && pMural->fRedirected ? pMural->aidFBOs[CR_SERVER_FBO_FB_IDX(pMural)] : 0;
             pEl->enmBuffer = 0; /* we do not care */
             pEl->posX = 0;
             pEl->posY = 0;
@@ -1241,11 +1257,11 @@ static int crVBoxServerFBImageDataInitEx(CRFBData *pData, CRContextInfo *pCtxInf
         return VINF_SUCCESS;
     }
 
-    if ((pCtxInfo->CreateInfo.visualBits & CR_STENCIL_BIT)
-    		|| (pCtxInfo->CreateInfo.visualBits & CR_DEPTH_BIT))
+    if ((pCtxInfo->CreateInfo.requestedVisualBits & CR_STENCIL_BIT)
+    		|| (pCtxInfo->CreateInfo.requestedVisualBits & CR_DEPTH_BIT))
     {
         pEl = &pData->aElements[pData->cElements];
-        pEl->idFBO = pMural && (pMural->fPresentMode & CR_SERVER_REDIR_F_FBO) ? pMural->aidFBOs[CR_SERVER_FBO_FB_IDX(pMural)] : 0;
+        pEl->idFBO = pMural && pMural->fRedirected ? pMural->aidFBOs[CR_SERVER_FBO_FB_IDX(pMural)] : 0;
         pEl->enmBuffer = 0; /* we do not care */
         pEl->posX = 0;
         pEl->posY = 0;
@@ -1702,7 +1718,7 @@ DECLEXPORT(int32_t) crVBoxServerSaveState(PSSMHANDLE pSSM)
         }
     }
 
-    rc = crServerDisplaySaveState(pSSM);
+    rc = CrPMgrSaveState(pSSM);
     AssertRCReturn(rc, rc);
 
     /* all context gl error states should have now be synced with chromium erro states,
@@ -2120,13 +2136,6 @@ static int32_t crVBoxServerLoadMurals(CR_SERVER_LOADSTATE_READER *pReader, uint3
         {
             crFree(muralInfo.pVisibleRects);
         }
-
-        Assert(!pActualMural->fDataPresented);
-
-        if (version >= SHCROGL_SSM_VERSION_WITH_PRESENT_STATE)
-            pActualMural->fDataPresented = muralInfo.fDataPresented;
-        else
-            pActualMural->fDataPresented = crServerVBoxCompositionPresentNeeded(pActualMural);
     }
 
     CRASSERT(RT_SUCCESS(rc));
@@ -2214,10 +2223,7 @@ static int crVBoxServerLoadFBImage(PSSMHANDLE pSSM, uint32_t version,
         CRASSERT(!pBuf->pBackImg);
         crVBoxServerFBImageDataTerm(&Data.data);
 
-        if ((pMural->fPresentMode & CR_SERVER_REDIR_F_FBO) && pMural->fDataPresented && crServerVBoxCompositionPresentNeeded(pMural))
-        {
-            crServerPresentFBO(pMural);
-        }
+        crServerPresentFBO(pMural);
 
         CRASSERT(cr_server.currentMural);
         cr_server.head_spu->dispatch_table.MakeCurrent( cr_server.currentMural->spuWindow,
@@ -2352,7 +2358,7 @@ DECLEXPORT(int32_t) crVBoxServerLoadState(PSSMHANDLE pSSM, uint32_t version)
         CRASSERT(cr_server.MainContextInfo.SpuContext > 0);
         CRASSERT(!cr_server.currentCtxInfo);
         CRASSERT(!cr_server.currentMural);
-        pMural = crServerGetDummyMural(cr_server.MainContextInfo.CreateInfo.visualBits);
+        pMural = crServerGetDummyMural(cr_server.MainContextInfo.CreateInfo.realVisualBits);
         CRASSERT(pMural);
         crServerPerformMakeCurrent(pMural, &cr_server.MainContextInfo);
     }
@@ -2386,7 +2392,7 @@ DECLEXPORT(int32_t) crVBoxServerLoadState(PSSMHANDLE pSSM, uint32_t version)
             else
             {
                 /* null winId means a dummy mural, get it */
-                pMural = crServerGetDummyMural(pContextInfo->CreateInfo.visualBits);
+                pMural = crServerGetDummyMural(pContextInfo->CreateInfo.realVisualBits);
                 CRASSERT(pMural);
             }
         }
@@ -2593,7 +2599,9 @@ DECLEXPORT(int32_t) crVBoxServerLoadState(PSSMHANDLE pSSM, uint32_t version)
 
     if (version >= SHCROGL_SSM_VERSION_WITH_SCREEN_INFO)
     {
-        rc = crServerDisplayLoadState(pSSM, version);
+        HCR_FRAMEBUFFER hFb;
+
+        rc = CrPMgrLoadState(pSSM, version);
         AssertRCReturn(rc, rc);
     }
 
@@ -2637,32 +2645,11 @@ void crVBoxServerNotifyEvent(int32_t idScreen, uint32_t uEvent, void*pvData)
     cr_server.pfnNotifyEventCB(idScreen, uEvent, pvData);
 }
 
-void crVBoxServerCheckVisibilityEvent(int32_t idScreen)
+void crServerWindowReparent(CRMuralInfo *pMural)
 {
-    if (cr_server.cDisableEvents)
-        return;
+    pMural->fHasParentWindow = !!cr_server.screen[pMural->screenId].winID;
 
-    if (idScreen < 0)
-    {
-        int32_t i = 0;
-        for (; i < cr_server.screenCount; ++i)
-        {
-            crVBoxServerCheckVisibilityEvent(i);
-        }
-        return;
-    }
-
-    CRASSERT(idScreen < cr_server.screenCount);
-
-    if (!cr_server.aWinVisibilityInfos[idScreen].fVisibleChanged
-            && !cr_server.aWinVisibilityInfos[idScreen].cVisibleWindows == !cr_server.aWinVisibilityInfos[idScreen].fLastReportedVisible)
-        return;
-
-    crVBoxServerNotifyEvent(idScreen, VBOX3D_NOTIFY_EVENT_TYPE_VISIBLE_3DDATA,
-            cr_server.aWinVisibilityInfos[idScreen].cVisibleWindows ? (void*)1 : NULL);
-
-    cr_server.aWinVisibilityInfos[idScreen].fLastReportedVisible = cr_server.aWinVisibilityInfos[idScreen].cVisibleWindows ? 1 : 0;
-    cr_server.aWinVisibilityInfos[idScreen].fVisibleChanged = 0;
+    renderspuReparentWindow(pMural->spuWindow);
 }
 
 static void crVBoxServerReparentMuralCB(unsigned long key, void *data1, void *data2)
@@ -2670,20 +2657,10 @@ static void crVBoxServerReparentMuralCB(unsigned long key, void *data1, void *da
     CRMuralInfo *pMI = (CRMuralInfo*) data1;
     int *sIndex = (int*) data2;
 
-    Assert(pMI->cDisabled);
-
     if (pMI->screenId == *sIndex)
     {
         crServerWindowReparent(pMI);
     }
-}
-
-static void crVBoxServerCheckMuralCB(unsigned long key, void *data1, void *data2)
-{
-    CRMuralInfo *pMI = (CRMuralInfo*) data1;
-    (void) data2;
-
-    crServerCheckMuralGeometry(pMI);
 }
 
 DECLEXPORT(int32_t) crVBoxServerSetScreenCount(int sCount)
@@ -2720,8 +2697,6 @@ DECLEXPORT(int32_t) crVBoxServerUnmapScreen(int sIndex)
 
     if (MAPPED(SCREEN(sIndex)))
     {
-        PCR_DISPLAY pDisplay = crServerDisplayGetInitialized(sIndex);
-
         SCREEN(sIndex).winID = 0;
         renderspuSetWindowId(0);
 
@@ -2729,15 +2704,10 @@ DECLEXPORT(int32_t) crVBoxServerUnmapScreen(int sIndex)
 
         crHashtableWalk(cr_server.dummyMuralTable, crVBoxServerReparentMuralCB, &sIndex);
 
-        if (pDisplay)
-            CrDpReparent(pDisplay, &SCREEN(sIndex));
+        CrPMgrScreenChanged((uint32_t)sIndex);
     }
 
     renderspuSetWindowId(SCREEN(0).winID);
-
-    crHashtableWalk(cr_server.muralTable, crVBoxServerCheckMuralCB, NULL);
-
-/*    crVBoxServerNotifyEvent(sIndex, VBOX3D_NOTIFY_EVENT_TYPE_VISIBLE_3DDATA, NULL); */
 
     return VINF_SUCCESS;
 }
@@ -2766,8 +2736,6 @@ DECLEXPORT(int32_t) crVBoxServerMapScreen(int sIndex, int32_t x, int32_t y, uint
 
     crHashtableWalk(cr_server.dummyMuralTable, crVBoxServerReparentMuralCB, &sIndex);
     renderspuSetWindowId(SCREEN(0).winID);
-
-    crHashtableWalk(cr_server.muralTable, crVBoxServerCheckMuralCB, NULL);
 
 #ifndef WINDOWS
     /*Restore FB content for clients, which have current window on a screen being remapped*/
@@ -2802,72 +2770,15 @@ DECLEXPORT(int32_t) crVBoxServerMapScreen(int sIndex, int32_t x, int32_t y, uint
     }
 #endif
 
-    {
-        PCR_DISPLAY pDisplay = crServerDisplayGetInitialized(sIndex);
-        if (pDisplay)
-            CrDpReparent(pDisplay, &SCREEN(sIndex));
-    }
-
-    crVBoxServerNotifyEvent(sIndex, VBOX3D_NOTIFY_EVENT_TYPE_VISIBLE_3DDATA,
-            cr_server.aWinVisibilityInfos[sIndex].cVisibleWindows ? (void*)1 : NULL);
+    CrPMgrScreenChanged((uint32_t)sIndex);
 
     return VINF_SUCCESS;
-}
-
-int crVBoxServerUpdateMuralRootVisibleRegion(CRMuralInfo *pMI)
-{
-    GLboolean fForcePresent;
-
-    int rc = VINF_SUCCESS;
-
-    fForcePresent = crServerVBoxCompositionPresentNeeded(pMI);
-
-    crServerVBoxCompositionDisableEnter(pMI);
-
-    if (cr_server.fRootVrOn)
-    {
-        if (!pMI->fRootVrOn)
-        {
-            CrVrScrCompositorInit(&pMI->RootVrCompositor);
-        }
-
-        rc = crServerMuralSynchRootVr(pMI, NULL);
-        if (!RT_SUCCESS(rc))
-        {
-            crWarning("crServerMuralSynchRootVr failed, rc %d", rc);
-            goto end;
-        }
-    }
-    else
-    {
-        CrVrScrCompositorClear(&pMI->RootVrCompositor);
-    }
-
-    pMI->fRootVrOn = cr_server.fRootVrOn;
-
-    crServerWindowVisibleRegion(pMI);
-
-end:
-    crServerVBoxCompositionDisableLeave(pMI, fForcePresent);
-
-    return rc;
-}
-
-static void crVBoxServerSetRootVisibleRegionCB(unsigned long key, void *data1, void *data2)
-{
-    CRMuralInfo *pMI = (CRMuralInfo*) data1;
-
-    if (!pMI->CreateInfo.externalID)
-        return;
-    (void) data2;
-
-    crVBoxServerUpdateMuralRootVisibleRegion(pMI);
 }
 
 DECLEXPORT(int32_t) crVBoxServerSetRootVisibleRegion(GLint cRects, const RTRECT *pRects)
 {
     int32_t rc = VINF_SUCCESS;
-    int i;
+    GLboolean fOldRootVrOn = cr_server.fRootVrOn;
 
     /* non-zero rects pointer indicate rects are present and switched on
      * i.e. cRects==0 and pRects!=NULL means root visible regioning is ON and there are no visible regions,
@@ -2894,15 +2805,23 @@ DECLEXPORT(int32_t) crVBoxServerSetRootVisibleRegion(GLint cRects, const RTRECT 
         cr_server.fRootVrOn = GL_FALSE;
     }
 
-    crHashtableWalk(cr_server.muralTable, crVBoxServerSetRootVisibleRegionCB, NULL);
-
-    for (i = 0; i < cr_server.screenCount; ++i)
+    if (!fOldRootVrOn != !cr_server.fRootVrOn)
     {
-        PCR_DISPLAY pDisplay = crServerDisplayGetInitialized((uint32_t)i);
-        if (!pDisplay)
-            continue;
-
-        CrDpRootUpdate(pDisplay);
+        rc = CrPMgrModeRootVr(cr_server.fRootVrOn);
+        if (!RT_SUCCESS(rc))
+        {
+            crWarning("CrPMgrModeRootVr failed rc %d", rc);
+            return rc;
+        }
+    }
+    else if (cr_server.fRootVrOn)
+    {
+        rc = CrPMgrRootVrUpdate();
+        if (!RT_SUCCESS(rc))
+        {
+            crWarning("CrPMgrRootVrUpdate failed rc %d", rc);
+            return rc;
+        }
     }
 
     return VINF_SUCCESS;
@@ -2913,52 +2832,9 @@ DECLEXPORT(void) crVBoxServerSetPresentFBOCB(PFNCRSERVERPRESENTFBO pfnPresentFBO
     cr_server.pfnPresentFBO = pfnPresentFBO;
 }
 
-int32_t crServerSetOffscreenRenderingMode(GLuint value)
-{
-    /* sanitize values */
-    value = crServerRedirModeAdjust(value);
-
-    if (value == CR_SERVER_REDIR_F_NONE)
-    {
-        crWarning("crServerSetOffscreenRenderingMode: value undefined");
-    }
-
-    if (cr_server.fPresentMode==value)
-    {
-        return VINF_SUCCESS;
-    }
-
-    if ((value & CR_SERVER_REDIR_F_FBO) && !crServerSupportRedirMuralFBO())
-    {
-        crWarning("crServerSetOffscreenRenderingMode: FBO not supported");
-        return VERR_NOT_SUPPORTED;
-    }
-
-    cr_server.fPresentMode=value;
-
-    crHashtableWalk(cr_server.muralTable, crVBoxServerCheckMuralCB, NULL);
-
-    return VINF_SUCCESS;
-}
-
 DECLEXPORT(int32_t) crVBoxServerSetOffscreenRendering(GLboolean value)
 {
-    return crServerSetOffscreenRenderingMode(value ?
-            cr_server.fPresentModeDefault | CR_SERVER_REDIR_F_FBO_RAM_VRDP | cr_server.fVramPresentModeDefault
-            : cr_server.fPresentModeDefault);
-}
-
-static void crVBoxServerOutputRedirectCB(unsigned long key, void *data1, void *data2)
-{
-    CRMuralInfo *mural = (CRMuralInfo*) data1;
-
-    if (!mural->CreateInfo.externalID)
-        return;
-
-    if (cr_server.bUseOutputRedirect)
-        crServerPresentOutputRedirect(mural);
-    else
-        crServerOutputRedirectCheckEnableDisable(mural);
+    return CrPMgrModeVrdp(value);
 }
 
 DECLEXPORT(int32_t) crVBoxServerOutputRedirectSet(const CROutputRedirect *pCallbacks)
@@ -2967,35 +2843,20 @@ DECLEXPORT(int32_t) crVBoxServerOutputRedirectSet(const CROutputRedirect *pCallb
     if (pCallbacks)
     {
         cr_server.outputRedirect = *pCallbacks;
-        cr_server.bUseOutputRedirect = true;
     }
     else
     {
-        cr_server.bUseOutputRedirect = false;
+        memset (&cr_server.outputRedirect, 0, sizeof (cr_server.outputRedirect));
     }
-
-    /* dynamically intercept already existing output */
-    crHashtableWalk(cr_server.muralTable, crVBoxServerOutputRedirectCB, NULL);
 
     return VINF_SUCCESS;
 }
 
-static void crVBoxServerUpdateScreenViewportCB(unsigned long key, void *data1, void *data2)
-{
-    CRMuralInfo *mural = (CRMuralInfo*) data1;
-    int *sIndex = (int*) data2;
-
-    if (mural->screenId != *sIndex)
-        return;
-
-    crServerCheckMuralGeometry(mural);
-}
-
-
 DECLEXPORT(int32_t) crVBoxServerSetScreenViewport(int sIndex, int32_t x, int32_t y, uint32_t w, uint32_t h)
 {
-    CRScreenViewportInfo *pVieport;
-    GLboolean fPosChanged, fSizeChanged;
+    CRScreenViewportInfo *pViewport;
+    RTRECT NewRect;
+    int rc;
 
     crDebug("crVBoxServerSetScreenViewport(%i)", sIndex);
 
@@ -3005,57 +2866,29 @@ DECLEXPORT(int32_t) crVBoxServerSetScreenViewport(int sIndex, int32_t x, int32_t
         return VERR_INVALID_PARAMETER;
     }
 
-    pVieport = &cr_server.screenVieport[sIndex];
-    fPosChanged = (pVieport->x != x || pVieport->y != y);
-    fSizeChanged = (pVieport->w != w || pVieport->h != h);
+    NewRect.xLeft = x;
+    NewRect.yTop = y;
+    NewRect.xRight = x + w;
+    NewRect.yBottom = y + h;
 
-    if (!fPosChanged && !fSizeChanged)
+    pViewport = &cr_server.screenVieport[sIndex];
+    /*always do viewport updates no matter whether the rectangle actually changes,
+     * this is needed to ensure window is adjusted properly on OSX */
+    pViewport->Rect = NewRect;
+    rc = CrPMgrViewportUpdate((uint32_t)sIndex);
+    if (!RT_SUCCESS(rc))
     {
-        crDebug("crVBoxServerSetScreenViewport: no changes");
-        return VINF_SUCCESS;
+        crWarning("CrPMgrViewportUpdate failed %d", rc);
+        return rc;
     }
 
-    if (fPosChanged)
-    {
-        pVieport->x = x;
-        pVieport->y = y;
-
-        crHashtableWalk(cr_server.muralTable, crVBoxServerUpdateScreenViewportCB, &sIndex);
-    }
-
-    if (fSizeChanged)
-    {
-        pVieport->w = w;
-        pVieport->h = h;
-
-        /* no need to do anything here actually */
-    }
-
-    if (fPosChanged || fSizeChanged)
-    {
-        PCR_DISPLAY pDisplay = crServerDisplayGetInitialized(sIndex);
-        if (pDisplay)
-            CrDpResize(pDisplay, SCREEN(sIndex).x, SCREEN(sIndex).y, SCREEN(sIndex).w, SCREEN(sIndex).h);
-    }
     return VINF_SUCCESS;
 }
 
 
 #ifdef VBOX_WITH_CRHGSMI
-/* We moved all CrHgsmi command processing to crserverlib to keep the logic of dealing with CrHgsmi commands in one place.
- *
- * For now we need the notion of CrHgdmi commands in the crserver_lib to be able to complete it asynchronously once it is really processed.
- * This help avoiding the "blocked-client" issues. The client is blocked if another client is doing begin-end stuff.
- * For now we eliminated polling that could occur on block, which caused a higher-priority thread (in guest) polling for the blocked command complition
- * to block the lower-priority thread trying to complete the blocking command.
- * And removed extra memcpy done on blocked command arrival.
- *
- * In the future we will extend CrHgsmi functionality to maintain texture data directly in CrHgsmi allocation to avoid extra memcpy-ing with PBO,
- * implement command completion and stuff necessary for GPU scheduling to work properly for WDDM Windows guests, etc.
- *
- * NOTE: it is ALWAYS responsibility of the crVBoxServerCrHgsmiCmd to complete the command!
- * */
-int32_t crVBoxServerCrHgsmiCmd(struct VBOXVDMACMD_CHROMIUM_CMD *pCmd, uint32_t cbCmd)
+
+static int32_t crVBoxServerCmdVbvaCrCmdProcess(struct VBOXCMDVBVA_CRCMD_CMD *pCmd)
 {
     int32_t rc;
     uint32_t cBuffers = pCmd->cBuffers;
@@ -3069,6 +2902,378 @@ int32_t crVBoxServerCrHgsmiCmd(struct VBOXVDMACMD_CHROMIUM_CMD *pCmd, uint32_t c
     if (!g_pvVRamBase)
     {
         crWarning("g_pvVRamBase is not initialized");
+        return VERR_INVALID_STATE;
+    }
+
+    if (!cBuffers)
+    {
+        crWarning("zero buffers passed in!");
+        return VERR_INVALID_PARAMETER;
+    }
+
+    cParams = cBuffers-1;
+
+    cbHdr = pCmd->aBuffers[0].cbBuffer;
+    pHdr = VBOXCRHGSMI_PTR_SAFE(pCmd->aBuffers[0].offBuffer, cbHdr, CRVBOXHGSMIHDR);
+    if (!pHdr)
+    {
+        crWarning("invalid header buffer!");
+        return VERR_INVALID_PARAMETER;
+    }
+
+    if (cbHdr < sizeof (*pHdr))
+    {
+        crWarning("invalid header buffer size!");
+        return VERR_INVALID_PARAMETER;
+    }
+
+    u32Function = pHdr->u32Function;
+    u32ClientID = pHdr->u32ClientID;
+
+    switch (u32Function)
+    {
+        case SHCRGL_GUEST_FN_WRITE:
+        {
+            Log(("svcCall: SHCRGL_GUEST_FN_WRITE\n"));
+
+            /* @todo: Verify  */
+            if (cParams == 1)
+            {
+                CRVBOXHGSMIWRITE* pFnCmd = (CRVBOXHGSMIWRITE*)pHdr;
+                VBOXCMDVBVA_CRCMD_BUFFER *pBuf = &pCmd->aBuffers[1];
+                /* Fetch parameters. */
+                uint32_t cbBuffer = pBuf->cbBuffer;
+                uint8_t *pBuffer  = VBOXCRHGSMI_PTR_SAFE(pBuf->offBuffer, cbBuffer, uint8_t);
+
+                if (cbHdr < sizeof (*pFnCmd))
+                {
+                    crWarning("invalid write cmd buffer size!");
+                    rc = VERR_INVALID_PARAMETER;
+                    break;
+                }
+
+                CRASSERT(cbBuffer);
+                if (!pBuffer)
+                {
+                    crWarning("invalid buffer data received from guest!");
+                    rc = VERR_INVALID_PARAMETER;
+                    break;
+                }
+
+                rc = crVBoxServerClientGet(u32ClientID, &pClient);
+                if (RT_FAILURE(rc))
+                {
+                    break;
+                }
+
+                /* This should never fire unless we start to multithread */
+                CRASSERT(pClient->conn->pBuffer==NULL && pClient->conn->cbBuffer==0);
+                CRVBOXHGSMI_CMDDATA_ASSERT_CLEANED(&pClient->conn->CmdData);
+
+                pClient->conn->pBuffer = pBuffer;
+                pClient->conn->cbBuffer = cbBuffer;
+                CRVBOXHGSMI_CMDDATA_SET(&pClient->conn->CmdData, pCmd, pHdr, false);
+                rc = crVBoxServerInternalClientWriteRead(pClient);
+                CRVBOXHGSMI_CMDDATA_ASSERT_CLEANED(&pClient->conn->CmdData);
+                return rc;
+            }
+            else
+            {
+                crWarning("invalid number of args");
+                rc = VERR_INVALID_PARAMETER;
+                break;
+            }
+            break;
+        }
+
+        case SHCRGL_GUEST_FN_INJECT:
+        {
+            Log(("svcCall: SHCRGL_GUEST_FN_INJECT\n"));
+
+            /* @todo: Verify  */
+            if (cParams == 1)
+            {
+                CRVBOXHGSMIINJECT *pFnCmd = (CRVBOXHGSMIINJECT*)pHdr;
+                /* Fetch parameters. */
+                uint32_t u32InjectClientID = pFnCmd->u32ClientID;
+                VBOXCMDVBVA_CRCMD_BUFFER *pBuf = &pCmd->aBuffers[1];
+                uint32_t cbBuffer = pBuf->cbBuffer;
+                uint8_t *pBuffer  = VBOXCRHGSMI_PTR_SAFE(pBuf->offBuffer, cbBuffer, uint8_t);
+
+                if (cbHdr < sizeof (*pFnCmd))
+                {
+                    crWarning("invalid inject cmd buffer size!");
+                    rc = VERR_INVALID_PARAMETER;
+                    break;
+                }
+
+                CRASSERT(cbBuffer);
+                if (!pBuffer)
+                {
+                    crWarning("invalid buffer data received from guest!");
+                    rc = VERR_INVALID_PARAMETER;
+                    break;
+                }
+
+                rc = crVBoxServerClientGet(u32InjectClientID, &pClient);
+                if (RT_FAILURE(rc))
+                {
+                    break;
+                }
+
+                /* This should never fire unless we start to multithread */
+                CRASSERT(pClient->conn->pBuffer==NULL && pClient->conn->cbBuffer==0);
+                CRVBOXHGSMI_CMDDATA_ASSERT_CLEANED(&pClient->conn->CmdData);
+
+                pClient->conn->pBuffer = pBuffer;
+                pClient->conn->cbBuffer = cbBuffer;
+                CRVBOXHGSMI_CMDDATA_SET(&pClient->conn->CmdData, pCmd, pHdr, false);
+                rc = crVBoxServerInternalClientWriteRead(pClient);
+                CRVBOXHGSMI_CMDDATA_ASSERT_CLEANED(&pClient->conn->CmdData);
+                return rc;
+            }
+
+            crWarning("invalid number of args");
+            rc = VERR_INVALID_PARAMETER;
+            break;
+        }
+
+        case SHCRGL_GUEST_FN_READ:
+        {
+            Log(("svcCall: SHCRGL_GUEST_FN_READ\n"));
+
+            /* @todo: Verify  */
+            if (cParams == 1)
+            {
+                CRVBOXHGSMIREAD *pFnCmd = (CRVBOXHGSMIREAD*)pHdr;
+                VBOXCMDVBVA_CRCMD_BUFFER *pBuf = &pCmd->aBuffers[1];
+                /* Fetch parameters. */
+                uint32_t cbBuffer = pBuf->cbBuffer;
+                uint8_t *pBuffer  = VBOXCRHGSMI_PTR_SAFE(pBuf->offBuffer, cbBuffer, uint8_t);
+
+                if (cbHdr < sizeof (*pFnCmd))
+                {
+                    crWarning("invalid read cmd buffer size!");
+                    rc = VERR_INVALID_PARAMETER;
+                    break;
+                }
+
+
+                if (!pBuffer)
+                {
+                    crWarning("invalid buffer data received from guest!");
+                    rc = VERR_INVALID_PARAMETER;
+                    break;
+                }
+
+                rc = crVBoxServerClientGet(u32ClientID, &pClient);
+                if (RT_FAILURE(rc))
+                {
+                    break;
+                }
+
+                CRVBOXHGSMI_CMDDATA_ASSERT_CLEANED(&pClient->conn->CmdData);
+
+                rc = crVBoxServerInternalClientRead(pClient, pBuffer, &cbBuffer);
+
+                /* Return the required buffer size always */
+                pFnCmd->cbBuffer = cbBuffer;
+
+                CRVBOXHGSMI_CMDDATA_ASSERT_CLEANED(&pClient->conn->CmdData);
+
+                /* the read command is never pended, complete it right away */
+                pHdr->result = rc;
+
+                return VINF_SUCCESS;
+            }
+
+            crWarning("invalid number of args");
+            rc = VERR_INVALID_PARAMETER;
+            break;
+        }
+
+        case SHCRGL_GUEST_FN_WRITE_READ:
+        {
+            Log(("svcCall: SHCRGL_GUEST_FN_WRITE_READ\n"));
+
+            /* @todo: Verify  */
+            if (cParams == 2)
+            {
+                CRVBOXHGSMIWRITEREAD *pFnCmd = (CRVBOXHGSMIWRITEREAD*)pHdr;
+                VBOXCMDVBVA_CRCMD_BUFFER *pBuf = &pCmd->aBuffers[1];
+                VBOXCMDVBVA_CRCMD_BUFFER *pWbBuf = &pCmd->aBuffers[2];
+
+                /* Fetch parameters. */
+                uint32_t cbBuffer = pBuf->cbBuffer;
+                uint8_t *pBuffer  = VBOXCRHGSMI_PTR_SAFE(pBuf->offBuffer, cbBuffer, uint8_t);
+
+                uint32_t cbWriteback = pWbBuf->cbBuffer;
+                char *pWriteback  = VBOXCRHGSMI_PTR_SAFE(pWbBuf->offBuffer, cbWriteback, char);
+
+                if (cbHdr < sizeof (*pFnCmd))
+                {
+                    crWarning("invalid write_read cmd buffer size!");
+                    rc = VERR_INVALID_PARAMETER;
+                    break;
+                }
+
+
+                CRASSERT(cbBuffer);
+                if (!pBuffer)
+                {
+                    crWarning("invalid write buffer data received from guest!");
+                    rc = VERR_INVALID_PARAMETER;
+                    break;
+                }
+
+                CRASSERT(cbWriteback);
+                if (!pWriteback)
+                {
+                    crWarning("invalid writeback buffer data received from guest!");
+                    rc = VERR_INVALID_PARAMETER;
+                    break;
+                }
+                rc = crVBoxServerClientGet(u32ClientID, &pClient);
+                if (RT_FAILURE(rc))
+                {
+                    pHdr->result = rc;
+                    return VINF_SUCCESS;
+                }
+
+                /* This should never fire unless we start to multithread */
+                CRASSERT(pClient->conn->pBuffer==NULL && pClient->conn->cbBuffer==0);
+                CRVBOXHGSMI_CMDDATA_ASSERT_CLEANED(&pClient->conn->CmdData);
+
+                pClient->conn->pBuffer = pBuffer;
+                pClient->conn->cbBuffer = cbBuffer;
+                CRVBOXHGSMI_CMDDATA_SETWB(&pClient->conn->CmdData, pCmd, pHdr, pWriteback, cbWriteback, &pFnCmd->cbWriteback, false);
+                rc = crVBoxServerInternalClientWriteRead(pClient);
+                CRVBOXHGSMI_CMDDATA_ASSERT_CLEANED(&pClient->conn->CmdData);
+                return rc;
+            }
+
+            crWarning("invalid number of args");
+            rc = VERR_INVALID_PARAMETER;
+            break;
+        }
+
+        case SHCRGL_GUEST_FN_SET_VERSION:
+        {
+            crWarning("invalid function");
+            rc = VERR_NOT_IMPLEMENTED;
+            break;
+        }
+
+        case SHCRGL_GUEST_FN_SET_PID:
+        {
+            crWarning("invalid function");
+            rc = VERR_NOT_IMPLEMENTED;
+            break;
+        }
+
+        default:
+        {
+            crWarning("invalid function");
+            rc = VERR_NOT_IMPLEMENTED;
+            break;
+        }
+
+    }
+
+    /* we can be on fail only here */
+    CRASSERT(RT_FAILURE(rc));
+    pHdr->result = rc;
+
+    return rc;
+}
+
+static int32_t crVBoxServerCrCmdProcess(PVBOXCMDVBVA_HDR pCmd, uint32_t cbCmd)
+{
+    switch (pCmd->u8OpCode)
+    {
+        case VBOXCMDVBVA_OPTYPE_CRCMD:
+        {
+            VBOXCMDVBVA_CRCMD *pCrCmdDr = (VBOXCMDVBVA_CRCMD*)pCmd;
+            VBOXCMDVBVA_CRCMD_CMD *pCrCmd = &pCrCmdDr->Cmd;
+            int rc = crVBoxServerCmdVbvaCrCmdProcess(pCrCmd);
+            if (RT_SUCCESS(rc))
+            {
+            /* success */
+                pCmd->i8Result = 0;
+            }
+            else
+            {
+                crWarning("crVBoxServerCmdVbvaCrCmdProcess failed, rc %d", rc);
+                pCmd->i8Result = -1;
+            }
+            break;
+        }
+        case VBOXCMDVBVA_OPTYPE_BLT_OFFPRIMSZFMT_OR_ID:
+        {
+            crVBoxServerCrCmdBltProcess(pCmd, cbCmd);
+            break;
+        }
+        default:
+            WARN(("unsupported command"));
+            pCmd->i8Result = -1;
+    }
+    return VINF_SUCCESS;
+}
+
+int32_t crVBoxServerCrCmdNotifyCmds()
+{
+    PVBOXCMDVBVA_HDR pCmd = NULL;
+    uint32_t cbCmd;
+
+    for (;;)
+    {
+        int rc = cr_server.CltInfo.pfnCmdGet(cr_server.CltInfo.hClient, &pCmd, &cbCmd);
+        if (rc == VINF_EOF)
+            return VINF_SUCCESS;
+        if (!RT_SUCCESS(rc))
+            return rc;
+
+        rc = crVBoxServerCrCmdProcess(pCmd, cbCmd);
+        if (!RT_SUCCESS(rc))
+            return rc;
+    }
+
+    /* should not be here! */
+    AssertFailed();
+    return VERR_INTERNAL_ERROR;
+}
+
+/* We moved all CrHgsmi command processing to crserverlib to keep the logic of dealing with CrHgsmi commands in one place.
+ *
+ * For now we need the notion of CrHgdmi commands in the crserver_lib to be able to complete it asynchronously once it is really processed.
+ * This help avoiding the "blocked-client" issues. The client is blocked if another client is doing begin-end stuff.
+ * For now we eliminated polling that could occur on block, which caused a higher-priority thread (in guest) polling for the blocked command complition
+ * to block the lower-priority thread trying to complete the blocking command.
+ * And removed extra memcpy done on blocked command arrival.
+ *
+ * In the future we will extend CrHgsmi functionality to maintain texture data directly in CrHgsmi allocation to avoid extra memcpy-ing with PBO,
+ * implement command completion and stuff necessary for GPU scheduling to work properly for WDDM Windows guests, etc.
+ *
+ * NOTE: it is ALWAYS responsibility of the crVBoxServerCrHgsmiCmd to complete the command!
+ * */
+
+
+int32_t crVBoxServerCrHgsmiCmd(struct VBOXVDMACMD_CHROMIUM_CMD *pCmd, uint32_t cbCmd)
+{
+
+    int32_t rc;
+    uint32_t cBuffers = pCmd->cBuffers;
+    uint32_t cParams;
+    uint32_t cbHdr;
+    CRVBOXHGSMIHDR *pHdr;
+    uint32_t u32Function;
+    uint32_t u32ClientID;
+    CRClient *pClient;
+
+    if (!g_pvVRamBase)
+    {
+        crWarning("g_pvVRamBase is not initialized");
+
         crServerCrHgsmiCmdComplete(pCmd, VERR_INVALID_STATE);
         return VINF_SUCCESS;
     }
@@ -3076,6 +3281,7 @@ int32_t crVBoxServerCrHgsmiCmd(struct VBOXVDMACMD_CHROMIUM_CMD *pCmd, uint32_t c
     if (!cBuffers)
     {
         crWarning("zero buffers passed in!");
+
         crServerCrHgsmiCmdComplete(pCmd, VERR_INVALID_PARAMETER);
         return VINF_SUCCESS;
     }
@@ -3087,6 +3293,7 @@ int32_t crVBoxServerCrHgsmiCmd(struct VBOXVDMACMD_CHROMIUM_CMD *pCmd, uint32_t c
     if (!pHdr)
     {
         crWarning("invalid header buffer!");
+
         crServerCrHgsmiCmdComplete(pCmd, VERR_INVALID_PARAMETER);
         return VINF_SUCCESS;
     }
@@ -3094,6 +3301,7 @@ int32_t crVBoxServerCrHgsmiCmd(struct VBOXVDMACMD_CHROMIUM_CMD *pCmd, uint32_t c
     if (cbHdr < sizeof (*pHdr))
     {
         crWarning("invalid header buffer size!");
+
         crServerCrHgsmiCmdComplete(pCmd, VERR_INVALID_PARAMETER);
         return VINF_SUCCESS;
     }
@@ -3143,7 +3351,7 @@ int32_t crVBoxServerCrHgsmiCmd(struct VBOXVDMACMD_CHROMIUM_CMD *pCmd, uint32_t c
 
                 pClient->conn->pBuffer = pBuffer;
                 pClient->conn->cbBuffer = cbBuffer;
-                CRVBOXHGSMI_CMDDATA_SET(&pClient->conn->CmdData, pCmd, pHdr);
+                CRVBOXHGSMI_CMDDATA_SET(&pClient->conn->CmdData, pCmd, pHdr, true);
                 rc = crVBoxServerInternalClientWriteRead(pClient);
                 CRVBOXHGSMI_CMDDATA_ASSERT_CLEANED(&pClient->conn->CmdData);
                 return rc;
@@ -3198,7 +3406,7 @@ int32_t crVBoxServerCrHgsmiCmd(struct VBOXVDMACMD_CHROMIUM_CMD *pCmd, uint32_t c
 
                 pClient->conn->pBuffer = pBuffer;
                 pClient->conn->cbBuffer = cbBuffer;
-                CRVBOXHGSMI_CMDDATA_SET(&pClient->conn->CmdData, pCmd, pHdr);
+                CRVBOXHGSMI_CMDDATA_SET(&pClient->conn->CmdData, pCmd, pHdr, true);
                 rc = crVBoxServerInternalClientWriteRead(pClient);
                 CRVBOXHGSMI_CMDDATA_ASSERT_CLEANED(&pClient->conn->CmdData);
                 return rc;
@@ -3254,6 +3462,7 @@ int32_t crVBoxServerCrHgsmiCmd(struct VBOXVDMACMD_CHROMIUM_CMD *pCmd, uint32_t c
 
                 /* the read command is never pended, complete it right away */
                 pHdr->result = rc;
+
                 crServerCrHgsmiCmdComplete(pCmd, VINF_SUCCESS);
                 return VINF_SUCCESS;
             }
@@ -3318,7 +3527,7 @@ int32_t crVBoxServerCrHgsmiCmd(struct VBOXVDMACMD_CHROMIUM_CMD *pCmd, uint32_t c
 
                 pClient->conn->pBuffer = pBuffer;
                 pClient->conn->cbBuffer = cbBuffer;
-                CRVBOXHGSMI_CMDDATA_SETWB(&pClient->conn->CmdData, pCmd, pHdr, pWriteback, cbWriteback, &pFnCmd->cbWriteback);
+                CRVBOXHGSMI_CMDDATA_SETWB(&pClient->conn->CmdData, pCmd, pHdr, pWriteback, cbWriteback, &pFnCmd->cbWriteback, true);
                 rc = crVBoxServerInternalClientWriteRead(pClient);
                 CRVBOXHGSMI_CMDDATA_ASSERT_CLEANED(&pClient->conn->CmdData);
                 return rc;
@@ -3355,8 +3564,24 @@ int32_t crVBoxServerCrHgsmiCmd(struct VBOXVDMACMD_CHROMIUM_CMD *pCmd, uint32_t c
     /* we can be on fail only here */
     CRASSERT(RT_FAILURE(rc));
     pHdr->result = rc;
+
     crServerCrHgsmiCmdComplete(pCmd, VINF_SUCCESS);
     return rc;
+
+}
+
+static DECLCALLBACK(bool) crVBoxServerHasData()
+{
+    HCR_FRAMEBUFFER hFb = CrPMgrFbGetFirstEnabled();
+    for (;
+            hFb;
+            hFb = CrPMgrFbGetNextEnabled(hFb))
+    {
+        if (CrFbHas3DData(hFb))
+            return true;
+    }
+
+    return false;
 }
 
 int32_t crVBoxServerCrHgsmiCtl(struct VBOXVDMACMD_CHROMIUM_CTL *pCtl, uint32_t cbCtl)
@@ -3370,6 +3595,7 @@ int32_t crVBoxServerCrHgsmiCtl(struct VBOXVDMACMD_CHROMIUM_CTL *pCtl, uint32_t c
             PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP pSetup = (PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP)pCtl;
             g_pvVRamBase = (uint8_t*)pSetup->pvVRamBase;
             g_cbVRam = pSetup->cbVRam;
+            cr_server.CltInfo = *pSetup->pCrCmdClientInfo;
             rc = VINF_SUCCESS;
             break;
         }
@@ -3377,11 +3603,14 @@ int32_t crVBoxServerCrHgsmiCtl(struct VBOXVDMACMD_CHROMIUM_CTL *pCtl, uint32_t c
         case VBOXVDMACMD_CHROMIUM_CTL_TYPE_SAVESTATE_END:
             rc = VINF_SUCCESS;
             break;
-        case VBOXVDMACMD_CHROMIUM_CTL_TYPE_CRHGSMI_SETUP_COMPLETION:
+        case VBOXVDMACMD_CHROMIUM_CTL_TYPE_CRHGSMI_SETUP_MAINCB:
         {
-            PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP_COMPLETION pSetup = (PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP_COMPLETION)pCtl;
+            PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP_MAINCB pSetup = (PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP_MAINCB)pCtl;
             g_hCrHgsmiCompletion = pSetup->hCompletion;
             g_pfnCrHgsmiCompletion = pSetup->pfnCompletion;
+
+            pSetup->MainInterface.pfnHasData = crVBoxServerHasData;
+
             rc = VINF_SUCCESS;
             break;
         }
@@ -3398,4 +3627,5 @@ int32_t crVBoxServerCrHgsmiCtl(struct VBOXVDMACMD_CHROMIUM_CTL *pCtl, uint32_t c
      * or Hgcm Host Fast Call commands that do require completion. All this details are hidden here */
     return rc;
 }
+
 #endif

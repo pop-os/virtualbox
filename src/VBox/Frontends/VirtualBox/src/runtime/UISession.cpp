@@ -76,6 +76,8 @@
 #include "CHostVideoInputDevice.h"
 #include "CSnapshot.h"
 #include "CMedium.h"
+#include "CExtPack.h"
+#include "CExtPackManager.h"
 
 #ifdef VBOX_GUI_WITH_KEYS_RESET_HANDLER
 static void signalHandlerSIGUSR1(int sig, siginfo_t *, void *);
@@ -127,6 +129,7 @@ UISession::UISession(UIMachine *pMachine, CSession &sessionReference)
     , m_pMenuPool(0)
     , m_machineStatePrevious(KMachineState_Null)
     , m_machineState(session().GetMachine().GetState())
+    , m_fIsExtensionPackUsable(false)
     , m_requestedVisualStateType(UIVisualStateType_Invalid)
 #ifdef Q_WS_WIN
     , m_alphaCursor(0)
@@ -1106,6 +1109,34 @@ void UISession::loadSessionSettings()
 
     /* Load extra-data settings: */
     {
+        /* Extension pack stuff: */
+        CExtPack extPack = vboxGlobal().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
+        m_fIsExtensionPackUsable = !extPack.isNull() && extPack.GetUsable();
+
+        /* Runtime menu settings: */
+#ifdef Q_WS_MAC
+        m_allowedActionsMenuApplication = (RuntimeMenuApplicationActionType)
+                                          (vboxGlobal().restrictedRuntimeMenuApplicationActionTypes(machine) ^
+                                           RuntimeMenuApplicationActionType_All);
+#endif /* Q_WS_MAC */
+        m_allowedActionsMenuMachine     = (RuntimeMenuMachineActionType)
+                                          (vboxGlobal().restrictedRuntimeMenuMachineActionTypes(machine) ^
+                                           RuntimeMenuMachineActionType_All);
+        m_allowedActionsMenuView        = (RuntimeMenuViewActionType)
+                                          (vboxGlobal().restrictedRuntimeMenuViewActionTypes(machine) ^
+                                           RuntimeMenuViewActionType_All);
+        m_allowedActionsMenuDevices     = (RuntimeMenuDevicesActionType)
+                                          (vboxGlobal().restrictedRuntimeMenuDevicesActionTypes(machine) ^
+                                           RuntimeMenuDevicesActionType_All);
+#ifdef VBOX_WITH_DEBUGGER_GUI
+        m_allowedActionsMenuDebugger    = (RuntimeMenuDebuggerActionType)
+                                          (vboxGlobal().restrictedRuntimeMenuDebuggerActionTypes(machine) ^
+                                           RuntimeMenuDebuggerActionType_All);
+#endif /* VBOX_WITH_DEBUGGER_GUI */
+        m_allowedActionsMenuHelp        = (RuntimeMenuHelpActionType)
+                                          (vboxGlobal().restrictedRuntimeMenuHelpActionTypes(machine) ^
+                                           RuntimeMenuHelpActionType_All);
+
         /* Temporary: */
         QString strSettings;
 
@@ -1507,8 +1538,8 @@ void UISession::reinitMenuPool()
             }
         }
 
-        /* Show/Hide Network Adapters action depending on overall adapters activity status: */
-        gActionPool->action(UIActionIndexRuntime_Simple_NetworkSettings)->setVisible(fAtLeastOneAdapterActive);
+        /* Show/Hide Network sub-menu depending on overall adapters activity status: */
+        gActionPool->action(UIActionIndexRuntime_Menu_Network)->setVisible(fAtLeastOneAdapterActive);
     }
 
     /* USB stuff: */

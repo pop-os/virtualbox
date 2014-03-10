@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,13 +46,19 @@
 #include "internal/alignmentchecks.h"
 
 
-RTDECL(bool) RTEnvExist(const char *pszVar)
+RTDECL(bool) RTEnvExistsBad(const char *pszVar)
 {
-    return RTEnvGet(pszVar) != NULL;
+    return RTEnvGetBad(pszVar) != NULL;
 }
 
 
-RTDECL(const char *) RTEnvGet(const char *pszVar)
+RTDECL(bool) RTEnvExist(const char *pszVar)
+{
+    return RTEnvExistsBad(pszVar);
+}
+
+
+RTDECL(const char *) RTEnvGetBad(const char *pszVar)
 {
     IPRT_ALIGNMENT_CHECKS_DISABLE(); /* glibc causes trouble */
     const char *pszValue = getenv(pszVar);
@@ -61,7 +67,13 @@ RTDECL(const char *) RTEnvGet(const char *pszVar)
 }
 
 
-RTDECL(int) RTEnvPut(const char *pszVarEqualValue)
+RTDECL(const char *) RTEnvGet(const char *pszVar)
+{
+    return RTEnvGetBad(pszVar);
+}
+
+
+RTDECL(int) RTEnvPutBad(const char *pszVarEqualValue)
 {
     /** @todo putenv is a source memory leaks. deal with this on a per system basis. */
     if (!putenv((char *)pszVarEqualValue))
@@ -69,7 +81,14 @@ RTDECL(int) RTEnvPut(const char *pszVarEqualValue)
     return RTErrConvertFromErrno(errno);
 }
 
-RTDECL(int) RTEnvSet(const char *pszVar, const char *pszValue)
+
+RTDECL(int) RTEnvPut(const char *pszVarEqualValue)
+{
+    return RTEnvPutBad(pszVarEqualValue);
+}
+
+
+RTDECL(int) RTEnvSetBad(const char *pszVar, const char *pszValue)
 {
 #if defined(_MSC_VER)
     /* make a local copy and feed it to putenv. */
@@ -98,7 +117,12 @@ RTDECL(int) RTEnvSet(const char *pszVar, const char *pszValue)
 }
 
 
-RTDECL(int) RTEnvUnset(const char *pszVar)
+RTDECL(int) RTEnvSet(const char *pszVar, const char *pszValue)
+{
+    return RTEnvSetBad(pszVar, pszValue);
+}
+
+RTDECL(int) RTEnvUnsetBad(const char *pszVar)
 {
     AssertReturn(!strchr(pszVar, '='), VERR_INVALID_PARAMETER);
 
@@ -129,5 +153,10 @@ RTDECL(int) RTEnvUnset(const char *pszVar)
 #endif
 
     return RTErrConvertFromErrno(errno);
+}
+
+RTDECL(int) RTEnvUnset(const char *pszVar)
+{
+    return RTEnvUnsetBad(pszVar);
 }
 

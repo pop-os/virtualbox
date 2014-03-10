@@ -34,7 +34,6 @@ class UICocoaApplication
 {
 public:
     static UICocoaApplication* instance();
-    void hide();
     ~UICocoaApplication();
 
     void registerForNativeEvents(uint32_t fMask, PFNVBOXCACALLBACK pfnCallback, void *pvUser);

@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions X11 setup init script ($Revision: 86440 $)
+# Linux Additions X11 setup init script ($Revision: 91688 $)
 #
 
 #
@@ -316,7 +316,11 @@ setup()
     fi
 
     test -z "$x_version" -o -z "$modules_dir" &&
-        fail "Could not find the X.Org or XFree86 Window System."
+        {
+            echo
+            echo "Could not find the X.Org or XFree86 Window System, skipping."
+            exit 0
+        }
 
     echo
     # openSUSE 10.3 shipped X.Org 7.2 with X.Org Server 1.3, but didn't

@@ -303,6 +303,22 @@ int main()
     GEN_CHECK_OFF(VGASTATE, pDrv);
     GEN_CHECK_OFF(VGASTATE, RefreshTimer);
     GEN_CHECK_OFF(VGASTATE, pDevInsR0);
+#ifdef VBOX_WITH_VMSVGA
+    GEN_CHECK_OFF(VGASTATE, svga.u64HostWindowId);
+    GEN_CHECK_OFF(VGASTATE, svga.pFIFOR3);
+    GEN_CHECK_OFF(VGASTATE, svga.pFIFOR0);
+    GEN_CHECK_OFF(VGASTATE, svga.pSVGAState);
+    GEN_CHECK_OFF(VGASTATE, svga.p3dState);
+    GEN_CHECK_OFF(VGASTATE, svga.pFrameBufferBackup);
+    GEN_CHECK_OFF(VGASTATE, svga.GCPhysFIFO);
+    GEN_CHECK_OFF(VGASTATE, svga.cbFIFO);
+    GEN_CHECK_OFF(VGASTATE, svga.BasePort);
+    GEN_CHECK_OFF(VGASTATE, svga.pFIFOIOThread);
+    GEN_CHECK_OFF(VGASTATE, svga.iWidth);
+    GEN_CHECK_OFF(VGASTATE, svga.u32ActionFlags);
+    GEN_CHECK_OFF(VGASTATE, svga.f3DEnabled);
+    GEN_CHECK_OFF(VGASTATE, svga.fVRAMTracking);
+#endif
     GEN_CHECK_OFF(VGASTATE, cMonitors);
     GEN_CHECK_OFF(VGASTATE, cMilliesRefreshInterval);
     GEN_CHECK_OFF(VGASTATE, au32DirtyBitmap);
@@ -1181,7 +1197,6 @@ int main()
     GEN_CHECK_OFF(AHCIPort, fPortReset);
     GEN_CHECK_OFF(AHCIPort, fAsyncInterface);
     GEN_CHECK_OFF(AHCIPort, fResetDevice);
-    GEN_CHECK_OFF(AHCIPort, fAsyncIOThreadIdle);
     GEN_CHECK_OFF(AHCIPort, fRedo);
     GEN_CHECK_OFF(AHCIPort, fWrkThreadSleeping);
     GEN_CHECK_OFF(AHCIPort, cTotalSectors);
@@ -1197,6 +1212,7 @@ int main()
     GEN_CHECK_OFF(AHCIPort, u32TasksFinished);
     GEN_CHECK_OFF(AHCIPort, u32QueuedTasksFinished);
     GEN_CHECK_OFF(AHCIPort, u32TasksNew);
+    GEN_CHECK_OFF(AHCIPort, u32TasksRedo);
     GEN_CHECK_OFF(AHCIPort, u32CurrentCommandSlot);
     GEN_CHECK_OFF(AHCIPort, pDrvBase);
     GEN_CHECK_OFF(AHCIPort, pDrvBlock);
@@ -1223,7 +1239,6 @@ int main()
     GEN_CHECK_OFF(AHCIPort, StatProfileProcessTime);
     GEN_CHECK_OFF(AHCIPort, StatProfileReadWrite);
 #endif
-    GEN_CHECK_OFF(AHCIPort, fAsyncIOThreadIdle);
     GEN_CHECK_OFF(AHCIPort, szSerialNumber);
     GEN_CHECK_OFF(AHCIPort, szSerialNumber[AHCI_SERIAL_NUMBER_LENGTH]); /* One additional byte for the termination.*/
     GEN_CHECK_OFF(AHCIPort, szFirmwareRevision);
@@ -1269,6 +1284,7 @@ int main()
     GEN_CHECK_OFF(AHCI, ahciPort[AHCI_MAX_NR_PORTS_IMPL-1]);
     GEN_CHECK_OFF(AHCI, lock);
     GEN_CHECK_OFF(AHCI, u32PortsInterrupted);
+    GEN_CHECK_OFF(AHCI, cThreadsActive);
     GEN_CHECK_OFF(AHCI, fReset);
     GEN_CHECK_OFF(AHCI, f64BitAddr);
     GEN_CHECK_OFF(AHCI, fGCEnabled);

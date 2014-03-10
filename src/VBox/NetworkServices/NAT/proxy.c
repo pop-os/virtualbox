@@ -85,6 +85,8 @@ proxy_init(struct netif *proxy_netif, struct proxy_options *opts)
 
     pxdns_init(proxy_netif);
 
+    pxping_init(proxy_netif, opts->icmpsock4, opts->icmpsock6);
+
     pollmgr_tid = sys_thread_new("pollmgr_thread",
                                  pollmgr_thread, NULL,
                                  DEFAULT_THREAD_STACKSIZE,
@@ -397,21 +399,23 @@ proxy_reset_socket(SOCKET s)
 }
 
 
-void
+int
 proxy_sendto(SOCKET sock, struct pbuf *p, void *name, size_t namelen)
 {
     struct pbuf *q;
     size_t i, clen;
 #ifndef RT_OS_WINDOWS
     struct msghdr mh;
+    ssize_t nsent;
 #else
+    DWORD nsent;
     int rc;
 #endif
     IOVEC fixiov[8];     /* fixed size (typical case) */
     const size_t fixiovsize = sizeof(fixiov)/sizeof(fixiov[0]);
     IOVEC *dyniov;       /* dynamically sized */
     IOVEC *iov;
-    ssize_t nsent;
+    int error = 0;
 
     /*
      * Static iov[] is usually enough since UDP protocols use small
@@ -424,6 +428,7 @@ proxy_sendto(SOCKET sock, struct pbuf *p, void *name, size_t namelen)
          */
         dyniov = (IOVEC *)malloc(clen * sizeof(*dyniov));
         if (dyniov == NULL) {
+            error = -errno;
             goto out;
         }
         iov = dyniov;
@@ -450,14 +455,17 @@ proxy_sendto(SOCKET sock, struct pbuf *p, void *name, size_t namelen)
 
     nsent = sendmsg(sock, &mh, 0);
     if (nsent < 0) {
+        error = -errno;
         DPRINTF(("%s: fd %d: sendmsg errno %d\n",
                  __func__, sock, errno));
     }
 #else
-    rc = WSASendTo(sock, iov, (DWORD)clen, (DWORD *)&nsent, 0, name, (int)namelen, NULL, NULL);
+    rc = WSASendTo(sock, iov, (DWORD)clen, &nsent, 0,
+                   name, (int)namelen, NULL, NULL);
     if (rc == SOCKET_ERROR) {
          DPRINTF(("%s: fd %d: sendmsg errno %d\n",
                   __func__, sock, WSAGetLastError()));
+         error = -WSAGetLastError();
     }
 #endif
 
@@ -465,7 +473,7 @@ proxy_sendto(SOCKET sock, struct pbuf *p, void *name, size_t namelen)
     if (dyniov != NULL) {
         free(dyniov);
     }
-    pbuf_free(p);
+    return error;
 }
 
 

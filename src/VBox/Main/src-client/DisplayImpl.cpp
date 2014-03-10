@@ -53,6 +53,14 @@
 # include "VideoRec.h"
 #endif
 
+#ifdef VBOX_WITH_CROGL
+typedef enum
+{
+    CRVREC_STATE_IDLE,
+    CRVREC_STATE_SUBMITTED
+} CRVREC_STATE;
+#endif
+
 /**
  * Display driver instance data.
  *
@@ -107,6 +115,9 @@ HRESULT Display::FinalConstruct()
     mfPendingVideoAccelEnable = false;
 
     mfMachineRunning = false;
+#ifdef VBOX_WITH_CROGL
+    mfCrOglDataHidden = false;
+#endif
 
     mpu8VbvaPartial = NULL;
     mcbVbvaPartial = 0;
@@ -136,6 +147,20 @@ HRESULT Display::FinalConstruct()
     mpVideoRecCtx = NULL;
     for (unsigned i = 0; i < RT_ELEMENTS(maVideoRecEnabled); i++)
         maVideoRecEnabled[i] = true;
+#endif
+
+#ifdef VBOX_WITH_CRHGSMI
+    mhCrOglSvc = NULL;
+#endif
+#ifdef VBOX_WITH_CROGL
+    RT_ZERO(mCrOglCallbacks);
+    RT_ZERO(mCrOglScreenshotData);
+    mfCrOglVideoRecState = CRVREC_STATE_IDLE;
+    mCrOglScreenshotData.u32Screen = CRSCREEN_ALL;
+    mCrOglScreenshotData.pvContext = this;
+    mCrOglScreenshotData.pfnScreenshotBegin = displayCrVRecScreenshotBegin;
+    mCrOglScreenshotData.pfnScreenshotPerform = displayCrVRecScreenshotPerform;
+    mCrOglScreenshotData.pfnScreenshotEnd = displayCrVRecScreenshotEnd;
 #endif
 
     return BaseFinalConstruct();
@@ -222,6 +247,47 @@ static int displayMakeThumbnail(uint8_t *pu8Data, uint32_t cx, uint32_t cy,
     return rc;
 }
 
+#ifdef VBOX_WITH_CROGL
+typedef struct
+{
+    CRVBOXHGCMTAKESCREENSHOT Base;
+
+    /* 32bpp small RGB image. */
+    uint8_t *pu8Thumbnail;
+    uint32_t cbThumbnail;
+    uint32_t cxThumbnail;
+    uint32_t cyThumbnail;
+
+    /* PNG screenshot. */
+    uint8_t *pu8PNG;
+    uint32_t cbPNG;
+    uint32_t cxPNG;
+    uint32_t cyPNG;
+} VBOX_DISPLAY_SAVESCREENSHOT_DATA;
+
+static DECLCALLBACK(void) displaySaveScreenshotReport(void *pvCtx, uint32_t uScreen,
+        uint32_t x, uint32_t y, uint32_t uBitsPerPixel,
+        uint32_t uBytesPerLine, uint32_t uGuestWidth, uint32_t uGuestHeight,
+        uint8_t *pu8BufferAddress, uint64_t u64TimeStamp)
+{
+    VBOX_DISPLAY_SAVESCREENSHOT_DATA *pData = (VBOX_DISPLAY_SAVESCREENSHOT_DATA*)pvCtx;
+    displayMakeThumbnail(pu8BufferAddress, uGuestWidth, uGuestHeight, &pData->pu8Thumbnail, &pData->cbThumbnail, &pData->cxThumbnail, &pData->cyThumbnail);
+    int rc = DisplayMakePNG(pu8BufferAddress, uGuestWidth, uGuestHeight, &pData->pu8PNG, &pData->cbPNG, &pData->cxPNG, &pData->cyPNG, 1);
+    if (RT_FAILURE(rc))
+    {
+        AssertMsgFailed(("DisplayMakePNG failed %d\n", rc));
+        if (pData->pu8PNG)
+        {
+            RTMemFree(pData->pu8PNG);
+            pData->pu8PNG = NULL;
+        }
+        pData->cbPNG = 0;
+        pData->cxPNG = 0;
+        pData->cyPNG = 0;
+    }
+}
+#endif
+
 DECLCALLBACK(void)
 Display::displaySSMSaveScreenshot(PSSMHANDLE pSSM, void *pvUser)
 {
@@ -248,34 +314,96 @@ Display::displaySSMSaveScreenshot(PSSMHANDLE pSSM, void *pvUser)
         uint32_t cx = 0;
         uint32_t cy = 0;
 
-        /* SSM code is executed on EMT(0), therefore no need to use VMR3ReqCallWait. */
-        int rc = Display::displayTakeScreenshotEMT(that, VBOX_VIDEO_PRIMARY_SCREEN, &pu8Data, &cbData, &cx, &cy);
-
-        /*
-         * It is possible that success is returned but everything is 0 or NULL.
-         * (no display attached if a VM is running with VBoxHeadless on OSE for example)
-         */
-        if (RT_SUCCESS(rc) && pu8Data)
+#ifdef VBOX_WITH_CROGL
+        BOOL f3DSnapshot = FALSE;
+        BOOL is3denabled;
+        that->mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
+        if (is3denabled && that->mCrOglCallbacks.pfnHasData())
         {
-            Assert(cx && cy);
-
-            /* Prepare a small thumbnail and a PNG screenshot. */
-            displayMakeThumbnail(pu8Data, cx, cy, &pu8Thumbnail, &cbThumbnail, &cxThumbnail, &cyThumbnail);
-            rc = DisplayMakePNG(pu8Data, cx, cy, &pu8PNG, &cbPNG, &cxPNG, &cyPNG, 1);
-            if (RT_FAILURE(rc))
+            VMMDev *pVMMDev = that->mParent->getVMMDev();
+            if (pVMMDev)
             {
-                if (pu8PNG)
+                VBOX_DISPLAY_SAVESCREENSHOT_DATA *pScreenshot = (VBOX_DISPLAY_SAVESCREENSHOT_DATA*)RTMemAllocZ(sizeof (*pScreenshot));
+                if (pScreenshot)
                 {
-                    RTMemFree(pu8PNG);
-                    pu8PNG = NULL;
-                }
-                cbPNG = 0;
-                cxPNG = 0;
-                cyPNG = 0;
-            }
+                    /* screen id or CRSCREEN_ALL to specify all enabled */
+                    pScreenshot->Base.u32Screen = 0;
+                    pScreenshot->Base.u32Width = 0;
+                    pScreenshot->Base.u32Height = 0;
+                    pScreenshot->Base.u32Pitch = 0;
+                    pScreenshot->Base.pvBuffer = NULL;
+                    pScreenshot->Base.pvContext = pScreenshot;
+                    pScreenshot->Base.pfnScreenshotBegin = NULL;
+                    pScreenshot->Base.pfnScreenshotPerform = displaySaveScreenshotReport;
+                    pScreenshot->Base.pfnScreenshotEnd = NULL;
 
-            /* This can be called from any thread. */
-            that->mpDrv->pUpPort->pfnFreeScreenshot(that->mpDrv->pUpPort, pu8Data);
+                    VBOXHGCMSVCPARM parm;
+
+                    parm.type = VBOX_HGCM_SVC_PARM_PTR;
+                    parm.u.pointer.addr = &pScreenshot->Base;
+                    parm.u.pointer.size = sizeof (pScreenshot->Base);
+
+                    int rc = pVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_TAKE_SCREENSHOT, 1, &parm);
+                    if (RT_SUCCESS(rc))
+                    {
+                        if (pScreenshot->pu8PNG)
+                        {
+                            pu8Thumbnail = pScreenshot->pu8Thumbnail;
+                            cbThumbnail = pScreenshot->cbThumbnail;
+                            cxThumbnail = pScreenshot->cxThumbnail;
+                            cyThumbnail = pScreenshot->cyThumbnail;
+
+                            /* PNG screenshot. */
+                            pu8PNG = pScreenshot->pu8PNG;
+                            cbPNG = pScreenshot->cbPNG;
+                            cxPNG = pScreenshot->cxPNG;
+                            cyPNG = pScreenshot->cyPNG;
+                            f3DSnapshot = TRUE;
+                        }
+                        else
+                            AssertMsgFailed(("no png\n"));
+                    }
+                    else
+                        AssertMsgFailed(("SHCRGL_HOST_FN_TAKE_SCREENSHOT failed %d\n", rc));
+
+
+                    RTMemFree(pScreenshot);
+                }
+            }
+        }
+
+        if (!f3DSnapshot)
+#endif
+        {
+            /* SSM code is executed on EMT(0), therefore no need to use VMR3ReqCallWait. */
+            int rc = Display::displayTakeScreenshotEMT(that, VBOX_VIDEO_PRIMARY_SCREEN, &pu8Data, &cbData, &cx, &cy);
+
+            /*
+             * It is possible that success is returned but everything is 0 or NULL.
+             * (no display attached if a VM is running with VBoxHeadless on OSE for example)
+             */
+            if (RT_SUCCESS(rc) && pu8Data)
+            {
+                Assert(cx && cy);
+
+                /* Prepare a small thumbnail and a PNG screenshot. */
+                displayMakeThumbnail(pu8Data, cx, cy, &pu8Thumbnail, &cbThumbnail, &cxThumbnail, &cyThumbnail);
+                rc = DisplayMakePNG(pu8Data, cx, cy, &pu8PNG, &cbPNG, &cxPNG, &cyPNG, 1);
+                if (RT_FAILURE(rc))
+                {
+                    if (pu8PNG)
+                    {
+                        RTMemFree(pu8PNG);
+                        pu8PNG = NULL;
+                    }
+                    cbPNG = 0;
+                    cxPNG = 0;
+                    cyPNG = 0;
+                }
+
+                /* This can be called from any thread. */
+                that->mpDrv->pUpPort->pfnFreeScreenshot(that->mpDrv->pUpPort, pu8Data);
+            }
         }
     }
     else
@@ -496,6 +624,9 @@ HRESULT Display::init(Console *aParent)
         RT_ZERO(maFramebuffers[ul].vbvaSkippedRect);
         maFramebuffers[ul].pVBVAHostFlags = NULL;
 #endif /* VBOX_WITH_HGSMI */
+#ifdef VBOX_WITH_CROGL
+        RT_ZERO(maFramebuffers[ul].pendingViewportInfo);
+#endif
     }
 
     {
@@ -590,6 +721,46 @@ int Display::registerSSM(PUVM pUVM)
     return VINF_SUCCESS;
 }
 
+#ifdef VBOX_WITH_CROGL
+int Display::crOglWindowsShow(bool fShow)
+{
+    if (!mfCrOglDataHidden == !!fShow)
+        return VINF_SUCCESS;
+
+    if (!mhCrOglSvc)
+    {
+        /* no 3D */
+#ifdef DEBUG
+        BOOL is3denabled;
+        mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
+        Assert(!is3denabled);
+#endif
+        return VERR_INVALID_STATE;
+    }
+
+    VMMDev *pVMMDev = mParent->getVMMDev();
+    if (!pVMMDev)
+    {
+        AssertMsgFailed(("no vmmdev\n"));
+        return VERR_INVALID_STATE;
+    }
+
+    VBOXHGCMSVCPARM parm;
+
+    parm.type = VBOX_HGCM_SVC_PARM_32BIT;
+    parm.u.uint32 = (uint32_t)fShow;
+
+    int rc = pVMMDev->hgcmHostFastCallAsync(mhCrOglSvc, SHCRGL_HOST_FN_WINDOWS_SHOW, &parm, NULL, NULL);
+    if (RT_SUCCESS(rc))
+        mfCrOglDataHidden = !fShow;
+    else
+        AssertMsgFailed(("hgcmHostFastCallAsync failed rc %n", rc));
+
+    return rc;
+}
+#endif
+
+
 // IEventListener method
 STDMETHODIMP Display::HandleEvent(IEvent * aEvent)
 {
@@ -612,9 +783,20 @@ STDMETHODIMP Display::HandleEvent(IEvent * aEvent)
                 LogRelFlowFunc(("Machine is running.\n"));
 
                 mfMachineRunning = true;
+
+#ifdef VBOX_WITH_CROGL
+                crOglWindowsShow(true);
+#endif
             }
             else
+            {
                 mfMachineRunning = false;
+
+#ifdef VBOX_WITH_CROGL
+                if (machineState == MachineState_Paused)
+                    crOglWindowsShow(false);
+#endif
+            }
             break;
         }
         default:
@@ -649,6 +831,46 @@ static int callFramebufferResize (IFramebuffer *pFramebuffer, unsigned uScreenId
         return VINF_VGA_RESIZE_IN_PROGRESS;
     }
 
+    return VINF_SUCCESS;
+}
+
+int Display::notifyCroglResize(const PVBVAINFOVIEW pView, const PVBVAINFOSCREEN pScreen, void *pvVRAM)
+{
+#if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
+    BOOL is3denabled;
+    mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
+
+    if (is3denabled)
+    {
+        int rc = VERR_INVALID_STATE;
+        if (mhCrOglSvc)
+        {
+            VMMDev *pVMMDev = mParent->getVMMDev();
+            if (pVMMDev)
+            {
+                CRVBOXHGCMDEVRESIZE *pData = (CRVBOXHGCMDEVRESIZE*)RTMemAlloc(sizeof (*pData));
+                if (pData)
+                {
+                    pData->Screen = *pScreen;
+                    pData->pvVRAM = pvVRAM;
+
+                    VBOXHGCMSVCPARM parm;
+
+                    parm.type = VBOX_HGCM_SVC_PARM_PTR;
+                    parm.u.pointer.addr = pData;
+                    parm.u.pointer.size = sizeof (*pData);
+
+                    rc = pVMMDev->hgcmHostFastCallAsync(mhCrOglSvc, SHCRGL_HOST_FN_DEV_RESIZE, &parm, displayCrAsyncCmdCompletion, this);
+                    AssertRC(rc);
+                }
+                else
+                    rc = VERR_NO_MEMORY;
+            }
+        }
+
+        return rc;
+    }
+#endif /* #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL) */
     return VINF_SUCCESS;
 }
 
@@ -891,7 +1113,16 @@ void Display::handleResizeCompletedEMT (void)
 
                 VMMDev *pVMMDev = mParent->getVMMDev();
                 if (pVMMDev)
+                {
+#if 0
+                    if (mhCrOglSvc)
+                        pVMMDev->hgcmHostFastCallAsync(mhCrOglSvc, SHCRGL_HOST_FN_SCREEN_CHANGED, &parm, NULL, NULL);
+                    else
+                        AssertMsgFailed(("mhCrOglSvc is NULL\n"));
+#else
                     pVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SCREEN_CHANGED, SHCRGL_CPARMS_SCREEN_CHANGED, &parm);
+#endif
+                }
             }
         }
 #endif /* VBOX_WITH_CROGL */
@@ -1207,15 +1438,27 @@ int Display::handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect)
     VMMDev *vmmDev = mParent->getVMMDev();
     if (is3denabled && vmmDev)
     {
-        VBOXHGCMSVCPARM parms[2];
+        if (mhCrOglSvc)
+        {
+            RTRECT *pRectsCopy = (RTRECT *)RTMemAlloc(  RT_MAX(cRect, 1)
+                                                             * sizeof (RTRECT));
+            if (pRectsCopy)
+            {
+                memcpy(pRectsCopy, pRect, cRect * sizeof (RTRECT));
 
-        parms[0].type = VBOX_HGCM_SVC_PARM_PTR;
-        parms[0].u.pointer.addr = pRect;
-        parms[0].u.pointer.size = 0;  /* We don't actually care. */
-        parms[1].type = VBOX_HGCM_SVC_PARM_32BIT;
-        parms[1].u.uint32 = cRect;
+                VBOXHGCMSVCPARM parm;
 
-        vmmDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SET_VISIBLE_REGION, 2, &parms[0]);
+                parm.type = VBOX_HGCM_SVC_PARM_PTR;
+                parm.u.pointer.addr = pRectsCopy;
+                parm.u.pointer.size = cRect * sizeof (RTRECT);
+
+                vmmDev->hgcmHostFastCallAsync(mhCrOglSvc, SHCRGL_HOST_FN_SET_VISIBLE_REGION, &parm, displayCrAsyncCmdCompletion, this);
+            }
+            else
+                AssertMsgFailed(("failed to allocate rects memory\n"));
+        }
+        else
+            AssertMsgFailed(("mhCrOglSvc is NULL\n"));
     }
 #endif
 
@@ -1630,7 +1873,7 @@ static void vbvaFetchBytes (VBVAMEMORY *pVbvaMemory, uint8_t *pu8Dst, uint32_t c
 {
     if (cbDst >= VBVA_RING_BUFFER_SIZE)
     {
-        AssertMsgFailed (("cbDst = 0x%08X, ring buffer size 0x%08X", cbDst, VBVA_RING_BUFFER_SIZE));
+        AssertMsgFailed (("cbDst = 0x%08X, ring buffer size 0x%08X\n", cbDst, VBVA_RING_BUFFER_SIZE));
         return;
     }
 
@@ -2170,7 +2413,16 @@ STDMETHODIMP Display::SetFramebuffer(ULONG aScreenId, IFramebuffer *aFramebuffer
                 alock.release();
 
                 if (pVMMDev)
-                    vrc = pVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SCREEN_CHANGED, SHCRGL_CPARMS_SCREEN_CHANGED, &parm);
+                {
+#if 0
+                    if (mhCrOglSvc)
+                        pVMMDev->hgcmHostFastCallAsync(mhCrOglSvc, SHCRGL_HOST_FN_SCREEN_CHANGED, &parm, NULL, NULL);
+                    else
+                        AssertMsgFailed(("mhCrOglSvc is NULL\n"));
+#else
+                    pVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SCREEN_CHANGED, SHCRGL_CPARMS_SCREEN_CHANGED, &parm);
+#endif
+                }
                 /*ComAssertRCRet (vrc, E_FAIL);*/
 
                 alock.acquire();
@@ -2301,21 +2553,71 @@ STDMETHODIMP Display::SetSeamlessMode (BOOL enabled)
         VMMDev *vmmDev = mParent->getVMMDev();
         if (is3denabled && vmmDev)
         {
-            VBOXHGCMSVCPARM parms[2];
+            VBOXHGCMSVCPARM parm;
 
-            parms[0].type = VBOX_HGCM_SVC_PARM_PTR;
+            parm.type = VBOX_HGCM_SVC_PARM_PTR;
             /* NULL means disable */
-            parms[0].u.pointer.addr = NULL;
-            parms[0].u.pointer.size = 0;  /* We don't actually care. */
-            parms[1].type = VBOX_HGCM_SVC_PARM_32BIT;
-            parms[1].u.uint32 = 0;
+            parm.u.pointer.addr = NULL;
+            parm.u.pointer.size = 0;  /* <- means null rects, NULL pRects address and 0 rects means "disable" */
 
-            vmmDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SET_VISIBLE_REGION, 2, &parms[0]);
+            if (mhCrOglSvc)
+                vmmDev->hgcmHostFastCallAsync(mhCrOglSvc, SHCRGL_HOST_FN_SET_VISIBLE_REGION, &parm, NULL, NULL);
+            else
+                AssertMsgFailed(("mhCrOglSvc is NULL\n"));
+
         }
     }
 #endif
     return S_OK;
 }
+
+#ifdef VBOX_WITH_CROGL
+BOOL Display::displayCheckTakeScreenshotCrOgl(Display *pDisplay, ULONG aScreenId, uint8_t *pu8Data, uint32_t u32Width, uint32_t u32Height)
+{
+    BOOL is3denabled;
+    pDisplay->mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
+    if (is3denabled && pDisplay->mCrOglCallbacks.pfnHasData())
+    {
+        VMMDev *pVMMDev = pDisplay->mParent->getVMMDev();
+        if (pVMMDev)
+        {
+            CRVBOXHGCMTAKESCREENSHOT *pScreenshot = (CRVBOXHGCMTAKESCREENSHOT*)RTMemAlloc(sizeof (*pScreenshot));
+            if (pScreenshot)
+            {
+                /* screen id or CRSCREEN_ALL to specify all enabled */
+                pScreenshot->u32Screen = aScreenId;
+                pScreenshot->u32Width = u32Width;
+                pScreenshot->u32Height = u32Height;
+                pScreenshot->u32Pitch = u32Width * 4;
+                pScreenshot->pvBuffer = pu8Data;
+                pScreenshot->pvContext = NULL;
+                pScreenshot->pfnScreenshotBegin = NULL;
+                pScreenshot->pfnScreenshotPerform = NULL;
+                pScreenshot->pfnScreenshotEnd = NULL;
+
+                VBOXHGCMSVCPARM parm;
+
+                parm.type = VBOX_HGCM_SVC_PARM_PTR;
+                parm.u.pointer.addr = pScreenshot;
+                parm.u.pointer.size = sizeof (*pScreenshot);
+
+                int rc = pVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_TAKE_SCREENSHOT, 1, &parm);
+
+                RTMemFree(pScreenshot);
+
+                if (RT_SUCCESS(rc))
+                    return TRUE;
+                else
+                {
+                    AssertMsgFailed(("failed to get screenshot data from crOgl %d\n", rc));
+                    /* fall back to the non-3d mechanism */
+                }
+            }
+        }
+    }
+    return FALSE;
+}
+#endif
 
 int Display::displayTakeScreenshotEMT(Display *pDisplay, ULONG aScreenId, uint8_t **ppu8Data, size_t *pcbData, uint32_t *pu32Width, uint32_t *pu32Height)
 {
@@ -2383,6 +2685,14 @@ int Display::displayTakeScreenshotEMT(Display *pDisplay, ULONG aScreenId, uint8_
                 else
                 {
                     RTMemFree(pu8Data);
+
+                    /* CopyRect can fail if VBVA was paused in VGA device, retry using the generic method. */
+                    if (   rc == VERR_INVALID_STATE
+                        && aScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
+                    {
+                        rc = pDisplay->mpDrv->pUpPort->pfnTakeScreenshot(pDisplay->mpDrv->pUpPort,
+                                                                         ppu8Data, pcbData, pu32Width, pu32Height);
+                    }
                 }
             }
         }
@@ -2412,6 +2722,11 @@ static int displayTakeScreenshot(PUVM pUVM, Display *pDisplay, struct DRVMAINDIS
     uint32_t cx = 0;
     uint32_t cy = 0;
     int vrc = VINF_SUCCESS;
+
+# if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
+    if (Display::displayCheckTakeScreenshotCrOgl(pDisplay, aScreenId, (uint8_t*)address, width, height))
+        return VINF_SUCCESS;
+#endif
 
     int cRetries = 5;
 
@@ -3151,33 +3466,33 @@ STDMETHODIMP Display::CompleteVHWACommand(BYTE *pCommand)
 STDMETHODIMP Display::ViewportChanged(ULONG aScreenId, ULONG x, ULONG y, ULONG width, ULONG height)
 {
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
+
+    if (mcMonitors <= aScreenId)
+    {
+        AssertMsgFailed(("invalid screen id\n"));
+        return E_INVALIDARG;
+    }
+
     BOOL is3denabled;
     mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
 
     if (is3denabled)
     {
-        VBOXHGCMSVCPARM aParms[5];
-
-        aParms[0].type = VBOX_HGCM_SVC_PARM_32BIT;
-        aParms[0].u.uint32 = aScreenId;
-
-        aParms[1].type = VBOX_HGCM_SVC_PARM_32BIT;
-        aParms[1].u.uint32 = x;
-
-        aParms[2].type = VBOX_HGCM_SVC_PARM_32BIT;
-        aParms[2].u.uint32 = y;
-
-
-        aParms[3].type = VBOX_HGCM_SVC_PARM_32BIT;
-        aParms[3].u.uint32 = width;
-
-        aParms[4].type = VBOX_HGCM_SVC_PARM_32BIT;
-        aParms[4].u.uint32 = height;
-
         VMMDev *pVMMDev = mParent->getVMMDev();
 
         if (pVMMDev)
-            pVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_VIEWPORT_CHANGED, SHCRGL_CPARMS_VIEWPORT_CHANGED, aParms);
+        {
+            crViewportNotify(pVMMDev, aScreenId, x, y, width, height);
+        }
+        else
+        {
+            DISPLAYFBINFO *pFb = &maFramebuffers[aScreenId];
+            pFb->pendingViewportInfo.fPending = true;
+            pFb->pendingViewportInfo.x = x;
+            pFb->pendingViewportInfo.y = y;
+            pFb->pendingViewportInfo.width = width;
+            pFb->pendingViewportInfo.height = height;
+        }
     }
 #endif /* VBOX_WITH_CROGL && VBOX_WITH_HGCM */
     return S_OK;
@@ -3265,6 +3580,54 @@ int Display::updateDisplayData(void)
     return VINF_SUCCESS;
 }
 
+#ifdef VBOX_WITH_CROGL
+void Display::crViewportNotify(VMMDev *pVMMDev, ULONG aScreenId, ULONG x, ULONG y, ULONG width, ULONG height)
+{
+#if 0
+    VBOXHGCMSVCPARM parm;
+
+    CRVBOXHGCMVIEWPORT *pViewportInfo = (CRVBOXHGCMVIEWPORT*)RTMemAlloc(sizeof (*pViewportInfo));
+    if(!pViewportInfo)
+    {
+        AssertMsgFailed(("RTMemAlloc failed!\n"));
+        return;
+    }
+
+    pViewportInfo->u32Screen = aScreenId;
+    pViewportInfo->x = x;
+    pViewportInfo->y = y;
+    pViewportInfo->width = width;
+    pViewportInfo->height = height;
+
+    parm.type = VBOX_HGCM_SVC_PARM_PTR;
+    parm.u.pointer.addr = pViewportInfo;
+    parm.u.pointer.size = sizeof (*pViewportInfo);
+
+    pVMMDev->hgcmHostFastCallAsync(mhCrOglSvc, SHCRGL_HOST_FN_VIEWPORT_CHANGED2, &parm, displayCrAsyncCmdCompletion, this);
+#else
+    VBOXHGCMSVCPARM aParms[5];
+
+    aParms[0].type = VBOX_HGCM_SVC_PARM_32BIT;
+    aParms[0].u.uint32 = aScreenId;
+
+    aParms[1].type = VBOX_HGCM_SVC_PARM_32BIT;
+    aParms[1].u.uint32 = x;
+
+    aParms[2].type = VBOX_HGCM_SVC_PARM_32BIT;
+    aParms[2].u.uint32 = y;
+
+
+    aParms[3].type = VBOX_HGCM_SVC_PARM_32BIT;
+    aParms[3].u.uint32 = width;
+
+    aParms[4].type = VBOX_HGCM_SVC_PARM_32BIT;
+    aParms[4].u.uint32 = height;
+
+    pVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_VIEWPORT_CHANGED, SHCRGL_CPARMS_VIEWPORT_CHANGED, aParms);
+#endif
+}
+#endif
+
 #ifdef VBOX_WITH_CRHGSMI
 void Display::setupCrHgsmiData(void)
 {
@@ -3278,8 +3641,8 @@ void Display::setupCrHgsmiData(void)
     {
         Assert(mhCrOglSvc);
         /* setup command completion callback */
-        VBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP_COMPLETION Completion;
-        Completion.Hdr.enmType = VBOXVDMACMD_CHROMIUM_CTL_TYPE_CRHGSMI_SETUP_COMPLETION;
+        VBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP_MAINCB Completion;
+        Completion.Hdr.enmType = VBOXVDMACMD_CHROMIUM_CTL_TYPE_CRHGSMI_SETUP_MAINCB;
         Completion.Hdr.cbCmd = sizeof (Completion);
         Completion.hCompletion = mpDrv->pVBVACallbacks;
         Completion.pfnCompletion = mpDrv->pVBVACallbacks->pfnCrHgsmiCommandCompleteAsync;
@@ -3291,7 +3654,23 @@ void Display::setupCrHgsmiData(void)
 
         rc = pVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_CRHGSMI_CTL, 1, &parm);
         if (RT_SUCCESS(rc))
+        {
+            ULONG ul;
+
+            for (ul = 0; ul < mcMonitors; ul++)
+            {
+                DISPLAYFBINFO *pFb = &maFramebuffers[ul];
+                if (!pFb->pendingViewportInfo.fPending)
+                    continue;
+
+                crViewportNotify(pVMMDev, ul, pFb->pendingViewportInfo.x, pFb->pendingViewportInfo.y, pFb->pendingViewportInfo.width, pFb->pendingViewportInfo.height);
+                pFb->pendingViewportInfo.fPending = false;
+            }
+
+            mCrOglCallbacks = Completion.MainInterface;
+
             return;
+        }
 
         AssertMsgFailed(("VBOXVDMACMD_CHROMIUM_CTL_TYPE_CRHGSMI_SETUP_COMPLETION failed rc %d", rc));
     }
@@ -3515,42 +3894,86 @@ DECLCALLBACK(void) Display::displayRefreshCallback(PPDMIDISPLAYCONNECTOR pInterf
 #ifdef VBOX_WITH_VPX
     if (VideoRecIsEnabled(pDisplay->mpVideoRecCtx))
     {
-        uint64_t u64Now = RTTimeProgramMilliTS();
-        for (uScreenId = 0; uScreenId < pDisplay->mcMonitors; uScreenId++)
-        {
-            if (!pDisplay->maVideoRecEnabled[uScreenId])
-                continue;
-
-            DISPLAYFBINFO *pFBInfo = &pDisplay->maFramebuffers[uScreenId];
-
-            if (   !pFBInfo->pFramebuffer.isNull()
-                && !pFBInfo->fDisabled
-                && pFBInfo->u32ResizeStatus == ResizeStatus_Void)
+        do {
+# if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
+            BOOL is3denabled;
+            pDisplay->mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
+            if (is3denabled)
             {
-                int rc;
-                if (   pFBInfo->fVBVAEnabled
-                    && pFBInfo->pu8FramebufferVRAM)
+                if (ASMAtomicCmpXchgU32(&pDisplay->mfCrOglVideoRecState, CRVREC_STATE_SUBMITTED, CRVREC_STATE_IDLE))
                 {
-                    rc = VideoRecCopyToIntBuf(pDisplay->mpVideoRecCtx, uScreenId, 0, 0,
-                                              FramebufferPixelFormat_FOURCC_RGB,
-                                              pFBInfo->u16BitsPerPixel,
-                                              pFBInfo->u32LineSize, pFBInfo->w, pFBInfo->h,
-                                              pFBInfo->pu8FramebufferVRAM, u64Now);
+                    if (pDisplay->mCrOglCallbacks.pfnHasData())
+                    {
+                        /* submit */
+
+                        VBOXHGCMSVCPARM parm;
+
+                        parm.type = VBOX_HGCM_SVC_PARM_PTR;
+                        parm.u.pointer.addr = &pDisplay->mCrOglScreenshotData;
+                        parm.u.pointer.size = sizeof (pDisplay->mCrOglScreenshotData);
+
+                        VMMDev *pVMMDev = pDisplay->mParent->getVMMDev();
+                        if (pVMMDev)
+                        {
+                            int rc = pVMMDev->hgcmHostFastCallAsync(pDisplay->mhCrOglSvc, SHCRGL_HOST_FN_TAKE_SCREENSHOT, &parm, displayVRecCompletion, pDisplay);
+                            if (RT_SUCCESS(rc))
+                                break;
+                            else
+                                AssertMsgFailed(("hgcmHostFastCallAsync failed %f\n", rc));
+                        }
+                        else
+                            AssertMsgFailed(("no VMMDev\n"));
+                    }
+
+                    /* no 3D data available, or error has occured,
+                     * go the straight way */
+                    ASMAtomicWriteU32(&pDisplay->mfCrOglVideoRecState, CRVREC_STATE_IDLE);
                 }
                 else
                 {
-                    rc = VideoRecCopyToIntBuf(pDisplay->mpVideoRecCtx, uScreenId, 0, 0,
-                                              FramebufferPixelFormat_FOURCC_RGB,
-                                              pDrv->IConnector.cBits,
-                                              pDrv->IConnector.cbScanline, pDrv->IConnector.cx,
-                                              pDrv->IConnector.cy, pDrv->IConnector.pu8Data, u64Now);
-                }
-                if (rc == VINF_TRY_AGAIN)
+                    /* record request is still in progress, don't do anything */
                     break;
+                }
             }
-        }
+# endif /* VBOX_WITH_HGCM && VBOX_WITH_CROGL */
+
+            uint64_t u64Now = RTTimeProgramMilliTS();
+            for (uScreenId = 0; uScreenId < pDisplay->mcMonitors; uScreenId++)
+            {
+                if (!pDisplay->maVideoRecEnabled[uScreenId])
+                    continue;
+
+                DISPLAYFBINFO *pFBInfo = &pDisplay->maFramebuffers[uScreenId];
+
+                if (   !pFBInfo->pFramebuffer.isNull()
+                    && !pFBInfo->fDisabled
+                    && pFBInfo->u32ResizeStatus == ResizeStatus_Void)
+                {
+                    int rc;
+                    if (   pFBInfo->fVBVAEnabled
+                        && pFBInfo->pu8FramebufferVRAM)
+                    {
+                        rc = VideoRecCopyToIntBuf(pDisplay->mpVideoRecCtx, uScreenId, 0, 0,
+                                                  FramebufferPixelFormat_FOURCC_RGB,
+                                                  pFBInfo->u16BitsPerPixel,
+                                                  pFBInfo->u32LineSize, pFBInfo->w, pFBInfo->h,
+                                                  pFBInfo->pu8FramebufferVRAM, u64Now);
+                    }
+                    else
+                    {
+                        rc = VideoRecCopyToIntBuf(pDisplay->mpVideoRecCtx, uScreenId, 0, 0,
+                                                  FramebufferPixelFormat_FOURCC_RGB,
+                                                  pDrv->IConnector.cBits,
+                                                  pDrv->IConnector.cbScanline, pDrv->IConnector.cx,
+                                                  pDrv->IConnector.cy, pDrv->IConnector.pu8Data, u64Now);
+                    }
+                    if (rc == VINF_TRY_AGAIN)
+                        break;
+                }
+            }
+        } while (0);
     }
-#endif
+#endif /* VBOX_WITH_VPX */
 
 #ifdef DEBUG_sunlover
     STAM_PROFILE_STOP(&g_StatDisplayRefresh, a);
@@ -3877,7 +4300,29 @@ void Display::handleCrHgsmiControlCompletion(int32_t result, uint32_t u32Functio
     mpDrv->pVBVACallbacks->pfnCrHgsmiControlCompleteAsync(mpDrv->pVBVACallbacks, (PVBOXVDMACMD_CHROMIUM_CTL)pParam->u.pointer.addr, result);
 }
 
-void Display::handleCrHgsmiCommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd)
+int Display::handleCrCmdNotifyCmds()
+{
+    int rc = VERR_INVALID_FUNCTION;
+
+    if (mhCrOglSvc)
+    {
+        VBOXHGCMSVCPARM dummy;
+        VMMDev *pVMMDev = mParent->getVMMDev();
+        if (pVMMDev)
+        {
+            /* no completion callback is specified with this call,
+             * the CrOgl code will complete the CrHgsmi command once it processes it */
+            rc = pVMMDev->hgcmHostFastCallAsync(mhCrOglSvc, SHCRGL_HOST_FN_CRCMD_NOTIFY_CMDS, &dummy, NULL, NULL);
+            AssertRC(rc);
+        }
+        else
+            rc = VERR_INVALID_STATE;
+    }
+
+    return rc;
+}
+
+void Display::handleCrHgsmiCommandProcess(PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd)
 {
     int rc = VERR_INVALID_FUNCTION;
     VBOXHGCMSVCPARM parm;
@@ -3905,7 +4350,7 @@ void Display::handleCrHgsmiCommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBO
     handleCrHgsmiCommandCompletion(rc, SHCRGL_HOST_FN_CRHGSMI_CMD, &parm);
 }
 
-void Display::handleCrHgsmiControlProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CTL pCtl, uint32_t cbCtl)
+void Display::handleCrHgsmiControlProcess(PVBOXVDMACMD_CHROMIUM_CTL pCtl, uint32_t cbCtl)
 {
     int rc = VERR_INVALID_FUNCTION;
     VBOXHGCMSVCPARM parm;
@@ -3931,19 +4376,25 @@ void Display::handleCrHgsmiControlProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBO
     handleCrHgsmiControlCompletion(rc, SHCRGL_HOST_FN_CRHGSMI_CTL, &parm);
 }
 
+DECLCALLBACK(int)  Display::displayCrCmdNotifyCmds(PPDMIDISPLAYCONNECTOR pInterface)
+{
+    PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
+
+    return pDrv->pDisplay->handleCrCmdNotifyCmds();
+}
 
 DECLCALLBACK(void) Display::displayCrHgsmiCommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd)
 {
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
 
-    pDrv->pDisplay->handleCrHgsmiCommandProcess(pInterface, pCmd, cbCmd);
+    pDrv->pDisplay->handleCrHgsmiCommandProcess(pCmd, cbCmd);
 }
 
 DECLCALLBACK(void) Display::displayCrHgsmiControlProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CTL pCmd, uint32_t cbCmd)
 {
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
 
-    pDrv->pDisplay->handleCrHgsmiControlProcess(pInterface, pCmd, cbCmd);
+    pDrv->pDisplay->handleCrHgsmiControlProcess(pCmd, cbCmd);
 }
 
 DECLCALLBACK(void) Display::displayCrHgsmiCommandCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext)
@@ -3958,6 +4409,89 @@ DECLCALLBACK(void) Display::displayCrHgsmiControlCompletion(int32_t result, uint
     Display *pDisplay = (Display *)pvContext;
     pDisplay->handleCrHgsmiControlCompletion(result, u32Function, pParam);
 }
+#endif
+
+#if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
+DECLCALLBACK(void)  Display::displayCrAsyncCmdCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext)
+{
+    Display *pDisplay = (Display *)pvContext;
+    pDisplay->handleCrAsyncCmdCompletion(result, u32Function, pParam);
+}
+
+
+void  Display::handleCrAsyncCmdCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam)
+{
+    if (pParam->type == VBOX_HGCM_SVC_PARM_PTR && pParam->u.pointer.addr)
+        RTMemFree(pParam->u.pointer.addr);
+}
+
+bool  Display::handleCrVRecScreenshotBegin(uint32_t uScreen, uint64_t u64TimeStamp)
+{
+# if VBOX_WITH_VPX
+    return VideoRecIsReady(mpVideoRecCtx, uScreen, u64TimeStamp);
+# else
+    return false;
+# endif
+}
+
+void  Display::handleCrVRecScreenshotEnd(uint32_t uScreen, uint64_t u64TimeStamp)
+{
+}
+
+void  Display::handleCrVRecScreenshotPerform(uint32_t uScreen,
+                                             uint32_t x, uint32_t y, uint32_t uPixelFormat,
+                                             uint32_t uBitsPerPixel, uint32_t uBytesPerLine,
+                                             uint32_t uGuestWidth, uint32_t uGuestHeight,
+                                             uint8_t *pu8BufferAddress, uint64_t u64TimeStamp)
+{
+    Assert(mfCrOglVideoRecState == CRVREC_STATE_SUBMITTED);
+# if VBOX_WITH_VPX
+    int rc = VideoRecCopyToIntBuf(mpVideoRecCtx, uScreen, x, y,
+                                  uPixelFormat,
+                                  uBitsPerPixel, uBytesPerLine,
+                                  uGuestWidth, uGuestHeight,
+                                  pu8BufferAddress, u64TimeStamp);
+    Assert(rc == VINF_SUCCESS /* || rc == VERR_TRY_AGAIN || rc == VINF_TRY_AGAIN*/);
+# endif
+}
+
+void  Display::handleVRecCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext)
+{
+    Assert(mfCrOglVideoRecState == CRVREC_STATE_SUBMITTED);
+    ASMAtomicWriteU32(&mfCrOglVideoRecState, CRVREC_STATE_IDLE);
+}
+
+DECLCALLBACK(void) Display::displayCrVRecScreenshotPerform(void *pvCtx, uint32_t uScreen,
+                                                           uint32_t x, uint32_t y,
+                                                           uint32_t uBitsPerPixel, uint32_t uBytesPerLine,
+                                                           uint32_t uGuestWidth, uint32_t uGuestHeight,
+                                                           uint8_t *pu8BufferAddress, uint64_t u64TimeStamp)
+{
+    Display *pDisplay = (Display *)pvCtx;
+    pDisplay->handleCrVRecScreenshotPerform(uScreen,
+                                            x, y, FramebufferPixelFormat_FOURCC_RGB, uBitsPerPixel,
+                                            uBytesPerLine, uGuestWidth, uGuestHeight,
+                                            pu8BufferAddress, u64TimeStamp);
+}
+
+DECLCALLBACK(bool) Display::displayCrVRecScreenshotBegin(void *pvCtx, uint32_t uScreen, uint64_t u64TimeStamp)
+{
+    Display *pDisplay = (Display *)pvCtx;
+    return pDisplay->handleCrVRecScreenshotBegin(uScreen, u64TimeStamp);
+}
+
+DECLCALLBACK(void) Display::displayCrVRecScreenshotEnd(void *pvCtx, uint32_t uScreen, uint64_t u64TimeStamp)
+{
+    Display *pDisplay = (Display *)pvCtx;
+    pDisplay->handleCrVRecScreenshotEnd(uScreen, u64TimeStamp);
+}
+
+DECLCALLBACK(void)  Display::displayVRecCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext)
+{
+    Display *pDisplay = (Display *)pvContext;
+    pDisplay->handleVRecCompletion(result, u32Function, pParam, pvContext);
+}
+
 #endif
 
 
@@ -4288,6 +4822,8 @@ DECLCALLBACK(int) Display::displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, c
 
     if (pScreen->u16Flags & VBVA_SCREEN_F_DISABLED)
     {
+        pThis->notifyCroglResize(pView, pScreen, pvVRAM);
+
         pFBInfo->fDisabled = true;
         pFBInfo->flags = pScreen->u16Flags;
 
@@ -4311,17 +4847,6 @@ DECLCALLBACK(int) Display::displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, c
      */
     bool fResize = pFBInfo->fDisabled || pFBInfo->pFramebuffer.isNull();
 
-    if (pFBInfo->fDisabled)
-    {
-        pFBInfo->fDisabled = false;
-        fireGuestMonitorChangedEvent(pThis->mParent->getEventSource(),
-                                     GuestMonitorChangedEventType_Enabled,
-                                     pScreen->u32ViewIndex,
-                                     pScreen->i32OriginX, pScreen->i32OriginY,
-                                     pScreen->u32Width, pScreen->u32Height);
-        /* Continue to update pFBInfo. */
-    }
-
     /* Check if this is a real resize or a notification about the screen origin.
      * The guest uses this VBVAResize call for both.
      */
@@ -4334,6 +4859,20 @@ DECLCALLBACK(int) Display::displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, c
 
     bool fNewOrigin =    pFBInfo->xOrigin != pScreen->i32OriginX
                       || pFBInfo->yOrigin != pScreen->i32OriginY;
+
+    if (fNewOrigin || fResize)
+        pThis->notifyCroglResize(pView, pScreen, pvVRAM);
+
+    if (pFBInfo->fDisabled)
+    {
+        pFBInfo->fDisabled = false;
+        fireGuestMonitorChangedEvent(pThis->mParent->getEventSource(),
+                                     GuestMonitorChangedEventType_Enabled,
+                                     pScreen->u32ViewIndex,
+                                     pScreen->i32OriginX, pScreen->i32OriginY,
+                                     pScreen->u32Width, pScreen->u32Height);
+        /* Continue to update pFBInfo. */
+    }
 
     pFBInfo->u32Offset = pView->u32ViewOffset; /* Not used in HGSMI. */
     pFBInfo->u32MaxFramebufferSize = pView->u32MaxScreenSize; /* Not used in HGSMI. */
@@ -4359,27 +4898,6 @@ DECLCALLBACK(int) Display::displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, c
                                      pScreen->i32OriginX, pScreen->i32OriginY,
                                      0, 0);
     }
-
-#if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
-    if (fNewOrigin && !fResize)
-    {
-        BOOL is3denabled;
-        pThis->mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
-
-        if (is3denabled)
-        {
-            VBOXHGCMSVCPARM parm;
-
-            parm.type = VBOX_HGCM_SVC_PARM_32BIT;
-            parm.u.uint32 = pScreen->u32ViewIndex;
-
-            VMMDev *pVMMDev = pThis->mParent->getVMMDev();
-
-            if (pVMMDev)
-                pVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SCREEN_CHANGED, SHCRGL_CPARMS_SCREEN_CHANGED, &parm);
-        }
-    }
-#endif /* VBOX_WITH_CROGL */
 
     if (!fResize)
     {
@@ -4516,6 +5034,7 @@ DECLCALLBACK(int) Display::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
     pThis->IConnector.pfnVHWACommandProcess    = Display::displayVHWACommandProcess;
 #endif
 #ifdef VBOX_WITH_CRHGSMI
+    pThis->IConnector.pfnCrCmdNotifyCmds =  Display::displayCrCmdNotifyCmds;
     pThis->IConnector.pfnCrHgsmiCommandProcess = Display::displayCrHgsmiCommandProcess;
     pThis->IConnector.pfnCrHgsmiControlProcess = Display::displayCrHgsmiControlProcess;
 #endif

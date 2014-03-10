@@ -23,6 +23,7 @@
 %include "VBox/sup.mac"
 %include "VBox/vmm/vm.mac"
 %include "VMMInternal.mac"
+%include "VMMRC.mac"
 
 
 ;*******************************************************************************
@@ -56,6 +57,7 @@ extern IMPNAME(g_Logger)
 extern IMPNAME(g_RelLogger)
 extern NAME(RTLogLogger)
 extern NAME(vmmRCProbeFireHelper)
+extern NAME(TRPMRCTrapHyperHandlerSetEIP)
 
 
 BEGINCODE
@@ -218,6 +220,89 @@ EXPORTEDNAME vmmGCTestTrap0e_ResumeEIP
     xor     eax, eax
     ret
 ENDPROC vmmGCTestTrap0e
+
+
+
+;;
+; Safely reads an MSR.
+; @returns  boolean
+; @param    uMsr        The MSR to red.
+; @param    pu64Value   Where to return the value on success.
+;
+GLOBALNAME vmmRCSafeMsrRead
+    push    ebp
+    mov     ebp, esp
+    pushf
+    cli
+    push    esi
+    push    edi
+    push    ebx
+    push    ebp
+
+    mov     ecx, [ebp + 8]              ; The MSR to read.
+    mov     eax, 0deadbeefh
+    mov     edx, 0deadbeefh
+
+TRPM_GP_HANDLER NAME(TRPMRCTrapHyperHandlerSetEIP), .trapped
+    rdmsr
+
+    mov     ecx, [ebp + 0ch]            ; Where to store the result.
+    mov     [ecx], eax
+    mov     [ecx + 4], edx
+
+    mov     eax, 1
+.return:
+    pop     ebp
+    pop     ebx
+    pop     edi
+    pop     esi
+    popf
+    leave
+    ret
+
+.trapped:
+    mov     eax, 0
+    jmp     .return
+ENDPROC vmmRCSafeMsrRead
+
+
+;;
+; Safely writes an MSR.
+; @returns  boolean
+; @param    uMsr        The MSR to red.
+; @param    u64Value    The value to write.
+;
+GLOBALNAME vmmRCSafeMsrWrite
+    push    ebp
+    mov     ebp, esp
+    pushf
+    cli
+    push    esi
+    push    edi
+    push    ebx
+    push    ebp
+
+    mov     ecx, [ebp + 8]              ; The MSR to write to.
+    mov     eax, [ebp + 12]             ; The value to write.
+    mov     edx, [ebp + 16]
+
+TRPM_GP_HANDLER NAME(TRPMRCTrapHyperHandlerSetEIP), .trapped
+    wrmsr
+
+    mov     eax, 1
+.return:
+    pop     ebp
+    pop     ebx
+    pop     edi
+    pop     esi
+    popf
+    leave
+    ret
+
+.trapped:
+    mov     eax, 0
+    jmp     .return
+ENDPROC vmmRCSafeMsrWrite
 
 
 

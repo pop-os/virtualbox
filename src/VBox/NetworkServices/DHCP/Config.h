@@ -4,16 +4,14 @@
  */
 
 #ifndef _CONFIG_H_
-# define _CONFIG_H_
+#define _CONFIG_H_
 
 #include <iprt/asm-math.h>
 #include <iprt/cpp/utils.h>
+#include <VBox/com/string.h>
 
+#include "../NetLib/cpp/utils.h"
 
-static bool operator <(const RTNETADDRIPV4& a, const RTNETADDRIPV4& b)
-{
-    return (RT_N2H_U32(a.u) < RT_N2H_U32(b.u));
-}
 
 static bool operator > (const RTNETADDRIPV4& a, const RTNETADDRIPV4& b)
 {
@@ -67,7 +65,7 @@ class Client
     void dump();
 
     Lease lease();
-    const Lease lease() const; 
+    const Lease lease() const;
 
     public:
     static const Client NullClient;
@@ -111,7 +109,7 @@ class Lease
     void phaseStart(uint64_t u64Start);
     bool isInBindingPhase() const;
     /* returns 0 if in binding state */
-    uint64_t issued() const; 
+    uint64_t issued() const;
 
     void setExpiration(uint32_t);
     uint32_t getExpiration() const;
@@ -123,7 +121,6 @@ class Lease
     void setConfig(NetworkConfigEntity *);
 
     const MapOptionId2RawOption& options() const;
-    MapOptionId2RawOption& options();
 
     bool toXML(xml::ElementNode *) const;
     bool fromXML(const xml::ElementNode *);
@@ -152,7 +149,6 @@ typedef std::map<Lease, RTNETADDRIPV4> MapLease2Ip4Address;
 typedef MapLease2Ip4Address::iterator MapLease2Ip4AddressIterator;
 typedef MapLease2Ip4Address::const_iterator MapLease2Ip4AddressConstIterator;
 typedef MapLease2Ip4Address::value_type MapLease2Ip4AddressPair;
-
 
 /**
  *
@@ -217,10 +213,7 @@ class MACClientMatchCriteria: public ClientMatchCriteria
 public:
     MACClientMatchCriteria(const RTMAC& mac):m_mac(mac){}
 
-    virtual bool check(const Client& client) const
-    {
-        return (client == m_mac);
-    }
+    virtual bool check(const Client& client) const;
 
 private:
     RTMAC m_mac;
@@ -422,7 +415,7 @@ public:
     static ConfigurationManager* getConfigurationManager();
     static int extractRequestList(PCRTNETBOOTP pDhcpMsg, size_t cbDhcpMsg, RawOption& rawOpt);
 
-    int loadFromFile(const std::string&);
+    int loadFromFile(const com::Utf8Str&);
     int saveToFile();
     /**
      *
@@ -468,11 +461,7 @@ private:
 
     ~ConfigurationManager();
     bool isAddressTaken(const RTNETADDRIPV4& addr, Lease& lease);
-    bool isAddressTaken(const RTNETADDRIPV4& addr)
-    {
-        Lease ignore;
-        return isAddressTaken(addr, ignore);
-    }
+    bool isAddressTaken(const RTNETADDRIPV4& addr);
 
 public:
     /* nulls */
@@ -490,10 +479,6 @@ class NetworkManager
 public:
     static NetworkManager *getNetworkManager();
 
-    int offer4Client(const Client& lease, uint32_t u32Xid, uint8_t *pu8ReqList, int cReqList);
-    int ack(const Client& lease, uint32_t u32Xid, uint8_t *pu8ReqList, int cReqList);
-    int nak(const Client& lease, uint32_t u32Xid);
-
     const RTNETADDRIPV4& getOurAddress() const;
     const RTNETADDRIPV4& getOurNetmask() const;
     const RTMAC& getOurMac() const;
@@ -502,25 +487,29 @@ public:
     void setOurNetmask(const RTNETADDRIPV4& aNetmask);
     void setOurMac(const RTMAC& aMac);
 
-    void setSession(PSUPDRVSESSION);
-    void setInterface(INTNETIFHANDLE);
-    void setRingBuffer(PINTNETBUF);
+    bool handleDhcpReqDiscover(PCRTNETBOOTP pDhcpMsg, size_t cb);
+    bool handleDhcpReqRequest(PCRTNETBOOTP pDhcpMsg, size_t cb);
+    bool handleDhcpReqDecline(PCRTNETBOOTP pDhcpMsg, size_t cb);
+    bool handleDhcpReqRelease(PCRTNETBOOTP pDhcpMsg, size_t cb);
 
+    void setService(const VBoxNetHlpUDPService *);
 private:
     NetworkManager();
     ~NetworkManager();
 
+    int offer4Client(const Client& lease, uint32_t u32Xid, uint8_t *pu8ReqList, int cReqList);
+    int ack(const Client& lease, uint32_t u32Xid, uint8_t *pu8ReqList, int cReqList);
+    int nak(const Client& lease, uint32_t u32Xid);
+
     int prepareReplyPacket4Client(const Client& client, uint32_t u32Xid);
     int doReply(const Client& client, const std::vector<RawOption>& extra);
-    int processParameterReqList(const Client& client, uint8_t *pu8ReqList, int cReqList);
+    int processParameterReqList(const Client& client, const uint8_t *pu8ReqList, int cReqList, std::vector<RawOption>& extra);
 
 private:
     struct Data;
     Data *m;
 
 };
-
-
 
 
 extern const ClientMatchCriteria *g_AnyClient;

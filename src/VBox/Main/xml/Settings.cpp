@@ -2868,6 +2868,8 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
                 GraphicsControllerType_T type;
                 if (strGraphicsControllerType == "VBOXVGA")
                     type = GraphicsControllerType_VBoxVGA;
+                else if (strGraphicsControllerType == "VMSVGA")
+                    type = GraphicsControllerType_VMSVGA;
                 else if (strGraphicsControllerType == "NONE")
                     type = GraphicsControllerType_Null;
                 else
@@ -4125,6 +4127,7 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
         switch (hw.graphicsControllerType)
         {
             case GraphicsControllerType_VBoxVGA:            pcszGraphics = "VBoxVGA"; break;
+            case GraphicsControllerType_VMSVGA:             pcszGraphics = "VMSVGA"; break;
             default: /*case GraphicsControllerType_Null:*/  pcszGraphics = "None"; break;
         }
         pelmDisplay->setAttribute("controller", pcszGraphics);
@@ -5103,7 +5106,7 @@ void MachineConfigFile::buildSnapshotXML(uint32_t depth,
  *      that, if snapshots are present. Otherwise all snapshots are suppressed
  *      (when called from OVF).
  *
- *  --  BuildMachineXML_WriteVboxVersionAttribute: If set, add a settingsVersion
+ *  --  BuildMachineXML_WriteVBoxVersionAttribute: If set, add a settingsVersion
  *      attribute to the machine tag with the vbox settings version. This is for
  *      the OVF export case in which we don't have the settings version set in
  *      the root element.
@@ -5127,7 +5130,7 @@ void MachineConfigFile::buildMachineXML(xml::ElementNode &elmMachine,
                                         uint32_t fl,
                                         std::list<xml::ElementNode*> *pllElementsWithUuidAttributes)
 {
-    if (fl & BuildMachineXML_WriteVboxVersionAttribute)
+    if (fl & BuildMachineXML_WriteVBoxVersionAttribute)
         // add settings version attribute to machine element
         setVersionAttribute(elmMachine);
 
@@ -5764,7 +5767,7 @@ void MachineConfigFile::write(const com::Utf8Str &strFilename)
         buildMachineXML(*pelmMachine,
                           MachineConfigFile::BuildMachineXML_IncludeSnapshots
                         | MachineConfigFile::BuildMachineXML_MediaRegistry,
-                            // but not BuildMachineXML_WriteVboxVersionAttribute
+                            // but not BuildMachineXML_WriteVBoxVersionAttribute
                         NULL); /* pllElementsWithUuidAttributes */
 
         // now go write the XML

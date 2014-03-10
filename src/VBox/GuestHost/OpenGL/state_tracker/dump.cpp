@@ -336,7 +336,7 @@ VBOXDUMPDECL(void) crRecDumpVertAttrF(CR_RECORDER *pRec, CRContext *ctx, const c
     va_end(pArgList);
 }
 
-void crRecDumpBuffer(CR_RECORDER *pRec, CRContext *ctx, CR_BLITTER_CONTEXT *pCurCtx, CR_BLITTER_WINDOW *pCurWin, GLint idRedirFBO, VBOXVR_TEXTURE *pRedirTex)
+void crRecDumpBuffer(CR_RECORDER *pRec, CRContext *ctx, GLint idRedirFBO, VBOXVR_TEXTURE *pRedirTex)
 {
     GLenum texTarget = 0;
     GLint hwBuf = 0, hwDrawBuf = 0;
@@ -411,7 +411,7 @@ void crRecDumpBuffer(CR_RECORDER *pRec, CRContext *ctx, CR_BLITTER_CONTEXT *pCur
 
         pTl = &pTobj->level[0][hwTexLevel];
 
-        rc = CrBltEnter(pRec->pBlitter, pCurCtx, pCurWin);
+        rc = CrBltEnter(pRec->pBlitter);
         if (!RT_SUCCESS(rc))
         {
             crWarning("CrBltEnter failed, rc %d", rc);
@@ -446,7 +446,7 @@ void crRecDumpBuffer(CR_RECORDER *pRec, CRContext *ctx, CR_BLITTER_CONTEXT *pCur
         width = pRedirTex->width;
         height = pRedirTex->height;
 
-        rc = CrBltEnter(pRec->pBlitter, pCurCtx, pCurWin);
+        rc = CrBltEnter(pRec->pBlitter);
         if (!RT_SUCCESS(rc))
         {
             crWarning("CrBltEnter failed, rc %d", rc);
@@ -729,7 +729,7 @@ void crRecDumpProgram(CR_RECORDER *pRec, CRContext *ctx, GLint id, GLint hwid)
 
     crRecDumpLog(pRec, hwid);
 
-    GLhandleARB *pShaders = (GLhandleARB*)crCalloc(cShaders * sizeof (*pShaders));
+    VBoxGLhandleARB *pShaders = (VBoxGLhandleARB*)crCalloc(cShaders * sizeof (*pShaders));
     if (!pShaders)
     {
         crWarning("crCalloc failed");
@@ -740,7 +740,10 @@ void crRecDumpProgram(CR_RECORDER *pRec, CRContext *ctx, GLint id, GLint hwid)
     pRec->pDispatch->GetAttachedObjectsARB(hwid, cShaders, NULL, pShaders);
     for (GLint i = 0; i < cShaders; ++i)
     {
-        crRecDumpShader(pRec, ctx, 0, pShaders[i]);
+        if (pShaders[i])
+            crRecDumpShader(pRec, ctx, 0, pShaders[i]);
+        else
+            crDmpStrF(pRec->pDumper, "WARNING: Shader[%d] is null", i);
     }
 
     crFree(pShaders);
@@ -847,7 +850,7 @@ void crRecRecompileProgram(CR_RECORDER *pRec, CRContext *ctx, GLint id, GLint hw
 
     crDmpStrF(pRec->pDumper, "==RECOMPILE PROGRAM ctx(%d) id(%d) hwid(%d) status(%d) shaders(%d)==", ctx->id, id, hwid, linkStatus, cShaders);
 
-    GLhandleARB *pShaders = (GLhandleARB*)crCalloc(cShaders * sizeof (*pShaders));
+    VBoxGLhandleARB *pShaders = (VBoxGLhandleARB*)crCalloc(cShaders * sizeof (*pShaders));
     if (!pShaders)
     {
         crWarning("crCalloc failed");
@@ -1334,10 +1337,10 @@ void crRecAlphaImgDestroy(CR_BLITTER_IMG *pImg)
     pImg->pvData = NULL;
 }
 
-void crRecDumpTextureV(CR_RECORDER *pRec, const VBOXVR_TEXTURE *pTex, CR_BLITTER_CONTEXT *pCurCtx, CR_BLITTER_WINDOW *pCurWin, const char *pszStr, va_list pArgList)
+void crRecDumpTextureV(CR_RECORDER *pRec, const VBOXVR_TEXTURE *pTex, const char *pszStr, va_list pArgList)
 {
     CR_BLITTER_IMG Img = {0};
-    int rc = CrBltEnter(pRec->pBlitter, pCurCtx, pCurWin);
+    int rc = CrBltEnter(pRec->pBlitter);
     if (RT_SUCCESS(rc))
     {
         rc = CrBltImgGetTex(pRec->pBlitter, pTex, GL_BGRA, &Img);
@@ -1372,15 +1375,15 @@ void crRecDumpTextureV(CR_RECORDER *pRec, const VBOXVR_TEXTURE *pTex, CR_BLITTER
     }
 }
 
-void crRecDumpTextureF(CR_RECORDER *pRec, const VBOXVR_TEXTURE *pTex, CR_BLITTER_CONTEXT *pCurCtx, CR_BLITTER_WINDOW *pCurWin, const char *pszStr, ...)
+void crRecDumpTextureF(CR_RECORDER *pRec, const VBOXVR_TEXTURE *pTex, const char *pszStr, ...)
 {
     va_list pArgList;
     va_start(pArgList, pszStr);
-    crRecDumpTextureV(pRec, pTex, pCurCtx, pCurWin, pszStr, pArgList);
+    crRecDumpTextureV(pRec, pTex, pszStr, pArgList);
     va_end(pArgList);
 }
 
-void crRecDumpTextureByIdV(CR_RECORDER *pRec, CRContext *ctx, GLint id, CR_BLITTER_CONTEXT *pCurCtx, CR_BLITTER_WINDOW *pCurWin, const char *pszStr, va_list pArgList)
+void crRecDumpTextureByIdV(CR_RECORDER *pRec, CRContext *ctx, GLint id, const char *pszStr, va_list pArgList)
 {
     CRTextureObj *pTobj = (CRTextureObj *)crHashtableSearch(ctx->shared->textureTable, id);
     if (!pTobj)
@@ -1402,18 +1405,18 @@ void crRecDumpTextureByIdV(CR_RECORDER *pRec, CRContext *ctx, GLint id, CR_BLITT
         return;
     }
 
-    crRecDumpTextureV(pRec, &Tex, pCurCtx, pCurWin, pszStr, pArgList);
+    crRecDumpTextureV(pRec, &Tex, pszStr, pArgList);
 }
 
-void crRecDumpTextureByIdF(CR_RECORDER *pRec, CRContext *ctx, GLint id, CR_BLITTER_CONTEXT *pCurCtx, CR_BLITTER_WINDOW *pCurWin, const char *pszStr, ...)
+void crRecDumpTextureByIdF(CR_RECORDER *pRec, CRContext *ctx, GLint id, const char *pszStr, ...)
 {
     va_list pArgList;
     va_start(pArgList, pszStr);
-    crRecDumpTextureByIdV(pRec, ctx, id, pCurCtx, pCurWin, pszStr, pArgList);
+    crRecDumpTextureByIdV(pRec, ctx, id, pszStr, pArgList);
     va_end(pArgList);
 }
 
-void crRecDumpTextures(CR_RECORDER *pRec, CRContext *ctx, CR_BLITTER_CONTEXT *pCurCtx, CR_BLITTER_WINDOW *pCurWin)
+void crRecDumpTextures(CR_RECORDER *pRec, CRContext *ctx)
 {
     GLint maxUnits = 0;
     GLint curTexUnit = 0;
@@ -1506,7 +1509,7 @@ void crRecDumpTextures(CR_RECORDER *pRec, CRContext *ctx, CR_BLITTER_CONTEXT *pC
                     crRecDumpTexGen(pRec, ctx);
                 }
 
-                crRecDumpTextureF(pRec, &Tex, pCurCtx, pCurWin, "ctx(%d), Unit %d: TEXTURE_2D id(%d) hwid(%d), width(%d), height(%d)", ctx, i, pTobj->id, pTobj->hwid, width, height);
+                crRecDumpTextureF(pRec, &Tex, "ctx(%d), Unit %d: TEXTURE_2D id(%d) hwid(%d), width(%d), height(%d)", ctx, i, pTobj->id, pTobj->hwid, width, height);
             }
 //            else
 //            {
@@ -1554,7 +1557,7 @@ void crRecDumpTextures(CR_RECORDER *pRec, CRContext *ctx, CR_BLITTER_CONTEXT *pC
                 Tex.target = GL_TEXTURE_RECTANGLE_NV;
                 Tex.hwid = hwTex;
 
-                rc = CrBltEnter(pRec->pBlitter, pCurCtx, pCurWin);
+                rc = CrBltEnter(pRec->pBlitter);
                 if (RT_SUCCESS(rc))
                 {
                     rc = CrBltImgGetTex(pRec->pBlitter, &Tex, GL_BGRA, &Img);
@@ -1664,6 +1667,18 @@ static void crDmpHtmlPrintFooter(struct CR_HTML_DUMPER * pDumper)
     fflush(pDumper->pFile);
 }
 
+DECLEXPORT(bool) crDmpHtmlIsInited(struct CR_HTML_DUMPER * pDumper)
+{
+    return !!pDumper->pFile;
+}
+
+DECLEXPORT(void) crDmpHtmlTerm(struct CR_HTML_DUMPER * pDumper)
+{
+    crDmpHtmlPrintFooter(pDumper);
+    fclose (pDumper->pFile);
+    pDumper->pFile = NULL;
+}
+
 DECLEXPORT(int) crDmpHtmlInit(struct CR_HTML_DUMPER * pDumper, const char *pszDir, const char *pszFile)
 {
     int rc = VERR_NO_MEMORY;
@@ -1703,6 +1718,23 @@ DECLEXPORT(int) crDmpHtmlInit(struct CR_HTML_DUMPER * pDumper, const char *pszDi
     {
         crWarning("open failed");
     }
+    return rc;
+}
+
+DECLEXPORT(int) crDmpHtmlInitV(struct CR_HTML_DUMPER * pDumper, const char *pszDir, const char *pszFile, va_list pArgList)
+{
+    char szBuffer[4096] = {0};
+    vsprintf_s(szBuffer, sizeof (szBuffer), pszFile, pArgList);
+    return crDmpHtmlInit(pDumper, pszDir, szBuffer);
+}
+
+DECLEXPORT(int) crDmpHtmlInitF(struct CR_HTML_DUMPER * pDumper, const char *pszDir, const char *pszFile, ...)
+{
+    int rc;
+    va_list pArgList;
+    va_start(pArgList, pszFile);
+    rc = crDmpHtmlInitV(pDumper, pszDir, pszFile, pArgList);
+    va_end(pArgList);
     return rc;
 }
 

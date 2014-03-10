@@ -1,6 +1,266 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.3.8 (2014-02-25)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: more work on improving the emulation of certain MSR registers
+          (e.g. bugs #12224, #12544)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a <emphasis>VERR_INVALID_RPL</emphasis> Guru Meditation
+          when booting certain guests (bug #11350)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: experimental support for SSE 4.1 / SSE 4.2 passthrough, see
+          <xref linkend="sse412passthrough" xreflabel="here"/> how to
+          enable it (bug #8651)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fix for recent Linux kernels with software virtualization</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: experimental HID LEDs synchronization for Windows hosts, see
+          <xref linkend="hidledssync" xreflabel="here"/></para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: warn the user if the Oracle Extension Pack is not installed and
+          the user tries to activate the remote display feature (bug #9104)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: make sure that a minimized guest (using mini toolbar in
+          fullscreen/seamless mode) keeps the minimized state (bug #12199)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: popup banner's "do not show this message again" check-box
+          replaced with corresponding button</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: network adapter cables can now be connected/disconnected directly through
+          the running virtual machine Devices / Network menu a Network status-bar
+          indicator</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: the new VM wizard now proposes 64-bit guests on 64-bit hosts
+          by default; better distinction between 32-bit OS types 64-bit OS types
+          (bug #12533)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: better error message if appliance import fails
+          (bug #12657)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: allow to set host-combination to 'None' using the Global settings
+          / Input page (bug #12730)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: don't switch the guest to a black screen during online snapshot
+          merge (4.3 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: when exporting an appliance, support the suppression
+           of MAC addresses, which means they will be always recreated on
+           import, avoiding duplicate MAC addresses for VMs which are imported
+           several times</para>
+      </listitem>
+
+      <listitem>
+        <para>AHCI: fixed a VM hang during suspend under certain circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>AHCI: fixed a VM hang during online snapshot merge under certain
+          circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>AHCI: fixed a bug which resulted in Windows XP guest hangs if a
+          SATA CDROM is attached (bug #12417)</para>
+      </listitem>
+
+      <listitem>
+        <para>AHCI: fixed a Guru Meditation under certain conditions</para>
+      </listitem>
+
+      <listitem>
+        <para>AHCI: ejecting a CD/DVD medium failed under certain conditions</para>
+      </listitem>
+
+      <listitem>
+        <para>AHCI: disk hotplugging fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: transparent handling of host sleep/resume and network configuration
+          changes if the dnsproxy is enabled or if the hostresolver is used
+          (bug #12441)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed crash and misbehaviour under some circumstances with
+          ICMP packets having TTL=1</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: fixed IPv6 reassembly</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: ping proxy implemented</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF: fixed reading of the OVF 0.9 section element
+          (4.3 regression; bug #12345)</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF: several fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: several fixes, multiscreen fixes (e.g. bug #9124)</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: include 3D content in captured videos (bug #12666)</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: include 3D content in captured screenshot (bug #11758)</para>
+      </listitem>
+
+      <listitem>
+        <para>VGA: proper handling of legacy graphics modes if the Guest
+          Additions are active (bug #6649)</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: fixed crash during isochronous transfer under rare
+          circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>BIOS: better disk geometry handling of SCSI drives</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fix crashes in Java API clients using the XPCOM binding,
+           happened with output parameters only (bug #11232)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC: documented the handling of host power management events
+          (see <xref linkend="hostpowertweaks" xreflabel="here"/>) and
+          added an extradata item for configuring the handling of the battery-low
+          event (bug #9925)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC: fixed a bug which could trigger a crash if a VM snapshot
+          was restored the second time and the VM has associated bandwidth groups
+          (bug #12569)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC: properly detect ifconfig if located in <emphasis>/bin</emphasis>
+          (bug #12713)</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared Folders: fixed a failure to restore transient shared folders
+         when starting a VM from a saved state (bug #12578)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed issue when the application icon was frozen in
+          the dock if the bridging interface was not connected to a network
+          (bug #12241)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: also consider the physical package ID when determining
+          the number of physical CPU cores</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / guests: don't warn in kernel log if memory allocation
+          fails (bug #11171)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris hosts: fixed the autostart SMF script (bug #11720)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixes for non-ANSI code page user names and similar
+          environment contents (bug #12596)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts / guests: fixed setting and using a guest user's process
+          environment variables (relevant for Guest Control)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed handle leaks in VBoxTray (bug #12563)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed a crash while detecting active guest users</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed restoring backed up D3D files on
+          XPDM -> WDDM upgrade</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control: fixed setting and using a guest user's process
+          environment variables</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: support Enterprise Linux 6.5 kernels
+          (bug #12505)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed CPU hot-remove on newer Linux kernels</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux / Solaris Additions: don't automount a shared folder which is already
+          mounted</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 Additions: support X.Org Server 1.15 (bug #12623)</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
     <title>Version 4.3.6 (2013-12-18)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -133,7 +393,7 @@
       </listitem>
 
       <listitem>
-        <para>VMM: fixed occassional <emphasis>VINF_EM_TRIPLE_FAULT</emphasis> errors on
+        <para>VMM: fixed occasional <emphasis>VINF_EM_TRIPLE_FAULT</emphasis> errors on
           hosts without the unrestricted guest execution feature (bug #12198)</para>
       </listitem>
 

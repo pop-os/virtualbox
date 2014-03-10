@@ -63,6 +63,7 @@
 #include <map>
 
 #include "../NetLib/VBoxNetBaseService.h"
+#include "../NetLib/utils.h"
 
 #ifdef RT_OS_WINDOWS /* WinMain */
 # include <Windows.h>
@@ -84,16 +85,18 @@
 /**
  * DHCP server instance.
  */
-class VBoxNetDhcp: public VBoxNetBaseService
+class VBoxNetDhcp: public VBoxNetBaseService, public NATNetworkEventAdapter
 {
 public:
     VBoxNetDhcp();
     virtual ~VBoxNetDhcp();
 
     int                 init();
-    int                 run(void);
     void                usage(void) { /* XXX: document options */ };
     int                 parseOpt(int rc, const RTGETOPTUNION& getOptVal);
+    int                 processFrame(void *, size_t) {return VERR_IGNORED; };
+    int                 processGSO(PCPDMNETWORKGSO, size_t) {return VERR_IGNORED; };
+    int                 processUDP(void *, size_t);
 
 protected:
     bool                handleDhcpMsg(uint8_t uMsgType, PCRTNETBOOTP pDhcpMsg, size_t cb);
@@ -108,6 +111,8 @@ protected:
 private:
     int initNoMain();
     int initWithMain();
+    HRESULT HandleEvent(VBoxEventType_T aEventType, IEvent *pEvent);
+    int fetchAndUpdateDnsInfo();
 
 protected:
     /** @name The DHCP server specific configuration data members.
@@ -126,6 +131,8 @@ protected:
 
     ComPtr<INATNetwork> m_NATNetwork;
 
+    /** Listener for Host DNS changes */
+    ComPtr<NATNetworkListenerImpl> m_vboxListener;
     /*
      * We will ignore cmd line parameters IFF there will be some DHCP specific arguments
      * otherwise all paramters will come from Main.
@@ -153,6 +160,22 @@ protected:
     /** @} */
 };
 
+
+static inline int configGetBoundryAddress(const ComDhcpServerPtr& dhcp, bool fUpperBoundry, RTNETADDRIPV4& boundryAddress)
+{
+    boundryAddress.u = INADDR_ANY;
+
+    HRESULT hrc;
+    com::Bstr strAddress;
+    if (fUpperBoundry)
+        hrc = dhcp->COMGETTER(UpperIP)(strAddress.asOutParam());
+    else
+        hrc = dhcp->COMGETTER(LowerIP)(strAddress.asOutParam());
+    AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+
+    return RTNetStrToIPv4Addr(com::Utf8Str(strAddress).c_str(), &boundryAddress);
+}
+
 /*******************************************************************************
 *   Global Variables                                                           *
 *******************************************************************************/
@@ -172,27 +195,25 @@ static RTGETOPTDEF g_aOptionDefs[] =
 /**
  * Construct a DHCP server with a default configuration.
  */
-VBoxNetDhcp::VBoxNetDhcp()
+VBoxNetDhcp::VBoxNetDhcp():VBoxNetBaseService("VBoxNetDhcp", "VBoxNetDhcp")
 {
-    m_Name                  = "VBoxNetDhcp";
-    m_Network               = "VBoxNetDhcp";
-    m_TrunkName             = "";
-    m_enmTrunkType          = kIntNetTrunkType_WhateverNone;
-    m_MacAddress.au8[0]     = 0x08;
-    m_MacAddress.au8[1]     = 0x00;
-    m_MacAddress.au8[2]     = 0x27;
-    m_MacAddress.au8[3]     = 0x40;
-    m_MacAddress.au8[4]     = 0x41;
-    m_MacAddress.au8[5]     = 0x42;
-    m_Ipv4Address.u         = RT_H2N_U32_C(RT_BSWAP_U32_C(RT_MAKE_U32_FROM_U8( 10,  0,  2,  5)));
+    /*   m_enmTrunkType          = kIntNetTrunkType_WhateverNone; */
+    RTMAC mac;
+    mac.au8[0]     = 0x08;
+    mac.au8[1]     = 0x00;
+    mac.au8[2]     = 0x27;
+    mac.au8[3]     = 0x40;
+    mac.au8[4]     = 0x41;
+    mac.au8[5]     = 0x42;
+    setMacAddress(mac);
 
-    m_pSession              = NIL_RTR0PTR;
-    m_cbSendBuf             =  8192;
-    m_cbRecvBuf             = 51200; /** @todo tune to 64 KB with help from SrvIntR0 */
-    m_hIf                   = INTNET_HANDLE_INVALID;
-    m_pIfBuf                = NULL;
+    RTNETADDRIPV4 address;
+    address.u = RT_H2N_U32_C(RT_BSWAP_U32_C(RT_MAKE_U32_FROM_U8( 10,  0,  2,  5)));
+    setIpv4Address(address);
 
-    m_cVerbosity            = 0;
+    setSendBufSize(8 * _1K);
+    setRecvBufSize(50 * _1K);
+
     m_uCurMsgType           = UINT8_MAX;
     m_cbCurMsg              = 0;
     m_pCurMsg               = NULL;
@@ -201,27 +222,7 @@ VBoxNetDhcp::VBoxNetDhcp()
     m_fIgnoreCmdLineParameters = true;
 
     for(unsigned int i = 0; i < RT_ELEMENTS(g_aOptionDefs); ++i)
-        m_vecOptionDefs.push_back(&g_aOptionDefs[i]);
-
-#if 0 /* enable to hack the code without a mile long argument list. */
-    VBoxNetDhcpCfg *pDefCfg = new VBoxNetDhcpCfg();
-    pDefCfg->m_LowerAddr.u    = RT_H2N_U32_C(RT_BSWAP_U32_C(RT_MAKE_U32_FROM_U8( 10,  0,  2,100)));
-    pDefCfg->m_UpperAddr.u    = RT_H2N_U32_C(RT_BSWAP_U32_C(RT_MAKE_U32_FROM_U8( 10,  0,  2,250)));
-    pDefCfg->m_SubnetMask.u   = RT_H2N_U32_C(RT_BSWAP_U32_C(RT_MAKE_U32_FROM_U8(255,255,255,  0)));
-    RTNETADDRIPV4 Addr;
-    Addr.u                    = RT_H2N_U32_C(RT_BSWAP_U32_C(RT_MAKE_U32_FROM_U8( 10,  0,  2,  1)));
-    pDefCfg->m_Routers.push_back(Addr);
-    Addr.u                    = RT_H2N_U32_C(RT_BSWAP_U32_C(RT_MAKE_U32_FROM_U8( 10,  0,  2,  2)));
-    pDefCfg->m_DNSes.push_back(Addr);
-    pDefCfg->m_DomainName     = "vboxnetdhcp.org";
-# if 0
-    pDefCfg->m_cSecLease      = 60*60; /* 1 hour */
-# else
-    pDefCfg->m_cSecLease      = 30; /* sec */
-# endif
-    pDefCfg->m_TftpServer     = "10.0.2.3"; //??
-    this->addConfig(pDefCfg);
-#endif
+        addCommandLineOption(&g_aOptionDefs[i]);
 }
 
 
@@ -256,7 +257,7 @@ int VBoxNetDhcp::parseOpt(int rc, const RTGETOPTUNION& Val)
     {
         case 'l':
         case 'u':
-        case 'g': 
+        case 'g':
         {
             char buf[17];
             RTStrPrintf(buf, 17, "%RTnaipv4", Val.IPv4Addr.u);
@@ -285,10 +286,11 @@ int VBoxNetDhcp::init()
 
     NetworkManager *netManager = NetworkManager::getNetworkManager();
 
-    netManager->setOurAddress(m_Ipv4Address);
-    netManager->setOurNetmask(m_Ipv4Netmask);
-    netManager->setOurMac(m_MacAddress);
-    
+    netManager->setOurAddress(getIpv4Address());
+    netManager->setOurNetmask(getIpv4Netmask());
+    netManager->setOurMac(getMacAddress());
+    netManager->setService(this);
+
     if (isMainNeeded())
         rc = initWithMain();
     else
@@ -299,85 +301,31 @@ int VBoxNetDhcp::init()
     return VINF_SUCCESS;
 }
 
-/**
- * Runs the DHCP server.
- *
- * @returns exit code + error message to stderr on failure, won't return on
- *          success (you must kill this process).
- */
-int VBoxNetDhcp::run(void)
+
+int  VBoxNetDhcp::processUDP(void *pv, size_t cbPv)
 {
+    PCRTNETBOOTP pDhcpMsg = (PCRTNETBOOTP)pv;
+    m_pCurMsg  = pDhcpMsg;
+    m_cbCurMsg = cbPv;
 
-    /* XXX: shortcut should be hidden from network manager */
-    NetworkManager *netManager = NetworkManager::getNetworkManager();
-    netManager->setSession(m_pSession);
-    netManager->setInterface(m_hIf);
-    netManager->setRingBuffer(m_pIfBuf);
-
-    /*
-     * The loop.
-     */
-    PINTNETRINGBUF  pRingBuf = &m_pIfBuf->Recv;
-    for (;;)
+    uint8_t uMsgType;
+    if (RTNetIPv4IsDHCPValid(NULL /* why is this here? */, pDhcpMsg, cbPv, &uMsgType))
     {
-        /*
-         * Wait for a packet to become available.
-         */
-        INTNETIFWAITREQ WaitReq;
-        WaitReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-        WaitReq.Hdr.cbReq = sizeof(WaitReq);
-        WaitReq.pSession = m_pSession;
-        WaitReq.hIf = m_hIf;
-        WaitReq.cMillies = 2000; /* 2 secs - the sleep is for some reason uninterruptible... */  /** @todo fix interruptability in SrvIntNet! */
-        int rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_WAIT, 0, &WaitReq.Hdr);
-        if (RT_FAILURE(rc))
+        m_uCurMsgType = uMsgType;
         {
-            if (rc == VERR_TIMEOUT || rc == VERR_INTERRUPTED)
-                continue;
-            RTStrmPrintf(g_pStdErr, "VBoxNetDHCP: VMMR0_DO_INTNET_IF_WAIT returned %Rrc\n", rc);
-            return 1;
+            /* To avoid fight with event processing thread */
+            VBoxNetALock(this);
+            handleDhcpMsg(uMsgType, pDhcpMsg, cbPv);
         }
-
-        /*
-         * Process the receive buffer.
-         */
-        while (IntNetRingHasMoreToRead(pRingBuf))
-        {
-            size_t  cb;
-            void   *pv = VBoxNetUDPMatch(m_pIfBuf, RTNETIPV4_PORT_BOOTPS, &m_MacAddress,
-                                         VBOXNETUDP_MATCH_UNICAST | VBOXNETUDP_MATCH_BROADCAST | VBOXNETUDP_MATCH_CHECKSUM
-                                         | (m_cVerbosity > 2 ? VBOXNETUDP_MATCH_PRINT_STDERR : 0),
-                                         &m_CurHdrs, &cb);
-            if (pv && cb)
-            {
-                PCRTNETBOOTP pDhcpMsg = (PCRTNETBOOTP)pv;
-                m_pCurMsg  = pDhcpMsg;
-                m_cbCurMsg = cb;
-
-                uint8_t uMsgType;
-                if (RTNetIPv4IsDHCPValid(NULL /* why is this here? */, pDhcpMsg, cb, &uMsgType))
-                {
-                    m_uCurMsgType = uMsgType;
-                    handleDhcpMsg(uMsgType, pDhcpMsg, cb);
-                    m_uCurMsgType = UINT8_MAX;
-                }
-                else
-                    debugPrint(1, true, "VBoxNetDHCP: Skipping invalid DHCP packet.\n"); /** @todo handle pure bootp clients too? */
-
-                m_pCurMsg = NULL;
-                m_cbCurMsg = 0;
-            }
-            else if (VBoxNetArpHandleIt(m_pSession, m_hIf, m_pIfBuf, &m_MacAddress, m_Ipv4Address))
-            {
-                /* nothing */
-            }
-
-            /* Advance to the next frame. */
-            IntNetRingSkipFrame(pRingBuf);
-        }
+        m_uCurMsgType = UINT8_MAX;
     }
+    else
+        debugPrint(1, true, "VBoxNetDHCP: Skipping invalid DHCP packet.\n"); /** @todo handle pure bootp clients too? */
 
-    return 0;
+    m_pCurMsg = NULL;
+    m_cbCurMsg = 0;
+
+    return VINF_SUCCESS;
 }
 
 
@@ -393,19 +341,21 @@ bool VBoxNetDhcp::handleDhcpMsg(uint8_t uMsgType, PCRTNETBOOTP pDhcpMsg, size_t 
 {
     if (pDhcpMsg->bp_op == RTNETBOOTP_OP_REQUEST)
     {
+        NetworkManager *networkManager = NetworkManager::getNetworkManager();
+
         switch (uMsgType)
         {
             case RTNET_DHCP_MT_DISCOVER:
-                return handleDhcpReqDiscover(pDhcpMsg, cb);
+                return networkManager->handleDhcpReqDiscover(pDhcpMsg, cb);
 
             case RTNET_DHCP_MT_REQUEST:
-                return handleDhcpReqRequest(pDhcpMsg, cb);
+                return networkManager->handleDhcpReqRequest(pDhcpMsg, cb);
 
             case RTNET_DHCP_MT_DECLINE:
-                return handleDhcpReqDecline(pDhcpMsg, cb);
+                return networkManager->handleDhcpReqDecline(pDhcpMsg, cb);
 
             case RTNET_DHCP_MT_RELEASE:
-                return handleDhcpReqRelease(pDhcpMsg, cb);
+                return networkManager->handleDhcpReqRelease(pDhcpMsg, cb);
 
             case RTNET_DHCP_MT_INFORM:
                 debugPrint(0, true, "Should we handle this?");
@@ -418,155 +368,6 @@ bool VBoxNetDhcp::handleDhcpMsg(uint8_t uMsgType, PCRTNETBOOTP pDhcpMsg, size_t 
     }
     return false;
 }
-
-
-/**
- * The client is requesting an offer.
- *
- * @returns true.
- *
- * @param   pDhcpMsg    The message.
- * @param   cb          The message size.
- */
-bool VBoxNetDhcp::handleDhcpReqDiscover(PCRTNETBOOTP pDhcpMsg, size_t cb)
-{
-    RawOption opt;
-    memset(&opt, 0, sizeof(RawOption));
-    /* 1. Find client */
-    ConfigurationManager *confManager = ConfigurationManager::getConfigurationManager();
-    Client client = confManager->getClientByDhcpPacket(pDhcpMsg, cb);
-
-    /* 2. Find/Bind lease for client */
-    Lease lease = confManager->allocateLease4Client(client, pDhcpMsg, cb);
-    AssertReturn(lease != Lease::NullLease, VINF_SUCCESS);
-
-    int rc = ConfigurationManager::extractRequestList(pDhcpMsg, cb, opt);
-
-    /* 3. Send of offer */
-    NetworkManager *networkManager = NetworkManager::getNetworkManager();
-
-    lease.bindingPhase(true);
-    lease.phaseStart(RTTimeMilliTS());
-    lease.setExpiration(300); /* 3 min. */
-    networkManager->offer4Client(client, pDhcpMsg->bp_xid, opt.au8RawOpt, opt.cbRawOpt);
-
-    return VINF_SUCCESS;
-}
-
-
-/**
- * The client is requesting an offer.
- *
- * @returns true.
- *
- * @param   pDhcpMsg    The message.
- * @param   cb          The message size.
- */
-bool VBoxNetDhcp::handleDhcpReqRequest(PCRTNETBOOTP pDhcpMsg, size_t cb)
-{
-    ConfigurationManager *confManager = ConfigurationManager::getConfigurationManager();
-    NetworkManager *networkManager = NetworkManager::getNetworkManager();
-
-    /* 1. find client */
-    Client client = confManager->getClientByDhcpPacket(pDhcpMsg, cb);
-
-    /* 2. find bound lease */
-    Lease l = client.lease();
-    if (l != Lease::NullLease)
-    {
-
-        if (l.isExpired())
-        {
-            /* send client to INIT state */
-            Client c(client);
-            networkManager->nak(client, pDhcpMsg->bp_xid);
-            confManager->expireLease4Client(c);
-            return true;
-        }
-        else {
-            /* XXX: Validate request */
-            RawOption opt;
-            RT_ZERO(opt);
-
-            Client c(client);
-            int rc = confManager->commitLease4Client(c);
-            AssertRCReturn(rc, false);
-
-            rc = ConfigurationManager::extractRequestList(pDhcpMsg, cb, opt);
-            AssertRCReturn(rc, false);
-
-            networkManager->ack(client, pDhcpMsg->bp_xid, opt.au8RawOpt, opt.cbRawOpt);
-        }
-    }
-    else
-    {
-        networkManager->nak(client, pDhcpMsg->bp_xid);
-    }
-    return true;
-}
-
-
-/**
- * The client is declining an offer we've made.
- *
- * @returns true.
- *
- * @param   pDhcpMsg    The message.
- * @param   cb          The message size.
- */
-bool VBoxNetDhcp::handleDhcpReqDecline(PCRTNETBOOTP, size_t)
-{
-    /** @todo Probably need to match the server IP here to work correctly with
-     *        other servers. */
-
-    /*
-     * The client is supposed to pass us option 50, requested address,
-     * from the offer. We also match the lease state. Apparently the
-     * MAC address is not supposed to be checked here.
-     */
-
-    /** @todo this is not required in the initial implementation, do it later. */
-    debugPrint(1, true, "DECLINE is not implemented");
-    return true;
-}
-
-
-/**
- * The client is releasing its lease - good boy.
- *
- * @returns true.
- *
- * @param   pDhcpMsg    The message.
- * @param   cb          The message size.
- */
-bool VBoxNetDhcp::handleDhcpReqRelease(PCRTNETBOOTP, size_t)
-{
-    /** @todo Probably need to match the server IP here to work correctly with
-     *        other servers. */
-
-    /*
-     * The client may pass us option 61, client identifier, which we should
-     * use to find the lease by.
-     *
-     * We're matching MAC address and lease state as well.
-     */
-
-    /*
-     * If no client identifier or if we couldn't find a lease by using it,
-     * we will try look it up by the client IP address.
-     */
-
-
-    /*
-     * If found, release it.
-     */
-
-
-    /** @todo this is not required in the initial implementation, do it later. */
-    debugPrint(1, true, "RELEASE is not implemented");
-    return true;
-}
-
 
 /**
  * Print debug message depending on the m_cVerbosity level.
@@ -645,9 +446,10 @@ int VBoxNetDhcp::initNoMain()
 {
     CmdParameterIterator it;
 
+    RTNETADDRIPV4 address = getIpv4Address();
+    RTNETADDRIPV4 netmask = getIpv4Netmask();
     RTNETADDRIPV4 networkId;
-    networkId.u = m_Ipv4Address.u & m_Ipv4Netmask.u;
-    RTNETADDRIPV4 netmask = m_Ipv4Netmask;
+    networkId.u = address.u & netmask.u;
 
     RTNETADDRIPV4 UpperAddress;
     RTNETADDRIPV4 LowerAddress = networkId;
@@ -666,15 +468,15 @@ int VBoxNetDhcp::initNoMain()
                 break;
             case 'b':
                 break;
-                    
+
         }
     }
-        
+
     ConfigurationManager *confManager = ConfigurationManager::getConfigurationManager();
     AssertPtrReturn(confManager, VERR_INTERNAL_ERROR);
     confManager->addNetwork(unconst(g_RootConfig),
                             networkId,
-                            m_Ipv4Netmask,
+                            netmask,
                             LowerAddress,
                             UpperAddress);
 
@@ -688,25 +490,21 @@ int VBoxNetDhcp::initWithMain()
      * and listener for Dhcp configuration events
      */
     AssertRCReturn(virtualbox.isNull(), VERR_INTERNAL_ERROR);
+    std::string networkName = getNetwork();
 
-    HRESULT hrc = virtualbox->FindDHCPServerByNetworkName(com::Bstr(m_Network.c_str()).raw(),
-                                                  m_DhcpServer.asOutParam());
-    AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+    int rc = findDhcpServer(virtualbox, networkName, m_DhcpServer);
+    AssertRCReturn(rc, rc);
 
-    hrc = virtualbox->FindNATNetworkByName(com::Bstr(m_Network.c_str()).raw(),
-                                           m_NATNetwork.asOutParam());
+    rc = findNatNetwork(virtualbox, networkName, m_NATNetwork);
+    AssertRCReturn(rc, rc);
 
-    BOOL fNeedDhcpServer = false;
-    if (FAILED(m_NATNetwork->COMGETTER(NeedDhcpServer)(&fNeedDhcpServer)))
-        return VERR_INTERNAL_ERROR;
-
+    BOOL fNeedDhcpServer = isDhcpRequired(m_NATNetwork);
     if (!fNeedDhcpServer)
         return VERR_CANCELLED;
 
     RTNETADDRIPV4 gateway;
     com::Bstr strGateway;
-
-    hrc = m_NATNetwork->COMGETTER(Gateway)(strGateway.asOutParam());
+    HRESULT hrc = m_NATNetwork->COMGETTER(Gateway)(strGateway.asOutParam());
     AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
     RTNetStrToIPv4Addr(com::Utf8Str(strGateway).c_str(), &gateway);
 
@@ -714,119 +512,91 @@ int VBoxNetDhcp::initWithMain()
     AssertPtrReturn(confManager, VERR_INTERNAL_ERROR);
     confManager->addToAddressList(RTNET_DHCP_OPT_ROUTERS, gateway);
 
-    unsigned int i;
-    unsigned int count_strs;
-    com::SafeArray<BSTR> strs;
-    std::map<RTNETADDRIPV4, uint32_t> MapIp4Addr2Off;
+    rc = fetchAndUpdateDnsInfo();
+    AssertMsgRCReturn(rc, ("Wasn't able to fetch Dns info"), rc);
 
-    hrc = m_NATNetwork->COMGETTER(LocalMappings)(ComSafeArrayAsOutParam(strs));
-    if (   SUCCEEDED(hrc)
-           && (count_strs = strs.size()))
-    {
-        for (i = 0; i < count_strs; ++i)
-        {
-            char szAddr[17];
-            RTNETADDRIPV4 ip4addr;
-            char *pszTerm;
-            uint32_t u32Off;
-            com::Utf8Str strLo2Off(strs[i]);
-            const char *pszLo2Off = strLo2Off.c_str();
+    ComEventTypeArray aVBoxEvents;
+    aVBoxEvents.push_back(VBoxEventType_OnHostNameResolutionConfigurationChange);
+    rc = createNatListener(m_vboxListener, virtualbox, this, aVBoxEvents);
+    AssertRCReturn(rc, rc);
 
-            RT_ZERO(szAddr);
-
-            pszTerm = RTStrStr(pszLo2Off, "=");
-
-            if (   pszTerm
-                   && (pszTerm - pszLo2Off) <= INET_ADDRSTRLEN)
-            {
-                memcpy(szAddr, pszLo2Off, (pszTerm - pszLo2Off));
-                int rc = RTNetStrToIPv4Addr(szAddr, &ip4addr);
-                if (RT_SUCCESS(rc))
-                {
-                    u32Off = RTStrToUInt32(pszTerm + 1);
-                    if (u32Off != 0)
-                        MapIp4Addr2Off.insert(
-                          std::map<RTNETADDRIPV4,uint32_t>::value_type(ip4addr, u32Off));
-                }
-            }
-        }
-    }
-
-    strs.setNull();
-    ComPtr<IHost> host;
-    if (SUCCEEDED(virtualbox->COMGETTER(Host)(host.asOutParam())))
-    {
-        if (SUCCEEDED(host->COMGETTER(NameServers)(ComSafeArrayAsOutParam(strs))))
-        {
-            RTNETADDRIPV4 addr;
-
-            confManager->flushAddressList(RTNET_DHCP_OPT_DNS);
-            int rc;
-            for (i = 0; i < strs.size(); ++i)
-            {
-                rc = RTNetStrToIPv4Addr(com::Utf8Str(strs[i]).c_str(), &addr);
-                if (RT_SUCCESS(rc))
-                {
-                    if (addr.au8[0] == 127)
-                    {
-                        if (MapIp4Addr2Off[addr] != 0)
-                        {
-                            addr.u = RT_H2N_U32(RT_N2H_U32(m_Ipv4Address.u & m_Ipv4Netmask.u)
-                                                + MapIp4Addr2Off[addr]);
-                        }
-                        else
-                            continue;
-                    }
-
-                    confManager->addToAddressList(RTNET_DHCP_OPT_DNS, addr);
-                }
-            }
-        }
-
-        strs.setNull();
-#if 0
-        if (SUCCEEDED(host->COMGETTER(SearchStrings)(ComSafeArrayAsOutParam(strs)))) 
-        {
-            /* XXX: todo. */;
-        }
-        strs.setNull();
-#endif
-        com::Bstr domain;
-        if (SUCCEEDED(host->COMGETTER(DomainName)(domain.asOutParam())))
-            confManager->setString(RTNET_DHCP_OPT_DOMAIN_NAME, std::string(com::Utf8Str(domain).c_str()));
-    }
-
-    com::Bstr strUpperIp, strLowerIp;
-    
     RTNETADDRIPV4 LowerAddress;
+    rc = configGetBoundryAddress(m_DhcpServer, false, LowerAddress);
+    AssertMsgRCReturn(rc, ("can't get lower boundrary adderss'"),rc);
+
     RTNETADDRIPV4 UpperAddress;
+    rc = configGetBoundryAddress(m_DhcpServer, true, UpperAddress);
+    AssertMsgRCReturn(rc, ("can't get upper boundrary adderss'"),rc);
 
-    hrc = m_DhcpServer->COMGETTER(UpperIP)(strUpperIp.asOutParam());
-    AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
-    RTNetStrToIPv4Addr(com::Utf8Str(strUpperIp).c_str(), &UpperAddress);
-
-
-    hrc = m_DhcpServer->COMGETTER(LowerIP)(strLowerIp.asOutParam());
-    AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
-    RTNetStrToIPv4Addr(com::Utf8Str(strLowerIp).c_str(), &LowerAddress);
-
-    RTNETADDRIPV4 networkId;
-    networkId.u = m_Ipv4Address.u & m_Ipv4Netmask.u;
+    RTNETADDRIPV4 address = getIpv4Address();
+    RTNETADDRIPV4 netmask = getIpv4Netmask();
+    RTNETADDRIPV4 networkId = networkid(address, netmask);
     std::string name = std::string("default");
 
     confManager->addNetwork(unconst(g_RootConfig),
                             networkId,
-                            m_Ipv4Netmask,
+                            netmask,
                             LowerAddress,
                             UpperAddress);
 
     com::Bstr bstr;
     hrc = virtualbox->COMGETTER(HomeFolder)(bstr.asOutParam());
-    std::string strXmlLeaseFile(com::Utf8StrFmt("%ls%c%s.leases",
-                                                bstr.raw(), RTPATH_DELIMITER, m_Network.c_str()).c_str());
+    com::Utf8StrFmt strXmlLeaseFile("%ls%c%s.leases",
+                                    bstr.raw(), RTPATH_DELIMITER, networkName.c_str());
     confManager->loadFromFile(strXmlLeaseFile);
 
     return VINF_SUCCESS;
+}
+
+
+int VBoxNetDhcp::fetchAndUpdateDnsInfo()
+{
+    ComHostPtr host;
+    if (SUCCEEDED(virtualbox->COMGETTER(Host)(host.asOutParam())))
+    {
+        AddressToOffsetMapping mapIp4Addr2Off;
+        int rc = localMappings(m_NATNetwork, mapIp4Addr2Off);
+        /* XXX: here could be several cases: 1. COM error, 2. not found (empty) 3. ? */
+        AssertMsgRCReturn(rc, ("Can't fetch local mappings"), rc);
+
+        RTNETADDRIPV4 address = getIpv4Address();
+        RTNETADDRIPV4 netmask = getIpv4Netmask();
+
+        AddressList nameservers;
+        rc = hostDnsServers(host, networkid(address, netmask), mapIp4Addr2Off, nameservers);
+        AssertMsgRCReturn(rc, ("Debug me!!!"), rc);
+        /* XXX: Search strings */
+
+        std::string domain;
+        rc = hostDnsDomain(host, domain);
+        AssertMsgRCReturn(rc, ("Debug me!!"), rc);
+
+        {
+            VBoxNetALock(this);
+            ConfigurationManager *confManager = ConfigurationManager::getConfigurationManager();
+            confManager->flushAddressList(RTNET_DHCP_OPT_DNS);
+
+            for (AddressList::iterator it = nameservers.begin(); it != nameservers.end(); ++it)
+                confManager->addToAddressList(RTNET_DHCP_OPT_DNS, *it);
+
+            confManager->setString(RTNET_DHCP_OPT_DOMAIN_NAME, domain);
+        }
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+HRESULT VBoxNetDhcp::HandleEvent(VBoxEventType_T aEventType, IEvent *pEvent)
+{
+    switch(aEventType)
+    {
+        case VBoxEventType_OnHostNameResolutionConfigurationChange:
+            fetchAndUpdateDnsInfo();
+            break;
+    }
+
+    return S_OK;
 }
 
 /**

@@ -21,6 +21,7 @@
 
 #include <iprt/cpp/utils.h>
 
+#include "Logging.h"
 #include "VirtualBoxImpl.h"
 #include <iprt/thread.h>
 #include <iprt/semaphore.h>
@@ -33,6 +34,8 @@
 
 static HostDnsMonitor *g_monitor;
 
+static void dumpHostDnsInformation(const HostDnsInformation&);
+static void dumpHostDnsStrVector(const std::string&, const std::vector<std::string>&);
 
 /* Lockee */
 Lockee::Lockee()
@@ -79,8 +82,13 @@ inline static void detachVectorOfString(const std::vector<std::string>& v,
 
 struct HostDnsMonitor::Data
 {
+    Data(bool aThreaded):fThreaded(aThreaded){}
+
     std::vector<PCHostDnsMonitorProxy> proxies;
     HostDnsInformation info;
+    const bool fThreaded;
+    RTTHREAD hMonitoringThread;
+    RTSEMEVENT hDnsInitEvent;
 };
 
 struct HostDnsMonitorProxy::Data
@@ -108,9 +116,10 @@ struct HostDnsMonitorProxy::Data
 };
 
 
-HostDnsMonitor::HostDnsMonitor()
+HostDnsMonitor::HostDnsMonitor(bool fThreaded)
   : m(NULL)
 {
+   m = new HostDnsMonitor::Data(fThreaded);
 }
 
 HostDnsMonitor::~HostDnsMonitor()
@@ -197,10 +206,33 @@ void HostDnsMonitor::setInfo(const HostDnsInformation &info)
 
 HRESULT HostDnsMonitor::init()
 {
-    m = new HostDnsMonitor::Data();
+    if (m->fThreaded)
+    {
+        int rc = RTSemEventCreate(&m->hDnsInitEvent);
+        AssertRCReturn(rc, E_FAIL);
+
+        rc = RTThreadCreate(&m->hMonitoringThread,
+                            HostDnsMonitor::threadMonitoringRoutine,
+                            this, 128 * _1K, RTTHREADTYPE_IO, 0, "dns-monitor");
+        AssertRCReturn(rc, E_FAIL);
+
+        RTSemEventWait(m->hDnsInitEvent, RT_INDEFINITE_WAIT);
+    }
     return S_OK;
 }
 
+
+void HostDnsMonitor::monitorThreadInitializationDone()
+{
+    RTSemEventSignal(m->hDnsInitEvent);
+}
+
+
+int HostDnsMonitor::threadMonitoringRoutine(RTTHREAD, void *pvUser)
+{
+    HostDnsMonitor *pThis = static_cast<HostDnsMonitor *>(pvUser);
+    return pThis->monitorWorker();
+}
 
 /* HostDnsMonitorProxy */
 HostDnsMonitorProxy::HostDnsMonitorProxy()
@@ -240,6 +272,9 @@ HRESULT HostDnsMonitorProxy::GetNameServers(ComSafeArrayOut(BSTR, aNameServers))
     if (m->fModified)
         updateInfo();
 
+    LogRel(("HostDnsMonitorProxy::GetNameServers:\n"));
+    dumpHostDnsStrVector("Name Server", m->info->servers);
+
     detachVectorOfString(m->info->servers, ComSafeArrayOutArg(aNameServers));
 
     return S_OK;
@@ -253,6 +288,8 @@ HRESULT HostDnsMonitorProxy::GetDomainName(BSTR *aDomainName)
     if (m->fModified)
         updateInfo();
 
+    LogRel(("HostDnsMonitorProxy::GetDomainName:%s\n", m->info->domain.c_str()));
+
     Utf8Str(m->info->domain.c_str()).cloneTo(aDomainName);
 
     return S_OK;
@@ -265,6 +302,9 @@ HRESULT HostDnsMonitorProxy::GetSearchStrings(ComSafeArrayOut(BSTR, aSearchStrin
 
     if (m->fModified)
         updateInfo();
+
+    LogRel(("HostDnsMonitorProxy::GetSearchStrings:\n"));
+    dumpHostDnsStrVector("Search String", m->info->searchList);
 
     detachVectorOfString(m->info->searchList, ComSafeArrayOutArg(aSearchStrings));
 
@@ -287,9 +327,37 @@ void HostDnsMonitorProxy::updateInfo()
     HostDnsInformation *info = new HostDnsInformation(m->monitor->getInfo());
     HostDnsInformation *old = m->info;
 
+    LogRel(("HostDnsMonitorProxy: Host's DNS information updated:\n"));
+    dumpHostDnsInformation(*info);
+
     m->info = info;
     if (old)
+    {
+        LogRel(("HostDnsMonitorProxy: Old host information:\n"));
+        dumpHostDnsInformation(*old);
+
         delete old;
+    }
 
     m->fModified = false;
+}
+
+
+static void dumpHostDnsInformation(const HostDnsInformation& info)
+{
+    dumpHostDnsStrVector("DNS server", info.servers);
+    dumpHostDnsStrVector("SearchString", info.searchList);
+
+    if (!info.domain.empty())
+        LogRel(("DNS domain: %s\n", info.domain.c_str()));
+}
+
+
+static void dumpHostDnsStrVector(const std::string& prefix, const std::vector<std::string>& v)
+{
+    int i = 0;
+    for (std::vector<std::string>::const_iterator it = v.begin();
+         it != v.end();
+         ++it, ++i)
+        LogRel(("%s %d: %s\n", prefix.c_str(), i, it->c_str()));
 }

@@ -38,12 +38,6 @@ ifdef VBOX_ONLY_ADDITIONS
   #LIBRARIES.os2 += RuntimeGuestR0OS2Warp3
   LIBRARIES.win.x86 += RuntimeGuestR0NT4
  endif
- ifneq ($(VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE),)
-  LIBRARIES.linux.amd64 += \
-      RuntimeGuestR3-x86 \
-      RuntimeGuestR3Mini-x86 \
-      RuntimeGuestR3Shared-x86
- endif
 
 else ifdef VBOX_ONLY_TESTSUITE
  #
@@ -93,12 +87,6 @@ else # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_TESTSUITE && !VBOX_ONLY_DOCS
  ifdef VBOX_WITH_ADDITIONS
   LIBRARIES += RuntimeGuestR3 RuntimeGuestR3Shared RuntimeGuestR3Mini
   LIBRARIES.win.amd64 += RuntimeGuestR3-x86 RuntimeGuestR3Shared-x86
-  ifneq ($(VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE),)
-   LIBRARIES.linux.amd64 += \
-      RuntimeGuestR3-x86 \
-      RuntimeGuestR3Mini-x86 \
-      RuntimeGuestR3Shared-x86
-  endif
   ifdef VBOX_WITH_ADDITION_DRIVERS
    LIBRARIES += RuntimeGuestR0
   endif
@@ -545,15 +533,21 @@ endif
 
 # AMD64 / x86 assembly code.
 RuntimeR3_SOURCES.x86 += \
+	common/asm/ASMCpuIdExSlow.asm \
 	common/asm/ASMAtomicUoAndU64.asm \
 	common/asm/ASMAtomicUoAndU32.asm \
 	common/asm/ASMAtomicUoOrU64.asm \
-	common/asm/ASMAtomicUoOrU32.asm
+	common/asm/ASMAtomicUoOrU32.asm \
+	common/asm/ASMRdMsrEx.asm \
+	common/asm/ASMWrMsrEx.asm
 RuntimeR3_SOURCES.amd64 += \
+	common/asm/ASMCpuIdExSlow.asm \
 	common/asm/ASMAtomicUoAndU64.asm \
 	common/asm/ASMAtomicUoAndU32.asm \
 	common/asm/ASMAtomicUoOrU64.asm \
-	common/asm/ASMAtomicUoOrU32.asm
+	common/asm/ASMAtomicUoOrU32.asm \
+	common/asm/ASMRdMsrEx.asm \
+	common/asm/ASMWrMsrEx.asm
 
 # Some versions of GCC might require this.
 RuntimeR3_SOURCES.x86 += \
@@ -608,7 +602,7 @@ RuntimeR3_SOURCES.win = \
 	nt/RTErrConvertFromNtStatus.cpp \
  	r3/nt/fs-nt.cpp \
  	r3/nt/pathint-nt.cpp \
-	r3/posix/env-posix.cpp \
+	r3/win/env-win.cpp \
 	r3/win/RTHandleGetStandard-win.cpp \
 	r3/win/RTSystemQueryOSInfo-win.cpp \
 	r3/win/RTSystemShutdown-win.cpp \
@@ -1287,13 +1281,6 @@ RuntimeGuestR3Mini_SOURCES.win = \
 	win/errmsgwin.cpp \
 	win/RTErrConvertFromWin32.cpp
 
-#
-# RuntimeGuestR3Mini-x86 - Same as RuntimeGuestR3Mini, except that it's targeting x86.
-#
-RuntimeGuestR3Mini-x86_EXTENDS        := RuntimeGuestR3Mini
-RuntimeGuestR3Mini-x86_BLD_TRG_ARCH   := x86
-
-
 # VBox specific stuff.
 RuntimeGuestR3Mini_SOURCES += \
 	VBox/logbackdoor.cpp \
@@ -1676,15 +1663,21 @@ RuntimeR0_SOURCES += \
 endif
 
 RuntimeR0_SOURCES.x86 += \
+	common/asm/ASMCpuIdExSlow.asm \
 	common/asm/ASMAtomicUoAndU64.asm \
 	common/asm/ASMAtomicUoAndU32.asm \
 	common/asm/ASMAtomicUoOrU64.asm \
-	common/asm/ASMAtomicUoOrU32.asm
+	common/asm/ASMAtomicUoOrU32.asm \
+	common/asm/ASMRdMsrEx.asm \
+	common/asm/ASMWrMsrEx.asm
 RuntimeR0_SOURCES.amd64 += \
+	common/asm/ASMCpuIdExSlow.asm \
 	common/asm/ASMAtomicUoAndU64.asm \
 	common/asm/ASMAtomicUoAndU32.asm \
 	common/asm/ASMAtomicUoOrU64.asm \
-	common/asm/ASMAtomicUoOrU32.asm
+	common/asm/ASMAtomicUoOrU32.asm \
+	common/asm/ASMRdMsrEx.asm \
+	common/asm/ASMWrMsrEx.asm
 
 #if1of ($(KBUILD_TARGET_ARCH),amd64 x86)
 # RuntimeR0_SOURCES += common/time/timesupA.asm
@@ -1821,6 +1814,14 @@ RuntimeR0Drv_SOURCES    = \
 	r0drv/initterm-r0drv.cpp \
 	r0drv/generic/semspinmutex-r0drv-generic.c \
 	VBox/log-vbox.cpp \
+
+RuntimeR0Drv_SOURCES.amd64 = \
+	common/asm/ASMRdMsrEx.asm \
+	common/asm/ASMWrMsrEx.asm
+RuntimeR0Drv_SOURCES.x86   = \
+	common/asm/ASMRdMsrEx.asm \
+	common/asm/ASMWrMsrEx.asm
+
 
 RuntimeR0Drv_SOURCES.linux = \
 	common/misc/thread.cpp \

@@ -3152,4 +3152,101 @@ alice = {
     que la VM est en pause en utilisant :</para>
     <screen>VBoxManage storageattach ...</screen>
   </sect1>
+
+  <sect1 id="hostpowertweaks">
+    <title>Handling of host power management events</title>
+
+    <para>Some host power management events are handled by VirtualBox. The
+    actual behavior depends on the platform:</para>
+
+    <para>
+      <glosslist>
+        <glossentry>
+          <glossterm>Host Suspends</glossterm>
+           <glossdef>
+             <para>
+               This event is generated when the host is about to suspend, that is,
+               the host saves the state to some non-volatile storage and powers off.
+             </para>
+             <para>
+               This event is currently only handled on Windows hosts and Mac OS X hosts.
+               When this event is generated, VirtualBox will pause all running VMs.
+             </para>
+           </glossdef>
+         </glossentry>
+         <glossentry>
+           <glossterm>Host Resumes</glossterm>
+           <glossdef>
+             <para>
+               This event is generated when the host woke up from the suspended
+               state.
+             </para>
+             <para>
+               This event is currently only handled on Windows hosts and Mac OS X hosts.
+               When this event is generated, VirtualBox will resume all VMs which
+               are where paused before.
+             </para>
+           </glossdef>
+         </glossentry>
+         <glossentry>
+           <glossterm>Battery Low</glossterm>
+           <glossdef>
+             <para>
+               The battery level reached a critical level (usually less than 5
+               percent charged).
+             </para>
+             <para>
+               This event is currently only handled on Windows hosts and Mac OS X hosts.
+               When this event is generated, VirtualBox will save the state and
+               terminate all VMs in preperation of a potential host powerdown.
+             </para>
+             <para>The behavior can be configured. By executing the following command,
+             no VM is saved:</para>
+             <screen>VBoxManage setextradata global "VBoxInternal2/SavestateOnBatteryLow" 0</screen>
+             <para>This is a global setting as well as a per-VM setting. The per-VM
+               value has higher precedence than the global value. The following command
+               will save the state of all VMs but will not save the state of VM "foo":</para>
+             <screen>VBoxManage setextradata global "VBoxInternal2/SavestateOnBatteryLow" 1
+VBoxManage setextradata "foo" "VBoxInternal2/SavestateOnBatteryLow" 0</screen>
+             <para>The first line is actually not required as by default the savestate
+             action is performed.</para>
+           </glossdef>
+         </glossentry>
+       </glosslist>
+     </para>
+
+   </sect1>
+
+   <sect1 id="sse412passthrough">
+     <title>Experimental support for passing through SSE4.1 / SSE4.2 instructions</title>
+     <para>
+       To provide SSE 4.1 / SSE 4.2 support to guests, the host CPU has to
+       implement these instruction sets. Starting with VirtualBox 4.3.8 it is
+       possible to enable these instructions for certain guests using the
+       following commands:</para><screen>VBoxManage setextradata "VM name" VBoxInternal/CPUM/SSE4.1 1
+VBoxManage setextradata "VM name" VBoxInternal/CPUM/SSE4.2 1</screen>
+     <para>
+       These are a per-VM settings and they are turned off by default.
+     </para>
+   </sect1>
+
+  <sect1 id="hidledssync">
+    <title>Support for keyboard indicators synchronization</title>
+
+    <para>
+      This feature makes the host keyboard lights match those of the virtual machine's virtual
+      keyboard when the machine window is selected. It is currently implemented for Mac OS X and
+      Windows hosts and available as of releases 4.2.24 and 4.3.8. The feature can be enabled using
+      the following command:
+    </para>
+
+    <screen>VBoxManage setextradata "VM name" GUI/HidLedsSync "1"</screen>
+
+    <para>
+      In order to disable it, use the same command but change "1" to "0", or use the VBoxManage
+      command to remove the extra data. This is a per-VM setting and it is disabled by default.
+    </para>
+
+  </sect1>
+
 </chapter>

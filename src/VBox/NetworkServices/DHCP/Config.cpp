@@ -1,10 +1,27 @@
 /* $Id: Config.cpp $ */
+/** @file
+ * Configuration for DHCP.
+ */
+
+/*
+ * Copyright (C) 2013-2014 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
 
 /**
  * XXX: license.
  */
 
 #include <iprt/asm.h>
+#include <iprt/getopt.h>
 #include <iprt/net.h>
 #include <iprt/time.h>
 
@@ -18,6 +35,8 @@
 
 #include <iprt/cpp/xml.h>
 
+#define BASE_SERVICES_ONLY
+#include "../NetLib/VBoxNetBaseService.h"
 #include "../NetLib/VBoxNetLib.h"
 #include "../NetLib/shared_ptr.h"
 
@@ -27,54 +46,7 @@
 #include <string>
 
 #include "Config.h"
-
-/* types */
-class ClientData
-{
-public:
-    ClientData()
-    {
-        m_address.u = 0;
-        m_network.u = 0;
-        fHasLease = false;
-        fHasClient = false;
-        fBinding = true;
-        u64TimestampBindingStarted = 0;
-        u64TimestampLeasingStarted = 0;
-        u32LeaseExpirationPeriod = 0;
-        u32BindExpirationPeriod = 0;
-        pCfg = NULL;
-
-    }
-    ~ClientData(){}
-    
-    /* client information */
-    RTNETADDRIPV4 m_address;
-    RTNETADDRIPV4 m_network;
-    RTMAC m_mac;
-    
-    bool fHasClient;
-
-    /* Lease part */
-    bool fHasLease; 
-    /** lease isn't commited */
-    bool fBinding;
-
-    /** Timestamp when lease commited. */
-    uint64_t u64TimestampLeasingStarted;
-    /** Period when lease is expired in secs. */
-    uint32_t u32LeaseExpirationPeriod;
-
-    /** timestamp when lease was bound */
-    uint64_t u64TimestampBindingStarted;
-    /* Period when binding is expired in secs. */
-    uint32_t u32BindExpirationPeriod;
-
-    MapOptionId2RawOption options;
-
-    NetworkConfigEntity *pCfg;
-};
-
+#include "ClientDataInt.h"
 
 bool operator== (const Lease& lhs, const Lease& rhs)
 {
@@ -102,6 +74,12 @@ const ClientMatchCriteria *g_AnyClient = new AnyClientMatchCriteria();
 static ConfigurationManager *g_ConfigurationManager = ConfigurationManager::getConfigurationManager();
 
 static NetworkManager *g_NetworkManager = NetworkManager::getNetworkManager();
+
+bool MACClientMatchCriteria::check(const Client& client) const
+{
+    return (client == m_mac);
+}
+
 
 int BaseConfigEntity::match(Client& client, BaseConfigEntity **cfg)
 {
@@ -165,10 +143,10 @@ struct ConfigurationManager::Data
 
     std::string          m_domainName;
     VecClient            m_clients;
-    std::string          m_leaseStorageFilename;
+    com::Utf8Str         m_leaseStorageFilename;
     bool                 fFileExists;
 };
-    
+
 ConfigurationManager *ConfigurationManager::getConfigurationManager()
 {
     if (!g_ConfigurationManager)
@@ -208,10 +186,10 @@ const std::string tagXMLLeaseOptions = "Options";
  *   </Lease>
  * </Leases>
  */
-int ConfigurationManager::loadFromFile(const std::string& leaseStorageFileName)
+int ConfigurationManager::loadFromFile(const com::Utf8Str& leaseStorageFileName)
 {
     m->m_leaseStorageFilename = leaseStorageFileName;
-    
+
     xml::XmlFileParser parser;
     xml::Document doc;
 
@@ -245,10 +223,10 @@ int ConfigurationManager::loadFromFile(const std::string& leaseStorageFileName)
     {
         if (!lease->nameEquals(tagXMLLease.c_str()))
             continue;
-        
+
         ClientData *data = new ClientData();
         Lease l(data);
-        if (l.fromXML(lease)) 
+        if (l.fromXML(lease))
         {
 
             m->m_allocations.insert(MapLease2Ip4AddressPair(l, l.getAddress()));
@@ -271,7 +249,7 @@ int ConfigurationManager::loadFromFile(const std::string& leaseStorageFileName)
 
 int ConfigurationManager::saveToFile()
 {
-    if (m->m_leaseStorageFilename.empty())
+    if (m->m_leaseStorageFilename.isEmpty())
         return VINF_SUCCESS;
 
     xml::Document doc;
@@ -279,7 +257,7 @@ int ConfigurationManager::saveToFile()
     xml::ElementNode *root = doc.createRootElement(tagXMLLeases.c_str());
     if (!root)
         return VERR_INTERNAL_ERROR;
-    
+
     root->setAttribute(tagXMLLeasesAttributeVersion.c_str(), tagXMLLeasesVersion_1_0.c_str());
 
     for(MapLease2Ip4AddressConstIterator it = m->m_allocations.begin();
@@ -425,7 +403,7 @@ Lease ConfigurationManager::allocateLease4Client(const Client& client, PCRTNETBO
         const Lease l = client.lease();
         if (l != Lease::NullLease)
         {
-            /* Here we should take lease from the m_allocation which was feed with leases 
+            /* Here we should take lease from the m_allocation which was feed with leases
              *  on start
              */
             if (l.isExpired())
@@ -513,7 +491,7 @@ int ConfigurationManager::expireLease4Client(Client& client)
 {
     Lease l = client.lease();
     AssertReturn(l != Lease::NullLease, VERR_INTERNAL_ERROR);
-    
+
     if (l.isInBindingPhase())
     {
 
@@ -528,10 +506,11 @@ int ConfigurationManager::expireLease4Client(Client& client)
         l.expire();
         return VINF_SUCCESS;
     }
-    
+
     l = Lease(client); /* re-new */
     return VINF_SUCCESS;
 }
+
 
 bool ConfigurationManager::isAddressTaken(const RTNETADDRIPV4& addr, Lease& lease)
 {
@@ -551,6 +530,13 @@ bool ConfigurationManager::isAddressTaken(const RTNETADDRIPV4& addr, Lease& leas
     }
     lease = Lease::NullLease;
     return false;
+}
+
+
+bool ConfigurationManager::isAddressTaken(const RTNETADDRIPV4& addr)
+{
+    Lease ignore;
+    return isAddressTaken(addr, ignore);
 }
 
 
@@ -697,9 +683,7 @@ struct NetworkManager::Data
     {
         RT_ZERO(BootPReplyMsg);
         cbBooPReplyMsg = 0;
-        
-        m_pSession = NIL_RTR0PTR;
-        m_pIfBuf = NULL;
+
         m_OurAddress.u = 0;
         m_OurNetmask.u = 0;
         RT_ZERO(m_OurMac);
@@ -711,14 +695,10 @@ struct NetworkManager::Data
     } BootPReplyMsg;
     int cbBooPReplyMsg;
 
-    /* XXX: artifacts should be hidden or removed from here. */
-    PSUPDRVSESSION m_pSession;
-    INTNETIFHANDLE m_hIf;
-    PINTNETBUF m_pIfBuf;
-
     RTNETADDRIPV4 m_OurAddress;
     RTNETADDRIPV4 m_OurNetmask;
     RTMAC m_OurMac;
+    const VBoxNetHlpUDPService *m_service;
 };
 
 
@@ -741,137 +721,6 @@ NetworkManager *NetworkManager::getNetworkManager()
         g_NetworkManager = new NetworkManager();
 
     return g_NetworkManager;
-}
-
-
-/**
- * Network manager creates DHCPOFFER datagramm
- */
-int NetworkManager::offer4Client(const Client& client, uint32_t u32Xid,
-                                 uint8_t *pu8ReqList, int cReqList)
-{
-    Lease l(client); /* XXX: oh, it looks badly, but now we have lease */
-    prepareReplyPacket4Client(client, u32Xid);
-
-    RTNETADDRIPV4 address = l.getAddress();
-    m->BootPReplyMsg.BootPHeader.bp_yiaddr =  address;
-
-    /* Ubuntu ???*/
-    m->BootPReplyMsg.BootPHeader.bp_ciaddr =  address;
-
-    /* options:
-     * - IP lease time
-     * - message type
-     * - server identifier
-     */
-    RawOption opt;
-    RT_ZERO(opt);
-
-    std::vector<RawOption> extra(2);
-    opt.u8OptId = RTNET_DHCP_OPT_MSG_TYPE;
-    opt.au8RawOpt[0] = RTNET_DHCP_MT_OFFER;
-    opt.cbRawOpt = 1;
-    extra.push_back(opt);
-
-    opt.u8OptId = RTNET_DHCP_OPT_LEASE_TIME;
-
-    const NetworkConfigEntity *pCfg = l.getConfig();
-    AssertPtr(pCfg);
-
-    *(uint32_t *)opt.au8RawOpt = RT_H2N_U32(pCfg->expirationPeriod());
-    opt.cbRawOpt = sizeof(RTNETADDRIPV4);
-
-    extra.push_back(opt);
-
-    processParameterReqList(client, pu8ReqList, cReqList);
-
-    return doReply(client, extra);
-}
-
-
-/**
- * Network manager creates DHCPACK
- */
-int NetworkManager::ack(const Client& client, uint32_t u32Xid,
-                        uint8_t *pu8ReqList, int cReqList)
-{
-    RTNETADDRIPV4 address;
-
-    prepareReplyPacket4Client(client, u32Xid);
-    
-    Lease l = client.lease();
-    address = l.getAddress();
-    m->BootPReplyMsg.BootPHeader.bp_ciaddr =  address;
-
-
-    /* rfc2131 4.3.1 is about DHCPDISCOVER and this value is equal to ciaddr from
-     * DHCPREQUEST or 0 ...
-     * XXX: Using addressHint is not correct way to initialize [cy]iaddress...
-     */
-    m->BootPReplyMsg.BootPHeader.bp_ciaddr = address;
-    m->BootPReplyMsg.BootPHeader.bp_yiaddr = address;
-
-    Assert(m->BootPReplyMsg.BootPHeader.bp_yiaddr.u);
-
-    /* options:
-     * - IP address lease time (if DHCPREQUEST)
-     * - message type
-     * - server identifier
-     */
-    RawOption opt;
-    RT_ZERO(opt);
-
-    std::vector<RawOption> extra(2);
-    opt.u8OptId = RTNET_DHCP_OPT_MSG_TYPE;
-    opt.au8RawOpt[0] = RTNET_DHCP_MT_ACK;
-    opt.cbRawOpt = 1;
-    extra.push_back(opt);
-
-    /*
-     * XXX: lease time should be conditional. If on dhcprequest then tim should be provided,
-     * else on dhcpinform it mustn't.
-     */
-    opt.u8OptId = RTNET_DHCP_OPT_LEASE_TIME;
-    *(uint32_t *)opt.au8RawOpt = RT_H2N_U32(l.getExpiration());
-    opt.cbRawOpt = sizeof(RTNETADDRIPV4);
-    extra.push_back(opt);
-
-    processParameterReqList(client, pu8ReqList, cReqList);
-
-    return doReply(client, extra);
-}
-
-
-/**
- * Network manager creates DHCPNAK
- */
-int NetworkManager::nak(const Client& client, uint32_t u32Xid)
-{
-
-    Lease l = client.lease();
-    if (l == Lease::NullLease)
-        return VERR_INTERNAL_ERROR;
-
-    prepareReplyPacket4Client(client, u32Xid);
-
-    /* this field filed in prepareReplyPacket4Session, and
-     * RFC 2131 require to have it zero fo NAK.
-     */
-    m->BootPReplyMsg.BootPHeader.bp_yiaddr.u = 0;
-
-    /* options:
-     * - message type (if DHCPREQUEST)
-     * - server identifier
-     */
-    RawOption opt;
-    std::vector<RawOption> extra;
-
-    opt.u8OptId = RTNET_DHCP_OPT_MSG_TYPE;
-    opt.au8RawOpt[0] = RTNET_DHCP_MT_NAC;
-    opt.cbRawOpt = 1;
-    extra.push_back(opt);
-
-    return doReply(client, extra);
 }
 
 
@@ -911,21 +760,137 @@ void NetworkManager::setOurMac(const RTMAC& aMac)
 }
 
 
-void NetworkManager::setSession(PSUPDRVSESSION aSession)
+void NetworkManager::setService(const VBoxNetHlpUDPService *srv)
 {
-    m->m_pSession = aSession;
+    m->m_service = srv;
 }
 
-
-void NetworkManager::setInterface(INTNETIFHANDLE aIf)
+/**
+ * Network manager creates DHCPOFFER datagramm
+ */
+int NetworkManager::offer4Client(const Client& client, uint32_t u32Xid,
+                                 uint8_t *pu8ReqList, int cReqList)
 {
-    m->m_hIf = aIf;
+    Lease l(client); /* XXX: oh, it looks badly, but now we have lease */
+    prepareReplyPacket4Client(client, u32Xid);
+
+    RTNETADDRIPV4 address = l.getAddress();
+    m->BootPReplyMsg.BootPHeader.bp_yiaddr =  address;
+
+    /* Ubuntu ???*/
+    m->BootPReplyMsg.BootPHeader.bp_ciaddr =  address;
+
+    /* options:
+     * - IP lease time
+     * - message type
+     * - server identifier
+     */
+    RawOption opt;
+    RT_ZERO(opt);
+
+    std::vector<RawOption> extra;
+    opt.u8OptId = RTNET_DHCP_OPT_MSG_TYPE;
+    opt.au8RawOpt[0] = RTNET_DHCP_MT_OFFER;
+    opt.cbRawOpt = 1;
+    extra.push_back(opt);
+
+    opt.u8OptId = RTNET_DHCP_OPT_LEASE_TIME;
+
+    const NetworkConfigEntity *pCfg = l.getConfig();
+    AssertPtr(pCfg);
+
+    *(uint32_t *)opt.au8RawOpt = RT_H2N_U32(pCfg->expirationPeriod());
+    opt.cbRawOpt = sizeof(RTNETADDRIPV4);
+
+    extra.push_back(opt);
+
+    processParameterReqList(client, pu8ReqList, cReqList, extra);
+
+    return doReply(client, extra);
 }
 
-
-void NetworkManager::setRingBuffer(PINTNETBUF aBuf)
+/**
+ * Network manager creates DHCPACK
+ */
+int NetworkManager::ack(const Client& client, uint32_t u32Xid,
+                        uint8_t *pu8ReqList, int cReqList)
 {
-    m->m_pIfBuf = aBuf;
+    RTNETADDRIPV4 address;
+
+    prepareReplyPacket4Client(client, u32Xid);
+
+    Lease l = client.lease();
+    address = l.getAddress();
+    m->BootPReplyMsg.BootPHeader.bp_ciaddr =  address;
+
+
+    /* rfc2131 4.3.1 is about DHCPDISCOVER and this value is equal to ciaddr from
+     * DHCPREQUEST or 0 ...
+     * XXX: Using addressHint is not correct way to initialize [cy]iaddress...
+     */
+    m->BootPReplyMsg.BootPHeader.bp_ciaddr = address;
+    m->BootPReplyMsg.BootPHeader.bp_yiaddr = address;
+
+    Assert(m->BootPReplyMsg.BootPHeader.bp_yiaddr.u);
+
+    /* options:
+     * - IP address lease time (if DHCPREQUEST)
+     * - message type
+     * - server identifier
+     */
+    RawOption opt;
+    RT_ZERO(opt);
+
+    std::vector<RawOption> extra;
+    opt.u8OptId = RTNET_DHCP_OPT_MSG_TYPE;
+    opt.au8RawOpt[0] = RTNET_DHCP_MT_ACK;
+    opt.cbRawOpt = 1;
+    extra.push_back(opt);
+
+    /*
+     * XXX: lease time should be conditional. If on dhcprequest then tim should be provided,
+     * else on dhcpinform it mustn't.
+     */
+    opt.u8OptId = RTNET_DHCP_OPT_LEASE_TIME;
+    *(uint32_t *)opt.au8RawOpt = RT_H2N_U32(l.getExpiration());
+    opt.cbRawOpt = sizeof(RTNETADDRIPV4);
+    extra.push_back(opt);
+
+    processParameterReqList(client, pu8ReqList, cReqList, extra);
+
+    return doReply(client, extra);
+}
+
+/**
+ * Network manager creates DHCPNAK
+ */
+int NetworkManager::nak(const Client& client, uint32_t u32Xid)
+{
+
+    Lease l = client.lease();
+    if (l == Lease::NullLease)
+        return VERR_INTERNAL_ERROR;
+
+    prepareReplyPacket4Client(client, u32Xid);
+
+    /* this field filed in prepareReplyPacket4Session, and
+     * RFC 2131 require to have it zero fo NAK.
+     */
+    m->BootPReplyMsg.BootPHeader.bp_yiaddr.u = 0;
+
+    /* options:
+     * - message type (if DHCPREQUEST)
+     * - server identifier
+     */
+    RawOption opt;
+    std::vector<RawOption> extra;
+
+    opt.u8OptId = RTNET_DHCP_OPT_MSG_TYPE;
+    opt.au8RawOpt[0] = RTNET_DHCP_MT_NAC;
+    opt.cbRawOpt = 1;
+    extra.push_back(opt);
+
+    return doReply(client, extra);
 }
 
 /**
@@ -976,10 +941,10 @@ int NetworkManager::doReply(const Client& client, const std::vector<RawOption>& 
 
     Cursor.optIPv4Addr(RTNET_DHCP_OPT_SERVER_ID, m->m_OurAddress);
 
-    const Lease l = client.lease(); 
+    const Lease l = client.lease();
     const std::map<uint8_t, RawOption>& options = l.options();
 
-    for(std::vector<RawOption>::const_iterator it = extra.begin(); 
+    for(std::vector<RawOption>::const_iterator it = extra.begin();
         it != extra.end(); ++it)
     {
         if (!Cursor.begin(it->u8OptId, it->cbRawOpt))
@@ -988,7 +953,7 @@ int NetworkManager::doReply(const Client& client, const std::vector<RawOption>& 
 
     }
 
-    for(std::map<uint8_t, RawOption>::const_iterator it = options.begin(); 
+    for(std::map<uint8_t, RawOption>::const_iterator it = options.begin();
         it != options.end(); ++it)
     {
         if (!Cursor.begin(it->second.u8OptId, it->second.cbRawOpt))
@@ -1003,7 +968,7 @@ int NetworkManager::doReply(const Client& client, const std::vector<RawOption>& 
      */
 #if 0
     /** @todo need to see someone set this flag to check that it's correct. */
-    if (!(pDhcpMsg->bp_flags & RTNET_DHCP_FLAGS_NO_BROADCAST))  
+    if (!(pDhcpMsg->bp_flags & RTNET_DHCP_FLAGS_NO_BROADCAST))
     {
         rc = VBoxNetUDPUnicast(m_pSession,
                                m_hIf,
@@ -1018,14 +983,10 @@ int NetworkManager::doReply(const Client& client, const std::vector<RawOption>& 
     }
     else
 #endif
-        rc = VBoxNetUDPBroadcast(m->m_pSession,
-                                 m->m_hIf,
-                                 m->m_pIfBuf,
-                                 m->m_OurAddress,
-                                 &m->m_OurMac,
-                                 RTNETIPV4_PORT_BOOTPS,               /* sender */
-                                 RTNETIPV4_PORT_BOOTPC,
-                                 &m->BootPReplyMsg, RTNET_DHCP_NORMAL_SIZE);
+        rc = m->m_service->hlpUDPBroadcast(RTNETIPV4_PORT_BOOTPS,               /* sender */
+                                           RTNETIPV4_PORT_BOOTPC,
+                                           &m->BootPReplyMsg,
+                                           RTNET_DHCP_NORMAL_SIZE);
 
     AssertRCReturn(rc,rc);
 
@@ -1033,27 +994,24 @@ int NetworkManager::doReply(const Client& client, const std::vector<RawOption>& 
 }
 
 
-int NetworkManager::processParameterReqList(const Client& client, uint8_t *pu8ReqList, int cReqList)
+int NetworkManager::processParameterReqList(const Client& client, const uint8_t *pu8ReqList, 
+                                            int cReqList, std::vector<RawOption>& extra)
 {
-    /* request parameter list */
-    RawOption opt;
-    int idxParam = 0;
+    const Lease l = client.lease();
 
-    uint8_t *pReqList = pu8ReqList;
-    
-    const Lease const_l = client.lease();
-    Lease l = Lease(const_l);
-    
     const NetworkConfigEntity *pNetCfg = l.getConfig();
 
-    for (idxParam = 0; idxParam < cReqList; ++idxParam)
+    /* request parameter list */
+    RawOption opt;
+    bool fIgnore;
+    uint8_t u8Req;
+    for (int idxParam = 0; idxParam < cReqList; ++idxParam)
     {
-
-        bool fIgnore = false;
+        fIgnore = false;
         RT_ZERO(opt);
-        opt.u8OptId = pReqList[idxParam];
+        u8Req = opt.u8OptId = pu8ReqList[idxParam];
 
-        switch(pReqList[idxParam])
+        switch(u8Req)
         {
             case RTNET_DHCP_OPT_SUBNET_MASK:
                 ((PRTNETADDRIPV4)opt.au8RawOpt)->u = pNetCfg->netmask().u;
@@ -1065,7 +1023,7 @@ int NetworkManager::processParameterReqList(const Client& client, uint8_t *pu8Re
             case RTNET_DHCP_OPT_DNS:
                 {
                     const Ipv4AddressContainer lst =
-                      g_ConfigurationManager->getAddressList(pReqList[idxParam]);
+                      g_ConfigurationManager->getAddressList(u8Req);
                     PRTNETADDRIPV4 pAddresses = (PRTNETADDRIPV4)&opt.au8RawOpt[0];
 
                     for (Ipv4AddressConstIterator it = lst.begin();
@@ -1083,7 +1041,7 @@ int NetworkManager::processParameterReqList(const Client& client, uint8_t *pu8Re
                 break;
             case RTNET_DHCP_OPT_DOMAIN_NAME:
                 {
-                    std::string domainName = g_ConfigurationManager->getString(pReqList[idxParam]);
+                    std::string domainName = g_ConfigurationManager->getString(u8Req);
                     if (domainName == g_ConfigurationManager->m_noString)
                     {
                         fIgnore = true;
@@ -1097,27 +1055,18 @@ int NetworkManager::processParameterReqList(const Client& client, uint8_t *pu8Re
                 }
                 break;
             default:
-                Log(("opt: %d is ignored\n", pReqList[idxParam]));
+                Log(("opt: %d is ignored\n", u8Req));
                 fIgnore = true;
                 break;
         }
 
         if (!fIgnore)
-            l.options().insert(std::map<uint8_t, RawOption>::value_type(opt.u8OptId, opt));
+            extra.push_back(opt);
 
     }
 
     return VINF_SUCCESS;
 }
-
-/* Utility */
-bool operator== (const RTMAC& lhs, const RTMAC& rhs)
-{
-    return (   lhs.au16[0] == rhs.au16[0]
-            && lhs.au16[1] == rhs.au16[1]
-            && lhs.au16[2] == rhs.au16[2]);
-}
-
 
 /* Client */
 Client::Client()
@@ -1279,12 +1228,6 @@ const MapOptionId2RawOption& Lease::options() const
 }
 
 
-MapOptionId2RawOption& Lease::options()
-{
-    return m->options;
-}
-
-
 Lease::Lease(ClientData *pd):m(SharedPtr<ClientData>(pd)){}
 
 
@@ -1296,20 +1239,20 @@ bool Lease::toXML(xml::ElementNode *node) const
     valueAddition = node->setAttribute(tagXMLLeaseAttributeNetwork.c_str(), com::Utf8StrFmt("%RTnaipv4", m->m_network));
     if (!valueAddition) return false;
 
-    xml::ElementNode *address = node->createChild(tagXMLLeaseAddress.c_str()); 
+    xml::ElementNode *address = node->createChild(tagXMLLeaseAddress.c_str());
     if (!address) return false;
 
     valueAddition = address->setAttribute(tagXMLAddressAttributeValue.c_str(), com::Utf8StrFmt("%RTnaipv4", m->m_address));
     if (!valueAddition) return false;
 
-    xml::ElementNode *time = node->createChild(tagXMLLeaseTime.c_str()); 
+    xml::ElementNode *time = node->createChild(tagXMLLeaseTime.c_str());
     if (!time) return false;
 
-    valueAddition = time->setAttribute(tagXMLTimeAttributeIssued.c_str(), 
+    valueAddition = time->setAttribute(tagXMLTimeAttributeIssued.c_str(),
                                        m->u64TimestampLeasingStarted);
     if (!valueAddition) return false;
 
-    valueAddition = time->setAttribute(tagXMLTimeAttributeExpiration.c_str(), 
+    valueAddition = time->setAttribute(tagXMLTimeAttributeExpiration.c_str(),
                                        m->u32LeaseExpirationPeriod);
     if (!valueAddition) return false;
 
@@ -1338,17 +1281,17 @@ bool Lease::fromXML(const xml::ElementNode *node)
     valueExists = address->getAttributeValue(tagXMLAddressAttributeValue.c_str(), addressValue);
     if (!valueExists) return false;
     rc = RTNetStrToIPv4Addr(addressValue.c_str(), &m->m_address);
-    
+
     /* Time */
     const xml::ElementNode *time = node->findChildElement(tagXMLLeaseTime.c_str());
     if (!time) return false;
 
-    valueExists = time->getAttributeValue(tagXMLTimeAttributeIssued.c_str(), 
+    valueExists = time->getAttributeValue(tagXMLTimeAttributeIssued.c_str(),
                                           &m->u64TimestampLeasingStarted);
     if (!valueExists) return false;
     m->fBinding = false;
-    
-    valueExists = time->getAttributeValue(tagXMLTimeAttributeExpiration.c_str(), 
+
+    valueExists = time->getAttributeValue(tagXMLTimeAttributeExpiration.c_str(),
                                           &m->u32LeaseExpirationPeriod);
     if (!valueExists) return false;
 
@@ -1358,6 +1301,5 @@ bool Lease::fromXML(const xml::ElementNode *node)
 
 
 const Lease Lease::NullLease;
-
 
 const Client Client::NullClient;
