@@ -4,6 +4,7 @@ virtualbox (4.3.8-dfsg-1) unstable; urgency=medium
 
   [ Gianfranco Costamagna ]
   * New upstream release, patch refresh.
+  * d/control, enforcing gsoap min required version.
 
   [ Felix Geyer ]
   * 39-fix-wrong-vboxvideo_drv-source.patch: fixed build failure.
