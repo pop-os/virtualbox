@@ -5,7 +5,7 @@ Maintainer: Debian Virtualbox Team <pkg-virtualbox-devel@lists.alioth.debian.org
 Uploaders: Michael Meskes <meskes@debian.org>,
            Felix Geyer <fgeyer@debian.org>, Ritesh Raj Sarraf <rrs@debian.org>
 Build-Depends: bzip2,
-               debhelper (>= 7.2.7~),
+               debhelper (>= 9),
                default-jdk,
                dkms (>= 2.1.1.1),
                docbook-xml,
@@ -53,6 +53,7 @@ Build-Depends: bzip2,
                lsb-release,
                lynx-cur,
                makeself,
+               module-assistant,
                python-dev (>= 2.6.6-3~),
                texlive-fonts-extra,
                texlive-fonts-recommended,
@@ -66,7 +67,7 @@ Build-Depends: bzip2,
                yasm (>= 0.7.0),
                zlib1g-dev
 X-Python-Version: >= 2.5
-Standards-Version: 3.9.4
+Standards-Version: 3.9.5
 Homepage: http://www.virtualbox.org/
 Vcs-Git: git://anonscm.debian.org/pkg-virtualbox/virtualbox.git
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-virtualbox/virtualbox.git
@@ -142,9 +143,10 @@ Section: contrib/kernel
 Architecture: all
 Depends: ${misc:Depends},
          build-essential,
-         debhelper (>= 5),
+         debhelper (>= 9),
          bzip2,
-         kbuild
+         kbuild,
+         module-assistant
 Recommends: module-assistant
 Description: x86 virtualization solution - kernel module source
  VirtualBox is a free x86 virtualization solution allowing a wide range
@@ -176,9 +178,10 @@ Section: contrib/kernel
 Architecture: all
 Depends: ${misc:Depends}, 
          build-essential,
-         debhelper (>= 5),
+         debhelper (>= 9),
          bzip2,
-         kbuild
+         kbuild,
+         module-assistant
 Recommends: module-assistant
 Description: x86 virtualization solution - guest addition module source
  VirtualBox is a free x86 virtualization solution allowing a wide range
