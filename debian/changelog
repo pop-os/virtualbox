@@ -6,6 +6,7 @@ virtualbox (4.3.8-dfsg-1) unstable; urgency=medium
   * New upstream release, patch refresh.
   * d/control, enforcing gsoap min required version.
   * Add module-assistant as dependency, fixing broken symlink
+  * disabled some old unused lintian overrides.
 
   [ Felix Geyer ]
   * 39-fix-wrong-vboxvideo_drv-source.patch: fixed build failure.
