@@ -53,7 +53,6 @@ Build-Depends: bzip2,
                lsb-release,
                lynx-cur,
                makeself,
-               module-assistant,
                python-dev (>= 2.6.6-3~),
                texlive-fonts-extra,
                texlive-fonts-recommended,
@@ -147,7 +146,6 @@ Depends: ${misc:Depends},
          bzip2,
          kbuild,
          module-assistant
-Recommends: module-assistant
 Description: x86 virtualization solution - kernel module source
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -182,7 +180,6 @@ Depends: ${misc:Depends},
          bzip2,
          kbuild,
          module-assistant
-Recommends: module-assistant
 Description: x86 virtualization solution - guest addition module source
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
