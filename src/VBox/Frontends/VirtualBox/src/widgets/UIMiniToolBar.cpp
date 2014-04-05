@@ -192,11 +192,6 @@ void UIRuntimeMiniToolBar::adjustGeometry()
 
     /* Simulate toolbar auto-hiding: */
     simulateToolbarAutoHiding();
-
-    /* Due to [probably] Qt bug QMdiSubWindow still
-     * can receive focus even if focus policy is Qt::NoFocus,
-     * We should return the focus to our parent: */
-    parentWidget()->setFocus();
 }
 
 void UIRuntimeMiniToolBar::sltHandleToolbarResize()
@@ -259,6 +254,8 @@ void UIRuntimeMiniToolBar::prepare()
     /* Prepare mini-toolbar: */
     m_pToolbar = new UIMiniToolBar;
     {
+        /* Make sure we have no focus: */
+        m_pToolbar->setFocusPolicy(Qt::NoFocus);
         /* Propagate known options to child: */
         m_pToolbar->setAutoHide(m_fAutoHide);
         m_pToolbar->setAlignment(m_alignment);
@@ -270,14 +267,16 @@ void UIRuntimeMiniToolBar::prepare()
         /* Configure child connections: */
         connect(m_pToolbar, SIGNAL(sigResized()), this, SLOT(sltHandleToolbarResize()));
         connect(m_pToolbar, SIGNAL(sigAutoHideToggled()), this, SLOT(sltAutoHideToggled()));
+#ifndef RT_OS_DARWIN
         connect(m_pToolbar, SIGNAL(sigMinimizeAction()), this, SIGNAL(sigMinimizeAction()));
+#endif /* !RT_OS_DARWIN */
         connect(m_pToolbar, SIGNAL(sigExitAction()), this, SIGNAL(sigExitAction()));
         connect(m_pToolbar, SIGNAL(sigCloseAction()), this, SIGNAL(sigCloseAction()));
         /* Add child to mdi-area: */
         m_pEmbeddedToolbar = m_pMdiArea->addSubWindow(m_pToolbar, Qt::Window | Qt::FramelessWindowHint);
         /* Make sure we have no focus: */
-        m_pToolbar->setFocusPolicy(Qt::NoFocus);
         m_pEmbeddedToolbar->setFocusPolicy(Qt::NoFocus);
+        m_pEmbeddedToolbar->installEventFilter(this);
     }
 
     /* Prepare hover-enter/leave timers: */
@@ -337,6 +336,19 @@ void UIRuntimeMiniToolBar::leaveEvent(QEvent*)
     /* Start the hover-leave timer: */
     if (m_fAutoHide)
         m_pHoverLeaveTimer->start();
+}
+
+bool UIRuntimeMiniToolBar::eventFilter(QObject *pWatched, QEvent *pEvent)
+{
+    /* Due to Qt bug QMdiArea can
+     * 1. steal focus from current application focus-widget
+     * 3. and even request focus stealing if QMdiArea hidden yet.
+     * We have to notify listeners about such facts.. */
+    if (pWatched && m_pEmbeddedToolbar && pWatched == m_pEmbeddedToolbar &&
+        pEvent->type() == QEvent::FocusIn)
+        emit sigNotifyAboutFocusStolen();
+    /* Call to base-class: */
+    return QWidget::eventFilter(pWatched, pEvent);
 }
 
 void UIRuntimeMiniToolBar::updateAutoHideAnimationBounds()
@@ -426,7 +438,9 @@ UIMiniToolBar::UIMiniToolBar()
     /* Variables: Contents stuff: */
     , m_pAutoHideAction(0)
     , m_pLabel(0)
+#ifndef RT_OS_DARWIN
     , m_pMinimizeAction(0)
+#endif /* !RT_OS_DARWIN */
     , m_pRestoreAction(0)
     , m_pCloseAction(0)
     /* Variables: Menu stuff: */
@@ -606,12 +620,14 @@ void UIMiniToolBar::prepare()
     /* Right label margin: */
     m_margins << widgetForAction(addWidget(new QWidget));
 
+#ifndef RT_OS_DARWIN
     /* Minimize action: */
     m_pMinimizeAction = new QAction(this);
     m_pMinimizeAction->setIcon(UIIconPool::iconSet(":/minimize_16px.png"));
     m_pMinimizeAction->setToolTip(tr("Minimize Window"));
     connect(m_pMinimizeAction, SIGNAL(triggered()), this, SIGNAL(sigMinimizeAction()));
     addAction(m_pMinimizeAction);
+#endif /* !RT_OS_DARWIN */
 
     /* Exit action: */
     m_pRestoreAction = new QAction(this);

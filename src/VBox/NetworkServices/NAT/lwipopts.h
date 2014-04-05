@@ -1,5 +1,5 @@
-#ifndef VBOX_LWIP_OPTS_H_
-#define VBOX_LWIP_OPTS_H_
+#ifndef _VBOX_NETNAT_LWIP_OPTS_H_
+#define _VBOX_NETNAT_LWIP_OPTS_H_
 
 #include <iprt/mem.h>
 #include <iprt/alloca.h>    /* This may include malloc.h (msc), which is something that has
@@ -23,6 +23,9 @@
 #else
 #define MEM_ALIGNMENT 4
 #endif
+
+/* Padding before Ethernet header to make IP header aligned */
+#define ETH_PAD_SIZE 2
 
 /* IP */
 #define IP_REASSEMBLY 1
@@ -110,14 +113,12 @@
 #define SYS_LIGHTWEIGHT_PROT 1
 
 /** Attempt to get rid of htons etc. macro issues. */
-#define LWIP_PREFIX_BYTEORDER_FUNCS
-
-#define LWIP_NOASSERT 0
+#undef LWIP_PREFIX_BYTEORDER_FUNCS
 
 #define LWIP_TCPIP_CORE_LOCKING_INPUT 0
 #define LWIP_TCPIP_CORE_LOCKING 0
 #define LWIP_TCP 1
-#define LWIP_SOCKET 1
+#define LWIP_SOCKET 0
 #define LWIP_ARP 1
 #define ARP_PROXY 1
 #define LWIP_ETHERNET 1
@@ -156,51 +157,10 @@
 
 /* Debugging stuff. */
 #ifdef DEBUG
-/* filter in debugging severity */
-# define DBG_TYPES_ON (LWIP_DBG_ON | LWIP_DBG_TRACE | LWIP_DBG_STATE | LWIP_DBG_FRESH | LWIP_DBG_HALT)
-# define DBG_MIN_LEVEL 0
+# define LWIP_DEBUG
+# include "lwip-log.h"
 
-# define LWIP_DEBUG LWIP_DBG_ON
-/* Ethernet & ARP debugging */
-# define ETHARP_DEBUG    LWIP_DBG_ON
-/* IPv4 debugging */
-# define IP_DEBUG    LWIP_DBG_ON
-# define IP_REASS_DEBUG  LWIP_DBG_ON
-/* IPv6 debugging */
-# define IP6_DEBUG LWIP_DBG_ON
-/* ICMP debugging */
-# define ICMP_DEBUG  LWIP_DBG_ON
-/* TCP debugging */
-# define TCP_DEBUG   LWIP_DBG_ON
-# define TCP_INPUT_DEBUG LWIP_DBG_ON
-# define TCP_FR_DEBUG    LWIP_DBG_ON
-# define TCP_RTO_DEBUG   LWIP_DBG_ON
-# define TCP_CWND_DEBUG  LWIP_DBG_ON
-# define TCP_WND_DEBUG   LWIP_DBG_ON
-# define TCP_OUTPUT_DEBUG    LWIP_DBG_ON
-# define TCP_RST_DEBUG   LWIP_DBG_ON
-# define TCP_QLEN_DEBUG  LWIP_DBG_ON
-/* RAW API debugging */
-/* API debugging */
-# define NETIF_DEBUG LWIP_DBG_ON
-# define PBUF_DEBUG  LWIP_DBG_ON
-# define API_LIB_DEBUG   LWIP_DBG_ON
-# define API_MSG_DEBUG   LWIP_DBG_ON
-# define SOCKETS_DEBUG   LWIP_DBG_ON
-
-# define INET_DEBUG  LWIP_DBG_ON
-# define RAW_DEBUG   LWIP_DBG_ON
-# define MEM_DEBUG   LWIP_DBG_ON
-# define MEMP_DEBUG  LWIP_DBG_ON
-# define SYS_DEBUG   LWIP_DBG_ON
-
-# define UDP_DEBUG   LWIP_DBG_ON
-# define TCPIP_DEBUG LWIP_DBG_ON
-# define DHCP_DEBUG  LWIP_DBG_ON
-
-# define LWIP_PROXY_DEBUG LWIP_DBG_ON
-/* Debug checks */
-# define TCP_OVERSIZE_DBGCHECK 1
+# define LWIP_PROXY_DEBUG LWIP_DBG_OFF
 #endif /* DEBUG */
 
 /* printf formatter definitions */
@@ -216,7 +176,4 @@
 #define realloc(x,y) RTMemRealloc((x), (y))
 #define free(x) RTMemFree(x)
 
-
-#include "lwip-namespace.h"
-
-#endif
+#endif /* _VBOX_NETNAT_LWIP_OPTS_H_ */

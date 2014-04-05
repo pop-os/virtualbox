@@ -961,7 +961,7 @@ static void crScreenshotHandle(CRVBOXHGCMTAKESCREENSHOT *pScreenshot, uint32_t i
 /*
  * We differentiate between a function handler for the guest and one for the host.
  */
-static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
+static int svcHostCallPerform(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
     int rc = VINF_SUCCESS;
 
@@ -979,10 +979,6 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
 
     switch (u32Function)
     {
-        case SHCRGL_HOST_FN_CRCMD_NOTIFY_CMDS:
-        {
-            rc = crVBoxServerCrCmdNotifyCmds();
-        } break;
 #ifdef VBOX_WITH_CRHGSMI
         case SHCRGL_HOST_FN_CRHGSMI_CMD:
         {
@@ -1474,6 +1470,73 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
 
     LogFlow(("svcHostCall: rc = %Rrc\n", rc));
     return rc;
+}
+
+int crVBoxServerHostCtl(VBOXCRCMDCTL *pCtl, uint32_t cbCtl)
+{
+    if ((cbCtl - sizeof (VBOXCRCMDCTL)) % sizeof(VBOXHGCMSVCPARM))
+    {
+        WARN(("invalid param size"));
+        return VERR_INVALID_PARAMETER;
+    }
+    uint32_t cParams = (cbCtl - sizeof (VBOXCRCMDCTL)) / sizeof (VBOXHGCMSVCPARM);
+    return svcHostCallPerform(pCtl->u32Function, cParams, (VBOXHGCMSVCPARM*)(pCtl + 1));
+}
+
+static DECLCALLBACK(int) svcHostCall(void *, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
+{
+    switch (u32Function)
+    {
+        case SHCRGL_HOST_FN_CTL:
+        {
+            if (cParms != 1)
+            {
+                WARN(("cParams != 1"));
+                return VERR_INVALID_PARAMETER;
+            }
+
+            if (paParms->type != VBOX_HGCM_SVC_PARM_PTR)
+            {
+                WARN(("invalid param type"));
+                return VERR_INVALID_PARAMETER;
+            }
+
+            if (paParms->u.pointer.size < sizeof (VBOXCRCMDCTL))
+            {
+                WARN(("invalid param size"));
+                return VERR_INVALID_PARAMETER;
+            }
+
+            VBOXCRCMDCTL *pCtl = (VBOXCRCMDCTL*)paParms->u.pointer.addr;
+            switch (pCtl->enmType)
+            {
+                case VBOXCRCMDCTL_TYPE_HGCM:
+                {
+                    return crVBoxServerHostCtl(pCtl, paParms->u.pointer.size);
+                }
+                case VBOXCRCMDCTL_TYPE_DISABLE:
+                {
+                    if (paParms->u.pointer.size != sizeof (VBOXCRCMDCTL))
+                        WARN(("invalid param size"));
+                    return crVBoxServerHgcmDisable();
+                }
+                case VBOXCRCMDCTL_TYPE_ENABLE:
+                {
+                    if (paParms->u.pointer.size != sizeof (VBOXCRCMDCTL_ENABLE))
+                        WARN(("invalid param size"));
+                    VBOXCRCMDCTL_ENABLE *pEnable = (VBOXCRCMDCTL_ENABLE*)pCtl;
+                    return crVBoxServerHgcmEnable(pEnable->hRHCmd, pEnable->pfnRHCmd);
+                }
+                default:
+                    WARN(("invalid function"));
+                    return VERR_INVALID_PARAMETER;
+            }
+            WARN(("should not be here!"));
+            return VERR_INTERNAL_ERROR;
+        }
+        default:
+            return svcHostCallPerform(u32Function, cParms, paParms);
+    }
 }
 
 extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad (VBOXHGCMSVCFNTABLE *ptable)

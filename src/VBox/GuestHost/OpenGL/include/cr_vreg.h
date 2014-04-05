@@ -63,6 +63,20 @@ DECLINLINE(void) VBoxRectScaled(const RTRECT *pRect, float xScale, float yScale,
     *pResult = *pRect;
     VBoxRectScale(pResult, xScale, yScale);
 }
+
+DECLINLINE(void) VBoxRectUnscale(PRTRECT pRect, float xScale, float yScale)
+{
+    pRect->xLeft = CR_FLOAT_RCAST(int32_t, pRect->xLeft / xScale);
+    pRect->yTop = CR_FLOAT_RCAST(int32_t, pRect->yTop / yScale);
+    pRect->xRight = CR_FLOAT_RCAST(int32_t, pRect->xRight / xScale);
+    pRect->yBottom = CR_FLOAT_RCAST(int32_t, pRect->yBottom / yScale);
+}
+
+DECLINLINE(void) VBoxRectUnscaled(const RTRECT *pRect, float xScale, float yScale, PRTRECT pResult)
+{
+    *pResult = *pRect;
+    VBoxRectUnscale(pResult, xScale, yScale);
+}
 #endif
 
 DECLINLINE(void) VBoxRectIntersect(PRTRECT pRect1, const RTRECT * pRect2)
@@ -190,8 +204,8 @@ VBOXVREGDECL(int) VBoxVrListClone(const VBOXVR_LIST *pList, VBOXVR_LIST *pDstLis
 VBOXVREGDECL(int) VBoxVrListRectsIntersect(PVBOXVR_LIST pList, uint32_t cRects, const RTRECT * aRects, bool *pfChanged);
 VBOXVREGDECL(int) VBoxVrListIntersect(PVBOXVR_LIST pList, const VBOXVR_LIST *pList2, bool *pfChanged);
 
-VBOXVREGDECL(int) VBoxVrInit();
-VBOXVREGDECL(void) VBoxVrTerm();
+VBOXVREGDECL(int) VBoxVrInit(void);
+VBOXVREGDECL(void) VBoxVrTerm(void);
 
 typedef struct VBOXVR_LIST_ITERATOR
 {

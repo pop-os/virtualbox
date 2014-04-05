@@ -1924,7 +1924,8 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                                             false /* fForceUnmount */,
                                             false /* fHotplug */,
                                             pUVM,
-                                            paLedDevType);
+                                            paLedDevType,
+                                            NULL /* ppLunL0 */);
                 if (RT_FAILURE(rc))
                     return rc;
             }
@@ -3414,7 +3415,8 @@ int Console::configMediumAttachment(PCFGMNODE pCtlInst,
                                     bool fForceUnmount,
                                     bool fHotplug,
                                     PUVM pUVM,
-                                    DeviceType_T *paLedDevType)
+                                    DeviceType_T *paLedDevType,
+                                    PCFGMNODE *ppLunL0)
 {
     // InsertConfig* throws
     try
@@ -3485,6 +3487,8 @@ int Console::configMediumAttachment(PCFGMNODE pCtlInst,
         }
 
         InsertConfigNode(pCtlInst, Utf8StrFmt("LUN#%u", uLUN).c_str(), &pLunL0);
+        if (ppLunL0)
+            *ppLunL0 = pLunL0;
 
         PCFGMNODE pCfg = CFGMR3GetChild(pCtlInst, "Config");
         if (pCfg)

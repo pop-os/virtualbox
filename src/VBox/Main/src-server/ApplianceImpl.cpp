@@ -1530,8 +1530,10 @@ void VirtualSystemDescription::addEntry(VirtualSystemDescriptionType_T aType,
         = vsde.strExtraConfigCurrent
         = strExtraConfig;
     vsde.ulSizeMB = ulSizeMB;
+    vsde.skipIt = false;
 
     m->llDescriptions.push_back(vsde);
+
 }
 
 /**

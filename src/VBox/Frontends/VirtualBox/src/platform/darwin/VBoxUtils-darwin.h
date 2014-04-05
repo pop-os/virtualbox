@@ -49,6 +49,7 @@ RT_C_DECLS_BEGIN
 NativeNSWindowRef darwinToNativeWindowImpl(NativeNSViewRef pView);
 NativeNSViewRef darwinToNativeViewImpl(NativeNSWindowRef pWindow);
 NativeNSStringRef darwinToNativeString(const char* pcszString);
+QString darwinFromNativeString(NativeNSStringRef pString);
 
 /********************************************************************************
  *
@@ -77,6 +78,11 @@ int  darwinWindowToolBarHeight(NativeNSWindowRef pWindow);
 bool darwinIsToolbarVisible(NativeNSWindowRef pWindow);
 bool darwinIsWindowMaximized(NativeNSWindowRef pWindow);
 void darwinMinaturizeWindow(NativeNSWindowRef pWindow);
+void darwinEnableFullscreenSupport(NativeNSWindowRef pWindow);
+void darwinEnableTransienceSupport(NativeNSWindowRef pWindow);
+void darwinToggleFullscreenMode(NativeNSWindowRef pWindow);
+bool darwinIsInFullscreenMode(NativeNSWindowRef pWindow);
+bool darwinScreensHaveSeparateSpaces();
 
 bool darwinOpenFile(NativeNSStringRef pstrFile);
 
@@ -238,6 +244,10 @@ int  darwinWindowToolBarHeight(QWidget *pWidget);
 bool darwinIsToolbarVisible(QToolBar *pToolBar);
 bool darwinIsWindowMaximized(QWidget *pWidget);
 void darwinMinaturizeWindow(QWidget *pWidget);
+void darwinEnableFullscreenSupport(QWidget *pWidget);
+void darwinEnableTransienceSupport(QWidget *pWidget);
+void darwinToggleFullscreenMode(QWidget *pWidget);
+bool darwinIsInFullscreenMode(QWidget *pWidget);
 bool darwinOpenFile(const QString &strFile);
 
 QString darwinSystemLanguage(void);

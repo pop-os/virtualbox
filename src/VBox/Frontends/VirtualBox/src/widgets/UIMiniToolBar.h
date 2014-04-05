@@ -53,13 +53,18 @@ class UIRuntimeMiniToolBar : public QWidget
 signals:
 
     /* Notifiers: Action stuff: */
+#ifndef RT_OS_DARWIN
     void sigMinimizeAction();
+#endif /* !RT_OS_DARWIN */
     void sigExitAction();
     void sigCloseAction();
 
     /* Notifiers: Hover stuff: */
     void sigHoverEnter();
     void sigHoverLeave();
+
+    /** Notifies listeners about we stole focus. */
+    void sigNotifyAboutFocusStolen();
 
 public:
 
@@ -107,6 +112,10 @@ private:
     void enterEvent(QEvent *pEvent);
     void leaveEvent(QEvent *pEvent);
 
+    /** Filters @a pEvent if <i>this</i> object has been
+      * installed as an event-filter for the @a pWatched. */
+    bool eventFilter(QObject *pWatched, QEvent *pEvent);
+
     /* Helper: Hover stuff: */
     void updateAutoHideAnimationBounds();
     void simulateToolbarAutoHiding();
@@ -151,7 +160,9 @@ signals:
 
     /* Notifiers: Action stuff: */
     void sigAutoHideToggled();
+#ifndef RT_OS_DARWIN
     void sigMinimizeAction();
+#endif /* !RT_OS_DARWIN */
     void sigExitAction();
     void sigCloseAction();
 
@@ -201,7 +212,9 @@ private:
     /* Variables: Contents stuff: */
     QAction *m_pAutoHideAction;
     QLabel *m_pLabel;
+#ifndef RT_OS_DARWIN
     QAction *m_pMinimizeAction;
+#endif /* !RT_OS_DARWIN */
     QAction *m_pRestoreAction;
     QAction *m_pCloseAction;
 

@@ -349,6 +349,16 @@ void UISession::powerUp()
                  : "disabled"));
 #endif
 
+/* Check if HID LEDs sync is enabled and add a log message about it. */
+#if defined(Q_WS_MAC) || defined(Q_WS_WIN)
+    if(uimachine()->machineLogic()->isHidLedsSyncEnabled())
+        LogRel(("HID LEDs sync is enabled.\n"));
+    else
+        LogRel(("HID LEDs sync is disabled.\n"));
+#else
+    LogRel(("HID LEDs sync is not supported on this platform.\n"));
+#endif
+
 #ifdef VBOX_GUI_WITH_PIDFILE
     vboxGlobal().createPidfile();
 #endif
@@ -654,38 +664,6 @@ void UISession::sltInstallGuestAdditionsFrom(const QString &strSource)
     }
 }
 
-void UISession::sltChangeVisualStateToNormal()
-{
-    /* Reset requests: */
-    setRequestedVisualState(UIVisualStateType_Invalid);
-    /* Request change: */
-    m_pMachine->asyncChangeVisualState(UIVisualStateType_Normal);
-}
-
-void UISession::sltChangeVisualStateToFullscreen()
-{
-    /* Reset requests: */
-    setRequestedVisualState(UIVisualStateType_Invalid);
-    /* Request change: */
-    m_pMachine->asyncChangeVisualState(UIVisualStateType_Fullscreen);
-}
-
-void UISession::sltChangeVisualStateToSeamless()
-{
-    /* Reset requests: */
-    setRequestedVisualState(UIVisualStateType_Invalid);
-    /* Request change: */
-    m_pMachine->asyncChangeVisualState(UIVisualStateType_Seamless);
-}
-
-void UISession::sltChangeVisualStateToScale()
-{
-    /* Reset requests: */
-    setRequestedVisualState(UIVisualStateType_Invalid);
-    /* Request change: */
-    m_pMachine->asyncChangeVisualState(UIVisualStateType_Scale);
-}
-
 void UISession::sltCloseRuntimeUI()
 {
     /* First, we have to hide any opened modal/popup widgets.
@@ -842,11 +820,9 @@ void UISession::sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, 
     /* Ignore KGuestMonitorChangedEventType_NewOrigin change event: */
     if (changeType == KGuestMonitorChangedEventType_NewOrigin)
         return;
-    /* Ignore KGuestMonitorChangedEventType_Disabled event if there is only one window visible: */
+    /* Ignore KGuestMonitorChangedEventType_Disabled event for primary screen: */
     AssertMsg(countOfVisibleWindows() > 0, ("All machine windows are hidden!"));
-    if (   changeType == KGuestMonitorChangedEventType_Disabled
-        && countOfVisibleWindows() == 1
-        && isScreenVisible(uScreenId))
+    if (changeType == KGuestMonitorChangedEventType_Disabled && uScreenId == 0)
         return;
 
     /* Process KGuestMonitorChangedEventType_Enabled change event: */

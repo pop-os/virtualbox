@@ -3154,62 +3154,68 @@ alice = {
   </sect1>
 
   <sect1 id="hostpowertweaks">
-    <title>Handling of host power management events</title>
+    <title>Prise en charge des événements de gestion de l'énergie de l'hôte</title>
 
-    <para>Some host power management events are handled by VirtualBox. The
-    actual behavior depends on the platform:</para>
+    <para>Certains événements de la gestion d'énergie de l'hôte sont gérés par 
+    VirtualBox. Le comportement dépend en fait de la plateforme :</para>
 
     <para>
       <glosslist>
         <glossentry>
-          <glossterm>Host Suspends</glossterm>
+          <glossterm>Mise en veille prolongée de l'hôte</glossterm>
            <glossdef>
              <para>
-               This event is generated when the host is about to suspend, that is,
-               the host saves the state to some non-volatile storage and powers off.
+               Cet événement est généré quand l'hîte va se mettre en veille prolongée,
+               c'est-à-dire quand l'hôte sauvegarde son état sur un support
+               de stockage non volatile puis s'éteint.
              </para>
              <para>
-               This event is currently only handled on Windows hosts and Mac OS X hosts.
-               When this event is generated, VirtualBox will pause all running VMs.
+               Cet événement n'est actuellement géré que sur les hôtes Windows 
+               et Mac OS X. Quand il est généré, VirtualBox mettra en pause toutes
+               les VMs en fonction.
              </para>
            </glossdef>
          </glossentry>
          <glossentry>
-           <glossterm>Host Resumes</glossterm>
+           <glossterm>Réveil de l'hôte</glossterm>
            <glossdef>
              <para>
-               This event is generated when the host woke up from the suspended
-               state.
+               Cet événement est généré lorsque l'hôte sort d'une mise en veille
+               prolongée.
              </para>
              <para>
-               This event is currently only handled on Windows hosts and Mac OS X hosts.
-               When this event is generated, VirtualBox will resume all VMs which
-               are where paused before.
+               Cet événement n'est actuellement géré que sur les hôtes Windows 
+               et Mac OS X.
+               Quand cet événement est généré, VirtualBox réveillera les VMs qui
+               ont été mises en pause. 
              </para>
            </glossdef>
          </glossentry>
          <glossentry>
-           <glossterm>Battery Low</glossterm>
+           <glossterm>Batterie faible</glossterm>
            <glossdef>
              <para>
-               The battery level reached a critical level (usually less than 5
-               percent charged).
+               Le niveau de la batterie a atteint un seuil critique (en général
+               moins de 5 pour cent de sa charge).
              </para>
              <para>
-               This event is currently only handled on Windows hosts and Mac OS X hosts.
-               When this event is generated, VirtualBox will save the state and
-               terminate all VMs in preperation of a potential host powerdown.
-             </para>
-             <para>The behavior can be configured. By executing the following command,
-             no VM is saved:</para>
+               Cet événement n'est actuellement géré que sur les hôtes Windows 
+               et Mac OS X.
+               Quand cet événement est généré, VirtualBox sauvegardera l'état et
+               terminera toutes les VMs pour préparer une coupure potentielle de
+               l'hôte 
+         </para>
+             <para>Ce comportement est configurable. En utilisant la commande
+             suivante, aucune VM n'est sauvegardé :</para>
              <screen>VBoxManage setextradata global "VBoxInternal2/SavestateOnBatteryLow" 0</screen>
-             <para>This is a global setting as well as a per-VM setting. The per-VM
-               value has higher precedence than the global value. The following command
-               will save the state of all VMs but will not save the state of VM "foo":</para>
+             <para>Il s'agit d'un réglage global ou individuel aux VMs. La valeur
+               individuelle à une VM est prioritaire sur celle globale. La commande
+               suivante sauvegardera l'état de toutes les VMs, sauf celui de la VM
+               "foo" :</para>
              <screen>VBoxManage setextradata global "VBoxInternal2/SavestateOnBatteryLow" 1
 VBoxManage setextradata "foo" "VBoxInternal2/SavestateOnBatteryLow" 0</screen>
-             <para>The first line is actually not required as by default the savestate
-             action is performed.</para>
+             <para>La première ligne n'est pas vraiment obligatoire puisque par
+             défaut, c'est une sauvegarde qui est effectuée.</para>
            </glossdef>
          </glossentry>
        </glosslist>
@@ -3218,33 +3224,35 @@ VBoxManage setextradata "foo" "VBoxInternal2/SavestateOnBatteryLow" 0</screen>
    </sect1>
 
    <sect1 id="sse412passthrough">
-     <title>Experimental support for passing through SSE4.1 / SSE4.2 instructions</title>
+     <title>Support expérimental du passage par des instructions SSE4.1 / SSE4.2</title>
      <para>
-       To provide SSE 4.1 / SSE 4.2 support to guests, the host CPU has to
-       implement these instruction sets. Starting with VirtualBox 4.3.8 it is
-       possible to enable these instructions for certain guests using the
-       following commands:</para><screen>VBoxManage setextradata "VM name" VBoxInternal/CPUM/SSE4.1 1
-VBoxManage setextradata "VM name" VBoxInternal/CPUM/SSE4.2 1</screen>
+       Pour offrir le support des SSE 4.1 / SSE 4.2 aux invités, le processeur
+       de vhôte doit gérer ces jeux d'instructions. A partir de VirtualBox 4.3.8,
+       il est possible d'activer ces instructions pour les invités en utilisant
+       les commandes suivantes :</para><screen>VBoxManage setextradata "VM name" VBoxInternal/CPUM/SSE4.1 1
+VBoxManage setextradata "nom VM" VBoxInternal/CPUM/SSE4.2 1</screen>
      <para>
-       These are a per-VM settings and they are turned off by default.
+       Ces paramètres se règlent par VM et sont désactivés par défaut.
      </para>
    </sect1>
 
   <sect1 id="hidledssync">
-    <title>Support for keyboard indicators synchronization</title>
+    <title>Support de la synchronization des indicateurs du clavier</title>
 
     <para>
-      This feature makes the host keyboard lights match those of the virtual machine's virtual
-      keyboard when the machine window is selected. It is currently implemented for Mac OS X and
-      Windows hosts and available as of releases 4.2.24 and 4.3.8. The feature can be enabled using
-      the following command:
+      Cette fonction permet aux diodes du clavier de correspondre à celles du
+      clavier de la machine virtuelle quand la fenêtre de la machine est active.
+      Elle est supportée pour l'instant sur les hôtes Mac OS X et Windows et
+      elle est disponible à partir des versions 4.2.24 et 4.3.8. Vous pouvez
+      activer cette fonction en utilisant la commande suivante :
     </para>
 
-    <screen>VBoxManage setextradata "VM name" GUI/HidLedsSync "1"</screen>
+    <screen>VBoxManage setextradata "nom VM" GUI/HidLedsSync "1"</screen>
 
     <para>
-      In order to disable it, use the same command but change "1" to "0", or use the VBoxManage
-      command to remove the extra data. This is a per-VM setting and it is disabled by default.
+      Pour la désactiver, utilisez  la même commande mais passez "1" à "0", ou
+      utilisez la commande VBoxManage pour supprimer les données supplémentaires.
+      C'est un paramètre par VM et désactivé par défaut.
     </para>
 
   </sect1>

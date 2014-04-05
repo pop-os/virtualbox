@@ -5455,6 +5455,8 @@ static DECLCALLBACK(int) vgaR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint
 static DECLCALLBACK(int) vgaR3LoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
 #ifdef VBOX_WITH_HGSMI
+    PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
+    VBVAPause(pThis, (pThis->vbe_regs[VBE_DISPI_INDEX_ENABLE] & VBE_DISPI_ENABLED) == 0);
     return vboxVBVALoadStateDone(pDevIns, pSSM);
 #else
     return VINF_SUCCESS;
@@ -5473,6 +5475,9 @@ static DECLCALLBACK(void)  vgaR3Reset(PPDMDEVINS pDevIns)
     char           *pchStart;
     char           *pchEnd;
     LogFlow(("vgaReset\n"));
+
+    if (pThis->pVdma)
+        vboxVDMAReset(pThis->pVdma);
 
 #ifdef VBOX_WITH_HGSMI
     VBVAReset(pThis);
@@ -5924,6 +5929,7 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     pThis->IVBVACallbacks.pfnCrHgsmiControlCompleteAsync = vboxVDMACrHgsmiControlCompleteAsync;
 # endif
 #endif
+    pThis->IVBVACallbacks.pfnCrCtlSubmit = vboxCmdVBVACmdHostCtl;
 
     /*
      * We use our own critical section to avoid unncessary pointer indirections

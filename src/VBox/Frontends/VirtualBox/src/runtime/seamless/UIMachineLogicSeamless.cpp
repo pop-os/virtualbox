@@ -81,9 +81,9 @@ void UIMachineLogicSeamless::maybeAdjustGuestScreenSize()
 {
     /* We should rebuild screen-layout: */
     m_pScreenLayout->rebuild();
-    /* We should update machine-windows sizes: */
+    /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
-        pMachineWindow->handleScreenGeometryChange();
+        pMachineWindow->showInNecessaryMode();
 }
 
 int UIMachineLogicSeamless::hostScreenForGuestScreen(int iScreenId) const
@@ -139,10 +139,17 @@ void UIMachineLogicSeamless::sltMachineStateChanged()
         uisession()->forgetPreviousMachineState();
         /* We should rebuild screen-layout: */
         m_pScreenLayout->rebuild();
-        /* We should update machine-windows sizes: */
+        /* Make sure all machine-window(s) have proper geometry: */
         foreach (UIMachineWindow *pMachineWindow, machineWindows())
-            pMachineWindow->handleScreenGeometryChange();
+            pMachineWindow->showInNecessaryMode();
     }
+}
+
+void UIMachineLogicSeamless::sltScreenLayoutChanged()
+{
+    /* Make sure all machine-window(s) have proper geometry: */
+    foreach (UIMachineWindow *pMachineWindow, machineWindows())
+        pMachineWindow->showInNecessaryMode();
 }
 
 void UIMachineLogicSeamless::sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo)
@@ -199,11 +206,11 @@ void UIMachineLogicSeamless::prepareActionConnections()
 
     /* "View" actions connections: */
     connect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
-            uisession(), SLOT(sltChangeVisualStateToNormal()));
+            this, SLOT(sltChangeVisualStateToNormal()));
     connect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
-            uisession(), SLOT(sltChangeVisualStateToFullscreen()));
+            this, SLOT(sltChangeVisualStateToFullscreen()));
     connect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
-            uisession(), SLOT(sltChangeVisualStateToScale()));
+            this, SLOT(sltChangeVisualStateToScale()));
 }
 
 void UIMachineLogicSeamless::prepareMachineWindows()
@@ -212,23 +219,22 @@ void UIMachineLogicSeamless::prepareMachineWindows()
     if (isMachineWindowsCreated())
         return;
 
-#ifdef Q_WS_MAC // TODO: Is that really need here?
+#ifdef Q_WS_MAC
     /* We have to make sure that we are getting the front most process.
      * This is necessary for Qt versions > 4.3.3: */
-    ::darwinSetFrontMostProcess();
+    darwinSetFrontMostProcess();
 #endif /* Q_WS_MAC */
 
     /* Update the multi-screen layout: */
     m_pScreenLayout->update();
 
-    /* Create machine window(s): */
+    /* Create machine-window(s): */
     for (uint cScreenId = 0; cScreenId < session().GetMachine().GetMonitorCount(); ++cScreenId)
         addMachineWindow(UIMachineWindow::create(this, cScreenId));
 
     /* Connect multi-screen layout change handler: */
-    for (int i = 0; i < machineWindows().size(); ++i)
-        connect(m_pScreenLayout, SIGNAL(sigScreenLayoutChanged()),
-                static_cast<UIMachineWindowSeamless*>(machineWindows()[i]), SLOT(sltShowInNecessaryMode()));
+    connect(m_pScreenLayout, SIGNAL(sigScreenLayoutChanged()),
+            this, SLOT(sltScreenLayoutChanged()));
 
     /* Mark machine-window(s) created: */
     setMachineWindowsCreated(true);
@@ -253,7 +259,7 @@ void UIMachineLogicSeamless::cleanupMachineWindows()
     /* Mark machine-window(s) destroyed: */
     setMachineWindowsCreated(false);
 
-    /* Cleanup machine-window(s): */
+    /* Destroy machine-window(s): */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
         UIMachineWindow::destroy(pMachineWindow);
 }
@@ -262,11 +268,11 @@ void UIMachineLogicSeamless::cleanupActionConnections()
 {
     /* "View" actions disconnections: */
     disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
-               uisession(), SLOT(sltChangeVisualStateToNormal()));
+               this, SLOT(sltChangeVisualStateToNormal()));
     disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
-               uisession(), SLOT(sltChangeVisualStateToFullscreen()));
+               this, SLOT(sltChangeVisualStateToFullscreen()));
     disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
-               uisession(), SLOT(sltChangeVisualStateToScale()));
+               this, SLOT(sltChangeVisualStateToScale()));
 
     /* Call to base-class: */
     UIMachineLogic::cleanupActionConnections();

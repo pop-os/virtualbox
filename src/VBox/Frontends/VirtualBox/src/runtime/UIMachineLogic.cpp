@@ -55,6 +55,7 @@
 #include "UIConverter.h"
 #include "UIModalWindowManager.h"
 #include "UIMedium.h"
+#include "UIExtraDataEventHandler.h"
 #ifdef Q_WS_MAC
 # include "DockIconPreview.h"
 # include "UIExtraDataEventHandler.h"
@@ -398,6 +399,30 @@ void UIMachineLogic::notifyAbout3DOverlayVisibilityChange(bool fVisible)
     }
 }
 
+void UIMachineLogic::sltChangeVisualStateToNormal()
+{
+    uisession()->setRequestedVisualState(UIVisualStateType_Invalid);
+    uisession()->changeVisualState(UIVisualStateType_Normal);
+}
+
+void UIMachineLogic::sltChangeVisualStateToFullscreen()
+{
+    uisession()->setRequestedVisualState(UIVisualStateType_Invalid);
+    uisession()->changeVisualState(UIVisualStateType_Fullscreen);
+}
+
+void UIMachineLogic::sltChangeVisualStateToSeamless()
+{
+    uisession()->setRequestedVisualState(UIVisualStateType_Invalid);
+    uisession()->changeVisualState(UIVisualStateType_Seamless);
+}
+
+void UIMachineLogic::sltChangeVisualStateToScale()
+{
+    uisession()->setRequestedVisualState(UIVisualStateType_Invalid);
+    uisession()->changeVisualState(UIVisualStateType_Scale);
+}
+
 void UIMachineLogic::sltMachineStateChanged()
 {
     /* Get machine state: */
@@ -510,6 +535,11 @@ void UIMachineLogic::sltMouseCapabilityChanged()
         pAction->setChecked(false);
 }
 
+void UIMachineLogic::sltHidLedsSyncStateChanged(bool fEnabled)
+{
+    m_isHidLedsSyncEnabled = fEnabled;
+}
+
 void UIMachineLogic::sltKeyboardLedsChanged()
 {
     /* Here we have to update host LED lock states using values provided by UISession:
@@ -572,25 +602,29 @@ void UIMachineLogic::sltShowWindows()
 
 void UIMachineLogic::sltGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)
 {
-    /* Deliver event to all machine-windows: */
+    LogRel(("UIMachineLogic: Guest-screen count changed.\n"));
+
+    /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
-        pMachineWindow->handleScreenCountChange();
+        pMachineWindow->showInNecessaryMode();
 }
 
 void UIMachineLogic::sltHostScreenCountChanged()
 {
-    /* Deliver event to all machine-windows: */
+    LogRel(("UIMachineLogic: Host-screen count changed.\n"));
+
+    /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
-        pMachineWindow->handleScreenCountChange();
+        pMachineWindow->showInNecessaryMode();
 }
 
 void UIMachineLogic::sltHostScreenGeometryChanged()
 {
-    LogRelFlow(("UIMachineLogic: Host-screen geometry changed.\n"));
+    LogRel(("UIMachineLogic: Host-screen geometry changed.\n"));
 
-    /* Deliver event to all machine-windows: */
+    /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
-        pMachineWindow->handleScreenGeometryChange();
+        pMachineWindow->showInNecessaryMode();
 }
 
 UIMachineLogic::UIMachineLogic(QObject *pParent, UISession *pSession, UIVisualStateType visualStateType)
@@ -618,7 +652,28 @@ UIMachineLogic::UIMachineLogic(QObject *pParent, UISession *pSession, UIVisualSt
     , m_DockIconPreviewMonitor(0)
 #endif /* Q_WS_MAC */
     , m_pHostLedsState(NULL)
+    , m_isHidLedsSyncEnabled(false)
 {
+    /* Setup HID LEDs synchronization. */
+#if defined(Q_WS_MAC) || defined(Q_WS_WIN)
+    /* Read initial extradata value. */
+    QString strHidLedsSyncSettings = session().GetMachine().GetExtraData(GUI_HidLedsSync);
+
+    /* If extra data GUI/HidLedsSync is not present in VM config or set
+     * to 1 then sync is enabled. Otherwise, it is disabled. */
+
+    /* (temporary disabled by default) */
+    if (strHidLedsSyncSettings == "1")
+        m_isHidLedsSyncEnabled = true;
+    else
+        m_isHidLedsSyncEnabled = false;
+
+    /* Subscribe to GUI_HidLedsSync extradata changes in order to
+     * be able to enable or disable feature dynamically. */
+    connect(gEDataEvents, SIGNAL(sigHidLedsSyncStateChanged(bool)), this, SLOT(sltHidLedsSyncStateChanged(bool)));
+#else
+    m_isHidLedsSyncEnabled = false;
+#endif
 }
 
 void UIMachineLogic::setMachineWindowsCreated(bool fIsWindowsCreated)
@@ -689,14 +744,6 @@ void UIMachineLogic::retranslateUi()
         foreach (QAction *pAction, m_pDragAndDropActions->actions())
             pAction->setText(gpConverter->toString(pAction->data().value<KDragAndDropMode>()));
     }
-}
-
-bool UIMachineLogic::isHidLedsSyncEnabled()
-{
-    QString strHidLedsSyncSettings = session().GetMachine().GetExtraData(GUI_HidLedsSync);
-    if (strHidLedsSyncSettings == "1")
-        return true;
-    return false;
 }
 
 #ifdef Q_WS_MAC
